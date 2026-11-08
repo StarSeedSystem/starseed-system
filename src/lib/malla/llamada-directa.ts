@@ -325,6 +325,10 @@ export function asegurarEscuchaLlamadas(): void {
       })
       .catch(() => undefined);
   }
+  // (LLA1108D) En la app, la llamada también es una llamada del teléfono (aviso, audio, proximidad). No-op en la web.
+  if (typeof window !== "undefined" && typeof document !== "undefined") {
+    void import("@/lib/llamadas/nativa/puente-llamada-nativa").then((m) => m.conectarLlamadaNativa()).catch(() => undefined);
+  }
 }
 
 /**

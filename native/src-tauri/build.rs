@@ -17,6 +17,9 @@ mod android_ble;
 // (WFD1108A) Enlace Wi-Fi directo: permisos, proveedor y EnlaceWifiDirecto.kt en el proyecto Android.
 #[path = "src/enlace_wifi_parche.rs"]
 mod enlace_wifi_parche;
+// (LLA1108D) Las llamadas como llamadas del teléfono: permisos, componentes y LlamadaNativaStarSeed.kt.
+#[path = "src/llamada_nativa_parche.rs"]
+mod llamada_nativa_parche;
 
 /// Comandos propios de la app (los de `generate_handler!` de src/lib.rs). Desde tauri 2.11.1 una
 /// página de un origen REMOTO (la web publicada, y también el servidor local http://127.0.0.1:47610…)
@@ -104,6 +107,13 @@ const COMANDOS_APP: &[&str] = &[
     "enlace_wifi_estado",
     "enlace_wifi_cerrar",
     "enlace_wifi_comprobar",
+    // (LLA1108D) Las llamadas como llamadas del teléfono (Android; en macOS no duerme; en el resto, no-op).
+    "llamada_nativa_iniciar",
+    "llamada_nativa_estado",
+    "llamada_nativa_ruta_audio",
+    "llamada_nativa_proximidad",
+    "llamada_nativa_capacidades",
+    "llamada_nativa_permiso",
     // Solo escritorio (su permiso existe en todas, pero solo se registran en escritorio).
     "ventanas_prestables",
     "capturar_ventana",
@@ -130,6 +140,7 @@ fn main() {
     servidor_local_android();
     actualizador_android();
     enlace_wifi_android(); // (WFD1108A)
+    llamadas_nativas_android(); // (LLA1108D)
     // (BLE1108A) Siempre el último: su bloque del manifiesto va detrás de los otros (mismo orden, mismo archivo).
     bluetooth_android();
     tauri_build::try_build(
@@ -344,5 +355,41 @@ fn enlace_wifi_android() {
         }
         // Falla en alto: un APK que dice abrir la red directa y no tiene ni el permiso sería una ilusión.
         Err(e) => panic!("[starseed] No se pudo inyectar el enlace Wi-Fi directo en Android: {e}. Para compilar sin él: STARSEED_SIN_ENLACE_WIFI_ANDROID=1"),
+    }
+}
+
+/// (LLA1108D) Las llamadas de StarSeed como llamadas del teléfono: permisos (con su porqué), cuenta de
+/// Telecom autogestionada, servicio en primer plano `phoneCall`, aviso CallStyle y LlamadaNativaStarSeed.kt
+/// en el proyecto que genera `cargo tauri android init`. Solo StarSeed OS. Contrato
+/// architecture/llamadas-telefonia.md § «Integración nativa». `STARSEED_SIN_LLAMADAS_NATIVAS_ANDROID=1` lo apaga.
+fn llamadas_nativas_android() {
+    println!("cargo:rerun-if-changed=src/llamada_nativa_parche.rs");
+    println!("cargo:rerun-if-env-changed=STARSEED_SIN_LLAMADAS_NATIVAS_ANDROID");
+    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() != Ok("android") {
+        return;
+    }
+    // Interruptor de emergencia: sin él el APK sale como antes (la llamada vive solo en la ventana).
+    if llamada_nativa_parche::apagado(std::env::var("STARSEED_SIN_LLAMADAS_NATIVAS_ANDROID").ok().as_deref()) {
+        println!("cargo:warning=[starseed] STARSEED_SIN_LLAMADAS_NATIVAS_ANDROID: el APK sale SIN llamadas nativas.");
+        return;
+    }
+    let paquete = std::env::var("TAURI_ANDROID_PACKAGE_UNESCAPED")
+        .or_else(|_| std::env::var("WRY_ANDROID_PACKAGE"))
+        .unwrap_or_default();
+    if !llamada_nativa_parche::aplica(&paquete) {
+        return;
+    }
+    let Some(proyecto) = std::env::var_os("TAURI_ANDROID_PROJECT_PATH").map(std::path::PathBuf::from) else {
+        println!("cargo:warning=[starseed] Sin TAURI_ANDROID_PROJECT_PATH: el APK sale SIN llamadas nativas.");
+        return;
+    };
+    match llamada_nativa_parche::aplicar(&proyecto) {
+        Ok(cambiados) => {
+            for c in cambiados {
+                println!("cargo:warning=[starseed] llamadas nativas: escrito {}", c.display());
+            }
+        }
+        // Falla en alto: un APK que dice contestar llamadas como el teléfono y no declara ni el servicio sería una ilusión.
+        Err(e) => panic!("[starseed] No se pudo inyectar las llamadas nativas en Android: {e}. Para compilar sin ellas: STARSEED_SIN_LLAMADAS_NATIVAS_ANDROID=1"),
     }
 }

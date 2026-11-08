@@ -14,7 +14,7 @@
  */
 
 export type SistemaAsistente = "macos" | "android";
-export type IdPermiso = "bluetooth" | "red-local" | "notificaciones" | "microfono" | "camara" | "ubicacion-wifi" | "cercanos" | "instalar" | "bateria";
+export type IdPermiso = "bluetooth" | "red-local" | "notificaciones" | "microfono" | "camara" | "ubicacion-wifi" | "cercanos" | "llamadas" | "instalar" | "bateria";
 export type ResultadoPermiso = "concedido" | "denegado" | "omitido" | "no-disponible";
 
 export interface DefPermiso {
@@ -29,7 +29,7 @@ export interface DefPermiso {
 }
 
 /** Sube cuando se AÑADE un permiso al catálogo (no cuando cambia un texto). */
-export const VERSION_ASISTENTE = 1;
+export const VERSION_ASISTENTE = 2;
 export const CLAVE_PERMISOS_INICIO = "starseed.permisos-inicio.v1";
 export const EVENTO_ABRIR_ASISTENTE = "starseed:permisos-inicio-abrir";
 
@@ -70,6 +70,13 @@ const CATALOGO: Record<IdPermiso, Omit<DefPermiso, "id">> = {
     porQue: "Para buscar, anunciarse y conectar por Bluetooth y abrir la red Wi-Fi directa entre tus aparatos. StarSeed no usa tu ubicación.",
     desde: 1,
   },
+  // (LLA1108D) v2: las llamadas como llamadas del teléfono. Solo Android 14+ lo pide de verdad; antes se da por hecho.
+  llamadas: {
+    titulo: "Llamadas sobre la pantalla de bloqueo",
+    porQue: "Para que una llamada de StarSeed aparezca a pantalla completa con el teléfono bloqueado. Sin esto llega como aviso emergente.",
+    desde: 2,
+    opcional: true,
+  },
   instalar: {
     titulo: "Instalar apps desconocidas",
     porQue: "Para que la app se actualice sola desde el canal de StarSeed (la firma se comprueba antes).",
@@ -87,7 +94,7 @@ const CATALOGO: Record<IdPermiso, Omit<DefPermiso, "id">> = {
 const ORDEN: Record<SistemaAsistente, IdPermiso[]> = {
   // Orden de macOS: lo que más importa (la malla) primero y lo que abre un aviso del sistema, de uno en uno.
   macos: ["bluetooth", "red-local", "notificaciones", "microfono", "camara", "ubicacion-wifi"],
-  android: ["cercanos", "notificaciones", "microfono", "camara", "instalar", "bateria"],
+  android: ["cercanos", "notificaciones", "microfono", "camara", "llamadas", "instalar", "bateria"],
 };
 
 /** Windows y Linux: el sistema pregunta al usarlo (no hay nada que pedir de antemano). */

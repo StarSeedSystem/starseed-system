@@ -26,8 +26,8 @@ describe("catálogo por sistema (PER1108A)", () => {
   it("macOS: Bluetooth, red local, notificaciones, micrófono, cámara y ubicación de Wi-Fi", () => {
     expect(catalogoDe("macos").map((d) => d.id)).toEqual(["bluetooth", "red-local", "notificaciones", "microfono", "camara", "ubicacion-wifi"]);
   });
-  it("Android: Dispositivos cercanos, notificaciones, micrófono, cámara, instalar y batería", () => {
-    expect(catalogoDe("android").map((d) => d.id)).toEqual(["cercanos", "notificaciones", "microfono", "camara", "instalar", "bateria"]);
+  it("Android: Dispositivos cercanos, notificaciones, micrófono, cámara, llamadas sobre el bloqueo, instalar y batería", () => {
+    expect(catalogoDe("android").map((d) => d.id)).toEqual(["cercanos", "notificaciones", "microfono", "camara", "llamadas", "instalar", "bateria"]);
   });
   it("cada permiso explica el porqué en una línea y la batería/instalar/ubicación son opcionales", () => {
     for (const s of ["macos", "android"] as const) {
@@ -37,7 +37,7 @@ describe("catálogo por sistema (PER1108A)", () => {
         expect(d.desde).toBeLessThanOrEqual(VERSION_ASISTENTE);
       }
     }
-    expect(catalogoDe("android").filter((d) => d.opcional).map((d) => d.id)).toEqual(["instalar", "bateria"]);
+    expect(catalogoDe("android").filter((d) => d.opcional).map((d) => d.id)).toEqual(["llamadas", "instalar", "bateria"]);
     expect(catalogoDe("macos").filter((d) => d.opcional).map((d) => d.id)).toEqual(["ubicacion-wifi"]);
   });
   it("solo macOS y Android tienen asistente", () => {
@@ -70,7 +70,7 @@ describe("versión: solo se vuelve a abrir por permisos nuevos", () => {
   it("desde Ajustes se repasan todos aunque ya estén vistos", () => {
     const e = aplicar(abrirAsistente("android", GUARDADO_VACIO), { t: "omitir-todo" });
     const g = guardadoTras(GUARDADO_VACIO, e);
-    expect(abrirAsistente("android", g, true).cola).toHaveLength(6);
+    expect(abrirAsistente("android", g, true).cola).toHaveLength(7);
   });
 });
 
@@ -169,7 +169,8 @@ describe("contrato Rust ↔ web", () => {
   const kt = readFileSync(join(process.cwd(), "native/src-tauri/android/ArranqueStarSeed.kt"), "utf8");
   it("Rust y Kotlin saben los mismos permisos de Android", () => {
     const lista = rs.match(/PERMISOS_ANDROID: \[&str; \d+\] = \[([^\]]*)\]/)![1].match(/"([a-z]+)"/g)!.map((x) => x.replace(/"/g, ""));
-    const web = catalogoDe("android").map((d) => d.id).filter((id) => id !== "cercanos");
+    // «cercanos» y «llamadas» tienen su propio camino (ble/enlace_wifi y llamada_nativa_*), no `permisos_inicio_pedir`.
+    const web = catalogoDe("android").map((d) => d.id).filter((id) => id !== "cercanos" && id !== "llamadas");
     expect([...lista].sort()).toEqual([...web].sort());
     for (const id of lista.filter((x) => x !== "bateria")) expect(kt, id).toContain(`"${id}"`);
     expect(kt).toContain('removePrefix("permiso:")');

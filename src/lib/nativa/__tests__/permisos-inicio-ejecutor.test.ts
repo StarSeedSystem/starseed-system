@@ -3,6 +3,7 @@ import {
   esperarHasta,
   pedirPermisoInicio,
   resultadoBluetooth,
+  resultadoLlamadas,
   resultadoRedLocal,
   resultadoUbicacion,
   type DepsEjecutor,
@@ -134,6 +135,28 @@ describe("pedirPermisoInicio · Android", () => {
   it("instalar: si nunca lo concede, queda omitido (se abrió Ajustes y no volvió con él)", async () => {
     const { d } = falsos({}, { permisos_inicio_estado: [{ instalar_apps: false }] });
     expect(await pedirPermisoInicio("instalar", "android", d)).toBe("omitido");
+  });
+  it("llamadas (LLA1108D): Android 13 o anterior no pide nada", async () => {
+    const { d, llamadas } = falsos({}, { llamada_nativa_capacidades: [{ nativa: true, pantalla_completa: "no-aplica" }] });
+    expect(await pedirPermisoInicio("llamadas", "android", d)).toBe("concedido");
+    expect(llamadas).not.toContain("llamada_nativa_permiso");
+  });
+  it("llamadas: Android 14 abre Ajustes y espera a que vuelva con el permiso", async () => {
+    const { d, llamadas } = falsos({}, { llamada_nativa_capacidades: [{ nativa: true, pantalla_completa: "denegado" }, { nativa: true, pantalla_completa: "denegado" }, { nativa: true, pantalla_completa: "concedido" }] });
+    expect(await pedirPermisoInicio("llamadas", "android", d)).toBe("concedido");
+    expect(llamadas.filter((c) => c === "llamada_nativa_permiso")).toHaveLength(1);
+  });
+  it("llamadas: si nunca lo concede queda omitido; sin el módulo (APK viejo), no disponible", async () => {
+    const nunca = falsos({}, { llamada_nativa_capacidades: [{ nativa: true, pantalla_completa: "denegado" }] });
+    expect(await pedirPermisoInicio("llamadas", "android", nunca.d)).toBe("omitido");
+    const viejo = falsos({ llamar: async () => ({ ok: false, motivo: "x" }) });
+    expect(await pedirPermisoInicio("llamadas", "android", viejo.d)).toBe("no-disponible");
+  });
+  it("llamadas: la traducción del estado", () => {
+    expect(resultadoLlamadas({ nativa: true, pantalla_completa: "concedido" })).toBe("concedido");
+    expect(resultadoLlamadas({ nativa: true, pantalla_completa: "denegado" })).toBe("esperar");
+    expect(resultadoLlamadas({ nativa: false, pantalla_completa: "denegado" })).toBe("no-disponible");
+    expect(resultadoLlamadas(null)).toBe("no-disponible");
   });
   it("sin el comando (APK anterior): no disponible", async () => {
     const { d } = falsos({

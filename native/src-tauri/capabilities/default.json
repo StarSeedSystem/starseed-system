@@ -189,6 +189,12 @@
     "allow-enlace-wifi-unirse",
     "allow-enlace-wifi-estado",
     "allow-enlace-wifi-cerrar",
-    "allow-enlace-wifi-comprobar"
+    "allow-enlace-wifi-comprobar",
+    "allow-llamada-nativa-iniciar",
+    "allow-llamada-nativa-estado",
+    "allow-llamada-nativa-ruta-audio",
+    "allow-llamada-nativa-proximidad",
+    "allow-llamada-nativa-capacidades",
+    "allow-llamada-nativa-permiso"
   ]
 }

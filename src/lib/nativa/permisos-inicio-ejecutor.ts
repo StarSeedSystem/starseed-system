@@ -93,6 +93,35 @@ async function pedirCercanos(d: DepsEjecutor): Promise<ResultadoPermiso> {
   return "concedido";
 }
 
+/* ── Android: llamadas sobre el bloqueo (LLA1108D) ── */
+
+/**
+ * De las capacidades de las llamadas nativas al resultado del permiso de «pantalla completa». Android 14+ lo
+ * trata como ajuste especial («Notificaciones a pantalla completa»); antes, o en un aparato sin él, no hace falta. Pura.
+ */
+export function resultadoLlamadas(capacidades: unknown): ResultadoPermiso | "esperar" {
+  if (!capacidades || typeof capacidades !== "object") return "no-disponible";
+  const c = capacidades as { nativa?: unknown; pantalla_completa?: unknown };
+  if (c.nativa !== true) return "no-disponible";
+  if (c.pantalla_completa === "concedido" || c.pantalla_completa === "no-aplica") return "concedido";
+  return "esperar";
+}
+
+async function pedirLlamadas(d: DepsEjecutor): Promise<ResultadoPermiso> {
+  const leer = async (): Promise<unknown> => {
+    const r = await d.llamar("llamada_nativa_capacidades");
+    return r.ok ? r.valor : null;
+  };
+  const primera = resultadoLlamadas(await leer());
+  if (primera !== "esperar") return primera;
+  // Abre la pantalla de Ajustes de ese permiso; se espera a que la persona vuelva con él concedido.
+  await d.llamar("llamada_nativa_permiso");
+  const { valor, agotado } = await esperarHasta(leer, (c) => resultadoLlamadas(c) !== "esperar", d, ESPERA_AJUSTES);
+  if (agotado) return "omitido";
+  const r = resultadoLlamadas(valor);
+  return r === "esperar" ? "omitido" : r;
+}
+
 /* ── macOS: Ubicación (nombres de Wi-Fi) ── */
 
 export function resultadoUbicacion(permiso: unknown): ResultadoPermiso | "esperar" {
@@ -196,6 +225,7 @@ export async function pedirPermisoInicio(id: IdPermiso, sistema: "macos" | "andr
   try {
     if (sistema === "android") {
       if (id === "cercanos") return await pedirCercanos(d);
+      if (id === "llamadas") return await pedirLlamadas(d);
       return await pedirPorKotlin(d, id);
     }
     switch (id) {

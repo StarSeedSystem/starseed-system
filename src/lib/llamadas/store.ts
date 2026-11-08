@@ -122,6 +122,12 @@ export function __reiniciarLlamadas() {
     estado = INICIAL;
 }
 
+/* (LLA1108D) En la app, las llamadas por canal también son llamadas del teléfono (aviso, audio, proximidad).
+ * El enlace mira este almacén y el motor de la llamada; en la web normal no hace nada. */
+if (typeof window !== "undefined") {
+    void import("@/lib/llamadas/nativa/puente-llamada-nativa").then((m) => m.conectarLlamadaNativa()).catch(() => undefined);
+}
+
 /* ───────────────────────────── Hooks ───────────────────────────── */
 
 export function useLlamadas(): EstadoLlamadas {

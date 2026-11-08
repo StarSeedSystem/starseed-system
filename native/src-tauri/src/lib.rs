@@ -57,6 +57,9 @@ mod enlace_wifi_logica;
 #[cfg(target_os = "macos")]
 mod enlace_wifi_macos;
 mod faro;
+// (LLA1108D) Las llamadas como llamadas del teléfono: Telecom, aviso CallStyle, audio y proximidad (Android).
+mod llamada_nativa;
+mod llamada_nativa_logica;
 mod malla_local;
 mod malla_local_trama;
 mod nativa;
@@ -112,6 +115,9 @@ mod android_actualizador;
 mod android_ble;
 #[cfg(test)]
 mod enlace_wifi_parche;
+// (LLA1108D) Lo usa build.rs (permisos, componentes y LlamadaNativaStarSeed.kt en el proyecto Android); aquí solo sus pruebas.
+#[cfg(test)]
+mod llamada_nativa_parche;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Actualización automática INTELIGENTE del shell nativo (SOLO escritorio).
@@ -775,6 +781,13 @@ pub fn run() {
                 enlace_wifi::enlace_wifi_estado,
                 enlace_wifi::enlace_wifi_cerrar,
                 enlace_wifi::enlace_wifi_comprobar,
+                // (LLA1108D) Las llamadas como llamadas del teléfono.
+                llamada_nativa::llamada_nativa_iniciar,
+                llamada_nativa::llamada_nativa_estado,
+                llamada_nativa::llamada_nativa_ruta_audio,
+                llamada_nativa::llamada_nativa_proximidad,
+                llamada_nativa::llamada_nativa_capacidades,
+                llamada_nativa::llamada_nativa_permiso,
                 $($solo_desktop,)*
             ]);
         };
