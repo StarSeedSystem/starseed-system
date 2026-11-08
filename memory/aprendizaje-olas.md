@@ -6172,3 +6172,12 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 
 **Lo que quedó fuera, una por una:**
 - `DR1108-3` — pruebas en rojo: FAILED scripts/puente/test_imaginacion_contexto.py::test_el_dream_ejecuta_auto_refresh_de_modelos
+
+## 2026-11-08 12:53 · auto-1108-123327
+
+**Lo que se pidió.** `mapa-vias-datos.ts` … único sitio que hay que tocar cuando una fase aterriza
+
+**Resultado.** 1 de 2 integradas. 1 tarea se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `DR1108-3` — pruebas en rojo: FAILED scripts/puente/test_imaginacion_contexto.py::test_el_dream_ejecuta_auto_refresh_de_modelos
