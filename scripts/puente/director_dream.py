@@ -25,6 +25,7 @@ las puertas deciden.
 import argparse
 import json
 import os
+import re
 import sys
 import time
 
@@ -75,6 +76,68 @@ def anotar(claves):
         os.replace(tmp, MEMORIA)
     except Exception:
         pass
+
+
+PATRON_ID = re.compile(r"^DR(\d{4})-(\d+)$")
+
+
+def _leer_lista(ruta):
+    """Lista de tareas de una cola, o [] si no existe o no se lee."""
+    try:
+        with open(ruta, encoding="utf-8") as f:
+            datos = json.load(f)
+        return [t for t in datos if isinstance(t, dict)] if isinstance(datos, list) else []
+    except Exception:
+        return []
+
+
+def ids_del_dia(fecha, olas=None, fuente=None):
+    """(SUP0811F) Ids ya usados que pueden chocar con los de `fecha`.
+
+    El director corre al cerrar CADA ola, no una vez al día. El 08-11 corrió a las 00:22, 01:12
+    y 01:31, y cada pasada numeraba desde 1: la segunda reusó DR1108-1 y DR1108-2 y la tercera
+    DR1108-1. El orquestador encontró esos ids ya en «commit» y no cogió lo nuevo; el
+    DR1108-2 de la primera («Tres motores de permisos duplicados», en reintentos) pasó a ser
+    otra tarea, y la memoria los dio todos por encargados: tres propuestas perdidas sin que
+    nadie se enterara, y el enjambre parado desde las 01:31 con una propuesta nueva sin hacer.
+    Mira progreso.json, la cola del día y su copia en `colas-fuente/` (la higiene mueve allí
+    las colas cerradas). Las rutas se resuelven al llamar, no al cargar el módulo."""
+    olas = olas or OLAS
+    fuente = fuente or os.path.join(os.path.dirname(olas), "colas-fuente")
+    usados = set()
+    try:
+        with open(os.path.join(olas, "progreso.json"), encoding="utf-8") as f:
+            prog = json.load(f)
+        if isinstance(prog, dict):
+            usados.update(str(k) for k in prog)
+    except Exception:
+        pass
+    nombre = "cola-dream-%s.json" % fecha
+    for ruta in (os.path.join(olas, nombre), os.path.join(fuente, nombre)):
+        usados.update(str(t.get("id")) for t in _leer_lista(ruta) if t.get("id"))
+    return usados
+
+
+def primer_indice(fecha, usados):
+    """Cuántos DR<MMDD>-N lleva ya `fecha`: lo nuevo se numera detrás del mayor."""
+    dia = str(fecha).replace("-", "")[4:]
+    mayor = 0
+    for i in usados or ():
+        m = PATRON_ID.match(str(i))
+        if m and m.group(1) == dia:
+            mayor = max(mayor, int(m.group(2)))
+    return mayor
+
+
+def juntar_cola(previas, nuevas):
+    """La cola del día con lo de antes (puede seguir pendiente) y lo nuevo, sin repetir id.
+    Antes se reescribía entera y lo pendiente de la pasada anterior perdía su enunciado."""
+    vistos, salida = set(), []
+    for t in list(previas or []) + list(nuevas or []):
+        if isinstance(t, dict) and t.get("id") and t["id"] not in vistos:
+            vistos.add(t["id"])
+            salida.append(t)
+    return salida
 
 
 def tarea_de(p, fecha, i):
@@ -141,11 +204,15 @@ def main():
         print("\n(seco: no he escrito nada)")
         return 0
 
-    cola = [tarea_de(p, fecha, i) for i, p in enumerate(propuestas)]
+    # (SUP0811F) Detrás del mayor DR<MMDD>-N del día: el director corre al cerrar cada ola.
+    base = primer_indice(fecha, ids_del_dia(fecha))
+    cola = [tarea_de(p, fecha, base + i) for i, p in enumerate(propuestas)]
     destino = os.path.join(OLAS, "cola-dream-%s.json" % fecha)
     os.makedirs(OLAS, exist_ok=True)
-    with open(destino, "w", encoding="utf-8") as f:
-        json.dump(cola, f, ensure_ascii=False, indent=2)
+    tmp = destino + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(juntar_cola(_leer_lista(destino), cola), f, ensure_ascii=False, indent=2)
+    os.replace(tmp, destino)
     anotar([p["clave"] for p in propuestas])
     print("\nCola escrita: %s (%d tareas)" % (destino, len(cola)))
 

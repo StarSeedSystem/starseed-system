@@ -1,9 +1,14 @@
 # -*- coding: utf-8 -*-
 """Pruebas de director_dream.py: el que convierte la imaginación diaria en encargos."""
 
+import io
+import json
 import os
 import sys
+import tempfile
+import types
 import unittest
+from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -87,6 +92,96 @@ class TestTextosDeImaginacion(unittest.TestCase):
         t = DC.resumen([])
         self.assertTrue(t.startswith("Imaginación diaria leída: nada accionable"), t)
         self.assertNotIn("Dream", t)
+
+
+INFORME_1108 = """# Imaginación — Sugerencias 2026-11-08
+
+## Top 3 accionables
+
+1. **Pila de publicación atascada** — arreglar la cola de publicación, que no avanza.
+2. **Tres motores de permisos duplicados** — unificar `lib/senses` y `request-permission`.
+3. **discovery/scan sin paginación** — paginar la respuesta, que devuelve todo de golpe.
+"""
+
+
+class TestPrimerIndice(unittest.TestCase):
+    def test_solo_cuenta_los_del_mismo_dia(self):
+        usados = {"DR1108-1", "DR1108-7", "DR1107-9", "DR1", "SUP0811F", "DR1108-x"}
+        self.assertEqual(DD.primer_indice("2026-11-08", usados), 7)
+
+    def test_sin_nada_empieza_en_cero(self):
+        self.assertEqual(DD.primer_indice("2026-11-08", set()), 0)
+
+
+class TestVariasPasadasElMismoDia(unittest.TestCase):
+    """(SUP0811F) El director corre al cerrar CADA ola. El 08-11 corrió tres veces (00:22, 01:12 y
+    01:31) y cada pasada numeraba desde 1: el orquestador encontró los ids nuevos ya en «commit» y
+    tres propuestas se perdieron sin que nadie se enterara (y el enjambre se quedó sin trabajo)."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        raiz = self.tmp.name
+        self.dream = os.path.join(raiz, "starseed_memory_root", "dream")
+        self.olas = os.path.join(raiz, "starseed_memory_root", "olas")
+        os.makedirs(self.dream)
+        os.makedirs(self.olas)
+        with open(os.path.join(self.dream, "sugerencias-2026-11-08.md"), "w", encoding="utf-8") as f:
+            f.write(INFORME_1108)
+        self.parches = [
+            mock.patch.object(DD, "DREAM", self.dream),
+            mock.patch.object(DD, "OLAS", self.olas),
+            mock.patch.object(DD, "MEMORIA", os.path.join(raiz, "dream-encargado.json")),
+            # Nada de escribir en el canal de verdad.
+            mock.patch.dict(sys.modules, {"puente": types.SimpleNamespace(decir=lambda *a, **k: None)}),
+            mock.patch.object(sys, "argv", ["director_dream.py", "--tope", "2"]),
+        ]
+        for p in self.parches:
+            p.start()
+
+    def tearDown(self):
+        for p in reversed(self.parches):
+            p.stop()
+        self.tmp.cleanup()
+
+    def _pasada(self):
+        with mock.patch("sys.stdout", new=io.StringIO()):
+            DD.main()
+        with open(os.path.join(self.olas, "cola-dream-2026-11-08.json"), encoding="utf-8") as f:
+            return json.load(f)
+
+    def _hechas(self, *ids):
+        ruta = os.path.join(self.olas, "progreso.json")
+        prog = {}
+        if os.path.exists(ruta):
+            with open(ruta, encoding="utf-8") as f:
+                prog = json.load(f)
+        for i in ids:
+            prog[i] = {"estado": "commit"}
+        with open(ruta, "w", encoding="utf-8") as f:
+            json.dump(prog, f)
+
+    def test_la_segunda_pasada_del_dia_no_reusa_ids(self):
+        primera = self._pasada()
+        self.assertEqual([t["id"] for t in primera], ["DR1108-1", "DR1108-2"])
+        self._hechas("DR1108-1", "DR1108-2")
+        segunda = self._pasada()
+        nuevas = [t for t in segunda if t["titulo"].startswith("discovery")]
+        self.assertEqual([t["id"] for t in nuevas], ["DR1108-3"])
+
+    def test_lo_pendiente_de_la_pasada_anterior_conserva_su_enunciado(self):
+        primera = self._pasada()
+        self._hechas("DR1108-1")  # DR1108-2 sigue en reintentos
+        por_id = {t["id"]: t for t in self._pasada()}
+        self.assertEqual(por_id["DR1108-2"]["titulo"], primera[1]["titulo"])
+        self.assertIn("DR1108-3", por_id)
+
+    def test_cuenta_la_cola_que_la_higiene_movio_a_colas_fuente(self):
+        self._pasada()
+        fuente = os.path.join(os.path.dirname(self.olas), "colas-fuente")
+        os.makedirs(fuente)
+        nombre = "cola-dream-2026-11-08.json"
+        os.replace(os.path.join(self.olas, nombre), os.path.join(fuente, nombre))
+        self.assertEqual([t["id"] for t in self._pasada()], ["DR1108-3"])
 
 
 if __name__ == "__main__":
