@@ -7841,6 +7841,31 @@ def _ejecutar_analisis(t):
     )
 
 
+def revision_bloqueante(rev):
+    """¿La revisión bloquea? Manda su ÚLTIMA aparición de «seguimiento» (SUP0711E, 2026-11-07).
+
+    Los revisores gratuitos que razonan en voz alta (freellmapi/auto) devuelven el razonamiento
+    entero, que repite la regla del enunciado («Bloqueante SOLO por un defecto visible…»): con la
+    regla antigua, la palabra suelta contaba como bloqueo aunque la respuesta final dijera
+    «Seguimiento: no». Aquí se decide por lo que sigue a la última «seguimiento»: si empieza por
+    «no» → False; si por «sí»/«si» → True. Si no la trae, o no empieza por ninguna de las dos, se
+    usa la regla de la palabra sobre ese texto (o sobre todo el texto si no hay ninguna).
+    Función pura: la testea test_revision_bloqueante_1107.py.
+    """
+    texto = rev or ""
+    bajo = texto.lower()
+    pos = bajo.rfind("seguimiento")
+    if pos < 0:
+        return "bloqueante" in bajo and "no bloqueante" not in bajo
+    cola = bajo[pos + len("seguimiento"):]
+    limpio = cola.lstrip("*: \t\n\r")
+    if re.match(r"no\b", limpio):
+        return False
+    if re.match(r"s[ií]\b", limpio):
+        return True
+    return "bloqueante" in cola and "no bloqueante" not in cola
+
+
 def ejecutar(t, intento=1):
     # Sueños profundos: leer y escribir un informe, nunca tocar el repositorio.
     if str(t.get("tipo") or "").strip().lower() == "analisis":
@@ -8870,9 +8895,7 @@ def ejecutar(t, intento=1):
             tid, t.get("titulo", ""), diff, impacto_texto(impacto), alcance=alcance_txt
         )
     )
-    bloqueante = bool(
-        re.search(r"seguimiento:?\**\s*s[ií]\b.*bloqueante", rev, re.I | re.S)
-    ) or ("bloqueante" in rev.lower() and "no bloqueante" not in rev.lower())
+    bloqueante = revision_bloqueante(rev)
     # Al revisor se le pide expresamente que NO bloquee por no ver el diff entero, y aun así lo
     # hace (Ola 233, C7: «el diff está truncado» sobre un commit que había pasado tsc y vitest).
     # Si el MOTIVO del bloqueo es solo eso, se degrada a aviso: el corte del diff es nuestro.
