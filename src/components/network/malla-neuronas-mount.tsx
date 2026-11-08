@@ -38,6 +38,7 @@ const TransferenciasArchivoToast = dynamic(
   () => import("@/components/network/transferencias-archivo-panel").then((m) => m.TransferenciasArchivoToast),
   { ssr: false },
 );
+const EtiquetaSinInternet = dynamic(() => import("@/components/network/etiqueta-sin-internet").then((m) => m.EtiquetaSinInternet), { ssr: false });
 const MallaVinculosMotor = dynamic(() => import("@/components/network/malla-vinculos-motor"), { ssr: false });
 // (2026-10-10) Llamada directa sin internet (timbre y llamada en curso), por enlaces emparejados.
 const LlamadaDirectaFlotante = dynamic(
@@ -112,6 +113,10 @@ function MallaNeuronasEngine() {
   // es anónimo y las neuronas propias salen en «otras cuentas cerca»). Solo la app nativa toca el faro.
   useMotorPerezoso(() => import("@/lib/malla/anuncio-capas").then((m) => m.iniciarAnuncioCapas));
   useMotorPerezoso(() => import("@/lib/nativa/faro-clave-cuenta").then((m) => m.iniciarClaveFaroNativa));
+  // (2026-11-08 · OFF1108A) Arranque sin internet: espejo de la instantánea de la cuenta (huellas probadas
+  // de las neuronas propias), aprendizaje de lo que se liga por prueba de cuenta y reintento inmediato del
+  // buzón al ligarse una neurona (`architecture/apps-autonomas-sin-internet.md`).
+  useMotorPerezoso(() => import("@/lib/sin-internet/arranque-sin-red").then((m) => m.iniciarArranqueSinRed));
   // (Ola 370) Motor de vínculos ENTRE cuentas: sondea mis solicitudes/vínculos
   // y abre (o cierra) el mesh de par dedicado de cada uno ya `aceptado`. Mesh
   // COMPLETAMENTE separado del intra-cuenta de arriba — ver
@@ -122,6 +127,7 @@ function MallaNeuronasEngine() {
       <TransferenciasArchivoToast />
       <LlamadaDirectaFlotante />
       <SolicitudSincronizacionFlotante />
+      <EtiquetaSinInternet />
     </>
   );
 }

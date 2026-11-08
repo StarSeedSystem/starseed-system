@@ -134,7 +134,10 @@ export async function depsReales(): Promise<DepsFaroCuenta> {
       if (!uid) return null;
       const { createClient } = await import("@/utils/supabase/client");
       const { data, error } = await createClient().from("user_settings").select("prefs").eq("user_id", uid).maybeSingle();
-      if (error || !data?.prefs || typeof data.prefs !== "object") return null;
+      // (OFF1108A) Un fallo de lectura (sin red, RLS, tiempo agotado) NO es «no hay clave»: se lanza para que
+      // `obtenerOCrearClaveFaro` no fabrique una clave nueva que luego pise la de la cuenta al volver la red.
+      if (error) throw new Error("No se pudo leer la clave de faro de la cuenta (sin conexión o sin permiso).");
+      if (!data?.prefs || typeof data.prefs !== "object") return null;
       const v = (data.prefs as Record<string, unknown>)[CLAVE_AJUSTE_FARO];
       return typeof v === "string" ? v : null;
     },

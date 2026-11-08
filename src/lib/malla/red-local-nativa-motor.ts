@@ -1111,6 +1111,9 @@ async function depsReales(): Promise<DepsRedNativa> {
   ]);
   const motor = sync.motorSync();
   motor.cargar();
+  // (OFF1108A) Espejo de la instantánea de la cuenta (huellas probadas) antes del primer saludo, máx. 3 s.
+  const espejo = await import("@/lib/sin-internet/huellas-cuenta-vivas");
+  await Promise.race([espejo.cargarEspejo().catch(() => undefined), new Promise((r) => setTimeout(r, 3_000))]);
   // (MLL1107A) La clave de faro la guarda la app (antenas.json, la reparte VIN1107A): se relee cada minuto.
   let clave: { hex: string | null; leida: number } = { hex: null, leida: -Infinity };
   const claveFaro = async (): Promise<string | null> => {
@@ -1156,7 +1159,14 @@ async function depsReales(): Promise<DepsRedNativa> {
         return null;
       }
     },
-    vinculos: () => motor.instantanea().vinculos,
+    // (OFF1108A) Los vínculos del aparato + las neuronas de la cuenta ya probadas (huella guardada): sin servidor.
+    vinculos: () => {
+      const reales = motor.instantanea().vinculos;
+      const guardados = espejo.vinculosDeCuentaCacheados();
+      if (!guardados.length) return reales;
+      const vistos = new Set(reales.map((v) => v.neurona));
+      return [...reales, ...guardados.filter((v) => !vistos.has(v.neurona))];
+    },
     firmar,
     sesiones: crearSesionesCifradas({ ahora: () => Date.now(), firmar }),
     exigirCifrado: exigirCifradoRedLocal,

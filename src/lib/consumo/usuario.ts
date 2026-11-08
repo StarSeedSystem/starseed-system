@@ -15,13 +15,21 @@
  */
 import type { User } from "@supabase/supabase-js";
 import { createClient } from "@/utils/supabase/client";
+import { esErrorDeRed, olvidarUid, recordarUid, uidRecordado } from "@/lib/sin-internet/uid-recordado";
 
 export const VERIFICAR_CADA_MS = 10 * 60_000;
 
 type Cliente = ReturnType<typeof createClient>;
 
+/**
+ * (OFF1108A) La última lectura de sesión falló por RED (token caducado que no se pudo renovar sin
+ * internet). Mientras sea así, `uidActual()` devuelve la cuenta recordada y la caché no guarda «sin usuario».
+ */
+let fallaRedSesion = false;
+let sesionInicialVacia = false;
+
 interface AuthMinima {
-    getSession?: () => Promise<{ data: { session: { user?: User | null } | null } | null }>;
+    getSession?: () => Promise<{ data: { session: { user?: User | null } | null } | null; error?: unknown }>;
     getUser?: () => Promise<{ data: { user: User | null } | null; error?: unknown }>;
     onAuthStateChange?: (cb: (evento: string, sesion: { user?: User | null } | null) => void) => unknown;
 }
@@ -48,7 +56,16 @@ function engancharCambios(sb: Cliente, auth: AuthMinima): boolean {
             if (clienteCacheado !== sb) return;
             generacion++;
             cache = { user: sesion?.user ?? null };
-            if (evento === "SIGNED_OUT") ultimaVerificacion = 0;
+            if (evento === "SIGNED_OUT") {
+                ultimaVerificacion = 0;
+                fallaRedSesion = false;
+                olvidarUid();
+            } else if (sesion?.user?.id) {
+                fallaRedSesion = false;
+                recordarUid(sesion.user.id);
+            }
+            // Sesión inicial vacía SIN cierre de sesión: el servidor no la rechazó, no se pudo renovar (red).
+            sesionInicialVacia = evento === "INITIAL_SESSION" && !sesion?.user;
         });
         suscritos.add(sb as object);
         return true;
@@ -59,8 +76,10 @@ function engancharCambios(sb: Cliente, auth: AuthMinima): boolean {
 
 async function leerSesion(sb: Cliente, auth: AuthMinima): Promise<User | null> {
     if (typeof auth.getSession === "function") {
-        const { data } = await auth.getSession();
-        return data?.session?.user ?? null;
+        const r = await auth.getSession();
+        const user = r.data?.session?.user ?? null;
+        fallaRedSesion = !user && esErrorDeRed(r.error);
+        return user;
     }
     // Clientes simulados sin getSession (pruebas antiguas): el camino de siempre.
     if (typeof auth.getUser === "function") {
@@ -106,7 +125,8 @@ export async function usuarioActual(): Promise<User | null> {
         try {
             const user = await leerSesion(sb, auth);
             // Si llegó un evento de sesión mientras leíamos, manda el evento.
-            if (fiable && gen === generacion && clienteCacheado === sb) cache = { user };
+            // (OFF1108A) «Sin usuario» por un fallo de red NO se guarda: la siguiente lectura vuelve a mirar.
+            if (fiable && gen === generacion && clienteCacheado === sb && !(user === null && fallaRedSesion)) cache = { user };
             return fiable && cache && clienteCacheado === sb ? cache.user : user;
         } catch {
             return null;
@@ -124,7 +144,22 @@ export async function usuarioActual(): Promise<User | null> {
 /** Id del usuario con sesión (o null). Sin red; nunca lanza. */
 export async function uidActual(): Promise<string | null> {
     const u = await usuarioActual();
-    return u?.id ?? null;
+    if (u?.id) {
+        recordarUid(u.id);
+        return u.id;
+    }
+    // (OFF1108A) Sin red y con el token caducado la sesión no se puede renovar: se sigue siendo la cuenta que
+    // ya estaba en este aparato (solo para usar lo local; el servidor sigue exigiendo su sesión).
+    return sinRedProbable() ? uidRecordado() : null;
+}
+
+/**
+ * (OFF1108A) ¿Es probable que «sin sesión» sea solo porque no hay red (token caducado que no se puede
+ * renovar) y no un cierre de sesión? Entonces la app sigue con la cuenta recordada del aparato.
+ */
+export function sinRedProbable(): boolean {
+    if (typeof window === "undefined") return false;
+    return fallaRedSesion || sesionInicialVacia || (typeof navigator !== "undefined" && navigator.onLine === false);
 }
 
 /** Lo que haya en caché ahora mismo, sin esperar: `undefined` = aún no se sabe. */
@@ -174,4 +209,6 @@ export function _reiniciarUsuarioParaPruebas(): void {
     generacion++;
     ultimaVerificacion = 0;
     verificando = null;
+    fallaRedSesion = false;
+    sesionInicialVacia = false;
 }

@@ -236,6 +236,18 @@ Cada página, comunidad, grupo, canal, publicación, hilo, votación o estación
 - **Sesión local** con la clave de la neurona.
 - Supabase Auth queda como una forma más de entrar.
 
+**(OFF1108A · 2026-11-08) La app instalada arranca y funciona sin internet tras reabrirla.** Causas medidas (tableta, build 0.5.1-prueba.26):
+1. `uidActual()` leía `auth.getSession()`; con el token caducado y sin red Supabase no puede renovarlo y devuelve `session: null`. Todo lo que depende de «quién soy» (perfil, `listNeurons`, saludo de enlace con `cuenta`, `miUid` del buzón) quedaba sin cuenta, y esa ausencia se cacheaba. Ahora `src/lib/sin-internet/uid-recordado.ts` recuerda SOLO el id (uuid) y `uidActual()` lo devuelve si el fallo es de red, no si se cerró sesión.
+2. `AccountProvider` solo hidrataba el perfil guardado si había sesión → cabecera, nombre y avatar vacíos. Ahora abre con la ficha mínima de la cuenta recordada + perfil guardado + avatar como blob local (`sinConexion: true`) y al volver la red pide la sesión y refresca.
+3. `listNeurons()` solo tenía caché en memoria: arranque en frío sin red = solo «este dispositivo». Ahora se escribe la instantánea en línea y se hidrata sin red.
+4. Cada `depsReales` de Bluetooth/red local arrancaba con `neuronasCuenta` vacío (carrera con la lectura de `antenas.json`) y sin las huellas ya probadas. Ahora esperan (máx. 3 s) al espejo y a la config de faro.
+5. Nada reintentaba el buzón al ligarse una neurona: solo el intervalo. Ahora `arranque-sin-red.ts` lo dispara al aparecer una ligadura nueva.
+6. Endurecido: `leerAjuste` de la clave de faro lanza ante un error de lectura (antes un fallo parecía «no hay clave» y podía fabricar una nueva).
+
+**Instantánea de la cuenta** (`instantanea-cuenta.ts`, IndexedDB `starseed-identidad`, claves `cuenta-snap:v1:<sección>`): `perfil`, `avatar` (bytes), `neuronas` (filas de `neuron_devices`), `huellas` (neurona → huella `id:…` probada por cuenta) y `cerebros` (pertenencia). Filtro `sinSecretos` por nombre y forma: ni tokens ni la clave de faro (esta sigue en `antenas.json` 0600 y en los ajustes privados de la cuenta). Otra cuenta no la lee; el cierre de sesión manual la borra.
+
+**Reconocer una neurona sin servidor:** al ligarse un enlace por prueba de cuenta (HMAC de faro o certificado IDN1108A) se anota su huella; sin internet un saludo firmado con esa huella desde esa neurona entra como vínculo (`aceptarHola`). Con certificado IDN1108A funciona igual que antes. `decidirModoAcceso` se monta en `etiqueta-sin-internet.tsx` (pastilla discreta, sin bloquear).
+
 ### 7.7 · Avisos y actualizaciones
 - Todos los sistemas avisan por la malla; ntfy queda opcional y se puede alojar en la LAN.
 - Las actualizaciones firmadas (APK, paquete de escritorio, capas) se las pasan las neuronas entre sí y con un espejo en la LAN. La firma del actualizador se verifica igual.
