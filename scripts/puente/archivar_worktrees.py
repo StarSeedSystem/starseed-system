@@ -51,13 +51,29 @@ def nombre_rama(nombre, existentes, hoy):
     return cand
 
 
+def a_medias(ruta):
+    """PURA de solo-lectura: (tipo, sha) si hay un cherry-pick o un revert a medias, si no None."""
+    for tipo, ref in (("cherry-pick", "CHERRY_PICK_HEAD"), ("revert", "REVERT_HEAD")):
+        rc, out = git(ruta, "rev-parse", "-q", "--verify", ref)
+        if rc == 0 and out.strip():
+            return tipo, out.strip()
+    return None
+
+
 def archivar(ruta, nombre, hoy):
     """Guarda lo sin guardar en una rama nueva. Devuelve (ok, rama o motivo)."""
     _, ramas = git(ruta, "for-each-ref", "--format=%(refname:short)", "refs/heads/archivo-wt/")
     rama = nombre_rama(nombre, set(ramas.split()), hoy)
-    for paso in (["switch", "-q", "-c", rama], ["add", "-A"],
-                 ["commit", "-q", "--no-verify", "-m",
-                  "archivo-wt: trabajo sin integrar de %s, guardado antes de podar (%s)" % (nombre, hoy)]):
+    medias = a_medias(ruta)
+    mensaje = "archivo-wt: trabajo sin integrar de %s, guardado antes de podar (%s)" % (nombre, hoy)
+    pasos = []
+    if medias:
+        pasos.append([medias[0], "--quit"])  # deja el árbol y el índice como estaban, conflictos incluidos
+        pasos.append(["add", "-A"])  # los archivos en conflicto se guardan tal cual, con sus marcas
+        mensaje += " · estaba a mitad del %s de %s" % medias
+    pasos += [["switch", "-q", "-c", rama], ["add", "-A"],
+              ["commit", "-q", "--no-verify", "-m", mensaje]]
+    for paso in pasos:
         rc, out = git(ruta, *paso, timeout=300)
         if rc:
             return False, "%s: %s" % (paso[0], out.strip()[:160])
