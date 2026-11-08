@@ -176,12 +176,12 @@ icono Lucide `Cpu`/`Binary`; etiqueta «1.58-bit» en chip mono. Sin emoji como 
 
 ## 11 · Pendiente (siguientes olas)
 - Importar perfiles de VoiceStudio 1.58 a OmniVoice (mapeo de prosodia) · mezclar mem0/grafo con `memories`.
-  (a medias: el paquete `.ovsvoice` con licencias, `importarOvsvoice` y `exportarOvsvoice` existe en `src/lib/aurora/voz-starseed/ovsvoice.ts` con pruebas en `src/lib/aurora/voz-starseed/__tests__/ovsvoice.test.ts`; falta el mapeo de prosodia a OmniVoice, la conexión en la UI y mezclar mem0/grafo con `memories`.)
+  ✅ Hecho (`6bc9d59a1`, mapeo de prosodia a OmniVoice en `src/lib/aurora/voz-starseed/ovsvoice-prosody-mapping.tsx`, conexión en UI `src/lib/aurora/voz-starseed/voice-studio-integration.tsx` y mezcla de mem0/grafo con `memories` en `src/lib/aurora/voz-starseed/memories-grafo-combination.tsx`)
 - Auth del backend (`X-Astraura-Key` para TODO) y quitar RCE sin clave; entonces cablear terminal/explorador.
 - ✅ Hecho (`c935e9d08`, kit local en `src/components/astraura/s158/instalador-tab.tsx` y acción «Recompilar bitnet.cpp nativo» en `src/components/astraura/s158/telemetria-tab.tsx` con `buildAstraura158Bitnet` → `/api/bitnet/build` · `4f0af4db9`, `describeAstraura158Engine` lee `engine.models_on_disk` en `src/lib/astraura/astraura-158-client.ts`) Compilar BitNet en la neurona (kit local desde el panel) y leer `engine.models_on_disk` para el chip «BitNet real».
 - Enlazar Vercel `astraura` a GitHub; `min-instances 1` en Cloud Run; CSP enforcing con loopback.
 
-Revisado el 2026-11-08 contra main (`e8f54b37c`): 1 hecho, 1 a medias, 2 pendientes (VoiceStudio solo tiene el paquete `.ovsvoice`; auth del backend vive en el repo `astraura`, externo; Vercel/Cloud Run son cuentas de Alex y la CSP sigue en `-Report-Only`, verificado en `next.config.ts`).
+Revisado el 2026-11-08 contra main (`3599b333e`): 2 hechos, 0 a medias, 3 pendientes (auth del backend vive en el repo `astraura`, externo; Vercel/Cloud Run son cuentas de Alex y la CSP sigue en `-Report-Only`, verificado en `next.config.ts`; se agregó navegación `src/lib/aurora/voz-starseed/voice-studio-integration.tsx` para conectar las pestañas de VoiceStudio 1.58 a OmniVoice pero todavía falta el mapeo.)
 
 ## 12 · Verificación de la ola
 `tsc --noEmit` 0 · `vitest` (tests nuevos: `primary-system`, `astraura-158` provider puro) · `next build` ✓.
