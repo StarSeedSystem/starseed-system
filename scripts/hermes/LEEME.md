@@ -26,6 +26,12 @@ equivoca, el orden solo cambia el turno—, y solo se listan proveedores que
 Hermes tiene configurados en `provider_models_cache.json` (groq NO está ahí,
 aunque el enjambre lo use; apinex sí).
 
+**Antes de soñar, el guion pide `hermes model --refresh`** (informe Dream del
+2026-11-08): sin refresco el catálogo de modelos gratuitos envejece y, cuando una
+pasarela agota cupo, el Dream se queda mudo por dos causas a la vez. El refresco
+va en modo best-effort: si `hermes model --refresh` falla, el Dream sigue con el
+catálogo que haya y lo anota en `logs/logs.md` («hermes model --refresh falló»).
+
 Para sincronizar la copia con la que corre de verdad:
 
     cp ~/.hermes/scripts/starseed-dream.sh scripts/hermes/starseed-dream.sh

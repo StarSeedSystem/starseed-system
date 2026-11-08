@@ -25,6 +25,18 @@ MODELS=(
   "openrouter|nvidia/nemotron-nano-9b-v2:free"
 )
 
+# ── Auto-refresh del catálogo de modelos gratuitos (informe Dream 2026-11-08) ─
+# Sin refresco, provider_models_cache.json envejece: se suma al silencio de las
+# pasarelas sin cupo un catálogo caduco. Se refresca ANTES de soñar; si falla,
+# el Dream sigue con el catálogo que hay y lo deja anotado en el log.
+if command -v hermes >/dev/null 2>&1; then
+  if hermes model --refresh >/dev/null 2>&1; then
+    echo "[$DATE] (dream) catálogo de modelos refrescado antes de soñar" >> "$ROOT/logs/logs.md"
+  else
+    echo "[$DATE] (dream) hermes model --refresh falló; el Dream sigue con el catálogo existente" >> "$ROOT/logs/logs.md"
+  fi
+fi
+
 # ── Preguntar qué escribe HOY en vez de fiarse de una lista fija ──────────────
 # El Dream estuvo MUDO el 16 y el 17 («sin respuesta de modelos gratuitos hoy»),
 # y no era culpa suya: sus seis modelos eran todos de openrouter y xkiro, las
