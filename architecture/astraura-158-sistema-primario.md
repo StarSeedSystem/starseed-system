@@ -178,7 +178,7 @@ icono Lucide `Cpu`/`Binary`; etiqueta «1.58-bit» en chip mono. Sin emoji como 
 - Importar perfiles de VoiceStudio 1.58 a OmniVoice (mapeo de prosodia) · mezclar mem0/grafo con `memories`.
   (a medias: el paquete `.ovsvoice` con licencias, `importarOvsvoice` y `exportarOvsvoice` existe en `src/lib/aurora/voz-starseed/ovsvoice.ts` con pruebas en `src/lib/aurora/voz-starseed/__tests__/ovsvoice.test.ts`; falta el mapeo de prosodia a OmniVoice, la conexión en la UI y mezclar mem0/grafo con `memories`.)
 - Auth del backend (`X-Astraura-Key` para TODO) y quitar RCE sin clave; entonces cablear terminal/explorador.
-- ✅ Hecho (`c935e9d08`, `src/components/astraura/s158/instalador-tab.tsx` · `4f0af4db9`, `describeAstraura158Engine` en `src/lib/astraura/astraura-158-client.ts`) Compilar BitNet en la neurona (kit local desde el panel) y leer `engine.models_on_disk` para el chip «BitNet real».
+- ✅ Hecho (`c935e9d08`, kit local en `src/components/astraura/s158/instalador-tab.tsx` y acción «Recompilar bitnet.cpp nativo» en `src/components/astraura/s158/telemetria-tab.tsx` con `buildAstraura158Bitnet` → `/api/bitnet/build` · `4f0af4db9`, `describeAstraura158Engine` lee `engine.models_on_disk` en `src/lib/astraura/astraura-158-client.ts`) Compilar BitNet en la neurona (kit local desde el panel) y leer `engine.models_on_disk` para el chip «BitNet real».
 - Enlazar Vercel `astraura` a GitHub; `min-instances 1` en Cloud Run; CSP enforcing con loopback.
 
 Revisado el 2026-11-08 contra main (`3599b333e`): 1 hecho, 1 a medias, 2 pendientes (auth del backend vive en el repo `astraura`, externo; Vercel/Cloud Run son cuentas de Alex y la CSP sigue en `-Report-Only`, verificado en `next.config.ts`).
@@ -482,7 +482,7 @@ use-estado-capas) — ver `memory/state.md` para el recuento exacto de esta ola.
 - No se ejecutó `next build` (regla del área: nunca con el enjambre vivo / prohibido en esta
   tarea) ni se hizo commit/push (worktree de solo trabajo, otro agente integra).
 
-Revisado el 2026-11-08 contra main (`3599b333e`): 1 hecho, 0 a medias, 3 pendientes (las pruebas dedicadas G5/G4 siguen sin existir — `grep` en `src/ai/**/__tests__` y `src/lib/astraura/__tests__` solo encuentra usos simulados en `router-solo-gratis.test.ts` y abort en `astraura-158-ws.test.ts`).
+Revisado el 2026-11-08 contra main (`3599b333e`): 1 hecho, 0 a medias, 3 pendientes (las pruebas dedicadas G5/G4 siguen sin existir: `router-158-timeout.test.ts` solo comprueba los umbrales de 200 s/120 s y `astraura-158-ws.test.ts` el abort del WebSocket, no un timeout real de 200 s; `detectAvailabilitySafe` solo aparece simulado en `router-solo-gratis.test.ts` y `use-estado-capas.test.tsx`).
 
 ## 17. Astraura por la malla P2P (Ola 367 · 2026-09-26)
 
