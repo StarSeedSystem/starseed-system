@@ -32,8 +32,7 @@
 
 import { fragmentosPorMtu } from "@/ai/astraura/mesh/camr/planificador";
 import type { ClaseRuta } from "@/lib/network/estadisticas-enlace";
-import { vetoPorPolitica, ordenarPorViabilidad } from "./cristal/adaptador-elegidores";
-import type { Medio } from "./cristal/tipos";
+import { evaluarEnlaces } from "./conectores/planificador-vias";
 
 // (BLE1108A) `ble`: Bluetooth directo entre dos apps nativas (`ble:<id>`, bluetooth-directo-motor.ts).
 export type TipoEnlace = "local" | "nativo" | "ble" | "cuenta" | "par" | "rele" | "lora";
@@ -194,15 +193,6 @@ export function rangoParaEnvio(e: EnlaceDisponible, clase: ClaseEnvio, bytes: nu
 /** (BLE1108A) Por encima de esto un archivo prefiere otro P2P al Bluetooth (`bluetooth-directo.ts`). */
 export const ARCHIVO_BLE_PREFERENTE_BYTES = 256 * 1024;
 
-function compararNumero(a: number | null | undefined, b: number | null | undefined, asc: boolean): number {
-  const va = typeof a === "number" && Number.isFinite(a) ? a : null;
-  const vb = typeof b === "number" && Number.isFinite(b) ? b : null;
-  if (va === null && vb === null) return 0;
-  if (va === null) return 1; // sin medida, detrás
-  if (vb === null) return -1;
-  return asc ? va - vb : vb - va;
-}
-
 /**
  * Por qué este enlace LocalSend no puede llevar el envío (null = sí puede). Puro.
  * LocalSend v2 solo vale por un enlace local, solo para archivos, solo desde la app nativa o un
@@ -260,118 +250,8 @@ export function elegirEnlaces(
   bytes = 0,
   opciones?: OpcionesEleccion
 ): Eleccion {
-  const elegidos: EnlaceElegido[] = [];
-  const descartados: Descartado[] = [];
-  const vistos = new Set<string>();
-  for (const e of enlaces) {
-    if (vistos.has(e.id)) continue;
-    vistos.add(e.id);
-    
-    // Aplicamos el veto por política si se especifica una clase en opciones
-    if (opciones?.clase) {
-      // Determinamos el Medio a partir del TipoEnlace (simplificación)
-      let medio: Medio;
-      switch (e.tipo) {
-        case "local": medio = "webrtc"; break;
-        case "nativo": medio = "wifi-lan"; break;
-        case "ble": medio = "ble"; break;
-        case "cuenta": medio = "webrtc"; break;
-        case "par": medio = "webrtc"; break;
-        case "rele": medio = "servidor"; break;
-        case "lora": medio = "lora"; break;
-        default: medio = "webrtc";
-      }
-      
-      if (vetoPorPolitica(opciones.clase, medio)) {
-        // Este enlace está vetoado por la política de transporte
-        descartados.push({ 
-          id: e.id, 
-          tipo: e.tipo, 
-          motivo: `veto por política de transporte: clase ${opciones.clase} no permitido en medio ${medio}`
-        });
-        continue;
-      }
-    }
-    
-    const descartar = (motivo: string) => descartados.push({ id: e.id, tipo: e.tipo, motivo });
-    if (!alcanzaDestino(e, destino)) {
-      descartar("no llega a ese destino");
-      continue;
-    }
-    if (!e.abierto) {
-      descartar("no está abierto ahora");
-      continue;
-    }
-    const noLocalSend = motivoNoLocalSend(e, clase, opciones);
-    if (noLocalSend) {
-      descartar(noLocalSend);
-      continue;
-    }
-    if (!e.admite[clase]) {
-      descartar(
-        clase === "flujo"
-          ? e.tipo === "nativo"
-            ? "el canal TCP de la app nativa no lleva audio, vídeo ni flujos: van por el enlace directo que abren solas las dos apps"
-            : e.tipo === "ble"
-              ? "el Bluetooth directo no lleva audio, vídeo ni transmisiones en vivo (no le da el ancho: decenas de KB/s)"
-              : "no lleva audio ni vídeo (las llamadas directas van por el enlace local)"
-          : clase === "archivo"
-            ? e.tipo === "lora"
-              ? "LoRa no lleva archivos"
-              : e.tipo === "rele"
-                ? "el relé del servidor no lleva archivos"
-                : "este enlace no tiene permiso para archivos"
-            : "no lleva mensajes",
-      );
-      continue;
-    }
-    if (typeof e.maxBytes === "number" && bytes > e.maxBytes) {
-      descartar(
-        e.tipo === "ble"
-          ? `el archivo (${bytes} B) supera lo que lleva el Bluetooth directo (${e.maxBytes} B): a decenas de KB/s tardaría demasiado`
-          : `el envío (${bytes} B) supera lo que lleva este enlace (${e.maxBytes} B)`,
-      );
-      continue;
-    }
-    // (BLE1108A) Un archivo grande por Bluetooth baja de rango (detrás de cualquier P2P más rápido).
-    const rango = rangoParaEnvio(e, clase, bytes);
-    elegidos.push({
-      enlace: e,
-      rango,
-      motivo:
-        e.protocolo === "localsend"
-          ? motivoLocalSend(e)
-          : rango !== rangoEnlace(e)
-            ? "Bluetooth directo (archivo grande: solo si no hay un P2P más rápido)"
-            : motivoRango(e),
-    });
-  }
-   // Si se especificó una función de puntuar en opciones, usamos un comparador que
-   // primero ordena por rango, luego por la puntuación dentro del mismo rango
-   if (opciones?.puntuar) {
-     const puntuar = opciones.puntuar;
-     elegidos.sort(
-       (a, b) =>
-         a.rango - b.rango ||
-         ordenEnRango(a.enlace) - ordenEnRango(b.enlace) ||
-         puntuar(a.enlace) - puntuar(b.enlace) ||
-         compararNumero(a.enlace.rttMs, b.enlace.rttMs, true) ||
-         compararNumero(a.enlace.capacidadKbps, b.enlace.capacidadKbps, false) ||
-         (a.enlace.id < b.enlace.id ? -1 : a.enlace.id > b.enlace.id ? 1 : 0),
-     );
-   } else {
-     // Ordenamiento original cuando no se especifica función de puntuar
-     elegidos.sort(
-       (a, b) =>
-         a.rango - b.rango ||
-         ordenEnRango(a.enlace) - ordenEnRango(b.enlace) ||
-         compararNumero(a.enlace.rttMs, b.enlace.rttMs, true) ||
-         compararNumero(a.enlace.capacidadKbps, b.enlace.capacidadKbps, false) ||
-         (a.enlace.id < b.enlace.id ? -1 : a.enlace.id > b.enlace.id ? 1 : 0),
-     );
-   }
-
-  return { elegidos, descartados };
+  // (MED1108B) La regla vive en el planificador único de vías; el resultado es el mismo de siempre.
+  return evaluarEnlaces(enlaces, destino, clase, bytes, opciones);
 }
 
 /** ¿Dos enlaces llegan al MISMO aparato? (por id de sincronización o de neurona). Puro. */
