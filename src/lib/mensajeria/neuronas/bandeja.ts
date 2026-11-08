@@ -21,6 +21,7 @@ import {
     type LlamadaNeurona,
     type RegistroLlamada,
 } from "@/lib/mensajeria/neuronas/datos-neurona";
+import { leerOperacion, type OperacionMensaje } from "@/lib/mensajeria/almacen/operaciones";
 
 /** (NEU1107A) Estado local de un archivo del chat (se guarda con el mensaje, en este aparato). */
 export interface EstadoArchivoMensaje {
@@ -73,6 +74,56 @@ export interface MensajeMalla {
     archivo?: EstadoArchivoMensaje;
     /** (NEU1107A) Cómo fue la llamada (sonando, en curso, duración, perdida…). */
     registroLlamada?: RegistroLlamada;
+    /** (MSJ1108C) Neurona que lo mandó (entrantes). */
+    deNeurona?: string;
+    /** (MSJ1108C) Reloj lógico híbrido del autor: ordena entre aparatos aunque sus relojes difieran. */
+    hlc?: string;
+    /** (MSJ1108C) Mensaje al que responde (cita): viaja por la malla igual que por el servidor. */
+    respuestaA?: RespuestaCitada;
+    /** (MSJ1108C) Mensaje enriquecido (lienzo/documento/estilo); el texto lleva el markdown equivalente. */
+    formato?: unknown;
+    /** (MSJ1108C) Edición firmada por el autor: hora de la última y su reloj. */
+    editadoEn?: number;
+    opHlc?: string;
+    /** (MSJ1108C) Borrado firmado por el autor (lápida: el texto y los adjuntos se vacían). */
+    borrado?: boolean;
+    borradoHlc?: string;
+    /** (MSJ1108C) Recibos por persona o neurona destinataria (epoch ms). */
+    recibos?: Record<string, { entregado?: number; leido?: number }>;
+    /** (MSJ1108C) El servidor de la cuenta ya tiene una copia (subida idempotente hecha), epoch ms. */
+    subido?: number;
+    /** (MSJ1108C) Reloj de la última edición o borrado ya aplicado en el servidor. */
+    subidoOp?: string;
+}
+
+/** (MSJ1108C) Cita de un mensaje: id, autor y un extracto corto (para verla aunque falte el original). */
+export interface RespuestaCitada {
+    id: string;
+    de?: string;
+    x: string;
+}
+
+export const MAX_FORMATO_BYTES = 8 * 1024;
+
+export function leerRespuesta(x: unknown): RespuestaCitada | null {
+    if (!x || typeof x !== "object") return null;
+    const o = x as Record<string, unknown>;
+    if (typeof o.id !== "string" || !o.id || o.id.length > 80) return null;
+    return {
+        id: o.id,
+        ...(typeof o.de === "string" && o.de.length <= 80 ? { de: o.de } : {}),
+        x: typeof o.x === "string" ? o.x.slice(0, 160) : "",
+    };
+}
+
+/** El formato enriquecido viaja tal cual si es un objeto razonable; si no, se descarta (el texto basta). */
+export function leerFormatoMalla(x: unknown): unknown | null {
+    if (!x || typeof x !== "object" || Array.isArray(x)) return null;
+    try {
+        return JSON.stringify(x).length <= MAX_FORMATO_BYTES ? x : null;
+    } catch {
+        return null;
+    }
 }
 
 export interface ConversacionMalla {
@@ -225,6 +276,11 @@ export interface CuerpoNeurona {
     ll?: LlamadaNeurona;
     /** (NEU1107A) Transmisión en vivo anunciada (los trozos van por el canal «neurona-flujo»). */
     fd?: FlujoNeuronaRef;
+    /** (MSJ1108C) Cita, formato enriquecido, reloj híbrido y operación firmada (editar/borrar). */
+    rp?: RespuestaCitada;
+    fmt?: unknown;
+    hlc?: string;
+    op?: OperacionMensaje;
 }
 
 export function leerCuerpoNeurona(x: unknown): CuerpoNeurona | null {
@@ -235,7 +291,10 @@ export function leerCuerpoNeurona(x: unknown): CuerpoNeurona | null {
     const ll = o.ll === undefined ? null : leerLlamada(o.ll);
     const fd = o.fd === undefined ? null : leerFlujoRef(o.fd);
     // Un archivo, una llamada o un flujo pueden ir sin texto; un mensaje solo de texto, no.
-    const conDatos = !!(adj || ll || fd);
+    const op = o.op === undefined ? null : leerOperacion(o.op);
+    const rp = o.rp === undefined ? null : leerRespuesta(o.rp);
+    const fmt = o.fmt === undefined ? null : leerFormatoMalla(o.fmt);
+    const conDatos = !!(adj || ll || fd || op);
     if (typeof o.txt !== "string" || o.txt.length > 4000 || (!conDatos && !o.txt.trim())) return null;
     const de = (o.de && typeof o.de === "object" ? o.de : {}) as Record<string, unknown>;
     const para = (o.para && typeof o.para === "object" ? o.para : {}) as Record<string, unknown>;
@@ -250,6 +309,10 @@ export function leerCuerpoNeurona(x: unknown): CuerpoNeurona | null {
         ...(adj ? { adj } : {}),
         ...(ll ? { ll } : {}),
         ...(fd ? { fd } : {}),
+        ...(rp ? { rp } : {}),
+        ...(fmt ? { fmt } : {}),
+        ...(typeof o.hlc === "string" && o.hlc.length <= 120 ? { hlc: o.hlc } : {}),
+        ...(op ? { op } : {}),
     };
 }
 
@@ -265,6 +328,11 @@ export interface CuerpoChatMalla {
     adj?: AdjuntoNeurona;
     /** (NEU1107A) Llamada directa por el enlace sin internet en un chat (su burbuja). */
     ll?: LlamadaNeurona;
+    /** (MSJ1108C) Cita, formato enriquecido, reloj híbrido y operación firmada (editar/borrar). */
+    rp?: RespuestaCitada;
+    fmt?: unknown;
+    hlc?: string;
+    op?: OperacionMensaje;
 }
 
 export function leerCuerpoChatMalla(x: unknown): CuerpoChatMalla | null {
@@ -274,7 +342,10 @@ export function leerCuerpoChatMalla(x: unknown): CuerpoChatMalla | null {
     if (typeof o.h !== "string" || !o.h || o.h.length > 80) return null;
     const adj = o.adj === undefined ? null : leerAdjunto(o.adj);
     const ll = o.ll === undefined ? null : leerLlamada(o.ll);
-    if (typeof o.txt !== "string" || o.txt.length > 4000 || (!adj && !ll && !o.txt.trim())) return null;
+    const op = o.op === undefined ? null : leerOperacion(o.op);
+    const rp = o.rp === undefined ? null : leerRespuesta(o.rp);
+    const fmt = o.fmt === undefined ? null : leerFormatoMalla(o.fmt);
+    if (typeof o.txt !== "string" || o.txt.length > 4000 || (!adj && !ll && !op && !o.txt.trim())) return null;
     const de = (o.de && typeof o.de === "object" ? o.de : {}) as Record<string, unknown>;
     return {
         v: 1,
@@ -285,6 +356,10 @@ export function leerCuerpoChatMalla(x: unknown): CuerpoChatMalla | null {
         de: { u: typeof de.u === "string" && de.u.length <= 80 ? de.u : undefined },
         ...(adj ? { adj } : {}),
         ...(ll ? { ll } : {}),
+        ...(rp ? { rp } : {}),
+        ...(fmt ? { fmt } : {}),
+        ...(typeof o.hlc === "string" && o.hlc.length <= 120 ? { hlc: o.hlc } : {}),
+        ...(op ? { op } : {}),
     };
 }
 

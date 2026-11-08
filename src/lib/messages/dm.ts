@@ -655,6 +655,52 @@ export async function sendMessage(threadId: string, input: SendMessageInput): Pr
     }
 }
 
+export interface SubidaMensajeMalla {
+    /** Id del mensaje (el de la malla, o el derivado estable): la subida es idempotente por él. */
+    id: string;
+    body: string;
+    /** Hora original del mensaje: así ordena igual que en los aparatos que lo vieron por la malla. */
+    createdAt: string;
+    replyTo?: string | null;
+    formato?: FormatoMensaje | null;
+}
+
+/**
+ * (MSJ1108C) Sube a la cuenta un mensaje que viajó solo por la malla, con SU id (`INSERT … ON CONFLICT DO
+ * NOTHING`): repetirlo, o subirlo desde dos aparatos de la misma cuenta, no duplica nada. Sin columnas
+ * nuevas. «existia» = el servidor ya lo tenía. Nunca lanza.
+ */
+export async function subirMensajeMalla(threadId: string, s: SubidaMensajeMalla): Promise<"subido" | "existia" | "fallo"> {
+    if (!threadId || !s.id) return "fallo";
+    const uid = await getCurrentUserId();
+    if (!uid) return "fallo";
+    try {
+        const supabase = createClient();
+        const base = {
+            id: s.id,
+            thread_id: threadId,
+            sender: uid,
+            body: s.body,
+            attachments: [],
+            reply_to: s.replyTo ?? null,
+            kind: "user",
+            created_at: s.createdAt,
+        };
+        const incluyeFormato = formatoDisponible && !!s.formato;
+        const insertar = (payload: Record<string, unknown>) =>
+            supabase.from("os_dm_messages").upsert(payload, { onConflict: "id", ignoreDuplicates: true }).select("id");
+        let { data, error } = await insertar(incluyeFormato ? { ...base, formato: s.formato } : base);
+        if (error && incluyeFormato && esErrorFormato(error)) {
+            formatoDisponible = false;
+            ({ data, error } = await insertar(base));
+        }
+        if (error) return "fallo";
+        return Array.isArray(data) && data.length > 0 ? "subido" : "existia";
+    } catch {
+        return "fallo";
+    }
+}
+
 /** Edita un mensaje propio (RLS valida sender = auth.uid()). */
 export async function editMessage(messageId: string, body: string): Promise<boolean> {
     if (!messageId) return false;
