@@ -1,6 +1,6 @@
 # Genesis · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-08 12:32:06 desde Genesis vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-08 12:53:56 desde Genesis vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -16,15 +16,16 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | Agentes escribiendo | **0** |
 | En esta ola | integradas 0 · en curso 0 · esperando aprobación 0 · pendientes 15 |
 | Últimas 4 olas | en curso 0 · pendientes 100 · integradas 0 |
-| HEAD | `5a8167fce6 chore(memoria): aprendizaje de la ola auto-1108-122359` |
-| Sin publicar | 7 commits |
+| HEAD | `5184f9a17f chore(memoria): aprendizaje de la ola auto-1108-123327` |
+| Sin publicar | 11 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-1108-122359.json`, hace 21s)
+## Quién escribe ahora (latido de `cola-auto-1108-123327.json`, hace 13s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `DR1108-3` | hecho | openrouter/thinkingmachines/inklin | 4 min | 220 s | 153034 |
+| `RSD1108A` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 3 min | 158 s | 22529 |
+| `DR1108-3` | hecho | openrouter/thinkingmachines/inklin | 4 min | 215 s | 219543 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
