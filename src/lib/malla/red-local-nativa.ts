@@ -292,6 +292,12 @@ export interface HolaNativa {
    * aquí; lo comprueba un verificador inyectado (por defecto, se ignora). Va dentro del sobre firmado.
    */
   certificado?: Record<string, unknown>;
+  /**
+   * (MPT1108B) Capacidades de archivo que esta neurona anuncia (`archivo.e2e.v1`, `multitrayecto.v1`) y su pública ECDH
+   * de cifrado (`ep`), para que el otro lado selle el archivo para ella. Dentro del sobre firmado; ausentes en apps anteriores.
+   */
+  ar?: string[];
+  ep?: JsonWebKey;
 }
 
 /* ══════════════════════════ Prueba de cuenta (MLL1107A) ══════════════════════════ */
@@ -359,6 +365,8 @@ export function holaNativa(p: {
   cta?: string | null;
   cif?: number;
   certificado?: Record<string, unknown> | null;
+  ar?: string[];
+  ep?: JsonWebKey | null;
 }): HolaNativa {
   return {
     t: "nl.hola",
@@ -372,6 +380,8 @@ export function holaNativa(p: {
     ...(esPruebaCuenta(p.cta) ? { cta: p.cta } : {}),
     ...(p.cif ? { cif: p.cif } : {}),
     ...(certificadoValido(p.certificado) ? { certificado: p.certificado } : {}),
+    ...(p.ar?.length ? { ar: p.ar.slice(0, 8) } : {}),
+    ...(p.ep && p.ep.kty === "EC" && p.ep.d === undefined ? { ep: p.ep } : {}),
   };
 }
 
@@ -395,6 +405,8 @@ export function leerHola(x: unknown): HolaNativa | null {
     ...(esPruebaCuenta(o.cta) ? { cta: o.cta } : {}),
     ...(typeof o.cif === "number" && Number.isInteger(o.cif) && o.cif >= 1 && o.cif < 1000 ? { cif: o.cif } : {}),
     ...(certificadoValido(o.certificado) ? { certificado: o.certificado } : {}),
+    ...(Array.isArray(o.ar) ? { ar: o.ar.filter((c): c is string => typeof c === "string" && c.length <= 48).slice(0, 8) } : {}),
+    ...(o.ep && typeof o.ep === "object" && (o.ep as JsonWebKey).kty === "EC" && (o.ep as JsonWebKey).d === undefined ? { ep: o.ep as JsonWebKey } : {}),
   };
 }
 

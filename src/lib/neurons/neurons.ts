@@ -112,6 +112,9 @@ export interface NeuronCapabilities {
     autoLinked?: boolean;
   };
   hermesInstalled?: boolean;
+  /** (MPT1108B) Capacidades de archivo que anuncia esta neurona (`archivo.e2e.v1`, `multitrayecto.v1`) y su pública ECDH de cifrado. */
+  archivo?: string[];
+  epub?: JsonWebKey;
   /**
    * Backend Astraura 1.58-bit detectado en esta neurona (Adenda 153). Se publica
    * en `neuron_devices.capabilities` para que otras neuronas de la cuenta puedan
@@ -356,6 +359,8 @@ export async function detectCapabilities(): Promise<NeuronCapabilities> {
   // Puente con el motor de sync: permite dirigir broadcasts (file-request…)
   // a esta neurona usando su deviceId de entity-state.
   try { caps.syncDeviceId = syncDeviceId(); } catch { /* */ }
+  // MPT1108B: presencia de la cuenta con las capacidades de archivo y la pública de cifrado (solo clave PÚBLICA).
+  try { const d = await (await import("@/lib/malla/archivo-seguro-real")).datosHolaArchivo(); caps.archivo = d.ar; if (d.ep) caps.epub = d.ep; } catch { /* */ }
   // Puente con la malla LoRa/faros: permite casar esta neurona con sus faros
   // de la red sináptica (Ola 366 · malla de neuronas). Ver identidad-dispositivo.ts.
   try { caps.meshDeviceId = meshDeviceId(); } catch { /* */ }

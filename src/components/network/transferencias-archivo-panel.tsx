@@ -26,6 +26,7 @@ import {
   type EstadoTransferencia,
 } from "@/lib/network/archivos-malla";
 import { EnviosEntrantes } from "@/components/network/envios-entrantes";
+import { CifradoViasArchivo } from "@/components/network/cifrado-vias-archivo"; // MPT1108B
 
 function tamanoLegible(bytes: number): string {
   if (!Number.isFinite(bytes) || bytes < 0) return "—";
@@ -189,6 +190,9 @@ function TransferenciaRow({ estado }: { estado: EstadoTransferencia }) {
           </div>
         </>
       )}
+
+      {/* (MPT1108B) Candado, reparto por vías, velocidad total y «Verificado (SHA-256)». */}
+      <CifradoViasArchivo cifradoArchivo={estado.cifradoArchivo} repartoVias={estado.repartoVias} velocidadBps={enCurso ? estado.velocidadBps : undefined} verificado={estado.fase === "completada"} />
 
       {estado.fase === "completada" && (
         <div className="flex flex-wrap items-center gap-1.5 text-[9px]">

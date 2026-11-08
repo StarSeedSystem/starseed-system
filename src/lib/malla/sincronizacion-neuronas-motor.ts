@@ -901,7 +901,8 @@ export function fijarCapacidadesAnunciadas(fn: () => string[]): () => void {
 }
 
 function capacidadesAnunciadas(): string[] {
-  const base: string[] = [];
+  // MPT1108B: las de archivo siempre van (aunque no se haya montado el anuncio de capas) y primero (el anuncio se corta en 16).
+  const base: string[] = ["archivo.e2e.v1", "multitrayecto.v1"];
   if (esAppNativa()) base.push("canal local (TCP 47071)");
   if (typeof RTCPeerConnection !== "undefined") base.push("WebRTC");
   for (const fn of Array.from(proveedoresCapacidades)) {

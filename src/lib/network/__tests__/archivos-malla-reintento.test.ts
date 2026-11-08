@@ -87,6 +87,33 @@ async function esperarHasta(fn: () => boolean, timeoutMs = 5000, pasoMs = 5): Pr
   }
 }
 
+/**
+ * (MPT1108B) Espera dirigida por eventos: se resuelve cuando el estado de la transferencia cumple `pred`, avisado por
+ * `onProgreso` del propio motor. Sin dormir un tiempo fijo: con la máquina cargada el receptor puede tardar más en procesar
+ * los trozos (hash y almacén son asíncronos) y una lectura inmediata veía 0 en vez de 2. El plazo solo es una red de seguridad.
+ */
+function esperarEstado(motor: MotorArchivos, id: string | undefined, pred: (e: EstadoTransferencia) => boolean, plazoMs = 60_000): Promise<EstadoTransferencia> {
+  return new Promise((resolver, rechazar) => {
+    let baja: (() => void) | null = null;
+    const t = setTimeout(() => {
+      baja?.();
+      rechazar(new Error("esperarEstado: se agotó el plazo de seguridad"));
+    }, plazoMs);
+    const mirar = (): boolean => {
+      const e = id ? motor.estadoDe(id) : undefined;
+      if (e && pred(e)) {
+        clearTimeout(t);
+        baja?.();
+        resolver(e);
+        return true;
+      }
+      return false;
+    };
+    baja = motor.onProgreso(() => void mirar());
+    mirar();
+  });
+}
+
 function faseFinal(estado: EstadoTransferencia | undefined): FaseTransferencia | undefined {
   return estado?.fase;
 }
@@ -146,21 +173,18 @@ describe("política de reintento automático", () => {
     expect(r.ok).toBe(true);
 
     // Esperar a que el remitente detecte el fallo y entre en reintento
-    await esperarHasta(() => {
-      const estado = motorA.estadoDe(r.id);
-      return estado?.fase === "reintentando" || estado?.fase === "error";
-    });
+    await esperarEstado(motorA, r.id, (e) => e.fase === "reintentando" || e.fase === "error");
 
-    // El receptor debería haber recibido los trozos 0 y 1
-    expect(motorB.estadoDe(r.id)?.progreso).toBe(2);
+    // El receptor debería haber recibido los trozos 0 y 1 (procesa en segundo plano: se espera su progreso, no un tiempo)
+    const enB = await esperarEstado(motorB, r.id, (e) => e.progreso >= 2);
+    expect(enB.progreso).toBe(2);
 
-    // "Reconecta" el enlace después de un pequeño delay
-    await new Promise((r) => setTimeout(r, 50));
+    // "Reconecta" el enlace: justo cuando B ya tiene los dos trozos (sin esperas de reloj)
     par.conectado.ab = true;
 
     // La transferencia debería completarse AUTOMÁTICAMENTE sin intervención manual
-    await esperarHasta(() => faseFinal(motorB.estadoDe(r.id)) === "completada", 10000);
-    await esperarHasta(() => faseFinal(motorA.estadoDe(r.id)) === "completada", 10000);
+    await esperarEstado(motorB, r.id, (e) => e.fase === "completada");
+    await esperarEstado(motorA, r.id, (e) => e.fase === "completada");
 
     const blob = motorB.blobRecibido(r.id);
     expect(blob).toBeDefined();

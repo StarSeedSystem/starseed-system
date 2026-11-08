@@ -227,13 +227,18 @@ Hecho en código y probado con el motor real y vías simuladas. Pendiente: dos a
 - **Reparto**: selector ponderado suave; peso = capacidad medida ÷ (1 + latencia/250 ms). Cada vía tiene su contrapresión: con la cola llena se salta en esa vuelta, así que Bluetooth lleva pocos trozos y la LAN casi todos. Con las vías de la prueba (LAN 30 Mbps · Wi‑Fi directo 9 Mbps · Bluetooth 1,5 Mbps) el reparto fue en ese orden.
 - **Reequilibrio dinámico**: `agregarVia` / `quitarVia` / `marcarMuerta` / `actualizarVia` en caliente. Dos fallos seguidos, o un enlace que ya no está arriba, dan la vía por muerta durante un rato (se reprueba después) y se **reenvían por las demás los últimos 24 trozos** que llevaba (el receptor ignora duplicados y reensambla por índice). Lo que aun así falte lo pide el «huecos» del motor.
 - **Relés**: vías de terceros solo con permiso (`permitirTerceros`, apagado por defecto) y con tope de bytes por vía (`maxBytesRele`, 64 MiB). Como el archivo va sellado, el relé solo lleva texto cifrado.
-- **Planificador**: `planificarVias` ya propone el reparto para archivos ≥ 1 MiB con 2+ enlaces; con el ajuste «Automático» se usan todas las vías permitidas. Falta enchufar el sellado y las vías de relé en `enviarArchivo` del transporte universal (ver «Pendiente»).
+- **Planificador**: `planificarVias` ya propone el reparto para archivos ≥ 1 MiB con 2+ enlaces; con el ajuste «Automático» se usan todas las vías permitidas. Enchufado en `enviarArchivo` del transporte universal por MPT1108B (ver más abajo).
 - **Interfaz**: `EstadoTransferencia.repartoVias` («LAN 72 % · Wi‑Fi directo 20 % · Bluetooth 8 %») y `velocidadBps` los anota el motor desde `CanalArchivos.resumenVias?()`.
 
-**Pendiente (no hecho en esta ola)**
-- Anunciar `archivo.e2e.v1` en el saludo/anuncio de capas y leer los destinatarios (`pub` ECDH de cada neurona) del registro de neuronas.
-- Permitir `archivo.chunk` sellado por el relé del servidor (hoy es solo de mensajes) con tope de tamaño y opt-in para relés ajenos.
-- Pintar `repartoVias` y `cifradoArchivo` en la burbuja de transferencia.
+**Enchufado en el producto (MPT1108B, 2026-11-08)** — detalle en `archivos-malla-p2p.md` §10b.1
+- Hecho: capacidades `archivo.e2e.v1` y `multitrayecto.v1` anunciadas (sincronización de neuronas, `nl.hola` nativo y Bluetooth, ficha WebRTC, presencia de cuenta); claves del destinatario por vivo → instantánea → certificado → servidor, con una copia por neurona; `canalParaArchivo`/`enviarArchivo` y el buzón de neuronas arman sellado + todas las vías con `planificarVias` y el ajuste «Automático»; receptor único que abre el cifrado (`recibirArchivo`); relés (otra neurona tuya como salto, con topes de batería y datos; relé cifrado de StarSeed, con tope de 64 MiB por vía; terceros solo con permiso); candado, reparto, velocidad y «Verificado (SHA-256)» en la burbuja, la ventana de recepción y el panel de transferencias.
+- **Pendiente**
+  - Probar con dos aparatos reales y un relé de verdad (todo está probado con el motor real y vías simuladas).
+  - Ajustes visibles: `ajustes-vias-archivo.ts` ya guarda «Automático/solo directas», relés y topes, pero aún no hay pantalla en Ajustes.
+  - Servidores propios como relé (`rele-propio`): el tipo existe y se filtra, pero no hay adaptador que lo ofrezca; hoy solo el relé de StarSeed y los saltos por neuronas propias.
+  - El relé de StarSeed es de ida (el receptor contesta por las vías directas): no sirve aún cuando el destino solo es alcanzable por relé.
+  - Alimentar `recordarClaveCertificada` desde un saludo con certificado verificado (IDN1108A): la fuente existe y se prueba, falta el enganche en el saludo.
+  - El adaptador de router/OpenWrt sigue siendo un stub.
 
 ### 5.3 · Puerta de internet compartida (MPT1108A, 2026-11-08)
 **Idea.** Una neurona (o un router) con internet hace de **puerta** para las demás por cualquier enlace de la malla, cuando su dueño lo activa. Es la forma de que una neurona sin red reciba un manifiesto de actualización o una capa de IA.

@@ -19,6 +19,8 @@
  *     directo (WFD1108A). De un enlace sin ligar, solo se escucha el saludo.
  */
 
+import { recibirArchivo } from "@/lib/malla/recepcion-sellada";
+import { datosHolaArchivoYa, registrarHolaArchivo } from "@/lib/malla/archivo-seguro-real";
 import {
   FALLOS_PARA_CAIDA,
   aceptarHola,
@@ -614,10 +616,11 @@ export function crearRedBle(deps: DepsBle): RedBle {
     } catch {
       certificado = null;
     }
+    const arch = datosHolaArchivoYa(); // MPT1108B
     await firmarYEnviar(
       enlace,
       "nl.hola",
-      holaNativa({ de: yo, para, limites: limitesPropiosBle(estado), webrtc: false, resp, ts, cta, ...(propio() ? { cif: VERSION_CIFRADO } : {}), certificado }),
+      holaNativa({ de: yo, para, limites: limitesPropiosBle(estado), webrtc: false, resp, ts, cta, ...(propio() ? { cif: VERSION_CIFRADO } : {}), certificado, ...arch }),
     );
   }
 
@@ -697,6 +700,7 @@ export function crearRedBle(deps: DepsBle): RedBle {
       ...(ac.porCuenta ? { porCuenta: true } : {}),
       ...(h.cif ? { cif: h.cif } : {}),
     });
+    registrarHolaArchivo(h.de.neurona, h.ar, h.ep); // MPT1108B
     delete caidas[enlace];
     ultimoRechazo = null;
     if (eraNueva) {
@@ -1092,7 +1096,7 @@ async function depsReales(): Promise<DepsBle> {
     entregarArchivo: (canal, texto, etiquetaOrigen, quien) => {
       void import("@/lib/network/archivos-malla")
         .then((am) =>
-          am.motorArchivosCompartido().manejarMensaje(canal, texto, {
+          recibirArchivo(am.motorArchivosCompartido(), canal, texto, { // MPT1108B: abre el cifrado de archivo
             mismaCuenta: false,
             etiquetaOrigen,
             verificarPermiso: () => true,

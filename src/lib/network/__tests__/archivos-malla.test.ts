@@ -315,6 +315,8 @@ it("reanuda tras una desconexión simulada: no reenvía desde 0, retoma en el ú
       const fase = motorA.estadoDe(r.id)?.fase;
       return fase === "reintentando" || fase === "error";
     });
+    // El receptor procesa los trozos de forma asíncrona: se espera (por evento de estado, no por reloj) a que haya confirmado los 3.
+    await esperarHasta(() => (motorB.estadoDe(r.id)?.progreso ?? 0) >= CORTAR_TRAS_INDICE + 1);
     const progresoReceptorAntes = motorB.estadoDe(r.id)?.progreso ?? 0;
     expect(progresoReceptorAntes).toBe(CORTAR_TRAS_INDICE + 1); // 0,1,2 confirmados por el receptor
 

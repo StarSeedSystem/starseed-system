@@ -48,6 +48,7 @@ import {
 import {
   elegirEnlaces,
   enlacesParaReparto,
+  mismoAparato,
   LORA_MAX_BYTES,
   type DestinoTransporte,
   type EnlaceDisponible,
@@ -64,6 +65,13 @@ import {
 import { meshDeEnlaceLocal } from "@/lib/malla/mesh-de-enlace-local";
 import { esAppNativa } from "@/lib/nativa/puente";
 import { ipDeEnlaceNativo } from "@/lib/malla/red-local-nativa";
+import { recibirArchivo } from "@/lib/malla/recepcion-sellada"; // MPT1108B
+import type { CanalSellado } from "@/lib/malla/canal-sellado"; // MPT1108B
+import type { ViaCandidata } from "@/lib/malla/archivo-seguro"; // MPT1108B
+import { leerAjustesVias, type AjustesViasArchivo } from "@/lib/malla/ajustes-vias-archivo"; // MPT1108B
+import { planificarVias } from "@/lib/malla/conectores/planificador-vias"; // MPT1108B
+import { fichaDeTipo } from "@/lib/malla/conectores/fichas"; // MPT1108B
+import { crearCanalPorTexto, crearCanalViaSalto, crearSalto, leerLlegada, PREFIJO_LLEGA, PREFIJO_SALTO } from "@/lib/malla/rele-archivo"; // MPT1108B
 
 export type { DestinoTransporte, EnlaceDisponible, TipoEnlace } from "@/lib/malla/eleccion-enlace";
 
@@ -684,21 +692,263 @@ export interface CanalArchivoElegido {
   multi: CanalMultitrayecto | null;
   descartados: Eleccion["descartados"];
   motivo?: string;
+  /** (MPT1108B) Cifrado de archivo de este canal: «archivo» (de punta a punta) o «sin-cifrado-de-archivo» (par antiguo). */
+  modoCifrado?: "archivo" | "sin-cifrado-de-archivo";
+  /** (MPT1108B) El canal sellado (para consultar `modoCifrado(id)`), si lo hay. */
+  sellado?: CanalSellado | null;
+  /** (MPT1108B) Vías usadas (también relés) y las que se dejaron fuera con su motivo. */
+  vias?: Array<{ id: string; tipo: string; etiqueta: string }>;
+  excluidas?: Array<{ id: string; motivo: string }>;
+  /** (MPT1108B) Cuántas neuronas reciben una copia sellada. */
+  copias?: number;
 }
 
-/** Elige el canal para un archivo hacia `destino` (multitrayecto si hay varios enlaces al mismo aparato). */
-export async function canalParaArchivo(destino: DestinoTransporte, bytes = 0): Promise<CanalArchivoElegido> {
-  const eleccion = elegirEnlaces(await enlacesDisponibles(), destino, "archivo", bytes, {});
-  const enlaces = enlacesParaReparto(eleccion);
+/** (MPT1108B) Ajustes de un envío concreto. */
+export interface OpcionesCanalArchivo {
+  /** false = ningún relé (los ajustes del chat no permiten el servidor). Por defecto, lo que digan los ajustes de vías. */
+  permitirRele?: boolean;
+  /** Más neuronas destinatarias (un grupo o todas las de una cuenta): una copia sellada por cada una con clave. */
+  neuronas?: string[];
+  ajustes?: Partial<AjustesViasArchivo>;
+}
+
+/** Elige el canal para un archivo hacia `destino` (todas las vías permitidas, sellado si el par lo entiende). */
+export async function canalParaArchivo(destino: DestinoTransporte, bytes = 0, opciones: OpcionesCanalArchivo = {}): Promise<CanalArchivoElegido> {
+  const lista = await enlacesDisponibles();
+  const eleccion = elegirEnlaces(lista, destino, "archivo", bytes, {});
+  const ajustes: AjustesViasArchivo = { ...leerAjustesVias(), ...(opciones.ajustes ?? {}) }; // MPT1108B
+  const enlaces = enlacesDeArchivo(eleccion, destino, bytes, ajustes); // MPT1108B: planificador + «Automático»
   const subs = enlaces
     .map((e) => ({ e, canal: canalDeEnlace(e) }))
     .filter((x): x is { e: EnlaceDisponible; canal: CanalArchivos } => !!x.canal);
   if (!subs.length) {
     return { canal: null, enlaces: [], multi: null, descartados: eleccion.descartados, motivo: "No hay ningún enlace P2P abierto hacia ese aparato." };
   }
+  // MPT1108B ── sellado de punta a punta + multitrayecto por todas las vías (los relés suman, nunca sustituyen una vía directa)
+  try {
+    const sa = await import("@/lib/malla/archivo-seguro");
+    const real = await import("@/lib/malla/archivo-seguro-real");
+    const par = await real.parCifraPorEnlaces(subs.map((x) => x.e), opciones.neuronas ?? []);
+    const vias: ViaCandidata[] = subs.map((x) => ({
+      id: x.e.id,
+      tipo: x.e.tipo === "cuenta" || x.e.tipo === "par" ? "cuenta" : "directa",
+      canal: x.canal,
+      etiqueta: etiquetaDeVia(x.e),
+      capacidadKbps: x.e.capacidadKbps ?? null,
+      latenciaMs: x.e.rttMs ?? null,
+    }));
+    if (par.cifra && ajustes.modo === "automatico" && opciones.permitirRele !== false) vias.push(...(await viasDeRele(destino, par.neuronas, lista, ajustes)));
+    const armado = await sa.armarCanalArchivo({
+      vias,
+      bytes,
+      parCifra: par.cifra,
+      destinatarios: () => real.destinatariosReales(par.neuronas),
+      ajustes,
+    });
+    if (armado.canal) {
+      const usadas = armado.usadas;
+      return {
+        canal: armado.canal,
+        enlaces: subs.map((x) => x.e).filter((e) => usadas.some((u) => u.id === e.id)),
+        multi: armado.multi,
+        descartados: eleccion.descartados,
+        modoCifrado: armado.modo,
+        sellado: armado.sellado,
+        vias: usadas.map((u) => ({ id: u.id, tipo: u.tipo, etiqueta: u.etiqueta ?? u.id })),
+        excluidas: armado.excluidas,
+        copias: armado.copias,
+      };
+    }
+  } catch {
+    /* sin el módulo de sellado: camino de siempre */
+  }
   if (subs.length === 1) return { canal: subs[0].canal, enlaces: [subs[0].e], multi: null, descartados: eleccion.descartados };
   const multi = crearCanalMultitrayecto(subs.map((x) => ({ id: x.e.id, canal: x.canal, capacidadKbps: x.e.capacidadKbps })));
   return { canal: multi, enlaces: subs.map((x) => x.e), multi, descartados: eleccion.descartados };
+}
+
+/* ══════════════ MPT1108B · vías de un archivo: planificador, «Automático» y relés ══════════════ */
+
+const TIPOS_P2P: ReadonlySet<TipoEnlace> = new Set<TipoEnlace>(["local", "nativo", "ble", "cuenta", "par"]);
+
+/** Nombre corto de cada vía para el reparto («Red local 72 % · Bluetooth 8 %»). */
+export function etiquetaDeVia(e: EnlaceDisponible): string {
+  switch (e.tipo) {
+    case "nativo":
+      return "Red local";
+    case "ble":
+      return "Bluetooth";
+    case "cuenta":
+      return "Cuenta";
+    case "par":
+      return "Vínculo";
+    case "local":
+      return e.ruta === "internet-directo" ? "Internet directo" : e.ruta === "reenviado-turn" ? "Relé TURN" : "Wi‑Fi directo";
+    default:
+      return e.etiqueta;
+  }
+}
+
+/**
+ * Enlaces directos que llevan el archivo. Con «Automático» (por defecto), TODOS los que llegan al mismo aparato y el
+ * planificador (`planificarVias`) deja pasar, Bluetooth incluido (la contrapresión le da pocos trozos). Con «solo directas» o un
+ * enlace forzado por los ajustes del chat, la regla de siempre (`enlacesParaReparto`).
+ */
+function enlacesDeArchivo(eleccion: Eleccion, destino: DestinoTransporte, bytes: number, ajustes: AjustesViasArchivo): EnlaceDisponible[] {
+  const reparto = enlacesParaReparto(eleccion);
+  if (ajustes.modo !== "automatico" || destino.enlaceId) return reparto;
+  const p2p = eleccion.elegidos.map((x) => x.enlace).filter((e) => TIPOS_P2P.has(e.tipo));
+  if (p2p.length <= 1) return reparto;
+  const primero = p2p[0];
+  if (primero.tipo === "ble") return [primero]; // archivo pequeño: Bluetooth solo, como antes
+  const mismo = p2p.filter((e) => e === primero || mismoAparato(primero.alcanza, e.alcanza));
+  try {
+    const plan = planificarVias(
+      { tipo: "archivo", bytes, urgencia: "normal", privacidad: "privado", destino },
+      mismo.map((e) => ({ conectorId: e.tipo, enlace: e, ficha: fichaDeTipo(e.tipo, e) })),
+      { bateria: null, coste: "libre" },
+    );
+    const permitidos = plan.pasos.map((p) => mismo.find((e) => e.id === p.enlaceId)).filter((e): e is EnlaceDisponible => !!e);
+    if (permitidos.length) return permitidos;
+  } catch {
+    /* el planificador no decide: se usan los que llegan */
+  }
+  return mismo;
+}
+
+let bateriaCache: { nivel: number | null; cargando: boolean } = { nivel: null, cargando: true };
+let bateriaPedida = false;
+function energiaActual(): { bateria: number | null; cargando: boolean } {
+  if (!bateriaPedida && typeof navigator !== "undefined") {
+    bateriaPedida = true;
+    try {
+      void (navigator as unknown as { getBattery?: () => Promise<{ level: number; charging: boolean }> }).getBattery?.().then((b) => {
+        bateriaCache = { nivel: b.level, cargando: b.charging };
+      });
+    } catch {
+      /* sin API de batería */
+    }
+  }
+  return { bateria: bateriaCache.nivel, cargando: bateriaCache.cargando };
+}
+
+const K_SALTO = "starseed.archivos.salto.v1";
+function usadoSaltoHoy(): number {
+  try {
+    const x = JSON.parse(localStorage.getItem(K_SALTO) ?? "null") as { dia: string; bytes: number } | null;
+    return x && x.dia === new Date().toISOString().slice(0, 10) ? x.bytes : 0;
+  } catch {
+    return 0;
+  }
+}
+function sumarSaltoHoy(bytes: number): void {
+  try {
+    localStorage.setItem(K_SALTO, JSON.stringify({ dia: new Date().toISOString().slice(0, 10), bytes: usadoSaltoHoy() + bytes }));
+  } catch {
+    /* solo informativo */
+  }
+}
+
+const canalNulo: CanalArchivos = { enviar: () => false, alMensaje: () => () => undefined };
+
+/** Vías de RELÉ hacia la neurona destino: otras neuronas tuyas como salto y el relé cifrado de StarSeed. Solo texto cifrado. */
+async function viasDeRele(destino: DestinoTransporte, neuronasDestino: string[], lista: EnlaceDisponible[], ajustes: AjustesViasArchivo): Promise<ViaCandidata[]> {
+  const out: ViaCandidata[] = [];
+  try {
+    const yo = identidadDispositivo().neuronDeviceId;
+    const destinoNeurona = neuronasDestino[0];
+    // 1 · Otras neuronas de la cuenta, abiertas por la malla, como salto hacia una neurona tuya.
+    const propias = new Set(snapshotMallaNeuronas().misDispositivos.map((f) => f.neuronId));
+    if (ajustes.releNeuronas && destinoNeurona && propias.has(destinoNeurona)) {
+      for (const e of lista) {
+        if (e.tipo !== "cuenta" || !e.abierto) continue;
+        const salto = e.alcanza.neuronDeviceId ?? snapshotMallaNeuronas().misDispositivos.find((f) => f.syncDeviceId === e.alcanza.syncDeviceId)?.neuronId;
+        if (!salto || salto === destinoNeurona || salto === yo) continue;
+        out.push({
+          id: `salto:${e.id}`,
+          tipo: "rele-neurona",
+          etiqueta: `Relé por ${e.etiqueta}`,
+          canal: crearCanalViaSalto({
+            yo,
+            destino: destinoNeurona,
+            enviarAlSalto: (t) => enviarP2PReal(e, t),
+            alLlegar: () => () => undefined,
+            arriba: () => !!getSharedMesh(),
+          }),
+        });
+      }
+    }
+    // 2 · El relé cifrado de StarSeed (solo trozos sellados; tope de bytes en el multitrayecto).
+    const rele = lista.find((e) => e.tipo === "rele" && e.abierto);
+    if (ajustes.releServidor && rele && destino.identidadRele) {
+      const para = destino.identidadRele;
+      const uidDest = destino.uid;
+      out.push({
+        id: "rele-starseed",
+        tipo: "rele-starseed",
+        etiqueta: "Relé de StarSeed",
+        canal: crearCanalPorTexto({
+          enviarTexto: async (t) => {
+            const { uploadRelay } = await import("@/ai/astraura/mesh/server-relay");
+            const id = nuevoId();
+            const r = await uploadRelay({ cls: "P1", ptype: "message", body: { cv: `tu:archivo-rele:${id}`, txt: t, ...(uidDest ? { to: uidDest } : {}) }, recipient: para, oid: id });
+            return r.ok;
+          },
+          suscribir: () => () => undefined,
+          arriba: () => typeof navigator === "undefined" || navigator.onLine !== false,
+        }),
+      });
+    }
+  } catch {
+    /* sin relés: solo las vías directas */
+  }
+  return out;
+}
+
+/** Recepción de relés: el salto que reenvía (otra neurona tuya) y los trozos sellados que llegan por el relé del servidor. */
+function iniciarRecepcionRele(motor: () => MotorArchivos): { bajas: Array<() => void>; alMesh: (peerId: string, data: unknown) => boolean } {
+  const bajas: Array<() => void> = [];
+  const saltoCfg = crearSalto({
+    ajustes: () => leerAjustesVias(),
+    energia: energiaActual,
+    esPropia: (n) => {
+      try {
+        const yo = identidadDispositivo().neuronDeviceId;
+        return n === yo || snapshotMallaNeuronas().misDispositivos.some((f) => f.neuronId === n);
+      } catch {
+        return false;
+      }
+    },
+    reenviar: (para, texto) => {
+      const f = snapshotMallaNeuronas().misDispositivos.find((x) => x.neuronId === para);
+      const mesh = getSharedMesh();
+      return !!f?.syncDeviceId && !!mesh && mesh.sendToPeer(f.syncDeviceId, texto);
+    },
+    usadoHoy: usadoSaltoHoy,
+    sumar: sumarSaltoHoy,
+  });
+  const alMesh = (peerId: string, data: unknown): boolean => {
+    if (typeof data !== "string") return false;
+    if (data.startsWith(PREFIJO_SALTO) && !data.startsWith(PREFIJO_LLEGA)) {
+      const de = snapshotMallaNeuronas().misDispositivos.find((f) => f.syncDeviceId === peerId)?.neuronId ?? "";
+      void saltoCfg.procesar(data, de).catch(() => undefined);
+      return true;
+    }
+    const llega = data.startsWith(PREFIJO_LLEGA) ? leerLlegada(data) : null;
+    if (llega) {
+      // Un trozo o un aviso del archivo, sellado, llegado por el salto de otra neurona tuya.
+      recibirArchivo(motor(), canalNulo, llega.p, { mismaCuenta: true, via: "Relé por otra neurona de tu cuenta", nodoId: peerId });
+      return true;
+    }
+    return false;
+  };
+  bajas.push(
+    alRecibirMensaje("archivo-rele", (m) => {
+      const t = typeof m.cuerpo === "string" ? m.cuerpo : JSON.stringify(m.cuerpo);
+      recibirArchivo(motor(), canalNulo, t, { mismaCuenta: false, via: "Relé cifrado de StarSeed", etiquetaOrigen: m.origen.etiqueta });
+    }),
+  );
+  return { bajas, alMesh };
 }
 
 export interface ResultadoArchivo {
@@ -717,8 +967,9 @@ export async function enviarArchivo(
   nombre: string,
   destinoArchivo?: DestinoArchivo,
   motor: MotorArchivos = motorArchivosCompartido(),
+  opciones: OpcionesCanalArchivo = {}, // MPT1108B
 ): Promise<ResultadoArchivo> {
-  const elegido = await canalParaArchivo(destino, archivo.size);
+  const elegido = await canalParaArchivo(destino, archivo.size, opciones);
   // (WFD1108A) Un archivo grande a una neurona vecina puede abrir (o proponer) el enlace Wi-Fi directo.
   avisarAnchoWifi({ destino, clase: "archivo", bytes: archivo.size, enlace: elegido.enlaces[0] ?? null });
   const enlaces = elegido.enlaces.map((e) => ({ id: e.id, tipo: e.tipo, etiqueta: e.etiqueta }));
@@ -910,7 +1161,7 @@ export function asegurarRecepcionLocal(): void {
       }
       if (typeof data !== "string" || data.startsWith('{"t":"archivo.')) {
         const nativa = e.par.origen === "red-local-nativa";
-        motorArchivosCompartido().manejarMensaje(canal, data, {
+        recibirArchivo(motorArchivosCompartido(), canal, data, { // MPT1108B
           mismaCuenta: false,
           etiquetaOrigen: `${e.par.nombre || "Aparato vinculado"} (${nativa ? "red local · app nativa" : "sin internet"})`,
           verificarPermiso: () => true,
@@ -958,6 +1209,8 @@ export function iniciarTransporteUniversal(): () => void {
   let activo = true;
   const bajas: Array<() => void> = [];
   let reintento: ReturnType<typeof setTimeout> | null = null;
+  const reles = iniciarRecepcionRele(motorArchivosCompartido); // MPT1108B
+  bajas.push(...reles.bajas);
 
   // 1) Malla de la cuenta (el mismo mesh compartido de siempre).
   const conectarMesh = () => {
@@ -970,6 +1223,7 @@ export function iniciarTransporteUniversal(): () => void {
     bajas.push(
       mesh.onPeer({
         onMessage: (peerId, data) => {
+          if (reles.alMesh(peerId, data)) return; // MPT1108B: salto de archivo por otra neurona tuya
           if (!esTextoTransporte(data)) return;
           const fila = snapshotMallaNeuronas().misDispositivos.find((f) => f.syncDeviceId === peerId);
           despacharTextoTransporte(data as string, { tipo: "cuenta", enlaceId: `cuenta:${peerId}`, etiqueta: fila?.nombre ?? "Aparato de tu cuenta", syncDeviceId: peerId }, (t) =>
@@ -983,6 +1237,7 @@ export function iniciarTransporteUniversal(): () => void {
 
   // 2) Enlaces locales (también se engancha sola desde la interfaz de emparejado).
   asegurarRecepcionLocal();
+  // MPT1108B: relés de archivo (relé cifrado del servidor; el salto por otra neurona se engancha con la malla, arriba).
   const motorPerezoso = () => motorArchivosCompartido();
 
   // 3) Vínculos entre cuentas: mensajes y, si el vínculo lo permite, archivos.
@@ -1004,7 +1259,7 @@ export function iniciarTransporteUniversal(): () => void {
             canal = { enviar: (t) => m.enviarAPar(vinculoId, t), alMensaje: () => () => undefined };
             canales.set(vinculoId, canal);
           }
-          motorPerezoso().manejarMensaje(canal, data, {
+          recibirArchivo(motorPerezoso(), canal, data, { // MPT1108B
             mismaCuenta: false,
             etiquetaOrigen: "Vínculo entre cuentas",
             verificarPermiso: () => !!m.vinculosActivos().find((x) => x.vinculoId === vinculoId)?.permisos?.archivos,

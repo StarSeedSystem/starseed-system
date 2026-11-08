@@ -35,7 +35,19 @@ import { TAM_TROZO_POR_DEFECTO, bufAB64, b64ABuf, decodeChunkBinario, encodeChun
 
 export type ModoCifradoArchivo = "archivo" | "sin-cifrado-de-archivo";
 
+/** (MPT1108B) Claves y modos de las transferencias selladas, compartibles entre varios canales sellados (un receptor, varios enlaces). */
+export interface AlmacenSellos {
+  selladas: Map<string, { clave: ClaveContenido; total: number }>;
+  modos: Map<string, ModoCifradoArchivo>;
+}
+
+export function crearAlmacenSellos(): AlmacenSellos {
+  return { selladas: new Map(), modos: new Map() };
+}
+
 export interface OpcionesCanalSellado {
+  /** (MPT1108B) Almacén compartido: la oferta abierta por un enlace sirve para los trozos que llegan por otro. */
+  almacen?: AlmacenSellos;
   /** Neuronas destinatarias del archivo (como emisor). Sin esto, este canal no sella lo que envía. */
   destinatarios?: () => DestinatarioArchivo[] | Promise<DestinatarioArchivo[]>;
   /** ¿El par anuncia `archivo.e2e.v1`? Solo `true` sella; `false` = par antiguo (en claro, marcado). Sin función: sella. */
@@ -76,8 +88,8 @@ function leerJson(texto: string): Record<string, unknown> | null {
 }
 
 export function crearCanalSellado(base: CanalArchivos, opts: OpcionesCanalSellado = {}): CanalSellado {
-  const selladas = new Map<string, Sellada>();
-  const modos = new Map<string, ModoCifradoArchivo>();
+  const selladas = opts.almacen?.selladas ?? new Map<string, Sellada>();
+  const modos = opts.almacen?.modos ?? new Map<string, ModoCifradoArchivo>();
   let descartes = 0;
   let pendientesBytes = 0;
   let pendientes = 0;
