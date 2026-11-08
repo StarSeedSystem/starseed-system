@@ -1,0 +1,17 @@
+{
+ "ola": "oracle-20261108",
+ "medio": "oracle",
+ "tareas": [
+  {
+   "id": "SUP0811E",
+   "titulo": "Aprobador automático · avanza main con ff_seguro (un merge que muere en un cerrojo no deja main a medias)",
+   "archivos": [
+    "scripts/puente/aprobador_automatico.py",
+    "scripts/puente/test_aprobador_automatico.py"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni cadenas con forma de clave; nunca rutas de un worktree; nunca la IP del A1; nunca pkill, kill -9 ni systemctl; nunca `next build` en la Mac; NUNCA `git push` ni `scripts/puente/publicar.py` (publicar es de la autopublicación); nunca borrar. Ninguna prueba toca la red, GitHub ni el repo vivo de la Mac. Solo las pruebas de lo tocado (python3 -m pytest <archivo> -q). Es solo Python: no lances tsc ni vitest.\n\nContexto (supervisión del 08-11): `git merge --ff-only` escribe el árbol y el índice ANTES de mover la referencia; si otro git tiene en ese instante el cerrojo de la referencia (`refs/heads/main.lock`), sale con 128 y deja main con los archivos de la rama sin commit. El 07-11 eso paró el enjambre, el reconstructor y traer_nube unas 5 h. SUP0811B (ya en main) añadió `scripts/puente/ff_seguro.py` (`avanzar_ff(raiz, destino, git=None, extra=(), …)` → `(rc, salida)`: hace el merge y, si falla, devuelve a la cabeza solo lo que el merge dejó escrito y repite si fue un cerrojo) y lo usan el orquestador (`merge_ff_en_main`) y traer_nube (`_avanzar_main_ff`). Falta el tercero que avanza main: `scripts/puente/aprobador_automatico.py`, que dentro del cerrojo `integrar` hace `rc, salida = _git([\"merge\", \"--ff-only\", \"-q\", nuevo], timeout=120)` (su `_git` solo devuelve stdout, así que además pierde el motivo del fallo).\n\nCambio mínimo: una función `_avanzar_main(nuevo)` en `aprobador_automatico.py` que importa `ff_seguro` DENTRO de la función (si el import falla, devuelve el `_git([\"merge\", \"--ff-only\", \"-q\", nuevo], timeout=120)` de hoy) y si no devuelve `ff_seguro.avanzar_ff(RAIZ, nuevo, extra=(\"-q\",))` (sin pasarle `git=`: el suyo trae stdout y stderr). El merge de la integración pasa a `rc, salida = _avanzar_main(nuevo)`; nada más cambia.\n\nPruebas en `scripts/puente/test_aprobador_automatico.py` (añade, no cambies las de hoy): (a) con `ff_seguro.avanzar_ff` parcheado (`unittest.mock.patch.object`) a `(0, \"ok\")`, `_avanzar_main(\"abc123\")` devuelve `(0, \"ok\")` y lo llamó con `RAIZ`, `\"abc123\"` y `extra=(\"-q\",)`; (b) el texto de `aprobador_automatico.py` ya no contiene `[\"merge\", \"--ff-only\", \"-q\", nuevo]` fuera de `_avanzar_main` (léelo con `open(...)` y cuenta: una sola vez, la de la vuelta atrás). Corre `python3 -m pytest scripts/puente/test_aprobador_automatico.py scripts/puente/test_ff_seguro.py -q`.",
+   "ola": "0811 · Seguimiento de la supervisión",
+   "depende": []
+  }
+ ]
+}
