@@ -208,6 +208,8 @@ export function copiarServidor(base, destino) {
   fs.copyFileSync(path.join(AQUI, "migracion-origen.js"), path.join(destino, "migracion-origen.js"));
   // (SEG1107A · T11) La guarda del envoltorio (Host, Origin, pase de la ventana).
   fs.copyFileSync(path.join(AQUI, "guarda.cjs"), path.join(destino, "guarda.cjs"));
+  // (PTA1108A) La puerta de internet de la malla (opcional: sin este archivo la app sigue igual).
+  fs.copyFileSync(path.join(AQUI, "puerta.cjs"), path.join(destino, "puerta.cjs"));
   const envSueltos = fs.readdirSync(destino).filter((n) => /^\.env(\..*)?$/.test(n));
   if (envSueltos.length) throw new Error(`quedó un .env en el servidor: ${envSueltos.join(", ")}`);
   return { sinSharp };

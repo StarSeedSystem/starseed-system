@@ -112,6 +112,9 @@ function MallaNeuronasEngine() {
   // vínculo dice cuáles se comparten) y clave de faro de la cuenta para la app nativa (sin ella el faro
   // es anónimo y las neuronas propias salen en «otras cuentas cerca»). Solo la app nativa toca el faro.
   useMotorPerezoso(() => import("@/lib/malla/anuncio-capas").then((m) => m.iniciarAnuncioCapas));
+  // (2026-11-08 · PTA1108A) Puerta de internet compartida: una neurona con salida presta internet a las vecinas por la malla
+  // y, sin salida propia, esta usa la mejor puerta (`architecture/red-sin-dependencias.md` §5.3).
+  useMotorPerezoso(() => import("@/lib/malla/puerta/servicio").then((m) => m.iniciarPuertaMalla));
   useMotorPerezoso(() => import("@/lib/nativa/faro-clave-cuenta").then((m) => m.iniciarClaveFaroNativa));
   // (2026-11-08 · OFF1108A) Arranque sin internet: espejo de la instantánea de la cuenta (huellas probadas
   // de las neuronas propias), aprendizaje de lo que se liga por prueba de cuenta y reintento inmediato del

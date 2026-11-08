@@ -1,0 +1,197 @@
+/**
+ * puerta/politica — qué comparte esta neurona y con quién (PTA1108A · 2026-11-08).
+ * Contrato: `architecture/red-sin-dependencias.md` §5.3. Puro: sin red ni DOM (el almacenamiento se inyecta).
+ *
+ *  · Entre neuronas de la MISMA cuenta: compartir internet está ENCENDIDO por defecto, con topes (datos al día,
+ *    batería mínima, red medida).
+ *  · Con OTRAS cuentas o público: ajuste del dueño «Nunca / Preguntar / Automático»; por defecto «Preguntar».
+ *    Si nadie contesta (no hay interfaz), se deniega.
+ *  · Las puertas públicas de StarSeed y los routers configurados como públicos cuentan como permitidos.
+ */
+
+export type ModoOtrasCuentas = "nunca" | "preguntar" | "automatico";
+
+export interface TopesCompartir {
+  /** Bytes que se sirven al día a todos los solicitantes de este grupo. */
+  bytesDia: number;
+  /** Batería mínima (0..1) para servir sin estar cargando. */
+  bateriaMin: number;
+  /** ¿Se comparte aunque la salida sea una red medida (datos móviles)? */
+  permitirRedMedida: boolean;
+  /** Túneles abiertos a la vez. */
+  maxTuneles: number;
+}
+
+export interface AjustesPuerta {
+  v: 1;
+  /** «Compartir mi internet con mis neuronas». */
+  misNeuronas: boolean;
+  /** «… con otras cuentas». */
+  otrasCuentas: ModoOtrasCuentas;
+  /** Usar la puerta de otra neurona cuando esta no tenga internet. */
+  usarPuertas: boolean;
+  topesMias: TopesCompartir;
+  topesOtras: TopesCompartir;
+  /** Puertos de salida permitidos (por defecto solo 443). */
+  puertos: number[];
+  /** Permitir salir a direcciones privadas / de LAN (servidores propios). Apagado por defecto. */
+  permitirRedPrivada: boolean;
+  /** Hosts a los que una cuenta ajena puede llegar en modo «Automático» (vacío = cualquiera público). */
+  hostsParaOtras: string[];
+  /** Neuronas con acceso revocado. */
+  revocadas: string[];
+  /** Respuestas recordadas del «Preguntar» (id de neurona → decisión). */
+  recordadas: Record<string, "permitir" | "denegar">;
+}
+
+const MIB = 1024 * 1024;
+
+export const AJUSTES_PUERTA_POR_DEFECTO: AjustesPuerta = {
+  v: 1,
+  misNeuronas: true,
+  otrasCuentas: "preguntar",
+  usarPuertas: true,
+  topesMias: { bytesDia: 2048 * MIB, bateriaMin: 0.2, permitirRedMedida: false, maxTuneles: 16 },
+  topesOtras: { bytesDia: 100 * MIB, bateriaMin: 0.4, permitirRedMedida: false, maxTuneles: 4 },
+  puertos: [443],
+  permitirRedPrivada: false,
+  hostsParaOtras: [],
+  revocadas: [],
+  recordadas: {},
+};
+
+export const CLAVE_AJUSTES_PUERTA = "starseed.malla.puerta.v1";
+
+type Almacen = Pick<Storage, "getItem" | "setItem">;
+
+function numero(x: unknown, def: number, min: number, max: number): number {
+  return typeof x === "number" && Number.isFinite(x) ? Math.min(max, Math.max(min, x)) : def;
+}
+
+function topes(x: unknown, def: TopesCompartir): TopesCompartir {
+  const o = (x && typeof x === "object" ? x : {}) as Record<string, unknown>;
+  return {
+    bytesDia: numero(o.bytesDia, def.bytesDia, 0, 1024 * 1024 * MIB),
+    bateriaMin: numero(o.bateriaMin, def.bateriaMin, 0, 1),
+    permitirRedMedida: typeof o.permitirRedMedida === "boolean" ? o.permitirRedMedida : def.permitirRedMedida,
+    maxTuneles: Math.round(numero(o.maxTuneles, def.maxTuneles, 1, 64)),
+  };
+}
+
+const textos = (x: unknown, max: number): string[] =>
+  Array.isArray(x) ? x.filter((s): s is string => typeof s === "string" && s.length > 0 && s.length <= 255).slice(0, max) : [];
+
+/** Normaliza lo guardado: cualquier campo que no sirva vuelve a su valor por defecto. */
+export function interpretarAjustes(texto: string | null | undefined): AjustesPuerta {
+  const d = AJUSTES_PUERTA_POR_DEFECTO;
+  let o: Record<string, unknown> = {};
+  try {
+    const p = texto ? JSON.parse(texto) : null;
+    if (p && typeof p === "object") o = p as Record<string, unknown>;
+  } catch {
+    /* ajustes rotos: por defecto */
+  }
+  const rec: Record<string, "permitir" | "denegar"> = {};
+  if (o.recordadas && typeof o.recordadas === "object") {
+    for (const [k, v] of Object.entries(o.recordadas as Record<string, unknown>).slice(0, 200)) {
+      if (v === "permitir" || v === "denegar") rec[k] = v;
+    }
+  }
+  const puertos = Array.isArray(o.puertos) ? o.puertos.filter((n): n is number => Number.isInteger(n) && n > 0 && n < 65536).slice(0, 8) : [];
+  return {
+    v: 1,
+    misNeuronas: typeof o.misNeuronas === "boolean" ? o.misNeuronas : d.misNeuronas,
+    otrasCuentas: o.otrasCuentas === "nunca" || o.otrasCuentas === "automatico" || o.otrasCuentas === "preguntar" ? o.otrasCuentas : d.otrasCuentas,
+    usarPuertas: typeof o.usarPuertas === "boolean" ? o.usarPuertas : d.usarPuertas,
+    topesMias: topes(o.topesMias, d.topesMias),
+    topesOtras: topes(o.topesOtras, d.topesOtras),
+    puertos: puertos.length ? puertos : [...d.puertos],
+    permitirRedPrivada: o.permitirRedPrivada === true,
+    hostsParaOtras: textos(o.hostsParaOtras, 64),
+    revocadas: textos(o.revocadas, 200),
+    recordadas: rec,
+  };
+}
+
+export function leerAjustesPuerta(almacen?: Almacen | null): AjustesPuerta {
+  try {
+    const s = almacen ?? (typeof localStorage !== "undefined" ? localStorage : null);
+    return interpretarAjustes(s?.getItem(CLAVE_AJUSTES_PUERTA));
+  } catch {
+    return interpretarAjustes(null);
+  }
+}
+
+export function guardarAjustesPuerta(a: AjustesPuerta, almacen?: Almacen | null): boolean {
+  try {
+    const s = almacen ?? (typeof localStorage !== "undefined" ? localStorage : null);
+    if (!s) return false;
+    s.setItem(CLAVE_AJUSTES_PUERTA, JSON.stringify(a));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/* ───────────────────────── Decisión ───────────────────────── */
+
+export interface Solicitante {
+  /** Id de la neurona que pide (la de origen del túnel, no el vecino que lo reenvía). */
+  id: string;
+  /** Prueba de misma cuenta (certificado o huella guardada). */
+  mismaCuenta: boolean;
+  /** Puerta pública de StarSeed o router declarado público. */
+  publico?: boolean;
+}
+
+export interface EstadoPropio {
+  conInternet: boolean;
+  bateria: number | null;
+  cargando: boolean;
+  /** La salida actual es una red medida (datos móviles, tethering). */
+  medida: boolean;
+}
+
+export type MotivoDecision = "ok" | "apagada" | "revocada" | "sin-internet" | "bateria" | "red-medida" | "cuota" | "tuneles" | "otra-cuenta" | "pregunta";
+
+export interface Decision {
+  veredicto: "permitir" | "preguntar" | "denegar";
+  motivo: MotivoDecision;
+  /** Topes que se le aplican si se permite. */
+  topes: TopesCompartir;
+}
+
+/** Decide si esta neurona sirve a `s` AHORA. No cuenta cuotas por sí sola: recibe lo gastado. */
+export function decidirServir(
+  aj: AjustesPuerta,
+  s: Solicitante,
+  est: EstadoPropio,
+  uso: { bytesHoyGrupo: number; tunelesGrupo: number },
+): Decision {
+  const propia = s.mismaCuenta;
+  const t = propia ? aj.topesMias : aj.topesOtras;
+  const no = (motivo: MotivoDecision): Decision => ({ veredicto: "denegar", motivo, topes: t });
+  if (aj.revocadas.includes(s.id)) return no("revocada");
+  if (propia && !aj.misNeuronas) return no("apagada");
+  if (!propia && !s.publico && aj.otrasCuentas === "nunca") return no("apagada");
+  if (!est.conInternet) return no("sin-internet");
+  if (!est.cargando && est.bateria !== null && est.bateria < t.bateriaMin) return no("bateria");
+  if (est.medida && !t.permitirRedMedida) return no("red-medida");
+  if (uso.bytesHoyGrupo >= t.bytesDia) return no("cuota");
+  if (uso.tunelesGrupo >= t.maxTuneles) return no("tuneles");
+  if (propia || s.publico) return { veredicto: "permitir", motivo: "ok", topes: t };
+  const r = aj.recordadas[s.id];
+  if (r === "denegar") return no("otra-cuenta");
+  if (r === "permitir" || aj.otrasCuentas === "automatico") return { veredicto: "permitir", motivo: "ok", topes: t };
+  return { veredicto: "preguntar", motivo: "pregunta", topes: t };
+}
+
+/** ¿Puede una cuenta ajena en modo «Automático» llegar a este host? Vacío = cualquier público. */
+export function hostPermitidoParaOtras(aj: AjustesPuerta, host: string): boolean {
+  if (!aj.hostsParaOtras.length) return true;
+  const h = host.toLowerCase();
+  return aj.hostsParaOtras.some((p) => {
+    const q = p.toLowerCase();
+    return q.startsWith("*.") ? h.endsWith(q.slice(1)) : h === q;
+  });
+}

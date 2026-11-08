@@ -60,6 +60,7 @@ const RUTA_SALUD = "/__starseed/salud";
 const RUTA_RED = "/__starseed/red";
 const RUTA_MIGRACION = "/__starseed/migracion";
 const RUTA_MIGRACION_JS = "/__starseed/migracion-origen.js";
+const RUTA_PUERTA = "/__starseed/puerta/";
 const ARCHIVO_MIGRACION_JS = "migracion-origen.js";
 /** Rutas que solo viven en la Mac de desarrollo: nunca se sirven desde la app (APP1107B · T8). */
 const RUTAS_SOLO_MAC = ["/api/mando"];
@@ -159,7 +160,7 @@ function esSoloMac(ruta) {
   return RUTAS_SOLO_MAC.some((p) => r === p || r.startsWith(p + "/"));
 }
 
-/** ¿A dónde va esta petición? "salud" | "red" | "entrar" | "migracion" | "migracion-js" | "solo-mac" | "web" | "local". */
+/** ¿A dónde va esta petición? "salud" | "red" | "entrar" | "migracion" | "migracion-js" | "puerta" | "solo-mac" | "web" | "local". */
 function destino(url, cfg, red, ahora) {
   const ruta = rutaDe(url);
   if (ruta === RUTA_SALUD) return "salud";
@@ -167,6 +168,7 @@ function destino(url, cfg, red, ahora) {
   if (ruta === G.RUTA_ENTRAR) return "entrar";
   if (ruta === RUTA_MIGRACION) return "migracion";
   if (ruta === RUTA_MIGRACION_JS) return "migracion-js";
+  if (ruta.startsWith(RUTA_PUERTA)) return "puerta"; // PTA1108A: tuberías de la puerta de internet de la malla
   if (esSoloMac(ruta)) return "solo-mac";
   if (!ruta.startsWith("/api/")) return "local";
   if (!cfg.apiRemota) return "local";
@@ -594,6 +596,18 @@ function crearPuerta(cfg, estado) {
     });
   }
 
+  // (PTA1108A) Carga perezosa y opcional de `puerta.cjs` (apagable con STARSEED_PUERTA=0).
+  let puertaMod;
+  function puertaLocal() {
+    if (puertaMod !== undefined) return puertaMod;
+    puertaMod = null;
+    try {
+      const m = require(path.join(__dirname, "puerta.cjs"));
+      if (m.habilitada(process.env)) puertaMod = m.crearPuertaLocal({ log });
+    } catch {}
+    return puertaMod;
+  }
+
   async function manejar(req, res) {
     // (SEG1107A · T11) Primero la guarda: rebinding, otras webs y quien no traiga el pase.
     const decision = G.decidir({ metodo: req.method, url: req.url, cabeceras: req.headers }, { puerto: cfg.puerto, pase: estado.pase });
@@ -631,6 +645,12 @@ function crearPuerta(cfg, estado) {
         }
         res.writeHead(200, { "content-type": "text/javascript; charset=utf-8", "content-length": js.length, "cache-control": "no-store", "x-content-type-options": "nosniff" });
         return res.end(js);
+      }
+      case "puerta": {
+        // (PTA1108A) Solo POST y tras la guarda del pase (arriba). Módulo opcional: sin él, 404.
+        const pl = puertaLocal();
+        if (!pl) return json(res, 404, { error: "sin-puerta", mensaje: "Este paquete no trae la puerta de internet de la malla." });
+        return pl.manejar(req, res);
       }
       case "solo-mac":
         return json(res, 404, { error: "solo-mac", mensaje: "La consola de MetaGenesis vive en la Mac de desarrollo; desde la app se llega a ella por su túnel (/metagenesis)." });
@@ -787,7 +807,7 @@ async function principal() {
 
 module.exports = {
   leerConfig, fdValido, protegerSalidaEnProceso, rutaDe, rutaNormalizada, esSoloMac, destino, paginaMigracion, esErrorDeRed, estadoRed, cabecerasLimpias, cabecerasHaciaWeb,
-  adaptarCookie, cabecerasDeVuelta, cuerpoSalud, RUTA_SALUD, RUTA_RED, RUTA_MIGRACION, RUTA_MIGRACION_JS,
+  adaptarCookie, cabecerasDeVuelta, cuerpoSalud, RUTA_SALUD, RUTA_RED, RUTA_MIGRACION, RUTA_MIGRACION_JS, RUTA_PUERTA,
   RUTAS_SOLO_MAC, NOMBRE, LIMITE_CUERPO, protegerServidoresInternos, leerPaseDeEntrada, PROTOCOLO,
 };
 

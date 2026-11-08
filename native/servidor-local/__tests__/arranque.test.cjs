@@ -39,6 +39,7 @@ test("destino: salud, red, páginas en local, /api a la web salvo sin conexión"
   assert.equal(A.destino("/__starseed/salud", cfgBase, red, 1), "salud");
   assert.equal(A.destino("/__starseed/red?x=1", cfgBase, red, 1), "red");
   assert.equal(A.destino("/__starseed/entrar?t=x&a=/", cfgBase, red, 1), "entrar");
+  assert.equal(A.destino("/__starseed/puerta/fetch", cfgBase, red, 1), "puerta"); // PTA1108A
   assert.equal(A.destino("/escritorios", cfgBase, red, 1), "local");
   assert.equal(A.destino("/_next/static/a.js", cfgBase, red, 1), "local");
   assert.equal(A.destino("/api/ai/chat?x", cfgBase, red, 1), "web");
