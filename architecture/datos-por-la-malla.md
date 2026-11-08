@@ -18,7 +18,7 @@ que no se midió es «sin medir».
 | Servidor StarSeed | sí | neurona propia: ≤ 50 MB | sí: sistema de llamadas | neurona propia: sí (texto/JSON/binario; audio/vídeo no) |
 | Relé cifrado | sí | no | no | no |
 | LoRa (Meshtastic) | ≤ 200 B | no | no | no |
-| Bluetooth | aún sin enlace en el navegador | no | no | no |
+| Bluetooth directo (app nativa, sin router) · enlace `ble:<id>` (BLE1108A, `bluetooth-directo.md`) | sí, con acuse de la otra app | sí (≤ 20 MB; lo grande va detrás de cualquier P2P más rápido) | no (sin canal de medios por BLE) | no |
 | Correo @star.seed | solo en Correos; sin buzón, guardar y reenviar por la malla (§7.2) | adjuntos de Correos (servidor) | no | no |
 
 (*) La malla de la cuenta son canales de DATOS: no lleva audio ni vídeo como LLAMADA. La llamada con
@@ -94,7 +94,10 @@ llamada directa con pantalla en `llamada-directa.ts` (`llamarPorEnlace(…, { pi
 - Por el canal TCP los archivos van al ritmo que deja el limitador del otro: con la app 0.5.0 o
   anterior (30 tramas/10 s) ≈ 55 KB/s; con la de MLT1107A (300/10 s) ≈ 550 KB/s. Lo grande va por
   el enlace WebRTC en cuanto está abierto (el TCP solo lleva un archivo si es el único P2P).
-- Bluetooth y LoRa como portadores de datos llegan con la app nativa; LoRa seguirá siendo solo texto.
+- Desde BLE1108A el Bluetooth de baja energía lleva datos entre dos apps nativas (macOS y Android)
+  SIN Wi-Fi ni internet: mensajes y archivos ≤ 20 MB a 10–60 KB/s (lo medido se enseña en la pastilla
+  «Bluetooth directo · N ms»). Contrato: `architecture/bluetooth-directo.md`. Windows, Linux e iOS aún
+  sin radio (allí se dice el motivo). LoRa sigue siendo solo texto.
 
 ## 5 · Pendiente (con motivo)
 
