@@ -45,7 +45,8 @@ import {
     nombreArchivoSeguro, nombrePersona, otroMiembro, resolverNombreHilo, resumenMiembros, textoEscribiendo,
 } from "@/components/messages/dm/utilidades-hilo";
 // Medio de transmisión y vía de cada mensaje (MSJ1107A).
-import { enviarMensajeChat, quitarMensajeMalla, useBandejaMalla } from "@/lib/mensajeria/neuronas/buzon";
+import { borrarMensajeMalla, editarMensajeMalla, enviarMensajeChat, quitarMensajeMalla, useBandejaMalla } from "@/lib/mensajeria/neuronas/buzon";
+import { unificarHistorial } from "@/lib/mensajeria/almacen/fusion";
 import { viaServidor } from "@/lib/mensajeria/medios/medios";
 import { claveChat, usePreferenciasMedio } from "@/lib/mensajeria/medios/preferencias-store";
 // (NEU1107A) Archivos y llamadas directas por la malla cuando el medio elegido del chat es la malla.
@@ -292,42 +293,34 @@ export function ThreadView({
     }, []);
     const soloMalla = sinRed || (mediosChat.efectivas.modo === "elegidos" && !mediosChat.efectivas.elegidos.includes("servidor"));
     const localesMalla = bandejaMalla.conv[`dm:${thread.id}`]?.mensajes;
-    const deMalla = useMemo<DmMessage[]>(() => {
-        const miembrosHilo = new Set(idsMiembros);
-        return (localesMalla ?? [])
-            .filter((m) => m.dir === "sale" || (!!m.deUid && miembrosHilo.has(m.deUid)))
-            .map((m) => ({
-                id: `malla:${m.id}`,
-                threadId: thread.id,
-                sender: m.dir === "sale" ? myUserId : m.deUid ?? null,
-                body: m.texto || (m.adjunto ? `Archivo por la malla: ${m.adjunto.nombre}` : m.llamada ? textoLlamada(m.llamada, m.dir) : ""),
-                attachments: [] as DmAttachment[],
-                replyTo: null,
-                kind: "user" as const,
-                editedAt: null,
-                deleted: false,
-                createdAt: new Date(m.at).toISOString(),
-                formato: null,
-            }));
-    }, [localesMalla, idsMiembros, thread.id, myUserId]);
-    const conMalla = useMemo(
-        () => (deMalla.length ? [...messages, ...deMalla].sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt)) : messages),
-        [messages, deMalla],
+    // (MSJ1108C) Historial UNIFICADO: lo del servidor y lo que solo viajó por la malla, ordenado por hora y reloj
+    // híbrido; un mensaje que está en los dos sitios sale una vez, con la vía real que midió la malla.
+    const unificado = useMemo(
+        () =>
+            unificarHistorial(messages, localesMalla, {
+                hiloId: thread.id,
+                miUid: myUserId,
+                miembros: new Set(idsMiembros),
+                describirLlamada: (m) => (m.llamada ? textoLlamada(m.llamada, m.dir) : ""),
+            }),
+        [messages, localesMalla, idsMiembros, thread.id, myUserId],
     );
+    const conMalla = useMemo(() => unificado.map((u) => u.mensaje), [unificado]);
+    const localDe = useMemo(() => new Map(unificado.filter((u) => u.local).map((u) => [u.id, u.local!])), [unificado]);
     const viaDe = useCallback(
         (m: DmMessage): { via: ViaMensaje | null; pendiente: PendienteVia | null } => {
-            if (m.id.startsWith("malla:")) {
-                const local = localesMalla?.find((x) => `malla:${x.id}` === m.id);
-                if (!local) return { via: null, pendiente: null };
+            const local = localDe.get(m.id);
+            if (local) {
                 if (local.estado === "enviando" || local.estado === "en-espera" || local.estado === "fallido") {
                     return { via: null, pendiente: { estado: local.estado, aviso: local.aviso, descartados: local.descartados } };
                 }
                 return { via: mediosApi.mostrarVia ? local.via ?? null : null, pendiente: null };
             }
+            if (m.id.startsWith("malla:")) return { via: null, pendiente: null };
             if (!mediosApi.mostrarVia || m.kind === "system" || m.deleted) return { via: null, pendiente: null };
             return { via: bandejaMalla.vias[m.id] ?? viaServidor(m.sender === myUserId && m.kind !== "agent" ? "sale" : "entra"), pendiente: null };
         },
-        [localesMalla, bandejaMalla.vias, mediosApi.mostrarVia, myUserId],
+        [localDe, bandejaMalla.vias, mediosApi.mostrarVia, myUserId],
     );
 
     // ── Mensajes visibles, grupos y búsqueda ─────────────────────────────────
@@ -409,7 +402,8 @@ export function ThreadView({
         const entrada: SendMessageInput & { formato?: FormatoMensaje | null } = {
             body,
             attachments,
-            replyTo: replyTo?.id ?? null,
+            // Si el mensaje citado solo está en la malla, el servidor aún no lo conoce: la cita viaja por la malla.
+            replyTo: replyTo && !replyTo.id.startsWith("malla:") ? replyTo.id : null,
             ...(formato ? { formato } : {}),
         };
         if (!myUserId) {
@@ -424,7 +418,11 @@ export function ThreadView({
             tipo,
             otros: idsMiembros.filter((id) => id !== myUserId),
             texto: body,
-            soloServidor: attachments.length > 0 || !!formato || !!replyTo,
+            // (MSJ1108C) Solo los adjuntos del almacenamiento de la cuenta exigen el servidor: la cita, el formato
+            // y el markdown ya viajan por la malla.
+            soloServidor: attachments.length > 0,
+            ...(replyTo ? { respuestaA: { id: replyTo.id.replace(/^malla:/, ""), de: replyTo.sender ?? undefined, x: (replyTo.body || "").slice(0, 160) } } : {}),
+            ...(formato ? { formato } : {}),
             enviarServidor: async () => {
                 // Si la columna `formato` aún no existe en la base, `sendMessage` reintenta sin ella.
                 caja.guardado = await sendMessage(thread.id, entrada);
@@ -522,7 +520,7 @@ export function ThreadView({
     const entityHref = entityLink ? (entityLink.kind === "group" ? `/grupo/${entityLink.slug}` : `/pagina/${entityLink.slug}`) : null;
 
     const replyToMessageFor = (m: DmMessage): DmMessage | null =>
-        m.replyTo ? messages.find((mm) => mm.id === m.replyTo) ?? null : null;
+        m.replyTo ? conMalla.find((mm) => mm.id === m.replyTo) ?? null : null;
 
     const cargarMedios = debeCargarMultimedia(ef.cargarMultimedia);
 
@@ -704,7 +702,8 @@ export function ThreadView({
                                     }}
                                     onEdit={async (id, body) => {
                                         if (id.startsWith("malla:")) {
-                                            toast.message("Los mensajes que viajaron solo por la malla no se pueden editar.");
+                                            const hecho = await editarMensajeMalla(`dm:${thread.id}`, id.slice(6), body);
+                                            if (!hecho) toast.error("No se pudo editar el mensaje.");
                                             return;
                                         }
                                         const ok = await editMessage(id, body);
@@ -713,8 +712,19 @@ export function ThreadView({
                                     }}
                                     onDelete={async (id) => {
                                         if (id.startsWith("malla:")) {
-                                            const quitar = await confirmar({ title: "¿Quitar este mensaje de este aparato?", description: "Viajó solo por la malla: se quita de tu historial aquí. Quien ya lo recibió lo conserva.", confirmText: "Quitar", destructive: true });
-                                            if (quitar) quitarMensajeMalla(`dm:${thread.id}`, id.slice(6));
+                                            const propio = localDe.get(id)?.dir === "sale";
+                                            const quitar = await confirmar({
+                                                title: propio ? "¿Eliminar este mensaje?" : "¿Quitar este mensaje de este aparato?",
+                                                description: propio
+                                                    ? "Viajó por la malla: se elimina con una orden firmada por ti que llega a las personas del chat en cuanto haya un enlace."
+                                                    : "Viajó solo por la malla: se quita de tu historial aquí. Quien ya lo recibió lo conserva.",
+                                                confirmText: propio ? "Eliminar" : "Quitar",
+                                                destructive: true,
+                                            });
+                                            if (!quitar) return;
+                                            if (propio) {
+                                                if (!(await borrarMensajeMalla(`dm:${thread.id}`, id.slice(6)))) toast.error("No se pudo eliminar el mensaje.");
+                                            } else quitarMensajeMalla(`dm:${thread.id}`, id.slice(6));
                                             return;
                                         }
                                         const ok = await confirmar({ title: "¿Eliminar este mensaje?", description: "Se eliminará para todas las personas del chat.", confirmText: "Eliminar", destructive: true });
@@ -724,8 +734,8 @@ export function ThreadView({
                                         else toast.error("No se pudo eliminar el mensaje.");
                                     }}
                                 />
-                                {m.id.startsWith("malla:") && (() => {
-                                    const local = localesMalla?.find((x) => `malla:${x.id}` === m.id);
+                                {(() => {
+                                    const local = localDe.get(m.id);
                                     return local && (local.adjunto || local.llamada) ? <TarjetaDatosMalla m={local} /> : null;
                                 })()}
                             </div>

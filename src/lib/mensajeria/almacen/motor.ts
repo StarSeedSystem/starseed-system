@@ -37,6 +37,20 @@ export function cuerpoChatDe(m: MensajeMalla, hilo: string, uid: string | null):
     };
 }
 
+/** Claves públicas ya fijadas para un autor (TOFU), guardadas en el meta del almacén. */
+export async function crearContextoClaves(almacen: AlmacenMensajes, autor: string): Promise<ContextoAplicar> {
+    const lista = [...((await almacen.meta<string[]>(metaClaves(autor))) ?? [])];
+    return {
+        clavesDe: () => lista,
+        fijar: (_a, pub) => {
+            lista.push(pub);
+            void almacen.ponerMeta(metaClaves(autor), [...lista]);
+        },
+    };
+}
+
+export const META_OPS_PENDIENTES = META_PENDIENTES;
+
 export interface DepsMotor {
     almacen: AlmacenMensajes;
     uid: string | null;
@@ -78,17 +92,7 @@ export function crearMotorMensajes(deps: DepsMotor): MotorMensajes {
         await almacen.poner([registroDe(m, m.hlc ?? reloj.tic(), autorDe(m, deps.uid, deps.neurona), previo)]);
     }
 
-    async function contextoClaves(autor: string): Promise<ContextoAplicar> {
-        const claves = (await almacen.meta<string[]>(metaClaves(autor))) ?? [];
-        const lista = [...claves];
-        return {
-            clavesDe: () => lista,
-            fijar: (_a, pub) => {
-                lista.push(pub);
-                void almacen.ponerMeta(metaClaves(autor), [...lista]);
-            },
-        };
-    }
+    const contextoClaves = (autor: string) => crearContextoClaves(almacen, autor);
 
     async function aplicar(reg: RegistroMensaje, op: OperacionMensaje): Promise<boolean> {
         const ctx = await contextoClaves(op.autor);

@@ -52,9 +52,10 @@ function contarMensajesCrudos(crudo: string): number {
     }
 }
 
-function registroMigrado(m: MensajeMalla): RegistroMensaje {
+/** Registro del almacén para un mensaje de la bandeja (hlc: el suyo o uno derivado de su hora). */
+export function registroDeMensaje(m: MensajeMalla): RegistroMensaje {
     const autor = m.dir === "sale" ? {} : { uid: m.deUid, neurona: m.deNeurona };
-    return { id: m.id, clave: m.clave, hlc: m.hlc ?? hlcDeMs(m.at, "migrado"), at: m.at, autor, dir: m.dir, m };
+    return { id: m.id, clave: m.clave, hlc: m.hlc ?? hlcDeMs(m.at, "local"), at: m.at, autor, dir: m.dir, m };
 }
 
 /** Lee las vías y los «leído hasta» guardados y los mezcla sin pisar lo ya almacenado. */
@@ -114,7 +115,7 @@ export async function migrarDesdeLocalStorage(alm: AlmacenMensajes, ls: Almacena
                 continue;
             }
             const clavePorConv = Object.keys(estado.conv).find((k) => estado.conv[k] === c);
-            nuevos.push(registroMigrado({ ...m, clave: m.clave || clavePorConv || "" }));
+            nuevos.push(registroDeMensaje({ ...m, clave: m.clave || clavePorConv || "" }));
             previos.set(m.id, nuevos[nuevos.length - 1]);
         }
     }

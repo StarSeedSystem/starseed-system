@@ -36,7 +36,13 @@ import {
     type CuerpoNeurona,
     type EstadoBandeja,
     type MensajeMalla,
+    type RespuestaCitada,
 } from "./bandeja";
+import { crearPersistencia, type PersistenciaBandeja } from "@/lib/mensajeria/almacen/persistencia-bandeja";
+import { crearRelojHibrido, type RelojHibrido } from "@/lib/mensajeria/almacen/reloj-hibrido";
+import { crearAlmacenMemoria, type AlmacenMensajes } from "@/lib/mensajeria/almacen/almacen";
+import { crearContextoClaves, cuerpoChatDe, META_OPS_PENDIENTES } from "@/lib/mensajeria/almacen/motor";
+import { aplicarOperacion, anadirPendiente, crearFirmante, firmarOperacion, type Firmante, type OperacionMensaje, type OpsPendientes } from "@/lib/mensajeria/almacen/operaciones";
 import { medioDeEnlace, mediosParaEnviar, servidorDeMedio, viaServidor } from "@/lib/mensajeria/medios/medios";
 import {
     candidatoServidor,
@@ -65,26 +71,25 @@ const REINTENTO_MS = 20_000;
 let estado: EstadoBandeja | null = null;
 const oyentes = new Set<() => void>();
 
-function cargar(): EstadoBandeja {
-    if (estado) return estado;
+function leerLs(): EstadoBandeja {
     let crudo: string | null = null;
     try {
         crudo = typeof localStorage === "undefined" ? null : localStorage.getItem(CLAVE_BANDEJA_MALLA);
     } catch {
         crudo = null;
     }
-    estado = leerBandeja(crudo);
-    return estado;
+    return leerBandeja(crudo);
 }
 
-function poner(nuevo: EstadoBandeja): void {
-    if (nuevo === estado) return;
-    estado = nuevo;
+function escribirLs(nuevo: EstadoBandeja): void {
     try {
         localStorage.setItem(CLAVE_BANDEJA_MALLA, JSON.stringify(nuevo));
     } catch {
         /* sin espacio o sin almacenamiento: la sesión sigue con lo que tiene en memoria */
     }
+}
+
+function avisar(): void {
     for (const cb of Array.from(oyentes)) {
         try {
             cb();
@@ -94,13 +99,69 @@ function poner(nuevo: EstadoBandeja): void {
     }
 }
 
+/**
+ * (MSJ1108C) Persistencia en IndexedDB (almacén local por mensaje). Arranca en segundo plano en el primer
+ * `cargar()` del navegador: mientras tanto (y si no hay IndexedDB) rige localStorage como siempre; la clave
+ * vieja se migra sin pérdidas, con respaldo, y se sigue leyendo de respaldo una versión.
+ */
+let persistencia: PersistenciaBandeja | null = null;
+let hidratando = false;
+
+function asegurarPersistencia(): PersistenciaBandeja | null {
+    if (persistencia || typeof window === "undefined" || typeof indexedDB === "undefined") return persistencia;
+    persistencia = crearPersistencia({
+        ls: (() => {
+            try {
+                return typeof localStorage === "undefined" ? null : localStorage;
+            } catch {
+                return null;
+            }
+        })(),
+        escribirLs,
+        alReemplazar: (e) => {
+            estado = e;
+            avisar();
+        },
+    });
+    return persistencia;
+}
+
+function empezarHidratacion(): void {
+    if (hidratando) return;
+    const p = asegurarPersistencia();
+    if (!p) return;
+    hidratando = true;
+    void p
+        .hidratar(() => estado ?? leerLs())
+        .then((a) => {
+            if (a) void import("@/lib/mensajeria/almacen/subida-buzon").then((m) => m.subirAlHaberAlmacen()).catch(() => undefined);
+        })
+        .catch(() => undefined);
+}
+
+function cargar(): EstadoBandeja {
+    if (estado) return estado;
+    estado = leerLs();
+    empezarHidratacion();
+    return estado;
+}
+
+function poner(nuevo: EstadoBandeja): void {
+    if (nuevo === estado) return;
+    const prev = estado ?? BANDEJA_VACIA;
+    estado = nuevo;
+    if (persistencia?.activo()) persistencia.guardar(prev, nuevo);
+    else escribirLs(nuevo);
+    avisar();
+}
+
 let oyendoOtrasPestanas = false;
 function suscribir(cb: () => void): () => void {
     oyentes.add(cb);
     if (!oyendoOtrasPestanas && typeof window !== "undefined") {
         oyendoOtrasPestanas = true;
         window.addEventListener("storage", (e) => {
-            if (e.key !== CLAVE_BANDEJA_MALLA) return;
+            if (e.key !== CLAVE_BANDEJA_MALLA || persistencia?.activo()) return;
             estado = null;
             for (const o of Array.from(oyentes)) o();
         });
@@ -143,6 +204,8 @@ export function registrarViaMensaje(mensajeId: string, via: ViaMensaje): void {
 
 export function quitarMensajeMalla(clave: string, id: string): void {
     poner(quitarMensaje(cargar(), clave, id));
+    // (MSJ1108C) El historial no se pierde por accidente: quitar aquí deja una lápida en el almacén.
+    persistencia?.enterrar(clave, id);
 }
 
 /* ══════════════════════════ Identidad (perezosa) ══════════════════════════ */
@@ -162,10 +225,30 @@ async function miUid(): Promise<string | null> {
     }
 }
 
+let nodoHlc = "local";
+let relojHlc: RelojHibrido | null = null;
+/** (MSJ1108C) Reloj lógico híbrido de esta neurona: estampa lo que se escribe y avanza con lo que llega. */
+function hlcNuevo(): string {
+    relojHlc ??= crearRelojHibrido(nodoHlc);
+    return relojHlc.tic();
+}
+function hlcObservar(h: string | undefined): void {
+    relojHlc ??= crearRelojHibrido(nodoHlc);
+    relojHlc.observar(h);
+}
+/** Hora de origen razonable (ni del futuro lejano ni de hace más de 90 días) o nada. */
+function horaOrigen(at: number | undefined): number | undefined {
+    if (typeof at !== "number" || !Number.isFinite(at)) return undefined;
+    const t = Date.now();
+    return at <= t + 5 * 60_000 && at >= t - 90 * 86_400_000 ? Math.min(at, t) : undefined;
+}
+
 async function miNeurona(): Promise<string> {
     try {
         const m = await import("@/lib/neurons/neurons");
-        return m.thisDeviceId() || "";
+        const id = m.thisDeviceId() || "";
+        if (id) nodoHlc = id;
+        return id;
     } catch {
         return "";
     }
@@ -283,6 +366,9 @@ export interface EnvioNeurona {
     urgente?: boolean;
     /** Id fijo (para que el archivo y su anuncio compartan identidad). */
     id?: string;
+    /** (MSJ1108C) Cita y formato enriquecido: viajan por la malla igual que por el servidor. */
+    respuestaA?: RespuestaCitada;
+    formato?: unknown;
 }
 
 /** (NEU1107A) Cuerpo que viaja por la malla o por el canal de la cuenta para un mensaje de neurona. */
@@ -299,6 +385,9 @@ export async function cuerpoNeuronaDe(m: MensajeMalla): Promise<CuerpoNeurona> {
         ...(m.adjunto ? { adj: m.adjunto } : {}),
         ...(m.llamada ? { ll: m.llamada } : {}),
         ...(m.flujo ? { fd: m.flujo } : {}),
+        ...(m.hlc ? { hlc: m.hlc } : {}),
+        ...(m.respuestaA ? { rp: m.respuestaA } : {}),
+        ...(m.formato ? { fmt: m.formato } : {}),
     };
 }
 
@@ -394,6 +483,9 @@ export async function enviarANeurona(e: EnvioNeurona): Promise<MensajeMalla> {
         ...(e.llamada ? { llamada: e.llamada } : {}),
         ...(e.flujo ? { flujo: e.flujo } : {}),
         ...(e.urgente ? { urgente: true } : {}),
+        hlc: hlcNuevo(),
+        ...(e.respuestaA ? { respuestaA: e.respuestaA } : {}),
+        ...(e.formato ? { formato: e.formato } : {}),
     };
     poner(anadirMensaje(cargar(), m));
     return procesarNeurona(m);
@@ -417,8 +509,11 @@ export interface EnvioChat {
     /** Las otras personas del chat (uid). */
     otros: string[];
     texto: string;
-    /** Adjuntos, formato o respuesta citada: solo viajan por el servidor. */
+    /** Adjuntos del almacenamiento de la cuenta: solo viajan por el servidor (la cita y el formato ya viajan por la malla). */
     soloServidor?: boolean;
+    /** (MSJ1108C) Cita y formato enriquecido para la copia por la malla. */
+    respuestaA?: RespuestaCitada;
+    formato?: unknown;
     /** Guarda en el servidor de siempre (devuelve el id del mensaje guardado). */
     enviarServidor: () => Promise<{ id: string } | null>;
 }
@@ -488,7 +583,7 @@ async function procesarChat(
     }
 
     const guardado: { id: string | null } = { id: null };
-    const cuerpo = { v: 1, mid: m.id, h: hiloId, txt: m.texto, at: m.at, de: { u: (await miUid()) ?? undefined } };
+    const cuerpo = cuerpoChatDe(m, hiloId, (await miUid()) ?? null);
     const enviarPaso = async (paso: PasoEnvio): Promise<ResultadoPaso> => {
         if (paso.medio === "servidor") {
             const t0 = ahora();
@@ -561,6 +656,9 @@ export async function enviarMensajeChat(e: EnvioChat): Promise<ResultadoChat> {
         destinatarios: e.otros.slice(0, 64),
         clavePrefs: claveChat(e.tipo, e.hiloId),
         intentos: 0,
+        hlc: hlcNuevo(),
+        ...(e.respuestaA ? { respuestaA: e.respuestaA } : {}),
+        ...(e.formato ? { formato: e.formato } : {}),
     };
     try {
         return await procesarChat(m, { enviarServidor: e.enviarServidor, soloServidor: e.soloServidor, esPrimero: true });
@@ -592,6 +690,10 @@ export async function reintentarPendientes(): Promise<number> {
                 const r = await procesarNeurona(m);
                 if (r.estado === "enviado" || r.estado === "confirmado") salieron += 1;
             }
+        }
+        // (MSJ1108C) Ediciones y borrados propios que aún no llegaron a todo el chat.
+        for (const c of Object.values(cargar().conv)) {
+            for (const m of c.mensajes) if (m.opPendiente) await difundirOperacion(m, m.opPendiente.op);
         }
     } finally {
         reintentando = false;
@@ -663,6 +765,9 @@ async function recibirNeurona(cuerpo: unknown, via: ViaMensaje | Promise<ViaMens
     const clave = claveEntrante(c, uid);
     if (!clave) return;
     if (acusar) void acusar(c.mid).catch(() => undefined);
+    hlcObservar(c.hlc);
+    // (MSJ1108C) Una edición o un borrado firmados por el autor: se aplican (o esperan a su mensaje) y no avisan.
+    if (c.op) return void (await recibirOperacion(c.op));
     const nuevo = !cargar().conv[clave]?.mensajes.some((x) => x.id === c.mid);
     poner(
         anadirMensaje(cargar(), {
@@ -674,11 +779,18 @@ async function recibirNeurona(cuerpo: unknown, via: ViaMensaje | Promise<ViaMens
             estado: "recibido",
             via: await via,
             deNombre: c.de.nom,
+            deNeurona: c.de.n,
+            deUid: c.de.u,
+            hlc: c.hlc ?? hlcNuevo(),
+            atOrigen: horaOrigen(c.at),
+            ...(c.rp ? { respuestaA: c.rp } : {}),
+            ...(c.fmt ? { formato: c.fmt } : {}),
             ...(c.adj ? { adjunto: c.adj } : {}),
             ...(c.ll ? { llamada: c.ll } : {}),
             ...(c.fd ? { flujo: c.fd } : {}),
         }),
     );
+    if (nuevo) void aplicarPendientesDe(c.mid);
     // (NEU1107A) Una llamada por internet suena aquí (una sola vez, aunque llegue por dos caminos).
     if (nuevo && c.ll?.via === "sistema-llamadas" && c.ll.sesion) {
         void import("./llamadas-neurona")
@@ -731,6 +843,8 @@ async function recibirChat(cuerpo: unknown, via: Promise<ViaMensaje>): Promise<v
     if (!c) return;
     const uid = await miUid();
     if (c.de.u && uid && c.de.u === uid) return; // eco de mi propia cuenta
+    hlcObservar(c.hlc);
+    if (c.op) return void (await recibirOperacion(c.op));
     const clave = `dm:${c.h}`;
     const nuevo = !cargar().conv[clave]?.mensajes.some((x) => x.id === c.mid);
     poner(
@@ -743,10 +857,15 @@ async function recibirChat(cuerpo: unknown, via: Promise<ViaMensaje>): Promise<v
             estado: "recibido",
             via: await via,
             deUid: c.de.u,
+            hlc: c.hlc ?? hlcNuevo(),
+            atOrigen: horaOrigen(c.at),
+            ...(c.rp ? { respuestaA: c.rp } : {}),
+            ...(c.fmt ? { formato: c.fmt } : {}),
             ...(c.adj ? { adjunto: c.adj } : {}),
             ...(c.ll ? { llamada: c.ll } : {}),
         }),
     );
+    if (nuevo) void aplicarPendientesDe(c.mid);
     // (NEU1107A) Lo mismo que en los chats de neuronas: el archivo se sigue y se guarda aquí, y la
     // llamada directa apunta su registro.
     if (c.adj) {
@@ -796,16 +915,7 @@ export async function anunciarEnChatMalla(m: MensajeMalla): Promise<MensajeMalla
     const intentos = (m.intentos ?? 0) + 1;
     if (plan.sinCamino) return cerrarSinCamino(m, plan, undefined, intentos, false);
     poner(actualizarMensaje(cargar(), m.clave, m.id, { estado: "enviando", aviso: undefined }));
-    const cuerpo = {
-        v: 1,
-        mid: m.id,
-        h: m.clave.slice(3),
-        txt: m.texto,
-        at: m.at,
-        de: { u: (await miUid()) ?? undefined },
-        ...(m.adjunto ? { adj: m.adjunto } : {}),
-        ...(m.llamada ? { ll: m.llamada } : {}),
-    };
+    const cuerpo = cuerpoChatDe(m, m.clave.slice(3), (await miUid()) ?? null);
     const r = await recorrerPlan(plan, (paso) => enviarPorPasoMalla(paso, { uid }, CANAL_CHAT_MALLA, cuerpo), { seguirSinAcuse: true });
     if (!r.ok) return cerrarSinCamino(m, plan, r.motivo, intentos, false);
     const cambio: Partial<MensajeMalla> = {
@@ -817,6 +927,132 @@ export async function anunciarEnChatMalla(m: MensajeMalla): Promise<MensajeMalla
     };
     poner(actualizarMensaje(cargar(), m.clave, m.id, cambio));
     return { ...m, ...cambio };
+}
+
+/* ══════════════════════════ Ediciones y borrados firmados (MSJ1108C) ══════════════════════════ */
+
+/** Claves públicas fijadas y operaciones que llegaron antes que su mensaje (en el almacén, o en memoria si no hay). */
+const almacenAuxiliar: AlmacenMensajes = crearAlmacenMemoria();
+function almacenDeOps(): AlmacenMensajes {
+    return persistencia?.almacen() ?? almacenAuxiliar;
+}
+
+let firmanteBuzon: Firmante | null = null;
+function firmante(): Firmante {
+    return (firmanteBuzon ??= crearFirmante({
+        leer: async () => (await almacenDeOps().meta<{ publica: CryptoKey; privada: CryptoKey }>("firma-par")) ?? undefined,
+        escribir: (par) => almacenDeOps().ponerMeta("firma-par", par),
+    }));
+}
+
+function buscarMensaje(id: string): MensajeMalla | null {
+    for (const c of Object.values(cargar().conv)) {
+        const m = c.mensajes.find((x) => x.id === id);
+        if (m) return m;
+    }
+    return null;
+}
+
+async function aplicarOp(m: MensajeMalla, op: OperacionMensaje): Promise<boolean> {
+    const [uid, neurona] = await Promise.all([miUid(), miNeurona()]);
+    const ctx = await crearContextoClaves(almacenDeOps(), op.autor);
+    const r = await aplicarOperacion(m, op, { miUid: uid, miNeurona: neurona }, ctx);
+    if (!r.ok) return false;
+    if (r.cambio) poner(actualizarMensaje(cargar(), m.clave, m.id, r.m));
+    return true;
+}
+
+/** Llega una edición o un borrado: se aplica ya o espera a que llegue su mensaje. */
+async function recibirOperacion(op: OperacionMensaje): Promise<void> {
+    const m = buscarMensaje(op.mid);
+    if (m) {
+        await aplicarOp(m, op);
+        return;
+    }
+    const alm = almacenDeOps();
+    const p = (await alm.meta<OpsPendientes>(META_OPS_PENDIENTES)) ?? {};
+    await alm.ponerMeta(META_OPS_PENDIENTES, anadirPendiente(p, op));
+}
+
+async function aplicarPendientesDe(mid: string): Promise<void> {
+    try {
+        const alm = almacenDeOps();
+        const p = (await alm.meta<OpsPendientes>(META_OPS_PENDIENTES)) ?? {};
+        const ops = p[mid];
+        if (!ops?.length) return;
+        const resto = { ...p };
+        delete resto[mid];
+        await alm.ponerMeta(META_OPS_PENDIENTES, resto);
+        for (const op of [...ops].sort((a, b) => (a.hlc < b.hlc ? -1 : 1))) {
+            const m = buscarMensaje(mid);
+            if (m) await aplicarOp(m, op);
+        }
+    } catch {
+        /* las operaciones pendientes son de mejor esfuerzo */
+    }
+}
+
+/** Manda la operación a las personas o la neurona del chat, por la malla (según los ajustes de medio). */
+async function difundirOperacion(m: MensajeMalla, op: OperacionMensaje): Promise<boolean> {
+    const esChat = m.clave.startsWith("dm:");
+    const uid = await miUid();
+    const destinos: DestinoMalla[] = esChat ? (m.destinatarios ?? []).map((u) => ({ uid: u })) : [m.destino ?? {}];
+    let todos = true;
+    for (const d of destinos) {
+        try {
+            const candidatos: CandidatoMedio[] = esChat
+                ? await candidatosMalla(d)
+                : [...(await candidatosMalla(d)), candidatoServidor(!d.uid && !!uid)];
+            const tipo = esChat ? (m.clavePrefs?.startsWith("grupo:") ? "grupo" : "dm") : "neurona";
+            const plan = mediosParaEnviar(preferenciasEfectivas(m.clavePrefs), candidatos, { tipo });
+            if (plan.sinCamino) {
+                todos = false;
+                continue;
+            }
+            const cuerpo = esChat
+                ? { v: 1, mid: m.id, h: m.clave.slice(3), txt: "", at: m.at, de: { u: uid ?? undefined }, hlc: op.hlc, op }
+                : { ...(await cuerpoNeuronaDe({ ...m, texto: "", adjunto: undefined, llamada: undefined, flujo: undefined, respuestaA: undefined, formato: undefined })), hlc: op.hlc, op };
+            const r = await recorrerPlan(
+                plan,
+                (paso) =>
+                    esChat
+                        ? enviarPorPasoMalla(paso, d, CANAL_CHAT_MALLA, cuerpo)
+                        : paso.medio === "servidor"
+                            ? enviarPorCuenta(cuerpo as CuerpoNeurona)
+                            : enviarPorPasoMalla(paso, d, CANAL_NEURONA, cuerpo),
+                { seguirSinAcuse: true },
+            );
+            if (!r.ok) todos = false;
+        } catch {
+            todos = false;
+        }
+    }
+    const actual = buscarMensaje(m.id);
+    if (actual) poner(actualizarMensaje(cargar(), m.clave, m.id, { opPendiente: todos ? undefined : { op } }));
+    return todos;
+}
+
+async function crearYAplicar(clave: string, id: string, t: "editar" | "borrar", texto?: string): Promise<boolean> {
+    const m = mensajeMalla(clave, id);
+    if (!m || m.dir !== "sale" || m.borrado) return false;
+    if (t === "editar" && !texto?.trim()) return false;
+    const [uid, neurona] = await Promise.all([miUid(), miNeurona()]);
+    const autor = uid ?? neurona;
+    if (!autor) return false;
+    const op = await firmarOperacion(firmante(), { t, mid: id, h: clave.slice(clave.indexOf(":") + 1), autor, hlc: hlcNuevo(), ...(t === "editar" ? { txt: texto!.slice(0, 4000) } : {}) });
+    if (!(await aplicarOp(m, op))) return false;
+    void difundirOperacion(m, op);
+    return true;
+}
+
+/** Edita un mensaje propio de la malla (chat de cuenta o de neurona): firmado, llega a los demás sin internet. */
+export function editarMensajeMalla(clave: string, id: string, texto: string): Promise<boolean> {
+    return crearYAplicar(clave, id, "editar", texto);
+}
+
+/** Borra un mensaje propio de la malla para todos (lápida firmada). */
+export function borrarMensajeMalla(clave: string, id: string): Promise<boolean> {
+    return crearYAplicar(clave, id, "borrar");
 }
 
 let arrancado = 0;
@@ -870,7 +1106,10 @@ export function iniciarBuzonMalla(): () => void {
         .catch(() => undefined);
     void asegurarOyentesCuenta();
     const tic = () => {
-        if (enEspera(cargar()).length) void reintentarPendientes();
+        const e = cargar();
+        if (enEspera(e).length || Object.values(e.conv).some((c) => c.mensajes.some((m) => m.opPendiente))) void reintentarPendientes();
+        // (MSJ1108C) Con internet y sesión, lo que solo viajó por la malla sube a la cuenta (idempotente).
+        if (persistencia?.activo()) void import("@/lib/mensajeria/almacen/subida-buzon").then((m) => m.subirMensajesMalla()).catch(() => undefined);
     };
     const intervalo = setInterval(tic, REINTENTO_MS);
     window.addEventListener("online", tic);

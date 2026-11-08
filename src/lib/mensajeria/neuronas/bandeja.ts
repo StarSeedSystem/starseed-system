@@ -94,6 +94,10 @@ export interface MensajeMalla {
     subido?: number;
     /** (MSJ1108C) Reloj de la última edición o borrado ya aplicado en el servidor. */
     subidoOp?: string;
+    /** (MSJ1108C) Hora en que lo escribió el autor (entrantes; su reloj, saneada): ordena aunque llegue tarde. */
+    atOrigen?: number;
+    /** (MSJ1108C) Edición o borrado propio que aún no llegó a todas las personas del chat: se reintenta. */
+    opPendiente?: { op: OperacionMensaje };
 }
 
 /** (MSJ1108C) Cita de un mensaje: id, autor y un extracto corto (para verla aunque falte el original). */

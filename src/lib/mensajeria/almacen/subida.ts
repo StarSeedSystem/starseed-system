@@ -42,7 +42,13 @@ export async function subirPendientes(
     const res: ResultadoSubida = { subidos: 0, existian: 0, fallos: 0, operaciones: 0 };
     if (!miUid) return res;
     const enServidor = new Set(idsEnServidor);
-    for (const m of locales) if (m.subido) enServidor.add(idServidorDe(m.id));
+    // Los mensajes locales aún sin subir: una cita a uno de ellos espera a que su padre esté arriba. Una cita
+    // a otro mensaje (uno del servidor) se conserva tal cual: ya existe allí.
+    const sinSubir = new Set<string>();
+    for (const m of locales) {
+        if (m.subido) enServidor.add(idServidorDe(m.id));
+        else sinSubir.add(idServidorDe(m.id));
+    }
 
     for (const m of [...pendientesDeSubida(locales, miUid), ...locales.filter((x) => x.borrado && !x.subido && x.clave.startsWith("dm:"))].sort(porOrden)) {
         if (m.subido) continue;
@@ -58,7 +64,7 @@ export async function subirPendientes(
             id: sid,
             body: m.texto,
             createdAt: new Date(m.at).toISOString(),
-            replyTo: padre && enServidor.has(padre) ? padre : null,
+            replyTo: padre && (enServidor.has(padre) || !sinSubir.has(padre)) ? padre : null,
             formato: m.formato ?? null,
         });
         if (r === "fallo") {

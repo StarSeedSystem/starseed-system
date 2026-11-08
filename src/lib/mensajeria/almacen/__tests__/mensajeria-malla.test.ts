@@ -312,7 +312,7 @@ describe("reconciliación con el servidor", () => {
     });
 
     it("el hilo muestra UNA vez el mensaje que está en los dos sitios, con la vía de la malla y la cita resuelta", () => {
-        const via = { medio: "p2p-lan", direccion: "sale", enlace: "LAN", enlaceId: "lan:x", servidor: "red", latenciaMs: 5, latenciaFuente: "acuse", confirmado: true, en: 1 } as MensajeMalla["via"];
+        const via = { medio: "local", direccion: "sale", enlace: "LAN", enlaceId: "lan:x", servidor: "red", latenciaMs: 5, latenciaFuente: "acuse", confirmado: true, en: 1 } as unknown as MensajeMalla["via"];
         const l = locales().map((m) => (m.id === A ? { ...m, via, subido: 1 } : m));
         const delServidor = [srv(A, new Date(1000).toISOString(), "uno")];
         const u = unificarHistorial(delServidor, l, { hiloId: "h", miUid: "yo", miembros: new Set(["yo", "beto"]) });
