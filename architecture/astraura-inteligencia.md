@@ -413,6 +413,8 @@ ola: vive en sus propios repos (`StarSeed-Nexus`, `Starseed-Cafe`), no en
 anotado como trabajo pendiente, igual que se hizo constar en §9 para el resto de
 Astraura.
 
+Revisado el 2026-11-08 contra main (`035f438c8`): 0 hechos, 0 a medias, 1 pendiente (el lado OS del vocabulario sí está en `src/ai/astraura/skills.ts` —Scrapling y 9Router entre otros—, pero portarlo a `SKILL_CAPS`/`capsSystemPrompt()`/`capsBias()` vive en los repos externos `StarSeed-Nexus` y `Starseed-Cafe`, no verificable desde este repo).
+
 ### 15.6 Pre-instalación por defecto — criterio y barrido del catálogo
 
 Regla aplicada al barrer `packages.ts` para decidir qué entra en
