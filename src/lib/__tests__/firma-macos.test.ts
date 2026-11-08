@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-// @ts-expect-error — módulo .mjs sin tipos (es el script de CI)
+// @ts-ignore — módulo .mjs sin tipos (es el script de CI; según el tsconfig puede tener tipos inferidos)
 import { evaluarFirma, IDENTIFICADOR } from "../../../native/scripts/verificar-firma-macos.mjs";
 
 const raiz = process.cwd();
