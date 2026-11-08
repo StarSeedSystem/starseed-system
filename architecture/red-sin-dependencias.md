@@ -205,6 +205,50 @@ Hecha en código (módulos en `src/lib/identidad/`). Pendiente: probarla en dos 
 - La clave privada maestra se queda en `master-identity.ts` (almacenamiento seguro del navegador), porque tiene que ser exportable; en IndexedDB solo van anclas, certificado propio, tenencia y revocaciones.
 - Los relojes de aparatos sin internet pueden desviarse: se tolera 24 h hacia el futuro.
 
+### 5.2 · Cifrado de archivo de punta a punta y multitrayecto (MPT1108A, 2026-11-08)
+Hecho en código y probado con el motor real y vías simuladas. Pendiente: dos aparatos reales y un relé de verdad.
+
+**Cifrado de archivo, independiente del camino** (`src/lib/malla/cifrado-archivo.ts` + `canal-sellado.ts`; sin dependencias nuevas, solo WebCrypto y `recipient-crypto`)
+- Cada transferencia lleva una **clave de contenido** aleatoria de 256 bits. Cada trozo se sella con **AES‑256‑GCM**.
+  - **Nonce** de 12 bytes: 4 bytes de SHA‑256 del id de la transferencia + índice del trozo en 8 bytes. Es único por (clave, trozo) sin contador compartido entre caminos.
+  - **AAD** = `ss-arch-v1|id|índice|total|longitud en claro`. Un trozo reordenado, cambiado por el de otra transferencia, con otro total o truncado no pasa el tag.
+  - El trozo gana 16 bytes (el canal anuncia 16 menos de `tamanoTrozo`).
+- **La clave solo viaja dentro de la oferta, y la oferta va cifrada para el receptor**: ECDH P‑256 efímero → HKDF‑SHA256 → AES‑GCM (`encryptEnvelopeForMany`, un sobre v:3 por neurona destinataria: misma cuenta o grupo, cada una con su par efímero).
+  - Dentro del sobre: la oferta original, la clave, el **manifiesto** (id, nombre, tamaño, mime, nº de trozos, tamaño de trozo, SHA‑256 del archivo en claro) y la **firma del remitente** sobre el manifiesto (`mesh-identity.signContent`).
+  - El receptor comprueba que el manifiesto firmado coincide con la oferta y con el id. Una firma rota se rechaza. Que la huella del firmante sea de fiar lo decide la política de recepción ya existente (cuenta propia, anclas de §5.1).
+  - Por la red solo pasa `archivo.oferta.cif {id, sobres[]}`: el nombre, el tamaño, la vista previa y la clave no se ven.
+- **Quién ve qué.** Relés, routers, servidores y neuronas intermedias: id, índices y longitudes de texto cifrado. El receptor: abre cada trozo al llegar, descarta (sin avisar al motor) los que no pasan el tag y, al final, el motor comprueba el SHA‑256 del archivo antes de «Verificado». El archivo solo se puede usar completo.
+- **Dónde se pone.** `crearCanalSellado(canal, opts)` envuelve cualquier `CanalArchivos` (directo, multitrayecto o relé): el motor sigue hablando en claro con él y no cambia.
+- **Par antiguo.** El par anuncia la capacidad `archivo.e2e.v1` (`parCifraArchivo`). Sin ella, el archivo va como antes y la transferencia queda marcada «sin cifrado de archivo» (`EstadoTransferencia.cifradoArchivo`). `exigirCifrado` en el receptor rechaza ofertas en claro. Nunca se manda en claro una oferta que debía ir sellada.
+- **Límites honestos.** El cifrado de archivo no oculta quién habla con quién ni cuánto pesa el archivo (la longitud total se ve). La clave de contenido es de un solo uso por transferencia; si la neurona destinataria pierde su clave ECDH, no hay forma de recuperar lo recibido.
+
+**Multitrayecto por todas las vías** (`src/lib/malla/canal-multitrayecto-vias.ts`; generaliza `canal-multitrayecto.ts`)
+- Una transferencia usa a la vez todas las vías permitidas que llegan al destino: directas (Bluetooth, Wi‑Fi directo, TCP de LAN, WebRTC local), cuenta/par, **relés** (otras neuronas de la cuenta, servidores propios, relé de StarSeed) y un router/OpenWrt (interfaz `ViaMulti` de tipo `router`; el adaptador real es un stub hasta que haya firmware).
+- **Reparto**: selector ponderado suave; peso = capacidad medida ÷ (1 + latencia/250 ms). Cada vía tiene su contrapresión: con la cola llena se salta en esa vuelta, así que Bluetooth lleva pocos trozos y la LAN casi todos. Con las vías de la prueba (LAN 30 Mbps · Wi‑Fi directo 9 Mbps · Bluetooth 1,5 Mbps) el reparto fue en ese orden.
+- **Reequilibrio dinámico**: `agregarVia` / `quitarVia` / `marcarMuerta` / `actualizarVia` en caliente. Dos fallos seguidos, o un enlace que ya no está arriba, dan la vía por muerta durante un rato (se reprueba después) y se **reenvían por las demás los últimos 24 trozos** que llevaba (el receptor ignora duplicados y reensambla por índice). Lo que aun así falte lo pide el «huecos» del motor.
+- **Relés**: vías de terceros solo con permiso (`permitirTerceros`, apagado por defecto) y con tope de bytes por vía (`maxBytesRele`, 64 MiB). Como el archivo va sellado, el relé solo lleva texto cifrado.
+- **Planificador**: `planificarVias` ya propone el reparto para archivos ≥ 1 MiB con 2+ enlaces; con el ajuste «Automático» se usan todas las vías permitidas. Falta enchufar el sellado y las vías de relé en `enviarArchivo` del transporte universal (ver «Pendiente»).
+- **Interfaz**: `EstadoTransferencia.repartoVias` («LAN 72 % · Wi‑Fi directo 20 % · Bluetooth 8 %») y `velocidadBps` los anota el motor desde `CanalArchivos.resumenVias?()`.
+
+**Pendiente (no hecho en esta ola)**
+- Anunciar `archivo.e2e.v1` en el saludo/anuncio de capas y leer los destinatarios (`pub` ECDH de cada neurona) del registro de neuronas.
+- Permitir `archivo.chunk` sellado por el relé del servidor (hoy es solo de mensajes) con tope de tamaño y opt-in para relés ajenos.
+- Pintar `repartoVias` y `cifradoArchivo` en la burbuja de transferencia.
+
+### 5.3 · Puerta de internet compartida (MPT1108A, 2026-11-08)
+**Idea.** Una neurona (o un router) con internet hace de **puerta** para las demás por cualquier enlace de la malla, cuando su dueño lo activa. Es la forma de que una neurona sin red reciba un manifiesto de actualización o una capa de IA.
+
+**Reglas (contrato)**
+- **Opt-in del dueño**, apagada por defecto. Topes visibles y ajustables: cuota de datos por día (200 MiB por defecto), batería mínima si no está cargando (30 %), tamaño por respuesta (8 MiB), plazo (15 s) y **lista de hosts permitidos** (vacía = nada).
+- Solo `GET` por `https`, sin credenciales en la URL ni puertos distintos del 443, sin redirecciones y **nunca a direcciones internas** (loopback, privadas, enlace local, `.local`, IPv6 literales): defensa contra SSRF.
+- **De punta a punta**: la petición va cifrada para la puerta y la respuesta para quien pidió (ECDH P‑256 efímero → HKDF → AES‑GCM de `recipient-crypto`). Los relés y neuronas intermedias solo ven texto cifrado. **La puerta sí ve la URL y la respuesta** (es quien sale a internet): por eso es opt-in y de confianza. Esto no es un VPN ni oculta nada a la puerta.
+- **Anuncio**: la puerta se registra en el registro de conectores (`registrarConectorPuerta`, id `puerta-internet`, capacidad `puerta.http.v1`) con su ficha (coste «datos», privacidad «servidor», cifrado «cifrado»). No aporta enlaces de datos al planificador de vías: la consultan quienes necesitan salir a internet.
+- **Siguientes fases** (solo contrato): otros métodos HTTP; túneles TCP/UDP y DNS; tráfico general del navegador con tope y consentimiento por sitio; router/OpenWrt como puerta (`routers-malla/*` hoy solo genera configuración); contabilidad y recompensa a quien presta capacidad; priorizar puertas por ancho de banda, latencia y coste.
+
+**Primera rebanada hecha** (`src/lib/malla/puerta-internet.ts`)
+- `crearPuertaInternet({estado, hostsPermitidos, topes, abrir, fetchFn})` atiende `puerta.get` y devuelve la respuesta cifrada; `pedirPorPuerta(url, {puertas, transporte})` prueba las puertas conocidas por orden y comprueba que la respuesta es de ESTA petición.
+- El `transporte` (enviar el sobre por la malla y volver con la respuesta) es una función inyectada: queda **sin enchufar** al transporte universal ni a la interfaz de ajustes (no hay todavía el interruptor de «Prestar mi internet»).
+
 ## 6 · Capa 3 · Datos: el registro vivo de cada entidad
 Cada página, comunidad, grupo, canal, publicación, hilo, votación o estación es un **registro de operaciones firmadas**. Cada operación lleva autor, reloj lógico híbrido y referencia a las anteriores. Las neuronas que tienen derecho se pasan las operaciones que les faltan, y con las mismas operaciones todas llegan al mismo estado.
 
