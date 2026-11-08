@@ -41,6 +41,11 @@ mod canal_actualizacion_logica;
 mod avisos_mensajes;
 mod carpetas;
 mod disco;
+// (WFD1108A) Enlace Wi-Fi directo entre neuronas, sin router (architecture/wifi-directo.md).
+mod enlace_wifi;
+mod enlace_wifi_logica;
+#[cfg(target_os = "macos")]
+mod enlace_wifi_macos;
 mod faro;
 mod malla_local;
 mod malla_local_trama;
@@ -92,6 +97,8 @@ mod ventana_remota;
 mod android_parche;
 #[cfg(test)]
 mod android_actualizador;
+#[cfg(test)]
+mod enlace_wifi_parche;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Actualización automática INTELIGENTE del shell nativo (SOLO escritorio).
@@ -726,6 +733,14 @@ pub fn run() {
                 origen_local::rescate_origen_estado,
                 origen_local::rescate_origen_datos,
                 origen_local::rescate_origen_confirmar,
+                enlace_wifi::enlace_wifi_capacidades,
+                enlace_wifi::enlace_wifi_permiso,
+                enlace_wifi::enlace_wifi_abrir_ap,
+                enlace_wifi::enlace_wifi_credenciales,
+                enlace_wifi::enlace_wifi_unirse,
+                enlace_wifi::enlace_wifi_estado,
+                enlace_wifi::enlace_wifi_cerrar,
+                enlace_wifi::enlace_wifi_comprobar,
                 $($solo_desktop,)*
             ]);
         };
