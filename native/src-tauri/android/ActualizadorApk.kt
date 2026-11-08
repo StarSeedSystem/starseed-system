@@ -66,7 +66,16 @@ object ActualizadorApk : Application.ActivityLifecycleCallbacks {
     const val PREFIJO_DESCARGAS = "https://github.com/StarSeedSystem/starseed-system/releases/download/"
     /** Los manifiestos: los mismos Releases (`…/releases/download/canal-pruebas/…` o `…/releases/latest/download/…`). */
     const val PREFIJO_REPO = "https://github.com/StarSeedSystem/starseed-system/releases/"
-    private val HOSTS = setOf("github.com", "objects.githubusercontent.com", "release-assets.githubusercontent.com")
+    private val HOSTS = setOf("github.com", "api.github.com", "objects.githubusercontent.com", "release-assets.githubusercontent.com")
+    /** (ACT1108B) Ruta alternativa por la API de GitHub cuando `releases/download/…` falla (504 del 08/11). */
+    const val PREFIJO_API = "https://api.github.com/repos/StarSeedSystem/starseed-system/"
+    /** Pausas antes de cada intento (s): 0, 0 (otra ruta), 15, 40. Alternan directa y API: directa, API, directa, API. */
+    private val PAUSAS_S = longArrayOf(0, 0, 15, 40)
+
+    /** Un HTTP que no fue 2xx; `reintentable` = 5xx o 429. */
+    private class ErrorHttp(val codigo: Int, url: String) : Exception("HTTP $codigo en $url") {
+        val reintentable get() = codigo >= 500 || codigo == 429
+    }
     const val CARPETA = "actualizacion"
     const val PETICION = "peticion.json"
     const val ESTADO = "estado.json"
@@ -162,7 +171,7 @@ object ActualizadorApk : Application.ActivityLifecycleCallbacks {
         for (u in urls) {
             if (!u.startsWith(PREFIJO_REPO)) continue
             try {
-                val m = leerManifiesto(JSONObject(descargarTexto(u)), if (u.contains("/canal-pruebas/")) "pruebas" else "oficial")
+                val m = leerManifiesto(JSONObject(conRutas(u, { estado(ctx, "buscando", null, it) }) { x, _ -> descargarTexto(x) }), if (u.contains("/canal-pruebas/")) "pruebas" else "oficial")
                 respondio = true
                 if (m != null && (mejor == null || m.codigo > mejor.codigo)) mejor = m
             } catch (e: FileNotFoundException) {
@@ -185,7 +194,7 @@ object ActualizadorApk : Application.ActivityLifecycleCallbacks {
         try {
             if (!(apk.isFile && sha256(apk).equals(m.sha256, ignoreCase = true))) {
                 borrarApks(ctx)
-                descargar(ctx, m, apk)
+                conRutas(m.apk, { estado(ctx, "descargando", m, it) }) { x, _ -> descargar(ctx, m, x, apk) }
             }
             comprobarApk(ctx, apk, m)
         } catch (e: Exception) {
@@ -210,24 +219,87 @@ object ActualizadorApk : Application.ActivityLifecycleCallbacks {
         return Manifiesto(version, codigo, apk, sha, j.optLong("bytes", -1), j.optString("notas", ""), canal)
     }
 
-    private fun abrir(url: String): HttpURLConnection {
+    private fun abrir(url: String, accept: String = "application/octet-stream, application/json"): HttpURLConnection {
         val c = URL(url).openConnection() as HttpURLConnection
         c.instanceFollowRedirects = true
         c.connectTimeout = 20_000
         c.readTimeout = 60_000
         c.setRequestProperty("User-Agent", "StarSeed-OS-Android-Actualizador")
-        c.setRequestProperty("Accept", "application/octet-stream, application/json")
+        c.setRequestProperty("Accept", accept)
         val codigo = c.responseCode
         if (codigo == 404) throw FileNotFoundException(url)
-        if (codigo !in 200..299) throw Exception("HTTP $codigo en $url")
+        if (codigo !in 200..299) throw ErrorHttp(codigo, url)
         // Tras las redirecciones (GitHub manda los archivos a *.githubusercontent.com): solo https y esos sitios.
         val destino = c.url
         if (destino.protocol != "https" || destino.host !in HOSTS) throw Exception("La descarga acabó en un sitio no permitido (${destino.host}).")
         return c
     }
 
-    private fun descargarTexto(url: String): String {
-        val c = abrir(url)
+    /** Texto humano de un fallo de red para la persona («GitHub no respondió (504)…»). */
+    private fun causaHumana(e: Exception): String = when {
+        e is ErrorHttp && e.reintentable -> "GitHub no respondió (${e.codigo})"
+        e is java.net.SocketTimeoutException -> "GitHub tardó demasiado"
+        e is java.io.IOException -> "No hubo conexión con GitHub"
+        else -> "No se pudo hablar con GitHub"
+    }
+
+    private fun reintentable(e: Exception): Boolean = when (e) {
+        is FileNotFoundException -> false
+        is ErrorHttp -> e.reintentable
+        is java.io.IOException -> true // red caída, tiempo agotado, corte a medias
+        else -> false
+    }
+
+    /** `https://github.com/<repo>/releases/(download/<tag>|latest/download)/<archivo>` → URL de la API del asset. */
+    private fun urlPorApi(url: String): String {
+        val resto = url.removePrefix(PREFIJO_REPO)
+        val p = resto.split('/')
+        val (lista, nombre) = when {
+            p.size == 3 && p[0] == "download" -> "${PREFIJO_API}releases/tags/${p[1]}" to p[2]
+            p.size == 3 && p[0] == "latest" && p[1] == "download" -> "${PREFIJO_API}releases/latest" to p[2]
+            else -> throw Exception("Esta ruta no es un archivo de un Release.")
+        }
+        if (!url.startsWith(PREFIJO_REPO) || nombre.isEmpty() || nombre.contains("..")) throw Exception("Ruta no permitida.")
+        val c = abrir(lista, "application/vnd.github+json")
+        val j = try {
+            JSONObject(String(c.inputStream.use { it.readBytes() }, Charsets.UTF_8))
+        } finally {
+            c.disconnect()
+        }
+        val assets = j.optJSONArray("assets") ?: throw FileNotFoundException(url)
+        for (i in 0 until assets.length()) {
+            val a = assets.optJSONObject(i) ?: continue
+            if (a.optString("name") == nombre && a.optLong("id", -1) > 0) return "${PREFIJO_API}releases/assets/${a.getLong("id")}"
+        }
+        throw FileNotFoundException(url)
+    }
+
+    /**
+     * (ACT1108B) Hace `f` por la ruta directa y, si GitHub falla (5xx, red, tiempo), por la API: directa → API →
+     * directa → API, con pausa creciente (~1 min en total). Un 404 NO se reintenta (el archivo no existe).
+     * `aviso` cuenta a la persona el cambio de ruta. La verificación (SHA-256, paquete, firma) va después, igual.
+     */
+    private fun <T> conRutas(url: String, aviso: (String) -> Unit, f: (String, Boolean) -> T): T {
+        var ultimo: Exception = Exception("sin respuesta")
+        for (i in PAUSAS_S.indices) {
+            if (PAUSAS_S[i] > 0) Thread.sleep(PAUSAS_S[i] * 1000)
+            val porApi = i % 2 == 1
+            try {
+                return if (porApi) f(urlPorApi(url), true) else f(url, false)
+            } catch (e: Exception) {
+                if (!reintentable(e)) throw e
+                ultimo = e
+                if (i + 1 < PAUSAS_S.size) {
+                    val donde = if (porApi) "de nuevo por la ruta directa" else "por otra ruta (la API de GitHub)"
+                    aviso("${causaHumana(e)}. Lo intento $donde… (intento ${i + 2} de ${PAUSAS_S.size})")
+                }
+            }
+        }
+        throw Exception("${causaHumana(ultimo)}: no se pudo ni por la ruta alternativa. Reintenta en unos minutos.")
+    }
+
+    private fun descargarTexto(url: String, accept: String = "application/octet-stream, application/json"): String {
+        val c = abrir(url, accept)
         try {
             val bytes = c.inputStream.use { it.readBytes() }
             if (bytes.size > 64 * 1024) throw Exception("El manifiesto es demasiado grande.")
@@ -237,9 +309,9 @@ object ActualizadorApk : Application.ActivityLifecycleCallbacks {
         }
     }
 
-    private fun descargar(ctx: Context, m: Manifiesto, destino: File) {
+    private fun descargar(ctx: Context, m: Manifiesto, url: String, destino: File) {
         val parcial = File(destino.path + ".parcial")
-        val c = abrir(m.apk)
+        val c = abrir(url)
         try {
             val total = c.contentLengthLong.takeIf { it > 0 } ?: m.bytes
             if (total > MAX_BYTES) throw Exception("El APK es demasiado grande (${total / 1_048_576} MB).")

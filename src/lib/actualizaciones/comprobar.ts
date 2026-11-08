@@ -13,7 +13,17 @@ import { decidirActualizacionAndroid } from "@/lib/nativa/actualizador-android";
 import { buscarActualizacionNativa } from "@/lib/nativa/info-neurona";
 import { esVersionMasNueva, esVersionSemver } from "@/lib/version/os-release";
 import type { VersionPublicada } from "@/lib/version/versiones-publicadas";
-import { canalDe, canalPruebasDesdeApi, elegirPublicada, type Canal, type CanalPruebas } from "./canal-pruebas";
+import { canalDe, elegirPublicada, type Canal, type CanalPruebas } from "./canal-pruebas";
+import { describirError } from "./errores";
+import { leerPublicadas, type OpcionesPublicadas, type ResultadoPublicadas } from "./leer-publicadas";
+
+function enLinea(): boolean {
+  try {
+    return typeof navigator === "undefined" || navigator.onLine !== false;
+  } catch {
+    return true;
+  }
+}
 
 export interface ResultadoComprobar {
   medio: Medio;
@@ -32,6 +42,10 @@ export interface OpcionesComprobar {
   forzar?: boolean;
   /** Versiones ya enseñadas en la ventana. */
   vistas?: Record<string, unknown>;
+  /** (ACT1108B) Cuenta el cambio de ruta («GitHub no respondió (504). Lo intento por otra ruta…»). */
+  aviso?: (texto: string) => void;
+  /** (ACT1108B) Para probar: sustituye la lectura de lo publicado. */
+  leer?: (o: OpcionesPublicadas) => Promise<ResultadoPublicadas>;
 }
 
 /** null si este medio no tiene ventana propia (web, PWA, iOS: se actualizan solos). */
@@ -46,19 +60,24 @@ export async function comprobarActualizacion(opciones: OpcionesComprobar = {}): 
   }
   let ultima: VersionPublicada | undefined;
   let pruebas: CanalPruebas | null = null;
-  try {
-    const res = await fetch("/api/os/versiones", { cache: "no-store" });
-    if (res.ok) {
-      const datos = (await res.json()) as { versiones?: VersionPublicada[]; canalPruebas?: CanalPruebas | null };
-      ultima = Array.isArray(datos?.versiones) ? datos.versiones[0] : undefined;
-      // (ACT1108A) Solo cuenta para las apps del canal de pruebas (elegirPublicada lo decide).
-      pruebas = canalPruebasDesdeApi(datos?.canalPruebas);
-    }
-  } catch {
-    ultima = undefined;
+  let errorPruebas: string | null = null;
+  // (ACT1108B) Servidor y, si falla, GitHub directo (directa → API). Nunca una sola ruta.
+  const leidas = await (opciones.leer ?? leerPublicadas)({ aviso: opciones.aviso });
+  if (leidas.ok) {
+    ultima = leidas.datos.versiones[0];
+    // (ACT1108A) Solo cuenta para las apps del canal de pruebas (elegirPublicada lo decide).
+    pruebas = leidas.datos.canalPruebas;
+    errorPruebas = leidas.datos.canalPruebasError;
   }
   if (!ultima && !(pruebas && canalDe(instalada) === "pruebas")) {
-    const motivo = "No se pudo leer la lista de versiones publicadas (¿sin conexión?).";
+    const motivo = describirError(leidas.ok ? "sin conexión con la lista de versiones" : leidas.motivo, { enLinea: enLinea() }).texto;
+    guardarUltimaComprobacion({ resultado: "error", instalada, publicada: null, texto: motivo });
+    return sin({ tipo: "nada", motivo });
+  }
+  // (ACT1108B) Una app de pruebas con el canal de pruebas ILEGIBLE (GitHub caído) no puede decir «al día»: la
+  // versión nueva podía estar justo ahí. Se dice la verdad y se ofrece reintentar.
+  if (canalDe(instalada) === "pruebas" && !pruebas && errorPruebas) {
+    const motivo = describirError(errorPruebas, { enLinea: enLinea() }).texto;
     guardarUltimaComprobacion({ resultado: "error", instalada, publicada: null, texto: motivo });
     return sin({ tipo: "nada", motivo });
   }
@@ -108,8 +127,10 @@ export async function comprobarActualizacion(opciones: OpcionesComprobar = {}): 
 
   const decision = decidirAviso({ medio, instalada, publicada, vistas, updater, apk, forzar: opciones.forzar });
   if (decision.tipo === "nada") {
-    guardarUltimaComprobacion({ resultado: "error", instalada, publicada, texto: decision.motivo });
-    return sin(decision, publicada);
+    // (ACT1108B) Si el actualizador de la app falló, se dice en español claro (no «Could not fetch a valid release JSON…»).
+    const texto = updater?.estado === "error" ? describirError(updater.motivo, { enLinea: enLinea() }).texto : decision.motivo;
+    guardarUltimaComprobacion({ resultado: "error", instalada, publicada, texto });
+    return sin(updater?.estado === "error" ? { tipo: "nada", motivo: texto } : decision, publicada);
   }
   if (decision.tipo === "preparando") {
     guardarUltimaComprobacion({ resultado: "preparando", instalada, publicada, texto: decision.texto });

@@ -19,6 +19,8 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
+import { RUTA_VERSION } from "@/components/actualizaciones/seccion-version";
 import { Cpu, Download, GitMerge, Loader2, RotateCw, Search } from "lucide-react";
 import { EVENTO_ABRIR_BIENVENIDA_NEURONA } from "@/lib/neurons/neurona-bienvenida";
 import { Badge } from "@/components/ui/badge";
@@ -262,6 +264,12 @@ export function EstaNeurona() {
             <span className="text-foreground/80">Última comprobación:</span> {haceCuanto(ultima.en)} · {ultima.texto}
           </p>
         )}
+        {/* (ACT1108B) La versión y las actualizaciones tienen su propia sección en Ajustes (primer nivel). */}
+        <p className="text-xs">
+          <Link href={RUTA_VERSION} className="cursor-pointer text-emerald-300 underline-offset-2 hover:underline">
+            Abrir Ajustes › Versión y actualizaciones
+          </Link>
+        </p>
 
         {nativa ? (
           <div className="flex flex-wrap items-center gap-2">

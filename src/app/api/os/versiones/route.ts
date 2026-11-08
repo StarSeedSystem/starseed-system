@@ -6,6 +6,7 @@ import {
   URL_MANIFIESTO_PRUEBAS_ANDROID,
   type CanalPruebas,
 } from "@/lib/actualizaciones/canal-pruebas";
+import { leerJsonConRutas } from "@/lib/actualizaciones/rutas-github";
 
 const REPO = "StarSeedSystem/starseed-system";
 const URL_RELEASES = `https://api.github.com/repos/${REPO}/releases?per_page=20`;
@@ -69,28 +70,30 @@ function guardarFallo(ahora: number): { releases: ReleaseGithub[]; githubFallido
 // (ACT1108A) Canal de pruebas de las apps nativas: los dos manifiestos de la prerelease fija
 // `canal-pruebas` (sus enlaces de descarga, no la API: no gastan cuota). Solo lo usan las apps cuya
 // versión lleva «-prueba.»; la lista `versiones` (oficial) no cambia. Contrato centro-versiones §9.
-let cachePruebas: { datos: CanalPruebas | null; generado: number; ok: boolean } | null = null;
+let cachePruebas: { datos: CanalPruebas | null; generado: number; ok: boolean; error: string | null } | null = null;
 
-async function leerJsonPublico(url: string): Promise<unknown> {
-  try {
-    const r = await fetch(url, { headers: { Accept: "application/json, application/octet-stream" } });
-    return r.ok ? await r.json() : null;
-  } catch {
-    return null;
-  }
+// (ACT1108B) `releases/download/…` devolvió 504 desde GitHub el 08/11 mientras la API respondía: se lee por
+// la ruta directa y, si falla, por la API (`rutas-github.ts`). Sin esperas largas dentro de una petición:
+// dos intentos (directa y API), uno detrás de otro. `error` = no se pudo leer (≠ «aún no hay prueba publicada»).
+async function leerJsonPublico(url: string): Promise<{ valor: unknown; error: string | null }> {
+  const r = await leerJsonConRutas(url, { maxIntentos: 2, esperar: async () => undefined });
+  if (r.ok) return { valor: r.valor, error: null };
+  return { valor: null, error: r.noExiste ? null : r.motivo };
 }
 
-async function obtenerCanalPruebas(): Promise<CanalPruebas | null> {
+async function obtenerCanalPruebas(): Promise<{ datos: CanalPruebas | null; error: string | null }> {
   const ahora = Date.now();
-  if (cachePruebas && ahora - cachePruebas.generado < (cachePruebas.ok ? CACHE_MS : CACHE_FALLBACK_MS)) return cachePruebas.datos;
+  if (cachePruebas && ahora - cachePruebas.generado < (cachePruebas.ok ? CACHE_MS : CACHE_FALLBACK_MS)) return { datos: cachePruebas.datos, error: cachePruebas.error };
   const [escritorio, android] = await Promise.all([leerJsonPublico(URL_MANIFIESTO_PRUEBAS), leerJsonPublico(URL_MANIFIESTO_PRUEBAS_ANDROID)]);
-  const datos = sanearCanalPruebas(escritorio, android);
-  cachePruebas = { datos, generado: ahora, ok: datos !== null };
-  return datos;
+  const datos = sanearCanalPruebas(escritorio.valor, android.valor);
+  // Con algún manifiesto leído, el canal vale; si no se leyó ninguno y alguno FALLÓ (no «no existe»), es un error.
+  const error = datos ? null : (escritorio.error ?? android.error);
+  cachePruebas = { datos, generado: ahora, ok: datos !== null || error === null, error };
+  return { datos, error };
 }
 
 export async function GET(): Promise<Response> {
-  const [{ releases, githubFallido }, canalPruebas] = await Promise.all([obtenerReleases(), obtenerCanalPruebas()]);
+  const [{ releases, githubFallido }, { datos: canalPruebas, error: canalPruebasError }] = await Promise.all([obtenerReleases(), obtenerCanalPruebas()]);
 
   let versiones = desdeReleases(releases);
   let aviso: string | undefined;
@@ -108,6 +111,8 @@ export async function GET(): Promise<Response> {
     versiones,
     generadoEn: new Date().toISOString(),
     canalPruebas,
+    // (ACT1108B) Presente solo si el canal de pruebas NO se pudo leer (GitHub caído): la web no debe decir «al día».
+    ...(canalPruebasError && { canalPruebasError }),
     ...(aviso && { aviso }),
   };
 

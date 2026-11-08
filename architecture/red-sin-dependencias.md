@@ -215,6 +215,7 @@ Cada página, comunidad, grupo, canal, publicación, hilo, votación o estación
 ### 7.7 · Avisos y actualizaciones
 - Todos los sistemas avisan por la malla; ntfy queda opcional y se puede alojar en la LAN.
 - Las actualizaciones firmadas (APK, paquete de escritorio, capas) se las pasan las neuronas entre sí y con un espejo en la LAN. La firma del actualizador se verifica igual.
+- (ACT1108B) Hoy la actualización ya reintenta y cambia de ruta (directa → API de GitHub) cuando `releases/download` falla; el siguiente escalón es F7: `Ruta::Espejo` (Rust) / `espejos` (`rutas-github.ts`) es el hueco donde una neurona que ya tiene el paquete lo sirve a las demás, antes de salir a GitHub. Contrato: centro-versiones-1105.md §9.9.
 
 ### 7.8 · Navegadores en la LAN
 Una app nativa puede hacer de **estación base**: sirve la web y su API local a la red, con aviso y permiso. Así un móvil o un PC sin app entra en StarSeed desde el navegador sin internet.

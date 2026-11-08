@@ -87,8 +87,10 @@ export function textoEstadoApk(e: EstadoApkNativo): string {
   const v = e.version ? ` ${e.version}` : "";
   switch (e.fase) {
     case "buscando":
-      return "Buscando la versión nueva…";
+      // (ACT1108B) Kotlin cuenta aquí el cambio de ruta: «GitHub no respondió (504). Lo intento por otra ruta…».
+      return e.mensaje?.trim() ? e.mensaje : "Buscando la versión nueva…";
     case "descargando": {
+      if (e.descargado == null && e.mensaje?.trim()) return e.mensaje;
       const p = porcentajeApk(e);
       return `Descargando la versión${v} dentro de la app${p == null ? "…" : ` · ${p} %`}`;
     }

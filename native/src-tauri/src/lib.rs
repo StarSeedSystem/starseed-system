@@ -44,6 +44,7 @@ mod ble_trama;
 // (ACT1108A) Canal de actualización (oficial / pruebas) y actualizador interno del APK. §9 del contrato.
 mod canal_actualizacion;
 mod canal_actualizacion_logica;
+mod canal_actualizacion_red;
 // (NOT1108A) Avisos del sistema de los mensajes nuevos (escritorio y Android) y su respaldo nativo.
 mod avisos_mensajes;
 mod carpetas;
@@ -198,8 +199,13 @@ mod actualizacion {
     pub async fn comprobar_e_instalar(app: AppHandle) -> Result<Option<String>, String> {
         emitir(&app, EstadoActualizacion { fase: "buscando".into(), ..Default::default() });
 
-        // (ACT1108A) El `check()` del canal de ESTA app: oficial (tauri.conf.json) o pruebas.
-        let encontrado = crate::canal_actualizacion::buscar(&app).await.map_err(|msg| {
+        // (ACT1108A/B) El `check()` del canal de ESTA app: oficial (tauri.conf.json) o pruebas, con
+        // reintentos y ruta alternativa por la API de GitHub. Cada cambio de ruta se cuenta a la web.
+        let app_aviso = app.clone();
+        let avisar = move |texto: String| {
+            emitir(&app_aviso, EstadoActualizacion { fase: "buscando".into(), mensaje: Some(texto), ..Default::default() });
+        };
+        let encontrado = crate::canal_actualizacion::buscar(&app, &avisar).await.map_err(|msg| {
             emitir(&app, EstadoActualizacion { fase: "error".into(), mensaje: Some(msg.clone()), ..Default::default() });
             msg
         })?;
@@ -221,9 +227,7 @@ mod actualizacion {
             },
         );
 
-        // Acumuladores compartidos con los callbacks de progreso (FnMut/FnOnce
-        // deben ser Send + 'static: solo capturan AppHandle clonado + Arc<Atomic*>,
-        // nada de referencias con lifetime).
+        // Acumuladores compartidos con los callbacks de progreso (solo AppHandle clonado + Arc<Atomic*>).
         let total_bytes = Arc::new(AtomicU64::new(0));
         let descargado_bytes = Arc::new(AtomicU64::new(0));
 
@@ -248,28 +252,31 @@ mod actualizacion {
                 },
             );
         };
-
-        let app_fin_descarga = app.clone();
-        let version_fin_descarga = version.clone();
-        let on_download_finish = move || {
+        // Cada intento (otra ruta) empieza el progreso de cero.
+        let descargado_reinicio = descargado_bytes.clone();
+        let al_empezar = move || descargado_reinicio.store(0, Ordering::Relaxed);
+        let app_aviso_d = app.clone();
+        let version_aviso_d = version.clone();
+        let avisar_descarga = move |texto: String| {
             emitir(
-                &app_fin_descarga,
-                EstadoActualizacion {
-                    fase: "instalando".into(),
-                    version: Some(version_fin_descarga.clone()),
-                    ..Default::default()
-                },
+                &app_aviso_d,
+                EstadoActualizacion { fase: "descargando".into(), version: Some(version_aviso_d.clone()), mensaje: Some(texto), ..Default::default() },
             );
         };
 
-        update
-            .download_and_install(on_chunk, on_download_finish)
-            .await
-            .map_err(|e| {
-                let msg = format!("Falló la instalación de la actualización: {e}");
-                emitir(&app, EstadoActualizacion { fase: "error".into(), version: Some(version.clone()), mensaje: Some(msg.clone()), ..Default::default() });
-                msg
-            })?;
+        let paquete = crate::canal_actualizacion::descargar(&update, on_chunk, &al_empezar, &avisar_descarga).await.map_err(|e| {
+            let msg = format!("Falló la descarga de la actualización: {e}");
+            emitir(&app, EstadoActualizacion { fase: "error".into(), version: Some(version.clone()), mensaje: Some(msg.clone()), ..Default::default() });
+            msg
+        })?;
+
+        emitir(&app, EstadoActualizacion { fase: "instalando".into(), version: Some(version.clone()), ..Default::default() });
+        // `install` NO baja nada: aquí la firma ya se verificó en `download` (minisign con la clave de tauri.conf.json).
+        update.install(paquete).map_err(|e| {
+            let msg = format!("Falló la instalación de la actualización: {e}");
+            emitir(&app, EstadoActualizacion { fase: "error".into(), version: Some(version.clone()), mensaje: Some(msg.clone()), ..Default::default() });
+            msg
+        })?;
 
         // Instalada: reinicio inteligente. Si el usuario NO está mirando la
         // ventana principal (minimizada, en 2º plano o sin foco), reiniciamos
@@ -301,7 +308,7 @@ mod actualizacion {
     pub async fn buscar(app: AppHandle) -> Result<crate::neurona_info::BusquedaActualizacion, String> {
         let actual = app.package_info().version.to_string();
         // (ACT1108A) El mismo canal que la vigilancia (oficial o pruebas).
-        let encontrado = crate::canal_actualizacion::buscar(&app).await?;
+        let encontrado = crate::canal_actualizacion::buscar(&app, &|_| {}).await?;
         Ok(crate::neurona_info::busqueda(
             &actual,
             encontrado.map(|u| (u.version.clone(), u.body.clone(), crate::neurona_info::fecha_de_json(&u.raw_json))),
