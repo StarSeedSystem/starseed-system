@@ -149,6 +149,8 @@ conocía y, sin un emparejado por QR, no había enlace WebRTC.
   ligada con la misma huella: nadie de la red puede colar un SDP (ni su huella DTLS).
 - Los archivos SIEMPRE preguntan (`mismaCuenta: false`), igual que por un enlace QR.
 - El canal Rust sigue cortando lo que no es de la red local, ≤ 8 conexiones a la vez, 3 s por conexión.
+- (CIF1108A) El saludo firmado ya no es lo único firmado: los datos van CIFRADOS de punta a punta cuando
+  los dos lados lo anuncian (`cif:1`), ver §6.7.
 
 ### 6.3 · Protocolo por el canal
 
@@ -240,6 +242,112 @@ contesta al `nl.hola`; hasta la próxima versión, solo el enlace QR («Vincular
 mensajes Mac ↔ tablet sin servidor. Una app 0.5.0 ignora `nl.*` y `archivo.*` por el TCP.
 Pruebas: `red-local-nativa.test.ts` (+5), `red-local-nativa-motor.test.ts` (+8),
 `mensajeria/medios/__tests__/enviar-red-nativa.test.ts` (6), Rust `antenas` (+2).
+
+### 6.7 · Cifrado de punta a punta del canal nativo y del Bluetooth (CIF1108A · 2026-11-08)
+
+**Hallazgo.** El canal TCP 47071 firmaba el saludo (identidad del aparato, `wrapSigned` v2) pero llevaba los
+datos EN CLARO: mensajes (`tu.*`), archivos (`archivo.*`), la señalización de llamadas (`nl.sen`, con SDP
+y huellas DTLS) y la negociación del enlace Wi-Fi directo, que viaja por el mismo canal TCP de la red
+directa (`nativo:<ip>`). El Bluetooth LE (`ble:<id>`) tampoco cifraba sus tramas; solo la contraseña del
+punto de acceso del Wi-Fi directo iba cifrada (ECDH/AES-GCM propios de WFD1108A). Un `grep` de
+cifr/encrypt/aes en `malla_local*.rs` y `red-local-nativa*.ts` no daba nada.
+
+**Dónde se cifra: en TypeScript (WebCrypto), encima del canal.** Se leyó el Rust: `malla_local_trama.rs`
+y `ble_trama.rs` solo validan que el cuerpo sea un objeto JSON ≤ tope, lo acusan y lo entregan a la web;
+no interpretan `t`, ni lotes, ni trozos de archivo. Con Rust como transportista de tramas opacas, cifrar
+en la web (a) no toca el Rust (ni su CI nativa ni Android), (b) vale igual en macOS, Windows y Android,
+(c) reutiliza las primitivas de `par-crypto.ts` / `recipient-crypto.ts` (ECDH P-256, HKDF, AES-GCM) sin
+añadir dependencias, y (d) la identidad de malla que prueba el saludo ya vive en la web. Cifrar en Rust
+habría exigido sacar esa clave de la web o duplicar la identidad. Módulo: `src/lib/malla/sesion-cifrada.ts`
+(puro); los motores `red-local-nativa-motor.ts` y `bluetooth-directo-motor.ts` lo usan igual.
+
+**Acuerdo de sesión (`nl.cs`, en claro pero FIRMADO).** Dos mensajes, tras el saludo:
+
+```
+{"t":"nl.cs","s":<sobre firmado de { t:"nl.cs", v:1, k:"ini"|"res", s:<id de sesión 8 B>, de, para,
+   ef:<clave pública ECDH P-256 EFÍMERA, 65 B en base64>, ts }>}
+```
+
+- `ini` lo manda quien necesita hablar y aún no hay sesión; `res` la contesta con su propia clave
+  efímera. Si las dos abren a la vez gana la neurona de id menor y la otra contesta (como `quienOfrece`).
+- El motor solo atiende un `nl.cs` cuya HUELLA (la del sobre) es la de la ligadura de esa IP/enlace, o
+  sea, la identidad que el saludo ya probó (vínculo, o prueba de cuenta). Así las claves efímeras están
+  atadas a la identidad: un intermediario no puede ponerse en medio. Hay secreto hacia adelante (las
+  efímeras se tiran) y una sesión nueva en cada reinicio.
+- Claves: `HKDF-SHA256(ECDH, sal = id de sesión, info = "ss-nl-cif-v1|<sentido>|<ini>|<res>|<efIni>|<efRes>")`
+  → una clave AES-256-GCM por SENTIDO (`i2r` y `r2i`): nunca se cifra con la misma clave en los dos
+  sentidos (una trama reflejada no se descifra).
+
+**Trama cifrada.**
+
+```
+{"t":"nl.cif","s":<id de sesión>,"n":<contador>,"c":<base64 de (cifrado + etiqueta GCM de 16 B)>}
+```
+
+- Nonce de 12 B = 4 de sentido + 8 del contador `n` (monótono por sentido); datos asociados =
+  `nl.cif|1|<sesión>|<sentido>|<n>`. Lo que se cifra es la TRAMA ya armada (un texto, o un `nl.lote`
+  entero): el cifrado va por trama, no por mensaje.
+- El que recibe rechaza un `n` repetido o más viejo que la ventana de 128 (el desorden leve dentro de la
+  ventana vale); el contador solo se anota tras autenticar, así que una trama falsa no gasta la ventana.
+- **Qué va siempre en claro:** solo el saludo (`nl.hola`) y el acuerdo (`nl.cs`), que ya van firmados.
+  Todo lo demás (`tu.*`, `archivo.*`, `nl.sen`, el control del enlace Wi-Fi por Bluetooth) va dentro de
+  `nl.cif`. El `nl.cs` se manda directo (sin pasar por la cola) porque la propia cola espera a la sesión.
+
+**Renovación.** Misma política que el trinquete (`cristal/cifrado/trinquete.ts`: 15 min o 500 mensajes;
+aquí 500 TRAMAS) y además **32 MiB cifrados** para los flujos de archivos. Pasado el límite blando
+se abre un acuerdo nuevo sin cortar: la sesión vieja sigue valiendo 60 s para lo que va en vuelo. Con el
+doble del límite no se cifra más con esa sesión (el envío espera a la nueva, ≤ 2,5 s en TCP, ≤ 4 s en
+Bluetooth). Una trama con sesión DESCONOCIDA (un lado se reinició) no se entrega y reabre el acuerdo.
+
+**Compatibilidad.**
+
+| El otro lado | Comportamiento |
+|---|---|
+| Anuncia `cif:1` en su saludo firmado | Cifrado OBLIGATORIO. Lo que llega en claro de él (salvo saludo/acuerdo) se descarta. Una alteración, un contador repetido o una trama mal formada CIERRA el enlace (se olvida la ligadura y la sesión; el siguiente saludo la rehace). |
+| App anterior (sin `cif`) | Texto en claro, SOLO en ese caso. El enlace se marca «sin cifrar»: `EnlaceDisponible.cifrado`, `RedNativa.cifradoDe(neurona)` y `instantanea().cifrado` dan `cifrado` / `pendiente` / `sin-cifrar` para la cabecera del chat y los acuses. |
+| App anterior + ajuste **«Exigir cifrado en la red local»** | Bloqueada: no se le manda nada (el envío falla diciéndolo) ni se atiende lo que mande. El ajuste vive en `localStorage` (`ss.redLocal.exigirCifrado`, `exigirCifradoRedLocal()` / `fijarExigirCifradoRedLocal()`), **por defecto APAGADO hasta el siguiente lanzamiento oficial** (las apps ya instaladas no cifran). |
+
+`cif` va dentro del sobre firmado, así que nadie puede quitarlo en el aire para forzar el claro. Una app
+que ya vio `cif` de una neurona y luego la ve sin él (instalación antigua) cae a «sin cifrar» salvo que
+el ajuste «Exigir» esté activo: esa es la defensa contra la degradación.
+
+**Gancho de identidad (cuenta → neurona).** El saludo admite `certificado?` (objeto ≤ 2 KiB, dentro del
+sobre firmado) y los motores aceptan `verificarCertificado(cert, {neurona, huella})` inyectado; si falla, o
+lanza, el saludo se rechaza. Sin verificador el certificado se IGNORA (el comportamiento de hoy). Lo
+construirá IDN1108A como API pura (`CertificadoNeurona`, `VerificadorCertificado` en `sesion-cifrada.ts`).
+
+**Coste medido (banco en `sesion-cifrada.test.ts`).**
+
+- CPU: cifrar + descifrar un trozo de archivo de 34 KiB ≈ 1,6 ms (≈ 21 MB/s de carga útil en Node): ~40×
+  lo que mueve hoy el canal TCP (~550 KB/s). El cuello de botella sigue siendo el acuse por trama.
+- Tamaño: la trama cifrada pesa 4/3 del claro (base64) + ~62 B fijos (envoltorio `nl.cif` + etiqueta),
+  y el tope del Rust (64 KiB TCP, 16 KiB BLE) no cambia, así que el claro por trama baja a 3/4:
+  `limitesParaCifrado()` estrecha lo que arma el motor. El trozo de archivo pasa de **46 KiB a 34 KiB**
+  por TCP (−26 %) y de **10 KiB a 7 KiB** por Bluetooth. Si el canal está limitado por trama (acuse
+  ida y vuelta), el caudal de archivos caía en esa proporción. **Recuperado con un tope negociado:**
+  `MAX_CUERPO` de `malla_local_trama.rs` sube a **96 KiB** (`MAX_CUERPO_ANTERIOR` = 64 KiB). Cada app ya
+  ANUNCIA el suyo (`max_cuerpo` en `malla_local_estado` y `lim.max_cuerpo` en el saludo firmado); la web
+  manda con min(tope del Rust propio, tope del otro) y descuenta la sobrecarga del cifrado. Una app
+  anterior (sin anuncio) sigue en 64 KiB. Trozo de archivo cifrado por TCP: **52 KiB** entre dos apps
+  nuevas (más que los 46 KiB de antes sin cifrar), 34 KiB si el otro es de 64 KiB o el Rust propio es
+  anterior. Bluetooth se queda en 16 KiB (7 KiB de trozo cifrado): su reensamblado por paquetes con MTU 23
+  y sus plazos están ajustados a ese tope y no se ha probado más.
+
+**Pruebas (deterministas).** `sesion-cifrada.test.ts` (18: acuerdo en los dos sentidos, claves por sentido,
+efímeras distintas, empate de aperturas, contador, repetición, ventana, alteración, sesión desconocida,
+renovación por tiempo/tramas/bytes y gracia de la sesión vieja, tamaños, modos, banco),
+`red-local-nativa-cifrado.test.ts` (13, DOS motores en memoria: mensaje y trozo de archivo cifrados en
+los dos sentidos, alteración y repetición cierran el enlace, claro hacia quien cifra se descarta,
+renovación sin perder mensajes, app anterior en claro y «sin cifrar», «Exigir», gancho de certificado) y
+`bluetooth-directo-motor.test.ts` (+4: mensaje, archivo de 100 KB con MTU 23 y SHA-256 igual, app
+anterior/exigir, alteración). Rust: `malla_local_trama` +1 (`el_tope_de_96_kib_vale_en_los_dos_sentidos`, con 80 KiB por TCP real); suite 209. `red-local-nativa-cifrado.test.ts` +3 (tope negociado).
+
+**Interfaz.** Ajustes › Neuronas › Medios › «Exigir cifrado en la red local» (`ajuste-cifrado-red-local.tsx`, apagado por defecto) y, junto a la vía en la cabecera del hilo de una neurona propia, el candado «cifrado» / «cifrando…» o el aviso «sin cifrar» (`sello-cifrado.tsx`, lee `cifradoDe()`).
+
+**Lo que necesita dos aparatos reales (pendiente).** Mac ↔ tablet por Wi-Fi y por Bluetooth con la web
+nueva (el cifrado llega con la web publicada; el Rust no cambia, así que sirve ya con la app 0.5.x que
+tengan instalada si descarga la web); la app 0.5.0 frente a una nueva («sin cifrar» visible); caudal real
+de un archivo de ≥ 100 MB por TCP cifrado frente al de hoy; reinicio de un lado a mitad de un archivo.
 
 ## 7 · Grupos, correos y medios por la malla (GRP1107A · 2026-11-07)
 

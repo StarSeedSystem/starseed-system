@@ -69,6 +69,22 @@ import {
   type MensajeBleNativo,
   type SecretoCifrado,
 } from "./bluetooth-directo";
+import {
+  VERSION_CIFRADO,
+  crearSesionesCifradas,
+  decidirModo,
+  esAcuerdo,
+  esTextoSiempreEnClaro,
+  esTramaCifrada,
+  etiquetaCifrado,
+  limitesParaCifrado,
+  verificadorCertificadoPorDefecto,
+  type CertificadoNeurona,
+  type EtiquetaCifrado,
+  type ModoEnlace,
+  type SesionesCifradas,
+  type VerificadorCertificado,
+} from "./sesion-cifrada";
 import type { EnlaceDisponible } from "./eleccion-enlace";
 import type { CanalArchivos } from "@/lib/network/archivos-malla";
 
@@ -94,6 +110,13 @@ export interface DepsBle {
   /** HMAC-SHA256 con la clave de faro de la cuenta (32 hex) o null sin clave. Nunca la devuelve. */
   pruebaCuenta?(texto: string): Promise<string | null>;
   huellaPropia?(): Promise<string | null>;
+  /** (CIF1108A) Sesiones cifradas de punta a punta (`sesion-cifrada.ts`); ausente: esta app no cifra. */
+  sesiones?: SesionesCifradas;
+  /** (CIF1108A) Ajuste «Exigir cifrado en la red local» (vale también para Bluetooth). */
+  exigirCifrado?(): boolean;
+  /** (CIF1108A) Gancho de identidad: certificado cuenta→neurona propio / verificador (IDN1108A). */
+  certificadoPropio?(): Promise<CertificadoNeurona | null>;
+  verificarCertificado?: VerificadorCertificado;
 }
 
 export interface ResultadoEnvioBle {
@@ -118,6 +141,8 @@ export interface InstantaneaBle {
   ligaduras: LigaduraBle[];
   caidas: Record<string, number>;
   ultimoRechazo: string | null;
+  /** (CIF1108A) Estado del cifrado por neurona ligada. */
+  cifrado: Record<string, EtiquetaCifrado>;
 }
 
 export interface RedBle {
@@ -128,6 +153,8 @@ export interface RedBle {
   enlaces(): EnlaceDisponible[];
   /** Enlace ligado con esa neurona ahora («b3»), o null. */
   enlaceHacia(neurona: string): string | null;
+  /** (CIF1108A) «cifrado» / «sin-cifrar» / «pendiente» (null: sin enlace ligado con esa neurona). */
+  cifradoDe?(neurona: string): EtiquetaCifrado | null;
   /** Manda un texto (objeto JSON) por ese enlace; se resuelve con el acuse de la otra app. */
   enviarTexto(enlace: string, texto: string): Promise<ResultadoEnvioBle>;
   canalArchivos(enlace: string): CanalArchivos;
@@ -147,6 +174,8 @@ export interface RedBle {
 /** Tope de lo encolado en `datos` por enlace: el motor de archivos ve la cola ×4 y frena antes. */
 export const MAX_COLA_DATOS_BLE = 1024 * 1024;
 export const FACTOR_FRENO_ARCHIVOS_BLE = 4;
+/** (CIF1108A) Espera al acuerdo de sesión antes de devolver el envío como «aún no listo» (el aire BLE es más lento). */
+export const ESPERA_SESION_BLE_MS = 4_000;
 
 interface Item {
   texto: string;
@@ -204,6 +233,90 @@ export function crearRedBle(deps: DepsBle): RedBle {
     c.bytesDatos = 0;
   }
 
+  /* ─────────────── Cifrado de punta a punta (CIF1108A) ─────────────── */
+
+  const esperasSesion = new Map<string, Array<() => void>>();
+  const propio = (): boolean => !!deps.sesiones;
+  const exigir = (): boolean => {
+    try {
+      return !!deps.exigirCifrado?.();
+    } catch {
+      return false;
+    }
+  };
+  const modoDe = (lig: LigaduraBle): ModoEnlace => decidirModo({ propio: propio(), cifPar: lig.cif, exigir: exigir() });
+  const limitesEfectivos = (lig: LigaduraBle | null): LimitesCanal => {
+    const lim = lig?.limites ?? LIMITES_BLE_DEFECTO;
+    return lig && modoDe(lig) === "cifrado" ? limitesParaCifrado(lim) : lim;
+  };
+  const etiquetaDe = (lig: LigaduraBle): EtiquetaCifrado => etiquetaCifrado(modoDe(lig), deps.sesiones?.estado(lig.neurona) ?? "sin");
+
+  function despertarSesion(neurona: string): void {
+    const l = esperasSesion.get(neurona);
+    if (!l) return;
+    esperasSesion.delete(neurona);
+    for (const f of l) f();
+  }
+
+  /** Manda el `nl.cs/ini` firmado, en claro y SIN pasar por la cola (la cola es quien espera la sesión). */
+  async function abrirAcuerdo(lig: LigaduraBle): Promise<void> {
+    if (!deps.sesiones) return;
+    try {
+      const yo = await deps.yo();
+      if (!yo) return;
+      const sobre = await deps.sesiones.iniciar(yo.neurona, lig.neurona);
+      if (sobre) await deps.enviar(lig.enlace, JSON.stringify({ t: "nl.cs", s: sobre }));
+    } catch {
+      /* el siguiente envío lo reintenta */
+    }
+  }
+
+  function esperarSesion(neurona: string, ms: number): Promise<boolean> {
+    if (deps.sesiones?.estado(neurona) === "activa") return Promise.resolve(true);
+    return new Promise((fin) => {
+      let hecho = false;
+      const cb = () => {
+        if (hecho) return;
+        hecho = true;
+        fin(true);
+      };
+      esperasSesion.set(neurona, [...(esperasSesion.get(neurona) ?? []), cb]);
+      void deps.dormir(ms).then(() => {
+        const l = (esperasSesion.get(neurona) ?? []).filter((f) => f !== cb);
+        if (l.length) esperasSesion.set(neurona, l);
+        else esperasSesion.delete(neurona);
+        if (hecho) return;
+        hecho = true;
+        fin(deps.sesiones?.estado(neurona) === "activa");
+      });
+    });
+  }
+
+  async function cifrarHacia(lig: LigaduraBle, texto: string): Promise<{ ok: true; texto: string } | { ok: false; motivo: string }> {
+    const s = deps.sesiones;
+    if (!s) return { ok: false, motivo: "esta app no cifra" };
+    for (let intento = 0; intento < 2; intento++) {
+      const r = await s.cifrar(lig.neurona, texto);
+      if (r.ok) {
+        if (r.renovar || s.tocaRenovar(lig.neurona)) void abrirAcuerdo(lig);
+        return { ok: true, texto: r.texto };
+      }
+      if (intento === 0) {
+        void abrirAcuerdo(lig);
+        if (!(await esperarSesion(lig.neurona, ESPERA_SESION_BLE_MS))) break;
+      }
+    }
+    return { ok: false, motivo: "el cifrado del enlace Bluetooth aún no está listo; se reintenta" };
+  }
+
+  /** Un fallo de autenticación, repetición o forma cierra el enlace: se olvida la ligadura y la sesión. */
+  function cerrarEnlace(lig: LigaduraBle, motivo: string): void {
+    ligaduras = ligaduras.filter((l) => l.neurona !== lig.neurona);
+    deps.sesiones?.olvidar(lig.neurona);
+    ultimoRechazo = `Enlace Bluetooth con ${lig.nombre} cerrado: ${motivo}`;
+    avisar();
+  }
+
   async function bombear(enlace: string): Promise<void> {
     const c = colas.get(enlace);
     if (!c || c.bombeando) return;
@@ -215,10 +328,25 @@ export function crearRedBle(deps: DepsBle): RedBle {
           break;
         }
         const fuente = c.control.length ? c.control : c.datos;
-        const lim: LimitesCanal = ligaduraDeEnlace(ligaduras, enlace, deps.ahora())?.limites ?? LIMITES_BLE_DEFECTO;
+        const lig = ligaduraDeEnlace(ligaduras, enlace, deps.ahora());
+        const lim: LimitesCanal = lig?.limites ?? LIMITES_BLE_DEFECTO;
+        // (CIF1108A) Grupo homogéneo: o todo «siempre en claro» (saludo, acuerdo) o todo lo demás.
+        const claroPrimero = esTextoSiempreEnClaro(fuente[0].texto);
+        let largoGrupo = 1;
+        while (largoGrupo < fuente.length && esTextoSiempreEnClaro(fuente[largoGrupo].texto) === claroPrimero) largoGrupo++;
+        const modo: ModoEnlace = lig && !claroPrimero ? modoDe(lig) : "claro";
+        if (modo === "bloqueado" && lig) {
+          const motivo = `«Exigir cifrado en la red local» está activo y ${lig.nombre} no cifra (app anterior).`;
+          for (const i of fuente.splice(0, largoGrupo)) {
+            if (fuente === c.datos) c.bytesDatos -= i.texto.length;
+            i.fin({ ok: false, motivo });
+          }
+          continue;
+        }
+        const cifrando = modo === "cifrado";
         const trama = armarTrama(
-          fuente.map((i) => i.texto),
-          maxTextoPorTrama(lim),
+          fuente.slice(0, largoGrupo).map((i) => i.texto),
+          maxTextoPorTrama(cifrando ? limitesParaCifrado(lim) : lim),
         );
         if (!trama.cuerpo) {
           for (const i of fuente.splice(0, Math.max(1, trama.usados))) {
@@ -240,9 +368,21 @@ export function crearRedBle(deps: DepsBle): RedBle {
           await deps.dormir(f.esperaMs);
         }
         const n = trama.usados;
+        let cuerpoAire = trama.cuerpo;
+        if (cifrando && lig) {
+          const cf = await cifrarHacia(lig, trama.cuerpo);
+          if (!cf.ok) {
+            // No es un fallo del aire: el cifrado aún no está listo. Se devuelve el error sin contar caída.
+            const hechos = fuente.splice(0, n);
+            if (fuente === c.datos) for (const i of hechos) c.bytesDatos -= i.texto.length;
+            for (const i of hechos) i.fin({ ok: false, motivo: cf.motivo });
+            continue;
+          }
+          cuerpoAire = cf.texto;
+        }
         let r: Awaited<ReturnType<DepsBle["enviar"]>>;
         try {
-          r = await deps.enviar(enlace, trama.cuerpo);
+          r = await deps.enviar(enlace, cuerpoAire);
         } catch {
           r = { ok: false, motivo: "la app nativa no respondió" };
         }
@@ -296,7 +436,7 @@ export function crearRedBle(deps: DepsBle): RedBle {
         },
         bufferedAmount: () => (colas.get(enlace)?.bytesDatos ?? 0) * FACTOR_FRENO_ARCHIVOS_BLE,
         // Un trozo que cabe solo, en base64, en una trama Bluetooth (10 KiB con el tope de 16 KiB).
-        tamanoTrozo: () => trozoArchivoBle(ligaduraDeEnlace(ligaduras, enlace, deps.ahora())?.limites ?? LIMITES_BLE_DEFECTO),
+        tamanoTrozo: () => trozoArchivoBle(limitesEfectivos(ligaduraDeEnlace(ligaduras, enlace, deps.ahora()))),
         alMensaje: () => nada,
       };
       canales.set(enlace, canal);
@@ -338,7 +478,17 @@ export function crearRedBle(deps: DepsBle): RedBle {
     ultimoHola[enlace] = ts;
     const cta = await pruebaPara(yo.neurona, para, ts);
     // `webrtc: false`: por Bluetooth no se señaliza WebRTC (sin red IP no conectaría).
-    await firmarYEnviar(enlace, "nl.hola", holaNativa({ de: yo, para, limites: limitesPropiosBle(estado), webrtc: false, resp, ts, cta }));
+    let certificado: CertificadoNeurona | null = null;
+    try {
+      certificado = (await deps.certificadoPropio?.()) ?? null;
+    } catch {
+      certificado = null;
+    }
+    await firmarYEnviar(
+      enlace,
+      "nl.hola",
+      holaNativa({ de: yo, para, limites: limitesPropiosBle(estado), webrtc: false, resp, ts, cta, ...(propio() ? { cif: VERSION_CIFRADO } : {}), certificado }),
+    );
   }
 
   async function verificarSobre(cuerpo: string): Promise<{ cuerpo: unknown; huella?: string } | null> {
@@ -381,6 +531,21 @@ export function crearRedBle(deps: DepsBle): RedBle {
       }
       return;
     }
+    // (CIF1108A) Gancho de identidad: con certificado y verificador tiene que cuadrar; sin verificador se ignora.
+    if (h.certificado) {
+      try {
+        if (!(await (deps.verificarCertificado ?? verificadorCertificadoPorDefecto)(h.certificado, { neurona: h.de.neurona, huella: v.huella ?? "" }))) {
+          ultimoRechazo = "el certificado de cuenta de esa neurona no es válido";
+          avisar();
+          return;
+        }
+      } catch {
+        ultimoRechazo = "no se pudo comprobar el certificado de cuenta";
+        avisar();
+        return;
+      }
+    }
+    if (ligaduras.some((l) => l.neurona === h.de.neurona && l.huella !== v.huella)) deps.sesiones?.olvidar(h.de.neurona);
     ligaduras = ligarBle(ligaduras, {
       enlace,
       neurona: h.de.neurona,
@@ -391,6 +556,7 @@ export function crearRedBle(deps: DepsBle): RedBle {
       limites: h.lim ? leerLimites(h.lim) : { ...LIMITES_BLE_DEFECTO },
       at: deps.ahora(),
       ...(ac.porCuenta ? { porCuenta: true } : {}),
+      ...(h.cif ? { cif: h.cif } : {}),
     });
     delete caidas[enlace];
     ultimoRechazo = null;
@@ -415,16 +581,57 @@ export function crearRedBle(deps: DepsBle): RedBle {
     }
   }
 
-  async function recibir(cuerpo: string, enlace: string): Promise<void> {
-    if (typeof cuerpo !== "string" || typeof enlace !== "string") return;
-    if (cuerpo.startsWith('{"t":"nl.lote"')) {
-      for (const t of desempaquetarLote(cuerpo) ?? []) await recibir(t, enlace);
+  /** (CIF1108A) `nl.cs`: acuerdo de sesión firmado por la neurona LIGADA a ese enlace (misma huella que su saludo). */
+  async function recibirAcuerdo(cuerpo: string, enlace: string): Promise<void> {
+    if (!deps.sesiones) return;
+    const lig = ligaduraDeEnlace(ligaduras, enlace, deps.ahora());
+    if (!lig || modoDe(lig) !== "cifrado") return;
+    const v = await verificarSobre(cuerpo);
+    if (!v || v.huella !== lig.huella) return;
+    const yo = await deps.yo();
+    if (!yo) return;
+    const r = await deps.sesiones.recibirAcuerdo(yo.neurona, lig.neurona, v.cuerpo);
+    if (!r.ok) {
+      ultimoRechazo = `Acuerdo de cifrado con ${lig.nombre} rechazado: ${r.motivo}`;
+      avisar();
       return;
     }
-    if (cuerpo.startsWith('{"t":"nl.hola"')) return recibirHola(cuerpo, enlace);
-    if (cuerpo.startsWith(`{"t":"${T_OFERTA_WIFI}"`) || cuerpo.startsWith(`{"t":"${T_RESPUESTA_WIFI}"`)) return recibirControl(cuerpo, enlace);
+    if (r.respuesta) await deps.enviar(lig.enlace, JSON.stringify({ t: "nl.cs", s: r.respuesta }));
+    if (r.activa) despertarSesion(lig.neurona);
+    avisar();
+  }
+
+  /** `descifrado`: el texto salió de una trama `nl.cif` autenticada (único modo de llevar datos hacia quien cifra). */
+  async function recibir(cuerpo: string, enlace: string, descifrado = false): Promise<void> {
+    if (typeof cuerpo !== "string" || typeof enlace !== "string") return;
+    if (cuerpo.startsWith('{"t":"nl.lote"')) {
+      for (const t of desempaquetarLote(cuerpo) ?? []) await recibir(t, enlace, descifrado);
+      return;
+    }
+    if (cuerpo.startsWith('{"t":"nl.hola"')) return descifrado ? undefined : recibirHola(cuerpo, enlace);
+    if (esAcuerdo(cuerpo)) return descifrado ? undefined : recibirAcuerdo(cuerpo, enlace);
     const lig = ligaduraDeEnlace(ligaduras, enlace, deps.ahora());
+    if (esTramaCifrada(cuerpo)) {
+      if (descifrado || !lig || !deps.sesiones) return;
+      const r = await deps.sesiones.descifrar(lig.neurona, cuerpo);
+      if (r.ok) return recibir(r.texto, enlace, true);
+      if (r.motivo === "desconocida") {
+        ultimoRechazo = `Trama cifrada de ${lig.nombre} con una sesión desconocida; se acuerda otra.`;
+        avisar();
+        void abrirAcuerdo(lig);
+        return;
+      }
+      cerrarEnlace(lig, r.detalle);
+      return;
+    }
     if (!lig) return; // sin saludo firmado, ni mensajes ni archivos
+    // Hacia quien cifra (o con «exigir cifrado»), lo que llega en claro se descarta.
+    if (!descifrado && modoDe(lig) !== "claro") {
+      ultimoRechazo = `Trama sin cifrar de ${lig.nombre}, que cifra o debe cifrar: descartada.`;
+      avisar();
+      return;
+    }
+    if (cuerpo.startsWith(`{"t":"${T_OFERTA_WIFI}"`) || cuerpo.startsWith(`{"t":"${T_RESPUESTA_WIFI}"`)) return recibirControl(cuerpo, enlace);
     try {
       if (cuerpo.startsWith('{"t":"tu.')) {
         deps.entregarTransporte(cuerpo, { enlaceId: idEnlaceBle(enlace), etiqueta: `${lig.nombre} · Bluetooth`, ...(lig.sync ? { syncDeviceId: lig.sync } : {}) });
@@ -498,7 +705,11 @@ export function crearRedBle(deps: DepsBle): RedBle {
       avisar();
       void saludarPendientes().catch(nada);
     },
-    enlaces: () => enlacesBle({ estado, ligaduras, ahora: deps.ahora(), caidas }),
+    enlaces: () => enlacesBle({ estado, ligaduras, ahora: deps.ahora(), caidas, ...(propio() ? { cifrado: Object.fromEntries(ligaduras.map((l) => [l.enlace, etiquetaDe(l)])) } : {}) }),
+    cifradoDe: (neurona) => {
+      const l = ligaduraDeNeuronaBle(ligaduras, neurona, deps.ahora());
+      return l ? etiquetaDe(l) : null;
+    },
     enlaceHacia: (neurona) => ligaduraDeNeuronaBle(ligaduras, neurona, deps.ahora())?.enlace ?? null,
     enviarTexto: (enlace, texto) => encolar(enlace, texto),
     canalArchivos,
@@ -511,7 +722,7 @@ export function crearRedBle(deps: DepsBle): RedBle {
       };
     },
     colaBytes: (enlace) => colas.get(enlace)?.bytesDatos ?? 0,
-    instantanea: () => ({ estado, ligaduras: [...ligaduras], caidas: { ...caidas }, ultimoRechazo }),
+    instantanea: () => ({ estado, ligaduras: [...ligaduras], caidas: { ...caidas }, ultimoRechazo, cifrado: Object.fromEntries(ligaduras.map((l) => [l.neurona, etiquetaDe(l)])) }),
     suscribir: (cb) => {
       oyentes.add(cb);
       return () => {
@@ -611,6 +822,11 @@ async function depsReales(): Promise<DepsBle> {
   ]);
   const motor = sync.motorSync();
   motor.cargar();
+  const firmar = async (cuerpo: unknown): Promise<unknown | null> => {
+    const { wrapSigned } = await import("@/ai/astraura/mesh/mesh-identity");
+    const s = await wrapSigned(cuerpo);
+    return (s as { v?: unknown }).v === 2 ? s : null;
+  };
   // La clave de faro y las neuronas de la cuenta las guarda la app (antenas.json): se releen cada minuto.
   let config: { clave: string | null; conocidas: string[]; leida: number } = { clave: null, conocidas: [], leida: -Infinity };
   const leerConfig = async () => {
@@ -651,11 +867,9 @@ async function depsReales(): Promise<DepsBle> {
     },
     vinculos: () => motor.instantanea().vinculos,
     neuronasCuenta: () => config.conocidas,
-    firmar: async (cuerpo) => {
-      const { wrapSigned } = await import("@/ai/astraura/mesh/mesh-identity");
-      const s = await wrapSigned(cuerpo);
-      return (s as { v?: unknown }).v === 2 ? s : null;
-    },
+    firmar,
+    sesiones: crearSesionesCifradas({ ahora: () => Date.now(), firmar }),
+    exigirCifrado: rn.exigirCifradoRedLocal,
     verificar: async (sobre) => {
       const [{ unwrapSigned }, { acceptFreshness }] = await Promise.all([import("@/ai/astraura/mesh/mesh-identity"), import("@/ai/astraura/mesh/replay-guard")]);
       const r = await unwrapSigned(sobre);

@@ -282,6 +282,16 @@ export interface HolaNativa {
    * calcular quien tiene la clave de faro de la cuenta. Va DENTRO del sobre firmado.
    */
   cta?: string;
+  /**
+   * (CIF1108A) Versión de la capa de sesión cifrada que esta app entiende (`VERSION_CIFRADO`). Ausente en
+   * las apps anteriores: con ellas el canal sigue en claro y se marca «sin cifrar».
+   */
+  cif?: number;
+  /**
+   * (CIF1108A) Gancho de identidad: certificado opcional cuenta→neurona (lo construirá IDN1108A). Opaco
+   * aquí; lo comprueba un verificador inyectado (por defecto, se ignora). Va dentro del sobre firmado.
+   */
+  certificado?: Record<string, unknown>;
 }
 
 /* ══════════════════════════ Prueba de cuenta (MLL1107A) ══════════════════════════ */
@@ -327,7 +337,29 @@ export function leerQuien(x: unknown): QuienNativo | null {
   return q;
 }
 
-export function holaNativa(p: { de: QuienNativo; para: string; limites: LimitesCanal | null; webrtc: boolean; resp?: boolean; ts: number; cta?: string | null }): HolaNativa {
+/** Tope del certificado en el saludo (JSON): más grande se descarta. */
+export const MAX_CERTIFICADO_BYTES = 2048;
+
+function certificadoValido(x: unknown): x is Record<string, unknown> {
+  if (!x || typeof x !== "object" || Array.isArray(x)) return false;
+  try {
+    return JSON.stringify(x).length <= MAX_CERTIFICADO_BYTES;
+  } catch {
+    return false;
+  }
+}
+
+export function holaNativa(p: {
+  de: QuienNativo;
+  para: string;
+  limites: LimitesCanal | null;
+  webrtc: boolean;
+  resp?: boolean;
+  ts: number;
+  cta?: string | null;
+  cif?: number;
+  certificado?: Record<string, unknown> | null;
+}): HolaNativa {
   return {
     t: "nl.hola",
     v: 1,
@@ -338,6 +370,8 @@ export function holaNativa(p: { de: QuienNativo; para: string; limites: LimitesC
     ...(p.resp ? { resp: true } : {}),
     ts: p.ts,
     ...(esPruebaCuenta(p.cta) ? { cta: p.cta } : {}),
+    ...(p.cif ? { cif: p.cif } : {}),
+    ...(certificadoValido(p.certificado) ? { certificado: p.certificado } : {}),
   };
 }
 
@@ -359,6 +393,8 @@ export function leerHola(x: unknown): HolaNativa | null {
     ...(o.resp === true ? { resp: true } : {}),
     ts: o.ts,
     ...(esPruebaCuenta(o.cta) ? { cta: o.cta } : {}),
+    ...(typeof o.cif === "number" && Number.isInteger(o.cif) && o.cif >= 1 && o.cif < 1000 ? { cif: o.cif } : {}),
+    ...(certificadoValido(o.certificado) ? { certificado: o.certificado } : {}),
   };
 }
 
@@ -412,6 +448,8 @@ export interface Ligadura {
   at: number;
   /** (MLL1107A) Ligada por la prueba de cuenta (sin vínculo con esa huella). */
   porCuenta?: boolean;
+  /** (CIF1108A) Versión de cifrado que anunció en su saludo firmado (ausente: app anterior, sin cifrar). */
+  cif?: number;
 }
 
 /** Una ligadura vale esto sin un saludo nuevo (cada lado saluda cada `CADA_HOLA_MS`). */
@@ -558,6 +596,8 @@ export function enlacesNativos(p: {
   escuchando: boolean;
   caidas: Readonly<Record<string, number>>;
   rtt: Readonly<Record<string, number>>;
+  /** (CIF1108A) Estado del cifrado por IP (ausente: no se dice). */
+  cifrado?: Readonly<Record<string, "cifrado" | "sin-cifrar" | "pendiente">>;
 }): EnlaceDisponible[] {
   return p.ligaduras
     .filter((l) => vigente(l, p.ahora))
@@ -573,6 +613,7 @@ export function enlacesNativos(p: {
       capacidadKbps: null,
       admite: { mensaje: true, archivo: true, flujo: false },
       consentido: true,
+      ...(p.cifrado?.[l.ip] ? { cifrado: p.cifrado[l.ip] } : {}),
     }));
 }
 

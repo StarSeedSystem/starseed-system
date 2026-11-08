@@ -92,6 +92,11 @@ export interface EnlaceDisponible {
   protocolo?: ProtocoloEnlace;
   /** Vínculo aceptado con un gesto en persona (código/QR): consentimiento para ESE enlace. */
   consentido?: boolean;
+  /**
+   * (CIF1108A) Cifrado de punta a punta del enlace: «cifrado», «pendiente» (acordando la sesión) o
+   * «sin-cifrar» (el otro lado es una app anterior). Ausente: el enlace lleva su propio cifrado (WebRTC) o no lo dice.
+   */
+  cifrado?: "cifrado" | "sin-cifrar" | "pendiente";
 }
 
 export interface EnlaceElegido {

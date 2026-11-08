@@ -14,6 +14,7 @@ import {
   type DepsBle,
   type RedBle,
 } from "@/lib/malla/bluetooth-directo-motor";
+import { crearSesionesCifradas } from "@/lib/malla/sesion-cifrada";
 import { T_OFERTA_WIFI, type ControlEnlaceWifi, type EstadoBleNativo } from "@/lib/malla/bluetooth-directo";
 import { crearAlmacenEnMemoria, crearMotorArchivos, type MotorArchivos } from "@/lib/network/archivos-malla";
 
@@ -58,10 +59,10 @@ interface Lado {
 
 const prueba = (t: string) => createHash("sha256").update(`${CLAVE_FARO}|${t}`).digest("hex").slice(0, 32);
 
-function dosApps(opts: { mtu?: number; conClave?: boolean; fallar?: () => boolean; firmaAjena?: boolean } = {}) {
+function dosApps(opts: { mtu?: number; conClave?: boolean; fallar?: () => boolean; firmaAjena?: boolean; cifra?: boolean | "mac"; exigirMac?: boolean } = {}) {
   const mtu = opts.mtu ?? 185;
   const reloj = { ahora: 1_800_000_000_000 };
-  const aire = { tramas: 0, paquetes: 0, maxPaquete: 0, maxTrama: 0, rechazadas: 0 };
+  const aire = { tramas: 0, paquetes: 0, maxPaquete: 0, maxTrama: 0, rechazadas: 0, jsons: [] as string[] };
   const lados: Record<string, Lado> = {};
   const otro: Record<string, string> = { mac: "tab", tab: "mac" };
   const app = (nombre: string, neurona: string, enlace: string, rol: string, reconoce: string | null): Lado => {
@@ -85,6 +86,8 @@ function dosApps(opts: { mtu?: number; conClave?: boolean; fallar?: () => boolea
     const deps: DepsBle = {
       ahora: () => reloj.ahora,
       dormir: async (ms) => {
+        // (CIF1108A) La espera larga (el acuerdo de sesión) deja correr al otro lado antes de adelantar el reloj.
+        if (ms >= 1000) for (let i = 0; i < 40; i++) await new Promise((r) => setTimeout(r, 0));
         reloj.ahora += ms;
         await new Promise((r) => setTimeout(r, 0));
       },
@@ -97,6 +100,7 @@ function dosApps(opts: { mtu?: number; conClave?: boolean; fallar?: () => boolea
         }
         if (opts.fallar?.()) return { ok: false, motivo: "sin acuse por Bluetooth tras 4 intentos" };
         aire.tramas++;
+        aire.jsons.push(json);
         aire.maxTrama = Math.max(aire.maxTrama, new TextEncoder().encode(json).length);
         const llega = porElAire(json, mtu, aire);
         const destino = lados[otro[nombre]];
@@ -122,6 +126,11 @@ function dosApps(opts: { mtu?: number; conClave?: boolean; fallar?: () => boolea
         }),
       pruebaCuenta: async (t) => (opts.conClave === false ? null : prueba(t)),
       huellaPropia: async () => lado.huella,
+      // (CIF1108A) Con `cifra`, las dos apps (o solo la Mac) llevan sesiones cifradas.
+      ...(opts.cifra === true || (opts.cifra === "mac" && nombre === "mac")
+        ? { sesiones: crearSesionesCifradas({ ahora: () => reloj.ahora, firmar: async (c) => ({ v: 2, fp: lado.huella, body: c }) }) }
+        : {}),
+      ...(opts.exigirMac && nombre === "mac" ? { exigirCifrado: () => true } : {}),
     };
     lado.red = crearRedBle(deps);
     lado.red.alControlEnlace((c, o) => lado.control.push({ c, neurona: o.neurona }));
@@ -264,4 +273,76 @@ describe("Bluetooth directo · motor (BLE1108A)", () => {
     expect(aire.maxPaquete).toBeLessThanOrEqual(20);
     expect(aire.paquetes).toBeGreaterThan(150_000 / 15);
   }, 30_000);
+
+  it("(CIF1108A) con cifrado: el mensaje viaja cifrado, el saludo en claro, y el enlace se marca «cifrado»", async () => {
+    const { lados, aire } = dosApps({ cifra: true });
+    await ligar(lados);
+    expect(lados.mac.red.cifradoDe?.("n-tab")).toBe("pendiente");
+    const r = await lados.mac.red.enviarTexto("b1", '{"t":"tu.msg","v":1,"id":"m1","c":"chat","b":"secreto por el aire"}');
+    expect(r.ok).toBe(true);
+    await esperarHasta(() => lados.tab.transporte.length === 1);
+    expect(lados.tab.transporte[0].texto).toBe('{"t":"tu.msg","v":1,"id":"m1","c":"chat","b":"secreto por el aire"}');
+    expect(aire.jsons.some((j) => j.includes("secreto por el aire"))).toBe(false);
+    expect(aire.jsons.some((j) => j.startsWith('{"t":"nl.cif"'))).toBe(true);
+    expect(lados.mac.red.cifradoDe?.("n-tab")).toBe("cifrado");
+    expect(lados.tab.red.enlaces()[0].cifrado).toBe("cifrado");
+  });
+
+  it("(CIF1108A) un archivo de verdad cifrado con MTU 23: trozo más pequeño, tramas ≤ 16 KiB, SHA-256 igual, sin datos en claro", async () => {
+    const { lados, aire } = dosApps({ mtu: 23, cifra: true });
+    const recibidos = new Map<string, Blob>();
+    lados.mac.motor = crearMotorArchivos({ almacen: crearAlmacenEnMemoria() });
+    const motorTab: MotorArchivos = crearMotorArchivos({
+      almacen: crearAlmacenEnMemoria(),
+      onOfertaEntrante: (o) => motorTab.aceptarOferta(o.id),
+      onCompletado: (e, blob) => recibidos.set(e.id, blob),
+    });
+    lados.tab.motor = motorTab;
+    await ligar(lados);
+    const canal = lados.mac.red.canalArchivos("b1");
+    const trozo = canal.tamanoTrozo?.() ?? 0;
+    expect(trozo).toBeGreaterThan(5 * 1024);
+    expect(trozo).toBeLessThan(10 * 1024);
+    const datos = new Uint8Array(100_000);
+    randomFillSync(datos);
+    const r = await lados.mac.motor.enviarArchivo(canal, new Blob([datos]), "foto.bin", { tipo: "dispositivo", id: "n-tab" }, { tipoMime: "application/octet-stream" });
+    expect(r.ok).toBe(true);
+    await esperarHasta(() => ["completada", "error"].includes(lados.mac.motor?.estadoDe(r.id)?.fase ?? ""), 20_000);
+    expect(lados.mac.motor.estadoDe(r.id)?.fase).toBe("completada");
+    const sha = (b: Uint8Array) => createHash("sha256").update(b).digest("hex");
+    expect(sha(new Uint8Array(await recibidos.get(r.id)!.arrayBuffer()))).toBe(sha(datos));
+    expect(aire.rechazadas).toBe(0);
+    expect(aire.maxTrama).toBeLessThanOrEqual(MAX_CUERPO);
+    expect(aire.jsons.some((j) => j.includes("datosB64"))).toBe(false);
+    // eslint-disable-next-line no-console
+    console.log(`[CIF1108A] BLE: trozo ${(trozo / 1024).toFixed(1)} KiB con cifrado (10 KiB sin él); trama máxima ${aire.maxTrama} B de ${MAX_CUERPO}`);
+  }, 30_000);
+
+  it("(CIF1108A) con una app anterior (sin cifrado) todo sigue en claro y se marca «sin cifrar»; con «exigir», se bloquea", async () => {
+    const claro = dosApps({ cifra: "mac" });
+    await ligar(claro.lados);
+    expect(claro.lados.mac.red.cifradoDe?.("n-tab")).toBe("sin-cifrar");
+    expect((await claro.lados.mac.red.enviarTexto("b1", '{"t":"tu.msg","b":"en claro"}')).ok).toBe(true);
+    await esperarHasta(() => claro.lados.tab.transporte.length === 1);
+    expect(claro.aire.jsons.some((j) => j.includes("en claro"))).toBe(true);
+    const bloq = dosApps({ cifra: "mac", exigirMac: true });
+    await ligar(bloq.lados);
+    const r = await bloq.lados.mac.red.enviarTexto("b1", '{"t":"tu.msg","b":"no sale"}');
+    expect(r.ok).toBe(false);
+    expect(r.motivo).toMatch(/Exigir cifrado/);
+  });
+
+  it("(CIF1108A) una trama cifrada alterada cierra el enlace y lo que llega en claro de quien cifra se descarta", async () => {
+    const { lados } = dosApps({ cifra: true });
+    await ligar(lados);
+    await lados.mac.red.enviarTexto("b1", '{"t":"tu.msg","b":"uno"}');
+    await esperarHasta(() => lados.tab.transporte.length === 1);
+    await lados.tab.red.recibir('{"t":"tu.msg","b":"colado"}', "b7");
+    expect(lados.tab.transporte).toHaveLength(1);
+    const cif = lados.tab.red.instantanea();
+    expect(cif.ultimoRechazo).toContain("sin cifrar");
+    const falsa = JSON.stringify({ t: "nl.cif", s: "AAAAAAAAAAA=", n: 0, c: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" });
+    await lados.tab.red.recibir(falsa, "b7"); // sesión desconocida: se vuelve a acordar, no se entrega
+    expect(lados.tab.transporte).toHaveLength(1);
+  });
 });
