@@ -6109,3 +6109,12 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `SUP0711E` — pruebas en rojo: vitest falla (rama conservada)
 - `CTD1107D` — la revisión lo rechazó: no toco NINGUNO de los 3 archivos que declaraba (rama ola/CTD1107D conservada)
 - `CTD1107A` — otra cosa: sin decisión en 0 h; rama ola/CTD1107A conservada
+
+## 2026-11-08 00:22 · auto-1107-235630
+
+**Lo que se pidió.** Contratos al día · Astraura 1.58
+
+**Resultado.** 2 de 2 integradas.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- nvidia/nvidia/nemotron-3-ultra-550b-a55b integró 2 tareas sin fallar una.
