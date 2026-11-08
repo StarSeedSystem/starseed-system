@@ -6205,3 +6205,17 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 **Lo que se pidió.** ideas nuevas
 
 **Resultado.** 1 de 1 integradas.
+
+## 2026-11-08 16:16 · auto-1108-160928
+
+**Lo que se pidió.** Síntesis diaria · Producción StarSeed
+
+**Resultado.** 1 de 3 integradas. 2 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — otra cosa (BZN1108B, BZN1108C). Es 67 % de la ola.
+- sin modelo anotado no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `BZN1108B` — otra cosa
+- `BZN1108C` — otra cosa
