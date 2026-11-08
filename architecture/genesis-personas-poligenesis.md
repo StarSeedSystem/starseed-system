@@ -103,9 +103,16 @@ perfil activo, con su propio almacén y sync) y roles de la entidad (`rol.asigna
 
 - Probar el agente con modelos reales: en el contenedor no hay ninguna de las variables; en la Mac
   sí (Groq/NIM/OpenRouter). Prueba: `/genesis?nivel=mi` → «Pon Decisiones en mi dock».
+  (a medias: el agente propone `dock.añadir` que funciona; se necesita probar «Pon Decisiones en mi dock» como sugerencia del agente con modelos reales).
 - Widgets del Escritorio y `rol.asignar` como operaciones (tareas pequeñas para el enjambre).
-- `/genesis` es ruta de consola (`RUTAS_CONSOLA`, sin dock ni fondos, por la memoria de la Mac):
+  (pendiente: `dock.añadir` está implementado; `dashboard.widget.añadir/quitar` está implementado;
+  `rol.asignar` NO está implementado como operación en `src/lib/genesis/operaciones.ts`).
+- `/`genesis` es ruta de consola (`RUTAS_CONSOLA`, sin dock ni fondos, por la memoria de la Mac):
   Mi Genesis no ve el dock en vivo allí; `/poligenesis` sí. Decidir si Mi Genesis tiene ruta propia.
+  (a medias: `src/components/genesis/mi-genesis.tsx` muestra el dock mediante `PanelOperaciones`;
+  se necesita decidir si se implementa la ruta de consola distinta sin dock/fondos).
+
+Revisado el 2026-11-07 contra main (`ad34ea6`): 3 a medias, 0 hechos, 1 pendiente.
 
 ## 8. Pruebas
 

@@ -241,6 +241,11 @@ Tipo nuevo de widget `APP_LAUNCHER` montado sobre la maquinaria existente (sin m
 ## 10. Pendientes naturales (siguientes fases)
 
 - Fase 2: abridor universal de archivos + media center (música/radio/Omnifrecuencias) + Audiomorphic ajustable y gratis dentro del OS + control Trinity.
+  (a medias: `useContentOpener` y `ContentWindow` con barra de acciones universal están implementados en `dashboard/apps/content/content-opener.tsx` y `widgets/universal-opener-widget.tsx`; falta integrar Omnifrecuencias, reproductor de música y Audiomorphic ajustable como grátis dentro del OS).
 - Fase 2: apps instaladas del usuario en `cafe_accounts.apps`; carpetas personalizadas persistentes en `user_settings`.
+  (pendiente: la tabla `cafe_accounts.apps` existe en el esquema unificado pero no hay migración ni código visible en este repo para la persistencia real de apps instaladas; el espejo se RETIRA según `lib/library-sync.ts`).
 - Fase 3: VR/AR (WebXR), modo `immersive`.
+  (pendiente: no hay implementación visible en el repo actual; el modelo declarativo existe pero requiere WebXR y adaptación de los items).
 - Marketplace de apps/widgets de la comunidad (economía de creadores: Semillas a los autores).
+  (a medias: `MarketplaceView` (`src/components/control-panel/board/marketplace-view.tsx`) está implementado para boards; falta el marketplace de apps/widgets del sistema con persistencia en `cafe_accounts.apps`).
+Revisado el 2026-11-07 contra main (`ad34ea6`): 1 hecho, 2 a medias, 1 pendiente.

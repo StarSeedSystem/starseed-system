@@ -24,10 +24,16 @@
 ## 3. Permisos independientes (biblioteca · folder · archivo)
 - Cada nodo tiene su ACL propia y **heredable** (el hijo hereda si no define la suya): `visibility`
   (`private` · `account` · `profiles` · `groups` · `pages` · `public`) y roles `view` · `comment` · `edit` · `admin`.
+  (implementado: `ResourceType` incluye `file|folder|library` en `src/lib/sharing/access.ts:122`;
+  `ResourceRef` con ACL propia; `identitySetOf` en access.ts:964 implementa la regla cuenta↔perfiles;
+  `os_account_profiles` tabla y función `acl_ids_allow` en la BD).
 - **Regla cuenta↔perfiles (nueva, obligatoria):** conceder acceso a UN perfil concede acceso a **todos los perfiles
   de esa cuenta**, y a la inversa (el acceso concedido a la cuenta vale para cualquiera de sus perfiles).
-  Se resuelve en la BD con una función `security definer` que mapea perfil→cuenta (`os_account_profiles`).
+  (implementado: `identitySetOf` en `src/lib/sharing/access.ts:964` usa `os_account_profiles`; función `acl_ids_allow`
+  en la BD resuelve perfil→cuenta y cuenta→perfiles; el cliente y la RLS dicen siempre lo mismo).
 - Se apoya en `src/lib/sharing/access.ts` (Adenda 63) ampliando `ResourceRef` a `library|folder|file` con ACL propia.
+
+Revisado el 2026-11-07 contra main (`ad34ea6`): hecho, a medias, pendiente.
 
 ## 4. Biblioteca pública del perfil
 - Cada perfil elige QUÉ bibliotecas/folders/archivos aparecen en su sección pública de Biblioteca
