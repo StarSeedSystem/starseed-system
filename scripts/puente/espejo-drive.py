@@ -45,6 +45,7 @@ puede pasar, y es más fácil de hacer sin querer que de deshacer.
 import argparse
 import json
 import os
+import shutil
 import subprocess
 import time
 
@@ -52,6 +53,13 @@ RAIZ = os.environ.get("STARSEED_ROOT") or os.path.dirname(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 )
 BASE_CLOUD = os.path.expanduser("~/Library/CloudStorage")
+
+#: (SUP0811K, 08-11) Lo que el espejo deja libre en el disco como mínimo. Lo que se escribe en la
+#: carpeta de Drive se queda en el disco de esta máquina hasta que Drive lo sube (y en modo «espejo»,
+#: para siempre): `starseed_memory_root` ya pesa ~1,8 GB sin los registros (era 76 MB en septiembre)
+#: y esta Mac vive con 2–7 GB libres. Un tramo se salta si, tras copiarlo, quedarían menos de esto.
+#: `STARSEED_ESPEJO_DISCO_MIN_MB` lo cambia; 0 lo apaga.
+DISCO_MIN_MB = 5120
 
 #: Lo que nunca viaja. El primer bloque es peso muerto; el segundo, secretos.
 EXCLUIR = (
@@ -106,7 +114,8 @@ def carpeta_neurona(unidad, host=None):
 def _rsync(origen, destino, seco=False):
     if not os.path.isdir(origen):
         return None
-    os.makedirs(destino, exist_ok=True)
+    if not seco:  # en seco no se crea nada (rsync --dry-run tampoco)
+        os.makedirs(destino, exist_ok=True)
     orden = ["rsync", "-a", "--delete", "--partial"]
     for e in EXCLUIR:
         orden += ["--exclude", e]
@@ -115,6 +124,21 @@ def _rsync(origen, destino, seco=False):
     orden += [origen.rstrip("/") + "/", destino.rstrip("/") + "/"]
     r = subprocess.run(orden, capture_output=True, text=True, timeout=1800)
     return r.returncode
+
+
+def _libre_mb(ruta=None):
+    """MB libres en el disco de esta máquina (el de HOME: ahí viven el repo y la caché de Drive), o None."""
+    try:
+        return shutil.disk_usage(ruta or os.path.expanduser("~")).free // (1024 * 1024)
+    except OSError:
+        return None
+
+
+def _disco_min_mb():
+    try:
+        return max(0, int(os.environ.get("STARSEED_ESPEJO_DISCO_MIN_MB", DISCO_MIN_MB)))
+    except ValueError:
+        return DISCO_MIN_MB
 
 
 def _tamano(ruta):
@@ -173,12 +197,30 @@ def sincronizar(seco=False, host=None):
     if not unidad:
         return {"ok": False, "porque": "no encuentro el Drive montado en ~/Library/CloudStorage"}
     destino = carpeta_neurona(unidad, host)
-    os.makedirs(destino, exist_ok=True)
+    if not seco:
+        try:
+            os.makedirs(destino, exist_ok=True)
+        except OSError as e:
+            # (SUP0811K) Sin permiso para la carpeta de Drive (un servicio sin acceso a los archivos de
+            # Google Drive, el disco lleno…) esto salía como un Traceback entero que nadie leía.
+            return {"ok": False, "destino": destino, "tramos": [], "fallos": [],
+                    "porque": "no puedo escribir en la carpeta de Drive: %s: %s" % (type(e).__name__, e)}
 
     hechos, fallos = [], []
+    minimo = _disco_min_mb()
     for origen_rel, sub in TRAMOS:
         origen = os.path.join(RAIZ, origen_rel)
-        rc = _rsync(origen, os.path.join(destino, sub), seco=seco)
+        if not seco and minimo and os.path.isdir(origen):
+            libre = _libre_mb()
+            if libre is not None and libre < minimo:
+                fallos.append("%s: me lo salto por disco (%.1f GB libres, mínimo %.1f GB)"
+                              % (sub, libre / 1024.0, minimo / 1024.0))
+                continue
+        try:
+            rc = _rsync(origen, os.path.join(destino, sub), seco=seco)
+        except (OSError, subprocess.SubprocessError) as e:
+            fallos.append("%s: %s: %s" % (sub, type(e).__name__, e))
+            continue
         if rc is None:
             continue
         if rc == 0:
@@ -187,13 +229,16 @@ def sincronizar(seco=False, host=None):
             fallos.append("%s (rsync rc=%d)" % (sub, rc))
 
     ctx = os.path.join(destino, "contextos")
-    os.makedirs(ctx, exist_ok=True)
     copiados = 0
     for rel in CONTEXTOS:
         o = os.path.join(RAIZ, rel)
         if not os.path.isfile(o):
             continue
+        if seco:  # (SUP0811K) «--seco no escribe nada»: antes copiaba los contextos igual
+            copiados += 1
+            continue
         try:
+            os.makedirs(ctx, exist_ok=True)
             with open(o, "rb") as f:
                 datos = f.read()
             with open(os.path.join(ctx, os.path.basename(rel)), "wb") as f:
@@ -206,7 +251,10 @@ def sincronizar(seco=False, host=None):
 
     cuando = time.strftime("%Y-%m-%d %H:%M:%S")
     if not seco:
-        indice(destino, hechos, cuando)
+        try:
+            indice(destino, hechos, cuando)
+        except OSError as e:
+            fallos.append("INDICE.md: %s: %s" % (type(e).__name__, e))
         try:
             with open(os.path.join(destino, "estado.json"), "w", encoding="utf-8") as f:
                 json.dump(
@@ -225,15 +273,23 @@ def main():
     ap = argparse.ArgumentParser(description="Espeja esta neurona en Google Drive.")
     ap.add_argument("--seco", action="store_true", help="no escribe nada")
     args = ap.parse_args()
-    r = sincronizar(seco=args.seco)
-    if not r.get("ok") and not r.get("destino"):
-        print("✗", r.get("porque"))
+    # (SUP0811K, 08-11) El orquestador guarda como aviso los primeros 300 caracteres de esta salida.
+    # Con un Traceback eran siempre «Traceback (most recent call last): File …» y la causa no se veía:
+    # del 27-09 al 08-11 el espejo falló en cada cierre de ola (651 avisos) sin que se supiera por qué. Ahora un
+    # fallo sale en UNA línea, y los fallos van delante de la ruta (larga) del Drive.
+    try:
+        r = sincronizar(seco=args.seco)
+    except Exception as e:  # noqa: BLE001
+        print("✗ %s: %s" % (type(e).__name__, e))
         return 1
+    if r.get("porque"):
+        print("✗", r["porque"])
+        return 1
+    for f in r["fallos"]:
+        print("✗", f)
     print("Drive:", r["destino"])
     for nombre, mb in r["tramos"]:
         print("  %-14s %6.1f MB" % (nombre, mb))
-    for f in r["fallos"]:
-        print("  ✗", f)
     print("  %s" % r["cuando"])
     return 0 if r["ok"] else 1
 
