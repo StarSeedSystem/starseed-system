@@ -32,6 +32,8 @@ canales de datos (segmentos de ~2 s, §7.3), y un GRUPO llama sin internet por l
   ACEPTA → trozos de 16 KB a disco, lista de SHA-256, reintento por trozo, reanuda desde el último
   guardado y multitrayecto si hay varios enlaces al mismo aparato y el chat los permite todos (si
   no, se fuerza uno: `enlaceForzadoParaArchivo`). Confirmaciones: Enviado · Recibido · Verificado.
+  Desde ARC1108A (§8): un trozo cuenta solo cuando el almacén terminó de guardarlo, los errores dicen
+  el lado y la ruta, y los archivos que llegan juntos se deciden en UNA ventana del envío.
 - **Archivos por el servidor** (solo a tus propias neuronas): almacenamiento de la cuenta, sin
   recomprimir, con el SHA-256 del archivo entero en el anuncio; el otro aparato lo baja y lo verifica.
 - **Llamadas**: `planLlamada` (neuronas) y `planLlamadaChat` (personas y grupos). Sin servidor, la
@@ -61,6 +63,8 @@ llamada directa con pantalla en `llamada-directa.ts` (`llamarPorEnlace(…, { pi
   pantalla; en el compositor, el clip (varios archivos, también arrastrando) y «Transmitir en vivo».
   Cada burbuja: tarjeta de archivo (progreso, aceptar/rechazar, cancelar, reanudar, SHA-256, vista
   previa y guardar), de llamada (sonando → en curso → duración, perdida, rechazada) o de flujo.
+  Lo que llega junto se decide además en la ventana global del envío (§8.4); el botón de carpeta del
+  compositor manda una carpeta con sus subcarpetas y lo escrito acompaña al envío.
 - **Chats de personas y grupos**: si el medio del chat no incluye el servidor, o no hay internet,
   aparece la barra «Por la malla» (archivos P2P a cada miembro; en un 1:1, llamada directa de voz,
   vídeo o pantalla). Los botones de llamada de la cabecera siguen `planLlamadaChat`: servidor con
@@ -339,3 +343,126 @@ real), `src/components/messages/__tests__/correos-malla.test.tsx` (3);
   en una neurona), adjuntos de correo por la malla (hoy por el chat o «Neuronas»), y que un
   destinatario suba al buzón un correo que solo él recibió por la malla (no puede escribir como el
   remitente: lo sube el remitente o su relevo al tener internet).
+
+## 8 · Archivos: integridad por la red local y la ventana de un envío (ARC1108A · 2026-11-08)
+
+### 8.1 · Por qué fallaban casi todos con «hash-no-coincide» (prueba real del 08-11)
+
+Mac «MaggaBook» (prueba de escritorio de main en edcf74362f) → tableta «Maggaboard» (APK de prueba
+del mismo commit, servidor local dentro: páginas en 127.0.0.1), Mensajes › Neuronas en «Automático»,
+18 archivos (de 21 B a 50 MB). 17 en «Error · hash-no-coincide»; solo llegó el vídeo de 8 MB. Los
+mensajes de texto, bien en los dos sentidos.
+
+- **La vía real** (guardada en la burbuja del remitente, `starseed.mensajeria.malla.v1` del
+  almacenamiento local de la Mac): `local:nativo-…`, el ENLACE WebRTC que las dos apps abren solas
+  señalizándolo por el canal TCP (§6.3). La pastilla lo llama igual que al canal TCP («Mesh · Red
+  local (app nativa)»), pero NO fue el TCP: fue un data channel que admite binario, y el motor negoció
+  `modo: "binario"`.
+- **Causa raíz** (`archivos-malla.ts`): el camino BINARIO de `manejarMensaje` llamaba a
+  `guardarTrozo` sin esperar y contaba el trozo como recibido en el acto. Con un almacén asíncrono
+  (OPFS con `createWritable`, IndexedDB) el «fin» verificaba antes de que la escritura terminara: leía
+  un trozo vacío y el SHA-256 no coincidía. El vídeo pasó porque releer sus 511 trozos anteriores
+  daba tiempo a que terminara la última escritura. Las pruebas usaban el almacén en memoria, que
+  guarda en el acto: el fallo no se veía.
+- **Descartado con pruebas**: `b64ABuf` devuelve los bytes exactos aunque Node los saque de su
+  reserva compartida; los trozos binarios se decodifican como copia exacta; ninguna trama del canal
+  TCP pasa de 64 KiB (lotes de dos trozos de 16 KiB en base64, como mide `malla_local_trama.rs`); los
+  límites de trozo son los mismos en los dos lados.
+- **Segundo fallo de la misma prueba**: por el canal TCP, una trama cuyo acuse se pierde se reenvía y
+  llega DOS veces. Un «fin» repetido tras verificar reensamblaba sobre el almacén ya limpio y el
+  archivo recibido quedaba VACÍO (o se mandaba un «hash-no-coincide» a un archivo ya bueno).
+
+### 8.2 · Arreglo (solo web: llega a las apps cuando se publica la web)
+
+- **Un trozo cuenta SOLO cuando el almacén terminó de guardarlo**, por los dos caminos (base64 y
+  binario): `recibirTrozo` único; un duplicado en vuelo no se escribe dos veces; un fallo del almacén
+  se recuerda y se dice. «fin» espera a tener todos los trozos (≤ 15 s, varios caminos) y a que
+  terminen TODAS las escrituras; es idempotente (repite el «ok» sin tocar nada).
+- **Almacén en cadena** OPFS → IndexedDB → memoria (`crearAlmacenEnCadena`): OPFS solo si hay
+  `createWritable` (`opfsEscribible`: WKWebView de Safari < 26 y WebView de Android antiguos solo
+  tienen `getDirectory`); si uno falla al escribir (cuota, permisos, origen 127.0.0.1), el trozo va al
+  siguiente y nunca se pierde en silencio. Al releer, bytes exactos (`bytesExactos`: vistas y Blobs).
+- **Errores que dicen dónde y por qué** (`archivo.error` lleva `detalle`, `lado` y `desde`):
+  `hash-no-coincide`, `faltan-trozos` (conserva lo recibido), `almacen-receptor`, `fallo-verificacion`
+  y, del lado del remitente, `canal-no-recupera` y `sin-confirmacion`. La burbuja del remitente dice
+  «Falló en el receptor: …» y la RUTA exacta (`rutaDeArchivo`: canal TCP 47071 o enlace directo
+  WebRTC, hacia quién); las burbujas antiguas con el código suelto se traducen
+  (`motivoArchivoLegible`).
+- **Reintentar y reanudar**: el remitente conserva el archivo tras un error o un rechazo; un
+  reintento del MISMO archivo (mismo id, SHA-256 y tamaño) que el receptor ya aceptó no vuelve a
+  preguntar y reanuda desde el PRIMER trozo que falta (`primerFaltante`, no «el mayor + 1»: con
+  huecos se perdían trozos); con `faltan-trozos` el remitente reanuda solo (2 veces como mucho).
+  Tras mandar «fin» el remitente queda «verificando» y, si el otro no contesta en 60 s + 50 ms por
+  trozo, pasa a error con «Reintentar» (antes se quedaba colgado: el .bin de 50 MB de la prueba).
+
+### 8.3 · La oferta, ampliada (opcional y compatible)
+
+```
+archivo.oferta { …lo de siempre…, lote?, loteTotal?, loteMensaje?, ruta?, inicioB64?, vista?, contenido? }
+archivo.error  { id, motivo, detalle?, lado?: "receptor"|"remitente", desde? }
+```
+
+- `lote` (id del envío), `loteTotal`, `loteMensaje` (≤ 1000 caracteres, lo escrito en el compositor);
+  `ruta` relativa (`File.webkitRelativePath`: botón «carpeta» del chat de neurona; sin «..» ni raíz);
+  `inicioB64` (≤ 512 B); `vista` (miniatura JPEG/PNG/WebP ≤ 24 000 caracteres o ≤ 1200 de texto; nunca
+  SVG ni HTML como imagen); `contenido` (ZIP y Office/APK/JAR: ≤ 100 entradas de su directorio
+  central, leídas por el remitente de los últimos 256 KB). Todo se sanea al recibirlo. Una oferta con
+  todo al máximo cabe en una trama del canal TCP (probado). Un remitente anterior no manda nada de
+  esto: el receptor agrupa por remitente y ventana de 20 s.
+- La recepción dice por dónde llegó y cómo se verificó quién lo manda (`ContextoRecepcion.via` y
+  `verificacion`): canal TCP (huella del saludo firmado), enlace WebRTC señalizado con firma, enlace
+  con código, malla de la cuenta o vínculo entre cuentas.
+
+### 8.4 · La ventana de un envío (receptor)
+
+Petición de Alex (08-11): «cuando se envían varios archivos, las preguntas de aceptar o rechazar del
+receptor en UNA sola ventana, con vistas de carpetas y archivos, seleccionar cuáles aceptar o
+rechazar, aceptar todos y rechazar todos, vistas previas, la información del envío y su mensaje, y
+una inspección de seguridad con IA».
+
+| Pieza | Archivo | Qué hace |
+|---|---|---|
+| Agrupar (puro) | `src/lib/network/envios-entrantes.ts` | `agruparEnvios` (por `lote`; sin él, remitente + 20 s), `enviosPorDecidir`, `arbolDeEnvio` (carpetas por ruta relativa), `idsDeCarpeta`, `idsPendientes` |
+| Inspección (pura) | `src/lib/network/inspeccion-archivos.ts` | `inspeccionarArchivo` (extensión frente a tipo declarado y a bytes reales, con familias ZIP/ISO-BMFF/RIFF/EBML; ejecutables y scripts; doble extensión y RTLO; Office con macros; SVG/HTML con código; PDF con acciones; ZIP con rutas de escape, programas, macros, cifrado o compresión desmesurada; tamaños raros), `listarZip`, `resumenParaIA`, `leerVeredictoIA` |
+| IA | `src/lib/network/inspeccion-ia.ts` | `astrauraChat` (turno de agente, sin contexto personal, solo fuentes gratis) con el RESUMEN de metadatos; fragmentos de texto (≤ 500) solo si la persona los permite |
+| Vista previa | `src/lib/network/vista-previa-envio.ts` | Miniatura que viaja con la oferta (o texto) |
+| Ventana | `src/components/network/envios-entrantes.tsx` | `VentanaEnvio` (diálogo Radix) y `EnviosEntrantes` (montaje global vía `TransferenciasArchivoToast`) |
+
+- Se abre sola con el envío más antiguo por decidir; «Más tarde» o Esc la deja en una pastilla
+  flotante («Envío de … · N por decidir · Revisar»), igual que los envíos que esperan detrás.
+- Cabecera: quién lo manda y cómo se verificó (huella), por dónde llega, cuántos archivos (y cuántos
+  anunció: «llegando 9 de 18»), cuánto ocupan, cuántos por decidir y el mensaje del envío.
+- Archivos en árbol de carpetas (casilla por carpeta), lista o cuadrícula (se recuerda en este
+  aparato), casillas, «Seleccionar todo», «Aceptar seleccionados», «Rechazar todos» y «Aceptar
+  todos». Lo marcado como PELIGRO no va preseleccionado y «Aceptar todos» pide confirmarlo.
+- Vistas previas seguras: antes de aceptar, la miniatura o el texto de la oferta; ya verificado,
+  imagen, audio, vídeo o texto del archivo real (`tipoSeguroPara`: nunca HTML ejecutable); PDF y lo
+  demás, icono con tipo y tamaño.
+- Tras aceptar, el progreso de cada archivo (y su error, con el lado) sigue en la misma ventana; al
+  llegar, la inspección se repite con los bytes REALES (primeros 64 KB y directorio del ZIP).
+- La IA nunca acepta ni rechaza: informa por archivo y en conjunto. Las tarjetas de Mensajes ›
+  Neuronas siguen con su Aceptar/Rechazar por archivo (mismo motor).
+
+### 8.5 · Pruebas (deterministas)
+
+- `src/lib/network/__tests__/archivos-malla-rutas.test.ts` (20): los motores REALES de los dos lados
+  por las DOS rutas («Red local (app nativa)»: data channel binario y tramas TCP de Rust con lotes,
+  acuse y acuses perdidos) con un almacén asíncrono como OPFS, los 18 formatos y, si están en la
+  máquina, los archivos reales de `~/.starseed/pruebas-malla/` con su SHA-256. Antes del arreglo: 18/18
+  en error por el enlace local y un archivo vaciado por un «fin» repetido. Más: varios trozos con el
+  último a medias, vistas con desplazamiento, almacén que devuelve vistas, OPFS sin `createWritable`,
+  primer almacén que falla, ningún almacén, «fin» repetido, reintento sin volver a preguntar,
+  reanudar desde el primer hueco, `faltan-trozos` que se reanuda solo, remitente sin confirmación,
+  oferta máxima en una trama y saneado de vistas y rutas.
+- `envios-entrantes.test.ts` (5, también con motores reales), `inspeccion-archivos.test.ts` (30, sin
+  falsos positivos en los 18 formatos), `src/components/network/__tests__/envios-entrantes.test.tsx` (8).
+
+### 8.6 · Lo que necesita aparatos reales (pendiente)
+
+- Repetir la prueba de los 18 archivos Mac → tableta y tableta → Mac con la web publicada: los 18
+  «Verificado (SHA-256)» por `local:nativo-…` y también forzando el canal TCP (WebRTC desactivado).
+- Qué almacén elige cada WebView (`almacen.tipo`): WKWebView de macOS (¿OPFS con `createWritable`?) y
+  WebView de Android en el origen 127.0.0.1 (¿OPFS? ¿IndexedDB?); el .bin de 50 MB en la tableta
+  (memoria si cae a la memoria).
+- La ventana del envío en la tableta (vertical y horizontal) y en el teléfono; las miniaturas que
+  genera el WKWebView (HEIC) y el WebView de Android; «Inspeccionar con IA» con el router real.

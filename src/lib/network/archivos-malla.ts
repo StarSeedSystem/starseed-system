@@ -28,7 +28,7 @@
  * `detalle`, `lado` y `desde`. Un trozo cuenta como recibido SOLO cuando el almacén terminó de
  * guardarlo, por los dos caminos (base64 y binario): el binario lo contaba antes de guardarlo y
  * «fin» verificaba trozos vacíos — el «hash-no-coincide» de la prueba real del 08-11. Contrato:
- * `architecture/datos-por-la-malla.md` §7.1.
+ * `architecture/datos-por-la-malla.md` §8.
  *
  * CODIFICACIÓN — base64, NO binario crudo (decisión justificada):
  *   El canal `CanalArchivos` (abajo) declara `enviarBinario`/`bufferedAmount`
@@ -104,6 +104,7 @@ import {
 } from "@/lib/malla/cristal/resonancias";
 import { analizarArchivo } from "@/lib/malla/cristal/centinela";
 import { decidirEntrada } from "@/lib/malla/cristal/centinela-archivos";
+import { extensionDe, listarZip } from "@/lib/network/inspeccion-archivos";
 
 /* ══════════════════════════ 1) Contrato de canal ══════════════════════════ */
 
@@ -168,6 +169,16 @@ export interface MsgOferta {
   inicioB64?: string;
   /** Vista previa que el remitente calculó (miniatura JPEG/PNG/WebP o fragmento de texto). */
   vista?: VistaOferta;
+  /** Si es un ZIP (o un formato basado en ZIP): lo que dice llevar dentro (≤ 100 entradas). */
+  contenido?: EntradaContenido[];
+}
+
+/** (ARC1108A) Una entrada de un comprimido, tal como la anuncia el remitente (se revisa otra vez al recibirlo). */
+export interface EntradaContenido {
+  ruta: string;
+  tamano?: number;
+  comprimido?: number;
+  cifrado?: boolean;
 }
 
 /** (ARC1108A) Vista previa segura de una oferta: nunca HTML ni SVG, solo una miniatura raster o texto plano. */
@@ -439,6 +450,46 @@ export function sanearVista(x: unknown): VistaOferta | undefined {
 export function sanearInicio(x: unknown): string | undefined {
   if (typeof x !== "string" || !x || x.length > Math.ceil(MAX_INICIO_BYTES / 3) * 4 + 4) return undefined;
   return /^[A-Za-z0-9+/]+=*$/.test(x) ? x : undefined;
+}
+
+export const MAX_CONTENIDO_ENTRADAS = 100;
+export const MAX_CONTENIDO_CARACTERES = 12_000;
+
+/**
+ * Lista de un comprimido anunciada en la oferta: rutas sin caracteres de control (≤ 200), números
+ * finitos; se CONSERVAN «..» y las rutas absolutas (son justo lo que la inspección tiene que ver).
+ * Como mucho 100 entradas y 12 000 caracteres. Puro.
+ */
+export function sanearContenido(x: unknown): EntradaContenido[] | undefined {
+  if (!Array.isArray(x)) return undefined;
+  const out: EntradaContenido[] = [];
+  let total = 0;
+  for (const it of x.slice(0, MAX_CONTENIDO_ENTRADAS)) {
+    if (!it || typeof it !== "object") continue;
+    const o = it as Record<string, unknown>;
+    if (typeof o.ruta !== "string") continue;
+    const ruta = o.ruta.replace(CONTROL, "").slice(0, 200);
+    if (!ruta) continue;
+    total += ruta.length + 40;
+    if (total > MAX_CONTENIDO_CARACTERES) break;
+    const e: EntradaContenido = { ruta };
+    if (typeof o.tamano === "number" && Number.isFinite(o.tamano) && o.tamano >= 0) e.tamano = o.tamano;
+    if (typeof o.comprimido === "number" && Number.isFinite(o.comprimido) && o.comprimido >= 0) e.comprimido = o.comprimido;
+    if (o.cifrado === true) e.cifrado = true;
+    out.push(e);
+  }
+  return out.length ? out : undefined;
+}
+
+const LISTABLES_ZIP = new Set(["zip", "docx", "docm", "xlsx", "xlsm", "pptx", "pptm", "jar", "apk"]);
+
+/**
+ * ¿Se anuncia lo que lleva dentro? Los ZIP y los formatos de Office/Java/Android que por dentro son un
+ * ZIP (un .docx con `vbaProject.bin` es un .docm disfrazado). Por nombre o tipo. Puro.
+ */
+export function esComprimidoZip(nombre: string, tipoMime?: string | null): boolean {
+  const t = String(tipoMime ?? "").toLowerCase();
+  return LISTABLES_ZIP.has(extensionDe(nombre)) || t === "application/zip" || t === "application/x-zip-compressed";
 }
 
 /** Id de envío (lote): letras, cifras, «_» y «-», de 4 a 80. Puro. */
@@ -948,6 +999,7 @@ export interface EstadoTransferencia {
   ruta?: string;
   vista?: VistaOferta;
   inicioB64?: string;
+  contenido?: EntradaContenido[];
   sha256?: string;
   via?: string;
   verificacion?: VerificacionOrigen;
@@ -1024,6 +1076,8 @@ export interface OpcionesEnvioArchivo {
   ruta?: string;
   /** Vista previa ya calculada (miniatura o fragmento de texto). */
   vista?: VistaOferta;
+  /** Lista de un comprimido ya calculada (si no, el motor la lee él mismo de los ZIP). */
+  contenido?: EntradaContenido[];
 }
 
 export interface ResultadoEnviarArchivo {
@@ -1229,6 +1283,17 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
     } catch {
       inicioB64 = undefined;
     }
+    // (ARC1108A) Si es un ZIP (o un formato basado en ZIP), lo que lleva dentro: el receptor lo revisa ANTES de aceptar.
+    let contenido = sanearContenido(opciones?.contenido);
+    if (!contenido && tamano >= 22 && esComprimidoZip(nombre, tipoMime)) {
+      try {
+        const cola = Math.min(tamano, 256 * 1024);
+        const lista = listarZip(new Uint8Array(await archivo.slice(tamano - cola, tamano).arrayBuffer()), tamano, MAX_CONTENIDO_ENTRADAS);
+        contenido = sanearContenido(lista ?? undefined);
+      } catch {
+        contenido = undefined;
+      }
+    }
 
     canalPorId.set(id, canal);
     archivosEnvio.set(id, archivo);
@@ -1283,6 +1348,7 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
     const ruta = sanearRutaRelativa(opciones?.ruta);
     if (ruta && ruta !== nombre) oferta.ruta = ruta;
     if (inicioB64) oferta.inicioB64 = inicioB64;
+    if (contenido) oferta.contenido = contenido;
     const vista = sanearVista(opciones?.vista);
     if (vista) oferta.vista = vista;
     ofertasEnviadas.set(id, oferta);
@@ -1496,6 +1562,8 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
     if (vista) extras.vista = vista;
     const inicio = sanearInicio(msg.inicioB64);
     if (inicio) extras.inicioB64 = inicio;
+    const contenido = sanearContenido(msg.contenido);
+    if (contenido) extras.contenido = contenido;
     if (ctx.via) extras.via = ctx.via.slice(0, 160);
     if (ctx.verificacion) extras.verificacion = ctx.verificacion;
     return extras;

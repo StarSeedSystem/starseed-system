@@ -342,11 +342,12 @@ export interface ResultadoArchivoNeurona {
  * Manda archivos de cualquier formato a una neurona: uno detrás de otro (la oferta es rápida; los
  * trozos siguen en segundo plano cuando el otro acepta). Nunca lanza.
  */
-export async function enviarArchivosANeurona(e: { clave: string; destino: DestinoMalla; archivos: File[] }): Promise<ResultadoArchivoNeurona[]> {
+export async function enviarArchivosANeurona(e: { clave: string; destino: DestinoMalla; archivos: File[]; mensaje?: string }): Promise<ResultadoArchivoNeurona[]> {
     const out: ResultadoArchivoNeurona[] = [];
+    const lote = nuevoLote(e.archivos.length, e.mensaje);
     for (const archivo of e.archivos) {
         try {
-            out.push(await enviarUno(e.clave, e.destino, archivo, claveChat("neurona", e.clave)));
+            out.push(await enviarUno(e.clave, e.destino, archivo, claveChat("neurona", e.clave), lote));
         } catch {
             /* un archivo roto no para a los demás */
         }
@@ -358,13 +359,20 @@ export async function enviarArchivosANeurona(e: { clave: string; destino: Destin
  * Lo mismo en un chat 1:1 o de grupo cuyo medio elegido es la malla: una transferencia P2P a cada
  * persona del chat (cada una con su vía y sus confirmaciones), anunciada por «chat-malla».
  */
-export async function enviarArchivosAChatMalla(e: { hiloId: string; tipo: "dm" | "grupo"; otros: string[]; archivos: File[] }): Promise<ResultadoArchivoNeurona[]> {
+export async function enviarArchivosAChatMalla(e: { hiloId: string; tipo: "dm" | "grupo"; otros: string[]; archivos: File[]; mensaje?: string }): Promise<ResultadoArchivoNeurona[]> {
     const out: ResultadoArchivoNeurona[] = [];
     const clave = `dm:${e.hiloId}`;
+    // Un envío por persona: cada una ve SUS archivos juntos en una ventana.
+    const lotes = new Map<string, LoteEnvio>();
     for (const archivo of e.archivos) {
         for (const uid of Array.from(new Set(e.otros)).slice(0, 64)) {
+            let lote = lotes.get(uid);
+            if (!lote) {
+                lote = nuevoLote(e.archivos.length, e.mensaje);
+                lotes.set(uid, lote);
+            }
             try {
-                out.push(await enviarUno(clave, { uid }, archivo, claveChat(e.tipo, e.hiloId)));
+                out.push(await enviarUno(clave, { uid }, archivo, claveChat(e.tipo, e.hiloId), lote));
             } catch {
                 /* noop */
             }
@@ -373,7 +381,22 @@ export async function enviarArchivosAChatMalla(e: { hiloId: string; tipo: "dm" |
     return out;
 }
 
-async function enviarUno(clave: string, destino: DestinoMalla, archivo: File, clavePrefs: string): Promise<ResultadoArchivoNeurona> {
+/** (ARC1108A) Envío al que pertenece un archivo: los que salen juntos los decide el otro en UNA ventana. */
+interface LoteEnvio {
+    id: string;
+    total: number;
+    mensaje?: string;
+}
+
+function nuevoLote(total: number, mensaje?: string): LoteEnvio {
+    const nota = typeof mensaje === "string" ? mensaje.trim().slice(0, 1000) : "";
+    return { id: nuevoId("lote_").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 60), total: Math.max(1, total), ...(nota ? { mensaje: nota } : {}) };
+}
+
+/** (ARC1108A) Lo que acompaña a la oferta de cada adjunto (en memoria: tras recargar, el reintento sale sin ello). */
+const extrasOferta = new Map<string, { lote?: LoteEnvio; ruta?: string }>();
+
+async function enviarUno(clave: string, destino: DestinoMalla, archivo: File, clavePrefs: string, lote?: LoteEnvio): Promise<ResultadoArchivoNeurona> {
     const adjunto: AdjuntoNeurona = {
         id: nuevoId("arch_"),
         nombre: nombreArchivoSeguro(archivo.name),
@@ -396,6 +419,8 @@ async function enviarUno(clave: string, destino: DestinoMalla, archivo: File, cl
         archivo: { fase: "preparando" },
     };
     enMemoria.set(adjunto.id, archivo);
+    const ruta = typeof archivo.webkitRelativePath === "string" && archivo.webkitRelativePath ? archivo.webkitRelativePath : undefined;
+    extrasOferta.set(adjunto.id, { ...(lote ? { lote } : {}), ...(ruta ? { ruta } : {}) });
     guardarMensajeMalla(m);
     void motor();
     if (archivo.size <= MAX_COPIA_LOCAL_BYTES) {
@@ -450,12 +475,23 @@ async function ofrecerPorMalla(m: MensajeMalla, archivo: Blob, plan: PlanEnvio, 
             { clase: "archivo", descartados: plan.descartados, en: Date.now() },
         );
         cambiarArchivo(m, { fase: "ofrecido", motivo: undefined, enlaces: elegido.enlaces.map((x) => x.etiqueta) }, via ? { via } : {});
+        // (ARC1108A) El envío al que pertenece, su carpeta y una vista previa: el otro decide en UNA ventana.
+        const extras = extrasOferta.get(adj.id);
+        const vista = await import("@/lib/network/vista-previa-envio")
+            .then((v) => v.vistaParaOferta(archivo, adj.nombre, adj.tipo))
+            .catch(() => undefined);
         const r = await mo.enviarArchivo(
             elegido.canal,
             archivo,
             adj.nombre,
             { tipo: "dispositivo", id: m.destino?.syncDeviceId ?? m.destino?.neuronDeviceId ?? elegido.enlaces[0]?.id },
-            { idTransferencia: adj.id, tipoMime: adj.tipo },
+            {
+                idTransferencia: adj.id,
+                tipoMime: adj.tipo,
+                ...(extras?.lote ? { lote: extras.lote } : {}),
+                ...(extras?.ruta ? { ruta: extras.ruta } : {}),
+                ...(vista ? { vista } : {}),
+            },
         );
         if (!r.ok) return { mensaje: cambiarArchivo(m, { fase: "error", motivo: r.error }), ok: false, aviso: r.error };
         return { mensaje: mensajeMalla(m.clave, m.id) ?? m, ok: true, aviso: r.aviso };

@@ -22,10 +22,10 @@ import {
   canalDesdeMesh,
   motorArchivosCompartido,
   registrarArchivoLocalEnBiblioteca,
-  useOfertasPendientesArchivo,
   useTransferenciasArchivo,
   type EstadoTransferencia,
 } from "@/lib/network/archivos-malla";
+import { EnviosEntrantes } from "@/components/network/envios-entrantes";
 
 function tamanoLegible(bytes: number): string {
   if (!Number.isFinite(bytes) || bytes < 0) return "—";
@@ -67,8 +67,11 @@ export function EnviarArchivoBoton({ deviceId, etiqueta }: { deviceId: string; e
       const elegido = tu ? await tu.canalParaArchivo({ syncDeviceId: deviceId }).catch(() => null) : null;
       const canal = elegido?.canal ?? canalDesdeMesh(mesh, deviceId);
       const motor = motorArchivosCompartido();
-      for (const file of Array.from(files)) {
-        await motor.enviarArchivo(canal, file, file.name, { tipo: "dispositivo", id: deviceId });
+      const lista = Array.from(files);
+      // (ARC1108A) Los que salen juntos son UN envío: el otro aparato los decide en una sola ventana.
+      const lote = { id: `lote_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`, total: lista.length };
+      for (const file of lista) {
+        await motor.enviarArchivo(canal, file, file.name, { tipo: "dispositivo", id: deviceId }, { lote, ...(file.webkitRelativePath ? { ruta: file.webkitRelativePath } : {}) });
       }
     } finally {
       setEnviando(false);
@@ -265,56 +268,17 @@ export function TransferenciasArchivoLista() {
   );
 }
 
-/* ─────────────────────────── Tarjeta de oferta entrante (toast global) ─────────────────────────── */
-
-function OfertaEntranteCard({ oferta }: { oferta: EstadoTransferencia }) {
-  const motor = motorArchivosCompartido();
-  return (
-    <div className="pointer-events-auto w-full max-w-[360px] space-y-2 rounded-2xl border border-sky-400/30 bg-background/95 p-3 shadow-lg backdrop-blur">
-      <div className="flex items-center gap-2">
-        <FileText className="h-4 w-4 shrink-0 text-sky-300" />
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-[12px] font-medium text-foreground">{oferta.nombre}</p>
-          <p className="truncate text-[10px] text-foreground/50">
-            {oferta.origen ? `De ${oferta.origen} · ` : ""}
-            {tamanoLegible(oferta.tamano)}
-          </p>
-        </div>
-      </div>
-      <div className="flex gap-1.5">
-        <button
-          type="button"
-          onClick={() => motor.aceptarOferta(oferta.id)}
-          className="flex-1 cursor-pointer rounded-full bg-sky-500/20 px-2.5 py-1 text-[11px] font-medium text-sky-100 transition-colors duration-200 hover:bg-sky-500/30"
-        >
-          Aceptar
-        </button>
-        <button
-          type="button"
-          onClick={() => motor.rechazarOferta(oferta.id)}
-          className="flex-1 cursor-pointer rounded-full border border-foreground/15 px-2.5 py-1 text-[11px] text-foreground/60 transition-colors duration-200 hover:border-red-400/40 hover:text-red-300"
-        >
-          Rechazar
-        </button>
-      </div>
-    </div>
-  );
-}
+/* ─────────────────────────── Envíos entrantes (ventana global) ─────────────────────────── */
 
 /**
- * TransferenciasArchivoToast — tarjetas flotantes de ofertas entrantes que
- * esperan confirmación (política "preguntar": siempre para otras cuentas, o
- * misma cuenta si el usuario desactivó el auto-aceptar). Montado GLOBALMENTE
- * por `MallaNeuronasMount` para que llegue aunque el panel esté cerrado.
+ * TransferenciasArchivoToast — montado GLOBALMENTE por `MallaNeuronasMount` para que lo que llega se
+ * vea aunque el panel esté cerrado. Desde ARC1108A (2026-11-08) ya no es una tarjeta flotante por
+ * archivo: los archivos que llegan juntos forman UN envío y se deciden en UNA ventana (carpetas,
+ * vistas previas, selección, aceptar/rechazar todos, inspección local y con IA, progreso). Ver
+ * `envios-entrantes.tsx`. Política "preguntar": siempre para otras cuentas y apps vinculadas, o
+ * misma cuenta si el usuario desactivó el auto-aceptar.
  */
 export function TransferenciasArchivoToast() {
-  const ofertas = useOfertasPendientesArchivo();
-  if (ofertas.length === 0) return null;
-  return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-4 z-[70] flex flex-col items-center gap-2 px-4">
-      {ofertas.map((o) => (
-        <OfertaEntranteCard key={o.id} oferta={o} />
-      ))}
-    </div>
-  );
+  const transferencias = useTransferenciasArchivo();
+  return <EnviosEntrantes motor={motorArchivosCompartido()} transferencias={transferencias} />;
 }

@@ -91,10 +91,11 @@ function MallaNeuronasEngine() {
   // REFERENCIA por `trabajoId`.
   useMotorPerezoso(() => import("@/lib/network/video-por-malla-relay").then((m) => m.iniciarServidorRenderPorMalla));
   // (Ola 369) Motor de ARCHIVOS por la malla: namespace `archivo.*`, mismo
-  // mesh compartido de siempre. La tarjeta de "aceptar/rechazar" de una
-  // oferta entrante se pinta aquí (global) para que llegue con el panel
-  // cerrado; el resto de la UI (botón «Enviar archivo», lista de
-  // transferencias) vive en `MallaNeuronasPanel`.
+  // mesh compartido de siempre. Lo que llega se decide aquí (global) para
+  // que llegue con el panel cerrado: desde ARC1108A, UNA ventana por envío
+  // (`envios-entrantes.tsx`) en vez de una tarjeta por archivo; el resto de
+  // la UI (botón «Enviar archivo», lista de transferencias) vive en
+  // `MallaNeuronasPanel`.
   useMotorPerezoso(() => import("@/lib/network/archivos-malla").then((m) => m.iniciarMotorArchivosPorMalla));
   // (2026-10-10) Transporte universal: recepción de mensajes `tu.*` por la malla de la cuenta,
   // vínculos, enlaces locales sin internet, relé y LoRa (`architecture/transporte-universal-sin-internet.md`).

@@ -11,7 +11,7 @@
  */
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent } from "react";
-import { ArrowLeft, Clock, Loader2, Maximize2, Minimize2, Paperclip, Radio, RotateCcw, Route, SendHorizontal, Upload } from "lucide-react";
+import { ArrowLeft, Clock, FolderUp, Loader2, Maximize2, Minimize2, Paperclip, Radio, RotateCcw, Route, SendHorizontal, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
@@ -111,6 +111,11 @@ export function HiloNeurona({ conversacion, cerebros, esMovil, onAtras, enfocado
     const scrollRef = useRef<HTMLDivElement>(null);
     const areaRef = useRef<HTMLTextAreaElement>(null);
     const archivoRef = useRef<HTMLInputElement>(null);
+    // (ARC1108A) Una carpeta entera: sus archivos llevan su ruta relativa y el otro la ve como carpeta.
+    const carpetaRef = useRef<HTMLInputElement>(null);
+    useEffect(() => {
+        carpetaRef.current?.setAttribute("webkitdirectory", "");
+    }, []);
 
     // Sus avisos no salen como notificación mientras este chat está a la vista.
     useEffect(() => {
@@ -123,10 +128,19 @@ export function HiloNeurona({ conversacion, cerebros, esMovil, onAtras, enfocado
         if (!archivos.length || mandandoArchivos) return;
         if (archivos.length > MAX_ARCHIVOS_A_LA_VEZ) toast.message(`Van los ${MAX_ARCHIVOS_A_LA_VEZ} primeros; el resto, en otra tanda.`);
         setMandandoArchivos(true);
+        // (ARC1108A) Lo escrito en el compositor acompaña al envío (el otro lo lee en la ventana del envío)
+        // y sale además como mensaje del chat.
+        const nota = texto.trim();
         try {
-            const res = await enviarArchivosANeurona({ clave: conversacion.clave, destino: conversacion.destino, archivos: archivos.slice(0, MAX_ARCHIVOS_A_LA_VEZ) });
+            const res = await enviarArchivosANeurona({
+                clave: conversacion.clave,
+                destino: conversacion.destino,
+                archivos: archivos.slice(0, MAX_ARCHIVOS_A_LA_VEZ),
+                ...(nota ? { mensaje: nota } : {}),
+            });
             const fallidos = res.filter((r) => !r.ok);
             if (fallidos.length) toast.error(fallidos[0].aviso || "Algún archivo no pudo salir: mira su tarjeta.");
+            if (nota) await enviar();
         } finally {
             setMandandoArchivos(false);
         }
@@ -328,6 +342,30 @@ export function HiloNeurona({ conversacion, cerebros, esMovil, onAtras, enfocado
                             void mandarArchivos(lista);
                         }}
                     />
+                    <input
+                        ref={carpetaRef}
+                        type="file"
+                        multiple
+                        className="hidden"
+                        aria-hidden
+                        tabIndex={-1}
+                        data-testid="entrada-carpeta"
+                        onChange={(e) => {
+                            const lista = e.target.files ? Array.from(e.target.files) : [];
+                            e.target.value = "";
+                            void mandarArchivos(lista);
+                        }}
+                    />
+                    <button
+                        type="button"
+                        onClick={() => carpetaRef.current?.click()}
+                        disabled={mandandoArchivos}
+                        aria-label={`Mandar una carpeta a ${conversacion.nombre}`}
+                        title="Una carpeta entera: el otro aparato la ve con sus subcarpetas"
+                        className="ss-redondo hidden h-[42px] w-[42px] shrink-0 cursor-pointer place-items-center rounded-full text-white/80 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-wait disabled:opacity-50 sm:grid"
+                    >
+                        <FolderUp className="h-4 w-4" />
+                    </button>
                     <button
                         type="button"
                         onClick={() => archivoRef.current?.click()}
