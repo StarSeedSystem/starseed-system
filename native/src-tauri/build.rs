@@ -28,6 +28,9 @@ const COMANDOS_APP: &[&str] = &[
     // (NEU1108A) Pista del id de neurona del origen publicado (APK con servidor local).
     "pista_neurona",
     "pista_neurona_leer",
+    // (MIC1108A) Qué sabe la app de los permisos de medios y abrir los ajustes del sistema.
+    "medios_estado",
+    "medios_abrir_ajustes",
     "recursos_ia_detectar",
     "antenas_estado",
     "antenas_medir",
@@ -74,7 +77,9 @@ fn main() {
     println!("cargo:rerun-if-env-changed=STARSEED_SERVIDOR_LOCAL_ANDROID");
     // (AND1107A) Se declara siempre (que rustc no avise de un cfg desconocido); solo se ENCIENDE abajo.
     println!("cargo:rustc-check-cfg=cfg(starseed_servidor_android)");
+    println!("cargo:rustc-check-cfg=cfg(starseed_medios_android)");
     servicio_android();
+    medios_android();
     servidor_local_android();
     tauri_build::try_build(
         tauri_build::Attributes::new().app_manifest(tauri_build::AppManifest::new().commands(COMANDOS_APP)),
@@ -113,6 +118,40 @@ fn servicio_android() {
         }
         // Falla en alto: un APK que dice tener servicio y no lo tiene sería una ilusión.
         Err(e) => panic!("[starseed] No se pudo inyectar el servicio de antenas en Android: {e}. Para compilar sin él: STARSEED_SIN_SERVICIO_ANDROID=1"),
+    }
+}
+
+/// (MIC1108A) Micrófono, cámara y auriculares en el manifiesto de Android: sin ellos el WebView pide
+/// el permiso en tiempo de ejecución y Android lo niega al instante (permiso no declarado), así que
+/// toda llamada fallaba. Las tres apps (OS, Nexus y Café) y aunque el servicio de antenas esté
+/// apagado. Si se escribe, enciende `starseed_medios_android` (lo lee `medios_estado`). Contrato §13.
+fn medios_android() {
+    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() != Ok("android") {
+        return;
+    }
+    let paquete = std::env::var("TAURI_ANDROID_PACKAGE_UNESCAPED")
+        .or_else(|_| std::env::var("WRY_ANDROID_PACKAGE"))
+        .unwrap_or_default();
+    if !android_parche::aplica_medios(&paquete) {
+        return;
+    }
+    let Some(proyecto) = std::env::var_os("TAURI_ANDROID_PROJECT_PATH").map(std::path::PathBuf::from) else {
+        println!("cargo:warning=[starseed] Sin TAURI_ANDROID_PROJECT_PATH: el APK sale SIN micrófono ni cámara declarados.");
+        return;
+    };
+    println!(
+        "cargo:rerun-if-changed={}",
+        proyecto.join("app/src/main/AndroidManifest.xml").display()
+    );
+    match android_parche::aplicar_medios(&proyecto) {
+        Ok(cambiado) => {
+            if cambiado {
+                println!("cargo:warning=[starseed] micrófono, cámara y auriculares declarados en el AndroidManifest.xml (MIC1108A).");
+            }
+            println!("cargo:rustc-cfg=starseed_medios_android");
+        }
+        // Falla en alto: un APK sin estos permisos no puede llamar y nadie lo notaría hasta probarlo.
+        Err(e) => panic!("[starseed] No se pudieron declarar el micrófono y la cámara en Android: {e}"),
     }
 }
 

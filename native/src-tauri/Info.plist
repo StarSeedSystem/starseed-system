@@ -4,6 +4,13 @@
 <dict>
   <key>NSLocalNetworkUsageDescription</key>
   <string>StarSeed anuncia y escucha a tus otras neuronas en esta red, también sin internet, para enlazarlas entre sí.</string>
+  <!-- (MIC1108A) Sin estos textos WebKit no deja a la página usar el micrófono ni la cámara (ni
+       siquiera pregunta): las llamadas decían «Este navegador no deja usar el micrófono». macOS los
+       enseña en su aviso la primera vez. Contrato: architecture/apps-autonomas-sin-internet.md §13 -->
+  <key>NSMicrophoneUsageDescription</key>
+  <string>StarSeed usa el micrófono solo cuando tú lo pides: en llamadas de voz y vídeo, transmisiones en vivo y grabaciones.</string>
+  <key>NSCameraUsageDescription</key>
+  <string>StarSeed usa la cámara solo cuando tú lo pides: en videollamadas, transmisiones en vivo y grabaciones.</string>
   <!-- (APP1107A) La ventana abre el servidor local de la app en http://127.0.0.1:4761x. Desde macOS 14,
        App Transport Security ya no deja cargar direcciones IP por defecto: se declara la red local y la
        excepción exacta de 127.0.0.1 (solo http a loopback; nada más se relaja).

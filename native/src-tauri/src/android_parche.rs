@@ -38,6 +38,86 @@ pub const PERMISOS: [&str; 9] = [
     "android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS",
 ];
 
+// ─── (MIC1108A) Micrófono, cámara y auriculares — contrato apps-autonomas-sin-internet.md §13 ───
+// wry ya responde a `WebChromeClient.onPermissionRequest` pidiendo CAMERA / RECORD_AUDIO /
+// MODIFY_AUDIO_SETTINGS en tiempo de ejecución (y la app decide antes por origen: permisos_medios.rs),
+// pero Android niega AL INSTANTE un permiso que el manifiesto no declara: por eso fallaba toda llamada.
+// Van en su propio bloque, justo tras `<manifest …>`, para no pisarse con el del servicio (que va antes
+// de `<application`) y que aplicar los dos en cualquier orden deje siempre el mismo archivo.
+
+const MEDIOS_INICIO: &str = "<!-- STARSEED-MEDIOS:INICIO (no editar: lo escribe native/src-tauri/build.rs · MIC1108A) -->";
+const MEDIOS_FIN: &str = "<!-- STARSEED-MEDIOS:FIN -->";
+
+/// Los paquetes de las tres apps (las tres pueden llamar desde su web).
+pub const PAQUETES_MEDIOS: [&str; 3] = ["app.starseed.os", "app.starseed.nexus", "app.starseed.cafe"];
+
+/// Permisos de medios. BLUETOOTH_CONNECT (Android 12+) deja que el WebView use el micro de unos
+/// auriculares Bluetooth: es «Dispositivos cercanos», se concede en los ajustes de la app.
+pub const PERMISOS_MEDIOS: [&str; 4] = [
+    "android.permission.RECORD_AUDIO",
+    "android.permission.MODIFY_AUDIO_SETTINGS",
+    "android.permission.CAMERA",
+    "android.permission.BLUETOOTH_CONNECT",
+];
+
+/// Hardware que esos permisos darían por obligatorio: la app también vale sin cámara.
+pub const FUNCIONES_MEDIOS: [&str; 3] = ["android.hardware.microphone", "android.hardware.camera", "android.hardware.camera.autofocus"];
+
+/// Bloque de medios con lo que aún no esté declarado fuera de él.
+pub fn bloque_medios(manifiesto_sin_bloque: &str) -> String {
+    let mut s = format!("    {MEDIOS_INICIO}\n");
+    for p in PERMISOS_MEDIOS.iter().filter(|p| !ya_declarado(manifiesto_sin_bloque, p)) {
+        s.push_str(&format!("    <uses-permission android:name=\"{p}\" />\n"));
+    }
+    // Hasta Android 11 los auriculares Bluetooth piden el BLUETOOTH de siempre (normal, sin pregunta).
+    if !ya_declarado(manifiesto_sin_bloque, "android.permission.BLUETOOTH") {
+        s.push_str("    <uses-permission android:name=\"android.permission.BLUETOOTH\" android:maxSdkVersion=\"30\" />\n");
+    }
+    for f in FUNCIONES_MEDIOS.iter().filter(|f| !ya_declarado(manifiesto_sin_bloque, f)) {
+        s.push_str(&format!("    <uses-feature android:name=\"{f}\" android:required=\"false\" />\n"));
+    }
+    s.push_str(&format!("    {MEDIOS_FIN}\n"));
+    s
+}
+
+/// Devuelve el manifiesto con el bloque de medios justo tras la etiqueta `<manifest …>`.
+pub fn parchear_medios(texto: &str) -> Result<String, String> {
+    let limpio = quitar_bloque(texto, MEDIOS_INICIO, MEDIOS_FIN);
+    let m = limpio
+        .find("<manifest")
+        .ok_or("El AndroidManifest.xml no tiene <manifest>: ¿cambió la plantilla de Tauri?")?;
+    let cierre = limpio[m..]
+        .find('>')
+        .map(|i| m + i + 1)
+        .ok_or("El AndroidManifest.xml tiene <manifest sin cerrar.")?;
+    match limpio.find("<application") {
+        Some(a) if a >= cierre => {}
+        _ => return Err("El AndroidManifest.xml no tiene <application> dentro de <manifest>: ¿cambió la plantilla de Tauri?".into()),
+    }
+    let bloque = bloque_medios(&limpio);
+    // Tras el salto de línea de `<manifest …>` si el resto de esa línea está vacío; si no, en una línea nueva.
+    let resto_linea = limpio[cierre..].split('\n').next().unwrap_or("");
+    Ok(if resto_linea.trim().is_empty() && limpio[cierre..].contains('\n') {
+        let tras = cierre + resto_linea.len() + 1;
+        format!("{}{}{}", &limpio[..tras], bloque, &limpio[tras..])
+    } else {
+        format!("{}\n{}{}", &limpio[..cierre], bloque, &limpio[cierre..])
+    })
+}
+
+/// ¿Se declaran los medios en este paquete? Las tres apps de StarSeed.
+pub fn aplica_medios(paquete: &str) -> bool {
+    PAQUETES_MEDIOS.contains(&paquete_limpio(paquete).as_str())
+}
+
+/// Escribe el bloque de medios en el manifiesto del proyecto. Devuelve si cambió el archivo.
+pub fn aplicar_medios(proyecto: &Path) -> Result<bool, String> {
+    let manifiesto = proyecto.join("app/src/main/AndroidManifest.xml");
+    let texto = std::fs::read_to_string(&manifiesto)
+        .map_err(|e| format!("No se pudo leer {}: {e} (¿falta `cargo tauri android init`?)", manifiesto.display()))?;
+    escribir_si_cambia(&manifiesto, &parchear_medios(&texto)?)
+}
+
 /// Las plantillas Kotlin (nombre de archivo, contenido con `{{LIB}}`).
 pub const KOTLIN: [(&str, &str); 4] = [
     ("PuenteNativo.kt", include_str!("../android/PuenteNativo.kt")),
@@ -379,5 +459,103 @@ mod pruebas {
         let segunda = aplicar(&dir, "starseed_native_lib").unwrap();
         assert!(segunda.is_empty(), "la segunda vez no cambia nada");
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    // ─── (MIC1108A) Micrófono, cámara y auriculares ───
+
+    #[test]
+    fn medios_declarados_dentro_de_manifest_y_antes_de_application() {
+        let m = parchear_medios(PLANTILLA).unwrap();
+        let abre = m.find("<manifest").unwrap();
+        let bloque = m.find(MEDIOS_INICIO).unwrap();
+        let app = m.find("<application").unwrap();
+        assert!(abre < bloque && bloque < app, "el bloque va dentro de <manifest> y antes de <application>");
+        for p in PERMISOS_MEDIOS {
+            assert_eq!(m.matches(&format!("<uses-permission android:name=\"{p}\" />")).count(), 1, "{p}");
+        }
+        assert!(m.contains("<uses-permission android:name=\"android.permission.BLUETOOTH\" android:maxSdkVersion=\"30\" />"));
+        for f in FUNCIONES_MEDIOS {
+            assert!(m.contains(&format!("<uses-feature android:name=\"{f}\" android:required=\"false\" />")), "{f}");
+        }
+        // La plantilla sigue intacta alrededor.
+        assert!(m.contains("android.permission.INTERNET"));
+        assert!(m.contains("android:name=\".MainActivity\""));
+        assert_eq!(m.matches("</manifest>").count(), 1);
+    }
+
+    #[test]
+    fn medios_idempotente_y_compatible_con_el_servicio() {
+        let una = parchear_medios(PLANTILLA).unwrap();
+        assert_eq!(parchear_medios(&una).unwrap(), una);
+        // Servicio y medios, en cualquier orden y repetidos: siempre el mismo archivo.
+        let a = parchear_medios(&parchear_manifiesto(PLANTILLA).unwrap()).unwrap();
+        let b = parchear_manifiesto(&parchear_medios(PLANTILLA).unwrap()).unwrap();
+        assert_eq!(a, b);
+        assert_eq!(parchear_manifiesto(&parchear_medios(&a).unwrap()).unwrap(), a);
+        assert_eq!(a.matches(MEDIOS_INICIO).count(), 1);
+        assert_eq!(a.matches(PERMISOS_INICIO).count(), 1);
+        assert_eq!(a.matches("\"android.permission.POST_NOTIFICATIONS\"").count(), 1);
+    }
+
+    #[test]
+    fn medios_no_duplica_lo_ya_declarado() {
+        let con = PLANTILLA.replace(
+            "<uses-permission android:name=\"android.permission.INTERNET\" />",
+            "<uses-permission android:name=\"android.permission.INTERNET\" />\n    <uses-permission android:name=\"android.permission.CAMERA\" />\n    <uses-permission android:name=\"android.permission.BLUETOOTH\" />",
+        );
+        let m = parchear_medios(&con).unwrap();
+        assert_eq!(m.matches("\"android.permission.CAMERA\"").count(), 1);
+        assert_eq!(m.matches("\"android.permission.BLUETOOTH\"").count(), 1, "el BLUETOOTH ya declarado no se repite");
+        assert!(m.contains("\"android.permission.RECORD_AUDIO\""));
+        assert!(m.contains("\"android.permission.BLUETOOTH_CONNECT\""));
+    }
+
+    #[test]
+    fn medios_con_manifest_en_una_sola_linea() {
+        let una_linea = "<manifest xmlns:android=\"http://schemas.android.com/apk/res/android\"><application android:label=\"x\"></application></manifest>";
+        let m = parchear_medios(una_linea).unwrap();
+        assert!(m.find(MEDIOS_INICIO).unwrap() < m.find("<application").unwrap());
+        assert_eq!(parchear_medios(&m).unwrap(), m);
+    }
+
+    #[test]
+    fn medios_falla_en_alto_si_cambia_la_plantilla() {
+        assert!(parchear_medios("<foo></foo>").unwrap_err().contains("<manifest>"));
+        assert!(parchear_medios("<manifest xmlns:android=\"x\"></manifest>").unwrap_err().contains("<application>"));
+    }
+
+    #[test]
+    fn medios_en_las_tres_apps() {
+        assert!(aplica_medios("app.starseed.os"));
+        assert!(aplica_medios("app.starseed.`os`"));
+        assert!(aplica_medios("app.starseed.nexus"));
+        assert!(aplica_medios("app.starseed.cafe"));
+        assert!(!aplica_medios("com.example.app"));
+        assert!(!aplica_medios(""));
+    }
+
+    #[test]
+    fn medios_en_disco() {
+        let dir = std::env::temp_dir().join(format!("ss-android-medios-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("app/src/main")).unwrap();
+        std::fs::write(dir.join("app/src/main/AndroidManifest.xml"), PLANTILLA).unwrap();
+        assert_eq!(aplicar_medios(&dir), Ok(true));
+        assert_eq!(aplicar_medios(&dir), Ok(false), "la segunda vez no reescribe");
+        // El servicio después no lo deshace (y tampoco reescribe la segunda vez).
+        aplicar(&dir, "starseed_native_lib").unwrap();
+        assert_eq!(aplicar_medios(&dir), Ok(false));
+        assert!(aplicar(&dir, "starseed_native_lib").unwrap().is_empty());
+        let t = std::fs::read_to_string(dir.join("app/src/main/AndroidManifest.xml")).unwrap();
+        assert!(t.contains("\"android.permission.RECORD_AUDIO\"") && t.contains("app.starseed.nativa.ServicioAntenas"));
+        assert!(aplicar_medios(&dir.join("no-existe")).unwrap_err().contains("android init"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn kotlin_abre_los_ajustes_de_la_app() {
+        let arranque = KOTLIN.iter().find(|(n, _)| *n == "ArranqueStarSeed.kt").unwrap().1;
+        assert!(arranque.contains("\"ajustes\" -> abrirAjustes(a)"));
+        assert!(arranque.contains("Settings.ACTION_APPLICATION_DETAILS_SETTINGS"));
     }
 }

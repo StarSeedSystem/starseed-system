@@ -82,6 +82,21 @@ object Vigia : Application.ActivityLifecycleCallbacks {
         File(PuenteNativo.dir(ctx), Archivos.PETICION).delete()
         when (p.optString("accion")) {
             "bateria" -> pedirBateria(a)
+            "ajustes" -> abrirAjustes(a)
+        }
+    }
+
+    // (MIC1108A) La ficha de la app en Ajustes: Permisos › Micrófono, Cámara y Dispositivos cercanos
+    // (auriculares Bluetooth). Lo pide la web con `medios_abrir_ajustes` cuando Android dijo que no.
+    private fun abrirAjustes(a: Activity) {
+        try {
+            a.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + a.packageName)))
+        } catch (e: Exception) {
+            try {
+                a.startActivity(Intent(Settings.ACTION_SETTINGS))
+            } catch (e2: Exception) {
+                // Sin pantalla de ajustes: la web ya explicó dónde está el permiso.
+            }
         }
     }
 

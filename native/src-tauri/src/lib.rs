@@ -44,6 +44,8 @@ mod nativa;
 mod neurona_info;
 // (NEU1108A) Pista del id de neurona del origen publicado para la APK con servidor local (127.0.0.1).
 mod pista_neurona;
+// (MIC1108A) Micrófono, cámara y pantalla: solo los orígenes propios, y el sistema pregunta.
+mod permisos_medios;
 mod recursos_ia;
 #[cfg(desktop)]
 mod segundo_plano;
@@ -615,6 +617,11 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         // Enlaces profundos starseed://
         .plugin(tauri_plugin_deep_link::init())
+        // (MIC1108A) Micrófono, cámara y pantalla: la web de la app (servidor local o web publicada)
+        // los recibe del motor web y el sistema pregunta a la persona; otra página, no. Se decide con
+        // la última página cargada en cada ventana (permisos_medios.rs; contrato §13).
+        .on_page_load(|webview, carga| permisos_medios::recordar_pagina(webview.label(), carga.url().as_str()))
+        .on_permission_request(|webview, kind| permisos_medios::al_pedir_permiso(webview.label(), kind))
         .setup(|app| {
             // Estado compartido + vigilancia de actualizaciones: SOLO escritorio,
             // y desde la 0.3.0 para los TRES sistemas. Cada uno lee su propio
@@ -637,6 +644,9 @@ pub fn run() {
             nativa::iniciar(app.handle());
             // (MSH1107A) Canal local de datos entre neuronas (TCP 47071), solo StarSeed OS.
             malla_local::iniciar(app.handle());
+            // (MIC1108A) Linux: WebKitGTK trae MediaStream y WebRTC apagados; sin ellos no hay llamadas.
+            #[cfg(target_os = "linux")]
+            permisos_medios::encender_medios_linux(app.handle());
             // Servidor local de StarSeed OS (solo escritorio; Nexus y Café siguen con su web).
             #[cfg(desktop)]
             servidor_local::iniciar(app.handle());
@@ -669,6 +679,8 @@ pub fn run() {
                 buscar_actualizacion,
                 pista_neurona::pista_neurona,
                 pista_neurona::pista_neurona_leer,
+                permisos_medios::medios_estado,
+                permisos_medios::medios_abrir_ajustes,
                 recursos_ia::recursos_ia_detectar,
                 nativa::antenas_estado,
                 nativa::antenas_medir,

@@ -85,7 +85,8 @@ pub fn leer_servicio(dir: &Path) -> Option<ServicioAndroid> {
     std::fs::read_to_string(dir.join(SERVICIO)).ok().and_then(|t| serde_json::from_str(&t).ok())
 }
 
-/// Pide a Kotlin una acción que necesita una pantalla del sistema (solo «bateria» hoy).
+/// Pide a Kotlin una acción que necesita una pantalla del sistema: «bateria» o «ajustes» (la ficha
+/// de la app, para el micrófono y la cámara; MIC1108A).
 pub fn pedir(dir: &Path, accion: &str, ahora_ms: u64) -> Result<(), String> {
     let j = serde_json::json!({ "accion": accion, "t": ahora_ms });
     escribir_atomico(dir, PETICION, &j.to_string())

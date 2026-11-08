@@ -129,6 +129,8 @@
     "allow-buscar-actualizacion",
     "allow-pista-neurona",
     "allow-pista-neurona-leer",
+    "allow-medios-estado",
+    "allow-medios-abrir-ajustes",
     "allow-recursos-ia-detectar",
     "allow-antenas-estado",
     "allow-antenas-medir",

@@ -45,7 +45,9 @@ tauri-build = { version = "2", features = [] }
 # Núcleo de Tauri 2. El feature `tray-icon` deja un icono en la bandeja del
 # sistema (compañero siempre presente). No fijamos features de protocolo aquí:
 # el CLI las gestiona según tauri.conf.json.
-tauri = { version = "2", features = ["tray-icon"] }
+# (MIC1108A) ≥ 2.12: `Builder::on_permission_request` decide micrófono/cámara/pantalla por origen
+# (src/permisos_medios.rs). El CI ya resolvía 2.12.x; aquí queda escrito.
+tauri = { version = "2.12", features = ["tray-icon"] }
 
 # ─── Plugins oficiales de Tauri 2 (todos en su major 2) ───
 # Terminal / procesos: el puente de "control por terminal" para Aurora.
@@ -107,7 +109,9 @@ rust-ini = "=0.21.1"
 # (TAM1107A · T4b) Migración del origen web SIN internet (src/migracion_origen_local.rs): la ventana oculta
 # carga un HTML del binario con la dirección de la web publicada. Son las MISMAS crates y versiones que ya
 # trae tauri para cada motor (se unifican; no se descarga nada nuevo): WebKitGTK `load_html`.
-webkit2gtk = "2"
+# (MIC1108A) `v2_38` para `set_enable_webrtc` (MediaStream y WebRTC vienen apagados en WebKitGTK):
+# es el mismo feature que ya pide tauri-runtime-wry, no compila nada nuevo.
+webkit2gtk = { version = "2", features = ["v2_38"] }
 
 # WKWebView `loadHTMLString:baseURL:` (objc2 y objc2-foundation de tauri/wry).
 [target.'cfg(target_os = "macos")'.dependencies]
