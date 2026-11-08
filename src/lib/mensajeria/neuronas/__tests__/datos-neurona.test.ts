@@ -14,6 +14,9 @@ import {
     confirmacionesArchivo,
     duracionLegible,
     enlaceForzadoParaArchivo,
+    esMedioP2P,
+    MAX_BLUETOOTH_BYTES,
+    rutaDeArchivo,
     faseDesdeMotor,
     faseTrasRecarga,
     leerAdjunto,
@@ -53,14 +56,29 @@ const lora: CandidatoDato = { enlaceId: "lora", medio: "lora", etiqueta: "Radio 
 const servidor = { abierto: true, llega: true, maxBytes: MAX_SERVIDOR_BYTES };
 
 describe("qué lleva cada medio (y se dice el porqué)", () => {
-    it("relé, LoRa y Bluetooth no llevan archivos ni flujos; el enlace local lo lleva todo", () => {
+    it("relé y LoRa no llevan archivos ni flujos; el enlace local lo lleva todo", () => {
         for (const clase of ["mensaje", "archivo", "llamada", "flujo"] as const) expect(LLEVA.local[clase]).toBe(true);
         expect(motivoNoLleva("rele", "archivo")).toMatch(/solo lleva mensajes/);
         expect(motivoNoLleva("lora", "archivo")).toMatch(/LoRa solo lleva mensajes cortos/);
         expect(motivoNoLleva("lora", "flujo")).toMatch(/ni voz, ni vídeo/);
-        expect(motivoNoLleva("bluetooth", "archivo")).toMatch(/no lleva archivos/);
         expect(motivoNoLleva("wifi-local", "archivo")).toBeNull();
         expect(AVISO_LIMITES_MEDIOS).toMatch(/LoRa/);
+    });
+
+    it("(BLE1108A) Bluetooth directo: mensajes y archivos (≤ 20 MB) sí; voz, vídeo y transmisiones no, con su porqué", () => {
+        expect(LLEVA.bluetooth).toEqual({ mensaje: true, archivo: true, llamada: false, flujo: false });
+        expect(motivoNoLleva("bluetooth", "archivo")).toBeNull();
+        expect(motivoNoLleva("bluetooth", "mensaje")).toBeNull();
+        expect(motivoNoLleva("bluetooth", "llamada")).toMatch(/no lleva voz, vídeo ni transmisiones/);
+        expect(motivoNoLleva("bluetooth", "flujo")).toMatch(/solo mensajes y archivos \(≤ 20 MB\)/);
+        expect(limiteArchivo("bluetooth")).toBe(MAX_BLUETOOTH_BYTES);
+        expect(cabeArchivo("bluetooth", MAX_BLUETOOTH_BYTES)).toEqual({ cabe: true });
+        expect(cabeArchivo("bluetooth", MAX_BLUETOOTH_BYTES + 1).cabe).toBe(false);
+        expect(esMedioP2P("bluetooth")).toBe(true);
+        expect(rutaDeArchivo({ enlaceId: "ble:b3", enlace: "Maggaboard · Bluetooth", medio: "bluetooth" })).toBe(
+            "Bluetooth directo (app nativa, sin router) — hacia Maggaboard · Bluetooth",
+        );
+        expect(AVISO_LIMITES_MEDIOS).toMatch(/Bluetooth directo/);
     });
 
     it("límites por medio: 4 GB por la malla, 50 MB por el servidor, nada por relé ni LoRa", () => {

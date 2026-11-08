@@ -17,7 +17,7 @@ import type { PasoEnvio, ViaSync } from "./sincronizacion-neuronas";
 
 export const CLAVE_AJUSTES_VINCULOS = "starseed.malla.vinculos-ajustes.v1";
 
-export const TODAS_LAS_VIAS: readonly ViaSync[] = ["red-local-nativa", "enlace-local", "malla-cuenta", "vinculo-par", "rele", "lora"];
+export const TODAS_LAS_VIAS: readonly ViaSync[] = ["red-local-nativa", "enlace-local", "bluetooth", "malla-cuenta", "vinculo-par", "rele", "lora"];
 
 export interface AjustesVinculo {
   reconectarSola: boolean;
@@ -95,7 +95,7 @@ export function alternarVia(a: AjustesVinculo, via: ViaSync): AjustesVinculo {
   return leerAjustesVinculo({ ...a, viasPermitidas: siguiente });
 }
 
-const VIAS_DEL_TRANSPORTE: readonly ViaSync[] = ["enlace-local", "malla-cuenta", "vinculo-par", "lora"];
+const VIAS_DEL_TRANSPORTE: readonly ViaSync[] = ["enlace-local", "bluetooth", "malla-cuenta", "vinculo-par", "lora"];
 
 /** ¿Este paso del plan de envío puede usarse con esa neurona? */
 export function pasoPermitido(a: AjustesVinculo, paso: PasoEnvio): boolean {

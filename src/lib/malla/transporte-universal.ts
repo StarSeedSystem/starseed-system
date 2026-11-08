@@ -12,6 +12,9 @@
  *   · nativo → canal TCP de la app nativa con una neurona VINCULADA de esta red (`nativo:<ip>`,
  *              `red-local-nativa-motor.ts`, MLT1107A): mensajes con el acuse de la otra app y archivos
  *              a su ritmo; sin flujos (van por el enlace local que se abre solo);
+ *   · ble    → Bluetooth directo entre dos apps nativas, SIN router ni internet (`ble:<id>`,
+ *              `bluetooth-directo-motor.ts`, BLE1108A): mensajes con acuse y archivos ≤ 20 MB a lo
+ *              que dé el aire; sin flujos ni llamadas;
  *   · cuenta → canal WebRTC de la malla de la cuenta (`lan-sync`/`webrtc-mesh`);
  *   · par    → canal WebRTC de un vínculo entre cuentas aceptado (`vinculos-entre-cuentas`);
  *   · rele   → relé cifrado del servidor del OS (`server-relay.uploadRelay`, solo mensajes);
@@ -162,6 +165,8 @@ export interface DepsEnvio {
    * así que un «ok» ya es entrega confirmada. Sin él, el enlace nativo se da por fallido.
    */
   enviarNativo?(enlace: EnlaceDisponible, texto: string): Promise<{ ok: boolean; detalle: string }>;
+  /** (BLE1108A) Bluetooth directo (`ble:<id>`): como el nativo, un «ok» es el ACUSE de la otra app. */
+  enviarBle?(enlace: EnlaceDisponible, texto: string): Promise<{ ok: boolean; detalle: string }>;
 }
 
 export interface OpcionesEnvio {
@@ -226,11 +231,15 @@ export function crearEnviador(deps: DepsEnvio) {
         if (r.ok) return { ...base, ok: true, confirmado: false, enlace: ref };
         continue;
       }
-      if (enlace.tipo === "nativo") {
-        let r: { ok: boolean; detalle: string } = { ok: false, detalle: "el canal local de la app nativa no está activo" };
-        if (deps.enviarNativo) {
+      if (enlace.tipo === "nativo" || enlace.tipo === "ble") {
+        const via = enlace.tipo === "ble" ? deps.enviarBle : deps.enviarNativo;
+        let r: { ok: boolean; detalle: string } = {
+          ok: false,
+          detalle: enlace.tipo === "ble" ? "el Bluetooth directo de la app nativa no está activo" : "el canal local de la app nativa no está activo",
+        };
+        if (via) {
           try {
-            r = await deps.enviarNativo(enlace, texto);
+            r = await via(enlace, texto);
           } catch {
             r = { ok: false, detalle: "fallo al enviar" };
           }
@@ -326,6 +335,26 @@ async function cargarNativo(): Promise<ModNativo | null> {
   return modNativo;
 }
 
+type ModBle = typeof import("@/lib/malla/bluetooth-directo-motor");
+let modBle: ModBle | null = null;
+
+/** (BLE1108A) El enlace `ble:<id>` solo existe en la app nativa (en el navegador ni se carga). */
+async function cargarBle(): Promise<ModBle | null> {
+  if (modBle) return modBle;
+  if (!esAppNativa()) return null;
+  try {
+    modBle = await import("@/lib/malla/bluetooth-directo-motor");
+  } catch {
+    modBle = null;
+  }
+  return modBle;
+}
+
+/** «ble:b3» → «b3» (sin importar el módulo puro: el transporte no carga el radar). */
+function enlaceBleDe(id: string): string | null {
+  return /^ble:b\d{1,9}$/.test(id) ? id.slice(4) : null;
+}
+
 /**
  * (MLL1107A) Antes de elegir el medio de un mensaje a UNA neurona: si es la app nativa y el faro oye esa
  * neurona sin enlace `nativo:<ip>`, la saluda ya y espera un momento (`asegurarLigadura`). Devuelve qué
@@ -352,6 +381,12 @@ export async function enlacesDisponibles(): Promise<EnlaceDisponible[]> {
     out.push(...((await cargarNativo())?.redLocalNativaActiva()?.enlaces() ?? []));
   } catch {
     /* sin canal local nativo */
+  }
+  try {
+    // (BLE1108A) Bluetooth directo entre las apps nativas (sin router).
+    out.push(...((await cargarBle())?.bluetoothDirectoActivo()?.enlaces() ?? []));
+  } catch {
+    /* sin Bluetooth directo */
   }
 
   const uid = await miUid();
@@ -500,6 +535,15 @@ export const enviarMensaje = crearEnviador({
       ? { ok: true, detalle: `entregado: la app del otro aparato acusó recibo${typeof r.ms === "number" ? ` (${r.ms} ms)` : ""}` }
       : { ok: false, detalle: r.motivo ?? "no salió por la red local" };
   },
+  async enviarBle(enlace, texto) {
+    const b = enlaceBleDe(enlace.id);
+    const red = (await cargarBle())?.bluetoothDirectoActivo();
+    if (!b || !red) return { ok: false, detalle: "el Bluetooth directo de la app nativa no está activo" };
+    const r = await red.enviarTexto(b, texto);
+    return r.ok
+      ? { ok: true, detalle: `entregado por Bluetooth directo: la app del otro aparato acusó recibo${typeof r.ms === "number" ? ` (${r.ms} ms)` : ""}` }
+      : { ok: false, detalle: r.motivo ?? "no salió por Bluetooth" };
+  },
 });
 
 /* ══════════════════════════ Recepción ══════════════════════════ */
@@ -600,6 +644,12 @@ function canalDeEnlace(e: EnlaceDisponible): CanalArchivos | null {
     const ip = ipDeEnlaceNativo(e.id);
     const red = modNativo?.redLocalNativaActiva();
     return ip && red ? red.canalArchivos(ip) : null;
+  }
+  if (e.tipo === "ble") {
+    // (BLE1108A) Trozos de 10 KiB (en base64 caben en una trama Bluetooth de 16 KiB).
+    const b = enlaceBleDe(e.id);
+    const red = modBle?.bluetoothDirectoActivo();
+    return b && red ? red.canalArchivos(b) : null;
   }
   if (e.tipo === "cuenta") {
     const mesh = getSharedMesh();
@@ -707,6 +757,10 @@ export async function abrirCanalDatos(
     }
     if (enlace.tipo === "nativo") {
       descartados.push({ id: enlace.id, tipo: enlace.tipo, motivo: "el canal TCP de la app nativa no lleva transmisiones en vivo: van por el enlace directo que abren solas las dos apps" });
+      continue;
+    }
+    if (enlace.tipo === "ble") {
+      descartados.push({ id: enlace.id, tipo: enlace.tipo, motivo: "el Bluetooth directo no lleva transmisiones en vivo (decenas de KB/s, con acuse por trama)" });
       continue;
     }
     elegido ??= enlace;

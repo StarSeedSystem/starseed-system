@@ -14,6 +14,7 @@ import { esTerminal } from "./sincronizacion-neuronas";
 export const ETIQUETA_VIA_CORTA: Record<ViaSync, string> = {
   "red-local-nativa": "Red local (app nativa)",
   "enlace-local": "Enlace directo (QR)",
+  bluetooth: "Bluetooth directo",
   "malla-cuenta": "Malla de tu cuenta",
   "vinculo-par": "Vínculo entre cuentas",
   rele: "Relé cifrado",
@@ -21,7 +22,7 @@ export const ETIQUETA_VIA_CORTA: Record<ViaSync, string> = {
 };
 
 /** Desempate cuando dos vías no tienen medida: primero lo más directo y sin internet. */
-export const ORDEN_VIAS: readonly ViaSync[] = ["red-local-nativa", "enlace-local", "malla-cuenta", "vinculo-par", "lora", "rele"];
+export const ORDEN_VIAS: readonly ViaSync[] = ["red-local-nativa", "enlace-local", "bluetooth", "malla-cuenta", "vinculo-par", "lora", "rele"];
 
 /** «sin medir» / «<1 ms» / «12 ms» / «1,2 s». */
 export function textoLatencia(ms: number | null | undefined): string {

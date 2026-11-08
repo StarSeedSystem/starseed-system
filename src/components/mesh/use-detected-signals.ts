@@ -51,6 +51,9 @@ import { resolverFarosPropios } from "@/lib/senales/faros-propios";
 import { useMallaNeuronasEstado } from "@/lib/network/malla-neuronas";
 import { senalesRedLocal } from "@/lib/malla/sincronizacion-neuronas";
 import { useRedLocal } from "@/lib/malla/sincronizacion-neuronas-motor";
+// (BLE1108A) Vecinos oídos por el Bluetooth directo de la app nativa, como señales reales con su RSSI.
+import { senalesBluetoothDirecto } from "@/lib/malla/bluetooth-directo";
+import { useEstadoBluetooth } from "@/lib/malla/bluetooth-directo-estado";
 
 /** Cadencia de refresco del registro de neuronas (consulta a la cuenta). */
 const NEURONS_REFRESH_MS = 90_000;
@@ -200,6 +203,8 @@ export function useDetectedSignals(options?: DetectedSignalsOptions): DetectedSi
   // (MSH1107A) Neuronas que la app nativa oye por faro en esta red (también sin internet), con
   // «Sincronizar ahora». Fuera de la app nativa la lista está vacía y no se sondea nada.
   const redLocal = useRedLocal();
+  // (BLE1108A) Estado del Bluetooth directo (null fuera de la app nativa).
+  const bluetooth = useEstadoBluetooth();
   const [neuronsState, setNeuronsState] = useState<NeuronsCache>(() => neuronsCache);
   const [serialPorts, setSerialPorts] = useState<SerialPortView[]>([]);
   const [serialProbed, setSerialProbed] = useState(false);
@@ -325,6 +330,8 @@ export function useDetectedSignals(options?: DetectedSignalsOptions): DetectedSi
               ...senalesVistasPorOtras(radarRemoto, now),
               // (MSH1107A) Las que ya están pintadas como neurona de la cuenta no se repiten.
               ...senalesRedLocal(redLocal.vecinos, redLocal.vinculos, now, new Set(neurons.map((n) => n.id))),
+              // (BLE1108A) Bluetooth directo: cada vecino oído es una señal con su RSSI medido.
+              ...senalesBluetoothDirecto(bluetooth, now, new Map(neurons.map((n) => [n.id, n.name] as [string, string]))),
             ],
             now,
           ),
@@ -332,7 +339,7 @@ export function useDetectedSignals(options?: DetectedSignalsOptions): DetectedSi
         malla.misDispositivos,
       ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [mesh, farosVistos, neurons, freshBle, serialPorts, tick, radioLocal, radarRemoto, malla.misDispositivos, redLocal.vecinos, redLocal.vinculos],
+    [mesh, farosVistos, neurons, freshBle, serialPorts, tick, radioLocal, radarRemoto, malla.misDispositivos, redLocal.vecinos, redLocal.vinculos, bluetooth],
   );
 
   const unavailable = useMemo<UnavailableSource[]>(() => {

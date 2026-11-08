@@ -3,6 +3,8 @@
 import { useEffect, useState, useMemo } from 'react';
 import { inventarioPorMedio, Plataforma } from '../../lib/malla/cristal/permisos-antenas';
 import { resumenTransportes, ResumenTransportes, EstadoTransporte } from '../../lib/malla/estado-transportes';
+// (BLE1108A) Bluetooth directo de la app nativa (solo se pinta allí).
+import BluetoothDirectoPanel from './bluetooth-directo-panel';
 
 export default function PermisosAntenas() {
   const [estado, setEstado] = useState<{
@@ -112,6 +114,7 @@ export default function PermisosAntenas() {
     <div>
       <h2 className="text-lg font-semibold text-white/90 mb-3">Permisos de antenas</h2>
       <p className="text-sm text-white/50 mb-4">Plataforma detectada: {estado.plataforma}</p>
+      <BluetoothDirectoPanel />
       
       <div className="space-y-2 mb-6 rounded-xl border border-white/10 bg-white/[0.03] p-4">
         <h3 className="text-sm font-medium text-white/70 mb-3">Resumen de transportes</h3>

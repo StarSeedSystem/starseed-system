@@ -246,6 +246,7 @@ export interface RutasCorreo {
 /** Medio (para la pastilla) de un tipo de enlace del transporte universal. */
 export function medioDeTipo(tipo: string): string {
     if (tipo === "local" || tipo === "nativo") return "local";
+    if (tipo === "ble") return "bluetooth"; // (BLE1108A) Bluetooth directo entre apps nativas
     if (tipo === "cuenta" || tipo === "par") return "p2p-internet";
     return tipo;
 }
