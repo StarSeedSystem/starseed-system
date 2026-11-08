@@ -106,7 +106,7 @@ describe("migración gen12 al abrir el tablero", () => {
         const widgets = JSON.parse(localStorage.getItem("starseed_widgets")!) as Record<string, { widget_type: string }[]>;
         // Inicio intacto → diseño gen12 (trae la última respuesta de Aurora).
         expect(widgets.inicio.map((w) => w.widget_type)).toContain("AURORA_LAST");
-        expect(dashboards.find((d) => d.id === "inicio")!.plantilla?.v).toMatch(/^gen12/);
+        expect(dashboards.find((d) => d.id === "inicio")!.plantilla?.v).toMatch(/^gen13/);
         // Política tocada y la pestaña propia: exactamente como estaban.
         expect(widgets.politica).toEqual(antes.politica);
         expect(widgets.mia).toEqual(antes.mia);
@@ -145,7 +145,7 @@ describe("migración gen12 al abrir el tablero", () => {
         await screen.findByTestId("rejilla");
         const dashboards = JSON.parse(localStorage.getItem("starseed_dashboards")!) as { name: string; is_default: boolean; plantilla?: { v: string } }[];
         expect(dashboards).toHaveLength(18);
-        expect(dashboards.every((d) => d.plantilla?.v.startsWith("gen12"))).toBe(true);
+        expect(dashboards.every((d) => d.plantilla?.v.startsWith("gen13"))).toBe(true);
         expect(dashboards.filter((d) => d.is_default).map((d) => d.name)).toEqual(["Inicio"]);
     });
 });
@@ -177,7 +177,7 @@ describe("pestañas temáticas duplicadas", () => {
         const { dashboards, widgets } = leer();
         expect(dashboards).toHaveLength(18);
         expect(dashboards.every((d) => d.id.startsWith("r-"))).toBe(true);
-        expect(dashboards.find((d) => d.id === "r-clima")!.plantilla?.v).toMatch(/^gen12/);
+        expect(dashboards.find((d) => d.id === "r-clima")!.plantilla?.v).toMatch(/^gen13/);
         expect(widgets["r-politica"]).toEqual(cuenta.widgets["r-politica"]);
         expect(within(screen.getByRole("tablist")).getAllByRole("tab", { name: "Inicio" })).toHaveLength(1);
     });

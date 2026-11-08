@@ -166,6 +166,11 @@ def test_el_dream_lleva_el_contexto_y_la_plantilla():
     assert r.stdout == P.PLANTILLA_LINEA and subprocess.run(["bash", "-n", os.path.join(DIRECTORIO, "..", "hermes", "starseed-dream.sh")]).returncode == 0
 
 
+def test_el_dream_ejecuta_auto_refresh_de_modelos():
+    sh = open(os.path.join(DIRECTORIO, "..", "hermes", "starseed-dream.sh"), encoding="utf-8").read()
+    assert "hermes model --refresh" in sh
+
+
 # ───────────────────── enganche: sueños profundos y agente de alcance (IMG1102E) ─────────────────────
 AREA = {"id": "mando", "nombre": "Genesis", "descripcion": "Orquestación"}
 FICHA = {"nombre_publico": "Taller de Viento", "que_hacen": "Arte comunitario.", "canal_oficial": {},

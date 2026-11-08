@@ -673,6 +673,42 @@ export async function enviarMensajeChat(e: EnvioChat): Promise<ResultadoChat> {
 let reintentando = false;
 let reintentarOtraVez = false;
 
+/**
+ * (BLE1108B + OFF1108A) UN solo disparador de «hay un enlace nuevo → vacía la cola»: lo usan el registro de
+ * enlaces locales, el Bluetooth ligado y el arranque sin internet (`arranque-sin-red.ts`, que agrupa 600 ms).
+ * Un disparo que llega a menos de `ENFRIAMIENTO_ENLACE_MS` de una vuelta ya lanzada por un enlace no vuelve a
+ * lanzarla: el mismo registro no hace dos reintentos.
+ */
+export const ENFRIAMIENTO_ENLACE_MS = 1_000;
+let disparadorEnlace: ReturnType<typeof crearDisparadorReintento> | null = null;
+let ultimaVueltaEnlaceMs = -Infinity;
+let vueltasPorEnlace = 0;
+function disparadorDeEnlace(): ReturnType<typeof crearDisparadorReintento> {
+    if (!disparadorEnlace) {
+        disparadorEnlace = crearDisparadorReintento({
+            reintentar: () => reintentarPendientes(),
+            alArrancar: () => {
+                ultimaVueltaEnlaceMs = Date.now();
+                vueltasPorEnlace++;
+            },
+        });
+    }
+    return disparadorEnlace;
+}
+export function reintentarAlEnlazar(motivo = "enlace nuevo", ahora: number = Date.now()): void {
+    if (ahora - ultimaVueltaEnlaceMs < ENFRIAMIENTO_ENLACE_MS) return;
+    disparadorDeEnlace().disparar(motivo);
+}
+/** Para pruebas. */
+export function __reiniciarDisparadorEnlace(): void {
+    disparadorEnlace?.parar();
+    disparadorEnlace = null;
+    ultimaVueltaEnlaceMs = -Infinity;
+    vueltasPorEnlace = 0;
+}
+/** Para pruebas: cuántas vueltas lanzaron los enlaces. */
+export const __vueltasPorEnlace = () => vueltasPorEnlace;
+
 /** Reintenta lo que espera un medio. Devuelve cuántos salieron. */
 export async function reintentarPendientes(): Promise<number> {
     if (reintentando) {
@@ -1117,16 +1153,19 @@ export function iniciarBuzonMalla(): () => void {
     void asegurarOyentesCuenta();
     // (BLE1108B) Cada enlace que se registra (Bluetooth ligado a una neurona, enlace local, red local nativa)
     // vacía la cola AL INSTANTE: «esperando un medio disponible» se quita solo, sin esperar a los 20 s.
-    const disparador = crearDisparadorReintento({ reintentar: () => reintentarPendientes() });
-    bajas.push(() => disparador.parar());
+    const disparador = disparadorDeEnlace();
+    bajas.push(() => {
+        disparador.parar();
+        if (disparadorEnlace === disparador) disparadorEnlace = null;
+    });
     void import("@/lib/malla/registro-enlaces-locales")
         .then((r) => {
-            if (activo) bajas.push(r.alRegistrarEnlaceLocal(() => disparador.disparar("enlace local")));
+            if (activo) bajas.push(r.alRegistrarEnlaceLocal(() => reintentarAlEnlazar("enlace local")));
         })
         .catch(() => undefined);
     void import("@/lib/malla/bluetooth-directo-motor")
         .then((b) => {
-            if (activo) bajas.push(b.alLigarBle(() => disparador.disparar("Bluetooth directo ligado")));
+            if (activo) bajas.push(b.alLigarBle(() => reintentarAlEnlazar("Bluetooth directo ligado")));
         })
         .catch(() => undefined);
     const tic = () => {

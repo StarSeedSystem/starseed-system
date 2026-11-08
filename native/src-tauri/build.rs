@@ -40,6 +40,10 @@ const COMANDOS_APP: &[&str] = &[
     // (MIC1108A) Qué sabe la app de los permisos de medios y abrir los ajustes del sistema.
     "medios_estado",
     "medios_abrir_ajustes",
+    // (PER1108A) Asistente de permisos del primer arranque y pantalla completa de la ventana.
+    "permisos_inicio_estado",
+    "permisos_inicio_pedir",
+    "ventana_pantalla_completa",
     "recursos_ia_detectar",
     "antenas_estado",
     "antenas_medir",

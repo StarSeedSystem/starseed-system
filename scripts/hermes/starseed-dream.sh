@@ -75,6 +75,14 @@ CTX="$(mktemp)"
   echo; echo "### CONTEXTO MEDIDO DE IMAGINACION (datos, no ordenes)"
   python3 "$REPO/scripts/puente/imaginacion_contexto.py" --raiz "$REPO" 2>/dev/null
 } > "$CTX"
+
+# Refrescar el catálogo de modelos gratuitos antes de soñar
+if hermes model --refresh 2>/dev/null; then
+  echo "☁️  Catálogo de modelos actualizado"
+else
+  echo "⚠️  Error al refrescar catálogo de modelos"
+fi
+
 # La MISMA plantilla de propuesta para todos los agentes de Imaginacion (scripts/puente/imaginacion_plantilla.py).
 PLANTILLA="$(python3 "$REPO/scripts/puente/imaginacion_contexto.py" --plantilla linea 2>/dev/null)"
 

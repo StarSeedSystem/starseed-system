@@ -230,8 +230,9 @@ const BASE_DEFAULT_DASHBOARD_TEMPLATES: DefaultDashboardTemplate[] = [
             p('TASKS_QUICK', 0, 5, 4, 4),
             p('AURORA_LAST', 4, 5, 4, 4),
             p('QUICK_ACCESS', 8, 5, 4, 4),
-            p('NETWORK_FEED_MINI', 0, 9, 7, 5),
-            // Red sináptica (Adenda 99): sigue en Inicio, ahora como pieza junto al feed.
+            // (PER1108A) El «Feed de la red» se retiró (FEED1108A): en su sitio, la actividad reciente.
+            p('RECENT_ACTIVITY', 0, 9, 7, 5),
+            // Red sináptica (Adenda 99): sigue en Inicio, ahora como pieza junto a la actividad.
             p('INTERNET_RADAR', 7, 9, 5, 5),
         ],
     },
@@ -436,7 +437,7 @@ const BASE_DEFAULT_DASHBOARD_TEMPLATES: DefaultDashboardTemplate[] = [
         name: 'Red',
         lema: 'Tu constelación de personas y nodos',
         widgets: [
-            p('NETWORK_FEED_MINI', 0, 0, 7, 7, 'heroe'),
+            p('RECENT_ACTIVITY', 0, 0, 7, 7, 'heroe'),
             p('MESSAGES', 7, 0, 5, 4),
             p('NOTIFICATIONS', 7, 4, 5, 3),
             p('COMMUNITIES', 0, 7, 4, 5),

@@ -60,6 +60,10 @@ export interface ServicioAndroid {
   sdk: number;
   bateria_exenta: boolean;
   notificaciones: boolean;
+  // (PER1108A) Permisos del primer arranque que mide Kotlin.
+  microfono: boolean;
+  camara: boolean;
+  instalar_apps: boolean;
 }
 
 export interface EstadoFondo {

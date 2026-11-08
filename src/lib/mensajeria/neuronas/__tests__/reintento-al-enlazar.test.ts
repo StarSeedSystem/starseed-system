@@ -54,3 +54,25 @@ describe("crearDisparadorReintento", () => {
     vi.useRealTimers();
   });
 });
+
+describe("un solo disparador de enlace (BLE1108B + OFF1108A)", () => {
+  it("el mismo enlace avisado por el buzón y por el arranque sin internet no hace dos vueltas", async () => {
+    const { reintentarAlEnlazar, __reiniciarDisparadorEnlace, __vueltasPorEnlace, ENFRIAMIENTO_ENLACE_MS } = await import("../buzon");
+    __reiniciarDisparadorEnlace();
+    vi.useFakeTimers();
+    const t0 = Date.now();
+    reintentarAlEnlazar("Bluetooth directo ligado", t0);
+    await vi.advanceTimersByTimeAsync(ESPERA_REINTENTO_ENLACE_MS + 5); // sale la vuelta de 150 ms
+    // 600 ms después llega el aviso agrupado del arranque sin internet: dentro del enfriamiento, no repite.
+    reintentarAlEnlazar("arranque sin internet", Date.now() + 450);
+    await vi.advanceTimersByTimeAsync(ESPERA_REINTENTO_ENLACE_MS + 5);
+    expect(ENFRIAMIENTO_ENLACE_MS).toBeGreaterThan(600);
+    expect(__vueltasPorEnlace()).toBe(1);
+    // Un enlace que llega mucho después sí vuelve a vaciar la cola.
+    reintentarAlEnlazar("enlace local", Date.now() + ENFRIAMIENTO_ENLACE_MS + 10);
+    await vi.advanceTimersByTimeAsync(ESPERA_REINTENTO_ENLACE_MS + 5);
+    expect(__vueltasPorEnlace()).toBe(2);
+    __reiniciarDisparadorEnlace();
+    vi.useRealTimers();
+  });
+});

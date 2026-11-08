@@ -418,6 +418,22 @@ jobs:
         run: |
           echo "::warning::Este instalador de StarSeed OS sale SIN servidor local: abrirá la web publicada (necesita internet), como antes. Mira los pasos «Servidor local» de este job y el job servidor-local-next."
 
+      # ── (PER1108A) macOS · firma del BUNDLE ──
+      # Antes la .app salía con la firma mínima del enlazador (flags=0x20002 adhoc,linker-signed; identificador
+      # starseed_native-<hash>): el bundle no estaba firmado, el Info.plist (textos de Bluetooth, red local, micrófono,
+      # cámara, ubicación) no iba atado a la firma y macOS denegaba el Bluetooth SIN preguntar. Ahora Tauri firma el
+      # bundle entero con el identificador estable app.starseed.os. Hardened runtime: apagado (`hardenedRuntime:
+      # false` en tauri.conf.json) porque no hay entitlements; encenderlo sin ellos negaría micrófono, cámara y
+      # Bluetooth. Contrato: architecture/centro-versiones-1105.md «Firma de macOS».
+      - name: macOS · preparar la firma del bundle
+        id: firma_mac
+        if: runner.os == 'macOS'
+        shell: bash
+        env:
+          MACOS_CERT_P12_BASE64: ${{ secrets.MACOS_CERT_P12_BASE64 }}
+          MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+        run: bash native/scripts/firma-macos-preparar.sh
+
       # ── Build + Release con la acción oficial de Tauri ──
       # (CI1108N) GitHub y los CDN de herramientas dan 5xx/timeouts sueltos (run 42465968141: el bundler no pudo
       # bajar linuxdeploy/WiX/NSIS: «failed to bundle project: http status: 504»). Reintento: UN segundo intento,
@@ -452,6 +468,10 @@ jobs:
           # vacío, así que lo dejamos referenciado (se activa al añadir el secreto).
           WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
           WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+          # (PER1108A) Firma del BUNDLE de macOS en los dos canales: la identidad la deja el paso «macOS · preparar la
+          # firma» (certificado propio del llavero temporal, o «-» = ad-hoc). Vacío fuera de macOS (no hace nada).
+          # Tauri firma la .app (sellando Info.plist y recursos) ANTES de hacer el .dmg y el .app.tar.gz del updater.
+          APPLE_SIGNING_IDENTITY: ${{ steps.firma_mac.outputs.identidad }}
         with:
           # La raíz del proyecto Tauri (donde está src-tauri/).
           projectPath: native
@@ -500,6 +520,10 @@ jobs:
           # vacío, así que lo dejamos referenciado (se activa al añadir el secreto).
           WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
           WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+          # (PER1108A) Firma del BUNDLE de macOS en los dos canales: la identidad la deja el paso «macOS · preparar la
+          # firma» (certificado propio del llavero temporal, o «-» = ad-hoc). Vacío fuera de macOS (no hace nada).
+          # Tauri firma la .app (sellando Info.plist y recursos) ANTES de hacer el .dmg y el .app.tar.gz del updater.
+          APPLE_SIGNING_IDENTITY: ${{ steps.firma_mac.outputs.identidad }}
         with:
           # La raíz del proyecto Tauri (donde está src-tauri/).
           projectPath: native
@@ -518,6 +542,26 @@ jobs:
           includeUpdaterJson: ${{ matrix.system == 'os' }}
           # Config extra por sistema + args de target de la matriz (+ en pruebas, Linux sin .rpm · INT1108C).
           args: ${{ steps.cfg.outputs.flag }} ${{ matrix.args }} ${{ steps.cfg.outputs.bundles }}
+
+      # ── (PER1108A) macOS · la firma salió bien ──
+      # `codesign -dv` no puede decir solo «linker-signed» y `codesign --verify --deep --strict` debe pasar, tanto
+      # en la .app como dentro del .app.tar.gz del updater (que se hace DESPUÉS de firmar).
+      - name: macOS · verificar la firma del bundle y del paquete del updater
+        if: runner.os == 'macOS' && steps.tauri1.outcome != 'skipped'
+        shell: bash
+        run: |
+          shopt -s nullglob
+          APPS=(native/src-tauri/target/*/release/bundle/macos/*.app native/src-tauri/target/release/bundle/macos/*.app)
+          TARS=(native/src-tauri/target/*/release/bundle/macos/*.app.tar.gz native/src-tauri/target/release/bundle/macos/*.app.tar.gz)
+          if [ ${#APPS[@]} -eq 0 ] || [ ${#TARS[@]} -eq 0 ]; then
+            echo "::error::No encuentro la .app ni su .app.tar.gz del updater para comprobar la firma."
+            exit 1
+          fi
+          codesign -dv --verbose=4 "${APPS[0]}" 2>&1 | grep -E 'Identifier|flags|Info.plist|Sealed|Authority|Signature' || true
+          for f in "${APPS[@]}" "${TARS[@]}"; do
+            node native/scripts/verificar-firma-macos.mjs "$f" --id app.starseed.os
+          done
+          echo "Firma de macOS: modo ${{ steps.firma_mac.outputs.modo }}" >> "$GITHUB_STEP_SUMMARY"
 
       # Tamaño real de cada instalador en el resumen del job (contrato APP1107A §tamaños).
       - name: Tamaños de los instaladores

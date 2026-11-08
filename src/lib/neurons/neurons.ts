@@ -972,6 +972,20 @@ export async function setNeuronHermioneSync(neuronId: string, on: boolean): Prom
   }
 }
 
+/* ── (OFF1108A) Copia local de la lista para arrancar sin internet ─────────── */
+
+function guardarNeuronasSinRed(owner: string, filas: Array<Record<string, unknown>>): void {
+  void import("@/lib/sin-internet/instantanea-cuenta").then((m) => m.guardarNeuronas(owner, filas)).catch(() => undefined);
+}
+
+async function leerNeuronasSinRed(owner: string): Promise<Array<Record<string, unknown>> | null> {
+  try {
+    return await (await import("@/lib/sin-internet/instantanea-cuenta")).leerNeuronas(owner);
+  } catch {
+    return null;
+  }
+}
+
 /* ── Caché compartida de la lista (contrato «consumo») ───────────────────── */
 
 interface CacheLista {
@@ -1095,8 +1109,19 @@ export async function listNeurons(opts?: { fresco?: boolean }): Promise<Neuron[]
       if (leidas) {
         cacheLista = { owner, en: Date.now(), filas: leidas };
         ultimaListaBuena = cacheLista;
+        // (OFF1108A) Copia en el aparato para arrancar sin internet (no espera, no estorba).
+        guardarNeuronasSinRed(owner, leidas);
       }
       filas = leidas ?? cache?.filas ?? (ultimaListaBuena?.owner === owner ? ultimaListaBuena.filas : null);
+    }
+    // (OFF1108A) Arranque en frío sin red: ni caché en memoria ni lectura posible → la instantánea de la cuenta.
+    // Antes aquí solo salía «este dispositivo» y las demás neuronas (la Mac) desaparecían sin internet.
+    if (!filas) {
+      filas = await leerNeuronasSinRed(owner);
+      if (filas) {
+        cacheLista = null;
+        ultimaListaBuena = { owner, en: 0, filas };
+      }
     }
     if (!filas) return local ? [local] : [];
     // (NEU1107B) Una fila conservada con la marca de fusión es la de ESTE medio y el alias aún no llegó

@@ -83,6 +83,47 @@ object Vigia : Application.ActivityLifecycleCallbacks {
         when (p.optString("accion")) {
             "bateria" -> pedirBateria(a)
             "ajustes" -> abrirAjustes(a)
+            else -> {
+                // (PER1108A) «permiso:<id>»: uno cada vez, lo pide el asistente del primer arranque.
+                val accion = p.optString("accion")
+                if (accion.startsWith("permiso:")) pedirPermiso(a, accion.removePrefix("permiso:"))
+            }
+        }
+    }
+
+    // (PER1108A) Permisos del primer arranque. Micrófono, cámara y notificaciones son permisos de
+    // tiempo de ejecución; «Instalar apps desconocidas» es una pantalla de Ajustes (la usa el
+    // actualizador). El resultado se ve al volver a la app: onActivityResumed reescribe servicio.json.
+    private fun pedirPermiso(a: Activity, id: String) {
+        val ctx = a.applicationContext
+        val permiso: String? = when (id) {
+            "microfono" -> android.Manifest.permission.RECORD_AUDIO
+            "camara" -> android.Manifest.permission.CAMERA
+            "notificaciones" -> if (android.os.Build.VERSION.SDK_INT >= 33) "android.permission.POST_NOTIFICATIONS" else null
+            else -> null
+        }
+        if (id == "instalar") {
+            if (android.os.Build.VERSION.SDK_INT >= 26 && !ctx.packageManager.canRequestPackageInstalls()) {
+                try {
+                    a.startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:" + a.packageName)))
+                } catch (e: Exception) {
+                    abrirAjustes(a)
+                }
+            }
+            return
+        }
+        if (permiso == null) {
+            Archivos.escribirServicio(ctx, ServicioAntenas.vivo, ServicioAntenas.motivo)
+            return
+        }
+        if (ctx.checkSelfPermission(permiso) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            Archivos.escribirServicio(ctx, ServicioAntenas.vivo, ServicioAntenas.motivo)
+            return
+        }
+        try {
+            a.requestPermissions(arrayOf(permiso), 4731)
+        } catch (e: Exception) {
+            abrirAjustes(a)
         }
     }
 

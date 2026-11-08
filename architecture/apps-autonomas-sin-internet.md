@@ -1209,3 +1209,28 @@ En aparatos reales (T16): macOS — la primera llamada enseña el aviso del micr
 decir que no, el aviso de la web trae «Abrir ajustes» y abre Privacidad › Micrófono. Android — avisos de micrófono y
 cámara; tras negarlos, «Abrir ajustes» abre la ficha de la app. Pantalla compartida en macOS, Windows y Linux.
 iOS no está cubierto (necesita los mismos textos en un `Info.ios.plist`).
+
+## 14. Arranque sin internet tras reabrir (OFF1108A · ESCRITO SIN PUBLICAR)
+
+Prueba de campo 08-11 (tableta Android, sin Wi‑Fi, build 0.5.1-prueba.26): al reabrir, el perfil salía incompleto, los mensajes a la Mac seguían «esperando un medio disponible» y, tras vincular a mano en Señales, la app no reconocía a la neurona.
+
+### 14.1 Causas
+Ver `red-sin-dependencias.md` §7.6: sesión no renovable sin red ⇒ `uidActual()` nulo; perfil solo hidratado con sesión; lista de neuronas solo en memoria; `neuronasCuenta` vacío en el primer saludo; sin disparador de reintento al ligarse.
+
+### 14.2 Qué hay ahora
+- `src/lib/sin-internet/`: `uid-recordado` (solo el id), `instantanea-cuenta` (secciones versionadas, sin secretos), `perfil-sin-red` (perfil + avatar blob), `huellas-cuenta-vivas` (espejo síncrono para los motores), `arranque-sin-red` (aprender huellas + drenar el buzón al ligarse).
+- `usuario.ts`: `uidActual()` cae a la cuenta recordada si el fallo es de red (`sinRedProbable()`); no cachea «sin usuario» por red; cerrar sesión la olvida.
+- `account-context.tsx`: `sinConexion`; abre con el perfil guardado y refresca al volver la red.
+- `etiqueta-sin-internet.tsx`: monta `decidirModoAcceso` (sin certificado: «Sin internet · usando la sesión guardada»).
+
+### 14.3 Ganchos para BLE1108B (no tocado su motor más allá de `depsReales`)
+- `bluetooth-directo-motor.ts` y `red-local-nativa-motor.ts`: `depsReales` espera al espejo y `vinculos()` añade las huellas probadas; `neuronasCuenta()` une las de `antenas.json` con las de la instantánea.
+- Se necesita de su lado: que `RedBle.suscribir` notifique cuando una ligadura nueva queda ligada (ya lo hace con `avisar()`), y que `presencia-viva.ts` no marque «sin camino» antes de que el espejo cargue.
+- No hay gancho para huellas sin certificado en `recibirHola`; se resolvió con `vinculos()` para no tocar el motor.
+
+### 14.4 Qué mirar en la tableta
+1. En línea: abrir la app, esperar ~1 min (se escribe la instantánea y se aprende la huella de la Mac), cerrarla del todo.
+2. Sin Wi‑Fi: reabrir. Debe verse el nombre y el avatar, la Mac en Mensajes › Neuronas y la pastilla «Sin internet».
+3. Con la Mac cerca (Bluetooth/LAN): al ligarse, los mensajes en espera salen sin pulsar nada (≈1 s).
+4. Pendiente: cerebros fuera de línea solo se guardan (pertenencia); la lista de cerebros del OS no usa aún la copia.
+

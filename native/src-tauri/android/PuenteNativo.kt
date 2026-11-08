@@ -103,6 +103,24 @@ object Archivos {
         } catch (e: Exception) {
             j.put("notificaciones", false)
         }
+        // (PER1108A) Permisos del primer arranque: lo que el asistente enseña como «concedido».
+        j.put("microfono", concedido(ctx, android.Manifest.permission.RECORD_AUDIO))
+        j.put("camara", concedido(ctx, android.Manifest.permission.CAMERA))
+        j.put(
+            "instalar_apps",
+            try {
+                Build.VERSION.SDK_INT < 26 || ctx.packageManager.canRequestPackageInstalls()
+            } catch (e: Exception) {
+                false
+            },
+        )
         escribir(ctx, SERVICIO, j)
     }
+
+    private fun concedido(ctx: Context, permiso: String): Boolean =
+        try {
+            ctx.checkSelfPermission(permiso) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        } catch (e: Exception) {
+            false
+        }
 }
