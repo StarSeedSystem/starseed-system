@@ -4248,17 +4248,19 @@ def _comprobar_en_a1():
     if hay_que_recargar(_MTIMES_MODULOS["comprobar_en_a1"], mtime_ahora):
         try:
             import importlib
-            # Aseguramos que el módulo está en sys.path antes de intentar importarlo/recargarlo
+
+            # (SUP0811H) Recarga o primera importación: en ambos casos el módulo queda en
+            # sys.modules y de ahí se saca la función, sin `.get` sobre el módulo
+            # (AttributeError en cada arranque).
             if ruta not in sys.path:
                 sys.path.insert(0, ruta)
-            # Intentar recargar si ya estaba importado; si no, importar por primera vez
             if "comprobar_en_a1" in sys.modules:
                 importlib.reload(sys.modules["comprobar_en_a1"])
             else:
-                from comprobar_en_a1 import comprobar
-            # Actualizar el mtime visto
+                importlib.import_module("comprobar_en_a1")
+            modulo = sys.modules.get("comprobar_en_a1")
             _MTIMES_MODULOS["comprobar_en_a1"] = mtime_ahora
-            return sys.modules.get("comprobar_en_a1", {}).get("comprobar") or comprobar
+            return getattr(modulo, "comprobar")
         except Exception as e:
             evento("aviso", "", "fallo al recargar comprobar_en_a1: %s" % str(e)[:100])
             # Si falla la recarga, volver a importar la forma normal
