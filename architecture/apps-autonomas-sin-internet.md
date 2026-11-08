@@ -1018,6 +1018,11 @@ Siguiente paso posible: bajar solo lo cambiado (el manifiesto ya trae el SHA-256
     cambia de origen (sesión y datos locales de la web publicada no viajan: T14) y aún no se ha visto en un aparato
     real (§9.1, límites). Por eso va apagado; las etiquetas `v*` solo lo llevan con la variable del repo.
 
+14. **(MIC1108A) Micrófono, cámara y pantalla (§13).** Todo lo nativo llega solo con un build nuevo. Con firma
+    ad-hoc, macOS puede volver a preguntar por el micrófono tras cada actualización (TCC la ve como otra app). Si
+    algún día se firma con Developer ID (Tauri enciende el hardened runtime), hacen falta los entitlements
+    `com.apple.security.device.audio-input` y `com.apple.security.device.camera` (y `allow-jit` para el Node).
+
 ## 12. Pendientes (tareas concretas)
 
 | Id | Tarea |
@@ -1041,3 +1046,81 @@ Siguiente paso posible: bajar solo lo cambiado (el manifiesto ya trae el SHA-256
 | T13 | Bajar el peso de los 291 `*_client-reference-manifest.js` (252,6 MB, §6) en el paquete nativo |
 | T14 | Android con el interruptor: traer lo del origen de la web publicada al origen local (T4 en Android: la ventana única carga primero `offline.html` de la web con el script de exportación y luego va al servidor local) |
 | T15 | Android con el interruptor: ICU completo (`icudt78l.dat` en los assets + `NODE_ICU_DATA`) para que el servidor formatee en español |
+| T16 | (MIC1108A, §13) Ver en aparatos reales: aviso de micrófono y cámara de macOS, avisos de Android, «Abrir ajustes», pantalla compartida en macOS/Windows/Linux, auriculares Bluetooth en Android 12+. iOS (`Info.ios.plist`) sin cubrir |
+
+## 13. Micrófono, cámara y pantalla en las apps instaladas (MIC1108A · ESCRITO SIN PUBLICAR)
+
+**Síntoma (08-11, aparatos reales).** En la app de escritorio instalada (main `edcf74362f`, `app.starseed.os`, firma
+ad-hoc) el botón de llamada de Mensajes › Neuronas › Maggaboard decía «Este navegador no deja usar el micrófono».
+La APK de prueba, igual. Llamadas (voz, vídeo, pantalla), transmisiones en vivo y grabaciones dependen de esto.
+
+### 13.1 Causa por sistema
+
+| Sistema | Qué pasaba | Arreglo |
+|---|---|---|
+| macOS (WKWebView) | El `Info.plist` instalado no tenía `NSMicrophoneUsageDescription` ni `NSCameraUsageDescription`: WebKit no deja usar ni pedir el micro o la cámara en una app sin esos textos, y la web caía en su mensaje de «navegador». wry 0.57 sin manejador ya concedía todo en WebKit (`requestMediaCapturePermissionForOrigin` → `Grant`): solo faltaba el permiso del SISTEMA. La app va «linker-signed» ad-hoc, sin hardened runtime ni entitlements: no hacen falta (ver §11.14 si se firma de verdad). | Los dos textos en `native/src-tauri/Info.plist`; decisión por origen (§13.2). |
+| Android (WebView) | El manifiesto que genera `tauri android init` no declara `RECORD_AUDIO` ni `CAMERA`: wry responde a `onPermissionRequest` pidiendo el permiso en tiempo de ejecución y Android lo niega AL INSTANTE (permiso no declarado), sin preguntar. | `build.rs` → `android_parche::aplicar_medios`: bloque `STARSEED-MEDIOS` tras `<manifest …>` con `RECORD_AUDIO`, `MODIFY_AUDIO_SETTINGS`, `CAMERA`, `BLUETOOTH_CONNECT` (auriculares, Android 12+), `BLUETOOTH` hasta Android 11 y `uses-feature` del micro y la cámara con `required="false"`. Las tres apps (OS, Nexus, Café), aunque `STARSEED_SIN_SERVICIO_ANDROID` apague el servicio; si no puede, falla en alto. |
+| Windows (WebView2) | Funcionaba con el aviso propio de WebView2 por ORIGEN (cada puerto 4761x es otro origen) y un «Bloquear» se quedaba guardado sin forma de deshacerlo desde la app. | Orígenes propios: concedido en WebView2; manda Configuración › Privacidad del sistema. |
+| Linux (WebKitGTK) | `enable-media-stream` y `enable-webrtc` vienen APAGADOS y wry no los enciende: `navigator.mediaDevices` ni existía; y sin manejador, `permission-request` se denegaba. | `permisos_medios::encender_medios_linux` los enciende en la ventana `main`; orígenes propios → `allow()`. Hace falta un WebKitGTK compilado con WebRTC para llamar. |
+
+### 13.2 Qué decide la app (`native/src-tauri/src/permisos_medios.rs`)
+
+- `tauri::Builder::on_permission_request` (tauri ≥ 2.12, fijado en `Cargo.toml`) para `Microphone`, `Camera` y
+  `DisplayCapture`. Lo demás (ubicación, notificaciones…) responde `Default`: no cambia nada.
+- wry no da el origen de la petición: se usa la ÚLTIMA página cargada en esa ventana (`on_page_load`). Nunca
+  `webview.url()` dentro del manejador: en Android corre en el hilo de la interfaz y `url()` espera a ese hilo.
+- Página propia → `Allow` (el motor lo concede; el SISTEMA pregunta: TCC en macOS, permiso en tiempo de ejecución en
+  Android —wry lo pide igual con `Allow`—, Privacidad en Windows). Otra página → `Deny`. Aún sin página → `Default`
+  (el motor pregunta él).
+- Propias = `http://127.0.0.1:47610…47619` y `https://starseed-{os,nexus,cafe}.vercel.app`: las mismas de
+  `capabilities/default.json` (la prueba `contrato-rust.test.ts` las compara). Ni `localhost`, ni `https://127.0.0.1`,
+  ni usuario en la URL, ni otro puerto.
+
+### 13.3 Pantalla compartida
+
+- macOS: no hay clave de `Info.plist`; WKWebView trae `getDisplayMedia` en los macOS recientes y macOS pide «Grabación
+  de pantalla» (o enseña su selector). **Sin ver en aparato real.**
+- Windows: WebView2 enseña su propio selector. Linux: WebKitGTK ≥ 2.42 con el portal de escritorio; sin ver.
+- Android: el WebView no tiene `getDisplayMedia`: la web lo dice («Android no deja compartir la pantalla desde una
+  app web…») en vez de «no se eligió ninguna pantalla».
+- `src/lib/llamadas/pantalla.ts`: `pedirPantalla()` guarda el error y `motivoSinPantalla()` lo explica (cancelado,
+  sin «Grabación de pantalla» con «Abrir ajustes» en macOS, o no disponible).
+
+### 13.4 Comandos y web
+
+- `medios_estado` → `EstadoMediosNativo { version, plataforma, declarados, abrir_ajustes }`. Si la app no lo tiene
+  (la ACL lo rechaza), es anterior a MIC1108A: «app sin permiso». `declarados` en Android solo es `true` si `build.rs`
+  escribió el bloque (`--cfg starseed_medios_android`).
+- `medios_abrir_ajustes(tipo)` («microfono» | «camara» | «pantalla»), solo direcciones fijas: macOS
+  `x-apple.systempreferences:com.apple.preference.security?Privacy_{Microphone,Camera,ScreenCapture}`; Windows
+  `ms-settings:privacy-{microphone,webcam}`; Android la ficha de la app (petición «ajustes» al Kotlin de
+  `ArranqueStarSeed.kt`, solo en StarSeed OS, que lleva ese puente). Linux e iOS: no hay.
+- Web: `src/lib/llamadas/permiso-medios.ts` (puro) clasifica: **app-sin-permiso** (la app instalada es anterior o
+  no lo declaró: «instala la versión nueva»), **denegado** (dónde se activa en ESE sistema y «Abrir ajustes»),
+  **sin-dispositivo**, **ocupado**, **cancelado** (pantalla), **no-soportado**. En el navegador, los textos de siempre.
+  `src/lib/nativa/medios-nativos.ts` pregunta a la app una vez por página; `src/lib/llamadas/aviso-medios.ts` enseña el
+  aviso con el botón. Lo usan la llamada directa, las llamadas y transmisiones de neuronas, `obtenerMedios` /
+  `obtenerPantalla`, las acciones de llamada y la llamada de grupo por la malla.
+
+### 13.5 Qué llega con qué
+
+- **Solo con un build nativo nuevo:** `Info.plist`, manifiesto de Android, `on_permission_request`, MediaStream y
+  WebRTC en Linux, `medios_estado` y `medios_abrir_ajustes`.
+- **Con la web (publicación o capa):** los mensajes nuevos. En la app anterior dicen «instala la versión nueva»
+  (no se puede arreglar desde la web: el permiso es del sistema).
+
+### 13.6 Cómo se prueba
+
+```bash
+# Rust (en el crate real): decisión por origen, ajustes, estado, manifiesto de Android y Kotlin
+cargo test --lib permisos_medios:: android_parche::
+# Web: clasificación, aviso con «Abrir ajustes», puente, llamada directa y contrato Rust ↔ web (Info.plist incluido)
+NODE_ENV=test npx vitest run src/lib/llamadas/__tests__/permiso-medios.test.ts src/lib/llamadas/__tests__/aviso-medios.test.ts \
+  src/lib/nativa/__tests__/medios-nativos.test.ts src/lib/malla/__tests__/llamada-directa-permisos.test.ts \
+  src/lib/nativa/__tests__/contrato-rust.test.ts
+```
+
+En aparatos reales (T16): macOS — la primera llamada enseña el aviso del micrófono con el texto de `Info.plist`; al
+decir que no, el aviso de la web trae «Abrir ajustes» y abre Privacidad › Micrófono. Android — avisos de micrófono y
+cámara; tras negarlos, «Abrir ajustes» abre la ficha de la app. Pantalla compartida en macOS, Windows y Linux.
+iOS no está cubierto (necesita los mismos textos en un `Info.ios.plist`).
