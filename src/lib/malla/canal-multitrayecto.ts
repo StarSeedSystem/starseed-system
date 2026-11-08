@@ -12,9 +12,15 @@
  * trozos antes de verificar, porque por varios caminos el «fin» puede adelantarse a un trozo).
  *
  * Sin DOM ni red propios: se prueba con canales de mentira. Nunca lanza.
+ *
+ * (ARC1108B) Cada trozo sale por UN solo enlace (reparto, nunca duplicado: `reparto()` suma
+ * exactamente los trozos enviados). El trozo de la transferencia es el MENOR que sugieren los enlaces
+ * (`tamanoTrozo`: 46 KiB si va el TCP de la app nativa, 63 KiB si solo hay enlaces directos). Y basta
+ * con que UNO lleve binario para ofrecer binario: a los que solo llevan texto, el trozo binario se les
+ * manda como `archivo.chunk` en base64 (el receptor admite los dos caminos para el mismo archivo).
  */
 
-import type { CanalArchivos } from "@/lib/network/archivos-malla";
+import { TAM_TROZO_POR_DEFECTO, trozoBinarioATexto, type CanalArchivos } from "@/lib/network/archivos-malla";
 import { crearSelectorPonderado, pesosPorCapacidad } from "@/lib/malla/eleccion-enlace";
 
 export interface SubcanalArchivos {
@@ -93,7 +99,22 @@ export function crearCanalMultitrayecto(subcanales: SubcanalArchivos[], opts: { 
     return false;
   };
 
-  const todosBinario = subs.length > 0 && subs.every((s) => typeof s.canal.enviarBinario === "function");
+  const algunoBinario = subs.some((s) => typeof s.canal.enviarBinario === "function");
+
+  /** (ARC1108B) El trozo que llevan TODOS los enlaces: el menor que sugieren (16 KiB el que no dice nada). */
+  const tamanoTrozo = (): number => {
+    let menor = Infinity;
+    for (const s of subs) {
+      let t: unknown;
+      try {
+        t = s.canal.tamanoTrozo?.();
+      } catch {
+        t = undefined;
+      }
+      menor = Math.min(menor, typeof t === "number" && Number.isFinite(t) && t > 0 ? t : TAM_TROZO_POR_DEFECTO);
+    }
+    return Number.isFinite(menor) ? menor : TAM_TROZO_POR_DEFECTO;
+  };
 
   const canal: CanalMultitrayecto = {
     enviar(texto: string): boolean {
@@ -101,11 +122,18 @@ export function crearCanalMultitrayecto(subcanales: SubcanalArchivos[], opts: { 
       if (esTrozo(texto)) return enviarTrozo((s) => s.canal.enviar(texto));
       return enviarControl(texto);
     },
-    // Solo si TODOS lo admiten: el modo binario se negocia una vez para toda la transferencia.
-    ...(todosBinario
+    tamanoTrozo,
+    // (ARC1108B) Basta con que UNO lleve binario: el modo se negocia una vez para toda la transferencia
+    // y a los enlaces de solo texto el trozo les llega en base64 (se convierte una vez, si hace falta).
+    ...(algunoBinario
       ? {
           enviarBinario(buf: ArrayBuffer): boolean {
-            return enviarTrozo((s) => !!s.canal.enviarBinario?.(buf));
+            let comoTexto: string | null | undefined;
+            return enviarTrozo((s) => {
+              if (typeof s.canal.enviarBinario === "function") return !!s.canal.enviarBinario(buf);
+              if (comoTexto === undefined) comoTexto = trozoBinarioATexto(buf);
+              return !!comoTexto && s.canal.enviar(comoTexto);
+            });
           },
         }
       : {}),

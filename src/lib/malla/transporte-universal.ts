@@ -35,6 +35,7 @@ import { capaMeshCompartiendo, getSharedMesh } from "@/lib/network/lan-sync";
 import { snapshotMallaNeuronas } from "@/lib/network/malla-neuronas";
 import { identidadDispositivo } from "@/lib/network/identidad-dispositivo";
 import {
+  TAM_TROZO_ENLACE_DIRECTO,
   canalDesdeMesh,
   motorArchivosCompartido,
   type CanalArchivos,
@@ -574,6 +575,8 @@ function canalDeEnlaceLocal(e: EnlaceLocalVivo): CanalArchivos {
     enviar: (t) => e.enviar(t),
     enviarBinario: (b) => e.enviarBinario(b),
     bufferedAmount: () => e.bufferedAmount(),
+    // (ARC1108B) Data channel propio y binario: trozos de 63 KiB (4 veces menos escrituras en el otro).
+    tamanoTrozo: () => TAM_TROZO_ENLACE_DIRECTO,
     alMensaje: (cb) => e.alMensaje(cb),
   };
 }

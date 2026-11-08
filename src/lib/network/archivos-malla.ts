@@ -30,6 +30,15 @@
  * «fin» verificaba trozos vacíos — el «hash-no-coincide» de la prueba real del 08-11. Contrato:
  * `architecture/datos-por-la-malla.md` §8.
  *
+ * (ARC1108B · 2026-11-08) Archivos GRANDES (8 MB, 50 MB, 500 MB) sin que el remitente se rinda:
+ *   receptor → remitente  archivo.progreso  {id, n, fase, pct?}   (latido + acuse de lo GUARDADO)
+ *   `archivo.aceptar` lleva además `acuses: 1` (este receptor late) y `huecos` (rangos que faltan).
+ * El receptor calcula el SHA-256 de cada trozo AL RECIBIRLO (ya no relee todo para verificar), une
+ * el archivo en UNA pasada por el almacén comprobando cada trozo y late cada pocos segundos mientras
+ * guarda, verifica y une. El remitente no va más de una ventana (8 MiB) por delante de lo guardado
+ * y vigila por INACTIVIDAD, no por un plazo fijo. Trozos más grandes donde el canal lo admite
+ * (`CanalArchivos.tamanoTrozo`). Antes de aceptar, el receptor comprueba que el archivo CABE.
+ *
  * CODIFICACIÓN — base64, NO binario crudo (decisión justificada):
  *   El canal `CanalArchivos` (abajo) declara `enviarBinario`/`bufferedAmount`
  *   como OPCIONALES a propósito. Hoy `webrtc-mesh.ts` solo transporta STRINGS
@@ -121,6 +130,12 @@ export interface CanalArchivos {
   enviarBinario?(buf: ArrayBuffer): boolean;
   /** Opcional: bytes en cola sin enviar (para backpressure). Sin esto, no se frena. */
   bufferedAmount?(): number;
+  /**
+   * (ARC1108B) Opcional: bytes CRUDOS de un trozo que este canal lleva holgado en UN mensaje (enlace
+   * directo WebRTC: 63 KiB en binario; canal TCP: lo que cabe en base64 en una trama de 64 KiB). Sin
+   * esto, 16 KiB. El trozo de una transferencia se fija en su oferta (el hash depende de él).
+   */
+  tamanoTrozo?(): number;
   /** Suscribe un callback a los mensajes entrantes. Devuelve función de baja. */
   alMensaje(cb: (data: string | ArrayBuffer) => void): () => void;
 }
@@ -199,7 +214,29 @@ export interface MsgAceptar {
   desde?: number;
   /** Modo de transferencia confirmado por el receptor. */
   modo?: ModoTransferencia;
+  /**
+   * (ARC1108B) 1 = este receptor manda `archivo.progreso` (latido y acuse de lo guardado): el remitente
+   * frena con una ventana y vigila por inactividad. Ausente = receptor anterior (plazo fijo, sin freno).
+   */
+  acuses?: number;
+  /** (ARC1108B) Rangos [a, b] (inclusive, en orden) de los trozos que faltan: el remitente manda SOLO esos. */
+  huecos?: Array<[number, number]>;
 }
+/**
+ * (ARC1108B) Latido del receptor: cuántos trozos tiene YA guardados (con su hash) y qué está haciendo.
+ * Lo manda mientras recibe (≥ cada segundo o cada MiB guardado) y, tras «fin», cada pocos segundos
+ * mientras espera trozos, verifica y une. Un remitente anterior lo ignora (no es de su protocolo).
+ */
+export interface MsgProgreso {
+  t: "archivo.progreso";
+  id: string;
+  n: number;
+  fase: FaseReceptor;
+  /** 0..100 de la fase (verificando / ensamblando). */
+  pct?: number;
+}
+/** (ARC1108B) Qué hace el receptor, para la burbuja del remitente. */
+export type FaseReceptor = "recibiendo" | "esperando-trozos" | "verificando" | "ensamblando";
 export interface MsgRechazar {
   t: "archivo.rechazar";
   id: string;
@@ -247,7 +284,8 @@ export type ArchivoMallaMsg =
   | MsgFin
   | MsgOk
   | MsgError
-  | MsgCancelar;
+  | MsgCancelar
+  | MsgProgreso;
 
 function esObjeto(x: unknown): x is Record<string, unknown> {
   return !!x && typeof x === "object";
@@ -282,6 +320,8 @@ export function esMensajeArchivoMalla(x: unknown): x is ArchivoMallaMsg {
     case "archivo.ok":
     case "archivo.cancelar":
       return true;
+    case "archivo.progreso":
+      return typeof x.n === "number" && Number.isFinite(x.n) && typeof x.fase === "string";
     default:
       return false;
   }
@@ -339,13 +379,116 @@ export async function calcularHashLista(
   return { raiz };
 }
 
+/**
+ * (ARC1108B) La misma raíz de `calcularHashLista`, a partir de los hashes de trozo YA calculados (el
+ * receptor los calcula al recibir cada trozo): verificar no relee nada. Misma definición de siempre.
+ */
+export async function raizDeHashes(hashes: ArrayBuffer[]): Promise<string> {
+  return bufferAHex(await sha256(concatArrayBuffers(hashes)));
+}
+
+function mismosBytes(a: ArrayBuffer, b: ArrayBuffer): boolean {
+  if (a.byteLength !== b.byteLength) return false;
+  const x = new Uint8Array(a);
+  const y = new Uint8Array(b);
+  for (let i = 0; i < x.length; i++) if (x[i] !== y[i]) return false;
+  return true;
+}
+
+/* ══════════════════════════ 3c) Tamaño de trozo y huecos (ARC1108B, puros) ══════════════════════════ */
+
+/** Trozo por defecto (bytes crudos): en base64 cabe en cualquier canal de texto, también en lotes del canal TCP. */
+export const TAM_TROZO_POR_DEFECTO = 16 * 1024;
+/**
+ * Trozo del enlace directo WebRTC (binario): 63 KiB + la cabecera de `encodeChunkBinario` quedan por
+ * debajo de 64 KiB, el tope de mensaje más estricto entre data channels de navegadores distintos (el
+ * de libwebrtc —WebView de Android, WKWebView— es 256 KiB). 4 veces menos operaciones de almacén.
+ */
+export const TAM_TROZO_ENLACE_DIRECTO = 63 * 1024;
+/** Tope de lo que un canal puede sugerir (la memoria de un trozo en vuelo y el tope de mensaje de libwebrtc). */
+export const TAM_TROZO_MAX = 256 * 1024;
+
+/**
+ * Trozo de una transferencia nueva: el configurado a mano (pruebas) si lo hay; si no, lo que sugiere el
+ * canal (en KiB enteros, de 1 KiB a 256 KiB); si no sugiere nada, 16 KiB. Nunca lanza. Puro.
+ */
+export function elegirTamanoTrozo(configurado: number | undefined, canal: Pick<CanalArchivos, "tamanoTrozo">): number {
+  if (typeof configurado === "number" && Number.isFinite(configurado) && configurado > 0) return Math.floor(configurado);
+  let sugerido: unknown;
+  try {
+    sugerido = canal.tamanoTrozo?.();
+  } catch {
+    sugerido = undefined;
+  }
+  if (typeof sugerido !== "number" || !Number.isFinite(sugerido) || sugerido <= 0) return TAM_TROZO_POR_DEFECTO;
+  return Math.min(TAM_TROZO_MAX, Math.max(1024, Math.floor(sugerido / 1024) * 1024));
+}
+
+/** Tope de rangos que viajan en `archivo.aceptar.huecos` (más huecos que esto: se reanuda con `desde`). */
+export const MAX_HUECOS = 256;
+
+/**
+ * Los trozos que faltan de 0..trozos-1, como rangos [a, b] inclusive y en orden; null si son más de
+ * `max` rangos (entonces se pide con `desde`, como antes). Puro.
+ */
+export function huecosDe(tenidos: Iterable<number>, trozos: number, max = MAX_HUECOS): Array<[number, number]> | null {
+  const s = tenidos instanceof Set ? (tenidos as Set<number>) : new Set(tenidos);
+  const out: Array<[number, number]> = [];
+  let i = 0;
+  while (i < trozos) {
+    if (s.has(i)) {
+      i++;
+      continue;
+    }
+    let j = i;
+    while (j + 1 < trozos && !s.has(j + 1)) j++;
+    out.push([i, j]);
+    if (out.length > max) return null;
+    i = j + 1;
+  }
+  return out;
+}
+
+/** `archivo.aceptar.huecos` saneado contra el nº de trozos: rangos enteros, en orden, sin solaparse. null si no vale. Puro. */
+export function sanearHuecos(x: unknown, trozos: number, max = MAX_HUECOS): Array<[number, number]> | null {
+  if (!Array.isArray(x) || x.length > max) return null;
+  const out: Array<[number, number]> = [];
+  let fin = -1;
+  for (const r of x) {
+    if (!Array.isArray(r) || r.length !== 2) return null;
+    const [a, b] = r as [unknown, unknown];
+    if (typeof a !== "number" || typeof b !== "number" || !Number.isInteger(a) || !Number.isInteger(b)) return null;
+    if (a < 0 || b < a || b >= trozos || a <= fin) return null;
+    out.push([a, b]);
+    fin = b;
+  }
+  return out;
+}
+
+/** Lo que dice la burbuja del remitente mientras el otro aparato guarda, verifica o une. Puro. */
+export function textoProgresoRemoto(fase: string, n: number, trozos: number, pct?: number): string {
+  const p = (x: number) => `${Math.max(0, Math.min(100, Math.floor(x)))} %`;
+  switch (fase) {
+    case "recibiendo":
+      return `El otro aparato termina de guardar los trozos… ${p(trozos > 0 ? (n / trozos) * 100 : 100)}`;
+    case "esperando-trozos":
+      return `El otro aparato espera los trozos que aún vienen por otro camino (${n} de ${trozos})…`;
+    case "ensamblando":
+      return `El otro aparato verifica y une el archivo (SHA-256)… ${p(pct ?? 0)}`;
+    case "verificando":
+    default:
+      return `El otro aparato verifica el SHA-256… ${p(pct ?? 0)}`;
+  }
+}
+
 /** ArrayBuffer → base64. Usa `Buffer` en Node (pruebas/servidor) o `btoa` en navegador. */
 export function bufAB64(buf: ArrayBuffer): string {
   if (typeof Buffer !== "undefined") return Buffer.from(buf).toString("base64");
-  let binario = "";
+  // (ARC1108B) Por bloques: con trozos de hasta 63 KiB, byte a byte era lo más lento del remitente.
   const bytes = new Uint8Array(buf);
-  for (let i = 0; i < bytes.length; i++) binario += String.fromCharCode(bytes[i]);
-  return btoa(binario);
+  const partes: string[] = [];
+  for (let i = 0; i < bytes.length; i += 0x8000) partes.push(String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000) as unknown as number[]));
+  return btoa(partes.join(""));
 }
 
 /** base64 → ArrayBuffer. Espejo de `bufAB64`. */
@@ -396,6 +539,8 @@ export function describirErrorArchivo(codigo: string): string {
       return "falló al verificar el archivo";
     case "sin-confirmacion":
       return "no confirmó la verificación a tiempo";
+    case "sin-espacio":
+      return "no tiene sitio para guardarlo";
     default:
       return codigo;
   }
@@ -525,8 +670,8 @@ export function encodeChunkBinario(id: string, index: number, datos: ArrayBuffer
   return out.buffer;
 }
 
-/** Decodifica un trozo binario codificado con `encodeChunkBinario`. */
-export function decodeChunkBinario(buf: ArrayBuffer): { id: string; index: number; datos: ArrayBuffer } | null {
+/** (ARC1108B) Solo la cabecera de un trozo binario: id, índice y dónde empiezan los datos (sin copiarlos). */
+function cabeceraChunkBinario(buf: ArrayBuffer): { id: string; index: number; offset: number } | null {
   try {
     const view = new DataView(buf);
     let offset = 0;
@@ -539,11 +684,28 @@ export function decodeChunkBinario(buf: ArrayBuffer): { id: string; index: numbe
     if (offset + 4 > buf.byteLength) return null;
     const index = view.getUint32(offset, false);
     offset += 4;
-    const datos = buf.slice(offset);
-    return { id, index, datos };
+    return { id, index, offset };
   } catch {
     return null;
   }
+}
+
+/** Decodifica un trozo binario codificado con `encodeChunkBinario`. */
+export function decodeChunkBinario(buf: ArrayBuffer): { id: string; index: number; datos: ArrayBuffer } | null {
+  const cab = cabeceraChunkBinario(buf);
+  return cab ? { id: cab.id, index: cab.index, datos: buf.slice(cab.offset) } : null;
+}
+
+/**
+ * (ARC1108B) Un trozo binario (`encodeChunkBinario`) como `archivo.chunk` en base64: lo que manda el
+ * canal multitrayecto por un enlace que solo lleva texto (el TCP de la app nativa) cuando la
+ * transferencia va en binario por el otro. El receptor admite los dos caminos para el mismo archivo.
+ * Null si no es un trozo. Puro.
+ */
+export function trozoBinarioATexto(buf: ArrayBuffer): string | null {
+  const dec = decodeChunkBinario(buf);
+  if (!dec || !dec.id) return null;
+  return JSON.stringify({ t: "archivo.chunk", id: dec.id, index: dec.index, datosB64: bufAB64(dec.datos) } satisfies MsgChunk);
 }
 
 /* ══════════════════════════ 4) Almacenamiento de trozos ══════════════════════════ */
@@ -563,13 +725,83 @@ export interface AlmacenTrozos {
   indicesGuardados(id: string): Promise<number[]>;
   ensamblar(id: string, tipoMime: string): Promise<Blob>;
   limpiar(id: string): Promise<void>;
+  /**
+   * (ARC1108B) Opcional: varios trozos de una vez (una transacción de IndexedDB, lecturas en paralelo
+   * en OPFS), en el orden pedido; null el que no esté. El motor une el archivo con esto.
+   */
+  leerTrozos?(id: string, indices: number[]): Promise<Array<ArrayBuffer | null>>;
+  /** (ARC1108B) Opcional: ¿cabe un archivo de `bytes`? Se pregunta ANTES de aceptar una oferta. */
+  espacioPara?(bytes: number): Promise<{ ok: boolean; motivo?: string }>;
 }
 
-/** Última red: mapa en memoria del propio módulo. No sobrevive a recargar la pestaña. */
-export function crearAlmacenEnMemoria(): AlmacenTrozos {
+/** (ARC1108B) Megas legibles. */
+function mb(n: number): string {
+  const m = n / 1_048_576;
+  return `${m < 10 ? m.toFixed(1) : Math.round(m)} MB`;
+}
+
+/**
+ * (ARC1108B) Tope de la MEMORIA como almacén de trozos (un WebView sin OPFS ni IndexedDB usables): los
+ * trozos y, al terminar, el archivo unido viven en RAM. Más grande, mejor decirlo antes de aceptar
+ * que tumbar la app a mitad.
+ */
+export const MAX_MEMORIA_BYTES = 256 * 1024 * 1024;
+
+/**
+ * (ARC1108B) ¿Cabe `bytes` en el disco de la página (OPFS/IndexedDB comparten la cuota del origen)?
+ * Los trozos y la copia del archivo ya verificado que guarda Mensajes: el doble, con 16 MB de margen.
+ * Sin `navigator.storage.estimate` (o si falla) no se sabe: se deja pasar. Nunca lanza.
+ */
+async function espacioEnDisco(bytes: number, tipo: string): Promise<{ ok: boolean; motivo?: string }> {
+  try {
+    const st = typeof navigator !== "undefined" ? (navigator as unknown as { storage?: { estimate?: () => Promise<{ quota?: number; usage?: number }> } }).storage : undefined;
+    if (typeof st?.estimate !== "function") return { ok: true };
+    const { quota, usage } = await st.estimate();
+    if (typeof quota !== "number" || !(quota > 0)) return { ok: true };
+    const libre = Math.max(0, quota - (typeof usage === "number" ? usage : 0));
+    const necesario = bytes * 2 + 16 * 1_048_576;
+    return libre >= necesario ? { ok: true } : { ok: false, motivo: `hacen falta unos ${mb(necesario)} libres en ${tipo} y quedan ${mb(libre)}` };
+  } catch {
+    return { ok: true };
+  }
+}
+
+/** (ARC1108B) Como mucho `n` operaciones a la vez (el resto espera su turno, en orden). */
+function crearSemaforo(n: number): <T>(fn: () => Promise<T>) => Promise<T> {
+  let libres = Math.max(1, n);
+  const cola: Array<() => void> = [];
+  return async <T>(fn: () => Promise<T>): Promise<T> => {
+    if (libres > 0) libres--;
+    else await new Promise<void>((r) => cola.push(r));
+    try {
+      return await fn();
+    } finally {
+      const siguiente = cola.shift();
+      if (siguiente) siguiente();
+      else libres++;
+    }
+  };
+}
+
+/**
+ * Última red: mapa en memoria del propio módulo. No sobrevive a recargar la pestaña. (ARC1108B) Con
+ * tope (`maxBytes`, 256 MB por defecto) que `espacioPara` dice antes de aceptar.
+ */
+export function crearAlmacenEnMemoria(opciones: { maxBytes?: number } = {}): AlmacenTrozos {
   const datos = new Map<string, Map<number, ArrayBuffer>>();
+  const maxBytes = opciones.maxBytes ?? MAX_MEMORIA_BYTES;
   return {
     tipo: "memoria",
+    async leerTrozos(id, indices) {
+      const m = datos.get(id);
+      return indices.map((i) => m?.get(i) ?? null);
+    },
+    async espacioPara(bytes) {
+      let ocupado = 0;
+      for (const m of datos.values()) for (const b of m.values()) ocupado += b.byteLength;
+      if (bytes + ocupado <= maxBytes) return { ok: true };
+      return { ok: false, motivo: `solo puede guardarlo en memoria (hasta ${mb(maxBytes)}${ocupado ? `, ya ocupada con ${mb(ocupado)}` : ""}) y mide ${mb(bytes)}` };
+    },
     async guardarTrozo(id, index, buf) {
       let m = datos.get(id);
       if (!m) {
@@ -605,40 +837,75 @@ type DirectorioOPFS = {
   entries(): AsyncIterableIterator<[string, unknown]>;
 };
 type FileHandleOPFS = {
-  createWritable(): Promise<{ write(data: ArrayBuffer): Promise<void>; close(): Promise<void> }>;
+  createWritable(): Promise<{ write(data: ArrayBuffer): Promise<void>; close(): Promise<void>; abort?(): Promise<void> }>;
   getFile(): Promise<{ arrayBuffer(): Promise<ArrayBuffer> }>;
 };
 
-/** OPFS (`navigator.storage.getDirectory()`) — un archivo por trozo, bajo `archivos-malla/<id>/<index>`. */
-export function crearAlmacenOPFS(): AlmacenTrozos {
-  const raiz = async (): Promise<DirectorioOPFS> => {
-    const storage = (navigator as unknown as { storage: { getDirectory(): Promise<DirectorioOPFS> } }).storage;
-    return storage.getDirectory();
-  };
-  const dirDeTransferencia = async (id: string, crear: boolean): Promise<DirectorioOPFS | null> => {
-    try {
-      const r = await raiz();
-      const base = await r.getDirectoryHandle("archivos-malla", { create: true });
-      return await base.getDirectoryHandle(id, { create: crear });
-    } catch {
-      return null;
+/**
+ * OPFS (`navigator.storage.getDirectory()`) — un archivo por trozo, bajo `archivos-malla/<id>/<index>`.
+ * (ARC1108B) Las carpetas se abren UNA vez y se recuerdan (antes, cada trozo pedía la raíz y abría dos
+ * carpetas para escribir y otra vez para releer) y como mucho `concurrencia` escrituras a la vez (cada
+ * `createWritable` crea un archivo temporal: miles a la vez atascan el disco del WebView).
+ */
+export function crearAlmacenOPFS(opciones: { concurrencia?: number } = {}): AlmacenTrozos {
+  let baseP: Promise<DirectorioOPFS> | null = null;
+  const dirs = new Map<string, Promise<DirectorioOPFS | null>>();
+  const turno = crearSemaforo(opciones.concurrencia ?? 6);
+
+  const base = (): Promise<DirectorioOPFS> => {
+    if (!baseP) {
+      const p = (async () => {
+        const storage = (navigator as unknown as { storage: { getDirectory(): Promise<DirectorioOPFS> } }).storage;
+        const raiz = await storage.getDirectory();
+        return raiz.getDirectoryHandle("archivos-malla", { create: true });
+      })();
+      baseP = p;
+      p.catch(() => {
+        if (baseP === p) baseP = null;
+      });
     }
+    return baseP;
+  };
+  /** Carpeta de la transferencia (recordada mientras exista). */
+  const dirDe = async (id: string, crear: boolean): Promise<DirectorioOPFS | null> => {
+    const recordada = dirs.get(id);
+    if (recordada) {
+      const d = await recordada;
+      if (d) return d;
+    }
+    const p = (async () => {
+      try {
+        return await (await base()).getDirectoryHandle(id, { create: crear });
+      } catch {
+        return null;
+      }
+    })();
+    dirs.set(id, p);
+    const d = await p;
+    if (!d && dirs.get(id) === p) dirs.delete(id);
+    return d;
   };
 
-  const guardarTrozo = async (id: string, index: number, datos: ArrayBuffer): Promise<void> => {
-    const dir = await dirDeTransferencia(id, true);
-    // (ARC1108A) Antes volvía sin guardar nada y el trozo se daba por recibido: un hueco silencioso
-    // que solo se veía como «hash-no-coincide». Ahora lanza y el almacén en cadena prueba el siguiente.
-    if (!dir) throw new Error("OPFS no deja abrir la carpeta de la transferencia");
-    const fh = await dir.getFileHandle(String(index), { create: true });
-    if (typeof (fh as Partial<FileHandleOPFS>).createWritable !== "function") throw new Error("OPFS sin createWritable en este navegador");
-    const w = await fh.createWritable();
-    await w.write(datos);
-    await w.close();
-  };
+  const guardarTrozo = (id: string, index: number, datos: ArrayBuffer): Promise<void> =>
+    turno(async () => {
+      const dir = await dirDe(id, true);
+      // (ARC1108A) Antes volvía sin guardar nada y el trozo se daba por recibido: un hueco silencioso
+      // que solo se veía como «hash-no-coincide». Ahora lanza y el almacén en cadena prueba el siguiente.
+      if (!dir) throw new Error("OPFS no deja abrir la carpeta de la transferencia");
+      const fh = await dir.getFileHandle(String(index), { create: true });
+      if (typeof (fh as Partial<FileHandleOPFS>).createWritable !== "function") throw new Error("OPFS sin createWritable en este navegador");
+      const w = await fh.createWritable();
+      try {
+        await w.write(datos);
+        await w.close();
+      } catch (e) {
+        await w.abort?.().catch(() => undefined);
+        throw e;
+      }
+    });
   const leerTrozo = async (id: string, index: number): Promise<ArrayBuffer | null> => {
     try {
-      const dir = await dirDeTransferencia(id, false);
+      const dir = await dirDe(id, false);
       if (!dir) return null;
       const fh = await dir.getFileHandle(String(index));
       const file = await fh.getFile();
@@ -647,14 +914,15 @@ export function crearAlmacenOPFS(): AlmacenTrozos {
       return null;
     }
   };
+  const leerTrozos = (id: string, indices: number[]): Promise<Array<ArrayBuffer | null>> => Promise.all(indices.map((i) => leerTrozo(id, i)));
   const indicesGuardados = async (id: string): Promise<number[]> => {
     try {
-      const dir = await dirDeTransferencia(id, false);
+      const dir = await dirDe(id, false);
       if (!dir) return [];
       const out: number[] = [];
       for await (const [name] of dir.entries()) {
         const n = Number(name);
-        if (Number.isFinite(n)) out.push(n);
+        if (Number.isInteger(n) && n >= 0) out.push(n);
       }
       return out.sort((a, b) => a - b);
     } catch {
@@ -663,29 +931,37 @@ export function crearAlmacenOPFS(): AlmacenTrozos {
   };
   const ensamblar = async (id: string, tipoMime: string): Promise<Blob> => {
     const indices = await indicesGuardados(id);
-    const partes: ArrayBuffer[] = [];
-    for (const i of indices) {
-      const d = await leerTrozo(id, i);
-      if (d) partes.push(d);
-    }
+    const partes = (await leerTrozos(id, indices)).filter((d): d is ArrayBuffer => !!d);
     return new Blob(partes, { type: tipoMime });
   };
   const limpiar = async (id: string): Promise<void> => {
+    dirs.delete(id);
     try {
-      const r = await raiz();
-      const base = await r.getDirectoryHandle("archivos-malla", { create: true });
-      await base.removeEntry(id, { recursive: true });
+      await (await base()).removeEntry(id, { recursive: true });
     } catch {
       /* best-effort */
     }
   };
-  return { tipo: "OPFS", guardarTrozo, leerTrozo, indicesGuardados, ensamblar, limpiar };
+  return { tipo: "OPFS", guardarTrozo, leerTrozo, leerTrozos, indicesGuardados, ensamblar, limpiar, espacioPara: (bytes) => espacioEnDisco(bytes, "OPFS") };
 }
 
-/** IndexedDB — espejo del patrón de `astraura/experiencias-idb.ts`. Clave `<id>:<index>`. */
-export function crearAlmacenIDB(nombreDb = "starseed-archivos-malla"): AlmacenTrozos {
+/** Lo mínimo de `IDBKeyRange` que se usa (para no depender del global en las pruebas). */
+type RangoIDB = { bound(a: string, b: string): IDBKeyRange };
+
+/**
+ * IndexedDB — espejo del patrón de `astraura/experiencias-idb.ts`. Clave `<id>:<index>`.
+ * (ARC1108B) UNA conexión para toda la sesión (antes se abría y cerraba la base en CADA trozo: en el
+ * WebView de Android, miles de aperturas), las escrituras que llegan juntas van en UNA transacción
+ * (durabilidad «relaxed»: si se pierde un trozo por un corte de luz, se reanuda desde ahí), las
+ * lecturas de un lote también, y los índices de una transferencia se piden por rango de claves (antes
+ * un cursor recorría TODA la tabla, con los datos de todas las transferencias, en cada oferta).
+ */
+export function crearAlmacenIDB(nombreDb = "starseed-archivos-malla", opciones: { escriturasPorTransaccion?: number } = {}): AlmacenTrozos {
   const TABLA = "trozos";
+  const MAX_LOTE = Math.max(1, opciones.escriturasPorTransaccion ?? 64);
   const claveDe = (id: string, index: number) => `${id}:${index}`;
+  const rangoDe = (id: string): IDBKeyRange => (globalThis as unknown as { IDBKeyRange: RangoIDB }).IDBKeyRange.bound(`${id}:`, `${id}:￿`);
+  let dbP: Promise<IDBDatabase> | null = null;
 
   function abrir(): Promise<IDBDatabase> {
     return new Promise((ok, falla) => {
@@ -698,82 +974,123 @@ export function crearAlmacenIDB(nombreDb = "starseed-archivos-malla"): AlmacenTr
       req.onerror = () => falla(req.error);
     });
   }
+  const conexion = (): Promise<IDBDatabase> => {
+    if (!dbP) {
+      const p = abrir().then((db) => {
+        // Otra pestaña sube la versión, o el navegador la cierra: la siguiente operación reabre.
+        db.onversionchange = () => {
+          db.close();
+          if (dbP === p) dbP = null;
+        };
+        (db as IDBDatabase & { onclose: (() => void) | null }).onclose = () => {
+          if (dbP === p) dbP = null;
+        };
+        return db;
+      });
+      dbP = p;
+      p.catch(() => {
+        if (dbP === p) dbP = null;
+      });
+    }
+    return dbP;
+  };
+  /**
+   * Abre una transacción y hace sus peticiones EN EL ACTO (en la misma vuelta en que se crea: algunos
+   * WebKit dan por terminada una transacción que espera a otra promesa antes de usarse).
+   */
+  const conTabla = async <T>(modo: IDBTransactionMode, fn: (st: IDBObjectStore, tx: IDBTransaction) => Promise<T>): Promise<T> => {
+    const db = await conexion();
+    let tx: IDBTransaction;
+    try {
+      tx = db.transaction(TABLA, modo, { durability: "relaxed" } as IDBTransactionOptions);
+    } catch (e) {
+      // Conexión cerrada por debajo (InvalidStateError): una vez más con una nueva.
+      if (dbP) dbP = null;
+      const otra = await conexion();
+      if (otra === db) throw e;
+      tx = otra.transaction(TABLA, modo, { durability: "relaxed" } as IDBTransactionOptions);
+    }
+    return fn(tx.objectStore(TABLA), tx);
+  };
+  const pedir = <T>(req: IDBRequest<T>): Promise<T> =>
+    new Promise((ok, falla) => {
+      req.onsuccess = () => ok(req.result);
+      req.onerror = () => falla(req.error);
+    });
+  const terminada = (tx: IDBTransaction): Promise<void> =>
+    new Promise<void>((ok, falla) => {
+      tx.oncomplete = () => ok();
+      tx.onerror = () => falla(tx.error ?? new Error("IndexedDB: error en la transacción"));
+      tx.onabort = () => falla(tx.error ?? new Error("IndexedDB: transacción abortada"));
+    });
 
-  const guardarTrozo = async (id: string, index: number, datos: ArrayBuffer): Promise<void> => {
-    const db = await abrir();
+  // Escrituras agrupadas: lo que llega en la misma vuelta del bucle de eventos va en una transacción.
+  let pendientes: Array<{ clave: string; datos: ArrayBuffer; ok: () => void; falla: (e: unknown) => void }> = [];
+  let programado = false;
+  const vaciar = async (): Promise<void> => {
+    programado = false;
+    const lote = pendientes;
+    pendientes = [];
+    if (!lote.length) return;
     try {
-      await new Promise<void>((ok, falla) => {
-        const tx = db.transaction(TABLA, "readwrite");
-        tx.objectStore(TABLA).put(datos, claveDe(id, index));
-        tx.oncomplete = () => ok();
-        tx.onerror = () => falla(tx.error);
+      await conTabla("readwrite", (st, tx) => {
+        for (const p of lote) st.put(p.datos, p.clave);
+        return terminada(tx);
       });
-    } finally {
-      db.close();
+      for (const p of lote) p.ok();
+    } catch (e) {
+      for (const p of lote) p.falla(e);
     }
   };
-  const leerTrozo = async (id: string, index: number): Promise<ArrayBuffer | null> => {
-    const db = await abrir();
-    try {
-      const crudo = await new Promise<unknown>((ok, falla) => {
-        const req = db.transaction(TABLA, "readonly").objectStore(TABLA).get(claveDe(id, index));
-        req.onsuccess = () => ok(req.result ?? null);
-        req.onerror = () => falla(req.error);
-      });
-      // (ARC1108A) Lo guardado vuelve tal cual se guardó: si alguna vez fue una vista o un Blob, bytes exactos.
-      return await bytesExactos(crudo);
-    } finally {
-      db.close();
-    }
+  const guardarTrozo = (id: string, index: number, datos: ArrayBuffer): Promise<void> =>
+    new Promise<void>((ok, falla) => {
+      pendientes.push({ clave: claveDe(id, index), datos, ok, falla });
+      if (pendientes.length >= MAX_LOTE) void vaciar();
+      else if (!programado) {
+        programado = true;
+        setTimeout(() => void vaciar(), 0);
+      }
+    });
+  const leerTrozos = async (id: string, indices: number[]): Promise<Array<ArrayBuffer | null>> => {
+    if (!indices.length) return [];
+    const crudos = await conTabla("readonly", (st) => Promise.all(indices.map((i) => pedir(st.get(claveDe(id, i))).catch(() => null))));
+    // (ARC1108A) Lo guardado vuelve tal cual se guardó: si alguna vez fue una vista o un Blob, bytes exactos.
+    return Promise.all(crudos.map((c) => bytesExactos(c ?? null)));
   };
-  const indicesGuardados = async (id: string): Promise<number[]> => {
-    const db = await abrir();
-    try {
-      return await new Promise((ok, falla) => {
-        const out: number[] = [];
-        const prefijo = `${id}:`;
-        const req = db.transaction(TABLA, "readonly").objectStore(TABLA).openCursor();
+  const leerTrozo = async (id: string, index: number): Promise<ArrayBuffer | null> => (await leerTrozos(id, [index]))[0] ?? null;
+  const clavesDe = (id: string): Promise<string[]> =>
+    conTabla("readonly", (st) => {
+      if (typeof st.getAllKeys === "function") return pedir(st.getAllKeys(rangoDe(id))).then((ks) => ks.map(String));
+      return new Promise<string[]>((ok, falla) => {
+        const out: string[] = [];
+        const req = st.openKeyCursor(rangoDe(id));
         req.onsuccess = () => {
           const cur = req.result;
-          if (cur) {
-            const k = String(cur.key);
-            if (k.startsWith(prefijo)) out.push(Number(k.slice(prefijo.length)));
-            cur.continue();
-          } else {
-            ok(out.sort((a, b) => a - b));
-          }
+          if (!cur) return ok(out);
+          out.push(String(cur.key));
+          cur.continue();
         };
         req.onerror = () => falla(req.error);
       });
-    } finally {
-      db.close();
-    }
+    });
+  const indicesGuardados = async (id: string): Promise<number[]> => {
+    const prefijo = `${id}:`;
+    return (await clavesDe(id))
+      .filter((k) => k.startsWith(prefijo))
+      .map((k) => Number(k.slice(prefijo.length)))
+      .filter((n) => Number.isInteger(n) && n >= 0)
+      .sort((a, b) => a - b);
   };
   const ensamblar = async (id: string, tipoMime: string): Promise<Blob> => {
-    const indices = await indicesGuardados(id);
-    const partes: ArrayBuffer[] = [];
-    for (const i of indices) {
-      const d = await leerTrozo(id, i);
-      if (d) partes.push(d);
-    }
+    const partes = (await leerTrozos(id, await indicesGuardados(id))).filter((d): d is ArrayBuffer => !!d);
     return new Blob(partes, { type: tipoMime });
   };
-  const limpiar = async (id: string): Promise<void> => {
-    const indices = await indicesGuardados(id);
-    if (indices.length === 0) return;
-    const db = await abrir();
-    try {
-      await new Promise<void>((ok, falla) => {
-        const tx = db.transaction(TABLA, "readwrite");
-        for (const i of indices) tx.objectStore(TABLA).delete(claveDe(id, i));
-        tx.oncomplete = () => ok();
-        tx.onerror = () => falla(tx.error);
-      });
-    } finally {
-      db.close();
-    }
-  };
-  return { tipo: "IndexedDB", guardarTrozo, leerTrozo, indicesGuardados, ensamblar, limpiar };
+  const limpiar = (id: string): Promise<void> =>
+    conTabla("readwrite", (st, tx) => {
+      st.delete(rangoDe(id));
+      return terminada(tx);
+    });
+  return { tipo: "IndexedDB", guardarTrozo, leerTrozo, leerTrozos, indicesGuardados, ensamblar, limpiar, espacioPara: (bytes) => espacioEnDisco(bytes, "IndexedDB") };
 }
 
 /**
@@ -867,6 +1184,33 @@ export function crearAlmacenEnCadena(almacenes: AlmacenTrozos[]): AlmacenTrozos 
       throw ultimo instanceof Error ? ultimo : new Error("ningún almacenamiento aceptó el trozo");
     },
     leerTrozo,
+    /** (ARC1108B) Por lotes: lo de cada almacén de una vez; lo que no se sabe dónde quedó, uno a uno. */
+    async leerTrozos(id, indices) {
+      const out: Array<ArrayBuffer | null> = indices.map(() => null);
+      const grupos = new Map<number, number[]>();
+      const sueltos: number[] = [];
+      const m = donde.get(id);
+      indices.forEach((i, pos) => {
+        const k = m?.get(i);
+        if (k === undefined) sueltos.push(pos);
+        else {
+          const g = grupos.get(k);
+          if (g) g.push(pos);
+          else grupos.set(k, [pos]);
+        }
+      });
+      for (const [k, posiciones] of grupos) {
+        const a = lista[k];
+        try {
+          const datos = a.leerTrozos ? await a.leerTrozos(id, posiciones.map((p) => indices[p])) : await Promise.all(posiciones.map((p) => a.leerTrozo(id, indices[p])));
+          for (let j = 0; j < posiciones.length; j++) out[posiciones[j]] = await bytesExactos(datos[j] ?? null);
+        } catch {
+          /* quedan en null: el motor dice cuál no se pudo releer */
+        }
+      }
+      for (const p of sueltos) out[p] = await leerTrozo(id, indices[p]);
+      return out;
+    },
     indicesGuardados,
     async ensamblar(id, tipoMime) {
       const partes: ArrayBuffer[] = [];
@@ -879,6 +1223,19 @@ export function crearAlmacenEnCadena(almacenes: AlmacenTrozos[]): AlmacenTrozos 
     async limpiar(id) {
       donde.delete(id);
       await Promise.all(lista.map((a) => a.limpiar(id).catch(() => undefined)));
+    },
+    /** (ARC1108B) Cabe si cabe en alguno de los que aún escriben (si uno se llena, los trozos pasan al siguiente). */
+    async espacioPara(bytes) {
+      let primerNo: { ok: boolean; motivo?: string } | null = null;
+      for (let k = 0; k < lista.length; k++) {
+        if (apartados.has(k)) continue;
+        const a = lista[k];
+        if (!a.espacioPara) return { ok: true };
+        const r = await a.espacioPara(bytes).catch(() => ({ ok: true }));
+        if (r.ok) return { ok: true };
+        primerNo ??= r;
+      }
+      return primerNo ?? { ok: false, motivo: "ningún almacenamiento de este aparato acepta archivos ahora" };
     },
   };
 }
@@ -1049,7 +1406,10 @@ export interface ConfigMotorArchivos {
   onProgreso?: (estado: EstadoTransferencia) => void;
   /** Se dispara UNA vez, al terminar de recibir y verificar un archivo con éxito. */
   onCompletado?: (estado: EstadoTransferencia, blob: Blob) => void;
-  /** Bytes crudos por trozo, antes de codificar a base64. Por defecto 16 KiB. */
+  /**
+   * Bytes crudos por trozo, antes de codificar a base64. Si se da, manda sobre todo (pruebas). Si no,
+   * (ARC1108B) lo que sugiera el canal (`CanalArchivos.tamanoTrozo`) o 16 KiB.
+   */
   tamanoChunkBase64?: number;
   /** Umbral de `bufferedAmount()` (bytes) por encima del cual el remitente espera. Por defecto 1 MiB. */
   umbralBufferAlto?: number;
@@ -1058,12 +1418,29 @@ export interface ConfigMotorArchivos {
   /** Tope duro: una oferta que lo supere se rechaza sin ofertar. Por defecto 4 GiB. */
   limiteMaxBytes?: number;
   /**
-   * (ARC1108A) Cuánto espera el remitente, tras mandar «fin», a que el receptor confirme (ok/error) antes
-   * de darlo por fallido con «Reintentar» a mano. Por defecto 60 s + 50 ms por trozo.
+   * (ARC1108A) Cuánto espera el remitente, tras mandar «fin», a que un receptor ANTERIOR (sin latido)
+   * confirme (ok/error) antes de darlo por fallido con «Reintentar». (ARC1108B) Por defecto 90 s + 100 ms
+   * por cada 16 KiB del archivo (antes 60 s + 50 ms por trozo: el vídeo de 8 MB se daba por perdido a
+   * los 85 s mientras la tableta aún lo verificaba). Si se da y no se da `esperaSinNoticiasMs`, también
+   * es la espera SIN NOTICIAS con un receptor que late.
    */
-  esperaVerificacionMs?: (trozos: number) => number;
-  /** (ARC1108A) Cuánto espera el receptor, tras «fin», a los trozos que aún no llegaron (varios caminos). Por defecto 15 s. */
+  esperaVerificacionMs?: (trozos: number, bytes?: number) => number;
+  /**
+   * (ARC1108B) Con un receptor que late (`archivo.aceptar.acuses`): cuánto aguanta el remitente SIN
+   * NINGÚN mensaje suyo (latido, ok, error) tras «fin» antes de darlo por fallido. Cada latido la
+   * reinicia: un archivo enorme que se verifica durante minutos no se da por perdido. Por defecto 45 s.
+   */
+  esperaSinNoticiasMs?: number;
+  /** (ARC1108A) Cuánto espera el receptor, tras «fin», a los trozos que aún no llegaron (varios caminos). Por defecto 15 s SIN AVANCE (ARC1108B: mientras sigan llegando, espera). */
   esperaTrozosFaltantesMs?: number;
+  /** (ARC1108B) Cada cuánto late el receptor mientras espera trozos, verifica o une. Por defecto 4 s. */
+  intervaloLatidoMs?: number;
+  /**
+   * (ARC1108B) Cuánto puede ir el remitente por delante de lo que el receptor YA guardó (solo con un
+   * receptor que late). Acota la memoria del receptor: sin esto, un WebView lento acumulaba en RAM
+   * todo lo que llegaba mientras su almacén escribía. Por defecto 8 MiB.
+   */
+  ventanaVueloBytes?: number;
 }
 
 /** (ARC1108A) Lo que se puede añadir a una oferta al mandarla (el envío al que pertenece, su ruta, su vista). */
@@ -1134,7 +1511,6 @@ function esperar(ms: number): Promise<void> {
 /** crearMotorArchivos — instancia aislada del motor (una por proceso normalmente, ver `motorArchivosCompartido`). */
 export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchivos {
   const almacen = config.almacen ?? crearAlmacenAuto();
-  const TAM_TROZO = config.tamanoChunkBase64 ?? 16 * 1024;
   const UMBRAL_BUFFER = config.umbralBufferAlto ?? 1_048_576;
   const AVISO_BYTES = config.limiteAvisoBytes ?? 500 * 1024 * 1024;
   const MAX_BYTES = config.limiteMaxBytes ?? 4 * 1024 * 1024 * 1024;
@@ -1163,8 +1539,24 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
   const ofertasEnviadas = new Map<string, MsgOferta>();
   const vigias = new Map<string, ReturnType<typeof setTimeout>>();
   const reanudacionesAuto = new Map<string, number>();
-  const esperaVerificacion = config.esperaVerificacionMs ?? ((trozos: number) => 60_000 + trozos * 50);
+  const esperaVerificacion = config.esperaVerificacionMs ?? ((trozos: number, bytes?: number) => 90_000 + Math.ceil((bytes ?? trozos * TAM_TROZO_POR_DEFECTO) / TAM_TROZO_POR_DEFECTO) * 100);
+  const esperaSinNoticias = (trozos: number, bytes: number): number =>
+    config.esperaSinNoticiasMs ?? (config.esperaVerificacionMs ? config.esperaVerificacionMs(trozos, bytes) : 45_000);
   const ESPERA_FALTANTES_MS = config.esperaTrozosFaltantesMs ?? 15_000;
+  const INTERVALO_LATIDO_MS = Math.max(50, config.intervaloLatidoMs ?? 4_000);
+  const VENTANA_VUELO_BYTES = Math.max(64 * 1024, config.ventanaVueloBytes ?? 8 * 1024 * 1024);
+  /** El receptor acusa lo guardado al menos cada MiB (y cada segundo): siempre muy por debajo de la ventana. */
+  const ACUSE_CADA_BYTES = Math.min(1_048_576, Math.floor(VENTANA_VUELO_BYTES / 4));
+  // (ARC1108B) Remitente: trozo de cada transferencia, receptores que laten, lo que el receptor dice
+  // tener guardado, cuándo dijo algo por última vez y los huecos a mandar al reanudar.
+  const tamanoTrozoPorId = new Map<string, number>();
+  const conLatido = new Set<string>();
+  const guardadosRemotos = new Map<string, number>();
+  const ultimoContacto = new Map<string, number>();
+  const huecosPorId = new Map<string, Array<[number, number]>>();
+  // (ARC1108B) Receptor: SHA-256 de cada trozo calculado al recibirlo y el último latido mandado.
+  const hashesPorId = new Map<string, Array<ArrayBuffer | undefined>>();
+  const latidos = new Map<string, { n: number; at: number; t?: ReturnType<typeof setTimeout> }>();
   // Resonancia (§5.6): confianza por neurona y veredictos antivirus de la red.
   const confianzaNodos = new Map<string, number>();
   const veredictosRed: VeredictoCompartido[] = [];
@@ -1272,6 +1664,11 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
       };
     }
     const tipoMime = opciones?.tipoMime ?? (archivo as File).type ?? "application/octet-stream";
+    // (ARC1108B) El trozo lo sugiere el canal (63 KiB por el enlace directo, 46 KiB por el TCP…): menos
+    // operaciones de almacén en el receptor. Queda fijado en la oferta: la raíz del hash depende de él.
+    // «Reintentar» el mismo archivo (mismo id) conserva su trozo: el mismo SHA-256 y el receptor no vuelve a preguntar.
+    const previa = opciones?.idTransferencia ? ofertasEnviadas.get(id) : undefined;
+    const TAM_TROZO = previa && previa.tamano === tamano && previa.tamanoTrozo > 0 ? previa.tamanoTrozo : elegirTamanoTrozo(config.tamanoChunkBase64, canal);
     const trozos = Math.max(1, Math.ceil(tamano / TAM_TROZO));
     const leerTrozo = async (i: number) => archivo.slice(i * TAM_TROZO, Math.min(tamano, (i + 1) * TAM_TROZO)).arrayBuffer();
     const { raiz } = await calcularHashLista(leerTrozo, trozos);
@@ -1297,11 +1694,13 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
 
     canalPorId.set(id, canal);
     archivosEnvio.set(id, archivo);
+    tamanoTrozoPorId.set(id, TAM_TROZO);
     cancelados.delete(id);
     // Un reintento con el mismo id empieza limpio: ni bucle viejo, ni espera de verificación vieja.
     limpiarVigia(id);
     reanudacionesAuto.delete(id);
     intentosReintento.delete(id);
+    olvidarRemitente(id);
 
     const aviso = tamano > AVISO_BYTES ? `Archivo grande (${(tamano / 1024 / 1024).toFixed(0)} MB): la transferencia puede tardar.` : undefined;
 
@@ -1363,22 +1762,39 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
     vigias.delete(id);
   }
 
+  /** (ARC1108B) Olvida lo que el remitente sabía del receptor de una transferencia (latido, guardados, huecos). */
+  function olvidarRemitente(id: string): void {
+    conLatido.delete(id);
+    guardadosRemotos.delete(id);
+    ultimoContacto.delete(id);
+    huecosPorId.delete(id);
+  }
+
   /**
    * (ARC1108A) Tras mandar «fin», el remitente queda en «verificando» hasta que el receptor diga ok o
    * error. Si no dice nada (app cerrada, sin memoria…), no se queda colgado para siempre: pasa a error
-   * con «Reintentar», que reanuda desde el primer trozo que le falte al otro.
+   * con «Reintentar», que reanuda desde el primer trozo que le falte al otro. (ARC1108B) Con un receptor
+   * que late es una espera SIN NOTICIAS (cada latido la reinicia: verificar 500 MB durante minutos no
+   * es un fallo); con uno anterior, un plazo fijo que crece con el tamaño del archivo.
    */
-  function vigilarVerificacion(id: string, trozos: number): void {
+  function vigilarVerificacion(id: string): void {
     limpiarVigia(id);
-    const ms = Math.max(1, esperaVerificacion(trozos));
+    const e = estados.get(id);
+    if (!e) return;
+    const late = conLatido.has(id);
+    const ms = Math.max(1, late ? esperaSinNoticias(e.trozos, e.tamano) : esperaVerificacion(e.trozos, e.tamano));
     const t = setTimeout(() => {
       vigias.delete(id);
-      const e = estados.get(id);
-      if (!e || e.rol !== "enviar" || e.fase !== "verificando") return;
+      const actual = estados.get(id);
+      if (!actual || actual.rol !== "enviar" || actual.fase !== "verificando") return;
+      const s = Math.round(ms / 1000);
+      const detalle = late
+        ? `sin noticias suyas en ${s} s, cuando avisaba cada pocos segundos (¿app cerrada, en segundo plano o sin memoria?)`
+        : `sin respuesta en ${s} s tras mandar el último trozo (¿app cerrada o sin memoria?)`;
       emitir({
-        ...e,
+        ...actual,
         fase: "error",
-        motivo: textoErrorRemoto({ motivo: "sin-confirmacion", detalle: `sin respuesta en ${Math.round(ms / 1000)} s tras mandar el último trozo (¿app cerrada o sin memoria?)`, lado: "receptor" }),
+        motivo: textoErrorRemoto({ motivo: "sin-confirmacion", detalle, lado: "receptor" }),
         codigo: "sin-confirmacion",
         lado: "receptor",
         actualizadoMs: Date.now(),
@@ -1388,17 +1804,55 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
     vigias.set(id, t);
   }
 
+  /** (ARC1108B) Índices de esta vuelta: los huecos que pidió el receptor o, si no, de `desde` al final. */
+  function indicesAMandar(id: string, trozos: number): number[] {
+    const out: number[] = [];
+    const huecos = huecosPorId.get(id);
+    if (huecos) {
+      for (const [a, b] of huecos) for (let i = a; i <= b && i < trozos; i++) out.push(i);
+      return out;
+    }
+    for (let i = desdePorId.get(id) ?? 0; i < trozos; i++) out.push(i);
+    return out;
+  }
+
+  /**
+   * (ARC1108B) Con un receptor que late, no ir más de la ventana por delante de lo que YA guardó: su
+   * memoria queda acotada aunque su almacén escriba mucho más despacio de lo que llega. Si deja de dar
+   * noticias, se sigue sin freno (la espera tras «fin» decide). false si se canceló mientras esperaba.
+   */
+  async function esperarVentana(id: string, debeTener: number, ventana: number): Promise<boolean> {
+    while (conLatido.has(id) && debeTener - (guardadosRemotos.get(id) ?? 0) > ventana) {
+      if (cancelados.has(id)) return false;
+      const e = estados.get(id);
+      if (Date.now() - (ultimoContacto.get(id) ?? 0) > esperaSinNoticias(e?.trozos ?? 0, e?.tamano ?? 0)) break;
+      await esperar(20);
+    }
+    return !cancelados.has(id);
+  }
+
   async function transmitir(id: string): Promise<void> {
     const canal = canalPorId.get(id);
     const archivo = archivosEnvio.get(id);
     const estado = estados.get(id);
     if (!canal || !archivo || !estado) return;
     actualizarFase(id, "transfiriendo");
-    const desde = desdePorId.get(id) ?? 0;
     const modo = modoPorId.get(id) ?? "base64";
-    let i = desde;
-    while (i < estado.trozos) {
+    const tam = tamanoTrozoPorId.get(id) ?? ofertasEnviadas.get(id)?.tamanoTrozo ?? TAM_TROZO_POR_DEFECTO;
+    const indices = indicesAMandar(id, estado.trozos);
+    // (ARC1108B) Lo que el receptor ya tiene es todo lo que no se le manda en esta vuelta.
+    const yaTiene = estado.trozos - indices.length;
+    const ventana = Math.max(2, Math.ceil(VENTANA_VUELO_BYTES / Math.max(1, tam)));
+    if (conLatido.has(id)) guardadosRemotos.set(id, yaTiene);
+    let k = 0;
+    while (k < indices.length) {
+      const i = indices[k];
       if (cancelados.has(id)) {
+        actualizarFase(id, "cancelada");
+        return;
+      }
+      // (ARC1108B) Freno por lo que el receptor YA guardó, además del de la cola del canal.
+      if (!(await esperarVentana(id, yaTiene + k, ventana))) {
         actualizarFase(id, "cancelada");
         return;
       }
@@ -1411,8 +1865,8 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
         }
         await esperar(30);
       }
-      const inicio = i * TAM_TROZO;
-      const fin = Math.min(archivo.size, inicio + TAM_TROZO);
+      const inicio = i * tam;
+      const fin = Math.min(archivo.size, inicio + tam);
       const datos = await archivo.slice(inicio, fin).arrayBuffer();
       let enviado = false;
       if (modo === "binario" && canal.enviarBinario) {
@@ -1448,13 +1902,13 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
         intentosReintento.set(id, intentoActual + 1);
         actualizarFase(id, "reintentando", `Fallo en trozo ${i}. Reintento ${intentoActual + 1}/${reintentoConfig.maxIntentos} en ${Math.round(espera)} ms…`);
         await esperar(Math.max(0, espera));
-        // No incrementamos i: reintentamos el mismo trozo
+        // No avanzamos: reintentamos el mismo trozo
         continue;
       }
       // Envío exitoso: resetear contador de reintentos para este id
       intentosReintento.delete(id);
-      actualizarProgreso(id, i + 1);
-      i++;
+      k++;
+      actualizarProgreso(id, yaTiene + k);
     }
     if (cancelados.has(id)) return;
     // «fin» (con un par de reintentos si el canal está un momento lleno) y, desde ARC1108A, el
@@ -1472,7 +1926,7 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
     }
     if (e.fase === "transfiriendo" || e.fase === "reintentando") {
       emitir({ ...e, fase: "verificando", motivo: "Esperando a que el otro aparato verifique el SHA-256…", actualizadoMs: Date.now() });
-      vigilarVerificacion(id, e.trozos);
+      vigilarVerificacion(id);
     }
   }
 
@@ -1483,6 +1937,13 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
     if (transmitiendo.has(msg.id) || estado.fase === "completada") return;
     const desde = typeof msg.desde === "number" && Number.isInteger(msg.desde) ? Math.min(Math.max(0, msg.desde), estado.trozos) : 0;
     desdePorId.set(msg.id, desde);
+    // (ARC1108B) Solo los huecos que pide (reanudar sin volver a mandar lo que ya tiene) y si late.
+    const huecos = sanearHuecos(msg.huecos, estado.trozos);
+    if (huecos) huecosPorId.set(msg.id, huecos);
+    else huecosPorId.delete(msg.id);
+    if (typeof msg.acuses === "number" && msg.acuses >= 1) conLatido.add(msg.id);
+    else conLatido.delete(msg.id);
+    ultimoContacto.set(msg.id, Date.now());
     // Respetar el modo confirmado por el receptor.
     if (msg.modo) {
       modoPorId.set(msg.id, msg.modo);
@@ -1492,6 +1953,28 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
     limpiarVigia(msg.id);
     transmitiendo.add(msg.id);
     void transmitir(msg.id).finally(() => transmitiendo.delete(msg.id));
+  }
+
+  /**
+   * (ARC1108B) Latido del receptor: lo que ya guardó (el freno de la ventana) y, tras «fin», qué está
+   * haciendo; cada latido reinicia la espera sin noticias y la burbuja lo cuenta. Si el remitente ya lo
+   * había dado por perdido («sin-confirmacion») y el otro sigue vivo, vuelve a «verificando».
+   */
+  function manejarProgresoRemoto(msg: MsgProgreso): void {
+    const e = estados.get(msg.id);
+    if (!e || e.rol !== "enviar" || cancelados.has(msg.id)) return;
+    const n = Math.max(0, Math.min(e.trozos, Math.floor(msg.n)));
+    conLatido.add(msg.id);
+    ultimoContacto.set(msg.id, Date.now());
+    guardadosRemotos.set(msg.id, n);
+    const revive = e.fase === "error" && e.codigo === "sin-confirmacion" && archivosEnvio.has(msg.id);
+    if (e.fase !== "verificando" && !revive) return;
+    vigilarVerificacion(msg.id);
+    const pct = typeof msg.pct === "number" && Number.isFinite(msg.pct) ? msg.pct : undefined;
+    const motivo = textoProgresoRemoto(String(msg.fase), n, e.trozos, pct);
+    if (revive || motivo !== e.motivo) {
+      emitir({ ...e, fase: "verificando", motivo, codigo: undefined, lado: undefined, actualizadoMs: Date.now() });
+    }
   }
 
   function manejarRechazar(msg: MsgRechazar): void {
@@ -1513,6 +1996,8 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
     intentosReintento.delete(msg.id);
     ofertasEnviadas.delete(msg.id);
     reanudacionesAuto.delete(msg.id);
+    tamanoTrozoPorId.delete(msg.id);
+    olvidarRemitente(msg.id);
   }
 
   /**
@@ -1581,9 +2066,65 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
     recibidosPorId.set(id, tenidos);
     fallosAlmacen.delete(id);
     const desde = primerFaltante(tenidos, oferta.trozos);
+    // (ARC1108B) Con trozos ya guardados, los huecos exactos: el remitente manda SOLO eso (con `desde`,
+    // un remitente anterior manda todo lo que va detrás del primer hueco, aunque ya esté aquí).
+    const huecos = tenidos.size > 0 ? huecosDe(tenidos, oferta.trozos) : null;
+    if (!hashesPorId.has(id)) hashesPorId.set(id, []);
     emitir({ ...estado, fase: "transfiriendo", progreso: tenidos.size, actualizadoMs: Date.now() });
     const modo = modoPorId.get(id) ?? "base64";
-    canal.enviar(JSON.stringify({ t: "archivo.aceptar", id, modo, ...(desde > 0 ? { desde } : {}) } satisfies MsgAceptar));
+    canal.enviar(JSON.stringify({ t: "archivo.aceptar", id, modo, ...(desde > 0 ? { desde } : {}), acuses: 1, ...(huecos ? { huecos } : {}) } satisfies MsgAceptar));
+  }
+
+  /* ---- (ARC1108B) latido del receptor ---- */
+
+  function tamanoTrozoRecibido(id: string): number {
+    const t = ofertasEntrantes.get(id)?.tamanoTrozo;
+    return typeof t === "number" && t > 0 ? t : TAM_TROZO_POR_DEFECTO;
+  }
+
+  /** Manda YA un latido: cuántos trozos tiene guardados y qué hace. Nunca lanza. */
+  function mandarProgreso(id: string, fase: FaseReceptor, pct?: number): void {
+    const canal = canalPorId.get(id);
+    const n = recibidosPorId.get(id)?.size ?? 0;
+    const l = latidos.get(id) ?? { n: -1, at: 0 };
+    if (l.t !== undefined) clearTimeout(l.t);
+    latidos.set(id, { n, at: Date.now() });
+    if (!canal) return;
+    try {
+      canal.enviar(JSON.stringify({ t: "archivo.progreso", id, n, fase, ...(pct !== undefined ? { pct: Math.round(pct) } : {}) } satisfies MsgProgreso));
+    } catch {
+      /* el siguiente latido lo intenta otra vez */
+    }
+  }
+
+  /**
+   * Acuse de lo guardado mientras llegan trozos: en el acto cada MiB guardado (o cada segundo, o al
+   * tenerlos todos) y, si no, como mucho 250 ms después del último trozo guardado. Así el remitente,
+   * que no va más de la ventana por delante, nunca se queda esperando un acuse que no llega.
+   */
+  function acusarGuardados(id: string, trozos: number): void {
+    const n = recibidosPorId.get(id)?.size ?? 0;
+    const l = latidos.get(id) ?? { n: -1, at: 0 };
+    const cada = Math.max(1, Math.floor(ACUSE_CADA_BYTES / tamanoTrozoRecibido(id)));
+    if (n - l.n >= cada || Date.now() - l.at >= 1000 || n >= trozos) {
+      mandarProgreso(id, "recibiendo");
+      return;
+    }
+    if (l.t !== undefined) return;
+    const t = setTimeout(() => {
+      const actual = latidos.get(id);
+      if (actual) actual.t = undefined;
+      if (!estados.has(id) || cancelados.has(id)) return;
+      if ((recibidosPorId.get(id)?.size ?? 0) !== (actual?.n ?? -1)) mandarProgreso(id, "recibiendo");
+    }, 250);
+    (t as { unref?: () => void }).unref?.();
+    latidos.set(id, { ...l, t });
+  }
+
+  function olvidarLatido(id: string): void {
+    const l = latidos.get(id);
+    if (l?.t !== undefined) clearTimeout(l.t);
+    latidos.delete(id);
   }
 
   async function manejarOferta(canal: CanalArchivos, msg: MsgOferta, contexto?: ContextoRecepcion): Promise<void> {
@@ -1615,6 +2156,14 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
       // Ya está aquí y verificado (el «ok» se perdió): se le repite al remitente sin pedir nada.
       canal.enviar(JSON.stringify({ t: "archivo.ok", id: msg.id } satisfies MsgOk));
       return;
+    }
+    if (yaAceptada && !mismoArchivo && !verificandoFin.has(msg.id)) {
+      // (ARC1108B) El mismo id con OTRO contenido (o partido en otros trozos): lo de antes ya no sirve.
+      await almacen.limpiar(msg.id).catch(() => undefined);
+      recibidosPorId.delete(msg.id);
+      hashesPorId.delete(msg.id);
+      escrituras.delete(msg.id);
+      aceptadas.delete(msg.id);
     }
     // Resonancia (§5.6): lo que la red ya sabe de este hash informa la política.
     // «Cuarentena y pregunta»: nunca auto-aceptar un hash en cuarentena, y un
@@ -1682,6 +2231,20 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
     }
     const estadoBase: EstadoTransferencia = { ...base, ...(avisoFinal ? { motivo: avisoFinal } : {}) };
 
+    // (ARC1108B) ¿Cabe? Se dice ANTES de aceptar (y antes de preguntar a la persona), no a mitad de
+    // camino con la app sin memoria: memoria con tope, o la cuota del disco de la página.
+    if (!mismoArchivo && almacen.espacioPara) {
+      const falta = Math.max(0, msg.tamano - tenidos.size * (msg.tamanoTrozo > 0 ? msg.tamanoTrozo : TAM_TROZO_POR_DEFECTO));
+      const cabe = await almacen.espacioPara(falta).catch(() => ({ ok: true, motivo: undefined }));
+      if (!cabe.ok) {
+        const motivo = `No cabe en el aparato que recibe: ${cabe.motivo ?? "no hay sitio para guardarlo"}.`;
+        emitir({ ...estadoBase, progreso: 0, fase: "rechazada", motivo, codigo: "sin-espacio", lado: "receptor" });
+        canal.enviar(JSON.stringify({ t: "archivo.rechazar", id: msg.id, motivo } satisfies MsgRechazar));
+        ofertasEntrantes.delete(msg.id);
+        return;
+      }
+    }
+
     // Negociar modo: si el oferente pide binario y nuestro canal lo soporta, usamos binario.
     const modo: ModoTransferencia = msg.modo === 'binario' && canal.enviarBinario ? 'binario' : 'base64';
     modoPorId.set(msg.id, modo);
@@ -1746,6 +2309,9 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
    * antes de que la escritura terminara y leía un trozo vacío. Ahora los dos caminos pasan por aquí: el
    * trozo cuenta SOLO cuando el almacén terminó de guardarlo, un duplicado (trama reenviada, varios
    * caminos) no se escribe dos veces y un fallo del almacén se recuerda para decirlo, nunca en silencio.
+   * (ARC1108B) A la vez que se guarda se calcula su SHA-256 (verificar ya no relee el almacén entero) y
+   * se acusa lo guardado al remitente (`archivo.progreso`), que frena con eso. Un duplicado se descarta
+   * ANTES de decodificarlo, guardarlo o calcular su hash.
    */
   async function recibirTrozo(id: string, index: number, datosDe: () => ArrayBuffer | null): Promise<void> {
     if (cancelados.has(id) || !Number.isInteger(index) || index < 0) return;
@@ -1774,8 +2340,13 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
       datos = null;
     }
     if (!datos) return;
-    const escritura = almacen.guardarTrozo(id, index, datos).then(
-      () => null,
+    let hash: ArrayBuffer | undefined;
+    // `digest` copia los bytes al llamarlo: se puede guardar a la vez sin esperar.
+    const escritura = Promise.all([almacen.guardarTrozo(id, index, datos), sha256(datos)]).then(
+      ([, h]) => {
+        hash = h;
+        return null;
+      },
       (e: unknown) => (e instanceof Error ? e.message : String(e)) || "error desconocido",
     );
     enVuelo.set(index, escritura);
@@ -1788,8 +2359,15 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
     if (cancelados.has(id)) return;
     const actual = recibidosPorId.get(id);
     if (!actual) return; // la transferencia se limpió mientras se guardaba
+    let hashes = hashesPorId.get(id);
+    if (!hashes) {
+      hashes = [];
+      hashesPorId.set(id, hashes);
+    }
+    hashes[index] = hash;
     actual.add(index);
     actualizarProgreso(id, actual.size);
+    if (estado) acusarGuardados(id, estado.trozos);
   }
 
   /** (ARC1108A) Espera a que terminen TODAS las escrituras en curso de una transferencia. */
@@ -1810,6 +2388,7 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
     if (e) {
       emitir({ ...e, fase: "error", motivo: `Falló en este aparato (receptor): ${describirErrorArchivo(codigo)} — ${detalle}.`, codigo, lado: "receptor", actualizadoMs: Date.now() });
     }
+    olvidarLatido(id);
     const salida = canalPorId.get(id) ?? canal;
     salida.enviar(JSON.stringify({ t: "archivo.error", id, motivo: codigo, detalle, lado: "receptor", ...(opciones.desde !== undefined ? { desde: opciones.desde } : {}) } satisfies MsgError));
     fallosAlmacen.delete(id);
@@ -1817,7 +2396,61 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
       await almacen.limpiar(id).catch(() => undefined);
       recibidosPorId.delete(id);
       escrituras.delete(id);
+      hashesPorId.delete(id);
     }
+  }
+
+  /** (ARC1108B) Lo que se lee del almacén de una vez al unir el archivo, y cada cuánto se junta en un Blob. */
+  const LOTE_LECTURA = 16;
+  const BYTES_POR_PARTE = 4 * 1024 * 1024;
+
+  /**
+   * (ARC1108B) Une el archivo en UNA pasada por el almacén (antes eran dos: releer todo para el hash y
+   * releerlo todo otra vez para ensamblar, además de recorrer los índices de todos los almacenes) y
+   * comprueba que cada trozo se relee IGUAL que llegó (el SHA-256 calculado al recibirlo): así se sigue
+   * verificando lo que de verdad quedó guardado. Va juntando partes de ~4 MB en Blobs: nunca tiene el
+   * archivo dos veces en memoria. Rellena los hashes que falten (trozos de una sesión anterior).
+   */
+  async function unirVerificado(
+    id: string,
+    estado: EstadoTransferencia,
+    hashes: Array<ArrayBuffer | undefined>,
+    alAvance: (pct: number) => void,
+  ): Promise<{ blob: Blob } | { fallo: string }> {
+    const donde = almacen.tipo ?? "el almacenamiento";
+    const partes: Blob[] = [];
+    let pendiente: ArrayBuffer[] = [];
+    let bytesPendiente = 0;
+    for (let i0 = 0; i0 < estado.trozos; i0 += LOTE_LECTURA) {
+      if (cancelados.has(id)) return { fallo: "cancelada" };
+      const indices: number[] = [];
+      for (let i = i0; i < Math.min(estado.trozos, i0 + LOTE_LECTURA); i++) indices.push(i);
+      let leidos: Array<ArrayBuffer | null>;
+      try {
+        leidos = almacen.leerTrozos ? await almacen.leerTrozos(id, indices) : await Promise.all(indices.map((i) => almacen.leerTrozo(id, i).catch(() => null)));
+      } catch {
+        leidos = indices.map(() => null);
+      }
+      for (let j = 0; j < indices.length; j++) {
+        const i = indices[j];
+        const d = await bytesExactos(leidos[j] ?? null);
+        if (!d) return { fallo: `el trozo ${i} no se pudo releer de ${donde}` };
+        const h = await sha256(d);
+        const alRecibir = hashes[i];
+        if (alRecibir && !mismosBytes(h, alRecibir)) return { fallo: `el trozo ${i} no se relee de ${donde} igual que llegó (cambió al guardarse)` };
+        hashes[i] = h;
+        pendiente.push(d);
+        bytesPendiente += d.byteLength;
+      }
+      if (bytesPendiente >= BYTES_POR_PARTE) {
+        partes.push(new Blob(pendiente));
+        pendiente = [];
+        bytesPendiente = 0;
+      }
+      alAvance(((i0 + indices.length) / estado.trozos) * 100);
+    }
+    if (pendiente.length) partes.push(new Blob(pendiente));
+    return { blob: new Blob(partes, { type: estado.tipo }) };
   }
 
   async function manejarFin(canal: CanalArchivos, msg: MsgFin): Promise<void> {
@@ -1834,14 +2467,41 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
     if (estado.fase !== "transfiriendo" && estado.fase !== "reintentando") return;
     if (verificandoFin.has(id)) return; // otro «fin» de la misma transferencia ya se está verificando
     verificandoFin.add(id);
+    // Lo que decía la tarjeta (avisos del centinela o de la red): vuelve al terminar.
+    const motivoPrevio = estado.motivo;
+    // (ARC1108B) Late mientras espera, verifica y une: el remitente sabe que sigue vivo y trabajando.
+    let faseLatido: FaseReceptor = (escrituras.get(id)?.size ?? 0) > 0 ? "recibiendo" : "esperando-trozos";
+    let pctLatido: number | undefined;
+    const latir = setInterval(() => mandarProgreso(id, faseLatido, pctLatido), INTERVALO_LATIDO_MS);
+    (latir as { unref?: () => void }).unref?.();
+    const avanzar = (fase: FaseReceptor, pct?: number) => {
+      const cambia = fase !== faseLatido;
+      faseLatido = fase;
+      pctLatido = pct;
+      // Cada cambio de fase se dice en el acto; el avance dentro de una fase, con el latido.
+      if (cambia) mandarProgreso(id, fase, pct);
+      const e = estados.get(id);
+      const motivo = fase === "ensamblando" ? `Verificando y uniendo el archivo (SHA-256)… ${Math.floor(pct ?? 0)} %` : fase === "verificando" ? "Verificando el SHA-256…" : undefined;
+      if (e && motivo && motivo !== e.motivo) emitir({ ...e, motivo, actualizadoMs: Date.now() });
+    };
     try {
       actualizarFase(id, "verificando");
+      mandarProgreso(id, faseLatido);
       // (2026-10-10 · transporte universal) Por VARIOS enlaces a la vez (`canal-multitrayecto.ts`)
-      // el «fin» puede llegar antes que el último trozo de otro camino: se espera a tenerlos todos
-      // (como mucho 15 s) antes de verificar. Con un solo canal no espera nada.
-      for (let t0 = Date.now(); (recibidosPorId.get(id)?.size ?? 0) < estado.trozos && Date.now() - t0 < ESPERA_FALTANTES_MS; ) {
+      // el «fin» puede llegar antes que el último trozo de otro camino: se espera a tenerlos todos.
+      // (ARC1108B) Mientras sigan llegando (o guardándose) se sigue esperando; se rinde tras 15 s SIN
+      // avance (antes, 15 s en total: con un almacén lento eso no bastaba).
+      for (let ultimoAvance = Date.now(), visto = recibidosPorId.get(id)?.size ?? 0; (recibidosPorId.get(id)?.size ?? 0) < estado.trozos; ) {
         if (cancelados.has(id)) return;
         if (fallosAlmacen.has(id) && (escrituras.get(id)?.size ?? 0) === 0) break;
+        const n = recibidosPorId.get(id)?.size ?? 0;
+        if (n !== visto) {
+          visto = n;
+          ultimoAvance = Date.now();
+        }
+        if (Date.now() - ultimoAvance >= ESPERA_FALTANTES_MS) break;
+        // Guardando lo que ya llegó, o esperando lo que aún viene por otro camino: el latido lo distingue.
+        faseLatido = (escrituras.get(id)?.size ?? 0) > 0 ? "recibiendo" : "esperando-trozos";
         await esperar(50);
       }
       // (ARC1108A) Y a que terminen TODAS las escrituras: nunca se verifica a medio guardar.
@@ -1866,26 +2526,35 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
         );
         return;
       }
-      let ilegible: number | null = null;
-      const leerTrozo = async (i: number) => {
-        const d = await almacen.leerTrozo(id, i).catch(() => null);
-        if (d) return d;
-        ilegible ??= i;
-        return new ArrayBuffer(0);
-      };
-      const { raiz } = await calcularHashLista(leerTrozo, estado.trozos);
-      if (ilegible !== null) {
-        await fallarRecepcion(canal, id, "almacen-receptor", `el trozo ${ilegible} no se pudo releer de ${almacen.tipo ?? "el almacenamiento"}`, { limpiar: true });
-        return;
-      }
       const esperado = hashesEsperados.get(id);
-      if (esperado && raiz !== esperado) {
+      const hashes = hashesPorId.get(id) ?? [];
+      // (ARC1108B) 1) Lo que LLEGÓ, sin releer nada: el SHA-256 de cada trozo se calculó al recibirlo.
+      avanzar("verificando", 0);
+      let todos = true;
+      for (let i = 0; i < estado.trozos && todos; i++) if (!hashes[i]) todos = false;
+      const integridadMal = async () => {
         // Trama que no supera la autoverificación: pesa contra la neurona que la envió (§5.6).
         aplicarEventoA(id, "trama-corrupta");
         await fallarRecepcion(canal, id, "hash-no-coincide", `llegaron los ${estado.trozos} trozos, guardados en ${almacen.tipo ?? "el almacenamiento"}, pero su SHA-256 no es el del original`, { limpiar: true });
+      };
+      if (todos && esperado && (await raizDeHashes(hashes.slice(0, estado.trozos) as ArrayBuffer[])) !== esperado) {
+        await integridadMal();
         return;
       }
-      const blob = await almacen.ensamblar(id, estado.tipo);
+      // 2) Una sola pasada por el almacén: une el archivo y comprueba que cada trozo quedó bien guardado.
+      avanzar("ensamblando", 0);
+      const unido = await unirVerificado(id, estado, hashes, (pct) => avanzar("ensamblando", pct));
+      if (cancelados.has(id)) return;
+      if ("fallo" in unido) {
+        await fallarRecepcion(canal, id, "almacen-receptor", unido.fallo, { limpiar: true });
+        return;
+      }
+      // Trozos de una sesión anterior (sin hash al recibir): la raíz, ahora que están todos.
+      if (!todos && esperado && (await raizDeHashes(hashes.slice(0, estado.trozos) as ArrayBuffer[])) !== esperado) {
+        await integridadMal();
+        return;
+      }
+      const blob = unido.blob;
       if (blob.size !== estado.tamano) {
         await fallarRecepcion(canal, id, "almacen-receptor", `el archivo ensamblado mide ${blob.size} B y no los ${estado.tamano} B anunciados`, { limpiar: true });
         return;
@@ -1893,17 +2562,21 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
       blobsRecibidos.set(id, blob);
       // Integridad verificada por la neurona origen: la confianza sube.
       aplicarEventoA(id, "firma-ok");
-      actualizarFase(id, "completada");
+      const hecho = estados.get(id);
+      if (hecho) emitir({ ...hecho, fase: "completada", motivo: motivoPrevio, actualizadoMs: Date.now() });
+      olvidarLatido(id);
       canal.enviar(JSON.stringify({ t: "archivo.ok", id } satisfies MsgOk));
       config.onCompletado?.(estados.get(id) as EstadoTransferencia, blob);
       await almacen.limpiar(id).catch(() => undefined);
       recibidosPorId.delete(id);
       hashesEsperados.delete(id);
+      hashesPorId.delete(id);
       ofertasEntrantes.delete(id);
       escrituras.delete(id);
     } catch (e) {
       await fallarRecepcion(canal, id, "fallo-verificacion", e instanceof Error ? e.message : String(e), { limpiar: false }).catch(() => undefined);
     } finally {
+      clearInterval(latir);
       verificandoFin.delete(id);
     }
   }
@@ -1911,12 +2584,14 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
   function manejarCancelarRemoto(msg: MsgCancelar): void {
     cancelados.add(msg.id);
     limpiarVigia(msg.id);
+    olvidarLatido(msg.id);
     actualizarFase(msg.id, "cancelada");
   }
 
   function cancelar(id: string): void {
     cancelados.add(id);
     limpiarVigia(id);
+    olvidarLatido(id);
     const canal = canalPorId.get(id);
     canal?.enviar(JSON.stringify({ t: "archivo.cancelar", id } satisfies MsgCancelar));
     actualizarFase(id, "cancelada");
@@ -1956,6 +2631,9 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
         case "archivo.cancelar":
           manejarCancelarRemoto(msg);
           break;
+        case "archivo.progreso":
+          manejarProgresoRemoto(msg);
+          break;
         default:
           break;
       }
@@ -1968,9 +2646,10 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
           : ArrayBuffer.isView(data)
             ? ((data as ArrayBufferView).buffer.slice((data as ArrayBufferView).byteOffset, (data as ArrayBufferView).byteOffset + (data as ArrayBufferView).byteLength) as ArrayBuffer)
             : null;
-      const dec = buf ? decodeChunkBinario(buf) : null;
-      if (!dec) return;
-      void recibirTrozo(dec.id, dec.index, () => dec.datos);
+      // (ARC1108B) Solo la cabecera: un duplicado (varios caminos) se descarta sin copiar sus datos.
+      const cab = buf ? cabeceraChunkBinario(buf) : null;
+      if (!buf || !cab) return;
+      void recibirTrozo(cab.id, cab.index, () => buf.slice(cab.offset));
     }
   }
 

@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { crearCanalMultitrayecto, esTrozo } from "@/lib/malla/canal-multitrayecto";
-import { crearAlmacenEnMemoria, crearMotorArchivos, type CanalArchivos, type MotorArchivos } from "@/lib/network/archivos-malla";
+import { crearAlmacenEnMemoria, crearMotorArchivos, encodeChunkBinario, type CanalArchivos, type MotorArchivos } from "@/lib/network/archivos-malla";
 
 function canalFalso(opts: { falla?: () => boolean; cola?: () => number } = {}) {
   const enviados: string[] = [];
@@ -72,12 +72,45 @@ describe("crearCanalMultitrayecto", () => {
     expect(multi.bufferedAmount?.()).toBe(0);
   });
 
-  it("solo ofrece binario si todos los enlaces lo admiten", () => {
+  it("(ARC1108B) ofrece binario si ALGUNO lo admite: al enlace de solo texto el trozo le llega en base64", () => {
     const a = canalFalso();
     const b = canalFalso();
-    const conBinario: CanalArchivos = { ...b.canal, enviarBinario: () => true };
-    expect(crearCanalMultitrayecto([{ id: "a", canal: a.canal }, { id: "b", canal: conBinario }]).enviarBinario).toBeUndefined();
-    expect(typeof crearCanalMultitrayecto([{ id: "b", canal: conBinario }, { id: "c", canal: { ...conBinario } }]).enviarBinario).toBe("function");
+    const binarios: ArrayBuffer[] = [];
+    const conBinario: CanalArchivos = {
+      ...b.canal,
+      enviarBinario: (buf) => {
+        binarios.push(buf);
+        return true;
+      },
+    };
+    expect(crearCanalMultitrayecto([{ id: "a", canal: a.canal }]).enviarBinario).toBeUndefined();
+    const multi = crearCanalMultitrayecto([
+      { id: "a", canal: a.canal, capacidadKbps: 10_000 },
+      { id: "b", canal: conBinario, capacidadKbps: 10_000 },
+    ]);
+    expect(typeof multi.enviarBinario).toBe("function");
+    const datos = new Uint8Array([1, 2, 3, 250]);
+    for (let i = 0; i < 4; i++) expect(multi.enviarBinario?.(encodeChunkBinario("arch_x", i, datos.buffer))).toBe(true);
+    // Cada trozo por UN enlace (nunca duplicado), el de texto como `archivo.chunk` en base64.
+    expect(multi.reparto()).toEqual({ a: 2, b: 2 });
+    expect(binarios).toHaveLength(2);
+    expect(a.enviados).toHaveLength(2);
+    for (const t of a.enviados) {
+      expect(esTrozo(t)).toBe(true);
+      const m = JSON.parse(t) as { id: string; datosB64: string };
+      expect(m.id).toBe("arch_x");
+      expect(Array.from(Buffer.from(m.datosB64, "base64"))).toEqual([1, 2, 3, 250]);
+    }
+  });
+
+  it("(ARC1108B) el trozo de la transferencia es el menor que sugieren los enlaces (16 KiB el que no dice nada)", () => {
+    const a = canalFalso();
+    const b = canalFalso();
+    const directo: CanalArchivos = { ...a.canal, tamanoTrozo: () => 63 * 1024 };
+    const tcp: CanalArchivos = { ...b.canal, tamanoTrozo: () => 46 * 1024 };
+    expect(crearCanalMultitrayecto([{ id: "a", canal: directo }]).tamanoTrozo?.()).toBe(63 * 1024);
+    expect(crearCanalMultitrayecto([{ id: "a", canal: directo }, { id: "b", canal: tcp }]).tamanoTrozo?.()).toBe(46 * 1024);
+    expect(crearCanalMultitrayecto([{ id: "a", canal: directo }, { id: "b", canal: b.canal }]).tamanoTrozo?.()).toBe(16 * 1024);
   });
 });
 

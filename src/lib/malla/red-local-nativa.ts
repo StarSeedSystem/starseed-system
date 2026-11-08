@@ -109,6 +109,17 @@ export function maxTextoPorTrama(l: LimitesCanal): number {
   return Math.max(1024, l.maxCuerpo - MARGEN_TRAMA);
 }
 
+/**
+ * (ARC1108B) Bytes CRUDOS de un trozo de archivo que, en base64 dentro de su `archivo.chunk`, caben
+ * SOLOS en una trama hacia ese aparato, con 1 KiB de holgura para el id y las comillas. En KiB enteros:
+ * 46 KiB con el tope de 64 KiB de `malla_local_trama.rs` (antes iban 16 KiB, dos por trama). Menos
+ * tramas para el limitador y menos escrituras en el almacén del otro. Puro.
+ */
+export function trozoArchivoParaTrama(l: LimitesCanal): number {
+  const util = maxTextoPorTrama(l) - 1024;
+  return Math.max(1024, Math.floor((util * 3) / 4 / 1024) * 1024);
+}
+
 /* ══════════════════════════ Ritmo (cubeta de fichas) ══════════════════════════ */
 
 export interface Cubeta {

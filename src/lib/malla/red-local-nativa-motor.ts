@@ -57,6 +57,7 @@ import {
   podarLigaduras,
   textoPruebaCuenta,
   tomarFicha,
+  trozoArchivoParaTrama,
   type Cubeta,
   type EstadoHaciaNeurona,
   type LimitesCanal,
@@ -329,6 +330,8 @@ export function crearRedNativa(deps: DepsRedNativa): RedNativa {
           return true;
         },
         bufferedAmount: () => (colas.get(ip)?.bytesDatos ?? 0) * FACTOR_FRENO_ARCHIVOS,
+        // (ARC1108B) El trozo que cabe solo en una trama hacia esa app (46 KiB con el tope de 64 KiB).
+        tamanoTrozo: () => trozoArchivoParaTrama(ligaduraDeIp(ligaduras, ip, deps.ahora())?.limites ?? LIMITES_CANAL_ANTERIOR),
         alMensaje: () => nadaQueHacer,
       };
       canales.set(ip, canal);
