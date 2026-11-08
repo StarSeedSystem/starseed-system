@@ -324,9 +324,14 @@ construirá IDN1108A como API pura (`CertificadoNeurona`, `VerificadorCertificad
   y el tope del Rust (64 KiB TCP, 16 KiB BLE) no cambia, así que el claro por trama baja a 3/4:
   `limitesParaCifrado()` estrecha lo que arma el motor. El trozo de archivo pasa de **46 KiB a 34 KiB**
   por TCP (−26 %) y de **10 KiB a 7 KiB** por Bluetooth. Si el canal está limitado por trama (acuse
-  ida y vuelta), el caudal de archivos cae en esa proporción; no hay otra pérdida. Mejora posible y
-  compatible (no hecha: toca Rust): subir `MAX_CUERPO` de `malla_local_trama.rs` a ~88 KiB; ya se anuncia
-  en `malla_local_estado` y las apps anteriores siguen asumiendo 64 KiB.
+  ida y vuelta), el caudal de archivos caía en esa proporción. **Recuperado con un tope negociado:**
+  `MAX_CUERPO` de `malla_local_trama.rs` sube a **96 KiB** (`MAX_CUERPO_ANTERIOR` = 64 KiB). Cada app ya
+  ANUNCIA el suyo (`max_cuerpo` en `malla_local_estado` y `lim.max_cuerpo` en el saludo firmado); la web
+  manda con min(tope del Rust propio, tope del otro) y descuenta la sobrecarga del cifrado. Una app
+  anterior (sin anuncio) sigue en 64 KiB. Trozo de archivo cifrado por TCP: **52 KiB** entre dos apps
+  nuevas (más que los 46 KiB de antes sin cifrar), 34 KiB si el otro es de 64 KiB o el Rust propio es
+  anterior. Bluetooth se queda en 16 KiB (7 KiB de trozo cifrado): su reensamblado por paquetes con MTU 23
+  y sus plazos están ajustados a ese tope y no se ha probado más.
 
 **Pruebas (deterministas).** `sesion-cifrada.test.ts` (18: acuerdo en los dos sentidos, claves por sentido,
 efímeras distintas, empate de aperturas, contador, repetición, ventana, alteración, sesión desconocida,
@@ -335,7 +340,9 @@ renovación por tiempo/tramas/bytes y gracia de la sesión vieja, tamaños, modo
 los dos sentidos, alteración y repetición cierran el enlace, claro hacia quien cifra se descarta,
 renovación sin perder mensajes, app anterior en claro y «sin cifrar», «Exigir», gancho de certificado) y
 `bluetooth-directo-motor.test.ts` (+4: mensaje, archivo de 100 KB con MTU 23 y SHA-256 igual, app
-anterior/exigir, alteración). No se tocó el Rust (su suite sigue en 208).
+anterior/exigir, alteración). Rust: `malla_local_trama` +1 (`el_tope_de_96_kib_vale_en_los_dos_sentidos`, con 80 KiB por TCP real); suite 209. `red-local-nativa-cifrado.test.ts` +3 (tope negociado).
+
+**Interfaz.** Ajustes › Neuronas › Medios › «Exigir cifrado en la red local» (`ajuste-cifrado-red-local.tsx`, apagado por defecto) y, junto a la vía en la cabecera del hilo de una neurona propia, el candado «cifrado» / «cifrando…» o el aviso «sin cifrar» (`sello-cifrado.tsx`, lee `cifradoDe()`).
 
 **Lo que necesita dos aparatos reales (pendiente).** Mac ↔ tablet por Wi-Fi y por Bluetooth con la web
 nueva (el cifrado llega con la web publicada; el Rust no cambia, así que sirve ya con la app 0.5.x que

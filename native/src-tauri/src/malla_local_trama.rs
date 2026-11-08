@@ -26,7 +26,13 @@ pub const VERSION: u8 = 1;
 /// magia (4) + versión (1) + tipo (1) + largo (4).
 pub const CABECERA: usize = 10;
 /// Tope del cuerpo de una trama (una solicitud de sincronización firmada ocupa ~1 KiB).
-pub const MAX_CUERPO: usize = 64 * 1024;
+/// CIF1108A: 96 KiB (antes 64). La trama cifrada de punta a punta pesa 4/3 del claro; con 96 KiB el trozo
+/// de archivo cifrado (~51 KiB) supera al de antes (46 KiB claros). Es compatible: cada app ANUNCIA el
+/// suyo en `malla_local_estado` y en su saludo firmado (`lim.max_cuerpo`), y la web manda a cada una
+/// como máximo min(tope propio, tope del otro); una app anterior (sin anuncio) sigue en 64 KiB.
+pub const MAX_CUERPO: usize = 96 * 1024;
+/// El tope que asume la web de una app anterior (que no lo anuncia).
+pub const MAX_CUERPO_ANTERIOR: usize = 64 * 1024;
 /// Puerto TCP del canal local: el del faro UDP (47070) + 1. `malla_local.rs` lo comprueba al compilar.
 pub const PUERTO: u16 = 47071;
 /// Cuerpo del acuse.
@@ -332,6 +338,42 @@ mod pruebas {
         assert_eq!(leer_trama(&mut Cursor::new(b)), Err(ErrorTrama::NoJson));
         assert_eq!(leer_trama(&mut Cursor::new(&buena[..buena.len() - 3])), Err(ErrorTrama::Cerrada), "trama cortada");
         assert_eq!(leer_trama(&mut Cursor::new(Vec::<u8>::new())), Err(ErrorTrama::Cerrada));
+    }
+
+    /// CIF1108A: el tope nuevo (96 KiB) vale en los dos sentidos y por TCP de verdad; la app anterior
+    /// (64 KiB) quedaría por debajo, así que la web debe pedirle ≤ 64 KiB (`MAX_CUERPO_ANTERIOR`).
+    #[test]
+    fn el_tope_de_96_kib_vale_en_los_dos_sentidos() {
+        assert_eq!(MAX_CUERPO, 96 * 1024);
+        assert!(MAX_CUERPO > MAX_CUERPO_ANTERIOR);
+        let justo = format!("{{\"x\":\"{}\"}}", "a".repeat(MAX_CUERPO - 8));
+        assert_eq!(justo.len(), MAX_CUERPO);
+        let t = leer_trama(&mut Cursor::new(codificar(TipoTrama::Mensaje, &justo).unwrap())).unwrap();
+        assert_eq!(t.cuerpo.len(), MAX_CUERPO);
+        // Uno más: se rechaza al codificar y, si alguien lo fabrica a mano, al leer la cabecera.
+        let pasado = format!("{{\"x\":\"{}\"}}", "a".repeat(MAX_CUERPO - 7));
+        assert_eq!(codificar(TipoTrama::Mensaje, &pasado), Err(ErrorTrama::Largo(MAX_CUERPO + 1)));
+        let mut cab = [0u8; CABECERA];
+        cab[0..4].copy_from_slice(&MAGIA);
+        cab[4] = VERSION;
+        cab[5] = TipoTrama::Mensaje as u8;
+        cab[6..10].copy_from_slice(&((MAX_CUERPO + 1) as u32).to_be_bytes());
+        assert_eq!(leer_cabecera(&cab), Err(ErrorTrama::Largo(MAX_CUERPO + 1)));
+        // Un cuerpo de 80 KiB (más que el tope anterior) cruza una conexión TCP local con su acuse.
+        let ochenta = format!("{{\"x\":\"{}\"}}", "b".repeat(80 * 1024));
+        let l = TcpListener::bind("127.0.0.1:0").unwrap();
+        let puerto = l.local_addr().unwrap().port();
+        let c = ochenta.clone();
+        let h = std::thread::spawn(move || {
+            let mut s = TcpStream::connect(("127.0.0.1", puerto)).unwrap();
+            s.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+            enviar_y_esperar(&mut s, &c)
+        });
+        let (mut srv, _) = l.accept().unwrap();
+        srv.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+        assert_eq!(leer_mensaje(&mut srv).unwrap(), ochenta);
+        acusar(&mut srv).unwrap();
+        assert!(h.join().unwrap().is_ok());
     }
 
     #[test]

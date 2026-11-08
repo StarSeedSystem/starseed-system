@@ -21,6 +21,7 @@ import { BloqueMedioTransmision } from "@/components/messages/medios/bloque-medi
 import { VersionNeurona } from "@/components/neurons/version-neurona";
 import { usePresenciaViva } from "@/lib/neurons/use-presencia-viva";
 import { TEXTO_VIA } from "@/lib/neurons/presencia-viva";
+import { SelloCifrado } from "@/components/neurons/sello-cifrado";
 import { IconoNeurona } from "@/components/messages/neuronas/icono-neurona";
 import { SeparadorDia } from "@/components/messages/dm/separador-dia";
 import { formatearHora } from "@/components/messages/dm/utilidades-hilo";
@@ -252,7 +253,11 @@ export function HiloNeurona({ conversacion, cerebros, esMovil, onAtras, enfocado
                 <IconoNeurona kind={conversacion.kind} propia={conversacion.propia} enLinea={enLinea} />
                 <div className="min-w-0 flex-1">
                     <h2 className="truncate text-[15px] font-semibold text-white">{conversacion.nombre}</h2>
-                    <p className="truncate text-[12px] text-white/55">{subtitulo}</p>
+                    <p className="flex items-center gap-1.5 truncate text-[12px] text-white/55">
+                        <span className="truncate">{subtitulo}</span>
+                        {/* (CIF1108A) Candado «cifrado» / aviso «sin cifrar» del enlace directo con esta neurona. */}
+                        {conversacion.propia && <SelloCifrado neuronaId={conversacion.destino.neuronDeviceId ?? ""} className="shrink-0 text-[11px]" />}
+                    </p>
                 </div>
                 <BotonesLlamadaNeurona conversacion={conversacion} compacto={esMovil} />
                 <button

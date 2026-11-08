@@ -313,8 +313,17 @@ export function crearRedNativa(deps: DepsRedNativa): RedNativa {
   /** Cómo se habla con esa ligadura: cifrado (obligatorio), en claro (app anterior) o bloqueado (ajuste). */
   const modoDe = (lig: Ligadura): ModoEnlace => decidirModo({ propio: propio(), cifPar: lig.cif, exigir: exigir() });
   /** Los límites de lo que se arma en claro hacia esa ligadura (más estrechos si luego se cifra). */
+  /**
+   * (CIF1108A) Tope negociado: lo que admite el otro (su saludo) y lo que admite el Rust de ESTA app
+   * (`malla_local_estado`; una app anterior no lo dice → 64 KiB). Se manda con el menor de los dos.
+   */
+  const limitesHacia = (lig: Ligadura | null): LimitesCanal => {
+    const base = lig?.limites ?? LIMITES_CANAL_ANTERIOR;
+    const propio = (misLimites ?? LIMITES_CANAL_ANTERIOR).maxCuerpo;
+    return propio < base.maxCuerpo ? { ...base, maxCuerpo: propio } : base;
+  };
   const limitesEfectivos = (lig: Ligadura | null): LimitesCanal => {
-    const lim = lig?.limites ?? LIMITES_CANAL_ANTERIOR;
+    const lim = limitesHacia(lig);
     return lig && modoDe(lig) === "cifrado" ? limitesParaCifrado(lim) : lim;
   };
 
@@ -398,7 +407,7 @@ export function crearRedNativa(deps: DepsRedNativa): RedNativa {
       while (c.control.length || c.datos.length) {
         const fuente = c.control.length ? c.control : c.datos;
         const lig = ligaduraDeIp(ligaduras, ip, deps.ahora());
-        const lim = lig?.limites ?? LIMITES_CANAL_ANTERIOR;
+        const lim = limitesHacia(lig);
         // (CIF1108A) Solo se arma un grupo homogéneo: o todo «siempre en claro» (saludo, acuerdo) o todo lo demás.
         const claroPrimero = esTextoSiempreEnClaro(fuente[0].texto);
         let largoGrupo = 1;

@@ -29,7 +29,7 @@ async function calma(): Promise<void> {
 
 function app(
   m: Mundo,
-  p: { ip: string; neurona: string; huella: string; vecino: { ip: string; neurona: string }; vinculo: VinculoMinimo; cifra?: boolean; exigir?: boolean; certificado?: Record<string, unknown>; verificarCertificado?: DepsRedNativa["verificarCertificado"] },
+  p: { ip: string; neurona: string; huella: string; vecino: { ip: string; neurona: string }; vinculo: VinculoMinimo; cifra?: boolean; exigir?: boolean; limites?: LimitesCanal; certificado?: Record<string, unknown>; verificarCertificado?: DepsRedNativa["verificarCertificado"] },
 ) {
   const entregados: string[] = [];
   const archivos: string[] = [];
@@ -41,7 +41,7 @@ function app(
       m.ahora += ms;
     },
     nuevaSesion: () => "nativo-x",
-    estado: async () => ({ escuchando: true, vecinos: [{ ip: p.vecino.ip, neurona: p.vecino.neurona, puerto: 47071, canal: true }], limites: LIM }),
+    estado: async () => ({ escuchando: true, vecinos: [{ ip: p.vecino.ip, neurona: p.vecino.neurona, puerto: 47071, canal: true }], limites: p.limites ?? LIM }),
     enviar: async (ip, _puerto, json) => {
       const cuerpo = m.tocar && !json.startsWith('{"t":"nl.hola"') && !json.startsWith('{"t":"nl.cs"') ? m.tocar(json) : json;
       m.envios.push({ de: p.ip, a: ip, cuerpo });
@@ -73,7 +73,7 @@ function app(
   return { red, entregados, archivos };
 }
 
-function par(opts: { cifraA?: boolean; cifraB?: boolean; exigirA?: boolean; certB?: Record<string, unknown>; verificarA?: DepsRedNativa["verificarCertificado"] } = {}) {
+function par(opts: { limA?: LimitesCanal; limB?: LimitesCanal; cifraA?: boolean; cifraB?: boolean; exigirA?: boolean; certB?: Record<string, unknown>; verificarA?: DepsRedNativa["verificarCertificado"] } = {}) {
   const m: Mundo = { ahora: 1_000_000, redes: {}, envios: [] };
   const a = app(m, {
     ip: IP_A,
@@ -82,10 +82,11 @@ function par(opts: { cifraA?: boolean; cifraB?: boolean; exigirA?: boolean; cert
     vecino: { ip: IP_B, neurona: "NB" },
     vinculo: { neurona: "NB", nombre: "B", huella: "FPB" },
     cifra: opts.cifraA,
+    limites: opts.limA,
     exigir: opts.exigirA,
     verificarCertificado: opts.verificarA,
   });
-  const b = app(m, { ip: IP_B, neurona: "NB", huella: "FPB", vecino: { ip: IP_A, neurona: "NA" }, vinculo: { neurona: "NA", nombre: "A", huella: "FPA" }, cifra: opts.cifraB, certificado: opts.certB });
+  const b = app(m, { ip: IP_B, neurona: "NB", huella: "FPB", vecino: { ip: IP_A, neurona: "NA" }, vinculo: { neurona: "NA", nombre: "A", huella: "FPA" }, cifra: opts.cifraB, certificado: opts.certB, limites: opts.limB });
   return { m, a, b };
 }
 
@@ -266,5 +267,39 @@ describe("gancho de certificado (IDN1108A)", () => {
     const bueno = par({ certB: { v: 1, firma: "buena" }, verificarA: async () => true });
     await ligar(bueno);
     expect(bueno.a.red.instantanea().ligaduras).toHaveLength(1);
+  });
+});
+
+describe("tope de trama negociado (CIF1108A)", () => {
+  const L96: LimitesCanal = { maxCuerpo: 96 * 1024, porVentana: 1_000_000, ventanaMs: 10_000 };
+  const L64: LimitesCanal = { maxCuerpo: 64 * 1024, porVentana: 1_000_000, ventanaMs: 10_000 };
+  const trozo = async (x: ReturnType<typeof par>) => {
+    // Dos vueltas: la primera contestación de B sale antes de que B haya leído el estado de su canal (sin `lim`);
+    // la segunda ya lo anuncia (en la app real, el saludo se repite cada 15 s).
+    await ligar(x);
+    x.m.ahora += 150_000;
+    await ligar(x);
+    return (x.a.red.canalArchivos(IP_B).tamanoTrozo?.() ?? 0) / 1024;
+  };
+
+  it("dos apps de 96 KiB: el trozo cifrado es de 52 KiB (antes, 46 sin cifrar); si el otro es de 64 KiB, 34", async () => {
+    expect(await trozo(par({ limA: L96, limB: L96 }))).toBe(52);
+    expect(await trozo(par({ limA: L96, limB: L64 }))).toBe(34);
+  });
+
+  it("el Rust propio de 64 KiB limita aunque el otro admita 96", async () => {
+    expect(await trozo(par({ limA: L64, limB: L96 }))).toBe(34);
+  });
+
+  it("un trozo del tamaño nuevo viaja cifrado en UNA trama de ≤ 96 KiB", async () => {
+    const x = par({ limA: L96, limB: L96 });
+    const kib = await trozo(x);
+    const chunk = `{"t":"archivo.chunk","id":"${"f".repeat(36)}","index":1,"datosB64":"${btoa("q".repeat(kib * 1024))}"}`;
+    x.a.red.canalArchivos(IP_B).enviar(chunk);
+    await calma();
+    const f = x.m.envios.filter((e) => e.cuerpo.includes('"nl.cif"'));
+    expect(f).toHaveLength(1);
+    expect(f[0].cuerpo.length).toBeLessThanOrEqual(96 * 1024 - 512);
+    expect(x.b.archivos).toEqual([chunk]);
   });
 });
