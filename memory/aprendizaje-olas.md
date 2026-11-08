@@ -6136,3 +6136,12 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 **Lo que se pidió.** ideas nuevas
 
 **Resultado.** 1 de 1 integradas.
+
+## 2026-11-08 12:06 · auto-1108-115009
+
+**Lo que se pidió.** ideas nuevas
+
+**Resultado.** 0 de 1 integradas. 1 tarea se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `DR1108-3` — pruebas en rojo: FAILED scripts/puente/test_imaginacion_contexto.py::test_el_dream_ejecuta_auto_refresh_de_modelos
