@@ -59,7 +59,7 @@ interface Lado {
 
 const prueba = (t: string) => createHash("sha256").update(`${CLAVE_FARO}|${t}`).digest("hex").slice(0, 32);
 
-function dosApps(opts: { mtu?: number; conClave?: boolean; fallar?: () => boolean; firmaAjena?: boolean; cifra?: boolean | "mac"; exigirMac?: boolean } = {}) {
+function dosApps(opts: { mtu?: number; conClave?: boolean; fallar?: () => boolean; firmaAjena?: boolean; cifra?: boolean | "mac"; exigirMac?: boolean; lentoMs?: number } = {}) {
   const mtu = opts.mtu ?? 185;
   const reloj = { ahora: 1_800_000_000_000 };
   const aire = { tramas: 0, paquetes: 0, maxPaquete: 0, maxTrama: 0, rechazadas: 0, jsons: [] as string[] };
@@ -99,6 +99,8 @@ function dosApps(opts: { mtu?: number; conClave?: boolean; fallar?: () => boolea
           return { ok: false, motivo: "Bluetooth directo: no se envía (trama no válida)" };
         }
         if (opts.fallar?.()) return { ok: false, motivo: "sin acuse por Bluetooth tras 4 intentos" };
+        // (BLE1108C) Una radio lenta con los mensajes de datos (los trozos de archivo; los de control pasan al ritmo normal).
+        if (opts.lentoMs && json.startsWith('{"t":"archivo.')) await new Promise((r) => setTimeout(r, opts.lentoMs));
         aire.tramas++;
         aire.jsons.push(json);
         aire.maxTrama = Math.max(aire.maxTrama, new TextEncoder().encode(json).length);
@@ -345,4 +347,29 @@ describe("Bluetooth directo · motor (BLE1108A)", () => {
     await lados.tab.red.recibir(falsa, "b7"); // sesión desconocida: se vuelve a acordar, no se entrega
     expect(lados.tab.transporte).toHaveLength(1);
   });
+
+  it("(BLE1108C) con la cola de datos llena y la radio lenta, el canal de archivos no espera «listo» para siempre y un control sale por delante", async () => {
+    const { lados, reloj, aire } = dosApps({ lentoMs: 250 });
+    await ligar(lados);
+    const grande = (i: number) => JSON.stringify({ t: "archivo.chunk", id: "t1", index: i, datosB64: "x".repeat(9_000) });
+    const trozosEnElAire = () => aire.jsons.filter((j) => j.startsWith('{"t":"archivo.chunk"')).length;
+    const envios = [1, 2, 3, 4, 5, 6].map((i) => lados.mac.red.enviarTexto("b1", grande(i)));
+    await esperarHasta(() => lados.mac.red.colaBytes("b1") > 32 * 1024);
+    const canal = lados.mac.red.canalArchivos("b1");
+    expect(canal.enlaceArriba?.()).toBe(true);
+    const antes = reloj.ahora;
+    // El enlace está arriba: la contrapresión espera como mucho ~500 ms (reloj del motor) y sigue.
+    expect(await canal.esperarListo?.()).toBe(true);
+    expect(reloj.ahora - antes).toBeGreaterThanOrEqual(500);
+    expect(reloj.ahora - antes).toBeLessThan(5_000);
+    expect(lados.mac.red.registro().exportar()).toContain("listo-tarde");
+    // Un control del enlace sale sin pasar por esa contrapresión: llega antes de que acabe la cola de datos.
+    const s = "sesion-wifi-0002";
+    const r = await lados.mac.red.enviarControlEnlace("n-tab", { t: T_OFERTA_WIFI, s, modo: "hotspot", ssid: "DIRECT-StarSeed", caduca: reloj.ahora + 60_000 });
+    expect(r.ok).toBe(true);
+    await esperarHasta(() => lados.tab.control.length === 1);
+    expect(trozosEnElAire()).toBeLessThan(6);
+    expect((await Promise.all(envios)).every((x) => x.ok)).toBe(true);
+    expect(trozosEnElAire()).toBe(6);
+  }, 20_000);
 });

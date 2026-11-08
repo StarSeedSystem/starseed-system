@@ -6,7 +6,7 @@
  *   NODE_ENV=test npx vitest run src/lib/network/__tests__/archivos-malla-ble.test.ts
  */
 import { describe, expect, it } from "vitest";
-import { crearAlmacenEnMemoria, crearMotorArchivos, type CanalArchivos, type MotorArchivos } from "@/lib/network/archivos-malla";
+import { crearAlmacenEnMemoria, crearMotorArchivos, esperarListoConPlazo, type CanalArchivos, type MotorArchivos } from "@/lib/network/archivos-malla";
 import { agruparEnvios, enviosPorDecidir } from "@/lib/network/envios-entrantes";
 
 const esperar = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -26,10 +26,12 @@ interface Portador {
   volver: () => void;
   /** Ofertas A→B que se pierden en el aire (acusadas por la radio, perdidas más arriba). */
   perderOfertas: (n: number) => void;
+  /** (BLE1108C) Cuántas veces el motor siguió sin esperar más la señal «listo». */
+  tardes: () => number;
 }
 
 /** Dos canales con acuse, retardo por mensaje y un interruptor de enlace (el «ligado» del motor BLE). */
-function portador(opt: { retardoMs?: number; maxTexto?: number; rutaA?: string; rutaB?: string } = {}): Portador {
+function portador(opt: { retardoMs?: number; maxTexto?: number; rutaA?: string; rutaB?: string; nuncaListo?: boolean } = {}): Portador {
   const oyentes = { a: new Set<(d: string | ArrayBuffer) => void>(), b: new Set<(d: string | ArrayBuffer) => void>() };
   let arriba = true;
   let enVuelo = 0;
@@ -37,6 +39,7 @@ function portador(opt: { retardoMs?: number; maxTexto?: number; rutaA?: string; 
   let listo = 0;
   let datos = 0;
   let perder = 0;
+  let tardes = 0;
   const retardo = opt.retardoMs ?? 5;
   const canal = (yo: "a" | "b"): CanalArchivos => {
     const otro = yo === "a" ? "b" : "a";
@@ -72,9 +75,12 @@ function portador(opt: { retardoMs?: number; maxTexto?: number; rutaA?: string; 
       enviarConAcuse: entregar,
       esperarListo: async () => {
         if (yo === "a") listo++;
+        // (BLE1108C) Un portador cuya señal «listo» nunca llega (CoreBluetooth sin aviso, Android sin callback).
+        if (opt.nuncaListo) return new Promise<boolean>(() => {});
         for (let i = 0; i < 400 && !arriba; i++) await esperar(5);
         return arriba;
       },
+      ...(opt.nuncaListo ? { enlaceArriba: () => arriba, alListoTarde: () => void tardes++ } : {}),
       ...(opt.maxTexto ? { maxTextoBytes: () => opt.maxTexto as number } : {}),
       rutaMedida: () => (yo === "a" ? opt.rutaA : opt.rutaB) ?? null,
       alMensaje: (cb) => {
@@ -100,6 +106,7 @@ function portador(opt: { retardoMs?: number; maxTexto?: number; rutaA?: string; 
     perderOfertas: (n) => {
       perder = n;
     },
+    tardes: () => tardes,
   };
 }
 
@@ -146,6 +153,45 @@ describe("contrapresión sobre un portador lento", () => {
     expect(p.maxEnVuelo()).toBeLessThanOrEqual(1);
     expect(p.llamadasListo()).toBeGreaterThanOrEqual(p.datosAB());
     expect(p.datosAB()).toBeGreaterThanOrEqual(6);
+  });
+});
+
+describe("una señal «listo» que nunca llega no bloquea el enlace (BLE1108C)", () => {
+  it("con el enlace arriba el archivo llega íntegro, y cada trozo sin señal queda anotado como tarde", async () => {
+    const p = portador({ retardoMs: 3, nuncaListo: true });
+    const { motorA, completados } = par(p);
+    const blob = bytes(3 * 1024);
+    const r = await motorA.enviarArchivo(p.a, blob, "clip.bin", { tipo: "dispositivo" });
+    expect(r.ok).toBe(true);
+    for (let i = 0; i < 300 && completados.length === 0; i++) await esperar(10);
+    expect(completados).toHaveLength(1);
+    expect(await sha256(completados[0].blob)).toBe(await sha256(blob));
+    expect(p.tardes()).toBeGreaterThanOrEqual(3);
+  });
+
+  it("esperarListoConPlazo: sin enlace espera la señal real; con enlace sigue a los pocos ms", async () => {
+    let arriba = false;
+    let tarde = 0;
+    let suelta: (v: boolean) => void = () => {};
+    const canal = {
+      enviar: () => true,
+      alMensaje: () => () => {},
+      esperarListo: () => new Promise<boolean>((res) => (suelta = res)),
+      enlaceArriba: () => arriba,
+      alListoTarde: () => void tarde++,
+    } as CanalArchivos;
+    const sinEnlace = esperarListoConPlazo(canal, 20);
+    await esperar(60);
+    let resuelto = false;
+    void sinEnlace.then(() => (resuelto = true));
+    await esperar(5);
+    expect(resuelto).toBe(false);
+    suelta(false);
+    expect(await sinEnlace).toBe(false);
+    expect(tarde).toBe(0);
+    arriba = true;
+    expect(await esperarListoConPlazo(canal, 20)).toBe(true);
+    expect(tarde).toBe(1);
   });
 });
 

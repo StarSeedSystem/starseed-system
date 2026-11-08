@@ -105,7 +105,13 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
     private const val MTU_PEDIDO = 517
     private const val PAQUETE_MIN = 20
     private const val PAQUETE_MAX = 512
-    private const val VIGIA_ESCRITURA_MS = 1500L
+    // (BLE1108C) Si `onCharacteristicWrite` / `onNotificationSent` no llega en este tiempo, se sigue igual y se anota
+    // `listo-tarde`: una señal perdida nunca vuelve a bloquear el enlace.
+    private const val VIGIA_ESCRITURA_MS = 500L
+    // (BLE1108C) Reintentos de la suscripción (CCCD) y espera para que el otro se suscriba al ser el periférico.
+    private const val REINTENTOS_SUSCRIPCION = 3
+    private const val ESPERA_SUSCRIPCION_MS = 1000L
+    private const val VIGIA_SUSCRIPCION_MS = 10_000L
 
     private class Cliente(val direccion: String, val gatt: BluetoothGatt) {
         var entrada: BluetoothGattCharacteristic? = null
@@ -113,12 +119,16 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
         var listo = false
         var ocupadoDesde = 0L
         var pendiente: ByteArray? = null
+        var reintentosSub = 0
+        var tardes = 0
     }
 
     private class Central(val device: BluetoothDevice) {
         var paquete = PAQUETE_MIN
         var suscrito = false
     }
+
+    private var tardesServidor = 0
 
     private lateinit var ctx: Context
     private val principal = Handler(Looper.getMainLooper())
@@ -225,6 +235,13 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
         evento(JSONObject().put("e", "radio").put("estado", estado).put("motivo", motivo))
     }
 
+    /** (BLE1108C) Un hito de la radio para el registro de Rust (`enlaces.log`): nunca cambia el estado del enlace. */
+    private fun nota(tipo: String, enlace: String?, detalle: String) {
+        val j = JSONObject().put("e", "nota").put("tipo", tipo).put("detalle", detalle)
+        if (enlace != null) j.put("enlace", enlace)
+        evento(j)
+    }
+
     private fun desconectado(enlace: String, motivo: String) {
         evento(JSONObject().put("e", "desconectado").put("enlace", enlace).put("motivo", motivo))
         reanudarRadio()
@@ -234,11 +251,14 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
      * (BLE1108B) Tras CUALQUIER caída vuelve a anunciarse y asegura el escaneo: en Android un anuncio
      * conectable puede quedar parado al conectarse alguien y, sin él, la otra neurona no encuentra a
      * esta para reconectar. Rust reconecta con 0 s, 2 s, 5 s y luego cada 15 s.
+     *
+     * (BLE1108C) Solo ARRANCA lo que falta (anuncio y escaneo): no para un anuncio que ya está, no toca el
+     * servidor GATT ni los clientes, así que un enlace en marcha jamás se cae por esto.
      */
     private fun reanudarRadio() {
         principal.postDelayed({
             if (!activo || ultimoEstado != "encendida") return@postDelayed
-            anunciar()
+            if (!anunciando) anunciar()
             escanear()
         }, 400)
     }
@@ -424,6 +444,19 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
                 val k = "p:" + d.address
                 if (newState == BluetoothProfile.STATE_CONNECTED) {
                     if (!centrales.containsKey(k)) centrales[k] = Central(d)
+                    val central = centrales[k]
+                    // (BLE1108C) Si el otro conecta y no se suscribe a SALIDA, se anota y se suelta (él reintenta).
+                    principal.postDelayed({
+                        val c = centrales[k]
+                        if (c != null && c === central && !c.suscrito) {
+                            nota("sin-suscripcion", k, "el otro aparato conectó pero no se suscribió en ${VIGIA_SUSCRIPCION_MS / 1000} s; se suelta")
+                            centrales.remove(k)
+                            try {
+                                servidor?.cancelConnection(c.device)
+                            } catch (e: Exception) {
+                            }
+                        }
+                    }, VIGIA_SUSCRIPCION_MS)
                 } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                     val c = centrales.remove(k)
                     if (c?.suscrito == true) desconectado(k, "el otro aparato se desconectó (estado $status)") else reanudarRadio()
@@ -474,6 +507,7 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
                 val c = centrales.getOrPut(k) { Central(d) }
                 if (encendido && !c.suscrito) {
                     c.suscrito = true
+                    nota("suscrito", k, "el otro aparato activó las notificaciones de SALIDA, paquete ${c.paquete}")
                     evento(JSONObject().put("e", "conectado").put("enlace", k).put("rol", "periferico").put("direccion", d.address).put("paquete", c.paquete))
                     bombearServidor()
                 } else if (!encendido && c.suscrito) {
@@ -525,7 +559,13 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
     private fun bombearServidor() {
         val s = servidor ?: return
         val sal = salida ?: return
-        if (servidorOcupadoDesde != 0L && SystemClock.elapsedRealtime() - servidorOcupadoDesde < VIGIA_ESCRITURA_MS) return
+        if (servidorOcupadoDesde != 0L) {
+            if (SystemClock.elapsedRealtime() - servidorOcupadoDesde < VIGIA_ESCRITURA_MS) return
+            tardesServidor += 1
+            if (tardesServidor <= 3 || tardesServidor % 50 == 0) {
+                nota("listo-tarde", null, "sin onNotificationSent en $VIGIA_ESCRITURA_MS ms: se notifica igual (aviso $tardesServidor)")
+            }
+        }
         servidorOcupadoDesde = 0L
         pendienteServidor?.let { (k, b) ->
             val c = centrales[k]
@@ -751,9 +791,32 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
                     return@post
                 }
                 c.entrada = e
+                nota("servicios-descubiertos", k, "servicio StarSeed encontrado, suscribiendo a SALIDA")
                 c.gatt.setCharacteristicNotification(sal, true)
-                if (!escribirDescriptor(c.gatt, d)) cerrarCliente(k, "no se pudo suscribir a sus avisos")
+                if (!escribirDescriptor(c.gatt, d)) reintentarSuscripcion(k, c, "no se pudo pedir la suscripción")
             }
+        }
+
+        /** (BLE1108C) La suscripción a SALIDA no quedó: se anota y se repite (a 1 s) antes de cerrar el enlace. */
+        private fun reintentarSuscripcion(k: String, c: Cliente, motivo: String) {
+            if (c.reintentosSub >= REINTENTOS_SUSCRIPCION) {
+                nota("sin-suscripcion", k, "$motivo; sin más reintentos, se cierra el enlace")
+                cerrarCliente(k, "no se pudo suscribir a sus avisos")
+                return
+            }
+            c.reintentosSub += 1
+            nota("sin-suscripcion", k, "$motivo; reintento ${c.reintentosSub} de $REINTENTOS_SUSCRIPCION")
+            principal.postDelayed({
+                val vivo = clientes[k]
+                if (vivo === c && !c.listo) {
+                    val d = c.gatt.getService(SERVICIO)?.getCharacteristic(SALIDA)?.getDescriptor(CCCD)
+                    if (d == null || !escribirDescriptor(c.gatt, d)) {
+                        reintentarSuscripcion(k, c, "no se pudo pedir la suscripción")
+                    } else {
+                        nota("suscripcion-reintento", k, "pidiendo de nuevo las notificaciones de SALIDA")
+                    }
+                }
+            }, ESPERA_SUSCRIPCION_MS)
         }
 
         override fun onDescriptorWrite(gatt: BluetoothGatt?, descriptor: BluetoothGattDescriptor?, status: Int) {
@@ -761,10 +824,11 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
                 val (k, c) = clientePor(gatt) ?: return@post
                 if (descriptor?.uuid != CCCD) return@post
                 if (status != BluetoothGatt.GATT_SUCCESS) {
-                    cerrarCliente(k, "no aceptó la suscripción (estado $status)")
+                    reintentarSuscripcion(k, c, "no aceptó la suscripción (estado $status)")
                     return@post
                 }
                 c.listo = true
+                nota("suscrito", k, "notificaciones de SALIDA activas, paquete ${c.paquete}")
                 evento(JSONObject().put("e", "conectado").put("enlace", k).put("rol", "central").put("direccion", c.direccion).put("paquete", c.paquete))
                 bombear(k)
             }
@@ -811,7 +875,13 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
         }
         val c = clientes[k] ?: return
         if (!c.listo) return
-        if (c.ocupadoDesde != 0L && SystemClock.elapsedRealtime() - c.ocupadoDesde < VIGIA_ESCRITURA_MS) return
+        if (c.ocupadoDesde != 0L) {
+            if (SystemClock.elapsedRealtime() - c.ocupadoDesde < VIGIA_ESCRITURA_MS) return
+            c.tardes += 1
+            if (c.tardes <= 3 || c.tardes % 50 == 0) {
+                nota("listo-tarde", k, "sin onCharacteristicWrite en $VIGIA_ESCRITURA_MS ms: se escribe igual (aviso ${c.tardes})")
+            }
+        }
         c.ocupadoDesde = 0L
         val e = c.entrada ?: return
         val b = c.pendiente ?: deHex(siguiente(k)) ?: return

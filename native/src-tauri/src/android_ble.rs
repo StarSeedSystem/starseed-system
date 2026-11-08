@@ -253,9 +253,48 @@ mod pruebas {
             assert!(KOTLIN.contains(&format!("\"{o}\" ->")), "orden {o}");
             assert!(rust.contains(&format!("\"o\": \"{o}\"")), "orden {o} en Rust");
         }
-        for e in ["radio", "visto", "conectado", "mtu", "desconectado"] {
+        for e in ["radio", "visto", "conectado", "mtu", "desconectado", "nota"] {
             assert!(KOTLIN.contains(&format!("put(\"e\", \"{e}\")")), "evento {e}");
             assert!(include_str!("ble.rs").contains(&format!("\"{e}\" =>")), "evento {e} en Rust");
         }
+    }
+
+    /// (BLE1108C) `reanudarRadio` solo arranca lo que falta (anuncio y escaneo): no toca el servidor GATT ni los
+    /// clientes ni para un anuncio en marcha, así que un enlace con datos en vuelo jamás se cae por él.
+    #[test]
+    fn reanudar_radio_no_tumba_un_enlace_en_marcha() {
+        let ini = KOTLIN.find("private fun reanudarRadio()").expect("reanudarRadio");
+        let cuerpo = &KOTLIN[ini..];
+        let fin = cuerpo.find("\n    }\n").expect("fin de reanudarRadio");
+        let f = &cuerpo[..fin];
+        for prohibido in ["stopAdvertising", "cancelConnection", "disconnect", "close", "servidor", "clientes", "centrales", "limpiar", "cerrarCliente", "desconectar("] {
+            assert!(!f.contains(prohibido), "reanudarRadio no debe tocar «{prohibido}»");
+        }
+        assert!(f.contains("if (!anunciando) anunciar()"), "solo anuncia si no hay anuncio");
+        assert!(f.contains("escanear()"));
+    }
+
+    /// (BLE1108C) Los hitos que Kotlin anota son los que Rust acepta, y cubren descubrimiento, suscripción,
+    /// «listo» tardío y reintento; el periférico vigila que el otro se suscriba.
+    #[test]
+    fn hitos_de_kotlin_son_los_que_rust_acepta() {
+        let mut vistos = Vec::new();
+        let mut resto = KOTLIN;
+        while let Some(i) = resto.find("nota(\"") {
+            let r = &resto[i + 6..];
+            let f = r.find('"').unwrap();
+            vistos.push(r[..f].to_string());
+            resto = &r[f..];
+        }
+        for h in ["servicios-descubiertos", "suscrito", "sin-suscripcion", "listo-tarde", "suscripcion-reintento"] {
+            assert!(vistos.iter().any(|v| v == h), "Kotlin no anota «{h}»");
+            assert!(crate::ble::NOTAS_RADIO.contains(&h));
+        }
+        for v in &vistos {
+            assert!(crate::ble::NOTAS_RADIO.contains(&v.as_str()), "Rust no acepta la nota «{v}»");
+        }
+        assert!(KOTLIN.contains("VIGIA_SUSCRIPCION_MS"), "el periférico vigila la suscripción del otro");
+        assert!(KOTLIN.contains("REINTENTOS_SUSCRIPCION"), "el central reintenta la suscripción");
+        assert!(KOTLIN.contains("VIGIA_ESCRITURA_MS = 500L"));
     }
 }

@@ -148,6 +148,14 @@ export interface CanalArchivos {
    * «listo para enviar» del portador: el motor la respeta antes de CADA trozo (contrapresión).
    */
   esperarListo?(): Promise<boolean>;
+  /**
+   * (BLE1108C) Opcional: true si el canal tiene enlace AHORA. Sin esto se da por arriba. Con el enlace arriba,
+   * «listo para enviar» se espera como mucho `ESPERA_LISTO_MS`: pasado ese plazo se manda igual (una señal que no
+   * llega nunca bloquea un enlace vivo). Sin enlace se espera la señal de verdad (a que vuelva).
+   */
+  enlaceArriba?(): boolean;
+  /** (BLE1108C) Opcional: se llama cuando se mandó sin esperar más la señal «listo» (para dejarlo en el registro). */
+  alListoTarde?(): void;
   /** (BLE1108B) Opcional: bytes (UTF-8) que caben en UN mensaje por este canal; una oferta mayor se aligera. */
   maxTextoBytes?(): number;
   /**
@@ -158,6 +166,34 @@ export interface CanalArchivos {
   rutaMedida?(): string | null;
   /** Suscribe un callback a los mensajes entrantes. Devuelve función de baja. */
   alMensaje(cb: (data: string | ArrayBuffer) => void): () => void;
+}
+
+/** (BLE1108C) Plazo máximo de la señal «listo para enviar» con el enlace arriba; luego se manda igual. */
+export const ESPERA_LISTO_MS = 500;
+
+/**
+ * (BLE1108C) «Listo para enviar» a prueba de señales perdidas. Con el enlace arriba (o sin saberlo) la espera
+ * es de `plazoMs` como mucho: si la señal no llega, se sigue (true) y se avisa con `alListoTarde`. Con el enlace
+ * caído se espera la señal real, que ya trae su propio tope, para no gastar reintentos mientras se reconecta.
+ */
+export async function esperarListoConPlazo(canal: CanalArchivos, plazoMs: number = ESPERA_LISTO_MS): Promise<boolean> {
+  if (!canal.esperarListo) return true;
+  const real = canal.esperarListo().catch(() => false);
+  if (canal.enlaceArriba && !canal.enlaceArriba()) return real;
+  let reloj: ReturnType<typeof setTimeout> | undefined;
+  const tarde = new Promise<"tarde">((res) => {
+    reloj = setTimeout(() => res("tarde"), plazoMs);
+  });
+  const r = await Promise.race([real, tarde]);
+  if (reloj !== undefined) clearTimeout(reloj);
+  if (r !== "tarde") return r;
+  if (canal.enlaceArriba && !canal.enlaceArriba()) return real;
+  try {
+    canal.alListoTarde?.();
+  } catch {
+    /* solo un aviso */
+  }
+  return true;
 }
 
 /* ══════════════════════════ 2) Protocolo (puro) ══════════════════════════ */
@@ -1962,7 +1998,7 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
       let enviado = false;
       // (BLE1108B) «Listo para enviar» del portador, antes de CADA trozo: sin enlace (se cayó) espera a que
       // vuelva y sigue en este mismo trozo; no gasta los reintentos ni salta ninguno.
-      const listo = canal.esperarListo ? await canal.esperarListo().catch(() => false) : true;
+      const listo = await esperarListoConPlazo(canal);
       if (cancelados.has(id)) {
         actualizarFase(id, "cancelada");
         return;
