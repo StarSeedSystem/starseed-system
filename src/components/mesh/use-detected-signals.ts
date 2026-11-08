@@ -24,7 +24,7 @@
  * listas vacías y no toca ninguna API. Nunca lanza.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useMeshState, useNearbyBeacons, subscribeConnectivity } from "@/ai/astraura/mesh";
 import {
   collectDetectedSignals,
@@ -54,6 +54,9 @@ import { useRedLocal } from "@/lib/malla/sincronizacion-neuronas-motor";
 // (BLE1108A) Vecinos oídos por el Bluetooth directo de la app nativa, como señales reales con su RSSI.
 import { senalesBluetoothDirecto } from "@/lib/malla/bluetooth-directo";
 import { useEstadoBluetooth } from "@/lib/malla/bluetooth-directo-estado";
+// (WFD1108A) El enlace Wi-Fi directo activo con una neurona, en su señal del Radar y de Señales.
+import { enriquecerConEnlaceWifi } from "@/ai/astraura/mesh/senales-enlace-wifi";
+import { enlacesWifiActivos, suscribirEnlacesWifi } from "@/lib/malla/enlace-wifi-orquestacion";
 
 /** Cadencia de refresco del registro de neuronas (consulta a la cuenta). */
 const NEURONS_REFRESH_MS = 90_000;
@@ -205,6 +208,8 @@ export function useDetectedSignals(options?: DetectedSignalsOptions): DetectedSi
   const redLocal = useRedLocal();
   // (BLE1108A) Estado del Bluetooth directo (null fuera de la app nativa).
   const bluetooth = useEstadoBluetooth();
+  // (WFD1108A) Enlaces Wi-Fi directos activos (vacío fuera de la app nativa).
+  const enlacesWifi = useSyncExternalStore(suscribirEnlacesWifi, enlacesWifiActivos, enlacesWifiActivos);
   const [neuronsState, setNeuronsState] = useState<NeuronsCache>(() => neuronsCache);
   const [serialPorts, setSerialPorts] = useState<SerialPortView[]>([]);
   const [serialProbed, setSerialProbed] = useState(false);
@@ -319,7 +324,7 @@ export function useDetectedSignals(options?: DetectedSignalsOptions): DetectedSi
 
   const signals = useMemo(
     () =>
-      enriquecerConMalla(
+      enriquecerConEnlaceWifi(enriquecerConMalla(
         ordenarSenalesPorCalidad(
           fusionarRadar(
             [
@@ -337,9 +342,9 @@ export function useDetectedSignals(options?: DetectedSignalsOptions): DetectedSi
           ),
         ),
         malla.misDispositivos,
-      ),
+      ), enlacesWifi),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [mesh, farosVistos, neurons, freshBle, serialPorts, tick, radioLocal, radarRemoto, malla.misDispositivos, redLocal.vecinos, redLocal.vinculos, bluetooth],
+    [mesh, farosVistos, neurons, freshBle, serialPorts, tick, radioLocal, radarRemoto, malla.misDispositivos, redLocal.vecinos, redLocal.vinculos, bluetooth, enlacesWifi],
   );
 
   const unavailable = useMemo<UnavailableSource[]>(() => {

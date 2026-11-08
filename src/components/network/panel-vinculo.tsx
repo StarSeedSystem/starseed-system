@@ -23,6 +23,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Switch } from "@/components/ui/switch";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { BandaEnlaceWifi } from "@/components/malla/banda-enlace-wifi";
 import {
   cambiarAjustesVinculo,
   medirVias,
@@ -221,6 +222,9 @@ export function PanelVinculo({ neurona, ambito, miCuenta, className }: PanelVinc
         {info.etiqueta} · {[v.plataforma, v.medio === "app-nativa" ? "app nativa" : v.medio === "navegador" ? "navegador" : null].filter(Boolean).join(" · ") || "medio desconocido"}
       </p>
       {info.uso === "sin-dato" && <p className="-mt-2 text-[10px] text-white/35">{info.detalle}</p>}
+
+      {/* (WFD1108A) «Enlace Wi-Fi directo: activo · N Mb/s», o abrirlo a mano (solo en la app nativa). */}
+      <BandaEnlaceWifi neurona={v.neurona} nombre={v.nombre} manual />
 
       <Seccion
         icono={Gauge}

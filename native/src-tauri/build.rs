@@ -14,6 +14,9 @@ mod android_actualizador;
 // (BLE1108A) Bluetooth directo: permisos, proveedor y BleStarSeed.kt en el proyecto Android.
 #[path = "src/android_ble.rs"]
 mod android_ble;
+// (WFD1108A) Enlace Wi-Fi directo: permisos, proveedor y EnlaceWifiDirecto.kt en el proyecto Android.
+#[path = "src/enlace_wifi_parche.rs"]
+mod enlace_wifi_parche;
 
 /// Comandos propios de la app (los de `generate_handler!` de src/lib.rs). Desde tauri 2.11.1 una
 /// página de un origen REMOTO (la web publicada, y también el servidor local http://127.0.0.1:47610…)
@@ -86,6 +89,15 @@ const COMANDOS_APP: &[&str] = &[
     "rescate_origen_estado",
     "rescate_origen_datos",
     "rescate_origen_confirmar",
+    // (WFD1108A) Enlace Wi-Fi directo entre neuronas (Android levanta la red, macOS se une).
+    "enlace_wifi_capacidades",
+    "enlace_wifi_permiso",
+    "enlace_wifi_abrir_ap",
+    "enlace_wifi_credenciales",
+    "enlace_wifi_unirse",
+    "enlace_wifi_estado",
+    "enlace_wifi_cerrar",
+    "enlace_wifi_comprobar",
     // Solo escritorio (su permiso existe en todas, pero solo se registran en escritorio).
     "ventanas_prestables",
     "capturar_ventana",
@@ -111,6 +123,7 @@ fn main() {
     medios_android();
     servidor_local_android();
     actualizador_android();
+    enlace_wifi_android(); // (WFD1108A)
     // (BLE1108A) Siempre el último: su bloque del manifiesto va detrás de los otros (mismo orden, mismo archivo).
     bluetooth_android();
     tauri_build::try_build(
@@ -290,5 +303,40 @@ fn bluetooth_android() {
         }
         // Falla en alto: un APK que dice llevar Bluetooth directo y no lo lleva sería una ilusión.
         Err(e) => panic!("[starseed] No se pudo inyectar el Bluetooth directo en Android: {e}. Para compilar sin él: STARSEED_SIN_BLUETOOTH_ANDROID=1"),
+    }
+}
+
+/// (WFD1108A) Enlace Wi-Fi directo entre neuronas: permisos de Wi-Fi («Dispositivos cercanos», y
+/// «Ubicación» solo hasta Android 12), el proveedor que lo arranca y EnlaceWifiDirecto.kt en el proyecto
+/// que genera `cargo tauri android init`. Solo StarSeed OS. Contrato architecture/wifi-directo.md §4.
+fn enlace_wifi_android() {
+    println!("cargo:rerun-if-changed=src/enlace_wifi_parche.rs");
+    println!("cargo:rerun-if-env-changed=STARSEED_SIN_ENLACE_WIFI_ANDROID");
+    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() != Ok("android") {
+        return;
+    }
+    // Interruptor de emergencia: sin él el APK sale como antes (sin enlace Wi-Fi directo; la web lo dice).
+    if std::env::var_os("STARSEED_SIN_ENLACE_WIFI_ANDROID").is_some() {
+        println!("cargo:warning=[starseed] STARSEED_SIN_ENLACE_WIFI_ANDROID: el APK sale SIN enlace Wi-Fi directo.");
+        return;
+    }
+    let paquete = std::env::var("TAURI_ANDROID_PACKAGE_UNESCAPED")
+        .or_else(|_| std::env::var("WRY_ANDROID_PACKAGE"))
+        .unwrap_or_default();
+    if !enlace_wifi_parche::aplica(&paquete) {
+        return;
+    }
+    let Some(proyecto) = std::env::var_os("TAURI_ANDROID_PROJECT_PATH").map(std::path::PathBuf::from) else {
+        println!("cargo:warning=[starseed] Sin TAURI_ANDROID_PROJECT_PATH: el APK sale SIN enlace Wi-Fi directo.");
+        return;
+    };
+    match enlace_wifi_parche::aplicar(&proyecto) {
+        Ok(cambiados) => {
+            for c in cambiados {
+                println!("cargo:warning=[starseed] enlace Wi-Fi directo: escrito {}", c.display());
+            }
+        }
+        // Falla en alto: un APK que dice abrir la red directa y no tiene ni el permiso sería una ilusión.
+        Err(e) => panic!("[starseed] No se pudo inyectar el enlace Wi-Fi directo en Android: {e}. Para compilar sin él: STARSEED_SIN_ENLACE_WIFI_ANDROID=1"),
     }
 }

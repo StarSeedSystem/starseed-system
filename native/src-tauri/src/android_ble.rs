@@ -201,6 +201,29 @@ mod pruebas {
     }
 
     #[test]
+    fn en_paz_con_el_enlace_wifi_en_el_orden_de_build_rs() {
+        // (INT1108C) build.rs: servicio, medios, actualizador, enlace Wi-Fi y, por último, el Bluetooth. Los dos
+        // piden ACCESS_FINE_LOCATION: va UNA vez y con el tope del enlace Wi-Fi (Android 12, API 32), que
+        // cubre el del Bluetooth (≤ 30). Al revés, el Wi-Fi se quedaría sin ubicación en Android 12.
+        use crate::android_actualizador as act;
+        use crate::android_parche as ser;
+        use crate::enlace_wifi_parche as wifi;
+        let todo = |t: &str| {
+            let t = ser::parchear_medios(&ser::parchear_manifiesto(t).unwrap()).unwrap();
+            parchear_manifiesto(&wifi::parchear_manifiesto(&act::parchear_manifiesto(&t).unwrap()).unwrap()).unwrap()
+        };
+        let una = todo(PLANTILLA);
+        let dos = todo(&una);
+        assert_eq!(una, dos, "build tras build, el mismo archivo");
+        assert_eq!(dos.matches("\"android.permission.ACCESS_FINE_LOCATION\"").count(), 1);
+        assert!(dos.contains("<uses-permission android:name=\"android.permission.ACCESS_FINE_LOCATION\" android:maxSdkVersion=\"32\" />"));
+        assert!(dos.contains("app.starseed.nativa.ArranqueBle") && dos.contains("app.starseed.nativa.ArranqueEnlaceWifi"));
+        assert_eq!(dos.matches("\"android.permission.BLUETOOTH_SCAN\"").count(), 1);
+        assert_eq!(dos.matches("\"android.permission.NEARBY_WIFI_DEVICES\"").count(), 1);
+        assert_eq!(dos.matches("</manifest>").count(), 1);
+    }
+
+    #[test]
     fn solo_starseed_os_con_servicio_y_sin_interruptor() {
         assert!(aplica("app.starseed.os", true, false));
         assert!(aplica("app.starseed.`os`", true, false));

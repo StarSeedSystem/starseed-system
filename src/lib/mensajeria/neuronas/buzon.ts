@@ -632,7 +632,8 @@ async function viaDeOrigen(origen: { tipo: string; enlaceId: string; etiqueta: s
     try {
         const t = await import("@/lib/malla/transporte-universal");
         const e = (await t.enlacesDisponibles()).find((x) => x.id === origen.enlaceId);
-        ruta = e?.ruta ?? null;
+        // (WFD1108A) Llegó por la red Wi-Fi directa entre las dos neuronas: la vía lo guarda.
+        ruta = (await import("@/lib/malla/enlace-wifi-orquestacion")).rutaConWifi(origen.enlaceId, e?.ruta ?? null);
         rtt = typeof e?.rttMs === "number" && Number.isFinite(e.rttMs) ? e.rttMs : null;
     } catch {
         /* sin transporte: la vía va sin medidas */

@@ -176,6 +176,14 @@
     "allow-rescate-origen-exportar",
     "allow-rescate-origen-estado",
     "allow-rescate-origen-datos",
-    "allow-rescate-origen-confirmar"
+    "allow-rescate-origen-confirmar",
+    "allow-enlace-wifi-capacidades",
+    "allow-enlace-wifi-permiso",
+    "allow-enlace-wifi-abrir-ap",
+    "allow-enlace-wifi-credenciales",
+    "allow-enlace-wifi-unirse",
+    "allow-enlace-wifi-estado",
+    "allow-enlace-wifi-cerrar",
+    "allow-enlace-wifi-comprobar"
   ]
 }
