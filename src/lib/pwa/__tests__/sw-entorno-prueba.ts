@@ -122,7 +122,7 @@ export function montarSW(op: { servidor: Servidor; host?: string; conexion?: Rec
   const codigoSW = readFileSync(join(raiz, "public", "sw-v8.js"), "utf-8");
   const codigoLogica = readFileSync(join(raiz, "public", "sw-logica.js"), "utf-8");
   const origen = op.host ? `https://${op.host}` : ORIGEN;
-  const estado = { red: true, llamadas: [] as Llamada[], mensajes: [] as unknown[] };
+  const estado = { red: true, llamadas: [] as Llamada[], mensajes: [] as unknown[], enfocada: 0, abiertas: [] as string[] };
 
   const fetchFalso = async (entrada: RequestInfo | URL, init: RequestInit = {}): Promise<Response> => {
     const url = typeof entrada === "string" ? new URL(entrada, origen).href : urlDe(entrada);
@@ -138,7 +138,16 @@ export function montarSW(op: { servidor: Servidor; host?: string; conexion?: Rec
   const caches = new CachesFalsas((r) => fetchFalso(r));
 
   const oyentes = new Map<string, ((e: unknown) => void)[]>();
-  const cliente = { postMessage: (m: unknown) => estado.mensajes.push(m) };
+  // (NOT1108A) La ventana de la app: su dirección y `focus()` (pulsar una notificación la enfoca).
+  const cliente = {
+    url: `${origen}/escritorios`,
+    postMessage: (m: unknown) => estado.mensajes.push(m),
+    focus: async () => {
+      estado.enfocada += 1;
+      return cliente;
+    },
+  };
+  const clientes: Array<typeof cliente> = [cliente];
   const navegador = {
     onLine: true,
     connection: op.conexion ?? { type: "wifi", effectiveType: "4g", saveData: false },
@@ -149,7 +158,14 @@ export function montarSW(op: { servidor: Servidor; host?: string; conexion?: Rec
     navigator: navegador,
     addEventListener: (t: string, f: (e: unknown) => void) => oyentes.set(t, [...(oyentes.get(t) ?? []), f]),
     skipWaiting: async () => undefined,
-    clients: { claim: async () => undefined, matchAll: async () => [cliente] },
+    clients: {
+      claim: async () => undefined,
+      matchAll: async () => [...clientes],
+      openWindow: async (u: string) => {
+        estado.abiertas.push(u);
+        return null;
+      },
+    },
   };
   // Relojes «rápidos»: el tope de 10 s de la navegación salta en 5 ms (la lógica no cambia).
   const relojRapido = (f: () => void) => setTimeout(f, 5);
@@ -209,6 +225,15 @@ export function montarSW(op: { servidor: Servidor; host?: string; conexion?: Rec
     async mensaje(data: unknown) {
       const ev = await despachar("message", { data, ports: [], source: cliente });
       await terminar(ev);
+    },
+    /** (NOT1108A) Pulsar una notificación con `data`. Devuelve si el SW la cerró. */
+    async notificacion(data: unknown, op: { sinVentanas?: boolean } = {}) {
+      clientes.length = 0;
+      if (!op.sinVentanas) clientes.push(cliente);
+      let cerrada = false;
+      const ev = await despachar("notificationclick", { notification: { data, close: () => (cerrada = true) } });
+      await terminar(ev);
+      return cerrada;
     },
   };
 }

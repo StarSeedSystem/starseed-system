@@ -1,4 +1,4 @@
-# Apps autónomas sin internet: el servidor local dentro de la app (contrato · APP1107A + APP1107B + SEG1107A + TAM1107A + CAP1107A + AND1107A · 2026-11-07)
+# Apps autónomas sin internet: el servidor local dentro de la app (contrato · APP1107A + APP1107B + SEG1107A + TAM1107A + CAP1107A + AND1107A · 2026-11-07 · origen estable NOT1108A · 2026-11-08)
 
 **Petición de Alex (07-11):** «Las apps instaladas dejan de funcionar cuando se pierde la conexión a internet,
 cuando deberían ser completamente autónomas e independientes, sin necesidad de ningún tipo de conexión, todo
@@ -97,13 +97,89 @@ server.js de Next (standalone) en 127.0.0.1:<puerto interno al azar>
 
 - **Diez puertos fijos: 47610–47619**, el primero casi siempre. Fijos a propósito: el origen de la web es
   `http://127.0.0.1:<puerto>` y `localStorage`/IndexedDB son por origen; con un puerto al azar, cada arranque
-  parecería una neurona vacía. Si el preferido está ocupado (la instancia anterior aún suelta el puerto tras una
-  actualización) se reintenta 10 × 300 ms antes de pasar al siguiente. Un reinicio vuelve al MISMO puerto.
+  parecería una neurona vacía. **Desde NOT1108A (§2.2)** el puerto preferido es el **principal** del registro en
+  disco (`<app_data>/servidor-local-origen.json`: el primero que sirvió en esta instalación) y se le esperan
+  **10 s** (40 × 250 ms) antes de cambiar de origen, en escritorio y en Android. (Antes: 10 × 300 ms y el
+  preferido solo en memoria en escritorio; en Android, siempre 47610 sin recordar nada.) Un reinicio del Node
+  dentro del mismo arranque de la app vuelve al MISMO puerto.
 - Los diez están en tres sitios que una prueba mantiene iguales (`src/lib/nativa/__tests__/sin-conexion.test.ts`):
   `PUERTOS` en Rust, `remote.urls` de `capabilities/default.json` y `desktop.json`, y `PUERTOS_SERVIDOR_LOCAL`.
 - **Origen nuevo = medio nuevo** (`architecture/persistencia-entre-medios.md`): la primera vez, con internet, se
   inicia sesión y la cuenta trae lo que viaja (`SYNCED_KEYS`, escritorios, dashboards…). Lo que solo vivía en el
   `localStorage`/IndexedDB del origen de la web publicada lo trae la migración de §2.1 (T4).
+
+### 2.2 Origen estable y rescate entre puertos (NOT1108A · 2026-11-08 · ESCRITO SIN PUBLICAR)
+
+**Caso real (08-11).** Alex instaló la APK `native-21` (run 42443010440, commit `7cc064fdf8`) encima de la
+`native-20` (run 42429570335, commit `edcf74362f`), las dos con el servidor local dentro (los pasos «Servidor
+local Android · …» de los dos runs salieron bien). La app le pidió iniciar sesión otra vez y no enseñaba el
+historial de los chats con sus neuronas (`starseed.mensajeria.malla.v1`, en el `localStorage` del origen).
+
+**Hipótesis, con lo que dice el código:**
+
+| Hipótesis | Veredicto |
+|---|---|
+| El puerto cambió entre arranques (otro origen, almacén vacío) | **Posible y no se podía ver.** Android elegía siempre con `orden_puertos(None)`: 47610 con 10 × 300 ms y, si seguía ocupado, 47611… en silencio, sin apuntarlo en ningún sitio; escritorio recordaba el preferido solo en memoria (cada arranque de la app volvía a empezar en 47610). En Android los puertos 47610–47619 caen dentro del rango efímero de Linux (32768–60999): una conexión de salida por loopback puede ocupar uno un momento. Y con dos apps StarSeed instaladas (p. ej. el canal de pruebas) la segunda en arrancar se queda con el siguiente. **Arreglado** (abajo). |
+| La ventana acaba en OTRO origen sin cambiar de puerto: el respaldo a la web publicada | **Confirmado como camino real.** En Android, la vigía (`vigilar`) llevaba la ventana de `http://127.0.0.1:…` a `https://starseed-os.vercel.app` tras 6 fallos seguidos de la salud aunque Node siguiera VIVO (app en segundo plano, recolección larga), y el arranque se rendía a la web publicada si Next tardaba más de 120 s (primer arranque de una versión en una tablet). La web publicada es otro origen con otra sesión y otro historial; en el arranque siguiente la app vuelve a 127.0.0.1. **Arreglado**: con Node vivo ya no se cambia de origen; si la puerta ya contesta «arrancando», hasta 5 min. |
+| El directorio de datos o el perfil del WebView cambió | **Descartado.** Ni wry ni nuestro Kotlin tocan `setDataDirectorySuffix`, `incognito` ni la carpeta de datos (búsqueda en `native/`); mismo paquete `app.starseed.os`. |
+| La migración o la siembra del primer arranque borró el almacén | **Descartado.** `migracion_origen` es solo de escritorio y nunca borra; `ServidorLocal.kt` solo borra dentro de `noBackupFilesDir/servidor-local/` (builds viejas); en `src/`, `public/` y `native/servidor-local/` no hay `localStorage.clear()`, `Clear-Site-Data` ni `deleteDatabase`. La pista del id de neurona (NEU1108A, nueva en `native-21`) solo LEE un id del origen publicado. |
+| Cambió la firma o el paquete | **Descartado** (instaló encima): misma clave (`ANDROID_KEYSTORE_*` del CI), mismo paquete. |
+| La sesión va atada al «pase» | **Descartado.** El pase (`starseed_pase`, HttpOnly, SameSite=Strict, sin caducidad) solo abre `/api/*` y lo que cambia estado en la guarda; la sesión de Supabase va en sus cookies `sb-<ref>-auth-token` (`@supabase/ssr` 0.8: `document.cookie`, 400 días) y no la mira nadie más. |
+
+**Lo que eso implica para la sesión.** Las cookies son del HOST (`127.0.0.1`), no del puerto: un cambio de
+puerto **por sí solo** no pide iniciar sesión (salvo un WebView con cookies atadas al puerto, «origin-bound
+cookies» de Chromium). Las dos cosas a la vez —sin sesión Y sin historial— casan con un cambio de ORIGEN
+completo (el respaldo a la web publicada, o al revés: una sesión que vivía en la web publicada) o con un almacén
+que no llegó a disco (el instalador mata el proceso; Chromium guarda cookies cada ≈ 30 s y `localStorage` con
+retraso). Sin el registro de la tableta no se puede decir cuál fue: ahora queda escrito (abajo, «Diagnóstico»).
+
+**Qué hace la app ahora.**
+1. **Puerto principal en disco** (`origen_local.rs` + lógica pura `origen_local_logica.rs`, 8 pruebas): el primer
+   puerto que sirve se apunta como principal y siempre se vuelve a él, esperándolo hasta 10 s. Solo después se
+   usa otro de los diez (el cambio «inevitable»), y queda apuntado (`cambios`, y cada puerto usado con cuándo).
+2. **Rescate entre orígenes** (antes de lanzar el Node, desde la página de arranque): si un origen del servidor
+   local sirvió después de su último rescate (o la primera vez con esta versión: los otros nueve, por si una
+   versión anterior sin registro cambió de puerto), Rust abre un **mini servidor propio** (solo `127.0.0.1`, solo
+   dos páginas, `Cache-Control: no-store`, unos segundos; no es Next) en ese puerto viejo y lleva la ventana a
+   `/__starseed/rescate-origen/exportar`: la página (biblioteca de §2.1 + `native/servidor-local/rescate-origen.js`)
+   lee TODO `localStorage`, IndexedDB y las cookies `sb-…` de ese origen y se lo pasa a Rust por IPC en trozos
+   (`rescate_origen_exportar`, solo la ventana «main» y solo desde ESA página). Después abre la página de
+   importar en el puerto actual (aún sin Node: nada del OS corre antes) que pide los trozos
+   (`rescate_origen_estado`/`_datos`), fusiona y confirma (`rescate_origen_confirmar`), y Rust devuelve la
+   ventana a la página de arranque y lanza el Node. Tope: 20 s por origen, 60 s la importación, 150 s todo.
+   Datos solo en MEMORIA (nunca en disco). Un puerto ocupado no se puede abrir: se reintenta en otro arranque.
+3. **Fusión**: las reglas de §2.1 (lo que no existe aquí se trae; mismo valor no se toca; otro valor se queda el
+   de aquí; IndexedDB con `add`), salvo la **bandeja de la malla**, que se UNE mensaje a mensaje (por id, el
+   mismo tope de 300 por conversación, `leidoHasta` el mayor), y las **cookies de sesión**, que se ponen solo si
+   aquí no hay ninguna (nunca se mezclan dos sesiones). Aquí la sesión SÍ viaja: los dos orígenes son de la misma
+   app en el mismo aparato y nada pasa por el disco. Un id de neurona distinto queda como pista
+   (`starseed.migracion-origen.neurona-anterior.v1`) para la adopción de NEU1108A. El original no se borra.
+4. **Android: sin cambiar de origen en silencio**: la vigía ya no abre la web publicada con Node vivo (lo apunta en
+   el registro) y el arranque espera hasta 5 min si la puerta ya contesta «arrancando».
+
+| Pieza | Archivo |
+|---|---|
+| Registro, elección del puerto, qué rescatar, HTTP y páginas — 8 pruebas | `native/src-tauri/src/origen_local_logica.rs` |
+| Disco, mini servidor, ventana, comandos `rescate_origen_*` y `origen_local_estado` — 4 pruebas | `native/src-tauri/src/origen_local.rs` |
+| La página: exportar, importar, unir la bandeja y las cookies — 8 pruebas (de punta a punta con IndexedDB de mentira) | `native/servidor-local/rescate-origen.js`, `src/lib/nativa/__tests__/rescate-origen.test.ts` |
+| Escritorio: puerto del registro y rescate antes del primer Node del arranque | `servidor_local.rs` (`lanzar_y_esperar`) |
+| Android: lo mismo antes de `node::Start`; vigía y espera sin cambiar de origen | `servidor_local_android.rs` |
+| Diagnóstico en Ajustes → Notificaciones («Origen del servidor local», «Último rescate») | `origen_local_estado` + `probar-notificaciones.tsx` |
+
+**Diagnóstico en un aparato.** `origen_local_estado` (Ajustes → Notificaciones) dice el principal, el último
+puerto, los cambios y el último rescate. El registro del servidor (`servidor-local.log`) apunta «rescate de
+origen en … ms hacia …» y, en Android, «AVISO: el puerto principal estaba ocupado…» o «la salud falló varias
+veces seguidas con Node vivo…». Si la tableta de Alex vuelve a pedir sesión, esas líneas dicen si fue el puerto.
+
+**Escritorio (macOS 127.0.0.1:4761x).** Mismo análisis: el preferido solo vivía en memoria, así que un
+arranque con 47610 ocupado más de 3 s (la instancia anterior tras una actualización, otra app StarSeed —el
+canal de pruebas—, un servidor de desarrollo) cambiaba de origen en silencio. En macOS el rango efímero
+(49152–65535) no incluye 4761x; en Linux sí. Ahora: principal en disco, 10 s de espera y rescate.
+
+**Límites honestos.** (1) Sin probar aún en la tableta ni en la Mac reales (necesita build nativa nueva).
+(2) No se puede rescatar un origen cuyo puerto está ocupado por otro proceso en ese momento (se reintenta).
+(3) Si un WebView ata las cookies al puerto y el origen viejo ya no puede abrirse, la sesión se pide otra vez.
+(4) Lo que nunca llegó a disco (el proceso murió antes de guardar) no existe en ningún origen.
 
 ### 2.1 Migración del origen web al origen local (T4 · APP1107B · ESCRITO SIN PUBLICAR)
 
@@ -542,6 +618,9 @@ servidor local añade la medida que importa aquí: si la web publicada contesta 
 ## 8. Cómo se prueba
 
 ```bash
+# (NOT1108A · §2.2) Origen estable y rescate: Rust (en el crate real, usa serde) y la página de punta a punta
+(cd native/src-tauri && cargo test --lib origen_local)
+NODE_ENV=test npx vitest run src/lib/nativa/__tests__/rescate-origen.test.ts src/lib/nativa/__tests__/contrato-rust.test.ts
 # Rust puro (sin Tauri)
 rustc --edition 2021 --test native/src-tauri/src/servidor_local_logica.rs -o /tmp/sl && /tmp/sl
 # Envoltorio: salud con firma, local/web, vuelta a local sin red, cookies, salida al cerrar la entrada, puerto ocupado
@@ -664,9 +743,13 @@ Next, el mismo envoltorio y la misma guarda) sobre **nodejs-mobile**, y la venta
 4. Cuando la salud responde con SU firma (≤ 120 s), la ventana entra por `/__starseed/entrar?t=<pase>&a=/`. Solo se
    la saca de la página de arranque, nunca de otra web (p. ej. un inicio de sesión con OAuth); si la persona vuelve
    atrás hasta la página de arranque, vuelve a entrar.
-5. Vigía cada 3 s; 6 fallos seguidos o Node terminado → la web publicada (Node solo arranca una vez por proceso:
-   hasta reabrir la app). Cualquier fallo antes de «listo» (APK sin paquete, ABI sin libnode como x86 de 32 bits, sin
-   espacio, puerto ajeno, 120 s) → la web publicada, como sin el interruptor, y la página de arranque dice por qué.
+5. Vigía cada 3 s; Node terminado → la web publicada (Node solo arranca una vez por proceso: hasta reabrir la
+   app). **(NOT1108A)** 6 fallos seguidos de la salud con Node VIVO ya no cambian de origen (se apuntan en el
+   registro): ir a la web publicada era otro origen, otra sesión y otro historial (§2.2). Cualquier fallo antes de
+   «listo» (APK sin paquete, ABI sin libnode como x86 de 32 bits, sin espacio, puerto ajeno, 120 s sin respuesta;
+   **hasta 5 min** si la puerta ya contesta «arrancando») → la web publicada, como sin el interruptor, y la página
+   de arranque dice por qué. El puerto es el principal del registro del origen y, antes de `node::Start`, se
+   rescatan los datos de otros orígenes del servidor local (§2.2).
 6. El envoltorio en modo Android no toca la entrada estándar del proceso de la app ni pone manejadores de
    SIGTERM; `process.exit` (de él o de Next) **no** mata la app: registra, cierra la puerta y Rust ve caer la salud;
    un error sin capturar se registra y el servidor sigue.
@@ -700,6 +783,8 @@ instalar (≈ 70 MB). El CI escribe el tamaño REAL de la APK firmada y su desgl
 2. **Origen nuevo:** la APK pasa de `https://starseed-os.vercel.app` a `http://127.0.0.1:47610`. Lo que solo vivía en
    el `localStorage`/IndexedDB de la web publicada **no** se trae (la migración T4 es de escritorio: usa una ventana
    oculta y Tauri móvil tiene una sola). Hay que iniciar sesión otra vez y lo local empieza vacío. Pendiente T14.
+   (NEU1108A trae al menos el id de neurona; NOT1108A, §2.2, mantiene el MISMO origen local entre versiones y
+   rescata lo que quedara en otro puerto local, sesión incluida.)
 3. **Node 24 (nodejs-mobile) en vez de 22**, y su ICU es «small-icu» (solo inglés): las fechas y números con `es` que
    formatee el SERVIDOR salen en inglés (React lo corrige en el cliente, con un aviso de hidratación). Arreglo:
    `icudt78l.dat` en los assets y `NODE_ICU_DATA` (pendiente T15).

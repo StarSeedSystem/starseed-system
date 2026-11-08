@@ -37,6 +37,8 @@ mod antenas;
 // (ACT1108A) Canal de actualización (oficial / pruebas) y actualizador interno del APK. §9 del contrato.
 mod canal_actualizacion;
 mod canal_actualizacion_logica;
+// (NOT1108A) Avisos del sistema de los mensajes nuevos (escritorio y Android) y su respaldo nativo.
+mod avisos_mensajes;
 mod carpetas;
 mod disco;
 mod faro;
@@ -45,6 +47,9 @@ mod malla_local_trama;
 mod nativa;
 // (VER1107B) «Esta neurona»: versión instalada, sistema, aparato y búsqueda de actualización sin instalar.
 mod neurona_info;
+// (NOT1108A) Origen estable del servidor local (puerto principal en disco) y rescate entre puertos.
+mod origen_local;
+mod origen_local_logica;
 // (NEU1108A) Pista del id de neurona del origen publicado para la APK con servidor local (127.0.0.1).
 mod pista_neurona;
 // (MIC1108A) Micrófono, cámara y pantalla: solo los orígenes propios, y el sistema pregunta.
@@ -643,6 +648,8 @@ pub fn run() {
             malla_local::iniciar(app.handle());
             // (ACT1108A) Android: busca el APK nuevo cada 6 h (escritorio: la vigilancia de arriba).
             canal_actualizacion::iniciar(app.handle());
+            // (NOT1108A) Pulsar una notificación de mensaje abre su chat.
+            avisos_mensajes::iniciar(app.handle());
             // (MIC1108A) Linux: WebKitGTK trae MediaStream y WebRTC apagados; sin ellos no hay llamadas.
             #[cfg(target_os = "linux")]
             permisos_medios::encender_medios_linux(app.handle());
@@ -709,6 +716,16 @@ pub fn run() {
                 canal_actualizacion::apk_actualizar,
                 canal_actualizacion::apk_estado,
                 canal_actualizacion::apk_instalar,
+                avisos_mensajes::aviso_mensaje,
+                avisos_mensajes::avisos_config,
+                avisos_mensajes::avisos_estado,
+                avisos_mensajes::avisos_pedir_permiso,
+                avisos_mensajes::avisos_pendiente,
+                origen_local::origen_local_estado,
+                origen_local::rescate_origen_exportar,
+                origen_local::rescate_origen_estado,
+                origen_local::rescate_origen_datos,
+                origen_local::rescate_origen_confirmar,
                 $($solo_desktop,)*
             ]);
         };

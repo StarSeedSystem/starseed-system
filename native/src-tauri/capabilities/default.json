@@ -159,6 +159,16 @@
     "allow-malla-local-recibidos",
     "allow-apk-actualizar",
     "allow-apk-estado",
-    "allow-apk-instalar"
+    "allow-apk-instalar",
+    "allow-aviso-mensaje",
+    "allow-avisos-config",
+    "allow-avisos-estado",
+    "allow-avisos-pedir-permiso",
+    "allow-avisos-pendiente",
+    "allow-origen-local-estado",
+    "allow-rescate-origen-exportar",
+    "allow-rescate-origen-estado",
+    "allow-rescate-origen-datos",
+    "allow-rescate-origen-confirmar"
   ]
 }

@@ -195,7 +195,10 @@ fn arrancar(app: AppHandle) {
     // (CAP1107A · T1) Qué capas hay y con qué clave se verifican.
     crate::servidor_capas::preparar(&app, &instalador, registro.as_ref().and_then(|f| f.try_clone().ok()));
 
+    // (NOT1108A) En memoria, el puerto de ESTE arranque de la app (un reinicio del Node vuelve a él); el
+    // primero sale del registro del origen (`origen_local.rs`: el principal, esperado hasta 10 s).
     let mut puerto_previo: Option<u16> = None;
+    let mut rescate_hecho = false;
     let mut caidas: Vec<u64> = Vec::new();
     let politica = l::PoliticaReinicio::default();
     // Tras un relevo de capa (o una vuelta atrás) con la ventana ya en el servidor local: recargarla.
@@ -214,9 +217,12 @@ fn arrancar(app: AppHandle) {
             );
         }
         let espera = if eleccion.a_prueba() { c::ESPERA_SALUD_MS } else { l::ESPERA_LISTO_MS };
-        match lanzar_y_esperar(&rutas, registro.as_ref(), puerto_previo, espera) {
+        let rescatar = !std::mem::replace(&mut rescate_hecho, true);
+        match lanzar_y_esperar(&app, &rutas, registro.as_ref(), puerto_previo, espera, rescatar) {
             Ok(puerto) => {
                 crate::servidor_capas::tras_lista(&eleccion);
+                // (NOT1108A) El registro del origen: el principal (la primera vez) y este uso.
+                crate::origen_local::tras_servir(&app, puerto);
                 let origen = l::origen_local(puerto);
                 con_estado(|e| {
                     e.fase = "local".into();
@@ -316,20 +322,24 @@ fn fallo_entorno(motivo: String) -> Fallo {
 }
 
 /// Elige puerto, lanza el Node y espera (hasta `espera_ms`) a que conteste con su firma. Devuelve el puerto.
+/// (NOT1108A) El puerto: el de este arranque o el principal del registro, esperado hasta 10 s antes de cambiar
+/// de origen (`origen_local::elegir_puerto`). Con `rescatar` (la primera vez de este arranque de la app), antes
+/// de lanzar el Node se traen los datos que otros orígenes del servidor local guarden (`origen_local::rescatar`).
 fn lanzar_y_esperar(
+    app: &AppHandle,
     rutas: &l::RutasPaquete,
     registro: Option<&File>,
     preferido: Option<u16>,
     espera_ms: u64,
+    rescatar: bool,
 ) -> Result<u16, Fallo> {
-    let candidatos = l::orden_puertos(preferido);
-    let puerto = l::elegir_puerto(
-        &candidatos,
-        l::REINTENTOS_PREFERIDO,
-        puerto_libre,
-        || std::thread::sleep(Duration::from_millis(l::PAUSA_PREFERIDO_MS)),
-    )
-    .ok_or_else(|| fallo_entorno(format!("Los {} puertos del servidor local están ocupados.", l::PUERTOS.len())))?;
+    let puerto = crate::origen_local::elegir_puerto(app, preferido, puerto_libre)
+        .ok_or_else(|| fallo_entorno(format!("Los {} puertos del servidor local están ocupados.", l::PUERTOS.len())))?;
+    if rescatar {
+        if let Some(r) = crate::origen_local::rescatar(app, puerto, |m| avisar(app, "arrancando", m)) {
+            escribir_registro(registro, &format!("[servidor-local] {r}"));
+        }
+    }
 
     let firma = l::firma_nueva();
     let mut cmd = Command::new(&rutas.node);

@@ -169,6 +169,50 @@ describe("contrato web ↔ app nativa", () => {
     expect(raiz("native/src-tauri/Cargo.toml")).toMatch(/^tauri = \{ version = "2\.(1[2-9]|[2-9]\d)"/m);
   });
 
+  it("(NOT1108A) avisos de mensajes y origen local: Rust ↔ avisos-nativos.ts, registrados y con permiso", () => {
+    const raiz = (f: string) => readFileSync(join(process.cwd(), f), "utf8");
+    const web = ts("avisos-nativos.ts");
+    const avisos = rust("avisos_mensajes.rs");
+    const origen = rust("origen_local.rs");
+    expect(camposTs(web, "EstadoAvisosNativo")).toEqual(camposRust(avisos, "EstadoAvisos"));
+    expect(camposTs(web, "ResultadoAvisoNativo")).toEqual(camposRust(avisos, "ResultadoAviso"));
+    expect(camposTs(web, "ConfigAvisosNativo")).toEqual(camposRust(avisos, "ConfigAvisos"));
+    expect(camposTs(web, "EstadoOrigenLocal")).toEqual(camposRust(origen, "EstadoOrigenLocal"));
+    // Los comandos que llama la web existen, están registrados y tienen su permiso en default.json.
+    const lib = rust("lib.rs");
+    const def = JSON.parse(raiz("native/src-tauri/capabilities/default.json"));
+    for (const [constante, cmd] of [
+      ["COMANDO_AVISO", "aviso_mensaje"],
+      ["COMANDO_CONFIG", "avisos_config"],
+      ["COMANDO_ESTADO", "avisos_estado"],
+      ["COMANDO_PERMISO", "avisos_pedir_permiso"],
+      ["COMANDO_PENDIENTE", "avisos_pendiente"],
+      ["COMANDO_ORIGEN", "origen_local_estado"],
+    ]) {
+      expect(web).toContain(`${constante} = "${cmd}"`);
+      expect(lib).toMatch(new RegExp(`(avisos_mensajes|origen_local)::${cmd},`));
+      expect(def.permissions).toContain(`allow-${cmd.replace(/_/g, "-")}`);
+    }
+    expect(avisos).toMatch(/pub fn aviso_mensaje\(\s*app: AppHandle,\s*id: String,\s*clave: String,\s*titulo: String,\s*cuerpo: String,\s*ruta: String,\s*sistema: bool,/);
+    expect(avisos).toMatch(/pub fn avisos_config\(app: AppHandle, config: ConfigAvisos\)/);
+    // El evento de la notificación pulsada se llama igual a los dos lados.
+    expect(avisos).toContain('pub const EVENTO_ABRIR: &str = "starseed://aviso-abrir";');
+    expect(web).toContain('EVENTO_ABRIR = "starseed://aviso-abrir"');
+    // La pulsación (`on_action`) y el canal de Android existen desde el plugin 2.8; los permisos del plugin, concedidos.
+    expect(raiz("native/src-tauri/Cargo.toml")).toMatch(/^tauri-plugin-notification = "2\.([8-9]|\d{2})"/m);
+    for (const p of ["notification:default", "notification:allow-notify", "notification:allow-request-permission"]) expect(def.permissions).toContain(p);
+    // Android: POST_NOTIFICATIONS declarado (Android 13+ lo pide en tiempo de ejecución).
+    expect(rust("android_parche.rs")).toContain('"android.permission.POST_NOTIFICATIONS"');
+    // El respaldo nativo se engancha al canal local y se inicia en el setup.
+    expect(rust("malla_local.rs")).toContain("crate::avisos_mensajes::al_recibir_local(&h, &ip_texto, &recibido.cuerpo);");
+    expect(lib).toContain("avisos_mensajes::iniciar(app.handle());");
+    // Escritorio y Android eligen el puerto con el registro del origen (y rescatan antes de lanzar el Node).
+    expect(rust("servidor_local.rs")).toContain("crate::origen_local::elegir_puerto(app, preferido, puerto_libre)");
+    expect(rust("servidor_local.rs")).toContain("crate::origen_local::rescatar(app, puerto,");
+    expect(rust("servidor_local_android.rs")).toContain("crate::origen_local::elegir_puerto(app, None, puerto_libre)");
+    expect(rust("servidor_local_android.rs")).toContain("crate::origen_local::rescatar(app, puerto,");
+  });
+
   it("los eventos tienen el mismo nombre a los dos lados", () => {
     const n = rust("nativa.rs");
     for (const ev of ["starseed://antenas", "starseed://serie", "starseed://serie-cerrada"]) {

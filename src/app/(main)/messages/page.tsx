@@ -47,6 +47,8 @@ import { describirSilencio } from "@/components/messages/marco/formato-tiempo";
 import { ACENTO, pildoraFantasma } from "@/components/messages/marco/estilos";
 import { useAjustesMensajeria } from "@/lib/mensajeria/ajustes-store";
 import { iniciarBuzonMalla, useNoLeidosNeuronas } from "@/lib/mensajeria/neuronas/buzon";
+// (NOT1108A) El chat a la vista no avisa; el aviso de una notificación abre su chat (?hilo= / ?neurona=).
+import { marcarChatAbierto, pedirPermisoUnaVez } from "@/lib/notifications/avisos-mensajes";
 import { useContactos } from "@/lib/contactos/store";
 import { anunciarContexto } from "@/lib/protomolecula/peticion/contexto";
 import {
@@ -203,6 +205,10 @@ function MessagesContent() {
     // Buzón de la malla (MSJ1107A): chats con las neuronas y mensajes que viajan solo por la malla. El
     // arranque global ya lo engancha; aquí también, por si la ruta se abre sin él (cuenta referencias).
     useEffect(() => iniciarBuzonMalla(), []);
+    // (NOT1108A) En la app instalada, la primera vez: el permiso de notificaciones del sistema (Android 13+).
+    useEffect(() => {
+        void pedirPermisoUnaVez();
+    }, []);
 
     // Deep-link ?vista=neuronas|correos|mensajes → abre esa pestaña.
     useEffect(() => {
@@ -347,6 +353,22 @@ function MessagesContent() {
         setThreads((prev) => prev.map((t) => (t.id === threadId && t.unreadCount ? { ...t, unreadCount: 0 } : t)));
     }, []);
 
+    // (NOT1108A) Deep-link ?hilo=<id> (el aviso de un mensaje nuevo de un chat) → abre ese chat.
+    const hiloParam = searchParams?.get("hilo") ?? null;
+    useEffect(() => {
+        if (!hiloParam) return;
+        setSurface("chats");
+        selectThread(hiloParam);
+    }, [hiloParam, selectThread]);
+
+    // (NOT1108A) El chat de servidor a la vista: sus mensajes nuevos no avisan (los de neuronas los fija su hilo).
+    const hiloVisible = surface === "chats" && selectedThread && (!esMovil || mobileView === "thread") ? selectedThread.id : null;
+    useEffect(() => {
+        if (surface !== "chats") return;
+        marcarChatAbierto(hiloVisible ? `dm:${hiloVisible}` : null);
+        return () => marcarChatAbierto(null);
+    }, [surface, hiloVisible]);
+
     const handleThreadCreated = (threadId: string) => {
         void reloadThreads().then(() => {
             setSelectedId(threadId);
@@ -470,7 +492,13 @@ function MessagesContent() {
                         onLectorAbierto={setLectorCorreoAbierto}
                     />
                 ) : (
-                    <PanelNeuronas esMovil={esMovil} enfocado={enfocado} onAlternarEnfoque={alternarEnfoque} onDetalleAbierto={setDetalleNeuronaMovil} />
+                    <PanelNeuronas
+                        esMovil={esMovil}
+                        enfocado={enfocado}
+                        onAlternarEnfoque={alternarEnfoque}
+                        onDetalleAbierto={setDetalleNeuronaMovil}
+                        abrirClave={searchParams?.get("neurona") ?? null}
+                    />
                 )}
             </div>
         </div>

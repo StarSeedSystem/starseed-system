@@ -8,7 +8,7 @@
  * aparato: funciona sin internet.
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Loader2, Phone, RefreshCw, Route, Search, X } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -31,6 +31,8 @@ export interface PanelNeuronasProps {
     onAlternarEnfoque: () => void;
     /** Avisa a la página cuando hay un chat abierto (en móvil aparta la barra de la sección). */
     onDetalleAbierto?: (abierto: boolean) => void;
+    /** (NOT1108A) Abre esta conversación (`n:<neurona>` / `c:<cuenta>`): el aviso de un mensaje nuevo pulsado. */
+    abrirClave?: string | null;
 }
 
 interface Datos {
@@ -52,7 +54,7 @@ function plegar(s: string): string {
     return s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 }
 
-export function PanelNeuronas({ esMovil, enfocado, onAlternarEnfoque, onDetalleAbierto }: PanelNeuronasProps) {
+export function PanelNeuronas({ esMovil, enfocado, onAlternarEnfoque, onDetalleAbierto, abrirClave }: PanelNeuronasProps) {
     const bandeja = useBandejaMalla();
     const medios = usePreferenciasMedio();
     const [datos, setDatos] = useState<Datos>({ cargando: true, cerebros: [], neuronas: [], miUid: null, sinSesion: false });
@@ -142,6 +144,16 @@ export function PanelNeuronas({ esMovil, enfocado, onAlternarEnfoque, onDetalleA
     }, [agrupado]);
 
     const seleccionada = seleccion ? todas.get(seleccion) ?? null : null;
+
+    // (NOT1108A) ?neurona=<clave>: el chat de la notificación pulsada (en cuanto la conversación está en la
+    // lista). Una vez por clave: después manda lo que la persona elija.
+    const abiertaPorAviso = useRef<string | null>(null);
+    useEffect(() => {
+        if (!abrirClave || abiertaPorAviso.current === abrirClave || !esClaveNeurona(abrirClave) || !todas.has(abrirClave)) return;
+        abiertaPorAviso.current = abrirClave;
+        setSeleccion(abrirClave);
+        setVerDetalle(true);
+    }, [abrirClave, todas]);
 
     // En escritorio, la primera conversación con mensajes (o la primera) se abre sola.
     useEffect(() => {
