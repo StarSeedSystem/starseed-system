@@ -290,23 +290,27 @@ if (hasNewScoutFindings(sig)) {
 
 ## 13. Verificación
 
-No hay script de test todavía (a diferencia de `scripts/test-model-recommend.ts` o
+✅ Hecho (96d6c67, src/ai/astraura/__tests__/model-fit-veredictos.test.ts) No hay script de test todavía (a diferencia de `scripts/test-model-recommend.ts` o
 `scripts/test-startup-updates.ts`). Pendiente natural antes de cablear la UI: cubrir
 `quantBpp`/`scoreFit` (las cuatro combinaciones de veredicto), `bestQuantForBudget` (caso
 "nada cabe ni recortando contexto"), `gpuBandwidthGbps` (coincidencia más larga: "RTX 3060
 Ti" no debe caer en "RTX 3060"), y `scoutModels` end-to-end con `caps` fijos de gama
 alta/media/baja (determinista, sin `detectCapabilities()` real).
 
+Revisado el 2026-11-07 contra main (`ad34ea6`): 1 hechos, 0 a medias, 0 pendientes.
+
 ## 14. Pendiente / próximos pasos
 
-1. **Cablear la firma de novedades** (§8) en `startup-updates.ts`/`startup-updates-modal.tsx`.
-2. **Sumar cifras a `NeuronModelsPanel`** (§9): GB/tok-s junto al badge cualitativo actual.
-3. **Notificador dedicado** (§9), espejo de `model-download-notifier.tsx`.
+✅ Hecho (85124ab, src/lib/astraura/startup-updates.ts) 1. **Cablear la firma de novedades** (§8) en `startup-updates.ts`/`startup-updates-modal.tsx`.
+✅ Hecho (7aef86a, src/components/neurons/neuron-models-panel.tsx) 2. **Sumar cifras a `NeuronModelsPanel`** (§9): GB/tok-s junto al badge cualitativo actual.
+3. **Notificador dedicado** (§9), espejo de `model-download-notifier.tsx`. (a medias: componente creado en `src/components/neurons/model-scout-notifier.tsx`; falta montaje en UI)
 4. **Catálogo vivo con parámetros reales** (§10): Hugging Bay/OpenRouter/Ollama.
-5. **Script de verificación** (§13).
-6. **`usedModelIds` real**: hoy responsabilidad del llamador (p. ej. desde
+✅ Hecho (96d6c67, src/ai/astraura/__tests__/model-fit-veredictos.test.ts) 5. **Script de verificación** (§13).
+✅ Hecho (4bcb0fb, src/lib/astraura/modelos-usados.ts) 6. **`usedModelIds` real**: hoy responsabilidad del llamador (p. ej. desde
    `installed-models.ts::listInstalledModels()` + `model-preferences.ts`/`voice-config.ts`) —
    documentar o dar un helper que lo derive por neurona.
+
+Revisado el 2026-11-07 contra main (`ad34ea6`): 4 hechos, 1 a medias, 1 pendientes.
 
 ---
 
