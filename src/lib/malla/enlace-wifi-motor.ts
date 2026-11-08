@@ -177,7 +177,7 @@ export interface InstantaneaWifi {
   estado: EstadoWifi;
   capPropia: CapacidadesWifi | null;
   /** «Preguntar» de ESTE lado: un envío pesado propone abrir el enlace. */
-  propuesta: { neurona: string; nombre: string | null; clase: ClaseNecesidad; motivo: string; aviso?: string } | null;
+  propuesta: { neurona: string; nombre: string | null; clase: ClaseNecesidad; motivo: string; aviso?: string; bytes?: number } | null;
   /** La otra neurona pide abrirlo (con «Preguntar» aquí). */
   pregunta: { sesion: string; otro: string; nombreOtro: string | null; clase: ClaseNecesidad } | null;
   /** Mac sin unión programática: la persona se une a mano a esta red (solo en ESTE aparato). */
@@ -613,7 +613,7 @@ export function crearMotorWifi(deps: DepsMotorWifi, vias: () => ViaControlWifi[]
     if (d.accion === "abrir") {
       void abrir(p.neurona, p.clase, p.nombre ?? null);
     } else if (d.accion === "proponer") {
-      propuesta = { neurona: p.neurona, nombre: p.nombre ?? null, clase: p.clase, motivo: d.motivo, ...(d.aviso ? { aviso: d.aviso } : {}) };
+      propuesta = { neurona: p.neurona, nombre: p.nombre ?? null, clase: p.clase, motivo: d.motivo, ...(d.aviso ? { aviso: d.aviso } : {}), ...(typeof p.bytes === "number" ? { bytes: p.bytes } : {}) };
       avisar();
     }
     return d;

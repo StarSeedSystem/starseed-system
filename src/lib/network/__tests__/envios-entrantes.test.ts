@@ -4,7 +4,7 @@
  * con los motores reales, que la oferta lleve el lote, la ruta, la vista y la verificación del origen.
  */
 import { describe, expect, it } from "vitest";
-import { agruparEnvios, arbolDeEnvio, carpetaDe, enviosPorDecidir, idsDeCarpeta, idsPendientes, VENTANA_ENVIO_MS } from "@/lib/network/envios-entrantes";
+import { agruparEnvios, arbolDeEnvio, carpetaDe, enviosPorDecidir, idsDeCarpeta, idsPendientes, textoMedioEnvio, VENTANA_ENVIO_MS } from "@/lib/network/envios-entrantes";
 import { crearAlmacenEnMemoria, crearMotorArchivos, type CanalArchivos, type EstadoTransferencia, type MotorArchivos } from "@/lib/network/archivos-malla";
 
 function e(p: Partial<EstadoTransferencia> & { id: string }): EstadoTransferencia {
@@ -129,5 +129,19 @@ describe("con los motores reales: la oferta trae su envío y quien recibe la ve 
     // El centinela de la malla ya rechaza solo un .exe (sin preguntar); los otros dos esperan a la persona.
     expect(v.archivos.find((a) => a.nombre === "setup.exe")?.fase).toBe("rechazada");
     expect(v.pendientes).toBe(2);
+  });
+});
+
+describe("textoMedioEnvio (BLE1108B)", () => {
+  it("dice el medio y el tiempo estimado ANTES de decidir; con la velocidad medida, sin «sin medir»", () => {
+    // 3 MB a 200 kbit/s ≈ 120 s ≈ 2 min
+    expect(textoMedioEnvio({ via: "Bluetooth directo", bytes: 3_000_000, kbps: 200 })).toBe("por Bluetooth: ~2 min estimado");
+    expect(textoMedioEnvio({ via: "Bluetooth directo", bytes: 20_000, kbps: 200 })).toBe("por Bluetooth: ~1 s estimado");
+  });
+  it("sin medir usa la media del aire típico y lo avisa; fuera de Bluetooth no dice nada", () => {
+    const t = textoMedioEnvio({ via: "Bluetooth directo", bytes: 5 * 1024 * 1024 });
+    expect(t).toMatch(/^por Bluetooth: ~\d+ min estimado \(sin medir\)$/);
+    expect(textoMedioEnvio({ via: "Red local (app nativa)", bytes: 5_000_000, kbps: 100 })).toBeNull();
+    expect(textoMedioEnvio({ bytes: 10 })).toBeNull();
   });
 });

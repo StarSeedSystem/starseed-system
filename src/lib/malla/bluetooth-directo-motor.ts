@@ -20,7 +20,6 @@
  */
 
 import {
-  CAIDA_MS,
   FALLOS_PARA_CAIDA,
   aceptarHola,
   armarTrama,
@@ -45,6 +44,7 @@ import {
   COMANDO_ENVIAR_BLE,
   COMANDO_ESTADO_BLE,
   COMANDO_RECIBIDOS_BLE,
+  COMANDO_REGISTRO_ANEXAR_BLE,
   EVENTO_CAMBIO_BLE,
   EVENTO_MENSAJE_BLE,
   LIMITES_BLE_DEFECTO,
@@ -85,6 +85,7 @@ import {
   type SesionesCifradas,
   type VerificadorCertificado,
 } from "./sesion-cifrada";
+import { crearRegistroEnlaces, type RegistroEnlaces } from "./registro-enlace-ble";
 import type { EnlaceDisponible } from "./eleccion-enlace";
 import type { CanalArchivos } from "@/lib/network/archivos-malla";
 
@@ -119,6 +120,8 @@ export interface DepsBle {
   verificarCertificado?: VerificadorCertificado;
   /** (IDN1108A) Gancho: ¿el certificado prueba que esa neurona es de MI cuenta? Si sí, se acepta sin vínculo previo (sin internet). */
   certificadoMismaCuenta?: VerificadorCertificado;
+  /** (BLE1108B) Copia líneas del registro del enlace al archivo `enlaces.log` de la app nativa (ausente: solo memoria). */
+  anexarRegistro?(lineas: string[]): void;
 }
 
 export interface ResultadoEnvioBle {
@@ -167,6 +170,8 @@ export interface RedBle {
   /** (WFD1108A) Ofertas y respuestas de enlace Wi-Fi que llegan (verificadas) de neuronas ligadas. */
   alControlEnlace(cb: (c: ControlEnlaceWifi, origen: OrigenControl) => void): () => void;
   colaBytes(enlace: string): number;
+  /** (BLE1108B) «Registro del enlace»: qué le pasó al enlace con cada neurona y por qué. */
+  registro(): RegistroEnlaces;
   instantanea(): InstantaneaBle;
   suscribir(cb: () => void): () => void;
 }
@@ -178,6 +183,31 @@ export const MAX_COLA_DATOS_BLE = 1024 * 1024;
 export const FACTOR_FRENO_ARCHIVOS_BLE = 4;
 /** (CIF1108A) Espera al acuerdo de sesión antes de devolver el envío como «aún no listo» (el aire BLE es más lento). */
 export const ESPERA_SESION_BLE_MS = 4_000;
+
+/** (BLE1108B) Cuánto queda caído un enlace que no acusa recibo, según la racha: 2 s, 5 s y luego 15 s (antes 30 s fijos). */
+export const ESCALA_CAIDA_BLE_MS = [2_000, 5_000, 15_000] as const;
+export function esperaCaidaBle(racha: number): number {
+  return ESCALA_CAIDA_BLE_MS[Math.min(Math.max(1, Math.floor(racha)), ESCALA_CAIDA_BLE_MS.length) - 1];
+}
+/** (BLE1108B) Si un enlace abierto no se liga, se vuelve a saludar a los 2 s, 5 s y luego cada 15 s (antes: hasta 45 s). */
+export const ESCALA_HOLA_BLE_MS = [2_000, 5_000, 15_000, 15_000, 15_000, 15_000] as const;
+/** (BLE1108B) El canal de archivos espera «listo» mientras en la cola de datos haya más que esto (contrapresión). */
+export const UMBRAL_COLA_LISTA_BLE = 32 * 1024;
+/** (BLE1108B) Cuánto espera el canal de archivos a que vuelva un enlace caído antes de devolver el fallo. */
+export const ESPERA_ENLACE_BLE_MS = 90_000;
+
+const oyentesLigadura = new Set<(neurona: string, enlace: string) => void>();
+
+/**
+ * (BLE1108B) Se entera de cada enlace Bluetooth que se LIGA a una neurona (también al reconectar tras una
+ * caída). El buzón reintenta al instante lo que esperaba «un medio disponible». Devuelve la baja.
+ */
+export function alLigarBle(cb: (neurona: string, enlace: string) => void): () => void {
+  oyentesLigadura.add(cb);
+  return () => {
+    oyentesLigadura.delete(cb);
+  };
+}
 
 interface Item {
   texto: string;
@@ -205,6 +235,20 @@ export function crearRedBle(deps: DepsBle): RedBle {
   const caidas: Record<string, number> = {};
   const colas = new Map<string, Cola>();
   const canales = new Map<string, CanalArchivos>();
+  const canalesNeurona = new Map<string, CanalArchivos>();
+  const rachaCaidas: Record<string, number> = {};
+  const perdidas = new Map<string, { enlace: string; en: number }>();
+  const insistiendo = new Set<string>();
+  const registro = crearRegistroEnlaces({
+    ahora: () => deps.ahora(),
+    alAnotar: (linea) => {
+      try {
+        deps.anexarRegistro?.([linea]);
+      } catch {
+        /* el archivo de registro no tumba al enlace */
+      }
+    },
+  });
   const oyentes = new Set<() => void>();
   const oyentesControl = new Set<(c: ControlEnlaceWifi, o: OrigenControl) => void>();
 
@@ -219,6 +263,11 @@ export function crearRedBle(deps: DepsBle): RedBle {
   };
 
   const abierto = (enlace: string) => !!estado?.enlaces.some((e) => e.id === enlace);
+  const neuronaDe = (enlace: string): string | null => ligaduras.find((l) => l.enlace === enlace)?.neurona ?? estado?.enlaces.find((e) => e.id === enlace)?.neurona ?? null;
+  const marcarRechazo = (texto: string, neurona: string | null = null, enlace: string | null = null): void => {
+    ultimoRechazo = texto;
+    registro.anotar("rechazo", neurona, texto, enlace);
+  };
   const caido = (enlace: string) => (caidas[enlace] ?? 0) > deps.ahora();
 
   const cola = (enlace: string): Cola => {
@@ -315,7 +364,8 @@ export function crearRedBle(deps: DepsBle): RedBle {
   function cerrarEnlace(lig: LigaduraBle, motivo: string): void {
     ligaduras = ligaduras.filter((l) => l.neurona !== lig.neurona);
     deps.sesiones?.olvidar(lig.neurona);
-    ultimoRechazo = `Enlace Bluetooth con ${lig.nombre} cerrado: ${motivo}`;
+    marcarRechazo(`Enlace Bluetooth con ${lig.nombre} cerrado: ${motivo}`, lig.neurona, lig.enlace);
+    registro.anotar("cerrado", lig.neurona, `cerrado por la app (se vuelve a ligar con un saludo nuevo): ${motivo}`, lig.enlace);
     avisar();
   }
 
@@ -377,6 +427,7 @@ export function crearRedBle(deps: DepsBle): RedBle {
             // No es un fallo del aire: el cifrado aún no está listo. Se devuelve el error sin contar caída.
             const hechos = fuente.splice(0, n);
             if (fuente === c.datos) for (const i of hechos) c.bytesDatos -= i.texto.length;
+            registro.anotar("cifrado", lig.neurona, `${cf.motivo} (${hechos.length} mensaje(s) devueltos)`, enlace);
             for (const i of hechos) i.fin({ ok: false, motivo: cf.motivo });
             continue;
           }
@@ -392,14 +443,20 @@ export function crearRedBle(deps: DepsBle): RedBle {
           const hechos = fuente.splice(0, n);
           if (fuente === c.datos) for (const i of hechos) c.bytesDatos -= i.texto.length;
           c.fallos = 0;
+          rachaCaidas[enlace] = 0;
           for (const i of hechos) i.fin({ ok: true, ms: r.ms });
           continue;
         }
         c.fallos += 1;
         if (c.fallos >= FALLOS_PARA_CAIDA || !abierto(enlace)) {
-          caidas[enlace] = deps.ahora() + CAIDA_MS;
+          const racha = (rachaCaidas[enlace] ?? 0) + 1;
+          rachaCaidas[enlace] = racha;
+          const espera = esperaCaidaBle(racha);
+          caidas[enlace] = deps.ahora() + espera;
           c.fallos = 0;
-          fallarTodo(c, `La otra app no acusa recibo por Bluetooth (${r.motivo}); se reintenta en ${Math.round(CAIDA_MS / 1000)} s.`);
+          const perdidos = c.control.length + c.datos.length;
+          registro.anotar("caida", neuronaDe(enlace), `sin acuse tras ${FALLOS_PARA_CAIDA} intentos (${r.motivo}); racha ${racha}, se reintenta en ${Math.round(espera / 1000)} s; ${perdidos} mensaje(s) devueltos`, enlace);
+          fallarTodo(c, `La otra app no acusa recibo por Bluetooth (${r.motivo}); se reintenta en ${Math.round(espera / 1000)} s.`);
           avisar();
           break;
         }
@@ -426,21 +483,68 @@ export function crearRedBle(deps: DepsBle): RedBle {
     });
   }
 
+  /**
+   * (BLE1108B) El canal de archivos de UN destino: `resolver` dice por qué enlace sale AHORA. El de una
+   * neurona ligada sigue a la neurona, no al enlace: si el Bluetooth se cae a mitad de un vídeo y vuelve con
+   * otro id («b4» en vez de «b3»), el motor de archivos sigue usando el mismo canal y reanuda en el trozo
+   * que no se confirmó. Con acuse (cada trozo cuenta cuando el otro lo recibió) y «listo para enviar».
+   */
+  function construirCanal(resolver: () => string | null): CanalArchivos {
+    const actual = (): string | null => {
+      const e = resolver();
+      return e && abierto(e) ? e : null;
+    };
+    const ligadura = (): LigaduraBle | null => {
+      const e = resolver();
+      return e ? ligaduraDeEnlace(ligaduras, e, deps.ahora()) : null;
+    };
+    const cabe = (enlace: string, t: string): boolean => !caido(enlace) && cola(enlace).bytesDatos + t.length <= MAX_COLA_DATOS_BLE;
+    return {
+      enviar: (t) => {
+        const enlace = actual();
+        if (!enlace || !cabe(enlace, t)) return false;
+        void encolar(enlace, t);
+        return true;
+      },
+      enviarConAcuse: async (t) => {
+        const enlace = actual();
+        if (!enlace || !cabe(enlace, t)) return false;
+        return (await encolar(enlace, t)).ok;
+      },
+      esperarListo: async () => {
+        const hasta = deps.ahora() + ESPERA_ENLACE_BLE_MS;
+        for (;;) {
+          const enlace = actual();
+          if (enlace && !caido(enlace) && (colas.get(enlace)?.bytesDatos ?? 0) <= UMBRAL_COLA_LISTA_BLE) return true;
+          if (deps.ahora() >= hasta) return false;
+          await deps.dormir(enlace && !caido(enlace) ? 25 : 250);
+        }
+      },
+      bufferedAmount: () => {
+        const enlace = actual();
+        return enlace ? (colas.get(enlace)?.bytesDatos ?? 0) * FACTOR_FRENO_ARCHIVOS_BLE : 0;
+      },
+      // Un trozo que cabe solo, en base64, en una trama Bluetooth (10 KiB con el tope de 16 KiB).
+      tamanoTrozo: () => trozoArchivoBle(limitesEfectivos(ligadura())),
+      maxTextoBytes: () => maxTextoPorTrama(limitesEfectivos(ligadura())),
+      alMensaje: () => nada,
+    };
+  }
+
   function canalArchivos(enlace: string): CanalArchivos {
+    const lig = ligaduraDeEnlace(ligaduras, enlace, deps.ahora());
+    if (lig) {
+      let c = canalesNeurona.get(lig.neurona);
+      if (!c) {
+        const neurona = lig.neurona;
+        c = construirCanal(() => ligaduraDeNeuronaBle(ligaduras, neurona, deps.ahora())?.enlace ?? null);
+        canalesNeurona.set(neurona, c);
+      }
+      return c;
+    }
     let canal = canales.get(enlace);
     if (!canal) {
-      canal = {
-        enviar: (t) => {
-          const c = cola(enlace);
-          if (caido(enlace) || !abierto(enlace) || c.bytesDatos + t.length > MAX_COLA_DATOS_BLE) return false;
-          void encolar(enlace, t);
-          return true;
-        },
-        bufferedAmount: () => (colas.get(enlace)?.bytesDatos ?? 0) * FACTOR_FRENO_ARCHIVOS_BLE,
-        // Un trozo que cabe solo, en base64, en una trama Bluetooth (10 KiB con el tope de 16 KiB).
-        tamanoTrozo: () => trozoArchivoBle(limitesEfectivos(ligaduraDeEnlace(ligaduras, enlace, deps.ahora()))),
-        alMensaje: () => nada,
-      };
+      canal = construirCanal(() => enlace);
       canales.set(enlace, canal);
     }
     return canal;
@@ -479,6 +583,7 @@ export function crearRedBle(deps: DepsBle): RedBle {
     const ts = deps.ahora();
     ultimoHola[enlace] = ts;
     const cta = await pruebaPara(yo.neurona, para, ts);
+    registro.anotar("hola", para, `saludo firmado ${resp ? "(respuesta)" : "(primero)"}; prueba de cuenta ${cta ? "incluida" : "no disponible"}`, enlace);
     // `webrtc: false`: por Bluetooth no se señaliza WebRTC (sin red IP no conectaría).
     let certificado: CertificadoNeurona | null = null;
     try {
@@ -536,7 +641,7 @@ export function crearRedBle(deps: DepsBle): RedBle {
     if (!ac.ok) {
       // A ciegas se saluda a varias neuronas: «es para otra» no es un rechazo que contar.
       if (h.para === yo.neurona) {
-        ultimoRechazo = ac.motivo;
+        marcarRechazo(ac.motivo);
         avisar();
       }
       return;
@@ -545,17 +650,18 @@ export function crearRedBle(deps: DepsBle): RedBle {
     if (h.certificado) {
       try {
         if (!(await (deps.verificarCertificado ?? verificadorCertificadoPorDefecto)(h.certificado, { neurona: h.de.neurona, huella: v.huella ?? "" }))) {
-          ultimoRechazo = "el certificado de cuenta de esa neurona no es válido";
+          marcarRechazo("el certificado de cuenta de esa neurona no es válido");
           avisar();
           return;
         }
       } catch {
-        ultimoRechazo = "no se pudo comprobar el certificado de cuenta";
+        marcarRechazo("no se pudo comprobar el certificado de cuenta");
         avisar();
         return;
       }
     }
     if (ligaduras.some((l) => l.neurona === h.de.neurona && l.huella !== v.huella)) deps.sesiones?.olvidar(h.de.neurona);
+    const eraNueva = !ligaduras.some((l) => l.neurona === h.de.neurona && l.enlace === enlace);
     ligaduras = ligarBle(ligaduras, {
       enlace,
       neurona: h.de.neurona,
@@ -570,6 +676,25 @@ export function crearRedBle(deps: DepsBle): RedBle {
     });
     delete caidas[enlace];
     ultimoRechazo = null;
+    if (eraNueva) {
+      const previa = perdidas.get(h.de.neurona);
+      perdidas.delete(h.de.neurona);
+      registro.anotar(
+        previa ? "reconectado" : "ligado",
+        h.de.neurona,
+        previa
+          ? `enlace nuevo ${enlace} (antes ${previa.enlace}) tras ${Math.round((deps.ahora() - previa.en) / 1000)} s sin enlace${ac.porCuenta ? "; por prueba de cuenta" : ""}`
+          : `ligado al saludo firmado${ac.porCuenta ? " (prueba de cuenta)" : " (neurona vinculada)"}${h.cif ? `, cifrado v${h.cif}` : ", sin cifrado"}`,
+        enlace,
+      );
+      for (const f of Array.from(oyentesLigadura)) {
+        try {
+          f(h.de.neurona, enlace);
+        } catch {
+          /* un oyente roto no tumba a los demás */
+        }
+      }
+    }
     avisar();
     if (!h.resp && deps.ahora() - (ultimoHola[enlace] ?? -Infinity) >= 1000) await saludar(enlace, h.de.neurona, true);
   }
@@ -602,7 +727,7 @@ export function crearRedBle(deps: DepsBle): RedBle {
     if (!yo) return;
     const r = await deps.sesiones.recibirAcuerdo(yo.neurona, lig.neurona, v.cuerpo);
     if (!r.ok) {
-      ultimoRechazo = `Acuerdo de cifrado con ${lig.nombre} rechazado: ${r.motivo}`;
+      marcarRechazo(`Acuerdo de cifrado con ${lig.nombre} rechazado: ${r.motivo}`);
       avisar();
       return;
     }
@@ -626,7 +751,7 @@ export function crearRedBle(deps: DepsBle): RedBle {
       const r = await deps.sesiones.descifrar(lig.neurona, cuerpo);
       if (r.ok) return recibir(r.texto, enlace, true);
       if (r.motivo === "desconocida") {
-        ultimoRechazo = `Trama cifrada de ${lig.nombre} con una sesión desconocida; se acuerda otra.`;
+        marcarRechazo(`Trama cifrada de ${lig.nombre} con una sesión desconocida; se acuerda otra.`);
         avisar();
         void abrirAcuerdo(lig);
         return;
@@ -637,7 +762,7 @@ export function crearRedBle(deps: DepsBle): RedBle {
     if (!lig) return; // sin saludo firmado, ni mensajes ni archivos
     // Hacia quien cifra (o con «exigir cifrado»), lo que llega en claro se descarta.
     if (!descifrado && modoDe(lig) !== "claro") {
-      ultimoRechazo = `Trama sin cifrar de ${lig.nombre}, que cifra o debe cifrar: descartada.`;
+      marcarRechazo(`Trama sin cifrar de ${lig.nombre}, que cifra o debe cifrar: descartada.`);
       avisar();
       return;
     }
@@ -654,8 +779,26 @@ export function crearRedBle(deps: DepsBle): RedBle {
   }
 
   function fijarEstado(e: EstadoBleNativo | null): void {
+    const previos = new Map((estado?.enlaces ?? []).map((x) => [x.id, x]));
     estado = e;
     const abiertos = new Set((e?.enlaces ?? []).map((x) => x.id));
+    // (BLE1108B) Lo que se fue: apunta por qué hace falta saber (neurona, lo que quedó en cola) y se acuerda
+    // para decir «reconectado» cuando vuelva.
+    for (const [id, antes] of previos) {
+      if (abiertos.has(id)) continue;
+      const lig = ligaduras.find((l) => l.enlace === id);
+      const c = colas.get(id);
+      const enCola = c ? c.control.length + c.datos.length : 0;
+      const neurona = lig?.neurona ?? antes.neurona ?? null;
+      registro.anotar("perdido", neurona, `el enlace se cerró${lig ? "" : " sin llegar a ligarse"} (abierto ${Math.round(antes.abierto_hace_ms / 1000)} s, rol ${antes.rol}, ${antes.bytes_enviados} B enviados / ${antes.bytes_recibidos} B recibidos${enCola ? `, ${enCola} mensaje(s) sin enviar devueltos` : ""})`, id);
+      if (neurona) perdidas.set(neurona, { enlace: id, en: deps.ahora() });
+      delete rachaCaidas[id];
+    }
+    for (const x of e?.enlaces ?? []) {
+      if (previos.has(x.id)) continue;
+      registro.anotar("abierto", x.neurona ?? null, `enlace ${x.rol} abierto (paquete ${x.paquete} B, ${x.rssi ?? "?"} dBm); a saludar`, x.id);
+      void insistirHola(x.id).catch(nada);
+    }
     ligaduras = podarLigadurasBle(ligaduras, abiertos, deps.ahora());
     for (const [enlace, c] of Array.from(colas)) {
       if (!abiertos.has(enlace)) {
@@ -663,6 +806,23 @@ export function crearRedBle(deps: DepsBle): RedBle {
         colas.delete(enlace);
         canales.delete(enlace);
       }
+    }
+  }
+
+  /** (BLE1108B) Un enlace abierto que no se liga se vuelve a saludar a los 2 s, 5 s y luego cada 15 s. */
+  async function insistirHola(enlace: string): Promise<void> {
+    if (insistiendo.has(enlace)) return;
+    insistiendo.add(enlace);
+    try {
+      for (const ms of ESCALA_HOLA_BLE_MS) {
+        await deps.dormir(ms);
+        if (!abierto(enlace) || ligaduraDeEnlace(ligaduras, enlace, deps.ahora())) return;
+        delete ultimoHola[enlace];
+        registro.anotar("reintento", estado?.enlaces.find((x) => x.id === enlace)?.neurona ?? null, `el enlace sigue sin ligar tras ${Math.round(ms / 1000)} s: se vuelve a saludar`, enlace);
+        await saludarPendientes().catch(nada);
+      }
+    } finally {
+      insistiendo.delete(enlace);
     }
   }
 
@@ -732,6 +892,7 @@ export function crearRedBle(deps: DepsBle): RedBle {
       };
     },
     colaBytes: (enlace) => colas.get(enlace)?.bytesDatos ?? 0,
+    registro: () => registro,
     instantanea: () => ({ estado, ligaduras: [...ligaduras], caidas: { ...caidas }, ultimoRechazo, cifrado: Object.fromEntries(ligaduras.map((l) => [l.neurona, etiquetaDe(l)])) }),
     suscribir: (cb) => {
       oyentes.add(cb);
@@ -850,6 +1011,8 @@ async function depsReales(): Promise<DepsBle> {
     return config;
   };
   void leerConfig().catch(nada);
+  const pendientesLog: string[] = [];
+  let temporizadorLog: ReturnType<typeof setTimeout> | null = null;
   return {
     ahora: () => Date.now(),
     dormir: (ms) => new Promise((r) => setTimeout(r, ms)),
@@ -925,6 +1088,15 @@ async function depsReales(): Promise<DepsBle> {
     certificadoPropio: async () => (await import("@/lib/identidad/enlace")).certificadoPropioParaHola(),
     verificarCertificado: async (c, ctx) => (await import("@/lib/identidad/enlace")).verificadorCertificadoNativo(c, ctx),
     certificadoMismaCuenta: async (c, ctx) => (await import("@/lib/identidad/enlace")).certificadoDeMismaCuenta(c, ctx),
+    anexarRegistro: (lineas) => {
+      pendientesLog.push(...lineas);
+      if (temporizadorLog) return;
+      temporizadorLog = setTimeout(() => {
+        temporizadorLog = null;
+        const l = pendientesLog.splice(0, 60);
+        if (l.length) void puenteNativo().llamar(COMANDO_REGISTRO_ANEXAR_BLE, { lineas: l }).catch(nada);
+      }, 2_000);
+    },
     huellaPropia: async () => {
       try {
         const { myFingerprint } = await import("@/ai/astraura/mesh/mesh-identity");

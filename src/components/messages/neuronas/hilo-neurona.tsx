@@ -20,7 +20,7 @@ import { PastillaVia, type PendienteVia } from "@/components/messages/medios/pas
 import { BloqueMedioTransmision } from "@/components/messages/medios/bloque-medio";
 import { VersionNeurona } from "@/components/neurons/version-neurona";
 import { usePresenciaViva } from "@/lib/neurons/use-presencia-viva";
-import { TEXTO_VIA } from "@/lib/neurons/presencia-viva";
+import { textoCabeceraVivo } from "@/lib/neurons/presencia-viva";
 import { SelloCifrado } from "@/components/neurons/sello-cifrado";
 import { IconoNeurona } from "@/components/messages/neuronas/icono-neurona";
 import { SeparadorDia } from "@/components/messages/dm/separador-dia";
@@ -251,7 +251,8 @@ export function HiloNeurona({ conversacion, cerebros, esMovil, onAtras, enfocado
     // aunque los mensajes llegaban por la red local).
     const viva = usePresenciaViva(conversacion.propia ? conversacion.destino.neuronDeviceId ?? "" : "", conversacion.capacidades);
     const enLinea = !!conversacion.enLinea || viva.enLinea;
-    const estadoTexto = viva.enLinea ? `En línea · ${TEXTO_VIA[viva.via ?? "cuenta"]}` : enLinea ? "En línea" : "Desconectada";
+    // (BLE1108B) Con solo Bluetooth directo: «En línea · vía Bluetooth directo · 81 ms».
+    const estadoTexto = viva.enLinea ? textoCabeceraVivo(viva) : enLinea ? "En línea" : "Desconectada";
     const subtitulo = conversacion.propia ? `${estadoTexto}${cerebros.length ? ` · ${cerebros.join(" · ")}` : ""}` : conversacion.detalle;
 
     return (

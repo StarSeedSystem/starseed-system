@@ -5,8 +5,9 @@
  * nativa (en el navegador no se pinta: allí no hay Bluetooth directo). Contrato: architecture/bluetooth-directo.md.
  */
 
-import { useState } from "react";
-import { textoVelocidadBle } from "@/lib/malla/bluetooth-directo";
+import { useEffect, useState } from "react";
+import { COMANDO_REGISTRO_BLE, textoVelocidadBle } from "@/lib/malla/bluetooth-directo";
+import { unirRegistros, type RegistroNativoBle } from "@/lib/malla/registro-enlace-ble";
 import { abrirEnlaceBluetooth, activarBluetooth, pedirPermisoBluetooth, useEstadoBluetooth } from "@/lib/malla/bluetooth-directo-estado";
 
 const COLOR: Record<string, string> = {
@@ -16,6 +17,89 @@ const COLOR: Record<string, string> = {
   apagada: "#94a3b8",
   "no-disponible": "#64748b",
 };
+
+/**
+ * (BLE1108B) «Registro del enlace»: los últimos eventos del Bluetooth directo (web + app nativa) para leer
+ * por qué se cayó un enlace. «Copiar» o «Guardar» lo exportan; en escritorio también queda en
+ * `~/Library/Logs/app.starseed.os/enlaces.log`.
+ */
+function RegistroDelEnlace() {
+  const [abierto, setAbierto] = useState(false);
+  const [lineas, setLineas] = useState<string[]>([]);
+  const [aviso, setAviso] = useState<string | null>(null);
+  useEffect(() => {
+    if (!abierto) return;
+    let vivo = true;
+    const leer = async () => {
+      try {
+        const bd = await import("@/lib/malla/bluetooth-directo-motor");
+        const web = bd.bluetoothDirectoActivo()?.registro().lista() ?? [];
+        let nativos: RegistroNativoBle[] = [];
+        try {
+          const { puenteNativo } = await import("@/lib/nativa/puente");
+          const r = await puenteNativo().llamar<RegistroNativoBle[]>(COMANDO_REGISTRO_BLE);
+          if (r.ok && Array.isArray(r.valor)) nativos = r.valor;
+        } catch {
+          /* sin app nativa: solo lo de la web */
+        }
+        if (vivo) setLineas(unirRegistros(web, nativos).slice(-300));
+      } catch {
+        if (vivo) setLineas([]);
+      }
+    };
+    void leer();
+    const t = setInterval(() => void leer(), 3_000);
+    return () => {
+      vivo = false;
+      clearInterval(t);
+    };
+  }, [abierto]);
+  const texto = lineas.join("\n");
+  const copiar = async () => {
+    try {
+      await navigator.clipboard.writeText(texto);
+      setAviso("Registro copiado.");
+    } catch {
+      setAviso("No se pudo copiar: usa «Guardar».");
+    }
+  };
+  const guardar = () => {
+    try {
+      const url = URL.createObjectURL(new Blob([texto], { type: "text/plain;charset=utf-8" }));
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `enlaces-bluetooth-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.log`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 5_000);
+      setAviso(null);
+    } catch {
+      setAviso("No se pudo guardar el registro.");
+    }
+  };
+  return (
+    <div className="mt-3" data-testid="registro-enlace">
+      <button onClick={() => setAbierto((v) => !v)} className="cursor-pointer text-[11px] font-medium text-white/65 underline-offset-2 hover:underline" aria-expanded={abierto}>
+        Registro del enlace {abierto ? "▲" : "▼"}
+      </button>
+      {abierto && (
+        <div className="mt-2">
+          <div className="mb-1.5 flex items-center gap-2">
+            <button onClick={() => void copiar()} disabled={!lineas.length} className="cursor-pointer rounded border border-white/15 px-2 py-0.5 text-[10px] text-white/65 hover:bg-white/10 disabled:opacity-40">
+              Copiar
+            </button>
+            <button onClick={guardar} disabled={!lineas.length} className="cursor-pointer rounded border border-white/15 px-2 py-0.5 text-[10px] text-white/65 hover:bg-white/10 disabled:opacity-40">
+              Guardar
+            </button>
+            {aviso && <span className="text-[10px] text-amber-300">{aviso}</span>}
+          </div>
+          <pre className="max-h-56 overflow-auto rounded-lg bg-black/30 p-2 text-[10px] leading-snug text-white/60" aria-label="Registro del enlace Bluetooth">
+            {lineas.length ? texto : "Aún no hay eventos: aquí se apuntará cada enlace que se abra, se cierre o se caiga, y por qué."}
+          </pre>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function BluetoothDirectoPanel() {
   const estado = useEstadoBluetooth();
@@ -53,6 +137,7 @@ export default function BluetoothDirectoPanel() {
         </button>
       )}
       {aviso && <p className="mt-2 text-[11px] text-amber-300">{aviso}</p>}
+      {estado.disponible && <RegistroDelEnlace />}
       {estado.vecinos.length > 0 && (
         <ul className="mt-3 space-y-1" aria-label="Vecinos por Bluetooth">
           {estado.vecinos.map((v) => {

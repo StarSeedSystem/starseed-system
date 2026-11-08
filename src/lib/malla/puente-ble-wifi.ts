@@ -26,7 +26,7 @@
  * Lo de arriba de `iniciarPuenteBleWifi` es PURO (sin red, sin DOM; solo importa módulos puros y tipos).
  */
 
-import { idEnlaceBle } from "./bluetooth-directo";
+import { duracionArchivoBle, idEnlaceBle, MAX_ARCHIVO_BLE } from "./bluetooth-directo";
 import { CANAL_CONTROL_WIFI, PLAZOS_WIFI, leerCable, type ClaseNecesidad } from "./enlace-wifi-directo";
 import { AVISO_RADIO_UNICA } from "./enlace-wifi-orquestacion";
 import type { EnlaceParaAncho, InstantaneaWifi, ViaControlWifi } from "./enlace-wifi-motor";
@@ -143,7 +143,14 @@ export interface AvisoWifi {
  * avisoWifi — lo que hay que preguntar a la persona ahora (primero la pregunta de la otra neurona, que tiene
  * plazo), o null. Puro.
  */
-export function avisoWifi(i: Pick<InstantaneaWifi, "pregunta" | "propuesta" | "capPropia">): AvisoWifi | null {
+/** «Por Bluetooth igualmente tardaría ≈ 4 min» para un archivo que cabe en el tope de Bluetooth (BLE1108B). Puro. */
+export function detalleBluetooth(clase: ClaseNecesidad, bytes: number | undefined, kbps?: number | null): string {
+  if (clase !== "archivo" || typeof bytes !== "number" || bytes <= 0) return "";
+  if (bytes > MAX_ARCHIVO_BLE) return " Es más grande que el tope de Bluetooth: solo cabe por Wi-Fi directo.";
+  return ` Por Bluetooth igualmente tardaría ${duracionArchivoBle(bytes, kbps)}.`;
+}
+
+export function avisoWifi(i: Pick<InstantaneaWifi, "pregunta" | "propuesta" | "capPropia">, kbpsBle?: number | null): AvisoWifi | null {
   const radio = i.capPropia?.radioUnica ? ` ${AVISO_RADIO_UNICA}` : "";
   if (i.pregunta) {
     const q = i.pregunta;
@@ -164,9 +171,9 @@ export function avisoWifi(i: Pick<InstantaneaWifi, "pregunta" | "propuesta" | "c
       id: `wifi-directo:propuesta:${p.neurona}:${p.clase}`,
       tipo: "propuesta",
       titulo: `¿Abrir un enlace Wi-Fi directo con «${p.nombre || "esa neurona"}» para ${CLASE_AVISO[p.clase]}?`,
-      detalle: `Por Bluetooth va lento; el enlace directo no necesita router ni internet.${aviso}`,
+      detalle: `Por Bluetooth va lento; el enlace directo no necesita router ni internet.${detalleBluetooth(p.clase, p.bytes, kbpsBle)}${aviso}`,
       si: "Abrir",
-      no: "Ahora no",
+      no: p.clase === "archivo" && typeof p.bytes === "number" && p.bytes <= MAX_ARCHIVO_BLE ? "Enviar por Bluetooth igualmente" : "Ahora no",
       duracionMs: 60_000,
     };
   }
@@ -224,7 +231,8 @@ export function iniciarPuenteBleWifi(): () => void {
       const { toast } = await import("sonner");
       let visible: string | null = null;
       const pintar = () => {
-        const a = avisoWifi(m.instantanea());
+        const kbps = bd.bluetoothDirectoActivo()?.instantanea().estado?.enlaces.map((e) => e.kbps).find((k) => typeof k === "number" && k > 0) ?? null;
+        const a = avisoWifi(m.instantanea(), kbps);
         if (visible && visible !== a?.id) toast.dismiss(visible);
         if (!a || a.id === visible) {
           visible = a?.id ?? null;

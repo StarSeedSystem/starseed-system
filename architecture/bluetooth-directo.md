@@ -200,3 +200,24 @@ CoreWLAN en macOS) y lo NEGOCIA por este Bluetooth. Dos mensajes de control, fir
 - macOS: el aviso del sistema la primera vez y que, negado, el panel lo diga y abra Ajustes.
 - Rotación del anuncio cada 5 min con un enlace abierto (no debe cortarlo) y reconexión al alejarse y
   volver; dos Macs o dos Android a la vez (6 enlaces como mucho).
+
+## 12 · Fiabilidad en aparatos reales (BLE1108B · prueba de campo 08-11, build 0.5.1-prueba.26)
+
+Mac ↔ tableta SM-X900, Wi-Fi de la tableta apagado. El texto iba; el vídeo no. Causas halladas y arreglos:
+
+| # | Síntoma | Causa en el código | Arreglo |
+|---|---|---|---|
+| 1 | Se cae a mitad de un archivo | El motor de archivos mandaba trozos sin esperar al portador (`enviar` sin acuse): la cola de datos se llenaba, los fallos seguidos (`FALLOS_PARA_CAIDA`) tiraban el enlace y no había latido que distinguiera «lento» de «muerto» | Contrapresión: `CanalArchivos.esperarListo` (cola < 32 KiB y enlace ligado) antes de CADA trozo y `enviarConAcuse` (un trozo confirmado, el siguiente). Latido de 8 s en Rust (`P_LATIDO`=4, sin acuse); sin nada del otro lado en 26 s se cierra con motivo |
+| 2 | No reconecta | Backoff plano de 30 s en la web y en Rust; tras una caída Android no volvía a anunciar ni a escanear | Rust `ESCALA_RECONEXION_MS` 0/2/5/15 s (se olvida a los 2 min o si el enlace vivió ≥ 5 s); web `esperaCaidaBle` 2/5/15 s; Kotlin `reanudarRadio()` tras cada desconexión; la ligadura se rehace con `nl.hola` a los 2/5/15 s (`insistirHola`) |
+| 3 | La oferta tardó minutos | La oferta (con la vista previa) podía no caber en una trama y se mandaba UNA vez; si el otro aún no tenía el enlace ligado se perdía y solo un reintento posterior la repetía | `ofertaQueCabe` (quita vista → contenido → inicio hasta caber), reenvío cada 6 s (1 s si falla) mientras nadie conteste y el receptor ignora la repetición (misma sha256 y tamaño en `pendiente-aceptar`) |
+| 4 | Un corte pierde el archivo | El canal de archivos era por ENLACE: al renacer con otro id el motor hablaba a un canal muerto | `canalArchivos` devuelve un canal por NEURONA, estable entre enlaces; el motor reintenta (500 ms·2ⁿ), la oferta se repite y el receptor contesta `archivo.aceptar{desde,huecos}`: sigue desde lo confirmado (el SHA-256 se comprueba al final) |
+| 5 | «Esperando un medio disponible» | El buzón solo reintentaba por reloj | `crearDisparadorReintento`: al registrarse un enlace local o ligarse uno BLE (`alLigarBle`) reintenta a los 150 ms, y repite si llegó con una vuelta en marcha |
+| 6 | Cabecera «Desconectada» con BLE vivo | `presencia-viva.ts` solo miraba LAN, malla y faro | Fuente `vias` (registro de conectores `descubrirVias` + enlaces BLE): «En línea · vía Bluetooth directo · N ms». Orden: local, red local, malla misma red, faro, **ble**, malla, cuenta |
+
+**Política de archivos grandes por Bluetooth.** Sobre 256 KiB el glue propone Wi-Fi directo (respeta Preguntar/Automático); en la propuesta, «Enviar por Bluetooth igualmente» con el tiempo estimado (`duracionArchivoBle`) hasta el tope de 20 MB; más allá solo por Wi-Fi. La ventana de aceptar dice el medio y el tiempo: «por Bluetooth: ~N min estimado» (`textoMedioEnvio`; con la velocidad medida del enlace, o la media de 80–480 kbit/s «sin medir»).
+
+**Registro del enlace.** Anillo de 200 eventos por neurona (400 en total) en la web (`registro-enlace-ble.ts`: abierto, ligado, reconectado, perdido, caída, rechazo, cifrado, envío fallido, hola, reintento) y anillo de 300 en Rust (`ble_registro`) con radio, MTU, conexiones y, al cerrar un enlace, motivo, vida, bytes, cola, reintentos, silencio y latidos. El panel «Registro del enlace» (Bluetooth directo) los une por hora y permite copiar o guardar. En escritorio se añade a `~/Library/Logs/app.starseed.os/enlaces.log` (otro directorio de datos fuera de macOS) con `ble_registro_anexar`, rotado a `.1` al pasar de 1 MiB.
+
+**Pruebas.** Rust: `reconexion_escalonada_ya_2_5_y_15_segundos`, `latido_en_silencio_y_enlace_muerto`, `registro_de_enlaces_con_motivo_y_rotacion`. Web: `archivos-malla-ble.test.ts` (contrapresión con portador lento, corte y reanudación con SHA-256, ventana de aceptar), `registro-enlace-ble.test.ts`, `reintento-al-enlazar.test.ts`, `presencia-viva.test.ts` (solo BLE), `envios-entrantes.test.ts` (`textoMedioEnvio`), `puente-ble-wifi.test.ts` (propuesta de archivo grande), `contrato-bluetooth.test.ts` (9 comandos).
+
+**Pendiente y a vigilar.** La causa física exacta del corte del 08-11 no se puede probar sin trazas: el próximo ensayo debe traer `enlaces.log`. Falta la conexión simétrica (hoy solo conecta la neurona de id menor; si falla, la otra no lo intenta). Los valores por defecto de antena y el asistente de permisos son de PER1108A; la identidad sin internet al arrancar, de OFF1108A.

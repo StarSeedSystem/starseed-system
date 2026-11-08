@@ -22,10 +22,11 @@
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
-  Check, ChevronDown, ChevronRight, FileArchive, FileAudio, FileCode, FileImage, FileText, FileVideo, Fingerprint,
+  Check, ChevronDown, Clock, ChevronRight, FileArchive, FileAudio, FileCode, FileImage, FileText, FileVideo, Fingerprint,
   Folder, FolderOpen, Inbox, LayoutGrid, List, Loader2, MessageSquare, Minimize2, Route, ShieldAlert, ShieldCheck, ShieldX, Sparkles, X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { bluetoothDirectoActivo } from "@/lib/malla/bluetooth-directo-motor";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { ACENTO, CLASE_ITEM, CLASE_ROTULO, pildoraFantasma } from "@/components/messages/marco/estilos";
 import { tamanoLegible, tipoSeguroPara, vistaPrevia, type VistaPrevia } from "@/lib/mensajeria/neuronas/datos-neurona";
@@ -36,6 +37,7 @@ import {
   enviosPorDecidir,
   idsDeCarpeta,
   idsPendientes,
+  textoMedioEnvio,
   type CarpetaEnvio,
   type EnvioEntrante,
 } from "@/lib/network/envios-entrantes";
@@ -92,6 +94,17 @@ const TEXTO_NIVEL: Record<NivelInspeccion, string> = { limpio: "Sin señales", a
 function IconoNivel({ nivel, className }: { nivel: NivelInspeccion; className?: string }) {
   const I = nivel === "peligro" ? ShieldX : nivel === "aviso" ? ShieldAlert : ShieldCheck;
   return <I className={cn("h-3.5 w-3.5", className)} style={{ color: COLOR_NIVEL[nivel] }} aria-hidden />;
+}
+
+/** Velocidad medida (kbit/s) del mejor enlace Bluetooth vivo, si la hay (BLE1108B). */
+function kbpsBluetoothMedido(): number | null {
+  try {
+    const enlaces = bluetoothDirectoActivo()?.instantanea().estado?.enlaces ?? [];
+    const k = enlaces.map((e) => e.kbps).filter((x): x is number => typeof x === "number" && x > 0);
+    return k.length ? Math.max(...k) : null;
+  } catch {
+    return null;
+  }
 }
 
 function Pastilla({ color, children, titulo }: { color: string; children: ReactNode; titulo?: string }) {
@@ -518,6 +531,8 @@ export function VentanaEnvio({ envio, acciones, onMinimizar }: { envio: EnvioEnt
   const arbol = useMemo(() => arbolDeEnvio(envio.archivos), [envio.archivos]);
   const hayCarpetas = arbol.carpetas.length > 0;
   const n = envio.archivos.length;
+  // (BLE1108B) El medio y el tiempo estimado, ANTES de decidir (la velocidad medida del enlace, si la hay).
+  const medioBluetooth = textoMedioEnvio({ via: envio.via, bytes: envio.bytes, kbps: kbpsBluetoothMedido() });
 
   return (
     <div className="flex max-h-[85dvh] min-h-0 flex-col" data-testid="ventana-envio">
@@ -545,6 +560,12 @@ export function VentanaEnvio({ envio, acciones, onMinimizar }: { envio: EnvioEnt
             <Pastilla color={ACENTO.aurora}>
               <Route className="h-3 w-3" aria-hidden />
               {envio.via}
+            </Pastilla>
+          )}
+          {medioBluetooth && (
+            <Pastilla color={ACENTO.ambar} titulo="Lo que tardará depende de lo que dé el aire entre los dos aparatos; si hay Wi-Fi directo, irá mucho más deprisa.">
+              <Clock className="h-3 w-3" aria-hidden />
+              {medioBluetooth}
             </Pastilla>
           )}
           <Pastilla color={COLOR_NIVEL[nivelLocal]} titulo="Heurísticas locales (sin IA)">

@@ -44,8 +44,8 @@ describe("contrato del Bluetooth directo (BLE1108A)", () => {
     const lib = rust("lib.rs");
     const build = raiz("native/src-tauri/build.rs");
     const def = JSON.parse(raiz("native/src-tauri/capabilities/default.json")) as { permissions: unknown[] };
-    const comandos = [bd.COMANDO_ESTADO_BLE, bd.COMANDO_ABRIR_BLE, bd.COMANDO_CERRAR_BLE, bd.COMANDO_ENVIAR_BLE, bd.COMANDO_RECIBIDOS_BLE, bd.COMANDO_ACTIVAR_BLE, bd.COMANDO_PERMISO_BLE];
-    expect(new Set(comandos).size).toBe(7);
+    const comandos = [bd.COMANDO_ESTADO_BLE, bd.COMANDO_ABRIR_BLE, bd.COMANDO_CERRAR_BLE, bd.COMANDO_ENVIAR_BLE, bd.COMANDO_RECIBIDOS_BLE, bd.COMANDO_ACTIVAR_BLE, bd.COMANDO_PERMISO_BLE, bd.COMANDO_REGISTRO_BLE, bd.COMANDO_REGISTRO_ANEXAR_BLE];
+    expect(new Set(comandos).size).toBe(9);
     for (const c of comandos) {
       expect(ble, c).toMatch(new RegExp(`#\\[tauri::command\\]\\s*pub (async )?fn ${c}\\(`));
       expect(lib, c).toContain(`ble::${c},`);

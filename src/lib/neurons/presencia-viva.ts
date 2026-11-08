@@ -21,10 +21,40 @@
  */
 
 import type { PresenciaMedio } from "./presencia";
+import type { ViaViva as ViaConector } from "@/lib/malla/conectores/tipos";
 import { mejorMedio, sanearInfoPublica, type InfoPublicaNeurona } from "./info-publica";
 import { leerAparato } from "./aparato-registro";
 
-export type ViaViva = "red-local" | "malla" | "cuenta";
+export type ViaViva = "red-local" | "ble" | "malla" | "cuenta";
+
+/** (BLE1108B) Lo mínimo de un enlace del registro de conectores (`conectores/registro.ts` → `descubrirVias`). */
+export interface ViaConectorMin {
+  /** «local», «nativo», «ble», «cuenta»… */
+  tipo: string;
+  abierto: boolean;
+  neuronDeviceId?: string;
+  syncDeviceId?: string;
+  rttMs: number | null;
+}
+
+/** (BLE1108B) Las vías vivas del registro de conectores, en lo que necesita la presencia. Puro. */
+export function viasDeConectores(vias: readonly ConectorViaMin[]): ViaConectorMin[] {
+  const out: ViaConectorMin[] = [];
+  for (const v of vias ?? []) {
+    const e = v?.enlace;
+    if (!e) continue;
+    out.push({
+      tipo: String(e.tipo),
+      abierto: e.abierto !== false,
+      ...(e.alcanza?.neuronDeviceId ? { neuronDeviceId: e.alcanza.neuronDeviceId } : {}),
+      ...(e.alcanza?.syncDeviceId ? { syncDeviceId: e.alcanza.syncDeviceId } : {}),
+      rttMs: typeof e.rttMs === "number" && Number.isFinite(e.rttMs) ? e.rttMs : null,
+    });
+  }
+  return out;
+}
+
+type ConectorViaMin = Pick<ViaConector, "enlace">;
 
 /** Lo mínimo de `FotoEnlaceLocal` (lib/malla/registro-enlaces-locales.ts). */
 export interface EnlaceLocalMin {
@@ -59,6 +89,11 @@ export interface FuentesPresenciaViva {
   locales?: readonly EnlaceLocalMin[];
   /** Filas de la malla de neuronas (enlace P2P). */
   malla?: readonly FilaMallaMin[];
+  /**
+   * (BLE1108B) Vías vivas del registro de conectores / planificador (MED1108B): el Bluetooth directo
+   * (`ble`) y los enlaces de red local nativos cuentan igual que el enlace directo sin internet.
+   */
+  vias?: readonly ViaConectorMin[];
   /** Lo que la app nativa oye por faro en esta red, y los vínculos recordados. */
   vecinos?: readonly VecinoMin[];
   vinculos?: readonly VinculoMin[];
@@ -88,6 +123,7 @@ export const FARO_LOCAL_VIGENTE_S = 60;
 
 export const TEXTO_VIA: Record<ViaViva, string> = {
   "red-local": "vía red local",
+  ble: "vía Bluetooth directo",
   malla: "vía malla P2P",
   cuenta: "vía internet",
 };
@@ -126,14 +162,26 @@ export function presenciaViva(neuronaId: string, f: FuentesPresenciaViva): Prese
     const faro = (f.vecinos ?? []).find(
       (v) => v && v.visto_hace_s <= FARO_LOCAL_VIGENTE_S && ((v.neurona && vig(v.neurona) === n) || (!v.neurona && vinculos.some((x) => x.ultimaIp === v.ip))),
     );
+    const viasVivas = (f.vias ?? []).filter(
+      (v) => v && v.abierto && ((v.neuronDeviceId && vig(v.neuronDeviceId) === n) || (v.syncDeviceId && sync.has(v.syncDeviceId))),
+    );
+    const lan = viasVivas.find((v) => v.tipo === "local" || v.tipo === "nativo");
+    const ble = viasVivas.find((v) => v.tipo === "ble");
     if (local) {
       via = "red-local";
       rttMs = num(local.rttMs);
+    } else if (lan) {
+      via = "red-local";
+      rttMs = num(lan.rttMs);
     } else if (conectada && conectada.enlace.ruta?.clase === "misma-red-local") {
       via = "red-local";
       rttMs = rttMalla;
     } else if (faro) {
       via = "red-local";
+    } else if (ble) {
+      // (BLE1108B) Solo Bluetooth directo (sin Wi-Fi ni internet): sí está en línea, y se dice por dónde.
+      via = "ble";
+      rttMs = num(ble.rttMs);
     } else if (conectada) {
       via = "malla";
       rttMs = rttMalla;
@@ -161,6 +209,13 @@ export function presenciaViva(neuronaId: string, f: FuentesPresenciaViva): Prese
   } catch {
     return vacia;
   }
+}
+
+/** «En línea · vía Bluetooth directo · 81 ms» (la cabecera del chat). El tiempo solo se dice por Bluetooth. Pura. */
+export function textoCabeceraVivo(p: Pick<PresenciaViva, "enLinea" | "via" | "rttMs">): string {
+  if (!p.enLinea || !p.via) return "Desconectada";
+  const rtt = p.via === "ble" && p.rttMs !== null && Number.isFinite(p.rttMs) ? ` · ${Math.round(p.rttMs)} ms` : "";
+  return `En línea · ${TEXTO_VIA[p.via]}${rtt}`;
 }
 
 /** «en línea · vía red local · 57 ms» o «no está abierta ahora». Pura. */

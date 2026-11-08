@@ -136,6 +136,20 @@ export interface CanalArchivos {
    * esto, 16 KiB. El trozo de una transferencia se fija en su oferta (el hash depende de él).
    */
   tamanoTrozo?(): number;
+  /**
+   * (BLE1108B) Opcional: manda el texto y se resuelve cuando el OTRO aparato lo ACUSÓ (true) o no pudo
+   * (false). Con él el remitente va a la velocidad del enlace (un trozo confirmado, el siguiente), el
+   * progreso es el de lo confirmado y un corte se nota en el trozo exacto. Sin esto, `enviar`.
+   */
+  enviarConAcuse?(texto: string): Promise<boolean>;
+  /**
+   * (BLE1108B) Opcional: se resuelve true cuando el canal puede llevar el siguiente mensaje (hay enlace y su
+   * cola cabe) y false si pasa un buen rato sin poderlo (sin enlace: ya se reintentará). Es la señal
+   * «listo para enviar» del portador: el motor la respeta antes de CADA trozo (contrapresión).
+   */
+  esperarListo?(): Promise<boolean>;
+  /** (BLE1108B) Opcional: bytes (UTF-8) que caben en UN mensaje por este canal; una oferta mayor se aligera. */
+  maxTextoBytes?(): number;
   /** Suscribe un callback a los mensajes entrantes. Devuelve función de baja. */
   alMensaje(cb: (data: string | ArrayBuffer) => void): () => void;
 }
@@ -1441,6 +1455,12 @@ export interface ConfigMotorArchivos {
    * todo lo que llegaba mientras su almacén escribía. Por defecto 8 MiB.
    */
   ventanaVueloBytes?: number;
+  /**
+   * (BLE1108B) Cada cuánto vuelve a mandar el remitente una oferta que nadie ha contestado (solo por canales
+   * con `enviarConAcuse`: un mensaje acusado por la radio pudo perderse en la capa de arriba, p. ej. si el
+   * otro aún no había ligado el enlace). El receptor ignora la repetición. Por defecto 6 s, 12 veces.
+   */
+  reenvioOfertaMs?: number;
 }
 
 /** (ARC1108A) Lo que se puede añadir a una oferta al mandarla (el envío al que pertenece, su ruta, su vista). */
@@ -1751,8 +1771,59 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
     const vista = sanearVista(opciones?.vista);
     if (vista) oferta.vista = vista;
     ofertasEnviadas.set(id, oferta);
-    canal.enviar(JSON.stringify(oferta));
+    enviarOferta(id, canal, oferta);
     return { ok: true, id, aviso };
+  }
+
+  /** (BLE1108B) La oferta sin lo opcional que no cabe en UN mensaje del canal (vista, contenido, inicio, en ese orden). */
+  function ofertaQueCabe(canal: CanalArchivos, oferta: MsgOferta): MsgOferta {
+    const max = canal.maxTextoBytes?.();
+    if (!max || !Number.isFinite(max)) return oferta;
+    const peso = (o: MsgOferta) => new TextEncoder().encode(JSON.stringify(o)).length;
+    let o: MsgOferta = oferta;
+    for (const campo of ["vista", "contenido", "inicioB64"] as const) {
+      if (peso(o) <= max) break;
+      if (o[campo] === undefined) continue;
+      const copia: MsgOferta = { ...o };
+      delete copia[campo];
+      o = copia;
+    }
+    return o;
+  }
+
+  /**
+   * (BLE1108B) Manda la oferta. Por un canal que acusa, la repite cada `reenvioOfertaMs` mientras nadie
+   * conteste (acepto, rechazo o cancelo): antes se mandaba UNA vez y, si el otro aún no tenía ligado el
+   * enlace o la trama no cabía, la ventana de «aceptar» no aparecía hasta que alguien reintentaba, minutos
+   * después. Sin acuse, UNA vez, como siempre.
+   */
+  function enviarOferta(id: string, canal: CanalArchivos, oferta: MsgOferta): void {
+    const texto = JSON.stringify(ofertaQueCabe(canal, oferta));
+    if (!canal.enviarConAcuse) {
+      canal.enviar(texto);
+      return;
+    }
+    const cada = Math.max(1, config.reenvioOfertaMs ?? 6_000);
+    const esperando = () => {
+      const e = estados.get(id);
+      return !!e && e.rol === "enviar" && e.fase === "esperando-aceptacion" && !cancelados.has(id) && ofertasEnviadas.get(id) === oferta;
+    };
+    let veces = 0;
+    const intentar = async (): Promise<void> => {
+      if (!esperando() || veces >= 12) return;
+      veces++;
+      let ok = false;
+      try {
+        ok = await canal.enviarConAcuse!(texto);
+      } catch {
+        ok = false;
+      }
+      if (!esperando()) return;
+      if (!ok) await (canal.esperarListo?.() ?? Promise.resolve(true)).catch(() => false);
+      const t = setTimeout(() => void intentar(), ok ? cada : Math.min(cada, 1_000));
+      (t as { unref?: () => void }).unref?.();
+    };
+    void intentar();
   }
 
   /** (ARC1108A) Quita la espera de verificación de una transferencia enviada. */
@@ -1869,12 +1940,24 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
       const fin = Math.min(archivo.size, inicio + tam);
       const datos = await archivo.slice(inicio, fin).arrayBuffer();
       let enviado = false;
-      if (modo === "binario" && canal.enviarBinario) {
+      // (BLE1108B) «Listo para enviar» del portador, antes de CADA trozo: sin enlace (se cayó) espera a que
+      // vuelva y sigue en este mismo trozo; no gasta los reintentos ni salta ninguno.
+      const listo = canal.esperarListo ? await canal.esperarListo().catch(() => false) : true;
+      if (cancelados.has(id)) {
+        actualizarFase(id, "cancelada");
+        return;
+      }
+      if (!listo) {
+        enviado = false;
+      } else if (modo === "binario" && canal.enviarBinario) {
         const chunkBin = encodeChunkBinario(id, i, datos);
         enviado = canal.enviarBinario(chunkBin);
       } else {
         const msg: MsgChunk = { t: "archivo.chunk", id, index: i, datosB64: bufAB64(datos) };
-        enviado = canal.enviar(JSON.stringify(msg));
+        const texto = JSON.stringify(msg);
+        // (BLE1108B) Con acuse, el trozo cuenta cuando el otro aparato lo recibió: el progreso es el
+        // último trozo CONFIRMADO y un corte reintenta este mismo trozo.
+        enviado = canal.enviarConAcuse ? await canal.enviarConAcuse(texto).catch(() => false) : canal.enviar(texto);
       }
       if (!enviado) {
         // Fallo de envío: iniciar reintento con backoff exponencial
@@ -1916,7 +1999,8 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
     let finSalio = false;
     for (let intento = 0; intento < 4 && !finSalio && !cancelados.has(id); intento++) {
       if (intento > 0) await esperar(reintentoConfig.esperaBaseMs * intento);
-      finSalio = canal.enviar(JSON.stringify({ t: "archivo.fin", id } satisfies MsgFin));
+      const textoFin = JSON.stringify({ t: "archivo.fin", id } satisfies MsgFin);
+      finSalio = canal.enviarConAcuse ? await canal.enviarConAcuse(textoFin).catch(() => false) : canal.enviar(textoFin);
     }
     const e = estados.get(id);
     if (!e || cancelados.has(id)) return;
@@ -2140,6 +2224,13 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
     }
     if (!Number.isInteger(msg.trozos) || msg.trozos < 1 || msg.trozos > 1_000_000 || !(msg.tamano >= 0)) {
       canal.enviar(JSON.stringify({ t: "archivo.rechazar", id: msg.id, motivo: "Oferta mal formada (trozos o tamaño imposibles)." } satisfies MsgRechazar));
+      return;
+    }
+    // (BLE1108B) La misma oferta repetida (el remitente la reenvía hasta que le contestan) mientras la persona
+    // aún decide: no se pregunta dos veces; solo se apunta por qué canal volver a hablarle.
+    const preguntada = ofertasEntrantes.get(msg.id);
+    if (preguntada && estados.get(msg.id)?.fase === "pendiente-aceptar" && preguntada.sha256 === msg.sha256 && preguntada.tamano === msg.tamano) {
+      canalPorId.set(msg.id, canal);
       return;
     }
     const ctx: ContextoRecepcion = contexto ?? { mismaCuenta: false };

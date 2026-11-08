@@ -411,3 +411,27 @@ describe("piezas puras del puente", () => {
     ]);
   });
 });
+
+describe("archivo grande solo con Bluetooth (BLE1108B)", () => {
+  const cap = { pregunta: null, capPropia: null } as const;
+  const propuesta = (bytes?: number) => ({ neurona: "n", nombre: "Maggaboard", clase: "archivo" as const, motivo: "pesado", ...(bytes === undefined ? {} : { bytes }) });
+
+  it("propone Wi-Fi directo y ofrece «Enviar por Bluetooth igualmente» con el tiempo estimado", () => {
+    const a = avisoWifi({ ...cap, propuesta: propuesta(8 * MB) }, 200);
+    expect(a?.tipo).toBe("propuesta");
+    expect(a?.si).toBe("Abrir");
+    expect(a?.no).toBe("Enviar por Bluetooth igualmente");
+    expect(a?.detalle).toMatch(/Por Bluetooth igualmente tardaría ≈ \d+ min/);
+  });
+
+  it("pasado el tope de 20 MB solo cabe por Wi-Fi directo: sin la opción de Bluetooth", () => {
+    const a = avisoWifi({ ...cap, propuesta: propuesta(30 * MB) }, 200);
+    expect(a?.no).toBe("Ahora no");
+    expect(a?.detalle).toContain("solo cabe por Wi-Fi directo");
+  });
+
+  it("una llamada no ofrece Bluetooth igualmente", () => {
+    const a = avisoWifi({ ...cap, propuesta: { ...propuesta(), clase: "llamada" } });
+    expect(a?.no).toBe("Ahora no");
+  });
+});

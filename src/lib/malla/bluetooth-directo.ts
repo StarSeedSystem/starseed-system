@@ -48,6 +48,9 @@ export const COMANDO_ENVIAR_BLE = "ble_enviar";
 export const COMANDO_RECIBIDOS_BLE = "ble_recibidos";
 export const COMANDO_ACTIVAR_BLE = "ble_activar";
 export const COMANDO_PERMISO_BLE = "ble_pedir_permiso";
+/** (BLE1108B) Registro de eventos de la app nativa y copia de las líneas de la web a `enlaces.log`. */
+export const COMANDO_REGISTRO_BLE = "ble_registro";
+export const COMANDO_REGISTRO_ANEXAR_BLE = "ble_registro_anexar";
 export const EVENTO_MENSAJE_BLE = "ble://mensaje";
 export const EVENTO_CAMBIO_BLE = "ble://cambio";
 

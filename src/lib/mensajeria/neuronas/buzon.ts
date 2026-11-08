@@ -53,6 +53,7 @@ import {
     type ResultadoPaso,
 } from "@/lib/mensajeria/medios/enviar";
 import { claveChat, preferenciasEfectivas } from "@/lib/mensajeria/medios/preferencias-store";
+import { crearDisparadorReintento } from "@/lib/mensajeria/neuronas/reintento-al-enlazar";
 // (NOT1108A) El chat a la vista (sin dependencias): un mensaje de ESE chat no avisa.
 import { fijarChatAbierto } from "@/lib/notifications/chat-abierto";
 import type { CandidatoMedio, PasoEnvio, PlanEnvio, ViaMensaje } from "@/lib/mensajeria/medios/tipos";
@@ -670,10 +671,15 @@ export async function enviarMensajeChat(e: EnvioChat): Promise<ResultadoChat> {
 /* ══════════════════════════ Reintentos ══════════════════════════ */
 
 let reintentando = false;
+let reintentarOtraVez = false;
 
 /** Reintenta lo que espera un medio. Devuelve cuántos salieron. */
 export async function reintentarPendientes(): Promise<number> {
-    if (reintentando) return 0;
+    if (reintentando) {
+        // (BLE1108B) Una vuelta en marcha pudo pasar de largo lo que acaba de encontrar un medio: otra al terminar.
+        reintentarOtraVez = true;
+        return 0;
+    }
     reintentando = true;
     let salieron = 0;
     try {
@@ -697,6 +703,10 @@ export async function reintentarPendientes(): Promise<number> {
         }
     } finally {
         reintentando = false;
+    }
+    if (reintentarOtraVez) {
+        reintentarOtraVez = false;
+        void reintentarPendientes();
     }
     return salieron;
 }
@@ -1105,6 +1115,20 @@ export function iniciarBuzonMalla(): () => void {
         })
         .catch(() => undefined);
     void asegurarOyentesCuenta();
+    // (BLE1108B) Cada enlace que se registra (Bluetooth ligado a una neurona, enlace local, red local nativa)
+    // vacía la cola AL INSTANTE: «esperando un medio disponible» se quita solo, sin esperar a los 20 s.
+    const disparador = crearDisparadorReintento({ reintentar: () => reintentarPendientes() });
+    bajas.push(() => disparador.parar());
+    void import("@/lib/malla/registro-enlaces-locales")
+        .then((r) => {
+            if (activo) bajas.push(r.alRegistrarEnlaceLocal(() => disparador.disparar("enlace local")));
+        })
+        .catch(() => undefined);
+    void import("@/lib/malla/bluetooth-directo-motor")
+        .then((b) => {
+            if (activo) bajas.push(b.alLigarBle(() => disparador.disparar("Bluetooth directo ligado")));
+        })
+        .catch(() => undefined);
     const tic = () => {
         const e = cargar();
         if (enEspera(e).length || Object.values(e.conv).some((c) => c.mensajes.some((m) => m.opPendiente))) void reintentarPendientes();

@@ -5,7 +5,7 @@
  *   NODE_ENV=test npx vitest run src/lib/neurons/__tests__/presencia-viva.test.ts
  */
 import { describe, expect, it } from "vitest";
-import { presenciaViva, textoEstadoVivo } from "../presencia-viva";
+import { presenciaViva, textoCabeceraVivo, textoEstadoVivo, viasDeConectores } from "../presencia-viva";
 import type { PresenciaMedio } from "../presencia";
 
 const BOARD = "e0b9faf2-0000-4000-8000-000000000001";
@@ -76,5 +76,36 @@ describe("presenciaViva", () => {
     expect(presenciaViva("", { medios: [] }).enLinea).toBe(false);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     expect(presenciaViva(BOARD, { medios: [null as any], locales: [null as any], capacidades: "x" as any }).enLinea).toBe(false);
+  });
+});
+
+describe("presenciaViva · Bluetooth directo (BLE1108B)", () => {
+  it("solo con un enlace BLE vivo: «En línea · vía Bluetooth directo · 81 ms» (y no «Desconectada»)", () => {
+    const p = presenciaViva(BOARD, { medios: [], vias: [{ tipo: "ble", abierto: true, neuronDeviceId: BOARD, rttMs: 81 }] });
+    expect(p).toMatchObject({ enLinea: true, via: "ble", rttMs: 81 });
+    expect(textoCabeceraVivo(p)).toBe("En línea · vía Bluetooth directo · 81 ms");
+  });
+
+  it("un enlace BLE cerrado o de otra neurona no cuenta", () => {
+    expect(presenciaViva(BOARD, { medios: [], vias: [{ tipo: "ble", abierto: false, neuronDeviceId: BOARD, rttMs: 81 }] }).enLinea).toBe(false);
+    expect(presenciaViva(BOARD, { medios: [], vias: [{ tipo: "ble", abierto: true, neuronDeviceId: "otra", rttMs: 5 }] }).enLinea).toBe(false);
+  });
+
+  it("la red local gana al Bluetooth cuando están las dos", () => {
+    const p = presenciaViva(BOARD, {
+      medios: [],
+      locales: [{ neuronDeviceId: BOARD, syncDeviceId: "s", rttMs: 20 }],
+      vias: [{ tipo: "ble", abierto: true, neuronDeviceId: BOARD, rttMs: 81 }],
+    });
+    expect(p.via).toBe("red-local");
+  });
+
+  it("viasDeConectores traduce las vías del registro y salta las que no traen enlace", () => {
+    const out = viasDeConectores([
+      { enlace: { tipo: "ble", abierto: true, alcanza: { neuronDeviceId: BOARD }, rttMs: 70 } },
+      { enlace: null },
+    ] as never);
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatchObject({ tipo: "ble", abierto: true, neuronDeviceId: BOARD });
   });
 });

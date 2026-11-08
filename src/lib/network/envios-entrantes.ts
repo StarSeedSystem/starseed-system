@@ -15,6 +15,23 @@ import type { EstadoTransferencia, VerificacionOrigen } from "./archivos-malla";
 
 export const VENTANA_ENVIO_MS = 20_000;
 
+/** Lo que suele dar el aire por Bluetooth entre dos aparatos sin medir (kbit/s): media geométrica de 80–480. */
+const KBPS_BLE_TIPICO = Math.round(Math.sqrt(80 * 480));
+
+/**
+ * textoMedioEnvio — «por Bluetooth: ~4 min estimado» para la ventana de aceptar (BLE1108B · 2026-11-08): la
+ * persona sabe por qué medio llega y cuánto tardará ANTES de decidir. Con la velocidad medida del enlace
+ * se dice sin más; sin medir, con «(sin medir)». Null si no viene por Bluetooth. Puro.
+ */
+export function textoMedioEnvio(p: { via?: string | null; bytes: number; kbps?: number | null }): string | null {
+  if (!p.via || !/bluetooth/i.test(p.via)) return null;
+  const medido = typeof p.kbps === "number" && Number.isFinite(p.kbps) && p.kbps > 0;
+  const kbps = medido ? (p.kbps as number) : KBPS_BLE_TIPICO;
+  const s = Math.max(1, ((Number.isFinite(p.bytes) ? Math.max(0, p.bytes) : 0) * 8) / (kbps * 1000));
+  const tiempo = s < 90 ? `~${Math.round(s)} s` : s < 5400 ? `~${Math.round(s / 60)} min` : `~${Math.round(s / 360) / 10} h`;
+  return `por Bluetooth: ${tiempo} estimado${medido ? "" : " (sin medir)"}`;
+}
+
 export interface EnvioEntrante {
   /** Clave estable del envío («lote:…» o «origen:…@inicio»). */
   clave: string;
