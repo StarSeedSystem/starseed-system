@@ -1,0 +1,16 @@
+{
+ "ola": "nube-20261108",
+ "tareas": [
+  {
+   "id": "BZN1108A",
+   "ola": "Ola BZN1108 · Síntesis diaria sin la Mac: buzón Claude nube → Telegram y parte diario de MetaGenesis",
+   "titulo": "Tabla metagenesis_buzon (Supabase) para avisos de Claude nube",
+   "archivos": [
+    "supabase/migrations/20261108120000_metagenesis_buzon.sql",
+    "architecture/buzon-claude-nube-telegram.md"
+   ],
+   "depende": [],
+   "prompt": "CONTEXTO (Alex, 2026-11-08): la «Síntesis diaria · Producción StarSeed» la escribe una tarea programada de Claude que corre en la NUBE (no en la Mac) a las 07:54 de CDMX. Alex quiere que llegue también al chat de Telegram vinculado a MetaGenesis y Hermes (destino de Hermes `telegram:Maggasukha`) y que use los medidores y áreas de MetaGenesis, sin necesidad de la Mac encendida. La sesión de Claude en la nube solo llega a Supabase (proyecto del OS `pqzdpmedcsgcedkvndzl`, por su conector MCP con SQL), a Drive y a la web: no tiene llaves de nodo, ni de la puerta del A1, ni de Telegram, y NO debe tenerlas. Por eso el camino es Supabase → líder de dirección (`lider_direccion.soy_lider()`, IND1029B) → Hermes en el líder (IND1029G, `hermes send`). Lee antes `architecture/metagenesis-autonoma.md`, `scripts/puente/cartero_director.py` (`_entregar_telegram`) y `memory/workflow-actual.md`. Reglas: claves solo por NOMBRE de variable de entorno (nunca un valor en el repo, un log ni un mensaje); máximo 3 archivos y 120 líneas por archivo; funciones puras con pruebas sin red; si una prueba falla se arregla el código, no la prueba; nada de `next build` en la Mac. TAREA: crea la migración de la tabla `public.metagenesis_buzon` (id bigserial, t timestamptz default now(), clase text not null default 'aviso' check (clase in ('aviso','parte')), de text not null, destino text, asunto text check (char_length(asunto) <= 120), texto text not null, estado text not null default 'pendiente' check (estado in ('pendiente','entregado','fallo','archivado')), entregado_en timestamptz, detalle text). Restricciones: si clase='aviso' → destino = 'telegram:Maggasukha' y char_length(texto) <= 12000; si clase='parte' → destino null, estado 'archivado' y char_length(texto) <= 40000. RLS ACTIVADA y SIN políticas para anon ni authenticated (solo service role / postgres: así solo escriben el conector de Claude y los nodos). Índice parcial (clase, estado) where estado='pendiente' y otro por (clase, t desc). Escribe el SOP corto `architecture/buzon-claude-nube-telegram.md`: qué es, quién escribe (Claude nube por SQL: `insert into metagenesis_buzon(clase,de,destino,asunto,texto) values ('aviso','claude-sintesis-diaria','telegram:Maggasukha',…)`), quién entrega (BZN1108B), el parte diario (BZN1108C, clase 'parte', lo lee Claude nube con `select texto from metagenesis_buzon where clase='parte' order by t desc limit 1`), límites (un destino en lista blanca, 10 avisos al día) y cómo se ve en el Mando. NO apliques la migración a producción tú: la aplica la publicación de siempre."
+  }
+ ]
+}
