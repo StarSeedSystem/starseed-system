@@ -38,7 +38,7 @@ const fondoAndroid = (servicio: Partial<NonNullable<EstadoFondo["servicio"]>> | 
   al_cerrar: "texto del aparato",
   oculta: false,
   arranque_con_sistema: true,
-  servicio: servicio && { vivo: false, motivo: "", desde_ms: 0, sdk: 34, bateria_exenta: false, notificaciones: false, ...servicio },
+  servicio: servicio && { vivo: false, motivo: "", desde_ms: 0, sdk: 34, bateria_exenta: false, notificaciones: false, microfono: false, camara: false, instalar_apps: false, ...servicio },
 });
 
 describe("vista de antenas", () => {

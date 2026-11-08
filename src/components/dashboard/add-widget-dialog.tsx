@@ -469,7 +469,7 @@ export const AVAILABLE_WIDGETS: WidgetDefinition[] = [
         description: 'Mini-previsualizaciones del feed real del Lienzo Universal (/network), en vivo.',
         icon: <Layers className="h-5 w-5 text-blue-400" />,
         primaryCategory: 'social', secondaryCategories: ['red', 'explorador'],
-        tags: ['feed', 'publicaciones', 'red', 'lienzo universal', 'timeline', 'real'], isPopular: true,
+        tags: ['feed', 'publicaciones', 'red', 'lienzo universal', 'timeline', 'real'],
     },
 ];
 

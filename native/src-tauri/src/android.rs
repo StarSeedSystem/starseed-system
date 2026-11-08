@@ -60,6 +60,13 @@ pub struct ServicioAndroid {
     pub bateria_exenta: bool,
     #[serde(default)]
     pub notificaciones: bool,
+    // (PER1108A) Permisos del primer arranque que Kotlin mide al reescribir el estado.
+    #[serde(default)]
+    pub microfono: bool,
+    #[serde(default)]
+    pub camara: bool,
+    #[serde(default)]
+    pub instalar_apps: bool,
 }
 
 fn escribir_atomico(dir: &Path, nombre: &str, texto: &str) -> Result<(), String> {

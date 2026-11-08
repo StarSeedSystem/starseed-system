@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { esAppNativa, puenteNativo } from "@/lib/nativa/puente";
+import { COMANDO_PANTALLA_VENTANA } from "@/lib/nativa/pantalla-completa";
 
 /**
  * Hook para gestionar el modo pantalla completa de manera inteligente.
@@ -54,6 +56,15 @@ export function useFullscreen(target?: HTMLElement | null) {
 
   const request = useCallback(async () => {
     if (typeof document === "undefined") return;
+    // (PER1108A) Todo el documento en la app nativa: pantalla completa de la VENTANA, no de un elemento
+    // (WKWebView la deja con un marcador borroso y, tras relanzar, congelada). Ver lib/nativa/pantalla-completa.ts.
+    if (!target && esAppNativa()) {
+      const r = await puenteNativo().llamar<unknown>(COMANDO_PANTALLA_VENTANA, { activo: true });
+      if (r.ok) {
+        setIsFullscreen(true);
+        return;
+      }
+    }
     const el = (target ?? document.documentElement) as HTMLElement & {
       webkitRequestFullscreen?: () => Promise<void>;
       msRequestFullscreen?: () => Promise<void>;
@@ -72,6 +83,13 @@ export function useFullscreen(target?: HTMLElement | null) {
 
   const exit = useCallback(async () => {
     if (typeof document === "undefined") return;
+    if (!target && esAppNativa() && !document.fullscreenElement) {
+      const r = await puenteNativo().llamar<unknown>(COMANDO_PANTALLA_VENTANA, { activo: false });
+      if (r.ok) {
+        setIsFullscreen(false);
+        return;
+      }
+    }
     const doc = document as Document & {
       webkitExitFullscreen?: () => Promise<void>;
       msExitFullscreen?: () => Promise<void>;
@@ -85,7 +103,7 @@ export function useFullscreen(target?: HTMLElement | null) {
     } catch (e) {
       console.warn("Fullscreen exit failed:", e);
     }
-  }, []);
+  }, [target]);
 
   const toggle = useCallback(async () => {
     if (isFullscreen) await exit();

@@ -41,6 +41,8 @@ mod ble_android;
 #[cfg(target_os = "macos")]
 mod ble_macos;
 mod ble_trama;
+// (PER1108A) Permisos del primer arranque (Android) y pantalla completa de la ventana (escritorio).
+mod permisos_inicio;
 // (ACT1108A) Canal de actualización (oficial / pruebas) y actualizador interno del APK. §9 del contrato.
 mod canal_actualizacion;
 mod canal_actualizacion_logica;
@@ -713,6 +715,9 @@ pub fn run() {
                 pista_neurona::pista_neurona_leer,
                 permisos_medios::medios_estado,
                 permisos_medios::medios_abrir_ajustes,
+                permisos_inicio::permisos_inicio_estado,
+                permisos_inicio::permisos_inicio_pedir,
+                permisos_inicio::ventana_pantalla_completa,
                 recursos_ia::recursos_ia_detectar,
                 nativa::antenas_estado,
                 nativa::antenas_medir,

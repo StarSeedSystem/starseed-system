@@ -130,6 +130,40 @@ Los tres últimos y `planParaDatos` viven en carpetas que llevan otros agentes: 
 Por cada uno de los 14 sistemas cruza los conectores vivos con la tabla de `mapa-vias-datos.ts` (copia del §2 y único sitio que hay que tocar cuando una fase aterriza):
 si funciona ahora, por qué medio (con su estado de cifrado) y qué falta.
 
+### 4.2 · Permisos y antenas desde la instalación (PER1108A · 2026-11-08)
+
+Medido en aparatos reales con la prueba 0.5.1-prueba.26: el panel de Bluetooth directo del Mac decía «macOS no deja a StarSeed usar el Bluetooth» aunque Alex lo
+hubiera activado en Ajustes del Sistema. Causa: la `.app` instalada solo llevaba la firma mínima del enlazador (`flags=0x20002(adhoc,linker-signed)`, identificador
+`starseed_native-<hash>`); el bundle no estaba firmado, el `Info.plist` (con `NSBluetoothAlwaysUsageDescription` y los demás textos) no iba atado a la firma y TCC negaba sin
+preguntar. Comprobado: `codesign --force --deep --sign - --identifier app.starseed.os` sobre la app instalada llevó el panel de «macOS no deja…» a «enlazada». La firma del
+bundle en el CI está en `centro-versiones-1105.md` «Firma de macOS».
+
+**Antenas encendidas de fábrica** (`src/lib/malla/defectos-antenas.ts`, puro):
+
+| Antena | Defecto | Dónde vive |
+|---|---|---|
+| Bluetooth directo | encendido | Rust `PreferenciaBle.activo = true` (ya era así) |
+| Faro de la red local (LAN beacon) y malla local | encendido | Rust `ConfigAntenas.faro_apagado = false` |
+| Wi-Fi directo | **Automático** en Android con radio no única; **Preguntar** en lo demás (el Mac deja su Wi-Fi de casa mientras dura el enlace) | `ajusteWifiPorDefecto(capacidades)`; solo vale sin elección guardada |
+
+Migración (regla «toda mejora de defaults DEBE migrar las configs persistidas»): marca `starseed.antenas.defectos.v1 = {version, explicitos[]}`. Una vez por versión,
+quien nunca tocó un interruptor recibe el defecto; lo tocado a propósito (botón «Apagar» del Bluetooth y selector de Wi-Fi directo: ambos escriben la marca) se conserva.
+Un Bluetooth apagado o un selector guardado ANTES de la migración solo pudo salir de la interfaz: se respeta y se marca. El faro no tenía interruptor, así que un `faro_apagado`
+sin marca no fue decisión de nadie y se enciende. Se aplica al montar `AsistentePermisos` (`aplicarDefectosAntenas`).
+
+**Asistente de permisos del primer arranque** (`src/components/nativa/asistente-permisos.tsx`; máquina pura en `src/lib/nativa/permisos-inicio.ts`; quien pide al sistema en
+`permisos-inicio-ejecutor.ts`, que reutiliza `ble_activar`/`ble_estado`/`ble_pedir_permiso`, `enlace_wifi_permiso`, `getUserMedia` y el plugin de notificaciones; no duplica nada):
+
+- macOS: Bluetooth (arrancar los gestores de CoreBluetooth es lo que hace preguntar a macOS), red local, notificaciones, micrófono, cámara y Ubicación (solo para ver los nombres de Wi-Fi con CoreWLAN; opcional).
+- Android: «Dispositivos cercanos» (BLE y Wi-Fi directo, uno tras otro), notificaciones, micrófono, cámara, «Instalar apps desconocidas» (opcional; el actualizador) y exención de batería (opcional). Micrófono, cámara, notificaciones e instalar los pide Kotlin por `peticion.json` (`permiso:<id>`, comando Rust `permisos_inicio_pedir`) y contesta en `servicio.json` (`permisos_inicio_estado`). Intents de pantalla completa o llamadas: no hay ninguno declarado hoy (LLA1108D traerá los suyos en su propio bloque del manifiesto).
+- **De uno en uno**: la máquina ignora «pedir» mientras haya un aviso del sistema sin contestar y bloquea omitir/cerrar mientras espera. En macOS, con un aviso de privacidad (TCC) pendiente, la ventana no recibe clics: los botones se desactivan y el texto lo dice. Cada espera tiene tope (90 s; 120 s los que abren Ajustes) y pasado el tope el permiso queda «omitido» sin colgarse.
+- Se abre solo en la primera instalación y cuando una actualización AÑADE permisos (`VERSION_ASISTENTE`; cada permiso lleva su `desde`); lo omitido cuenta como visto. Se puede omitir cada uno o todo, y se reabre desde Ajustes › Permisos y antenas («Repasar permisos», evento `starseed:permisos-inicio-abrir`). Windows y Linux no tienen asistente (el sistema pregunta al usar).
+
+**Pantalla completa sin congelar** (`src/lib/nativa/pantalla-completa.ts`). Evidencia del 08-11 12:40 CST: `system-chrome.tsx` pedía `documentElement.requestFullscreen()` en el primer gesto; WKWebView
+la lleva a otro Space y deja en la ventana el marcador borroso «Click to Exit Full Screen»; tras relanzar volvía así y un clic en el marcador dejaba la ventana sin repintar ni clics (el servidor local seguía contestando; Esc salía bien; Cmd+Q lo arreglaba). Arreglo: en la app nativa nunca se pide pantalla completa de elemento (el primer gesto no la pide; el alternador y `useFullscreen` usan `ventana_pantalla_completa`, es decir `set_fullscreen` de la ventana); un vigilante sale de la de elemento al abrir con una restaurada, al ocultarse o descargarse la página y si quedó obsoleta (`isConnected === false`), con un repaso de 4 s solo en la nativa y un `console.warn` de rastro. No se encontró en el código ningún bucle de eventos BLE en `sin-permiso` (`useEstadoBluetooth` lee cada 15 s y por evento, y se salta lo oculto). La causa es la mejor explicación con la evidencia, no está reproducida en una app real: si vuelve, el `console.warn` del vigilante es el rastro.
+
+**Dashboard y Librería**: «Inicio» y «Red» ya no llevan el widget «Feed de la Red» (retirado con FEED1108A; `NETWORK_FEED_MINI` pasa a `RECENT_ACTIVITY`; `VERSION_PREDETERMINADOS` = gen13 renueva las pestañas intactas y respeta las tocadas). La tarjeta «Descarga StarSeed OS» de la Librería enseña también la versión y el canal instalados con enlace a Ajustes › Versión y actualizaciones.
+
 ## 5 · Capa 2 · Vías
 - **Un planificador único.** Hoy hay 8 elegidores: `elegirEnlaces`, `planTransmission`, `decideRoute`, CAMR, `planParaDatos`, `planDeEnvio`, `planLlamadaChat` y `mediosParaEnviar`. Se unen en uno que lee las fichas de §4 y elige por dato según tamaño, urgencia, privacidad, energía y coste. Puede repartir un archivo entre varios medios a la vez (multitrayecto) y cambia de medio en caliente cuando aparece uno mejor.
 - **Guardar y reenviar.** Si no hay ruta ahora, el dato espera firmado y sale cuando la haya. Es la base del correo por la malla, ampliada a todo.

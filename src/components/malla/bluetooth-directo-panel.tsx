@@ -7,6 +7,7 @@
 
 import { useState } from "react";
 import { textoVelocidadBle } from "@/lib/malla/bluetooth-directo";
+import { CLAVE_DEFECTOS_ANTENAS, leerMarca, marcarExplicito, serializarMarca } from "@/lib/malla/defectos-antenas";
 import { abrirEnlaceBluetooth, activarBluetooth, pedirPermisoBluetooth, useEstadoBluetooth } from "@/lib/malla/bluetooth-directo-estado";
 
 const COLOR: Record<string, string> = {
@@ -22,6 +23,12 @@ export default function BluetoothDirectoPanel() {
   const [aviso, setAviso] = useState<string | null>(null);
   if (!estado) return null;
   const cambiar = async () => {
+    // (PER1108A) Tocado a propósito: la migración de defectos no lo cambia nunca.
+    try {
+      window.localStorage.setItem(CLAVE_DEFECTOS_ANTENAS, serializarMarca(marcarExplicito(leerMarca(window.localStorage.getItem(CLAVE_DEFECTOS_ANTENAS)), "bluetooth")));
+    } catch {
+      /* sin almacenamiento: vale esta sesión */
+    }
     const r = await activarBluetooth(!estado.activo);
     setAviso(r.ok ? null : r.motivo ?? "La app no respondió.");
   };

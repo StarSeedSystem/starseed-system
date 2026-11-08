@@ -10,12 +10,16 @@
 // GitHub para este sistema, o explica cómo instalar la web en iPhone/iPad.
 // ════════════════════════════════════════════════════════════════
 
+import { useEffect, useState } from "react";
+import Link from "next/link";
 import { ExternalLink, Sparkles } from "lucide-react";
 import { SimboloStarSeed } from "@/components/library/simbolo-starseed";
 import { GlassCard } from "@/components/ui/glass-card";
 import { Badge } from "@/components/ui/badge";
 import { InstallButton } from "@/components/welcome/install-button";
 import { OS_VERSION, OS_FECHA, formatearFechaBuild } from "@/lib/version/os-release";
+import { RUTA_VERSION, filasVersion } from "@/components/actualizaciones/seccion-version";
+import { leerInstalada, type Instalada } from "@/lib/actualizaciones/version-por-medio";
 
 /** URL oficial de despliegue de StarSeed OS (fuente: CLAUDE.md / config). */
 const OS_DOWNLOAD_URL = "https://starseed-os.vercel.app";
@@ -23,6 +27,39 @@ const OS_DOWNLOAD_URL = "https://starseed-os.vercel.app";
 export interface OsDownloadCardProps {
   /** Etiqueta de versión a mostrar (por defecto la del runtime). */
   version?: string;
+}
+
+/**
+ * (PER1108A) Lo instalado en ESTE aparato, para la tarjeta: «Instalada 0.5.1-prueba.26 · Canal de pruebas».
+ * Solo en las apps nativas (en la web no hay nada instalado que contar). Pura.
+ */
+export function lineaInstalada(inst: Instalada | null): string | null {
+  if (!inst || (inst.medio !== "escritorio" && inst.medio !== "android")) return null;
+  const filas = filasVersion(inst).filter((f) => f.etiqueta === "Versión instalada" || f.etiqueta === "Canal");
+  return filas.length ? filas.map((f) => (f.etiqueta === "Versión instalada" ? `Instalada ${f.valor}` : f.valor)).join(" · ") : null;
+}
+
+function InstaladaAqui() {
+  const [inst, setInst] = useState<Instalada | null>(null);
+  useEffect(() => {
+    let activo = true;
+    void leerInstalada()
+      .then((i) => activo && setInst(i))
+      .catch(() => undefined);
+    return () => {
+      activo = false;
+    };
+  }, []);
+  const linea = lineaInstalada(inst);
+  if (!linea) return null;
+  return (
+    <p className="mt-1.5 text-xs text-foreground/85" data-testid="instalada-aqui">
+      {linea} ·{" "}
+      <Link href={RUTA_VERSION} className="font-medium text-emerald-300 underline-offset-2 hover:text-emerald-200 hover:underline">
+        Ajustes › Versión y actualizaciones
+      </Link>
+    </p>
+  );
 }
 
 export function OsDownloadCard({ version = OS_VERSION }: OsDownloadCardProps) {
@@ -53,6 +90,7 @@ export function OsDownloadCard({ version = OS_VERSION }: OsDownloadCardProps) {
               toque, o instálala desde la web en iPhone y iPad. Siempre la versión más
               reciente publicada, lista para tu soberanía digital.
             </p>
+            <InstaladaAqui />
             <a
               href={OS_DOWNLOAD_URL}
               target="_blank"

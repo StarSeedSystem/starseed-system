@@ -56,6 +56,7 @@ import {
   type SobreCifradoWifi,
 } from "./enlace-wifi-directo";
 import {
+  AJUSTE_WIFI_POR_DEFECTO,
   CLAVE_AJUSTE_WIFI,
   decidirEnlaceWifi,
   enlaceWifiDe,
@@ -66,6 +67,8 @@ import {
   type Decision,
   type TipoEnlaceActual,
 } from "./enlace-wifi-orquestacion";
+
+import { CLAVE_DEFECTOS_ANTENAS, ajusteWifiPorDefecto, leerMarca, marcarExplicito, serializarMarca } from "./defectos-antenas";
 
 /* ══════════════════════════ Parte nativa ══════════════════════════ */
 
@@ -258,6 +261,7 @@ export function crearMotorWifi(deps: DepsMotorWifi, vias: () => ViaControlWifi[]
     } catch {
       capPropia = null;
     }
+    fijarDefectoWifi(capPropia);
     capLeida = deps.ahora();
     return capPropia;
   }
@@ -749,11 +753,25 @@ export function recibirControlWifi(texto: unknown, origen?: OrigenControl | null
     .catch(nada);
 }
 
+// (PER1108A) Defecto del selector según lo que puede esta neurona (Android sin radio única: «Automático»;
+// el resto: «Preguntar»). Solo vale mientras la persona no haya elegido nada.
+let defectoWifi: AjusteWifiDirecto = AJUSTE_WIFI_POR_DEFECTO;
+
+/** Lo llama el motor al conocer las capacidades de esta neurona. Avisa si el defecto cambió. */
+export function fijarDefectoWifi(cap: { plataforma?: string; radioUnica?: boolean } | null | undefined): void {
+  const nuevo = ajusteWifiPorDefecto(cap);
+  if (nuevo === defectoWifi) return;
+  defectoWifi = nuevo;
+  for (const f of Array.from(oyentesMotor)) f();
+}
+
 function leerAjusteGuardado(): AjusteWifiDirecto {
   try {
-    return leerAjusteWifi(typeof localStorage !== "undefined" ? localStorage.getItem(CLAVE_AJUSTE_WIFI) : null);
+    const raw = typeof localStorage !== "undefined" ? localStorage.getItem(CLAVE_AJUSTE_WIFI) : null;
+    // Sin elección guardada manda el defecto de esta neurona; con ella, siempre la elección.
+    return raw === null ? defectoWifi : leerAjusteWifi(raw);
   } catch {
-    return leerAjusteWifi(null);
+    return defectoWifi;
   }
 }
 
@@ -761,6 +779,8 @@ function leerAjusteGuardado(): AjusteWifiDirecto {
 export function fijarAjusteWifi(a: AjusteWifiDirecto): void {
   try {
     localStorage.setItem(CLAVE_AJUSTE_WIFI, a);
+    // (PER1108A) Tocado a propósito: la migración de defectos no lo cambia nunca.
+    localStorage.setItem(CLAVE_DEFECTOS_ANTENAS, serializarMarca(marcarExplicito(leerMarca(localStorage.getItem(CLAVE_DEFECTOS_ANTENAS)), "wifi")));
   } catch {
     /* sin almacenamiento: vale esta sesión */
   }

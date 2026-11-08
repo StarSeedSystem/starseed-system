@@ -5,6 +5,9 @@ import { inventarioPorMedio, Plataforma } from '../../lib/malla/cristal/permisos
 import { resumenTransportes, ResumenTransportes, EstadoTransporte } from '../../lib/malla/estado-transportes';
 // (BLE1108A) Bluetooth directo de la app nativa (solo se pinta allí).
 import BluetoothDirectoPanel from './bluetooth-directo-panel';
+// (PER1108A) Reabrir el asistente de permisos del primer arranque (solo en la app nativa).
+import { esAppNativa } from '../../lib/nativa/puente';
+import { EVENTO_ABRIR_ASISTENTE } from '../../lib/nativa/permisos-inicio';
 
 export default function PermisosAntenas() {
   const [estado, setEstado] = useState<{
@@ -114,6 +117,19 @@ export default function PermisosAntenas() {
     <div>
       <h2 className="text-lg font-semibold text-white/90 mb-3">Permisos de antenas</h2>
       <p className="text-sm text-white/50 mb-4">Plataforma detectada: {estado.plataforma}</p>
+      {esAppNativa() && (
+        <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-[#39FF14]/20 bg-[#39FF14]/[0.04] p-3" data-testid="repasar-permisos">
+          <p className="min-w-0 flex-1 text-[12px] text-white/60">
+            Bluetooth directo, Wi-Fi directo y red local vienen encendidos de fábrica. Si omitiste algún permiso al instalar, aquí lo retomas, de uno en uno.
+          </p>
+          <button
+            onClick={() => window.dispatchEvent(new CustomEvent(EVENTO_ABRIR_ASISTENTE))}
+            className="cursor-pointer rounded-lg border border-[#39FF14]/40 bg-[#39FF14]/15 px-3 py-1.5 text-[12px] font-medium text-[#39FF14] transition-colors hover:bg-[#39FF14]/25"
+          >
+            Repasar permisos
+          </button>
+        </div>
+      )}
       <BluetoothDirectoPanel />
       
       <div className="space-y-2 mb-6 rounded-xl border border-white/10 bg-white/[0.03] p-4">
