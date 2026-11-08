@@ -6235,3 +6235,25 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `IRD11081` — otra cosa
 - `IRD11082` — otra cosa
 - `IRD11083` — otra cosa
+
+## 2026-11-08 17:07 · auto-1108-165402
+
+**Lo que se pidió.** look:ink-line
+
+**Resultado.** 1 de 11 integradas. 10 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 10 tareas se fueron por lo mismo — otra cosa (IRD11081, IRD11082, IRD11083, ENT-agentes-referencias-diseno-agentes-re-3fc197-v1, ENT-agentes-referencias-diseno-agentes-re-227af2-v1, ENT-agentes-referencias-diseno-agentes-re-338cb2-v1). Es 91 % de la ola.
+- sin modelo anotado no integró ninguna de sus 7 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `IRD11081` — otra cosa: 5 propuesta(s) · starseed_memory_root/imaginacion/agentes/referencias-diseno-2026-11-08-1.json
+- `IRD11082` — otra cosa: 2 propuesta(s) · starseed_memory_root/imaginacion/agentes/referencias-diseno-2026-11-08-2.json
+- `IRD11083` — otra cosa: 5 propuesta(s) · starseed_memory_root/imaginacion/agentes/referencias-diseno-2026-11-08-3.json
+- `ENT-agentes-referencias-diseno-agentes-re-3fc197-v1` — otra cosa
+- `ENT-agentes-referencias-diseno-agentes-re-227af2-v1` — otra cosa
+- `ENT-agentes-referencias-diseno-agentes-re-338cb2-v1` — otra cosa
+- `ENT-agentes-referencias-diseno-agentes-re-c0341e-v1` — otra cosa
+- `ENT-agentes-referencias-diseno-agentes-re-991ac5-v1` — otra cosa
+- `ENT-agentes-referencias-diseno-agentes-re-e78423-v1` — otra cosa
+- `ENT-agentes-referencias-diseno-agentes-re-2e83d5-v1` — otra cosa
