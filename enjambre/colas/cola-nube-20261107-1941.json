@@ -1,0 +1,24 @@
+{
+ "ola": "nube-20261107",
+ "tareas": [
+  {
+   "ola": "1107C · Contratos pendientes (3)",
+   "origen": "contratos-pendientes",
+   "id": "CTR1107D-d3",
+   "titulo": "Vínculos entre cuentas · Realtime: una solicitud o una aceptación de la otra cuenta llega al momento (parte 3 de 3)",
+   "archivos": [
+    "src/lib/network/vinculos-entre-cuentas.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest/unittest) de lo que tocas; no toques `vitest.setup-dom.ts` ni otra preparación global. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo. Pruebas deterministas: sin red, sin reloj real y sin detectar el aparato de verdad. Publicar no es tuyo: nunca `git push`, ni `scripts/puente/publicar.py`, ni Vercel; deja tu trabajo en un commit de tu rama.\n\nContrato: `architecture/vinculos-entre-cuentas.md` (léelo entero antes de escribir: es la fuente de verdad).\n\n§1.4 y §7: la publicación Realtime de `os_mesh_vinculos` ya existe, pero el motor (`useVinculosEntreCuentas`) solo sondea, y desde el contrato de consumo lo hace cada 10 min (30 sin vínculos; lee el comentario de `POLL_MS`): una solicitud nueva de otra cuenta tarda hasta media hora en verse. Crea `vinculos-realtime.ts` (sin `node:*`, nunca lanza): `suscribirCambiosVinculos(cliente, uid, alCambiar, opts?) => () => void` abre UN canal (`vinculos:<uid>`) con dos escuchas `postgres_changes` (evento `*`, esquema `public`, tabla `os_mesh_vinculos`, filtros `a_owner=eq.<uid>` y `de_owner=eq.<uid>`), lo suscribe, junta los eventos que lleguen en 1,5 s en UNA sola llamada a `alCambiar` (temporizadores inyectables en `opts`), y la función que devuelve cancela lo pendiente y quita el canal (`cliente.removeChannel`). Sin `uid`, o si `cliente.channel` no existe o lanza, no hace nada y devuelve una función vacía.\nEn el motor, solo en la pestaña LÍDER (igual que los mesh de par: `esLider`/`alCambiarLider`) y con `uid`: suscríbete al empezar o al heredar el liderazgo y suelta al perderlo y al desmontar; `alCambiar` = `bucle.ahora()`. El sondeo se queda como red de seguridad: no lo quites ni lo acortes. Como mucho 40 líneas en `vinculos-entre-cuentas.ts`.\nPruebas (vitest, con un cliente de mentira que guarda las llamadas): tabla, esquema y los dos filtros correctos; tres eventos seguidos → una sola llamada; soltar quita el canal y después no llama; sin uid o con un cliente que lanza → no lanza. Corre también `src/lib/network/__tests__/vinculos-transiciones.test.ts` (con `NODE_ENV=test`).\n\n## PARTE 3 DE 3 (la dirección dividió CTR1107D: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: src/lib/network/vinculos-entre-cuentas.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "CTR1107D",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   },
+   "dependencias_ya_en_main": [
+    "CTR1107D-d2"
+   ]
+  }
+ ]
+}
