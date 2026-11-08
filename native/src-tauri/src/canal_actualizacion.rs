@@ -15,6 +15,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 use crate::canal_actualizacion_logica as logica;
+use crate::canal_actualizacion_red as red;
 pub use logica::EstadoApk;
 use tauri::AppHandle;
 
@@ -33,50 +34,243 @@ fn sistema(app: &AppHandle) -> &'static str {
 
 // ─────────────────────────────── Escritorio ───────────────────────────────
 
-/// El `check()` del updater con el canal de ESTA app. `Ok(None)` = al día.
+/// Avisa del progreso (texto en español para la persona): lo emite lib.rs como fase «buscando»/«descargando».
 #[cfg(desktop)]
-pub async fn buscar(app: &AppHandle) -> Result<Option<tauri_plugin_updater::Update>, String> {
-    use tauri_plugin_updater::UpdaterExt;
-    let version = app.package_info().version.to_string();
-    let Some(endpoints) = logica::endpoints_escritorio(sistema(app), &version) else {
-        let updater = app.updater().map_err(|e| format!("Updater no disponible: {e}"))?;
-        return updater.check().await.map_err(|e| format!("No se pudo comprobar actualizaciones: {e}"));
+pub type Avisar<'a> = &'a (dyn Fn(String) + Send + Sync);
+
+/// Duerme `seg` segundos sin ocupar un worker de tokio (el crate no depende de tokio directamente).
+#[cfg(desktop)]
+async fn pausa(seg: u64) {
+    if seg == 0 {
+        return;
+    }
+    let _ = tauri::async_runtime::spawn_blocking(move || std::thread::sleep(std::time::Duration::from_secs(seg))).await;
+}
+
+/// GET de un JSON de la API de GitHub (repositorio público: sin token). `Ok(None)` = 404 (no existe).
+#[cfg(desktop)]
+async fn json_api(url: &str) -> Result<Option<serde_json::Value>, String> {
+    // tauri-plugin-updater usa rustls SIN proveedor propio e instala el suyo en `check()`; aquí se hace lo
+    // mismo antes de nuestra primera petición (idempotente: si ya hay uno, no pasa nada).
+    let _ = rustls::crypto::ring::default_provider().install_default();
+    let cliente = reqwest::Client::builder()
+        .user_agent("StarSeed-OS-Actualizador")
+        .timeout(std::time::Duration::from_secs(20))
+        .build()
+        .map_err(|e| e.to_string())?;
+    let r = cliente.get(url).header("Accept", "application/vnd.github+json").send().await.map_err(|e| e.to_string())?;
+    let estado = r.status();
+    if estado == reqwest::StatusCode::NOT_FOUND {
+        return Ok(None);
+    }
+    if !estado.is_success() {
+        return Err(format!("HTTP status {estado} en la API de GitHub"));
+    }
+    r.json::<serde_json::Value>().await.map(Some).map_err(|e| e.to_string())
+}
+
+/// Resultado de buscar el archivo de un Release por la API.
+#[cfg(desktop)]
+enum PorApi {
+    Url(String),
+    /// La API respondió y ese archivo no está en el Release (p. ej. aún no hay ninguna prueba publicada).
+    NoExiste,
+    Error(String),
+}
+
+#[cfg(desktop)]
+async fn url_por_api(url_directa: &str) -> PorApi {
+    let Some(archivo) = red::analizar_url_release(url_directa) else {
+        return PorApi::Error("Esta ruta no es un archivo de un Release de GitHub.".into());
     };
-    // Canal de pruebas: una búsqueda por canal y gana la versión mayor (el updater, con varios
-    // endpoints, se queda con el PRIMERO que responde, no con el mayor).
-    let mut encontradas: Vec<tauri_plugin_updater::Update> = Vec::new();
-    let mut alguna_respondio = false;
-    let mut ultimo_error = String::new();
-    for endpoint in endpoints {
-        let url: tauri::Url = match endpoint.parse() {
+    match json_api(&red::url_lista_api(&archivo)).await {
+        Ok(Some(release)) => red::url_api_del_archivo(&release, &archivo).map_or(PorApi::NoExiste, PorApi::Url),
+        Ok(None) => PorApi::NoExiste,
+        Err(e) => PorApi::Error(e),
+    }
+}
+
+/// Busca en UN endpoint con reintentos y ruta alternativa por la API. `max_intentos` limita los intentos
+/// (si otro endpoint ya agotó los suyos, aquí no se espera otro minuto). `Ok(None)` = al día o ese canal
+/// no tiene manifiesto; `Err` = no se pudo ni por ninguna ruta.
+#[cfg(desktop)]
+async fn buscar_en_endpoint(
+    app: &AppHandle,
+    endpoint: &str,
+    max_intentos: usize,
+    avisar: Avisar<'_>,
+) -> Result<Option<tauri_plugin_updater::Update>, String> {
+    use tauri_plugin_updater::UpdaterExt;
+    let rutas = red::secuencia_rutas(&red::rutas_espejo(endpoint));
+    let total = rutas.len().min(max_intentos.max(1));
+    let mut ultimo_error = String::from("sin respuesta");
+    for (i, ruta) in rutas.iter().take(total).enumerate() {
+        pausa(red::pausa_antes(i)).await;
+        let (url, accept_binario) = match ruta {
+            red::Ruta::Directa => (endpoint.to_string(), false),
+            red::Ruta::Espejo(u) => (u.clone(), false),
+            red::Ruta::Api => match url_por_api(endpoint).await {
+                PorApi::Url(u) => (u, true),
+                // La API respondió y ese manifiesto no existe: el canal aún no tiene nada. No es un fallo.
+                PorApi::NoExiste => return Ok(None),
+                PorApi::Error(e) => {
+                    ultimo_error = e;
+                    if let Some(sig) = rutas.get(i + 1) {
+                        avisar(red::mensaje_reintento(&ultimo_error, i, total, sig));
+                    }
+                    continue;
+                }
+            },
+        };
+        let url: tauri::Url = match url.parse() {
             Ok(u) => u,
             Err(e) => {
-                ultimo_error = format!("{endpoint}: {e}");
+                ultimo_error = format!("{url}: {e}");
                 continue;
             }
         };
-        let updater = match app.updater_builder().endpoints(vec![url]).and_then(|b| b.build()) {
-            Ok(u) => u,
+        let mut b = match app.updater_builder().endpoints(vec![url]) {
+            Ok(b) => b.timeout(std::time::Duration::from_secs(30)),
             Err(e) => {
                 ultimo_error = format!("Updater no disponible: {e}");
                 continue;
             }
         };
-        match updater.check().await {
+        if accept_binario {
+            // La API de GitHub sirve el contenido del archivo con este Accept (responde 302 al archivo).
+            b = match b.header("Accept", "application/octet-stream") {
+                Ok(b) => b,
+                Err(e) => {
+                    ultimo_error = e.to_string();
+                    continue;
+                }
+            };
+        }
+        let resultado = match b.build() {
+            Ok(u) => u.check().await.map_err(|e| e.to_string()),
+            Err(e) => Err(format!("Updater no disponible: {e}")),
+        };
+        match resultado {
+            Ok(x) => return Ok(x),
+            Err(e) => {
+                ultimo_error = e;
+                if !red::es_reintentable(&ultimo_error) {
+                    return Err(red::mensaje_agotado(&ultimo_error));
+                }
+                if let Some(sig) = rutas.get(i + 1).filter(|_| i + 1 < total) {
+                    avisar(red::mensaje_reintento(&ultimo_error, i, total, sig));
+                }
+            }
+        }
+    }
+    Err(red::mensaje_agotado(&ultimo_error))
+}
+
+/// Los endpoints del updater en el tauri.conf.json de ESTA app (oficial).
+#[cfg(desktop)]
+fn endpoints_de_config(app: &AppHandle) -> Vec<String> {
+    app.config()
+        .plugins
+        .0
+        .get("updater")
+        .and_then(|v| v.get("endpoints"))
+        .and_then(|v| v.as_array())
+        .map(|a| a.iter().filter_map(|s| s.as_str().map(String::from)).collect())
+        .unwrap_or_default()
+}
+
+/// El `check()` del updater con el canal de ESTA app, con reintentos y ruta alternativa. `Ok(None)` = al día.
+#[cfg(desktop)]
+pub async fn buscar(app: &AppHandle, avisar: Avisar<'_>) -> Result<Option<tauri_plugin_updater::Update>, String> {
+    let version = app.package_info().version.to_string();
+    let endpoints = logica::endpoints_escritorio(sistema(app), &version).unwrap_or_else(|| endpoints_de_config(app));
+    if endpoints.is_empty() {
+        use tauri_plugin_updater::UpdaterExt;
+        let updater = app.updater().map_err(|e| format!("Updater no disponible: {e}"))?;
+        return updater.check().await.map_err(|e| format!("No se pudo comprobar actualizaciones: {e}"));
+    }
+    // Una búsqueda por endpoint (en pruebas: el canal de pruebas y el oficial) y gana la versión mayor
+    // (el updater, con varios endpoints, se queda con el PRIMERO que responde, no con el mayor).
+    let mut encontradas: Vec<tauri_plugin_updater::Update> = Vec::new();
+    let mut alguna_respondio = false;
+    let mut ultimo_error = String::new();
+    let mut agotado = false;
+    for endpoint in &endpoints {
+        // Si otro endpoint ya agotó sus intentos, GitHub está caído: aquí solo una pasada por cada ruta.
+        let max = if agotado { 2 } else { usize::MAX };
+        match buscar_en_endpoint(app, endpoint, max, avisar).await {
             Ok(Some(u)) => {
                 alguna_respondio = true;
                 encontradas.push(u);
             }
             Ok(None) => alguna_respondio = true,
-            // Un canal sin manifiesto (p. ej. aún no hay ninguna prueba publicada) no tumba al otro.
-            Err(e) => ultimo_error = e.to_string(),
+            // Un canal sin manifiesto no tumba al otro.
+            Err(e) => {
+                agotado = true;
+                ultimo_error = e;
+            }
         }
     }
     if encontradas.is_empty() && !alguna_respondio {
-        return Err(format!("No se pudo comprobar actualizaciones: {ultimo_error}"));
+        return Err(ultimo_error);
     }
     let mayor = logica::indice_mayor(encontradas.iter().map(|u| u.version.as_str()));
     Ok(mayor.map(|i| encontradas.swap_remove(i)))
+}
+
+/// Descarga el paquete (la firma la verifica tauri-plugin-updater sobre los bytes, vengan por la ruta que
+/// vengan) con reintentos y ruta alternativa por la API. `al_empezar` se llama antes de cada intento
+/// (para reiniciar el contador de progreso). No instala: eso lo hace quien llama con `update.install`.
+#[cfg(desktop)]
+pub async fn descargar(
+    update: &tauri_plugin_updater::Update,
+    mut al_chunk: impl FnMut(usize, Option<u64>),
+    al_empezar: &(dyn Fn() + Send + Sync),
+    avisar: Avisar<'_>,
+) -> Result<Vec<u8>, String> {
+    let original = update.download_url.to_string();
+    let rutas = red::secuencia_rutas(&red::rutas_espejo(&original));
+    let total = rutas.len();
+    let mut ultimo_error = String::from("sin respuesta");
+    for (i, ruta) in rutas.iter().enumerate() {
+        pausa(red::pausa_antes(i)).await;
+        let mut u = update.clone();
+        match ruta {
+            red::Ruta::Directa => {}
+            red::Ruta::Espejo(m) => match m.parse() {
+                Ok(url) => u.download_url = url,
+                Err(_) => continue,
+            },
+            red::Ruta::Api => match url_por_api(&original).await {
+                PorApi::Url(a) => match a.parse() {
+                    Ok(url) => u.download_url = url,
+                    Err(_) => continue,
+                },
+                PorApi::NoExiste => {
+                    ultimo_error = "El paquete no está en el Release (ruta API).".into();
+                    continue;
+                }
+                PorApi::Error(e) => {
+                    ultimo_error = e;
+                    continue;
+                }
+            },
+        }
+        al_empezar();
+        match u.download(&mut al_chunk, || {}).await {
+            Ok(bytes) => return Ok(bytes),
+            Err(e) => {
+                ultimo_error = e.to_string();
+                if !red::es_reintentable(&ultimo_error) {
+                    return Err(red::mensaje_agotado(&ultimo_error));
+                }
+                if let Some(sig) = rutas.get(i + 1) {
+                    avisar(red::mensaje_reintento(&ultimo_error, i, total, sig));
+                }
+            }
+        }
+    }
+    Err(red::mensaje_agotado(&ultimo_error))
 }
 
 /// Notificación del sistema cuando la vigilancia de fondo ya instaló la versión nueva y la persona

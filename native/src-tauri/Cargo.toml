@@ -84,6 +84,11 @@ semver = "1"
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 # Actualización incremental DENTRO de la app (sin reinstalar).
 tauri-plugin-updater = "2"
+# (ACT1108B) Ruta alternativa de la actualización por la API de GitHub (src/canal_actualizacion.rs): hay que
+# listar los archivos del Release (`releases/tags/<etiqueta>`) para saber el id del asset. Son LAS MISMAS
+# crates y versiones que ya trae tauri-plugin-updater (se unifican: no baja ni compila nada nuevo).
+reqwest = { version = "0.13", default-features = false, features = ["json"] }
+rustls = { version = "0.23", default-features = false, features = ["ring"] }
 # Arranque automático con el sistema (el compañero se levanta solo).
 tauri-plugin-autostart = "2"
 # ─── Dependencias de `ventana_remota` (APR1019A/B, 2026-11-02) ───
