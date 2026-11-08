@@ -432,7 +432,11 @@ jobs:
         env:
           MACOS_CERT_P12_BASE64: ${{ secrets.MACOS_CERT_P12_BASE64 }}
           MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
-        run: bash native/scripts/firma-macos-preparar.sh
+        # (FIR1108B) Marca de tiempo: la comprobación de después solo mira las .app que ESTE build hizo (la caché
+        # de target/ puede traer bundles viejos de otros sistemas, p. ej. «StarSeed Café.app» en run 42520312884).
+        run: |
+          touch "$RUNNER_TEMP/firma-mac-marca"
+          bash native/scripts/firma-macos-preparar.sh
 
       # ── Build + Release con la acción oficial de Tauri ──
       # (CI1108N) GitHub y los CDN de herramientas dan 5xx/timeouts sueltos (run 42465968141: el bundler no pudo
@@ -551,15 +555,29 @@ jobs:
         shell: bash
         run: |
           shopt -s nullglob
-          APPS=(native/src-tauri/target/*/release/bundle/macos/*.app native/src-tauri/target/release/bundle/macos/*.app)
-          TARS=(native/src-tauri/target/*/release/bundle/macos/*.app.tar.gz native/src-tauri/target/release/bundle/macos/*.app.tar.gz)
+          # (FIR1108B) Solo lo que hizo ESTE build (más nuevo que la marca del paso de firma); los bundles viejos
+          # de la caché se ignoran con un aviso. El identificador esperado: app.starseed.os en StarSeed OS; en los
+          # demás sistemas, el de su propio Info.plist (cada uno tiene el suyo).
+          MARCA="$RUNNER_TEMP/firma-mac-marca"
+          APPS=(); TARS=()
+          for a in native/src-tauri/target/*/release/bundle/macos/*.app native/src-tauri/target/release/bundle/macos/*.app; do
+            if [ -f "$MARCA" ] && [ ! "$a/Contents/Info.plist" -nt "$MARCA" ]; then echo "::notice::Ignoro un bundle viejo de la caché: $a"; continue; fi
+            APPS+=("$a")
+          done
+          for t in native/src-tauri/target/*/release/bundle/macos/*.app.tar.gz native/src-tauri/target/release/bundle/macos/*.app.tar.gz; do
+            if [ -f "$MARCA" ] && [ ! "$t" -nt "$MARCA" ]; then echo "::notice::Ignoro un paquete viejo de la caché: $t"; continue; fi
+            TARS+=("$t")
+          done
           if [ ${#APPS[@]} -eq 0 ] || [ ${#TARS[@]} -eq 0 ]; then
-            echo "::error::No encuentro la .app ni su .app.tar.gz del updater para comprobar la firma."
+            echo "::error::No encuentro la .app ni su .app.tar.gz del updater de este build para comprobar la firma."
             exit 1
           fi
           codesign -dv --verbose=4 "${APPS[0]}" 2>&1 | grep -E 'Identifier|flags|Info.plist|Sealed|Authority|Signature' || true
           for f in "${APPS[@]}" "${TARS[@]}"; do
-            node native/scripts/verificar-firma-macos.mjs "$f" --id app.starseed.os
+            if [ "${{ matrix.system }}" = "os" ]; then ESPERADO="app.starseed.os"; else
+              BASE="${f%.tar.gz}"; ESPERADO="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$BASE/Contents/Info.plist" 2>/dev/null || true)"
+            fi
+            if [ -n "$ESPERADO" ]; then node native/scripts/verificar-firma-macos.mjs "$f" --id "$ESPERADO"; else node native/scripts/verificar-firma-macos.mjs "$f"; fi
           done
           echo "Firma de macOS: modo ${{ steps.firma_mac.outputs.modo }}" >> "$GITHUB_STEP_SUMMARY"
 
