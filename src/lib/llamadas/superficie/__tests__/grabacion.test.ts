@@ -1,10 +1,12 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi, type Mock } from "vitest";
 import { GRABACION_INICIAL as G, aplicarAviso, avisosParaNuevo, hayGrabacion, iniciarGrabacion, pararGrabacion, quitarParticipante, resolverDestino, textoIndicador, type AvisoGrabacion } from "../grabacion";
 
-const deps = (o: Partial<Parameters<typeof iniciarGrabacion>[1]> = {}) => ({
-  yo: "mac", nombre: "Mac", ahora: () => 100, nuevoId: () => "g1", otros: () => ["tablet", "movil"],
-  avisar: vi.fn(async (_a: AvisoGrabacion) => ["tablet", "movil"]), arrancar: vi.fn(async () => {}), ...o,
-});
+type Deps = Parameters<typeof iniciarGrabacion>[1];
+const deps = (o: Partial<Deps> = {}) =>
+  ({
+    yo: "mac", nombre: "Mac", ahora: () => 100, nuevoId: () => "g1", otros: () => ["tablet", "movil"],
+    avisar: vi.fn(async (_a: AvisoGrabacion) => ["tablet", "movil"]), arrancar: vi.fn(async () => {}), ...o,
+  }) as Deps & { avisar: Mock; arrancar: Mock };
 
 describe("consentimiento de grabación (LLA1108C)", () => {
   it("apagada por defecto, sin indicador", () => {
