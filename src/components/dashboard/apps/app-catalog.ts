@@ -133,23 +133,6 @@ export const APP_CATALOG: StarseedApp[] = [
         },
     },
     {
-        // Adenda 104: Feed de red — contenido recibido de otras neuronas por la
-        // red sináptica (publicaciones, mensajes, señales) de forma navegable.
-        id: "red-feed",
-        name: "Feed de red",
-        short: "Feed de red",
-        description: "Contenido recibido de otras neuronas por la red sináptica: publicaciones, mensajes y señales.",
-        icon: Radio,
-        accent: "#A78BFA",
-        category: "starseed",
-        status: "native",
-        open: {
-            primary: "route",
-            allowed: ["route", "window", "tab"],
-            route: "/red-feed",
-        },
-    },
-    {
         // Ola 285 · K6: Canales StarSeed — el directorio abierto de canales de
         // la red. Cualquiera publica el suyo y aparece al instante (lectura
         // pública en RLS). Es un módulo nativo del OS.
@@ -583,7 +566,7 @@ export function getApp(id: string): StarseedApp | undefined {
 /** Colecciones predeterminadas (presets de origen de un folder). */
 export const APP_COLLECTIONS: Record<LauncherCollection, string[]> = {
     // 'starseed' = folder de inicio por defecto (marca + módulos clave)
-    starseed: ["nexus", "cafe", "audiomorphic", "omnifrecuencias", "red-mesh", "senales", "red-feed", "canales", "estaciones", "fundamento", "messages", "contactos", "network", "musica", "clima", "imaginacion", "protomolecula"],
+    starseed: ["nexus", "cafe", "audiomorphic", "omnifrecuencias", "red-mesh", "senales", "canales", "estaciones", "fundamento", "messages", "contactos", "network", "musica", "clima", "imaginacion", "protomolecula"],
     sistema: ["messages", "contactos", "documentos", "tabla", "dashboard-compartido", "juego", "programa", "escena", "sala-xr", "network", "library", "agent", "astraura-158", "imaginacion", "enjambre", "red-mesh", "senales", "red-feed", "voces", "mando", "poligenesis", "mundo-avatares", "laboratorio", "bots-astral", "protomolecula"],
     media: ["musica", "radio", "estaciones", "omnifrecuencias", "audiomorphic", "immersive", "camara", "galeria"],
     custom: [],

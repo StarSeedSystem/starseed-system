@@ -103,7 +103,7 @@ export const INVARIANTES: Invariante[] = [
     titulo: "Datos honestos",
     porque:
       "Nada inventado puede presentarse como real (regla del 2026-07-01): un dato falso con aire de verdadero contamina todas las decisiones que se apoyen en él.",
-    superficies: ["/dashboard", "/red-feed"],
+    superficies: ["/dashboard", "/senales"],
   },
   {
     id: "deshacer",

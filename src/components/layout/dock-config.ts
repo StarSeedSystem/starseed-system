@@ -275,7 +275,6 @@ export const DOCK_PRESETS: DockItemConfig[] = [
   // v10 lo retira de los docks existentes. La ruta /red-mesh sigue accesible.
   { id: 'red-mesh',      label: 'Red Mesh',            iconKey: 'Antenna',         path: '/red-mesh',              color: 'emerald', enabled: false, origin: 'preset' },
   { id: 'senales',       label: 'Señales',             iconKey: 'RadioTower',      path: '/senales',               color: 'cyan',    enabled: true,  origin: 'preset' },
-  { id: 'red-feed',      label: 'Feed de red',         iconKey: 'Radio',           path: '/red-feed',              color: 'purple',  enabled: true,  origin: 'preset' },
 // Ola 285 · K6: Canales StarSeed — directorio público de canales de la red.
 // Se muestra por defecto (versión 20 lo enciende para todas las cuentas).
 { id: 'canales', label: 'Canales', iconKey: 'Rss', path: '/canales', color: 'emerald', enabled: true, origin: 'preset' },
@@ -672,34 +671,14 @@ function applyDockRemoveRedMeshV10(items: DockItemConfig[], hadSaved: boolean): 
 }
 
 /**
- * Migración v11 — añade/habilita «Feed de red» (/red-feed) por defecto, incluso
- * en cuentas con dock ya guardado. Una vez por navegador; no reordena nada más.
+ * Migración v11 — NEUTRALIZADA (2026-11-08 · FEED1108A). Antes añadía/habilitaba «Feed de red»
+ * (/red-feed); esa sección se retiró, así que ya NO vuelve a añadirlo. Se conserva la función y
+ * su sitio en la cadena para no romper el orden de las migraciones. El botón se retira de los
+ * docks guardados con `retirarBotonesRetirados` (lib/dock/dock-defaults.ts), que corre en
+ * `finalizeDockItems` y en el sync entrante.
  */
-const DOCK_MIGRATION_V11_KEY = 'starseed.dock.items.migrated.v11';
-
-function applyDockRedFeedV11(items: DockItemConfig[], hadSaved: boolean): DockItemConfig[] {
-  if (typeof window === 'undefined') return items;
-  try {
-    if (window.localStorage.getItem(DOCK_MIGRATION_V11_KEY)) return items;
-  } catch {
-    return items;
-  }
-
-  let migrated = items;
-  const idx = migrated.findIndex((i) => i.id === 'red-feed');
-  if (idx === -1) {
-    const preset = DOCK_PRESETS.find((p) => p.id === 'red-feed');
-    if (preset) migrated = [...migrated, { ...preset, enabled: true }];
-  } else if (!migrated[idx].enabled) {
-    migrated = migrated.map((it, i) => (i === idx ? { ...it, enabled: true } : it));
-  }
-
-  try {
-    if (hadSaved) window.localStorage.setItem(STORAGE_KEY, JSON.stringify(migrated));
-    window.localStorage.setItem(DOCK_MIGRATION_V11_KEY, '1');
-  } catch { /* noop */ }
-
-  return migrated;
+function applyDockRedFeedV11(items: DockItemConfig[], _hadSaved: boolean): DockItemConfig[] {
+  return items;
 }
 
 /**

@@ -9,6 +9,8 @@
 import { describe, expect, it } from "vitest";
 import {
   DOCK_DEFAULTS_VERSION,
+  DOCK_DEFAULT_ON_IDS,
+  retirarBotonesRetirados,
   normalizeDockState,
   renombrarMandoAGenesis,
   normalizeDockSyncValue,
@@ -46,7 +48,7 @@ describe("normalizeDockState · payload viejo (sin defaultsVersion)", () => {
     expect(r.changed).toBe(true);
     expect(r.payload.defaultsVersion).toBe(DOCK_DEFAULTS_VERSION);
     expect(idsHabilitados(r.payload.items)).toEqual(
-      expect.arrayContaining(["senales", "red-feed", "estaciones", "protomolecula"]),
+      expect.arrayContaining(["senales", "estaciones", "protomolecula"]),
     );
   });
 
@@ -56,11 +58,11 @@ describe("normalizeDockState · payload viejo (sin defaultsVersion)", () => {
     const r = normalizeDockState([
       otro,
       { id: "senales", label: "Señales", enabled: false, origin: "preset" },
-      { id: "red-feed", label: "Feed de red", enabled: false, origin: "preset" },
+      { id: "canales", label: "Canales", enabled: false, origin: "preset" },
     ]);
     expect(r.changed).toBe(true);
     expect(idsHabilitados(r.payload.items)).toEqual(
-      expect.arrayContaining(["senales", "red-feed", "estaciones", "protomolecula"]),
+      expect.arrayContaining(["senales", "estaciones", "protomolecula"]),
     );
   });
 
@@ -71,7 +73,7 @@ describe("normalizeDockState · payload viejo (sin defaultsVersion)", () => {
   });
 
   it("marca changed aunque los items ya estén bien (hay que estampar la versión)", () => {
-    const r = normalizeDockState([{ id: "senales", enabled: true }, { id: "red-feed", enabled: true }]);
+    const r = normalizeDockState([{ id: "senales", enabled: true }, { id: "canales", enabled: true }]);
     expect(r.changed).toBe(true);
     expect(r.payload.defaultsVersion).toBe(DOCK_DEFAULTS_VERSION);
   });
@@ -81,7 +83,7 @@ describe("normalizeDockState · payload ya versionado", () => {
   it("RESPETA que el usuario los haya apagado (personalizable de verdad)", () => {
     const r = normalizeDockState({
       defaultsVersion: DOCK_DEFAULTS_VERSION,
-      items: [{ id: "senales", enabled: false }, { id: "red-feed", enabled: false }],
+      items: [{ id: "senales", enabled: false }, { id: "canales", enabled: false }],
     });
     expect(r.changed).toBe(false);
     expect(idsHabilitados(r.payload.items)).toEqual([]);
@@ -101,7 +103,7 @@ describe("normalizeDockSyncValue · camino del sync entrante", () => {
     expect(changed).toBe(true);
     const payload = value as { defaultsVersion: number; items: Array<{ id: string; enabled?: boolean }> };
     expect(payload.defaultsVersion).toBe(DOCK_DEFAULTS_VERSION);
-    expect(idsHabilitados(payload.items)).toEqual(expect.arrayContaining(["senales", "red-feed", "estaciones", "protomolecula"]));
+    expect(idsHabilitados(payload.items)).toEqual(expect.arrayContaining(["senales", "estaciones", "protomolecula"]));
   });
 
   it("deja intacto un valor que no es estado de dock (no inventa items)", () => {
@@ -134,5 +136,35 @@ describe("renombre del Puente de Mando a Genesis (2026-10-07)", () => {
   it("no toca otros botones", () => {
     const otro = { id: "voces", label: "Mando", path: "/mando" };
     expect(renombrarMandoAGenesis([otro]).changed).toBe(false);
+  });
+});
+
+describe("FEED1108A · «Feed de red» retirado del dock", () => {
+  it("quita red-feed de un payload viejo (sin versión) y no lo vuelve a añadir", () => {
+    const r = normalizeDockState([otro, { id: "red-feed", enabled: true, origin: "preset" }]);
+    expect(r.changed).toBe(true);
+    expect(r.payload.items.some((i) => i.id === "red-feed")).toBe(false);
+    expect(DOCK_DEFAULT_ON_IDS as readonly string[]).not.toContain("red-feed");
+  });
+
+  it("lo quita también de un payload ya versionado, sin tocar el resto ni la versión", () => {
+    const r = normalizeDockState({
+      defaultsVersion: DOCK_DEFAULTS_VERSION,
+      items: [{ id: "senales", enabled: false }, { id: "red-feed", enabled: true }, otro],
+    });
+    expect(r.changed).toBe(true);
+    expect(r.payload.defaultsVersion).toBe(DOCK_DEFAULTS_VERSION);
+    expect(r.payload.items.map((i) => i.id)).toEqual(["senales", otro.id]);
+    expect(idsHabilitados(r.payload.items)).toEqual([otro.id]); // «Señales» sigue apagado (se respeta)
+  });
+
+  it("es idempotente y el camino de sync lo repara para empujarlo de vuelta", () => {
+    const { value, changed } = normalizeDockSyncValue({
+      defaultsVersion: DOCK_DEFAULTS_VERSION,
+      items: [{ id: "red-feed", enabled: true }, { id: "senales", enabled: true }],
+    });
+    expect(changed).toBe(true);
+    expect(normalizeDockState(value).changed).toBe(false);
+    expect(retirarBotonesRetirados([{ id: "senales" }]).changed).toBe(false);
   });
 });

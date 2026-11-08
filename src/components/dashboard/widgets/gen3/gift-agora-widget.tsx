@@ -26,6 +26,7 @@ import { WidgetShell, WidgetEmptyState, WidgetErrorState, WidgetSkeleton, useMar
 import { cn } from "@/lib/utils";
 import { useDatoCompartido, type ResultadoDato } from "../gen2/_paquete-b/cache-compartida";
 import { cargarPublicacionesRed, dones, enlaceComponer, type Don, type PublicacionRed, type TipoDon } from "../gen2/_paquete-b/datos-red";
+import { RUTA_RED_SOCIAL } from "@/lib/senales/destinos";
 import { AccionB, GlifoMicroB, PestanasB, RaizB, RotuloB, estilosB, tintaB, useLienzoB, useVisibleB, type LienzoB } from "../gen2/_paquete-b/piezas-b";
 
 const FAMILIA = { acento: "#10b981", acento2: "#7c5cff" };
@@ -87,7 +88,7 @@ function Composicion({ lista, lienzo }: { lista: Don[]; lienzo: LienzoB }) {
         </div>
     );
     if (b === "micro") {
-        return <Link href="/red-feed" aria-label={`${frase}. Abrir la Red`} title={frase} className={cn(estilosB.foco, "grid h-full place-items-center")}><GlifoMicroB maximo={60}>{(l) => <Regalo lado={l} lienzo={lienzo} n={ofrece.length} />}</GlifoMicroB></Link>;
+        return <Link href={RUTA_RED_SOCIAL} aria-label={`${frase}. Abrir la Red`} title={frase} className={cn(estilosB.foco, "grid h-full place-items-center")}><GlifoMicroB maximo={60}>{(l) => <Regalo lado={l} lienzo={lienzo} n={ofrece.length} />}</GlifoMicroB></Link>;
     }
     const cifras = (
         <dl className="grid grid-cols-2 gap-2">

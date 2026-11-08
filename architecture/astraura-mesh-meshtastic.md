@@ -467,6 +467,33 @@ frase de ejemplo EDITABLE y botón «▶ Probar» por personalidad.
 - `setModemPreset` reinicia el enlace del radio unos segundos (el watchdog lo
   cubre); el firmware puede rechazar presets no legales en la región.
 
+## 12. Retirada de «Feed de red» (`/red-feed`) — 2026-11-08 · FEED1108A
+
+Alex pidió quitar la sección «Feed de red» (Adenda 104): no hace falta como sección propia y su idea
+central ya vive en Mensajes › Neuronas (MSJ1107A). Lo que servía se mudó a Señales.
+
+- **Dónde vive ahora cada cosa.** La bandeja de lo recibido de otras neuronas (`useNetworkInbox` /
+  `clearNetworkInbox`) es el panel plegable «Actividad de red recibida» de Señales
+  (`src/components/mesh/actividad-red-recibida.tsx`, montado en `signals-center.tsx`): chips por tipo,
+  insignia de firma verificada, cuenta de origen, cuerpo legible con enlaces a páginas y grupos y
+  «Vaciar». Los mensajes de chat se marcan «de neurona» y ofrecen «Abrir en Mensajes › Neuronas»
+  (`/messages?vista=neuronas`; la pestaña no admite aún abrir una conversación concreta por `convId`).
+- **Enlaces antiguos.** `/red-feed` ya no es página: `redirect()` de servidor a
+  `/senales?vista=llegadas`, que abre el panel y lo acerca a la vista. Marcadores, apps instaladas y
+  enlaces viejos no dan 404. Destinos en `src/lib/senales/destinos.ts`.
+- **Retirado.** Preset del dock `red-feed`, entrada `red-feed` del catálogo de apps, paquete de la
+  Biblioteca `app-red-feed` y su acción rápida. La migración v11 queda neutralizada (ya no lo añade).
+  Los docks guardados lo pierden por `retirarBotonesRetirados` (`lib/dock/dock-defaults.ts`), que
+  corre en la normalización de TODOS los caminos (carga local, sync entrante, cambio de cuenta) sin
+  subir `DOCK_DEFAULTS_VERSION`, así que no reenciende botones que alguien apagó.
+- **No confundir.** El feed social de publicaciones (widget «Feed de la Red», `lib/feed/network-feed.ts`,
+  `hub/red-section.tsx`) es otra cosa y sigue igual. Los widgets «Abrir la Red» (Regalo/Ágora y Pulso
+  de la Sociedad) ahora abren la red social: `/hub?tab=red`.
+- **Para las notas de la próxima versión oficial:** «Se retira la sección Feed de red; lo recibido de
+  otras neuronas está en Señales › Actividad de red recibida y los chats en Mensajes › Neuronas. Los
+  enlaces antiguos redirigen.» (No hay archivo de notas versionado en el repo: `OS_NOTAS` en
+  `src/lib/version/os-release.ts` lo escribe el proceso de release.)
+
 ---
 
 *Creado: 2026-07-27 · Adenda 97 · Ampliado: 2026-07-27 · Adenda 98 · Autor:*

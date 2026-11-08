@@ -65,7 +65,7 @@ describe("Pulso de la Sociedad", () => {
         vivo.cargando = false;
         pintar("m");
         expect(screen.getByRole("region").getAttribute("aria-label")).toMatch(/vacío, la red está en calma/);
-        expect(screen.getByRole("link", { name: "Publicar en la red" }).getAttribute("href")).toBe("/red-feed");
+        expect(screen.getByRole("link", { name: "Publicar en la red" }).getAttribute("href")).toBe("/hub?tab=red");
     });
 });
 

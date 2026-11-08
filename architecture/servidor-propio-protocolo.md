@@ -101,7 +101,7 @@ la neurona **deduplica por `id`/`oid`** y **excluye su propio `device_id`**.
     **federación** (peer-pull entre servidores propios).
 - **Firma + SSE + federación robusta** — Adenda 106:
   · **Contenido público FIRMADO** (ECDSA P-256, `mesh-identity.ts`): `wrapSigned` al enviar,
-    `unwrapSigned` al recibir → los ítems llevan `verified` (insignia en /red-feed). El relé
+    `unwrapSigned` al recibir → los ítems llevan `verified` (insignia en Señales › Actividad de red recibida). El relé
     privado ya iba autenticado por AES-GCM.
   · **Realtime del servidor propio (SSE)**: `GET /mesh/stream?recipients=<ids>` empuja feed
     público + buzón dirigido al instante; cliente `subscribeEndpointStream` (EventSource).
@@ -111,7 +111,7 @@ la neurona **deduplica por `id`/`oid`** y **excluye su propio `device_id`**.
   · **Registro de identidad firmado** (`server-relay.ts`): `registerIdentity()` publica
     `kind:"identity"` firmando el `owner`; `refreshIdentities()` verifica y construye `idMap`
     (`fp → cuenta`). El contenido recibido resuelve `signerFp → boundAccountFor(fp)` y muestra la
-    **cuenta de origen** (chip «cuenta …» en /red-feed), no solo el dispositivo.
+    **cuenta de origen** (chip «cuenta …» en Señales › Actividad de red recibida), no solo el dispositivo.
   · **Token end-to-end**: `MeshServer.token` (editable en Señales → Servidor); el cliente lo
     adjunta a `postToEndpoint`, `pullFromEndpoint`, `pullRelayFromEndpoint` y a `subscribeEndpointStream`
     (SSE, como `?token=` en la query). Referencia con `STARSEED_TOKENS`/`STARSEED_SERVER_TOKEN`.

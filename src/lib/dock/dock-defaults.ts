@@ -89,7 +89,7 @@ export const DOCK_DEFAULTS_VERSION = 24; // v24 (2026-10-10) añade `protomolecu
  * personas, que sustituye a «seguir» personas) es nueva y sin esta garantía no
  * aparecería en el dock de las cuentas ya existentes.
  */
-export const DOCK_DEFAULT_ON_IDS = ['senales', 'red-feed', 'imaginacion', 'voces', 'mando', 'mundo-avatares', 'laboratorio', 'canales', 'contactos', 'estaciones', 'protomolecula'] as const;
+export const DOCK_DEFAULT_ON_IDS = ['senales', 'imaginacion', 'voces', 'mando', 'mundo-avatares', 'laboratorio', 'canales', 'contactos', 'estaciones', 'protomolecula'] as const;
 
 /**
  * Forma mínima de un item del dock para ESTE módulo. Deliberadamente laxa
@@ -129,10 +129,6 @@ const FALLBACK_SEEDS: Record<string, DockItemLike> = {
   senales: {
     id: 'senales', label: 'Señales', iconKey: 'RadioTower', path: '/senales',
     color: 'cyan', enabled: true, origin: 'preset',
-  },
-  'red-feed': {
-    id: 'red-feed', label: 'Feed de red', iconKey: 'Radio', path: '/red-feed',
-    color: 'purple', enabled: true, origin: 'preset',
   },
   voces: {
     id: 'voces', label: 'Voces', iconKey: 'AudioLines', path: '/voces',
@@ -251,6 +247,21 @@ export function renombrarMandoAGenesis(items: DockItemLike[]): { items: DockItem
 }
 
 /**
+ * (2026-11-08 · FEED1108A) La sección «Feed de red» (`/red-feed`) se retiró a petición de Alex:
+ * su contenido vive en Señales › «Actividad de red recibida». Se QUITA el botón `red-feed` de
+ * TODOS los payloads (local, sync entrante, cambio de cuenta) sin subir DOCK_DEFAULTS_VERSION:
+ * subirla volvería a encender los botones que cada persona apagó. Pura e idempotente. Es la
+ * migración de verdad: viaja con el dato sincronizado, no con una bandera local por navegador.
+ */
+export const ID_DOCK_RETIRADOS = ['red-feed'] as const;
+
+export function retirarBotonesRetirados(items: DockItemLike[]): { items: DockItemLike[]; changed: boolean } {
+  const retirados = ID_DOCK_RETIRADOS as readonly string[];
+  const next = items.filter((it) => !retirados.includes(it.id));
+  return next.length === items.length ? { items, changed: false } : { items: next, changed: true };
+}
+
+/**
  * FUNCIÓN ÚNICA de normalización — la llaman TODOS los caminos de entrada del
  * estado del dock: carga local inicial, payload remoto entrante del sync
  * (realtime + pull manual) y cambio de cuenta/perfil. Es pura: no lee ni
@@ -267,7 +278,9 @@ export function normalizeDockState(input: unknown): DockNormalizeResult {
 
   // Payload ya al día: se respeta ÍNTEGRO. Si el usuario apagó un botón después
   // de la garantía, esa es su decisión y aquí no se toca (personalizable de verdad).
-  const renombrado = renombrarMandoAGenesis(items);
+  const renombradoMando = renombrarMandoAGenesis(items);
+  const retirado = retirarBotonesRetirados(renombradoMando.items);
+  const renombrado = { items: retirado.items, changed: renombradoMando.changed || retirado.changed };
   if (defaultsVersion >= DOCK_DEFAULTS_VERSION) {
     return { payload: { defaultsVersion, items: renombrado.items }, changed: renombrado.changed, hadItems: true };
   }

@@ -193,14 +193,8 @@ export const CATALOGO: Record<string, AccionRapida[]> = {
   ],
   senales: [
     ruta("senales.mesh", "Red Mesh", "Antenna", "/red-mesh"),
-    ruta("senales.feed", "Feed de red", "Radio", "/red-feed"),
     ruta("senales.sincronizacion", "Sincronización de archivos", "RefreshCw", "/sincronizacion"),
     ruta("senales.red3d", "Red en 3D", "Network", "/red-3d"),
-  ],
-  "red-feed": [
-    ruta("red-feed.senales", "Señales", "Antenna", "/senales"),
-    ruta("red-feed.mesh", "Red Mesh", "Network", "/red-mesh"),
-    ruta("red-feed.red3d", "Red en 3D", "Eye", "/red-3d"),
   ],
   canales: [
     estacion("canales.publicar", "Publicar una estación", "Cast", "enlace"),

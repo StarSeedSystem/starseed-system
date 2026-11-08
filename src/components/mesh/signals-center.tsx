@@ -25,6 +25,7 @@ import { MapaSenales } from "./mapa-senales/mapa-senales";
 import { DetectedSignalsPanel } from "./detected-signals-panel";
 import { PanelInferencia } from "./panel-inferencia";
 import { RedMeshCenter } from "./red-mesh-center";
+import { ActividadRedRecibida } from "./actividad-red-recibida";
 // Adenda 138 · Router / red por neurona (OpenWISP/NetJSON) como pestaña de Señales.
 import { RouterCenter } from "@/components/network/router-center";
 import { ConnectivityConfigPanel } from "@/components/connectivity/connectivity-config-panel";
@@ -40,7 +41,7 @@ import { thisDeviceId } from "@/lib/neurons/neurons";
 import {
   useMeshState, detectSignals, connectMesh, connectWifiNode, getConnectivitySettings,
   subscribeConnectivity, setNeuronPosition, detectPlatform, recommendNative, hasAccountSession,
-  startMeshSubsystem, useNetworkInbox,
+  startMeshSubsystem,
   type SignalSource, type SignalKind, type NativeRecommendation,
 } from "@/ai/astraura/mesh";
 import {
@@ -84,17 +85,6 @@ const STATUS_META: Record<SignalSource["status"], { label: string; cls: string; 
 };
 
 /** Resumen legible del cuerpo de un mensaje recibido de la red. */
-function summarizeInbound(body: unknown): string {
-  if (body == null) return "";
-  if (typeof body !== "object") return String(body);
-  const b = body as Record<string, unknown>;
-  if (typeof b.text === "string") return b.text;
-  if (typeof b.body === "string") return b.body;
-  if (typeof b.name === "string") return String(b.name);
-  if (typeof b.kind === "string") return String(b.kind);
-  return "contenido de red";
-}
-
 /** Etiqueta visible del nivel de voz de borde activo en esta neurona. */
 const ETIQUETA_NIVEL_VOZ: Record<NivelVozSuptonica, string> = {
   suptonica: "Voz suptónica",
@@ -124,9 +114,6 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
   // Arranca la malla en cualquier superficie donde aparezca Señales (página,
   // barra superior, Centro de Control) — antes lo hacía la pestaña «Internet».
   useEffect(() => { startMeshSubsystem(); }, []);
-
-  // Contenido RECIBIDO de otras neuronas por la red sináptica (bucle cerrado).
-  const inbox = useNetworkInbox();
 
   useEffect(() => {
     let alive = true;
@@ -510,31 +497,10 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
       </div>
 
       {/* Actividad de RED RECIBIDA de otras neuronas (bucle cerrado: publicar →
-          almacenar → recibir por el feed público / relé de la red sináptica). */}
-      {inbox.length > 0 && (
-        <div className="rounded-xl border border-violet-400/25 bg-violet-500/[0.05] px-3 py-2.5">
-          <p className="flex items-center gap-2 text-[12px] font-medium text-white/90">
-            <Signal className="h-4 w-4 text-violet-300" /> Actividad de red recibida
-            <span className="rounded-full bg-violet-500/20 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-violet-200">
-              {inbox.length}
-            </span>
-            <Link
-              href="/red-feed"
-              className="ml-auto inline-flex cursor-pointer items-center gap-1 text-[10px] text-violet-200/80 transition-colors hover:text-violet-100"
-            >
-              Ver feed de red →
-            </Link>
-          </p>
-          <div className="mt-1.5 space-y-1">
-            {inbox.slice(0, 4).map((it) => (
-              <div key={it.id} className="flex items-center gap-2 text-[10px] text-white/55">
-                <span className="rounded bg-white/[0.06] px-1.5 py-0.5 font-mono uppercase text-white/70">{it.type}</span>
-                <span className="truncate">{summarizeInbound(it.body)}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+          almacenar → recibir por el feed público / relé). Panel completo y plegable;
+          absorbe la antigua sección «Feed de red» (/red-feed, retirada el 2026-11-08).
+          `/senales?vista=llegadas` lo abre y lo acerca a la vista. */}
+      <ActividadRedRecibida />
 
       {/* Acceso completo con la app nativa (según el SO de esta neurona): lo que
           el navegador no permite (Wi-Fi/datos directos, BLE/serie en iOS/Firefox,

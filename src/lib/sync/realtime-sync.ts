@@ -947,7 +947,7 @@ function applyRemoteChanges(
             /* ── DOCK: normalizar ANTES de escribir (Adenda 149 · tanda 3) ────
              * CAUSA RAÍZ del fallo que se arrastraba desde hace tres intentos:
              * aquí se escribía el payload remoto TAL CUAL. Una cuenta antigua
-             * cuyo `starseed.dock.items.v2` no tuviera 'senales'/'red-feed' (o
+             * cuyo `starseed.dock.items.v2` no tuviera 'senales' (o
              * los tuviera en `enabled:false`) machacaba con ese estado viejo el
              * resultado que las migraciones locales acababan de calcular, y las
              * banderas one-shot por navegador ya estaban gastadas, así que nada

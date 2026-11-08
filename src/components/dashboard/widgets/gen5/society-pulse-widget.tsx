@@ -17,6 +17,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { Activity, CalendarDays, Megaphone, Users } from "lucide-react";
+import { RUTA_RED_SOCIAL } from "@/lib/senales/destinos";
 import { conAlfa } from "@/components/widgets-libres/acentos-categoria";
 import { rowAccent, useLiveEvents, useLiveGroups, useLivePosts } from "@/lib/widget-data/os-live";
 import { Lienzo, useIdSvg, useLienzo, type EstadoLienzo } from "./_catalogo/lienzo";
@@ -98,7 +99,7 @@ export function SocietyPulseWidget() {
 
     const especial = (compacto: boolean) => {
         if (cargando) return <CargandoSilueta color={l.acento} etiqueta="Cargando la actividad de la red…" />;
-        if (calma) return <VacioHonesto icono={Activity} color={l.acento} compacto={compacto} titulo="La red está en calma" ayuda="Aún no hay actividad visible (o no hay conexión)." accion={compacto ? undefined : <Accion color={l.acento} alto={l.toque} icono={Megaphone} href="/red-feed" etiqueta="Publicar en la red">Publicar</Accion>} />;
+        if (calma) return <VacioHonesto icono={Activity} color={l.acento} compacto={compacto} titulo="La red está en calma" ayuda="Aún no hay actividad visible (o no hay conexión)." accion={compacto ? undefined : <Accion color={l.acento} alto={l.toque} icono={Megaphone} href={RUTA_RED_SOCIAL} etiqueta="Publicar en la red">Publicar</Accion>} />;
         return null;
     };
 
@@ -106,7 +107,7 @@ export function SocietyPulseWidget() {
         return (
             <Lienzo l={l} titulo="Pulso de la Sociedad" etiqueta={etiqueta} sinCabecera>
                 {especial(true) ?? (
-                    <Link href="/red-feed" className="flex h-full cursor-pointer flex-col justify-center gap-1.5" aria-label={`Abrir la red: ${semana} publicaciones en 7 días`}>
+                    <Link href={RUTA_RED_SOCIAL} className="flex h-full cursor-pointer flex-col justify-center gap-1.5" aria-label={`Abrir la red: ${semana} publicaciones en 7 días`}>
                         <Electro W={l.ancho - 24} H={40} dias={dias} vivo={vivo} l={l} />
                         <span className="text-[12px] text-white/80"><span className="text-[18px] tabular-nums text-white">{llena ? `${semana}+` : semana}</span> en 7 días</span>
                         <span className="truncate text-[11px] text-white/55">{nVoces} voces · {vienen.length} encuentros</span>
@@ -207,7 +208,7 @@ export function SocietyPulseWidget() {
     const grande = l.base === "xl";
     return (
         <Lienzo l={l} titulo="Pulso de la Sociedad" subtitulo={l.ancho >= 300 ? "La red, estos siete días" : undefined} icono={Activity} etiqueta={etiqueta}
-            acciones={l.base !== "m" ? <Accion color={l.acento} alto={28} soloIcono icono={Megaphone} href="/red-feed" etiqueta="Abrir la red y publicar">Red</Accion> : undefined}>
+            acciones={l.base !== "m" ? <Accion color={l.acento} alto={28} soloIcono icono={Megaphone} href={RUTA_RED_SOCIAL} etiqueta="Abrir la red y publicar">Red</Accion> : undefined}>
             <div className="flex h-full min-h-0 flex-col gap-3">
                 <Electro W={l.ancho - 40} H={grande ? 90 : l.base === "l" ? 70 : 56} dias={dias} vivo={vivo} l={l} />
                 {cifras(l.base === "m")}

@@ -460,13 +460,6 @@ const CORE_ROUTE_PACKAGES: LibraryPackage[] = [
     payload: { route: "/sala-xr" },
   },
   {
-    id: "app-red-feed", kind: "app", name: "Feed de red",
-    description: "Contenido recibido de otras neuronas por la red sináptica: publicaciones, mensajes y señales de la red StarSeed, de forma navegable.",
-    icon: "Radio", tags: ["app", "feed", "red", "mesh", "social"], version: "1.0.0",
-    author: "StarSeed Core", sourceRepoId: "starseed-core", free: true, featured: false,
-    payload: { route: "/red-feed" },
-  },
-  {
     // Ola 228: la página Voces, como paquete instalable para tener paridad
     // con el dock y el catálogo de apps.
     id: "app-voces", kind: "app", name: "Voces",
