@@ -9,15 +9,17 @@ Las olas 3 y 4 trajeron los DATOS y las pestañas. Lo que el original tiene y el
 
 | Del original 1.58 | Qué es | Falta en el OS |
 |---|---|---|
-| **«Pág. Completa»** en cada proceso/agente | Cada entidad viva tiene su propia ventana con todo su contexto | No hay ventana por entidad |
-| **«Hablar en Vivo»** por agente/proceso | Chat con ESE agente, con su personalidad, cerebro y tarea actual | El chat del OS no se puede atar a un agente concreto |
-| **«Ramas & Logs»** por proceso | Árbol de ramas de ese proceso + su bitácora | Solo hay lista global de ramas |
-| **«Ajustes»** por proceso/agente | Ventana de configuración por entidad (recursos, permisos, frecuencia) | Solo controles sueltos en la pestaña |
-| **Tareas en Progreso en Segundo Plano** | Tablero vivo del enjambre: fase 1/4→4/4, CPU, RAM, progreso, pausa/reanuda por agente | Hay lista de tareas, no tablero por agente con fases |
-| **Gobernanza de permisos graduales** | Niveles por proceso, por agente y por personalidad + solicitudes de acceso y su aprobación | Disperso; sin superficie de gobierno |
-| **Topología sináptica** | Grafo cerebro ↔ memorias ↔ creaciones ↔ agentes | Solo contadores del grafo |
-| **Orquestación autónoma** | Director que enruta entregables a proyectos/cerebros y renueva tareas | Controles sí; visión de conjunto no |
-| **Presencia en todo el OS** | La orbe y el Exocórtex saben qué está pasando de fondo | La orbe/Exocórtex no lo muestran |
+| **«Pág. Completa»** en cada proceso/agente | Cada entidad viva tiene su propia ventana con todo su contexto | No hay ventana por entidad → ✅ Hecho (`1ff833a25`, `src/app/(app)/agent/astraura/[kind]/[id]/page.tsx`) |
+| **«Hablar en Vivo»** por agente/proceso | Chat con ESE agente, con su personalidad, cerebro y tarea actual | El chat del OS no se puede atar a un agente concreto → ✅ Hecho (`1ff833a25`, `src/components/astraura/window/live-talk.tsx`) |
+| **«Ramas & Logs»** por proceso | Árbol de ramas de ese proceso + su bitácora | Solo hay lista global de ramas → ✅ Hecho (`1ff833a25`, pestaña «Ramas & Logs» de `src/components/astraura/window/astraura-158-window.tsx`) |
+| **«Ajustes»** por proceso/agente | Ventana de configuración por entidad (recursos, permisos, frecuencia) | Solo controles sueltos en la pestaña → ✅ Hecho (`1ff833a25`, pestaña «Ajustes» por kind de `src/components/astraura/window/astraura-158-window.tsx`) |
+| **Tareas en Progreso en Segundo Plano** | Tablero vivo del enjambre: fase 1/4→4/4, CPU, RAM, progreso, pausa/reanuda por agente | Hay lista de tareas, no tablero por agente con fases → ✅ Hecho (`1ff833a25`, `src/components/astraura/s158/orquestacion-tab.tsx`) |
+| **Gobernanza de permisos graduales** | Niveles por proceso, por agente y por personalidad + solicitudes de acceso y su aprobación | Disperso; sin superficie de gobierno → ✅ Hecho (`1ff833a25`, `src/components/astraura/s158/permisos-tab.tsx`) |
+| **Topología sináptica** | Grafo cerebro ↔ memorias ↔ creaciones ↔ agentes | Solo contadores del grafo → ✅ Hecho (`1ff833a25`, panel `SynapticTreePanel` del cerebro en `src/components/astraura/window/astraura-158-window.tsx`) |
+| **Orquestación autónoma** | Director que enruta entregables a proyectos/cerebros y renueva tareas | Controles sí; visión de conjunto no → ✅ Hecho (`1ff833a25`, Director Metis y tronco dual en `src/components/astraura/s158/orquestacion-tab.tsx`) |
+| **Presencia en todo el OS** | La orbe y el Exocórtex saben qué está pasando de fondo | La orbe/Exocórtex no lo muestran → ✅ Hecho (`1ff833a25`, `Astraura158PresenceBar` / `Astraura158PresenceDot` en `src/components/astraura/astraura-158-presence.tsx`) |
+
+Revisado el 2026-11-08 contra main (`c93279645`): 9 hechos, 0 a medias, 0 pendientes.
 
 ## 1 · Ventana universal de entidad (`Astraura158Window`)
 
