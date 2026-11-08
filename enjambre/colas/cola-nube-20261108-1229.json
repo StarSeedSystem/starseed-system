@@ -1,0 +1,17 @@
+{
+ "ola": "nube-20261108",
+ "tareas": [
+  {
+   "id": "SUP0811H",
+   "ola": "Supervisión 08-11 (22.ª pasada)",
+   "titulo": "Orquestador · `_comprobar_en_a1` llama `.get` sobre un módulo (aviso en cada arranque)",
+   "archivos": [
+    "scripts/enjambre/starseed-enjambre.py",
+    "scripts/enjambre/test_comprobar_en_a1_recarga.py"
+   ],
+   "depende": [],
+   "origen": "supervision-0811",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest/unittest) de lo que tocas; no toques `vitest.setup-dom.ts` ni otra preparación global. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo. Pruebas deterministas: sin red, sin reloj real y sin detectar el aparato de verdad; una prueba nueva tiene que fallar sin tu arreglo. Publicar no es tuyo: nunca `git push`, ni `scripts/puente/publicar.py`, ni Vercel; deja tu trabajo en un commit de tu rama.\n\nEn `scripts/enjambre/starseed-enjambre.py`, `_comprobar_en_a1()` recarga `scripts/puente/comprobar_en_a1.py` cuando cambia su mtime y devuelve `sys.modules.get(\"comprobar_en_a1\", {}).get(\"comprobar\") or comprobar`. Un módulo no tiene `.get`: lanza AttributeError y el `except` escribe «fallo al recargar comprobar_en_a1: module 'comprobar_en_a1' has no attribute 'get'» en CADA arranque (sale en `/tmp/enjambre.log`); la vuelta atrás vuelve a importar la función. Además, en esa rama `comprobar` no está definida si el módulo ya estaba importado.\nArréglalo sin cambiar lo demás: tras recargar o importar, toma el módulo de `sys.modules` (o `importlib.import_module`), actualiza el mtime visto y devuelve `getattr(modulo, \"comprobar\")`; el `except` se queda como red (aviso e import). No toques nada más del orquestador (como mucho 15 líneas).\nPrueba nueva `scripts/enjambre/test_comprobar_en_a1_recarga.py`: carga el orquestador como ya hacen otras pruebas de `scripts/enjambre` (búscalas: `importlib.util.spec_from_file_location` sobre `starseed-enjambre.py`), con `_en_la_mac` parcheado a True, `ROOT` apuntando a un temporal con un `scripts/puente/comprobar_en_a1.py` de mentira y `evento` parcheado para guardar los avisos; limpia `sys.modules[\"comprobar_en_a1\"]` y `sys.path` antes y después. Casos: (a) la primera llamada devuelve la función del módulo de mentira y no hay aviso «fallo al recargar»; (b) cambias el archivo (otra función y mtime mayor) y la siguiente devuelve la NUEVA, sin aviso; (c) sin cambios, la misma. Debe salir en rojo con el código de main. Corre `python3 -m pytest scripts/enjambre/test_comprobar_en_a1_recarga.py -q` y `scripts/enjambre/test_cerrojo.py`. En la Mac no está pytest-timeout: nada de `--timeout`."
+  }
+ ]
+}
