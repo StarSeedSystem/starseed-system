@@ -107,8 +107,11 @@ export interface DepsRedNativa {
   responder(o: { sesion: string; sdp: string; nombre: string; nombreRemoto?: string }): Promise<ResultadoConexion>;
   /** Un `tu.*` de una IP ligada → transporte universal (sin acuse propio: ya acusó la app). */
   entregarTransporte(texto: string, origen: { enlaceId: string; etiqueta: string; syncDeviceId?: string }): void;
-  /** Un `archivo.*` de una IP ligada → motor de archivos (que siempre pregunta). */
-  entregarArchivo(canal: CanalArchivos, texto: string, etiquetaOrigen: string): void;
+  /**
+   * Un `archivo.*` de una IP ligada → motor de archivos (que siempre pregunta). (ARC1108A) `quien`: la
+   * huella con la que esa neurona firmó su saludo, para que la ventana del envío diga quién lo manda.
+   */
+  entregarArchivo(canal: CanalArchivos, texto: string, etiquetaOrigen: string, quien?: { huella: string; porCuenta?: boolean }): void;
   /**
    * (MLL1107A) Prueba de cuenta de un texto: HMAC-SHA256 con la clave de faro de la cuenta, 32 hex.
    * Null si esta app no tiene la clave. Nunca devuelve ni registra la clave.
@@ -619,7 +622,7 @@ export function crearRedNativa(deps: DepsRedNativa): RedNativa {
       if (cuerpo.startsWith('{"t":"tu.')) {
         deps.entregarTransporte(cuerpo, { enlaceId: idEnlaceNativo(ipOk), etiqueta: `${lig.nombre} · red local`, ...(lig.sync ? { syncDeviceId: lig.sync } : {}) });
       } else if (cuerpo.startsWith('{"t":"archivo.')) {
-        deps.entregarArchivo(canalArchivos(ipOk), cuerpo, `${lig.nombre} (red local · app nativa)`);
+        deps.entregarArchivo(canalArchivos(ipOk), cuerpo, `${lig.nombre} (red local · app nativa)`, { huella: lig.huella, ...(lig.porCuenta ? { porCuenta: true } : {}) });
       }
     } catch {
       /* un oyente roto no tumba el canal */
@@ -850,9 +853,25 @@ async function depsReales(): Promise<DepsRedNativa> {
         .then((tu) => tu.despacharTextoTransporte(texto, { tipo: "nativo", ...origen }, nadaQueHacer))
         .catch(nadaQueHacer);
     },
-    entregarArchivo: (canal, texto, etiquetaOrigen) => {
+    entregarArchivo: (canal, texto, etiquetaOrigen, quien) => {
       void import("@/lib/network/archivos-malla")
-        .then((am) => am.motorArchivosCompartido().manejarMensaje(canal, texto, { mismaCuenta: false, etiquetaOrigen, verificarPermiso: () => true }))
+        .then((am) =>
+          am.motorArchivosCompartido().manejarMensaje(canal, texto, {
+            mismaCuenta: false,
+            etiquetaOrigen,
+            verificarPermiso: () => true,
+            via: "Red local (app nativa) · canal TCP 47071",
+            ...(quien?.huella
+              ? {
+                  verificacion: {
+                    tipo: "firma" as const,
+                    huella: quien.huella,
+                    texto: `Saludo firmado con su identidad de malla (huella ${quien.huella.slice(0, 12)}…)${quien.porCuenta ? " · prueba de tu misma cuenta" : " · neurona vinculada"}`,
+                  },
+                }
+              : {}),
+          }),
+        )
         .catch(nadaQueHacer);
     },
     pruebaCuenta: async (texto) => {

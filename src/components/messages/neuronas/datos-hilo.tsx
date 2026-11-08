@@ -19,7 +19,9 @@ import type { ConversacionNeurona } from "@/lib/mensajeria/neuronas/agrupar";
 import {
     confirmacionesArchivo,
     faseDesdeMotor,
+    motivoArchivoLegible,
     porcentajeTransferencia,
+    rutaDeArchivo,
     tamanoLegible,
     textoFaseArchivo,
     textoLlamada,
@@ -167,7 +169,15 @@ export function TarjetaArchivo({ m }: { m: MensajeMalla }) {
                 {(fase === "preparando" || fase === "subiendo" || fase === "verificando") && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />}
                 {estadoTexto}
             </p>
-            {(vivo?.motivo || m.archivo?.motivo) && fase !== "verificado" && <p className="text-[11px] text-white/55">{vivo?.motivo ?? m.archivo?.motivo}</p>}
+            {(vivo?.motivo || m.archivo?.motivo) && fase !== "verificado" && (
+                <p className="text-[11px] text-white/55">{motivoArchivoLegible(vivo?.motivo ?? m.archivo?.motivo, dir)}</p>
+            )}
+            {/* (ARC1108A) Si falló: por qué camino iba (los dos de «Red local (app nativa)» no son el mismo). */}
+            {fase === "error" && adj.modo === "p2p" && (
+                <p className="text-[11px] text-white/55" data-testid="ruta-archivo-error">
+                    Ruta: {rutaDeArchivo(m.via, m.archivo?.enlaces)}
+                </p>
+            )}
             <Confirmaciones {...conf} />
             <div className="flex flex-wrap gap-1.5">
                 {dir === "entra" && fase === "por-aceptar" && (

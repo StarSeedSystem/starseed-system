@@ -805,10 +805,16 @@ export function asegurarRecepcionLocal(): void {
         return;
       }
       if (typeof data !== "string" || data.startsWith('{"t":"archivo.')) {
+        const nativa = e.par.origen === "red-local-nativa";
         motorArchivosCompartido().manejarMensaje(canal, data, {
           mismaCuenta: false,
-          etiquetaOrigen: `${e.par.nombre || "Aparato vinculado"} (${e.par.origen === "red-local-nativa" ? "red local · app nativa" : "sin internet"})`,
+          etiquetaOrigen: `${e.par.nombre || "Aparato vinculado"} (${nativa ? "red local · app nativa" : "sin internet"})`,
           verificarPermiso: () => true,
+          // (ARC1108A) Para la ventana del envío: por dónde llegó y cómo se sabe quién es.
+          via: nativa ? "Red local (app nativa) · enlace directo WebRTC" : "Enlace local sin internet (WebRTC)",
+          verificacion: nativa
+            ? { tipo: "firma", texto: "Enlace abierto con señales firmadas por su identidad de malla (neurona vinculada)" }
+            : { tipo: "codigo", texto: "Emparejado en persona con un código" },
         });
       }
     });
@@ -876,6 +882,8 @@ export function iniciarTransporteUniversal(): () => void {
             mismaCuenta: false,
             etiquetaOrigen: "Vínculo entre cuentas",
             verificarPermiso: () => !!m.vinculosActivos().find((x) => x.vinculoId === vinculoId)?.permisos?.archivos,
+            via: "Vínculo entre cuentas (P2P)",
+            verificacion: { tipo: "vinculo", texto: "Vínculo entre cuentas aceptado por las dos personas" },
           });
         }
       }),

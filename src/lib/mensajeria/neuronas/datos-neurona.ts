@@ -583,6 +583,45 @@ export function faseArchivoTerminal(f: FaseArchivoNeurona): boolean {
     return TERMINALES.has(f);
 }
 
+/**
+ * (ARC1108A) Por qué camino fue un archivo, en palabras: distingue los dos que la pastilla llama
+ * igual («Red local (app nativa)»): el canal TCP 47071 y el enlace WebRTC que abren solas las dos apps.
+ * Puro.
+ */
+export function rutaDeArchivo(via: Pick<ViaMensaje, "enlaceId" | "enlace" | "medio"> | null | undefined, enlaces?: readonly string[] | null): string {
+    const id = via?.enlaceId ?? "";
+    let ruta: string;
+    if (id.startsWith("nativo:")) ruta = "Red local (app nativa) · canal TCP 47071";
+    else if (id.startsWith("local:nativo-")) ruta = "Red local (app nativa) · enlace directo WebRTC";
+    else if (id.startsWith("local:")) ruta = "Enlace directo sin internet (emparejado con código)";
+    else if (id.startsWith("cuenta:")) ruta = "Malla de tu cuenta (WebRTC)";
+    else if (id.startsWith("par:")) ruta = "Vínculo entre cuentas (P2P)";
+    else if (id === "servidor" || via?.medio === "servidor") ruta = "Almacenamiento de tu cuenta";
+    else ruta = via?.medio ? INFO_MEDIOS[via.medio]?.nombre ?? "sin dato" : "sin dato";
+    const hacia = (enlaces ?? []).filter(Boolean).slice(0, 3).join(", ") || via?.enlace || "";
+    return hacia ? `${ruta} — hacia ${hacia}` : ruta;
+}
+
+const CODIGOS_ERROR_ARCHIVO: Record<string, string> = {
+    "hash-no-coincide": "la verificación de integridad (SHA-256) no coincide: lo que llegó no es idéntico al original",
+    "faltan-trozos": "no llegaron todos los trozos",
+    "almacen-receptor": "no pudo guardar o releer los trozos en su almacenamiento",
+    "fallo-verificacion": "falló al verificar el archivo",
+    "sin-confirmacion": "no confirmó la verificación a tiempo",
+};
+
+/**
+ * (ARC1108A) El motivo de un archivo, legible: las burbujas guardadas antes de ARC1108A tienen el
+ * código suelto («hash-no-coincide»); se traduce y se dice en qué lado falló. Lo demás, tal cual. Puro.
+ */
+export function motivoArchivoLegible(motivo: string | null | undefined, dir: "sale" | "entra"): string | undefined {
+    if (!motivo) return undefined;
+    const t = motivo.trim();
+    const desc = CODIGOS_ERROR_ARCHIVO[t];
+    if (!desc) return t;
+    return dir === "sale" ? `Falló en el receptor: ${desc}.` : `Falló en este aparato (receptor): ${desc}.`;
+}
+
 /** Traduce la fase del motor P2P a la del chat. Pura. */
 export function faseDesdeMotor(fase: FaseMotorArchivo): FaseArchivoNeurona {
     switch (fase) {

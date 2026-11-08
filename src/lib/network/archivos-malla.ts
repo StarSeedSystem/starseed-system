@@ -22,6 +22,14 @@
  *   receptor → remitente  archivo.error     {id, motivo}        (hash NO coincide, u otro fallo)
  *   cualquiera → otro     archivo.cancelar  {id}
  *
+ * (ARC1108A · 2026-11-08) `archivo.oferta` lleva además, opcionales, `lote`/`loteTotal`/`loteMensaje`
+ * (el envío: varios archivos en UNA ventana del receptor), `ruta` (carpeta), `inicioB64` (≤ 512 B
+ * para inspeccionar antes de aceptar) y `vista` (miniatura raster o texto); `archivo.error` lleva
+ * `detalle`, `lado` y `desde`. Un trozo cuenta como recibido SOLO cuando el almacén terminó de
+ * guardarlo, por los dos caminos (base64 y binario): el binario lo contaba antes de guardarlo y
+ * «fin» verificaba trozos vacíos — el «hash-no-coincide» de la prueba real del 08-11. Contrato:
+ * `architecture/datos-por-la-malla.md` §7.1.
+ *
  * CODIFICACIÓN — base64, NO binario crudo (decisión justificada):
  *   El canal `CanalArchivos` (abajo) declara `enviarBinario`/`bufferedAmount`
  *   como OPCIONALES a propósito. Hoy `webrtc-mesh.ts` solo transporta STRINGS
@@ -144,7 +152,35 @@ export interface MsgOferta {
   origen?: string;
   /** Modo de transferencia negociado: "binario" = trozos ArrayBuffer sin base64; "base64" = JSON con datosB64 (heredado). */
   modo?: ModoTransferencia;
+  /**
+   * (ARC1108A) Envío al que pertenece: los archivos que se mandan juntos comparten `lote` y el receptor
+   * los enseña en UNA ventana. Opcional: sin él (remitentes anteriores) se agrupan por remitente y
+   * ventana de tiempo (`envios-entrantes.ts`).
+   */
+  lote?: string;
+  /** Cuántos archivos tiene el envío (para «3 de 18»). */
+  loteTotal?: number;
+  /** Mensaje que acompaña al envío (≤ 1000 caracteres). */
+  loteMensaje?: string;
+  /** Ruta relativa dentro de la carpeta enviada («fotos/2026/a.jpg»). Nunca absoluta ni con «..». */
+  ruta?: string;
+  /** Primeros bytes del archivo (≤ 512, base64) para la inspección de seguridad ANTES de aceptar. */
+  inicioB64?: string;
+  /** Vista previa que el remitente calculó (miniatura JPEG/PNG/WebP o fragmento de texto). */
+  vista?: VistaOferta;
 }
+
+/** (ARC1108A) Vista previa segura de una oferta: nunca HTML ni SVG, solo una miniatura raster o texto plano. */
+export type VistaOferta = { tipo: "imagen"; datosUrl: string } | { tipo: "texto"; texto: string };
+
+/** (ARC1108A) Quién manda y cómo se comprobó (lo enseña la ventana del envío). */
+export interface VerificacionOrigen {
+  /** firma: saludo firmado con la identidad de malla; cuenta: aparato de la misma cuenta; vinculo: vínculo entre cuentas consentido; codigo: emparejado con código. */
+  tipo: "firma" | "cuenta" | "vinculo" | "codigo" | "ninguna";
+  texto: string;
+  huella?: string;
+}
+
 export interface MsgAceptar {
   t: "archivo.aceptar";
   id: string;
@@ -175,8 +211,18 @@ export interface MsgOk {
 export interface MsgError {
   t: "archivo.error";
   id: string;
+  /** Código corto (compatibilidad: «hash-no-coincide», «faltan-trozos», «almacen-receptor», «fallo-verificacion»…). */
   motivo: string;
+  /** (ARC1108A) Explicación legible de lo que pasó (cuántos trozos, qué almacenamiento…). */
+  detalle?: string;
+  /** (ARC1108A) Lado donde falló. */
+  lado?: LadoFallo;
+  /** (ARC1108A) Primer trozo que falta: el remitente puede reanudar desde ahí. */
+  desde?: number;
 }
+
+/** (ARC1108A) Dónde falló una transferencia. */
+export type LadoFallo = "receptor" | "remitente";
 export interface MsgCancelar {
   t: "archivo.cancelar";
   id: string;
@@ -303,6 +349,111 @@ export function b64ABuf(b64: string): ArrayBuffer {
   return bytes.buffer;
 }
 
+/**
+ * (ARC1108A) Copia EXACTA de los bytes de un trozo, venga como venga: un ArrayBuffer tal cual, una
+ * vista (Uint8Array/Buffer/DataView, con su desplazamiento: nunca el buffer entero que hay debajo) o
+ * un Blob. Null si no son bytes. Es lo que devuelven los almacenes al releer.
+ */
+export async function bytesExactos(x: unknown): Promise<ArrayBuffer | null> {
+  if (x === null || x === undefined) return null;
+  if (x instanceof ArrayBuffer) return x;
+  if (ArrayBuffer.isView(x)) return x.buffer.slice(x.byteOffset, x.byteOffset + x.byteLength) as ArrayBuffer;
+  const o = x as { arrayBuffer?: unknown; byteLength?: unknown; slice?: unknown };
+  // Blob (o un ArrayBuffer de otro reino: iframe, jsdom), por su forma.
+  if (typeof o.arrayBuffer === "function") return (await (o.arrayBuffer as () => Promise<ArrayBuffer>).call(x)) ?? null;
+  if (typeof o.byteLength === "number" && typeof o.slice === "function") return (o.slice as (a: number) => ArrayBuffer).call(x, 0);
+  return null;
+}
+
+/** (ARC1108A) Primer índice de 0..trozos-1 que NO está (de ahí se reanuda; con huecos, el primer hueco). Puro. */
+export function primerFaltante(tenidos: Iterable<number>, trozos: number): number {
+  const s = tenidos instanceof Set ? (tenidos as Set<number>) : new Set(tenidos);
+  for (let i = 0; i < trozos; i++) if (!s.has(i)) return i;
+  return Math.max(0, trozos);
+}
+
+/** (ARC1108A) Qué significa cada código de `archivo.error`, en una frase. Puro. */
+export function describirErrorArchivo(codigo: string): string {
+  switch (codigo) {
+    case "hash-no-coincide":
+      return "la verificación de integridad (SHA-256) no coincide: lo que llegó no es idéntico al original";
+    case "faltan-trozos":
+      return "no llegaron todos los trozos";
+    case "almacen-receptor":
+      return "no pudo guardar o releer los trozos en su almacenamiento";
+    case "fallo-verificacion":
+      return "falló al verificar el archivo";
+    case "sin-confirmacion":
+      return "no confirmó la verificación a tiempo";
+    default:
+      return codigo;
+  }
+}
+
+/** (ARC1108A) El texto de la burbuja del remitente para un `archivo.error` que llegó del otro lado. Puro. */
+export function textoErrorRemoto(msg: Pick<MsgError, "motivo" | "detalle" | "lado">): string {
+  const lado = msg.lado === "remitente" ? "el remitente" : "el receptor";
+  const base = `Falló en ${lado}: ${describirErrorArchivo(msg.motivo)}`;
+  return msg.detalle ? `${base} — ${msg.detalle.slice(0, 300)}.` : `${base}.`;
+}
+
+/* ══════════════════════════ 3a) Extras de la oferta, saneados (ARC1108A) ══════════════════════════ */
+
+// eslint-disable-next-line no-control-regex
+const CONTROL = /[\u0000-\u001f\u007f]/g;
+
+/**
+ * Ruta relativa de un archivo dentro de una carpeta enviada: sin control, sin «.»/«..», sin raíz
+ * ni unidad, como mucho 12 niveles de 120 caracteres. Undefined si no queda nada. Puro.
+ */
+export function sanearRutaRelativa(x: unknown): string | undefined {
+  if (typeof x !== "string" || !x) return undefined;
+  const partes = x
+    .replace(CONTROL, "")
+    .split(/[\\/]+/)
+    .map((p) => p.trim())
+    .filter((p) => p && p !== "." && p !== ".." && !/^[A-Za-z]:$/.test(p))
+    .map((p) => p.slice(0, 120));
+  if (!partes.length || partes.length > 12) return partes.length ? partes.slice(-12).join("/") : undefined;
+  return partes.join("/");
+}
+
+const RE_DATOS_IMAGEN = /^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/]+=*$/;
+/** Tope de una miniatura (caracteres del data URL): cabe holgada en una trama del canal nativo. */
+export const MAX_VISTA_IMAGEN = 24_000;
+export const MAX_VISTA_TEXTO = 1_200;
+export const MAX_INICIO_BYTES = 512;
+
+/** Vista previa de una oferta, solo si es segura (miniatura raster por data URL o texto plano). Puro. */
+export function sanearVista(x: unknown): VistaOferta | undefined {
+  if (!x || typeof x !== "object") return undefined;
+  const o = x as Record<string, unknown>;
+  if (o.tipo === "imagen" && typeof o.datosUrl === "string" && o.datosUrl.length <= MAX_VISTA_IMAGEN && RE_DATOS_IMAGEN.test(o.datosUrl)) {
+    return { tipo: "imagen", datosUrl: o.datosUrl };
+  }
+  if (o.tipo === "texto" && typeof o.texto === "string") return { tipo: "texto", texto: o.texto.slice(0, MAX_VISTA_TEXTO) };
+  return undefined;
+}
+
+/** Primeros bytes anunciados (base64 de ≤ 512 B), o undefined. Puro. */
+export function sanearInicio(x: unknown): string | undefined {
+  if (typeof x !== "string" || !x || x.length > Math.ceil(MAX_INICIO_BYTES / 3) * 4 + 4) return undefined;
+  return /^[A-Za-z0-9+/]+=*$/.test(x) ? x : undefined;
+}
+
+/** Id de envío (lote): letras, cifras, «_» y «-», de 4 a 80. Puro. */
+export function sanearLote(x: unknown): string | undefined {
+  return typeof x === "string" && /^[A-Za-z0-9_-]{4,80}$/.test(x) ? x : undefined;
+}
+
+/** Mensaje que acompaña a un envío: texto plano de ≤ 1000 caracteres, sin control salvo saltos de línea. Puro. */
+export function sanearMensajeEnvio(x: unknown): string | undefined {
+  if (typeof x !== "string") return undefined;
+  // eslint-disable-next-line no-control-regex
+  const t = x.replace(/[\u0000-\u0009\u000b-\u001f\u007f]/g, "").trim().slice(0, 1000);
+  return t || undefined;
+}
+
 /* ══════════════════════════ 3b) Codificación binaria de trozos ══════════════════════════ */
 
 /** Codifica un trozo binario con cabecera: [id_len:u32][id:utf8][index:u32][datos]. */
@@ -352,6 +503,9 @@ export function decodeChunkBinario(buf: ArrayBuffer): { id: string; index: numbe
  * al terminar, para entregar el Blob final.
  */
 export interface AlmacenTrozos {
+  /** (ARC1108A) Qué almacenamiento es («OPFS», «IndexedDB», «memoria»…), para decir dónde falló. */
+  readonly tipo?: string;
+  /** Se resuelve cuando el trozo YA se puede releer; si no se pudo guardar, LANZA (nunca lo pierde en silencio). */
   guardarTrozo(id: string, index: number, datos: ArrayBuffer): Promise<void>;
   leerTrozo(id: string, index: number): Promise<ArrayBuffer | null>;
   /** Índices ya guardados de esta transferencia (para reanudar). Vacío si no hay nada. */
@@ -364,6 +518,7 @@ export interface AlmacenTrozos {
 export function crearAlmacenEnMemoria(): AlmacenTrozos {
   const datos = new Map<string, Map<number, ArrayBuffer>>();
   return {
+    tipo: "memoria",
     async guardarTrozo(id, index, buf) {
       let m = datos.get(id);
       if (!m) {
@@ -421,8 +576,11 @@ export function crearAlmacenOPFS(): AlmacenTrozos {
 
   const guardarTrozo = async (id: string, index: number, datos: ArrayBuffer): Promise<void> => {
     const dir = await dirDeTransferencia(id, true);
-    if (!dir) return;
+    // (ARC1108A) Antes volvía sin guardar nada y el trozo se daba por recibido: un hueco silencioso
+    // que solo se veía como «hash-no-coincide». Ahora lanza y el almacén en cadena prueba el siguiente.
+    if (!dir) throw new Error("OPFS no deja abrir la carpeta de la transferencia");
     const fh = await dir.getFileHandle(String(index), { create: true });
+    if (typeof (fh as Partial<FileHandleOPFS>).createWritable !== "function") throw new Error("OPFS sin createWritable en este navegador");
     const w = await fh.createWritable();
     await w.write(datos);
     await w.close();
@@ -433,7 +591,7 @@ export function crearAlmacenOPFS(): AlmacenTrozos {
       if (!dir) return null;
       const fh = await dir.getFileHandle(String(index));
       const file = await fh.getFile();
-      return await file.arrayBuffer();
+      return await bytesExactos(await file.arrayBuffer());
     } catch {
       return null;
     }
@@ -470,7 +628,7 @@ export function crearAlmacenOPFS(): AlmacenTrozos {
       /* best-effort */
     }
   };
-  return { guardarTrozo, leerTrozo, indicesGuardados, ensamblar, limpiar };
+  return { tipo: "OPFS", guardarTrozo, leerTrozo, indicesGuardados, ensamblar, limpiar };
 }
 
 /** IndexedDB — espejo del patrón de `astraura/experiencias-idb.ts`. Clave `<id>:<index>`. */
@@ -506,11 +664,13 @@ export function crearAlmacenIDB(nombreDb = "starseed-archivos-malla"): AlmacenTr
   const leerTrozo = async (id: string, index: number): Promise<ArrayBuffer | null> => {
     const db = await abrir();
     try {
-      return await new Promise((ok, falla) => {
+      const crudo = await new Promise<unknown>((ok, falla) => {
         const req = db.transaction(TABLA, "readonly").objectStore(TABLA).get(claveDe(id, index));
-        req.onsuccess = () => ok((req.result as ArrayBuffer | undefined) ?? null);
+        req.onsuccess = () => ok(req.result ?? null);
         req.onerror = () => falla(req.error);
       });
+      // (ARC1108A) Lo guardado vuelve tal cual se guardó: si alguna vez fue una vista o un Blob, bytes exactos.
+      return await bytesExactos(crudo);
     } finally {
       db.close();
     }
@@ -562,24 +722,130 @@ export function crearAlmacenIDB(nombreDb = "starseed-archivos-malla"): AlmacenTr
       db.close();
     }
   };
-  return { guardarTrozo, leerTrozo, indicesGuardados, ensamblar, limpiar };
+  return { tipo: "IndexedDB", guardarTrozo, leerTrozo, indicesGuardados, ensamblar, limpiar };
 }
 
-/** Elige OPFS > IndexedDB > memoria, según lo que dé el entorno. Nunca lanza. */
-export function crearAlmacenAuto(): AlmacenTrozos {
+/**
+ * (ARC1108A) ¿Se puede ESCRIBIR en OPFS desde la página? `navigator.storage.getDirectory` existe en
+ * Safari/WKWebView desde la 15.2, pero `createWritable` llegó mucho después (y en el WebView de
+ * Android, también tarde): con solo lo primero, cada trozo fallaba al guardarse. Nunca lanza.
+ */
+export function opfsEscribible(): boolean {
   try {
-    if (typeof navigator !== "undefined" && typeof (navigator as unknown as { storage?: { getDirectory?: unknown } }).storage?.getDirectory === "function") {
-      return crearAlmacenOPFS();
+    const nav = typeof navigator !== "undefined" ? (navigator as unknown as { storage?: { getDirectory?: unknown } }) : undefined;
+    if (typeof nav?.storage?.getDirectory !== "function") return false;
+    const fh = (globalThis as { FileSystemFileHandle?: { prototype?: { createWritable?: unknown } } }).FileSystemFileHandle;
+    return typeof fh?.prototype?.createWritable === "function";
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * (ARC1108A) Almacén EN CADENA: escribe en el primero que funcione y, si uno falla al guardar (OPFS
+ * sin `createWritable`, cuota llena, IndexedDB bloqueado en ese origen…), lo aparta para el resto de
+ * la sesión y sigue con el siguiente — normalmente la memoria, que no falla. Recuerda en cuál quedó
+ * cada trozo para releerlo de ahí; lo de una sesión anterior (reanudar tras recargar) se busca en
+ * todos. Nunca pierde un trozo en silencio: si ninguno lo acepta, lanza.
+ */
+export function crearAlmacenEnCadena(almacenes: AlmacenTrozos[]): AlmacenTrozos {
+  const lista = almacenes.length ? almacenes : [crearAlmacenEnMemoria()];
+  const apartados = new Set<number>();
+  const donde = new Map<string, Map<number, number>>();
+  const nombre = (k: number) => lista[k]?.tipo ?? `almacén ${k + 1}`;
+  const activo = () => {
+    for (let k = 0; k < lista.length; k++) if (!apartados.has(k)) return k;
+    return -1;
+  };
+
+  const leerTrozo = async (id: string, index: number): Promise<ArrayBuffer | null> => {
+    const k = donde.get(id)?.get(index);
+    if (k !== undefined) {
+      try {
+        return await bytesExactos(await lista[k].leerTrozo(id, index));
+      } catch {
+        return null;
+      }
     }
-  } catch {
-    /* sigue al siguiente */
-  }
+    for (const a of lista) {
+      try {
+        const d = await bytesExactos(await a.leerTrozo(id, index));
+        if (d) return d;
+      } catch {
+        /* el siguiente */
+      }
+    }
+    return null;
+  };
+  const indicesGuardados = async (id: string): Promise<number[]> => {
+    const todos = new Set<number>(donde.get(id)?.keys() ?? []);
+    for (const a of lista) {
+      try {
+        for (const i of await a.indicesGuardados(id)) todos.add(i);
+      } catch {
+        /* el siguiente */
+      }
+    }
+    return Array.from(todos).sort((x, y) => x - y);
+  };
+
+  return {
+    get tipo() {
+      const k = activo();
+      const base = k >= 0 ? nombre(k) : "ninguno";
+      return apartados.size ? `${base} (tras fallar ${Array.from(apartados, nombre).join(" y ")})` : base;
+    },
+    async guardarTrozo(id, index, datos) {
+      let ultimo: unknown = null;
+      for (let k = 0; k < lista.length; k++) {
+        if (apartados.has(k)) continue;
+        try {
+          await lista[k].guardarTrozo(id, index, datos);
+          let m = donde.get(id);
+          if (!m) {
+            m = new Map();
+            donde.set(id, m);
+          }
+          m.set(index, k);
+          return;
+        } catch (e) {
+          ultimo = e;
+          apartados.add(k);
+        }
+      }
+      throw ultimo instanceof Error ? ultimo : new Error("ningún almacenamiento aceptó el trozo");
+    },
+    leerTrozo,
+    indicesGuardados,
+    async ensamblar(id, tipoMime) {
+      const partes: ArrayBuffer[] = [];
+      for (const i of await indicesGuardados(id)) {
+        const d = await leerTrozo(id, i);
+        if (d) partes.push(d);
+      }
+      return new Blob(partes, { type: tipoMime });
+    },
+    async limpiar(id) {
+      donde.delete(id);
+      await Promise.all(lista.map((a) => a.limpiar(id).catch(() => undefined)));
+    },
+  };
+}
+
+/**
+ * Elige OPFS > IndexedDB > memoria, según lo que dé el entorno, EN CADENA (ARC1108A): si el elegido
+ * falla al escribir, el trozo va al siguiente en vez de perderse. Nunca lanza.
+ */
+export function crearAlmacenAuto(): AlmacenTrozos {
+  const cadena: AlmacenTrozos[] = [];
+  if (opfsEscribible()) cadena.push(crearAlmacenOPFS());
   try {
-    if (typeof indexedDB !== "undefined") return crearAlmacenIDB();
+    if (typeof indexedDB !== "undefined") cadena.push(crearAlmacenIDB());
   } catch {
     /* sigue al siguiente */
   }
-  return crearAlmacenEnMemoria();
+  cadena.push(crearAlmacenEnMemoria());
+  return crearAlmacenEnCadena(cadena);
 }
 
 /* ══════════════════════════ 5) Políticas de recepción ══════════════════════════ */
@@ -628,6 +894,10 @@ export interface ContextoRecepcion {
   nodoId?: string;
   /** Solo se consulta si `mismaCuenta` es false. Por defecto: deniega (ver arriba). */
   verificarPermiso?: () => boolean | Promise<boolean>;
+  /** (ARC1108A) Por dónde llegó («Red local (app nativa) · enlace directo»…), para la ventana del envío. */
+  via?: string;
+  /** (ARC1108A) Cómo se comprobó quién lo manda. */
+  verificacion?: VerificacionOrigen;
 }
 
 /** Política por defecto: ver cabecera del módulo, §POLÍTICAS DE RECEPCIÓN. */
@@ -668,6 +938,19 @@ export interface EstadoTransferencia {
   origen?: string;
   inicioMs: number;
   actualizadoMs: number;
+  /** (ARC1108A) En «error»: código corto (`archivo.error.motivo`) y lado donde falló. */
+  codigo?: string;
+  lado?: LadoFallo;
+  /** (ARC1108A) Solo rol "recibir": lo que trae la oferta para la ventana del envío (todo saneado). */
+  lote?: string;
+  loteTotal?: number;
+  mensaje?: string;
+  ruta?: string;
+  vista?: VistaOferta;
+  inicioB64?: string;
+  sha256?: string;
+  via?: string;
+  verificacion?: VerificacionOrigen;
 }
 
 export interface OfertaEntranteInfo {
@@ -677,6 +960,8 @@ export interface OfertaEntranteInfo {
   tamano: number;
   destino: DestinoArchivo;
   origen?: string;
+  lote?: string;
+  ruta?: string;
 }
 
 /** Política de reintento automático para envíos que fallan. */
@@ -720,6 +1005,25 @@ export interface ConfigMotorArchivos {
   limiteAvisoBytes?: number;
   /** Tope duro: una oferta que lo supere se rechaza sin ofertar. Por defecto 4 GiB. */
   limiteMaxBytes?: number;
+  /**
+   * (ARC1108A) Cuánto espera el remitente, tras mandar «fin», a que el receptor confirme (ok/error) antes
+   * de darlo por fallido con «Reintentar» a mano. Por defecto 60 s + 50 ms por trozo.
+   */
+  esperaVerificacionMs?: (trozos: number) => number;
+  /** (ARC1108A) Cuánto espera el receptor, tras «fin», a los trozos que aún no llegaron (varios caminos). Por defecto 15 s. */
+  esperaTrozosFaltantesMs?: number;
+}
+
+/** (ARC1108A) Lo que se puede añadir a una oferta al mandarla (el envío al que pertenece, su ruta, su vista). */
+export interface OpcionesEnvioArchivo {
+  tipoMime?: string;
+  idTransferencia?: string;
+  /** Envío (varios archivos juntos): mismo `id` en todos; `total` y `mensaje` opcionales. */
+  lote?: { id: string; total?: number; mensaje?: string };
+  /** Ruta relativa dentro de la carpeta enviada (`File.webkitRelativePath`). */
+  ruta?: string;
+  /** Vista previa ya calculada (miniatura o fragmento de texto). */
+  vista?: VistaOferta;
 }
 
 export interface ResultadoEnviarArchivo {
@@ -735,7 +1039,7 @@ export interface MotorArchivos {
     archivo: Blob,
     nombre: string,
     destino: DestinoArchivo,
-    opciones?: { tipoMime?: string; idTransferencia?: string },
+    opciones?: OpcionesEnvioArchivo,
   ): Promise<ResultadoEnviarArchivo>;
   manejarMensaje(canal: CanalArchivos, data: string | ArrayBuffer, contexto?: ContextoRecepcion): void;
   aceptarOferta(id: string): void;
@@ -792,6 +1096,21 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
   const cancelados = new Set<string>();
   const blobsRecibidos = new Map<string, Blob>();
   const modoPorId = new Map<string, ModoTransferencia>();
+  // (ARC1108A) Receptor: escrituras de trozos EN CURSO (un trozo cuenta como recibido solo cuando su
+  // escritura terminó; «fin» espera a todas), fallos del almacén, «fin» que se está verificando y
+  // ofertas que la persona ya aceptó (un reintento del mismo archivo, mismo SHA-256, no vuelve a preguntar).
+  const escrituras = new Map<string, Map<number, Promise<string | null>>>();
+  const fallosAlmacen = new Map<string, string>();
+  const verificandoFin = new Set<string>();
+  const aceptadas = new Map<string, { sha256: string; tamano: number }>();
+  // (ARC1108A) Remitente: transferencias que ya están saliendo (un «aceptar» repetido no abre otro
+  // bucle), la oferta enviada (para reanudar sin recalcular el hash) y la espera de la verificación.
+  const transmitiendo = new Set<string>();
+  const ofertasEnviadas = new Map<string, MsgOferta>();
+  const vigias = new Map<string, ReturnType<typeof setTimeout>>();
+  const reanudacionesAuto = new Map<string, number>();
+  const esperaVerificacion = config.esperaVerificacionMs ?? ((trozos: number) => 60_000 + trozos * 50);
+  const ESPERA_FALTANTES_MS = config.esperaTrozosFaltantesMs ?? 15_000;
   // Resonancia (§5.6): confianza por neurona y veredictos antivirus de la red.
   const confianzaNodos = new Map<string, number>();
   const veredictosRed: VeredictoCompartido[] = [];
@@ -887,7 +1206,7 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
     archivo: Blob,
     nombre: string,
     destino: DestinoArchivo,
-    opciones?: { tipoMime?: string; idTransferencia?: string },
+    opciones?: OpcionesEnvioArchivo,
   ): Promise<ResultadoEnviarArchivo> {
     const id = opciones?.idTransferencia ?? idAleatorio();
     const tamano = archivo.size;
@@ -903,9 +1222,21 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
     const leerTrozo = async (i: number) => archivo.slice(i * TAM_TROZO, Math.min(tamano, (i + 1) * TAM_TROZO)).arrayBuffer();
     const { raiz } = await calcularHashLista(leerTrozo, trozos);
 
+    // (ARC1108A) Los primeros bytes viajan con la oferta: el receptor inspecciona el tipo real ANTES de aceptar.
+    let inicioB64: string | undefined;
+    try {
+      inicioB64 = tamano > 0 ? sanearInicio(bufAB64(await archivo.slice(0, MAX_INICIO_BYTES).arrayBuffer())) : undefined;
+    } catch {
+      inicioB64 = undefined;
+    }
+
     canalPorId.set(id, canal);
     archivosEnvio.set(id, archivo);
     cancelados.delete(id);
+    // Un reintento con el mismo id empieza limpio: ni bucle viejo, ni espera de verificación vieja.
+    limpiarVigia(id);
+    reanudacionesAuto.delete(id);
+    intentosReintento.delete(id);
 
     const aviso = tamano > AVISO_BYTES ? `Archivo grande (${(tamano / 1024 / 1024).toFixed(0)} MB): la transferencia puede tardar.` : undefined;
 
@@ -940,8 +1271,55 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
       destino,
       modo,
     };
+    // (ARC1108A) El envío al que pertenece, su ruta en la carpeta y su vista previa (todo opcional y saneado).
+    const lote = sanearLote(opciones?.lote?.id);
+    if (lote) {
+      oferta.lote = lote;
+      const total = opciones?.lote?.total;
+      if (typeof total === "number" && Number.isInteger(total) && total > 0 && total <= 10_000) oferta.loteTotal = total;
+      const mensaje = sanearMensajeEnvio(opciones?.lote?.mensaje);
+      if (mensaje) oferta.loteMensaje = mensaje;
+    }
+    const ruta = sanearRutaRelativa(opciones?.ruta);
+    if (ruta && ruta !== nombre) oferta.ruta = ruta;
+    if (inicioB64) oferta.inicioB64 = inicioB64;
+    const vista = sanearVista(opciones?.vista);
+    if (vista) oferta.vista = vista;
+    ofertasEnviadas.set(id, oferta);
     canal.enviar(JSON.stringify(oferta));
     return { ok: true, id, aviso };
+  }
+
+  /** (ARC1108A) Quita la espera de verificación de una transferencia enviada. */
+  function limpiarVigia(id: string): void {
+    const t = vigias.get(id);
+    if (t !== undefined) clearTimeout(t);
+    vigias.delete(id);
+  }
+
+  /**
+   * (ARC1108A) Tras mandar «fin», el remitente queda en «verificando» hasta que el receptor diga ok o
+   * error. Si no dice nada (app cerrada, sin memoria…), no se queda colgado para siempre: pasa a error
+   * con «Reintentar», que reanuda desde el primer trozo que le falte al otro.
+   */
+  function vigilarVerificacion(id: string, trozos: number): void {
+    limpiarVigia(id);
+    const ms = Math.max(1, esperaVerificacion(trozos));
+    const t = setTimeout(() => {
+      vigias.delete(id);
+      const e = estados.get(id);
+      if (!e || e.rol !== "enviar" || e.fase !== "verificando") return;
+      emitir({
+        ...e,
+        fase: "error",
+        motivo: textoErrorRemoto({ motivo: "sin-confirmacion", detalle: `sin respuesta en ${Math.round(ms / 1000)} s tras mandar el último trozo (¿app cerrada o sin memoria?)`, lado: "receptor" }),
+        codigo: "sin-confirmacion",
+        lado: "receptor",
+        actualizadoMs: Date.now(),
+      });
+    }, ms);
+    (t as { unref?: () => void }).unref?.();
+    vigias.set(id, t);
   }
 
   async function transmitir(id: string): Promise<void> {
@@ -982,7 +1360,17 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
         // Fallo de envío: iniciar reintento con backoff exponencial
         const intentoActual = intentosReintento.get(id) ?? 0;
         if (intentoActual >= reintentoConfig.maxIntentos) {
-          actualizarFase(id, "error", `No se pudo enviar el trozo ${i} tras ${reintentoConfig.maxIntentos} reintentos: el canal no recupera.`);
+          const e = estados.get(id);
+          if (e) {
+            emitir({
+              ...e,
+              fase: "error",
+              motivo: `Falló en el remitente: no se pudo enviar el trozo ${i} tras ${reintentoConfig.maxIntentos} reintentos (el canal no recupera).`,
+              codigo: "canal-no-recupera",
+              lado: "remitente",
+              actualizadoMs: Date.now(),
+            });
+          }
           intentosReintento.delete(id);
           return;
         }
@@ -1002,46 +1390,133 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
       actualizarProgreso(id, i + 1);
       i++;
     }
-    if (!cancelados.has(id)) {
-      canal.enviar(JSON.stringify({ t: "archivo.fin", id } satisfies MsgFin));
+    if (cancelados.has(id)) return;
+    // «fin» (con un par de reintentos si el canal está un momento lleno) y, desde ARC1108A, el
+    // remitente queda «verificando» hasta que el receptor confirme: nunca colgado sin decir nada.
+    let finSalio = false;
+    for (let intento = 0; intento < 4 && !finSalio && !cancelados.has(id); intento++) {
+      if (intento > 0) await esperar(reintentoConfig.esperaBaseMs * intento);
+      finSalio = canal.enviar(JSON.stringify({ t: "archivo.fin", id } satisfies MsgFin));
+    }
+    const e = estados.get(id);
+    if (!e || cancelados.has(id)) return;
+    if (!finSalio) {
+      emitir({ ...e, fase: "error", motivo: "Falló en el remitente: no se pudo mandar el aviso de fin (el canal no recupera).", codigo: "canal-no-recupera", lado: "remitente", actualizadoMs: Date.now() });
+      return;
+    }
+    if (e.fase === "transfiriendo" || e.fase === "reintentando") {
+      emitir({ ...e, fase: "verificando", motivo: "Esperando a que el otro aparato verifique el SHA-256…", actualizadoMs: Date.now() });
+      vigilarVerificacion(id, e.trozos);
     }
   }
 
   function manejarAceptar(msg: MsgAceptar): void {
     const estado = estados.get(msg.id);
     if (!estado || estado.rol !== "enviar") return;
-    desdePorId.set(msg.id, msg.desde ?? 0);
+    // (ARC1108A) Un «aceptar» repetido (trama reenviada) no abre un segundo bucle de envío.
+    if (transmitiendo.has(msg.id) || estado.fase === "completada") return;
+    const desde = typeof msg.desde === "number" && Number.isInteger(msg.desde) ? Math.min(Math.max(0, msg.desde), estado.trozos) : 0;
+    desdePorId.set(msg.id, desde);
     // Respetar el modo confirmado por el receptor.
     if (msg.modo) {
       modoPorId.set(msg.id, msg.modo);
     }
-    // Reanudación: limpiar contador de reintentos previos
+    // Reanudación: limpiar contador de reintentos previos y la espera de una verificación anterior
     intentosReintento.delete(msg.id);
-    void transmitir(msg.id);
+    limpiarVigia(msg.id);
+    transmitiendo.add(msg.id);
+    void transmitir(msg.id).finally(() => transmitiendo.delete(msg.id));
   }
 
   function manejarRechazar(msg: MsgRechazar): void {
     actualizarFase(msg.id, "rechazada", msg.motivo);
-    archivosEnvio.delete(msg.id);
+    // (ARC1108A) El archivo se queda: «Reintentar» lo vuelve a ofrecer sin volver a adjuntarlo.
     canalPorId.delete(msg.id);
     intentosReintento.delete(msg.id);
+    limpiarVigia(msg.id);
   }
 
   function manejarOk(msg: MsgOk): void {
-    actualizarFase(msg.id, "completada");
+    const e = estados.get(msg.id);
+    if (!e || e.rol !== "enviar") return;
+    limpiarVigia(msg.id);
+    emitir({ ...e, fase: "completada", progreso: e.trozos, motivo: undefined, codigo: undefined, lado: undefined, actualizadoMs: Date.now() });
     archivosEnvio.delete(msg.id);
     canalPorId.delete(msg.id);
     desdePorId.delete(msg.id);
     intentosReintento.delete(msg.id);
+    ofertasEnviadas.delete(msg.id);
+    reanudacionesAuto.delete(msg.id);
   }
 
-  function manejarErrorRemoto(msg: MsgError): void {
-    actualizarFase(msg.id, "error", msg.motivo);
-    archivosEnvio.delete(msg.id);
+  /**
+   * (ARC1108A) Error que manda el otro lado. La burbuja dice DÓNDE falló y por qué (no un código suelto),
+   * el archivo se queda para «Reintentar» y, si solo faltaban trozos, se reanuda solo (dos veces como
+   * mucho) desde el primero que falta: el receptor ya lo aceptó y no vuelve a preguntar.
+   */
+  function manejarErrorRemoto(canal: CanalArchivos, msg: MsgError): void {
+    const e = estados.get(msg.id);
+    if (!e) return;
+    limpiarVigia(msg.id);
     intentosReintento.delete(msg.id);
+    const lado: LadoFallo = msg.lado ?? (e.rol === "enviar" ? "receptor" : "remitente");
+    const oferta = ofertasEnviadas.get(msg.id);
+    const hechas = reanudacionesAuto.get(msg.id) ?? 0;
+    if (e.rol === "enviar" && msg.motivo === "faltan-trozos" && oferta && archivosEnvio.has(msg.id) && hechas < 2 && !cancelados.has(msg.id)) {
+      reanudacionesAuto.set(msg.id, hechas + 1);
+      emitir({ ...e, fase: "reintentando", motivo: `${textoErrorRemoto({ ...msg, lado })} Reanudando solo (${hechas + 1}/2)…`, codigo: msg.motivo, lado, actualizadoMs: Date.now() });
+      canalPorId.set(msg.id, canalPorId.get(msg.id) ?? canal);
+      (canalPorId.get(msg.id) ?? canal).enviar(JSON.stringify(oferta));
+      return;
+    }
+    emitir({ ...e, fase: "error", motivo: textoErrorRemoto({ ...msg, lado }), codigo: msg.motivo, lado, actualizadoMs: Date.now() });
   }
 
   /* ---------------- receptor ---------------- */
+
+  /** (ARC1108A) Nombre de archivo para enseñar: sin control ni carpetas, ≤ 180 caracteres. */
+  function nombreSaneado(x: string): string {
+    const limpio = String(x ?? "").replace(CONTROL, "").split(/[\\/]/).pop()?.trim() ?? "";
+    return (limpio || "archivo").slice(0, 180);
+  }
+
+  /** (ARC1108A) Lo que la ventana del envío necesita de una oferta (todo saneado: viene del otro aparato). */
+  function extrasDeOferta(msg: MsgOferta, ctx: ContextoRecepcion): Partial<EstadoTransferencia> {
+    const extras: Partial<EstadoTransferencia> = { sha256: msg.sha256 };
+    const lote = sanearLote(msg.lote);
+    if (lote) {
+      extras.lote = lote;
+      if (typeof msg.loteTotal === "number" && Number.isInteger(msg.loteTotal) && msg.loteTotal > 0 && msg.loteTotal <= 10_000) extras.loteTotal = msg.loteTotal;
+    }
+    const mensaje = sanearMensajeEnvio(msg.loteMensaje);
+    if (mensaje) extras.mensaje = mensaje;
+    const ruta = sanearRutaRelativa(msg.ruta);
+    if (ruta) extras.ruta = ruta;
+    const vista = sanearVista(msg.vista);
+    if (vista) extras.vista = vista;
+    const inicio = sanearInicio(msg.inicioB64);
+    if (inicio) extras.inicioB64 = inicio;
+    if (ctx.via) extras.via = ctx.via.slice(0, 160);
+    if (ctx.verificacion) extras.verificacion = ctx.verificacion;
+    return extras;
+  }
+
+  /**
+   * (ARC1108A) Acepta: recuerda el hash esperado y que la persona aceptó ESTE archivo (un reintento con
+   * el mismo SHA-256 no vuelve a preguntar), pinta «transfiriendo» y pide los trozos desde el PRIMERO
+   * que falta (con huecos —varios caminos, una recarga— el primer hueco, no «el mayor + 1»).
+   */
+  function pedirTrozos(canal: CanalArchivos, oferta: MsgOferta, tenidos: Set<number>, estado: EstadoTransferencia): void {
+    const id = oferta.id;
+    hashesEsperados.set(id, oferta.sha256);
+    aceptadas.set(id, { sha256: oferta.sha256, tamano: oferta.tamano });
+    recibidosPorId.set(id, tenidos);
+    fallosAlmacen.delete(id);
+    const desde = primerFaltante(tenidos, oferta.trozos);
+    emitir({ ...estado, fase: "transfiriendo", progreso: tenidos.size, actualizadoMs: Date.now() });
+    const modo = modoPorId.get(id) ?? "base64";
+    canal.enviar(JSON.stringify({ t: "archivo.aceptar", id, modo, ...(desde > 0 ? { desde } : {}) } satisfies MsgAceptar));
+  }
 
   async function manejarOferta(canal: CanalArchivos, msg: MsgOferta, contexto?: ContextoRecepcion): Promise<void> {
     if (msg.tamano > MAX_BYTES) {
@@ -1054,10 +1529,25 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
       );
       return;
     }
+    if (!Number.isInteger(msg.trozos) || msg.trozos < 1 || msg.trozos > 1_000_000 || !(msg.tamano >= 0)) {
+      canal.enviar(JSON.stringify({ t: "archivo.rechazar", id: msg.id, motivo: "Oferta mal formada (trozos o tamaño imposibles)." } satisfies MsgRechazar));
+      return;
+    }
+    const ctx: ContextoRecepcion = contexto ?? { mismaCuenta: false };
+    // Una oferta nueva es un intento nuevo, aunque repita el id de uno cancelado (reintento).
+    cancelados.delete(msg.id);
     canalPorId.set(msg.id, canal);
     ofertasEntrantes.set(msg.id, msg);
-    const ctx: ContextoRecepcion = contexto ?? { mismaCuenta: false };
     if (ctx.nodoId) nodoPorId.set(msg.id, ctx.nodoId);
+    const previo = estados.get(msg.id);
+    // (ARC1108A) ¿La persona ya aceptó ESTE archivo (mismo id, SHA-256 y tamaño)? Es un reintento o una reanudación.
+    const yaAceptada = aceptadas.get(msg.id);
+    const mismoArchivo = !!yaAceptada && yaAceptada.sha256 === msg.sha256 && yaAceptada.tamano === msg.tamano;
+    if (mismoArchivo && previo?.rol === "recibir" && previo.fase === "completada" && blobsRecibidos.has(msg.id)) {
+      // Ya está aquí y verificado (el «ok» se perdió): se le repite al remitente sin pedir nada.
+      canal.enviar(JSON.stringify({ t: "archivo.ok", id: msg.id } satisfies MsgOk));
+      return;
+    }
     // Resonancia (§5.6): lo que la red ya sabe de este hash informa la política.
     // «Cuarentena y pregunta»: nunca auto-aceptar un hash en cuarentena, y un
     // aviso tampoco se esconde — pasa a «preguntar» con el motivo en la tarjeta.
@@ -1070,11 +1560,18 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
     };
     const aviso = avisoResonancia[resonancia.decision];
 
-    // Centinela (§5): analiza el archivo con lo que hay (primer trozo si llegó, si no inicio vacío).
-    const yaGuardados = await almacen.indicesGuardados(msg.id);
+    // Lo que ya hay de este archivo (reanudar tras recargar o tras un corte) y el centinela (§5), que
+    // analiza el inicio del archivo si su primer trozo ya está guardado (si no, el inicio vacío).
+    let yaGuardados: number[] = [];
+    try {
+      yaGuardados = (await almacen.indicesGuardados(msg.id)).filter((i) => Number.isInteger(i) && i >= 0 && i < msg.trozos);
+    } catch {
+      yaGuardados = [];
+    }
+    const tenidos = new Set<number>([...yaGuardados, ...(recibidosPorId.get(msg.id) ?? [])].filter((i) => i < msg.trozos));
     let inicioBuf = new Uint8Array(0);
-    if (yaGuardados.length > 0) {
-      const primerTrozo = await almacen.leerTrozo(msg.id, yaGuardados[0]);
+    if (tenidos.has(0)) {
+      const primerTrozo = await almacen.leerTrozo(msg.id, 0).catch(() => null);
       if (primerTrozo) inicioBuf = new Uint8Array(primerTrozo);
     }
     const analisisArchivo = analizarArchivo({
@@ -1085,27 +1582,26 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
     });
     const entrada = decidirEntrada(analisisArchivo, resonancia ? { decision: resonancia.decision } : null);
 
-    const desde = yaGuardados.length ? Math.max(...yaGuardados) + 1 : 0;
+    const base: EstadoTransferencia = {
+      id: msg.id,
+      rol: 'recibir',
+      nombre: nombreSaneado(msg.nombre),
+      tipo: msg.tipo,
+      tamano: msg.tamano,
+      trozos: msg.trozos,
+      progreso: tenidos.size,
+      fase: 'pendiente-aceptar',
+      destino: msg.destino,
+      origen: msg.origen ?? ctx.etiquetaOrigen,
+      inicioMs: Date.now(),
+      actualizadoMs: Date.now(),
+      ...extrasDeOferta(msg, ctx),
+    };
 
     // Aplicación inmediata del centinela (rechazar no pasa por política de recepción).
     if (entrada.accion === 'rechazar') {
       const motivoRechazo = entrada.texto ? `Rechazado por el centinela: ${entrada.texto}` : 'Rechazado por el centinela.';
-      const estadoRechazo: EstadoTransferencia = {
-        id: msg.id,
-        rol: 'recibir',
-        nombre: msg.nombre,
-        tipo: msg.tipo,
-        tamano: msg.tamano,
-        trozos: msg.trozos,
-        progreso: 0,
-        fase: 'rechazada',
-        motivo: motivoRechazo,
-        destino: msg.destino,
-        origen: msg.origen ?? ctx.etiquetaOrigen,
-        inicioMs: Date.now(),
-        actualizadoMs: Date.now(),
-      };
-      emitir(estadoRechazo);
+      emitir({ ...base, progreso: 0, fase: 'rechazada', motivo: motivoRechazo });
       canal.enviar(JSON.stringify({ t: 'archivo.rechazar', id: msg.id, motivo: motivoRechazo } satisfies MsgRechazar));
       ofertasEntrantes.delete(msg.id);
       return;
@@ -1116,28 +1612,19 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
     if (entrada.accion === 'avisar' && entrada.texto) {
       avisoFinal = aviso ? `${aviso} | ${entrada.texto}` : entrada.texto;
     }
-
-    const decision = await Promise.resolve((config.politica ?? politicaPorDefecto)(ctx));
+    const estadoBase: EstadoTransferencia = { ...base, ...(avisoFinal ? { motivo: avisoFinal } : {}) };
 
     // Negociar modo: si el oferente pide binario y nuestro canal lo soporta, usamos binario.
     const modo: ModoTransferencia = msg.modo === 'binario' && canal.enviarBinario ? 'binario' : 'base64';
     modoPorId.set(msg.id, modo);
 
-    const estadoBase: EstadoTransferencia = {
-      id: msg.id,
-      rol: 'recibir',
-      nombre: msg.nombre,
-      tipo: msg.tipo,
-      tamano: msg.tamano,
-      trozos: msg.trozos,
-      progreso: desde,
-      fase: 'pendiente-aceptar',
-      motivo: avisoFinal,
-      destino: msg.destino,
-      origen: msg.origen ?? ctx.etiquetaOrigen,
-      inicioMs: Date.now(),
-      actualizadoMs: Date.now(),
-    };
+    // (ARC1108A) Reintento o reanudación de algo ya aceptado: no se vuelve a preguntar.
+    if (mismoArchivo) {
+      pedirTrozos(canal, msg, tenidos, estadoBase);
+      return;
+    }
+
+    const decision = await Promise.resolve((config.politica ?? politicaPorDefecto)(ctx));
 
     if (decision === "denegar") {
       emitir({ ...estadoBase, fase: "rechazada", motivo: "Sin permiso para recibir archivos de esta cuenta." });
@@ -1147,104 +1634,221 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
     }
 
     if (decision === "auto-aceptar" && !avisoFinal) {
-      hashesEsperados.set(msg.id, msg.sha256);
-      recibidosPorId.set(msg.id, new Set(yaGuardados));
-      emitir({ ...estadoBase, fase: "transfiriendo" });
-      canal.enviar(JSON.stringify({ t: "archivo.aceptar", id: msg.id, modo, ...(desde > 0 ? { desde } : {}) } satisfies MsgAceptar));
+      pedirTrozos(canal, msg, tenidos, estadoBase);
       return;
     }
 
     // "preguntar": queda pendiente hasta que la UI llame aceptarOferta/rechazarOferta.
+    recibidosPorId.set(msg.id, tenidos);
     emitir(estadoBase);
     config.onOfertaEntrante?.({
       id: msg.id,
-      nombre: msg.nombre,
+      nombre: estadoBase.nombre,
       tipo: msg.tipo,
       tamano: msg.tamano,
       destino: msg.destino,
       origen: estadoBase.origen,
+      ...(estadoBase.lote ? { lote: estadoBase.lote } : {}),
+      ...(estadoBase.ruta ? { ruta: estadoBase.ruta } : {}),
     });
   }
 
   function aceptarOferta(id: string): void {
     const oferta = ofertasEntrantes.get(id);
     const canal = canalPorId.get(id);
-    if (!oferta || !canal) return;
-    hashesEsperados.set(id, oferta.sha256);
-    const yaGuardados = recibidosPorId.get(id) ?? new Set<number>();
-    recibidosPorId.set(id, yaGuardados);
-    const desde = yaGuardados.size ? Math.max(...Array.from(yaGuardados)) + 1 : 0;
-    actualizarFase(id, "transfiriendo");
-    // Incluir modo negociado en la aceptación manual.
-    const modo = modoPorId.get(id) ?? "base64";
-    canal.enviar(JSON.stringify({ t: "archivo.aceptar", id, modo, ...(desde > 0 ? { desde } : {}) } satisfies MsgAceptar));
+    const e = estados.get(id);
+    // Solo lo que espera respuesta (un doble clic, o «Aceptar todos» tras aceptar uno, no repite nada).
+    if (!oferta || !canal || !e || e.fase !== "pendiente-aceptar") return;
+    pedirTrozos(canal, oferta, recibidosPorId.get(id) ?? new Set<number>(), e);
   }
 
   function rechazarOferta(id: string, motivo = "Rechazado por el usuario."): void {
+    const e = estados.get(id);
+    if (e && e.rol === "recibir" && e.fase === "completada") return;
     const canal = canalPorId.get(id);
     actualizarFase(id, "rechazada", motivo);
     canal?.enviar(JSON.stringify({ t: "archivo.rechazar", id, motivo } satisfies MsgRechazar));
     ofertasEntrantes.delete(id);
   }
 
-  async function manejarChunk(msg: MsgChunk): Promise<void> {
-    if (cancelados.has(msg.id)) return;
-    let set = recibidosPorId.get(msg.id);
+  /**
+   * (ARC1108A) Un trozo que llega (base64 o binario, por cualquier camino). CAUSA RAÍZ del
+   * «hash-no-coincide» de la prueba del 08-11: el camino binario guardaba el trozo SIN esperar y lo
+   * contaba como recibido en el acto; con un almacén asíncrono (OPFS/IndexedDB), «fin» verificaba
+   * antes de que la escritura terminara y leía un trozo vacío. Ahora los dos caminos pasan por aquí: el
+   * trozo cuenta SOLO cuando el almacén terminó de guardarlo, un duplicado (trama reenviada, varios
+   * caminos) no se escribe dos veces y un fallo del almacén se recuerda para decirlo, nunca en silencio.
+   */
+  async function recibirTrozo(id: string, index: number, datosDe: () => ArrayBuffer | null): Promise<void> {
+    if (cancelados.has(id) || !Number.isInteger(index) || index < 0) return;
+    const estado = estados.get(id);
+    if (estado) {
+      if (estado.rol !== "recibir" || index >= estado.trozos) return;
+      // Solo mientras se recibe: nada de escribir después de verificar, rechazar o fallar.
+      if (estado.fase !== "transfiriendo" && estado.fase !== "verificando" && estado.fase !== "reintentando") return;
+    }
+    let set = recibidosPorId.get(id);
     if (!set) {
       set = new Set<number>();
-      recibidosPorId.set(msg.id, set);
+      recibidosPorId.set(id, set);
     }
-    if (set.has(msg.index)) return; // duplicado: ignorar (idempotente)
-    const datos = b64ABuf(msg.datosB64);
-    await almacen.guardarTrozo(msg.id, msg.index, datos);
-    set.add(msg.index);
-    actualizarProgreso(msg.id, set.size);
+    if (set.has(index)) return; // duplicado ya guardado
+    let enVuelo = escrituras.get(id);
+    if (!enVuelo) {
+      enVuelo = new Map();
+      escrituras.set(id, enVuelo);
+    }
+    if (enVuelo.has(index)) return; // duplicado que llega mientras el primero se guarda
+    let datos: ArrayBuffer | null = null;
+    try {
+      datos = datosDe();
+    } catch {
+      datos = null;
+    }
+    if (!datos) return;
+    const escritura = almacen.guardarTrozo(id, index, datos).then(
+      () => null,
+      (e: unknown) => (e instanceof Error ? e.message : String(e)) || "error desconocido",
+    );
+    enVuelo.set(index, escritura);
+    const fallo = await escritura;
+    enVuelo.delete(index);
+    if (fallo) {
+      if (!fallosAlmacen.has(id)) fallosAlmacen.set(id, `el trozo ${index} no se pudo guardar en ${almacen.tipo ?? "el almacenamiento"} (${fallo})`);
+      return;
+    }
+    if (cancelados.has(id)) return;
+    const actual = recibidosPorId.get(id);
+    if (!actual) return; // la transferencia se limpió mientras se guardaba
+    actual.add(index);
+    actualizarProgreso(id, actual.size);
+  }
+
+  /** (ARC1108A) Espera a que terminen TODAS las escrituras en curso de una transferencia. */
+  async function esperarEscrituras(id: string): Promise<void> {
+    for (let vueltas = 0; vueltas < 1000; vueltas++) {
+      const enVuelo = escrituras.get(id);
+      if (!enVuelo || enVuelo.size === 0) return;
+      await Promise.all(Array.from(enVuelo.values()));
+    }
+  }
+
+  /**
+   * (ARC1108A) Falla la recepción DICIÉNDOLO: la burbuja de aquí y la del remitente explican qué pasó y
+   * en qué lado. `limpiar: false` conserva los trozos (si solo faltaban algunos, se reanuda desde ahí).
+   */
+  async function fallarRecepcion(canal: CanalArchivos, id: string, codigo: string, detalle: string, opciones: { limpiar: boolean; desde?: number }): Promise<void> {
+    const e = estados.get(id);
+    if (e) {
+      emitir({ ...e, fase: "error", motivo: `Falló en este aparato (receptor): ${describirErrorArchivo(codigo)} — ${detalle}.`, codigo, lado: "receptor", actualizadoMs: Date.now() });
+    }
+    const salida = canalPorId.get(id) ?? canal;
+    salida.enviar(JSON.stringify({ t: "archivo.error", id, motivo: codigo, detalle, lado: "receptor", ...(opciones.desde !== undefined ? { desde: opciones.desde } : {}) } satisfies MsgError));
+    fallosAlmacen.delete(id);
+    if (opciones.limpiar) {
+      await almacen.limpiar(id).catch(() => undefined);
+      recibidosPorId.delete(id);
+      escrituras.delete(id);
+    }
   }
 
   async function manejarFin(canal: CanalArchivos, msg: MsgFin): Promise<void> {
-    const estado = estados.get(msg.id);
-    if (!estado) return;
-    if (cancelados.has(msg.id)) return;
-    actualizarFase(msg.id, "verificando");
-    // (2026-10-10 · transporte universal) Por VARIOS enlaces a la vez (`canal-multitrayecto.ts`)
-    // el «fin» puede llegar antes que el último trozo de otro camino: se espera a tenerlos todos
-    // (como mucho 15 s) antes de verificar. Con un solo canal no espera nada.
-    for (let t0 = Date.now(); (recibidosPorId.get(msg.id)?.size ?? 0) < estado.trozos && Date.now() - t0 < 15_000; ) {
-      if (cancelados.has(msg.id)) return;
-      await esperar(50);
-    }
-    const leerTrozo = async (i: number) => (await almacen.leerTrozo(msg.id, i)) ?? new ArrayBuffer(0);
-    const { raiz } = await calcularHashLista(leerTrozo, estado.trozos);
-    const esperado = hashesEsperados.get(msg.id);
-    if (esperado && raiz !== esperado) {
-      // Trama que no supera la autoverificación: pesa contra la neurona que la envió (§5.6).
-      aplicarEventoA(msg.id, "trama-corrupta");
-      actualizarFase(msg.id, "error", "La verificación de integridad (SHA-256) no coincide: el archivo llegó dañado o alterado.");
-      canal.enviar(JSON.stringify({ t: "archivo.error", id: msg.id, motivo: "hash-no-coincide" } satisfies MsgError));
-      await almacen.limpiar(msg.id);
-      recibidosPorId.delete(msg.id);
+    const id = msg.id;
+    const estado = estados.get(id);
+    if (!estado || estado.rol !== "recibir" || cancelados.has(id)) return;
+    if (estado.fase === "completada") {
+      // (ARC1108A) «fin» repetido (su trama se reenvió al perderse el acuse): el archivo YA está
+      // verificado y ensamblado; se repite el «ok» y no se toca nada (antes se reensamblaba sobre el
+      // almacén ya limpio y el archivo recibido quedaba VACÍO, o se mandaba un «hash-no-coincide»).
+      canal.enviar(JSON.stringify({ t: "archivo.ok", id } satisfies MsgOk));
       return;
     }
-    const blob = await almacen.ensamblar(msg.id, estado.tipo);
-    blobsRecibidos.set(msg.id, blob);
-    // Integridad verificada por la neurona origen: la confianza sube.
-    aplicarEventoA(msg.id, "firma-ok");
-    actualizarFase(msg.id, "completada");
-    canal.enviar(JSON.stringify({ t: "archivo.ok", id: msg.id } satisfies MsgOk));
-    config.onCompletado?.(estados.get(msg.id) as EstadoTransferencia, blob);
-    await almacen.limpiar(msg.id);
-    recibidosPorId.delete(msg.id);
-    hashesEsperados.delete(msg.id);
-    ofertasEntrantes.delete(msg.id);
+    if (estado.fase !== "transfiriendo" && estado.fase !== "reintentando") return;
+    if (verificandoFin.has(id)) return; // otro «fin» de la misma transferencia ya se está verificando
+    verificandoFin.add(id);
+    try {
+      actualizarFase(id, "verificando");
+      // (2026-10-10 · transporte universal) Por VARIOS enlaces a la vez (`canal-multitrayecto.ts`)
+      // el «fin» puede llegar antes que el último trozo de otro camino: se espera a tenerlos todos
+      // (como mucho 15 s) antes de verificar. Con un solo canal no espera nada.
+      for (let t0 = Date.now(); (recibidosPorId.get(id)?.size ?? 0) < estado.trozos && Date.now() - t0 < ESPERA_FALTANTES_MS; ) {
+        if (cancelados.has(id)) return;
+        if (fallosAlmacen.has(id) && (escrituras.get(id)?.size ?? 0) === 0) break;
+        await esperar(50);
+      }
+      // (ARC1108A) Y a que terminen TODAS las escrituras: nunca se verifica a medio guardar.
+      await esperarEscrituras(id);
+      if (cancelados.has(id)) return;
+      const fallo = fallosAlmacen.get(id);
+      if (fallo) {
+        await fallarRecepcion(canal, id, "almacen-receptor", fallo, { limpiar: true });
+        return;
+      }
+      const tenidos = recibidosPorId.get(id) ?? new Set<number>();
+      const faltan: number[] = [];
+      for (let i = 0; i < estado.trozos; i++) if (!tenidos.has(i)) faltan.push(i);
+      if (faltan.length) {
+        // Se conservan los trozos: el remitente reanuda desde el primero que falta.
+        await fallarRecepcion(
+          canal,
+          id,
+          "faltan-trozos",
+          `llegaron ${estado.trozos - faltan.length} de ${estado.trozos} trozos (falta el ${faltan[0]}${faltan.length > 1 ? ` y ${faltan.length - 1} más` : ""})`,
+          { limpiar: false, desde: faltan[0] },
+        );
+        return;
+      }
+      let ilegible: number | null = null;
+      const leerTrozo = async (i: number) => {
+        const d = await almacen.leerTrozo(id, i).catch(() => null);
+        if (d) return d;
+        ilegible ??= i;
+        return new ArrayBuffer(0);
+      };
+      const { raiz } = await calcularHashLista(leerTrozo, estado.trozos);
+      if (ilegible !== null) {
+        await fallarRecepcion(canal, id, "almacen-receptor", `el trozo ${ilegible} no se pudo releer de ${almacen.tipo ?? "el almacenamiento"}`, { limpiar: true });
+        return;
+      }
+      const esperado = hashesEsperados.get(id);
+      if (esperado && raiz !== esperado) {
+        // Trama que no supera la autoverificación: pesa contra la neurona que la envió (§5.6).
+        aplicarEventoA(id, "trama-corrupta");
+        await fallarRecepcion(canal, id, "hash-no-coincide", `llegaron los ${estado.trozos} trozos, guardados en ${almacen.tipo ?? "el almacenamiento"}, pero su SHA-256 no es el del original`, { limpiar: true });
+        return;
+      }
+      const blob = await almacen.ensamblar(id, estado.tipo);
+      if (blob.size !== estado.tamano) {
+        await fallarRecepcion(canal, id, "almacen-receptor", `el archivo ensamblado mide ${blob.size} B y no los ${estado.tamano} B anunciados`, { limpiar: true });
+        return;
+      }
+      blobsRecibidos.set(id, blob);
+      // Integridad verificada por la neurona origen: la confianza sube.
+      aplicarEventoA(id, "firma-ok");
+      actualizarFase(id, "completada");
+      canal.enviar(JSON.stringify({ t: "archivo.ok", id } satisfies MsgOk));
+      config.onCompletado?.(estados.get(id) as EstadoTransferencia, blob);
+      await almacen.limpiar(id).catch(() => undefined);
+      recibidosPorId.delete(id);
+      hashesEsperados.delete(id);
+      ofertasEntrantes.delete(id);
+      escrituras.delete(id);
+    } catch (e) {
+      await fallarRecepcion(canal, id, "fallo-verificacion", e instanceof Error ? e.message : String(e), { limpiar: false }).catch(() => undefined);
+    } finally {
+      verificandoFin.delete(id);
+    }
   }
 
   function manejarCancelarRemoto(msg: MsgCancelar): void {
     cancelados.add(msg.id);
+    limpiarVigia(msg.id);
     actualizarFase(msg.id, "cancelada");
   }
 
   function cancelar(id: string): void {
     cancelados.add(id);
+    limpiarVigia(id);
     const canal = canalPorId.get(id);
     canal?.enviar(JSON.stringify({ t: "archivo.cancelar", id } satisfies MsgCancelar));
     actualizarFase(id, "cancelada");
@@ -1267,9 +1871,11 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
         case "archivo.rechazar":
           manejarRechazar(msg);
           break;
-        case "archivo.chunk":
-          void manejarChunk(msg);
+        case "archivo.chunk": {
+          const b64 = msg.datosB64;
+          void recibirTrozo(msg.id, msg.index, () => b64ABuf(b64));
           break;
+        }
         case "archivo.fin":
           void manejarFin(canal, msg);
           break;
@@ -1277,7 +1883,7 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
           manejarOk(msg);
           break;
         case "archivo.error":
-          manejarErrorRemoto(msg);
+          manejarErrorRemoto(canal, msg);
           break;
         case "archivo.cancelar":
           manejarCancelarRemoto(msg);
@@ -1286,21 +1892,17 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
           break;
       }
     } else {
-      // Camino binario: trozo codificado con encodeChunkBinario.
-      const dec = decodeChunkBinario(data);
+      // Camino binario: trozo codificado con encodeChunkBinario (un ArrayBuffer; por si un canal da
+      // una vista, se copian sus bytes exactos). Pasa por `recibirTrozo` igual que el base64.
+      const buf: ArrayBuffer | null =
+        data instanceof ArrayBuffer
+          ? data
+          : ArrayBuffer.isView(data)
+            ? ((data as ArrayBufferView).buffer.slice((data as ArrayBufferView).byteOffset, (data as ArrayBufferView).byteOffset + (data as ArrayBufferView).byteLength) as ArrayBuffer)
+            : null;
+      const dec = buf ? decodeChunkBinario(buf) : null;
       if (!dec) return;
-      // Procesar trozo binario igual que manejarChunk pero con datos ya decodificados.
-      if (cancelados.has(dec.id)) return;
-      let set = recibidosPorId.get(dec.id);
-      if (!set) {
-        set = new Set<number>();
-        recibidosPorId.set(dec.id, set);
-      }
-      if (set.has(dec.index)) return; // duplicado
-      // Guardar trozo directamente (ya es ArrayBuffer crudo).
-      almacen.guardarTrozo(dec.id, dec.index, dec.datos);
-      set.add(dec.index);
-      actualizarProgreso(dec.id, set.size);
+      void recibirTrozo(dec.id, dec.index, () => dec.datos);
     }
   }
 
@@ -1385,7 +1987,13 @@ export function iniciarMotorArchivosPorMalla(motor: MotorArchivos = motorArchivo
           canal = canalDesdeMesh(mesh, peerId);
           canalesPorPeer.set(peerId, canal);
         }
-        motor.manejarMensaje(canal, data, { mismaCuenta: true, etiquetaOrigen: etiquetaDePeer?.(peerId), nodoId: peerId });
+        motor.manejarMensaje(canal, data, {
+          mismaCuenta: true,
+          etiquetaOrigen: etiquetaDePeer?.(peerId),
+          nodoId: peerId,
+          via: "Malla de tu cuenta (WebRTC)",
+          verificacion: { tipo: "cuenta", texto: "Aparato de tu misma cuenta (sesión verificada)" },
+        });
       },
       onState: (snap: PeerSnapshot) => {
         if (snap.state === "closed" || snap.state === "failed") canalesPorPeer.delete(snap.deviceId);
