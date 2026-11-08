@@ -1,6 +1,6 @@
 # Genesis · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-08 16:53:42 desde Genesis vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-08 17:07:05 desde Genesis vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -16,16 +16,18 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | Agentes escribiendo | **0** |
 | En esta ola | integradas 0 · en curso 0 · esperando aprobación 0 · pendientes 15 |
 | Últimas 4 olas | en curso 0 · pendientes 100 · integradas 0 |
-| HEAD | `4b235af7be chore(memoria): aprendizaje de la ola auto-1108-161716` |
-| Sin publicar | 11 commits |
+| HEAD | `1b8fb56e20 chore(memoria): aprendizaje de la ola auto-1108-165402` |
+| Sin publicar | 9 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-1108-161716.json`, hace 17s)
+## Quién escribe ahora (latido de `cola-auto-1108-165402.json`, hace 30s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `BZN1108C` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 7 min | 399 s | 84039 |
-| `BZN1108B` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 12 min | 750 s | 86093 |
+| `IRD11083` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 3 min | 176 s | 780 |
+| `IRD11082` | hecho | groq/openai/gpt-oss-120b | 6 min | 346 s | 541 |
+| `IRD11081` | hecho | nim/minimaxai/minimax-m3.1-flash | 6 min | 353 s | 447 |
+| `BZN1108C` | hecho | nvidia/nvidia/nemotron-3-super-120 | 6 min | 370 s | 136916 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
