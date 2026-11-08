@@ -104,6 +104,53 @@ def test_revert_a_medias_se_archiva_igual(tmp_path):
     _g(repo, "worktree", "remove", str(wt))
 
 
+def _secuenciador(wt):
+    p = _g(wt, "rev-parse", "--git-path", "sequencer").strip()
+    return p if os.path.isabs(p) else os.path.join(str(wt), p)
+
+
+def test_cherry_pick_sin_commit_de_varios_a_medias_se_archiva(tmp_path):
+    """(SUP0811J) Lo que dejó el integrador en 8 worktrees de verdad (08-11): `cherry-pick -n` de VARIOS
+    commits con conflicto. git guarda `sequencer/` y NO escribe CHERRY_PICK_HEAD (con --no-commit no lo
+    hace), pero `switch` se niega igual: «cannot switch branch while cherry-picking»."""
+    repo, wt = _repo_con_worktree(tmp_path)
+    (wt / "a.txt").write_text("la tarea lo escribió\n")
+    _g(wt, "add", "-A")
+    _g(wt, "commit", "-q", "-m", "en T1")
+    _g(repo, "checkout", "-q", "-b", "otro", "main")
+    (repo / "a.txt").write_text("otro lo pisó\n")
+    _g(repo, "add", "-A")
+    _g(repo, "commit", "-q", "-m", "de otro 1")
+    sha1 = _g(repo, "rev-parse", "HEAD").strip()
+    (repo / "b.txt").write_text("de otro 2\n")
+    _g(repo, "add", "-A")
+    _g(repo, "commit", "-q", "-m", "de otro 2")
+    sha2 = _g(repo, "rev-parse", "HEAD").strip()
+    _g(repo, "checkout", "-q", "main")
+    _g_y_conflicto(wt, "cherry-pick", "-n", sha1, sha2)  # conflicto en el primero: a.txt
+    assert not _hay_ref(wt, "CHERRY_PICK_HEAD")
+    assert os.path.isdir(_secuenciador(wt))
+    tipo, corto = A.a_medias(str(wt))  # `todo` guarda el sha abreviado
+    assert tipo == "cherry-pick" and len(corto) >= 7 and sha1.startswith(corto)
+    ok, rama = A.archivar(str(wt), "T1", "2026-10-20")
+    assert ok and rama == "archivo-wt/T1", rama
+    assert not os.path.isdir(_secuenciador(wt))
+    guardado = _g(repo, "show", "archivo-wt/T1:a.txt")
+    assert "la tarea lo escribió" in guardado and "otro lo pisó" in guardado and "<<<<<<<" in guardado
+    assert "estaba a mitad del cherry-pick de %s" % corto in _g(repo, "log", "-1", "--format=%B", rama)
+    assert _g(repo, "show", "ola/T1:a.txt") == "la tarea lo escribió\n"  # la rama de la tarea no se toca
+    assert A.sucio(str(wt)) == 0
+    _g(repo, "worktree", "remove", str(wt))
+    assert not wt.exists()
+
+
+def test_sin_nada_a_medias_no_hay_secuenciador(tmp_path):
+    repo, wt = _repo_con_worktree(tmp_path)
+    assert A.a_medias(str(wt)) is None
+    (wt / "a.txt").write_text("cambio suelto\n")
+    assert A.a_medias(str(wt)) is None
+
+
 def test_archivar_dos_veces_no_pisa_la_rama_anterior(tmp_path):
     repo, wt = _repo_con_worktree(tmp_path)
     (wt / "a.txt").write_text("primera\n")

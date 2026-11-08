@@ -52,12 +52,35 @@ def nombre_rama(nombre, existentes, hoy):
 
 
 def a_medias(ruta):
-    """PURA de solo-lectura: (tipo, sha) si hay un cherry-pick o un revert a medias, si no None."""
+    """PURA de solo-lectura: (tipo, sha) si hay un cherry-pick o un revert a medias, si no None.
+
+    (SUP0811J, 08-11) El integrador hace `cherry-pick -n` de VARIOS commits: git guarda lo que falta
+    en `sequencer/` y, con --no-commit, NO escribe CHERRY_PICK_HEAD. `switch` se niega igual
+    («cannot switch branch while cherry-picking»), así que el estado del secuenciador también cuenta;
+    el tipo y el sha salen de la primera línea de `sequencer/todo` (la orden que quedó a medias)."""
     for tipo, ref in (("cherry-pick", "CHERRY_PICK_HEAD"), ("revert", "REVERT_HEAD")):
         rc, out = git(ruta, "rev-parse", "-q", "--verify", ref)
         if rc == 0 and out.strip():
             return tipo, out.strip()
-    return None
+    rc, out = git(ruta, "rev-parse", "--git-path", "sequencer")
+    sec = out.strip().splitlines()[0].strip() if rc == 0 and out.strip() else ""  # stdout va delante
+    if not sec:
+        return None
+    sec = sec if os.path.isabs(sec) else os.path.join(ruta, sec)
+    if not os.path.isdir(sec):
+        return None
+    tipo, sha = "cherry-pick", "?"
+    try:
+        with open(os.path.join(sec, "todo"), encoding="utf-8", errors="replace") as f:
+            for linea in f:
+                partes = linea.split()
+                if len(partes) >= 2 and not partes[0].startswith("#"):
+                    tipo = "revert" if partes[0] == "revert" else "cherry-pick"
+                    sha = partes[1]
+                    break
+    except OSError:
+        pass
+    return tipo, sha
 
 
 def archivar(ruta, nombre, hoy):
