@@ -90,6 +90,46 @@ Lo que ya existe se envuelve con este contrato: red local nativa, WebRTC local, 
 
 Cada perfil dice qué detecta, qué ofrece y qué permisos pide. Si el hardware no está, el sistema sigue con lo que hay. Al flashear o reconfigurar un router siempre decide la persona, con aviso.
 
+### 4.1 · F0 hecha en código: `ConectorMedio`, planificador único y Mapa de vías (MED1108B · 2026-11-08)
+
+Carpeta nueva `src/lib/malla/conectores/` (no confundir con `src/lib/mensajeria/medios/`, que son los medios de un chat).
+
+**Interfaz** (`tipos.ts`): `id`, `tipo`, `etiqueta`, `descubrir()` (enlaces vivos, leídos de los registros que ya hay), `enlazar(destino)`,
+`enviar(enlaceId, datos)`, `alRecibir(cb)` (devuelve la baja), `cerrar(enlaceId?)` y `ficha(enlace?)`. Ninguna lanza hacia arriba.
+`registrarConector(c)` (`registro.ts`) enchufa hardware o firmware nuevo y devuelve la función que lo quita; `descubrirVias()` junta los enlaces de todos con la ficha de su conector.
+
+**Ficha de capacidades** (`FichaCapacidades`, `fichas.ts`): `anchoKbps` y `latenciaMs` (medidos; `null` si no hay medida, nada se inventa), `mtu`, `alcanceM`,
+`energia`, `tiempoAire` (`escaso`/`normal`/`libre`), `coste` (`gratis`/`datos`/`servidor`), `privacidad` (`local`/`cuenta`/`servidor`), `llevaFlujos`,
+`cifrado` (el `cifrado` de CIF1108A del enlace, o `propio` en WebRTC), `permisos` y `medida` (true si hay cifras reales). Lo medido del enlace manda sobre el valor de diseño.
+
+**Adaptadores base** (`adaptadores.ts`): `local`, `nativo` (el TCP 47071; el Wi‑Fi directo viaja por él), `ble`, `cuenta`, `par`, `rele` y `lora`.
+Solo leen `enlacesDisponibles()`; no cambian el transporte. Solo `local` envía/recibe/cierra por su registro; el resto lo sigue enviando el transporte universal.
+Pendientes de enchufar (F6): Meshtastic por serie nativo, RNode/Reticulum, routers OpenWrt y nodos base.
+
+**Planificador** (`planificador-vias.ts`, puro): `planificarVias(dato, vias, contexto)` devuelve `pasos` ordenados, `rechazadas` con motivo, `reparto` multitrayecto
+(archivos ≥ 1 MiB con 2+ enlaces del mismo aparato), `escalera` y `escalon` (§9: vídeo → audio → paramétrico; miniatura primero por Bluetooth; LoRa ≤ 200 B → solo aviso),
+`miniaturaPrimero` y `proponer`/`propuestas` (p. ej. Wi‑Fi directo para un archivo grande por Bluetooth). La regla de orden es `evaluarEnlaces`, movida desde
+`elegirEnlaces` sin cambios; `elegirEnlaces` delega en ella y una matriz de más de 4.000 casos (`__tests__/caracterizacion-eleccion.test.ts`) fija que devuelve lo mismo que antes.
+
+**Los 8 elegidores y cómo delegarán**
+
+| Elegidor | Estado | Cómo delega |
+|---|---|---|
+| `elegirEnlaces` / `alcanzaDestino` (`malla/eleccion-enlace.ts`) | **Hecho** | `elegirEnlaces` → `evaluarEnlaces`; resultado idéntico (caracterización) |
+| `planTransmission` (`synaptic-router.ts`) | Pendiente | Convertir sus candidatos a `ViaViva` y usar `planificarVias`; hoy pondera por salto/riesgo, que el planificador aún no modela |
+| `decideRoute` (`decision-router.ts`) | Pendiente | Igual: su `puntuar` ya cabe en `OpcionesEleccion.puntuar`; falta equivalencia de sus umbrales |
+| CAMR (`camr/*`) | Pendiente | `camr/enlaces.ts` (adaptadores en blanco) pasa a leer `descubrirVias()`; la política «masivo» ya reutiliza `planReparto` |
+| `planParaDatos` (`mensajeria/neuronas/datos-neurona.ts`) | Pendiente (agente de mensajería) | `DatoVia{tipo:"mensaje"/"archivo"}` + `planificarVias`; no se toca desde MED1108B |
+| `planDeEnvio` (`malla/sincronizacion-neuronas.ts`) | Pendiente | `DatoVia{tipo:"control"}` sobre los enlaces de neurona |
+| `planLlamadaChat` (`llamadas/medio-llamada-chat.ts`) | Pendiente (agente de llamadas) | `flujo-audio`/`flujo-video`/`pantalla`: la escalera ya da voz por Bluetooth y vídeo por Wi‑Fi |
+| `mediosParaEnviar` / `recorrerPlan` (`mensajeria/medios/*`) | Pendiente (agente de mensajería) | Cada `PasoVia` es un intento de `recorrerPlan`, con el motivo ya escrito |
+
+Los tres últimos y `planParaDatos` viven en carpetas que llevan otros agentes: se migran cuando terminen, con sus pruebas actuales como red.
+
+**Mapa de vías** (solo lectura): panel `src/components/malla/panel-mapa-vias.tsx`, montado en Señales (pestaña Antenas, bajo la Retícula).
+Por cada uno de los 14 sistemas cruza los conectores vivos con la tabla de `mapa-vias-datos.ts` (copia del §2 y único sitio que hay que tocar cuando una fase aterriza):
+si funciona ahora, por qué medio (con su estado de cifrado) y qué falta.
+
 ## 5 · Capa 2 · Vías
 - **Un planificador único.** Hoy hay 8 elegidores: `elegirEnlaces`, `planTransmission`, `decideRoute`, CAMR, `planParaDatos`, `planDeEnvio`, `planLlamadaChat` y `mediosParaEnviar`. Se unen en uno que lee las fichas de §4 y elige por dato según tamaño, urgencia, privacidad, energía y coste. Puede repartir un archivo entre varios medios a la vez (multitrayecto) y cambia de medio en caliente cuando aparece uno mejor.
 - **Guardar y reenviar.** Si no hay ruta ahora, el dato espera firmado y sale cuando la haya. Es la base del correo por la malla, ampliada a todo.
