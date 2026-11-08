@@ -44,6 +44,7 @@ import { createMesh, type MeshHandle, type PeerSnapshot } from "@/lib/network/we
 import { crearTransporteSenalPar } from "@/lib/network/par-signaling";
 import { exportPubJwk, derivarClaveParHex, topicDePar } from "@/lib/network/par-crypto";
 import { rolEnVinculo, type EstadoVinculo, type RolVinculo } from "@/lib/network/vinculos-transiciones";
+import { suscribirCambiosVinculos, type ClienteVinculosRealtime } from "@/lib/network/vinculos-realtime";
 // Contrato «consumo» (2026-09-29): id de cuenta sin red + bucle de la pestaña líder.
 import { uidActual } from "@/lib/consumo/usuario";
 import { esLider, alCambiarLider } from "@/lib/consumo/lider-pestana";
@@ -527,17 +528,25 @@ export function useVinculosEntreCuentas(deps?: {
       void mesh.connectToDevice(targetDevice);
     };
 
+    /** Suelta el canal Realtime al perder el liderazgo, cambiar de cuenta o desmontar. */
+    let soltarRealtime: (() => void) | null = null;
+    let uidRealtime: string | null = null;
+    let sincronizarRealtime: (uid: string | null, lider: boolean) => void = () => {};
+
     /** Publica las filas para la UI y, SOLO en la pestaña líder, abre/cierra los mesh de par. */
     const aplicarFilas = (filas: Record<string, unknown>[], uid: string | null) => {
       if (cancelado) return;
       ultimasFilas = { filas, uid };
       if (!uid) {
         publicarFilas([]);
+        sincronizarRealtime(null, false);
         return;
       }
       const rows = filas.map((r) => filaARow(r, uid));
       publicarFilas(rows);
-      if (!liderSeguro()) return;
+      const lider = liderSeguro();
+      sincronizarRealtime(uid, lider);
+      if (!lider) return;
       const idsVigentes = new Set(rows.filter((r) => r.estado === "aceptado").map((r) => r.id));
       for (const row of rows) void abrirMeshDeVinculo(row);
       for (const vinculoId of Array.from(meshesRef.current.keys())) {
@@ -586,13 +595,41 @@ export function useVinculosEntreCuentas(deps?: {
     });
     bucle.iniciar();
 
-    // Heredar el liderazgo abre los mesh; perderlo los cierra (una conexión por dispositivo).
+    // Realtime SOLO en la pestaña líder con uid: lo de la otra cuenta llega al
+    // momento, no al próximo sondeo (que sigue de red de seguridad).
+    sincronizarRealtime = (uid, lider) => {
+      const debe = Boolean(lider && uid);
+      if (soltarRealtime && (!debe || uidRealtime !== uid)) {
+        try { soltarRealtime(); } catch { /* noop */ }
+        soltarRealtime = null;
+      }
+      if (!debe || soltarRealtime || !uid) return;
+      uidRealtime = uid;
+      try {
+        soltarRealtime = suscribirCambiosVinculos(
+          createClient() as unknown as ClienteVinculosRealtime,
+          uid,
+          () => void bucle.ahora(),
+        );
+      } catch {
+        soltarRealtime = null;
+      }
+    };
+
+    // Heredar el liderazgo abre los mesh y el Realtime; perderlo los cierra.
     let liderOff: (() => void) | null = null;
     try {
       liderOff = alCambiarLider((lider) => {
         if (cancelado) return;
         if (lider && ultimasFilas) aplicarFilas(ultimasFilas.filas, ultimasFilas.uid);
+        if (lider && !ultimasFilas) {
+          void (async () => {
+            const uid = (await (deps?.ownerId?.() ?? miOwnerId())) ?? null;
+            if (!cancelado) sincronizarRealtime(uid, liderSeguro());
+          })();
+        }
         if (!lider) {
+          sincronizarRealtime(ultimasFilas?.uid ?? null, false);
           for (const vinculoId of Array.from(meshesRef.current.keys())) cerrarMesh(vinculoId);
           refrescarPeers();
         }
@@ -610,6 +647,7 @@ export function useVinculosEntreCuentas(deps?: {
 
     return () => {
       cancelado = true;
+      sincronizarRealtime(null, false);
       bucle.detener();
       liderOff?.();
       if (forzarSondeoAhora) forzarSondeoAhora = null;
