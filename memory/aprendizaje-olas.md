@@ -6118,3 +6118,15 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 
 **Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
 - nvidia/nvidia/nemotron-3-ultra-550b-a55b integró 2 tareas sin fallar una.
+
+## 2026-11-08 01:12 · auto-1108-002254
+
+**Lo que se pidió.** mejoras detectadas
+
+**Resultado.** 2 de 3 integradas. 1 tarea se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- nvidia/nvidia/nemotron-3-ultra-550b-a55b integró 2 tareas sin fallar una.
+
+**Lo que quedó fuera, una por una:**
+- `DR1108-2` — no escribió nada
