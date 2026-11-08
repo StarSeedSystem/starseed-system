@@ -95,6 +95,13 @@ Cada perfil dice qué detecta, qué ofrece y qué permisos pide. Si el hardware 
 - **Guardar y reenviar.** Si no hay ruta ahora, el dato espera firmado y sale cuando la haya. Es la base del correo por la malla, ampliada a todo.
 - **Multisalto con consentimiento.** Las neuronas vecinas, también de otras cuentas, pueden pasar datos cifrados que no pueden leer. Cada persona decide si su neurona hace de relevo, con tope de batería y de datos.
 - **Cifrado E2E en todos los medios.** Primero, cifrar el canal TCP 47071; el Bluetooth y el Wi‑Fi directo nacen cifrados. Se usa el trinquete existente: ECDH, HKDF, AES‑GCM y rotación de claves.
+  - **Capa de sesión (CIF1108A, 2026-11-08; detalle en `datos-por-la-malla.md` §6.7).** Hecha para el TCP 47071 (que también lleva el Wi‑Fi directo) y para el Bluetooth LE; el inventario halló que ambos llevaban los datos en claro (solo el saludo iba firmado).
+  - Se cifra en TypeScript, encima del canal, porque el Rust solo traslada tramas JSON opacas. Módulo puro `src/lib/malla/sesion-cifrada.ts`, sin dependencias nuevas.
+  - Acuerdo `nl.cs` firmado con la identidad que el saludo ya probó: ECDH P‑256 efímero → HKDF‑SHA256 → una clave AES‑256‑GCM por sentido, nonce con contador y rechazo de repeticiones.
+  - Renovación a los 15 min o 500 tramas (política del trinquete) y a los 32 MiB cifrados.
+  - Si los dos lados anuncian `cif:1`, el cifrado es obligatorio y un fallo cierra el enlace. Con una app anterior se sigue en claro, marcado «sin cifrar»; el ajuste «Exigir cifrado en la red local» (apagado por defecto hasta el siguiente lanzamiento oficial) la bloquea.
+  - Queda un gancho tipado `certificado?` en el saludo, con verificador inyectado, para el certificado cuenta → neurona de IDN1108A. Por defecto se ignora.
+  - Coste: el trozo de archivo baja de 46 a 34 KiB por TCP y de 10 a 7 KiB por Bluetooth; la CPU no es el cuello de botella.
 - **Identidad sin servidor.**
   - La clave maestra de la cuenta firma un certificado por neurona: cuenta → neurona.
   - Las huellas de otras cuentas se aprenden por QR, por la malla (teselas firmadas) y por las resonancias de confianza.
@@ -192,7 +199,7 @@ Una app nativa puede hacer de **estación base**: sirve la web y su API local a 
 
 | Fase | Contenido |
 |---|---|
-| **F0 · Cimientos** | Cifrar TCP 47071; contrato `ConectorMedio` envolviendo los enlaces que ya hay; planificador único; certificado cuenta → neurona y clave maestra con interfaz; URL del servidor en tiempo de ejecución; Mapa de vías (solo lectura) |
+| **F0 · Cimientos** | Cifrar TCP 47071 (hecho en código por CIF1108A, también Bluetooth; falta prueba en dos aparatos reales); contrato `ConectorMedio` envolviendo los enlaces que ya hay; planificador único; certificado cuenta → neurona y clave maestra con interfaz; URL del servidor en tiempo de ejecución; Mapa de vías (solo lectura) |
 | **F1 · Mensajería completa sin internet** | Almacén local de mensajes y fusión con el historial; adjuntos, formato y citas por la malla; cablear `chat-directo`, `localsend` y `nas`; prueba de los 18 formatos por cada medio |
 | **F2 · Entidades local‑first** | Registro vivo firmado; almacén local; réplicas por ámbito; publicaciones, páginas, comunidades y canales; reconciliación con Supabase |
 | **F3 · Gobierno sin servidor** | Papeletas firmadas, quórum, notarios, provisional y cierre al reconectar |
