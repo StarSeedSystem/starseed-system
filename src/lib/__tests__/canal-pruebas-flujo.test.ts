@@ -221,6 +221,28 @@ describe("native-build.yml · canal de pruebas", () => {
     expect(sellar).toContain("exit 1");
   });
 
+  it("(CI1108N) escritorio: un segundo intento idéntico solo si el primero falla; Android reintenta solo con firma de red", () => {
+    const pasos = flujo.jobs["build-desktop"].steps.filter((s) => s.uses?.startsWith("tauri-apps/tauri-action"));
+    expect(pasos).toHaveLength(2);
+    const [uno, dos] = pasos as unknown as Array<Record<string, unknown>>;
+    expect(uno["continue-on-error"]).toBe(true);
+    expect(uno.id).toBe("tauri1");
+    expect(dos.if).toBe("steps.tauri1.outcome == 'failure'");
+    expect(dos["continue-on-error"]).toBeUndefined(); // el segundo falla en rojo con el error real
+    expect(dos.with).toEqual(uno.with); // mismo tagName, args y bundles: mismo Release, mismos assets
+    expect(dos.env).toEqual(uno.env);
+    const apk = paso("build-android", "Build APK (release)")!.run!;
+    expect(apk).toContain('[ "$INTENTO" -eq 1 ] && grep -Eqi "$FIRMA" "$LOG"');
+    expect(apk).toContain("HTTP response code: 5[0-9][0-9]");
+    expect(apk).toContain('exit "$RC"'); // sin firma de red, falla a la primera
+    const gradle = paso("build-android", "Gradle · más paciencia con la red")!.run!;
+    expect(gradle).toContain("networkTimeout=120000");
+    expect(gradle).toContain("--retry 6 --retry-all-errors --retry-delay 10");
+    const nombres = flujo.jobs["build-android"].steps.map((s) => s.name);
+    expect(nombres.indexOf("Inicializar Android")).toBeLessThan(nombres.indexOf("Gradle · más paciencia con la red"));
+    expect(nombres.indexOf("Gradle · más paciencia con la red")).toBeLessThan(nombres.indexOf("Build APK (release)"));
+  });
+
   it("(INT1108C) el script se reconoce como entrada también con rutas de Windows (antes `sellar` no hacía nada)", () => {
     const win = { resolver: path.win32.resolve, aRuta: (u: string | URL) => fileURLToPath(u, { windows: true }) };
     const url: string = "file:///D:/a/starseed-system/starseed-system/native/scripts/canal-pruebas.mjs";

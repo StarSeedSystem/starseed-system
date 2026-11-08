@@ -419,7 +419,67 @@ jobs:
           echo "::warning::Este instalador de StarSeed OS sale SIN servidor local: abrirá la web publicada (necesita internet), como antes. Mira los pasos «Servidor local» de este job y el job servidor-local-next."
 
       # ── Build + Release con la acción oficial de Tauri ──
+      # (CI1108N) GitHub y los CDN de herramientas dan 5xx/timeouts sueltos (run 42465968141: el bundler no pudo
+      # bajar linuxdeploy/WiX/NSIS: «failed to bundle project: http status: 504»). Reintento: UN segundo intento,
+      # idéntico, tras una pausa. Lo ya compilado está en caché (target/) y las herramientas ya bajadas en la
+      # caché del bundler, así que el segundo intento es corto. Un error real de compilación falla igual en el
+      # segundo intento y el job sale en rojo. SUBIDA: tauri-action solo sube DESPUÉS de empaquetar, así que un
+      # fallo de bundle no sube nada; si el fallo llegara a ocurrir durante la subida, el segundo intento reutiliza
+      # el mismo Release (por tagName) y reemplaza los assets del mismo nombre: sin duplicados ni Release nuevo.
+      # OJO: el paso «(reintento)» de abajo debe ser idéntico a este; lo comprueba canal-pruebas-flujo.test.ts.
       - name: Build (tauri-action) y subir al Release
+        id: tauri1
+        # (CI1108N) Un fallo se reintenta UNA vez en el paso siguiente; si el segundo también falla, el job sale
+        # en rojo con el error de ese segundo intento (no se esconde nada).
+        continue-on-error: true
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Firma del UPDATER (opcional): si están, firma los artefactos de update.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # ── Firma + notarización de Apple (macOS) ──────────────────────────────
+          # IMPORTANTE: si defines APPLE_CERTIFICATE (aunque sea VACÍO), tauri-action
+          # intenta `security import` y FALLA el bundle en macOS. Por eso NO pasamos
+          # estas variables mientras no haya certificado real. Cuando el dueño tenga
+          # su Apple Developer ID, añade aquí (con los secretos correspondientes):
+          #   APPLE_CERTIFICATE, APPLE_CERTIFICATE_PASSWORD, APPLE_SIGNING_IDENTITY,
+          #   APPLE_ID, APPLE_PASSWORD, APPLE_TEAM_ID
+          # y macOS saldrá firmado + notarizado. Sin ellas, el .dmg/.app sale sin
+          # firmar (funciona; macOS pedirá clic derecho → Abrir la primera vez).
+          #
+          # Code-signing de Windows (opcional): tauri-action SÍ tolera el valor
+          # vacío, así que lo dejamos referenciado (se activa al añadir el secreto).
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        with:
+          # La raíz del proyecto Tauri (donde está src-tauri/).
+          projectPath: native
+          # Un Release por etiqueta; la acción sube los instaladores y el latest.json.
+          # (ACT1108A) Canal de pruebas: la prerelease fija `canal-pruebas` (publicada, nunca «Latest»);
+          # su latest.json es un intermedio que el job canal-pruebas-publicar convierte en latest-prueba.json.
+          tagName: ${{ inputs.canal == 'pruebas' && 'canal-pruebas' || inputs.etiqueta || (github.ref_type == 'tag' && github.ref_name) || format('native-{0}', github.run_number) }}
+          releaseName: ${{ inputs.canal == 'pruebas' && format('Canal de pruebas · {0}', needs.canal-pruebas-plan.outputs.version) || format('StarSeed Native {0}', inputs.etiqueta || (github.ref_type == 'tag' && github.ref_name) || github.run_number) }}
+          releaseBody: ${{ inputs.canal == 'pruebas' && format('Canal de pruebas · {0} (StarSeed OS). Las apps instaladas de pruebas se actualizan solas desde latest-prueba.json (escritorio) y latest-prueba-android.json (Android).', needs.canal-pruebas-plan.outputs.version) || format('Instaladores nativos de StarSeed — versión {0} (OS · Nexus · Café), generados desde native/ por CI. Cada app de escritorio instalada se actualiza sola desde su canal{1} StarSeed OS con latest.json, Nexus con latest-nexus.json y Café con latest-cafe.json.', inputs.etiqueta || (github.ref_type == 'tag' && github.ref_name) || format('native-{0}', github.run_number), ':') }}
+          releaseDraft: ${{ inputs.canal != 'pruebas' }}
+          prerelease: ${{ inputs.canal == 'pruebas' }}
+          # SOLO el sistema OS sube/actualiza latest.json. Antes, los TRES
+          # sistemas subían un latest.json a la MISMA release y se pisaban entre
+          # sí (el latest.json de v0.1.0 llegó a apuntar Linux a StarSeed.Nexus).
+          # Nexus y Café tienen su canal propio: lo escribe `canales-updater`.
+          includeUpdaterJson: ${{ matrix.system == 'os' }}
+          # Config extra por sistema + args de target de la matriz (+ en pruebas, Linux sin .rpm · INT1108C).
+          args: ${{ steps.cfg.outputs.flag }} ${{ matrix.args }} ${{ steps.cfg.outputs.bundles }}
+
+      - name: Reintento de red · aviso y pausa
+        if: steps.tauri1.outcome == 'failure'
+        shell: bash
+        run: |
+          echo "::warning::El build de tauri-action falló (¿red de GitHub?). Se reintenta una vez; si vuelve a fallar, el error real está en el paso «(reintento)»."
+          sleep 60
+      - name: Build (tauri-action) y subir al Release (reintento)
+        if: steps.tauri1.outcome == 'failure'
+        id: tauri2
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -688,9 +748,56 @@ jobs:
         if: steps.sl_android.outputs.encendido == 'si' && steps.sl_android_armado.outcome != 'success'
         shell: bash
         run: echo "::warning::El interruptor del servidor local de Android estaba encendido, pero esta APK sale SIN él (abre la web publicada, como siempre). Mira los pasos «Servidor local Android» de este job."
+      # (CI1108N) Gradle por red inestable (run 42465968141: «Downloading …gradle-9.6.1-bin.zip failed: timeout
+      # (10000ms)» y luego «HTTP response code: 504»). 1) networkTimeout del wrapper de 10 s a 120 s; 2) la
+      # distribución se baja ANTES con curl y reintentos, y el wrapper la toma de un file:// (si curl no
+      # lo logra, se deja la URL original: el wrapper lo intenta él con el timeout mayor). gen/android lo genera
+      # `tauri android init` en cada ejecución (no está en git): se parchea aquí, después de init.
+      - name: Gradle · más paciencia con la red
+        shell: bash
+        run: |
+          P=native/src-tauri/gen/android/gradle/wrapper/gradle-wrapper.properties
+          if [ ! -f "$P" ]; then echo "::warning::No hay $P: se sigue sin tocar el wrapper de Gradle."; exit 0; fi
+          if grep -q '^networkTimeout=' "$P"; then sed -i 's/^networkTimeout=.*/networkTimeout=120000/' "$P"; else echo "networkTimeout=120000" >> "$P"; fi
+          URL=$(sed -n 's/^distributionUrl=//p' "$P" | tr -d '\\')
+          echo "Distribución de Gradle: $URL"
+          ZIP="$RUNNER_TEMP/gradle-dist.zip"
+          if curl -fsSL --retry 6 --retry-all-errors --retry-delay 10 --connect-timeout 20 --max-time 300 -o "$ZIP" "$URL" && unzip -tq "$ZIP" >/dev/null; then
+            grep -v '^distributionUrl=' "$P" > "$P.tmp"
+            printf 'distributionUrl=file\\://%s\n' "$ZIP" >> "$P.tmp"
+            mv "$P.tmp" "$P"
+            echo "Gradle precargado en $ZIP"
+          else
+            rm -f "$ZIP" "$P.tmp"
+            echo "::warning::No se pudo precargar Gradle; el wrapper lo bajará él (networkTimeout 120 s)."
+          fi
+          grep -E '^(distributionUrl|networkTimeout)=' "$P"
+      # (CI1108N) Se reintenta UNA vez SOLO si el log del primer intento trae firma de red (timeout, 5xx,
+      # «Could not resolve/GET», reset de conexión). Un error de compilación (Rust, Kotlin, manifiesto…) no
+      # coincide y falla a la primera, con su log intacto.
       - name: Build APK (release)
         working-directory: native
-        run: cargo tauri android build --apk ${{ steps.cfg.outputs.flag }}
+        shell: bash
+        env:
+          FLAG: ${{ steps.cfg.outputs.flag }}
+        run: |
+          LOG="$RUNNER_TEMP/apk-build.log"
+          FIRMA='failed: timeout|timed out|Could not (resolve|GET|HEAD|download)|Connection reset|Connection refused|Remote host terminated|Premature end of Content-Length|Unable to tunnel|Temporary failure in name resolution|HTTP response code: 5[0-9][0-9]|status code: 5[0-9][0-9]|HTTP/[12.]+ 5[0-9][0-9]|http status: 5[0-9][0-9]'
+          for INTENTO in 1 2; do
+            set +e
+            # shellcheck disable=SC2086
+            cargo tauri android build --apk $FLAG 2>&1 | tee "$LOG"
+            RC=${PIPESTATUS[0]}
+            set -e
+            [ "$RC" -eq 0 ] && exit 0
+            if [ "$INTENTO" -eq 1 ] && grep -Eqi "$FIRMA" "$LOG"; then
+              echo "::warning::El build del APK falló con firma de red (intento 1/2). Se reintenta tras una pausa."
+              grep -Ei "$FIRMA" "$LOG" | head -3
+              sleep 45
+              continue
+            fi
+            exit "$RC"
+          done
       - name: Firmar APK con keystore self-signed
         shell: bash
         env:
