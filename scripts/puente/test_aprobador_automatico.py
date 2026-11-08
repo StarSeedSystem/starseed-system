@@ -78,6 +78,19 @@ class Aplicar(unittest.TestCase):
         with open(os.path.join(A.OLAS, "progreso-correcciones.json"), encoding="utf-8") as f:
             self.assertEqual(json.load(f)["R1c"]["estado"], "rechazada")
 
+    def test_avanzar_main_usa_ff_seguro_cuando_esta_disponible(self):
+        import ff_seguro
+        with mock.patch.object(ff_seguro, "avanzar_ff", return_value=(0, "ok")) as m:
+            rc, out = A._avanzar_main("abc123")
+        self.assertEqual((rc, out), (0, "ok"))
+        m.assert_called_once_with(A.RAIZ, "abc123", extra=("-q",))
+
+    def test_merge_ff_only_solo_aparece_en_la_vuelta_atras(self):
+        with open(os.path.join(os.path.dirname(__file__), "aprobador_automatico.py"), encoding="utf-8") as f:
+            texto = f.read()
+        # Solo debe aparecer una vez: dentro de _avanzar_main como vuelta atrás
+        self.assertEqual(texto.count('["merge", "--ff-only", "-q", nuevo]'), 1)
+
 
 if __name__ == "__main__":
     unittest.main()

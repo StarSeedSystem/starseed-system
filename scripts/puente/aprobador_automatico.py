@@ -48,6 +48,15 @@ def _git(args, timeout=60):
         return 1, "%s: %s" % (type(e).__name__, e)
 
 
+def _avanzar_main(nuevo):
+    """Avanza main por fast-forward usando ff_seguro si está disponible; si no, usa _git directo."""
+    try:
+        import ff_seguro
+    except Exception:  # noqa: BLE001 — sin ff_seguro, vuelta atrás al merge directo
+        return _git(["merge", "--ff-only", "-q", nuevo], timeout=120)
+    return ff_seguro.avanzar_ff(RAIZ, nuevo, extra=("-q",))
+
+
 def _leer_json(ruta, defecto):
     try:
         with open(ruta, encoding="utf-8") as f:
@@ -377,7 +386,7 @@ def _integrar_suelta(c):
                 _, ahora_main = _git(["rev-parse", "main"])
                 if ahora_main.strip() != orig:
                     return False, "main se movió mientras pasaban sus puertas: lo intento en la próxima pasada"
-                rc, salida = _git(["merge", "--ff-only", "-q", nuevo], timeout=120)
+                rc, salida = _avanzar_main(nuevo)
                 if rc != 0:
                     return False, "main no avanzó por fast-forward: " + salida.strip()[-200:]
         except TimeoutError:
