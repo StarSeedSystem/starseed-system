@@ -29,7 +29,7 @@ async function calma(): Promise<void> {
 
 function app(
   m: Mundo,
-  p: { ip: string; neurona: string; huella: string; vecino: { ip: string; neurona: string }; vinculo: VinculoMinimo; cifra?: boolean; exigir?: boolean; limites?: LimitesCanal; certificado?: Record<string, unknown>; verificarCertificado?: DepsRedNativa["verificarCertificado"] },
+  p: { ip: string; neurona: string; huella: string; vecino: { ip: string; neurona: string }; vinculo: VinculoMinimo; cifra?: boolean; exigir?: boolean; limites?: LimitesCanal; certificado?: Record<string, unknown>; verificarCertificado?: DepsRedNativa["verificarCertificado"]; certificadoMismaCuenta?: DepsRedNativa["certificadoMismaCuenta"] },
 ) {
   const entregados: string[] = [];
   const archivos: string[] = [];
@@ -67,20 +67,22 @@ function app(
     exigirCifrado: () => !!p.exigir,
     ...(p.certificado ? { certificadoPropio: async () => p.certificado ?? null } : {}),
     ...(p.verificarCertificado ? { verificarCertificado: p.verificarCertificado } : {}),
+    ...(p.certificadoMismaCuenta ? { certificadoMismaCuenta: p.certificadoMismaCuenta } : {}),
   };
   const red = crearRedNativa(deps);
   m.redes[p.ip] = red;
   return { red, entregados, archivos };
 }
 
-function par(opts: { limA?: LimitesCanal; limB?: LimitesCanal; cifraA?: boolean; cifraB?: boolean; exigirA?: boolean; certB?: Record<string, unknown>; verificarA?: DepsRedNativa["verificarCertificado"] } = {}) {
+function par(opts: { limA?: LimitesCanal; limB?: LimitesCanal; cifraA?: boolean; cifraB?: boolean; exigirA?: boolean; certB?: Record<string, unknown>; verificarA?: DepsRedNativa["verificarCertificado"]; mismaA?: DepsRedNativa["certificadoMismaCuenta"]; sinVinculoA?: boolean } = {}) {
   const m: Mundo = { ahora: 1_000_000, redes: {}, envios: [] };
   const a = app(m, {
     ip: IP_A,
     neurona: "NA",
     huella: "FPA",
     vecino: { ip: IP_B, neurona: "NB" },
-    vinculo: { neurona: "NB", nombre: "B", huella: "FPB" },
+    vinculo: opts.sinVinculoA ? { neurona: "NZ", nombre: "Z", huella: "FPZ" } : { neurona: "NB", nombre: "B", huella: "FPB" },
+    certificadoMismaCuenta: opts.mismaA,
     cifra: opts.cifraA,
     limites: opts.limA,
     exigir: opts.exigirA,
@@ -267,6 +269,21 @@ describe("gancho de certificado (IDN1108A)", () => {
     const bueno = par({ certB: { v: 1, firma: "buena" }, verificarA: async () => true });
     await ligar(bueno);
     expect(bueno.a.red.instantanea().ligaduras).toHaveLength(1);
+  });
+
+  it("un certificado de MI cuenta se acepta sin vínculo previo; sin esa prueba, no (IDN1108A)", async () => {
+    const cert = { v: 1, firma: "de-mi-cuenta" };
+    let visto: unknown = null;
+    const con = par({ certB: cert, sinVinculoA: true, mismaA: async (c, ctx) => ((visto = { c, ctx }), true) });
+    await ligar(con);
+    expect(con.a.red.instantanea().ligaduras.some((l) => l.neurona === "NB")).toBe(true);
+    expect(visto).toMatchObject({ ctx: { neurona: "NB", huella: "FPB" } });
+    const sin = par({ certB: cert, sinVinculoA: true, mismaA: async () => false });
+    await ligar(sin);
+    expect(sin.a.red.instantanea().ligaduras).toHaveLength(0);
+    const sinGancho = par({ certB: cert, sinVinculoA: true });
+    await ligar(sinGancho);
+    expect(sinGancho.a.red.instantanea().ligaduras).toHaveLength(0);
   });
 });
 

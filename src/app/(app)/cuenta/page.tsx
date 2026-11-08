@@ -48,6 +48,7 @@ import { PrivacyPanel } from "@/components/settings/privacy/privacy-panel";
 import { NeuronsPanel } from "@/components/settings/neurons/neurons-panel";
 import { ANCLA_VERSION, SeccionVersion } from "@/components/actualizaciones/seccion-version";
 import { CambiarContrasena } from "@/components/settings/account/cambiar-contrasena";
+import { IdentidadSinServidor } from "@/components/settings/account/identidad-sin-servidor";
 import { EditarHandle } from "@/components/settings/account/editar-handle";
 import { AccountSyncPanel } from "@/components/settings/account/account-sync-panel";
 import { RealtimeSyncPanel } from "@/components/settings/account/realtime-sync-panel";
@@ -967,6 +968,9 @@ function CuentaContent() {
         {user?.app_metadata?.provider === "email" || !user?.app_metadata?.provider ? (
           <CambiarContrasena email={user?.email} />
         ) : null}
+
+        {/* (IDN1108A) Clave maestra de la cuenta + certificados de neurona: identidad sin servidor. */}
+        <IdentidadSinServidor />
 
         <ConClave clave={claveDeAjuste("neuronas")}>
           <NeuronsPanel />

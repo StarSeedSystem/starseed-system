@@ -147,6 +147,8 @@ export interface DepsRedNativa {
   certificadoPropio?(): Promise<CertificadoNeurona | null>;
   /** (CIF1108A) Gancho: comprueba el certificado de un saludo. Por defecto no exige nada (comportamiento de antes). */
   verificarCertificado?: VerificadorCertificado;
+  /** (IDN1108A) Gancho: ¿el certificado prueba que esa neurona es de MI cuenta? Si sí, se acepta sin vínculo previo (sin internet). */
+  certificadoMismaCuenta?: VerificadorCertificado;
 }
 
 export interface ResultadoEnvioNativo {
@@ -640,6 +642,14 @@ export function crearRedNativa(deps: DepsRedNativa): RedNativa {
     if (h.cta && v.huella && deps.pruebaCuenta) {
       try {
         cuentaProbada = mismaPrueba(h.cta, await deps.pruebaCuenta(textoPruebaCuenta({ huella: v.huella, de: h.de.neurona, para: h.para, ts: h.ts })));
+      } catch {
+        cuentaProbada = false;
+      }
+    }
+    // (IDN1108A) Un certificado válido de MI cuenta vale como prueba de cuenta, aunque nunca nos hayamos vinculado.
+    if (!cuentaProbada && h.certificado && v.huella && deps.certificadoMismaCuenta) {
+      try {
+        cuentaProbada = await deps.certificadoMismaCuenta(h.certificado, { neurona: h.de.neurona, huella: v.huella });
       } catch {
         cuentaProbada = false;
       }
@@ -1203,6 +1213,10 @@ async function depsReales(): Promise<DepsRedNativa> {
         return null;
       }
     },
+    // (IDN1108A) Identidad de cuenta sin servidor: certificado propio en el saludo y verificadores.
+    certificadoPropio: async () => (await import("@/lib/identidad/enlace")).certificadoPropioParaHola(),
+    verificarCertificado: async (c, ctx) => (await import("@/lib/identidad/enlace")).verificadorCertificadoNativo(c, ctx),
+    certificadoMismaCuenta: async (c, ctx) => (await import("@/lib/identidad/enlace")).certificadoDeMismaCuenta(c, ctx),
     huellaPropia: async () => {
       try {
         const { myFingerprint } = await import("@/ai/astraura/mesh/mesh-identity");

@@ -63,3 +63,15 @@ cuatro MEDIOS; **todos corregidos antes de desplegar**.
 
 `test-mesh-core.ts` **81/81** (+13 de identidad portátil, incl. los negativos de #1 y #2)
 · `tsc` limpio · `next build` **104/104**.
+
+## Adenda IDN1108A (2026-11-08): cierre de los residuales «ancla» y «revocación» sin servidor
+
+Los residuales de arriba («distribución del ancla `account→mfp`», cert perpetuo y sin revocación cruzada) se resuelven en
+`src/lib/identidad/` sin servidor. Detalle y límites en `architecture/red-sin-dependencias.md` §5.1.
+
+- **UI de la maestra:** Ajustes › Cuenta › «Identidad de cuenta sin internet» (crear, importar, exportar cifrada como QR y archivo `.ssm`; dice qué neurona la tiene). Antes no había UI ni llamadores.
+- **Ancla `account→mfp`:** almacén local de anclas con niveles `propia` / `qr` / `anunciada` y confianza al estilo de las resonancias. La propia se fija al crear o importar la maestra.
+- **Certificado de neurona** (nuevo, distinto del `DeviceCert` de la Adenda 121): `{cuenta, neuronaId, clavePublicaAparato, emitido, caduca, permisos}` firmado por la maestra, con caducidad (180 días) y portador exigible. Verifica contra anclas, no contra la clave que el propio certificado trae.
+- **Revocación:** lista firmada por la maestra, acumulativa y con `seq`, difundida por la malla; se cruza por `neuronaId` y por huella de aparato. Convive con `verifyDeviceCertRevocation`.
+- **Enrolar sin internet:** QR / texto / LAN / Bluetooth con código de 6 cifras (SAS) y, en canales no fiables, compromiso previo.
+- **Nada de esto envía la clave privada maestra a un servidor.** Sigue residual: rotar la maestra re-certifica neuronas a mano, y los anuncios solo suben de confianza con el uso.

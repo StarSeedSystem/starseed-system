@@ -117,6 +117,8 @@ export interface DepsBle {
   /** (CIF1108A) Gancho de identidad: certificado cuenta→neurona propio / verificador (IDN1108A). */
   certificadoPropio?(): Promise<CertificadoNeurona | null>;
   verificarCertificado?: VerificadorCertificado;
+  /** (IDN1108A) Gancho: ¿el certificado prueba que esa neurona es de MI cuenta? Si sí, se acepta sin vínculo previo (sin internet). */
+  certificadoMismaCuenta?: VerificadorCertificado;
 }
 
 export interface ResultadoEnvioBle {
@@ -522,6 +524,14 @@ export function crearRedBle(deps: DepsBle): RedBle {
         cuentaProbada = false;
       }
     }
+    // (IDN1108A) Un certificado válido de MI cuenta vale como prueba de cuenta, aunque nunca nos hayamos vinculado.
+    if (!cuentaProbada && h.certificado && v.huella && deps.certificadoMismaCuenta) {
+      try {
+        cuentaProbada = await deps.certificadoMismaCuenta(h.certificado, { neurona: h.de.neurona, huella: v.huella });
+      } catch {
+        cuentaProbada = false;
+      }
+    }
     const ac = aceptarHola(h, v.huella, yo.neurona, deps.vinculos(), { cuentaProbada });
     if (!ac.ok) {
       // A ciegas se saluda a varias neuronas: «es para otra» no es un rechazo que contar.
@@ -911,6 +921,10 @@ async function depsReales(): Promise<DepsBle> {
         return null;
       }
     },
+    // (IDN1108A) Identidad de cuenta sin servidor: certificado propio en el saludo y verificadores.
+    certificadoPropio: async () => (await import("@/lib/identidad/enlace")).certificadoPropioParaHola(),
+    verificarCertificado: async (c, ctx) => (await import("@/lib/identidad/enlace")).verificadorCertificadoNativo(c, ctx),
+    certificadoMismaCuenta: async (c, ctx) => (await import("@/lib/identidad/enlace")).certificadoDeMismaCuenta(c, ctx),
     huellaPropia: async () => {
       try {
         const { myFingerprint } = await import("@/ai/astraura/mesh/mesh-identity");

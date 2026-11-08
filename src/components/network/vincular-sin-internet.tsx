@@ -143,7 +143,7 @@ function crearDetector(): Detector | null {
   }
 }
 
-function LectorCodigo({ etiqueta, onCodigo, ocupado }: { etiqueta: string; onCodigo: (texto: string) => void; ocupado?: boolean }) {
+export function LectorCodigo({ etiqueta, onCodigo, ocupado }: { etiqueta: string; onCodigo: (texto: string) => void; ocupado?: boolean }) {
   const [texto, setTexto] = useState("");
   const [camara, setCamara] = useState(false);
   const [errorCamara, setErrorCamara] = useState<string | null>(null);
