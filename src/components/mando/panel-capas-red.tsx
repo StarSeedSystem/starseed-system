@@ -16,24 +16,13 @@ import { AlertTriangle, CheckCircle2, Loader2, ShieldAlert, Clock, Send, Trash2,
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableRow } from "@/components/ui/table";
+import type { CapaNueva, FilaCapaRed, UltimoBanco } from "@/lib/mando/capas-red";
 
-/** Forma de la respuesta del API /api/mando/capas. */
+/** Forma REAL de la respuesta de GET /api/mando/capas (sin `catalogo` ni `espejos`). */
 interface RespuestaCapas {
-  catalogo: Array<{
-    id: string;
-    version: string;
-    estado: "recomendado" | "respaldo" | "nuevo";
-    dispositivos: number;
-    servidores: number;
-    espejos: number;
-    banco: string; // último resultado del banco
-    aprendizaje: string; // último ciclo de aprendizaje
-  }>;
-  /** Estado de los espejos (por ejemplo, { ok: true, mensaje: "Todos sincronizados" }) */
-  espejos: {
-    ok: boolean;
-    mensaje: string;
-  };
+  filas: FilaCapaRed[];
+  nuevas?: CapaNueva[];
+  actualizado?: string | null;
   /** Última noche de automejora */
   ultimaNoche: {
     fecha: string;
@@ -83,6 +72,35 @@ interface PropuestaItem {
   prompt_inicio: string;
   referencia_funcion: string;
   enviada: boolean;
+}
+
+/** Resume el estado de los espejos a partir de las filas reales, sin inventar nada. */
+export function resumenEspejos(filas: FilaCapaRed[]): { ok: boolean; mensaje: string } {
+  if (filas.length === 0) return { ok: false, mensaje: "Sin catálogo de capas" };
+  const sinEspejo = filas.filter((f) => f.espejos <= 0);
+  if (sinEspejo.length === 0) {
+    return { ok: true, mensaje: `Las ${filas.length} capas tienen al menos un espejo` };
+  }
+  const ids = sinEspejo.slice(0, 5).map((f) => f.id).join(", ");
+  return {
+    ok: false,
+    mensaje: `${sinEspejo.length} de ${filas.length} capas sin espejo: ${ids}`,
+  };
+}
+
+function textoEstado(estado: string): { texto: string; clase: string } {
+  if (estado === "recomendado") return { texto: "Recomendado", clase: "text-emerald-200" };
+  if (estado === "respaldo") return { texto: "Respaldo", clase: "text-amber-200" };
+  if (estado === "en-banco") return { texto: "Nuevo en banco", clase: "text-rose-200" };
+  return { texto: estado, clase: "text-white/70" };
+}
+
+function textoBanco(banco: UltimoBanco | null): string {
+  if (!banco) return "sin datos";
+  const partes: string[] = [];
+  if (banco.tokS !== null) partes.push(`${banco.tokS} tok/s`);
+  if (banco.latenciaMs !== null) partes.push(`${banco.latenciaMs} ms`);
+  return partes.length > 0 ? partes.join(" · ") : "sin datos";
 }
 
 /** Componente principal del panel. */
@@ -231,6 +249,8 @@ export function PanelCapasRed() {
       </div>
     );
   }
+
+  const espejos = resumenEspejos(respuesta.filas ?? []);
 
   return (
     <div className="space-y-4">
@@ -467,6 +487,7 @@ export function PanelCapasRed() {
                   <TableCell>Capa</TableCell>
                   <TableCell>Versión</TableCell>
                   <TableCell>Estado</TableCell>
+                  <TableCell>SHA</TableCell>
                   <TableCell>Dispositivos</TableCell>
                   <TableCell>Servidores</TableCell>
                   <TableCell>Espejos</TableCell>
@@ -474,31 +495,31 @@ export function PanelCapasRed() {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {respuesta.catalogo.map((capa) => (
-                  <TableRow key={capa.id} data-testid={`capa-${capa.id}`}>
-                    <TableCell>{capa.id}</TableCell>
-                    <TableCell>{capa.version}</TableCell>
-                    <TableCell>
-                      {capa.estado === "recomendado" ? (
-                        <span className="text-emerald-200">Recomendado</span>
-                      ) : capa.estado === "respaldo" ? (
-                        <span className="text-amber-200">Respaldo</span>
-                      ) : (
-                        <span className="text-rose-200">Nuevo en banco</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {capa.dispositivos > 0 ? capa.dispositivos : "sin medir"}
-                    </TableCell>
-                    <TableCell>
-                      {capa.servidores > 0 ? capa.servidores : "sin medir"}
-                    </TableCell>
-                    <TableCell>
-                      {capa.espejos > 0 ? capa.espejos : "sin medir"}
-                    </TableCell>
-                    <TableCell>{capa.banco || "sin datos"}</TableCell>
-                  </TableRow>
-                ))}
+                {(respuesta.filas ?? []).map((capa) => {
+                  const estado = textoEstado(capa.estado);
+                  return (
+                    <TableRow key={capa.id} data-testid={`capa-${capa.id}`}>
+                      <TableCell>{capa.id}</TableCell>
+                      <TableCell>{capa.version ?? "—"}</TableCell>
+                      <TableCell>
+                        <span className={estado.clase}>{estado.texto}</span>
+                      </TableCell>
+                      <TableCell>
+                        {capa.shaVerificado ? "verificado" : "sin SHA"}
+                      </TableCell>
+                      <TableCell>
+                        {capa.dispositivos === null ? "sin medir" : capa.dispositivos}
+                      </TableCell>
+                      <TableCell>
+                        {capa.servidores === null ? "sin medir" : capa.servidores}
+                      </TableCell>
+                      <TableCell>
+                        {capa.espejos > 0 ? capa.espejos : "sin espejo"}
+                      </TableCell>
+                      <TableCell>{textoBanco(capa.banco)}</TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </div>
@@ -512,17 +533,17 @@ export function PanelCapasRed() {
         </CardHeader>
           <CardContent>
             <p data-testid="espejos-mensaje" className="text-sm text-white/70">
-              {respuesta.espejos.mensaje}
+              {espejos.mensaje}
             </p>
-            {respuesta.espejos.ok ? (
+            {espejos.ok ? (
               <span className="inline-flex items-center gap-1 text-emerald-200 text-xs">
                 <CheckCircle2 className="h-3 w-3" aria-hidden />
-                Todos los espejos están sincronizados
+                Con espejo
               </span>
             ) : (
               <span className="inline-flex items-center gap-1 text-rose-200 text-xs">
                 <AlertTriangle className="h-3 w-3" aria-hidden />
-                Hay espejos desincronizados
+                Faltan espejos
               </span>
             )}
           </CardContent>
