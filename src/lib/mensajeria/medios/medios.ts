@@ -23,6 +23,13 @@ import {
     type ViaMensaje,
 } from "./tipos";
 import { ETIQUETA_RED_LOCAL_NATIVA, esEnlaceRedLocalNativa } from "@/lib/malla/red-local-nativa";
+// (WFD1108A) El canal local por una red Wi-Fi directa entre las dos neuronas: «Wi-Fi directo (sin router)».
+import { ETIQUETA_WIFI_DIRECTO, RUTA_WIFI_DIRECTO, esEnlaceWifiDirecto } from "@/lib/malla/enlace-wifi-orquestacion";
+
+/** (WFD1108A) ¿Esta vía fue por un enlace Wi-Fi directo? Por su ruta guardada o por el enlace activo ahora. */
+function esViaWifiDirecto(v: Pick<ViaMensaje, "medio" | "enlaceId" | "ruta">): boolean {
+    return v.medio === "local" && (v.ruta === RUTA_WIFI_DIRECTO || esEnlaceWifiDirecto(v.enlaceId));
+}
 
 /** Lo mínimo de un `EnlaceDisponible` del transporte universal (solo tipos: sin acoplarse a él). */
 export interface EnlaceParaMedio {
@@ -93,6 +100,9 @@ export function medioDeEnlace(e: Pick<EnlaceParaMedio, "tipo" | "ruta">): MedioT
         // la pastilla lo distingue por su enlace: «Red local (app nativa)».
         case "nativo":
             return "local";
+        // (BLE1108A) Bluetooth directo entre dos apps nativas (`ble:<id>`): el medio «Bluetooth» de los ajustes.
+        case "ble":
+            return "bluetooth";
         case "cuenta":
         case "par":
             if (e.ruta === "misma-red-local") return "wifi-local";
@@ -150,7 +160,7 @@ function motivoPaso(c: CandidatoMedio): string {
         case "wifi-local":
             return "canal P2P por tu red local (ruta medida)";
         case "bluetooth":
-            return "enlace Bluetooth cercano";
+            return "Bluetooth directo entre las dos apps nativas (sin router ni internet)";
         case "lora":
             return "radio LoRa (solo mensajes cortos)";
         case "p2p-internet":
@@ -300,13 +310,14 @@ export function etiquetaVia(v: ViaMensaje): string {
     const partes: string[] = [];
     switch (v.medio) {
         case "local":
-            partes.push("Mesh", esEnlaceRedLocalNativa(v.enlaceId) ? ETIQUETA_RED_LOCAL_NATIVA : "Sin internet");
+            partes.push("Mesh", esViaWifiDirecto(v) ? ETIQUETA_WIFI_DIRECTO : esEnlaceRedLocalNativa(v.enlaceId) ? ETIQUETA_RED_LOCAL_NATIVA : "Sin internet");
             break;
         case "wifi-local":
             partes.push("Mesh", "Wi-Fi local");
             break;
         case "bluetooth":
-            partes.push("Mesh", "Bluetooth");
+            // (BLE1108A) «Bluetooth directo · 84 ms ✓»: de antena a antena, sin router.
+            partes.push("Bluetooth directo");
             break;
         case "lora":
             partes.push("LoRa");
@@ -331,6 +342,8 @@ const RUTAS: Record<string, string> = {
     "internet-directo": "Internet directo (NAT atravesado)",
     "reenviado-turn": "Reenviado por un servidor TURN",
     desconocida: "Sin medir",
+    // (WFD1108A)
+    [RUTA_WIFI_DIRECTO]: "Wi-Fi directo entre las dos neuronas (sin router)",
 };
 
 export interface LineaDetalle {
@@ -342,7 +355,8 @@ export interface LineaDetalle {
  * Nombre del medio de una vía. El enlace de la red local de la app nativa (`nativo:<ip>`, o el WebRTC
  * que abrieron solas dos apps nativas, `local:nativo-…`) es «Red local (app nativa)» (MLT1107A).
  */
-export function nombreDeVia(v: Pick<ViaMensaje, "medio" | "enlaceId">): string {
+export function nombreDeVia(v: Pick<ViaMensaje, "medio" | "enlaceId"> & Partial<Pick<ViaMensaje, "ruta">>): string {
+    if (esViaWifiDirecto(v)) return ETIQUETA_WIFI_DIRECTO;
     if (v.medio === "local" && esEnlaceRedLocalNativa(v.enlaceId)) return ETIQUETA_RED_LOCAL_NATIVA;
     return INFO_MEDIOS[v.medio]?.nombre ?? v.medio;
 }

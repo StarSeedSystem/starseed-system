@@ -204,7 +204,8 @@ export async function enviarPorPasoMalla(
             enlace: r.enlace?.etiqueta ?? paso.etiqueta,
             enlaceId: r.enlace?.id ?? paso.enlaceId,
             servidor: servidorDeMedio(paso.medio),
-            ruta: paso.ruta ?? null,
+            // (WFD1108A) Por la red Wi-Fi directa entre las dos neuronas, la vía lo guarda («Wi-Fi directo (sin router)»).
+            ruta: (await import("@/lib/malla/enlace-wifi-orquestacion")).rutaConWifi(r.enlace?.id ?? paso.enlaceId, paso.ruta ?? null),
             latenciaMs: r.confirmado ? dt : rtt,
             latenciaFuente: r.confirmado ? "acuse" : rtt !== null ? "enlace" : null,
             confirmado: r.confirmado,

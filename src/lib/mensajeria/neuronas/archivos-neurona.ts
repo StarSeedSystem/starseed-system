@@ -46,6 +46,8 @@ import {
 import { claveChat, preferenciasEfectivas } from "@/lib/mensajeria/medios/preferencias-store";
 import type { DestinoMalla } from "@/lib/mensajeria/medios/enviar";
 import type { PlanEnvio, ViaMensaje } from "@/lib/mensajeria/medios/tipos";
+// (INT1108C) Lo pesado hacia una neurona vecina propone o abre el enlace Wi-Fi directo.
+import { avisarEnvioPesado, enlaceDePaso } from "@/lib/malla/puente-ble-wifi";
 
 /** Copia local de lo enviado (para reanudar tras recargar) solo hasta este tamaño. */
 export const MAX_COPIA_LOCAL_BYTES = 512 * 1024 * 1024;
@@ -435,6 +437,9 @@ async function enviarUno(clave: string, destino: DestinoMalla, archivo: File, cl
 async function enviarSegunPlan(m0: MensajeMalla, archivo: Blob): Promise<ResultadoArchivoNeurona> {
     const m = mensajeMalla(m0.clave, m0.id) ?? m0;
     const { plan, candidatos } = await planArchivo(m, archivo.size);
+    // (INT1108C) Un archivo grande a una neurona vecina (Bluetooth directo cerca): el enlace Wi-Fi directo se
+    // abre o se propone según el ajuste (una vez por archivo: los reintentos del buzón no insisten).
+    avisarEnvioPesado({ clave: `archivo:${m.id}`, destino: m.destino ?? {}, clase: "archivo", bytes: archivo.size, enlace: enlaceDePaso(plan.pasos[0]) });
     if (plan.sinCamino) {
         const espera = plan.siNinguno === "esperar";
         const fin = cambiarArchivo(

@@ -157,6 +157,13 @@
     "allow-malla-local-enviar",
     "allow-malla-local-estado",
     "allow-malla-local-recibidos",
+    "allow-ble-estado",
+    "allow-ble-abrir",
+    "allow-ble-cerrar",
+    "allow-ble-enviar",
+    "allow-ble-recibidos",
+    "allow-ble-activar",
+    "allow-ble-pedir-permiso",
     "allow-apk-actualizar",
     "allow-apk-estado",
     "allow-apk-instalar",
@@ -169,6 +176,14 @@
     "allow-rescate-origen-exportar",
     "allow-rescate-origen-estado",
     "allow-rescate-origen-datos",
-    "allow-rescate-origen-confirmar"
+    "allow-rescate-origen-confirmar",
+    "allow-enlace-wifi-capacidades",
+    "allow-enlace-wifi-permiso",
+    "allow-enlace-wifi-abrir-ap",
+    "allow-enlace-wifi-credenciales",
+    "allow-enlace-wifi-unirse",
+    "allow-enlace-wifi-estado",
+    "allow-enlace-wifi-cerrar",
+    "allow-enlace-wifi-comprobar"
   ]
 }

@@ -158,6 +158,11 @@ export interface RedNativa {
   /** Entrada de lo que llegó por el canal local desde `ip` (lo no ligado se ignora). */
   recibir(cuerpo: string, ip: string): Promise<void>;
   colaBytes(ip: string): number;
+  /**
+   * (WFD1108A) «Esa neurona está en esa IP»: la dio el enlace Wi-Fi directo (negociado y firmado). Se la
+   * saluda aunque su faro aún no se oiga. Una pista equivocada no hace nada: el saludo va firmado.
+   */
+  pista?(neurona: string, ip: string | null, puerto?: number): void;
   instantanea(): InstantaneaRedNativa;
   suscribir(cb: () => void): () => void;
 }
@@ -206,6 +211,22 @@ export function crearRedNativa(deps: DepsRedNativa): RedNativa {
   const esperas = new Map<string, Array<() => void>>();
   /** (MLL1107A) Esta app tiene la clave de faro de la cuenta (su saludo lleva la prueba). */
   let conClaveCuenta = false;
+  /** (WFD1108A) Pistas «neurona → IP» del enlace Wi-Fi directo, con caducidad. */
+  const pistas = new Map<string, { ip: string; puerto: number; hasta: number }>();
+  const conPistas = (lista: VecinoMinimo[]): VecinoMinimo[] => {
+    const ahora = deps.ahora();
+    let out = [...lista];
+    for (const [neurona, p] of Array.from(pistas)) {
+      if (p.hasta < ahora) {
+        pistas.delete(neurona);
+        continue;
+      }
+      // Mientras dure la pista, esa neurona se busca SOLO en la red directa (no por el router de casa).
+      out = out.filter((x) => x.neurona !== neurona || x.ip === p.ip);
+      if (!out.some((x) => x.ip === p.ip)) out.push({ ip: p.ip, neurona, puerto: p.puerto, canal: true });
+    }
+    return out;
+  };
 
   const avisar = () => {
     for (const f of Array.from(oyentes)) {
@@ -640,7 +661,7 @@ export function crearRedNativa(deps: DepsRedNativa): RedNativa {
       st = null;
     }
     escuchando = !!st?.escuchando;
-    vecinos = st?.vecinos ?? [];
+    vecinos = conPistas(st?.vecinos ?? []);
     misLimites = st?.limites ?? null;
     const ahora = deps.ahora();
     ligaduras = podarLigaduras(ligaduras, ahora);
@@ -669,7 +690,7 @@ export function crearRedNativa(deps: DepsRedNativa): RedNativa {
       }
       if (st) {
         escuchando = !!st.escuchando;
-        vecinos = st.vecinos ?? [];
+        vecinos = conPistas(st.vecinos ?? []);
         misLimites = st.limites ?? null;
       }
       conClaveCuenta = await hayClaveCuenta();
@@ -702,6 +723,21 @@ export function crearRedNativa(deps: DepsRedNativa): RedNativa {
     canalArchivos: (ip) => canalArchivos(ipLocal(ip) ?? ip),
     recibir,
     colaBytes: (ip) => colas.get(ip)?.bytesDatos ?? 0,
+    pista: (neurona, ip, puerto) => {
+      if (!neurona) return;
+      if (ip === null) {
+        // El enlace directo se cerró: la neurona se vuelve a buscar por donde la oiga el faro.
+        pistas.delete(neurona);
+        return;
+      }
+      const ipOk = ipLocal(ip);
+      if (!ipOk) return;
+      pistas.set(neurona, { ip: ipOk, puerto: puerto && puerto >= 1024 ? puerto : PUERTO_CANAL_NATIVO, hasta: deps.ahora() + 30 * 60_000 });
+      vecinos = conPistas(vecinos.filter((x) => x.ip !== ipOk));
+      // Una ligadura con esa neurona en otra IP (la red de casa) cede: se la vuelve a saludar en la nueva.
+      ligaduras = ligaduras.filter((l) => l.neurona !== neurona || l.ip === ipOk);
+      avisar();
+    },
     instantanea: () => ({
       escuchando,
       ligaduras: [...ligaduras],

@@ -155,7 +155,9 @@ export const INFO_MEDIOS: Record<MedioTransmision, InfoMedio> = {
         nombre: "Bluetooth",
         corto: "Bluetooth",
         familia: "malla",
-        descripcion: "Aparatos cercanos por Bluetooth. Aún no hay enlace Bluetooth real en el navegador: llegará con la app nativa.",
+        // (BLE1108A) Ya hay enlace real entre las apps nativas (macOS y Android).
+        descripcion:
+            "Bluetooth directo entre dos apps nativas de StarSeed OS cercanas (macOS y Android), sin router ni internet: mensajes y archivos de hasta 20 MB, a decenas de KB/s. En el navegador no hay enlace Bluetooth.",
     },
     lora: {
         id: "lora",

@@ -35,6 +35,8 @@ import {
 import { aplicarTrozoMedios, leerTrozoMedios, SEGMENTOS_VACIO, type EstadoSegmentos } from "./flujo-medios";
 import { claveChat, preferenciasEfectivas } from "@/lib/mensajeria/medios/preferencias-store";
 import type { ViaMensaje } from "@/lib/mensajeria/medios/tipos";
+// (INT1108C) Sin camino y la neurona al lado por Bluetooth: enlace Wi-Fi directo.
+import { avisarEnvioPesado } from "@/lib/malla/puente-ble-wifi";
 
 const EVENTO_CUENTA_FLUJO = "neurona-flujo";
 
@@ -138,7 +140,11 @@ export async function abrirFlujoNeurona(o: {
                 etiqueta: "Canal de tu cuenta (tiempo real)",
             },
         });
-        if (plan.sinCamino || !plan.pasos.length) return { ok: false, motivo: plan.aviso ?? "Ningún medio permitido puede llevar una transmisión en vivo ahora." };
+        if (plan.sinCamino || !plan.pasos.length) {
+            // (INT1108C) Una transmisión no cabe por Bluetooth: con la neurona al lado, enlace Wi-Fi directo.
+            avisarEnvioPesado({ destino, clase: "flujo" });
+            return { ok: false, motivo: plan.aviso ?? "Ningún medio permitido puede llevar una transmisión en vivo ahora." };
+        }
         const paso = o.soloP2P ? plan.pasos.find((x) => x.medio !== "servidor") : plan.pasos[0];
         if (!paso) return { ok: false, motivo: "El audio y el vídeo por canal de datos van solo por la malla P2P y no hay ningún enlace con esa neurona ahora (con internet, usa la llamada)." };
         let salida: Salida;

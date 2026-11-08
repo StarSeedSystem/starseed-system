@@ -1186,7 +1186,8 @@ export function iniciarSincronizacionNeuronas(): () => void {
       if (!vivo) return;
       bajas.push(
         tu.alRecibirMensaje(CANAL_SYNC, (msg) => {
-          const directo = msg.origen.tipo === "local" || msg.origen.tipo === "nativo" || msg.origen.tipo === "cuenta" || msg.origen.tipo === "par";
+          // (BLE1108A) El Bluetooth directo también contesta por el mismo enlace.
+          const directo = msg.origen.tipo === "local" || msg.origen.tipo === "nativo" || msg.origen.tipo === "ble" || msg.origen.tipo === "cuenta" || msg.origen.tipo === "par";
           void m.recibir(msg.cuerpo, {
             via: viaDeOrigen(msg.origen),
             enlaceId: directo ? msg.origen.enlaceId : undefined,
@@ -1221,6 +1222,31 @@ export function iniciarSincronizacionNeuronas(): () => void {
     void import("@/lib/malla/red-local-nativa-motor")
       .then((rn) => {
         const parar = rn.iniciarRedLocalNativa();
+        if (vivo) bajas.push(parar);
+        else parar();
+      })
+      .catch(() => undefined);
+    // (BLE1108A) Bluetooth directo entre apps nativas, sin router ni internet (enlace `ble:<id>`).
+    void import("@/lib/malla/bluetooth-directo-motor")
+      .then((bd) => {
+        const parar = bd.iniciarBluetoothDirecto();
+        if (vivo) bajas.push(parar);
+        else parar();
+      })
+      .catch(() => undefined);
+    // (WFD1108A) Enlace Wi-Fi directo entre neuronas, sin router: escucha su canal de control.
+    void import("@/lib/malla/enlace-wifi-motor")
+      .then((ew) => {
+        const parar = ew.iniciarEnlaceWifi();
+        if (vivo) bajas.push(parar);
+        else parar();
+      })
+      .catch(() => undefined);
+    // (INT1108C) El Bluetooth directo negocia el enlace Wi-Fi directo (vía de control cercana) y lo pesado lo
+    // propone o lo abre según el ajuste, con un aviso de un toque en «Preguntar».
+    void import("@/lib/malla/puente-ble-wifi")
+      .then((pb) => {
+        const parar = pb.iniciarPuenteBleWifi();
         if (vivo) bajas.push(parar);
         else parar();
       })

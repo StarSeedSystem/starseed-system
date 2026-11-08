@@ -343,6 +343,13 @@ tauri-utils; es el mismo comparador del updater). Ningún crate se descarga de m
 - **macOS sin notarizar**: el updater funciona (firma propia); la primera instalación manual pide «Abrir».
   Windows: el MSI de pruebas es `0.5.1.<n>` (WiX ignora el 4.º número al decidir si es «más nuevo»; la
   plantilla de Tauri permite instalar encima igual). Linux: glibc ≥ 2.39, como el oficial.
+- **(INT1108C · run 42452615312)** Linux en pruebas sale SIN `.rpm`: RPM no admite el «-» de
+  `0.5.1-prueba.N` y tumbaba el job; `.deb` y `.AppImage` sí (el updater de Linux usa el AppImage). Y en
+  Windows `canal-pruebas.mjs` no se reconocía como entrada (`file://D:\…` ≠ `file:///D:/…`): `sellar` no
+  hacía nada y los instaladores salían como 0.5.0. Ahora la comprobación es portátil (`esEntradaCli`, como
+  `preparar.mjs`) y el paso de sellado falla en alto si `tauri.conf.json` no dice la versión del plan. El
+  MSI de pruebas se estrena con `0.5.1.<n>` (WiX); si diera guerra, `--bundles nsis` en Windows para
+  pruebas. El canal oficial no cambia.
 - **Android no deja instalar sin la persona**: no hay actualización silenciosa sin ser «propietario del
   dispositivo» o tienda. Si la app no está a la vista, el instalador se abre al volver a ella.
 - **Sin verificar en un aparato real** todavía: el Kotlin (`ActualizadorApk.kt`) solo se compila en el CI

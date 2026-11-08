@@ -34,6 +34,7 @@ import { claveChat, usePreferenciasMedio } from "@/lib/mensajeria/medios/prefere
 import { AVISO_LIMITES_MEDIOS } from "@/lib/mensajeria/neuronas/datos-neurona";
 import { enviarArchivosANeurona } from "@/lib/mensajeria/neuronas/archivos-neurona";
 import { BotonesLlamadaNeurona, PanelTransmitir, TarjetaArchivo, TarjetaFlujo, TarjetaLlamada } from "@/components/messages/neuronas/datos-hilo";
+import { BandaEnlaceWifi } from "@/components/malla/banda-enlace-wifi";
 
 /** Archivos que se aceptan de una vez (arrastrar o elegir). */
 const MAX_ARCHIVOS_A_LA_VEZ = 20;
@@ -286,6 +287,13 @@ export function HiloNeurona({ conversacion, cerebros, esMovil, onAtras, enfocado
                     capacidades={conversacion.capacidades}
                     className="shrink-0 border-b border-white/[0.06] px-3 py-1.5 sm:px-4"
                 />
+            )}
+
+            {/* (WFD1108A) Enlace Wi-Fi directo con esta neurona: activo · N Mb/s, en marcha, propuesta o pregunta. */}
+            {conversacion.destino.neuronDeviceId && (
+                <div className="shrink-0 px-3 pt-2 empty:hidden sm:px-4">
+                    <BandaEnlaceWifi neurona={conversacion.destino.neuronDeviceId} nombre={conversacion.nombre} />
+                </div>
             )}
 
             {enEspera > 0 && (

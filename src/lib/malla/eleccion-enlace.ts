@@ -35,7 +35,8 @@ import type { ClaseRuta } from "@/lib/network/estadisticas-enlace";
 import { vetoPorPolitica, ordenarPorViabilidad } from "./cristal/adaptador-elegidores";
 import type { Medio } from "./cristal/tipos";
 
-export type TipoEnlace = "local" | "nativo" | "cuenta" | "par" | "rele" | "lora";
+// (BLE1108A) `ble`: Bluetooth directo entre dos apps nativas (`ble:<id>`, bluetooth-directo-motor.ts).
+export type TipoEnlace = "local" | "nativo" | "ble" | "cuenta" | "par" | "rele" | "lora";
 export type ClaseEnvio = "mensaje" | "archivo" | "flujo";
 
 /** Protocolo con el que habla el enlace. Ausente = «starseed», el de siempre. */
@@ -115,6 +116,8 @@ export function rangoEnlace(e: EnlaceDisponible): number {
   switch (e.tipo) {
     case "local":
     case "nativo":
+    // (BLE1108A) Directo entre antenas, sin router: rango 0, detrás del WebRTC local y del TCP (más rápidos).
+    case "ble":
       return 0;
     case "cuenta":
     case "par":
@@ -135,6 +138,7 @@ export function motivoRango(e: EnlaceDisponible): string {
   switch (rangoEnlace(e)) {
     case 0:
       if (e.tipo === "nativo") return "red local de la app nativa (neurona vinculada, sin internet)";
+      if (e.tipo === "ble") return "Bluetooth directo entre las dos apps nativas (sin router ni internet)";
       if (e.id.startsWith("local:nativo-")) return "enlace directo por la red local (lo abrieron solas las dos apps nativas)";
       return "enlace directo sin internet (emparejado en persona)";
     case 1:
@@ -169,8 +173,21 @@ export function alcanzaDestino(e: EnlaceDisponible, d: DestinoTransporte): boole
  * que el canal TCP de la app nativa, que es su respaldo (va al ritmo que marca el limitador del otro).
  */
 export function ordenEnRango(e: EnlaceDisponible): number {
-  return e.tipo === "nativo" ? 1 : 0;
+  // (BLE1108A) El Bluetooth directo, el último del rango 0: es el que queda cuando no hay router.
+  return e.tipo === "ble" ? 2 : e.tipo === "nativo" ? 1 : 0;
 }
+
+/**
+ * (BLE1108A) Rango de un enlace PARA UN ENVÍO: un archivo de más de 256 KiB por Bluetooth (decenas de
+ * KB/s) va detrás de cualquier P2P más rápido, también por internet o TURN; si no hay otro, va por él. Puro.
+ */
+export function rangoParaEnvio(e: EnlaceDisponible, clase: ClaseEnvio, bytes: number): number {
+  if (e.tipo === "ble" && clase === "archivo" && bytes > ARCHIVO_BLE_PREFERENTE_BYTES) return 3.5;
+  return rangoEnlace(e);
+}
+
+/** (BLE1108A) Por encima de esto un archivo prefiere otro P2P al Bluetooth (`bluetooth-directo.ts`). */
+export const ARCHIVO_BLE_PREFERENTE_BYTES = 256 * 1024;
 
 function compararNumero(a: number | null | undefined, b: number | null | undefined, asc: boolean): number {
   const va = typeof a === "number" && Number.isFinite(a) ? a : null;
@@ -252,6 +269,7 @@ export function elegirEnlaces(
       switch (e.tipo) {
         case "local": medio = "webrtc"; break;
         case "nativo": medio = "wifi-lan"; break;
+        case "ble": medio = "ble"; break;
         case "cuenta": medio = "webrtc"; break;
         case "par": medio = "webrtc"; break;
         case "rele": medio = "servidor"; break;
@@ -289,7 +307,9 @@ export function elegirEnlaces(
         clase === "flujo"
           ? e.tipo === "nativo"
             ? "el canal TCP de la app nativa no lleva audio, vídeo ni flujos: van por el enlace directo que abren solas las dos apps"
-            : "no lleva audio ni vídeo (las llamadas directas van por el enlace local)"
+            : e.tipo === "ble"
+              ? "el Bluetooth directo no lleva audio, vídeo ni transmisiones en vivo (no le da el ancho: decenas de KB/s)"
+              : "no lleva audio ni vídeo (las llamadas directas van por el enlace local)"
           : clase === "archivo"
             ? e.tipo === "lora"
               ? "LoRa no lleva archivos"
@@ -301,13 +321,24 @@ export function elegirEnlaces(
       continue;
     }
     if (typeof e.maxBytes === "number" && bytes > e.maxBytes) {
-      descartar(`el envío (${bytes} B) supera lo que lleva este enlace (${e.maxBytes} B)`);
+      descartar(
+        e.tipo === "ble"
+          ? `el archivo (${bytes} B) supera lo que lleva el Bluetooth directo (${e.maxBytes} B): a decenas de KB/s tardaría demasiado`
+          : `el envío (${bytes} B) supera lo que lleva este enlace (${e.maxBytes} B)`,
+      );
       continue;
     }
+    // (BLE1108A) Un archivo grande por Bluetooth baja de rango (detrás de cualquier P2P más rápido).
+    const rango = rangoParaEnvio(e, clase, bytes);
     elegidos.push({
       enlace: e,
-      rango: rangoEnlace(e),
-      motivo: e.protocolo === "localsend" ? motivoLocalSend(e) : motivoRango(e),
+      rango,
+      motivo:
+        e.protocolo === "localsend"
+          ? motivoLocalSend(e)
+          : rango !== rangoEnlace(e)
+            ? "Bluetooth directo (archivo grande: solo si no hay un P2P más rápido)"
+            : motivoRango(e),
     });
   }
    // Si se especificó una función de puntuar en opciones, usamos un comparador que
@@ -357,9 +388,13 @@ export function mismoAparato(a: AlcanceEnlace, b: AlcanceEnlace): boolean {
 export function enlacesParaReparto(eleccion: Eleccion): EnlaceDisponible[] {
   const p2p = eleccion.elegidos
     .map((x) => x.enlace)
-    .filter((e) => e.tipo === "local" || e.tipo === "nativo" || e.tipo === "cuenta" || e.tipo === "par");
+    .filter((e) => e.tipo === "local" || e.tipo === "nativo" || e.tipo === "ble" || e.tipo === "cuenta" || e.tipo === "par");
   if (p2p.length <= 1) return p2p;
   const primero = p2p[0];
+  // (BLE1108A) El Bluetooth directo nunca reparte (a decenas de KB/s frenaría a los demás): si es el mejor
+  // —archivo pequeño, o ningún P2P más rápido llega—, va solo por él; si no, se queda fuera del reparto.
+  if (primero.tipo === "ble") return [primero];
+  if (p2p.some((e) => e.tipo === "ble")) return enlacesParaReparto({ ...eleccion, elegidos: eleccion.elegidos.filter((x) => x.enlace.tipo !== "ble") });
   const webrtc = p2p.filter((e) => e.tipo !== "nativo");
   const candidatos = primero.tipo === "nativo" ? webrtc.filter((e) => mismoAparato(primero.alcanza, e.alcanza)) : webrtc;
   if (!candidatos.length) return [primero];

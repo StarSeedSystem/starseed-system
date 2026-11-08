@@ -29,6 +29,7 @@
 import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync, statSync } from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 export const ETIQUETA = "canal-pruebas";
 export const MANIFIESTO_ESCRITORIO = "latest-prueba.json";
@@ -357,7 +358,22 @@ async function main() {
   throw new Error("Uso: canal-pruebas.mjs plan|sellar|android|publicar …");
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+/**
+ * PURA. ¿Este módulo es el que se ejecutó (`node canal-pruebas.mjs …`)? (INT1108C) Comparación portátil,
+ * como preparar.mjs: en Windows `import.meta.url` es «file:///D:/a/…» y argv[1] «D:\a\…», así que la de
+ * antes (`file://${argv[1]}`) nunca casaba allí y `sellar` salía sin hacer NADA (run 42452615312: los
+ * instaladores de Windows del canal de pruebas salieron como 0.5.0). Inyectable para probar rutas de Windows.
+ */
+export function esEntradaCli(urlModulo, argv1, { resolver = path.resolve, aRuta = fileURLToPath } = {}) {
+  if (!argv1) return false;
+  try {
+    return resolver(argv1) === aRuta(urlModulo);
+  } catch {
+    return false;
+  }
+}
+
+if (esEntradaCli(import.meta.url, process.argv[1])) {
   main().catch((e) => {
     console.error(`✗ ${e.message}`);
     process.exit(1);

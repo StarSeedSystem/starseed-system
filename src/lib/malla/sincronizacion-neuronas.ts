@@ -51,10 +51,12 @@ export const REINTENTO_RECONEXION_MS = 60_000;
 
 /* ══════════════════════════ Tipos ══════════════════════════ */
 
-export type ViaSync = "red-local-nativa" | "enlace-local" | "malla-cuenta" | "vinculo-par" | "rele" | "lora";
+// (BLE1108A) `bluetooth`: el Bluetooth directo entre dos apps nativas (enlace `ble:<id>` del transporte).
+export type ViaSync = "red-local-nativa" | "enlace-local" | "bluetooth" | "malla-cuenta" | "vinculo-par" | "rele" | "lora";
 
 export const ETIQUETA_VIA: Record<ViaSync, string> = {
   "red-local-nativa": "la red local (app nativa, sin internet)",
+  bluetooth: "el Bluetooth directo (app nativa, sin router ni internet)",
   "enlace-local": "el enlace directo sin internet (código QR)",
   "malla-cuenta": "la malla P2P de tu cuenta",
   "vinculo-par": "el vínculo entre cuentas",
@@ -710,6 +712,8 @@ export function viaDeOrigen(origen: { tipo: string; enlaceId?: string }): ViaSyn
       return "red-local-nativa";
     case "local":
       return "enlace-local";
+    case "ble":
+      return "bluetooth";
     case "cuenta":
       return "malla-cuenta";
     case "par":

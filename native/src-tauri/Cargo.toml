@@ -122,7 +122,14 @@ webkit2gtk = { version = "2", features = ["v2_38"] }
 # WKWebView `loadHTMLString:baseURL:` (objc2 y objc2-foundation de tauri/wry).
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6"
-objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSString", "NSURL"] }
+# (BLE1108A) + NSArray, NSData, NSDictionary, NSError, NSUUID, NSValue y NSObject para CoreBluetooth (ble_macos.rs).
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSString", "NSURL", "NSArray", "NSData", "NSDictionary", "NSError", "NSUUID", "NSValue", "NSObject"] }
+# (BLE1108A) Bluetooth directo en macOS: CoreBluetooth (central y periférico) del mismo proyecto objc2 que ya
+# usan tauri/wry (solo enlaces generados de los encabezados de Apple, sin código C ni build script). Fijada:
+# su API se comprobó con `cargo check --target aarch64-apple-darwin` (contrato bluetooth-directo.md §8).
+objc2-core-bluetooth = { version = "=0.3.2", default-features = false, features = ["std", "dispatch2", "CBManager", "CBCentralManager", "CBCentralManagerConstants", "CBPeripheralManager", "CBPeripheralManagerConstants", "CBPeripheral", "CBCentral", "CBPeer", "CBService", "CBCharacteristic", "CBDescriptor", "CBUUID", "CBATTRequest", "CBAdvertisementData", "CBAttribute", "CBError"] }
+# (BLE1108A) La cola de despacho propia de CoreBluetooth; ya está en el árbol (objc2/wry): no baja nada nuevo.
+dispatch2 = { version = "0.3", default-features = false, features = ["std", "objc2"] }
 
 # WebView2 `WebResourceRequested` + `SHCreateMemStream` (webview2-com y windows de tauri/wry).
 [target.'cfg(target_os = "windows")'.dependencies]

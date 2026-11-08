@@ -31,6 +31,8 @@ import {
 import { claveChat, preferenciasEfectivas } from "@/lib/mensajeria/medios/preferencias-store";
 import { motivoSinPantalla, pedirPantalla } from "@/lib/llamadas/pantalla";
 import type { AjustesMedios } from "@/lib/llamadas/permiso-medios";
+// (INT1108C) Sin camino para la llamada y la neurona al lado por Bluetooth: enlace Wi-Fi directo.
+import { avisarEnvioPesado } from "@/lib/malla/puente-ble-wifi";
 
 export type TipoLlamadaNeurona = "audio" | "video" | "pantalla";
 
@@ -175,6 +177,9 @@ export async function llamarANeurona(o: {
         });
         if (!plan.via) {
             soltar(pista);
+            // (INT1108C) Por Bluetooth no caben llamadas: si la neurona está al lado, se abre o se propone
+            // el enlace Wi-Fi directo (según el ajuste) y la siguiente llamada ya va por él.
+            avisarEnvioPesado({ destino: conv.destino, clase: tipo === "pantalla" ? "pantalla" : "llamada" });
             return { ok: false, motivo: plan.aviso, plan };
         }
         const llamada: LlamadaNeurona = { tipo: tipo === "audio" ? "audio" : "video", via: plan.via, ...(tipo === "pantalla" ? { pantalla: true } : {}) };
