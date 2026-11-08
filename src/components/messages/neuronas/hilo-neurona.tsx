@@ -19,6 +19,8 @@ import { ACENTO, pildoraFantasma } from "@/components/messages/marco/estilos";
 import { PastillaVia, type PendienteVia } from "@/components/messages/medios/pastilla-via";
 import { BloqueMedioTransmision } from "@/components/messages/medios/bloque-medio";
 import { VersionNeurona } from "@/components/neurons/version-neurona";
+import { usePresenciaViva } from "@/lib/neurons/use-presencia-viva";
+import { TEXTO_VIA } from "@/lib/neurons/presencia-viva";
 import { IconoNeurona } from "@/components/messages/neuronas/icono-neurona";
 import { SeparadorDia } from "@/components/messages/dm/separador-dia";
 import { formatearHora } from "@/components/messages/dm/utilidades-hilo";
@@ -200,9 +202,13 @@ export function HiloNeurona({ conversacion, cerebros, esMovil, onAtras, enfocado
         }
     };
 
-    const subtitulo = conversacion.propia
-        ? `${conversacion.enLinea ? "En línea" : "Desconectada"}${cerebros.length ? ` · ${cerebros.join(" · ")}` : ""}`
-        : conversacion.detalle;
+    // (NEU1108A) La misma verdad que el radar: enlace local sin internet, malla P2P, faro de la red local y
+    // presencia de la cuenta. Antes solo el latido de la fila («Desconectada» con la tableta sin internet
+    // aunque los mensajes llegaban por la red local).
+    const viva = usePresenciaViva(conversacion.propia ? conversacion.destino.neuronDeviceId ?? "" : "", conversacion.capacidades);
+    const enLinea = !!conversacion.enLinea || viva.enLinea;
+    const estadoTexto = viva.enLinea ? `En línea · ${TEXTO_VIA[viva.via ?? "cuenta"]}` : enLinea ? "En línea" : "Desconectada";
+    const subtitulo = conversacion.propia ? `${estadoTexto}${cerebros.length ? ` · ${cerebros.join(" · ")}` : ""}` : conversacion.detalle;
 
     return (
         <div
@@ -242,7 +248,7 @@ export function HiloNeurona({ conversacion, cerebros, esMovil, onAtras, enfocado
                         <ArrowLeft className="h-5 w-5" />
                     </button>
                 )}
-                <IconoNeurona kind={conversacion.kind} propia={conversacion.propia} enLinea={conversacion.enLinea} />
+                <IconoNeurona kind={conversacion.kind} propia={conversacion.propia} enLinea={enLinea} />
                 <div className="min-w-0 flex-1">
                     <h2 className="truncate text-[15px] font-semibold text-white">{conversacion.nombre}</h2>
                     <p className="truncate text-[12px] text-white/55">{subtitulo}</p>
@@ -277,6 +283,7 @@ export function HiloNeurona({ conversacion, cerebros, esMovil, onAtras, enfocado
                 <VersionNeurona
                     neuronaId={conversacion.destino.neuronDeviceId}
                     nombre={conversacion.nombre}
+                    capacidades={conversacion.capacidades}
                     className="shrink-0 border-b border-white/[0.06] px-3 py-1.5 sm:px-4"
                 />
             )}

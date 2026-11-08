@@ -9,14 +9,19 @@
  * · Esta neurona: «Buscar actualizaciones» (el mismo camino que la ventana «Hay una versión nueva»).
  * · Otra neurona tuya: «Pedir actualización» (mensaje firmado; allí se abre SU ventana y nunca se instala
  *   sola). Si su versión no entiende el pedido, se dice cómo actualizarla a mano, con la Librería.
+ * · (NEU1108A) «En línea» sale de la MISMA verdad que el radar (`usePresenciaViva`): enlace directo sin
+ *   internet, malla P2P, faro de la red local y presencia de la cuenta, con la vía («vía red local»). Si
+ *   la presencia no trae versión ni aparato (sin internet, web anterior), los de su fila
+ *   (`capabilities.aparato`), dichos como «según su registro».
  */
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { BellRing, Loader2, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { usePresenciaNeuronas } from "@/lib/neurons/presencia";
-import { formatearInfoNeurona, mejorMedio, sanearInfoPublica } from "@/lib/neurons/info-publica";
+import { usePresenciaViva } from "@/lib/neurons/use-presencia-viva";
+import { textoEstadoVivo } from "@/lib/neurons/presencia-viva";
+import { formatearInfoNeurona } from "@/lib/neurons/info-publica";
 import { EVENTO_BUSCAR_ACTUALIZACION, pedirActualizacion } from "@/lib/neurons/pedir-actualizacion";
 import { EVENTO_COMPROBACION, type UltimaComprobacion } from "@/lib/actualizaciones/ultima-comprobacion";
 import { useUltimaPublicada } from "@/lib/actualizaciones/ultima-publicada";
@@ -27,23 +32,22 @@ export interface VersionNeuronaProps {
   esEsta?: boolean;
   /** Nombre de esta neurona, para decir quién lo pide. */
   miNombre?: string;
+  /** (NEU1108A) Capacidades guardadas de su fila: versión y aparato cuando la presencia no los trae. */
+  capacidades?: Record<string, unknown> | null;
   className?: string;
 }
 
-export function VersionNeurona({ neuronaId, nombre, esEsta = false, miNombre, className }: VersionNeuronaProps) {
-  const presencia = usePresenciaNeuronas();
+export function VersionNeurona({ neuronaId, nombre, esEsta = false, miNombre, capacidades, className }: VersionNeuronaProps) {
+  const viva = usePresenciaViva(neuronaId, capacidades);
   const ultima = useUltimaPublicada();
   const [ocupado, setOcupado] = useState(false);
   const [texto, setTexto] = useState("");
 
-  const medios = presencia.medios.filter((m) => m.n === neuronaId);
-  const mejor = mejorMedio(medios);
-  const vista = formatearInfoNeurona(
-    { version: mejor?.v?.nativa ?? null, info: sanearInfoPublica(mejor?.d), plataforma: mejor?.plataforma ?? null },
-    ultima?.version ?? null,
-  );
+  const mejor = viva.medio;
+  const vista = formatearInfoNeurona({ version: viva.version, info: viva.info, plataforma: viva.plataforma }, ultima?.version ?? null);
+  // «Pedir actualización» va por el canal de la cuenta: hace falta su medio en la presencia.
   const presente = !!mejor;
-  const esNativa = !!mejor?.v?.nativa || mejor?.d?.medio === "escritorio" || mejor?.d?.medio === "android";
+  const esNativa = !!viva.version || viva.info?.medio === "escritorio" || viva.info?.medio === "android";
 
   // Esta neurona: el resultado de «Buscar actualizaciones» lo dice la última comprobación.
   useEffect(() => {
@@ -74,14 +78,24 @@ export function VersionNeurona({ neuronaId, nombre, esEsta = false, miNombre, cl
     setOcupado(false);
   };
 
-  const partes = [vista.etiquetaVersion, vista.medio, vista.aparato].filter((x): x is string => !!x);
+  const etiqueta = viva.fuenteInfo === "registro" && vista.version ? `${vista.etiquetaVersion} (según su registro)` : vista.etiquetaVersion;
+  const partes = [etiqueta, vista.medio, vista.aparato].filter((x): x is string => !!x);
 
   return (
     <div className={cn("space-y-1.5 text-[11px] leading-snug", className)} data-testid={`version-neurona-${neuronaId}`}>
       <div className="flex flex-wrap items-center gap-1.5">
+        {!esEsta && viva.enLinea && (
+          <span
+            data-testid="estado-vivo"
+            className="inline-flex items-center gap-1 rounded-full border border-emerald-400/30 bg-emerald-500/10 px-1.5 py-px text-[10px] font-medium text-emerald-100"
+          >
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-300" aria-hidden />
+            {textoEstadoVivo(viva)}
+          </span>
+        )}
         <span className={cn("min-w-0", vista.estado === "desconocida" ? "text-white/45" : "text-white/70")}>
           {partes.join(" · ")}
-          {!presente && !esEsta ? " · no está abierta ahora" : ""}
+          {!viva.enLinea && !esEsta ? ` · ${textoEstadoVivo(viva)}` : ""}
         </span>
         {vista.estado === "nueva" && (
           <span className="rounded-full border border-amber-400/30 bg-amber-500/15 px-1.5 py-px text-[10px] font-semibold text-amber-200">

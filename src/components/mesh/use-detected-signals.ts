@@ -45,7 +45,9 @@ import { obtenerRadioLocal, radioLocalEnCache } from "@/lib/network/radio-local-
 import { senalesVistasPorOtras } from "@/lib/network/radar-por-malla";
 import { useRadarRemoto } from "@/lib/network/radar-remoto-store";
 import type { RadioLocal } from "@/lib/mando/radio-local-tipos";
-import { listNeurons, NEURON_EVENT, type Neuron } from "@/lib/neurons/neurons";
+import { listNeurons, NEURON_EVENT, thisDeviceId, type Neuron } from "@/lib/neurons/neurons";
+import { neuronaVigente } from "@/lib/neurons/fusion-alias";
+import { resolverFarosPropios } from "@/lib/senales/faros-propios";
 import { useMallaNeuronasEstado } from "@/lib/network/malla-neuronas";
 import { senalesRedLocal } from "@/lib/malla/sincronizacion-neuronas";
 import { useRedLocal } from "@/lib/malla/sincronizacion-neuronas-motor";
@@ -290,13 +292,33 @@ export function useDetectedSignals(options?: DetectedSignalsOptions): DetectedSi
     [ble.detections, tick],
   );
 
+  // (NEU1108A) Faros propios: el id absorbido va a la neurona que se quedó (y se funde con ella), los de
+  // ESTA neurona desde otro medio u origen y los caducados sin neurona conocida se quitan; los de otras
+  // cuentas, tal cual (anónimos). Antes salían como «Neurona de tu cuenta (anónima)».
+  const farosVistos = useMemo(() => {
+    let miNeurona: string | null = neurons.find((n) => n.isThisDevice)?.id ?? null;
+    try {
+      miNeurona = miNeurona ?? (neuronaVigente(thisDeviceId()) || null);
+    } catch {
+      /* sin almacenamiento */
+    }
+    return resolverFarosPropios(beacons, {
+      miNeurona,
+      neuronas: new Map(neurons.filter((n) => !n.isThisDevice).map((n) => [n.id, n.name])),
+      vigente: neuronaVigente,
+      ahora: Date.now(),
+    }).faros;
+    // `tick` reevalúa la caducidad sin depender de `now` (que cambia en cada render).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [beacons, neurons, tick]);
+
   const signals = useMemo(
     () =>
       enriquecerConMalla(
         ordenarSenalesPorCalidad(
           fusionarRadar(
             [
-              ...collectDetectedSignals({ mesh, beacons, neurons, ble: freshBle, serialPorts, now }),
+              ...collectDetectedSignals({ mesh, beacons: farosVistos, neurons, ble: freshBle, serialPorts, now }),
               ...senalesRadioLocal(radioLocal, now),
               // (RDV14) Lo que oyen las otras neuronas de la cuenta, tal cual lo
               // compartió cada una: toda señal declara quién la oye de verdad.
@@ -310,7 +332,7 @@ export function useDetectedSignals(options?: DetectedSignalsOptions): DetectedSi
         malla.misDispositivos,
       ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [mesh, beacons, neurons, freshBle, serialPorts, tick, radioLocal, radarRemoto, malla.misDispositivos, redLocal.vecinos, redLocal.vinculos],
+    [mesh, farosVistos, neurons, freshBle, serialPorts, tick, radioLocal, radarRemoto, malla.misDispositivos, redLocal.vecinos, redLocal.vinculos],
   );
 
   const unavailable = useMemo<UnavailableSource[]>(() => {

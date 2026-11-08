@@ -21,6 +21,8 @@ export interface NeuronaBasica {
     online?: boolean;
     isThisDevice?: boolean;
     last_seen_at?: string;
+    /** (NEU1108A) Capacidades guardadas de su fila (versión y aparato cuando la presencia no los trae). */
+    capabilities?: Record<string, unknown> | null;
 }
 
 export interface CerebroBasico {
@@ -46,6 +48,8 @@ export interface ConversacionNeurona {
     detalle: string;
     /** ¿Es de esta cuenta? (el canal de la cuenta en el servidor solo llega a las tuyas). */
     propia: boolean;
+    /** (NEU1108A) Capacidades guardadas de esa neurona (solo las de tu cuenta). */
+    capacidades?: Record<string, unknown> | null;
 }
 
 export interface SeccionCerebro {
@@ -100,6 +104,7 @@ export function conversacionDeNeurona(n: NeuronaBasica): ConversacionNeurona {
         destino: { neuronDeviceId: n.id },
         detalle: n.online ? "En línea" : "Desconectada",
         propia: true,
+        ...(n.capabilities ? { capacidades: n.capabilities } : {}),
     };
 }
 

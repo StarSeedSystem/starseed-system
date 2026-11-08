@@ -76,7 +76,11 @@ const PURGA_CADA_MS = 60 * 60_000;
 let ultimaPurga = 0;
 /** Los device_id de MIS faros cambian muy poco: se releen como mucho cada hora. */
 const MIS_FAROS_CADA_MS = 60 * 60_000;
+/** (NEU1108A) …salvo que aparezca un faro desconocido: entonces se releen, como mucho una vez por minuto. */
+const MIS_FAROS_RELEER_MS = 60_000;
 let misFarosCache: { owner: string; en: number; ids: Set<string> } | null = null;
+/** device_id de faros que, tras releer, siguen sin ser míos (otras cuentas): no vuelven a provocar la relectura. */
+let farosAjenos: { owner: string; ids: Set<string> } = { owner: "", ids: new Set() };
 /** Evento de broadcast de cuenta que despierta la bandeja de relé de mis otras neuronas. */
 export const EVENTO_DESPERTAR_RELE = "malla:rele";
 /** Feed público: página y tope de páginas por sondeo (drenado sin huecos, Adenda 119). */
@@ -732,8 +736,9 @@ export async function purgeBeacon(): Promise<void> {
 async function misFaros(
   supabase: NonNullable<Awaited<ReturnType<typeof client>>>,
   owner: string,
+  forzar = false,
 ): Promise<Set<string>> {
-  if (misFarosCache && misFarosCache.owner === owner && Date.now() - misFarosCache.en < MIS_FAROS_CADA_MS) {
+  if (!forzar && misFarosCache && misFarosCache.owner === owner && Date.now() - misFarosCache.en < MIS_FAROS_CADA_MS) {
     return misFarosCache.ids;
   }
   const ids = new Set<string>();
@@ -750,6 +755,8 @@ async function misFaros(
   // Mi propio faro siempre es mío aunque la lectura falle o llegue antes de emitirlo.
   ids.add(deviceId());
   if (!error) misFarosCache = { owner, en: Date.now(), ids };
+  // (NEU1108A) Si la lectura falla, lo que ya se sabía sigue valiendo (no se «desconocen» mis faros).
+  else if (misFarosCache?.owner === owner) return new Set([...misFarosCache.ids, ...ids]);
   return ids;
 }
 
@@ -770,7 +777,7 @@ export async function pullBeaconsDetallado(): Promise<{ faros: RelayBeacon[]; fa
     // el feed público NO selecciona owner_id (era una fuga del UUID de cuenta
     // soberana a cualquiera). En su lugar, consulto los device_id de MI cuenta
     // aparte (RLS me deja) y comparo localmente.
-    const myDevices = owner ? await misFaros(supabase, owner) : new Set<string>();
+    let myDevices = owner ? await misFaros(supabase, owner) : new Set<string>();
 
     const res = await supabase
       .from("os_mesh_relay")
@@ -782,6 +789,20 @@ export async function pullBeaconsDetallado(): Promise<{ faros: RelayBeacon[]; fa
     const fallo = falloDe(res as { error?: unknown; status?: number });
     const data = res.data;
     if (fallo || !Array.isArray(data)) return { faros: [], fallo };
+    // (NEU1108A) Un medio NUEVO de tu cuenta (otra app, un origen nuevo como 127.0.0.1 tras reinstalar)
+    // estrena faro con otro device_id: con la lista de «mis faros» de hasta 1 h salía como «Neurona de otra
+    // cuenta». Si aparece un faro desconocido, la lista se relee (como mucho una vez por minuto).
+    // Los de otras cuentas ya confirmados no vuelven a provocar la relectura.
+    if (owner) {
+      if (farosAjenos.owner !== owner) farosAjenos = { owner, ids: new Set() };
+      const desconocidos = (data as Array<Record<string, unknown>>)
+        .map((r) => String(r.device_id ?? ""))
+        .filter((dev) => !!dev && dev !== me && !myDevices.has(dev) && !farosAjenos.ids.has(dev));
+      if (desconocidos.length && misFarosCache && Date.now() - misFarosCache.en > MIS_FAROS_RELEER_MS) {
+        myDevices = await misFaros(supabase, owner, true);
+        for (const dev of desconocidos) if (!myDevices.has(dev)) farosAjenos.ids.add(dev);
+      }
+    }
     const out: RelayBeacon[] = [];
     const seen = new Set<string>();
     for (const row of data as Array<Record<string, unknown>>) {

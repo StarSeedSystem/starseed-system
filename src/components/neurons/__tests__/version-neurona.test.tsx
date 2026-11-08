@@ -17,6 +17,7 @@ vi.mock("@/lib/neurons/pedir-actualizacion", async (original) => ({
 
 import { VersionNeurona } from "../version-neurona";
 import { EVENTO_BUSCAR_ACTUALIZACION, pedirActualizacion } from "@/lib/neurons/pedir-actualizacion";
+import { registrarEnlaceLocal, type EnlaceLocalVivo } from "@/lib/malla/registro-enlaces-locales";
 
 const medio = (n: string, extra: Record<string, unknown>) => ({ n, m: `${n}-m`, tipo: "app-nativa", etiqueta: "App", visible: true, desde: "", t: 1, s: {}, ...extra });
 
@@ -67,5 +68,46 @@ describe("VersionNeurona", () => {
     await userEvent.click(screen.getByRole("button", { name: "Buscar actualizaciones en esta neurona" }));
     expect(oido).toHaveBeenCalledTimes(1);
     window.removeEventListener(EVENTO_BUSCAR_ACTUALIZACION, oido);
+  });
+});
+
+describe("(NEU1108A) la misma verdad que el radar", () => {
+  it("la tableta sin internet con el enlace local vivo: «en línea · vía red local · 57 ms» y versión y aparato de su fila", () => {
+    const baja = registrarEnlaceLocal({
+      id: "local:tableta",
+      par: { nombre: "Maggaboard", neuronDeviceId: "tablet", syncDeviceId: "sync-127", origen: "red-local-nativa" },
+      desde: 1,
+      abierto: () => true,
+      rttMs: () => 57,
+      ruta: () => "misma-red-local",
+      capacidadKbps: () => null,
+      enviar: () => true,
+      enviarBinario: () => true,
+      bufferedAmount: () => 0,
+      alMensaje: () => () => undefined,
+      ponerPistas: async () => true,
+      alFlujoRemoto: () => () => undefined,
+      cerrar: () => undefined,
+    } as unknown as EnlaceLocalVivo);
+    try {
+      render(
+        <VersionNeurona
+          neuronaId="tablet"
+          nombre="Maggaboard"
+          capacidades={{ platform: "Android", aparato: { v: 1, medio: "android", app: "os", so: "android", soV: "14", equipo: "Samsung SM-X205", version: "0.5.0" } }}
+        />,
+      );
+      expect(screen.getByTestId("estado-vivo")).toHaveTextContent("en línea · vía red local · 57 ms");
+      expect(screen.getByText(/Versión 0\.5\.0 \(según su registro\) · App de Android · StarSeed OS · Samsung SM-X205 · Android 14/)).toBeInTheDocument();
+      expect(screen.queryByText(/no está abierta ahora/)).not.toBeInTheDocument();
+    } finally {
+      baja();
+    }
+  });
+
+  it("en la presencia de la cuenta: «en línea · vía internet»", () => {
+    presencia.medios = [medio("pc", { v: { nativa: "0.6.0" }, d: { medio: "escritorio", app: "os", so: "macos", pa: 1 } })];
+    render(<VersionNeurona neuronaId="pc" nombre="PC" />);
+    expect(screen.getByTestId("estado-vivo")).toHaveTextContent("en línea · vía internet");
   });
 });

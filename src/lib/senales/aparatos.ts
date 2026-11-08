@@ -125,7 +125,12 @@ export function construirVivo(senales: readonly DetectedSignal[], ctx: ContextoV
     const fila = filas.get(neuronaId) ?? null;
     const abiertos = porNeurona.get(neuronaId) ?? [];
     const sync = fila?.syncDeviceId ?? s.starseed?.syncDeviceId;
-    const local = ctx.locales.find((l) => !!l.syncDeviceId && (l.syncDeviceId === sync || abiertos.some((m) => m.sid === l.syncDeviceId))) ?? null;
+    // (NEU1108A) También por el id de neurona que declaró el otro al abrir el canal (el de sync puede ser
+    // el de un origen nuevo que la fila aún no conoce: la tableta en 127.0.0.1 sin internet).
+    const local =
+      ctx.locales.find(
+        (l) => (!!l.syncDeviceId && (l.syncDeviceId === sync || abiertos.some((m) => m.sid === l.syncDeviceId))) || (!!l.neuronDeviceId && l.neuronDeviceId === neuronaId),
+      ) ?? null;
     if (local) usados.add(local.id);
     enlaces.set(s.id, clasificarEnlace(fila, {
       medios: abiertos, faroEnRele: s.metrics.some((m) => m.label === "Faro en el relé"), enlaceLocal: local, ahora: ctx.ahora,

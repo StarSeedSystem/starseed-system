@@ -79,7 +79,16 @@ export function PanelNeuronas({ esMovil, enfocado, onAlternarEnfoque, onDetalleA
                 cargando: false,
                 miUid: uid,
                 sinSesion: !uid,
-                neuronas: neuronas.map((n) => ({ id: n.id, name: n.name, kind: n.kind, online: n.online, isThisDevice: n.isThisDevice, last_seen_at: n.last_seen_at })),
+                neuronas: neuronas.map((n) => ({
+                    id: n.id,
+                    name: n.name,
+                    kind: n.kind,
+                    online: n.online,
+                    isThisDevice: n.isThisDevice,
+                    last_seen_at: n.last_seen_at,
+                    // (NEU1108A) Versión y aparato de su fila, para el chat cuando la presencia no los trae.
+                    capabilities: (n.capabilities ?? null) as unknown as Record<string, unknown> | null,
+                })),
                 cerebros: [
                     ...propios.brains.map((b) => ({ id: b.id, name: b.name, scope: b.scope, scope_ref: b.scope_ref, owner: b.owner, servers: b.servers as Array<Record<string, unknown>> })),
                     ...compartidos.brains.map((b) => ({ id: b.id, name: b.name, scope: b.scope, scope_ref: b.scope_ref, owner: b.owner, compartido: true })),

@@ -297,6 +297,7 @@ export function NeuronsPanel() {
                 nombre={n.name}
                 esEsta={n.isThisDevice}
                 miNombre={neurons.find((x) => x.isThisDevice)?.name}
+                capacidades={n.capabilities as unknown as Record<string, unknown>}
               />
 
               {/* Permisos (6 switches) */}

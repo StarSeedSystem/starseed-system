@@ -62,6 +62,8 @@ export interface FotoEnlaceLocal {
   plataforma?: string;
   uid?: string;
   syncDeviceId?: string;
+  /** (NEU1108A) Id de neurona que declaró el otro al abrir el canal (el chat de esa neurona lo busca por él). */
+  neuronDeviceId?: string;
   desde: number;
   rttMs: number | null;
   ruta: ClaseRuta | null;
@@ -81,6 +83,7 @@ function rehacerFoto(): void {
     plataforma: e.par.plataforma,
     uid: e.par.uid,
     syncDeviceId: e.par.syncDeviceId,
+    neuronDeviceId: e.par.neuronDeviceId,
     desde: e.desde,
     rttMs: e.rttMs(),
     ruta: e.ruta(),
