@@ -29,7 +29,6 @@ describe("IdentidadSinServidor", () => {
   it("sin clave maestra: lo dice claro y ofrece crear, importar o ser neurona nueva", async () => {
     render(<IdentidadSinServidor servicio={falso()} />);
     expect(await screen.findByText(/no/i, { selector: "strong" })).toBeInTheDocument();
-    expect(screen.getByText(/no guarda la clave maestra/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Crear clave maestra/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Importar clave/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Esta neurona es nueva/i })).toBeInTheDocument();

@@ -96,8 +96,7 @@ describe("certificado cuenta → neurona", () => {
     const anuncio = (await crearAnuncioCuenta(m.f, "u1"))!;
     await anclas.aprenderAnuncio(anuncio);
     expect((await verificarCertificadoNeurona(c, await anclas.listar(), { ahora: HOY })).estado).toBe("sin-ancla");
-    await anclas.registrarEvento(m.mfp, "veredicto-confirmado");
-    await anclas.registrarEvento(m.mfp, "veredicto-confirmado");
+    for (let i = 0; i < 3; i++) await anclas.registrarEvento(m.mfp, "veredicto-confirmado");
     const r = await verificarCertificadoNeurona(c, await anclas.listar(), { ahora: HOY });
     expect(r).toMatchObject({ ok: true, nivel: "anunciada" });
   });
