@@ -8,6 +8,7 @@ import {
     nombreDeVia,
     normalizarPreferencias,
     resumenPreferencias,
+    textoRutaOtroLado,
     viaServidor,
 } from "../medios";
 import type { CandidatoMedio, PreferenciasMedio } from "../tipos";
@@ -189,5 +190,32 @@ describe("red local de la app nativa (MLT1107A) — la pastilla lo dice", () => 
         expect(d.find((l) => l.etiqueta === "Medio")?.valor).toBe("Red local (app nativa)");
         expect(d.find((l) => l.etiqueta === "Ruta medida")?.valor).toBe("Misma red local");
         expect(d.find((l) => l.etiqueta === "Llegó desde")?.valor).toBe("Tablet · red local");
+    });
+});
+
+describe("la ruta en la pastilla y la info (BLE1108B)", () => {
+    const base = { direccion: "sale" as const, confirmado: true, confirmadoPor: "destino" as const, enlaceId: "cuenta:x", enlace: "Maggaboard" };
+
+    it("la pastilla dice la ruta de verdad: red local, internet o relé TURN", () => {
+        expect(etiquetaVia({ ...base, medio: "p2p-internet", ruta: "internet-directo" })).toContain("Internet");
+        expect(etiquetaVia({ ...base, medio: "p2p-internet", ruta: "misma-red-local" })).toContain("Red local");
+        expect(etiquetaVia({ ...base, medio: "turn", ruta: "reenviado-turn" })).toContain("relé TURN");
+    });
+
+    it("la info nombra las rutas con las mismas palabras y dice si las verificaron los dos aparatos", () => {
+        const linea = (v: Parameters<typeof detalleVia>[0], etiqueta: string) => detalleVia(v).find((l) => l.etiqueta === etiqueta)?.valor;
+        const igual = { ...base, medio: "wifi-local" as const, ruta: "misma-red-local", rutaOtro: "misma-red-local", rutaVerificada: true };
+        expect(linea(igual, "Ruta medida")).toBe("Misma red local");
+        expect(linea(igual, "Ruta según el otro aparato")).toBe("Verificada por ambos aparatos");
+        const turn = { ...base, medio: "turn" as const, ruta: "reenviado-turn" };
+        expect(linea(turn, "Ruta medida")).toBe("Relé TURN");
+        const distinta = { ...base, medio: "p2p-internet" as const, ruta: "internet-directo", rutaOtro: "misma-red-local", rutaVerificada: false };
+        expect(linea(distinta, "Ruta según el otro aparato")).toContain("no coincide");
+        expect(linea(base as never, "Ruta según el otro aparato")).toBeUndefined();
+    });
+
+    it("textoRutaOtroLado: sin dato del otro lado, nada", () => {
+        expect(textoRutaOtroLado({ ruta: "misma-red-local", rutaOtro: null, rutaVerificada: null })).toBeNull();
+        expect(textoRutaOtroLado({ ruta: "misma-red-local", rutaOtro: "misma-red-local" })).toBe("Verificada por ambos aparatos");
     });
 });

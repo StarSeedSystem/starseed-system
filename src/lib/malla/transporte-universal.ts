@@ -621,6 +621,8 @@ function canalDeEnlaceLocal(e: EnlaceLocalVivo): CanalArchivos {
     bufferedAmount: () => e.bufferedAmount(),
     // (ARC1108B) Data channel propio y binario: trozos de 63 KiB (4 veces menos escrituras en el otro).
     tamanoTrozo: () => TAM_TROZO_ENLACE_DIRECTO,
+    // (BLE1108B) La ruta medida del data channel (par de candidatos), no la que dice el origen del enlace.
+    rutaMedida: () => e.ruta(),
     alMensaje: (cb) => e.alMensaje(cb),
   };
 }
@@ -635,7 +637,15 @@ function canalLocalEstable(e: EnlaceLocalVivo): CanalArchivos {
   return c;
 }
 
+/** (BLE1108B) A todo canal se le añade la ruta que mide este aparato de SU enlace. */
 function canalDeEnlace(e: EnlaceDisponible): CanalArchivos | null {
+  const c = canalDeEnlaceBase(e);
+  if (!c || c.rutaMedida) return c;
+  const ruta = e.tipo === "ble" ? "bluetooth-directo" : e.tipo === "nativo" ? "misma-red-local" : e.ruta ?? null;
+  return { ...c, rutaMedida: () => ruta };
+}
+
+function canalDeEnlaceBase(e: EnlaceDisponible): CanalArchivos | null {
   if (e.tipo === "local") {
     const vivo = enlaceLocal(e.id);
     return vivo ? canalLocalEstable(vivo) : null;
@@ -905,7 +915,8 @@ export function asegurarRecepcionLocal(): void {
           etiquetaOrigen: `${e.par.nombre || "Aparato vinculado"} (${nativa ? "red local · app nativa" : "sin internet"})`,
           verificarPermiso: () => true,
           // (ARC1108A) Para la ventana del envío: por dónde llegó y cómo se sabe quién es.
-          via: nativa ? "Red local (app nativa) · enlace directo WebRTC" : "Enlace local sin internet (WebRTC)",
+          // (BLE1108B) Y con la ruta MEDIDA del canal: un enlace abierto en la red local que luego sigue por internet no dice «red local».
+          via: etiquetaViaLocal(nativa, e.ruta()),
           verificacion: nativa
             ? { tipo: "firma", texto: "Enlace abierto con señales firmadas por su identidad de malla (neurona vinculada)" }
             : { tipo: "codigo", texto: "Emparejado en persona con un código" },
@@ -921,8 +932,29 @@ export function asegurarRecepcionLocal(): void {
  * archivos que llegan por enlaces locales y vínculos (los de la malla de la cuenta ya los atiende
  * `iniciarMotorArchivosPorMalla`). Una vez por sesión; devuelve la parada.
  */
+/**
+ * (BLE1108B) La etiqueta de por dónde llegó algo por un enlace local (WebRTC), con la ruta MEDIDA del canal. Sin medir o
+ * en la misma red, la de siempre; por internet o por TURN, lo dice (antes: «red local» fijo según quién abrió el enlace).
+ */
+export function etiquetaViaLocal(nativa: boolean, ruta: string | null | undefined): string {
+  const base = nativa ? "Red local (app nativa) · enlace directo WebRTC" : "Enlace local sin internet (WebRTC)";
+  if (ruta === "internet-directo") return `${nativa ? "Enlace directo (app nativa)" : "Enlace emparejado"} · WebRTC · internet directo (NAT atravesado)`;
+  if (ruta === "reenviado-turn") return `${nativa ? "Enlace directo (app nativa)" : "Enlace emparejado"} · WebRTC · relé TURN`;
+  return base;
+}
+
 export function iniciarTransporteUniversal(): () => void {
   arrancado += 1;
+  // (BLE1108B) El receptor de la malla de la cuenta mide la ruta con el mismo clasificador que el remitente.
+  void import("@/lib/network/archivos-malla").then((am) =>
+    am.fijarFuenteRutaPeer((deviceId) => {
+      try {
+        return snapshotMallaNeuronas().misDispositivos.find((f) => f.syncDeviceId === deviceId)?.enlace.ruta?.clase ?? null;
+      } catch {
+        return null;
+      }
+    }),
+  ).catch(() => undefined);
   let activo = true;
   const bajas: Array<() => void> = [];
   let reintento: ReturnType<typeof setTimeout> | null = null;

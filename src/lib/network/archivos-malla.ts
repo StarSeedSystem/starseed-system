@@ -150,6 +150,12 @@ export interface CanalArchivos {
   esperarListo?(): Promise<boolean>;
   /** (BLE1108B) Opcional: bytes (UTF-8) que caben en UN mensaje por este canal; una oferta mayor se aligera. */
   maxTextoBytes?(): number;
+  /**
+   * (BLE1108B) Opcional: la ruta que ESTE aparato mide del enlace por el que va (`misma-red-local`,
+   * `internet-directo`, `reenviado-turn`, `bluetooth-directo`…), con el clasificador común. Se manda al
+   * otro lado en la oferta y en el «aceptar»; si los dos miden lo mismo, la transferencia queda «verificada por ambos».
+   */
+  rutaMedida?(): string | null;
   /** Suscribe un callback a los mensajes entrantes. Devuelve función de baja. */
   alMensaje(cb: (data: string | ArrayBuffer) => void): () => void;
 }
@@ -194,6 +200,8 @@ export interface MsgOferta {
   loteMensaje?: string;
   /** Ruta relativa dentro de la carpeta enviada («fotos/2026/a.jpg»). Nunca absoluta ni con «..». */
   ruta?: string;
+  /** (BLE1108B) La ruta del enlace que mide el REMITENTE (clase del clasificador común). */
+  rutaEnlace?: string;
   /** Primeros bytes del archivo (≤ 512, base64) para la inspección de seguridad ANTES de aceptar. */
   inicioB64?: string;
   /** Vista previa que el remitente calculó (miniatura JPEG/PNG/WebP o fragmento de texto). */
@@ -235,6 +243,8 @@ export interface MsgAceptar {
   acuses?: number;
   /** (ARC1108B) Rangos [a, b] (inclusive, en orden) de los trozos que faltan: el remitente manda SOLO esos. */
   huecos?: Array<[number, number]>;
+  /** (BLE1108B) La ruta del enlace por el que RECIBIÓ el receptor (clasificador común). */
+  rutaEnlace?: string;
 }
 /**
  * (ARC1108B) Latido del receptor: cuántos trozos tiene YA guardados (con su hash) y qué está haciendo.
@@ -1374,6 +1384,10 @@ export interface EstadoTransferencia {
   sha256?: string;
   via?: string;
   verificacion?: VerificacionOrigen;
+  /** (BLE1108B) La ruta del enlace que mide ESTE aparato, la que dice el otro, y si coinciden (null = aún no se sabe). */
+  rutaEnlace?: string;
+  rutaEnlaceOtro?: string;
+  rutaEnlaceVerificada?: boolean | null;
 }
 
 export interface OfertaEntranteInfo {
@@ -1770,6 +1784,12 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
     if (contenido) oferta.contenido = contenido;
     const vista = sanearVista(opciones?.vista);
     if (vista) oferta.vista = vista;
+    const rutaPropia = sanearRutaEnlace(canal.rutaMedida?.());
+    if (rutaPropia) {
+      oferta.rutaEnlace = rutaPropia;
+      const actual = estados.get(id);
+      if (actual) emitir({ ...actual, rutaEnlace: rutaPropia, rutaEnlaceVerificada: null });
+    }
     ofertasEnviadas.set(id, oferta);
     enviarOferta(id, canal, oferta);
     return { ok: true, id, aviso };
@@ -2028,6 +2048,12 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
     if (typeof msg.acuses === "number" && msg.acuses >= 1) conLatido.add(msg.id);
     else conLatido.delete(msg.id);
     ultimoContacto.set(msg.id, Date.now());
+    // (BLE1108B) La ruta que mide el receptor: si es la misma que la mía, «verificada por ambos».
+    const rutaOtra = sanearRutaEnlace(msg.rutaEnlace);
+    if (rutaOtra) {
+      const actual = estados.get(msg.id);
+      if (actual) emitir({ ...actual, rutaEnlaceOtro: rutaOtra, rutaEnlaceVerificada: actual.rutaEnlace ? actual.rutaEnlace === rutaOtra : null });
+    }
     // Respetar el modo confirmado por el receptor.
     if (msg.modo) {
       modoPorId.set(msg.id, msg.modo);
@@ -2116,6 +2142,22 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
   }
 
   /** (ARC1108A) Lo que la ventana del envío necesita de una oferta (todo saneado: viene del otro aparato). */
+  /** (BLE1108B) Una clase de ruta cabe en 40 caracteres de [a-z-]; cualquier otra cosa se ignora. */
+  function sanearRutaEnlace(r: unknown): string | undefined {
+    return typeof r === "string" && /^[a-z][a-z0-9-]{0,39}$/.test(r) ? r : undefined;
+  }
+
+  /** (BLE1108B) La ruta del enlace por el que llegó la oferta, junto a la que dice el remitente. */
+  function rutaDeOferta(canal: CanalArchivos, msg: MsgOferta): Partial<EstadoTransferencia> {
+    const propia = sanearRutaEnlace(canal.rutaMedida?.());
+    const otra = sanearRutaEnlace(msg.rutaEnlace);
+    return {
+      ...(propia ? { rutaEnlace: propia } : {}),
+      ...(otra ? { rutaEnlaceOtro: otra } : {}),
+      rutaEnlaceVerificada: propia && otra ? propia === otra : null,
+    };
+  }
+
   function extrasDeOferta(msg: MsgOferta, ctx: ContextoRecepcion): Partial<EstadoTransferencia> {
     const extras: Partial<EstadoTransferencia> = { sha256: msg.sha256 };
     const lote = sanearLote(msg.lote);
@@ -2156,7 +2198,8 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
     if (!hashesPorId.has(id)) hashesPorId.set(id, []);
     emitir({ ...estado, fase: "transfiriendo", progreso: tenidos.size, actualizadoMs: Date.now() });
     const modo = modoPorId.get(id) ?? "base64";
-    canal.enviar(JSON.stringify({ t: "archivo.aceptar", id, modo, ...(desde > 0 ? { desde } : {}), acuses: 1, ...(huecos ? { huecos } : {}) } satisfies MsgAceptar));
+    const rutaRecibida = sanearRutaEnlace(canal.rutaMedida?.());
+    canal.enviar(JSON.stringify({ t: "archivo.aceptar", id, modo, ...(desde > 0 ? { desde } : {}), acuses: 1, ...(huecos ? { huecos } : {}), ...(rutaRecibida ? { rutaEnlace: rutaRecibida } : {}) } satisfies MsgAceptar));
   }
 
   /* ---- (ARC1108B) latido del receptor ---- */
@@ -2304,6 +2347,7 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
       inicioMs: Date.now(),
       actualizadoMs: Date.now(),
       ...extrasDeOferta(msg, ctx),
+      ...rutaDeOferta(canal, msg),
     };
 
     // Aplicación inmediata del centinela (rechazar no pasa por política de recepción).
@@ -2770,8 +2814,16 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
  * `alMensaje` se suscribe con `mesh.onPeer` filtrando por ese `deviceId` — no
  * hace falta un segundo canal ni un segundo data channel.
  */
+let fuenteRutaPeer: ((deviceId: string) => string | null) | null = null;
+/** (BLE1108B) Quien sabe la ruta medida de cada par de la malla de la cuenta (la pone el transporte universal). */
+export function fijarFuenteRutaPeer(f: ((deviceId: string) => string | null) | null): void {
+  fuenteRutaPeer = f;
+}
+
 export function canalDesdeMesh(mesh: MeshHandle, deviceId: string): CanalArchivos {
   return {
+    // (BLE1108B) La ruta que mide ESTE aparato del enlace con ese par (clasificador común).
+    rutaMedida: () => fuenteRutaPeer?.(deviceId) ?? null,
     enviar: (texto: string) => mesh.sendToPeer(deviceId, texto),
     bufferedAmount: mesh.bufferedAmount ? () => (mesh.bufferedAmount as (d: string) => number)(deviceId) : undefined,
     alMensaje: (cb) =>

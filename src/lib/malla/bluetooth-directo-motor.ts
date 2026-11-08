@@ -527,6 +527,7 @@ export function crearRedBle(deps: DepsBle): RedBle {
       // Un trozo que cabe solo, en base64, en una trama Bluetooth (10 KiB con el tope de 16 KiB).
       tamanoTrozo: () => trozoArchivoBle(limitesEfectivos(ligadura())),
       maxTextoBytes: () => maxTextoPorTrama(limitesEfectivos(ligadura())),
+      rutaMedida: () => "bluetooth-directo",
       alMensaje: () => nada,
     };
   }

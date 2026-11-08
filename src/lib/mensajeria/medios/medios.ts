@@ -323,10 +323,10 @@ export function etiquetaVia(v: ViaMensaje): string {
             partes.push("LoRa");
             break;
         case "p2p-internet":
-            partes.push("P2P", v.ruta === "internet-directo" ? "Internet" : "ruta sin medir");
+            partes.push("P2P", v.ruta === "internet-directo" ? "Internet" : v.ruta === "misma-red-local" ? "Red local" : "ruta sin medir");
             break;
         case "turn":
-            partes.push("P2P", "TURN");
+            partes.push("P2P", "relé TURN");
             break;
         default:
             partes.push(INFO_MEDIOS[v.medio]?.corto ?? "Enlace");
@@ -340,11 +340,19 @@ export function etiquetaVia(v: ViaMensaje): string {
 const RUTAS: Record<string, string> = {
     "misma-red-local": "Misma red local",
     "internet-directo": "Internet directo (NAT atravesado)",
-    "reenviado-turn": "Reenviado por un servidor TURN",
+    "reenviado-turn": "Relé TURN",
+    "bluetooth-directo": "Bluetooth directo (sin router)",
     desconocida: "Sin medir",
     // (WFD1108A)
     [RUTA_WIFI_DIRECTO]: "Wi-Fi directo entre las dos neuronas (sin router)",
 };
+
+/** (BLE1108B) «Verificada por ambos aparatos» o «El otro aparato midió: X (no coincide)». Puro. */
+export function textoRutaOtroLado(v: Pick<ViaMensaje, "ruta" | "rutaOtro" | "rutaVerificada">): string | null {
+    if (!v.rutaOtro) return null;
+    if (v.rutaVerificada === true || (v.ruta && v.ruta === v.rutaOtro)) return "Verificada por ambos aparatos";
+    return `${RUTAS[v.rutaOtro] ?? v.rutaOtro} (no coincide con la de este aparato)`;
+}
 
 export interface LineaDetalle {
     etiqueta: string;
@@ -371,6 +379,9 @@ export function detalleVia(v: ViaMensaje): LineaDetalle[] {
     if (v.servidor) out.push({ etiqueta: "Servidor", valor: v.servidor });
     if (v.medio === "wifi-local" || v.medio === "p2p-internet" || v.medio === "turn" || v.medio === "local") {
         out.push({ etiqueta: "Ruta medida", valor: v.ruta ? RUTAS[v.ruta] ?? v.ruta : "Sin medir" });
+        // (BLE1108B) Lo que midió el otro aparato con el mismo clasificador: si coincide, «verificada por ambos».
+        const otra = textoRutaOtroLado(v);
+        if (otra) out.push({ etiqueta: "Ruta según el otro aparato", valor: otra });
     }
     const ms = msMedidos(v.latenciaMs);
     const fuente =

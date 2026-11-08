@@ -148,6 +148,24 @@ export interface VivoArchivo {
     motivo?: string;
     inicioMs: number;
     actualizadoMs: number;
+    /** (BLE1108B) La ruta que mide este aparato, la que dice el otro y si coinciden. */
+    rutaEnlace?: string;
+    rutaEnlaceOtro?: string;
+    rutaEnlaceVerificada?: boolean | null;
+}
+
+/**
+ * (BLE1108B) La vía de un mensaje de archivo con la ruta de los DOS aparatos (mismo clasificador): la propia
+ * es la medida de este lado; si el otro midió lo mismo queda «verificada por ambos». Puro.
+ */
+export function viaConRutas(via: ViaMensaje, v: Pick<VivoArchivo, "rutaEnlace" | "rutaEnlaceOtro" | "rutaEnlaceVerificada">): ViaMensaje {
+    const ruta = v.rutaEnlace ?? via.ruta ?? null;
+    const otro = v.rutaEnlaceOtro ?? via.rutaOtro ?? null;
+    return {
+        ...via,
+        ruta,
+        ...(otro ? { rutaOtro: otro, rutaVerificada: v.rutaEnlaceVerificada ?? (ruta ? ruta === otro : null) } : {}),
+    };
 }
 
 const vivos = new Map<string, VivoArchivo>();
@@ -208,6 +226,9 @@ function alProgreso(e: EstadoTransferencia): void {
         ...(e.motivo ? { motivo: e.motivo } : {}),
         inicioMs: e.inicioMs,
         actualizadoMs: e.actualizadoMs,
+        ...(e.rutaEnlace ? { rutaEnlace: e.rutaEnlace } : {}),
+        ...(e.rutaEnlaceOtro ? { rutaEnlaceOtro: e.rutaEnlaceOtro } : {}),
+        ...(e.rutaEnlaceVerificada !== undefined ? { rutaEnlaceVerificada: e.rutaEnlaceVerificada } : {}),
     };
     vivos.set(e.id, vivo);
     for (const cb of Array.from(oyentesVivos)) {
@@ -232,6 +253,8 @@ async function persistir(id: string, vivo: VivoArchivo, pct: number | null): Pro
         if (m.dir === "sale" && fase === "verificado" && m.via) {
             cambio.via = { ...m.via, confirmado: true, confirmadoPor: "destino", motivo: `${m.via.motivo ?? "archivo"} · el otro aparato lo verificó con SHA-256` };
         }
+        // (BLE1108B) Las dos rutas (la medida aquí y la que dice el otro lado) en la vía del mensaje.
+        if (m.via && (vivo.rutaEnlace || vivo.rutaEnlaceOtro)) cambio.via = viaConRutas(cambio.via ?? m.via, vivo);
         if (m.dir === "entra" && fase === "verificado" && !m.archivo?.guardado) {
             const blob = (await motor())?.blobRecibido(id);
             if (blob) {

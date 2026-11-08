@@ -119,6 +119,9 @@ export interface ViaMensaje {
     servidor?: string | null;
     /** Ruta medida del canal (si la hay). */
     ruta?: string | null;
+    /** (BLE1108B) La ruta que midió el OTRO aparato y si coincide con la de este (clasificador común). */
+    rutaOtro?: string | null;
+    rutaVerificada?: boolean | null;
     /** Latencia MEDIDA (ms). null/ausente = sin medir. */
     latenciaMs?: number | null;
     /** De dónde sale la latencia: el acuse del destino, el RTT del enlace o la respuesta del servidor. */

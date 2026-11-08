@@ -29,7 +29,7 @@ interface Portador {
 }
 
 /** Dos canales con acuse, retardo por mensaje y un interruptor de enlace (el «ligado» del motor BLE). */
-function portador(opt: { retardoMs?: number; maxTexto?: number } = {}): Portador {
+function portador(opt: { retardoMs?: number; maxTexto?: number; rutaA?: string; rutaB?: string } = {}): Portador {
   const oyentes = { a: new Set<(d: string | ArrayBuffer) => void>(), b: new Set<(d: string | ArrayBuffer) => void>() };
   let arriba = true;
   let enVuelo = 0;
@@ -76,6 +76,7 @@ function portador(opt: { retardoMs?: number; maxTexto?: number } = {}): Portador
         return arriba;
       },
       ...(opt.maxTexto ? { maxTextoBytes: () => opt.maxTexto as number } : {}),
+      rutaMedida: () => (yo === "a" ? opt.rutaA : opt.rutaB) ?? null,
       alMensaje: (cb) => {
         oyentes[yo].add(cb);
         return () => oyentes[yo].delete(cb);
@@ -213,5 +214,45 @@ describe("la ventana de aceptar sale con la oferta", () => {
     for (let i = 0; i < 300 && motorB.ofertasPendientes().length === 0; i++) await esperar(5);
     expect(motorB.ofertasPendientes()).toHaveLength(1);
     expect(motorB.listaTransferencias().find((t) => t.rol === "recibir")?.vista).toBeUndefined();
+  });
+});
+
+describe("la ruta se acuerda entre los dos lados (BLE1108B)", () => {
+  async function transferencia(p: Portador) {
+    const { motorA, motorB, completados } = par(p);
+    const r = await motorA.enviarArchivo(p.a, bytes(2048), "foto.png", { tipo: "dispositivo" });
+    for (let i = 0; i < 300 && completados.length === 0; i++) await esperar(5);
+    return { r, motorA, motorB };
+  }
+
+  it("los dos motores guardan la misma etiqueta y la transferencia queda verificada por ambos", async () => {
+    const p = portador({ rutaA: "misma-red-local", rutaB: "misma-red-local" });
+    const { r, motorA, motorB } = await transferencia(p);
+    const emisor = motorA.estadoDe(r.id);
+    const receptor = motorB.estadoDe(r.id);
+    expect(emisor).toMatchObject({ rutaEnlace: "misma-red-local", rutaEnlaceOtro: "misma-red-local", rutaEnlaceVerificada: true });
+    expect(receptor).toMatchObject({ rutaEnlace: "misma-red-local", rutaEnlaceOtro: "misma-red-local", rutaEnlaceVerificada: true });
+  });
+
+  it("si miden distinto no se dice «verificada»: cada lado ve la otra y que no coinciden", async () => {
+    const p = portador({ rutaA: "internet-directo", rutaB: "misma-red-local" });
+    const { r, motorA, motorB } = await transferencia(p);
+    expect(motorA.estadoDe(r.id)).toMatchObject({ rutaEnlace: "internet-directo", rutaEnlaceOtro: "misma-red-local", rutaEnlaceVerificada: false });
+    expect(motorB.estadoDe(r.id)).toMatchObject({ rutaEnlace: "misma-red-local", rutaEnlaceOtro: "internet-directo", rutaEnlaceVerificada: false });
+  });
+
+  it("de punta a punta con el clasificador: tableta (srflx) y Mac (host/prflx) en la misma LAN guardan la misma etiqueta", async () => {
+    const { resumirRuta } = await import("@/lib/network/estadisticas-enlace");
+    const stat = (tl: string, dl: string, tr: string, dr: string) => [
+      { id: "par", type: "candidate-pair", state: "succeeded", nominated: true, localCandidateId: "l", remoteCandidateId: "r" },
+      { id: "l", type: "local-candidate", candidateType: tl, address: dl },
+      { id: "r", type: "remote-candidate", candidateType: tr, address: dr },
+    ];
+    const tableta = resumirRuta(stat("srflx", "192.168.1.20", "host", "192.168.1.30"), 1).clase;
+    const mac = resumirRuta(stat("host", "192.168.1.30", "prflx", "192.168.1.20"), 1).clase;
+    const p = portador({ rutaA: tableta, rutaB: mac });
+    const { r, motorA, motorB } = await transferencia(p);
+    expect(motorA.estadoDe(r.id)?.rutaEnlace).toBe(motorB.estadoDe(r.id)?.rutaEnlace);
+    expect(motorA.estadoDe(r.id)?.rutaEnlaceVerificada).toBe(true);
   });
 });

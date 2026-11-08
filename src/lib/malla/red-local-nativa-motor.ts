@@ -523,6 +523,7 @@ export function crearRedNativa(deps: DepsRedNativa): RedNativa {
         // (ARC1108B) El trozo que cabe solo en una trama hacia esa app (46 KiB con el tope de 64 KiB).
         // (CIF1108A) Con cifrado, el trozo se achica lo justo para que la trama CIFRADA siga cabiendo en una.
         tamanoTrozo: () => trozoArchivoParaTrama(limitesEfectivos(ligaduraDeIp(ligaduras, ip, deps.ahora()))),
+        rutaMedida: () => "misma-red-local",
         alMensaje: () => nadaQueHacer,
       };
       canales.set(ip, canal);
