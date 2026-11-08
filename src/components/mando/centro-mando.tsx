@@ -29,6 +29,7 @@ import "@/components/mando/mando-cristal.css";
 // (2026-10-29 · UIG1029D) Ventanas plegables: cada panel de cada pestaña se pliega
 // (SeccionPlegable) y la barra de pestañas manda «Plegar todo / Desplegar todo».
 import { SeccionPlegable, usePlegarTodo } from "@/components/mando/seccion-plegable";
+import { ViewErrorBoundary } from "@/components/education/view-error-boundary";
 import { PanelMedidor, PastillaMedidor, type TonoMedidor } from "@/components/mando/medidor-abrible";
 import { PanelIdes, PastillaIdes } from "@/components/mando/medidor-ides";
 import { VerificarProcesos } from "@/components/mando/verificar-procesos";
@@ -870,10 +871,12 @@ export function idPlegable(pestana: string, panel: string): string {
  * abierta la primera visita (y abierta la primera de cada pestaña), y a partir de
  * ahí `SeccionPlegable` recuerda lo que eligió Alex por id, en todas las pantallas.
  */
-function VentanaPestana({ pestana, panel, titulo, children }: { pestana: string; panel: string; titulo: string; children: ReactNode }) {
+export function VentanaPestana({ pestana, panel, titulo, children }: { pestana: string; panel: string; titulo: string; children: ReactNode }) {
     return (
         <SeccionPlegable id={idPlegable(pestana, panel)} titulo={titulo}>
-            {children}
+            <ViewErrorBoundary label={`el panel «${titulo}»`}>
+                {children}
+            </ViewErrorBoundary>
         </SeccionPlegable>
     );
 }
