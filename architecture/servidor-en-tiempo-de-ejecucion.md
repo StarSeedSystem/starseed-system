@@ -274,6 +274,28 @@ scripts ni `deploy/` cambian su mecanismo actual (siguen tomando valores de ento
 arrancar); cuando un ajuste esté definido, esos procesos leerán el mismo fichero de ajuste
 (`ajuste-servidor.json`) además de su variable.
 
+### 3.5 · Quién llama a `resolverServidor`: mapa de conexión
+
+El resolutor solo está aplicado cuando cada punto del inventario de §1 lo invoca en el sitio
+donde hoy lee la configuración. Sin este mapa, es una función exportada a la que nadie llama.
+
+| Punto de conexión (medido en §1) | Sitio exacto donde se conecta | Quién alimenta las fuentes |
+|---|---|---|
+| `src/utils/supabase/client.ts` — `buildClient()` | Dentro de `buildClient()`, sustituyendo la lectura directa de `process.env.NEXT_PUBLIC_*` por la llamada al cargador de navegador → `resolverServidor(...)` antes de `createClient` | El cargador lee `starseed.servidor.v1` (persona) y `servidor_local_estado` (nativo); `compila` son las `NEXT_PUBLIC_*` de hoy |
+| `src/utils/supabase/server.ts` — fábrica de RSC | Primera línea de la creación del cliente: env en vez de lectura directa | Cargador de servidor: `ajuste-servidor.json` (patrón `SERVER_ENV`) › `NEXT_PUBLIC_*` |
+| `src/utils/supabase/middleware.ts` (invocada por `middleware.ts`) | Antes de `createServerClient`, renueva la sesión contra el servidor RESUELTO, no el compilado | Cargador de servidor; en nativo, el estado de `servidor_local_estado` |
+| 4 rutas de service-role (`auth/otp/request`, `auth/otp/verify`, `mail/enviar`, `dispositivo/sesion`) y módulos de `src/lib/` (§1.3) | Donde hoy componen URL+clave a mano (incl. los respaldos a proyecto retirado) | Cargador de servidor; sigue prohibido exponer `SUPABASE_SERVICE_ROLE_KEY` por el resolutor del navegador |
+| Clientes a mano en navegador (§1.3: `account-context.tsx`, `profiles.ts`, presencia, sync…) | Cada `createClient` directo pasa por el mismo cargador → `resolverServidor` (o importa el singleton ya resuelto de `client.ts`, preferido) | El cargador de navegador |
+| Scripts, `deploy/`, `servicios/puerta-datos` (§1.7) | No llaman a esta función TS (Python/servicios): leen el **mismo ajuste** — `ajuste-servidor.json` además de su var de entorno — en su arranque | El fichero de ajuste es la voz del resolutor fuera de la web |
+
+Consecuencia práctica: tras conectar §3.5, las `NEXT_PUBLIC_*` dejan de ser leídas por nadie en
+runtime del navegador salvo como argumento `compila` del cargador — el literal incrustado pasa a
+ser entrada del resolutor, no la decisión.
+
+La conexión no se hace en este documento (que es solo análisis): la fija el paso 2 (fábricas) y
+el paso 3 (rutas) de §4, cada uno con su prueba de que la llamada existe — una prueba nueva
+tiene que fallar si la fábrica sigue leyendo env a pelo.
+
 ---
 
 ## 4 · Pasos de migración (≤ 3 archivos y ≤ 120 líneas por paso)
@@ -291,7 +313,9 @@ sitio dónde se lee la configuración.
   devuelve lo de `compila` tal cual está; una fuente incompleta degrada a la siguiente;
   `solo-malla` devuelve `null/null`. La prueba falla si el módulo no existe: bucle rojo
   garantizado.
-- Nadie importa todavía el resolutor. Se integra y se aprueba sin riesgo.
+- Nadie importa todavía el resolutor: es un paso intermedio, no el fin. La tarea no se da por
+  terminada hasta que la conexión del §3.5 (pasos 2-4) esté aplicada y probada; integrar solo
+  el paso 1 deja un módulo exportado que solo llaman sus pruebas.
 
 **Paso 2 · Las fábricas leen del resolutor, que por defecto devuelve lo de siempre (≤ 3
 archivos: `client.ts`, `server.ts`, `middleware.ts` de `src/utils/supabase/`)**
