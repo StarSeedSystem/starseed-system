@@ -11,6 +11,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Mic, MicOff, Phone, PhoneIncoming, PhoneOff } from "lucide-react";
 import { avisarFalloMedios } from "@/lib/llamadas/aviso-medios";
+import { crearTono, vibrar } from "@/lib/llamadas/sonido";
 import { cn } from "@/lib/utils";
 import {
   alternarMicro,
@@ -73,10 +74,32 @@ export function LlamadaDirectaFlotante() {
   useEffect(() => {
     asegurarEscuchaLlamadas();
   }, []);
+  // (LLA1108A) Suena y vibra mientras entra (como el timbre de las llamadas por internet).
+  const sonando = dueno && ll.fase === "entrante";
+  useEffect(() => {
+    if (!sonando) return;
+    const tono = crearTono("entrante");
+    tono.iniciar();
+    vibrar([220, 140, 220, 900, 220, 140, 220]);
+    return () => tono.parar();
+  }, [sonando]);
   if (!dueno || ll.fase === "inactiva") return null;
   const tieneVideoRemoto = !!ll.remoto?.getVideoTracks().length;
   return (
-    <div className="fixed bottom-4 right-4 z-[80] w-[min(92vw,340px)] space-y-2 rounded-2xl border border-emerald-400/30 bg-slate-950/90 p-3 text-white shadow-2xl backdrop-blur" role="dialog" aria-label="Llamada directa sin internet">
+    <div
+      className={cn(
+        // (LLA1108A) Encima de todo (antes z-80: una ventana o el chat la tapaban) y, mientras suena, arriba y
+        // centrada en el móvil, en el mismo sitio que el timbre de las llamadas por internet.
+        "fixed z-[465] w-[min(92vw,340px)] space-y-2 rounded-2xl border border-emerald-400/30 bg-slate-950/90 p-3 text-white shadow-2xl backdrop-blur",
+        ll.fase === "entrante"
+          ? "left-1/2 top-[max(0.75rem,env(safe-area-inset-top))] -translate-x-1/2 sm:left-auto sm:right-5 sm:translate-x-0"
+          : "bottom-[max(1rem,env(safe-area-inset-bottom))] right-4",
+      )}
+      role={ll.fase === "entrante" ? "alertdialog" : "dialog"}
+      aria-live={ll.fase === "entrante" ? "assertive" : undefined}
+      aria-label={ll.fase === "entrante" ? `Llamada entrante de ${ll.nombre}` : "Llamada directa sin internet"}
+      data-testid="llamada-directa-flotante"
+    >
       <div className="flex items-center gap-2 text-[12px]">
         {ll.fase === "entrante" ? <PhoneIncoming className="h-4 w-4 animate-pulse text-emerald-300" /> : <Phone className="h-4 w-4 text-emerald-300" />}
         <span className="font-medium">

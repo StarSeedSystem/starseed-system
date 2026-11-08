@@ -375,7 +375,10 @@ export interface AdjuntoNeurona {
 
 /** Una llamada anunciada (timbre) en un mensaje de neurona. */
 export interface LlamadaNeurona {
-    /** Sesión del sistema de llamadas (solo por internet); vacío si fue por el enlace local. */
+    /**
+     * Sesión del sistema de llamadas (por internet) o, (LLA1108A) por el enlace local, el id de la llamada
+     * directa: con él la burbuja también hace sonar en el otro aparato y su «Contestar» es de ESA llamada.
+     */
     sesion?: string;
     tipo: "audio" | "video";
     pantalla?: boolean;

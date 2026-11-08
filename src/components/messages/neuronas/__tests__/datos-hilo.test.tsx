@@ -119,6 +119,21 @@ describe("tarjetas de llamada y de transmisión", () => {
         expect(screen.getByText("Duró 0:42")).toBeTruthy();
     });
 
+    it("(LLA1108A) una llamada directa que suena aquí se contesta o se rechaza desde la propia burbuja", async () => {
+        const ld = await import("@/lib/malla/llamada-directa");
+        const m = msg({ clave: "n:mac", deNombre: "MaggaBook", llamada: { tipo: "audio", via: "enlace-local", sesion: "ll-1" }, registroLlamada: { fase: "sonando" } });
+        const { rerender } = render(<TarjetaLlamada m={m} />);
+        // Sin timbre vivo en este aparato, nada que contestar (la burbuja solo informa).
+        expect(screen.queryByRole("button", { name: /Contestar/ })).toBeNull();
+        act(() => ld.recibirSenalLlamada({ neurona: "mac", nombre: "MaggaBook" }, { t: "ll.sonar", id: "ll-1" }));
+        rerender(<TarjetaLlamada m={m} />);
+        expect(screen.getByText("Sonando")).toBeTruthy();
+        expect(screen.getByRole("button", { name: /Contestar la llamada de MaggaBook/ })).toBeTruthy();
+        fireEvent.click(screen.getByRole("button", { name: /Rechazar la llamada de MaggaBook/ }));
+        await waitFor(() => expect(ld.estadoLlamadaDirecta()).toMatchObject({ fase: "terminada", fin: "rechazada" }));
+        expect(screen.queryByRole("button", { name: /Contestar/ })).toBeNull();
+    });
+
     it("una transmisión que esta pestaña no vio lo dice con honestidad", () => {
         render(<TarjetaFlujo m={msg({ flujo: { id: "f1", nombre: "Notas en vivo", formato: "texto" } })} />);
         expect(screen.getByText(/Lo vivo no se guarda/)).toBeTruthy();

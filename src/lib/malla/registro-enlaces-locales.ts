@@ -136,6 +136,19 @@ export function enlacesLocalesVivos(): EnlaceLocalVivo[] {
   });
 }
 
+/**
+ * (LLA1108A) El enlace ABIERTO más nuevo con esa neurona. Con dos (uno viejo que quedó medio abierto
+ * cuando el otro aparato pasó a segundo plano y el que se abrió después), el nuevo es el que lleva algo.
+ */
+export function enlaceVivoMasNuevoCon(neurona: string): EnlaceLocalVivo | null {
+  let mejor: EnlaceLocalVivo | null = null;
+  for (const e of enlacesLocalesVivos()) {
+    if (e.par.neuronDeviceId !== neurona) continue;
+    if (!mejor || e.desde > mejor.desde) mejor = e;
+  }
+  return mejor;
+}
+
 /** Se entera de cada enlace nuevo (y de los que ya había). Devuelve la baja. */
 export function alRegistrarEnlaceLocal(cb: (e: EnlaceLocalVivo) => void): () => void {
   oyentesAlta.add(cb);

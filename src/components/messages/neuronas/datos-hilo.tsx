@@ -9,8 +9,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
-    Check, Download, FileText, Loader2, MonitorUp, Phone, PhoneIncoming, Radio, RotateCcw, ShieldCheck, Video, X,
+    Check, Download, FileText, Loader2, MonitorUp, Phone, PhoneIncoming, PhoneOff, Radio, RotateCcw, ShieldCheck, Video, X,
 } from "lucide-react";
+// (LLA1108A) «Contestar» en la burbuja: la llamada directa (ligera) y los timbres del sistema de llamadas.
+import { contestarLlamada, rechazarLlamada, useLlamadaDirecta } from "@/lib/malla/llamada-directa";
+import { useLlamadas } from "@/lib/llamadas/store";
 import { toast } from "sonner";
 import { avisarFalloMedios } from "@/lib/llamadas/aviso-medios";
 import { cn } from "@/lib/utils";
@@ -241,6 +244,73 @@ export function TarjetaArchivo({ m }: { m: MensajeMalla }) {
 
 /* ══════════════════════════ Llamada ══════════════════════════ */
 
+/**
+ * (LLA1108A) «Contestar» y «Rechazar» en la propia burbuja de una llamada que suena aquí (antes solo decía
+ * «Sonando»): la directa (sin internet) contesta por `llamada-directa.ts`; la del sistema de llamadas, por su
+ * timbre global. Solo mientras esa llamada suena de verdad en este aparato.
+ */
+function ContestarEnBurbuja({ m }: { m: MensajeMalla }) {
+    const ll = m.llamada;
+    const directa = useLlamadaDirecta();
+    const { timbres } = useLlamadas();
+    const [ocupado, setOcupado] = useState(false);
+    if (!ll || m.dir !== "entra" || m.registroLlamada?.fase !== "sonando") return null;
+    let contestar: (() => Promise<void>) | null = null;
+    let rechazar: (() => void) | null = null;
+    if (ll.via === "enlace-local") {
+        const esta = directa.fase === "entrante" && (ll.sesion ? directa.id === ll.sesion : !!directa.neurona && m.clave === `n:${directa.neurona}`);
+        if (!esta) return null;
+        contestar = async () => {
+            const r = await contestarLlamada();
+            if (!r.ok && r.motivo) avisarFalloMedios(r.motivo, r.ajustes);
+        };
+        rechazar = () => rechazarLlamada();
+    } else {
+        const t = ll.sesion ? timbres.find((x) => x.sesionId === ll.sesion) : undefined;
+        if (!t) return null;
+        contestar = async () => {
+            const acciones = await import("@/lib/llamadas/acciones");
+            await acciones.aceptarTimbre(t, { camara: ll.tipo === "video" });
+        };
+        rechazar = () => {
+            void import("@/lib/llamadas/acciones").then((a) => a.rechazarTimbre(t)).catch(() => undefined);
+        };
+    }
+    const accion = (f: () => Promise<void> | void) => {
+        if (ocupado) return;
+        setOcupado(true);
+        void Promise.resolve()
+            .then(f)
+            .catch(() => undefined)
+            .finally(() => setOcupado(false));
+    };
+    return (
+        <div className="flex flex-wrap gap-1.5 pt-0.5" role="group" aria-label="Llamada entrante" data-testid="contestar-en-burbuja">
+            <button
+                type="button"
+                disabled={ocupado}
+                onClick={() => accion(contestar as () => Promise<void>)}
+                className={BOTON_TARJETA}
+                style={{ background: ACENTO.esmeralda }}
+                aria-label={`Contestar la llamada de ${m.deNombre || "esta neurona"}`}
+            >
+                {ocupado ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : ll.tipo === "video" && !ll.pantalla ? <Video className="h-3.5 w-3.5" /> : <Phone className="h-3.5 w-3.5" />}{" "}
+                Contestar
+            </button>
+            <button
+                type="button"
+                disabled={ocupado}
+                onClick={() => accion(rechazar as () => void)}
+                className={BOTON_TARJETA}
+                style={{ background: "#DC143C" }}
+                aria-label={`Rechazar la llamada de ${m.deNombre || "esta neurona"}`}
+            >
+                <PhoneOff className="h-3.5 w-3.5" /> Rechazar
+            </button>
+        </div>
+    );
+}
+
 export function TarjetaLlamada({ m }: { m: MensajeMalla }) {
     const ll = m.llamada;
     if (!ll) return null;
@@ -256,6 +326,7 @@ export function TarjetaLlamada({ m }: { m: MensajeMalla }) {
             </p>
             <p className="text-[12px] text-white/75" role="status">{textoRegistroLlamada(r, m.dir)}</p>
             {r?.motivo && r.fase !== "en-curso" && <p className="text-[11px] text-white/55">{r.motivo}</p>}
+            <ContestarEnBurbuja m={m} />
             {m.dir === "sale" && <Confirmaciones enviado={m.estado !== "fallido"} recibido={sono || contestada} verificado={contestada} />}
         </div>
     );

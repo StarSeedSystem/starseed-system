@@ -69,6 +69,27 @@ describe("app instalada", () => {
         expect(r?.sistema).toEqual({ ok: true, motivo: undefined });
     });
 
+    it("(LLA1108A) una llamada entrante con la app en segundo plano: «Llamada entrante de …» y al pulsar abre su chat", async () => {
+        const A = await import("../avisos-mensajes");
+        visible = "hidden";
+        respuestas.aviso_mensaje = { mostrada: true, motivo: null };
+        const r = await A.avisarLlamadaEntrante({ id: "ll1", clave: "n:mac", nombre: "MaggaBook", tipo: "audio" });
+        const c = llamadas.find((l) => l.cmd === "aviso_mensaje")!;
+        expect(c.args).toMatchObject({ id: "ll1", clave: "n:mac", titulo: "Llamada entrante de MaggaBook", ruta: "/messages?vista=neuronas&neurona=n%3Amac", sistema: true });
+        expect(String(c.args!.cuerpo)).toMatch(/Llamada de voz\. Toca para abrir y contestar/);
+        expect(r).toEqual({ sistema: true, ok: true, motivo: undefined });
+        // Una sola vez aunque la llamada llegue por dos caminos.
+        expect(await A.avisarLlamadaEntrante({ id: "ll1", clave: "n:mac", nombre: "MaggaBook", tipo: "audio" })).toBeNull();
+    });
+
+    it("(LLA1108A) con la app a la vista la llamada suena dentro (sin notificación del sistema), pero se le cuenta a Rust", async () => {
+        const A = await import("../avisos-mensajes");
+        respuestas.aviso_mensaje = { mostrada: false, motivo: "la web no pidió aviso del sistema" };
+        const r = await A.avisarLlamadaEntrante({ id: "ll2", clave: "n:mac", nombre: "MaggaBook", tipo: "video" });
+        expect(llamadas.find((l) => l.cmd === "aviso_mensaje")!.args!.sistema).toBe(false);
+        expect(r).toEqual({ sistema: false });
+    });
+
     it("un mensaje que ya estaba solo se apunta (una vez)", async () => {
         const A = await import("../avisos-mensajes");
         A.informarRecibido("m9", "n:mac");

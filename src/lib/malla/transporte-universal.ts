@@ -806,13 +806,19 @@ export async function abrirCanalDatos(
 
 /* ══════════════════════════ Flujos (audio/vídeo) ══════════════════════════ */
 
-/** Enlace local que llega a `destino`, si lo hay (las llamadas directas van solo por ahí). */
+/**
+ * Enlace local que llega a `destino`, si lo hay (las llamadas directas van solo por ahí). (LLA1108A) Con
+ * varios, el más NUEVO: el viejo pudo quedar medio abierto (el otro aparato pasó a segundo plano) y se
+ * tragaba el timbre; antes ganaba el primero que se registró.
+ */
 export function enlaceLocalHacia(destino: DestinoTransporte): EnlaceLocalVivo | null {
+  let mejor: EnlaceLocalVivo | null = null;
   for (const e of enlacesLocalesVivos()) {
     const d = enlaceLocalDisponible(e);
-    if (elegirEnlaces([d], destino, "flujo", 0, {}).elegidos.length) return e;
+    if (!elegirEnlaces([d], destino, "flujo", 0, {}).elegidos.length) continue;
+    if (!mejor || e.desde > mejor.desde) mejor = e;
   }
-  return null;
+  return mejor;
 }
 
 /** Pone un flujo de audio/vídeo hacia `destino` por el enlace local. Dice con honestidad si no se puede. */

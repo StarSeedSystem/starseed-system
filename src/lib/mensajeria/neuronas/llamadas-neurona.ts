@@ -36,6 +36,9 @@ import { avisarEnvioPesado } from "@/lib/malla/puente-ble-wifi";
 
 export type TipoLlamadaNeurona = "audio" | "video" | "pantalla";
 
+/** (LLA1108A) Lo que se espera a que se abra el enlace WebRTC por el canal TCP antes de llamar. */
+const ESPERA_ENLACE_LLAMAR_MS = 8_000;
+
 export interface ResultadoLlamadaNeurona {
     ok: boolean;
     motivo?: string;
@@ -76,26 +79,35 @@ function avanzar(clave: string, id: string, ev: EventoRegistroLlamada): Registro
 
 const acabada = (r: RegistroLlamada | null) => !!r && r.fase !== "sonando" && r.fase !== "en-curso";
 
-/** Sigue la llamada directa (enlace local) y lo apunta en la burbuja. */
-async function vigilarDirecta(clave: string, id: string): Promise<void> {
+/**
+ * Sigue la llamada directa (enlace local) y lo apunta en la burbuja. (LLA1108A) `llamadaId`: solo esa
+ * llamada (no la siguiente) y el final se apunta por `fin` (sin respuesta, rechazada, colgada o fallo),
+ * no adivinando por el texto del motivo: «quien llamaba colgó» ya no sale como «Rechazada».
+ */
+async function vigilarDirecta(clave: string, id: string, llamadaId?: string | null): Promise<void> {
     const ld = await import("@/lib/malla/llamada-directa");
+    const esta = (e: ReturnType<typeof ld.estadoLlamadaDirecta>) => !llamadaId || !e.id || e.id === llamadaId;
     const inicial = ld.estadoLlamadaDirecta();
-    let previa = inicial.fase;
+    let previa = esta(inicial) ? inicial.fase : "inactiva";
     // La burbuja pudo llegar con la llamada ya contestada.
     if (previa === "en-curso") avanzar(clave, id, { t: "contestada", en: inicial.desde ?? Date.now() });
     let baja: (() => void) | null = null;
     const alCambio = (e: ReturnType<typeof ld.estadoLlamadaDirecta>) => {
+        if (!esta(e)) return;
         const fase = e.fase;
         if (fase === previa) return;
         const antes = previa;
         previa = fase;
         let r: RegistroLlamada | null = null;
         if (fase === "en-curso") r = avanzar(clave, id, { t: "contestada", en: e.desde ?? Date.now() });
-        else if (fase === "terminada" || fase === "inactiva") {
+        else if (fase === "terminada" || (fase === "inactiva" && antes !== "terminada")) {
             const motivo = e.motivo ?? undefined;
-            if (antes === "en-curso") r = avanzar(clave, id, { t: "colgada", en: Date.now(), motivo });
-            else if (motivo && /contest/i.test(motivo)) r = avanzar(clave, id, { t: "sin-respuesta", en: Date.now() });
-            else r = avanzar(clave, id, { t: "rechazada", en: Date.now(), motivo });
+            const en = Date.now();
+            if (antes === "en-curso") r = avanzar(clave, id, e.fin === "fallo" ? { t: "fallo", en, motivo: motivo ?? "se perdió el enlace" } : { t: "colgada", en, motivo });
+            else if (e.fin === "sin-respuesta") r = avanzar(clave, id, { t: "sin-respuesta", en });
+            else if (e.fin === "fallo") r = avanzar(clave, id, { t: "fallo", en, motivo: motivo ?? "la llamada no pudo conectar" });
+            else if (e.fin === "colgada") r = avanzar(clave, id, { t: "colgada", en, motivo });
+            else r = avanzar(clave, id, { t: "rechazada", en, ...(motivo ? { motivo } : {}) });
         }
         if ((acabada(r) || fase === "inactiva") && baja) {
             baja();
@@ -167,7 +179,18 @@ export async function llamarANeurona(o: {
     try {
         const prefs = preferenciasEfectivas(claveChat("neurona", conv.clave));
         const tu = await import("@/lib/malla/transporte-universal");
-        const local = tu.enlaceLocalHacia(conv.destino);
+        let local = tu.enlaceLocalHacia(conv.destino);
+        // (LLA1108A) Solo hay el canal TCP 47071 con esa neurona (no lleva audio): primero se abre el enlace
+        // WebRTC por él (MLT1107A) y la llamada va por ese, sin internet.
+        const neurona = conv.destino.neuronDeviceId;
+        const permiteLocal = prefs.modo !== "elegidos" || (prefs.elegidos ?? []).includes("local");
+        if (!local && neurona && permiteLocal) {
+            const nativo = (await tu.enlacesDisponibles()).some((e) => e.tipo === "nativo" && e.abierto && e.alcanza.neuronDeviceId === neurona);
+            if (nativo) {
+                const r = await import("@/lib/malla/llamada-directa-respaldo");
+                local = await r.asegurarEnlaceCon(neurona, ESPERA_ENLACE_LLAMAR_MS);
+            }
+        }
         const red = await hayInternetYSesion();
         const plan = planLlamada({
             preferencias: prefs,
@@ -188,10 +211,18 @@ export async function llamarANeurona(o: {
             const ld = await import("@/lib/malla/llamada-directa");
             const r = await ld.llamarPorEnlace(plan.enlaceId, tipo === "video", { pistaPantalla: pista });
             if (!r.ok) return { ok: false, motivo: r.motivo, plan, ajustes: r.ajustes ?? null };
-            // La burbuja de los dos lados (el timbre ya suena por el propio enlace).
-            const m = await enviarANeurona({ clave: conv.clave, destino: conv.destino, texto: "", llamada, urgente: true });
+            // La burbuja de los dos lados. (LLA1108A) Lleva el id de la llamada: en el otro aparato también
+            // hace sonar (con «Contestar»), aunque el timbre del enlace no llegue.
+            const llamadaId = ld.estadoLlamadaDirecta().id;
+            const m = await enviarANeurona({
+                clave: conv.clave,
+                destino: conv.destino,
+                texto: "",
+                llamada: { ...llamada, ...(llamadaId ? { sesion: llamadaId } : {}) },
+                urgente: true,
+            });
             cambiarMensajeMalla(m.clave, m.id, { registroLlamada: { fase: "sonando" } });
-            void vigilarDirecta(m.clave, m.id);
+            void vigilarDirecta(m.clave, m.id, llamadaId);
             return { ok: true, plan };
         }
 
@@ -282,7 +313,7 @@ export async function llamarEnChatMalla(o: {
             registroLlamada: { fase: "sonando" },
         };
         guardarMensajeMalla(m);
-        void vigilarDirecta(m.clave, m.id);
+        void vigilarDirecta(m.clave, m.id, ld.estadoLlamadaDirecta().id);
         void anunciarEnChatMalla(m);
         return { ok: true, plan };
     } catch {
@@ -323,8 +354,34 @@ export async function timbreDeNeurona(o: { clave: string; cuerpo: CuerpoNeurona 
     }
 }
 
-/** Llegó la burbuja de una llamada directa (el timbre suena por el propio enlace): se sigue aquí. */
-export function registroLlamadaDirectaEntrante(clave: string, id: string): void {
+/**
+ * Llegó la burbuja de una llamada directa: se sigue aquí. (LLA1108A) La burbuja también HACE SONAR (con
+ * «Contestar» y «Rechazar» en la tarjeta global y en la propia burbuja): antes solo decía «Sonando» y el
+ * timbre dependía de un único `ll.sonar` por el enlace WebRTC, que se perdía si ese enlace estaba medio
+ * abierto. Solo si es reciente (una burbuja que llega tarde no suena) y de una neurona conocida.
+ */
+export function registroLlamadaDirectaEntrante(
+    clave: string,
+    id: string,
+    timbre?: { ll: LlamadaNeurona; neurona?: string; nombre?: string; at?: number },
+): void {
     cambiarMensajeMalla(clave, id, { registroLlamada: { fase: "sonando" } });
-    void vigilarDirecta(clave, id);
+    const llamadaId = timbre?.ll.sesion ?? null;
+    void (async () => {
+        const ld = await import("@/lib/malla/llamada-directa");
+        ld.asegurarEscuchaLlamadas();
+        // Holgura amplia: los relojes de los dos aparatos no tienen por qué coincidir (el timbre caduca solo).
+        const reciente = typeof timbre?.at !== "number" || Math.abs(Date.now() - timbre.at) < 5 * 60_000;
+        if (timbre && llamadaId && timbre.neurona && reciente) {
+            ld.recibirSenalLlamada(
+                { neurona: timbre.neurona, nombre: timbre.nombre },
+                { t: "ll.sonar", id: llamadaId, video: timbre.ll.tipo === "video", ...(timbre.ll.pantalla ? { pantalla: true } : {}) },
+            );
+        } else if (!reciente) {
+            // Ya no suena: la burbuja se queda como no contestada.
+            avanzar(clave, id, { t: "sin-respuesta", en: Date.now() });
+            return;
+        }
+        await vigilarDirecta(clave, id, llamadaId);
+    })().catch(() => undefined);
 }

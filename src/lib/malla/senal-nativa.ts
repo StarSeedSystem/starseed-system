@@ -69,7 +69,9 @@ export type EventoSenal =
   | { t: "abierta"; sesion: string; ahora: number }
   | { t: "fallo"; sesion: string; ahora: number; motivo: string }
   /** El otro canceló esa sesión (`nl.sen` cierre). */
-  | { t: "cierre-recibido"; sesion: string; ahora: number };
+  | { t: "cierre-recibido"; sesion: string; ahora: number }
+  /** (LLA1108A) Hace falta el enlace YA (una llamada que suena o se contesta): sin esperar al reintento. */
+  | { t: "urgir"; ahora: number };
 
 export type AccionSenal =
   | { a: "ofrecer"; sesion: string }
@@ -163,6 +165,11 @@ export function pasoSenal(e: EstadoSenal, ev: EventoSenal): PasoSenal {
       if (e.fase === "abierta") {
         return { estado: { ...e, fase: "inactiva", desde: ev.ahora, reintentoEn: ev.ahora, motivo: "la otra app cerró el enlace" }, acciones: [{ a: "cancelar", sesion: ev.sesion, avisar: false }] };
       }
+      return nada;
+    case "urgir":
+      // Tras un fallo se esperaba hasta 10 min: con una llamada en marcha se intenta en el siguiente tic.
+      if (e.fase === "fallida") return { estado: { ...e, fase: "inactiva", desde: ev.ahora, reintentoEn: ev.ahora, motivo: null }, acciones: [] };
+      if (e.fase === "inactiva" && e.reintentoEn > ev.ahora) return { estado: { ...e, reintentoEn: ev.ahora }, acciones: [] };
       return nada;
     default:
       return nada;

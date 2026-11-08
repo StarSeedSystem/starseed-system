@@ -231,6 +231,46 @@ export async function avisarMensajeEntrante(m: MensajeEntrante): Promise<Resulta
     return { decision, sistema };
 }
 
+/**
+ * (LLA1108A) Una llamada entrante de una neurona. Con la app a la vista suena la tarjeta global (y la burbuja
+ * del chat tiene «Contestar»); oculta, minimizada, sin foco o en segundo plano, además, notificación del
+ * SISTEMA «Llamada entrante de <neurona>»: al pulsarla se abre su chat, donde se contesta. Sin acción
+ * «Contestar» en la propia notificación: el plugin de la app no la da igual en todos los sistemas. Respeta el
+ * silencio del chat y el permiso de ventanas de la app «Mensajes». Siempre se le cuenta a la app nativa (así
+ * su respaldo no la avisa otra vez). Nunca lanza.
+ */
+export async function avisarLlamadaEntrante(l: {
+    id: string;
+    clave: string;
+    nombre: string;
+    tipo: "audio" | "video" | "pantalla";
+}): Promise<{ sistema: boolean; ok?: boolean; motivo?: string } | null> {
+    try {
+        if (typeof window === "undefined" || !l?.id || !l.clave) return null;
+        if (!vistos.apuntar(l.id)) return null;
+        const silenciado = await chatSilenciado(l.clave);
+        const s = situacion(l.clave, silenciado);
+        const sistema = !silenciado && s.popupsPermitidos && s.sistemaDisponible && (!s.visible || !s.enfocado);
+        const titulo = `Llamada entrante de ${(l.nombre || "una neurona").slice(0, 60)}`;
+        const cuerpo =
+            l.tipo === "pantalla"
+                ? "Quiere enseñarte su pantalla. Toca para abrir y contestar."
+                : l.tipo === "video"
+                  ? "Videollamada. Toca para abrir y contestar."
+                  : "Llamada de voz. Toca para abrir y contestar.";
+        const ruta = rutaChat(l.clave);
+        if (esAppNativa()) {
+            const r = await avisosNativos().avisar({ id: l.id, clave: l.clave, titulo, cuerpo, ruta, sistema });
+            return sistema ? (r.ok ? { sistema, ok: r.valor.mostrada, motivo: r.valor.motivo ?? undefined } : { sistema, ok: false, motivo: r.motivo }) : { sistema };
+        }
+        if (!sistema) return { sistema };
+        const r = await notificarWeb(l.id, titulo, cuerpo, ruta, l.clave);
+        return { sistema, ...r };
+    } catch {
+        return null;
+    }
+}
+
 /** Un mensaje que ya estaba (llegó por otro camino): solo se le cuenta a la app nativa, sin avisar. */
 export function informarRecibido(id: string, clave: string): void {
     if (!id || !esAppNativa() || vistos.contiene(id)) return;

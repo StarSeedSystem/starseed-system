@@ -685,10 +685,12 @@ async function recibirNeurona(cuerpo: unknown, via: ViaMensaje | Promise<ViaMens
             .then((m) => m.timbreDeNeurona({ clave, cuerpo: c }))
             .catch(() => undefined);
     }
-    // (NEU1107A) La burbuja de una llamada directa (su timbre suena por el propio enlace local).
+    // (NEU1107A) La burbuja de una llamada directa. (LLA1108A) También hace sonar, con «Contestar» (el
+    // timbre del enlace WebRTC puede no llegar si ese enlace quedó medio abierto).
     if (nuevo && c.ll?.via === "enlace-local") {
+        const ll = c.ll;
         void import("./llamadas-neurona")
-            .then((m) => m.registroLlamadaDirectaEntrante(clave, c.mid))
+            .then((m) => m.registroLlamadaDirectaEntrante(clave, c.mid, { ll, neurona: c.de.n, nombre: c.de.nom, at: c.at }))
             .catch(() => undefined);
     }
     // (NEU1107A) Un archivo: se sigue su transferencia (y se guarda aquí cuando se verifique).
@@ -703,6 +705,12 @@ async function recibirNeurona(cuerpo: unknown, via: ViaMensaje | Promise<ViaMens
     // (así el respaldo nativo de la app tampoco las avisa otra vez).
     void import("@/lib/notifications/avisos-mensajes")
         .then(async (a) => {
+            // (LLA1108A) Una llamada nueva con la app oculta o en segundo plano: «Llamada entrante de …» en las
+            // notificaciones del sistema (al pulsarla se abre su chat, con «Contestar» en la burbuja).
+            if (nuevo && c.ll) {
+                await a.avisarLlamadaEntrante({ id: c.mid, clave, nombre: c.de.nom || "Una neurona", tipo: c.ll.pantalla ? "pantalla" : c.ll.tipo });
+                return;
+            }
             if (!nuevo || c.ll) {
                 a.informarRecibido(c.mid, clave);
                 return;

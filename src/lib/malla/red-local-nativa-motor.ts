@@ -150,6 +150,12 @@ export interface RedNativa {
    */
   asegurarLigadura(neurona: string, esperaMs?: number): Promise<ResultadoAsegurar>;
   ticSenales(): Promise<void>;
+  /**
+   * (LLA1108A) Una llamada necesita el enlace WebRTC con esa neurona YA: se olvida la espera del último
+   * fallo y se da un paso a la señalización ahora (si me toca ofrecer, ofrezco; si no, el otro lo urge
+   * igual al recibir el timbre). Nunca lanza.
+   */
+  urgirEnlace?(neurona: string): void;
   enlaces(): EnlaceDisponible[];
   /** Manda un texto (objeto JSON) a esa IP por su cola; se resuelve con el acuse de la otra app. */
   enviarTexto(ip: string, texto: string, puerto?: number): Promise<ResultadoEnvioNativo>;
@@ -718,6 +724,15 @@ export function crearRedNativa(deps: DepsRedNativa): RedNativa {
     refrescar,
     asegurarLigadura,
     ticSenales,
+    urgirEnlace: (neurona) => {
+      try {
+        if (!neurona) return;
+        evento(neurona, { t: "urgir", ahora: deps.ahora() });
+        void ticSenales().catch(nadaQueHacer);
+      } catch {
+        /* el siguiente tic lo intenta igual */
+      }
+    },
     enlaces: () => enlacesNativos({ ligaduras, ahora: deps.ahora(), escuchando, caidas, rtt }),
     enviarTexto: (ip, texto, puerto) => encolar(ip, texto, puerto),
     canalArchivos: (ip) => canalArchivos(ipLocal(ip) ?? ip),

@@ -573,3 +573,44 @@ el almacén de IndexedDB con un IndexedDB de mentira (una apertura, lotes, rango
 500 MB (memoria del WebView al unir; el aviso de «no cabe» con poco espacio); y el binario mixto
 del multitrayecto (que el WebView reciba trozos binarios por el directo y de texto por el TCP del
 mismo archivo).
+
+## 9 · Llamadas directas entre neuronas que se pueden contestar (LLA1108A · 2026-11-08)
+
+Prueba real (08-11, 0.5.1-prueba.22): la Mac llamó dos veces a «Maggaboard» (Mensajes › Neuronas, «en
+línea · vía red local»). Medido en la bandeja de la Mac: las dos burbujas salieron con `ll.via =
+"enlace-local"` (había un `local:nativo-…` registrado y abierto) y viajaron por `nativo:192.168.0.12`
+con acuse de la app (25–94 ms); acabaron «Sin respuesta · nadie contestó» por el tope de 45 s de la
+Mac, sin `ll.aceptar` ni `ll.rechazar` de vuelta. La tableta enseñó «Sonando» sin forma de contestar.
+
+**Causa**: lo único que creaba un timbre contestable en quien recibe era UN `ll.sonar`, sin acuse, por el
+enlace WebRTC que `enlaceLocalHacia` devolvía primero (orden de registro, no el más nuevo ni uno que
+demostrara llevar algo). Si ese enlace estaba medio abierto (el otro aparato venía de segundo plano: su
+extremo ya no existía y el `RTCDataChannel` de la Mac seguía «open» hasta que ICE lo diera por caído), el
+timbre se perdía en silencio. La burbuja, que sí llegaba por el TCP, no sabía hacer sonar nada
+(`registroLlamadaDirectaEntrante` solo apuntaba «sonando»), y la tarjeta flotante iba en `z-[80]`.
+
+**Arreglo**:
+- `llamada-directa.ts`: cada control `ll.*` va por el enlace Y por el canal de la app hacia esa neurona
+  (`llamada-directa-respaldo.ts`: canal «llamada-directa» del transporte universal, con acuse; solo se
+  atiende por enlaces con consentimiento, nunca relé ni LoRa) y lleva `de` (neurona) y `n` (nombre). Los
+  repetidos cuentan una vez (por id; una llamada acabada no vuelve a sonar). Estado con `id`, `neurona`,
+  `entrante` y `fin` (colgada, rechazada, sin-respuesta, fallo): el registro del chat ya no adivina por el
+  texto del motivo («quien llamaba colgó» era «Rechazada»).
+- La burbuja lleva el id de la llamada (`ll.sesion`) y hace sonar en quien recibe (`recibirSenalLlamada`).
+- Contestar: micro/cámara primero (diagnóstico MIC1108A), luego el enlace WebRTC VIVO más nuevo con esa
+  neurona o, si no hay, se urge la señalización por el TCP 47071 (`urgirEnlace`, evento `urgir` de
+  `senal-nativa.ts`: sin la espera de hasta 10 min tras un fallo) y se espera ≤ 12 s. `ll.aceptar` dice
+  por qué enlace va el audio y quien llama se pasa a ese. Sin enlace: «no se pudo abrir el enlace directo»
+  a los dos lados (fin `fallo`). Quien llama, si solo hay el TCP con esa neurona, abre antes el WebRTC (≤ 8 s).
+- Timbre de quien recibe: caduca a los 45 s + 3 s (manda el «colgar» de quien llama).
+- Interfaz: «Contestar»/«Rechazar» en la propia burbuja (también para el timbre del sistema de llamadas),
+  tarjeta flotante en `z-[465]`, arriba en el móvil, con tono y vibración. Notificación del sistema
+  «Llamada entrante de <neurona>» con la app oculta o en segundo plano (`avisarLlamadaEntrante`); al
+  pulsarla abre su chat. Sin acción «Contestar» en la notificación (el plugin no la da igual en todos).
+- Pruebas: `src/lib/malla/__tests__/llamada-directa-dos-motores.test.ts` (dos motores en memoria),
+  `datos-hilo.test.tsx` (+1), `avisos-mensajes-nativa.test.ts` (+2).
+
+**Pendiente con los dos aparatos**: audio en los dos sentidos tras contestar desde la tableta (enlace
+nuevo abierto al contestar); que la notificación salga con la app en segundo plano en Android; el caso
+en que la Mac ofrece (id menor) y conserva el enlace medio abierto: la tableta no puede abrir otro hasta
+que ICE dé por caído el viejo (≈ 30 s). Si pasa, «Contestar» lo dirá («no se pudo abrir el enlace»).
