@@ -729,7 +729,12 @@ object LlamadaNativa : Application.ActivityLifecycleCallbacks {
             // Sobre el bloqueo (Android 14+ lo pide como ajuste especial: sin él, aviso emergente).
             if (puedePantallaCompleta(ctx)) b.setFullScreenIntent(intentApp(ctx, "abrir", 6), true)
             // Con la app a la vista ya suena la propia web: el aviso no duplica el timbre.
-            if (Build.VERSION.SDK_INT >= 30 && actual?.get() != null) b.setSilent(true)
+            // (KOT1108A) `Notification.Builder.setSilent` no existe en el SDK con el que compila el CI («Unresolved
+            // reference 'setSilent'», run 42524314202). Mismo efecto que NotificationCompat.setSilent: un grupo propio
+            // con GROUP_ALERT_SUMMARY hace que este aviso no suene (API 26+).
+            if (Build.VERSION.SDK_INT >= 30 && actual?.get() != null) {
+                b.setGroup("starseed-llamada-silenciosa").setGroupAlertBehavior(Notification.GROUP_ALERT_SUMMARY)
+            }
         }
         if (fase == "activa" && inicioMs > 0) b.setUsesChronometer(true).setWhen(inicioMs).setShowWhen(true)
         val n = b.build()
