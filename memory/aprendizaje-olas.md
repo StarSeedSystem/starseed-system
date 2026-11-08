@@ -6094,3 +6094,18 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 
 **Lo que quedó fuera, una por una:**
 - `CTR1107D-d3` — los tipos no compilan: 1 errores tsc (rama ola/CTR1107D-d3 conservada)
+
+## 2026-11-07 19:09 · auto-1107-174940
+
+**Lo que se pidió.** Bloqueante SOLO por un defecto visible…
+
+**Resultado.** 6 de 10 integradas. 4 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- openrouter/cohere/north-mini-code:free no integró ninguna de sus 3 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `CTR1107D-d3` — conflicto al integrar: ff falló: ib/network/vinculos-realtime.ts Please commit your changes or stash them before you merge. Aborting
+- `SUP0711E` — pruebas en rojo: vitest falla (rama conservada)
+- `CTD1107D` — la revisión lo rechazó: no toco NINGUNO de los 3 archivos que declaraba (rama ola/CTD1107D conservada)
+- `CTD1107A` — otra cosa: sin decisión en 0 h; rama ola/CTD1107A conservada
