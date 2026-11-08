@@ -4,15 +4,19 @@
  * LlamadaDirectaFlotante — timbre y llamada en curso por un enlace LOCAL sin internet (2026-10-10).
  * Montada perezosa desde `MallaNeuronasMount` (todas las rutas menos las de consola) y dentro del
  * panel «Vincular sin internet» (para las rutas donde el montaje global no corre): solo la dibuja
- * una instancia. Lógica en `src/lib/malla/llamada-directa.ts`. Contrato:
+ * una instancia. (LLA1108C) Se pinta con la superficie de llamada común (burbuja/panel/pantalla completa).
+ * Lógica en `src/lib/malla/llamada-directa.ts`. Contrato:
  * `architecture/transporte-universal-sin-internet.md`.
  */
 
 import { useEffect, useRef, useState } from "react";
-import { Mic, MicOff, Phone, PhoneIncoming, PhoneOff } from "lucide-react";
 import { avisarFalloMedios } from "@/lib/llamadas/aviso-medios";
 import { crearTono, vibrar } from "@/lib/llamadas/sonido";
-import { cn } from "@/lib/utils";
+import { SuperficieLlamada } from "@/components/llamadas/superficie/superficie-llamada";
+import { resumirCalidadLlamada } from "@/lib/llamadas/superficie/calidad-llamada";
+import { vistaDeDirecta } from "@/lib/llamadas/superficie/adaptador-directa";
+import type { AccionesLlamada } from "@/lib/llamadas/superficie/vista";
+import { useCifradoNeurona } from "@/lib/malla/use-cifrado-enlace";
 import {
   alternarMicro,
   asegurarEscuchaLlamadas,
@@ -21,9 +25,6 @@ import {
   rechazarLlamada,
   useLlamadaDirecta,
 } from "@/lib/malla/llamada-directa";
-
-const boton =
-  "inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] transition-colors duration-200 disabled:cursor-not-allowed disabled:opacity-50";
 
 let duenoLlamada: symbol | null = null;
 const oyentesDueno = new Set<() => void>();
@@ -53,21 +54,6 @@ function useSoyDueno(): boolean {
   return duenoLlamada === yo.current;
 }
 
-function Medio({ stream, video, silenciar }: { stream: MediaStream | null; video: boolean; silenciar?: boolean }) {
-  const refVideo = useRef<HTMLVideoElement | null>(null);
-  const refAudio = useRef<HTMLAudioElement | null>(null);
-  useEffect(() => {
-    const el = video ? refVideo.current : refAudio.current;
-    if (el) el.srcObject = stream;
-  }, [stream, video]);
-  if (!stream) return null;
-  return video ? (
-    <video ref={refVideo} autoPlay playsInline muted={silenciar} className="w-full rounded-lg bg-black object-cover" />
-  ) : (
-    <audio ref={refAudio} autoPlay muted={silenciar} />
-  );
-}
-
 export function LlamadaDirectaFlotante() {
   const ll = useLlamadaDirecta();
   const dueno = useSoyDueno();
@@ -83,77 +69,26 @@ export function LlamadaDirectaFlotante() {
     vibrar([220, 140, 220, 900, 220, 140, 220]);
     return () => tono.parar();
   }, [sonando]);
-  if (!dueno || ll.fase === "inactiva") return null;
-  const tieneVideoRemoto = !!ll.remoto?.getVideoTracks().length;
-  return (
-    <div
-      className={cn(
-        // (LLA1108A) Encima de todo (antes z-80: una ventana o el chat la tapaban) y, mientras suena, arriba y
-        // centrada en el móvil, en el mismo sitio que el timbre de las llamadas por internet.
-        "fixed z-[465] w-[min(92vw,340px)] space-y-2 rounded-2xl border border-emerald-400/30 bg-slate-950/90 p-3 text-white shadow-2xl backdrop-blur",
-        ll.fase === "entrante"
-          ? "left-1/2 top-[max(0.75rem,env(safe-area-inset-top))] -translate-x-1/2 sm:left-auto sm:right-5 sm:translate-x-0"
-          : "bottom-[max(1rem,env(safe-area-inset-bottom))] right-4",
-      )}
-      role={ll.fase === "entrante" ? "alertdialog" : "dialog"}
-      aria-live={ll.fase === "entrante" ? "assertive" : undefined}
-      aria-label={ll.fase === "entrante" ? `Llamada entrante de ${ll.nombre}` : "Llamada directa sin internet"}
-      data-testid="llamada-directa-flotante"
-    >
-      <div className="flex items-center gap-2 text-[12px]">
-        {ll.fase === "entrante" ? <PhoneIncoming className="h-4 w-4 animate-pulse text-emerald-300" /> : <Phone className="h-4 w-4 text-emerald-300" />}
-        <span className="font-medium">
-          {ll.fase === "entrante"
-            ? `${ll.nombre} ${ll.pantalla ? "quiere enseñarte su pantalla" : `te llama${ll.video ? " (vídeo)" : ""}`}`
-            : ll.fase === "llamando"
-              ? `${ll.pantalla ? "Compartiendo pantalla con" : "Llamando a"} ${ll.nombre}…`
-              : ll.fase === "en-curso"
-                ? ll.nombre
-                : "Llamada terminada"}
-        </span>
-        <span className="ml-auto text-[10px] text-emerald-200/70">sin internet</span>
-      </div>
-      {ll.fase === "en-curso" || ll.fase === "llamando" ? (
-        <div className="space-y-1.5">
-          <Medio stream={ll.remoto} video={tieneVideoRemoto} />
-          {ll.video ? (
-            <div className="ml-auto w-24">
-              <Medio stream={ll.local} video silenciar />
-            </div>
-          ) : null}
-          {ll.fase === "en-curso" && !ll.remoto ? <p className="text-[10px] text-white/50">Esperando el audio del otro lado…</p> : null}
-        </div>
-      ) : null}
-      {ll.motivo ? <p className="text-[11px] text-white/60">{ll.motivo}</p> : null}
-      <div className="flex flex-wrap justify-end gap-1.5">
-        {ll.fase === "entrante" ? (
-          <>
-            <button type="button" onClick={() => rechazarLlamada()} className={cn(boton, "border-rose-400/40 bg-rose-500/20 text-rose-100 hover:bg-rose-500/30")}>
-              <PhoneOff className="h-3 w-3" /> Rechazar
-            </button>
-            <button
-              type="button"
-              onClick={async () => {
-                const r = await contestarLlamada();
-                if (!r.ok && r.motivo) avisarFalloMedios(r.motivo, r.ajustes);
-              }}
-              className={cn(boton, "border-emerald-400/40 bg-emerald-500/20 text-emerald-100 hover:bg-emerald-500/30")}
-            >
-              <Phone className="h-3 w-3" /> Contestar
-            </button>
-          </>
-        ) : null}
-        {ll.fase === "en-curso" ? (
-          <button type="button" onClick={() => alternarMicro()} className={cn(boton, "border-white/20 text-white/80 hover:border-white/40")} aria-label={ll.micro ? "Silenciar micrófono" : "Activar micrófono"}>
-            {ll.micro ? <Mic className="h-3 w-3" /> : <MicOff className="h-3 w-3" />} {ll.micro ? "Micro" : "Silenciado"}
-          </button>
-        ) : null}
-        {ll.fase === "en-curso" || ll.fase === "llamando" ? (
-          <button type="button" onClick={() => colgarLlamada()} className={cn(boton, "border-rose-400/40 bg-rose-500/20 text-rose-100 hover:bg-rose-500/30")}>
-            <PhoneOff className="h-3 w-3" /> Colgar
-          </button>
-        ) : null}
-      </div>
-    </div>
-  );
+  // La superficie sigue montada con la llamada en reposo: así el resumen de la que acaba (duración y medio) no desaparece solo.
+  if (!dueno) return null;
+  return <SuperficieDirecta ll={ll} />;
+}
+
+/** Acciones que el motor directo SÍ tiene; el resto de botones de la superficie quedan desactivados con su motivo. */
+const ACCIONES_DIRECTA: AccionesLlamada = {
+  contestar: async () => {
+    const r = await contestarLlamada();
+    if (!r.ok && r.motivo) avisarFalloMedios(r.motivo, r.ajustes);
+  },
+  rechazar: () => rechazarLlamada(),
+  colgar: () => colgarLlamada(),
+  alternarMicro: () => alternarMicro(),
+};
+
+function SuperficieDirecta({ ll }: { ll: ReturnType<typeof useLlamadaDirecta> }) {
+  const cifrado = useCifradoNeurona(ll.neurona ?? "");
+  const vista = vistaDeDirecta(ll, { medio: "enlace local (sin internet)" });
+  vista.calidad = resumirCalidadLlamada({ ruta: null, rttMs: null, bitrateKbps: null, perdidaPct: null, jitterMs: null, codec: null, cifrado: ll.neurona ? cifrado : null });
+  vista.textoMedio = "Llamada directa por el enlace local de las dos neuronas, sin pasar por internet.";
+  return <SuperficieLlamada vista={vista} acciones={ACCIONES_DIRECTA} />;
 }

@@ -23,6 +23,7 @@ import { usePresenciaViva } from "@/lib/neurons/use-presencia-viva";
 import { textoCabeceraVivo } from "@/lib/neurons/presencia-viva";
 import { SelloCifrado } from "@/components/neurons/sello-cifrado";
 import { IconoNeurona } from "@/components/messages/neuronas/icono-neurona";
+import { TextoBurbuja } from "@/components/messages/neuronas/texto-burbuja";
 import { SeparadorDia } from "@/components/messages/dm/separador-dia";
 import { formatearHora } from "@/components/messages/dm/utilidades-hilo";
 import type { ConversacionNeurona } from "@/lib/mensajeria/neuronas/agrupar";
@@ -101,7 +102,7 @@ function Burbuja({
                         {m.adjunto && <TarjetaArchivo m={m} />}
                         {m.llamada && <TarjetaLlamada m={m} />}
                         {m.flujo && <TarjetaFlujo m={m} />}
-                        {m.texto && <p className="whitespace-pre-wrap break-words text-[14px] leading-relaxed text-white">{m.texto}</p>}
+                        {m.texto && <TextoBurbuja texto={m.texto} />}
                     </>
                 )}
                 <div className="mt-1 flex flex-wrap items-center justify-end gap-1.5">
