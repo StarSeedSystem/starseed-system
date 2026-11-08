@@ -164,6 +164,8 @@
     "allow-ble-recibidos",
     "allow-ble-activar",
     "allow-ble-pedir-permiso",
+    "allow-ble-registro",
+    "allow-ble-registro-anexar",
     "allow-apk-actualizar",
     "allow-apk-estado",
     "allow-apk-instalar",

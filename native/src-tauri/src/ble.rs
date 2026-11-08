@@ -12,7 +12,8 @@
 //   · Un hilo propio cada 250 ms: plazos de acuse, rotación del anuncio (ventana de 5 min o clave
 //     nueva), vecinos que caducan y a qué neuronas de la cuenta conectar solo.
 //   · A la web: `ble_estado`, `ble_abrir`, `ble_cerrar`, `ble_enviar` (espera el ACUSE de la otra
-//     app), `ble_recibidos`, `ble_activar`, `ble_pedir_permiso`; eventos `ble://mensaje` y
+//     app), `ble_recibidos`, `ble_activar`, `ble_pedir_permiso`, `ble_registro` y
+//     `ble_registro_anexar` (BLE1108B: registro de eventos del enlace); eventos `ble://mensaje` y
 //     `ble://cambio`. Mismo papel que `malla_local.rs` con el TCP 47071.
 //
 // SOLO TRANSPORTA. Quién manda y si es auténtico lo decide la capa web con el saludo firmado
@@ -24,8 +25,9 @@
 use crate::ble_trama::{self as bt, Enlace, Hecho, Vecindario};
 use crate::malla_local_trama::{Buzon, Limitador, Recibido};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::path::PathBuf;
+use std::collections::{HashMap, VecDeque};
+use std::io::Write;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
 use std::sync::{Mutex, OnceLock};
@@ -178,6 +180,19 @@ impl From<Recibido> for MensajeBle {
     }
 }
 
+/// (BLE1108B) Una línea del registro de eventos del enlace: por qué se abrió, se cayó o no se envió algo.
+#[derive(Serialize, Clone, Debug, PartialEq, Eq)]
+pub struct RegistroBle {
+    pub seq: u64,
+    /// Epoch ms.
+    pub ms: u64,
+    /// "radio" | "enlace-abierto" | "enlace-cerrado" | "mtu" | "conectar" | "envio-fallido" | "silencio" | "anuncio".
+    pub tipo: String,
+    pub enlace: Option<String>,
+    pub neurona: Option<String>,
+    pub detalle: String,
+}
+
 #[derive(Serialize, Clone, Debug)]
 pub struct EnvioBle {
     pub enlace: String,
@@ -309,6 +324,10 @@ struct Estado {
     ultimo_cambio_ms: u64,
     cambio_pendiente: bool,
     dir: Option<PathBuf>,
+    /// (BLE1108B) Últimos eventos del enlace (anillo) y lo que falta por volcar a `enlaces.log`.
+    registro: VecDeque<RegistroBle>,
+    siguiente_reg: u64,
+    por_volcar: Vec<String>,
 }
 
 fn estado() -> &'static Mutex<Estado> {
@@ -330,6 +349,9 @@ fn estado() -> &'static Mutex<Estado> {
             ultimo_cambio_ms: 0,
             cambio_pendiente: false,
             dir: None,
+            registro: VecDeque::new(),
+            siguiente_reg: 1,
+            por_volcar: Vec::new(),
         })
     })
 }
@@ -357,6 +379,116 @@ fn emitir<S: Serialize + Clone>(evento: &str, carga: S) {
     if let Some(app) = APP.get() {
         use tauri::Emitter;
         let _ = app.emit(evento, carga);
+    }
+}
+
+// ───────────────────────────── Registro del enlace (BLE1108B) ─────────────────────────────
+
+/// Eventos que guarda el anillo en memoria.
+pub const REGISTRO_CAP: usize = 300;
+/// Tamaño máximo de `enlaces.log` antes de rotarlo a `enlaces.log.1`.
+pub const REGISTRO_MAX_BYTES: u64 = 1024 * 1024;
+
+/// Texto de una sola línea y sin caracteres de control, de como mucho `max` caracteres.
+pub fn linea_limpia(s: &str, max: usize) -> String {
+    s.chars().map(|c| if c.is_control() { ' ' } else { c }).take(max).collect::<String>().trim().to_string()
+}
+
+/// «2026-11-08T12:30:05.123Z» de un epoch en ms (UTC; sin dependencias).
+pub fn iso_utc(ms: u64) -> String {
+    let s = ms / 1000;
+    let milis = ms % 1000;
+    let dias = (s / 86_400) as i64;
+    let resto = s % 86_400;
+    let z = dias + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z.rem_euclid(146_097);
+    let yoe = (doe - doe / 1_460 + doe / 36_524 - doe / 146_096) / 365;
+    let y = yoe + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 };
+    let y = if m <= 2 { y + 1 } else { y };
+    format!("{y:04}-{m:02}-{d:02}T{:02}:{:02}:{:02}.{milis:03}Z", resto / 3_600, (resto % 3_600) / 60, resto % 60)
+}
+
+/// La línea de `enlaces.log` de un evento.
+pub fn linea_registro(r: &RegistroBle) -> String {
+    let mut l = format!("{} ble {}", iso_utc(r.ms), r.tipo);
+    if let Some(e) = &r.enlace {
+        l.push_str(&format!(" enlace={e}"));
+    }
+    if let Some(n) = &r.neurona {
+        l.push_str(&format!(" neurona={}", linea_limpia(n, 40)));
+    }
+    if !r.detalle.is_empty() {
+        l.push_str(&format!(" · {}", r.detalle));
+    }
+    l
+}
+
+/// Añade líneas a un archivo de registro; si ya pasa de `max` bytes, lo rota a «<archivo>.1» (un solo respaldo)
+/// y empieza otro: el registro nunca ocupa más de ~2 × `max`.
+pub fn anexar_rotando(ruta: &Path, lineas: &[String], max: u64) -> std::io::Result<()> {
+    if lineas.is_empty() {
+        return Ok(());
+    }
+    if let Some(dir) = ruta.parent() {
+        std::fs::create_dir_all(dir)?;
+    }
+    if std::fs::metadata(ruta).map(|m| m.len()).unwrap_or(0) >= max {
+        let mut respaldo = ruta.as_os_str().to_owned();
+        respaldo.push(".1");
+        let _ = std::fs::rename(ruta, PathBuf::from(respaldo));
+    }
+    let mut f = std::fs::OpenOptions::new().create(true).append(true).open(ruta)?;
+    let mut bloque = String::new();
+    for l in lineas {
+        bloque.push_str(l);
+        bloque.push('\n');
+    }
+    f.write_all(bloque.as_bytes())
+}
+
+/// Dónde va `enlaces.log`: en macOS `~/Library/Logs/app.starseed.os/`; en el resto, la carpeta de datos de la app.
+fn ruta_registro() -> Option<PathBuf> {
+    #[cfg(target_os = "macos")]
+    {
+        if let Some(h) = std::env::var_os("HOME") {
+            return Some(PathBuf::from(h).join("Library/Logs/app.starseed.os/enlaces.log"));
+        }
+    }
+    dir_datos().map(|d| d.join("enlaces.log"))
+}
+
+/// Apunta un evento en el anillo y lo deja para volcar al archivo (el volcado se hace fuera del cerrojo).
+fn anotar(e: &mut Estado, tipo: &str, enlace: Option<&str>, neurona: Option<&str>, detalle: &str) {
+    let r = RegistroBle {
+        seq: e.siguiente_reg,
+        ms: ahora_ms(),
+        tipo: tipo.to_string(),
+        enlace: enlace.map(String::from),
+        neurona: neurona.map(|n| linea_limpia(n, 80)),
+        detalle: linea_limpia(detalle, 300),
+    };
+    e.siguiente_reg += 1;
+    if e.por_volcar.len() < 500 {
+        e.por_volcar.push(linea_registro(&r));
+    }
+    e.registro.push_back(r);
+    while e.registro.len() > REGISTRO_CAP {
+        e.registro.pop_front();
+    }
+}
+
+fn volcar_registro() {
+    let lineas = con_estado(|e| std::mem::take(&mut e.por_volcar));
+    if lineas.is_empty() {
+        return;
+    }
+    if let Some(ruta) = ruta_registro() {
+        let _ = anexar_rotando(&ruta, &lineas, REGISTRO_MAX_BYTES);
     }
 }
 
@@ -450,6 +582,7 @@ pub fn al_radio(estado_radio: &str, motivo: &str) {
     con_estado(|e| {
         if e.radio != estado_radio || e.motivo != motivo {
             marcar_cambio(e);
+            anotar(e, "radio", None, None, &format!("{estado_radio}: {motivo}"));
         }
         e.radio = estado_radio.to_string();
         e.motivo = if motivo.is_empty() { texto_radio(estado_radio).to_string() } else { motivo.to_string() };
@@ -512,6 +645,9 @@ pub fn al_conectar(plataforma: &str, rol: &str, direccion: Option<&str>, paquete
             desde_ms: ahora,
             nucleo: Enlace::nuevo(paquete),
         });
+        let (id, neurona) = e.enlaces.last().map(|l| (l.id.clone(), l.neurona.clone())).unwrap_or_default();
+        let fallos = direccion.map(|d| e.vecindario.fallos_de(d)).unwrap_or(0);
+        anotar(e, "enlace-abierto", Some(&id), neurona.as_deref(), &format!("rol={rol} paquete={paquete} intentos-previos={fallos}"));
         marcar_cambio(e);
         false
     });
@@ -522,8 +658,14 @@ pub fn al_conectar(plataforma: &str, rol: &str, direccion: Option<&str>, paquete
 
 pub fn al_mtu(plataforma: &str, paquete: usize) {
     con_estado(|e| {
-        if let Some(l) = e.enlaces.iter_mut().find(|l| l.plataforma == plataforma) {
+        let nota = if let Some(l) = e.enlaces.iter_mut().find(|l| l.plataforma == plataforma) {
             l.nucleo.fijar_paquete(paquete);
+            Some((l.id.clone(), l.neurona.clone()))
+        } else {
+            None
+        };
+        if let Some((id, neurona)) = nota {
+            anotar(e, "mtu", Some(&id), neurona.as_deref(), &format!("paquete={paquete}"));
         }
     });
 }
@@ -532,9 +674,40 @@ pub fn al_desconectar(plataforma: &str, motivo: &str) {
     con_estado(|e| {
         let Some(i) = e.enlaces.iter().position(|l| l.plataforma == plataforma) else { return };
         let mut l = e.enlaces.remove(i);
+        let ahora = ahora_ms();
+        let vida = ahora.saturating_sub(l.desde_ms);
+        let m = l.nucleo.medidas.clone();
+        let pendientes = l.nucleo.pendientes();
+        let silencio = l.nucleo.silencio_ms(ahora);
         l.nucleo.cerrar(&format!("el enlace Bluetooth se cerró: {motivo}"));
         let h = l.nucleo.hechos();
         entregar_hechos(e, h);
+        // (BLE1108B) Un enlace que duró (≥ 5 s) y se cae: la reconexión es INMEDIATA. Uno que se cae al
+        // instante cuenta como fallo y espera 2 s, 5 s, 15 s. Y se vuelve a anunciar ya: en Android y
+        // macOS un anuncio conectable puede quedar parado tras una conexión y nadie más te encontraría.
+        if let Some(d) = l.vecino.as_deref() {
+            if vida >= bt::ENLACE_ESTABLE_MS {
+                e.vecindario.enlace_estable(d);
+            }
+        }
+        e.anuncio = None;
+        anotar(
+            e,
+            "enlace-cerrado",
+            Some(&l.id),
+            l.neurona.as_deref(),
+            &format!(
+                "{motivo} · vivo {} s · rol={} · enviado {} B / recibido {} B · {} msg en cola · {} reintentos · {} s sin oír al otro · latidos={}",
+                vida / 1000,
+                l.rol,
+                m.bytes_enviados,
+                m.bytes_recibidos,
+                pendientes,
+                m.reintentos,
+                silencio / 1000,
+                if l.nucleo.otro_late() { "sí" } else { "no" }
+            ),
+        );
         marcar_cambio(e);
     });
 }
@@ -578,6 +751,8 @@ struct Acciones {
     conectar: Vec<String>,
     datos: Vec<String>,
     cambio: Option<EstadoBle>,
+    /// (BLE1108B) Enlaces cuyo otro lado dejó de latir: se cierran y se vuelve a conectar.
+    cerrar: Vec<String>,
 }
 
 fn tic(ahora: u64, releer_cuenta: bool) -> Acciones {
@@ -599,6 +774,9 @@ fn tic(ahora: u64, releer_cuenta: bool) -> Acciones {
             entregar_hechos(e, h);
             if e.enlaces[i].nucleo.hay_paquetes() {
                 a.datos.push(e.enlaces[i].plataforma.clone());
+            }
+            if e.enlaces[i].nucleo.muerto(ahora) {
+                a.cerrar.push(e.enlaces[i].plataforma.clone());
             }
         }
         if e.vecindario.caducar(ahora) {
@@ -623,7 +801,10 @@ fn tic(ahora: u64, releer_cuenta: bool) -> Acciones {
             };
             let conectar = e.vecindario.a_conectar(mia.as_deref(), &enlazada, e.enlaces.len(), ahora);
             for d in &conectar {
+                let previos = e.vecindario.fallos_de(d);
                 e.vecindario.marcar_intento(d, ahora);
+                let neurona = e.vecindario.lista().into_iter().find(|v| &v.direccion == d).and_then(|v| v.neurona);
+                anotar(e, "conectar", None, neurona.as_deref(), &format!("intento {} (espera previa {} ms)", previos + 1, bt::espera_reconexion(previos)));
             }
             a.conectar = conectar;
         }
@@ -652,8 +833,19 @@ fn bucle() {
         for p in a.datos {
             r.hay_datos(&p);
         }
+        for p in a.cerrar {
+            r.desconectar(&p);
+            let nota = con_estado(|e| e.enlaces.iter().find(|l| l.plataforma == p).map(|l| (l.id.clone(), l.neurona.clone())));
+            if let Some((id, neurona)) = nota {
+                con_estado(|e| anotar(e, "silencio", Some(&id), neurona.as_deref(), "el otro aparato late pero dejó de oírse: enlace dado por muerto"));
+            }
+            al_desconectar(&p, "el otro aparato dejó de dar señales (sin latidos)");
+        }
         if let Some(c) = a.cambio {
             emitir(EVENTO_CAMBIO, c);
+        }
+        if n % 4 == 0 {
+            volcar_registro();
         }
     }
 }
@@ -773,10 +965,17 @@ pub fn enviar(enlace: &str, json: &str) -> Result<u64, String> {
         Ok::<_, String>((rx, plataforma))
     })?;
     radio().hay_datos(&plataforma);
-    match rx.recv_timeout(Duration::from_millis(bt::PLAZO_TOTAL_MS + 5_000)) {
+    let r = match rx.recv_timeout(Duration::from_millis(bt::PLAZO_TOTAL_MS + 5_000)) {
         Ok(r) => r.map_err(|m| format!("Bluetooth directo: {m}.")),
         Err(_) => Err("Bluetooth directo: sin respuesta de la radio.".into()),
+    };
+    if let Err(m) = &r {
+        con_estado(|e| {
+            let neurona = e.enlaces.iter().find(|l| l.id == enlace).and_then(|l| l.neurona.clone());
+            anotar(e, "envio-fallido", Some(enlace), neurona.as_deref(), m);
+        });
     }
+    r
 }
 
 /// Lo recibido después de `desde` (la web lo pide al arrancar: nada se pierde por llegar antes).
@@ -784,6 +983,28 @@ pub fn enviar(enlace: &str, json: &str) -> Result<u64, String> {
 pub fn ble_recibidos(desde: u64) -> Vec<MensajeBle> {
     let ahora = ahora_ms();
     con_estado(|e| e.buzon.desde(desde, ahora, BUZON_EDAD_MS)).into_iter().map(MensajeBle::from).collect()
+}
+
+/// (BLE1108B) Los últimos eventos del enlace (más viejo primero): la web los une a los suyos en «Registro del enlace».
+#[tauri::command]
+pub fn ble_registro() -> Vec<RegistroBle> {
+    con_estado(|e| e.registro.iter().cloned().collect())
+}
+
+/// (BLE1108B) La web añade sus líneas (ligado, cerrado, sin cifrar…) al mismo `enlaces.log`. Devuelve cuántas guardó.
+#[tauri::command]
+pub fn ble_registro_anexar(lineas: Vec<String>) -> usize {
+    let limpias: Vec<String> = lineas
+        .iter()
+        .take(60)
+        .map(|l| linea_limpia(l, 400))
+        .filter(|l| !l.is_empty())
+        .map(|l| format!("{} web {}", iso_utc(ahora_ms()), l))
+        .collect();
+    match ruta_registro() {
+        Some(ruta) if anexar_rotando(&ruta, &limpias, REGISTRO_MAX_BYTES).is_ok() => limpias.len(),
+        _ => 0,
+    }
 }
 
 #[tauri::command]
@@ -954,5 +1175,39 @@ mod pruebas {
         assert!(ble_activar(true).unwrap_err().contains("Bluetooth directo"));
         let (estado_antena, _) = antena();
         assert_eq!(estado_antena, "no-disponible");
+    }
+
+    #[test]
+    fn registro_de_enlaces_con_motivo_y_rotacion() {
+        assert_eq!(iso_utc(0), "1970-01-01T00:00:00.000Z");
+        assert_eq!(iso_utc(1_700_000_000_123), "2023-11-14T22:13:20.123Z");
+        assert_eq!(iso_utc(951_782_400_000), "2000-02-29T00:00:00.000Z", "bisiesto");
+        assert_eq!(linea_limpia("a\nb\tc\u{7}d", 50), "a b c d");
+        assert_eq!(linea_limpia(&"x".repeat(500), 40).len(), 40);
+        let r = RegistroBle { seq: 1, ms: 1_700_000_000_000, tipo: "enlace-cerrado".into(), enlace: Some("b2".into()), neurona: Some("n-tablet".into()), detalle: "motivo".into() };
+        assert_eq!(linea_registro(&r), "2023-11-14T22:13:20.000Z ble enlace-cerrado enlace=b2 neurona=n-tablet · motivo");
+        // El núcleo de verdad: abrir y cerrar un enlace deja el motivo y vuelve a anunciar.
+        let p = "c:AA:BB:CC:DD:EE:77";
+        al_conectar(p, "central", Some("AA:BB:CC:DD:EE:77"), 61);
+        al_desconectar(p, "estado 8 (supervisión)");
+        let r = ble_registro();
+        assert!(r.iter().any(|x| x.tipo == "enlace-abierto" && x.detalle.contains("paquete=61")), "{r:?}");
+        let cierre = r.iter().rev().find(|x| x.tipo == "enlace-cerrado").expect("cierre anotado");
+        assert!(cierre.detalle.contains("estado 8 (supervisión)") && cierre.detalle.contains("vivo 0 s"), "{cierre:?}");
+        assert!(r.windows(2).all(|w| w[0].seq < w[1].seq), "en orden");
+        assert!(r.len() <= REGISTRO_CAP);
+        // El archivo rota a «.1» al pasar del tope y no crece sin límite.
+        let dir = std::env::temp_dir().join(format!("ble1108b-{}", std::process::id()));
+        let ruta = dir.join("sub/enlaces.log");
+        let linea = "x".repeat(99);
+        for _ in 0..5 {
+            anexar_rotando(&ruta, &vec![linea.clone(); 4], 1_000).unwrap();
+        }
+        let actual = std::fs::metadata(&ruta).unwrap().len();
+        let respaldo = std::fs::metadata(dir.join("sub/enlaces.log.1")).unwrap().len();
+        assert!(actual <= 1_000 + 400 && respaldo >= 1_000, "actual {actual} respaldo {respaldo}");
+        assert!(std::fs::read_to_string(&ruta).unwrap().lines().all(|l| l == linea));
+        assert!(anexar_rotando(&ruta, &[], 1_000).is_ok());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

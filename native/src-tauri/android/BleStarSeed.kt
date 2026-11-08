@@ -227,6 +227,20 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
 
     private fun desconectado(enlace: String, motivo: String) {
         evento(JSONObject().put("e", "desconectado").put("enlace", enlace).put("motivo", motivo))
+        reanudarRadio()
+    }
+
+    /**
+     * (BLE1108B) Tras CUALQUIER caída vuelve a anunciarse y asegura el escaneo: en Android un anuncio
+     * conectable puede quedar parado al conectarse alguien y, sin él, la otra neurona no encuentra a
+     * esta para reconectar. Rust reconecta con 0 s, 2 s, 5 s y luego cada 15 s.
+     */
+    private fun reanudarRadio() {
+        principal.postDelayed({
+            if (!activo || ultimoEstado != "encendida") return@postDelayed
+            anunciar()
+            escanear()
+        }, 400)
     }
 
     private val receptorEstado = object : BroadcastReceiver() {
@@ -412,7 +426,7 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
                     if (!centrales.containsKey(k)) centrales[k] = Central(d)
                 } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                     val c = centrales.remove(k)
-                    if (c?.suscrito == true) desconectado(k, "el otro aparato se desconectó (estado $status)")
+                    if (c?.suscrito == true) desconectado(k, "el otro aparato se desconectó (estado $status)") else reanudarRadio()
                 }
             }
         }

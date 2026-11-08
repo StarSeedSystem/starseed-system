@@ -747,6 +747,8 @@ pub fn run() {
                 ble::ble_recibidos,
                 ble::ble_activar,
                 ble::ble_pedir_permiso,
+                ble::ble_registro,
+                ble::ble_registro_anexar,
                 canal_actualizacion::apk_actualizar,
                 canal_actualizacion::apk_estado,
                 canal_actualizacion::apk_instalar,

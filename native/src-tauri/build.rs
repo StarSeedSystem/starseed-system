@@ -74,6 +74,8 @@ const COMANDOS_APP: &[&str] = &[
     "ble_recibidos",
     "ble_activar",
     "ble_pedir_permiso",
+    "ble_registro",
+    "ble_registro_anexar",
     // (ACT1108A) Actualizador interno del APK (Android; en escritorio responden «solo Android»).
     "apk_actualizar",
     "apk_estado",

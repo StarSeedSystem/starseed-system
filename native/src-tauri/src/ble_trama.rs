@@ -80,6 +80,23 @@ pub const CADUCA_VECINO_MS: u64 = 30_000;
 pub const ENTRE_INTENTOS_MS: u64 = 20_000;
 /// Por debajo de esta señal no se intenta conectar solo (se cortaría enseguida).
 pub const RSSI_MINIMO: i16 = -92;
+/// (BLE1108B) Espera antes de volver a conectar con el mismo aparato según los intentos seguidos que no
+/// dejaron un enlace estable: AHORA, 2 s, 5 s y luego 15 s fijos (nunca se rinde, nunca martillea).
+pub const ESCALA_RECONEXION_MS: [u64; 4] = [0, 2_000, 5_000, 15_000];
+/// (BLE1108B) Un enlace que duró menos que esto no cuenta como «estable»: el siguiente intento espera más.
+pub const ENLACE_ESTABLE_MS: u64 = 5_000;
+/// (BLE1108B) Cuánto se recuerdan los intentos fallidos de un aparato (luego se empieza de cero).
+pub const OLVIDO_INTENTOS_MS: u64 = 120_000;
+/// (BLE1108B) Un enlace callado (sin tráfico) manda un paquete de latido cada tanto: mantiene vivo el
+/// enlace por debajo del plazo de supervisión del controlador y deja ver a quien escucha si el otro sigue.
+pub const LATIDO_MS: u64 = 8_000;
+/// (BLE1108B) Si el otro SÍ late (app nueva) y pasan 3 latidos sin oír nada suyo, el enlace se da por muerto.
+pub const SILENCIO_MUERTO_MS: u64 = 3 * LATIDO_MS + 2_000;
+
+/// Espera (ms) antes del siguiente intento de conexión con un aparato que ya falló `fallos` veces seguidas.
+pub fn espera_reconexion(fallos: u32) -> u64 {
+    ESCALA_RECONEXION_MS[(fallos as usize).min(ESCALA_RECONEXION_MS.len() - 1)]
+}
 
 // ─────────────────────────────── Errores ───────────────────────────────
 
@@ -327,6 +344,8 @@ pub fn leer_cabecera_trama(c: &[u8]) -> Result<usize, ErrorBle> {
 pub const P_DATOS: u8 = 1;
 pub const P_ACUSE: u8 = 2;
 pub const P_RECHAZO: u8 = 3;
+/// (BLE1108B) Latido: 3 bytes [tipo | 0 | 0]. Las apps anteriores lo ignoran (paquete desconocido).
+pub const P_LATIDO: u8 = 4;
 
 /// Motivos de un rechazo (byte 3 del paquete).
 pub const R_HUECO: u8 = 1;
@@ -339,6 +358,7 @@ pub enum Paquete<'a> {
     Datos { id: u16, idx: u16, datos: &'a [u8] },
     Acuse { id: u16 },
     Rechazo { id: u16, motivo: u8 },
+    Latido,
 }
 
 pub fn leer_paquete(b: &[u8]) -> Option<Paquete<'_>> {
@@ -352,6 +372,7 @@ pub fn leer_paquete(b: &[u8]) -> Option<Paquete<'_>> {
         }
         P_ACUSE if b.len() == 3 => Some(Paquete::Acuse { id }),
         P_RECHAZO if b.len() == 4 => Some(Paquete::Rechazo { id, motivo: b[3] }),
+        P_LATIDO if b.len() == 3 => Some(Paquete::Latido),
         _ => None,
     }
 }
@@ -359,6 +380,10 @@ pub fn leer_paquete(b: &[u8]) -> Option<Paquete<'_>> {
 pub fn paquete_acuse(id: u16) -> Vec<u8> {
     let i = id.to_be_bytes();
     vec![P_ACUSE, i[0], i[1]]
+}
+
+pub fn paquete_latido() -> Vec<u8> {
+    vec![P_LATIDO, 0, 0]
 }
 
 pub fn paquete_rechazo(id: u16, motivo: u8) -> Vec<u8> {
@@ -456,6 +481,10 @@ pub struct Enlace {
     ultimo_hueco: Option<u16>,
     hechos: Vec<Hecho>,
     pub medidas: Medidas,
+    /// (BLE1108B) Último paquete entregado a la radio / último oído, y si el otro manda latidos.
+    ultimo_tx_ms: u64,
+    ultimo_rx_ms: u64,
+    otro_late: bool,
 }
 
 /// Cuántos ids recibidos se recuerdan para descartar repetidos (acuse perdido → reenvío).
@@ -476,7 +505,29 @@ impl Enlace {
             ultimo_hueco: None,
             hechos: Vec::new(),
             medidas: Medidas::default(),
+            ultimo_tx_ms: 0,
+            ultimo_rx_ms: 0,
+            otro_late: false,
         }
+    }
+
+    /// (BLE1108B) ¿El otro lado manda latidos (app nueva)? Solo entonces su silencio quiere decir algo.
+    pub fn otro_late(&self) -> bool {
+        self.otro_late
+    }
+
+    /// (BLE1108B) Cuánto hace que no se oye NADA del otro lado (0 hasta el primer `tic`).
+    pub fn silencio_ms(&self, ahora: u64) -> u64 {
+        if self.ultimo_rx_ms == 0 {
+            0
+        } else {
+            ahora.saturating_sub(self.ultimo_rx_ms)
+        }
+    }
+
+    /// (BLE1108B) ¿Está el enlace muerto? El otro late y dejó de hacerlo.
+    pub fn muerto(&self, ahora: u64) -> bool {
+        self.otro_late && self.silencio_ms(ahora) > SILENCIO_MUERTO_MS
     }
 
     /// Bytes por paquete (cambia al negociar el MTU; vale para los mensajes siguientes).
@@ -556,10 +607,12 @@ impl Enlace {
     /// El siguiente paquete para la radio: primero acuses y rechazos, luego el mensaje en vuelo.
     pub fn siguiente_paquete(&mut self, ahora: u64) -> Option<Vec<u8>> {
         if let Some(p) = self.urgentes.pop_front() {
+            self.ultimo_tx_ms = ahora;
             return Some(p);
         }
         self.bombear();
         let p = self.paquetes.pop_front()?;
+        self.ultimo_tx_ms = ahora;
         if let Some(v) = self.vuelo.as_mut() {
             v.primero_ms.get_or_insert(ahora);
             if self.paquetes.is_empty() {
@@ -576,7 +629,13 @@ impl Enlace {
     /// Un paquete que llegó por la radio. Devuelve el cuerpo de un mensaje NUEVO y completo (ya
     /// acusado). `admitir` es el limitador: si dice que no, se rechaza con R_LIMITE y no se entrega.
     pub fn recibir(&mut self, b: &[u8], ahora: u64, admitir: &mut dyn FnMut() -> bool) -> Option<String> {
-        match leer_paquete(b)? {
+        let leido = leer_paquete(b)?;
+        self.ultimo_rx_ms = ahora.max(1);
+        match leido {
+            Paquete::Latido => {
+                self.otro_late = true;
+                None
+            }
             Paquete::Acuse { id } => {
                 if self.vuelo.as_ref().is_some_and(|v| v.id == id) {
                     let v = self.vuelo.take().expect("vuelo comprobado");
@@ -688,6 +747,16 @@ impl Enlace {
 
     /// Plazos: sin acuse tras entregar el último paquete → reintento; demasiado en total → fallo.
     pub fn tic(&mut self, ahora: u64) {
+        if self.ultimo_tx_ms == 0 {
+            self.ultimo_tx_ms = ahora.max(1);
+        }
+        if self.ultimo_rx_ms == 0 {
+            self.ultimo_rx_ms = ahora.max(1);
+        }
+        // Callado: un latido cada `LATIDO_MS` (con algo en vuelo ya hay tráfico y acuses).
+        if self.vuelo.is_none() && self.urgentes.is_empty() && self.paquetes.is_empty() && ahora.saturating_sub(self.ultimo_tx_ms) >= LATIDO_MS {
+            self.urgentes.push_back(paquete_latido());
+        }
         let Some(v) = self.vuelo.as_ref() else { return };
         if ahora.saturating_sub(v.encolado_ms) > PLAZO_TOTAL_MS {
             self.fallar_vuelo(format!("el mensaje no salió por Bluetooth en {} s", PLAZO_TOTAL_MS / 1000));
@@ -747,7 +816,8 @@ pub fn id_vecino(direccion: &str) -> String {
 pub struct Vecindario {
     vecinos: HashMap<String, VecinoVisto>,
     cache: HashMap<[u8; 16], (bool, Option<String>)>,
-    intentos: HashMap<String, u64>,
+    /// Por dirección: cuándo fue el último intento de conexión y cuántos seguidos no dejaron enlace estable.
+    intentos: HashMap<String, (u64, u32)>,
 }
 
 impl Vecindario {
@@ -798,7 +868,7 @@ impl Vecindario {
     pub fn caducar(&mut self, ahora_ms: u64) -> bool {
         let antes = self.vecinos.len();
         self.vecinos.retain(|_, v| ahora_ms.saturating_sub(v.visto_ms) < CADUCA_VECINO_MS);
-        self.intentos.retain(|_, t| ahora_ms.saturating_sub(*t) < ENTRE_INTENTOS_MS * 4);
+        self.intentos.retain(|_, (t, _)| ahora_ms.saturating_sub(*t) < OLVIDO_INTENTOS_MS);
         antes != self.vecinos.len()
     }
 
@@ -812,8 +882,20 @@ impl Vecindario {
         self.vecinos.values().find(|v| id_vecino(&v.direccion) == id).cloned()
     }
 
+    /// Se intentó conectar con ese aparato: cuenta uno más sin enlace estable (hasta que `enlace_estable` lo borre).
     pub fn marcar_intento(&mut self, direccion: &str, ahora_ms: u64) {
-        self.intentos.insert(direccion.to_string(), ahora_ms);
+        let fallos = self.intentos.get(direccion).map(|(_, f)| *f).unwrap_or(0);
+        self.intentos.insert(direccion.to_string(), (ahora_ms, fallos.saturating_add(1)));
+    }
+
+    /// (BLE1108B) El enlace con ese aparato fue estable: el siguiente intento, tras una caída, es INMEDIATO.
+    pub fn enlace_estable(&mut self, direccion: &str) {
+        self.intentos.remove(direccion);
+    }
+
+    /// (BLE1108B) Intentos seguidos sin enlace estable con ese aparato (para el registro).
+    pub fn fallos_de(&self, direccion: &str) -> u32 {
+        self.intentos.get(direccion).map(|(_, f)| *f).unwrap_or(0)
     }
 
     /// A qué aparatos conectar SOLO ahora (como central): neuronas de TU cuenta que anuncian el
@@ -852,7 +934,7 @@ impl Vecindario {
                 }
                 neuronas.push(n.clone());
             }
-            if self.intentos.get(&v.direccion).is_some_and(|t| ahora_ms.saturating_sub(*t) < ENTRE_INTENTOS_MS) {
+            if self.intentos.get(&v.direccion).is_some_and(|(t, f)| ahora_ms.saturating_sub(*t) < espera_reconexion(*f)) {
                 continue;
             }
             out.push(v.direccion.clone());
@@ -1176,8 +1258,8 @@ mod pruebas {
         assert!(v.a_conectar(Some("a-mac"), &|x: &VecinoVisto| x.direccion == "AA:01", 0, 2_000).is_empty(), "ya enlazada");
         assert!(v.a_conectar(Some("a-mac"), &nada, MAX_ENLACES, 2_000).is_empty(), "sin sitio");
         v.marcar_intento("AA:01", 2_000);
-        assert!(v.a_conectar(Some("a-mac"), &nada, 0, 2_000 + ENTRE_INTENTOS_MS - 1).is_empty(), "intento reciente");
-        assert_eq!(v.a_conectar(Some("a-mac"), &nada, 0, 2_000 + ENTRE_INTENTOS_MS).len(), 1);
+        assert!(v.a_conectar(Some("a-mac"), &nada, 0, 2_000 + 2_000 - 1).is_empty(), "intento reciente");
+        assert_eq!(v.a_conectar(Some("a-mac"), &nada, 0, 2_000 + 2_000).len(), 1);
         // Sin saber cuál es (le falta en «conocidas»), es de la cuenta: conecta igual.
         let mut w = Vecindario::nuevo();
         w.ver("EE:05", &tablet, -70, 0, T, Some(&CLAVE), &[]);
@@ -1189,5 +1271,72 @@ mod pruebas {
         assert!(id_vecino("AA:01").starts_with('v') && id_vecino("AA:01").len() == 9);
         assert!(v.caducar(1_500 + CADUCA_VECINO_MS));
         assert!(v.lista().is_empty());
+    }
+
+    #[test]
+    fn reconexion_escalonada_ya_2_5_y_15_segundos() {
+        assert_eq!([espera_reconexion(0), espera_reconexion(1), espera_reconexion(2), espera_reconexion(3)], [0, 2_000, 5_000, 15_000]);
+        assert_eq!(espera_reconexion(4), 15_000, "después, 15 s fijos");
+        assert_eq!(espera_reconexion(u32::MAX), 15_000);
+        let mut v = Vecindario::nuevo();
+        let anuncio = construir_anuncio(Some(&CLAVE), Some("m-tablet"), TipoAparato::Android, FLAG_SERVIDOR, T, [1; 4]);
+        v.ver("AA:01", &anuncio, -60, 0, T, Some(&CLAVE), &[]);
+        let nada = |_: &VecinoVisto| false;
+        let mut t = 1_000u64;
+        // Sin intentos previos: ya.
+        assert_eq!(v.a_conectar(Some("a-mac"), &nada, 0, t).len(), 1);
+        // Cada intento que no deja enlace estable espera más: 2 s, 5 s, 15 s, 15 s…
+        for (n, espera) in [2_000u64, 5_000, 15_000, 15_000].into_iter().enumerate() {
+            v.marcar_intento("AA:01", t);
+            assert_eq!(v.fallos_de("AA:01"), n as u32 + 1);
+            assert!(v.a_conectar(Some("a-mac"), &nada, 0, t + espera - 1).is_empty(), "intento {n}: aún no");
+            t += espera;
+            assert_eq!(v.a_conectar(Some("a-mac"), &nada, 0, t).len(), 1, "intento {n}: ya toca");
+        }
+        // Un enlace estable que se cae: el siguiente intento es inmediato.
+        v.marcar_intento("AA:01", t);
+        v.enlace_estable("AA:01");
+        assert_eq!(v.fallos_de("AA:01"), 0);
+        assert_eq!(v.a_conectar(Some("a-mac"), &nada, 0, t).len(), 1, "tras una caída de un enlace estable, ya");
+        // Los fallos antiguos se olvidan.
+        v.marcar_intento("AA:01", t);
+        v.ver("AA:01", &anuncio, -60, t + OLVIDO_INTENTOS_MS, T, Some(&CLAVE), &[]);
+        v.caducar(t + OLVIDO_INTENTOS_MS);
+        assert_eq!(v.fallos_de("AA:01"), 0);
+    }
+
+    #[test]
+    fn latido_en_silencio_y_enlace_muerto() {
+        let mut a = Enlace::nuevo(60);
+        let mut b = Enlace::nuevo(60);
+        let mut si = || true;
+        a.tic(1_000);
+        b.tic(1_000);
+        assert!(a.siguiente_paquete(1_000).is_none(), "aún no toca");
+        a.tic(1_000 + LATIDO_MS);
+        let p = a.siguiente_paquete(1_000 + LATIDO_MS).expect("latido");
+        assert_eq!(p, paquete_latido());
+        assert_eq!(leer_paquete(&p), Some(Paquete::Latido));
+        // Una vez entregado no se repite hasta el siguiente plazo.
+        a.tic(1_000 + LATIDO_MS + 1);
+        assert!(a.siguiente_paquete(1_000 + LATIDO_MS + 1).is_none());
+        // Quien lo oye sabe que el otro late y lo da por vivo; un latido no es un mensaje ni pide acuse.
+        assert!(!b.otro_late());
+        assert_eq!(b.recibir(&p, 9_500, &mut si), None);
+        assert!(b.otro_late());
+        assert!(b.siguiente_paquete(9_500).is_none(), "el latido no se acusa");
+        assert!(!b.muerto(9_500 + SILENCIO_MUERTO_MS), "justo en el plazo, vivo");
+        assert!(b.muerto(9_500 + SILENCIO_MUERTO_MS + 1), "3 latidos sin oír nada: muerto");
+        // Un enlace con una app anterior (nunca late) no se da por muerto por callar.
+        let mut c = Enlace::nuevo(60);
+        c.tic(1_000);
+        assert!(!c.muerto(1_000_000));
+        // Con tráfico en vuelo no hace falta latido.
+        let mut d = Enlace::nuevo(60);
+        d.tic(1_000);
+        d.encolar(1, "{\"t\":\"x\"}", 1_000).unwrap();
+        d.tic(1_000 + LATIDO_MS);
+        let primero = d.siguiente_paquete(1_000 + LATIDO_MS).unwrap();
+        assert_eq!(primero[0], P_DATOS, "primero el mensaje, no un latido");
     }
 }
