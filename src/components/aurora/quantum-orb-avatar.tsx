@@ -23,19 +23,22 @@
 
 import { useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
-import { resolveQuantumOrbTheme } from "@/lib/aurora/quantum-orb-theme";
+import { resolveQuantumOrbTheme, type QuantumOrbParams } from "@/lib/aurora/quantum-orb-theme";
 import {
   createQuantumOrbRenderer,
   prefersReducedMotion,
   type QuantumOrbRenderer,
   type QuantumOrbState,
 } from "./quantum-orb";
+import { emitQuantumOrbParams } from "@/lib/aurora/quantum-orb-bus";
 
 export interface QuantumOrbAvatarProps {
   personaId?: string;
   /** Tamaños estándar de avatar de lista (px). */
   size?: 28 | 36 | 48;
   state?: QuantumOrbState;
+  /** Vector expresivo (turbulence, spikiness, symmetry, hueShift, breath) — se publica en el bus `params`. */
+  params?: Partial<QuantumOrbParams>;
   className?: string;
 }
 
@@ -46,6 +49,7 @@ export function QuantumOrbAvatar({
   personaId = "aurora",
   size = 36,
   state = "idle",
+  params,
   className,
 }: QuantumOrbAvatarProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -53,8 +57,15 @@ export function QuantumOrbAvatar({
   if (!rendererRef.current) rendererRef.current = createQuantumOrbRenderer(AVATAR_PARTICLE_COUNT);
 
   // Estado vivo leído dentro del rAF (no recrea el bucle en cada re-render).
-  const liveRef = useRef({ personaId, state });
-  liveRef.current = { personaId, state };
+  const liveRef = useRef({ personaId, state, params });
+  liveRef.current = { personaId, state, params };
+
+  // Publica los parámetros en el bus `params` cuando cambian (onda 1.58b).
+  useEffect(() => {
+    if (params && Object.keys(params).length > 0) {
+      emitQuantumOrbParams(params);
+    }
+  }, [params]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -93,7 +104,7 @@ export function QuantumOrbAvatar({
           state: live.state ?? "idle",
           level: 0,
           frequencies: null,
-          params: undefined,
+          params: live.params,
           trail: false,
           reduced,
         });
