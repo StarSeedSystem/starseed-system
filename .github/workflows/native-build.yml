@@ -42,6 +42,8 @@
 # apps instaladas de pruebas se actualizan solas desde dentro. El canal oficial no cambia, salvo el
 # versionCode de sus APK (semver × 1000) para que una oficial se instale encima de una de pruebas.
 # Contrato: architecture/centro-versiones-1105.md §9.
+# (INT1108C) En pruebas, Linux sale sin .rpm (RPM no admite el «-» de 0.5.1-prueba.N; .deb y .AppImage sí,
+# y el updater de Linux usa el AppImage) y el sellado falla en alto si la versión no quedó escrita.
 #
 # Todo vive en `native/` del repo del OS. Como los tres sistemas comparten el
 # mismo binario `starseed-native`, cada uno se construye con su `-c ...conf.json`
@@ -358,6 +360,12 @@ jobs:
             # tauri-action corre desde `native/`; los overrides viven en src-tauri/.
             echo "flag=-c src-tauri/tauri.${{ matrix.system }}.conf.json" >> "$GITHUB_OUTPUT"
           fi
+          # (INT1108C) Canal de pruebas en Linux: sin .rpm. RPM rechaza «0.5.1-prueba.N» (el «-» no vale en
+          # su Version: run 42452615312); .deb y .AppImage la aceptan y el updater de Linux usa el AppImage.
+          # El canal oficial sigue con los tres.
+          if [ "${{ inputs.canal }}" = "pruebas" ] && [ "${{ runner.os }}" = "Linux" ]; then
+            echo "bundles=--bundles deb,appimage" >> "$GITHUB_OUTPUT"
+          fi
 
       # ── (ACT1108A) Canal de pruebas: la versión de esta prueba ──
       # 0.5.1-prueba.<n> en tauri.conf.json y Cargo.toml, el MSI como 0.5.1.<n> (WiX solo admite números)
@@ -371,6 +379,13 @@ jobs:
           node native/scripts/canal-pruebas.mjs sellar --conf native/src-tauri/tauri.conf.json --cargo native/src-tauri/Cargo.toml \
             --version "${{ needs.canal-pruebas-plan.outputs.version }}" --codigo "${{ needs.canal-pruebas-plan.outputs.codigo }}" \
             --wix "${{ needs.canal-pruebas-plan.outputs.wix }}"
+          # (INT1108C) Falla en alto si no quedó sellada (en Windows el script salía sin hacer nada y los
+          # instaladores de pruebas se llamaban 0.5.0: run 42452615312).
+          SELLADA=$(node -p "require('./native/src-tauri/tauri.conf.json').version")
+          if [ "$SELLADA" != "${{ needs.canal-pruebas-plan.outputs.version }}" ]; then
+            echo "::error::tauri.conf.json dice «$SELLADA» y el plan «${{ needs.canal-pruebas-plan.outputs.version }}»: la versión de pruebas no se selló."
+            exit 1
+          fi
 
       # ── Servidor local dentro de la app (solo StarSeed OS · APP1107A) ──
       # Descarga el build de Next del job `servidor-local-next`, baja el Node oficial de nodejs.org
@@ -441,8 +456,8 @@ jobs:
           # sí (el latest.json de v0.1.0 llegó a apuntar Linux a StarSeed.Nexus).
           # Nexus y Café tienen su canal propio: lo escribe `canales-updater`.
           includeUpdaterJson: ${{ matrix.system == 'os' }}
-          # Config extra por sistema + args de target de la matriz.
-          args: ${{ steps.cfg.outputs.flag }} ${{ matrix.args }}
+          # Config extra por sistema + args de target de la matriz (+ en pruebas, Linux sin .rpm · INT1108C).
+          args: ${{ steps.cfg.outputs.flag }} ${{ matrix.args }} ${{ steps.cfg.outputs.bundles }}
 
       # Tamaño real de cada instalador en el resumen del job (contrato APP1107A §tamaños).
       - name: Tamaños de los instaladores

@@ -5,6 +5,7 @@
  */
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 // `yaml` (YAML 1.2: «on» es una clave, no un booleano) ya está en node_modules y trae sus tipos.
 import { parse as leerYaml } from "yaml";
@@ -16,6 +17,7 @@ import {
   ENDPOINT_OFICIAL,
   ENDPOINT_PRUEBAS,
   esDePrueba,
+  esEntradaCli,
   manifiestoAndroid,
   manifiestoEscritorio,
   MANIFIESTO_ANDROID,
@@ -204,6 +206,30 @@ describe("native-build.yml · canal de pruebas", () => {
     // El texto oficial del release, idéntico al de antes (con «:» por format para no romper el YAML).
     expect(String(tauri.releaseBody)).toContain("desde su canal{1} StarSeed OS con latest.json");
     expect(String(tauri.releaseBody)).toContain(", ':') }}");
+  });
+
+  it("(INT1108C) Linux en pruebas sin .rpm (deb + AppImage), el sellado se comprueba y el oficial no cambia", () => {
+    const cfg = paso("build-desktop", "Resolver flag de config")!.run!;
+    expect(cfg).toContain(`if [ "\${{ inputs.canal }}" = "pruebas" ] && [ "\${{ runner.os }}" = "Linux" ]; then`);
+    expect(cfg).toContain('echo "bundles=--bundles deb,appimage" >> "$GITHUB_OUTPUT"');
+    expect(cfg.match(/bundles=/g)).toHaveLength(1); // solo en esa rama: el oficial no fija bundles (sigue con .rpm)
+    const tauri = flujo.jobs["build-desktop"].steps.find((s) => s.uses?.startsWith("tauri-apps/tauri-action"))!.with!;
+    expect(tauri.args).toBe("${{ steps.cfg.outputs.flag }} ${{ matrix.args }} ${{ steps.cfg.outputs.bundles }}");
+    const sellar = paso("build-desktop", "Canal de pruebas · sellar la versión")!.run!;
+    expect(sellar.indexOf("canal-pruebas.mjs sellar")).toBeLessThan(sellar.indexOf("SELLADA=$(node -p"));
+    expect(sellar).toContain('if [ "$SELLADA" != "${{ needs.canal-pruebas-plan.outputs.version }}" ]; then');
+    expect(sellar).toContain("exit 1");
+  });
+
+  it("(INT1108C) el script se reconoce como entrada también con rutas de Windows (antes `sellar` no hacía nada)", () => {
+    const win = { resolver: path.win32.resolve, aRuta: (u: string | URL) => fileURLToPath(u, { windows: true }) };
+    const url: string = "file:///D:/a/starseed-system/starseed-system/native/scripts/canal-pruebas.mjs";
+    const argv1: string = "D:\\a\\starseed-system\\starseed-system\\native\\scripts\\canal-pruebas.mjs";
+    expect(url === `file://${argv1}`).toBe(false); // la comparación de antes: nunca casaba en Windows
+    expect(esEntradaCli(url, argv1, win)).toBe(true);
+    expect(esEntradaCli(url, "D:\\a\\otro.mjs", win)).toBe(false);
+    expect(esEntradaCli("file:///home/runner/work/x/native/scripts/canal-pruebas.mjs", "/home/runner/work/x/native/scripts/canal-pruebas.mjs")).toBe(true);
+    expect(esEntradaCli(url, undefined)).toBe(false);
   });
 
   it("lo que solo es del canal oficial no corre en pruebas (capas del servidor, Nexus/Café, iOS)", () => {
