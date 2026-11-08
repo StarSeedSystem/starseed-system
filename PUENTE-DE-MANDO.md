@@ -1,6 +1,6 @@
 # Genesis · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-07 17:49:32 desde Genesis vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-07 19:09:15 desde Genesis vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -16,15 +16,24 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | Agentes escribiendo | **0** |
 | En esta ola | integradas 0 · en curso 0 · esperando aprobación 0 · pendientes 41 |
 | Últimas 4 olas | en curso 0 · pendientes 80 · integradas 0 |
-| HEAD | `9962d47501 chore(memoria): aprendizaje de la ola auto-1107-163725` |
-| Sin publicar | 35 commits |
-| Árbol | limpio |
+| HEAD | `e926e6c9e4 chore(memoria): aprendizaje de la ola auto-1107-174940` |
+| Sin publicar | 12 commits |
+| Árbol | 2 archivos sin commitear |
 
-## Quién escribe ahora (latido de `cola-auto-1107-163725.json`, hace 12s)
+## Quién escribe ahora (latido de `cola-auto-1107-174940.json`, hace 14s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `CTR1107D-d3` | hecho | nvidia/nvidia/nemotron-3-super-120 | 2 min | 124 s | 69748 |
+| `CTR1107D-d3` | hecho | openrouter/cohere/north-mini-code: | 1 min | 65 s | 109841 |
+| `CTD1107E` | hecho | freellmapi/auto | 2 min | 95 s | 109636 |
+| `SUP0711E` | hecho | openrouter/cohere/north-mini-code: | 3 min | 157 s | 151084 |
+| `CTD1107G` | hecho | freellmapi/auto | 7 min | 440 s | 80642 |
+| `CTD1107Ab` | hecho | freellmapi/auto | 15 min | 911 s | 66187 |
+| `CTD1107F` | hecho | freellmapi/auto | 17 min | 1049 s | 87201 |
+| `CTD1107D` | hecho | openrouter/cohere/north-mini-code: | 29 min | 1724 s | 140140 |
+| `CTD1107B` | hecho | freellmapi/auto | 34 min | 2049 s | 81168 |
+| `CTD1107A` | hecho | freellmapi/auto | 43 min | 2585 s | 30902 |
+| `CTD1107C` | hecho | freellmapi/auto | 56 min | 3349 s | 71868 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
