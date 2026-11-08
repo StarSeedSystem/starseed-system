@@ -275,3 +275,62 @@ describe("«Ahora no»", () => {
     await waitFor(() => expect(onClose).toHaveBeenCalled());
   });
 });
+
+describe("(NEU1108A) la tableta reinstalada: solo la de prueba fuerte va marcada", () => {
+  const BOARD = "e0b9faf2-0000-4000-8000-000000000001";
+  const DROID = "659d5e03-0000-4000-8000-000000000003";
+  const NUEVA = "26f5a00d-0000-4000-8000-000000000008";
+
+  function datosTableta(): DatosBienvenida {
+    const yo = { id: NUEVA, name: "📱 Android · Chrome 156", kind: "mobile", capabilities: { platform: "Android" }, created_at: "2026-11-08T01:05:00Z" };
+    const board = { id: BOARD, name: "Maggaboard", kind: "tablet", capabilities: { platform: "Android" }, last_seen_at: "2026-11-08T00:52:00Z" };
+    const droid = { id: DROID, name: "Maggadroid", kind: "mobile", capabilities: { platform: "Android" }, last_seen_at: "2026-11-06T20:10:00Z" };
+    return {
+      ...datos(),
+      yo,
+      todas: [yo, board, droid],
+      resultado: {
+        candidatas: [
+          { id: BOARD, nombre: "Maggaboard", confianza: "alta", puntos: 85, fuerte: true, motivos: ["misma huella de hardware"], razon: "Misma huella de hardware.", enLineaAhora: false, ultimaVez: board.last_seen_at, creada: null },
+          {
+            id: DROID,
+            nombre: "Maggadroid",
+            confianza: "media",
+            puntos: 38,
+            fuerte: false,
+            motivos: ["dejó de usarse justo cuando nació esta", "mismo sistema (Android)"],
+            razon: "Dejó de usarse justo cuando nació esta y mismo sistema (Android).",
+            enLineaAhora: false,
+            ultimaVez: droid.last_seen_at,
+            creada: null,
+          },
+        ],
+        descartadas: [],
+      },
+      sugerencia: { seleccionadas: [BOARD], principal: BOARD, nombre: "Maggaboard" },
+    };
+  }
+
+  it("Maggaboard marcada; Maggadroid plegada bajo «Otras posibles» y sin marcar; «Fusionar (2)» = esta + Maggaboard", () => {
+    montar(datosTableta());
+    const board = within(screen.getByTestId(`candidata-${BOARD}`));
+    expect(board.getByText("Muy probable")).toBeTruthy();
+    expect((board.getByRole("checkbox") as HTMLInputElement).checked).toBe(true);
+    const otras = screen.getByTestId("otras-posibles") as HTMLDetailsElement;
+    expect(otras.open).toBe(false);
+    expect(within(otras).getByText(/Otras posibles \(1\)/)).toBeTruthy();
+    const droid = within(screen.getByTestId(`candidata-${DROID}`));
+    expect(otras.contains(screen.getByTestId(`candidata-${DROID}`))).toBe(true);
+    expect((droid.getByRole("checkbox") as HTMLInputElement).checked).toBe(false);
+    expect(screen.getByTestId("boton-fusionar").textContent).toContain("Fusionar (2)");
+  });
+
+  it("sin ninguna fuerte, todas a la vista y sin marcar (no hay «Otras posibles»)", () => {
+    const d = datosTableta();
+    d.resultado.candidatas = d.resultado.candidatas.filter((c) => c.id === DROID);
+    d.sugerencia = { seleccionadas: [], principal: NUEVA, nombre: "📱 Android · Chrome 156" };
+    montar(d);
+    expect(screen.queryByTestId("otras-posibles")).toBeNull();
+    expect((within(screen.getByTestId(`candidata-${DROID}`)).getByRole("checkbox") as HTMLInputElement).checked).toBe(false);
+  });
+});

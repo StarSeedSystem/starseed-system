@@ -9,6 +9,7 @@
  */
 
 import {
+  asegurarIdentidadAlArrancar,
   ensureThisNeuron,
   iconoElegido,
   invalidarListaNeuronas,
@@ -84,7 +85,12 @@ export async function reunirDatosBienvenida(): Promise<DatosBienvenida> {
   } catch {
     uid = null;
   }
-  const local = await ensureThisNeuron().catch(() => null);
+  let local = await ensureThisNeuron().catch(() => null);
+  // (NEU1108A) Antes de mirar: si este medio es un aparato que ya tenía neurona y hay una prueba fuerte e
+  // inequívoca (pista de la migración, misma huella o mismo equipo), ya la adoptó en silencio y la ventana
+  // se calcula con ese id (sin «neurona nueva» que fusionar). Si no estaba claro, decide la persona aquí.
+  const vigente = await asegurarIdentidadAlArrancar(local?.capabilities.aparato ?? null).catch(() => "");
+  if (vigente && local && vigente !== local.id) local = await ensureThisNeuron().catch(() => local);
   const lista = await listNeurons({ fresco: true }).catch(() => [] as Neuron[]);
   const id = thisDeviceId();
   const propia = lista.find((n) => n.id === id) ?? null;
@@ -112,6 +118,8 @@ export async function reunirDatosBienvenida(): Promise<DatosBienvenida> {
     created_at: propia?.created_at ?? new Date(ahora).toISOString(),
     equipo,
     so,
+    // (NEU1108A) La identidad del aparato que mide este medio (huella incluida, si es la app nativa).
+    aparato: local?.capabilities.aparato ?? null,
   };
   const todas = lista.map(aFila);
   let presentes: MedioPresente[] = [];

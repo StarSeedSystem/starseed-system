@@ -36,7 +36,7 @@ import { IconoStarSeed } from "@/components/onboarding/icono-starseed";
 import { PreferenciasMedioForm } from "@/components/messages/medios/bloque-medio";
 import { INFO_MEDIOS, MEDIOS_TRANSMISION, type MedioTransmision } from "@/lib/mensajeria/medios/tipos";
 import { CAPAS, ETIQUETA_CAPA, type CapaConciencia } from "@/lib/astraura/capas-conciencia";
-import type { CandidataDuplicada, Confianza } from "@/lib/neurons/duplicadas-aparato";
+import { separarCandidatas, type CandidataDuplicada, type Confianza } from "@/lib/neurons/duplicadas-aparato";
 import {
   FUNCIONES,
   ICONOS,
@@ -533,44 +533,58 @@ function PasoFusion({
   nombresPosibles: string[];
 }) {
   const idNombre = `bn-nombre-fusion-${sufijo}`;
+  // (NEU1108A) Con una candidata de prueba fuerte (marcada), las de señales débiles van plegadas bajo
+  // «Otras posibles» y sin marcar; sin ninguna fuerte, todas a la vista y sin marcar.
+  const { principales, otras } = separarCandidatas(candidatas);
+  const tarjeta = (c: CandidataDuplicada) => {
+    const marcada = seleccion.has(c.id);
+    const conf = CONFIANZA[c.confianza];
+    const idCheck = `bn-cand-${sufijo}-${c.id}`;
+    return (
+      <div
+        key={c.id}
+        data-testid={`candidata-${c.id}`}
+        className={cn(
+          "flex items-start gap-3 rounded-2xl border p-3 transition-colors motion-reduce:transition-none",
+          marcada ? "border-[#39FF14]/40 bg-[#39FF14]/[0.06]" : "border-white/10 bg-white/[0.03]",
+        )}
+      >
+        <input
+          id={idCheck}
+          type="checkbox"
+          checked={marcada}
+          onChange={() => alternar(c.id)}
+          className="mt-1 h-4 w-4 shrink-0 cursor-pointer accent-[#39FF14]"
+        />
+        <label htmlFor={idCheck} className="min-w-0 flex-1 cursor-pointer">
+          <span className="flex flex-wrap items-center gap-1.5">
+            <span className="text-[14px] font-semibold text-white">{c.nombre}</span>
+            <span className={cn("rounded-full border px-2 py-px text-[10.5px] font-medium", conf.clase)}>{conf.texto}</span>
+            {c.enLineaAhora && <span className="rounded-full border border-sky-400/30 bg-sky-500/10 px-2 py-px text-[10.5px] text-sky-100">En línea ahora</span>}
+          </span>
+          {c.razon && <span className="mt-0.5 block text-[12px] leading-snug text-white/65">{c.razon}</span>}
+          <span className="mt-0.5 block text-[11px] text-white/40">
+            Última vez {haceCuanto(c.ultimaVez, datos.ahora)} · id <span className="font-mono">{idCorto(c.id)}</span>
+          </span>
+        </label>
+      </div>
+    );
+  };
   return (
     <>
       <fieldset className="space-y-2" data-testid="lista-candidatas">
         <legend className="mb-1.5 text-[12px] font-semibold uppercase tracking-[0.12em] text-white/50">Parecen este aparato</legend>
-        {candidatas.map((c) => {
-          const marcada = seleccion.has(c.id);
-          const conf = CONFIANZA[c.confianza];
-          const idCheck = `bn-cand-${sufijo}-${c.id}`;
-          return (
-            <div
-              key={c.id}
-              data-testid={`candidata-${c.id}`}
-              className={cn(
-                "flex items-start gap-3 rounded-2xl border p-3 transition-colors motion-reduce:transition-none",
-                marcada ? "border-[#39FF14]/40 bg-[#39FF14]/[0.06]" : "border-white/10 bg-white/[0.03]",
-              )}
-            >
-              <input
-                id={idCheck}
-                type="checkbox"
-                checked={marcada}
-                onChange={() => alternar(c.id)}
-                className="mt-1 h-4 w-4 shrink-0 cursor-pointer accent-[#39FF14]"
-              />
-              <label htmlFor={idCheck} className="min-w-0 flex-1 cursor-pointer">
-                <span className="flex flex-wrap items-center gap-1.5">
-                  <span className="text-[14px] font-semibold text-white">{c.nombre}</span>
-                  <span className={cn("rounded-full border px-2 py-px text-[10.5px] font-medium", conf.clase)}>{conf.texto}</span>
-                  {c.enLineaAhora && <span className="rounded-full border border-sky-400/30 bg-sky-500/10 px-2 py-px text-[10.5px] text-sky-100">En línea ahora</span>}
-                </span>
-                {c.razon && <span className="mt-0.5 block text-[12px] leading-snug text-white/65">{c.razon}</span>}
-                <span className="mt-0.5 block text-[11px] text-white/40">
-                  Última vez {haceCuanto(c.ultimaVez, datos.ahora)} · id <span className="font-mono">{idCorto(c.id)}</span>
-                </span>
-              </label>
-            </div>
-          );
-        })}
+        {principales.map(tarjeta)}
+        {otras.length > 0 && (
+          <details data-testid="otras-posibles" className="group rounded-2xl border border-white/10 bg-white/[0.02]">
+            <summary className="flex cursor-pointer list-none items-center gap-2 rounded-2xl px-3 py-2.5 text-[12.5px] font-medium text-white/75 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#39FF14]">
+              <ChevronDown className="h-4 w-4 shrink-0 transition-transform group-open:rotate-180 motion-reduce:transition-none" aria-hidden />
+              <span>Otras posibles ({otras.length})</span>
+              <span className="min-w-0 truncate text-[11.5px] font-normal text-white/45">solo señales débiles: revísalas antes de marcarlas</span>
+            </summary>
+            <div className="space-y-2 px-2 pb-2">{otras.map(tarjeta)}</div>
+          </details>
+        )}
       </fieldset>
 
       {seleccion.size > 0 && (

@@ -19,10 +19,21 @@
  * Y una regla que no se salta: una neurona EN LÍNEA ahora mismo solo es candidata con una prueba
  * fuerte (migración, mismo equipo o huella «mismo»); si no, es otro aparato encendido a la vez.
  *
+ * (NEU1108A · 2026-11-08) Más estricto, tras el caso real de la tableta reinstalada (origen
+ * 127.0.0.1), que preseleccionó también «Maggadroid», otro móvil, solo por el relevo y el sistema:
+ *   · solo se PRESELECCIONA con una prueba fuerte (`fuerte`): la pista de la migración, la misma
+ *     huella (la del aparato guardada en la fila o la de hardware «mismo»), o el mismo equipo y sistema;
+ *   · lo demás se enseña sin marcar («Otras posibles», plegado si hay una fuerte);
+ *   · NUNCA se sugiere una fila cuya huella o equipo guardados (`capabilities.aparato`,
+ *     `aparato-registro.ts`) son de otro aparato — ni siquiera con la pista de la migración.
+ *
  * Puro: sin red, sin DOM, sin almacenamiento. Nunca lanza.
  */
 
-import { compararHuellas, esFichaVacia, familiaSistema, type CapsHuella, type NeuronaHuella } from "./huella";
+import { compararHuellas, esFichaVacia, familiaSistema, maquinaUtil, type CapsHuella, type NeuronaHuella } from "./huella";
+import { compararAparatos, leerAparato, normalizarEquipo, sanearAparato, type AparatoRegistro } from "./aparato-registro";
+
+export { normalizarEquipo };
 
 export type Confianza = "alta" | "media" | "baja";
 
@@ -42,6 +53,8 @@ export interface YoNeurona extends FilaNeurona {
   equipo?: string | null;
   /** Sistema operativo según la app nativa («macos», «android»…). */
   so?: string | null;
+  /** (NEU1108A) El bloque del aparato de ESTE medio (si no, se lee de `capabilities.aparato`). */
+  aparato?: AparatoRegistro | null;
 }
 
 /** Un medio abierto ahora mismo (presencia de la cuenta, `PresenciaMedio`), lo mínimo. */
@@ -72,6 +85,11 @@ export interface CandidataDuplicada {
   nombre: string;
   confianza: Confianza;
   puntos: number;
+  /**
+   * (NEU1108A) Hay una prueba fuerte (pista de la migración, misma huella, mismo equipo y sistema).
+   * Solo estas se preseleccionan. Opcional para los datos de antes (sin él: no fuerte).
+   */
+  fuerte?: boolean;
   /** Cada señal a favor, en palabras. */
   motivos: string[];
   /** La frase que se enseña (las dos o tres señales más fuertes). */
@@ -97,6 +115,8 @@ export interface ResultadoDuplicadas {
 /** Puntos de cada señal. */
 export const PUNTOS = {
   migracion: 100,
+  /** (NEU1108A) La huella o el equipo que guardó la app nativa en la fila coinciden con los de este aparato. */
+  aparato: 80,
   equipo: 70,
   huellaMismo: 55,
   huellaProbable: 30,
@@ -108,7 +128,10 @@ export const PUNTOS = {
   vieja: -6,
 } as const;
 
-/** Umbrales de confianza. Por debajo de `baja` no se enseña. */
+/**
+ * Umbrales de confianza. Por debajo de `baja` no se enseña. (NEU1108A) «alta» es SOLO con una prueba
+ * fuerte (y entonces se preselecciona); sin ella, por muchos puntos que sume, como mucho «media».
+ */
 export const UMBRAL = { alta: 60, media: 28, baja: 12 } as const;
 
 /** Igual que `ONLINE_WINDOW_MS` de neurons.ts (sin importar ese módulo, que es de cliente). */
@@ -170,13 +193,6 @@ export function nombresParecidos(a: string | null | undefined, b: string | null 
   return largo.slice(corto.length).every((w) => SUFIJOS.has(w));
 }
 
-/** Equipo comparable: minúsculas, sin `.local`, sin espacios repetidos. Pura. */
-export function normalizarEquipo(e: string | null | undefined): string {
-  return sinAcentos(String(e ?? "").trim().toLowerCase())
-    .replace(/\.(local|lan|home|localdomain)$/, "")
-    .replace(/[\s_]+/g, "-");
-}
-
 /* ───────────────────────────── Señales ───────────────────────────── */
 
 function fecha(iso: string | null | undefined): number {
@@ -221,8 +237,8 @@ function enLineaAhora(f: FilaNeurona, presentes: readonly MedioPresente[], ahora
   return Number.isFinite(visto) && ahora - visto < VENTANA_EN_LINEA_MS && visto <= ahora + 60_000;
 }
 
-function confianzaDe(puntos: number): Confianza | null {
-  if (puntos >= UMBRAL.alta) return "alta";
+function confianzaDe(puntos: number, fuerte: boolean): Confianza | null {
+  if (fuerte) return "alta";
   if (puntos >= UMBRAL.media) return "media";
   if (puntos >= UMBRAL.baja) return "baja";
   return null;
@@ -259,6 +275,7 @@ export function detectarDuplicadas(e: EntradaDuplicadas): ResultadoDuplicadas {
     const equipoYo = normalizarEquipo(yo.equipo);
     const creadaYo = fecha(yo.created_at);
     const navYo = familiaNavegador(capsYo.browser);
+    const apYo = aparatoDeYo(yo, capsYo, soYo);
     const vistos = new Set<string>([yo.id]);
 
     for (const f of e.todas ?? []) {
@@ -284,15 +301,30 @@ export function detectarDuplicadas(e: EntradaDuplicadas): ResultadoDuplicadas {
       }
 
       // 2 · Sistema: familias distintas nunca son el mismo aparato (salvo la prueba de la migración).
-      const soOtra = familiaSistema(texto(c.platform));
+      const apOtra = leerAparato(c);
+      const soOtra = familiaSistema(texto(c.platform) || apOtra?.so);
       if (!deMigracion && soYo !== "desconocido" && soOtra !== "desconocido" && soYo !== soOtra) {
         descartar(`otro sistema (${texto(c.platform) || soOtra})`);
         continue;
       }
 
+      // 2b · (NEU1108A) Lo que la app nativa guardó del aparato en la fila (`capabilities.aparato`):
+      // misma huella o mismo equipo → prueba fuerte; otra huella u otro equipo → NUNCA se sugiere
+      // (ni con la pista de la migración: la fila es de otro aparato).
+      const cmpAparato = compararAparatos(apYo, apOtra);
+      if (cmpAparato.parecido === "distinto") {
+        descartar(cmpAparato.motivo);
+        continue;
+      }
+      if (cmpAparato.parecido === "mismo") {
+        puntos += PUNTOS.aparato;
+        fuerte = true;
+        motivos.push(cmpAparato.motivo);
+      }
+
       // 3 · Mismo equipo o modelo, con el mismo sistema (la app nativa lo sabe; la presencia lo anuncia).
       const vivo = equipoEnVivo(f.id, presentes);
-      if (equipoYo && vivo && (vivo.so === "desconocido" || soYo === "desconocido" || vivo.so === soYo)) {
+      if (cmpAparato.parecido !== "mismo" && equipoYo && vivo && (vivo.so === "desconocido" || soYo === "desconocido" || vivo.so === soYo)) {
         if (vivo.equipo === equipoYo) {
           puntos += PUNTOS.equipo;
           fuerte = true;
@@ -309,14 +341,16 @@ export function detectarDuplicadas(e: EntradaDuplicadas): ResultadoDuplicadas {
       if (!esFichaVacia(huellaYo) && !esFichaVacia(huellaOtra)) {
         const cmp = compararHuellas(huellaYo, huellaOtra);
         if (cmp.parecido === "distinto") {
-          if (!deMigracion && !motivos.some((m) => m.startsWith("mismo equipo"))) {
+          // Una prueba fuerte (migración, misma huella del aparato, mismo equipo) pesa más que el
+          // hierro que ve cada medio (otro monitor, otra GPU visible en otro navegador…).
+          if (!fuerte) {
             descartar(cmp.motivos[cmp.motivos.length - 1] ?? "la huella de hardware no coincide");
             continue;
           }
         } else if (cmp.parecido === "mismo") {
           puntos += PUNTOS.huellaMismo;
           fuerte = true;
-          motivos.push(c.maquina && capsYo.maquina ? "mismo nombre de máquina" : "misma huella de hardware");
+          motivos.push(maquinaUtil(c.maquina as string | undefined) && maquinaUtil(capsYo.maquina as string | undefined) ? "mismo nombre de máquina" : "misma huella de hardware");
         } else if (cmp.parecido === "probable") {
           puntos += PUNTOS.huellaProbable;
           motivos.push("hardware casi idéntico");
@@ -324,7 +358,7 @@ export function detectarDuplicadas(e: EntradaDuplicadas): ResultadoDuplicadas {
           puntos += PUNTOS.huellaPosible;
           motivos.push(`mismo sistema (${texto(c.platform) || soOtra})`);
         }
-      } else if (esFichaVacia(huellaOtra) && !deMigracion) {
+      } else if (esFichaVacia(huellaOtra) && !deMigracion && !apOtra) {
         descartar("no tiene datos del aparato");
         continue;
       }
@@ -369,7 +403,7 @@ export function detectarDuplicadas(e: EntradaDuplicadas): ResultadoDuplicadas {
         continue;
       }
 
-      const confianza = confianzaDe(puntos);
+      const confianza = confianzaDe(puntos, fuerte);
       if (!confianza) {
         descartar("pocas señales de que sea este aparato");
         continue;
@@ -379,6 +413,7 @@ export function detectarDuplicadas(e: EntradaDuplicadas): ResultadoDuplicadas {
         nombre,
         confianza,
         puntos,
+        fuerte,
         motivos,
         razon: razonDe(motivos),
         enLineaAhora: enLinea,
@@ -386,17 +421,41 @@ export function detectarDuplicadas(e: EntradaDuplicadas): ResultadoDuplicadas {
         creada: Number.isFinite(creadaOtra) ? new Date(creadaOtra).toISOString() : null,
       });
     }
-    candidatas.sort((a, b) => b.puntos - a.puntos || fecha(b.ultimaVez) - fecha(a.ultimaVez) || a.id.localeCompare(b.id));
+    // Las fuertes primero; dentro de cada grupo, por puntos.
+    candidatas.sort(
+      (a, b) => Number(!!b.fuerte) - Number(!!a.fuerte) || b.puntos - a.puntos || fecha(b.ultimaVez) - fecha(a.ultimaVez) || a.id.localeCompare(b.id),
+    );
     return { candidatas, descartadas };
   } catch {
     return { candidatas: [], descartadas };
   }
 }
 
+/**
+ * (NEU1108A) El bloque del aparato de ESTE medio: el que trae `yo.aparato` o `capabilities.aparato`,
+ * completado con el equipo y el sistema que dijo la app nativa. Null si no se sabe nada. Pura.
+ */
+function aparatoDeYo(yo: YoNeurona, capsYo: Record<string, unknown>, soYo: string): AparatoRegistro | null {
+  const base = sanearAparato(yo.aparato) ?? leerAparato(capsYo);
+  const equipo = base?.equipo ?? (texto(yo.equipo).trim() || undefined);
+  const so = base?.so ?? (soYo !== "desconocido" ? soYo : undefined);
+  return sanearAparato({ v: 1, ...(base ?? {}), ...(equipo ? { equipo } : {}), ...(so ? { so } : {}) });
+}
+
+/**
+ * (NEU1108A) Cómo se enseñan: con una candidata fuerte, ella (o ellas) arriba y las demás plegadas
+ * bajo «Otras posibles»; sin ninguna fuerte, todas a la vista y sin marcar. Pura.
+ */
+export function separarCandidatas(candidatas: readonly CandidataDuplicada[]): { principales: CandidataDuplicada[]; otras: CandidataDuplicada[] } {
+  const fuertes = candidatas.filter((c) => c.fuerte);
+  if (!fuertes.length) return { principales: [...candidatas], otras: [] };
+  return { principales: fuertes, otras: candidatas.filter((c) => !c.fuerte) };
+}
+
 /* ───────────────────────────── Sugerencia ───────────────────────────── */
 
 export interface SugerenciaFusion {
-  /** Ids preseleccionados (confianza alta o media). Vacío ⇒ no se sugiere fusionar. */
+  /** Ids preseleccionados (NEU1108A: solo las de prueba fuerte). Vacío ⇒ no se sugiere fusionar. */
   seleccionadas: string[];
   /** El id que se sugiere conservar (esta neurona o una de las seleccionadas). */
   principal: string;
@@ -416,11 +475,13 @@ function puntosPrincipal(f: FilaNeurona, ahora: number): number {
 }
 
 /**
- * La fusión que se deja preseleccionada: las candidatas de confianza alta o media; se queda la
- * neurona con nombre propio más antigua (con empate, ESTA: no hace falta cambiar de identidad). Pura.
+ * La fusión que se deja preseleccionada: (NEU1108A) SOLO las candidatas con una prueba fuerte (pista
+ * de la migración, misma huella, mismo equipo y sistema); las de señales débiles (relevo, nombre,
+ * navegador…) se enseñan sin marcar. Se queda la neurona con nombre propio más antigua (con empate,
+ * ESTA: no hace falta cambiar de identidad). Pura.
  */
 export function sugerirFusion(yo: FilaNeurona, todas: readonly FilaNeurona[], candidatas: readonly CandidataDuplicada[], ahora: number): SugerenciaFusion {
-  const seleccionadas = candidatas.filter((c) => c.confianza !== "baja").map((c) => c.id);
+  const seleccionadas = candidatas.filter((c) => c.fuerte === true).map((c) => c.id);
   const grupo: FilaNeurona[] = [yo, ...seleccionadas.map((id) => todas.find((f) => f.id === id)).filter((f): f is FilaNeurona => !!f)];
   let principal = yo;
   for (const f of grupo) if (puntosPrincipal(f, ahora) > puntosPrincipal(principal, ahora) + 1e-9) principal = f;

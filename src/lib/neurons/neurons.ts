@@ -57,6 +57,10 @@ import { LISTA_REGISTRO_CON_PUERTA_MS, fundirVivas, latirNeuronaPorPuerta, vivas
 // capacidades y la traducción del hierro medido viven en el adaptador puro `reparto-taller`.
 import { capacidadesParaRegistro, hierroDeCapacidades, type CapacidadesTaller } from "@/lib/avatares/adaptadores/reparto-taller";
 import { adoptarNeurona } from "@/lib/network/identidad-dispositivo";
+// (NEU1108A) Identidad del aparato en la fila y adopción en silencio antes de crearla.
+import { combinarAparato, esAparatoRico, type AparatoRegistro } from "@/lib/neurons/aparato-registro";
+import { aparatoDeEsteMedio, traerPistaNativa } from "@/lib/neurons/aparato-este-medio";
+import { decidirAdopcionArranque } from "@/lib/neurons/adopcion-arranque";
 
 export const NEURON_DEVICE_ID_KEY = "starseed.neuron.device-id";
 export const NEURON_PREFS_KEY = "starseed.neurons.prefs.v1";
@@ -146,6 +150,11 @@ export interface NeuronCapabilities {
    * Vercel, localhost, app instalada, app nativa…), con su última ficha. Clave = id del medio.
    */
   medios?: Record<string, RegistroMedio>;
+  /**
+   * (NEU1108A) Identidad del APARATO (`aparato-registro.ts`): medio, app, sistema y versión, equipo o
+   * modelo, huella (hash), versión nativa y el último medio que escribió. Sin migración (jsonb).
+   */
+  aparato?: AparatoRegistro;
 }
 
 /** Permisos de la neurona. PREDETERMINADO: todo true (máxima interconexión). */
@@ -506,7 +515,9 @@ async function getOwner(): Promise<string | null> {
 /**
  * Funde la ficha remota de una neurona con la de ESTE medio (puro, exportado para pruebas):
  *  · rasgos del aparato: gana el valor definido más nuevo (los `undefined`/vacíos no pisan);
- *  · `medios`: unión por id, con el más reciente de cada uno (ver `fusionarMedios`).
+ *  · `medios`: unión por id, con el más reciente de cada uno (ver `fusionarMedios`);
+ *  · (NEU1108A) `aparato`: un navegador nunca pisa la identidad que escribió la app nativa
+ *    (`combinarAparato`); y la marca `fusionada` de la fila NUNCA la quita un medio (no la manda).
  */
 export function combinarCapacidades(
   remotas: Record<string, unknown> | null | undefined,
@@ -515,10 +526,12 @@ export function combinarCapacidades(
 ): NeuronCapabilities {
   const base: Record<string, unknown> = remotas && typeof remotas === "object" ? { ...remotas } : {};
   for (const [k, v] of Object.entries(locales)) {
-    if (k === "medios") continue;
+    if (k === "medios" || k === "aparato" || k === "fusionada") continue;
     if (v === undefined || v === null || v === "") continue;
     base[k] = v;
   }
+  const aparato = combinarAparato(remotas?.aparato, locales.aparato ?? null);
+  if (aparato) base.aparato = aparato;
   const medios = fusionarMedios(
     (remotas?.medios as Record<string, RegistroMedio> | undefined) ?? null,
     locales.medios ?? {},
@@ -538,11 +551,29 @@ async function upsertRemote(patch: Partial<Neuron> & { id: string }): Promise<Fa
     // la que hay (los medios de los demás no se pierden; un medio que no ve la memoria o el nombre
     // de máquina no borra lo que otro sí vio). Una lectura cada 30 min por medio.
     if (patch.capabilities) {
+      // (NEU1108A) Sin poder leer la ficha de la fila NO se sube la propia: el upsert sustituye el jsonb
+      // entero y borraría la marca `fusionada` y la identidad del aparato que escribió otro medio. El
+      // latido siguiente (o el ligero, si la fila no existe) lo vuelve a intentar.
       try {
         const actual = await supabase.from("neuron_devices").select("capabilities").eq("id", patch.id).maybeSingle();
-        const remotas = (actual as { data?: { capabilities?: Record<string, unknown> } | null }).data?.capabilities ?? null;
-        patch = { ...patch, capabilities: combinarCapacidades(remotas, patch.capabilities) };
-      } catch { /* sin lectura: sube la propia */ }
+        const falloLectura = falloDe(actual as { error?: unknown; status?: number });
+        if (falloLectura) return falloLectura;
+        const fila = (actual as { data?: { capabilities?: Record<string, unknown> } | null }).data ?? null;
+        if (!fila && patch.isThisDevice) {
+          // (NEU1108A) La fila de ESTE medio aún no existe: antes de crearla, ¿es un aparato que ya
+          // tiene neurona? (reinstalación, origen nuevo 127.0.0.1…). Si adopta otra, sube esa ficha.
+          const idFinal = await asegurarIdentidadAlArrancar(patch.capabilities.aparato ?? null);
+          if (idFinal && idFinal !== patch.id) {
+            const nueva = await construirNeuronaLocal(idFinal);
+            neuronaLocal = nueva;
+            neuronaLocalEn = Date.now();
+            return await upsertRemote(nueva);
+          }
+        }
+        patch = { ...patch, capabilities: combinarCapacidades(fila?.capabilities ?? null, patch.capabilities) };
+      } catch (e) {
+        return { message: e instanceof Error ? e.message : "sin lectura de la ficha" };
+      }
     }
     const res = await supabase.from("neuron_devices").upsert(
       {
@@ -629,6 +660,12 @@ async function construirNeuronaLocal(id: string): Promise<Neuron> {
   // latidos). El refresco va sin `await`: nunca frena ni tumba el latido.
   void refrescarCapacidadesBlender();
   if (capacidadesBlender) capabilities.blender = capacidadesBlender;
+  // (NEU1108A) Identidad del aparato (lo que dice la app nativa + huella): viaja con la ficha, así que
+  // se escribe al registrarse y cada `LATIDOS_POR_FICHA` latidos. Nunca frena la ficha si falla.
+  try {
+    const aparato = await aparatoDeEsteMedio(capabilities);
+    if (aparato) capabilities.aparato = aparato;
+  } catch { /* sin bloque del aparato */ }
   const prefs = readPrefs();
   const name = prefs.names[id] || defaultName(capabilities, kind);
   const perms = permissionsFor(id);
@@ -724,11 +761,82 @@ export function resolverAliasEsteMedio(): string {
   }
 }
 
+/** `${owner}:${id}` ya revisado en esta sesión por `asegurarIdentidadAlArrancar` (no se vuelve a mirar). */
+let identidadRevisada: string | null = null;
+let identidadEnVuelo: Promise<string> | null = null;
+
+/**
+ * (NEU1108A · architecture/neurona-bienvenida.md §2.2) Antes de que ESTE medio cree su fila en
+ * `neuron_devices`: ¿es un aparato que ya tiene neurona? Con una prueba fuerte e inequívoca (la pista de
+ * la migración —escritorio o Android—, la misma huella del aparato o el mismo equipo y sistema en una
+ * sola neurona) adopta su id en silencio, como «Usar su configuración», y no nace ninguna fila nueva. Si
+ * no está claro, no toca nada (la ventana «Esta neurona» lo pregunta). Una lectura de la lista por
+ * sesión, que además deja la caché de `listNeurons()` llena. Devuelve el id vigente. Nunca lanza.
+ */
+export async function asegurarIdentidadAlArrancar(aparatoConocido?: AparatoRegistro | null): Promise<string> {
+  if (typeof window === "undefined") return "";
+  const id = resolverAliasEsteMedio() || thisDeviceId();
+  if (!id) return id;
+  const owner = await getOwner();
+  if (!owner) return id;
+  if (identidadRevisada === `${owner}:${id}`) return id;
+  if (identidadEnVuelo) return identidadEnVuelo;
+  identidadEnVuelo = (async () => {
+    try {
+      const pista = await traerPistaNativa();
+      const idAnterior = pista && pista !== id ? pista : null;
+      const aparato = aparatoConocido ?? neuronaLocal?.capabilities.aparato ?? (await aparatoDeEsteMedio(neuronaLocal?.capabilities ?? {}));
+      // Sin pista ni identidad del aparato (un navegador) no hay prueba fuerte posible: ni se mira la lista.
+      if (!idAnterior && !esAparatoRico(aparato)) {
+        identidadRevisada = `${owner}:${id}`;
+        return id;
+      }
+      const { filas } = await leerFilasNeuronas();
+      if (!filas) return id; // sin lista no se decide nada: se vuelve a mirar en la próxima vuelta
+      cacheLista = { owner, en: Date.now(), filas };
+      ultimaListaBuena = cacheLista;
+      identidadRevisada = `${owner}:${id}`;
+      if (filas.some((f) => String((f as { id?: unknown }).id ?? "") === id)) return id;
+      const d = decidirAdopcionArranque({
+        yoId: id,
+        aparato,
+        filas: filas as Array<{ id: string; capabilities?: unknown; last_seen_at?: string | null }>,
+        idAnterior,
+        alias: leerFusiones().alias,
+        ahora: Date.now(),
+      });
+      if (!d.adoptar || d.adoptar === id) return id;
+      const r = adoptarNeurona(d.adoptar);
+      if (!r.ok) return id;
+      identidadRevisada = `${owner}:${d.adoptar}`;
+      neuronaLocal = null;
+      try {
+        // Esa neurona ya estaba configurada: no se vuelve a preguntar como «Neurona nueva».
+        (await import("@/lib/onboarding/primer-arranque")).marcarNeuronaConfigurada(d.adoptar);
+      } catch { /* sin onboarding: no pasa nada */ }
+      try {
+        window.dispatchEvent(
+          new CustomEvent("starseed:neurona-adoptada", { detail: { anterior: id, adoptada: d.adoptar, motivo: `arranque:${d.motivo}` } }),
+        );
+        window.dispatchEvent(new CustomEvent(NEURON_EVENT));
+      } catch { /* sin window */ }
+      return d.adoptar;
+    } catch {
+      return id;
+    } finally {
+      identidadEnVuelo = null;
+    }
+  })();
+  return identidadEnVuelo;
+}
+
 /** Solo pruebas: para el latido y olvida la ficha local (cada prueba empieza de cero). */
 export function _detenerLatidoParaPruebas(): void {
   latido?.detener();
   latido = null;
   latidosDesdeFicha = 0;
+  identidadRevisada = null;
+  identidadEnVuelo = null;
   neuronaLocal = null;
   neuronaLocalEn = 0;
   neuronaLocalEnVuelo = null;

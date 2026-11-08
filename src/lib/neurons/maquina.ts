@@ -10,7 +10,7 @@
  * caminos dan `sha256("starseed-maquina:" + nombre normalizado)` en 16 hex. Nunca lanza.
  */
 
-import { normalizarNombreMaquina } from "./maquina-tipos";
+import { nombreMaquinaUtil } from "./maquina-tipos";
 
 interface TauriInvoke {
   core?: { invoke?: (cmd: string, args?: Record<string, unknown>) => Promise<unknown> };
@@ -43,7 +43,8 @@ async function calcular(): Promise<string | undefined> {
     const invoke = tauri?.core?.invoke;
     if (invoke) {
       const info = (await invoke("device_info").catch(() => null)) as { hostname?: string | null } | null;
-      const nombre = normalizarNombreMaquina(info?.hostname ?? "");
+      // (NEU1108A) Android dice «localhost» en todos los aparatos: eso no es un nombre de máquina.
+      const nombre = nombreMaquinaUtil(info?.hostname ?? "");
       if (nombre) return sha16(`starseed-maquina:${nombre}`);
     }
   } catch {

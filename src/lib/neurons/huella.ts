@@ -106,6 +106,19 @@ function num(v: unknown): number | undefined {
   return Number.isFinite(n) && n > 0 ? n : undefined;
 }
 
+/**
+ * (NEU1108A) Huellas de nombres de máquina que no identifican nada: la app de Android pedía el
+ * `hostname` y el sistema dice «localhost» en TODOS los Android — dos aparatos distintos salían con la
+ * misma huella «de máquina». `sha256("starseed-maquina:" + nombre)` (16 hex) de «localhost»,
+ * «unknown» y «android». Las filas que ya la guardaron se tratan como sin nombre de máquina.
+ */
+export const MAQUINAS_GENERICAS: ReadonlySet<string> = new Set(["0edf7248537f0cfa", "3995e96a220d9233", "87b565df42310056"]);
+
+/** ¿La huella de máquina dice algo? (existe y no es la de un nombre genérico). Pura. */
+export function maquinaUtil(m: string | undefined | null): m is string {
+  return typeof m === "string" && !!m && !MAQUINAS_GENERICAS.has(m);
+}
+
 export type Parecido = "mismo" | "probable" | "posible" | "distinto";
 
 export interface Comparacion {
@@ -142,7 +155,7 @@ export function compararHuellas(a: NeuronaHuella, b: NeuronaHuella): Comparacion
   if (sa !== sb) return { parecido: "distinto", motivos: [`sistemas distintos (${ca.platform ?? "?"} / ${cb.platform ?? "?"})`] };
   motivos.push(`mismo sistema (${ca.platform})`);
 
-  if (ca.maquina && cb.maquina) {
+  if (maquinaUtil(ca.maquina) && maquinaUtil(cb.maquina)) {
     if (ca.maquina === cb.maquina) return { parecido: "mismo", motivos: [...motivos, "mismo nombre de máquina"] };
     return { parecido: "distinto", motivos: [...motivos, "nombre de máquina distinto"] };
   }

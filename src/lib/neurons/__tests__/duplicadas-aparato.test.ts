@@ -10,6 +10,7 @@ import {
   esNombreGenerico,
   nombresParecidos,
   razonDe,
+  separarCandidatas,
   sugerirFusion,
   type FilaNeurona,
   type MedioPresente,
@@ -93,7 +94,9 @@ describe("detectarDuplicadas · casos reales de la cuenta de Alex", () => {
     const r = detectarDuplicadas({ yo, todas: CUENTA, presentes: [PRESENCIA_TABLETA], ahora: AHORA });
     expect(r.candidatas.map((c) => c.id)).toEqual([MACOS_WEB.id]);
     const c = r.candidatas[0];
-    expect(c.confianza).toBe("media");
+    // (NEU1108A) La huella de hardware «mismo» es una prueba fuerte: «alta» y preseleccionada.
+    expect(c.confianza).toBe("alta");
+    expect(c.fuerte).toBe(true);
     expect(c.motivos).toContain("misma huella de hardware");
     expect(c.razon).toMatch(/^Misma huella de hardware/);
     expect(c.enLineaAhora).toBe(false);
@@ -124,10 +127,11 @@ describe("detectarDuplicadas · casos reales de la cuenta de Alex", () => {
     // La de Chrome Android del 10-10 queda como «poco probable» y NO preseleccionada.
     const web = r.candidatas.find((c) => c.id === ANDROID_WEB.id);
     expect(web?.confianza).toBe("baja");
+    // (NEU1108A) Nombre parecido + relevo son señales DÉBILES: se enseña («Probable») pero sin marcar.
+    expect(primera.fuerte).toBe(false);
     const s = sugerirFusion(yo, CUENTA, r.candidatas, AHORA);
-    expect(s.seleccionadas).toEqual([MAGGADROID.id]);
-    expect([MAGGADROID.id, MAGGADROID_PHONE.id]).toContain(s.principal);
-    expect(["Maggadroid", "Maggadroid phone"]).toContain(s.nombre);
+    expect(s.seleccionadas).toEqual([]);
+    expect(s.principal).toBe(MAGGADROID_PHONE.id);
   });
 
   it("la tableta (en línea) no se apropia de los registros del móvil", () => {
@@ -217,5 +221,83 @@ describe("nombres", () => {
       "Misma huella de hardware y nombre parecido («A» y «A phone»).",
     );
     expect(razonDe([])).toBe("");
+  });
+});
+
+/**
+ * (NEU1108A) El caso real del 08-11 (≈01:05–01:35 UTC): Alex reinstaló en la tableta «Maggaboard» la APK
+ * de pruebas con el servidor local dentro → el origen pasó a `http://127.0.0.1:…`, nació una neurona nueva
+ * («📱 Android · Chrome 156») y la ventana preseleccionó Maggaboard (bien) Y Maggadroid (otro móvil,
+ * apagado desde el 06-11) solo por el relevo, el sistema y el navegador. Ninguna fila guardaba el aparato.
+ */
+describe("detectarDuplicadas · la tableta reinstalada con el servidor local (08-11)", () => {
+  const AHORA_0811 = Date.parse("2026-11-08T01:20:00Z");
+  const TABLETA_127: YoNeurona = {
+    id: "26f5a00d-0000-4000-8000-000000000008",
+    name: "📱 Android · Chrome 156",
+    kind: "mobile",
+    // Lo que mide la web en 127.0.0.1: el mismo hierro que medía en el origen publicado.
+    capabilities: { platform: "Android", browser: "Chrome 156", cores: 8, gpuRenderer: "Mali-G57 MC2", pantalla: "800x1340@1.5", touch: true },
+    created_at: "2026-11-08T01:05:00Z",
+    // `info_neurona` en Android: el modelo (sin nombre de equipo).
+    equipo: "Samsung SM-X205",
+    so: "android",
+  };
+  // La fila de siempre de la tableta: latió por última vez antes de reinstalar (fuera de los 12 min).
+  const MAGGABOARD_0811: FilaNeurona = { ...MAGGABOARD, capabilities: { ...MAGGABOARD.capabilities, browser: "Chrome 156" }, last_seen_at: "2026-11-08T00:52:00Z" };
+  // El otro móvil: solo plataforma y navegador (como TODAS las filas de la cuenta ese día), apagado el 06-11.
+  const MAGGADROID_0811: FilaNeurona = { ...MAGGADROID, capabilities: { platform: "Android", browser: "Chrome 154" }, last_seen_at: "2026-11-06T20:10:00Z" };
+  const CUENTA_0811 = [MAGGABOARD_0811, MAGGADROID_0811, MAGGABOOK, ISEED];
+
+  it("sin pista ni aparato guardado: solo Maggaboard (misma huella de hardware) va marcada; Maggadroid se enseña sin marcar, plegada", () => {
+    const r = detectarDuplicadas({ yo: TABLETA_127, todas: CUENTA_0811, ahora: AHORA_0811 });
+    const board = r.candidatas.find((c) => c.id === MAGGABOARD_0811.id);
+    const droid = r.candidatas.find((c) => c.id === MAGGADROID_0811.id);
+    expect(board).toMatchObject({ confianza: "alta", fuerte: true });
+    expect(board?.motivos).toContain("misma huella de hardware");
+    // Antes salía «media» (8 + 20 + 6 + 4 = 38) y se marcaba: relevo, sistema y navegador NO son pruebas.
+    expect(droid).toMatchObject({ confianza: "media", fuerte: false });
+    const s = sugerirFusion(TABLETA_127, CUENTA_0811, r.candidatas, AHORA_0811);
+    expect(s.seleccionadas).toEqual([MAGGABOARD_0811.id]);
+    expect(s.principal).toBe(MAGGABOARD_0811.id);
+    expect(s.nombre).toBe("Maggaboard");
+    const vista = separarCandidatas(r.candidatas);
+    expect(vista.principales.map((c) => c.id)).toEqual([MAGGABOARD_0811.id]);
+    expect(vista.otras.map((c) => c.id)).toEqual([MAGGADROID_0811.id]);
+  });
+
+  it("con la pista de la app de Android (id del origen publicado): Maggaboard por la migración; Maggadroid sigue sin marcar", () => {
+    const r = detectarDuplicadas({ yo: TABLETA_127, todas: CUENTA_0811, idAnteriorMigracion: MAGGABOARD_0811.id, ahora: AHORA_0811 });
+    expect(r.candidatas[0]).toMatchObject({ id: MAGGABOARD_0811.id, confianza: "alta", fuerte: true });
+    expect(r.candidatas[0].razon).toMatch(/servidor local/);
+    expect(sugerirFusion(TABLETA_127, CUENTA_0811, r.candidatas, AHORA_0811).seleccionadas).toEqual([MAGGABOARD_0811.id]);
+  });
+
+  it("con el aparato guardado en las filas (NEU1108A): Maggadroid es OTRO equipo y ni se enseña", () => {
+    const huella = "a1a1a1a1b2b2b2b2";
+    const yo: YoNeurona = { ...TABLETA_127, aparato: { v: 1, medio: "android", app: "os", so: "android", equipo: "Samsung SM-X205", huella, version: "0.5.0" } };
+    const board: FilaNeurona = { ...MAGGABOARD_0811, capabilities: { ...MAGGABOARD_0811.capabilities, aparato: { v: 1, so: "android", equipo: "Samsung SM-X205", huella } } };
+    const droid: FilaNeurona = { ...MAGGADROID_0811, capabilities: { ...MAGGADROID_0811.capabilities, aparato: { v: 1, so: "android", equipo: "Samsung SM-A536B" } } };
+    const r = detectarDuplicadas({ yo, todas: [board, droid], ahora: AHORA_0811 });
+    expect(r.candidatas.map((c) => c.id)).toEqual([board.id]);
+    expect(r.candidatas[0].motivos[0]).toBe("misma huella del aparato");
+    expect(r.descartadas.find((d) => d.id === droid.id)?.motivo).toBe("otro equipo (Samsung SM-A536B)");
+  });
+
+  it("una huella guardada distinta descarta la fila aunque la pista de la migración la señale", () => {
+    const yo: YoNeurona = { ...TABLETA_127, aparato: { v: 1, so: "android", equipo: "Samsung SM-X205", huella: "a1a1a1a1b2b2b2b2" } };
+    const otra: FilaNeurona = { ...MAGGABOARD_0811, capabilities: { ...MAGGABOARD_0811.capabilities, aparato: { v: 1, so: "android", equipo: "Samsung SM-X205", huella: "ffffffff00000000" } } };
+    const r = detectarDuplicadas({ yo, todas: [otra], idAnteriorMigracion: otra.id, ahora: AHORA_0811 });
+    expect(r.candidatas).toEqual([]);
+    expect(r.descartadas[0].motivo).toMatch(/otro aparato \(su huella no coincide/);
+  });
+
+  it("la huella de máquina de «localhost» (todas las apps de Android) no es una prueba", () => {
+    const LOCALHOST = "0edf7248537f0cfa";
+    const yo: YoNeurona = { ...TABLETA_127, capabilities: { platform: "Android", maquina: LOCALHOST } };
+    const movil: FilaNeurona = { ...MAGGADROID_0811, capabilities: { platform: "Android", browser: "Chrome 154", maquina: LOCALHOST } };
+    const r = detectarDuplicadas({ yo, todas: [movil], ahora: AHORA_0811 });
+    expect(r.candidatas.every((c) => !c.fuerte)).toBe(true);
+    expect(r.candidatas.flatMap((c) => c.motivos)).not.toContain("mismo nombre de máquina");
   });
 });
