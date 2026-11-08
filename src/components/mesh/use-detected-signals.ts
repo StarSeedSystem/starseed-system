@@ -24,7 +24,7 @@
  * listas vacías y no toca ninguna API. Nunca lanza.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useMeshState, useNearbyBeacons, subscribeConnectivity } from "@/ai/astraura/mesh";
 import {
   collectDetectedSignals,
@@ -51,6 +51,9 @@ import { resolverFarosPropios } from "@/lib/senales/faros-propios";
 import { useMallaNeuronasEstado } from "@/lib/network/malla-neuronas";
 import { senalesRedLocal } from "@/lib/malla/sincronizacion-neuronas";
 import { useRedLocal } from "@/lib/malla/sincronizacion-neuronas-motor";
+// (WFD1108A) El enlace Wi-Fi directo activo con una neurona, en su señal del Radar y de Señales.
+import { enriquecerConEnlaceWifi } from "@/ai/astraura/mesh/senales-enlace-wifi";
+import { enlacesWifiActivos, suscribirEnlacesWifi } from "@/lib/malla/enlace-wifi-orquestacion";
 
 /** Cadencia de refresco del registro de neuronas (consulta a la cuenta). */
 const NEURONS_REFRESH_MS = 90_000;
@@ -200,6 +203,8 @@ export function useDetectedSignals(options?: DetectedSignalsOptions): DetectedSi
   // (MSH1107A) Neuronas que la app nativa oye por faro en esta red (también sin internet), con
   // «Sincronizar ahora». Fuera de la app nativa la lista está vacía y no se sondea nada.
   const redLocal = useRedLocal();
+  // (WFD1108A) Enlaces Wi-Fi directos activos (vacío fuera de la app nativa).
+  const enlacesWifi = useSyncExternalStore(suscribirEnlacesWifi, enlacesWifiActivos, enlacesWifiActivos);
   const [neuronsState, setNeuronsState] = useState<NeuronsCache>(() => neuronsCache);
   const [serialPorts, setSerialPorts] = useState<SerialPortView[]>([]);
   const [serialProbed, setSerialProbed] = useState(false);
@@ -314,7 +319,7 @@ export function useDetectedSignals(options?: DetectedSignalsOptions): DetectedSi
 
   const signals = useMemo(
     () =>
-      enriquecerConMalla(
+      enriquecerConEnlaceWifi(enriquecerConMalla(
         ordenarSenalesPorCalidad(
           fusionarRadar(
             [
@@ -330,9 +335,9 @@ export function useDetectedSignals(options?: DetectedSignalsOptions): DetectedSi
           ),
         ),
         malla.misDispositivos,
-      ),
+      ), enlacesWifi),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [mesh, farosVistos, neurons, freshBle, serialPorts, tick, radioLocal, radarRemoto, malla.misDispositivos, redLocal.vecinos, redLocal.vinculos],
+    [mesh, farosVistos, neurons, freshBle, serialPorts, tick, radioLocal, radarRemoto, malla.misDispositivos, redLocal.vecinos, redLocal.vinculos, enlacesWifi],
   );
 
   const unavailable = useMemo<UnavailableSource[]>(() => {
