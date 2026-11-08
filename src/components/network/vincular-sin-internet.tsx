@@ -42,6 +42,7 @@ import {
 import { enlaceLocal, useEnlacesLocales, type FotoEnlaceLocal } from "@/lib/malla/registro-enlaces-locales";
 import { alRecibirMensaje, asegurarRecepcionLocal, enviarArchivo, enviarMensaje } from "@/lib/malla/transporte-universal";
 import { asegurarEscuchaLlamadas, llamarPorEnlace, useLlamadaDirecta } from "@/lib/malla/llamada-directa";
+import { avisarFalloMedios } from "@/lib/llamadas/aviso-medios";
 import { LlamadaDirectaFlotante } from "@/components/network/llamada-directa-flotante";
 
 const boton =
@@ -466,7 +467,7 @@ function FilaEnlace({ f }: { f: FotoEnlaceLocal }) {
 
   const llamar = async (video: boolean) => {
     const r = await llamarPorEnlace(f.id, video);
-    if (!r.ok) toast.error(r.motivo ?? "No se pudo llamar.");
+    if (!r.ok) avisarFalloMedios(r.motivo ?? "No se pudo llamar.", r.ajustes);
   };
 
   return (

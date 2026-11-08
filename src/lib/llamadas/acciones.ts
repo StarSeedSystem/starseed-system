@@ -16,7 +16,9 @@ import type { TipoLlamada } from "@/lib/mensajeria/formato-tipos";
 import { fetchProfilesByIds } from "@/lib/social/os-profiles";
 import { createClient } from "@/utils/supabase/client";
 import { MotorLlamada } from "@/lib/llamadas/motor";
-import { obtenerMedios, pararStream, soportaLlamadas } from "@/lib/llamadas/medios";
+import { motivoSinLlamadas, obtenerMedios, pararStream, soportaLlamadas } from "@/lib/llamadas/medios";
+import { avisarFalloMedios } from "@/lib/llamadas/aviso-medios";
+import type { AjustesMedios } from "@/lib/llamadas/permiso-medios";
 import { clavePestana, miIdentidad, type Identidad } from "@/lib/llamadas/identidad";
 import { crearAdjuntoLlamada, ESPERA_RESPUESTA_MS } from "@/lib/llamadas/adjunto";
 import { TEXTO_TIPO } from "@/lib/llamadas/formato";
@@ -151,7 +153,8 @@ export async function empezarLlamada(o: {
         return false;
     }
     if (!soportaLlamadas()) {
-        toast.error("Este navegador no permite llamadas: hace falta una conexión segura (https) y un navegador actual.");
+        const s = await motivoSinLlamadas(o.tipo === "video");
+        avisarFalloMedios(s.motivo, s.ajustes);
         return false;
     }
     const yo = await miIdentidad();
@@ -207,7 +210,7 @@ export async function empezarLlamada(o: {
     const conVideo = o.tipo === "video";
     const [medios, ice] = await Promise.all([obtenerMedios({ audio: true, video: conVideo }), obtenerIceServidores()]);
     if (!medios.stream) {
-        toast.error(medios.error ?? "No se pudo usar el micrófono.");
+        avisarFalloMedios(medios.error ?? "No se pudo usar el micrófono.", medios.ajustes);
         return false;
     }
     const { sesion, error } = await crearSesion({
@@ -302,7 +305,7 @@ export async function empezarLlamadaSinChat(o: {
     invitados: string[];
     pistaPantalla?: MediaStreamTrack | null;
     avisar: (sesionId: string) => Promise<boolean>;
-}): Promise<{ ok: boolean; sesionId?: string; motivo?: string }> {
+}): Promise<{ ok: boolean; sesionId?: string; motivo?: string; ajustes?: AjustesMedios | null }> {
     const soltarPantalla = () => {
         try {
             o.pistaPantalla?.stop();
@@ -316,7 +319,8 @@ export async function empezarLlamadaSinChat(o: {
     }
     if (!soportaLlamadas()) {
         soltarPantalla();
-        return { ok: false, motivo: "Este navegador no permite llamadas: hace falta una conexión segura (https) y un navegador actual." };
+        const s = await motivoSinLlamadas(o.tipo === "video");
+        return { ok: false, motivo: s.motivo, ajustes: s.ajustes };
     }
     const yo = await miIdentidad();
     if (!yo) {
@@ -327,7 +331,7 @@ export async function empezarLlamadaSinChat(o: {
     const [medios, ice] = await Promise.all([obtenerMedios({ audio: true, video: conVideo }), obtenerIceServidores()]);
     if (!medios.stream) {
         soltarPantalla();
-        return { ok: false, motivo: medios.error ?? "No se pudo usar el micrófono." };
+        return { ok: false, motivo: medios.error ?? "No se pudo usar el micrófono.", ajustes: medios.ajustes ?? null };
     }
     if (o.pistaPantalla) {
         try {
@@ -423,7 +427,7 @@ export async function unirseALlamada(o: {
         }
         return "Ya estás en otra llamada. Cuelga antes de unirte a esta.";
     }
-    if (!soportaLlamadas()) return "Este navegador no permite llamadas: hace falta una conexión segura (https) y un navegador actual.";
+    if (!soportaLlamadas()) return (await motivoSinLlamadas(o.camara ?? o.tipo === "video")).motivo;
     const yo = o.identidad ?? (await miIdentidad());
     if (!yo) return "Inicia sesión (o entra con un enlace público) para unirte.";
     const conVideo = o.camara ?? o.tipo === "video";

@@ -29,6 +29,8 @@ import {
     type RegistroLlamada,
 } from "./datos-neurona";
 import { claveChat, preferenciasEfectivas } from "@/lib/mensajeria/medios/preferencias-store";
+import { motivoSinPantalla, pedirPantalla } from "@/lib/llamadas/pantalla";
+import type { AjustesMedios } from "@/lib/llamadas/permiso-medios";
 
 export type TipoLlamadaNeurona = "audio" | "video" | "pantalla";
 
@@ -36,23 +38,20 @@ export interface ResultadoLlamadaNeurona {
     ok: boolean;
     motivo?: string;
     plan?: PlanLlamada;
+    /** (MIC1108A) Qué ajustes del sistema abre «Abrir ajustes» si el fallo fue de permisos. */
+    ajustes?: AjustesMedios | null;
 }
 
 /**
  * Pide la pantalla (o una ventana o pestaña) a compartir. Hay que llamarla SIN esperas antes, en
- * el mismo gesto. Devuelve la pista de vídeo, o null si la persona no eligió ninguna.
+ * el mismo gesto. Devuelve la pista de vídeo, o null (y `motivoSinPantalla()` dice por qué).
  */
-export function pedirPantalla(): Promise<MediaStreamTrack | null> {
-    try {
-        const md = typeof navigator !== "undefined" ? navigator.mediaDevices : undefined;
-        if (!md?.getDisplayMedia) return Promise.resolve(null);
-        return md
-            .getDisplayMedia({ video: true, audio: false })
-            .then((s) => s.getVideoTracks()[0] ?? null)
-            .catch(() => null);
-    } catch {
-        return Promise.resolve(null);
-    }
+export { pedirPantalla };
+
+/** (MIC1108A) Sin pantalla: por qué (cancelada, sin permiso del sistema o motor sin getDisplayMedia). */
+async function sinPantalla(): Promise<ResultadoLlamadaNeurona> {
+    const s = await motivoSinPantalla();
+    return { ok: false, motivo: s.motivo, ajustes: s.ajustes };
 }
 
 function soltar(p: MediaStreamTrack | null): void {
@@ -162,7 +161,7 @@ export async function llamarANeurona(o: {
 }): Promise<ResultadoLlamadaNeurona> {
     const { conversacion: conv, tipo } = o;
     const pista = tipo === "pantalla" ? await (o.pantalla ?? pedirPantalla()) : null;
-    if (tipo === "pantalla" && !pista) return { ok: false, motivo: "No se eligió ninguna pantalla, ventana ni pestaña para compartir." };
+    if (tipo === "pantalla" && !pista) return sinPantalla();
     try {
         const prefs = preferenciasEfectivas(claveChat("neurona", conv.clave));
         const tu = await import("@/lib/malla/transporte-universal");
@@ -183,7 +182,7 @@ export async function llamarANeurona(o: {
         if (plan.via === "enlace-local" && plan.enlaceId) {
             const ld = await import("@/lib/malla/llamada-directa");
             const r = await ld.llamarPorEnlace(plan.enlaceId, tipo === "video", { pistaPantalla: pista });
-            if (!r.ok) return { ok: false, motivo: r.motivo, plan };
+            if (!r.ok) return { ok: false, motivo: r.motivo, plan, ajustes: r.ajustes ?? null };
             // La burbuja de los dos lados (el timbre ya suena por el propio enlace).
             const m = await enviarANeurona({ clave: conv.clave, destino: conv.destino, texto: "", llamada, urgente: true });
             cambiarMensajeMalla(m.clave, m.id, { registroLlamada: { fase: "sonando" } });
@@ -206,7 +205,7 @@ export async function llamarANeurona(o: {
         const m = aviso as MensajeMalla | null;
         if (!r.ok) {
             if (m) cambiarMensajeMalla(m.clave, m.id, { registroLlamada: { fase: "fallida", fin: Date.now(), motivo: r.motivo } });
-            return { ok: false, motivo: m?.aviso ?? r.motivo, plan };
+            return { ok: false, motivo: m?.aviso ?? r.motivo, plan, ajustes: m?.aviso ? null : (r.ajustes ?? null) };
         }
         if (m && r.sesionId) {
             cambiarMensajeMalla(m.clave, m.id, { registroLlamada: { fase: "sonando" } });
@@ -232,7 +231,7 @@ export async function llamarEnChatMalla(o: {
     pantalla?: Promise<MediaStreamTrack | null>;
 }): Promise<ResultadoLlamadaNeurona> {
     const pista = o.tipo === "pantalla" ? await (o.pantalla ?? pedirPantalla()) : null;
-    if (o.tipo === "pantalla" && !pista) return { ok: false, motivo: "No se eligió ninguna pantalla, ventana ni pestaña para compartir." };
+    if (o.tipo === "pantalla" && !pista) return sinPantalla();
     try {
         const clavePrefs = claveChat(o.tipoChat, o.hiloId);
         const tu = await import("@/lib/malla/transporte-universal");
@@ -256,7 +255,7 @@ export async function llamarEnChatMalla(o: {
         }
         const ld = await import("@/lib/malla/llamada-directa");
         const r = await ld.llamarPorEnlace(plan.enlaceId, o.tipo === "video", { pistaPantalla: pista });
-        if (!r.ok) return { ok: false, motivo: r.motivo, plan };
+        if (!r.ok) return { ok: false, motivo: r.motivo, plan, ajustes: r.ajustes ?? null };
         const m: MensajeMalla = {
             id: (() => {
                 try {

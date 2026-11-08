@@ -16,7 +16,7 @@
  */
 
 import { MotorLlamada } from "./motor";
-import { obtenerMedios, pararStream, soportaLlamadas } from "./medios";
+import { motivoSinLlamadas, obtenerMedios, pararStream, soportaLlamadas } from "./medios";
 import { clavePestana, miIdentidad } from "./identidad";
 import { abrirCanalLlamadaPorEnlace } from "./canal-enlace-local";
 import { agregarTimbre, leerLlamadas, quitarTimbre, suscribirLlamadas, type TimbreEntrante } from "./store";
@@ -113,7 +113,7 @@ export async function empezarLlamadaGrupoMalla(o: {
     try {
         const acciones = await import("./acciones");
         if (acciones.hayLlamadaEnCurso()) return { ok: false, motivo: "Ya estás en una llamada. Cuelga antes de empezar otra." };
-        if (!soportaLlamadas()) return { ok: false, motivo: "Este navegador no permite llamadas: hace falta una conexión segura (https) y un navegador actual." };
+        if (!soportaLlamadas()) return { ok: false, motivo: (await motivoSinLlamadas()).motivo };
         const yo = await miIdentidad();
         if (!yo?.uid) return { ok: false, motivo: "Sin cuenta en este aparato no se puede llamar a un grupo." };
         const plan = o.plan ?? planGrupoMalla({ miembros: o.miembros, miUid: yo.uid, enlaces: enlacesParaGrupo(), pedido: o.tipo });
@@ -211,7 +211,7 @@ export async function unirseAGrupoMalla(t: TimbreEntrante, opciones: { camara?: 
     try {
         const acciones = await import("./acciones");
         if (acciones.hayLlamadaEnCurso()) return { ok: false, motivo: "Ya estás en otra llamada. Cuelga antes de unirte a esta." };
-        if (!soportaLlamadas()) return { ok: false, motivo: "Este navegador no permite llamadas: hace falta una conexión segura (https) y un navegador actual." };
+        if (!soportaLlamadas()) return { ok: false, motivo: (await motivoSinLlamadas()).motivo };
         const yo = await miIdentidad();
         if (!yo?.uid) return { ok: false, motivo: "Sin cuenta en este aparato no se puede entrar." };
         // Mis enlaces con aparatos de los miembros de ESTA llamada (por cada uno, un canal directo).

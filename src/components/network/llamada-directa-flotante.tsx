@@ -9,8 +9,8 @@
  */
 
 import { useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
 import { Mic, MicOff, Phone, PhoneIncoming, PhoneOff } from "lucide-react";
+import { avisarFalloMedios } from "@/lib/llamadas/aviso-medios";
 import { cn } from "@/lib/utils";
 import {
   alternarMicro,
@@ -112,7 +112,7 @@ export function LlamadaDirectaFlotante() {
               type="button"
               onClick={async () => {
                 const r = await contestarLlamada();
-                if (!r.ok && r.motivo) toast.error(r.motivo);
+                if (!r.ok && r.motivo) avisarFalloMedios(r.motivo, r.ajustes);
               }}
               className={cn(boton, "border-emerald-400/40 bg-emerald-500/20 text-emerald-100 hover:bg-emerald-500/30")}
             >

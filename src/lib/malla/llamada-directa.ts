@@ -14,6 +14,8 @@
  */
 
 import { useSyncExternalStore } from "react";
+import type { AjustesMedios } from "@/lib/llamadas/permiso-medios";
+import { explicarFalloMedios } from "@/lib/nativa/medios-nativos";
 import {
   alRegistrarEnlaceLocal,
   enlaceLocal,
@@ -143,18 +145,21 @@ function terminar(ev: EventoLlamada, motivo: string | null): void {
   }
 }
 
-async function pedirMedios(video: boolean): Promise<{ stream: MediaStream | null; error?: string }> {
-  if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
-    return { stream: null, error: "Este navegador no deja usar el micrófono." };
-  }
+/**
+ * (MIC1108A) Si no hay micro/cámara se dice POR QUÉ: app instalada sin permiso del sistema (versión
+ * anterior), «no» de la persona o del sistema (y dónde se activa, con «Abrir ajustes» si la app sabe),
+ * o sin dispositivo. Antes todo era «Este navegador no deja usar el micrófono».
+ */
+async function pedirMedios(video: boolean): Promise<{ stream: MediaStream | null; error?: string; ajustes?: AjustesMedios | null }> {
+  const fallo = async (err: unknown) => {
+    const d = await explicarFalloMedios(err, { audio: true, video });
+    return { stream: null, error: d.mensaje, ajustes: d.ajustes };
+  };
+  if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) return fallo({ name: "NoMediaDevices" });
   try {
     return { stream: await navigator.mediaDevices.getUserMedia({ audio: true, video }) };
   } catch (err) {
-    const nombre = (err as { name?: string })?.name;
-    return {
-      stream: null,
-      error: nombre === "NotAllowedError" ? "Sin permiso para el micrófono o la cámara." : "No se encontró micrófono o cámara.",
-    };
+    return fallo(err);
   }
 }
 
@@ -248,7 +253,7 @@ export async function llamarPorEnlace(
   enlaceId: string,
   video: boolean,
   opciones: { pistaPantalla?: MediaStreamTrack | null } = {},
-): Promise<{ ok: boolean; motivo?: string }> {
+): Promise<{ ok: boolean; motivo?: string; ajustes?: AjustesMedios | null }> {
   asegurarEscuchaLlamadas();
   const pantalla = opciones.pistaPantalla ?? null;
   const soltar = () => {
@@ -270,7 +275,7 @@ export async function llamarPorEnlace(
   const m = await pedirMedios(video && !pantalla);
   if (!m.stream) {
     soltar();
-    return { ok: false, motivo: m.error };
+    return { ok: false, motivo: m.error, ajustes: m.ajustes ?? null };
   }
   if (pantalla) {
     try {
@@ -305,7 +310,7 @@ export async function llamarPorEnlace(
   return { ok: true };
 }
 
-export async function contestarLlamada(): Promise<{ ok: boolean; motivo?: string }> {
+export async function contestarLlamada(): Promise<{ ok: boolean; motivo?: string; ajustes?: AjustesMedios | null }> {
   if (estado.fase !== "entrante" || !estado.enlaceId) return { ok: false };
   const e = enlaceLocal(estado.enlaceId);
   if (!e) {
@@ -317,7 +322,7 @@ export async function contestarLlamada(): Promise<{ ok: boolean; motivo?: string
   if (!m.stream) {
     enviar(e, { t: "ll.rechazar", id: llamadaId });
     terminar("rechazar", m.error ?? null);
-    return { ok: false, motivo: m.error };
+    return { ok: false, motivo: m.error, ajustes: m.ajustes ?? null };
   }
   aplicar("contestar", { local: m.stream, micro: true, desde: Date.now() });
   await e.ponerPistas(m.stream);

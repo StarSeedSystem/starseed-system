@@ -12,6 +12,7 @@ import {
     Check, Download, FileText, Loader2, MonitorUp, Phone, PhoneIncoming, Radio, RotateCcw, ShieldCheck, Video, X,
 } from "lucide-react";
 import { toast } from "sonner";
+import { avisarFalloMedios } from "@/lib/llamadas/aviso-medios";
 import { cn } from "@/lib/utils";
 import { ACENTO, pildoraFantasma } from "@/components/messages/marco/estilos";
 import type { MensajeMalla } from "@/lib/mensajeria/neuronas/bandeja";
@@ -360,7 +361,7 @@ export function BotonesLlamadaNeurona({ conversacion, compacto = false }: { conv
         setOcupado(tipo);
         void llamarANeurona({ conversacion, tipo, pantalla })
             .then((r) => {
-                if (!r.ok) toast.error(r.motivo ?? "No se pudo llamar a esta neurona.");
+                if (!r.ok) avisarFalloMedios(r.motivo ?? "No se pudo llamar a esta neurona.", r.ajustes);
             })
             .finally(() => setOcupado(null));
     };
@@ -405,7 +406,7 @@ export function BarraMallaChat({ hiloId, tipo, otros, nombre }: { hiloId: string
         setOcupado(t);
         void llamarEnChatMalla({ hiloId, tipoChat: tipo, otroUid: otros[0], tipo: t, pantalla })
             .then((r) => {
-                if (!r.ok) toast.error(r.motivo ?? "No se pudo llamar por la malla.");
+                if (!r.ok) avisarFalloMedios(r.motivo ?? "No se pudo llamar por la malla.", r.ajustes);
             })
             .finally(() => setOcupado(null));
     };
@@ -520,7 +521,7 @@ function TransmitirMedios({ conversacion, modo, onCerrar }: { conversacion: Conv
             .then((t) => t.transmitirMedios({ conversacion, tipo: modo, pantalla }))
             .then((r) => {
                 if (!r.ok) {
-                    toast.error(r.motivo);
+                    avisarFalloMedios(r.motivo, r.ajustes);
                     return;
                 }
                 control.current = r.control;

@@ -128,6 +128,47 @@ describe("contrato web ↔ app nativa", () => {
     expect(def.permissions).toEqual(expect.arrayContaining(["allow-info-neurona", "allow-buscar-actualizacion", "core:app:default"]));
   });
 
+  it("(MIC1108A) micrófono y cámara: Info.plist, manifiesto de Android, Rust ↔ web y orígenes propios", () => {
+    const raiz = (f: string) => readFileSync(join(process.cwd(), f), "utf8");
+    // macOS: sin estos textos WebKit ni deja usar ni deja pedir el micrófono o la cámara.
+    const plist = raiz("native/src-tauri/Info.plist");
+    for (const clave of ["NSMicrophoneUsageDescription", "NSCameraUsageDescription"]) {
+      const m = plist.match(new RegExp(`<key>${clave}</key>\\s*<string>([^<]+)</string>`));
+      expect(m, `${clave} en Info.plist`).not.toBeNull();
+      expect(m![1].trim().length, clave).toBeGreaterThan(30);
+    }
+    // Sigue siendo un plist de claves y valores emparejados (cada <key> con su valor detrás).
+    const sinComentarios = plist.replace(/<!--[\s\S]*?-->/g, "");
+    expect(sinComentarios.match(/<key>/g)!.length).toBe(sinComentarios.match(/<\/key>\s*<(string|true\/|false\/|dict)/g)!.length);
+    // El estado que lee la web y los dos comandos, iguales a los dos lados, registrados y con permiso.
+    const rs = rust("permisos_medios.rs");
+    const web = ts("medios-nativos.ts");
+    expect(camposTs(web, "EstadoMediosNativo")).toEqual(camposRust(rs, "EstadoMediosNativo"));
+    expect(web).toContain('COMANDO_ESTADO_MEDIOS = "medios_estado"');
+    expect(web).toContain('COMANDO_AJUSTES_MEDIOS = "medios_abrir_ajustes"');
+    expect(rs).toMatch(/pub fn medios_estado\(/);
+    expect(rs).toMatch(/pub fn medios_abrir_ajustes\(tipo: String\)/);
+    const lib = rust("lib.rs");
+    expect(lib).toContain("permisos_medios::medios_estado");
+    expect(lib).toContain("permisos_medios::medios_abrir_ajustes");
+    expect(lib).toMatch(/\.on_permission_request\(\|webview, kind\| permisos_medios::al_pedir_permiso/);
+    expect(lib).toMatch(/\.on_page_load\(\|webview, carga\| permisos_medios::recordar_pagina/);
+    const def = JSON.parse(raiz("native/src-tauri/capabilities/default.json"));
+    expect(def.permissions).toEqual(expect.arrayContaining(["allow-medios-estado", "allow-medios-abrir-ajustes"]));
+    // Los orígenes propios de los medios son los de la capability: las webs publicadas y 127.0.0.1:47610…47619.
+    const publicadas = [...rs.match(/pub const WEBS_PUBLICADAS: \[&str; \d+\] = \[([\s\S]*?)\];/)![1].matchAll(/"([^"]+)"/g)].map((m) => m[1]);
+    expect([...publicadas].sort()).toEqual(def.remote.urls.filter((u: string) => u.startsWith("https://")).sort());
+    expect(def.remote.urls.filter((u: string) => u.startsWith("http://127.0.0.1:"))).toHaveLength(10);
+    expect(rust("pista_neurona.rs")).toMatch(/const PUERTOS_LOCALES: std::ops::RangeInclusive<u16> = 47610..=47619;/);
+    // Android: micro, cámara y auriculares en el manifiesto (build.rs) y la ficha de la app desde Kotlin.
+    const parche = rust("android_parche.rs");
+    for (const p of ["RECORD_AUDIO", "MODIFY_AUDIO_SETTINGS", "CAMERA", "BLUETOOTH_CONNECT"]) expect(parche).toContain(`"android.permission.${p}"`);
+    expect(raiz("native/src-tauri/build.rs")).toMatch(/\n\s*medios_android\(\);/);
+    expect(raiz("native/src-tauri/android/ArranqueStarSeed.kt")).toContain('"ajustes" -> abrirAjustes(a)');
+    // `on_permission_request` existe desde tauri 2.12.
+    expect(raiz("native/src-tauri/Cargo.toml")).toMatch(/^tauri = \{ version = "2\.(1[2-9]|[2-9]\d)"/m);
+  });
+
   it("los eventos tienen el mismo nombre a los dos lados", () => {
     const n = rust("nativa.rs");
     for (const ev of ["starseed://antenas", "starseed://serie", "starseed://serie-cerrada"]) {

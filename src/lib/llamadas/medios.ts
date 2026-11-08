@@ -6,7 +6,10 @@
  * un timbre. Nunca lanza: devuelve el error ya traducido.
  */
 import { mensajeErrorMedios } from "@/lib/llamadas/errores";
+import type { AjustesMedios } from "@/lib/llamadas/permiso-medios";
 import type { DispositivosMedios } from "@/lib/llamadas/tipos";
+import { explicarFalloMedios } from "@/lib/nativa/medios-nativos";
+import { esAppNativa } from "@/lib/nativa/puente";
 
 function mediaDevices(): MediaDevices | null {
     try {
@@ -20,6 +23,24 @@ export function soportaLlamadas(): boolean {
     if (typeof window === "undefined") return false;
     const md = mediaDevices();
     return !!md && typeof md.getUserMedia === "function" && typeof (window as { RTCPeerConnection?: unknown }).RTCPeerConnection === "function";
+}
+
+/**
+ * (MIC1108A) Por qué no hay llamadas aquí, dicho para ESTE entorno: en la app nativa, falta de
+ * permiso de la app instalada o motor sin WebRTC; en el navegador, https y navegador actual.
+ */
+export async function motivoSinLlamadas(video = false): Promise<{ motivo: string; ajustes: AjustesMedios | null }> {
+    const md = mediaDevices();
+    if (!md || typeof md.getUserMedia !== "function") {
+        const d = await explicarFalloMedios({ name: "NoMediaDevices" }, { audio: true, video });
+        return { motivo: d.mensaje, ajustes: d.ajustes };
+    }
+    return {
+        motivo: esAppNativa()
+            ? "El motor web de esta app no trae llamadas (WebRTC). Mientras, puedes llamar desde el navegador."
+            : "Este navegador no permite llamadas: hace falta una conexión segura (https) y un navegador actual.",
+        ajustes: null,
+    };
 }
 
 export function soportaPantalla(): boolean {
@@ -68,6 +89,14 @@ export interface ResultadoMedios {
     error: string | null;
     /** Aviso parcial (p. ej. hay micro pero no cámara). */
     aviso: string | null;
+    /** (MIC1108A) Qué ajustes del sistema abre «Abrir ajustes» (solo en la app y si el fallo fue de permisos). */
+    ajustes?: AjustesMedios | null;
+}
+
+/** (MIC1108A) El error bloqueante, dicho para ESTE entorno (app nativa de cada sistema o navegador). */
+async function errorBloqueante(err: unknown, p: { audio: boolean; video: boolean }): Promise<ResultadoMedios> {
+    const d = await explicarFalloMedios(err, { audio: p.audio, video: p.video });
+    return { stream: null, error: d.mensaje, aviso: null, ajustes: d.ajustes };
 }
 
 /**
@@ -77,7 +106,7 @@ export interface ResultadoMedios {
 export async function obtenerMedios(p: { audio: boolean; video: boolean; microId?: string | null; camaraId?: string | null }): Promise<ResultadoMedios> {
     const md = mediaDevices();
     if (!md || typeof md.getUserMedia !== "function") {
-        return { stream: null, error: mensajeErrorMedios({ name: "NoMediaDevices" }, p), aviso: null };
+        return errorBloqueante({ name: "NoMediaDevices" }, p);
     }
     if (!p.audio && !p.video) return { stream: null, error: null, aviso: null };
     try {
@@ -92,10 +121,10 @@ export async function obtenerMedios(p: { audio: boolean; video: boolean; microId
                 const stream = await md.getUserMedia({ audio: restriccionesAudio(p.microId), video: false });
                 return { stream, error: null, aviso: mensajeErrorMedios(err, { audio: false, video: true }) };
             } catch (err2) {
-                return { stream: null, error: mensajeErrorMedios(err2, p), aviso: null };
+                return errorBloqueante(err2, p);
             }
         }
-        return { stream: null, error: mensajeErrorMedios(err, p), aviso: null };
+        return errorBloqueante(err, p);
     }
 }
 
@@ -112,7 +141,7 @@ export async function obtenerPista(tipo: "audio" | "video", deviceId?: string | 
 
 export async function obtenerPantalla(): Promise<{ pista: MediaStreamTrack | null; error: string | null }> {
     const md = mediaDevices() as (MediaDevices & { getDisplayMedia?: (c?: DisplayMediaStreamOptions) => Promise<MediaStream> }) | null;
-    if (!md?.getDisplayMedia) return { pista: null, error: "Este dispositivo no permite compartir la pantalla desde el navegador." };
+    if (!md?.getDisplayMedia) return { pista: null, error: (await explicarFalloMedios({ name: "NoMediaDevices" }, { audio: false, video: true, pantalla: true })).mensaje };
     try {
         const s = await md.getDisplayMedia({ video: { frameRate: { ideal: 15, max: 30 } }, audio: false });
         const pista = s.getVideoTracks()[0] ?? null;
@@ -123,7 +152,7 @@ export async function obtenerPantalla(): Promise<{ pista: MediaStreamTrack | nul
         }
         return { pista, error: pista ? null : "No llegó ninguna imagen de la pantalla." };
     } catch (err) {
-        return { pista: null, error: mensajeErrorMedios(err, { audio: false, video: true, pantalla: true }) };
+        return { pista: null, error: (await explicarFalloMedios(err, { audio: false, video: true, pantalla: true })).mensaje };
     }
 }
 

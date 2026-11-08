@@ -15,6 +15,9 @@
  */
 
 import type { ConversacionNeurona } from "./agrupar";
+import { motivoSinPantalla } from "@/lib/llamadas/pantalla";
+import type { AjustesMedios } from "@/lib/llamadas/permiso-medios";
+import { explicarFalloMedios } from "@/lib/nativa/medios-nativos";
 import { abrirFlujoNeurona, alSegmentosMedios, leerFlujoNeurona } from "./flujos-neurona";
 import { deBase64 } from "./flujo-datos";
 import {
@@ -60,19 +63,35 @@ function pararPistas(s: MediaStream | null): void {
     }
 }
 
-async function conseguirStream(tipo: "audio" | "video" | "pantalla", pantalla?: Promise<MediaStreamTrack | null>): Promise<{ stream: MediaStream | null; motivo?: string }> {
+/**
+ * (MIC1108A) Si no hay medio se dice POR QUÉ (app sin permiso del sistema, «no» de la persona o del
+ * sistema con «Abrir ajustes», sin dispositivo, pantalla cancelada o no disponible en este motor).
+ */
+async function conseguirStream(
+    tipo: "audio" | "video" | "pantalla",
+    pantalla?: Promise<MediaStreamTrack | null>,
+): Promise<{ stream: MediaStream | null; motivo?: string; ajustes?: AjustesMedios | null }> {
+    const pedido = { audio: tipo !== "pantalla", video: tipo !== "audio", pantalla: tipo === "pantalla" };
+    const fallo = async (err: unknown) => {
+        const d = await explicarFalloMedios(err, pedido);
+        return { stream: null, motivo: d.mensaje, ajustes: d.ajustes };
+    };
     try {
         const md = typeof navigator !== "undefined" ? navigator.mediaDevices : undefined;
         if (tipo === "pantalla") {
-            const pista = await (pantalla ?? Promise.resolve(null));
-            if (!pista) return { stream: null, motivo: "No se eligió ninguna pantalla, ventana ni pestaña para compartir." };
+            // La pantalla solo se puede pedir en el gesto: sin su promesa no hay nada que esperar.
+            const pista = pantalla ? await pantalla : null;
+            if (!pista) {
+                const s = pantalla ? await motivoSinPantalla() : { motivo: "No se eligió ninguna pantalla, ventana ni pestaña para compartir.", ajustes: null };
+                return { stream: null, motivo: s.motivo, ajustes: s.ajustes };
+            }
             return { stream: new MediaStream([pista]) };
         }
-        if (!md?.getUserMedia) return { stream: null, motivo: "Este navegador no deja usar el micrófono ni la cámara." };
+        if (!md?.getUserMedia) return fallo({ name: "NoMediaDevices" });
         const stream = await md.getUserMedia(tipo === "video" ? { audio: true, video: { width: { ideal: 640 }, height: { ideal: 360 }, frameRate: { ideal: 15, max: 20 } } } : { audio: true });
         return { stream };
-    } catch {
-        return { stream: null, motivo: tipo === "video" ? "No se pudo usar la cámara ni el micrófono (¿permiso?)." : "No se pudo usar el micrófono (¿permiso?)." };
+    } catch (err) {
+        return fallo(err);
     }
 }
 
@@ -115,13 +134,13 @@ export async function transmitirMedios(o: {
     conversacion: Pick<ConversacionNeurona, "clave" | "destino" | "propia" | "nombre">;
     tipo: "audio" | "video" | "pantalla";
     pantalla?: Promise<MediaStreamTrack | null>;
-}): Promise<{ ok: true; control: ControlTransmision } | { ok: false; motivo: string }> {
+}): Promise<{ ok: true; control: ControlTransmision } | { ok: false; motivo: string; ajustes?: AjustesMedios | null }> {
     const tipoMedios: TipoMedios = o.tipo === "audio" ? "audio" : "video";
     if (typeof MediaRecorder === "undefined") return { ok: false, motivo: "Este navegador no puede grabar audio ni vídeo (MediaRecorder)." };
     const mime = elegirMime(tipoMedios, (m) => MediaRecorder.isTypeSupported(m));
     if (!mime) return { ok: false, motivo: "Este navegador no graba en ningún formato que se pueda mandar por la malla." };
-    const { stream, motivo } = await conseguirStream(o.tipo, o.pantalla);
-    if (!stream) return { ok: false, motivo: motivo ?? "No se pudo empezar." };
+    const { stream, motivo, ajustes } = await conseguirStream(o.tipo, o.pantalla);
+    if (!stream) return { ok: false, motivo: motivo ?? "No se pudo empezar.", ajustes: ajustes ?? null };
     const nombre = o.tipo === "audio" ? "Voz en vivo" : o.tipo === "pantalla" ? "Pantalla en vivo" : "Vídeo en vivo";
     const r = await abrirFlujoNeurona({ conversacion: o.conversacion, nombre, formato: "medios", mime, soloP2P: true });
     if (!r.ok) {
