@@ -156,6 +156,9 @@
     "allow-nas-leer",
     "allow-malla-local-enviar",
     "allow-malla-local-estado",
-    "allow-malla-local-recibidos"
+    "allow-malla-local-recibidos",
+    "allow-apk-actualizar",
+    "allow-apk-estado",
+    "allow-apk-instalar"
   ]
 }

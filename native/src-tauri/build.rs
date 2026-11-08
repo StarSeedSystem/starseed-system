@@ -8,6 +8,9 @@
 
 #[path = "src/android_parche.rs"]
 mod android_parche;
+// (ACT1108A) Actualizador interno del APK: descarga, verifica y abre el instalador de Android.
+#[path = "src/android_actualizador.rs"]
+mod android_actualizador;
 
 /// Comandos propios de la app (los de `generate_handler!` de src/lib.rs). Desde tauri 2.11.1 una
 /// página de un origen REMOTO (la web publicada, y también el servidor local http://127.0.0.1:47610…)
@@ -57,6 +60,10 @@ const COMANDOS_APP: &[&str] = &[
     "malla_local_enviar",
     "malla_local_estado",
     "malla_local_recibidos",
+    // (ACT1108A) Actualizador interno del APK (Android; en escritorio responden «solo Android»).
+    "apk_actualizar",
+    "apk_estado",
+    "apk_instalar",
     // Solo escritorio (su permiso existe en todas, pero solo se registran en escritorio).
     "ventanas_prestables",
     "capturar_ventana",
@@ -81,6 +88,7 @@ fn main() {
     servicio_android();
     medios_android();
     servidor_local_android();
+    actualizador_android();
     tauri_build::try_build(
         tauri_build::Attributes::new().app_manifest(tauri_build::AppManifest::new().commands(COMANDOS_APP)),
     )
@@ -188,4 +196,33 @@ fn servidor_local_android() {
     }
     println!("cargo:rustc-cfg=starseed_servidor_android");
     println!("cargo:warning=[starseed] servidor local DENTRO de la APK: encendido (AND1107A).");
+}
+
+/// (ACT1108A) Actualizador interno del APK de StarSeed OS: `REQUEST_INSTALL_PACKAGES`, su FileProvider
+/// y ActualizadorApk.kt en el proyecto que genera `cargo tauri android init`. Independiente del servicio
+/// de antenas (va aunque STARSEED_SIN_SERVICIO_ANDROID lo apague). Contrato centro-versiones-1105.md §9.
+fn actualizador_android() {
+    println!("cargo:rerun-if-changed=src/android_actualizador.rs");
+    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() != Ok("android") {
+        return;
+    }
+    let paquete = std::env::var("TAURI_ANDROID_PACKAGE_UNESCAPED")
+        .or_else(|_| std::env::var("WRY_ANDROID_PACKAGE"))
+        .unwrap_or_default();
+    if !android_actualizador::aplica(&paquete) {
+        return;
+    }
+    let Some(proyecto) = std::env::var_os("TAURI_ANDROID_PROJECT_PATH").map(std::path::PathBuf::from) else {
+        println!("cargo:warning=[starseed] Sin TAURI_ANDROID_PROJECT_PATH: el APK sale SIN actualizador interno (la web ofrecerá el .apk).");
+        return;
+    };
+    match android_actualizador::aplicar(&proyecto) {
+        Ok(cambiados) => {
+            for c in cambiados {
+                println!("cargo:warning=[starseed] actualizador interno del APK: escrito {}", c.display());
+            }
+        }
+        // Falla en alto: un APK que dice actualizarse solo y no puede abrir el instalador sería una ilusión.
+        Err(e) => panic!("[starseed] No se pudo inyectar el actualizador interno del APK: {e}"),
+    }
 }

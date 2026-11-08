@@ -34,6 +34,9 @@ use tauri_plugin_shell::ShellExt;
 // (bandeja y cierre que oculta, solo escritorio). android_parche lo usa build.rs.
 mod android;
 mod antenas;
+// (ACT1108A) Canal de actualización (oficial / pruebas) y actualizador interno del APK. §9 del contrato.
+mod canal_actualizacion;
+mod canal_actualizacion_logica;
 mod carpetas;
 mod disco;
 mod faro;
@@ -82,6 +85,8 @@ mod sha256;
 mod ventana_remota;
 #[cfg(test)]
 mod android_parche;
+#[cfg(test)]
+mod android_actualizador;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Actualización automática INTELIGENTE del shell nativo (SOLO escritorio).
@@ -100,7 +105,6 @@ mod actualizacion {
     use std::sync::atomic::{AtomicU64, Ordering};
     use std::sync::{Arc, Mutex};
     use tauri::{AppHandle, Emitter, Manager};
-    use tauri_plugin_updater::UpdaterExt;
 
     /// Nombre del evento que recibe la web (Aurora) vía
     /// `window.__TAURI__.event.listen('starseed://actualizacion', cb)`.
@@ -172,16 +176,8 @@ mod actualizacion {
     pub async fn comprobar_e_instalar(app: AppHandle) -> Result<Option<String>, String> {
         emitir(&app, EstadoActualizacion { fase: "buscando".into(), ..Default::default() });
 
-        let updater = app
-            .updater()
-            .map_err(|e| {
-                let msg = format!("Updater no disponible: {e}");
-                emitir(&app, EstadoActualizacion { fase: "error".into(), mensaje: Some(msg.clone()), ..Default::default() });
-                msg
-            })?;
-
-        let encontrado = updater.check().await.map_err(|e| {
-            let msg = format!("No se pudo comprobar actualizaciones: {e}");
+        // (ACT1108A) El `check()` del canal de ESTA app: oficial (tauri.conf.json) o pruebas.
+        let encontrado = crate::canal_actualizacion::buscar(&app).await.map_err(|msg| {
             emitir(&app, EstadoActualizacion { fase: "error".into(), mensaje: Some(msg.clone()), ..Default::default() });
             msg
         })?;
@@ -282,11 +278,8 @@ mod actualizacion {
     /// este sistema (el canal todavía no la ofrece).
     pub async fn buscar(app: AppHandle) -> Result<crate::neurona_info::BusquedaActualizacion, String> {
         let actual = app.package_info().version.to_string();
-        let updater = app.updater().map_err(|e| format!("Updater no disponible: {e}"))?;
-        let encontrado = updater
-            .check()
-            .await
-            .map_err(|e| format!("No se pudo comprobar actualizaciones: {e}"))?;
+        // (ACT1108A) El mismo canal que la vigilancia (oficial o pruebas).
+        let encontrado = crate::canal_actualizacion::buscar(&app).await?;
         Ok(crate::neurona_info::busqueda(
             &actual,
             encontrado.map(|u| (u.version.clone(), u.body.clone(), crate::neurona_info::fecha_de_json(&u.raw_json))),
@@ -310,7 +303,11 @@ mod actualizacion {
                 // Cualquier error ya quedó reportado (evento "error" + estado
                 // compartido) dentro de comprobar_e_instalar; aquí no hay nada
                 // más que hacer que seguir esperando al siguiente ciclo.
-                let _ = tauri::async_runtime::block_on(comprobar_e_instalar(app.clone()));
+                let instalada = tauri::async_runtime::block_on(comprobar_e_instalar(app.clone()));
+                // (ACT1108A) Instalada sin preguntar y la persona mirando: «Lista: reinicia».
+                if let Ok(Some(version)) = instalada {
+                    crate::canal_actualizacion::avisar_lista(&app, &version);
+                }
                 std::thread::sleep(std::time::Duration::from_secs(6 * 60 * 60));
             }
         });
@@ -644,6 +641,8 @@ pub fn run() {
             nativa::iniciar(app.handle());
             // (MSH1107A) Canal local de datos entre neuronas (TCP 47071), solo StarSeed OS.
             malla_local::iniciar(app.handle());
+            // (ACT1108A) Android: busca el APK nuevo cada 6 h (escritorio: la vigilancia de arriba).
+            canal_actualizacion::iniciar(app.handle());
             // (MIC1108A) Linux: WebKitGTK trae MediaStream y WebRTC apagados; sin ellos no hay llamadas.
             #[cfg(target_os = "linux")]
             permisos_medios::encender_medios_linux(app.handle());
@@ -707,6 +706,9 @@ pub fn run() {
                 malla_local::malla_local_enviar,
                 malla_local::malla_local_estado,
                 malla_local::malla_local_recibidos,
+                canal_actualizacion::apk_actualizar,
+                canal_actualizacion::apk_estado,
+                canal_actualizacion::apk_instalar,
                 $($solo_desktop,)*
             ]);
         };
