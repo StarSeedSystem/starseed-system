@@ -176,16 +176,12 @@ icono Lucide `Cpu`/`Binary`; etiqueta «1.58-bit» en chip mono. Sin emoji como 
 
 ## 11 · Pendiente (siguientes olas)
 - Importar perfiles de VoiceStudio 1.58 a OmniVoice (mapeo de prosodia) · mezclar mem0/grafo con `memories`.
-  ✅ Hecho (`6bc9d59a1`, mapeo de prosodia a OmniVoice en `src/lib/aurora/voz-starseed/ovsvoice-prosody-mapping.tsx`, conexión en UI `src/lib/aurora/voz-starseed/voice-studio-integration.tsx` y mezcla de mem0/grafo con `memories` en `src/lib/aurora/voz-starseed/memories-grafo-combination.tsx`)
+  (a medias: el paquete `.ovsvoice` con licencias, `importarOvsvoice` y `exportarOvsvoice` existe en `src/lib/aurora/voz-starseed/ovsvoice.ts` con pruebas en `src/lib/aurora/voz-starseed/__tests__/ovsvoice.test.ts`; falta el mapeo de prosodia a OmniVoice, la conexión en la UI y mezclar mem0/grafo con `memories`.)
 - Auth del backend (`X-Astraura-Key` para TODO) y quitar RCE sin clave; entonces cablear terminal/explorador.
 - ✅ Hecho (`c935e9d08`, kit local en `src/components/astraura/s158/instalador-tab.tsx` y acción «Recompilar bitnet.cpp nativo» en `src/components/astraura/s158/telemetria-tab.tsx` con `buildAstraura158Bitnet` → `/api/bitnet/build` · `4f0af4db9`, `describeAstraura158Engine` lee `engine.models_on_disk` en `src/lib/astraura/astraura-158-client.ts`) Compilar BitNet en la neurona (kit local desde el panel) y leer `engine.models_on_disk` para el chip «BitNet real».
 - Enlazar Vercel `astraura` a GitHub; `min-instances 1` en Cloud Run; CSP enforcing con loopback.
 
-<<<<<<< HEAD
-Revisado el 2026-11-08 contra main (`e8f54b37c`): 1 hecho, 1 a medias, 2 pendientes (VoiceStudio solo tiene el paquete `.ovsvoice`; auth del backend vive en el repo `astraura`, externo; Vercel/Cloud Run son cuentas de Alex y la CSP sigue en `-Report-Only`, verificado en `next.config.ts`).
-=======
-Revisado el 2026-11-08 contra main (`3599b333e`): 2 hechos, 0 a medias, 3 pendientes (auth del backend vive en el repo `astraura`, externo; Vercel/Cloud Run son cuentas de Alex y la CSP sigue en `-Report-Only`, verificado en `next.config.ts`; se agregó navegación `src/lib/aurora/voz-starseed/voice-studio-integration.tsx` para conectar las pestañas de VoiceStudio 1.58 a OmniVoice pero todavía falta el mapeo.)
->>>>>>> 0d9a62367 (salvavidas · CTD1107Db: trabajo del agente antes de las puertas (tsc / vitest))
+Revisado el 2026-11-08 contra main (`035f438c8`): 1 hecho, 1 a medias, 2 pendientes (VoiceStudio solo tiene el paquete `.ovsvoice`; auth del backend vive en el repo `astraura`, externo; Vercel/Cloud Run son cuentas de Alex y la CSP sigue en `-Report-Only`, verificado en `next.config.ts`).
 
 ## 12 · Verificación de la ola
 `tsc --noEmit` 0 · `vitest` (tests nuevos: `primary-system`, `astraura-158` provider puro) · `next build` ✓.
@@ -208,7 +204,7 @@ Revisado el 2026-11-08 contra main (`3599b333e`): 2 hechos, 0 a medias, 3 pendie
 - Rotar claves (`scripts/rotate_keys.py`) y purgar del índice/historial; compactar el memory root (`--apply`); compilar BitNet + GGUF `i2_s` (`scripts/setup_bitnet.sh` + `download_model.py`).
 - El dispositivo de escritorio rechazó el staging (`untrusted_device`): hay que volver a iniciar sesión en la app de Claude para que los archivos se escriban en disco; mientras, se entregan como parches/zip.
 
-Revisado el 2026-11-08 contra main (`e8f54b37c`): 0 hechos, 0 a medias, 4 pendientes (acciones de Alex, se dejan como están).
+Revisado el 2026-11-08 contra main (`035f438c8`): 0 hechos, 0 a medias, 4 pendientes (acciones de Alex, se dejan como están).
 
 ## 14 · OLA 3 — Integración TOTAL: Astraura 1.58 como cerebro operativo del OS (2026-08-22)
 
@@ -486,7 +482,7 @@ use-estado-capas) — ver `memory/state.md` para el recuento exacto de esta ola.
 - No se ejecutó `next build` (regla del área: nunca con el enjambre vivo / prohibido en esta
   tarea) ni se hizo commit/push (worktree de solo trabajo, otro agente integra).
 
-Revisado el 2026-11-08 contra main (`e8f54b37c`): 1 hecho, 0 a medias, 3 pendientes (las pruebas dedicadas G5/G4 siguen sin existir: `router-158-timeout.test.ts` solo comprueba los umbrales de 200 s/120 s y `astraura-158-ws.test.ts` el abort del WebSocket, no un timeout real de 200 s; `detectAvailabilitySafe` solo aparece simulado en `router-solo-gratis.test.ts` y `use-estado-capas.test.tsx`).
+Revisado el 2026-11-08 contra main (`035f438c8`): 1 hecho, 0 a medias, 3 pendientes (las pruebas dedicadas G5/G4 siguen sin existir: `router-158-timeout.test.ts` solo comprueba los umbrales de 200 s/120 s y `astraura-158-ws.test.ts` el abort del WebSocket, no un timeout real de 200 s; `detectAvailabilitySafe` solo aparece simulado en `router-solo-gratis.test.ts` y `use-estado-capas.test.tsx`).
 
 ## 17. Astraura por la malla P2P (Ola 367 · 2026-09-26)
 
@@ -594,7 +590,7 @@ peer, cancelar aborta el fetch —, rol cliente con peer de mentira — streamin
 - No se ejecutó `next build` (regla del área) ni se hizo commit/push (worktree de trabajo, otro
   agente integra).
 
-Revisado el 2026-11-08 contra main (`e8f54b37c`): 0 hechos, 0 a medias, 3 pendientes (pide dos dispositivos físicos reales, se deja como está).
+Revisado el 2026-11-08 contra main (`035f438c8`): 0 hechos, 0 a medias, 3 pendientes (pide dos dispositivos físicos reales, se deja como está).
 
 ## 18. IA por la malla, para CUALQUIER modelo (Ola 368 · 2026-09-26)
 
@@ -740,7 +736,7 @@ campo nuevo está ausente) y `use-estado-capas.test.tsx` (`rutaUsaMalla`).
 - No se ejecutó `next build` (regla del área) ni se hizo commit/push (worktree de trabajo, otro
   agente integra).
 
-Revisado el 2026-11-08 contra main (`e8f54b37c`): 0 hechos, 0 a medias, 4 pendientes (pide dos neuronas físicas reales y timings de red, se deja como está).
+Revisado el 2026-11-08 contra main (`035f438c8`): 0 hechos, 0 a medias, 4 pendientes (pide dos neuronas físicas reales y timings de red, se deja como está).
 
 ## 19. Capas de conciencia por personalidad y agente · local preferente (Ola 1003 · 2026-10-03)
 

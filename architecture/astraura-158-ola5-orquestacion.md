@@ -19,7 +19,7 @@ Las olas 3 y 4 trajeron los DATOS y las pestañas. Lo que el original tiene y el
 | **Orquestación autónoma** | Director que enruta entregables a proyectos/cerebros y renueva tareas | Controles sí; visión de conjunto no → ✅ Hecho (`1ff833a25`, Director Metis y tronco dual en `src/components/astraura/s158/orquestacion-tab.tsx`) |
 | **Presencia en todo el OS** | La orbe y el Exocórtex saben qué está pasando de fondo | La orbe/Exocórtex no lo muestran → ✅ Hecho (`1ff833a25`, `Astraura158PresenceBar` / `Astraura158PresenceDot` en `src/components/astraura/astraura-158-presence.tsx`) |
 
-Revisado el 2026-11-08 contra main (`c93279645`): 9 hechos, 0 a medias, 0 pendientes.
+Revisado el 2026-11-08 contra main (`035f438c8`): 9 hechos, 0 a medias, 0 pendientes.
 
 ## 1 · Ventana universal de entidad (`Astraura158Window`)
 
