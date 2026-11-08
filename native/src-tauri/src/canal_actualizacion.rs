@@ -211,7 +211,8 @@ pub async fn buscar(app: &AppHandle, avisar: Avisar<'_>) -> Result<Option<tauri_
             }
         }
     }
-    if encontradas.is_empty() && !alguna_respondio {
+    // Sin nada encontrado y con algún canal inalcanzable no se puede decir «al día»: se informa del fallo.
+    if encontradas.is_empty() && (!alguna_respondio || agotado) {
         return Err(ultimo_error);
     }
     let mayor = logica::indice_mayor(encontradas.iter().map(|u| u.version.as_str()));
