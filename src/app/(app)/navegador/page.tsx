@@ -1,6 +1,7 @@
 "use client";
 
 import BrowserWindows from "@/components/browser/browser-windows";
+import { IndicadorInternetMalla } from "@/components/browser/indicador-internet-malla";
 
 export default function NavegadorPage() {
     return (
@@ -21,6 +22,8 @@ export default function NavegadorPage() {
                     · externo) para proxy/render, y tu VPN, DNS, cookies, caché e historial.
                     Astraura/Aurora pueden conducir la navegación real vía Claude-in-Chrome.
                 </p>
+                {/* PTA1108B: «Internet por: …» solo mientras el navegador sale por una puerta de la malla */}
+                <IndicadorInternetMalla className="mb-4" />
                 <BrowserWindows />
             </div>
         </main>

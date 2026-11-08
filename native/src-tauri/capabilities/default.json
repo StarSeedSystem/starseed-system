@@ -195,6 +195,8 @@
     "allow-llamada-nativa-ruta-audio",
     "allow-llamada-nativa-proximidad",
     "allow-llamada-nativa-capacidades",
-    "allow-llamada-nativa-permiso"
+    "allow-llamada-nativa-permiso",
+    "allow-puerta-proxy-local",
+    "allow-puerta-proxy-estado"
   ]
 }
