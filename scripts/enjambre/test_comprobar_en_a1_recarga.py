@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 """Prueba de recarga de `comprobar_en_a1` (SUP0811H, 22.ª pasada).
 
-El orquestador tomaba el módulo recargado con `sys.modules.get(...).get(...)`:
-un módulo no tiene `.get`, así que en cada arranque caía al `except` con el
-aviso «fallo al recargar comprobar_en_a1». Aquí se carga el orquestador como
-hacen las demás pruebas de `scripts/enjambre`, con un módulo de mentira en un
-ROOT temporal, y se comprueba que la recarga entrega la función del módulo
-(sin avisos) y que los cambios y las sin-cambios se comportan como se espera.
+El orquestador toma el módulo recargado con `sys.modules` y devuelve su `comprobar`
+atributo con `getattr` tras recargar/importar, evitando el AttributeError de
+`.get()`. Se carga el orquestador como hacen las demás pruebas de `scripts/enjambre`,
+con un módulo de mentira en un ROOT temporal, y se comprueba que la recarga entrega
+la función del módulo (sin avisos) y que los cambios y las sin-cambios se comportan
+como se espera.
 """
 import importlib.util
 import os
