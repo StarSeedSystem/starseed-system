@@ -11,8 +11,15 @@
 
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useState, useSyncExternalStore } from "react";
+import Link from "next/link";
 import { ArrowUpRight, CheckCircle2, ExternalLink, Loader2, RefreshCw } from "lucide-react";
+
+import { accionPrincipal, filasVersion, RUTA_VERSION } from "@/components/actualizaciones/seccion-version";
+import { Progress } from "@/components/ui/progress";
+import { etiquetaFase, leerEstadoVivo, ocupado, pedirActualizar, suscribirEstadoVivo } from "@/lib/actualizaciones/estado-vivo";
+import { leerInstalada, type Instalada } from "@/lib/actualizaciones/version-por-medio";
+import { EVENTO_BUSCAR_ACTUALIZACION } from "@/lib/neurons/pedir-actualizacion";
 
 import type { AssetRelease, ReleaseOficial } from "@/lib/apps-oficiales/apps-oficiales";
 import { OS_RELEASES_ULTIMA_URL } from "@/lib/install/instalar-os-logica";
@@ -138,6 +145,60 @@ function EstadoActualizacion({ ultima }: { ultima: VersionNormalizada }) {
     );
 }
 
+/**
+ * (ACT1108B) El estado REAL de la actualización de ESTA app (el mismo que Ajustes › Versión y actualizaciones y la
+ * ventana «Hay una versión nueva»): versión y canal de la app, progreso, errores con «Reintentar» y el botón que
+ * ejecuta el flujo de verdad. Antes «Actualizar» lanzaba un evento que nadie escuchaba y no pasaba nada.
+ * Solo en las apps nativas; en la web y la PWA la versión nueva llega sola y se dice.
+ */
+function EstadoEnVivo() {
+    const vivo = useSyncExternalStore(suscribirEstadoVivo, leerEstadoVivo, leerEstadoVivo);
+    const [inst, setInst] = useState<Instalada | null>(null);
+    useEffect(() => {
+        let activo = true;
+        void leerInstalada()
+            .then((i) => activo && setInst(i))
+            .catch(() => undefined);
+        return () => {
+            activo = false;
+        };
+    }, []);
+    if (!inst) return null;
+    const nativa = inst.medio === "escritorio" || inst.medio === "android";
+    if (!nativa) {
+        return (
+            <p className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 text-sm text-muted-foreground">
+                En la web y en la app web instalada la versión nueva llega sola. Las apps de escritorio y de Android se actualizan desde aquí.
+            </p>
+        );
+    }
+    const accion = accionPrincipal(vivo, inst.medio);
+    const trabajando = ocupado(vivo);
+    const filas = filasVersion(inst).filter((f) => f.etiqueta === "Versión instalada" || f.etiqueta === "Canal");
+    return (
+        <div className="flex flex-col gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-3" data-testid="estado-en-vivo" aria-live="polite">
+            <p className="text-sm text-foreground/85">
+                {filas.map((f) => `${f.etiqueta}: ${f.valor}`).join(" · ")} · <span className="font-semibold">{etiquetaFase(vivo.fase)}</span>
+            </p>
+            {vivo.mensaje && <p role="status" className={vivo.fase === "error" ? "text-sm text-red-400" : "text-sm text-foreground/85"}>{vivo.mensaje}</p>}
+            {vivo.fase === "descargando" && <Progress value={vivo.progreso ?? 0} aria-label="Progreso de la descarga" />}
+            <div className="flex flex-wrap items-center gap-3">
+                <button
+                    type="button"
+                    disabled={trabajando || vivo.fase === "descargando"}
+                    onClick={() => (accion.tipo === "actualizar" ? pedirActualizar({ origen: "libreria" }) : window.dispatchEvent(new CustomEvent(EVENTO_BUSCAR_ACTUALIZACION)))}
+                    className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-full bg-trinity-amber px-5 text-sm font-semibold text-slate-950 hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-trinity-amber"
+                >
+                    {trabajando ? <Loader2 className="h-4 w-4 motion-safe:animate-spin" aria-hidden /> : <RefreshCw className="h-4 w-4" aria-hidden />} {accion.texto}
+                </button>
+                <Link href={RUTA_VERSION} className={CLASE_ENLACE}>
+                    Ajustes › Versión y actualizaciones
+                </Link>
+            </div>
+        </div>
+    );
+}
+
 function Historial({ versiones }: { versiones: VersionNormalizada[] }) {
     const id = useId();
     const vistas = versiones.slice(0, 5);
@@ -188,6 +249,17 @@ export function VersionesOs() {
     const [estado, setEstado] = useState<Estado>({ fase: "cargando" });
     const [intento, setIntento] = useState(0);
     const tituloId = useId();
+    const [esNativa, setEsNativa] = useState(false);
+
+    useEffect(() => {
+        let activo = true;
+        void leerInstalada()
+            .then((i) => activo && setEsNativa(i.medio === "escritorio" || i.medio === "android"))
+            .catch(() => undefined);
+        return () => {
+            activo = false;
+        };
+    }, []);
 
     useEffect(() => {
         let vivo = true;
@@ -277,7 +349,10 @@ export function VersionesOs() {
                 </div>
             )}
 
-            {ultima && <EstadoActualizacion ultima={ultima} />}
+            <EstadoEnVivo />
+
+            {/* En las apps nativas manda el estado real de arriba (la fecha de la web no dice nada de la app). */}
+            {ultima && !esNativa && <EstadoActualizacion ultima={ultima} />}
 
             {/* Archivos por sistema: con datos de la API; si falló o vino vacía, los del botón de instalar. */}
             {estado.fase !== "cargando" && (

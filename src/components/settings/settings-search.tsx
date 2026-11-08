@@ -297,6 +297,17 @@ export const SETTINGS_SEARCH_INDEX: SettingsSearchEntry[] = [
     },
 
     // Cuenta y Sincronización
+    // (ACT1108B) Sección de primer nivel: la versión de la app y buscar/instalar la versión nueva.
+    {
+        id: "version-actualizaciones",
+        label: "Versión y actualizaciones",
+        keywords: ["version", "actualizaciones", "actualizar", "update", "buscar actualizacion", "instalar", "canal de pruebas", "canal", "reiniciar", "novedades", "apk"],
+        tab: "account",
+        description: "Tu versión, el canal (oficial o pruebas), buscar la versión nueva e instalarla.",
+        icon: RefreshCw,
+        category: "Cuenta y Sincronización",
+        anchor: "version-actualizaciones",
+    },
     {
         id: "perfil-identidad",
         label: "Perfil e identidad",

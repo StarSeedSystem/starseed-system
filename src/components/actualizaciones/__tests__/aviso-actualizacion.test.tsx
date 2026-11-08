@@ -36,7 +36,8 @@ import { getPendingNotifications } from "@/lib/notifications/update-notification
 import { AppearanceProvider } from "@/context/appearance-context";
 
 // DialogContent usa useAppearance: como en la app, la ventana vive dentro de su proveedor.
-const pintar = () => render(<AppearanceProvider><AvisoActualizacion /></AppearanceProvider>);
+// (ACT1108B) La búsqueda automática espera ~20 s tras arrancar; aquí, 0 para no esperar de verdad.
+const pintar = () => render(<AppearanceProvider><AvisoActualizacion inicioMs={0} /></AppearanceProvider>);
 
 const VERSIONES = {
   versiones: [

@@ -360,3 +360,64 @@ tauri-utils; es el mismo comparador del updater). Ningún crate se descarga de m
   N+1 y ver los dos caminos.
 - **Choques de integración**: `lib.rs`, `build.rs`, `Cargo.toml` y `capabilities/default.json` también los
   toca NOT1108A; los cambios de ACT1108A son pocos y van marcados.
+
+### 9.9 · «Nada apareció»: causas y arreglo (ACT1108B · 2026-11-08)
+
+Prueba real: 0.5.1-prueba.22 en un Mac y una tablet Android 16, publicada la .23; no salió ninguna ventana,
+«Actualizar» de la Librería no hizo nada y el Mac dijo «Could not fetch a valid release JSON from the remote».
+Ese día `releases/download/…` (y `releases/latest/download/…`) devolvió **504 desde GitHub** mientras
+`api.github.com` respondía bien.
+
+**Causas (comprobadas en el código)**
+1. **La web leía el canal de pruebas por UNA sola ruta, sin reintento y en silencio.** `/api/os/versiones`
+   pedía los manifiestos con `releases/download`; con 504 devolvía `canalPruebas: null`, y para una app de
+   pruebas la «versión que cuenta» pasaba a ser la oficial (más vieja): salía **«al día»** sin avisar.
+2. **El updater de escritorio tenía una sola ruta y sin reintento**, y los fallos se traducían a «nada»:
+   `decidirAviso` ignora un error del updater (no abre ventana, solo lo apunta) y `AvisoActualizacion`
+   tragaba cualquier excepción. Además, con el canal de pruebas caído y el oficial vivo, `buscar` devolvía
+   «al día» (**el falso «ya estás en la última versión»**).
+3. **El botón «Actualizar» de la Librería lanzaba `starseed:actualizar-version` y NADIE lo escuchaba.**
+   Además solo aparecía según la fecha del build de la WEB, que no dice nada de la versión de la app.
+4. **No había sitio donde mirar:** la versión y «Buscar actualización» estaban dentro de Configuración ›
+   Neuronas › Esta neurona. La búsqueda automática existía (Rust a los 25 s y cada 6 h; la web al montar y
+   cada 6 h) pero sin interruptor ni estado visible, y su resultado solo se veía si había ventana.
+5. El **Mac** vio el error crudo del plugin (`ReleaseNotFound`), que es lo que el plugin dice ante cualquier
+   respuesta no válida, incluido un 504.
+
+**Reintentos y ruta alternativa (mismo diseño en Rust, Kotlin y TypeScript)**
+- Rutas: directa (`releases/download/<tag>/<archivo>`) → **API** (`releases/tags/<tag>` o `releases/latest`
+  → id del asset → `releases/assets/<id>` con `Accept: application/octet-stream`; repositorio público, sin
+  token) → directa → API. Pausas 0, 0, 15 s y 40 s (≈ 1 min). Solo con red caída, tiempo agotado, 5xx o 429;
+  una firma inválida o un 404 no se reintentan, y si la API dice que el archivo no existe, ese canal «aún
+  no tiene nada» (no es un fallo).
+- **Escritorio** (`canal_actualizacion_red.rs` + `canal_actualizacion.rs`): el manifiesto se pide con un
+  `updater_builder().endpoints([url de la API]).header("Accept","application/octet-stream")`; el paquete se
+  baja con `Update::download` poniendo `download_url` = URL de la API del asset, y se instala con
+  `Update::install`. **Se eligió esto antes que un segundo manifiesto escrito por el CI** porque no cambia el
+  CI, no puede quedar desfasado del primero y cubre también el manifiesto (un segundo manifiesto en
+  `releases/download` fallaría igual que el primero). Dependencias: `reqwest` y `rustls` (ya estaban en el
+  árbol por tauri-plugin-updater; solo se usan para listar los archivos del Release).
+- **La firma minisign la sigue verificando tauri-plugin-updater sobre los bytes descargados**, vengan por
+  la ruta que vengan: no se tocó ni se desactiva nada.
+- **Android** (`ActualizadorApk.kt`, `conRutas`): igual para los manifiestos y el APK; el SHA-256, el
+  paquete y la firma se comprueban después, sin cambios. `api.github.com` entra en la lista de hosts.
+- **Web** (`rutas-github.ts`, `leer-publicadas.ts`): `/api/os/versiones` lee por directa → API; si el
+  servidor falla, la propia app lee GitHub directo. La respuesta añade `canalPruebasError` cuando el canal
+  no se pudo leer (≠ «aún no hay ninguna prueba»): una app de pruebas nunca dice «al día» en ese caso.
+- **Gancho F7** (`Ruta::Espejo` / `espejos`): una neurona que ya tiene el paquete lo serviría a las demás
+  (red-sin-dependencias.md §7.7). Hoy `rutas_espejo()` devuelve vacío; el reintento ya sabe usarlo.
+
+**Interfaz**
+- **Ajustes › «Versión y actualizaciones»** (`/cuenta#version-actualizaciones`, primera tarjeta de Ajustes y
+  entrada del buscador de Ajustes): versión, canal (oficial / pruebas) y aparato; última comprobación y
+  «Buscar ahora»; progreso; «Instalar y reiniciar» (escritorio) o «Instalar» (Android, con la nota de
+  «Instalar apps desconocidas»); interruptor «Buscar actualizaciones automáticamente» (por defecto sí).
+  El canal no se elige: lo marca la versión instalada (la app de pruebas mira pruebas y oficial).
+- Mismo estado en la ventana «Hay una versión nueva», en Esta neurona (enlace) y en la Librería: el botón
+  «Actualizar» de la entrada de StarSeed OS ahora ejecuta el flujo de verdad y enseña sus estados.
+- Búsqueda automática: ~20 s tras arrancar y cada 6 h (`planificador-auto.ts`); al volver la red si la
+  última falló por no haberla; «Más tarde» deja la versión pendiente en Ajustes/Librería.
+- Errores en español con «Reintentar»: «GitHub no respondió (504). Lo intento por otra ruta…»,
+  «Sin conexión: lo intentaré cuando vuelva la red.» (`errores.ts`).
+- **Sin verificar en aparato real**: el Kotlin (solo compila en el CI de Android) y el flujo completo con un
+  504 de verdad.

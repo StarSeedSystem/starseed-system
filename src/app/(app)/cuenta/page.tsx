@@ -46,6 +46,7 @@ import { DesignSettingsPanel } from "@/components/settings/appearance/design-set
 import { GuideButtonToggle } from "@/components/settings/appearance/guide-button-toggle";
 import { PrivacyPanel } from "@/components/settings/privacy/privacy-panel";
 import { NeuronsPanel } from "@/components/settings/neurons/neurons-panel";
+import { ANCLA_VERSION, SeccionVersion } from "@/components/actualizaciones/seccion-version";
 import { CambiarContrasena } from "@/components/settings/account/cambiar-contrasena";
 import { EditarHandle } from "@/components/settings/account/editar-handle";
 import { AccountSyncPanel } from "@/components/settings/account/account-sync-panel";
@@ -510,6 +511,15 @@ function CuentaContent() {
     const externos = emails.filter((e) => e.kind !== "internal").length;
     return [
       {
+        id: ANCLA_VERSION,
+        icon: RefreshCw,
+        title: "Versión y actualizaciones",
+        summary: "Tu versión, el canal, buscar la versión nueva e instalarla",
+        keywords: "version actualizaciones actualizar update buscar instalar canal pruebas oficial reiniciar novedades app",
+        accent: "text-[#39FF14]",
+        accentBg: "bg-[#39FF14]/10 border-[#39FF14]/20",
+      },
+      {
         id: "info-personal",
         icon: User,
         title: "Información personal",
@@ -705,6 +715,17 @@ function CuentaContent() {
           <p className="text-sm text-muted-foreground col-span-full py-4 text-center">Sin coincidencias para «{query}».</p>
         )}
       </div>
+
+      {/* ═══════════════════ (ACT1108B) VERSIÓN Y ACTUALIZACIONES ═══════════════════ */}
+      <section id={ANCLA_VERSION} className="scroll-mt-6 pt-2 space-y-3">
+        <div>
+          <h2 className="text-base font-semibold mb-1 flex items-center gap-2">
+            <RefreshCw className="w-4 h-4 text-[#39FF14]" /> Versión y actualizaciones
+          </h2>
+          <p className="text-xs text-muted-foreground">La versión de esta app, su canal y la versión nueva: búscala, descárgala e instálala desde aquí.</p>
+        </div>
+        <SeccionVersion />
+      </section>
 
       {/* ═══════════════════════ 1) INFORMACIÓN PERSONAL ═══════════════════════ */}
       <section id="info-personal" className="scroll-mt-6 pt-4">
