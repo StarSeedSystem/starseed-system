@@ -6219,3 +6219,19 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 **Lo que quedó fuera, una por una:**
 - `BZN1108B` — otra cosa
 - `BZN1108C` — otra cosa
+
+## 2026-11-08 16:53 · auto-1108-161716
+
+**Lo que se pidió.** Síntesis diaria · Producción StarSeed
+
+**Resultado.** 1 de 5 integradas. 4 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 3 tareas se fueron por lo mismo — otra cosa (IRD11081, IRD11082, IRD11083). Es 60 % de la ola.
+- sin modelo anotado no integró ninguna de sus 3 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `BZN1108C` — pruebas en rojo: Traceback (most recent call last):
+- `IRD11081` — otra cosa
+- `IRD11082` — otra cosa
+- `IRD11083` — otra cosa
