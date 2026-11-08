@@ -12,6 +12,9 @@
  * Botones (solo en las apps nativas): «Buscar actualizaciones» (solo busca: el mismo camino que la
  * ventana), «Actualizar» (escritorio: descarga e instala con el updater y luego «Reiniciar para
  * aplicar»; Android: el .apk de la misma firma, que se instala encima con los datos donde están).
+ * (ACT1108A · §9) Fila «Canal» si la app es del canal de pruebas («Canal de pruebas · 0.5.1-prueba.23»)
+ * y, en Android, «Instalar la X aquí»: descarga y verificación dentro de la app y el instalador del
+ * sistema (que pide confirmar); sin actualizador interno, el .apk a mano.
  * ════════════════════════════════════════════════════════════════════════════
  */
 
@@ -33,6 +36,8 @@ import {
 } from "@/lib/actualizaciones/ultima-comprobacion";
 import { leerInstalada, type Instalada } from "@/lib/actualizaciones/version-por-medio";
 import { actualizarEscritorio, reiniciarParaActualizar } from "@/lib/nativa/actualizador";
+import { actualizarApkEnApp, instalarApkDescargado, textoEstadoApk } from "@/lib/nativa/actualizador-apk";
+import { etiquetaCanal } from "@/lib/actualizaciones/canal-pruebas";
 import { NOMBRE_MEDIO } from "@/lib/neurons/info-publica";
 import { textoEstadoActualizacion } from "@/lib/pwa/actualizacion-nativa-logica";
 
@@ -56,6 +61,9 @@ export function filasEstaNeurona(inst: Instalada | null, web: VersionWeb | null)
   const i = inst?.info ?? null;
   const nativa = inst && inst.fuente && inst.fuente !== "version.json" ? inst.version : null;
   if (nativa) filas.push({ etiqueta: "Versión de la app", valor: nativa });
+  // (ACT1108A) Solo se dice el canal cuando es el de pruebas (el oficial es lo normal).
+  const canal = nativa ? etiquetaCanal(nativa) : null;
+  if (canal) filas.push({ etiqueta: "Canal", valor: canal });
   if (inst) {
     const app = i?.sistema ? NOMBRE_APP[i.sistema] : undefined;
     filas.push({ etiqueta: "Medio", valor: `${NOMBRE_MEDIO[inst.medio]}${app ? ` · ${app}` : ""}` });
@@ -75,12 +83,16 @@ export function filasEstaNeurona(inst: Instalada | null, web: VersionWeb | null)
 /** Texto de un resultado de «Buscar actualizaciones». Pura. */
 export function textoResultado(r: ResultadoComprobar): string {
   const d = r.decision;
-  if (d.tipo === "ventana") return `StarSeed OS ${d.version} está lista para instalar (tienes la ${r.instalada}).`;
+  if (d.tipo === "ventana") {
+    const canal = r.canal === "pruebas" ? " del canal de pruebas" : "";
+    return `StarSeed OS ${d.version}${canal} está lista para instalar (tienes la ${r.instalada}).`;
+  }
   if (d.tipo === "preparando") return d.texto;
   return d.motivo;
 }
 
-type Fase = "" | "buscando" | "instalando" | "lista";
+/** «instalador»: Android ya tiene el APK verificado; «apk-manual»: queda descargar el .apk a mano. */
+type Fase = "" | "buscando" | "instalando" | "lista" | "instalador" | "apk-manual";
 
 export function EstaNeurona() {
   const [inst, setInst] = useState<Instalada | null>(null);
@@ -153,6 +165,39 @@ export function EstaNeurona() {
     setFase("");
     setResultado(null);
     setMensaje(texto);
+  }, [fase, resultado]);
+
+  // (ACT1108A) Android: descarga y verifica DENTRO de la app y abre el instalador del sistema (que pide
+  // confirmar). Sin el actualizador interno (APK anterior) o si falla, queda el .apk a mano.
+  const actualizarAndroid = useCallback(async () => {
+    if (!resultado || resultado.decision.tipo !== "ventana") return;
+    const apk = resultado.decision.apk;
+    if (fase === "instalador") {
+      const r = await instalarApkDescargado();
+      setMensaje(r.ok ? "Android te pide confirmar: pulsa «Instalar». Tus datos se quedan donde están." : r.motivo);
+      return;
+    }
+    setFase("instalando");
+    setMensaje("Buscando la versión nueva…");
+    const r = await actualizarApkEnApp({ onEstado: (e) => setMensaje(textoEstadoApk(e)) });
+    if (r.estado === "sin-actualizador") {
+      setFase("apk-manual");
+      setMensaje("Esta app no trae el actualizador interno: descarga el .apk de la misma firma y ábrelo.");
+      return;
+    }
+    if (r.estado === "error") {
+      setFase(apk ? "apk-manual" : "");
+      setMensaje(r.motivo);
+      return;
+    }
+    const f = r.final;
+    if (f.fase === "al-dia" && apk && resultado.canal !== "pruebas") {
+      setFase("apk-manual"); // el canal oficial aún no publica el manifiesto del APK
+      setMensaje("Descarga el .apk de la misma firma y ábrelo: se instala encima, con tus datos donde están.");
+      return;
+    }
+    setMensaje(textoEstadoApk(f));
+    setFase(f.fase === "error" ? (apk ? "apk-manual" : "") : f.fase === "al-dia" || f.fase === "instalada" ? "" : "instalador");
   }, [fase, resultado]);
 
   const filas = filasEstaNeurona(inst, web);
@@ -230,7 +275,13 @@ export function EstaNeurona() {
                 {fase === "lista" ? "Reiniciar para aplicar" : `Actualizar a la ${ofrecida.version}`}
               </Button>
             )}
-            {ofrecida && inst?.medio === "android" && ofrecida.apk && (
+            {ofrecida && inst?.medio === "android" && fase !== "apk-manual" && (
+              <Button size="sm" className="cursor-pointer" onClick={() => void actualizarAndroid()} disabled={fase === "instalando"}>
+                {fase === "instalando" ? <Loader2 className="mr-1 h-4 w-4 animate-spin" aria-hidden /> : <Download className="mr-1 h-4 w-4" aria-hidden />}
+                {fase === "instalador" ? "Abrir el instalador" : `Instalar la ${ofrecida.version} aquí`}
+              </Button>
+            )}
+            {ofrecida && inst?.medio === "android" && fase === "apk-manual" && ofrecida.apk && (
               <Button asChild size="sm" className="cursor-pointer">
                 <a href={ofrecida.apk} target="_blank" rel="noopener noreferrer">
                   <Download className="mr-1 h-4 w-4" aria-hidden /> Descargar la {ofrecida.version} (.apk)
@@ -252,7 +303,10 @@ export function EstaNeurona() {
           </p>
         )}
         {ofrecida && inst?.medio === "android" && (
-          <p className="text-[10px] text-muted-foreground">El .apk es de la misma firma: ábrelo y se instala encima, con tus datos donde están.</p>
+          <p className="text-[10px] text-muted-foreground">
+            Se descarga y se comprueba dentro de la app (o, en una app anterior, como .apk). Android siempre te pide confirmar «Instalar». Es la
+            misma firma: se instala encima, con tus datos donde están.
+          </p>
         )}
       </CardContent>
     </Card>

@@ -13,6 +13,7 @@ import { decidirActualizacionAndroid } from "@/lib/nativa/actualizador-android";
 import { buscarActualizacionNativa } from "@/lib/nativa/info-neurona";
 import { esVersionMasNueva, esVersionSemver } from "@/lib/version/os-release";
 import type { VersionPublicada } from "@/lib/version/versiones-publicadas";
+import { canalDe, canalPruebasDesdeApi, elegirPublicada, type Canal, type CanalPruebas } from "./canal-pruebas";
 
 export interface ResultadoComprobar {
   medio: Medio;
@@ -22,6 +23,8 @@ export interface ResultadoComprobar {
   /** Fecha y notas de la versión que se ofrecería (de la lista o del canal del updater). */
   fecha: string;
   notas: string;
+  /** (ACT1108A) Canal de la versión ofrecida: «pruebas» solo para las apps del canal de pruebas. */
+  canal?: Canal;
 }
 
 export interface OpcionesComprobar {
@@ -42,21 +45,39 @@ export async function comprobarActualizacion(opciones: OpcionesComprobar = {}): 
     return sin({ tipo: "nada", motivo: "No se sabe la versión instalada de esta app." });
   }
   let ultima: VersionPublicada | undefined;
+  let pruebas: CanalPruebas | null = null;
   try {
     const res = await fetch("/api/os/versiones", { cache: "no-store" });
     if (res.ok) {
-      const datos = (await res.json()) as { versiones?: VersionPublicada[] };
+      const datos = (await res.json()) as { versiones?: VersionPublicada[]; canalPruebas?: CanalPruebas | null };
       ultima = Array.isArray(datos?.versiones) ? datos.versiones[0] : undefined;
+      // (ACT1108A) Solo cuenta para las apps del canal de pruebas (elegirPublicada lo decide).
+      pruebas = canalPruebasDesdeApi(datos?.canalPruebas);
     }
   } catch {
     ultima = undefined;
   }
-  if (!ultima) {
+  if (!ultima && !(pruebas && canalDe(instalada) === "pruebas")) {
     const motivo = "No se pudo leer la lista de versiones publicadas (¿sin conexión?).";
     guardarUltimaComprobacion({ resultado: "error", instalada, publicada: null, texto: motivo });
     return sin({ tipo: "nada", motivo });
   }
-  const publicada = limpiarVersion(ultima.version) || null;
+  // (ACT1108A) La versión que cuenta para ESTA app: la oficial o, en una app de pruebas, la mayor
+  // entre la oficial y la de su canal (0.5.1-prueba.24 > 0.5.1-prueba.23; la 0.5.1 oficial gana a ambas).
+  const apkOficial = ultima
+    ? decidirActualizacionAndroid(instalada, {
+        tag_name: ultima.version,
+        assets: (ultima.archivos?.os?.android ?? []).map((a) => ({ name: a.nombre, browser_download_url: a.href })),
+      }).href
+    : null;
+  const elegida = elegirPublicada({
+    medio,
+    instalada,
+    oficial: ultima ? { version: ultima.version, fecha: ultima.fecha, notas: ultima.notas, apk: apkOficial } : null,
+    pruebas,
+  });
+  const canal: Canal = elegida.canal;
+  const publicada = limpiarVersion(elegida.version) || null;
   const vistas = opciones.forzar ? {} : (opciones.vistas ?? {});
   const nueva = !!publicada && esVersionSemver(publicada) && esVersionMasNueva(publicada, instalada);
   if (!nueva || (!opciones.forzar && publicada && vistas[publicada])) {
@@ -81,10 +102,8 @@ export async function comprobarActualizacion(opciones: OpcionesComprobar = {}): 
       fechaUpdater = b.busqueda.fecha;
     } else updater = b.estado === "sin-comando" ? { estado: "sin-comando" } : { estado: "error", motivo: b.motivo };
   } else {
-    apk = decidirActualizacionAndroid(instalada, {
-      tag_name: ultima.version,
-      assets: (ultima.archivos?.os?.android ?? []).map((a) => ({ name: a.nombre, browser_download_url: a.href })),
-    }).href;
+    // El .apk de la versión elegida (oficial: el del Release; pruebas: el de latest-prueba-android.json).
+    apk = elegida.apk;
   }
 
   const decision = decidirAviso({ medio, instalada, publicada, vistas, updater, apk, forzar: opciones.forzar });
@@ -97,13 +116,17 @@ export async function comprobarActualizacion(opciones: OpcionesComprobar = {}): 
     return sin(decision, publicada);
   }
   const deLaLista = decision.version === publicada;
-  guardarUltimaComprobacion({ resultado: "nueva", instalada, publicada: decision.version, texto: `StarSeed OS ${decision.version} está lista para instalar.` });
+  // (ACT1108A) El updater de escritorio puede ofrecer una versión de su canal de pruebas.
+  const canalOfrecido: Canal = deLaLista ? canal : canalDe(decision.version);
+  const etiqueta = canalOfrecido === "pruebas" ? `${decision.version} (canal de pruebas)` : decision.version;
+  guardarUltimaComprobacion({ resultado: "nueva", instalada, publicada: decision.version, texto: `StarSeed OS ${etiqueta} está lista para instalar.` });
   return {
     medio,
     instalada,
     publicada,
     decision,
-    fecha: (deLaLista ? ultima.fecha : fechaUpdater?.slice(0, 10)) ?? "",
-    notas: (deLaLista ? ultima.notas : notasUpdater) ?? "",
+    fecha: (deLaLista ? elegida.fecha : fechaUpdater?.slice(0, 10)) ?? "",
+    notas: (deLaLista ? elegida.notas : notasUpdater) ?? "",
+    canal: canalOfrecido,
   };
 }

@@ -1,5 +1,11 @@
 import { OS_VERSION, OS_FECHA, OS_NOTAS } from "@/lib/version/os-release";
 import { desdeReleases, desdeReleasesFallback, type ReleaseGithub } from "@/lib/version/versiones-publicadas";
+import {
+  sanearCanalPruebas,
+  URL_MANIFIESTO_PRUEBAS,
+  URL_MANIFIESTO_PRUEBAS_ANDROID,
+  type CanalPruebas,
+} from "@/lib/actualizaciones/canal-pruebas";
 
 const REPO = "StarSeedSystem/starseed-system";
 const URL_RELEASES = `https://api.github.com/repos/${REPO}/releases?per_page=20`;
@@ -60,8 +66,31 @@ function guardarFallo(ahora: number): { releases: ReleaseGithub[]; githubFallido
   return { releases, githubFallido: true };
 }
 
+// (ACT1108A) Canal de pruebas de las apps nativas: los dos manifiestos de la prerelease fija
+// `canal-pruebas` (sus enlaces de descarga, no la API: no gastan cuota). Solo lo usan las apps cuya
+// versión lleva «-prueba.»; la lista `versiones` (oficial) no cambia. Contrato centro-versiones §9.
+let cachePruebas: { datos: CanalPruebas | null; generado: number; ok: boolean } | null = null;
+
+async function leerJsonPublico(url: string): Promise<unknown> {
+  try {
+    const r = await fetch(url, { headers: { Accept: "application/json, application/octet-stream" } });
+    return r.ok ? await r.json() : null;
+  } catch {
+    return null;
+  }
+}
+
+async function obtenerCanalPruebas(): Promise<CanalPruebas | null> {
+  const ahora = Date.now();
+  if (cachePruebas && ahora - cachePruebas.generado < (cachePruebas.ok ? CACHE_MS : CACHE_FALLBACK_MS)) return cachePruebas.datos;
+  const [escritorio, android] = await Promise.all([leerJsonPublico(URL_MANIFIESTO_PRUEBAS), leerJsonPublico(URL_MANIFIESTO_PRUEBAS_ANDROID)]);
+  const datos = sanearCanalPruebas(escritorio, android);
+  cachePruebas = { datos, generado: ahora, ok: datos !== null };
+  return datos;
+}
+
 export async function GET(): Promise<Response> {
-  const { releases, githubFallido } = await obtenerReleases();
+  const [{ releases, githubFallido }, canalPruebas] = await Promise.all([obtenerReleases(), obtenerCanalPruebas()]);
 
   let versiones = desdeReleases(releases);
   let aviso: string | undefined;
@@ -78,6 +107,7 @@ export async function GET(): Promise<Response> {
   const respuesta = {
     versiones,
     generadoEn: new Date().toISOString(),
+    canalPruebas,
     ...(aviso && { aviso }),
   };
 

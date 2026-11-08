@@ -225,24 +225,47 @@ export function nativeInstallerAssetsFor(
  * dependencia. Partes no numéricas cuentan como 0 (nunca lanza).
  */
 
-/** Compara dos versiones tipo "1.2.3" (con o sin prefijo "v"). */
+/**
+ * Compara dos versiones tipo "1.2.3" (con o sin prefijo "v").
+ * (ACT1108A) Con la prerelease de semver: a igual núcleo, la versión SIN prerelease es mayor y dos
+ * prereleases se comparan por identificadores (números como números): 0.5.0 < 0.5.1-prueba.9 <
+ * 0.5.1-prueba.23 < 0.5.1 — lo mismo que el updater de Tauri. Antes «0.5.1-prueba.23» se leía como
+ * 0.5.1.23 y salía MAYOR que la 0.5.1 oficial. El «+build» no cuenta.
+ */
 export function compararVersiones(a: string, b: string): number {
-  const partes = (v: string): number[] =>
-    String(v ?? "")
-      .trim()
-      .replace(/^v/i, "")
-      .split(".")
-      .map((p) => {
-        const n = parseInt(p, 10);
-        return Number.isFinite(n) ? n : 0;
-      });
-  const pa = partes(a);
-  const pb = partes(b);
-  const largo = Math.max(pa.length, pb.length);
+  const dividir = (v: string): { nucleo: number[]; pre: string[] } => {
+    const limpio = String(v ?? "").trim().replace(/^v/i, "").split("+")[0];
+    const guion = limpio.indexOf("-");
+    const nucleo = (guion >= 0 ? limpio.slice(0, guion) : limpio).split(".").map((p) => {
+      const n = parseInt(p, 10);
+      return Number.isFinite(n) ? n : 0;
+    });
+    const pre = guion >= 0 ? limpio.slice(guion + 1).split(".").filter(Boolean) : [];
+    return { nucleo, pre };
+  };
+  const pa = dividir(a);
+  const pb = dividir(b);
+  const largo = Math.max(pa.nucleo.length, pb.nucleo.length);
   for (let i = 0; i < largo; i++) {
-    const x = pa[i] ?? 0;
-    const y = pb[i] ?? 0;
+    const x = pa.nucleo[i] ?? 0;
+    const y = pb.nucleo[i] ?? 0;
     if (x !== y) return x > y ? 1 : -1;
+  }
+  if (!pa.pre.length || !pb.pre.length) return pa.pre.length === pb.pre.length ? 0 : pa.pre.length ? -1 : 1;
+  for (let i = 0; i < Math.max(pa.pre.length, pb.pre.length); i++) {
+    const x = pa.pre[i];
+    const y = pb.pre[i];
+    if (x === undefined) return -1;
+    if (y === undefined) return 1;
+    const nx = /^\d+$/.test(x);
+    const ny = /^\d+$/.test(y);
+    if (nx && ny) {
+      if (Number(x) !== Number(y)) return Number(x) > Number(y) ? 1 : -1;
+    } else if (nx !== ny) {
+      return nx ? -1 : 1; // los numéricos van antes que los alfanuméricos
+    } else if (x !== y) {
+      return x > y ? 1 : -1;
+    }
   }
   return 0;
 }
