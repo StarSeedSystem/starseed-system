@@ -42,6 +42,7 @@ import { VersionNeurona } from "@/components/neurons/version-neurona";
 import { EstadoServidorLocal } from "@/components/nativa/estado-servidor-local";
 import { PrecargaSinInternet } from "./precarga-sin-internet";
 import { AjusteEnlaceWifi } from "./ajuste-enlace-wifi";
+import { AjustePuertaInternet } from "./ajuste-puerta-internet";
 import { AjusteCifradoRedLocal } from "./ajuste-cifrado-red-local";
 
 /* ── Icono por tipo de dispositivo ── */
@@ -209,6 +210,9 @@ export function NeuronsPanel() {
 
       {/* (CIF1108A) Medios: «Exigir cifrado en la red local» (apagado por defecto). Solo app nativa. */}
       <AjusteCifradoRedLocal />
+
+      {/* (PTA1108A) Medios: internet compartido por la malla (mis neuronas ON; otras cuentas «Preguntar»). Solo app nativa. */}
+      <AjustePuertaInternet />
 
       {/* Voz de ESTA neurona (Adenda 87): elección nube/local por dispositivo,
           que ordena la cadena de voz de este equipo, con el instalador local. */}

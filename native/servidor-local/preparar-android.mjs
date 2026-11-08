@@ -43,7 +43,7 @@ const RAIZ_REPO = path.resolve(AQUI, "..", "..");
 const SRC_TAURI = path.join(RAIZ_REPO, "native", "src-tauri");
 
 /** Lo que el envoltorio necesita a su lado (lo mismo que copia preparar.mjs; una prueba lo vigila). */
-export const ARCHIVOS_ENVOLTORIO = ["starseed-arranque.cjs", "migracion-origen.js", "guarda.cjs"];
+export const ARCHIVOS_ENVOLTORIO = ["starseed-arranque.cjs", "migracion-origen.js", "guarda.cjs", "puerta.cjs"];
 export const KOTLIN = ["ServidorLocal.kt", "ServidorLocalLogica.kt"];
 export const PAQUETE_KOTLIN = "app/starseed/nativa";
 export const DIR_ASSETS = "servidor-local";

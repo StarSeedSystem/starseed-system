@@ -1,5 +1,7 @@
 import { createBrowserClient } from "@supabase/ssr";
 import { fetchGuardado } from "@/lib/consumo/guardian";
+// PTA1108A: sin salida propia, las peticiones a Supabase caen por una puerta de la malla (transparente; sin respaldo registrado es el mismo fetch).
+import { fetchConPuerta } from "@/lib/malla/puerta/fetch-puerta";
 import { ahorrarAuth, type AuthAhorrable } from "@/lib/consumo/auth-ahorro";
 
 // Advertencia única (por sesión de navegador) si faltan las envs públicas de
@@ -45,7 +47,7 @@ function buildClient() {
             // auth, almacenamiento, funciones— pasa por el guardián: cortacircuitos ante 402 /
             // «restricted», presupuesto por pestaña y por día, y deduplicación. Transparente; en
             // SSR es fetch tal cual. Ver src/lib/consumo/guardian.ts.
-            ...(typeof window !== "undefined" ? { global: { fetch: fetchGuardado } } : {}),
+            ...(typeof window !== "undefined" ? { global: { fetch: fetchConPuerta(fetchGuardado) } } : {}),
         },
     );
 }
