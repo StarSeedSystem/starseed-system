@@ -2936,6 +2936,9 @@ export function reiniciarMotorArchivosCompartidoParaTests(): void {
  */
 export function iniciarMotorArchivosPorMalla(motor: MotorArchivos = motorArchivosCompartido(), etiquetaDePeer?: (deviceId: string) => string | undefined): () => void {
   let activo = true;
+  // (MPT1108B) El cifrado de archivo se abre antes del motor; carga perezosa (evita un ciclo de módulos). Sin cargar, pasa directo.
+  let entrada: ((m: Pick<MotorArchivos, "manejarMensaje">, c: CanalArchivos, d: string | ArrayBuffer, x?: ContextoRecepcion) => void) | null = null;
+  void import("@/lib/malla/recepcion-sellada").then((m) => (entrada = m.recibirArchivo)).catch(() => undefined);
   let unsubMesh: (() => void) | null = null;
   let reintento: ReturnType<typeof setTimeout> | null = null;
   const canalesPorPeer = new Map<string, CanalArchivos>();
@@ -2954,7 +2957,7 @@ export function iniciarMotorArchivosPorMalla(motor: MotorArchivos = motorArchivo
           canal = canalDesdeMesh(mesh, peerId);
           canalesPorPeer.set(peerId, canal);
         }
-        motor.manejarMensaje(canal, data, {
+        (entrada ?? ((m, c, d, x) => m.manejarMensaje(c, d, x)))(motor, canal, data, {
           mismaCuenta: true,
           etiquetaOrigen: etiquetaDePeer?.(peerId),
           nodoId: peerId,

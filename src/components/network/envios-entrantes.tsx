@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { bluetoothDirectoActivo } from "@/lib/malla/bluetooth-directo-motor";
+import { CifradoViasArchivo } from "@/components/network/cifrado-vias-archivo"; // MPT1108B
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { ACENTO, CLASE_ITEM, CLASE_ROTULO, pildoraFantasma } from "@/components/messages/marco/estilos";
 import { tamanoLegible, tipoSeguroPara, vistaPrevia, type VistaPrevia } from "@/lib/mensajeria/neuronas/datos-neurona";
@@ -248,6 +249,7 @@ function Archivo({ a, modo, marcado, onMarcar, local, ia, blob, onCancelar }: Pr
       <span className={cn("text-[10.5px]", a.fase === "error" ? "text-[#ff8a9a]" : a.fase === "completada" ? "text-[#6ee7b7]" : "text-white/60")} role="status">
         {textoFase(a)}
       </span>
+      <CifradoViasArchivo cifradoArchivo={a.cifradoArchivo} repartoVias={a.repartoVias} velocidadBps={a.velocidadBps} verificado={false} />
     </div>
   );
   const casilla = (

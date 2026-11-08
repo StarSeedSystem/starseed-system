@@ -46,6 +46,7 @@ import {
     useArchivoVivo,
 } from "@/lib/mensajeria/neuronas/archivos-neurona";
 import { abrirFlujoNeurona, cerrarFlujoNeurona, useFlujoNeurona, type FlujoAbierto } from "@/lib/mensajeria/neuronas/flujos-neurona";
+import { CifradoViasArchivo } from "@/components/network/cifrado-vias-archivo"; // MPT1108B
 import { llamarANeurona, llamarEnChatMalla, pedirPantalla, type TipoLlamadaNeurona } from "@/lib/mensajeria/neuronas/llamadas-neurona";
 
 const BOTON_TARJETA =
@@ -173,6 +174,8 @@ export function TarjetaArchivo({ m }: { m: MensajeMalla }) {
                 {(fase === "preparando" || fase === "subiendo" || fase === "verificando") && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />}
                 {estadoTexto}
             </p>
+            {/* (MPT1108B) Candado de cifrado de archivo, reparto por vías, velocidad y verificación. */}
+            <CifradoViasArchivo cifradoArchivo={vivo?.cifradoArchivo} repartoVias={vivo?.repartoVias} velocidadBps={viajando ? vivo?.velocidadBps : undefined} verificado={false} /> {/* «Verificado (SHA-256)» ya lo dice la línea de estado de arriba */}
             {(vivo?.motivo || m.archivo?.motivo) && fase !== "verificado" && (
                 <p className="text-[11px] text-white/55">{motivoArchivoLegible(vivo?.motivo ?? m.archivo?.motivo, dir)}</p>
             )}

@@ -86,6 +86,26 @@ describe("tarjeta de archivo", () => {
         expect(archivos.cancelarArchivo).toHaveBeenCalledWith("arch_1");
     });
 
+    it("(MPT1108B) en la burbuja: candado, reparto por vías y velocidad mientras viaja; al acabar sigue el candado y «Verificado (SHA-256)»; aviso con un par antiguo", () => {
+        vivo.actual = { rol: "enviar", fase: "transfiriendo", progreso: 5, trozos: 10, tamano: 2048, inicioMs: 0, actualizadoMs: 0, cifradoArchivo: "archivo", repartoVias: "Red local 72 % · Wi‑Fi directo 20 % · Bluetooth 8 %", velocidadBps: 2 * 1024 * 1024 };
+        const { unmount } = render(<TarjetaArchivo m={msg({ dir: "sale", estado: "confirmado", adjunto })} />);
+        expect(screen.getByTestId("candado-archivo").textContent).toContain("Cifrado de archivo");
+        expect(screen.getByTestId("reparto-vias").textContent).toContain("Red local 72 % · Wi‑Fi directo 20 % · Bluetooth 8 %");
+        expect(screen.getByTestId("velocidad-total").textContent).toBe("2,0 MB/s");
+        expect(screen.queryByTestId("verificado-sha")).toBeNull();
+        unmount();
+        vivo.actual = { rol: "enviar", fase: "completada", progreso: 10, trozos: 10, tamano: 2048, inicioMs: 0, actualizadoMs: 0, cifradoArchivo: "archivo", repartoVias: "Red local 90 % · Bluetooth 10 %", velocidadBps: 2 * 1024 * 1024 };
+        const fin = render(<TarjetaArchivo m={msg({ dir: "sale", estado: "confirmado", adjunto })} />);
+        expect(screen.getByText("Verificado (SHA-256)")).toBeTruthy(); // una sola vez: la línea de estado
+        expect(screen.getByTestId("candado-archivo")).toBeTruthy();
+        expect(screen.queryByTestId("velocidad-total")).toBeNull();
+        fin.unmount();
+        vivo.actual = { rol: "enviar", fase: "transfiriendo", progreso: 5, trozos: 10, tamano: 2048, inicioMs: 0, actualizadoMs: 0, cifradoArchivo: "sin-cifrado-de-archivo" };
+        render(<TarjetaArchivo m={msg({ dir: "sale", estado: "confirmado", adjunto })} />);
+        expect(screen.getByTestId("aviso-sin-cifrado").textContent).toContain("Sin cifrado de archivo");
+        expect(screen.queryByTestId("candado-archivo")).toBeNull();
+    });
+
     it("tras recargar, lo interrumpido se reanuda desde la copia de este aparato", () => {
         const m = msg({ dir: "sale", estado: "confirmado", adjunto, archivo: { fase: "interrumpido", porcentaje: 30 } });
         render(<TarjetaArchivo m={m} />);

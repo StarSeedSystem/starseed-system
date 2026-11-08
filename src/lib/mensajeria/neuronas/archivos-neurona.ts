@@ -152,6 +152,10 @@ export interface VivoArchivo {
     rutaEnlace?: string;
     rutaEnlaceOtro?: string;
     rutaEnlaceVerificada?: boolean | null;
+    /** (MPT1108B) Cifrado de archivo, reparto por vías («Red local 72 % · Bluetooth 8 %») y velocidad total (bytes/s). */
+    cifradoArchivo?: "archivo" | "sin-cifrado-de-archivo";
+    repartoVias?: string;
+    velocidadBps?: number;
 }
 
 /**
@@ -229,6 +233,9 @@ function alProgreso(e: EstadoTransferencia): void {
         ...(e.rutaEnlace ? { rutaEnlace: e.rutaEnlace } : {}),
         ...(e.rutaEnlaceOtro ? { rutaEnlaceOtro: e.rutaEnlaceOtro } : {}),
         ...(e.rutaEnlaceVerificada !== undefined ? { rutaEnlaceVerificada: e.rutaEnlaceVerificada } : {}),
+        ...(e.cifradoArchivo ? { cifradoArchivo: e.cifradoArchivo } : {}),
+        ...(e.repartoVias ? { repartoVias: e.repartoVias } : {}),
+        ...(typeof e.velocidadBps === "number" ? { velocidadBps: e.velocidadBps } : {}),
     };
     vivos.set(e.id, vivo);
     for (const cb of Array.from(oyentesVivos)) {
@@ -491,7 +498,8 @@ async function ofrecerPorMalla(m: MensajeMalla, archivo: Blob, plan: PlanEnvio, 
         const tu = await import("@/lib/malla/transporte-universal");
         const forzado = enlaceForzadoParaArchivo(plan, candidatos);
         const destino = { ...(m.destino ?? {}), ...(forzado ? { enlaceId: forzado } : {}) };
-        const elegido = await tu.canalParaArchivo(destino, archivo.size);
+        // MPT1108B: sellado de punta a punta + todas las vías; el relé solo si los ajustes del chat permiten el servidor y no se forzó un enlace.
+        const elegido = await tu.canalParaArchivo(destino, archivo.size, { permitirRele: !forzado && plan.pasos.some((p) => p.medio === "servidor") });
         if (!elegido.canal) {
             const motivo = elegido.motivo ?? "No hay ningún enlace P2P abierto hacia ese aparato.";
             return { mensaje: cambiarArchivo(m, { fase: "error", motivo }), ok: false, aviso: motivo };

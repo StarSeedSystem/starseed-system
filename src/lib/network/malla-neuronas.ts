@@ -189,6 +189,9 @@ export interface FichaDispositivo {
    * declarado: sin medidas el campo no existe, y las fichas viejas no lo traen.
    */
   voz?: VozNodo;
+  /** (MPT1108B) Capacidades de archivo (`archivo.e2e.v1`, `multitrayecto.v1`) y pública ECDH de cifrado para sellar archivos hacia esta neurona. */
+  archivo?: string[];
+  epub?: JsonWebKey;
 }
 
 /**
@@ -368,6 +371,8 @@ export async function construirFicha(neuron: Neuron | null): Promise<FichaDispos
   const fuentesServibles = capaMeshCompartiendo() ? fuentesListasSnapshot().ids : [];
   // (VZF1015Q) Solo lo medido aquí; sin medidas, la ficha no lleva `voz`.
   const voz = vozDeEstaNeurona(ids.neuronDeviceId);
+  // (MPT1108B) Capacidades de archivo y clave de cifrado en el saludo por WebRTC.
+  const arch = await import("@/lib/malla/archivo-seguro-real").then((m) => m.datosHolaArchivo()).catch(() => null);
   return {
     v: 1,
     syncDeviceId: ids.syncDeviceId,
@@ -384,6 +389,7 @@ export async function construirFicha(neuron: Neuron | null): Promise<FichaDispos
     astrauraLatenciaMs,
     fuentesServibles,
     ...(voz ? { voz } : {}),
+    ...(arch ? { archivo: arch.ar, ...(arch.ep ? { epub: arch.ep } : {}) } : {}),
   };
 }
 
@@ -712,6 +718,8 @@ export function useMallaNeuronas(deps?: {
           }
           if (esMensajeFicha(msg)) {
             setFichas((prev) => ({ ...prev, [deviceId]: fichaRecibida(msg.ficha) }));
+            // (MPT1108B) Capacidades de archivo y clave de cifrado de la neurona de mi cuenta que acaba de saludar.
+            if (msg.ficha.neuronDeviceId) void import("@/lib/malla/archivo-seguro-real").then((m) => m.registrarHolaArchivo(msg.ficha.neuronDeviceId, msg.ficha.archivo, msg.ficha.epub)).catch(() => undefined);
             return;
           }
           // (RDV13) Radar de la otra neurona: guarda su resumen como oído "p2p".
@@ -778,6 +786,15 @@ export function useMallaNeuronas(deps?: {
       if (!m.sid || m.sid === misIds.syncDeviceId) continue;
       ligero.push({ neuronId: `${m.n}#${m.m}`, syncDeviceId: m.sid, online: true, isThisDevice: m.n === misIds.neuronDeviceId && m.sid === misIds.syncDeviceId });
     }
+    // (MPT1108B) Presencia de la cuenta: lo que cada fila de `neuron_devices` publica de archivo (capacidades y clave pública).
+    void import("@/lib/malla/archivo-seguro-real")
+      .then((m) => {
+        for (const n of neuronas) {
+          const c = n.capabilities as { archivo?: unknown; epub?: unknown } | undefined;
+          if (c && (c.archivo || c.epub)) m.registrarFichaPar(n.id, c.archivo, c.epub);
+        }
+      })
+      .catch(() => undefined);
     const peersLite: Record<string, PeerEstadoLite> = {};
     for (const [id, snap] of Object.entries(peers)) peersLite[id] = { state: snap.state };
     const objetivos = decidirAutovinculo(ligero, peersLite);

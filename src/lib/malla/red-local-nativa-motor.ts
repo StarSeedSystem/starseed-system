@@ -24,6 +24,8 @@
  *     momento (una vez por saludo) en vez de irse al servidor por llegar antes del siguiente ciclo.
  */
 
+import { recibirArchivo } from "@/lib/malla/recepcion-sellada";
+import { datosHolaArchivoYa, registrarHolaArchivo } from "@/lib/malla/archivo-seguro-real";
 import {
   CAIDA_MS,
   FALLOS_PARA_CAIDA,
@@ -572,11 +574,12 @@ export function crearRedNativa(deps: DepsRedNativa): RedNativa {
     } catch {
       certificado = null;
     }
+    const arch = datosHolaArchivoYa(); // MPT1108B: sin esperar (la clave se calienta aparte)
     await firmarYEnviar(
       ip,
       puerto,
       "nl.hola",
-      holaNativa({ de: yo, para: neurona, limites: misLimites, webrtc: deps.webrtc(), resp, ts, cta, ...(propio() ? { cif: VERSION_CIFRADO } : {}), certificado }),
+      holaNativa({ de: yo, para: neurona, limites: misLimites, webrtc: deps.webrtc(), resp, ts, cta, ...(propio() ? { cif: VERSION_CIFRADO } : {}), certificado, ...arch }),
     );
   }
 
@@ -694,6 +697,7 @@ export function crearRedNativa(deps: DepsRedNativa): RedNativa {
       ...(ac.porCuenta ? { porCuenta: true } : {}),
       ...(h.cif ? { cif: h.cif } : {}),
     });
+    registrarHolaArchivo(h.de.neurona, h.ar, h.ep); // MPT1108B: capacidades de archivo y clave de cifrado del saludo firmado
     delete caidas[ip];
     ultimoRechazo = null;
     despertar(h.de.neurona);
@@ -1199,7 +1203,7 @@ async function depsReales(): Promise<DepsRedNativa> {
     entregarArchivo: (canal, texto, etiquetaOrigen, quien) => {
       void import("@/lib/network/archivos-malla")
         .then((am) =>
-          am.motorArchivosCompartido().manejarMensaje(canal, texto, {
+          recibirArchivo(am.motorArchivosCompartido(), canal, texto, { // MPT1108B: abre el cifrado de archivo
             mismaCuenta: false,
             etiquetaOrigen,
             verificarPermiso: () => true,
