@@ -203,7 +203,13 @@ fn servidor_local_android() {
 /// de antenas (va aunque STARSEED_SIN_SERVICIO_ANDROID lo apague). Contrato centro-versiones-1105.md §9.
 fn actualizador_android() {
     println!("cargo:rerun-if-changed=src/android_actualizador.rs");
+    println!("cargo:rerun-if-env-changed=STARSEED_SIN_ACTUALIZADOR_ANDROID");
     if std::env::var("CARGO_CFG_TARGET_OS").as_deref() != Ok("android") {
+        return;
+    }
+    // Interruptor de emergencia: sin él el APK sale como antes (la web ofrece el .apk a mano).
+    if std::env::var_os("STARSEED_SIN_ACTUALIZADOR_ANDROID").is_some() {
+        println!("cargo:warning=[starseed] STARSEED_SIN_ACTUALIZADOR_ANDROID: el APK sale SIN actualizador interno.");
         return;
     }
     let paquete = std::env::var("TAURI_ANDROID_PACKAGE_UNESCAPED")

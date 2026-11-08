@@ -346,7 +346,10 @@ tauri-utils; es el mismo comparador del updater). Ningún crate se descarga de m
 - **Android no deja instalar sin la persona**: no hay actualización silenciosa sin ser «propietario del
   dispositivo» o tienda. Si la app no está a la vista, el instalador se abre al volver a ella.
 - **Sin verificar en un aparato real** todavía: el Kotlin (`ActualizadorApk.kt`) solo se compila en el CI
-  de Android; las pruebas de Rust comprueban el parche del manifiesto, que Kotlin y Rust dicen lo mismo y
-  la lógica pura. Primera prueba real: instalar la build de pruebas N, lanzar la N+1 y ver los dos caminos.
+  de Android (y va en el APK de StarSeed OS de LOS DOS canales); las pruebas de Rust comprueban el parche
+  del manifiesto, que Kotlin y Rust dicen lo mismo y la lógica pura. Si el Kotlin rompiera el build de
+  Android, la variable de entorno `STARSEED_SIN_ACTUALIZADOR_ANDROID=1` en el job lo deja fuera (el APK
+  sale como antes y la web ofrece el .apk). Primera prueba real: instalar la build de pruebas N, lanzar la
+  N+1 y ver los dos caminos.
 - **Choques de integración**: `lib.rs`, `build.rs`, `Cargo.toml` y `capabilities/default.json` también los
   toca NOT1108A; los cambios de ACT1108A son pocos y van marcados.
