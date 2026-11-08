@@ -4252,13 +4252,15 @@ def _comprobar_en_a1():
             if ruta not in sys.path:
                 sys.path.insert(0, ruta)
             # Intentar recargar si ya estaba importado; si no, importar por primera vez
+            # (2026-11-08, SUP0811H) El módulo es un objeto `module`: sin `.get`. Se toma de
+            # `sys.modules` tras recargar/importar y se devuelve su `comprobar` con `getattr`.
             if "comprobar_en_a1" in sys.modules:
                 importlib.reload(sys.modules["comprobar_en_a1"])
             else:
-                from comprobar_en_a1 import comprobar
+                importlib.import_module("comprobar_en_a1")
             # Actualizar el mtime visto
             _MTIMES_MODULOS["comprobar_en_a1"] = mtime_ahora
-            return sys.modules.get("comprobar_en_a1", {}).get("comprobar") or comprobar
+            return getattr(sys.modules["comprobar_en_a1"], "comprobar")
         except Exception as e:
             evento("aviso", "", "fallo al recargar comprobar_en_a1: %s" % str(e)[:100])
             # Si falla la recarga, volver a importar la forma normal
