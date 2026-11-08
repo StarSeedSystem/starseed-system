@@ -48,6 +48,7 @@ referencia, estado/persona activa (custom > preset > neutra), y detección de id
 - Cambiar el detector heurístico por **franc** (MIT) cuando se integre la dependencia.
 - Aplicar la referencia de audio real al pipeline de clonación (`refAudio`) de los motores que lo
   soportan (hoy el resolver ya entrega el `audioRef`; falta que cada endpoint lo consuma).
+Revisado el 2026-11-07 contra main (`f8a9802`): solo "Pendiente / próximos pasos": 0 hechos, 0 a medias, 3 pendientes.
 
 Roadmap restante del mega-encargo: descarga de modelos locales en segundo plano + modelos propios por
 API/MCP (item 3); gestión completa por neurona (item 4); seguridad de la 108 (item 5).

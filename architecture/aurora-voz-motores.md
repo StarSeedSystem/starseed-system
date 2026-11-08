@@ -241,14 +241,13 @@ viaja con la cuenta soberana): motor, voz, `auto`, `presetId`, `style` y `engine
 
 - **VoxCPM**: la vía **Gradio** está verificada en vivo (§3.1). Las vías **vLLM-Omni** y
   **Nano-vLLM** están implementadas siguiendo sus READMEs oficiales, pero **no probadas
-  contra un servidor propio** (no hay GPU en este entorno).
+  contra un servidor propio** (no hay GPU en este entorno). (a medias: implementadas en `src/lib/aurora/tts-oss/neural-tts.ts`; falta prueba contra servidor)
 - **Voicebox**: el contrato sale de **leer su código fuente**
   (`backend/routes/generations.py`, `speak.py`, `models.py`, `app.py`) — de ahí salen los
   tres hallazgos duros: `/generate/stream` es la única ruta útil, `profile_id` es
   obligatorio y el CORS por defecto excluye al navegador. **No probado con la app
-  instalada** (no está en esta máquina).
+  instalada** (no está en esta máquina). (a medias: implementado en `src/lib/aurora/tts-oss/voicebox-engine.ts`; falta prueba con app)
 - Ninguno de los dos cambia nada para el usuario **hasta que pegue un endpoint**: sin
   servidor, la cadena ni siquiera los mira y Aurora habla exactamente igual que antes.
-- El **panel de voz** (`src/components/settings/aurora/voice-oss-panel.tsx`) sigue sin
-  montarse en ninguna página (pendiente **P-3**). La API de §6 está lista para que el
-  **Centro de Configuración** (Adenda 67 · P1) la consuma.
+- ✅ Hecho (`f8a9802`, `src/app/(app)/cuenta/page.tsx`): El **panel de voz** (`src/components/settings/aurora/voice-oss-panel.tsx`) sigue sin montarse en ninguna página (pendiente **P-3**). La API de §6 está lista para que el **Centro de Configuración** (Adenda 67 · P1) la consuma.
+Revisado el 2026-11-07 contra main (`f8a9802`): solo §8: 1 hecho, 2 a medias, 0 pendientes.

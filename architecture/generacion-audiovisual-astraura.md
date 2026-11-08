@@ -257,7 +257,7 @@ Este módulo se construyó **sin tocar** `oss-services.ts`, `skills.ts`,
 `aurora-tools.ts` ni `packages.ts` a propósito (evita colisiones con trabajo en
 curso). Lo que falta para que la habilidad quede completamente encendida:
 
-**(a) Capacidad `av-gen` en `skills.ts`** — añadir a `SKILL_CAPABILITIES`
+**(a) ✅ Hecho (`f8a9802`, `src/ai/astraura/skills.ts`): Capacidad `av-gen` en `skills.ts`** — añadir a `SKILL_CAPABILITIES`
 siguiendo el `SkillCapability` existente (`id, label, systemPrompt, routing?,
 skillIds?, packageIds?`), p.ej.:
 
@@ -288,7 +288,7 @@ lista de skills/paquetes preinstalados por defecto (si existe tal lista en
 `packages.ts`) haría además que apareciera activada visualmente en
 `/habilidades` desde el primer momento.
 
-**(b) Tool `generar_imagen` en `aurora-tools.ts`** — **ya existe** (línea ~754,
+**(b) ✅ Hecho (`f8a9802`, `src/lib/integrations/aurora-tools.ts`): Tool `generar_imagen` en `aurora-tools.ts`** — **ya existe** (línea ~754,
 `AURORA_GENERATE_TOOLS`), cableada a `generarImagen()` de
 `service-generation.ts`. Esa función exige un servicio conectado en
 `/servicios`; no tiene red de seguridad gratis. Recomendación: cambiar su `run`
@@ -311,7 +311,7 @@ esperar a que exista una tool de vídeo separada (o seguir usando
 `service-generation.ts` con su honestidad actual, ya que `generateVideo()` de
 este módulo tiene el mismo límite de fondo: sin servicio propio, no hay vídeo).
 
-**(c) Registrar Pollinations / Hugging Face / Muapi en `oss-services.ts`** —
+**(c) ✅ Hecho (`f8a9802`, `src/lib/services/oss-services.ts`): Registrar Pollinations / Hugging Face / Muapi en `oss-services.ts`** —
 por completitud del catálogo de `/servicios` (para que aparezcan con su
 propósito, repo y pistas), siguiendo la interfaz `OssService` existente:
 
@@ -344,6 +344,8 @@ idioma gratis-primero que esta habilidad.
 
 ---
 
+Revisado el 2026-11-07 contra main (`f8a9802`): §9: 3 hechos, 0 a medias, 0 pendientes.
+--- 
 *Adenda 138 · 2026-08-04. Motor (`media-gen.ts`) y panel (`media-gen-panel.tsx`)
 construidos; capacidad `av-gen`, tool `generar_imagen` y catálogo `oss-services.ts`
 pendientes de cableado (§9).*
