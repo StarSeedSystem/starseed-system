@@ -11,6 +11,9 @@ mod android_parche;
 // (ACT1108A) Actualizador interno del APK: descarga, verifica y abre el instalador de Android.
 #[path = "src/android_actualizador.rs"]
 mod android_actualizador;
+// (BLE1108A) Bluetooth directo: permisos, proveedor y BleStarSeed.kt en el proyecto Android.
+#[path = "src/android_ble.rs"]
+mod android_ble;
 
 /// Comandos propios de la app (los de `generate_handler!` de src/lib.rs). Desde tauri 2.11.1 una
 /// página de un origen REMOTO (la web publicada, y también el servidor local http://127.0.0.1:47610…)
@@ -60,6 +63,14 @@ const COMANDOS_APP: &[&str] = &[
     "malla_local_enviar",
     "malla_local_estado",
     "malla_local_recibidos",
+    // (BLE1108A) Bluetooth directo entre neuronas (macOS y Android; en las demás responden que no lo hay).
+    "ble_estado",
+    "ble_abrir",
+    "ble_cerrar",
+    "ble_enviar",
+    "ble_recibidos",
+    "ble_activar",
+    "ble_pedir_permiso",
     // (ACT1108A) Actualizador interno del APK (Android; en escritorio responden «solo Android»).
     "apk_actualizar",
     "apk_estado",
@@ -100,6 +111,8 @@ fn main() {
     medios_android();
     servidor_local_android();
     actualizador_android();
+    // (BLE1108A) Siempre el último: su bloque del manifiesto va detrás de los otros (mismo orden, mismo archivo).
+    bluetooth_android();
     tauri_build::try_build(
         tauri_build::Attributes::new().app_manifest(tauri_build::AppManifest::new().commands(COMANDOS_APP)),
     )
@@ -241,5 +254,41 @@ fn actualizador_android() {
         }
         // Falla en alto: un APK que dice actualizarse solo y no puede abrir el instalador sería una ilusión.
         Err(e) => panic!("[starseed] No se pudo inyectar el actualizador interno del APK: {e}"),
+    }
+}
+
+/// (BLE1108A) Bluetooth directo entre neuronas: permisos (Android 12+ «Dispositivos cercanos»; hasta 11,
+/// ubicación), el proveedor `ArranqueBle` y BleStarSeed.kt. Solo StarSeed OS y con el servicio de antenas
+/// (BleStarSeed.kt carga la librería con `PuenteNativo`). `STARSEED_SIN_BLUETOOTH_ANDROID=1` lo apaga.
+/// Contrato: architecture/bluetooth-directo.md §6.
+fn bluetooth_android() {
+    println!("cargo:rerun-if-changed=src/android_ble.rs");
+    println!("cargo:rerun-if-env-changed=STARSEED_SIN_BLUETOOTH_ANDROID");
+    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() != Ok("android") {
+        return;
+    }
+    let paquete = std::env::var("TAURI_ANDROID_PACKAGE_UNESCAPED")
+        .or_else(|_| std::env::var("WRY_ANDROID_PACKAGE"))
+        .unwrap_or_default();
+    let servicio = android_parche::aplica(&paquete, std::env::var_os("STARSEED_SIN_SERVICIO_ANDROID").is_some());
+    let apagado = android_ble::apagado(std::env::var("STARSEED_SIN_BLUETOOTH_ANDROID").ok().as_deref());
+    if !android_ble::aplica(&paquete, servicio, apagado) {
+        if apagado {
+            println!("cargo:warning=[starseed] STARSEED_SIN_BLUETOOTH_ANDROID: el APK sale SIN Bluetooth directo.");
+        }
+        return;
+    }
+    let Some(proyecto) = std::env::var_os("TAURI_ANDROID_PROJECT_PATH").map(std::path::PathBuf::from) else {
+        println!("cargo:warning=[starseed] Sin TAURI_ANDROID_PROJECT_PATH: el APK sale SIN Bluetooth directo.");
+        return;
+    };
+    match android_ble::aplicar(&proyecto) {
+        Ok(cambiados) => {
+            for c in cambiados {
+                println!("cargo:warning=[starseed] Bluetooth directo: escrito {}", c.display());
+            }
+        }
+        // Falla en alto: un APK que dice llevar Bluetooth directo y no lo lleva sería una ilusión.
+        Err(e) => panic!("[starseed] No se pudo inyectar el Bluetooth directo en Android: {e}. Para compilar sin él: STARSEED_SIN_BLUETOOTH_ANDROID=1"),
     }
 }
