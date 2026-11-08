@@ -14,6 +14,7 @@ import { fetchConPuerta, registrarRespaldoFetch } from "@/lib/malla/puerta/fetch
 import { AJUSTES_PUERTA_POR_DEFECTO } from "@/lib/malla/puerta/politica";
 import { TablaPuertas, crearAnuncioPropio } from "@/lib/malla/puerta/tabla";
 import { atenderEntradas, activarModoLocal, crearAbrirTcpLocal, respaldoFetchLocal, RUTA_LOCAL_PUERTA, type PostLocal } from "@/lib/malla/puerta/puente-local";
+import type { CapaPuerta } from "@/lib/malla/puerta/capas";
 import { crearGestorPuerta, type MetaVecino, type Trama, type TransportePuerta } from "@/lib/malla/puerta/tunel";
 
 const req = createRequire(import.meta.url);
@@ -63,7 +64,7 @@ describe.skipIf(!cert)("integral: fetch → malla → puerta → sitio (TLS de p
     const puertoWeb = (web.address() as { port: number }).port;
 
     // Dos neuronas con sus servidores locales de Node.
-    const nodoA = P.crearPuertaLocal({ tlsOpciones: { ca: (cert as { cert: Buffer }).cert }, permitirPuertoFetch: true });
+    const nodoA = P.crearPuertaLocal({ tlsOpciones: { ca: (cert as { cert: Buffer }).cert } });
     const nodoB = P.crearPuertaLocal();
     cierres.push(() => nodoA.parar(), () => nodoB.parar());
     const A = await servidorLocal(nodoA);
@@ -86,13 +87,16 @@ describe.skipIf(!cert)("integral: fetch → malla → puerta → sitio (TLS de p
       },
     });
     const estadoMac = { conInternet: true, bateria: 0.9, cargando: false, medida: false };
-    const ajMac = { ...AJUSTES_PUERTA_POR_DEFECTO, permitirRedPrivada: true, puertos: [443, puertoWeb] };
+    // PTA1108C: el «sitio» es un servidor PROPIO de la Mac (127.0.0.1:puertoWeb): solo se alcanza por la capa anunciada y concedida.
+    const capaWeb: CapaPuerta = { id: `srv:127.0.0.1:${puertoWeb}`, tipo: "servidor-propio", etiqueta: "Servidor de pruebas", hosts: ["127.0.0.1"], cidrs: ["127.0.0.1/32"], puertos: [puertoWeb], latenciaMs: 2 };
+    const ajMac = { ...AJUSTES_PUERTA_POR_DEFECTO };
     const gMac = crearGestorPuerta({
       transporte: transporte("mac", "tablet"),
       tabla: new TablaPuertas(() => Date.now(), "mac"),
       ajustes: () => ajMac,
       estado: () => estadoMac,
-      anuncioPropio: () => crearAnuncioPropio({ id: "mac", capas: ["internet"], latenciaMs: 15, estado: estadoMac, ahora: Date.now() }),
+      anuncioPropio: () => crearAnuncioPropio({ id: "mac", capas: ["internet"], detalle: [capaWeb], latenciaMs: 15, estado: estadoMac, ahora: Date.now() }),
+      capasPropias: () => [capaWeb],
       abrirTcp: crearAbrirTcpLocal(B.post),
     });
     const tablaTablet = new TablaPuertas(() => Date.now(), "tablet");
@@ -112,7 +116,7 @@ describe.skipIf(!cert)("integral: fetch → malla → puerta → sitio (TLS de p
     const h = atenderEntradas(A.post, gTablet);
     cierres.push(() => h.detener());
     await activarModoLocal(A.post, true, false);
-    const baja = registrarRespaldoFetch(respaldoFetchLocal(A.post, { activo: () => true, hayPuertas: () => tablaTablet.candidatas().length > 0, sinSalida: () => true }));
+    const baja = registrarRespaldoFetch(respaldoFetchLocal(A.post, { activo: () => true, hayPuertas: () => tablaTablet.candidatas().length > 0, sinSalida: () => true, requiereCapa: () => true }));
     cierres.push(baja);
 
     const baseCaido = (async () => {

@@ -19,6 +19,8 @@ export interface RespaldoFetch {
   hayPuertas(): boolean;
   /** El aparato sabe que no tiene salida propia ahora mismo (sin red, o ya falló hace poco). */
   sinSalida(): boolean;
+  /** PTA1108C · El destino es privado (servidor propio, LAN…), esta neurona no lo alcanza y alguna puerta ofrece esa capa: va por la puerta sin probar antes la red propia. */
+  requiereCapa?(url: string): boolean;
   /** Hace la petición por la puerta. Lanza si no se pudo. */
   pedir(url: string, init: RequestInit & { cuerpo?: ArrayBuffer | null }): Promise<Response>;
 }
@@ -71,8 +73,10 @@ export function fetchConPuerta(base: typeof fetch, ahora: () => number = () => D
       return r.pedir(req.url, { method: req.method, headers: req.headers, signal: init?.signal ?? req.signal, cuerpo });
     };
 
+    // PTA1108C · destino de una capa que esta neurona no alcanza: directo por la puerta que la ofrece (nada salió, ni un POST se duplica).
+    const porCapa = r.hayPuertas() && r.requiereCapa?.(url) === true;
     // Ya se sabe que no hay salida: directo por la puerta (nada salió, así que ni un POST se duplica).
-    if (r.hayPuertas() && (r.sinSalida() || caidoHasta > ahora())) {
+    if (r.hayPuertas() && (porCapa || r.sinSalida() || caidoHasta > ahora())) {
       try {
         return await porPuerta();
       } catch (e) {

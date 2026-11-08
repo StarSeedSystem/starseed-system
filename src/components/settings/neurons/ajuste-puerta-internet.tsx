@@ -14,7 +14,17 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import type { ModoOtrasCuentas } from "@/lib/malla/puerta/politica";
-import { cambiarAjustesPuerta, estadoPuerta, pararDeCompartir, responderPregunta, revocarVecina, suscribirPuerta } from "@/lib/malla/puerta/servicio";
+import { cambiarAjustesPuerta, estadoPuerta, pararDeCompartir, permitirCapasANeurona, responderPregunta, revocarVecina, suscribirPuerta } from "@/lib/malla/puerta/servicio";
+import type { CapaPuerta, TipoCapa } from "@/lib/malla/puerta/capas"; // PTA1108C
+
+const NOMBRE_CAPA: Record<TipoCapa, string> = { "servidor-propio": "Servidor propio", lan: "Red local", "router-publico": "Router" };
+
+/** PTA1108C · «Servidor propio · api.casa.lan:8443 · 12 ms». */
+export function resumenCapa(c: CapaPuerta): string {
+  const donde = c.tipo === "lan" ? c.cidrs.join(", ") : [...c.hosts, ...c.cidrs.filter((r) => !r.endsWith("/32"))].slice(0, 2).join(", ") + (c.puertos.length ? `:${c.puertos.join("/")}` : "");
+  const lat = typeof c.latenciaMs === "number" ? ` · ${Math.round(c.latenciaMs)} ms` : "";
+  return `${NOMBRE_CAPA[c.tipo]}${donde ? ` · ${donde}` : ""}${lat}`;
+}
 
 const MODOS: Array<{ id: ModoOtrasCuentas; nombre: string; detalle: string }> = [
   { id: "nunca", nombre: "Nunca", detalle: "Ninguna otra cuenta usa mi internet." },
@@ -90,6 +100,49 @@ export function AjustePuertaInternet() {
           </span>
         </label>
 
+        {/* PTA1108C · Capas distintas de internet: servidores propios, red local y routers. */}
+        <fieldset className="space-y-2" aria-label="Otras capas de red que comparte esta neurona" data-testid="capas-puerta">
+          <legend className="mb-1 font-medium">Otras capas que comparto</legend>
+          <label className="flex cursor-pointer items-start gap-2 rounded-lg border border-white/10 px-3 py-2">
+            <input type="checkbox" checked={a.compartirServidoresPropios} onChange={(e) => cambiarAjustesPuerta((x) => ({ ...x, compartirServidoresPropios: e.target.checked }))} className="mt-1 accent-[#39FF14]" />
+            <span>
+              <span className="font-medium">Compartir mis servidores propios con mis neuronas</span>
+              <span className="block text-xs text-muted-foreground">Una neurona mía fuera de casa llega a mi servidor a través de esta. Solo mi cuenta, solo el servidor y los puertos declarados.</span>
+            </span>
+          </label>
+          <label className="flex cursor-pointer items-start gap-2 rounded-lg border border-white/10 px-3 py-2">
+            <input type="checkbox" checked={a.compartirRedLocal} onChange={(e) => cambiarAjustesPuerta((x) => ({ ...x, compartirRedLocal: e.target.checked }))} className="mt-1 accent-[#39FF14]" />
+            <span>
+              <span className="font-medium">Compartir mi red local con mis neuronas</span>
+              <span className="block text-xs text-muted-foreground">Apagado por defecto. Otras cuentas nunca entran en tu red local salvo que lo permitas neurona por neurona.</span>
+            </span>
+          </label>
+          <p className="text-xs text-muted-foreground" data-testid="capas-propias">
+            {s.capasPropias.length
+              ? `Esta neurona alcanza: ${s.capasPropias.map((c) => `${resumenCapa(c)}${(c.tipo === "lan" ? a.compartirRedLocal : a.compartirServidoresPropios) ? " (compartida)" : " (no compartida)"}`).join("; ")}.`
+              : "Esta neurona no detecta servidores propios ni red local que compartir."}
+          </p>
+          {s.puertas.some((p) => p.capas.length > 0) && (
+            <ul className="space-y-0.5 text-xs text-muted-foreground" data-testid="capas-de-puertas" aria-label="Capas que ofrecen las puertas cercanas">
+              {s.puertas.filter((p) => p.capas.length > 0).map((p) => (
+                <li key={p.id}>
+                  <strong>{p.nombre}</strong> ofrece: {p.capas.map(resumenCapa).join("; ")}
+                </li>
+              ))}
+            </ul>
+          )}
+          {Object.keys(a.capasPorNeurona).length > 0 && (
+            <ul className="space-y-1 text-xs text-muted-foreground" data-testid="permisos-capas">
+              {Object.entries(a.capasPorNeurona).map(([id, tipos]) => (
+                <li key={id} className="flex items-center justify-between gap-2">
+                  <span>{id.slice(0, 8)} (otra cuenta) puede usar: {tipos.map((t) => NOMBRE_CAPA[t]).join(", ")}</span>
+                  <Button size="sm" variant="outline" className="cursor-pointer" onClick={() => permitirCapasANeurona(id, [])}>Retirar</Button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </fieldset>
+
         {s.preguntas.map((p) => (
           <div key={p.id} className="space-y-2 rounded-lg border border-amber-400/40 bg-amber-400/5 px-3 py-2" role="alertdialog" aria-label="Petición de internet de otra cuenta">
             <p>
@@ -118,6 +171,9 @@ export function AjustePuertaInternet() {
                   <span>
                     {c.nombre} · {c.rol === "rele" ? "pasando por aquí" : `hacia ${c.host}`} · {mib(c.bytes)} <Badge variant="outline">{c.grupo === "mias" ? "mi cuenta" : "otra cuenta"}</Badge>
                   </span>
+                  {c.grupo === "otras" && c.rol === "puerta" && !a.capasPorNeurona[c.de] && (
+                    <Button size="sm" variant="outline" className="cursor-pointer" onClick={() => permitirCapasANeurona(c.de, ["servidor-propio", "lan"])}>Permitir mis capas</Button>
+                  )}
                   <Button size="sm" variant="outline" className="cursor-pointer" onClick={() => revocarVecina(c.de)}>Revocar</Button>
                 </li>
               ))}

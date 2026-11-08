@@ -697,7 +697,7 @@ export function crearRedNativa(deps: DepsRedNativa): RedNativa {
       ...(ac.porCuenta ? { porCuenta: true } : {}),
       ...(h.cif ? { cif: h.cif } : {}),
     });
-    registrarHolaArchivo(h.de.neurona, h.ar, h.ep); // MPT1108B: capacidades de archivo y clave de cifrado del saludo firmado
+    registrarHolaArchivo(h.de.neurona, h.ar, h.ep, { certificado: h.certificado, huella: v.huella }); // MPT1108B + PTA1108C: capacidades de archivo y clave de cifrado del saludo firmado
     delete caidas[ip];
     ultimoRechazo = null;
     despertar(h.de.neurona);

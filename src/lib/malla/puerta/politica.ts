@@ -9,6 +9,8 @@
  *  · Las puertas públicas de StarSeed y los routers configurados como públicos cuentan como permitidos.
  */
 
+import type { TipoCapa } from "@/lib/malla/puerta/capas";
+
 export type ModoOtrasCuentas = "nunca" | "preguntar" | "automatico";
 
 export interface TopesCompartir {
@@ -34,8 +36,14 @@ export interface AjustesPuerta {
   topesOtras: TopesCompartir;
   /** Puertos de salida permitidos (por defecto solo 443). */
   puertos: number[];
-  /** Permitir salir a direcciones privadas / de LAN (servidores propios). Apagado por defecto. */
+  /** OBSOLETO desde PTA1108C: ya no abre nada por sí solo. Lo privado solo se alcanza por capas concedidas (`capas.ts`). */
   permitirRedPrivada: boolean;
+  /** PTA1108C · «Compartir mis servidores propios con mis neuronas». ENCENDIDO por defecto. */
+  compartirServidoresPropios: boolean;
+  /** PTA1108C · «Compartir mi red local con mis neuronas». APAGADO por defecto. */
+  compartirRedLocal: boolean;
+  /** PTA1108C · Permiso explícito por neurona (de otra cuenta) a tipos de capa. Nunca por defecto. */
+  capasPorNeurona: Record<string, TipoCapa[]>;
   /** Hosts a los que una cuenta ajena puede llegar en modo «Automático» (vacío = cualquiera público). */
   hostsParaOtras: string[];
   /** Neuronas con acceso revocado. */
@@ -55,6 +63,9 @@ export const AJUSTES_PUERTA_POR_DEFECTO: AjustesPuerta = {
   topesOtras: { bytesDia: 100 * MIB, bateriaMin: 0.4, permitirRedMedida: false, maxTuneles: 4 },
   puertos: [443],
   permitirRedPrivada: false,
+  compartirServidoresPropios: true,
+  compartirRedLocal: false,
+  capasPorNeurona: {},
   hostsParaOtras: [],
   revocadas: [],
   recordadas: {},
@@ -80,6 +91,19 @@ function topes(x: unknown, def: TopesCompartir): TopesCompartir {
 
 const textos = (x: unknown, max: number): string[] =>
   Array.isArray(x) ? x.filter((s): s is string => typeof s === "string" && s.length > 0 && s.length <= 255).slice(0, max) : [];
+
+const TIPOS_VALIDOS: readonly TipoCapa[] = ["servidor-propio", "lan", "router-publico"];
+
+function capasNeurona(x: unknown): Record<string, TipoCapa[]> {
+  const out: Record<string, TipoCapa[]> = {};
+  if (!x || typeof x !== "object") return out;
+  for (const [k, v] of Object.entries(x as Record<string, unknown>).slice(0, 200)) {
+    if (!k || k.length > 80 || !Array.isArray(v)) continue;
+    const tipos = v.filter((t): t is TipoCapa => TIPOS_VALIDOS.includes(t as TipoCapa));
+    if (tipos.length) out[k] = [...new Set(tipos)];
+  }
+  return out;
+}
 
 /** Normaliza lo guardado: cualquier campo que no sirva vuelve a su valor por defecto. */
 export function interpretarAjustes(texto: string | null | undefined): AjustesPuerta {
@@ -107,6 +131,9 @@ export function interpretarAjustes(texto: string | null | undefined): AjustesPue
     topesOtras: topes(o.topesOtras, d.topesOtras),
     puertos: puertos.length ? puertos : [...d.puertos],
     permitirRedPrivada: o.permitirRedPrivada === true,
+    compartirServidoresPropios: typeof o.compartirServidoresPropios === "boolean" ? o.compartirServidoresPropios : d.compartirServidoresPropios,
+    compartirRedLocal: o.compartirRedLocal === true,
+    capasPorNeurona: capasNeurona(o.capasPorNeurona),
     hostsParaOtras: textos(o.hostsParaOtras, 64),
     revocadas: textos(o.revocadas, 200),
     recordadas: rec,

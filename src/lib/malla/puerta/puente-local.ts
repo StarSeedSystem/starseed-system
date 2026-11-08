@@ -11,6 +11,7 @@
 
 import type { GestorPuerta, SocketSalida } from "@/lib/malla/puerta/tunel";
 import type { RespaldoFetch } from "@/lib/malla/puerta/fetch-puerta";
+import type { Concesion } from "@/lib/malla/puerta/capas"; // PTA1108C
 
 export type PostLocal = (accion: string, cuerpo?: BodyInit | null, cabeceras?: Record<string, string>, senal?: AbortSignal) => Promise<Response>;
 
@@ -35,6 +36,18 @@ export async function puertaLocalDisponible(post: PostLocal): Promise<boolean> {
   }
 }
 
+/** PTA1108C · Subredes privadas de las interfaces de esta máquina (las conoce Node). Vacío si no hay lado de Node. */
+export async function leerSubredesLocales(post: PostLocal): Promise<string[]> {
+  try {
+    const r = await post("estado", "{}");
+    if (!r.ok) return [];
+    const j = (await r.json()) as { subredes?: unknown };
+    return Array.isArray(j.subredes) ? j.subredes.filter((x): x is string => typeof x === "string").slice(0, 8) : [];
+  } catch {
+    return [];
+  }
+}
+
 export async function activarModoLocal(post: PostLocal, activo: boolean, proxy = true): Promise<{ activo: boolean; proxy: number | null } | null> {
   try {
     const r = await post("modo", JSON.stringify({ activo, proxy }), { "content-type": "application/json" });
@@ -46,8 +59,9 @@ export async function activarModoLocal(post: PostLocal, activo: boolean, proxy =
 
 /** Esta neurona como puerta: abre el TCP de salida en Node (que valida el DNS y rechaza lo privado). */
 export function crearAbrirTcpLocal(post: PostLocal) {
-  return async function abrirTcp(host: string, port: number, o: { permitirPrivadas: boolean }): Promise<SocketSalida> {
-    const r = await post("tcp", JSON.stringify({ host, port, permitirPrivadas: o.permitirPrivadas }), { "content-type": "application/json" });
+  return async function abrirTcp(host: string, port: number, o: { permitirPrivadas: boolean; concedido?: Concesion | null }): Promise<SocketSalida> {
+    // PTA1108C: Node solo abre lo privado que venga en `concedido` (la política de esta neurona); `permitirPrivadas` ya no se envía.
+    const r = await post("tcp", JSON.stringify({ host, port, ...(o.concedido ? { concedido: o.concedido } : {}) }), { "content-type": "application/json" });
     const j = (await r.json().catch(() => ({}))) as { id?: string; error?: string };
     if (!j.id) throw new Error(j.error && /^[a-z-]{3,30}$/.test(j.error) ? j.error : "no-conecta");
     const id = j.id;
@@ -173,13 +187,13 @@ export function atenderEntradas(post: PostLocal, gestor: Pick<GestorPuerta, "abr
 }
 
 /** `RespaldoFetch` por el `fetch` TLS de Node. `estado` dice si hay salida propia, puertas y si el ajuste está activo. */
-export function respaldoFetchLocal(post: PostLocal, estado: { activo: () => boolean; hayPuertas: () => boolean; sinSalida: () => boolean }): RespaldoFetch {
+export function respaldoFetchLocal(post: PostLocal, estado: { activo: () => boolean; hayPuertas: () => boolean; sinSalida: () => boolean; requiereCapa?: (url: string) => boolean }): RespaldoFetch {
   return {
     ...estado,
     async pedir(url, init) {
       const cabeceras: Array<[string, string]> = [];
       new Headers(init.headers).forEach((v, k) => cabeceras.push([k, v]));
-      const peticion = encodeURIComponent(JSON.stringify({ url, metodo: init.method ?? "GET", cabeceras }));
+      const peticion = encodeURIComponent(JSON.stringify({ url, metodo: init.method ?? "GET", cabeceras, ...(estado.requiereCapa?.(url) ? { capa: true } : {}) /* PTA1108C */ }));
       const r = await post("fetch", init.cuerpo ?? null, { "x-puerta-peticion": peticion }, init.signal ?? undefined);
       const meta = r.headers.get("x-puerta-respuesta");
       if (!r.ok || !meta) throw new TypeError("puerta: " + r.status);
