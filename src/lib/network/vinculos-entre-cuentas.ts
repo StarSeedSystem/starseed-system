@@ -44,6 +44,7 @@ import { createMesh, type MeshHandle, type PeerSnapshot } from "@/lib/network/we
 import { crearTransporteSenalPar } from "@/lib/network/par-signaling";
 import { exportPubJwk, derivarClaveParHex, topicDePar } from "@/lib/network/par-crypto";
 import { rolEnVinculo, type EstadoVinculo, type RolVinculo } from "@/lib/network/vinculos-transiciones";
+import { suscribirCambiosVinculos, type ClienteVinculosRealtime } from "@/lib/network/vinculos-realtime";
 // Contrato «consumo» (2026-09-29): id de cuenta sin red + bucle de la pestaña líder.
 import { uidActual } from "@/lib/consumo/usuario";
 import { esLider, alCambiarLider } from "@/lib/consumo/lider-pestana";
@@ -411,6 +412,34 @@ function liderSeguro(): boolean {
   }
 }
 
+/* Realtime de `os_mesh_vinculos` (§1.4/§7): UNA suscripción solo en la pestaña líder con `uid`;
+ * el sondeo sigue como red de seguridad y cada evento pide una vuelta inmediata. Nunca lanza. */
+let soltarRealtime: (() => void) | null = null;
+let realtimeUid: string | null = null;
+
+function soltarRealtimeVinculos(): void {
+  const soltar = soltarRealtime;
+  soltarRealtime = null;
+  realtimeUid = null;
+  try {
+    soltar?.();
+  } catch {
+    /* noop */
+  }
+}
+
+function sincronizarRealtimeVinculos(uid: string | null, alCambiar: () => void): void {
+  if (!uid || !liderSeguro()) return soltarRealtimeVinculos();
+  if (soltarRealtime && realtimeUid === uid) return;
+  soltarRealtimeVinculos();
+  try {
+    soltarRealtime = suscribirCambiosVinculos(createClient() as unknown as ClienteVinculosRealtime, uid, alCambiar);
+    realtimeUid = uid;
+  } catch {
+    soltarRealtime = null;
+  }
+}
+
 /**
  * useVinculosEntreCuentas — EL MOTOR. Se monta UNA sola vez (ver
  * `MallaNeuronasMount`, junto a `useMallaNeuronas`). Sondea mis filas de
@@ -533,10 +562,14 @@ export function useVinculosEntreCuentas(deps?: {
       ultimasFilas = { filas, uid };
       if (!uid) {
         publicarFilas([]);
+        soltarRealtimeVinculos();
         return;
       }
       const rows = filas.map((r) => filaARow(r, uid));
       publicarFilas(rows);
+      sincronizarRealtimeVinculos(uid, () => {
+        void bucle.ahora();
+      });
       if (!liderSeguro()) return;
       const idsVigentes = new Set(rows.filter((r) => r.estado === "aceptado").map((r) => r.id));
       for (const row of rows) void abrirMeshDeVinculo(row);
@@ -593,6 +626,7 @@ export function useVinculosEntreCuentas(deps?: {
         if (cancelado) return;
         if (lider && ultimasFilas) aplicarFilas(ultimasFilas.filas, ultimasFilas.uid);
         if (!lider) {
+          soltarRealtimeVinculos();
           for (const vinculoId of Array.from(meshesRef.current.keys())) cerrarMesh(vinculoId);
           refrescarPeers();
         }
@@ -612,6 +646,7 @@ export function useVinculosEntreCuentas(deps?: {
       cancelado = true;
       bucle.detener();
       liderOff?.();
+      soltarRealtimeVinculos();
       if (forzarSondeoAhora) forzarSondeoAhora = null;
       for (const vinculoId of Array.from(meshesRef.current.keys())) cerrarMesh(vinculoId);
       publicarPeers([]);
