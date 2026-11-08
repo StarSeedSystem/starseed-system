@@ -248,6 +248,15 @@ function crearConexion(
         par.neuronDeviceId = texto80(o.neuronDeviceId);
         par.uid = texto80(o.uid);
         par.plataforma = texto80(o.plataforma);
+        // (IDN1108A) Certificado de cuenta: uno malo (revocado, caducado, de otra neurona…) cierra el enlace.
+        if (o.certificado !== undefined && o.certificado !== null) {
+          const v = await import("@/lib/identidad/enlace").then((m) => m.verificarHolaWebRtc(o)).catch(() => null);
+          if (v) par.certificado = { ok: v.ok, mismaCuenta: v.mismaCuenta, motivo: v.motivo };
+          if (v && !v.ok) {
+            cerrar("fallido", `El otro aparato trae un certificado de cuenta no válido: ${v.motivo}.`);
+            return;
+          }
+        }
         avisarCambioEnlaceLocal();
         avisar();
         return;
@@ -403,6 +412,8 @@ function crearConexion(
         neuronDeviceId: ids?.neuronDeviceId,
         uid: await uidLocal(),
         plataforma: typeof navigator !== "undefined" ? (navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData?.platform : undefined,
+        // (IDN1108A) Certificado cuenta→neurona + prueba de posesión; vacío si esta neurona no tiene certificado.
+        ...(await import("@/lib/identidad/enlace").then((m) => m.camposHolaWebRtc()).catch(() => ({}))),
       });
       void medir();
     };

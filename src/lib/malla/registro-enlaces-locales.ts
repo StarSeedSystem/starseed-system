@@ -27,6 +27,8 @@ export interface InfoParLocal {
    * abrieron solas dos apps nativas vinculadas, señalizando por su canal local; MLT1107A).
    */
   origen?: "codigo" | "red-local-nativa";
+  /** (IDN1108A) Resultado de comprobar el certificado de cuenta de su saludo (ausente: no traía). */
+  certificado?: { ok: boolean; mismaCuenta: boolean; motivo: string };
 }
 
 /** Un enlace local vivo (lo implementa `emparejar-sin-internet.ts`). */

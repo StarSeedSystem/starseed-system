@@ -100,12 +100,36 @@ Cada perfil dice qué detecta, qué ofrece y qué permisos pide. Si el hardware 
   - Acuerdo `nl.cs` firmado con la identidad que el saludo ya probó: ECDH P‑256 efímero → HKDF‑SHA256 → una clave AES‑256‑GCM por sentido, nonce con contador y rechazo de repeticiones.
   - Renovación a los 15 min o 500 tramas (política del trinquete) y a los 32 MiB cifrados.
   - Si los dos lados anuncian `cif:1`, el cifrado es obligatorio y un fallo cierra el enlace. Con una app anterior se sigue en claro, marcado «sin cifrar»; el ajuste «Exigir cifrado en la red local» (apagado por defecto hasta el siguiente lanzamiento oficial) la bloquea.
-  - Queda un gancho tipado `certificado?` en el saludo, con verificador inyectado, para el certificado cuenta → neurona de IDN1108A. Por defecto se ignora.
+  - Queda un gancho tipado `certificado?` en el saludo, con verificador inyectado, para el certificado cuenta → neurona de IDN1108A (ya enchufado, ver §5.1). Por defecto se ignora.
   - Coste: el trozo de archivo baja de 46 a 34 KiB por TCP y de 10 a 7 KiB por Bluetooth; la CPU no es el cuello de botella.
 - **Identidad sin servidor.**
   - La clave maestra de la cuenta firma un certificado por neurona: cuenta → neurona.
   - Las huellas de otras cuentas se aprenden por QR, por la malla (teselas firmadas) y por las resonancias de confianza.
   - Revocar una neurona también viaja por la malla.
+
+### 5.1 · Identidad de cuenta sin servidor (IDN1108A, 2026-11-08)
+Hecha en código (módulos en `src/lib/identidad/`). Pendiente: probarla en dos aparatos reales.
+
+**Piezas**
+- **Clave maestra con interfaz** (Ajustes › Cuenta, `identidad-sin-servidor.tsx`): crear, importar y exportar. La exportación va cifrada con contraseña (PBKDF2‑SHA256 600 k → AES‑GCM, mínimo 12 caracteres), como QR y como archivo `.ssm`. La clave privada nunca se envía a un servidor. La pantalla dice qué neurona la guarda («neurona titular») y la huella `acct:…`.
+- **Certificado cuenta → neurona** (`certificado-neurona.ts`, API pura): la maestra firma `{cuenta, neuronaId, clavePublicaAparato, emitido, caduca, permisos}`. `verificarCertificadoNeurona(cert, anclas, opts)` devuelve `valido`, `sin-ancla` (coherente, pero no conozco esa cuenta) o `invalido` (firma, caducidad, revocación, portador). Vida por defecto: 180 días, se renueva solo en la neurona titular.
+- **Anclas** (`anclas.ts`): huellas de maestras en las que confía la neurona, con nivel y confianza al estilo de las resonancias: `propia` (1; se fija al crear/importar), `qr` (0,9; se comprobó mirando el QR de la otra cuenta) y `anunciada` (0,5; llegó en un anuncio firmado de la malla). Una ancla anunciada solo sirve para verificar cuando sube de 0,6 por eventos de `actualizarConfianza` (`firma-ok`, `veredicto-confirmado`…). Un anuncio prueba que su emisor tiene la clave, no que merezca confianza.
+- **Enrolar sin internet** (`enrolar.ts`): una neurona titular certifica a la nueva por QR (o por texto, o por LAN/Bluetooth con el mismo protocolo).
+  - Código de confirmación de **6 cifras (SAS)** = SHA‑256 de las dos claves públicas y de los dos nonces, módulo 10⁶. Se enseña en las dos pantallas y la persona lo compara.
+  - En un canal que no es de fiar se añade un **compromiso** (hash de la solicitud) y una **oferta** previa de la titular, para que nadie pueda «moler» claves hasta que el SAS coincida (sin compromiso, 6 cifras caen con ~10⁶ intentos).
+  - La neurona nueva no guarda nada hasta que se escribe el código correcto. Solicitud y respuesta caducan a los 10 minutos.
+- **Revocación por la malla** (`revocaciones.ts`): la maestra firma una lista acumulativa con `seq` creciente. Se difunde por el canal `identidad.revocaciones` del transporte universal (`enviarMensaje` / `alRecibirMensaje`), por todos los enlaces abiertos, reenviando solo lo nuevo. Se acepta solo si la ancla es conocida y de fiar y `seq` supera al guardado. Quien verifica certificados rechaza lo revocado, por `neuronaId` o por huella del aparato.
+- **Ganchos de saludo sin tocar el transporte** (`enlace.ts`): `verificarHolaConCertificado(hola)` → `{ok, mismaCuenta, estado, motivo}`.
+  - Nativo/Bluetooth: se enchufa en `certificadoPropio`, `verificarCertificado` (hueco de CIF1108A) y en `certificadoMismaCuenta` (nuevo, mínimo): un certificado válido de la propia cuenta cuenta como prueba de cuenta, así que se acepta sin vínculo previo.
+  - WebRTC `enl.hola`: el saludo no va firmado, así que lleva el certificado más una prueba de posesión firmada con el aparato; un certificado malo cierra el enlace.
+  - Sin certificado, o de una cuenta que no se conoce, todo sigue como antes.
+- **Sesión sin internet** (`modo-sin-internet.ts`, decisión pura): con internet no cambia nada. Sin red y con sesión guardada la persona se queda dentro, con la etiqueta «Sin internet · identidad de cuenta certificada» (si hay certificado válido) o «Sin internet · usando la sesión guardada». El servidor local de la app nativa ya no echaba a nadie por un fallo de red (APP1107A). Modo estricto opcional: exigir certificado. Pendiente: montar la etiqueta en el cliente y leer la decisión allí (IndexedDB no se lee en el middleware).
+
+**Límites honestos**
+- Quien tiene la maestra puede certificar y revocar; una neurona titular robada compromete la cuenta (hasta rotar la maestra, Adenda 122). Por eso la pantalla pide exportarla y deja decidir en qué neuronas vive.
+- Revocar no obliga a la neurona revocada a olvidar su certificado: solo que las demás no la acepten. La lista es acumulativa, pero una copia vieja de la maestra podría firmar una lista con `seq` alto sin entradas anteriores.
+- La clave privada maestra se queda en `master-identity.ts` (almacenamiento seguro del navegador), porque tiene que ser exportable; en IndexedDB solo van anclas, certificado propio, tenencia y revocaciones.
+- Los relojes de aparatos sin internet pueden desviarse: se tolera 24 h hacia el futuro.
 
 ## 6 · Capa 3 · Datos: el registro vivo de cada entidad
 Cada página, comunidad, grupo, canal, publicación, hilo, votación o estación es un **registro de operaciones firmadas**. Cada operación lleva autor, reloj lógico híbrido y referencia a las anteriores. Las neuronas que tienen derecho se pasan las operaciones que les faltan, y con las mismas operaciones todas llegan al mismo estado.
@@ -168,7 +192,7 @@ Cada página, comunidad, grupo, canal, publicación, hilo, votación o estación
 - **Por ámbito:** cada página, comunidad o grupo elige capas, servidor y nivel de privacidad. CAMR pasa de recomendar a decidir con esa configuración.
 
 ### 7.6 · Cuenta y acceso
-- **Primer acceso sin internet:** una neurona ya dentro de la cuenta enrola a la nueva por QR o Bluetooth, firmando su certificado.
+- **Primer acceso sin internet:** una neurona ya dentro de la cuenta enrola a la nueva por QR o Bluetooth, firmando su certificado (protocolo y código de 6 cifras en §5.1).
 - **Sesión local** con la clave de la neurona.
 - Supabase Auth queda como una forma más de entrar.
 
@@ -210,7 +234,7 @@ Una app nativa puede hacer de **estación base**: sirve la web y su API local a 
 
 | Fase | Contenido |
 |---|---|
-| **F0 · Cimientos** | Cifrar TCP 47071 (hecho en código por CIF1108A, también Bluetooth; falta prueba en dos aparatos reales); contrato `ConectorMedio` envolviendo los enlaces que ya hay; planificador único; certificado cuenta → neurona y clave maestra con interfaz; URL del servidor en tiempo de ejecución; Mapa de vías (solo lectura) |
+| **F0 · Cimientos** | Cifrar TCP 47071 (hecho en código por CIF1108A, también Bluetooth; falta prueba en dos aparatos reales); contrato `ConectorMedio` envolviendo los enlaces que ya hay; planificador único; certificado cuenta → neurona y clave maestra con interfaz (hecho en código por IDN1108A, §5.1; falta prueba en dos aparatos reales); URL del servidor en tiempo de ejecución; Mapa de vías (solo lectura) |
 | **F1 · Mensajería completa sin internet** | Almacén local de mensajes y fusión con el historial; adjuntos, formato y citas por la malla; cablear `chat-directo`, `localsend` y `nas`; prueba de los 18 formatos por cada medio |
 | **F2 · Entidades local‑first** | Registro vivo firmado; almacén local; réplicas por ámbito; publicaciones, páginas, comunidades y canales; reconciliación con Supabase |
 | **F3 · Gobierno sin servidor** | Papeletas firmadas, quórum, notarios, provisional y cierre al reconectar |
