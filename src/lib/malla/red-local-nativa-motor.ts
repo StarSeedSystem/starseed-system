@@ -66,6 +66,22 @@ import {
   type VecinoMinimo,
   type VinculoMinimo,
 } from "./red-local-nativa";
+import {
+  VERSION_CIFRADO,
+  crearSesionesCifradas,
+  decidirModo,
+  esAcuerdo,
+  esTextoSiempreEnClaro,
+  esTramaCifrada,
+  etiquetaCifrado,
+  limitesParaCifrado,
+  verificadorCertificadoPorDefecto,
+  type CertificadoNeurona,
+  type EtiquetaCifrado,
+  type ModoEnlace,
+  type SesionesCifradas,
+  type VerificadorCertificado,
+} from "./sesion-cifrada";
 import { SENAL_INICIAL, leerSenal, pasoSenal, quienOfrece, type AccionSenal, type EstadoSenal, type EventoSenal, type SenalNativa } from "./senal-nativa";
 import type { EnlaceDisponible } from "./eleccion-enlace";
 import type { CanalArchivos } from "@/lib/network/archivos-malla";
@@ -120,6 +136,17 @@ export interface DepsRedNativa {
   pruebaCuenta?(texto: string): Promise<string | null>;
   /** (MLL1107A) Huella de la identidad de malla con la que firma esta app (la del sobre). */
   huellaPropia?(): Promise<string | null>;
+  /**
+   * (CIF1108A) Sesiones cifradas de punta a punta (`sesion-cifrada.ts`). Ausente: esta app no cifra (como
+   * antes) y no anuncia `cif` en el saludo.
+   */
+  sesiones?: SesionesCifradas;
+  /** (CIF1108A) Ajuste «Exigir cifrado en la red local»: con él, una neurona que no cifra queda bloqueada. */
+  exigirCifrado?(): boolean;
+  /** (CIF1108A) Gancho: certificado cuenta→neurona propio para el saludo (IDN1108A). Null/ausente: ninguno. */
+  certificadoPropio?(): Promise<CertificadoNeurona | null>;
+  /** (CIF1108A) Gancho: comprueba el certificado de un saludo. Por defecto no exige nada (comportamiento de antes). */
+  verificarCertificado?: VerificadorCertificado;
 }
 
 export interface ResultadoEnvioNativo {
@@ -136,6 +163,8 @@ export interface InstantaneaRedNativa {
   caidas: Record<string, number>;
   /** Por qué se rechazó el último saludo (para el panel; null si ninguno). */
   ultimoRechazo: string | null;
+  /** (CIF1108A) Estado del cifrado por neurona ligada (cabecera del chat y acuses). */
+  cifrado: Record<string, EtiquetaCifrado>;
 }
 
 /** (MLL1107A) Lo que `asegurarLigadura` sabe tras intentarlo. */
@@ -169,6 +198,8 @@ export interface RedNativa {
    * saluda aunque su faro aún no se oiga. Una pista equivocada no hace nada: el saludo va firmado.
    */
   pista?(neurona: string, ip: string | null, puerto?: number): void;
+  /** (CIF1108A) «cifrado» / «sin-cifrar» / «pendiente» (null: no hay ligadura con esa neurona). */
+  cifradoDe?(neurona: string): EtiquetaCifrado | null;
   instantanea(): InstantaneaRedNativa;
   suscribir(cb: () => void): () => void;
 }
@@ -178,6 +209,8 @@ export interface RedNativa {
 /** Tope de lo encolado en `datos` por IP: el motor de archivos ve la cola ×4 y frena a ~256 KiB. */
 export const MAX_COLA_DATOS = 4 * 1024 * 1024;
 export const FACTOR_FRENO_ARCHIVOS = 4;
+/** (CIF1108A) Cuánto se espera a que el acuerdo de sesión se cierre antes de devolver el envío como «aún no listo». */
+export const ESPERA_SESION_MS = 2_500;
 
 interface Item {
   texto: string;
@@ -264,6 +297,99 @@ export function crearRedNativa(deps: DepsRedNativa): RedNativa {
 
   const caido = (ip: string) => (caidas[ip] ?? 0) > deps.ahora();
 
+  /* ─────────────── Cifrado de punta a punta (CIF1108A) ─────────────── */
+
+  /** Esperas a que una sesión quede activa (por neurona). */
+  const esperasSesion = new Map<string, Array<() => void>>();
+  /** Esta app cifra (hay motor de sesiones). */
+  const propio = (): boolean => !!deps.sesiones;
+  const exigir = (): boolean => {
+    try {
+      return !!deps.exigirCifrado?.();
+    } catch {
+      return false;
+    }
+  };
+  /** Cómo se habla con esa ligadura: cifrado (obligatorio), en claro (app anterior) o bloqueado (ajuste). */
+  const modoDe = (lig: Ligadura): ModoEnlace => decidirModo({ propio: propio(), cifPar: lig.cif, exigir: exigir() });
+  /** Los límites de lo que se arma en claro hacia esa ligadura (más estrechos si luego se cifra). */
+  const limitesEfectivos = (lig: Ligadura | null): LimitesCanal => {
+    const lim = lig?.limites ?? LIMITES_CANAL_ANTERIOR;
+    return lig && modoDe(lig) === "cifrado" ? limitesParaCifrado(lim) : lim;
+  };
+
+  function despertarSesion(neurona: string): void {
+    const l = esperasSesion.get(neurona);
+    if (!l) return;
+    esperasSesion.delete(neurona);
+    for (const f of l) f();
+  }
+
+  /** Abre (si no hay uno en marcha) el acuerdo de sesión con esa neurona: manda el `nl.cs/ini` firmado, en claro. */
+  async function abrirAcuerdo(lig: Ligadura): Promise<void> {
+    if (!deps.sesiones) return;
+    try {
+      const yo = await deps.yo();
+      if (!yo) return;
+      const sobre = await deps.sesiones.iniciar(yo.neurona, lig.neurona);
+      // Directo, sin pasar por la cola: quien espera la sesión es la propia cola (si no, se bloquearía).
+      if (sobre) await deps.enviar(lig.ip, lig.puerto, JSON.stringify({ t: "nl.cs", s: sobre }));
+    } catch {
+      /* el siguiente envío lo reintenta */
+    }
+  }
+
+  function esperarSesion(neurona: string, ms: number): Promise<boolean> {
+    if (deps.sesiones?.estado(neurona) === "activa") return Promise.resolve(true);
+    return new Promise((fin) => {
+      let hecho = false;
+      const cb = () => {
+        if (hecho) return;
+        hecho = true;
+        fin(true);
+      };
+      esperasSesion.set(neurona, [...(esperasSesion.get(neurona) ?? []), cb]);
+      void deps.dormir(ms).then(() => {
+        const l = (esperasSesion.get(neurona) ?? []).filter((f) => f !== cb);
+        if (l.length) esperasSesion.set(neurona, l);
+        else esperasSesion.delete(neurona);
+        if (hecho) return;
+        hecho = true;
+        fin(deps.sesiones?.estado(neurona) === "activa");
+      });
+    });
+  }
+
+  /** Cifra una trama hacia esa ligadura; abre el acuerdo y espera un momento si aún no hay sesión. Null + motivo si no se pudo. */
+  async function cifrarHacia(lig: Ligadura, texto: string): Promise<{ ok: true; texto: string } | { ok: false; motivo: string }> {
+    const s = deps.sesiones;
+    if (!s) return { ok: false, motivo: "esta app no cifra" };
+    for (let intento = 0; intento < 2; intento++) {
+      const r = await s.cifrar(lig.neurona, texto);
+      if (r.ok) {
+        if (r.renovar || s.tocaRenovar(lig.neurona)) void abrirAcuerdo(lig);
+        return { ok: true, texto: r.texto };
+      }
+      if (intento === 0) {
+        void abrirAcuerdo(lig);
+        if (!(await esperarSesion(lig.neurona, ESPERA_SESION_MS))) break;
+      }
+    }
+    return { ok: false, motivo: "el cifrado del enlace aún no está listo; se reintenta" };
+  }
+
+  /** Un fallo de autenticación, repetición o forma cierra el enlace: se olvida la ligadura y la sesión. */
+  function cerrarEnlace(lig: Ligadura, motivo: string): void {
+    ligaduras = ligaduras.filter((l) => l.neurona !== lig.neurona);
+    deps.sesiones?.olvidar(lig.neurona);
+    ultimoRechazo = `Enlace con ${lig.nombre} cerrado: ${motivo}`;
+    avisar();
+  }
+
+  function etiquetaDe(lig: Ligadura): EtiquetaCifrado {
+    return etiquetaCifrado(modoDe(lig), deps.sesiones?.estado(lig.neurona) ?? "sin");
+  }
+
   async function bombear(ip: string): Promise<void> {
     const c = colas.get(ip);
     if (!c || c.bombeando) return;
@@ -273,9 +399,23 @@ export function crearRedNativa(deps: DepsRedNativa): RedNativa {
         const fuente = c.control.length ? c.control : c.datos;
         const lig = ligaduraDeIp(ligaduras, ip, deps.ahora());
         const lim = lig?.limites ?? LIMITES_CANAL_ANTERIOR;
+        // (CIF1108A) Solo se arma un grupo homogéneo: o todo «siempre en claro» (saludo, acuerdo) o todo lo demás.
+        const claroPrimero = esTextoSiempreEnClaro(fuente[0].texto);
+        let largoGrupo = 1;
+        while (largoGrupo < fuente.length && esTextoSiempreEnClaro(fuente[largoGrupo].texto) === claroPrimero) largoGrupo++;
+        const modo: ModoEnlace = lig && !claroPrimero ? modoDe(lig) : "claro";
+        if (modo === "bloqueado" && lig) {
+          const motivo = `«Exigir cifrado en la red local» está activo y ${lig.nombre} no cifra (app anterior).`;
+          for (const i of fuente.splice(0, largoGrupo)) {
+            if (fuente === c.datos) c.bytesDatos -= i.texto.length;
+            i.fin({ ok: false, motivo });
+          }
+          continue;
+        }
+        const cifrando = modo === "cifrado";
         const trama = armarTrama(
-          fuente.map((i) => i.texto),
-          maxTextoPorTrama(lim),
+          fuente.slice(0, largoGrupo).map((i) => i.texto),
+          maxTextoPorTrama(cifrando && lig ? limitesParaCifrado(lim) : lim),
         );
         if (!trama.cuerpo) {
           for (const i of fuente.splice(0, Math.max(1, trama.usados))) {
@@ -297,9 +437,21 @@ export function crearRedNativa(deps: DepsRedNativa): RedNativa {
           await deps.dormir(f.esperaMs);
         }
         const n = trama.usados;
+        let cuerpoAire = trama.cuerpo;
+        if (cifrando && lig) {
+          const cf = await cifrarHacia(lig, trama.cuerpo);
+          if (!cf.ok) {
+            // No es un fallo de red: el cifrado aún no está listo. Se devuelve el error sin contar caída.
+            const hechos = fuente.splice(0, n);
+            if (fuente === c.datos) for (const i of hechos) c.bytesDatos -= i.texto.length;
+            for (const i of hechos) i.fin({ ok: false, motivo: cf.motivo });
+            continue;
+          }
+          cuerpoAire = cf.texto;
+        }
         let r: Awaited<ReturnType<DepsRedNativa["enviar"]>>;
         try {
-          r = await deps.enviar(ip, lig?.puerto ?? c.puerto, trama.cuerpo);
+          r = await deps.enviar(ip, lig?.puerto ?? c.puerto, cuerpoAire);
         } catch {
           r = { ok: false, motivo: "la app nativa no respondió" };
         }
@@ -358,7 +510,8 @@ export function crearRedNativa(deps: DepsRedNativa): RedNativa {
         },
         bufferedAmount: () => (colas.get(ip)?.bytesDatos ?? 0) * FACTOR_FRENO_ARCHIVOS,
         // (ARC1108B) El trozo que cabe solo en una trama hacia esa app (46 KiB con el tope de 64 KiB).
-        tamanoTrozo: () => trozoArchivoParaTrama(ligaduraDeIp(ligaduras, ip, deps.ahora())?.limites ?? LIMITES_CANAL_ANTERIOR),
+        // (CIF1108A) Con cifrado, el trozo se achica lo justo para que la trama CIFRADA siga cabiendo en una.
+        tamanoTrozo: () => trozoArchivoParaTrama(limitesEfectivos(ligaduraDeIp(ligaduras, ip, deps.ahora()))),
         alMensaje: () => nadaQueHacer,
       };
       canales.set(ip, canal);
@@ -401,7 +554,18 @@ export function crearRedNativa(deps: DepsRedNativa): RedNativa {
     const ts = deps.ahora();
     ultimoHola[ip] = ts;
     const cta = await pruebaPara(yo.neurona, neurona, ts);
-    await firmarYEnviar(ip, puerto, "nl.hola", holaNativa({ de: yo, para: neurona, limites: misLimites, webrtc: deps.webrtc(), resp, ts, cta }));
+    let certificado: CertificadoNeurona | null = null;
+    try {
+      certificado = (await deps.certificadoPropio?.()) ?? null;
+    } catch {
+      certificado = null;
+    }
+    await firmarYEnviar(
+      ip,
+      puerto,
+      "nl.hola",
+      holaNativa({ de: yo, para: neurona, limites: misLimites, webrtc: deps.webrtc(), resp, ts, cta, ...(propio() ? { cif: VERSION_CIFRADO } : {}), certificado }),
+    );
   }
 
   function despertar(neurona: string): void {
@@ -477,7 +641,24 @@ export function crearRedNativa(deps: DepsRedNativa): RedNativa {
       avisar();
       return;
     }
+    // (CIF1108A) Gancho de identidad: si trae certificado y hay verificador, tiene que cuadrar. Sin verificador, se ignora.
+    if (h.certificado) {
+      try {
+        const bien = await (deps.verificarCertificado ?? verificadorCertificadoPorDefecto)(h.certificado, { neurona: h.de.neurona, huella: v.huella ?? "" });
+        if (!bien) {
+          ultimoRechazo = "el certificado de cuenta de esa neurona no es válido";
+          avisar();
+          return;
+        }
+      } catch {
+        ultimoRechazo = "no se pudo comprobar el certificado de cuenta";
+        avisar();
+        return;
+      }
+    }
     const nueva = !ligaduraDeNeurona(ligaduras, h.de.neurona, deps.ahora());
+    // (CIF1108A) Si esa neurona vuelve con otra identidad, la sesión que se acordó con la anterior no vale.
+    if (ligaduras.some((l) => l.neurona === h.de.neurona && l.huella !== v.huella)) deps.sesiones?.olvidar(h.de.neurona);
     const puerto = vecinos.find((x) => x.ip === ip)?.puerto ?? colas.get(ip)?.puerto ?? PUERTO_CANAL_NATIVO;
     ligaduras = ligar(ligaduras, {
       ip,
@@ -491,6 +672,7 @@ export function crearRedNativa(deps: DepsRedNativa): RedNativa {
       webrtc: h.webrtc,
       at: deps.ahora(),
       ...(ac.porCuenta ? { porCuenta: true } : {}),
+      ...(h.cif ? { cif: h.cif } : {}),
     });
     delete caidas[ip];
     ultimoRechazo = null;
@@ -637,17 +819,61 @@ export function crearRedNativa(deps: DepsRedNativa): RedNativa {
 
   /* ─────────────── Entrada ─────────────── */
 
-  async function recibir(cuerpo: string, ip: string): Promise<void> {
+  /** (CIF1108A) `nl.cs`: acuerdo de sesión firmado por la neurona LIGADA a esa IP (misma huella que su saludo). */
+  async function recibirAcuerdo(cuerpo: string, ip: string): Promise<void> {
+    if (!deps.sesiones) return;
+    const lig = ligaduraDeIp(ligaduras, ip, deps.ahora());
+    if (!lig || modoDe(lig) !== "cifrado") return;
+    const v = await verificarSobre(cuerpo);
+    if (!v || v.huella !== lig.huella) return;
+    const yo = await deps.yo();
+    if (!yo) return;
+    const r = await deps.sesiones.recibirAcuerdo(yo.neurona, lig.neurona, v.cuerpo);
+    if (!r.ok) {
+      ultimoRechazo = `Acuerdo de cifrado con ${lig.nombre} rechazado: ${r.motivo}`;
+      avisar();
+      return;
+    }
+    // Primero la contestación, luego se despierta a quien espera: así el otro lado ya tiene la sesión cuando llegue lo cifrado.
+    if (r.respuesta) await deps.enviar(lig.ip, lig.puerto, JSON.stringify({ t: "nl.cs", s: r.respuesta }));
+    if (r.activa) despertarSesion(lig.neurona);
+    avisar();
+  }
+
+  /** `descifrado`: el texto salió de una trama `nl.cif` autenticada (único modo de llevar datos hacia un aparato que cifra). */
+  async function recibir(cuerpo: string, ip: string, descifrado = false): Promise<void> {
     const ipOk = ipLocal(ip);
     if (!ipOk || typeof cuerpo !== "string") return;
     if (cuerpo.startsWith('{"t":"nl.lote"')) {
-      for (const t of desempaquetarLote(cuerpo) ?? []) await recibir(t, ipOk);
+      for (const t of desempaquetarLote(cuerpo) ?? []) await recibir(t, ipOk, descifrado);
       return;
     }
-    if (cuerpo.startsWith('{"t":"nl.hola"')) return recibirHola(cuerpo, ipOk);
-    if (cuerpo.startsWith('{"t":"nl.sen"')) return recibirSenal(cuerpo, ipOk);
+    // El saludo y el acuerdo solo valen en claro: dentro de una trama cifrada no tienen sentido.
+    if (cuerpo.startsWith('{"t":"nl.hola"')) return descifrado ? undefined : recibirHola(cuerpo, ipOk);
+    if (esAcuerdo(cuerpo)) return descifrado ? undefined : recibirAcuerdo(cuerpo, ipOk);
     const lig = ligaduraDeIp(ligaduras, ipOk, deps.ahora());
+    if (esTramaCifrada(cuerpo)) {
+      if (descifrado || !lig || !deps.sesiones) return;
+      const r = await deps.sesiones.descifrar(lig.neurona, cuerpo);
+      if (r.ok) return recibir(r.texto, ipOk, true);
+      if (r.motivo === "desconocida") {
+        // Sesión perdida (reinicio de uno de los dos): se vuelve a acordar; lo que iba en esa trama no se puede leer.
+        ultimoRechazo = `Trama cifrada de ${lig.nombre} con una sesión desconocida; se acuerda otra.`;
+        avisar();
+        void abrirAcuerdo(lig);
+        return;
+      }
+      cerrarEnlace(lig, r.detalle);
+      return;
+    }
     if (!lig) return; // sin vínculo y saludo firmado, ni mensajes ni archivos
+    // (CIF1108A) Hacia un aparato que cifra (o con «exigir cifrado»), lo que llega en claro se descarta.
+    if (!descifrado && modoDe(lig) !== "claro") {
+      ultimoRechazo = `Trama sin cifrar de ${lig.nombre}, que cifra o debe cifrar: descartada.`;
+      avisar();
+      return;
+    }
+    if (cuerpo.startsWith('{"t":"nl.sen"')) return recibirSenal(cuerpo, ipOk);
     try {
       if (cuerpo.startsWith('{"t":"tu.')) {
         deps.entregarTransporte(cuerpo, { enlaceId: idEnlaceNativo(ipOk), etiqueta: `${lig.nombre} · red local`, ...(lig.sync ? { syncDeviceId: lig.sync } : {}) });
@@ -733,7 +959,11 @@ export function crearRedNativa(deps: DepsRedNativa): RedNativa {
         /* el siguiente tic lo intenta igual */
       }
     },
-    enlaces: () => enlacesNativos({ ligaduras, ahora: deps.ahora(), escuchando, caidas, rtt }),
+    enlaces: () => enlacesNativos({ ligaduras, ahora: deps.ahora(), escuchando, caidas, rtt, ...(propio() ? { cifrado: Object.fromEntries(ligaduras.map((l) => [l.ip, etiquetaDe(l)])) } : {}) }),
+    cifradoDe: (neurona) => {
+      const l = ligaduraDeNeurona(ligaduras, neurona, deps.ahora());
+      return l ? etiquetaDe(l) : null;
+    },
     enviarTexto: (ip, texto, puerto) => encolar(ip, texto, puerto),
     canalArchivos: (ip) => canalArchivos(ipLocal(ip) ?? ip),
     recibir,
@@ -759,6 +989,7 @@ export function crearRedNativa(deps: DepsRedNativa): RedNativa {
       senales: Object.fromEntries(senales),
       caidas: { ...caidas },
       ultimoRechazo,
+      cifrado: Object.fromEntries(ligaduras.map((l) => [l.neurona, etiquetaDe(l)])),
     }),
     suscribir: (cb) => {
       oyentes.add(cb);
@@ -793,6 +1024,31 @@ export async function hmacPruebaCuenta(claveHex: string | null | undefined, text
 /* ══════════════════════════ Instancia real (solo en la app nativa) ══════════════════════════ */
 
 let red: RedNativa | null = null;
+
+/** Clave del ajuste «Exigir cifrado en la red local» (localStorage de la app; por aparato). */
+export const CLAVE_EXIGIR_CIFRADO = "ss.redLocal.exigirCifrado";
+
+/**
+ * Ajuste «Exigir cifrado en la red local». Por defecto APAGADO hasta el siguiente lanzamiento oficial
+ * (las apps anteriores no cifran y, con el ajuste, quedarían sin red local). Nunca lanza.
+ */
+export function exigirCifradoRedLocal(): boolean {
+  try {
+    return globalThis.localStorage?.getItem(CLAVE_EXIGIR_CIFRADO) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function fijarExigirCifradoRedLocal(valor: boolean): void {
+  try {
+    if (valor) globalThis.localStorage?.setItem(CLAVE_EXIGIR_CIFRADO, "1");
+    else globalThis.localStorage?.removeItem(CLAVE_EXIGIR_CIFRADO);
+    red?.refrescar?.();
+  } catch {
+    /* sin almacenamiento: el ajuste no se guarda */
+  }
+}
 
 /** La red nativa de esta página, si arrancó (solo en la app nativa). */
 export function redLocalNativaActiva(): RedNativa | null {
@@ -844,6 +1100,11 @@ async function depsReales(): Promise<DepsRedNativa> {
     clave = { hex: r.ok && typeof r.valor?.clave_faro === "string" ? r.valor.clave_faro : null, leida: Date.now() };
     return clave.hex;
   };
+  const firmar = async (cuerpo: unknown): Promise<unknown | null> => {
+    const { wrapSigned } = await import("@/ai/astraura/mesh/mesh-identity");
+    const s = await wrapSigned(cuerpo);
+    return (s as { v?: unknown }).v === 2 ? s : null;
+  };
   return {
     ahora: () => Date.now(),
     dormir: (ms) => new Promise((r) => setTimeout(r, ms)),
@@ -877,11 +1138,9 @@ async function depsReales(): Promise<DepsRedNativa> {
       }
     },
     vinculos: () => motor.instantanea().vinculos,
-    firmar: async (cuerpo) => {
-      const { wrapSigned } = await import("@/ai/astraura/mesh/mesh-identity");
-      const s = await wrapSigned(cuerpo);
-      return (s as { v?: unknown }).v === 2 ? s : null;
-    },
+    firmar,
+    sesiones: crearSesionesCifradas({ ahora: () => Date.now(), firmar }),
+    exigirCifrado: exigirCifradoRedLocal,
     verificar: async (sobre) => {
       const [{ unwrapSigned }, { acceptFreshness }] = await Promise.all([import("@/ai/astraura/mesh/mesh-identity"), import("@/ai/astraura/mesh/replay-guard")]);
       const r = await unwrapSigned(sobre);
