@@ -13,6 +13,7 @@
 import { useEffect, useState } from "react";
 import { WifiOff, X } from "lucide-react";
 import { decidirAviso, esServidorLocal, interpretarRed, RUTA_RED, type RedServidorLocal } from "@/lib/nativa/sin-conexion";
+import { modoAccesoSinRed } from "@/lib/identidad/modo-acceso-cliente";
 
 const CADA_MS = 60_000;
 
@@ -21,6 +22,7 @@ export function AvisoSinConexion() {
   const [local, setLocal] = useState(false);
   const [red, setRed] = useState<RedServidorLocal | null>(null);
   const [descartado, setDescartado] = useState(false);
+  const [etiquetaIdentidad, setEtiquetaIdentidad] = useState<string | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -58,18 +60,40 @@ export function AvisoSinConexion() {
     };
   }, []);
 
+  const sinRed = !enLinea || red === "sin-conexion";
+
+  // Solo informa: una lectura por cada paso a «sin red»; nunca redirige ni toca la sesión.
+  useEffect(() => {
+    if (!sinRed) {
+      setEtiquetaIdentidad(null);
+      return;
+    }
+    let vivo = true;
+    void modoAccesoSinRed()
+      .then((d) => {
+        if (vivo) setEtiquetaIdentidad(d?.modo === "sin-internet" && d.etiqueta ? d.etiqueta : null);
+      })
+      .catch(() => {
+        if (vivo) setEtiquetaIdentidad(null);
+      });
+    return () => {
+      vivo = false;
+    };
+  }, [sinRed]);
+
   const aviso = decidirAviso({ navegadorEnLinea: enLinea, enServidorLocal: local, redServidor: red, descartado });
   if (!aviso.mostrar) return null;
   return (
     <div
       role="status"
       aria-live="polite"
-      title={aviso.detalle}
+      title={etiquetaIdentidad ? `${aviso.detalle} ${etiquetaIdentidad}` : aviso.detalle}
       data-testid="aviso-sin-conexion"
       className="pointer-events-auto fixed left-1/2 top-2 z-[9990] flex max-w-[92vw] -translate-x-1/2 items-center gap-2 rounded-full border border-white/10 bg-black/65 px-3 py-1.5 text-xs text-white/90 shadow-lg backdrop-blur-md"
     >
       <WifiOff aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-amber-300" />
       <span className="truncate">{aviso.titulo}</span>
+      {etiquetaIdentidad ? <span className="truncate text-white/70">{etiquetaIdentidad}</span> : null}
       <span className="sr-only">{aviso.detalle}</span>
       <button
         type="button"
