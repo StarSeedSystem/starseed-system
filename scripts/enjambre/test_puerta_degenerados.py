@@ -76,6 +76,55 @@ class TestPuertaDegenerados(unittest.TestCase):
         razones = archivos_degenerados(cambios)
         self.assertEqual(razones, [])
 
+    # (d) Marcas de conflicto de git
+    def test_marcas_conflicto_git_en_md(self):
+        despues = "<<<<<<< HEAD\ncontenido local\n=======\ncontenido remoto\n>>>>>>> abc (rama)\n"
+        cambios = [("doc.md", "contenido original", despues)]
+        razones = archivos_degenerados(cambios)
+        self.assertTrue(any("marcas de conflicto de git" in r for r in razones))
+
+    def test_marcas_conflicto_dentro_de_valla_no_cuenta(self):
+        """Explicar conflictos con marcas DENTRO de una valla ``` no es degenerado."""
+        despues = "Aqui hay un conflicto:\n```\n<<<<<<< HEAD\nlocal\n=======\nremoto\n>>>>>>> abc\n```\nFin."
+        cambios = [("doc.md", "antes", despues)]
+        self.assertEqual(archivos_degenerados(cambios), [])
+
+    def test_titulo_subrayado_con_iguales_no_es_conflicto(self):
+        """Un titulo subrayado con ======= en Markdown no cuenta."""
+        despues = "Titulo\n=======\nContenido"
+        cambios = [("doc.md", "antes", despues)]
+        self.assertEqual(archivos_degenerados(cambios), [])
+
+    def test_marcas_conflicto_en_ts(self):
+        despues = "<<<<<<< HEAD\nconst a = 1;\n=======\nconst a = 2;\n>>>>>>> feature\n"
+        cambios = [("src/app.ts", "const a = 1;", despues)]
+        razones = archivos_degenerados(cambios)
+        self.assertTrue(any("marcas de conflicto de git" in r for r in razones))
+
+    # (e) Copias de seguridad
+    def test_copias_seguridad_varias_extensiones(self):
+        cambios = [
+            ("architecture/x.md.backup", "", "contenido"),
+            ("src/a.ts.bak", "", "contenido"),
+            ("src/b.ts.orig", "", "contenido"),
+            ("src/c.tsx.bak.1794102349", "", "contenido"),
+        ]
+        razones = archivos_degenerados(cambios)
+        self.assertEqual(len(razones), 4)
+        for r in razones:
+            self.assertIn("copia de seguridad", r)
+
+    def test_borrar_copia_seguridad_no_rechaza(self):
+        cambios = [("src/a.ts.bak", "contenido", "")]
+        self.assertEqual(archivos_degenerados(cambios), [])
+
+    def test_archivos_con_backup_en_nombre_pero_no_extension(self):
+        cambios = [
+            ("src/backup.ts", "", "contenido"),
+            ("docs/backups.md", "", "contenido"),
+        ]
+        self.assertEqual(archivos_degenerados(cambios), [])
+
 
 if __name__ == "__main__":
     unittest.main()

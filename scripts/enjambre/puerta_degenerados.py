@@ -1,6 +1,36 @@
 """Puerta de validación contra archivos degenerados o truncados por LLM."""
 
 import ast
+import re
+
+
+def _tiene_marcas_conflicto(contenido: str) -> bool:
+    """Detecta marcas de conflicto de git (<<<<<<< y >>>>>>>) fuera de vallas ```."""
+    en_valla = 0
+    vio_inicio = False
+    for linea in contenido.splitlines():
+        stripped = linea.strip()
+        if stripped.startswith("```"):
+            en_valla += 1
+        if en_valla % 2 == 0:  # fuera de valla
+            if stripped.startswith("<<<<<<<") or stripped == "<<<<<<<":
+                vio_inicio = True
+            if vio_inicio and (stripped.startswith(">>>>>>>") or stripped == ">>>>>>>"):
+                return True
+    return False
+
+
+def _es_copia_seguridad(ruta: str, despues: str) -> bool:
+    """True si el archivo es una copia de seguridad que no se está borrando."""
+    if not despues:
+        return False
+    nombre = ruta.lower()
+    if nombre.endswith((".bak", ".backup", ".orig", ".rej")):
+        return True
+    # .bak. seguido solo de dígitos al final
+    if re.search(r"\.bak\.\d+$", nombre):
+        return True
+    return False
 
 
 def archivos_degenerados(cambios: list[tuple[str, str, str]]) -> list[str]:
@@ -43,5 +73,13 @@ def archivos_degenerados(cambios: list[tuple[str, str, str]]) -> list[str]:
                 ast.parse(desp, filename=ruta)
             except SyntaxError as exc:
                 razones.append(f"{ruta}: error de sintaxis Python ({exc})")
+
+        # (d) marcas de conflicto de git
+        if _tiene_marcas_conflicto(desp):
+            razones.append(f"{ruta}: marcas de conflicto de git")
+
+        # (e) copias de seguridad
+        if _es_copia_seguridad(ruta, desp):
+            razones.append(f"{ruta}: copia de seguridad (no va al repo)")
 
     return razones
