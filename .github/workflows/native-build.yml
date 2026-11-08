@@ -36,6 +36,12 @@
 # SERVIDOR LOCAL EN ANDROID (AND1107A): el mismo servidor DENTRO de la APK de StarSeed OS (nodejs-mobile), detrás
 # de un interruptor APAGADO por defecto (input `servidor_local_android` o variable del repo
 # STARSEED_SERVIDOR_LOCAL_ANDROID=1). Sin él, el job de Android es exactamente el de antes. Contrato §9.1.
+# CANAL DE PRUEBAS (ACT1108A, 2026-11-08): con el input `canal=pruebas`, StarSeed OS (escritorio y Android)
+# sale como <oficial + 1 parche>-prueba.<n.º de ejecución> en la prerelease FIJA `canal-pruebas` (nunca
+# «Latest»), con latest-prueba.json (updater, firmado) y latest-prueba-android.json (APK + sha256): las
+# apps instaladas de pruebas se actualizan solas desde dentro. El canal oficial no cambia, salvo el
+# versionCode de sus APK (semver × 1000) para que una oficial se instale encima de una de pruebas.
+# Contrato: architecture/centro-versiones-1105.md §9.
 #
 # Todo vive en `native/` del repo del OS. Como los tres sistemas comparten el
 # mismo binario `starseed-native`, cada uno se construye con su `-c ...conf.json`
@@ -83,12 +89,101 @@ on:
         type: boolean
         required: false
         default: false
+      # (ACT1108A) Canal. «oficial» = lo de siempre (borrador por etiqueta + latest.json). «pruebas» = la
+      # prerelease FIJA `canal-pruebas` (nunca «Latest»), versión <oficial + 1 parche>-prueba.<n.º de
+      # ejecución>, latest-prueba.json (escritorio, firmado) y latest-prueba-android.json (APK): las apps
+      # instaladas de pruebas se actualizan solas desde dentro. Solo StarSeed OS, escritorio y Android.
+      # Contrato: architecture/centro-versiones-1105.md §9.
+      canal:
+        description: "Canal: oficial (lo de siempre) · pruebas (prerelease fija canal-pruebas que las apps de pruebas instalan solas; solo StarSeed OS, escritorio y Android)"
+        type: choice
+        options:
+          - oficial
+          - pruebas
+        required: false
+        default: oficial
 
 # Permiso para crear/actualizar el Release con los instaladores.
 permissions:
   contents: write
 
+# (ACT1108A) Dos pruebas a la vez se pisarían la prerelease `canal-pruebas`: van en fila. El canal
+# oficial (y las etiquetas v*) no comparten grupo con nadie: nada cambia para ellos.
+concurrency:
+  group: ${{ inputs.canal == 'pruebas' && 'native-canal-pruebas' || format('native-build-{0}', github.run_id) }}
+  cancel-in-progress: false
+
 jobs:
+  # ═══════════════════════════════════════════════════════════════════════════
+  # CANAL DE PRUEBAS · plan (ACT1108A). Solo con `canal=pruebas`. Calcula la versión de esta prueba
+  # (0.5.0 → 0.5.1-prueba.<n.º de ejecución>), su versionCode de Android (siempre mayor que la prueba
+  # anterior y que el oficial de la base, y menor que el oficial siguiente) y la versión del MSI, y deja
+  # lista la prerelease FIJA `canal-pruebas`: la crea si no existe, nunca «Latest», con la etiqueta en
+  # este commit (no es una etiqueta v*: no dispara nada). Los manifiestos vivos (latest-prueba*.json) no
+  # se tocan hasta que haya otros mejores. native/scripts/canal-pruebas.mjs
+  # ═══════════════════════════════════════════════════════════════════════════
+  canal-pruebas-plan:
+    name: canal de pruebas · versión y prerelease
+    if: github.event_name == 'workflow_dispatch' && inputs.canal == 'pruebas'
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.plan.outputs.version }}
+      base: ${{ steps.plan.outputs.base }}
+      codigo: ${{ steps.plan.outputs.codigo }}
+      wix: ${{ steps.plan.outputs.wix }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 20
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Versión de prueba y versionCode (siempre creciente)
+        id: plan
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # El versionCode de la prueba anterior (si la hay): el de esta tiene que ser mayor.
+          ANTERIOR=$(gh release download canal-pruebas -R "$GITHUB_REPOSITORY" -p latest-prueba-android.json -O - 2>/dev/null \
+            | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{process.stdout.write(String(JSON.parse(s).versionCode||""))}catch{}})' || true)
+          echo "versionCode anterior: ${ANTERIOR:-ninguno}"
+          node native/scripts/canal-pruebas.mjs plan --conf native/src-tauri/tauri.conf.json --ejecucion "$GITHUB_RUN_NUMBER" ${ANTERIOR:+--anterior "$ANTERIOR"} | tee -a "$GITHUB_OUTPUT"
+      - name: Notas de esta prueba
+        shell: bash
+        run: |
+          {
+            echo "Canal de pruebas · ${{ steps.plan.outputs.version }}"
+            echo ""
+            echo "Commit ${GITHUB_SHA::7} · ${GITHUB_REF_NAME} · ejecución ${GITHUB_RUN_NUMBER}."
+            echo ""
+            echo "Últimos cambios:"
+            git log -8 --format='- %s'
+          } > notas-prueba.md
+          cat notas-prueba.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: canal-pruebas-notas
+          path: notas-prueba.md
+          retention-days: 3
+      - name: Prerelease fija «canal-pruebas» (nunca «Latest»)
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TITULO: "Canal de pruebas · ${{ steps.plan.outputs.version }}"
+        run: |
+          if gh release view canal-pruebas -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release edit canal-pruebas -R "$GITHUB_REPOSITORY" --prerelease --latest=false --draft=false --title "$TITULO" --notes-file notas-prueba.md
+            # La etiqueta sigue al commit que se prueba.
+            gh api -X PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/canal-pruebas" -f sha="$GITHUB_SHA" -F force=true >/dev/null
+          else
+            gh release create canal-pruebas -R "$GITHUB_REPOSITORY" --prerelease --latest=false --target "$GITHUB_SHA" --title "$TITULO" --notes-file notas-prueba.md
+          fi
+          # El latest.json que deja tauri-action es un intermedio (se convierte en latest-prueba.json al
+          # final): cada prueba empieza sin él, para no heredar plataformas de una prueba anterior.
+          gh release delete-asset canal-pruebas latest.json -R "$GITHUB_REPOSITORY" -y 2>/dev/null || true
+          gh release view canal-pruebas -R "$GITHUB_REPOSITORY" --json isPrerelease,isDraft,tagName
+
   # ═══════════════════════════════════════════════════════════════════════════
   # SERVIDOR LOCAL · next build una sola vez (APP1107A). Linux con 16 GB, como ci.yml. Con
   # STARSEED_APP_NATIVA=1 las imágenes no se optimizan (no hace falta sharp, que es nativo por
@@ -164,15 +259,17 @@ jobs:
   build-desktop:
     name: ${{ matrix.system }} · ${{ matrix.platform }}
     # Espera al build de Next (lo necesita el OS), pero corre aunque ese job falle.
-    needs: servidor-local-next
-    if: ${{ !cancelled() && (github.event_name != 'workflow_dispatch' || contains(inputs.plataformas, 'escritorio')) }}
+    # (ACT1108A) En el canal de pruebas, además, solo si su plan salió bien.
+    needs: [servidor-local-next, canal-pruebas-plan]
+    if: ${{ !cancelled() && (github.event_name != 'workflow_dispatch' || contains(inputs.plataformas, 'escritorio')) && (inputs.canal != 'pruebas' || needs.canal-pruebas-plan.result == 'success') }}
     strategy:
       # No cancelar el resto de la matriz si un target falla.
       fail-fast: false
       matrix:
         # 3 sistemas × 3 plataformas = 9 jobs. El `include` añade `args` a cada
         # combinación según su plataforma (patrón estándar de tauri-action).
-        system: [os, nexus, cafe]
+        # (ACT1108A) El canal de pruebas solo construye StarSeed OS.
+        system: ${{ fromJSON(inputs.canal == 'pruebas' && '["os"]' || '["os","nexus","cafe"]') }}
         platform: [macos-latest, ubuntu-24.04, windows-latest]
         include:
           # macOS → binario universal (Apple Silicon + Intel).
@@ -262,6 +359,19 @@ jobs:
             echo "flag=-c src-tauri/tauri.${{ matrix.system }}.conf.json" >> "$GITHUB_OUTPUT"
           fi
 
+      # ── (ACT1108A) Canal de pruebas: la versión de esta prueba ──
+      # 0.5.1-prueba.<n> en tauri.conf.json y Cargo.toml, el MSI como 0.5.1.<n> (WiX solo admite números)
+      # y el updater mirando primero latest-prueba.json y después el oficial. Mismo identificador
+      # (app.starseed.os): misma carpeta de datos, se instala encima. Antes del servidor local, que
+      # reescribe tauri.conf.json conservando lo demás.
+      - name: Canal de pruebas · sellar la versión
+        if: inputs.canal == 'pruebas'
+        shell: bash
+        run: |
+          node native/scripts/canal-pruebas.mjs sellar --conf native/src-tauri/tauri.conf.json --cargo native/src-tauri/Cargo.toml \
+            --version "${{ needs.canal-pruebas-plan.outputs.version }}" --codigo "${{ needs.canal-pruebas-plan.outputs.codigo }}" \
+            --wix "${{ needs.canal-pruebas-plan.outputs.wix }}"
+
       # ── Servidor local dentro de la app (solo StarSeed OS · APP1107A) ──
       # Descarga el build de Next del job `servidor-local-next`, baja el Node oficial de nodejs.org
       # (versión y SHA-256 fijados en native/servidor-local/node.json; en macOS arm64 + x64 unidos
@@ -319,11 +429,13 @@ jobs:
           # La raíz del proyecto Tauri (donde está src-tauri/).
           projectPath: native
           # Un Release por etiqueta; la acción sube los instaladores y el latest.json.
-          tagName: ${{ inputs.etiqueta || (github.ref_type == 'tag' && github.ref_name) || format('native-{0}', github.run_number) }}
-          releaseName: "StarSeed Native ${{ inputs.etiqueta || (github.ref_type == 'tag' && github.ref_name) || github.run_number }}"
-          releaseBody: "Instaladores nativos de StarSeed — versión ${{ inputs.etiqueta || (github.ref_type == 'tag' && github.ref_name) || format('native-{0}', github.run_number) }} (OS · Nexus · Café), generados desde native/ por CI. Cada app de escritorio instalada se actualiza sola desde su canal: StarSeed OS con latest.json, Nexus con latest-nexus.json y Café con latest-cafe.json."
-          releaseDraft: true
-          prerelease: false
+          # (ACT1108A) Canal de pruebas: la prerelease fija `canal-pruebas` (publicada, nunca «Latest»);
+          # su latest.json es un intermedio que el job canal-pruebas-publicar convierte en latest-prueba.json.
+          tagName: ${{ inputs.canal == 'pruebas' && 'canal-pruebas' || inputs.etiqueta || (github.ref_type == 'tag' && github.ref_name) || format('native-{0}', github.run_number) }}
+          releaseName: ${{ inputs.canal == 'pruebas' && format('Canal de pruebas · {0}', needs.canal-pruebas-plan.outputs.version) || format('StarSeed Native {0}', inputs.etiqueta || (github.ref_type == 'tag' && github.ref_name) || github.run_number) }}
+          releaseBody: ${{ inputs.canal == 'pruebas' && format('Canal de pruebas · {0} (StarSeed OS). Las apps instaladas de pruebas se actualizan solas desde latest-prueba.json (escritorio) y latest-prueba-android.json (Android).', needs.canal-pruebas-plan.outputs.version) || format('Instaladores nativos de StarSeed — versión {0} (OS · Nexus · Café), generados desde native/ por CI. Cada app de escritorio instalada se actualiza sola desde su canal{1} StarSeed OS con latest.json, Nexus con latest-nexus.json y Café con latest-cafe.json.', inputs.etiqueta || (github.ref_type == 'tag' && github.ref_name) || format('native-{0}', github.run_number), ':') }}
+          releaseDraft: ${{ inputs.canal != 'pruebas' }}
+          prerelease: ${{ inputs.canal == 'pruebas' }}
           # SOLO el sistema OS sube/actualiza latest.json. Antes, los TRES
           # sistemas subían un latest.json a la MISMA release y se pisaban entre
           # sí (el latest.json de v0.1.0 llegó a apuntar Linux a StarSeed.Nexus).
@@ -357,7 +469,8 @@ jobs:
   servidor-capa:
     name: servidor local · capa firmada (sin reinstalar)
     needs: [servidor-local-next, build-desktop]
-    if: ${{ !cancelled() && needs.servidor-local-next.result == 'success' }}
+    # (ACT1108A) No en el canal de pruebas: su capa iría al canal fijo `servidor-local` de las apps oficiales.
+    if: ${{ !cancelled() && needs.servidor-local-next.result == 'success' && inputs.canal != 'pruebas' }}
     runs-on: ubuntu-24.04
     continue-on-error: true
     timeout-minutes: 20
@@ -390,7 +503,8 @@ jobs:
   canales-updater:
     name: canales de actualización (nexus · cafe)
     needs: build-desktop
-    if: ${{ !cancelled() && (github.event_name != 'workflow_dispatch' || contains(inputs.plataformas, 'escritorio')) }}
+    # (ACT1108A) El canal de pruebas solo construye StarSeed OS: sin Nexus ni Café que publicar.
+    if: ${{ !cancelled() && (github.event_name != 'workflow_dispatch' || contains(inputs.plataformas, 'escritorio')) && inputs.canal != 'pruebas' }}
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
@@ -412,11 +526,13 @@ jobs:
   # ═══════════════════════════════════════════════════════════════════════════
   build-android:
     name: ${{ matrix.system }} · android
-    if: github.event_name != 'workflow_dispatch' || contains(inputs.plataformas, 'android')
+    # (ACT1108A) En el canal de pruebas, solo StarSeed OS y solo si su plan salió bien.
+    needs: canal-pruebas-plan
+    if: ${{ !cancelled() && (github.event_name != 'workflow_dispatch' || contains(inputs.plataformas, 'android')) && (inputs.canal != 'pruebas' || needs.canal-pruebas-plan.result == 'success') }}
     strategy:
       fail-fast: false
       matrix:
-        system: [os, nexus, cafe]
+        system: ${{ fromJSON(inputs.canal == 'pruebas' && '["os"]' || '["os","nexus","cafe"]') }}
     runs-on: ubuntu-22.04
     # (AND1107A) `actions: read` solo para esperar el artefacto `servidor-local-next` cuando el
     # interruptor del servidor local está encendido; `contents: write` es el de siempre (Release).
@@ -468,6 +584,21 @@ jobs:
             echo "flag=" >> "$GITHUB_OUTPUT"
           else
             echo "flag=-c src-tauri/tauri.${{ matrix.system }}.conf.json" >> "$GITHUB_OUTPUT"
+          fi
+      # (ACT1108A) versionName y versionCode. Android solo instala ENCIMA un versionCode mayor o igual:
+      #   · pruebas → 0.5.1-prueba.<n> con el versionCode del plan (5 000 001…5 000 999 para la base 0.5.1:
+      #     mayor que el oficial 0.5.0 —5000 hasta hoy— y que la prueba anterior);
+      #   · oficial → la versión de siempre y versionCode = semver × 1000 (0.5.1 → 5 001 000), por encima
+      #     de todas las pruebas de esa base: la oficial se instala encima de una de pruebas SIN perder datos.
+      # Mismo keystore (secretos ANDROID_*) en los dos canales: misma firma, mismos datos.
+      - name: Versión y versionCode (canal ${{ inputs.canal || 'oficial' }})
+        shell: bash
+        run: |
+          if [ "${{ inputs.canal }}" = "pruebas" ]; then
+            node native/scripts/canal-pruebas.mjs sellar --conf native/src-tauri/tauri.conf.json --cargo native/src-tauri/Cargo.toml \
+              --version "${{ needs.canal-pruebas-plan.outputs.version }}" --codigo "${{ needs.canal-pruebas-plan.outputs.codigo }}"
+          else
+            node native/scripts/canal-pruebas.mjs sellar --conf native/src-tauri/tauri.conf.json --oficial
           fi
       # Versión REAL desde tauri.conf.json (nunca hardcodeada): nexus/cafe no
       # sobreescriben "version" en su tauri.<sistema>.conf.json, así que
@@ -563,6 +694,9 @@ jobs:
             --key-pass "pass:${{ secrets.ANDROID_KEY_PASSWORD }}" \
             --out "$OUT" /tmp/aligned.apk
           "$BT/apksigner" verify "$OUT" && echo "APK firmado OK: $OUT"
+          # (ACT1108A) La huella del certificado (pública): la MISMA en pruebas y en oficial = Android instala
+          # una encima de otra conservando los datos. Si cambia, Android se niega a instalar encima.
+          echo "### APK ${{ matrix.system }} · ${VERSION} · firma: $("$BT/apksigner" verify --print-certs "$OUT" | grep -m1 -i 'SHA-256 digest' | sed 's/.*: //')" >> "$GITHUB_STEP_SUMMARY"
       # (AND1107A) Solo con el interruptor: el tamaño REAL de la APK firmada y su desglose.
       - name: Servidor local Android · tamaño de la APK
         if: always() && steps.sl_android.outputs.encendido == 'si'
@@ -583,11 +717,32 @@ jobs:
             fi
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Subir APK al Release
+        if: inputs.canal != 'pruebas'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ inputs.etiqueta || (github.ref_type == 'tag' && github.ref_name) || format('native-{0}', github.run_number) }}
           draft: true
           files: StarSeed-${{ matrix.system }}-${{ steps.ver.outputs.version }}.apk
+      # (ACT1108A) Canal de pruebas: el APK a la prerelease fija y DESPUÉS su manifiesto (versión,
+      # versionCode, url, sha256, notas), así el manifiesto nunca apunta a un APK que aún no está.
+      - name: Canal de pruebas · notas
+        if: inputs.canal == 'pruebas'
+        uses: actions/download-artifact@v4
+        with:
+          name: canal-pruebas-notas
+      - name: Canal de pruebas · subir el APK y latest-prueba-android.json
+        if: inputs.canal == 'pruebas'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          APK="StarSeed-${{ matrix.system }}-${VERSION}.apk"
+          node native/scripts/canal-pruebas.mjs android --apk "$APK" --version "$VERSION" \
+            --codigo "${{ needs.canal-pruebas-plan.outputs.codigo }}" --repo "$GITHUB_REPOSITORY" \
+            --notas-archivo notas-prueba.md --salida latest-prueba-android.json | tee -a "$GITHUB_STEP_SUMMARY"
+          gh release upload canal-pruebas "$APK" -R "$GITHUB_REPOSITORY" --clobber
+          gh release upload canal-pruebas latest-prueba-android.json -R "$GITHUB_REPOSITORY" --clobber
 
   # ═══════════════════════════════════════════════════════════════════════════
   # iOS (.ipa sin firmar) — HONESTIDAD: iOS NO permite instalar un .ipa desde el
@@ -599,7 +754,8 @@ jobs:
   # ═══════════════════════════════════════════════════════════════════════════
   build-ios:
     name: ${{ matrix.system }} · ios
-    if: github.event_name != 'workflow_dispatch' || contains(inputs.plataformas, 'ios')
+    # (ACT1108A) El canal de pruebas no construye iOS (un .ipa sin firmar no se actualiza solo).
+    if: (github.event_name != 'workflow_dispatch' || contains(inputs.plataformas, 'ios')) && inputs.canal != 'pruebas'
     strategy:
       fail-fast: false
       matrix:
@@ -674,3 +830,35 @@ jobs:
           tag_name: ${{ inputs.etiqueta || (github.ref_type == 'tag' && github.ref_name) || format('native-{0}', github.run_number) }}
           draft: true
           files: native/StarSeed-${{ matrix.system }}-${{ steps.ver.outputs.version }}-unsigned.ipa
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # CANAL DE PRUEBAS · publicar (ACT1108A). Al final de una prueba: el latest.json que dejó tauri-action
+  # (firmado con la clave del updater) pasa a `latest-prueba.json` con las notas de la prueba; se
+  # comprueba que `latest-prueba-android.json` es de esta versión; y se quita de la prerelease todo lo que
+  # ya no apunta ningún manifiesto vigente (así solo queda la última prueba que funciona, aunque una
+  # plataforma falle). Si una plataforma falló, su manifiesto sigue en la prueba anterior.
+  # native/scripts/canal-pruebas.mjs publicar
+  # ═══════════════════════════════════════════════════════════════════════════
+  canal-pruebas-publicar:
+    name: canal de pruebas · latest-prueba.json y limpieza
+    needs: [canal-pruebas-plan, build-desktop, build-android]
+    if: ${{ !cancelled() && github.event_name == 'workflow_dispatch' && inputs.canal == 'pruebas' && needs.canal-pruebas-plan.result == 'success' }}
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: actions/download-artifact@v4
+        with:
+          name: canal-pruebas-notas
+      - name: Publicar latest-prueba.json y quitar lo de pruebas anteriores
+        # bash explícito = pipefail: si el script falla, el paso sale en rojo aunque pase por tee.
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          VERSION: ${{ needs.canal-pruebas-plan.outputs.version }}
+          ESCRITORIO: ${{ needs.build-desktop.result }}
+          ANDROID: ${{ needs.build-android.result }}
+        run: node native/scripts/canal-pruebas.mjs publicar --notas-archivo notas-prueba.md | tee -a "$GITHUB_STEP_SUMMARY"
