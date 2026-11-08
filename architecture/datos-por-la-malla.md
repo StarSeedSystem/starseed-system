@@ -466,3 +466,107 @@ una inspección de seguridad con IA».
   (memoria si cae a la memoria).
 - La ventana del envío en la tableta (vertical y horizontal) y en el teléfono; las miniaturas que
   genera el WKWebView (HEIC) y el WebView de Android; «Inspeccionar con IA» con el router real.
+
+### 8.7 · Archivos grandes sin que el remitente se rinda (ARC1108B · 2026-11-08)
+
+Prueba real del 08-11 (~04:09 UTC): Mac (prueba de escritorio native-21, web 7cc064fdf8, ya con
+ARC1108A) → tableta «Maggaboard» (APK native-21, servidor local), los 18 archivos a la vez por
+multitrayecto (enlace directo WebRTC + canal TCP 47071, 39 ms). Los 16 de menos de 200 KB,
+verificados. `video.mp4` (8 034 291 B): «Falló en el receptor: no confirmó la verificación a tiempo —
+sin respuesta en 85 s». `grande-50MB.bin`: «verificando» al 100 %. Con native-20 (sin ARC1108A) el
+vídeo pasaba: no había plazo, se esperaba lo que hiciera falta.
+
+**Causas** (reproducidas con los motores reales y un almacén LENTO y EN SERIE, como IndexedDB/OPFS del
+WebView, que atiende una operación detrás de otra):
+
+1. **Tras «fin», el receptor releía TODO dos veces**: `calcularHashLista` leía cada trozo para el
+   SHA-256 y `ensamblar` los volvía a leer, además de recorrer los índices de TODOS los almacenes.
+   En IndexedDB cada lectura y cada escritura abría y cerraba la base (`indexedDB.open` por trozo) y
+   `indicesGuardados` recorría con un cursor la tabla entera CON sus datos (las transferencias
+   anteriores incluidas) en cada oferta; en OPFS cada trozo pedía la raíz y abría dos carpetas.
+2. **El remitente no tenía freno respecto al receptor**: con `bufferedAmount` solo frena la cola
+   del canal, no lo que el receptor aún tiene que escribir. Los 18 se aceptan a la vez y el .bin de
+   50 MB (3 200 trozos de 16 KiB) llegaba entero en segundos mientras el almacén del receptor iba
+   muy por detrás, todo en memoria en promesas pendientes. El vídeo terminaba antes, pero su
+   verificación quedaba en la MISMA cola del almacén detrás de esas escrituras.
+3. **Silencio y plazo fijo**: el receptor no decía nada entre «fin» y «ok»; el remitente lo daba por
+   perdido a los 60 s + 50 ms × trozos (491 trozos → 85 s), aunque la tableta siguiera trabajando.
+
+Medido con el motor anterior (vídeo + 50 MB a la vez, 1 ms por operación de almacén): entre el «fin»
+del vídeo y su «ok» había **4 663 operaciones de almacén en cola** (más 491 lecturas de `ensamblar`
+que la prueba no contaba). Con ≥ 17 ms por operación —una apertura de IndexedDB o un
+`createWritable` de OPFS en el WebView de Android— eso pasa de 85 s. El .bin: 6 891 operaciones
+(+ 3 200 de `ensamblar`) frente a un plazo de 220 s. Los trozos van por UN solo camino del
+multitrayecto (reparto, nunca duplicados) y el receptor ya descartaba los repetidos: no era eso.
+Aceptar en la ventana del envío tampoco: el remitente no cuenta plazo hasta mandar «fin».
+
+**Arreglo** (solo web: llega a las apps cuando se publica la web):
+
+```
+receptor → remitente  archivo.progreso {id, n, fase: "recibiendo"|"esperando-trozos"|"verificando"|"ensamblando", pct?}
+archivo.aceptar       { …lo de siempre…, acuses?: 1, huecos?: [[a, b], …] }
+CanalArchivos         { …, tamanoTrozo?(): number }
+```
+
+- **Hash al recibir**: el SHA-256 de cada trozo se calcula mientras se guarda (`recibirTrozo`); tras
+  «fin» la raíz sale de esos hashes sin releer nada (`raizDeHashes`, la MISMA definición de siempre:
+  compatible con remitentes y receptores anteriores). Después, UNA sola pasada por el almacén
+  (`unirVerificado`, lotes de 16 con `leerTrozos`) une el archivo y comprueba que cada trozo se
+  relee igual que llegó; va juntando partes de ~4 MB en Blobs (nunca el archivo dos veces en
+  memoria). Los trozos de una sesión anterior (reanudar tras recargar) se hashean en esa pasada.
+- **Latido y acuse** (`archivo.progreso`): mientras recibe, el receptor dice cuántos trozos tiene YA
+  guardados (cada MiB, cada segundo o 250 ms después del último); tras «fin», cada 4 s y en cada
+  cambio de fase, con porcentaje. Un remitente anterior lo ignora (no es de su protocolo).
+- **Ventana**: con un receptor que late (`aceptar.acuses`), el remitente no va más de 8 MiB por
+  delante de lo guardado (`ventanaVueloBytes`): la memoria del receptor queda acotada.
+- **Vigía por inactividad**: con latidos, el remitente solo se rinde tras 45 s SIN NINGÚN mensaje
+  (`esperaSinNoticiasMs`; cada latido la reinicia) y la burbuja dice qué hace el otro («El otro
+  aparato verifica y une el archivo (SHA-256)… 42 %»). Con un receptor anterior, plazo fijo más
+  holgado: 90 s + 100 ms por cada 16 KiB (vídeo de 8 MB → 139 s; 50 MB → 410 s). Si el «ok» llega
+  después del plazo, o vuelve a latir, la burbuja pasa a verificado / verificando.
+- **Esperar trozos de otro camino**: se rinde tras 15 s SIN AVANCE (antes, 15 s en total).
+- **Reanudar solo lo que falta**: el receptor manda `huecos` (rangos) y el remitente manda SOLO eso
+  (con `desde`, un remitente anterior manda todo lo que va detrás del primer hueco).
+- **Trozos más grandes donde caben** (`elegirTamanoTrozo`, fijado en la oferta: el hash depende de
+  él): enlace directo WebRTC 63 KiB en binario (`TAM_TROZO_ENLACE_DIRECTO`: con su cabecera queda bajo
+  64 KiB, el tope de mensaje más estricto entre data channels); canal TCP 46 KiB, uno por trama
+  (`trozoArchivoParaTrama`: en base64 cabe solo en 64 KiB − 512 B, con 1 KiB de holgura);
+  multitrayecto, el menor de sus enlaces. El 50 MB pasa de 3 200 trozos a 813 (directo) o 1 114
+  (TCP o los dos): casi 4 y casi 3 veces menos escrituras. «Reintentar» el mismo archivo conserva su
+  trozo.
+- **Multitrayecto con binario**: basta con que UN enlace lleve binario; a los de solo texto (el TCP)
+  el trozo les sale como `archivo.chunk` en base64 (`trozoBinarioATexto`). Cada trozo por un solo
+  camino; el receptor descarta un repetido con solo leer la cabecera, antes de copiar, guardar o
+  hashear nada.
+- **Almacenes**: IndexedDB con UNA conexión, escrituras agrupadas en una transacción por vuelta del
+  bucle (hasta 64, durabilidad «relaxed»), lecturas por lotes, índices con `getAllKeys` por rango de
+  claves y borrado por rango (nunca un cursor por toda la tabla); OPFS con las carpetas abiertas una
+  vez y como mucho 6 escrituras a la vez. La memoria, con tope de 256 MB.
+- **¿Cabe?** Antes de aceptar (y antes de preguntar a la persona), `espacioPara`: memoria con tope o
+  la cuota del disco de la página (`navigator.storage.estimate`, el doble del archivo + 16 MB). Si no
+  cabe se rechaza diciendo por qué: «No cabe en el aparato que recibe: solo puede guardarlo en memoria
+  (hasta 256 MB) y mide 300 MB.» (`codigo: "sin-espacio"`).
+
+Medido con el motor nuevo (mismo escenario, 1 ms por operación, trozos de 63 KiB): 938 escrituras +
+938 lecturas en total (antes 3 691 escrituras + 3 691 lecturas para el hash + otras 3 691 de
+`ensamblar`); «fin»→«ok» del vídeo, 1 081 operaciones en cola, con latidos todo el rato.
+
+**Pruebas** (`src/lib/network/__tests__/archivos-malla-grandes.test.ts`, 14): 8 MB + 50 MB a la vez
+con un almacén lento y en serie por el enlace directo (binario, 63 KiB, una sola lectura por trozo al
+unir), por el canal TCP real (`red-local-nativa-motor`, tramas ≤ 64 KiB) y por los dos
+(multitrayecto: `reparto()` suma exactamente los trozos, ninguno escrito dos veces); con relojes
+falsos, verificar 96 s con el plazo de 85 s de la prueba real: el remitente espera gracias a los
+latidos y, con un receptor anterior, pasa a «sin-confirmacion» a los 85 s y el «ok» tardío lo arregla
+(sin latidos esa prueba falla: comprobado); un trozo perdido por un camino se pide solo a él
+(`huecos`); remitente anterior hecho a mano (16 KiB, base64) → receptor nuevo; receptor anterior →
+remitente nuevo; «no cabe» antes de preguntar; un trozo que se relee distinto → error del almacén; y
+el almacén de IndexedDB con un IndexedDB de mentira (una apertura, lotes, rangos). Más
+`canal-multitrayecto.test.ts` (binario mixto y trozo menor).
+
+**Lo que necesita aparatos reales**: repetir los 18 a la vez Mac ↔ tableta con la web publicada
+(los 18 verificados; la burbuja del remitente con «El otro aparato verifica y une…» en el vídeo y el
+.bin); medir en la tableta `almacen.tipo` y cuánto tarda una operación de almacén (con `chrome://inspect`:
+¿OPFS con `createWritable` en el WebView de Android 16 y en el origen 127.0.0.1?); un vídeo de
+500 MB (memoria del WebView al unir; el aviso de «no cabe» con poco espacio); y el binario mixto
+del multitrayecto (que el WebView reciba trozos binarios por el directo y de texto por el TCP del
+mismo archivo).
