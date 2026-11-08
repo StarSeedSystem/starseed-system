@@ -56,6 +56,9 @@ const RTLD_NOW: c_int = 0;
 
 type NodeStart = unsafe extern "C" fn(c_int, *mut *mut c_char) -> c_int;
 
+/// (NOT1108A) Tope hasta «listo» cuando la puerta ya contesta «arrancando» (Next tarda en una tablet).
+const ESPERA_LISTO_ARRANCANDO_MS: u64 = 300_000;
+
 #[derive(Clone, Debug, PartialEq)]
 enum Fase {
     Preparando(String),
@@ -152,14 +155,16 @@ pub extern "system" fn Java_app_starseed_nativa_ServidorLocal_nativoEstado(env: 
 /// Desde el `setup` (solo con el interruptor). El servidor, una vez por proceso; la ventana, siempre.
 pub fn iniciar(app: &AppHandle) {
     if !g().arrancado.swap(true, Ordering::SeqCst) {
-        let _ = std::thread::Builder::new().name("servidor-local".into()).spawn(servidor);
+        // (NOT1108A) El servidor necesita la app: registro del origen (puerto principal) y rescate.
+        let a = app.clone();
+        let _ = std::thread::Builder::new().name("servidor-local".into()).spawn(move || servidor(a));
     }
     let gen = g().generacion.fetch_add(1, Ordering::SeqCst) + 1;
     let app = app.clone();
     let _ = std::thread::Builder::new().name("servidor-local-ventana".into()).spawn(move || conducir(app, gen));
 }
 
-fn servidor() {
+fn servidor(app: AppHandle) {
     let inicio = Instant::now();
     let paquete = loop {
         let e = g().paquete.lock().ok().and_then(|p| p.clone());
@@ -179,9 +184,13 @@ fn servidor() {
     };
     abrir_registro(&paquete);
     fijar(Fase::Preparando("Arrancando el servidor local…".into()));
-    match arrancar_node(&paquete) {
+    match arrancar_node(&app, &paquete) {
         Ok((puerto, firma)) => {
             registrar(&format!("listo en {}", l::origen_local(puerto)));
+            // (NOT1108A) El registro del origen: el principal (la primera vez) y este uso.
+            if crate::origen_local::tras_servir(&app, puerto) {
+                registrar(&format!("AVISO: el puerto principal estaba ocupado; esta vez sirve {} (otro origen)", l::origen_local(puerto)));
+            }
             fijar(Fase::Local(puerto));
             vigilar(puerto, &firma);
         }
@@ -270,16 +279,20 @@ fn puerto_libre(puerto: u16) -> bool {
 }
 
 /// Arranca node::Start en su hilo y espera a que conteste con su firma. Devuelve (puerto, firma).
-fn arrancar_node(p: &la::EstadoPaquete) -> Result<(u16, String), String> {
+/// (NOT1108A) El puerto es el PRINCIPAL del registro del origen (esperado hasta 10 s; antes: siempre 47610 con
+/// 3 s y, si no, el siguiente, sin recordarlo). Antes de node::Start, si otros orígenes del servidor local
+/// guardan datos, se traen a este (`origen_local::rescatar`, desde la página de arranque).
+fn arrancar_node(app: &AppHandle, p: &la::EstadoPaquete) -> Result<(u16, String), String> {
     let dir = p.dir.clone().ok_or("El servidor local no dice dónde está.")?;
     if let Some(f) = la::falta(&dir, |x| x.exists()) {
         return Err(format!("El servidor local está incompleto: falta {}.", f.display()));
     }
     let start = simbolo_start()?;
-    let puerto = l::elegir_puerto(&l::orden_puertos(None), l::REINTENTOS_PREFERIDO, puerto_libre, || {
-        std::thread::sleep(Duration::from_millis(l::PAUSA_PREFERIDO_MS))
-    })
-    .ok_or_else(|| format!("Los {} puertos del servidor local están ocupados.", l::PUERTOS.len()))?;
+    let puerto = crate::origen_local::elegir_puerto(app, None, puerto_libre)
+        .ok_or_else(|| format!("Los {} puertos del servidor local están ocupados.", l::PUERTOS.len()))?;
+    if let Some(r) = crate::origen_local::rescatar(app, puerto, |m| fijar(Fase::Preparando(m.to_string()))) {
+        registrar(&r);
+    }
     let firma = l::firma_nueva();
     let fd = tuberia_con_pase(&g().pase)?;
 
@@ -323,7 +336,10 @@ fn arrancar_node(p: &la::EstadoPaquete) -> Result<(u16, String), String> {
         })
         .map_err(|e| format!("No se pudo crear el hilo de Node: {e}"))?;
 
-    let tope = Instant::now() + Duration::from_millis(la::ESPERA_LISTO_MS);
+    let desde = Instant::now();
+    // (NOT1108A) Si la puerta ya contesta «arrancando» (es nuestro Node y vive), se le dan hasta 5 min a Next
+    // en vez de 2: rendirse aquí es abrir la web publicada, OTRO origen con otros datos y otra sesión.
+    let mut tope_ms = la::ESPERA_LISTO_MS;
     loop {
         if !g().node_vivo.load(Ordering::SeqCst) {
             let c = g().node_codigo.lock().ok().and_then(|c| *c);
@@ -334,10 +350,11 @@ fn arrancar_node(p: &la::EstadoPaquete) -> Result<(u16, String), String> {
             Some(l::Salud::Ajena(por_que)) => {
                 return Err(format!("En {} responde otro programa: {por_que}.", l::origen_local(puerto)));
             }
-            Some(l::Salud::Arrancando) | None => {}
+            Some(l::Salud::Arrancando) => tope_ms = tope_ms.max(ESPERA_LISTO_ARRANCANDO_MS),
+            None => {}
         }
-        if Instant::now() >= tope {
-            return Err(format!("El servidor local no respondió en {} s.", la::ESPERA_LISTO_MS / 1000));
+        if desde.elapsed() >= Duration::from_millis(tope_ms) {
+            return Err(format!("El servidor local no respondió en {} s.", tope_ms / 1000));
         }
         std::thread::sleep(Duration::from_millis(l::PASO_SONDEO_MS));
     }
@@ -357,7 +374,10 @@ fn sondear_salud(puerto: u16, firma: &str) -> Option<l::Salud> {
     Some(l::interpretar_salud(&String::from_utf8_lossy(&buf), firma))
 }
 
-/// Tras «listo»: si Node termina o la salud falla `VIGIA_FALLOS` veces seguidas, la web publicada.
+/// Tras «listo»: si Node termina, la web publicada (Node no arranca dos veces en un proceso).
+/// (NOT1108A) Una salud que falla con Node VIVO (la app en segundo plano, el sistema sin CPU para el hilo,
+/// una recolección larga) ya no lleva la ventana a la web publicada: eso era cambiar de ORIGEN en silencio
+/// (otro localStorage, otra sesión) y la persona creía haber perdido sus datos. Se apunta y se sigue mirando.
 fn vigilar(puerto: u16, firma: &str) {
     let mut fallos = 0u32;
     loop {
@@ -367,13 +387,18 @@ fn vigilar(puerto: u16, firma: &str) {
             return;
         }
         match sondear_salud(puerto, firma) {
-            Some(l::Salud::Lista) => fallos = 0,
-            _ => fallos += 1,
-        }
-        if fallos >= la::VIGIA_FALLOS {
-            registrar("la salud falló varias veces seguidas: la web publicada");
-            fijar(Fase::Respaldo("El servidor local dejó de responder.".into()));
-            return;
+            Some(l::Salud::Lista) => {
+                if fallos >= la::VIGIA_FALLOS {
+                    registrar("la salud vuelve a responder");
+                }
+                fallos = 0;
+            }
+            _ => {
+                fallos += 1;
+                if fallos == la::VIGIA_FALLOS {
+                    registrar("la salud falló varias veces seguidas con Node vivo: se sigue en el servidor local (sin cambiar de origen)");
+                }
+            }
         }
     }
 }

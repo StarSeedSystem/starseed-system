@@ -235,6 +235,9 @@ fn atender(app: &AppHandle, s: TcpStream) {
         let Ok(cuerpo) = trama::leer_mensaje(&mut s) else { return };
         let recibido = con_estado(|e| e.buzon.poner(&ip_texto, cuerpo, ahora));
         let _ = trama::acusar(&mut s);
+        // (NOT1108A) Un mensaje de neurona que la web no apunte a tiempo (sin WebView o con su JS parado)
+        // lo avisa la app por el sistema (avisos_mensajes.rs).
+        crate::avisos_mensajes::al_recibir_local(&h, &ip_texto, &recibido.cuerpo);
         let _ = h.emit(EVENTO_MENSAJE, MensajeLocal::from(recibido));
     });
 }

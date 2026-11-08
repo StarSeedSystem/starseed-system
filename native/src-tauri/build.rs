@@ -57,6 +57,17 @@ const COMANDOS_APP: &[&str] = &[
     "malla_local_enviar",
     "malla_local_estado",
     "malla_local_recibidos",
+    // (NOT1108A) Avisos del sistema de los mensajes y origen estable del servidor local (rescate entre puertos).
+    "aviso_mensaje",
+    "avisos_config",
+    "avisos_estado",
+    "avisos_pedir_permiso",
+    "avisos_pendiente",
+    "origen_local_estado",
+    "rescate_origen_exportar",
+    "rescate_origen_estado",
+    "rescate_origen_datos",
+    "rescate_origen_confirmar",
     // Solo escritorio (su permiso existe en todas, pero solo se registran en escritorio).
     "ventanas_prestables",
     "capturar_ventana",

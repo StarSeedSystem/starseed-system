@@ -53,7 +53,9 @@ tauri = { version = "2.12", features = ["tray-icon"] }
 # Terminal / procesos: el puente de "control por terminal" para Aurora.
 tauri-plugin-shell = "2"
 # Notificaciones nativas del sistema.
-tauri-plugin-notification = "2"
+# (NOT1108A) ≥ 2.8: `on_action` avisa al pulsar una notificación (escritorio y Android) y el canal de
+# Android de los mensajes (`create_channel`). El CI ya resolvía 2.8.x; aquí queda escrito.
+tauri-plugin-notification = "2.8"
 # Diálogos nativos (abrir/guardar/confirmar) — consentimiento del usuario.
 tauri-plugin-dialog = "2"
 # Sistema de archivos con scope (lectura/escritura de rutas del usuario).

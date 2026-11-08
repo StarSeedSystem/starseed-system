@@ -29,7 +29,10 @@ pub const PUERTOS: [u16; 10] = [47610, 47611, 47612, 47613, 47614, 47615, 47616,
 
 /// Reintentos sobre el puerto preferido si está ocupado (p. ej. la instancia anterior aún se
 /// está apagando tras una actualización): 10 × 300 ms antes de pasar al siguiente.
+/// (NOT1108A) Sustituidos por `origen_local_logica::REINTENTOS_PRINCIPAL` (40 × 250 ms = 10 s).
+#[allow(dead_code)]
 pub const REINTENTOS_PREFERIDO: u32 = 10;
+#[allow(dead_code)]
 pub const PAUSA_PREFERIDO_MS: u64 = 300;
 
 /// Tope de espera hasta que el servidor responde «listo» (arranque en frío en un disco lento).
@@ -150,6 +153,9 @@ pub fn comprobar_paquete(r: &RutasPaquete, existe: impl Fn(&Path) -> bool) -> Re
 
 /// El orden en que se prueban los puertos: el preferido (el de la vez anterior, para no cambiar
 /// de origen al reiniciar) primero y luego el resto de la lista fija, sin repetir.
+/// (NOT1108A) La app ya elige con `origen_local_logica` (el principal del registro en disco, esperado
+/// 10 s); estas dos se quedan con sus pruebas como referencia de la regla.
+#[allow(dead_code)]
 pub fn orden_puertos(preferido: Option<u16>) -> Vec<u16> {
     let mut v = Vec::with_capacity(PUERTOS.len());
     if let Some(p) = preferido {
@@ -168,6 +174,7 @@ pub fn orden_puertos(preferido: Option<u16>) -> Vec<u16> {
 /// El primer puerto libre de `candidatos`. El primero se reintenta `reintentos_primero` veces
 /// (llamando a `esperar` entre intentos) antes de pasar al siguiente: así un reinicio tras una
 /// actualización vuelve al MISMO origen aunque el Node anterior tarde un instante en soltarlo.
+#[allow(dead_code)]
 pub fn elegir_puerto(
     candidatos: &[u16],
     reintentos_primero: u32,

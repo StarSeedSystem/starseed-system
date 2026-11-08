@@ -156,6 +156,16 @@
     "allow-nas-leer",
     "allow-malla-local-enviar",
     "allow-malla-local-estado",
-    "allow-malla-local-recibidos"
+    "allow-malla-local-recibidos",
+    "allow-aviso-mensaje",
+    "allow-avisos-config",
+    "allow-avisos-estado",
+    "allow-avisos-pedir-permiso",
+    "allow-avisos-pendiente",
+    "allow-origen-local-estado",
+    "allow-rescate-origen-exportar",
+    "allow-rescate-origen-estado",
+    "allow-rescate-origen-datos",
+    "allow-rescate-origen-confirmar"
   ]
 }
