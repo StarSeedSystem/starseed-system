@@ -82,9 +82,9 @@ export const SISTEMAS_VIAS: SistemaVias[] = [
     falta: ["Motores empaquetados", "Capas por la malla sin señalizar por Supabase"], fase: "F5",
   },
   {
-    id: "cuenta", nombre: "Cuenta y acceso", clase: "mensaje", sinInternet: "no", usaServidor: true,
-    porQue: "El primer inicio, el registro y la renovación del token dependen de Supabase Auth.",
-    falta: ["Certificado cuenta → neurona", "Primer acceso por QR o Bluetooth"], fase: "F0",
+    id: "cuenta", nombre: "Cuenta y acceso", clase: "mensaje", sinInternet: "parcial", usaServidor: true,
+    porQue: "Con sesión guardada se sigue dentro sin internet, con certificado de neurona; otra neurona se enrola por QR (código 6 cifras).",
+    falta: ["Probar en dos aparatos reales", "Crear una cuenta nueva sin ninguna neurona de confianza cerca (necesita un ancla: QR de otra persona o internet)"], fase: "F0",
   },
   {
     id: "avisos", nombre: "Avisos", clase: "mensaje", sinInternet: "parcial", usaServidor: true,

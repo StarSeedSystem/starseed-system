@@ -95,4 +95,12 @@ describe("construirMapaVias", () => {
     const e = viva(enl({ id: "local:1", tipo: "local", abierto: false, admite: { mensaje: true, archivo: true, flujo: true } }));
     expect(construirMapaVias([e], false).find((f) => f.sistema.id === "llamadas")?.ahora).toBe("no");
   });
+
+  it("la entrada 'cuenta' ahora es parcial: con sesión guardada se queda dentro y se enrola por QR", () => {
+    const cuenta = SISTEMAS_VIAS.find((s) => s.id === "cuenta");
+    expect(cuenta?.sinInternet).toBe("parcial");
+    expect(cuenta?.porQue).toMatch(/sesión guardada/);
+    expect(cuenta?.falta).toContain("Probar en dos aparatos reales");
+    expect(cuenta?.falta).toContain("Crear una cuenta nueva sin ninguna neurona de confianza cerca (necesita un ancla: QR de otra persona o internet)");
+  });
 });
