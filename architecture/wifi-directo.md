@@ -208,3 +208,37 @@ En aparato (lo que no se puede probar aquí):
 6. Punto de acceso con datos encendido en el Android → error claro y respaldo.
 7. Medir: tiempo hasta «activo», Mb/s de la radio frente a lo medido en un archivo, y que la pista lleva el
    canal TCP por la red directa (pastilla y `malla_local_estado`).
+
+## 9 · Con el Bluetooth directo (INT1108C · 2026-11-08)
+
+Petición de Alex: dos apps de StarSeed OS sin router ni internet se encuentran solas por Bluetooth, los
+mensajes van por ahí al momento y, ante algo pesado, se ofrece el enlace Wi-Fi directo según el ajuste.
+Pegamento: `src/lib/malla/puente-ble-wifi.ts` (lo arranca `iniciarSincronizacionNeuronas`, junto a los dos
+motores). Pruebas: `src/lib/malla/__tests__/puente-ble-wifi.test.ts` (los dos motores REALES en memoria).
+
+- **Vía de control `ble`**: cada neurona ligada por el Bluetooth directo (`bluetooth-directo.md` §5) es una
+  vía registrada con `registrarViaControlWifi`: `cercana: true` (prueba de proximidad), `kbps` = lo medido
+  por Rust en ese enlace y `ligaduras()` = las del Bluetooth vigentes. Los cuatro mensajes de §2 viajan tal
+  cual como `tu.msg` del canal `enlace-wifi` CLAVADO al enlace (`enviarMensaje({ enlaceId: "ble:<id>" })`);
+  el Bluetooth solo entrega `tu.*` de un enlace ligado y el oyente de `iniciarEnlaceWifi` lo recibe con
+  origen `{ tipo: "ble" }`. Si la vía no llega, sigue el transporte universal como siempre.
+- **Confianza**: `remitenteDeConfianza` recibe también las ligaduras de las vías (`ligadurasDeVias`): una
+  neurona de TU cuenta ligada por Bluetooth (saludo firmado con esa huella + prueba de cuenta) negocia sin
+  vínculo previo, igual que ligada por el canal local.
+- **El control propio de BLE1108A** (`enviarControlEnlace` / `alControlEnlace`, oferta con `modo/ssid/secreto`)
+  no se usa: el protocolo de §2 lleva capacidades, `epub`, roles y credenciales ECDH. Queda como estaba.
+- **Lo pesado avisa al motor** (`avisarEnvioPesado` → `alNecesitarAncho`) también desde los chats de
+  Neuronas, que no pasan por `enviarArchivo`/`abrirFlujo`: un archivo (`archivos-neurona.ts`, una vez por
+  archivo aunque el buzón lo reintente), una llamada o la pantalla sin camino (`llamadas-neurona.ts`) y una
+  transmisión sin camino (`flujos-neurona.ts`). Decide `decidirEnlaceWifi`: Automático abre, **Preguntar**
+  propone, Nunca nada.
+- **Aviso de un toque**: con «Preguntar», la propuesta («¿Abrir un enlace Wi-Fi directo con …?» → «Abrir»)
+  y la pregunta de la otra neurona («… pide abrir …» → «Aceptar», 45 s) salen como aviso global (sonner),
+  además de la banda del chat: quien recibe la pregunta puede no tener ese chat abierto. En el Mac el aviso
+  dice siempre que deja su red Wi-Fi mientras dure.
+- **Ya activo**: el canal TCP de la red directa (`nativo:<ip>`, rango 0, orden 1) y el WebRTC que señaliza
+  (`local:nativo-…`, orden 0) van delante del Bluetooth (orden 2) en `elegirEnlaces`: archivos grandes (el
+  Bluetooth no pasa de 20 MB), llamadas, pantalla y transmisiones van solos por la red directa; al cerrarse,
+  los mensajes vuelven al Bluetooth (o al router si lo hay).
+- **Límite honesto**: un archivo de 8–20 MB que ya empezó por Bluetooth sigue por él aunque el Wi-Fi se abra
+  a mitad; uno de más de 20 MB espera en el buzón y su reintento sale por la red directa.

@@ -134,6 +134,11 @@ export interface ViaControlWifi {
   enviar(neurona: string, texto: string): Promise<boolean>;
   /** Ancho medido de esa vía hacia esa neurona (kb/s), si se conoce. */
   kbps?(neurona: string): number | null;
+  /**
+   * (INT1108C) Neuronas que esta vía ya identificó (saludo firmado con esa huella + prueba de cuenta o
+   * vínculo, como el canal local): sus mensajes de control son de confianza. Bluetooth directo: sus ligaduras.
+   */
+  ligaduras?(): Array<{ neurona: string; huella: string }>;
 }
 
 /* ══════════════════════════ Dependencias ══════════════════════════ */
@@ -724,6 +729,19 @@ export function registrarViaControlWifi(v: ViaControlWifi): () => void {
   };
 }
 
+/** (INT1108C) Las neuronas que identificaron las vías registradas (para `remitenteDeConfianza`). */
+export function ligadurasDeVias(vias: Iterable<ViaControlWifi> = viasRegistradas): Array<{ neurona: string; huella: string }> {
+  const out: Array<{ neurona: string; huella: string }> = [];
+  for (const v of Array.from(vias)) {
+    try {
+      out.push(...(v.ligaduras?.() ?? []));
+    } catch {
+      /* una vía rota no tumba la confianza de las demás */
+    }
+  }
+  return out;
+}
+
 /** Lo que llega de un `enlace.wifi.*` por cualquier vía (BLE1108A lo llama con el texto tal cual). */
 export function recibirControlWifi(texto: unknown, origen?: OrigenControl | null): void {
   void motorWifi()
@@ -857,6 +875,8 @@ async function depsReales(): Promise<DepsMotorWifi> {
       } catch {
         ligaduras = [];
       }
+      // (INT1108C) Y las ligadas por una vía de control (Bluetooth directo: saludo firmado + cuenta o vínculo).
+      ligaduras = [...ligaduras, ...ligadurasDeVias()];
       return remitenteDeConfianza({ de, huella, vinculos: ms.instantanea().vinculos, ligaduras, origen });
     },
     enviarTransporte: async (para, cable) => {

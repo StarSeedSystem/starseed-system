@@ -131,6 +131,12 @@ nunca viaja en claro (§8).
 
 ## 8 · Control para el enlace Wi-Fi directo (WFD1108A)
 
+> **(INT1108C)** La negociación que se usa es la de WFD1108A (`wifi-directo.md` §2 y §9): sus cuatro mensajes
+> firmados (`enlace.wifi.oferta/respuesta/listo/cierre`, credenciales cifradas con ECDH para el otro) viajan
+> por este Bluetooth como `tu.msg` del canal `enlace-wifi` clavado a `ble:<id>` (`puente-ble-wifi.ts`), y las
+> ligaduras de §5 dan la confianza. El control propio de abajo (`enviarControlEnlace`, `alControlEnlace`,
+> `cifrarSecretoEnlace`) sigue disponible pero sin uso.
+
 El agente WFD1108A monta el enlace Wi-Fi directo (LocalOnlyHotspot o Wi-Fi Direct en Android, unirse con
 CoreWLAN en macOS) y lo NEGOCIA por este Bluetooth. Dos mensajes de control, firmados como `nl.sen`:
 

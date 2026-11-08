@@ -1242,6 +1242,15 @@ export function iniciarSincronizacionNeuronas(): () => void {
         else parar();
       })
       .catch(() => undefined);
+    // (INT1108C) El Bluetooth directo negocia el enlace Wi-Fi directo (vía de control cercana) y lo pesado lo
+    // propone o lo abre según el ajuste, con un aviso de un toque en «Preguntar».
+    void import("@/lib/malla/puente-ble-wifi")
+      .then((pb) => {
+        const parar = pb.iniciarPuenteBleWifi();
+        if (vivo) bajas.push(parar);
+        else parar();
+      })
+      .catch(() => undefined);
   }
 
   bajas.push(
