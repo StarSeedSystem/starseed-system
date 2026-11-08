@@ -5670,6 +5670,26 @@ def _segundos_etime(etime):
     return dias * 86400 + nums[0] * 3600 + nums[1] * 60 + nums[2]
 
 
+def merge_ff_en_main(rama):
+    """`git merge --ff-only <rama>` en main que no deja main a medias (SUP0811B, 08-11).
+
+    El 07-11 a las 18:10 el merge de CTR1107D-d3 murió en el cerrojo de la referencia («cannot lock ref
+    'HEAD'») DESPUÉS de escribir el árbol y el índice: main se quedó con los dos archivos de la tarea sin
+    commit y, unas 5 h, este orquestador no arrancó («no arranco»), el reconstructor no compiló y
+    traer_nube no pudo traerla. `ff_seguro.avanzar_ff` devuelve a la cabeza lo que el merge fallido dejó
+    escrito (nunca lo de otro) y repite si fue un cerrojo. Sin el módulo (un main viejo), el de siempre."""
+    try:
+        ruta_puente = os.path.join(ROOT, "scripts", "puente")
+        if ruta_puente not in sys.path:
+            sys.path.insert(0, ruta_puente)
+        import ff_seguro as _ff_seguro
+    except Exception:
+        return sh(["git", "merge", "--ff-only", rama], cwd=ROOT, timeout=120)
+    return _ff_seguro.avanzar_ff(
+        ROOT, rama, git=lambda raiz, args, timeout=120: sh(["git", *args], cwd=raiz, timeout=timeout)
+    )
+
+
 def quitar_cerrojo_huerfano(wt):
     """Quita el `index.lock` de ESTE worktree si lo dejó atrás un git muerto.
 
@@ -9201,17 +9221,13 @@ def ejecutar(t, intento=1):
                 return
         else:
             _, sha = sh(["git", "rev-parse", "--short", "HEAD"], cwd=wt, timeout=30)
-            rc, out = sh(
-                ["git", "merge", "--ff-only", "ola/" + tid], cwd=ROOT, timeout=120
-            )
+            rc, out = merge_ff_en_main("ola/" + tid)
             # (2026-10-10) Un `index.lock` huérfano del repo principal (el reinicio de la Mac
             # dejó uno) tiraba integraciones YA revisadas: se quita si es huérfano y se reintenta
             # una vez, igual que en el commit del worktree.
             if rc != 0 and "index.lock" in (out or "") and quitar_cerrojo_huerfano(ROOT):
                 evento("aviso", tid, "cerrojo de git huérfano del repo principal quitado; reintento el merge")
-                rc, out = sh(
-                    ["git", "merge", "--ff-only", "ola/" + tid], cwd=ROOT, timeout=120
-                )
+                rc, out = merge_ff_en_main("ola/" + tid)
             if rc != 0:
                 set_estado(
                     tid,

@@ -510,6 +510,18 @@ def _git(args, timeout=120):
         return 1, "%s: %s" % (type(e).__name__, e)
 
 
+def _avanzar_main_ff(destino):
+    """El `merge --ff-only` de main que no deja main a medias si muere en un cerrojo (SUP0811B, ver
+    `ff_seguro`): el 07-11 el del orquestador dejó dos archivos sin commit y esta misma traída se quedó
+    unas 5 h en «no pude avanzar main: Your local changes … would be overwritten by merge»."""
+    try:
+        import ff_seguro
+    except Exception:  # noqa: BLE001
+        return _git(["merge", "--ff-only", "-q", destino], timeout=120)
+    return ff_seguro.avanzar_ff(RAIZ, destino, extra=("-q",),
+                                git=lambda _raiz, args, timeout=120: _git(args, timeout=timeout))
+
+
 def _leer_json(ruta, defecto):
     try:
         with open(ruta, encoding="utf-8") as f:
@@ -889,7 +901,7 @@ def _traer(fila, espera_integrar_s=60):
                         _git_en(wt, ["cherry-pick", "--abort"])
                         return False, "main avanzó mientras se comprobaba y no se reaplica limpio: se reintenta", True
                     _, nuevo = _git_en(wt, ["rev-parse", "HEAD"])
-                rc, salida = _git(["merge", "--ff-only", "-q", nuevo.strip()], timeout=120)
+                rc, salida = _avanzar_main_ff(nuevo.strip())
         except TimeoutError:
             return False, "main ocupado (publicación o integración): se reintenta en la próxima pasada", True
         if rc != 0:
