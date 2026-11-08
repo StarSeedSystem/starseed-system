@@ -554,6 +554,15 @@ def main():
                 hace_falta = False
                 porque = ("este mismo código ya lo compiló el reconstructor y es lo que se "
                           "sirve (huella %s): la puerta de build ya está pasada" % _rmb.huella_viva())
+            else:
+                # Intenta descargar artefacto de CI antes de compilar localmente
+                huella = _rmb.huella_viva()
+                artefacto = _rmb.artefacto_ci_disponible(huella)
+                if artefacto:
+                    hace_falta = False
+                    sha, build_id = artefacto
+                    porque = ("artefacto de CI %s (build %s) descargado: la puerta de build ya está pasada"
+                              % (sha[:8], build_id[:12]))
         except Exception:
             pass
     if not hace_falta:
