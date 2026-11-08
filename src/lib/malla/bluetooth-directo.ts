@@ -233,6 +233,8 @@ export interface LigaduraBle {
   /** Último saludo verificado (epoch ms). */
   at: number;
   porCuenta?: boolean;
+  /** (CIF1108A) Versión de cifrado que anunció en su saludo firmado (ausente: app anterior, sin cifrar). */
+  cif?: number;
 }
 
 export function vigenteBle(l: LigaduraBle, ahora: number): boolean {
@@ -309,6 +311,8 @@ export function enlacesBle(p: {
   ligaduras: readonly LigaduraBle[];
   ahora: number;
   caidas: Readonly<Record<string, number>>;
+  /** (CIF1108A) Estado del cifrado por enlace («b3»); ausente: no se dice. */
+  cifrado?: Readonly<Record<string, "cifrado" | "sin-cifrar" | "pendiente">>;
 }): EnlaceDisponible[] {
   const e = p.estado;
   if (!e || !e.activo || e.radio !== "encendida") return [];
@@ -329,6 +333,7 @@ export function enlacesBle(p: {
       maxBytes: MAX_ARCHIVO_BLE,
       admite: { mensaje: true, archivo: true, flujo: false },
       consentido: true,
+      ...(p.cifrado?.[l.id] ? { cifrado: p.cifrado[l.id] } : {}),
     });
   }
   return out;
