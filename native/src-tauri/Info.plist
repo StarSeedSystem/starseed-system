@@ -11,6 +11,10 @@
   <string>StarSeed usa el micrófono solo cuando tú lo pides: en llamadas de voz y vídeo, transmisiones en vivo y grabaciones.</string>
   <key>NSCameraUsageDescription</key>
   <string>StarSeed usa la cámara solo cuando tú lo pides: en videollamadas, transmisiones en vivo y grabaciones.</string>
+  <!-- (BLE1108A) Bluetooth directo entre tus neuronas, sin Wi-Fi ni internet. Sin este texto macOS cierra
+       la app al tocar CoreBluetooth. Contrato: architecture/bluetooth-directo.md -->
+  <key>NSBluetoothAlwaysUsageDescription</key>
+  <string>StarSeed usa el Bluetooth para hablar directamente con tus otras neuronas cercanas (mensajes y archivos), también sin Wi-Fi ni internet. No lo usa para saber dónde estás.</string>
   <!-- (APP1107A) La ventana abre el servidor local de la app en http://127.0.0.1:4761x. Desde macOS 14,
        App Transport Security ya no deja cargar direcciones IP por defecto: se declara la red local y la
        excepción exacta de 127.0.0.1 (solo http a loopback; nada más se relaja).

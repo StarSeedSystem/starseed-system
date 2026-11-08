@@ -312,19 +312,13 @@ fn ahora_s() -> u64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)
 }
 
+/// (BLE1108A) El Bluetooth directo (ble.rs) dice lo medido: viva solo con la radio encendida y
+/// anunciándose; en Windows y Linux, que aún no lo hay. Se llama con el cerrojo del guardián cogido:
+/// `ble::antena` solo toma el suyo y nunca pide el del guardián (ver `ble::asegurar`).
 fn bt_por_plataforma() -> EstadoAntena {
-    if cfg!(target_os = "android") {
-        antena("bluetooth", "Bluetooth", "no-disponible", "El Bluetooth nativo de Android llega con el plugin Kotlin (en el contrato, §3.3).".into(), true, vec![])
-    } else {
-        antena(
-            "bluetooth",
-            "Bluetooth",
-            "no-disponible",
-            "La app aún no trae Bluetooth nativo (falta el crate btleplug: decisión de Alex). Mientras, Chrome/Edge con Web Bluetooth.".into(),
-            false,
-            vec![],
-        )
-    }
+    let (estado, motivo) = crate::ble::antena();
+    let segundo_plano = cfg!(any(target_os = "android", target_os = "macos"));
+    antena("bluetooth", "Bluetooth", &estado, motivo, segundo_plano, vec![])
 }
 
 impl Guardian {

@@ -1186,7 +1186,8 @@ export function iniciarSincronizacionNeuronas(): () => void {
       if (!vivo) return;
       bajas.push(
         tu.alRecibirMensaje(CANAL_SYNC, (msg) => {
-          const directo = msg.origen.tipo === "local" || msg.origen.tipo === "nativo" || msg.origen.tipo === "cuenta" || msg.origen.tipo === "par";
+          // (BLE1108A) El Bluetooth directo también contesta por el mismo enlace.
+          const directo = msg.origen.tipo === "local" || msg.origen.tipo === "nativo" || msg.origen.tipo === "ble" || msg.origen.tipo === "cuenta" || msg.origen.tipo === "par";
           void m.recibir(msg.cuerpo, {
             via: viaDeOrigen(msg.origen),
             enlaceId: directo ? msg.origen.enlaceId : undefined,
@@ -1221,6 +1222,14 @@ export function iniciarSincronizacionNeuronas(): () => void {
     void import("@/lib/malla/red-local-nativa-motor")
       .then((rn) => {
         const parar = rn.iniciarRedLocalNativa();
+        if (vivo) bajas.push(parar);
+        else parar();
+      })
+      .catch(() => undefined);
+    // (BLE1108A) Bluetooth directo entre apps nativas, sin router ni internet (enlace `ble:<id>`).
+    void import("@/lib/malla/bluetooth-directo-motor")
+      .then((bd) => {
+        const parar = bd.iniciarBluetoothDirecto();
         if (vivo) bajas.push(parar);
         else parar();
       })

@@ -1,0 +1,238 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// android_ble — el Bluetooth directo en el proyecto Android que genera Tauri (BLE1108A, 2026-11-08).
+// Contrato: architecture/bluetooth-directo.md §6.
+// ---------------------------------------------------------------------------
+// Como android_parche.rs y android_actualizador.rs, en su propio bloque: build.rs lo aplica tras
+// `cargo tauri android init` y antes de que Gradle procese el manifiesto. Escribe:
+//   · los permisos: Android 12+ BLUETOOTH_SCAN («neverForLocation»: no se usa para ubicar),
+//     BLUETOOTH_ADVERTISE y BLUETOOTH_CONNECT; hasta Android 11, BLUETOOTH y BLUETOOTH_ADMIN (normales)
+//     y ACCESS_FINE_LOCATION (sin él Android no da resultados de escaneo). La función BLE es opcional;
+//   · el proveedor `ArranqueBle` (arranca la radio con el proceso, también con la app cerrada);
+//   · `BleStarSeed.kt` (anunciante, escáner, servidor GATT y clientes GATT; Rust manda).
+// Solo std (lo usa build.rs con `#[path]`). Idempotente: bloques entre marcadores, archivos escritos
+// solo si cambian. Solo StarSeed OS y solo con el servicio de antenas (usa `PuenteNativo`).
+// ═══════════════════════════════════════════════════════════════════════════
+
+#![allow(dead_code)]
+
+use std::path::{Path, PathBuf};
+
+pub const PAQUETE_OS: &str = "app.starseed.os";
+
+const PERMISOS_INICIO: &str = "<!-- STARSEED-BLE:PERMISOS:INICIO (no editar: lo escribe native/src-tauri/build.rs · BLE1108A) -->";
+const PERMISOS_FIN: &str = "<!-- STARSEED-BLE:PERMISOS:FIN -->";
+const COMPONENTES_INICIO: &str = "<!-- STARSEED-BLE:COMPONENTES:INICIO (no editar: lo escribe native/src-tauri/build.rs · BLE1108A) -->";
+const COMPONENTES_FIN: &str = "<!-- STARSEED-BLE:COMPONENTES:FIN -->";
+
+/// (permiso, atributos extra). Lo ya declarado en otro bloque (p. ej. BLUETOOTH_CONNECT de los medios)
+/// no se repite.
+pub const PERMISOS: [(&str, &str); 6] = [
+    ("android.permission.BLUETOOTH_SCAN", " android:usesPermissionFlags=\"neverForLocation\""),
+    ("android.permission.BLUETOOTH_ADVERTISE", ""),
+    ("android.permission.BLUETOOTH_CONNECT", ""),
+    ("android.permission.BLUETOOTH", " android:maxSdkVersion=\"30\""),
+    ("android.permission.BLUETOOTH_ADMIN", " android:maxSdkVersion=\"30\""),
+    ("android.permission.ACCESS_FINE_LOCATION", " android:maxSdkVersion=\"30\""),
+];
+
+/// La app también vale sin Bluetooth de baja energía.
+pub const FUNCION: &str = "android.hardware.bluetooth_le";
+
+pub const KOTLIN: &str = include_str!("../android/BleStarSeed.kt");
+
+fn quitar_bloque(texto: &str, inicio: &str, fin: &str) -> String {
+    let (Some(a), Some(b)) = (texto.find(inicio), texto.find(fin)) else { return texto.to_string() };
+    if b < a {
+        return texto.to_string();
+    }
+    let desde = texto[..a].rfind('\n').map(|i| i + 1).unwrap_or(a);
+    let mut hasta = b + fin.len();
+    if texto[hasta..].starts_with('\n') {
+        hasta += 1;
+    }
+    format!("{}{}", &texto[..desde], &texto[hasta..])
+}
+
+fn ya_declarado(manifiesto: &str, nombre: &str) -> bool {
+    manifiesto.contains(&format!("\"{nombre}\""))
+}
+
+/// Bloque de permisos con los que aún no estén (fuera de este bloque).
+pub fn bloque_permisos(manifiesto_sin_bloques: &str) -> String {
+    let mut s = format!("    {PERMISOS_INICIO}\n");
+    for (p, extra) in PERMISOS.iter().filter(|(p, _)| !ya_declarado(manifiesto_sin_bloques, p)) {
+        s.push_str(&format!("    <uses-permission android:name=\"{p}\"{extra} />\n"));
+    }
+    if !ya_declarado(manifiesto_sin_bloques, FUNCION) {
+        s.push_str(&format!("    <uses-feature android:name=\"{FUNCION}\" android:required=\"false\" />\n"));
+    }
+    s.push_str(&format!("    {PERMISOS_FIN}\n"));
+    s
+}
+
+/// El proveedor que arranca la radio con el proceso (dentro de `<application>`).
+pub fn bloque_componentes() -> String {
+    format!(
+        "        {COMPONENTES_INICIO}
+        <provider
+            android:name=\"app.starseed.nativa.ArranqueBle\"
+            android:authorities=\"${{applicationId}}.starseed-ble\"
+            android:exported=\"false\"
+            android:initOrder=\"80\" />
+        {COMPONENTES_FIN}
+"
+    )
+}
+
+/// Los permisos justo antes de la línea de `<application`, el proveedor justo antes de la de
+/// `</application>` (los mismos anclajes que los otros bloques: aplicados siempre en el mismo orden
+/// desde build.rs, el archivo queda igual build tras build).
+pub fn parchear_manifiesto(texto: &str) -> Result<String, String> {
+    let limpio = quitar_bloque(&quitar_bloque(texto, PERMISOS_INICIO, PERMISOS_FIN), COMPONENTES_INICIO, COMPONENTES_FIN);
+    let app = limpio
+        .find("<application")
+        .ok_or("El AndroidManifest.xml no tiene <application>: ¿cambió la plantilla de Tauri?")?;
+    let linea_app = limpio[..app].rfind('\n').map(|i| i + 1).unwrap_or(app);
+    let cierre = limpio
+        .rfind("</application>")
+        .ok_or("El AndroidManifest.xml no tiene </application>: ¿cambió la plantilla de Tauri?")?;
+    if cierre < app {
+        return Err("El AndroidManifest.xml tiene </application> antes de <application>.".into());
+    }
+    let linea_cierre = limpio[..cierre].rfind('\n').map(|i| i + 1).unwrap_or(cierre);
+    let permisos = bloque_permisos(&limpio);
+    Ok(format!(
+        "{}{}{}{}{}",
+        &limpio[..linea_app],
+        permisos,
+        &limpio[linea_app..linea_cierre],
+        bloque_componentes(),
+        &limpio[linea_cierre..]
+    ))
+}
+
+/// STARSEED_SIN_BLUETOOTH_ANDROID: «1», «si»/«sí» o «true» lo apagan (interruptor de emergencia).
+pub fn apagado(valor: Option<&str>) -> bool {
+    matches!(valor.map(|v| v.trim().to_lowercase()).as_deref(), Some("1" | "si" | "sí" | "true"))
+}
+
+/// ¿Se inyecta en este paquete? Solo StarSeed OS y con el servicio de antenas (sin él no hay PuenteNativo).
+pub fn aplica(paquete: &str, servicio_de_antenas: bool, apagado: bool) -> bool {
+    servicio_de_antenas && !apagado && paquete.replace('`', "") == PAQUETE_OS
+}
+
+fn escribir_si_cambia(ruta: &Path, contenido: &str) -> Result<bool, String> {
+    if std::fs::read_to_string(ruta).map(|t| t == contenido).unwrap_or(false) {
+        return Ok(false);
+    }
+    if let Some(dir) = ruta.parent() {
+        std::fs::create_dir_all(dir).map_err(|e| format!("No se pudo crear {}: {e}", dir.display()))?;
+    }
+    let tmp = ruta.with_extension("starseed-tmp");
+    std::fs::write(&tmp, contenido).map_err(|e| format!("No se pudo escribir {}: {e}", tmp.display()))?;
+    std::fs::rename(&tmp, ruta).map_err(|e| format!("No se pudo colocar {}: {e}", ruta.display()))?;
+    Ok(true)
+}
+
+/// Aplica todo al proyecto Android. Devuelve los archivos que cambiaron.
+pub fn aplicar(proyecto: &Path) -> Result<Vec<PathBuf>, String> {
+    let mut cambiados = Vec::new();
+    let principal = proyecto.join("app/src/main");
+    let manifiesto = principal.join("AndroidManifest.xml");
+    let texto = std::fs::read_to_string(&manifiesto)
+        .map_err(|e| format!("No se pudo leer {}: {e} (¿falta `cargo tauri android init`?)", manifiesto.display()))?;
+    if escribir_si_cambia(&manifiesto, &parchear_manifiesto(&texto)?)? {
+        cambiados.push(manifiesto);
+    }
+    let kotlin = principal.join("java/app/starseed/nativa/BleStarSeed.kt");
+    if escribir_si_cambia(&kotlin, KOTLIN)? {
+        cambiados.push(kotlin);
+    }
+    Ok(cambiados)
+}
+
+#[cfg(test)]
+mod pruebas {
+    use super::*;
+
+    const PLANTILLA: &str = r#"<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <application
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name">
+        <activity android:name=".MainActivity" android:exported="true" />
+    </application>
+</manifest>
+"#;
+
+    #[test]
+    fn permisos_y_proveedor_en_su_sitio() {
+        let m = parchear_manifiesto(PLANTILLA).unwrap();
+        let p = m.find(PERMISOS_INICIO).unwrap();
+        let a = m.find("<application").unwrap();
+        let c = m.find(COMPONENTES_INICIO).unwrap();
+        assert!(p < a && a < c && c < m.rfind("</application>").unwrap());
+        assert!(m.contains("<uses-permission android:name=\"android.permission.BLUETOOTH_SCAN\" android:usesPermissionFlags=\"neverForLocation\" />"));
+        assert!(m.contains("\"android.permission.BLUETOOTH_ADVERTISE\""));
+        assert!(m.contains("<uses-permission android:name=\"android.permission.ACCESS_FINE_LOCATION\" android:maxSdkVersion=\"30\" />"));
+        assert!(m.contains("<uses-feature android:name=\"android.hardware.bluetooth_le\" android:required=\"false\" />"));
+        assert!(m.contains("app.starseed.nativa.ArranqueBle"));
+        assert!(m.contains("${applicationId}.starseed-ble"));
+    }
+
+    #[test]
+    fn idempotente_y_en_paz_con_los_otros_bloques_en_el_orden_de_build_rs() {
+        use crate::android_actualizador as act;
+        use crate::android_parche as ser;
+        // El orden de build.rs: servicio, medios, actualizador y, por último, el Bluetooth.
+        let todo = |t: &str| parchear_manifiesto(&act::parchear_manifiesto(&ser::parchear_medios(&ser::parchear_manifiesto(t).unwrap()).unwrap()).unwrap()).unwrap();
+        let una = todo(PLANTILLA);
+        let dos = todo(&una);
+        assert_eq!(una, dos, "build tras build, el mismo archivo");
+        assert_eq!(dos.matches(PERMISOS_INICIO).count(), 1);
+        assert_eq!(dos.matches(COMPONENTES_INICIO).count(), 1);
+        // BLUETOOTH_CONNECT y BLUETOOTH (≤ 30) ya los declaran los medios: una sola vez cada uno.
+        assert_eq!(dos.matches("\"android.permission.BLUETOOTH_CONNECT\"").count(), 1);
+        assert_eq!(dos.matches("\"android.permission.BLUETOOTH\"").count(), 1);
+        assert_eq!(dos.matches("\"android.permission.BLUETOOTH_SCAN\"").count(), 1);
+        assert_eq!(dos.matches("</manifest>").count(), 1);
+    }
+
+    #[test]
+    fn solo_starseed_os_con_servicio_y_sin_interruptor() {
+        assert!(aplica("app.starseed.os", true, false));
+        assert!(aplica("app.starseed.`os`", true, false));
+        assert!(!aplica("app.starseed.nexus", true, false));
+        assert!(!aplica("app.starseed.os", false, false), "sin servicio de antenas no hay PuenteNativo");
+        assert!(!aplica("app.starseed.os", true, true));
+        assert!(apagado(Some(" Sí ")) && apagado(Some("1")) && !apagado(None) && !apagado(Some("0")));
+        assert!(parchear_manifiesto("<manifest></manifest>").unwrap_err().contains("<application>"));
+    }
+
+    #[test]
+    fn kotlin_habla_con_ble_android_rs() {
+        assert!(KOTLIN.contains("package app.starseed.nativa"));
+        for f in ["external fun evento(json: String)", "external fun datos(enlace: String, hex: String)", "external fun siguiente(enlace: String): String", "external fun esperarOrden(ms: Long): String"] {
+            assert!(KOTLIN.contains(f), "{f}");
+        }
+        let rust = include_str!("ble_android.rs");
+        for s in ["Java_app_starseed_nativa_PuenteBle_evento", "Java_app_starseed_nativa_PuenteBle_datos", "Java_app_starseed_nativa_PuenteBle_siguiente", "Java_app_starseed_nativa_PuenteBle_esperarOrden"] {
+            assert!(rust.contains(s), "{s}");
+        }
+        // Los UUID de Kotlin son los de ble_trama.rs.
+        for u in [crate::ble_trama::SERVICIO, crate::ble_trama::ENTRADA, crate::ble_trama::SALIDA, crate::ble_trama::CCCD, crate::ble_trama::UUID_PREFIJO, crate::ble_trama::UUID_MASCARA] {
+            assert!(KOTLIN.contains(&format!("\"{u}\"")), "{u}");
+        }
+        // Cada orden que manda Rust la atiende Kotlin, y cada evento de Kotlin lo lee Rust.
+        for o in ["arrancar", "anunciar", "conectar", "desconectar", "datos", "permisos", "parar"] {
+            assert!(KOTLIN.contains(&format!("\"{o}\" ->")), "orden {o}");
+            assert!(rust.contains(&format!("\"o\": \"{o}\"")), "orden {o} en Rust");
+        }
+        for e in ["radio", "visto", "conectado", "mtu", "desconectado"] {
+            assert!(KOTLIN.contains(&format!("put(\"e\", \"{e}\")")), "evento {e}");
+            assert!(include_str!("ble.rs").contains(&format!("\"{e}\" =>")), "evento {e} en Rust");
+        }
+    }
+}

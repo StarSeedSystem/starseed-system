@@ -18,6 +18,10 @@
  * (`tamanoTrozo`: 46 KiB si va el TCP de la app nativa, 63 KiB si solo hay enlaces directos). Y basta
  * con que UNO lleve binario para ofrecer binario: a los que solo llevan texto, el trozo binario se les
  * manda como `archivo.chunk` en base64 (el receptor admite los dos caminos para el mismo archivo).
+ *
+ * (BLE1108A) El Bluetooth directo (`ble:<id>`) nunca entra aquí: `enlacesParaReparto` lo deja fuera
+ * del reparto (o lo usa SOLO si es el único P2P), para que sus trozos de 10 KiB y su ritmo de
+ * 10–60 KB/s no frenen a los demás enlaces.
  */
 
 import { TAM_TROZO_POR_DEFECTO, trozoBinarioATexto, type CanalArchivos } from "@/lib/network/archivos-malla";

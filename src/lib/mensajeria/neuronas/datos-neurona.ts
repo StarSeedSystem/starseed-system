@@ -41,7 +41,8 @@ export const MAX_P2P_BYTES = 4 * 1024 * 1024 * 1024;
 export const LLEVA: Record<MedioTransmision, Record<ClaseDato, boolean>> = {
     local: { mensaje: true, archivo: true, llamada: true, flujo: true },
     "wifi-local": { mensaje: true, archivo: true, llamada: false, flujo: true },
-    bluetooth: { mensaje: true, archivo: false, llamada: false, flujo: false },
+    // (BLE1108A) Bluetooth directo entre apps nativas: mensajes y archivos (≤ 20 MB); ni voz ni vídeo.
+    bluetooth: { mensaje: true, archivo: true, llamada: false, flujo: false },
     lora: { mensaje: true, archivo: false, llamada: false, flujo: false },
     "p2p-internet": { mensaje: true, archivo: true, llamada: false, flujo: true },
     turn: { mensaje: true, archivo: true, llamada: false, flujo: true },
@@ -62,9 +63,9 @@ export function motivoNoLleva(medio: MedioTransmision, clase: ClaseDato): string
     if (LLEVA[medio]?.[clase]) return null;
     switch (medio) {
         case "bluetooth":
-            return clase === "mensaje"
-                ? "aún no hay enlace Bluetooth en el navegador (llegará con la app nativa)"
-                : "Bluetooth no lleva archivos, vídeo ni transmisiones: solo mensajes cortos, y aún no hay enlace Bluetooth en el navegador";
+            // (BLE1108A) Decenas de KB/s con acuse por trama: no da para voz, vídeo ni transmisiones en vivo.
+            // (Audio de baja tasa —Opus a 16 kbps— cabría en el aire, pero aún no hay canal de medios por él.)
+            return "el Bluetooth directo no lleva voz, vídeo ni transmisiones en vivo: solo mensajes y archivos (≤ 20 MB)";
         case "lora":
             return "LoRa solo lleva mensajes cortos (≤ 200 B): ni archivos, ni voz, ni vídeo, ni transmisiones";
         case "rele":
@@ -84,7 +85,7 @@ export function motivoNoLleva(medio: MedioTransmision, clase: ClaseDato): string
 
 /** Texto corto para la interfaz con lo que no lleva cada medio (los límites dichos, no escondidos). */
 export const AVISO_LIMITES_MEDIOS =
-    "Bluetooth y LoRa no llevan archivos, voz, vídeo ni transmisiones (LoRa: solo mensajes de hasta 200 B); el relé cifrado, solo mensajes.";
+    "El Bluetooth directo (apps nativas) lleva mensajes y archivos de hasta 20 MB, sin voz, vídeo ni transmisiones; LoRa, solo mensajes de hasta 200 B; el relé cifrado, solo mensajes.";
 
 /* ══════════════════════════ Enlaces reales → candidatos por clase ══════════════════════════ */
 
@@ -450,7 +451,11 @@ export function textoLlamada(ll: LlamadaNeurona, dir: "sale" | "entra"): string 
 /* ══════════════════════════ Límites por medio ══════════════════════════ */
 
 /** Medios P2P (canal de datos entre aparatos, sin servidor que guarde nada). */
-export const MEDIOS_P2P: readonly MedioTransmision[] = ["local", "wifi-local", "p2p-internet", "turn"];
+// (BLE1108A) El Bluetooth directo también es P2P (de aparato a aparato, sin servidor).
+export const MEDIOS_P2P: readonly MedioTransmision[] = ["local", "wifi-local", "bluetooth", "p2p-internet", "turn"];
+
+/** (BLE1108A) Tope de un archivo por Bluetooth directo (`MAX_ARCHIVO_BLE` de `bluetooth-directo.ts`). */
+export const MAX_BLUETOOTH_BYTES = 20 * 1024 * 1024;
 
 export function esMedioP2P(m: MedioTransmision): boolean {
     return MEDIOS_P2P.includes(m);
@@ -462,7 +467,7 @@ export const MAX_LORA_BYTES = 200;
 /**
  * Tope por ARCHIVO según el medio (0 = ese medio no lleva archivos). P2P: el motor de archivos
  * (trozos de 16 KB a disco, nunca el archivo entero en memoria); servidor: el almacenamiento de
- * la cuenta; relé, LoRa, Bluetooth y correo: no llevan archivos.
+ * la cuenta; Bluetooth directo: 20 MB (BLE1108A: decenas de KB/s); relé, LoRa y correo: no llevan archivos.
  */
 export const LIMITE_ARCHIVO_BYTES: Record<MedioTransmision, number> = {
     local: MAX_P2P_BYTES,
@@ -470,7 +475,7 @@ export const LIMITE_ARCHIVO_BYTES: Record<MedioTransmision, number> = {
     "p2p-internet": MAX_P2P_BYTES,
     turn: MAX_P2P_BYTES,
     servidor: MAX_SERVIDOR_BYTES,
-    bluetooth: 0,
+    bluetooth: MAX_BLUETOOTH_BYTES,
     lora: 0,
     rele: 0,
     correo: 0,
@@ -594,6 +599,7 @@ export function rutaDeArchivo(via: Pick<ViaMensaje, "enlaceId" | "enlace" | "med
     if (id.startsWith("nativo:")) ruta = "Red local (app nativa) · canal TCP 47071";
     else if (id.startsWith("local:nativo-")) ruta = "Red local (app nativa) · enlace directo WebRTC";
     else if (id.startsWith("local:")) ruta = "Enlace directo sin internet (emparejado con código)";
+    else if (id.startsWith("ble:")) ruta = "Bluetooth directo (app nativa, sin router)";
     else if (id.startsWith("cuenta:")) ruta = "Malla de tu cuenta (WebRTC)";
     else if (id.startsWith("par:")) ruta = "Vínculo entre cuentas (P2P)";
     else if (id === "servidor" || via?.medio === "servidor") ruta = "Almacenamiento de tu cuenta";

@@ -93,6 +93,9 @@ export function medioDeEnlace(e: Pick<EnlaceParaMedio, "tipo" | "ruta">): MedioT
         // la pastilla lo distingue por su enlace: «Red local (app nativa)».
         case "nativo":
             return "local";
+        // (BLE1108A) Bluetooth directo entre dos apps nativas (`ble:<id>`): el medio «Bluetooth» de los ajustes.
+        case "ble":
+            return "bluetooth";
         case "cuenta":
         case "par":
             if (e.ruta === "misma-red-local") return "wifi-local";
@@ -150,7 +153,7 @@ function motivoPaso(c: CandidatoMedio): string {
         case "wifi-local":
             return "canal P2P por tu red local (ruta medida)";
         case "bluetooth":
-            return "enlace Bluetooth cercano";
+            return "Bluetooth directo entre las dos apps nativas (sin router ni internet)";
         case "lora":
             return "radio LoRa (solo mensajes cortos)";
         case "p2p-internet":
@@ -306,7 +309,8 @@ export function etiquetaVia(v: ViaMensaje): string {
             partes.push("Mesh", "Wi-Fi local");
             break;
         case "bluetooth":
-            partes.push("Mesh", "Bluetooth");
+            // (BLE1108A) «Bluetooth directo · 84 ms ✓»: de antena a antena, sin router.
+            partes.push("Bluetooth directo");
             break;
         case "lora":
             partes.push("LoRa");
