@@ -9,7 +9,7 @@ import { FICHAS_REPOS_1025, IDS_SIEMBRA_1025, TANDA_1025_FICHAS } from "../repos
 import { FICHAS_REPOS_1026, IDS_SIEMBRA_1026, TANDA_1026_FICHAS } from "../repos-1026";
 import { FICHAS_REPOS_1027, IDS_SIEMBRA_1027, TANDA_1027_FICHAS } from "../repos-1027";
 import { IDS_SIEMBRA_1027B } from "../repos-1027b";
-import { IDS_SIEMBRA_1028 } from "../repos-1028";
+import { FICHAS_REPOS_1028, IDS_SIEMBRA_1028, TANDA_1028_FICHAS } from "../repos-1028";
 import { IDS_SIEMBRA_1101 } from "../repos-1101";
 import { IDS_SIEMBRA_1104 } from "../repos-1104";
 
@@ -57,8 +57,8 @@ function catalogo(ids: readonly string[]): SeedCatalogEntry[] {
 }
 
 describe("defaults-seed · 2.ª tanda con «preinstalar: siempre»", () => {
-  it("la versión está en 25 (Ola 1104 · AF) y mantiene las siete «siempre» de la 2.ª tanda", () => {
-    expect(SEED_VERSION).toBe(25);
+  it("la versión está en 26 (remacho de la 1028) y mantiene las siete «siempre» de la 2.ª tanda", () => {
+    expect(SEED_VERSION).toBe(26);
     for (const id of SIEMPRE_2A) {
       expect(RECOMMENDED_PACKAGE_IDS).toContain(id);
     }
@@ -289,5 +289,63 @@ describe("defaults-seed · tanda 1027 (OpenMausBot, Insomnia y Colibri) · remac
       expect(f.payload.downloadable, f.id).toBeUndefined();
       expect(String(f.payload.route ?? ""), f.id).toBe("");
     }
+  });
+});
+
+describe("defaults-seed · tanda 1028 (LEANN · recuerdo semántico) · remacho 26", () => {
+  const nuevas = FICHAS_REPOS_1028.map((f) => f.id);
+
+  it("la única ficha (lib-leann) está en la recomendación y en la siembra, sin repetirse", () => {
+    expect(TANDA_1028_FICHAS).toHaveLength(1);
+    expect([...IDS_SIEMBRA_1028]).toEqual(["lib-leann"]);
+    for (const id of nuevas) expect(RECOMMENDED_PACKAGE_IDS).toContain(id);
+    expect(new Set(RECOMMENDED_PACKAGE_IDS).size).toBe(RECOMMENDED_PACKAGE_IDS.length);
+  });
+
+  it("el remacho sube la siembra a la 26 y el delta de la 25 trae lib-leann", () => {
+    expect(SEED_VERSION).toBe(26);
+    const plan = selectSeedIds({
+      currentVersion: 25,
+      seedVersion: SEED_VERSION,
+      recommendedIds: RECOMMENDED_PACKAGE_IDS,
+      catalog: FICHAS_REPOS_1028.map((f) => ({ id: f.id, comingSoon: f.comingSoon })),
+      alreadyOffered: [],
+      installedIds: [],
+    });
+    expect(plan).toEqual(["lib-leann"]);
+  });
+
+  it("una cuenta ya al día con la 26 no recibe nada repetido", () => {
+    const plan = selectSeedIds({
+      currentVersion: SEED_VERSION,
+      seedVersion: SEED_VERSION,
+      recommendedIds: RECOMMENDED_PACKAGE_IDS,
+      catalog: FICHAS_REPOS_1028.map((f) => ({ id: f.id, comingSoon: f.comingSoon })),
+      alreadyOffered: ["lib-leann"],
+      installedIds: ["lib-leann"],
+    });
+    expect(plan).toEqual([]);
+  });
+
+  it("a quien ya se le ofreció (o lo desinstaló) el remacho no se lo devuelve", () => {
+    const plan = selectSeedIds({
+      currentVersion: 25,
+      seedVersion: SEED_VERSION,
+      recommendedIds: RECOMMENDED_PACKAGE_IDS,
+      catalog: [{ id: "lib-leann", comingSoon: false }],
+      alreadyOffered: ["lib-leann"],
+      installedIds: [],
+    });
+    expect(plan).not.toContain("lib-leann");
+  });
+
+  it("lib-leann es un ai-source sin route ni skillId: instalar solo registra el enlace", () => {
+    const leann = FICHAS_REPOS_1028.find((f) => f.id === "lib-leann")!;
+    expect(leann.kind).toBe("ai-source");
+    expect(leann.comingSoon).toBeFalsy();
+    expect(leann.payload.route).toBeUndefined();
+    expect(leann.payload.skillId).toBeUndefined();
+    expect(leann.payload.externalUrl).toBe("https://github.com/StarTrail-org/LEANN");
+    expect(leann.payload.contrato).toBe("architecture/leann-recuerdo-semantico.md");
   });
 });
