@@ -201,3 +201,152 @@ modelo, Tauri, servidor local y capas, y la última comprobación («hace 5 min 
 - Web y PWA: sin botones; la versión nueva llega sola (service worker).
 - En cada neurona de la lista y en el detalle de Mensajes › Neuronas: versión, medio y aparato por la
   presencia, «Nueva versión disponible» y «Pedir actualización» (sincronizacion-neuronas.md §9).
+
+## 9 · Canal de pruebas con actualización dentro de la app (ACT1108A · 2026-11-08)
+
+Petición de Alex: «esas actualizaciones ya deberían pasar directamente desde dentro de la app instalada,
+con versiones nuevas, para que se actualice sola». Hasta hoy las pruebas eran borradores de GitHub
+(`native-build.yml` por `workflow_dispatch`): un borrador pide sesión de GitHub, el updater no lo ve, y
+todas decían **0.5.0** (la misma que la publicada), así que «Actualizar» no encontraba nada.
+
+### 9.1 Dos canales
+
+| Canal | Quién lo mira | Escritorio (updater de Tauri) | Android (APK) |
+|---|---|---|---|
+| **oficial** (por defecto) | toda app cuya versión NO lleva «-prueba.» | `releases/latest/download/latest.json` (de siempre; Nexus y Café, su `latest-nexus.json` / `latest-cafe.json`) | el `.apk` del Release, como antes (no hay manifiesto oficial de APK: si algún día se publica `latest-android.json` en el Release oficial, la app lo usa sola) |
+| **pruebas** | toda app cuya versión lleva «-prueba.» (`0.5.1-prueba.23`) | `releases/download/canal-pruebas/latest-prueba.json` **y** el oficial; gana el mayor por semver | `releases/download/canal-pruebas/latest-prueba-android.json` **y** el oficial; gana el versionCode mayor |
+
+- `canal-pruebas` es UNA prerelease fija: publicada (sin sesión de GitHub), **nunca «Latest»**
+  (`--latest=false`; además las prereleases no cuentan para `releases/latest`), con la etiqueta movida al
+  commit de cada prueba (no es una etiqueta `v*`: no dispara nada). Cada prueba reemplaza sus archivos.
+- El canal oficial (`latest.json`, las etiquetas `v*`, los borradores) **no cambia**. Única diferencia:
+  el versionCode de los APK oficiales (§9.2).
+- Solo **StarSeed OS**, escritorio y Android. Nexus, Café e iOS no se construyen en el canal de pruebas.
+- Quién decide el canal: la propia app, por su versión. Rust: `canal_actualizacion_logica.rs`
+  (`endpoints_escritorio`, `manifiestos_android`); web: `src/lib/actualizaciones/canal-pruebas.ts`
+  (`elegirPublicada`). Una app de pruebas siempre mira también el oficial: cuando salga la 0.5.1 oficial
+  la instala encima (0.5.1-prueba.N < 0.5.1) y vuelve sola al canal oficial.
+
+### 9.2 Versiones y versionCode
+
+- Versión de una prueba: **`<oficial + 1 parche>-prueba.<n.º de ejecución>`** (con `tauri.conf.json` en
+  0.5.0 → `0.5.1-prueba.23`). Semver (las reglas de `tauri-plugin-updater`, y ahora también de
+  `compararVersiones` en la web): `0.5.0 < 0.5.1-prueba.9 < 0.5.1-prueba.23 < 0.5.1`.
+- Se sella en el CI (no en el repo) con `native/scripts/canal-pruebas.mjs sellar`: `tauri.conf.json`
+  (`version`, `bundle.android.versionCode`, `bundle.windows.wix.version` = `0.5.1.<n>` porque el MSI solo
+  admite números, y los endpoints del updater = [pruebas, oficial]) y `Cargo.toml` (`version`).
+- versionCode de Android (Android solo instala ENCIMA un versionCode mayor o igual; uno menor obliga a
+  desinstalar = perder datos). Con c(v) = mayor·10⁶ + menor·10³ + parche (lo que calculaba Tauri):
+  - **oficial = c(v) · 1000** (0.5.1 → 5 001 000). Cambio respecto a hoy (antes c(v): 0.5.0 → 5000); es
+    lo que permite que una oficial se instale encima de una de pruebas. Va en los dos canales.
+  - **pruebas ∈ [(c(base) − 1)·1000 + 1, c(base)·1000 − 1]**, siempre mayor que la prueba anterior (el
+    plan lee el `versionCode` del `latest-prueba-android.json` vigente): 0.5.1-prueba.* → 5 000 001…5 000 999.
+  - Orden: oficial 0.5.0 (5000 hoy) < todas las pruebas de 0.5.1 < oficial 0.5.1 (5 001 000). Con 999
+    pruebas sobre la misma base el plan falla en alto: toca publicar la oficial (o subir la base).
+
+### 9.3 Qué sube cada prueba (prerelease `canal-pruebas`)
+
+| Archivo | Lo escribe | Contenido |
+|---|---|---|
+| instaladores de escritorio de StarSeed OS (`.dmg`, `.app.tar.gz`+`.sig`, `-setup.exe`, `.msi`, `.AppImage`, `.deb`, `.rpm`, sus `.sig`) | tauri-action (`build-desktop`) | firmados con la clave del updater de siempre (`TAURI_SIGNING_PRIVATE_KEY`) |
+| `latest-prueba.json` | job `canal-pruebas-publicar` | el `latest.json` de tauri-action (firmas incluidas) con las notas de la prueba; sin firma no se publica (sale en rojo) |
+| `StarSeed-os-<versión>.apk` | `build-android` | firmado con el MISMO keystore que el oficial (`ANDROID_KEYSTORE_*`); la huella SHA-256 del certificado sale en el resumen del job |
+| `latest-prueba-android.json` | `build-android` | `{ version, versionCode, apk, sha256, bytes, notas, pub_date, canal }` (se sube DESPUÉS del APK) |
+
+Al final, `canal-pruebas-publicar` borra todo lo que ya no apunta ningún manifiesto vigente: si una
+plataforma falla en una prueba, su manifiesto sigue en la prueba anterior y sus archivos se quedan.
+Dos pruebas a la vez van en fila (`concurrency: native-canal-pruebas`).
+
+### 9.4 Cómo se lanza
+
+```
+gh workflow run native-build.yml -R StarSeedSystem/starseed-system --ref main \
+  -f canal=pruebas -f systems=os -f plataformas=escritorio,android -f servidor_local_android=true
+```
+
+(`etiqueta` no hace falta: el canal de pruebas siempre usa `canal-pruebas`. `systems` no cambia nada en
+este flujo: la matriz del canal de pruebas ya es solo `os`.)
+
+### 9.5 Dentro de la app
+
+**Escritorio** (`canal_actualizacion.rs::buscar`, usado por la vigilancia de 6 h, `check_update` y
+`buscar_actualizacion`): una app de pruebas hace un `check()` por canal con `updater_builder().endpoints(…)`
+y se queda con la versión mayor (el updater con varios endpoints se queda con el PRIMERO que responde).
+Un canal sin manifiesto (404) no tumba al otro. La vigilancia instala sola, sin preguntar; si la persona
+no mira la ventana, reinicia; si mira, deja «lista» y ahora además una **notificación del sistema
+«Lista: reinicia…»**. La ventana y «Esta neurona» siguen igual.
+
+**Android** (`canal_actualizacion.rs` + `android/ActualizadorApk.kt`, inyectado por `build.rs` con
+`android_actualizador.rs`, solo StarSeed OS, aunque el servicio de antenas esté apagado):
+
+1. `apk_actualizar { instalar }` escribe `filesDir/starseed/actualizacion/peticion.json` con los
+   manifiestos de su canal. Kotlin (FileObserver) lo recoge en un hilo propio.
+2. Kotlin lee los manifiestos (solo `https://github.com/StarSeedSystem/starseed-system/releases/…`),
+   elige el versionCode mayor y, si es mayor que el instalado, **descarga el APK dentro de la app**
+   (solo de `…/releases/download/…`, redirecciones solo a github.com / *.githubusercontent.com, ≤ 800 MB).
+3. Comprueba **SHA-256 = el del manifiesto**, que el APK es **del mismo paquete**, que su **versionCode
+   es el anunciado** y que su **firma es la de la app instalada** (si Android no deja leer alguna firma,
+   decide él al instalar: rechaza otra firma). Si algo no casa, lo borra y dice por qué.
+4. Abre el **instalador del sistema** (`ACTION_VIEW` + `content://` de su FileProvider propio,
+   `ProveedorActualizacion`, que solo expone `files/starseed/actualizacion/`). **Android siempre pide a la
+   persona que confirme «Instalar»**; la primera vez, además, permitir que StarSeed OS «Instale apps
+   desconocidas» (`REQUEST_INSTALL_PACKAGES`): la app abre ese ajuste con un texto claro y, al volver con
+   el permiso, abre el instalador sola.
+5. Estado en `estado.json` (`apk_estado`): `buscando · descargando (con %) · lista · permiso · instalador ·
+   instalada · al-dia · error · sin-actualizador`. Tras instalar, la app nueva arranca, dice «Instalada» y
+   borra el APK.
+6. Cada 6 h Rust pide una búsqueda **sin instalar**: si hay versión nueva, Kotlin la baja, la verifica y
+   deja una notificación (una por versión); al abrir la app, la ventana «Hay una versión nueva» la ofrece.
+
+**Web** (`aviso-actualizacion.tsx`, «Esta neurona», `comprobar.ts`, `/api/os/versiones`):
+`/api/os/versiones` añade `canalPruebas` (`{ version, fecha, notas, android }`, de los dos manifiestos,
+caché 10 min; la lista `versiones` no cambia). Una app de pruebas ve «**Canal de pruebas ·
+0.5.1-prueba.23**» y sus notas; en escritorio instala con el updater; en Android, «Actualizar ahora» /
+«Instalar la X aquí» descarga dentro de la app y abre el instalador. Con una APK sin el actualizador
+interno (anteriores a ACT1108A), o si falla, se ofrece el `.apk` como antes.
+
+Comandos nuevos (todas las plataformas; fuera de Android responden «solo Android»): `apk_actualizar`,
+`apk_estado`, `apk_instalar` — en `COMANDOS_APP` de `build.rs` y como `allow-apk-*` en
+`capabilities/default.json`. Dependencia nueva en Cargo.toml: `semver = "1"` (ya estaba en el árbol por
+tauri-utils; es el mismo comparador del updater). Ningún crate se descarga de más.
+
+### 9.6 Los datos se conservan
+
+- **Escritorio:** mismo identificador (`app.starseed.os`) en los dos canales → misma carpeta de datos
+  (`app_data_dir`: antenas, capas, carpetas concedidas, servidor local) y mismo almacenamiento del WebView
+  (localStorage, IndexedDB, cookies). El updater solo reemplaza el paquete de la app.
+- **Android:** mismo paquete y **misma firma** (mismo keystore en los dos canales; el job lo enseña con la
+  huella del certificado) → Android actualiza encima y conserva `filesDir`, bases de datos y el
+  almacenamiento del WebView. El versionCode creciente (§9.2) evita el «App no instalada» que obligaría a
+  desinstalar.
+
+### 9.7 Lo que Alex hace UNA vez
+
+1. Lanzar una prueba (§9.4) e instalar **a mano** esa primera build que ya conoce el canal: en la Mac, el
+   `.dmg` de la prerelease `canal-pruebas` (clic derecho → Abrir la primera vez); en Android, el
+   `StarSeed-os-0.5.1-prueba.N.apk` (se instala ENCIMA de la 0.5.0: misma firma, datos conservados).
+   Las builds anteriores (0.5.0, borradores) no saben del canal de pruebas.
+2. En Android, la primera actualización desde dentro: aceptar «Instalar apps desconocidas» para StarSeed OS
+   cuando la app lo pida, y en cada versión pulsar «Instalar» (Android no deja saltarlo).
+3. A partir de ahí: cada `gh workflow run … -f canal=pruebas` llega solo (escritorio: se instala sola y
+   avisa «Lista: reinicia»; Android: se descarga sola y avisa; un toque en «Instalar»).
+
+### 9.8 Riesgos
+
+- **versionCode oficial cambia** (×1000): necesario para pasar de pruebas a oficial sin desinstalar. Si
+  algún día se compila un APK oficial sin este flujo (Tauri por defecto, 0.5.1 → 5001), no se instalaría
+  encima de una prueba (5 000 0xx): hay que compilarlo con `canal-pruebas.mjs sellar --oficial`.
+- **Primera instalación manual** inevitable: una 0.5.0 instalada no conoce el canal ni el actualizador.
+- **Firma de Android**: si cambia el keystore de los secretos, Android rechaza instalar encima (y la app lo
+  dice antes de abrir el instalador si puede leer las dos firmas). Sin `ANDROID_KEYSTORE_*` el APK no sale.
+- **Firma del updater**: sin `TAURI_SIGNING_PRIVATE_KEY` no hay `latest-prueba.json` (el job sale en rojo).
+- **macOS sin notarizar**: el updater funciona (firma propia); la primera instalación manual pide «Abrir».
+  Windows: el MSI de pruebas es `0.5.1.<n>` (WiX ignora el 4.º número al decidir si es «más nuevo»; la
+  plantilla de Tauri permite instalar encima igual). Linux: glibc ≥ 2.39, como el oficial.
+- **Android no deja instalar sin la persona**: no hay actualización silenciosa sin ser «propietario del
+  dispositivo» o tienda. Si la app no está a la vista, el instalador se abre al volver a ella.
+- **Sin verificar en un aparato real** todavía: el Kotlin (`ActualizadorApk.kt`) solo se compila en el CI
+  de Android; las pruebas de Rust comprueban el parche del manifiesto, que Kotlin y Rust dicen lo mismo y
+  la lógica pura. Primera prueba real: instalar la build de pruebas N, lanzar la N+1 y ver los dos caminos.
+- **Choques de integración**: `lib.rs`, `build.rs`, `Cargo.toml` y `capabilities/default.json` también los
+  toca NOT1108A; los cambios de ACT1108A son pocos y van marcados.
