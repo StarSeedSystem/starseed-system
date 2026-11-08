@@ -1,6 +1,6 @@
 # Genesis · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-07 19:09:15 desde Genesis vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-08 00:22:11 desde Genesis vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -12,28 +12,20 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | | |
 |---|---|
 | Genesis | **encendido** en http://127.0.0.1:9002/mando |
-| Ola arriba | Sueños profundos 2026-10-24 |
+| Ola arriba | Sueños profundos 2026-10-24 · propuesta |
 | Agentes escribiendo | **0** |
-| En esta ola | integradas 0 · en curso 0 · esperando aprobación 0 · pendientes 41 |
-| Últimas 4 olas | en curso 0 · pendientes 80 · integradas 0 |
-| HEAD | `e926e6c9e4 chore(memoria): aprendizaje de la ola auto-1107-174940` |
-| Sin publicar | 12 commits |
-| Árbol | 2 archivos sin commitear |
+| En esta ola | integradas 0 · en curso 0 · esperando aprobación 0 · pendientes 15 |
+| Últimas 4 olas | en curso 0 · pendientes 100 · integradas 0 |
+| HEAD | `fdd66484f3 chore(memoria): aprendizaje de la ola auto-1107-235630` |
+| Sin publicar | 17 commits |
+| Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-1107-174940.json`, hace 14s)
+## Quién escribe ahora (latido de `cola-auto-1107-235630.json`, hace 14s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `CTR1107D-d3` | hecho | openrouter/cohere/north-mini-code: | 1 min | 65 s | 109841 |
-| `CTD1107E` | hecho | freellmapi/auto | 2 min | 95 s | 109636 |
-| `SUP0711E` | hecho | openrouter/cohere/north-mini-code: | 3 min | 157 s | 151084 |
-| `CTD1107G` | hecho | freellmapi/auto | 7 min | 440 s | 80642 |
-| `CTD1107Ab` | hecho | freellmapi/auto | 15 min | 911 s | 66187 |
-| `CTD1107F` | hecho | freellmapi/auto | 17 min | 1049 s | 87201 |
-| `CTD1107D` | hecho | openrouter/cohere/north-mini-code: | 29 min | 1724 s | 140140 |
-| `CTD1107B` | hecho | freellmapi/auto | 34 min | 2049 s | 81168 |
-| `CTD1107A` | hecho | freellmapi/auto | 43 min | 2585 s | 30902 |
-| `CTD1107C` | hecho | freellmapi/auto | 56 min | 3349 s | 71868 |
+| `SUP0811D` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 2 min | 143 s | 108643 |
+| `SUP0811C` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 19 min | 1166 s | 29015 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
