@@ -266,12 +266,22 @@ export async function encryptEnvelopeForMany(
 export async function decryptEnvelopeFor(env: RecipientEnvelope): Promise<unknown | null> {
   const s = subtle();
   if (!s || !env || env.v !== 3 || !env.epk || !env.iv || !env.ct) return null;
+  const id = await getOrCreateEncryptionKey();
+  if (!id) return null;
+  return decryptEnvelopeWith(env, id.privKey);
+}
+
+/**
+ * (MPT1108A) Igual que `decryptEnvelopeFor` pero con la privada ECDH que se le da (cifrado de archivo de
+ * punta a punta y pruebas con varias identidades). Null ante cualquier fallo. Nunca lanza.
+ */
+export async function decryptEnvelopeWith(env: RecipientEnvelope, privKey: CryptoKey): Promise<unknown | null> {
+  const s = subtle();
+  if (!s || !env || env.v !== 3 || !env.epk || !env.iv || !env.ct || !privKey) return null;
   try {
-    const id = await getOrCreateEncryptionKey();
-    if (!id) return null;
     const epk = await importPub(env.epk);
     if (!epk) return null;
-    const aes = await deriveAesKey(id.privKey, epk);
+    const aes = await deriveAesKey(privKey, epk);
     if (!aes) return null;
     const iv = fromB64(env.iv);
     const ct = fromB64(env.ct);

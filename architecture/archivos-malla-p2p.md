@@ -215,6 +215,14 @@ del OS cambie) y reescribe la `url` del ítem con la real de Storage.
 - Mobile-first, iconos lucide, `cursor-pointer`, sin emojis — mismo estilo que el resto de la
   malla.
 
+## 10b. Cifrado de archivo de punta a punta y multitrayecto (MPT1108A, 2026-11-08)
+Contrato completo en `red-sin-dependencias.md` §5.2. Resumen para quien toque el motor:
+- `crearCanalSellado(canal, …)` (`src/lib/malla/canal-sellado.ts`) envuelve el canal y el motor sigue en claro. Sustituye `archivo.oferta` por `archivo.oferta.cif` (sobre ECDH P‑256 → HKDF → AES‑GCM por destinatario, con clave de contenido, manifiesto y firma) y sella cada `archivo.chunk` con AES‑256‑GCM (nonce = id + índice, AAD = id|índice|total|longitud). El trozo gana 16 bytes; el canal sellado anuncia `tamanoTrozo` menos 16 y `maxTextoBytes` al 55 %.
+- Los trozos de una transferencia sellada que no pasan el tag, o llegan en claro, se descartan antes del motor; los duplicados (varias vías) los sigue ignorando el motor. El hash por trozo y el SHA‑256 del archivo siguen siendo del contenido en claro.
+- `CanalArchivos` tiene dos métodos opcionales nuevos: `resumenVias()` (reparto por vías y velocidad) y `modoCifrado(id)`. El motor los copia a `EstadoTransferencia.repartoVias`, `velocidadBps` y `cifradoArchivo` (`archivo` o `sin-cifrado-de-archivo` para un par antiguo).
+- `crearCanalMultiVias` (`canal-multitrayecto-vias.ts`) reparte los trozos por vías de cualquier clase (directas, cuenta, relés, router) con capacidad, latencia, contrapresión por vía y reequilibrio; reenvía por las demás los últimos trozos de una vía que muere. Debe ir DEBAJO del canal sellado.
+- Tests: `src/lib/malla/__tests__/{cifrado-archivo,multitrayecto-vias,puerta-internet}.test.ts`.
+
 ## 11. Qué falta (fuera de alcance de esta ola)
 
 - **Camino binario real** (§3): documentado como extensión futura si el ahorro de ancho de banda

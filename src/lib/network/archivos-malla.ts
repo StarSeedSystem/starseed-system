@@ -164,6 +164,16 @@ export interface CanalArchivos {
    * otro lado en la oferta y en el «aceptar»; si los dos miden lo mismo, la transferencia queda «verificada por ambos».
    */
   rutaMedida?(): string | null;
+  /**
+   * (MPT1108A) Opcional: por dónde van los trozos ahora («LAN 72 % · Wi‑Fi directo 20 % · Bluetooth 8 %») y la
+   * velocidad total, si el canal reparte entre varias vías. Solo para enseñarlo.
+   */
+  resumenVias?(): { texto: string; bps: number } | null;
+  /**
+   * (MPT1108A) Opcional: cómo viaja ESTA transferencia: «archivo» = cada trozo cifrado de punta a punta con
+   * la clave del receptor; «sin-cifrado-de-archivo» = el par es antiguo y solo protege el enlace; null = no se sabe.
+   */
+  modoCifrado?(id: string): "archivo" | "sin-cifrado-de-archivo" | null;
   /** Suscribe un callback a los mensajes entrantes. Devuelve función de baja. */
   alMensaje(cb: (data: string | ArrayBuffer) => void): () => void;
 }
@@ -1424,6 +1434,10 @@ export interface EstadoTransferencia {
   rutaEnlace?: string;
   rutaEnlaceOtro?: string;
   rutaEnlaceVerificada?: boolean | null;
+  /** (MPT1108A) Reparto por vías («LAN 72 % · Bluetooth 8 %»), velocidad total (bytes/s) y modo de cifrado del archivo. */
+  repartoVias?: string;
+  velocidadBps?: number;
+  cifradoArchivo?: "archivo" | "sin-cifrado-de-archivo";
 }
 
 export interface OfertaEntranteInfo {
@@ -1684,6 +1698,27 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
     const actual = estados.get(id);
     if (!actual) return;
     emitir({ ...actual, progreso, actualizadoMs: Date.now() });
+  }
+
+  /** (MPT1108A) Anota en el estado por dónde van los trozos y si el archivo va cifrado de punta a punta. Nunca lanza. */
+  function anotarVias(id: string, canal: CanalArchivos): void {
+    try {
+      const actual = estados.get(id);
+      if (!actual) return;
+      const r = canal.resumenVias?.() ?? null;
+      const m = canal.modoCifrado?.(id) ?? null;
+      const texto = r?.texto;
+      const bps = r ? Math.round(r.bps) : undefined;
+      if (texto === actual.repartoVias && (m ?? undefined) === actual.cifradoArchivo && bps === actual.velocidadBps) return;
+      emitir({
+        ...actual,
+        ...(texto ? { repartoVias: texto } : {}),
+        ...(bps !== undefined ? { velocidadBps: bps } : {}),
+        ...(m ? { cifradoArchivo: m } : {}),
+      });
+    } catch {
+      /* solo informativo */
+    }
   }
 
   function onProgreso(cb: (estado: EstadoTransferencia) => void): () => void {
@@ -2048,7 +2083,9 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
       intentosReintento.delete(id);
       k++;
       actualizarProgreso(id, yaTiene + k);
+      if (k === 1 || k % 8 === 0) anotarVias(id, canal);
     }
+    anotarVias(id, canal);
     if (cancelados.has(id)) return;
     // «fin» (con un par de reintentos si el canal está un momento lleno) y, desde ARC1108A, el
     // remitente queda «verificando» hasta que el receptor confirme: nunca colgado sin decir nada.
@@ -2136,6 +2173,9 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
     if (!e || e.rol !== "enviar") return;
     limpiarVigia(msg.id);
     emitir({ ...e, fase: "completada", progreso: e.trozos, motivo: undefined, codigo: undefined, lado: undefined, actualizadoMs: Date.now() });
+    // (MPT1108A) El reparto final por vías (los envíos cifrados salen en segundo plano: al acabar ya se sabe).
+    const canalOk = canalPorId.get(msg.id);
+    if (canalOk) anotarVias(msg.id, canalOk);
     archivosEnvio.delete(msg.id);
     canalPorId.delete(msg.id);
     desdePorId.delete(msg.id);
@@ -2234,6 +2274,7 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
     if (!hashesPorId.has(id)) hashesPorId.set(id, []);
     emitir({ ...estado, fase: "transfiriendo", progreso: tenidos.size, actualizadoMs: Date.now() });
     const modo = modoPorId.get(id) ?? "base64";
+    anotarVias(id, canal);
     const rutaRecibida = sanearRutaEnlace(canal.rutaMedida?.());
     canal.enviar(JSON.stringify({ t: "archivo.aceptar", id, modo, ...(desde > 0 ? { desde } : {}), acuses: 1, ...(huecos ? { huecos } : {}), ...(rutaRecibida ? { rutaEnlace: rutaRecibida } : {}) } satisfies MsgAceptar));
   }
