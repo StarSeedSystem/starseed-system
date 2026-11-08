@@ -1,4 +1,9 @@
-# Contrato · «Esta neurona» tras iniciar sesión (NEU1107B · 2026-11-07)
+# Contrato · «Esta neurona» tras iniciar sesión (NEU1107B · 2026-11-07 · ampliado NEU1108A · 2026-11-08)
+
+> NEU1108A, tras probarlo en aparatos reales el 08-11: identidad del aparato en la fila (§2.1), solo se
+> preselecciona con prueba fuerte y nunca una fila de otro aparato (§2), adopción en silencio al arrancar
+> (§2.2) y la pista del id en la APK de Android con servidor local (§6.1). Presencia en vivo del chat y
+> faros del radar: `sincronizacion-neuronas.md` §11.
 
 Petición de Alex (07-11): «En las versiones instaladas, después de iniciar sesión falta una ventana: que
 detecte si el aparato ya tiene un registro de neurona de otro medio donde se inició sesión y sugiera
@@ -21,6 +26,9 @@ amplía `neuronas-un-aparato.md` (huella, medios, fusión del panel) y la sincro
 | A mano | `src/components/settings/neurons/esta-neurona.tsx` | Ajustes › Neuronas › Esta neurona › «Revisar las neuronas de este aparato» |
 | Fusión sin borrar | `src/lib/neurons/fusion.ts` (`conservarFilas`) + `fusion-alias.ts` (`fusionadaEn`, `idsConocidasConAlias`) | Marca, alias, respaldo, deshacer |
 | Pista de la migración | `native/servidor-local/migracion-origen.js` + `src/lib/nativa/migracion-origen.ts` | `starseed.migracion-origen.neurona-anterior.v1` |
+| (NEU1108A) Pista en Android | `native/src-tauri/src/pista_neurona.rs` + `traerPistaNativa` (`aparato-este-medio.ts`) | La APK con servidor local trae el id del origen publicado a la misma clave (§6.1) |
+| (NEU1108A) Identidad del aparato | `src/lib/neurons/aparato-registro.ts` (puro) + `aparato-este-medio.ts` | `capabilities.aparato` en la fila: medio, app, so, soV, arq, equipo, huella (hash), versión, último medio (§2.1) |
+| (NEU1108A) Adopción al arrancar | `src/lib/neurons/adopcion-arranque.ts` (puro) + `asegurarIdentidadAlArrancar` (`neurons.ts`) | Antes de crear la fila de un medio nuevo, adopta en silencio la neurona que ya era su aparato (§2.2) |
 | Medios por neurona | `src/lib/mensajeria/medios/preferencias-store.ts` (`porNeurona`) | Orden de medios de ESTA neurona: chat → neurona → generales |
 
 ## 2 · Detección: ¿qué neuronas son este aparato en otro medio?
@@ -31,7 +39,8 @@ equipo) y `so`. `presentes` es la presencia de la cuenta (`PresenciaMedio`, con 
 
 | Señal | Puntos | Fuerte |
 |---|---|---|
-| Es el id que esta app usaba en el origen anterior (migración al servidor local) | +100 | sí |
+| Es el id que esta app usaba en el origen anterior (migración al servidor local; en Android, `pista_neurona`) | +100 | sí |
+| (NEU1108A) Misma huella del aparato, o mismo equipo y sistema, guardados en la fila (`capabilities.aparato`) | +80 | sí |
 | Mismo equipo o modelo (`info_neurona` ↔ `d.equipo` de su presencia) y mismo sistema | +70 | sí |
 | Huella `mismo` (nombre de máquina igual, o GPU + núcleos + pantalla) | +55 | sí |
 | Huella `probable` | +30 | |
@@ -43,21 +52,62 @@ equipo) y `so`. `presentes` es la presencia de la cuenta (`PresenciaMedio`, con 
 
 Descartes (siempre con su motivo en `descartadas`): otro sistema; otro equipo en vivo; huella `distinto`;
 fila sin datos del aparato; ya fusionada (marca o alias); **en línea ahora mismo sin una señal fuerte** (es
-otro aparato encendido a la vez). La migración es la única señal que pasa por encima de un sistema distinto.
+otro aparato encendido a la vez); (NEU1108A) **huella o equipo guardados en la fila que no son los de este
+aparato** — NUNCA se sugiere, ni con la pista de la migración. La migración es la única señal que pasa por
+encima de un sistema distinto. La huella «de máquina» de «localhost» (todas las apps de Android) no cuenta.
 
-Confianza: **alta** ≥ 60, **media** ≥ 28, **baja** ≥ 12 (se enseña sin marcar); por debajo, no se enseña.
-La razón visible son las dos señales más fuertes en una frase.
+(NEU1108A) Confianza: **alta** = hay una prueba fuerte (y SOLO entonces se preselecciona); sin ella, por
+muchos puntos que sume, **media** ≥ 28 o **baja** ≥ 12, y se enseña sin marcar; por debajo, no se enseña.
+Con una candidata fuerte, las débiles van plegadas bajo «Otras posibles (N)» (`separarCandidatas`); sin
+ninguna fuerte, todas a la vista y sin marcar. Las fuertes van primero. La razón visible son las dos señales
+más fuertes en una frase.
 
-Casos reales de la cuenta de Alex (fixtures en `__tests__/duplicadas-aparato.test.ts`):
-- App de escritorio de la **MaggaBook** → sugiere la neurona «💻 macOS» que creó Chrome en la misma Mac
-  (huella `mismo`); la tableta, el Android y el iOS se descartan por sistema.
-- **Maggadroid phone** → sugiere **Maggadroid** (nombre + relevo del 06-11); la **Maggaboard** está en línea
+Caso real del 08-11 (fixture «la tableta reinstalada con el servidor local»): la tableta en 127.0.0.1
+(«📱 Android · Chrome 156», nueva) frente a «Maggaboard» (su fila de siempre) y «Maggadroid» (otro móvil,
+apagado desde el 06-11). Antes: las dos marcadas — Maggadroid sumaba 38 («media») solo con relevo, sistema y
+navegador. Ahora: Maggaboard «alta» y marcada (misma huella de hardware; con la pista de Android, además, la
+migración); Maggadroid «media», sin marcar y plegada; con el aparato guardado en las filas, Maggadroid ni se
+enseña («otro equipo»).
+
+### 2.1 · `capabilities.aparato` (NEU1108A)
+
+Medido el 08-11: ninguna fila guardaba de qué aparato era (solo plataforma y navegador). Cada medio escribe con
+su ficha (al registrarse y cada 30 min) `{ v:1, medio, app, so, soV, arq, equipo, huella, version,
+ultimoMedio, visto }` — jsonb que ya existe: sin migración. `equipo` = nombre del equipo (escritorio) o
+modelo (Android); `huella` = sha-256 corto de sistema + equipo (escritorio) o sistema + modelo + núcleos +
+GPU + pantalla (móvil). Solo la app nativa sabe el equipo: un navegador solo apunta su medio y la hora, y
+nunca pisa lo que escribió la app nativa. La marca `fusionada` nunca se pierde (ni con una lectura fallida:
+entonces no se sube la ficha). Detalle de la fusión y de los lectores: `sincronizacion-neuronas.md` §11.1.
+
+### 2.2 · Adopción en silencio al arrancar (NEU1108A)
+
+Antes de que un medio nuevo cree su fila (la ficha completa del latido ve que no existe, o la ventana se
+prepara), `asegurarIdentidadAlArrancar` decide con `decidirAdopcionArranque` (puro):
+
+1. la pista de la migración (escritorio o Android) → esa neurona (siguiendo alias y marcas `fusionada`),
+   salvo que su fila guarde la huella o el equipo de OTRO aparato;
+2. la misma huella del aparato en UNA sola neurona vigente;
+3. el mismo equipo y sistema en UNA sola neurona vigente que no esté en línea ahora y sin huella que lo
+   contradiga.
+
+Si encaja, el medio adopta su id (`adoptarNeurona`, como «Usar su configuración»), la deja configurada,
+avisa (`starseed:neurona-adoptada`, `motivo: "arranque:…"`) y la ficha sube a ESA fila: no nace ninguna
+neurona nueva. Si es ambigua o no hay prueba fuerte, no toca nada y decide la persona en la ventana. Un
+navegador sin pista ni identidad del aparato ni siquiera lee la lista (sin coste). Una vez por sesión.
+
+Casos reales de la cuenta de Alex del 07-11 (fixtures en `__tests__/duplicadas-aparato.test.ts`, que
+también lleva el del 08-11 de arriba):
+- App de escritorio de la **MaggaBook** → sugiere y marca la neurona «💻 macOS» que creó Chrome en la misma
+  Mac (huella `mismo`, fuerte); la tableta, el Android y el iOS se descartan por sistema.
+- **Maggadroid phone** → enseña **Maggadroid** sin marcar (nombre + relevo: débiles); la **Maggaboard** está en línea
   con otro equipo: fuera; «📱 iseed maggadroid» es iOS: el nombre nunca gana a un sistema distinto.
 - **Maggaboard** → no se apropia de los registros del móvil (el móvil está en línea); reconoce la
   «📱 Android · Chrome 154» del 10-10 por GPU, núcleos y pantalla.
 
-`sugerirFusion`: preselecciona las de confianza alta y media; se queda la neurona con nombre propio más
-antigua (empate: esta, para no tener que recargar); el nombre, el primero propio del grupo.
+`sugerirFusion`: (NEU1108A) preselecciona SOLO las de prueba fuerte (`fuerte: true`); se queda la neurona con
+nombre propio más antigua (empate: esta, para no tener que recargar); el nombre, el primero propio del grupo.
+Por eso «Maggadroid phone» ya no marca sola a «Maggadroid» (nombre + relevo son señales débiles): se enseña
+«Probable», sin marcar.
 
 ## 3 · Fusión: semántica
 
@@ -141,10 +191,29 @@ Solo se guarda lo que cambió; lo que falle se dice («Se guardó todo menos: �
 - Una pestaña con una web anterior: no filtra la marca `fusionada` (enseña la fila absorbida como
   «inactiva» hasta recargar) y, si reescribe las preferencias de Mensajería, pierde `porNeurona` (lo vuelve
   a poner la siguiente edición). Los alias siguen funcionando como antes.
+- (NEU1108A) Webs anteriores no escriben `capabilities.aparato`: sus filas se comparan como hoy (huella de
+  hardware, nombre, relevo) y nunca se descartan por no tenerlo.
+
+### 6.1 · Android con servidor local: la pista del id (NEU1108A, necesita un build nativo nuevo)
+
+La migración del origen publicado al servidor local (`migracion_origen*.rs`, ventana oculta +
+`loadHTMLString`/WebView2) es **solo de escritorio**. En la APK con el servidor local (AND1107A) el origen
+`http://127.0.0.1:4761x` nacía vacío, sin `starseed.neuron.device-id`, y la web registraba una neurona nueva
+(caso de la tableta del 08-11). `pista_neurona.rs`: al primer arranque con servidor local (como mucho 3 veces,
+marcador `<app_data>/pista-neurona.json`), la ventana principal pasa un momento por
+`<web publicada>/offline.html?starseed-pista=1` (con red, o desde la caché del service worker), Rust evalúa
+allí un script que lee `starseed.neuron.device-id` de ESE origen y lo manda con `pista_neurona` (solo ventana
+«main», solo el origen publicado, una vez); con la respuesta (o a los 8 s) sigue a la entrada del servidor
+local. La web la pide con `pista_neurona_leer` (solo 127.0.0.1:47610…47619) y la deja en
+`starseed.migracion-origen.neurona-anterior.v1`, como la escritorio. Solo viaja el id; la sesión no.
+Sin red ni caché, no hay pista: decide la huella del aparato (§2.2) o la persona en la ventana.
+Hasta el próximo build nativo de Android esto no existe en la tableta (los comandos no están): la web sigue
+funcionando igual y solo no tiene esa señal.
 
 ## 7 · Base de datos
 
-Ningún cambio. La marca va en `neuron_devices.capabilities` (jsonb). Si un día los lectores del servidor
+Ningún cambio. La marca va en `neuron_devices.capabilities` (jsonb), y (NEU1108A) también la identidad del
+aparato (`capabilities.aparato`, §2.1): ninguna migración. Si un día los lectores del servidor
 (relé, recursos de IA, Hermes…) deben saltar las filas fusionadas sin leer el jsonb, una columna
 `merged_into uuid null` con índice lo haría; no se ha preparado migración porque hoy no es imprescindible.
 
@@ -156,10 +225,20 @@ NODE_ENV=test npx vitest run src/lib/neurons/__tests__/duplicadas-aparato.test.t
   src/lib/mensajeria/medios/__tests__/preferencias-neurona.test.ts src/lib/onboarding/__tests__/primer-arranque.test.ts \
   src/lib/nativa/__tests__/migracion-origen.test.ts src/components/neurons/__tests__/bienvenida-neurona.test.tsx \
   src/components/onboarding/__tests__/primer-arranque.test.tsx
+# NEU1108A
+NODE_ENV=test npx vitest run src/lib/neurons/__tests__/aparato-registro.test.ts \
+  src/lib/neurons/__tests__/aparato-este-medio.test.ts src/lib/neurons/__tests__/adopcion-arranque.test.ts \
+  src/lib/neurons/__tests__/identidad-arranque.test.ts src/lib/nativa/__tests__/contrato-rust.test.ts
+cargo test --lib   # en native/src-tauri: pista_neurona::pruebas
 ```
 
+(NEU1108A) A mano, con la próxima APK: reinstalar la APK con servidor local sobre la anterior → no nace
+ninguna neurona nueva (la tableta sigue siendo «Maggaboard» en Ajustes › Neuronas y en `neuron_devices`); sin
+internet en ese primer arranque, la ventana propone solo Maggaboard marcada. En cualquier app nativa, tras
+30 min, la fila tiene `capabilities.aparato` con su equipo o modelo y versión.
+
 A mano: iniciar sesión en la app de escritorio de la Mac y en la de Android → la ventana sale una vez; en
-el móvil propone «Maggadroid»; fusionar eligiendo el id viejo recarga y la neurona queda única en Ajustes ›
+el móvil propone «Maggadroid» (sin marcar, salvo que la fila guarde su mismo modelo y huella); fusionar eligiendo el id viejo recarga y la neurona queda única en Ajustes ›
 Neuronas, con la absorbida fuera de la lista y su fila aún en `neuron_devices` con la marca; Deshacer la
 devuelve; la tableta, encendida a la vez, nunca aparece como candidata del móvil; el faro de la otra app
 sigue reconociendo al móvil por su id viejo hasta que este recarga.

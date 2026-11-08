@@ -239,3 +239,80 @@ Contrato completo: `architecture/neurona-bienvenida.md`. Lo que toca a la malla:
   (`listNeurons`): sin internet entre las dos, basta con que la fila llegue.
 - Los vínculos de sincronización (`starseed.malla.vinculos.<neurona>.v1`) guardan la huella de malla, que no
   cambia con la fusión (los ids de malla y de sync de cada medio no se comparten).
+
+## 11 · Identidad del aparato, presencia en vivo y faros propios (NEU1108A · 2026-11-08)
+
+Hallazgos en aparatos reales (08-11, ≈01:05–01:35 UTC): al reinstalar en la tableta «Maggaboard» la APK de
+pruebas con el servidor local dentro, el origen pasó a `http://127.0.0.1:…` y nació otra neurona; ninguna fila
+de `neuron_devices` guardaba de qué aparato era; en la Mac, el chat con la tableta decía «versión desconocida ·
+no está abierta ahora» mientras el radar la daba en línea por la red local; y los radares enseñaban faros
+propios como «Neurona de tu cuenta (anónima)» (tableta) y «Neurona de otra cuenta #1/#2» (Mac).
+
+### 11.1 `capabilities.aparato` (jsonb que ya existe: sin migración)
+
+```
+aparato = { v:1, medio?, app?, so?, soV?, arq?, equipo?, huella?, version?, ultimoMedio?, visto? }
+```
+
+- Lo escribe CADA medio con su ficha (al registrarse y cada 6 latidos = 30 min, `construirNeuronaLocal`):
+  la app nativa, todo lo que dice `info_neurona` (`equipo` = nombre del equipo en escritorio o modelo en
+  Android) y `huella`; un navegador, solo `ultimoMedio`, `visto` y, si falta, `so`.
+- `huella` = sha-256 (16 hex) de `starseed-aparato:v1|so|equipo` (escritorio) o
+  `…|so|modelo|núcleos|GPU|pantalla` (móvil) — `aparato-registro.ts`. Nunca viaja el hierro crudo. Sin
+  equipo (navegador) no hay huella: un navegador no identifica la máquina.
+- Fusión con la fila (`combinarCapacidades` → `combinarAparato`): un bloque de app nativa sustituye la
+  identidad entera; uno de navegador solo apunta el último medio y la hora. La marca `fusionada` nunca la
+  manda un medio, así que nunca la quita. Si no se puede LEER la ficha de la fila, no se sube la propia (el
+  upsert sustituye el jsonb entero).
+- Android: el `hostname` es «localhost» en todos los aparatos → ya no da huella de máquina (`maquina.ts`,
+  `/api/dispositivo/maquina`), y las filas que ya la guardaron se tratan como sin ella (`MAQUINAS_GENERICAS`).
+- Lectores: la ventana «Esta neurona» (`duplicadas-aparato.ts`), la adopción al arrancar
+  (`adopcion-arranque.ts`) y el chat de la neurona (versión y aparato «según su registro»). Old clients no lo
+  escriben y no pasa nada.
+
+### 11.2 Presencia en vivo: una sola verdad (`presencia-viva.ts` + `usePresenciaViva`)
+
+Causa del «no está abierta ahora»: `VersionNeurona` solo miraba la presencia de la CUENTA (Supabase
+Realtime), vacía con la tableta sin internet; el subtítulo del chat, solo el latido de la fila. El radar ya
+miraba más fuentes. Ahora el chat (`hilo-neurona.tsx`), `VersionNeurona` y Ajustes › Neuronas usan las del
+radar, en este orden:
+
+| Fuente | Texto |
+|---|---|
+| Enlace directo sin internet (`registro-enlaces-locales.ts`; por `neuronDeviceId` del par o su id de sync) | «en línea · vía red local · N ms» |
+| Malla P2P conectada con ruta `misma-red-local` | «en línea · vía red local · N ms» |
+| Faro de la app nativa oído en esta red (< 60 s, `useRedLocal`) | «en línea · vía red local» |
+| Malla P2P conectada por internet o TURN | «en línea · vía malla P2P · N ms» |
+| Presencia de la cuenta | «en línea · vía internet» |
+
+Versión y aparato: los de la presencia (`d`, `v.nativa`); si no los trae, los de `capabilities.aparato`
+(«Versión 0.5.0 (según su registro)»). Los ids absorbidos por una fusión cuentan como la neurona que se
+quedó. «Pedir actualización» sigue necesitando su medio en la presencia de la cuenta (va por ese canal).
+Los enlaces locales llevan ahora el `neuronDeviceId` que declaró el otro; el radar (`aparatos.ts`) también los
+casa por él (el id de sync cambia con el origen).
+
+### 11.3 Faros del relé en el radar (`faros-propios.ts`, `server-relay.ts`)
+
+- Faros PROPIOS (`own`): su `nid` se lleva a la neurona vigente (alias de fusión) → `fusionarRadar` lo funde
+  con la señal de esa neurona (con su nombre); si es ESTA neurona desde otro medio u origen (la app vieja del
+  origen publicado, cuyo faro dura hasta 30 min) → fuera; sin neurona conocida y sin renovar en su ciclo
+  (> 21 min; el faro se renueva cada 20) → fuera. Lo que queda sin neurona conocida sigue como «Neurona de tu
+  cuenta».
+- Faros de OTRAS cuentas: no se tocan (anónimos por diseño, `cuentas.ts`). Un `nid` de otra cuenta nunca
+  la hace «propia» (no está firmado): solo el `owner_id` por RLS.
+- «Mis faros» (los `device_id` de mi cuenta) se releían como mucho cada hora: un medio nuevo de la cuenta
+  (la tableta en 127.0.0.1 estrena `device_id`) salía como «Neurona de otra cuenta». Ahora un faro
+  desconocido provoca releer (como mucho 1/min); los que siguen ajenos tras releer no la vuelven a provocar;
+  una relectura fallida no «desconoce» los ya sabidos.
+
+### 11.4 Pruebas y lo que necesita aparatos de verdad
+
+```
+NODE_ENV=test npx vitest run src/lib/neurons/__tests__/presencia-viva.test.ts \
+  src/components/neurons/__tests__/version-neurona.test.tsx src/lib/senales/__tests__/faros-propios.test.ts \
+  src/ai/astraura/mesh/__tests__/faros-mios-relectura.test.ts src/lib/neurons/__tests__/aparato-registro.test.ts
+```
+
+A mano: la tableta sin internet y la Mac en la misma red con el enlace local abierto → el chat de la Mac dice
+«en línea · vía red local · N ms» y la versión y el modelo de la tableta; el radar de la tableta ya no enseña
+faros «anónimos» propios; el de la Mac enseña el faro nuevo de la tableta como tuyo en ≤ 1 min.
