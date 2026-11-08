@@ -54,7 +54,27 @@ interface AccountContextType {
      * la UI debe pedir completar el perfil real (ver onboarding / ajustes).
      */
     profileComplete: boolean;
+    /**
+     * (OFF1108A) true cuando la app está abierta con la cuenta GUARDADA en este aparato porque no hay
+     * red para renovar la sesión (`user` es una ficha mínima, `session` es null). Sin red nada se rompe:
+     * perfil, avatar, neuronas y mensajes locales siguen; al volver la red se renueva sola.
+     */
+    sinConexion: boolean;
     signOut: () => Promise<void>;
+}
+
+/** Ficha mínima del usuario cuando solo se sabe quién es por la cuenta recordada (sin sesión de servidor). */
+function usuarioRecordado(uid: string, perfil: AccountProfile | null): User {
+    const email = typeof perfil?.email === "string" ? perfil.email : undefined;
+    return {
+        id: uid,
+        aud: "authenticated",
+        role: "authenticated",
+        ...(email ? { email } : {}),
+        app_metadata: { sin_conexion: true },
+        user_metadata: {},
+        created_at: "",
+    } as User;
 }
 
 const AccountContext = createContext<AccountContextType | undefined>(undefined);
@@ -193,6 +213,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     const [user, setUser] = useState<User | null>(null);
     const [profile, setProfile] = useState<AccountProfile | null>(null);
     const [loading, setLoading] = useState(true);
+    const [sinConexion, setSinConexion] = useState(false);
 
     // Referencias para decidir recargas sin regenerar el efecto de sesión.
     const profileRef = useRef<AccountProfile | null>(null);
@@ -239,6 +260,10 @@ export function AccountProvider({ children }: { children: ReactNode }) {
                             if (clean) {
                                 setProfile(clean);
                                 writeProfileCache(nextUser.id, clean);
+                                // (OFF1108A) Copia en la instantánea de la cuenta (+ avatar como blob) para abrir sin internet.
+                                void import("@/lib/sin-internet/perfil-sin-red")
+                                    .then((m) => m.guardarPerfilSinRed(nextUser.id, clean))
+                                    .catch(() => undefined);
                             }
                         } catch {
                             /* conservar el perfil hidratado actual */
@@ -263,11 +288,50 @@ export function AccountProvider({ children }: { children: ReactNode }) {
             }
         };
 
+        // (OFF1108A) Sin sesión por falta de red (token caducado que no se pudo renovar): la app se abre con
+        // la cuenta, el perfil y el avatar guardados en este aparato y avisa «sin internet». Al volver la
+        // red se pide la sesión de nuevo y todo pasa a ser el de siempre.
+        let enModoSinRed = false;
+        const aplicarSinRed = async (): Promise<boolean> => {
+            try {
+                const { uidActual } = await import("@/lib/consumo/usuario");
+                const uid = await uidActual();
+                if (!uid || !active) return false;
+                const { perfilParaSinRed } = await import("@/lib/sin-internet/perfil-sin-red");
+                const guardado = readProfileCache(uid);
+                const perfil = sanitizeProfile((await perfilParaSinRed(uid, guardado)) as AccountProfile | null);
+                if (!active) return false;
+                lastProfileUserRef.current = uid;
+                setUser(usuarioRecordado(uid, perfil));
+                setProfile(perfil);
+                setSinConexion(true);
+                enModoSinRed = true;
+                return true;
+            } catch {
+                return false;
+            }
+        };
+        const cargarSesion = async () => {
+            const { data } = await supabase.auth.getSession();
+            if (data.session) {
+                setSinConexion(false);
+                // Volvió la red: se vuelve a pedir el perfil de verdad (el guardado tenía el avatar local).
+                if (enModoSinRed) lastProfileUserRef.current = null;
+                enModoSinRed = false;
+                await applySession(data.session);
+            } else if (!(await aplicarSinRed())) {
+                await applySession(null);
+            }
+        };
+        const alVolverLaRed = () => {
+            void cargarSesion().catch(() => undefined);
+        };
+        if (typeof window !== "undefined") window.addEventListener("online", alVolverLaRed);
+
         // Sesión inicial
         (async () => {
             try {
-                const { data } = await supabase.auth.getSession();
-                await applySession(data.session ?? null);
+                await cargarSesion();
             } catch {
                 if (active) {
                     setSession(null);
@@ -280,12 +344,28 @@ export function AccountProvider({ children }: { children: ReactNode }) {
         })();
 
         // Suscripción en vivo a cambios de auth
-        const { data: sub } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-            void applySession(nextSession ?? null);
+        const { data: sub } = supabase.auth.onAuthStateChange((event, nextSession) => {
+            if (nextSession) {
+                if (enModoSinRed) lastProfileUserRef.current = null;
+                enModoSinRed = false;
+                setSinConexion(false);
+                void applySession(nextSession);
+                return;
+            }
+            // (OFF1108A) «Sin sesión» que NO es un cierre de sesión (sesión inicial vacía por no poder
+            // renovar sin red): se queda la cuenta guardada del aparato en vez de vaciar perfil y avatar.
+            if (event !== "SIGNED_OUT") {
+                void aplicarSinRed().then((ok) => (ok ? undefined : applySession(null)));
+                return;
+            }
+            enModoSinRed = false;
+            setSinConexion(false);
+            void applySession(null);
         });
 
         return () => {
             active = false;
+            if (typeof window !== "undefined") window.removeEventListener("online", alVolverLaRed);
             sub.subscription.unsubscribe();
         };
     }, [supabase]);
@@ -398,10 +478,11 @@ export function AccountProvider({ children }: { children: ReactNode }) {
             profile,
             loading,
             profileComplete: isProfileComplete(profile),
+            sinConexion,
             signOut,
         }),
         // eslint-disable-next-line react-hooks/exhaustive-deps
-        [session, user, profile, loading],
+        [session, user, profile, loading, sinConexion],
     );
 
     return <AccountContext.Provider value={value}>{children}</AccountContext.Provider>;

@@ -849,7 +849,10 @@ async function depsReales(): Promise<DepsBle> {
     };
     return config;
   };
-  void leerConfig().catch(nada);
+  // (OFF1108A) Sin carrera de arranque en frío: antes de saludar se espera (máx. 3 s) a la clave de faro de la
+  // app y al espejo de la instantánea (neuronas de la cuenta y huellas ya probadas), que no dependen de internet.
+  const espejo = await import("@/lib/sin-internet/huellas-cuenta-vivas");
+  await Promise.race([Promise.all([leerConfig().catch(nada), espejo.cargarEspejo().catch(nada)]), new Promise((r) => setTimeout(r, 3_000))]);
   return {
     ahora: () => Date.now(),
     dormir: (ms) => new Promise((r) => setTimeout(r, ms)),
@@ -875,8 +878,15 @@ async function depsReales(): Promise<DepsBle> {
         return null;
       }
     },
-    vinculos: () => motor.instantanea().vinculos,
-    neuronasCuenta: () => config.conocidas,
+    // (OFF1108A) Los vínculos del aparato + las neuronas de la cuenta ya probadas (huella guardada): sin servidor.
+    vinculos: () => {
+      const reales = motor.instantanea().vinculos;
+      const guardados = espejo.vinculosDeCuentaCacheados();
+      if (!guardados.length) return reales;
+      const vistos = new Set(reales.map((v) => v.neurona));
+      return [...reales, ...guardados.filter((v) => !vistos.has(v.neurona))];
+    },
+    neuronasCuenta: () => Array.from(new Set([...config.conocidas, ...espejo.idsNeuronasCuentaCacheados()])),
     firmar,
     sesiones: crearSesionesCifradas({ ahora: () => Date.now(), firmar }),
     exigirCifrado: rn.exigirCifradoRedLocal,
