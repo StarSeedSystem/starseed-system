@@ -129,6 +129,21 @@ class EspejoDrive(unittest.TestCase):
         self.assertTrue(os.path.isfile(os.path.join(self.destino, "memoria-repo", "nota.md")))
         self.assertTrue(os.path.isfile(os.path.join(self.destino, "INDICE.md")))
 
+    @unittest.skipUnless(shutil.which("rsync"), "sin rsync")
+    def test_los_temporales_de_la_app_de_drive_no_viajan(self):
+        """(SUP0811L) `.tmp.driveupload/` y `.tmp.drivedownload/` son de la app de Google Drive, que ya respalda
+        `starseed_memory_root`: sus archivos desaparecen mientras rsync lee (el «rsync rc=23» de siempre)."""
+        for d in (".tmp.driveupload", ".tmp.drivedownload"):
+            os.makedirs(os.path.join(self.raiz, "starseed_memory_root", d))
+            with open(os.path.join(self.raiz, "starseed_memory_root", d, "547310"), "w") as f:
+                f.write("subida a medias")
+        with mock.patch.object(self.E, "_libre_mb", return_value=10 ** 6, create=True):
+            r = self.E.sincronizar(host="prueba")
+        self.assertTrue(r["ok"], r["fallos"])
+        self.assertTrue(os.path.isfile(os.path.join(self.destino, "memoria", "olas", "progreso.json")))
+        for d in (".tmp.driveupload", ".tmp.drivedownload"):
+            self.assertFalse(os.path.exists(os.path.join(self.destino, "memoria", d)), d)
+
 
 if __name__ == "__main__":
     unittest.main()

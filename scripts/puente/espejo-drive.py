@@ -65,6 +65,9 @@ DISCO_MIN_MB = 5120
 EXCLUIR = (
     "olas/logs/", "olas/pasos/", "*.log", "node_modules/", ".next/", ".git/",
     "__pycache__/", "*.pyc", ".DS_Store", "*.tmp",
+    # (SUP0811L, 08-11) La app de Google Drive ya respalda `starseed_memory_root` y deja ahí sus temporales de
+    # subida/bajada, que aparecen y desaparecen mientras rsync lee: eran el «rsync rc=23» del tramo «memoria».
+    ".tmp.driveupload/", ".tmp.drivedownload/",
     ".env", ".env.*", "env", "auth.json", "*.key", "*.pem", "id_rsa*",
     "*credenciales*", "*secreto*",
 )
