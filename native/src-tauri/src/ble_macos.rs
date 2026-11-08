@@ -43,6 +43,12 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Paquetes seguidos que se mandan antes de ceder la cola a otros eventos.
 const RAFAGA: usize = 64;
+/// (BLE1108C) Si el sistema no avisa de «listo para escribir / actualizar» en este tiempo, se manda igual y se
+/// anota `listo-tarde`: una señal que no llega nunca vuelve a bloquear un enlace (el acuse repara lo perdido).
+const ESPERA_LISTO_MS: u64 = 400;
+/// (BLE1108C) Reintentos de la suscripción a SALIDA antes de rendirse, y espera entre ellos.
+const REINTENTOS_SUSCRIPCION: u8 = 3;
+const ESPERA_SUSCRIPCION_MS: u64 = 1_000;
 
 pub struct RadioMac;
 
@@ -61,6 +67,12 @@ struct PerifericoMac {
     p: Retained<CBPeripheral>,
     entrada: Option<Retained<CBCharacteristic>>,
     listo: bool,
+    /// (BLE1108C) SALIDA (para reintentar la suscripción), desde cuándo espera «listo para escribir», avisos
+    /// de `listo-tarde` dados y reintentos de suscripción gastados.
+    salida: Option<Retained<CBCharacteristic>>,
+    bloqueado_desde: Option<u64>,
+    tardes: u32,
+    reintentos_suscripcion: u8,
 }
 
 struct Mac {
@@ -75,6 +87,9 @@ struct Mac {
     perifericos: HashMap<String, PerifericoMac>,
     centrales: HashMap<String, Retained<CBCentral>>,
     servidor_ocupado: bool,
+    /// (BLE1108C) Desde cuándo está ocupada la cola de notificaciones, y avisos de `listo-tarde` dados.
+    servidor_ocupado_desde: u64,
+    servidor_tardes: u32,
     pendiente: Option<(String, Vec<u8>)>,
     turno: usize,
 }
@@ -378,7 +393,7 @@ fn conectar(direccion: &str) {
         }
         let (p, _) = m.vistos.get(direccion)?;
         let p = p.clone();
-        m.perifericos.insert(direccion.to_string(), PerifericoMac { p: p.clone(), entrada: None, listo: false });
+        m.perifericos.insert(direccion.to_string(), PerifericoMac { p: p.clone(), entrada: None, listo: false, salida: None, bloqueado_desde: None, tardes: 0, reintentos_suscripcion: 0 });
         Some((m.central.clone(), p))
     }) else {
         return;
@@ -410,6 +425,7 @@ fn al_descubrir_servicios(p: &CBPeripheral, error: Option<&NSError>) {
         cancelar(p); // no es (o ya no es) una neurona StarSeed
         return;
     };
+    nucleo::nota(Some(&format!("c:{}", id_de(unsafe { p.identifier() }))), "servicios-descubiertos", "servicio StarSeed encontrado, pidiendo características");
     let caracteristicas = NSArray::from_retained_slice(&[cbuuid(bt::ENTRADA), cbuuid(bt::SALIDA)]);
     unsafe { p.discoverCharacteristics_forService(Some(&caracteristicas), &s) };
 }
@@ -426,9 +442,46 @@ fn al_descubrir_caracteristicas(p: &CBPeripheral, s: &CBService, error: Option<&
     con_mac(|m| {
         if let Some(x) = m.perifericos.get_mut(&id) {
             x.entrada = Some(entrada);
+            x.salida = Some(salida.clone());
         }
     });
     unsafe { p.setNotifyValue_forCharacteristic(true, &salida) };
+}
+
+/// (BLE1108C) La suscripción a SALIDA no quedó: se anota y se reintenta hasta `REINTENTOS_SUSCRIPCION` veces
+/// (a 1 s) antes de cerrar el enlace, en vez de quedarse esperando un enlace que nunca abre.
+fn reintentar_suscripcion(p: &CBPeripheral, motivo: &str) {
+    let id = id_de(unsafe { p.identifier() });
+    let plataforma = format!("c:{id}");
+    let turno = con_mac(|m| {
+        let x = m.perifericos.get_mut(&id)?;
+        if x.salida.is_none() || x.reintentos_suscripcion >= REINTENTOS_SUSCRIPCION {
+            return None;
+        }
+        x.reintentos_suscripcion += 1;
+        Some(x.reintentos_suscripcion)
+    })
+    .flatten();
+    let Some(n) = turno else {
+        nucleo::nota(Some(&plataforma), "sin-suscripcion", &format!("{motivo}; sin más reintentos, se cierra el enlace"));
+        cancelar(p);
+        return;
+    };
+    nucleo::nota(Some(&plataforma), "sin-suscripcion", &format!("{motivo}; reintento {n} de {REINTENTOS_SUSCRIPCION}"));
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_millis(ESPERA_SUSCRIPCION_MS));
+        cola().exec_async(move || {
+            let r = con_mac(|m| {
+                let x = m.perifericos.get(&id)?;
+                Some((x.p.clone(), x.salida.clone()?))
+            })
+            .flatten();
+            if let Some((p, salida)) = r {
+                nucleo::nota(Some(&format!("c:{id}")), "suscripcion-reintento", "pidiendo de nuevo las notificaciones de SALIDA");
+                unsafe { p.setNotifyValue_forCharacteristic(true, &salida) };
+            }
+        });
+    });
 }
 
 fn al_suscribirse(p: &CBPeripheral, c: &CBCharacteristic, error: Option<&NSError>) {
@@ -436,7 +489,7 @@ fn al_suscribirse(p: &CBPeripheral, c: &CBCharacteristic, error: Option<&NSError
         return;
     }
     if error.is_some() || !unsafe { c.isNotifying() } {
-        cancelar(p);
+        reintentar_suscripcion(p, if error.is_some() { "el sistema devolvió un error al suscribirse" } else { "SALIDA no quedó notificando" });
         return;
     }
     let id = id_de(unsafe { p.identifier() });
@@ -453,6 +506,7 @@ fn al_suscribirse(p: &CBPeripheral, c: &CBCharacteristic, error: Option<&NSError
         cancelar(p);
         return;
     }
+    nucleo::nota(Some(&format!("c:{id}")), "suscrito", &format!("notificaciones de SALIDA activas, paquete {paquete}"));
     nucleo::al_conectar(&format!("c:{id}"), "central", Some(&id), paquete.clamp(bt::PAQUETE_MIN, bt::PAQUETE_MAX));
     bombear_central(&id);
 }
@@ -471,7 +525,33 @@ fn bombear_central(id: &str) {
             return;
         };
         if !unsafe { p.canSendWriteWithoutResponse() } {
-            return; // `peripheralIsReadyToSendWriteWithoutResponse:` vuelve a llamar
+            // `peripheralIsReadyToSendWriteWithoutResponse:` vuelve a llamar; y el tic de 250 ms también. Si la
+            // señal tarda más de `ESPERA_LISTO_MS` se escribe igual (BLE1108C): nunca se espera para siempre.
+            let ahora = ahora_ms();
+            let tarde = con_mac(|m| {
+                let x = m.perifericos.get_mut(id)?;
+                let desde = *x.bloqueado_desde.get_or_insert(ahora);
+                if ahora.saturating_sub(desde) < ESPERA_LISTO_MS {
+                    return Some((false, 0));
+                }
+                x.tardes += 1;
+                Some((true, x.tardes))
+            })
+            .flatten();
+            match tarde {
+                Some((true, n)) => {
+                    if n <= 3 || n % 50 == 0 {
+                        nucleo::nota(Some(&plataforma), "listo-tarde", &format!("sin «listo para escribir» en {ESPERA_LISTO_MS} ms: se escribe igual (aviso {n})"));
+                    }
+                }
+                _ => return,
+            }
+        } else {
+            con_mac(|m| {
+                if let Some(x) = m.perifericos.get_mut(id) {
+                    x.bloqueado_desde = None;
+                }
+            });
         }
         let Some(b) = nucleo::siguiente_paquete(&plataforma) else { return };
         unsafe { p.writeValue_forCharacteristic_type(&NSData::with_bytes(&b), &entrada, CBCharacteristicWriteType::WithoutResponse) };
@@ -514,14 +594,34 @@ fn bombear_servidor() {
         return;
     };
     let Some(salida) = salida else { return };
-    if ocupado || centrales.is_empty() {
+    if centrales.is_empty() {
         return;
+    }
+    if ocupado {
+        // (BLE1108C) Cola de notificaciones llena sin aviso de «lista»: pasados `ESPERA_LISTO_MS` se sigue igual.
+        let ahora = ahora_ms();
+        let tarde = con_mac(|m| {
+            if ahora.saturating_sub(m.servidor_ocupado_desde) < ESPERA_LISTO_MS {
+                return None;
+            }
+            m.servidor_ocupado = false;
+            m.servidor_tardes += 1;
+            Some(m.servidor_tardes)
+        })
+        .flatten();
+        let Some(n) = tarde else { return };
+        if n <= 3 || n % 50 == 0 {
+            nucleo::nota(None, "listo-tarde", &format!("sin «lista para actualizar» en {ESPERA_LISTO_MS} ms: se notifica igual (aviso {n})"));
+        }
     }
     let enviar = |plataforma: &str, central: &Retained<CBCentral>, b: Vec<u8>| -> bool {
         let a = NSArray::from_retained_slice(&[central.clone()]);
         let ok = unsafe { servidor.updateValue_forCharacteristic_onSubscribedCentrals(&NSData::with_bytes(&b), &salida, Some(&a)) };
         if !ok {
             con_mac(|m| {
+                if !m.servidor_ocupado {
+                    m.servidor_ocupado_desde = ahora_ms();
+                }
                 m.servidor_ocupado = true;
                 m.pendiente = Some((plataforma.to_string(), b));
             });
@@ -591,6 +691,8 @@ fn arrancar_en_cola() {
         perifericos: HashMap::new(),
         centrales: HashMap::new(),
         servidor_ocupado: false,
+        servidor_ocupado_desde: 0,
+        servidor_tardes: 0,
         pendiente: None,
         turno: 0,
     });

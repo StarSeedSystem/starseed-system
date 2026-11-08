@@ -195,6 +195,11 @@ export const ESCALA_HOLA_BLE_MS = [2_000, 5_000, 15_000, 15_000, 15_000, 15_000]
 export const UMBRAL_COLA_LISTA_BLE = 32 * 1024;
 /** (BLE1108B) Cuánto espera el canal de archivos a que vuelva un enlace caído antes de devolver el fallo. */
 export const ESPERA_ENLACE_BLE_MS = 90_000;
+/**
+ * (BLE1108C) Con el enlace ARRIBA, el canal de archivos no espera «listo» más de esto: pasado el plazo manda igual
+ * y lo anota (`listo-tarde`). La contrapresión nunca bloquea un enlace vivo; solo la ausencia de enlace espera.
+ */
+export const ESPERA_LISTO_BLE_MS = 500;
 
 const oyentesLigadura = new Set<(neurona: string, enlace: string) => void>();
 
@@ -513,12 +518,29 @@ export function crearRedBle(deps: DepsBle): RedBle {
       },
       esperarListo: async () => {
         const hasta = deps.ahora() + ESPERA_ENLACE_BLE_MS;
+        let arribaDesde: number | null = null;
         for (;;) {
           const enlace = actual();
-          if (enlace && !caido(enlace) && (colas.get(enlace)?.bytesDatos ?? 0) <= UMBRAL_COLA_LISTA_BLE) return true;
-          if (deps.ahora() >= hasta) return false;
-          await deps.dormir(enlace && !caido(enlace) ? 25 : 250);
+          const ahora = deps.ahora();
+          if (enlace && !caido(enlace)) {
+            const enCola = colas.get(enlace)?.bytesDatos ?? 0;
+            if (enCola <= UMBRAL_COLA_LISTA_BLE) return true;
+            arribaDesde ??= ahora;
+            if (ahora - arribaDesde >= ESPERA_LISTO_BLE_MS) {
+              registro.anotar("listo-tarde", neuronaDe(enlace), `la cola de datos sigue en ${enCola} B tras ${ahora - arribaDesde} ms: se manda igual`, enlace);
+              return true;
+            }
+            await deps.dormir(25);
+            continue;
+          }
+          arribaDesde = null;
+          if (ahora >= hasta) return false;
+          await deps.dormir(250);
         }
+      },
+      enlaceArriba: () => {
+        const enlace = actual();
+        return !!enlace && !caido(enlace);
       },
       bufferedAmount: () => {
         const enlace = actual();

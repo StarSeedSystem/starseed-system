@@ -224,7 +224,13 @@ pub enum EventoRadio {
     Conectado { enlace: String, rol: String, direccion: Option<String>, paquete: usize },
     Mtu { enlace: String, paquete: usize },
     Desconectado { enlace: String, motivo: String },
+    /// (BLE1108C) Un hito de la radio para el registro (`servicios-descubiertos`, `suscrito`, `sin-suscripcion`,
+    /// `listo-tarde`, `suscripcion-reintento`). No cambia ningún estado: solo deja rastro.
+    Nota { enlace: Option<String>, tipo: String, detalle: String },
 }
+
+/// Los hitos que la radio puede anotar (lista cerrada: el texto libre va en el detalle).
+pub const NOTAS_RADIO: [&str; 5] = ["servicios-descubiertos", "suscrito", "sin-suscripcion", "listo-tarde", "suscripcion-reintento"];
 
 fn texto_de(v: &serde_json::Value, k: &str, max: usize) -> Option<String> {
     v.get(k).and_then(|x| x.as_str()).map(|s| s.trim()).filter(|s| !s.is_empty()).map(|s| s.chars().take(max).collect())
@@ -272,6 +278,11 @@ pub fn leer_evento(json: &str) -> Option<EventoRadio> {
             let enlace = texto_de(&v, "enlace", 80).filter(|p| plataforma_valida(p))?;
             Some(EventoRadio::Desconectado { enlace, motivo: texto_de(&v, "motivo", 300).unwrap_or_else(|| "el enlace Bluetooth se cerró".into()) })
         }
+        "nota" => {
+            let tipo = texto_de(&v, "tipo", 40).filter(|t| NOTAS_RADIO.contains(&t.as_str()))?;
+            let enlace = texto_de(&v, "enlace", 80).filter(|p| plataforma_valida(p));
+            Some(EventoRadio::Nota { enlace, tipo, detalle: texto_de(&v, "detalle", 200).unwrap_or_default() })
+        }
         _ => None,
     }
 }
@@ -284,6 +295,7 @@ pub fn aplicar_evento(ev: EventoRadio) {
         EventoRadio::Conectado { enlace, rol, direccion, paquete } => al_conectar(&enlace, &rol, direccion.as_deref(), paquete),
         EventoRadio::Mtu { enlace, paquete } => al_mtu(&enlace, paquete),
         EventoRadio::Desconectado { enlace, motivo } => al_desconectar(&enlace, &motivo),
+        EventoRadio::Nota { enlace, tipo, detalle } => nota(enlace.as_deref(), &tipo, &detalle),
     }
 }
 
@@ -297,6 +309,9 @@ struct EnlaceVivo {
     neurona: Option<String>,
     desde_ms: u64,
     nucleo: Enlace,
+    /// (BLE1108C) Hitos de datos ya anotados: primer paquete recibido / enviado.
+    dato_visto: bool,
+    dato_salido: bool,
 }
 
 /// Lo que se sabe de la cuenta (de la configuración de antenas): clave de faro, esta neurona y las demás.
@@ -644,6 +659,8 @@ pub fn al_conectar(plataforma: &str, rol: &str, direccion: Option<&str>, paquete
             neurona,
             desde_ms: ahora,
             nucleo: Enlace::nuevo(paquete),
+            dato_visto: false,
+            dato_salido: false,
         });
         let (id, neurona) = e.enlaces.last().map(|l| (l.id.clone(), l.neurona.clone())).unwrap_or_default();
         let fallos = direccion.map(|d| e.vecindario.fallos_de(d)).unwrap_or(0);
@@ -654,6 +671,25 @@ pub fn al_conectar(plataforma: &str, rol: &str, direccion: Option<&str>, paquete
     if rechazar {
         radio().desconectar(plataforma);
     }
+}
+
+/// (BLE1108C) Deja en el registro un hito de la radio. `plataforma` (si la hay) se traduce al id del enlace;
+/// sin enlace vivo (p. ej. durante el descubrimiento) la plataforma va en el detalle.
+pub fn nota(plataforma: Option<&str>, tipo: &str, detalle: &str) {
+    if !NOTAS_RADIO.contains(&tipo) {
+        return;
+    }
+    con_estado(|e| {
+        let (id, neurona) = match plataforma.and_then(|p| e.enlaces.iter().find(|l| l.plataforma == p)) {
+            Some(l) => (Some(l.id.clone()), l.neurona.clone()),
+            None => (None, None),
+        };
+        let texto = match (&id, plataforma) {
+            (None, Some(p)) => format!("{detalle} ({p})"),
+            _ => detalle.to_string(),
+        };
+        anotar(e, tipo, id.as_deref(), neurona.as_deref(), &texto);
+    });
 }
 
 pub fn al_mtu(plataforma: &str, paquete: usize) {
@@ -719,6 +755,13 @@ pub fn al_recibir(plataforma: &str, paquete: &[u8]) {
         let Estado { enlaces, limitador, buzon, esperas, .. } = e;
         let Some(l) = enlaces.iter_mut().find(|l| l.plataforma == plataforma) else { return (None, false) };
         let id = l.id.clone();
+        // (BLE1108C) Hito: el primer paquete que llega por este enlace.
+        let hito = if l.dato_visto {
+            None
+        } else {
+            l.dato_visto = true;
+            Some((l.neurona.clone(), format!("{} B, {} ms después de abrir el enlace", paquete.len(), ahora.saturating_sub(l.desde_ms))))
+        };
         let cuerpo = l.nucleo.recibir(paquete, ahora, &mut || limitador.permitir(&id, ahora));
         for h in l.nucleo.hechos() {
             if let Some(tx) = esperas.remove(&h.token) {
@@ -726,7 +769,11 @@ pub fn al_recibir(plataforma: &str, paquete: &[u8]) {
             }
         }
         let acusar = l.nucleo.hay_paquetes();
-        (cuerpo.map(|c| buzon.poner(&id, c, ahora)), acusar)
+        let nuevo = cuerpo.map(|c| buzon.poner(&id, c, ahora));
+        if let Some((neurona, detalle)) = hito {
+            anotar(e, "primer-dato-recibido", Some(&id), neurona.as_deref(), &detalle);
+        }
+        (nuevo, acusar)
     });
     if acusar {
         radio().hay_datos(plataforma);
@@ -739,7 +786,16 @@ pub fn al_recibir(plataforma: &str, paquete: &[u8]) {
 /// La radio pide el siguiente paquete para ese enlace (None: nada que mandar ahora).
 pub fn siguiente_paquete(plataforma: &str) -> Option<Vec<u8>> {
     let ahora = ahora_ms();
-    con_estado(|e| e.enlaces.iter_mut().find(|l| l.plataforma == plataforma)?.nucleo.siguiente_paquete(ahora))
+    con_estado(|e| {
+        let l = e.enlaces.iter_mut().find(|l| l.plataforma == plataforma)?;
+        let p = l.nucleo.siguiente_paquete(ahora)?;
+        if !l.dato_salido {
+            l.dato_salido = true;
+            let (id, neurona, detalle) = (l.id.clone(), l.neurona.clone(), format!("{} B, {} ms después de abrir el enlace", p.len(), ahora.saturating_sub(l.desde_ms)));
+            anotar(e, "primer-paquete-retirado", Some(&id), neurona.as_deref(), &detalle);
+        }
+        Some(p)
+    })
 }
 
 // ───────────────────────────── Hilo de plazos ─────────────────────────────
@@ -770,6 +826,11 @@ fn tic(ahora: u64, releer_cuenta: bool) -> Acciones {
         }
         for i in 0..e.enlaces.len() {
             e.enlaces[i].nucleo.tic(ahora);
+            // (BLE1108C) Lo que el enlace nota de la radio (atascos) va al registro con el id del enlace.
+            for (tipo, detalle) in e.enlaces[i].nucleo.avisos() {
+                let (id, neurona) = (e.enlaces[i].id.clone(), e.enlaces[i].neurona.clone());
+                anotar(e, tipo, Some(&id), neurona.as_deref(), &detalle);
+            }
             let h = e.enlaces[i].nucleo.hechos();
             entregar_hechos(e, h);
             if e.enlaces[i].nucleo.hay_paquetes() {
@@ -1089,6 +1150,15 @@ mod pruebas {
         );
         assert_eq!(leer_evento(r#"{"e":"conectado","enlace":"x:1","rol":"central"}"#), None, "id de plataforma raro");
         assert_eq!(leer_evento(r#"{"e":"conectado","enlace":"c:1","rol":"jefe"}"#), None);
+        assert_eq!(
+            leer_evento(r#"{"e":"nota","tipo":"listo-tarde","enlace":"c:1","detalle":"400 ms sin señal"}"#),
+            Some(EventoRadio::Nota { enlace: Some("c:1".into()), tipo: "listo-tarde".into(), detalle: "400 ms sin señal".into() })
+        );
+        assert_eq!(leer_evento(r#"{"e":"nota","tipo":"inventado"}"#), None);
+        assert_eq!(
+            leer_evento(r#"{"e":"nota","tipo":"suscrito","enlace":"mal id!"}"#),
+            Some(EventoRadio::Nota { enlace: None, tipo: "suscrito".into(), detalle: String::new() })
+        );
         assert_eq!(leer_evento(r#"{"e":"mtu","enlace":"c:1","paquete":10}"#), Some(EventoRadio::Mtu { enlace: "c:1".into(), paquete: bt::PAQUETE_MIN }));
         assert_eq!(
             leer_evento(r#"{"e":"desconectado","enlace":"p:1"}"#),

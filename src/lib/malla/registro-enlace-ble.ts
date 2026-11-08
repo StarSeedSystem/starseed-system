@@ -22,7 +22,9 @@ export type TipoEventoEnlace =
   | "envio-fallido"
   | "hola"
   | "cola-perdida"
-  | "reintento";
+  | "reintento"
+  /** (BLE1108C) El canal de archivos no esperó más a «listo para enviar» y mandó igual. */
+  | "listo-tarde";
 
 export interface EventoEnlaceBle {
   seq: number;

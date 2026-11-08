@@ -92,6 +92,10 @@ pub const OLVIDO_INTENTOS_MS: u64 = 120_000;
 pub const LATIDO_MS: u64 = 8_000;
 /// (BLE1108B) Si el otro SÍ late (app nueva) y pasan 3 latidos sin oír nada suyo, el enlace se da por muerto.
 pub const SILENCIO_MUERTO_MS: u64 = 3 * LATIDO_MS + 2_000;
+/// (BLE1108C) Si la radio no saca NI UN paquete del mensaje en vuelo durante este tiempo (CoreBluetooth sin
+/// «listo para escribir», Android sin `onCharacteristicWrite`), el mensaje se reintenta y se anota en el registro:
+/// antes esperaba en silencio los 120 s del plazo total.
+pub const PLAZO_ATASCO_MS: u64 = 4_000;
 
 /// Espera (ms) antes del siguiente intento de conexión con un aparato que ya falló `fallos` veces seguidas.
 pub fn espera_reconexion(fallos: u32) -> u64 {
@@ -485,6 +489,9 @@ pub struct Enlace {
     ultimo_tx_ms: u64,
     ultimo_rx_ms: u64,
     otro_late: bool,
+    /// (BLE1108C) Último paquete DE DATOS (no latido ni acuse) que la radio retiró, y avisos para el registro.
+    ultimo_dato_ms: u64,
+    avisos: Vec<(&'static str, String)>,
 }
 
 /// Cuántos ids recibidos se recuerdan para descartar repetidos (acuse perdido → reenvío).
@@ -508,7 +515,14 @@ impl Enlace {
             ultimo_tx_ms: 0,
             ultimo_rx_ms: 0,
             otro_late: false,
+            ultimo_dato_ms: 0,
+            avisos: Vec::new(),
         }
+    }
+
+    /// (BLE1108C) Lo que el enlace quiere dejar en el registro (atascos de la radio); se vacía al leerlo.
+    pub fn avisos(&mut self) -> Vec<(&'static str, String)> {
+        std::mem::take(&mut self.avisos)
     }
 
     /// (BLE1108B) ¿El otro lado manda latidos (app nueva)? Solo entonces su silencio quiere decir algo.
@@ -613,6 +627,7 @@ impl Enlace {
         self.bombear();
         let p = self.paquetes.pop_front()?;
         self.ultimo_tx_ms = ahora;
+        self.ultimo_dato_ms = ahora;
         if let Some(v) = self.vuelo.as_mut() {
             v.primero_ms.get_or_insert(ahora);
             if self.paquetes.is_empty() {
@@ -761,6 +776,19 @@ impl Enlace {
         if ahora.saturating_sub(v.encolado_ms) > PLAZO_TOTAL_MS {
             self.fallar_vuelo(format!("el mensaje no salió por Bluetooth en {} s", PLAZO_TOTAL_MS / 1000));
             return;
+        }
+        // (BLE1108C) La radio no retira paquetes: con quedar alguno por salir y ninguno retirado en
+        // `PLAZO_ATASCO_MS`, se anota y se reintenta (en vez de esperar en silencio hasta el plazo total).
+        if v.ultimo_ms.is_none() && !self.paquetes.is_empty() {
+            let desde = self.ultimo_dato_ms.max(v.encolado_ms);
+            if ahora.saturating_sub(desde) > PLAZO_ATASCO_MS {
+                let que = if v.primero_ms.is_some() { "la radio dejó de retirar paquetes a mitad del mensaje" } else { "la radio no retiró ningún paquete del mensaje" };
+                let aviso = format!("{que}: {} paquete(s) por salir, intento {} de {}", self.paquetes.len(), v.intentos, MAX_INTENTOS);
+                self.avisos.push(("radio-atascada", aviso));
+                self.ultimo_dato_ms = ahora;
+                self.reenviar("la radio no retiró los paquetes");
+                return;
+            }
         }
         if let Some(u) = v.ultimo_ms {
             if ahora.saturating_sub(u) > PLAZO_ACUSE_MS {
@@ -1303,6 +1331,80 @@ mod pruebas {
         v.ver("AA:01", &anuncio, -60, t + OLVIDO_INTENTOS_MS, T, Some(&CLAVE), &[]);
         v.caducar(t + OLVIDO_INTENTOS_MS);
         assert_eq!(v.fallos_de("AA:01"), 0);
+    }
+
+    #[test]
+    fn radio_atascada_se_nota_y_el_mensaje_falla_pronto_con_motivo() {
+        // La radio no retira ningún paquete (sin «listo para escribir»): a los 4 s se reintenta y se anota;
+        // tras los intentos, falla con el motivo en ~16 s, no en 120 s.
+        let mut a = Enlace::nuevo(60);
+        a.tic(1_000);
+        a.encolar(7, "{\"t\":\"nl.hola\"}", 1_000).unwrap();
+        let mut t = 1_000;
+        let mut fallo = None;
+        for _ in 0..40 {
+            t += 1_000;
+            a.tic(t);
+            for h in a.hechos() {
+                fallo = Some((t, h.resultado));
+            }
+            if fallo.is_some() {
+                break;
+            }
+        }
+        let (cuando, r) = fallo.expect("falla por sí solo");
+        assert!(cuando - 1_000 < 30_000, "mucho antes de los 120 s: {cuando}");
+        assert!(r.unwrap_err().contains("la radio no retiró los paquetes"));
+        let avisos = a.avisos();
+        assert!(avisos.len() >= 3 && avisos.iter().all(|(t, _)| *t == "radio-atascada"), "{avisos:?}");
+        assert!(avisos[0].1.contains("ningún paquete"));
+    }
+
+    #[test]
+    fn radio_lenta_pero_viva_no_se_toma_por_atascada() {
+        // Un mensaje de 8 paquetes que la radio retira uno cada 3 s (más lento que PLAZO_ATASCO_MS no es,
+        // pero cada retirada reinicia la cuenta): no se reintenta mientras avance.
+        let mut a = Enlace::nuevo(60);
+        a.tic(1_000);
+        let largo = format!("{{\"t\":\"x\",\"b\":\"{}\"}}", "q".repeat(400));
+        a.encolar(1, &largo, 1_000).unwrap();
+        let mut t = 1_000;
+        let mut sacados = 0;
+        while a.siguiente_paquete(t).is_some() {
+            sacados += 1;
+            t += 3_000;
+            a.tic(t);
+        }
+        assert!(sacados >= 6, "{sacados}");
+        assert!(a.avisos().is_empty());
+        assert_eq!(a.medidas.reintentos, 0);
+    }
+
+    #[test]
+    fn el_saludo_y_el_latido_comparten_la_radio_sin_matarse() {
+        // En un enlace callado el latido sale primero (es urgente) y el saludo encolado sale detrás, entero.
+        let mut a = Enlace::nuevo(60);
+        a.tic(1_000);
+        a.tic(1_000 + LATIDO_MS);
+        a.encolar(1, "{\"t\":\"nl.hola\",\"b\":\"firmado\"}", 1_000 + LATIDO_MS).unwrap();
+        let mut b = Enlace::nuevo(60);
+        let mut si = || true;
+        let mut cuerpo = None;
+        let mut t = 1_000 + LATIDO_MS;
+        for _ in 0..20 {
+            while let Some(p) = a.siguiente_paquete(t) {
+                if let Some(c) = b.recibir(&p, t, &mut si) {
+                    cuerpo = Some(c);
+                }
+            }
+            while let Some(p) = b.siguiente_paquete(t) {
+                a.recibir(&p, t, &mut si);
+            }
+            t += 10;
+        }
+        assert_eq!(cuerpo.as_deref(), Some("{\"t\":\"nl.hola\",\"b\":\"firmado\"}"));
+        assert!(b.otro_late(), "el latido llegó");
+        assert!(a.hechos().iter().all(|h| h.resultado.is_ok()), "el saludo se acusó");
     }
 
     #[test]
