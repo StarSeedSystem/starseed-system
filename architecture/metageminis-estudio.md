@@ -327,18 +327,20 @@ hay que decirlo sin adornos:
 
 ## 12. Qué falta y cómo se reparte (tareas del enjambre, ≤ 3 archivos y ≤ 120 líneas por archivo)
 
-| Id | Qué | Archivos |
-|---|---|---|
-| `EST-SUBTITULOS` | `.vtt`/`.srt` desde los beats y versión con subtítulos quemados (ffmpeg) | `subtitulos.py`, `test_subtitulos.py` |
-| `EST-REVISION` | `revisar.py`: lee el manifiesto, repite los controles de §6, llama a Jev y escribe `revision.json` y el SQL de inserción | `revisar.py`, `test_revisar.py` |
-| `EST-INSERTAR` | Inserta las filas `tabla` del manifiesto en `metageminis_piezas` cuando la migración esté aplicada | `insertar_piezas.py`, `test_insertar.py` |
-| `EST-VOZ` | Voz en off con el TTS propio del OS (en la Mac o el A1), mezclada bajo el dron a −14 LUFS | `voz.py`, `test_voz.py` |
-| `EST-ESTILO-GEOMETRIA` | Escena `geometria-sagrada-cinetica` con bucle perfecto | `escenas/geometria-cinetica.js` |
-| `EST-ESTILO-ISOMETRICO` | Escena `isometrico-3d` Semilla → Fruto → Cosecha | `escenas/isometrico-fases.js` |
-| `EST-A1` | Servicio de render en Oracle A1: Dockerfile, servicio en `compose-a1.yml` y consumidor de cola | `deploy/oracle/estudio.Dockerfile`, `scripts/sociales/estudio/servicio.py`, `test_servicio.py` |
-| `EST-UTM` | Enlaces con `utm_*` por medio y estilo, y verificación | `utm.py`, `test_utm.py` |
-| `EST-CAMPANA-2` | Segunda campaña (candidata con fecha: Hacktoberfest, hasta 2026-10-31) con su guion y filtro de verdad | `campanas/generar_hacktoberfest.py` |
-| `EST-FORMATOS-REVISION` | Re-verificación trimestral del catálogo con fecha y diferencias | `revisar_formatos.py`, `test_revisar_formatos.py` |
+| Id | Qué | Archivos | Estado |
+|---|---|---|---|
+| `EST-SUBTITULOS` | `.vtt`/`.srt` desde los beats y versión con subtítulos quemados (ffmpeg) | `subtitulos.py`, `test_subtitulos.py` | ✅ Hecho (387d46e66e, scripts/sociales/estudio/subtitulos.py) |
+| `EST-REVISION` | `revisar.py`: lee el manifiesto, repite los controles de §6, llama a Jev y escribe `revision.json` y el SQL de inserción | `revisar.py`, `test_revisar.py` | ✅ Hecho (f90c4efc9b, scripts/sociales/estudio/revisar.py) |
+| `EST-INSERTAR` | Inserta las filas `tabla` del manifiesto en `metageminis_piezas` cuando la migración esté aplicada | `insertar_piezas.py`, `test_insertar.py` |  |
+| `EST-VOZ` | Voz en off con el TTS propio del OS (en la Mac o el A1), mezclada bajo el dron a −14 LUFS | `voz.py`, `test_voz.py` |  |
+| `EST-ESTILO-GEOMETRIA` | Escena `geometria-sagrada-cinetica` con bucle perfecto | `escenas/geometria-cinetica.js` |  |
+| `EST-ESTILO-ISOMETRICO` | Escena `isometrico-3d` Semilla → Fruto → Cosecha | `escenas/isometrico-fases.js` |  |
+| `EST-A1` | Servicio de render en Oracle A1: Dockerfile, servicio en `compose-a1.yml` y consumidor de cola | `deploy/oracle/estudio.Dockerfile`, `scripts/sociales/estudio/servicio.py`, `test_servicio.py` |  |
+| `EST-UTM` | Enlaces con `utm_*` por medio y estilo, y verificación | `utm.py`, `test_utm.py` | ✅ Hecho (60f14ba7d8, scripts/sociales/estudio/utm.py) |
+| `EST-CAMPANA-2` | Segunda campaña (candidata con fecha: Hacktoberfest, hasta 2026-10-31) con su guion y filtro de verdad | `campanas/generar_hacktoberfest.py` |  |
+| `EST-FORMATOS-REVISION` | Re-verificación trimestral del catálogo con fecha y diferencias | `revisar_formatos.py`, `test_revisar_formatos.py` | ✅ Hecho (455ae9d1ae, scripts/sociales/estudio/revisar_formatos.py) |
+
+Revisado el 2026-11-07 contra main (`b1a77b34c9`) · solo §12: 4 hechos, 0 a medias, 6 pendientes.
 
 Los textos completos de cada tarea (prompt autosuficiente) se entregaron al orquestador en el informe de esta ola.
 

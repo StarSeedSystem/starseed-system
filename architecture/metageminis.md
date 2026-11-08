@@ -341,7 +341,7 @@ Los valores viven en `~/.starseed/env` (permisos 600) o en el entorno; **nunca**
 |---|---|---|
 | Directorio de 54 sitios | Hecho (2026-10-10) | Releer cada ficha antes de enviar; releer el directorio cada mes |
 | Migración | Escrita y probada en Postgres 16 desechable; **sin aplicar** | La aplica quien aplica las demás migraciones (flujo del repositorio), con las tres comprobaciones del final del SQL |
-| Sección de MetaGenesis | Hecha y probada (13 pruebas del panel); falta montarla en Genesis: tres líneas en `centro-mando.tsx` (ver «Montaje» en §10) | Quien tenga ese archivo libre; el panel comprueba el acceso: quien no es miembro de MetaGenesis solo ve el directorio y la razón |
+| Sección de MetaGenesis | ✅ Hecho (57874ce0d1, src/components/mando/centro-mando.tsx) · Hecha y probada (13 pruebas del panel); falta montarla en Genesis: tres líneas en `centro-mando.tsx` (ver «Montaje» en §10) | Quien tenga ese archivo libre; el panel comprueba el acceso: quien no es miembro de MetaGenesis solo ve el directorio y la razón |
 | Esqueleto Python | Hecho y probado (57 pruebas); redacta con modelos gratuitos o plantilla y puntúa con Jev | — |
 | Servicio 24/7 en Oracle A1 con carga real | **Pendiente, urgente (antes del 2026-10-14 23:00 UTC)** | Tarea `MGS-A1` |
 | Director que lee el latido y avisa | Pendiente | Tarea `MGS-DIR` |
@@ -351,9 +351,11 @@ Los valores viven en `~/.starseed/env` (permisos 600) o en el entorno; **nunca**
 | Investigadora (vigila las fuentes, sin claves) y Seguimiento (cierra el ciclo) | Pendiente | Tareas `MGS-INV`, `MGS-SEG` |
 | Estudio: renderizador y estilos base, revisión automática y registro de piezas | Pendiente | Tareas `MGS-EST-RENDER`, `MGS-EST-ESTILOS`, `MGS-REVISION` |
 | Primera campaña audiovisual (Hacktoberfest, hasta el 2026-10-31): brief, guion y textos | Pendiente | Tarea `MGS-CAMP1` |
-| Enfriamiento por sitio (L3) y reparto por tasa de respuesta (§4) | Pendiente | Tarea `MGS-PLAN` |
+| Enfriamiento por sitio (L3) y reparto por tasa de respuesta (§4) | ✅ Hecho (2670bbc9ee, scripts/sociales/metageminis_plan.py) | Tarea `MGS-PLAN` |
 | Claves de servicio separadas por servicio (§4, regla 1) | Pendiente: decisión de arquitectura (roles de base de datos por servicio); aún sin tarea | — |
 | Cuenta `metageminis`, cuentas de redes, Stripe | **Alex** (§7, §8, directorio) | Son lo mínimo: un enlace o un comando cada una |
+
+Revisado el 2026-11-07 contra main (`b1a77b34c9`) · solo §11: 4 hechos, 0 a medias, 11 pendientes.
 
 **Lo mínimo que se le pide a Alex, por orden de valor:** (1) la cuenta `metageminis` (§7); (2) decidir el
 camino de las donaciones (§8.1) y, si va con Stripe, los tres comandos de §8.2; (3) cuando quiera difusión
