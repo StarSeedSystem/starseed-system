@@ -36,6 +36,8 @@ import { construirEntradas, carpetaDe, devolverAlDock, meterEnCarpeta, quitarDel
 const MenuDockItem = lazy(() => import("./dock/menu-dock-item"));
 import { estiloIcono, REGISTRO_DOCK, type FaseIconoDock } from "./omni-dock-movimiento";
 import { leerNivelMovimiento } from "@/lib/movimiento/nivel";
+// (NOT1108A) No leídos de Mensajes (neuronas + chats de esta sesión) en su icono del dock.
+import { useNoLeidosMensajes } from "@/lib/notifications/no-leidos-mensajes";
 import {
     loadDockConfig,
     saveDockConfig,
@@ -59,6 +61,7 @@ export function OmniDock() {
     const { config } = useAppearance();
     const router = useRouter();
     const pathname = usePathname();
+    const noLeidosMensajes = useNoLeidosMensajes();
 
     // ¿La ruta actual corresponde a este item del dock? (resalta la sección abierta)
     const isActivePath = (p: string) => {
@@ -557,6 +560,7 @@ export function OmniDock() {
                                             color={item.color}
                                             active={isActivePath(item.path)}
                                             compact={compact}
+                                            badge={item.id === "messages" && noLeidosMensajes > 0 ? Math.min(noLeidosMensajes, 99) : undefined}
                                             onClick={() => router.push(item.path)}
                                             {...celdaProps(item.id, CARRIL_RAIZ)}
                                         />

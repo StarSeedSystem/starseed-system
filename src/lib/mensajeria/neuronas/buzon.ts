@@ -47,6 +47,8 @@ import {
     type ResultadoPaso,
 } from "@/lib/mensajeria/medios/enviar";
 import { claveChat, preferenciasEfectivas } from "@/lib/mensajeria/medios/preferencias-store";
+// (NOT1108A) El chat a la vista (sin dependencias): un mensaje de ESE chat no avisa.
+import { fijarChatAbierto } from "@/lib/notifications/chat-abierto";
 import type { CandidatoMedio, PasoEnvio, PlanEnvio, ViaMensaje } from "@/lib/mensajeria/medios/tipos";
 import type { AdjuntoNeurona, FlujoNeuronaRef, LlamadaNeurona } from "@/lib/mensajeria/neuronas/datos-neurona";
 
@@ -110,6 +112,11 @@ function suscribir(cb: () => void): () => void {
 
 export function bandejaMalla(): EstadoBandeja {
     return cargar();
+}
+
+/** (NOT1108A) Suscripción a la bandeja fuera de React (el contador del icono de Mensajes del dock). */
+export function suscribirBandejaMalla(cb: () => void): () => void {
+    return suscribir(cb);
 }
 
 const vacia = () => BANDEJA_VACIA;
@@ -689,21 +696,25 @@ async function recibirNeurona(cuerpo: unknown, via: ViaMensaje | Promise<ViaMens
             .then((a) => a.alAnunciarArchivo(clave, c.mid))
             .catch(() => undefined);
     }
-    // (NEU1107A) Aviso aunque el chat no esté abierto. Las llamadas ya tienen su timbre global
-    // (sistema de llamadas o llamada directa); los archivos por la malla, además, su tarjeta de aceptar.
-    if (nuevo && hiloAbierto !== clave && (c.adj || c.fd)) {
-        const quien = c.de.nom || "Una neurona";
-        const que = c.adj ? `te manda «${c.adj.nombre}»` : `empezó una transmisión en vivo («${c.fd?.nombre ?? "sin nombre"}»)`;
-        void import("sonner")
-            .then(({ toast }) => toast.message(`${quien} ${que}`, { description: "Pestaña «Neuronas» de Mensajes." }))
-            .catch(() => undefined);
-    }
+    // (NOT1108A) Aviso de CUALQUIER mensaje nuevo (antes solo archivos y flujos, con un toast suelto): dentro
+    // del OS si la persona está en otra parte, del sistema si la app está oculta o en segundo plano, nada si
+    // está leyendo este chat (avisos-mensajes.ts). Las llamadas ya tienen su timbre global: solo se apuntan
+    // (así el respaldo nativo de la app tampoco las avisa otra vez).
+    void import("@/lib/notifications/avisos-mensajes")
+        .then(async (a) => {
+            if (!nuevo || c.ll) {
+                a.informarRecibido(c.mid, clave);
+                return;
+            }
+            const { describirNeurona } = await import("@/lib/notifications/avisos-mensajes-logica");
+            await a.avisarMensajeEntrante({ id: c.mid, clave, tipo: "neurona", titulo: c.de.nom || "Una neurona", texto: describirNeurona(c) });
+        })
+        .catch(() => undefined);
 }
 
 /** (NEU1107A) Chat de neurona a la vista (sus avisos no salen como notificación). */
-let hiloAbierto: string | null = null;
 export function fijarHiloAbierto(clave: string | null): void {
-    hiloAbierto = clave;
+    fijarChatAbierto(clave);
 }
 
 async function recibirChat(cuerpo: unknown, via: Promise<ViaMensaje>): Promise<void> {
@@ -738,6 +749,23 @@ async function recibirChat(cuerpo: unknown, via: Promise<ViaMensaje>): Promise<v
         void import("./llamadas-neurona")
             .then((m) => m.registroLlamadaDirectaEntrante(clave, c.mid))
             .catch(() => undefined);
+    }
+    // (NOT1108A) Un mensaje de chat que viajó solo por la malla también avisa (las llamadas tienen su timbre).
+    if (nuevo && !c.ll) {
+        void (async () => {
+            const a = await import("@/lib/notifications/avisos-mensajes");
+            const { describirNeurona } = await import("@/lib/notifications/avisos-mensajes-logica");
+            let titulo = "Mensaje por la malla";
+            if (c.de.u) {
+                try {
+                    const perfiles = await (await import("@/lib/social/os-profiles")).fetchProfilesByIds([c.de.u]);
+                    titulo = perfiles[c.de.u]?.displayName || titulo;
+                } catch {
+                    /* sin nombre (sin internet): el genérico */
+                }
+            }
+            await a.avisarMensajeEntrante({ id: c.mid, clave, tipo: "chat-malla", titulo, texto: describirNeurona(c) });
+        })().catch(() => undefined);
     }
 }
 

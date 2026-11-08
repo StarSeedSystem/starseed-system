@@ -162,6 +162,8 @@ import {
 // una app notifica/abre un popup.
 import { AppNotifyBridge } from "@/components/notifications/app-notify-bridge";
 import { AppPopupHost } from "@/components/notifications/app-popup-host";
+// (NOT1108A) Avisos de mensajes nuevos: dentro del OS y del sistema; pulsar uno abre su chat. Sin UI.
+import { AvisosMensajesMount } from "@/components/notifications/avisos-mensajes-mount";
 // Auto-actualización de la Biblioteca (Adenda 69 · J-2): si está activada, aplica
 // solas las actualizaciones de los paquetes instalados y avisa. Sin UI.
 import { AutoUpdateWatcher } from "@/components/notifications/auto-update-watcher";
@@ -408,6 +410,7 @@ export default function RootLayout({
                         {/* Notificaciones/popups de apps (J-1): persiste avisos de apps en el centro + valida iframes; pinta popups apilables. */}
                         <AppNotifyBridge />
                         <AppPopupHost />
+                        <AvisosMensajesMount />
                         {/* Auto-actualización de la Biblioteca (J-2): aplica solas las actualizaciones si el usuario lo activó. */}
                         <AutoUpdateWatcher />
                         <PaginaVivaMontaje />

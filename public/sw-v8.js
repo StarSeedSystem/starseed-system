@@ -108,6 +108,40 @@ self.addEventListener("message", (event) => {
   }
 });
 
+// ── (NOT1108A) Pulsar la notificación de un mensaje nuevo abre su chat ───────
+// La pone la página (`showNotification` con `data.ruta`, src/lib/notifications/avisos-mensajes.ts). Si hay
+// una ventana de la app, se enfoca y la página navega sin recargar (mensaje `starseed:abrir-ruta`); si no,
+// se abre una en esa ruta. Solo rutas internas (`/…`, nunca `//…` ni otra web).
+self.addEventListener("notificationclick", (event) => {
+  const datos = (event.notification && event.notification.data) || {};
+  const ruta =
+    typeof datos.ruta === "string" && datos.ruta.startsWith("/") && !datos.ruta.startsWith("//") && datos.ruta.indexOf("\\") === -1
+      ? datos.ruta
+      : null;
+  try {
+    event.notification.close();
+  } catch (_) {
+    /* ya cerrada */
+  }
+  if (!ruta) return;
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((ventanas) => {
+      const propia = ventanas.find((v) => {
+        try {
+          return new URL(v.url).origin === self.location.origin;
+        } catch (_) {
+          return false;
+        }
+      });
+      if (propia) {
+        propia.postMessage({ type: "starseed:abrir-ruta", ruta });
+        return typeof propia.focus === "function" ? propia.focus() : undefined;
+      }
+      return self.clients.openWindow ? self.clients.openWindow(ruta) : undefined;
+    }),
+  );
+});
+
 // ── Enrutado por tipo de petición (la clasificación es pura: sw-logica.js) ──
 self.addEventListener("fetch", (event) => {
   const req = event.request;
