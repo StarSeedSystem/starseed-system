@@ -25,6 +25,9 @@ const COMANDOS_APP: &[&str] = &[
     // (VER1107B) «Esta neurona» y buscar la versión nueva sin instalarla.
     "info_neurona",
     "buscar_actualizacion",
+    // (NEU1108A) Pista del id de neurona del origen publicado (APK con servidor local).
+    "pista_neurona",
+    "pista_neurona_leer",
     "recursos_ia_detectar",
     "antenas_estado",
     "antenas_medir",

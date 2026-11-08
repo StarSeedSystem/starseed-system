@@ -127,6 +127,8 @@
     "allow-device-info",
     "allow-info-neurona",
     "allow-buscar-actualizacion",
+    "allow-pista-neurona",
+    "allow-pista-neurona-leer",
     "allow-recursos-ia-detectar",
     "allow-antenas-estado",
     "allow-antenas-medir",

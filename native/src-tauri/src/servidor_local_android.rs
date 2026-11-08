@@ -25,6 +25,7 @@
 // Sin crates nuevos: JNI con la tabla de funciones (como android.rs) y dlopen/pipe/dup2 de bionic.
 // ═══════════════════════════════════════════════════════════════════════════
 
+use crate::pista_neurona;
 use crate::servidor_local_android_logica as la;
 use crate::servidor_local_logica as l;
 use std::ffi::{c_char, c_int, c_void, CStr, CString};
@@ -387,6 +388,8 @@ fn avisar(v: &tauri::WebviewWindow, fase: &str, mensaje: &str) {
 /// página de arranque (nunca de otra web: un inicio de sesión con OAuth, por ejemplo).
 fn conducir(app: AppHandle, gen: u64) {
     let mut ultimo = String::new();
+    // (NEU1108A) Paso por la web publicada para traer la pista del id de neurona (pista_neurona.rs).
+    let mut pista_desde: Option<Instant> = None;
     loop {
         if g().generacion.load(Ordering::SeqCst) != gen {
             return;
@@ -404,7 +407,31 @@ fn conducir(app: AppHandle, gen: u64) {
                 }
             }
             Fase::Local(puerto) => {
-                if la::es_pagina_arranque(&url) {
+                if la::es_pagina_arranque(&url) && pista_desde.is_none() && pista_neurona::pendiente_en(&app) {
+                    // (NEU1108A) Primer arranque con servidor local: antes, un momento por la web publicada
+                    // para traer el id de neurona que esta app ya tenía allí (el origen 127.0.0.1 nace vacío).
+                    pista_neurona::anotar_intento(&app);
+                    pista_desde = Some(Instant::now());
+                    registrar("paso por la web publicada para traer la pista del id de neurona");
+                    avisar(&v, "local", "Buscando la neurona que esta app ya tenía en este aparato…");
+                    if let Ok(u) = tauri::Url::parse(&pista_neurona::url_pista(l::WEB_PUBLICADA)) {
+                        let _ = v.navigate(u);
+                    }
+                    std::thread::sleep(Duration::from_millis(800));
+                } else if let Some(desde) = pista_desde.filter(|_| !la::es_pagina_arranque(&url)) {
+                    let llego = pista_neurona::recibida(&app);
+                    if llego || desde.elapsed() >= Duration::from_millis(pista_neurona::ESPERA_PISTA_MS) {
+                        registrar(if llego { "pista del id de neurona recibida" } else { "sin pista del id de neurona (sin red ni caché): se sigue" });
+                        pista_desde = None;
+                        if let Ok(u) = tauri::Url::parse(&l::url_entrada(puerto, &g().pase, "/")) {
+                            let _ = v.navigate(u);
+                        }
+                        std::thread::sleep(Duration::from_millis(1500));
+                    } else if pista_neurona::es_pagina_pista(&url, l::WEB_PUBLICADA) {
+                        // La página se está cargando o ya cargó: el script es idempotente.
+                        let _ = v.eval(pista_neurona::SCRIPT_PISTA);
+                    }
+                } else if la::es_pagina_arranque(&url) {
                     avisar(&v, "local", "Listo: StarSeed OS funciona en esta neurona, con o sin internet.");
                     // (SEG1107A) Siempre por la entrada: pone la cookie del pase y va a «/».
                     if let Ok(u) = tauri::Url::parse(&l::url_entrada(puerto, &g().pase, "/")) {

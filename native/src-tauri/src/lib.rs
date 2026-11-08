@@ -42,6 +42,8 @@ mod malla_local_trama;
 mod nativa;
 // (VER1107B) «Esta neurona»: versión instalada, sistema, aparato y búsqueda de actualización sin instalar.
 mod neurona_info;
+// (NEU1108A) Pista del id de neurona del origen publicado para la APK con servidor local (127.0.0.1).
+mod pista_neurona;
 mod recursos_ia;
 #[cfg(desktop)]
 mod segundo_plano;
@@ -665,6 +667,8 @@ pub fn run() {
                 device_info,
                 info_neurona,
                 buscar_actualizacion,
+                pista_neurona::pista_neurona,
+                pista_neurona::pista_neurona_leer,
                 recursos_ia::recursos_ia_detectar,
                 nativa::antenas_estado,
                 nativa::antenas_medir,
