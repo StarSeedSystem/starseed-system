@@ -271,13 +271,15 @@ de la RPC, para que la UI no espere el próximo sondeo del motor.
 
 - **Realtime sobre la propia tabla**: el motor sondea `os_mesh_vinculos` cada 8s en vez de
   suscribirse a `postgres_changes` (la publicación ya la incluye, lista para ese salto) —
-  recortado por alcance/esfuerzo de esta ola, no por límite técnico.
+  recortado por alcance/esfuerzo de esta ola, no por límite técnico. (a medias: `vinculos-realtime.ts` en `src/lib/network/vinculos-realtime.ts`; falta integrarlo en el motor)
 - **TURN**: sigue sin haberlo (mismo límite heredado de `webrtc-mesh.ts`/Ola 366) — un NAT
   simétrico en ambos lados puede impedir la conexión P2P del vínculo igual que el mesh
   intra-cuenta.
-- **Verificación fuera de banda de la clave pública** (TOFU, ver §6): no implementada.
+- ✅ Hecho (`7a4bf0f4cf`, `src/lib/network/codigo-seguridad-vinculo.ts`) **Verificación fuera de banda de la clave pública** (TOFU, ver §6): no implementada.
 - **Endurecer la RLS de `os_mesh_relay.owner_id`**: fuera de alcance de esta ola (afecta a todo
   el subsistema de faros).
+
+Revisado el 2026-11-07 contra main (`ad34ea662a`) · solo §7: 1 hechos, 1 a medias, 2 pendientes.
 
 ## 8. Tests
 

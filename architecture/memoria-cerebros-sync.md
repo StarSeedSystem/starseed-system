@@ -31,11 +31,13 @@ formato sirve para repo, Drive, cerebros, servidores y VMs. Ver `starseed_memory
   y conectores de servidores/VMs.
 
 ## Pendiente de implementar
-- Tipo `memory_root` (raíz + ramas) en el modelo de memoria del OS.
+- ✅ Hecho (`ed9e461742`, `src/lib/memorias/memory-root.ts`) Tipo `memory_root` (raíz + ramas) en el modelo de memoria del OS.
 - UI "Vincular memory root" en cerebro/baúl/servidor/VM.
-- Lector de `memory.manifest.json` + motor de merge por `hash`/`scope`.
-- Conectores de origen/destino: local, servidores (internos/StarSeed/externos), VMs en línea. (Google Drive: ver §Ola 374, ya implementado.)
+- Lector de `memory.manifest.json` + motor de merge por `hash`/`scope`. (a medias: lector `readMemoryManifest` en `src/lib/memorias/memory-root.ts`; falta motor de merge por hash/scope)
+- Conectores de origen/destino: local, servidores (internos/StarSeed/externos), VMs en línea. (Google Drive: ver §Ola 374, ya implementado.) (a medias: Google Drive implementado en Ola 374; faltan local/servidores/VMs)
 - Política de sync (manual / automática) por destino.
+
+Revisado el 2026-11-07 contra main (`ad34ea662a`) · solo «Pendiente de implementar»: 1 hechos, 2 a medias, 2 pendientes.
 
 ---
 

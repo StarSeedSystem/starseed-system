@@ -47,9 +47,11 @@ El **Portal StarSeed Nexus** (`https://starseed-nexus.vercel.app`, repo `alexbor
 | Audiomorphic | https://audiomorphic.vercel.app |
 
 ## Pendientes naturales
-- Compartir también el flujo OTP en el SOSD (opcional) para UX idéntica.
+- ✅ Hecho (`a00c48b31e`, `src/components/auth/auth-gate.tsx`) Compartir también el flujo OTP en el SOSD (opcional) para UX idéntica.
 - Mover el catálogo de granos a un paquete compartido si crece.
 - Rotar las claves expuestas (Supabase anon es pública por diseño; Gemini/OpenRouter/Vercel/GitHub conviene rotarlas).
+
+Revisado el 2026-11-07 contra main (`ad34ea662a`) · solo «Pendientes naturales»: 1 hechos, 0 a medias, 2 pendientes.
 
 ## Tema Materia Viva (v1)
 Nueva familia de fondos/tema portada del **rediseño del Nexus/Café** al SOSD: estética **oro + cristal + geometría sagrada** sobre verde-negro profundo, renderizada en **canvas 2D ligero** (sin three.js ni WebGL — apta para cualquier dispositivo).
