@@ -67,7 +67,7 @@ describe("deduplicarPredeterminadas", () => {
         const m = migrarPredeterminados({ dashboards: r.dashboards, widgets: r.widgets, retirados: [], plantillas: PL }, { uuid: () => `m-${++n}`, ahora: "2026-09-30" });
         expect(m.dashboards).toHaveLength(18);
         expect(m.informe.renovadas).toHaveLength(18);
-        expect(m.dashboards.every((d) => d.id.startsWith("r-") && d.plantilla?.v.startsWith("gen12"))).toBe(true);
+        expect(m.dashboards.every((d) => d.id.startsWith("r-") && d.plantilla?.v.startsWith("gen13"))).toBe(true);
     });
 
     it("si las dos tienen cambios de la persona, se conservan ambas y la local se distingue", () => {

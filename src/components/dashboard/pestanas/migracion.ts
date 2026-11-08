@@ -24,7 +24,8 @@ import type { DefaultDashboardTemplate } from "../dashboard-defaults";
 import { LEGADO_GEN11, type PiezaLegado } from "./legado-gen11";
 
 /** Generación actual de las pestañas predeterminadas. Súbela al cambiar las plantillas. */
-export const VERSION_PREDETERMINADOS = "gen12-2026-09-29-pestanas-curadas";
+// (PER1108A, 2026-11-08) gen13: «Inicio» y «Red» ya no llevan el Feed de la red (retirado en FEED1108A).
+export const VERSION_PREDETERMINADOS = "gen13-2026-11-08-sin-feed-red";
 
 export interface MarcaPlantilla {
     /** Categoría de la plantilla de la que salió la pestaña. */

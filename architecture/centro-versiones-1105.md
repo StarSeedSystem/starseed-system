@@ -421,3 +421,55 @@ Ese día `releases/download/…` (y `releases/latest/download/…`) devolvió **
   «Sin conexión: lo intentaré cuando vuelva la red.» (`errores.ts`).
 - **Sin verificar en aparato real**: el Kotlin (solo compila en el CI de Android) y el flujo completo con un
   504 de verdad.
+
+### Firma de macOS (PER1108A · 2026-11-08)
+
+**Qué cambia.** Los dos canales firman el BUNDLE `.app` entero con el identificador estable `app.starseed.os` (el de `tauri.conf.json`): así el `Info.plist` y los recursos quedan sellados y macOS (TCC) pregunta por Bluetooth, red local,
+micrófono, cámara y ubicación. Antes la app salía con `flags=0x20002(adhoc,linker-signed)` e identificador `starseed_native-<hash>` y macOS negaba el Bluetooth sin preguntar.
+
+**Cómo.** El paso «macOS · preparar la firma del bundle» (`native/scripts/firma-macos-preparar.sh`) deja la identidad en `APPLE_SIGNING_IDENTITY` para `tauri-action`: Tauri firma la `.app` ANTES de hacer el `.dmg` y el `.app.tar.gz` del
+updater (y su firma minisign), así que el paquete del updater lleva la app ya firmada.
+
+| Modo | Cuándo | Efecto |
+|---|---|---|
+| Certificado propio | existen los secretos `MACOS_CERT_P12_BASE64` y `MACOS_CERT_PASSWORD` | se importa a un llavero temporal; el requisito designado es identificador + certificado: los permisos concedidos SOBREVIVEN a las actualizaciones |
+| Ad-hoc (`-`) | no hay secretos (hoy) | el bundle queda sellado y macOS pregunta, pero el hash cambia en cada build: macOS puede volver a preguntar tras cada actualización |
+
+**Hardened runtime: apagado** (`bundle.macOS.hardenedRuntime: false`). Encenderlo exige entitlements (`audio-input`, `camera`, `bluetooth`, `network.client` y `network.server`) y sin ellos macOS niega micrófono, cámara y Bluetooth. Sin notarización de Apple no aporta
+nada (Gatekeeper sigue pidiendo «clic derecho → Abrir»). Si algún día hay Developer ID: encenderlo, añadir `Entitlements.plist` y notarizar a la vez.
+
+**Comprobación en el CI** (`native/scripts/verificar-firma-macos.mjs`, tras el build): `codesign -dv` no puede decir `linker-signed`, el `Info.plist` debe estar atado, los recursos sellados, el identificador ser `app.starseed.os`, no debe haber
+`runtime`, y `codesign --verify --deep --strict` debe pasar. Limitación: `tauri-action` ya subió los archivos cuando se comprueba; si falla, el job sale en rojo y esa prueba no debe usarse.
+
+**Lo que Alex hace UNA vez para tener el certificado propio** (no lo ha ejecutado ningún agente; Alex lo aprueba y lo corre en su Mac):
+
+```sh
+# 1 · Certificado autofirmado de firma de código (10 años) con openssl
+cd "$(mktemp -d)" && cat > cert.cnf <<'EOF'
+[req]
+distinguished_name = dn
+x509_extensions = ext
+prompt = no
+[dn]
+CN = StarSeed OS Signing
+O = StarSeedSystem
+[ext]
+basicConstraints = critical,CA:false
+keyUsage = critical,digitalSignature
+extendedKeyUsage = critical,codeSigning
+EOF
+openssl req -x509 -newkey rsa:2048 -nodes -days 3650 -config cert.cnf -keyout clave.pem -out cert.pem
+# 2 · Empaquetar en .p12 (pide la contraseña: invéntala y guárdala en tu gestor)
+openssl pkcs12 -export -inkey clave.pem -in cert.pem -out starseed-firma.p12 -name "StarSeed OS Signing" -legacy
+# 3 · Comprobar que se importa a un llavero (opcional)
+security create-keychain -p prueba prueba.keychain-db && security import starseed-firma.p12 -k prueba.keychain-db -P "<la contraseña>" -T /usr/bin/codesign
+security find-identity -p codesigning prueba.keychain-db; security delete-keychain prueba.keychain-db
+# 4 · Secretos del repositorio (la contraseña se teclea, no se pega en el historial)
+base64 -i starseed-firma.p12 | gh secret set MACOS_CERT_P12_BASE64 --repo StarSeedSystem/starseed-system
+gh secret set MACOS_CERT_PASSWORD --repo StarSeedSystem/starseed-system
+# 5 · Guardar clave.pem y starseed-firma.p12 en un sitio seguro (si se pierden, se crea otro certificado y los permisos se piden una vez más)
+rm -f clave.pem cert.pem cert.cnf
+```
+
+La primera app firmada con el certificado nuevo pide los permisos otra vez una sola vez; a partir de ahí se conservan entre actualizaciones. Mientras tanto, en un Mac con la app ya instalada y sin permiso, el arreglo manual (comprobado el 08-11) es
+`codesign --force --deep --sign - --identifier app.starseed.os "/Applications/StarSeed OS.app"`.
