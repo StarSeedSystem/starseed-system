@@ -91,9 +91,10 @@ pone `--no-autoupdate` antes de `--url` para que el `pkill` del viejo no lo conf
 ## Pendiente (fuera de este encargo)
 
 - Aplicar la migración `20261010100000_metagenesis_motor.sql` y cargar el servicio en la Mac.
-- `/api/mando/accesos` y `/api/mando/ambitos` usan `esDespliegueLocal` DESPUÉS del guardián: por el
+- ✅ Hecho (`7bb4b1e`, `src/app/api/mando/accesos/route.ts` y `src/app/api/mando/ambitos/route.ts`) `/api/mando/accesos` y `/api/mando/ambitos` usan `esDespliegueLocal` DESPUÉS del guardián: por el
   túnel (con `STARSEED_LOCAL=1`) tratan a cualquier miembro como dueño del registro antiguo de
   accesos. Cambiar a `esPeticionDeEstaMaquina`.
 - Estado del túnel dentro de Genesis de la Mac (Ajustes › Accesos): servicio cargado, último
   latido y última línea del registro (tachada).
 - `/genesis` como entrada con selector de nivel (para que «Ir a mi Genesis» lleve a la cuenta).
+Revisado el 2026-11-07 contra main (`b1a77b3`) · solo "Pendiente (fuera de este encargo)": 1 hechos, 0 a medias, 3 pendientes.

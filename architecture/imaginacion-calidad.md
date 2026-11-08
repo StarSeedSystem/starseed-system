@@ -79,9 +79,10 @@ Todo está en `IA 1.58 bit/backend/app/`.
 
 ## 3. Pendiente (fuera de estos archivos)
 
-- Que el medidor de Genesis enseñe `filtro_astraura` (`src/lib/mando/imaginacion-*`, que ya conserva la clave al
+- ✅ Hecho (`bb6776e`, `src/lib/mando/medidores.ts`) Que el medidor de Genesis enseñe `filtro_astraura` (`src/lib/mando/imaginacion-*`, que ya conserva la clave al
   guardar).
-- «clave» en `RESERVADOS` también significa «importante» («un paso clave»). «Arreglar el ciclo de vida del
+- ✅ Hecho (`365c4ad`, `scripts/puente/autodesarrollo_decidir.py`) «clave» en `RESERVADOS` también significa «importante» («un paso clave»). «Arreglar el ciclo de vida del
   orquestador» sigue preguntando por eso.
 - Las candidatas al catálogo piden verificar términos y robots.txt «sin inventar». Hay que vigilar que la flota no
   las dé por verificadas sin leer la web (`architecture/agente-referencias-diseno.md` §5).
+Revisado el 2026-11-07 contra main (`b1a77b3`) · solo §3: 2 hechos, 0 a medias, 1 pendiente.

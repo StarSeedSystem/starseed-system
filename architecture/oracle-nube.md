@@ -47,20 +47,21 @@ decide Alex; nunca se hace desde aquí.
 
 ## 2. Para qué la esperábamos (pendientes recuperados)
 
-1. **Capa nube y colectiva de Astraura 1.58 24/7.** Hoy la nube de Astraura es la Mac por un túnel
+1. ✅ Hecho (`4bcc0a3`, `deploy/oracle/compose-a1.yml`) **Capa nube y colectiva de Astraura 1.58 24/7.** Hoy la nube de Astraura es la Mac por un túnel
    rápido de Cloudflare cuya URL cambia en cada arranque, y Cloud Run quedó sin facturación el
    2026-09-25. La capa colectiva (Ola 365) tenía «Oracle Always Free (pendiente)» como su nube
    (`architecture/astraura-158-sistema-primario.md`, `memory/state.md`).
-2. **Servidor de Genesis que no se apaga con la Mac** (`architecture/servidor-astraura-mando.md`
+2. ✅ Hecho (`4bcc0a3`, `scripts/puente/oracle_nodo.py`) **Servidor de Genesis que no se apaga con la Mac** (`architecture/servidor-astraura-mando.md`
    §8): destino de la capa nube y réplica de Genesis.
-3. **Un medio más para el enjambre** (`memory/orquestacion-economica.md` §10), corriendo su propio
+3. ✅ Hecho (`4bcc0a3`, `deploy/oracle/compose-a1.yml`) **Un medio más para el enjambre** (`memory/orquestacion-economica.md` §10), corriendo su propio
    orquestador contra la misma cola.
-4. **Instancias oficiales StarSeed** de los conectores (`docs/HOSTING_INTEGRACIONES.md`):
+4. (a medias: SearXNG y n8n en `deploy/oracle/compose-a1.yml`; falta Crawl4AI y Stirling-PDF) **Instancias oficiales StarSeed** de los conectores (`docs/HOSTING_INTEGRACIONES.md`):
    SearXNG (prioridad 1), Crawl4AI (2), Stirling-PDF (3) y n8n, que hoy duerme en Hugging Face y
    así pierde los webhooks.
-5. **Sincronización 24/7** que una sesión de Claude en la nube no puede dar (§14 de la
+5. ✅ Hecho (`4bcc0a3`, `deploy/oracle/compose-a1.yml`) **Sincronización 24/7** que una sesión de Claude en la nube no puede dar (§14 de la
    orquestación económica).
-6. **Motor «servidor propio» del Mando para todos** (`architecture/puente-mando-para-todos.md`).
+6. ✅ Hecho (`4bcc0a3`, `scripts/puente/oracle_nodo.py`) **Motor «servidor propio» del Mando para todos** (`architecture/puente-mando-para-todos.md`).
+Revisado el 2026-11-07 contra main (`b1a77b3`) · solo §2: 5 hechos, 1 a medias, 0 pendientes.
 
 ## 3. Reparto de la máquina
 
