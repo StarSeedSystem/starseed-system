@@ -181,7 +181,7 @@ icono Lucide `Cpu`/`Binary`; etiqueta «1.58-bit» en chip mono. Sin emoji como 
 - ✅ Hecho (`c935e9d08`, kit local en `src/components/astraura/s158/instalador-tab.tsx` y acción «Recompilar bitnet.cpp nativo» en `src/components/astraura/s158/telemetria-tab.tsx` con `buildAstraura158Bitnet` → `/api/bitnet/build` · `4f0af4db9`, `describeAstraura158Engine` lee `engine.models_on_disk` en `src/lib/astraura/astraura-158-client.ts`) Compilar BitNet en la neurona (kit local desde el panel) y leer `engine.models_on_disk` para el chip «BitNet real».
 - Enlazar Vercel `astraura` a GitHub; `min-instances 1` en Cloud Run; CSP enforcing con loopback.
 
-Revisado el 2026-11-08 contra main (`035f438c8`): 1 hecho, 1 a medias, 2 pendientes (VoiceStudio solo tiene el paquete `.ovsvoice`; auth del backend vive en el repo `astraura`, externo; Vercel/Cloud Run son cuentas de Alex y la CSP sigue en `-Report-Only`, verificado en `next.config.ts`).
+Revisado el 2026-11-08 contra main (`e8f54b37c`): 1 hecho, 1 a medias, 2 pendientes (VoiceStudio solo tiene el paquete `.ovsvoice`; auth del backend vive en el repo `astraura`, externo; Vercel/Cloud Run son cuentas de Alex y la CSP sigue en `-Report-Only`, verificado en `next.config.ts`).
 
 ## 12 · Verificación de la ola
 `tsc --noEmit` 0 · `vitest` (tests nuevos: `primary-system`, `astraura-158` provider puro) · `next build` ✓.
