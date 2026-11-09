@@ -23,6 +23,7 @@ el chat de Antigravity o esta sesión de Claude— ve y dirige exactamente lo mi
   starseed-puente mensajes [n]           # las ultimas n cosas dichas
   starseed-puente escuchar               # sigue el canal EN VIVO (chat principal)
   starseed-puente briefing               # el texto para pegar en un chat nuevo
+  starseed-puente publicar [nota]        # commit → puertas → push → verificación
 """
 import json, os, socket, subprocess, sys, tempfile, time, urllib.request
 
@@ -389,6 +390,34 @@ def cmd_briefing():
     sys.stdout.write(open(p, encoding="utf-8").read())
 
 
+def cmd_publicar(nota=""):
+    """Lanza la publicación completa: commit → puertas → push → verificación.
+
+    python3 scripts/puente/publicar.py "nota opcional"
+
+    Las puertas tardan 5-15 min. El proceso deja su estado en
+    starseed_memory_root/mando/publicacion-estado.json para que Genesis lo siga en vivo.
+    """
+    publicar_py = os.path.join(os.path.dirname(__file__), "publicar.py")
+    if not os.path.exists(publicar_py):
+        print("No se encuentra scripts/puente/publicar.py")
+        return 1
+    import subprocess
+    cmd = ["python3", publicar_py]
+    if nota:
+        cmd.append(nota)
+    print("▸ Publicando%s…" % (" (" + nota + ")" if nota else ""))
+    print("  Estado en vivo: starseed_memory_root/mando/publicacion-estado.json")
+    try:
+        return subprocess.run(cmd, cwd=RAIZ).returncode
+    except KeyboardInterrupt:
+        print("\nInterrumpido por el usuario")
+        return 130
+    except Exception as e:
+        print("Error lanzando la publicación: %s" % e)
+        return 1
+
+
 def main():
     a = sys.argv[1:] or ["estado"]
     c = a[0]
@@ -424,6 +453,9 @@ def main():
         return cmd_chat(a[1])
     elif c == "puertas": cmd_puertas()
     elif c == "briefing": cmd_briefing()
+    elif c == "publicar":
+        nota = " ".join(a[1:]).strip()
+        return cmd_publicar(nota)
     else:
         print(__doc__)
     return 0
