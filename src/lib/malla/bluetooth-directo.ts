@@ -104,6 +104,10 @@ export interface EstadoBleNativo {
   radio: string;
   motivo: string;
   plataforma: string;
+  /** Papeles GATT de esta plataforma (INT1109C): «central» y/o «periferico»; vacío sin radio. */
+  roles: Array<"central" | "periferico">;
+  /** ¿Puede abrir el canal rápido L2CAP (carril `ble-l2cap`)? */
+  l2cap: boolean;
   anunciando: boolean;
   con_cuenta: boolean;
   vecinos: VecinoBleNativo[];
@@ -207,6 +211,8 @@ export function leerEstadoBle(x: unknown): EstadoBleNativo | null {
     radio: txt(o.radio, 20),
     motivo: txt(o.motivo),
     plataforma: txt(o.plataforma, 20),
+    roles: Array.isArray(o.roles) ? (o.roles.filter((r) => r === "central" || r === "periferico") as Array<"central" | "periferico">) : [],
+    l2cap: o.l2cap === true,
     anunciando: o.anunciando === true,
     con_cuenta: o.con_cuenta === true,
     vecinos,

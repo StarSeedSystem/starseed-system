@@ -153,6 +153,8 @@ function mundo(ajustes: { mac: "automatico" | "preguntar" | "nunca"; tab: "autom
       radio: "encendida",
       motivo: "",
       plataforma: nombre === "mac" ? "macos" : "android",
+      roles: ["central", "periferico"],
+      l2cap: true,
       anunciando: true,
       con_cuenta: true,
       vecinos: [],

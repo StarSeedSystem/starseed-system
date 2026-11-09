@@ -74,6 +74,8 @@ function dosApps(opts: { mtu?: number; conClave?: boolean; fallar?: () => boolea
       radio: "encendida",
       motivo: "",
       plataforma: nombre === "mac" ? "macos" : "android",
+      roles: ["central", "periferico"],
+      l2cap: true,
       anunciando: true,
       con_cuenta: true,
       vecinos: [],

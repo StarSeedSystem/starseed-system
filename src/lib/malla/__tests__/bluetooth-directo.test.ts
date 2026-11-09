@@ -35,6 +35,8 @@ function estado(p: Partial<EstadoBleNativo> = {}): EstadoBleNativo {
     radio: "encendida",
     motivo: "",
     plataforma: "android",
+    roles: ["central", "periferico"],
+    l2cap: true,
     anunciando: true,
     con_cuenta: true,
     vecinos: [],
