@@ -6295,3 +6295,12 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `PRM1108Bb-d2` — pruebas en rojo: vitest falla (rama conservada)
 - `PRM1108Bb` — otra cosa: revisor: dividida en PRM1108Bb-d1, PRM1108Bb-d2 (tarea:otro con 2 archivos: se divide en 2 partes encadenadas)
 - `PRM1108Cb` — otra cosa: sin decisión en 0 h; rama ola/PRM1108Cb conservada
+
+## 2026-11-08 22:15 · auto-1108-221103
+
+**Lo que se pidió.** archivos
+
+**Resultado.** 0 de 1 integradas. 1 tarea se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `PRM1108Bb-d2` — los tipos no compilan: 1 errores tsc (rama ola/PRM1108Bb-d2 conservada)
