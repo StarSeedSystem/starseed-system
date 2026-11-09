@@ -10,8 +10,10 @@ from alcance_pruebas import (
     BASE,
     GUARDAS_CLIENTE,
     UMBRAL_IMPORTADORES,
+    UMBRAL_IMPORTADORAS_TS,
     es_prueba,
     es_prueba_py,
+    importadoras_ts,
     necesita_pytest,
     orden_vitest,
     pruebas_a_sumar,
@@ -135,7 +137,9 @@ class TestOrdenVitest(unittest.TestCase):
 def carpeta_de(archivos):
     """Un «disco» en memoria: {ruta: texto} → (listar, leer) como los espera pruebas_python_a_sumar."""
 
-    def listar(carpeta):
+    def listar(carpeta=None):
+        if carpeta is None:
+            return sorted(archivos.keys())
         return [r.rsplit("/", 1)[1] for r in archivos if r.rsplit("/", 1)[0] == carpeta]
 
     return listar, lambda ruta: archivos.get(ruta, "")
@@ -289,6 +293,168 @@ class TestImportaDicelaVerdad(unittest.TestCase):
     def test_pruebas_en_una_subcarpeta_no_se_buscan_y_el_modulo_sale_como_sin_prueba(self):
         listar, leer = carpeta_de({"p/x.py": "", "p/tests/test_x.py": "import x\n"})
         self.assertEqual(pruebas_python_a_sumar(["p/x.py"], listar, leer)["sin_prueba"], ["p/x.py"])
+
+
+class TestImportadorasTS(unittest.TestCase):
+    """(SUP0911B) Importadoras TypeScript: pruebas que importan la fuente tocada desde otra carpeta."""
+
+    def _disk(self, archivos):
+        """Helper: build listar/leer from a dict ruta → texto."""
+        def listar(carpeta=None):
+            if carpeta is None:
+                return sorted(archivos.keys())
+            return [r.rsplit("/", 1)[1] for r in archivos if r.rsplit("/", 1)[0] == carpeta]
+        return listar, lambda ruta: archivos.get(ruta, None)
+
+    def test_caso_real_camera_quick_widget(self):
+        # Tocar camera-quick-widget.tsx, prueba en paquete-e/__tests__ lo importa con ../../camera-quick-widget
+        archivos = {
+            "src/components/dashboard/widgets/camera-quick-widget.tsx": "export const CameraQuickWidget = () => <div />;",
+            "src/components/dashboard/widgets/paquete-e/__tests__/camara-render.test.tsx": 'import { CameraQuickWidget } from "../../camera-quick-widget";',
+        }
+        listar, leer = self._disk(archivos)
+        r = importadoras_ts(["src/components/dashboard/widgets/camera-quick-widget.tsx"], listar, leer)
+        self.assertEqual(r, ["src/components/dashboard/widgets/paquete-e/__tests__/camara-render.test.tsx"])
+
+    def test_alias_arroba(self):
+        archivos = {
+            "src/components/dashboard/widgets/camera-quick-widget.tsx": "export const CameraQuickWidget = () => <div />;",
+            "src/components/dashboard/widgets/paquete-e/__tests__/camara-render.test.tsx": 'import { CameraQuickWidget } from "@/components/dashboard/widgets/camera-quick-widget";',
+        }
+        listar, leer = self._disk(archivos)
+        r = importadoras_ts(["src/components/dashboard/widgets/camera-quick-widget.tsx"], listar, leer)
+        self.assertEqual(r, ["src/components/dashboard/widgets/paquete-e/__tests__/camara-render.test.tsx"])
+
+    def test_no_coincide_por_prefijo(self):
+        # ../../camera-quick-widget-extra NO importa camera-quick-widget
+        archivos = {
+            "src/components/dashboard/widgets/camera-quick-widget.tsx": "export const CameraQuickWidget = () => <div />;",
+            "src/components/dashboard/widgets/paquete-e/__tests__/camara-render.test.tsx": 'import { X } from "../../camera-quick-widget-extra";',
+        }
+        listar, leer = self._disk(archivos)
+        r = importadoras_ts(["src/components/dashboard/widgets/camera-quick-widget.tsx"], listar, leer)
+        self.assertEqual(r, [])
+
+    def test_solo_mencion_en_comentario_no_cuenta(self):
+        archivos = {
+            "src/components/dashboard/widgets/camera-quick-widget.tsx": "export const CameraQuickWidget = () => <div />;",
+            "src/components/dashboard/widgets/paquete-e/__tests__/camara-render.test.tsx": "// camera-quick-widget está aquí\nimport { X } from \"../otro\";",
+        }
+        listar, leer = self._disk(archivos)
+        r = importadoras_ts(["src/components/dashboard/widgets/camera-quick-widget.tsx"], listar, leer)
+        self.assertEqual(r, [])
+
+    def test_index_ts_importado_como_carpeta(self):
+        archivos = {
+            "src/lib/x/index.ts": "export const x = 1;",
+            "src/lib/y/__tests__/y.test.ts": 'import { x } from "@/lib/x";',
+        }
+        listar, leer = self._disk(archivos)
+        r = importadoras_ts(["src/lib/x/index.ts"], listar, leer)
+        self.assertEqual(r, ["src/lib/y/__tests__/y.test.ts"])
+
+    def test_especificador_con_extension(self):
+        # Test con ruta relativa que resuelve correctamente a la fuente
+        archivos = {
+            "src/lib/foo.ts": "export const foo = 1;",
+            "src/components/__tests__/bar.test.ts": 'import { foo } from "../../lib/foo.tsx";',
+        }
+        listar, leer = self._disk(archivos)
+        r = importadoras_ts(["src/lib/foo.ts"], listar, leer)
+        self.assertEqual(r, ["src/components/__tests__/bar.test.ts"])
+
+    def test_umbral_13_no_suma_nada(self):
+        archivos = {"src/core.ts": ""}
+        for i in range(13):
+            archivos[f"src/__tests__/test_{i}.test.ts"] = 'import { x } from "../core";'
+        listar, leer = self._disk(archivos)
+        r = importadoras_ts(["src/core.ts"], listar, leer)
+        self.assertEqual(r, [])
+
+    def test_umbral_12_suma_las_12(self):
+        archivos = {"src/core.ts": ""}
+        for i in range(12):
+            archivos[f"src/__tests__/test_{i}.test.ts"] = 'import { x } from "../core";'
+        listar, leer = self._disk(archivos)
+        r = importadoras_ts(["src/core.ts"], listar, leer)
+        self.assertEqual(len(r), 12)
+
+    def test_importadora_bajo_base_no_sale(self):
+        # Una importadora bajo src/lib/__tests__ ya corre con base, no debe aparecer en extras
+        archivos = {
+            "src/components/x.tsx": "export const X = 1;",
+            "src/lib/__tests__/x.test.ts": 'import { X } from "@/components/x";',
+        }
+        listar, leer = self._disk(archivos)
+        r = importadoras_ts(["src/components/x.tsx"], listar, leer)
+        self.assertEqual(r, [])
+
+    def test_existe_falso_no_incluye(self):
+        archivos = {
+            "src/components/x.tsx": "export const X = 1;",
+            "src/otro/__tests__/y.test.ts": 'import { X } from "@/components/x";',
+        }
+        listar, leer = self._disk(archivos)
+        # leer devuelve None para la prueba (simula que no existe)
+        r = importadoras_ts(["src/components/x.tsx"], listar, lambda _: None)
+        self.assertEqual(r, [])
+
+    def test_leer_none_o_lanza_no_rompe(self):
+        archivos = {
+            "src/components/x.tsx": "export const X = 1;",
+            "src/otro/__tests__/y.test.ts": 'import { X } from "@/components/x";',
+        }
+        listar, _ = self._disk(archivos)
+        def leer_lanza(ruta):
+            if "y.test.ts" in ruta:
+                raise IOError("disk full")
+            return archivos.get(ruta)
+        r = importadoras_ts(["src/components/x.tsx"], listar, leer_lanza)
+        self.assertEqual(r, [])
+
+    def test_listar_lanza_no_rompe(self):
+        def listar_lanza(_):
+            raise OSError("permiso denegado")
+        r = importadoras_ts(["src/components/x.tsx"], listar_lanza, lambda _: "")
+        self.assertEqual(r, [])
+
+    def test_sin_listar_leer_comportamiento_de_hoy(self):
+        # Sin listar/leer, importadoras_ts devuelve lista vacía (no rompe el orquestador actual)
+        r = importadoras_ts(["src/components/x.tsx"])
+        self.assertEqual(r, [])
+
+
+class TestPruebasASumarConImportadoras(unittest.TestCase):
+    """pruebas_a_sumar con listar/leer suma también las importadoras TS."""
+
+    def _disk(self, archivos):
+        def listar(carpeta=None):
+            if carpeta is None:
+                return sorted(archivos.keys())
+            return [r.rsplit("/", 1)[1] for r in archivos if r.rsplit("/", 1)[0] == carpeta]
+        return listar, lambda ruta: archivos.get(ruta, None)
+
+    def test_suma_importadoras_ts_ademas_de_hermanas(self):
+        archivos = {
+            "src/components/dashboard/widgets/camera-quick-widget.tsx": "export const CameraQuickWidget = () => <div />;",
+            "src/components/dashboard/widgets/camera-quick-widget.test.tsx": "import { CameraQuickWidget } from './camera-quick-widget';",
+            "src/components/dashboard/widgets/paquete-e/__tests__/camara-render.test.tsx": 'import { CameraQuickWidget } from "../../camera-quick-widget";',
+        }
+        listar, leer = self._disk(archivos)
+        existe = lambda r: r in archivos
+        r = pruebas_a_sumar(
+            ["src/components/dashboard/widgets/camera-quick-widget.tsx"],
+            existe,
+            listar=listar,
+            leer=leer,
+        )
+        self.assertIn("src/components/dashboard/widgets/camera-quick-widget.test.tsx", r)
+        self.assertIn("src/components/dashboard/widgets/paquete-e/__tests__/camara-render.test.tsx", r)
+
+    def test_sin_listar_leer_sigue_igual(self):
+        existe = lambda r: r == "src/components/x.test.tsx"
+        r = pruebas_a_sumar(["src/components/x.tsx"], existe)
+        self.assertEqual(r, ["src/components/x.test.tsx"])
 
 
 if __name__ == "__main__":

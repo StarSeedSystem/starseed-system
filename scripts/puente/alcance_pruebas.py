@@ -21,11 +21,13 @@ Módulo PURO: entran rutas y una función `existe`, sale una lista de rutas.
 """
 
 import re
+import posixpath
 
 BASE = "src/lib/__tests__"
 SUFIJOS_PRUEBA = (".test.ts", ".test.tsx", ".spec.ts", ".spec.tsx")
-# Fuentes de las que tiene sentido buscar una prueba hermana.
 SUFIJOS_FUENTE = (".ts", ".tsx")
+
+UMBRAL_IMPORTADORAS_TS = 12
 
 # Guardas del paquete del NAVEGADOR (2026-10-11). S1010-MGR3b hizo que un componente de
 # cliente importara un VALOR de un módulo con `node:child_process`: su tsc y sus pruebas
@@ -70,11 +72,13 @@ def _hermanas(ruta):
     return []
 
 
-def pruebas_a_sumar(rutas, existe, base=BASE):
+def pruebas_a_sumar(rutas, existe, base=BASE, listar=None, leer=None):
     """Archivos de prueba que la puerta debe correr ADEMÁS de `base`.
 
     `rutas`: lo que devuelve `git diff --name-only main...HEAD`.
     `existe`: función ruta → bool (para no pasarle a vitest lo que no está).
+    `listar`, `leer`: si se proporcionan, también suma las pruebas TS que importan
+                      las fuentes tocadas (`importadoras_ts`).
 
     Se omite lo que ya cae dentro de `base`: correrlo dos veces no añade nada.
     El resultado va ordenado y sin repetidos, para que el comando sea estable y
@@ -96,12 +100,129 @@ def pruebas_a_sumar(rutas, existe, base=BASE):
                 continue
             if existe(candidata):
                 encontradas.add(candidata)
+
+    if listar and leer:
+        for imp in importadoras_ts(rutas, listar, leer):
+            if not imp.startswith(base + "/") and existe(imp):
+                encontradas.add(imp)
+
     return sorted(encontradas)
 
 
 def orden_vitest(extras, base=BASE):
     """El comando completo de la puerta: siempre `base`, más lo que toque la tarea."""
     return "npx vitest run " + " ".join([base] + list(extras))
+
+
+def _resuelve_importador(ruta_prueba, especificador):
+    """Resuelve un especificador de importación a una ruta absoluta relativa a la raíz del repo."""
+    if especificador.startswith("@/"):
+        return "src/" + especificador[2:]
+    if especificador.startswith("./") or especificador.startswith("../"):
+        carpeta = posixpath.dirname(ruta_prueba)
+        return posixpath.normpath(posixpath.join(carpeta, especificador))
+    return None
+
+
+def _sin_extension(ruta):
+    """Quita la extensión final .ts, .tsx, .js, .jsx si existe."""
+    for ext in (".ts", ".tsx", ".js", ".jsx"):
+        if ruta.endswith(ext):
+            return ruta[: -len(ext)]
+    return ruta
+
+
+def _nombre_fuente(ruta_fuente):
+    """Nombre de la fuente para buscar en el texto: último segmento significativo.
+    Para index.ts(x), usa el nombre de la carpeta; si no, el nombre del archivo sin extensión.
+    """
+    tronco = _sin_extension(ruta_fuente)
+    partes = tronco.split("/")
+    if partes[-1] == "index":
+        return partes[-2] if len(partes) > 1 else "index"
+    return partes[-1]
+
+
+def _importa_ts(texto, ruta_fuente, ruta_prueba):
+    """¿El texto de la prueba importa DIRECTAMENTE la fuente dada?"""
+    nombre = _nombre_fuente(ruta_fuente)
+    if nombre not in texto:
+        return False
+
+    patrones = [
+        r'from\s+["\']([^"\']+)["\']',
+        r'import\s+["\']([^"\']+)["\']',
+        r'import\(\s*["\']([^"\']+)["\']\s*\)',
+        r'require\(\s*["\']([^"\']+)["\']\s*\)',
+    ]
+
+    tronco_fuente = _sin_extension(ruta_fuente)
+    # Para index.ts(x), también coincide con su carpeta (ej: src/lib/x/index -> src/lib/x)
+    troncos = [tronco_fuente]
+    if tronco_fuente.endswith("/index"):
+        troncos.append(tronco_fuente[: -len("/index")])
+
+    for patron in patrones:
+        for match in re.finditer(patron, texto):
+            esp = match.group(1)
+            resuelta = _resuelve_importador(ruta_prueba, esp)
+            if resuelta is None:
+                continue
+            resuelta_sin_ext = _sin_extension(resuelta)
+            if resuelta_sin_ext in troncos:
+                return True
+    return False
+
+
+def importadoras_ts(rutas, listar=None, leer=None, umbral=UMBRAL_IMPORTADORAS_TS):
+    """Pruebas TS que importan DIRECTAMENTE alguna de las fuentes tocadas.
+
+    `rutas`: lista de rutas tocadas (relativas a la raíz).
+    `listar()` → rutas de archivos de prueba del repo (relativas a la raíz, con `/`).
+    `leer(ruta)` → texto del archivo (None si no existe/error).
+    `umbral`: si una fuente tiene MÁS de este nº de importadoras, no se suma ninguna (es núcleo).
+
+    Devuelve lista ordenada y sin repetidos de rutas de prueba.
+    """
+    if not listar or not leer:
+        return []
+
+    fuentes = [r for r in (rutas or []) if toca_la_app(r)]
+    if not fuentes:
+        return []
+
+    textos_cache = {}
+
+    def _leer(ruta):
+        if ruta not in textos_cache:
+            try:
+                textos_cache[ruta] = leer(ruta)
+            except Exception:
+                textos_cache[ruta] = None
+        return textos_cache[ruta]
+
+    try:
+        todas_pruebas = listar()
+    except Exception:
+        return []
+
+    resultado = set()
+    for fuente in fuentes:
+        importadoras = []
+        for prueba in todas_pruebas:
+            if prueba.startswith(BASE + "/"):
+                continue
+            texto = _leer(prueba)
+            if not texto:
+                continue
+            if _importa_ts(texto, fuente, prueba):
+                importadoras.append(prueba)
+
+        if len(importadoras) > umbral:
+            continue
+        resultado.update(importadoras)
+
+    return sorted(resultado)
 
 
 # ───────────────────────────────── Python ─────────────────────────────────
