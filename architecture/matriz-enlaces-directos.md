@@ -78,3 +78,22 @@ Ajustes › Neuronas › Medios › «Compatibilidad entre tus neuronas»: una f
 ## 8. Plan de prueba en aparatos
 
 Por cada pareja (misma red apagada para forzar lo directo, luego encendida): ver la fila en Ajustes; enviar un archivo > 5 MB y comprobar en Señales qué carriles llevan trozos; apagar el Wi‑Fi Direct de un extremo (o negar el permiso) y ver «falló … sigue por Bluetooth» y la reanudación tras la espera; una llamada con vídeo y comprobar que escala por el mejor carril sin punto de acceso. Parejas: Mac↔Mac (AWDL), Android↔Android (Aware y Direct), Android↔Windows, Android↔Linux, Windows↔Linux, Windows↔Windows, Linux↔Linux, Mac↔Linux (L2CAP), Mac↔Windows (solo GATT), Mac↔Android.
+
+## Contrato de capacidades de la parte nativa (INT1109C · 2026-11-09)
+
+Lo que lee `lanas-propias.ts` y lo que devuelve cada plataforma (probado en Rust: `ble::roles_y_l2cap_por_plataforma`,
+`ble_estado_serializa_roles_y_l2cap`, `win_p2p_logica`, `enlace_wifi_linux_logica`, `wifi_p2p_logica`; y en TS:
+`lanas-propias-nativo.test.ts`):
+
+| Plataforma | `ble_estado.roles` | `ble_estado.l2cap` | `enlace_wifi_capacidades.lanas` |
+| --- | --- | --- | --- |
+| macOS | central, periferico | sí | `awdl` (si Network.framework lo trae) |
+| Android | central, periferico | sí desde la API 29 (`ro.build.version.sdk`) | `wifi-aware` (si está), `wifi-direct-concurrente` |
+| Windows | central, periferico | no (WinRT no tiene L2CAP CoC) | `wifi-direct`, `wifi-direct-concurrente` |
+| Linux | central, periferico | sí | `wifi-direct`, `wifi-direct-concurrente` |
+| otros | vacío | no | vacío |
+
+Sin radio (`disponible` falso) `roles` va vacío y `l2cap` falso. El carril `punto-acceso-optin` lo decide la persona (ajuste local,
+apagado por defecto) y la capacidad nativa (`hotspot-local` en Android, cliente en macOS): Windows y Linux no lo anuncian. Una app
+anterior (saludo sin `lanas`) se infiere con prudencia: Windows y Linux solo con red local y el Wi‑Fi Direct que sus listas `ap` /
+`cliente` digan, cada papel por separado.
