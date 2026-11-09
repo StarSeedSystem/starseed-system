@@ -214,6 +214,8 @@ function tableta(crear: () => Motor) {
             llamadas.push(`estado:${id}:${e}`);
             return true;
         },
+        ignorar: async () => true,
+        recientes: async () => [],
         rutaAudio: async () => true,
         proximidad: async () => true,
         permiso: async () => ({ disponible: true }) as never,

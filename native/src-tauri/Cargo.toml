@@ -95,7 +95,10 @@ tauri-plugin-autostart = "2"
 # Versión real 0.9: únicamente los features «image» y «wgc» existen (ninguno va por
 # defecto; «wgc» solo afecta a Windows). `xcap::Window::all()` sustituye al par
 # Monitor/windows() que ya no existe en esta versión.
-xcap = { version = "0.9", features = ["image", "wgc"] }
+# (2026-11-09) xcap 0.9.9 no compila en Linux (el CI): wayland_video_recorder.rs usa
+# `SourceType::Monitor/Window`, que no existen. Se fija 0.9.8 (último verde) hasta que xcap lo arregle;
+# entonces se puede levantar el fijado.
+xcap = { version = "=0.9.8", features = ["image", "wgc"] }
 # Redimensiona la captura (`image::imageops::resize`) y da el `RgbaImage` que
 # devuelve `capture_image()` en xcap 0.9.
 image = "0.25"
