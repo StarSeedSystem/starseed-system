@@ -22,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   SENSES,
+  SENTIDO_A_PERMISO,
   getSenses,
   saveSenses,
   requestSense,
@@ -60,16 +61,6 @@ import {
 import { getOmniConfig, setOmniConfig } from "@/lib/aurora/tts-oss/voice-config";
 
 type PermState = SenseTestResult["state"];
-
-// (Adenda 192) Puente sentido → permiso del dispositivo (para la ayuda por
-// navegador/SO). Portapapeles y pantalla no aparecen: siempre preguntan al usar.
-const SENSE_A_PERMISO: Partial<Record<string, PermisoDispositivo>> = {
-  "getUserMedia-audio": "microfono",
-  "getUserMedia-video": "camara",
-  geolocation: "ubicacion",
-  notifications: "notificaciones",
-  files: "archivos",
-};
 
 const STATE_META: Record<
   PermState,
@@ -394,7 +385,7 @@ export default function SensesPanel() {
                         por navegador/SO para desbloquearlo (antes solo se
                         pintaba «Denegado» sin camino de salida). */}
                     {(() => {
-                      const per = SENSE_A_PERMISO[s.permission];
+                      const per = SENTIDO_A_PERMISO[s.permission];
                       if (!per || (state !== "denied" && state !== "unsupported")) return null;
                       return (
                         <p className="mt-2 rounded-lg border border-white/10 bg-black/25 p-2 text-[11px] leading-snug text-white/60">
