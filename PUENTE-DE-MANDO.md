@@ -1,6 +1,6 @@
 # Genesis · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-09 07:07:17 desde Genesis vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-09 07:25:41 desde Genesis vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -16,15 +16,17 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | Agentes escribiendo | **0** |
 | En esta ola | integradas 0 · en curso 0 · esperando aprobación 0 · pendientes 15 |
 | Últimas 4 olas | en curso 0 · pendientes 100 · integradas 0 |
-| HEAD | `293594d6d6 chore(memoria): aprendizaje de la ola auto-1109-070432` |
-| Sin publicar | 64 commits |
+| HEAD | `d1064f7495 chore(memoria): aprendizaje de la ola auto-1109-070737` |
+| Sin publicar | 68 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-1109-070432.json`, hace 12s)
+## Quién escribe ahora (latido de `cola-auto-1109-070737.json`, hace 14s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `PRM1109B-d1c` | hecho | codex/gpt-5.6-sol | 2 min | 125 s | 235879 |
+| `DR1109-1` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 2 min | 102 s | 38434 |
+| `DR1109-2` | hecho | freellmapi/auto | 3 min | 152 s | 55200 |
+| `PRM1109B-d1c` | hecho | codex/gpt-5.6-sol | 12 min | 691 s | 275710 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
