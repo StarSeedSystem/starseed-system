@@ -10,7 +10,12 @@
 //                  bucle local. Se cubre también todo <iframe> (mismo almacén de datos): es el navegador de la app.
 //   · Android    : `androidx.webkit.ProxyController.setProxyOverride` (Kotlin, ProxyPuertaStarSeed.kt) con reglas de
 //                  salto para 127.0.0.1/localhost/<local>; Rust le deja una petición en una carpeta y lee su estado.
-//   · Windows/Linux: el webview no se toca (capacidad `false`, con el motivo); las descargas de Rust sí usan el proxy.
+//   · Windows (WIN1109B): WebView2 no tiene API de proxy en caliente. Al arrancar, `puerta_proxy_windows::instalar()`
+//                  deja el webview apuntando SIEMPRE a una pasarela local (127.0.0.1:47077, `--proxy-server` por
+//                  `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS`) que va directa a Internet y solo encadena con el proxy de
+//                  `puerta.cjs` mientras haya puerto (esta acción lo fija o lo quita). Si no se pudo instalar (proxy del
+//                  sistema, variable ya con proxy, puerto ocupado) la capacidad es `false` con su motivo.
+//   · Linux: el webview no se toca (capacidad `false`, con el motivo); las descargas de Rust sí usan el proxy.
 //   · Descargas de Rust (actualizador, manifiestos por reqwest, capas con curl): `proxy_url()` mientras haya puerto.
 // Nunca se proxifica el bucle local: el servidor de la propia app (127.0.0.1:4761x) y `*.localhost` van siempre directos.
 // Comandos: `puerta_proxy_local` y `puerta_proxy_estado`. Evento: `puerta://estado` (EstadoPublico).
@@ -104,6 +109,18 @@ fn capacidad_actual(_app: &AppHandle, desact: bool) -> l::Capacidad {
                 Some(_) => {}
                 // Kotlin aún no escribió: o el APK no trae el módulo, o arranca. Se intenta; la petición lo dirá.
                 None => {}
+            }
+        }
+    }
+    // WIN1109B: soportado solo si la pasarela del navegador quedó instalada al arrancar.
+    #[cfg(target_os = "windows")]
+    {
+        if !desact {
+            if crate::puerta_proxy_windows::activa() {
+                c.soportado = true;
+                c.motivo = None;
+            } else if let Some(m) = crate::puerta_proxy_windows::motivo_no_instalada() {
+                c.motivo = Some(m);
             }
         }
     }
@@ -245,8 +262,14 @@ fn aplicar_al_sistema(app: &AppHandle, accion: l::Accion) -> Result<(), String> 
     Err("Este APK no trae el proxy de la puerta o no contestó a tiempo.".into())
 }
 
-/// Windows, Linux y demás: el webview no se toca (la capacidad ya dice por qué).
-#[cfg(not(any(target_os = "macos", target_os = "android")))]
+/// Windows (WIN1109B): la pasarela local ya es el proxy del webview; aquí solo se le dice si hay puerta.
+#[cfg(target_os = "windows")]
+fn aplicar_al_sistema(_app: &AppHandle, accion: l::Accion) -> Result<(), String> {
+    crate::puerta_proxy_windows::fijar_puerta(puerto_de(accion))
+}
+
+/// Linux y demás: el webview no se toca (la capacidad ya dice por qué).
+#[cfg(not(any(target_os = "macos", target_os = "android", target_os = "windows")))]
 fn aplicar_al_sistema(_app: &AppHandle, _accion: l::Accion) -> Result<(), String> {
     Err("este sistema no lleva el webview por el proxy".into())
 }

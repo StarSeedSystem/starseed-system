@@ -8,7 +8,7 @@
 //     Kotlin (BleStarSeed.kt, también con la app cerrada mientras el servicio «Segundo plano» tiene
 //     vivo el proceso); en escritorio, `iniciar` desde el arranque de la app (solo StarSeed OS).
 //   · La RADIO de cada sistema solo mueve bytes (`Radio`): Android (Kotlin por JNI, ble_android.rs)
-//     y macOS (CoreBluetooth, ble_macos.rs). Las demás plataformas dicen que no lo tienen.
+//     macOS (CoreBluetooth, ble_macos.rs) y Windows (WinRT, ble_windows.rs, WIN1109B; sin L2CAP). Linux e iOS dicen que no lo tienen.
 //   · Un hilo propio cada 250 ms: plazos de acuse, rotación del anuncio (ventana de 5 min o clave
 //     nueva), vecinos que caducan y a qué neuronas de la cuenta conectar solo.
 //   · A la web: `ble_estado`, `ble_abrir`, `ble_cerrar`, `ble_enviar` (espera el ACUSE de la otra
@@ -101,7 +101,12 @@ fn radio() -> &'static dyn Radio {
         {
             Box::new(crate::ble_macos::RadioMac)
         }
-        #[cfg(not(any(target_os = "android", target_os = "macos")))]
+        // <WIN1109B> Windows: WinRT (ble_windows.rs), central y periférico, sin L2CAP.
+        #[cfg(target_os = "windows")]
+        {
+            Box::new(crate::ble_windows::RadioWindows)
+        }
+        #[cfg(not(any(target_os = "android", target_os = "macos", target_os = "windows")))]
         {
             Box::new(RadioNula)
         }
@@ -667,7 +672,7 @@ fn texto_radio(estado_radio: &str) -> &'static str {
     match estado_radio {
         "encendida" => "Bluetooth directo encendido: anunciándose y escuchando a tus neuronas cercanas, sin Wi-Fi ni internet.",
         "apagada" => "El Bluetooth de este aparato está apagado.",
-        "sin-permiso" => "Falta el permiso de Bluetooth («Dispositivos cercanos» en Android, «Bluetooth» en macOS).",
+        "sin-permiso" => "Falta el permiso de Bluetooth («Dispositivos cercanos» en Android, «Bluetooth» en macOS, Privacidad › Radios en Windows).",
         _ => "Este aparato no tiene Bluetooth de baja energía.",
     }
 }

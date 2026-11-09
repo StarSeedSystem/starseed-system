@@ -64,6 +64,13 @@ mod awdl; // WFA1109A
 #[cfg(target_os = "macos")]
 mod awdl_macos; // WFA1109A
 mod wifi_p2p_logica; // WFA1109A
+// <WIN1109B> P2P directo de Windows: lo puro (Linux también lo prueba) y la radio WinRT (solo Windows).
+mod win_p2p_logica; // WIN1109B
+#[cfg(target_os = "windows")]
+mod ble_windows; // WIN1109B
+#[cfg(target_os = "windows")]
+mod enlace_wifi_windows; // WIN1109B
+mod puerta_proxy_windows; // WIN1109B (la pasarela solo usa std: se prueba en todos los sistemas; instalar() solo se llama en Windows)
 #[cfg(target_os = "macos")]
 mod enlace_wifi_macos;
 mod faro;
@@ -632,6 +639,10 @@ fn hostname_best_effort() -> Option<String> {
 /// llaman al arrancar; en escritorio lo llama `main()` directamente.
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // WIN1109B: la pasarela del navegador de Windows se instala ANTES de crear el primer webview
+    // (WebView2 solo lee `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` al nacer). Si no se puede, no pasa nada.
+    #[cfg(target_os = "windows")]
+    puerta_proxy_windows::instalar();
     let mut builder = tauri::Builder::default();
 
     // Autostart + Updater: SOLO escritorio (en móvil ni compilan; ver Cargo.toml

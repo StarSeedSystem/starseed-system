@@ -145,7 +145,15 @@ dispatch2 = { version = "0.3", default-features = false, features = ["std", "obj
 # WebView2 `WebResourceRequested` + `SHCreateMemStream` (webview2-com y windows de tauri/wry).
 [target.'cfg(target_os = "windows")'.dependencies]
 webview2-com = "0.39"
-windows = { version = "0.62", features = ["Win32_UI_Shell", "Win32_System_Com"] }
+windows = { version = "0.62", features = [
+    "Win32_UI_Shell", "Win32_System_Com",
+    # <WIN1109B> WinRT del P2P directo de Windows: Bluetooth LE (central y periférico), radios, Wi-Fi y Wi-Fi Direct,
+    # direcciones de red, credenciales del grupo y bytes aleatorios. Son las mismas crates `windows` que ya trae
+    # tauri/wry: solo más enlaces generados (no baja nada nuevo). Se comprobó con `cargo check --target x86_64-pc-windows-msvc`.
+    "Devices_Bluetooth", "Devices_Bluetooth_Advertisement", "Devices_Bluetooth_GenericAttributeProfile", "Devices_Enumeration",
+    "Devices_Radios", "Devices_WiFi", "Devices_WiFiDirect", "Foundation", "Foundation_Collections", "Networking",
+    "Networking_Connectivity", "Security_Credentials", "Security_Cryptography", "Storage_Streams",
+] }
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Notas de compilación (NO se compila aquí; lo hace el CI o el dueño en local):

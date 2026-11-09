@@ -296,3 +296,70 @@ JNI `rapido`/`siguienteRapido`; `createInsecureL2capChannel` y el servidor exige
 **Lo que deben confirmar los aparatos.** Que la Samsung SM-X900 (Android 16) publique y acepte el PSM; que la Mac
 MaggaBook abra el canal sin emparejar; la velocidad real (`l2cap kbps=`); que la vuelta a GATT al apagar el canal no
 pierda el mensaje en vuelo; el consumo con el sondeo de 5 ms.
+
+## 16 · Windows: Bluetooth LE directo (WIN1109B · 2026-11-09)
+
+Windows 10 (1809+) y 11 hablan **el mismo protocolo que macOS y Android**: mismos UUID (§3), misma trama (§4), mismo
+saludo (§5), mismos eventos y mismas líneas de `enlaces.log` (`ble …`). Código: `ble_windows.rs` (WinRT, solo
+Windows), conectado al núcleo `ble.rs` como `ble_macos.rs`; lo puro (UUID, direcciones, ids de enlace, paquete,
+estado de la radio, motivos) está en `win_p2p_logica.rs::ble` con pruebas en todos los sistemas.
+
+### 16.1 · Carriles y papeles
+
+| Carril | Windows | Notas |
+| --- | --- | --- |
+| `ble-gatt` | **central y periférico** | Los dos a la vez, como macOS. |
+| `ble-l2cap` | **no** | WinRT no tiene API pública de L2CAP CoC en LE. La característica PSM (`…0004`) se publica con valor fijo `[0, 0]` («sin canal rápido»): los pares con BLE1109A la leen y se quedan en GATT. Windows nunca abre ni ofrece el canal rápido. |
+
+### 16.2 · Cómo se hace
+
+- **Periférico:** `GattServiceProvider::CreateAsync` con el servicio StarSeed, ENTRADA (`Write` y
+  `WriteWithoutResponse`), SALIDA (`Notify`) y PSM (`Read`, estática). `StartAdvertising` conectable y descubrible. Ese
+  anuncio lleva el UUID del *servicio*, no el rotatorio `SS·B1` de §3, así que además se publica el rotatorio con
+  `BluetoothLEAdvertisementPublisher` (UUID de 128 bits en la lista, como macOS y Android). El central conecta a la
+  dirección del aparato, que es la misma. Un cliente que se suscribe a SALIDA es un enlace `p:<dirección>`.
+- **Central:** `BluetoothLEAdvertisementWatcher` pasivo; se queda con los anuncios cuya lista lleva un UUID que
+  empieza por `SS·B1`. `BluetoothLEDevice::FromBluetoothAddressAsync` → `GetGattServicesForUuidAsync` → ENTRADA y
+  SALIDA → suscripción a SALIDA (3 intentos) → escritura sin respuesta en ENTRADA. Paquete = `MaxPduSize − 3`
+  (acotado a 20..512 como en §4). `SetMaintainConnection(true)` mantiene el enlace; `ConnectionStatusChanged` lo cierra.
+- Ids de enlace `c:<dirección>` (somos central) y `p:<dirección>` (somos periférico), como en §2.
+- Todo lo bloqueante va en hilos propios (MTA de COM); los manejadores de WinRT solo llaman al núcleo (`al_*`).
+
+### 16.3 · Estados y `motivo`
+
+| Situación | `ble_estado` | `motivo` (resumen) |
+| --- | --- | --- |
+| Radio encendida, con los papeles | `encendida` | — |
+| Radio apagada | `apagada` | «El Bluetooth de este equipo está apagado: enciéndelo.» |
+| Sin adaptador / sin LE | `no-disponible` | «Este equipo no tiene Bluetooth con baja energía.» |
+| Privacidad de Windows deniega la radio | `sin-permiso` | Dice dónde: Configuración › Privacidad y seguridad › Dispositivos de radio; `ble_permiso` abre `ms-settings:privacy-radios`. |
+| Sin papel periférico (adaptador antiguo) | `encendida`, solo central | Lo dice el motivo. |
+| `STARSEED_SIN_BLE_WINDOWS=1` | `no-disponible` | «Bluetooth directo apagado en esta instalación.» |
+
+### 16.4 · Interoperabilidad esperada
+
+| Con | Windows central | Windows periférico |
+| --- | --- | --- |
+| macOS | ve el anuncio `SS·B1` de la Mac | la Mac (central) conecta al GATT de Windows |
+| Android | ídem | la tableta (central) conecta |
+| Windows ↔ Windows | sí (mismos papeles) | sí |
+| Linux (LNX1109B) | ídem | ídem |
+
+L2CAP solo entre Android y Mac (§15); con Windows en el enlace, GATT.
+
+### 16.5 · Pruebas
+
+`win_p2p_logica::ble`: UUID ↔ bytes, direcciones, ids `c:`/`p:`, paquete de PDU y de notificación, estados de la radio
+y sus motivos, interruptor. `cargo check --lib --target x86_64-pc-windows-msvc` limpio. La CI de `windows-latest`
+compila el resto.
+
+### 16.6 · Lo que debe confirmar un PC con Windows real (pendiente)
+
+1. Que el adaptador acepte **a la vez** `GattServiceProvider` anunciando y el `BluetoothLEAdvertisementPublisher` del
+   UUID rotatorio (algunos controladores solo dejan un anuncio): si no, la Mac no vería a Windows y habría que anunciar
+   solo el servicio y filtrar por él en los pares.
+2. Que `SetMaintainConnection` mantenga el enlace con la ventana minimizada o en segundo plano.
+3. Que Windows 10 sin emparejar deje conectar al central de la Mac (sin PIN) y que no salga ningún aviso de emparejado.
+4. El `MaxPduSize` real y los kb/s de GATT (`ble kbps=`) frente a macOS.
+5. Que la suscripción a SALIDA quede escrita (CCCD) en el primer intento con una Mac y con una tableta.
+6. Que el aviso de Privacidad (Dispositivos de radio) aparezca solo la primera vez y que `ble_permiso` lleve a la hoja correcta.
