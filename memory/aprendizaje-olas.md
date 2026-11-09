@@ -6584,3 +6584,12 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 
 **Lo que quedó fuera, una por una:**
 - `PRM1109B-d2` — no escribió nada: Jev: p=0.90 de que otro intento sea en balde (2 sin cambios) → acepto «sin cambios» y lo decide el director
+
+## 2026-11-09 08:33 · auto-1109-082747
+
+**Lo que se pidió.** Mando
+
+**Resultado.** 0 de 1 integradas. 1 tarea se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `PRM1109B-d2` — no escribió nada: Jev: p=0.87 de que otro intento sea en balde (2 sin cambios) → acepto «sin cambios» y lo decide el director
