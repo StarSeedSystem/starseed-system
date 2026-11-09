@@ -42,6 +42,10 @@ mod ble_android;
 mod ble_l2cap;
 #[cfg(target_os = "macos")]
 mod ble_macos;
+// LNX1109B: Bluetooth directo en Linux (BlueZ por D-Bus): lo puro en todos los sistemas, la radio solo en Linux.
+mod ble_linux_logica;
+#[cfg(target_os = "linux")]
+mod ble_linux;
 mod ble_trama;
 // (PTA1108B) El webview, las descargas de Rust y el proxy de la puerta de internet de la malla (contrato §5.3 c).
 mod puerta_proxy;
@@ -64,6 +68,10 @@ mod awdl; // WFA1109A
 #[cfg(target_os = "macos")]
 mod awdl_macos; // WFA1109A
 mod wifi_p2p_logica; // WFA1109A
+// LNX1109B: Wi-Fi Direct en Linux (wpa_supplicant P2P para el grupo propio, NetworkManager para unirse).
+mod enlace_wifi_linux_logica;
+#[cfg(target_os = "linux")]
+mod enlace_wifi_linux;
 #[cfg(target_os = "macos")]
 mod enlace_wifi_macos;
 mod faro;
@@ -704,6 +712,15 @@ pub fn run() {
             // (MIC1108A) Linux: WebKitGTK trae MediaStream y WebRTC apagados; sin ellos no hay llamadas.
             #[cfg(target_os = "linux")]
             permisos_medios::encender_medios_linux(app.handle());
+            // (LNX1109B) Si falta algún elemento de GStreamer de WebRTC, se dice en el registro (las llamadas caen al canal de datos).
+            #[cfg(target_os = "linux")]
+            let _ = std::thread::Builder::new().name("starseed-gst".into()).spawn(|| {
+                if let Some(f) = permisos_medios::elementos_webrtc_que_faltan() {
+                    if !f.is_empty() {
+                        eprintln!("[llamadas] {}", permisos_medios::texto_paquetes_gstreamer(&f));
+                    }
+                }
+            });
             // Servidor local de StarSeed OS (solo escritorio; Nexus y Café siguen con su web).
             #[cfg(desktop)]
             servidor_local::iniciar(app.handle());

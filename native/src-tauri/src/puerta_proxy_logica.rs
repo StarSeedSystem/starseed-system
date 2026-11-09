@@ -32,6 +32,15 @@ pub const DOMINIOS_DIRECTOS: [&str; 4] = ["localhost", "127.0.0.1", "::1", "loca
 /// Las reglas de Chromium/WebView de Android para lo mismo (`ProxyConfig.Builder.addBypassRule`).
 pub const REGLAS_DIRECTAS_ANDROID: [&str; 5] = ["127.0.0.1", "localhost", "*.localhost", "[::1]", "<local>"];
 
+/// (LNX1109B) `ignore_hosts` de `WebKitNetworkProxySettings` (GProxyResolver: «localhost» ya cubre sus subdominios;
+/// «*.localhost» lo deja explícito). Nunca se proxifica el bucle local.
+pub const IGNORAR_WEBKIT: [&str; 4] = ["localhost", "127.0.0.1", "::1", "*.localhost"];
+
+/// (LNX1109B) La URL de proxy por defecto de `WebKitNetworkProxySettings` (mismo servidor HTTP de la puerta).
+pub fn url_proxy_webkit(puerto: u16) -> String {
+    url_proxy(puerto)
+}
+
 /// `STARSEED_SIN_PROXY_PUERTA`: cualquier valor salvo vacío, «0» o «false» lo apaga.
 pub fn apagado(valor: Option<&str>) -> bool {
     match valor.map(|v| v.trim().to_lowercase()) {
@@ -222,7 +231,8 @@ pub fn capacidad_estatica(os: &str, macos_mayor: Option<u32>, desactivado: bool)
         // Kotlin confirma con WebViewFeature.PROXY_OVERRIDE; mientras no conteste se da por posible.
         "android" => Capacidad { soportado: true, plataforma: os.into(), motivo: None },
         "windows" => no("En Windows el navegador de la app todavía no puede salir por la malla; las descargas de la app sí."),
-        "linux" => no("En Linux el navegador de la app todavía no puede salir por la malla; las descargas de la app sí."),
+        // LNX1109B: WebKitGTK `WebsiteDataManager::set_network_proxy_settings` (webkit2gtk-4.1), en caliente.
+        "linux" => Capacidad { soportado: true, plataforma: os.into(), motivo: None },
         _ => no("Este sistema no puede llevar el navegador de la app por la malla."),
     }
 }
@@ -458,10 +468,18 @@ mod pruebas {
         assert!(!viejo.soportado && viejo.motivo.unwrap().contains("macOS 14"));
         assert!(!capacidad_estatica("macos", None, false).soportado);
         assert!(capacidad_estatica("android", None, false).soportado);
-        for os in ["windows", "linux", "ios", "otro"] {
+        for os in ["windows", "ios", "otro"] {
             let c = capacidad_estatica(os, None, false);
             assert!(!c.soportado && c.motivo.is_some(), "{os}");
         }
+        // LNX1109B: Linux sí (WebKitGTK), y el interruptor de emergencia lo apaga como en el resto.
+        assert!(capacidad_estatica("linux", None, false).soportado);
+        assert!(!capacidad_estatica("linux", None, true).soportado);
+        assert_eq!(IGNORAR_WEBKIT, ["localhost", "127.0.0.1", "::1", "*.localhost"]);
+        for d in IGNORAR_WEBKIT {
+            assert!(es_destino_directo(&d.replace("*.", "x.")), "{d}");
+        }
+        assert_eq!(url_proxy_webkit(50123), "http://127.0.0.1:50123");
         let apagada = capacidad_estatica("macos", Some(15), true);
         assert!(!apagada.soportado && apagada.motivo.unwrap().contains(VARIABLE_APAGADO));
     }

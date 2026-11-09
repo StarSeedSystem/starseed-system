@@ -28,6 +28,9 @@ acceso del Android al que el Mac se unía con CoreWLAN **dejando su Wi‑Fi de c
 | Mac ↔ Mac (y, documentado, iOS ↔ Mac/iOS) | AWDL | `awdl` en las dos | Bluetooth |
 | Mac ↔ Android | **ninguno** → Bluetooth | — | Bluetooth (ligero + carril BLE1109A) |
 | Mac ↔ Android con permiso de las DOS | red directa por punto de acceso | `punto-acceso-optin` en las dos | Bluetooth |
+| Linux ↔ Android (LNX1109B) | Wi‑Fi Direct (Linux como GO, o Linux cliente en una 2.ª tarjeta) | `wifi-direct-concurrente` en las dos | Bluetooth (BlueZ + L2CAP, bluetooth-directo.md §16) |
+| Linux ↔ Windows / Linux ↔ Linux (LNX1109B) | Wi‑Fi Direct estándar (uno GO, otro cliente por nombre y contraseña) | `wifi-direct-concurrente` en las dos | Bluetooth |
+| Linux ↔ Mac | **ninguno** → Bluetooth (Apple solo habla AWDL) | — | Bluetooth (ligero + carril rápido) |
 
 Las cuatro cadenas viajan en `cap.lanas` de las capacidades (`enlace.wifi.oferta/respuesta`, y en una respuesta de
 rechazo también): una app anterior no las trae y se la trata como WFD1108A (Android con Wi‑Fi Direct de los dos lados =
@@ -92,6 +95,35 @@ otro conocidas por una oferta/respuesta anterior, o desconocidas y la propia no 
 en `instantanea().sinP2p`; `pasoWifiDe` da el paso `sin-p2p`, la llamada **no** llama a `escalarWifi`/`avisarEnvioPesado`
 más, no sale ningún aviso de Wi‑Fi y sigue por video ligero por Bluetooth + carril rápido BLE1109A. Para la pantalla
 compartida el texto es «La pantalla no cabe por Bluetooth y entre estos aparatos no hay Wi‑Fi P2P sin hotspot».
+
+### 0.9 · Linux (LNX1109B · 2026-11-09): carril `wifi-direct` con roles `go` / `cliente` y `concurrente`
+
+Código: `enlace_wifi_linux.rs` (D-Bus, solo Linux) y `enlace_wifi_linux_logica.rs` (puro y probado). Mismos comandos
+(`enlace_wifi_capacidades/_abrir_ap/_credenciales/_unirse/_estado/_cerrar`), mismo evento `enlace-wifi://estado` y la
+MISMA negociación firmada `enlace.wifi.*` con las credenciales cifradas por ECDH en `enlace.wifi.listo`: Linux solo pone la radio.
+
+- **GO (`ap`, método `wifi-direct`)**: wpa_supplicant (`fi.w1.wpa_supplicant1.Interface.P2PDevice`): `P2PDeviceConfig`
+  (`SsidPostfix=StarSeed`, `GOIntent=15`), `GroupAdd` autónomo (sin grupo persistente) y, con la señal `GroupStarted`,
+  `Group.SSID` + `Group.Passphrase` → `DIRECT-xy-StarSeed` con la contraseña WPA2 aleatoria de wpa_supplicant (se valida con
+  `ssid_de_grupo_valido`/`clave_valida`; solo viaja por `enlace_wifi_credenciales` → cifrado). El grupo vive en una interfaz
+  virtual `p2p-<if>-N`, **en paralelo al Wi‑Fi de casa**. Android 10+ y Windows se unen por nombre y contraseña (los GO admiten
+  clientes WPA2). La IP del propietario (192.168.49.1/24 por defecto) la tiene que poner NetworkManager/systemd-networkd en
+  esa interfaz; si no hay IP tras 12 s se cierra el grupo con `fallo-nativo` y el motivo (no se anuncia una red muerta).
+- **Cliente (`cliente`, método `wifi-direct`)**: NetworkManager `AddAndActivateConnection` de una red WPA2 con ese SSID y
+  contraseña (conexión no guardada, `autoconnect=false`; se borra al cerrar), **solo en un dispositivo Wi‑Fi libre**
+  (estado «desconectado»: segunda tarjeta o adaptador USB). Si la única está en la red de casa, **no se une** (`sin-soporte`,
+  motivo «habría que dejar tu Wi‑Fi de casa»): es la regla de Alex. Con la IP puesta, `ip_ap` (la pista de IP para el canal
+  TCP 47071) es la pasarela que dio la red (`Ip4Config.Gateway`) y, si no, 192.168.49.1; la web abre el canal local como siempre.
+- **NM `Device.WifiP2P` (DeviceType 30)**: solo se sondea (`StartFind`/`Peers` descubren pares) pero NetworkManager no abre
+  grupos con contraseña, así que no es el camino de los carriles; el `motivo` lo dice cuando es lo único que hay.
+- **Capacidades** (`enlace_wifi_capacidades`, `lanas` incluye `wifi-direct-concurrente` si hay GO o cliente posible):
+  `ap=["wifi-direct"]` si wpa_supplicant ofrece P2P **y** el dispositivo P2P es virtual (`p2p-dev-*`, es decir STA + P2P a la
+  vez); `cliente=["wifi-direct"]` si NM tiene un Wi‑Fi libre; `permiso="concedido"`; `radio_unica=true` solo si no hay ninguno
+  de los dos. Sin NM ni wpa_supplicant en el bus, sin P2P o sin interfaz virtual: vacío y con `motivo` (nunca se tira la red de
+  casa). **Interruptor de emergencia: `STARSEED_SIN_WIFI_DIRECT_LINUX=1`.**
+- **Pendiente de un PC real**: versión de wpa_supplicant (≥ 2.6 para `Passphrase`) y que `p2p_disabled` esté a 0; que NM
+  gestione/ponga IP en `p2p-<if>-N`; qué chips admiten GO + STA a la vez (`iw list`, «valid interface combinations»); que
+  Android 10+ y Windows entren por SSID/contraseña; polkit (NM `network-control` para la sesión local).
 
 ### 0.8 · Pasos con aparatos (Alex tiene un Mac y una tableta Android; faltan segundos aparatos)
 
@@ -237,7 +269,7 @@ Al cerrar se quita la pista.
 - Dos Mac: sin punto de acceso no hay red directa (`elegirRoles` → `null`). En la misma red ya van por el
   canal local; sin red común, AWDL / Multipeer Connectivity sería el camino (no construido: necesita
   `MCSession` con su propio transporte, no un enlace IP para el TCP 47071).
-- Windows y Linux: `enlace_wifi_capacidades` dice «aún no» (sin métodos). Windows tendría Wi-Fi Direct
+- Windows: `enlace_wifi_capacidades` dice «aún no» (sin métodos; WIN1109B). Linux: ver §0.9 (LNX1109B). Windows tendría Wi-Fi Direct
   (`WiFiDirectAdvertisementPublisher`) y punto de acceso (`NetworkOperatorTetheringManager`); Linux,
   NetworkManager (`nmcli dev wifi hotspot` / `connect`). Otra ola.
 - iOS: sin API pública para levantar redes; `NEHotspotConfiguration` une pidiendo confirmación. Otra ola.

@@ -10,7 +10,9 @@
 //                  bucle local. Se cubre también todo <iframe> (mismo almacén de datos): es el navegador de la app.
 //   · Android    : `androidx.webkit.ProxyController.setProxyOverride` (Kotlin, ProxyPuertaStarSeed.kt) con reglas de
 //                  salto para 127.0.0.1/localhost/<local>; Rust le deja una petición en una carpeta y lee su estado.
-//   · Windows/Linux: el webview no se toca (capacidad `false`, con el motivo); las descargas de Rust sí usan el proxy.
+//   · Linux (LNX1109B): `WebKitWebsiteDataManager::set_network_proxy_settings` (WebKitGTK), en caliente, con
+//                  `ignore_hosts` = localhost, 127.0.0.1, ::1 y *.localhost; al quitarlo vuelve al proxy del sistema.
+//   · Windows: el webview no se toca (capacidad `false`, con el motivo); las descargas de Rust sí usan el proxy.
 //   · Descargas de Rust (actualizador, manifiestos por reqwest, capas con curl): `proxy_url()` mientras haya puerto.
 // Nunca se proxifica el bucle local: el servidor de la propia app (127.0.0.1:4761x) y `*.localhost` van siempre directos.
 // Comandos: `puerta_proxy_local` y `puerta_proxy_estado`. Evento: `puerta://estado` (EstadoPublico).
@@ -245,8 +247,43 @@ fn aplicar_al_sistema(app: &AppHandle, accion: l::Accion) -> Result<(), String> 
     Err("Este APK no trae el proxy de la puerta o no contestó a tiempo.".into())
 }
 
-/// Windows, Linux y demás: el webview no se toca (la capacidad ya dice por qué).
-#[cfg(not(any(target_os = "macos", target_os = "android")))]
+/// Linux (LNX1109B): `WebKitWebsiteDataManager::set_network_proxy_settings` de WebKitGTK, EN CALIENTE y para todo el
+/// almacén de datos de la ventana (también los <iframe>). `Custom` con el proxy de la puerta y el bucle local en
+/// `ignore_hosts`; `Default` (el proxy del sistema, como estaba antes) al quitarlo. Todo en el hilo de GTK.
+#[cfg(target_os = "linux")]
+mod linux {
+    use crate::puerta_proxy_logica as l;
+    use webkit2gtk::{NetworkProxyMode, NetworkProxySettings, WebViewExt, WebsiteDataManagerExt};
+
+    pub fn aplicar(vista: &webkit2gtk::WebView, puerto: Option<u16>) -> Result<(), String> {
+        let gestor = vista.website_data_manager().ok_or("el WebKitGTK de esta ventana no tiene gestor de datos")?;
+        match puerto {
+            None => gestor.set_network_proxy_settings(NetworkProxyMode::Default, None),
+            Some(p) => {
+                let url = l::url_proxy_webkit(p);
+                let mut ajustes = NetworkProxySettings::new(Some(url.as_str()), &l::IGNORAR_WEBKIT);
+                gestor.set_network_proxy_settings(NetworkProxyMode::Custom, Some(&mut ajustes));
+            }
+        }
+        Ok(())
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn aplicar_al_sistema(app: &AppHandle, accion: l::Accion) -> Result<(), String> {
+    let puerto = puerto_de(accion);
+    let ventana = app.get_webview_window("main").ok_or("no hay ventana principal")?;
+    let (tx, rx) = std::sync::mpsc::channel::<Result<(), String>>();
+    ventana
+        .with_webview(move |pw| {
+            let _ = tx.send(linux::aplicar(&pw.inner(), puerto));
+        })
+        .map_err(|e| e.to_string())?;
+    rx.recv_timeout(std::time::Duration::from_secs(5)).map_err(|_| "la ventana no respondió".to_string())?
+}
+
+/// Windows y demás: el webview no se toca (la capacidad ya dice por qué).
+#[cfg(not(any(target_os = "macos", target_os = "android", target_os = "linux")))]
 fn aplicar_al_sistema(_app: &AppHandle, _accion: l::Accion) -> Result<(), String> {
     Err("este sistema no lleva el webview por el proxy".into())
 }

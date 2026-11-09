@@ -107,7 +107,8 @@ señaliza WebRTC: sin red IP no conectaría).
 | Android 12+ | `BLUETOOTH_SCAN` (`neverForLocation`), `BLUETOOTH_ADVERTISE`, `BLUETOOTH_CONNECT` («Dispositivos cercanos»), pedidos con un diálogo que explica para qué (una vez; luego desde el panel «Permitir Bluetooth cercano»; si Android ya no deja preguntar, abre los ajustes de la app) | El núcleo y la radio viven en el proceso: con el servicio «Segundo plano» (`ServicioAntenas`, tipo `connectedDevice`) se sigue anunciando, escaneando (con filtro: Android lo deja con la pantalla apagada) y aceptando enlaces con la app cerrada; lo recibido espera en el buzón (128, 10 min) a que la web lo pida |
 | Android ≤ 11 | `BLUETOOTH` y `BLUETOOTH_ADMIN` (normales) y `ACCESS_FINE_LOCATION` (Android lo exige para escanear; la ubicación del aparato tiene que estar activada) — declarados con `maxSdkVersion=30` | Igual |
 | macOS | `NSBluetoothAlwaysUsageDescription` en `Info.plist` (sin ella macOS cierra la app); macOS pregunta la primera vez; si se negó, el botón abre Ajustes del Sistema › Privacidad › Bluetooth | Con la ventana cerrada y la app en la bandeja sigue igual (la cola de CoreBluetooth es del proceso) |
-| Windows, Linux, iOS | — | Sin radio en esta app: `ble_estado` dice «no-disponible» con su motivo (§9) |
+| Linux (LNX1109B) | Ninguno de la app: BlueZ por D-Bus del sistema (§16). Hace falta acceso a `org.bluez` (sesión de escritorio local; si no, grupo `bluetooth` o regla de polkit) | El hilo `starseed-ble-linux` vive con el proceso (bandeja) |
+| Windows, iOS | — | Sin radio en esta app: `ble_estado` dice «no-disponible» con su motivo (§9) |
 
 Interruptores: «Encender/Apagar» del panel (`ble_activar`, se guarda en `ble.json`); en el build de Android,
 `STARSEED_SIN_BLUETOOTH_ANDROID=1` saca el APK sin Bluetooth directo (y sin el servicio de antenas no se
@@ -166,7 +167,7 @@ CoreWLAN en macOS) y lo NEGOCIA por este Bluetooth. Dos mensajes de control, fir
 
 ## 9 · Lo que no está (con motivo)
 
-- **Windows y Linux**: sin radio. `btleplug` solo hace de central (sin papel periférico ni servidor GATT):
+- **Windows** (Linux ya lo tiene desde LNX1109B, §16): sin radio. `btleplug` solo hace de central (sin papel periférico ni servidor GATT):
   dos PCs no se hablarían entre sí y un PC solo vería a los móviles. No compensa una crate nueva por medio
   enlace; queda pendiente (BlueZ por D-Bus en Linux y WinRT `GattServiceProvider` en Windows sí tienen
   periférico).
@@ -296,3 +297,58 @@ JNI `rapido`/`siguienteRapido`; `createInsecureL2capChannel` y el servidor exige
 **Lo que deben confirmar los aparatos.** Que la Samsung SM-X900 (Android 16) publique y acepte el PSM; que la Mac
 MaggaBook abra el canal sin emparejar; la velocidad real (`l2cap kbps=`); que la vuelta a GATT al apagar el canal no
 pierda el mensaje en vuelo; el consumo con el sondeo de 5 ms.
+
+## 16 · Linux (BlueZ por D-Bus) — LNX1109B · 2026-11-09
+
+Alex: «las conexiones compatibles entre sí también deben funcionar, de todo tipo». Linux habla **el mismo protocolo** que
+macOS y Android (nada paralelo): servicio y características `53530001/2/3/4-b1e0-4d2a-9c3e-537461727365` (§2), anuncio con el
+UUID rotatorio (§3), trama y paquetes de §4, PSM del canal L2CAP en `…0004` y marco `[largo u16 BE][paquete ≤ 4096]` (§15).
+Código: `ble_linux.rs` (radio, solo Linux) y `ble_linux_logica.rs` (rutas, direcciones, PSM y errores; puro y probado en
+todos los sistemas), enchufado en `ble.rs::radio()` como `ble_macos.rs`.
+
+| Carril | Papel en Linux | Cómo (BlueZ ≥ 5.46 recomendado; ver §16.2) |
+|---|---|---|
+| `ble-gatt` central | escanea, conecta, GATT cliente | `Adapter1.StartDiscovery` (LE, sin filtro de UUID: BlueZ no admite máscaras; se filtra por el prefijo «SS·B1» al leer `GetManagedObjects` cada segundo) → `Device1.Connect` → `ServicesResolved` → `GattCharacteristic1.AcquireNotify` de SALIDA (un fd por enlace, con su MTU) y `WriteValue` («command») a ENTRADA |
+| `ble-gatt` periférico | servidor GATT + anuncio | `GattManager1.RegisterApplication` (ObjectManager + `GattService1` + 3 `GattCharacteristic1` con zbus) y `LEAdvertisingManager1.RegisterAdvertisement` (`Type=peripheral`, solo el UUID rotatorio; se re-registra al rotar). SALIDA se sirve con `AcquireNotify` (BlueZ da `device` y `mtu`: un enlace por central); si BlueZ usa `StartNotify`, difusión al único central conectado sin enlace |
+| `ble-l2cap` | los dos papeles | socket `AF_BLUETOOTH`/`SOCK_STREAM`/`BTPROTO_L2CAP` (LE CoC, **sin cifrar por el aire**, como en macOS/Android; el cifrado va por encima, CIF1108A). Periférico: `bind` con PSM 0 (el kernel asigna uno dinámico 0x80–0xFF), `getsockname` → se publica en `…0004`, `accept` solo del central que ya tiene enlace GATT. Central: lee `…0004` y `connect` con el `AddressType` de `Device1`. Un hilo por canal, `poll` cada 5 ms, escrituras parciales con `ble_l2cap::Salida` |
+
+**16.1 · Estados y `motivo`** (`ble_linux_logica::clasificar_error`, probado): sin BlueZ/`bluetoothd` → `no-disponible`
+(«instala bluez y activa el servicio `bluetooth`»); sin adaptador → `no-disponible`; apagado o rfkill → `apagada`
+(«`rfkill unblock bluetooth` / `bluetoothctl power on`», se recupera solo al encenderlo); sin permiso D-Bus/polkit →
+`sin-permiso` («grupo `bluetooth` o sesión local»); bus de sistema inalcanzable (Flatpak/Snap sin `--system-talk-name=org.bluez`)
+→ `no-disponible`. Se reintenta cada 5 s. **Interruptor de emergencia: `STARSEED_SIN_BLE_LINUX=1`** (la radio no arranca).
+Mismos eventos (`ble://mensaje`, `ble://cambio`) y mismos hitos de `enlaces.log` (`enlace-abierto`, `mtu`, `servicios-descubiertos`,
+`suscrito`, `sin-suscripcion`, `l2cap-psm`, `l2cap-abierto`/`cerrado`, `primer-dato-recibido`…): los escribe el núcleo.
+
+**16.2 · Dependencias y límites.** Sin crates nuevas en el árbol: `zbus` 5.19 (Rust puro, ya en `Cargo.lock` por
+notify-rust/xcap) y `libc`. `bluer` se descartó: pide `libdbus-1-dev` (libdbus-sys) y todo tokio. Límites honestos: BlueZ <
+5.46 no tiene `AcquireNotify` de cliente (el enlace central se rechaza con `sin-suscripcion`); sin `MTU` en la
+característica (BlueZ < 5.62) el paquete GATT es de 20 B hasta que el otro lado lo suba; un kernel sin L2CAP LE CoC deja el
+enlace en GATT.
+
+**16.3 · Interoperabilidad esperada.** Linux ↔ Android y Linux ↔ Mac: ambos papeles (Linux central de un Android/Mac
+periférico, y Linux periférico de un Android/Mac central), con carril rápido L2CAP si los dos publican PSM. Linux ↔ Linux y
+Linux ↔ Windows (WIN1109B usa los mismos UUID). Hasta que un PC real lo confirme (§16.4) está **compilado y probado en lo
+puro y en la forma de la aplicación GATT sobre un bus D-Bus real** (`la_app_gatt_se_ve_como_la_espera_bluez`), no contra
+una radio.
+
+**16.4 · Lo que necesita un PC real (pendiente).** (1) Versión de BlueZ (`bluetoothd -v`) y que `AcquireNotify` funcione en
+cliente y en servidor; (2) que la Mac/Android vea el servicio y se suscriba a SALIDA del PC, y que el PC escriba en el suyo;
+(3) el PSM dinámico del `bind` con PSM 0 y la apertura Linux ↔ Android/Mac (`enlaces.log`: `l2cap-abierto psm=…`);
+(4) cuántos anuncios simultáneos admite el adaptador (`LEAdvertisingManager1.SupportedInstances`); (5) que el usuario no
+necesite emparejar; (6) el consumo del sondeo de 1 s a `GetManagedObjects` en un escritorio con muchos dispositivos BLE.
+
+**16.5 · Llamadas y empaquetado en Linux.** La app enciende en WebKitGTK `enable-media-stream`, `enable-webrtc`,
+`enable-mediasource`, `enable-media-capabilities` y `enable-webaudio` (`permisos_medios::encender_medios_linux`); los
+permisos de cámara/micrófono/pantalla del origen propio los concede `Builder::on_permission_request` (wry conecta la señal
+`permission-request` de WebKitGTK). WebRTC de WebKitGTK usa GStreamer: hacen falta `webrtcbin` y `dtlssrtpenc`
+(gst-plugins-bad), `nicesrc` (libnice: `gstreamer1.0-nice`), `opusenc` (base) y `vp8enc`/`rtpvp8pay` (good). En Debian/Ubuntu:
+`gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-nice`. Al arrancar se comprueba con
+`gst-inspect-1.0 --exists` y, si falta algo, queda en el registro (`[llamadas] …`). WebCodecs y AudioWorklet son lo que ofrezca
+cada WebKitGTK (WebCodecs, sobre todo, falta o está tras bandera en WebKitGTK < 2.46): el motor web hace detección de
+características (`codec-web.ts`) y, sin `VideoEncoder`/`VideoDecoder`, el vídeo por canal de datos cae a JPEG y la voz a ADPCM.
+
+**16.6 · Proxy del navegador (puerta de internet).** `puerta_proxy_local({puerto})` en Linux llama a
+`WebKitWebsiteDataManager::set_network_proxy_settings(Custom, http://127.0.0.1:<puerto>, ignore_hosts = localhost, 127.0.0.1,
+::1, *.localhost)` en caliente y para todo el almacén de datos (iframes incluidos); `null` vuelve a `Default` (el proxy del
+sistema). Capacidad `soportado=true` en `linux` (apagable con `STARSEED_SIN_PROXY_PUERTA=1`).

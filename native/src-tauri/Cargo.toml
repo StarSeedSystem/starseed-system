@@ -126,6 +126,12 @@ rust-ini = "=0.21.1"
 # (MIC1108A) `v2_38` para `set_enable_webrtc` (MediaStream y WebRTC vienen apagados en WebKitGTK):
 # es el mismo feature que ya pide tauri-runtime-wry, no compila nada nuevo.
 webkit2gtk = { version = "2", features = ["v2_38"] }
+# (LNX1109B) Bluetooth directo (BlueZ) y Wi-Fi Direct (wpa_supplicant P2P + NetworkManager) por D-Bus, sin privilegios.
+# zbus 5.19 y libc ya están en el árbol (notify-rust/xcap/tauri): se unifican, no baja ni compila nada nuevo. `bluer`
+# se descartó: exige libdbus-1-dev del sistema (libdbus-sys) y tokio entero; con zbus (Rust puro) el CI de Linux no
+# necesita ningún paquete más. Los sockets L2CAP LE CoC se abren con libc (AF_BLUETOOTH/BTPROTO_L2CAP).
+zbus = { version = "5", default-features = false, features = ["async-io", "blocking-api"] }
+libc = "0.2"
 
 # WKWebView `loadHTMLString:baseURL:` (objc2 y objc2-foundation de tauri/wry).
 [target.'cfg(target_os = "macos")'.dependencies]

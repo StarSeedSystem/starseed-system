@@ -237,15 +237,73 @@ pub fn encender_medios_linux<R: tauri::Runtime>(app: &tauri::AppHandle<R>) {
     let _ = ventana.with_webview(|pw| {
         use webkit2gtk::{SettingsExt, WebViewExt};
         if let Some(ajustes) = WebViewExt::settings(&pw.inner()) {
+            // (LNX1109B) Todo lo que piden las llamadas: MediaStream y WebRTC (antes), MSE para el vídeo en
+            // directo, capacidades de medios y Web Audio. Nunca dispositivos de captura simulados.
+            ajustes.set_enable_media(true);
             ajustes.set_enable_media_stream(true);
             ajustes.set_enable_webrtc(true);
+            ajustes.set_enable_mediasource(true);
+            ajustes.set_enable_media_capabilities(true);
+            ajustes.set_enable_webaudio(true);
+            ajustes.set_enable_mock_capture_devices(false);
         }
     });
+}
+
+/// (LNX1109B) Los elementos de GStreamer que WebKitGTK usa para WebRTC y su paquete en cada familia de distros.
+/// Si falta alguno, `getUserMedia` va pero `RTCPeerConnection` no conecta y las llamadas caen al canal de datos
+/// (voz ADPCM / vídeo JPEG), que no necesita GStreamer. (elemento, Debian/Ubuntu, Fedora, Arch)
+pub const ELEMENTOS_WEBRTC: [(&str, &str, &str, &str); 6] = [
+    ("webrtcbin", "gstreamer1.0-plugins-bad", "gstreamer1-plugins-bad-free", "gst-plugins-bad"),
+    ("nicesrc", "gstreamer1.0-nice", "libnice-gstreamer1", "libnice"),
+    ("dtlssrtpenc", "gstreamer1.0-plugins-bad", "gstreamer1-plugins-bad-free", "gst-plugins-bad"),
+    ("opusenc", "gstreamer1.0-plugins-base", "gstreamer1-plugins-base", "gst-plugins-base"),
+    ("vp8enc", "gstreamer1.0-plugins-good", "gstreamer1-plugins-good", "gst-plugins-good"),
+    ("rtpvp8pay", "gstreamer1.0-plugins-good", "gstreamer1-plugins-good", "gst-plugins-good"),
+];
+
+/// Los elementos de `ELEMENTOS_WEBRTC` que `gst-inspect-1.0` no encuentra (vacío = todo en su sitio). Sin
+/// `gst-inspect-1.0` no se puede saber: devuelve None (no se acusa a nadie).
+#[cfg(target_os = "linux")]
+pub fn elementos_webrtc_que_faltan() -> Option<Vec<&'static str>> {
+    use std::process::{Command, Stdio};
+    let mut faltan = Vec::new();
+    for (el, ..) in ELEMENTOS_WEBRTC {
+        let r = Command::new("gst-inspect-1.0").args(["--exists", el]).stdout(Stdio::null()).stderr(Stdio::null()).status();
+        match r {
+            Err(_) => return None,
+            Ok(s) if !s.success() => faltan.push(el),
+            Ok(_) => {}
+        }
+    }
+    Some(faltan)
+}
+
+/// Texto para el registro/Ajustes con los paquetes que faltan.
+pub fn texto_paquetes_gstreamer(faltan: &[&str]) -> String {
+    let mut pq: Vec<&str> = ELEMENTOS_WEBRTC.iter().filter(|e| faltan.contains(&e.0)).map(|e| e.1).collect();
+    pq.sort_unstable();
+    pq.dedup();
+    if pq.is_empty() {
+        return "GStreamer trae todo lo de WebRTC.".into();
+    }
+    format!("Faltan elementos de GStreamer para las llamadas WebRTC ({}): instala {} (en Fedora/Arch, sus equivalentes). Mientras tanto la voz y el vídeo van por el canal de datos.", faltan.join(", "), pq.join(" "))
 }
 
 #[cfg(test)]
 mod pruebas {
     use super::*;
+
+    #[test]
+    fn gstreamer_de_webrtc_con_sus_paquetes() {
+        // LNX1109B
+        assert!(ELEMENTOS_WEBRTC.iter().any(|e| e.0 == "webrtcbin" && e.1.contains("plugins-bad")));
+        assert!(ELEMENTOS_WEBRTC.iter().any(|e| e.0 == "nicesrc" && e.1.contains("nice")));
+        assert!(texto_paquetes_gstreamer(&[]).contains("todo lo de WebRTC"));
+        let t = texto_paquetes_gstreamer(&["webrtcbin", "dtlssrtpenc", "nicesrc"]);
+        assert_eq!(t.matches("gstreamer1.0-plugins-bad").count(), 1, "el paquete se nombra una vez: {t}");
+        assert!(t.contains("gstreamer1.0-nice") && t.contains("canal de datos"));
+    }
 
     #[test]
     fn origenes_propios() {
