@@ -85,6 +85,13 @@ export interface EnlaceBleNativo {
   paquete: number;
   rtt_ms: number | null;
   kbps: number | null;
+  /** (BLE1109A) Carril en uso: «rapido» (L2CAP) o «gatt». Opcional: una app nativa anterior no lo manda. */
+  carril?: "rapido" | "gatt";
+  /** (BLE1109A) Estado del canal rápido: sin-psm | disponible | abriendo | abierto. */
+  canal_rapido?: "sin-psm" | "disponible" | "abriendo" | "abierto";
+  psm?: number | null;
+  kbps_rapido?: number | null;
+  kbps_gatt?: number | null;
   pendientes: number;
   bytes_enviados: number;
   bytes_recibidos: number;
@@ -184,6 +191,11 @@ export function leerEstadoBle(x: unknown): EstadoBleNativo | null {
       paquete: num(e.paquete, 20),
       rtt_ms: numONull(e.rtt_ms),
       kbps: numONull(e.kbps),
+      carril: e.carril === "rapido" ? "rapido" : "gatt",
+      canal_rapido: (["sin-psm", "disponible", "abriendo", "abierto"] as const).find((x) => x === e.canal_rapido) ?? "sin-psm",
+      psm: numONull(e.psm),
+      kbps_rapido: numONull(e.kbps_rapido),
+      kbps_gatt: numONull(e.kbps_gatt),
       pendientes: num(e.pendientes),
       bytes_enviados: num(e.bytes_enviados),
       bytes_recibidos: num(e.bytes_recibidos),
@@ -351,6 +363,16 @@ export function textoVelocidadBle(kbps: number | null | undefined): string {
   return `sin medir (por Bluetooth suele ir a ${KBPS_BLE_ORIENTATIVOS.min / 8}–${KBPS_BLE_ORIENTATIVOS.max / 8} KB/s)`;
 }
 
+/**
+ * (BLE1109A) «Bluetooth directo · canal rápido · 640 kb/s» cuando el canal L2CAP lleva el enlace; «Bluetooth directo»
+ * (con la velocidad medida si la hay) cuando va por GATT. Puro.
+ */
+export function textoCanalBle(e: Pick<EnlaceBleNativo, "carril" | "kbps"> | null | undefined): string {
+  const k = e && typeof e.kbps === "number" && Number.isFinite(e.kbps) && e.kbps > 0 ? Math.round(e.kbps) : null;
+  if (e?.carril === "rapido") return `Bluetooth directo · canal rápido · ${k != null ? `${k} kb/s` : "sin medir"}`;
+  return k != null ? `Bluetooth directo · ${k} kb/s` : "Bluetooth directo";
+}
+
 /** Cuánto tardaría un archivo por Bluetooth: con la medida, una cifra; sin ella, una horquilla. Puro. */
 export function duracionArchivoBle(bytes: number, kbps: number | null | undefined): string {
   const fmt = (s: number) => (s < 90 ? `${Math.max(1, Math.round(s))} s` : s < 5400 ? `${Math.round(s / 60)} min` : `${Math.round(s / 360) / 10} h`);
@@ -382,7 +404,7 @@ export function senalesBluetoothDirecto(
       { label: "Señal", value: `${v.rssi} dBm` },
       { label: "Último anuncio", value: `hace ${Math.round(v.visto_hace_ms / 1000)} s` },
       { label: "Tipo de aparato", value: v.tipo },
-      { label: "Enlace", value: enlace ? `abierto (${enlace.rtt_ms != null ? `${enlace.rtt_ms} ms` : "sin medir"} · ${textoVelocidadBle(enlace.kbps)})` : v.servidor ? "sin abrir (acepta conexiones)" : "sin abrir (no acepta conexiones ahora)" },
+      { label: "Enlace", value: enlace ? `abierto (${enlace.rtt_ms != null ? `${enlace.rtt_ms} ms` : "sin medir"} · ${textoVelocidadBle(enlace.kbps)}${enlace.carril === "rapido" ? " · canal rápido" : ""})` : v.servidor ? "sin abrir (acepta conexiones)" : "sin abrir (no acepta conexiones ahora)" },
     ];
     const metros = v.rssi > -127 ? metrosPorRssi(v.rssi, "bt") : null;
     const placement =

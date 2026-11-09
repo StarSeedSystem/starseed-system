@@ -13,7 +13,10 @@
 //                   PuenteBle.siguiente(enlace)     el siguiente paquete a mandar («» = nada)
 //   Rust → Kotlin   PuenteBle.esperarOrden(ms)      un hilo de Kotlin espera órdenes (JSON):
 //                   arrancar · anunciar{uuid} · conectar{direccion} · desconectar{enlace} ·
-//                   datos{enlace} · permisos · parar
+//                   datos{enlace} · permisos · parar · l2cap{enlace,psm} · cerrar-l2cap{enlace}
+//   (BLE1109A)      PuenteBle.rapido(enlace, hex)         bytes del flujo del canal L2CAP (trozos de cualquier tamaño)
+//                   PuenteBle.siguienteRapido(enlace, max) bytes ya marcados para escribir en el flujo («» = nada)
+//                   evento psm · l2cap-abierto · l2cap-cerrado (ver `ble::leer_evento`)
 //
 // Como el núcleo vive en el PROCESO, todo sigue con la app cerrada mientras el servicio en primer
 // plano («Segundo plano», ServicioAntenas.kt) mantenga vivo el proceso.
@@ -91,11 +94,26 @@ impl crate::ble::Radio for RadioAndroid {
     fn parar(&self) {
         ordenar(serde_json::json!({ "o": "parar" }));
     }
+    // BLE1109A
+    fn abrir_l2cap(&self, plataforma: &str, psm: u16) {
+        ordenar(serde_json::json!({ "o": "l2cap", "enlace": plataforma, "psm": psm }));
+    }
+    fn cerrar_l2cap(&self, plataforma: &str) {
+        ordenar(serde_json::json!({ "o": "cerrar-l2cap", "enlace": plataforma }));
+    }
 }
 
 /// Un paquete en hex que llegó de Kotlin (puro: lo que no es hex o no cabe se ignora).
 pub fn paquete_de_hex(hex: &str) -> Option<Vec<u8>> {
     if hex.len() > crate::ble_trama::PAQUETE_MAX * 2 {
+        return None;
+    }
+    crate::ble_trama::de_hex(hex).filter(|b| !b.is_empty())
+}
+
+/// (BLE1109A) Bytes del flujo L2CAP en hex (hasta un trozo de `ble_l2cap::TROZO_MAX`; lo demás se ignora).
+pub fn trozo_de_hex(hex: &str) -> Option<Vec<u8>> {
+    if hex.len() > crate::ble_l2cap::TROZO_MAX * 2 {
         return None;
     }
     crate::ble_trama::de_hex(hex).filter(|b| !b.is_empty())
@@ -173,6 +191,28 @@ pub mod jni {
         unsafe { nuevo_texto(env, &hex) }
     }
 
+    /// (BLE1109A) `PuenteBle.rapido(enlace: String, hex: String)` — bytes que llegaron por el flujo del canal L2CAP.
+    #[no_mangle]
+    pub extern "system" fn Java_app_starseed_nativa_PuenteBle_rapido(env: Env, _clase: *mut c_void, enlace: *mut c_void, hex: *mut c_void) {
+        let (Some(e), Some(h)) = (unsafe { texto(env, enlace) }, unsafe { texto(env, hex) }) else { return };
+        let _ = std::panic::catch_unwind(|| {
+            if let Some(b) = super::trozo_de_hex(&h) {
+                crate::ble::al_l2cap_datos(&e, &b);
+            }
+        });
+    }
+
+    /// (BLE1109A) `PuenteBle.siguienteRapido(enlace: String, max: Int): String` — hex de lo siguiente que escribir en el flujo, o «».
+    #[no_mangle]
+    pub extern "system" fn Java_app_starseed_nativa_PuenteBle_siguienteRapido(env: Env, _clase: *mut c_void, enlace: *mut c_void, max: i32) -> *mut c_void {
+        let e = unsafe { texto(env, enlace) }.unwrap_or_default();
+        let hex = std::panic::catch_unwind(|| {
+            crate::ble::siguiente_trama_rapida(&e, max.clamp(1, 65_536) as usize).map(|b| crate::ble_trama::a_hex(&b)).unwrap_or_default()
+        })
+        .unwrap_or_default();
+        unsafe { nuevo_texto(env, &hex) }
+    }
+
     /// `PuenteBle.esperarOrden(ms: Long): String` — la siguiente orden (JSON), o «» si no llegó ninguna.
     #[no_mangle]
     pub extern "system" fn Java_app_starseed_nativa_PuenteBle_esperarOrden(env: Env, _clase: *mut c_void, ms: i64) -> *mut c_void {
@@ -213,6 +253,14 @@ mod pruebas {
         std::thread::sleep(Duration::from_millis(30));
         RadioAndroid.pedir_permiso();
         assert_eq!(leer(h.join().unwrap())["o"], "permisos");
+        // BLE1109A: abrir y cerrar el canal rápido son órdenes más, en orden.
+        while !esperar_orden(1).is_empty() {}
+        RadioAndroid.abrir_l2cap("c:AA:01", 133);
+        RadioAndroid.cerrar_l2cap("c:AA:01");
+        let c = leer(esperar_orden(10));
+        assert_eq!((c["o"].as_str(), c["enlace"].as_str(), c["psm"].as_u64()), (Some("l2cap"), Some("c:AA:01"), Some(133)));
+        let d = leer(esperar_orden(10));
+        assert_eq!((d["o"].as_str(), d["enlace"].as_str()), (Some("cerrar-l2cap"), Some("c:AA:01")));
     }
 
     #[test]
@@ -221,5 +269,11 @@ mod pruebas {
         assert_eq!(paquete_de_hex(""), None);
         assert_eq!(paquete_de_hex("zz"), None);
         assert_eq!(paquete_de_hex(&"00".repeat(crate::ble_trama::PAQUETE_MAX + 1)), None, "más de 512 B no es un paquete");
+        // BLE1109A: el flujo del canal rápido admite trozos mayores (hasta TROZO_MAX), nunca vacíos ni más.
+        assert_eq!(trozo_de_hex(&"00".repeat(4096)).map(|b| b.len()), Some(4096));
+        assert_eq!(trozo_de_hex(&"ab".repeat(crate::ble_l2cap::TROZO_MAX)).map(|b| b.len()), Some(crate::ble_l2cap::TROZO_MAX));
+        assert_eq!(trozo_de_hex(&"00".repeat(crate::ble_l2cap::TROZO_MAX + 1)), None);
+        assert_eq!(trozo_de_hex(""), None);
+        assert_eq!(trozo_de_hex("0g"), None);
     }
 }
