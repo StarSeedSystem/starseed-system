@@ -25,6 +25,7 @@
 import type { EnlaceDisponible } from "./eleccion-enlace";
 import { ipEnlaceLocalV6 } from "./enlace-wifi-directo"; // WFA1109A
 import { direccionAwdl } from "./wifi-p2p"; // WFA1109A
+import { leerLanas, type LanasAnunciadas } from "./matriz-enlaces"; // MTZ1109A
 
 export const PREFIJO_ENLACE_NATIVO = "nativo:";
 /** Las sesiones WebRTC señalizadas por el canal nativo: su enlace local es `local:nativo-…`. */
@@ -303,6 +304,12 @@ export interface HolaNativa {
    */
   ar?: string[];
   ep?: JsonWebKey;
+  /**
+   * (MTZ1109A) Carriles directos de esta neurona (`lanas`: lan-tcp, ble-gatt, ble-l2cap, wifi-direct, wifi-aware, awdl,
+   * punto-acceso-optin) y su `plataforma`. Dentro del sobre firmado; ausentes en apps anteriores (se infieren).
+   */
+  lanas?: LanasAnunciadas;
+  plataforma?: string;
 }
 
 /* ══════════════════════════ Prueba de cuenta (MLL1107A) ══════════════════════════ */
@@ -372,6 +379,8 @@ export function holaNativa(p: {
   certificado?: Record<string, unknown> | null;
   ar?: string[];
   ep?: JsonWebKey | null;
+  lanas?: LanasAnunciadas | null;
+  plataforma?: string | null;
 }): HolaNativa {
   return {
     t: "nl.hola",
@@ -387,6 +396,8 @@ export function holaNativa(p: {
     ...(certificadoValido(p.certificado) ? { certificado: p.certificado } : {}),
     ...(p.ar?.length ? { ar: p.ar.slice(0, 8) } : {}),
     ...(p.ep && p.ep.kty === "EC" && p.ep.d === undefined ? { ep: p.ep } : {}),
+    ...(leerLanas(p.lanas) ? { lanas: leerLanas(p.lanas) as LanasAnunciadas } : {}),
+    ...(p.lanas && typeof p.plataforma === "string" && p.plataforma ? { plataforma: p.plataforma.slice(0, 20) } : {}),
   };
 }
 
@@ -412,6 +423,8 @@ export function leerHola(x: unknown): HolaNativa | null {
     ...(certificadoValido(o.certificado) ? { certificado: o.certificado } : {}),
     ...(Array.isArray(o.ar) ? { ar: o.ar.filter((c): c is string => typeof c === "string" && c.length <= 48).slice(0, 8) } : {}),
     ...(o.ep && typeof o.ep === "object" && (o.ep as JsonWebKey).kty === "EC" && (o.ep as JsonWebKey).d === undefined ? { ep: o.ep as JsonWebKey } : {}),
+    ...(leerLanas(o.lanas) ? { lanas: leerLanas(o.lanas) as LanasAnunciadas } : {}),
+    ...(typeof o.plataforma === "string" && o.plataforma.trim() ? { plataforma: o.plataforma.trim().slice(0, 20) } : {}),
   };
 }
 

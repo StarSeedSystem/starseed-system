@@ -367,3 +367,6 @@ el log no tenía ningún evento `enlace-wifi`: el motor real de llamadas (`src/l
   voz por Bluetooth y «Video ligero por Bluetooth (baja resolución)»; aparece la propuesta en los dos; al aceptar,
   «Abriendo Wi‑Fi directo…» y después «Video por Wi‑Fi directo (sin router)» sin cortar la voz. En `enlaces.log`:
   `llamada escalada-wifi … clase=llamada`, `enlace-wifi …`, `llamada medio=webrtc … ruta IP nueva`, `llamada medio=webrtc … vuelve a WebRTC sin cortar`.
+
+
+> Matriz completa de plataformas y carriles (Windows, Linux, Android, Apple, web), roles y caída por carril: [`matriz-enlaces-directos.md`](matriz-enlaces-directos.md) (MTZ1109A).

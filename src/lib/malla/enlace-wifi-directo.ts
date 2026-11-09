@@ -82,8 +82,9 @@ export type EstadoPermisoWifi = "concedido" | "preguntar" | "denegado" | "no-apl
  * Wi-Fi P2P SIN router ni hotspot; `punto-acceso-optin` dice que la persona permitió la red directa por punto
  * de acceso (el Mac deja su Wi-Fi mientras dure). Contrato: architecture/wifi-directo.md §2.
  */
-export type LanaWifi = "wifi-aware" | "wifi-direct-concurrente" | "awdl" | "punto-acceso-optin";
-export const LANAS_WIFI: readonly LanaWifi[] = ["wifi-aware", "wifi-direct-concurrente", "awdl", "punto-acceso-optin"];
+// (MTZ1109A) `wifi-direct`: Wi-Fi Direct estándar SIN concurrencia (Windows/Linux, o un Android viejo): quien lo usa deja su Wi-Fi de casa mientras dure.
+export type LanaWifi = "wifi-aware" | "wifi-direct-concurrente" | "wifi-direct" | "awdl" | "punto-acceso-optin";
+export const LANAS_WIFI: readonly LanaWifi[] = ["wifi-aware", "wifi-direct-concurrente", "wifi-direct", "awdl", "punto-acceso-optin"];
 export type BandaWifi = "2.4" | "5" | "6";
 
 export interface CapacidadesWifi {
@@ -176,9 +177,14 @@ function permitePunto(c: CapacidadesWifi): boolean {
 /** Puntos de cada combinación (más = mejor). Ver la cabecera del contrato §3. */
 export function puntosCombinacion(apCap: CapacidadesWifi, ma: MetodoAp, cliCap: CapacidadesWifi, mc: MetodoCliente): number {
   let p = 0;
-  if (apCap.plataforma === "android") p += 100; // Android levanta la red: el Mac no puede (sin Wi-Fi Direct ni API de punto de acceso).
+  // Android levanta la red: el Mac no puede (sin Wi-Fi Direct ni API de punto de acceso). (MTZ1109A) Solo cuando el otro NO es Wi-Fi Direct/Aware:
+  // entre aparatos Wi-Fi Direct (Android/Windows/Linux) manda la capacidad (concurrente primero, luego id menor), no la plataforma.
+  if (apCap.plataforma === "android" && mc !== "wifi-direct" && mc !== "wifi-aware") p += 100;
   if (ma === "wifi-aware" && mc === "wifi-aware") p += 70; // (WFA1109A) Aware > Wi-Fi Direct: sin grupo ni negociación de propietario
-  if (ma === "wifi-direct" && mc === "wifi-direct") p += 50; // las dos conservan su Wi-Fi de casa
+  if (ma === "wifi-direct" && mc === "wifi-direct") {
+    p += 50; // Wi-Fi Direct estándar entre Android, Windows y Linux
+    if (apCap.lanas?.includes("wifi-direct-concurrente")) p += 5; // (MTZ1109A) GO: primero quien conserva su Wi-Fi
+  }
   else if (ma === "hotspot-local" && mc === "corewlan") p += 40; // Android ↔ Mac, lo pedido
   else if (ma === "wifi-direct" && mc === "corewlan") p += 30; // respaldo si el punto de acceso local no está
   else if (ma === "hotspot-local" && mc === "guiado") p += 20;

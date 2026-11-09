@@ -42,6 +42,7 @@ import { VersionNeurona } from "@/components/neurons/version-neurona";
 import { EstadoServidorLocal } from "@/components/nativa/estado-servidor-local";
 import { PrecargaSinInternet } from "./precarga-sin-internet";
 import { AjusteEnlaceWifi } from "./ajuste-enlace-wifi";
+import { AjusteCompatibilidadNeuronas } from "./compatibilidad-neuronas"; // MTZ1109A
 import { AjustePuertaInternet } from "./ajuste-puerta-internet";
 import { AjusteEnviosArchivos } from "./ajuste-envios-archivos"; // PTA1108C
 import { AjusteCifradoRedLocal } from "./ajuste-cifrado-red-local";
@@ -208,6 +209,9 @@ export function NeuronsPanel() {
 
       {/* (WFD1108A) Medios: el enlace Wi-Fi directo entre neuronas (Automático / Preguntar / Nunca). Solo app nativa. */}
       <AjusteEnlaceWifi />
+
+      {/* (MTZ1109A) Medios: qué carriles directos caben entre cada pareja de tus neuronas y por qué. */}
+      <AjusteCompatibilidadNeuronas />
 
       {/* (CIF1108A) Medios: «Exigir cifrado en la red local» (apagado por defecto). Solo app nativa. */}
       <AjusteCifradoRedLocal />

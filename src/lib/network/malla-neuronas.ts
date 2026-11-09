@@ -192,6 +192,8 @@ export interface FichaDispositivo {
   /** (MPT1108B) Capacidades de archivo (`archivo.e2e.v1`, `multitrayecto.v1`) y pública ECDH de cifrado para sellar archivos hacia esta neurona. */
   archivo?: string[];
   epub?: JsonWebKey;
+  /** (MTZ1109A) Carriles directos de esta neurona (`lanas`); `plataforma` ya va arriba. Ausente en apps anteriores: se infiere. */
+  lanas?: import("@/lib/malla/matriz-enlaces").LanasAnunciadas;
 }
 
 /**
@@ -373,6 +375,8 @@ export async function construirFicha(neuron: Neuron | null): Promise<FichaDispos
   const voz = vozDeEstaNeurona(ids.neuronDeviceId);
   // (MPT1108B) Capacidades de archivo y clave de cifrado en el saludo por WebRTC.
   const arch = await import("@/lib/malla/archivo-seguro-real").then((m) => m.datosHolaArchivo()).catch(() => null);
+  // (MTZ1109A) Carriles directos propios (órdenes nativas); en la web, sin antenas.
+  const lanasFicha = await import("@/lib/malla/lanas-propias").then((m) => m.refrescarLanasPropias().then((x) => x.lanas)).catch(() => null);
   return {
     v: 1,
     syncDeviceId: ids.syncDeviceId,
@@ -390,6 +394,7 @@ export async function construirFicha(neuron: Neuron | null): Promise<FichaDispos
     fuentesServibles,
     ...(voz ? { voz } : {}),
     ...(arch ? { archivo: arch.ar, ...(arch.ep ? { epub: arch.ep } : {}) } : {}),
+    ...(lanasFicha ? { lanas: lanasFicha } : {}),
   };
 }
 
@@ -718,6 +723,8 @@ export function useMallaNeuronas(deps?: {
           }
           if (esMensajeFicha(msg)) {
             setFichas((prev) => ({ ...prev, [deviceId]: fichaRecibida(msg.ficha) }));
+            // (MTZ1109A) Los carriles que anuncia la ficha (o, si es de una app anterior, los inferidos de su plataforma).
+            void import("@/lib/malla/lanas-propias").then((m) => m.registrarLanasVecina(msg.ficha.neuronDeviceId, msg.ficha.lanas, msg.ficha.plataforma)).catch(() => undefined);
             // (MPT1108B) Capacidades de archivo y clave de cifrado de la neurona de mi cuenta que acaba de saludar.
             if (msg.ficha.neuronDeviceId) void import("@/lib/malla/archivo-seguro-real").then((m) => m.registrarHolaArchivo(msg.ficha.neuronDeviceId, msg.ficha.archivo, msg.ficha.epub)).catch(() => undefined);
             return;

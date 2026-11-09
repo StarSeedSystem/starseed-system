@@ -296,3 +296,6 @@ JNI `rapido`/`siguienteRapido`; `createInsecureL2capChannel` y el servidor exige
 **Lo que deben confirmar los aparatos.** Que la Samsung SM-X900 (Android 16) publique y acepte el PSM; que la Mac
 MaggaBook abra el canal sin emparejar; la velocidad real (`l2cap kbps=`); que la vuelta a GATT al apagar el canal no
 pierda el mensaje en vuelo; el consumo con el sondeo de 5 ms.
+
+
+> Qué Bluetooth cabe con cada plataforma (GATT en Windows/Linux, L2CAP, roles) y el orden frente a Wi‑Fi y red local: [`matriz-enlaces-directos.md`](matriz-enlaces-directos.md) (MTZ1109A).

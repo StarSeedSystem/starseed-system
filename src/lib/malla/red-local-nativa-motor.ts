@@ -26,6 +26,7 @@
 
 import { recibirArchivo } from "@/lib/malla/recepcion-sellada";
 import { datosHolaArchivoYa, registrarHolaArchivo } from "@/lib/malla/archivo-seguro-real";
+import { datosHolaLanas, refrescarLanasSiViejas, registrarLanasVecina } from "@/lib/malla/lanas-propias"; // MTZ1109A
 import {
   CAIDA_MS,
   FALLOS_PARA_CAIDA,
@@ -574,12 +575,13 @@ export function crearRedNativa(deps: DepsRedNativa): RedNativa {
     } catch {
       certificado = null;
     }
+    void refrescarLanasSiViejas(); // MTZ1109A: carriles directos propios (órdenes nativas), caché corta; sin esperar: el siguiente saludo ya los lleva
     const arch = datosHolaArchivoYa(); // MPT1108B: sin esperar (la clave se calienta aparte)
     await firmarYEnviar(
       ip,
       puerto,
       "nl.hola",
-      holaNativa({ de: yo, para: neurona, limites: misLimites, webrtc: deps.webrtc(), resp, ts, cta, ...(propio() ? { cif: VERSION_CIFRADO } : {}), certificado, ...arch }),
+      holaNativa({ de: yo, para: neurona, limites: misLimites, webrtc: deps.webrtc(), resp, ts, cta, ...(propio() ? { cif: VERSION_CIFRADO } : {}), certificado, ...arch, ...datosHolaLanas() }),
     );
   }
 
@@ -697,7 +699,8 @@ export function crearRedNativa(deps: DepsRedNativa): RedNativa {
       ...(ac.porCuenta ? { porCuenta: true } : {}),
       ...(h.cif ? { cif: h.cif } : {}),
     });
-    registrarHolaArchivo(h.de.neurona, h.ar, h.ep, { certificado: h.certificado, huella: v.huella }); // MPT1108B + PTA1108C: capacidades de archivo y clave de cifrado del saludo firmado
+    registrarHolaArchivo(h.de.neurona, h.ar, h.ep, { certificado: h.certificado, huella: v.huella });
+    registrarLanasVecina(h.de.neurona, h.lanas, h.plataforma, { nativo: true }); // MTZ1109A: sus carriles directos (o inferidos si es una app anterior)
     delete caidas[ip];
     ultimoRechazo = null;
     despertar(h.de.neurona);
