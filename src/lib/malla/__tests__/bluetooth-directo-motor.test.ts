@@ -57,6 +57,9 @@ interface Lado {
   motor?: MotorArchivos;
   /** (BLE1109A) El estado nativo que ve la app, para cambiarle el carril. */
   estado: EstadoBleNativo;
+  /** (BLE1109B) Enlaces que la app marcó como ligados ante la app nativa, y las líneas que anexó al archivo de registro. */
+  ligados: string[];
+  anexadas: string[];
 }
 
 const prueba = (t: string) => createHash("sha256").update(`${CLAVE_FARO}|${t}`).digest("hex").slice(0, 32);
@@ -86,7 +89,7 @@ function dosApps(opts: { mtu?: number; conClave?: boolean; fallar?: () => boolea
       limite_ventana_ms: 10_000,
       paquete_max: 512,
     };
-    const lado = { enlace, neurona, huella: `fp-${nombre}`, transporte: [], control: [], estado } as unknown as Lado;
+    const lado = { enlace, neurona, huella: `fp-${nombre}`, transporte: [], control: [], estado, ligados: [], anexadas: [] } as unknown as Lado;
     const deps: DepsBle = {
       ahora: () => reloj.ahora,
       dormir: async (ms) => {
@@ -132,6 +135,8 @@ function dosApps(opts: { mtu?: number; conClave?: boolean; fallar?: () => boolea
         }),
       pruebaCuenta: async (t) => (opts.conClave === false ? null : prueba(t)),
       huellaPropia: async () => lado.huella,
+      marcarLigado: (e) => void lado.ligados.push(e),
+      anexarRegistro: (l) => void lado.anexadas.push(...l),
       // (CIF1108A) Con `cifra`, las dos apps (o solo la Mac) llevan sesiones cifradas.
       ...(opts.cifra === true || (opts.cifra === "mac" && nombre === "mac")
         ? { sesiones: crearSesionesCifradas({ ahora: () => reloj.ahora, firmar: async (c) => ({ v: 2, fp: lado.huella, body: c }) }) }
@@ -471,5 +476,46 @@ describe("Bluetooth directo · motor (BLE1108A)", () => {
     expect(textoCanalBle(raro)).toBe("Bluetooth directo · 640 kb/s");
     expect(textoCanalBle({ carril: "rapido", kbps: null })).toBe("Bluetooth directo · canal rápido · sin medir");
     expect(textoCanalBle(null)).toBe("Bluetooth directo");
+  });
+});
+
+describe("Bluetooth directo · BLE1109B", () => {
+  it("al ligarse avisa a la app nativa (solo desde ahí puede abrirse el canal rápido)", async () => {
+    const { lados } = dosApps();
+    await ligar(lados);
+    await esperarHasta(() => lados.mac.ligados.length > 0 && lados.tab.ligados.length > 0);
+    expect(lados.mac.ligados).toContain("b1");
+    expect(lados.tab.ligados).toContain("b7");
+  });
+
+  it("espeja el registro del otro lado como «(nombre) línea» y no lo reenvía en bucle", async () => {
+    const { lados, aire } = dosApps();
+    await ligar(lados);
+    await esperarHasta(() => lados.tab.anexadas.some((x) => x.startsWith("(MaggaBook) ")));
+    await esperarHasta(() => lados.mac.anexadas.some((x) => x.startsWith("(Maggaboard) ")));
+    const espejos = aire.jsons.filter((j) => j.startsWith('{"t":"nl.reg"'));
+    expect(espejos.length).toBe(2);
+    await new Promise((r) => setTimeout(r, 30));
+    expect(aire.jsons.filter((j) => j.startsWith('{"t":"nl.reg"')).length).toBe(2);
+    for (const j of espejos) expect((JSON.parse(j) as { l: string[] }).l.length).toBeLessThanOrEqual(50);
+  });
+
+  it("un espejo de quien no está ligado se ignora", async () => {
+    const { lados } = dosApps({ conClave: false });
+    await lados.tab.red.refrescar();
+    await lados.tab.red.recibir('{"t":"nl.reg","l":["x"]}', "b7");
+    expect(lados.tab.anexadas.filter((x) => x.startsWith("("))).toEqual([]);
+  });
+
+  it("prioridad de colas: el control sale antes que los datos y el espejo va con los datos", async () => {
+    const { lados, aire } = dosApps();
+    await ligar(lados);
+    await esperarHasta(() => aire.jsons.some((j) => j.startsWith('{"t":"nl.reg"')));
+    const antes = aire.jsons.length;
+    const datos = lados.mac.red.enviarTexto("b1", '{"t":"archivo.trozo","id":"a","i":0}');
+    const control = lados.mac.red.enviarTexto("b1", '{"t":"tu.msg","v":1,"id":"c1","c":"chat","b":"urgente"}');
+    await Promise.all([datos, control]);
+    const nuevos = aire.jsons.slice(antes);
+    expect(nuevos.findIndex((j) => j.includes('"id":"c1"'))).toBeLessThan(nuevos.findIndex((j) => j.startsWith('{"t":"archivo.trozo"')));
   });
 });

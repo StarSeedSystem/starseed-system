@@ -101,6 +101,16 @@ impl crate::ble::Radio for RadioAndroid {
     fn cerrar_l2cap(&self, plataforma: &str) {
         ordenar(serde_json::json!({ "o": "cerrar-l2cap", "enlace": plataforma }));
     }
+    // BLE1109B: el ajuste «Canal rápido Bluetooth (experimental)» llega a Kotlin ANTES de `arrancar`; apagado, Kotlin no
+    // añade la característica PSM, ni abre el socket L2CAP, ni pide PHY 2M (servicio GATT idéntico al de prueba.30).
+    fn canal_rapido(&self, activo: bool) {
+        ordenar(serde_json::json!({ "o": "canal-rapido", "activo": activo }));
+    }
+    // BLE1109B: «Compartir registro de enlaces» → hoja de compartir de Android con el final de `enlaces.log`.
+    fn compartir_registro(&self, titulo: &str, texto: &str) -> bool {
+        ordenar(serde_json::json!({ "o": "compartir", "titulo": titulo, "texto": texto }));
+        true
+    }
 }
 
 /// Un paquete en hex que llegó de Kotlin (puro: lo que no es hex o no cabe se ignora).

@@ -805,6 +805,9 @@ pub fn run() {
                 ble::ble_pedir_permiso,
                 ble::ble_registro,
                 ble::ble_registro_anexar,
+                ble::ble_canal_rapido,      // BLE1109B
+                ble::ble_enlace_ligado,     // BLE1109B
+                ble::ble_registro_compartir, // BLE1109B
                 canal_actualizacion::apk_actualizar,
                 canal_actualizacion::apk_estado,
                 canal_actualizacion::apk_instalar,

@@ -45,10 +45,13 @@ import {
   type VinculoMinimo,
 } from "./red-local-nativa";
 import {
+  COMANDO_CANAL_RAPIDO_BLE,
   COMANDO_ENVIAR_BLE,
   COMANDO_ESTADO_BLE,
+  COMANDO_LIGADO_BLE,
   COMANDO_RECIBIDOS_BLE,
   COMANDO_REGISTRO_ANEXAR_BLE,
+  COMANDO_REGISTRO_BLE,
   EVENTO_CAMBIO_BLE,
   EVENTO_MENSAJE_BLE,
   LIMITES_BLE_DEFECTO,
@@ -89,7 +92,17 @@ import {
   type SesionesCifradas,
   type VerificadorCertificado,
 } from "./sesion-cifrada";
-import { crearRegistroEnlaces, type RegistroEnlaces } from "./registro-enlace-ble";
+import { crearRegistroEnlaces, unirRegistros, type RegistroEnlaces, type RegistroNativoBle } from "./registro-enlace-ble";
+import {
+  CLAVE_CANAL_RAPIDO_BLE,
+  ESPERA_ESPEJO_REGISTRO_BLE_MS,
+  MAX_LINEAS_ESPEJO_BLE,
+  T_ESPEJO_REGISTRO_BLE,
+  leerEspejoRegistro,
+  recortarEspejoRegistro,
+  sincronizarCanalRapido,
+  textoEspejoRegistro,
+} from "./canal-rapido-ajuste"; // BLE1109B
 import type { EnlaceDisponible } from "./eleccion-enlace";
 import type { CanalArchivos } from "@/lib/network/archivos-malla";
 
@@ -128,6 +141,10 @@ export interface DepsBle {
   anexarRegistro?(lineas: string[]): void;
   /** (LLA1108E) Un `voz.*` de un enlace ligado → la voz por enlace de datos (ya acusó la app y, si cifra, ya viene descifrado). */
   entregarVoz?(texto: string, origen: { neurona: string; enlaceId: string; cifrada: boolean }): void;
+  /** (BLE1109B) Avisa a la app nativa de que el enlace quedó ligado por GATT: solo desde ahí puede abrir el canal rápido. */
+  marcarLigado?(enlace: string): void;
+  /** (BLE1109B) Últimas líneas del registro propio (web + app nativa) para espejarlas al otro lado; ausente: las de la web. */
+  registroPropio?(max: number): Promise<string[]> | string[];
 }
 
 export interface ResultadoEnvioBle {
@@ -291,6 +308,7 @@ export function crearRedBle(deps: DepsBle): RedBle {
       }
     },
   });
+  const ultimoEspejo: Record<string, number> = {}; // BLE1109B: neurona → última vez que se espejó el registro
   const oyentes = new Set<() => void>();
   const oyentesControl = new Set<(c: ControlEnlaceWifi, o: OrigenControl) => void>();
 
@@ -571,7 +589,8 @@ export function crearRedBle(deps: DepsBle): RedBle {
       } else if (esTextoVoz(texto)) {
         c.voz.push(item);
         c.bytesVoz += texto.length;
-      } else if (claseDeTexto(texto) === "datos") {
+      } else if (claseDeTexto(texto) === "datos" || texto.startsWith(`{"t":"${T_ESPEJO_REGISTRO_BLE}"`)) {
+        // BLE1109B: el espejo del registro va con los datos: nunca por delante del saludo ni de los acuses (control).
         c.datos.push(item);
         c.bytesDatos += texto.length;
       } else {
@@ -815,8 +834,33 @@ export function crearRedBle(deps: DepsBle): RedBle {
         }
       }
     }
+    try {
+      deps.marcarLigado?.(enlace); // BLE1109B: el canal rápido solo se abre tras «ligado» por GATT
+    } catch {
+      /* la marca no tumba al enlace */
+    }
     avisar();
     if (!h.resp && deps.ahora() - (ultimoHola[enlace] ?? -Infinity) >= 1000) await saludar(enlace, h.de.neurona, true);
+    if (eraNueva) void espejarRegistro(enlace, h.de.neurona);
+  }
+
+  /**
+   * (BLE1109B) Manda al otro lado las últimas 50 líneas de MI registro, para que el suyo muestre «(nombre) …» y
+   * el problema se vea desde cualquiera de los dos aparatos. Va por la cola de datos, como mucho una vez cada
+   * 30 s por neurona, y un aparato anterior lo ignora (mensaje desconocido).
+   */
+  async function espejarRegistro(enlace: string, neurona: string): Promise<void> {
+    const ahora = deps.ahora();
+    if (ahora - (ultimoEspejo[neurona] ?? -Infinity) < ESPERA_ESPEJO_REGISTRO_BLE_MS) return;
+    ultimoEspejo[neurona] = ahora;
+    try {
+      const crudas = deps.registroPropio ? await deps.registroPropio(MAX_LINEAS_ESPEJO_BLE) : registro.exportar().split("\n");
+      const lineas = recortarEspejoRegistro(crudas);
+      if (!lineas.length || !abierto(enlace) || caido(enlace)) return;
+      void encolar(enlace, textoEspejoRegistro(lineas));
+    } catch {
+      /* el espejo es un lujo de diagnóstico: nunca molesta al enlace */
+    }
   }
 
   async function recibirControl(cuerpo: string, enlace: string): Promise<void> {
@@ -892,6 +936,10 @@ export function crearRedBle(deps: DepsBle): RedBle {
         deps.entregarTransporte(cuerpo, { enlaceId: idEnlaceBle(enlace), etiqueta: `${lig.nombre} · Bluetooth`, ...(lig.sync ? { syncDeviceId: lig.sync } : {}) });
       } else if (cuerpo.startsWith('{"t":"archivo.')) {
         deps.entregarArchivo(canalArchivos(enlace), cuerpo, `${lig.nombre} (Bluetooth directo · app nativa)`, { huella: lig.huella, ...(lig.porCuenta ? { porCuenta: true } : {}) });
+      } else if (cuerpo.startsWith(`{"t":"${T_ESPEJO_REGISTRO_BLE}"`)) {
+        // BLE1109B: el registro del otro aparato, línea a línea, marcado con su nombre; solo de la neurona ligada.
+        const l = leerEspejoRegistro(cuerpo);
+        if (l) deps.anexarRegistro?.(l.map((x) => `(${lig.nombre}) ${x}`));
       } else if (esTextoVoz(cuerpo)) {
         // (LLA1108E) Voz por enlace de datos: solo de la neurona ligada a este enlace, y cifrada si el enlace cifra.
         deps.entregarVoz?.(cuerpo, { neurona: lig.neurona, enlaceId: idEnlaceBle(enlace), cifrada: modoDe(lig) === "cifrado" });
@@ -1237,6 +1285,21 @@ async function depsReales(): Promise<DepsBle> {
     certificadoPropio: async () => (await import("@/lib/identidad/enlace")).certificadoPropioParaHola(),
     verificarCertificado: async (c, ctx) => (await import("@/lib/identidad/enlace")).verificadorCertificadoNativo(c, ctx),
     certificadoMismaCuenta: async (c, ctx) => (await import("@/lib/identidad/enlace")).certificadoDeMismaCuenta(c, ctx),
+    marcarLigado: (enlace) => {
+      void puenteNativo().llamar(COMANDO_LIGADO_BLE, { enlace }).catch(nada); // BLE1109B
+    },
+    registroPropio: async (max) => {
+      // BLE1109B: lo de la web y lo de la app nativa, unido por tiempo; los espejos recibidos «(nombre) …» no se reenvían.
+      const web = red?.registro().lista() ?? [];
+      let nativos: RegistroNativoBle[] = [];
+      try {
+        const r = await puenteNativo().llamar<RegistroNativoBle[]>(COMANDO_REGISTRO_BLE);
+        if (r.ok && Array.isArray(r.valor)) nativos = r.valor;
+      } catch {
+        /* solo lo de la web */
+      }
+      return unirRegistros(web, nativos).filter((x) => !x.startsWith("(")).slice(-max);
+    },
     anexarRegistro: (lineas) => {
       pendientesLog.push(...lineas);
       if (temporizadorLog) return;
@@ -1271,6 +1334,15 @@ export function iniciarBluetoothDirecto(): () => void {
       const r = crearRedBle(deps);
       red = r;
       const p = puenteNativo();
+      // BLE1109B: migra el ajuste del canal rápido (versiones anteriores: apagado) antes de que el Bluetooth cuente con él.
+      void sincronizarCanalRapido({
+        leer: () => globalThis.localStorage?.getItem(CLAVE_CANAL_RAPIDO_BLE) ?? null,
+        escribir: (v) => globalThis.localStorage?.setItem(CLAVE_CANAL_RAPIDO_BLE, v),
+        nativo: async (activo) => {
+          const x = await p.llamar<boolean>(COMANDO_CANAL_RAPIDO_BLE, activo === undefined ? {} : { activo });
+          return x.ok && typeof x.valor === "boolean" ? x.valor : null;
+        },
+      }).catch(nada);
       const vistos = new Set<number>();
       const procesar = (x: unknown) => {
         const m = x as MensajeBleNativo | null;

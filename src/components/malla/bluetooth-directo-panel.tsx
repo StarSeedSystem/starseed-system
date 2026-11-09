@@ -9,7 +9,7 @@ import { useEffect, useState } from "react";
 import { COMANDO_REGISTRO_BLE, textoCanalBle, textoVelocidadBle } from "@/lib/malla/bluetooth-directo";
 import { unirRegistros, type RegistroNativoBle } from "@/lib/malla/registro-enlace-ble";
 import { CLAVE_DEFECTOS_ANTENAS, leerMarca, marcarExplicito, serializarMarca } from "@/lib/malla/defectos-antenas";
-import { abrirEnlaceBluetooth, activarBluetooth, pedirPermisoBluetooth, useEstadoBluetooth } from "@/lib/malla/bluetooth-directo-estado";
+import { abrirEnlaceBluetooth, activarBluetooth, compartirRegistroEnlaces, fijarCanalRapidoBluetooth, leerCanalRapidoBluetooth, pedirPermisoBluetooth, useEstadoBluetooth } from "@/lib/malla/bluetooth-directo-estado";
 
 const COLOR: Record<string, string> = {
   encendida: "#22c55e",
@@ -18,6 +18,43 @@ const COLOR: Record<string, string> = {
   apagada: "#94a3b8",
   "no-disponible": "#64748b",
 };
+
+/**
+ * (BLE1109B) Ajustes del enlace: «Canal rápido Bluetooth (experimental)» (apagado por defecto: el enlace va por GATT
+ * como en prueba.30) y «Compartir registro de enlaces» (hoja de compartir en Android; carpeta del registro en escritorio).
+ */
+function AjustesDelEnlace() {
+  const [rapido, setRapido] = useState(false);
+  const [aviso, setAviso] = useState<string | null>(null);
+  useEffect(() => {
+    let vivo = true;
+    void leerCanalRapidoBluetooth().then((v) => vivo && setRapido(v));
+    return () => {
+      vivo = false;
+    };
+  }, []);
+  const cambiar = async () => {
+    const r = await fijarCanalRapidoBluetooth(!rapido);
+    if (r.ok) setRapido(r.activo);
+    setAviso(r.ok ? "Guardado: el Bluetooth se reinicia para aplicarlo." : r.motivo ?? "La app no respondió.");
+  };
+  const compartir = async () => setAviso((await compartirRegistroEnlaces()).texto);
+  return (
+    <div className="mt-3" data-testid="ajustes-enlace-ble">
+      <label className="flex cursor-pointer items-start gap-2 text-[11px] text-white/70">
+        <input type="checkbox" checked={rapido} onChange={() => void cambiar()} className="mt-0.5" data-testid="canal-rapido-ble" />
+        <span>
+          Canal rápido Bluetooth (experimental)
+          <span className="block text-[10px] text-white/40">Apagado por defecto. Si falla, el enlace sigue por el canal normal sin cortarse. Al cambiarlo, el Bluetooth se reinicia.</span>
+        </span>
+      </label>
+      <button onClick={() => void compartir()} className="mt-2 cursor-pointer rounded border border-white/15 px-2 py-0.5 text-[10px] text-white/65 hover:bg-white/10" data-testid="compartir-registro-ble">
+        Compartir registro de enlaces
+      </button>
+      {aviso && <p className="mt-1 text-[10px] text-amber-300">{aviso}</p>}
+    </div>
+  );
+}
 
 /**
  * (BLE1108B) «Registro del enlace»: los últimos eventos del Bluetooth directo (web + app nativa) para leer
@@ -144,6 +181,7 @@ export default function BluetoothDirectoPanel() {
         </button>
       )}
       {aviso && <p className="mt-2 text-[11px] text-amber-300">{aviso}</p>}
+      {estado.disponible && <AjustesDelEnlace />}
       {estado.disponible && <RegistroDelEnlace />}
       {estado.vecinos.length > 0 && (
         <ul className="mt-3 space-y-1" aria-label="Vecinos por Bluetooth">

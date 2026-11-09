@@ -273,7 +273,7 @@ mod pruebas {
             assert!(KOTLIN.contains(&format!("\"{u}\"")), "{u}");
         }
         // Cada orden que manda Rust la atiende Kotlin, y cada evento de Kotlin lo lee Rust.
-        for o in ["arrancar", "anunciar", "conectar", "desconectar", "datos", "permisos", "parar", "l2cap", "cerrar-l2cap"] {
+        for o in ["arrancar", "anunciar", "conectar", "desconectar", "datos", "permisos", "parar", "l2cap", "cerrar-l2cap", "canal-rapido", "compartir"] {
             assert!(KOTLIN.contains(&format!("\"{o}\" ->")), "orden {o}");
             assert!(rust.contains(&format!("\"o\": \"{o}\"")), "orden {o} en Rust");
         }

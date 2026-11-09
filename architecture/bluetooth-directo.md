@@ -298,6 +298,27 @@ JNI `rapido`/`siguienteRapido`; `createInsecureL2capChannel` y el servidor exige
 MaggaBook abra el canal sin emparejar; la velocidad real (`l2cap kbps=`); que la vuelta a GATT al apagar el canal no
 pierda el mensaje en vuelo; el consumo con el sondeo de 5 ms.
 
+### 15.x · Regresión de prueba.31 y reglas nuevas (BLE1109B · 2026-11-09)
+
+**Síntoma.** Desde prueba.31 (`84a8e5b58f`) el Bluetooth entre la Mac (central) y la tableta (periférico) no llevaba nada; prueba.30 (`ee96c98082`, solo GATT) sí.
+
+**Causas (el registro de la Mac no deja probar la (a) con certeza; se dice con honestidad).**
+- (a) Mac .31 con tableta .30 sin recibir por GATT: nada del diff cambia la ruta de recepción GATT cuando el canal no está abierto. Sospechosos: la lectura extra de la característica PSM (`53530004-…`) en el descubrimiento, la petición de PHY 2M del lado Android, la tableta atascada tras las caídas y el `connectPeripheral` de macOS, que no vence nunca (`ble_macos.rs`, ahora con `PLAZO_CONEXION_MS`). Por eso GATT queda idéntico a prueba.30 mientras el canal esté apagado.
+- (b) El canal L2CAP retenía datos: el carril se abría sin haber «ligado» y no se vigilaba que se leyera (`ble_l2cap.rs`, ahora `atascado()` con `PLAZO_SIN_LECTURA_MS`); el mensaje en vuelo se troceaba al tamaño del carril y no se re-troceaba al volver a GATT (`ble_trama.rs::fijar_carril`).
+- (c) Un fallo del carril mataba el enlace entero (`ble.rs`, rutas de cierre) en vez de volver a GATT.
+- (d) La periférica Android no se curaba tras las caídas: sin `cancelConnection` de conexiones viejas ni reinicio del anuncio (`BleStarSeed.kt`, ahora `anotarCaida` y la sección de autocuración).
+
+**Reglas.**
+1. Ajuste «Canal rápido Bluetooth (experimental)»: APAGADO por defecto (`ble.json`, `canal_rapido`; espejo web `starseed.ble.canal-rapido`, versión 2). Un valor sin versión o anterior se migra a apagado. Apagado = GATT puro como prueba.30: no se publica la característica PSM, no se lee, no se pide PHY 2M.
+2. Encendido, el canal solo se abre DESPUÉS de «ligado» por GATT (la web avisa con `ble_enlace_ligado`).
+3. Cualquier error, cierre, error de trama o atasco (nada leído en 6 s con un mensaje esperando acuse) devuelve el enlace a GATT sin cerrarlo; el mensaje en vuelo se re-trocea al tamaño de GATT y no se pierde.
+4. 2 fallos en 10 minutos desactivan el canal para ese vecino hasta reiniciar la app.
+5. Un par .30/.31 se entiende: sin característica PSM o con el canal apagado, el enlace es GATT.
+6. Android periférico: tormenta de caídas o sin central ligado con una neurona conocida cerca → cierra conexiones viejas, reinicia el anuncio y, si hace falta, recrea el servidor GATT. El socket L2CAP del servidor nunca bloquea el servidor GATT y todo se cierra con la app o el enlace.
+7. macOS central: los cambios de radio apagada/encendida son transitorios (sin bucle apretado); se cancelan las conexiones pendientes y se reescanea con espera creciente; tras 3 fallos seguidos (razón 762) se olvida el `CBPeripheral` guardado y se redescubre por el anuncio, porque Android rota su dirección.
+
+**Diagnóstico.** La tableta escribe el mismo `enlaces.log` en su carpeta de datos. Ajustes › Neuronas › Medios › tarjeta Bluetooth: «Compartir registro de enlaces» (hoja de compartir en Android; en escritorio abre la carpeta del registro). Al ligarse, cada lado manda al otro sus últimas 50 líneas (`{"t":"nl.reg","l":[…]}`, cola de datos, como mucho una vez cada 30 s por neurona; un aparato anterior lo ignora) y el registro del otro lo muestra como «(nombre) línea».
+
 ## 16 · Windows: Bluetooth LE directo (WIN1109B · 2026-11-09)
 
 Windows 10 (1809+) y 11 hablan **el mismo protocolo que macOS y Android**: mismos UUID (§3), misma trama (§4), mismo

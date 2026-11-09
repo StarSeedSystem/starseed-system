@@ -204,6 +204,52 @@ pub const CANAL_ESTABLE_MS: u64 = 10_000;
 pub const PLAZO_ABRIR_MS: u64 = 8_000;
 /// Escritura sin avanzar un solo byte durante este tiempo: el canal se da por atascado y se cierra.
 pub const PLAZO_ESCRITURA_MS: u64 = 5_000;
+/// (BLE1109B) Con un mensaje esperando su acuse, el canal abierto sin leer NI UN byte durante esto se da por atascado.
+pub const PLAZO_SIN_LECTURA_MS: u64 = 6_000;
+/// (BLE1109B) Fallos del canal de un mismo par que lo dejan apagado hasta reiniciar la app…
+pub const FALLOS_PARA_APAGAR: usize = 2;
+/// …si ocurren dentro de esta ventana (10 min).
+pub const VENTANA_FALLOS_MS: u64 = 10 * 60_000;
+
+/// (BLE1109B) Cuenta, por par, los fallos del canal rápido. Dos dentro de `VENTANA_FALLOS_MS` lo apagan para ese par
+/// hasta reiniciar la app (solo en memoria: a propósito, un reinicio vuelve a dar una oportunidad).
+#[derive(Default, Debug)]
+pub struct Castigos {
+    fallos: std::collections::HashMap<String, Vec<u64>>,
+    apagados: std::collections::HashSet<String>,
+}
+
+impl Castigos {
+    pub fn nuevo() -> Self {
+        Castigos::default()
+    }
+
+    /// Anota un fallo. Devuelve true si el par QUEDA apagado con este.
+    pub fn fallo(&mut self, par: &str, ahora: u64) -> bool {
+        if self.apagados.contains(par) {
+            return true;
+        }
+        let v = self.fallos.entry(par.to_string()).or_default();
+        v.retain(|t| ahora.saturating_sub(*t) <= VENTANA_FALLOS_MS);
+        v.push(ahora);
+        if v.len() >= FALLOS_PARA_APAGAR {
+            self.apagados.insert(par.to_string());
+            self.fallos.remove(par);
+            return true;
+        }
+        false
+    }
+
+    pub fn apagado(&self, par: &str) -> bool {
+        self.apagados.contains(par)
+    }
+
+    /// Para pruebas y para el interruptor: olvida todo.
+    pub fn limpiar(&mut self) {
+        self.fallos.clear();
+        self.apagados.clear();
+    }
+}
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum EstadoCarril {
@@ -250,11 +296,60 @@ pub struct Carril {
     abierto_ms: u64,
     /// Este lado conectó (central) o aceptó (periférico): solo el central abre; el periférico espera.
     pub abre_este_lado: bool,
+    /// (BLE1109B) El enlace ya está LIGADO (saludo firmado intercambiado por GATT): solo entonces se abre el canal.
+    ligado: bool,
+    /// (BLE1109B) Este par quedó sin canal rápido hasta reiniciar la app (2 fallos en 10 min): todo sigue por GATT.
+    prohibido: bool,
+    /// (BLE1109B) Último momento en que llegaron bytes por el flujo (o en que abrió).
+    ultimo_rx_ms: u64,
 }
 
 impl Carril {
     pub fn nuevo(abre_este_lado: bool) -> Self {
-        Carril { psm: None, estado: EstadoCarril::SinPsm, fallos: 0, proximo_ms: 0, pedido_ms: 0, abierto_ms: 0, abre_este_lado }
+        Carril {
+            psm: None,
+            estado: EstadoCarril::SinPsm,
+            fallos: 0,
+            proximo_ms: 0,
+            pedido_ms: 0,
+            abierto_ms: 0,
+            abre_este_lado,
+            ligado: false,
+            prohibido: false,
+            ultimo_rx_ms: 0,
+        }
+    }
+
+    /// (BLE1109B) El enlace llegó a «ligado» por GATT: desde ahora el canal puede abrirse.
+    pub fn fijar_ligado(&mut self) {
+        self.ligado = true;
+    }
+
+    pub fn ligado(&self) -> bool {
+        self.ligado
+    }
+
+    /// (BLE1109B) Sin canal rápido para este par hasta reiniciar: si había uno abierto o pedido, el que llama lo cierra.
+    pub fn prohibir(&mut self) {
+        self.prohibido = true;
+        if self.estado == EstadoCarril::Disponible {
+            self.estado = EstadoCarril::SinPsm;
+        }
+    }
+
+    pub fn prohibido(&self) -> bool {
+        self.prohibido
+    }
+
+    /// (BLE1109B) Llegaron bytes por el flujo.
+    pub fn nota_lectura(&mut self, ahora: u64) {
+        self.ultimo_rx_ms = ahora.max(1);
+    }
+
+    /// (BLE1109B) ¿Canal abierto, algo esperando respuesta y NADA leído en `PLAZO_SIN_LECTURA_MS`? Entonces está
+    /// atascado en la lectura (la escritura puede ir bien): se cae a GATT.
+    pub fn atascado(&self, ahora: u64, pendiente: bool) -> bool {
+        self.estado == EstadoCarril::Abierto && pendiente && ahora.saturating_sub(self.ultimo_rx_ms.max(self.abierto_ms)) > PLAZO_SIN_LECTURA_MS
     }
 
     pub fn estado(&self) -> EstadoCarril {
@@ -283,16 +378,17 @@ impl Carril {
             return false;
         }
         self.psm = Some(psm);
-        if self.estado == EstadoCarril::SinPsm {
+        if self.estado == EstadoCarril::SinPsm && !self.prohibido {
             self.estado = EstadoCarril::Disponible;
             self.proximo_ms = ahora;
         }
         true
     }
 
-    /// ¿Hay que abrir el canal ahora? Devuelve el PSM y pasa a `Abriendo`. Solo el lado que abre.
+    /// ¿Hay que abrir el canal ahora? Devuelve el PSM y pasa a `Abriendo`. Solo el lado que abre, con el enlace ya
+    /// ligado por GATT (BLE1109B) y el par no apagado.
     pub fn debe_abrir(&mut self, ahora: u64) -> Option<u16> {
-        if !self.abre_este_lado || self.estado != EstadoCarril::Disponible || ahora < self.proximo_ms {
+        if !self.abre_este_lado || !self.ligado || self.prohibido || self.estado != EstadoCarril::Disponible || ahora < self.proximo_ms {
             return None;
         }
         let psm = self.psm?;
@@ -313,6 +409,7 @@ impl Carril {
         }
         self.estado = EstadoCarril::Abierto;
         self.abierto_ms = ahora;
+        self.ultimo_rx_ms = ahora.max(1);
     }
 
     /// El canal se cerró o no llegó a abrir. Vuelve a `Disponible` con la espera que toque (si había PSM).
@@ -327,7 +424,7 @@ impl Carril {
         // Un canal que duró se reabre YA (fallos = 0); uno que no abrió o cayó al instante espera 0, 2, 5, 15 y 60 s.
         let espera_ms = if self.fallos == 0 { 0 } else { Self::espera_para(self.fallos - 1) };
         self.proximo_ms = ahora + espera_ms;
-        self.estado = if self.psm.is_some() { EstadoCarril::Disponible } else { EstadoCarril::SinPsm };
+        self.estado = if self.psm.is_some() && !self.prohibido { EstadoCarril::Disponible } else { EstadoCarril::SinPsm };
         Cierre { motivo: motivo.chars().take(200).collect(), vivio_ms, espera_ms, estaba_abierto }
     }
 
@@ -474,6 +571,7 @@ mod pruebas {
         assert!(!c.ofrecer_psm(0, 0) && !c.ofrecer_psm(999, 0), "PSM inválido: se ignora");
         assert_eq!(c.estado(), EstadoCarril::SinPsm);
         assert!(c.ofrecer_psm(0x85, 1_000));
+        c.fijar_ligado(); // BLE1109B: solo se abre con el enlace ya ligado
         assert_eq!(c.debe_abrir(1_000), Some(0x85));
         assert_eq!(c.estado(), EstadoCarril::Abriendo);
         assert_eq!(c.debe_abrir(1_001), None, "ya pedido");
@@ -670,5 +768,59 @@ mod pruebas {
         assert!(matches!(bt::leer_paquete_max(&segundo, bt::PAQUETE_RAPIDO), Some(Paquete::Datos { idx: 0, .. })));
         // Un paquete de carril rápido no se acepta por GATT (más de 512 B).
         assert!(bt::leer_paquete(&segundo).is_none());
+    }
+
+    // ─────────── BLE1109B: ligado, par apagado, canal atascado ───────────
+
+    #[test]
+    fn el_canal_solo_se_abre_tras_ligar_y_no_si_el_par_esta_apagado() {
+        let mut c = Carril::nuevo(true);
+        assert!(c.ofrecer_psm(0x85, 100));
+        assert_eq!(c.debe_abrir(100), None, "sin «ligado» por GATT no se abre");
+        c.fijar_ligado();
+        assert_eq!(c.debe_abrir(100), Some(0x85));
+        c.cerrado("x", 200);
+        c.prohibir();
+        assert_eq!(c.estado(), EstadoCarril::SinPsm);
+        assert!(c.ofrecer_psm(0x85, 300), "el PSM se guarda…");
+        assert_eq!(c.estado(), EstadoCarril::SinPsm, "…pero no habilita el canal");
+        assert_eq!(c.debe_abrir(10_000_000), None);
+        // El que no abre (periférico) nunca pide el canal.
+        let mut p = Carril::nuevo(false);
+        p.ofrecer_psm(0x85, 0);
+        p.fijar_ligado();
+        assert_eq!(p.debe_abrir(0), None);
+    }
+
+    #[test]
+    fn canal_atascado_solo_con_algo_esperando_y_sin_leer() {
+        let mut c = Carril::nuevo(false);
+        c.abierto(Some(0x85), 1_000);
+        assert!(!c.atascado(1_000 + PLAZO_SIN_LECTURA_MS + 1, false), "sin nada esperando acuse no se juzga");
+        assert!(!c.atascado(1_000 + PLAZO_SIN_LECTURA_MS, true), "justo en el plazo, vivo");
+        assert!(c.atascado(1_000 + PLAZO_SIN_LECTURA_MS + 1, true));
+        c.nota_lectura(5_000);
+        assert!(!c.atascado(5_000 + PLAZO_SIN_LECTURA_MS, true), "leyó hace poco");
+        assert!(c.atascado(5_000 + PLAZO_SIN_LECTURA_MS + 1, true));
+        let mut cerrado = Carril::nuevo(false);
+        assert!(!cerrado.atascado(u64::MAX / 2, true), "un canal que no está abierto no se vigila");
+        cerrado.ofrecer_psm(0x85, 0);
+        assert!(!cerrado.atascado(u64::MAX / 2, true));
+    }
+
+    #[test]
+    fn dos_fallos_en_diez_minutos_apagan_al_par_hasta_reiniciar() {
+        let mut k = Castigos::nuevo();
+        assert!(!k.fallo("n1", 0));
+        assert!(!k.apagado("n1"));
+        assert!(k.fallo("n1", 599_000), "el segundo dentro de 10 min lo apaga");
+        assert!(k.apagado("n1") && !k.apagado("n2"), "solo ese par");
+        assert!(k.fallo("n1", 99_999_999), "ya apagado sigue apagado");
+        // Fuera de la ventana el primero ya no cuenta.
+        assert!(!k.fallo("n2", 0));
+        assert!(!k.fallo("n2", VENTANA_FALLOS_MS + 1));
+        assert!(k.fallo("n2", VENTANA_FALLOS_MS + 2));
+        k.limpiar();
+        assert!(!k.apagado("n1") && !k.apagado("n2"));
     }
 }

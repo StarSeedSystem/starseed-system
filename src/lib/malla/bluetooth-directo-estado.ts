@@ -11,12 +11,15 @@ import { esAppNativa, puenteNativo } from "@/lib/nativa/puente";
 import {
   COMANDO_ABRIR_BLE,
   COMANDO_ACTIVAR_BLE,
+  COMANDO_CANAL_RAPIDO_BLE,
+  COMANDO_COMPARTIR_REGISTRO_BLE,
   COMANDO_ESTADO_BLE,
   COMANDO_PERMISO_BLE,
   EVENTO_CAMBIO_BLE,
   leerEstadoBle,
   type EstadoBleNativo,
 } from "./bluetooth-directo";
+import { CLAVE_CANAL_RAPIDO_BLE, fijarCanalRapido, leerAjusteCanalRapido, type DepsAjusteCanalRapido } from "./canal-rapido-ajuste"; // BLE1109B
 
 export function useEstadoBluetooth(): EstadoBleNativo | null {
   const [estado, setEstado] = useState<EstadoBleNativo | null>(null);
@@ -67,4 +70,54 @@ export async function pedirPermisoBluetooth(): Promise<{ ok: boolean; motivo?: s
 export async function abrirEnlaceBluetooth(vecino: string): Promise<{ ok: boolean; motivo?: string }> {
   const r = await puenteNativo().llamar<unknown>(COMANDO_ABRIR_BLE, { vecino });
   return r.ok ? { ok: true } : { ok: false, motivo: r.motivo };
+}
+
+/* ══════════════ BLE1109B: canal rápido (experimental) y registro de enlaces ══════════════ */
+
+function depsCanalRapido(): DepsAjusteCanalRapido {
+  return {
+    leer: () => {
+      try {
+        return window.localStorage.getItem(CLAVE_CANAL_RAPIDO_BLE);
+      } catch {
+        return null;
+      }
+    },
+    escribir: (v) => {
+      try {
+        window.localStorage.setItem(CLAVE_CANAL_RAPIDO_BLE, v);
+      } catch {
+        /* sin almacenamiento: vale la app nativa */
+      }
+    },
+    nativo: async (activo) => {
+      const r = await puenteNativo().llamar<boolean>(COMANDO_CANAL_RAPIDO_BLE, activo === undefined ? {} : { activo });
+      return r.ok && typeof r.valor === "boolean" ? r.valor : null;
+    },
+  };
+}
+
+/** ¿Está encendido «Canal rápido Bluetooth (experimental)»? Por defecto NO; la verdad la tiene la app nativa. */
+export async function leerCanalRapidoBluetooth(): Promise<boolean> {
+  try {
+    return (await depsCanalRapido().nativo()) === true;
+  } catch {
+    return leerAjusteCanalRapido(depsCanalRapido().leer()).activo;
+  }
+}
+
+/** Enciende o apaga el canal rápido (la app nativa reinicia su Bluetooth para que el cambio valga). */
+export async function fijarCanalRapidoBluetooth(activo: boolean): Promise<{ ok: boolean; activo: boolean; motivo?: string }> {
+  const r = await fijarCanalRapido(depsCanalRapido(), activo);
+  return r.ok ? r : { ok: false, activo: false, motivo: "La app no respondió." };
+}
+
+/** «Compartir registro de enlaces»: en Android abre la hoja de compartir; en escritorio abre la carpeta del registro. */
+export async function compartirRegistroEnlaces(): Promise<{ ok: boolean; texto: string }> {
+  try {
+    const r = await puenteNativo().llamar<string>(COMANDO_COMPARTIR_REGISTRO_BLE);
+    return r.ok ? { ok: true, texto: typeof r.valor === "string" && r.valor ? r.valor : "Registro listo." } : { ok: false, texto: r.motivo ?? "No se pudo compartir el registro." };
+  } catch {
+    return { ok: false, texto: "No se pudo compartir el registro." };
+  }
 }

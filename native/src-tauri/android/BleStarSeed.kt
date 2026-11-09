@@ -164,6 +164,18 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
     @Volatile private var psmPublicado = 0
     private var vigiaCanales = false
 
+    /**
+     * (BLE1109B) Ajuste «Canal rápido Bluetooth (experimental)»: Rust lo manda ANTES de «arrancar». Apagado (por defecto)
+     * el servicio GATT es el de prueba.30: sin la característica PSM, sin socket L2CAP y sin petición de PHY 2M.
+     */
+    @Volatile private var canalRapido = false
+
+    // (BLE1109B) Autocuración del periférico: ver `vigilarAutocura`.
+    private var ultimoEnlaceMs = 0L
+    private val caidasRecientes = ArrayList<Long>()
+    private var curasSeguidas = 0
+    private var vigiaAutocura = false
+
     private lateinit var ctx: Context
     private val principal = Handler(Looper.getMainLooper())
     private var actual: WeakReference<Activity>? = null
@@ -246,6 +258,8 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
                 "permisos" -> pedirPermisos(true)
                 "l2cap" -> abrirCanal(o.optString("enlace"), o.optInt("psm"))
                 "cerrar-l2cap" -> cerrarCanalDe(o.optString("enlace"), "cerrado por la app")
+                "canal-rapido" -> canalRapido = o.optBoolean("activo")
+                "compartir" -> compartirRegistro(o.optString("titulo"), o.optString("texto"))
                 "parar" -> {
                     activo = false
                     parar()
@@ -399,6 +413,11 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
         if (!abrirServidor(mgr)) return
         abrirServidorL2cap()
         escanear()
+        if (!vigiaAutocura) {
+            vigiaAutocura = true
+            ultimoEnlaceMs = SystemClock.elapsedRealtime()
+            principal.postDelayed({ vigilarAutocura() }, VIGIA_AUTOCURA_MS)
+        }
         // Rust contesta con «anunciar» (el UUID de esta ventana de 5 min).
         radio("encendida", if (a.bluetoothLeAdvertiser == null) "Bluetooth encendido, pero este aparato no puede anunciarse: solo busca y conecta." else "")
     }
@@ -470,8 +489,10 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
         sal.addDescriptor(BluetoothGattDescriptor(CCCD, BluetoothGattDescriptor.PERMISSION_READ or BluetoothGattDescriptor.PERMISSION_WRITE))
         servicio.addCharacteristic(entrada)
         servicio.addCharacteristic(sal)
-        // (BLE1109A) PSM del canal rápido: se responde en `onCharacteristicReadRequest`.
-        servicio.addCharacteristic(BluetoothGattCharacteristic(PSM_UUID, BluetoothGattCharacteristic.PROPERTY_READ, BluetoothGattCharacteristic.PERMISSION_READ))
+        // (BLE1109A) PSM del canal rápido: se responde en `onCharacteristicReadRequest`. (BLE1109B) Solo con el ajuste encendido.
+        if (canalRapido) {
+            servicio.addCharacteristic(BluetoothGattCharacteristic(PSM_UUID, BluetoothGattCharacteristic.PROPERTY_READ, BluetoothGattCharacteristic.PERMISSION_READ))
+        }
         servidor = s
         salida = sal
         servicioListo = false
@@ -509,6 +530,13 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
                     }, VIGIA_SUSCRIPCION_MS)
                 } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                     val c = centrales.remove(k)
+                    // (BLE1109B) Libera la conexión en la pila de Android: sin esto, tras caídas con estado ≠ 0 el servidor podía
+                    // quedarse con conexiones a medias y dejar de aceptar centrales (macOS: «Device disconnected without being ready»).
+                    try {
+                        servidor?.cancelConnection(d)
+                    } catch (e: Exception) {
+                    }
+                    anotarCaida()
                     if (c?.suscrito == true) desconectado(k, "el otro aparato se desconectó (estado $status)") else reanudarRadio()
                 }
             }
@@ -569,6 +597,7 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
                 val c = centrales.getOrPut(k) { Central(d) }
                 if (encendido && !c.suscrito) {
                     c.suscrito = true
+                    marcarActividad()
                     nota("suscrito", k, "el otro aparato activó las notificaciones de SALIDA, paquete ${c.paquete}")
                     evento(JSONObject().put("e", "conectado").put("enlace", k).put("rol", "periferico").put("direccion", d.address).put("paquete", c.paquete))
                     bombearServidor()
@@ -893,10 +922,14 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
                 c.listo = true
                 nota("suscrito", k, "notificaciones de SALIDA activas, paquete ${c.paquete}")
                 evento(JSONObject().put("e", "conectado").put("enlace", k).put("rol", "central").put("direccion", c.direccion).put("paquete", c.paquete))
-                // (BLE1109A) Si el periférico ofrece canal rápido, se lee su PSM (Rust decide cuándo abrirlo).
-                try {
-                    c.gatt.getService(SERVICIO)?.getCharacteristic(PSM_UUID)?.let { c.gatt.readCharacteristic(it) }
-                } catch (e: Exception) {
+                marcarActividad()
+                // (BLE1109A) Si el periférico ofrece canal rápido, se lee su PSM (Rust decide cuándo abrirlo). (BLE1109B) Solo con
+                // el ajuste encendido: una lectura pendiente deja ocupada la pila GATT y retrasaría las escrituras de siempre.
+                if (canalRapido) {
+                    try {
+                        c.gatt.getService(SERVICIO)?.getCharacteristic(PSM_UUID)?.let { c.gatt.readCharacteristic(it) }
+                    } catch (e: Exception) {
+                    }
                 }
                 bombear(k)
             }
@@ -1033,6 +1066,136 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
 
     private val HEX = "0123456789abcdef".toCharArray()
 
+    // ───────────────────────────── Autocuración del periférico (BLE1109B) ─────────────────────────────
+    // Caso real del 09-11: tras varias caídas la tablet dejó de aceptar centrales (macOS: «Device disconnected without being
+    // ready», 106 reintentos). Un vigía lo cura solo: si no hay ningún enlace vivo durante un rato CON una neurona anunciándose
+    // cerca, o tras una tormenta de desconexiones, suelta lo que quedó a medias y reinicia el anuncio; a la segunda vez seguida
+    // recrea además el servidor GATT (y su socket L2CAP, si el ajuste está encendido). Nunca toca un enlace en marcha.
+
+    private const val VIGIA_AUTOCURA_MS = 30_000L
+    private const val SIN_CENTRAL_MS = 90_000L
+    private const val VENTANA_TORMENTA_MS = 60_000L
+    private const val CAIDAS_TORMENTA = 4
+    private const val VECINO_CERCA_MS = 60_000L
+
+    private fun marcarActividad() {
+        ultimoEnlaceMs = SystemClock.elapsedRealtime()
+        curasSeguidas = 0
+    }
+
+    private fun hayEnlaceVivo(): Boolean = centrales.values.any { it.suscrito } || clientes.values.any { it.listo }
+
+    private fun vecinoCerca(): Boolean {
+        val ahora = SystemClock.elapsedRealtime()
+        return vistos.values.any { ahora - it.second < VECINO_CERCA_MS }
+    }
+
+    private fun anotarCaida() {
+        val ahora = SystemClock.elapsedRealtime()
+        caidasRecientes.add(ahora)
+        caidasRecientes.removeAll { ahora - it > VENTANA_TORMENTA_MS }
+        if (caidasRecientes.size >= CAIDAS_TORMENTA) {
+            caidasRecientes.clear()
+            principal.postDelayed({ if (!hayEnlaceVivo()) autocurar("tormenta de desconexiones ($CAIDAS_TORMENTA en ${VENTANA_TORMENTA_MS / 1000} s)", true) }, 2_000)
+        }
+    }
+
+    private fun vigilarAutocura() {
+        if (!activo) {
+            vigiaAutocura = false
+            return
+        }
+        val ahora = SystemClock.elapsedRealtime()
+        if (ultimoEstado == "encendida" && !hayEnlaceVivo() && ahora - ultimoEnlaceMs > SIN_CENTRAL_MS && vecinoCerca()) {
+            curasSeguidas += 1
+            ultimoEnlaceMs = ahora
+            autocurar("ningún enlace vivo desde hace ${SIN_CENTRAL_MS / 1000} s con una neurona anunciándose cerca", curasSeguidas >= 2)
+        }
+        principal.postDelayed({ vigilarAutocura() }, VIGIA_AUTOCURA_MS)
+    }
+
+    private fun autocurar(motivo: String, recrearServidor: Boolean) {
+        if (!activo || ultimoEstado != "encendida") return
+        nota("autocuracion", null, "$motivo → " + if (recrearServidor) "se recrea el servidor GATT y el anuncio" else "se reinicia el anuncio y se sueltan las conexiones a medias")
+        try {
+            for ((k, c) in centrales.entries.toList()) {
+                if (!c.suscrito) {
+                    centrales.remove(k)
+                    try {
+                        servidor?.cancelConnection(c.device)
+                    } catch (e: Exception) {
+                    }
+                }
+            }
+            try {
+                if (anunciando) adaptador?.bluetoothLeAdvertiser?.stopAdvertising(anuncio)
+            } catch (e: Exception) {
+            }
+            anunciando = false
+            if (recrearServidor) {
+                for ((k, c) in centrales.entries.toList()) {
+                    if (c.suscrito) desconectado(k, "se recrea el servidor Bluetooth (autocuración)")
+                }
+                centrales.clear()
+                for (k in canales.keys.toList()) cerrarCanalDe(k, "autocuración del servidor Bluetooth")
+                try {
+                    servidorL2cap?.close()
+                } catch (e: Exception) {
+                }
+                servidorL2cap = null
+                psmPublicado = 0
+                try {
+                    servidor?.close()
+                } catch (e: Exception) {
+                }
+                servidor = null
+                salida = null
+                servicioListo = false
+                pendienteServidor = null
+                servidorOcupadoDesde = 0L
+                val mgr = ctx.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
+                // `onServiceAdded` vuelve a anunciar cuando el servicio está listo.
+                if (mgr != null && abrirServidor(mgr)) abrirServidorL2cap()
+            } else {
+                anunciar()
+            }
+            if (escaneando) {
+                try {
+                    adaptador?.bluetoothLeScanner?.stopScan(escaneo)
+                } catch (e: Exception) {
+                }
+                escaneando = false
+            }
+            escanear()
+        } catch (e: SecurityException) {
+            radio("sin-permiso", textoSinPermiso())
+        } catch (e: Exception) {
+            nota("autocuracion", null, "falló: ${e.message ?: e.javaClass.simpleName}")
+        }
+    }
+
+    /** (BLE1109B) «Compartir registro de enlaces»: la hoja de compartir de Android con el final de `enlaces.log`. */
+    private fun compartirRegistro(titulo: String, texto: String) {
+        if (texto.isEmpty()) return
+        try {
+            val envio = Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_SUBJECT, titulo)
+                putExtra(Intent.EXTRA_TEXT, texto)
+            }
+            val hoja = Intent.createChooser(envio, titulo)
+            val a = actual?.get()
+            if (a != null && !a.isFinishing) {
+                a.startActivity(hoja)
+            } else {
+                hoja.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                ctx.startActivity(hoja)
+            }
+        } catch (e: Exception) {
+            nota("compartir-fallido", null, e.message ?: e.javaClass.simpleName)
+        }
+    }
+
     // ───────────────────────────── Carril rápido: canal L2CAP (BLE1109A) ─────────────────────────────
     // Android 10+ (API 29). Periférico: `listenUsingInsecureL2capChannel` y su PSM en la característica PSM; central: lee el
     // PSM del otro y Rust ordena `l2cap` para conectar. Sin cifrar por el aire (va cifrado por encima, CIF1108A). La E/S
@@ -1040,7 +1203,7 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
 
     /** Pide el PHY de 2 Mbit/s donde se puede (Android 8+); si el sistema no lo da, sigue con 1M. */
     private fun pedirPhy2M(f: () -> Unit) {
-        if (Build.VERSION.SDK_INT < 26) return
+        if (!canalRapido || Build.VERSION.SDK_INT < 26) return // (BLE1109B) sin el ajuste, el PHY es el de siempre
         try {
             f()
         } catch (e: Exception) {
@@ -1048,7 +1211,7 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
     }
 
     private fun abrirServidorL2cap() {
-        if (Build.VERSION.SDK_INT < 29 || servidorL2cap != null) return
+        if (!canalRapido || Build.VERSION.SDK_INT < 29 || servidorL2cap != null) return
         val a = adaptador ?: return
         try {
             val ss = a.listenUsingInsecureL2capChannel()
@@ -1071,6 +1234,7 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
                 principal.postDelayed({
                     if (servidorL2cap === ss) {
                         servidorL2cap = null
+                        psmPublicado = 0 // (BLE1109B) nadie debe leer un PSM que ya no acepta
                         if (activo) abrirServidorL2cap()
                     }
                 }, 2000)

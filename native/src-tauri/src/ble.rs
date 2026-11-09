@@ -22,7 +22,7 @@
 
 #![allow(dead_code)]
 
-use crate::ble_l2cap::{self as l2, Carril, Desmarcador};
+use crate::ble_l2cap::{self as l2, Carril, Castigos, Desmarcador};
 use crate::ble_trama::{self as bt, Enlace, Hecho, Vecindario};
 use crate::malla_local_trama::{Buzon, Limitador, Recibido};
 use serde::{Deserialize, Serialize};
@@ -69,6 +69,13 @@ pub trait Radio: Send + Sync {
     fn abrir_l2cap(&self, _plataforma: &str, _psm: u16) {}
     /// (BLE1109A) Cerrar el canal L2CAP de ese enlace (no el enlace GATT).
     fn cerrar_l2cap(&self, _plataforma: &str) {}
+    /// (BLE1109B) Si el canal rápido está permitido (ajuste, por defecto NO). Se llama antes de `arrancar`. Con false la
+    /// radio NO publica la característica PSM, ni el canal, ni pide PHY 2M: el servicio GATT es el de prueba.30.
+    fn canal_rapido(&self, _activo: bool) {}
+    /// (BLE1109B) «Compartir registro de enlaces»: Android abre la hoja de compartir con este texto. true = lo hizo.
+    fn compartir_registro(&self, _titulo: &str, _texto: &str) -> bool {
+        false
+    }
 }
 
 /// Sistemas sin radio en esta app (Windows, Linux, iOS por ahora).
@@ -267,11 +274,14 @@ pub struct EnvioBle {
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct PreferenciaBle {
     pub activo: bool,
+    /// (BLE1109B) «Canal rápido Bluetooth (experimental)»: por defecto APAGADO (también para quien viene de prueba.31).
+    #[serde(default)]
+    pub canal_rapido: bool,
 }
 
 impl Default for PreferenciaBle {
     fn default() -> Self {
-        PreferenciaBle { activo: true }
+        PreferenciaBle { activo: true, canal_rapido: false }
     }
 }
 
@@ -300,7 +310,18 @@ pub enum EventoRadio {
 }
 
 /// Los hitos que la radio puede anotar (lista cerrada: el texto libre va en el detalle).
-pub const NOTAS_RADIO: [&str; 5] = ["servicios-descubiertos", "suscrito", "sin-suscripcion", "listo-tarde", "suscripcion-reintento"];
+pub const NOTAS_RADIO: [&str; 9] = [
+    "servicios-descubiertos",
+    "suscrito",
+    "sin-suscripcion",
+    "listo-tarde",
+    "suscripcion-reintento",
+    // (BLE1109B) Autocuración del periférico Android, compartir el registro y la conexión vencida / redescubrimiento de macOS.
+    "autocuracion",
+    "compartir-fallido",
+    "conexion-vencida",
+    "redescubriendo",
+];
 
 fn texto_de(v: &serde_json::Value, k: &str, max: usize) -> Option<String> {
     v.get(k).and_then(|x| x.as_str()).map(|s| s.trim()).filter(|s| !s.is_empty()).map(|s| s.chars().take(max).collect())
@@ -433,6 +454,8 @@ struct Estado {
     registro: VecDeque<RegistroBle>,
     siguiente_reg: u64,
     por_volcar: Vec<String>,
+    /// (BLE1109B) Fallos del canal rápido por par (2 en 10 min lo apagan hasta reiniciar).
+    castigos: Castigos,
 }
 
 fn estado() -> &'static Mutex<Estado> {
@@ -457,6 +480,7 @@ fn estado() -> &'static Mutex<Estado> {
             registro: VecDeque::new(),
             siguiente_reg: 1,
             por_volcar: Vec::new(),
+            castigos: Castigos::nuevo(),
         })
     })
 }
@@ -479,6 +503,12 @@ fn ahora_s() -> u64 {
 
 static APP: OnceLock<tauri::AppHandle> = OnceLock::new();
 static ARRANCADO: AtomicBool = AtomicBool::new(false);
+/// (BLE1109B) El ajuste «Canal rápido Bluetooth (experimental)». Apagado por defecto: el enlace va por GATT como en prueba.30.
+static CANAL_RAPIDO: AtomicBool = AtomicBool::new(false);
+
+pub fn canal_rapido_activo() -> bool {
+    CANAL_RAPIDO.load(Ordering::SeqCst)
+}
 
 fn emitir<S: Serialize + Clone>(evento: &str, carga: S) {
     if let Some(app) = APP.get() {
@@ -650,7 +680,9 @@ pub fn asegurar() {
     if ARRANCADO.swap(true, Ordering::SeqCst) {
         return;
     }
-    let activo = leer_preferencia().activo;
+    let pref = leer_preferencia();
+    let activo = pref.activo;
+    CANAL_RAPIDO.store(pref.canal_rapido, Ordering::SeqCst);
     // Fuera del cerrojo: el guardián de antenas pregunta por la antena Bluetooth con el suyo cogido
     // (`antena()`), así que este núcleo nunca pide el del guardián con el propio cogido.
     let cuenta = leer_cuenta();
@@ -664,6 +696,8 @@ pub fn asegurar() {
     });
     let _ = std::thread::Builder::new().name("starseed-ble".into()).spawn(bucle);
     if activo {
+        // (BLE1109B) Antes de arrancar, para que la radio sepa si el servicio lleva el canal rápido.
+        radio().canal_rapido(pref.canal_rapido);
         radio().arrancar();
     }
 }
@@ -772,6 +806,14 @@ pub fn al_conectar(plataforma: &str, rol: &str, direccion: Option<&str>, paquete
     }
 }
 
+/// (BLE1109B) La radio olvidó el objeto de ese aparato (no conectaba): se le quita del vecindario hasta oírle de nuevo.
+pub fn olvidar_vecino(direccion: &str) {
+    con_estado(|e| {
+        e.vecindario.olvidar(direccion);
+        marcar_cambio(e);
+    });
+}
+
 /// (BLE1108C) Deja en el registro un hito de la radio. `plataforma` (si la hay) se traduce al id del enlace;
 /// sin enlace vivo (p. ej. durante el descubrimiento) la plataforma va en el detalle.
 pub fn nota(plataforma: Option<&str>, tipo: &str, detalle: &str) {
@@ -866,6 +908,9 @@ fn recibir_lote(plataforma: &str, entrada: &[u8], flujo: bool) {
         let Estado { enlaces, limitador, buzon, esperas, .. } = e;
         let Some(l) = enlaces.iter_mut().find(|l| l.plataforma == plataforma) else { return (Vec::new(), false, None) };
         let id = l.id.clone();
+        if flujo {
+            l.carril.nota_lectura(ahora); // (BLE1109B) para detectar un canal que escribe pero no lee
+        }
         let paquetes: Vec<Vec<u8>> = if flujo {
             match l.desmarcador.empujar(entrada) {
                 Ok(p) => p,
@@ -921,9 +966,18 @@ fn recibir_lote(plataforma: &str, entrada: &[u8], flujo: bool) {
 
 /// El central leyó el PSM que publica el periférico. Un PSM inválido se ignora (el enlace sigue por GATT).
 pub fn al_psm(plataforma: &str, psm: u16) {
+    // (BLE1109B) Con el ajuste apagado (por defecto) el PSM no se mira: el enlace es GATT puro.
+    if !canal_rapido_activo() {
+        return;
+    }
     let ahora = ahora_ms();
     con_estado(|e| {
-        let Some(l) = e.enlaces.iter_mut().find(|l| l.plataforma == plataforma) else { return };
+        let Some(i) = e.enlaces.iter().position(|l| l.plataforma == plataforma) else { return };
+        let apagado = e.castigos.apagado(&par_de(&e.enlaces[i]));
+        let l = &mut e.enlaces[i];
+        if apagado {
+            l.carril.prohibir();
+        }
         let (id, neurona) = (l.id.clone(), l.neurona.clone());
         if l.carril.ofrecer_psm(psm, ahora) {
             anotar(e, "l2cap-psm", Some(&id), neurona.as_deref(), &format!("psm={psm}"));
@@ -937,7 +991,14 @@ pub fn al_psm(plataforma: &str, psm: u16) {
 pub fn al_l2cap_abierto(plataforma: &str, psm: Option<u16>) {
     let ahora = ahora_ms();
     let conocido = con_estado(|e| {
-        let Some(l) = e.enlaces.iter_mut().find(|l| l.plataforma == plataforma) else { return false };
+        let Some(i) = e.enlaces.iter().position(|l| l.plataforma == plataforma) else { return false };
+        if !canal_rapido_activo() || e.enlaces[i].carril.prohibido() {
+            // (BLE1109B) Un canal que no se pidió (ajuste apagado o par apagado): se cierra y GATT sigue.
+            let (id, neurona) = (e.enlaces[i].id.clone(), e.enlaces[i].neurona.clone());
+            anotar(e, "l2cap-rechazado", Some(&id), neurona.as_deref(), "canal rápido apagado para este par: se cierra, el enlace sigue por GATT");
+            return false;
+        }
+        let l = &mut e.enlaces[i];
         l.carril.abierto(psm, ahora);
         l.desmarcador.vaciar();
         l.nucleo.fijar_carril(true);
@@ -959,20 +1020,33 @@ pub fn al_l2cap_abierto(plataforma: &str, psm: Option<u16>) {
     }
 }
 
-/// El canal L2CAP se cerró (o no llegó a abrir): el enlace sigue por GATT, sin soltarlo, y el canal se
-/// reintenta con la espera escalonada de `ble_l2cap`.
+/// El canal L2CAP se cerró (o no llegó a abrir): el enlace sigue por GATT, sin soltarlo, y el canal se reintenta con la
+/// espera escalonada de `ble_l2cap`. (BLE1109B) Lo que estaba en vuelo se reenvía entero por GATT, el otro lado recibe
+/// la tregua de latidos y, tras 2 fallos del mismo par en 10 min, ese par queda sin canal rápido hasta reiniciar.
 pub fn al_l2cap_cerrado(plataforma: &str, motivo: &str) {
     let ahora = ahora_ms();
     let hubo = con_estado(|e| {
-        let Some(l) = e.enlaces.iter_mut().find(|l| l.plataforma == plataforma) else { return false };
-        if !matches!(l.carril.estado(), l2::EstadoCarril::Abierto | l2::EstadoCarril::Abriendo) {
+        let Some(i) = e.enlaces.iter().position(|l| l.plataforma == plataforma) else { return false };
+        if !matches!(e.enlaces[i].carril.estado(), l2::EstadoCarril::Abierto | l2::EstadoCarril::Abriendo) {
             return false;
         }
-        let cierre = l.carril.cerrado(motivo, ahora);
-        l.desmarcador.vaciar();
-        l.nucleo.fijar_carril(false);
-        let m = l.nucleo.medidas.clone();
-        let (id, neurona) = (l.id.clone(), l.neurona.clone());
+        let par = par_de(&e.enlaces[i]);
+        let (cierre, m) = {
+            let l = &mut e.enlaces[i];
+            let cierre = l.carril.cerrado(motivo, ahora);
+            l.desmarcador.vaciar();
+            l.nucleo.fijar_carril(false);
+            if cierre.estaba_abierto {
+                l.nucleo.dar_tregua(ahora);
+            }
+            (cierre, l.nucleo.medidas.clone())
+        };
+        let estable = cierre.estaba_abierto && cierre.vivio_ms >= l2::CANAL_ESTABLE_MS;
+        let apagado = if estable { false } else { e.castigos.fallo(&par, ahora) };
+        if apagado {
+            e.enlaces[i].carril.prohibir();
+        }
+        let (id, neurona) = (e.enlaces[i].id.clone(), e.enlaces[i].neurona.clone());
         anotar(
             e,
             "l2cap-cerrado",
@@ -987,13 +1061,40 @@ pub fn al_l2cap_cerrado(plataforma: &str, motivo: &str) {
                 m.kbps_rapido.map(|k| k.to_string()).unwrap_or_else(|| "sin medir".into())
             ),
         );
+        if apagado {
+            anotar(e, "l2cap-desactivado", Some(&id), neurona.as_deref(), "2 fallos del canal rápido en 10 min con este par: sin canal rápido hasta reiniciar la app; todo sigue por GATT");
+        }
         marcar_cambio(e);
         true
     });
     if hubo {
         // GATT retoma lo que estaba por salir.
+        radio().cerrar_l2cap(plataforma);
         radio().hay_datos(plataforma);
     }
+}
+
+/// (BLE1109B) El par con el que se cuentan los fallos del canal: su neurona (la dirección de Android rota).
+fn par_de(l: &EnlaceVivo) -> String {
+    l.neurona.clone().unwrap_or_else(|| l.plataforma.clone())
+}
+
+/// (BLE1109B) La web avisa de que el enlace LLEGÓ A «ligado» (saludo firmado por GATT): desde ahora puede abrirse el
+/// canal rápido, si el ajuste lo permite. Devuelve si el enlace existe.
+#[tauri::command]
+pub fn ble_enlace_ligado(enlace: String) -> bool {
+    con_estado(|e| {
+        let Some(i) = e.enlaces.iter().position(|l| l.id == enlace) else { return false };
+        if e.enlaces[i].carril.ligado() {
+            return true;
+        }
+        e.enlaces[i].carril.fijar_ligado();
+        if canal_rapido_activo() {
+            let (id, neurona, psm) = (e.enlaces[i].id.clone(), e.enlaces[i].neurona.clone(), e.enlaces[i].carril.psm());
+            anotar(e, "l2cap-listo", Some(&id), neurona.as_deref(), &format!("enlace ligado por GATT: el canal rápido ya puede abrirse (psm={})", psm.map(|p| p.to_string()).unwrap_or_else(|| "sin publicar".into())));
+        }
+        true
+    })
 }
 
 /// La radio pide lo siguiente para el flujo del canal L2CAP: paquetes ya marcados (`[largo][paquete]`), hasta
@@ -1059,7 +1160,8 @@ struct Acciones {
     cerrar: Vec<String>,
     /// (BLE1109A) Canales L2CAP por abrir (enlace, PSM) y por cerrar (apertura vencida).
     abrir_l2cap: Vec<(String, u16)>,
-    cerrar_l2cap: Vec<String>,
+    /// (BLE1109B) Con el motivo (apertura vencida, canal atascado, silencio total…).
+    cerrar_l2cap: Vec<(String, String)>,
 }
 
 fn tic(ahora: u64, releer_cuenta: bool) -> Acciones {
@@ -1088,12 +1190,20 @@ fn tic(ahora: u64, releer_cuenta: bool) -> Acciones {
                 a.datos.push(e.enlaces[i].plataforma.clone());
             }
             if e.enlaces[i].nucleo.muerto(ahora) {
-                a.cerrar.push(e.enlaces[i].plataforma.clone());
+                if e.enlaces[i].carril.es_rapido() {
+                    // (BLE1109B) El silencio puede ser del canal rápido, no del enlace: primero se cae a GATT (con tregua).
+                    a.cerrar_l2cap.push((e.enlaces[i].plataforma.clone(), "silencio total con el canal rápido abierto".to_string()));
+                } else {
+                    a.cerrar.push(e.enlaces[i].plataforma.clone());
+                }
+            } else if e.enlaces[i].carril.atascado(ahora, e.enlaces[i].nucleo.en_vuelo()) {
+                // (BLE1109B) Se escribe pero no se lee nada con un mensaje esperando su acuse: el canal está atascado.
+                a.cerrar_l2cap.push((e.enlaces[i].plataforma.clone(), format!("canal atascado: nada leído en {} ms con un mensaje esperando acuse", l2::PLAZO_SIN_LECTURA_MS)));
             }
             // (BLE1109A) Carril rápido: abrir el canal cuando toca (con la espera escalonada) o dar por perdida una
             // apertura que no llega. Mientras tanto el enlace sigue por GATT.
             if e.enlaces[i].carril.apertura_vencida(ahora) {
-                a.cerrar_l2cap.push(e.enlaces[i].plataforma.clone());
+                a.cerrar_l2cap.push((e.enlaces[i].plataforma.clone(), "el canal rápido no abrió a tiempo".to_string()));
             } else if let Some(psm) = e.enlaces[i].carril.debe_abrir(ahora) {
                 let (id, neurona, plataforma, intento) = (e.enlaces[i].id.clone(), e.enlaces[i].neurona.clone(), e.enlaces[i].plataforma.clone(), e.enlaces[i].carril.fallos() + 1);
                 anotar(e, "l2cap-abriendo", Some(&id), neurona.as_deref(), &format!("psm={psm} (intento {intento})"));
@@ -1154,9 +1264,9 @@ fn bucle() {
         for (p, psm) in a.abrir_l2cap {
             r.abrir_l2cap(&p, psm);
         }
-        for p in a.cerrar_l2cap {
+        for (p, motivo) in a.cerrar_l2cap {
             r.cerrar_l2cap(&p);
-            al_l2cap_cerrado(&p, "el canal rápido no abrió a tiempo");
+            al_l2cap_cerrado(&p, &motivo);
         }
         for p in a.datos {
             r.hay_datos(&p);
@@ -1198,7 +1308,13 @@ fn foto(e: &Estado, ahora: u64) -> EstadoBle {
                 // (BLE1109A) La capacidad es la del carril en uso: medida por él, o sin medir.
                 kbps: if l.carril.es_rapido() { m.kbps_rapido } else { m.kbps_gatt },
                 carril: if l.carril.es_rapido() { "rapido" } else { "gatt" }.to_string(),
-                canal_rapido: l.carril.estado().texto().to_string(),
+                canal_rapido: if !canal_rapido_activo() {
+                    "apagado".to_string() // (BLE1109B) ajuste apagado: GATT puro
+                } else if l.carril.prohibido() {
+                    "desactivado".to_string() // (BLE1109B) 2 fallos en 10 min con este par
+                } else {
+                    l.carril.estado().texto().to_string()
+                },
                 psm: l.carril.psm(),
                 kbps_rapido: m.kbps_rapido,
                 kbps_gatt: m.kbps_gatt,
@@ -1349,7 +1465,7 @@ pub fn ble_activar(activo: bool) -> Result<EstadoBle, String> {
         return Err(MOTIVO_SIN_RADIO.to_string());
     }
     asegurar();
-    guardar_preferencia(PreferenciaBle { activo })?;
+    guardar_preferencia(PreferenciaBle { activo, canal_rapido: canal_rapido_activo() })?;
     let cerrar: Vec<String> = con_estado(|e| {
         e.activo = activo;
         e.anuncio = None;
@@ -1379,6 +1495,88 @@ pub fn ble_activar(activo: bool) -> Result<EstadoBle, String> {
 pub fn ble_pedir_permiso() -> EstadoBle {
     radio().pedir_permiso();
     ble_estado()
+}
+
+/// (BLE1109B) «Canal rápido Bluetooth (experimental)»: sin argumento devuelve el ajuste; con él lo guarda. Por defecto
+/// APAGADO. Al cambiarlo se reinicia el Bluetooth directo (el servicio GATT cambia: con el canal apagado es el de
+/// prueba.30, sin la característica PSM) y se olvidan los fallos anteriores.
+#[tauri::command]
+pub fn ble_canal_rapido(activo: Option<bool>) -> bool {
+    asegurar();
+    let Some(nuevo) = activo else { return canal_rapido_activo() };
+    if nuevo == canal_rapido_activo() {
+        return nuevo;
+    }
+    let mut pref = leer_preferencia();
+    pref.canal_rapido = nuevo;
+    let _ = guardar_preferencia(pref);
+    CANAL_RAPIDO.store(nuevo, Ordering::SeqCst);
+    let (reiniciar, plataformas) = con_estado(|e| {
+        e.castigos.limpiar();
+        anotar(e, "canal-rapido-ajuste", None, None, if nuevo { "encendido por la persona (experimental)" } else { "apagado: todo va por GATT, como en prueba.30" });
+        (e.activo && radio().disponible(), e.enlaces.iter().map(|l| l.plataforma.clone()).collect::<Vec<_>>())
+    });
+    if reiniciar {
+        radio().parar();
+        for p in plataformas {
+            al_desconectar(&p, "se reinicia el Bluetooth directo por el ajuste del canal rápido");
+        }
+        radio().canal_rapido(nuevo);
+        con_estado(|e| {
+            e.radio = "arrancando".into();
+            e.motivo = "Arrancando el Bluetooth directo…".into();
+            e.anuncio = None;
+            marcar_cambio(e);
+        });
+        radio().arrancar();
+    } else {
+        radio().canal_rapido(nuevo);
+    }
+    nuevo
+}
+
+/// (BLE1109B) Lo último de `enlaces.log` (y del respaldo `.1` si hace falta) como texto de como mucho `max` bytes,
+/// empezando en una línea entera. Puro (lee archivos, nada más).
+pub fn cola_de_registro(ruta: &Path, max: usize) -> String {
+    let mut respaldo = ruta.as_os_str().to_owned();
+    respaldo.push(".1");
+    let mut bytes: Vec<u8> = std::fs::read(PathBuf::from(respaldo)).unwrap_or_default();
+    bytes.extend(std::fs::read(ruta).unwrap_or_default());
+    if bytes.len() > max {
+        let corte = bytes.len() - max;
+        let desde = bytes[corte..].iter().position(|b| *b == b'\n').map(|p| corte + p + 1).unwrap_or(corte);
+        bytes.drain(..desde);
+    }
+    String::from_utf8_lossy(&bytes).into_owned()
+}
+
+/// (BLE1109B) «Compartir registro de enlaces»: en Android abre la hoja de compartir con el final del registro; en
+/// escritorio abre la carpeta donde está `enlaces.log`. Devuelve una frase para la persona.
+#[tauri::command]
+pub fn ble_registro_compartir() -> Result<String, String> {
+    volcar_registro();
+    let ruta = ruta_registro().ok_or("La app aún no sabe dónde guardar el registro de enlaces.")?;
+    let texto = cola_de_registro(&ruta, 120_000);
+    if texto.is_empty() {
+        return Err("Todavía no hay registro de enlaces que compartir.".into());
+    }
+    if radio().compartir_registro("Registro de enlaces de StarSeed", &texto) {
+        return Ok("Se abrió la hoja de compartir con el registro de enlaces.".into());
+    }
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    {
+        let dir = ruta.parent().ok_or("El registro no tiene carpeta.")?.to_path_buf();
+        #[cfg(target_os = "macos")]
+        let orden = "open";
+        #[cfg(target_os = "windows")]
+        let orden = "explorer";
+        #[cfg(all(not(target_os = "macos"), not(target_os = "windows")))]
+        let orden = "xdg-open";
+        std::process::Command::new(orden).arg(&dir).spawn().map_err(|e| format!("No se pudo abrir la carpeta del registro: {e}"))?;
+        return Ok(format!("Carpeta del registro abierta: {}", dir.display()));
+    }
+    #[allow(unreachable_code)]
+    Err("Este aparato no puede compartir el registro.".into())
 }
 
 /// Para la antena «Bluetooth» del guardián (antenas.rs): lo medido, en una frase.
@@ -1656,10 +1854,12 @@ mod pruebas {
             }
             h.join().unwrap()
         }
+        let _g = con_ajuste(true); // BLE1109B: el canal rápido es un ajuste (apagado por defecto)
         let estado_de = |enl: &str| ble_estado().enlaces.into_iter().find(|l| l.id == enl).expect("enlace abierto");
         let p = "c:AA:BB:CC:DD:EE:64";
         al_conectar(p, "central", Some("AA:BB:CC:DD:EE:64"), 64);
-        let enl = ble_estado().enlaces.iter().find(|l| l.paquete == 64).expect("enlace abierto").id.clone();
+        let enl = id_de_enlace(p);
+        assert!(ble_enlace_ligado(enl.clone()));
         let mut otra = Enlace::nuevo(64);
         let mut entregados = Vec::new();
         // 0 · PSM inválido: se ignora; válido: disponible. GATT sigue siendo el carril.
@@ -1733,5 +1933,208 @@ mod pruebas {
         assert!(siguiente_trama_rapida("c:no-existe", 8192).is_none());
         al_desconectar(p, "fin de la prueba del canal rápido");
         assert!(ble_estado().enlaces.iter().all(|l| l.id != enl));
+    }
+
+    // ─────────── BLE1109B: ajuste apagado, ligado, fallos y caída a GATT ───────────
+
+    static AJUSTE_PRUEBA: Mutex<()> = Mutex::new(());
+
+    /// Fija el ajuste del canal rápido para esta prueba y evita que otra lo cambie mientras tanto.
+    fn con_ajuste(activo: bool) -> std::sync::MutexGuard<'static, ()> {
+        let g = match AJUSTE_PRUEBA.lock() {
+            Ok(g) => g,
+            Err(e) => e.into_inner(),
+        };
+        asegurar(); // el arranque lee la preferencia: que no pise el ajuste de la prueba
+        CANAL_RAPIDO.store(activo, Ordering::SeqCst);
+        g
+    }
+
+    fn id_de_enlace(p: &str) -> String {
+        con_estado(|e| e.enlaces.iter().find(|l| l.plataforma == p).map(|l| l.id.clone())).expect("enlace abierto")
+    }
+
+    fn estado_enlace(id: &str) -> EnlaceBle {
+        ble_estado().enlaces.into_iter().find(|l| l.id == id).expect("enlace abierto")
+    }
+
+    /// Un mensaje por GATT de punta a punta contra un `Enlace` del otro lado. Devuelve lo entregado allí.
+    fn mensaje_por_gatt(p: &str, id: &str, otra: &mut Enlace, json: &str) -> Vec<String> {
+        let (e, j) = (id.to_string(), json.to_string());
+        let h = std::thread::spawn(move || enviar(&e, &j));
+        let mut entregados = Vec::new();
+        let mut si = || true;
+        for _ in 0..4_000 {
+            while let Some(pq) = siguiente_paquete(p) {
+                if let Some(c) = otra.recibir(&pq, ahora_ms(), &mut si) {
+                    entregados.push(c);
+                }
+            }
+            while let Some(pq) = otra.siguiente_paquete(ahora_ms()) {
+                al_recibir(p, &pq);
+            }
+            if h.is_finished() {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(2));
+        }
+        assert!(h.join().unwrap().is_ok(), "el envío por GATT termina con acuse");
+        entregados
+    }
+
+    #[test]
+    fn preferencia_vieja_de_prueba_31_deja_el_canal_rapido_apagado() {
+        let vieja: PreferenciaBle = serde_json::from_str(r#"{"activo":true}"#).unwrap();
+        assert_eq!(vieja, PreferenciaBle { activo: true, canal_rapido: false });
+        assert!(!PreferenciaBle::default().canal_rapido, "por defecto apagado");
+        let nueva: PreferenciaBle = serde_json::from_str(&serde_json::to_string(&PreferenciaBle { activo: false, canal_rapido: true }).unwrap()).unwrap();
+        assert!(nueva.canal_rapido && !nueva.activo);
+    }
+
+    #[test]
+    fn con_el_ajuste_apagado_el_enlace_es_gatt_puro_y_el_psm_se_ignora() {
+        let _g = con_ajuste(false);
+        let p = "c:AA:BB:CC:DD:EE:70";
+        al_conectar(p, "central", Some("AA:BB:CC:DD:EE:70"), 64);
+        let id = id_de_enlace(p);
+        al_psm(p, 0x85); // un periférico de prueba.31 publica su PSM: con el ajuste apagado ni se mira
+        assert!(ble_enlace_ligado(id.clone()));
+        let a = tic(ahora_ms(), false);
+        assert!(a.abrir_l2cap.iter().all(|(x, _)| x != p), "no se pide ningún canal");
+        al_l2cap_abierto(p, Some(0x85)); // y si el otro abriera uno, se rechaza
+        let e = estado_enlace(&id);
+        assert_eq!((e.carril.as_str(), e.canal_rapido.as_str(), e.psm), ("gatt", "apagado", None));
+        let mut otra = Enlace::nuevo(64);
+        let got = mensaje_por_gatt(p, &id, &mut otra, "{\"t\":\"a\",\"d\":\"solo gatt\"}");
+        assert_eq!(got, vec!["{\"t\":\"a\",\"d\":\"solo gatt\"}".to_string()]);
+        al_desconectar(p, "fin de la prueba");
+    }
+
+    #[test]
+    fn par_de_prueba_30_sin_caracteristica_psm_sigue_por_gatt_con_el_ajuste_encendido() {
+        let _g = con_ajuste(true);
+        let p = "c:AA:BB:CC:DD:EE:71";
+        al_conectar(p, "central", Some("AA:BB:CC:DD:EE:71"), 64);
+        let id = id_de_enlace(p);
+        // Una app de prueba.30 no tiene la característica PSM: nunca llega `psm`. Una lectura fallida o con 0 tampoco cuenta.
+        assert_eq!(leer_evento(r#"{"e":"psm","enlace":"c:AA:BB:CC:DD:EE:71","psm":0}"#), None);
+        assert!(ble_enlace_ligado(id.clone()));
+        let a = tic(ahora_ms() + 60_000, false);
+        assert!(a.abrir_l2cap.iter().all(|(x, _)| x != p), "sin PSM no se abre nada");
+        let e = estado_enlace(&id);
+        assert_eq!((e.carril.as_str(), e.canal_rapido.as_str()), ("gatt", "sin-psm"));
+        let mut otra = Enlace::nuevo(64);
+        let got = mensaje_por_gatt(p, &id, &mut otra, "{\"t\":\"a\",\"d\":\"par antiguo\"}");
+        assert_eq!(got.len(), 1, "GATT no se detiene por la lectura del PSM que no existe");
+        al_desconectar(p, "fin de la prueba");
+    }
+
+    #[test]
+    fn el_canal_solo_se_pide_despues_de_ligar() {
+        let _g = con_ajuste(true);
+        let p = "c:AA:BB:CC:DD:EE:72";
+        al_conectar(p, "central", Some("AA:BB:CC:DD:EE:72"), 64);
+        let id = id_de_enlace(p);
+        al_psm(p, 0x85);
+        let a = tic(ahora_ms(), false);
+        assert!(a.abrir_l2cap.iter().all(|(x, _)| x != p), "con PSM pero sin «ligado»: GATT");
+        assert_eq!(estado_enlace(&id).canal_rapido, "disponible");
+        assert!(ble_enlace_ligado(id.clone()));
+        let a = tic(ahora_ms(), false);
+        assert!(a.abrir_l2cap.iter().any(|(x, psm)| x == p && *psm == 0x85), "ligado: ahora sí");
+        assert!(!ble_enlace_ligado("b999999".to_string()), "un enlace que no existe");
+        al_desconectar(p, "fin de la prueba");
+    }
+
+    #[test]
+    fn fallos_del_canal_caen_a_gatt_sin_cerrar_el_enlace_y_dos_apagan_al_par() {
+        let _g = con_ajuste(true);
+        let p = "c:AA:BB:CC:DD:EE:73";
+        al_conectar(p, "central", Some("AA:BB:CC:DD:EE:73"), 64);
+        let id = id_de_enlace(p);
+        assert!(ble_enlace_ligado(id.clone()));
+        al_psm(p, 0x85);
+        // 1 · Flujo desalineado.
+        al_l2cap_abierto(p, Some(0x85));
+        assert_eq!(estado_enlace(&id).carril, "rapido");
+        al_l2cap_datos(p, &[0, 1, 0]);
+        let e = estado_enlace(&id);
+        assert_eq!(e.carril, "gatt");
+        assert_ne!(e.canal_rapido, "desactivado", "un fallo solo no apaga al par");
+        // 2 · Cierre desde la plataforma (el otro lado, error de lectura/escritura…).
+        al_l2cap_abierto(p, Some(0x85));
+        al_l2cap_cerrado(p, "el otro aparato cerró el canal L2CAP");
+        let e = estado_enlace(&id);
+        assert_eq!((e.carril.as_str(), e.canal_rapido.as_str()), ("gatt", "desactivado"), "2 fallos en 10 min: apagado hasta reiniciar");
+        let reg = ble_registro();
+        assert!(reg.iter().any(|x| x.tipo == "l2cap-desactivado" && x.enlace.as_deref() == Some(id.as_str())), "{reg:?}");
+        // 3 · Apagado: ni el PSM ni una apertura cambian nada, y el enlace sigue vivo y hablando por GATT.
+        al_psm(p, 0x85);
+        al_l2cap_abierto(p, Some(0x85));
+        assert_eq!(estado_enlace(&id).carril, "gatt");
+        let mut otra = Enlace::nuevo(64);
+        assert_eq!(mensaje_por_gatt(p, &id, &mut otra, "{\"t\":\"a\",\"d\":\"sigue\"}").len(), 1);
+        // 4 · Cambiar el ajuste olvida los fallos.
+        con_estado(|e| e.castigos.limpiar());
+        al_desconectar(p, "fin de la prueba");
+    }
+
+    #[test]
+    fn canal_atascado_cae_a_gatt_y_el_mensaje_en_vuelo_llega_entero_una_vez() {
+        let _g = con_ajuste(true);
+        let p = "c:AA:BB:CC:DD:EE:74";
+        al_conectar(p, "central", Some("AA:BB:CC:DD:EE:74"), 64);
+        let id = id_de_enlace(p);
+        assert!(ble_enlace_ligado(id.clone()));
+        al_psm(p, 0x85);
+        al_l2cap_abierto(p, Some(0x85));
+        let json = format!("{{\"t\":\"archivo.chunk\",\"d\":\"{}\"}}", "Q".repeat(6_000));
+        let j2 = json.clone();
+        con_estado(|e| e.enlaces.iter_mut().find(|l| l.plataforma == p).unwrap().nucleo.encolar(900, &j2, ahora_ms())).unwrap();
+        // El canal escribe (sale el mensaje) pero no se lee ni un byte: atascado.
+        assert!(siguiente_trama_rapida(p, 8192).is_some());
+        let a = tic(ahora_ms() + l2::PLAZO_SIN_LECTURA_MS + 100, false);
+        let (_, motivo) = a.cerrar_l2cap.iter().find(|(x, _)| x == p).expect("el tic da el canal por atascado").clone();
+        assert!(motivo.contains("atascado"), "{motivo}");
+        al_l2cap_cerrado(p, &motivo);
+        assert_eq!(estado_enlace(&id).carril, "gatt");
+        assert!(ble_estado().enlaces.iter().any(|l| l.id == id), "el enlace no se cerró");
+        // GATT retoma el mensaje desde el principio y llega entero.
+        let mut otra = Enlace::nuevo(64);
+        let mut si = || true;
+        let mut entregados = Vec::new();
+        for _ in 0..800 {
+            while let Some(pq) = siguiente_paquete(p) {
+                assert!(pq.len() <= 64);
+                if let Some(c) = otra.recibir(&pq, ahora_ms(), &mut si) {
+                    entregados.push(c);
+                }
+            }
+            while let Some(pq) = otra.siguiente_paquete(ahora_ms()) {
+                al_recibir(p, &pq);
+            }
+            if !entregados.is_empty() {
+                break;
+            }
+        }
+        assert_eq!(entregados, vec![json]);
+        al_desconectar(p, "fin de la prueba");
+    }
+
+    #[test]
+    fn la_cola_del_registro_empieza_en_una_linea_entera() {
+        let dir = std::env::temp_dir().join(format!("ble1109b-cola-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let ruta = dir.join("enlaces.log");
+        let lineas: Vec<String> = (0..50).map(|i| format!("2026-11-09T10:00:{i:02}.000Z ble nota · linea numero {i}")).collect();
+        anexar_rotando(&ruta, &lineas, 1_000_000).unwrap();
+        let todo = cola_de_registro(&ruta, 1_000_000);
+        assert_eq!(todo.lines().count(), 50);
+        let cola = cola_de_registro(&ruta, 300);
+        assert!(cola.len() <= 300 && cola.starts_with("2026-"), "{cola:?}");
+        assert!(cola.ends_with("linea numero 49\n"));
+        assert_eq!(cola_de_registro(&dir.join("no-existe.log"), 100), "");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

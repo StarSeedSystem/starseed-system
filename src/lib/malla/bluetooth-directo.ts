@@ -51,6 +51,10 @@ export const COMANDO_PERMISO_BLE = "ble_pedir_permiso";
 /** (BLE1108B) Registro de eventos de la app nativa y copia de las líneas de la web a `enlaces.log`. */
 export const COMANDO_REGISTRO_BLE = "ble_registro";
 export const COMANDO_REGISTRO_ANEXAR_BLE = "ble_registro_anexar";
+// BLE1109B
+export const COMANDO_CANAL_RAPIDO_BLE = "ble_canal_rapido";
+export const COMANDO_LIGADO_BLE = "ble_enlace_ligado";
+export const COMANDO_COMPARTIR_REGISTRO_BLE = "ble_registro_compartir";
 export const EVENTO_MENSAJE_BLE = "ble://mensaje";
 export const EVENTO_CAMBIO_BLE = "ble://cambio";
 
@@ -88,7 +92,7 @@ export interface EnlaceBleNativo {
   /** (BLE1109A) Carril en uso: «rapido» (L2CAP) o «gatt». Opcional: una app nativa anterior no lo manda. */
   carril?: "rapido" | "gatt";
   /** (BLE1109A) Estado del canal rápido: sin-psm | disponible | abriendo | abierto. */
-  canal_rapido?: "sin-psm" | "disponible" | "abriendo" | "abierto";
+  canal_rapido?: "sin-psm" | "disponible" | "abriendo" | "abierto" | "apagado" | "desactivado";
   psm?: number | null;
   kbps_rapido?: number | null;
   kbps_gatt?: number | null;
@@ -196,7 +200,7 @@ export function leerEstadoBle(x: unknown): EstadoBleNativo | null {
       rtt_ms: numONull(e.rtt_ms),
       kbps: numONull(e.kbps),
       carril: e.carril === "rapido" ? "rapido" : "gatt",
-      canal_rapido: (["sin-psm", "disponible", "abriendo", "abierto"] as const).find((x) => x === e.canal_rapido) ?? "sin-psm",
+      canal_rapido: (["sin-psm", "disponible", "abriendo", "abierto", "apagado", "desactivado"] as const).find((x) => x === e.canal_rapido) ?? "sin-psm",
       psm: numONull(e.psm),
       kbps_rapido: numONull(e.kbps_rapido),
       kbps_gatt: numONull(e.kbps_gatt),

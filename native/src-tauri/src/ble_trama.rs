@@ -569,14 +569,32 @@ impl Enlace {
         self.rapido = rapido;
         let tam = self.tam_paquete();
         if let Some(v) = self.vuelo.as_mut() {
-            if v.ultimo_ms.is_none() {
+            // (BLE1109B) Al VOLVER a GATT (el canal cayó) lo que estaba en vuelo se reenvía entero, siempre: parte de
+            // lo que salió por el canal pudo quedarse en sus búferes sin llegar. El receptor reinicia el mensaje al
+            // ver el índice 0 y descarta el repetido por id (RECIENTES): ni se pierde ni se entrega dos veces.
+            // Al pasar AL canal solo se re-trocea lo que aún no había salido.
+            if v.ultimo_ms.is_none() || !rapido {
                 v.primero_ms = None;
+                v.ultimo_ms = None;
                 v.rapido = rapido;
                 self.paquetes = trocear_max(v.id, &v.trama, tam, PAQUETE_RAPIDO).into();
             } else {
                 // Ya salió entero por el otro carril: se espera su acuse (o el plazo y el reenvío por el carril nuevo).
                 v.rapido = rapido;
             }
+        }
+    }
+
+    /// (BLE1109B) ¿Hay un mensaje enviado esperando su acuse?
+    pub fn en_vuelo(&self) -> bool {
+        self.vuelo.is_some()
+    }
+
+    /// (BLE1109B) Da por oído al otro lado ahora: tras cambiar de carril se le da el plazo entero de latidos en el
+    /// carril nuevo antes de decir que el enlace está muerto (el silencio era del carril roto, no del enlace).
+    pub fn dar_tregua(&mut self, ahora: u64) {
+        if self.ultimo_rx_ms != 0 {
+            self.ultimo_rx_ms = ahora.max(1);
         }
     }
 
@@ -998,6 +1016,12 @@ impl Vecindario {
     pub fn marcar_intento(&mut self, direccion: &str, ahora_ms: u64) {
         let fallos = self.intentos.get(direccion).map(|(_, f)| *f).unwrap_or(0);
         self.intentos.insert(direccion.to_string(), (ahora_ms, fallos.saturating_add(1)));
+    }
+
+    /// (BLE1109B) Olvida a ese aparato (y su cuenta de intentos): se vuelve a conocer por su siguiente anuncio.
+    pub fn olvidar(&mut self, direccion: &str) {
+        self.vecinos.remove(direccion);
+        self.intentos.remove(direccion);
     }
 
     /// (BLE1108B) El enlace con ese aparato fue estable: el siguiente intento, tras una caída, es INMEDIATO.
@@ -1524,5 +1548,73 @@ mod pruebas {
         d.tic(1_000 + LATIDO_MS);
         let primero = d.siguiente_paquete(1_000 + LATIDO_MS).unwrap();
         assert_eq!(primero[0], P_DATOS, "primero el mensaje, no un latido");
+    }
+
+    // ─────────── BLE1109B: el mensaje en vuelo no se pierde al volver a GATT ───────────
+
+    #[test]
+    fn al_volver_a_gatt_el_mensaje_en_vuelo_se_reenvia_entero_y_llega_una_sola_vez() {
+        // k = cuántos paquetes del canal llegaron al otro lado antes de que el canal se rompiera.
+        for k in 0..3usize {
+            let mut a = Enlace::nuevo(64);
+            let mut b = Enlace::nuevo(64);
+            a.fijar_carril(true);
+            b.fijar_carril(true);
+            let json = format!("{{\"t\":\"archivo.chunk\",\"d\":\"{}\"}}", "Z".repeat(9_000));
+            a.encolar(1, &json, 1_000).unwrap();
+            let mut si = || true;
+            let mut entregados: Vec<String> = Vec::new();
+            for i in 0..3 {
+                let p = a.siguiente_paquete(1_000).expect("paquete del canal");
+                assert!(p.len() > 512, "por el canal salen paquetes grandes");
+                if i < k {
+                    if let Some(c) = b.recibir_rapido(&p, 1_000, &mut si) {
+                        entregados.push(c);
+                    }
+                } // el resto se queda en los búferes del canal roto
+            }
+            a.fijar_carril(false);
+            b.fijar_carril(false);
+            for t in 0..600u64 {
+                let ahora = 1_001 + t;
+                while let Some(p) = a.siguiente_paquete(ahora) {
+                    assert!(p.len() <= 64, "tras la caída vuelve el tamaño de GATT");
+                    if let Some(c) = b.recibir(&p, ahora, &mut si) {
+                        entregados.push(c);
+                    }
+                }
+                while let Some(p) = b.siguiente_paquete(ahora) {
+                    a.recibir(&p, ahora, &mut si);
+                }
+                if !entregados.is_empty() && !a.en_vuelo() {
+                    break;
+                }
+            }
+            assert_eq!(entregados, vec![json], "k={k}: llega entero y una sola vez");
+            assert!(!a.en_vuelo());
+            assert!(a.hechos().iter().all(|h| h.resultado.is_ok()), "k={k}: el envío se da por bueno");
+        }
+    }
+
+    #[test]
+    fn dar_tregua_aplaza_el_silencio_muerto() {
+        let mut e = Enlace::nuevo(64);
+        e.tic(1_000);
+        let mut si = || true;
+        e.recibir(&paquete_latido(), 1_000, &mut si);
+        assert!(e.muerto(1_000 + SILENCIO_MUERTO_MS + 1));
+        e.dar_tregua(1_000 + SILENCIO_MUERTO_MS);
+        assert!(!e.muerto(1_000 + SILENCIO_MUERTO_MS + 1));
+    }
+
+    #[test]
+    fn el_vecindario_olvida_a_un_aparato_y_su_cuenta_de_intentos() {
+        let mut v = Vecindario::nuevo();
+        v.marcar_intento("AA:01", 10);
+        v.marcar_intento("AA:01", 20);
+        assert_eq!(v.fallos_de("AA:01"), 2);
+        v.olvidar("AA:01");
+        assert_eq!(v.fallos_de("AA:01"), 0);
+        assert!(v.lista().is_empty());
     }
 }

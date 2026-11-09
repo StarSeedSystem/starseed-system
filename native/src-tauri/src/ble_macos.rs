@@ -85,6 +85,8 @@ struct PerifericoMac {
     reintentos_suscripcion: u8,
     /// (BLE1109A) Característica PSM del periférico (opcional: las apps anteriores no la tienen).
     psm: Option<Retained<CBCharacteristic>>,
+    /// (BLE1109B) Cuándo se pidió la conexión: `connectPeripheral` no caduca nunca, así que se vigila aquí.
+    desde_ms: u64,
 }
 
 struct Mac {
@@ -106,6 +108,9 @@ struct Mac {
     turno: usize,
     /// (BLE1109A) PSM del canal L2CAP que este aparato publicó como periférico.
     psm_publicado: Option<u16>,
+    /// (BLE1109B) Conexiones seguidas que no llegaron a «listo» por dirección (3 → se olvida el `CBPeripheral` y se
+    /// redescubre por su anuncio: Android rota su dirección y el objeto guardado deja de conectar).
+    fallos_conexion: HashMap<String, u32>,
 }
 
 /// Los objetos de CoreBluetooth no son `Send`: solo se tocan en la cola `app.starseed.ble` (por
@@ -250,7 +255,8 @@ define_class!(
                 m.servicio_listo = true;
                 anunciar(m);
                 // (BLE1109A) Canal L2CAP sin cifrar por el aire (el cifrado va por encima, CIF1108A).
-                if m.psm_publicado.is_none() {
+                // (BLE1109B) Solo con el ajuste «Canal rápido Bluetooth (experimental)» encendido.
+                if nucleo::canal_rapido_activo() && m.psm_publicado.is_none() {
                     unsafe { m.servidor.publishL2CAPChannelWithEncryption(false) };
                 }
             });
@@ -318,6 +324,9 @@ define_class!(
         #[unsafe(method(peripheralManager:didOpenL2CAPChannel:error:))]
         fn peripheralManager_didOpenL2CAPChannel_error(&self, _peripheral: &CBPeripheralManager, channel: Option<&CBL2CAPChannel>, error: Option<&NSError>) {
             let (Some(c), None) = (channel, error) else { return };
+            if !nucleo::canal_rapido_activo() {
+                return; // (BLE1109B) ajuste apagado: nadie debería abrirlo; si lo hace, se ignora y GATT sigue
+            }
             let Some(peer) = (unsafe { c.peer() }) else { return };
             let id = id_de(unsafe { peer.identifier() });
             if con_mac(|m| m.centrales.contains_key(&id)).unwrap_or(false) {
@@ -358,6 +367,24 @@ fn al_cambiar_estado() {
     } else {
         return; // Desconocido o reiniciándose: el sistema avisará otra vez.
     };
+    if estado != "encendida" {
+        // (BLE1109B) La radio se apagó o se reinició (en el registro del 09-11 cambió cada 5-10 s): las conexiones pedidas y
+        // los `CBPeripheral` guardados ya no valen. Se cancelan las pendientes (sin bucle: Rust reintenta con su espera) y se
+        // vacían los mapas, para que al volver se redescubra todo por los anuncios.
+        let viejos: Vec<Retained<CBPeripheral>> = con_mac(|m| {
+            let v = m.perifericos.drain().map(|(_, x)| x.p).collect();
+            m.vistos.clear();
+            m.fallos_conexion.clear();
+            v
+        })
+        .unwrap_or_default();
+        parar_todos_los_canales();
+        if c == CBManagerState::PoweredOn {
+            for p in &viejos {
+                unsafe { central.cancelPeripheralConnection(p) };
+            }
+        }
+    }
     if c == CBManagerState::PoweredOn {
         escanear(&central);
     }
@@ -419,9 +446,16 @@ fn abrir_servicio(m: &mut Mac) {
         )
     };
     let servicio = unsafe { CBMutableService::initWithType_primary(CBMutableService::alloc(), &cbuuid(bt::SERVICIO), true) };
-    let lista: [&CBCharacteristic; 3] = [&entrada, &salida, &psm];
+    // (BLE1109B) Con el ajuste apagado (por defecto) el servicio es EXACTAMENTE el de prueba.30: ENTRADA y SALIDA.
+    let con_psm = nucleo::canal_rapido_activo();
+    let completa: [&CBCharacteristic; 3] = [&entrada, &salida, &psm];
+    let basica: [&CBCharacteristic; 2] = [&entrada, &salida];
     unsafe {
-        servicio.setCharacteristics(Some(&NSArray::from_slice(&lista)));
+        if con_psm {
+            servicio.setCharacteristics(Some(&NSArray::from_slice(&completa)));
+        } else {
+            servicio.setCharacteristics(Some(&NSArray::from_slice(&basica)));
+        }
         m.servidor.addService(&servicio);
     }
     m.salida = Some(salida);
@@ -470,14 +504,71 @@ fn al_ver(p: &CBPeripheral, anuncio: &NSDictionary<NSString, AnyObject>, rssi: &
     }
 }
 
+/// (BLE1109B) `connectPeripheral` no caduca nunca: una conexión pedida que lleva esto sin llegar a «listo» se cancela.
+const PLAZO_CONEXION_MS: u64 = 15_000;
+/// (BLE1109B) Conexiones seguidas sin llegar a «listo» tras las que se olvida el `CBPeripheral` guardado y se redescubre.
+const FALLOS_PARA_REDESCUBRIR: u32 = 3;
+
+/// (BLE1109B) Una conexión a esta dirección no llegó a «listo» (caducó, falló o se cayó antes). A la tercera seguida se
+/// olvida el `CBPeripheral` y se reinicia el escaneo: el siguiente anuncio crea uno nuevo (Android rota su dirección y,
+/// con el objeto viejo, macOS repetía «Device disconnected without being ready» sin fin: reason 762).
+fn contar_fallo_conexion(id: &str) {
+    let (fallos, central) = match con_mac(|m| {
+        let n = m.fallos_conexion.entry(id.to_string()).or_insert(0);
+        *n += 1;
+        let n = *n;
+        if n >= FALLOS_PARA_REDESCUBRIR {
+            m.fallos_conexion.remove(id);
+            m.vistos.remove(id);
+            (n, Some(m.central.clone()))
+        } else {
+            (n, None)
+        }
+    }) {
+        Some(x) => x,
+        None => return,
+    };
+    if let Some(central) = central {
+        nucleo::nota(Some(&format!("c:{id}")), "redescubriendo", &format!("{fallos} conexiones seguidas sin llegar a listo: se olvida el aparato guardado y se busca de nuevo por su anuncio"));
+        nucleo::olvidar_vecino(id);
+        unsafe {
+            if central.state() == CBManagerState::PoweredOn {
+                central.stopScan();
+            }
+        }
+        escanear(&central);
+    }
+}
+
 fn conectar(direccion: &str) {
+    let ahora = ahora_ms();
+    // (BLE1109B) Si ya hay una conexión pedida que no avanza, se cancela y se cuenta como fallo; sin esto el intento
+    // quedaba colgado para siempre y los siguientes `conectar` no hacían nada.
+    let vencida = con_mac(|m| {
+        let x = m.perifericos.get(direccion)?;
+        if !x.listo && x.entrada.is_none() && ahora.saturating_sub(x.desde_ms) > PLAZO_CONEXION_MS {
+            Some(x.p.clone())
+        } else {
+            None
+        }
+    })
+    .flatten();
+    if let Some(p) = vencida {
+        con_mac(|m| m.perifericos.remove(direccion));
+        cancelar(&p);
+        nucleo::nota(Some(&format!("c:{direccion}")), "conexion-vencida", &format!("la conexión llevaba más de {} s sin llegar a listo: se cancela y se reintenta", PLAZO_CONEXION_MS / 1000));
+        contar_fallo_conexion(direccion);
+    }
     let Some(r) = con_mac(|m| {
         if m.parado || m.perifericos.contains_key(direccion) {
             return None;
         }
         let (p, _) = m.vistos.get(direccion)?;
         let p = p.clone();
-        m.perifericos.insert(direccion.to_string(), PerifericoMac { p: p.clone(), entrada: None, listo: false, salida: None, bloqueado_desde: None, tardes: 0, reintentos_suscripcion: 0, psm: None });
+        m.perifericos.insert(
+            direccion.to_string(),
+            PerifericoMac { p: p.clone(), entrada: None, listo: false, salida: None, bloqueado_desde: None, tardes: 0, reintentos_suscripcion: 0, psm: None, desde_ms: ahora },
+        );
         Some((m.central.clone(), p))
     }) else {
         return;
@@ -489,9 +580,14 @@ fn conectar(direccion: &str) {
 
 fn cerrar_central(p: &CBPeripheral, motivo: &str) {
     let id = id_de(unsafe { p.identifier() });
+    // (BLE1109B) Si se cayó antes de estar «listo», cuenta como fallo de conexión.
+    let sin_listo = con_mac(|m| m.perifericos.get(&id).map(|x| !x.listo)).flatten().unwrap_or(false);
     con_mac(|m| m.perifericos.remove(&id));
     parar_canal(&format!("c:{id}"));
     nucleo::al_desconectar(&format!("c:{id}"), motivo);
+    if sin_listo {
+        contar_fallo_conexion(&id);
+    }
 }
 
 fn cancelar(p: &CBPeripheral) {
@@ -511,7 +607,12 @@ fn al_descubrir_servicios(p: &CBPeripheral, error: Option<&NSError>) {
         return;
     };
     nucleo::nota(Some(&format!("c:{}", id_de(unsafe { p.identifier() }))), "servicios-descubiertos", "servicio StarSeed encontrado, pidiendo características");
-    let caracteristicas = NSArray::from_retained_slice(&[cbuuid(bt::ENTRADA), cbuuid(bt::SALIDA), cbuuid(l2::PSM)]);
+    // (BLE1109B) Sin el ajuste se piden SOLO ENTRADA y SALIDA, como en prueba.30.
+    let caracteristicas = if nucleo::canal_rapido_activo() {
+        NSArray::from_retained_slice(&[cbuuid(bt::ENTRADA), cbuuid(bt::SALIDA), cbuuid(l2::PSM)])
+    } else {
+        NSArray::from_retained_slice(&[cbuuid(bt::ENTRADA), cbuuid(bt::SALIDA)])
+    };
     unsafe { p.discoverCharacteristics_forService(Some(&caracteristicas), &s) };
 }
 
@@ -595,9 +696,13 @@ fn al_suscribirse(p: &CBPeripheral, c: &CBCharacteristic, error: Option<&NSError
     }
     nucleo::nota(Some(&format!("c:{id}")), "suscrito", &format!("notificaciones de SALIDA activas, paquete {paquete}"));
     nucleo::al_conectar(&format!("c:{id}"), "central", Some(&id), paquete.clamp(bt::PAQUETE_MIN, bt::PAQUETE_MAX));
-    // (BLE1109A) Con el enlace ya en el núcleo, se lee el PSM del canal rápido (si el otro lo ofrece).
-    if let Some(Some(Some(c))) = con_mac(|m| m.perifericos.get(&id).map(|x| x.psm.clone())) {
-        unsafe { p.readValueForCharacteristic(&c) };
+    con_mac(|m| m.fallos_conexion.remove(&id)); // (BLE1109B) esta dirección sí conectó
+    // (BLE1109A) Con el enlace ya en el núcleo, se lee el PSM del canal rápido (si el otro lo ofrece). (BLE1109B) Solo con
+    // el ajuste encendido: sin él ni se pide ni se lee la característica PSM.
+    if nucleo::canal_rapido_activo() {
+        if let Some(Some(Some(c))) = con_mac(|m| m.perifericos.get(&id).map(|x| x.psm.clone())) {
+            unsafe { p.readValueForCharacteristic(&c) };
+        }
     }
     bombear_central(&id);
 }
@@ -787,6 +892,7 @@ fn arrancar_en_cola() {
         pendiente: None,
         turno: 0,
         psm_publicado: None,
+        fallos_conexion: HashMap::new(),
     });
     // Los dos gestores avisan de su estado en esta misma cola (`…DidUpdateState:`).
 }
