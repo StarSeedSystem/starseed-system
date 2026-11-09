@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { quantumOrbBus, onQuantumOrbParams, emitQuantumOrbParams, type QuantumOrbParams } from "@/lib/aurora/quantum-orb-bus";
+import { quantumOrbBus, onQuantumOrbParams, emitQuantumOrbParams } from "@/lib/aurora/quantum-orb-bus";
+import type { QuantumOrbParams } from "@/lib/aurora/quantum-orb-theme";
 
 describe("quantum-orb-bus — canal params", () => {
   beforeEach(() => {
