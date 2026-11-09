@@ -102,6 +102,17 @@ describe("en vivo", () => {
   });
 });
 
+describe("al desmontar", () => {
+  it("llama a los tres des-suscriptores", async () => {
+    estadosFijos({ ubicacion: "preguntar", microfono: "preguntar", camara: "preguntar" });
+    const { unmount } = renderTab();
+    await screen.findAllByText("pendiente");
+    expect(suscripciones).toHaveLength(3);
+    unmount();
+    expect(suscripciones.every((s) => (s.off as ReturnType<typeof vi.fn>).mock.calls.length > 0)).toBe(true);
+  });
+});
+
 describe("pedir acceso", () => {
   it("el botón del micrófono pide por la API unificada y vuelve a consultar", async () => {
     estadosFijos({ ubicacion: "preguntar", microfono: "preguntar", camara: "preguntar" });
