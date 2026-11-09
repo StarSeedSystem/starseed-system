@@ -17,11 +17,13 @@
  * permiso: nunca se deja el indicador de grabación encendido.
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Camera, Cloud, Compass, Cpu, Database, EyeOff, Globe, HardDrive, Lock, MapPin, Mic, RefreshCw, RotateCcw, Shield, ShieldOff, Sparkles, Unlock, UploadCloud, type LucideIcon } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Switch } from "@/components/ui/switch";
+import type { EstadoPermiso } from "@/lib/permisos/contrato";
+import { consultarPermiso, pedirPermiso, suscribirPermiso } from "@/lib/aurora/senses/request-permission";
 import {
   fetchAstraura158Privacy, toggleAstraura158AirGap, updateAstraura158Privacy, type Astraura158PrivacySettings,
 } from "@/lib/astraura/astraura-158-client";
@@ -78,51 +80,51 @@ function labelFor(state: PermState): string {
   }
 }
 
+export function estadoTab(e: EstadoPermiso): PermState {
+  switch (e) {
+    case "concedido": return "granted";
+    case "denegado": return "denied";
+    case "preguntar": return "prompt";
+    case "no-disponible": return "unsupported";
+  }
+}
+
 export function PrivacidadTab({ target }: S158TabProps) {
   const privacy = useS158Load(fetchAstraura158Privacy, target);
   const { busy, wrap } = useBusy();
   const [perms, setPerms] = useState<Record<SensorId, PermState>>({ geolocation: "checking", microphone: "checking", camera: "checking", storage: "checking" });
   const [permsApiSupported, setPermsApiSupported] = useState(true);
-  const statusesRef = useRef<Partial<Record<"geolocation" | "microphone" | "camera", PermissionStatus>>>({});
 
   const inspect = useCallback(async () => {
     if (typeof navigator === "undefined") return;
     const hasPermissionsApi = "permissions" in navigator && typeof navigator.permissions?.query === "function";
     setPermsApiSupported(hasPermissionsApi);
-    const next: Partial<Record<SensorId, PermState>> = {};
 
-    if (hasPermissionsApi) {
-      for (const name of ["geolocation", "microphone", "camera"] as const) {
-        try {
-          const status = await navigator.permissions.query({ name: name as PermissionName });
-          statusesRef.current[name] = status;
-          next[name] = status.state;
-          status.onchange = () => { setPerms((p) => ({ ...p, [name]: status.state })); };
-        } catch {
-          // Safari/Firefox no reconocen 'microphone'/'camera' en PermissionDescriptor: lo decimos, no lo fingimos.
-          next[name] = "unsupported";
-        }
-      }
-    } else {
-      next.geolocation = "unsupported";
-      next.microphone = "unsupported";
-      next.camera = "unsupported";
-    }
+    const [geo, mic, cam, sto] = await Promise.all([
+      consultarPermiso("ubicacion"),
+      consultarPermiso("microfono"),
+      consultarPermiso("camara"),
+      consultarPermiso("almacenamiento"),
+    ]);
 
-    try {
-      if (navigator.storage?.persisted) next.storage = (await navigator.storage.persisted()) ? "granted" : "prompt";
-      else next.storage = "unsupported";
-    } catch {
-      next.storage = "unsupported";
-    }
-
-    setPerms((p) => ({ ...p, ...next }));
+    setPerms({
+      geolocation: estadoTab(geo),
+      microphone: estadoTab(mic),
+      camera: estadoTab(cam),
+      storage: estadoTab(sto),
+    });
   }, []);
 
   useEffect(() => {
     void inspect();
+    const unsubGeo = suscribirPermiso("ubicacion", (s) => setPerms((p) => ({ ...p, geolocation: s })));
+    const unsubMic = suscribirPermiso("microfono", (s) => setPerms((p) => ({ ...p, microphone: s })));
+    const unsubCam = suscribirPermiso("camara", (s) => setPerms((p) => ({ ...p, camera: s })));
+
     return () => {
-      for (const status of Object.values(statusesRef.current)) if (status) status.onchange = null;
+      unsubGeo();
+      unsubMic();
+      unsubCam();
     };
   }, [inspect]);
 
@@ -130,29 +132,34 @@ export function PrivacidadTab({ target }: S158TabProps) {
     if (typeof navigator === "undefined") return;
     await wrap(`req:${id}`, async () => {
       if (id === "geolocation") {
-        if (!navigator.geolocation) { toast.error("Este navegador no ofrece geolocalización."); return; }
-        await new Promise<void>((resolve) => {
-          navigator.geolocation.getCurrentPosition(
-            () => { toast.success("Permiso de GPS concedido"); resolve(); },
-            (err) => { toast.error(`GPS denegado o cancelado: ${err.message}`); resolve(); },
-            { timeout: 10_000 },
-          );
-        });
+        const res = await pedirPermiso("ubicacion");
+        if (res.estado === "concedido") {
+          toast.success("Permiso de GPS concedido");
+        } else if (res.estado === "no-disponible") {
+          toast.error("Este navegador no ofrece geolocalización.");
+        } else {
+          toast.error(res.motivo ? `GPS denegado o cancelado: ${res.motivo}` : "GPS denegado o cancelado");
+        }
       } else if (id === "microphone" || id === "camera") {
-        if (!navigator.mediaDevices?.getUserMedia) { toast.error("Este navegador no ofrece acceso a micrófono/cámara desde la web."); return; }
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia(id === "microphone" ? { audio: true } : { video: true });
-          // Soltar el stream de inmediato: solo comprobamos el permiso, nunca dejamos el indicador de grabación encendido.
-          stream.getTracks().forEach((t) => t.stop());
+        const sensor = id === "microphone" ? "microfono" : "camara";
+        const label = id === "microphone" ? "Micrófono" : "Cámara";
+        const res = await pedirPermiso(sensor);
+        if (res.estado === "concedido") {
           toast.success(id === "microphone" ? "Permiso de micrófono concedido" : "Permiso de cámara concedido");
-        } catch (e) {
-          toast.error(`${id === "microphone" ? "Micrófono" : "Cámara"} denegado o cancelado: ${e instanceof Error ? e.message : String(e)}`);
+        } else if (res.estado === "no-disponible") {
+          toast.error("Este navegador no ofrece acceso a micrófono/cámara desde la web.");
+        } else {
+          toast.error(res.motivo ? `${label} denegado o cancelado: ${res.motivo}` : `${label} denegado o cancelado`);
         }
       } else if (id === "storage") {
-        if (!navigator.storage?.persist) { toast.error("Este navegador no ofrece almacenamiento persistente."); return; }
-        const ok = await navigator.storage.persist();
-        if (ok) toast.success("Almacenamiento persistente activado");
-        else toast.error("El navegador no concedió persistencia (puede depender de marcadores/uso frecuente).");
+        const res = await pedirPermiso("almacenamiento");
+        if (res.estado === "concedido") {
+          toast.success("Almacenamiento persistente activado");
+        } else if (res.estado === "no-disponible") {
+          toast.error("Este navegador no ofrece almacenamiento persistente.");
+        } else {
+          toast.error("El navegador no concedió persistencia (puede depender de marcadores/uso frecuente).");
+        }
       }
       await inspect();
     });
