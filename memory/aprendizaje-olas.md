@@ -6281,3 +6281,17 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `ENT-agentes-referencias-diseno-agentes-re-e78423-v1` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/entregable-agentes-referencias-diseno-agentes-referencias-diseno-e78423-v1.json
 - `PRM1108B` — otra cosa
 - `PRM1108C` — otra cosa
+
+## 2026-11-08 22:10 · auto-1108-201012
+
+**Lo que se pidió.** archivos
+
+**Resultado.** 2 de 5 integradas. 3 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — otra cosa (PRM1108Bb, PRM1108Cb). Es 40 % de la ola.
+
+**Lo que quedó fuera, una por una:**
+- `PRM1108Bb-d2` — pruebas en rojo: vitest falla (rama conservada)
+- `PRM1108Bb` — otra cosa: revisor: dividida en PRM1108Bb-d1, PRM1108Bb-d2 (tarea:otro con 2 archivos: se divide en 2 partes encadenadas)
+- `PRM1108Cb` — otra cosa: sin decisión en 0 h; rama ola/PRM1108Cb conservada
