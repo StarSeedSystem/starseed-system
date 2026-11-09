@@ -60,6 +60,9 @@ CALLADO_MIN = int(os.environ.get("STARSEED_VIGIA_CALLADO_MIN", "25"))
 #: propio tope (20 min); esto cubre el caso de que ese tope no llegue a aplicarse.
 APROBACION_MIN = int(os.environ.get("STARSEED_VIGIA_APROBACION_MIN", "30"))
 
+#: Archivo del medidor de tokens por segundo (contiene también diez_minutos con la media de 10 min).
+TOKENS_POR_SEGUNDO = os.path.join(RAIZ, "starseed_memory_root", "mando", "tokens-por-segundo.json")
+
 
 # ---------------------------------------------------------------------------
 # Diagnóstico: PURO. Entra lo que dicen los medidores, sale una lista de problemas.
@@ -89,6 +92,27 @@ def _hay_gasto(filas) -> bool:
                 except ValueError:
                     continue
     return False
+
+
+def leer_tokens_diez_min(ruta: str):
+    """PURA: lee el `total` de `diez_minutos` del archivo de tokens.
+
+    Devuelve float o None si no hay archivo, JSON roto, `diez_minutos` es null
+    o `total` no es un número. Nunca lanza.
+    """
+    try:
+        with open(ruta, encoding="utf-8") as f:
+            datos = json.load(f)
+    except (OSError, ValueError):
+        return None
+    diez = datos.get("diez_minutos")
+    if not isinstance(diez, dict):
+        return None
+    total = diez.get("total")
+    try:
+        return float(total)
+    except (TypeError, ValueError):
+        return None
 
 
 #: «Buscar más capacidad» guarda aquí lo último que midió (lo lanza la autocuración cada 30 min).
@@ -122,12 +146,15 @@ def nube_sin_hueco(estado_buscar, ahora) -> str:
 
 
 def diagnosticar(medidores: dict, callado_min=CALLADO_MIN, aprobacion_min=APROBACION_MIN,
-                 nube_sin_hueco_porque: str = "") -> list:
+                 nube_sin_hueco_porque: str = "", tokens_diez_min=None) -> list:
     """PURA: de los detalles de los medidores a la lista de situaciones con remedio.
 
     Cada problema es {clave, tipo, quien, porque, remedio}. `remedio` es el nombre de la
     acción, no la acción: quien decide y quien ejecuta van separados a propósito, para que
     esto se pueda probar sin tocar la máquina.
+
+    `tokens_diez_min`: si es un número > 0, hay gasto medido en la media de 10 minutos y
+    no se avisa de «tokens_ciegos» aunque las filas del minuto den 0.
     """
     problemas = []
 
@@ -183,7 +210,8 @@ def diagnosticar(medidores: dict, callado_min=CALLADO_MIN, aprobacion_min=APROBA
         filas_tok = tokens.get("filas") or []
         ciegos = [f for f in filas_tok if "sin contador" in str(f.get("estado") or "")]
         midiendo = _hay_gasto([f for f in filas_tok if f not in ciegos])
-        if n_agentes > 0 and not midiendo and not ciegos:
+        hay_gasto_diez_min = isinstance(tokens_diez_min, (int, float)) and tokens_diez_min > 0
+        if n_agentes > 0 and not midiendo and not ciegos and not hay_gasto_diez_min:
             problemas.append({
                 "clave": "tokens", "tipo": "tokens_ciegos", "quien": str(n_agentes),
                 "porque": "hay %d agente(s) escribiendo y el medidor da 0 tok/s sin decir quién"
@@ -376,7 +404,8 @@ def una_pasada(aplicar_remedios=True) -> dict:
             sin_hueco = nube_sin_hueco(json.load(f), time.time())
     except (OSError, ValueError):
         sin_hueco = ""
-    problemas = diagnosticar(medidores, nube_sin_hueco_porque=sin_hueco)
+    tokens_diez_min = leer_tokens_diez_min(TOKENS_POR_SEGUNDO)
+    problemas = diagnosticar(medidores, nube_sin_hueco_porque=sin_hueco, tokens_diez_min=tokens_diez_min)
     hechos = []
     if aplicar_remedios:
         for p in problemas:

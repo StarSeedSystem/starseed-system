@@ -6,6 +6,7 @@ una tarea inventada por una prueba, con dos trabajadores parados. Todo estaba a 
 en los medidores y nadie los miraba.
 """
 import unittest
+import os
 
 import vigia_medidores as V
 
@@ -270,6 +271,65 @@ class ElMedidorDeTokensTambienSeVigila(unittest.TestCase):
     def test_el_remedio_de_los_tokens_ciegos_existe(self):
         self.assertNotEqual(V.aplicar({"remedio": "avisar_tokens_ciegos", "quien": "4"}),
                             "sin remedio conocido")
+
+    def test_tokens_diez_min_con_gasto_evita_tokens_ciegos(self):
+        filas = [{"id": "jev", "estado": "en reposo", "etapa": "0.0 tok/s",
+                  "porque": "0.0 tok/s de media en el último minuto"}]
+        med = self._med(filas)
+        p = V.diagnosticar(med, tokens_diez_min=3.2)
+        self.assertNotIn("tokens_ciegos", [x["tipo"] for x in p])
+
+    def test_tokens_diez_min_cero_o_none_sigue_avisando(self):
+        filas = [{"id": "jev", "estado": "en reposo", "etapa": "0.0 tok/s",
+                  "porque": "0.0 tok/s de media en el último minuto"}]
+        for val in (0, None):
+            p = V.diagnosticar(self._med(filas), tokens_diez_min=val)
+            self.assertIn("tokens_ciegos", [x["tipo"] for x in p])
+
+
+class LeerTokensDiezMin(unittest.TestCase):
+    def test_lee_total_de_diez_minutos(self):
+        import tempfile, json
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            json.dump({"diez_minutos": {"total": 4.5}}, f)
+            ruta = f.name
+        try:
+            self.assertEqual(V.leer_tokens_diez_min(ruta), 4.5)
+        finally:
+            os.unlink(ruta)
+
+    def test_sin_archivo_devuelve_none(self):
+        self.assertIsNone(V.leer_tokens_diez_min("/no/existe/tokens.json"))
+
+    def test_json_roto_devuelve_none(self):
+        import tempfile
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            f.write("no es json")
+            ruta = f.name
+        try:
+            self.assertIsNone(V.leer_tokens_diez_min(ruta))
+        finally:
+            os.unlink(ruta)
+
+    def test_diez_minutos_null_devuelve_none(self):
+        import tempfile, json
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            json.dump({"diez_minutos": None}, f)
+            ruta = f.name
+        try:
+            self.assertIsNone(V.leer_tokens_diez_min(ruta))
+        finally:
+            os.unlink(ruta)
+
+    def test_total_no_numerico_devuelve_none(self):
+        import tempfile, json
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            json.dump({"diez_minutos": {"total": "x"}}, f)
+            ruta = f.name
+        try:
+            self.assertIsNone(V.leer_tokens_diez_min(ruta))
+        finally:
+            os.unlink(ruta)
 
 
 class LaCifraQueCuentaNoEsSoloLaDelInstante(unittest.TestCase):
