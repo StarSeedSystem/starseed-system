@@ -465,3 +465,5 @@ la capacidad de `puerta_proxy_estado` dice `soportado: false` con el motivo y el
 6. Llamadas: el permiso de micrófono y cámara (el manejador de Tauri 2.12 los concede a los orígenes propios y Windows
    puede mostrar su aviso de Privacidad), AudioWorklet, WebCodecs y WebRTC (vienen con WebView2/Chromium: sin cambios
    de código). Comprobar una llamada de datos con voz y vídeo sobre el grupo Wi-Fi Direct.
+
+> Matriz completa de plataformas y carriles (Windows, Linux, Android, Apple, web), roles y caída por carril: [`matriz-enlaces-directos.md`](matriz-enlaces-directos.md) (MTZ1109A).

@@ -31,14 +31,16 @@ export const TEXTO_PAREJAS: ReadonlyArray<{ id: "android-android" | "apple-apple
   { id: "mac-android", titulo: "Mac ↔ Android", texto: "Bluetooth: no existe ningún Wi‑Fi P2P común entre los dos. El punto de acceso solo si lo permites arriba." },
 ];
 
-export type LanaP2p = "wifi-aware" | "wifi-direct-concurrente" | "awdl";
+// (MTZ1109A) `wifi-direct`: Wi‑Fi Direct estándar SIN concurrencia (Windows, Linux o un Android viejo): quien lo usa deja su Wi‑Fi de casa mientras dure.
+export type LanaP2p = "wifi-aware" | "wifi-direct-concurrente" | "wifi-direct" | "awdl";
 
 /** Orden de preferencia: Aware > Wi‑Fi Direct concurrente > AWDL (AWDL solo se da entre Apple, nunca compite). */
-export const ORDEN_LANAS_P2P: readonly LanaP2p[] = ["wifi-aware", "wifi-direct-concurrente", "awdl"];
+export const ORDEN_LANAS_P2P: readonly LanaP2p[] = ["wifi-aware", "wifi-direct-concurrente", "wifi-direct", "awdl"];
 
 const NOMBRE_LANA: Record<LanaP2p, string> = {
   "wifi-aware": "Aware",
   "wifi-direct-concurrente": "Wi‑Fi Direct",
+  "wifi-direct": "Wi‑Fi Direct",
   awdl: "AWDL",
 };
 
@@ -59,10 +61,12 @@ export const TEXTO_PASTILLA_PUNTO_ACCESO = `${ETIQUETA_PUNTO_ACCESO} · sin rout
 export function lanasP2pDe(c: CapacidadesWifi | null | undefined): LanaP2p[] {
   if (!c) return [];
   const out = new Set<LanaP2p>();
-  for (const l of c.lanas ?? []) if (l === "wifi-aware" || l === "wifi-direct-concurrente" || l === "awdl") out.add(l);
+  for (const l of c.lanas ?? []) if (l === "wifi-aware" || l === "wifi-direct-concurrente" || l === "wifi-direct" || l === "awdl") out.add(l);
   // Una app de WFD1108A (sin `lanas`) con Wi‑Fi Direct de los dos lados: se entiende como Wi‑Fi Direct.
   if (c.lanas === undefined && c.plataforma === "android" && c.ap.includes("wifi-direct") && c.cliente.includes("wifi-direct")) out.add("wifi-direct-concurrente");
   if (c.ap.includes("wifi-aware") && c.cliente.includes("wifi-aware")) out.add("wifi-aware");
+  // (MTZ1109A) Wi‑Fi Direct estándar de Windows y Linux (y de un Android sin concurrencia): puede ser GO y cliente, pero deja su Wi‑Fi.
+  if (!out.has("wifi-direct-concurrente") && (c.plataforma === "android" || c.plataforma === "windows" || c.plataforma === "linux") && c.ap.includes("wifi-direct") && c.cliente.includes("wifi-direct")) out.add("wifi-direct");
   return ORDEN_LANAS_P2P.filter((l) => out.has(l));
 }
 
@@ -77,11 +81,21 @@ const APPLE = new Set(["macos", "ios"]);
 export function lanasEnComun(a: CapacidadesWifi | null | undefined, b: CapacidadesWifi | null | undefined): LanaP2p[] {
   const la = lanasP2pDe(a);
   const lb = lanasP2pDe(b);
-  return la.filter((l) => lb.includes(l) && (l !== "awdl" || (APPLE.has(a?.plataforma ?? "") && APPLE.has(b?.plataforma ?? ""))));
+  const esWd = (l: LanaP2p) => l === "wifi-direct" || l === "wifi-direct-concurrente";
+  const out: LanaP2p[] = [];
+  for (const l of ORDEN_LANAS_P2P) {
+    if (l === "wifi-direct-concurrente") {
+      if (la.includes(l) && lb.includes(l)) out.push(l);
+    } else if (l === "wifi-direct") {
+      // (MTZ1109A) Wi‑Fi Direct entre dos cualesquiera de Android/Windows/Linux; si alguna no es concurrente, esa deja su Wi‑Fi.
+      if (la.some(esWd) && lb.some(esWd) && !out.includes("wifi-direct-concurrente")) out.push(l);
+    } else if (la.includes(l) && lb.includes(l) && (l !== "awdl" || (APPLE.has(a?.plataforma ?? "") && APPLE.has(b?.plataforma ?? "")))) out.push(l);
+  }
+  return out;
 }
 
 export type DecisionPar =
-  | { tipo: "p2p"; lana: LanaP2p; texto: string }
+  | { tipo: "p2p"; lana: LanaP2p; texto: string; /** (MTZ1109A) Alguna de las dos deja su Wi‑Fi de casa mientras dure (Wi‑Fi Direct sin concurrencia). */ dejaWifi?: boolean }
   | { tipo: "punto-acceso"; texto: string }
   | { tipo: "bluetooth"; texto: string };
 
@@ -94,7 +108,7 @@ export function decidirParP2p(a: CapacidadesWifi | null | undefined, b: Capacida
   const comunes = lanasEnComun(a, b);
   if (comunes.length) {
     const lana = comunes[0];
-    return { tipo: "p2p", lana, texto: textoPastillaP2p(lana) };
+    return { tipo: "p2p", lana, texto: textoPastillaP2p(lana), ...(lana === "wifi-direct" ? { dejaWifi: true } : {}) };
   }
   if (permitePuntoAcceso(a) && permitePuntoAcceso(b) && a && b && (a.cliente.length || a.ap.length) && (b.cliente.length || b.ap.length)) {
     return { tipo: "punto-acceso", texto: `${ETIQUETA_PUNTO_ACCESO}: una neurona deja su Wi‑Fi mientras dure` };

@@ -76,6 +76,9 @@ export interface Decision {
   sinP2p?: boolean;
 }
 
+export const AVISO_WIFI_DIRECT_SIN_CONCURRENCIA =
+  "Wi-Fi Direct estándar: una de las dos neuronas no puede estar en su Wi-Fi de casa y en el grupo a la vez, así que lo deja mientras dure el enlace y vuelve al cerrarlo.";
+
 export const AVISO_RADIO_UNICA =
   "Este Mac tiene una sola radio Wi-Fi: mientras dure el enlace directo deja tu red de casa (sin internet por Wi-Fi) y vuelve a ella al cerrarlo.";
 
@@ -90,8 +93,10 @@ export function decidirEnlaceWifi(p: EntradaDecision): Decision {
   if (!puedeEnlaceWifi(p.capPropia)) return nada("esta app no puede abrir ni unirse a una red Wi-Fi directa (navegador, app anterior o permiso denegado)");
   if (p.capOtro && !puedeEnlaceWifi(p.capOtro)) return nada("la otra neurona no puede abrir ni unirse a una red Wi-Fi directa");
   // (WFA1109A) Solo Wi-Fi P2P sin router ni hotspot; el punto de acceso únicamente si la persona lo permitió (las dos neuronas).
+  let dejaWifi = false; // (MTZ1109A) Wi-Fi Direct estándar sin concurrencia: alguna de las dos deja su Wi-Fi mientras dure
   if (p.capOtro) {
     const par = decidirParP2p(p.capPropia, p.capOtro);
+    if (par.tipo === "p2p" && par.dejaWifi) dejaWifi = true;
     if (par.tipo === "bluetooth") return { accion: "nada", motivo: par.texto, sinP2p: true };
     if (par.tipo === "p2p" && par.lana === "awdl") return nada("AWDL conecta solo con los Mac cercanos: no hace falta abrir nada");
   } else if (!puedeOfrecerSinSaberDelOtro(p.capPropia)) {
@@ -108,7 +113,7 @@ export function decidirEnlaceWifi(p: EntradaDecision): Decision {
     const s = Math.ceil((ESPERA_TRAS_FALLO_MS - (p.ahora - p.ultimoFallo)) / 1000);
     return nada(`falló hace poco con esta neurona; se vuelve a probar en ${s} s`);
   }
-  const aviso = p.capPropia?.radioUnica ? AVISO_RADIO_UNICA : undefined;
+  const aviso = p.capPropia?.radioUnica ? AVISO_RADIO_UNICA : dejaWifi ? AVISO_WIFI_DIRECT_SIN_CONCURRENCIA : undefined;
   if (p.ajuste === "automatico") return { accion: "abrir", motivo: "envío pesado a una neurona vecina: se abre el enlace Wi-Fi directo", ...(aviso ? { aviso } : {}) };
   return { accion: "proponer", motivo: "envío pesado a una neurona vecina: ¿abrir el enlace Wi-Fi directo?", ...(aviso ? { aviso } : {}) };
 }

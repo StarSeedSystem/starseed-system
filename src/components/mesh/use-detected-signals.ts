@@ -57,6 +57,9 @@ import { useEstadoBluetooth } from "@/lib/malla/bluetooth-directo-estado";
 // (WFD1108A) El enlace Wi-Fi directo activo con una neurona, en su señal del Radar y de Señales.
 import { enriquecerConEnlaceWifi } from "@/ai/astraura/mesh/senales-enlace-wifi";
 import { enlacesWifiActivos, suscribirEnlacesWifi } from "@/lib/malla/enlace-wifi-orquestacion";
+import { fallosEnlaces, frasesFallos, suscribirFallosEnlaces } from "@/lib/malla/fallos-enlaces"; // MTZ1109A
+import { comoNeuronaLanas, lanasPropiasYa, vecinasConLanas } from "@/lib/malla/lanas-propias"; // MTZ1109A
+import { enriquecerConFallosEnlace } from "@/ai/astraura/mesh/senales-fallos-enlace"; // MTZ1109A
 
 /** Cadencia de refresco del registro de neuronas (consulta a la cuenta). */
 const NEURONS_REFRESH_MS = 90_000;
@@ -210,6 +213,8 @@ export function useDetectedSignals(options?: DetectedSignalsOptions): DetectedSi
   const bluetooth = useEstadoBluetooth();
   // (WFD1108A) Enlaces Wi-Fi directos activos (vacío fuera de la app nativa).
   const enlacesWifi = useSyncExternalStore(suscribirEnlacesWifi, enlacesWifiActivos, enlacesWifiActivos);
+  // (MTZ1109A) Carriles directos que fallaron con una neurona (y por cuál sigue).
+  const fallosLanas = useSyncExternalStore(suscribirFallosEnlaces, fallosEnlaces, fallosEnlaces);
   const [neuronsState, setNeuronsState] = useState<NeuronsCache>(() => neuronsCache);
   const [serialPorts, setSerialPorts] = useState<SerialPortView[]>([]);
   const [serialProbed, setSerialProbed] = useState(false);
@@ -324,7 +329,7 @@ export function useDetectedSignals(options?: DetectedSignalsOptions): DetectedSi
 
   const signals = useMemo(
     () =>
-      enriquecerConEnlaceWifi(enriquecerConMalla(
+      enriquecerConFallosEnlace(enriquecerConEnlaceWifi(enriquecerConMalla(
         ordenarSenalesPorCalidad(
           fusionarRadar(
             [
@@ -342,9 +347,9 @@ export function useDetectedSignals(options?: DetectedSignalsOptions): DetectedSi
           ),
         ),
         malla.misDispositivos,
-      ), enlacesWifi),
+      ), enlacesWifi), fallosLanas.length ? frasesFallos(comoNeuronaLanas(thisDeviceId(), lanasPropiasYa()), new Map(Array.from(vecinasConLanas()).map(([id, v]) => [id, comoNeuronaLanas(id, v)])), (id) => neurons.find((n) => n.id === id)?.name ?? "otra neurona") : []),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [mesh, farosVistos, neurons, freshBle, serialPorts, tick, radioLocal, radarRemoto, malla.misDispositivos, redLocal.vecinos, redLocal.vinculos, bluetooth, enlacesWifi],
+    [mesh, farosVistos, neurons, freshBle, serialPorts, tick, radioLocal, radarRemoto, malla.misDispositivos, redLocal.vecinos, redLocal.vinculos, bluetooth, enlacesWifi, fallosLanas],
   );
 
   const unavailable = useMemo<UnavailableSource[]>(() => {

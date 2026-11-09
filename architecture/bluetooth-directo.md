@@ -419,3 +419,5 @@ características (`codec-web.ts`) y, sin `VideoEncoder`/`VideoDecoder`, el víde
 `WebKitWebsiteDataManager::set_network_proxy_settings(Custom, http://127.0.0.1:<puerto>, ignore_hosts = localhost, 127.0.0.1,
 ::1, *.localhost)` en caliente y para todo el almacén de datos (iframes incluidos); `null` vuelve a `Default` (el proxy del
 sistema). Capacidad `soportado=true` en `linux` (apagable con `STARSEED_SIN_PROXY_PUERTA=1`).
+
+> Qué Bluetooth cabe con cada plataforma (GATT en Windows/Linux, L2CAP, roles) y el orden frente a Wi‑Fi y red local: [`matriz-enlaces-directos.md`](matriz-enlaces-directos.md) (MTZ1109A).

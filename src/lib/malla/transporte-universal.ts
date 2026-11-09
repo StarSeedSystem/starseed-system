@@ -71,6 +71,8 @@ import { recibirArchivo } from "@/lib/malla/recepcion-sellada"; // MPT1108B
 import type { CanalSellado } from "@/lib/malla/canal-sellado"; // MPT1108B
 import type { ViaCandidata } from "@/lib/malla/archivo-seguro"; // MPT1108B
 import { leerAjustesVias, type AjustesViasArchivo } from "@/lib/malla/ajustes-vias-archivo"; // MPT1108B
+import { enlaceEnEspera } from "@/lib/malla/fallos-enlaces"; // MTZ1109A
+import { enlaceFueraDeMatriz } from "@/lib/malla/lanas-propias"; // MTZ1109A
 import { planificarVias } from "@/lib/malla/conectores/planificador-vias"; // MPT1108B
 import { fichaDeTipo } from "@/lib/malla/conectores/fichas"; // MPT1108B
 import { crearCanalPorTexto, crearCanalViaSalto, crearSalto, leerLlegada, PREFIJO_LLEGA, PREFIJO_SALTO } from "@/lib/malla/rele-archivo"; // MPT1108B
@@ -803,7 +805,10 @@ function enlacesDeArchivo(eleccion: Eleccion, destino: DestinoTransporte, bytes:
   if (p2p.length <= 1) return reparto;
   const primero = p2p[0];
   if (primero.tipo === "ble") return [primero]; // archivo pequeño: Bluetooth solo, como antes
-  const mismo = p2p.filter((e) => e === primero || mismoAparato(primero.alcanza, e.alcanza));
+  const mismoTodos = p2p.filter((e) => e === primero || mismoAparato(primero.alcanza, e.alcanza));
+  // (MTZ1109A) Los carriles que fallaron hace poco con esta pareja esperan su turno (retroceso creciente); si no queda otro, se prueban igual.
+  const mismoVivos = mismoTodos.filter((e) => !enlaceEnEspera(e) && !enlaceFueraDeMatriz(e));
+  const mismo = mismoVivos.length ? mismoVivos : mismoTodos;
   try {
     const plan = planificarVias(
       { tipo: "archivo", bytes, urgencia: "normal", privacidad: "privado", destino },

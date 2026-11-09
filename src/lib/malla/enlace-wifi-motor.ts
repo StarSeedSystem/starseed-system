@@ -22,6 +22,8 @@
  *     confirma solo. Sin uso en 5 minutos, se cierra y el Mac vuelve a su red.
  */
 
+import { registrarExitoEnlace, registrarFalloEnlace } from "./fallos-enlaces"; // MTZ1109A
+import type { Lana } from "./matriz-enlaces"; // MTZ1109A
 import { useSyncExternalStore } from "react";
 import {
   CANAL_CONTROL_WIFI,
@@ -431,6 +433,11 @@ export function crearMotorWifi(deps: DepsMotorWifi, vias: () => ViaControlWifi[]
       case "activo":
         guiado = null;
         credCliente = null;
+        {
+          // (MTZ1109A) Abrió bien: se olvida el fallo de ese carril con esta pareja.
+          const lanaOk = lanaDeMetodo(estado.roles?.metodoAp);
+          if (estado.otro && lanaOk) registrarExitoEnlace(estado.otro, lanaOk);
+        }
         try {
           // (WFA1109A) Wi-Fi Aware: la dirección del otro la dice el sistema de ESTE aparato (el ámbito `%aware_data0` es de esta máquina).
           const viaAware = estado.roles?.metodoAp === "wifi-aware" && !!ipPrivada(nativo?.ip_otro);
@@ -442,7 +449,12 @@ export function crearMotorWifi(deps: DepsMotorWifi, vias: () => ViaControlWifi[]
         return;
       case "respaldo":
         ultimoRespaldo = a.motivo;
-        if (estado.otro) fallos[estado.otro] = deps.ahora();
+        if (estado.otro) {
+          fallos[estado.otro] = deps.ahora();
+          // (MTZ1109A) El carril se anota POR PAREJA: la matriz salta al siguiente y se reintenta con espera creciente.
+          const lana = lanaDeMetodo(estado.roles?.metodoAp);
+          if (lana) registrarFalloEnlace(estado.otro, lana, a.motivo, deps.ahora());
+        }
         return;
     }
   }
@@ -1131,4 +1143,9 @@ export function useAjusteWifi(): AjusteWifiDirecto {
 export function __fijarMotorWifiParaPruebas(m: MotorWifi | null): void {
   motor = m;
   if (!m) bajaMotor?.();
+}
+
+/** (MTZ1109A) Carril de la matriz que corresponde al método con el que se levantó la red (el punto de acceso no es un carril). */
+export function lanaDeMetodo(m: string | undefined | null): Lana | null {
+  return m === "wifi-aware" ? "wifi-aware" : m === "wifi-direct" ? "wifi-direct" : null;
 }
