@@ -109,6 +109,49 @@ class Revisar(unittest.TestCase):
         self.assertTrue(self.existe("src/roto.tsx"))
 
 
+def transpila_con_paciencia(raiz, ruta, intentos=3, transpila=None, dormir=time.sleep):
+    """SUP0911F (09-11): el esbuild de verdad, con la Mac muy cargada (4 945 pruebas del puente a la vez) o mientras
+    otra sesión reinstala node_modules, a veces no llega a opinar (None: no arrancó, lo cortaron…), y la
+    autopublicación se frenaba una hora por eso (04-11 y 09-11: «[None, True, True, True]»). Esta prueba mira lo
+    que esbuild DICE, no si la máquina tenía aire: se repite hasta `intentos` veces mientras no opine; si opina,
+    vale lo que diga (un «sí» o un «no» nunca se repite)."""
+    transpila = transpila or C.transpila
+    v = None
+    for i in range(max(1, intentos)):
+        v = transpila(raiz, ruta)
+        if v is not None:
+            return v
+        if i + 1 < intentos:
+            dormir(1 + i)
+    return v
+
+
+class Paciencia(unittest.TestCase):
+    def test_repite_solo_mientras_esbuild_no_opina_y_se_queda_con_lo_que_dice(self):
+        def falso(respuestas):
+            llamadas = []
+
+            def transpila(raiz, ruta):
+                llamadas.append(ruta)
+                return respuestas[len(llamadas) - 1]
+            return transpila, llamadas
+
+        esperas = []
+        t, llamadas = falso([None, False])
+        self.assertIs(transpila_con_paciencia("/r", "a.tsx", transpila=t, dormir=esperas.append), False)
+        self.assertEqual(len(llamadas), 2)
+        t, llamadas = falso([True])
+        self.assertIs(transpila_con_paciencia("/r", "a.tsx", transpila=t, dormir=esperas.append), True)
+        self.assertEqual(len(llamadas), 1)
+        t, llamadas = falso([False, True])  # un «no» no se repite para buscar un «sí»
+        self.assertIs(transpila_con_paciencia("/r", "a.tsx", transpila=t, dormir=esperas.append), False)
+        self.assertEqual(len(llamadas), 1)
+        t, llamadas = falso([None, None, None, True])  # se rinde a la tercera: None, sin esperar después
+        self.assertIsNone(transpila_con_paciencia("/r", "a.tsx", transpila=t, dormir=esperas.append))
+        self.assertEqual(len(llamadas), 3)
+        self.assertEqual(esperas, [1, 1, 2])
+
+
 @unittest.skipUnless(os.access(os.path.join(RAIZ_VIVA, "node_modules", ".bin", "esbuild"), os.X_OK), "no hay esbuild instalado")
 class ConElEsbuildDeVerdad(unittest.TestCase):
     def test_lo_del_31_10_no_transpila_y_un_js_con_jsx_o_un_generico_si(self):
@@ -117,7 +160,7 @@ class ConElEsbuildDeVerdad(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             for nombre, texto, _ in casos:
                 Path(d, nombre).write_text(texto, encoding="utf-8")
-            self.assertEqual([C.transpila(RAIZ_VIVA, os.path.join(d, n)) for n, _, _ in casos], [e for _, _, e in casos])
+            self.assertEqual([transpila_con_paciencia(RAIZ_VIVA, os.path.join(d, n)) for n, _, _ in casos], [e for _, _, e in casos])
 
 
 class EnLaPasada(unittest.TestCase):
