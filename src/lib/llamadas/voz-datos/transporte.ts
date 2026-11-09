@@ -13,6 +13,7 @@ import { alVozEntrante } from "./hub";
 import { esTextoVoz } from "./paquete";
 import { enlaceTieneIp } from "./decision";
 import { enlaceVivoMasNuevoCon } from "@/lib/malla/registro-enlaces-locales";
+import { enlaceWifiDe } from "@/lib/malla/enlace-wifi-orquestacion";
 
 type ModBle = typeof import("@/lib/malla/bluetooth-directo-motor");
 let modBle: ModBle | null = null;
@@ -67,6 +68,12 @@ export function enlacesDatosHacia(neurona: string): EnlaceDatosHacia[] {
 
 /** ¿Hay alguna ruta con IP hacia esa neurona (un enlace WebRTC local)? */
 export function hayRutaIpHacia(neurona: string): boolean {
+  // (LLA1108H) El enlace Wi-Fi directo (red propia de las dos neuronas, sin router) es una ruta IP aunque aún no haya WebRTC local.
+  try {
+    if (enlaceWifiDe(neurona)) return true;
+  } catch {
+    /* sin orquestación */
+  }
   return enlacesDatosHacia(neurona).some((e) => e.ip);
 }
 
@@ -107,6 +114,38 @@ export function crearTransporteVozHacia(neurona: string): TransporteVoz | null {
       if (b) return b.red.colaVozBytes(b.id) > (modBle?.UMBRAL_VOZ_OCUPADA_BLE ?? 2048);
       const l = local();
       return l ? l.bufferedAmount() > 16 * 1024 : false;
+    },
+    /* (LLA1108H) Vídeo ligero: cola propia del Bluetooth, siempre por detrás de la voz. Por el enlace local va en el mismo canal. */
+    enviarVideo(texto) {
+      const b = ble();
+      if (b) return b.red.enviarVideo(b.id, texto);
+      const l = local();
+      if (!l) return "cerrado";
+      try {
+        return l.enviar(texto) ? "ok" : "descartado";
+      } catch {
+        return "cerrado";
+      }
+    },
+    colaVozBytes() {
+      const b = ble();
+      if (b) return b.red.colaVozBytes(b.id);
+      return 0;
+    },
+    colaVideoBytes() {
+      const b = ble();
+      if (b) return b.red.colaVideoBytes(b.id);
+      const l = local();
+      return l ? l.bufferedAmount() : 0;
+    },
+    capacidadKbps() {
+      const b = ble();
+      if (!b) return null;
+      try {
+        return b.red.enlaces().find((e) => e.id === b.id)?.capacidadKbps ?? null;
+      } catch {
+        return null;
+      }
     },
     alRecibir(cb) {
       const bajas: Array<() => void> = [];

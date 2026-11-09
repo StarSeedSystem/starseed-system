@@ -120,6 +120,30 @@ export interface EstadoLlamada {
     puedeReintentar?: boolean;
     /** (LLA1108E) Motivo por el que el vídeo no va por este medio (Bluetooth), con la oferta de seguir solo con voz. */
     videoNoDisponible?: string | null;
+    /** (LLA1108H) Vídeo ligero por el enlace de datos (baja resolución, sin router). Null: no hay sesión de vídeo de datos. */
+    videoDatos?: VideoDatosVista | null;
+    /** (LLA1108H) Los pasos de la escalada al Wi-Fi directo («Abriendo Wi-Fi directo…», «Video por Wi-Fi directo (sin router)»). */
+    escalada?: EscaladaVista | null;
+}
+
+/** (LLA1108H) El vídeo ligero por enlace de datos, dicho para la superficie. */
+export interface VideoDatosVista {
+    /** Este aparato puede llevar vídeo ligero por el enlace de datos (hay códec). */
+    disponible: boolean;
+    enviando: boolean;
+    recibiendo: boolean;
+    /** «160×120 · 4 fps · 40 kbps · VP8». */
+    calidadTexto: string | null;
+    nivel: "buena" | "regular" | "mala" | null;
+}
+
+/** (LLA1108H) Estado de la escalada al Wi-Fi directo para la superficie. */
+export interface EscaladaVista {
+    paso: "inactivo" | "abriendo" | "propuesta" | "activo" | "no";
+    /** La línea de estado (null: nada que contar). */
+    texto: string | null;
+    /** Aviso (en el Mac: sale de tu Wi-Fi de casa mientras dure). */
+    aviso: string | null;
 }
 
 /** (LLA1108E) El medio que lleva la voz, dicho para la superficie de la llamada. */

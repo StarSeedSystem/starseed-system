@@ -242,3 +242,26 @@ motores). Pruebas: `src/lib/malla/__tests__/puente-ble-wifi.test.ts` (los dos mo
   los mensajes vuelven al Bluetooth (o al router si lo hay).
 - **Límite honesto**: un archivo de 8–20 MB que ya empezó por Bluetooth sigue por él aunque el Wi-Fi se abra
   a mitad; uno de más de 20 MB espera en el buzón y su reintento sale por la red directa.
+
+## 9 · La llamada pide el enlace sola (LLA1108H · 2026-11-09)
+
+Caso real 09-11: videollamada Mac ↔ tableta solo con Bluetooth; la voz iba por el enlace de datos (LLA1108E) pero
+el log no tenía ningún evento `enlace-wifi`: el motor real de llamadas (`src/lib/llamadas/motor.ts`) no llamaba a
+`avisarEnvioPesado`. Ahora sí. Detalle completo en `llamadas-telefonia.md` §9 «Escalada al Wi-Fi directo».
+
+- **Disparo**: `MotorLlamada` (opción `vozDatos.escalarWifi`, cableada en `acciones.ts › extrasDeNeurona`) llama a
+  `avisarEnvioPesado({ clave, destino: { neuronDeviceId }, clase: "llamada" | "pantalla", flujo })` cuando contestó
+  alguien, el único camino hacia el par no lleva IP y hay cámara, pantalla o la voz va regular/mala. `avisarEnvioPesado`
+  admite ahora `flujo` y lo pasa a `alNecesitarAncho` → `retenerFlujo`: el enlace vive mientras la llamada tenga
+  pistas vivas y se cierra por las reglas de inactividad de §5 al colgar. `clave` es por llamada.
+- **Ajuste**: igual que para archivos y flujos. Automático abre; Preguntar propone con el aviso de un toque en los dos
+  aparatos (en el Mac, con «deja tu red de casa mientras dure»); Nunca no abre y la llamada sigue con vídeo ligero.
+- **Ruta IP**: `hayRutaIpHacia(neurona)` cuenta como ruta un enlace Wi-Fi directo activo (`enlaceWifiDe`). Al pasar de
+  «sin IP» a «con IP», la llamada reinicia ICE y sube de Bluetooth a WebRTC (voz y vídeo) sin colgar (LLA1108E §9).
+- **Pasos para la persona** (`pasoWifiDe` sobre `InstantaneaWifi`): abriendo → «Abriendo Wi‑Fi directo…»; propuesta →
+  «Acepta abrir el Wi‑Fi directo…»; activo + WebRTC → «Video por Wi‑Fi directo (sin router)».
+- **Pruebas**: `src/lib/llamadas/__tests__/escalada-wifi-llamada.test.ts`.
+- **Prueba en dispositivos**: Mac y tableta solo con Bluetooth, ajuste en «Preguntar». Videollamada desde la Mac:
+  voz por Bluetooth y «Video ligero por Bluetooth (baja resolución)»; aparece la propuesta en los dos; al aceptar,
+  «Abriendo Wi‑Fi directo…» y después «Video por Wi‑Fi directo (sin router)» sin cortar la voz. En `enlaces.log`:
+  `llamada escalada-wifi … clase=llamada`, `enlace-wifi …`, `llamada medio=webrtc … ruta IP nueva`, `llamada medio=webrtc … vuelve a WebRTC sin cortar`.

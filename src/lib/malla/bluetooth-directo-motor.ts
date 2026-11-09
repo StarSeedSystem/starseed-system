@@ -174,6 +174,13 @@ export interface RedBle {
   enviarVoz(enlace: string, texto: string): "ok" | "descartado" | "cerrado";
   /** (LLA1108E) Bytes de voz esperando salir por ese enlace (la sesión de voz retiene sus tramas mientras haya). */
   colaVozBytes(enlace: string): number;
+  /**
+   * (LLA1108H) Vídeo ligero de la llamada: cola PROPIA, siempre por detrás de la voz y del control; con tope, lo
+   * más viejo se tira (un fotograma viejo no sirve). Sin acuse por fragmento.
+   */
+  enviarVideo(enlace: string, texto: string): "ok" | "descartado" | "cerrado";
+  /** (LLA1108H) Bytes de vídeo esperando salir por ese enlace. */
+  colaVideoBytes(enlace: string): number;
   canalArchivos(enlace: string): CanalArchivos;
   /** Lo que llegó por ese enlace (lo no ligado, salvo el saludo, se ignora). */
   recibir(cuerpo: string, enlace: string): Promise<void>;
@@ -199,6 +206,8 @@ export const MAX_COLA_DATOS_BLE = 1024 * 1024;
 export const MAX_COLA_VOZ_BLE = 6 * 1024;
 /** (LLA1108E) La sesión de voz se considera «ocupada» (retiene tramas) cuando la cola de voz pasa de esto. */
 export const UMBRAL_VOZ_OCUPADA_BLE = 2 * 1024;
+/** (LLA1108H) Tope de la cola de VÍDEO por enlace (≈ 1,5 s de vídeo ligero). Más allá se tira lo más viejo. */
+export const MAX_COLA_VIDEO_BLE = 24 * 1024;
 export const FACTOR_FRENO_ARCHIVOS_BLE = 4;
 /** (CIF1108A) Espera al acuerdo de sesión antes de devolver el envío como «aún no listo» (el aire BLE es más lento). */
 export const ESPERA_SESION_BLE_MS = 4_000;
@@ -243,6 +252,9 @@ interface Cola {
   datos: Item[];
   /** (LLA1108E) Voz: cola propia, con tope y sin acuse por trama. */
   voz: Item[];
+  /** (LLA1108H) Vídeo ligero: cola propia, la última en turno (detrás de control y voz). */
+  vid: Item[];
+  bytesVid: number;
   bytesDatos: number;
   bytesVoz: number;
   /** (LLA1108E) Reparto entre voz y archivos: si le tocó a la voz, la próxima vez le toca a los archivos. */
@@ -302,16 +314,17 @@ export function crearRedBle(deps: DepsBle): RedBle {
   const cola = (enlace: string): Cola => {
     let c = colas.get(enlace);
     if (!c) {
-      c = { control: [], datos: [], voz: [], bytesDatos: 0, bytesVoz: 0, turnoVoz: true, bombeando: false, cubeta: null, claveLimites: "", fallos: 0 };
+      c = { control: [], datos: [], voz: [], vid: [], bytesVid: 0, bytesDatos: 0, bytesVoz: 0, turnoVoz: true, bombeando: false, cubeta: null, claveLimites: "", fallos: 0 };
       colas.set(enlace, c);
     }
     return c;
   };
 
   function fallarTodo(c: Cola, motivo: string): void {
-    for (const i of [...c.control.splice(0), ...c.datos.splice(0), ...c.voz.splice(0)]) i.fin({ ok: false, motivo });
+    for (const i of [...c.control.splice(0), ...c.datos.splice(0), ...c.voz.splice(0), ...c.vid.splice(0)]) i.fin({ ok: false, motivo });
     c.bytesDatos = 0;
     c.bytesVoz = 0;
+    c.bytesVid = 0;
   }
 
   /* ─────────────── Cifrado de punta a punta (CIF1108A) ─────────────── */
@@ -404,7 +417,7 @@ export function crearRedBle(deps: DepsBle): RedBle {
     if (!c || c.bombeando) return;
     c.bombeando = true;
     try {
-      while (c.control.length || c.datos.length || c.voz.length) {
+      while (c.control.length || c.datos.length || c.voz.length || c.vid.length) {
         if (!abierto(enlace)) {
           fallarTodo(c, "El enlace Bluetooth se cerró (el otro aparato se alejó o apagó el Bluetooth).");
           break;
@@ -415,10 +428,14 @@ export function crearRedBle(deps: DepsBle): RedBle {
         else if (c.voz.length && c.datos.length) {
           fuente = c.turnoVoz ? c.voz : c.datos;
           c.turnoVoz = !c.turnoVoz;
-        } else fuente = c.voz.length ? c.voz : c.datos;
+        } else if (c.voz.length) fuente = c.voz;
+        // (LLA1108H) AUDIO > VÍDEO > todo lo demás: el vídeo sale cuando no hay control ni voz esperando.
+        else if (c.vid.length) fuente = c.vid;
+        else fuente = c.datos;
         const cuentaBytes = (lista: Item[]) => {
           if (fuente === c.datos) for (const i of lista) c.bytesDatos -= i.texto.length;
           else if (fuente === c.voz) for (const i of lista) c.bytesVoz -= i.texto.length;
+          else if (fuente === c.vid) for (const i of lista) c.bytesVid -= i.texto.length;
         };
         const lig = ligaduraDeEnlace(ligaduras, enlace, deps.ahora());
         const lim: LimitesCanal = lig?.limites ?? LIMITES_BLE_DEFECTO;
@@ -494,7 +511,7 @@ export function crearRedBle(deps: DepsBle): RedBle {
           const espera = esperaCaidaBle(racha);
           caidas[enlace] = deps.ahora() + espera;
           c.fallos = 0;
-          const perdidos = c.control.length + c.datos.length + c.voz.length;
+          const perdidos = c.control.length + c.datos.length + c.voz.length + c.vid.length;
           registro.anotar("caida", neuronaDe(enlace), `sin acuse tras ${FALLOS_PARA_CAIDA} intentos (${r.motivo}); racha ${racha}, se reintenta en ${Math.round(espera / 1000)} s; ${perdidos} mensaje(s) devueltos`, enlace);
           fallarTodo(c, `La otra app no acusa recibo por Bluetooth (${r.motivo}); se reintenta en ${Math.round(espera / 1000)} s.`);
           avisar();
@@ -524,13 +541,33 @@ export function crearRedBle(deps: DepsBle): RedBle {
     return tiro ? "descartado" : "ok";
   }
 
+  /** (LLA1108H) Vídeo ligero: cola propia, sin acuse por fragmento y con tope; se tira por el principio (lo más viejo). */
+  function encolarVideo(enlace: string, texto: string): "ok" | "descartado" | "cerrado" {
+    if (!abierto(enlace) || caido(enlace)) return "cerrado";
+    const c = cola(enlace);
+    let tiro = false;
+    c.vid.push({ texto, fin: nada });
+    c.bytesVid += texto.length;
+    while (c.bytesVid > MAX_COLA_VIDEO_BLE && c.vid.length > 1) {
+      const viejo = c.vid.shift();
+      if (!viejo) break;
+      c.bytesVid -= viejo.texto.length;
+      tiro = true;
+    }
+    void Promise.resolve().then(() => bombear(enlace));
+    return tiro ? "descartado" : "ok";
+  }
+
   function encolar(enlace: string, texto: string): Promise<ResultadoEnvioBle> {
     if (!abierto(enlace)) return Promise.resolve({ ok: false, motivo: "Ese enlace Bluetooth ya no está abierto." });
     if (caido(enlace)) return Promise.resolve({ ok: false, motivo: "Ese aparato no acusa recibo por Bluetooth ahora; se reintenta en unos segundos." });
     const c = cola(enlace);
     return new Promise((fin) => {
       const item: Item = { texto, fin };
-      if (esTextoVoz(texto)) {
+      if (texto.startsWith('{"t":"voz.v"')) {
+        c.vid.push(item);
+        c.bytesVid += texto.length;
+      } else if (esTextoVoz(texto)) {
         c.voz.push(item);
         c.bytesVoz += texto.length;
       } else if (claseDeTexto(texto) === "datos") {
@@ -967,6 +1004,8 @@ export function crearRedBle(deps: DepsBle): RedBle {
     enviarTexto: (enlace, texto) => encolar(enlace, texto),
     enviarVoz: (enlace, texto) => encolarVoz(enlace, texto),
     colaVozBytes: (enlace) => colas.get(enlace)?.bytesVoz ?? 0,
+    enviarVideo: (enlace, texto) => encolarVideo(enlace, texto),
+    colaVideoBytes: (enlace) => colas.get(enlace)?.bytesVid ?? 0,
     canalArchivos,
     recibir,
     enviarControlEnlace,

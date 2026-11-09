@@ -72,6 +72,10 @@ export interface ContextoMatriz {
   soyCreador: boolean;
   /** La llamada está viva (conectada o en espera). */
   viva: boolean;
+  /** (LLA1108H) Hay vídeo ligero por el enlace de datos: la cámara funciona por Bluetooth, en baja resolución. */
+  videoLigero?: boolean;
+  /** (LLA1108H) La llamada sabe pedir sola el Wi-Fi directo (la pantalla irá por él). */
+  escalaWifi?: boolean;
 }
 
 export interface Disponibilidad {
@@ -85,6 +89,7 @@ const no = (motivo: string): Disponibilidad => ({ ok: false, motivo });
 
 export const MOTIVO_VIDEO_BLUETOOTH = "El vídeo no cabe por Bluetooth: cambia a Wi‑Fi o red local.";
 export const MOTIVO_VIDEO_DATOS = "El vídeo no cabe por el enlace de datos: la voz va por él, pero la imagen necesita Wi‑Fi o red local.";
+export const MOTIVO_PANTALLA_BLUETOOTH = "La pantalla no cabe por Bluetooth: se abre sola por Wi‑Fi directo (sin router) si lo permites; también sirve la red local.";
 export const MOTIVO_PANTALLA_ANDROID = "Android no deja compartir la pantalla desde la app (su motor web no lo ofrece). Compártela desde un ordenador o desde el navegador.";
 export const MOTIVO_PANTALLA_MAC = "El motor web de la app de Mac no ofrece compartir la pantalla en este sistema. Compártela desde el navegador (Chrome o Safari) o desde otro ordenador.";
 export const MOTIVO_PANTALLA_NAVEGADOR = "Este navegador no permite compartir la pantalla.";
@@ -99,10 +104,14 @@ export function medioLlevaVideo(medio: ClaseMedioLlamada): Disponibilidad {
 
 function motivoPantalla(c: ContextoMatriz): Disponibilidad {
   if (!c.entorno.pantalla) return no(c.entorno.androidWebView ? MOTIVO_PANTALLA_ANDROID : c.entorno.macWebView ? MOTIVO_PANTALLA_MAC : MOTIVO_PANTALLA_NAVEGADOR);
+  // (LLA1108H) La pantalla no cabe por Bluetooth ni por el enlace de datos, pero si la llamada pide sola el Wi-Fi directo lo dice.
+  if (c.medio === "bluetooth" && c.escalaWifi) return no(MOTIVO_PANTALLA_BLUETOOTH);
   return medioLlevaVideo(c.medio);
 }
 
 function motivoCamara(c: ContextoMatriz): Disponibilidad {
+  // (LLA1108H) Con vídeo ligero la cámara SÍ va por Bluetooth o por el enlace de datos, en baja resolución.
+  if ((c.medio === "bluetooth" || c.medio === "enlace-datos") && c.videoLigero) return si;
   const v = medioLlevaVideo(c.medio);
   if (!v.ok) return v;
   // Sin cámaras listadas NO se bloquea: algunos navegadores no las enumeran hasta dar permiso, y al encenderla el
