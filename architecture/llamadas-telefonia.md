@@ -205,7 +205,8 @@ y a orígenes con consentimiento. El cifrado es el del enlace (CIF1108A): no hay
 4. A los 15 s sin audio por ninguno: la llamada acaba con motivo claro en los dos extremos (señal `fallo`),
    con «Reintentar». Nunca queda «conectando».
 
-Vídeo por BLE no es posible con calidad útil: la superficie lo dice y ofrece pasar a voz.
+Vídeo por BLE a calidad normal no cabe: desde LLA1108H la llamada **escala sola al Wi-Fi directo** y, mientras tanto
+(o si es imposible), lleva **vídeo ligero** por el enlace de datos (ver «Escalada y vídeo ligero» más abajo).
 
 ### 9. Transporte de la voz (`voz-datos/*`)
 
@@ -223,7 +224,57 @@ Vídeo por BLE no es posible con calidad útil: la superficie lo dice y ofrece p
 ### 9. Diagnóstico
 
 Hitos en `~/Library/Logs/app.starseed.os/enlaces.log` (evento `llamada`): `senal-enviada`, `senal-recibida`,
-`contestada`, `medio=webrtc`, `medio=enlace-datos`, `fallo`, `reintento`.
+`contestada`, `medio=webrtc`, `medio=enlace-datos`, `medio=video-datos`, `escalada-wifi`, `fallo`, `reintento`.
+LLA1108H añade por sentido el códec final: `voz-datos tx=<c> (comunes: …)` / `voz-datos rx=<c>` y
+`video-datos tx=<c>` / `video-datos rx=<c>` (más `rx-sin-decodificador`, `pide-clave`, `perfil=…`).
+
+### 9. Escalada al Wi-Fi directo y vídeo ligero (LLA1108H)
+
+Caso real 09-11 (0.5.1-prueba.30): voz por Bluetooth sí; vídeo no, y el log no mostraba ningún evento `enlace-wifi`:
+el motor real (`MotorLlamada`) nunca pedía el enlace directo (solo lo hacían `llamadas-neurona.ts`, archivos y flujos).
+
+**Escalada (`escalada-wifi.ts`, `motor.ts › revisarEscalada`)**. Cada 500 ms, por par: si el único camino no lleva
+IP (`hayRutaIp === false`; ahora cuenta como ruta IP un enlace Wi-Fi directo activo, `enlaceWifiDe`) y hay cámara,
+pantalla o la voz por datos va «regular/mala», la llamada llama a `escalarWifi(clase, flujoLocal)` →
+`avisarEnvioPesado({ clase: "llamada" | "pantalla", flujo })` → `alNecesitarAncho`. Una vez por clase y par cada
+60 s; la propuesta no se repite dentro de la misma llamada (`clave` por llamada). Decide el ajuste (§5 de
+`wifi-directo.md`): Automático abre; **Preguntar** propone con un toque en los dos aparatos; **Nunca** no hace nada.
+El flujo local se pasa a `retenerFlujo`: el enlace se retiene mientras la llamada tenga pistas vivas y se suelta
+por las reglas de inactividad al colgar. Cuando aparece una ruta IP (false → true) y WebRTC no está conectado, el
+motor reinicia ICE (`restartIce`, sin colgar, ≥1,5 s entre intentos) y el vigilante de LLA1108E vuelve a WebRTC sin
+cortar en cuanto conecta; entonces se suelta el vídeo ligero y el vídeo va por WebRTC.
+
+**Pasos que enseña la superficie** (`estado.escalada.texto`, en el chip; el aviso del Mac va en el motivo):
+«Voz por Bluetooth · el video llegará al abrir el Wi‑Fi directo» → «Abriendo Wi‑Fi directo…» (+ «Este Mac tiene una
+sola radio Wi-Fi: deja tu red de casa mientras dure») → «Video por Wi‑Fi directo (sin router)». Con «Preguntar»:
+«Acepta abrir el Wi‑Fi directo para tener video completo». Con vídeo ligero activo: «Video ligero por Bluetooth
+(baja resolución)» y, en `textoMedio`, la calidad («160×120 · 4 fps · 40 kbps · VP8»); con «Nunca»: «Wi‑Fi directo
+desactivado en los ajustes: el video va ligero por Bluetooth».
+
+**Vídeo ligero (`video-datos/*`)**. Mientras la voz va por el enlace de datos y WebRTC no conecta existe una
+`SesionVideoDatos` por par (también para RECIBIR aunque mi cámara esté apagada).
+- Códec: WebCodecs `VideoEncoder`/`VideoDecoder`, VP8 (`vp8`) o H.264 baseline (`avc1.42001e`, Annex B,
+  `latencyMode: "realtime"`) solo donde `isConfigSupported` lo confirme; si no, JPEG desde canvas a ≤3 fps.
+  Android WebView (Chromium): VP8/H.264; WKWebView de Mac: lo que ofrezca (normalmente H.264).
+- Escalera de calidad `PERFILES_VIDEO`: 160×120·4 fps·40 kbps → 320×240·12 fps·150 kbps; clave cada ~2 s o a petición.
+- Adaptación (`adaptacion.ts`): techo = ½ de la capacidad del enlace − 28 kbps de voz (sin medida: el suelo);
+  presión (cola de voz ≥ 700 B, enlace «ocupado», cola de vídeo ≥ 4 KiB o fragmentos descartados) tira fotogramas y,
+  con 2 avisos en 2 s, baja un escalón; tras 6 s en calma sube uno.
+- **Prioridad audio > vídeo > lo demás**: cola propia de vídeo en el motor BLE (`enviarVideo`, tope 24 KiB, lo más
+  viejo se tira), servida solo cuando no hay control ni voz esperando; la voz nunca espera por una imagen.
+- Fragmentos `voz.v` al MTU (1200 B útiles por defecto) cifrados por la sesión del enlace; control `voz.w`
+  (`hola` con los códecs que se saben DECODIFICAR, `kf`, `fin`). Fragmento perdido → el receptor descarta el
+  fotograma y los diferenciales siguientes y pide un clave (`kf`, ≤1/s); jamás se pinta una imagen a medias.
+- La imagen que llega se pinta en un canvas cuyo `captureStream` es el `stream` del participante remoto.
+
+**Códec por sentido** (voz y vídeo). Cada lado anuncia lo que sabe decodificar; el que emite elige el mejor de lo
+que sabe codificar y el otro decodifica. Cada paquete lleva su códec, así que un «adpcm» de un lado y un «opus» del
+otro son válidos: cada uno decodifica lo que recibe. Si llega uno que no se sabe decodificar, se anota
+(`rx-sin-decodificador`) y se vuelve a saludar para que el otro rehaga la elección (antes se tiraba en silencio).
+
+**Pruebas**: `__tests__/escalada-wifi-llamada.test.ts` (dos `MotorLlamada` reales por BLE falso: pide `llamada`, vídeo
+ligero, sube a WebRTC sin colgar, Preguntar/Nunca, cadena real `avisarEnvioPesado`), `video-datos/__tests__`
+(fragmentación, pérdida → clave, presión, prioridad) y `malla/__tests__/bluetooth-directo-motor.test.ts` (cola de vídeo).
 
 ### 9. Prueba en dispositivos
 
@@ -253,8 +304,8 @@ Medio = lo que lleva la voz: WebRTC, enlace de datos (sin ruta IP) o Bluetooth (
 | Control | WebRTC | Enlace de datos | Bluetooth |
 |---|---|---|---|
 | Micro, espera, chat, reacciones, calidad, Astraura, pantalla completa | sí | sí | sí |
-| Cámara / pasar a Vídeo | sí | no: el vídeo no cabe por el enlace de datos | no: «El vídeo no cabe por Bluetooth: cambia a Wi‑Fi o red local» |
-| Compartir pantalla / pasar a Pantalla | sí (según plataforma) | no (igual que la cámara) | no |
+| Cámara / pasar a Vídeo | sí | sí, **vídeo ligero** (LLA1108H); sin códec en el aparato: no, «el vídeo no cabe por el enlace de datos» | sí, vídeo ligero «Video ligero por Bluetooth (baja resolución)»; sin códec: no, «El vídeo no cabe por Bluetooth: cambia a Wi‑Fi o red local» |
+| Compartir pantalla / pasar a Pantalla | sí (según plataforma) | no (la imagen necesita Wi‑Fi o red local) | no: «La pantalla no cabe por Bluetooth: se abre sola por Wi‑Fi directo (sin router) si lo permites» |
 | Invitar / pasar a grupo (hasta 8) | sí | sí | no: por Bluetooth solo se habla de dos en dos |
 | Girar cámara | con 2 cámaras y la cámara encendida | no hay vídeo | no |
 | Medio de transmisión | solo «Automático»; fijar uno concreto sale desactivado («no se puede fijar a mano todavía») | | |

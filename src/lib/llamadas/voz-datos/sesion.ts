@@ -32,6 +32,12 @@ export interface TransporteVoz {
   alRecibir(cb: (texto: string) => void): () => void;
   abierto(): boolean;
   info(): { tipo: string; cifrada: boolean };
+  /* (LLA1108H) Opcionales para el vídeo ligero: cola propia por detrás de la voz, colas medidas y capacidad del enlace. */
+  enviarVideo?(texto: string): "ok" | "descartado" | "cerrado";
+  colaVozBytes?(): number;
+  colaVideoBytes?(): number;
+  capacidadKbps?(): number | null;
+  mtu?(): number | null;
 }
 
 export interface CodificadorVoz {
@@ -141,6 +147,9 @@ export class SesionVozDatos {
   private finTexto: string | null = null;
   private holaRecibido = false;
   private holasEnviadas = 0;
+  /** (LLA1108H) Último aviso «me llega un códec que no sé decodificar» (ms), para no repetirlo en cada paquete. */
+  private ultimoAvisoSinDecodificador = -1e9;
+  private txAnotado: CodecVoz | null = null;
   private bajas: Array<() => void> = [];
   private readonly oyentes = new Set<(e: EstadoVozDatos) => void>();
 
@@ -195,14 +204,20 @@ export class SesionVozDatos {
 
   private elegirCodecTx(suyos: CodecVoz[] | null): void {
     const c = elegirCodecComun(this.soportados, suyos);
-    if (c === this.codecTx && this.codificador) return;
-    this.codificador?.cerrar();
-    this.codificador = this.d.codecs.codificador(c) ?? this.d.codecs.codificador("adpcm");
-    this.codecTx = this.codificador ? c : "adpcm";
-    this.codificador?.alSalir((bytes) => {
-      if (!this.activa) return;
-      this.cola.encolar({ q: this.seqTx++, ts: this.d.reloj.ahora(), bytes });
-    });
+    if (!(c === this.codecTx && this.codificador)) {
+      this.codificador?.cerrar();
+      this.codificador = this.d.codecs.codificador(c) ?? this.d.codecs.codificador("adpcm");
+      this.codecTx = this.codificador ? c : "adpcm";
+      this.codificador?.alSalir((bytes) => {
+        if (!this.activa) return;
+        this.cola.encolar({ q: this.seqTx++, ts: this.d.reloj.ahora(), bytes });
+      });
+    }
+    // (LLA1108H) Se anota la elección FINAL por sentido en cuanto se conoce y cada vez que cambia: «tx» es lo que mando, «rx» lo que me llega.
+    if (suyos && this.txAnotado !== this.codecTx) {
+      this.txAnotado = this.codecTx;
+      this.d.anotar?.(`voz-datos tx=${this.codecTx} (comunes: ${this.soportados.filter((x) => suyos.includes(x)).join(",") || "ninguno"})`);
+    }
   }
 
   private mandarControl(c: Omit<ControlVoz, "s">): void {
@@ -309,7 +324,18 @@ export class SesionVozDatos {
       const p = leerPaquete(texto);
       if (!p || p.s !== this.d.idLlamada) return;
       const dec = this.decodificadorPara(p.c);
-      if (!dec) return;
+      if (!dec) {
+        // (LLA1108H) Me llega un códec que no sé decodificar (el otro supuso mal): se lo digo con un saludo nuevo para
+        // que rehaga la elección con lo que de verdad entiendo. Antes se tiraba el audio en silencio.
+        const ahora = this.d.reloj.ahora();
+        if (ahora - this.ultimoAvisoSinDecodificador > 3000) {
+          this.ultimoAvisoSinDecodificador = ahora;
+          this.d.anotar?.(`voz-datos rx-sin-decodificador codec=${p.c}`);
+          this.saludar();
+        }
+        return;
+      }
+      if (this.codecRx !== p.c) this.d.anotar?.(`voz-datos rx=${p.c}`);
       this.codecRx = p.c;
       this.ultimoRxEn = this.d.reloj.ahora();
       p.tramas.forEach((b, i) => {

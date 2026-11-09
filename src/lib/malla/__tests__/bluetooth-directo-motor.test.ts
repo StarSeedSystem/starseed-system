@@ -372,4 +372,37 @@ describe("Bluetooth directo · motor (BLE1108A)", () => {
     expect((await Promise.all(envios)).every((x) => x.ok)).toBe(true);
     expect(trozosEnElAire()).toBe(6);
   }, 20_000);
+  it("(LLA1108H) el vídeo ligero tiene cola propia: sale DESPUÉS de la voz y, si se llena, se tira lo más viejo del vídeo (nunca la voz)", async () => {
+    const { lados, aire } = dosApps();
+    await ligar(lados);
+    const mac = lados.mac.red;
+    const frag = (q: number) => JSON.stringify({ t: "voz.v", s: "s1", q, d: "A".repeat(1500) });
+    const voz = (q: number) => JSON.stringify({ t: "voz.p", s: "s1", q, d: "B".repeat(300) });
+    const antes = aire.jsons.length;
+    // Un segundo de vídeo se acumula (más de 24 KiB) y, EN EL MISMO INSTANTE, llega la voz.
+    const r: string[] = [];
+    for (let q = 0; q < 24; q++) r.push(mac.enviarVideo("b1", frag(q)));
+    expect(r.slice(0, 10).every((x) => x === "ok")).toBe(true);
+    expect(r).toContain("descartado"); // la cola de vídeo tiene tope
+    expect(mac.colaVideoBytes("b1")).toBeLessThanOrEqual(24 * 1024);
+    expect(mac.enviarVoz("b1", voz(0))).toBe("ok");
+    expect(mac.enviarVoz("b1", voz(1))).toBe("ok");
+    expect(mac.colaVozBytes("b1")).toBeGreaterThan(0);
+    await esperarHasta(() => mac.colaVideoBytes("b1") === 0 && mac.colaVozBytes("b1") === 0);
+    const enAire = aire.jsons.slice(antes).filter((j) => j.includes("voz."));
+    const iVoz = enAire.findIndex((j) => j.includes("voz.p"));
+    const iVid = enAire.findIndex((j) => j.includes("voz.v"));
+    expect(iVoz).toBeGreaterThanOrEqual(0);
+    expect(iVid).toBeGreaterThanOrEqual(0);
+    expect(iVoz).toBeLessThan(iVid); // el audio va primero
+    const junto = enAire.join("");
+    // La voz llegó entera.
+    expect((junto.match(/voz\.p/g) ?? []).length).toBe(2);
+    // Del vídeo se tiraron los más viejos: el fragmento 0 no salió y el último sí.
+    const qs = Array.from(junto.matchAll(/\\?"q\\?":(\d+),\\?"d\\?":\\?"A/g), (m) => Number(m[1]));
+    expect(qs.length).toBeGreaterThan(0);
+    expect(qs).not.toContain(0);
+    expect(qs).toContain(23);
+    expect(lados.tab.red.colaVideoBytes("b7")).toBe(0);
+  });
 });

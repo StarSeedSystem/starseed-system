@@ -420,6 +420,8 @@ export class AdaptadorMotor {
       personas: Math.max(1, e.participantes.length),
       camaraEncendida: e.camara,
       pantallaCompartida: e.pantalla,
+      videoLigero: !!e.videoDatos?.disponible,
+      escalaWifi: !!e.escalada,
       hayVideoRemoto: otros.some((p) => !!p.stream?.getVideoTracks().length),
       soyCreador: this.primero() === this.motor.miId,
       viva: e.fase === "en-curso",
@@ -881,7 +883,7 @@ export class AdaptadorMotor {
       volumen: this.silenciados.has(p.id) ? 0 : (this.volumenes[p.id] ?? 1),
       nivel: p.nivel,
     }));
-    const chip = this.chipTipo ?? this.chipMedio ?? e.estadoAudio ?? null;
+    const chip = this.chipTipo ?? this.chipMedio ?? e.estadoAudio ?? e.escalada?.texto ?? null;
     const camaras = e.dispositivos.camaras.length;
     return {
       estado,
@@ -891,7 +893,7 @@ export class AdaptadorMotor {
       desde: e.inicio,
       fin,
       medioUsado: e.medio?.texto ?? null,
-      motivo: e.motivoFin ?? e.videoNoDisponible ?? (e.fase === "esperando" && !e.contestada ? "Esperando a que contesten…" : e.fase === "conectando" ? "Conectando…" : this.esperaRemota ? `${this.esperaRemota} te ha puesto en espera.` : null),
+      motivo: e.motivoFin ?? e.videoNoDisponible ?? (e.escalada && (e.escalada.paso === "abriendo" || e.escalada.paso === "propuesta") ? e.escalada.aviso : null) ?? (e.fase === "esperando" && !e.contestada ? "Esperando a que contesten…" : e.fase === "conectando" ? "Conectando…" : this.esperaRemota ? `${this.esperaRemota} te ha puesto en espera.` : null),
       aviso: this.aviso ?? e.aviso,
       local: yo?.stream ?? null,
       remoto: foco?.stream ?? null,
@@ -903,7 +905,7 @@ export class AdaptadorMotor {
       calidad: calidadConMedio,
       medioElegido: this.medioElegido,
       opcionesMedio: this.opcionesDeMedio().map((o) => (o.medio === "automatico" ? o : { ...o, disponible: false, motivo: ctx.medio === "bluetooth" && o.medio === "bluetooth" ? "Es el medio que lleva la voz ahora; el motor lo elige solo." : o.motivo })),
-      textoMedio: e.medio ? `${e.medio.texto}${e.medio.calidadTexto ? ` · ${e.medio.calidadTexto}` : ""}` : null,
+      textoMedio: e.medio ? `${e.medio.texto}${e.medio.calidadTexto ? ` · ${e.medio.calidadTexto}` : ""}${e.videoDatos && (e.videoDatos.enviando || e.videoDatos.recibiendo) && e.videoDatos.calidadTexto ? ` · vídeo ligero ${e.videoDatos.calidadTexto}` : ""}` : null,
       grabacion: this.avisandoGrab ? { ...this.grab, fase: "avisando" } : this.grab,
       astraura: this.astr,
       reconocedor: this.deps.reconocedor?.tipo ?? "ninguno",

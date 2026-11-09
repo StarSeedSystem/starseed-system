@@ -195,6 +195,8 @@ export function avisarEnvioPesado(p: {
   clase: ClaseNecesidad;
   bytes?: number;
   enlace?: EnlaceParaAncho | null;
+  /** (LLA1108H) El flujo vivo (llamada, pantalla): el enlace se retiene mientras tenga pistas y se suelta al colgar. */
+  flujo?: { getTracks(): Array<{ readyState: string }> } | null;
 }): void {
   try {
     if (p.clave && !primeraVez(avisados, p.clave, Date.now())) return;
@@ -202,7 +204,7 @@ export function avisarEnvioPesado(p: {
     /* sin memoria: se avisa */
   }
   void import("./enlace-wifi-motor")
-    .then((ew) => ew.alNecesitarAncho({ destino: p.destino, clase: p.clase, bytes: p.bytes, enlace: p.enlace ?? null }))
+    .then((ew) => ew.alNecesitarAncho({ destino: p.destino, clase: p.clase, bytes: p.bytes, enlace: p.enlace ?? null, flujo: p.flujo ?? null }))
     .catch(nada);
 }
 

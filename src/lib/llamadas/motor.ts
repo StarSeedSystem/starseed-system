@@ -30,6 +30,9 @@ import { abrirCanalLlamada, type ConexionCanal } from "@/lib/llamadas/senalizaci
 import { SesionVozDatos, type AudioVoz, type FabricaCodecs, type RelojVoz, type TransporteVoz } from "@/lib/llamadas/voz-datos/sesion";
 import { decidirAccionMedio, ESPERA_ICE_MS, LIMITE_CONECTANDO_MS, MOTIVO_SIN_AUDIO, nivelCalidadVoz, TEXTO_CONTESTADA_CONECTANDO, TEXTO_VIDEO_BLE, textoCalidadVoz, textoMedioVoz } from "@/lib/llamadas/voz-datos/decision";
 import { anotarLlamada } from "@/lib/llamadas/voz-datos/diagnostico";
+import { SesionVideoDatos } from "@/lib/llamadas/video-datos/sesion-video";
+import type { FabricaVideo, FuenteVideo, SalidaVideo } from "@/lib/llamadas/video-datos/tipos";
+import { claseEscalada, debeEscalar, textoEscalada, TEXTO_PANTALLA_BLE, type ClaseEscalada, type EstadoWifiLlamada } from "@/lib/llamadas/escalada-wifi";
 import { MENSAJE_CANAL_PRIVADO } from "@/lib/llamadas/temas";
 import { admision, evaluarDescripcion, reaccionIce, soyCortes } from "@/lib/llamadas/negociacion";
 import { elegirHablante, nivelRms, suavizarNivel, type HablanteVigente } from "@/lib/llamadas/hablante";
@@ -120,6 +123,25 @@ export interface OpcionesVozDatos {
     intervaloMs?: number;
     /** Neurona del otro aparato (para anotar los hitos en el registro del enlace). */
     neurona?: string | null;
+    /**
+     * (LLA1108H) Pide el enlace Wi-Fi directo (`avisarEnvioPesado`, clase «llamada» o «pantalla») cuando el único camino
+     * hacia el par no lleva IP. Con el flujo local, el enlace se retiene mientras la llamada tenga pistas vivas y se
+     * suelta solo al colgar. Sin esta opción la llamada no escala (el comportamiento de antes).
+     */
+    escalarWifi?(clase: ClaseEscalada, flujo: MediaStream | null): void;
+    /** (LLA1108H) En qué paso va el enlace Wi-Fi directo con ese par (abriendo, propuesta, activo, nunca…). */
+    estadoWifi?(): EstadoWifiLlamada;
+    /** (LLA1108H) Vídeo ligero por el enlace de datos mientras no hay red IP (todo inyectable). */
+    video?: OpcionesVideoDatos;
+}
+
+/** (LLA1108H) Lo que el motor necesita para llevar vídeo de baja resolución por el enlace de datos. */
+export interface OpcionesVideoDatos {
+    fabrica(): FabricaVideo | Promise<FabricaVideo>;
+    /** La cámara reducida como fuente de fotogramas. */
+    fuenteDePista(pista: MediaStreamTrack): FuenteVideo | null;
+    /** Dónde se pinta el vídeo que llega. */
+    crearSalida(): SalidaVideo | null;
 }
 
 export interface ResumenLlamada {
@@ -247,6 +269,17 @@ export class MotorLlamada {
     private readonly activandoDatos = new Set<string>();
     private readonly vigilantes = new Map<string, ReturnType<typeof setInterval>>();
     private puedeReintentar = false;
+    /** (LLA1108H) Vídeo ligero por par, su salida (MediaStream), la pista que alimenta cada fuente y la espera de la fábrica. */
+    private readonly videoDatos = new Map<string, SesionVideoDatos>();
+    private readonly salidasVideo = new Map<string, SalidaVideo | null>();
+    private readonly pistaFuenteVideo = new Map<string, MediaStreamTrack>();
+    private readonly activandoVideo = new Set<string>();
+    /** (LLA1108H) Escalada al Wi-Fi directo: cuándo se pidió cada clase por par, y si hubo ruta IP la última vez. */
+    private readonly escaladas = new Map<string, number>();
+    private readonly rutaIpVista = new Map<string, boolean | null>();
+    private readonly ultimoReintentoIce = new Map<string, number>();
+    private wifiVisto = "";
+    private wifiEstado: EstadoWifiLlamada | null = null;
     private temporizadorNivel: ReturnType<typeof setInterval> | null = null;
     private temporizadorStats: ReturnType<typeof setInterval> | null = null;
     private alCambiarDispositivos: (() => void) | null = null;
@@ -471,6 +504,7 @@ export class MotorLlamada {
         }
         this.publicarMeta();
         this.emitir();
+        this.alCambiarVideoLocal();
         return null;
     }
 
@@ -505,6 +539,7 @@ export class MotorLlamada {
         for (const par of this.pares.values()) this.ponerEnEmisor(par, "video", r.pista);
         this.publicarMeta();
         this.emitir();
+        this.alCambiarVideoLocal();
         return null;
     }
 
@@ -534,6 +569,7 @@ export class MotorLlamada {
         for (const par of this.pares.values()) this.ponerEnEmisor(par, "video", video);
         this.publicarMeta();
         this.emitir();
+        this.alCambiarVideoLocal();
     }
 
     async cambiarMicro(id: string): Promise<string | null> {
@@ -1223,6 +1259,7 @@ export class MotorLlamada {
     private cerrarPar(id: string) {
         this.pararVigilante(id);
         this.pararVozDatos(id, "par-fuera");
+        this.rutaIpVista.delete(id);
         const par = this.pares.get(id);
         if (!par) return;
         this.pares.delete(id);
@@ -1349,6 +1386,10 @@ export class MotorLlamada {
                 default:
                     break;
             }
+            // (LLA1108H) Wi-Fi directo: pedirlo si solo hay Bluetooth, subir a WebRTC cuando aparezca una ruta IP y
+            // llevar vídeo ligero por el enlace de datos mientras tanto.
+            this.revisarEscalada(id, par);
+            void this.sincronizarVideoDatos(id);
         };
         this.vigilantes.set(id, setInterval(tic, v.intervaloMs ?? 500));
     }
@@ -1416,11 +1457,179 @@ export class MotorLlamada {
     }
 
     private pararVozDatos(id: string, motivo: string) {
+        this.pararVideoDatos(id);
         const s = this.vozDatos.get(id);
         if (!s) return;
         this.vozDatos.delete(id);
         try {
             s.detener(motivo);
+        } catch {
+            /* noop */
+        }
+        this.emitir();
+    }
+
+    /* ───────────────────── Escalada al Wi-Fi directo y vídeo ligero (LLA1108H) ───────────────────── */
+
+    /** Cámara o pantalla cambiaron: se revisa ya la escalada y el vídeo de datos, sin esperar al siguiente tic. */
+    private alCambiarVideoLocal() {
+        if (!this.opc.vozDatos || this.cerrado) return;
+        for (const [id, par] of this.pares) {
+            this.revisarEscalada(id, par);
+            void this.sincronizarVideoDatos(id);
+        }
+    }
+
+    /**
+     * Si el único camino hacia el par no lleva IP y hace falta más que voz (cámara, pantalla, o la voz va regular),
+     * pide el enlace Wi-Fi directo (según el ajuste: Automático lo abre, Preguntar lo propone a un toque en los dos
+     * aparatos, Nunca no hace nada). Cuando aparece una ruta IP, reinicia ICE para que WebRTC suba SIN colgar; el
+     * vigilante ya vuelve a WebRTC (y suelta el vídeo ligero) en cuanto conecta.
+     */
+    private revisarEscalada(id: string, par: Par) {
+        const v = this.opc.vozDatos;
+        if (!v || this.cerrado) return;
+        const neurona = v.neurona ?? null;
+        const ip = (() => {
+            try {
+                return v.hayRutaIp?.(id) ?? null;
+            } catch {
+                return null;
+            }
+        })();
+        const ahora = this.relojVoz().ahora();
+        // 1) Aparece una ruta IP (se abrió el Wi-Fi directo): WebRTC reintenta por ella, sin cortar la voz.
+        const antes = this.rutaIpVista.get(id) ?? null;
+        this.rutaIpVista.set(id, ip);
+        if (ip === true && par.conexion !== "conectado") {
+            const ultimo = this.ultimoReintentoIce.get(id) ?? -Infinity;
+            if (antes === false || (par.conexion === "fallida" && ahora - ultimo >= 5000 && par.reinicios < 6)) {
+                if (ahora - ultimo >= 1500) {
+                    this.ultimoReintentoIce.set(id, ahora);
+                    par.reinicios = 0;
+                    anotarLlamada("medio=webrtc", neurona, `par=${id} ruta IP nueva (Wi-Fi directo): se reintenta WebRTC sin colgar`);
+                    this.reiniciarIce(par);
+                }
+            }
+        }
+        // 2) Pedir el enlace.
+        const datos = this.vozDatos.get(id);
+        const cal = datos ? nivelCalidadVoz(datos.calidad()) : null;
+        if (v.escalarWifi && debeEscalar({ contestada: this.contestada, hayRutaIp: ip, camara: this.camaraOn, pantalla: this.pantallaOn, vozDatosActiva: !!datos?.estado().activa, nivelVoz: cal })) {
+            const clase = claseEscalada({ pantalla: this.pantallaOn });
+            const clave = `${id}:${clase}`;
+            if (ahora - (this.escaladas.get(clave) ?? -Infinity) >= 60_000) {
+                this.escaladas.set(clave, ahora);
+                anotarLlamada("escalada-wifi", neurona, `par=${id} solo hay enlaces sin IP: se pide Wi-Fi directo clase=${clase} (camara=${this.camaraOn ? "si" : "no"} pantalla=${this.pantallaOn ? "si" : "no"} voz=${cal ?? "-"})`);
+                try {
+                    v.escalarWifi(clase, this.local);
+                } catch {
+                    /* pedir el enlace nunca tumba la llamada */
+                }
+            }
+        }
+        // 3) El paso del enlace cambió: la superficie lo cuenta.
+        let w: EstadoWifiLlamada | null = null;
+        try {
+            w = v.estadoWifi?.() ?? null;
+        } catch {
+            w = null;
+        }
+        const firma = w ? `${w.paso}|${w.aviso ?? ""}` : "";
+        if (firma !== this.wifiVisto) {
+            if (w) anotarLlamada("escalada-wifi", neurona, `par=${id} wifi-directo ${w.paso}`);
+            this.wifiVisto = firma;
+            this.wifiEstado = w;
+            this.emitir();
+        }
+    }
+
+    /** Qué imagen enseñar del par: la de WebRTC si trae vídeo; si no, la del enlace de datos (cuando ya llegó algo). */
+    private streamDe(id: string, par: Par | undefined): MediaStream | null {
+        const web = par?.stream ?? null;
+        if (web && web.getVideoTracks().length) return web;
+        const s = this.videoDatos.get(id);
+        const salida = this.salidasVideo.get(id);
+        if (s && salida?.stream && s.estado().recibiendo) return salida.stream;
+        return web;
+    }
+
+    /**
+     * Mantiene el vídeo ligero de ese par: existe mientras la voz va por el enlace de datos y WebRTC no ha conectado
+     * (así también se RECIBE el del otro aunque mi cámara esté apagada); su fuente es mi cámara cuando está encendida.
+     * Al conectar WebRTC o acabar la voz por datos, se suelta (el vídeo pasa a WebRTC sin colgar).
+     */
+    private async sincronizarVideoDatos(id: string): Promise<void> {
+        const v = this.opc.vozDatos;
+        const vid = v?.video;
+        if (!v || !vid || this.cerrado) return;
+        const par = this.pares.get(id);
+        const voz = this.vozDatos.get(id);
+        const deseada = !!par && !!voz?.estado().activa && par.conexion !== "conectado";
+        if (!deseada) {
+            this.pararVideoDatos(id);
+            return;
+        }
+        let s = this.videoDatos.get(id);
+        if (!s) {
+            if (this.activandoVideo.has(id)) return;
+            let tr: TransporteVoz | null = null;
+            try {
+                tr = v.transporteHacia(id);
+            } catch {
+                tr = null;
+            }
+            if (!tr) return;
+            this.activandoVideo.add(id);
+            try {
+                const fabrica = await vid.fabrica();
+                if (this.cerrado || this.videoDatos.has(id) || !this.vozDatos.get(id)?.estado().activa) return;
+                const salida = vid.crearSalida();
+                const neurona = v.neurona ?? null;
+                s = new SesionVideoDatos({
+                    idLlamada: this.sesionId,
+                    transporte: tr,
+                    codecs: fabrica,
+                    salida,
+                    reloj: this.relojVoz(),
+                    anotar: (h) => anotarLlamada("medio=video-datos", neurona, h),
+                });
+                s.suscribir(() => this.emitir());
+                s.iniciar();
+                this.videoDatos.set(id, s);
+                this.salidasVideo.set(id, salida);
+                anotarLlamada("medio=video-datos", neurona, `par=${id} vídeo ligero abierto (códec por sentido tras el saludo)`);
+                this.emitir();
+            } catch {
+                /* sin vídeo ligero la llamada sigue con voz */
+            } finally {
+                this.activandoVideo.delete(id);
+            }
+        }
+        s = this.videoDatos.get(id);
+        if (!s) return;
+        const quiere = this.camaraOn && !this.pantallaOn ? this.pistaCamara : null;
+        const actual = this.pistaFuenteVideo.get(id) ?? null;
+        if (quiere && actual !== quiere) {
+            const f = vid.fuenteDePista(quiere);
+            if (f) {
+                s.ponerFuente(f);
+                this.pistaFuenteVideo.set(id, quiere);
+            }
+        } else if (!quiere && actual) {
+            s.ponerFuente(null);
+            this.pistaFuenteVideo.delete(id);
+        }
+    }
+
+    private pararVideoDatos(id: string) {
+        const s = this.videoDatos.get(id);
+        this.pistaFuenteVideo.delete(id);
+        if (!s) return;
+        this.videoDatos.delete(id);
+        this.salidasVideo.delete(id);
+        try {
+            s.detener();
         } catch {
             /* noop */
         }
@@ -1437,7 +1646,7 @@ export class MotorLlamada {
     }
 
     /** Lo que la superficie necesita saber del medio: cuál es, cómo va y si todavía se está conectando el audio. */
-    private vistaMedio(): Pick<EstadoLlamada, "medio" | "estadoAudio" | "puedeReintentar" | "videoNoDisponible"> {
+    private vistaMedio(): Pick<EstadoLlamada, "medio" | "estadoAudio" | "puedeReintentar" | "videoNoDisponible" | "videoDatos" | "escalada"> {
         const webrtcOk = Array.from(this.pares.values()).some((p) => p.conexion === "conectado");
         const datos = Array.from(this.vozDatos.values()).find((s) => s.estado().activa);
         let medio: MedioVoz | null = null;
@@ -1448,11 +1657,33 @@ export class MotorLlamada {
             medio = { tipo: "enlace-datos", texto: textoMedioVoz(e.medio), cifrada: e.medio.cifrada, calidadTexto: textoCalidadVoz(cal), nivel: nivelCalidadVoz(cal) };
         }
         const conAudio = webrtcOk || Array.from(this.vozDatos.values()).some((s) => s.estado().recibiendo);
+        // (LLA1108H) Vídeo ligero por el enlace de datos y pasos de la escalada al Wi-Fi directo.
+        const vd = webrtcOk ? undefined : Array.from(this.videoDatos.values())[0]?.estado();
+        const hayVideoLigero = !!this.opc.vozDatos?.video;
+        const videoDatos = vd
+            ? { disponible: hayVideoLigero, enviando: vd.enviando, recibiendo: vd.recibiendo, calidadTexto: vd.texto, nivel: vd.nivel }
+            : hayVideoLigero && datos && !webrtcOk
+              ? { disponible: true, enviando: false, recibiendo: false, calidadTexto: null, nivel: null }
+              : null;
+        const w = this.wifiEstado ?? { paso: "inactivo" as const, aviso: null };
+        const videoPedido = this.camaraOn || this.pantallaOn;
+        const escalada =
+            this.opc.vozDatos && (this.opc.vozDatos.escalarWifi || hayVideoLigero) && this.contestada
+                ? { paso: w.paso, texto: textoEscalada({ paso: w.paso, webrtcConectado: webrtcOk, videoPedido, videoDatosActivo: !!vd?.enviando }), aviso: w.aviso ?? null }
+                : null;
+        let videoNoDisponible: string | null = null;
+        if (datos && !webrtcOk) {
+            // La pantalla no cabe por el enlace de datos (sí por el Wi-Fi directo); la cámara solo si no hay vídeo ligero.
+            if (this.pantallaOn) videoNoDisponible = this.opc.vozDatos?.escalarWifi ? TEXTO_PANTALLA_BLE : TEXTO_VIDEO_BLE;
+            else if (this.camaraOn && !hayVideoLigero) videoNoDisponible = TEXTO_VIDEO_BLE;
+        }
         return {
             medio,
             estadoAudio: this.contestada && !this.cerrado && !conAudio && this.opc.vozDatos ? TEXTO_CONTESTADA_CONECTANDO : null,
             puedeReintentar: this.puedeReintentar,
-            videoNoDisponible: datos && !webrtcOk && (this.camaraOn || this.pantallaOn) ? TEXTO_VIDEO_BLE : null,
+            videoNoDisponible,
+            videoDatos,
+            escalada,
         };
     }
 
@@ -1582,7 +1813,7 @@ export class MotorLlamada {
             return {
                 ...p,
                 yo: false,
-                stream: par?.stream ?? null,
+                stream: this.streamDe(p.id, par),
                 conexion: this.vozDatos.get(p.id)?.estado().recibiendo ? "conectado" : (par?.conexion ?? "conectando"),
                 calidad: par?.calidad ?? "desconocida",
                 nivel: this.niveles[p.id] ?? 0,

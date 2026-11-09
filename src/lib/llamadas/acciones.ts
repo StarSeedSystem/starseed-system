@@ -69,12 +69,19 @@ interface ExtrasNeurona {
 async function extrasDeNeurona(neurona: string | null | undefined): Promise<ExtrasNeurona | null> {
     if (!neurona) return null;
     try {
-        const [ct, vt, aw] = await Promise.all([
+        const [ct, vt, aw, cv, esc, ew] = await Promise.all([
             import("@/lib/llamadas/canal-enlace-transporte"),
             import("@/lib/llamadas/voz-datos/transporte"),
             import("@/lib/llamadas/voz-datos/audio-web"),
+            import("@/lib/llamadas/video-datos/codec-web"),
+            import("@/lib/llamadas/escalada-wifi"),
+            // El motor Wi-Fi solo existe de verdad en la app nativa; si no carga, la llamada simplemente no escala.
+            import("@/lib/malla/enlace-wifi-motor").catch(() => null),
         ]);
         const [deps, codecs] = await Promise.all([ct.depsCanalTransporteReales(), aw.crearFabricaCodecsWeb()]);
+        // (LLA1108H) Una clave por llamada: la propuesta del Wi-Fi directo no se repite dentro de ella, pero la llamada siguiente sí la hace.
+        const claveLlamada = `llamada:${neurona}:${Date.now().toString(36)}`;
+        let fabricaVideo: ReturnType<typeof cv.crearFabricaVideoWeb> | null = null;
         return {
             neurona,
             abrirCanal: (sesionId, clave) => ct.abrirCanalLlamadaPorTransporte(neurona, sesionId, clave, deps),
@@ -84,6 +91,25 @@ async function extrasDeNeurona(neurona: string | null | undefined): Promise<Extr
                 hayRutaIp: () => vt.hayRutaIpHacia(neurona),
                 crearAudio: (micro) => aw.crearAudioWeb(micro),
                 codecs: () => codecs,
+                // (LLA1108H) Solo Bluetooth y se quiere vídeo: la llamada pide sola el Wi-Fi directo (según el ajuste) y sube a WebRTC sin colgar.
+                escalarWifi: (clase, flujo) => {
+                    void import("@/lib/malla/puente-ble-wifi")
+                        .then((m) => m.avisarEnvioPesado({ clave: `${claveLlamada}:${clase}`, destino: { neuronDeviceId: neurona }, clase, flujo }))
+                        .catch(() => undefined);
+                },
+                estadoWifi: () => {
+                    try {
+                        return esc.pasoWifiDe(ew?.motorWifiActivo()?.instantanea() ?? null, neurona, ew?.ajusteWifi());
+                    } catch {
+                        return { paso: "inactivo" as const };
+                    }
+                },
+                // (LLA1108H) Vídeo de baja resolución por el enlace de datos mientras el Wi-Fi directo se abre (o no puede abrirse).
+                video: {
+                    fabrica: () => (fabricaVideo ??= cv.crearFabricaVideoWeb()),
+                    fuenteDePista: (pista) => cv.crearFuenteDePista(pista),
+                    crearSalida: () => cv.crearSalidaVideoWeb(),
+                },
             },
         };
     } catch {
