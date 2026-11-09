@@ -6319,3 +6319,17 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 
 **Lo que quedó fuera, una por una:**
 - `LNN1028I2b` — la revisión lo rechazó: no toco NINGUNO de los 1 archivos que declaraba (rama ola/LNN1028I2b conservada)
+
+## 2026-11-09 01:04 · auto-1108-234020
+
+**Lo que se pidió.** Mando
+
+**Resultado.** 4 de 7 integradas. 3 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — los tipos no compilan (PRM1109A, PRM1109B). Es 29 % de la ola.
+
+**Lo que quedó fuera, una por una:**
+- `PRM1109A` — los tipos no compilan: revisor: dividida en PRM1109A-d1, PRM1109A-d2 (tarea:tsc con 2 archivos: se divide en 2 partes encadenadas)
+- `PRM1109B` — los tipos no compilan: 1 errores tsc (rama ola/PRM1109B conservada)
+- `LNN1028I2b` — la revisión lo rechazó: no toco NINGUNO de los 1 archivos que declaraba (rama ola/LNN1028I2b conservada)
