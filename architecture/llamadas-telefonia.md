@@ -130,3 +130,54 @@ pantalla completa en Android 14+.
 
 `useLlamadaNativa()` en `src/lib/llamadas/nativa/use-llamada-nativa.ts`: `{disponible, capacidades, rutas,
 ruta, proximidad, pantallaCompletaLista, fijarRuta, permitirProximidad, pedirPantallaCompleta}`.
+
+## 9. Voz por enlace de datos (sin red IP) (LLA1108E)
+
+Caso real 08-11 (0.5.1-prueba.29): la Mac llamó a la tableta con el Wi-Fi apagado y solo Bluetooth directo.
+El timbre llegó (burbuja del chat por BLE), pero la señalización de la llamada solo tenía dos vías, el canal
+privado de Supabase y los enlaces WebRTC locales, y ninguna existe por BLE: la tableta no podía entrar al
+canal («conectando» para siempre) y la Mac nunca vio la presencia que marca «contestada».
+
+### 9. Señalización por cualquier enlace (`canal-enlace-transporte.ts`)
+
+`abrirCanalLlamadaPorTransporte` es una `ConexionCanal` más (`canalesDirectos`) sobre el transporte universal
+(`enviarMensaje`/`alRecibirMensaje`, canal `llamada-canal`): presencia (`llc.pres`), señales de par
+(`llc.senal`: oferta, respuesta, ICE, colgar, rechazo, `fallo`) y salida (`llc.fuera`) por el mejor enlace hacia
+esa neurona (BLE, red local nativa, Wi-Fi directo, malla de la cuenta). Con acuse; si ningún enlace lo lleva
+reintenta a 1, 2 y 4 s; el transporte descarta repetidos por id. Solo se atiende a la neurona a la que se llama
+y a orígenes con consentimiento. El cifrado es el del enlace (CIF1108A): no hay segunda capa. El que llama ve
+«Contestada · conectando audio…» en cuanto llega la presencia del otro, sin esperar al audio.
+
+### 9. Qué medio lleva la voz (`voz-datos/decision.ts`)
+
+1. Sin ruta IP hacia ese par (solo BLE u otro enlace sin IP): enlace de datos desde el primer momento.
+2. Con ruta IP, si ICE no conecta en 6 s y hay enlace de datos: se pasa a él sin colgar.
+3. Si WebRTC conecta más tarde: se vuelve a WebRTC sin cortar.
+4. A los 15 s sin audio por ninguno: la llamada acaba con motivo claro en los dos extremos (señal `fallo`),
+   con «Reintentar». Nunca queda «conectando».
+
+Vídeo por BLE no es posible con calidad útil: la superficie lo dice y ofrece pasar a voz.
+
+### 9. Transporte de la voz (`voz-datos/*`)
+
+- Captura: AudioWorklet (con ScriptProcessor de reserva) a 16 kHz mono, tramas de 20 ms.
+- Códec: Opus por WebCodecs `AudioEncoder` donde `isConfigSupported` lo dé (WKWebView reciente, Chrome/Android
+  WebView), a 16-24 kbps; si no, IMA-ADPCM (~32 kbps) o μ-law (64 kbps) en TS puro. Se negocia en el saludo.
+- Paquete `voz.p`: seq, marca de tiempo, códec y 2-3 tramas por escritura BLE.
+- Contrapresión (BLE1108C): la voz tiene cola propia en el motor BLE; si hay voz esperando se retiene en la
+  sesión y, si se llena, se descarta lo MÁS VIEJO (nunca segundos de retraso). Se alterna con la cola de
+  datos para que ni la voz mate al chat ni al revés.
+- Reproducción: jitter buffer adaptativo de 60 a 200 ms con ocultación de pérdidas (repetir y atenuar).
+- Silencio, altavoz/auricular, proximidad y cronómetro siguen igual (`useLlamadaNativa`).
+- Superficie: «Voz por Bluetooth directo · cifrada» y calidad (latencia, pérdida, códec).
+
+### 9. Diagnóstico
+
+Hitos en `~/Library/Logs/app.starseed.os/enlaces.log` (evento `llamada`): `senal-enviada`, `senal-recibida`,
+`contestada`, `medio=webrtc`, `medio=enlace-datos`, `fallo`, `reintento`.
+
+### 9. Prueba en dispositivos
+
+Tableta con Wi-Fi y datos apagados y solo Bluetooth; Mac con BLE central enlazado a la tableta. Llamar desde la
+Mac, contestar en la tableta: la Mac muestra «Contestada · conectando audio…» y a continuación «Voz por
+Bluetooth directo · cifrada». Con el Bluetooth cortado a media llamada, a los 15 s ambas acaban con motivo.

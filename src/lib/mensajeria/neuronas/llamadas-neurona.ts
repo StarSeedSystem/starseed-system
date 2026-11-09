@@ -233,6 +233,7 @@ export async function llamarANeurona(o: {
             titulo: conv.nombre,
             invitados: conv.propia || !conv.destino.uid ? [] : [conv.destino.uid],
             pistaPantalla: pista,
+            neurona: conv.destino.neuronDeviceId ?? null,
             avisar: async (sesion) => {
                 aviso = await enviarANeurona({ clave: conv.clave, destino: conv.destino, texto: "", llamada: { ...llamada, sesion }, urgente: true });
                 return aviso.estado === "enviado" || aviso.estado === "confirmado";
@@ -347,6 +348,7 @@ export async function timbreDeNeurona(o: { clave: string; cuerpo: CuerpoNeurona 
             llamante: { uid: o.cuerpo.de.u ?? "", nombre: o.cuerpo.de.nom || "Una neurona", avatar: null },
             silenciado: false,
             llegada: Date.now(),
+            ...(o.cuerpo.de.n ? { neurona: o.cuerpo.de.n } : {}),
         });
         void vigilarSistema(o.clave, o.cuerpo.mid, ll.sesion);
     } catch {

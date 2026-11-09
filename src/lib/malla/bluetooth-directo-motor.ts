@@ -20,6 +20,7 @@
  */
 
 import { recibirArchivo } from "@/lib/malla/recepcion-sellada";
+import { esTextoVoz } from "@/lib/llamadas/voz-datos/paquete";
 import { datosHolaArchivoYa, registrarHolaArchivo } from "@/lib/malla/archivo-seguro-real";
 import {
   FALLOS_PARA_CAIDA,
@@ -124,6 +125,8 @@ export interface DepsBle {
   certificadoMismaCuenta?: VerificadorCertificado;
   /** (BLE1108B) Copia líneas del registro del enlace al archivo `enlaces.log` de la app nativa (ausente: solo memoria). */
   anexarRegistro?(lineas: string[]): void;
+  /** (LLA1108E) Un `voz.*` de un enlace ligado → la voz por enlace de datos (ya acusó la app y, si cifra, ya viene descifrado). */
+  entregarVoz?(texto: string, origen: { neurona: string; enlaceId: string; cifrada: boolean }): void;
 }
 
 export interface ResultadoEnvioBle {
@@ -164,6 +167,13 @@ export interface RedBle {
   cifradoDe?(neurona: string): EtiquetaCifrado | null;
   /** Manda un texto (objeto JSON) por ese enlace; se resuelve con el acuse de la otra app. */
   enviarTexto(enlace: string, texto: string): Promise<ResultadoEnvioBle>;
+  /**
+   * (LLA1108E) Voz por enlace de datos: encola un `voz.*` en la cola PROPIA de la voz y vuelve al instante (sin
+   * esperar el acuse). Si la cola de voz pasa de `MAX_COLA_VOZ_BLE` se tira lo más viejo. «cerrado»: sin enlace.
+   */
+  enviarVoz(enlace: string, texto: string): "ok" | "descartado" | "cerrado";
+  /** (LLA1108E) Bytes de voz esperando salir por ese enlace (la sesión de voz retiene sus tramas mientras haya). */
+  colaVozBytes(enlace: string): number;
   canalArchivos(enlace: string): CanalArchivos;
   /** Lo que llegó por ese enlace (lo no ligado, salvo el saludo, se ignora). */
   recibir(cuerpo: string, enlace: string): Promise<void>;
@@ -182,6 +192,13 @@ export interface RedBle {
 
 /** Tope de lo encolado en `datos` por enlace: el motor de archivos ve la cola ×4 y frena antes. */
 export const MAX_COLA_DATOS_BLE = 1024 * 1024;
+/**
+ * (LLA1108E) Tope de la cola de VOZ por enlace: ≈ 250 ms de audio ADPCM empaquetado en texto. Más allá se tira lo más
+ * viejo (la voz que llega tarde no sirve) y la sesión de voz retiene en su propia cola mientras haya algo aquí.
+ */
+export const MAX_COLA_VOZ_BLE = 6 * 1024;
+/** (LLA1108E) La sesión de voz se considera «ocupada» (retiene tramas) cuando la cola de voz pasa de esto. */
+export const UMBRAL_VOZ_OCUPADA_BLE = 2 * 1024;
 export const FACTOR_FRENO_ARCHIVOS_BLE = 4;
 /** (CIF1108A) Espera al acuerdo de sesión antes de devolver el envío como «aún no listo» (el aire BLE es más lento). */
 export const ESPERA_SESION_BLE_MS = 4_000;
@@ -224,7 +241,12 @@ interface Item {
 interface Cola {
   control: Item[];
   datos: Item[];
+  /** (LLA1108E) Voz: cola propia, con tope y sin acuse por trama. */
+  voz: Item[];
   bytesDatos: number;
+  bytesVoz: number;
+  /** (LLA1108E) Reparto entre voz y archivos: si le tocó a la voz, la próxima vez le toca a los archivos. */
+  turnoVoz: boolean;
   bombeando: boolean;
   cubeta: Cubeta | null;
   claveLimites: string;
@@ -280,15 +302,16 @@ export function crearRedBle(deps: DepsBle): RedBle {
   const cola = (enlace: string): Cola => {
     let c = colas.get(enlace);
     if (!c) {
-      c = { control: [], datos: [], bytesDatos: 0, bombeando: false, cubeta: null, claveLimites: "", fallos: 0 };
+      c = { control: [], datos: [], voz: [], bytesDatos: 0, bytesVoz: 0, turnoVoz: true, bombeando: false, cubeta: null, claveLimites: "", fallos: 0 };
       colas.set(enlace, c);
     }
     return c;
   };
 
   function fallarTodo(c: Cola, motivo: string): void {
-    for (const i of [...c.control.splice(0), ...c.datos.splice(0)]) i.fin({ ok: false, motivo });
+    for (const i of [...c.control.splice(0), ...c.datos.splice(0), ...c.voz.splice(0)]) i.fin({ ok: false, motivo });
     c.bytesDatos = 0;
+    c.bytesVoz = 0;
   }
 
   /* ─────────────── Cifrado de punta a punta (CIF1108A) ─────────────── */
@@ -381,12 +404,22 @@ export function crearRedBle(deps: DepsBle): RedBle {
     if (!c || c.bombeando) return;
     c.bombeando = true;
     try {
-      while (c.control.length || c.datos.length) {
+      while (c.control.length || c.datos.length || c.voz.length) {
         if (!abierto(enlace)) {
           fallarTodo(c, "El enlace Bluetooth se cerró (el otro aparato se alejó o apagó el Bluetooth).");
           break;
         }
-        const fuente = c.control.length ? c.control : c.datos;
+        // Primero lo de control (chat, acuerdos). Entre voz y archivos, por turnos: ninguno deja sin salida al otro.
+        let fuente: Item[];
+        if (c.control.length) fuente = c.control;
+        else if (c.voz.length && c.datos.length) {
+          fuente = c.turnoVoz ? c.voz : c.datos;
+          c.turnoVoz = !c.turnoVoz;
+        } else fuente = c.voz.length ? c.voz : c.datos;
+        const cuentaBytes = (lista: Item[]) => {
+          if (fuente === c.datos) for (const i of lista) c.bytesDatos -= i.texto.length;
+          else if (fuente === c.voz) for (const i of lista) c.bytesVoz -= i.texto.length;
+        };
         const lig = ligaduraDeEnlace(ligaduras, enlace, deps.ahora());
         const lim: LimitesCanal = lig?.limites ?? LIMITES_BLE_DEFECTO;
         // (CIF1108A) Grupo homogéneo: o todo «siempre en claro» (saludo, acuerdo) o todo lo demás.
@@ -397,7 +430,7 @@ export function crearRedBle(deps: DepsBle): RedBle {
         if (modo === "bloqueado" && lig) {
           const motivo = `«Exigir cifrado en la red local» está activo y ${lig.nombre} no cifra (app anterior).`;
           for (const i of fuente.splice(0, largoGrupo)) {
-            if (fuente === c.datos) c.bytesDatos -= i.texto.length;
+            cuentaBytes([i]);
             i.fin({ ok: false, motivo });
           }
           continue;
@@ -409,7 +442,7 @@ export function crearRedBle(deps: DepsBle): RedBle {
         );
         if (!trama.cuerpo) {
           for (const i of fuente.splice(0, Math.max(1, trama.usados))) {
-            if (fuente === c.datos) c.bytesDatos -= i.texto.length;
+            cuentaBytes([i]);
             i.fin({ ok: false, motivo: (trama.motivo ?? "no se pudo armar la trama").replace("canal local", "Bluetooth") });
           }
           continue;
@@ -433,7 +466,7 @@ export function crearRedBle(deps: DepsBle): RedBle {
           if (!cf.ok) {
             // No es un fallo del aire: el cifrado aún no está listo. Se devuelve el error sin contar caída.
             const hechos = fuente.splice(0, n);
-            if (fuente === c.datos) for (const i of hechos) c.bytesDatos -= i.texto.length;
+            cuentaBytes(hechos);
             registro.anotar("cifrado", lig.neurona, `${cf.motivo} (${hechos.length} mensaje(s) devueltos)`, enlace);
             for (const i of hechos) i.fin({ ok: false, motivo: cf.motivo });
             continue;
@@ -448,7 +481,7 @@ export function crearRedBle(deps: DepsBle): RedBle {
         }
         if (r.ok) {
           const hechos = fuente.splice(0, n);
-          if (fuente === c.datos) for (const i of hechos) c.bytesDatos -= i.texto.length;
+          cuentaBytes(hechos);
           c.fallos = 0;
           rachaCaidas[enlace] = 0;
           for (const i of hechos) i.fin({ ok: true, ms: r.ms });
@@ -461,7 +494,7 @@ export function crearRedBle(deps: DepsBle): RedBle {
           const espera = esperaCaidaBle(racha);
           caidas[enlace] = deps.ahora() + espera;
           c.fallos = 0;
-          const perdidos = c.control.length + c.datos.length;
+          const perdidos = c.control.length + c.datos.length + c.voz.length;
           registro.anotar("caida", neuronaDe(enlace), `sin acuse tras ${FALLOS_PARA_CAIDA} intentos (${r.motivo}); racha ${racha}, se reintenta en ${Math.round(espera / 1000)} s; ${perdidos} mensaje(s) devueltos`, enlace);
           fallarTodo(c, `La otra app no acusa recibo por Bluetooth (${r.motivo}); se reintenta en ${Math.round(espera / 1000)} s.`);
           avisar();
@@ -474,13 +507,33 @@ export function crearRedBle(deps: DepsBle): RedBle {
     }
   }
 
+  /** (LLA1108E) Voz: sin acuse por trama, con tope; lo que no cabe se tira por el principio (lo más viejo). */
+  function encolarVoz(enlace: string, texto: string): "ok" | "descartado" | "cerrado" {
+    if (!abierto(enlace) || caido(enlace)) return "cerrado";
+    const c = cola(enlace);
+    let tiro = false;
+    c.voz.push({ texto, fin: nada });
+    c.bytesVoz += texto.length;
+    while (c.bytesVoz > MAX_COLA_VOZ_BLE && c.voz.length > 1) {
+      const viejo = c.voz.shift();
+      if (!viejo) break;
+      c.bytesVoz -= viejo.texto.length;
+      tiro = true;
+    }
+    void Promise.resolve().then(() => bombear(enlace));
+    return tiro ? "descartado" : "ok";
+  }
+
   function encolar(enlace: string, texto: string): Promise<ResultadoEnvioBle> {
     if (!abierto(enlace)) return Promise.resolve({ ok: false, motivo: "Ese enlace Bluetooth ya no está abierto." });
     if (caido(enlace)) return Promise.resolve({ ok: false, motivo: "Ese aparato no acusa recibo por Bluetooth ahora; se reintenta en unos segundos." });
     const c = cola(enlace);
     return new Promise((fin) => {
       const item: Item = { texto, fin };
-      if (claseDeTexto(texto) === "datos") {
+      if (esTextoVoz(texto)) {
+        c.voz.push(item);
+        c.bytesVoz += texto.length;
+      } else if (claseDeTexto(texto) === "datos") {
         c.datos.push(item);
         c.bytesDatos += texto.length;
       } else {
@@ -799,6 +852,9 @@ export function crearRedBle(deps: DepsBle): RedBle {
         deps.entregarTransporte(cuerpo, { enlaceId: idEnlaceBle(enlace), etiqueta: `${lig.nombre} · Bluetooth`, ...(lig.sync ? { syncDeviceId: lig.sync } : {}) });
       } else if (cuerpo.startsWith('{"t":"archivo.')) {
         deps.entregarArchivo(canalArchivos(enlace), cuerpo, `${lig.nombre} (Bluetooth directo · app nativa)`, { huella: lig.huella, ...(lig.porCuenta ? { porCuenta: true } : {}) });
+      } else if (esTextoVoz(cuerpo)) {
+        // (LLA1108E) Voz por enlace de datos: solo de la neurona ligada a este enlace, y cifrada si el enlace cifra.
+        deps.entregarVoz?.(cuerpo, { neurona: lig.neurona, enlaceId: idEnlaceBle(enlace), cifrada: modoDe(lig) === "cifrado" });
       }
     } catch {
       /* un oyente roto no tumba el enlace */
@@ -909,6 +965,8 @@ export function crearRedBle(deps: DepsBle): RedBle {
     },
     enlaceHacia: (neurona) => ligaduraDeNeuronaBle(ligaduras, neurona, deps.ahora())?.enlace ?? null,
     enviarTexto: (enlace, texto) => encolar(enlace, texto),
+    enviarVoz: (enlace, texto) => encolarVoz(enlace, texto),
+    colaVozBytes: (enlace) => colas.get(enlace)?.bytesVoz ?? 0,
     canalArchivos,
     recibir,
     enviarControlEnlace,
@@ -1091,6 +1149,11 @@ async function depsReales(): Promise<DepsBle> {
     entregarTransporte: (texto, origen) => {
       void import("./transporte-universal")
         .then((tu) => tu.despacharTextoTransporte(texto, { tipo: "ble", ...origen }, nada))
+        .catch(nada);
+    },
+    entregarVoz: (texto, origen) => {
+      void import("@/lib/llamadas/voz-datos/hub")
+        .then((h) => h.publicarVozEntrante(texto, { tipo: "ble", ...origen }))
         .catch(nada);
     },
     entregarArchivo: (canal, texto, etiquetaOrigen, quien) => {
