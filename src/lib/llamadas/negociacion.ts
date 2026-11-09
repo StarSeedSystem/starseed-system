@@ -33,6 +33,7 @@ export function sanearSenal(v: unknown): SenalLlamada | null {
     if (!idPar(o.de)) return null;
     if (o.tipo === "colgar") return { tipo: "colgar", de: o.de };
     if (o.tipo === "mudanza") return { tipo: "mudanza", de: o.de };
+    if (o.tipo === "fallo") return { tipo: "fallo", de: o.de, motivo: typeof o.motivo === "string" ? o.motivo.slice(0, 200) : "" };
     if (o.tipo === "rechazo") {
         return { tipo: "rechazo", de: o.de, uid: typeof o.uid === "string" ? o.uid : null, nombre: sanearNombre(o.nombre) };
     }

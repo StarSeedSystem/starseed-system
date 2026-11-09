@@ -39,7 +39,8 @@ import {
     X,
 } from "lucide-react";
 import { InvitarSesionDialog } from "@/components/messages/vivo/invitar-sesion";
-import { cerrarVentanaLlamada, colgarLlamada, minimizarLlamada, revisarCanalLlamada } from "@/lib/llamadas/acciones";
+import { cerrarVentanaLlamada, colgarLlamada, minimizarLlamada, reintentarLlamadaSinChat, revisarCanalLlamada } from "@/lib/llamadas/acciones";
+import { textosSuperficieVoz } from "@/lib/llamadas/voz-datos/superficie";
 import { useEstadoMotor, useLlamadas, type LlamadaActiva } from "@/lib/llamadas/store";
 import { disposicionLlamada, esquinaMasCercana, posicionEsquina, type Esquina } from "@/lib/llamadas/disposicion";
 import { formatearDuracion, TEXTO_TIPO, textoPersonas } from "@/lib/llamadas/formato";
@@ -96,6 +97,8 @@ function textoFase(activa: LlamadaActiva, e: EstadoLlamada, ahora: number): stri
             if (activa.esCreador && !e.contestada) return "Llamando…";
             return e.contestada ? "Esperando a que vuelva alguien" : "Esperando a que entre alguien";
         case "en-curso":
+            // (LLA1108E) Contestada pero el audio aún no suena: se dice, en lugar de un cronómetro que corre sin voz.
+            if (e.estadoAudio) return e.estadoAudio;
             return e.inicio ? formatearDuracion(ahora - e.inicio) : "En curso";
         case "terminada":
             return "Llamada terminada";
@@ -404,6 +407,25 @@ function PantallaCompleta({ activa, estado, onInvitar }: { activa: LlamadaActiva
                     <p className="text-[13px] tabular-nums text-white/70" aria-live="polite">
                         {textoFase(activa, estado, ahora)}
                     </p>
+                    {(() => {
+                        // (LLA1108E) Medio de la voz y calidad cuando va por un enlace de datos (Bluetooth, etc.).
+                        const t = textosSuperficieVoz(estado);
+                        if (!t.medio) return null;
+                        const color = t.nivelCalidad === "mala" ? "#DC143C" : t.nivelCalidad === "regular" ? "#FFBF00" : "#10B981";
+                        return (
+                            <p className="mt-1 flex max-w-full flex-wrap items-center gap-x-2 gap-y-0.5 text-[11.5px] font-medium text-white/80" data-testid="medio-voz">
+                                <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5" style={{ background: "rgba(124,92,255,.16)", boxShadow: "inset 0 0 0 1px rgba(124,92,255,.4)" }}>
+                                    {t.medio}
+                                </span>
+                                {t.calidad && (
+                                    <span className="inline-flex items-center gap-1 tabular-nums" data-testid="calidad-voz">
+                                        <span aria-hidden className="inline-block h-2 w-2 rounded-full" style={{ background: color }} />
+                                        {t.calidad}
+                                    </span>
+                                )}
+                            </p>
+                        );
+                    })()}
                     {activa.via && (
                         // (GRP1107A) Por dónde va la llamada (p. ej. la malla completa sin servidores).
                         <p
@@ -450,6 +472,21 @@ function PantallaCompleta({ activa, estado, onInvitar }: { activa: LlamadaActiva
                 </div>
             )}
 
+            {textosSuperficieVoz(estado).video && !finalizada && (
+                // (LLA1108E) Por Bluetooth el vídeo no cabe: se dice sin alarmar y se ofrece seguir solo con voz.
+                <div className="relative z-10 mx-auto mb-1 flex max-w-xl items-start gap-2 rounded-[16px] px-3.5 py-2.5 text-[13px] text-sky-50" role="status" data-testid="video-no-disponible" style={{ background: "rgba(0,127,255,.12)", boxShadow: "inset 0 0 0 1px rgba(0,127,255,.35)" }}>
+                    <span className="min-w-0 flex-1">{textosSuperficieVoz(estado).video}</span>
+                    <button
+                        type="button"
+                        onClick={() => void (estado.pantalla ? motor.alternarPantalla() : motor.alternarCamara())}
+                        className="ss-redondo shrink-0 cursor-pointer rounded-full px-3 py-1 text-[12px] font-semibold text-white hover:bg-white/10"
+                        style={{ boxShadow: "inset 0 0 0 1px rgba(255,255,255,.25)" }}
+                    >
+                        Seguir solo con voz
+                    </button>
+                </div>
+            )}
+
             {/* Mosaicos */}
             <main className="relative z-0 min-h-0 flex-1 px-3 pb-2 pt-1 sm:px-6">
                 {!finalizada && <Escenario estado={estado} activa={activa} fijado={fijado} onFijar={setFijado} ahora={ahora} />}
@@ -476,6 +513,18 @@ function PantallaCompleta({ activa, estado, onInvitar }: { activa: LlamadaActiva
                             {estado.motivoFin && <p className="text-[14px] text-white/70">{estado.motivoFin}</p>}
                             {estado.fase === "terminada" && estado.contestada && activa.motor.resumen().duracionMs > 0 && (
                                 <p className="text-[13px] tabular-nums text-white/55">Duración {formatearDuracion(activa.motor.resumen().duracionMs)}</p>
+                            )}
+                            {textosSuperficieVoz(estado).reintentar && activa.esCreador && (
+                                // (LLA1108E) Sin audio a los 15 s: se ofrece volver a llamar.
+                                <button
+                                    type="button"
+                                    onClick={() => void reintentarLlamadaSinChat().then((r) => { if (!r.ok && r.motivo) toast.error(r.motivo); })}
+                                    className="ss-redondo mt-1 cursor-pointer rounded-full px-5 py-2 text-[14px] font-semibold text-white transition-transform duration-200 hover:scale-[1.03]"
+                                    style={{ background: "linear-gradient(135deg,#7C5CFF,#007FFF)" }}
+                                    data-testid="reintentar-llamada"
+                                >
+                                    Reintentar
+                                </button>
                             )}
                             <button
                                 type="button"

@@ -24,7 +24,9 @@ export type TipoEventoEnlace =
   | "cola-perdida"
   | "reintento"
   /** (BLE1108C) El canal de archivos no esperó más a «listo para enviar» y mandó igual. */
-  | "listo-tarde";
+  | "listo-tarde"
+  /** (LLA1108E) Hitos de una llamada: `senal-enviada|senal-recibida|contestada|medio=webrtc|enlace-datos|fallo`. */
+  | "llamada";
 
 export interface EventoEnlaceBle {
   seq: number;

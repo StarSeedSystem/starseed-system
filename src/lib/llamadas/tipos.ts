@@ -52,6 +52,11 @@ export type SenalLlamada =
      */
     | { tipo: "mudanza"; de: string }
     /**
+     * (LLA1108E) «No hay audio»: ni WebRTC ni la voz por el enlace de datos conectaron a tiempo. Quien lo detecta
+     * lo dice, y los dos extremos acaban con el mismo motivo (nadie se queda en «conectando»).
+     */
+    | { tipo: "fallo"; de: string; motivo: string }
+    /**
      * TEXTO de lo que alguien dijo (contrato `voz-fusionada-astraura.md` §5: se comparte la
      * transcripción, nunca el audio). Va por difusión: el bot de la llamada lo lee.
      */
@@ -99,6 +104,25 @@ export interface EstadoLlamada {
     contestada: boolean;
     /** Personas que rechazaron el timbre (uid o nombre), para avisar en 1:1. */
     rechazos: { uid: string | null; nombre: string }[];
+    /** (LLA1108E) Por dónde va la voz ahora y cómo va (null: aún no hay audio). */
+    medio?: MedioVoz | null;
+    /** (LLA1108E) «Contestada · conectando audio…» mientras alguien contestó y el audio aún no suena. */
+    estadoAudio?: string | null;
+    /** (LLA1108E) La llamada acabó por falta de audio: se ofrece «Reintentar». */
+    puedeReintentar?: boolean;
+    /** (LLA1108E) Motivo por el que el vídeo no va por este medio (Bluetooth), con la oferta de seguir solo con voz. */
+    videoNoDisponible?: string | null;
+}
+
+/** (LLA1108E) El medio que lleva la voz, dicho para la superficie de la llamada. */
+export interface MedioVoz {
+    tipo: "webrtc" | "enlace-datos";
+    /** «Voz por Bluetooth directo · cifrada». */
+    texto: string;
+    cifrada: boolean;
+    /** «latencia 180 ms · pérdida 2 % · ADPCM» (solo en enlace de datos). */
+    calidadTexto?: string;
+    nivel?: "buena" | "regular" | "mala";
 }
 
 /**

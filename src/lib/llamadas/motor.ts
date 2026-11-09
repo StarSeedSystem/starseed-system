@@ -27,6 +27,9 @@
  * Nunca lanza hacia fuera: cualquier fallo del navegador se convierte en un aviso.
  */
 import { abrirCanalLlamada, type ConexionCanal } from "@/lib/llamadas/senalizacion";
+import { SesionVozDatos, type AudioVoz, type FabricaCodecs, type RelojVoz, type TransporteVoz } from "@/lib/llamadas/voz-datos/sesion";
+import { decidirAccionMedio, ESPERA_ICE_MS, LIMITE_CONECTANDO_MS, MOTIVO_SIN_AUDIO, nivelCalidadVoz, TEXTO_CONTESTADA_CONECTANDO, TEXTO_VIDEO_BLE, textoCalidadVoz, textoMedioVoz } from "@/lib/llamadas/voz-datos/decision";
+import { anotarLlamada } from "@/lib/llamadas/voz-datos/diagnostico";
 import { MENSAJE_CANAL_PRIVADO } from "@/lib/llamadas/temas";
 import { admision, evaluarDescripcion, reaccionIce, soyCortes } from "@/lib/llamadas/negociacion";
 import { elegirHablante, nivelRms, suavizarNivel, type HablanteVigente } from "@/lib/llamadas/hablante";
@@ -45,6 +48,7 @@ import {
     type CalidadConexion,
     type EstadoConexionPar,
     type EstadoLlamada,
+    type MedioVoz,
     type MetaPresencia,
     type ParticipanteLlamada,
     type SenalLlamada,
@@ -90,10 +94,31 @@ export interface OpcionesMotor {
     canalesDirectos?: () => ConexionCanal[];
     /** Llamadas 1:1: al irse la otra persona, cuelga solo. */
     colgarAlQuedarSolo?: boolean;
+    /**
+     * (LLA1108E) Voz por enlace de datos cuando no hay ruta IP o ICE no conecta: sin esta opción el comportamiento es
+     * el de siempre (solo WebRTC, sin vigilancia del tiempo de conexión).
+     */
+    vozDatos?: OpcionesVozDatos;
     /** Bot invitado (Astraura en la llamada); sin él, todo queda como antes. */
     bot?: OpcionesBotLlamada;
     intervaloStatsMs?: number;
     intervaloNivelMs?: number;
+}
+
+/** (LLA1108E) Lo que el motor necesita para llevar la voz por un enlace de datos (todo inyectable). */
+export interface OpcionesVozDatos {
+    /** El enlace de datos hacia ese par (id de presencia) o null si no hay ninguno ahora. */
+    transporteHacia(parId: string): TransporteVoz | null;
+    /** ¿Hay una ruta IP hacia ese par? (null: no se sabe, se espera a ICE). */
+    hayRutaIp?(parId: string): boolean | null;
+    /** Captura y reproducción (AudioWorklet en la app). */
+    crearAudio(micro: MediaStream | null): AudioVoz | null;
+    codecs(): FabricaCodecs | Promise<FabricaCodecs>;
+    reloj?: RelojVoz;
+    /** Cada cuánto se revisa el medio de cada par (ms, por defecto 500). */
+    intervaloMs?: number;
+    /** Neurona del otro aparato (para anotar los hitos en el registro del enlace). */
+    neurona?: string | null;
 }
 
 export interface ResumenLlamada {
@@ -216,6 +241,11 @@ export class MotorLlamada {
     /** Enganche del bot invitado con la llamada (null si no hay bot). */
     private bot: EngancheBot | null = null;
     private hablante: HablanteVigente | null = null;
+    /** (LLA1108E) Voz por enlace de datos, por par; y el reloj que vigila cada par. */
+    private readonly vozDatos = new Map<string, SesionVozDatos>();
+    private readonly activandoDatos = new Set<string>();
+    private readonly vigilantes = new Map<string, ReturnType<typeof setInterval>>();
+    private puedeReintentar = false;
     private temporizadorNivel: ReturnType<typeof setInterval> | null = null;
     private temporizadorStats: ReturnType<typeof setInterval> | null = null;
     private alCambiarDispositivos: (() => void) | null = null;
@@ -262,6 +292,7 @@ export class MotorLlamada {
                 contestada: this.contestada,
                 hablante: this.hablante?.id ?? null,
                 participantes: this.construirParticipantes(),
+                ...this.vistaMedio(),
             };
             for (const cb of Array.from(this.oyentes)) {
                 try {
@@ -397,6 +428,7 @@ export class MotorLlamada {
             this.microOn = !this.microOn;
             this.pistaAudio.enabled = this.microOn;
         }
+        for (const v of this.vozDatos.values()) v.silenciar(!this.microOn);
         this.set({ aviso: null });
         this.publicarMeta();
         return null;
@@ -886,6 +918,7 @@ export class MotorLlamada {
         for (const p of this.presentes) {
             this.vistos.add(p.id);
             if (!this.pares.has(p.id)) this.crearPar(p.id);
+            if (this.opc.vozDatos && !this.vigilantes.has(p.id)) this.vigilarMedio(p.id);
         }
         for (const id of Array.from(this.pares.keys())) {
             if (!ids.has(id) && this.vistos.has(id)) this.cerrarPar(id);
@@ -896,6 +929,7 @@ export class MotorLlamada {
     private revisarCompania() {
         if (this.presentes.length > 0) {
             if (this.inicio === null) this.inicio = Date.now();
+            if (!this.contestada) anotarLlamada("contestada", this.opc.vozDatos?.neurona ?? null, `presentes=${this.presentes.length}`);
             this.contestada = true;
             if (this.e.fase !== "en-curso") this.set({ fase: "en-curso" });
             else this.emitir();
@@ -919,6 +953,13 @@ export class MotorLlamada {
         if (s.tipo === "texto") {
             // El TEXTO compartido lo lee el bot de esta llamada (si lo hay); nunca es señal de par.
             this.bot?.recibir({ de: s.de, texto: s.texto, en: s.en });
+            return;
+        }
+        if (s.tipo === "fallo") {
+            // (LLA1108E) El otro extremo no consiguió audio: acabamos con el mismo motivo, sin quedarnos en «conectando».
+            anotarLlamada("fallo", this.opc.vozDatos?.neurona ?? null, "el otro extremo dice que no hay audio");
+            this.puedeReintentar = true;
+            this.terminar("error", s.motivo || MOTIVO_SIN_AUDIO);
             return;
         }
         if (s.tipo === "colgar") {
@@ -1151,6 +1192,8 @@ export class MotorLlamada {
     }
 
     private cerrarPar(id: string) {
+        this.pararVigilante(id);
+        this.pararVozDatos(id, "par-fuera");
         const par = this.pares.get(id);
         if (!par) return;
         this.pares.delete(id);
@@ -1169,6 +1212,219 @@ export class MotorLlamada {
         this.desconectarAnalizador(id);
         delete this.niveles[id];
         this.emitir();
+    }
+
+    /* ───────────────────────────── Voz por enlace de datos (LLA1108E) ───────────────────────────── */
+
+    private relojVoz(): RelojVoz {
+        return (
+            this.opc.vozDatos?.reloj ?? {
+                ahora: () => Date.now(),
+                cada: (fn, ms) => {
+                    const t = setInterval(fn, ms);
+                    return () => clearInterval(t);
+                },
+            }
+        );
+    }
+
+    private estadoDatosPar(id: string): "sin-enlace" | "disponible" | "activo" {
+        if (this.vozDatos.get(id)?.estado().activa) return "activo";
+        try {
+            return this.opc.vozDatos?.transporteHacia(id) ? "disponible" : "sin-enlace";
+        } catch {
+            return "sin-enlace";
+        }
+    }
+
+    private hayAudioEnAlgunPar(): boolean {
+        for (const p of this.pares.values()) if (p.conexion === "conectado") return true;
+        for (const s of this.vozDatos.values()) if (s.estado().recibiendo) return true;
+        return false;
+    }
+
+    /**
+     * Vigila qué medio lleva la voz con ese par (cada 500 ms): sin ruta IP, o con ICE sin conectar tras 6 s, pasa a
+     * la voz por el enlace de datos sin colgar; si luego WebRTC conecta, vuelve a él; y a los 15 s sin audio por
+     * ninguno, acaba la llamada con un motivo claro en los dos extremos. Ver `voz-datos/decision.ts`.
+     */
+    private vigilarMedio(id: string) {
+        const v = this.opc.vozDatos;
+        if (!v || this.cerrado || this.vigilantes.has(id)) return;
+        const reloj = this.relojVoz();
+        let desde = reloj.ahora();
+        let anotadoWebrtc = false;
+        let bajaEscucha: (() => void) | null = null;
+        let escuchado: TransporteVoz | null = null;
+        const neurona = v.neurona ?? null;
+        const tic = () => {
+            const par = this.pares.get(id);
+            if (this.cerrado || !par) {
+                this.pararVigilante(id);
+                return;
+            }
+            const tr = (() => {
+                try {
+                    return v.transporteHacia(id);
+                } catch {
+                    return null;
+                }
+            })();
+            // Si el otro extremo ya habla por el enlace de datos, se le contesta al instante (sin esperar mis 6 s).
+            if (tr && tr !== escuchado) {
+                bajaEscucha?.();
+                escuchado = tr;
+                bajaEscucha = tr.alRecibir((t) => {
+                    if (t.startsWith('{"t":"voz.') && !this.vozDatos.has(id) && !this.activandoDatos.has(id)) void this.activarVozDatos(id);
+                });
+                this.vigiladoEscucha.set(id, () => {
+                    bajaEscucha?.();
+                    bajaEscucha = null;
+                });
+            }
+            const accion = decidirAccionMedio({
+                transcurridoMs: reloj.ahora() - desde,
+                webrtc: par.conexion,
+                datos: this.estadoDatosPar(id),
+                hayRutaIp: v.hayRutaIp?.(id) ?? null,
+            });
+            switch (accion) {
+                case "usar-datos":
+                    void this.activarVozDatos(id);
+                    break;
+                case "volver-webrtc":
+                    this.pararVozDatos(id, "webrtc");
+                    anotarLlamada("medio=webrtc", neurona, `par=${id} (vuelve a WebRTC sin cortar)`);
+                    desde = reloj.ahora();
+                    break;
+                case "mantener":
+                    if (par.conexion === "conectado") {
+                        if (!anotadoWebrtc) {
+                            anotadoWebrtc = true;
+                            anotarLlamada("medio=webrtc", neurona, `par=${id}`);
+                        }
+                        // Si la conexión se cae más tarde, el plazo cuenta desde la caída.
+                        desde = reloj.ahora();
+                    }
+                    break;
+                case "fallar":
+                    if (this.hayAudioEnAlgunPar()) {
+                        // En un grupo, un par sin audio no tumba la llamada con los demás.
+                        par.conexion = "fallida";
+                        this.pararVigilante(id);
+                        this.emitir();
+                    } else {
+                        this.fallarSinAudio();
+                    }
+                    break;
+                default:
+                    break;
+            }
+        };
+        this.vigilantes.set(id, setInterval(tic, v.intervaloMs ?? 500));
+    }
+
+    private readonly vigiladoEscucha = new Map<string, () => void>();
+
+    private pararVigilante(id: string) {
+        const t = this.vigilantes.get(id);
+        if (t) clearInterval(t);
+        this.vigilantes.delete(id);
+        const baja = this.vigiladoEscucha.get(id);
+        if (baja) {
+            try {
+                baja();
+            } catch {
+                /* noop */
+            }
+        }
+        this.vigiladoEscucha.delete(id);
+    }
+
+    private async activarVozDatos(id: string): Promise<void> {
+        const v = this.opc.vozDatos;
+        if (!v || this.cerrado || this.vozDatos.has(id) || this.activandoDatos.has(id)) return;
+        const neurona = v.neurona ?? null;
+        let tr: TransporteVoz | null = null;
+        try {
+            tr = v.transporteHacia(id);
+        } catch {
+            tr = null;
+        }
+        if (!tr) return;
+        this.activandoDatos.add(id);
+        try {
+            const audio = v.crearAudio(this.local);
+            if (!audio) {
+                anotarLlamada("fallo", neurona, "este aparato no puede capturar audio para la voz por enlace de datos");
+                return;
+            }
+            const codecs = await v.codecs();
+            if (this.cerrado) return;
+            const s = new SesionVozDatos({
+                idLlamada: this.sesionId,
+                transporte: tr,
+                audio,
+                codecs,
+                reloj: this.relojVoz(),
+                anotar: (h) => anotarLlamada("medio=enlace-datos", neurona, h),
+            });
+            s.suscribir(() => this.emitir());
+            const ok = await s.iniciar();
+            if (!ok || this.cerrado) {
+                if (ok) s.detener();
+                else anotarLlamada("fallo", neurona, "no se pudo abrir el micrófono para la voz por enlace de datos");
+                return;
+            }
+            s.silenciar(!this.microOn);
+            this.vozDatos.set(id, s);
+            const e = s.estado();
+            anotarLlamada("medio=enlace-datos", neurona, `par=${id} codec=${e.codecTx} via=${e.medio.tipo}${e.medio.cifrada ? " cifrada" : " sin-cifrar"}`);
+            this.emitir();
+        } finally {
+            this.activandoDatos.delete(id);
+        }
+    }
+
+    private pararVozDatos(id: string, motivo: string) {
+        const s = this.vozDatos.get(id);
+        if (!s) return;
+        this.vozDatos.delete(id);
+        try {
+            s.detener(motivo);
+        } catch {
+            /* noop */
+        }
+        this.emitir();
+    }
+
+    /** Ni WebRTC ni el enlace de datos dieron audio a tiempo: se acaba diciéndolo, en los dos extremos. */
+    private fallarSinAudio() {
+        if (this.cerrado) return;
+        anotarLlamada("fallo", this.opc.vozDatos?.neurona ?? null, "sin audio a los 15 s: ni webrtc ni enlace-datos");
+        this.puedeReintentar = true;
+        this.enviar({ tipo: "fallo", de: this.miId, motivo: MOTIVO_SIN_AUDIO });
+        this.terminar("error", MOTIVO_SIN_AUDIO);
+    }
+
+    /** Lo que la superficie necesita saber del medio: cuál es, cómo va y si todavía se está conectando el audio. */
+    private vistaMedio(): Pick<EstadoLlamada, "medio" | "estadoAudio" | "puedeReintentar" | "videoNoDisponible"> {
+        const webrtcOk = Array.from(this.pares.values()).some((p) => p.conexion === "conectado");
+        const datos = Array.from(this.vozDatos.values()).find((s) => s.estado().activa);
+        let medio: MedioVoz | null = null;
+        if (webrtcOk) medio = { tipo: "webrtc", texto: "Voz por WebRTC · cifrada", cifrada: true };
+        else if (datos) {
+            const e = datos.estado();
+            const cal = datos.calidad();
+            medio = { tipo: "enlace-datos", texto: textoMedioVoz(e.medio), cifrada: e.medio.cifrada, calidadTexto: textoCalidadVoz(cal), nivel: nivelCalidadVoz(cal) };
+        }
+        const conAudio = webrtcOk || Array.from(this.vozDatos.values()).some((s) => s.estado().recibiendo);
+        return {
+            medio,
+            estadoAudio: this.contestada && !this.cerrado && !conAudio && this.opc.vozDatos ? TEXTO_CONTESTADA_CONECTANDO : null,
+            puedeReintentar: this.puedeReintentar,
+            videoNoDisponible: datos && !webrtcOk && (this.camaraOn || this.pantallaOn) ? TEXTO_VIDEO_BLE : null,
+        };
     }
 
     /* ───────────────────────────── Hablante y calidad ───────────────────────────── */
@@ -1289,7 +1545,7 @@ export class MotorLlamada {
                 ...p,
                 yo: false,
                 stream: par?.stream ?? null,
-                conexion: par?.conexion ?? "conectando",
+                conexion: this.vozDatos.get(p.id)?.estado().recibiendo ? "conectado" : (par?.conexion ?? "conectando"),
                 calidad: par?.calidad ?? "desconocida",
                 nivel: this.niveles[p.id] ?? 0,
             };
@@ -1344,6 +1600,8 @@ export class MotorLlamada {
         this.temporizadorNivel = null;
         this.temporizadorStats = null;
         this.soltarBot();
+        for (const id of Array.from(this.vigilantes.keys())) this.pararVigilante(id);
+        for (const id of Array.from(this.vozDatos.keys())) this.pararVozDatos(id, "colgada");
         for (const id of Array.from(this.pares.keys())) this.cerrarPar(id);
         for (const id of Array.from(this.analizadores.keys())) this.desconectarAnalizador(id);
         for (const t of [this.pistaAudio, this.pistaCamara, this.pistaPantalla]) {

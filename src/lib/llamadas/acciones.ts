@@ -15,7 +15,8 @@ import { crearSesion, terminarSesion } from "@/lib/mensajeria/sesiones-vivas";
 import type { TipoLlamada } from "@/lib/mensajeria/formato-tipos";
 import { fetchProfilesByIds } from "@/lib/social/os-profiles";
 import { createClient } from "@/utils/supabase/client";
-import { MotorLlamada } from "@/lib/llamadas/motor";
+import { MotorLlamada, type OpcionesVozDatos } from "@/lib/llamadas/motor";
+import type { ConexionCanal } from "@/lib/llamadas/senalizacion";
 import { motivoSinLlamadas, obtenerMedios, pararStream, soportaLlamadas } from "@/lib/llamadas/medios";
 import { avisarFalloMedios } from "@/lib/llamadas/aviso-medios";
 import type { AjustesMedios } from "@/lib/llamadas/permiso-medios";
@@ -51,6 +52,61 @@ import {
 import { MAX_PARTICIPANTES, type AdjuntoLlamadaRegistro } from "@/lib/llamadas/tipos";
 
 const PAUSA_RESUMEN_MS = 2400;
+
+/* ── (LLA1108E) Señalización y voz por CUALQUIER enlace con la neurona (Bluetooth, red local nativa, Wi-Fi directo…) ── */
+
+interface ExtrasNeurona {
+    neurona: string;
+    abrirCanal(sesionId: string, clave: string): ConexionCanal;
+    voz: OpcionesVozDatos;
+}
+
+/**
+ * Lo que hace falta para llamar a (o contestar a) una neurona con la que quizá solo haya un enlace de datos sin IP:
+ * un canal de señalización por el transporte universal y la voz por enlace de datos como respaldo de WebRTC.
+ * Sin neurona conocida, o sin app/enlaces, devuelve null y la llamada va como siempre. Nunca lanza.
+ */
+async function extrasDeNeurona(neurona: string | null | undefined): Promise<ExtrasNeurona | null> {
+    if (!neurona) return null;
+    try {
+        const [ct, vt, aw] = await Promise.all([
+            import("@/lib/llamadas/canal-enlace-transporte"),
+            import("@/lib/llamadas/voz-datos/transporte"),
+            import("@/lib/llamadas/voz-datos/audio-web"),
+        ]);
+        const [deps, codecs] = await Promise.all([ct.depsCanalTransporteReales(), aw.crearFabricaCodecsWeb()]);
+        return {
+            neurona,
+            abrirCanal: (sesionId, clave) => ct.abrirCanalLlamadaPorTransporte(neurona, sesionId, clave, deps),
+            voz: {
+                neurona,
+                transporteHacia: () => vt.crearTransporteVozHacia(neurona),
+                hayRutaIp: () => vt.hayRutaIpHacia(neurona),
+                crearAudio: (micro) => aw.crearAudioWeb(micro),
+                codecs: () => codecs,
+            },
+        };
+    } catch {
+        return null;
+    }
+}
+
+/** Junta los canales directos de siempre (enlaces WebRTC locales) con el de la neurona por el transporte universal. */
+function unirCanales(
+    locales: (() => ConexionCanal[]) | undefined,
+    extra: ExtrasNeurona | null,
+    enlaces: EnlaceLocalVivo[],
+    sesionId: string,
+    clave: string,
+): (() => ConexionCanal[]) | undefined {
+    // Si ya hay un enlace WebRTC local con esa neurona, ese canal ya llega: no se duplica la señalización.
+    const yaLocal = !!extra && enlaces.some((e) => e.par.neuronDeviceId === extra.neurona);
+    if (!extra || yaLocal) return locales;
+    return () => [...(locales ? locales() : []), extra.abrirCanal(sesionId, clave)];
+}
+
+/** Para «Reintentar» tras una llamada sin audio (solo quien llamó). */
+let ultimaSinChat: Parameters<typeof empezarLlamadaSinChat>[0] | null = null;
 
 function llamadaEnCurso(): LlamadaActiva | null {
     const a = leerLlamadas().activa;
@@ -305,7 +361,10 @@ export async function empezarLlamadaSinChat(o: {
     invitados: string[];
     pistaPantalla?: MediaStreamTrack | null;
     avisar: (sesionId: string) => Promise<boolean>;
+    /** (LLA1108E) Neurona a la que se llama: con ella, la señalización y la voz pueden ir por Bluetooth u otro enlace sin IP. */
+    neurona?: string | null;
 }): Promise<{ ok: boolean; sesionId?: string; motivo?: string; ajustes?: AjustesMedios | null }> {
+    ultimaSinChat = { ...o, pistaPantalla: null };
     const soltarPantalla = () => {
         try {
             o.pistaPantalla?.stop();
@@ -360,6 +419,7 @@ export async function empezarLlamadaSinChat(o: {
     const permitidos = new Set(utiles.map((u) => u.id));
     const decision = canalesParaLlamada({ hayRedSupabase, enlaces: vivos.filter((e) => permitidos.has(e.id)), tema: temaLlamada(sesionId) });
     const tipoCanal = tipoCanalDirecto(decision, hayRedSupabase);
+    const extra = await extrasDeNeurona(o.neurona);
     const motor = new MotorLlamada({
         sesionId,
         yo,
@@ -368,9 +428,14 @@ export async function empezarLlamadaSinChat(o: {
         hayTurn: ice.turn && tipoCanal !== "directo",
         tema: temaLlamada(sesionId),
         resolverTema: () => resolverTemaSesion("llamada", sesionId, { fresco: true }),
-        canalesDirectos: decision.enlaces.length > 0
-            ? () => decision.enlaces.map((e) => abrirCanalLlamadaPorEnlace(e, sesionId, clavePestana(yo.base)))
-            : undefined,
+        canalesDirectos: unirCanales(
+            decision.enlaces.length > 0 ? () => decision.enlaces.map((e) => abrirCanalLlamadaPorEnlace(e, sesionId, clavePestana(yo.base))) : undefined,
+            extra,
+            decision.enlaces,
+            sesionId,
+            clavePestana(yo.base),
+        ),
+        vozDatos: extra?.voz,
     });
     await motor.prepararMedios({ audio: true, video: conVideo || !!o.pistaPantalla, stream: medios.stream });
     if (medios.aviso) motor.avisar(medios.aviso);
@@ -418,6 +483,8 @@ export async function unirseALlamada(o: {
     microActivo?: boolean;
     camara?: boolean;
     unoAUno?: boolean;
+    /** (LLA1108E) Neurona que llama: con ella se puede entrar sin internet (señalización y voz por el enlace de datos). */
+    neurona?: string | null;
 }): Promise<string | null> {
     const actual = llamadaEnCurso();
     if (actual) {
@@ -432,7 +499,10 @@ export async function unirseALlamada(o: {
     if (!yo) return "Inicia sesión (o entra con un enlace público) para unirte.";
     const conVideo = o.camara ?? o.tipo === "video";
     const [ice, tema] = await Promise.all([obtenerIceServidores(), resolverTemaSesion("llamada", o.sesionId, { token: o.token, fresco: true })]);
-    if (!tema) return "Este enlace de llamada no es válido.";
+    // (LLA1108E) Sin internet no se puede preguntar al servidor qué canal toca: con la neurona que llama se entra igualmente
+    // por el enlace de datos (antes se quedaba en «conectando» para siempre o decía que el enlace no era válido).
+    if (!tema && !o.neurona) return "Este enlace de llamada no es válido.";
+    const extra = await extrasDeNeurona(o.neurona);
     // (NEU1107A) Sin TURN la fuente ICE es «stun» aunque haya internet: eso no quiere decir que
     // falte la red (si no, con un enlace local se quitaba hasta el STUN y fallaba por internet).
     const hayRedSupabase = enLinea() || ice.fuente !== "stun";
@@ -448,10 +518,14 @@ export async function unirseALlamada(o: {
         hayTurn: ice.turn && tipoCanal !== "directo",
         tema,
         resolverTema: () => resolverTemaSesion("llamada", o.sesionId, { token: o.token, fresco: true }),
-        canalesDirectos: decision.enlaces.length > 0
-            ? () => decision.enlaces.map((e) => abrirCanalLlamadaPorEnlace(e, o.sesionId, clavePestana(yo.base)))
-            : undefined,
-
+        canalesDirectos: unirCanales(
+            decision.enlaces.length > 0 ? () => decision.enlaces.map((e) => abrirCanalLlamadaPorEnlace(e, o.sesionId, clavePestana(yo.base))) : undefined,
+            extra,
+            decision.enlaces,
+            o.sesionId,
+            clavePestana(yo.base),
+        ),
+        vozDatos: extra?.voz,
     });
     if (o.stream) {
         await motor.prepararMedios({ audio: true, video: conVideo, microActivo: o.microActivo, stream: o.stream });
@@ -496,8 +570,22 @@ export async function aceptarTimbre(t: TimbreEntrante, opciones: { camara?: bool
         titulo: t.tituloHilo ?? t.llamante.nombre,
         camara: opciones.camara ?? t.tipo === "video",
         unoAUno: t.tipoHilo === "dm",
+        neurona: t.neurona ?? null,
     });
     if (error) toast.error(error);
+}
+
+/**
+ * (LLA1108E) «Reintentar» tras una llamada que acabó sin audio: vuelve a llamar a la misma neurona (quien llamó).
+ * Cierra la ventana de la llamada fallida y empieza otra con un timbre nuevo.
+ */
+export async function reintentarLlamadaSinChat(): Promise<{ ok: boolean; motivo?: string }> {
+    const o = ultimaSinChat;
+    if (!o) return { ok: false, motivo: "No hay una llamada que reintentar." };
+    const a = leerLlamadas().activa;
+    if (a) quitarActiva(a);
+    const r = await empezarLlamadaSinChat(o);
+    return { ok: r.ok, motivo: r.motivo };
 }
 
 /** Rechaza un timbre y se lo dice a quien llama (en un 1:1, su llamada se cierra sola). */

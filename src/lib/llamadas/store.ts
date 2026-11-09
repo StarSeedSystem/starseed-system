@@ -44,6 +44,8 @@ export interface TimbreEntrante {
      * miembros de la llamada y si quien llama la propuso con vídeo.
      */
     malla?: { enlaceId: string; miembros: string[]; video: boolean };
+    /** (LLA1108E) Neurona que llama (si el timbre vino de un chat de neurona): con ella se contesta aunque solo haya Bluetooth. */
+    neurona?: string;
 }
 
 export interface EstadoLlamadas {
