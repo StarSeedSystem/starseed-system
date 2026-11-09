@@ -41,6 +41,15 @@ describe("requestMaxPermissions", () => {
   });
 
   it("requestPermission que resuelve 'default' → notifications = 'prompt'", async () => {
+    const eventos: CustomEvent[] = [];
+    const originalDispatch = window.dispatchEvent;
+    window.dispatchEvent = vi.fn((e: Event) => {
+      if (e instanceof CustomEvent && e.type === "starseed:permiso") {
+        eventos.push(e);
+      }
+      return originalDispatch.call(window, e);
+    });
+
     const mockRequestPermission = vi.fn().mockResolvedValue("default");
     class MockNotification {
       static permission = "default";
@@ -56,6 +65,11 @@ describe("requestMaxPermissions", () => {
 
     const report = await requestMaxPermissions();
     expect(report.notifications).toBe("prompt");
+
+    window.dispatchEvent = originalDispatch;
+    const permisosRecibidos = eventos.map((e) => (e.detail as { permiso: string }).permiso);
+    expect(permisosRecibidos).toContain("notificaciones");
+    expect(permisosRecibidos).toContain("almacenamiento");
   });
 
   it("notificaciones 'granted' → 'granted'", async () => {
