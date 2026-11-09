@@ -306,7 +306,7 @@ describe("grabación con consentimiento visible", () => {
 
 describe("Astraura en la llamada: la misma respuesta en todas las neuronas", () => {
   const ajustes = { voz: "voz-1", tono: "cercano" as const, velocidad: 1 };
-  const astr = (capaz = true) => ({ capaz, local: false, responder: vi.fn(async (q: string) => `Respuesta a: ${q}`), hablar: vi.fn(), ajustes: () => ajustes });
+  const astr = (capaz = true) => ({ capaz, local: false, responder: vi.fn(async (q: string, _contexto: string) => `Respuesta a: ${q}`), hablar: vi.fn(), ajustes: () => ajustes });
 
   async function sala(capaces: boolean[]) {
     const bus = new BusFalso();
