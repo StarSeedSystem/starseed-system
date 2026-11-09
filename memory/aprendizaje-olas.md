@@ -6343,3 +6343,12 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 **Lo que quedó fuera, una por una:**
 - `PRM1109B` — los tipos no compilan: revisor: dividida en PRM1109B-d1, PRM1109B-d2 (tarea:tsc con 2 archivos: se divide en 2 partes encadenadas)
 - `PRM1109B-d1` — otra cosa
+
+## 2026-11-09 02:24 · auto-1109-011230
+
+**Lo que se pidió.** Mando
+
+**Resultado.** 1 de 2 integradas. 1 tarea se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `PRM1109B-d1` — los tipos no compilan: 4 errores tsc (rama ola/PRM1109B-d1 conservada)
