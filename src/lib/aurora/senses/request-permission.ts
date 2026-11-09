@@ -23,6 +23,7 @@ export interface ResultadoPermiso {
   soportado: boolean;
   concedido: boolean;
   motivo?: string;
+  nombreError?: string;
 }
 
 const hayWin = typeof window !== "undefined";
@@ -36,7 +37,13 @@ async function pedirMedia(constraints: MediaStreamConstraints, permiso: PermisoD
     stream.getTracks().forEach((t) => t.stop()); // solo pedir el permiso, no retener el dispositivo
     return { permiso, soportado: true, concedido: true };
   } catch (e) {
-    return { permiso, soportado: true, concedido: false, motivo: e instanceof Error ? e.message : "denegado" };
+    return {
+      permiso,
+      soportado: true,
+      concedido: false,
+      motivo: e instanceof Error ? e.message : "denegado",
+      nombreError: e instanceof Error ? e.name : undefined,
+    };
   }
 }
 
@@ -88,12 +95,24 @@ async function pedirPermisoReal(permiso: PermisoDispositivo): Promise<ResultadoP
           await (window as unknown as { showDirectoryPicker: (o?: unknown) => Promise<unknown> }).showDirectoryPicker({ mode: "readwrite" });
           return { permiso, soportado: true, concedido: true };
         } catch (e) {
-          return { permiso, soportado: true, concedido: false, motivo: e instanceof Error ? e.message : "cancelado" };
+          return {
+            permiso,
+            soportado: true,
+            concedido: false,
+            motivo: e instanceof Error ? e.message : "cancelado",
+            nombreError: e instanceof Error ? e.name : undefined,
+          };
         }
       }
     }
   } catch (e) {
-    return { permiso, soportado: true, concedido: false, motivo: e instanceof Error ? e.message : "error" };
+    return {
+      permiso,
+      soportado: true,
+      concedido: false,
+      motivo: e instanceof Error ? e.message : "error",
+      nombreError: e instanceof Error ? e.name : undefined,
+    };
   }
   return { permiso, soportado: false, concedido: false, motivo: "permiso desconocido" };
 }
