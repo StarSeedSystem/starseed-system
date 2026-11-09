@@ -9,7 +9,9 @@
 //     vuelve a la de antes; sin Ubicación o sin la red a la vista, la vía guiada (la persona se une a mano
 //     desde el menú Wi-Fi y `enlace_wifi_comprobar` detecta que ya está dentro).
 //   · Windows (WIN1109B): Wi-Fi Direct por WinRT (enlace_wifi_windows.rs), dueño del grupo y cliente; el Wi-Fi de casa se queda.
-//   · Resto: «no disponible» con su porqué (Linux e iOS: fuera de esta ola).
+//   · Linux (LNX1109B): wpa_supplicant P2P por D-Bus (grupo propio DIRECT-xy-StarSeed) y NetworkManager (unirse en una
+//     tarjeta libre) sin dejar el Wi-Fi de casa: enlace_wifi_linux.rs.
+//   · Resto: «no disponible» con su porqué (iOS: fuera de esta ola).
 // Comandos: `enlace_wifi_capacidades`, `enlace_wifi_permiso`, `enlace_wifi_abrir_ap`,
 // `enlace_wifi_credenciales`, `enlace_wifi_unirse`, `enlace_wifi_estado`, `enlace_wifi_cerrar`,
 // `enlace_wifi_comprobar`. Evento: `enlace-wifi://estado` (cuando cambia lo nativo).
@@ -125,7 +127,13 @@ fn estado_actual(_app: &AppHandle) -> EstadoEnlaceWifi {
     crate::enlace_wifi_windows::estado() // WIN1109B
 }
 
-#[cfg(not(any(target_os = "android", target_os = "macos", target_os = "windows")))]
+// LNX1109B: Linux lleva su propio estado (wpa_supplicant / NetworkManager por D-Bus, enlace_wifi_linux.rs).
+#[cfg(target_os = "linux")]
+fn estado_actual(_app: &AppHandle) -> EstadoEnlaceWifi {
+    crate::enlace_wifi_linux::estado()
+}
+
+#[cfg(not(any(target_os = "android", target_os = "macos", target_os = "windows", target_os = "linux")))]
 fn estado_actual(_app: &AppHandle) -> EstadoEnlaceWifi {
     EstadoEnlaceWifi::default()
 }
@@ -148,7 +156,12 @@ fn capacidades_actuales() -> CapacidadesWifi {
     crate::enlace_wifi_windows::capacidades() // WIN1109B
 }
 
-#[cfg(not(any(target_os = "android", target_os = "macos", target_os = "windows")))]
+#[cfg(target_os = "linux")]
+fn capacidades_actuales() -> CapacidadesWifi {
+    crate::enlace_wifi_linux::capacidades()
+}
+
+#[cfg(not(any(target_os = "android", target_os = "macos", target_os = "windows", target_os = "linux")))]
 fn capacidades_actuales() -> CapacidadesWifi {
     logica::capacidades_sin_soporte(
         std::env::consts::OS,
@@ -196,7 +209,12 @@ pub fn enlace_wifi_abrir_ap(app: AppHandle, sesion: String, metodo: String, yo: 
         let _ = (yo, otro); // WIN1109B: las huellas son de Wi-Fi Aware (Android)
         Ok(crate::enlace_wifi_windows::abrir_ap(sesion, metodo))
     }
-    #[cfg(not(any(target_os = "android", target_os = "windows")))]
+    #[cfg(target_os = "linux")]
+    {
+        let _ = (yo, otro); // LNX1109B: las huellas son de Wi-Fi Aware (Android)
+        Ok(crate::enlace_wifi_linux::abrir_ap(sesion, metodo))
+    }
+    #[cfg(not(any(target_os = "android", target_os = "windows", target_os = "linux")))]
     {
         let _ = (metodo, yo, otro);
         Ok(logica::estado_error(
@@ -219,7 +237,11 @@ pub fn enlace_wifi_credenciales(sesion: String) -> Option<CredencialesNativas> {
     {
         crate::enlace_wifi_windows::credenciales(&sesion) // WIN1109B
     }
-    #[cfg(not(any(target_os = "android", target_os = "windows")))]
+    #[cfg(target_os = "linux")]
+    {
+        crate::enlace_wifi_linux::credenciales(&sesion) // LNX1109B
+    }
+    #[cfg(not(any(target_os = "android", target_os = "windows", target_os = "linux")))]
     {
         let _ = sesion;
         None
@@ -256,7 +278,12 @@ pub fn enlace_wifi_unirse(
         let _ = (&yo, &otro); // WIN1109B: las huellas son de Wi-Fi Aware (Android)
         Ok(crate::enlace_wifi_windows::unirse(sesion, metodo, ssid, clave, ip_ap))
     }
-    #[cfg(not(any(target_os = "android", target_os = "macos", target_os = "windows")))]
+    #[cfg(target_os = "linux")]
+    {
+        let _ = (yo, otro); // LNX1109B
+        Ok(crate::enlace_wifi_linux::unirse(sesion, metodo, ssid, clave, ip_ap))
+    }
+    #[cfg(not(any(target_os = "android", target_os = "macos", target_os = "windows", target_os = "linux")))]
     {
         let _ = (metodo, clave, ip_ap, yo, otro);
         Ok(logica::estado_error(Some(&sesion), "sin-soporte", "Este sistema aún no se une solo a una red directa.", ahora_ms()))
@@ -286,7 +313,11 @@ pub fn enlace_wifi_cerrar(app: AppHandle, sesion: String) -> Result<EstadoEnlace
     {
         Ok(crate::enlace_wifi_windows::cerrar(sesion)) // WIN1109B
     }
-    #[cfg(not(any(target_os = "android", target_os = "macos", target_os = "windows")))]
+    #[cfg(target_os = "linux")]
+    {
+        Ok(crate::enlace_wifi_linux::cerrar(sesion)) // LNX1109B
+    }
+    #[cfg(not(any(target_os = "android", target_os = "macos", target_os = "windows", target_os = "linux")))]
     {
         let _ = sesion;
         Ok(estado_actual(&app))
@@ -341,7 +372,7 @@ mod pruebas {
 
     #[test]
     fn capacidades_en_un_sistema_sin_enlace() {
-        #[cfg(not(any(target_os = "android", target_os = "macos", target_os = "windows")))]
+        #[cfg(not(any(target_os = "android", target_os = "macos", target_os = "windows", target_os = "linux")))]
         {
             let c = capacidades_actuales();
             assert!(c.ap.is_empty() && c.cliente.is_empty());

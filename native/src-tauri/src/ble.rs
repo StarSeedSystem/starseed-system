@@ -88,7 +88,7 @@ impl Radio for RadioNula {
 }
 
 pub const MOTIVO_SIN_RADIO: &str =
-    "En este sistema la app aún no trae Bluetooth directo: llega con la app nativa de macOS y Android (Windows y Linux, pendiente: contrato bluetooth-directo.md §9).";
+    "En este sistema la app aún no trae Bluetooth directo: llega con la app nativa de macOS, Android y Linux (BlueZ; en Linux se apaga con STARSEED_SIN_BLE_LINUX=1). Windows, pendiente: contrato bluetooth-directo.md §9.";
 
 fn radio() -> &'static dyn Radio {
     static R: OnceLock<Box<dyn Radio>> = OnceLock::new();
@@ -106,7 +106,12 @@ fn radio() -> &'static dyn Radio {
         {
             Box::new(crate::ble_windows::RadioWindows)
         }
-        #[cfg(not(any(target_os = "android", target_os = "macos", target_os = "windows")))]
+        // LNX1109B: Linux habla con BlueZ por D-Bus (ble_linux.rs); la radio nace apagada con STARSEED_SIN_BLE_LINUX=1.
+        #[cfg(target_os = "linux")]
+        {
+            Box::new(crate::ble_linux::RadioLinux)
+        }
+        #[cfg(not(any(target_os = "android", target_os = "macos", target_os = "windows", target_os = "linux")))]
         {
             Box::new(RadioNula)
         }
@@ -672,7 +677,7 @@ fn texto_radio(estado_radio: &str) -> &'static str {
     match estado_radio {
         "encendida" => "Bluetooth directo encendido: anunciándose y escuchando a tus neuronas cercanas, sin Wi-Fi ni internet.",
         "apagada" => "El Bluetooth de este aparato está apagado.",
-        "sin-permiso" => "Falta el permiso de Bluetooth («Dispositivos cercanos» en Android, «Bluetooth» en macOS, Privacidad › Radios en Windows).",
+        "sin-permiso" => "Falta el permiso de Bluetooth («Dispositivos cercanos» en Android, «Bluetooth» en macOS, Privacidad › Radios en Windows; en Linux, acceso a BlueZ: grupo «bluetooth» o sesión local).",
         _ => "Este aparato no tiene Bluetooth de baja energía.",
     }
 }
