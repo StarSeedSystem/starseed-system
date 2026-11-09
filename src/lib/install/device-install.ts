@@ -29,8 +29,11 @@
  *                              (src/lib/neurons/neurons.ts).
  *
  * Regla de oro: nunca lanza; en el servidor devuelve valores neutros.
- * ═══════════════════════════════════════════════════════════════════════════
+ * ════════════════════════════════════════════════════════════════════════════
  */
+
+import { pedirPermiso } from "@/lib/aurora/senses/request-permission";
+import type { EstadoPermiso } from "@/lib/permisos/contrato";
 
 /* ═══════════════════════════ 1 · Detección de SO ═══════════════════════════ */
 
@@ -258,7 +261,21 @@ export async function promptInstallPWA(): Promise<PwaPromptResult> {
 
 /* ══════════════════════ 3 · Permisos web (los reales) ══════════════════════ */
 
-export type GrantState = "granted" | "denied" | "unsupported" | "error";
+export type GrantState = "granted" | "denied" | "prompt" | "unsupported" | "error";
+
+/** Convierte el estado normalizado del contrato al GrantState de este módulo. */
+export function grantDeEstado(e: EstadoPermiso): GrantState {
+  switch (e) {
+    case "concedido":
+      return "granted";
+    case "denegado":
+      return "denied";
+    case "preguntar":
+      return "prompt";
+    case "no-disponible":
+      return "unsupported";
+  }
+}
 
 export interface PermissionReport {
   /** Notificaciones del sistema (Notification.requestPermission). */
@@ -294,33 +311,18 @@ export async function requestMaxPermissions(): Promise<PermissionReport> {
     return report;
   }
 
-  // 1) Notificaciones.
+  // 1) Notificaciones — usa pedirPermiso del motor unificado.
   try {
-    if (typeof Notification !== "undefined" && typeof Notification.requestPermission === "function") {
-      if (Notification.permission === "granted") {
-        report.notifications = "granted";
-      } else if (Notification.permission === "denied") {
-        report.notifications = "denied";
-      } else {
-        const res = await Notification.requestPermission();
-        report.notifications = res === "granted" ? "granted" : "denied";
-      }
-    }
+    const resNotif = await pedirPermiso("notificaciones");
+    report.notifications = grantDeEstado(resNotif.estado);
   } catch {
     report.notifications = "error";
   }
 
-  // 2) Almacenamiento persistente.
+  // 2) Almacenamiento persistente — usa pedirPermiso del motor unificado.
   try {
-    const storage = navigator.storage as StorageManager & {
-      persisted?: () => Promise<boolean>;
-      persist?: () => Promise<boolean>;
-    };
-    if (storage && typeof storage.persist === "function") {
-      const already = typeof storage.persisted === "function" ? await storage.persisted() : false;
-      const ok = already || (await storage.persist());
-      report.persistentStorage = ok ? "granted" : "denied";
-    }
+    const resStorage = await pedirPermiso("almacenamiento");
+    report.persistentStorage = grantDeEstado(resStorage.estado);
   } catch {
     report.persistentStorage = "error";
   }
