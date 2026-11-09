@@ -6624,3 +6624,12 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 ## 2026-11-09 12:30 · auto-1109-121221
 
 **Resultado.** 1 de 1 integradas.
+
+## 2026-11-09 14:55 · auto-1109-141407
+
+**Lo que se pidió.** pruebas del puente en rojo
+
+**Resultado.** 0 de 1 integradas. 1 tarea se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `MGP1109-1E950F` — otra cosa: NO APLICA: la puerta de publicación volvió a verde (publicado a27d2d1e0ece)
