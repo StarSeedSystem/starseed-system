@@ -40,7 +40,7 @@ it("microfono: getUserMedia rechaza con NotAllowedError (Firefox) → denegado",
       await expect(pedirPermiso("microfono")).resolves.toMatchObject({
         id: "microfono",
         estado: "denegado",
-        nombreError: "NotAllowedError",
+        motivo: "NotAllowedError",
       });
     });
 
