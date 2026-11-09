@@ -185,7 +185,10 @@ pub fn descargar(p: &PeticionDescarga, dir: &Path) -> Result<Verificacion, Strin
     std::fs::create_dir_all(dir).map_err(|e| format!("No se pudo crear {}: {e}", dir.display()))?;
     let parcial: PathBuf = dir.join(format!("{}.parcial", p.nombre));
     let estado = orden("curl")
-        .args(["-L", "--fail", "--silent", "--show-error", "--retry", "3", "-C", "-", "-o"])
+        .args(["-L", "--fail", "--silent", "--show-error", "--retry", "3", "-C", "-"])
+        // (PTA1108B) Con el proxy de la puerta de internet encendido, la capa se baja por la malla; sin él, igual que siempre.
+        .args(crate::puerta_proxy_logica::argumentos_curl(crate::puerta_proxy::proxy_url().as_deref(), &p.url))
+        .arg("-o")
         .arg(&parcial)
         .arg(&p.url)
         .status()

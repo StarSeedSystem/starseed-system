@@ -23,6 +23,8 @@ import {
 import { crearGestorPuerta, type AuditoriaPuerta, type GestorPuerta, type MetaVecino, type Pregunta, type ResumenCompartiendo, type Trama, type TransportePuerta } from "@/lib/malla/puerta/tunel";
 import { registrarRespaldoFetch } from "@/lib/malla/puerta/fetch-puerta";
 import { activarModoLocal, atenderEntradas, crearAbrirTcpLocal, leerSubredesLocales, postLocalPorDefecto, puertaLocalDisponible, respaldoFetchLocal, type HandleAtencion, type PostLocal } from "@/lib/malla/puerta/puente-local";
+// PTA1108B: el webview, el navegador de la app y las descargas de Rust salen por el proxy local de la puerta.
+import { crearSincroProxy, puenteProxyPorDefecto, textoVia, type PuenteProxy, type SincroProxy } from "@/lib/malla/puerta/proxy-nativo";
 
 export const CLAVE_INTERRUPTOR_PUERTA = "starseed.malla.puerta.activo";
 
@@ -173,6 +175,8 @@ export interface OpcionesServicio {
   esNativo?: boolean;
   sonda?: () => Promise<SondaSalida>;
   yo?: string;
+  /** PTA1108B · Para pruebas: el puente con la app nativa (`null` = web, sin sincronía). Por defecto, el real. */
+  puenteProxy?: PuenteProxy | null;
 }
 
 /** Arranca la puerta. Devuelve la función que la detiene. Nunca lanza. */
@@ -239,6 +243,9 @@ export function iniciarPuertaMalla(op: OpcionesServicio = {}): () => void {
 
       const nativo = op.esNativo ?? (await puertaLocalDisponible(post));
       publicar({ nativo });
+      // PTA1108B · Con lado de Node, el puerto del proxy local se le dice a la app nativa (no-op en la web).
+      const sincroProxy: SincroProxy | null = nativo ? crearSincroProxy(op.puenteProxy !== undefined ? op.puenteProxy : puenteProxyPorDefecto()) : null;
+      if (sincroProxy) bajas.push(() => void sincroProxy.detener());
       const gestorTabla = new TablaPuertas(() => Date.now(), yo);
       const estadoPropio = (): EstadoPropio => ({ conInternet: sonda.conInternet, ...fisico });
 
@@ -287,6 +294,18 @@ export function iniciarPuertaMalla(op: OpcionesServicio = {}): () => void {
           bytesHoy: { mias: gestor.bytesHoy("mias"), otras: gestor.bytesHoy("otras") },
           capasPropias: capasDetectadas,
         });
+        sincronizarProxy(); // PTA1108B
+      };
+      // PTA1108B · Cada vez que el proxy arranca, para o cambia la puerta que usa (neurona o vía), la app nativa lo sabe.
+      const sincronizarProxy = (): void => {
+        if (!sincroProxy) return;
+        const e = estadoPuerta();
+        if (e.proxyLocal == null) {
+          void sincroProxy.sincronizar({ puerto: null });
+          return;
+        }
+        const mejor = e.internetPor ?? e.puertas[0] ?? null;
+        void sincroProxy.sincronizar({ puerto: e.proxyLocal, neurona: mejor?.nombre ?? null, via: mejor ? textoVia(mejor.enlace, mejor.saltos) : null });
       };
 
       // Salida propia, estado físico y modo «salir por la malla» (solo con lado de Node).

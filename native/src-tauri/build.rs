@@ -20,6 +20,9 @@ mod enlace_wifi_parche;
 // (LLA1108D) Las llamadas como llamadas del teléfono: permisos, componentes y LlamadaNativaStarSeed.kt.
 #[path = "src/llamada_nativa_parche.rs"]
 mod llamada_nativa_parche;
+// (PTA1108B) El proxy de la puerta de internet en Android: proveedor, ProxyPuertaStarSeed.kt y androidx.webkit.
+#[path = "src/puerta_proxy_parche.rs"]
+mod puerta_proxy_parche;
 
 /// Comandos propios de la app (los de `generate_handler!` de src/lib.rs). Desde tauri 2.11.1 una
 /// página de un origen REMOTO (la web publicada, y también el servidor local http://127.0.0.1:47610…)
@@ -114,6 +117,9 @@ const COMANDOS_APP: &[&str] = &[
     "llamada_nativa_proximidad",
     "llamada_nativa_capacidades",
     "llamada_nativa_permiso",
+    // (PTA1108B) Proxy de la puerta de internet para el webview y las descargas de Rust.
+    "puerta_proxy_local",
+    "puerta_proxy_estado",
     // Solo escritorio (su permiso existe en todas, pero solo se registran en escritorio).
     "ventanas_prestables",
     "capturar_ventana",
@@ -141,6 +147,7 @@ fn main() {
     actualizador_android();
     enlace_wifi_android(); // (WFD1108A)
     llamadas_nativas_android(); // (LLA1108D)
+    proxy_puerta_android(); // (PTA1108B)
     // (BLE1108A) Siempre el último: su bloque del manifiesto va detrás de los otros (mismo orden, mismo archivo).
     bluetooth_android();
     tauri_build::try_build(
@@ -391,5 +398,42 @@ fn llamadas_nativas_android() {
         }
         // Falla en alto: un APK que dice contestar llamadas como el teléfono y no declara ni el servicio sería una ilusión.
         Err(e) => panic!("[starseed] No se pudo inyectar las llamadas nativas en Android: {e}. Para compilar sin ellas: STARSEED_SIN_LLAMADAS_NATIVAS_ANDROID=1"),
+    }
+}
+
+/// (PTA1108B) El proxy de la puerta de internet de la malla en Android: proveedor `ArranqueProxyPuerta`,
+/// ProxyPuertaStarSeed.kt (androidx.webkit `ProxyController`) y la dependencia `androidx.webkit` en
+/// `app/build.gradle.kts` si la plantilla no la trae. Solo StarSeed OS. Contrato
+/// architecture/red-sin-dependencias.md §5.3 (c). `STARSEED_SIN_PROXY_PUERTA=1` lo apaga.
+fn proxy_puerta_android() {
+    println!("cargo:rerun-if-changed=src/puerta_proxy_parche.rs");
+    println!("cargo:rerun-if-changed=android/ProxyPuertaStarSeed.kt");
+    println!("cargo:rerun-if-env-changed=STARSEED_SIN_PROXY_PUERTA");
+    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() != Ok("android") {
+        return;
+    }
+    // Interruptor de emergencia: sin él el APK sale como antes (el navegador de la app sale por la red propia).
+    if puerta_proxy_parche::apagado(std::env::var("STARSEED_SIN_PROXY_PUERTA").ok().as_deref()) {
+        println!("cargo:warning=[starseed] STARSEED_SIN_PROXY_PUERTA: el APK sale SIN el proxy de la puerta de internet.");
+        return;
+    }
+    let paquete = std::env::var("TAURI_ANDROID_PACKAGE_UNESCAPED")
+        .or_else(|_| std::env::var("WRY_ANDROID_PACKAGE"))
+        .unwrap_or_default();
+    if !puerta_proxy_parche::aplica(&paquete) {
+        return;
+    }
+    let Some(proyecto) = std::env::var_os("TAURI_ANDROID_PROJECT_PATH").map(std::path::PathBuf::from) else {
+        println!("cargo:warning=[starseed] Sin TAURI_ANDROID_PROJECT_PATH: el APK sale SIN el proxy de la puerta de internet.");
+        return;
+    };
+    match puerta_proxy_parche::aplicar(&proyecto) {
+        Ok(cambiados) => {
+            for c in cambiados {
+                println!("cargo:warning=[starseed] proxy de la puerta: escrito {}", c.display());
+            }
+        }
+        // Falla en alto: un APK que dice llevar el navegador por la malla y no trae ni la dependencia sería una ilusión.
+        Err(e) => panic!("[starseed] No se pudo inyectar el proxy de la puerta en Android: {e}. Para compilar sin él: STARSEED_SIN_PROXY_PUERTA=1"),
     }
 }

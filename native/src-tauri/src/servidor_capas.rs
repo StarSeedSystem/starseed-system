@@ -502,6 +502,8 @@ fn curl(url: &str) -> std::process::Command {
         // Solo https, también en las redirecciones (GitHub → objects.githubusercontent.com).
         cmd.args(["--proto", "=https", "--proto-redir", "=https"]);
     }
+    // (PTA1108B) Con el proxy de la puerta de internet encendido, la descarga sale por la malla; sin él, igual que siempre.
+    cmd.args(crate::puerta_proxy_logica::argumentos_curl(crate::puerta_proxy::proxy_url().as_deref(), url));
     cmd
 }
 

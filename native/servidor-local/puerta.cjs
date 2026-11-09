@@ -553,6 +553,51 @@ function crearPuertaLocal(opts) {
     }
   }
 
+  /* ── PTA1108B · HTTPS de la propia app por la malla (las /api/* relativas hacia la web publicada) ── */
+  /** ¿Hay salida por la malla ahora? (modo encendido y la página escuchando para abrir túneles). */
+  const disponibleMalla = () => activo && hayPaginaViva();
+  /**
+   * Un `https.Agent` cuyas conexiones son túneles de la malla: TLS de punta a punta en Node (la puerta solo ve bytes
+   * cifrados). Sin reutilización de sockets: cada petición, un túnel. Si el túnel no se abre, el error lleva
+   * `starseedNoEnviado` (no salió ni un byte de la petición) y `starseedRed` (cuenta como fallo de red).
+   */
+  function agenteMalla() {
+    const agente = new https.Agent({ keepAlive: false, maxSockets: 16 });
+    agente.createConnection = (opciones, cb) => {
+      const host = String(opciones.host || opciones.hostname || "");
+      const puerto = Number(opciones.port) || 443;
+      const fallar = (motivo) => {
+        const e = new Error("puerta: " + motivo);
+        e.code = "ENETUNREACH";
+        e.starseedRed = true;
+        e.starseedNoEnviado = true;
+        cb(e);
+      };
+      if (!disponibleMalla()) return fallar("sin-salida");
+      // PTA1108C + PTA1108B: este agente solo sirve a la web publicada (pública). Nunca lleva una concesión de capas, así que
+      // cualquier destino interno (IP privada, localhost, .local, .internal) se corta aquí, sin abrir túnel. Lo demás lo
+      // vuelve a comprobar la puerta al resolver (DNS rebinding) con `resolverSeguro(host, null)`: ningún camino lo salta.
+      const h = host.toLowerCase().replace(/\.$/, "");
+      if (!o.agenteDestinoLibre /* solo pruebas */ && (!h || (net.isIP(h) && ipInterna(h)) || h === "localhost" || h.endsWith(".localhost") || h.endsWith(".local") || h.endsWith(".internal"))) {
+        return fallar("destino-interno");
+      }
+      let e;
+      try {
+        e = abrirEntrada(host, puerto);
+      } catch (x) {
+        return fallar(String((x && x.message) || "error").slice(0, 40));
+      }
+      e.abierto.then((r) => {
+        if (!r.ok) return fallar(String(r.m || "rechazada").slice(0, 40));
+        const sock = tls.connect({ ...tlsOpciones, socket: e.dup, servername: net.isIP(host) ? undefined : opciones.servername || host });
+        sock.on("error", () => cerrarTuberia(e.t, "tls"));
+        sock.on("close", () => cerrarTuberia(e.t, "fin"));
+        cb(null, sock);
+      });
+    };
+    return agente;
+  }
+
   // Barrido de tuberías sin movimiento.
   const barrido = setInterval(() => {
     const ahora = Date.now();
@@ -569,7 +614,9 @@ function crearPuertaLocal(opts) {
       for (const t of tuberias.values()) cerrarTuberia(t, "parada");
     },
     estado: () => ({ activo, proxy: puertoProxy || null, tuberias: tuberias.size }),
-    _interno: { abrirSalida, abrirEntrada, tuberias, pendientes, activar: (v) => { activo = v; hayPagina = Date.now(); }, arrancarProxy },
+    disponibleMalla, // PTA1108B
+    agenteMalla, // PTA1108B
+    _interno: { abrirSalida, abrirEntrada, tuberias, pendientes, activar: (v) => { activo = v; hayPagina = Date.now(); }, arrancarProxy, agenteMalla },
   };
 }
 
