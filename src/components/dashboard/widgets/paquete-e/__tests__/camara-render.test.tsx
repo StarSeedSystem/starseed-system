@@ -7,8 +7,13 @@ vi.mock("next/link", () => ({ default: ({ href, children, prefetch: _p, ...r }: 
 import { entornoNavegador, montarEn, TODAS } from "../pruebas-render";
 import { CameraQuickWidget } from "../../camera-quick-widget";
 
+// Un dispositivo con cámara trae getUserMedia (origen seguro): sin él, la API unificada de
+// permisos (`consultarPermiso`, PRM1109D) responde «no-disponible». El widget consulta sin pedir:
+// nunca lo llama.
+const pedirCamara = vi.fn(async () => { throw new Error("la consulta del widget no debe pedir la cámara"); });
+
 function dispositivo(camaras: number, permiso: string | null) {
-    Object.defineProperty(navigator, "mediaDevices", { configurable: true, value: { enumerateDevices: async () => Array.from({ length: camaras }, (_, i) => ({ kind: "videoinput", deviceId: `c${i}`, label: "" })) } });
+    Object.defineProperty(navigator, "mediaDevices", { configurable: true, value: { enumerateDevices: async () => Array.from({ length: camaras }, (_, i) => ({ kind: "videoinput", deviceId: `c${i}`, label: "" })), getUserMedia: pedirCamara } });
     Object.defineProperty(navigator, "permissions", { configurable: true, value: permiso ? { query: async () => ({ state: permiso }) } : undefined });
 }
 
@@ -32,6 +37,7 @@ describe("Cámara", () => {
         dispositivo(2, "granted");
         await montar("m");
         expect(screen.getByText("2 cámaras listas")).toBeTruthy();
+        expect(pedirCamara).not.toHaveBeenCalled();
     });
 
     it("dice la verdad si no hay cámara o el permiso está denegado", async () => {
