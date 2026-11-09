@@ -33,6 +33,7 @@ import { openAppPopup } from "@/lib/notifications/app-popups";
 // (Adenda 192) Si el permiso del SISTEMA falta, esta área lo pide aquí mismo.
 import { BotonPermiso } from "@/components/senses/permisos-dispositivo";
 import { ProbarNotificaciones } from "./probar-notificaciones";
+import { SilenciosLlamadasAjustes } from "./silencios-llamadas";
 
 /** Tipos de paquete que pueden actuar como «app» que notifica. */
 const APP_LIKE: PackageKind[] = ["app", "widget", "page", "board", "research", "project", "publication", "agent", "function"];
@@ -136,6 +137,7 @@ export function AppNotificationsPanel() {
 
       {/* (NOT1108A) Avisos de mensajes en este aparato: estado por plataforma y «Probar notificaciones». */}
       <ProbarNotificaciones />
+      <SilenciosLlamadasAjustes />
 
       {rows.length === 0 ? (
         <div className="rounded-xl border border-dashed border-white/10 bg-white/[0.01] px-4 py-6 text-center text-[12px] text-muted-foreground">

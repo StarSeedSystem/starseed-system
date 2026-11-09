@@ -4,6 +4,7 @@ package app.starseed.nativa
 
 import android.app.Activity
 import android.app.Application
+import android.app.KeyguardManager
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -87,9 +88,19 @@ object LlamadaNativa : Application.ActivityLifecycleCallbacks {
     const val CARPETA = "llamada-nativa"
     const val PREFIJO_PETICION = "peticion-"
     const val ESTADO = "estado.json"
-    const val CANAL_ENTRANTE = "starseed-llamada-entrante"
+    // (LLA1108F) Un canal de Android no se puede cambiar una vez creado: el timbre pasa a ser propio (tono del teléfono,
+    // vibración y pantalla encendida los pone TimbreLlamada) y el canal nuevo es solo el aviso emergente, sin sonido.
+    // El viejo («starseed-llamada-entrante») se borra al arrancar.
+    const val CANAL_ENTRANTE = "starseed-llamada-entrante-v2"
+    const val CANAL_ENTRANTE_VIEJO = "starseed-llamada-entrante"
     const val CANAL_CURSO = "starseed-llamada-en-curso"
+    const val CANAL_PERDIDAS = "starseed-llamada-perdida"
     const val ID_AVISO = 47081
+    const val ID_PERDIDA = 47082
+    const val ACCION_IGNORAR = "app.starseed.llamada.IGNORAR"
+    const val ACCION_DESHACER = "app.starseed.llamada.DESHACER"
+    /** Lo que suena una llamada sin contestar (la web espera 45 s y un margen). */
+    private const val TIMBRE_MS = 48_000L
     const val EXTRA_ACCION = "starseed_llamada_accion"
     const val ACCION_RECHAZAR = "app.starseed.llamada.RECHAZAR"
     const val ACCION_COLGAR = "app.starseed.llamada.COLGAR"
@@ -119,6 +130,18 @@ object LlamadaNativa : Application.ActivityLifecycleCallbacks {
     private var proximidadOn = false
     private var inicioMs = 0L
     private var rechazoPedido = false
+
+    // (LLA1108F) La llamada entrante: quién es, por dónde llega, si se ignoró o está silenciada por una política.
+    private var ignorada = false
+    private var hastaSilencio = 0L
+    private var silencioId: String? = null
+    private var iniciales = ""
+    private var medio = "desconocido"
+    private var uidLl = ""
+    private var neuronaLl = ""
+    private var chatLl = ""
+    private var vencimiento: Runnable? = null
+    private var ui: ActividadLlamadaStarSeed? = null
 
     private var telecomListo = false
     private var conexion: ConexionStarSeed? = null
@@ -191,6 +214,7 @@ object LlamadaNativa : Application.ActivityLifecycleCallbacks {
                 evaluarProximidad(ctx)
             }
             "permiso" -> pedirPantallaCompleta(ctx)
+            "ignorar" -> if (p.optString("id") == id) ignorar(ctx, false)
         }
     }
 
@@ -209,9 +233,185 @@ object LlamadaNativa : Application.ActivityLifecycleCallbacks {
         rutaInicialPuesta = false
         inicioMs = 0L
         ruta = "auricular"
+        ignorada = false
+        hastaSilencio = 0L
+        silencioId = null
+        iniciales = (if (p.isNull("iniciales")) "" else p.optString("iniciales")).ifEmpty { inicialesDe(nombre) }
+        medio = p.optString("medio", "desconocido").ifEmpty { "desconocido" }
+        uidLl = if (p.isNull("uid")) "" else p.optString("uid")
+        neuronaLl = if (p.isNull("neurona")) "" else p.optString("neurona")
+        chatLl = if (p.isNull("chat")) "" else p.optString("chat")
         rutas = rutasSinTelecom(ctx)
-        solicitarTelecom(ctx)
+        if (entrante) {
+            // La política de silencios manda aunque el JS esté congelado: el archivo lo mantiene Rust y también Kotlin.
+            val ahora = System.currentTimeMillis()
+            val dada = if (p.isNull("silencio_hasta")) 0L else p.optLong("silencio_hasta", 0L)
+            val s = SilenciosLlamada.quienCubre(ctx, uidLl, neuronaLl, chatLl, medio)
+            if (s != null) {
+                hastaSilencio = s.hasta ?: SilenciosLlamada.SIN_FIN
+                silencioId = s.id
+            } else if (dada > ahora) {
+                hastaSilencio = dada
+            }
+            vencimiento?.let { principal.removeCallbacks(it) }
+            val ligada = nuevo
+            val r = Runnable { if (id == ligada && fase == "sonando") perdida(ctx) }
+            vencimiento = r
+            principal.postDelayed(r, TIMBRE_MS)
+        }
+        if (hastaSilencio == 0L) solicitarTelecom(ctx)
+        // Con la app a la vista suena la web; en cualquier otro estado (fondo, bloqueada, cerrada) suena este timbre.
+        if (entrante && hastaSilencio == 0L && !appALaVista(ctx)) {
+            TimbreLlamada.despertar(ctx)
+            TimbreLlamada.sonar(ctx)
+        }
         actualizarAviso(ctx)
+    }
+
+    private fun inicialesDe(n: String): String =
+        n.trim().split(" ").filter { it.isNotEmpty() }.take(2).joinToString("") { it.substring(0, 1) }.uppercase().ifEmpty { "S" }
+
+    private fun textoMedio(m: String): String = when (m) {
+        "bluetooth" -> "por Bluetooth directo"
+        "red-local" -> "por la red local"
+        "malla" -> "por la malla"
+        "internet" -> "por internet"
+        else -> "por StarSeed"
+    }
+
+    /** La app está en pantalla, encendida y desbloqueada: ahí suena la web y este timbre calla. */
+    fun appALaVista(ctx: Context): Boolean {
+        val a = actual?.get() ?: return false
+        if (a is ActividadLlamadaStarSeed) return false
+        return try {
+            val pm = ctx.getSystemService(Context.POWER_SERVICE) as PowerManager
+            val km = ctx.getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager
+            pm.isInteractive && !km.isKeyguardLocked
+        } catch (e: Exception) {
+            true
+        }
+    }
+
+    // ─── Ignorar, silenciar y perdidas (LLA1108F) ───
+
+    /** «Ignorar»: calla y quita la pantalla completa; quien llama sigue oyendo el tono hasta que se acabe el tiempo. */
+    private fun ignorar(ctx: Context, avisarWeb: Boolean) {
+        if (!hayLlamada() || !entrante || fase != "sonando" || ignorada) return
+        ignorada = true
+        TimbreLlamada.parar()
+        cerrarUi()
+        if (avisarWeb) evento("ignorar", null)
+        actualizarAviso(ctx)
+    }
+
+    fun datosEntrante(): DatosEntrante? {
+        val ident = id ?: return null
+        if (!entrante || fase != "sonando" || ignorada || hastaSilencio > 0L) return null
+        return DatosEntrante(ident, nombre, iniciales, tipo == "video", textoMedio(medio))
+    }
+
+    fun ponerUi(a: ActividadLlamadaStarSeed) {
+        ui = a
+    }
+
+    fun quitarUi(a: ActividadLlamadaStarSeed) {
+        if (ui === a) ui = null
+    }
+
+    private fun cerrarUi() {
+        ui?.cerrar()
+        ui = null
+    }
+
+    fun contestarDesdeUi(ctx: Context) {
+        TimbreLlamada.parar()
+        desdeSistema("contestar", null)
+        abrirApp(ctx)
+        cerrarUi()
+    }
+
+    fun rechazarDesdeUi(ctx: Context) {
+        TimbreLlamada.parar()
+        desdeSistema("rechazar", null)
+        cerrarUi()
+    }
+
+    fun ignorarDesdeUi(ctx: Context) {
+        principal.post { ignorar(ctx.applicationContext, true) }
+    }
+
+    fun mensajeRapidoDesdeUi(ctx: Context, texto: String) {
+        TimbreLlamada.parar()
+        desdeSistema("mensaje", texto)
+        desdeSistema("rechazar", null)
+        cerrarUi()
+    }
+
+    /** A qué se puede silenciar esta llamada (solo lo que se sabe de ella) y cómo se llama en el menú. */
+    fun ambitosSilencio(): List<Pair<String, String>> {
+        val l = ArrayList<Pair<String, String>>()
+        if (uidLl.isNotEmpty()) l.add("persona" to "Esta persona")
+        if (neuronaLl.isNotEmpty()) l.add("neurona" to "Esta neurona")
+        if (chatLl.isNotEmpty()) l.add("chat" to "Este grupo o chat")
+        if (medio != "desconocido") l.add("medio" to "Este medio (${textoMedio(medio)})")
+        l.add("todas" to "Todas las llamadas (No molestar)")
+        return l
+    }
+
+    /** «Silenciar…»: guarda el silencio (la web lo adopta con el evento y por Rust) y calla ESTA llamada. */
+    fun silenciarDesdeUi(ctx: Context, ambito: String, duracion: String) {
+        val clave = when (ambito) {
+            "persona" -> uidLl
+            "neurona" -> neuronaLl
+            "chat" -> chatLl
+            "medio" -> medio
+            else -> "*"
+        }
+        if (clave.isEmpty()) return
+        val etiqueta = if (ambito == "medio") textoMedio(medio) else if (ambito == "todas") "Todas las llamadas" else nombre
+        val hasta = SilenciosLlamada.hastaDe(duracion, System.currentTimeMillis())
+        val item = SilenciosLlamada.agregar(ctx, ambito, clave, etiqueta, hasta)
+        evento("silencio", JSONObject().put("id", item.id).put("ambito", ambito).put("clave", clave).put("etiqueta", etiqueta).put("duracion", duracion).put("hasta", hasta ?: JSONObject.NULL))
+        principal.post { ignorar(ctx.applicationContext, false) }
+    }
+
+    /** «Deshacer» en la entrada «Llamada silenciada»: quita ese silencio y, si aún suena, vuelve a sonar. */
+    fun deshacerSilencio(ctx: Context) {
+        val s = silencioId ?: return
+        SilenciosLlamada.quitar(ctx, s)
+        evento("silencio", JSONObject().put("id", s).put("quitado", true))
+        hastaSilencio = 0L
+        silencioId = null
+        if (hayLlamada() && entrante && fase == "sonando") {
+            solicitarTelecom(ctx)
+            if (!appALaVista(ctx)) {
+                TimbreLlamada.despertar(ctx)
+                TimbreLlamada.sonar(ctx)
+            }
+            actualizarAviso(ctx)
+        } else {
+            (ctx.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager)?.cancel(ID_PERDIDA)
+        }
+    }
+
+    /** Se acabó el tiempo sin contestar: la entrada queda como perdida (en silencio), sin tocar a la web. */
+    private fun perdida(ctx: Context) {
+        val quien = nombre
+        val motivo = when {
+            hastaSilencio > 0L -> "Llamada silenciada de $quien"
+            ignorada -> "Llamada ignorada de $quien"
+            else -> "Llamada perdida de $quien"
+        }
+        val medioTxt = textoMedio(medio)
+        terminarNativo(ctx)
+        try {
+            val b = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(ctx, CANAL_PERDIDAS) else Notification.Builder(ctx)
+            b.setSmallIcon(icono(ctx)).setContentTitle(motivo).setContentText(medioTxt).setCategory(Notification.CATEGORY_STATUS)
+                .setAutoCancel(true).setContentIntent(intentApp(ctx, "abrir", 1)).setVisibility(Notification.VISIBILITY_PUBLIC)
+            (ctx.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager)?.notify(ID_PERDIDA, b.build())
+        } catch (e: Exception) {
+            // Sin notificaciones: la web ya cuenta la llamada perdida.
+        }
     }
 
     private fun cambiarEstado(ctx: Context, p: JSONObject) {
@@ -219,6 +419,9 @@ object LlamadaNativa : Application.ActivityLifecycleCallbacks {
         if (p.has("silenciada")) silenciada = p.optBoolean("silenciada")
         when (p.optString("estado")) {
             "activa" -> {
+                TimbreLlamada.parar()
+                cerrarUi()
+                vencimiento?.let { principal.removeCallbacks(it) }
                 fase = "activa"
                 if (inicioMs == 0L) inicioMs = System.currentTimeMillis()
                 conexion?.setActive()
@@ -259,6 +462,13 @@ object LlamadaNativa : Application.ActivityLifecycleCallbacks {
             }
         }
         conexion = null
+        TimbreLlamada.parar()
+        cerrarUi()
+        vencimiento?.let { principal.removeCallbacks(it) }
+        vencimiento = null
+        ignorada = false
+        hastaSilencio = 0L
+        silencioId = null
         soltarFoco(ctx)
         modoComunicacion(ctx, false)
         fase = "inactiva"
@@ -288,6 +498,15 @@ object LlamadaNativa : Application.ActivityLifecycleCallbacks {
         val ctx = ctxApp
         if (ctx != null) {
             if (tipoEvento == "rechazar") rechazoPedido = true
+            if (tipoEvento == "contestar" || tipoEvento == "rechazar") TimbreLlamada.parar()
+            if (tipoEvento == "contestar") {
+                // Contestada: ya no vence como perdida; si la web no completa la llamada, se cierra lo nativo.
+                vencimiento?.let { principal.removeCallbacks(it) }
+                val ligada = id
+                val r = Runnable { if (ligada != null && id == ligada && fase == "sonando") terminarNativo(ctx) }
+                vencimiento = r
+                principal.postDelayed(r, 40_000L)
+            }
             escribirEstado()
             // Si la web no contesta (cerrada, sin hilo), no se deja una llamada nativa colgada para siempre.
             if (tipoEvento == "colgar" || tipoEvento == "rechazar") {
@@ -651,16 +870,23 @@ object LlamadaNativa : Application.ActivityLifecycleCallbacks {
     private fun crearCanales(ctx: Context) {
         if (Build.VERSION.SDK_INT < 26) return
         val nm = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager ?: return
+        // (LLA1108F) El canal viejo tenía el sonido en el propio aviso y no se podía cambiar: se borra y se crea el v2.
+        try {
+            nm.deleteNotificationChannel(CANAL_ENTRANTE_VIEJO)
+        } catch (e: Exception) {
+            // Ya no estaba.
+        }
         val timbre = NotificationChannel(CANAL_ENTRANTE, "Llamadas entrantes", NotificationManager.IMPORTANCE_HIGH)
-        timbre.description = "Cuando una neurona te llama."
-        timbre.setSound(
-            RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE),
-            AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build()
-        )
-        timbre.enableVibration(true)
-        timbre.vibrationPattern = longArrayOf(0, 700, 500, 700, 500)
+        timbre.description = "Aviso emergente cuando una neurona te llama (el tono y la vibración los pone la app)."
+        timbre.setSound(null, null)
+        timbre.enableVibration(false)
         timbre.lockscreenVisibility = Notification.VISIBILITY_PUBLIC
         nm.createNotificationChannel(timbre)
+        val perdidas = NotificationChannel(CANAL_PERDIDAS, "Llamadas perdidas", NotificationManager.IMPORTANCE_LOW)
+        perdidas.description = "Llamadas que no contestaste, ignoraste o silenciaste."
+        perdidas.setSound(null, null)
+        perdidas.lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+        nm.createNotificationChannel(perdidas)
         val curso = NotificationChannel(CANAL_CURSO, "Llamada en curso", NotificationManager.IMPORTANCE_LOW)
         curso.description = "Mientras hablas: colgar y silenciar desde el aviso."
         curso.setSound(null, null)
@@ -689,57 +915,63 @@ object LlamadaNativa : Application.ActivityLifecycleCallbacks {
         val ident = id ?: return null
         if (fase == "inactiva") return null
         val sonandoEntrante = fase == "sonando" && entrante
-        val canal = if (sonandoEntrante) CANAL_ENTRANTE else CANAL_CURSO
+        val politica = sonandoEntrante && hastaSilencio > 0L
+        val ignoradaYa = sonandoEntrante && ignorada && !politica
+        val llamando = sonandoEntrante && !politica && !ignoradaYa
+        val canal = if (llamando) CANAL_ENTRANTE else CANAL_CURSO
         val b = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(ctx, canal) else Notification.Builder(ctx)
-        b.setSmallIcon(icono(ctx)).setCategory(Notification.CATEGORY_CALL).setOngoing(true).setContentIntent(intentApp(ctx, "abrir", 1))
+        b.setSmallIcon(icono(ctx)).setCategory(Notification.CATEGORY_CALL).setOngoing(!politica).setContentIntent(intentApp(ctx, "abrir", 1))
         b.setVisibility(Notification.VISIBILITY_PUBLIC)
         val contestar = intentApp(ctx, "contestar", 2)
         val rechazar = intentBoton(ctx, ACCION_RECHAZAR, 3)
         val colgar = intentBoton(ctx, ACCION_COLGAR, 4)
         val silenciar = intentBoton(ctx, ACCION_SILENCIAR, 5)
+        val ignorarPi = intentBoton(ctx, ACCION_IGNORAR, 7)
+        val deshacer = intentBoton(ctx, ACCION_DESHACER, 8)
         val texto = when {
-            sonandoEntrante -> if (tipo == "video") "Videollamada entrante" else "Llamada entrante"
+            politica -> "Llamada silenciada (" + SilenciosLlamada.textoHasta(hastaSilencio) + ")"
+            ignoradaYa -> "Ignorada: sigue sonando para quien llama"
+            sonandoEntrante -> (if (tipo == "video") "Videollamada entrante" else "Llamada entrante") + " " + textoMedio(medio)
             fase == "sonando" -> "Llamando…"
             fase == "en-espera" -> "Llamada en espera"
             else -> "Llamada en curso"
         }
         val textoSilencio = if (silenciada) "Activar micrófono" else "Silenciar"
-        if (Build.VERSION.SDK_INT >= 31) {
-            val persona = Person.Builder().setName(nombre).setImportant(true).build()
-            b.setContentTitle(nombre).setContentText(texto)
-            if (sonandoEntrante) {
+        b.setContentTitle(nombre).setContentText(texto)
+        if (Build.VERSION.SDK_INT >= 31) b.setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE)
+        if (llamando) {
+            if (Build.VERSION.SDK_INT >= 31) {
+                val persona = Person.Builder().setName(nombre).setImportant(true).build()
                 b.setStyle(Notification.CallStyle.forIncomingCall(persona, rechazar, contestar))
             } else {
-                b.setStyle(Notification.CallStyle.forOngoingCall(persona, colgar))
-                if (fase == "activa" || fase == "en-espera") b.addAction(accion(ctx, android.R.drawable.ic_lock_silent_mode, textoSilencio, silenciar))
-            }
-            b.setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE)
-        } else {
-            b.setContentTitle(nombre).setContentText(texto)
-            if (sonandoEntrante) {
                 b.addAction(accion(ctx, android.R.drawable.ic_menu_call, "Contestar", contestar))
                 b.addAction(accion(ctx, android.R.drawable.ic_menu_close_clear_cancel, "Rechazar", rechazar))
+            }
+            b.addAction(accion(ctx, android.R.drawable.ic_lock_silent_mode, "Ignorar", ignorarPi))
+            if (Build.VERSION.SDK_INT < 26) b.setPriority(Notification.PRIORITY_MAX)
+            val vista = appALaVista(ctx)
+            // Sobre el bloqueo (Android 14+ lo pide como ajuste especial: sin él, aviso emergente + pantalla encendida por TimbreLlamada).
+            if (!vista && puedePantallaCompleta(ctx)) b.setFullScreenIntent(intentApp(ctx, "abrir", 6), true)
+            // Con la app a la vista ya suena la propia web: el aviso no alerta. (KOT1108A: `Notification.Builder.setSilent`
+            // no existe en el SDK del CI; un grupo propio con GROUP_ALERT_SUMMARY hace lo mismo, API 30+.)
+            if (Build.VERSION.SDK_INT >= 30 && vista) b.setGroup("starseed-llamada-silenciosa").setGroupAlertBehavior(Notification.GROUP_ALERT_SUMMARY)
+        } else if (politica) {
+            b.addAction(accion(ctx, android.R.drawable.ic_menu_revert, "Deshacer", deshacer))
+        } else if (ignoradaYa) {
+            b.addAction(accion(ctx, android.R.drawable.ic_menu_call, "Contestar", contestar))
+            b.addAction(accion(ctx, android.R.drawable.ic_menu_close_clear_cancel, "Rechazar", rechazar))
+        } else {
+            if (Build.VERSION.SDK_INT >= 31) {
+                val persona = Person.Builder().setName(nombre).setImportant(true).build()
+                b.setStyle(Notification.CallStyle.forOngoingCall(persona, colgar))
+                if (fase == "activa" || fase == "en-espera") b.addAction(accion(ctx, android.R.drawable.ic_lock_silent_mode, textoSilencio, silenciar))
             } else {
                 b.addAction(accion(ctx, android.R.drawable.ic_menu_close_clear_cancel, "Colgar", colgar))
                 if (fase == "activa") b.addAction(accion(ctx, android.R.drawable.ic_lock_silent_mode, textoSilencio, silenciar))
             }
-            if (Build.VERSION.SDK_INT < 26) b.setPriority(Notification.PRIORITY_MAX)
-        }
-        if (sonandoEntrante) {
-            // Sobre el bloqueo (Android 14+ lo pide como ajuste especial: sin él, aviso emergente).
-            if (puedePantallaCompleta(ctx)) b.setFullScreenIntent(intentApp(ctx, "abrir", 6), true)
-            // Con la app a la vista ya suena la propia web: el aviso no duplica el timbre.
-            // (KOT1108A) `Notification.Builder.setSilent` no existe en el SDK con el que compila el CI («Unresolved
-            // reference 'setSilent'», run 42524314202). Mismo efecto que NotificationCompat.setSilent: un grupo propio
-            // con GROUP_ALERT_SUMMARY hace que este aviso no suene (API 26+).
-            if (Build.VERSION.SDK_INT >= 30 && actual?.get() != null) {
-                b.setGroup("starseed-llamada-silenciosa").setGroupAlertBehavior(Notification.GROUP_ALERT_SUMMARY)
-            }
         }
         if (fase == "activa" && inicioMs > 0) b.setUsesChronometer(true).setWhen(inicioMs).setShowWhen(true)
-        val n = b.build()
-        if (sonandoEntrante && !(Build.VERSION.SDK_INT >= 30 && actual?.get() != null)) n.flags = n.flags or Notification.FLAG_INSISTENT
-        return n
+        return b.build()
     }
 
     private fun actualizarAviso(ctx: Context) {
@@ -845,6 +1077,12 @@ object LlamadaNativa : Application.ActivityLifecycleCallbacks {
     override fun onActivityResumed(activity: Activity) {
         actual = WeakReference(activity)
         if (hayLlamada() && activity !is ActividadLlamadaStarSeed) ponerBanderasPantalla(activity)
+        // (LLA1108F) La app vuelve a la vista mientras suena: desde ahora suena la web, este timbre calla (no se dobla).
+        val ctx = ctxApp
+        if (ctx != null && hayLlamada() && entrante && fase == "sonando" && activity !is ActividadLlamadaStarSeed && appALaVista(ctx)) {
+            TimbreLlamada.parar()
+            actualizarAviso(ctx)
+        }
         // Al volver de Ajustes los permisos pueden haber cambiado.
         escribirEstado()
     }
@@ -983,23 +1221,8 @@ class ReceptorLlamadaStarSeed : BroadcastReceiver() {
             LlamadaNativa.ACCION_RECHAZAR -> LlamadaNativa.desdeSistema("rechazar", null)
             LlamadaNativa.ACCION_COLGAR -> LlamadaNativa.desdeSistema("colgar", null)
             LlamadaNativa.ACCION_SILENCIAR -> LlamadaNativa.desdeSistema("silenciar", null)
+            LlamadaNativa.ACCION_IGNORAR -> LlamadaNativa.ignorarDesdeUi(context)
+            LlamadaNativa.ACCION_DESHACER -> LlamadaNativa.deshacerSilencio(context.applicationContext)
         }
-    }
-}
-
-/**
- * Lo que abre el aviso (pantalla completa o «Contestar»): se pone sobre el bloqueo, cuenta lo que se pidió y
- * pasa a la app. Android no deja abrir actividades desde un receptor de un aviso (12+): por eso es una actividad.
- */
-class ActividadLlamadaStarSeed : Activity() {
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        if (Build.VERSION.SDK_INT >= 27) {
-            setShowWhenLocked(true)
-            setTurnScreenOn(true)
-        }
-        if (intent?.getStringExtra(LlamadaNativa.EXTRA_ACCION) == "contestar") LlamadaNativa.desdeSistema("contestar", null)
-        LlamadaNativa.abrirApp(this)
-        finish()
     }
 }

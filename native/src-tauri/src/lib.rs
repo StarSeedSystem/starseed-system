@@ -61,6 +61,8 @@ mod enlace_wifi_logica;
 mod enlace_wifi_macos;
 mod faro;
 // (LLA1108D) Las llamadas como llamadas del teléfono: Telecom, aviso CallStyle, audio y proximidad (Android).
+mod llamada_entrante;
+mod llamada_entrante_logica;
 mod llamada_nativa;
 mod llamada_nativa_logica;
 mod malla_local;
@@ -796,6 +798,10 @@ pub fn run() {
                 llamada_nativa::llamada_nativa_proximidad,
                 llamada_nativa::llamada_nativa_capacidades,
                 llamada_nativa::llamada_nativa_permiso,
+                llamada_nativa::llamada_nativa_ignorar,
+                llamada_nativa::llamada_nativa_recientes,
+                llamada_entrante::llamada_silencios_sincronizar,
+                llamada_entrante::llamada_timbre_firmar,
                 // (PTA1108B) Proxy de la puerta de internet: webview (macOS 14+, Android) y descargas de Rust.
                 puerta_proxy::puerta_proxy_local,
                 puerta_proxy::puerta_proxy_estado,

@@ -28,7 +28,7 @@ const COMPONENTES_FIN: &str = "<!-- STARSEED-LLAMADAS-NATIVAS:COMPONENTES:FIN --
 
 /// Permisos y para qué. Los que otro parche ya declara (servicio, medios, actualizador) no se repiten:
 /// `ya_declarado` los salta, y si el otro parche está apagado quedan aquí.
-pub const PERMISOS: [(&str, &str); 9] = [
+pub const PERMISOS: [(&str, &str); 10] = [
     ("android.permission.MANAGE_OWN_CALLS", "Registrar las llamadas de StarSeed como llamadas del teléfono (audio, auriculares y prioridad sobre la música)."),
     ("android.permission.FOREGROUND_SERVICE", "Mantener viva la llamada con la pantalla apagada o la app atrás."),
     ("android.permission.FOREGROUND_SERVICE_PHONE_CALL", "Tipo de servicio «llamada» (Android 14+)."),
@@ -38,6 +38,7 @@ pub const PERMISOS: [(&str, &str); 9] = [
     ("android.permission.WAKE_LOCK", "Apagar la pantalla junto a la cara con el sensor de proximidad durante una llamada de voz."),
     ("android.permission.POST_NOTIFICATIONS", "El aviso de llamada con Contestar, Rechazar, Colgar y Silenciar (Android 13+)."),
     ("android.permission.MODIFY_AUDIO_SETTINGS", "Encaminar el audio de la llamada: auricular, altavoz, cable o Bluetooth."),
+    ("android.permission.VIBRATE", "Vibrar con la llamada entrante cuando el teléfono está en vibración (LLA1108F)."),
 ];
 /// Una tableta sin SIM ni teléfono se instala igual: la telefonía es opcional.
 pub const FUNCION_TELEFONIA: &str = "android.hardware.telephony";
@@ -51,6 +52,8 @@ pub const COMPONENTES: [&str; 5] = [
 ];
 
 pub const KOTLIN: &str = include_str!("../android/LlamadaNativaStarSeed.kt");
+/// (LLA1108F) El timbre propio, los silencios y la ventana de la llamada entrante.
+pub const KOTLIN_ENTRANTE: &str = include_str!("../android/LlamadaEntranteStarSeed.kt");
 
 /// `STARSEED_SIN_LLAMADAS_NATIVAS_ANDROID`: cualquier valor salvo vacío, «0» o «false» lo apaga.
 pub fn apagado(valor: Option<&str>) -> bool {
@@ -120,9 +123,10 @@ pub fn bloque_componentes() -> String {
             android:excludeFromRecents=\"true\"
             android:noHistory=\"true\"
             android:taskAffinity=\"\"
+            android:launchMode=\"singleTask\"
             android:showWhenLocked=\"true\"
             android:turnScreenOn=\"true\"
-            android:theme=\"@android:style/Theme.Translucent.NoTitleBar\" />
+            android:theme=\"@android:style/Theme.Material.NoActionBar\" />
         {COMPONENTES_FIN}
 "
     )
@@ -185,6 +189,10 @@ pub fn aplicar(proyecto: &Path) -> Result<Vec<PathBuf>, String> {
     let kotlin = principal.join("java/app/starseed/nativa/LlamadaNativaStarSeed.kt");
     if escribir_si_cambia(&kotlin, KOTLIN)? {
         cambiados.push(kotlin);
+    }
+    let entrante = principal.join("java/app/starseed/nativa/LlamadaEntranteStarSeed.kt");
+    if escribir_si_cambia(&entrante, KOTLIN_ENTRANTE)? {
+        cambiados.push(entrante);
     }
     Ok(cambiados)
 }
@@ -314,7 +322,7 @@ mod pruebas {
         assert!(KOTLIN.contains("class ArranqueLlamadaNativa : ContentProvider()"));
         for c in COMPONENTES {
             let clase = c.rsplit('.').next().unwrap();
-            assert!(KOTLIN.contains(&format!("class {clase}")), "falta la clase {clase}");
+            assert!(KOTLIN.contains(&format!("class {clase}")) || KOTLIN_ENTRANTE.contains(&format!("class {clase}")), "falta la clase {clase}");
         }
         // Misma carpeta y mismos archivos a los dos lados.
         assert!(KOTLIN.contains(&format!("const val CARPETA = \"{}\"", logica::CARPETA_ANDROID)));
@@ -358,13 +366,50 @@ mod pruebas {
     }
 
     #[test]
+    fn la_llamada_entrante_nativa_cumple_el_contrato_de_lla1108f() {
+        let todo = format!("{KOTLIN}{KOTLIN_ENTRANTE}");
+        assert!(KOTLIN_ENTRANTE.contains("package app.starseed.nativa") && !KOTLIN_ENTRANTE.contains("{{"));
+        // Canal versionado, sin sonido propio (suena TimbreLlamada) y el viejo se borra.
+        assert!(KOTLIN.contains("CANAL_ENTRANTE = \"starseed-llamada-entrante-v2\""));
+        assert!(KOTLIN.contains("deleteNotificationChannel(CANAL_ENTRANTE_VIEJO)"));
+        assert!(!KOTLIN.contains("FLAG_INSISTENT"), "el timbre ya no es del aviso: no se dobla");
+        // Timbre propio: tono de llamada, vibración, silencio, No molestar y pantalla encendida.
+        for api in ["USAGE_NOTIFICATION_RINGTONE", "RingtoneManager.TYPE_RINGTONE", "RINGER_MODE_SILENT", "currentInterruptionFilter", "PRIORITY_CATEGORY_CALLS", "FULL_WAKE_LOCK", "ACQUIRE_CAUSES_WAKEUP"] {
+            assert!(KOTLIN_ENTRANTE.contains(api), "falta {api}");
+        }
+        // La ventana y las opciones de la llamada.
+        for t in ["\"Contestar\"", "\"Rechazar\"", "\"Ignorar\"", "Responder con mensaje", "Silenciar…", "setShowWhenLocked", "setTurnScreenOn"] {
+            assert!(KOTLIN_ENTRANTE.contains(t), "falta {t}");
+        }
+        // Los silencios: mismo archivo, mismos ámbitos y duraciones que Rust y TypeScript.
+        assert!(KOTLIN_ENTRANTE.contains(&format!("ARCHIVO = \"{}\"", crate::llamada_entrante_logica::ARCHIVO_SILENCIOS)));
+        for a in ["persona", "neurona", "chat", "medio", "todas"] {
+            assert!(KOTLIN_ENTRANTE.contains(&format!("\"{a}\"")), "ámbito {a}");
+        }
+        for d in ["15m", "1h", "8h", "manana"] {
+            assert!(KOTLIN_ENTRANTE.contains(&format!("\"{d}\"")), "duración {d}");
+        }
+        // Calla cuando la app está a la vista y para el timbre al contestar, rechazar, ignorar o acabar.
+        assert!(KOTLIN.contains("fun appALaVista") && KOTLIN.contains("isKeyguardLocked"));
+        for tipo in ["contestar", "rechazar", "ignorar", "silencio", "mensaje"] {
+            assert!(logica::EVENTOS.contains(&tipo) && todo.contains(&format!("\"{tipo}\"")), "evento {tipo}");
+        }
+        // Las API nuevas detrás de su versión.
+        let pos = KOTLIN_ENTRANTE.find("VibrationEffect.createWaveform").unwrap();
+        assert!(KOTLIN_ENTRANTE[pos.saturating_sub(400)..pos].contains("SDK_INT >= 26"));
+        let pos = KOTLIN_ENTRANTE.find("VIBRATOR_MANAGER_SERVICE").unwrap();
+        assert!(KOTLIN_ENTRANTE[pos.saturating_sub(300)..pos].contains("SDK_INT >= 31"));
+    }
+
+    #[test]
     fn aplica_a_un_proyecto_en_disco_y_no_reescribe() {
         let dir = std::env::temp_dir().join(format!("ss-android-llamadas-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(dir.join("app/src/main")).unwrap();
         std::fs::write(dir.join("app/src/main/AndroidManifest.xml"), PLANTILLA).unwrap();
         let primera = aplicar(&dir).unwrap();
-        assert_eq!(primera.len(), 2, "manifiesto + Kotlin");
+        assert_eq!(primera.len(), 3, "manifiesto + los dos Kotlin");
+        assert!(dir.join("app/src/main/java/app/starseed/nativa/LlamadaEntranteStarSeed.kt").is_file());
         assert!(dir.join("app/src/main/java/app/starseed/nativa/LlamadaNativaStarSeed.kt").is_file());
         assert!(aplicar(&dir).unwrap().is_empty(), "la segunda vez no cambia nada");
         assert!(aplicar(&dir.join("no-existe")).unwrap_err().contains("android init"));

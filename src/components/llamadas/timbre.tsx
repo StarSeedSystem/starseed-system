@@ -19,6 +19,9 @@ import { crearTono, vibrar } from "@/lib/llamadas/sonido";
 import { usePresentesLlamada } from "@/lib/llamadas/use-presencia";
 import { uidDeClave } from "@/lib/llamadas/presencia";
 import { AvatarLlamada } from "./avatar-llamada";
+import { useDecisionTimbre } from "@/lib/llamadas/nativa/use-decision-timbre";
+import { BotonesIgnorarSilenciar } from "./menu-silenciar";
+import { EntradaSilenciada } from "./entrada-silenciada";
 
 const ICONO_TIPO = { audio: Phone, video: Video, "sala-vr": Headset, "sala-ar": ScanEye } as const;
 
@@ -41,14 +44,26 @@ export function TimbreLlamada({ timbre, miUid }: { timbre: TimbreEntrante; miUid
     const llamanteVisto = useRef(false);
     const Icono = ICONO_TIPO[timbre.tipo] ?? Phone;
 
+    // (LLA1108F) Quién suena: con la app a la vista, la web; en cualquier otro estado (fondo, bloqueada), la parte nativa
+    // (sin doble timbre). «Ignorar» y los silencios callan y esconden la tarjeta.
+    const quien = {
+        id: timbre.sesionId,
+        nombre: timbre.llamante.nombre,
+        uid: timbre.llamante.uid,
+        neurona: timbre.neurona,
+        chat: timbre.hiloId,
+        medio: timbre.malla ? "malla" : "internet",
+    };
+    const decision = useDecisionTimbre(quien);
+
     // Tono y vibración (no en chats silenciados).
     useEffect(() => {
-        if (timbre.silenciado) return;
+        if (timbre.silenciado || !decision.sonidoWeb) return;
         const tono = crearTono("entrante");
         tono.iniciar();
         vibrar([220, 140, 220, 900, 220, 140, 220]);
         return () => tono.parar();
-    }, [timbre.silenciado]);
+    }, [timbre.silenciado, decision.sonidoWeb]);
 
     // A los 45 s: llamada perdida.
     useEffect(() => {
@@ -94,6 +109,9 @@ export function TimbreLlamada({ timbre, miUid }: { timbre: TimbreEntrante; miUid
     const esVideo = timbre.tipo === "video";
     const titulo = tituloEntrante(timbre);
 
+    if (decision.entradaSilenciada) return <EntradaSilenciada nombre={timbre.llamante.nombre} silencio={decision.entradaSilenciada} />;
+    if (!decision.tarjetaWeb) return null;
+
     return (
         <motion.section
             layout
@@ -135,6 +153,9 @@ export function TimbreLlamada({ timbre, miUid }: { timbre: TimbreEntrante; miUid
                         <BellOff className="h-4 w-4 text-white/60" aria-hidden />
                     </span>
                 )}
+            </div>
+            <div className="px-4 pb-2">
+                <BotonesIgnorarSilenciar quien={quien} />
             </div>
             <div className="flex flex-wrap items-center justify-end gap-2 px-4 pb-4">
                 <button

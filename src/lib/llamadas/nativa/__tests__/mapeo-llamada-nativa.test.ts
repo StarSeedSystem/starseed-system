@@ -169,3 +169,11 @@ describe("lo que llega de fuera se valida", () => {
     expect(leerCapacidades({ ruta: "moto" }).ruta).toBe("");
   });
 });
+
+describe("LLA1108F: eventos de timbre", () => {
+  it("la lista de eventos incluye ignorar, silencio y mensaje", async () => {
+    const m = await import("../mapeo-llamada-nativa");
+    expect(m.EVENTOS_NATIVOS).toEqual(expect.arrayContaining(["ignorar", "silencio", "mensaje"]));
+    expect(m.EVENTOS_NATIVOS).toHaveLength(10);
+  });
+});

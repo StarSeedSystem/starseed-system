@@ -15,6 +15,9 @@
  */
 
 import { puenteNativo, type PuenteNativo } from "@/lib/nativa/puente";
+import { cargaIniciarNativo, ignorarLlamada, silencioDesdeEvento, type CargaIniciarNativo, type CambioSilencio } from "./decision-timbre";
+import { crearEspejoSilencios } from "./espejo-silencios";
+import { depurar, guardarSilencios, poner, quitar, silenciosGuardados, type Silencio } from "../silencio-llamadas";
 import {
   accionParaEvento,
   cargaDeEvento,
@@ -49,7 +52,11 @@ export interface PuenteLlamadaNativa {
   /** Hay app nativa (en la web normal, false y todo lo demás no hace nada). */
   disponible: boolean;
   capacidades(): Promise<CapacidadesLlamadaNativa>;
-  iniciar(l: Pick<LlamadaParaNativa, "id" | "nombre" | "tipo" | "entrante">): Promise<boolean>;
+  iniciar(l: CargaIniciarNativo): Promise<boolean>;
+  /** (LLA1108F) «Ignorar»: deja de sonar y de tapar la pantalla; quien llama no ve «rechazada». */
+  ignorar(id: string): Promise<boolean>;
+  /** (LLA1108F) Eventos del último minuto que la web no vio (la app estaba cerrada y arrancó al contestar). Se entregan una vez. */
+  recientes(): Promise<Array<{ evento: string; id: string; valor: unknown }>>;
   estado(id: string, estado: EstadoNativo, silenciada?: boolean): Promise<boolean>;
   rutaAudio(ruta: RutaAudio): Promise<boolean>;
   /** Pide (o quita) que el sensor de proximidad apague la pantalla junto a la cara. */
@@ -75,7 +82,31 @@ export function crearPuenteLlamadaNativa(base: BaseTauri): PuenteLlamadaNativa {
       const r = await base.llamar<unknown>("llamada_nativa_capacidades");
       return r.ok ? leerCapacidades(r.valor) : SIN_CAPACIDADES;
     },
-    iniciar: (l) => ok("llamada_nativa_iniciar", { id: l.id, nombre: l.nombre, tipo: l.tipo, entrante: l.entrante }),
+    iniciar: (l) =>
+      ok("llamada_nativa_iniciar", {
+        id: l.id,
+        nombre: l.nombre,
+        tipo: l.tipo,
+        entrante: l.entrante,
+        iniciales: l.iniciales,
+        medio: l.medio,
+        uid: l.uid,
+        neurona: l.neurona,
+        chat: l.chat,
+        silencioHasta: l.silencioHasta,
+      }),
+    ignorar: (id) => ok("llamada_nativa_ignorar", { id }),
+    async recientes() {
+      if (!base.disponible) return [];
+      const r = await base.llamar<unknown>("llamada_nativa_recientes");
+      if (!r.ok || !Array.isArray(r.valor)) return [];
+      const fuera: Array<{ evento: string; id: string; valor: unknown }> = [];
+      for (const x of r.valor.slice(0, 32)) {
+        const o = x as { evento?: unknown; id?: unknown; valor?: unknown };
+        if (typeof o?.evento === "string" && typeof o.id === "string" && (EVENTOS_NATIVOS as readonly string[]).includes(o.evento)) fuera.push({ evento: o.evento, id: o.id, valor: o.valor ?? null });
+      }
+      return fuera;
+    },
     estado: (id, estado, silenciada) => ok("llamada_nativa_estado", silenciada === undefined ? { id, estado } : { id, estado, silenciada }),
     rutaAudio: (ruta) => ok("llamada_nativa_ruta_audio", { ruta }),
     proximidad: (activa) => ok("llamada_nativa_proximidad", { activa }),
@@ -143,15 +174,39 @@ export interface MotoresLlamada {
 export interface OpcionesEnlace {
   puente: PuenteLlamadaNativa;
   motores: MotoresLlamada;
+  /** (LLA1108F) La política de silencios: lo que hay, y cómo se cambia. Por defecto, la de esta ventana. */
+  politica?: {
+    silencios(): readonly Silencio[];
+    aplicar(c: CambioSilencio): void;
+  };
+  ahora?: () => number;
+  /** (LLA1108F) Responder con mensaje desde el timbre: la web manda el texto al chat de quien llama. */
+  mensajeRapido?: (id: string, texto: string) => Promise<unknown>;
+}
+
+/** Cuánto vale un «contestar» del teléfono que llegó antes que la señal de la llamada (la app arrancó al contestar). */
+export const VIDA_PENDIENTE_MS = 60_000;
+
+function politicaPorDefecto(): NonNullable<OpcionesEnlace["politica"]> {
+  return {
+    silencios: () => silenciosGuardados(),
+    aplicar: (c) => {
+      const ahora = Date.now();
+      guardarSilencios(c.tipo === "poner" ? poner(silenciosGuardados(), c.silencio) : depurar(quitar(silenciosGuardados(), c.id, ahora), ahora));
+    },
+  };
 }
 
 /**
  * El enlace en sí (síncrono y sin efectos fuera de lo inyectado): se suscribe a los dos motores, cuenta al
  * teléfono lo que cambia y atiende sus eventos. Devuelve la baja.
  */
-export function enlazarMotores({ puente, motores }: OpcionesEnlace): { desconectar: () => void; sincronizar: () => void; alEvento: (e: EventoNativo, c: CargaEvento) => void; esperar: () => Promise<void> } {
+export function enlazarMotores({ puente, motores, politica = politicaPorDefecto(), ahora = Date.now, mensajeRapido }: OpcionesEnlace): { desconectar: () => void; sincronizar: () => void; alEvento: (e: EventoNativo, c: CargaEvento) => void; esperar: () => Promise<void> } {
   let contado: UltimoContado | null = null;
   let cola: Promise<void> = Promise.resolve();
+  // (LLA1108F) Lo último que se sabe de cada llamada (para los silencios) y lo que el teléfono pidió antes de que la llamada llegara.
+  const vistas = new Map<string, LlamadaParaNativa>();
+  const pendientes = new Map<string, { evento: EventoNativo; carga: CargaEvento; t: number }>();
 
   const vistaDirecta = () => motores.directa.leer();
   const vistaSistema = () => motores.sistema.leer();
@@ -161,19 +216,44 @@ export function enlazarMotores({ puente, motores }: OpcionesEnlace): { desconect
     const s = vistaSistema();
     const sis = llamadaDesdeSistema(s.activa, s.timbres);
     const candidatas = [d, sis].filter((x): x is LlamadaParaNativa => !!x);
-    return candidatas.find((c) => c.estado !== "terminada") ?? candidatas[0] ?? null;
+    const elegida = candidatas.find((c) => c.estado !== "terminada") ?? candidatas[0] ?? null;
+    if (elegida) {
+      vistas.set(elegida.id, elegida);
+      while (vistas.size > 8) {
+        const k = vistas.keys().next().value;
+        if (k === undefined) break;
+        vistas.delete(k);
+      }
+    }
+    return elegida;
   }
 
   async function ejecutar(p: PasoNativo): Promise<void> {
     try {
-      if (p.paso === "iniciar") await puente.iniciar(p.llamada);
+      // (LLA1108F) Cuanto antes, con quién llama, por dónde y si la política la silencia: la parte nativa sigue sola.
+      if (p.paso === "iniciar") await puente.iniciar(cargaIniciarNativo(p.llamada, politica.silencios(), ahora()));
       else await puente.estado(p.id, p.estado, p.silenciada);
     } catch {
       /* el teléfono no contesta: la llamada de la web sigue igual */
     }
   }
 
+  function reintentarPendientes(): void {
+    for (const [id, p] of Array.from(pendientes)) {
+      if (ahora() - p.t > VIDA_PENDIENTE_MS) {
+        pendientes.delete(id);
+        continue;
+      }
+      const a = accionParaEvento(p.evento, p.carga, instantanea());
+      if (a) {
+        pendientes.delete(id);
+        void hacer(a).catch(() => undefined);
+      }
+    }
+  }
+
   function sincronizar(): void {
+    reintentarPendientes();
     const pasos = pasosHacia(contado, elegir());
     if (!pasos.length) return;
     contado = contadoTras(contado, pasos);
@@ -194,6 +274,15 @@ export function enlazarMotores({ puente, motores }: OpcionesEnlace): { desconect
   }
 
   async function hacer(a: AccionMotor): Promise<void> {
+    if (a.motor === "timbre") {
+      if (a.accion === "ignorar") ignorarLlamada(a.id);
+      else if (a.accion === "silencio") {
+        const c = silencioDesdeEvento(a.valor, vistas.get(a.id) ?? null, ahora());
+        if (c) politica.aplicar(c);
+        if (c?.tipo === "poner") ignorarLlamada(a.id);
+      } else if (mensajeRapido) await mensajeRapido(a.id, a.texto);
+      return;
+    }
     if (a.motor === "directa") {
       if (a.accion === "contestar") await motores.directa.contestar();
       else if (a.accion === "rechazar") motores.directa.rechazar();
@@ -209,7 +298,11 @@ export function enlazarMotores({ puente, motores }: OpcionesEnlace): { desconect
 
   function alEvento(e: EventoNativo, c: CargaEvento): void {
     const a = accionParaEvento(e, c, instantanea());
-    if (!a) return;
+    if (!a) {
+      // «Contestar» desde la pantalla de bloqueo con la app cerrada: la señal de la llamada llega después de arrancar.
+      if (e === "contestar" && !pendientes.has(c.id)) pendientes.set(c.id, { evento: e, carga: c, t: ahora() });
+      return;
+    }
     void hacer(a).catch(() => undefined);
   }
 
@@ -301,12 +394,20 @@ export function conectarLlamadaNativa(): Promise<() => void> {
       const puente = puenteLlamadaNativa();
       if (!puente.disponible) return () => undefined;
       const cap = await puente.capacidades();
-      if (!cap.nativa) return () => undefined;
+      // (LLA1108F) Escritorio sin integración de audio (Windows, Linux) también engancha: abre la ventana de la llamada entrante.
+      if (!cap.nativa && !cap.ventana_entrante) return () => undefined;
       const enlace = enlazarMotores({ puente, motores: await motoresReales() });
       const baja = await puente.alEvento(enlace.alEvento);
+      // Lo que el teléfono contó mientras la web no existía (contestar con la app cerrada).
+      for (const r of await puente.recientes()) enlace.alEvento(r.evento as EventoNativo, { id: r.id, valor: r.valor });
+      // La política de silencios, espejada a la parte nativa (suena o calla aunque el JS esté congelado).
+      const base = puenteNativo();
+      const espejo = crearEspejoSilencios({ llamar: (cmd, args) => base.llamar<unknown>(cmd, args).then((r) => ({ ok: r.ok, valor: r.ok ? r.valor : undefined })) });
+      void espejo.sincronizar();
       return () => {
         baja();
         enlace.desconectar();
+        espejo.parar();
         conectada = null;
       };
     } catch {

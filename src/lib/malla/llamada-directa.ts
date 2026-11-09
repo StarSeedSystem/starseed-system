@@ -143,6 +143,11 @@ export interface RespaldoLlamadas {
   enviar(neurona: string, o: Record<string, unknown>): void;
   /** Un enlace WebRTC vivo con esa neurona (si no hay, lo abre por el canal local); null si no llega en `ms`. */
   asegurarEnlace?(neurona: string, ms: number): Promise<EnlaceLocalVivo | null>;
+  /**
+   * (LLA1108F) El «timbre» despertador: cabecera en claro firmada con la clave de la cuenta, por el canal de la app,
+   * ANTES de la señalización. La app de la otra neurona la verifica sin WebView y hace sonar la llamada nativa.
+   */
+  timbre?(neurona: string, d: { id: string; nombre: string; video: boolean }): void;
 }
 
 let estado: EstadoLlamadaDirecta = INICIAL;
@@ -560,6 +565,13 @@ export async function llamarPorEnlace(
     motivo: null,
     desde: null,
   });
+  // (LLA1108F) El despertador primero: la otra neurona suena aunque su web esté dormida o cerrada.
+  try {
+    const neuronaDestino = e.par.neuronDeviceId;
+    if (neuronaDestino) respaldo?.timbre?.(neuronaDestino, { id, nombre: respaldo.yo?.()?.nombre ?? "StarSeed", video: conVideo });
+  } catch {
+    /* sin despertador: la llamada sigue por la señalización de siempre */
+  }
   if (!enviarControl({ t: "ll.sonar", id, video: conVideo, ...(pantalla ? { pantalla: true } : {}) }, e)) {
     terminar("colgar", "No se pudo avisar al otro aparato.", "fallo");
     return { ok: false, motivo: "No se pudo avisar al otro aparato." };

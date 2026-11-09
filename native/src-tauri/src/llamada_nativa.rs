@@ -29,8 +29,6 @@ use tauri::AppHandle;
 use std::sync::atomic::{AtomicU64, Ordering};
 #[cfg(target_os = "android")]
 use std::time::Duration;
-#[cfg(target_os = "android")]
-use tauri::Emitter;
 
 fn ahora_ms() -> u64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0)
@@ -115,7 +113,7 @@ fn vigilar(app: &AppHandle) {
             }
             let Some(estado) = dir_android().and_then(|d| logica::leer_estado(&d)) else { continue };
             for (nombre, carga) in logica::eventos_nuevos(&estado, &mut seg) {
-                let _ = h.emit(&nombre, carga);
+                emitir_evento(&h, &nombre, &carga.id, carga.valor);
             }
         }
     });
@@ -212,9 +210,23 @@ fn telecom_actual() -> bool {
 
 /// Empieza una llamada nativa (suena aquí o suena en el otro aparato). Una sola a la vez.
 #[tauri::command]
-pub fn llamada_nativa_iniciar(app: AppHandle, id: String, nombre: String, tipo: String, entrante: bool) -> Result<EstadoNativo, String> {
+#[allow(clippy::too_many_arguments)]
+pub fn llamada_nativa_iniciar(
+    app: AppHandle,
+    id: String,
+    nombre: String,
+    tipo: String,
+    entrante: bool,
+    iniciales: Option<String>,
+    medio: Option<String>,
+    uid: Option<String>,
+    neurona: Option<String>,
+    chat: Option<String>,
+    silencio_hasta: Option<u64>,
+) -> Result<EstadoNativo, String> {
     vigilar(&app);
-    let peticion = logica::peticion_iniciar(&id, &nombre, &tipo, entrante, ahora_ms())?;
+    let extras = logica::ExtrasIniciar { iniciales: iniciales.clone(), medio: medio.clone(), uid: uid.clone(), neurona: neurona.clone(), chat: chat.clone(), silencio_hasta, via: None };
+    let peticion = logica::peticion_iniciar_ext(&id, &nombre, &tipo, entrante, ahora_ms(), &extras)?;
     {
         let mut s = sesion();
         match logica::decidir_inicio(s.as_ref(), &id) {
@@ -230,13 +242,124 @@ pub fn llamada_nativa_iniciar(app: AppHandle, id: String, nombre: String, tipo: 
     }
     #[cfg(not(target_os = "android"))]
     let _ = peticion;
+    // (LLA1108F) Escritorio: la llamada que entra con la app fuera de vista abre su ventana siempre visible.
+    if entrante && silencio_hasta.is_none() {
+        let datos = crate::llamada_entrante_logica::DatosVentana {
+            id: id.clone(),
+            nombre: nombre.clone(),
+            iniciales: iniciales.unwrap_or_default(),
+            video: tipo == "video",
+            medio: medio.unwrap_or_default(),
+            uid,
+            neurona,
+            chat,
+        };
+        crate::llamada_entrante::abrir_ventana(&app, datos);
+    }
     Ok(EstadoNativo { id, estado: "sonando".into(), telecom: telecom_actual() })
+}
+
+/// (LLA1108F) «Ignorar»: deja de sonar y de tapar la pantalla, pero la llamada sigue viva para quien llama (no ve
+/// «rechazada») y queda como perdida cuando se acaba el tiempo. Android lo para en Kotlin; escritorio cierra su ventana.
+#[tauri::command]
+pub fn llamada_nativa_ignorar(app: AppHandle, id: String) -> Result<bool, String> {
+    let peticion = logica::peticion_ignorar(&id, ahora_ms())?;
+    crate::llamada_entrante::cerrar_ventana(&app, &id);
+    #[cfg(target_os = "android")]
+    {
+        pedir_android(Ok(peticion))?;
+    }
+    #[cfg(not(target_os = "android"))]
+    let _ = peticion;
+    Ok(true)
+}
+
+/// (LLA1108F) Lo que Kotlin o la ventana de escritorio contaron en el último minuto y la web aún no vio (la app
+/// estaba cerrada o arrancando): se entrega una vez. Así «Contestar» desde la pantalla de bloqueo con la app
+/// cerrada no se pierde.
+#[tauri::command]
+pub fn llamada_nativa_recientes() -> Vec<EventoReciente> {
+    let ahora = ahora_ms();
+    let mut r = RECIENTES.lock().unwrap_or_else(|e| e.into_inner());
+    let fuera: Vec<EventoReciente> = r.drain(..).filter(|e| ahora.saturating_sub(e.t) <= logica::VIDA_RECIENTE_MS).collect();
+    fuera
+}
+
+#[derive(Serialize, Clone, Debug, PartialEq)]
+pub struct EventoReciente {
+    pub evento: String,
+    pub id: String,
+    pub valor: serde_json::Value,
+    pub t: u64,
+}
+
+static RECIENTES: Mutex<Vec<EventoReciente>> = Mutex::new(Vec::new());
+
+/// Apunta un evento para quien llegue tarde y lo emite a la web (la misma vía para Kotlin y la ventana de escritorio).
+pub fn emitir_evento(app: &AppHandle, nombre: &str, id: &str, valor: serde_json::Value) {
+    use tauri::Emitter;
+    let corto = nombre.strip_prefix(logica::PREFIJO_EVENTO).unwrap_or(nombre).to_string();
+    {
+        let mut r = RECIENTES.lock().unwrap_or_else(|e| e.into_inner());
+        r.push(EventoReciente { evento: corto, id: id.to_string(), valor: valor.clone(), t: ahora_ms() });
+        let sobran = r.len().saturating_sub(logica::TOPE_EVENTOS);
+        r.drain(..sobran);
+    }
+    let _ = app.emit(&format!("{}{}", logica::PREFIJO_EVENTO, nombre.strip_prefix(logica::PREFIJO_EVENTO).unwrap_or(nombre)), serde_json::json!({ "id": id, "valor": valor }));
+}
+
+/// ¿Esta llamada ya la tiene la parte nativa (la web la reclamó o el despertador la hizo sonar)?
+pub fn sesion_es(id: &str) -> bool {
+    sesion().as_ref().map(|s| s.id == id).unwrap_or(false)
+}
+
+/// La carpeta compartida con Kotlin (Android) o la de datos de la app (escritorio): ahí vive `silencios-llamadas.json`.
+pub fn dir_compartido(app: &AppHandle) -> Option<std::path::PathBuf> {
+    #[cfg(target_os = "android")]
+    {
+        let _ = app;
+        dir_android()
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        use tauri::Manager;
+        app.path().app_data_dir().ok()
+    }
+}
+
+/// (LLA1108F) El despertador: una trama «timbre» verificada y la web no reclamó la llamada a tiempo. Android hace
+/// sonar la llamada nativa sin WebView; al contestar abre la app y la web completa la llamada.
+#[cfg(target_os = "android")]
+pub fn sonar_desde_timbre(app: &AppHandle, t: &crate::llamada_entrante_logica::Timbre, silencio_hasta: Option<u64>) -> Result<(), String> {
+    vigilar(app);
+    let iniciales: String = t.nombre.split_whitespace().filter_map(|p| p.chars().next()).take(2).collect::<String>().to_uppercase();
+    let extras = logica::ExtrasIniciar {
+        iniciales: Some(iniciales),
+        medio: Some(t.medio.clone()),
+        neurona: Some(t.neurona.clone()),
+        silencio_hasta,
+        via: Some("timbre".into()),
+        ..Default::default()
+    };
+    let peticion = logica::peticion_iniciar_ext(&t.id, &t.nombre, &t.tipo, true, ahora_ms(), &extras)?;
+    {
+        let mut s = sesion();
+        match logica::decidir_inicio(s.as_ref(), &t.id) {
+            logica::Inicio::Nueva => *s = Some(logica::Sesion { id: t.id.clone(), fase: logica::Fase::Sonando }),
+            _ => return Ok(()),
+        }
+    }
+    if let Err(e) = pedir_android(Ok(peticion)) {
+        *sesion() = None;
+        return Err(e);
+    }
+    Ok(())
 }
 
 /// Cambia el estado de la llamada: sonando, activa, en-espera o terminada. `silenciada` (opcional) pone al
 /// día el texto del aviso («Silenciar»/«Activar micrófono»).
 #[tauri::command]
-pub fn llamada_nativa_estado(id: String, estado: String, silenciada: Option<bool>) -> Result<EstadoNativo, String> {
+pub fn llamada_nativa_estado(app: AppHandle, id: String, estado: String, silenciada: Option<bool>) -> Result<EstadoNativo, String> {
     let nueva = {
         let s = sesion();
         logica::aplicar_estado(s.as_ref(), &id, &estado)?
@@ -254,6 +377,8 @@ pub fn llamada_nativa_estado(id: String, estado: String, silenciada: Option<bool
         }
         coincide
     };
+    // (LLA1108F) Contestada, en espera o terminada: la ventana de escritorio sobra.
+    crate::llamada_entrante::cerrar_por_estado(&app, &id, nueva.texto());
     if era_la_actual {
         efecto_escritorio(nueva);
         #[cfg(target_os = "android")]

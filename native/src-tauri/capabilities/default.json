@@ -196,6 +196,10 @@
     "allow-llamada-nativa-proximidad",
     "allow-llamada-nativa-capacidades",
     "allow-llamada-nativa-permiso",
+    "allow-llamada-nativa-ignorar",
+    "allow-llamada-nativa-recientes",
+    "allow-llamada-silencios-sincronizar",
+    "allow-llamada-timbre-firmar",
     "allow-puerta-proxy-local",
     "allow-puerta-proxy-estado"
   ]

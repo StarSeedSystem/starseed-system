@@ -238,6 +238,8 @@ fn atender(app: &AppHandle, s: TcpStream) {
         // (NOT1108A) Un mensaje de neurona que la web no apunte a tiempo (sin WebView o con su JS parado)
         // lo avisa la app por el sistema (avisos_mensajes.rs).
         crate::avisos_mensajes::al_recibir_local(&h, &ip_texto, &recibido.cuerpo);
+        // (LLA1108F) El «timbre» de una llamada entrante hace sonar la llamada nativa aunque la web no esté.
+        crate::llamada_entrante::al_recibir_local(&h, &recibido.cuerpo);
         let _ = h.emit(EVENTO_MENSAJE, MensajeLocal::from(recibido));
     });
 }

@@ -28,18 +28,22 @@ pub const ESTADO: &str = "estado.json";
 pub const PREFIJO_EVENTO: &str = "llamada-nativa://";
 /// Eventos que Kotlin puede contar. `espera` lo añade el teléfono (otra llamada, auriculares): la web puede
 /// ignorarlo.
-pub const EVENTOS: [&str; 7] = ["contestar", "rechazar", "colgar", "silenciar", "ruta", "proximidad", "espera"];
+/// (LLA1108F) `ignorar` (para el timbre sin rechazar), `silencio` (silenciar por ámbito y duración; la carga es un
+/// objeto) y `mensaje` (respuesta rápida; la carga es el texto).
+pub const EVENTOS: [&str; 10] = ["contestar", "rechazar", "colgar", "silenciar", "ruta", "proximidad", "espera", "ignorar", "silencio", "mensaje"];
 
 /// Rutas de audio que conoce la web (y Kotlin).
 pub const RUTAS: [&str; 4] = ["auricular", "altavoz", "cableado", "bluetooth"];
 
 /// Acciones que Rust pide a Kotlin (todas las atiende `LlamadaNativaStarSeed.kt`).
-pub const ACCIONES: [&str; 5] = ["iniciar", "estado", "ruta", "proximidad", "permiso"];
+pub const ACCIONES: [&str; 6] = ["iniciar", "estado", "ruta", "proximidad", "permiso", "ignorar"];
 
 pub const TOPE_ID: usize = 80;
 pub const TOPE_NOMBRE: usize = 60;
 /// Tope de eventos que se recuerdan a los dos lados (Kotlin guarda los últimos).
 pub const TOPE_EVENTOS: usize = 32;
+/// (LLA1108F) Cuánto se recuerda un evento por si la web llega tarde (app cerrada que arranca al contestar).
+pub const VIDA_RECIENTE_MS: u64 = 60_000;
 
 // ─────────────────────────────── Validación ───────────────────────────────
 
@@ -158,14 +162,48 @@ pub fn nombre_peticion(secuencia: u64) -> String {
 }
 
 pub fn peticion_iniciar(id: &str, nombre: &str, tipo: &str, entrante: bool, ahora_ms: u64) -> Result<String, String> {
+    peticion_iniciar_ext(id, nombre, tipo, entrante, ahora_ms, &ExtrasIniciar::default())
+}
+
+/// (LLA1108F) Lo que la llamada entrante lleva además: iniciales del avatar, medio, a quién pertenece (para los
+/// silencios), hasta cuándo está silenciada y por dónde llegó («web» o «timbre»: el despertador nativo).
+#[derive(Default, Clone, Debug, PartialEq)]
+pub struct ExtrasIniciar {
+    pub iniciales: Option<String>,
+    pub medio: Option<String>,
+    pub uid: Option<String>,
+    pub neurona: Option<String>,
+    pub chat: Option<String>,
+    pub silencio_hasta: Option<u64>,
+    pub via: Option<String>,
+}
+
+pub const MEDIOS: [&str; 5] = ["red-local", "bluetooth", "internet", "malla", "desconocido"];
+
+fn texto_acotado(v: &Option<String>, tope: usize) -> Option<String> {
+    v.as_ref().map(|s| s.chars().filter(|c| !c.is_control()).take(tope).collect::<String>().trim().to_string()).filter(|s| !s.is_empty())
+}
+
+pub fn peticion_iniciar_ext(id: &str, nombre: &str, tipo: &str, entrante: bool, ahora_ms: u64, x: &ExtrasIniciar) -> Result<String, String> {
     if !id_valido(id) {
         return Err("El id de la llamada no es válido.".into());
     }
     let tipo = tipo_valido(tipo).ok_or_else(|| format!("El tipo de llamada «{tipo}» no es válido (voz o video)."))?;
+    let medio = x.medio.as_deref().filter(|m| MEDIOS.contains(m)).unwrap_or("desconocido");
+    let via = if x.via.as_deref() == Some("timbre") { "timbre" } else { "web" };
     serde_json::to_string(&serde_json::json!({
-        "accion": "iniciar", "id": id, "nombre": nombre_limpio(nombre), "tipo": tipo, "entrante": entrante, "t": ahora_ms
+        "accion": "iniciar", "id": id, "nombre": nombre_limpio(nombre), "tipo": tipo, "entrante": entrante, "t": ahora_ms,
+        "iniciales": texto_acotado(&x.iniciales, 3), "medio": medio, "uid": texto_acotado(&x.uid, 120),
+        "neurona": texto_acotado(&x.neurona, 120), "chat": texto_acotado(&x.chat, 160), "silencio_hasta": x.silencio_hasta, "via": via
     }))
     .map_err(|e| e.to_string())
+}
+
+pub fn peticion_ignorar(id: &str, ahora_ms: u64) -> Result<String, String> {
+    if !id_valido(id) {
+        return Err("El id de la llamada no es válido.".into());
+    }
+    serde_json::to_string(&serde_json::json!({ "accion": "ignorar", "id": id, "t": ahora_ms })).map_err(|e| e.to_string())
 }
 
 pub fn peticion_estado(id: &str, fase: Fase, silenciada: Option<bool>, ahora_ms: u64) -> Result<String, String> {
@@ -288,6 +326,16 @@ pub fn eventos_nuevos(estado: &EstadoKotlin, seg: &mut Seguimiento) -> Vec<(Stri
                 Some(r) if ruta_valida(r) => serde_json::Value::String(r.to_string()),
                 _ => continue,
             },
+            "silencio" => {
+                if !e.valor.is_object() || e.valor.to_string().len() > 1_000 {
+                    continue;
+                }
+                e.valor.clone()
+            }
+            "mensaje" => match e.valor.as_str() {
+                Some(m) if !m.trim().is_empty() => serde_json::Value::String(m.chars().filter(|c| !c.is_control()).take(200).collect()),
+                _ => continue,
+            },
             _ => serde_json::Value::Null,
         };
         fuera.push((format!("{PREFIJO_EVENTO}{}", e.tipo), CargaEvento { id: e.id.clone(), valor }));
@@ -316,6 +364,8 @@ pub struct CapacidadesLlamada {
     pub ruta: String,
     /// El aparato no se duerme durante la llamada (escritorio).
     pub evita_suspension: bool,
+    /// (LLA1108F) Escritorio: la llamada entrante abre una ventana propia siempre visible si la app no está a la vista.
+    pub ventana_entrante: bool,
     /// Si falta algo, por qué (en claro, para enseñarlo).
     pub motivo: String,
 }
@@ -331,6 +381,7 @@ pub fn capacidades_sin_soporte(plataforma: &str, motivo: &str) -> CapacidadesLla
         rutas: Vec::new(),
         ruta: String::new(),
         evita_suspension: false,
+        ventana_entrante: matches!(plataforma, "windows" | "linux"),
         motivo: motivo.to_string(),
     }
 }
@@ -346,6 +397,7 @@ pub fn capacidades_macos() -> CapacidadesLlamada {
         rutas: Vec::new(),
         ruta: String::new(),
         evita_suspension: true,
+        ventana_entrante: true,
         motivo: "En el Mac la app no se duerme durante la llamada; el audio lo elige el sistema.".into(),
     }
 }
@@ -378,6 +430,7 @@ pub fn capacidades_android(estado: Option<&EstadoKotlin>) -> CapacidadesLlamada 
         rutas: e.rutas.iter().filter(|r| ruta_valida(r)).cloned().collect(),
         ruta: if ruta_valida(&e.ruta) { e.ruta.clone() } else { String::new() },
         evita_suspension: false,
+        ventana_entrante: false,
         motivo: motivo_android(e),
     }
 }
@@ -621,5 +674,63 @@ mod pruebas {
         assert_eq!(nombres.len(), 2, "sin temporales");
         assert!(nombres[0] < nombres[1] && std::fs::read_to_string(dir.join(&nombres[0])).unwrap().contains("iniciar"));
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    // (LLA1108F)
+    #[test]
+    fn la_peticion_de_iniciar_lleva_los_extras_acotados() {
+        let x = ExtrasIniciar {
+            iniciales: Some("ABCDEF".into()),
+            medio: Some("bluetooth".into()),
+            uid: Some("u1".into()),
+            silencio_hasta: Some(99),
+            via: Some("timbre".into()),
+            ..Default::default()
+        };
+        let v: serde_json::Value = serde_json::from_str(&peticion_iniciar_ext("ll-1", "Ana", "voz", true, 5, &x).unwrap()).unwrap();
+        assert_eq!(v["iniciales"], "ABC");
+        assert_eq!(v["medio"], "bluetooth");
+        assert_eq!(v["via"], "timbre");
+        assert_eq!(v["silencio_hasta"], 99);
+        assert!(ACCIONES.contains(&v["accion"].as_str().unwrap()));
+        // Un medio raro o una vía rara caen a lo seguro.
+        let y = ExtrasIniciar { medio: Some("rayos".into()), via: Some("otra".into()), ..Default::default() };
+        let v: serde_json::Value = serde_json::from_str(&peticion_iniciar_ext("ll-1", "Ana", "voz", true, 5, &y).unwrap()).unwrap();
+        assert_eq!((v["medio"].as_str(), v["via"].as_str()), (Some("desconocido"), Some("web")));
+        let sin: serde_json::Value = serde_json::from_str(&peticion_iniciar("ll-1", "Ana", "video", false, 1).unwrap()).unwrap();
+        assert!(sin["iniciales"].is_null() && sin["silencio_hasta"].is_null());
+        assert!(peticion_ignorar("../x", 1).is_err());
+        assert!(ACCIONES.contains(&serde_json::from_str::<serde_json::Value>(&peticion_ignorar("ll-1", 1).unwrap()).unwrap()["accion"].as_str().unwrap()));
+    }
+
+    #[test]
+    fn los_eventos_de_ignorar_silencio_y_mensaje_se_validan() {
+        let mk = |n: u64, tipo: &str, valor: serde_json::Value| EventoKotlin { n, tipo: tipo.into(), id: "ll-1".into(), valor };
+        let estado = EstadoKotlin {
+            epoca: 1,
+            eventos: vec![
+                mk(1, "ignorar", serde_json::Value::Null),
+                mk(2, "silencio", serde_json::json!({ "ambito": "medio", "clave": "bluetooth", "hasta": 5 })),
+                mk(3, "silencio", serde_json::json!("no es un objeto")),
+                mk(4, "mensaje", serde_json::json!("Te llamo luego")),
+                mk(5, "mensaje", serde_json::json!(7)),
+                mk(6, "mensaje", serde_json::json!("   ")),
+            ],
+            ..Default::default()
+        };
+        let mut seg = Seguimiento::default();
+        let fuera = eventos_nuevos(&estado, &mut seg);
+        let nombres: Vec<&str> = fuera.iter().map(|(n, _)| n.as_str()).collect();
+        assert_eq!(nombres, ["llamada-nativa://ignorar", "llamada-nativa://silencio", "llamada-nativa://mensaje"]);
+        assert_eq!(fuera[1].1.valor["clave"], "bluetooth");
+        assert_eq!(fuera[2].1.valor, "Te llamo luego");
+    }
+
+    #[test]
+    fn solo_el_escritorio_anuncia_la_ventana_entrante() {
+        assert!(capacidades_macos().ventana_entrante);
+        assert!(capacidades_sin_soporte("windows", "x").ventana_entrante && capacidades_sin_soporte("linux", "x").ventana_entrante);
+        assert!(!capacidades_sin_soporte("ios", "x").ventana_entrante);
+        assert!(!capacidades_android(None).ventana_entrante);
     }
 }

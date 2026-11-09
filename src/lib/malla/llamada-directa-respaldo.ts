@@ -18,6 +18,8 @@ import { fijarRespaldoLlamadas, recibirSenalLlamada } from "./llamada-directa";
 import { enlaceVivoMasNuevoCon, suscribirEnlacesLocales, type EnlaceLocalVivo } from "./registro-enlaces-locales";
 
 export const CANAL_LLAMADA_DIRECTA = "llamada-directa";
+/** (LLA1108F) El canal del despertador; lo lee Rust (llamada_entrante_logica.rs · CANAL_TIMBRE). */
+export const CANAL_TIMBRE_LLAMADA = "llamada-timbre";
 
 /** Por dónde se atiende un control de llamada (los enlaces con consentimiento; ni relé ni LoRa). */
 const ORIGENES_ADMITIDOS = new Set(["local", "nativo", "ble", "cuenta", "par"]);
@@ -89,6 +91,22 @@ export function conectarRespaldoLlamadas(): void {
         .catch(() => undefined);
     },
     asegurarEnlace: asegurarEnlaceCon,
+    // (LLA1108F) El despertador: Rust firma la cabecera con la clave de faro de la cuenta y va por cada enlace del canal de la app.
+    timbre: (neurona, d) => {
+      void (async () => {
+        try {
+          const { puenteNativo } = await import("@/lib/nativa/puente");
+          const p = puenteNativo();
+          if (!p.disponible) return;
+          const r = await p.llamar<Record<string, unknown>>("llamada_timbre_firmar", { id: d.id, nombre: d.nombre, tipo: d.video ? "video" : "voz", medio: "red-local" });
+          if (!r.ok || !r.valor || typeof r.valor !== "object") return;
+          const tu = await import("./transporte-universal");
+          await tu.enviarMensaje({ neuronDeviceId: neurona }, CANAL_TIMBRE_LLAMADA, r.valor, { esperarAcuseMs: 1500 });
+        } catch {
+          /* sin clave de cuenta o sin enlace: no hay despertador */
+        }
+      })();
+    },
   });
   void import("./transporte-universal")
     .then((tu) =>
