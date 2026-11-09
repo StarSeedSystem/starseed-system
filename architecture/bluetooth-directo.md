@@ -28,6 +28,7 @@ mensajes con acuse y archivos de hasta 20 MB. En la web es un enlace más del tr
 | Servicio GATT de StarSeed (fijo) | `53530001-b1e0-4d2a-9c3e-537461727365` |
 | ENTRADA: el central escribe (sin respuesta; también admite con respuesta) | `53530002-b1e0-4d2a-9c3e-537461727365` |
 | SALIDA: el periférico notifica (el central se suscribe con el CCCD `00002902-…`) | `53530003-b1e0-4d2a-9c3e-537461727365` |
+| PSM (BLE1109A): el periférico la publica, lectura, 2 bytes big-endian | `53530004-b1e0-4d2a-9c3e-537461727365` |
 | Prefijo de todo anuncio StarSeed («SS» + B1) | `5353b100-0000-0000-0000-000000000000` |
 | Máscara del filtro de escaneo (3 primeros bytes) | `ffffff00-0000-0000-0000-000000000000` |
 
@@ -187,6 +188,9 @@ CoreWLAN en macOS) y lo NEGOCIA por este Bluetooth. Dos mensajes de control, fir
 - Web (vitest): `bluetooth-directo.test.ts` (9), `bluetooth-directo-motor.test.ts` (7: dos apps en memoria
   con un puente que trocea y rearma como `ble.rs`; un archivo de verdad con MTU 23),
   `bluetooth-directo-eleccion.test.ts` (7), `contrato-bluetooth.test.ts` (10), `datos-neurona.test.ts` (+1).
+- BLE1109A: Rust `ble_l2cap` (10: PSM, marcos partidos y pegados, escritura parcial, máquina del carril y su
+  retroceso) y 2 más en `ble` (eventos y relevo/vuelta a GATT); web: 3 más en `bluetooth-directo-motor.test.ts`
+  (capacidad y vuelta a GATT sin soltar el enlace, prioridades con el canal rápido, saneo y texto). Ver §15.
 
 ## 11 · Lo que necesita aparatos reales (pendiente)
 
@@ -250,3 +254,45 @@ Campo 08-11 (Mac 0.5.1-prueba.28 central ↔ tableta SM-X900 prueba.27 periféri
 **Pruebas.** Rust: `radio_atascada_se_nota_y_el_mensaje_falla_pronto_con_motivo`, `radio_lenta_pero_viva_no_se_toma_por_atascada`, `el_saludo_y_el_latido_comparten_la_radio_sin_matarse`, `reanudar_radio_no_tumba_un_enlace_en_marcha`, `hitos_de_kotlin_son_los_que_rust_acepta`, `leer_evento` con notas. Web: `archivos-malla-ble.test.ts` (portador cuyo «listo» nunca llega: el archivo llega íntegro; `esperarListoConPlazo`) y `bluetooth-directo-motor.test.ts` (cola de datos llena con radio lenta: `listo-tarde` y un control sale por delante).
 
 **Sin probar en aparatos.** La causa física exacta (¿CoreBluetooth sin aviso?, ¿CCCD sin escribir?) sigue sin demostrarse: el próximo ensayo debe traer `enlaces.log` con las líneas de arriba; la primera que falte señala el paso que no ocurre.
+
+## 15 · Canal rápido L2CAP (BLE1109A)
+
+Entre una Mac y una tableta Android no hay otro radio directo común (Apple solo habla AWDL; Android, Wi-Fi Direct o
+Aware), así que el Bluetooth es el único camino sin router. GATT (paquetes de ≤ 512 B con acuse uno a uno) es lento;
+un canal L2CAP orientado a conexión (CoC) da un flujo continuo mucho más rápido **sobre el mismo enlace `ble:<id>`**.
+
+**PSM y papeles.** El periférico (hoy la tableta) abre un servidor L2CAP *inseguro* (`listenUsingInsecureL2capChannel`,
+Android 10+) y publica su PSM en la característica de lectura `…0004` del servicio StarSeed (2 bytes big-endian, válido
+solo en 0x0080–0x00FF, rango dinámico LE). El central (la Mac) la lee tras suscribirse y llama a `openL2CAPChannel`.
+Sin la característica o con un PSM no válido no pasa nada: el enlace sigue por GATT. Papeles inversos (Android
+central → Mac periférico): la Mac publica su canal con `publishL2CAPChannelWithEncryption(false)` y también lo expone
+en `…0004`; el lado Android central solo abre el canal si le llega un PSM, así que queda **sin probar** en aparatos. El
+cifrado de la sesión es el de CIF1108A (de extremo a extremo, por encima); no hay segundo cifrado.
+
+**Marco.** `[largo u16 BE][paquete ≤ 4096 B]`, y dentro el mismo paquete `[tipo|id|idx]` de §4 (la misma máquina de
+acuses, rechazos, latidos y reintentos de `ble_trama`, solo con paquete de 4096 B). Un `Desmarcador` junta lecturas
+partidas y separa las pegadas; una `Salida` guarda lo que el flujo no aceptó (escritura parcial). Un largo 0 o mayor que
+4096 cierra el canal (se vuelve a GATT).
+
+**Carril y respaldo.** El núcleo (`ble.rs`) decide el carril; la radio solo mueve bytes. Con el canal abierto,
+`siguiente_paquete` de GATT no entrega nada y el mensaje en vuelo se vuelve a trocear al tamaño del carril. Si el canal
+se cierra (o no abre en 8 s, o una escritura se atasca 5 s), se vuelve a GATT **sin soltar el enlace ni la ligadura**
+y se reintenta abrir con retroceso 0 / 2 / 5 / 15 / 60 s (un canal que vivió ≥ 10 s reinicia la escala). Las
+prioridades control > voz > vídeo > datos viven en las colas del motor web y no cambian con el carril.
+
+**Medida.** Cada acuse de un mensaje ≥ 2 KiB mide los kb/s del carril en uso (`kbps_rapido`, `kbps_gatt`); `kbps` del
+enlace es el del carril activo y alimenta `capacidadKbps` (planificador y escalera de vídeo). Texto:
+«Bluetooth directo · canal rápido · N kb/s» (Señales y píldora del panel); «sin medir» hasta el primer mensaje grande.
+Cifras **esperadas, no medidas**: L2CAP con PHY 2M unos 80–160 KB/s (≈ 640–1300 kb/s); GATT 10–60 KB/s.
+
+**`enlaces.log`.** `ble l2cap-abierto psm=…`, `ble l2cap-cerrado motivo=…`, `ble l2cap kbps=…` (como mucho cada 5 s) y,
+en el registro web, `canal-rapido` al cambiar de carril.
+
+**Plataformas y guardas.** macOS: `CBL2CAPChannel` con un hilo propio y su `NSRunLoop` que sondea los `NSStream` cada
+5 ms (sin delegados, para no depender de la cola de CoreBluetooth). Android: hilos de lectura y escritura por canal, puente
+JNI `rapido`/`siguienteRapido`; `createInsecureL2capChannel` y el servidor exigen `SDK_INT ≥ 29`, `setPreferredPhy(2M)`
+`SDK_INT ≥ 26`; por debajo, GATT puro. Kotlin no se compila en local: lo comprueba la CI.
+
+**Lo que deben confirmar los aparatos.** Que la Samsung SM-X900 (Android 16) publique y acepte el PSM; que la Mac
+MaggaBook abra el canal sin emparejar; la velocidad real (`l2cap kbps=`); que la vuelta a GATT al apagar el canal no
+pierda el mensaje en vuelo; el consumo con el sondeo de 5 ms.

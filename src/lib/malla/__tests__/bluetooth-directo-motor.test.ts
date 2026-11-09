@@ -15,7 +15,7 @@ import {
   type RedBle,
 } from "@/lib/malla/bluetooth-directo-motor";
 import { crearSesionesCifradas } from "@/lib/malla/sesion-cifrada";
-import { T_OFERTA_WIFI, type ControlEnlaceWifi, type EstadoBleNativo } from "@/lib/malla/bluetooth-directo";
+import { T_OFERTA_WIFI, leerEstadoBle, textoCanalBle, type ControlEnlaceWifi, type EstadoBleNativo } from "@/lib/malla/bluetooth-directo";
 import { crearAlmacenEnMemoria, crearMotorArchivos, type MotorArchivos } from "@/lib/network/archivos-malla";
 
 const MAX_CUERPO = 16 * 1024;
@@ -55,6 +55,8 @@ interface Lado {
   transporte: Array<{ texto: string; enlaceId: string }>;
   control: Array<{ c: ControlEnlaceWifi; neurona: string }>;
   motor?: MotorArchivos;
+  /** (BLE1109A) El estado nativo que ve la app, para cambiarle el carril. */
+  estado: EstadoBleNativo;
 }
 
 const prueba = (t: string) => createHash("sha256").update(`${CLAVE_FARO}|${t}`).digest("hex").slice(0, 32);
@@ -82,7 +84,7 @@ function dosApps(opts: { mtu?: number; conClave?: boolean; fallar?: () => boolea
       limite_ventana_ms: 10_000,
       paquete_max: 512,
     };
-    const lado = { enlace, neurona, huella: `fp-${nombre}`, transporte: [], control: [] } as unknown as Lado;
+    const lado = { enlace, neurona, huella: `fp-${nombre}`, transporte: [], control: [], estado } as unknown as Lado;
     const deps: DepsBle = {
       ahora: () => reloj.ahora,
       dormir: async (ms) => {
@@ -404,5 +406,68 @@ describe("Bluetooth directo · motor (BLE1108A)", () => {
     expect(qs).not.toContain(0);
     expect(qs).toContain(23);
     expect(lados.tab.red.colaVideoBytes("b7")).toBe(0);
+  });
+  // (BLE1109A) El carril rápido L2CAP: el enlace es el mismo; solo cambian la capacidad y el registro.
+  function conCarril(l: Lado, carril: "rapido" | "gatt", kbps: number | null): void {
+    const e = l.estado.enlaces[0];
+    const nuevo = { ...l.estado, enlaces: [{ ...e, carril, canal_rapido: carril === "rapido" ? "abierto" : "disponible", psm: 133, kbps, kbps_rapido: carril === "rapido" ? kbps : null, kbps_gatt: carril === "gatt" ? kbps : null }] } as EstadoBleNativo;
+    l.estado = nuevo;
+    l.red.aplicarEstado(nuevo);
+  }
+
+  it("(BLE1109A) el canal rápido sube la capacidad del MISMO enlace; si se cae, vuelve a GATT sin soltar ni la ligadura ni la sesión", async () => {
+    const { lados } = dosApps();
+    await ligar(lados);
+    const mac = lados.mac.red;
+    expect(mac.enlaces()[0]).toMatchObject({ id: "ble:b1", capacidadKbps: 160, abierto: true });
+    conCarril(lados.mac, "rapido", 720);
+    expect(mac.enlaces()[0]).toMatchObject({ id: "ble:b1", capacidadKbps: 720, abierto: true, alcanza: { neuronDeviceId: "n-tab" } });
+    expect(mac.enlaceHacia("n-tab")).toBe("b1");
+    conCarril(lados.mac, "gatt", 160);
+    expect(mac.enlaces()[0]).toMatchObject({ id: "ble:b1", capacidadKbps: 160, abierto: true });
+    expect(mac.enlaceHacia("n-tab")).toBe("b1");
+    const r = await mac.enviarTexto("b1", '{"t":"tu.msg","v":1,"id":"m9","c":"chat","b":"sigue vivo"}');
+    expect(r.ok).toBe(true);
+    await esperarHasta(() => lados.tab.transporte.some((t) => t.texto.includes("sigue vivo")));
+    const tipos = mac.registro().lista().filter((e) => e.tipo === "canal-rapido").map((e) => e.detalle);
+    expect(tipos).toHaveLength(2);
+    expect(tipos[0]).toMatch(/L2CAP abierto \(psm 133/);
+    expect(tipos[1]).toMatch(/sigue por GATT/);
+    expect(mac.registro().lista().some((e) => e.tipo === "perdido" || e.tipo === "cerrado")).toBe(false);
+  });
+
+  it("(BLE1109A) con el canal rápido la prioridad se mantiene: control > voz > vídeo > datos", async () => {
+    const { lados, aire } = dosApps();
+    await ligar(lados);
+    conCarril(lados.mac, "rapido", 720);
+    const mac = lados.mac.red;
+    const antes = aire.jsons.length;
+    const dato = JSON.stringify({ t: "tu.msg", v: 1, id: "d1", c: "chat", b: "D".repeat(400) });
+    const vid = JSON.stringify({ t: "voz.v", s: "s1", q: 0, d: "A".repeat(900) });
+    const voz = JSON.stringify({ t: "voz.p", s: "s1", q: 0, d: "B".repeat(200) });
+    const pDato = mac.enviarTexto("b1", dato);
+    mac.enviarVideo("b1", vid);
+    mac.enviarVoz("b1", voz);
+    await pDato;
+    await esperarHasta(() => mac.colaVideoBytes("b1") === 0 && mac.colaVozBytes("b1") === 0);
+    const orden = aire.jsons.slice(antes);
+    const iVoz = orden.findIndex((j) => j.includes("voz.p"));
+    const iVid = orden.findIndex((j) => j.includes("voz.v"));
+    expect(iVoz).toBeGreaterThanOrEqual(0);
+    expect(iVid).toBeGreaterThanOrEqual(0);
+    expect(iVoz).toBeLessThan(iVid);
+  });
+
+  it("(BLE1109A) leerEstadoBle sanea el carril y el texto dice «canal rápido · N kb/s» solo con el canal abierto", () => {
+    const base = { id: "b1", rol: "central", paquete: 512, rtt_ms: 30, kbps: 640.4, pendientes: 0, bytes_enviados: 0, bytes_recibidos: 0, abierto_hace_ms: 5 };
+    const bruto = (x: Record<string, unknown>) => ({ disponible: true, activo: true, radio: "encendida", enlaces: [{ ...base, ...x }] });
+    const rapido = leerEstadoBle(bruto({ carril: "rapido", canal_rapido: "abierto", psm: 133, kbps_rapido: 640.4, kbps_gatt: "x" }))?.enlaces[0];
+    expect(rapido).toMatchObject({ carril: "rapido", canal_rapido: "abierto", psm: 133, kbps_gatt: null });
+    expect(textoCanalBle(rapido)).toBe("Bluetooth directo · canal rápido · 640 kb/s");
+    const raro = leerEstadoBle(bruto({ carril: "otro", canal_rapido: "x" }))?.enlaces[0];
+    expect(raro).toMatchObject({ carril: "gatt", canal_rapido: "sin-psm", psm: null });
+    expect(textoCanalBle(raro)).toBe("Bluetooth directo · 640 kb/s");
+    expect(textoCanalBle({ carril: "rapido", kbps: null })).toBe("Bluetooth directo · canal rápido · sin medir");
+    expect(textoCanalBle(null)).toBe("Bluetooth directo");
   });
 });

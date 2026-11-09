@@ -914,6 +914,13 @@ export function crearRedBle(deps: DepsBle): RedBle {
       if (neurona) perdidas.set(neurona, { enlace: id, en: deps.ahora() });
       delete rachaCaidas[id];
     }
+    // (BLE1109A) Cambio de carril de un enlace que sigue abierto: solo se apunta; el enlace y la ligadura no se tocan.
+    for (const x of e?.enlaces ?? []) {
+      const antes = previos.get(x.id);
+      if (!antes || (antes.carril ?? "gatt") === (x.carril ?? "gatt")) continue;
+      const rapido = x.carril === "rapido";
+      registro.anotar("canal-rapido", x.neurona ?? antes.neurona ?? null, rapido ? `canal rápido L2CAP abierto (psm ${x.psm ?? "?"}, ${x.kbps_rapido ?? "sin medir"} kb/s)` : `canal rápido cerrado: sigue por GATT (${x.kbps_gatt ?? "sin medir"} kb/s)`, x.id);
+    }
     for (const x of e?.enlaces ?? []) {
       if (previos.has(x.id)) continue;
       registro.anotar("abierto", x.neurona ?? null, `enlace ${x.rol} abierto (paquete ${x.paquete} B, ${x.rssi ?? "?"} dBm); a saludar`, x.id);

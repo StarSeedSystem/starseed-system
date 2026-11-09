@@ -6,7 +6,7 @@
  */
 
 import { useEffect, useState } from "react";
-import { COMANDO_REGISTRO_BLE, textoVelocidadBle } from "@/lib/malla/bluetooth-directo";
+import { COMANDO_REGISTRO_BLE, textoCanalBle, textoVelocidadBle } from "@/lib/malla/bluetooth-directo";
 import { unirRegistros, type RegistroNativoBle } from "@/lib/malla/registro-enlace-ble";
 import { CLAVE_DEFECTOS_ANTENAS, leerMarca, marcarExplicito, serializarMarca } from "@/lib/malla/defectos-antenas";
 import { abrirEnlaceBluetooth, activarBluetooth, pedirPermisoBluetooth, useEstadoBluetooth } from "@/lib/malla/bluetooth-directo-estado";
@@ -155,7 +155,7 @@ export default function BluetoothDirectoPanel() {
                 <span className="text-white/45">{v.rssi} dBm</span>
                 {enlace ? (
                   <span className="text-emerald-300/80">
-                    enlazada · {enlace.rtt_ms != null ? `${enlace.rtt_ms} ms` : "sin medir"} · {textoVelocidadBle(enlace.kbps)}
+                    enlazada · {enlace.rtt_ms != null ? `${enlace.rtt_ms} ms` : "sin medir"} · {enlace.carril === "rapido" ? textoCanalBle(enlace) : textoVelocidadBle(enlace.kbps)}
                   </span>
                 ) : (
                   v.servidor && (

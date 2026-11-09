@@ -26,7 +26,9 @@ export type TipoEventoEnlace =
   /** (BLE1108C) El canal de archivos no esperó más a «listo para enviar» y mandó igual. */
   | "listo-tarde"
   /** (LLA1108E) Hitos de una llamada: `senal-enviada|senal-recibida|contestada|medio=webrtc|enlace-datos|fallo`. */
-  | "llamada";
+  | "llamada"
+  /** (BLE1109A) Cambios de carril: `l2cap-abierto|l2cap-cerrado` (el enlace sigue por GATT). */
+  | "canal-rapido";
 
 export interface EventoEnlaceBle {
   seq: number;
