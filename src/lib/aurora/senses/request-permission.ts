@@ -14,6 +14,15 @@
  * de la neurona (`/api/system/fs`, `/api/storage/devices`) o la app nativa.
  */
 
+// (PRM1108B · paso 1 del plan de permisos unificados) El contrato puro vive en
+// `src/lib/permisos/contrato.ts` (importa SOLO tipos de aquí: no hay ciclo real).
+import {
+  estadoDeResultado,
+  normalizarEstado,
+  type EstadoPermiso,
+  type ResultadoPermisoOS,
+} from "@/lib/permisos/contrato";
+
 export type PermisoDispositivo =
   | "microfono" | "camara" | "ubicacion"
   | "notificaciones" | "almacenamiento" | "movimiento" | "archivos";
@@ -23,6 +32,9 @@ export interface ResultadoPermiso {
   soportado: boolean;
   concedido: boolean;
   motivo?: string;
+  /** `e.name` del fallo real del navegador: `estadoDeResultado` lo usa para ver
+   * un `NotAllowedError` aunque su mensaje no diga «denied» (p.ej. en Firefox). */
+  nombreError?: string;
 }
 
 const hayWin = typeof window !== "undefined";
@@ -36,7 +48,7 @@ async function pedirMedia(constraints: MediaStreamConstraints, permiso: PermisoD
     stream.getTracks().forEach((t) => t.stop()); // solo pedir el permiso, no retener el dispositivo
     return { permiso, soportado: true, concedido: true };
   } catch (e) {
-    return { permiso, soportado: true, concedido: false, motivo: e instanceof Error ? e.message : "denegado" };
+    return { permiso, soportado: true, concedido: false, motivo: e instanceof Error ? e.message : "denegado", nombreError: e instanceof Error ? e.name : undefined };
   }
 }
 
@@ -88,7 +100,7 @@ async function pedirPermisoReal(permiso: PermisoDispositivo): Promise<ResultadoP
           await (window as unknown as { showDirectoryPicker: (o?: unknown) => Promise<unknown> }).showDirectoryPicker({ mode: "readwrite" });
           return { permiso, soportado: true, concedido: true };
         } catch (e) {
-          return { permiso, soportado: true, concedido: false, motivo: e instanceof Error ? e.message : "cancelado" };
+          return { permiso, soportado: true, concedido: false, motivo: e instanceof Error ? e.message : "cancelado", nombreError: e instanceof Error ? e.name : undefined };
         }
       }
     }
@@ -290,4 +302,25 @@ export async function pedirPermisosEnSecuencia(permisos: PermisoDispositivo[]): 
 /** Escape del visor embebido: abre esta misma URL en el navegador del sistema. */
 export function abrirEnNavegadorSistema(): void {
   try { window.open(window.location.href, "_blank", "noopener,noreferrer"); } catch { /* visor sin window.open */ }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// (PRM1108B · paso 1, plan de permisos unificados) API unificada del contrato
+// ----------------------------------------------------------------------------
+// Alias en la vocabularia del contrato (`EstadoPermiso` / `ResultadoPermisoOS`)
+// sobre el motor que ya existía: no cambia ninguna firma ni export anterior.
+//   · consultarPermiso  = estadoPermiso + normalizarEstado (SIN disparar diálogo)
+//   · pedirPermiso      = requestDevicePermission (así sigue emitiendo
+//     `starseed:permiso`) + estadoDeResultado
+
+/** Estado real del permiso, ya normalizado al vocabulario del contrato. */
+export async function consultarPermiso(id: PermisoDispositivo): Promise<EstadoPermiso> {
+  return normalizarEstado(await estadoPermiso(id));
+}
+
+/** Pide UN permiso real y devuelve el resultado en el vocabulario del contrato.
+ * Nunca lanza. Emite `starseed:permiso` (viaja en `requestDevicePermission`). */
+export async function pedirPermiso(id: PermisoDispositivo): Promise<ResultadoPermisoOS> {
+  const r = await requestDevicePermission(id);
+  return { id, estado: estadoDeResultado(r), motivo: r.motivo };
 }
