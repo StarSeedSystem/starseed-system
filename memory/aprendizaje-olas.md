@@ -6310,3 +6310,12 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 **Lo que se pidió.** archivos
 
 **Resultado.** 1 de 1 integradas.
+
+## 2026-11-08 23:34 · auto-1108-230708
+
+**Lo que se pidió.** para todo lo de Astraura multicapas con los demás sistemas; todos deben ser fusionados
+
+**Resultado.** 0 de 1 integradas. 1 tarea se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `LNN1028I2b` — la revisión lo rechazó: no toco NINGUNO de los 1 archivos que declaraba (rama ola/LNN1028I2b conservada)
