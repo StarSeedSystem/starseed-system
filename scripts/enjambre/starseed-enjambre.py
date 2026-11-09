@@ -4720,6 +4720,48 @@ def _tocados_por_la_tarea(cwd, log=None):
     return fuera
 
 
+def _pruebas_a_sumar(alcance, cwd, tocados):
+    """Ayudante que llama a alcance.pruebas_a_sumar con listar/leer para importadoras TS.
+
+    `existe`: ruta -> bool (archivo en cwd).
+    `listar()`: archivos de prueba git-tracked bajo src/ que acaban en alcance.SUFIJOS_PRUEBA (plazo 30 s).
+    `leer(ruta)`: texto del archivo (utf-8, errors="replace") o None.
+    Si el módulo es viejo y da TypeError por listar/leer, cae a la llamada original.
+    """
+    existe = lambda r: os.path.isfile(os.path.join(cwd, r))
+
+    def listar():
+        try:
+            env = os.environ.copy()
+            env["GIT_CONFIG_GLOBAL"] = "/dev/null"
+            proc = subprocess.run(
+                ["git", "-C", cwd, "ls-files", "-z", "--", "src"],
+                capture_output=True,
+                text=True,
+                timeout=30,
+                env=env,
+            )
+            if proc.returncode != 0:
+                return []
+            archivos = [a for a in proc.stdout.split("\0") if a]
+            sufijos = getattr(alcance, "SUFIJOS_PRUEBA", (".test.ts", ".test.tsx", ".spec.ts", ".spec.tsx"))
+            return [a for a in archivos if a.endswith(sufijos)]
+        except Exception:
+            return []
+
+    def leer(ruta):
+        try:
+            with open(os.path.join(cwd, ruta), "r", encoding="utf-8", errors="replace") as f:
+                return f.read()
+        except Exception:
+            return None
+
+    try:
+        return alcance.pruebas_a_sumar(tocados, existe, listar=listar, leer=leer)
+    except TypeError:
+        return alcance.pruebas_a_sumar(tocados, existe)
+
+
 def _orden_de_vitest(cwd, tocados):
     """El comando de la puerta de pruebas para esta tarea.
 
@@ -4733,9 +4775,7 @@ def _orden_de_vitest(cwd, tocados):
             sys.path.insert(0, ruta_puente)
         import alcance_pruebas
 
-        extras = alcance_pruebas.pruebas_a_sumar(
-            tocados, lambda r: os.path.isfile(os.path.join(cwd, r))
-        )
+        extras = _pruebas_a_sumar(alcance_pruebas, cwd, tocados)
         return alcance_pruebas.orden_vitest(extras)
     except Exception:
         return "npx vitest run src/lib/__tests__"
@@ -4805,11 +4845,11 @@ def _vitest_con_github(cwd, tocados, log):
             sys.path.insert(0, ruta_puente)
         import alcance_pruebas
 
-        extras = alcance_pruebas.pruebas_a_sumar(tocados, lambda r: os.path.isfile(os.path.join(cwd, r)))
+        extras = _pruebas_a_sumar(alcance_pruebas, cwd, tocados)
     except Exception:  # noqa: BLE001 — sin el módulo, las guardas de siempre
         extras = [g for g in ("src/lib/genesis/__tests__/sin-node-en-cliente.test.ts",
                               "src/lib/mando/__tests__/sin-node-en-cliente.test.ts")
-                  if os.path.isfile(os.path.join(cwd, g))]
+              if os.path.isfile(os.path.join(cwd, g))]
     if extras:
         rc, out = sh(["npx", "vitest", "run"] + list(extras), cwd=cwd, timeout=600, env=env_tsc(), log=log)
         if rc != 0:
