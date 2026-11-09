@@ -15,13 +15,23 @@
  * se detecta la ausencia y se dice con claridad — nunca se finge un estado.
  * El stream de audio/vídeo se suelta (`stop()`) en cuanto se confirma el
  * permiso: nunca se deja el indicador de grabación encendido.
+ * ----------------------------------------------------------------------------
+ * (PRM1109B · paso 5a del plan de permisos unificados) Esta pestaña YA NO es un
+ * cuarto motor: consulta con `consultarPermiso`, se suscribe con
+ * `suscribirPermiso` y pide con `pedirPermiso` de la API unificada
+ * (`src/lib/aurora/senses/request-permission`), que suelta el stream sola,
+ * guarda el tope de tiempo de la ubicación y emite `starseed:permiso`.
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Camera, Cloud, Compass, Cpu, Database, EyeOff, Globe, HardDrive, Lock, MapPin, Mic, RefreshCw, RotateCcw, Shield, ShieldOff, Sparkles, Unlock, UploadCloud, type LucideIcon } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Switch } from "@/components/ui/switch";
+import {
+  consultarPermiso, pedirPermiso, suscribirPermiso, type PermisoDispositivo,
+} from "@/lib/aurora/senses/request-permission";
+import type { EstadoPermiso } from "@/lib/permisos/contrato";
 import {
   fetchAstraura158Privacy, toggleAstraura158AirGap, updateAstraura158Privacy, type Astraura158PrivacySettings,
 } from "@/lib/astraura/astraura-158-client";
@@ -43,6 +53,51 @@ const SENSORS: SensorDef[] = [
   { id: "camera", label: "Cámara", icon: Camera, hint: "Visión en vivo (SmolVLM2)." },
   { id: "storage", label: "Almacenamiento persistente", icon: HardDrive, hint: "Evita que el navegador borre la caché local bajo presión de espacio." },
 ];
+
+/** Sensor de esta pestaña → permiso de la API unificada (`request-permission`). */
+const SENSOR_A_PERMISO: Record<SensorId, PermisoDispositivo> = {
+  geolocation: "ubicacion",
+  microphone: "microfono",
+  camera: "camara",
+  storage: "almacenamiento",
+};
+
+/** Permiso consultable en vivo → sensor de esta pestaña. */
+const PERMISO_A_SENSOR: Record<"ubicacion" | "microfono" | "camara", SensorId> = {
+  ubicacion: "geolocation",
+  microfono: "microphone",
+  camara: "camera",
+};
+
+/** Traduce el estado del contrato de permisos al vocabulario Permissions API de la pestaña. */
+export function estadoTab(e: EstadoPermiso): PermState {
+  switch (e) {
+    case "concedido": return "granted";
+    case "denegado": return "denied";
+    case "preguntar": return "prompt";
+    default: return "unsupported";
+  }
+}
+
+const AVISO_EXITO: Record<SensorId, string> = {
+  geolocation: "Permiso de GPS concedido",
+  microphone: "Permiso de micrófono concedido",
+  camera: "Permiso de cámara concedido",
+  storage: "Almacenamiento persistente activado",
+};
+
+const AVISO_NO_DISPONIBLE: Record<SensorId, string> = {
+  geolocation: "Este navegador no ofrece geolocalización.",
+  microphone: "Este navegador no ofrece acceso a micrófono/cámara desde la web.",
+  camera: "Este navegador no ofrece acceso a micrófono/cámara desde la web.",
+  storage: "Este navegador no ofrece almacenamiento persistente.",
+};
+
+function avisoDenegado(id: SensorId, motivo?: string): string {
+  if (id === "storage") return "El navegador no concedió persistencia (puede depender de marcadores/uso frecuente).";
+  const nombre = id === "geolocation" ? "GPS" : id === "microphone" ? "Micrófono" : "Cámara";
+  return `${nombre} denegado o cancelado${motivo ? `: ${motivo}` : ""}`;
+}
 
 /** Los ajustes booleanos del backend que se pintan como interruptores genéricos. */
 const PRIVACY_TOGGLES: { key: keyof Astraura158PrivacySettings; label: string; icon: LucideIcon }[] = [
@@ -83,77 +138,36 @@ export function PrivacidadTab({ target }: S158TabProps) {
   const { busy, wrap } = useBusy();
   const [perms, setPerms] = useState<Record<SensorId, PermState>>({ geolocation: "checking", microphone: "checking", camera: "checking", storage: "checking" });
   const [permsApiSupported, setPermsApiSupported] = useState(true);
-  const statusesRef = useRef<Partial<Record<"geolocation" | "microphone" | "camera", PermissionStatus>>>({});
 
   const inspect = useCallback(async () => {
     if (typeof navigator === "undefined") return;
-    const hasPermissionsApi = "permissions" in navigator && typeof navigator.permissions?.query === "function";
-    setPermsApiSupported(hasPermissionsApi);
-    const next: Partial<Record<SensorId, PermState>> = {};
-
-    if (hasPermissionsApi) {
-      for (const name of ["geolocation", "microphone", "camera"] as const) {
-        try {
-          const status = await navigator.permissions.query({ name: name as PermissionName });
-          statusesRef.current[name] = status;
-          next[name] = status.state;
-          status.onchange = () => { setPerms((p) => ({ ...p, [name]: status.state })); };
-        } catch {
-          // Safari/Firefox no reconocen 'microphone'/'camera' en PermissionDescriptor: lo decimos, no lo fingimos.
-          next[name] = "unsupported";
-        }
-      }
-    } else {
-      next.geolocation = "unsupported";
-      next.microphone = "unsupported";
-      next.camera = "unsupported";
-    }
-
-    try {
-      if (navigator.storage?.persisted) next.storage = (await navigator.storage.persisted()) ? "granted" : "prompt";
-      else next.storage = "unsupported";
-    } catch {
-      next.storage = "unsupported";
-    }
-
-    setPerms((p) => ({ ...p, ...next }));
+    setPermsApiSupported("permissions" in navigator && typeof navigator.permissions?.query === "function");
+    const entradas = await Promise.all(
+      (Object.keys(SENSOR_A_PERMISO) as SensorId[]).map(async (id) => {
+        const estado = await consultarPermiso(SENSOR_A_PERMISO[id]);
+        return [id, estadoTab(estado)] as const;
+      }),
+    );
+    setPerms((p) => ({ ...p, ...Object.fromEntries(entradas) }));
   }, []);
 
   useEffect(() => {
     void inspect();
-    return () => {
-      for (const status of Object.values(statusesRef.current)) if (status) status.onchange = null;
-    };
+    const des = (["ubicacion", "microfono", "camara"] as const).map((permiso) =>
+      suscribirPermiso(permiso, (estado) => {
+        setPerms((p) => ({ ...p, [PERMISO_A_SENSOR[permiso]]: estado }));
+      }),
+    );
+    return () => des.forEach((off) => off());
   }, [inspect]);
 
   async function requestAccess(id: SensorId) {
     if (typeof navigator === "undefined") return;
     await wrap(`req:${id}`, async () => {
-      if (id === "geolocation") {
-        if (!navigator.geolocation) { toast.error("Este navegador no ofrece geolocalización."); return; }
-        await new Promise<void>((resolve) => {
-          navigator.geolocation.getCurrentPosition(
-            () => { toast.success("Permiso de GPS concedido"); resolve(); },
-            (err) => { toast.error(`GPS denegado o cancelado: ${err.message}`); resolve(); },
-            { timeout: 10_000 },
-          );
-        });
-      } else if (id === "microphone" || id === "camera") {
-        if (!navigator.mediaDevices?.getUserMedia) { toast.error("Este navegador no ofrece acceso a micrófono/cámara desde la web."); return; }
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia(id === "microphone" ? { audio: true } : { video: true });
-          // Soltar el stream de inmediato: solo comprobamos el permiso, nunca dejamos el indicador de grabación encendido.
-          stream.getTracks().forEach((t) => t.stop());
-          toast.success(id === "microphone" ? "Permiso de micrófono concedido" : "Permiso de cámara concedido");
-        } catch (e) {
-          toast.error(`${id === "microphone" ? "Micrófono" : "Cámara"} denegado o cancelado: ${e instanceof Error ? e.message : String(e)}`);
-        }
-      } else if (id === "storage") {
-        if (!navigator.storage?.persist) { toast.error("Este navegador no ofrece almacenamiento persistente."); return; }
-        const ok = await navigator.storage.persist();
-        if (ok) toast.success("Almacenamiento persistente activado");
-        else toast.error("El navegador no concedió persistencia (puede depender de marcadores/uso frecuente).");
-      }
+      const r = await pedirPermiso(SENSOR_A_PERMISO[id]);
+      if (r.estado === "concedido") toast.success(AVISO_EXITO[id]);
+      else if (r.estado === "no-disponible") toast.error(AVISO_NO_DISPONIBLE[id]);
+      else toast.error(avisoDenegado(id, r.motivo));
       await inspect();
     });
   }
