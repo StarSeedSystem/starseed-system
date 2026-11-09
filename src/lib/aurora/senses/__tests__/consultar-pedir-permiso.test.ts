@@ -33,6 +33,7 @@ describe("pedirPermiso (pide de verdad y emite starseed:permiso)", () => {
     expect(vistos).toEqual([{ permiso: "notificaciones", concedido: false, soportado: true, motivo: "denied" }]);
   });
 
+<<<<<<< HEAD
 it("microfono: getUserMedia rechaza con NotAllowedError (Firefox) → denegado", async () => {
       const fallo = new Error("The request is not allowed by the user agent or the platform in the current context.");
       fallo.name = "NotAllowedError";
@@ -43,6 +44,18 @@ it("microfono: getUserMedia rechaza con NotAllowedError (Firefox) → denegado",
         motivo: "NotAllowedError",
       });
     });
+=======
+  it("microfono: getUserMedia rechaza con NotAllowedError (Firefox) → denegado", async () => {
+    const fallo = new Error("The request is not allowed by the user agent or the platform in the current context.");
+    fallo.name = "NotAllowedError";
+    vi.stubGlobal("navigator", { mediaDevices: { getUserMedia: () => Promise.reject(fallo) } });
+    await expect(pedirPermiso("microfono")).resolves.toMatchObject({
+      id: "microfono",
+      estado: "denegado",
+      motivo: "NotAllowedError",
+    });
+  });
+>>>>>>> ae523cba44 (salvavidas · PRM1108B: trabajo del agente antes de las puertas (tsc / vitest))
 
   it("microfono: sin mediaDevices → no-disponible (pedir y consultar)", async () => {
     vi.stubGlobal("navigator", {});
