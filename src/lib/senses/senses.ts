@@ -32,6 +32,7 @@ import {
   requestDevicePermission,
   type PermisoDispositivo,
 } from "@/lib/aurora/senses/request-permission";
+import { estadoDeResultado } from "@/lib/permisos/contrato";
 
 // ── Tipos ──────────────────────────────────────────────────────────────────
 
@@ -330,15 +331,31 @@ function findSense(senseId: string): Sense | undefined {
   return SENSES.find((s) => s.id === senseId);
 }
 
-function resultadoASentido(r: {
+/**
+ * Traduce el resultado del motor de permisos al estado habitual de
+ * `SenseTestResult` usando el contrato único (`estadoDeResultado`, PRM1108A):
+ * el «no» de Firefox (un NotAllowedError sin la palabra «denied») ya no se
+ * queda como «prompt»: con el nombre de error pasa a «denied» y la UI puede
+ * explicar que está bloqueado en vez de decir solo «no funciona».
+ */
+export function resultadoASentido(r: {
   soportado: boolean;
   concedido: boolean;
   motivo?: string;
+  nombreError?: string;
 }): SenseTestResult {
-  if (r.concedido) return { ok: true, state: "granted" };
-  if (!r.soportado) return { ok: false, state: "unsupported", error: r.motivo };
-  const denied = /denied|denegado|bloque/i.test(r.motivo ?? "");
-  return { ok: false, state: denied ? "denied" : "prompt", error: r.motivo };
+  const estado = estadoDeResultado(r);
+  const state: SenseTestResult["state"] =
+    estado === "concedido"
+      ? "granted"
+      : estado === "denegado"
+        ? "denied"
+        : estado === "preguntar"
+          ? "prompt"
+          : "unsupported";
+  return state === "granted"
+    ? { ok: true, state }
+    : { ok: false, state, error: r.motivo };
 }
 
 /**
