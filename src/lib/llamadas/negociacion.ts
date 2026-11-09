@@ -34,6 +34,20 @@ export function sanearSenal(v: unknown): SenalLlamada | null {
     if (o.tipo === "colgar") return { tipo: "colgar", de: o.de };
     if (o.tipo === "mudanza") return { tipo: "mudanza", de: o.de };
     if (o.tipo === "fallo") return { tipo: "fallo", de: o.de, motivo: typeof o.motivo === "string" ? o.motivo.slice(0, 200) : "" };
+    // (LLA1108G) Texto compartido (transcripción) y mensajes de aplicación de la superficie de llamada.
+    if (o.tipo === "texto" && typeof o.texto === "string" && o.texto.length <= 2000 && typeof o.en === "number") return { tipo: "texto", de: o.de, texto: o.texto, en: o.en };
+    if (o.tipo === "app") {
+        const c = o.carga as Record<string, unknown> | null;
+        if (!c || typeof c !== "object" || typeof c.k !== "string" || c.k.length === 0 || c.k.length > 40) return null;
+        let largo = 0;
+        try {
+            largo = JSON.stringify(c).length;
+        } catch {
+            return null;
+        }
+        if (largo > 8000) return null;
+        return { tipo: "app", de: o.de, carga: c as { k: string } & Record<string, unknown> };
+    }
     if (o.tipo === "rechazo") {
         return { tipo: "rechazo", de: o.de, uid: typeof o.uid === "string" ? o.uid : null, nombre: sanearNombre(o.nombre) };
     }

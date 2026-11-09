@@ -60,7 +60,15 @@ export type SenalLlamada =
      * TEXTO de lo que alguien dijo (contrato `voz-fusionada-astraura.md` §5: se comparte la
      * transcripción, nunca el audio). Va por difusión: el bot de la llamada lo lee.
      */
-    | { tipo: "texto"; de: string; texto: string; en: number };
+    | { tipo: "texto"; de: string; texto: string; en: number }
+    /**
+     * (LLA1108G) Mensaje de aplicación de la superficie de llamada: cambio de tipo, aviso de grabación, respuesta de
+     * Astraura, chat, reacciones, espera, fin para todos. Van por difusión; cada uno lleva `k` (ver `superficie/senales-app.ts`).
+     */
+    | { tipo: "app"; de: string; carga: CargaApp };
+
+/** (LLA1108G) Carga de una señal de aplicación: un objeto JSON pequeño con su clase en `k`. */
+export type CargaApp = { k: string } & Record<string, unknown>;
 
 export type FaseLlamada =
     | "inactiva"

@@ -52,6 +52,7 @@ import {
     type MetaPresencia,
     type ParticipanteLlamada,
     type SenalLlamada,
+    type CargaApp,
 } from "@/lib/llamadas/tipos";
 
 /**
@@ -249,6 +250,8 @@ export class MotorLlamada {
     private temporizadorNivel: ReturnType<typeof setInterval> | null = null;
     private temporizadorStats: ReturnType<typeof setInterval> | null = null;
     private alCambiarDispositivos: (() => void) | null = null;
+    /** (LLA1108G) Oyentes de los mensajes de aplicación de la superficie (cambio de tipo, grabación, Astraura…). */
+    private readonly oyentesApp = new Set<(de: string, carga: CargaApp) => void>();
 
     constructor(opciones: OpcionesMotor) {
         this.opc = opciones;
@@ -887,6 +890,21 @@ export class MotorLlamada {
         this.enviar({ tipo: "texto", de: t.de, texto: t.texto, en: t.en });
     }
 
+    /** (LLA1108G) Difunde un mensaje de aplicación a todos los de la llamada. Devuelve false si no hay canal. */
+    enviarApp(carga: CargaApp): boolean {
+        if (this.cerrado || !this.canales.length) return false;
+        this.enviar({ tipo: "app", de: this.miId, carga });
+        return true;
+    }
+
+    /** (LLA1108G) Escucha los mensajes de aplicación de los demás. Devuelve la baja. */
+    suscribirApp(cb: (de: string, carga: CargaApp) => void): () => void {
+        this.oyentesApp.add(cb);
+        return () => {
+            this.oyentesApp.delete(cb);
+        };
+    }
+
     /** Suelta el turno del bot, lo calla y deja de lado el enganche (al colgar). */
     private soltarBot() {
         if (!this.bot) return;
@@ -948,6 +966,17 @@ export class MotorLlamada {
         if (c && this.canales.includes(c)) this.rutaPar.set(s.de, c);
         if (s.tipo === "mudanza") {
             void this.revisarCanal(false);
+            return;
+        }
+        if (s.tipo === "app") {
+            // (LLA1108G) Mensajes de la superficie; un oyente roto no para la llamada.
+            for (const cb of Array.from(this.oyentesApp)) {
+                try {
+                    cb(s.de, s.carga);
+                } catch {
+                    /* noop */
+                }
+            }
             return;
         }
         if (s.tipo === "texto") {
@@ -1523,6 +1552,15 @@ export class MotorLlamada {
         if (cambio) this.emitir();
     }
 
+    /** (LLA1108G) Medidas por par para el indicador de calidad de la superficie (lo que midió `getStats`). */
+    metricasPares(): Array<{ id: string; rttMs: number | null; perdidos: number; recibidos: number; jitterMs: number | null }> {
+        const out: Array<{ id: string; rttMs: number | null; perdidos: number; recibidos: number; jitterMs: number | null }> = [];
+        for (const par of this.pares.values()) {
+            if (par.metricas) out.push({ id: par.id, rttMs: par.metricas.rttMs, perdidos: par.metricas.perdidos, recibidos: par.metricas.recibidos, jitterMs: par.metricas.jitterMs });
+        }
+        return out;
+    }
+
     private arrancarTemporizadores() {
         const eco = modoEco();
         this.temporizadorNivel = setInterval(() => this.medirNiveles(), this.opc.intervaloNivelMs ?? (eco ? 400 : 150));
@@ -1626,6 +1664,7 @@ export class MotorLlamada {
             }
             this.alCambiarDispositivos = null;
         }
+        this.oyentesApp.clear();
         for (const c of this.canales.slice()) this.soltarCanal(c);
         this.rutaPar.clear();
         this.presentes = [];

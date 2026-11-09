@@ -9,6 +9,8 @@ import type { EstadoGrabacion, DestinoGrabacion } from "./grabacion";
 import type { EstadoAstraura } from "./astraura-llamada";
 import type { MedioLlamada, OpcionMedio } from "./selector-medio";
 import type { Invitable } from "./grupo-invitar";
+import type { ControlId } from "./matriz-controles";
+import type { MensajeChatVista, ReaccionVista } from "./senales-app";
 
 export interface ParticipanteVista {
   id: string;
@@ -34,6 +36,8 @@ export interface VistaLlamada {
   duracionMs?: number | null;
   medioUsado?: string | null;
   motivo?: string | null;
+  /** (LLA1108G) Aviso pasajero (un error del aparato, el resultado de invitar…). */
+  aviso?: string | null;
   local: MediaStream | null;
   remoto: MediaStream | null;
   micro: boolean;
@@ -58,6 +62,21 @@ export interface VistaLlamada {
   invitables?: Invitable[];
   /** Tipo al que se está cambiando (renegociando) ahora. */
   cambiandoA?: TipoSuperficie | null;
+  /** (LLA1108G) Por qué cada control está desactivado (la matriz de controles); lo que no aparece, funciona. */
+  motivos?: Partial<Record<ControlId, string>>;
+  /** (LLA1108G) Chat de la llamada y reacciones recientes (las ven todos). */
+  chat?: MensajeChatVista[];
+  reacciones?: ReaccionVista[];
+  /** (LLA1108G) Frase corta de transición («Pasando a red local…», «Cambiando a vídeo…»); null si no hay. */
+  chip?: string | null;
+  /** (LLA1108G) Quien ha puesto la llamada en espera desde el otro lado. */
+  esperaRemota?: string | null;
+  /** (LLA1108G) Soy quien empezó la llamada y hay más de dos: puedo terminarla para todos. */
+  puedeTerminarParaTodos?: boolean;
+  /** (LLA1108G) Hay vídeo remoto (para imagen en imagen). */
+  salidaAudioElegida?: string | null;
+  /** (LLA1108G) Tope de personas de la llamada (8 con el motor de malla completa). */
+  topeInvitar?: number;
 }
 
 export interface AccionesLlamada {
@@ -84,6 +103,15 @@ export interface AccionesLlamada {
   silenciarParticipante?: (id: string) => void;
   /** Cierra el resumen de la llamada terminada. */
   descartar?: () => void;
+  /** (LLA1108G) Chat y reacciones de la llamada. */
+  enviarChat?: (texto: string) => void;
+  reaccionar?: (emoji: string) => void;
+  /** (LLA1108G) Terminar la llamada para todos (grupo, quien la empezó). `colgar` solo sale uno. */
+  colgarTodos?: () => void;
+  /** (LLA1108G) Abre el diálogo de invitar con enlace de la llamada (para quien no está en ningún chat). */
+  invitarConEnlace?: () => void;
+  /** (LLA1108G) Elige la salida de audio (ruta nativa o `setSinkId`). */
+  elegirSalidaAudio?: (id: string) => void;
 }
 
 /** Información nativa OPCIONAL (Android: rutas de audio, proximidad). LLA1108D o el integrador la conectan. */

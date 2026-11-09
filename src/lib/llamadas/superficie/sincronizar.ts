@@ -22,6 +22,8 @@ export function eventosParaVista(s: Superficie, v: Pick<VistaLlamada, "estado" |
     case "saliente":
       return s.estado === "inactiva" || s.estado === "terminada" ? [{ t: "descartar" }, { t: "llamar", tipo: v.tipo }] : [];
     case "conectada":
+      // Montada con la llamada ya conectada (p. ej. al recargar la vista): se recorre el camino entero.
+      if ((s.estado as EstadoSuperficie) === "inactiva" || (s.estado as EstadoSuperficie) === "terminada") return [{ t: "descartar" }, { t: "llamar", tipo: v.tipo }, { t: "conectar", ahora }];
       if (s.estado === "entrante" || s.estado === "saliente") out.push({ t: "conectar", ahora });
       else if (s.estado === "en-espera") out.push({ t: "reanudar", ahora });
       else if (s.estado === "reconectando") out.push({ t: "enlace-recuperado" });

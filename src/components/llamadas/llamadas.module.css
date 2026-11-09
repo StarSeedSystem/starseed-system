@@ -105,3 +105,44 @@
 :global(html[data-perf="eco"]) .punto {
     animation: none;
 }
+
+/* (LLA1108G) Entrada suave del contenido al cambiar de tipo de llamada (voz ↔ vídeo ↔ pantalla). */
+@keyframes entraTipo {
+    from {
+        opacity: 0;
+        transform: scale(0.98);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.entraTipo {
+    animation: entraTipo var(--dur-slow, 300ms) var(--ease-glide, cubic-bezier(0.16, 1, 0.3, 1)) both;
+}
+
+@keyframes flota {
+    from {
+        opacity: 0;
+        transform: translateY(8px) scale(0.9);
+    }
+    20% {
+        opacity: 1;
+    }
+    to {
+        opacity: 0;
+        transform: translateY(-64px) scale(1.15);
+    }
+}
+
+.reaccion {
+    animation: flota 4.2s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .entraTipo,
+    .reaccion {
+        animation: none;
+    }
+}

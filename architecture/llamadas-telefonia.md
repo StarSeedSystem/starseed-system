@@ -181,3 +181,75 @@ Hitos en `~/Library/Logs/app.starseed.os/enlaces.log` (evento `llamada`): `senal
 Tableta con Wi-Fi y datos apagados y solo Bluetooth; Mac con BLE central enlazado a la tableta. Llamar desde la
 Mac, contestar en la tableta: la Mac muestra «Contestada · conectando audio…» y a continuación «Voz por
 Bluetooth directo · cifrada». Con el Bluetooth cortado a media llamada, a los 15 s ambas acaban con motivo.
+
+## 10. La superficie sobre el motor real (LLA1108G)
+
+LLA1108C solo cableó la superficie a la llamada directa. Las llamadas reales van por `MotorLlamada`; ahora la superficie también las lleva:
+`superficie/adaptador-motor.ts` (`AdaptadorMotor`) traduce el estado del motor a `VistaLlamada` y da las `AccionesLlamada`;
+`components/llamadas/superficie/superficie-motor.tsx` lo monta (lo usa `VentanaLlamada`; la ventana anterior queda tras `SUPERFICIE_NUEVA`).
+Regla: ningún botón muerto. Cada control funciona o sale desactivado con su motivo (`matriz-controles.ts`, fijado por tests).
+
+### 10.1 Mensajes de aplicación
+
+Señal nueva `app` en `SenalLlamada` (`motor.enviarApp(carga)` / `motor.suscribirApp(cb)`, marcado `// LLA1108G`, aditivo). Viaja por el mismo
+canal de la llamada (Supabase, enlace local o transporte universal), así que funciona sin internet. `sanearSenal` exige `carga.k` (1 a 40
+caracteres) y JSON de 8 000 caracteres como máximo. De paso, `sanearSenal` ahora deja pasar la señal `texto` (transcripción compartida), que antes descartaba.
+Clases (`k`): `tipo`, `espera`, `grabacion`, `grabacion-ack`, `astraura-estado`, `astraura-pregunta`, `astraura-llamada`, `trans`, `chat`,
+`reaccion`, `fin-todos`, `invitacion`. Todo lo recibido pasa por `leerMensajeApp`.
+
+### 10.2 Matriz de controles (tipo × medio × plataforma)
+
+Medio = lo que lleva la voz: WebRTC, enlace de datos (sin ruta IP) o Bluetooth (enlace de datos por BLE).
+
+| Control | WebRTC | Enlace de datos | Bluetooth |
+|---|---|---|---|
+| Micro, espera, chat, reacciones, calidad, Astraura, pantalla completa | sí | sí | sí |
+| Cámara / pasar a Vídeo | sí | no: el vídeo no cabe por el enlace de datos | no: «El vídeo no cabe por Bluetooth: cambia a Wi‑Fi o red local» |
+| Compartir pantalla / pasar a Pantalla | sí (según plataforma) | no (igual que la cámara) | no |
+| Invitar / pasar a grupo (hasta 8) | sí | sí | no: por Bluetooth solo se habla de dos en dos |
+| Girar cámara | con 2 cámaras y la cámara encendida | no hay vídeo | no |
+| Medio de transmisión | solo «Automático»; fijar uno concreto sale desactivado («no se puede fijar a mano todavía») | | |
+
+| Control | Web escritorio | App de Mac | Android |
+|---|---|---|---|
+| Compartir pantalla | sí (`getDisplayMedia`) | solo si el WKWebView lo ofrece; si no, motivo | no: motivo (su WebView no lo ofrece) |
+| Girar cámara | si hay 2 cámaras | igual | sí (frontal/trasera) |
+| Salida de audio | `setSinkId` (Chromium) o la del sistema | igual | rutas nativas (auricular, altavoz, cable, Bluetooth) |
+| Imagen en imagen | con vídeo remoto y PiP del navegador | igual | según WebView |
+| Pasar a En vivo | no: se empieza desde el chat (todas) | | |
+| Grabar | con `MediaRecorder`; si no, motivo | | |
+| Terminar para todos | más de 2 personas y ser quien lleva más tiempo en la llamada | | |
+
+### 10.3 Cambiar de tipo sin colgar
+
+`AdaptadorMotor.cambiarTipo(a)` comprueba la máquina y la matriz, difunde `{k:"tipo"}` (la otra superficie avisa «… pasa a vídeo»), y
+añade o quita pistas sobre la misma conexión con `alternarCamara` / `alternarPantalla` (renegociación del motor; el micro no se toca). La presencia
+(`camara`/`pantalla`) confirma el tipo en los dos lados. Si el aparato falla (permiso, cámara ocupada), vuelve a como estaba y lo dice.
+Con más de dos personas el tipo es «grupo».
+
+### 10.4 Invitar, grabar, Astraura, terminar
+
+- Invitar: `planInvitar` con tope 8; el timbre con la llamada se manda al chat de cada invitado. Quien no sea del chat entra con «Invitar con enlace».
+- Grabar: local (`MediaRecorder` sobre una mezcla Web Audio de todos más la imagen disponible). Antes se difunde `grabacion` y se esperan los
+  acuses `grabacion-ack`; si falta uno, no se graba (falla cerrado). Todos ven «Grabando»; quien entra tarde recibe el aviso. Se guarda en OPFS `grabaciones-llamada/`.
+- Astraura: todas las neuronas activas calculan el mismo generador con `elegirGenerador`; solo ese llama al cliente existente y difunde la
+  `RespuestaAstraura` con los ajustes de voz. Todas la muestran una vez (dedupe por id) y la leen con los mismos ajustes si lo pidieron.
+- Terminar para todos (`fin-todos`) solo lo acepta quien entró primero (`unido` más antiguo).
+
+### 10.5 Teclado y accesibilidad
+
+M micro, V cámara, S pantalla, F pantalla completa (`atajos.ts`; no al escribir ni con Ctrl/Alt/Cmd). Si la matriz bloquea la acción, se muestra el motivo.
+Etiquetas en cada botón, motivo en `title`, `role=status` en el chip y los avisos. Con movimiento reducido no hay animación de entrada ni reacciones flotantes.
+
+### 10.6 Página e historial
+
+`/llamadas` (`pagina-llamadas.tsx`): llamar por voz, vídeo o pantalla a un chat y consultar el historial local (`historial-llamadas.ts`: medio, duración,
+grabación) con «Volver a llamar». Límites conocidos: la página lanza llamadas desde chats, no desde neuronas sueltas.
+
+### 10.7 Prueba en dispositivos
+
+1. Mac y tableta por internet, con la llamada contestada: en la Mac pulsa V; la tableta debe mostrar la imagen sin cortar el audio. Pulsa S (pantalla) y luego «Voz».
+2. Pestaña Grabar, «Empezar a grabar»: la tableta muestra el aviso; al parar, guardar en Archivos. Con la tableta sin responder el acuse, no empieza.
+3. Pestaña Astraura en las dos: pregunta en la Mac; sale la misma respuesta en las dos.
+4. Solo Bluetooth: Cámara y Pantalla desactivadas con su motivo; chat, reacciones y Astraura funcionan.
+5. Android: Pantalla desactivada con motivo; girar cámara; elegir ruta de audio.

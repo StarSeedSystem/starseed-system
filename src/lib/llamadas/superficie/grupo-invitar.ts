@@ -31,7 +31,8 @@ export interface PlanInvitacion {
 
 export const TEXTO_LIMITES = `Una llamada de grupo sin servidor admite hasta ${MAX_GRUPO_MALLA} personas, y hasta ${MAX_VIDEO_GRUPO_MALLA} con vídeo: cada aparato envía su imagen a todos los demás y más gente saturaría la red local.`;
 
-export function planInvitar(e: { actuales: number; conVideo: boolean; invitar: Invitable[] }): PlanInvitacion {
+export function planInvitar(e: { actuales: number; conVideo: boolean; invitar: Invitable[]; /** (LLA1108G) Tope del motor: 8 con servidor; por defecto el de la malla sin servidor. */ tope?: number }): PlanInvitacion {
+  const tope = e.tope ?? MAX_GRUPO_MALLA;
   const entran: Invitable[] = [];
   const fuera: PlanInvitacion["fuera"] = [];
   const vistos = new Set<string>();
@@ -40,10 +41,10 @@ export function planInvitar(e: { actuales: number; conVideo: boolean; invitar: I
     if (vistos.has(inv.id)) continue;
     vistos.add(inv.id);
     const aporta = inv.clase === "grupo" ? Math.max(1, inv.miembros ?? 1) : 1;
-    if (total + aporta > MAX_GRUPO_MALLA) {
+    if (total + aporta > tope) {
       fuera.push({
         invitable: inv,
-        motivo: inv.clase === "grupo" ? `«${inv.nombre}» aporta ${aporta} personas y no caben (máximo ${MAX_GRUPO_MALLA}).` : `No cabe nadie más (máximo ${MAX_GRUPO_MALLA}).`,
+        motivo: inv.clase === "grupo" ? `«${inv.nombre}» aporta ${aporta} personas y no caben (máximo ${tope}).` : `No cabe nadie más (máximo ${tope}).`,
       });
       continue;
     }

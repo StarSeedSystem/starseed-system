@@ -26,11 +26,14 @@ export function useSalidasAudio() {
   return { lista, elegida, elegir: setElegida, soportado };
 }
 
-export function Pista({ stream, video, silenciar, sinkId, className, etiqueta, remoto }: { stream: MediaStream | null | undefined; video: boolean; silenciar?: boolean; sinkId?: string; className?: string; etiqueta?: string; remoto?: boolean }) {
+export function Pista({ stream, video, silenciar, sinkId, className, etiqueta, remoto, volumen }: { stream: MediaStream | null | undefined; video: boolean; silenciar?: boolean; sinkId?: string; className?: string; etiqueta?: string; remoto?: boolean; /** 0..1 (LLA1108G) */ volumen?: number }) {
   const ref = useRef<HTMLMediaElement | null>(null);
   useEffect(() => {
     if (ref.current) ref.current.srcObject = stream ?? null;
   }, [stream, video]);
+  useEffect(() => {
+    if (ref.current && volumen !== undefined) ref.current.volume = Math.max(0, Math.min(1, volumen));
+  }, [volumen, stream, video]);
   useEffect(() => {
     const el = ref.current as ConSinkId | null;
     if (el && sinkId && el.setSinkId) void el.setSinkId(sinkId).catch(() => {});

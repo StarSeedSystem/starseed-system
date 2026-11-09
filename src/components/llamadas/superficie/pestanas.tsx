@@ -14,7 +14,7 @@ const caja = "rounded-xl border border-white/10 bg-white/[0.04] p-2.5 text-[12px
 const btnTxt = "cursor-pointer rounded-lg border border-violet-300/30 bg-violet-400/15 px-2.5 py-1 text-[11.5px] text-violet-50 transition-colors duration-200 hover:bg-violet-400/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300/80 disabled:cursor-not-allowed disabled:opacity-40";
 const NIVEL = { ok: "text-emerald-300", aviso: "text-amber-300", mal: "text-rose-300", neutro: "text-white/70" } as const;
 
-export function PestanaCalidad({ v, salidas }: { v: VistaLlamada; salidas: ReturnType<typeof useSalidasAudio> }) {
+export function PestanaCalidad({ v, a, salidas }: { v: VistaLlamada; a?: AccionesLlamada; salidas: ReturnType<typeof useSalidasAudio> }) {
   const nat = useInfoNativaLlamada();
   const c = v.calidad;
   return (
@@ -40,7 +40,7 @@ export function PestanaCalidad({ v, salidas }: { v: VistaLlamada; salidas: Retur
             {nat.rutasAudio.map((r) => <option key={r.id} value={r.id}>{r.etiqueta}</option>)}
           </select>
         ) : salidas.soportado && salidas.lista.length > 0 ? (
-          <select id="salida-audio" value={salidas.elegida} onChange={(e) => salidas.elegir(e.target.value)} className="w-full rounded-lg border border-white/15 bg-slate-900 px-2 py-1">
+          <select id="salida-audio" value={salidas.elegida} onChange={(e) => { salidas.elegir(e.target.value); a?.elegirSalidaAudio?.(e.target.value); }} className="w-full rounded-lg border border-white/15 bg-slate-900 px-2 py-1">
             <option value="default">Predeterminada</option>
             {salidas.lista.map((s) => <option key={s.id} value={s.id}>{s.etiqueta}</option>)}
           </select>
@@ -85,10 +85,12 @@ export function PestanaInvitar({ v, a }: { v: VistaLlamada; a: AccionesLlamada }
   const [sel, setSel] = useState<string[]>([]);
   const lista = v.invitables ?? [];
   const elegidos = lista.filter((i) => sel.includes(i.id));
-  const plan = planInvitar({ actuales: Math.max(2, (v.participantes?.length ?? 2)), conVideo: v.tipo === "video" || v.tipo === "grupo", invitar: elegidos });
+  const plan = planInvitar({ actuales: Math.max(2, (v.participantes?.length ?? 2)), conVideo: v.tipo === "video" || v.tipo === "grupo", invitar: elegidos, tope: v.topeInvitar });
+  const motivo = v.motivos?.invitar;
   return (
     <div className="space-y-2">
-      <p className={caja}>{TEXTO_LIMITES}</p>
+      <p className={caja}>{v.topeInvitar ? `Una llamada admite hasta ${v.topeInvitar} personas a la vez. La llamada de dos pasa a grupo sin cortarse.` : TEXTO_LIMITES}</p>
+      {motivo && <p role="status" className="rounded-xl border border-amber-300/30 bg-amber-400/10 p-2.5 text-[12px] text-amber-100">{motivo}</p>}
       {lista.length === 0 ? (
         <p className={caja}>No hay contactos, neuronas ni grupos a mano para invitar ahora.</p>
       ) : (
@@ -105,9 +107,10 @@ export function PestanaInvitar({ v, a }: { v: VistaLlamada; a: AccionesLlamada }
         </ul>
       )}
       {elegidos.length > 0 && <p role="status" className={caja}>{plan.texto}</p>}
-      <button type="button" className={btnTxt} disabled={!a.invitar || plan.entran.length === 0} onClick={() => { void a.invitar?.(plan.entran); setSel([]); }}>
+      <button type="button" className={btnTxt} disabled={!a.invitar || !!motivo || plan.entran.length === 0} onClick={() => { void a.invitar?.(plan.entran); setSel([]); }}>
         Invitar{plan.entran.length ? ` (${plan.entran.length})` : ""}
       </button>
+      {a.invitarConEnlace && <button type="button" className={btnTxt} onClick={() => a.invitarConEnlace?.()}>Invitar con enlace</button>}
       {!a.invitar && <p className="text-[11px] text-white/50">Esta llamada directa aún no admite más personas; empieza una de grupo desde el chat.</p>}
     </div>
   );
@@ -177,6 +180,28 @@ export function PestanaAstraura({ v, a }: { v: VistaLlamada; a: AccionesLlamada 
           <p className="text-[11px] text-white/50">La respuesta la genera una sola neurona y se envía a todas las que activaron Astraura: todas ven la misma.</p>
         </>
       )}
+    </div>
+  );
+}
+
+export function PestanaChat({ v, a }: { v: VistaLlamada; a: AccionesLlamada }) {
+  const [t, setT] = useState("");
+  const lista = v.chat ?? [];
+  return (
+    <div className="space-y-2">
+      <ol className="max-h-48 space-y-1.5 overflow-auto" aria-label="Chat de la llamada" aria-live="polite">
+        {lista.length === 0 && <li className={caja}>Escribe aquí sin salir de la llamada. Lo ven todas las personas que están en ella.</li>}
+        {lista.map((m) => (
+          <li key={m.id} className={cn("rounded-xl border p-2 text-[12px]", m.mio ? "ml-6 border-violet-300/30 bg-violet-400/15" : "mr-6 border-white/10 bg-white/[0.05]")}>
+            <span className="block text-[10.5px] text-white/55">{m.mio ? "Tú" : m.nombre}</span>
+            {m.texto}
+          </li>
+        ))}
+      </ol>
+      <form className="flex gap-1.5" onSubmit={(e) => { e.preventDefault(); if (t.trim()) { a.enviarChat?.(t.trim()); setT(""); } }}>
+        <input value={t} onChange={(e) => setT(e.target.value)} maxLength={500} placeholder="Mensaje…" aria-label="Mensaje para la llamada" className="min-w-0 flex-1 rounded-lg border border-white/15 bg-slate-900 px-2 py-1 text-[12px] text-white placeholder:text-white/40" />
+        <button type="submit" className={btnTxt} disabled={!a.enviarChat || !t.trim()}>Enviar</button>
+      </form>
     </div>
   );
 }

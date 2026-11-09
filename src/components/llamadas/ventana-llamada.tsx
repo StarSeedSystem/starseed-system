@@ -48,10 +48,17 @@ import { ETIQUETA_CALIDAD, peorCalidad } from "@/lib/llamadas/calidad";
 import { soportaPantalla } from "@/lib/llamadas/medios";
 import { crearTono, type Tono } from "@/lib/llamadas/sonido";
 import type { CalidadConexion, EstadoLlamada, ParticipanteLlamada } from "@/lib/llamadas/tipos";
+import { SuperficieMotor } from "./superficie/superficie-motor";
 import { AvatarLlamada } from "./avatar-llamada";
 import { AudiosRemotos, MosaicoParticipante, VideoStream } from "./mosaico";
 import { BotonRedondo, MenuMas, PanelDispositivos, type OpcionMas } from "./controles";
 import estilos from "./llamadas.module.css";
+
+/**
+ * (LLA1108G) La llamada se pinta con la superficie común conectada al motor (todos los controles funcionan o
+ * dicen por qué no). Con `false` vuelve la ventana anterior (PantallaCompleta/Ventanita), por si hiciera falta.
+ */
+const SUPERFICIE_NUEVA = true;
 
 const RESORTE = { type: "spring", stiffness: 380, damping: 32 } as const;
 
@@ -838,14 +845,20 @@ function LlamadaVisible({ activa }: { activa: LlamadaActiva }) {
 
     return (
         <>
-            <AudiosRemotos participantes={estado.participantes} altavozId={estado.seleccion.altavozId} />
-            <AnimatePresence mode="wait">
-                {activa.minimizada ? (
-                    <Ventanita key="ventanita" activa={activa} estado={estado} />
-                ) : (
-                    <PantallaCompleta key="completa" activa={activa} estado={estado} onInvitar={abrirInvitar} />
-                )}
-            </AnimatePresence>
+            {SUPERFICIE_NUEVA ? (
+                <SuperficieMotor activa={activa} alInvitarConEnlace={() => setInvitar(true)} />
+            ) : (
+                <>
+                    <AudiosRemotos participantes={estado.participantes} altavozId={estado.seleccion.altavozId} />
+                    <AnimatePresence mode="wait">
+                        {activa.minimizada ? (
+                            <Ventanita key="ventanita" activa={activa} estado={estado} />
+                        ) : (
+                            <PantallaCompleta key="completa" activa={activa} estado={estado} onInvitar={abrirInvitar} />
+                        )}
+                    </AnimatePresence>
+                </>
+            )}
             <InvitarSesionDialog
                 open={invitar}
                 onOpenChange={(v) => {

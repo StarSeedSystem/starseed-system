@@ -6,17 +6,20 @@
  * recibe una `VistaLlamada` y unas `AccionesLlamada`. Contrato: `architecture/llamadas-telefonia.md`.
  */
 import { useEffect, useRef, useState, type PointerEvent as PE } from "react";
-import { Circle, Eye, Maximize2, Minimize2, Mic, MicOff, Minus, Monitor, MonitorOff, Pause, Phone, PhoneOff, Play, Radio, Signal, Sparkles, SwitchCamera, UserPlus, Users, Video, VideoOff } from "lucide-react";
+import { Circle, Eye, Maximize2, MessageSquare, Minimize2, Mic, MicOff, Minus, Monitor, MonitorOff, Pause, PictureInPicture2, Phone, PhoneOff, Play, Radio, Signal, Smile, Sparkles, SwitchCamera, UserPlus, Users, Video, VideoOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { hayGrabacion, textoIndicador, GRABACION_INICIAL } from "@/lib/llamadas/superficie/grabacion";
 import { puedeCambiarTipo, textoEstado, tamanosPermitidos, type TipoSuperficie } from "@/lib/llamadas/superficie/maquina";
 import { formatearDuracion, iniciales } from "@/lib/llamadas/formato";
 import type { AccionesLlamada, VistaLlamada } from "@/lib/llamadas/superficie/vista";
+import { EMOJIS_REACCION } from "@/lib/llamadas/superficie/senales-app";
+import { accionDeTecla, AYUDA_ATAJOS } from "@/lib/llamadas/superficie/atajos";
 import { Barras, BotonControl, Cronometro, Pista, useSalidasAudio } from "./piezas";
-import { PestanaAstraura, PestanaCalidad, PestanaGente, PestanaGrabar, PestanaInvitar, PestanaMedio } from "./pestanas";
+import { PestanaAstraura, PestanaCalidad, PestanaChat, PestanaGente, PestanaGrabar, PestanaInvitar, PestanaMedio } from "./pestanas";
+import estilos from "../llamadas.module.css";
 import { useMovimientoReducido, useSuperficie } from "./use-superficie";
 
-type Pestana = "calidad" | "medio" | "gente" | "invitar" | "grabar" | "astraura";
+type Pestana = "calidad" | "medio" | "gente" | "invitar" | "grabar" | "astraura" | "chat";
 const TIPOS: Array<{ t: TipoSuperficie; etiqueta: string }> = [
   { t: "voz", etiqueta: "Voz" },
   { t: "video", etiqueta: "Vídeo" },
@@ -25,7 +28,7 @@ const TIPOS: Array<{ t: TipoSuperficie; etiqueta: string }> = [
 ];
 const ic = "h-[18px] w-[18px]";
 
-export function SuperficieLlamada({ vista: v, acciones: a }: { vista: VistaLlamada; acciones: AccionesLlamada }) {
+export function SuperficieLlamada({ vista: v, acciones: a, tamanoInicial }: { vista: VistaLlamada; acciones: AccionesLlamada; /** Tamaño al conectar (por defecto la burbuja discreta de la llamada directa). */ tamanoInicial?: "panel" | "pantalla-completa" }) {
   const { s, despachar, duracion, tamano } = useSuperficie(v);
   const reducido = useMovimientoReducido();
   const salidas = useSalidasAudio();
@@ -33,6 +36,8 @@ export function SuperficieLlamada({ vista: v, acciones: a }: { vista: VistaLlama
   const [rejilla, setRejilla] = useState(false);
   const [resaltar, setResaltar] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
+  const [reaccionando, setReaccionando] = useState(false);
+  const inicialAplicado = useRef(false);
   const [arrastre, setArrastre] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const raiz = useRef<HTMLElement | null>(null);
   const punto = useRef<{ x: number; y: number; ox: number; oy: number; mov: boolean } | null>(null);
@@ -44,6 +49,40 @@ export function SuperficieLlamada({ vista: v, acciones: a }: { vista: VistaLlama
   }, [s.estado]);
   useEffect(() => { if (!aviso) return; const id = setTimeout(() => setAviso(null), 6000); return () => clearTimeout(id); }, [aviso]);
 
+  useEffect(() => {
+    if (s.estado === "conectada" && tamanoInicial && !inicialAplicado.current) {
+      inicialAplicado.current = true;
+      tamano(tamanoInicial);
+    }
+    if (s.estado === "inactiva" || s.estado === "terminada") inicialAplicado.current = false;
+  }, [s.estado, tamanoInicial, tamano]);
+
+  // Atajos de escritorio: M micro, V cámara, S pantalla, F pantalla completa (no al escribir ni con la llamada sin conectar).
+  const vivaAtajos = s.estado === "conectada" || s.estado === "en-espera";
+  const refAcc = useRef({ v, a });
+  refAcc.current = { v, a };
+  useEffect(() => {
+    if (!vivaAtajos) return;
+    const f = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      const acc = accionDeTecla({ key: e.key, ctrlKey: e.ctrlKey, metaKey: e.metaKey, altKey: e.altKey, repeat: e.repeat, etiqueta: t?.tagName, editable: !!t?.isContentEditable }, true);
+      if (!acc) return;
+      const { v: vv, a: aa } = refAcc.current;
+      e.preventDefault();
+      if (acc === "micro") aa.alternarMicro?.();
+      else if (acc === "completa") despachar({ t: "alternar-completa" });
+      else {
+        const motivo = acc === "camara" ? vv.motivos?.camara : vv.motivos?.pantalla;
+        const accion = acc === "camara" ? aa.alternarCamara : aa.alternarPantalla;
+        if (!accion) setAviso(acc === "camara" ? "Esta llamada no lleva cámara." : "Esta llamada no puede compartir pantalla.");
+        else if (motivo && !(acc === "pantalla" && vv.compartiendoPantalla)) setAviso(motivo);
+        else accion();
+      }
+    };
+    window.addEventListener("keydown", f);
+    return () => window.removeEventListener("keydown", f);
+  }, [vivaAtajos, despachar]);
+
   if (s.estado === "inactiva") return null;
   const g = v.grabacion ?? GRABACION_INICIAL;
   const grabando = hayGrabacion(g);
@@ -52,6 +91,7 @@ export function SuperficieLlamada({ vista: v, acciones: a }: { vista: VistaLlama
   const permitidos = tamanosPermitidos(s.estado);
   const cabeceraTexto = textoEstado(s, v.nombre);
   const tamanoActual = s.tamano;
+  const hablando = !!v.participantes?.some((p) => !p.yo && (p.nivel ?? 0) > 0.08);
 
   const arrastrando = (e: PE<HTMLElement>) => {
     if (tamanoActual !== "burbuja" || (e.target as HTMLElement).closest("button")) return;
@@ -89,7 +129,7 @@ export function SuperficieLlamada({ vista: v, acciones: a }: { vista: VistaLlama
   };
   const pip = () => {
     const el = raiz.current?.querySelector<HTMLVideoElement>("video[data-remoto]");
-    if (!el || !document.pictureInPictureEnabled) { setAviso("Este navegador no permite imagen en imagen."); return; }
+    if (!el || !document.pictureInPictureEnabled) { setAviso(v.motivos?.pip ?? "Este navegador no permite imagen en imagen."); return; }
     (document.pictureInPictureElement ? document.exitPictureInPicture() : el.requestPictureInPicture()).catch(() => setAviso("No se pudo abrir la imagen en imagen."));
   };
 
@@ -108,17 +148,19 @@ export function SuperficieLlamada({ vista: v, acciones: a }: { vista: VistaLlama
     { id: "invitar", etiqueta: "Invitar", icono: <UserPlus className="h-3.5 w-3.5" /> },
     { id: "grabar", etiqueta: "Grabar", icono: <Circle className="h-3.5 w-3.5" /> },
     { id: "astraura", etiqueta: "Astraura", icono: <Sparkles className="h-3.5 w-3.5" /> },
+    { id: "chat", etiqueta: "Chat", icono: <MessageSquare className="h-3.5 w-3.5" /> },
   ];
   const completa = tamanoActual === "pantalla-completa";
   const panelAbierto = !!pestana && tamanoActual !== "burbuja";
   const bloquePestana = (
     <div role="tabpanel" id={`pest-${pestana}`} aria-label={pestana ?? ""} className="max-h-[42vh] overflow-auto p-3 md:max-h-none md:flex-1">
-      {pestana === "calidad" && <PestanaCalidad v={v} salidas={salidas} />}
+      {pestana === "calidad" && <PestanaCalidad v={v} a={a} salidas={salidas} />}
       {pestana === "medio" && <PestanaMedio v={v} a={a} />}
       {pestana === "gente" && <PestanaGente v={v} a={a} />}
       {pestana === "invitar" && <PestanaInvitar v={v} a={a} />}
       {pestana === "grabar" && <PestanaGrabar v={v} a={a} />}
       {pestana === "astraura" && <PestanaAstraura v={v} a={a} />}
+      {pestana === "chat" && <PestanaChat v={v} a={a} />}
     </div>
   );
 
@@ -186,33 +228,54 @@ export function SuperficieLlamada({ vista: v, acciones: a }: { vista: VistaLlama
 
           <div className={cn("flex min-h-0 flex-1", completa ? "flex-col md:flex-row landscape:flex-row" : "flex-col")}>
             <div className={cn("relative flex min-w-0 flex-1 flex-col", completa && "min-h-[40vh]")}>
+              <div key={s.tipo} className={cn("flex min-h-0 flex-1 flex-col", !reducido && estilos.entraTipo)} data-layout={s.tipo}>
               {(s.tipo === "video" || s.tipo === "pantalla" || s.tipo === "vivo" || s.tipo === "grupo") && viva ? (
                 <div className={cn("relative mx-3 my-2 overflow-hidden rounded-2xl bg-black", completa ? "flex-1" : "aspect-video")}>
                   <div className={cn("h-full w-full", rejilla && (v.participantes?.length ?? 0) > 1 && "grid grid-cols-2 gap-1")}>
                     {rejilla && v.participantes?.length ? v.participantes.map((p) => (
-                      <div key={p.id} className="relative overflow-hidden rounded-lg bg-slate-900">
-                        <Pista stream={p.stream} video silenciar={p.yo} className="h-full w-full" etiqueta={p.nombre} />
+                      <div key={p.id} className={cn("relative overflow-hidden rounded-lg bg-slate-900", p.nivel && p.nivel > 0.08 && "ring-2 ring-emerald-300/70")}>
+                        <Pista stream={p.stream} video silenciar className="h-full w-full" etiqueta={p.nombre} />
                         <span className="absolute bottom-1 left-1 rounded bg-black/55 px-1.5 text-[10.5px]">{p.nombre}</span>
                       </div>
-                    )) : <Pista stream={v.remoto} video={conVideoRemoto} remoto className="h-full w-full object-contain" etiqueta={`Imagen de ${v.nombre}`} sinkId={salidas.elegida} />}
+                    )) : <Pista stream={v.remoto} video={conVideoRemoto} remoto silenciar={!!v.participantes?.length} className={cn("h-full w-full", s.tipo === "pantalla" ? "object-contain" : "object-contain")} etiqueta={s.tipo === "pantalla" ? `Pantalla de ${v.nombre}` : `Imagen de ${v.nombre}`} sinkId={salidas.elegida} />}
                   </div>
+                  {!conVideoRemoto && !rejilla && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 text-[13px] text-white/80">
+                      <span aria-hidden className="flex h-16 w-16 items-center justify-center rounded-full bg-violet-500/35 text-xl font-semibold">{iniciales(v.nombre)}</span>
+                      {s.tipo === "pantalla" ? "Esperando la pantalla…" : "Sin imagen todavía"}
+                    </div>
+                  )}
                   {s.tipo === "pantalla" && resaltar && puntero && <span aria-hidden className="pointer-events-none absolute h-12 w-12 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-amber-300 bg-amber-300/25" style={{ left: puntero.x, top: puntero.y }} />}
                   {s.tipo === "pantalla" && resaltar && <div className="absolute inset-0" onPointerMove={(e) => { const r = e.currentTarget.getBoundingClientRect(); setPuntero({ x: e.clientX - r.left, y: e.clientY - r.top }); }} />}
                   {v.local && v.camara && <Pista stream={v.local} video silenciar className="absolute bottom-2 right-2 h-20 w-14 rounded-lg border border-white/25 sm:h-24 sm:w-32" etiqueta="Tu cámara" />}
                   {s.tipo === "vivo" && <span className="absolute left-2 top-2 flex items-center gap-1.5 rounded-full bg-black/55 px-2 py-0.5 text-[11px]"><Eye className="h-3 w-3" /> {v.espectadores ?? "—"} · {v.relevo ?? "directo"}</span>}
+                  {s.tipo === "pantalla" && v.compartiendoPantalla && <span className="absolute left-2 top-2 rounded-full bg-amber-500/80 px-2 py-0.5 text-[11px] text-black">Estás compartiendo tu pantalla</span>}
                   {s.estado === "reconectando" && <div role="status" className="absolute inset-0 flex items-center justify-center bg-black/60 text-[13px]">Reconectando…</div>}
                   {s.estado === "en-espera" && <div role="status" className="absolute inset-0 flex items-center justify-center bg-black/60 text-[13px]">En espera</div>}
-                  <Pista stream={v.remoto} video={false} sinkId={salidas.elegida} />
+                  {!v.participantes?.length && <Pista stream={v.remoto} video={false} sinkId={salidas.elegida} />}
                 </div>
               ) : (
                 <div className={cn("flex flex-col items-center justify-center gap-2 py-6", completa && "flex-1")}>
-                  <span aria-hidden className={cn("flex h-20 w-20 items-center justify-center rounded-full bg-violet-500/35 text-2xl font-semibold ring-4 ring-violet-300/20", (s.estado === "entrante" || s.estado === "saliente") && !reducido && "animate-pulse")}>{iniciales(v.nombre)}</span>
-                  <p className="text-[13px] text-white/80">{s.estado === "terminada" ? `Duración ${formatearDuracion(s.duracionMs ?? 0)}${s.medioUsado ? ` · por ${s.medioUsado}` : ""}` : viva ? "Solo audio" : cabeceraTexto}</p>
-                  <Pista stream={v.remoto} video={false} sinkId={salidas.elegida} />
+                  <span aria-hidden className={cn("flex h-20 w-20 items-center justify-center rounded-full bg-violet-500/35 text-2xl font-semibold ring-4 transition-[box-shadow,--tw-ring-color] duration-200", hablando ? "ring-emerald-300/80" : "ring-violet-300/20", (s.estado === "entrante" || s.estado === "saliente") && !reducido && "animate-pulse")} data-hablando={hablando ? "" : undefined}>{iniciales(v.nombre)}</span>
+                  <p className="text-[13px] text-white/80">{s.estado === "terminada" ? `Duración ${formatearDuracion(s.duracionMs ?? 0)}${s.medioUsado ? ` · por ${s.medioUsado}` : ""}` : viva ? (hablando ? "Hablando…" : "Solo audio") : cabeceraTexto}</p>
+                  {!v.participantes?.length && <Pista stream={v.remoto} video={false} sinkId={salidas.elegida} />}
+                </div>
+              )}
+              </div>
+              {s.tipo === "pantalla" && viva && (v.participantes?.length ?? 0) > 1 && (
+                <ul aria-label="Participantes" className="mx-3 mb-1 flex gap-1.5 overflow-x-auto">
+                  {v.participantes?.map((p) => <li key={p.id} className={cn("shrink-0 rounded-full border px-2 py-0.5 text-[11px]", p.nivel && p.nivel > 0.08 ? "border-emerald-300/70 text-emerald-100" : "border-white/10 text-white/70")}>{p.yo ? "Tú" : p.nombre}</li>)}
+                </ul>
+              )}
+              {v.participantes?.filter((p) => !p.yo).map((p) => <Pista key={p.id} stream={p.stream} video={false} volumen={p.volumen} sinkId={salidas.elegida} />)}
+              {v.chip && viva && <p role="status" className="pointer-events-none mx-auto mb-1 w-fit rounded-full border border-violet-300/30 bg-violet-400/15 px-3 py-0.5 text-[11.5px] text-violet-50" data-testid="chip-transmision">{v.chip}</p>}
+              {(v.reacciones?.length ?? 0) > 0 && (
+                <div aria-live="polite" className="pointer-events-none absolute bottom-2 left-3 flex gap-2">
+                  {v.reacciones?.map((r) => <span key={r.id} title={r.nombre} className={cn("text-2xl", !reducido && estilos.reaccion)}>{r.emoji}<span className="sr-only"> {r.nombre}</span></span>)}
                 </div>
               )}
               {v.motivo && <p className="px-3 pb-1 text-[11.5px] text-white/65" role="status">{v.motivo}</p>}
-              {aviso && <p className="mx-3 mb-1 rounded-lg border border-amber-300/30 bg-amber-400/10 px-2 py-1 text-[11.5px] text-amber-100" role="status">{aviso}</p>}
+              {(aviso ?? v.aviso) && <p className="mx-3 mb-1 rounded-lg border border-amber-300/30 bg-amber-400/10 px-2 py-1 text-[11.5px] text-amber-100" role="status">{aviso ?? v.aviso}</p>}
               {v.textoMedio && viva && <p className="px-3 pb-1 text-[11px] text-white/55">{v.textoMedio}</p>}
               {v.cambiandoA && <p className="px-3 pb-1 text-[11.5px] text-violet-100" role="status">Cambiando a {TIPOS.find((t) => t.t === v.cambiandoA)?.etiqueta.toLowerCase()} sin colgar…</p>}
             </div>
@@ -225,8 +288,10 @@ export function SuperficieLlamada({ vista: v, acciones: a }: { vista: VistaLlama
               {TIPOS.map(({ t, etiqueta }) => {
                 const sel = s.tipo === t;
                 const puede = puedeCambiarTipo(s, t);
+                const motivoMatriz = v.motivos?.[`tipo-${t}` as keyof NonNullable<typeof v.motivos>];
+                const razon = !puede.ok ? puede.motivo : motivoMatriz;
                 return (
-                  <button key={t} type="button" role="radio" aria-checked={sel} disabled={!sel && (!puede.ok || !a.cambiarTipo)} title={!sel && !puede.ok ? puede.motivo : undefined} onClick={() => !sel && void cambiar(t)} className={cn("flex-1 cursor-pointer rounded-full px-2 py-1 text-[11.5px] transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300/80 disabled:cursor-not-allowed disabled:opacity-40", sel ? "bg-violet-400/35 text-white" : "text-white/70 hover:bg-white/10")}>{etiqueta}</button>
+                  <button key={t} type="button" role="radio" aria-checked={sel} disabled={!sel && (!puede.ok || !a.cambiarTipo || !!motivoMatriz)} title={!sel && razon ? razon : undefined} onClick={() => !sel && void cambiar(t)} className={cn("flex-1 cursor-pointer rounded-full px-2 py-1 text-[11.5px] transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300/80 disabled:cursor-not-allowed disabled:opacity-40", sel ? "bg-violet-400/35 text-white" : "text-white/70 hover:bg-white/10")}>{etiqueta}</button>
                 );
               })}
             </div>
@@ -242,6 +307,7 @@ export function SuperficieLlamada({ vista: v, acciones: a }: { vista: VistaLlama
             </div>
           )}
 
+          {viva && <p className="sr-only">{AYUDA_ATAJOS}</p>}
           <footer className="flex flex-wrap items-center justify-center gap-2 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2">
             {s.estado === "entrante" && (
               <>
@@ -253,13 +319,26 @@ export function SuperficieLlamada({ vista: v, acciones: a }: { vista: VistaLlama
             {viva && (
               <>
                 <BotonControl icono={v.micro ? <Mic className={ic} /> : <MicOff className={ic} />} etiqueta={v.micro ? "Silenciar micrófono" : "Activar micrófono"} activo={!v.micro} onClick={a.alternarMicro} motivo="no disponible" />
-                <BotonControl icono={v.camara ? <Video className={ic} /> : <VideoOff className={ic} />} etiqueta={v.camara ? "Apagar cámara" : "Encender cámara"} activo={!v.camara} onClick={a.alternarCamara} motivo="esta llamada no lleva cámara; cambia a Vídeo" />
-                {(v.camaras ?? 0) > 1 && <BotonControl icono={<SwitchCamera className={ic} />} etiqueta="Girar cámara (frontal/trasera)" onClick={a.girarCamara} />}
-                <BotonControl icono={v.compartiendoPantalla ? <MonitorOff className={ic} /> : <Monitor className={ic} />} etiqueta={v.compartiendoPantalla ? "Dejar de compartir pantalla" : "Compartir pantalla (elige ventana o pantalla)"} activo={v.compartiendoPantalla} onClick={a.alternarPantalla} motivo="no disponible en esta llamada" />
+                <BotonControl icono={v.camara ? <Video className={ic} /> : <VideoOff className={ic} />} etiqueta={v.camara ? "Apagar cámara" : "Encender cámara"} activo={!v.camara} onClick={a.alternarCamara} deshabilitado={!v.camara && !!v.motivos?.camara} motivo={v.motivos?.camara ?? "esta llamada no lleva cámara; cambia a Vídeo"} />
+                {(v.camaras ?? 0) > 1 && <BotonControl icono={<SwitchCamera className={ic} />} etiqueta="Girar cámara (frontal/trasera)" onClick={a.girarCamara} deshabilitado={!!v.motivos?.["girar-camara"]} motivo={v.motivos?.["girar-camara"]} />}
+                <BotonControl icono={v.compartiendoPantalla ? <MonitorOff className={ic} /> : <Monitor className={ic} />} etiqueta={v.compartiendoPantalla ? "Dejar de compartir pantalla" : "Compartir pantalla (elige ventana o pantalla)"} activo={v.compartiendoPantalla} onClick={a.alternarPantalla} deshabilitado={!v.compartiendoPantalla && !!v.motivos?.pantalla} motivo={v.motivos?.pantalla ?? "no disponible en esta llamada"} />
                 <BotonControl icono={s.estado === "en-espera" ? <Play className={ic} /> : <Pause className={ic} />} etiqueta={s.estado === "en-espera" ? "Reanudar llamada" : "Poner en espera"} activo={s.estado === "en-espera"} onClick={a.alternarEspera} motivo="la llamada directa aún no admite espera" />
                 {(s.tipo === "video" || s.tipo === "grupo") && <BotonControl icono={<Users className={ic} />} etiqueta={rejilla ? "Vista de orador" : "Vista en rejilla"} activo={rejilla} onClick={() => setRejilla((x) => !x)} />}
-                {conVideoRemoto && <BotonControl icono={<Maximize2 className={ic} />} etiqueta="Imagen en imagen" onClick={pip} />}
+                {(conVideoRemoto || !!v.motivos?.pip) && <BotonControl icono={<PictureInPicture2 className={ic} />} etiqueta="Imagen en imagen" onClick={pip} deshabilitado={!!v.motivos?.pip} motivo={v.motivos?.pip} />}
+                {a.reaccionar && (
+                  <span className="relative">
+                    <BotonControl icono={<Smile className={ic} />} etiqueta="Reaccionar" activo={reaccionando} onClick={() => setReaccionando((x) => !x)} />
+                    {reaccionando && (
+                      <span role="group" aria-label="Reacciones" className="absolute bottom-12 left-1/2 flex -translate-x-1/2 gap-1 rounded-full border border-white/15 bg-slate-900/95 p-1 shadow-xl">
+                        {EMOJIS_REACCION.map((em) => (
+                          <button key={em} type="button" aria-label={`Reaccionar con ${em}`} onClick={() => { a.reaccionar?.(em); setReaccionando(false); }} className="h-8 w-8 cursor-pointer rounded-full text-lg transition-transform duration-150 hover:scale-110 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300/80 motion-reduce:transition-none">{em}</button>
+                        ))}
+                      </span>
+                    )}
+                  </span>
+                )}
                 {s.tipo === "pantalla" && <BotonControl icono={<Circle className={ic} />} etiqueta={resaltar ? "Quitar resaltado del puntero" : "Resaltar el puntero"} activo={resaltar} onClick={() => setResaltar((x) => !x)} />}
+                {a.colgarTodos && v.puedeTerminarParaTodos && <BotonControl peligro icono={<Users className={ic} />} etiqueta="Terminar para todos" onClick={a.colgarTodos} />}
                 <BotonControl peligro icono={<PhoneOff className={ic} />} etiqueta="Colgar" onClick={a.colgar} />
               </>
             )}
