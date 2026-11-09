@@ -6304,3 +6304,9 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 
 **Lo que quedó fuera, una por una:**
 - `PRM1108Bb-d2` — los tipos no compilan: 1 errores tsc (rama ola/PRM1108Bb-d2 conservada)
+
+## 2026-11-08 22:35 · auto-1108-221630
+
+**Lo que se pidió.** archivos
+
+**Resultado.** 1 de 1 integradas.
