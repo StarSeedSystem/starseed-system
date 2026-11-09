@@ -5,6 +5,7 @@
  */
 
 import type { EstadoPropio } from "@/lib/malla/puerta/politica";
+import { capaDeDestino, destinoNecesitaCapa, leerCapa, type CapaPuerta } from "@/lib/malla/puerta/capas"; // PTA1108C
 
 export const CANAL_PUERTA = "puerta";
 export const MAX_SALTOS = 3;
@@ -24,6 +25,8 @@ export interface AnuncioPuerta {
   /** Cuenta de esa neurona (para saber si es «de las mías»); puede faltar. */
   uid?: string;
   capas: CapaSalida[];
+  /** PTA1108C · Detalle de las capas distintas de internet (hosts, rangos, puertos, calidad). */
+  detalle?: CapaPuerta[];
   latenciaMs: number | null;
   anchoKbps: number | null;
   medida: boolean;
@@ -63,18 +66,22 @@ export function crearAnuncioPropio(p: {
   id: string;
   uid?: string;
   capas: CapaSalida[];
+  /** PTA1108C · Capas propias detalladas; sus tipos se suman a `capas`. */
+  detalle?: CapaPuerta[];
   latenciaMs: number | null;
   anchoKbps?: number | null;
   estado: EstadoPropio;
   publica?: boolean;
   ahora: number;
 }): AnuncioPuerta | null {
-  if (!p.capas.length || !p.estado.conInternet && !p.capas.some((c) => c !== "internet")) return null;
+  const capas: CapaSalida[] = [...new Set<CapaSalida>([...p.capas, ...(p.detalle ?? []).map((c) => c.tipo)])];
+  if (!capas.length || !p.estado.conInternet && !capas.some((c) => c !== "internet")) return null;
   return {
     v: 1,
     id: p.id,
     uid: p.uid,
-    capas: [...p.capas],
+    capas,
+    ...(p.detalle?.length ? { detalle: p.detalle.slice(0, 8) } : {}),
     latenciaMs: p.latenciaMs,
     anchoKbps: p.anchoKbps ?? null,
     medida: p.estado.medida,
@@ -98,11 +105,13 @@ export function leerAnuncio(x: unknown): AnuncioPuerta | null {
   const saltos = typeof o.saltos === "number" && Number.isInteger(o.saltos) && o.saltos >= 0 && o.saltos <= MAX_SALTOS ? o.saltos : -1;
   if (saltos < 0 || !via.length || via[0] !== o.id) return null;
   const n = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : null);
+  const detalle = Array.isArray(o.detalle) ? o.detalle.slice(0, 8).map(leerCapa).filter((c): c is CapaPuerta => c !== null) : [];
   return {
     v: 1,
     id: o.id,
     uid: typeof o.uid === "string" ? o.uid.slice(0, 80) : undefined,
     capas,
+    ...(detalle.length ? { detalle } : {}),
     latenciaMs: n(o.latenciaMs),
     anchoKbps: n(o.anchoKbps),
     medida: o.medida === true,
@@ -151,6 +160,15 @@ export interface OpcionesElegir {
   capa?: CapaSalida;
   /** Descartar las de red medida. */
   evitarMedida?: boolean;
+  /** PTA1108C · Destino que se quiere alcanzar: elige solo puertas que tengan la capa necesaria (internet o una capa privada). */
+  host?: string;
+  puerto?: number;
+}
+
+/** PTA1108C · ¿Esta puerta alcanza `host:puerto`? Un destino privado exige una capa anunciada que lo cubra; uno público, la capa «internet». */
+export function puertaAlcanza(a: Pick<AnuncioPuerta, "capas" | "detalle">, host: string, puerto: number): boolean {
+  if (!destinoNecesitaCapa(host)) return a.capas.includes("internet");
+  return capaDeDestino(a.detalle ?? [], host, puerto) !== null;
 }
 
 export class TablaPuertas {
@@ -205,6 +223,7 @@ export class TablaPuertas {
       .filter((e) => this.vigente(e) && e.vetoHasta <= t && !o.excluir?.has(e.anuncio.id))
       .filter((e) => (o.capa ? e.anuncio.capas.includes(o.capa) : true))
       .filter((e) => (o.evitarMedida ? !e.anuncio.medida : true))
+      .filter((e) => (o.host ? puertaAlcanza(e.anuncio, o.host, o.puerto ?? 443) : true))
       .sort((x, y) => puntuarPuerta(y) - puntuarPuerta(x) || x.anuncio.id.localeCompare(y.anuncio.id));
   }
 
@@ -226,6 +245,15 @@ export class TablaPuertas {
       e.fallos = 0;
       e.vetoHasta = 0;
     }
+  }
+
+  /** PTA1108C · Capa (de cualquier puerta viva) que cubre ese destino, con la puerta que la ofrece. Null si ninguna. */
+  capaParaDestino(host: string, puerto: number): { capa: CapaPuerta; puerta: string } | null {
+    for (const e of this.candidatas({ host, puerto })) {
+      const capa = capaDeDestino(e.anuncio.detalle ?? [], host, puerto);
+      if (capa) return { capa, puerta: e.anuncio.id };
+    }
+    return null;
   }
 
   tamano(): number {

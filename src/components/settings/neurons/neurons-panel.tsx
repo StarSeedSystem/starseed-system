@@ -43,6 +43,7 @@ import { EstadoServidorLocal } from "@/components/nativa/estado-servidor-local";
 import { PrecargaSinInternet } from "./precarga-sin-internet";
 import { AjusteEnlaceWifi } from "./ajuste-enlace-wifi";
 import { AjustePuertaInternet } from "./ajuste-puerta-internet";
+import { AjusteEnviosArchivos } from "./ajuste-envios-archivos"; // PTA1108C
 import { AjusteCifradoRedLocal } from "./ajuste-cifrado-red-local";
 
 /* ── Icono por tipo de dispositivo ── */
@@ -213,6 +214,8 @@ export function NeuronsPanel() {
 
       {/* (PTA1108A) Medios: internet compartido por la malla (mis neuronas ON; otras cuentas «Preguntar»). Solo app nativa. */}
       <AjustePuertaInternet />
+      {/* (PTA1108C) Medios: «Envíos de archivos» (cifrado de archivo, multitrayecto y relés). */}
+      <AjusteEnviosArchivos />
 
       {/* Voz de ESTA neurona (Adenda 87): elección nube/local por dispositivo,
           que ordena la cadena de voz de este equipo, con el instalador local. */}

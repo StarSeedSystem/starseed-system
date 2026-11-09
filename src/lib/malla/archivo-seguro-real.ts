@@ -13,6 +13,7 @@ import type { DestinatarioArchivo } from "@/lib/malla/cifrado-archivo";
 import { parCifraArchivo } from "@/lib/malla/cifrado-archivo";
 import { CAPACIDADES_ARCHIVO } from "@/lib/malla/archivo-seguro";
 import {
+  recordarClaveCertificada,
   recordarClaveViva,
   esClaveCifrado,
   fuenteCertificado,
@@ -208,11 +209,33 @@ export async function datosHolaArchivo(): Promise<{ ar: string[]; ep?: JsonWebKe
 }
 
 /** Un saludo FIRMADO y ya aceptado trajo capacidades y clave de cifrado: se anotan (la clave como «viva»). */
-export function registrarHolaArchivo(neurona: string, ar?: unknown, ep?: unknown): void {
+export function registrarHolaArchivo(neurona: string, ar?: unknown, ep?: unknown, cert?: { certificado: unknown; huella: string | undefined }): void {
   try {
     registrarFichaPar(neurona, ar, ep);
     if (ep) recordarClaveViva(neurona, ep);
+    // PTA1108C: el mismo saludo, si trae certificado verificable, deja la clave también como «certificada» (funciona sin red).
+    if (ep && cert?.certificado) void registrarClaveDeHolaCertificada(neurona, ep, cert.certificado, cert.huella).catch(() => undefined);
   } catch {
     /* informativo */
+  }
+}
+
+/** Verificador inyectable de certificados de saludo (el real es `verificarHolaConCertificado` de IDN1108A). */
+export type VerificarCertHola = (h: { certificado: unknown; neurona: string; huella: string }) => Promise<{ ok: boolean; estado: string }>;
+
+/**
+ * PTA1108C · Si el saludo trae un certificado cuenta→neurona que VERIFICA contra una ancla conocida (`estado: "valido"`:
+ * firma, caducidad, revocación y portador = neurona + huella del aparato que firmó el sobre), la clave de cifrado del
+ * saludo se guarda como «certificada». Certificado malo, sin ancla, sin huella probada o clave inválida: no se guarda nada.
+ */
+export async function registrarClaveDeHolaCertificada(neurona: string, ep: unknown, certificado: unknown, huella: string | undefined, verificar?: VerificarCertHola): Promise<boolean> {
+  if (!neurona || !huella || !esClaveCifrado(ep) || !certificado) return false;
+  try {
+    const v = verificar ?? (await import("@/lib/identidad/enlace")).verificarHolaConCertificado;
+    const r = await v({ certificado, neurona, huella });
+    if (!r.ok || r.estado !== "valido") return false;
+    return recordarClaveCertificada(neurona, ep);
+  } catch {
+    return false;
   }
 }

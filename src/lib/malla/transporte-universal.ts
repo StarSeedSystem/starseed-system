@@ -56,6 +56,8 @@ import {
   type TipoEnlace,
 } from "@/lib/malla/eleccion-enlace";
 import { crearCanalMultitrayecto, type CanalMultitrayecto } from "@/lib/malla/canal-multitrayecto";
+import { crearRetornoRele, leerReleEnvuelto, type RemitenteRele } from "@/lib/malla/rele-bidireccional"; // PTA1108C
+import { crearClienteRelePropio, iniciarRecepcionRelePropio, leerConfigRelePropio } from "@/lib/malla/rele-propio"; // PTA1108C
 import {
   alRegistrarEnlaceLocal,
   enlaceLocal,
@@ -851,6 +853,45 @@ function sumarSaltoHoy(bytes: number): void {
 
 const canalNulo: CanalArchivos = { enviar: () => false, alMensaje: () => () => undefined };
 
+/** PTA1108C · Quién soy en un relé: la huella de mi identidad de malla y mi cuenta. Null si aún no hay identidad. */
+async function miIdentidadRele(): Promise<RemitenteRele | null> {
+  try {
+    const { myFingerprint } = await import("@/ai/astraura/mesh/mesh-identity");
+    const rele = await myFingerprint();
+    if (!rele) return null;
+    const uid = await miUid();
+    return { rele, ...(uid ? { uid } : {}) };
+  } catch {
+    return null;
+  }
+}
+
+/** PTA1108C · Relé de StarSeed de DOS vías: cada trozo sale con mi identidad y la vuelta (aceptar, reanudar, huecos) regresa por el mismo relé. */
+const retornoStarSeed = crearRetornoRele({
+  yo: miIdentidadRele,
+  enviar: async (para, txt) => {
+    const { uploadRelay } = await import("@/ai/astraura/mesh/server-relay");
+    const id = nuevoId();
+    const r = await uploadRelay({ cls: "P1", ptype: "message", body: { cv: `tu:archivo-rele:${id}`, txt, ...(para.uid ? { to: para.uid } : {}) }, recipient: para.rele, oid: id });
+    return r.ok;
+  },
+  arriba: () => typeof navigator === "undefined" || navigator.onLine !== false,
+});
+
+/** PTA1108C · El servidor propio (si hay uno configurado en Ajustes): mismo contrato, otro camino. El `fetch` es el de la malla. */
+function clienteRelePropio(): ReturnType<typeof crearClienteRelePropio> | null {
+  const cfg = leerConfigRelePropio();
+  if (!cfg) return null;
+  return crearClienteRelePropio(cfg, (i, n) => import("@/lib/malla/puerta/fetch-puerta").then((m) => m.fetchConPuerta(fetch)(i, n)));
+}
+const retornoPropio = crearRetornoRele({
+  yo: miIdentidadRele,
+  enviar: async (para, txt) => {
+    const c = clienteRelePropio();
+    const yo = await miIdentidadRele();
+    return !!c && !!yo && c.enviar(nuevoId(), para.rele, yo, txt);
+  },
+});
 /** Vías de RELÉ hacia la neurona destino: otras neuronas tuyas como salto y el relé cifrado de StarSeed. Solo texto cifrado. */
 async function viasDeRele(destino: DestinoTransporte, neuronasDestino: string[], lista: EnlaceDisponible[], ajustes: AjustesViasArchivo): Promise<ViaCandidata[]> {
   const out: ViaCandidata[] = [];
@@ -891,8 +932,28 @@ async function viasDeRele(destino: DestinoTransporte, neuronasDestino: string[],
           enviarTexto: async (t) => {
             const { uploadRelay } = await import("@/ai/astraura/mesh/server-relay");
             const id = nuevoId();
-            const r = await uploadRelay({ cls: "P1", ptype: "message", body: { cv: `tu:archivo-rele:${id}`, txt: t, ...(uidDest ? { to: uidDest } : {}) }, recipient: para, oid: id });
+            const txt = await retornoStarSeed.envolverIda(t); // PTA1108C: con mi identidad, para que el receptor pueda contestar por el relé
+            const r = await uploadRelay({ cls: "P1", ptype: "message", body: { cv: `tu:archivo-rele:${id}`, txt, ...(uidDest ? { to: uidDest } : {}) }, recipient: para, oid: id });
             return r.ok;
+          },
+          suscribir: () => () => undefined,
+          arriba: () => typeof navigator === "undefined" || navigator.onLine !== false,
+        }),
+      });
+    }
+    // 3 · PTA1108C · Tu servidor propio como relé (mismo texto cifrado, mismo contrato de dos vías). Solo si lo configuraste.
+    const propio = clienteRelePropio();
+    if (ajustes.releServidor && propio && destino.identidadRele) {
+      const para = destino.identidadRele;
+      out.push({
+        id: "rele-propio",
+        tipo: "rele-propio",
+        etiqueta: "Servidor propio",
+        canal: crearCanalPorTexto({
+          enviarTexto: async (t) => {
+            const yo = await miIdentidadRele();
+            if (!yo) return false;
+            return propio.enviar(nuevoId(), para, yo, await retornoPropio.envolverIda(t));
           },
           suscribir: () => () => undefined,
           arriba: () => typeof navigator === "undefined" || navigator.onLine !== false,
@@ -944,10 +1005,26 @@ function iniciarRecepcionRele(motor: () => MotorArchivos): { bajas: Array<() => 
   };
   bajas.push(
     alRecibirMensaje("archivo-rele", (m) => {
-      const t = typeof m.cuerpo === "string" ? m.cuerpo : JSON.stringify(m.cuerpo);
-      recibirArchivo(motor(), canalNulo, t, { mismaCuenta: false, via: "Relé cifrado de StarSeed", etiquetaOrigen: m.origen.etiqueta });
+      // PTA1108C: si trae remitente, el motor contesta (aceptar, reanudar, huecos) por un canal de vuelta por este mismo relé.
+      const env = leerReleEnvuelto(m.cuerpo);
+      const t = env ? env.p : typeof m.cuerpo === "string" ? m.cuerpo : JSON.stringify(m.cuerpo);
+      recibirArchivo(motor(), env ? retornoStarSeed.canalDe(env.de) : canalNulo, t, { mismaCuenta: false, via: "Relé cifrado de StarSeed", etiquetaOrigen: m.origen.etiqueta });
     }),
   );
+  // PTA1108C · Recepción por el servidor propio configurado (se lee al arrancar).
+  const propio = clienteRelePropio();
+  if (propio) {
+    bajas.push(
+      iniciarRecepcionRelePropio({
+        cliente: propio,
+        yo: async () => (await miIdentidadRele())?.rele ?? null,
+        alMensaje: (m) => {
+          const env = leerReleEnvuelto(m.p);
+          recibirArchivo(motor(), env ? retornoPropio.canalDe(env.de) : canalNulo, env ? env.p : m.p, { mismaCuenta: false, via: "Servidor propio", etiquetaOrigen: "Servidor propio" });
+        },
+      }),
+    );
+  }
   return { bajas, alMesh };
 }
 

@@ -230,7 +230,7 @@ describe("túnel por una puerta vecina", () => {
     red.enlazar("tablet", "mac");
     mac.gestor.anunciar();
     await pausa(20);
-    for (const [h, p, m] of [["192.168.0.10", 443, "destino-interno"], ["example.com", 22, "puerto-no-permitido"], ["localhost", 443, "destino-interno"]] as const) {
+    for (const [h, p, m] of [["192.168.0.10", 443, "sin-capa"], ["example.com", 22, "puerto-no-permitido"], ["localhost", 443, "sin-capa"]] as const) {
       const r = await tab.gestor.abrirTunel(h, p);
       expect(r, h).toEqual({ error: m });
       tab.tabla.candidatas().forEach(() => undefined);

@@ -9,7 +9,9 @@
  * Interruptor de emergencia: `localStorage["starseed.malla.puerta.activo"] = "0"` o NEXT_PUBLIC_PUERTA_MALLA=0.
  */
 
-import { CANAL_PUERTA, TablaPuertas, crearAnuncioPropio, puntuarPuerta, type AnuncioPuerta } from "@/lib/malla/puerta/tabla";
+import { CANAL_PUERTA, TablaPuertas, crearAnuncioPropio, puntuarPuerta, type AnuncioPuerta, type CapaSalida } from "@/lib/malla/puerta/tabla";
+import { capaDeDestino, capasAnunciables, destinoNecesitaCapa, detectarCapas, type CapaPuerta, type TipoCapa } from "@/lib/malla/puerta/capas"; // PTA1108C
+import { fuentesCapasReales, vecinosLanReales } from "@/lib/malla/puerta/capas-fuentes"; // PTA1108C
 import {
   AJUSTES_PUERTA_POR_DEFECTO,
   guardarAjustesPuerta,
@@ -20,7 +22,9 @@ import {
 } from "@/lib/malla/puerta/politica";
 import { crearGestorPuerta, type AuditoriaPuerta, type GestorPuerta, type MetaVecino, type Pregunta, type ResumenCompartiendo, type Trama, type TransportePuerta } from "@/lib/malla/puerta/tunel";
 import { registrarRespaldoFetch } from "@/lib/malla/puerta/fetch-puerta";
-import { activarModoLocal, atenderEntradas, crearAbrirTcpLocal, postLocalPorDefecto, puertaLocalDisponible, respaldoFetchLocal, type HandleAtencion, type PostLocal } from "@/lib/malla/puerta/puente-local";
+import { activarModoLocal, atenderEntradas, crearAbrirTcpLocal, leerSubredesLocales, postLocalPorDefecto, puertaLocalDisponible, respaldoFetchLocal, type HandleAtencion, type PostLocal } from "@/lib/malla/puerta/puente-local";
+// PTA1108B: el webview, el navegador de la app y las descargas de Rust salen por el proxy local de la puerta.
+import { crearSincroProxy, puenteProxyPorDefecto, textoVia, type PuenteProxy, type SincroProxy } from "@/lib/malla/puerta/proxy-nativo";
 
 export const CLAVE_INTERRUPTOR_PUERTA = "starseed.malla.puerta.activo";
 
@@ -31,6 +35,8 @@ export interface PuertaVista {
   saltos: number;
   puntuacion: number;
   medida: boolean;
+  /** PTA1108C · Capas (servidores propios, LAN, routers) que esa puerta ofrece, con su calidad. */
+  capas: CapaPuerta[];
 }
 
 export interface PreguntaPendiente {
@@ -56,11 +62,13 @@ export interface EstadoServicioPuerta {
   ajustes: AjustesPuerta;
   /** Puerto del proxy HTTP local cuando el modo «salir por la malla» está encendido (para el navegador de la app). */
   proxyLocal: number | null;
+  /** PTA1108C · Capas que ESTA neurona alcanza y podría ofrecer (se anuncian solo las que el dueño comparte). */
+  capasPropias: CapaPuerta[];
 }
 
 const VACIO: EstadoServicioPuerta = {
   activo: false, nativo: false, conInternet: true, puertas: [], internetPor: null, compartiendo: [], auditoria: [],
-  bytesHoy: { mias: 0, otras: 0 }, preguntas: [], ajustes: AJUSTES_PUERTA_POR_DEFECTO, proxyLocal: null,
+  bytesHoy: { mias: 0, otras: 0 }, preguntas: [], ajustes: AJUSTES_PUERTA_POR_DEFECTO, proxyLocal: null, capasPropias: [],
 };
 
 let estado: EstadoServicioPuerta = VACIO;
@@ -147,6 +155,16 @@ export function cambiarAjustesPuerta(f: (a: AjustesPuerta) => AjustesPuerta): vo
   gestorVivo?.anunciar();
 }
 
+/** PTA1108C · Permiso explícito (o su retirada) de capas privadas para UNA neurona de otra cuenta. */
+export function permitirCapasANeurona(id: string, tipos: TipoCapa[]): void {
+  cambiarAjustesPuerta((a) => {
+    const resto = { ...a.capasPorNeurona };
+    if (tipos.length) resto[id] = [...new Set(tipos)];
+    else delete resto[id];
+    return { ...a, capasPorNeurona: resto };
+  });
+}
+
 export const pararDeCompartir = (): void => gestorVivo?.detenerCompartir();
 export const revocarVecina = (id: string): void => gestorVivo?.revocar(id);
 
@@ -157,6 +175,8 @@ export interface OpcionesServicio {
   esNativo?: boolean;
   sonda?: () => Promise<SondaSalida>;
   yo?: string;
+  /** PTA1108B · Para pruebas: el puente con la app nativa (`null` = web, sin sincronía). Por defecto, el real. */
+  puenteProxy?: PuenteProxy | null;
 }
 
 /** Arranca la puerta. Devuelve la función que la detiene. Nunca lanza. */
@@ -169,6 +189,8 @@ export function iniciarPuertaMalla(op: OpcionesServicio = {}): () => void {
   let fisico: Pick<EstadoPropio, "bateria" | "cargando" | "medida"> = { bateria: null, cargando: false, medida: false };
   let handle: HandleAtencion | null = null;
   let modoLocal = false;
+  let capasDetectadas: CapaPuerta[] = []; // PTA1108C
+  let cacheVecinosLan: string[] = []; // PTA1108C
   const post = op.post ?? postLocalPorDefecto();
   aj = leerAjustesPuerta();
   publicar({ activo: true, ajustes: aj });
@@ -221,6 +243,9 @@ export function iniciarPuertaMalla(op: OpcionesServicio = {}): () => void {
 
       const nativo = op.esNativo ?? (await puertaLocalDisponible(post));
       publicar({ nativo });
+      // PTA1108B · Con lado de Node, el puerto del proxy local se le dice a la app nativa (no-op en la web).
+      const sincroProxy: SincroProxy | null = nativo ? crearSincroProxy(op.puenteProxy !== undefined ? op.puenteProxy : puenteProxyPorDefecto()) : null;
+      if (sincroProxy) bajas.push(() => void sincroProxy.detener());
       const gestorTabla = new TablaPuertas(() => Date.now(), yo);
       const estadoPropio = (): EstadoPropio => ({ conInternet: sonda.conInternet, ...fisico });
 
@@ -233,9 +258,14 @@ export function iniciarPuertaMalla(op: OpcionesServicio = {}): () => void {
         anuncioPropio: () => {
           const e = estadoPropio();
           const comparteAlguien = aj.misNeuronas || aj.otrasCuentas !== "nunca";
-          if (!nativo || !e.conInternet || !comparteAlguien) return null;
-          return crearAnuncioPropio({ id: yo, uid: miCuenta ?? undefined, capas: ["internet"], latenciaMs: sonda.latenciaMs, estado: e, ahora: Date.now() });
+          if (!nativo) return null;
+          // PTA1108C: además de internet, las capas privadas que el dueño comparte (aunque esta neurona no tenga internet).
+          const detalle = capasAnunciables(aj, capasDetectadas);
+          const capas: CapaSalida[] = e.conInternet && comparteAlguien ? ["internet"] : [];
+          if (!capas.length && !detalle.length) return null;
+          return crearAnuncioPropio({ id: yo, uid: miCuenta ?? undefined, capas, detalle, latenciaMs: sonda.latenciaMs, estado: e, ahora: Date.now() });
         },
+        capasPropias: () => capasDetectadas, // PTA1108C
         abrirTcp: nativo ? crearAbrirTcpLocal(post) : undefined,
         preguntar: (s: Solicitante, host: string) =>
           new Promise<Pregunta>((res) => {
@@ -252,7 +282,7 @@ export function iniciarPuertaMalla(op: OpcionesServicio = {}): () => void {
 
       const refrescarVista = (): void => {
         const puertas = gestorTabla.candidatas().map((e) => ({
-          id: e.anuncio.id, nombre: nombres(e.anuncio.id), enlace: e.enlace, saltos: e.anuncio.saltos, puntuacion: Math.round(puntuarPuerta(e)), medida: e.anuncio.medida,
+          id: e.anuncio.id, nombre: nombres(e.anuncio.id), enlace: e.enlace, saltos: e.anuncio.saltos, puntuacion: Math.round(puntuarPuerta(e)), medida: e.anuncio.medida, capas: e.anuncio.detalle ?? [],
         }));
         const propio = gestor.tunelesPropios()[0];
         publicar({
@@ -262,7 +292,20 @@ export function iniciarPuertaMalla(op: OpcionesServicio = {}): () => void {
           compartiendo: gestor.compartiendo().map((c) => ({ ...c, nombre: nombres(c.de) })),
           auditoria: gestor.auditoria().slice(-20).reverse(),
           bytesHoy: { mias: gestor.bytesHoy("mias"), otras: gestor.bytesHoy("otras") },
+          capasPropias: capasDetectadas,
         });
+        sincronizarProxy(); // PTA1108B
+      };
+      // PTA1108B · Cada vez que el proxy arranca, para o cambia la puerta que usa (neurona o vía), la app nativa lo sabe.
+      const sincronizarProxy = (): void => {
+        if (!sincroProxy) return;
+        const e = estadoPuerta();
+        if (e.proxyLocal == null) {
+          void sincroProxy.sincronizar({ puerto: null });
+          return;
+        }
+        const mejor = e.internetPor ?? e.puertas[0] ?? null;
+        void sincroProxy.sincronizar({ puerto: e.proxyLocal, neurona: mejor?.nombre ?? null, via: mejor ? textoVia(mejor.enlace, mejor.saltos) : null });
       };
 
       // Salida propia, estado físico y modo «salir por la malla» (solo con lado de Node).
@@ -270,6 +313,13 @@ export function iniciarPuertaMalla(op: OpcionesServicio = {}): () => void {
         if (!vivo) return;
         sonda = op.sonda ? await op.sonda() : await sondearSalida();
         fisico = await leerEstadoFisico();
+        // PTA1108C: capas que esta neurona alcanza (servidores propios, LAN, routers).
+        try {
+          capasDetectadas = detectarCapas(await fuentesCapasReales({ vecinosLan: () => cacheVecinosLan, subredes: nativo ? () => leerSubredesLocales(post) : undefined }));
+          cacheVecinosLan = await vecinosLanReales();
+        } catch {
+          /* sin capas: solo internet */
+        }
         await refrescar();
         const usar = nativo && aj.usarPuertas && !sonda.conInternet && gestorTabla.candidatas().length > 0;
         if (usar !== modoLocal) {
@@ -291,6 +341,17 @@ export function iniciarPuertaMalla(op: OpcionesServicio = {}): () => void {
               activo: () => aj.usarPuertas,
               hayPuertas: () => gestorTabla.candidatas().length > 0,
               sinSalida: () => !sonda.conInternet,
+              // PTA1108C: destino privado que ESTA neurona no alcanza y que alguna puerta ofrece como capa.
+              requiereCapa: (url) => {
+                try {
+                  const u = new URL(url);
+                  const puerto = Number(u.port || 443);
+                  if (!destinoNecesitaCapa(u.hostname) || capaDeDestino(capasDetectadas, u.hostname, puerto)) return false;
+                  return gestorTabla.capaParaDestino(u.hostname, puerto) !== null;
+                } catch {
+                  return false;
+                }
+              },
             }),
           ),
         );

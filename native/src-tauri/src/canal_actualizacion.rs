@@ -53,11 +53,12 @@ async fn json_api(url: &str) -> Result<Option<serde_json::Value>, String> {
     // tauri-plugin-updater usa rustls SIN proveedor propio e instala el suyo en `check()`; aquí se hace lo
     // mismo antes de nuestra primera petición (idempotente: si ya hay uno, no pasa nada).
     let _ = rustls::crypto::ring::default_provider().install_default();
-    let cliente = reqwest::Client::builder()
-        .user_agent("StarSeed-OS-Actualizador")
-        .timeout(std::time::Duration::from_secs(20))
-        .build()
-        .map_err(|e| e.to_string())?;
+    let mut constructor = reqwest::Client::builder().user_agent("StarSeed-OS-Actualizador").timeout(std::time::Duration::from_secs(20));
+    // (PTA1108B) Con el proxy de la puerta de internet encendido, la API de GitHub se consulta por la malla.
+    if let Some(p) = crate::puerta_proxy::proxy_url() {
+        constructor = constructor.proxy(reqwest::Proxy::all(p).map_err(|e| e.to_string())?);
+    }
+    let cliente = constructor.build().map_err(|e| e.to_string())?;
     let r = cliente.get(url).header("Accept", "application/vnd.github+json").send().await.map_err(|e| e.to_string())?;
     let estado = r.status();
     if estado == reqwest::StatusCode::NOT_FOUND {
@@ -136,6 +137,10 @@ async fn buscar_en_endpoint(
                 continue;
             }
         };
+        // (PTA1108B) Manifiesto y descarga del instalador por el proxy de la puerta, si está encendido.
+        if let Some(p) = crate::puerta_proxy::proxy_url().and_then(|u| u.parse::<tauri::Url>().ok()) {
+            b = b.proxy(p);
+        }
         if accept_binario {
             // La API de GitHub sirve el contenido del archivo con este Accept (responde 302 al archivo).
             b = match b.header("Accept", "application/octet-stream") {
@@ -186,7 +191,12 @@ pub async fn buscar(app: &AppHandle, avisar: Avisar<'_>) -> Result<Option<tauri_
     let endpoints = logica::endpoints_escritorio(sistema(app), &version).unwrap_or_else(|| endpoints_de_config(app));
     if endpoints.is_empty() {
         use tauri_plugin_updater::UpdaterExt;
-        let updater = app.updater().map_err(|e| format!("Updater no disponible: {e}"))?;
+        // (PTA1108B) Con el proxy de la puerta de internet encendido, el updater de la configuración también sale por él.
+        let updater = match crate::puerta_proxy::proxy_url().and_then(|u| u.parse::<tauri::Url>().ok()) {
+            Some(p) => app.updater_builder().proxy(p).build(),
+            None => app.updater(),
+        }
+        .map_err(|e| format!("Updater no disponible: {e}"))?;
         return updater.check().await.map_err(|e| format!("No se pudo comprobar actualizaciones: {e}"));
     }
     // Una búsqueda por endpoint (en pruebas: el canal de pruebas y el oficial) y gana la versión mayor

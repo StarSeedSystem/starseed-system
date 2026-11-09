@@ -700,7 +700,7 @@ export function crearRedBle(deps: DepsBle): RedBle {
       ...(ac.porCuenta ? { porCuenta: true } : {}),
       ...(h.cif ? { cif: h.cif } : {}),
     });
-    registrarHolaArchivo(h.de.neurona, h.ar, h.ep); // MPT1108B
+    registrarHolaArchivo(h.de.neurona, h.ar, h.ep, { certificado: h.certificado, huella: v.huella }); // MPT1108B + PTA1108C
     delete caidas[enlace];
     ultimoRechazo = null;
     if (eraNueva) {

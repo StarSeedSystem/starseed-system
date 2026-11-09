@@ -161,7 +161,7 @@ function esSoloMac(ruta) {
 }
 
 /** ¿A dónde va esta petición? "salud" | "red" | "entrar" | "migracion" | "migracion-js" | "puerta" | "solo-mac" | "web" | "local". */
-function destino(url, cfg, red, ahora) {
+function destino(url, cfg, red, ahora, porMalla) {
   const ruta = rutaDe(url);
   if (ruta === RUTA_SALUD) return "salud";
   if (ruta === RUTA_RED) return "red";
@@ -173,7 +173,8 @@ function destino(url, cfg, red, ahora) {
   if (!ruta.startsWith("/api/")) return "local";
   if (!cfg.apiRemota) return "local";
   if (cfg.localSiempre.some((p) => ruta === p || ruta.startsWith(p.endsWith("/") ? p : p + "/"))) return "local";
-  if (red.sinConexionHasta > ahora) return "local";
+  // (PTA1108B) Sin salida propia pero con una puerta de la malla: /api/* sigue yendo a la web publicada, por el túnel.
+  if (red.sinConexionHasta > ahora && !porMalla) return "local";
   return "web";
 }
 
@@ -514,6 +515,15 @@ function crearPuerta(cfg, estado) {
     else req.pipe(p);
   }
 
+  /**
+   * (PTA1108B) La puerta de la malla, si ahora ofrece salida a la web publicada (https, modo encendido y la página
+   * escuchando); si no, null. No carga `puerta.cjs` por esto: si nadie la usó, no hay malla.
+   */
+  function mallaDisponible() {
+    const pl = puertaMod;
+    return pl && cfg.web.startsWith("https:") && typeof pl.disponibleMalla === "function" && pl.disponibleMalla() ? pl : null;
+  }
+
   function aLaWeb(req, res) {
     const repetible = req.method === "GET" || req.method === "HEAD" || req.method === "OPTIONS";
     const trozos = [];
@@ -521,62 +531,110 @@ function crearPuerta(cfg, estado) {
     let resuelto = false;
     let terminado = repetible;
     let alTerminar = null;
+    let actual = null;
 
-    const remota = moduloWeb.request(new URL(req.url, cfg.web), {
-      method: req.method,
-      headers: cabecerasHaciaWeb(req.headers, cfg.web),
-      agent: agenteWeb,
-    });
-    remota.on("socket", (s) => {
-      if (!s.connecting) return;
-      const t = setTimeout(() => {
-        const e = new Error("la web publicada no contestó a tiempo");
-        e.code = "ETIMEDOUT";
-        remota.destroy(e);
-      }, ESPERA_CONECTAR_MS);
-      s.once(cfg.web.startsWith("https:") ? "secureConnect" : "connect", () => clearTimeout(t));
-      s.once("close", () => clearTimeout(t));
-    });
-    remota.on("response", (r) => {
-      if (resuelto) return r.resume();
-      resuelto = true;
-      estado.red.ultimaRespuesta = Date.now();
-      estado.red.sinConexionHasta = 0;
-      res.writeHead(r.statusCode || 502, G.cabecerasCorsSeguras({ ...cabecerasDeVuelta(r.headers), "x-starseed-ruta": "web" }, origenPropio(req)));
-      r.pipe(res);
-    });
-    remota.on("error", (e) => {
-      if (resuelto) return res.headersSent ? res.destroy() : undefined;
-      resuelto = true;
-      if (res.headersSent) return res.destroy();
-      if (!esErrorDeRed(e)) return json(res, 502, { error: "web-publicada", mensaje: String(e.message || e) });
-      marcarSinConexion(e);
+    // Como siempre: sin red, a la copia local (GET/HEAD/OPTIONS ya; el resto cuando haya llegado el cuerpo entero).
+    function aLocal() {
       if (repetible) return alLocal(req, res, null);
-      // Sin red: se repite en local con la copia del cuerpo, cuando haya llegado entero.
       const repetir = () =>
         tam <= LIMITE_CUERPO
           ? alLocal(req, res, Buffer.concat(trozos))
           : json(res, 503, { error: "sin-conexion", mensaje: "Sin conexión, y el envío es demasiado grande para repetirlo en local." });
       if (terminado) repetir();
       else alTerminar = repetir;
-    });
-
-    if (repetible) {
-      remota.end();
-      return;
     }
+
+    // (PTA1108B) Reintento por la malla cuando la red propia falló ANTES de conectar (nada salió) o la petición es
+    // repetible; el cuerpo, entero en memoria. Un envío no repetible nunca se manda dos veces.
+    function porMallaDespues() {
+      const repetir = () => {
+        if (!repetible && tam > LIMITE_CUERPO) return aLocal();
+        lanzar(true, repetible ? null : Buffer.concat(trozos));
+      };
+      if (terminado) repetir();
+      else alTerminar = repetir;
+    }
+
+    function alError(e, porMalla, conecto) {
+      if (resuelto) return res.headersSent ? res.destroy() : undefined;
+      resuelto = true;
+      if (res.headersSent) return res.destroy();
+      if (!esErrorDeRed(e)) return json(res, 502, { error: "web-publicada", mensaje: String(e.message || e) });
+      if (!porMalla) {
+        marcarSinConexion(e);
+        if (mallaDisponible() && (repetible || !conecto)) {
+          resuelto = false;
+          return porMallaDespues();
+        }
+        return aLocal();
+      }
+      // Por la malla: si ni siquiera se abrió el túnel (nada salió), vale la copia local; si se abrió, un GET
+      // puede repetirse en local pero un envío ya no (podría haber llegado).
+      if (e.starseedNoEnviado || repetible) return aLocal();
+      return json(res, 502, { error: "web-publicada", mensaje: "El envío por la malla se cortó; no se repite para no duplicarlo." });
+    }
+
+    function lanzar(porMalla, cuerpo) {
+      let conecto = false;
+      const puerta = porMalla ? mallaDisponible() : null;
+      if (porMalla && !puerta) {
+        const e = new Error("la malla ya no ofrece salida");
+        e.code = "ENETUNREACH";
+        e.starseedRed = true;
+        e.starseedNoEnviado = true;
+        return alError(e, true, false);
+      }
+      const remota = moduloWeb.request(new URL(req.url, cfg.web), {
+        method: req.method,
+        headers: cabecerasHaciaWeb(req.headers, cfg.web),
+        agent: puerta ? puerta.agenteMalla() : agenteWeb,
+      });
+      actual = remota;
+      remota.on("socket", (s) => {
+        if (!porMalla && !s.connecting) {
+          conecto = true; // socket reutilizado del agente: ya estaba conectado
+          return;
+        }
+        const t = setTimeout(() => {
+          const e = new Error("la web publicada no contestó a tiempo");
+          e.code = "ETIMEDOUT";
+          remota.destroy(e);
+        }, ESPERA_CONECTAR_MS * (porMalla ? 3 : 1));
+        s.once(cfg.web.startsWith("https:") ? "secureConnect" : "connect", () => {
+          conecto = true;
+          clearTimeout(t);
+        });
+        s.once("close", () => clearTimeout(t));
+      });
+      remota.on("response", (r) => {
+        if (resuelto) return r.resume();
+        resuelto = true;
+        if (!porMalla) {
+          estado.red.ultimaRespuesta = Date.now();
+          estado.red.sinConexionHasta = 0;
+        }
+        res.writeHead(r.statusCode || 502, G.cabecerasCorsSeguras({ ...cabecerasDeVuelta(r.headers), "x-starseed-ruta": porMalla ? "web-malla" : "web" }, origenPropio(req)));
+        r.pipe(res);
+      });
+      remota.on("error", (e) => alError(e, porMalla, conecto));
+      if (cuerpo !== null || repetible) remota.end(cuerpo && cuerpo.length ? cuerpo : undefined);
+    }
+
+    // (PTA1108B) Sin salida propia conocida y con puerta: directo por la malla, una sola vez (no se duplica nada).
+    lanzar(estado.red.sinConexionHasta > Date.now() && Boolean(mallaDisponible()), null);
+    if (repetible) return;
     // Se guarda una copia del cuerpo (hasta 8 MB) para repetir en local si no hay red.
     req.on("data", (c) => {
       tam += c.length;
       if (tam <= LIMITE_CUERPO) trozos.push(c);
-      if (!remota.destroyed) remota.write(c);
+      if (actual && !actual.destroyed && !actual.writableEnded) actual.write(c);
     });
     req.on("end", () => {
       terminado = true;
-      if (!remota.destroyed) remota.end();
+      if (actual && !actual.destroyed && !actual.writableEnded) actual.end();
       if (alTerminar) alTerminar();
     });
-    req.on("error", () => remota.destroy());
+    req.on("error", () => actual && actual.destroy());
   }
 
   function sondearWeb() {
@@ -613,7 +671,7 @@ function crearPuerta(cfg, estado) {
     const decision = G.decidir({ metodo: req.method, url: req.url, cabeceras: req.headers }, { puerto: cfg.puerto, pase: estado.pase });
     if (!decision.pasa) return rechazar(res, decision);
     const ahora = Date.now();
-    switch (destino(req.url, cfg, estado.red, ahora)) {
+    switch (destino(req.url, cfg, estado.red, ahora, Boolean(mallaDisponible()))) {
       case "salud":
         return json(res, 200, cuerpoSalud(estado, ahora));
       case "entrar": {

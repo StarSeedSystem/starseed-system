@@ -41,6 +41,9 @@ mod ble_android;
 #[cfg(target_os = "macos")]
 mod ble_macos;
 mod ble_trama;
+// (PTA1108B) El webview, las descargas de Rust y el proxy de la puerta de internet de la malla (contrato §5.3 c).
+mod puerta_proxy;
+mod puerta_proxy_logica;
 // (PER1108A) Permisos del primer arranque (Android) y pantalla completa de la ventana (escritorio).
 mod permisos_inicio;
 // (ACT1108A) Canal de actualización (oficial / pruebas) y actualizador interno del APK. §9 del contrato.
@@ -118,6 +121,9 @@ mod enlace_wifi_parche;
 // (LLA1108D) Lo usa build.rs (permisos, componentes y LlamadaNativaStarSeed.kt en el proyecto Android); aquí solo sus pruebas.
 #[cfg(test)]
 mod llamada_nativa_parche;
+// (PTA1108B) Lo usa build.rs (proveedor, ProxyPuertaStarSeed.kt y androidx.webkit en el proyecto Android); aquí solo sus pruebas.
+#[cfg(test)]
+mod puerta_proxy_parche;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Actualización automática INTELIGENTE del shell nativo (SOLO escritorio).
@@ -684,6 +690,8 @@ pub fn run() {
             canal_actualizacion::iniciar(app.handle());
             // (NOT1108A) Pulsar una notificación de mensaje abre su chat.
             avisos_mensajes::iniciar(app.handle());
+            // (PTA1108B) Estado del proxy de la puerta de internet (la página lo fija con `puerta_proxy_local`).
+            puerta_proxy::iniciar(app.handle());
             // (MIC1108A) Linux: WebKitGTK trae MediaStream y WebRTC apagados; sin ellos no hay llamadas.
             #[cfg(target_os = "linux")]
             permisos_medios::encender_medios_linux(app.handle());
@@ -788,6 +796,9 @@ pub fn run() {
                 llamada_nativa::llamada_nativa_proximidad,
                 llamada_nativa::llamada_nativa_capacidades,
                 llamada_nativa::llamada_nativa_permiso,
+                // (PTA1108B) Proxy de la puerta de internet: webview (macOS 14+, Android) y descargas de Rust.
+                puerta_proxy::puerta_proxy_local,
+                puerta_proxy::puerta_proxy_estado,
                 $($solo_desktop,)*
             ]);
         };

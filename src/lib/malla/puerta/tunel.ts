@@ -20,6 +20,7 @@ import {
   type EstadoPropio,
   type Solicitante,
 } from "@/lib/malla/puerta/politica";
+import { evaluarDestino, type CapaPuerta, type Concesion } from "@/lib/malla/puerta/capas"; // PTA1108C
 import { MAX_SALTOS, REANUNCIO_MS, TablaPuertas, leerAnuncio, reanunciar, type AnuncioPuerta, type EstimacionEnlace } from "@/lib/malla/puerta/tabla";
 
 /* ───────────────────────── Tramas ───────────────────────── */
@@ -84,7 +85,9 @@ export interface DepsGestor {
   /** Anuncio de la salida propia, o null si no hay (se repite cada `REANUNCIO_MS`). */
   anuncioPropio: () => AnuncioPuerta | null;
   /** Abre un TCP de salida. Sin esto esta neurona no puede ser puerta (solo relé). */
-  abrirTcp?: (host: string, port: number, o: { permitirPrivadas: boolean }) => Promise<SocketSalida>;
+  abrirTcp?: (host: string, port: number, o: { permitirPrivadas: boolean; concedido?: Concesion | null }) => Promise<SocketSalida>; // PTA1108C: `concedido` = lo único privado que Node puede abrir
+  /** PTA1108C · Capas que esta neurona ofrece ahora (servidores propios, LAN, routers). Sin esto no se sirve nada privado. */
+  capasPropias?: () => CapaPuerta[];
   preguntar?: (s: Solicitante, host: string) => Promise<Pregunta>;
   ahora?: () => number;
   nuevoId?: () => string;
@@ -165,8 +168,8 @@ export function validarDestino(host: unknown, port: unknown, aj: AjustesPuerta, 
   if (typeof host !== "string" || !host || host.length > 253 || /[\s/@\\?#]/.test(host)) return "destino-no-valido";
   if (typeof port !== "number" || !Number.isInteger(port) || port < 1 || port > 65535) return "destino-no-valido";
   if (!aj.puertos.includes(port)) return "puerto-no-permitido";
-  if (!aj.permitirRedPrivada && destinoInterno(host)) return "destino-interno";
-  if (aj.permitirRedPrivada && mismaCuenta === false && destinoInterno(host)) return "destino-interno"; // la red privada solo para mi cuenta
+  // PTA1108C: lo privado ya no se abre con un interruptor general; solo por una capa concedida (`evaluarDestino`).
+  if (destinoInterno(host)) return "destino-interno";
   if (!mismaCuenta && !hostPermitidoParaOtras(aj, host)) return "host-no-permitido";
   return null;
 }
@@ -451,7 +454,7 @@ export function crearGestorPuerta(deps: DepsGestor): GestorPuerta {
     const probadas = new Set<string>(o.excluir ?? []);
     let ultimo = "sin-puertas";
     for (let i = 0; i < MAX_INTENTOS_PUERTAS; i++) {
-      const e = deps.tabla.elegir({ excluir: probadas, evitarMedida: o.evitarMedida });
+      const e = deps.tabla.elegir({ excluir: probadas, evitarMedida: o.evitarMedida, host, puerto: port }); // PTA1108C: la puerta que tenga la capa del destino
       if (!e) break;
       probadas.add(e.anuncio.id);
       const s: Sesion = {
@@ -472,7 +475,8 @@ export function crearGestorPuerta(deps: DepsGestor): GestorPuerta {
       // Un rechazo de política no es fallo de enlace, pero igualmente probamos otra puerta.
       deps.tabla.marcarFallo(e.anuncio.id);
     }
-    return { error: ultimo };
+    // PTA1108C: un destino privado sin ninguna puerta que ofrezca su capa no es «sin puertas», es «sin capa».
+    return { error: ultimo === "sin-puertas" && destinoInterno(host) ? "sin-capa" : ultimo };
   }
 
   function tunelDe(s: Sesion): TunelCliente {
@@ -528,12 +532,19 @@ export function crearGestorPuerta(deps: DepsGestor): GestorPuerta {
     };
     if (aj.revocadas.includes(t.de) || aj.revocadas.includes(vecino)) return rechazar("revocada");
 
+    // PTA1108C · ¿Qué destino es y qué capa de las MÍAS lo cubre? Lo privado solo con una capa anunciada y concedida.
+    const ev = evaluarDestino(t.host, t.port, aj, sol, deps.capasPropias?.() ?? []);
+    const aReleSinCapa = !ev.ok && ev.motivo === "destino-interno" && t.ttl > 0; // no tengo esa capa: quizá otra puerta sí
+    if (!ev.ok && !aReleSinCapa) return rechazar(ev.motivo);
+
     // 1) ¿Puedo ser la puerta?
     let motivoPuerta = "sin-salida";
-    if (deps.abrirTcp) {
+    if (deps.abrirTcp && !aReleSinCapa) {
       rotar();
       const gruposSes = [...sesiones.values()].filter((x) => x.rol === "puerta" && x.grupo === grupo && x !== s).length;
-      const dec = decidirServir(aj, sol, deps.estado(), { bytesHoyGrupo: grupo === "mias" ? uso.mias : uso.otras, tunelesGrupo: gruposSes });
+      // Una capa privada no gasta internet ni red medida: se sirve aunque esta neurona no tenga salida a internet.
+      const estServir = ev.ok && ev.capa ? { ...deps.estado(), conInternet: true, medida: false } : deps.estado();
+      const dec = decidirServir(aj, sol, estServir, { bytesHoyGrupo: grupo === "mias" ? uso.mias : uso.otras, tunelesGrupo: gruposSes });
       motivoPuerta = dec.motivo;
       let veredicto = dec.veredicto;
       if (veredicto === "preguntar") {
@@ -550,11 +561,10 @@ export function crearGestorPuerta(deps: DepsGestor): GestorPuerta {
       }
       if (s.cerrada) return;
       if (veredicto === "permitir") {
-        const mal = validarDestino(t.host, t.port, aj, mc);
-        if (mal) return rechazar(mal);
+        if (!ev.ok) return rechazar(ev.motivo);
         let sock: SocketSalida;
         try {
-          sock = await deps.abrirTcp(t.host, t.port, { permitirPrivadas: aj.permitirRedPrivada && mc });
+          sock = await deps.abrirTcp(t.host, t.port, { permitirPrivadas: false, concedido: ev.concedido });
         } catch (e) {
           return rechazar(e instanceof Error && /^[a-z-]{3,30}$/.test(e.message) ? e.message : "no-conecta");
         }
@@ -584,7 +594,7 @@ export function crearGestorPuerta(deps: DepsGestor): GestorPuerta {
     const siguiente = { k: "abrir" as const, host: t.host, port: t.port, ttl: t.ttl - 1, via: [...t.via, yo], de: t.de, mc };
     let ultimo = "sin-puertas";
     for (let i = 0; i < MAX_INTENTOS_PUERTAS && !s.cerrada; i++) {
-      const e = deps.tabla.elegir({ excluir });
+      const e = deps.tabla.elegir({ excluir, host: t.host, puerto: t.port }); // PTA1108C
       if (!e) break;
       excluir.add(e.anuncio.id);
       excluir.add(e.vecino);

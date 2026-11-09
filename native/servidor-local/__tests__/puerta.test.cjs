@@ -30,7 +30,7 @@ test("resolverSeguro: rechaza DNS que mezcla públicas y privadas y nombres loca
   await assert.rejects(P.resolverSeguro("a b", false), /destino-no-valido/);
   const bien = await P.resolverSeguro("publico.example", false, async () => [{ address: "93.184.216.34", family: 4 }]);
   assert.equal(bien.ip, "93.184.216.34");
-  assert.equal((await P.resolverSeguro("192.168.1.9", true)).ip, "192.168.1.9"); // el dueño permite su LAN
+  assert.equal((await P.resolverSeguro("192.168.1.9", { cidrs: ["192.168.1.0/24"], hosts: [], puertos: [443] })).ip, "192.168.1.9"); // capa LAN concedida
 });
 
 function servidorDe(puerta) {
@@ -79,7 +79,7 @@ function paginaPuente(base, destino, visto) {
       const { tuberias } = await r.json().catch(() => ({ tuberias: [] }));
       for (const t of tuberias) {
         try {
-        const sal = await (await post(base, "tcp", { host: "127.0.0.1", port: destino, permitirPrivadas: true })).json();
+        const sal = await (await post(base, "tcp", { host: "127.0.0.1", port: destino, concedido: { cidrs: ["127.0.0.1/32"], puertos: [destino] } })).json();
         if (!sal.id) {
           await post(base, `abierto?id=${t.id}`, { ok: false, m: sal.error });
           continue;
@@ -132,7 +132,7 @@ test("salida: bytes de ida y vuelta por la tubería (con permiso para la LAN)", 
   const puerta = P.crearPuertaLocal();
   const { s, base } = await servidorDe(puerta);
   try {
-    const { id } = await (await post(base, "tcp", { host: "127.0.0.1", port: eco.address().port, permitirPrivadas: true })).json();
+    const { id } = await (await post(base, "tcp", { host: "127.0.0.1", port: eco.address().port, concedido: { cidrs: ["127.0.0.1/32"], puertos: [eco.address().port] } })).json();
     assert.ok(id);
     assert.equal((await post(base, `escribir?id=${id}`, Buffer.from("hola"))).status, 200);
     const r = await post(base, `leer?id=${id}`);
@@ -262,4 +262,70 @@ test("sin la página al otro lado, el proxy y el fetch responden 503 sin colgars
 test("STARSEED_PUERTA=0 la apaga", () => {
   assert.equal(P.habilitada({ STARSEED_PUERTA: "0" }), false);
   assert.equal(P.habilitada({}), true);
+});
+
+/* ───────── PTA1108C · capas concedidas y DNS rebinding ───────── */
+
+test("PTA1108C concesión: solo lo concedido, incluidos IP literal fuera de rango y rangos no concedibles", async () => {
+  const lan = { cidrs: ["192.168.1.0/24"], hosts: [], puertos: [443] };
+  assert.equal((await P.resolverSeguro("192.168.1.20", lan)).ip, "192.168.1.20");
+  await assert.rejects(P.resolverSeguro("192.168.2.20", lan), /destino-interno/); // otra subred
+  await assert.rejects(P.resolverSeguro("192.168.1.1.", { cidrs: [], hosts: [], puertos: [443] }), /destino-interno/); // sin rango
+  await assert.rejects(P.resolverSeguro("169.254.169.254", { cidrs: ["169.254.0.0/16"], hosts: [], puertos: [80] }), /destino-interno/); // metadatos de la nube: nunca concedible
+  await assert.rejects(P.resolverSeguro("::1", lan), /destino-interno/);
+  await assert.rejects(P.resolverSeguro("fd00::5", lan), /destino-interno/);
+  assert.equal(P.dentroDeConcesion("::ffff:192.168.1.7", lan, () => []), true); // mapeada en IPv4 dentro del rango
+  assert.equal(P.dentroDeConcesion("10.0.0.1", lan, () => []), false);
+});
+
+test("PTA1108C DNS rebinding: un nombre concedido que resuelve fuera de la concesión se rechaza", async () => {
+  const concesion = { hosts: ["nas.casa.lan"], cidrs: ["192.168.1.50/32"], puertos: [443] };
+  const buena = async () => [{ address: "192.168.1.50", family: 4 }];
+  assert.equal((await P.resolverSeguro("nas.casa.lan", concesion, buena)).ip, "192.168.1.50");
+  // El mismo nombre ahora apunta a otra máquina de la LAN, al propio equipo o a los metadatos de la nube.
+  for (const ip of ["192.168.1.1", "127.0.0.1", "169.254.169.254", "10.0.0.9"]) {
+    await assert.rejects(P.resolverSeguro("nas.casa.lan", concesion, async () => [{ address: ip, family: 4 }]), /destino-interno/, ip);
+  }
+  // Mezcla pública + privada fuera de la concesión.
+  await assert.rejects(P.resolverSeguro("nas.casa.lan", concesion, async () => [{ address: "93.184.216.34", family: 4 }, { address: "127.0.0.1", family: 4 }]), /destino-interno/);
+  // Un nombre público NO concedido que de pronto resuelve a la LAN (rebinding clásico).
+  await assert.rejects(P.resolverSeguro("malo.example", concesion, async () => [{ address: "192.168.1.50", family: 4 }]), /destino-interno/);
+  // Nombre local sin concesión.
+  await assert.rejects(P.resolverSeguro("nas.casa.local", null, buena), /destino-interno/);
+});
+
+test("PTA1108C subredes de las interfaces: solo privadas, no internas ni públicas", () => {
+  const falsas = () => ({
+    lo: [{ family: "IPv4", address: "127.0.0.1", netmask: "255.0.0.0", internal: true }],
+    en0: [{ family: "IPv4", address: "192.168.1.20", netmask: "255.255.255.0", internal: false }, { family: "IPv6", address: "fe80::1", netmask: "ffff:ffff:ffff:ffff::", internal: false }],
+    en1: [{ family: "IPv4", address: "8.8.4.4", netmask: "255.255.255.0", internal: false }],
+  });
+  assert.deepEqual(P.subredesLocales(falsas), ["192.168.1.20/24"]);
+  const c = { hosts: ["impresora.lan"], cidrs: [], puertos: [443], subredes: true };
+  assert.equal(P.dentroDeConcesion("192.168.1.99", c, () => P.subredesLocales(falsas)), true);
+  assert.equal(P.dentroDeConcesion("192.168.7.99", c, () => P.subredesLocales(falsas)), false);
+});
+
+test("PTA1108C tcp: puerto fuera de la concesión y concesión mal formada", async () => {
+  const eco = net.createServer((c) => c.on("data", (b) => c.write(b)));
+  await new Promise((r) => eco.listen(0, "127.0.0.1", r));
+  const puerta = P.crearPuertaLocal();
+  const { s, base } = await servidorDe(puerta);
+  try {
+    const p = eco.address().port;
+    const otroPuerto = await (await post(base, "tcp", { host: "127.0.0.1", port: p, concedido: { cidrs: ["127.0.0.1/32"], puertos: [p + 1] } })).json();
+    assert.equal(otroPuerto.error, "puerto-no-permitido");
+    const sin = await (await post(base, "tcp", { host: "127.0.0.1", port: p, permitirPrivadas: true })).json(); // el viejo interruptor ya no abre nada
+    assert.equal(sin.error, "destino-interno");
+    const mala = await (await post(base, "tcp", { host: "127.0.0.1", port: p, concedido: { cidrs: ["0.0.0.0/0"], puertos: [p] } })).json();
+    assert.ok(mala.id); // 127.0.0.1 sí es concedible y cae en 0.0.0.0/0...
+    await post(base, `cerrar?id=${mala.id}`);
+    const nube = await (await post(base, "tcp", { host: "169.254.169.254", port: 80, concedido: { cidrs: ["0.0.0.0/0"], puertos: [80] } })).json();
+    assert.equal(nube.error, "destino-interno"); // ...pero los metadatos de la nube nunca
+  } finally {
+    puerta.parar();
+    s.closeAllConnections();
+    s.close();
+    eco.close();
+  }
 });

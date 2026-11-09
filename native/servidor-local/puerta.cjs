@@ -20,6 +20,7 @@ const dns = require("node:dns");
 const http = require("node:http");
 const https = require("node:https");
 const net = require("node:net");
+const os = require("node:os");
 const tls = require("node:tls");
 const { Duplex } = require("node:stream");
 
@@ -48,11 +49,66 @@ function ipInterna(ip) {
   return a === 0 || a === 10 || a === 127 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 100 && b >= 64 && b <= 127) || (a === 192 && b === 0 && v4.startsWith("192.0.0.")) || a >= 224;
 }
 
-/** Resuelve y valida un destino. Devuelve { ip, familia } o lanza Error(motivo). */
-async function resolverSeguro(host, permitirPrivadas, lookup) {
+// PTA1108C · Capas concedidas: lo único privado que se puede abrir. La página calcula la concesión con la política;
+// aquí se vuelve a comprobar contra la dirección YA RESUELTA (DNS rebinding) y se conecta a esa misma IP, sin volver a resolver.
+function v4De(ip) {
+  const s = String(ip || "").toLowerCase();
+  if (net.isIPv4(s)) return s;
+  const m = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/.exec(s);
+  return m ? m[1] : null;
+}
+function aNumero(v4) {
+  const o = v4.split(".").map(Number);
+  return ((o[0] << 24) | (o[1] << 16) | (o[2] << 8) | o[3]) >>> 0;
+}
+function enCidr(ip, cidr) {
+  const m = /^(\d{1,3}(?:\.\d{1,3}){3})\/(\d{1,2})$/.exec(String(cidr || ""));
+  const v4 = v4De(ip);
+  if (!m || !v4 || !net.isIPv4(m[1])) return false;
+  const bits = Number(m[2]);
+  if (bits > 32) return false;
+  const mask = bits === 0 ? 0 : (0xffffffff << (32 - bits)) >>> 0;
+  return ((aNumero(v4) & mask) >>> 0) === ((aNumero(m[1]) & mask) >>> 0);
+}
+// Rangos que una concesión puede cubrir: nunca públicos, enlace local (169.254/16: metadatos de la nube) ni multicast.
+const RANGOS_CONCEDIBLES = ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "100.64.0.0/10", "127.0.0.0/8"];
+const concedible = (ip) => RANGOS_CONCEDIBLES.some((r) => enCidr(ip, r));
+
+/** Subredes IPv4 privadas de las interfaces de esta máquina (para la capa «LAN» y para nombres locales). */
+function subredesLocales(interfaces) {
+  const out = [];
+  const tabla = typeof interfaces === "function" ? interfaces() : interfaces || os.networkInterfaces();
+  for (const lista of Object.values(tabla || {})) {
+    for (const i of lista || []) {
+      if (i.family !== "IPv4" && i.family !== 4) continue;
+      if (i.internal || !i.netmask || !concedible(i.address)) continue;
+      const bits = i.netmask.split(".").reduce((n, x) => n + Number(x).toString(2).replace(/0/g, "").length, 0);
+      if (bits >= 8) out.push(`${i.address}/${bits}`);
+    }
+  }
+  return out;
+}
+
+/** ¿Esta dirección interna está dentro de la concesión? Solo IPv4 y solo rangos concedibles. */
+function dentroDeConcesion(ip, c, subredes) {
+  const v4 = v4De(ip);
+  if (!c || !v4 || !concedible(v4)) return false;
+  const rangos = [...(c.cidrs || [])];
+  if (c.subredes) rangos.push(...subredes());
+  return rangos.some((r) => enCidr(v4, r));
+}
+
+/**
+ * Resuelve y valida un destino. Devuelve { ip, familia } o lanza Error(motivo).
+ * `concedido`: null (solo públicas) o { hosts, cidrs, puertos, subredes }. (`true` queda solo como atajo de pruebas internas.)
+ */
+async function resolverSeguro(host, concedido, lookup, subredes) {
   const h = String(host || "").toLowerCase().replace(/\.$/, "");
   if (!h || h.length > 253 || /[\s/@\\?#]/.test(h)) throw new Error("destino-no-valido");
-  if (!permitirPrivadas && (h === "localhost" || h.endsWith(".localhost") || h.endsWith(".local") || h.endsWith(".internal"))) throw new Error("destino-interno");
+  const libre = concedido === true;
+  const c = concedido && typeof concedido === "object" ? concedido : null;
+  const nombreConcedido = !!c && (net.isIP(h) || (c.hosts || []).map((x) => String(x).toLowerCase()).includes(h));
+  if (!libre && (h === "localhost" || h.endsWith(".localhost") || h.endsWith(".local") || h.endsWith(".internal")) && !nombreConcedido) throw new Error("destino-interno");
   let direcciones;
   if (net.isIP(h)) direcciones = [{ address: h, family: net.isIPv6(h) ? 6 : 4 }];
   else {
@@ -63,9 +119,27 @@ async function resolverSeguro(host, permitirPrivadas, lookup) {
     }
   }
   if (!direcciones || !direcciones.length) throw new Error("no-resuelve");
-  // Si CUALQUIERA de las direcciones es interna se rechaza todo (contra DNS que mezcla públicas y privadas).
-  if (!permitirPrivadas && direcciones.some((d) => ipInterna(d.address))) throw new Error("destino-interno");
-  return { ip: direcciones[0].address, familia: direcciones[0].family };
+  // Si CUALQUIERA de las direcciones es interna y no está en la concesión se rechaza todo (DNS que mezcla públicas y privadas,
+  // o un nombre público que de pronto resuelve a 127.0.0.1 / 169.254.169.254 / otra máquina de la LAN).
+  if (!libre) {
+    for (const d of direcciones) {
+      if (!ipInterna(d.address)) continue;
+      if (!(nombreConcedido && dentroDeConcesion(d.address, c, subredes || subredesLocales))) throw new Error("destino-interno");
+    }
+  }
+  return { ip: direcciones[0].address, familia: direcciones[0].family, todas: direcciones.map((d) => d.address) };
+}
+
+/** Sanea la concesión que llega de la página: listas cortas de texto/números, nada más. */
+function concesionLimpia(x) {
+  if (!x || typeof x !== "object") return null;
+  const lista = (v, max, f) => (Array.isArray(v) ? v.filter(f).slice(0, max) : []);
+  return {
+    hosts: lista(x.hosts, 16, (h) => typeof h === "string" && h.length <= 253).map((h) => h.toLowerCase()),
+    cidrs: lista(x.cidrs, 8, (c) => typeof c === "string" && /^\d{1,3}(\.\d{1,3}){3}\/\d{1,2}$/.test(c)),
+    puertos: lista(x.puertos, 8, (p) => Number.isInteger(p) && p > 0 && p < 65536),
+    subredes: x.subredes === true,
+  };
 }
 
 function crearPuertaLocal(opts) {
@@ -142,13 +216,24 @@ function crearPuertaLocal(opts) {
   }
 
   /** SALIDA: socket TCP real, tras validar el destino. */
-  async function abrirSalida(host, puerto, permitirPrivadas) {
+  async function abrirSalida(host, puerto, concedido) {
     // La política de puertos es de la página (ajustes); aquí solo se exige un puerto válido (y 443 por defecto en `fetch`).
     if (!Number.isInteger(puerto) || puerto < 1 || puerto > 65535) throw new Error("puerto-no-permitido");
-    const { ip } = await resolverSeguro(host, !!permitirPrivadas, lookup);
+    // PTA1108C: lo privado exige una concesión CON ese puerto; nunca un puerto cualquiera.
+    if (concedido && typeof concedido === "object" && !(Array.isArray(concedido.puertos) && concedido.puertos.includes(puerto))) throw new Error("puerto-no-permitido");
+    const { ip, todas } = await resolverSeguro(host, concedido, lookup, o.subredes);
     const t = crearTuberia("salida", host, puerto);
     await new Promise((res, rej) => {
-      const s = conectar(puerto, ip, () => res());
+      let s = null;
+      s = conectar(puerto, ip, () => {
+        // Segunda comprobación con la dirección REAL del socket: debe ser una de las ya validadas.
+        const r = s && s.remoteAddress;
+        if (r && !todas.includes(r) && !todas.includes(String(r).replace(/^::ffff:/, ""))) {
+          cerrarTuberia(t, "socket:destino");
+          return rej(new Error("destino-interno"));
+        }
+        res();
+      });
       t.escribir = (b) => new Promise((r) => (s.write(b) ? r() : s.once("drain", r)));
       t.destruir = () => s.destroy();
       s.setNoDelay && s.setNoDelay(true);
@@ -299,7 +384,9 @@ function crearPuertaLocal(opts) {
     } catch {
       return json(resp, 400, { error: "url-no-valida" });
     }
-    if (u.protocol !== "https:" || u.username || u.password || (u.port && u.port !== "443" && !o.permitirPuertoFetch)) return json(resp, 400, { error: "url-no-valida" });
+    // PTA1108C: un puerto distinto de 443 solo si la página lo pide por una capa (la puerta de la malla lo vuelve a comprobar).
+    const puertoFetch = Number(u.port || 443);
+    if (u.protocol !== "https:" || u.username || u.password || (u.port && u.port !== "443" && !o.permitirPuertoFetch && !(p.capa === true && Number.isInteger(puertoFetch) && puertoFetch > 0 && puertoFetch < 65536))) return json(resp, 400, { error: "url-no-valida" });
     const metodo = String(p.metodo || "GET").toUpperCase();
     if (!/^[A-Z]{3,7}$/.test(metodo)) return json(resp, 400, { error: "metodo-no-valido" });
     if (!activo || !hayPaginaViva()) return json(resp, 503, { error: "sin-pagina" });
@@ -393,11 +480,12 @@ function crearPuertaLocal(opts) {
         }
         return json(resp, 200, { activo, proxy: puertoProxy || null });
       }
-      if (accion === "estado") return json(resp, 200, { activo, proxy: puertoProxy || null, tuberias: tuberias.size, pagina: hayPaginaViva() });
+      if (accion === "estado") return json(resp, 200, { activo, proxy: puertoProxy || null, tuberias: tuberias.size, pagina: hayPaginaViva(), subredes: subredesLocales(o.interfaces).slice(0, 8) /* PTA1108C */ });
       if (accion === "tcp") {
         const c = JSON.parse((await leerCuerpo(req, 4096)).toString("utf8") || "{}");
         try {
-          const t = await abrirSalida(String(c.host || ""), Number(c.port), c.permitirPrivadas === true);
+          // PTA1108C: `permitirPrivadas` ya no existe; solo una concesión explícita de la política de la página.
+          const t = await abrirSalida(String(c.host || ""), Number(c.port), concesionLimpia(c.concedido));
           return json(resp, 200, { id: t.id });
         } catch (e) {
           return json(resp, 200, { error: /^[a-z-]{3,30}$/.test(String(e.message)) ? e.message : "no-conecta" });
@@ -465,6 +553,51 @@ function crearPuertaLocal(opts) {
     }
   }
 
+  /* ── PTA1108B · HTTPS de la propia app por la malla (las /api/* relativas hacia la web publicada) ── */
+  /** ¿Hay salida por la malla ahora? (modo encendido y la página escuchando para abrir túneles). */
+  const disponibleMalla = () => activo && hayPaginaViva();
+  /**
+   * Un `https.Agent` cuyas conexiones son túneles de la malla: TLS de punta a punta en Node (la puerta solo ve bytes
+   * cifrados). Sin reutilización de sockets: cada petición, un túnel. Si el túnel no se abre, el error lleva
+   * `starseedNoEnviado` (no salió ni un byte de la petición) y `starseedRed` (cuenta como fallo de red).
+   */
+  function agenteMalla() {
+    const agente = new https.Agent({ keepAlive: false, maxSockets: 16 });
+    agente.createConnection = (opciones, cb) => {
+      const host = String(opciones.host || opciones.hostname || "");
+      const puerto = Number(opciones.port) || 443;
+      const fallar = (motivo) => {
+        const e = new Error("puerta: " + motivo);
+        e.code = "ENETUNREACH";
+        e.starseedRed = true;
+        e.starseedNoEnviado = true;
+        cb(e);
+      };
+      if (!disponibleMalla()) return fallar("sin-salida");
+      // PTA1108C + PTA1108B: este agente solo sirve a la web publicada (pública). Nunca lleva una concesión de capas, así que
+      // cualquier destino interno (IP privada, localhost, .local, .internal) se corta aquí, sin abrir túnel. Lo demás lo
+      // vuelve a comprobar la puerta al resolver (DNS rebinding) con `resolverSeguro(host, null)`: ningún camino lo salta.
+      const h = host.toLowerCase().replace(/\.$/, "");
+      if (!o.agenteDestinoLibre /* solo pruebas */ && (!h || (net.isIP(h) && ipInterna(h)) || h === "localhost" || h.endsWith(".localhost") || h.endsWith(".local") || h.endsWith(".internal"))) {
+        return fallar("destino-interno");
+      }
+      let e;
+      try {
+        e = abrirEntrada(host, puerto);
+      } catch (x) {
+        return fallar(String((x && x.message) || "error").slice(0, 40));
+      }
+      e.abierto.then((r) => {
+        if (!r.ok) return fallar(String(r.m || "rechazada").slice(0, 40));
+        const sock = tls.connect({ ...tlsOpciones, socket: e.dup, servername: net.isIP(host) ? undefined : opciones.servername || host });
+        sock.on("error", () => cerrarTuberia(e.t, "tls"));
+        sock.on("close", () => cerrarTuberia(e.t, "fin"));
+        cb(null, sock);
+      });
+    };
+    return agente;
+  }
+
   // Barrido de tuberías sin movimiento.
   const barrido = setInterval(() => {
     const ahora = Date.now();
@@ -481,7 +614,9 @@ function crearPuertaLocal(opts) {
       for (const t of tuberias.values()) cerrarTuberia(t, "parada");
     },
     estado: () => ({ activo, proxy: puertoProxy || null, tuberias: tuberias.size }),
-    _interno: { abrirSalida, abrirEntrada, tuberias, pendientes, activar: (v) => { activo = v; hayPagina = Date.now(); }, arrancarProxy },
+    disponibleMalla, // PTA1108B
+    agenteMalla, // PTA1108B
+    _interno: { abrirSalida, abrirEntrada, tuberias, pendientes, activar: (v) => { activo = v; hayPagina = Date.now(); }, arrancarProxy, agenteMalla },
   };
 }
 
@@ -489,4 +624,4 @@ function habilitada(env) {
   return !(env && String(env.STARSEED_PUERTA) === "0");
 }
 
-module.exports = { PREFIJO, ipInterna, resolverSeguro, crearPuertaLocal, habilitada };
+module.exports = { PREFIJO, ipInterna, resolverSeguro, dentroDeConcesion, subredesLocales, concesionLimpia, crearPuertaLocal, habilitada };
