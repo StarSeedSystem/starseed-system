@@ -65,12 +65,12 @@ describe("API tipada del puente", () => {
     expect(await p.capacidades()).toBe(SIN_CAPACIDADES);
   });
 
-  it("escucha los siete eventos, valida la carga y se da de baja", async () => {
+  it("escucha los diez eventos, valida la carga y se da de baja", async () => {
     const { tauri, oyentes } = tauriFalso();
     const p = crearPuenteLlamadaNativa(crearPuente(tauri));
     const vistos: Array<[string, unknown]> = [];
     const baja = await p.alEvento((e, c) => vistos.push([e, c]));
-    expect([...oyentes.keys()].sort()).toEqual(["contestar", "colgar", "espera", "proximidad", "rechazar", "ruta", "silenciar"].sort().map((e) => `llamada-nativa://${e}`));
+    expect([...oyentes.keys()].sort()).toEqual(["contestar", "colgar", "espera", "ignorar", "mensaje", "proximidad", "rechazar", "ruta", "silenciar", "silencio"].sort().map((e) => `llamada-nativa://${e}`));
     oyentes.get("llamada-nativa://contestar")?.({ payload: { id: "ll-1", valor: null } });
     oyentes.get("llamada-nativa://silenciar")?.({ payload: { id: "ll-1", valor: true } });
     oyentes.get("llamada-nativa://colgar")?.({ payload: "basura" });
@@ -131,6 +131,8 @@ function puenteGrabador() {
     estado: async (id: string, e: string, s?: boolean) => (registro.push(`estado:${id}:${e}${s ? ":silenciada" : ""}`), true),
     rutaAudio: async () => true,
     proximidad: async () => true,
+    ignorar: async () => true,
+    recientes: async () => [],
     permiso: async () => SIN_CAPACIDADES,
     alEvento: async () => () => undefined,
   };

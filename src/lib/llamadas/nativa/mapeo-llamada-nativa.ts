@@ -13,11 +13,11 @@
 export type EstadoNativo = "sonando" | "activa" | "en-espera" | "terminada";
 export type RutaAudio = "auricular" | "altavoz" | "cableado" | "bluetooth";
 export type TipoNativo = "voz" | "video";
-export type EventoNativo = "contestar" | "rechazar" | "colgar" | "silenciar" | "ruta" | "proximidad" | "espera";
+export type EventoNativo = "contestar" | "rechazar" | "colgar" | "silenciar" | "ruta" | "proximidad" | "espera" | "ignorar" | "silencio" | "mensaje";
 
 export const ESTADOS_NATIVOS: readonly EstadoNativo[] = ["sonando", "activa", "en-espera", "terminada"];
 export const RUTAS_AUDIO: readonly RutaAudio[] = ["auricular", "altavoz", "cableado", "bluetooth"];
-export const EVENTOS_NATIVOS: readonly EventoNativo[] = ["contestar", "rechazar", "colgar", "silenciar", "ruta", "proximidad", "espera"];
+export const EVENTOS_NATIVOS: readonly EventoNativo[] = ["contestar", "rechazar", "colgar", "silenciar", "ruta", "proximidad", "espera", "ignorar", "silencio", "mensaje"];
 export const PREFIJO_EVENTO = "llamada-nativa://";
 
 /** Lo que Rust necesita saber de una llamada. */
@@ -29,6 +29,12 @@ export interface LlamadaParaNativa {
   estado: EstadoNativo;
   /** El micrófono está cerrado (para el texto «Activar micrófono» del aviso). */
   silenciada: boolean;
+  /** (LLA1108F) De quién y por dónde llega, para la ventana nativa y para los silencios. Solo en las entrantes. */
+  uid?: string;
+  neurona?: string;
+  chat?: string;
+  /** «red-local» | «bluetooth» | «internet» | «malla». */
+  medio?: string;
 }
 
 /* ══════════════════════════ De los motores al teléfono ══════════════════════════ */
@@ -41,6 +47,10 @@ export interface VistaDirecta {
   video: boolean;
   micro: boolean;
   entrante: boolean;
+  /** (LLA1108F) Neurona del otro aparato. */
+  neurona?: string | null;
+  /** (LLA1108F) Por dónde va el timbre: «red-local» (el canal TCP de la app) si no se sabe otra cosa. */
+  medio?: string;
 }
 
 /** La llamada directa (malla) como llamada del teléfono; null si no hay nada que contar. */
@@ -49,7 +59,15 @@ export function llamadaDesdeDirecta(e: VistaDirecta): LlamadaParaNativa | null {
   const estado: EstadoNativo | null =
     e.fase === "llamando" || e.fase === "entrante" ? "sonando" : e.fase === "en-curso" ? "activa" : e.fase === "terminada" ? "terminada" : null;
   if (!estado) return null;
-  return { id: e.id, nombre: e.nombre || "StarSeed", tipo: e.video ? "video" : "voz", entrante: e.entrante, estado, silenciada: !e.micro };
+  return {
+    id: e.id,
+    nombre: e.nombre || "StarSeed",
+    tipo: e.video ? "video" : "voz",
+    entrante: e.entrante,
+    estado,
+    silenciada: !e.micro,
+    ...(e.entrante ? { ...(e.neurona ? { neurona: e.neurona } : {}), medio: e.medio ?? "red-local" } : {}),
+  };
 }
 
 /** Lo mínimo de una llamada del sistema de llamadas (por canal). */
@@ -67,6 +85,11 @@ export interface VistaTimbre {
   sesionId: string;
   tipo: string;
   nombre: string;
+  /** (LLA1108F) Quién llama y de dónde (silencios y ventana nativa). */
+  uid?: string;
+  neurona?: string;
+  hiloId?: string;
+  medio?: string;
 }
 
 function tipoDe(t: string): TipoNativo {
@@ -87,7 +110,18 @@ export function llamadaDesdeSistema(activa: VistaActiva | null, timbres: readonl
   }
   const t = timbres[0];
   if (!t) return null;
-  return { id: t.sesionId, nombre: t.nombre || "StarSeed", tipo: tipoDe(t.tipo), entrante: true, estado: "sonando", silenciada: false };
+  return {
+    id: t.sesionId,
+    nombre: t.nombre || "StarSeed",
+    tipo: tipoDe(t.tipo),
+    entrante: true,
+    estado: "sonando",
+    silenciada: false,
+    ...(t.uid ? { uid: t.uid } : {}),
+    ...(t.neurona ? { neurona: t.neurona } : {}),
+    ...(t.hiloId ? { chat: t.hiloId } : {}),
+    medio: t.medio ?? "internet",
+  };
 }
 
 /** Lo último que se le contó a Rust de la llamada. */
@@ -170,7 +204,11 @@ export interface InstantaneaMotores {
 export type AccionMotor =
   | { motor: "directa"; accion: "contestar" | "rechazar" | "colgar" | "silenciar" }
   | { motor: "sistema"; accion: "contestar" | "rechazar"; sesionId: string }
-  | { motor: "sistema"; accion: "colgar" | "silenciar" };
+  | { motor: "sistema"; accion: "colgar" | "silenciar" }
+  // (LLA1108F) Cosas del timbre que no son del motor: ignorar, silenciar por política y responder con mensaje.
+  | { motor: "timbre"; accion: "ignorar"; id: string }
+  | { motor: "timbre"; accion: "silencio"; id: string; valor: unknown }
+  | { motor: "timbre"; accion: "mensaje"; id: string; texto: string };
 
 /**
  * Un evento del teléfono → la acción del motor. Solo actúa si el evento habla de la llamada que hay:
@@ -209,6 +247,13 @@ export function accionParaEvento(evento: EventoNativo, carga: CargaEvento, m: In
       if (activa && m.activa) return quiereSilencio === !m.activa.micro ? null : { motor: "sistema", accion: "silenciar" };
       return null;
     }
+    case "ignorar":
+      return directaSuena || timbre ? { motor: "timbre", accion: "ignorar", id: carga.id } : null;
+    case "silencio":
+      // Silenciar también ignora esta llamada; el silencio se adopta aunque la llamada ya haya acabado.
+      return carga.valor && typeof carga.valor === "object" ? { motor: "timbre", accion: "silencio", id: carga.id, valor: carga.valor } : null;
+    case "mensaje":
+      return typeof carga.valor === "string" && carga.valor.trim() && (directaSuena || timbre) ? { motor: "timbre", accion: "mensaje", id: carga.id, texto: carga.valor.trim().slice(0, 200) } : null;
     default:
       return null;
   }
@@ -227,6 +272,8 @@ export interface CapacidadesLlamadaNativa {
   rutas: RutaAudio[];
   ruta: RutaAudio | "";
   evita_suspension: boolean;
+  /** (LLA1108F) Escritorio: la llamada entrante abre su ventana siempre visible si la app no está a la vista. */
+  ventana_entrante: boolean;
   motivo: string;
 }
 
@@ -240,6 +287,7 @@ export const SIN_CAPACIDADES: CapacidadesLlamadaNativa = {
   rutas: [],
   ruta: "",
   evita_suspension: false,
+  ventana_entrante: false,
   motivo: "",
 };
 
@@ -262,6 +310,7 @@ export function leerCapacidades(raw: unknown): CapacidadesLlamadaNativa {
     rutas,
     ruta: esRuta(o.ruta) ? o.ruta : "",
     evita_suspension: o.evita_suspension === true,
+    ventana_entrante: o.ventana_entrante === true,
     motivo: typeof o.motivo === "string" ? o.motivo : "",
   };
 }

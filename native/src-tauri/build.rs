@@ -117,6 +117,11 @@ const COMANDOS_APP: &[&str] = &[
     "llamada_nativa_proximidad",
     "llamada_nativa_capacidades",
     "llamada_nativa_permiso",
+    // (LLA1108F) Ignorar, eventos tardíos, silencios espejados y despertador firmado.
+    "llamada_nativa_ignorar",
+    "llamada_nativa_recientes",
+    "llamada_silencios_sincronizar",
+    "llamada_timbre_firmar",
     // (PTA1108B) Proxy de la puerta de internet para el webview y las descargas de Rust.
     "puerta_proxy_local",
     "puerta_proxy_estado",
@@ -371,6 +376,8 @@ fn enlace_wifi_android() {
 /// architecture/llamadas-telefonia.md § «Integración nativa». `STARSEED_SIN_LLAMADAS_NATIVAS_ANDROID=1` lo apaga.
 fn llamadas_nativas_android() {
     println!("cargo:rerun-if-changed=src/llamada_nativa_parche.rs");
+    println!("cargo:rerun-if-changed=android/LlamadaNativaStarSeed.kt");
+    println!("cargo:rerun-if-changed=android/LlamadaEntranteStarSeed.kt");
     println!("cargo:rerun-if-env-changed=STARSEED_SIN_LLAMADAS_NATIVAS_ANDROID");
     if std::env::var("CARGO_CFG_TARGET_OS").as_deref() != Ok("android") {
         return;

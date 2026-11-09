@@ -131,6 +131,55 @@ pantalla completa en Android 14+.
 `useLlamadaNativa()` en `src/lib/llamadas/nativa/use-llamada-nativa.ts`: `{disponible, capacidades, rutas,
 ruta, proximidad, pantallaCompletaLista, fijarRuta, permitirProximidad, pedirPantallaCompleta}`.
 
+### 8.5 Llamada entrante: suena, enciende la pantalla y abre su ventana (LLA1108F)
+
+**Causa del fallo visto (SM-X900, Android 16, 0.5.1-prueba.29).** Solo salió una notificación porque (1) el canal
+`CANAL_ENTRANTE` era inmutable y se creó antes con un sonido/importancia que ya no se podían cambiar; (2) el
+timbre no se tocaba en ningún sitio (un `ConnectionService` autogestionado debe sonar él mismo); (3) la web llamaba
+a `iniciar` tarde, con el JS ya frenado; (4) en Android 14+ `USE_FULL_SCREEN_INTENT` puede estar denegado en una
+instalación fuera de la tienda y sin él no hay pantalla ni encendido; (5) la app cerrada no tenía quien escuchara.
+Arreglo en capas: canal `…-v2` (el viejo se borra), `TimbreLlamada` propio (`RingtoneManager` + vibración, respeta
+silencio/vibrar/No molestar), `FULL_WAKE_LOCK` corto, `ActividadLlamadaStarSeed` real (Contestar, Rechazar, Ignorar,
+Responder con mensaje, Silenciar…) y el marco «timbre» para la app cerrada.
+
+**Quién suena (`decision-timbre.ts`, puro).** Ignorada → nadie. Silenciada → nadie, y entra «Llamada silenciada
+(hasta 18:30)» con «Deshacer». Si no: suena la web solo si la app está visible o no hay parte nativa; si no, suena la
+nativa. Nunca las dos. Al llegar la señal la web llama ya a `llamada_nativa_iniciar` con nombre, iniciales, tipo,
+medio, uid/neurona/chat y `silencioHasta` (`cargaIniciarNativo`); desde ahí manda la parte nativa aunque el JS se congele.
+
+| Estado | Android | Escritorio |
+|---|---|---|
+| Primer plano | Tarjeta web (`timbre.tsx`), tono web; nativa callada | Tarjeta web |
+| Segundo plano | Timbre nativo + vibración + heads-up + ventana completa; Contestar abre la app en la llamada | Ventana `llamada-entrante` siempre encima y en todos los espacios + notificación con sonido |
+| Bloqueado | Igual con `setShowWhenLocked`/`setTurnScreenOn` y wake lock | Ventana + notificación |
+| Cerrada | `ServicioAntenas` (primer plano) mantiene el proceso; el marco «timbre» (§8.6) llega por TCP 47071, Rust lo verifica y llama a Kotlin | Igual que segundo plano si la app sigue en bandeja; si no corre, nada escucha |
+
+**Por versión de Android.** 12: no hay permiso de pantalla completa que pedir; bastan canal y wake lock, y Contestar
+va por `PendingIntent` a la actividad (restricción de trampolines). 14: hace falta `canUseFullScreenIntent()`; si no,
+se guía a `ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT` (PER1108A `pedirLlamadas` y Ajustes) y mientras tanto heads-up +
+wake lock. 16: como 14, con permiso de notificaciones y servicio `connectedDevice` obligatorios; el canal se versiona
+porque su sonido no se puede cambiar.
+
+**Ignorar.** Para timbre, pantalla completa y vibración de esta llamada; quien llama sigue oyendo tono hasta el
+tiempo máximo (no recibe «rechazada»); queda una entrada silenciosa en perdidas. **Silenciar…** por ámbito (persona,
+neurona, grupo/chat, medio, todas) y duración (15 min, 1 h, 8 h, hasta mañana, hasta que se reactive). La política
+(`silencio-llamadas.ts`) se espeja a `silencios-llamadas.json` (Rust↔Kotlin, fusión por `mod` con lápidas) para que
+la parte nativa la respete con el JS congelado. Ajustes › Notificaciones lista los silencios activos con «Quitar».
+
+### 8.6 Marco «timbre» (app cerrada)
+
+Sobre `tu.msg` en el canal `llamada-timbre`, por el mismo TCP 47071: `{v, id, de, nombre, tipo, medio, ts, firma}`.
+`firma` = HMAC-SHA256 con la clave de cuenta del faro; validez 90 s; se descartan los del propio emisor, los del
+futuro y los repetidos. No lleva secretos ni contenido. Rust (`llamada_entrante.rs::al_recibir_local`) verifica,
+consulta los silencios, espera 2,5 s a ver si la web viva ya tomó la llamada y, si no, hace sonar la nativa.
+Contestar arranca la app y el motor JS termina la llamada con la señalización cifrada normal.
+**Hecho:** LAN TCP en Android y el emisor desde la web. **Pendiente:** firma asimétrica por aparato (hoy clave
+compartida de cuenta), BLE e iOS (PushKit/CallKit).
+
+**Ventana de escritorio.** `decidir_ventana` (puro): abre si la app no está al frente y la llamada no está
+ignorada/silenciada; cierra al contestar, rechazar, ignorar o terminar. La página es un `data:` URL sin capacidades
+IPC; solo navega a `starseed-llamada://accion`.
+
 ## 9. Voz por enlace de datos (sin red IP) (LLA1108E)
 
 Caso real 08-11 (0.5.1-prueba.29): la Mac llamó a la tableta con el Wi-Fi apagado y solo Bluetooth directo.

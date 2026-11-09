@@ -357,6 +357,17 @@ impl Guardian {
         GUARDIAN.get().cloned()
     }
 
+    /// (LLA1108F) La clave de faro de la cuenta (32 bytes), para firmar y verificar el «timbre» de las llamadas.
+    /// Una copia de vida corta: no se guarda en ningún otro sitio.
+    pub fn clave_cuenta(&self) -> Option<Vec<u8>> {
+        self.interno.lock().ok().and_then(|i| i.clave.clone())
+    }
+
+    /// (LLA1108F) El id de ESTA neurona, si la web lo configuró.
+    pub fn neurona_propia(&self) -> Option<String> {
+        self.interno.lock().ok().and_then(|i| i.config.neurona.clone())
+    }
+
     /// Añade un notificador (se suman: web, bandeja y Android a la vez).
     pub fn al_cambiar(&self, f: Notificador) {
         if let Ok(mut n) = self.notificar.lock() {
