@@ -50,13 +50,23 @@ MAX_MUESTRAS = 120
 #: sesiones. Ahí está el grueso del gasto del enjambre, así que ahí hay que mirar. Se abre
 #: en modo SOLO LECTURA (`mode=ro`) y con dos segundos de espera máxima: no se le pone la
 #: mano encima a la base de nadie.
+#:
+#: (2026-11-08) opencode ahora guarda tokens en `message.data` JSON con claves
+#: `tokens.input`, `tokens.output`, `tokens.reasoning`. La consulta usa `:t0` (inicio de
+#: hora actual en ms) y el índice `message_session_time_created_id_idx`. El contador
+#: reinicia cada hora → `reinicia: True`.
 FUENTES = (
     {"id": "jev", "nombre": "Jev (consejero)", "tipo": "json",
      "ruta": os.path.expanduser("~/.starseed/jev-uso.json"), "camino": ("tokens",)},
     {"id": "opencode", "nombre": "agentes opencode", "tipo": "sqlite",
      "ruta": os.path.expanduser("~/.local/share/opencode/opencode.db"),
-     "consulta": ("select coalesce(sum(tokens_input),0) + coalesce(sum(tokens_output),0)"
-                  " + coalesce(sum(tokens_reasoning),0) from session")},
+     "consulta": ("select coalesce(sum(json_extract(m.data,'$.tokens.input')),0) + "
+                  "coalesce(sum(json_extract(m.data,'$.tokens.output')),0) + "
+                  "coalesce(sum(json_extract(m.data,'$.tokens.reasoning')),0) "
+                  "from message m "
+                  "where m.session_id in (select id from session where time_updated >= :t0) "
+                  "and m.time_updated >= :t0"),
+     "reinicia": True},
 )
 
 #: Procesos que SÍ gastan tokens pero cuyo motor no los publica. Se nombran, no se estiman.
@@ -134,17 +144,18 @@ def _hondo(datos, camino):
     return actual if isinstance(actual, (int, float)) else None
 
 
-def _de_sqlite(ruta, consulta):
+def _de_sqlite(ruta, consulta, params=None):
     """Una suma de una base sqlite, SOLO LECTURA. None si no se puede leer.
 
     `mode=ro` y `timeout=2`: si opencode está escribiendo, esto espera dos segundos y se
     rinde. Nunca bloquea al que trabaja — esa era la condición de Alex: «sin que
     interrumpa los procesos».
+    Acepta `params` para consultas parametrizadas (ej. :t0).
     """
     try:
         con = sqlite3.connect("file:%s?mode=ro" % ruta, uri=True, timeout=2)
         try:
-            fila = con.execute(consulta).fetchone()
+            fila = con.execute(consulta, params or {}).fetchone()
         finally:
             con.close()
         return fila[0] if fila and isinstance(fila[0], (int, float)) else None
@@ -152,12 +163,23 @@ def _de_sqlite(ruta, consulta):
         return None
 
 
+def t0_inicio_hora(ahora_ms):
+    """PURA: comienzo de la hora en curso en milisegundos.
+    
+    `ahora_ms` inyectable para probarlo.
+    """
+    return int(ahora_ms // 3_600_000 * 3_600_000)
+
+
 def leer_totales(fuentes=FUENTES):
     """Los acumulados de cada fuente AHORA. Una fuente ilegible no es un cero: es None."""
+    ahora_ms = int(time.time() * 1000)
+    t0 = t0_inicio_hora(ahora_ms)
     salida = {}
     for f in fuentes:
         if f.get("tipo") == "sqlite":
-            salida[f["id"]] = _de_sqlite(f["ruta"], f["consulta"])
+            params = {"t0": t0} if f.get("reinicia") else None
+            salida[f["id"]] = _de_sqlite(f["ruta"], f["consulta"], params)
             continue
         try:
             with open(f["ruta"], encoding="utf-8") as fh:
@@ -167,7 +189,7 @@ def leer_totales(fuentes=FUENTES):
     return salida
 
 
-def tasa(antes, ahora):
+def tasa(antes, ahora, reinician=()):
     """PURA: tokens/s por fuente entre dos muestras, y el total.
 
     Devuelve {fuentes: {id: tok/s}, total: tok/s, segundos: float} o None si no se puede
@@ -175,6 +197,10 @@ def tasa(antes, ahora):
       · una sola muestra (no hay diferencia que dividir);
       · Δt <= 0 (el reloj no avanzó: dividir ahí da infinito, no información);
       · un contador que baja (el archivo se reinició): no es consumo negativo.
+    
+    Para fuentes en `reinician` (contadores tipo Prometheus que reinician cada hora):
+    un total que BAJA es un reinicio y su diferencia es el valor nuevo (`valor / dt`),
+    no se salta. Para las demás (Jev) se queda como hoy: un total que baja se salta.
     """
     if not isinstance(antes, dict) or not isinstance(ahora, dict):
         return None
@@ -183,17 +209,28 @@ def tasa(antes, ahora):
         return None
     a, b = antes.get("totales") or {}, ahora.get("totales") or {}
     por_fuente, total = {}, 0.0
+    reinician_set = set(reinician)
     for fid, valor in b.items():
         previo = a.get(fid)
-        if valor is None or previo is None or valor < previo:
+        if valor is None or previo is None:
             continue
-        v = (valor - previo) / dt
+        if fid in reinician_set:
+            # Contador que reinicia (Prometheus-style): bajada = reset
+            if valor < previo:
+                v = valor / dt  # El valor actual es el delta desde el reset
+            else:
+                v = (valor - previo) / dt
+        else:
+            # Contador normal (Jev): bajada se salta
+            if valor < previo:
+                continue
+            v = (valor - previo) / dt
         por_fuente[fid] = v
         total += v
     return {"fuentes": por_fuente, "total": total, "segundos": dt}
 
 
-def promedio(muestras, ventana_s):
+def promedio(muestras, ventana_s, reinician=()):
     """PURA: tokens/s medios en los últimos `ventana_s`. None si no hay con qué.
 
     Se toma la muestra más antigua DENTRO de la ventana y la última: entre esas dos, la
@@ -207,7 +244,7 @@ def promedio(muestras, ventana_s):
     dentro = [m for m in muestras if float(m.get("t") or 0) >= corte]
     if len(dentro) < 2:
         return None
-    return tasa(dentro[0], fin)
+    return tasa(dentro[0], fin, reinician)
 
 
 def _cifra(v):
@@ -258,17 +295,18 @@ def una_pasada():
     muestras = _leer_anillo()
     muestras.append({"t": time.time(), "totales": leer_totales()})
     muestras = muestras[-MAX_MUESTRAS:]
-    ahora = tasa(muestras[-2], muestras[-1]) if len(muestras) >= 2 else None
+    reinician = {f["id"] for f in FUENTES if f.get("reinicia")}
+    ahora = tasa(muestras[-2], muestras[-1], reinician) if len(muestras) >= 2 else None
     fuera = sin_contador_de(agentes_de_nube(_leer_agentes_nube()))
     datos = {
         "generado": time.strftime("%Y-%m-%d %H:%M:%S"),
         "intervalo_s": INTERVALO_S,
         "ahora": ahora,
-        "un_minuto": promedio(muestras, 60),
-        "diez_minutos": promedio(muestras, 600),
+        "un_minuto": promedio(muestras, 60, reinician),
+        "diez_minutos": promedio(muestras, 600, reinician),
         "fuentes": [{"id": f["id"], "nombre": f["nombre"]} for f in FUENTES],
         "sin_contador": fuera,
-        "resumen": resumir(ahora, fuera, promedio(muestras, 60)),
+        "resumen": resumir(ahora, fuera, promedio(muestras, 60, reinician)),
         "muestras": muestras,
     }
     os.makedirs(os.path.dirname(SALIDA), exist_ok=True)

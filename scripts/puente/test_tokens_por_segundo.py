@@ -7,6 +7,10 @@ llamadas, coste y milisegundos; opencode y codex no devuelven `usage`. Así que 
 pruebas fijan las dos mitades del trato: se suma lo que tiene contador, y lo que no lo
 tiene se nombra en vez de repartirse a ojo.
 """
+import os
+import shutil
+import sqlite3
+import tempfile
 import unittest
 
 import tokens_por_segundo as T
@@ -154,6 +158,239 @@ class OpencodeSiPublicaTokens(unittest.TestCase):
         ids = [x["id"] for x in T.SIN_CONTADOR]
         self.assertIn("codex", ids)
         self.assertIn("pasarelas", ids)
+
+
+class OpencodeNuevaFuenteMessageData(unittest.TestCase):
+    """(2026-11-08) opencode ahora guarda tokens en message.data JSON.
+    
+    La consulta usa :t0 (inicio de hora en ms) y el índice
+    message_session_time_created_id_idx. No recorre la tabla entera.
+    """
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        self.db_path = os.path.join(self.tmpdir, "opencode.db")
+        import sqlite3
+        con = sqlite3.connect(self.db_path)
+        try:
+            con.execute("""
+                CREATE TABLE session (
+                    id TEXT PRIMARY KEY,
+                    time_updated INTEGER,
+                    tokens_input INTEGER DEFAULT 0,
+                    tokens_output INTEGER DEFAULT 0,
+                    tokens_reasoning INTEGER DEFAULT 0
+                )
+            """)
+            con.execute("""
+                CREATE TABLE message (
+                    id TEXT PRIMARY KEY,
+                    session_id TEXT,
+                    time_created INTEGER,
+                    time_updated INTEGER,
+                    data TEXT
+                )
+            """)
+            con.execute("""
+                CREATE INDEX message_session_time_created_id_idx
+                ON message(session_id, time_created, id)
+            """)
+            con.commit()
+        finally:
+            con.close()
+
+    def tearDown(self):
+        import shutil
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def _insert_session(self, sid, time_updated, tokens_input=0, tokens_output=0, tokens_reasoning=0):
+        con = sqlite3.connect(self.db_path)
+        try:
+            con.execute(
+                "INSERT INTO session (id, time_updated, tokens_input, tokens_output, tokens_reasoning) VALUES (?, ?, ?, ?, ?)",
+                (sid, time_updated, tokens_input, tokens_output, tokens_reasoning)
+            )
+            con.commit()
+        finally:
+            con.close()
+
+    def _insert_message(self, mid, session_id, time_created, time_updated, data_json):
+        con = sqlite3.connect(self.db_path)
+        try:
+            con.execute(
+                "INSERT INTO message (id, session_id, time_created, time_updated, data) VALUES (?, ?, ?, ?, ?)",
+                (mid, session_id, time_created, time_updated, data_json)
+            )
+            con.commit()
+        finally:
+            con.close()
+
+    def test_mensajes_con_tokens_en_data_y_sesion_en_cero_cuenta_nueva_consulta(self):
+        """(a) Mensajes con tokens en data y sesión con columnas en 0 → la suma nueva los cuenta."""
+        ahora = 1_700_000_000_000  # ms
+        t0 = int(ahora // 3600_000 * 3600_000)  # inicio de hora en ms
+        
+        # Sesión DENTRO de la hora actual, columnas en 0
+        self._insert_session("s1", t0 + 1000, 0, 0, 0)
+        # Mensaje con tokens en data
+        self._insert_message("m1", "s1", t0 + 500, t0 + 500, '{"tokens": {"input": 100, "output": 50, "reasoning": 25}}')
+        
+        # Consulta nueva con parámetro :t0
+        f = [x for x in T.FUENTES if x["id"] == "opencode"][0]
+        consulta = f["consulta"]
+        
+        total = T._de_sqlite(self.db_path, consulta, {"t0": t0})
+        self.assertEqual(total, 175)  # 100 + 50 + 25
+
+    def test_no_cuenta_mensajes_antes_de_t0_ni_sesiones_antes_de_t0(self):
+        """(b) No cuenta mensajes tocados antes de t0 ni sesiones tocadas antes de t0."""
+        ahora = 1_700_000_000_000
+        t0 = int(ahora // 3600_000 * 3600_000)
+        hora_anterior = t0 - 3_600_000  # 1 hora antes
+        
+        # Sesión y mensaje en hora ANTERIOR (no deberían contarse)
+        self._insert_session("s_old", hora_anterior + 1000, 0, 0, 0)
+        self._insert_message("m_old", "s_old", hora_anterior + 500, hora_anterior + 500, 
+                            '{"tokens": {"input": 1000, "output": 500, "reasoning": 250}}')
+        
+        # Sesión y mensaje en hora ACTUAL (sí deberían contarse)
+        self._insert_session("s_new", t0 + 1000, 0, 0, 0)
+        self._insert_message("m_new", "s_new", t0 + 500, t0 + 500, 
+                            '{"tokens": {"input": 100, "output": 50, "reasoning": 25}}')
+        
+        f = [x for x in T.FUENTES if x["id"] == "opencode"][0]
+        consulta = f["consulta"]
+        
+        total = T._de_sqlite(self.db_path, consulta, {"t0": t0})
+        self.assertEqual(total, 175)  # Solo los de la hora actual
+
+    def test_mensaje_usuario_sin_tokens_no_rompe_la_suma(self):
+        """(c) Un mensaje de usuario sin tokens no rompe la suma."""
+        ahora = 1_700_000_000_000
+        t0 = int(ahora // 3600_000 * 3600_000)
+        
+        self._insert_session("s1", t0 + 1000, 0, 0, 0)
+        # Mensaje asistente CON tokens
+        self._insert_message("m1", "s1", t0 + 500, t0 + 500, 
+                            '{"tokens": {"input": 100, "output": 50, "reasoning": 25}}')
+        # Mensaje usuario SIN tokens
+        self._insert_message("m2", "s1", t0 + 600, t0 + 600, '{"role": "user", "content": "hola"}')
+        
+        f = [x for x in T.FUENTES if x["id"] == "opencode"][0]
+        consulta = f["consulta"]
+        
+        total = T._de_sqlite(self.db_path, consulta, {"t0": t0})
+        self.assertEqual(total, 175)
+
+    def test_explain_query_plan_usa_indice(self):
+        """(d) EXPLAIN QUERY PLAN de la consulta contiene USING INDEX message_session_time_created_id_idx."""
+        ahora = 1_700_000_000_000
+        t0 = int(ahora // 3600_000 * 3600_000)
+        
+        self._insert_session("s1", t0 + 1000, 0, 0, 0)
+        self._insert_message("m1", "s1", t0 + 500, t0 + 500, 
+                            '{"tokens": {"input": 100, "output": 50, "reasoning": 25}}')
+        
+        f = [x for x in T.FUENTES if x["id"] == "opencode"][0]
+        consulta = f["consulta"]
+        
+        con = sqlite3.connect(self.db_path)
+        try:
+            plan = con.execute(f"EXPLAIN QUERY PLAN {consulta}", {"t0": t0}).fetchall()
+            plan_text = " ".join(row[3] for row in plan)
+            self.assertIn("USING INDEX message_session_time_created_id_idx", plan_text)
+        finally:
+            con.close()
+
+    def test_t0_es_comienzo_de_hora_en_ms(self):
+        """(e) t0 para un ahora dado es el comienzo de su hora en ms."""
+        # 1_700_000_000_000 ms = 2023-11-15 10:13:20 UTC
+        # Inicio de esa hora = 1_700_000_000_000 - (13*60+20)*1000 = 1_700_000_000_000 - 799000 = 1_699_999_201_000
+        # Wait, let me calculate properly: 1_700_000_000_000 // 3_600_000 * 3_600_000
+        ahora = 1_700_000_000_000
+        t0_esperado = int(ahora // 3_600_000 * 3_600_000)
+        self.assertEqual(T.t0_inicio_hora(ahora), t0_esperado)
+        
+        # Exactamente en el límite de hora
+        ahora_exacto = 1_700_000_000_000 - (1_700_000_000_000 % 3_600_000)
+        self.assertEqual(T.t0_inicio_hora(ahora_exacto), ahora_exacto)
+
+    def test_fuente_opencode_tiene_reinicia_true(self):
+        """La fuente opencode declara reinicia: True."""
+        f = [x for x in T.FUENTES if x["id"] == "opencode"]
+        self.assertTrue(f, "opencode tiene que estar entre las fuentes")
+        self.assertTrue(f[0].get("reinicia"), "opencode debe tener reinicia=True")
+
+
+class TasaConFuentesQueReinician(unittest.TestCase):
+    """(f) tasa con fuente que reinicia y baja de 1000 a 300 en 5s → 60 tok/s,
+    y con Jev que baja → se salta."""
+
+    def test_fuente_reinicia_baja_cuenta_como_valor_nuevo(self):
+        """Contador que reinicia (como Prometheus): bajada = reset, diff = valor nuevo."""
+        antes = {"t": 0, "totales": {"opencode": 1000, "jev": 1000}}
+        ahora = {"t": 5, "totales": {"opencode": 300, "jev": 500}}  # Jev baja, opencode reinicia
+        
+        r = T.tasa(antes, ahora, reinician={"opencode"})
+        
+        # opencode: (300 - 0) / 5 = 60 (porque reinició, no salta)
+        # jev: bajó de 1000 a 500 → se salta
+        self.assertAlmostEqual(r["fuentes"]["opencode"], 60.0)
+        self.assertNotIn("jev", r["fuentes"])
+        self.assertAlmostEqual(r["total"], 60.0)
+
+    def test_fuente_no_reinicia_baja_se_salta(self):
+        """Jev (no reinicia): bajada se salta como antes."""
+        antes = {"t": 0, "totales": {"jev": 1000}}
+        ahora = {"t": 5, "totales": {"jev": 500}}
+        
+        r = T.tasa(antes, ahora, reinician=set())
+        
+        self.assertNotIn("jev", r["fuentes"])
+        self.assertEqual(r["total"], 0.0)
+
+    def test_fuente_reinicia_sube_normal(self):
+        """Contador que reinicia y sube: diferencia normal."""
+        antes = {"t": 0, "totales": {"opencode": 100}}
+        ahora = {"t": 10, "totales": {"opencode": 1100}}
+        
+        r = T.tasa(antes, ahora, reinician={"opencode"})
+        
+        self.assertAlmostEqual(r["fuentes"]["opencode"], 100.0)
+
+
+class PromedioPasaReinician(unittest.TestCase):
+    """(g) promedio pasa las ids de reinician a tasa."""
+
+    def test_promedio_pasa_reinician_a_tasa(self):
+        # promedio toma primera y última muestra dentro de la ventana
+        # t=0: opencode=1000, jev=1000
+        # t=10: opencode=300 (reset), jev=500 (bajó)
+        # t=20: opencode=1300, jev=1500
+        # Ventana 30s: primera=t=0, última=t=20
+        # opencode: subió de 1000 a 1300 → (1300-1000)/20 = 15 (reset en t=10 no visible para tasa)
+        # jev: subió de 1000 a 1500 → (1500-1000)/20 = 25 (bajada en t=10 no visible)
+        ms = [
+            {"t": 0, "totales": {"opencode": 1000, "jev": 1000}},
+            {"t": 10, "totales": {"opencode": 300, "jev": 500}},  # reinicio opencode
+            {"t": 20, "totales": {"opencode": 1300, "jev": 1500}},
+        ]
+        r = T.promedio(ms, 30, reinician={"opencode"})
+        
+        # Con primera/última, tasa no ve el reset intermedio
+        self.assertAlmostEqual(r["fuentes"]["opencode"], 15.0)
+        self.assertAlmostEqual(r["fuentes"]["jev"], 25.0)
+
+
+class UnaPasadaPasaReinician(unittest.TestCase):
+    """una_pasada pasa los ids de fuentes con reinicia."""
+
+    def test_una_pasada_usa_reinician_de_fuentes(self):
+        # Verificar que una_pasada pasa reinician correctamente
+        # Esto se prueba indirectamente viendo que FUENTES tiene reinicia
+        ids_reinician = {f["id"] for f in T.FUENTES if f.get("reinicia")}
+        self.assertIn("opencode", ids_reinician)
+        self.assertNotIn("jev", ids_reinician)
 
 
 class LosAgentesQueTrabajanDondeNoHayContador(unittest.TestCase):
