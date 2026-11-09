@@ -26,12 +26,20 @@ import {
   Bell,
   HeartPulse,
 } from "lucide-react";
+// PRM1108B (arreglo de revisión) · la familia de sentidos pide/consulta por la
+// API unificada del plan de permisos (`consultarPermiso`/`pedirPermiso`), no por
+// el motor base a pelo: mismos eventos (`starseed:permiso`) y vocabulario único.
 import {
-  estadoPermiso,
+  consultarPermiso,
   entornoPermisos,
-  requestDevicePermission,
+  pedirPermiso,
   type PermisoDispositivo,
 } from "@/lib/aurora/senses/request-permission";
+import {
+  estadoDeResultado,
+  type EstadoPermiso,
+  type ResultadoPermisoOS,
+} from "@/lib/permisos/contrato";
 
 // ── Tipos ──────────────────────────────────────────────────────────────────
 
@@ -330,20 +338,45 @@ function findSense(senseId: string): Sense | undefined {
   return SENSES.find((s) => s.id === senseId);
 }
 
-function resultadoASentido(r: {
-  soportado: boolean;
-  concedido: boolean;
-  motivo?: string;
-}): SenseTestResult {
-  if (r.concedido) return { ok: true, state: "granted" };
-  if (!r.soportado) return { ok: false, state: "unsupported", error: r.motivo };
-  const denied = /denied|denegado|bloque/i.test(r.motivo ?? "");
-  return { ok: false, state: denied ? "denied" : "prompt", error: r.motivo };
+/** Estado del catálogo de sentidos (`SenseTestResult`) a partir del del
+ * contrato (`EstadoPermiso`), PRM1108B · paso 2 del plan unificado. */
+export function estadoSense(e: EstadoPermiso): SenseTestResult["state"] {
+  switch (e) {
+    case "concedido":
+      return "granted";
+    case "denegado":
+      return "denied";
+    case "preguntar":
+      return "prompt";
+    default:
+      return "unsupported";
+  }
+}
+
+/**
+ * Traduce el resultado del motor de permisos al estado habitual de
+ * `SenseTestResult` usando el contrato único (`estadoDeResultado`, PRM1108A):
+ * el «no» de Firefox (un NotAllowedError sin la palabra «denied») ya no se
+ * queda como «prompt»: con el nombre de error pasa a «denied» y la UI puede
+ * explicar que está bloqueado en vez de decir solo «no funciona».
+ * Acepta también el resultado ya normalizado por `pedirPermiso`.
+ */
+export function resultadoASentido(
+  r:
+    | { soportado: boolean; concedido: boolean; motivo?: string; nombreError?: string }
+    | ResultadoPermisoOS,
+): SenseTestResult {
+  const estado = "estado" in r ? r.estado : estadoDeResultado(r);
+  const state = estadoSense(estado);
+  return state === "granted"
+    ? { ok: true, state }
+    : { ok: false, state, error: r.motivo };
 }
 
 /**
  * Consulta el estado del permiso. Los sentidos con API web común delegan en
- * `estadoPermiso`; pantalla y portapapeles no son consultables.
+ * `consultarPermiso` (API unificada); pantalla y portapapeles no son
+ * consultables.
  */
 export async function permissionState(
   senseId: string,
@@ -352,7 +385,7 @@ export async function permissionState(
   if (!sense) return "unsupported";
   const permiso = SENTIDO_A_PERMISO[sense.permission];
   if (!permiso) return "unsupported";
-  return estadoPermiso(permiso);
+  return estadoSense(await consultarPermiso(permiso));
 }
 
 function stopStream(stream: MediaStream | null | undefined) {
@@ -365,8 +398,8 @@ function stopStream(stream: MediaStream | null | undefined) {
 
 /**
  * Invoca de verdad la API del navegador. Mic/cámara/geo/avisos/archivos van
- * por `requestDevicePermission` (motor único). Pantalla y portapapeles no
- * tienen permiso web reutilizable: se piden al usar.
+ * por `pedirPermiso` (API unificada: mismo motor, vocabulario del contrato).
+ * Pantalla y portapapeles no tienen permiso web reutilizable: se piden al usar.
  */
 export async function requestSense(senseId: string): Promise<SenseTestResult> {
   if (typeof window === "undefined" || typeof navigator === "undefined") {
@@ -386,7 +419,7 @@ export async function requestSense(senseId: string): Promise<SenseTestResult> {
       } catch { /* el resumen es cortesía; el permiso ya quedó concedido */ }
       return { ok: true, state: "granted" };
     }
-    return resultadoASentido(await requestDevicePermission(permiso));
+    return resultadoASentido(await pedirPermiso(permiso));
   }
 
   try {
