@@ -31,6 +31,8 @@ import { ACENTOS, acentoDeIndice, clasesAcento, type Acento } from "@/lib/ui/ace
 import { AREAS_TRABAJO, CLAVES_MEMORIA_OS, type AreaTrabajo } from "@/lib/mando/areas";
 import { cargarEventos } from "@/lib/mando/eventos";
 import type { EventoRelevo } from "@/lib/mando/tipos";
+import { EstadoPermiso } from "@/lib/permisos/contrato";
+import { consultarPermiso } from "@/lib/aurora/senses/request-permission";
 
 /** Resuelve el acento de un área; si la clave no está en la paleta, rota por índice. */
 function acentoDeArea(area: AreaTrabajo, índice: number): Acento {
@@ -69,34 +71,43 @@ const CLASE_PERMISO: Record<PermisoNavegador["estado"], string> = {
     desconocido: "border-white/10 bg-white/5 text-white/50",
 };
 
+/**
+ * Mapea el estado de un permiso del navegador al estado del componente.
+ * Exportado para ser probado.
+ */
+export function estadoNavegador(permiso: EstadoPermiso): PermisoNavegador["estado"] {
+  switch (permiso) {
+    case "concedido": return "otorgado";
+    case "denegado": return "denegado";
+    case "preguntar": return "pendiente";
+    case "no-disponible": return "desconocido";
+    default:
+      const _: never = permiso;
+      return "desconocido";
+  }
+}
+
 /** Consulta en vivo el estado de los permisos clave (micrófono, notificaciones, almacenamiento). */
-async function leerPermisos(): Promise<PermisoNavegador[]> {
-    const base: Array<Omit<PermisoNavegador, "estado"> & { clave: PermissionName }> = [
-        { nombre: "Micrófono", clave: "microphone" as PermissionName, href: "/agent?tab=privacidad" },
-        { nombre: "Notificaciones", clave: "notifications" as PermissionName, href: "/notifications" },
-        { nombre: "Almacenamiento persistente", clave: "persistent-storage" as PermissionName, href: "/almacenes" },
-    ];
+export async function leerPermisos(): Promise<PermisoNavegador[]> {
+  const entradas: Array<{ id: "microfono" | "notificaciones" | "almacenamiento"; nombre: string; href: string }> = [
+    { id: "microfono", nombre: "Micrófono", href: "/agent?tab=privacidad" },
+    { id: "notificaciones", nombre: "Notificaciones", href: "/notifications" },
+    { id: "almacenamiento", nombre: "Almacenamiento persistente", href: "/almacenes" },
+  ];
 
-    if (typeof navigator === "undefined" || !navigator.permissions?.query) {
-        return base.map(({ nombre, href }) => ({ nombre, href, estado: "desconocido" }));
+  const resultados: PermisoNavegador[] = [];
+
+  for (const entrada of entradas) {
+    try {
+      const estadoPermiso = await consultarPermiso(entrada.id);
+      const estado = estadoNavegador(estadoPermiso);
+      resultados.push({ nombre: entrada.nombre, href: entrada.href, estado });
+    } catch {
+      resultados.push({ nombre: entrada.nombre, href: entrada.href, estado: "desconocido" });
     }
+  }
 
-    return Promise.all(
-        base.map(async ({ nombre, clave, href }) => {
-            try {
-                const resultado = await navigator.permissions.query({ name: clave });
-                const estado: PermisoNavegador["estado"] =
-                    resultado.state === "granted"
-                        ? "otorgado"
-                        : resultado.state === "denied"
-                          ? "denegado"
-                          : "pendiente";
-                return { nombre, href, estado };
-            } catch {
-                return { nombre, href, estado: "desconocido" as const };
-            }
-        }),
-    );
+  return resultados;
 }
 
 /** Icono de cada permiso por su nombre. */
