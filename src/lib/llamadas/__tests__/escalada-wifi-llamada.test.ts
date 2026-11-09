@@ -439,7 +439,7 @@ describe("videollamada solo por Bluetooth: escalada automática al Wi-Fi directo
 /* ══════════════════════════════════ Piezas puras ══════════════════════════════════ */
 
 describe("decisión de la escalada (pura)", () => {
-    const base = { contestada: true, hayRutaIp: false as boolean | null, camara: false, pantalla: false, vozDatosActiva: true, nivelVoz: "buena" as const | "regular" | "mala" | null };
+    const base = { contestada: true, hayRutaIp: false as boolean | null, camara: false, pantalla: false, vozDatosActiva: true, nivelVoz: "buena" as "buena" | "regular" | "mala" | null };
     it("solo escala sin ruta IP y con algo que pedir", () => {
         expect(debeEscalar({ ...base, camara: true })).toBe(true);
         expect(debeEscalar({ ...base, pantalla: true })).toBe(true);
