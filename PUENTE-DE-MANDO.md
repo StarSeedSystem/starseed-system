@@ -1,6 +1,6 @@
 # Genesis · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-08 22:10:47 desde Genesis vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-08 22:15:42 desde Genesis vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -16,19 +16,15 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | Agentes escribiendo | **0** |
 | En esta ola | integradas 0 · en curso 0 · esperando aprobación 0 · pendientes 15 |
 | Últimas 4 olas | en curso 0 · pendientes 100 · integradas 0 |
-| HEAD | `075ad58afb chore(memoria): aprendizaje de la ola auto-1108-201012` |
-| Sin publicar | 3 commits |
+| HEAD | `6f3157c0b1 chore(memoria): aprendizaje de la ola auto-1108-221103` |
+| Sin publicar | 5 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-1108-201012.json`, hace 12s)
+## Quién escribe ahora (latido de `cola-auto-1108-221103.json`, hace 30s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `PRM1108Bb-d2` | hecho | opencode/minimax-m3.1-flash-free | 2 min | 145 s | 224021 |
-| `PRM1108Cc` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 3 min | 172 s | 244211 |
-| `PRM1108Cb` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 47 min | 2816 s | 201517 |
-| `PRM1108Bb-d1` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 57 min | 3438 s | 67323 |
-| `PRM1108Bb` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 84 min | 5068 s | 70353 |
+| `PRM1108Bb-d2` | hecho | nvidia/nvidia/nemotron-3-super-120 | 4 min | 242 s | 226059 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
