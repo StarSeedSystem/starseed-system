@@ -6608,3 +6608,15 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 **Lo que se pidió.** Mando
 
 **Resultado.** 1 de 1 integradas.
+
+## 2026-11-09 12:12 · auto-1109-115403
+
+**Lo que se pidió.** Typecheck · Unit · Mesh · Build
+
+**Resultado.** 2 de 3 integradas. 1 tarea se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- nvidia/nvidia/nemotron-3-ultra-550b-a55b integró 2 tareas sin fallar una.
+
+**Lo que quedó fuera, una por una:**
+- `SUP0911C` — otra cosa
