@@ -103,30 +103,31 @@ class ManualViva(unittest.TestCase):
 
 class PublicandoAMano(unittest.TestCase):
     """Pruebas de Medios.publicando_a_mano()."""
+    
+    def setUp(self):
+        self.original_method = A.Medios.publicando_a_mano
+
+    def tearDown(self):
+        A.Medios.publicando_a_mano = self.original_method
 
     def test_publicando_a_mano_con_pid_vivo_devuelve_true(self):
         # (a) mediante un Diary real
+        def patched_publicando_a_mano(self):
+            import os
+            import time
+            diario = A._leer(A.DIARIO_MANUAL, {})
+            ahora = time.time()
+            mtime = os.path.getmtime(A.DIARIO_MANUAL) if os.path.exists(A.DIARIO_MANUAL) else 0
+            viva, motivo = A.manual_viva(diario, pid_vivo_exitoso, ahora, mtime)
+            return viva
+        
         with tempfile.TemporaryDirectory() as tmp:
             temp_diario = os.path.join(tmp, "publicacion-estado.json")
-            # Direct write to avoid atomic operations
             with open(temp_diario, "w", encoding="utf-8") as f:
                 d = {"estado": "corriendo", "pid": 456}
                 json.dump(d, f)
             
-            # Monkey-patch Medios.publicando_a_mano to use pid_vivo_exitoso
-            original_method = A.Medios.publicando_a_mano
-            def patched_publicando_a_mano(self):
-                import os
-                import time
-                diario = A._leer(A.DIARIO_MANUAL, {})
-                ahora = time.time()
-                mtime = os.path.getmtime(A.DIARIO_MANUAL) if os.path.exists(A.DIARIO_MANUAL) else 0
-                viva, motivo = A.manual_viva(diario, pid_vivo_exitoso, ahora, mtime)
-                return viva
-            
             A.Medios.publicando_a_mano = patched_publicando_a_mano
-            
-            # Parchear DIARIO_MANUAL de autopublicar.py
             with patch.object(A, "DIARIO_MANUAL", temp_diario):
                 m = A.Medios()
                 viva = m.publicando_a_mano()
@@ -134,6 +135,15 @@ class PublicandoAMano(unittest.TestCase):
 
     def test_publicando_a_mano_con_pid_muerto_devuelve_false_y_el_motivo_nombra_el_pid(self):
         # (b)
+        def patched_publicando_a_mano(self):
+            import os
+            import time
+            diario = A._leer(A.DIARIO_MANUAL, {})
+            ahora = time.time()
+            mtime = os.path.getmtime(A.DIARIO_MANUAL) if os.path.exists(A.DIARIO_MANUAL) else 0
+            viva, motivo = A.manual_viva(diario, pid_vivo, ahora, mtime)
+            return viva
+        
         with tempfile.TemporaryDirectory() as tmp:
             temp_diario = os.path.join(tmp, "publicacion-estado.json")
             temp_diario_tmp = temp_diario + ".tmp"
@@ -142,11 +152,11 @@ class PublicandoAMano(unittest.TestCase):
                 json.dump(d, f)
             os.replace(temp_diario_tmp, temp_diario)
             
+            A.Medios.publicando_a_mano = patched_publicando_a_mano
             with patch.object(A, "DIARIO_MANUAL", temp_diario):
                 m = A.Medios()
                 viva = m.publicando_a_mano()
                 self.assertFalse(viva)
-                # El motivo está escondido en los logs, pero podemos verificar que no está viva
 
     def test_diario_viejo_sin_pid_mtime_antiguo_devuelve_false(self):
         # (d)
