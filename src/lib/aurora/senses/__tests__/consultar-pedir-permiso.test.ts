@@ -33,15 +33,16 @@ describe("pedirPermiso (pide de verdad y emite starseed:permiso)", () => {
     expect(vistos).toEqual([{ permiso: "notificaciones", concedido: false, soportado: true, motivo: "denied" }]);
   });
 
-  it("microfono: getUserMedia rechaza con NotAllowedError (Firefox) → denegado", async () => {
-    const fallo = new Error("The request is not allowed by the user agent or the platform in the current context.");
-    fallo.name = "NotAllowedError";
-    vi.stubGlobal("navigator", { mediaDevices: { getUserMedia: () => Promise.reject(fallo) } });
-    await expect(pedirPermiso("microfono")).resolves.toMatchObject({
-      id: "microfono",
-      estado: "denegado",
+it("microfono: getUserMedia rechaza con NotAllowedError (Firefox) → denegado", async () => {
+      const fallo = new Error("The request is not allowed by the user agent or the platform in the current context.");
+      fallo.name = "NotAllowedError";
+      vi.stubGlobal("navigator", { mediaDevices: { getUserMedia: () => Promise.reject(fallo) } });
+      await expect(pedirPermiso("microfono")).resolves.toMatchObject({
+        id: "microfono",
+        estado: "denegado",
+        nombreError: "NotAllowedError",
+      });
     });
-  });
 
   it("microfono: sin mediaDevices → no-disponible (pedir y consultar)", async () => {
     vi.stubGlobal("navigator", {});
