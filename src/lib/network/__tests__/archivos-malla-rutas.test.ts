@@ -44,7 +44,7 @@ import {
   type MotorArchivos,
 } from "@/lib/network/archivos-malla";
 import { crearRedNativa, type DepsRedNativa, type RedNativa } from "@/lib/malla/red-local-nativa-motor";
-import type { LimitesCanal } from "@/lib/malla/red-local-nativa";
+import { FALLOS_PARA_CAIDA, type LimitesCanal } from "@/lib/malla/red-local-nativa";
 
 /* ══════════════════════════ Los 18 archivos de la prueba ══════════════════════════ */
 
@@ -231,16 +231,25 @@ function tramaValidaComoRust(cuerpo: string): boolean {
 /**
  * Dos apps nativas vinculadas, cada una con su `crearRedNativa` real. `enviar` hace lo de
  * `malla_local::enviar`: valida la trama como Rust, la «escribe» y espera el acuse; la otra app la
- * emite a su web (`malla-local://mensaje` → `red.recibir`). `perderAcuse(n)`: la trama n-ésima llega
- * pero su acuse no (la web la reintenta y llega DOS veces, como en una red real).
+ * emite a su web (`malla-local://mensaje` → `red.recibir`). `perderAcuse(n)`: la n-ésima trama HACIA
+ * ESA APP llega pero su acuse no (la web la reintenta y llega DOS veces, como en una red real).
+ *
+ * (SUP0911E) Se cuenta por destino. Con un contador común a los dos sentidos, el reintento de una trama
+ * podía caer otra vez en un múltiplo (rachas de 2 en casi cada vuelta) y, con `FALLOS_PARA_CAIDA` acuses
+ * perdidos seguidos, una app daba a la otra por caída `CAIDA_MS` en este reloj, que solo avanza con
+ * `dormir`: la caída no acababa nunca, los «ok» del receptor se perdían y la CI caía con los 16 archivos
+ * ÍNTEGROS en el receptor y «no confirmó la verificación a tiempo» a los 45 s (09-11: 3 de ~25 runs).
+ * La prueba de acuses perdidos es de tramas duplicadas, no de caídas: `tramas.rachaPerdidas` lo vigila.
  */
 function porCanalNativo(
   almacenB: AlmacenTrozos,
   opts: { perderAcuse?: (n: number) => boolean } = {},
-): Lados & { tramas: { total: number; maxBytes: number; rechazadas: number; duplicadas: number }; redes: Record<string, RedNativa> } {
+): Lados & { tramas: { total: number; maxBytes: number; rechazadas: number; duplicadas: number; rachaPerdidas: number }; redes: Record<string, RedNativa> } {
   const reloj = { ahora: 1_000_000 };
   const redes: Record<string, RedNativa> = {};
-  const tramas = { total: 0, maxBytes: 0, rechazadas: 0, duplicadas: 0 };
+  const tramas = { total: 0, maxBytes: 0, rechazadas: 0, duplicadas: 0, rachaPerdidas: 0 };
+  /** (SUP0911E) Tramas hacia cada app y acuses perdidos seguidos hacia ella. */
+  const hacia: Record<string, { n: number; seguidas: number }> = {};
   const recibidos = new Map<string, Blob>();
   const motorA = crearMotorArchivos({ almacen: crearAlmacenEnMemoria() });
   const motorB: MotorArchivos = crearMotorArchivos({
@@ -263,16 +272,21 @@ function porCanalNativo(
           tramas.rechazadas++;
           return { ok: false, motivo: "No se envía: la trama no es válida." };
         }
-        const n = ++tramas.total;
+        tramas.total++;
         tramas.maxBytes = Math.max(tramas.maxBytes, Buffer.byteLength(json, "utf8"));
         const red = redes[destino];
         if (!red) return { ok: false, motivo: "no se pudo conectar" };
+        const h = (hacia[destino] ??= { n: 0, seguidas: 0 });
+        const n = ++h.n;
         // La app que escucha la guarda en su buzón, acusa y la emite a su web en otra tarea.
         setTimeout(() => void red.recibir(json, ip), 0);
         if (opts.perderAcuse?.(n)) {
           tramas.duplicadas++;
+          h.seguidas++;
+          tramas.rachaPerdidas = Math.max(tramas.rachaPerdidas, h.seguidas);
           return { ok: false, motivo: "tiempo agotado esperando a la otra neurona" };
         }
+        h.seguidas = 0;
         return { ok: true, ms: 2 };
       },
       yo: async () => ({ neurona, nombre }),
@@ -381,6 +395,8 @@ describe("ARC1108A · los 18 archivos de la prueba llegan íntegros por la red l
     await ligarApps(l.redes);
     const r = await enviarTodos(l, fijosSinteticos(false).filter((f) => f.datos.byteLength < 1_000_000), 60_000);
     expect(l.tramas.duplicadas).toBeGreaterThan(0);
+    // (SUP0911E) Duplicadas, sí; una racha que dé a la otra app por caída, nunca (ver `porCanalNativo`).
+    expect(l.tramas.rachaPerdidas).toBeLessThan(FALLOS_PARA_CAIDA);
     expect(todosBien(r)).toEqual([]);
   }, 90_000);
 
