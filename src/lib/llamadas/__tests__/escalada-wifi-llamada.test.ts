@@ -411,7 +411,7 @@ describe("videollamada solo por Bluetooth: escalada automática al Wi-Fi directo
         await esperarHasta(() => mac.estado().medio?.tipo === "enlace-datos");
         expect(await mac.alternarPantalla()).toBeNull();
         await esperarHasta(() => escalar.mock.calls.some((c) => c[0] === "pantalla"));
-        expect(mac.estado().videoNoDisponible).toMatch(/Wi‑Fi directo/);
+        expect(mac.estado().videoNoDisponible).toMatch(/Wi‑Fi P2P/);
     });
 
     it("la cadena real: la llamada llama a avisarEnvioPesado → alNecesitarAncho con clase «llamada» y retiene el flujo", async () => {
@@ -456,7 +456,7 @@ describe("decisión de la escalada (pura)", () => {
     it("el ajuste decide: Automático abre, Preguntar propone, Nunca no hace nada (para clase «llamada» por Bluetooth)", () => {
         const comun = {
             clase: "llamada" as const,
-            capPropia: { plataforma: "macos" as const, ap: ["hotspot-local" as const], cliente: ["corewlan" as const], permiso: "concedido" as const, radioUnica: true, wifi: true },
+            capPropia: { plataforma: "macos" as const, ap: ["hotspot-local" as const], cliente: ["corewlan" as const], permiso: "concedido" as const, radioUnica: true, wifi: true, lanas: ["punto-acceso-optin" as const] },
             enlaceActual: { tipo: "ble" as const, kbps: 200 },
             cerca: true,
             fase: "inactivo" as const,
@@ -480,12 +480,12 @@ describe("decisión de la escalada (pura)", () => {
         expect(pasoWifiDe({ ...vacia, estado: { fase: "activo", otro: "n2" } }, "n1", "automatico").paso).toBe("inactivo"); // otro enlace, otra neurona
 
         const t = (p: Parameters<typeof textoEscalada>[0]) => textoEscalada(p);
-        expect(t({ paso: "abriendo", webrtcConectado: false, videoPedido: true, videoDatosActivo: false })).toBe("Abriendo Wi‑Fi directo…");
-        expect(t({ paso: "inactivo", webrtcConectado: false, videoPedido: true, videoDatosActivo: false })).toBe("Voz por Bluetooth · el video llegará al abrir el Wi‑Fi directo");
+        expect(t({ paso: "abriendo", webrtcConectado: false, videoPedido: true, videoDatosActivo: false })).toBe("Abriendo Wi‑Fi P2P…");
+        expect(t({ paso: "inactivo", webrtcConectado: false, videoPedido: true, videoDatosActivo: false })).toBe("Voz por Bluetooth · el video llegará al abrir el Wi‑Fi P2P");
         expect(t({ paso: "inactivo", webrtcConectado: false, videoPedido: true, videoDatosActivo: true })).toBe("Video ligero por Bluetooth (baja resolución)");
-        expect(t({ paso: "activo", webrtcConectado: true, videoPedido: true, videoDatosActivo: false })).toBe("Video por Wi‑Fi directo (sin router)");
+        expect(t({ paso: "activo", webrtcConectado: true, videoPedido: true, videoDatosActivo: false })).toBe("Video por Wi‑Fi P2P (sin router ni hotspot)");
         expect(t({ paso: "inactivo", webrtcConectado: false, videoPedido: false, videoDatosActivo: false })).toBeNull();
-        expect(TEXTO_VOZ_BLE_ESPERANDO_WIFI).toContain("el video llegará al abrir el Wi‑Fi directo");
+        expect(TEXTO_VOZ_BLE_ESPERANDO_WIFI).toContain("el video llegará al abrir el Wi‑Fi P2P");
     });
 });
 

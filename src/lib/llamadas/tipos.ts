@@ -139,7 +139,7 @@ export interface VideoDatosVista {
 
 /** (LLA1108H) Estado de la escalada al Wi-Fi directo para la superficie. */
 export interface EscaladaVista {
-    paso: "inactivo" | "abriendo" | "propuesta" | "activo" | "no";
+    paso: "inactivo" | "abriendo" | "propuesta" | "activo" | "no" | "sin-p2p";
     /** La línea de estado (null: nada que contar). */
     texto: string | null;
     /** Aviso (en el Mac: sale de tu Wi-Fi de casa mientras dure). */

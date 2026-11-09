@@ -1,10 +1,109 @@
-# Contrato · Enlace Wi-Fi directo entre neuronas, sin router (2026-11-08 · WFD1108A)
+# Contrato · Enlace Wi-Fi directo entre neuronas, sin router ni hotspot (2026-11-08 · WFD1108A · reescrito 2026-11-09 · WFA1109A)
 
 Petición de Alex: «P2P sin router debe ser directo entre las antenas de los aparatos, no por una red
 externa». Para lo pesado (archivos grandes, llamadas, pantalla, transmisiones) StarSeed OS abre SOLO una
 red Wi-Fi entre dos neuronas, sin router y sin que nadie se una a mano a un punto de acceso. Encima corre,
 sin cambios, el transporte local de siempre: el canal TCP 47071 de la app nativa (`malla_local.rs`) y el
 WebRTC señalizado por él (`red-local-nativa*.ts`, `senal-nativa.ts`).
+
+## 0 · El modelo (WFA1109A · corrección de Alex, 09-11)
+
+Alex: «debe ser Wi‑Fi directo sin hotspot, más bien mesh P2P». WFD1108A resolvía Mac ↔ Android con un punto de
+acceso del Android al que el Mac se unía con CoreWLAN **dejando su Wi‑Fi de casa**. Eso ya no es el camino normal.
+
+### 0.1 · La realidad física (se dice tal cual en la interfaz)
+
+- **Android ↔ Android: P2P de verdad, sin punto de acceso.** Wi‑Fi Aware (NAN: publicar/suscribir + ruta de datos
+  con IPv6 de enlace local) o, si falta Aware, Wi‑Fi Direct **concurrente** con el Wi‑Fi de casa. Nunca el hotspot local.
+- **Apple ↔ Apple: AWDL.** Network.framework con peer‑to‑peer y Bonjour `_starseed-p2p._tcp`. Conserva el Wi‑Fi de infraestructura.
+- **Mac ↔ Android: NO hay Wi‑Fi P2P común.** Apple solo expone AWDL; Android solo Aware/Wi‑Fi Direct. Su enlace directo es
+  **Bluetooth** (con el carril rápido L2CAP de BLE1109A). El punto de acceso sigue siendo posible, pero solo con permiso
+  explícito de las dos neuronas, porque cuesta el Wi‑Fi del Mac.
+
+### 0.2 · Tabla por pareja (`decidirParP2p`, `src/lib/malla/wifi-p2p.ts`)
+
+| Pareja | Enlace pesado | Capacidad que lo habilita | Qué pasa sin él |
+|---|---|---|---|
+| Android ↔ Android | Aware > Wi‑Fi Direct concurrente | `wifi-aware`, `wifi-direct-concurrente` | Bluetooth |
+| Mac ↔ Mac (y, documentado, iOS ↔ Mac/iOS) | AWDL | `awdl` en las dos | Bluetooth |
+| Mac ↔ Android | **ninguno** → Bluetooth | — | Bluetooth (ligero + carril BLE1109A) |
+| Mac ↔ Android con permiso de las DOS | red directa por punto de acceso | `punto-acceso-optin` en las dos | Bluetooth |
+
+Las cuatro cadenas viajan en `cap.lanas` de las capacidades (`enlace.wifi.oferta/respuesta`, y en una respuesta de
+rechazo también): una app anterior no las trae y se la trata como WFD1108A (Android con Wi‑Fi Direct de los dos lados =
+`wifi-direct-concurrente`; nada de punto de acceso mientras no lo anuncie). `elegirRoles/rolesValidos` excluyen
+`corewlan`/`guiado` si no están los dos permisos. El ranking del planificador (`planificarVias`, `elegirEnlaces`) ya pone
+cualquier enlace `nativo:` (incluidos `nativo:awdl:<huella>` y `nativo:fe80::…%iface`) por encima de BLE para lo pesado.
+
+### 0.3 · Wi‑Fi Aware (Android ↔ Android) — construido
+
+- Kotlin: `android/WifiAwareStarSeed.kt` (SDK 29+, `FEATURE_WIFI_AWARE`, `ACTION_WIFI_AWARE_STATE_CHANGED`). Servicio
+  `starseed-malla`; el aviso son 9 bytes: versión (1) + huella de 8 bytes de la neurona (`sha256("starseed-malla:v1:<id>")`). Sin secretos.
+- Reutiliza la máquina de estados de WFD1108A: método nuevo `wifi-aware` (rol «ap» = quien publica, «cliente» = quien se
+  suscribe). Quien publica genera una contraseña por sesión (20 caracteres) y la manda **cifrada** por el canal firmado
+  (`enlace.wifi.listo`, igual que las credenciales de WFD1108A). Quien se suscribe encuentra la huella esperada, escribe un
+  «hola» (versión + su huella) y pide la ruta de datos como iniciador; el publicador la abre como respondedor.
+- Direcciones: `WifiAwareNetworkInfo.peerIpv6Addr` + la interfaz de la `LinkProperties` → `fe80::…%aware_data0`
+  (`ip_otro`/`ip_propia` en el estado). La web las valida con `ipEnlaceLocalV6` (forma canónica, solo `fe80::/10` con ámbito;
+  espejo de `ip_p2p` en Rust).
+- Canal: un segundo oyente TCP **`[::]:47073`** (`PUERTO_P2P`, mismo protocolo, buzón y limitador que 47071; el socket IPv4
+  de Android ya ocupa 47071). El motor da a `RedNativa` la pista `fe80::…%iface` con el puerto 47073.
+- Permisos: `NEARBY_WIFI_DEVICES` (13+, `neverForLocation`) / `ACCESS_FINE_LOCATION` (≤12), los mismos que ya pide el
+  primer arranque (PER1108A: «Dispositivos cercanos»; solo cambió su texto). Función `android.hardware.wifi.aware` `required=false`.
+- Interruptor: `STARSEED_SIN_WIFI_AWARE=1` (en el entorno del build: el Kotlin sale como una variante vacía con la misma API y
+  el puente dice `aware:false`; en ejecución, `aware_activo`/`lanas_android` lo respetan).
+- **Sin verificar en aparato** (Kotlin no se compila en local; lo compila CI): la ruta de salida del socket sin enlazar a la
+  `Network` de Aware depende del enrutado `local_network` de Android; si algún aparato no la tuviera, el respaldo sería un
+  puente por la `Network` (no construido).
+
+### 0.4 · Wi‑Fi Direct concurrente (Android ↔ Android sin Aware) — reutiliza WFD1108A
+
+Es el grupo Wi‑Fi Direct de `EnlaceWifiDirecto.kt` (dueño/cliente), que en la mayoría de aparatos convive con el Wi‑Fi de casa.
+Se anuncia como `wifi-direct-concurrente`. Entre dos Android ya no se usa el punto de acceso local. No se demostró la
+concurrencia aparato por aparato: si el sistema apaga el Wi‑Fi de casa, el aviso de «una sola radio» de WFD1108A sigue vigente.
+
+### 0.5 · AWDL (Apple ↔ Apple) — construido para macOS, iOS documentado
+
+- `src/awdl_macos.rs`: Network.framework por `dlsym` (macOS 10.15+; sin el símbolo → «no disponible», sin caída). Escucha y
+  anuncia `_starseed-p2p._tcp` con peer‑to‑peer y busca vecinos igual. Comandos `awdl_iniciar(neurona)`, `awdl_detener`, `awdl_estado`.
+- Vecinos como dirección virtual `awdl:<huella de 16 hex>` (nombre de servicio derivado del id de neurona). Una conexión por
+  mensaje: [preámbulo `AWDL1:<huella>\n`] + trama estándar `SSM1` + trama de acuse. El preámbulo solo es una etiqueta de
+  ruteo; la identidad la prueba el saludo firmado y la sesión CIF1108A, exactamente igual que por TCP. Se entrega a
+  `malla_local` (`entregar_externo`: mismo buzón, limitador, avisos y eventos) y `vecinos_locales` suma los vecinos AWDL.
+- Interruptor `STARSEED_SIN_AWDL=1`. La web lo enciende una vez (`nativo.awdl`) cuando la capacidad trae `awdl`.
+- iOS: mismas API (`nw_*`), mismo servicio y mismo protocolo; no hay app iOS en este repositorio: **solo documentado**.
+
+### 0.6 · Punto de acceso: opt‑in, apagado por defecto
+
+- Ajustes › Neuronas › Medios: «Permitir red directa por punto de acceso (la Mac deja su Wi‑Fi mientras dure)».
+  Por aparato; clave `starseed.neuronas.medios.punto-acceso.v1` ("0"/"1"). Las capacidades de punto de acceso solo se
+  muestran y anuncian (`punto-acceso-optin`) si está encendido.
+- **Migración** (marca `starseed.neuronas.medios.punto-acceso.migracion` = 1): quien tuviera WFD1108A en «Automático» o
+  «Preguntar» queda en «no» una sola vez; lo que la persona elija después no se vuelve a tocar.
+- Nombres en la interfaz: «Wi‑Fi P2P (sin router ni hotspot)» para Aware/Wi‑Fi Direct/AWDL y «Red directa por punto de
+  acceso» para el opt‑in. La pastilla del enlace: «Wi‑Fi P2P · Aware/AWDL/Wi‑Fi Direct · sin router».
+- Ajustes explica una línea por pareja (`TEXTO_PAREJAS`): Android ↔ Android = Aware/Wi‑Fi Direct, Apple ↔ Apple = AWDL,
+  Mac ↔ Android = Bluetooth.
+
+### 0.7 · La llamada (LLA1108H) sin hotspot
+
+`decidirEnlaceWifi` devuelve `{accion:"nada", sinP2p:true}` cuando para esa pareja no hay carril sin hotspot (capacidades del
+otro conocidas por una oferta/respuesta anterior, o desconocidas y la propia no ofrece nada sin permiso). El motor lo expone
+en `instantanea().sinP2p`; `pasoWifiDe` da el paso `sin-p2p`, la llamada **no** llama a `escalarWifi`/`avisarEnvioPesado`
+más, no sale ningún aviso de Wi‑Fi y sigue por video ligero por Bluetooth + carril rápido BLE1109A. Para la pantalla
+compartida el texto es «La pantalla no cabe por Bluetooth y entre estos aparatos no hay Wi‑Fi P2P sin hotspot».
+
+### 0.8 · Pasos con aparatos (Alex tiene un Mac y una tableta Android; faltan segundos aparatos)
+
+1. Mac ↔ Android (disponible hoy): ninguna ventana de Wi‑Fi; una llamada con cámara debe quedarse en Bluetooth ligero. Activar
+   el permiso del punto de acceso en AMBOS lleva al camino de WFD1108A.
+2. Android ↔ Android (necesita otro Android con Aware): ligar por Bluetooth, enviar un archivo grande; la pastilla debe decir
+   «Wi‑Fi P2P · Aware · sin router» y el Wi‑Fi de casa seguir conectado. `adb logcat` filtrando `WifiAware`.
+3. Mac ↔ Mac (necesita otro Mac): abrir StarSeed en los dos con Bluetooth y Wi‑Fi encendidos (no hace falta estar en la misma
+   red); `awdl_estado` debe listar al vecino y la pastilla decir «Wi‑Fi P2P · AWDL · sin router».
+
+Lo que sigue (§1–§9) es WFD1108A y vale **solo** para los métodos `hotspot-local`, `wifi-direct`, `corewlan` y `guiado`; donde
+dice que Mac ↔ Android abre el punto de acceso «solo» o por defecto, mandan las reglas de este apartado §0.
 
 ## 1 · Piezas
 
@@ -18,6 +117,9 @@ WebRTC señalizado por él (`red-local-nativa*.ts`, `senal-nativa.ts`).
 | macOS | `native/src-tauri/src/enlace_wifi_macos.rs` | CoreWLAN (objc2): unirse, volver a la red de antes; Ubicación |
 | Android (Kotlin) | `native/src-tauri/android/EnlaceWifiDirecto.kt` | Punto de acceso local, grupo Wi-Fi Direct (dueño) y unirse a uno (cliente); permisos |
 | Parche Android | `native/src-tauri/src/enlace_wifi_parche.rs` (+ `build.rs`) | Permisos, proveedor `ArranqueEnlaceWifi` y el Kotlin en el proyecto que genera Tauri |
+| P2P puro (WFA1109A) | `src/lib/malla/wifi-p2p.ts`, `punto-acceso-ajuste.ts` | Carriles, decisión por pareja, textos, opt-in del punto de acceso y su migración |
+| Wi-Fi Aware (WFA1109A) | `native/src-tauri/android/WifiAwareStarSeed.kt` (+ variante vacía en `enlace_wifi_parche.rs`) | Publicar/suscribir `starseed-malla`, ruta de datos IPv6 |
+| P2P Rust (WFA1109A) | `native/src-tauri/src/wifi_p2p_logica.rs`, `awdl.rs`, `awdl_macos.rs`, `malla_local.rs` (oyente `[::]:47073`) | Huellas, tramas, preámbulo AWDL, Network.framework |
 | Interfaz | `src/components/malla/banda-enlace-wifi.tsx`, `src/components/settings/neurons/ajuste-enlace-wifi.tsx`, `src/ai/astraura/mesh/senales-enlace-wifi.ts` | Chat y ficha de la neurona, Ajustes › Neuronas › Medios, Radar y Señales |
 
 ## 2 · Protocolo de negociación

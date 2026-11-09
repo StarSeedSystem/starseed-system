@@ -29,8 +29,8 @@ import {
   type Propio,
 } from "@/lib/malla/enlace-wifi-directo";
 
-const ANDROID: CapacidadesWifi = { plataforma: "android", ap: ["hotspot-local", "wifi-direct"], cliente: ["wifi-direct"], permiso: "concedido", radioUnica: false, wifi: true };
-const MAC: CapacidadesWifi = { plataforma: "macos", ap: [], cliente: ["corewlan", "guiado"], permiso: "concedido", radioUnica: true, wifi: true };
+const ANDROID: CapacidadesWifi = { plataforma: "android", ap: ["hotspot-local", "wifi-direct"], cliente: ["wifi-direct"], permiso: "concedido", radioUnica: false, wifi: true, lanas: ["punto-acceso-optin"] };
+const MAC: CapacidadesWifi = { plataforma: "macos", ap: [], cliente: ["corewlan", "guiado"], permiso: "concedido", radioUnica: true, wifi: true, lanas: ["punto-acceso-optin"] };
 const EPUB: JsonWebKey = { kty: "EC", crv: "P-256", x: "xxxxxxxx", y: "yyyyyyyy" };
 
 const TEL: Propio = { neurona: "tel-1", nombre: "Teléfono", cap: ANDROID, epub: EPUB };

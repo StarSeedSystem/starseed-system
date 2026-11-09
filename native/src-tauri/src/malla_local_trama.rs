@@ -19,7 +19,7 @@
 use std::collections::{HashMap, VecDeque};
 use std::fmt;
 use std::io::{self, Read, Write};
-use std::net::Ipv4Addr;
+use std::net::{Ipv4Addr, Ipv6Addr};
 
 pub const MAGIA: [u8; 4] = *b"SSM1";
 pub const VERSION: u8 = 1;
@@ -207,6 +207,36 @@ pub fn enviar_y_esperar<S: Read + Write>(s: &mut S, cuerpo: &str) -> Result<(), 
 pub fn ip_local(texto: &str) -> Option<Ipv4Addr> {
     let ip: Ipv4Addr = texto.trim().parse().ok()?;
     (ip.is_private() || ip.is_link_local()).then_some(ip)
+}
+
+/// (WFA1109A) Puerto del canal en IPv6 de enlace local (Wi-Fi Aware): el MISMO protocolo que `PUERTO`, en otro
+/// socket (un solo socket dual-stack no cabe en Android, donde el IPv4 ya ocupa el 47071).
+pub const PUERTO_P2P: u16 = 47073;
+
+/// (WFA1109A) Dirección de un vecino por Wi-Fi Aware: IPv6 de enlace local + el ámbito (interfaz) por donde llegar.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DireccionP2p {
+    pub ip: Ipv6Addr,
+    /// Nombre de la interfaz (`aware_data0`) o su número.
+    pub ambito: String,
+}
+
+/// (WFA1109A) `fe80::1%aware_data0`: SOLO enlace local (fe80::/10) y SIEMPRE con ámbito. Sin ámbito no se sabe
+/// por qué interfaz salir, y nunca una IPv6 global: el canal no habla con internet. Espejo de `ipEnlaceLocalV6` (TS).
+pub fn ip_p2p(texto: &str) -> Option<DireccionP2p> {
+    let (ip_txt, ambito) = texto.trim().split_once('%')?;
+    if ambito.is_empty() || ambito.len() > 15 || !ambito.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'.' | b'-')) {
+        return None;
+    }
+    let ip: Ipv6Addr = ip_txt.parse().ok()?;
+    ((ip.segments()[0] & 0xffc0) == 0xfe80).then(|| DireccionP2p { ip, ambito: ambito.to_string() })
+}
+
+/// (WFA1109A) `awdl:<huella de 6 a 32 caracteres [a-z0-9]>`: la dirección virtual de un vecino Apple por AWDL.
+pub fn direccion_awdl(texto: &str) -> Option<String> {
+    let t = texto.trim().to_ascii_lowercase();
+    let id = t.strip_prefix("awdl:")?;
+    ((6..=32).contains(&id.len()) && id.bytes().all(|b| b.is_ascii_digit() || b.is_ascii_lowercase())).then(|| t.clone())
 }
 
 /// Puertos de usuario (≥ 1024): nunca servicios del sistema.
@@ -486,5 +516,32 @@ mod pruebas {
         let mut acuse = Cursor::new(codificar(TipoTrama::Acuse, ACUSE_OK).unwrap());
         assert_eq!(leer_mensaje(&mut acuse), Err(ErrorTrama::TipoInesperado));
         assert!(ErrorTrama::Largo(5).to_string().contains("tope"));
+    }
+
+    // ─── WFA1109A ───
+    #[test]
+    fn ip_p2p_solo_enlace_local_con_ambito() {
+        let d = ip_p2p("fe80::1c2d:3eff:fe4f:5a6b%aware_data0").unwrap();
+        assert_eq!(d.ambito, "aware_data0");
+        assert_eq!(d.ip.segments()[0], 0xfe80);
+        assert!(ip_p2p("fe80::1%12").is_some(), "el ámbito puede ser el número de la interfaz");
+        assert!(ip_p2p("febf::1%wlan0").is_some(), "fe80::/10 llega hasta febf");
+        assert!(ip_p2p("fe80::1").is_none(), "sin ámbito no se sabe por dónde salir");
+        assert!(ip_p2p("fe80::1%").is_none());
+        assert!(ip_p2p("2001:db8::1%eth0").is_none(), "nunca una IPv6 global");
+        assert!(ip_p2p("fc00::1%eth0").is_none(), "ni ULA: solo enlace local");
+        assert!(ip_p2p("::1%lo").is_none());
+        assert!(ip_p2p("fe80::1%a b").is_none());
+        assert!(ip_p2p("fe80::1%interfaz_demasiado_larga").is_none());
+        assert!(ip_p2p("192.168.1.2").is_none());
+    }
+
+    #[test]
+    fn direccion_awdl_valida() {
+        assert_eq!(direccion_awdl("AWDL:0123456789abcdef").as_deref(), Some("awdl:0123456789abcdef"));
+        assert!(direccion_awdl("awdl:abc").is_none());
+        assert!(direccion_awdl("awdl:0123456789abcde!").is_none());
+        assert!(direccion_awdl("192.168.1.2").is_none());
+        assert!(ip_local("awdl:0123456789abcdef").is_none(), "AWDL no es IPv4: va por su propio camino");
     }
 }

@@ -23,6 +23,8 @@
  */
 
 import type { EnlaceDisponible } from "./eleccion-enlace";
+import { ipEnlaceLocalV6 } from "./enlace-wifi-directo"; // WFA1109A
+import { direccionAwdl } from "./wifi-p2p"; // WFA1109A
 
 export const PREFIJO_ENLACE_NATIVO = "nativo:";
 /** Las sesiones WebRTC señalizadas por el canal nativo: su enlace local es `local:nativo-…`. */
@@ -39,6 +41,9 @@ const RE_IPV4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
 /** IPv4 de la red local (privada o de enlace local), o null. Espejo de `ip_local` (Rust). */
 export function ipLocal(texto: unknown): string | null {
   if (typeof texto !== "string") return null;
+  // (WFA1109A) Direcciones Wi-Fi P2P: IPv6 de enlace local con ámbito (Aware) y `awdl:<id>` (AWDL de Apple).
+  const p2p = ipEnlaceLocalV6(texto) ?? direccionAwdl(texto);
+  if (p2p) return p2p;
   const m = RE_IPV4.exec(texto.trim());
   if (!m) return null;
   const o = m.slice(1).map(Number);

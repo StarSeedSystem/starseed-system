@@ -26,7 +26,7 @@
 
 use crate::malla_local_trama::{self as trama, Buzon, Limitador, Recibido};
 use serde::Serialize;
-use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4, TcpListener, TcpStream};
+use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6, TcpListener, TcpStream};
 use std::sync::atomic::{AtomicBool, AtomicU16, AtomicUsize, Ordering};
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -150,6 +150,93 @@ pub fn iniciar(app: &AppHandle) {
     }
     let h = app.clone();
     let _ = std::thread::Builder::new().name("starseed-malla-local".into()).spawn(move || bucle(h));
+    // WFA1109A: el mismo canal en IPv6 de enlace local (Wi-Fi Aware) en su propio puerto.
+    let h6 = app.clone();
+    let _ = std::thread::Builder::new().name("starseed-malla-local-p2p".into()).spawn(move || bucle_p2p(h6));
+}
+
+/// (WFA1109A) Oyente en IPv6 `[::]:47073` para los vecinos por Wi-Fi Aware: SOLO atiende direcciones de enlace
+/// local (fe80::/10) con ámbito; cualquier otra se corta en `atender`. Mismo protocolo, mismo buzón, mismo limitador.
+fn bucle_p2p(app: AppHandle) {
+    loop {
+        if let Ok(oyente) = TcpListener::bind(SocketAddrV6::new(Ipv6Addr::UNSPECIFIED, trama::PUERTO_P2P, 0, 0)) {
+            let mut fallos = 0u32;
+            for entrante in oyente.incoming() {
+                match entrante {
+                    Ok(s) => {
+                        fallos = 0;
+                        atender(&app, s);
+                    }
+                    Err(_) => {
+                        fallos += 1;
+                        if fallos >= 50 {
+                            break;
+                        }
+                        std::thread::sleep(Duration::from_millis(200));
+                    }
+                }
+            }
+        }
+        // Sin IPv6 en este aparato (o el puerto ocupado) no es un fallo: se vuelve a mirar más tarde.
+        std::thread::sleep(Duration::from_secs(60));
+    }
+}
+
+/// (WFA1109A) Nombre de la interfaz de un índice de ámbito IPv6 (`aware_data0`), o None.
+#[cfg(unix)]
+pub fn nombre_interfaz(indice: u32) -> Option<String> {
+    extern "C" {
+        fn if_indextoname(indice: u32, nombre: *mut std::ffi::c_char) -> *mut std::ffi::c_char;
+    }
+    let mut buf = [0 as std::ffi::c_char; 64];
+    // SAFETY: el buffer tiene espacio de sobra para IF_NAMESIZE; la función escribe una cadena terminada en NUL.
+    let p = unsafe { if_indextoname(indice, buf.as_mut_ptr()) };
+    if p.is_null() {
+        return None;
+    }
+    let c = unsafe { std::ffi::CStr::from_ptr(buf.as_ptr()) };
+    c.to_str().ok().map(|t| t.to_string())
+}
+
+#[cfg(not(unix))]
+pub fn nombre_interfaz(_indice: u32) -> Option<String> {
+    None
+}
+
+/// (WFA1109A) Índice de una interfaz por su nombre o por su número.
+#[cfg(unix)]
+pub fn indice_interfaz(ambito: &str) -> Option<u32> {
+    if let Ok(n) = ambito.parse::<u32>() {
+        return (n != 0).then_some(n);
+    }
+    extern "C" {
+        fn if_nametoindex(nombre: *const std::ffi::c_char) -> u32;
+    }
+    let c = std::ffi::CString::new(ambito).ok()?;
+    // SAFETY: cadena C válida y terminada en NUL.
+    let i = unsafe { if_nametoindex(c.as_ptr()) };
+    (i != 0).then_some(i)
+}
+
+#[cfg(not(unix))]
+pub fn indice_interfaz(ambito: &str) -> Option<u32> {
+    ambito.parse::<u32>().ok().filter(|n| *n != 0)
+}
+
+/// (WFA1109A) Entrega un mensaje llegado por otro transporte local (AWDL) al mismo buzón y eventos que el canal
+/// TCP: limitador por etiqueta, buzón, aviso del sistema, timbre de llamada y evento a la web. false si el
+/// limitador lo cortó.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+pub fn entregar_externo(app: &AppHandle, etiqueta: &str, cuerpo: String) -> bool {
+    let ahora = ahora_ms();
+    if !con_estado(|e| e.limitador.permitir(etiqueta, ahora)) {
+        return false;
+    }
+    let recibido = con_estado(|e| e.buzon.poner(etiqueta, cuerpo, ahora));
+    crate::avisos_mensajes::al_recibir_local(app, etiqueta, &recibido.cuerpo);
+    crate::llamada_entrante::al_recibir_local(app, &recibido.cuerpo);
+    let _ = app.emit(EVENTO_MENSAJE, MensajeLocal::from(recibido));
+    true
 }
 
 fn bucle(app: AppHandle) {
@@ -207,14 +294,25 @@ impl Drop for Plaza {
 }
 
 fn atender(app: &AppHandle, s: TcpStream) {
-    let ip = match s.peer_addr() {
-        Ok(SocketAddr::V4(a)) => *a.ip(),
+    let ip_texto = match s.peer_addr() {
+        Ok(SocketAddr::V4(a)) => {
+            // Solo la red local: una conexión desde internet (un puerto reenviado en el router) se corta.
+            if trama::ip_local(&a.ip().to_string()).is_none() {
+                return;
+            }
+            a.ip().to_string()
+        }
+        // (WFA1109A) Wi-Fi Aware: IPv6 de enlace local con su ámbito, nunca una global.
+        Ok(SocketAddr::V6(a)) => {
+            let ambito = nombre_interfaz(a.scope_id()).unwrap_or_else(|| a.scope_id().to_string());
+            let t = format!("{}%{}", a.ip(), ambito);
+            if trama::ip_p2p(&t).is_none() {
+                return;
+            }
+            t
+        }
         _ => return,
     };
-    // Solo la red local: una conexión desde internet (un puerto reenviado en el router) se corta.
-    if trama::ip_local(&ip.to_string()).is_none() {
-        return;
-    }
     if CONEXIONES.fetch_add(1, Ordering::SeqCst) >= MAX_CONEXIONES {
         CONEXIONES.fetch_sub(1, Ordering::SeqCst);
         return;
@@ -227,7 +325,6 @@ fn atender(app: &AppHandle, s: TcpStream) {
         let mut s = s;
         let _ = s.set_read_timeout(Some(Duration::from_millis(LEER_ESCRIBIR_MS)));
         let _ = s.set_write_timeout(Some(Duration::from_millis(LEER_ESCRIBIR_MS)));
-        let ip_texto = ip.to_string();
         let ahora = ahora_ms();
         if !con_estado(|e| e.limitador.permitir(&ip_texto, ahora)) {
             return;
@@ -246,16 +343,38 @@ fn atender(app: &AppHandle, s: TcpStream) {
 
 // ─────────────────────────────── Envío ───────────────────────────────
 
+#[cfg(target_os = "macos")]
+fn enviar_awdl(direccion: &str, json: &str) -> Result<u64, String> {
+    crate::awdl_macos::enviar(direccion, json)
+}
+
+#[cfg(not(target_os = "macos"))]
+fn enviar_awdl(_direccion: &str, _json: &str) -> Result<u64, String> {
+    Err("AWDL solo existe entre Mac (macOS 10.15+): Android usa Wi-Fi Aware o Wi-Fi Direct.".into())
+}
+
 /// Envía un JSON a otra neurona de la red local y espera su acuse. Devuelve los ms de ida y vuelta.
 pub fn enviar(ip: &str, puerto: u16, json: &str) -> Result<u64, String> {
-    let ip4 = trama::ip_local(ip).ok_or_else(|| {
-        format!("«{ip}» no es una dirección de esta red local: el canal local solo habla con neuronas de la misma red.")
-    })?;
-    if !trama::puerto_valido(puerto) {
-        return Err(format!("El puerto {puerto} no vale para el canal local."));
+    // (WFA1109A) Wi-Fi P2P: un vecino Apple por AWDL (`awdl:<huella>`) o por Wi-Fi Aware (IPv6 de enlace local).
+    if trama::direccion_awdl(ip).is_some() {
+        trama::validar_cuerpo(json).map_err(|e| format!("No se envía: {e}."))?;
+        return enviar_awdl(&ip.trim().to_ascii_lowercase(), json);
     }
+    let destino = if let Some(d) = trama::ip_p2p(ip) {
+        let scope = indice_interfaz(&d.ambito).ok_or_else(|| format!("La interfaz «{}» no existe en este aparato.", d.ambito))?;
+        // El canal IPv6 de enlace local tiene su propio puerto (el IPv4 ya ocupa el 47071).
+        let _ = puerto;
+        SocketAddr::V6(SocketAddrV6::new(d.ip, trama::PUERTO_P2P, 0, scope))
+    } else {
+        let ip4 = trama::ip_local(ip).ok_or_else(|| {
+            format!("«{ip}» no es una dirección de esta red local: el canal local solo habla con neuronas de la misma red.")
+        })?;
+        if !trama::puerto_valido(puerto) {
+            return Err(format!("El puerto {puerto} no vale para el canal local."));
+        }
+        SocketAddr::V4(SocketAddrV4::new(ip4, puerto))
+    };
     trama::validar_cuerpo(json).map_err(|e| format!("No se envía: {e}."))?;
-    let destino = SocketAddr::V4(SocketAddrV4::new(ip4, puerto));
     let inicio = Instant::now();
     let mut s = TcpStream::connect_timeout(&destino, Duration::from_millis(CONECTAR_MS)).map_err(|e| {
         format!("No se pudo conectar con {destino}: {e} (¿tiene la app nativa abierta o en segundo plano?)")
@@ -283,6 +402,11 @@ fn vecinos_locales() -> Vec<VecinoLocal> {
             visto_hace_s: x.visto_hace_s,
         })
         .collect();
+    // (WFA1109A) Los Mac vistos por AWDL: dirección virtual `awdl:<huella>`, con canal (hablan este mismo protocolo).
+    #[cfg(target_os = "macos")]
+    for (ip, visto_hace_s) in crate::awdl_macos::vecinos() {
+        v.push(VecinoLocal { ip, propia: false, neurona: None, tipo: "desconocido".into(), puerto: trama::PUERTO, canal: Some(true), visto_hace_s });
+    }
     for (ip, visto_hace_s) in g.otras_cercanas() {
         if v.iter().any(|x| x.ip == ip) {
             continue;

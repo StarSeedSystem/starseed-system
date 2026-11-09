@@ -110,6 +110,10 @@ const COMANDOS_APP: &[&str] = &[
     "enlace_wifi_estado",
     "enlace_wifi_cerrar",
     "enlace_wifi_comprobar",
+    // (WFA1109A) AWDL entre Mac, sin router ni hotspot.
+    "awdl_iniciar", // WFA1109A
+    "awdl_detener", // WFA1109A
+    "awdl_estado", // WFA1109A
     // (LLA1108D) Las llamadas como llamadas del teléfono (Android; en macOS no duerme; en el resto, no-op).
     "llamada_nativa_iniciar",
     "llamada_nativa_estado",
@@ -141,6 +145,7 @@ fn main() {
     println!("cargo:rerun-if-changed=src/android_parche.rs");
     println!("cargo:rerun-if-changed=android");
     println!("cargo:rerun-if-env-changed=STARSEED_SIN_SERVICIO_ANDROID");
+    println!("cargo:rerun-if-env-changed=STARSEED_SIN_WIFI_AWARE"); // WFA1109A
     println!("cargo:rerun-if-env-changed=TAURI_ANDROID_PROJECT_PATH");
     println!("cargo:rerun-if-env-changed=STARSEED_SERVIDOR_LOCAL_ANDROID");
     // (AND1107A) Se declara siempre (que rustc no avise de un cfg desconocido); solo se ENCIENDE abajo.

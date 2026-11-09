@@ -11,7 +11,8 @@
  *     Señales, el chat y la ficha de la neurona leen de aquí «Wi-Fi directo (sin router)».
  */
 
-import { ipPrivada, puedeEnlaceWifi, type AjusteWifiDirecto, type CapacidadesWifi, type ClaseNecesidad, type FaseWifi, type MetodoAp } from "./enlace-wifi-directo";
+import { decidirParP2p, direccionAwdl, ETIQUETA_WIFI_P2P, puedeOfrecerSinSaberDelOtro, textoPastillaP2p, TEXTO_PASTILLA_PUNTO_ACCESO } from "./wifi-p2p"; // WFA1109A
+import { ipEnlaceLocalV6, ipPrivada, puedeEnlaceWifi, type AjusteWifiDirecto, type CapacidadesWifi, type ClaseNecesidad, type FaseWifi, type MetodoAp } from "./enlace-wifi-directo";
 
 /* ══════════════════════════ Ajuste ══════════════════════════ */
 
@@ -71,6 +72,8 @@ export interface Decision {
   motivo: string;
   /** Aviso para la persona aunque se abra solo (el Mac pierde su red mientras dure). */
   aviso?: string;
+  /** (WFA1109A) Entre estas dos neuronas no hay Wi-Fi P2P sin hotspot (y el punto de acceso no está permitido): se sigue por Bluetooth, sin avisos de Wi-Fi. */
+  sinP2p?: boolean;
 }
 
 export const AVISO_RADIO_UNICA =
@@ -86,6 +89,14 @@ export function decidirEnlaceWifi(p: EntradaDecision): Decision {
   if (p.ajuste === "nunca") return nada("el enlace Wi-Fi directo está en «Nunca» (Ajustes › Neuronas › Medios)");
   if (!puedeEnlaceWifi(p.capPropia)) return nada("esta app no puede abrir ni unirse a una red Wi-Fi directa (navegador, app anterior o permiso denegado)");
   if (p.capOtro && !puedeEnlaceWifi(p.capOtro)) return nada("la otra neurona no puede abrir ni unirse a una red Wi-Fi directa");
+  // (WFA1109A) Solo Wi-Fi P2P sin router ni hotspot; el punto de acceso únicamente si la persona lo permitió (las dos neuronas).
+  if (p.capOtro) {
+    const par = decidirParP2p(p.capPropia, p.capOtro);
+    if (par.tipo === "bluetooth") return { accion: "nada", motivo: par.texto, sinP2p: true };
+    if (par.tipo === "p2p" && par.lana === "awdl") return nada("AWDL conecta solo con los Mac cercanos: no hace falta abrir nada");
+  } else if (!puedeOfrecerSinSaberDelOtro(p.capPropia)) {
+    return { accion: "nada", motivo: "sin Wi-Fi P2P ofrecible desde este aparato (AWDL se conecta solo; el punto de acceso no está permitido): se sigue por Bluetooth", sinP2p: true };
+  }
   if (p.enlaceActual.tipo === "red-local" || p.enlaceActual.tipo === "wifi-directo") return nada("ya vais por la misma red: no hace falta otra");
   if (p.clase === "archivo" && (p.bytes ?? 0) < UMBRAL_ARCHIVO_BYTES) return nada("archivo pequeño: cabe por el enlace de ahora");
   const necesita = KBPS_NECESARIOS[p.clase];
@@ -167,7 +178,7 @@ export function enlaceWifiDe(neurona: string | null | undefined, lista: readonly
 
 /** Ruta que se guarda en la vía de un mensaje que fue por el enlace Wi-Fi directo. */
 export const RUTA_WIFI_DIRECTO = "wifi-directo";
-export const ETIQUETA_WIFI_DIRECTO = "Wi-Fi directo (sin router)";
+export const ETIQUETA_WIFI_DIRECTO = ETIQUETA_WIFI_P2P; // WFA1109A: «Wi‑Fi P2P (sin router ni hotspot)"
 
 /**
  * ¿Este enlace del transporte va por un enlace Wi-Fi directo activo? `nativo:<ip>` con la IP del otro en
@@ -175,8 +186,25 @@ export const ETIQUETA_WIFI_DIRECTO = "Wi-Fi directo (sin router)";
  */
 export function esEnlaceWifiDirecto(enlaceId: string | null | undefined, lista: readonly EnlaceWifiActivo[] = activos): boolean {
   if (!enlaceId || !enlaceId.startsWith("nativo:")) return false;
+  if (direccionAwdl(enlaceId.slice("nativo:".length))) return true; // WFA1109A: un vecino por AWDL siempre es Wi-Fi P2P
+  if (ipEnlaceLocalV6(enlaceId.slice("nativo:".length))) return true; // WFA1109A: IPv6 de enlace local con ámbito = ruta Aware
   const ip = ipPrivada(enlaceId.slice("nativo:".length));
   return !!ip && lista.some((e) => e.ipOtro === ip);
+}
+
+/**
+ * (WFA1109A) La etiqueta de la pastilla de un enlace Wi-Fi directo: «Wi‑Fi P2P · Aware · sin router», «… · AWDL · …»,
+ * «… · Wi‑Fi Direct · …» o «Red directa por punto de acceso · sin router» (el opt-in). Puro sobre la lista dada.
+ */
+export function etiquetaEnlaceP2p(enlaceId: string | null | undefined, lista: readonly EnlaceWifiActivo[] = activos): string {
+  const ip = enlaceId && enlaceId.startsWith("nativo:") ? enlaceId.slice("nativo:".length) : "";
+  if (direccionAwdl(ip)) return textoPastillaP2p("awdl");
+  if (ipEnlaceLocalV6(ip)) return textoPastillaP2p("wifi-aware");
+  const activo = lista.find((e) => e.ipOtro === ipPrivada(ip));
+  if (activo?.metodo === "hotspot-local") return TEXTO_PASTILLA_PUNTO_ACCESO;
+  if (activo?.metodo === "wifi-aware") return textoPastillaP2p("wifi-aware");
+  if (activo?.metodo === "wifi-direct") return textoPastillaP2p("wifi-direct-concurrente");
+  return ETIQUETA_WIFI_DIRECTO;
 }
 
 /** La ruta de la vía: «wifi-directo» si el enlace va por la red directa; si no, la que traía. */
@@ -194,5 +222,6 @@ export function textoEnlaceWifi(e: Pick<EnlaceWifiActivo, "mbps"> | null): strin
 export function textoMetodo(m: MetodoAp | null): string {
   if (m === "hotspot-local") return "punto de acceso local de Android";
   if (m === "wifi-direct") return "grupo Wi-Fi Direct";
+  if (m === "wifi-aware") return "Wi-Fi Aware (NAN)";
   return "red directa";
 }

@@ -72,10 +72,18 @@ export const PREFIJO_SSID = "StarSeed-";
 
 export type PlataformaWifi = "android" | "macos" | "ios" | "windows" | "linux" | "navegador" | "desconocida";
 /** Cómo levanta la red quien hace de punto de acceso. */
-export type MetodoAp = "hotspot-local" | "wifi-direct";
+export type MetodoAp = "hotspot-local" | "wifi-direct" | "wifi-aware";
 /** Cómo entra en ella quien hace de cliente. */
-export type MetodoCliente = "wifi-direct" | "corewlan" | "guiado";
+export type MetodoCliente = "wifi-direct" | "corewlan" | "guiado" | "wifi-aware";
 export type EstadoPermisoWifi = "concedido" | "preguntar" | "denegado" | "no-aplica";
+/**
+ * (WFA1109A) Carriles de Wi-Fi que anuncia una neurona en sus capacidades (compatible hacia atrás: una app
+ * anterior no trae `lanas` y se entiende por sus métodos). `wifi-aware`, `wifi-direct-concurrente` y `awdl` son
+ * Wi-Fi P2P SIN router ni hotspot; `punto-acceso-optin` dice que la persona permitió la red directa por punto
+ * de acceso (el Mac deja su Wi-Fi mientras dure). Contrato: architecture/wifi-directo.md §2.
+ */
+export type LanaWifi = "wifi-aware" | "wifi-direct-concurrente" | "awdl" | "punto-acceso-optin";
+export const LANAS_WIFI: readonly LanaWifi[] = ["wifi-aware", "wifi-direct-concurrente", "awdl", "punto-acceso-optin"];
 export type BandaWifi = "2.4" | "5" | "6";
 
 export interface CapacidadesWifi {
@@ -90,11 +98,13 @@ export interface CapacidadesWifi {
   radioUnica: boolean;
   /** Wi-Fi encendido ahora. */
   wifi: boolean;
+  /** (WFA1109A) Carriles Wi-Fi P2P y opt-in del punto de acceso. Ausente en apps anteriores. */
+  lanas?: LanaWifi[];
 }
 
 const PLATAFORMAS: readonly PlataformaWifi[] = ["android", "macos", "ios", "windows", "linux", "navegador", "desconocida"];
-const METODOS_AP: readonly MetodoAp[] = ["hotspot-local", "wifi-direct"];
-const METODOS_CLIENTE: readonly MetodoCliente[] = ["wifi-direct", "corewlan", "guiado"];
+const METODOS_AP: readonly MetodoAp[] = ["hotspot-local", "wifi-direct", "wifi-aware"];
+const METODOS_CLIENTE: readonly MetodoCliente[] = ["wifi-direct", "corewlan", "guiado", "wifi-aware"];
 const PERMISOS: readonly EstadoPermisoWifi[] = ["concedido", "preguntar", "denegado", "no-aplica"];
 
 /** Lo que puede una app sin parte nativa (navegador) o anterior a WFD1108A: nada. */
@@ -119,6 +129,7 @@ export function leerCapacidades(x: unknown): CapacidadesWifi | null {
     permiso: PERMISOS.includes(o.permiso as EstadoPermisoWifi) ? (o.permiso as EstadoPermisoWifi) : "no-aplica",
     radioUnica: o.radioUnica === true || o.radio_unica === true,
     wifi: o.wifi === true,
+    ...(Array.isArray(o.lanas) ? { lanas: unicos<LanaWifi>(o.lanas, LANAS_WIFI) } : {}),
   };
 }
 
@@ -144,13 +155,29 @@ export function compatibles(ma: MetodoAp, mc: MetodoCliente): boolean {
   // Un Android solo entra SIN preguntar en un grupo Wi-Fi Direct (con sus credenciales, Android 10+);
   // en una red cualquiera Android pediría confirmación a la persona: no vale para «sin unirse a mano».
   if (mc === "wifi-direct") return ma === "wifi-direct";
+  // (WFA1109A) Wi-Fi Aware es un camino propio (publicar/suscribir + NDP): solo con otro Aware.
+  if (mc === "wifi-aware" || ma === "wifi-aware") return ma === "wifi-aware" && mc === "wifi-aware";
   return true;
+}
+
+/**
+ * (WFA1109A) ¿Esta combinación hace que una neurona SALGA de su Wi-Fi para unirse a la red de la otra (el
+ * modelo de punto de acceso)? Solo se permite si LAS DOS neuronas lo permitieron (`punto-acceso-optin`).
+ * Aware y Wi-Fi Direct entre dos Android conservan la Wi-Fi de casa y no lo necesitan.
+ */
+export function requierePuntoAcceso(_ma: MetodoAp, mc: MetodoCliente): boolean {
+  return mc === "corewlan" || mc === "guiado";
+}
+
+function permitePunto(c: CapacidadesWifi): boolean {
+  return !!c.lanas?.includes("punto-acceso-optin");
 }
 
 /** Puntos de cada combinación (más = mejor). Ver la cabecera del contrato §3. */
 export function puntosCombinacion(apCap: CapacidadesWifi, ma: MetodoAp, cliCap: CapacidadesWifi, mc: MetodoCliente): number {
   let p = 0;
   if (apCap.plataforma === "android") p += 100; // Android levanta la red: el Mac no puede (sin Wi-Fi Direct ni API de punto de acceso).
+  if (ma === "wifi-aware" && mc === "wifi-aware") p += 70; // (WFA1109A) Aware > Wi-Fi Direct: sin grupo ni negociación de propietario
   if (ma === "wifi-direct" && mc === "wifi-direct") p += 50; // las dos conservan su Wi-Fi de casa
   else if (ma === "hotspot-local" && mc === "corewlan") p += 40; // Android ↔ Mac, lo pedido
   else if (ma === "wifi-direct" && mc === "corewlan") p += 30; // respaldo si el punto de acceso local no está
@@ -185,6 +212,8 @@ export function elegirRoles(
     for (const ma of x.cap.ap) {
       for (const mc of y.cap.cliente) {
         if (!compatibles(ma, mc)) continue;
+        // (WFA1109A) Punto de acceso solo con el permiso explícito de las dos (por defecto, no).
+        if (requierePuntoAcceso(ma, mc) && !(permitePunto(x.cap) && permitePunto(y.cap))) continue;
         const puntos = puntosCombinacion(x.cap, ma, y.cap, mc);
         const roles: RolesWifi = { ap: x.neurona, cliente: y.neurona, metodoAp: ma, metodoCliente: mc };
         if (!mejor || puntos > mejor.puntos || (puntos === mejor.puntos && x.neurona < mejor.roles.ap)) mejor = { roles, puntos };
@@ -200,7 +229,7 @@ export function rolesValidos(r: RolesWifi | null | undefined, a: { neurona: stri
   const par = r.ap === a.neurona && r.cliente === b.neurona ? [a, b] : r.ap === b.neurona && r.cliente === a.neurona ? [b, a] : null;
   if (!par) return false;
   const [x, y] = par;
-  return apta(x.cap) && apta(y.cap) && x.cap.ap.includes(r.metodoAp) && y.cap.cliente.includes(r.metodoCliente) && compatibles(r.metodoAp, r.metodoCliente);
+  return apta(x.cap) && apta(y.cap) && x.cap.ap.includes(r.metodoAp) && y.cap.cliente.includes(r.metodoCliente) && compatibles(r.metodoAp, r.metodoCliente) && (!requierePuntoAcceso(r.metodoAp, r.metodoCliente) || (permitePunto(x.cap) && permitePunto(y.cap)));
 }
 
 export function leerRoles(x: unknown): RolesWifi | null {
@@ -228,9 +257,62 @@ export interface CredencialesWifi {
 
 const RE_IPV4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
 
-/** IPv4 privada o de enlace local (la red nueva siempre lo es). Espejo de `ipLocal`. */
+/**
+ * (WFA1109A) IPv6 de enlace local con su ámbito (`fe80::1%aware_data0`): la dirección de un enlace Wi-Fi Aware.
+ * Espejo de `ip_p2p` (Rust). Sin ámbito no vale (un fe80:: sin interfaz no dice por dónde ir).
+ */
+export function ipEnlaceLocalV6(x: unknown): string | null {
+  if (typeof x !== "string") return null;
+  const m = /^([0-9a-f:]{3,39})%([A-Za-z0-9_.-]{1,15})$/i.exec(x.trim());
+  if (!m) return null;
+  const crudo = m[1].toLowerCase();
+  const dobles = crudo.split("::");
+  if (dobles.length > 2) return null;
+  const parte = (t: string): string[] | null => {
+    if (t === "") return [];
+    const g = t.split(":");
+    return g.every((h) => /^[0-9a-f]{1,4}$/.test(h)) ? g : null;
+  };
+  const izq = parte(dobles[0]);
+  const der = dobles.length === 2 ? parte(dobles[1]) : [];
+  if (!izq || !der) return null;
+  let grupos: string[];
+  if (dobles.length === 2) {
+    const faltan = 8 - izq.length - der.length;
+    if (faltan < 1) return null;
+    grupos = [...izq, ...Array<string>(faltan).fill("0"), ...der];
+  } else {
+    if (izq.length !== 8) return null;
+    grupos = izq;
+  }
+  const n = grupos.map((h) => parseInt(h, 16));
+  if ((n[0] & 0xffc0) !== 0xfe80) return null; // solo fe80::/10
+  // Forma canónica (RFC 5952, la misma que `Display` de Rust): sin ceros a la izquierda y el tramo de ceros más largo (≥ 2) como «::».
+  let mejorIni = -1;
+  let mejorLen = 0;
+  for (let i = 0; i < 8; ) {
+    if (n[i] !== 0) {
+      i++;
+      continue;
+    }
+    let j = i;
+    while (j < 8 && n[j] === 0) j++;
+    if (j - i > mejorLen) {
+      mejorIni = i;
+      mejorLen = j - i;
+    }
+    i = j;
+  }
+  const h = n.map((v) => v.toString(16));
+  const texto = mejorLen >= 2 ? `${h.slice(0, mejorIni).join(":")}::${h.slice(mejorIni + mejorLen).join(":")}` : h.join(":");
+  return `${texto}%${m[2]}`;
+}
+
+/** IPv4 privada o de enlace local (la red nueva siempre lo es), o IPv6 de enlace local con ámbito. Espejo de `ipLocal`. */
 export function ipPrivada(x: unknown): string | null {
   if (typeof x !== "string") return null;
+  const v6 = ipEnlaceLocalV6(x);
+  if (v6) return v6;
   const m = RE_IPV4.exec(x.trim());
   if (!m) return null;
   const o = m.slice(1).map(Number);
@@ -420,7 +502,8 @@ export function leerMensajeWifi(x: unknown): MensajeWifi | null {
       if (typeof o.acepta !== "boolean") return null;
       if (!o.acepta) {
         const motivo = MOTIVOS_RECHAZO.includes(o.motivo as MotivoRechazo) ? (o.motivo as MotivoRechazo) : "sin-capacidad";
-        return { t: "enlace.wifi.respuesta", ...base, acepta: false, motivo, ...(nombre ? { nombre } : {}) };
+        const capNo = leerCapacidades(o.cap); // (WFA1109A) quien rechaza dice qué puede: así no se le vuelve a ofrecer algo imposible
+        return { t: "enlace.wifi.respuesta", ...base, acepta: false, motivo, ...(capNo ? { cap: capNo } : {}), ...(nombre ? { nombre } : {}) };
       }
       const cap = leerCapacidades(o.cap);
       const roles = leerRoles(o.roles);
@@ -583,7 +666,7 @@ export type EventoWifi =
   /** La parte nativa levantó el punto de acceso (soy AP). La contraseña va solo en la acción. */
   | { t: "red-lista"; ahora: number; cred: CredencialesWifi }
   /** La parte nativa ya está en la red del otro (soy cliente). */
-  | { t: "unida"; ahora: number; ipPropia: string | null; mbps?: number | null }
+  | { t: "unida"; ahora: number; ipPropia: string | null; mbps?: number | null; /** (WFA1109A) Dirección del otro que dice el sistema (Aware: IPv6 de enlace local con ámbito). */ ipOtro?: string | null }
   | { t: "error-nativo"; ahora: number; codigo: "permiso-denegado" | "sin-soporte" | "fallo-nativo" | "no-encontrada"; texto: string }
   | { t: "tic"; ahora: number }
   | { t: "uso"; ahora: number }
@@ -613,7 +696,7 @@ export interface PasoWifi {
 export const TEXTO_RECHAZO: Record<MotivoRechazo, string> = {
   nunca: "la otra neurona tiene el enlace Wi-Fi directo en «Nunca»",
   persona: "en la otra neurona dijeron que no",
-  "sin-capacidad": "entre estos dos aparatos no hay forma de abrir una red directa (hace falta un Android que la levante)",
+  "sin-capacidad": "entre estos dos aparatos no hay Wi-Fi P2P sin router ni hotspot (Android ↔ Android: Aware o Wi-Fi Direct; Mac ↔ Mac: AWDL; Mac ↔ Android: Bluetooth)",
   ocupada: "la otra neurona ya tiene un enlace Wi-Fi directo abierto o en marcha",
   "sin-confianza": "la otra neurona no reconoce a esta (vinculadlas primero con «Sincronizar ahora»)",
   version: "la otra neurona habla otra versión del protocolo",
@@ -703,7 +786,7 @@ function aceptar(e: EstadoWifi, propio: Propio, ahora: number): PasoWifi {
 function rechazar(msg: OfertaWifi, propio: Propio, motivo: MotivoRechazo, ahora: number): AccionWifi {
   return {
     a: "enviar",
-    msg: { t: "enlace.wifi.respuesta", v: 1, sesion: msg.sesion, de: propio.neurona, para: msg.de, ts: ahora, acepta: false, motivo, nombre: propio.nombre },
+    msg: { t: "enlace.wifi.respuesta", v: 1, sesion: msg.sesion, de: propio.neurona, para: msg.de, ts: ahora, acepta: false, motivo, cap: propio.cap, nombre: propio.nombre },
   };
 }
 
@@ -851,7 +934,7 @@ export function pasoWifi(e: EstadoWifi, ev: EventoWifi): PasoWifi {
         ...(mbps ? { mbps } : {}),
       };
       return {
-        estado: con(e, { fase: "activo", vence: null, ipPropia: ev.ipPropia, mbps: mbps ?? e.mbps, ultimoUso: ahora }, ahora),
+        estado: con(e, { fase: "activo", vence: null, ipPropia: ev.ipPropia, ipOtro: ev.ipOtro ?? e.ipOtro, mbps: mbps ?? e.mbps, ultimoUso: ahora }, ahora),
         acciones: [{ a: "enviar", msg: listo }, { a: "activo", sesion: e.sesion }],
       };
     }

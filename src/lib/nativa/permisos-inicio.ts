@@ -61,13 +61,13 @@ const CATALOGO: Record<IdPermiso, Omit<DefPermiso, "id">> = {
   },
   "ubicacion-wifi": {
     titulo: "Ubicación (nombres de Wi-Fi)",
-    porQue: "macOS la pide para dejar ver el nombre de las redes Wi-Fi y unir este Mac a la red directa de tu Android. StarSeed no usa ni guarda tu ubicación.",
+    porQue: "macOS la pide para dejar ver el nombre de las redes Wi-Fi (solo si permites la red directa por punto de acceso con tu Android). StarSeed no usa ni guarda tu ubicación.",
     desde: 1,
     opcional: true,
   },
   cercanos: {
     titulo: "Dispositivos cercanos",
-    porQue: "Para buscar, anunciarse y conectar por Bluetooth y abrir la red Wi-Fi directa entre tus aparatos. StarSeed no usa tu ubicación.",
+    porQue: "Para buscar, anunciarse y conectar por Bluetooth y por Wi-Fi P2P (Wi-Fi Aware o Wi-Fi Direct, sin router ni hotspot) entre tus aparatos Android. StarSeed no usa tu ubicación.",
     desde: 1,
   },
   // (LLA1108D) v2: las llamadas como llamadas del teléfono. Solo Android 14+ lo pide de verdad; antes se da por hecho.

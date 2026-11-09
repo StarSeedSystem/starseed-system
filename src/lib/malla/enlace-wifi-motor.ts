@@ -34,6 +34,7 @@ import {
   leerCapacidades,
   leerCredenciales,
   leerMensajeWifi,
+  ipEnlaceLocalV6,
   ipPrivada,
   ocupada,
   pasoWifi,
@@ -68,6 +69,8 @@ import {
   type TipoEnlaceActual,
 } from "./enlace-wifi-orquestacion";
 
+import { conLanas, PUERTO_CANAL_P2P_V6 } from "./wifi-p2p"; // WFA1109A
+import { puntoAccesoPermitido } from "./punto-acceso-ajuste"; // WFA1109A
 import { CLAVE_DEFECTOS_ANTENAS, ajusteWifiPorDefecto, leerMarca, marcarExplicito, serializarMarca } from "./defectos-antenas";
 
 /* ══════════════════════════ Parte nativa ══════════════════════════ */
@@ -84,6 +87,8 @@ export interface EstadoNativoWifi {
   ssid: string | null;
   ip_propia: string | null;
   ip_ap: string | null;
+  /** (WFA1109A) Dirección del OTRO en la red directa (Aware: IPv6 de enlace local con ámbito). Ausente en apps anteriores. */
+  ip_otro?: string | null;
   banda: string | null;
   mbps: number | null;
   codigo: string | null;
@@ -107,12 +112,20 @@ export interface ResultadoNativo {
   guiado?: boolean;
 }
 
+export interface IdsP2p {
+  yo?: string | null;
+  otro?: string | null;
+}
+
 export interface NativoWifi {
   capacidades(): Promise<CapacidadesWifi | null>;
   pedirPermiso(): Promise<CapacidadesWifi | null>;
-  abrirAp(sesion: string, metodo: MetodoAp): Promise<ResultadoNativo>;
+  /** `ids` (WFA1109A): las dos neuronas; Wi-Fi Aware las convierte en huellas cortas del aviso del servicio. */
+  abrirAp(sesion: string, metodo: MetodoAp, ids?: IdsP2p): Promise<ResultadoNativo>;
   credenciales(sesion: string): Promise<CredencialesNativas | null>;
-  unirse(sesion: string, metodo: MetodoCliente, cred: CredencialesWifi): Promise<ResultadoNativo>;
+  unirse(sesion: string, metodo: MetodoCliente, cred: CredencialesWifi, ids?: IdsP2p): Promise<ResultadoNativo>;
+  /** (WFA1109A) Enciende la escucha/búsqueda AWDL (Apple ↔ Apple) con el id de esta neurona. Solo macOS. */
+  awdl?(neurona: string): Promise<void>;
   estado(): Promise<EstadoNativoWifi | null>;
   cerrar(sesion: string): Promise<void>;
   /** ¿Se llega al canal TCP del otro por la red nueva? Con la IP local que usaría esta app. */
@@ -172,6 +185,8 @@ export interface DepsMotorWifi {
   alCerrado?(neurona: string): void;
   /** ¿Hay tráfico ahora con esa neurona por la red directa? (cola del canal nativo, archivos…). */
   trafico?(neurona: string, ipOtro: string | null): boolean;
+  /** (WFA1109A) ¿Permitió la persona la red directa por punto de acceso (la Mac deja su Wi-Fi)? Por defecto no. */
+  puntoAcceso?(): boolean;
 }
 
 /* ══════════════════════════ Instantánea para la interfaz ══════════════════════════ */
@@ -189,6 +204,8 @@ export interface InstantaneaWifi {
   ultimoRespaldo: string | null;
   /** Último fallo por neurona (epoch ms). */
   fallos: Record<string, number>;
+  /** (WFA1109A) Neuronas con las que no cabe Wi-Fi P2P sin hotspot (Mac ↔ Android sin el permiso del punto de acceso). */
+  sinP2p?: string[];
   nativo: EstadoNativoWifi | null;
   /** La radio del Mac sale de su red mientras dura (aviso). */
   avisoRadio: string | null;
@@ -212,6 +229,8 @@ export interface MotorWifi {
   pedirPermiso(): Promise<CapacidadesWifi | null>;
   instantanea(): InstantaneaWifi;
   suscribir(cb: () => void): () => void;
+  /** (WFA1109A) Anota lo que puede esa neurona (p. ej. de su saludo con `lanas`). */
+  conocerCapacidades?(neurona: string, cap: CapacidadesWifi): void;
 }
 
 const nada = () => undefined;
@@ -228,6 +247,10 @@ export function crearMotorWifi(deps: DepsMotorWifi, vias: () => ViaControlWifi[]
   let ultimoRespaldo: string | null = null;
   let nativo: EstadoNativoWifi | null = null;
   const fallos: Record<string, number> = {};
+  /** (WFA1109A) Lo que dijo cada neurona que puede (oferta, respuesta o saludo): así no se le ofrece algo imposible. */
+  const capsOtros = new Map<string, CapacidadesWifi>();
+  /** (WFA1109A) Neuronas con las que no hay Wi-Fi P2P sin hotspot (se sigue por Bluetooth, sin avisos de Wi-Fi). */
+  const sinP2p = new Set<string>();
   const flujos = new Map<string, Array<{ getTracks(): Array<{ readyState: string }> }>>();
   const oyentes = new Set<() => void>();
   let foto: InstantaneaWifi | null = null;
@@ -254,15 +277,32 @@ export function crearMotorWifi(deps: DepsMotorWifi, vias: () => ViaControlWifi[]
     return r;
   }
 
+  /** (WFA1109A) AWDL no se negocia: con el carril presente se enciende una vez (escucha + búsqueda Bonjour). */
+  let awdlEncendido = false;
+  async function arrancarAwdl(cap: CapacidadesWifi | null) {
+    if (awdlEncendido || !cap?.lanas?.includes("awdl") || !deps.nativo.awdl) return;
+    try {
+      const yo = (await deps.yo())?.neurona;
+      if (!yo) return;
+      awdlEncendido = true;
+      await deps.nativo.awdl(yo);
+    } catch {
+      awdlEncendido = false;
+    }
+  }
+
   async function capacidades(refrescar = false): Promise<CapacidadesWifi | null> {
     if (!refrescar && deps.ahora() - capLeida < 60_000) return capPropia;
     try {
-      capPropia = await deps.nativo.capacidades();
+      const nat = await deps.nativo.capacidades();
+      // (WFA1109A) Suma los carriles P2P y el permiso del punto de acceso (que vive en la interfaz, por aparato).
+      capPropia = nat ? conLanas(nat, deps.puntoAcceso?.() ?? false) : null;
     } catch {
       capPropia = null;
     }
     fijarDefectoWifi(capPropia);
     capLeida = deps.ahora();
+    void arrancarAwdl(capPropia);
     return capPropia;
   }
 
@@ -357,7 +397,7 @@ export function crearMotorWifi(deps: DepsMotorWifi, vias: () => ViaControlWifi[]
       case "abrir-ap": {
         let r: ResultadoNativo;
         try {
-          r = await deps.nativo.abrirAp(a.sesion, a.metodo);
+          r = await deps.nativo.abrirAp(a.sesion, a.metodo, { yo: estado.yo, otro: estado.otro });
         } catch {
           r = { ok: false, codigo: "fallo-nativo", motivo: "la app nativa no respondió" };
         }
@@ -368,7 +408,7 @@ export function crearMotorWifi(deps: DepsMotorWifi, vias: () => ViaControlWifi[]
         credCliente = a.cred;
         let r: ResultadoNativo;
         try {
-          r = await deps.nativo.unirse(a.sesion, a.metodo, a.cred);
+          r = await deps.nativo.unirse(a.sesion, a.metodo, a.cred, { yo: estado.yo, otro: estado.otro });
         } catch {
           r = { ok: false, codigo: "fallo-nativo", motivo: "la app nativa no respondió" };
         }
@@ -392,6 +432,9 @@ export function crearMotorWifi(deps: DepsMotorWifi, vias: () => ViaControlWifi[]
         guiado = null;
         credCliente = null;
         try {
+          // (WFA1109A) Wi-Fi Aware: la dirección del otro la dice el sistema de ESTE aparato (el ámbito `%aware_data0` es de esta máquina).
+          const viaAware = estado.roles?.metodoAp === "wifi-aware" && !!ipPrivada(nativo?.ip_otro);
+          if (viaAware) estado = { ...estado, ipOtro: ipPrivada(nativo?.ip_otro) };
           deps.alActivo?.({ neurona: estado.otro ?? "", ipOtro: estado.ipOtro });
         } catch {
           /* la pista es una ayuda: el faro lo encuentra igual */
@@ -466,7 +509,7 @@ export function crearMotorWifi(deps: DepsMotorWifi, vias: () => ViaControlWifi[]
     }
     if (estado.fase === "uniendo") {
       if (mia && n && n.fase === "unida") {
-        await paso({ t: "unida", ahora, ipPropia: ipPrivada(n.ip_propia), mbps: n.mbps }, true);
+        await paso({ t: "unida", ahora, ipPropia: ipPrivada(n.ip_propia), mbps: n.mbps, ipOtro: ipPrivada(n.ip_otro) }, true);
         return;
       }
       // Vía guiada (o el sistema aún no lo dice): si ya se llega al canal del otro, está dentro.
@@ -537,6 +580,8 @@ export function crearMotorWifi(deps: DepsMotorWifi, vias: () => ViaControlWifi[]
     const yo = await deps.yo();
     if (!yo || msg.para !== yo.neurona || msg.de === yo.neurona) return;
     if (!deps.confiable(msg.de, v.huella, origen)) return; // sin vínculo ni cuenta: ni se contesta
+    if (msg.t === "enlace.wifi.oferta") capsOtros.set(msg.de, msg.cap);
+    else if (msg.t === "enlace.wifi.respuesta" && msg.cap) capsOtros.set(msg.de, msg.cap);
     await enCola(async () => {
       const ahora = deps.ahora();
       if (msg.t === "enlace.wifi.listo" && msg.fase === "red") {
@@ -608,12 +653,16 @@ export function crearMotorWifi(deps: DepsMotorWifi, vias: () => ViaControlWifi[]
       clase: p.clase,
       bytes: p.bytes,
       capPropia: cap,
+      capOtro: capsOtros.get(p.neurona) ?? null,
       enlaceActual: { tipo, kbps },
       cerca: p.cerca || !!viaCercana,
       fase: estado.fase,
       ultimoFallo: fallos[p.neurona] ?? null,
       ahora,
     });
+    if (d.sinP2p) sinP2p.add(p.neurona);
+    else if (d.accion !== "nada") sinP2p.delete(p.neurona);
+    if (d.sinP2p) avisar();
     if (d.accion === "abrir") {
       void abrir(p.neurona, p.clase, p.nombre ?? null);
     } else if (d.accion === "proponer") {
@@ -646,6 +695,11 @@ export function crearMotorWifi(deps: DepsMotorWifi, vias: () => ViaControlWifi[]
       if (estado.fase === "activo" && estado.otro === neurona) estado = { ...estado, ultimoUso: deps.ahora() };
     },
     capacidades,
+    conocerCapacidades: (neurona, cap) => {
+      if (!neurona) return;
+      capsOtros.set(neurona, cap);
+      sinP2p.delete(neurona);
+    },
     pedirPermiso: async () => {
       try {
         capPropia = await deps.nativo.pedirPermiso();
@@ -665,6 +719,7 @@ export function crearMotorWifi(deps: DepsMotorWifi, vias: () => ViaControlWifi[]
         guiado,
         ultimoRespaldo,
         fallos: { ...fallos },
+        sinP2p: Array.from(sinP2p),
         nativo,
         avisoRadio:
           capPropia?.radioUnica && (estado.fase === "uniendo" || estado.fase === "activo" || estado.fase === "esperando-red") && !soyAp(estado)
@@ -822,13 +877,19 @@ async function nativoReal(): Promise<NativoWifi> {
       const r = await p.llamar<unknown>("enlace_wifi_permiso");
       return r.ok ? leerCapacidades(r.valor) : null;
     },
-    abrirAp: async (sesion, metodo) => res(await p.llamar<EstadoNativoWifi>("enlace_wifi_abrir_ap", { sesion, metodo })),
+    abrirAp: async (sesion, metodo, ids) =>
+      res(await p.llamar<EstadoNativoWifi>("enlace_wifi_abrir_ap", { sesion, metodo, yo: ids?.yo ?? undefined, otro: ids?.otro ?? undefined })),
+    awdl: async (neurona) => {
+      await p.llamar("awdl_iniciar", { neurona });
+    },
     credenciales: async (sesion) => {
       const r = await p.llamar<CredencialesNativas | null>("enlace_wifi_credenciales", { sesion });
       return r.ok && r.valor ? r.valor : null;
     },
-    unirse: async (sesion, metodo, cred) =>
-      res(await p.llamar<EstadoNativoWifi>("enlace_wifi_unirse", { sesion, metodo, ssid: cred.ssid, clave: cred.clave, ipAp: cred.ipAp })),
+    unirse: async (sesion, metodo, cred, ids) =>
+      res(
+        await p.llamar<EstadoNativoWifi>("enlace_wifi_unirse", { sesion, metodo, ssid: cred.ssid, clave: cred.clave, ipAp: cred.ipAp, yo: ids?.yo ?? undefined, otro: ids?.otro ?? undefined }),
+      ),
     estado: async () => {
       const r = await p.llamar<EstadoNativoWifi>("enlace_wifi_estado");
       return r.ok && r.valor ? r.valor : null;
@@ -867,6 +928,7 @@ async function depsReales(): Promise<DepsMotorWifi> {
       return myEncryptionPublicKey();
     },
     ajuste: ajusteWifi,
+    puntoAcceso: puntoAccesoPermitido,
     firmar: async (cuerpo) => {
       const { wrapSigned } = await import("@/ai/astraura/mesh/mesh-identity");
       const s = await wrapSigned(cuerpo);
@@ -913,7 +975,8 @@ async function depsReales(): Promise<DepsMotorWifi> {
     alActivo: ({ neurona, ipOtro }) => {
       const red = redNativa?.redLocalNativaActiva();
       if (red && ipOtro) {
-        red.pista?.(neurona, ipOtro, PUERTO_CANAL_WIFI);
+        // (WFA1109A) IPv6 de enlace local (Aware): su socket va en otro puerto (el mismo protocolo, 47073).
+        red.pista?.(neurona, ipOtro, ipEnlaceLocalV6(ipOtro) ? PUERTO_CANAL_P2P_V6 : PUERTO_CANAL_WIFI);
         void red.refrescar();
       }
     },

@@ -141,6 +141,7 @@ export function rangoEnlace(e: EnlaceDisponible): number {
 export function motivoRango(e: EnlaceDisponible): string {
   switch (rangoEnlace(e)) {
     case 0:
+      if (e.tipo === "nativo" && /^nativo:(awdl:|fe[89ab][0-9a-f]:)/i.test(e.id)) return "Wi‑Fi P2P sin router ni hotspot (AWDL o Wi‑Fi Aware): antes que Bluetooth para lo pesado"; // WFA1109A
       if (e.tipo === "nativo") return "red local de la app nativa (neurona vinculada, sin internet)";
       if (e.tipo === "ble") return "Bluetooth directo entre las dos apps nativas (sin router ni internet)";
       if (e.id.startsWith("local:nativo-")) return "enlace directo por la red local (lo abrieron solas las dos apps nativas)";

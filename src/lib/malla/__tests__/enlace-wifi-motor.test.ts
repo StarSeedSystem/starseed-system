@@ -12,8 +12,8 @@ import { leerCredenciales, leerMensajeWifi, PLAZOS_WIFI, type CapacidadesWifi, t
 import { enlacesWifiActivos, fijarEnlacesWifi } from "@/lib/malla/enlace-wifi-orquestacion";
 
 const sutil = (globalThis.crypto?.subtle ?? webcrypto.subtle) as SubtleCrypto;
-const ANDROID: CapacidadesWifi = { plataforma: "android", ap: ["hotspot-local", "wifi-direct"], cliente: ["wifi-direct"], permiso: "concedido", radioUnica: false, wifi: true };
-const MAC: CapacidadesWifi = { plataforma: "macos", ap: [], cliente: ["corewlan", "guiado"], permiso: "concedido", radioUnica: true, wifi: true };
+const ANDROID: CapacidadesWifi = { plataforma: "android", ap: ["hotspot-local", "wifi-direct"], cliente: ["wifi-direct"], permiso: "concedido", radioUnica: false, wifi: true, lanas: ["punto-acceso-optin"] };
+const MAC: CapacidadesWifi = { plataforma: "macos", ap: [], cliente: ["corewlan", "guiado"], permiso: "concedido", radioUnica: true, wifi: true, lanas: ["punto-acceso-optin"] };
 const CLAVE = "clave-del-ap-9f3a";
 
 /* ── Cifrado por destinatario de verdad (mismo esquema que recipient-crypto: ECDH → HKDF → AES-GCM) ── */
@@ -142,6 +142,7 @@ async function montar(m: Mundo, id: string, nativo: NativoFalso, ajuste: "automa
     yo: async () => ({ neurona: id, nombre: `Neurona ${id}` }),
     epubPropia: async () => cif.pub,
     ajuste: () => ajuste,
+    puntoAcceso: () => true, // WFA1109A: estos tests cubren el camino por punto de acceso, que es opt-in
     // Firma de juguete: el sobre dice la huella; `valido` lo decide el mundo (un sobre «roto» no vale).
     firmar: async (cuerpo) => ({ v: 2, b: cuerpo, f: `huella-${id}` }),
     verificar: async (s) => {

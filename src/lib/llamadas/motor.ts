@@ -32,7 +32,7 @@ import { decidirAccionMedio, ESPERA_ICE_MS, LIMITE_CONECTANDO_MS, MOTIVO_SIN_AUD
 import { anotarLlamada } from "@/lib/llamadas/voz-datos/diagnostico";
 import { SesionVideoDatos } from "@/lib/llamadas/video-datos/sesion-video";
 import type { FabricaVideo, FuenteVideo, SalidaVideo } from "@/lib/llamadas/video-datos/tipos";
-import { claseEscalada, debeEscalar, textoEscalada, TEXTO_PANTALLA_BLE, type ClaseEscalada, type EstadoWifiLlamada } from "@/lib/llamadas/escalada-wifi";
+import { claseEscalada, debeEscalar, textoEscalada, TEXTO_PANTALLA_BLE, TEXTO_PANTALLA_SIN_P2P, type ClaseEscalada, type EstadoWifiLlamada } from "@/lib/llamadas/escalada-wifi";
 import { MENSAJE_CANAL_PRIVADO } from "@/lib/llamadas/temas";
 import { admision, evaluarDescripcion, reaccionIce, soyCortes } from "@/lib/llamadas/negociacion";
 import { elegirHablante, nivelRms, suavizarNivel, type HablanteVigente } from "@/lib/llamadas/hablante";
@@ -1515,7 +1515,14 @@ export class MotorLlamada {
         // 2) Pedir el enlace.
         const datos = this.vozDatos.get(id);
         const cal = datos ? nivelCalidadVoz(datos.calidad()) : null;
-        if (v.escalarWifi && debeEscalar({ contestada: this.contestada, hayRutaIp: ip, camara: this.camaraOn, pantalla: this.pantallaOn, vozDatosActiva: !!datos?.estado().activa, nivelVoz: cal })) {
+        // (WFA1109A) Sin Wi-Fi P2P posible entre este par (Mac ↔ Android sin el permiso del punto de acceso): la llamada se queda en Bluetooth y no pide Wi-Fi.
+        let sinP2p = false;
+        try {
+            sinP2p = v.estadoWifi?.()?.paso === "sin-p2p";
+        } catch {
+            sinP2p = false;
+        }
+        if (v.escalarWifi && !sinP2p && debeEscalar({ contestada: this.contestada, hayRutaIp: ip, camara: this.camaraOn, pantalla: this.pantallaOn, vozDatosActiva: !!datos?.estado().activa, nivelVoz: cal })) {
             const clase = claseEscalada({ pantalla: this.pantallaOn });
             const clave = `${id}:${clase}`;
             if (ahora - (this.escaladas.get(clave) ?? -Infinity) >= 60_000) {
@@ -1674,7 +1681,7 @@ export class MotorLlamada {
         let videoNoDisponible: string | null = null;
         if (datos && !webrtcOk) {
             // La pantalla no cabe por el enlace de datos (sí por el Wi-Fi directo); la cámara solo si no hay vídeo ligero.
-            if (this.pantallaOn) videoNoDisponible = this.opc.vozDatos?.escalarWifi ? TEXTO_PANTALLA_BLE : TEXTO_VIDEO_BLE;
+            if (this.pantallaOn) videoNoDisponible = w.paso === "sin-p2p" ? TEXTO_PANTALLA_SIN_P2P : this.opc.vozDatos?.escalarWifi ? TEXTO_PANTALLA_BLE : TEXTO_VIDEO_BLE;
             else if (this.camaraOn && !hayVideoLigero) videoNoDisponible = TEXTO_VIDEO_BLE;
         }
         return {

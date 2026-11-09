@@ -130,6 +130,8 @@ webkit2gtk = { version = "2", features = ["v2_38"] }
 # WKWebView `loadHTMLString:baseURL:` (objc2 y objc2-foundation de tauri/wry).
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6"
+# (WFA1109A) Bloques de Objective-C para los callbacks de Network.framework (AWDL). Ya está en el árbol (objc2/wry): no baja nada nuevo.
+block2 = "0.6"
 # (BLE1108A) + NSArray, NSData, NSDictionary, NSError, NSUUID, NSValue y NSObject para CoreBluetooth (ble_macos.rs).
 objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSString", "NSURL", "NSArray", "NSData", "NSDictionary", "NSError", "NSUUID", "NSValue", "NSObject", "NSProcessInfo", "NSStream", "NSRunLoop", "NSDate", "NSObjCRuntime"] }
 # (BLE1108A) Bluetooth directo en macOS: CoreBluetooth (central y periférico) del mismo proyecto objc2 que ya

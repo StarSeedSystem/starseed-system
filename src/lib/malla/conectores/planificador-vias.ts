@@ -395,12 +395,12 @@ export function planificarVias(dato: DatoVia, vias: ViaViva[], ctx: ContextoVias
     propuestas.push({
       medio: "wifi-directo",
       motivo: mejor?.tipo === "ble"
-        ? "este archivo es grande para Bluetooth (decenas de KB/s): abrir Wi‑Fi directo lo enviaría mucho antes"
-        : "no hay un medio rápido: abrir Wi‑Fi directo o conectar a la misma red permitiría enviarlo",
+        ? "este archivo es grande para Bluetooth (decenas de KB/s): abrir Wi‑Fi P2P (sin router ni hotspot) lo enviaría mucho antes"
+        : "no hay un medio rápido: abrir Wi‑Fi P2P o conectar a la misma red permitiría enviarlo",
     });
   }
   if ((dato.tipo === "flujo-video" || dato.tipo === "pantalla") && escalon !== "video") {
-    propuestas.push({ medio: "wifi-directo", motivo: "para vídeo o pantalla hace falta Wi‑Fi directo o la misma red local" });
+    propuestas.push({ medio: "wifi-directo", motivo: "para vídeo o pantalla hace falta Wi‑Fi P2P (sin router ni hotspot) o la misma red local" });
   }
   if (escalon === "ninguno" && !propuestas.length) {
     propuestas.push({ medio: "bluetooth", motivo: "no hay ningún medio abierto con ese destino: acerca los aparatos para abrir Bluetooth o la red local" });

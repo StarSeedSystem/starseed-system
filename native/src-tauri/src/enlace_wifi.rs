@@ -131,7 +131,10 @@ fn capacidades_actuales() -> CapacidadesWifi {
 
 #[cfg(target_os = "macos")]
 fn capacidades_actuales() -> CapacidadesWifi {
-    crate::enlace_wifi_macos::capacidades()
+    // (WFA1109A) + AWDL (Mac ↔ Mac, sin router ni hotspot) si Network.framework trae el API peer-to-peer.
+    let mut c = crate::enlace_wifi_macos::capacidades();
+    c.lanas = crate::awdl_macos::lanas();
+    c
 }
 
 #[cfg(not(any(target_os = "android", target_os = "macos")))]
@@ -171,15 +174,15 @@ pub fn enlace_wifi_permiso(app: AppHandle) -> CapacidadesWifi {
 
 /// Levanta la red directa (solo Android): `metodo` = «hotspot-local» | «wifi-direct».
 #[tauri::command]
-pub fn enlace_wifi_abrir_ap(app: AppHandle, sesion: String, metodo: String) -> Result<EstadoEnlaceWifi, String> {
+pub fn enlace_wifi_abrir_ap(app: AppHandle, sesion: String, metodo: String, yo: Option<String>, otro: Option<String>) -> Result<EstadoEnlaceWifi, String> {
     vigilar(&app);
     #[cfg(target_os = "android")]
     {
-        pedir_android(logica::peticion_abrir_ap(&sesion, &metodo, ahora_ms()))
+        pedir_android(logica::peticion_abrir_ap_con(&sesion, &metodo, ahora_ms(), yo.as_deref(), otro.as_deref())) // WFA1109A: huellas para Wi-Fi Aware
     }
     #[cfg(not(target_os = "android"))]
     {
-        let _ = metodo;
+        let _ = (metodo, yo, otro);
         Ok(logica::estado_error(
             Some(&sesion),
             "sin-soporte",
@@ -205,22 +208,32 @@ pub fn enlace_wifi_credenciales(sesion: String) -> Option<CredencialesNativas> {
 
 /// Se une a la red del otro: Android a un grupo Wi-Fi Direct; macOS con CoreWLAN (o guiado).
 #[tauri::command]
-pub fn enlace_wifi_unirse(app: AppHandle, sesion: String, metodo: String, ssid: String, clave: String, ip_ap: Option<String>) -> Result<EstadoEnlaceWifi, String> {
+pub fn enlace_wifi_unirse(
+    app: AppHandle,
+    sesion: String,
+    metodo: String,
+    ssid: String,
+    clave: String,
+    ip_ap: Option<String>,
+    yo: Option<String>,
+    otro: Option<String>,
+) -> Result<EstadoEnlaceWifi, String> {
     vigilar(&app);
     if !logica::ssid_valido(&ssid) || !logica::clave_valida(&clave) || !logica::sesion_valida(&sesion) {
         return Err("El nombre, la contraseña o la sesión no son válidos: no se toca la radio.".into());
     }
     #[cfg(target_os = "android")]
     {
-        pedir_android(logica::peticion_unirse(&sesion, &metodo, &ssid, &clave, ip_ap.as_deref(), ahora_ms()))
+        pedir_android(logica::peticion_unirse_con(&sesion, &metodo, &ssid, &clave, ip_ap.as_deref(), ahora_ms(), yo.as_deref(), otro.as_deref())) // WFA1109A
     }
     #[cfg(target_os = "macos")]
     {
+        let _ = (&yo, &otro); // WFA1109A: las huellas son de Wi-Fi Aware (Android)
         Ok(crate::enlace_wifi_macos::unirse(&app, sesion, metodo, ssid, clave, ip_ap))
     }
     #[cfg(not(any(target_os = "android", target_os = "macos")))]
     {
-        let _ = (metodo, clave, ip_ap);
+        let _ = (metodo, clave, ip_ap, yo, otro);
         Ok(logica::estado_error(Some(&sesion), "sin-soporte", "Este sistema aún no se une solo a una red directa.", ahora_ms()))
     }
 }
