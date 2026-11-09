@@ -14,7 +14,7 @@
 // resolución · l/xl = + temporizador, cuadrícula y galería · panorámico = fila ·
 // torre = columna. Estados: cargando (comprobando la cámara), vacío (sin cámara en
 // este dispositivo: se dice), error (permiso denegado: cómo arreglarlo).
-// ════════════════════════════════════════════════════════════════
+// ═════════════════════════════════════════════════════════════════
 
 import { useEffect, useId, useState } from "react";
 import { PilaAjustable, Prescindible } from "@/components/dashboard/kit/pila-ajustable";
@@ -25,12 +25,24 @@ import { conAlfa } from "@/components/widgets-libres/acentos-categoria";
 import { RESOLUTION_PRESETS, TIMER_OPTIONS, useCameraHwSettings, type ResolutionPreset } from "@/lib/camera/camera-settings";
 import { useLienzoE, px, type LienzoE } from "./paquete-e/lienzo";
 import { BotonE, EncabezadoE, EnlaceE, RaizE } from "./paquete-e/piezas";
+import { consultarPermiso } from "@/lib/aurora/senses/request-permission";
+import type { EstadoPermiso } from "@/lib/permisos/contrato";
 
-type Permiso = "granted" | "denied" | "prompt" | "desconocido";
-interface EstadoCamara { comprobando: boolean; camaras: number | null; permiso: Permiso }
+export type Permiso = "granted" | "denied" | "prompt" | "desconocido";
+export interface EstadoCamara { comprobando: boolean; camaras: number | null; permiso: Permiso }
+
+/** Convierte el estado normalizado del contrato al vocabulario del widget. */
+export function permisoCamara(e: EstadoPermiso): Permiso {
+    switch (e) {
+        case "concedido": return "granted";
+        case "denegado": return "denied";
+        case "preguntar": return "prompt";
+        default: return "desconocido";
+    }
+}
 
 /** Consulta sin pedir: cuántas cámaras hay y el estado del permiso (nunca abre la cámara). */
-function useEstadoCamara(): EstadoCamara {
+export function useEstadoCamara(): EstadoCamara {
     const [e, setE] = useState<EstadoCamara>({ comprobando: true, camaras: null, permiso: "desconocido" });
     useEffect(() => {
         let vivo = true;
@@ -42,9 +54,9 @@ function useEstadoCamara(): EstadoCamara {
                 if (Array.isArray(lista)) camaras = lista.filter((d) => d.kind === "videoinput").length;
             } catch { /* sin mediaDevices */ }
             try {
-                const p = await navigator.permissions?.query?.({ name: "camera" as PermissionName });
-                if (p?.state) permiso = p.state as Permiso;
-            } catch { /* Firefox/Safari: sin consulta de permiso de cámara */ }
+                const estado = await consultarPermiso("camara");
+                permiso = permisoCamara(estado);
+            } catch { /* sin consulta de permiso: desconocido */ }
             if (vivo) setE({ comprobando: false, camaras, permiso });
         })();
         return () => { vivo = false; };
