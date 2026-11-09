@@ -237,23 +237,47 @@ mod pruebas {
     #[test]
     fn kotlin_habla_con_ble_android_rs() {
         assert!(KOTLIN.contains("package app.starseed.nativa"));
-        for f in ["external fun evento(json: String)", "external fun datos(enlace: String, hex: String)", "external fun siguiente(enlace: String): String", "external fun esperarOrden(ms: Long): String"] {
+        for f in [
+            "external fun evento(json: String)",
+            "external fun datos(enlace: String, hex: String)",
+            "external fun siguiente(enlace: String): String",
+            "external fun esperarOrden(ms: Long): String",
+            // BLE1109A
+            "external fun rapido(enlace: String, hex: String)",
+            "external fun siguienteRapido(enlace: String, max: Int): String",
+        ] {
             assert!(KOTLIN.contains(f), "{f}");
         }
         let rust = include_str!("ble_android.rs");
-        for s in ["Java_app_starseed_nativa_PuenteBle_evento", "Java_app_starseed_nativa_PuenteBle_datos", "Java_app_starseed_nativa_PuenteBle_siguiente", "Java_app_starseed_nativa_PuenteBle_esperarOrden"] {
+        for s in [
+            "Java_app_starseed_nativa_PuenteBle_evento",
+            "Java_app_starseed_nativa_PuenteBle_datos",
+            "Java_app_starseed_nativa_PuenteBle_siguiente",
+            "Java_app_starseed_nativa_PuenteBle_esperarOrden",
+            // BLE1109A
+            "Java_app_starseed_nativa_PuenteBle_rapido",
+            "Java_app_starseed_nativa_PuenteBle_siguienteRapido",
+        ] {
             assert!(rust.contains(s), "{s}");
         }
         // Los UUID de Kotlin son los de ble_trama.rs.
-        for u in [crate::ble_trama::SERVICIO, crate::ble_trama::ENTRADA, crate::ble_trama::SALIDA, crate::ble_trama::CCCD, crate::ble_trama::UUID_PREFIJO, crate::ble_trama::UUID_MASCARA] {
+        for u in [
+            crate::ble_trama::SERVICIO,
+            crate::ble_trama::ENTRADA,
+            crate::ble_trama::SALIDA,
+            crate::ble_trama::CCCD,
+            crate::ble_trama::UUID_PREFIJO,
+            crate::ble_trama::UUID_MASCARA,
+            crate::ble_l2cap::PSM, // BLE1109A
+        ] {
             assert!(KOTLIN.contains(&format!("\"{u}\"")), "{u}");
         }
         // Cada orden que manda Rust la atiende Kotlin, y cada evento de Kotlin lo lee Rust.
-        for o in ["arrancar", "anunciar", "conectar", "desconectar", "datos", "permisos", "parar"] {
+        for o in ["arrancar", "anunciar", "conectar", "desconectar", "datos", "permisos", "parar", "l2cap", "cerrar-l2cap"] {
             assert!(KOTLIN.contains(&format!("\"{o}\" ->")), "orden {o}");
             assert!(rust.contains(&format!("\"o\": \"{o}\"")), "orden {o} en Rust");
         }
-        for e in ["radio", "visto", "conectado", "mtu", "desconectado", "nota"] {
+        for e in ["radio", "visto", "conectado", "mtu", "desconectado", "nota", "psm", "l2cap-abierto", "l2cap-cerrado"] {
             assert!(KOTLIN.contains(&format!("put(\"e\", \"{e}\")")), "evento {e}");
             assert!(include_str!("ble.rs").contains(&format!("\"{e}\" =>")), "evento {e} en Rust");
         }
@@ -296,5 +320,36 @@ mod pruebas {
         assert!(KOTLIN.contains("VIGIA_SUSCRIPCION_MS"), "el periférico vigila la suscripción del otro");
         assert!(KOTLIN.contains("REINTENTOS_SUSCRIPCION"), "el central reintenta la suscripción");
         assert!(KOTLIN.contains("VIGIA_ESCRITURA_MS = 500L"));
+    }
+
+    /// (BLE1109A) El canal L2CAP de Kotlin: guardado por versión, sin cifrado de aire (va por encima), con vigía de
+    /// escritura, PHY de 2M y E/S fuera del hilo principal. Y el bloque no toca el camino de GATT.
+    #[test]
+    fn kotlin_del_canal_rapido_esta_guardado_y_es_pequeno() {
+        for f in [
+            "listenUsingInsecureL2capChannel",
+            "createInsecureL2capChannel",
+            "Build.VERSION.SDK_INT < 29",
+            "PHY_LE_2M_MASK",
+            "Build.VERSION.SDK_INT < 26",
+            "PLAZO_ESCRITURA_FLUJO_MS",
+            "onCharacteristicReadRequest",
+            "PuenteBle.rapido(k, aHex(",
+            "PuenteBle.siguienteRapido(k, ESCRITURA_FLUJO)",
+        ] {
+            assert!(KOTLIN.contains(f), "Kotlin sin «{f}»");
+        }
+        assert!(!KOTLIN.contains("createL2capChannel(") && !KOTLIN.contains("listenUsingL2capChannel"), "solo canales sin cifrar por el aire: el cifrado va por encima");
+        // La E/S bloqueante va en hilos propios (nunca en el principal).
+        for h in ["starseed-l2cap-lee", "starseed-l2cap-escribe", "starseed-l2cap-acepta", "starseed-l2cap-conecta"] {
+            assert!(KOTLIN.contains(h), "hilo {h}");
+        }
+        // El bloque del carril rápido es pequeño (se compila en CI, no aquí).
+        let ini = KOTLIN.find("Carril rápido: canal L2CAP (BLE1109A)").expect("bloque");
+        let fin = KOTLIN[ini..].find("fun aHex(b: ByteArray): String").expect("fin del bloque");
+        assert!(KOTLIN[ini..ini + fin].lines().count() < 230, "el bloque L2CAP de Kotlin debe seguir siendo pequeño");
+        // `bombear` cede al canal antes que a GATT.
+        let b = KOTLIN.find("private fun bombear(k: String)").expect("bombear");
+        assert!(KOTLIN[b..].find("canales[k]?.let").unwrap() < KOTLIN[b..].find("c.ocupadoDesde").unwrap());
     }
 }

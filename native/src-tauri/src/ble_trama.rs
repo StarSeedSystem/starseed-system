@@ -61,6 +61,9 @@ pub const CABECERA_PAQUETE: usize = 5;
 /// Valor ATT por defecto (MTU 23 − 3) y el máximo que admite un atributo (512).
 pub const PAQUETE_MIN: usize = 20;
 pub const PAQUETE_MAX: usize = 512;
+/// (BLE1109A) Paquete del carril rápido (canal L2CAP): un flujo fiable y en orden admite paquetes mucho mayores
+/// que una escritura GATT. Un mensaje de 16 KiB sale en ~4 paquetes y los acuses se cuelan entre ellos.
+pub const PAQUETE_RAPIDO: usize = 4096;
 /// Mensajes que se admiten de cada enlace por ventana (16 KiB cada uno: muy por encima de lo que
 /// lleva el aire; corta a quien inunde).
 pub const LIMITE_MENSAJES: u32 = 120;
@@ -366,7 +369,12 @@ pub enum Paquete<'a> {
 }
 
 pub fn leer_paquete(b: &[u8]) -> Option<Paquete<'_>> {
-    if b.len() < 3 || b.len() > PAQUETE_MAX {
+    leer_paquete_max(b, PAQUETE_MAX)
+}
+
+/// (BLE1109A) Igual que `leer_paquete` con otro tope: el del carril rápido es `PAQUETE_RAPIDO`.
+pub fn leer_paquete_max(b: &[u8], tope: usize) -> Option<Paquete<'_>> {
+    if b.len() < 3 || b.len() > tope {
         return None;
     }
     let id = u16::from_be_bytes([b[1], b[2]]);
@@ -402,7 +410,12 @@ pub fn paquete_util(mtu_att: u16) -> usize {
 
 /// Parte una trama en paquetes de `paquete` bytes como mucho (cabecera incluida).
 pub fn trocear(id: u16, trama: &[u8], paquete: usize) -> Vec<Vec<u8>> {
-    let util = paquete.clamp(PAQUETE_MIN, PAQUETE_MAX) - CABECERA_PAQUETE;
+    trocear_max(id, trama, paquete, PAQUETE_MAX)
+}
+
+/// (BLE1109A) `trocear` con otro tope de paquete (el carril rápido admite hasta `PAQUETE_RAPIDO`).
+pub fn trocear_max(id: u16, trama: &[u8], paquete: usize, tope: usize) -> Vec<Vec<u8>> {
+    let util = paquete.clamp(PAQUETE_MIN, tope) - CABECERA_PAQUETE;
     let i = id.to_be_bytes();
     trama
         .chunks(util)
@@ -444,6 +457,9 @@ pub struct Medidas {
     pub rtt_ms: Option<u64>,
     /// Rendimiento del último mensaje de ≥ 2 KiB (kbit/s), medido.
     pub kbps: Option<u32>,
+    /// (BLE1109A) Lo mismo, por carril: el del canal rápido (L2CAP) y el de GATT. Cada uno solo se mide por su carril.
+    pub kbps_rapido: Option<u32>,
+    pub kbps_gatt: Option<u32>,
     pub bytes_enviados: u64,
     pub bytes_recibidos: u64,
     pub mensajes_enviados: u64,
@@ -462,6 +478,8 @@ struct Vuelo {
     primero_ms: Option<u64>,
     /// Último paquete entregado a la radio en este intento (desde ahí cuenta el plazo del acuse).
     ultimo_ms: Option<u64>,
+    /// (BLE1109A) Carril por el que salió este intento (para medir cada carril por separado).
+    rapido: bool,
 }
 
 struct Entrada {
@@ -492,10 +510,16 @@ pub struct Enlace {
     /// (BLE1108C) Último paquete DE DATOS (no latido ni acuse) que la radio retiró, y avisos para el registro.
     ultimo_dato_ms: u64,
     avisos: Vec<(&'static str, String)>,
+    /// (BLE1109A) Carril rápido (L2CAP) activo: los paquetes salen más grandes y por el flujo, no por GATT.
+    rapido: bool,
+    /// (BLE1109A) Último aviso `l2cap-kbps` (como mucho uno cada `ENTRE_AVISOS_KBPS_MS`).
+    ultimo_aviso_kbps_ms: u64,
 }
 
 /// Cuántos ids recibidos se recuerdan para descartar repetidos (acuse perdido → reenvío).
 const RECIENTES: usize = 64;
+/// (BLE1109A) Entre dos líneas `l2cap-kbps` del registro (una transferencia larga no llena el archivo).
+const ENTRE_AVISOS_KBPS_MS: u64 = 5_000;
 
 impl Enlace {
     pub fn nuevo(paquete: usize) -> Self {
@@ -517,6 +541,42 @@ impl Enlace {
             otro_late: false,
             ultimo_dato_ms: 0,
             avisos: Vec::new(),
+            rapido: false,
+            ultimo_aviso_kbps_ms: 0,
+        }
+    }
+
+    /// (BLE1109A) Bytes por paquete del carril activo.
+    fn tam_paquete(&self) -> usize {
+        if self.rapido {
+            PAQUETE_RAPIDO
+        } else {
+            self.paquete
+        }
+    }
+
+    pub fn es_rapido(&self) -> bool {
+        self.rapido
+    }
+
+    /// (BLE1109A) Cambia de carril. Lo que aún no salió del mensaje en vuelo se vuelve a trocear al tamaño del carril
+    /// nuevo (sin gastar un intento: el receptor reinicia el mensaje al ver el índice 0). Los acuses y latidos
+    /// pendientes no se tocan. Nada se pierde ni se duplica: el id del mensaje es el mismo.
+    pub fn fijar_carril(&mut self, rapido: bool) {
+        if self.rapido == rapido {
+            return;
+        }
+        self.rapido = rapido;
+        let tam = self.tam_paquete();
+        if let Some(v) = self.vuelo.as_mut() {
+            if v.ultimo_ms.is_none() {
+                v.primero_ms = None;
+                v.rapido = rapido;
+                self.paquetes = trocear_max(v.id, &v.trama, tam, PAQUETE_RAPIDO).into();
+            } else {
+                // Ya salió entero por el otro carril: se espera su acuse (o el plazo y el reenvío por el carril nuevo).
+                v.rapido = rapido;
+            }
         }
     }
 
@@ -588,8 +648,9 @@ impl Enlace {
         self.bytes_cola -= t.len();
         let id = self.siguiente_id;
         self.siguiente_id = self.siguiente_id.wrapping_add(1);
-        self.paquetes = trocear(id, &t, self.paquete).into();
-        self.vuelo = Some(Vuelo { token, id, trama: t, intentos: 1, encolado_ms, primero_ms: None, ultimo_ms: None });
+        self.paquetes = trocear_max(id, &t, self.tam_paquete(), PAQUETE_RAPIDO).into();
+        let rapido = self.rapido;
+        self.vuelo = Some(Vuelo { token, id, trama: t, intentos: 1, encolado_ms, primero_ms: None, ultimo_ms: None, rapido });
     }
 
     /// Reenvía el mensaje en vuelo desde el principio (o lo da por fallido tras `MAX_INTENTOS`).
@@ -606,8 +667,10 @@ impl Enlace {
         v.intentos += 1;
         v.primero_ms = None;
         v.ultimo_ms = None;
+        v.rapido = self.rapido;
         self.medidas.reintentos += 1;
-        self.paquetes = trocear(v.id, &v.trama, self.paquete).into();
+        let tam = if self.rapido { PAQUETE_RAPIDO } else { self.paquete };
+        self.paquetes = trocear_max(v.id, &v.trama, tam, PAQUETE_RAPIDO).into();
     }
 
     fn fallar_vuelo(&mut self, motivo: String) {
@@ -645,6 +708,16 @@ impl Enlace {
     /// acusado). `admitir` es el limitador: si dice que no, se rechaza con R_LIMITE y no se entrega.
     pub fn recibir(&mut self, b: &[u8], ahora: u64, admitir: &mut dyn FnMut() -> bool) -> Option<String> {
         let leido = leer_paquete(b)?;
+        self.recibir_leido(leido, ahora, admitir)
+    }
+
+    /// (BLE1109A) Un paquete que llegó por el canal rápido (L2CAP): mismo enlace, mismo estado, tope mayor.
+    pub fn recibir_rapido(&mut self, b: &[u8], ahora: u64, admitir: &mut dyn FnMut() -> bool) -> Option<String> {
+        let leido = leer_paquete_max(b, PAQUETE_RAPIDO)?;
+        self.recibir_leido(leido, ahora, admitir)
+    }
+
+    fn recibir_leido(&mut self, leido: Paquete<'_>, ahora: u64, admitir: &mut dyn FnMut() -> bool) -> Option<String> {
         self.ultimo_rx_ms = ahora.max(1);
         match leido {
             Paquete::Latido => {
@@ -659,7 +732,18 @@ impl Enlace {
                     let rtt = ahora.saturating_sub(desde).max(1);
                     self.medidas.rtt_ms = Some(rtt);
                     if v.trama.len() >= 2048 {
-                        self.medidas.kbps = Some(((v.trama.len() as u64 * 8) / rtt) as u32);
+                        let kbps = ((v.trama.len() as u64 * 8) / rtt) as u32;
+                        self.medidas.kbps = Some(kbps);
+                        // (BLE1109A) Cada carril se mide por separado: la capacidad que se enseña es la del carril en uso.
+                        if v.rapido {
+                            self.medidas.kbps_rapido = Some(kbps);
+                            if self.ultimo_aviso_kbps_ms == 0 || ahora.saturating_sub(self.ultimo_aviso_kbps_ms) >= ENTRE_AVISOS_KBPS_MS {
+                                self.ultimo_aviso_kbps_ms = ahora.max(1);
+                                self.avisos.push(("l2cap-kbps", format!("kbps={kbps} (mensaje de {} B en {rtt} ms)", v.trama.len())));
+                            }
+                        } else {
+                            self.medidas.kbps_gatt = Some(kbps);
+                        }
                     }
                     self.medidas.bytes_enviados += v.trama.len() as u64;
                     self.medidas.mensajes_enviados += 1;

@@ -18,6 +18,8 @@ import android.bluetooth.BluetoothGattServerCallback
 import android.bluetooth.BluetoothGattService
 import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothProfile
+import android.bluetooth.BluetoothServerSocket
+import android.bluetooth.BluetoothSocket
 import android.bluetooth.BluetoothStatusCodes
 import android.bluetooth.le.AdvertiseCallback
 import android.bluetooth.le.AdvertiseData
@@ -45,6 +47,10 @@ import android.provider.Settings
 import org.json.JSONObject
 import java.lang.ref.WeakReference
 import java.util.UUID
+import java.util.concurrent.ArrayBlockingQueue
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Puente con el núcleo Rust (src/ble_android.rs). Rust decide (anuncio, tramas, acuses, a quién
@@ -66,6 +72,14 @@ object PuenteBle {
     /** Espera hasta `ms` la siguiente orden de Rust (JSON con "o"); «» si no llegó ninguna. */
     @JvmStatic
     external fun esperarOrden(ms: Long): String
+
+    /** (BLE1109A) Bytes que llegaron por el flujo del canal L2CAP de ese enlace, en hex (Rust los desmarca). */
+    @JvmStatic
+    external fun rapido(enlace: String, hex: String)
+
+    /** (BLE1109A) Lo siguiente que escribir en el flujo del canal L2CAP (ya marcado), en hex, hasta ~`max` bytes («» = nada). */
+    @JvmStatic
+    external fun siguienteRapido(enlace: String, max: Int): String
 }
 
 /** Arranca el Bluetooth directo al crearse el proceso (también con la app cerrada y el servicio vivo). */
@@ -98,6 +112,8 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
     val ENTRADA: UUID = UUID.fromString("53530002-b1e0-4d2a-9c3e-537461727365")
     val SALIDA: UUID = UUID.fromString("53530003-b1e0-4d2a-9c3e-537461727365")
     val CCCD: UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
+    /** (BLE1109A) Característica de lectura con el PSM del canal L2CAP (2 bytes big-endian; 0 = sin canal). */
+    val PSM_UUID: UUID = UUID.fromString("53530004-b1e0-4d2a-9c3e-537461727365")
     val PREFIJO: UUID = UUID.fromString("5353b100-0000-0000-0000-000000000000")
     val MASCARA: UUID = UUID.fromString("ffffff00-0000-0000-0000-000000000000")
     private const val PETICION_PERMISOS = 4711
@@ -112,6 +128,17 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
     private const val REINTENTOS_SUSCRIPCION = 3
     private const val ESPERA_SUSCRIPCION_MS = 1000L
     private const val VIGIA_SUSCRIPCION_MS = 10_000L
+    // (BLE1109A) Canal L2CAP: lo que se lee/escribe de una vez, y cuánto puede estar una escritura sin avanzar.
+    private const val LECTURA_FLUJO = 8192
+    private const val ESCRITURA_FLUJO = 8192
+    private const val PLAZO_ESCRITURA_FLUJO_MS = 5_000L
+
+    /** (BLE1109A) Un canal L2CAP abierto: dos hilos (lee y escribe) y una señal para despertar al que escribe. */
+    private class Canal(val enlace: String, val socket: BluetoothSocket, val psm: Int) {
+        val cerrado = AtomicBoolean(false)
+        @Volatile var escribiendoDesde = 0L
+        val senal = ArrayBlockingQueue<Boolean>(1)
+    }
 
     private class Cliente(val direccion: String, val gatt: BluetoothGatt) {
         var entrada: BluetoothGattCharacteristic? = null
@@ -129,6 +156,13 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
     }
 
     private var tardesServidor = 0
+
+    // (BLE1109A) Carril rápido. `canales` y `conectando` se tocan desde hilos de E/S: mapas concurrentes.
+    private val canales = ConcurrentHashMap<String, Canal>()
+    private val conectando = ConcurrentHashMap<String, BluetoothSocket>()
+    private var servidorL2cap: BluetoothServerSocket? = null
+    @Volatile private var psmPublicado = 0
+    private var vigiaCanales = false
 
     private lateinit var ctx: Context
     private val principal = Handler(Looper.getMainLooper())
@@ -210,6 +244,8 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
                 "desconectar" -> desconectar(o.optString("enlace"))
                 "datos" -> bombear(o.optString("enlace"))
                 "permisos" -> pedirPermisos(true)
+                "l2cap" -> abrirCanal(o.optString("enlace"), o.optInt("psm"))
+                "cerrar-l2cap" -> cerrarCanalDe(o.optString("enlace"), "cerrado por la app")
                 "parar" -> {
                     activo = false
                     parar()
@@ -243,6 +279,7 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
     }
 
     private fun desconectado(enlace: String, motivo: String) {
+        cerrarCanalDe(enlace, "el enlace Bluetooth se cerró")
         evento(JSONObject().put("e", "desconectado").put("enlace", enlace).put("motivo", motivo))
         reanudarRadio()
     }
@@ -360,6 +397,7 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
             return
         }
         if (!abrirServidor(mgr)) return
+        abrirServidorL2cap()
         escanear()
         // Rust contesta con «anunciar» (el UUID de esta ventana de 5 min).
         radio("encendida", if (a.bluetoothLeAdvertiser == null) "Bluetooth encendido, pero este aparato no puede anunciarse: solo busca y conecta." else "")
@@ -398,6 +436,15 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
         servicioListo = false
         pendienteServidor = null
         servidorOcupadoDesde = 0L
+        // (BLE1109A) El canal rápido muere con la radio.
+        for (k in canales.keys.toList()) cerrarCanalDe(k, motivo)
+        for (k in conectando.keys.toList()) cerrarCanalDe(k, motivo)
+        try {
+            servidorL2cap?.close()
+        } catch (e: Exception) {
+        }
+        servidorL2cap = null
+        psmPublicado = 0
     }
 
     private fun parar() {
@@ -423,6 +470,8 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
         sal.addDescriptor(BluetoothGattDescriptor(CCCD, BluetoothGattDescriptor.PERMISSION_READ or BluetoothGattDescriptor.PERMISSION_WRITE))
         servicio.addCharacteristic(entrada)
         servicio.addCharacteristic(sal)
+        // (BLE1109A) PSM del canal rápido: se responde en `onCharacteristicReadRequest`.
+        servicio.addCharacteristic(BluetoothGattCharacteristic(PSM_UUID, BluetoothGattCharacteristic.PROPERTY_READ, BluetoothGattCharacteristic.PERMISSION_READ))
         servidor = s
         salida = sal
         servicioListo = false
@@ -445,6 +494,7 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
                 if (newState == BluetoothProfile.STATE_CONNECTED) {
                     if (!centrales.containsKey(k)) centrales[k] = Central(d)
                     val central = centrales[k]
+                    pedirPhy2M { servidor?.setPreferredPhy(d, BluetoothDevice.PHY_LE_2M_MASK, BluetoothDevice.PHY_LE_2M_MASK, BluetoothDevice.PHY_OPTION_NO_PREFERRED) }
                     // (BLE1108C) Si el otro conecta y no se suscribe a SALIDA, se anota y se suelta (él reintenta).
                     principal.postDelayed({
                         val c = centrales[k]
@@ -471,6 +521,18 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
                 val c = centrales.getOrPut(k) { Central(d) }
                 c.paquete = (mtu - 3).coerceIn(PAQUETE_MIN, PAQUETE_MAX)
                 if (c.suscrito) evento(JSONObject().put("e", "mtu").put("enlace", k).put("paquete", c.paquete))
+            }
+        }
+
+        /** (BLE1109A) El central lee el PSM del canal rápido (0 mientras no haya canal: él sigue por GATT). */
+        override fun onCharacteristicReadRequest(device: BluetoothDevice?, requestId: Int, offset: Int, characteristic: BluetoothGattCharacteristic?) {
+            val d = device ?: return
+            val psm = psmPublicado
+            val valor = byteArrayOf((psm shr 8).toByte(), psm.toByte())
+            val bien = characteristic?.uuid == PSM_UUID && offset in 0..valor.size
+            try {
+                servidor?.sendResponse(d, requestId, if (bien) BluetoothGatt.GATT_SUCCESS else BluetoothGatt.GATT_READ_NOT_PERMITTED, offset, if (bien) valor.copyOfRange(offset, valor.size) else null)
+            } catch (e: Exception) {
             }
         }
 
@@ -759,6 +821,7 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
                         c.gatt.requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_HIGH)
                     } catch (e: Exception) {
                     }
+                    pedirPhy2M { c.gatt.setPreferredPhy(BluetoothDevice.PHY_LE_2M_MASK, BluetoothDevice.PHY_LE_2M_MASK, BluetoothDevice.PHY_OPTION_NO_PREFERRED) }
                     // Primero el MTU (hasta 517: paquetes de 512 B); los servicios, cuando conteste.
                     if (!c.gatt.requestMtu(MTU_PEDIDO)) c.gatt.discoverServices()
                 } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
@@ -830,6 +893,11 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
                 c.listo = true
                 nota("suscrito", k, "notificaciones de SALIDA activas, paquete ${c.paquete}")
                 evento(JSONObject().put("e", "conectado").put("enlace", k).put("rol", "central").put("direccion", c.direccion).put("paquete", c.paquete))
+                // (BLE1109A) Si el periférico ofrece canal rápido, se lee su PSM (Rust decide cuándo abrirlo).
+                try {
+                    c.gatt.getService(SERVICIO)?.getCharacteristic(PSM_UUID)?.let { c.gatt.readCharacteristic(it) }
+                } catch (e: Exception) {
+                }
                 bombear(k)
             }
         }
@@ -847,6 +915,19 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
             if (ch.uuid != SALIDA) return
             val copia = ch.value?.copyOf() ?: return
             principal.post { recibidoCliente(gatt, copia) }
+        }
+
+        override fun onCharacteristicRead(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic, value: ByteArray, status: Int) {
+            val copia = value.copyOf()
+            principal.post { psmLeido(gatt, characteristic, copia, status) }
+        }
+
+        @Deprecated("Android 12 y anteriores")
+        @Suppress("DEPRECATION")
+        override fun onCharacteristicRead(gatt: BluetoothGatt?, characteristic: BluetoothGattCharacteristic?, status: Int) {
+            val ch = characteristic ?: return
+            val copia = ch.value?.copyOf() ?: return
+            principal.post { psmLeido(gatt, ch, copia, status) }
         }
 
         override fun onCharacteristicWrite(gatt: BluetoothGatt?, characteristic: BluetoothGattCharacteristic?, status: Int) {
@@ -869,6 +950,11 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
 
     /** Escribe en ENTRADA sin respuesta, uno detrás de otro (cada uno espera su `onCharacteristicWrite`). */
     private fun bombear(k: String) {
+        // (BLE1109A) Con el canal L2CAP abierto, lo que Rust tenga para este enlace sale por su flujo (GATT calla).
+        canales[k]?.let {
+            it.senal.offer(true)
+            return
+        }
         if (k.startsWith("p:")) {
             bombearServidor()
             return
@@ -946,6 +1032,193 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
     // ───────────────────────────── Hex ─────────────────────────────
 
     private val HEX = "0123456789abcdef".toCharArray()
+
+    // ───────────────────────────── Carril rápido: canal L2CAP (BLE1109A) ─────────────────────────────
+    // Android 10+ (API 29). Periférico: `listenUsingInsecureL2capChannel` y su PSM en la característica PSM; central: lee el
+    // PSM del otro y Rust ordena `l2cap` para conectar. Sin cifrar por el aire (va cifrado por encima, CIF1108A). La E/S
+    // bloquea en dos hilos por canal; un vigía cierra el canal si una escritura no avanza. Rust marca y desmarca el flujo.
+
+    /** Pide el PHY de 2 Mbit/s donde se puede (Android 8+); si el sistema no lo da, sigue con 1M. */
+    private fun pedirPhy2M(f: () -> Unit) {
+        if (Build.VERSION.SDK_INT < 26) return
+        try {
+            f()
+        } catch (e: Exception) {
+        }
+    }
+
+    private fun abrirServidorL2cap() {
+        if (Build.VERSION.SDK_INT < 29 || servidorL2cap != null) return
+        val a = adaptador ?: return
+        try {
+            val ss = a.listenUsingInsecureL2capChannel()
+            servidorL2cap = ss
+            psmPublicado = ss.psm
+            val hilo = Thread({ aceptarL2cap(ss) }, "starseed-l2cap-acepta")
+            hilo.isDaemon = true
+            hilo.start()
+        } catch (e: Exception) {
+            psmPublicado = 0
+        }
+    }
+
+    private fun aceptarL2cap(ss: BluetoothServerSocket) {
+        while (true) {
+            val socket = try {
+                ss.accept()
+            } catch (e: Exception) {
+                // Cerrado por nosotros, o el sistema lo cerró: si sigue siendo el vigente se vuelve a abrir.
+                principal.postDelayed({
+                    if (servidorL2cap === ss) {
+                        servidorL2cap = null
+                        if (activo) abrirServidorL2cap()
+                    }
+                }, 2000)
+                return
+            }
+            principal.post {
+                val k = "p:" + socket.remoteDevice.address
+                if (centrales[k]?.suscrito == true) iniciarCanal(k, socket, psmPublicado) else cerrarSocket(socket)
+            }
+        }
+    }
+
+    private fun cerrarSocket(s: BluetoothSocket?) {
+        try {
+            s?.close()
+        } catch (e: Exception) {
+        }
+    }
+
+    /** Orden de Rust: abrir el canal con el PSM que publicó el periférico (este aparato es el central). */
+    private fun abrirCanal(k: String, psm: Int) {
+        val c = clientes[k]
+        if (Build.VERSION.SDK_INT < 29 || c == null || !c.listo) {
+            evento(JSONObject().put("e", "l2cap-cerrado").put("enlace", k).put("motivo", if (Build.VERSION.SDK_INT < 29) "Android anterior a 10: sin canales L2CAP" else "el aparato ya no está conectado"))
+            return
+        }
+        if (canales.containsKey(k) || conectando.containsKey(k)) return
+        val hilo = Thread({
+            var socket: BluetoothSocket? = null
+            try {
+                socket = c.gatt.device.createInsecureL2capChannel(psm)
+                conectando[k] = socket
+                socket.connect()
+                val abierto = socket
+                principal.post {
+                    conectando.remove(k)
+                    if (clientes[k] === c) iniciarCanal(k, abierto, psm) else cerrarSocket(abierto)
+                }
+            } catch (e: Exception) {
+                cerrarSocket(socket)
+                principal.post {
+                    // Si Rust ya cerró este intento (`cerrar-l2cap`), el cierre ya se contó: no se vuelve a decir.
+                    if (conectando.remove(k) != null || socket == null) {
+                        evento(JSONObject().put("e", "l2cap-cerrado").put("enlace", k).put("motivo", "no se pudo abrir el canal L2CAP: ${e.message ?: e.javaClass.simpleName}"))
+                    }
+                }
+            }
+        }, "starseed-l2cap-conecta")
+        hilo.isDaemon = true
+        hilo.start()
+    }
+
+    private fun iniciarCanal(k: String, socket: BluetoothSocket, psm: Int) {
+        canales.remove(k)?.let { cerrarCanalHilos(it, "sustituido por otro canal") }
+        val canal = Canal(k, socket, psm)
+        canales[k] = canal
+        evento(JSONObject().put("e", "l2cap-abierto").put("enlace", k).put("psm", psm))
+        val lector = Thread({
+            val buf = ByteArray(LECTURA_FLUJO)
+            var motivo = "el otro aparato cerró el canal L2CAP"
+            try {
+                val ent = socket.inputStream
+                while (!canal.cerrado.get()) {
+                    val n = ent.read(buf)
+                    if (n < 0) break
+                    if (n > 0) PuenteBle.rapido(k, aHex(buf.copyOf(n)))
+                }
+            } catch (e: Exception) {
+                if (!canal.cerrado.get()) motivo = "error al leer del canal L2CAP: ${e.message ?: e.javaClass.simpleName}"
+            }
+            cerrarCanalHilos(canal, motivo)
+        }, "starseed-l2cap-lee")
+        lector.isDaemon = true
+        lector.start()
+        val escritor = Thread({
+            var motivo = "el otro aparato cerró el canal L2CAP"
+            try {
+                val sal = socket.outputStream
+                while (!canal.cerrado.get()) {
+                    val hex = try {
+                        PuenteBle.siguienteRapido(k, ESCRITURA_FLUJO)
+                    } catch (t: Throwable) {
+                        ""
+                    }
+                    val b = if (hex.isEmpty()) null else deHex(hex)
+                    if (b == null) {
+                        // Nada que escribir: espera el aviso de Rust (o 500 ms por si se escapó alguno).
+                        canal.senal.poll(500, TimeUnit.MILLISECONDS)
+                        continue
+                    }
+                    canal.escribiendoDesde = SystemClock.elapsedRealtime()
+                    sal.write(b)
+                    canal.escribiendoDesde = 0L
+                }
+            } catch (e: Exception) {
+                if (!canal.cerrado.get()) motivo = "error al escribir en el canal L2CAP: ${e.message ?: e.javaClass.simpleName}"
+            }
+            cerrarCanalHilos(canal, motivo)
+        }, "starseed-l2cap-escribe")
+        escritor.isDaemon = true
+        escritor.start()
+        if (!vigiaCanales) {
+            vigiaCanales = true
+            principal.postDelayed({ vigilarCanales() }, 1000)
+        }
+        // Rust ya sabe que hay canal: que empiece a sacar por él.
+        canal.senal.offer(true)
+    }
+
+    /** Un solo cierre por canal (el primero que llega manda el motivo); cuenta a Rust y suelta el mapa. */
+    private fun cerrarCanalHilos(c: Canal, motivo: String) {
+        if (!c.cerrado.compareAndSet(false, true)) return
+        cerrarSocket(c.socket)
+        c.senal.offer(true)
+        principal.post {
+            if (canales[c.enlace] === c) canales.remove(c.enlace)
+            evento(JSONObject().put("e", "l2cap-cerrado").put("enlace", c.enlace).put("motivo", motivo))
+        }
+    }
+
+    /** Cierra el canal (o el intento de abrirlo) de ese enlace, si lo hay. */
+    private fun cerrarCanalDe(k: String, motivo: String) {
+        canales[k]?.let { cerrarCanalHilos(it, motivo) }
+        conectando.remove(k)?.let { cerrarSocket(it) }
+    }
+
+    private fun vigilarCanales() {
+        val ahora = SystemClock.elapsedRealtime()
+        for (c in canales.values.toList()) {
+            val desde = c.escribiendoDesde
+            if (desde != 0L && ahora - desde > PLAZO_ESCRITURA_FLUJO_MS) {
+                cerrarCanalHilos(c, "escritura atascada: sin avanzar en ${PLAZO_ESCRITURA_FLUJO_MS / 1000} s")
+            }
+        }
+        if (canales.isEmpty()) {
+            vigiaCanales = false
+        } else {
+            principal.postDelayed({ vigilarCanales() }, 1000)
+        }
+    }
+
+    /** El PSM que leyó el central de la característica PSM del periférico. Rust lo valida (1–255). */
+    private fun psmLeido(gatt: BluetoothGatt?, ch: BluetoothGattCharacteristic, b: ByteArray, status: Int) {
+        if (ch.uuid != PSM_UUID || status != BluetoothGatt.GATT_SUCCESS || b.size != 2) return
+        val (k, _) = clientePor(gatt) ?: return
+        val psm = ((b[0].toInt() and 0xff) shl 8) or (b[1].toInt() and 0xff)
+        evento(JSONObject().put("e", "psm").put("enlace", k).put("psm", psm))
+    }
 
     fun aHex(b: ByteArray): String {
         val c = CharArray(b.size * 2)

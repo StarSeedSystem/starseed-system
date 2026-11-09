@@ -22,6 +22,7 @@
 
 #![allow(dead_code)]
 
+use crate::ble_l2cap::{self as l2, Carril, Desmarcador};
 use crate::ble_trama::{self as bt, Enlace, Hecho, Vecindario};
 use crate::malla_local_trama::{Buzon, Limitador, Recibido};
 use serde::{Deserialize, Serialize};
@@ -63,6 +64,11 @@ pub trait Radio: Send + Sync {
     fn pedir_permiso(&self);
     /// Apagar anuncio, escaneo y enlaces (la persona lo apagó).
     fn parar(&self);
+    /// (BLE1109A) Abrir el canal L2CAP (carril rápido) con el PSM que publicó el otro. Responde con
+    /// `al_l2cap_abierto` o `al_l2cap_cerrado`. Sin soporte: no hace nada y el enlace sigue por GATT.
+    fn abrir_l2cap(&self, _plataforma: &str, _psm: u16) {}
+    /// (BLE1109A) Cerrar el canal L2CAP de ese enlace (no el enlace GATT).
+    fn cerrar_l2cap(&self, _plataforma: &str) {}
 }
 
 /// Sistemas sin radio en esta app (Windows, Linux, iOS por ahora).
@@ -158,8 +164,18 @@ pub struct EnlaceBle {
     pub paquete: usize,
     /// Ida y vuelta medida del último mensaje acusado.
     pub rtt_ms: Option<u64>,
-    /// Rendimiento medido del último mensaje de ≥ 2 KiB.
+    /// Rendimiento medido del último mensaje de ≥ 2 KiB POR EL CARRIL EN USO (es la capacidad del enlace que
+    /// ven el planificador y la escalera de vídeo). Sin medir en ese carril: null.
     pub kbps: Option<u32>,
+    /// (BLE1109A) "gatt" | "rapido" (canal L2CAP abierto: todos los paquetes salen por él).
+    pub carril: String,
+    /// (BLE1109A) Estado del canal rápido: "sin-psm" | "disponible" | "abriendo" | "abierto".
+    pub canal_rapido: String,
+    /// (BLE1109A) PSM del canal L2CAP, si se conoce.
+    pub psm: Option<u16>,
+    /// (BLE1109A) Lo medido en cada carril (el otro puede seguir con su último valor).
+    pub kbps_rapido: Option<u32>,
+    pub kbps_gatt: Option<u32>,
     pub pendientes: usize,
     pub bytes_enviados: u64,
     pub bytes_recibidos: u64,
@@ -227,6 +243,12 @@ pub enum EventoRadio {
     /// (BLE1108C) Un hito de la radio para el registro (`servicios-descubiertos`, `suscrito`, `sin-suscripcion`,
     /// `listo-tarde`, `suscripcion-reintento`). No cambia ningún estado: solo deja rastro.
     Nota { enlace: Option<String>, tipo: String, detalle: String },
+    /// (BLE1109A) El central leyó el PSM que publica el periférico (característica `PSM`). Inválido (0, > 255): se ignora.
+    Psm { enlace: String, psm: u16 },
+    /// (BLE1109A) El canal L2CAP abrió (lo pedimos o lo aceptamos). `psm` si se conoce.
+    L2capAbierto { enlace: String, psm: Option<u16> },
+    /// (BLE1109A) El canal L2CAP se cerró o no abrió; el enlace GATT sigue.
+    L2capCerrado { enlace: String, motivo: String },
 }
 
 /// Los hitos que la radio puede anotar (lista cerrada: el texto libre va en el detalle).
@@ -283,6 +305,20 @@ pub fn leer_evento(json: &str) -> Option<EventoRadio> {
             let enlace = texto_de(&v, "enlace", 80).filter(|p| plataforma_valida(p));
             Some(EventoRadio::Nota { enlace, tipo, detalle: texto_de(&v, "detalle", 200).unwrap_or_default() })
         }
+        "psm" => {
+            let enlace = texto_de(&v, "enlace", 80).filter(|p| plataforma_valida(p))?;
+            let psm = v.get("psm").and_then(|x| x.as_u64()).and_then(|x| u16::try_from(x).ok()).filter(|p| l2::psm_valido(*p))?;
+            Some(EventoRadio::Psm { enlace, psm })
+        }
+        "l2cap-abierto" => {
+            let enlace = texto_de(&v, "enlace", 80).filter(|p| plataforma_valida(p))?;
+            let psm = v.get("psm").and_then(|x| x.as_u64()).and_then(|x| u16::try_from(x).ok()).filter(|p| l2::psm_valido(*p));
+            Some(EventoRadio::L2capAbierto { enlace, psm })
+        }
+        "l2cap-cerrado" => {
+            let enlace = texto_de(&v, "enlace", 80).filter(|p| plataforma_valida(p))?;
+            Some(EventoRadio::L2capCerrado { enlace, motivo: texto_de(&v, "motivo", 200).unwrap_or_else(|| "el canal L2CAP se cerró".into()) })
+        }
         _ => None,
     }
 }
@@ -296,6 +332,9 @@ pub fn aplicar_evento(ev: EventoRadio) {
         EventoRadio::Mtu { enlace, paquete } => al_mtu(&enlace, paquete),
         EventoRadio::Desconectado { enlace, motivo } => al_desconectar(&enlace, &motivo),
         EventoRadio::Nota { enlace, tipo, detalle } => nota(enlace.as_deref(), &tipo, &detalle),
+        EventoRadio::Psm { enlace, psm } => al_psm(&enlace, psm),
+        EventoRadio::L2capAbierto { enlace, psm } => al_l2cap_abierto(&enlace, psm),
+        EventoRadio::L2capCerrado { enlace, motivo } => al_l2cap_cerrado(&enlace, &motivo),
     }
 }
 
@@ -312,6 +351,9 @@ struct EnlaceVivo {
     /// (BLE1108C) Hitos de datos ya anotados: primer paquete recibido / enviado.
     dato_visto: bool,
     dato_salido: bool,
+    /// (BLE1109A) Carril rápido (canal L2CAP) de este enlace y el desmarcador de su flujo.
+    carril: Carril,
+    desmarcador: Desmarcador,
 }
 
 /// Lo que se sabe de la cuenta (de la configuración de antenas): clave de faro, esta neurona y las demás.
@@ -594,7 +636,8 @@ pub fn iniciar(app: &tauri::AppHandle) {
 
 pub fn al_radio(estado_radio: &str, motivo: &str) {
     asegurar();
-    con_estado(|e| {
+    let cerrar_canales = con_estado(|e| {
+        let mut cerrar: Vec<String> = Vec::new();
         if e.radio != estado_radio || e.motivo != motivo {
             marcar_cambio(e);
             anotar(e, "radio", None, None, &format!("{estado_radio}: {motivo}"));
@@ -609,9 +652,15 @@ pub fn al_radio(estado_radio: &str, motivo: &str) {
                 l.nucleo.cerrar("el Bluetooth de este aparato se apagó");
                 let h = l.nucleo.hechos();
                 entregar_hechos(e, h);
+                cerrar.push(l.plataforma.clone());
             }
         }
+        cerrar
     });
+    // (BLE1109A) Los canales L2CAP de esos enlaces se cierran con ellos.
+    for p in cerrar_canales {
+        radio().cerrar_l2cap(&p);
+    }
 }
 
 fn texto_radio(estado_radio: &str) -> &'static str {
@@ -661,6 +710,8 @@ pub fn al_conectar(plataforma: &str, rol: &str, direccion: Option<&str>, paquete
             nucleo: Enlace::nuevo(paquete),
             dato_visto: false,
             dato_salido: false,
+            carril: Carril::nuevo(rol == "central"),
+            desmarcador: Desmarcador::nuevo(),
         });
         let (id, neurona) = e.enlaces.last().map(|l| (l.id.clone(), l.neurona.clone())).unwrap_or_default();
         let fallos = direccion.map(|d| e.vecindario.fallos_de(d)).unwrap_or(0);
@@ -746,41 +797,186 @@ pub fn al_desconectar(plataforma: &str, motivo: &str) {
         );
         marcar_cambio(e);
     });
+    // (BLE1109A) El canal L2CAP muere con su enlace GATT (idempotente: la radio ya pudo cerrarlo).
+    radio().cerrar_l2cap(plataforma);
 }
 
-/// Un paquete que llegó por la radio. Si completa un mensaje, va al buzón y a la web.
+/// Un paquete que llegó por la radio (GATT). Si completa un mensaje, va al buzón y a la web.
 pub fn al_recibir(plataforma: &str, paquete: &[u8]) {
+    recibir_lote(plataforma, paquete, false);
+}
+
+/// (BLE1109A) Bytes del flujo del canal L2CAP (en trozos de cualquier tamaño: partidos o pegados). El desmarcador
+/// rearma los paquetes; un flujo desalineado cierra el canal (se sigue por GATT).
+pub fn al_l2cap_datos(plataforma: &str, bytes: &[u8]) {
+    recibir_lote(plataforma, bytes, true);
+}
+
+fn recibir_lote(plataforma: &str, entrada: &[u8], flujo: bool) {
     let ahora = ahora_ms();
-    let (nuevo, acusar) = con_estado(|e| {
+    let (nuevos, acusar, error) = con_estado(|e| {
         let Estado { enlaces, limitador, buzon, esperas, .. } = e;
-        let Some(l) = enlaces.iter_mut().find(|l| l.plataforma == plataforma) else { return (None, false) };
+        let Some(l) = enlaces.iter_mut().find(|l| l.plataforma == plataforma) else { return (Vec::new(), false, None) };
         let id = l.id.clone();
-        // (BLE1108C) Hito: el primer paquete que llega por este enlace.
-        let hito = if l.dato_visto {
-            None
+        let paquetes: Vec<Vec<u8>> = if flujo {
+            match l.desmarcador.empujar(entrada) {
+                Ok(p) => p,
+                Err(x) => return (Vec::new(), false, Some(x.to_string())),
+            }
         } else {
-            l.dato_visto = true;
-            Some((l.neurona.clone(), format!("{} B, {} ms después de abrir el enlace", paquete.len(), ahora.saturating_sub(l.desde_ms))))
+            vec![entrada.to_vec()]
         };
-        let cuerpo = l.nucleo.recibir(paquete, ahora, &mut || limitador.permitir(&id, ahora));
+        let mut cuerpos = Vec::new();
+        let mut hito = None;
+        for paquete in &paquetes {
+            // (BLE1108C) Hito: el primer paquete que llega por este enlace.
+            if !l.dato_visto {
+                l.dato_visto = true;
+                hito = Some((l.neurona.clone(), format!("{} B, {} ms después de abrir el enlace", paquete.len(), ahora.saturating_sub(l.desde_ms))));
+            }
+            let cuerpo = if flujo {
+                l.nucleo.recibir_rapido(paquete, ahora, &mut || limitador.permitir(&id, ahora))
+            } else {
+                l.nucleo.recibir(paquete, ahora, &mut || limitador.permitir(&id, ahora))
+            };
+            if let Some(c) = cuerpo {
+                cuerpos.push(c);
+            }
+        }
         for h in l.nucleo.hechos() {
             if let Some(tx) = esperas.remove(&h.token) {
                 let _ = tx.send(h.resultado);
             }
         }
         let acusar = l.nucleo.hay_paquetes();
-        let nuevo = cuerpo.map(|c| buzon.poner(&id, c, ahora));
+        let nuevos: Vec<Recibido> = cuerpos.into_iter().map(|c| buzon.poner(&id, c, ahora)).collect();
         if let Some((neurona, detalle)) = hito {
             anotar(e, "primer-dato-recibido", Some(&id), neurona.as_deref(), &detalle);
         }
-        (nuevo, acusar)
+        (nuevos, acusar, None)
     });
+    if let Some(motivo) = error {
+        // Flujo desalineado: el canal ya no sirve. Se cierra y el enlace sigue por GATT.
+        al_l2cap_cerrado(plataforma, &format!("flujo inválido: {motivo}"));
+        radio().cerrar_l2cap(plataforma);
+        return;
+    }
     if acusar {
         radio().hay_datos(plataforma);
     }
-    if let Some(r) = nuevo {
+    for r in nuevos {
         emitir(EVENTO_MENSAJE, MensajeBle::from(r));
     }
+}
+
+// ───────────────────────────── Carril rápido: canal L2CAP (BLE1109A) ─────────────────────────────
+
+/// El central leyó el PSM que publica el periférico. Un PSM inválido se ignora (el enlace sigue por GATT).
+pub fn al_psm(plataforma: &str, psm: u16) {
+    let ahora = ahora_ms();
+    con_estado(|e| {
+        let Some(l) = e.enlaces.iter_mut().find(|l| l.plataforma == plataforma) else { return };
+        let (id, neurona) = (l.id.clone(), l.neurona.clone());
+        if l.carril.ofrecer_psm(psm, ahora) {
+            anotar(e, "l2cap-psm", Some(&id), neurona.as_deref(), &format!("psm={psm}"));
+        } else {
+            anotar(e, "l2cap-psm", Some(&id), neurona.as_deref(), &format!("psm={psm} no es válido: se sigue por GATT"));
+        }
+    });
+}
+
+/// El canal L2CAP abrió: desde ahora TODOS los paquetes del enlace salen por él (GATT calla).
+pub fn al_l2cap_abierto(plataforma: &str, psm: Option<u16>) {
+    let ahora = ahora_ms();
+    let conocido = con_estado(|e| {
+        let Some(l) = e.enlaces.iter_mut().find(|l| l.plataforma == plataforma) else { return false };
+        l.carril.abierto(psm, ahora);
+        l.desmarcador.vaciar();
+        l.nucleo.fijar_carril(true);
+        let (id, neurona, psm, gatt) = (l.id.clone(), l.neurona.clone(), l.carril.psm(), l.nucleo.paquete());
+        anotar(
+            e,
+            "l2cap-abierto",
+            Some(&id),
+            neurona.as_deref(),
+            &format!("psm={} · paquete {} B (GATT {} B)", psm.map(|p| p.to_string()).unwrap_or_else(|| "?".into()), bt::PAQUETE_RAPIDO, gatt),
+        );
+        marcar_cambio(e);
+        true
+    });
+    if conocido {
+        radio().hay_datos(plataforma);
+    } else {
+        radio().cerrar_l2cap(plataforma);
+    }
+}
+
+/// El canal L2CAP se cerró (o no llegó a abrir): el enlace sigue por GATT, sin soltarlo, y el canal se
+/// reintenta con la espera escalonada de `ble_l2cap`.
+pub fn al_l2cap_cerrado(plataforma: &str, motivo: &str) {
+    let ahora = ahora_ms();
+    let hubo = con_estado(|e| {
+        let Some(l) = e.enlaces.iter_mut().find(|l| l.plataforma == plataforma) else { return false };
+        if !matches!(l.carril.estado(), l2::EstadoCarril::Abierto | l2::EstadoCarril::Abriendo) {
+            return false;
+        }
+        let cierre = l.carril.cerrado(motivo, ahora);
+        l.desmarcador.vaciar();
+        l.nucleo.fijar_carril(false);
+        let m = l.nucleo.medidas.clone();
+        let (id, neurona) = (l.id.clone(), l.neurona.clone());
+        anotar(
+            e,
+            "l2cap-cerrado",
+            Some(&id),
+            neurona.as_deref(),
+            &format!(
+                "motivo={} · {} · vivió {} ms · se sigue por GATT · reabre en {} ms · último kbps rápido={}",
+                linea_limpia(&cierre.motivo, 160),
+                if cierre.estaba_abierto { "estaba abierto" } else { "no llegó a abrir" },
+                cierre.vivio_ms,
+                cierre.espera_ms,
+                m.kbps_rapido.map(|k| k.to_string()).unwrap_or_else(|| "sin medir".into())
+            ),
+        );
+        marcar_cambio(e);
+        true
+    });
+    if hubo {
+        // GATT retoma lo que estaba por salir.
+        radio().hay_datos(plataforma);
+    }
+}
+
+/// La radio pide lo siguiente para el flujo del canal L2CAP: paquetes ya marcados (`[largo][paquete]`), hasta
+/// `max` bytes como poco. None: nada que mandar ahora (o el enlace no usa el carril rápido).
+pub fn siguiente_trama_rapida(plataforma: &str, max: usize) -> Option<Vec<u8>> {
+    let ahora = ahora_ms();
+    con_estado(|e| {
+        let l = e.enlaces.iter_mut().find(|l| l.plataforma == plataforma)?;
+        if !l.carril.es_rapido() {
+            return None;
+        }
+        let mut salida: Vec<u8> = Vec::new();
+        let mut primero = None;
+        while salida.len() < max.clamp(l2::MARCO_MAX, l2::TROZO_MAX) {
+            let Some(p) = l.nucleo.siguiente_paquete(ahora) else { break };
+            let Some(m) = l2::marco(&p) else { continue };
+            if primero.is_none() {
+                primero = Some(p.len());
+            }
+            salida.extend_from_slice(&m);
+        }
+        if salida.is_empty() {
+            return None;
+        }
+        if !l.dato_salido {
+            l.dato_salido = true;
+            let (id, neurona, detalle) = (l.id.clone(), l.neurona.clone(), format!("{} B por el canal rápido, {} ms después de abrir el enlace", salida.len(), ahora.saturating_sub(l.desde_ms)));
+            anotar(e, "primer-paquete-retirado", Some(&id), neurona.as_deref(), &detalle);
+        }
+        Some(salida)
+    })
 }
 
 /// La radio pide el siguiente paquete para ese enlace (None: nada que mandar ahora).
@@ -788,6 +984,10 @@ pub fn siguiente_paquete(plataforma: &str) -> Option<Vec<u8>> {
     let ahora = ahora_ms();
     con_estado(|e| {
         let l = e.enlaces.iter_mut().find(|l| l.plataforma == plataforma)?;
+        // (BLE1109A) Con el canal L2CAP abierto, GATT no saca nada: todo va por el flujo (nunca por los dos carriles).
+        if l.carril.es_rapido() {
+            return None;
+        }
         let p = l.nucleo.siguiente_paquete(ahora)?;
         if !l.dato_salido {
             l.dato_salido = true;
@@ -809,6 +1009,9 @@ struct Acciones {
     cambio: Option<EstadoBle>,
     /// (BLE1108B) Enlaces cuyo otro lado dejó de latir: se cierran y se vuelve a conectar.
     cerrar: Vec<String>,
+    /// (BLE1109A) Canales L2CAP por abrir (enlace, PSM) y por cerrar (apertura vencida).
+    abrir_l2cap: Vec<(String, u16)>,
+    cerrar_l2cap: Vec<String>,
 }
 
 fn tic(ahora: u64, releer_cuenta: bool) -> Acciones {
@@ -838,6 +1041,15 @@ fn tic(ahora: u64, releer_cuenta: bool) -> Acciones {
             }
             if e.enlaces[i].nucleo.muerto(ahora) {
                 a.cerrar.push(e.enlaces[i].plataforma.clone());
+            }
+            // (BLE1109A) Carril rápido: abrir el canal cuando toca (con la espera escalonada) o dar por perdida una
+            // apertura que no llega. Mientras tanto el enlace sigue por GATT.
+            if e.enlaces[i].carril.apertura_vencida(ahora) {
+                a.cerrar_l2cap.push(e.enlaces[i].plataforma.clone());
+            } else if let Some(psm) = e.enlaces[i].carril.debe_abrir(ahora) {
+                let (id, neurona, plataforma, intento) = (e.enlaces[i].id.clone(), e.enlaces[i].neurona.clone(), e.enlaces[i].plataforma.clone(), e.enlaces[i].carril.fallos() + 1);
+                anotar(e, "l2cap-abriendo", Some(&id), neurona.as_deref(), &format!("psm={psm} (intento {intento})"));
+                a.abrir_l2cap.push((plataforma, psm));
             }
         }
         if e.vecindario.caducar(ahora) {
@@ -891,6 +1103,13 @@ fn bucle() {
         for d in a.conectar {
             r.conectar(&d);
         }
+        for (p, psm) in a.abrir_l2cap {
+            r.abrir_l2cap(&p, psm);
+        }
+        for p in a.cerrar_l2cap {
+            r.cerrar_l2cap(&p);
+            al_l2cap_cerrado(&p, "el canal rápido no abrió a tiempo");
+        }
         for p in a.datos {
             r.hay_datos(&p);
         }
@@ -928,7 +1147,13 @@ fn foto(e: &Estado, ahora: u64) -> EstadoBle {
                 rssi,
                 paquete: l.nucleo.paquete(),
                 rtt_ms: m.rtt_ms,
-                kbps: m.kbps,
+                // (BLE1109A) La capacidad es la del carril en uso: medida por él, o sin medir.
+                kbps: if l.carril.es_rapido() { m.kbps_rapido } else { m.kbps_gatt },
+                carril: if l.carril.es_rapido() { "rapido" } else { "gatt" }.to_string(),
+                canal_rapido: l.carril.estado().texto().to_string(),
+                psm: l.carril.psm(),
+                kbps_rapido: m.kbps_rapido,
+                kbps_gatt: m.kbps_gatt,
                 pendientes: l.nucleo.pendientes(),
                 bytes_enviados: m.bytes_enviados,
                 bytes_recibidos: m.bytes_recibidos,
@@ -1279,5 +1504,154 @@ mod pruebas {
         assert!(std::fs::read_to_string(&ruta).unwrap().lines().all(|l| l == linea));
         assert!(anexar_rotando(&ruta, &[], 1_000).is_ok());
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    // ─────────── BLE1109A: carril rápido (L2CAP) ───────────
+
+    #[test]
+    fn eventos_del_canal_rapido_se_leen_con_cuidado() {
+        assert_eq!(leer_evento(r#"{"e":"psm","enlace":"c:AA:01","psm":133}"#), Some(EventoRadio::Psm { enlace: "c:AA:01".into(), psm: 133 }));
+        assert_eq!(leer_evento(r#"{"e":"psm","enlace":"c:AA:01","psm":0}"#), None, "0 = sin canal rápido");
+        assert_eq!(leer_evento(r#"{"e":"psm","enlace":"c:AA:01","psm":4097}"#), None, "fuera del rango LE");
+        assert_eq!(leer_evento(r#"{"e":"psm","enlace":"c:AA:01","psm":-3}"#), None);
+        assert_eq!(leer_evento(r#"{"e":"psm","enlace":"c:AA:01","psm":70000}"#), None);
+        assert_eq!(leer_evento(r#"{"e":"psm","enlace":"mal id","psm":133}"#), None);
+        assert_eq!(leer_evento(r#"{"e":"l2cap-abierto","enlace":"p:BB:02","psm":200}"#), Some(EventoRadio::L2capAbierto { enlace: "p:BB:02".into(), psm: Some(200) }));
+        assert_eq!(leer_evento(r#"{"e":"l2cap-abierto","enlace":"p:BB:02"}"#), Some(EventoRadio::L2capAbierto { enlace: "p:BB:02".into(), psm: None }));
+        assert_eq!(leer_evento(r#"{"e":"l2cap-abierto","enlace":"p:BB:02","psm":9}"#), Some(EventoRadio::L2capAbierto { enlace: "p:BB:02".into(), psm: Some(9) }));
+        assert_eq!(leer_evento(r#"{"e":"l2cap-abierto","enlace":"p:BB:02","psm":999}"#), Some(EventoRadio::L2capAbierto { enlace: "p:BB:02".into(), psm: None }), "PSM raro: se abre sin él");
+        assert_eq!(
+            leer_evento(r#"{"e":"l2cap-cerrado","enlace":"c:AA:01","motivo":"el otro cerró"}"#),
+            Some(EventoRadio::L2capCerrado { enlace: "c:AA:01".into(), motivo: "el otro cerró".into() })
+        );
+        assert_eq!(
+            leer_evento(r#"{"e":"l2cap-cerrado","enlace":"c:AA:01"}"#),
+            Some(EventoRadio::L2capCerrado { enlace: "c:AA:01".into(), motivo: "el canal L2CAP se cerró".into() })
+        );
+        assert_eq!(leer_evento(r#"{"e":"l2cap-cerrado","enlace":"zzz"}"#), None);
+    }
+
+    /// El núcleo de verdad con el canal rápido: GATT primero, el canal toma el relevo (y GATT calla), un flujo roto
+    /// lo cierra, y el enlace sigue vivo por GATT con el mismo id.
+    #[test]
+    fn canal_rapido_toma_el_relevo_y_vuelve_a_gatt_sin_soltar_el_enlace() {
+        use crate::ble_trama::Enlace;
+        fn por_gatt(p: &str, otra: &mut Enlace, entregados: &mut Vec<String>) {
+            let mut si = || true;
+            while let Some(pq) = siguiente_paquete(p) {
+                if let Some(c) = otra.recibir(&pq, ahora_ms(), &mut si) {
+                    entregados.push(c);
+                }
+            }
+            while let Some(pq) = otra.siguiente_paquete(ahora_ms()) {
+                al_recibir(p, &pq);
+            }
+        }
+        fn por_el_flujo(p: &str, otra: &mut Enlace, des: &mut Desmarcador, entregados: &mut Vec<String>) {
+            let mut si = || true;
+            while let Some(b) = siguiente_trama_rapida(p, 8192) {
+                for pq in des.empujar(&b).expect("flujo alineado") {
+                    if let Some(c) = otra.recibir_rapido(&pq, ahora_ms(), &mut si) {
+                        entregados.push(c);
+                    }
+                }
+            }
+            let mut flujo = Vec::new();
+            while let Some(pq) = otra.siguiente_paquete(ahora_ms()) {
+                flujo.extend(l2::marco(&pq).expect("cabe en un marco"));
+            }
+            for trozo in flujo.chunks(333) {
+                al_l2cap_datos(p, trozo);
+            }
+        }
+        fn enviar_y_esperar(enl: &str, json: String, mut bombear: impl FnMut()) -> Result<u64, String> {
+            let e = enl.to_string();
+            let h = std::thread::spawn(move || enviar(&e, &json));
+            for _ in 0..4_000 {
+                bombear();
+                if h.is_finished() {
+                    break;
+                }
+                std::thread::sleep(Duration::from_millis(2));
+            }
+            h.join().unwrap()
+        }
+        let estado_de = |enl: &str| ble_estado().enlaces.into_iter().find(|l| l.id == enl).expect("enlace abierto");
+        let p = "c:AA:BB:CC:DD:EE:64";
+        al_conectar(p, "central", Some("AA:BB:CC:DD:EE:64"), 64);
+        let enl = ble_estado().enlaces.iter().find(|l| l.paquete == 64).expect("enlace abierto").id.clone();
+        let mut otra = Enlace::nuevo(64);
+        let mut entregados = Vec::new();
+        // 0 · PSM inválido: se ignora; válido: disponible. GATT sigue siendo el carril.
+        al_psm(p, 0);
+        assert_eq!(estado_de(&enl).psm, None);
+        al_psm(p, 0x85);
+        let e0 = estado_de(&enl);
+        assert_eq!((e0.psm, e0.carril.as_str()), (Some(0x85), "gatt"));
+        assert!(["disponible", "abriendo"].contains(&e0.canal_rapido.as_str()), "{}", e0.canal_rapido);
+        // 1 · Por GATT, como siempre.
+        let r = enviar_y_esperar(&enl, "{\"t\":\"a\",\"d\":\"por gatt\"}".into(), || por_gatt(p, &mut otra, &mut entregados));
+        assert!(r.is_ok(), "{r:?}");
+        assert_eq!(entregados, vec!["{\"t\":\"a\",\"d\":\"por gatt\"}".to_string()]);
+        entregados.clear();
+        // 2 · El canal abre: todo va por él y GATT calla.
+        al_l2cap_abierto(p, Some(0x85));
+        otra.fijar_carril(true);
+        let e1 = estado_de(&enl);
+        assert_eq!((e1.carril.as_str(), e1.canal_rapido.as_str(), e1.psm), ("rapido", "abierto", Some(0x85)));
+        assert_eq!(e1.kbps, None, "la capacidad del carril rápido se mide por él: aún sin medir");
+        assert_eq!(e1.kbps_gatt, None, "(un mensaje corto no mide)");
+        let grande = format!("{{\"t\":\"archivo.chunk\",\"d\":\"{}\"}}", "K".repeat(14_000));
+        let mut des = Desmarcador::nuevo();
+        let g2 = grande.clone();
+        let e2 = enl.clone();
+        let h = std::thread::spawn(move || enviar(&e2, &g2));
+        for _ in 0..4_000 {
+            assert!(siguiente_paquete(p).is_none() || h.is_finished(), "GATT no debe sacar nada con el canal abierto");
+            por_el_flujo(p, &mut otra, &mut des, &mut entregados);
+            if h.is_finished() {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(2));
+        }
+        assert!(h.join().unwrap().is_ok());
+        assert_eq!(entregados, vec![grande.clone()], "llega entero y una sola vez");
+        entregados.clear();
+        let e3 = estado_de(&enl);
+        assert!(e3.kbps.is_some_and(|k| k > 0) && e3.kbps == e3.kbps_rapido && e3.carril == "rapido", "{e3:?}");
+        // 3 · Lo que manda la otra app por el flujo, en trozos partidos, llega al buzón.
+        let antes = ble_estado().ultimo_seq;
+        otra.encolar(1, &format!("{{\"t\":\"x\",\"d\":\"{}\"}}", "M".repeat(3_000)), ahora_ms()).unwrap();
+        for _ in 0..50 {
+            por_el_flujo(p, &mut otra, &mut des, &mut entregados);
+        }
+        let recibidos = ble_recibidos(antes);
+        assert_eq!(recibidos.len(), 1);
+        assert_eq!(recibidos[0].enlace, enl);
+        assert!(otra.hechos().iter().all(|h| h.resultado.is_ok()), "la otra app recibió el acuse por el flujo");
+        // 4 · Un flujo roto cierra el canal, NO el enlace: sigue por GATT con el mismo id.
+        al_l2cap_datos(p, &[0, 1, 0]);
+        let e4 = estado_de(&enl);
+        assert_eq!(e4.carril, "gatt");
+        assert!(["disponible", "abriendo"].contains(&e4.canal_rapido.as_str()), "se reintentará: {}", e4.canal_rapido);
+        let reg = ble_registro();
+        assert!(reg.iter().any(|x| x.tipo == "l2cap-abierto" && x.detalle.starts_with("psm=133")), "{reg:?}");
+        assert!(reg.iter().any(|x| x.tipo == "l2cap-cerrado" && x.detalle.contains("flujo inválido") && x.detalle.contains("se sigue por GATT")), "{reg:?}");
+        otra.fijar_carril(false);
+        let r = enviar_y_esperar(&enl, "{\"t\":\"b\",\"d\":\"otra vez gatt\"}".into(), || por_gatt(p, &mut otra, &mut entregados));
+        assert!(r.is_ok(), "{r:?}");
+        assert_eq!(entregados, vec!["{\"t\":\"b\",\"d\":\"otra vez gatt\"}".to_string()]);
+        assert!(ble_estado().enlaces.iter().any(|l| l.id == enl), "el enlace nunca se soltó");
+        // 5 · Cerrar dos veces no duplica el registro; el canal que ya no está no se vuelve a anotar.
+        let n = ble_registro().iter().filter(|x| x.tipo == "l2cap-cerrado" && x.enlace.as_deref() == Some(enl.as_str())).count();
+        al_l2cap_cerrado(p, "otra vez");
+        al_l2cap_cerrado(p, "y otra");
+        let m = ble_registro().iter().filter(|x| x.tipo == "l2cap-cerrado" && x.enlace.as_deref() == Some(enl.as_str())).count();
+        assert!(m <= n + 2, "no se anota un cierre que no existe ({n} → {m})");
+        // 6 · Un canal para un enlace que no existe: se ignora sin romper nada.
+        al_l2cap_abierto("c:no-existe", Some(0x85));
+        assert!(siguiente_trama_rapida("c:no-existe", 8192).is_none());
+        al_desconectar(p, "fin de la prueba del canal rápido");
+        assert!(ble_estado().enlaces.iter().all(|l| l.id != enl));
     }
 }

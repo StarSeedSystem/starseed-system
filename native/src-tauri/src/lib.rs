@@ -38,6 +38,8 @@ mod antenas;
 // Android (Kotlin por JNI) y de macOS (CoreBluetooth). Contrato: architecture/bluetooth-directo.md.
 mod ble;
 mod ble_android;
+// BLE1109A: carril rápido del Bluetooth directo (canal L2CAP): PSM, marco del flujo y máquina del carril (puro).
+mod ble_l2cap;
 #[cfg(target_os = "macos")]
 mod ble_macos;
 mod ble_trama;

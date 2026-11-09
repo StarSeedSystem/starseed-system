@@ -16,6 +16,13 @@
 //     sin respuesta mientras `canSendWriteWithoutResponse` lo deje (luego espera a
 //     `peripheralIsReadyToSendWriteWithoutResponse:`). El paquete es `maximumWriteValueLengthForType:`.
 //
+// (BLE1109A) Carril rápido: canal L2CAP. Como central, lee la característica PSM del periférico y abre el canal
+// (`openL2CAPChannel`); como periférico, publica un canal (`publishL2CAPChannelWithEncryption: NO`, el cifrado va por
+// encima) y sirve su PSM en la lectura de esa característica. Los dos flujos (`NSInputStream`/`NSOutputStream`) se
+// atienden en UN hilo propio por canal con su NSRunLoop, mirando `hasBytesAvailable` / `hasSpaceAvailable` cada 5 ms
+// y escribiendo lo que el flujo acepte (escrituras parciales: `ble_l2cap::Salida`). Todo el marco y la decisión
+// de carril viven en `ble.rs` / `ble_l2cap.rs`; aquí solo se mueven bytes.
+//
 // Requiere `NSBluetoothAlwaysUsageDescription` en Info.plist (sin ella macOS cierra la app).
 // No se compila en Linux: se comprobó con `cargo check --target aarch64-apple-darwin` en una caja
 // aparte con las mismas versiones (objc2 0.6, objc2-foundation 0.3.2, objc2-core-bluetooth =0.3.2,
@@ -25,20 +32,23 @@
 #![allow(non_snake_case)]
 
 use crate::ble::{self as nucleo, Radio};
+use crate::ble_l2cap as l2;
 use crate::ble_trama as bt;
 use dispatch2::{DispatchQueue, DispatchRetained};
 use objc2::rc::Retained;
 use objc2::runtime::{AnyObject, ProtocolObject};
 use objc2::{define_class, msg_send, AnyThread, DefinedClass, Message};
 use objc2_core_bluetooth::{
-    CBATTError, CBATTRequest, CBAdvertisementDataServiceUUIDsKey, CBAttributePermissions, CBCentral, CBCentralManager,
+    CBATTError, CBATTRequest, CBAdvertisementDataServiceUUIDsKey, CBAttributePermissions, CBCentral, CBCentralManager, CBL2CAPChannel,
     CBCentralManagerDelegate, CBCentralManagerScanOptionAllowDuplicatesKey, CBCharacteristic, CBCharacteristicProperties,
     CBCharacteristicWriteType, CBManagerState, CBMutableCharacteristic, CBMutableService, CBPeripheral, CBPeripheralDelegate,
     CBPeripheralManager, CBPeripheralManagerDelegate, CBService, CBUUID,
 };
-use objc2_foundation::{NSArray, NSData, NSDictionary, NSError, NSNumber, NSObject, NSObjectProtocol, NSString};
+use objc2_foundation::{NSArray, NSData, NSDate, NSDefaultRunLoopMode, NSDictionary, NSError, NSNumber, NSObject, NSObjectProtocol, NSRunLoop, NSStreamStatus, NSString};
 use std::collections::HashMap;
-use std::sync::{Mutex, OnceLock};
+use std::ptr::NonNull;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Paquetes seguidos que se mandan antes de ceder la cola a otros eventos.
@@ -73,6 +83,8 @@ struct PerifericoMac {
     bloqueado_desde: Option<u64>,
     tardes: u32,
     reintentos_suscripcion: u8,
+    /// (BLE1109A) Característica PSM del periférico (opcional: las apps anteriores no la tienen).
+    psm: Option<Retained<CBCharacteristic>>,
 }
 
 struct Mac {
@@ -92,6 +104,8 @@ struct Mac {
     servidor_tardes: u32,
     pendiente: Option<(String, Vec<u8>)>,
     turno: usize,
+    /// (BLE1109A) PSM del canal L2CAP que este aparato publicó como periférico.
+    psm_publicado: Option<u16>,
 }
 
 /// Los objetos de CoreBluetooth no son `Send`: solo se tocan en la cola `app.starseed.ble` (por
@@ -188,6 +202,13 @@ define_class!(
 
         #[unsafe(method(peripheral:didUpdateValueForCharacteristic:error:))]
         fn peripheral_didUpdateValueForCharacteristic_error(&self, peripheral: &CBPeripheral, characteristic: &CBCharacteristic, error: Option<&NSError>) {
+            // (BLE1109A) El PSM del canal rápido: 2 bytes; inválido o 0 = el otro no lo ofrece (se sigue por GATT).
+            if error.is_none() && es_uuid(unsafe { characteristic.UUID() }, l2::PSM) {
+                if let Some(psm) = unsafe { characteristic.value() }.and_then(|v| l2::leer_psm(&v.to_vec())) {
+                    nucleo::al_psm(&format!("c:{}", id_de(unsafe { peripheral.identifier() })), psm);
+                }
+                return;
+            }
             if error.is_some() || !es_uuid(unsafe { characteristic.UUID() }, bt::SALIDA) {
                 return;
             }
@@ -200,6 +221,16 @@ define_class!(
         #[unsafe(method(peripheralIsReadyToSendWriteWithoutResponse:))]
         fn peripheralIsReadyToSendWriteWithoutResponse(&self, peripheral: &CBPeripheral) {
             bombear_central(&id_de(unsafe { peripheral.identifier() }));
+        }
+
+        // (BLE1109A) El canal L2CAP que pedimos como central ya abrió (o falló).
+        #[unsafe(method(peripheral:didOpenL2CAPChannel:error:))]
+        fn peripheral_didOpenL2CAPChannel_error(&self, peripheral: &CBPeripheral, channel: Option<&CBL2CAPChannel>, error: Option<&NSError>) {
+            let plataforma = format!("c:{}", id_de(unsafe { peripheral.identifier() }));
+            match (channel, error) {
+                (Some(c), None) => lanzar_canal(plataforma, c.retain()),
+                _ => nucleo::al_l2cap_cerrado(&plataforma, &motivo("macOS no pudo abrir el canal L2CAP", error)),
+            }
         }
     }
 
@@ -218,6 +249,10 @@ define_class!(
             con_mac(|m| {
                 m.servicio_listo = true;
                 anunciar(m);
+                // (BLE1109A) Canal L2CAP sin cifrar por el aire (el cifrado va por encima, CIF1108A).
+                if m.psm_publicado.is_none() {
+                    unsafe { m.servidor.publishL2CAPChannelWithEncryption(false) };
+                }
             });
         }
 
@@ -237,6 +272,7 @@ define_class!(
         fn peripheralManager_central_didUnsubscribeFromCharacteristic(&self, _peripheral: &CBPeripheralManager, central: &CBCentral, _characteristic: &CBCharacteristic) {
             let id = id_de(unsafe { central.identifier() });
             con_mac(|m| m.centrales.remove(&id));
+            parar_canal(&format!("p:{id}"));
             nucleo::al_desconectar(&format!("p:{id}"), "el otro aparato se desuscribió");
         }
 
@@ -249,6 +285,44 @@ define_class!(
         fn peripheralManagerIsReadyToUpdateSubscribers(&self, _peripheral: &CBPeripheralManager) {
             con_mac(|m| m.servidor_ocupado = false);
             bombear_servidor();
+        }
+
+        // (BLE1109A) Lectura de la característica PSM (la única legible del servicio).
+        #[unsafe(method(peripheralManager:didReceiveReadRequest:))]
+        fn peripheralManager_didReceiveReadRequest(&self, peripheral: &CBPeripheralManager, request: &CBATTRequest) {
+            if !es_uuid(unsafe { request.characteristic().UUID() }, l2::PSM) {
+                unsafe { peripheral.respondToRequest_withResult(request, CBATTError::ReadNotPermitted) };
+                return;
+            }
+            let b = l2::bytes_psm(con_mac(|m| m.psm_publicado).flatten());
+            let desde = unsafe { request.offset() } as usize;
+            if desde > b.len() {
+                unsafe { peripheral.respondToRequest_withResult(request, CBATTError::InvalidOffset) };
+                return;
+            }
+            unsafe {
+                request.setValue(Some(&NSData::with_bytes(&b[desde..])));
+                peripheral.respondToRequest_withResult(request, CBATTError::Success);
+            }
+        }
+
+        // (BLE1109A) El canal L2CAP que publicamos ya tiene PSM.
+        #[unsafe(method(peripheralManager:didPublishL2CAPChannel:error:))]
+        fn peripheralManager_didPublishL2CAPChannel_error(&self, _peripheral: &CBPeripheralManager, psm: u16, error: Option<&NSError>) {
+            if error.is_none() && l2::psm_valido(psm) {
+                con_mac(|m| m.psm_publicado = Some(psm));
+            }
+        }
+
+        // (BLE1109A) Un central abrió nuestro canal L2CAP: solo se atiende al que ya tiene el enlace GATT abierto.
+        #[unsafe(method(peripheralManager:didOpenL2CAPChannel:error:))]
+        fn peripheralManager_didOpenL2CAPChannel_error(&self, _peripheral: &CBPeripheralManager, channel: Option<&CBL2CAPChannel>, error: Option<&NSError>) {
+            let (Some(c), None) = (channel, error) else { return };
+            let Some(peer) = (unsafe { c.peer() }) else { return };
+            let id = id_de(unsafe { peer.identifier() });
+            if con_mac(|m| m.centrales.contains_key(&id)).unwrap_or(false) {
+                lanzar_canal(format!("p:{id}"), c.retain());
+            }
         }
     }
 );
@@ -334,8 +408,18 @@ fn abrir_servicio(m: &mut Mac) {
             CBAttributePermissions::Readable,
         )
     };
+    // (BLE1109A) PSM del canal rápido: de solo lectura, sin valor fijo (se responde en `didReceiveReadRequest`).
+    let psm = unsafe {
+        CBMutableCharacteristic::initWithType_properties_value_permissions(
+            CBMutableCharacteristic::alloc(),
+            &cbuuid(l2::PSM),
+            CBCharacteristicProperties::Read,
+            None,
+            CBAttributePermissions::Readable,
+        )
+    };
     let servicio = unsafe { CBMutableService::initWithType_primary(CBMutableService::alloc(), &cbuuid(bt::SERVICIO), true) };
-    let lista: [&CBCharacteristic; 2] = [&entrada, &salida];
+    let lista: [&CBCharacteristic; 3] = [&entrada, &salida, &psm];
     unsafe {
         servicio.setCharacteristics(Some(&NSArray::from_slice(&lista)));
         m.servidor.addService(&servicio);
@@ -393,7 +477,7 @@ fn conectar(direccion: &str) {
         }
         let (p, _) = m.vistos.get(direccion)?;
         let p = p.clone();
-        m.perifericos.insert(direccion.to_string(), PerifericoMac { p: p.clone(), entrada: None, listo: false, salida: None, bloqueado_desde: None, tardes: 0, reintentos_suscripcion: 0 });
+        m.perifericos.insert(direccion.to_string(), PerifericoMac { p: p.clone(), entrada: None, listo: false, salida: None, bloqueado_desde: None, tardes: 0, reintentos_suscripcion: 0, psm: None });
         Some((m.central.clone(), p))
     }) else {
         return;
@@ -406,6 +490,7 @@ fn conectar(direccion: &str) {
 fn cerrar_central(p: &CBPeripheral, motivo: &str) {
     let id = id_de(unsafe { p.identifier() });
     con_mac(|m| m.perifericos.remove(&id));
+    parar_canal(&format!("c:{id}"));
     nucleo::al_desconectar(&format!("c:{id}"), motivo);
 }
 
@@ -426,7 +511,7 @@ fn al_descubrir_servicios(p: &CBPeripheral, error: Option<&NSError>) {
         return;
     };
     nucleo::nota(Some(&format!("c:{}", id_de(unsafe { p.identifier() }))), "servicios-descubiertos", "servicio StarSeed encontrado, pidiendo características");
-    let caracteristicas = NSArray::from_retained_slice(&[cbuuid(bt::ENTRADA), cbuuid(bt::SALIDA)]);
+    let caracteristicas = NSArray::from_retained_slice(&[cbuuid(bt::ENTRADA), cbuuid(bt::SALIDA), cbuuid(l2::PSM)]);
     unsafe { p.discoverCharacteristics_forService(Some(&caracteristicas), &s) };
 }
 
@@ -434,6 +519,7 @@ fn al_descubrir_caracteristicas(p: &CBPeripheral, s: &CBService, error: Option<&
     let lista = if error.is_none() { unsafe { s.characteristics() }.map(|l| l.to_vec()).unwrap_or_default() } else { Vec::new() };
     let entrada = lista.iter().find(|c| es_uuid(unsafe { c.UUID() }, bt::ENTRADA)).cloned();
     let salida = lista.iter().find(|c| es_uuid(unsafe { c.UUID() }, bt::SALIDA)).cloned();
+    let psm = lista.iter().find(|c| es_uuid(unsafe { c.UUID() }, l2::PSM)).cloned();
     let (Some(entrada), Some(salida)) = (entrada, salida) else {
         cancelar(p);
         return;
@@ -443,6 +529,7 @@ fn al_descubrir_caracteristicas(p: &CBPeripheral, s: &CBService, error: Option<&
         if let Some(x) = m.perifericos.get_mut(&id) {
             x.entrada = Some(entrada);
             x.salida = Some(salida.clone());
+            x.psm = psm;
         }
     });
     unsafe { p.setNotifyValue_forCharacteristic(true, &salida) };
@@ -508,6 +595,10 @@ fn al_suscribirse(p: &CBPeripheral, c: &CBCharacteristic, error: Option<&NSError
     }
     nucleo::nota(Some(&format!("c:{id}")), "suscrito", &format!("notificaciones de SALIDA activas, paquete {paquete}"));
     nucleo::al_conectar(&format!("c:{id}"), "central", Some(&id), paquete.clamp(bt::PAQUETE_MIN, bt::PAQUETE_MAX));
+    // (BLE1109A) Con el enlace ya en el núcleo, se lee el PSM del canal rápido (si el otro lo ofrece).
+    if let Some(Some(Some(c))) = con_mac(|m| m.perifericos.get(&id).map(|x| x.psm.clone())) {
+        unsafe { p.readValueForCharacteristic(&c) };
+    }
     bombear_central(&id);
 }
 
@@ -695,6 +786,7 @@ fn arrancar_en_cola() {
         servidor_tardes: 0,
         pendiente: None,
         turno: 0,
+        psm_publicado: None,
     });
     // Los dos gestores avisan de su estado en esta misma cola (`…DidUpdateState:`).
 }
@@ -711,6 +803,7 @@ fn parar_en_cola() {
     }) else {
         return;
     };
+    parar_todos_los_canales();
     unsafe {
         central.stopScan();
         servidor.stopAdvertising();
@@ -751,12 +844,14 @@ impl Radio for RadioMac {
         let p = plataforma.to_string();
         cola().exec_async(move || {
             if let Some(id) = p.strip_prefix("c:") {
+                parar_canal(&p);
                 if let Some(Some(x)) = con_mac(|m| m.perifericos.remove(id).map(|x| x.p)) {
                     cancelar(&x);
                 }
             } else if let Some(id) = p.strip_prefix("p:") {
                 // CoreBluetooth no deja echar a un central: se le deja de atender.
                 con_mac(|m| m.centrales.remove(id));
+                parar_canal(&p);
             }
         });
     }
@@ -782,4 +877,202 @@ impl Radio for RadioMac {
     fn parar(&self) {
         cola().exec_async(parar_en_cola);
     }
+
+    // BLE1109A: como central abre el canal con el PSM leído; como periférico espera a que el otro abra.
+    fn abrir_l2cap(&self, plataforma: &str, psm: u16) {
+        let p = plataforma.to_string();
+        cola().exec_async(move || {
+            let Some(id) = p.strip_prefix("c:") else { return };
+            match con_mac(|m| m.perifericos.get(id).map(|x| x.p.clone())).flatten() {
+                Some(per) => unsafe { per.openL2CAPChannel(psm) },
+                None => nucleo::al_l2cap_cerrado(&p, "el aparato ya no está conectado"),
+            }
+        });
+    }
+
+    fn cerrar_l2cap(&self, plataforma: &str) {
+        parar_canal(plataforma);
+    }
+}
+
+// ───────────────────────────── Canal L2CAP: un hilo por canal (BLE1109A) ─────────────────────────────
+
+/// Tic del hilo del canal: lo máximo que tarda en notar datos nuevos para escribir.
+const TIC_CANAL_S: f64 = 0.005;
+/// Lo que se lee del flujo de una vez.
+const LECTURA_CANAL: usize = 8 * 1024;
+
+/// Los objetos de CoreBluetooth no son `Send`: el canal pasa al hilo que lo atiende y no vuelve.
+struct Enviable<T>(T);
+unsafe impl<T> Send for Enviable<T> {}
+impl<T> Enviable<T> {
+    fn dentro(self) -> T {
+        self.0
+    }
+}
+
+static CANALES: Mutex<Option<HashMap<String, Arc<AtomicBool>>>> = Mutex::new(None);
+
+fn con_canales<T>(f: impl FnOnce(&mut HashMap<String, Arc<AtomicBool>>) -> T) -> T {
+    let mut g = match CANALES.lock() {
+        Ok(g) => g,
+        Err(envenenado) => envenenado.into_inner(),
+    };
+    f(g.get_or_insert_with(HashMap::new))
+}
+
+/// Pide al hilo de ese canal que cierre (idempotente: sin canal no hace nada).
+fn parar_canal(plataforma: &str) {
+    con_canales(|c| {
+        if let Some(f) = c.get(plataforma) {
+            f.store(true, Ordering::SeqCst);
+        }
+    });
+}
+
+fn parar_todos_los_canales() {
+    con_canales(|c| {
+        for f in c.values() {
+            f.store(true, Ordering::SeqCst);
+        }
+    });
+}
+
+fn lanzar_canal(plataforma: String, canal: Retained<CBL2CAPChannel>) {
+    let parar = Arc::new(AtomicBool::new(false));
+    con_canales(|c| {
+        if let Some(viejo) = c.insert(plataforma.clone(), parar.clone()) {
+            viejo.store(true, Ordering::SeqCst);
+        }
+    });
+    let canal = Enviable(canal);
+    let hilo = std::thread::Builder::new().name("starseed-l2cap".into()).spawn({
+        let plataforma = plataforma.clone();
+        let parar = parar.clone();
+        move || {
+            let canal = canal.dentro();
+            let motivo = bucle_canal(&plataforma, &canal, &parar);
+            con_canales(|c| {
+                if c.get(&plataforma).is_some_and(|f| Arc::ptr_eq(f, &parar)) {
+                    c.remove(&plataforma);
+                }
+            });
+            nucleo::al_l2cap_cerrado(&plataforma, &motivo);
+        }
+    });
+    if hilo.is_err() {
+        con_canales(|c| c.remove(&plataforma));
+        nucleo::al_l2cap_cerrado(&plataforma, "no se pudo crear el hilo del canal L2CAP");
+    }
+}
+
+fn texto_error(e: Option<Retained<NSError>>, que: &str) -> String {
+    match e {
+        Some(e) => format!("{que}: {}", e.localizedDescription()),
+        None => que.to_string(),
+    }
+}
+
+/// El hilo del canal: abre los flujos, lee lo que llega (a `ble.rs`, que desmarca) y escribe lo que `ble.rs` marca,
+/// con escrituras parciales. Devuelve el motivo del cierre.
+fn bucle_canal(plataforma: &str, canal: &CBL2CAPChannel, parar: &AtomicBool) -> String {
+    let (entra, sale) = match unsafe { (canal.inputStream(), canal.outputStream()) } {
+        (Some(e), Some(s)) => (e, s),
+        _ => return "el canal L2CAP no trae flujos".into(),
+    };
+    let psm = unsafe { canal.PSM() };
+    let rl = NSRunLoop::currentRunLoop();
+    let modo = unsafe { NSDefaultRunLoopMode };
+    unsafe {
+        entra.scheduleInRunLoop_forMode(&rl, modo);
+        sale.scheduleInRunLoop_forMode(&rl, modo);
+    }
+    entra.open();
+    sale.open();
+    let inicio = ahora_ms();
+    let mut abierto = false;
+    let mut salida = l2::Salida::nueva();
+    let mut ultimo_avance = ahora_ms();
+    let mut buf = vec![0u8; LECTURA_CANAL];
+    let motivo = 'bucle: loop {
+        if parar.load(Ordering::SeqCst) {
+            break "cerrado desde esta app".to_string();
+        }
+        let hasta = NSDate::dateWithTimeIntervalSinceNow(TIC_CANAL_S);
+        rl.runMode_beforeDate(modo, &hasta);
+        let (se, ss) = (entra.streamStatus(), sale.streamStatus());
+        if se == NSStreamStatus::Error || ss == NSStreamStatus::Error {
+            break texto_error(entra.streamError().or_else(|| sale.streamError()), "error en el flujo del canal L2CAP");
+        }
+        if se == NSStreamStatus::AtEnd || se == NSStreamStatus::Closed || ss == NSStreamStatus::Closed {
+            break "el otro aparato cerró el canal L2CAP".to_string();
+        }
+        let ahora = ahora_ms();
+        if !abierto {
+            let abre = |s: NSStreamStatus| s == NSStreamStatus::Open || s == NSStreamStatus::Reading || s == NSStreamStatus::Writing;
+            if abre(se) && abre(ss) {
+                abierto = true;
+                ultimo_avance = ahora;
+                nucleo::al_l2cap_abierto(plataforma, Some(psm));
+            } else if ahora.saturating_sub(inicio) > l2::PLAZO_ABRIR_MS {
+                break "los flujos del canal L2CAP no abrieron a tiempo".to_string();
+            }
+            continue;
+        }
+        let mut movido = false;
+        // Leer lo que haya (hasBytesAvailable), sin bloquear nunca.
+        for _ in 0..32 {
+            if !entra.hasBytesAvailable() {
+                break;
+            }
+            let n = unsafe { entra.read_maxLength(NonNull::new_unchecked(buf.as_mut_ptr()), LECTURA_CANAL) };
+            if n > 0 {
+                movido = true;
+                nucleo::al_l2cap_datos(plataforma, &buf[..n as usize]);
+            } else if n == 0 {
+                break 'bucle "el otro aparato cerró el canal L2CAP".to_string();
+            } else {
+                break 'bucle texto_error(entra.streamError(), "error al leer del canal L2CAP");
+            }
+        }
+        // Escribir lo que acepte el flujo (hasSpaceAvailable); lo que no cabe se queda para el siguiente tic.
+        for _ in 0..16 {
+            if salida.vacia() {
+                match nucleo::siguiente_trama_rapida(plataforma, 8 * 1024) {
+                    Some(b) => salida.cargar(&b),
+                    None => break,
+                }
+            }
+            if !sale.hasSpaceAvailable() {
+                break;
+            }
+            let pendiente = salida.pendiente();
+            let n = unsafe { sale.write_maxLength(NonNull::new_unchecked(pendiente.as_ptr() as *mut u8), pendiente.len()) };
+            if n > 0 {
+                movido = true;
+                ultimo_avance = ahora;
+                salida.avanzar(n as usize);
+            } else if n < 0 {
+                break 'bucle texto_error(sale.streamError(), "error al escribir en el canal L2CAP");
+            } else {
+                break;
+            }
+        }
+        if salida.vacia() {
+            ultimo_avance = ahora;
+        } else if ahora.saturating_sub(ultimo_avance) > l2::PLAZO_ESCRITURA_MS {
+            break format!("escritura atascada: {} B sin salir en {} ms", salida.faltan(), l2::PLAZO_ESCRITURA_MS);
+        }
+        if !movido {
+            // Sin trabajo: el run loop ya esperó el tic; este respiro evita girar en vacío si devuelve de inmediato.
+            std::thread::sleep(std::time::Duration::from_millis(1));
+        }
+    };
+    unsafe {
+        entra.removeFromRunLoop_forMode(&rl, modo);
+        sale.removeFromRunLoop_forMode(&rl, modo);
+    }
+    entra.close();
+    sale.close();
+    motivo
 }
