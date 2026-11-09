@@ -367,3 +367,69 @@ el log no tenía ningún evento `enlace-wifi`: el motor real de llamadas (`src/l
   voz por Bluetooth y «Video ligero por Bluetooth (baja resolución)»; aparece la propuesta en los dos; al aceptar,
   «Abriendo Wi‑Fi directo…» y después «Video por Wi‑Fi directo (sin router)» sin cortar la voz. En `enlaces.log`:
   `llamada escalada-wifi … clase=llamada`, `enlace-wifi …`, `llamada medio=webrtc … ruta IP nueva`, `llamada medio=webrtc … vuelve a WebRTC sin cortar`.
+
+## 10 · Windows: Wi-Fi Direct, pasarela del navegador y llamadas (WIN1109B · 2026-11-09)
+
+Windows deja de ser «aún no»: abre y se une a grupos **Wi-Fi Direct estándar** (carril `wifi-direct`), con el mismo
+`enlace.wifi.*` firmado y cifrado (§2) que Android; los datos van por el canal TCP 47071 de siempre (§3). Código:
+`enlace_wifi_windows.rs` (WinRT) conectado a `enlace_wifi.rs`; lo puro (nombre y contraseña del grupo, IPs, máquina de
+estados, capacidades) en `win_p2p_logica.rs::wifi`.
+
+### 10.1 · Capacidades que ve la web (`enlace_wifi_capacidades`)
+
+`plataforma: "windows"`, `ap: ["wifi-direct"]`, `cliente: ["wifi-direct"]`, `lanas: ["wifi-direct", "wifi-direct-concurrente"]`,
+`radio_unica: false`, `permiso: concedido | preguntar | denegado`, con `motivo` si no hay adaptador, el Wi-Fi está apagado,
+Windows deniega la radio (Privacidad) o `STARSEED_SIN_WIFI_DIRECT_WINDOWS=1`. La comprobación corre en un hilo y se
+repite cada ~20 s; mientras no termina, `motivo` = «Comprobando…» sin roles. `wifi-direct-concurrente` se anuncia mientras
+haya Wi-Fi encendido: el grupo de Windows va por el adaptador virtual de Wi-Fi Direct y **no suelta el Wi-Fi de casa**
+(a confirmar en aparato, §10.4). No hay `hotspot-local` en Windows (usaría la radio de casa).
+
+### 10.2 · Papeles
+
+- **Dueño del grupo (`ap`)**: `WiFiDirectAdvertisementPublisher` con `IsAutonomousGroupOwnerEnabled`, `LegacySettings`
+  (`DIRECT-xy-StarSeed`, `xy` al azar; contraseña de 16 alfanuméricos del CSPRNG de Windows) y
+  `WiFiDirectConnectionListener`. Android 10+ y Linux se unen por nombre y contraseña. La contraseña solo sale por
+  `enlace_wifi_credenciales` hacia la web, que la cifra con ECDH en `enlace.wifi.listo` fase `red`; nunca va en el
+  estado, en eventos ni en el registro. IP del dueño: 192.168.137.1 o 192.168.49.1 (la que tenga el equipo).
+- **Cliente (`cliente`)**: se une a un grupo `DIRECT-xy-…` (Android, Linux o Windows). Primero como dispositivo
+  `WiFiDirectDevice` si el grupo se ve así; si no, como red por un `WiFiAdapter` **distinto del de casa**
+  (`ConnectWithPasswordCredentialAsync`, reconexión manual). Con un único adaptador ya conectado al Wi-Fi de casa no se
+  suelta: error `sin-soporte` con su porqué. IP: la pista `ip_ap` de la web o las habituales; la IP propia debe estar
+  en la misma subred.
+- Estados: `inactivo → abriendo → red-lista` (dueño) y `uniendo → unida` (cliente); `cerrando → cerrado`; `error` con
+  `permiso-denegado | sin-soporte | fallo-nativo | no-encontrada`.
+
+### 10.3 · Pasarela de internet en el webview (WebView2)
+
+WebView2 no tiene API de proxy en caliente (no hay equivalente a `proxyConfigurations` de macOS ni a `ProxyController`
+de Android). **Decisión:** al arrancar, `puerta_proxy_windows::instalar()` abre una pasarela local de paso
+(`127.0.0.1:47077`, solo `std`) y pone `--proxy-server=http://127.0.0.1:47077` más la lista de exclusión de bucle
+local en `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` (se lee al crear el primer webview; vale para todas las ventanas, que
+comparten carpeta de datos). La pasarela:
+
+- va **directa** a Internet siempre que la página no le haya dicho que hay puerta (la neurona con salida propia no
+  cambia nada: `puerta.cjs` ni siquiera abre su proxy);
+- solo encadena (`CONNECT`/HTTP) con el proxy de `puerta.cjs` mientras `puerta_proxy_local` fija su puerto, y **vuelve
+  a directa** si el encadenado falla o la puerta se va;
+- nunca proxifica bucle local ni redes locales (excluidos del navegador y vetados en la pasarela), limita
+  conexiones y cabeceras, y contesta 400/403/501/502/503 sin colgarse.
+
+Si el usuario ya configuró un proxy en el sistema o en la variable, o el puerto está ocupado, **no se instala**:
+la capacidad de `puerta_proxy_estado` dice `soportado: false` con el motivo y el navegador sigue como estaba. Interruptor:
+`STARSEED_SIN_PROXY_PUERTA=1`. Las descargas de Rust (actualizador, reqwest, curl) usan el proxy como antes.
+`puerta.cjs` no cambia.
+
+### 10.4 · Lo que debe confirmar un PC con Windows real (pendiente)
+
+1. Que el adaptador admita ser **dueño autónomo del grupo** (`Started`, no `Aborted`) y que una tableta Android 10+
+   se una por nombre y contraseña sin avisos.
+2. Que el grupo se abra **sin soltar el Wi-Fi de casa** (`wifi-direct-concurrente`) y qué adaptador ve
+   `WiFiAdapter::FindAllAdaptersAsync` (¿aparece el virtual?).
+3. Que Windows cliente se una a un grupo Android/Linux: como `WiFiDirectDevice` (¿pide PBC/PIN en el Android?) o como
+   red por un segundo adaptador. En un PC con un solo adaptador en el Wi-Fi de casa se negará (`sin-soporte`).
+4. La IP real del dueño (192.168.137.1) y que `enlace_wifi_comprobar` llegue al 47071 del otro.
+5. Que WebView2 respete la variable de proxy (navegar con y sin puerta; páginas, `WebSocket` y `fetch` con el proxy
+   de `puerta.cjs`) y que ninguna ventana creada después la pierda.
+6. Llamadas: el permiso de micrófono y cámara (el manejador de Tauri 2.12 los concede a los orígenes propios y Windows
+   puede mostrar su aviso de Privacidad), AudioWorklet, WebCodecs y WebRTC (vienen con WebView2/Chromium: sin cambios
+   de código). Comprobar una llamada de datos con voz y vídeo sobre el grupo Wi-Fi Direct.
