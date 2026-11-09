@@ -38,6 +38,44 @@ pub const FUNCION_P2P: &str = "android.hardware.wifi.direct";
 
 pub const KOTLIN: &str = include_str!("../android/EnlaceWifiDirecto.kt");
 
+// (WFA1109A) Wi-Fi Aware: el Kotlin completo, y una variante mínima con la misma API que dice «sin soporte»
+// (`STARSEED_SIN_WIFI_AWARE=1` en el build: el APK sale sin una línea de Aware y sigue compilando).
+pub const KOTLIN_AWARE: &str = include_str!("../android/WifiAwareStarSeed.kt");
+pub const FUNCION_AWARE: &str = "android.hardware.wifi.aware";
+pub const ENTORNO_SIN_AWARE: &str = "STARSEED_SIN_WIFI_AWARE";
+pub const KOTLIN_AWARE_SIN: &str = r#"// Lo copia native/src-tauri/build.rs (STARSEED_SIN_WIFI_AWARE=1): Wi-Fi Aware desactivado en este build.
+package app.starseed.nativa
+
+import android.content.Context
+import org.json.JSONObject
+
+object WifiAwareStarSeed {
+    interface Salida {
+        fun fase(ses: String, fase: String, codigo: String?, mensaje: String, extra: JSONObject?)
+        fun credenciales(ses: String, ssid: String, clave: String)
+    }
+
+    fun soportado(ctx: Context): Boolean = false
+
+    fun disponible(ctx: Context): Boolean = false
+
+    fun abrirAp(ctx: Context, ses: String, huellaPropia: String?, huellaOtro: String?, salida: Salida) {
+        salida.fase(ses, "error", "sin-soporte", "Wi-Fi Aware está desactivado en esta compilación.", null)
+    }
+
+    fun unirse(ctx: Context, ses: String, huellaPropia: String?, huellaOtro: String?, clave: String, salida: Salida) {
+        salida.fase(ses, "error", "sin-soporte", "Wi-Fi Aware está desactivado en esta compilación.", null)
+    }
+
+    fun cerrar() {}
+}
+"#;
+
+/// ¿El build desactiva Wi-Fi Aware?
+pub fn sin_aware_en_entorno() -> bool {
+    std::env::var_os(ENTORNO_SIN_AWARE).map(|v| !v.is_empty() && v != "0").unwrap_or(false)
+}
+
 fn quitar_bloque(texto: &str, inicio: &str, fin: &str) -> String {
     let (Some(a), Some(b)) = (texto.find(inicio), texto.find(fin)) else { return texto.to_string() };
     if b < a {
@@ -69,6 +107,9 @@ pub fn bloque_permisos(manifiesto_sin_bloques: &str) -> String {
     }
     if !ya_declarado(manifiesto_sin_bloques, FUNCION_P2P) {
         s.push_str(&format!("    <uses-feature android:name=\"{FUNCION_P2P}\" android:required=\"false\" />\n"));
+    }
+    if !ya_declarado(manifiesto_sin_bloques, FUNCION_AWARE) {
+        s.push_str(&format!("    <uses-feature android:name=\"{FUNCION_AWARE}\" android:required=\"false\" />\n"));
     }
     s.push_str(&format!("    {PERMISOS_FIN}\n"));
     s
@@ -134,6 +175,11 @@ fn escribir_si_cambia(ruta: &Path, contenido: &str) -> Result<bool, String> {
 
 /// Aplica todo al proyecto Android. Devuelve los archivos que cambiaron.
 pub fn aplicar(proyecto: &Path) -> Result<Vec<PathBuf>, String> {
+    aplicar_con(proyecto, sin_aware_en_entorno())
+}
+
+/// Como `aplicar`, eligiendo si Wi-Fi Aware va completo o desactivado (idempotente en los dos casos).
+pub fn aplicar_con(proyecto: &Path, sin_aware: bool) -> Result<Vec<PathBuf>, String> {
     let mut cambiados = Vec::new();
     let principal = proyecto.join("app/src/main");
     let manifiesto = principal.join("AndroidManifest.xml");
@@ -145,6 +191,10 @@ pub fn aplicar(proyecto: &Path) -> Result<Vec<PathBuf>, String> {
     let kotlin = principal.join("java/app/starseed/nativa/EnlaceWifiDirecto.kt");
     if escribir_si_cambia(&kotlin, KOTLIN)? {
         cambiados.push(kotlin);
+    }
+    let aware = principal.join("java/app/starseed/nativa/WifiAwareStarSeed.kt");
+    if escribir_si_cambia(&aware, if sin_aware { KOTLIN_AWARE_SIN } else { KOTLIN_AWARE })? {
+        cambiados.push(aware);
     }
     Ok(cambiados)
 }
@@ -229,6 +279,25 @@ mod pruebas {
     }
 
     #[test]
+    fn wifi_aware_kotlin_y_variante_desactivada_tienen_la_misma_api() {
+        for k in [KOTLIN_AWARE, KOTLIN_AWARE_SIN] {
+            assert!(k.contains("package app.starseed.nativa") && k.contains("object WifiAwareStarSeed"));
+            for api in ["interface Salida", "fun soportado(", "fun disponible(", "fun abrirAp(", "fun unirse(", "fun cerrar("] {
+                assert!(k.contains(api), "falta {api}");
+            }
+        }
+        assert!(KOTLIN_AWARE.contains("const val SERVICIO = \"starseed-malla\""));
+        assert!(KOTLIN_AWARE.contains("WifiAwareNetworkSpecifier") && KOTLIN_AWARE.contains("ACTION_WIFI_AWARE_STATE_CHANGED") && KOTLIN_AWARE.contains("FEATURE_WIFI_AWARE"));
+        assert!(!KOTLIN_AWARE.contains("{{") && !KOTLIN_AWARE_SIN.contains("WifiAwareManager"));
+        // EnlaceWifiDirecto la usa con la misma firma y escribe los campos nuevos del puente y del estado.
+        assert!(KOTLIN.contains("WifiAwareStarSeed.abrirAp(") && KOTLIN.contains("WifiAwareStarSeed.unirse(") && KOTLIN.contains("WifiAwareStarSeed.cerrar()"));
+        assert!(KOTLIN.contains(".put(\"aware\"") && KOTLIN.contains(".put(\"aware_disponible\""));
+        assert!(KOTLIN_AWARE.contains("\"ip_otro\"") && KOTLIN_AWARE.contains("\"ip_propia\""));
+        let m = parchear_manifiesto(PLANTILLA).unwrap();
+        assert!(m.contains("<uses-feature android:name=\"android.hardware.wifi.aware\" android:required=\"false\" />"));
+    }
+
+    #[test]
     fn solo_starseed_os() {
         assert!(aplica("app.starseed.os"));
         assert!(aplica("app.starseed.`os`"));
@@ -286,9 +355,16 @@ mod pruebas {
         std::fs::create_dir_all(dir.join("app/src/main")).unwrap();
         std::fs::write(dir.join("app/src/main/AndroidManifest.xml"), PLANTILLA).unwrap();
         let primera = aplicar(&dir).unwrap();
-        assert_eq!(primera.len(), 2, "manifiesto + Kotlin");
+        assert_eq!(primera.len(), 3, "manifiesto + Kotlin + Wi-Fi Aware");
         assert!(dir.join("app/src/main/java/app/starseed/nativa/EnlaceWifiDirecto.kt").is_file());
-        assert!(aplicar(&dir).unwrap().is_empty(), "la segunda vez no cambia nada");
+        assert!(dir.join("app/src/main/java/app/starseed/nativa/WifiAwareStarSeed.kt").is_file());
+        assert!(aplicar_con(&dir, false).unwrap().is_empty(), "la segunda vez no cambia nada");
+        // STARSEED_SIN_WIFI_AWARE: solo cambia la variante de Aware, y también es idempotente.
+        let sin = aplicar_con(&dir, true).unwrap();
+        assert_eq!(sin.len(), 1);
+        assert!(std::fs::read_to_string(&sin[0]).unwrap().contains("desactivado en esta compilación"));
+        assert!(aplicar_con(&dir, true).unwrap().is_empty());
+        assert_eq!(aplicar_con(&dir, false).unwrap().len(), 1, "volver a encender Aware restituye el Kotlin completo");
         assert!(aplicar(&dir.join("no-existe")).unwrap_err().contains("android init"));
         let _ = std::fs::remove_dir_all(&dir);
     }

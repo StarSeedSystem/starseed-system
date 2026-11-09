@@ -33,8 +33,9 @@ pub const EVENTO: &str = "enlace-wifi://estado";
 /// El canal TCP de la app (malla_local.rs) corre igual sobre la red nueva.
 pub const PUERTO_CANAL: u16 = 47071;
 
-pub const METODOS_AP: [&str; 2] = ["hotspot-local", "wifi-direct"];
-pub const METODOS_CLIENTE: [&str; 3] = ["wifi-direct", "corewlan", "guiado"];
+// (WFA1109A) + «wifi-aware»: Wi-Fi Aware (NAN) entre dos Android, sin punto de acceso (WifiAwareStarSeed.kt).
+pub const METODOS_AP: [&str; 3] = ["hotspot-local", "wifi-direct", "wifi-aware"];
+pub const METODOS_CLIENTE: [&str; 4] = ["wifi-direct", "corewlan", "guiado", "wifi-aware"];
 
 // ─────────────────────────────── Tipos ───────────────────────────────
 
@@ -59,6 +60,10 @@ pub struct EstadoEnlaceWifi {
     /// IP del punto de acceso en la red directa.
     #[serde(default)]
     pub ip_ap: Option<String>,
+    /// (WFA1109A) Dirección del OTRO aparato en la red directa. Wi-Fi Aware: IPv6 de enlace local con ámbito
+    /// (`fe80::…%aware_data0`), la que dice el sistema de ESTE aparato (el ámbito es de esta máquina).
+    #[serde(default)]
+    pub ip_otro: Option<String>,
     #[serde(default)]
     pub banda: Option<String>,
     /// Velocidad de la radio que dice el sistema (Mb/s), si la dice.
@@ -90,6 +95,7 @@ impl Default for EstadoEnlaceWifi {
             ssid: None,
             ip_propia: None,
             ip_ap: None,
+            ip_otro: None,
             banda: None,
             mbps: None,
             codigo: None,
@@ -114,6 +120,9 @@ pub struct CapacidadesWifi {
     pub wifi: bool,
     /// Por qué puede o no puede (para Ajustes).
     pub motivo: String,
+    /// (WFA1109A) Carriles Wi-Fi P2P sin router ni hotspot: wifi-aware | wifi-direct-concurrente | awdl.
+    /// (El permiso del punto de acceso lo añade la interfaz: vive en sus ajustes.)
+    pub lanas: Vec<String>,
 }
 
 /// Credenciales del punto de acceso (solo del punto de acceso a la web, una vez, para cifrarlas).
@@ -143,6 +152,12 @@ pub struct PuenteAndroid {
     /// Unirse a un grupo Wi-Fi Direct con sus credenciales, sin preguntar (Android 10+).
     #[serde(default)]
     pub cliente_p2p: bool,
+    /// (WFA1109A) El aparato tiene Wi-Fi Aware (FEATURE_WIFI_AWARE).
+    #[serde(default)]
+    pub aware: bool,
+    /// (WFA1109A) Wi-Fi Aware disponible ahora (`WifiAwareManager.isAvailable`: Wi-Fi encendido, sin otra sesión que lo ocupe).
+    #[serde(default)]
+    pub aware_disponible: bool,
     /// concedido | preguntar | denegado
     #[serde(default)]
     pub permiso: String,
@@ -186,7 +201,14 @@ pub fn capacidades_android(p: Option<&PuenteAndroid>) -> CapacidadesWifi {
     if p.p2p {
         ap.push("wifi-direct".to_string());
     }
-    let cliente = if p.cliente_p2p && p.p2p { v(&["wifi-direct"]) } else { Vec::new() };
+    let mut cliente = if p.cliente_p2p && p.p2p { v(&["wifi-direct"]) } else { Vec::new() };
+    // (WFA1109A) Entre dos Android, Wi-Fi Aware primero (sin grupo, sin propietario, sin punto de acceso).
+    let aware = crate::wifi_p2p_logica::aware_activo(p, crate::wifi_p2p_logica::sin_aware_en_entorno());
+    if aware {
+        ap.insert(0, "wifi-aware".to_string());
+        cliente.insert(0, "wifi-aware".to_string());
+    }
+    let lanas = crate::wifi_p2p_logica::lanas_android(p, crate::wifi_p2p_logica::sin_aware_en_entorno());
     let permiso = match p.permiso.as_str() {
         "concedido" | "denegado" => p.permiso.clone(),
         _ => "preguntar".to_string(),
@@ -198,9 +220,9 @@ pub fn capacidades_android(p: Option<&PuenteAndroid>) -> CapacidadesWifi {
     } else if !p.wifi {
         "El Wi-Fi está apagado: enciéndelo para abrir un enlace directo.".to_string()
     } else {
-        "Puede levantar la red directa (punto de acceso local o Wi-Fi Direct) y conserva su Wi-Fi de casa.".to_string()
+        "Wi-Fi P2P sin router ni hotspot con otro Android (Aware o Wi-Fi Direct) conservando su Wi-Fi de casa; el punto de acceso local solo si lo permites.".to_string()
     };
-    CapacidadesWifi { plataforma: "android".into(), ap, cliente, permiso, radio_unica: false, wifi: p.wifi, motivo }
+    CapacidadesWifi { plataforma: "android".into(), ap, cliente, permiso, radio_unica: false, wifi: p.wifi, motivo, lanas }
 }
 
 /// macOS: no levanta redes (sin Wi-Fi Direct ni API de punto de acceso); se une con CoreWLAN si hay
@@ -225,6 +247,8 @@ pub fn capacidades_macos(corewlan: bool, ubicacion: Ubicacion, wifi: bool) -> Ca
         radio_unica: true,
         wifi,
         motivo: motivo.into(),
+        // AWDL lo añade `enlace_wifi::capacidades_actuales` (necesita mirar los símbolos de Network.framework).
+        lanas: Vec::new(),
     }
 }
 
@@ -237,6 +261,7 @@ pub fn capacidades_sin_soporte(plataforma: &str, motivo: &str) -> CapacidadesWif
         radio_unica: false,
         wifi: false,
         motivo: motivo.into(),
+        lanas: Vec::new(),
     }
 }
 
@@ -293,29 +318,54 @@ pub fn banda_de_corewlan(b: i64) -> Option<&'static str> {
 // ─────────────────────────────── Peticiones a Kotlin ───────────────────────────────
 
 pub fn peticion_abrir_ap(sesion: &str, metodo: &str, t: u64) -> Result<String, String> {
+    peticion_abrir_ap_con(sesion, metodo, t, None, None)
+}
+
+/// (WFA1109A) Con las huellas cortas de las dos neuronas (Wi-Fi Aware: el aviso del servicio lleva la propia y el
+/// suscriptor solo atiende a la del otro). Nunca viaja el id de la neurona ni secreto alguno.
+pub fn peticion_abrir_ap_con(sesion: &str, metodo: &str, t: u64, yo: Option<&str>, otro: Option<&str>) -> Result<String, String> {
     if !sesion_valida(sesion) {
         return Err("Sesión no válida.".into());
     }
     if !metodo_ap_valido(metodo) {
         return Err(format!("Método de punto de acceso desconocido: «{metodo}»."));
     }
-    Ok(serde_json::json!({ "accion": "abrir-ap", "sesion": sesion, "metodo": metodo, "t": t }).to_string())
+    let (h_yo, h_otro) = huellas_de(yo, otro)?;
+    Ok(serde_json::json!({ "accion": "abrir-ap", "sesion": sesion, "metodo": metodo, "huella_propia": h_yo, "huella_otro": h_otro, "t": t }).to_string())
+}
+
+/// Huellas cortas (hex) de los ids de neurona que dio la web; error si un id no es válido.
+pub fn huellas_de(yo: Option<&str>, otro: Option<&str>) -> Result<(Option<String>, Option<String>), String> {
+    let h = |x: Option<&str>| -> Result<Option<String>, String> {
+        match x {
+            None => Ok(None),
+            Some(id) if crate::wifi_p2p_logica::id_neurona_valido(id) => Ok(Some(crate::wifi_p2p_logica::huella_hex(id))),
+            Some(_) => Err("Identificador de neurona no válido.".into()),
+        }
+    };
+    Ok((h(yo)?, h(otro)?))
 }
 
 /// La petición de unirse lleva la contraseña: solo vive en la carpeta privada de la app y Kotlin la
 /// borra en cuanto la lee.
 pub fn peticion_unirse(sesion: &str, metodo: &str, ssid: &str, clave: &str, ip_ap: Option<&str>, t: u64) -> Result<String, String> {
+    peticion_unirse_con(sesion, metodo, ssid, clave, ip_ap, t, None, None)
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn peticion_unirse_con(sesion: &str, metodo: &str, ssid: &str, clave: &str, ip_ap: Option<&str>, t: u64, yo: Option<&str>, otro: Option<&str>) -> Result<String, String> {
     if !sesion_valida(sesion) {
         return Err("Sesión no válida.".into());
     }
-    if metodo != "wifi-direct" {
-        return Err("Android solo se une sin preguntar a un grupo Wi-Fi Direct.".into());
+    if metodo != "wifi-direct" && metodo != "wifi-aware" {
+        return Err("Android solo se une sin preguntar a un grupo Wi-Fi Direct o a un camino de datos de Wi-Fi Aware.".into());
     }
     if !ssid_valido(ssid) || !clave_valida(clave) {
         return Err("El nombre o la contraseña de la red no son válidos: no se toca la radio.".into());
     }
     let ip = ip_ap.and_then(crate::malla_local_trama::ip_local).map(|i| i.to_string());
-    Ok(serde_json::json!({ "accion": "unirse", "sesion": sesion, "metodo": metodo, "ssid": ssid, "clave": clave, "ip_ap": ip, "t": t }).to_string())
+    let (h_yo, h_otro) = huellas_de(yo, otro)?;
+    Ok(serde_json::json!({ "accion": "unirse", "sesion": sesion, "metodo": metodo, "ssid": ssid, "clave": clave, "ip_ap": ip, "huella_propia": h_yo, "huella_otro": h_otro, "t": t }).to_string())
 }
 
 pub fn peticion_cerrar(sesion: &str, t: u64) -> Result<String, String> {
@@ -394,7 +444,7 @@ mod pruebas {
     fn android_dice_lo_que_puede() {
         let sin = capacidades_android(None);
         assert!(sin.ap.is_empty() && sin.cliente.is_empty() && sin.permiso == "no-aplica");
-        let p = PuenteAndroid { version: 1, sdk: 34, p2p: true, hotspot_local: true, cliente_p2p: true, permiso: "concedido".into(), wifi: true };
+        let p = PuenteAndroid { version: 1, sdk: 34, p2p: true, hotspot_local: true, cliente_p2p: true, permiso: "concedido".into(), wifi: true, aware: false, aware_disponible: false };
         let c = capacidades_android(Some(&p));
         assert_eq!(c.ap, vec!["hotspot-local", "wifi-direct"]);
         assert_eq!(c.cliente, vec!["wifi-direct"]);

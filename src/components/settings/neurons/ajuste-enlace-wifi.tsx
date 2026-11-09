@@ -9,7 +9,7 @@
  * sistema lo exige para ver o crear redes Wi-Fi; StarSeed no usa la ubicación). Solo en la app nativa.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { Loader2, Wifi } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -18,15 +18,21 @@ import { cn } from "@/lib/utils";
 import type { AjusteWifiDirecto, CapacidadesWifi } from "@/lib/malla/enlace-wifi-directo";
 import { AJUSTES_WIFI, AVISO_RADIO_UNICA, TEXTO_AJUSTE, textoEnlaceWifi } from "@/lib/malla/enlace-wifi-orquestacion";
 import { fijarAjusteWifi, motorWifi, useAjusteWifi, useEnlaceWifi } from "@/lib/malla/enlace-wifi-motor";
+// (WFA1109A) Wi-Fi P2P sin router ni hotspot, y el punto de acceso como permiso aparte (apagado por defecto).
+import { fijarPuntoAcceso, puntoAccesoPermitido, suscribirPuntoAcceso } from "@/lib/malla/punto-acceso-ajuste";
+import { DETALLE_PUNTO_ACCESO, ETIQUETA_PUNTO_ACCESO, ETIQUETA_WIFI_P2P, TEXTO_PAREJAS, TEXTO_PERMITIR_PUNTO_ACCESO, lanasP2pDe, nombreLana } from "@/lib/malla/wifi-p2p";
 
-function textoCapacidades(c: CapacidadesWifi): string {
+/** Lo que puede esta neurona, SIN contar el punto de acceso cuando la persona no lo permitió. */
+export function textoCapacidades(c: CapacidadesWifi, puntoAcceso = false): string {
   const partes: string[] = [];
-  if (c.ap.includes("hotspot-local")) partes.push("levanta un punto de acceso local");
-  if (c.ap.includes("wifi-direct")) partes.push("crea grupos Wi-Fi Direct");
-  if (c.cliente.includes("wifi-direct")) partes.push("se une a grupos Wi-Fi Direct sin que pulses nada");
-  if (c.cliente.includes("corewlan")) partes.push("se une sola a la red del Android");
-  if (c.cliente.includes("guiado") && !c.cliente.includes("corewlan")) partes.push("se une a mano a la red que se enseña");
-  return partes.length ? `Esta neurona ${partes.join(", ")}.` : "Esta neurona no puede abrir ni unirse a una red directa.";
+  const p2p = lanasP2pDe(c);
+  if (p2p.length) partes.push(`habla Wi‑Fi P2P sin router ni hotspot (${p2p.map(nombreLana).join(" y ")}) y conserva su Wi‑Fi`);
+  if (puntoAcceso) {
+    if (c.ap.includes("hotspot-local")) partes.push("levanta un punto de acceso local (permitido por ti)");
+    if (c.cliente.includes("corewlan")) partes.push("se une sola a la red del Android (permitido por ti)");
+    if (c.cliente.includes("guiado") && !c.cliente.includes("corewlan")) partes.push("se une a mano a la red que se enseña (permitido por ti)");
+  }
+  return partes.length ? `Esta neurona ${partes.join(", ")}.` : "Esta neurona no tiene Wi‑Fi P2P sin hotspot: con las demás va por Bluetooth o la red local.";
 }
 
 function textoPermiso(c: CapacidadesWifi): string {
@@ -41,6 +47,7 @@ function textoPermiso(c: CapacidadesWifi): string {
 
 export function AjusteEnlaceWifi() {
   const ajuste = useAjusteWifi();
+  const puntoAcceso = useSyncExternalStore(suscribirPuntoAcceso, puntoAccesoPermitido, () => false);
   const s = useEnlaceWifi();
   const [nativa, setNativa] = useState<boolean | null>(null);
   const [pidiendo, setPidiendo] = useState(false);
@@ -74,15 +81,41 @@ export function AjusteEnlaceWifi() {
     <Card className="bg-background/40 backdrop-blur-sm" data-testid="ajuste-enlace-wifi">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
-          <Wifi className="h-4 w-4 text-[#39FF14]" aria-hidden /> Medios · Enlace Wi-Fi directo
+          <Wifi className="h-4 w-4 text-[#39FF14]" aria-hidden /> Medios · {ETIQUETA_WIFI_P2P}
         </CardTitle>
         <CardDescription className="leading-relaxed">
-          Para lo pesado (archivos grandes, llamadas, pantalla, transmisiones) dos neuronas vecinas abren una red Wi-Fi propia entre sus antenas, sin router ni
-          internet, y la cierran al dejar de usarla. Android levanta la red; un Mac se une a ella.
+          Para lo pesado (archivos grandes, llamadas, pantalla, transmisiones) dos neuronas vecinas se hablan por Wi‑Fi directamente entre sus antenas, sin router,
+          sin internet y sin hotspot, y conservan su Wi‑Fi de casa. Lo que cabe depende de la pareja:
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3 text-sm">
-        <fieldset className="space-y-1.5" aria-label="Cuándo se abre el enlace Wi-Fi directo">
+        <ul className="space-y-1 text-xs text-muted-foreground" data-testid="parejas-wifi-p2p">
+          {TEXTO_PAREJAS.map((p) => (
+            <li key={p.id}>
+              <span className="font-medium text-foreground">{p.titulo}:</span> {p.texto}
+            </li>
+          ))}
+        </ul>
+
+        <label className="flex cursor-pointer items-start gap-2 rounded-lg border border-white/10 px-3 py-2" data-testid="permitir-punto-acceso">
+          <input
+            type="checkbox"
+            checked={puntoAcceso}
+            onChange={(e) => {
+              fijarPuntoAcceso(e.target.checked);
+              void motorWifi().then((m) => m?.capacidades(true));
+            }}
+            className="mt-1 accent-[#39FF14]"
+          />
+          <span>
+            <span className="font-medium">{TEXTO_PERMITIR_PUNTO_ACCESO}</span>
+            <span className="block text-xs text-muted-foreground">
+              {ETIQUETA_PUNTO_ACCESO}: {DETALLE_PUNTO_ACCESO}
+            </span>
+          </span>
+        </label>
+
+        <fieldset className="space-y-1.5" aria-label="Cuándo se abre el enlace Wi-Fi P2P">
           {AJUSTES_WIFI.map((a: AjusteWifiDirecto) => (
             <label
               key={a}
@@ -108,8 +141,8 @@ export function AjusteEnlaceWifi() {
               {c.permiso === "concedido" && <Badge variant="outline">permiso concedido</Badge>}
               {c.permiso === "denegado" && <Badge variant="destructive">permiso denegado</Badge>}
             </p>
-            <p>{textoCapacidades(c)}</p>
-            {c.radioUnica && <p className="text-amber-300/90">{AVISO_RADIO_UNICA}</p>}
+            <p>{textoCapacidades(c, puntoAcceso)}</p>
+            {c.radioUnica && puntoAcceso && <p className="text-amber-300/90">{AVISO_RADIO_UNICA}</p>}
             {(c.permiso === "preguntar" || c.permiso === "denegado") && (
               <div className="flex flex-wrap items-center gap-2">
                 <span className="min-w-0 flex-1">{textoPermiso(c)}</span>

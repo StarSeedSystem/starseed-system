@@ -57,6 +57,11 @@ mod disco;
 // (WFD1108A) Enlace Wi-Fi directo entre neuronas, sin router (architecture/wifi-directo.md).
 mod enlace_wifi;
 mod enlace_wifi_logica;
+// (WFA1109A) Wi-Fi P2P sin router ni hotspot: lo puro (Aware, AWDL), los comandos de AWDL y su parte de macOS.
+mod awdl; // WFA1109A
+#[cfg(target_os = "macos")]
+mod awdl_macos; // WFA1109A
+mod wifi_p2p_logica; // WFA1109A
 #[cfg(target_os = "macos")]
 mod enlace_wifi_macos;
 mod faro;
@@ -791,6 +796,10 @@ pub fn run() {
                 enlace_wifi::enlace_wifi_estado,
                 enlace_wifi::enlace_wifi_cerrar,
                 enlace_wifi::enlace_wifi_comprobar,
+                // (WFA1109A) AWDL entre dos Mac (sin router ni hotspot).
+                awdl::awdl_iniciar, // WFA1109A
+                awdl::awdl_detener, // WFA1109A
+                awdl::awdl_estado, // WFA1109A
                 // (LLA1108D) Las llamadas como llamadas del teléfono.
                 llamada_nativa::llamada_nativa_iniciar,
                 llamada_nativa::llamada_nativa_estado,

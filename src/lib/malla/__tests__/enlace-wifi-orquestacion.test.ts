@@ -5,6 +5,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import type { CapacidadesWifi } from "@/lib/malla/enlace-wifi-directo";
 import {
+  etiquetaEnlaceP2p,
   AVISO_RADIO_UNICA,
   ESPERA_TRAS_FALLO_MS,
   UMBRAL_ARCHIVO_BYTES,
@@ -21,8 +22,8 @@ import {
 import { enlaceActualDe } from "@/lib/malla/enlace-wifi-motor";
 import { etiquetaVia, nombreDeVia, detalleVia } from "@/lib/mensajeria/medios/medios";
 
-const ANDROID: CapacidadesWifi = { plataforma: "android", ap: ["hotspot-local", "wifi-direct"], cliente: ["wifi-direct"], permiso: "concedido", radioUnica: false, wifi: true };
-const MAC: CapacidadesWifi = { plataforma: "macos", ap: [], cliente: ["corewlan", "guiado"], permiso: "concedido", radioUnica: true, wifi: true };
+const ANDROID: CapacidadesWifi = { plataforma: "android", ap: ["hotspot-local", "wifi-direct"], cliente: ["wifi-direct"], permiso: "concedido", radioUnica: false, wifi: true, lanas: ["punto-acceso-optin"] };
+const MAC: CapacidadesWifi = { plataforma: "macos", ap: [], cliente: ["corewlan", "guiado"], permiso: "concedido", radioUnica: true, wifi: true, lanas: ["punto-acceso-optin"] };
 
 function entrada(x: Partial<EntradaDecision> = {}): EntradaDecision {
   return {
@@ -108,15 +109,23 @@ describe("registro de enlaces activos y pastilla", () => {
     expect(textoEnlaceWifi(null)).toBe("Enlace Wi-Fi directo: no");
   });
 
-  it("la pastilla de la vía dice «Wi-Fi directo (sin router)», también con el enlace ya cerrado", () => {
+  it("la pastilla de la vía dice «Red directa por punto de acceso» si es el hotspot, y Wi‑Fi P2P si no lo es (también con el enlace ya cerrado)", () => {
     const via = { medio: "local" as const, direccion: "sale" as const, enlaceId: "nativo:192.168.49.1", ruta: "wifi-directo", confirmado: true, confirmadoPor: "destino" as const, latenciaMs: 4 };
-    expect(etiquetaVia(via)).toBe("Mesh · Wi-Fi directo (sin router) · 4 ms ✓");
-    expect(nombreDeVia(via)).toBe("Wi-Fi directo (sin router)");
+    expect(etiquetaVia(via)).toBe("Mesh · Wi‑Fi P2P (sin router ni hotspot) · 4 ms ✓"); // sin saber el método: P2P por defecto
+    expect(nombreDeVia(via)).toBe("Wi‑Fi P2P (sin router ni hotspot)");
     expect(detalleVia(via).find((l) => l.etiqueta === "Ruta medida")?.valor).toContain("sin router");
     fijarEnlacesWifi([activo]);
-    expect(etiquetaVia({ ...via, ruta: "misma-red-local" })).toContain("Wi-Fi directo (sin router)");
+    expect(etiquetaVia({ ...via, ruta: "misma-red-local" })).toContain("Red directa por punto de acceso");
     fijarEnlacesWifi([]);
     expect(etiquetaVia({ ...via, ruta: "misma-red-local" })).toContain("Red local (app nativa)");
+  });
+
+  it("(WFA1109A) la pastilla nombra el carril: AWDL, Aware o Wi‑Fi Direct, siempre «sin router»", () => {
+    expect(etiquetaEnlaceP2p("nativo:awdl:0123456789abcdef", [])).toMatch(/AWDL.*sin router/);
+    expect(etiquetaEnlaceP2p("nativo:fe80::1%aware_data0", [])).toMatch(/Aware.*sin router/);
+    expect(etiquetaEnlaceP2p("nativo:192.168.49.1", [{ ...activo, metodo: "wifi-direct" }])).toMatch(/Wi.Fi Direct.*sin router/);
+    expect(esEnlaceWifiDirecto("nativo:awdl:0123456789abcdef")).toBe(true);
+    expect(esEnlaceWifiDirecto("nativo:fe80::1%aware_data0")).toBe(true);
   });
 
   it("el enlace por el que iría el envío, traducido para decidir", () => {

@@ -164,6 +164,8 @@ object EnlaceWifiDirecto : Application.ActivityLifecycleCallbacks {
             .put("cliente_p2p", p2p && Build.VERSION.SDK_INT >= 29)
             .put("permiso", estadoPermiso(ctx))
             .put("wifi", wifi(ctx)?.isWifiEnabled == true)
+            .put("aware", WifiAwareStarSeed.soportado(ctx)) // WFA1109A
+            .put("aware_disponible", WifiAwareStarSeed.disponible(ctx))
         escribir(ctx, PUENTE, j)
     }
 
@@ -195,15 +197,23 @@ object EnlaceWifiDirecto : Application.ActivityLifecycleCallbacks {
                 sesion = ses
                 rol = "ap"
                 metodo = p.optString("metodo")
-                if (metodo == "wifi-direct") abrirGrupo(ctx, ses) else abrirPuntoLocal(ctx, ses)
+                if (metodo == "wifi-aware") {
+                    // WFA1109A: Wi-Fi Aware, sin router ni hotspot.
+                    WifiAwareStarSeed.abrirAp(ctx, ses, p.optString("huella_propia", "").ifEmpty { null }, p.optString("huella_otro", "").ifEmpty { null }, salidaAware(ctx))
+                } else if (metodo == "wifi-direct") abrirGrupo(ctx, ses) else abrirPuntoLocal(ctx, ses)
             }
             "unirse" -> {
                 if (!conPermiso(ctx, p, ses, "uniendo")) return
                 cerrarTodo(ctx)
                 sesion = ses
                 rol = "cliente"
-                metodo = "wifi-direct"
-                unirseAGrupo(ctx, ses, p.optString("ssid"), p.optString("clave"), p.optString("ip_ap", ""))
+                metodo = if (p.optString("metodo") == "wifi-aware") "wifi-aware" else "wifi-direct"
+                if (metodo == "wifi-aware") {
+                    // WFA1109A
+                    WifiAwareStarSeed.unirse(ctx, ses, p.optString("huella_propia", "").ifEmpty { null }, p.optString("huella_otro", "").ifEmpty { null }, p.optString("clave"), salidaAware(ctx))
+                } else {
+                    unirseAGrupo(ctx, ses, p.optString("ssid"), p.optString("clave"), p.optString("ip_ap", ""))
+                }
             }
             "cerrar" -> {
                 if (ses.isNotEmpty() && sesion != null && ses != sesion) return
@@ -498,7 +508,24 @@ object EnlaceWifiDirecto : Application.ActivityLifecycleCallbacks {
         return ipv4Locales().values.firstOrNull { it.startsWith(pre) && it != ip }
     }
 
+    /** WFA1109A: lo que cuenta Wi-Fi Aware llega al mismo estado/credenciales que usa Rust. */
+    private fun salidaAware(ctx: Context) = object : WifiAwareStarSeed.Salida {
+        override fun fase(ses: String, fase: String, codigo: String?, mensaje: String, extra: JSONObject?) {
+            if (sesion != ses) return
+            val j = base(ses, fase, codigo, mensaje).put("ssid", ssidActual)
+            extra?.keys()?.forEach { k -> j.put(k, extra.get(k)) }
+            escribir(ctx, ESTADO, j)
+        }
+
+        override fun credenciales(ses: String, ssid: String, clave: String) {
+            if (sesion != ses) return
+            ssidActual = ssid
+            escribir(ctx, CREDENCIALES, JSONObject().put("sesion", ses).put("ssid", ssid).put("clave", clave).put("banda", JSONObject.NULL).put("ip", JSONObject.NULL))
+        }
+    }
+
     private fun cerrarTodo(ctx: Context) {
+        WifiAwareStarSeed.cerrar() // WFA1109A
         try {
             reserva?.close()
         } catch (e: Exception) {

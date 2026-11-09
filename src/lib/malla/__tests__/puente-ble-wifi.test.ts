@@ -35,8 +35,8 @@ import {
 } from "@/lib/malla/puente-ble-wifi";
 
 const sutil = (globalThis.crypto?.subtle ?? webcrypto.subtle) as SubtleCrypto;
-const ANDROID: CapacidadesWifi = { plataforma: "android", ap: ["hotspot-local", "wifi-direct"], cliente: ["wifi-direct"], permiso: "concedido", radioUnica: false, wifi: true };
-const MAC: CapacidadesWifi = { plataforma: "macos", ap: [], cliente: ["corewlan", "guiado"], permiso: "concedido", radioUnica: true, wifi: true };
+const ANDROID: CapacidadesWifi = { plataforma: "android", ap: ["hotspot-local", "wifi-direct"], cliente: ["wifi-direct"], permiso: "concedido", radioUnica: false, wifi: true, lanas: ["punto-acceso-optin"] };
+const MAC: CapacidadesWifi = { plataforma: "macos", ap: [], cliente: ["corewlan", "guiado"], permiso: "concedido", radioUnica: true, wifi: true, lanas: ["punto-acceso-optin"] };
 const CLAVE_AP = "clave-del-ap-int1108c";
 const MB = 1024 * 1024;
 
@@ -214,6 +214,7 @@ function mundo(ajustes: { mac: "automatico" | "preguntar" | "nunca"; tab: "autom
         yo: async () => ({ neurona, nombre: nombre === "mac" ? "MaggaBook" : "Maggaboard" }),
         epubPropia: async () => cif.pub,
         ajuste: () => ajustes[nombre],
+        puntoAcceso: () => true, // WFA1109A: estos tests cubren el camino por punto de acceso, que es opt-in
         firmar: async (cuerpo) => ({ v: 2, b: cuerpo, f: huella }),
         verificar: async (s) => {
           const o = s as { b?: unknown; f?: string };

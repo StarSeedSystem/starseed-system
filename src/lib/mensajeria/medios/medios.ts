@@ -24,7 +24,7 @@ import {
 } from "./tipos";
 import { ETIQUETA_RED_LOCAL_NATIVA, esEnlaceRedLocalNativa } from "@/lib/malla/red-local-nativa";
 // (WFD1108A) El canal local por una red Wi-Fi directa entre las dos neuronas: «Wi-Fi directo (sin router)».
-import { ETIQUETA_WIFI_DIRECTO, RUTA_WIFI_DIRECTO, esEnlaceWifiDirecto } from "@/lib/malla/enlace-wifi-orquestacion";
+import { etiquetaEnlaceP2p, RUTA_WIFI_DIRECTO, esEnlaceWifiDirecto } from "@/lib/malla/enlace-wifi-orquestacion";
 
 /** (WFD1108A) ¿Esta vía fue por un enlace Wi-Fi directo? Por su ruta guardada o por el enlace activo ahora. */
 function esViaWifiDirecto(v: Pick<ViaMensaje, "medio" | "enlaceId" | "ruta">): boolean {
@@ -310,7 +310,7 @@ export function etiquetaVia(v: ViaMensaje): string {
     const partes: string[] = [];
     switch (v.medio) {
         case "local":
-            partes.push("Mesh", esViaWifiDirecto(v) ? ETIQUETA_WIFI_DIRECTO : esEnlaceRedLocalNativa(v.enlaceId) ? ETIQUETA_RED_LOCAL_NATIVA : "Sin internet");
+            partes.push("Mesh", esViaWifiDirecto(v) ? etiquetaEnlaceP2p(v.enlaceId) : esEnlaceRedLocalNativa(v.enlaceId) ? ETIQUETA_RED_LOCAL_NATIVA : "Sin internet");
             break;
         case "wifi-local":
             partes.push("Mesh", "Wi-Fi local");
@@ -344,7 +344,7 @@ const RUTAS: Record<string, string> = {
     "bluetooth-directo": "Bluetooth directo (sin router)",
     desconocida: "Sin medir",
     // (WFD1108A)
-    [RUTA_WIFI_DIRECTO]: "Wi-Fi directo entre las dos neuronas (sin router)",
+    [RUTA_WIFI_DIRECTO]: "Wi‑Fi P2P entre las dos neuronas (sin router ni hotspot)",
 };
 
 /** (BLE1108B) «Verificada por ambos aparatos» o «El otro aparato midió: X (no coincide)». Puro. */
@@ -364,7 +364,7 @@ export interface LineaDetalle {
  * que abrieron solas dos apps nativas, `local:nativo-…`) es «Red local (app nativa)» (MLT1107A).
  */
 export function nombreDeVia(v: Pick<ViaMensaje, "medio" | "enlaceId"> & Partial<Pick<ViaMensaje, "ruta">>): string {
-    if (esViaWifiDirecto(v)) return ETIQUETA_WIFI_DIRECTO;
+    if (esViaWifiDirecto(v)) return etiquetaEnlaceP2p(v.enlaceId);
     if (v.medio === "local" && esEnlaceRedLocalNativa(v.enlaceId)) return ETIQUETA_RED_LOCAL_NATIVA;
     return INFO_MEDIOS[v.medio]?.nombre ?? v.medio;
 }
