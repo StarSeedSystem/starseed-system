@@ -1,6 +1,6 @@
 # Genesis · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-08 17:07:05 desde Genesis vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-08 18:16:53 desde Genesis vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -16,18 +16,22 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | Agentes escribiendo | **0** |
 | En esta ola | integradas 0 · en curso 0 · esperando aprobación 0 · pendientes 15 |
 | Últimas 4 olas | en curso 0 · pendientes 100 · integradas 0 |
-| HEAD | `1b8fb56e20 chore(memoria): aprendizaje de la ola auto-1108-165402` |
-| Sin publicar | 9 commits |
+| HEAD | `8e2c833e8e chore(memoria): aprendizaje de la ola auto-1108-175712` |
+| Sin publicar | 11 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-1108-165402.json`, hace 30s)
+## Quién escribe ahora (latido de `cola-auto-1108-175712.json`, hace 21s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `IRD11083` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 3 min | 176 s | 780 |
-| `IRD11082` | hecho | groq/openai/gpt-oss-120b | 6 min | 346 s | 541 |
-| `IRD11081` | hecho | nim/minimaxai/minimax-m3.1-flash | 6 min | 353 s | 447 |
-| `BZN1108C` | hecho | nvidia/nvidia/nemotron-3-super-120 | 6 min | 370 s | 136916 |
+| `PRM1108A` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 3 min | 165 s | 49647 |
+| `ENT-agentes-referencias-diseno-agentes-re-c0341e-v1` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 7 min | 410 s | 494 |
+| `ENT-agentes-referencias-diseno-agentes-re-991ac5-v1` | hecho | nim/minimaxai/minimax-m3.1-flash | 7 min | 447 s | 785 |
+| `ENT-agentes-referencias-diseno-agentes-re-e78423-v1` | hecho | groq/openai/gpt-oss-120b | 8 min | 474 s | 482 |
+| `ENT-agentes-referencias-diseno-agentes-re-3fc197-v1` | hecho | groq/openai/gpt-oss-120b | 9 min | 516 s | 481 |
+| `ENT-agentes-referencias-diseno-agentes-re-338cb2-v1` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 9 min | 523 s | 822 |
+| `ENT-agentes-referencias-diseno-agentes-re-2e83d5-v1` | hecho | groq/openai/gpt-oss-120b | 11 min | 666 s | 583 |
+| `ENT-agentes-referencias-diseno-agentes-re-227af2-v1` | hecho | nim/minimaxai/minimax-m3.1-flash | 11 min | 677 s | 490 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
