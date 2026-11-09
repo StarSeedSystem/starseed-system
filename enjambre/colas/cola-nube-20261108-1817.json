@@ -1,0 +1,35 @@
+{
+ "ola": "nube-20261108",
+ "tareas": [
+  {
+   "id": "PRM1108B",
+   "ola": "1108C · Permisos del dispositivo unificados (plan de SUP0811G)",
+   "titulo": "Permisos · paso 1: `consultarPermiso` y `pedirPermiso` en el motor base, sin romper a nadie",
+   "archivos": [
+    "src/lib/aurora/senses/request-permission.ts",
+    "src/lib/aurora/senses/__tests__/consultar-pedir-permiso.test.ts"
+   ],
+   "depende": [],
+   "origen": "supervision-0811c",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest/unittest) de lo que tocas; no toques `vitest.setup-dom.ts` ni otra preparación global. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo. Pruebas deterministas: sin red, sin reloj real y sin detectar el aparato de verdad; una prueba nueva tiene que fallar sin tu arreglo. Publicar no es tuyo: nunca `git push`, ni `scripts/puente/publicar.py`, ni Vercel; deja tu trabajo en un commit de tu rama.\n\nPlan: `architecture/permisos-unificados.md` (SUP0811G, 08-11; léelo entero antes: §2 dice dónde discrepan los motores y §4 los pasos). Esta ola hace los pasos 0, 1 y 2; el 3 (device-install), el 4 (medios de llamadas) y el 5 (UI) NO son de esta ola: no los toques.\n\nNecesita `src/lib/permisos/contrato.ts` (PRM1108A); si no está en main, NO APLICA todavía. En `src/lib/aurora/senses/request-permission.ts` AÑADE, sin cambiar ninguna firma ni export de los que ya hay (lo importan 10 archivos):\n- `export async function consultarPermiso(id: PermisoDispositivo): Promise<EstadoPermiso>` = `normalizarEstado(await estadoPermiso(id))`;\n- `export async function pedirPermiso(id: PermisoDispositivo): Promise<ResultadoPermisoOS>`: llama a `requestDevicePermission(id)` (así se sigue emitiendo `starseed:permiso`) y devuelve `{ id, estado: estadoDeResultado(r), motivo: r.motivo }`;\n- `nombreError?: string` OPCIONAL en `ResultadoPermiso`, que `pedirMedia` y el `catch` de «archivos» rellenan con `e instanceof Error ? e.name : undefined` (así `estadoDeResultado` ve el NotAllowedError aunque el mensaje no diga «denied»). Nada más cambia.\nPrueba nueva `src/lib/aurora/senses/__tests__/consultar-pedir-permiso.test.ts` con `// @vitest-environment jsdom` en la primera línea (el entorno por defecto es node: `vitest.config.ts`); `vi.stubGlobal` para `Notification` y `navigator.mediaDevices`, restaurados en `afterEach` (`vi.unstubAllGlobals()`). Casos: `Notification.permission` \"default\"/\"denied\"/\"granted\" → `consultarPermiso(\"notificaciones\")` = \"preguntar\"/\"denegado\"/\"concedido\"; `pedirPermiso(\"notificaciones\")` con `requestPermission` que resuelve \"denied\" → \"denegado\" y el evento `starseed:permiso` llega a `window`; `getUserMedia` que rechaza con un Error de `name` \"NotAllowedError\" y el mensaje de Firefox → `pedirPermiso(\"microfono\")` = \"denegado\"; sin `mediaDevices` → \"no-disponible\". Corre esa prueba, `src/lib/version/__tests__/permisos-por-so.test.ts` y las demás que importan este módulo (`git grep -l request-permission -- '*.test.*'`), y `bash scripts/enjambre/tsc-turno.sh`.",
+   "dependencias_ya_en_main": [
+    "PRM1108A"
+   ]
+  },
+  {
+   "id": "PRM1108C",
+   "ola": "1108C · Permisos del dispositivo unificados (plan de SUP0811G)",
+   "titulo": "Permisos · paso 2: `senses` decide el estado con el contrato (el «no» de Firefox ya no es «prompt»)",
+   "archivos": [
+    "src/lib/senses/senses.ts",
+    "src/lib/senses/__tests__/resultado-a-sentido.test.ts"
+   ],
+   "depende": [],
+   "origen": "supervision-0811c",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest/unittest) de lo que tocas; no toques `vitest.setup-dom.ts` ni otra preparación global. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo. Pruebas deterministas: sin red, sin reloj real y sin detectar el aparato de verdad; una prueba nueva tiene que fallar sin tu arreglo. Publicar no es tuyo: nunca `git push`, ni `scripts/puente/publicar.py`, ni Vercel; deja tu trabajo en un commit de tu rama.\n\nPlan: `architecture/permisos-unificados.md` (SUP0811G, 08-11; léelo entero antes: §2 dice dónde discrepan los motores y §4 los pasos). Esta ola hace los pasos 0, 1 y 2; el 3 (device-install), el 4 (medios de llamadas) y el 5 (UI) NO son de esta ola: no los toques.\n\nNecesita `src/lib/permisos/contrato.ts` (PRM1108A); si no está en main, NO APLICA todavía. En `src/lib/senses/senses.ts`, `resultadoASentido` decide «denied» con una expresión sobre el mensaje, así que el NotAllowedError de Firefox (sin la palabra «denied») queda como «prompt» y la UI dice «no funciona» sin explicar que está bloqueado. Cámbialo para que use `estadoDeResultado` de `@/lib/permisos/contrato` y lo traduzca a los estados de siempre de `SenseTestResult` (concedido→\"granted\", denegado→\"denied\", preguntar→\"prompt\", no-disponible→\"unsupported\"), con el mismo `ok` y el mismo `error` (el motivo). Su parámetro admite también `nombreError?: string` y lo pasa. Hazla `export` (con nombre) para probarla. Nada más cambia en `senses.ts`.\nPrueba nueva `src/lib/senses/__tests__/resultado-a-sentido.test.ts` (vitest, entorno node, sin DOM): concedido; sin soporte; mensaje de Chrome; mensaje de Firefox → \"denied\" (en rojo con main); `nombreError: \"NotAllowedError\"` → \"denied\"; \"default\" → \"prompt\"; motivo vacío → \"prompt\". Corre esa prueba, las que importan `@/lib/senses/senses` (`git grep -l \"lib/senses/senses\" -- '*.test.*'`) y `bash scripts/enjambre/tsc-turno.sh`.",
+   "dependencias_ya_en_main": [
+    "PRM1108A"
+   ]
+  }
+ ]
+}
