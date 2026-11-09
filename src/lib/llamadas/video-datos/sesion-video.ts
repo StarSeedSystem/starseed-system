@@ -41,7 +41,7 @@ export interface DepsSesionVideo {
 
 export interface EstadoVideoDatos {
   activa: boolean;
-  /** Mando mi imagen. */
+  /** Envío mi imagen. */
   enviando: boolean;
   /** Ya llegó imagen del otro. */
   recibiendo: boolean;
