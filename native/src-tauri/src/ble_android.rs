@@ -106,6 +106,10 @@ impl crate::ble::Radio for RadioAndroid {
     fn canal_rapido(&self, activo: bool) {
         ordenar(serde_json::json!({ "o": "canal-rapido", "activo": activo }));
     }
+    // BLE1109B: el enlace ya está ligado: ahora sí se lee la característica PSM del periférico.
+    fn leer_psm(&self, plataforma: &str) {
+        ordenar(serde_json::json!({ "o": "leer-psm", "enlace": plataforma }));
+    }
     // BLE1109B: «Compartir registro de enlaces» → hoja de compartir de Android con el final de `enlaces.log`.
     fn compartir_registro(&self, titulo: &str, texto: &str) -> bool {
         ordenar(serde_json::json!({ "o": "compartir", "titulo": titulo, "texto": texto }));

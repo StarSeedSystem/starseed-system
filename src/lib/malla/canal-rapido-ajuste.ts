@@ -4,15 +4,15 @@
  * Módulo PURO (sin DOM; el almacenamiento y la app nativa se inyectan). Contrato: `architecture/bluetooth-directo.md` §15.
  *
  * Caso real del 09-11: el canal L2CAP de prueba.31 iba SIEMPRE encendido y el Bluetooth dejó de llevar nada. Desde
- * prueba.32 el canal rápido es un ajuste APAGADO por defecto: sin él, el enlace es GATT puro, idéntico al de prueba.30
- * (la app nativa ni publica la característica PSM ni pide PHY 2M). Quien lo enciende, lo enciende a propósito.
+ * prueba.32 el canal rápido es un ajuste ENCENDIDO por defecto (prueba.31 no tenía el ajuste: no hay nada que migrar a
+ * «apagado»), seguro por construcción: solo se abre tras «ligado» por GATT, hace una autoprueba de eco (3 s) antes de mover
+ * tráfico y, si algo falla, el enlace sigue por GATT sin cortarse. Quien quiera, lo apaga: entonces el enlace es GATT puro.
  *
- * Verdad = la app nativa (`ble.json`, comando `ble_canal_rapido`). La web guarda un espejo con versión solo para migrar:
- * cualquier valor de una versión anterior (o sin versión) se lee como APAGADO.
+ * Verdad = la app nativa (`ble.json`, comando `ble_canal_rapido`). La web guarda un espejo con versión.
  */
 
 export const CLAVE_CANAL_RAPIDO_BLE = "starseed.ble.canal-rapido";
-/** Versión del ajuste. Antes (prueba.31) no existía: el canal estaba siempre encendido sin que nadie lo pidiera. */
+/** Versión del ajuste. Antes (prueba.31) no existía: el canal estaba siempre encendido sin que nadie lo pidiera (= el defecto). */
 export const VERSION_CANAL_RAPIDO_BLE = 2;
 
 export interface AjusteCanalRapido {
@@ -20,9 +20,9 @@ export interface AjusteCanalRapido {
   v: number;
 }
 
-export const AJUSTE_CANAL_RAPIDO_DEFECTO: Readonly<AjusteCanalRapido> = Object.freeze({ activo: false, v: VERSION_CANAL_RAPIDO_BLE });
+export const AJUSTE_CANAL_RAPIDO_DEFECTO: Readonly<AjusteCanalRapido> = Object.freeze({ activo: true, v: VERSION_CANAL_RAPIDO_BLE });
 
-/** Lo guardado → el ajuste. Solo se respeta un `activo: true` de la versión actual; todo lo demás, apagado. */
+/** Lo guardado → el ajuste. Se respeta lo elegido a propósito (versión actual); todo lo demás, el defecto (encendido). */
 export function leerAjusteCanalRapido(crudo: string | null | undefined): AjusteCanalRapido {
   if (typeof crudo !== "string" || !crudo.trim()) return { ...AJUSTE_CANAL_RAPIDO_DEFECTO };
   try {
@@ -38,7 +38,7 @@ export function serializarAjusteCanalRapido(activo: boolean): string {
   return JSON.stringify({ activo, v: VERSION_CANAL_RAPIDO_BLE } satisfies AjusteCanalRapido);
 }
 
-/** ¿Lo guardado es de una versión anterior (o ilegible) y hay que migrarlo a «apagado»? */
+/** ¿Lo guardado es de una versión anterior (o ilegible)? Solo hace falta ponerle la versión: NUNCA cambia el valor de la persona. */
 export function necesitaMigrarCanalRapido(crudo: string | null | undefined): boolean {
   if (typeof crudo !== "string" || !crudo.trim()) return false; // nada guardado: ya es el defecto
   try {
@@ -57,17 +57,10 @@ export interface DepsAjusteCanalRapido {
 }
 
 /**
- * Al arrancar: migra lo guardado por versiones anteriores a «apagado» (también en la app nativa) y deja el espejo al día.
- * Devuelve el valor vigente en la app nativa (null: no hay app nativa o no contestó). Nunca enciende el canal por sí sola.
+ * Al arrancar: deja el espejo al día con lo que dice la app nativa (la verdad), con la versión actual. No apaga ni enciende nada
+ * por sí sola. Devuelve el valor vigente en la app nativa (null: no hay app nativa o no contestó).
  */
 export async function sincronizarCanalRapido(d: DepsAjusteCanalRapido): Promise<boolean | null> {
-  let crudo: string | null = null;
-  try {
-    crudo = d.leer();
-  } catch {
-    crudo = null;
-  }
-  const migrar = necesitaMigrarCanalRapido(crudo);
   let vigente: boolean | null = null;
   try {
     vigente = await d.nativo();
@@ -75,13 +68,6 @@ export async function sincronizarCanalRapido(d: DepsAjusteCanalRapido): Promise<
     vigente = null;
   }
   if (vigente === null) return null;
-  if (migrar && vigente) {
-    try {
-      vigente = (await d.nativo(false)) ?? false;
-    } catch {
-      /* se queda como estaba; se reintenta en el siguiente arranque */
-    }
-  }
   try {
     d.escribir(serializarAjusteCanalRapido(vigente));
   } catch {
@@ -98,7 +84,7 @@ export async function fijarCanalRapido(d: DepsAjusteCanalRapido, activo: boolean
   } catch {
     vigente = null;
   }
-  if (vigente === null) return { ok: false, activo: false };
+  if (vigente === null) return { ok: false, activo };
   try {
     d.escribir(serializarAjusteCanalRapido(vigente));
   } catch {

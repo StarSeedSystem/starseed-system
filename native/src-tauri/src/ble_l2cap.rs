@@ -208,15 +208,46 @@ pub const PLAZO_ESCRITURA_MS: u64 = 5_000;
 pub const PLAZO_SIN_LECTURA_MS: u64 = 6_000;
 /// (BLE1109B) Fallos del canal de un mismo par que lo dejan apagado hasta reiniciar la app…
 pub const FALLOS_PARA_APAGAR: usize = 2;
+/// (BLE1109B) Un par apagado por fallos vuelve a probar el canal rápido pasada esta hora (un solo intento más: si falla, otra hora).
+pub const ESPERA_REINTENTO_MS: u64 = 60 * 60_000;
+/// (BLE1109B) Autoprueba del canal: paquete de 3 bytes [tipo | nonce] y su eco. Solo viajan por el canal; una app anterior los
+/// ignora (paquete desconocido) y entonces el eco no llega y el enlace sigue por GATT.
+pub const P_PRUEBA: u8 = 5;
+pub const P_ECO: u8 = 6;
+/// (BLE1109B) Plazo del eco de la autoprueba. Sin eco en este tiempo el canal se cierra y todo sigue por GATT.
+pub const PLAZO_PRUEBA_MS: u64 = 3_000;
+
+pub fn paquete_prueba(nonce: u16) -> Vec<u8> {
+    let n = nonce.to_be_bytes();
+    vec![P_PRUEBA, n[0], n[1]]
+}
+
+pub fn paquete_eco(nonce: u16) -> Vec<u8> {
+    let n = nonce.to_be_bytes();
+    vec![P_ECO, n[0], n[1]]
+}
+
+/// (BLE1109B) Lo que dice un paquete de autoprueba: (es eco, nonce). None si no lo es.
+pub fn leer_prueba(b: &[u8]) -> Option<(bool, u16)> {
+    if b.len() != 3 {
+        return None;
+    }
+    match b[0] {
+        P_PRUEBA => Some((false, u16::from_be_bytes([b[1], b[2]]))),
+        P_ECO => Some((true, u16::from_be_bytes([b[1], b[2]]))),
+        _ => None,
+    }
+}
 /// …si ocurren dentro de esta ventana (10 min).
 pub const VENTANA_FALLOS_MS: u64 = 10 * 60_000;
 
 /// (BLE1109B) Cuenta, por par, los fallos del canal rápido. Dos dentro de `VENTANA_FALLOS_MS` lo apagan para ese par
-/// hasta reiniciar la app (solo en memoria: a propósito, un reinicio vuelve a dar una oportunidad).
+/// durante `ESPERA_REINTENTO_MS`; pasada esa hora se da UNA oportunidad más (si falla otra vez, otra hora). Solo en memoria.
 #[derive(Default, Debug)]
 pub struct Castigos {
     fallos: std::collections::HashMap<String, Vec<u64>>,
-    apagados: std::collections::HashSet<String>,
+    /// Par → hasta cuándo está apagado.
+    apagados: std::collections::HashMap<String, u64>,
 }
 
 impl Castigos {
@@ -226,22 +257,32 @@ impl Castigos {
 
     /// Anota un fallo. Devuelve true si el par QUEDA apagado con este.
     pub fn fallo(&mut self, par: &str, ahora: u64) -> bool {
-        if self.apagados.contains(par) {
+        if self.apagado(par, ahora) {
             return true;
         }
         let v = self.fallos.entry(par.to_string()).or_default();
         v.retain(|t| ahora.saturating_sub(*t) <= VENTANA_FALLOS_MS);
         v.push(ahora);
         if v.len() >= FALLOS_PARA_APAGAR {
-            self.apagados.insert(par.to_string());
+            self.apagados.insert(par.to_string(), ahora + ESPERA_REINTENTO_MS);
             self.fallos.remove(par);
             return true;
         }
         false
     }
 
-    pub fn apagado(&self, par: &str) -> bool {
-        self.apagados.contains(par)
+    pub fn apagado(&self, par: &str, ahora: u64) -> bool {
+        self.apagados.get(par).is_some_and(|hasta| ahora < *hasta)
+    }
+
+    /// Los pares cuya hora pasó: vuelven a probar, con UN fallo ya contado (otro fallo los apaga de nuevo).
+    pub fn caducados(&mut self, ahora: u64) -> Vec<String> {
+        let vencidos: Vec<String> = self.apagados.iter().filter(|(_, h)| ahora >= **h).map(|(p, _)| p.clone()).collect();
+        for p in &vencidos {
+            self.apagados.remove(p);
+            self.fallos.insert(p.clone(), vec![ahora]);
+        }
+        vencidos
     }
 
     /// Para pruebas y para el interruptor: olvida todo.
@@ -302,6 +343,11 @@ pub struct Carril {
     prohibido: bool,
     /// (BLE1109B) Último momento en que llegaron bytes por el flujo (o en que abrió).
     ultimo_rx_ms: u64,
+    /// (BLE1109B) Autoprueba: (nonce, desde cuándo) mientras espera el eco, y si ya la superó.
+    prueba: Option<(u16, u64)>,
+    prueba_ok: bool,
+    ping_por_enviar: Option<u16>,
+    eco_por_enviar: Option<u16>,
 }
 
 impl Carril {
@@ -317,6 +363,10 @@ impl Carril {
             ligado: false,
             prohibido: false,
             ultimo_rx_ms: 0,
+            prueba: None,
+            prueba_ok: false,
+            ping_por_enviar: None,
+            eco_por_enviar: None,
         }
     }
 
@@ -349,11 +399,77 @@ impl Carril {
     /// (BLE1109B) ¿Canal abierto, algo esperando respuesta y NADA leído en `PLAZO_SIN_LECTURA_MS`? Entonces está
     /// atascado en la lectura (la escritura puede ir bien): se cae a GATT.
     pub fn atascado(&self, ahora: u64, pendiente: bool) -> bool {
-        self.estado == EstadoCarril::Abierto && pendiente && ahora.saturating_sub(self.ultimo_rx_ms.max(self.abierto_ms)) > PLAZO_SIN_LECTURA_MS
+        self.estado == EstadoCarril::Abierto && self.prueba_ok && pendiente && ahora.saturating_sub(self.ultimo_rx_ms.max(self.abierto_ms)) > PLAZO_SIN_LECTURA_MS
     }
 
     pub fn estado(&self) -> EstadoCarril {
         self.estado
+    }
+
+    /// (BLE1109B) El canal está abierto Y pasó la autoprueba: solo entonces los paquetes salen por él.
+    pub fn en_uso(&self) -> bool {
+        self.estado == EstadoCarril::Abierto && self.prueba_ok
+    }
+
+    /// (BLE1109B) Abierto, esperando el eco de la autoprueba.
+    pub fn probando(&self) -> bool {
+        self.estado == EstadoCarril::Abierto && !self.prueba_ok && self.prueba.is_some()
+    }
+
+    /// (BLE1109B) Empieza la autoprueba: un paquete de prueba por el canal (el otro lado lo devuelve como eco).
+    pub fn iniciar_prueba(&mut self, nonce: u16, ahora: u64) {
+        self.prueba = Some((nonce, ahora));
+        self.prueba_ok = false;
+        self.ping_por_enviar = Some(nonce);
+    }
+
+    /// (BLE1109B) El siguiente paquete de autoprueba por enviar (primero el eco que debo al otro, luego mi prueba).
+    pub fn tomar_paquete_prueba(&mut self) -> Option<Vec<u8>> {
+        if self.estado != EstadoCarril::Abierto {
+            return None;
+        }
+        if let Some(n) = self.eco_por_enviar.take() {
+            return Some(paquete_eco(n));
+        }
+        self.ping_por_enviar.take().map(paquete_prueba)
+    }
+
+    pub fn nonce_prueba(&self) -> Option<u16> {
+        self.prueba.map(|(n, _)| n)
+    }
+
+    pub fn prueba_por_enviar(&self) -> bool {
+        self.estado == EstadoCarril::Abierto && (self.eco_por_enviar.is_some() || self.ping_por_enviar.is_some())
+    }
+
+    /// (BLE1109B) Llegó un paquete de autoprueba. Una prueba del otro se devuelve como eco; el eco de la mía la supera
+    /// (devuelve el rtt en ms). Un eco que no corresponde se ignora.
+    pub fn recibir_prueba(&mut self, es_eco: bool, nonce: u16, ahora: u64) -> Option<u64> {
+        if !es_eco {
+            self.eco_por_enviar = Some(nonce);
+            return None;
+        }
+        match self.prueba {
+            Some((n, desde)) if n == nonce && !self.prueba_ok => {
+                self.prueba_ok = true;
+                Some(ahora.saturating_sub(desde))
+            }
+            _ => None,
+        }
+    }
+
+    /// (BLE1109B) ¿Se pasó el plazo del eco?
+    pub fn prueba_vencida(&self, ahora: u64) -> bool {
+        self.probando() && self.prueba.is_some_and(|(_, desde)| ahora.saturating_sub(desde) > PLAZO_PRUEBA_MS)
+    }
+
+    /// (BLE1109B) Pasada la hora del castigo: el par puede volver a probar.
+    pub fn permitir(&mut self) {
+        self.prohibido = false;
+        if self.estado == EstadoCarril::SinPsm && self.psm.is_some() {
+            self.estado = EstadoCarril::Disponible;
+            self.proximo_ms = 0;
+        }
     }
 
     pub fn psm(&self) -> Option<u16> {
@@ -408,6 +524,10 @@ impl Carril {
             self.psm = Some(p);
         }
         self.estado = EstadoCarril::Abierto;
+        self.prueba = None;
+        self.prueba_ok = false;
+        self.ping_por_enviar = None;
+        // (el eco debido NO se borra: el ping del otro lado puede llegar antes de que este lado note que el canal abrió)
         self.abierto_ms = ahora;
         self.ultimo_rx_ms = ahora.max(1);
     }
@@ -424,6 +544,10 @@ impl Carril {
         // Un canal que duró se reabre YA (fallos = 0); uno que no abrió o cayó al instante espera 0, 2, 5, 15 y 60 s.
         let espera_ms = if self.fallos == 0 { 0 } else { Self::espera_para(self.fallos - 1) };
         self.proximo_ms = ahora + espera_ms;
+        self.prueba = None;
+        self.prueba_ok = false;
+        self.ping_por_enviar = None;
+        self.eco_por_enviar = None;
         self.estado = if self.psm.is_some() && !self.prohibido { EstadoCarril::Disponible } else { EstadoCarril::SinPsm };
         Cierre { motivo: motivo.chars().take(200).collect(), vivio_ms, espera_ms, estaba_abierto }
     }
@@ -796,6 +920,8 @@ mod pruebas {
     fn canal_atascado_solo_con_algo_esperando_y_sin_leer() {
         let mut c = Carril::nuevo(false);
         c.abierto(Some(0x85), 1_000);
+        c.iniciar_prueba(7, 1_000);
+        assert_eq!(c.recibir_prueba(true, 7, 1_001), Some(1));
         assert!(!c.atascado(1_000 + PLAZO_SIN_LECTURA_MS + 1, false), "sin nada esperando acuse no se juzga");
         assert!(!c.atascado(1_000 + PLAZO_SIN_LECTURA_MS, true), "justo en el plazo, vivo");
         assert!(c.atascado(1_000 + PLAZO_SIN_LECTURA_MS + 1, true));
@@ -812,15 +938,68 @@ mod pruebas {
     fn dos_fallos_en_diez_minutos_apagan_al_par_hasta_reiniciar() {
         let mut k = Castigos::nuevo();
         assert!(!k.fallo("n1", 0));
-        assert!(!k.apagado("n1"));
+        assert!(!k.apagado("n1", 0));
         assert!(k.fallo("n1", 599_000), "el segundo dentro de 10 min lo apaga");
-        assert!(k.apagado("n1") && !k.apagado("n2"), "solo ese par");
-        assert!(k.fallo("n1", 99_999_999), "ya apagado sigue apagado");
+        assert!(k.apagado("n1", 600_000) && !k.apagado("n2", 600_000), "solo ese par");
+        assert!(k.fallo("n1", 700_000), "ya apagado sigue apagado");
         // Fuera de la ventana el primero ya no cuenta.
         assert!(!k.fallo("n2", 0));
         assert!(!k.fallo("n2", VENTANA_FALLOS_MS + 1));
         assert!(k.fallo("n2", VENTANA_FALLOS_MS + 2));
         k.limpiar();
-        assert!(!k.apagado("n1") && !k.apagado("n2"));
+        assert!(!k.apagado("n1", 0) && !k.apagado("n2", 0));
+    }
+
+    #[test]
+    fn el_par_apagado_reintenta_una_vez_por_hora() {
+        let mut k = Castigos::nuevo();
+        k.fallo("n1", 0);
+        assert!(k.fallo("n1", 1_000));
+        assert!(k.apagado("n1", ESPERA_REINTENTO_MS - 1) && k.caducados(ESPERA_REINTENTO_MS - 1).is_empty());
+        let t = 1_000 + ESPERA_REINTENTO_MS;
+        assert_eq!(k.caducados(t), vec!["n1".to_string()]);
+        assert!(!k.apagado("n1", t), "vuelve a probar");
+        assert!(k.fallo("n1", t + 5_000), "un solo fallo más basta: otra hora apagado");
+        assert!(k.apagado("n1", t + 6_000));
+    }
+
+    #[test]
+    fn autoprueba_eco_en_los_dos_sentidos_y_plazo_de_3_s() {
+        let (mut a, mut b) = (Carril::nuevo(true), Carril::nuevo(false));
+        a.abierto(Some(0x85), 1_000);
+        b.abierto(Some(0x85), 1_000);
+        assert!(!a.en_uso() && !b.en_uso(), "abierto no es en uso: falta la prueba");
+        a.iniciar_prueba(11, 1_000);
+        b.iniciar_prueba(22, 1_000);
+        assert!(a.probando() && a.prueba_por_enviar());
+        // Cada lado manda su prueba; el otro la devuelve como eco.
+        let pa = a.tomar_paquete_prueba().unwrap();
+        let pb = b.tomar_paquete_prueba().unwrap();
+        assert_eq!(leer_prueba(&pa), Some((false, 11)));
+        let (e, n) = leer_prueba(&pa).unwrap();
+        assert_eq!(b.recibir_prueba(e, n, 1_010), None);
+        let (e, n) = leer_prueba(&pb).unwrap();
+        assert_eq!(a.recibir_prueba(e, n, 1_012), None);
+        let eco_b = b.tomar_paquete_prueba().unwrap();
+        let eco_a = a.tomar_paquete_prueba().unwrap();
+        assert_eq!(leer_prueba(&eco_b), Some((true, 11)));
+        // Un eco con otro nonce no cuenta.
+        assert_eq!(a.recibir_prueba(true, 99, 1_020), None);
+        assert!(!a.en_uso());
+        assert_eq!(a.recibir_prueba(true, 11, 1_030), Some(30));
+        assert_eq!(b.recibir_prueba(true, 22, 1_031), Some(31));
+        assert!(a.en_uso() && b.en_uso());
+        assert_eq!(leer_prueba(&eco_a), Some((true, 22)));
+        // Sin eco: vence a los 3 s.
+        let mut c = Carril::nuevo(true);
+        c.abierto(None, 0);
+        c.iniciar_prueba(5, 0);
+        assert!(!c.prueba_vencida(PLAZO_PRUEBA_MS) && c.prueba_vencida(PLAZO_PRUEBA_MS + 1));
+        // Una app anterior no entiende estos paquetes: leer_paquete_max los ignora.
+        assert!(crate::ble_trama::leer_paquete_max(&paquete_prueba(1), 4096).is_none());
+        assert!(leer_prueba(&[1, 0, 0]).is_none() && leer_prueba(&[P_ECO, 0]).is_none());
+        // Al cerrarse se olvida la prueba.
+        a.cerrado("x", 5_000);
+        assert!(!a.en_uso() && !a.probando());
     }
 }

@@ -129,6 +129,7 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
     private const val ESPERA_SUSCRIPCION_MS = 1000L
     private const val VIGIA_SUSCRIPCION_MS = 10_000L
     // (BLE1109A) Canal L2CAP: lo que se lee/escribe de una vez, y cuánto puede estar una escritura sin avanzar.
+    private const val RETRASO_PHY_MS = 5_000L
     private const val LECTURA_FLUJO = 8192
     private const val ESCRITURA_FLUJO = 8192
     private const val PLAZO_ESCRITURA_FLUJO_MS = 5_000L
@@ -160,15 +161,18 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
     // (BLE1109A) Carril rápido. `canales` y `conectando` se tocan desde hilos de E/S: mapas concurrentes.
     private val canales = ConcurrentHashMap<String, Canal>()
     private val conectando = ConcurrentHashMap<String, BluetoothSocket>()
-    private var servidorL2cap: BluetoothServerSocket? = null
+    @Volatile private var servidorL2cap: BluetoothServerSocket? = null
     @Volatile private var psmPublicado = 0
     private var vigiaCanales = false
 
     /**
-     * (BLE1109B) Ajuste «Canal rápido Bluetooth (experimental)»: Rust lo manda ANTES de «arrancar». Apagado (por defecto)
-     * el servicio GATT es el de prueba.30: sin la característica PSM, sin socket L2CAP y sin petición de PHY 2M.
+     * (BLE1109B) Ajuste «Canal rápido Bluetooth (experimental)»: Rust lo manda ANTES de «arrancar». Encendido por defecto;
+     * apagado, el servicio GATT es el de prueba.30: sin la característica PSM, sin socket L2CAP y sin petición de PHY 2M.
+     * Encendido, NADA de esto toca el hilo principal ni los callbacks GATT (ver `servirL2cap`).
      */
-    @Volatile private var canalRapido = false
+    @Volatile private var canalRapido = true
+    @Volatile private var generacionL2cap = 0
+    private val abriendoL2cap = AtomicBoolean(false)
 
     // (BLE1109B) Autocuración del periférico: ver `vigilarAutocura`.
     private var ultimoEnlaceMs = 0L
@@ -258,6 +262,7 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
                 "permisos" -> pedirPermisos(true)
                 "l2cap" -> abrirCanal(o.optString("enlace"), o.optInt("psm"))
                 "cerrar-l2cap" -> cerrarCanalDe(o.optString("enlace"), "cerrado por la app")
+                "leer-psm" -> leerPsm(o.optString("enlace"), 0)
                 "canal-rapido" -> canalRapido = o.optBoolean("activo")
                 "compartir" -> compartirRegistro(o.optString("titulo"), o.optString("texto"))
                 "parar" -> {
@@ -411,7 +416,7 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
             return
         }
         if (!abrirServidor(mgr)) return
-        abrirServidorL2cap()
+        // (BLE1109B) El socket L2CAP se crea en su propio hilo cuando el servicio GATT ya está registrado (`onServiceAdded`).
         escanear()
         if (!vigiaAutocura) {
             vigiaAutocura = true
@@ -458,6 +463,7 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
         // (BLE1109A) El canal rápido muere con la radio.
         for (k in canales.keys.toList()) cerrarCanalDe(k, motivo)
         for (k in conectando.keys.toList()) cerrarCanalDe(k, motivo)
+        generacionL2cap++
         try {
             servidorL2cap?.close()
         } catch (e: Exception) {
@@ -505,6 +511,7 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
             principal.post {
                 servicioListo = status == BluetoothGatt.GATT_SUCCESS
                 anunciar()
+                if (servicioListo) abrirServidorL2cap() // BLE1109B: ya registrado; el socket se crea en OTRO hilo
             }
         }
 
@@ -515,7 +522,7 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
                 if (newState == BluetoothProfile.STATE_CONNECTED) {
                     if (!centrales.containsKey(k)) centrales[k] = Central(d)
                     val central = centrales[k]
-                    pedirPhy2M { servidor?.setPreferredPhy(d, BluetoothDevice.PHY_LE_2M_MASK, BluetoothDevice.PHY_LE_2M_MASK, BluetoothDevice.PHY_OPTION_NO_PREFERRED) }
+                    pedirPhy2M { if (centrales[k]?.suscrito == true) servidor?.setPreferredPhy(d, BluetoothDevice.PHY_LE_2M_MASK, BluetoothDevice.PHY_LE_2M_MASK, BluetoothDevice.PHY_OPTION_NO_PREFERRED) }
                     // (BLE1108C) Si el otro conecta y no se suscribe a SALIDA, se anota y se suelta (él reintenta).
                     principal.postDelayed({
                         val c = centrales[k]
@@ -850,7 +857,7 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
                         c.gatt.requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_HIGH)
                     } catch (e: Exception) {
                     }
-                    pedirPhy2M { c.gatt.setPreferredPhy(BluetoothDevice.PHY_LE_2M_MASK, BluetoothDevice.PHY_LE_2M_MASK, BluetoothDevice.PHY_OPTION_NO_PREFERRED) }
+                    pedirPhy2M { if (clientes[k]?.listo == true) c.gatt.setPreferredPhy(BluetoothDevice.PHY_LE_2M_MASK, BluetoothDevice.PHY_LE_2M_MASK, BluetoothDevice.PHY_OPTION_NO_PREFERRED) }
                     // Primero el MTU (hasta 517: paquetes de 512 B); los servicios, cuando conteste.
                     if (!c.gatt.requestMtu(MTU_PEDIDO)) c.gatt.discoverServices()
                 } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
@@ -923,14 +930,8 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
                 nota("suscrito", k, "notificaciones de SALIDA activas, paquete ${c.paquete}")
                 evento(JSONObject().put("e", "conectado").put("enlace", k).put("rol", "central").put("direccion", c.direccion).put("paquete", c.paquete))
                 marcarActividad()
-                // (BLE1109A) Si el periférico ofrece canal rápido, se lee su PSM (Rust decide cuándo abrirlo). (BLE1109B) Solo con
-                // el ajuste encendido: una lectura pendiente deja ocupada la pila GATT y retrasaría las escrituras de siempre.
-                if (canalRapido) {
-                    try {
-                        c.gatt.getService(SERVICIO)?.getCharacteristic(PSM_UUID)?.let { c.gatt.readCharacteristic(it) }
-                    } catch (e: Exception) {
-                    }
-                }
+                // (BLE1109B) El PSM NO se lee aquí: Rust ordena `leer-psm` cuando el enlace queda ligado por GATT, para que la
+                // lectura nunca compita con el saludo firmado.
                 bombear(k)
             }
         }
@@ -983,11 +984,9 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
 
     /** Escribe en ENTRADA sin respuesta, uno detrás de otro (cada uno espera su `onCharacteristicWrite`). */
     private fun bombear(k: String) {
-        // (BLE1109A) Con el canal L2CAP abierto, lo que Rust tenga para este enlace sale por su flujo (GATT calla).
-        canales[k]?.let {
-            it.senal.offer(true)
-            return
-        }
+        // (BLE1109A) Con el canal L2CAP abierto se despierta al hilo que escribe en su flujo. (BLE1109B) GATT sigue su camino:
+        // Rust decide por qué carril sale cada paquete (por GATT solo sale algo mientras el canal no esté EN USO).
+        canales[k]?.senal?.offer(true)
         if (k.startsWith("p:")) {
             bombearServidor()
             return
@@ -1138,6 +1137,7 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
                 }
                 centrales.clear()
                 for (k in canales.keys.toList()) cerrarCanalDe(k, "autocuración del servidor Bluetooth")
+                generacionL2cap++
                 try {
                     servidorL2cap?.close()
                 } catch (e: Exception) {
@@ -1155,7 +1155,7 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
                 servidorOcupadoDesde = 0L
                 val mgr = ctx.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
                 // `onServiceAdded` vuelve a anunciar cuando el servicio está listo.
-                if (mgr != null && abrirServidor(mgr)) abrirServidorL2cap()
+                if (mgr != null) abrirServidor(mgr)
             } else {
                 anunciar()
             }
@@ -1201,49 +1201,112 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
     // PSM del otro y Rust ordena `l2cap` para conectar. Sin cifrar por el aire (va cifrado por encima, CIF1108A). La E/S
     // bloquea en dos hilos por canal; un vigía cierra el canal si una escritura no avanza. Rust marca y desmarca el flujo.
 
-    /** Pide el PHY de 2 Mbit/s donde se puede (Android 8+); si el sistema no lo da, sigue con 1M. */
+    /**
+     * Pide el PHY de 2 Mbit/s donde se puede (Android 8+). (BLE1109B) NUNCA al conectar: cinco segundos después, con el enlace
+     * ya suscrito (la condición la comprueba cada llamada), para que el cambio de PHY no choque con el MTU, el descubrimiento
+     * de servicios ni el saludo. Si el sistema no lo da, sigue con 1M.
+     */
     private fun pedirPhy2M(f: () -> Unit) {
-        if (!canalRapido || Build.VERSION.SDK_INT < 26) return // (BLE1109B) sin el ajuste, el PHY es el de siempre
-        try {
-            f()
-        } catch (e: Exception) {
-        }
+        if (!canalRapido || Build.VERSION.SDK_INT < 26) return // sin el ajuste, el PHY es el de siempre
+        principal.postDelayed({
+            try {
+                f()
+            } catch (e: Exception) {
+            }
+        }, RETRASO_PHY_MS)
     }
 
+    /**
+     * (BLE1109B) Se llama desde `onServiceAdded`, con el servicio GATT ya registrado. TODO lo que puede bloquear
+     * (`listenUsingInsecureL2capChannel`, leer su PSM, `accept()`) ocurre en un hilo propio: jamás en el hilo principal, que
+     * atiende cada callback GATT, ni en los hilos binder de la pila. El PSM solo se publica cuando el socket ya existe.
+     */
     private fun abrirServidorL2cap() {
         if (!canalRapido || Build.VERSION.SDK_INT < 29 || servidorL2cap != null) return
         val a = adaptador ?: return
+        if (!abriendoL2cap.compareAndSet(false, true)) return
+        val gen = generacionL2cap
+        val hilo = Thread({ servirL2cap(a, gen) }, "starseed-l2cap-acepta")
+        hilo.isDaemon = true
+        hilo.start()
+    }
+
+    private fun servirL2cap(a: BluetoothAdapter, gen: Int) {
+        var fallos = 0
         try {
-            val ss = a.listenUsingInsecureL2capChannel()
-            servidorL2cap = ss
-            psmPublicado = ss.psm
-            val hilo = Thread({ aceptarL2cap(ss) }, "starseed-l2cap-acepta")
-            hilo.isDaemon = true
-            hilo.start()
-        } catch (e: Exception) {
-            psmPublicado = 0
+            while (gen == generacionL2cap && activo && canalRapido) {
+                val ss = try {
+                    a.listenUsingInsecureL2capChannel()
+                } catch (e: Exception) {
+                    null
+                }
+                val psm = try {
+                    ss?.psm ?: 0
+                } catch (e: Exception) {
+                    0
+                }
+                if (ss == null || psm <= 0) {
+                    try {
+                        ss?.close()
+                    } catch (e: Exception) {
+                    }
+                    fallos++
+                    nota("l2cap-servidor", null, "no se pudo crear el socket L2CAP (intento $fallos); GATT sigue igual")
+                    SystemClock.sleep(minOf(60_000L, 2_000L shl minOf(fallos, 5)))
+                    continue
+                }
+                if (gen != generacionL2cap) {
+                    try {
+                        ss.close()
+                    } catch (e: Exception) {
+                    }
+                    return
+                }
+                fallos = 0
+                servidorL2cap = ss
+                psmPublicado = psm // solo ahora puede leerlo un central
+                nota("l2cap-servidor", null, "socket L2CAP listo, psm=$psm")
+                while (true) {
+                    val socket = try {
+                        ss.accept()
+                    } catch (e: Exception) {
+                        break // cerrado por nosotros (limpiar/autocura) o por el sistema
+                    }
+                    principal.post {
+                        val k = "p:" + socket.remoteDevice.address
+                        if (centrales[k]?.suscrito == true) iniciarCanal(k, socket, psmPublicado) else cerrarSocket(socket)
+                    }
+                }
+                if (servidorL2cap === ss) {
+                    servidorL2cap = null
+                    psmPublicado = 0 // nadie debe leer un PSM que ya no acepta
+                }
+                try {
+                    ss.close()
+                } catch (e: Exception) {
+                }
+                SystemClock.sleep(2_000)
+            }
+        } finally {
+            abriendoL2cap.set(false)
+            // Una apertura pedida mientras este hilo terminaba (p. ej. tras recrear el servidor GATT) no se pierde.
+            if (gen != generacionL2cap && activo && canalRapido) principal.post { abrirServidorL2cap() }
         }
     }
 
-    private fun aceptarL2cap(ss: BluetoothServerSocket) {
-        while (true) {
-            val socket = try {
-                ss.accept()
-            } catch (e: Exception) {
-                // Cerrado por nosotros, o el sistema lo cerró: si sigue siendo el vigente se vuelve a abrir.
-                principal.postDelayed({
-                    if (servidorL2cap === ss) {
-                        servidorL2cap = null
-                        psmPublicado = 0 // (BLE1109B) nadie debe leer un PSM que ya no acepta
-                        if (activo) abrirServidorL2cap()
-                    }
-                }, 2000)
-                return
-            }
-            principal.post {
-                val k = "p:" + socket.remoteDevice.address
-                if (centrales[k]?.suscrito == true) iniciarCanal(k, socket, psmPublicado) else cerrarSocket(socket)
-            }
+    /** (BLE1109B) Orden de Rust, con el enlace ya ligado: lee la característica PSM del periférico (reintenta si la pila está ocupada). */
+    private fun leerPsm(k: String, intento: Int) {
+        if (!canalRapido || k.startsWith("p:")) return
+        val c = clientes[k] ?: return
+        if (!c.listo) return
+        val pedido = try {
+            val ch = c.gatt.getService(SERVICIO)?.getCharacteristic(PSM_UUID)
+            ch != null && c.gatt.readCharacteristic(ch)
+        } catch (e: Exception) {
+            false
+        }
+        if (!pedido && intento < 5 && c.gatt.getService(SERVICIO)?.getCharacteristic(PSM_UUID) != null) {
+            principal.postDelayed({ leerPsm(k, intento + 1) }, 600L)
         }
     }
 

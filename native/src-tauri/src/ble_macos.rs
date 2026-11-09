@@ -697,13 +697,8 @@ fn al_suscribirse(p: &CBPeripheral, c: &CBCharacteristic, error: Option<&NSError
     nucleo::nota(Some(&format!("c:{id}")), "suscrito", &format!("notificaciones de SALIDA activas, paquete {paquete}"));
     nucleo::al_conectar(&format!("c:{id}"), "central", Some(&id), paquete.clamp(bt::PAQUETE_MIN, bt::PAQUETE_MAX));
     con_mac(|m| m.fallos_conexion.remove(&id)); // (BLE1109B) esta dirección sí conectó
-    // (BLE1109A) Con el enlace ya en el núcleo, se lee el PSM del canal rápido (si el otro lo ofrece). (BLE1109B) Solo con
-    // el ajuste encendido: sin él ni se pide ni se lee la característica PSM.
-    if nucleo::canal_rapido_activo() {
-        if let Some(Some(Some(c))) = con_mac(|m| m.perifericos.get(&id).map(|x| x.psm.clone())) {
-            unsafe { p.readValueForCharacteristic(&c) };
-        }
-    }
+    // (BLE1109B) El PSM del canal rápido NO se lee aquí: el núcleo lo pide (`leer_psm`) cuando el enlace queda ligado por GATT.
+    // Así ninguna lectura extra compite con el saludo firmado.
     bombear_central(&id);
 }
 
@@ -982,6 +977,17 @@ impl Radio for RadioMac {
 
     fn parar(&self) {
         cola().exec_async(parar_en_cola);
+    }
+
+    // BLE1109B: ya ligado por GATT, el central lee el PSM del periférico (si el otro lo ofrece).
+    fn leer_psm(&self, plataforma: &str) {
+        let Some(id) = plataforma.strip_prefix("c:") else { return };
+        let id = id.to_string();
+        cola().exec_async(move || {
+            if let Some(Some((p, Some(c)))) = con_mac(|m| m.perifericos.get(&id).map(|x| (x.p.clone(), x.psm.clone()))) {
+                unsafe { p.readValueForCharacteristic(&c) };
+            }
+        });
     }
 
     // BLE1109A: como central abre el canal con el PSM leído; como periférico espera a que el otro abra.

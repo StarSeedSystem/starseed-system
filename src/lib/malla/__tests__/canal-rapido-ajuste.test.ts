@@ -1,6 +1,5 @@
 /**
- * BLE1109B — el ajuste «Canal rápido Bluetooth (experimental)»: apagado por defecto, migración de lo guardado
- * por versiones anteriores y espejo del registro de enlaces.
+ * BLE1109B — el ajuste «Canal rápido Bluetooth (experimental)»: encendido por defecto (apagable) y espejo del registro de enlaces.
  */
 import { describe, expect, it } from "vitest";
 import {
@@ -34,47 +33,44 @@ function deps(guardado: string | null, nativo: boolean | null) {
 }
 
 describe("canal rápido · ajuste", () => {
-  it("por defecto está APAGADO", () => {
-    expect(AJUSTE_CANAL_RAPIDO_DEFECTO.activo).toBe(false);
-    expect(leerAjusteCanalRapido(null).activo).toBe(false);
-    expect(leerAjusteCanalRapido("basura{").activo).toBe(false);
+  it("por defecto está ENCENDIDO (prueba.31 no tenía ajuste: nada que migrar a apagado)", () => {
+    expect(AJUSTE_CANAL_RAPIDO_DEFECTO.activo).toBe(true);
+    expect(leerAjusteCanalRapido(null).activo).toBe(true);
+    expect(leerAjusteCanalRapido("basura{").activo).toBe(true);
+    expect(leerAjusteCanalRapido('{"activo":false}').activo).toBe(true); // sin versión: no es una elección de la persona
   });
 
-  it("un valor sin versión o de versión anterior se lee como apagado y pide migrar", () => {
-    expect(leerAjusteCanalRapido('{"activo":true}').activo).toBe(false);
-    expect(leerAjusteCanalRapido('{"activo":true,"v":1}').activo).toBe(false);
+  it("lo elegido a propósito se respeta; lo viejo solo pide ponerle versión", () => {
+    expect(leerAjusteCanalRapido(serializarAjusteCanalRapido(false)).activo).toBe(false);
+    expect(leerAjusteCanalRapido(serializarAjusteCanalRapido(true)).activo).toBe(true);
     expect(necesitaMigrarCanalRapido('{"activo":true}')).toBe(true);
     expect(necesitaMigrarCanalRapido("nada{")).toBe(true);
     expect(necesitaMigrarCanalRapido(null)).toBe(false);
-    expect(necesitaMigrarCanalRapido(serializarAjusteCanalRapido(true))).toBe(false);
-    expect(leerAjusteCanalRapido(serializarAjusteCanalRapido(true)).activo).toBe(true);
+    expect(necesitaMigrarCanalRapido(serializarAjusteCanalRapido(false))).toBe(false);
   });
 
-  it("al arrancar apaga en la app nativa lo que quedó de una versión anterior", async () => {
-    const { d, reg } = deps('{"activo":true}', true);
-    expect(await sincronizarCanalRapido(d)).toBe(false);
-    expect(reg.nativo).toBe(false);
-    expect(leerAjusteCanalRapido(reg.guardado).activo).toBe(false);
-  });
-
-  it("lo encendido a propósito (versión actual) se respeta; sin app nativa no hace nada", async () => {
-    const a = deps(serializarAjusteCanalRapido(true), true);
+  it("al arrancar no cambia el valor de la app nativa: solo deja el espejo al día", async () => {
+    const a = deps('{"activo":true}', true);
     expect(await sincronizarCanalRapido(a.d)).toBe(true);
-    expect(a.reg.llamadas).toEqual([undefined]);
+    expect(a.reg.llamadas).toEqual([undefined]); // solo lee
+    expect(leerAjusteCanalRapido(a.reg.guardado).activo).toBe(true);
+    const apagado = deps(serializarAjusteCanalRapido(false), false);
+    expect(await sincronizarCanalRapido(apagado.d)).toBe(false);
+    expect(apagado.reg.nativo).toBe(false);
     const b = deps(null, null);
     expect(await sincronizarCanalRapido(b.d)).toBeNull();
   });
 
   it("fijar guarda primero en la app nativa y luego el espejo", async () => {
-    const { d, reg } = deps(null, false);
-    expect(await fijarCanalRapido(d, true)).toEqual({ ok: true, activo: true });
-    expect(reg.nativo).toBe(true);
-    expect(leerAjusteCanalRapido(reg.guardado).activo).toBe(true);
+    const { d, reg } = deps(null, true);
+    expect(await fijarCanalRapido(d, false)).toEqual({ ok: true, activo: false });
+    expect(reg.nativo).toBe(false);
+    expect(leerAjusteCanalRapido(reg.guardado).activo).toBe(false);
     const sin = deps(null, null);
-    expect(await fijarCanalRapido(sin.d, true)).toEqual({ ok: false, activo: false });
+    expect(await fijarCanalRapido(sin.d, false)).toEqual({ ok: false, activo: false });
   });
 
-  it("el estado nativo acepta los nuevos estados del canal rápido", () => {
+  it("el estado nativo acepta los estados del canal rápido apagado y desactivado", () => {
     for (const x of ["apagado", "desactivado"]) {
       const e = { id: "b1", rol: "central", canal_rapido: x };
       const r = leerEstadoBle({ disponible: true, activo: true, radio: "encendida", plataforma: "macos", roles: [], enlaces: [e], vecinos: [] });

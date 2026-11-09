@@ -20,11 +20,11 @@ const COLOR: Record<string, string> = {
 };
 
 /**
- * (BLE1109B) Ajustes del enlace: «Canal rápido Bluetooth (experimental)» (apagado por defecto: el enlace va por GATT
- * como en prueba.30) y «Compartir registro de enlaces» (hoja de compartir en Android; carpeta del registro en escritorio).
+ * (BLE1109B) Ajustes del enlace: «Canal rápido Bluetooth (experimental)» (encendido por defecto: solo tras ligar, con autoprueba de eco
+ * y caída a GATT si falla; apagado, el enlace es GATT puro) y «Compartir registro de enlaces» (hoja de compartir en Android; carpeta del registro en escritorio).
  */
 function AjustesDelEnlace() {
-  const [rapido, setRapido] = useState(false);
+  const [rapido, setRapido] = useState(true);
   const [aviso, setAviso] = useState<string | null>(null);
   useEffect(() => {
     let vivo = true;
@@ -45,7 +45,7 @@ function AjustesDelEnlace() {
         <input type="checkbox" checked={rapido} onChange={() => void cambiar()} className="mt-0.5" data-testid="canal-rapido-ble" />
         <span>
           Canal rápido Bluetooth (experimental)
-          <span className="block text-[10px] text-white/40">Apagado por defecto. Si falla, el enlace sigue por el canal normal sin cortarse. Al cambiarlo, el Bluetooth se reinicia.</span>
+          <span className="block text-[10px] text-white/40">Encendido por defecto. Solo se usa tras ligar y pasar una autoprueba; si falla, el enlace sigue por el canal normal sin cortarse. Al cambiarlo, el Bluetooth se reinicia.</span>
         </span>
       </label>
       <button onClick={() => void compartir()} className="mt-2 cursor-pointer rounded border border-white/15 px-2 py-0.5 text-[10px] text-white/65 hover:bg-white/10" data-testid="compartir-registro-ble">

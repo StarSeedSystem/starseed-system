@@ -69,9 +69,12 @@ pub trait Radio: Send + Sync {
     fn abrir_l2cap(&self, _plataforma: &str, _psm: u16) {}
     /// (BLE1109A) Cerrar el canal L2CAP de ese enlace (no el enlace GATT).
     fn cerrar_l2cap(&self, _plataforma: &str) {}
-    /// (BLE1109B) Si el canal rápido está permitido (ajuste, por defecto NO). Se llama antes de `arrancar`. Con false la
+    /// (BLE1109B) Si el canal rápido está permitido (ajuste, por defecto SÍ). Se llama antes de `arrancar`. Con false la
     /// radio NO publica la característica PSM, ni el canal, ni pide PHY 2M: el servicio GATT es el de prueba.30.
     fn canal_rapido(&self, _activo: bool) {}
+    /// (BLE1109B) Leer la característica PSM del periférico. Solo se pide cuando el enlace YA está ligado por GATT: así la
+    /// negociación del canal rápido nunca compite con el saludo. Sin soporte: no hace nada.
+    fn leer_psm(&self, _plataforma: &str) {}
     /// (BLE1109B) «Compartir registro de enlaces»: Android abre la hoja de compartir con este texto. true = lo hizo.
     fn compartir_registro(&self, _titulo: &str, _texto: &str) -> bool {
         false
@@ -274,14 +277,19 @@ pub struct EnvioBle {
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct PreferenciaBle {
     pub activo: bool,
-    /// (BLE1109B) «Canal rápido Bluetooth (experimental)»: por defecto APAGADO (también para quien viene de prueba.31).
-    #[serde(default)]
+    /// (BLE1109B) «Canal rápido Bluetooth (experimental)»: por defecto ENCENDIDO (también para quien viene de prueba.31, que
+    /// no tenía el ajuste); es seguro por construcción: solo tras «ligado», con autoprueba de eco y caída a GATT.
+    #[serde(default = "canal_rapido_defecto")]
     pub canal_rapido: bool,
+}
+
+fn canal_rapido_defecto() -> bool {
+    true
 }
 
 impl Default for PreferenciaBle {
     fn default() -> Self {
-        PreferenciaBle { activo: true, canal_rapido: false }
+        PreferenciaBle { activo: true, canal_rapido: true }
     }
 }
 
@@ -310,7 +318,7 @@ pub enum EventoRadio {
 }
 
 /// Los hitos que la radio puede anotar (lista cerrada: el texto libre va en el detalle).
-pub const NOTAS_RADIO: [&str; 9] = [
+pub const NOTAS_RADIO: [&str; 10] = [
     "servicios-descubiertos",
     "suscrito",
     "sin-suscripcion",
@@ -321,6 +329,7 @@ pub const NOTAS_RADIO: [&str; 9] = [
     "compartir-fallido",
     "conexion-vencida",
     "redescubriendo",
+    "l2cap-servidor", // BLE1109B: el socket L2CAP del periférico Android (creado en su propio hilo)
 ];
 
 fn texto_de(v: &serde_json::Value, k: &str, max: usize) -> Option<String> {
@@ -503,8 +512,8 @@ fn ahora_s() -> u64 {
 
 static APP: OnceLock<tauri::AppHandle> = OnceLock::new();
 static ARRANCADO: AtomicBool = AtomicBool::new(false);
-/// (BLE1109B) El ajuste «Canal rápido Bluetooth (experimental)». Apagado por defecto: el enlace va por GATT como en prueba.30.
-static CANAL_RAPIDO: AtomicBool = AtomicBool::new(false);
+/// (BLE1109B) El ajuste «Canal rápido Bluetooth (experimental)». Encendido por defecto; apagado, el enlace va por GATT puro.
+static CANAL_RAPIDO: AtomicBool = AtomicBool::new(true);
 
 pub fn canal_rapido_activo() -> bool {
     CANAL_RAPIDO.load(Ordering::SeqCst)
@@ -921,7 +930,24 @@ fn recibir_lote(plataforma: &str, entrada: &[u8], flujo: bool) {
         };
         let mut cuerpos = Vec::new();
         let mut hito = None;
+        let mut notas: Vec<(&'static str, String)> = Vec::new();
+        let mut bombear = false;
         for paquete in &paquetes {
+            // (BLE1109B) Autoprueba del canal: un paquete del otro lado se devuelve como eco; el eco de MI prueba la supera y
+            // desde ahí los paquetes salen por el canal. No es tráfico del enlace: no pasa por el núcleo ni por el hito.
+            if flujo {
+                if let Some((es_eco, nonce)) = l2::leer_prueba(paquete) {
+                    match l.carril.recibir_prueba(es_eco, nonce, ahora) {
+                        Some(rtt) => {
+                            l.nucleo.fijar_carril(true);
+                            notas.push(("l2cap-prueba-ok", format!("rtt={rtt}ms · desde ahora el tráfico del enlace sale por el canal rápido")));
+                        }
+                        None => {}
+                    }
+                    bombear = true;
+                    continue;
+                }
+            }
             // (BLE1108C) Hito: el primer paquete que llega por este enlace.
             if !l.dato_visto {
                 l.dato_visto = true;
@@ -946,7 +972,14 @@ fn recibir_lote(plataforma: &str, entrada: &[u8], flujo: bool) {
         if let Some((neurona, detalle)) = hito {
             anotar(e, "primer-dato-recibido", Some(&id), neurona.as_deref(), &detalle);
         }
-        (nuevos, acusar, None)
+        if !notas.is_empty() {
+            let neurona = e.enlaces.iter().find(|l| l.id == id).and_then(|l| l.neurona.clone());
+            for (tipo, detalle) in notas {
+                anotar(e, tipo, Some(&id), neurona.as_deref(), &detalle);
+            }
+            marcar_cambio(e);
+        }
+        (nuevos, acusar || bombear, None)
     });
     if let Some(motivo) = error {
         // Flujo desalineado: el canal ya no sirve. Se cierra y el enlace sigue por GATT.
@@ -973,7 +1006,7 @@ pub fn al_psm(plataforma: &str, psm: u16) {
     let ahora = ahora_ms();
     con_estado(|e| {
         let Some(i) = e.enlaces.iter().position(|l| l.plataforma == plataforma) else { return };
-        let apagado = e.castigos.apagado(&par_de(&e.enlaces[i]));
+        let apagado = e.castigos.apagado(&par_de(&e.enlaces[i]), ahora);
         let l = &mut e.enlaces[i];
         if apagado {
             l.carril.prohibir();
@@ -987,7 +1020,8 @@ pub fn al_psm(plataforma: &str, psm: u16) {
     });
 }
 
-/// El canal L2CAP abrió: desde ahora TODOS los paquetes del enlace salen por él (GATT calla).
+/// El canal L2CAP abrió. (BLE1109B) Los paquetes del enlace pasan a salir por él (GATT calla) SOLO cuando la autoprueba de
+/// eco se supera; hasta entonces sigue todo por GATT.
 pub fn al_l2cap_abierto(plataforma: &str, psm: Option<u16>) {
     let ahora = ahora_ms();
     let conocido = con_estado(|e| {
@@ -1001,14 +1035,17 @@ pub fn al_l2cap_abierto(plataforma: &str, psm: Option<u16>) {
         let l = &mut e.enlaces[i];
         l.carril.abierto(psm, ahora);
         l.desmarcador.vaciar();
-        l.nucleo.fijar_carril(true);
+        // (BLE1109B) Abierto NO es en uso: antes de mover tráfico se hace la autoprueba (un paquete y su eco, 3 s). Mientras
+        // tanto todo sigue por GATT.
+        let nonce = u16::from_be_bytes([bt::nonce_nuevo()[0], bt::nonce_nuevo()[1]]);
+        l.carril.iniciar_prueba(nonce, ahora);
         let (id, neurona, psm, gatt) = (l.id.clone(), l.neurona.clone(), l.carril.psm(), l.nucleo.paquete());
         anotar(
             e,
             "l2cap-abierto",
             Some(&id),
             neurona.as_deref(),
-            &format!("psm={} · paquete {} B (GATT {} B)", psm.map(|p| p.to_string()).unwrap_or_else(|| "?".into()), bt::PAQUETE_RAPIDO, gatt),
+            &format!("psm={} · paquete {} B (GATT {} B) · autoprueba en curso, por ahora todo sigue por GATT", psm.map(|p| p.to_string()).unwrap_or_else(|| "?".into()), bt::PAQUETE_RAPIDO, gatt),
         );
         marcar_cambio(e);
         true
@@ -1031,6 +1068,7 @@ pub fn al_l2cap_cerrado(plataforma: &str, motivo: &str) {
             return false;
         }
         let par = par_de(&e.enlaces[i]);
+        let probando = e.enlaces[i].carril.probando();
         let (cierre, m) = {
             let l = &mut e.enlaces[i];
             let cierre = l.carril.cerrado(motivo, ahora);
@@ -1047,6 +1085,9 @@ pub fn al_l2cap_cerrado(plataforma: &str, motivo: &str) {
             e.enlaces[i].carril.prohibir();
         }
         let (id, neurona) = (e.enlaces[i].id.clone(), e.enlaces[i].neurona.clone());
+        if probando {
+            anotar(e, "l2cap-prueba-fallida", Some(&id), neurona.as_deref(), &format!("motivo={}", linea_limpia(&cierre.motivo, 160)));
+        }
         anotar(
             e,
             "l2cap-cerrado",
@@ -1062,7 +1103,7 @@ pub fn al_l2cap_cerrado(plataforma: &str, motivo: &str) {
             ),
         );
         if apagado {
-            anotar(e, "l2cap-desactivado", Some(&id), neurona.as_deref(), "2 fallos del canal rápido en 10 min con este par: sin canal rápido hasta reiniciar la app; todo sigue por GATT");
+            anotar(e, "l2cap-desactivado", Some(&id), neurona.as_deref(), "2 fallos del canal rápido en 10 min con este par: sin canal rápido durante 1 hora (luego un intento más); todo sigue por GATT");
         }
         marcar_cambio(e);
         true
@@ -1083,18 +1124,27 @@ fn par_de(l: &EnlaceVivo) -> String {
 /// canal rápido, si el ajuste lo permite. Devuelve si el enlace existe.
 #[tauri::command]
 pub fn ble_enlace_ligado(enlace: String) -> bool {
-    con_estado(|e| {
-        let Some(i) = e.enlaces.iter().position(|l| l.id == enlace) else { return false };
+    let (existe, leer) = con_estado(|e| {
+        let Some(i) = e.enlaces.iter().position(|l| l.id == enlace) else { return (false, None) };
         if e.enlaces[i].carril.ligado() {
-            return true;
+            return (true, None);
         }
         e.enlaces[i].carril.fijar_ligado();
+        let mut leer = None;
         if canal_rapido_activo() {
             let (id, neurona, psm) = (e.enlaces[i].id.clone(), e.enlaces[i].neurona.clone(), e.enlaces[i].carril.psm());
-            anotar(e, "l2cap-listo", Some(&id), neurona.as_deref(), &format!("enlace ligado por GATT: el canal rápido ya puede abrirse (psm={})", psm.map(|p| p.to_string()).unwrap_or_else(|| "sin publicar".into())));
+            anotar(e, "l2cap-listo", Some(&id), neurona.as_deref(), &format!("enlace ligado por GATT: el canal rápido ya puede negociarse (psm={})", psm.map(|p| p.to_string()).unwrap_or_else(|| "aún sin leer".into())));
+            // Solo el central lee el PSM del periférico, y solo ahora: la lectura nunca compite con el saludo.
+            if psm.is_none() && e.enlaces[i].rol == "central" {
+                leer = Some(e.enlaces[i].plataforma.clone());
+            }
         }
-        true
-    })
+        (true, leer)
+    });
+    if let Some(p) = leer {
+        radio().leer_psm(&p);
+    }
+    existe
 }
 
 /// La radio pide lo siguiente para el flujo del canal L2CAP: paquetes ya marcados (`[largo][paquete]`), hasta
@@ -1103,10 +1153,16 @@ pub fn siguiente_trama_rapida(plataforma: &str, max: usize) -> Option<Vec<u8>> {
     let ahora = ahora_ms();
     con_estado(|e| {
         let l = e.enlaces.iter_mut().find(|l| l.plataforma == plataforma)?;
-        if !l.carril.es_rapido() {
-            return None;
-        }
         let mut salida: Vec<u8> = Vec::new();
+        // (BLE1109B) La autoprueba (su paquete y el eco que debo) sale siempre primero, también mientras GATT lleva el tráfico.
+        while let Some(p) = l.carril.tomar_paquete_prueba() {
+            if let Some(m) = l2::marco(&p) {
+                salida.extend_from_slice(&m);
+            }
+        }
+        if !l.carril.en_uso() {
+            return if salida.is_empty() { None } else { Some(salida) };
+        }
         let mut primero = None;
         while salida.len() < max.clamp(l2::MARCO_MAX, l2::TROZO_MAX) {
             let Some(p) = l.nucleo.siguiente_paquete(ahora) else { break };
@@ -1133,8 +1189,9 @@ pub fn siguiente_paquete(plataforma: &str) -> Option<Vec<u8>> {
     let ahora = ahora_ms();
     con_estado(|e| {
         let l = e.enlaces.iter_mut().find(|l| l.plataforma == plataforma)?;
-        // (BLE1109A) Con el canal L2CAP abierto, GATT no saca nada: todo va por el flujo (nunca por los dos carriles).
-        if l.carril.es_rapido() {
+        // (BLE1109A) Con el canal L2CAP EN USO (abierto y con la autoprueba superada), GATT no saca nada: todo va por el
+        // flujo (nunca por los dos carriles). (BLE1109B) Abierto sin superar la prueba sigue siendo GATT.
+        if l.carril.en_uso() {
             return None;
         }
         let p = l.nucleo.siguiente_paquete(ahora)?;
@@ -1202,12 +1259,24 @@ fn tic(ahora: u64, releer_cuenta: bool) -> Acciones {
             }
             // (BLE1109A) Carril rápido: abrir el canal cuando toca (con la espera escalonada) o dar por perdida una
             // apertura que no llega. Mientras tanto el enlace sigue por GATT.
-            if e.enlaces[i].carril.apertura_vencida(ahora) {
+            if e.enlaces[i].carril.prueba_vencida(ahora) {
+                a.cerrar_l2cap.push((e.enlaces[i].plataforma.clone(), format!("sin eco de la autoprueba en {} ms", l2::PLAZO_PRUEBA_MS)));
+            } else if e.enlaces[i].carril.apertura_vencida(ahora) {
                 a.cerrar_l2cap.push((e.enlaces[i].plataforma.clone(), "el canal rápido no abrió a tiempo".to_string()));
             } else if let Some(psm) = e.enlaces[i].carril.debe_abrir(ahora) {
                 let (id, neurona, plataforma, intento) = (e.enlaces[i].id.clone(), e.enlaces[i].neurona.clone(), e.enlaces[i].plataforma.clone(), e.enlaces[i].carril.fallos() + 1);
                 anotar(e, "l2cap-abriendo", Some(&id), neurona.as_deref(), &format!("psm={psm} (intento {intento})"));
                 a.abrir_l2cap.push((plataforma, psm));
+            }
+        }
+        // (BLE1109B) Pasada la hora de castigo, el par vuelve a probar el canal rápido (un solo fallo más lo apaga otra hora).
+        for par in e.castigos.caducados(ahora) {
+            for i in 0..e.enlaces.len() {
+                if par_de(&e.enlaces[i]) == par && e.enlaces[i].carril.prohibido() {
+                    e.enlaces[i].carril.permitir();
+                    let (id, neurona) = (e.enlaces[i].id.clone(), e.enlaces[i].neurona.clone());
+                    anotar(e, "l2cap-reintento", Some(&id), neurona.as_deref(), "pasó la hora de castigo: se vuelve a probar el canal rápido");
+                }
             }
         }
         if e.vecindario.caducar(ahora) {
@@ -1306,12 +1375,14 @@ fn foto(e: &Estado, ahora: u64) -> EstadoBle {
                 paquete: l.nucleo.paquete(),
                 rtt_ms: m.rtt_ms,
                 // (BLE1109A) La capacidad es la del carril en uso: medida por él, o sin medir.
-                kbps: if l.carril.es_rapido() { m.kbps_rapido } else { m.kbps_gatt },
-                carril: if l.carril.es_rapido() { "rapido" } else { "gatt" }.to_string(),
+                kbps: if l.carril.en_uso() { m.kbps_rapido } else { m.kbps_gatt },
+                carril: if l.carril.en_uso() { "rapido" } else { "gatt" }.to_string(),
                 canal_rapido: if !canal_rapido_activo() {
                     "apagado".to_string() // (BLE1109B) ajuste apagado: GATT puro
                 } else if l.carril.prohibido() {
                     "desactivado".to_string() // (BLE1109B) 2 fallos en 10 min con este par
+                } else if l.carril.probando() {
+                    "abriendo".to_string() // (BLE1109B) abierto, pero aún en autoprueba
                 } else {
                     l.carril.estado().texto().to_string()
                 },
@@ -1876,6 +1947,8 @@ mod pruebas {
         entregados.clear();
         // 2 · El canal abre: todo va por él y GATT calla.
         al_l2cap_abierto(p, Some(0x85));
+        assert_eq!(estado_de(&enl).carril, "gatt", "abierto no es en uso: falta la autoprueba");
+        superar_prueba(p);
         otra.fijar_carril(true);
         let e1 = estado_de(&enl);
         assert_eq!((e1.carril.as_str(), e1.canal_rapido.as_str(), e1.psm), ("rapido", "abierto", Some(0x85)));
@@ -1958,6 +2031,12 @@ mod pruebas {
         ble_estado().enlaces.into_iter().find(|l| l.id == id).expect("enlace abierto")
     }
 
+    /// (BLE1109B) Simula el eco del otro lado a la autoprueba del canal: desde aquí el canal queda EN USO.
+    fn superar_prueba(p: &str) {
+        let n = con_estado(|e| e.enlaces.iter().find(|l| l.plataforma == p).and_then(|l| l.carril.nonce_prueba())).expect("hay una autoprueba en curso");
+        al_l2cap_datos(p, &l2::marco(&l2::paquete_eco(n)).expect("cabe"));
+    }
+
     /// Un mensaje por GATT de punta a punta contra un `Enlace` del otro lado. Devuelve lo entregado allí.
     fn mensaje_por_gatt(p: &str, id: &str, otra: &mut Enlace, json: &str) -> Vec<String> {
         let (e, j) = (id.to_string(), json.to_string());
@@ -1983,12 +2062,12 @@ mod pruebas {
     }
 
     #[test]
-    fn preferencia_vieja_de_prueba_31_deja_el_canal_rapido_apagado() {
+    fn preferencia_vieja_de_prueba_31_deja_el_canal_rapido_encendido_por_defecto() {
         let vieja: PreferenciaBle = serde_json::from_str(r#"{"activo":true}"#).unwrap();
-        assert_eq!(vieja, PreferenciaBle { activo: true, canal_rapido: false });
-        assert!(!PreferenciaBle::default().canal_rapido, "por defecto apagado");
-        let nueva: PreferenciaBle = serde_json::from_str(&serde_json::to_string(&PreferenciaBle { activo: false, canal_rapido: true }).unwrap()).unwrap();
-        assert!(nueva.canal_rapido && !nueva.activo);
+        assert_eq!(vieja, PreferenciaBle { activo: true, canal_rapido: true });
+        assert!(PreferenciaBle::default().canal_rapido, "por defecto encendido");
+        let apagada: PreferenciaBle = serde_json::from_str(&serde_json::to_string(&PreferenciaBle { activo: false, canal_rapido: false }).unwrap()).unwrap();
+        assert!(!apagada.canal_rapido && !apagada.activo, "quien lo apagó a mano lo sigue teniendo apagado");
     }
 
     #[test]
@@ -2056,6 +2135,7 @@ mod pruebas {
         al_psm(p, 0x85);
         // 1 · Flujo desalineado.
         al_l2cap_abierto(p, Some(0x85));
+        superar_prueba(p);
         assert_eq!(estado_enlace(&id).carril, "rapido");
         al_l2cap_datos(p, &[0, 1, 0]);
         let e = estado_enlace(&id);
@@ -2088,6 +2168,7 @@ mod pruebas {
         assert!(ble_enlace_ligado(id.clone()));
         al_psm(p, 0x85);
         al_l2cap_abierto(p, Some(0x85));
+        superar_prueba(p);
         let json = format!("{{\"t\":\"archivo.chunk\",\"d\":\"{}\"}}", "Q".repeat(6_000));
         let j2 = json.clone();
         con_estado(|e| e.enlaces.iter_mut().find(|l| l.plataforma == p).unwrap().nucleo.encolar(900, &j2, ahora_ms())).unwrap();
@@ -2137,4 +2218,103 @@ mod pruebas {
         assert_eq!(cola_de_registro(&dir.join("no-existe.log"), 100), "");
         let _ = std::fs::remove_dir_all(&dir);
     }
+
+    #[test]
+    fn autoprueba_ok_mueve_el_trafico_al_canal_y_mientras_tanto_gatt_sigue_llevandolo() {
+        let _g = con_ajuste(true);
+        let p = "c:AA:BB:CC:DD:EE:80";
+        al_conectar(p, "central", Some("AA:BB:CC:DD:EE:80"), 64);
+        let id = id_de_enlace(p);
+        assert!(ble_enlace_ligado(id.clone()));
+        al_psm(p, 0x85);
+        al_l2cap_abierto(p, Some(0x85));
+        // Abierto pero sin prueba superada: GATT lleva el tráfico y por el flujo solo sale la prueba.
+        let e = estado_enlace(&id);
+        assert_eq!((e.carril.as_str(), e.canal_rapido.as_str()), ("gatt", "abriendo"));
+        let mut otra = Enlace::nuevo(64);
+        assert_eq!(mensaje_por_gatt(p, &id, &mut otra, "{\"t\":\"a\",\"d\":\"durante la prueba\"}").len(), 1);
+        let flujo = siguiente_trama_rapida(p, 8192).expect("sale el paquete de prueba");
+        assert_eq!(flujo.len(), 2 + 3, "marco + [tipo|nonce]");
+        assert_eq!(flujo[2], l2::P_PRUEBA);
+        assert!(siguiente_trama_rapida(p, 8192).is_none(), "una sola prueba");
+        // El otro lado nos manda SU prueba: la devolvemos como eco (aunque la nuestra no haya vuelto aún).
+        al_l2cap_datos(p, &l2::marco(&l2::paquete_prueba(0x1234)).unwrap());
+        let eco = siguiente_trama_rapida(p, 8192).expect("el eco debido sale por el flujo");
+        assert_eq!((eco[2], eco[3], eco[4]), (l2::P_ECO, 0x12, 0x34));
+        assert_eq!(estado_enlace(&id).carril, "gatt");
+        superar_prueba(p);
+        assert_eq!(estado_enlace(&id).carril, "rapido");
+        let reg = ble_registro();
+        assert!(reg.iter().any(|x| x.tipo == "l2cap-prueba-ok" && x.detalle.starts_with("rtt=") && x.detalle.contains("ms")), "{reg:?}");
+        al_desconectar(p, "fin de la prueba");
+    }
+
+    #[test]
+    fn autoprueba_sin_eco_en_3_s_cae_a_gatt_sin_cerrar_el_enlace_y_lo_deja_dicho() {
+        let _g = con_ajuste(true);
+        let p = "c:AA:BB:CC:DD:EE:81";
+        al_conectar(p, "central", Some("AA:BB:CC:DD:EE:81"), 64);
+        let id = id_de_enlace(p);
+        assert!(ble_enlace_ligado(id.clone()));
+        al_psm(p, 0x85);
+        al_l2cap_abierto(p, Some(0x85));
+        // Un mensaje en vuelo por GATT mientras la prueba corre.
+        let json = format!("{{\"t\":\"archivo.chunk\",\"d\":\"{}\"}}", "W".repeat(3_000));
+        let j2 = json.clone();
+        con_estado(|e| e.enlaces.iter_mut().find(|l| l.plataforma == p).unwrap().nucleo.encolar(901, &j2, ahora_ms())).unwrap();
+        let a = tic(ahora_ms() + l2::PLAZO_PRUEBA_MS / 2, false);
+        assert!(a.cerrar_l2cap.iter().all(|(x, _)| x != p), "dentro del plazo no se cierra nada");
+        let a = tic(ahora_ms() + l2::PLAZO_PRUEBA_MS + 100, false);
+        let (_, motivo) = a.cerrar_l2cap.iter().find(|(x, _)| x == p).expect("sin eco en 3 s").clone();
+        assert!(motivo.contains("autoprueba"), "{motivo}");
+        al_l2cap_cerrado(p, &motivo);
+        assert_eq!(estado_enlace(&id).carril, "gatt");
+        assert!(ble_estado().enlaces.iter().any(|l| l.id == id), "el enlace no se cerró");
+        let reg = ble_registro();
+        assert!(reg.iter().any(|x| x.tipo == "l2cap-prueba-fallida" && x.detalle.starts_with("motivo=") && x.detalle.contains("autoprueba")), "{reg:?}");
+        // El mensaje en vuelo llega entero por GATT.
+        let mut otra = Enlace::nuevo(64);
+        let mut si = || true;
+        let mut entregados = Vec::new();
+        for _ in 0..800 {
+            while let Some(pq) = siguiente_paquete(p) {
+                if let Some(c) = otra.recibir(&pq, ahora_ms(), &mut si) {
+                    entregados.push(c);
+                }
+            }
+            while let Some(pq) = otra.siguiente_paquete(ahora_ms()) {
+                al_recibir(p, &pq);
+            }
+            if !entregados.is_empty() {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(2));
+        }
+        assert_eq!(entregados, vec![json]);
+        al_desconectar(p, "fin de la prueba");
+    }
+
+    #[test]
+    fn el_par_apagado_vuelve_a_probar_pasada_una_hora() {
+        let _g = con_ajuste(true);
+        let p = "c:AA:BB:CC:DD:EE:82";
+        al_conectar(p, "central", Some("AA:BB:CC:DD:EE:82"), 64);
+        let id = id_de_enlace(p);
+        assert!(ble_enlace_ligado(id.clone()));
+        al_psm(p, 0x85);
+        al_l2cap_abierto(p, Some(0x85));
+        al_l2cap_cerrado(p, "fallo 1");
+        al_l2cap_abierto(p, Some(0x85));
+        al_l2cap_cerrado(p, "fallo 2");
+        assert_eq!(estado_enlace(&id).canal_rapido, "desactivado");
+        let _ = tic(ahora_ms() + l2::ESPERA_REINTENTO_MS / 2, false);
+        assert_eq!(estado_enlace(&id).canal_rapido, "desactivado", "aún dentro de la hora");
+        let _ = tic(ahora_ms() + l2::ESPERA_REINTENTO_MS + 1_000, false);
+        assert_ne!(estado_enlace(&id).canal_rapido, "desactivado", "pasada la hora vuelve a probar");
+        let reg = ble_registro();
+        assert!(reg.iter().any(|x| x.tipo == "l2cap-reintento"), "{reg:?}");
+        con_estado(|e| e.castigos.limpiar());
+        al_desconectar(p, "fin de la prueba");
+    }
+
 }

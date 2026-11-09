@@ -97,12 +97,14 @@ function depsCanalRapido(): DepsAjusteCanalRapido {
   };
 }
 
-/** ¿Está encendido «Canal rápido Bluetooth (experimental)»? Por defecto NO; la verdad la tiene la app nativa. */
+/** ¿Está encendido «Canal rápido Bluetooth (experimental)»? Por defecto SÍ; la verdad la tiene la app nativa. */
 export async function leerCanalRapidoBluetooth(): Promise<boolean> {
+  const espejo = (): boolean => leerAjusteCanalRapido(depsCanalRapido().leer()).activo;
   try {
-    return (await depsCanalRapido().nativo()) === true;
+    const v = await depsCanalRapido().nativo();
+    return v === null ? espejo() : v;
   } catch {
-    return leerAjusteCanalRapido(depsCanalRapido().leer()).activo;
+    return espejo();
   }
 }
 

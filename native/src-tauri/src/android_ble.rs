@@ -347,9 +347,40 @@ mod pruebas {
         // El bloque del carril rápido es pequeño (se compila en CI, no aquí).
         let ini = KOTLIN.find("Carril rápido: canal L2CAP (BLE1109A)").expect("bloque");
         let fin = KOTLIN[ini..].find("fun aHex(b: ByteArray): String").expect("fin del bloque");
-        assert!(KOTLIN[ini..ini + fin].lines().count() < 230, "el bloque L2CAP de Kotlin debe seguir siendo pequeño");
-        // `bombear` cede al canal antes que a GATT.
+        assert!(KOTLIN[ini..ini + fin].lines().count() < 330, "el bloque L2CAP de Kotlin debe seguir siendo pequeño");
+        // (BLE1109B) `bombear` despierta al hilo del canal Y deja seguir a GATT: Rust decide por qué carril sale cada paquete.
         let b = KOTLIN.find("private fun bombear(k: String)").expect("bombear");
-        assert!(KOTLIN[b..].find("canales[k]?.let").unwrap() < KOTLIN[b..].find("c.ocupadoDesde").unwrap());
+        let cuerpo = &KOTLIN[b..b + KOTLIN[b..].find("c.ocupadoDesde").unwrap()];
+        assert!(cuerpo.contains("canales[k]?.senal?.offer(true)") && !cuerpo.contains("return\n        }\n        if (k.startsWith"), "el canal no puede dejar a GATT mudo");
+    }
+
+    /// (BLE1109B) Causa raíz de la regresión de prueba.31: nada que pueda bloquear (crear el socket L2CAP, leer su PSM,
+    /// `accept()`) corre en el hilo principal ni en un callback GATT; el PSM se publica con el socket ya listo; el PSM del
+    /// otro se lee solo tras «ligado»; y el PHY 2M no se pide al conectar.
+    #[test]
+    fn kotlin_del_canal_rapido_no_bloquea_el_hilo_principal_ni_los_callbacks_gatt() {
+        // `listenUsingInsecureL2capChannel` solo aparece dentro de `servirL2cap`, que corre en su propio hilo.
+        assert_eq!(KOTLIN.matches("a.listenUsingInsecureL2capChannel()").count(), 1);
+        let serv = KOTLIN.find("private fun servirL2cap(").expect("servirL2cap");
+        assert!(KOTLIN.find("a.listenUsingInsecureL2capChannel()").unwrap() > serv);
+        assert_eq!(KOTLIN.matches("ss.accept()").count(), 1);
+        assert!(KOTLIN.contains("Thread({ servirL2cap(a, gen) }, \"starseed-l2cap-acepta\")"));
+        // `arrancar` ya no crea el socket: lo pide `onServiceAdded`, con el servicio GATT registrado.
+        let arr = KOTLIN.find("private fun arrancar()").unwrap();
+        let fin = arr + KOTLIN[arr..].find("private fun limpiar(").unwrap();
+        assert!(!KOTLIN[arr..fin].contains("abrirServidorL2cap()"));
+        assert!(KOTLIN.contains("if (servicioListo) abrirServidorL2cap()"));
+        // El PSM se publica después de crear el socket y de leer su PSM.
+        let crea = KOTLIN.find("a.listenUsingInsecureL2capChannel()").unwrap();
+        let publica = KOTLIN.find("psmPublicado = psm").unwrap();
+        assert!(crea < KOTLIN.find("ss?.psm").unwrap() && KOTLIN.find("ss?.psm").unwrap() < publica);
+        // La lectura del PSM del otro ya no ocurre al suscribirse: la ordena Rust al ligar.
+        assert!(KOTLIN.contains("\"leer-psm\" -> leerPsm("));
+        let dw = KOTLIN.find("override fun onDescriptorWrite(gatt").unwrap();
+        let dw_fin = dw + KOTLIN[dw..].find("override fun onCharacteristicChanged").unwrap();
+        assert!(!KOTLIN[dw..dw_fin].contains("readCharacteristic"), "nada de leer el PSM en la suscripción");
+        // El PHY 2M se pide con retraso, nunca dentro del callback de conexión.
+        assert!(KOTLIN.contains("RETRASO_PHY_MS"));
+        assert!(KOTLIN.contains("principal.postDelayed({\n            try {\n                f()"));
     }
 }
