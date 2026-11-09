@@ -88,7 +88,41 @@ impl Radio for RadioNula {
 }
 
 pub const MOTIVO_SIN_RADIO: &str =
-    "En este sistema la app aún no trae Bluetooth directo: llega con la app nativa de macOS, Android y Linux (BlueZ; en Linux se apaga con STARSEED_SIN_BLE_LINUX=1). Windows, pendiente: contrato bluetooth-directo.md §9.";
+    "En este sistema la app aún no trae Bluetooth directo: la trae la app nativa de macOS, Windows (WinRT), Linux (BlueZ; se apaga con STARSEED_SIN_BLE_LINUX=1) y Android.";
+
+/// (INT1109C) Papeles GATT de cada plataforma, con el mismo vocabulario que las `lanas` de la matriz
+/// (`architecture/matriz-enlaces-directos.md`): macOS, Windows y Linux hacen de central y de periférico; Android también
+/// (el central de BLE existe desde Android 5 y el periférico lo comprobó Kotlin al anunciar). Otros: ninguno.
+pub fn roles_de(os: &str) -> &'static [&'static str] {
+    match os {
+        "macos" | "windows" | "linux" | "android" => &["central", "periferico"],
+        _ => &[],
+    }
+}
+
+/// (INT1109C) ¿Puede la plataforma abrir el canal L2CAP? macOS y Linux sí; Android desde la API 29 (LE CoC público);
+/// Windows no (WinRT no tiene L2CAP CoC en LE: el PSM se publica como `[0, 0]`). Sin saber la API de Android, no.
+pub fn l2cap_de(os: &str, sdk_android: Option<u32>) -> bool {
+    match os {
+        "macos" | "linux" => true,
+        "android" => sdk_android.is_some_and(|v| v >= 29),
+        _ => false,
+    }
+}
+
+/// (INT1109C) API de Android (`ro.build.version.sdk`); en otros sistemas, nada.
+#[cfg(target_os = "android")]
+fn sdk_android() -> Option<u32> {
+    static V: OnceLock<Option<u32>> = OnceLock::new();
+    *V.get_or_init(|| {
+        let salida = std::process::Command::new("getprop").arg("ro.build.version.sdk").output().ok()?;
+        String::from_utf8_lossy(&salida.stdout).trim().parse().ok()
+    })
+}
+#[cfg(not(target_os = "android"))]
+fn sdk_android() -> Option<u32> {
+    None
+}
 
 fn radio() -> &'static dyn Radio {
     static R: OnceLock<Box<dyn Radio>> = OnceLock::new();
@@ -131,6 +165,10 @@ pub struct EstadoBle {
     pub radio: String,
     pub motivo: String,
     pub plataforma: String,
+    /// (INT1109C) Papeles GATT que esta plataforma puede hacer: «central» y/o «periferico». Vacío sin radio.
+    pub roles: Vec<String>,
+    /// (INT1109C) ¿Puede abrir el canal rápido L2CAP (carril `ble-l2cap`)? Falso sin radio.
+    pub l2cap: bool,
     /// Anunciándose ahora (UUID rotatorio).
     pub anunciando: bool,
     /// Los anuncios llevan la cuenta (hay clave de faro): tus neuronas se reconocen y se conectan solas.
@@ -1192,6 +1230,8 @@ fn foto(e: &Estado, ahora: u64) -> EstadoBle {
         radio: e.radio.clone(),
         motivo: e.motivo.clone(),
         plataforma: std::env::consts::OS.to_string(),
+        roles: if radio().disponible() { roles_de(std::env::consts::OS).iter().map(|r| r.to_string()).collect() } else { Vec::new() },
+        l2cap: radio().disponible() && l2cap_de(std::env::consts::OS, sdk_android()),
         anunciando: e.activo && e.radio == "encendida" && e.anuncio.is_some(),
         con_cuenta: e.cuenta.clave.is_some(),
         vecinos,
@@ -1365,6 +1405,36 @@ pub fn antena() -> (String, String) {
 
 #[cfg(test)]
 mod pruebas {
+    // INT1109C: la forma de `roles` y `l2cap` que lee la matriz (`lanas-propias.ts`) en TODAS las plataformas.
+    #[test]
+    fn roles_y_l2cap_por_plataforma() {
+        use super::{l2cap_de, roles_de};
+        for os in ["macos", "windows", "linux", "android"] {
+            assert_eq!(roles_de(os), &["central", "periferico"], "{os}");
+        }
+        assert!(roles_de("ios").is_empty() && roles_de("otro").is_empty());
+        assert!(l2cap_de("macos", None) && l2cap_de("linux", None));
+        assert!(!l2cap_de("windows", None), "WinRT no tiene L2CAP CoC en LE");
+        assert!(l2cap_de("android", Some(29)) && l2cap_de("android", Some(34)));
+        assert!(!l2cap_de("android", Some(28)) && !l2cap_de("android", None));
+        assert!(!l2cap_de("ios", None));
+    }
+
+    #[test]
+    fn ble_estado_serializa_roles_y_l2cap() {
+        let j = serde_json::to_value(super::ble_estado()).unwrap();
+        assert!(j["roles"].is_array(), "roles es una lista");
+        assert!(j["l2cap"].is_boolean(), "l2cap es booleano");
+        for k in ["disponible", "radio", "plataforma", "motivo"] {
+            assert!(j.get(k).is_some(), "falta {k}");
+        }
+        // Las pruebas corren sin radio (`disponible` falso o con núcleo de pruebas): sin radio no se promete nada.
+        if j["disponible"] == false {
+            assert_eq!(j["roles"].as_array().unwrap().len(), 0);
+            assert_eq!(j["l2cap"], false);
+        }
+    }
+
     use super::*;
 
     #[test]

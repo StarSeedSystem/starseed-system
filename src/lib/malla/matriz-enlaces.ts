@@ -132,15 +132,20 @@ export function lanasInferidas(plataforma: unknown, opciones: { cap?: Capacidade
   if (p === "web" || !nativo) return { ...SIN_LANAS, "ble-gatt": { ...SIN_LANAS["ble-gatt"] }, "wifi-direct": { ...SIN_LANAS["wifi-direct"] } };
   const ble = p === "macos" || p === "android" || p === "ios";
   const lanas = cap?.lanas ?? [];
-  const wd = !!cap && cap.ap.includes("wifi-direct") && cap.cliente.includes("wifi-direct");
+  // INT1109C: Windows y Linux publican `ap`/`cliente` = wifi-direct por separado (Linux con una sola tarjeta es dueño del
+  // grupo sin poder unirse): cada papel se lee de lo suyo. Una app anterior (sin Wi‑Fi Direct) trae las listas vacías.
+  const direct = DIRECT.has(p);
+  const wdAp = direct && !!cap && cap.ap.includes("wifi-direct");
+  const wdCli = direct && !!cap && cap.cliente.includes("wifi-direct");
+  const androidConc = p === "android" && lanas.includes("wifi-direct-concurrente");
   return {
     "lan-tcp": true,
     "ble-gatt": { central: ble, periferico: ble },
     "ble-l2cap": ble,
     "wifi-direct": {
-      go: wd || (p === "android" && lanas.includes("wifi-direct-concurrente")),
-      cliente: wd || (p === "android" && lanas.includes("wifi-direct-concurrente")),
-      concurrente: lanas.includes("wifi-direct-concurrente"),
+      go: wdAp || androidConc,
+      cliente: wdCli || androidConc,
+      concurrente: direct && lanas.includes("wifi-direct-concurrente"),
     },
     "wifi-aware": p === "android" && (lanas.includes("wifi-aware") || (!!cap && cap.ap.includes("wifi-aware") && cap.cliente.includes("wifi-aware"))),
     awdl: APPLE.has(p) && lanas.includes("awdl"),
@@ -206,8 +211,20 @@ export function lanasDeNativo(e: EntradaNativa): LanasAnunciadas {
     "wifi-direct": DIRECT.has(p) ? { go: wdAp, cliente: wdCli, concurrente } : { go: false, cliente: false, concurrente: false },
     "wifi-aware": p === "android" && (lanasWifi.includes("wifi-aware") || (!!cap && cap.ap.includes("wifi-aware") && cap.cliente.includes("wifi-aware"))),
     awdl: awdlOk,
-    "punto-acceso-optin": e.puntoAccesoOptin === true || lanasWifi.includes("punto-acceso-optin"),
+    "punto-acceso-optin": lanasWifi.includes("punto-acceso-optin") || (e.puntoAccesoOptin === true && puedePuntoAcceso(p, cap)),
   };
+}
+
+/**
+ * ¿Puede este aparato tomar parte en una red directa por punto de acceso? (INT1109C) El permiso lo da la persona (ajuste
+ * local, apagado por defecto); la capacidad la dice la parte nativa: un Android con `hotspot-local` en `ap`, o un Mac que
+ * se une como cliente (`corewlan` / `guiado`). Windows y Linux no usan este carril: antes un ajuste encendido lo anunciaba igual.
+ */
+export function puedePuntoAcceso(p: PlataformaMatriz, cap: CapacidadesWifi | null | undefined): boolean {
+  if (!cap) return p === "android" || p === "macos"; // sin dato nativo manda el permiso de la persona
+  if (p === "android") return cap.ap.includes("hotspot-local");
+  if (p === "macos") return cap.cliente.length > 0;
+  return false;
 }
 
 /** Las lanas de una plataforma con TODO lo previsto ya publicado (para la tabla y las pruebas). iOS: planificado, como macOS. */

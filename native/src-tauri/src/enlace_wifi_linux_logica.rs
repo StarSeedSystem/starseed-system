@@ -141,7 +141,9 @@ pub fn capacidades_de(s: &Sondeo, apagado_por_entorno: bool) -> CapacidadesWifi 
         lanas: Vec::new(),
     };
     // `wifi-direct-concurrente`: lo que el contrato llama «Wi-Fi Direct sin dejar el Wi-Fi de casa».
+    // INT1109C: el mismo vocabulario que Windows: `wifi-direct` (el estándar, interoperable) y su variante concurrente.
     if ap || cliente {
+        c.lanas.push("wifi-direct".to_string());
         c.lanas.push(crate::wifi_p2p_logica::LANA_DIRECT_CONCURRENTE.to_string());
     }
     c.motivo = if ap && cliente {
@@ -264,7 +266,7 @@ mod pruebas {
         assert_eq!(c.plataforma, "linux");
         assert_eq!(c.ap, vec!["wifi-direct"]);
         assert!(c.cliente.is_empty(), "una sola tarjeta en uso: no se une como cliente");
-        assert_eq!(c.lanas, vec!["wifi-direct-concurrente"]);
+        assert_eq!(c.lanas, vec!["wifi-direct", "wifi-direct-concurrente"]);
         assert_eq!(c.permiso, "concedido");
         assert!(!c.radio_unica);
         assert!(c.motivo.contains("Wi-Fi de casa sigue conectado"));
@@ -304,7 +306,8 @@ mod pruebas {
         for k in ["plataforma", "ap", "cliente", "permiso", "radio_unica", "wifi", "motivo", "lanas"] {
             assert!(j.get(k).is_some(), "falta {k}");
         }
-        assert_eq!(j["lanas"][0], "wifi-direct-concurrente");
+        assert_eq!(j["lanas"][0], "wifi-direct");
+        assert_eq!(j["lanas"][1], "wifi-direct-concurrente");
     }
 
     #[test]
