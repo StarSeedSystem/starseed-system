@@ -9,6 +9,7 @@
  * Si falta WebCodecs de vídeo, JPEG desde un canvas a muy pocos fotogramas por segundo. Nunca lanza.
  * Cada lado anuncia lo que sabe DECODIFICAR y el que emite elige entre lo que sabe CODIFICAR (ver sesion-video.ts).
  */
+import { quitarLienzoVivo, registrarLienzoVivo } from "./lienzos";
 import type { CodecVideo, CodificadorVideo, DecodificadorVideo, FabricaVideo, FrameCodificado, FrameFuente, FuenteVideo, ImagenDecodificada, PerfilVideo, SalidaVideo } from "./tipos";
 
 /* ───────────── Lo mínimo de WebCodecs que usamos (sin depender de lib.dom) ───────────── */
@@ -115,6 +116,8 @@ function codificadorWebCodecs(c: "vp8" | "h264"): CodificadorVideo | null {
   };
   return {
     configurar,
+    /** LLA1110C: el códec aún tiene fotogramas en cola; la sesión no captura otro (y lo cuenta como descarte «códec»). */
+    ocupado: () => (enc?.encodeQueueSize ?? 0) > 2,
     codificar(f: FrameFuente, clave: boolean) {
       if (!perfil) return;
       if (!enc) configurar(perfil);
@@ -344,45 +347,90 @@ export function lienzoEsNegro(ctx: { getImageData(x: number, y: number, w: numbe
   }
 }
 
+/** LLA1110C: por qué la fuente no dio imagen en el último intento (para los motivos de descarte del registro). */
+export type MotivoSinImagen = "sin-datos" | "pausada" | "quieta" | "cerrada";
+
 /**
  * La cámara (o la pantalla) como fuente: un <video> y un canvas al tamaño pedido (recorte centrado).
- * VID1110A: el <video> SE MONTA en el documento (fuera de vista, 2×2 px, sin `display:none`): WKWebView y algunos
- * Chromium no decodifican un <video> suelto con `srcObject` y `readyState` no pasa de 0 → todos los fotogramas
- * eran `null` y no salía nada. Se reanuda solo si el motor lo pausa, y se cuentan los fotogramas negros.
+ * VID1110A: el <video> SE MONTA en el documento (WKWebView y algunos Chromium no decodifican un <video> suelto).
+ * LLA1110C: ya no fuera de la pantalla. WebKit PAUSA un <video> silenciado que no está en el viewport (ahorro de energía)
+ * y deja de entregar fotogramas nuevos: se queda dentro de la ventana, en una esquina, de 2×2 px y casi transparente.
+ * Además no se manda dos veces el MISMO fotograma: si el <video> no avanzó desde la última captura, se dice «quieta»
+ * (antes se codificaba otra vez la imagen congelada, o negra, y se contaba como enviada).
  */
 export function crearFuenteDePista(pista: MediaStreamTrack): FuenteVideo | null {
   if (typeof document === "undefined" || typeof MediaStream !== "function") return null;
   try {
-    const video = document.createElement("video");
+    const video = document.createElement("video") as HTMLVideoElement & { requestVideoFrameCallback?: (cb: () => void) => number };
     video.muted = true;
     video.defaultMuted = true;
     video.playsInline = true;
     video.autoplay = true;
     video.setAttribute("playsinline", "");
+    video.setAttribute("muted", "");
     video.setAttribute("aria-hidden", "true");
+    video.setAttribute("data-fuente-video-ligero", "");
     video.tabIndex = -1;
-    video.style.cssText = "position:fixed;left:-10px;bottom:-10px;width:2px;height:2px;opacity:0.01;pointer-events:none;z-index:-1";
+    video.style.cssText = "position:fixed;right:0;bottom:0;width:2px;height:2px;opacity:0.02;pointer-events:none;z-index:2147483646";
     video.srcObject = new MediaStream([pista]);
     try {
       document.body.appendChild(video);
     } catch {
       /* sin body (pruebas): se sigue con el <video> suelto */
     }
+    let ultimoErrorPlay = "";
     const reanudar = () => {
-      if (video.paused) void video.play().catch(() => undefined);
+      if (video.paused)
+        void video.play().catch((e: unknown) => {
+          ultimoErrorPlay = e instanceof Error ? e.name || e.message : "play";
+        });
     };
     reanudar();
+    // Fotogramas nuevos del <video>: con requestVideoFrameCallback se cuentan de verdad; sin él, por `currentTime`.
+    let nuevos = 0;
+    let cerrada = false;
+    const rvfc = typeof video.requestVideoFrameCallback === "function";
+    if (rvfc) {
+      const contar = () => {
+        if (cerrada) return;
+        nuevos++;
+        try {
+          video.requestVideoFrameCallback!(contar);
+        } catch {
+          /* noop */
+        }
+      };
+      video.requestVideoFrameCallback!(contar);
+    }
+    let vistosHasta = -1;
+    let tiempoVisto = -1;
     const lienzo = document.createElement("canvas");
     const ctx = lienzo.getContext("2d", { willReadFrequently: true } as CanvasRenderingContext2DSettings);
     if (!ctx) return null;
     let vistos = 0;
     let negros = 0;
-    let cerrada = false;
+    let motivo: MotivoSinImagen | null = null;
     return {
       capturar(w, h) {
-        if (cerrada) return null;
+        if (cerrada) {
+          motivo = "cerrada";
+          return null;
+        }
         if (video.paused) reanudar();
-        if (video.readyState < 2 || !video.videoWidth || !video.videoHeight) return null;
+        if (video.readyState < 2 || !video.videoWidth || !video.videoHeight) {
+          motivo = video.paused ? "pausada" : "sin-datos";
+          return null;
+        }
+        // El <video> no avanzó: el mismo fotograma no se vuelve a mandar.
+        // (Con los dos: si WebKit no avisara de fotogramas de un <video> tan pequeño, `currentTime` sigue valiendo.)
+        const avanzo = (rvfc && nuevos !== vistosHasta) || video.currentTime !== tiempoVisto;
+        if (!avanzo && vistos > 0) {
+          motivo = video.paused ? "pausada" : "quieta";
+          return null;
+        }
+        vistosHasta = nuevos;
+        tiempoVisto = video.currentTime;
+        motivo = null;
         if (lienzo.width !== w) lienzo.width = w;
         if (lienzo.height !== h) lienzo.height = h;
         // «cover»: llena el cuadro recortando lo que sobra.
@@ -394,8 +442,9 @@ export function crearFuenteDePista(pista: MediaStreamTrack): FuenteVideo | null 
         if (vistos % 4 === 1 && lienzoEsNegro(ctx, w, h)) negros++;
         return { imagen: lienzo, w, h, ts: typeof performance !== "undefined" ? performance.now() : Date.now() };
       },
+      motivoSinImagen: () => motivo,
       diagnostico() {
-        return { vistos, negros, vivo: pista.readyState === "live" && !pista.muted };
+        return { vistos, negros, vivo: pista.readyState === "live" && !pista.muted, pausada: video.paused, listo: video.readyState, errorPlay: ultimoErrorPlay };
       },
       cerrar() {
         cerrada = true;
@@ -428,6 +477,7 @@ export function crearSalidaVideoWeb(): SalidaVideo | null {
     const ctx = lienzo.getContext("2d");
     if (!ctx) return null;
     let stream: MediaStream | null = null;
+    const vivo = registrarLienzoVivo(lienzo);
     return {
       lienzo,
       get stream(): MediaStream | null {
@@ -445,11 +495,14 @@ export function crearSalidaVideoWeb(): SalidaVideo | null {
           if (lienzo.width !== i.w) lienzo.width = i.w;
           if (lienzo.height !== i.h) lienzo.height = i.h;
           ctx.drawImage(i.imagen as CanvasImageSource, 0, 0, i.w, i.h);
+          vivo.pintadoEn = typeof performance !== "undefined" ? performance.now() : Date.now();
+          vivo.pintados++;
         } finally {
           i.liberar?.();
         }
       },
       cerrar() {
+        quitarLienzoVivo(vivo);
         try {
           for (const t of stream?.getTracks() ?? []) t.stop();
         } catch {

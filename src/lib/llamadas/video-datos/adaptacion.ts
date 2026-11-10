@@ -2,8 +2,11 @@
  * video-datos/adaptacion — qué calidad de vídeo cabe en el enlace ahora (LLA1108H).
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  * Puro. Regla de oro: AUDIO > VÍDEO > todo lo demás.
- *  · El vídeo solo se manda cuando la cola de voz del enlace está vacía y la suya propia es corta
- *    (`hayHueco`): si no, el fotograma se tira (primero se tiran fotogramas, luego se baja de escalón).
+ *  · El vídeo solo se manda cuando el enlace no está ocupado por la voz y su propia cola es corta (`hayHueco`):
+ *    si no, el fotograma se tira (primero se tiran fotogramas, luego se baja de escalón). LLA1110C: el umbral de voz
+ *    era 700 B, pero el Bluetooth cuenta la voz hasta que vuelve el acuse de cada escritura: en la Mac la cola de voz
+ *    casi nunca bajaba de 700 B y se tiraban 274 de cada 307 fotogramas. La voz ya sale SIEMPRE antes que el vídeo
+ *    (la bomba del enlace la atiende primero); aquí solo se frena cuando el enlace está ocupado de verdad.
  *  · Con presión (cola ocupada o fragmentos descartados) en los últimos 2 s se baja UN escalón (resolución y
  *    fps a la vez, por la escalera `PERFILES_VIDEO`); tras 6 s sin presión y con holgura se sube uno.
  *  · El techo lo fija la capacidad del enlace: la mitad de lo que mide (o anuncia) menos lo que ya come la voz.
@@ -12,8 +15,11 @@ import { KBPS_VOZ_RESERVADOS, PERFILES_VIDEO, type PerfilVideo } from "./tipos";
 
 /** Bytes de la cola propia del vídeo a partir de los cuales no se mete otro fotograma. */
 export const UMBRAL_COLA_VIDEO_BYTES = 4 * 1024;
-/** Más voz que esto en cola (≈ un paquete de 60 ms) y el vídeo espera: la voz no se retrasa por una imagen. */
-export const UMBRAL_VOZ_HUECO_BYTES = 700;
+/**
+ * Más voz que esto en cola y el vídeo espera (LLA1110C: igual que «ocupado» del Bluetooth, 2 KiB ≈ 250 ms de voz;
+ * antes 700 B, que con el acuse por escritura de la Mac cerraba el hueco casi siempre).
+ */
+export const UMBRAL_VOZ_HUECO_BYTES = 2048;
 export const VENTANA_PRESION_MS = 2000;
 export const CALMA_PARA_SUBIR_MS = 6000;
 /** Qué parte de la capacidad del enlace se le deja al vídeo (el resto es para la voz y lo demás). */
@@ -30,9 +36,16 @@ export interface EstadoColas {
   ocupado: boolean;
 }
 
+/** LLA1110C: por qué no cabe ahora un fotograma (null: sí cabe). */
+export function motivoSinHueco(c: EstadoColas): "enlace-ocupado" | "cola-video" | null {
+  if (c.ocupado || c.vozBytes >= UMBRAL_VOZ_HUECO_BYTES) return "enlace-ocupado";
+  if (c.videoBytes >= UMBRAL_COLA_VIDEO_BYTES) return "cola-video";
+  return null;
+}
+
 /** ¿Cabe ahora un fotograma de vídeo sin estorbar a la voz? */
 export function hayHueco(c: EstadoColas): boolean {
-  return !c.ocupado && c.vozBytes < UMBRAL_VOZ_HUECO_BYTES && c.videoBytes < UMBRAL_COLA_VIDEO_BYTES;
+  return motivoSinHueco(c) === null;
 }
 
 /** Presupuesto de vídeo (kbps) para un enlace de esa capacidad. */

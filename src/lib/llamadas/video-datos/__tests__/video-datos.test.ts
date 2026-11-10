@@ -676,8 +676,8 @@ describe("prioridad: audio > vídeo", () => {
     expect(enlaceAB.vozEnviada).toBeGreaterThan(100);
     expect(enlaceAB.vozDescartada).toBe(0);
     expect(enlaceAB.vozEnviada - enlaceAB.vozEntregada).toBeLessThanOrEqual(2);
-    // El vídeo sí ha tenido que ceder: se omitieron fotogramas o se tiraron fragmentos, y aun así algo llegó.
-    expect(vidA.estado().omitidos + enlaceAB.vidDescartado).toBeGreaterThan(0);
+    // LLA1110C: el vídeo ya no cede por voz en cola que sale igualmente primero (la bomba atiende la voz antes);
+    // lo que se exige es que llegue vídeo SIN que la voz pierda nada (arriba) ni espere de más (abajo).
     expect(enlaceAB.vidEntregado).toBeGreaterThan(0);
     // Y la voz no esperó nunca por encima de su umbral de «ocupado» por culpa del vídeo.
     expect(enlaceAB.bytesVoz).toBeLessThan(2 * 1024);

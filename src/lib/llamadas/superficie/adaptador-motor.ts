@@ -10,7 +10,8 @@
  *  · se acepta un tope de gente (el del motor) y se explica en vez de fallar callado.
  * Sin React ni DOM: el motor y todo lo del aparato entran por `MotorMinimo` y `DepsAdaptador` (así se prueba).
  */
-import { describirCamaras } from "@/lib/llamadas/camaras";
+import { camaraParaEncender, clasificarCamara, correccionTrasAbrir, describirCamaras, lineaCamaraElegida, type CamaraInfo } from "@/lib/llamadas/camaras";
+import { lienzoLigeroReciente } from "@/lib/llamadas/video-datos/lienzos";
 import type { CargaApp, EstadoLlamada, ParticipanteLlamada } from "@/lib/llamadas/tipos";
 import type { ResumenLlamada } from "@/lib/llamadas/motor";
 import { MAX_PARTICIPANTES } from "@/lib/llamadas/tipos";
@@ -106,6 +107,33 @@ export interface DepsAdaptador {
   alTerminar?: (f: FinLlamadaInfo) => void;
   /** Cuánto dura una reacción en pantalla (ms). */
   duracionReaccionMs?: number;
+  /** LLA1110C: la cámara que la persona eligió antes en esta neurona (para pedirla al encender). */
+  preferenciaCamara?: () => { id: string; etiqueta?: string } | null;
+  /** LLA1110C: línea al registro del enlace (cámara, visibilidad). Por defecto, nada. */
+  anotar?: (linea: string) => void;
+  /** LLA1110C: el lienzo del vídeo ligero pintado lo último (por defecto, el registro de `video-datos/lienzos`). */
+  lienzoLigero?: () => HTMLCanvasElement | null;
+  /** LLA1110C: cuánto se espera a que el aparato abra la cámara antes de decir que no responde (ms). */
+  esperaCamaraMs?: number;
+}
+
+/** LLA1110C: ¿esta pista de vídeo trae imagen ahora? (viva y no «muted»: una pista WebRTC sin ruta llega muda). */
+export function pistaTraeImagen(t: Pick<MediaStreamTrack, "readyState" | "muted"> | null | undefined): boolean {
+  return !!t && t.readyState === "live" && !t.muted;
+}
+
+/** LLA1110C: ¿este flujo trae vídeo con imagen? */
+export function streamTraeVideo(s: MediaStream | null | undefined): boolean {
+  try {
+    return !!s && s.getVideoTracks().some(pistaTraeImagen);
+  } catch {
+    return false;
+  }
+}
+
+/** LLA1110C: «integrada:FaceTime HD Camera|continuidad:iPhone… Desk View» para el registro (corto). */
+export function textoListaCamaras(lista: readonly CamaraInfo[]): string {
+  return lista.map((c) => `${c.sinEtiqueta ? "sin-nombre" : c.tipo}:${(c.etiqueta || c.nombre).replace(/[|"\u0000-\u001f]+/g, " ").slice(0, 28)}`).join("|").slice(0, 120);
 }
 
 const AZAR = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
@@ -425,7 +453,7 @@ export class AdaptadorMotor {
       pantallaCompartida: e.pantalla,
       videoLigero: !!e.videoDatos?.disponible,
       escalaWifi: !!e.escalada,
-      hayVideoRemoto: otros.some((p) => !!p.stream?.getVideoTracks().length || !!p.lienzo),
+      hayVideoRemoto: otros.some((p) => streamTraeVideo(p.stream) || !!p.lienzo),
       soyCreador: this.primero() === this.motor.miId,
       viva: e.fase === "en-curso",
     };
@@ -466,7 +494,7 @@ export class AdaptadorMotor {
       },
       alternarCamara: () => {
         if (!this.permitido("camara")) return;
-        void this.conAviso(() => this.motor.alternarCamara());
+        void this.conAviso(() => (this.lastEstado.camara ? this.motor.alternarCamara() : this.encenderCamara()));
       },
       girarCamara: () => void this.girarCamara(),
       alternarPantalla: () => {
@@ -505,7 +533,7 @@ export class AdaptadorMotor {
         this.motor.colgar("Has terminado la llamada para todos.");
       },
       elegirSalidaAudio: (id) => this.motor.cambiarAltavoz(id),
-      elegirCamara: (id) => void this.conAviso(() => this.motor.cambiarCamara(id)),
+      elegirCamara: (id) => void this.conAviso(() => this.elegirCamara(id)),
       elegirMicro: this.motor.cambiarMicro ? (id) => void this.conAviso(() => this.motor.cambiarMicro!(id)) : undefined,
       actualizarDispositivos: this.motor.actualizarDispositivos ? () => void this.motor.actualizarDispositivos!() : undefined,
       descartar: () => undefined,
@@ -514,6 +542,109 @@ export class AdaptadorMotor {
 
   private miNombre(): string {
     return this.lastEstado.participantes.find((p) => p.yo)?.nombre ?? "Alguien";
+  }
+
+  /* ── LLA1110C: encender la cámara con la buena elegida, decir siempre por qué no se encendió ── */
+
+  private anotarCamara(t: string) {
+    try {
+      this.deps.anotar?.(`camara ${t}`.slice(0, 195));
+    } catch {
+      /* el registro no tumba la llamada */
+    }
+  }
+
+  private pistaLocal(): MediaStreamTrack | null {
+    try {
+      return this.motor.estado().participantes.find((p) => p.yo)?.stream?.getVideoTracks()[0] ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Corre una acción del motor que puede no volver nunca (WKWebView esperando a la cámara de Continuidad). */
+  private async conPlazo(f: () => Promise<string | null>, ms: number, que: string): Promise<string | null> {
+    let fin: ((v: string | null) => void) | null = null;
+    const plazo = new Promise<string | null>((r) => {
+      fin = r;
+    });
+    const id = setTimeout(() => fin?.(`__plazo__`), ms);
+    const r = await Promise.race([f().catch((e: unknown) => (e instanceof Error ? e.message : "falló")), plazo]);
+    clearTimeout(id);
+    if (r === "__plazo__") {
+      this.anotarCamara(`sin-respuesta ${que} ms=${ms}`);
+      return `La cámara no responde (${que}). Si es la del iPhone, desbloquéalo o elige la de este aparato en Calidad › Cámara.`;
+    }
+    return r;
+  }
+
+  /**
+   * Antes de abrir nada se elige la cámara con lo que ya se sabe (guardada › integrada), así el aparato no decide solo
+   * (macOS da la Desk View del iPhone si está cerca). Si no se sabía (sin etiquetas hasta el permiso) y el sistema
+   * abrió Continuidad o una virtual habiendo integrada, se cambia apagando primero (WebKit no abre dos cámaras a la vez).
+   */
+  async encenderCamara(): Promise<string | null> {
+    const e = this.motor.estado();
+    const lista = describirCamaras(e.dispositivos.camaras);
+    const pref = this.deps.preferenciaCamara?.() ?? null;
+    const eleccion = camaraParaEncender(lista, e.seleccion.camaraId, pref);
+    const pedida = lista.find((c) => c.id === eleccion.id) ?? null;
+    this.anotarCamara(`pedida lista=${textoListaCamaras(lista) || "vacia"} elegir=${pedida ? `"${(pedida.etiqueta || pedida.nombre).slice(0, 30)}"` : "sistema"} motivo=${eleccion.motivo} restr=${eleccion.id ? "deviceId-exacto" : "facingMode-user"}`);
+    if (eleccion.id && eleccion.id !== e.seleccion.camaraId) {
+      // Con la cámara apagada, el motor solo apunta la elegida (y la recuerda); la abrirá al encender.
+      const err = await this.motor.cambiarCamara(eleccion.id).catch(() => null);
+      if (err) this.anotarCamara(`fallo-elegir="${err.replace(/"/g, "'").slice(0, 80)}"`);
+    }
+    const espera = this.deps.esperaCamaraMs ?? 12_000;
+    const t0 = this.ahora();
+    const err = await this.conPlazo(() => this.motor.alternarCamara(), espera, "al abrir");
+    if (err) {
+      this.anotarCamara(`fallo ms=${this.ahora() - t0} error="${err.replace(/"/g, "'").slice(0, 110)}"`);
+      return err;
+    }
+    await this.motor.actualizarDispositivos?.().catch(() => undefined);
+    const e2 = this.motor.estado();
+    const pista = this.pistaLocal();
+    const lista2 = describirCamaras(e2.dispositivos.camaras);
+    const etiqueta = pista?.label ?? "";
+    const abierta = lista2.find((c) => c.id === e2.seleccion.camaraId) ?? lista2.find((c) => c.etiqueta && c.etiqueta === etiqueta) ?? null;
+    const ajustes = (() => {
+      try {
+        const st = pista?.getSettings?.();
+        return st?.width ? `${st.width}x${st.height}` : "?";
+      } catch {
+        return "?";
+      }
+    })();
+    this.anotarCamara(`abierta ${lineaCamaraElegida(abierta ?? { etiqueta, nombre: etiqueta || "?", tipo: clasificarCamara(etiqueta) }, eleccion.motivo === "seleccionada" ? "pedida" : eleccion.id ? eleccion.motivo : "sistema").replace(/^camara /, "")} ms=${this.ahora() - t0} ajustes=${ajustes} estado=${pista?.readyState ?? "sin-pista"}${pista?.muted ? "/muda" : ""}`);
+    // Lo abrió el sistema (sin elección): si es Continuidad/virtual y hay integrada, se corrige en serie.
+    if (eleccion.motivo !== "seleccionada" && eleccion.motivo !== "guardada") {
+      const mejor = correccionTrasAbrir(lista2, { id: e2.seleccion.camaraId, etiqueta }, pref);
+      if (mejor) {
+        this.anotarCamara(`corrige de="${etiqueta.slice(0, 40)}" a="${mejor.etiqueta.slice(0, 40)}" (apagar y abrir en serie)`);
+        const off = await this.motor.alternarCamara().catch(() => "falló al apagar");
+        if (!off) {
+          await this.motor.cambiarCamara(mejor.id).catch(() => null);
+          const on = await this.conPlazo(() => this.motor.alternarCamara(), espera, "al corregir");
+          if (on) {
+            this.anotarCamara(`corrige-fallo error="${on.replace(/"/g, "'").slice(0, 100)}"`);
+            return `No se pudo pasar a ${mejor.nombre}: ${on}`;
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  /** Elegir en el selector: se apunta y, con la cámara encendida, se cambia en vivo sin colgar. */
+  private async elegirCamara(id: string): Promise<string | null> {
+    const lista = describirCamaras(this.motor.estado().dispositivos.camaras);
+    const c = lista.find((x) => x.id === id);
+    this.anotarCamara(`selector elige="${(c?.etiqueta || c?.nombre || id).slice(0, 40)}" (${c?.tipo ?? "?"}) encendida=${this.lastEstado.camara ? "si" : "no"}`);
+    const err = await this.conPlazo(() => this.motor.cambiarCamara(id), this.deps.esperaCamaraMs ?? 12_000, "al cambiar");
+    if (err) this.anotarCamara(`selector-fallo error="${err.replace(/"/g, "'").slice(0, 110)}"`);
+    else if (this.lastEstado.camara) this.anotarCamara(`selector abierta="${(this.pistaLocal()?.label ?? "?").slice(0, 40)}"`);
+    return err ? `No se pudo cambiar de cámara: ${err}` : null;
   }
 
   /* ── Cámara frontal/trasera ── */
@@ -573,7 +704,7 @@ export class AdaptadorMotor {
         if (est().camara) await fallo(() => this.motor.alternarCamara());
       } else if (a === "video") {
         if (est().pantalla) await fallo(() => this.motor.alternarPantalla());
-        if (!est().camara) await fallo(() => this.motor.alternarCamara());
+        if (!est().camara) await fallo(() => this.encenderCamara());
       } else if (a === "pantalla") {
         if (!est().pantalla) await fallo(() => this.motor.alternarPantalla());
       }
@@ -860,7 +991,12 @@ export class AdaptadorMotor {
     const reconectando = otros.length > 0 && otros.every((p) => p.conexion === "reconectando" || p.conexion === "fallida");
     const estado = estadoDesdeFase(e, esCreador, this.enEspera, reconectando);
     const fin = finDesdeEstado(e, esCreador, this.deps.unoAUno);
-    const foco: ParticipanteLlamada | null = otros.find((p) => p.pantalla && p.stream) ?? otros.find((p) => p.id === e.hablante && p.stream) ?? otros.find((p) => p.camara && p.stream) ?? otros.find((p) => p.stream) ?? null;
+    // LLA1110C: el vídeo ligero pinta pero el motor no pasa su lienzo porque WebRTC negoció una pista de vídeo que no
+    // trae imagen (sin ruta IP: llega «muted»). Entonces se enseña el lienzo, nunca un <video> negro.
+    const ligero = e.videoDatos?.recibiendo && !otros.some((p) => p.lienzo) ? (this.deps.lienzoLigero ?? (() => lienzoLigeroReciente<HTMLCanvasElement>()))() : null;
+    const conLienzo = (p: ParticipanteLlamada): HTMLCanvasElement | null => p.lienzo ?? (ligero && !streamTraeVideo(p.stream) && p === otros.find((o) => !streamTraeVideo(o.stream)) ? ligero : null);
+    const tieneImagen = (p: ParticipanteLlamada) => !!conLienzo(p) || !!p.stream;
+    const foco: ParticipanteLlamada | null = otros.find((p) => p.pantalla && tieneImagen(p)) ?? otros.find((p) => p.id === e.hablante && tieneImagen(p)) ?? otros.find((p) => p.camara && tieneImagen(p)) ?? otros.find((p) => tieneImagen(p)) ?? null;
     const ctx = this.contextoMatriz(e);
     const nombre = this.deps.unoAUno ? (otros[0]?.nombre ?? this.deps.titulo) : this.deps.titulo;
     const metricas = this.motor.metricasPares?.() ?? [];
@@ -887,7 +1023,7 @@ export class AdaptadorMotor {
       nombre: p.nombre,
       yo: p.yo,
       stream: p.stream,
-      lienzo: p.lienzo ?? null,
+      lienzo: p.yo ? null : conLienzo(p),
       micro: p.micro && !this.silenciados.has(p.id),
       camara: p.camara,
       volumen: this.silenciados.has(p.id) ? 0 : (this.volumenes[p.id] ?? 1),
@@ -907,7 +1043,7 @@ export class AdaptadorMotor {
       aviso: this.aviso ?? e.aviso,
       local: yo?.stream ?? null,
       remoto: foco?.stream ?? null,
-      remotoLienzo: foco?.lienzo ?? null,
+      remotoLienzo: foco ? conLienzo(foco) : null,
       micro: e.micro,
       camara: e.camara,
       compartiendoPantalla: e.pantalla,
