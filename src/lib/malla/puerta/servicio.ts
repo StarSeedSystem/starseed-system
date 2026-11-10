@@ -14,6 +14,8 @@ import { capaDeDestino, capasAnunciables, destinoNecesitaCapa, detectarCapas, ty
 import { fuentesCapasReales, vecinosLanReales } from "@/lib/malla/puerta/capas-fuentes"; // PTA1108C
 import {
   AJUSTES_PUERTA_POR_DEFECTO,
+  ambitoDePuerta, // PTA1110B
+  type AjusteGrupo, // PTA1110B
   guardarAjustesPuerta,
   leerAjustesPuerta,
   type AjustesPuerta,
@@ -22,6 +24,7 @@ import {
 } from "@/lib/malla/puerta/politica";
 import { crearGestorPuerta, type ActividadSesion, type AuditoriaPuerta, type CarrilVista, type GestorPuerta, type InfoGrande, type MetaVecino, type Pregunta, type ResumenCompartiendo, type Trama, type TransportePuerta } from "@/lib/malla/puerta/tunel";
 import { AvisosRuta, type AvisoRuta } from "@/lib/malla/puerta/actividad"; // PTA1110A
+import { DecisorRol, textoCambioRol, type RolMalla } from "@/lib/malla/puerta/roles"; // PTA1110B
 import { nodosIaPorMalla, type NodoIaMalla } from "@/lib/malla/puerta/ia"; // PTA1110A
 import { carrilPermitido, type EleccionGrande } from "@/lib/malla/puerta/politica"; // PTA1110A
 import { registrarRespaldoFetch } from "@/lib/malla/puerta/fetch-puerta";
@@ -47,6 +50,10 @@ export interface PreguntaPendiente {
   de: string;
   nombre: string;
   host: string;
+  /** PTA1110B · Con qué ámbito pide (grupo, pública, otra cuenta) y por qué se pregunta. */
+  ambito?: "mias" | "grupo" | "otras" | "publica";
+  grupo?: string;
+  motivo?: "otra-cuenta" | "datos-moviles" | "puerto";
 }
 
 export interface EstadoServicioPuerta {
@@ -57,7 +64,7 @@ export interface EstadoServicioPuerta {
   conInternet: boolean;
   puertas: PuertaVista[];
   /** «Internet por …» cuando hay un túnel propio abierto. */
-  internetPor: { nombre: string; enlace: string; saltos: number } | null;
+  internetPor: { nombre: string; enlace: string; saltos: number; /** PTA1110B · primer salto de la cadena (si hay saltos) */ vecino?: string } | null;
   compartiendo: Array<ResumenCompartiendo & { nombre: string }>;
   auditoria: AuditoriaPuerta[];
   bytesHoy: { mias: number; otras: number };
@@ -81,12 +88,19 @@ export interface EstadoServicioPuerta {
   preguntaGrande: (InfoGrande & { nombre: string }) | null;
   /** PTA1110A · IA de otras neuronas de mi cuenta alcanzable por la malla (para el router de Astraura). */
   iaPorMalla: NodoIaMalla[];
+  /** PTA1110B · Papel actual: comparte su salida («puerta»), usa la de otra («usuaria») o ninguna («sola»). */
+  rol: RolMalla | null;
+  /** PTA1110B · La salida propia es una red medida (datos móviles) y cuántos bytes se sirvieron hoy por ella. */
+  movil: { medida: boolean; bytesHoy: number };
+  /** PTA1110B · Ámbito con el que se usa la puerta elegida (para mostrar «Internet por: … (mi neurona / grupo / pública)»). */
+  ambitoUso: "mias" | "grupo" | "publica" | null;
 }
 
 const VACIO: EstadoServicioPuerta = {
   activo: false, nativo: false, conInternet: true, puertas: [], internetPor: null, compartiendo: [], auditoria: [],
   bytesHoy: { mias: 0, otras: 0 }, preguntas: [], ajustes: AJUSTES_PUERTA_POR_DEFECTO, proxyLocal: null, capasPropias: [],
   actividad: [], carriles: [], bytesPorSegundo: null, avisos: [], preguntaUso: null, preguntaGrande: null, iaPorMalla: [],
+  rol: null, movil: { medida: false, bytesHoy: 0 }, ambitoUso: null,
 };
 
 let estado: EstadoServicioPuerta = VACIO;
@@ -185,6 +199,19 @@ export function cambiarAjustesPuerta(f: (a: AjustesPuerta) => AjustesPuerta): vo
   guardarAjustesPuerta(aj);
   publicar({ ajustes: aj });
   gestorVivo?.anunciar();
+}
+
+/**
+ * PTA1110B · Ajusta (o crea) un grupo o comunidad: «Compartir internet con este grupo» / «Usar el de este grupo» y los miembros
+ * que esta neurona conoce (la lista que guardó cuando hubo red; sin prueba criptográfica offline todavía, ver §5.3).
+ * Lo llaman las páginas de grupos y comunidades; la tarjeta «Internet compartido» lo lista.
+ */
+export function configurarGrupo(id: string, parche: Partial<AjusteGrupo>): void {
+  if (!id || id.length > 80) return;
+  cambiarAjustesPuerta((a) => {
+    const previo: AjusteGrupo = a.grupos[id] ?? { compartir: "preguntar", usar: "preguntar", miembros: [], topes: { bytesDia: 500 * 1024 * 1024, bateriaMin: 0.3, permitirRedMedida: false, maxTuneles: 6 } };
+    return { ...a, grupos: { ...a.grupos, [id]: { ...previo, ...parche, miembros: [...new Set(parche.miembros ?? previo.miembros)].slice(0, 500) } } };
+  });
 }
 
 /** PTA1108C · Permiso explícito (o su retirada) de capas privadas para UNA neurona de otra cuenta. */
@@ -316,6 +343,7 @@ export function iniciarPuertaMalla(op: OpcionesServicio = {}): () => void {
       if (sincroProxy) bajas.push(() => void sincroProxy.detener());
       const gestorTabla = new TablaPuertas(() => Date.now(), yo);
       const estadoPropio = (): EstadoPropio => ({ conInternet: sonda.conInternet, ...fisico });
+      const decisor = new DecisorRol(); // PTA1110B: papeles que cambian solos, sin parpadeo
 
       const gestor = crearGestorPuerta({
         transporte,
@@ -325,16 +353,19 @@ export function iniciarPuertaMalla(op: OpcionesServicio = {}): () => void {
         estado: estadoPropio,
         anuncioPropio: () => {
           const e = estadoPropio();
-          const comparteAlguien = aj.misNeuronas || aj.otrasCuentas !== "nunca";
+          // PTA1110B: también si solo se ofrece a algún grupo o a la capa pública.
+          const comparteAlguien = aj.misNeuronas || aj.otrasCuentas !== "nunca" || aj.publica.ofrecer || Object.values(aj.grupos).some((g) => g.compartir !== "nunca");
           if (!nativo) return null;
           // PTA1108C: además de internet, las capas privadas que el dueño comparte (aunque esta neurona no tenga internet).
           const detalle = capasAnunciables(aj, capasDetectadas);
           const capas: CapaSalida[] = e.conInternet && comparteAlguien ? ["internet"] : [];
           if (!capas.length && !detalle.length) return null;
-          return crearAnuncioPropio({ id: yo, uid: miCuenta ?? undefined, capas, detalle, latenciaMs: sonda.latenciaMs, estado: e, f: transporte.enviarBin ? ["cap", "bin"] : ["cap"], ahora: Date.now() });
+          return crearAnuncioPropio({ id: yo, uid: miCuenta ?? undefined, capas, detalle, latenciaMs: sonda.latenciaMs, estado: e, op: aj.publica.ofrecer, f: transporte.enviarBin ? ["cap", "bin"] : ["cap"], ahora: Date.now() });
         },
         capasPropias: () => capasDetectadas, // PTA1108C
         hostsStarSeed: () => hostsStarSeed(), // PTA1110A
+        miCuenta: () => miCuenta, // PTA1110B
+        usoConfirmado: () => usoSesion === "si", // PTA1110B: grupos en «Preguntar»
         alGrande: (info) =>
           new Promise((res) => {
             resGrande = res;
@@ -342,10 +373,10 @@ export function iniciarPuertaMalla(op: OpcionesServicio = {}): () => void {
             registrarPuerta(`grande ${info.tipo} ${info.host} ${Math.round(info.kbps)} kb/s: se pregunta`);
           }),
         abrirTcp: nativo ? crearAbrirTcpLocal(post) : undefined,
-        preguntar: (s: Solicitante, host: string) =>
+        preguntar: (s: Solicitante, host: string, motivo?: "otra-cuenta" | "datos-moviles" | "puerto") =>
           new Promise<Pregunta>((res) => {
             const id = `${s.id}:${Date.now()}`;
-            const p: PreguntaPendiente = { id, de: s.id, nombre: nombres(s.id), host };
+            const p: PreguntaPendiente = { id, de: s.id, nombre: nombres(s.id), host, ambito: s.ambito, ...(s.grupo ? { grupo: aj.grupos[s.grupo]?.nombre ?? s.grupo } : {}), motivo: motivo ?? (host.includes(":") ? "puerto" : "otra-cuenta") };
             preguntas.set(id, { p, res });
             publicar({ preguntas: [...preguntas.values()].map((x) => x.p) });
             setTimeout(() => responderPregunta(id, "denegar"), 28_000);
@@ -363,7 +394,7 @@ export function iniciarPuertaMalla(op: OpcionesServicio = {}): () => void {
         publicar({
           puertas,
           conInternet: sonda.conInternet,
-          internetPor: propio ? { nombre: nombres(propio.puerta), enlace: propio.enlace, saltos: propio.saltos } : null,
+          internetPor: propio ? { nombre: nombres(propio.puerta), enlace: propio.enlace, saltos: propio.saltos, ...(propio.saltos > 0 && propio.vecino ? { vecino: nombres(propio.vecino) } : {}) } : null,
           compartiendo: gestor.compartiendo().map((c) => ({ ...c, nombre: nombres(c.de) })),
           auditoria: gestor.auditoria().slice(-20).reverse(),
           bytesHoy: { mias: gestor.bytesHoy("mias"), otras: gestor.bytesHoy("otras") },
@@ -373,8 +404,19 @@ export function iniciarPuertaMalla(op: OpcionesServicio = {}): () => void {
           carriles: gestor.carriles(),
           bytesPorSegundo: velocidadDeRuta(propio?.puerta),
           iaPorMalla: nodosIaPorMalla(puertas),
+          // PTA1110B
+          rol: decisor.actual(),
+          movil: { medida: fisico.medida, bytesHoy: gestor.bytesHoyMovil() },
+          ambitoUso: propio ? ambitoUsoDe(propio.puerta) : null,
         });
         sincronizarProxy(); // PTA1108B
+      };
+      const ctxAmbito = () => ({ miCuenta, vecinoMismaCuenta: (id: string) => meta(id).mismaCuenta });
+      const ambitoUsoDe = (puerta: string): "mias" | "grupo" | "publica" | null => {
+        const e = gestorTabla.candidatas().find((x) => x.anuncio.id === puerta);
+        if (!e) return null;
+        const r = ambitoDePuerta(aj, e, ctxAmbito());
+        return r.ambito === "otras" ? "publica" : r.ambito;
       };
       /** PTA1110A · bytes/s medidos en el carril hacia la puerta por la que sale esta neurona. */
       const velocidadDeRuta = (puerta: string | undefined): number | null => {
@@ -425,13 +467,24 @@ export function iniciarPuertaMalla(op: OpcionesServicio = {}): () => void {
         }
         await refrescar();
         // PTA1110A · solo por los carriles permitidos; «Usar el internet de mis neuronas»: Automático / Preguntar / Nunca.
-        const candidatas = gestorTabla.candidatas({ filtro: (e) => carrilPermitido(aj, e.tipoEnlace, e.enlace) });
+        // PTA1110B: además, solo las puertas cuyo ÁMBITO deja usar el usuario (mías, grupos con «Usar», públicas si «Usar puertas públicas»).
+        const evaluadas = gestorTabla.candidatas({ filtro: (e) => carrilPermitido(aj, e.tipoEnlace, e.enlace) }).map((e) => ({ e, r: ambitoDePuerta(aj, e, ctxAmbito()) })).filter((x) => x.r.permitido);
+        const candidatas = evaluadas.map((x) => x.e);
         if (sonda.conInternet) usoSesion = "desconocido";
-        let usar = nativo && aj.usarPuertas && aj.modoUso !== "nunca" && !sonda.conInternet && candidatas.length > 0;
-        if (usar && aj.modoUso === "preguntar" && usoSesion !== "si") {
+        // Papel: recuperar la salida propia es inmediato; perderla espera la permanencia (sin parpadeos).
+        const rolNuevo = decisor.observar({ conInternet: sonda.conInternet, hayPuertas: candidatas.length > 0 }, Date.now());
+        if (rolNuevo.cambio) {
+          registrarPuerta(`rol: ${textoCambioRol(rolNuevo.cambio, rolNuevo.antes)}`);
+          // Dejó de ser puerta: lo que servía hacia fuera se corta YA y las vecinas borran su ruta (fallo rápido, ruta nueva).
+          if (rolNuevo.antes === "puerta") gestor.salidaPerdida();
+          else if (rolNuevo.cambio === "a-puerta") gestor.anunciar();
+        }
+        let usar = nativo && aj.usarPuertas && aj.modoUso !== "nunca" && rolNuevo.rol !== "puerta" && candidatas.length > 0;
+        const pregunta = evaluadas.find((x) => x.r.preguntar);
+        if (usar && pregunta && usoSesion !== "si" && evaluadas.every((x) => x.r.preguntar)) {
           usar = false;
           if (usoSesion === "desconocido" && !resUso) {
-            const nombre = nombres(candidatas[0].anuncio.id);
+            const nombre = nombres(pregunta.e.anuncio.id);
             publicar({ preguntaUso: { nombre } });
             void new Promise<boolean>((res) => (resUso = res));
           }

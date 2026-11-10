@@ -34,6 +34,8 @@ export interface AnuncioPuerta {
   cargando: boolean;
   /** Puerta pública de StarSeed o router declarado público. */
   publica?: boolean;
+  /** PTA1110B · Esta neurona OFRECE su internet a cualquier neurona StarSeed cercana («capa pública», apagada por defecto). */
+  op?: boolean;
   /** PTA1110A · Capacidades de transporte que entiende esa neurona ("cap" = ventana por capacidad y reparto justo; "bin" = trozos binarios). Se confirman por túnel en `abrir`/`ok`. */
   f?: string[];
   /** 0 = anuncio directo de la dueña de la salida. */
@@ -74,6 +76,8 @@ export function crearAnuncioPropio(p: {
   anchoKbps?: number | null;
   estado: EstadoPropio;
   publica?: boolean;
+  /** PTA1110B */
+  op?: boolean;
   /** PTA1110A */
   f?: string[];
   ahora: number;
@@ -92,6 +96,7 @@ export function crearAnuncioPropio(p: {
     bateria: p.estado.bateria,
     cargando: p.estado.cargando,
     publica: p.publica,
+    ...(p.op ? { op: true } : {}),
     ...(p.f?.length ? { f: p.f.slice(0, 4) } : {}),
     saltos: 0,
     via: [p.id],
@@ -123,6 +128,7 @@ export function leerAnuncio(x: unknown): AnuncioPuerta | null {
     bateria: typeof o.bateria === "number" && o.bateria >= 0 && o.bateria <= 1 ? o.bateria : null,
     cargando: o.cargando === true,
     publica: o.publica === true ? true : undefined,
+    ...(o.op === true ? { op: true } : {}),
     ...(Array.isArray(o.f) ? { f: o.f.filter((x): x is string => typeof x === "string" && /^[a-z]{1,8}$/.test(x)).slice(0, 4) } : {}),
     saltos,
     via,
@@ -222,6 +228,12 @@ export class TablaPuertas {
 
   quitar(id: string): void {
     this.entradas.delete(id);
+  }
+
+  /** PTA1110B · Vecina por la que se llega ahora a esa puerta (`null` si no hay ruta viva). */
+  vecinoDe(id: string): string | null {
+    const e = this.entradas.get(id);
+    return e && this.vigente(e) ? e.vecino : null;
   }
 
   /** Candidatas ordenadas de mejor a peor. */

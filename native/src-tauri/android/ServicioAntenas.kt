@@ -2,6 +2,13 @@
 // Contrato: architecture/apps-nativas-segundo-plano.md §2.3.
 package app.starseed.nativa
 
+import android.app.Activity
+import android.app.Application
+import android.os.Bundle
+import android.view.View
+import android.view.ViewGroup
+import android.webkit.WebView
+import java.lang.ref.WeakReference
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -83,6 +90,7 @@ class ServicioAntenas : Service() {
         vivo = true
         motivo = "Antenas activas también con la app cerrada."
         PuenteNativo.arrancarGuardian(this)
+        PuertaSegundoPlano.encender(this) // PTA1110B: la puerta de internet sigue sirviendo con la pantalla apagada
         tomarMulticast()
         vigilarResumen()
         Archivos.escribirServicio(this, true, motivo)
@@ -91,6 +99,7 @@ class ServicioAntenas : Service() {
 
     override fun onDestroy() {
         vivo = false
+        PuertaSegundoPlano.apagar() // PTA1110B
         if (motivo.startsWith("Antenas activas")) motivo = "Servicio detenido."
         try {
             multicast?.release()
@@ -171,5 +180,94 @@ class ServicioAntenas : Service() {
         val piDetener = PendingIntent.getService(this, 1, detener, flags)
         b.addAction(Notification.Action.Builder(null as Icon?, "Detener", piDetener).build())
         return b.build()
+    }
+}
+
+/**
+ * PTA1110B · Android como PUERTA con la pantalla apagada. El gestor de túneles vive en la página (WebView), y con la app atrás o
+ * la pantalla apagada Android pausa los temporizadores del WebView aunque ServicioAntenas mantenga vivo el proceso: la puerta
+ * dejaría de servir. Mientras el servicio de antenas esté en marcha, este latido reanuda el WebView de la actividad
+ * (`onResume` + `resumeTimers`, lo mismo que hace LlamadaNativaStarSeed durante una llamada). Si no se puede, el servicio en
+ * primer plano sigue sosteniendo el proceso y no pasa nada peor que antes. Sin WakeLock.
+ */
+object PuertaSegundoPlano : Application.ActivityLifecycleCallbacks {
+    private val principal = Handler(Looper.getMainLooper())
+    private var actual: WeakReference<Activity>? = null
+    private var registrado = false
+    @Volatile private var activo = false
+    private val latido = object : Runnable {
+        override fun run() {
+            if (!activo) return
+            reanudar()
+            principal.postDelayed(this, 15_000)
+        }
+    }
+
+    fun encender(ctx: Context) {
+        if (activo) return
+        activo = true
+        try {
+            val app = ctx.applicationContext as? Application
+            if (app != null && !registrado) {
+                app.registerActivityLifecycleCallbacks(this)
+                registrado = true
+            }
+        } catch (e: Exception) {
+            // sin latido por actividad: queda el servicio en primer plano
+        }
+        principal.postDelayed(latido, 15_000)
+    }
+
+    fun apagar() {
+        activo = false
+        principal.removeCallbacks(latido)
+    }
+
+    private fun buscarWeb(v: View?): WebView? {
+        if (v is WebView) return v
+        if (v is ViewGroup) {
+            for (k in 0 until v.childCount) {
+                val w = buscarWeb(v.getChildAt(k))
+                if (w != null) return w
+            }
+        }
+        return null
+    }
+
+    private fun reanudar() {
+        try {
+            val a = actual?.get() ?: return
+            val w = buscarWeb(a.window?.decorView) ?: return
+            w.onResume()
+            w.resumeTimers()
+        } catch (e: Exception) {
+            // nada que reanudar
+        }
+    }
+
+    override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {
+        actual = WeakReference(activity)
+    }
+
+    override fun onActivityStarted(activity: Activity) {
+        actual = WeakReference(activity)
+    }
+
+    override fun onActivityResumed(activity: Activity) {
+        actual = WeakReference(activity)
+    }
+
+    override fun onActivityPaused(activity: Activity) {
+        if (activo) principal.postDelayed({ reanudar() }, 300)
+    }
+
+    override fun onActivityStopped(activity: Activity) {
+        if (activo) principal.postDelayed({ reanudar() }, 300)
+    }
+
+    override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) {}
+
+    override fun onActivityDestroyed(activity: Activity) {
+        if (actual?.get() === activity) actual = null
     }
 }

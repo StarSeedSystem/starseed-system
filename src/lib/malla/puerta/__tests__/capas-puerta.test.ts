@@ -74,10 +74,11 @@ function red() {
           n.aj = f(n.aj);
         },
         estado: () => est,
+        miCuenta: () => cuenta.get(id) ?? null, // PTA1110B
         // Se anuncia solo lo que el dueño comparte, como hace el servicio real.
         anuncioPropio: () => {
           const detalle = capasAnunciables(n.aj, capas);
-          return crearAnuncioPropio({ id, capas: est.conInternet ? ["internet"] : [], detalle, latenciaMs: 20, estado: est, ahora: Date.now() });
+          return crearAnuncioPropio({ id, uid: cuenta.get(id), capas: est.conInternet ? ["internet"] : [], detalle, latenciaMs: 20, estado: est, ahora: Date.now() });
         },
         capasPropias: () => capas,
         abrirTcp: o.tcp
@@ -208,7 +209,7 @@ describe("política aplicada en la puerta", () => {
   it("otra cuenta nunca llega a mis servidores sin permiso explícito; con él, sí", async () => {
     const r = red();
     r.cuenta("ajena", "otra");
-    const ajena = listo(r.nodo("ajena"));
+    const ajena = listo(r.nodo("ajena", { aj: { publica: { ...AJUSTES_PUERTA_POR_DEFECTO.publica, usar: true } } })); // PTA1110B: otra cuenta sin grupo = puerta pública para quien la usa
     const casa = listo(r.nodo("casa", { tcp: true, est: CON, capas: [SRV] }));
     r.enlazar("ajena", "casa");
     await pausa(60);

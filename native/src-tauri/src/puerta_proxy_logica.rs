@@ -225,12 +225,13 @@ pub fn capacidad_estatica(os: &str, macos_mayor: Option<u32>, desactivado: bool)
     match os {
         "macos" => match macos_mayor {
             Some(v) if v >= 14 => Capacidad { soportado: true, plataforma: os.into(), motivo: None },
-            Some(_) => no("Hace falta macOS 14 (Sonoma) o más nuevo para llevar el navegador de la app por la malla."),
+            Some(_) => no("Hace falta macOS 14 (Sonoma) o más nuevo para llevar el navegador de la app (páginas externas, imágenes, iframes) por la malla. Los datos de StarSeed y las descargas de la app sí salen por la puerta."),
             None => no("No se pudo comprobar la versión de macOS."),
         },
         // Kotlin confirma con WebViewFeature.PROXY_OVERRIDE; mientras no conteste se da por posible.
         "android" => Capacidad { soportado: true, plataforma: os.into(), motivo: None },
-        "windows" => no("En Windows el navegador de la app todavía no puede salir por la malla; las descargas de la app sí."),
+        // WIN1109B: la pasarela local lo hace posible; `capacidad_actual` lo confirma cuando quedó instalada. Mientras no, el motivo es este.
+        "windows" => no("En este Windows el navegador de la app no quedó conectado a la malla (la pasarela local no está activa); los datos de StarSeed y las descargas de la app sí salen por la puerta."),
         // LNX1109B: WebKitGTK `WebsiteDataManager::set_network_proxy_settings` (webkit2gtk-4.1), en caliente.
         "linux" => Capacidad { soportado: true, plataforma: os.into(), motivo: None },
         _ => no("Este sistema no puede llevar el navegador de la app por la malla."),

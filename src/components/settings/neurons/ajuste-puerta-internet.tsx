@@ -17,6 +17,8 @@ import type { ModoOtrasCuentas } from "@/lib/malla/puerta/politica";
 import { cambiarAjustesPuerta, estadoPuerta, pararDeCompartir, permitirCapasANeurona, responderPregunta, revocarVecina, suscribirPuerta } from "@/lib/malla/puerta/servicio";
 import type { CapaPuerta, TipoCapa } from "@/lib/malla/puerta/capas"; // PTA1108C
 import { AjusteUsoMalla } from "@/components/settings/neurons/ajuste-puerta-uso"; // PTA1110A
+import { AjusteAmbitosMalla } from "@/components/settings/neurons/ajuste-puerta-ambitos"; // PTA1110B
+import { textoCadena } from "@/lib/malla/puerta/roles"; // PTA1110B
 
 const NOMBRE_CAPA: Record<TipoCapa, string> = { "servidor-propio": "Servidor propio", lan: "Red local", "router-publico": "Router", "ia-neurona": "IA de esta neurona" };
 
@@ -56,8 +58,8 @@ export function AjustePuertaInternet() {
       <CardContent className="space-y-3 text-sm">
         {s.internetPor ? (
           <p className="rounded-lg border border-[#39FF14]/30 bg-[#39FF14]/5 px-3 py-2 text-emerald-200" data-testid="internet-por">
-            Internet por: <strong>{s.internetPor.nombre}</strong> (vía {s.internetPor.enlace}
-            {s.internetPor.saltos ? `, ${s.internetPor.saltos} ${s.internetPor.saltos === 1 ? "salto" : "saltos"}` : ""})
+            Internet por: <strong>{textoCadena(s.internetPor)}</strong>
+            {s.ambitoUso === "grupo" ? " · puerta de un grupo" : s.ambitoUso === "publica" ? " · puerta pública" : ""}
           </p>
         ) : !s.conInternet ? (
           <p className="rounded-lg border border-amber-400/30 px-3 py-2 text-amber-200" data-testid="sin-salida">
@@ -95,6 +97,9 @@ export function AjustePuertaInternet() {
 
         {/* PTA1110A · Usar el internet de mis neuronas: modo, usos, carriles, puertos y topes (sustituye al interruptor único). */}
         <AjusteUsoMalla a={a} />
+
+        {/* PTA1110B · Datos móviles, grupos y comunidades, y capa pública. */}
+        <AjusteAmbitosMalla a={a} esMovil={s.movil?.medida === true} />
 
         {/* PTA1108C · Capas distintas de internet: servidores propios, red local y routers. */}
         <fieldset className="space-y-2" aria-label="Otras capas de red que comparte esta neurona" data-testid="capas-puerta">
@@ -142,7 +147,9 @@ export function AjustePuertaInternet() {
         {s.preguntas.map((p) => (
           <div key={p.id} className="space-y-2 rounded-lg border border-amber-400/40 bg-amber-400/5 px-3 py-2" role="alertdialog" aria-label="Petición de internet de otra cuenta">
             <p>
-              <strong>{p.nombre}</strong> (otra cuenta) quiere salir a internet por esta neurona hacia <code className="text-xs">{p.host}</code>.
+              <strong>{p.nombre}</strong>{" "}
+              ({p.ambito === "grupo" ? `del grupo ${p.grupo ?? ""}`.trim() : p.ambito === "publica" ? "neurona pública" : p.ambito === "mias" ? "mi cuenta" : "otra cuenta"}; id {p.de.slice(0, 8)}){" "}
+              {p.motivo === "datos-moviles" ? "quiere salir por tus DATOS MÓVILES" : "quiere salir a internet por esta neurona"} hacia <code className="text-xs">{p.host}</code>.
             </p>
             <div className="flex flex-wrap gap-2">
               <Button size="sm" className="cursor-pointer" onClick={() => responderPregunta(p.id, "permitir")}>Permitir esta vez</Button>
@@ -165,7 +172,7 @@ export function AjustePuertaInternet() {
               {s.compartiendo.map((c) => (
                 <li key={c.id} className="flex items-center justify-between gap-2">
                   <span>
-                    {c.nombre} · {c.rol === "rele" ? "pasando por aquí" : `hacia ${c.host}`} · {mib(c.bytes)} <Badge variant="outline">{c.grupo === "mias" ? "mi cuenta" : "otra cuenta"}</Badge>
+                    {c.nombre} · {c.rol === "rele" ? "pasando por aquí" : `hacia ${c.host}`} · {mib(c.bytes)} <Badge variant="outline">{c.grupo === "mias" ? "mi cuenta" : c.grupo === "grupo" ? `grupo ${a.grupos[c.grupoId ?? ""]?.nombre ?? c.grupoId ?? ""}`.trim() : c.grupo === "publica" ? "pública" : "otra cuenta"}</Badge>
                   </span>
                   {c.grupo === "otras" && c.rol === "puerta" && !a.capasPorNeurona[c.de] && (
                     <Button size="sm" variant="outline" className="cursor-pointer" onClick={() => permitirCapasANeurona(c.de, ["servidor-propio", "lan"])}>Permitir mis capas</Button>

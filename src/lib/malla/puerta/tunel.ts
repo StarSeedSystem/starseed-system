@@ -14,6 +14,11 @@
 import { aB64, deB64 } from "@/lib/malla/cifrado-archivo";
 import { hostInterno } from "@/lib/malla/puerta-internet";
 import {
+  PUERTOS_PUBLICA, // PTA1110B
+  ambitoDePuerta, // PTA1110B
+  ambitoEfectivo, // PTA1110B
+  topesDeAmbito, // PTA1110B
+  type Ambito, // PTA1110B
   carrilPermitido, // PTA1110A
   decidirServir,
   hostPermitidoParaOtras,
@@ -33,7 +38,8 @@ import { MAX_SALTOS, REANUNCIO_MS, TablaPuertas, leerAnuncio, reanunciar, type A
 
 export type Trama =
   | { k: "anuncio"; a: AnuncioPuerta }
-  | { k: "abrir"; s: string; host: string; port: number; ttl: number; via: string[]; de: string; mc: boolean; f?: string[] /* PTA1110A: capacidades que ofrece quien abre ("bin") */ }
+  | { k: "abrir"; s: string; host: string; port: number; ttl: number; via: string[]; de: string; mc: boolean; f?: string[] /* PTA1110A: capacidades que ofrece quien abre ("bin") */; am?: Ambito /* PTA1110B: ámbito declarado de quien pide (cada salto lo recorta a lo que sabe de su vecina) */; g?: string /* PTA1110B: grupo declarado */ }
+  | { k: "retira"; id: string } /* PTA1110B: la puerta `id` ya no tiene salida (cambio de rol): se borra de las tablas y se cierra lo que iba por ella */
   | { k: "esp"; s: string }
   | { k: "ok"; s: string; f?: string[] /* PTA1110A: las que acepta quien contesta */ }
   | { k: "err"; s: string; m: string }
@@ -82,7 +88,9 @@ export interface AuditoriaPuerta {
   host: string;
   puerto: number;
   bytes: number;
-  grupo: "mias" | "otras" | "publica";
+  grupo: "mias" | "otras" | "publica" | "grupo";
+  /** PTA1110B · id del grupo o comunidad cuando `grupo` es «grupo». */
+  grupoId?: string;
   resultado: string;
   ms: number;
 }
@@ -102,7 +110,7 @@ export interface DepsGestor {
   abrirTcp?: (host: string, port: number, o: { permitirPrivadas: boolean; concedido?: Concesion | null }) => Promise<SocketSalida>; // PTA1108C: `concedido` = lo único privado que Node puede abrir
   /** PTA1108C · Capas que esta neurona ofrece ahora (servidores propios, LAN, routers). Sin esto no se sirve nada privado. */
   capasPropias?: () => CapaPuerta[];
-  preguntar?: (s: Solicitante, host: string) => Promise<Pregunta>;
+  preguntar?: (s: Solicitante, host: string, motivo?: "otra-cuenta" | "datos-moviles" | "puerto") => Promise<Pregunta>; // PTA1110B: motivo
   ahora?: () => number;
   nuevoId?: () => string;
   esperar?: (ms: number) => Promise<void>;
@@ -114,6 +122,10 @@ export interface DepsGestor {
   ventana?: number;
   /** PTA1110A · Hosts propios del OS (su Supabase) para reconocer «datos de StarSeed». */
   hostsStarSeed?: () => string[];
+  /** PTA1110B · Cuenta de esta neurona (para reconocer puertas «mías» que llegan reenviadas). */
+  miCuenta?: () => string | null;
+  /** PTA1110B · Uso de una puerta de ámbito «Preguntar» (grupo): ¿el usuario ya dijo que sí? Sin esto se exige respuesta. */
+  usoConfirmado?: (puerta: string, ambito: Ambito, grupo?: string) => boolean;
   /** PTA1110A · Una descarga grande va por un carril lento: pregunta (una vez) qué hacer. Sin esto se continúa. */
   alGrande?: (i: InfoGrande) => Promise<{ eleccion: Exclude<EleccionGrande, "preguntar">; recordar: boolean }>;
 }
@@ -178,7 +190,9 @@ export interface ResumenCompartiendo {
   de: string;
   vecino: string;
   host: string;
-  grupo: "mias" | "otras" | "publica";
+  grupo: "mias" | "otras" | "publica" | "grupo";
+  /** PTA1110B */
+  grupoId?: string;
   rol: "puerta" | "rele";
   bytes: number;
   desde: number;
@@ -200,12 +214,17 @@ export interface GestorPuerta {
   compartiendo(): ResumenCompartiendo[];
   auditoria(): AuditoriaPuerta[];
   bytesHoy(grupo: "mias" | "otras"): number;
+  /** PTA1110B · Bytes servidos hoy a un ámbito: «mias», «otras», «publica» o «g:<id>»; y por datos móviles. */
+  bytesHoyDe(clave: string): number;
+  bytesHoyMovil(): number;
+  /** PTA1110B · Esta neurona perdió su salida: corta lo que servía hacia fuera y avisa a las vecinas (cambio de rol). */
+  salidaPerdida(): void;
   anunciar(): void;
   barrer(): void;
   iniciar(): void;
   detener(): void;
-  /** Túneles propios abiertos. */
-  tunelesPropios(): { puerta: string; enlace: string; saltos: number }[];
+  /** Túneles propios abiertos. `vecino` = primer salto (la neurona a la que se le habla directamente). */
+  tunelesPropios(): { puerta: string; enlace: string; saltos: number; vecino: string }[];
 }
 
 /* ───────────────────────── Constantes ───────────────────────── */
@@ -309,7 +328,13 @@ interface Sesion {
   host: string;
   puerto: number;
   bytes: number;
-  grupo: "mias" | "otras" | "publica";
+  /** Cubo de cuota: «mias», «otras», «publica» o «g:<id>» (PTA1110B). */
+  grupo: string;
+  /** PTA1110B */
+  ambito: Ambito;
+  grupoId?: string;
+  /** PTA1110B · salida a internet (no a una capa privada): se corta si esta neurona pierde su salida. */
+  haciaInternet?: boolean;
   desde: number;
   ultimo: number;
   socket?: SocketSalida;
@@ -352,7 +377,8 @@ export function crearGestorPuerta(deps: DepsGestor): GestorPuerta {
   const sesiones = new Map<string, Sesion>();
   const porLado = new Map<string, { s: Sesion; l: Lado }>();
   const ring: AuditoriaPuerta[] = [];
-  const uso = { dia: "", mias: 0, otras: 0 };
+  const uso = { dia: "", mias: 0, otras: 0, publica: 0, movil: 0, grupos: {} as Record<string, number> };
+  const metas = new Map<string, MetaVecino>(); // PTA1110B: lo último que se sabe de cada vecina
   let baja: (() => void) | null = null;
   let bajaBin: (() => void) | null = null; // PTA1110A
   let reloj: ReturnType<typeof setInterval> | null = null;
@@ -364,12 +390,27 @@ export function crearGestorPuerta(deps: DepsGestor): GestorPuerta {
       uso.dia = d;
       uso.mias = 0;
       uso.otras = 0;
+      uso.publica = 0;
+      uso.movil = 0;
+      uso.grupos = {};
     }
   };
-  const contar = (g: Sesion["grupo"], n: number): void => {
+  const usoDe = (g: string): number => (g === "mias" ? uso.mias : g === "publica" ? uso.publica : g.startsWith("g:") ? uso.grupos[g] ?? 0 : uso.otras);
+  const contar = (g: string, n: number, servidoPorPuerta = false): void => {
     rotar();
     if (g === "mias") uso.mias += n;
+    else if (g === "publica") uso.publica += n;
+    else if (g.startsWith("g:")) uso.grupos[g] = (uso.grupos[g] ?? 0) + n;
     else uso.otras += n;
+    if (servidoPorPuerta && deps.estado().medida) uso.movil += n; // PTA1110B: lo que sale por datos móviles
+  };
+  const claveCubo = (a: Ambito, g?: string): string => (a === "grupo" && g ? `g:${g}` : a === "grupo" ? "otras" : a);
+  const usable = (e: { vecino: string; anuncio: AnuncioPuerta }, aj: AjustesPuerta): boolean => {
+    const r = ambitoDePuerta(aj, e, { miCuenta: deps.miCuenta?.() ?? null, vecinoMismaCuenta: (id) => metas.get(id)?.mismaCuenta === true });
+    if (!r.permitido) return false;
+    // «Preguntar» en grupos: hasta que el usuario conteste que sí no se usa. (Para «mias» lo gobierna el servicio con `modoUso`.)
+    if (r.ambito === "grupo" && r.preguntar) return deps.usoConfirmado?.(e.anuncio.id, r.ambito, r.grupo) === true;
+    return true;
   };
   const tamTrozo = (v: string): number => Math.max(512, Math.min(TROZO, T.tamTrozo?.(v) ?? TROZO));
 
@@ -540,7 +581,7 @@ export function crearGestorPuerta(deps: DepsGestor): GestorPuerta {
     s.bytes += parte.length;
     s.ultimo = t;
     medir(s, parte.length);
-    if (s.rol !== "cliente") contar(s.grupo, parte.length);
+    if (s.rol !== "cliente") contar(s.grupo, parte.length, s.rol === "puerta");
     void enviarDat(l, n, parte).then((ok) => {
       if (!ok) cerrar(s, "enlace-caido");
     });
@@ -668,7 +709,7 @@ export function crearGestorPuerta(deps: DepsGestor): GestorPuerta {
   async function entregar(s: Sesion, l: Lado, bytes: Uint8Array): Promise<void> {
     s.ultimo = ahora();
     if (s.rol === "puerta") {
-      contar(s.grupo, bytes.length);
+      contar(s.grupo, bytes.length, true);
       s.bytes += bytes.length;
       await s.socket?.escribir(bytes);
       if (cuotaVencida(s)) cerrar(s, "cuota");
@@ -748,12 +789,14 @@ export function crearGestorPuerta(deps: DepsGestor): GestorPuerta {
     if (s.rol === "cliente") return false;
     rotar();
     const a = deps.ajustes();
-    return s.grupo === "mias" ? uso.mias >= a.topesMias.bytesDia : uso.otras >= a.topesOtras.bytesDia;
+    // PTA1110B: cuota POR ÁMBITO (mis neuronas, cada grupo, otras cuentas, pública) y tope aparte por datos móviles.
+    if (usoDe(s.grupo) >= topesDeAmbito(a, s.ambito, s.grupoId).bytesDia) return true;
+    return s.rol === "puerta" && deps.estado().medida && uso.movil >= a.datosMoviles.bytesDia;
   }
 
   function auditar(s: Sesion, resultado: string): void {
     if (s.rol === "cliente") return;
-    ring.push({ t: s.desde, de: s.de, vecino: s.a?.vecino ?? "", host: s.host, puerto: s.puerto, bytes: s.bytes, grupo: s.grupo, resultado, ms: ahora() - s.desde });
+    ring.push({ t: s.desde, de: s.de, vecino: s.a?.vecino ?? "", host: s.host, puerto: s.puerto, bytes: s.bytes, grupo: s.ambito, ...(s.grupoId ? { grupoId: s.grupoId } : {}), resultado, ms: ahora() - s.desde });
     if (ring.length > MAX_AUDITORIA) ring.shift();
   }
 
@@ -836,18 +879,20 @@ export function crearGestorPuerta(deps: DepsGestor): GestorPuerta {
     const probadas = new Set<string>(o.excluir ?? []);
     let ultimo = "sin-puertas";
     for (let i = 0; i < MAX_INTENTOS_PUERTAS; i++) {
-      const e = deps.tabla.elegir({ excluir: probadas, evitarMedida: o.evitarMedida, host, puerto: port, filtro: (x) => carrilPermitido(aj0, x.tipoEnlace, x.enlace) }); // PTA1108C: la puerta que tenga la capa del destino · PTA1110A: solo por los carriles permitidos
+      const e = deps.tabla.elegir({ excluir: probadas, evitarMedida: o.evitarMedida, host, puerto: port, filtro: (x) => carrilPermitido(aj0, x.tipoEnlace, x.enlace) && usable(x, aj0) }); // PTA1108C: la puerta que tenga la capa del destino · PTA1110A: solo por los carriles permitidos · PTA1110B: y por los ámbitos que el usuario dejó usar
       if (!e) break;
       probadas.add(e.anuncio.id);
       const s: Sesion = {
         id: nuevoId(), rol: "cliente", a: null, b: null, cerrada: false, abierta: false, de: yo, host, puerto: port,
-        bytes: 0, grupo: "mias", desde: ahora(), ultimo: ahora(), backlog: [],
+        bytes: 0, grupo: "mias", ambito: "mias", desde: ahora(), ultimo: ahora(), backlog: [],
         info: { puerta: e.anuncio.id, enlace: e.enlace, saltos: e.anuncio.saltos },
         ...camposNuevos(tipo, e.enlace),
       };
       sesiones.set(s.id, s);
       const f = capacidadesPropias();
-      const r = await abrirHacia(s, e.vecino, { k: "abrir", host, port, ttl: e.anuncio.saltos, via: [yo], de: yo, mc: true, ...(f ? { f } : {}) });
+            // PTA1110B: si la puerta es pública para mí, lo digo: la puerta me atiende por su capa pública (o me pregunta), no por una cuenta que no comparte.
+      const uso0 = ambitoDePuerta(aj0, e, { miCuenta: deps.miCuenta?.() ?? null, vecinoMismaCuenta: (id) => metas.get(id)?.mismaCuenta === true });
+      const r = await abrirHacia(s, e.vecino, { k: "abrir", host, port, ttl: e.anuncio.saltos, via: [yo], de: yo, mc: true, ...(uso0.ambito === "publica" ? { am: "publica" as const } : {}), ...(f ? { f } : {}) });
       if (r.ok) {
         s.abierta = true;
         deps.tabla.marcarAcierto(e.anuncio.id);
@@ -903,12 +948,15 @@ export function crearGestorPuerta(deps: DepsGestor): GestorPuerta {
     if (t.via.includes(yo)) return err("bucle");
     if (sesiones.size >= MAX_SESIONES) return err("ocupada");
     const aj = deps.ajustes();
-    const mc = t.mc === true && meta.mismaCuenta;
-    const sol: Solicitante = { id: t.de, mismaCuenta: mc };
-    const grupo: Sesion["grupo"] = mc ? "mias" : "otras";
+    // PTA1110B · ÁMBITO de quien pide, decidido con lo que YO sé de mi vecina; lo declarado por la cadena solo puede bajar.
+    const directa = vecino === t.de && t.via.length === 1 && t.via[0] === vecino;
+    const amb = ambitoEfectivo(aj, { id: vecino, mismaCuenta: meta.mismaCuenta }, { directa, mc: t.mc === true, am: t.am, g: t.g });
+    const mc = amb.ambito === "mias";
+    const sol: Solicitante = { id: t.de, mismaCuenta: mc, ambito: amb.ambito, ...(amb.grupo ? { grupo: amb.grupo } : {}) };
+    const grupo: Sesion["grupo"] = claveCubo(amb.ambito, amb.grupo);
     const s: Sesion = {
       id: nuevoId(), rol: "puerta", a: nuevoLado(vecino, t.s), b: null, cerrada: false, abierta: false, de: t.de, host: String(t.host).slice(0, 253),
-      puerto: Number(t.port) || 0, bytes: 0, grupo, desde: ahora(), ultimo: ahora(), backlog: [],
+      puerto: Number(t.port) || 0, bytes: 0, grupo, ambito: amb.ambito, ...(amb.grupo ? { grupoId: amb.grupo } : {}), desde: ahora(), ultimo: ahora(), backlog: [],
       ...camposNuevos(clasificarTrafico(String(t.host), Number(t.port) || 0, { hostsStarSeed: deps.hostsStarSeed?.() }), meta.etiqueta),
     };
     // PTA1110A: binario solo si quien abre lo ofrece Y este transporte lo lleva (cada tramo del túnel se negocia solo).
@@ -928,26 +976,34 @@ export function crearGestorPuerta(deps: DepsGestor): GestorPuerta {
     const ev = evaluarDestino(t.host, t.port, aj, sol, deps.capasPropias?.() ?? []);
     const aReleSinCapa = !ev.ok && ev.motivo === "destino-interno" && t.ttl > 0; // no tengo esa capa: quizá otra puerta sí
     if (!ev.ok && !aReleSinCapa) return rechazar(ev.motivo);
+    // PTA1110B · La capa pública solo sirve la web corriente a destinos públicos: ni capas privadas, ni puertos «Preguntar».
+    if (amb.ambito === "publica" && ev.ok && (ev.capa || ev.preguntarPuerto || !PUERTOS_PUBLICA.includes(Number(t.port)))) return rechazar("puerto-no-permitido");
+    s.haciaInternet = ev.ok && !ev.capa;
 
     // 1) ¿Puedo ser la puerta?
     let motivoPuerta = "sin-salida";
     if (deps.abrirTcp && !aReleSinCapa) {
       rotar();
       const gruposSes = [...sesiones.values()].filter((x) => x.rol === "puerta" && x.grupo === grupo && x !== s).length;
+      const movilHoy = uso.movil;
       // Una capa privada no gasta internet ni red medida: se sirve aunque esta neurona no tenga salida a internet.
       const estServir = ev.ok && ev.capa ? { ...deps.estado(), conInternet: true, medida: false } : deps.estado();
-      const dec = decidirServir(aj, sol, estServir, { bytesHoyGrupo: grupo === "mias" ? uso.mias : uso.otras, tunelesGrupo: gruposSes });
+      const dec = decidirServir(aj, sol, estServir, { bytesHoyGrupo: usoDe(grupo), tunelesGrupo: gruposSes, bytesMovilHoy: movilHoy });
       motivoPuerta = dec.motivo;
       let veredicto = dec.veredicto;
       if (veredicto === "preguntar") {
         responder({ k: "esp", s: t.s });
         let r: Pregunta = "denegar";
         try {
-          r = deps.preguntar ? await Promise.race([deps.preguntar(sol, String(t.host)), esperar(plazoPregunta).then((): Pregunta => "denegar")]) : "denegar";
+          r = deps.preguntar ? await Promise.race([deps.preguntar(sol, String(t.host), dec.motivo === "datos-moviles" ? "datos-moviles" : "otra-cuenta"), esperar(plazoPregunta).then((): Pregunta => "denegar")]) : "denegar";
         } catch {
           r = "denegar";
         }
-        if (r === "siempre" || r === "nunca") deps.cambiarAjustes?.((a) => ({ ...a, recordadas: { ...a.recordadas, [t.de]: r === "siempre" ? "permitir" : "denegar" } }));
+        if (r === "siempre" || r === "nunca") {
+          // PTA1110B: «¿datos móviles?» se recuerda aparte de «¿otra cuenta?».
+          if (dec.motivo === "datos-moviles") deps.cambiarAjustes?.((a) => ({ ...a, movilRecordadas: { ...a.movilRecordadas, [t.de]: r === "siempre" ? "permitir" : "denegar" } }));
+          else deps.cambiarAjustes?.((a) => ({ ...a, recordadas: { ...a.recordadas, [t.de]: r === "siempre" ? "permitir" : "denegar" } }));
+        }
         veredicto = r === "permitir" || r === "siempre" ? "permitir" : "denegar";
         if (veredicto === "denegar") motivoPuerta = "otra-cuenta";
       }
@@ -959,7 +1015,7 @@ export function crearGestorPuerta(deps: DepsGestor): GestorPuerta {
           responder({ k: "esp", s: t.s });
           let r: Pregunta = "denegar";
           try {
-            r = deps.preguntar ? await Promise.race([deps.preguntar(sol, `${t.host}:${t.port}`), esperar(plazoPregunta).then((): Pregunta => "denegar")]) : "denegar";
+            r = deps.preguntar ? await Promise.race([deps.preguntar(sol, `${t.host}:${t.port}`, "puerto"), esperar(plazoPregunta).then((): Pregunta => "denegar")]) : "denegar";
           } catch {
             r = "denegar";
           }
@@ -994,16 +1050,21 @@ export function crearGestorPuerta(deps: DepsGestor): GestorPuerta {
     }
 
     // 2) ¿Puedo ser relé?
-    const permiteRele = !aj.revocadas.includes(t.de) && (mc ? aj.misNeuronas : aj.otrasCuentas === "automatico" || aj.recordadas[t.de] === "permitir");
+    // PTA1110B · Cada salto aplica SU política al ámbito de quien pide: ajustes, batería, cuota y túneles de ese ámbito (un relé no usa mi salida, pero sí mi batería y mi cuota).
+    rotar();
+    const tunelesAmbito = [...sesiones.values()].filter((x) => x.rol !== "cliente" && x.grupo === grupo && x !== s).length;
+    const decRele = decidirServir(aj, sol, { conInternet: true, bateria: deps.estado().bateria, cargando: deps.estado().cargando, medida: false }, { bytesHoyGrupo: usoDe(grupo), tunelesGrupo: tunelesAmbito });
+    const permiteRele = !aj.revocadas.includes(t.de) && decRele.veredicto === "permitir";
     if (t.ttl <= 0 || !permiteRele) return rechazar(t.ttl <= 0 ? motivoPuerta : "rele-no-permitido");
     s.rol = "rele";
     s.grupo = grupo;
     const excluir = new Set<string>([...t.via, vecino, t.de]);
     const fRele = capacidadesPropias();
-    const siguiente = { k: "abrir" as const, host: t.host, port: t.port, ttl: t.ttl - 1, via: [...t.via, yo], de: t.de, mc, ...(fRele ? { f: fRele } : {}) };
+    // PTA1110B: el siguiente salto recibe el ámbito YA recortado por este (nunca más ancho que el que yo concedí).
+    const siguiente = { k: "abrir" as const, host: t.host, port: t.port, ttl: t.ttl - 1, via: [...t.via, yo], de: t.de, mc, am: amb.ambito, ...(amb.grupo ? { g: amb.grupo } : {}), ...(fRele ? { f: fRele } : {}) };
     let ultimo = "sin-puertas";
     for (let i = 0; i < MAX_INTENTOS_PUERTAS && !s.cerrada; i++) {
-      const e = deps.tabla.elegir({ excluir, host: t.host, puerto: t.port, filtro: (x) => carrilPermitido(aj, x.tipoEnlace, x.enlace) }); // PTA1108C · PTA1110A: carriles
+      const e = deps.tabla.elegir({ excluir, host: t.host, puerto: t.port, filtro: (x) => carrilPermitido(aj, x.tipoEnlace, x.enlace) && usable(x, aj) }); // PTA1108C · PTA1110A: carriles · PTA1110B: ámbitos de uso
       if (!e) break;
       excluir.add(e.anuncio.id);
       excluir.add(e.vecino);
@@ -1020,9 +1081,22 @@ export function crearGestorPuerta(deps: DepsGestor): GestorPuerta {
   }
 
   /* ── Recepción ── */
+  /** PTA1110B · La puerta `id` ya no tiene salida: se borra la ruta que iba por esta vecina, se cierra lo que iba por ella y se avisa. */
+  function puertaPerdida(id: string, vecino: string): void {
+    if (typeof id !== "string" || !id || id.length > 80 || id === yo) return;
+    if (deps.tabla.vecinoDe(id) !== vecino) return; // otra ruta mejor puede seguir viva: no se toca
+    deps.tabla.quitar(id);
+    for (const c of [...sesiones.values()]) if (c.rol === "cliente" && c.info?.puerta === id) cerrar(c, "puerta-perdida");
+    for (const v of T.vecinos()) if (v !== vecino) void T.enviar(v, { k: "retira", id }).catch(() => undefined);
+  }
+
   function alTrama(vecino: string, t: Trama, meta: MetaVecino): void {
     if (!t || typeof t !== "object") return;
+    metas.set(vecino, meta);
     switch (t.k) {
+      case "retira":
+        puertaPerdida(t.id, vecino);
+        return;
       case "anuncio": {
         const a = leerAnuncio(t.a);
         if (!a) return;
@@ -1108,9 +1182,16 @@ export function crearGestorPuerta(deps: DepsGestor): GestorPuerta {
       for (const s of comparten()) cerrar(s, "detenida");
     },
     compartiendo: () =>
-      comparten().map((s) => ({ id: s.id, de: s.de, vecino: s.a?.vecino ?? "", host: s.host, grupo: s.grupo, rol: s.rol === "rele" ? "rele" : "puerta", bytes: s.bytes, desde: s.desde })),
+      comparten().map((s) => ({ id: s.id, de: s.de, vecino: s.a?.vecino ?? "", host: s.host, grupo: s.ambito, ...(s.grupoId ? { grupoId: s.grupoId } : {}), rol: s.rol === "rele" ? "rele" : "puerta", bytes: s.bytes, desde: s.desde })),
     auditoria: () => ring.slice(),
     bytesHoy: (g) => (rotar(), g === "mias" ? uso.mias : uso.otras),
+    bytesHoyDe: (c) => (rotar(), usoDe(c)),
+    bytesHoyMovil: () => (rotar(), uso.movil),
+    salidaPerdida() {
+      // PTA1110B · Cambio de rol: lo que esta neurona servía hacia internet se corta YA (falla rápido; quien pidió abre otro por la nueva ruta).
+      for (const c of [...sesiones.values()]) if (c.rol === "puerta" && c.haciaInternet) cerrar(c, "salida-perdida");
+      for (const v of T.vecinos()) void T.enviar(v, { k: "retira", id: yo }).catch(() => undefined);
+    },
     anunciar,
     barrer,
     iniciar() {
@@ -1165,6 +1246,6 @@ export function crearGestorPuerta(deps: DepsGestor): GestorPuerta {
       const s = sesiones.get(id);
       if (s) cerrar(s, "cancelada");
     },
-    tunelesPropios: () => [...sesiones.values()].filter((s) => s.rol === "cliente" && s.abierta && s.info).map((s) => s.info as { puerta: string; enlace: string; saltos: number }),
+    tunelesPropios: () => [...sesiones.values()].filter((s) => s.rol === "cliente" && s.abierta && s.info).map((s) => ({ ...(s.info as { puerta: string; enlace: string; saltos: number }), vecino: s.b?.vecino ?? "" })),
   };
 }
