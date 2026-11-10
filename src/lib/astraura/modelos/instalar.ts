@@ -24,6 +24,8 @@ export interface PlanInstalacion {
   bloqueo: string | null;
   /** Instala por el instalador de capas, no por Ollama. */
   porCapas: boolean;
+  /** El bloqueo es solo que falta Ollama y esta neurona puede instalarlo: la pantalla ofrece «Instalar Ollama» (MOD1110B). */
+  faltaOllama: boolean;
 }
 
 const gb = (n: number) => `${n.toFixed(1).replace(".", ",")} GB`;
@@ -35,19 +37,23 @@ export function planInstalar(m: ModeloLocal, p: PerfilNeurona, instalado = false
   let bloqueo: string | null = null;
   if (e.motivo === "sin-runtime") {
     bloqueo = m.runtimes.includes("ollama")
-      ? p.puedeInstalarOllama ? "Necesita Ollama, que esta neurona aún no tiene: instálalo desde ollama.com y vuelve." : "Esta neurona no puede ejecutar modelos de Ollama."
+      ? p.puedeInstalarOllama ? "Necesita Ollama, que esta neurona aún no tiene: instálalo con «Instalar Ollama» (te pregunto antes y te enseño el tamaño)." : "Esta neurona no puede ejecutar modelos de Ollama."
       : "Esta neurona no tiene el motor que necesita este modelo.";
   } else if (e.motivo === "solo-apple") bloqueo = "Es una versión solo para Apple silicon.";
   else if (e.veredicto === "no-cabe") bloqueo = "No cabe en la memoria de esta neurona.";
   else if (e.veredicto === "falta-disco") bloqueo = `Faltan ${gb(e.liberarGb ?? 0)} de disco: libera ese espacio y vuelve.`;
+  const aviso = m.clase === "abliterated"
+    ? ` Es una variante sin filtros publicada por la comunidad (${m.publicador ?? "tercero"}), no por el editor del modelo; nadie midió su calidad.`
+    : "";
   return {
     modelo: m,
-    pregunta: `¿Descargar «${m.etiqueta}»? Ocupa ${gb(m.descargaGb)} de descarga y necesita ${gb(rq.discoGb)} libres. No se descarga nada hasta que aceptes.`,
+    pregunta: `¿Descargar «${m.etiqueta}»? Ocupa ${gb(m.descargaGb)} de descarga y necesita ${gb(rq.discoGb)} libres.${aviso} No se descarga nada hasta que aceptes.`,
     descargaGb: m.descargaGb,
     discoNecesarioGb: rq.discoGb,
     comando: m.runtimes.includes("ollama") ? `ollama pull ${m.id}` : null,
     bloqueo,
     porCapas,
+    faltaOllama: e.motivo === "sin-runtime" && m.runtimes.includes("ollama") && p.puedeInstalarOllama,
   };
 }
 

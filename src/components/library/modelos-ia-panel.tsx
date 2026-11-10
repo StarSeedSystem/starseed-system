@@ -4,17 +4,20 @@
  * Área «Modelos de IA» de la Biblioteca (MOD1110A): tarjetas por modelo con para qué sirve, la comparación
  * (puntuación comparable, equivalencia, tamaño, memoria), cómo encaja en ESTA neurona y en las otras de la
  * cuenta («en tu MaggaBook cabría»), filtros por caso y el mismo flujo de instalación con pregunta previa.
- * Solo muestra builds normales de los editores; los candidatos y lo no comprobado se ven, pero no se recomiendan.
+ * Muestra builds normales de los editores; los candidatos y lo no comprobado se ven, pero no se recomiendan.
+ * (MOD1110B) Con «Mostrar variantes sin filtros» encendido (apagado por defecto), una sección APARTE con su insignia:
+ * variantes de la comunidad, calidad «sin medir», que se eligen a mano y solo para mis conversaciones privadas.
  */
 
 import { useMemo, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { fechaCorta } from "@/lib/astraura/modelos/catalogo";
+import { fechaCorta, listableSinFiltros, pierdeHerramientas } from "@/lib/astraura/modelos/catalogo";
 import { casosDe, encajar } from "@/lib/astraura/modelos/recomendar";
 import { useModelosNeurona, type AccionesModelos, type EstadoModelos } from "@/lib/astraura/modelos/use-modelos";
 import { CASOS, ETIQUETA_CASO, type CasoUso, type ModeloLocal, type Veredicto } from "@/lib/astraura/modelos/tipos";
 import { Comparacion, InsigniaVeredicto, PreguntaDescarga, gbTxt } from "@/components/astraura/modelos-ui";
+import { ContinuarModelo, InsigniaSinFiltros, InstalarOllama } from "@/components/astraura/modelos-sin-filtros-ui";
 
 type Filtro = CasoUso | "todos";
 
@@ -28,21 +31,28 @@ const BUENO_PARA: Record<string, string> = {
 function Tarjeta({ m, e, preguntando, setPreguntando }: { m: ModeloLocal; e: EstadoModelos & AccionesModelos; preguntando: string | null; setPreguntando: (id: string | null) => void }) {
   const p = e.perfil;
   const aqui = p ? encajar(m, p, e.instalados.has(m.id)) : null;
-  const plan = p && m.estado === "comprobado" && m.tipo === "estandar" ? e.planDe(m) : null;
+  const plan = p && (m.estado === "comprobado" || listableSinFiltros(m)) && m.tipo === "estandar" ? e.planDe(m) : null;
   const otras = e.pares
     .map((par) => ({ par, enc: encajar(m, par) }))
     .filter((x) => x.enc.veredicto === "recomendado" || x.enc.veredicto === "justo");
   const comprobado = m.estado === "comprobado";
+  const sinFiltros = m.clase === "abliterated";
+  const pierde = sinFiltros && pierdeHerramientas(m, e.modelos);
+  const usada = sinFiltros && Object.values(e.ajustes.porCaso).includes(m.id);
   return (
     <li data-modelo={m.id} className="space-y-1.5 rounded-xl border border-white/10 bg-white/[0.04] p-3">
       <div className="flex flex-wrap items-center gap-2">
         <span className="font-mono text-[13px] text-white/90">{m.etiqueta}</span>
         <span className="text-[11px] text-white/45">{m.familia} · {m.editor}</span>
-        {aqui && comprobado && <span className="ml-auto"><InsigniaVeredicto v={aqui.veredicto as Veredicto} liberarGb={aqui.liberarGb} /></span>}
+        {sinFiltros && <InsigniaSinFiltros />}
+        {aqui && comprobado && <span className="ml-auto"><InsigniaVeredicto v={aqui.veredicto as Veredicto} liberarGb={aqui.liberarGb} soloEncaje={sinFiltros} /></span>}
         {!comprobado && <span className="ml-auto rounded-full border border-white/15 px-2 py-0.5 text-[11px] text-white/55">{m.estado === "candidato" ? "Candidato nuevo: sin recomendar" : "Sin comprobar: no se recomienda"}</span>}
       </div>
-      <p className="text-[12px] text-white/65">{BUENO_PARA[m.tipo]} Sirve para: {casosDe(m).map((c) => ETIQUETA_CASO[c].toLowerCase()).join(", ") || "—"}.</p>
-      <Comparacion m={m} frontera={e.catalogo.frontera} />
+      <p className="text-[12px] text-white/65">
+        {sinFiltros ? "Variante de la comunidad a la que un tercero le quitó los rechazos. Solo para tus conversaciones privadas, elegida por ti." : BUENO_PARA[m.tipo]}{" "}
+        Sirve para: {casosDe(m).map((c) => ETIQUETA_CASO[c].toLowerCase()).join(", ") || "—"}.
+      </p>
+      <Comparacion m={m} frontera={e.catalogo.frontera} modelos={e.modelos} />
       {m.licencia && <p className="text-[10px] text-white/35">Licencia: {m.licencia}</p>}
       {comprobado && otras.length > 0 && (
         <p className="text-[11px] text-cyan-200/80" data-campo="otras">
@@ -56,6 +66,16 @@ function Tarjeta({ m, e, preguntando, setPreguntando }: { m: ModeloLocal; e: Est
         </button>
       )}
       {e.instalados.has(m.id) && <span className="text-[11px] text-emerald-300">Instalado</span>}
+      {sinFiltros && !pierde && (
+        usada
+          ? <button type="button" onClick={() => e.dejarVariante(m.id)} className="ml-2 cursor-pointer rounded-md px-2 py-0.5 text-[11px] text-fuchsia-200 hover:bg-fuchsia-500/15">Dejar de usarla</button>
+          : <button type="button" disabled={aqui?.veredicto === "no-cabe"} onClick={() => e.usarVariante(m.id)}
+              className="ml-2 cursor-pointer rounded-md bg-fuchsia-500/15 px-2 py-0.5 text-[11px] text-fuchsia-100 hover:bg-fuchsia-500/25 disabled:cursor-not-allowed disabled:opacity-40">Usar en mis conversaciones privadas</button>
+      )}
+      {sinFiltros && pierde && !usada && (
+        <button type="button" onClick={() => e.usarVariante(m.id)} className="ml-2 cursor-pointer rounded-md bg-fuchsia-500/15 px-2 py-0.5 text-[11px] text-fuchsia-100 hover:bg-fuchsia-500/25">Usar en conversación (sin herramientas)</button>
+      )}
+      {sinFiltros && usada && pierde && <button type="button" onClick={() => e.dejarVariante(m.id)} className="ml-2 cursor-pointer rounded-md px-2 py-0.5 text-[11px] text-fuchsia-200 hover:bg-fuchsia-500/15">Dejar de usarla</button>}
       {plan && preguntando === m.id && (
         <PreguntaDescarga plan={plan} onCancelar={() => setPreguntando(null)} onDescargar={(ok, prog) => e.instalar(plan, ok, prog)} />
       )}
@@ -69,12 +89,17 @@ export function ModelosIaVista({ e }: { e: EstadoModelos & AccionesModelos }) {
   const [preguntando, setPreguntando] = useState<string | null>(null);
 
   const lista = useMemo(() => {
-    const todos = e.modelos.filter((m) => filtro === "todos" || casosDe(m).includes(filtro));
+    const todos = e.modelos.filter((m) => m.clase === "normal" && (filtro === "todos" || casosDe(m).includes(filtro)));
+    // Variantes sin filtros: SOLO con el interruptor encendido y comprobadas contra la biblioteca viva (lo retirado desaparece).
+    const sinFiltros = e.sinFiltros.activado
+      ? e.modelos.filter((m) => listableSinFiltros(m) && (filtro === "todos" || casosDe(m).includes(filtro))).sort(orden)
+      : [];
     return {
       listos: todos.filter((m) => m.estado === "comprobado").sort(orden),
       aparte: todos.filter((m) => m.estado !== "comprobado").sort(orden),
+      sinFiltros,
     };
-  }, [e.modelos, filtro]);
+  }, [e.modelos, filtro, e.sinFiltros.activado]);
 
   return (
     <section aria-label="Modelos de IA" className="space-y-4">
@@ -102,9 +127,22 @@ export function ModelosIaVista({ e }: { e: EstadoModelos & AccionesModelos }) {
         ))}
       </div>
 
+      {e.perfil && !e.perfil.runtimes.includes("ollama") && <InstalarOllama e={e} />}
+      <ContinuarModelo e={e} />
+
       {e.cargando && <p className="text-[12px] text-white/50" role="status">Midiendo tus neuronas…</p>}
       <ul className="grid gap-3 md:grid-cols-2">{lista.listos.map((m) => <Tarjeta key={m.id} m={m} e={e} preguntando={preguntando} setPreguntando={setPreguntando} />)}</ul>
       {lista.listos.length === 0 && <p className="text-[12px] text-white/50">Ningún modelo comprobado sirve para este caso.</p>}
+      {lista.sinFiltros.length > 0 && (
+        <section aria-label="Variantes sin filtros" className="space-y-2 rounded-xl border border-fuchsia-400/25 bg-fuchsia-500/[0.04] p-3" data-seccion="sin-filtros">
+          <h3 className="flex items-center gap-2 text-[13px] font-semibold text-fuchsia-100"><InsigniaSinFiltros />Variantes sin filtros</h3>
+          <p className="text-[12px] text-white/55">
+            Opcionales y de la comunidad: calidad sin medir, algunas sin herramientas. Nunca se eligen solas, solo se usan en tus conversaciones privadas en tu neurona y
+            jamás con otras personas ni en segundo plano. Lo que hagas con sus respuestas es responsabilidad tuya.
+          </p>
+          <ul className="grid gap-3 md:grid-cols-2">{lista.sinFiltros.map((m) => <Tarjeta key={m.id} m={m} e={e} preguntando={preguntando} setPreguntando={setPreguntando} />)}</ul>
+        </section>
+      )}
       {lista.aparte.length > 0 && (
         <details className="text-[12px] text-white/55">
           <summary className="cursor-pointer">Candidatos y sin comprobar ({lista.aparte.length})</summary>

@@ -6,7 +6,7 @@
 import { useState } from "react";
 import { Download, HardDrive, Loader2, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { equivalencia, fechaCorta, requisitosDe } from "@/lib/astraura/modelos/catalogo";
+import { equivalencia, fechaCorta, pierdeHerramientas, puntuacionDeBase, requisitosDe } from "@/lib/astraura/modelos/catalogo";
 import type { PlanInstalacion, ResultadoInstalacion } from "@/lib/astraura/modelos/instalar";
 import type { Recomendacion } from "@/lib/astraura/modelos/recomendar";
 import { ETIQUETA_VEREDICTO, type ModeloLocal, type PuntoFrontera, type Veredicto } from "@/lib/astraura/modelos/tipos";
@@ -25,17 +25,19 @@ export function textoVeredicto(v: Veredicto, liberarGb: number | null): string {
   return v === "falta-disco" && liberarGb !== null ? `Falta disco: libera ${gbTxt(liberarGb)}` : ETIQUETA_VEREDICTO[v];
 }
 
-export function InsigniaVeredicto({ v, liberarGb = null }: { v: Veredicto; liberarGb?: number | null }) {
+export function InsigniaVeredicto({ v, liberarGb = null, soloEncaje = false }: { v: Veredicto; liberarGb?: number | null; soloEncaje?: boolean }) {
   return (
     <span data-veredicto={v} className={cn("rounded-full border px-2 py-0.5 text-[11px] whitespace-nowrap", ESTILO[v])}>
-      {textoVeredicto(v, liberarGb)}
+      {/* MOD1110B: en una variante sin filtros «Recomendado» se leería como aval; solo dice si cabe. */}
+      {soloEncaje && v === "recomendado" ? "Cabe holgado" : textoVeredicto(v, liberarGb)}
     </span>
   );
 }
 
 /** Puntuación, equivalencia con la frontera, descarga y memoria, en una línea legible. */
-export function Comparacion({ m, frontera }: { m: ModeloLocal; frontera: readonly PuntoFrontera[] }) {
+export function Comparacion({ m, frontera, modelos }: { m: ModeloLocal; frontera: readonly PuntoFrontera[]; modelos?: readonly ModeloLocal[] }) {
   const rq = requisitosDe(m);
+  if (m.clase === "abliterated") return <ComparacionSinFiltros m={m} modelos={modelos ?? []} rq={rq} />;
   const eq = equivalencia(m, frontera);
   return (
     <div className="space-y-0.5 text-[11px] text-white/55">
@@ -52,6 +54,37 @@ export function Comparacion({ m, frontera }: { m: ModeloLocal; frontera: readonl
       <p className="text-white/35" data-campo="fecha">
         {m.comprobado ? `Comprobado el ${fechaCorta(m.comprobado)}` : "Sin comprobar"}
         {m.puntuacion ? ` · puntuación del ${fechaCorta(m.puntuacion.comprobado)}` : ""}
+      </p>
+    </div>
+  );
+}
+
+/** Variante sin filtros: calidad «sin medir»; la puntuación de la base va aparte y rotulada como de la base. */
+function ComparacionSinFiltros({ m, modelos, rq }: { m: ModeloLocal; modelos: readonly ModeloLocal[]; rq: ReturnType<typeof requisitosDe> }) {
+  const base = puntuacionDeBase(m, modelos);
+  const pierde = pierdeHerramientas(m, modelos);
+  return (
+    <div className="space-y-0.5 text-[11px] text-white/55">
+      <p data-campo="equivalencia">
+        Calidad: <strong className="text-fuchsia-200">sin medir</strong> (nadie evaluó esta variante).{" "}
+        {base
+          ? <span data-campo="puntuacion-base">Su modelo base «{m.baseId}» puntúa ECI {base.eci.toFixed(1).replace(".", ",")}: es la puntuación de la base, no de esta variante.</span>
+          : <span data-campo="puntuacion-base">Su modelo base «{m.baseId}» tampoco tiene puntuación comparable.</span>}
+      </p>
+      <p data-campo="requisitos">
+        Descarga {gbTxt(m.descargaGb)} · memoria {rq.memoriaMinGb}–{rq.memoriaComodaGb} GB · disco {gbTxt(rq.discoGb)}
+        {m.contextoK ? ` · contexto ${m.contextoK}K` : ""}
+        {m.herramientas ? " · herramientas" : " · sin herramientas"}
+        {m.vision ? " · visión" : ""}
+      </p>
+      {pierde && (
+        <p className="text-amber-300" data-campo="pierde-herramientas">
+          Pierde el uso de herramientas respecto a su base: no se ofrece para código y agentes ni para bots.
+        </p>
+      )}
+      <p className="text-white/35" data-campo="fecha">
+        {m.comprobado ? `Comprobado el ${fechaCorta(m.comprobado)} en Ollama` : "Sin comprobar"}
+        {m.publicador ? ` · publica ${m.publicador}` : ""}
       </p>
     </div>
   );

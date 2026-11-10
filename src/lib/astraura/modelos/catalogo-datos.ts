@@ -94,6 +94,80 @@ export const MODELOS_SEMILLA: ModeloLocal[] = [
   m({ id: "deepseek-r1:70b", familia: "DeepSeek-R1 (destilado sobre Llama 70B)", editor: "DeepSeek", descargaGb: 43, contextoK: 128, vision: false, herramientas: true, razonamiento: true, licencia: "MIT (según la página de Ollama)" }),
 ];
 
+// ── «Variantes sin filtros» (MOD1110B · comprobadas el 2026-11-10) ───────────────────────────────────────────
+// Clase APARTE y opcional. Son builds de la comunidad a los que un tercero (huihui_ai) les quitó los rechazos
+// (técnica «abliteration»); NO son del editor del modelo. Cada entrada se contrastó el 2026-11-10 con la página viva
+// de Ollama: que la etiqueta existe en https://ollama.com/huihui_ai/<familia>/tags (tamaño de descarga y contexto,
+// que Ollama redondea a 2 cifras por encima de 10 GB) y las insignias de https://ollama.com/huihui_ai/<familia>
+// (tools / vision / thinking). NADIE midió estas variantes: `puntuacion` es SIEMPRE null («sin medir») y la de su
+// modelo base se enseña aparte, rotulada como de la base (`baseId`). Una que pierde herramientas lo dice (la base
+// del catálogo las tiene y la variante no) y no se ofrece donde hacen falta.
+// Se dejaron FUERA (no verificables a este nivel o sin utilidad aquí): Qwen3.8 de huihui_ai y orcarouter (el modelo
+// base no tiene ficha propia y orcarouter es la página de una pasarela de pago), eriktonon/deepseek-v4.1-flash-1017
+// (afinado por un particular, sin base verificable), qwen3-next, devstral-2, qwen3.5 35b/122b, gemma-4 48b y
+// deepseek-r1 70b (descargas de 24 a 81 GB, fuera del alcance de una neurona normal).
+const HUIHUI = "https://ollama.com/huihui_ai/";
+const PUBLICA = "huihui_ai (comunidad de Ollama; no es el editor del modelo)";
+
+interface Sf {
+  id: string;
+  baseId: string;
+  familia: string;
+  editor: string;
+  descargaGb: number;
+  contextoK: number;
+  vision: boolean;
+  herramientas: boolean;
+  nota?: string;
+}
+
+function sf(b: Sf): ModeloLocal {
+  const [fam] = b.id.replace("huihui_ai/", "").split(":");
+  return {
+    id: b.id,
+    etiqueta: b.id,
+    familia: b.familia,
+    editor: b.editor,
+    clase: "abliterated",
+    tipo: "estandar",
+    runtimes: ["ollama"],
+    descargaGb: b.descargaGb,
+    contextoK: b.contextoK,
+    herramientas: b.herramientas,
+    vision: b.vision,
+    razonamiento: true,
+    licencia: null,
+    puntuacion: null,
+    estado: "comprobado",
+    comprobado: FECHA_SEMILLA,
+    fuentes: [`${HUIHUI}${fam}/tags`, `${HUIHUI}${fam}`],
+    publicador: PUBLICA,
+    baseId: b.baseId,
+    nota: b.nota ?? "Variante sin filtros de la comunidad: nadie midió su calidad (la puntuación que se enseña es la de su base).",
+  };
+}
+
+const SF_Q = { familia: "Qwen3.5 sin filtros", editor: "Alibaba (Qwen) · variante huihui_ai", contextoK: 256, vision: true, herramientas: true } as const;
+const SF_G = { familia: "Gemma 4 sin filtros", editor: "Google · variante huihui_ai", vision: true, herramientas: true } as const;
+
+export const MODELOS_SIN_FILTROS_SEMILLA: ModeloLocal[] = [
+  sf({ ...SF_Q, id: "huihui_ai/qwen3.5-abliterated:4B", baseId: "qwen3.5:4b", descargaGb: 3.3 }),
+  sf({ ...SF_Q, id: "huihui_ai/qwen3.5-abliterated:9b", baseId: "qwen3.5:9b", descargaGb: 6.6 }),
+  sf({ ...SF_Q, id: "huihui_ai/qwen3.5-abliterated:27b", baseId: "qwen3.5:27b", descargaGb: 17 }),
+  sf({ ...SF_G, id: "huihui_ai/gemma-4-abliterated:12b", baseId: "gemma4:12b", contextoK: 128, descargaGb: 7.6 }),
+  sf({ ...SF_G, id: "huihui_ai/gemma-4-abliterated:26b", baseId: "gemma4:26b", contextoK: 256, descargaGb: 18 }),
+  sf({ ...SF_G, id: "huihui_ai/gemma-4-abliterated:31b", baseId: "gemma4:31b", contextoK: 256, descargaGb: 20 }),
+  sf({
+    id: "huihui_ai/deepseek-r1-abliterated:8b", baseId: "deepseek-r1:8b", familia: "DeepSeek-R1 sin filtros (destilado 0528 sobre Qwen3 8B)",
+    editor: "DeepSeek · variante huihui_ai", descargaGb: 5.0, contextoK: 128, vision: false, herramientas: false,
+    nota: "PIERDE el uso de herramientas (la página de Ollama de esta variante solo marca «thinking»; el modelo base sí las trae). Nadie midió su calidad.",
+  }),
+  sf({
+    id: "huihui_ai/glm-4.7-flash-abliterated:latest", baseId: "glm-4.7-flash", familia: "GLM-4.7 Flash sin filtros",
+    editor: "Z.ai (GLM) · variante huihui_ai", descargaGb: 19, contextoK: 198, vision: false, herramientas: true,
+  }),
+];
+
 /**
  * Frontera: el mejor modelo CERRADO de cada fecha según Epoch (récords sucesivos del ECI desde may. 2024),
  * leída de https://epoch.ai/data/eci_scores.csv el 2026-11-10.
@@ -127,7 +201,7 @@ export function catalogoSemilla(): CatalogoModelos {
     esquema: 1,
     actualizado: FECHA_SEMILLA,
     revisado: FECHA_SEMILLA,
-    modelos: MODELOS_SEMILLA.map((x) => ({ ...x, runtimes: [...x.runtimes], fuentes: [...x.fuentes] })),
+    modelos: [...MODELOS_SEMILLA, ...MODELOS_SIN_FILTROS_SEMILLA].map((x) => ({ ...x, runtimes: [...x.runtimes], fuentes: [...x.fuentes] })),
     frontera: FRONTERA_SEMILLA.map((x) => ({ ...x })),
     familiasVistas: [...FAMILIAS_SEMILLA],
   };

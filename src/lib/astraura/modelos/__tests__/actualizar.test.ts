@@ -59,7 +59,7 @@ describe("lista cerrada de fuentes", () => {
   it("rechaza otros hosts, esquemas, puertos y rutas (incluidas comunidades y APIs de terceros)", () => {
     for (const u of [
       "http://ollama.com/library/qwen3.5", "https://abliteration.ai/v1/models", "https://ollama.com/library/huihui_ai/qwen3.5-abliterated",
-      "https://ollama.com/huihui_ai/x", "https://ollama.com:8443/library/x", "https://evil.com/library/x", "https://epoch.ai/data/otro.csv",
+      "https://ollama.com/otro_usuario/x", "https://ollama.com/huihui_ai/x/otra", "https://ollama.com/huihui_ai/x?q=1", "https://ollama.com:8443/library/x", "https://evil.com/library/x", "https://epoch.ai/data/otro.csv",
       "https://ollama.com/library/../etc", "https://ollama.com/search?q=abliterated", "https://user@ollama.com/library/x", "no es url",
     ]) expect(urlPermitida(u), u).toBe(false);
   });

@@ -2,7 +2,7 @@
  * GET /api/astraura/modelos-fuentes?u=<url> — lector de las dos fuentes públicas del catálogo de modelos
  * (MOD1110A): la biblioteca de Ollama y el índice de capacidades de Epoch AI. El navegador no puede leerlas
  * directamente (CORS), así que este puente same-origin las trae. LISTA CERRADA: solo las URLs que
- * `urlPermitida` acepta (nada de comunidades, APIs de terceros ni puertos); sin redirecciones; con tope de tamaño.
+ * `urlPermitida` acepta (nada de APIs de terceros ni puertos; de las comunidades, solo las páginas de los publicadores de la lista cerrada de las variantes sin filtros); sin redirecciones; con tope de tamaño.
  */
 import { urlPermitida } from "@/lib/astraura/modelos/actualizar-catalogo";
 

@@ -34,6 +34,9 @@
     "allow-ventanas-prestables",
     "allow-capturar-ventana",
     "allow-entrada-ventana",
-    "allow-servidor-local-estado"
+    "allow-servidor-local-estado",
+    "allow-ollama-instalador-descargar",
+    "allow-ollama-instalador-cancelar",
+    "allow-ollama-instalador-abrir"
   ]
 }
