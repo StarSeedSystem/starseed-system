@@ -35,6 +35,9 @@ import {
 // Bloque "Sincronización" (SOP §10-11): perfiles que sincronizan + compartir
 // como espacio + lista de escritorios compartidos (Adenda 65).
 import { DesktopSharePanel } from "./desktop-share-panel";
+// ESC1110B: «Símbolo del escritorio» del perfil activo (archivo configurable y transmutable).
+import { AjusteSimboloEscritorio } from "@/components/brand/simbolo-ajustes";
+import { usePerfilActivoId } from "@/components/brand/simbolo-almacen";
 // Permisos universales (Adenda 63 §5): compartir CADA escritorio por ámbito y
 // rol, con acceso parcial por pestañas y enlace ?space= colaborativo.
 import { ShareAccessDialog } from "@/components/sharing/share-access-dialog";
@@ -90,6 +93,12 @@ function SegBtn({ active, onClick, children }: {
 }
 
 // ── Panel ────────────────────────────────────────────────────────
+/** ESC1110B: el ajuste del símbolo para el perfil activo de este aparato. */
+function SimboloDelPerfil(): React.ReactElement {
+    const perfilId = usePerfilActivoId();
+    return <AjusteSimboloEscritorio destino={perfilId ? { ambito: "perfil", id: perfilId } : null} compacto />;
+}
+
 export function DesktopSettingsPanel({
     desktop, desktops, snap, open, onClose,
 }: {
@@ -259,6 +268,9 @@ export function DesktopSettingsPanel({
                                     ))}
                                 </div>
                             </Section>
+
+                            {/* ── Símbolo del escritorio (ESC1110B) ── */}
+                            <SimboloDelPerfil />
 
                             {/* ── Orden por defecto ── */}
                             <Section icon={ArrowUpDown} title="Orden por defecto">

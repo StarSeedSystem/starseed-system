@@ -23,6 +23,10 @@ import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment
 import { HorizontalBlurShader } from "three/examples/jsm/shaders/HorizontalBlurShader.js";
 import { VerticalBlurShader } from "three/examples/jsm/shaders/VerticalBlurShader.js";
 import { CIRCULOS, DIAMANTE, OJO, pxAModelo } from "./simbolo-starseed-medidas";
+// ESC1110B: flor fundida, ojo que mira y parpadea, y archivo de símbolo.
+import { CENTRO_FLOR, PASO_FLOR, RADIO_ENVOLVENTE, RADIO_FLOR, centrosFlor } from "./simbolo-flor";
+import { angulosMirada, type Mirada } from "./simbolo-ojo";
+import { SIMBOLO_OFICIAL, type ArchivoSimbolo } from "./simbolo-archivo";
 
 /** Parámetros de forma (en unidades del modelo: 1 = 1000 px). */
 export const FORMA = {
@@ -369,12 +373,218 @@ class SombraContacto {
     }
 }
 
+// ── Flor de la Vida fundida (ESC1110B) ───────────────────────────
+// Los anillos viven en la MISMA escena y bajo el mismo padre que los discos,
+// sobre la misma lámina plegada (z = frente del disco − medio grosor): el
+// anillo del centro coincide con el canto del disco inferior y su vecino de
+// arriba con el del superior en cualquier pose, no solo de frente.
+
+/**
+ * z de la lámina de la flor, a la altura del canto que dibuja la silueta de
+ * cada disco (medido en el banco: el canto delantero manda con la pose de
+ * reposo). Arriba sigue al disco superior y abajo al inferior, que va
+ * `retrasoInferior` más atrás; entre ambos, dentro de los discos, se funde.
+ */
+export const Z_FLOR = -0.006;
+export const Z_FLOR_INFERIOR = Z_FLOR - FORMA.retrasoInferior;
+/** Ancho de la cinta de cada anillo (unidades del modelo): núcleo fino + halo. */
+const ANCHO_CINTA = 0.05;
+
+function geometriaFlor(): THREE.BufferGeometry {
+    const segmentos = 192;
+    const centro: number[] = [];
+    const ang: number[] = [];
+    const lado: number[] = [];
+    const radio: number[] = [];
+    const tipo: number[] = [];
+    const idx: number[] = [];
+    let base = 0;
+    const anillo = (cx: number, cy: number, r: number, t: number) => {
+        for (let i = 0; i <= segmentos; i++) {
+            const a = (i / segmentos) * Math.PI * 2;
+            for (const l of [-1, 1]) {
+                centro.push(cx, cy);
+                ang.push(a);
+                lado.push(l);
+                radio.push(r);
+                tipo.push(t);
+            }
+        }
+        for (let i = 0; i < segmentos; i++) {
+            const a = base + i * 2;
+            idx.push(a, a + 2, a + 1, a + 1, a + 2, a + 3);
+        }
+        base += (segmentos + 1) * 2;
+    };
+    for (const [x, y] of centrosFlor(0)) anillo(x, y, RADIO_FLOR, 0);
+    anillo(0, 0, RADIO_ENVOLVENTE, 1);
+    anillo(0, 0, RADIO_ENVOLVENTE + 0.035, 1);
+    const geo = new THREE.BufferGeometry();
+    // `position` es obligatoria para three: la real la calcula el sombreador.
+    geo.setAttribute("position", new THREE.Float32BufferAttribute(new Float32Array(lado.length * 3), 3));
+    geo.setAttribute("aCentro", new THREE.Float32BufferAttribute(centro, 2));
+    geo.setAttribute("aAng", new THREE.Float32BufferAttribute(ang, 1));
+    geo.setAttribute("aLado", new THREE.Float32BufferAttribute(lado, 1));
+    geo.setAttribute("aRadio", new THREE.Float32BufferAttribute(radio, 1));
+    geo.setAttribute("aTipo", new THREE.Float32BufferAttribute(tipo, 1));
+    geo.setIndex(idx);
+    // Caja generosa: el sombreador mueve los vértices y three no lo sabe.
+    geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, CENTRO_FLOR[1], 0), RADIO_ENVOLVENTE + 0.2);
+    return geo;
+}
+
+function materialFlor(): THREE.ShaderMaterial {
+    return new THREE.ShaderMaterial({
+        uniforms: {
+            uAngulo: { value: 0 },
+            uTanPliegue: { value: Math.tan(FORMA.plegado) },
+            uZ: { value: Z_FLOR },
+            uZInf: { value: Z_FLOR_INFERIOR },
+            uAncho: { value: ANCHO_CINTA },
+            uCentroY: { value: CENTRO_FLOR[1] },
+            uOpacidad: { value: 1 },
+            uEnvolvente: { value: RADIO_ENVOLVENTE },
+        },
+        vertexShader: /* glsl */ `
+            uniform float uAngulo, uTanPliegue, uZ, uZInf, uAncho, uCentroY;
+            attribute vec2 aCentro;
+            attribute float aAng, aLado, aRadio, aTipo;
+            varying float vLado, vDist, vY, vTipo;
+            void main() {
+                float c = cos(uAngulo), s = sin(uAngulo);
+                vec2 cen = vec2(aCentro.x * c - aCentro.y * s, aCentro.x * s + aCentro.y * c);
+                float r = aRadio + aLado * uAncho * 0.5;
+                vec2 p = cen + r * vec2(cos(aAng), sin(aAng));
+                float yM = p.y + uCentroY;
+                float zL = mix(uZInf, uZ, smoothstep(-0.2, 0.2, yM));
+                vec3 pos = vec3(p.x, yM, -abs(p.x) * uTanPliegue + zL);
+                vLado = aLado * uAncho * 0.5;
+                vDist = length(p);
+                vY = p.y;
+                vTipo = aTipo;
+                gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+            }
+        `,
+        fragmentShader: /* glsl */ `
+            uniform float uOpacidad, uEnvolvente;
+            varying float vLado, vDist, vY, vTipo;
+            void main() {
+                float d = abs(vLado);
+                // Núcleo nítido (~1 px) y halo suave: «anillo luminoso».
+                float nucleo = exp(-pow(d / 0.0042, 2.0));
+                float halo = 0.22 * exp(-pow(d / 0.016, 2.0));
+                float k = vDist / uEnvolvente;
+                vec3 cian = vec3(0.56, 0.91, 1.0);
+                vec3 azul = vec3(0.25, 0.71, 1.0);
+                vec3 violeta = vec3(0.49, 0.23, 0.93);
+                vec3 col = mix(cian, azul, smoothstep(0.0, 0.55, k));
+                col = mix(col, violeta, smoothstep(0.5, 1.0, k));
+                // Se desvanece hacia fuera y detrás del texto (abajo), más viva junto al símbolo.
+                float fuera = 1.0 - smoothstep(0.78, 1.06, k);
+                fuera = mix(fuera, 0.55, vTipo);
+                float texto = mix(0.32, 1.0, smoothstep(-1.05, -0.5, vY));
+                float cerca = 1.0 + 0.55 * exp(-pow(vDist / 0.7, 2.0));
+                float a = (nucleo + halo) * fuera * texto * cerca * 0.5 * uOpacidad;
+                gl_FragColor = vec4(col * a, a);
+            }
+        `,
+        transparent: true,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        premultipliedAlpha: true,
+        side: THREE.DoubleSide,
+    });
+}
+
+// ── Recorte a la almendra y párpado (ESC1110B) ───────────────────
+const R_ALMENDRA = R;
+
+/** Inyecta en un material el recorte a la almendra (en coordenadas del modelo). */
+function recortarAAlmendra(mat: THREE.Material, invModelo: { value: THREE.Matrix4 }, margen = 0.0015): void {
+    mat.onBeforeCompile = (sh) => {
+        sh.uniforms.uInvModelo = invModelo;
+        sh.vertexShader = sh.vertexShader
+            .replace("#include <common>", "#include <common>\nuniform mat4 uInvModelo;\nvarying vec2 vPm;")
+            .replace("#include <project_vertex>", "#include <project_vertex>\nvPm = (uInvModelo * modelMatrix * vec4(transformed, 1.0)).xy;");
+        sh.fragmentShader = sh.fragmentShader
+            .replace("#include <common>", `#include <common>\nvarying vec2 vPm;`)
+            .replace("void main() {", `void main() {
+                if (length(vPm - vec2(0.0, ${CY_SUP.toFixed(5)})) > ${(R_ALMENDRA - margen).toFixed(5)}
+                    || length(vPm - vec2(0.0, ${CY_INF.toFixed(5)})) > ${(R_ALMENDRA - margen).toFixed(5)}) discard;`);
+    };
+    mat.customProgramCacheKey = () => `almendra-${margen}`;
+}
+
+/** Párpado móvil: cubre la almendra desde arriba hasta la línea de cierre. */
+function materialParpadoMovil(invModelo: { value: THREE.Matrix4 }, cierre: { value: number }): THREE.MeshPhysicalMaterial {
+    const mat = new THREE.MeshPhysicalMaterial({ color: OJO.parpado.color, roughness: 0.45, clearcoat: 0.3, clearcoatRoughness: 0.3 });
+    mat.onBeforeCompile = (sh) => {
+        sh.uniforms.uInvModelo = invModelo;
+        sh.uniforms.uCierre = cierre;
+        sh.vertexShader = sh.vertexShader
+            .replace("#include <common>", "#include <common>\nuniform mat4 uInvModelo;\nvarying vec2 vPm;")
+            .replace("#include <project_vertex>", "#include <project_vertex>\nvPm = (uInvModelo * modelMatrix * vec4(transformed, 1.0)).xy;");
+        sh.fragmentShader = sh.fragmentShader
+            .replace("#include <common>", "#include <common>\nvarying vec2 vPm;\nuniform float uCierre;")
+            .replace("void main() {", `void main() {
+                float hP = sqrt(max(0.0, ${(R * R).toFixed(6)} - vPm.x * vPm.x));
+                float arribaP = ${CY_INF.toFixed(5)} + hP;
+                float abajoP = ${CY_SUP.toFixed(5)} - hP;
+                float lineaP = arribaP - uCierre * (arribaP - abajoP);
+                if (vPm.y < lineaP) discard;`)
+            .replace("#include <color_fragment>", `#include <color_fragment>
+                // Canto del párpado: una línea oscura fina que dibuja el cierre.
+                diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.12), smoothstep(0.016, 0.002, vPm.y - lineaP));`);
+    };
+    mat.customProgramCacheKey = () => "parpado-movil";
+    return mat;
+}
+
+/**
+ * Párpado del parpadeo: la almendra entera, levantada justo por encima de la
+ * cúpula del iris (con holgura para el iris girado, que se desplaza hasta
+ * ~0,11 de lado), sin hincharse hacia los cantos.
+ */
+function geometriaParpadoMovil(abajo: (x: number) => number, arriba: (x: number) => number): THREE.BufferGeometry {
+    const geo = geometriaAlmendra(abajo, arriba, () => 0);
+    const pos = geo.attributes.position as THREE.BufferAttribute;
+    const rAmplio = OJO.iris.r / 1000 + 0.12;
+    for (let i = 0; i < pos.count; i++) {
+        const x = pos.getX(i);
+        const y = pos.getY(i);
+        const rho = Math.min(1, Math.hypot(x, y) / rAmplio);
+        pos.setZ(i, pos.getZ(i) + 0.007 + (FORMA.alturaIris + 0.006) * Math.pow(Math.max(0, 1 - rho * rho), 0.55));
+    }
+    geo.computeVertexNormals();
+    return geo;
+}
+
 // ── Escena completa ──────────────────────────────────────────────
 export interface OpcionesEscenaSimbolo {
-    /** Sombra de contacto bajo la pieza (no en la vista frontal de comprobación). */
+    /** Sombra de contacto bajo la pieza (sin flor; no en la vista frontal de comprobación). */
     sombraContacto?: boolean;
     /** Resolución del mapa de sombras de la luz principal. */
     resolucionSombra?: number;
+    /** ESC1110B: la Flor de la Vida fundida detrás de los discos. */
+    flor?: boolean;
+    /** ESC1110B: el archivo de símbolo (luces, pose, comportamientos). Por defecto, el oficial. */
+    archivo?: ArchivoSimbolo;
+}
+
+/** Lo que mueve cada fotograma (ESC1110B). */
+export interface EstadoEscenaSimbolo {
+    /** Tiempo (s) para la flotación. */
+    t: number;
+    /** Inclinación de toda la pieza hacia el puntero, en [-1, 1]. */
+    inclinacion: { x: number; y: number };
+    /** Mirada del ojo, en [-1, 1]. */
+    mirada: Mirada;
+    /** Cierre del párpado, 0 abierto … 1 cerrado. */
+    cierre: number;
+    /** Ángulo de la flor (rad). */
+    anguloFlor: number;
+    /** Sin movimiento propio (reposo exacto). */
+    quieto: boolean;
 }
 
 export interface EscenaSimbolo {
@@ -383,10 +593,16 @@ export interface EscenaSimbolo {
     pivote: THREE.Group;
     modelo: THREE.Group;
     iris: THREE.Group;
+    /** ESC1110B: la flor (null si se creó sin ella). */
+    flor: THREE.Mesh | null;
     /** Genera el entorno con PMREM (llamar una vez con el renderer). */
     prepararEntorno(renderer: THREE.WebGLRenderer): void;
     /** Pose en el instante t (s); puntero en [-1, 1]. `quieto` = sin movimiento. */
     pose(t: number, puntero: { x: number; y: number }, quieto?: boolean): void;
+    /** ESC1110B: pose completa (mirada, párpado y flor). */
+    actualizar(e: EstadoEscenaSimbolo): void;
+    /** ESC1110B: sustituye la forma oficial por un modelo propio (null = vuelve al oficial). */
+    usarModeloPropio(objeto: THREE.Object3D | null): void;
     /** Pasada previa al render (sombra de contacto). */
     antesDeRender(renderer: THREE.WebGLRenderer): void;
     liberar(): void;
@@ -395,13 +611,35 @@ export interface EscenaSimbolo {
 /** Pose por defecto (tres cuartos suave) en radianes. */
 export const POSE_REPOSO = { guinada: THREE.MathUtils.degToRad(16), cabeceo: THREE.MathUtils.degToRad(6) } as const;
 
+/** Profundidad del centro de giro del ojo (detrás de la almendra). */
+export const CENTRO_GIRO_OJO = -0.22;
+/** El brillo del diseño acompaña al ojo a menos de la mitad: es un reflejo de la luz, no una pintura. */
+export const SEGUIMIENTO_BRILLO = 0.45;
+
+/**
+ * Encuadre de la cámara. Sin flor: el de ESC1110A (caja 2:3 del símbolo).
+ * Con flor: un cuadrado centrado en el centro de la flor (= disco inferior)
+ * que cabe la flor entera; `lado` en unidades del modelo.
+ */
+export function encuadreSimbolo(conFlor: boolean): { fov: number; posicion: [number, number, number]; mira: [number, number, number]; lado: number; aspecto: number } {
+    if (!conFlor) return { fov: 22, posicion: [0, 0.05, 5], mira: [0, -0.06, 0], lado: 0, aspecto: 2 / 3 };
+    const lado = 2 * (RADIO_ENVOLVENTE + 0.12);
+    const fov = 22;
+    const distancia = lado / 2 / Math.tan(THREE.MathUtils.degToRad(fov / 2));
+    return { fov, posicion: [0, CENTRO_FLOR[1], distancia], mira: [0, CENTRO_FLOR[1], 0], lado, aspecto: 1 };
+}
+
 export function crearEscenaSimbolo(opciones: OpcionesEscenaSimbolo = {}): EscenaSimbolo {
+    const archivo = opciones.archivo ?? SIMBOLO_OFICIAL;
+    const conFlor = !!opciones.flor;
     const escena = new THREE.Scene();
     const liberables: Array<{ dispose(): void }> = [];
     const usar = <T extends { dispose(): void }>(x: T): T => {
         liberables.push(x);
         return x;
     };
+    const invModelo = { value: new THREE.Matrix4() };
+    const cierreUniforme = { value: 0 };
 
     // Materiales físicos.
     const satinSup = usar(new THREE.MeshPhysicalMaterial({
@@ -429,15 +667,22 @@ export function crearEscenaSimbolo(opciones: OpcionesEscenaSimbolo = {}): Escena
     // El brillo del diseño es emisivo: no depende de la luz.
     const brilloMat = usar(new THREE.MeshBasicMaterial({ color: OJO.brillo.color, toneMapped: false }));
     const lunaMat = usar(new THREE.MeshBasicMaterial({ color: OJO.brillo.lunaColor, toneMapped: false }));
+    // ESC1110B: el iris y su brillo se recortan a la almendra cuando el ojo gira.
+    recortarAAlmendra(irisMat, invModelo);
+    recortarAAlmendra(brilloMat, invModelo, 0.004);
+    recortarAAlmendra(lunaMat, invModelo, 0.004);
 
     const modelo = new THREE.Group();
     modelo.name = "simbolo-starseed";
+    const oficial = new THREE.Group();
+    oficial.name = "simbolo-oficial";
+    modelo.add(oficial);
     const malla = (geo: THREE.BufferGeometry, mat: THREE.Material | THREE.Material[], sombra = true) => {
         usar(geo);
         const m = new THREE.Mesh(geo, mat);
         m.castShadow = sombra;
         m.receiveShadow = true;
-        modelo.add(m);
+        oficial.add(m);
         return m;
     };
 
@@ -453,12 +698,22 @@ export function crearEscenaSimbolo(opciones: OpcionesEscenaSimbolo = {}): Escena
     // Párpado: banda superior un poco más alta, con el canto inferior redondeado.
     malla(geometriaAlmendra(parpadoDe, arribaDe, (vn) => FORMA.parpado * Math.sqrt(Math.min(1, vn * 4))), parpado);
 
-    // Iris + brillo (grupo propio: sigue un poco al puntero).
+    // ESC1110B: párpado móvil del parpadeo, por encima de la cúpula del iris.
+    const parpadoMovilMat = usar(materialParpadoMovil(invModelo, cierreUniforme));
+    const parpadoMovil = malla(geometriaParpadoMovil(abajoDe, arribaDe), parpadoMovilMat, false);
+    parpadoMovil.visible = false;
+    parpadoMovil.renderOrder = 2;
+
+    // Iris + brillo. ESC1110B: giran como un globo alrededor de un centro detrás de la almendra.
+    const giroOjo = new THREE.Group();
+    giroOjo.position.set(0, 0, CENTRO_GIRO_OJO);
     const iris = new THREE.Group();
+    iris.position.set(0, 0, -CENTRO_GIRO_OJO);
     const irisMalla = new THREE.Mesh(usar(geometriaIris()), irisMat);
     irisMalla.castShadow = true;
     irisMalla.receiveShadow = true;
     iris.add(irisMalla);
+    giroOjo.add(iris);
     const [bx, by] = pxAModelo(OJO.brillo.cx, OJO.brillo.cy);
     const rB = OJO.brillo.r / 1000;
     const alturaCupula = zIris;
@@ -476,15 +731,41 @@ export function crearEscenaSimbolo(opciones: OpcionesEscenaSimbolo = {}): Escena
     const giro = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), normal);
     luna.quaternion.copy(giro);
     brillo.quaternion.copy(giro);
-    iris.add(luna, brillo);
-    modelo.add(iris);
+    const giroBrillo = new THREE.Group();
+    giroBrillo.position.set(0, 0, CENTRO_GIRO_OJO);
+    const brilloGrupo = new THREE.Group();
+    brilloGrupo.position.set(0, 0, -CENTRO_GIRO_OJO + 0.0015);
+    brilloGrupo.add(luna, brillo);
+    giroBrillo.add(brilloGrupo);
+    oficial.add(giroOjo, giroBrillo);
+
+    // ESC1110B: la flor, en la misma lámina que los discos.
+    let flor: THREE.Mesh | null = null;
+    let materialDeFlor: THREE.ShaderMaterial | null = null;
+    if (conFlor) {
+        materialDeFlor = usar(materialFlor());
+        flor = new THREE.Mesh(usar(geometriaFlor()), materialDeFlor);
+        flor.name = "flor-de-la-vida";
+        flor.frustumCulled = false;
+        flor.renderOrder = 1;
+        flor.visible = archivo.comportamientos.fusionFlor;
+        modelo.add(flor);
+    }
 
     const pivote = new THREE.Group();
+    // Con flor, todo gira alrededor del centro de la flor (= disco inferior).
+    const centroGiro = conFlor ? CENTRO_FLOR[1] : 0;
+    pivote.position.y = centroGiro;
+    modelo.position.y = -centroGiro;
+    const escala = archivo.pose.escala;
+    modelo.scale.setScalar(escala);
+    modelo.position.y = -centroGiro * escala;
     pivote.add(modelo);
     escena.add(pivote);
 
-    // Luz de tres puntos.
-    const clave = new THREE.DirectionalLight("#fff4e6", 3.2);
+    // Luz de tres puntos (del archivo).
+    const L = archivo.luces;
+    const clave = new THREE.DirectionalLight(L.clave.color, L.clave.intensidad);
     clave.position.set(3.0, 1.3, 0.9);
     clave.castShadow = true;
     const res = opciones.resolucionSombra ?? 1024;
@@ -498,26 +779,33 @@ export function crearEscenaSimbolo(opciones: OpcionesEscenaSimbolo = {}): Escena
     clave.shadow.radius = 5;
     clave.shadow.bias = -0.0004;
     clave.shadow.normalBias = 0.012;
-    const relleno = new THREE.DirectionalLight("#cfe0ff", 0.4);
+    const relleno = new THREE.DirectionalLight(L.relleno.color, L.relleno.intensidad);
     relleno.position.set(-2.2, 0.4, 1.8);
-    const contra = new THREE.DirectionalLight("#bfe8ff", 3.0);
+    const contra = new THREE.DirectionalLight(L.contra.color, L.contra.intensidad);
     contra.position.set(-1.1, 1.0, -3.0);
     escena.add(clave, clave.target, relleno, contra);
 
     let sombra: SombraContacto | null = null;
-    if (opciones.sombraContacto) {
+    if (opciones.sombraContacto && !conFlor) {
         sombra = new SombraContacto(1.6, 1.6);
         sombra.grupo.position.y = FORMA.sueloY;
         escena.add(sombra.grupo);
     }
 
     let entorno: THREE.Texture | null = null;
+    let propio: THREE.Object3D | null = null;
+    const reposo = {
+        guinada: THREE.MathUtils.degToRad(archivo.pose.guinada),
+        cabeceo: THREE.MathUtils.degToRad(archivo.pose.cabeceo),
+    };
+    const ojoActivo = () => propio === null;
 
-    return {
+    const s: EscenaSimbolo = {
         escena,
         pivote,
         modelo,
         iris,
+        flor,
         prepararEntorno(renderer) {
             if (entorno) return;
             const pmrem = new THREE.PMREMGenerator(renderer);
@@ -532,22 +820,37 @@ export function crearEscenaSimbolo(opciones: OpcionesEscenaSimbolo = {}): Escena
             });
             pmrem.dispose();
             escena.environment = entorno;
-            escena.environmentIntensity = 0.4;
+            escena.environmentIntensity = L.entorno;
         },
         pose(t, puntero, quieto = false) {
-            if (quieto) {
-                pivote.position.y = 0;
-                pivote.rotation.set(POSE_REPOSO.cabeceo, POSE_REPOSO.guinada, 0);
-                iris.position.x = 0;
-                iris.position.y = 0;
-                return;
+            s.actualizar({ t, inclinacion: puntero, mirada: { x: 0, y: 0 }, cierre: 0, anguloFlor: 0, quieto });
+        },
+        actualizar(est) {
+            const flota = archivo.pose.flotacion;
+            if (est.quieto) {
+                pivote.position.y = centroGiro;
+                pivote.rotation.set(reposo.cabeceo, reposo.guinada, 0);
+            } else {
+                // Flotación lenta (≈ 6 s) y unos grados de guiñada (≈ 14 s).
+                pivote.position.y = centroGiro + Math.sin((est.t * Math.PI * 2) / 6) * 0.018 * flota;
+                pivote.rotation.y = reposo.guinada + Math.sin((est.t * Math.PI * 2) / 14) * THREE.MathUtils.degToRad(6) * flota + est.inclinacion.x * THREE.MathUtils.degToRad(5);
+                pivote.rotation.x = reposo.cabeceo - est.inclinacion.y * THREE.MathUtils.degToRad(4);
             }
-            // Flotación lenta (≈ 6 s) y unos grados de guiñada (≈ 14 s).
-            pivote.position.y = Math.sin((t * Math.PI * 2) / 6) * 0.018;
-            pivote.rotation.y = POSE_REPOSO.guinada + Math.sin((t * Math.PI * 2) / 14) * THREE.MathUtils.degToRad(6) + puntero.x * THREE.MathUtils.degToRad(5);
-            pivote.rotation.x = POSE_REPOSO.cabeceo - puntero.y * THREE.MathUtils.degToRad(4);
-            iris.position.x = puntero.x * 0.005;
-            iris.position.y = puntero.y * 0.005;
+            const a = angulosMirada(ojoActivo() ? est.mirada : { x: 0, y: 0 });
+            giroOjo.rotation.set(-a.cabeceo, a.guinada, 0);
+            giroBrillo.rotation.set(-a.cabeceo * SEGUIMIENTO_BRILLO, a.guinada * SEGUIMIENTO_BRILLO, 0);
+            const c = ojoActivo() ? Math.min(1, Math.max(0, est.cierre)) : 0;
+            cierreUniforme.value = c;
+            parpadoMovil.visible = c > 0.001;
+            if (materialDeFlor) materialDeFlor.uniforms.uAngulo.value = est.anguloFlor;
+            escena.updateMatrixWorld();
+            invModelo.value.copy(modelo.matrixWorld).invert();
+        },
+        usarModeloPropio(objeto) {
+            if (propio) modelo.remove(propio);
+            propio = objeto;
+            oficial.visible = !objeto;
+            if (objeto) modelo.add(objeto);
         },
         antesDeRender(renderer) {
             sombra?.actualizar(renderer, escena);
@@ -559,4 +862,9 @@ export function crearEscenaSimbolo(opciones: OpcionesEscenaSimbolo = {}): Escena
             clave.shadow.map?.dispose();
         },
     };
+    s.actualizar({ t: 0, inclinacion: { x: 0, y: 0 }, mirada: { x: 0, y: 0 }, cierre: 0, anguloFlor: 0, quieto: true });
+    return s;
 }
+
+/** Comprobación numérica de la fusión: centros y radios de los discos frente a los anillos (unidades del modelo). */
+export const MEDIDAS_FUSION = { radioDisco: R, radioAnillo: RADIO_FLOR, paso: PASO_FLOR, zFlor: Z_FLOR } as const;

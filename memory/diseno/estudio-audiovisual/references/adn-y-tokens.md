@@ -225,6 +225,38 @@ abombada con párpado, iris de brillo húmedo y el brillo del diseño emisivo (n
 - **Imagen fija:** `public/brand/starseed-simbolo-3d.webp` (256 × 384, misma escena y pose); es el marcador
   instantáneo y el respaldo sin WebGL.
 
+### 8c.1 Fundido con la Flor de la Vida, ojo vivo y archivo de símbolo (ESC1110B, 2026-11-10)
+
+- **Fusión exacta.** La marca es una vesica piscis: dos círculos de r = 500 px con los centros a 497 px. La
+  flor se construye con esas cifras (`simbolo-flor.ts`): radio de anillo = radio de disco, paso de la retícula
+  hexagonal = distancia entre centros, centro de la flor = centro del disco inferior, primer vecino justo
+  encima = centro del disco superior. Los anillos viven en la MISMA escena y bajo el mismo padre que los
+  discos, sobre la misma lámina plegada (z del canto que dibuja la silueta), así que coinciden en cualquier
+  pose. Medido en la pose de reposo (ajuste de elipses sobre la silueta del disco y el núcleo del anillo):
+  ≤ 0,32 px de centro y ≤ 0,51 px de radio a 1×; ≤ 0,66 px y ≤ 0,96 px a 2×. La flor ideal tendría paso =
+  radio; la diferencia (0,6 %) es de la propia marca y no se corrige.
+- **Anillos:** cinta luminosa aditiva (núcleo de ~1 px + halo), cian en el centro → azul → violeta fuera;
+  se desvanecen hacia fuera y por debajo (detrás del texto) y se avivan junto al símbolo; el canto de los
+  discos recibe su halo.
+- **Giro de la flor:** alrededor del centro del disco inferior, pausa de 7 s en cada posición de reposo
+  (cada 60°: ahí la figura fundida es exacta) y deslizamiento suave de 4,5 s a la siguiente. Se arrastra con
+  inercia y se asienta (resorte críticamente amortiguado) en el reposo más cercano; flechas del teclado: ±60°.
+  Con movimiento reducido no gira sola y el teclado salta sin animación.
+- **Ojo:** el iris (con el brillo de la marca) gira como un globo detrás de la almendra hacia el puntero en
+  todo el escritorio o hacia donde se toca: ±14° de guiñada, ±8° de cabeceo, suavizado de 0,12 s, vuelve al
+  frente tras 2,5 s; se recorta a la almendra (también en reposo, como en el arte plano). El brillo acompaña
+  al 45 %: es un reflejo, no se pierde. Clic o toque sin arrastre: parpadeo real del párpado sobre la almendra
+  (80 ms cerrando + 110 ms abriendo); parpadeo ocioso cada 5–10 s. Con movimiento reducido, nada de esto.
+- **Salida de la bienvenida:** al llegar el primer elemento el símbolo sube 18 px, se abre a 1,32× y se
+  disuelve con la flor (0,75 s) mientras el texto baja y se desenfoca (0,55 s); vuelve al revés si el
+  escritorio se vacía. Con movimiento reducido, solo opacidad.
+- **Imagen fija con flor:** `public/brand/starseed-simbolo-flor-3d.webp` (828 × 828, 2× de 414 px, centrada
+  en el disco inferior; el lienzo desborda la caja 2:3 del símbolo sin moverla en el maquetado).
+- **Archivo de símbolo:** formato abierto `starseed-simbolo` v1 (`architecture/simbolo-escritorio.md`). El
+  oficial es el archivo por defecto. Regla de marca intacta: en el oficial se ignoran forma y material y la
+  luz solo se matiza (±40 %, sin cambiar su color); un símbolo propio es de su perfil, página o grupo y se
+  rotula «Símbolo propio de …».
+
 ## 9. Nota sobre el comprobador del repo
 
 `memory/diseno/adn/starseed-os/check.py` del repo aprueba las 8 pruebas sin medir nada. No lo uses como
