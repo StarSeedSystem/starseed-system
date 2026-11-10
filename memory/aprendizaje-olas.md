@@ -6716,3 +6716,12 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `IRD11101` — otra cosa: 3 propuesta(s) · starseed_memory_root/imaginacion/agentes/referencias-diseno-2026-11-10-1.json
 - `IRD11102` — otra cosa: 2 propuesta(s) · starseed_memory_root/imaginacion/agentes/referencias-diseno-2026-11-10-2.json
 - `IRD11103` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/referencias-diseno-2026-11-10-3.json
+
+## 2026-11-10 09:04 · auto-1110-090137
+
+**Lo que se pidió.** ideas nuevas
+
+**Resultado.** 0 de 1 integradas. 1 tarea se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `DR1110-2` — los tipos no compilan: 2 errores tsc (rama ola/DR1110-2 conservada)
