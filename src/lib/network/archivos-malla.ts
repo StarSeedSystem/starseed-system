@@ -1943,19 +1943,14 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
    * que late es una espera SIN NOTICIAS (cada latido la reinicia: verificar 500 MB durante minutos no
    * es un fallo); con uno anterior, un plazo fijo que crece con el tamaño del archivo.
    * (SUP0911G) Al vencer la primera espera, el remitente NO se rinde: manda una vez más «fin» y arma
-   * una última espera corta (gracia). Si en la gracia llega «ok», acaba «completada»; si llega un latido,
-   * `vigilarVerificacion` vuelve a empezar (y la próxima vez que venza, otra vez una última llamada);
-   * si no llega nada, el error «sin-confirmacion» de siempre. Una espera nueva (cada llamada a
-   * `vigilarVerificacion`) olvida la última llamada anterior **solo si ya se había reenviado «fin»**
-   * (estábamos en gracia); si aún no se reenvió, la espera completa sigue su curso.
+   * una última espera corta (gracia). (SUP0911H) Cada llamada a `vigilarVerificacion` —al mandar «fin»
+   * y con CADA latido, ARC1108B— corta la espera que hubiera (completa o gracia) y arma OTRA espera
+   * completa desde cero: verificar 500 MB durante minutos no es un fallo. La repetición de «fin» y la
+   * gracia quedan así como el caso de la espera completa que vence SIN noticias (el latido siempre la
+   * reinicia antes); si en la gracia no llega nada, el error «sin-confirmacion» de siempre.
    */
   function vigilarVerificacion(id: string): void {
-    const infoPrev = vigias.get(id);
-    if (infoPrev?.fase === "gracia") {
-      limpiarVigia(id);
-    } else if (infoPrev?.fase === "completa") {
-      return;
-    }
+    limpiarVigia(id);
     const e = estados.get(id);
     if (!e) return;
     const late = conLatido.has(id);
