@@ -998,3 +998,28 @@ dependen de Claude; lo que se quedó sin dueño fue el trabajo que la sesión de
   va al carril de alta capacidad. Aviso único en el Chat Director.
 - **Al volver**, Claude lee `relevo_carril_claude.py estado`, no repite lo relevado y cierra lo suyo con `cerrar`.
 - Lógica pura y pruebas: `relevo_carril_claude_logica.py`, `test_relevo_carril_claude.py`. Contexto: CLAUDE.md, trampa 23.
+
+## 22. Captura de Jev y prueba en sombra: medir antes de instalar (2026-11-10, MGM1110B)
+
+Regla de Alex: depender menos de proveedores externos, **midiendo primero y quedándose solo con lo que mejora de verdad**. Análisis y números: `modelos-propios-metagenesis` (MGM1110A, §3.6 y §7). Esta sección es la fase 0 (captura) y la fase 1 (sombra). **Ningún modelo local decide nada todavía** y no se instala nada.
+
+**Fase 0, la captura** (`scripts/puente/jev_captura.py`, enganchada en `jev.decidir` con un `try` y en `decidir.consultar`/`consultar_lote` solo para pasar el dominio y enlazar con la experiencia).
+- Cada llamada a Jev que obtiene respuesta añade una línea a `~/.starseed/jev-captura/AAAA-MM-DD.jsonl`: id estable, hora UTC, quién pregunta, dominio, tipos, estratos, medio y modelo que contestaron, **estado y preguntas completos** (instrucciones y opciones), respuestas, confianza, ms y `truncado`. Las respuestas servidas de la caché de 6 h no se repiten (su decisión ya está).
+- Directorio `0700`, archivos `0600`, **fuera del repo**. Claves y tokens se tachan antes de escribir (patrones de `decidir._SECRETOS` más algunos propios); cada línea se acota a 16 KB y lo dice.
+- **Nunca rompe ni frena una decisión**: solo `open(O_APPEND)` + `write`, sin red y sin cerrojo; cualquier fallo se traga y se cuenta (`jev_captura.FALLOS` y `fallos.log`). Coste medido: ~0,09 ms por llamada.
+- Rotación: 14 días y 200 MB como mucho, lo más viejo primero.
+- Interruptor: `STARSEED_JEV_CAPTURA=0` (por defecto encendida). Bajo pruebas (unittest/pytest) no escribe en el directorio real.
+- **Privacidad**: estos prompts pueden llevar mensajes privados de Alex (el puente de Telegram es el mayor llamador). La captura se queda en la máquina donde ocurrió la llamada: **nunca se commitea, sube, copia a informes, al buzón ni al Mando**. Del archivo solo salen contadores y métricas.
+- Resumen: `python3 scripts/puente/jev_captura.py resumen [--json]` (totales por día, tipo y estrato, y si se alcanzó la meta: **≥ 1.000 llamadas con los 5 estratos** `noul:bloqueadas`, `noul:aprobacion`, `noul:produccion`, `choice:enjambre:escritor`, `choice:ramas-nube`; la lista está en `ESTRATOS_OBJETIVO`). El estrato es «tipo:dominio», con el dominio que pasa quien llama a `decidir.consultar` (o su nombre si no lo pasa).
+
+**Fase 1, la sombra** (`scripts/puente/jev_sombra.py`, `python3 scripts/puente/jev_sombra.py [ejecutar|informe|auto]`).
+- Repite la captura por los peldaños que ya existen, **sin devolver nada a los directores**: `needle` (Needle 3 por `POST /api/needle/decidir` del backend de Astraura), `laya` (`/v1/systemone`, el contrato de Jev) y `bitnet` (`jev_local`, :8790). Un peldaño solo cuenta si **contesta una pregunta de prueba**; si no, se salta y el informe lo dice. No instala ni descarga nada.
+- Por decisión y peldaño: respuesta, confianza, latencia y memoria pico del proceso (muestreada). Métricas: acuerdo con el proveedor (misma opción, o probabilidad del mismo lado de 0,5), acuerdo con confianza ≥ 0,7 y qué parte de las decisiones cubre, mediana y p90, y acierto frente al desenlace real cuando se conoce.
+- **Veredicto por peldaño** (umbrales en `jev_sombra.UMBRALES`, un solo sitio): «faltan datos» con < 1.000 llamadas repetidas o un estrato ausente; «se queda» con acuerdo ≥ 90 % en los casos confiables, cobertura ≥ 40 % y mediana ≤ 3 s; «se descarta» en lo demás.
+- **Todo desacuerdo con «descartar»/«rechazar»** (en la respuesta de cualquiera o en la pregunta) va a la lista de revisión manual: solo ids y las dos respuestas.
+- Buen vecino: `nice 10`; solo corre con la máquina libre (carga ≤ 3, sin `pesado.lock` vivo, que nunca toma, y sin conversación en vivo) y se detiene en cuanto deja de estarlo; reanuda en `~/.starseed/jev-sombra/progreso.jsonl` (solo ids y métricas, sin textos). `STARSEED_JEV_SOMBRA=0` la apaga.
+- Salida: `~/.starseed/jev-sombra/AAAA-MM-DD/informe.md` y `resultado.json` (métricas solamente) y `ultimo.json`.
+- Autónoma: `director-orquestacion.py` lanza `jev_sombra.py auto` cada hora; `auto` no hace nada hasta que la captura alcanza la meta. El Mando enseña en el panel de Jev «Captura de Jev: N de 1.000 · estratos X de 5» y, después de una sombra, el veredicto por peldaño.
+- Estado medido el 2026-11-10 en la Mac: BitNet contesta; Laya devuelve 503 en `/v1/systemone` y Needle no tiene sus pesos (la descarga de la rueda `cactus_needle` da 404 en Hugging Face), así que hoy esos dos se saltarían. Arreglarlos es previo a que la sombra pueda medirlos.
+
+**Quitarlo todo**: `STARSEED_JEV_CAPTURA=0` y `STARSEED_JEV_SOMBRA=0`, y borrar `~/.starseed/jev-captura` y `~/.starseed/jev-sombra`. No queda ningún otro estado.

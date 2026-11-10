@@ -52,6 +52,21 @@ export interface RespuestaJev {
     local_pausado_hasta: string | null;
     ultima: UltimaJev | null;
     saldo_restante_usd: number | null;
+    /** MGM1110B: avance de la captura local de decisiones (solo cifras, nunca los textos). */
+    captura?: CapturaJev | null;
+}
+
+/** MGM1110B: lo que `jev_captura.py resumen --json` deja ver al Mando. Solo contadores y veredictos. */
+export interface CapturaJev {
+    activa: boolean;
+    llamadas: number;
+    objetivo: number;
+    estratos_presentes: number;
+    estratos_total: number;
+    objetivo_alcanzado: boolean;
+    /** Veredicto de la última prueba en sombra por peldaño: «se queda», «se descarta» o «faltan datos». */
+    veredictos: Record<string, string>;
+    fecha_sombra: string | null;
 }
 
 type Registro = Record<string, unknown>;
@@ -204,6 +219,39 @@ export function construirRespuestaJev(
             : null,
         saldo_restante_usd: saldo && saldo.restante !== undefined ? Number(saldo.restante) : null,
     };
+}
+
+/** Limpia el JSON de `jev_captura.py resumen --json` a lo que el Mando muestra (null si no es válido). */
+export function construirCapturaJev(valor: unknown): CapturaJev | null {
+    if (!esRegistro(valor)) return null;
+    const objetivo = numero(valor.objetivo) || 1000;
+    const sombra = esRegistro(valor.sombra) ? valor.sombra : null;
+    const veredictos: Record<string, string> = {};
+    if (sombra && esRegistro(sombra.veredictos)) {
+        for (const [peldano, v] of Object.entries(sombra.veredictos)) {
+            if (typeof v === "string") veredictos[peldano.slice(0, 24)] = v.slice(0, 24);
+        }
+    }
+    return {
+        activa: valor.activa !== false,
+        llamadas: numero(valor.llamadas),
+        objetivo,
+        estratos_presentes: numero(valor.estratos_presentes),
+        estratos_total: Array.isArray(valor.estratos_objetivo) ? valor.estratos_objetivo.length : 0,
+        objetivo_alcanzado: valor.objetivo_alcanzado === true,
+        veredictos,
+        fecha_sombra: sombra && typeof sombra.fecha === "string" ? sombra.fecha.slice(0, 10) : null,
+    };
+}
+
+/** «Captura de Jev: 312 de 1.000 · estratos 3 de 5» (con los veredictos si ya hubo prueba en sombra). */
+export function textoCapturaJev(c: CapturaJev): string {
+    const n = (x: number) => String(Math.round(x)).replace(/\B(?=(\d{3})+(?!\d))/g, "."); // 1.000 (es-ES no agrupa 4 cifras)
+    const base = c.activa
+        ? `Captura de Jev: ${n(c.llamadas)} de ${n(c.objetivo)} · estratos ${c.estratos_presentes} de ${c.estratos_total}`
+        : "Captura de Jev: apagada";
+    const peldanos = Object.entries(c.veredictos);
+    return peldanos.length ? `${base} · sombra: ${peldanos.map(([p, v]) => `${p} ${v}`).join(", ")}` : base;
 }
 
 /** Nombres legibles de quien pregunta a Jev (el módulo que llama). */

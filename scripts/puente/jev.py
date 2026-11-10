@@ -826,6 +826,7 @@ def decidir(estado, preguntas, usar_cache=True, medio=None, quien=None):
     jl = _local()
     respuestas = None
     medio_usado = None
+    modelo_usado = None  # MGM1110B: para la captura local (jev_captura.py)
     # Pirámide: BitNet local -> Laya local -> Experiential (gratis, /v1/systemone) ->
     # Experiential Decisions (gratis, /v1/decisions, GPT-6 Luna hasta 14-nov) ->
     # OpenRouter remoto (de pago).
@@ -846,6 +847,7 @@ def decidir(estado, preguntas, usar_cache=True, medio=None, quien=None):
         respuestas = _intenta_local(jl, estado, preguntas)
         if respuestas is not None:
             medio_usado = "local"
+            modelo_usado = "bitnet"
         else:
             local_disponible = False  # el local estaba disponible pero no respondió
     # Capa local Laya (SystemOne) antes del Jev remoto
@@ -854,23 +856,27 @@ def decidir(estado, preguntas, usar_cache=True, medio=None, quien=None):
         if resp_laya is not None:
             respuestas = resp_laya
             medio_usado = "laya-local"
+            modelo_usado = resp_laya.get("motor") if isinstance(resp_laya, dict) else None
     # Gratis en la nube antes que de pago: Jev/Clef Flash de Experiential Labs.
     if respuestas is None and intenta_explabs:
         resp_exp, _modelo = _intenta_explabs(estado, preguntas, quien=quien)
         if resp_exp is not None:
             respuestas = resp_exp
             medio_usado = "explabs"
+            modelo_usado = _modelo
     # Último intento gratis: GPT-6 Luna Decisions API (gratis hasta 14-nov) por /v1/decisions.
     if respuestas is None and intenta_explabs_decisions:
         resp_exp_dec, _modelo = _intenta_explabs_decisions(estado, preguntas, quien=quien)
         if resp_exp_dec is not None:
             respuestas = resp_exp_dec
             medio_usado = "explabs-decisions"
+            modelo_usado = _modelo or EXPLABS_DECISIONS_MODEL
     # Escalada obligatoria: si no hay respuesta y no se forzó solo local.
     if respuestas is None and intenta_open:
         respuestas, _cruda = _intenta_openrouter(estado, preguntas, t0, quien=quien)
         if respuestas is not None:
             medio_usado = "openrouter"
+            modelo_usado = (_cruda.get("model") if isinstance(_cruda, dict) else None) or MODELO
     if respuestas is None:
         return None
     ms = round((time.time() - t0) * 1000, 1)
@@ -879,6 +885,14 @@ def decidir(estado, preguntas, usar_cache=True, medio=None, quien=None):
     res["ms"] = ms
     if medio_usado in ("local", "laya-local", "explabs", "explabs-decisions"):
         _anotar_uso({}, time.time() - t0, medio=medio_usado, ms=ms, quien=quien, tipos=tipos)
+    # (MGM1110B) Captura local del prompt completo para la prueba en sombra. Sin red, sin
+    # cerrojo y sin lanzar: ver scripts/puente/jev_captura.py (privacidad en su docstring).
+    try:
+        import jev_captura as _cap
+
+        _cap.registrar(estado, preguntas, quien, medio_usado, modelo_usado, respuestas, ms)
+    except Exception:
+        pass
     if usar_cache:
         # Cache separa respuestas de metadatos (evita mezclar 'medio'/'ms' con claves de pregunta).
         cache[h] = {

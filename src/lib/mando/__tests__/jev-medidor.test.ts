@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { construirRespuestaJev, resumenPastillaJev } from "../jev-medidor";
+import { construirCapturaJev, construirRespuestaJev, resumenPastillaJev, textoCapturaJev } from "../jev-medidor";
 
 describe("medidor de Jev", () => {
     it("arma los repartos, costes y percentiles de hoy y del mes", () => {
@@ -95,5 +95,47 @@ describe("medidor de Jev", () => {
         expect(respuesta.hoy.coste_usd).toBe(0);
         expect(respuesta.hoy.p50_local_ms).toBe(0);
         expect(respuesta.hoy.p50_openrouter_ms).toBe(0);
+    });
+});
+
+describe("captura de Jev (MGM1110B)", () => {
+    const resumen = {
+        activa: true,
+        llamadas: 312,
+        objetivo: 1000,
+        estratos_presentes: 3,
+        estratos_objetivo: ["a", "b", "c", "d", "e"],
+        objetivo_alcanzado: false,
+        por_quien: { "telegram-puente": 200 },
+        sombra: { fecha: "2026-11-14", veredictos: { laya: "se queda", needle: "se descarta" } },
+    };
+
+    it("deja solo cifras y veredictos", () => {
+        const c = construirCapturaJev(resumen);
+        expect(c).toEqual({
+            activa: true,
+            llamadas: 312,
+            objetivo: 1000,
+            estratos_presentes: 3,
+            estratos_total: 5,
+            objetivo_alcanzado: false,
+            veredictos: { laya: "se queda", needle: "se descarta" },
+            fecha_sombra: "2026-11-14",
+        });
+        expect(JSON.stringify(c)).not.toContain("telegram");
+    });
+
+    it("escribe la línea del Mando, con y sin prueba en sombra", () => {
+        const c = construirCapturaJev(resumen);
+        expect(c && textoCapturaJev(c)).toBe("Captura de Jev: 312 de 1.000 · estratos 3 de 5 · sombra: laya se queda, needle se descarta");
+        const sin = construirCapturaJev({ ...resumen, sombra: null });
+        expect(sin && textoCapturaJev(sin)).toBe("Captura de Jev: 312 de 1.000 · estratos 3 de 5");
+        expect(textoCapturaJev({ ...(sin as NonNullable<typeof sin>), activa: false })).toBe("Captura de Jev: apagada");
+    });
+
+    it("tolera un resumen ausente o roto", () => {
+        expect(construirCapturaJev(null)).toBeNull();
+        expect(construirCapturaJev("x")).toBeNull();
+        expect(construirCapturaJev({})?.llamadas).toBe(0);
     });
 });

@@ -10,7 +10,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 
 import { guardianMando } from "@/lib/mando/guardian";
-import { construirRespuestaJev } from "@/lib/mando/jev-medidor";
+import { construirCapturaJev, construirRespuestaJev, type CapturaJev } from "@/lib/mando/jev-medidor";
 import { raizDelProyecto } from "@/lib/mando/raiz";
 
 const correr = promisify(execFile);
@@ -64,6 +64,27 @@ async function motorVivo(url: string): Promise<boolean> {
     }
 }
 
+// MGM1110B: avance de la captura local de decisiones (solo cifras). Lo calcula
+// `scripts/puente/jev_captura.py resumen --json`; aquí se pide como mucho cada 5 minutos.
+let capturaCache: { t: number; valor: CapturaJev | null } | null = null;
+
+async function leerCaptura(): Promise<CapturaJev | null> {
+    if (capturaCache && Date.now() - capturaCache.t < 300_000) return capturaCache.valor;
+    let valor: CapturaJev | null = null;
+    try {
+        const { stdout } = await correr("python3", ["scripts/puente/jev_captura.py", "resumen", "--json"], {
+            cwd: raizDelProyecto(),
+            timeout: 8_000,
+            maxBuffer: 1_000_000,
+        });
+        valor = construirCapturaJev(JSON.parse(stdout) as unknown);
+    } catch {
+        valor = null;
+    }
+    capturaCache = { t: Date.now(), valor };
+    return valor;
+}
+
 export async function GET(peticion: Request): Promise<Response> {
     const veto = await guardianMando(peticion);
     if (veto) return veto;
@@ -90,7 +111,7 @@ export async function GET(peticion: Request): Promise<Response> {
         localVivo,
         layaViva,
     );
-    return Response.json(respuesta, { headers: { "Cache-Control": "no-store" } });
+    return Response.json({ ...respuesta, captura: await leerCaptura() }, { headers: { "Cache-Control": "no-store" } });
 }
 
 // El guion de una línea importa jev desde scripts/puente y volca el dict en JSON;

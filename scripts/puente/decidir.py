@@ -253,6 +253,38 @@ def _llamar_jev(j, estado, preguntas, quien, espera=None):
         _TURNO.release()
 
 
+def _captura(dominio):
+    """(MGM1110B) Contexto que le dice a la captura local de Jev el dominio de la decisión."""
+    try:
+        import jev_captura as c
+
+        return c.con_dominio(dominio)
+    except Exception:
+        import contextlib
+
+        return contextlib.nullcontext()
+
+
+def _captura_id():
+    try:
+        import jev_captura as c
+
+        return c.ultimo_id()
+    except Exception:
+        return None
+
+
+def _captura_enlazar(captura_id, experiencia_id):
+    """Une la captura con su experiencia, para conocer el desenlace real al medir."""
+    try:
+        if captura_id and experiencia_id:
+            import jev_captura as c
+
+            c.enlazar(captura_id, experiencia_id)
+    except Exception:
+        pass
+
+
 def _medio(r):
     if not isinstance(r, dict):
         return "regla"
@@ -294,9 +326,12 @@ def consultar(tipo, estado, pregunta, opciones=None, niveles=None, quien=None, r
     r = None
     ocupado = False
     j = None if apagado() else _jev()
+    cap_id = None
     if j is not None:
         try:
-            r = _llamar_jev(j, estado, {"q": pregunta_jev(tipo, pregunta, opciones, niveles)}, quien, espera_turno)
+            with _captura(dominio):
+                r = _llamar_jev(j, estado, {"q": pregunta_jev(tipo, pregunta, opciones, niveles)}, quien, espera_turno)
+                cap_id = _captura_id()
         except Ocupado:
             ocupado = True
         except Exception:
@@ -315,6 +350,7 @@ def consultar(tipo, estado, pregunta, opciones=None, niveles=None, quien=None, r
         fuera["experiencia"] = _anotar("regla" if medio == "regla" else "jev", TIPO_EXPERIENCIA[tipo], estado,
                                        fuera["pregunta"], salida, fuera.get("confianza"), ms,
                                        list(_opciones(opciones)) or _niveles(niveles), dominio, quien)
+        _captura_enlazar(cap_id, fuera["experiencia"])
     return fuera
 
 
@@ -332,10 +368,13 @@ def consultar_lote(estado, preguntas, quien=None, dominio="", anotar=True):
     t0 = time.time()
     r = None
     j = None if (apagado() or not elegidas) else _jev()
+    cap_id = None
     if j is not None:
         try:
-            r = _llamar_jev(j, estado, {qid: pregunta_jev(q["tipo"], q["pregunta"], q.get("opciones"), q.get("niveles"))
-                                        for qid, q in elegidas.items()}, quien)
+            with _captura(dominio):
+                r = _llamar_jev(j, estado, {qid: pregunta_jev(q["tipo"], q["pregunta"], q.get("opciones"), q.get("niveles"))
+                                            for qid, q in elegidas.items()}, quien)
+                cap_id = _captura_id()
         except Exception:
             r = None
     respuestas = {}
@@ -353,6 +392,7 @@ def consultar_lote(estado, preguntas, quien=None, dominio="", anotar=True):
         fuera["experiencia"] = _anotar("regla" if medio == "regla" else "jev", "lote", estado,
                                        "%d preguntas: %s" % (len(elegidas), sanear(str(next(iter(elegidas.values()))["pregunta"]))[:200]),
                                        salida, None, ms, None, dominio, quien)
+        _captura_enlazar(cap_id, fuera["experiencia"])
     return fuera
 
 

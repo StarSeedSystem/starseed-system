@@ -59,6 +59,9 @@ CONSUMO_CADA_S = int(os.environ.get("STARSEED_CONSUMO_S", "900"))
 #: (2026-09-25) Cada cuánto se publica el túnel de Astraura para la web y la app
 #: (publicar_tunel_astraura.py: solo escribe si cambió o cada 30 min).
 TUNEL_CADA_S = int(os.environ.get("STARSEED_TUNEL_ASTRAURA_S", "300"))
+#: (MGM1110B) Cada cuánto se ofrece la prueba en sombra de Jev (jev_sombra.py auto): ella sola
+#: decide si toca (captura en la meta, máquina libre) y se detiene si hace falta la máquina.
+SOMBRA_CADA_S = int(os.environ.get("STARSEED_JEV_SOMBRA_S", "3600"))
 DISCO_MIN_GB = 5
 PATRON_ORQ = re.compile(r"^[^ ]*[Pp]ython[0-9.]* +-u +.*starseed-enjambre\.py")
 
@@ -811,9 +814,20 @@ def main():
     ultimo_parte = 0
     ultimo_consumo = 0
     ultimo_tunel = 0
+    ultimo_sombra = 0
     while True:
         try:
             revisar()
+            # (MGM1110B) Prueba en sombra de Jev con los modelos locales que ya existen: no instala
+            # nada ni decide nada; `auto` no hace nada hasta que la captura llegue a su meta.
+            if time.time() - ultimo_sombra >= SOMBRA_CADA_S and os.environ.get("STARSEED_JEV_SOMBRA", "1") != "0":
+                ultimo_sombra = time.time()
+                subprocess.Popen(
+                    [sys.executable, os.path.join(DIRECTORIO, "jev_sombra.py"), "auto"],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    start_new_session=True,
+                )
             # (2026-09-25) Alex: «los directores deben supervisar que no haya medios donde se
             # desperdicien créditos o datos de ningún tipo». Mide sin gastar tráfico.
             if time.time() - ultimo_consumo >= CONSUMO_CADA_S:

@@ -168,6 +168,7 @@ import {
     CONSUMIDORES_JEV,
     HABILIDADES_JEV,
     resumenPastillaJev,
+    textoCapturaJev, // MGM1110B
     type PeriodoJev,
     type RespuestaJev,
 } from "@/lib/mando/jev-medidor";
@@ -787,6 +788,11 @@ function PanelMedidorJev({ datos, alCerrar }: { datos: RespuestaJev; alCerrar: (
                     </li>
                 ))}
             </ul>
+            {datos.captura ? (
+                <p className="mt-2 text-center text-[11px] text-white/55" data-testid="captura-jev">
+                    {textoCapturaJev(datos.captura)}
+                </p>
+            ) : null}
             <div className="mt-3 grid gap-2 md:grid-cols-2">
                 <RepartoJev titulo="Hoy" periodo={datos.hoy} />
                 <RepartoJev titulo="Este mes" periodo={datos.mes} />
