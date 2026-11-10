@@ -289,6 +289,108 @@ try {
     await tableta.evaluate(() => window.banco.colgar());
   }
 
+  /* 5 · (LLA1110D) Casos combinados: motor con carriles por flujo + ventana real en los dos lados. */
+  /** Brillo medio del mosaico remoto cada ~350 ms durante `ms`: cuenta las muestras oscuras (hueco negro o parpadeo). */
+  const muestrear = async (p, ms) => {
+    const fin = Date.now() + ms;
+    const medias = [];
+    while (Date.now() < fin) {
+      await abrirPanel(p);
+      const loc = p.locator(REMOTO).first();
+      const caja = (await loc.count()) ? await loc.boundingBox() : null;
+      if (!caja || caja.width < 4) {
+        medias.push(0);
+      } else {
+        const b64 = (await p.screenshot({ clip: caja })).toString("base64");
+        medias.push(await p.evaluate(async (b64) => {
+          const bm = await createImageBitmap(await (await fetch(`data:image/png;base64,${b64}`)).blob());
+          const c = new OffscreenCanvas(bm.width, bm.height);
+          const x = c.getContext("2d");
+          x.drawImage(bm, 0, 0);
+          const d = x.getImageData(0, 0, bm.width, bm.height).data;
+          let s = 0, n = 0;
+          for (let i = 0; i < d.length; i += 16) { s += 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]; n++; }
+          return Math.round(s / n);
+        }, b64));
+      }
+      await espera(150);
+    }
+    const oscuras = medias.filter((m) => m < 35).length;
+    return { oscuras, n: medias.length, min: Math.min(...medias), txt: `oscuras=${oscuras}/${medias.length} min=${Math.min(...medias)}` };
+  };
+  const resumenDe = (p) => p.evaluate(() => window.banco.resumen());
+  const lineaCarriles = async (p) => (await p.locator("[data-carriles]").first().textContent().catch(() => null)) ?? null;
+
+  if (!soloCaso || soloCaso === "carriles") {
+    const ok = await llamada("car-1", { sinIp: true, ipDinamica: true });
+    anotar("carriles · solo Bluetooth: conecta por el enlace de datos", ok, JSON.stringify((await resumenDe(mac))?.medio));
+    await camara(mac);
+    await camara(tableta);
+    await comprobarRemoto("carriles · solo Bluetooth: la tableta ve a la Mac (lienzo)", tableta, mac, "11-car-ble-tableta-ve-mac");
+    await comprobarRemoto("carriles · solo Bluetooth: la Mac ve a la tableta (lienzo)", mac, tableta, "12-car-ble-mac-ve-tableta");
+    // Aparece la ruta IP en los dos: el vídeo sube a WebRTC (3 s de evidencia), la voz se queda en el enlace de datos.
+    await Promise.all([mac.evaluate(() => window.banco.ip(true)), tableta.evaluate(() => window.banco.ip(true))]);
+    const relevo = await muestrear(tableta, 14000);
+    anotar("carriles · relevo datos → WebRTC sin hueco negro (la tableta mira a la Mac)", relevo.oscuras === 0, relevo.txt);
+    await esperarHasta(mac, () => window.banco.resumen()?.carriles?.[0]?.video === "webrtc", 15000);
+    const rM = await resumenDe(mac);
+    const rT = await resumenDe(tableta);
+    anotar("carriles · con Bluetooth e IP la voz SIGUE por el enlace de datos", /enlace de datos|Bluetooth/i.test(rM?.medio ?? "") && rM?.carriles?.[0]?.voz !== "webrtc", `mac medio=${rM?.medio} carriles=${JSON.stringify(rM?.carriles?.[0])}`);
+    anotar("carriles · con Bluetooth e IP el vídeo va por WebRTC en los dos", rM?.carriles?.[0]?.video === "webrtc" && rT?.carriles?.[0]?.video === "webrtc", `mac=${rM?.carriles?.[0]?.video} tableta=${rT?.carriles?.[0]?.video}`);
+    const linea = await lineaCarriles(mac);
+    anotar("carriles · la ventana dice «Voz: … · Vídeo: WebRTC»", !!linea && /^Voz: \S.* · Vídeo: WebRTC$/.test(linea) && !/Voz: WebRTC/.test(linea), `línea=${linea}`);
+    await comprobarRemoto("carriles · Bluetooth+IP: la tableta ve a la Mac por WebRTC (<video>)", tableta, mac, "13-car-ip-tableta-ve-mac");
+    await comprobarRemoto("carriles · Bluetooth+IP: la Mac ve a la tableta por WebRTC (<video>)", mac, tableta, "14-car-ip-mac-ve-tableta");
+    const rT2 = await resumenDe(tableta);
+    anotar("carriles · Bluetooth+IP: la tableta pinta el <video> de WebRTC, no el lienzo", rT2?.remotoLienzo === false, `remoto=${JSON.stringify(rT2?.remoto)} lienzo=${rT2?.remotoLienzo}`);
+    // La IP se corta a mitad de llamada: el vídeo vuelve al enlace de datos y se sigue viendo.
+    await Promise.all([mac.evaluate(() => window.banco.ip(false)), tableta.evaluate(() => window.banco.ip(false))]);
+    const corte = await muestrear(tableta, 14000);
+    anotar("carriles · corte de IP: la tableta sigue viendo a la Mac (sin hueco negro largo)", corte.oscuras <= 1, corte.txt);
+    await comprobarRemoto("carriles · corte de IP: la tableta ve a la Mac por el enlace de datos", tableta, mac, "15-car-corte-tableta-ve-mac");
+    const rC = await resumenDe(mac);
+    anotar("carriles · corte de IP: la llamada sigue y el vídeo pasa al enlace de datos", rC?.fase === "en-curso" && rC?.carriles?.[0]?.video !== "webrtc", `fase=${rC?.fase} carriles=${JSON.stringify(rC?.carriles?.[0])}`);
+    // Vuelve la IP.
+    await Promise.all([mac.evaluate(() => window.banco.ip(true)), tableta.evaluate(() => window.banco.ip(true))]);
+    const vuelta = await muestrear(tableta, 16000);
+    anotar("carriles · vuelve la IP: sin hueco negro", vuelta.oscuras === 0, vuelta.txt);
+    await esperarHasta(mac, () => window.banco.resumen()?.carriles?.[0]?.video === "webrtc", 20000);
+    await comprobarRemoto("carriles · vuelve la IP: la tableta ve a la Mac por WebRTC", tableta, mac, "16-car-vuelta-tableta-ve-mac");
+    const reg = await mac.evaluate(() => window.banco.registro);
+    const cambios = lineas(reg, /carril .*flujo=voz de=(?!-)/);
+    anotar("carriles · la voz no se movió en toda la llamada", cambios.length === 0, cambios.slice(0, 3).join(" | ").slice(0, 300) || "ninguno");
+    await mac.evaluate(() => window.banco.colgar());
+    await tableta.evaluate(() => window.banco.colgar());
+    await espera(1200);
+  }
+
+  if (!soloCaso || soloCaso === "tres") {
+    for (let i = 1; i <= 3; i++) {
+      const ok = await llamada(`tres-${i}`, { sinIp: true });
+      await camara(mac);
+      const on = await esperarHasta(mac, () => window.banco.resumen()?.camara === true, 10000);
+      anotar(`tres llamadas · ${i}.ª: conecta y la cámara de quien llama se enciende`, ok && on, JSON.stringify((await resumenDe(mac))?.pistaCamara));
+      await comprobarRemoto(`tres llamadas · ${i}.ª: la tableta ve a la Mac`, tableta, mac, `17-tres-${i}`);
+      await mac.evaluate(() => window.banco.colgar());
+      await tableta.evaluate(() => window.banco.colgar());
+      await espera(1200);
+    }
+  }
+
+  if (!soloCaso || soloCaso === "sinservidor") {
+    // Llama la TABLETA (sin servidor: solo el canal directo, sin tema de Supabase ni IP) y con vídeo desde el principio.
+    await tableta.evaluate((x) => window.banco.llamar(x), { sid: "sinserv-1", sinIp: true, video: true });
+    await espera(300);
+    await mac.evaluate((x) => window.banco.llamar(x), { sid: "sinserv-1", sinIp: true, video: true });
+    const ok = (await esperarHasta(tableta, () => window.banco.resumen()?.estado === "conectada")) && (await esperarHasta(mac, () => window.banco.resumen()?.estado === "conectada"));
+    anotar("sin servidor · la llamada de la tableta conecta en los dos", ok, JSON.stringify((await resumenDe(tableta))?.medio));
+    await comprobarRemoto("sin servidor · la Mac ve a la tableta", mac, tableta, "18-sinserv-mac-ve-tableta");
+    await comprobarRemoto("sin servidor · la tableta ve a la Mac", tableta, mac, "19-sinserv-tableta-ve-mac");
+    await mac.evaluate(() => window.banco.colgar());
+    await tableta.evaluate(() => window.banco.colgar());
+    await espera(1200);
+  }
+
   /* 4 · Enlace lento como el de la Mac (acuse por escritura): la cámara sigue mandando y cada descarte tiene motivo. */
   if (!soloCaso || soloCaso === "lento") {
     await llamada("lento-1", { sinIp: true, enlace: { mtu: 512, rttMs: 30 } }); // ≈ 136 kb/s con acuse por escritura (la Mac midió 97–325)

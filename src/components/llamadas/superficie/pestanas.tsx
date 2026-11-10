@@ -81,6 +81,7 @@ export function PestanaMedio({ v, a }: { v: VistaLlamada; a: AccionesLlamada }) 
   return (
     <div className="space-y-2">
       <p className={caja}>{v.textoMedio ?? "El planificador elige el mejor medio disponible y lo cambia solo si se cae."}</p>
+      {v.textoCarriles && <p className={caja}>{v.textoCarriles}</p>}
       <div role="radiogroup" aria-label="Medio de transmisión" className="space-y-1">
         {opciones.map((o) => {
           const sel = (v.medioElegido ?? "automatico") === o.medio;

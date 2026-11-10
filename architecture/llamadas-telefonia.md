@@ -270,6 +270,24 @@ queda en `starseed.llamadas.pendientes-servidor.v1` y se escribe al volver la re
 - `llamada inicio paso=sesion-servidor fallo error=…` · `llamada inicio paso=via ok via=local motivo=sin internet: va por el enlace directo` · `llamada inicio paso=timbre ok por-el-enlace-directo`
 - `llamada camara encender-fallo pedida=elegida error=…` · `llamada camara encendida estado=live pares=1`
 
+**Relevo de vídeo sin hueco (LLA1110D + LLA1110C).** `streamDe`/`lienzoDe` enseñan el lienzo del vídeo ligero si su
+carril es el de datos **o** si WebRTC no trae imagen (par sin conectar o pista viva pero muda). La sesión de vídeo
+ligero vive mientras la pista de WebRTC no traiga imagen: en datos → WebRTC el lienzo sigue hasta que el `<video>`
+tiene cuadros (solo se MANDA por datos si el carril de este lado es el de datos); en WebRTC → datos arranca en cuanto
+WebRTC se cae. Segunda defensa en la ventana: el adaptador cae al último lienzo pintado (`video-datos/lienzos.ts`).
+Con un solo par, la ventana enseña la línea «Voz: … · Vídeo: …» (`vista.textoCarriles`) bajo la del medio y en el
+panel «Medio»; forzar por flujo desde ese panel queda para más adelante (`forzarCarril` ya existe).
+
+**Rollback explícito.** El cortés que cede hace `setLocalDescription({type:"rollback"})` antes de aceptar la oferta
+cruzada: con el rollback implícito, Chromium dejaba muda para siempre la pista de vídeo remota del cortés aunque se
+decodificaran los cuadros (banco: la tableta veía negro el vídeo de la Mac). Además, si tras responder quedan pistas
+propias sin negociar, se vuelve a ofertar.
+
+**Cámara.** `afinarCamara` intenta abrir la preferida con la del sistema abierta; si el error es de cámara ocupada
+(`NotReadableError`, `AbortError`), suelta la del sistema y reintenta, y si tampoco, reabre la del sistema; cada fallo
+va al registro (`camara cambio-a-preferida-fallo …`). `obtenerMedios` anota sus fallos (`camara obtener-medios-fallo
+… error=…`) y `alternarCamara` reintenta sin `deviceId` si la elegida no abre (`camara elegida-no-abre …`).
+
 **Banco real.** `pruebas-reales/llamadas-medio/` (ver su LEEME): dos motores reales en Chromium con RTCPeerConnection,
 cámara y micro falsos, señalización en bucle y un enlace de datos simulado.
 

@@ -1056,6 +1056,8 @@ export class AdaptadorMotor {
       medioElegido: this.medioElegido,
       opcionesMedio: this.opcionesDeMedio().map((o) => (o.medio === "automatico" ? o : { ...o, disponible: false, motivo: ctx.medio === "bluetooth" && o.medio === "bluetooth" ? "Es el medio que lleva la voz ahora; el motor lo elige solo." : o.motivo })),
       textoMedio: e.medio ? `${e.medio.texto}${e.medio.calidadTexto ? ` · ${e.medio.calidadTexto}` : ""}${e.videoDatos && (e.videoDatos.enviando || e.videoDatos.recibiendo) && e.videoDatos.calidadTexto ? ` · vídeo ligero ${e.videoDatos.calidadTexto}` : ""}` : null,
+      // (LLA1110D) Por dónde va cada flujo (solo con un par: en grupo cada uno tiene los suyos).
+      textoCarriles: e.carriles && e.carriles.length === 1 && e.carriles[0].texto ? e.carriles[0].texto : null,
       grabacion: this.avisandoGrab ? { ...this.grab, fase: "avisando" } : this.grab,
       astraura: this.astr,
       reconocedor: this.deps.reconocedor?.tipo ?? "ninguno",

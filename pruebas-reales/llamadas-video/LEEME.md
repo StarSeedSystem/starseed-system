@@ -31,6 +31,12 @@ node pruebas-reales/llamadas-video/correr.mjs /tmp/capturas /ruta/a/playwright/i
 # Un solo caso: CASO=ble | unaalavez | fantasma | webrtc | lento
 ```
 
+Casos combinados de LLA1110D (motor con carriles + ventana real en los dos lados): `CASO=carriles` (solo Bluetooth →
+aparece la IP → se corta → vuelve, con muestras de brillo cada ~0,35 s para cazar huecos negros, la voz quieta en el
+enlace de datos y la línea «Voz: … · Vídeo: WebRTC»), `CASO=tres` (tres llamadas con la cámara de quien llama) y
+`CASO=sinservidor` (llama la tableta, sin servidor y con vídeo). La IP dinámica: `banco.ip(true|false)`; el corte se
+simula con el estado ICE en «failed» y los emisores inactivos. `banco.stats()` da transceptores y cuadros por conexión.
+
 Deja `NN-*.png`, `resultados.json` y `registro.json` (las líneas que irían a `enlaces.log`: cámara, contadores
 `video-datos tx … motivos=…`, `visibilidad …`). `salida/` y `capturas/` no se suben.
 

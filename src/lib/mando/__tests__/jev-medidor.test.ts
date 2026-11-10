@@ -125,7 +125,7 @@ describe("captura de Jev (MGM1110B)", () => {
         expect(JSON.stringify(c)).not.toContain("telegram");
     });
 
-    it("escribe la línea del Mando, con y sin prueba en sombra", () => {
+    it("escribe la línea de Genesis, con y sin prueba en sombra", () => {
         const c = construirCapturaJev(resumen);
         expect(c && textoCapturaJev(c)).toBe("Captura de Jev: 312 de 1.000 · estratos 3 de 5 · sombra: laya se queda, needle se descarta");
         const sin = construirCapturaJev({ ...resumen, sombra: null });

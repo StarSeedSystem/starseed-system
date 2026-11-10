@@ -199,6 +199,9 @@ interface Par {
     cadena: Promise<void>;
     /** (LLA1110D) Hubo que ofertar sin ruta IP: la oferta sale cuando aparece una (WebRTC queda quieto mientras). */
     ofertaPendiente: boolean;
+    /** (LLA1110D) Aplicando una oferta del otro (con rollback a mano si fue un choque): mis ofertas esperan a responder. */
+    aplicandoOfertaAjena: boolean;
+    ofertaTrasResponder: boolean;
 }
 
 const ESTADO_INICIAL: EstadoLlamada = {
@@ -536,7 +539,13 @@ export class MotorLlamada {
                 /* noop */
             }
         } else {
-            const r = await obtenerPista("video", this.e.seleccion.camaraId);
+            let r = await obtenerPista("video", this.e.seleccion.camaraId);
+            // (LLA1110D) La cámara elegida ya no está o no admite lo pedido (OverconstrainedError, NotFoundError): se
+            // reintenta sin deviceId (la del sistema) y queda en el registro.
+            if (!r.pista && this.e.seleccion.camaraId && !this.cerrado) {
+                anotarLlamada("camara", this.opc.vozDatos?.neurona ?? null, `elegida-no-abre se reintenta sin deviceId error=${r.error ?? "?"}`);
+                r = await obtenerPista("video", null);
+            }
             // (LLA1110D) Por qué no se encendió, en el registro (en la prueba 33 la segunda llamada no dejó rastro).
             if (!r.pista) {
                 anotarLlamada("camara", this.opc.vozDatos?.neurona ?? null, `encender-fallo pedida=${this.e.seleccion.camaraId ? "elegida" : "sistema"} error=${r.error ?? "sin-pista"}`);
@@ -1148,6 +1157,8 @@ export class MotorLlamada {
             calidad: "desconocida",
             cadena: Promise.resolve(),
             ofertaPendiente: false,
+            aplicandoOfertaAjena: false,
+            ofertaTrasResponder: false,
         };
         this.pares.set(id, par);
 
@@ -1206,11 +1217,14 @@ export class MotorLlamada {
             par.ignorandoOferta = decision.ignorar;
             if (decision.colision) this.anotarNegociacion(par, decision.ignorar ? "colision oferta-ajena-ignorada" : "colision cede-y-responde");
             if (decision.ignorar) return;
+            par.aplicandoOfertaAjena = s.desc.type === "offer";
             try {
                 par.aplicandoRespuesta = s.desc.type === "answer";
                 try {
-                    // Soy el cortés si hay colisión: el navegador retira mi oferta solo (rollback
-                    // implícito) y acepta la suya.
+                    // Soy el cortés si hay colisión: retiro mi oferta y acepto la suya. (LLA1110D) El rollback se hace
+                    // A MANO antes: con el implícito, Chromium dejaba la pista remota «muted» para siempre aunque
+                    // llegaran y se decodificaran los cuadros (banco: la tableta, cortés, veía negro el vídeo de la Mac).
+                    if (decision.colision && s.desc.type === "offer" && pc.signalingState === "have-local-offer") await pc.setLocalDescription({ type: "rollback" });
                     await pc.setRemoteDescription(s.desc);
                 } catch (err) {
                     // Navegadores sin rollback implícito: se hace a mano y se reintenta.
@@ -1220,6 +1234,7 @@ export class MotorLlamada {
                 }
             } catch {
                 par.aplicandoRespuesta = false;
+                par.aplicandoOfertaAjena = false;
                 return;
             }
             par.aplicandoRespuesta = false;
@@ -1231,11 +1246,14 @@ export class MotorLlamada {
                 } catch {
                     /* noop */
                 }
+                par.aplicandoOfertaAjena = false;
+                const pendiente = par.ofertaTrasResponder;
+                par.ofertaTrasResponder = false;
                 // (LLA1110D) El cortés que cedió su oferta (o que respondió con pistas suyas aún sin negociar) vuelve a
                 // ofertar: el navegador no siempre repite «negotiationneeded» tras el rollback implícito, y entonces sus
                 // pistas (micro o cámara) nunca llegaban al otro lado (reproducido en el banco: cámara a la vez en los dos).
-                if (necesitaNegociar(pc)) {
-                    this.anotarNegociacion(par, "pistas-sin-negociar: se vuelve a ofertar");
+                if (pendiente || necesitaNegociar(pc)) {
+                    this.anotarNegociacion(par, pendiente ? "oferta-aplazada: sale tras responder" : "pistas-sin-negociar: se vuelve a ofertar");
                     setTimeout(() => {
                         if (this.pares.get(par.id) === par && pc.signalingState === "stable" && !par.haciendoOferta) void this.ofertar(par, "tras-ceder");
                     }, 0);
@@ -1283,6 +1301,12 @@ export class MotorLlamada {
      */
     private async ofertar(par: Par, motivo: string): Promise<void> {
         const pc = par.pc;
+        // Mientras respondo a una oferta del otro (el navegador lanza «negotiationneeded» tras el rollback a mano), mi
+        // oferta espera: sale al acabar la respuesta. Si no, se cruzaba otra vez con la suya.
+        if (par.aplicandoOfertaAjena) {
+            par.ofertaTrasResponder = true;
+            return;
+        }
         if (this.rutaIp(par.id) === false) {
             if (!par.ofertaPendiente) this.anotarNegociacion(par, `oferta-en-espera motivo=${motivo} sin-ruta-ip`);
             par.ofertaPendiente = true;
@@ -1387,6 +1411,7 @@ export class MotorLlamada {
         this.audioWebrtcPuesto.delete(id);
         this.carrilDatos.delete(id);
         this.vozDatosDesde.delete(id);
+        this.cuadrosWeb.delete(id);
         const par = this.pares.get(id);
         if (!par) return;
         this.pares.delete(id);
@@ -1548,7 +1573,8 @@ export class MotorLlamada {
         } catch {
             return null;
         }
-        if (tipo === "ble") {
+        const t = tipo.toLowerCase();
+        if (t === "ble" || t.includes("bluetooth")) {
             let kbps: number | null = null;
             try {
                 kbps = tr.capacidadKbps?.() ?? null;
@@ -1611,6 +1637,7 @@ export class MotorLlamada {
      * sostenida, una vez por enfriamiento. El vídeo y la pantalla eligen por capacidad y suben con histéresis.
      */
     private revisarCarriles(id: string, par: Par, tr: TransporteVoz | null) {
+        this.medirCuadrosWeb(id, par);
         const sel = this.selectorDe(id);
         const reloj = this.relojVoz();
         const ahora = reloj.ahora();
@@ -1699,7 +1726,7 @@ export class MotorLlamada {
             const f = sel.foto();
             const forzados: Partial<Record<Flujo, Carril>> = {};
             for (const k of Object.keys(f) as Flujo[]) if (f[k].forzado) forzados[k] = f[k].forzado!;
-            out.push({ parId: id, voz: f.voz.carril, video: f.video.carril, pantalla: f.pantalla.carril, senal: f.senal.carril, datos: this.carrilDatos.get(id) ?? null, forzados, texto: textoCarriles(f), director: soyDirector(this.miId, id) });
+            out.push({ parId: id, voz: f.voz.carril, video: f.video.carril, pantalla: f.pantalla.carril, senal: f.senal.carril, datos: this.carrilDatos.get(id) ?? null, forzados, texto: textoCarriles(this.pantallaOn ? { voz: f.voz, pantalla: f.pantalla } : { voz: f.voz, video: f.video }), director: soyDirector(this.miId, id) });
         }
         return out;
     }
@@ -1875,12 +1902,58 @@ export class MotorLlamada {
     }
 
     /** Qué imagen enseñar del par: la de WebRTC si trae vídeo; si no, la del enlace de datos (cuando ya llegó algo). */
+    /**
+     * (LLA1110D) ¿Trae WebRTC imagen de ese par? Conectado y con una pista de vídeo viva y NO muda. Por Bluetooth WebRTC
+     * negocia y da una pista de vídeo que se queda muda para siempre (ICE nunca conecta): esa no cuenta.
+     */
+    private webConImagen(par: Par | undefined): boolean {
+        if (!par || par.conexion !== "conectado") return false;
+        try {
+            const vivas = par.stream?.getVideoTracks().filter((t) => t.readyState === "live") ?? [];
+            if (vivas.some((t) => !t.muted)) return true;
+            // Chromium deja a veces la pista «muted» aunque lleguen y se decodifiquen cuadros (tras un rollback): cuentan
+            // los cuadros decodificados de verdad (getStats), medidos en el tic.
+            return vivas.length > 0 && Date.now() - (this.cuadrosWeb.get(par.id)?.en ?? -Infinity) < 3000;
+        } catch {
+            return false;
+        }
+    }
+
+    private readonly cuadrosWeb = new Map<string, { n: number; en: number; pidiendo: boolean; ultimo: number }>();
+
+    /** (LLA1110D) Cuadros de vídeo decodificados que entran por WebRTC de ese par (como mucho una consulta por segundo). */
+    private medirCuadrosWeb(id: string, par: Par) {
+        if (par.conexion !== "conectado" || !par.stream?.getVideoTracks().length) return;
+        let c = this.cuadrosWeb.get(id);
+        if (!c) this.cuadrosWeb.set(id, (c = { n: 0, en: -Infinity, pidiendo: false, ultimo: 0 }));
+        const ahora = Date.now();
+        if (c.pidiendo || ahora - c.ultimo < 1000) return;
+        c.pidiendo = true;
+        const cc = c;
+        void par.pc
+            .getStats()
+            .then((st) => {
+                let n = 0;
+                st.forEach((r: Record<string, unknown>) => {
+                    if (r.type === "inbound-rtp" && r.kind === "video" && typeof r.framesDecoded === "number") n += r.framesDecoded;
+                });
+                if (n > cc.n) cc.en = Date.now();
+                cc.n = n;
+            })
+            .catch(() => undefined)
+            .finally(() => {
+                cc.pidiendo = false;
+                cc.ultimo = Date.now();
+            });
+    }
+
     private streamDe(id: string, par: Par | undefined): MediaStream | null {
         const web = par?.stream ?? null;
-        // (LLA1110D) Si el carril de vídeo es el enlace de datos y ya llega imagen por él, se enseña esa (WebRTC puede traer una pista sin imagen).
+        // (LLA1110D) Con imagen por el enlace de datos, se enseña esa si el carril de vídeo es el de datos o si WebRTC no
+        // trae imagen (pista muda o par sin conectar): nunca un <video> negro mientras se pinta el vídeo ligero.
         const sd = this.videoDatos.get(id);
         const sal = this.salidasVideo.get(id);
-        if (sd && sal?.stream && sd.estado().recibiendo && this.videoPorDatos(id, par)) return sal.stream;
+        if (sd && sal?.stream && sd.estado().recibiendo && (this.videoPorDatos(id, par) || !this.webConImagen(par))) return sal.stream;
         if (web && web.getVideoTracks().length) return web;
         const s = this.videoDatos.get(id);
         const salida = this.salidasVideo.get(id);
@@ -1893,8 +1966,8 @@ export class MotorLlamada {
         const web = par?.stream ?? null;
         const s = this.videoDatos.get(id);
         const salida = this.salidasVideo.get(id);
-        // (LLA1110D) Vídeo por el enlace de datos con imagen: el lienzo manda aunque WebRTC tenga una pista de vídeo.
-        if (s && salida?.lienzo && s.estado().recibiendo && this.videoPorDatos(id, par)) return salida.lienzo;
+        // (LLA1110D) Vídeo por el enlace de datos con imagen: el lienzo manda si es su carril o si WebRTC no trae imagen.
+        if (s && salida?.lienzo && s.estado().recibiendo && (this.videoPorDatos(id, par) || !this.webConImagen(par))) return salida.lienzo;
         if (web && web.getVideoTracks().length) return null;
         return s && salida?.lienzo && s.estado().recibiendo ? salida.lienzo : null;
     }
@@ -1911,7 +1984,9 @@ export class MotorLlamada {
         const par = this.pares.get(id);
         const voz = this.vozDatos.get(id);
         // (LLA1110D) El vídeo ligero vive mientras el carril de vídeo de ese par sea el enlace de datos (no «mientras WebRTC no conecte»).
-        const deseada = !!par && !!voz?.estado().activa && this.videoPorDatos(id, par);
+        // Y también mientras la pista de WebRTC de ese par no traiga imagen: en el relevo datos → WebRTC el lienzo sigue
+        // hasta que el <video> tenga cuadros, y en WebRTC → datos arranca en cuanto WebRTC se cae (sin hueco negro).
+        const deseada = !!par && !!voz?.estado().activa && (this.videoPorDatos(id, par) || !this.webConImagen(par));
         if (!deseada) {
             this.pararVideoDatos(id);
             return;
@@ -1954,7 +2029,9 @@ export class MotorLlamada {
         }
         s = this.videoDatos.get(id);
         if (!s) return;
-        const quiere = this.camaraOn && !this.pantallaOn ? this.pistaCamara : null;
+        // (LLA1110D) Solo se manda imagen por datos si el carril de vídeo de este lado es el de datos (con WebRTC sano la
+        // sesión sigue viva solo para RECIBIR hasta que el <video> del otro tenga imagen).
+        const quiere = this.camaraOn && !this.pantallaOn && this.videoPorDatos(id, par) ? this.pistaCamara : null;
         const actual = this.pistaFuenteVideo.get(id) ?? null;
         if (quiere && actual !== quiere) {
             const f = vid.fuenteDePista(quiere);

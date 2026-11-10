@@ -338,6 +338,7 @@ export function SuperficieLlamada({ vista: v, acciones: a, tamanoInicial }: { vi
               {v.motivo && <p className="px-3 pb-1 text-[11.5px] text-white/65" role="status">{v.motivo}</p>}
               {(aviso ?? v.aviso) && <p className="mx-3 mb-1 rounded-lg border border-amber-300/30 bg-amber-400/10 px-2 py-1 text-[11.5px] text-amber-100" role="status">{aviso ?? v.aviso}</p>}
               {v.textoMedio && viva && <p className="px-3 pb-1 text-[11px] text-white/55">{v.textoMedio}</p>}
+              {v.textoCarriles && viva && <p className="px-3 pb-1 text-[11px] text-white/55" data-carriles="">{v.textoCarriles}</p>}
               {v.cambiandoA && <p className="px-3 pb-1 text-[11.5px] text-violet-100" role="status">Cambiando a {TIPOS.find((t) => t.t === v.cambiandoA)?.etiqueta.toLowerCase()} sin colgar…</p>}
             </div>
 

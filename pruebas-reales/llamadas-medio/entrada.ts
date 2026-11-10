@@ -223,7 +223,8 @@ async function videoRemoto(m: MotorLlamada): Promise<{ pista: string | null; cua
     el.srcObject = new MediaStream([v]);
     document.body.appendChild(el);
     try {
-      await el.play();
+      // play() puede no resolverse nunca si la pista no trae cuadros: tope de 3 s (el banco no se cuelga).
+      await Promise.race([el.play(), new Promise((r) => setTimeout(r, 3000))]);
       await new Promise((r) => setTimeout(r, 400));
       const c = document.createElement("canvas");
       c.width = 64;

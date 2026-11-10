@@ -118,17 +118,40 @@ export async function afinarCamara(md: MediaDevices, stream: MediaStream, camara
         const e = elegirCamaraPorDefecto(lista, leerPreferencias(neurona).camara);
         let final = abierta;
         if (e.camara && abiertaId && e.camara.id !== abiertaId) {
-            try {
-                const otro = await md.getUserMedia({ audio: false, video: { ...restriccionesVideo(e.camara.id) } });
+            // (LLA1110D) WebKit puede no abrir una segunda cámara con otra abierta (en la prueba 33 quedaba «motivo=sistema»,
+            // la Desk View del iPhone). Se intenta con la del sistema abierta; si el error es de «cámara ocupada», se
+            // suelta la del sistema y se reintenta; si tampoco, se reabre la del sistema: nunca sin cámara. Todo al registro.
+            const abrir = async (id: string) => {
+                const otro = await md.getUserMedia({ audio: false, video: { ...restriccionesVideo(id) } });
                 const nueva = otro.getVideoTracks()[0];
-                if (nueva) {
-                    stream.addTrack(nueva);
+                if (!nueva) throw Object.assign(new Error("sin pista"), { name: "SinPista" });
+                return nueva;
+            };
+            const nombre = (err: unknown) => (err as { name?: string })?.name ?? "desconocido";
+            try {
+                const nueva = await abrir(e.camara.id);
+                stream.addTrack(nueva);
+                stream.removeTrack(pista);
+                pista.stop();
+                final = e.camara;
+            } catch (err) {
+                const ocupada = ["NotReadableError", "AbortError", "TrackStartError"].includes(nombre(err));
+                anotarLlamada("camara", null, `cambio-a-preferida-fallo elegida="${e.camara.etiqueta}" error=${nombre(err)}${ocupada ? " se suelta la del sistema y se reintenta" : ""}`);
+                if (ocupada) {
                     stream.removeTrack(pista);
                     pista.stop();
-                    final = e.camara;
+                    try {
+                        stream.addTrack(await abrir(e.camara.id));
+                        final = e.camara;
+                    } catch (err2) {
+                        anotarLlamada("camara", null, `preferida-sola-fallo error=${nombre(err2)} se reabre la del sistema`);
+                        try {
+                            stream.addTrack(await abrir(abiertaId));
+                        } catch (err3) {
+                            anotarLlamada("camara", null, `reabrir-sistema-fallo error=${nombre(err3)}`);
+                        }
+                    }
                 }
-            } catch {
-                /* se queda la que abrió el sistema */
             }
         }
         if (final) anotarLlamada("camara", null, lineaCamaraElegida(final, final === e.camara ? e.motivo : "sistema"));
@@ -187,11 +210,14 @@ export async function obtenerMedios(p: { audio: boolean; video: boolean; microId
         }
         return { stream, error: null, aviso: null };
     } catch (err) {
+        // (LLA1110D) Todo fallo de medios queda en el registro del enlace (nombre del error y qué se pidió).
+        anotarLlamada("camara", null, `obtener-medios-fallo audio=${p.audio ? "si" : "no"} video=${p.video ? "si" : "no"} micro=${p.microId ? "elegido" : "sistema"} camara=${p.camaraId ? "elegida" : "sistema"} error=${(err as { name?: string })?.name ?? "desconocido"}`);
         if (p.audio && p.video) {
             try {
                 const stream = await md.getUserMedia({ audio: restriccionesAudio(p.microId), video: false });
                 return { stream, error: null, aviso: mensajeErrorMedios(err, { audio: false, video: true }) };
             } catch (err2) {
+                anotarLlamada("camara", null, `obtener-medios-fallo solo-micro error=${(err2 as { name?: string })?.name ?? "desconocido"}`);
                 return errorBloqueante(err2, p);
             }
         }

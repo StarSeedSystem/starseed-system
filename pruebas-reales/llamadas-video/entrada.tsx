@@ -195,6 +195,52 @@ function audioFalso(): AudioVoz {
   };
 }
 
+/* ───────── (LLA1110D) Ruta IP que aparece y se corta a mitad de llamada ─────────
+ * `ip.sinIp` lo leen la señalización (sin IP se tiran los candidatos) y `hayRutaIp`. Cortar una conexión ya hecha
+ * se simula así: el estado ICE que ve el motor pasa a «failed» y los emisores dejan de mandar (encodings inactivos),
+ * de modo que al otro lado no llega imagen por WebRTC; al volver, todo se reactiva y el motor reinicia ICE. */
+const ip = { sinIp: true, dinamica: false, cortada: false };
+const PCReal = window.RTCPeerConnection;
+const pcs: RTCPeerConnection[] = [];
+class PCBanco extends PCReal {
+  constructor(c?: RTCConfiguration) {
+    super(c);
+    pcs.push(this);
+  }
+  get iceConnectionState(): RTCIceConnectionState {
+    const s = super.iceConnectionState;
+    return ip.cortada && s !== "new" && s !== "closed" ? "failed" : s;
+  }
+  get connectionState(): RTCPeerConnectionState {
+    const s = super.connectionState;
+    return ip.cortada && s !== "new" && s !== "closed" ? "failed" : s;
+  }
+}
+(window as unknown as { RTCPeerConnection: unknown }).RTCPeerConnection = PCBanco;
+function super_estado(pc: RTCPeerConnection): string {
+  return `${pc.signalingState}`;
+}
+async function ponerIp(on: boolean) {
+  ip.sinIp = !on;
+  ip.cortada = !on && ip.dinamica;
+  for (const pc of pcs) {
+    if (pc.signalingState === "closed") continue;
+    for (const s of pc.getSenders()) {
+      try {
+        const p = s.getParameters();
+        if (p.encodings?.length) {
+          p.encodings.forEach((e) => (e.active = on));
+          await s.setParameters(p);
+        }
+      } catch {
+        /* emisor sin pista */
+      }
+    }
+    pc.dispatchEvent(new Event("iceconnectionstatechange"));
+    pc.dispatchEvent(new Event("connectionstatechange"));
+  }
+}
+
 /* ───────────────────────── Señalización entre las dos páginas ───────────────────────── */
 
 type Cb = (m: { cuerpo: unknown; origen: { tipo: string } }) => void;
@@ -208,7 +254,7 @@ function senalizacion(sinIp: boolean, sid: string) {
   };
   /** Sin ruta IP: fuera candidatos (sueltos o dentro del SDP). */
   const filtrar = (x: unknown): unknown => {
-    if (!sinIp) return x;
+    if (!sinIp && !(ip.dinamica && ip.sinIp)) return x;
     if (typeof x === "string") return x.includes("a=candidate") ? x.split(/\r\n/).filter((l) => !l.startsWith("a=candidate") && !l.startsWith("a=end-of-candidates")).join("\r\n") : x;
     if (Array.isArray(x)) return x.map(filtrar);
     if (x && typeof x === "object") {
@@ -279,11 +325,15 @@ function Pane() {
 }
 
 /** Abre la llamada en ESTE lado (la Mac llama; la tableta entra en la misma sesión). */
-async function llamar(o: { sid: string; sinIp?: boolean; enlace?: OpcEnlace; video?: boolean; ipFantasma?: boolean }) {
+async function llamar(o: { sid: string; sinIp?: boolean; enlace?: OpcEnlace; video?: boolean; ipFantasma?: boolean; ipDinamica?: boolean }) {
   // `ipFantasma`: el aparato cree que puede haber ruta IP (Wi-Fi encendido) pero no la hay: WebRTC negocia (ofertas
   // por Bluetooth) y no conecta nunca, como la llamada 3 de prueba.33.
   const sinIp = o.sinIp ?? true;
-  const sen = senalizacion(sinIp || !!o.ipFantasma, o.sid);
+  // (LLA1110D) `ipDinamica`: empieza sin IP y `banco.ip(true/false)` la abre y la corta a mitad de llamada.
+  ip.dinamica = !!o.ipDinamica;
+  ip.sinIp = sinIp;
+  ip.cortada = false;
+  const sen = senalizacion(!o.ipDinamica && (sinIp || !!o.ipFantasma), o.sid);
   const datos = enlaceDatos(o.enlace ?? { mtu: 512, rttMs: 30 }, o.sid);
   const canal = abrirCanalLlamadaPorTransporte(NEURONA[OTRO[LADO]], o.sid, `${LADO}:t`, sen.deps);
   const motor = new MotorLlamada({
@@ -292,7 +342,7 @@ async function llamar(o: { sid: string; sinIp?: boolean; enlace?: OpcEnlace; vid
     canalesDirectos: () => [canal],
     vozDatos: {
       transporteHacia: () => datos,
-      hayRutaIp: () => (o.ipFantasma ? null : sinIp ? false : null),
+      hayRutaIp: () => (o.ipDinamica ? !ip.sinIp : o.ipFantasma ? null : sinIp ? false : null),
       crearAudio: () => audioFalso(),
       codecs: () => fabricaCodecsSimples(),
       neurona: NEURONA[OTRO[LADO]],
@@ -351,6 +401,9 @@ function resumen() {
     seleccion: e.seleccion.camaraId,
     pistaCamara: v.pistaCamara?.label ?? null,
     videoDatos: e.videoDatos ?? null,
+    // (LLA1110D) Carriles por flujo y la línea que enseña la ventana.
+    carriles: e.carriles ?? null,
+    textoCarriles: v.textoCarriles ?? null,
   };
 }
 
@@ -365,6 +418,21 @@ function resumen() {
   acciones: () => actual?.adaptador.acciones ?? null,
   motor: () => actual?.motor ?? null,
   tirados: () => tirados,
+  ip: (on: boolean) => ponerIp(on),
+  /** (LLA1110D) Diagnóstico: por cada RTCPeerConnection viva, transceptores y cuadros que entran y salen. */
+  async stats() {
+    const out: string[] = [];
+    for (const pc of pcs) {
+      if (pc.signalingState === "closed") continue;
+      const t = pc.getTransceivers().map((x) => `${x.mid}/${x.currentDirection}/${x.sender.track ? x.sender.track.kind : "-"}/rx${x.receiver.track.muted ? "M" : ""}`).join(" ");
+      const f: string[] = [];
+      (await pc.getStats()).forEach((r) => {
+        if ((r.type === "inbound-rtp" || r.type === "outbound-rtp") && r.kind === "video") f.push(`${r.type === "inbound-rtp" ? "in" : "out"}=${r.framesDecoded ?? r.framesEncoded ?? 0}`);
+      });
+      out.push(`${super_estado(pc)} ${t} ${f.join(",")}`);
+    }
+    return out.join(" || ");
+  },
 };
 
 createRoot(document.getElementById("raiz")!).render(
