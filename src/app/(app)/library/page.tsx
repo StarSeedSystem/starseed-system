@@ -101,6 +101,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StarSeedKnowledgePanel } from "@/components/library/StarSeedKnowledgePanel";
+import { ModelosIaPanel } from "@/components/library/modelos-ia-panel"; // MOD1110A
+import { Brain as IconoModelosIa } from "lucide-react"; // MOD1110A
 import { DesignAssetsPanel } from "@/components/library/DesignAssetsPanel";
 import { LibrarySourcesPanel } from "@/components/library/library-sources-panel";
 import { LibraryStorageSelector } from "@/components/library/library-storage-selector";
@@ -171,7 +173,7 @@ type AssetType = "FILE" | "FOLDER" | "LIBRARY" | "PROGRAM" | "PAGE" | "CONCEPT";
 type ResourceType = "todos" | "articulos" | "cursos" | "documentos" | "comunidades";
 type SortMode = "recientes" | "valorados" | "populares";
 /** Pestañas de nivel superior (la tienda viva + la colección de siempre). */
-type LibraryTab = "instalar-starseed" | "destacado" | "categorias" | "repos" | "comunidad" | "coleccion" | "disenos" | "referencias" | "instalado";
+type LibraryTab = "instalar-starseed" | "destacado" | "categorias" | "repos" | "comunidad" | "coleccion" | "disenos" | "referencias" | "instalado" | "modelos-ia"; // MOD1110A: «modelos-ia»
 /** Pestañas internas de «Mi colección» (la Biblioteca anterior, intacta). */
 type CollectionTab = "explorar" | "personal" | "fuentes" | "updates";
 
@@ -1582,6 +1584,7 @@ function resolveInitialTab(
   if (t === "instalar-starseed" || t === "instalar" || t === "install") {
     return { top: "instalar-starseed", inner: "explorar" };
   }
+  if (t === "modelos-ia" || t === "modelos") return { top: "modelos-ia", inner: "explorar" }; // MOD1110A
   if (t === "destacado" || t === "categorias" || t === "repos" || t === "instalado" || t === "comunidad" || t === "disenos") {
     return { top: t as LibraryTab, inner: "explorar" };
   }
@@ -1763,7 +1766,15 @@ function LibraryContent() {
           <TabsTrigger value="instalado" className={PESTANA}>
             <PackageCheck className="h-4 w-4" aria-hidden /> Instalado
           </TabsTrigger>
+          {/* MOD1110A · modelos locales comparados y recomendados por neurona */}
+          <TabsTrigger value="modelos-ia" className={PESTANA}>
+            <IconoModelosIa className="h-4 w-4" aria-hidden /> Modelos de IA
+          </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="modelos-ia" className="mt-6">
+          <ModelosIaPanel />
+        </TabsContent>
 
         {/* ── INSTALACIÓN OFICIAL: OS + compañero de Aurora + modelos locales ── */}
         <TabsContent value="instalar-starseed" className="mt-6">

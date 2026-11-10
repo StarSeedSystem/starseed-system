@@ -22,6 +22,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { detectCapabilities, type NeuronCapabilities } from "@/lib/neurons/neurons";
+import { ModelosRecomendados } from "@/components/astraura/modelos-recomendados"; // MOD1110A
 import {
   recommendModels, type NeuronRecommendation, type Recommendation, type KindRecommendation,
 } from "@/ai/astraura/model-recommend";
@@ -279,6 +280,9 @@ export function NeuronModelsPanel({ embedded = false }: { embedded?: boolean }) 
           <KindSection title="Voz (OmniVoice)" icon={<Mic className="h-4 w-4 text-fuchsia-300" />} kind={rec.voz} caps={caps} scoutKind="voz" quantMap={quantMap} />
         </>
       )}
+
+      {/* MOD1110A · modelo local recomendado por caso para ESTA neurona (comparación, ruta, instalación con pregunta). */}
+      <ModelosRecomendados />
 
       {/* Backend soberano Astraura 1.58 de ESTA neurona (Ola 3 · Adenda 155):
           endpoint local/LAN/túnel, motor honesto y neuronas hermanas. */}
