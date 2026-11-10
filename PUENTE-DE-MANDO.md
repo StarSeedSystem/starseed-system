@@ -1,6 +1,6 @@
 # Genesis · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-10 01:53:30 desde Genesis vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-10 08:48:17 desde Genesis vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -13,19 +13,18 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 |---|---|
 | Genesis | **encendido** en http://127.0.0.1:9002/mando |
 | Ola arriba | Sueños profundos 2026-10-24 · propuesta |
-| Agentes escribiendo | **0** |
+| Agentes escribiendo | **1** |
 | En esta ola | integradas 0 · en curso 0 · esperando aprobación 0 · pendientes 15 |
 | Últimas 4 olas | en curso 0 · pendientes 100 · integradas 0 |
-| HEAD | `4fddeb046d chore(memoria): aprendizaje de la ola auto-1110-012452` |
-| Sin publicar | 2 commits |
-| Árbol | 1 archivos sin commitear |
+| HEAD | `74291711b6 chore(memoria): aprendizaje de la ola auto-1110-083409` |
+| Sin publicar | 1 commits |
+| Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-1110-012452.json`, hace 42s)
+## Quién escribe ahora (latido de `cola-auto-1110-083014.json`, hace 8s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `DR1110-1` | hecho | openrouter/cohere/north-mini-code: | 3 min | 185 s | 153040 |
-| `DR1110-2` | hecho | freellmapi/auto | 4 min | 234 s | 418943 |
+| `DR1110-2` | escribiendo | opencode/deepseek-v4.1-flash-free | 14 min | 10 s | 485418 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
