@@ -13,7 +13,11 @@ Code es `/genesis` (`/mando` sigue como alias) y el lanzador del Escritorio `Gen
 el plugin `puente-de-mando` y su prefijo de herramientas — renombrarlos rompería servicios,
 migraciones, el enjambre en marcha y los enlaces guardados, sin que nadie lo vea. Guardia:
 `src/lib/__tests__/nombre-genesis.test.ts` (falla si un texto de `src/` vuelve a decir «Puente de
-Mando», «Centro de Mando» o «Mando» a secas). El botón guardado del dock se renombra solo
+Mando», «Centro de Mando» o «Mando» a secas). **Si llevas algo a main sin pasar por el enjambre**
+(ramas propias, merges a mano), córrela antes, son 3 s:
+`NODE_ENV=test ./node_modules/.bin/vitest run src/lib/__tests__/nombre-genesis.test.ts`. Salta también
+con el verbo («Mando mi imagen», 08-11) y en comentarios («deja ver al Mando», 09-11): las dos veces la
+CI de la autopublicación se quedó en rojo durante horas. El botón guardado del dock se renombra solo
 (`renombrarMandoAGenesis` en `src/lib/dock/dock-defaults.ts`, sin volver a encender nada).
 **La familia Genesis** (2026-10-13): **MetaGenesis** (el código del OS: enjambre y desarrolladores),
 **PoliGenesis** (lo de un grupo, con su gobierno), **Genesis** (lo de cada persona) y **ProtoGenesis**
