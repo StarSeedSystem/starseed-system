@@ -6660,3 +6660,9 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 
 **Lo que quedó fuera, una por una:**
 - `SUP0911H` — pruebas en rojo: vitest falla (rama conservada)
+
+## 2026-11-09 19:35 · auto-1109-192350
+
+**Lo que se pidió.** Mando
+
+**Resultado.** 1 de 1 integradas.
