@@ -331,6 +331,7 @@ Cada página, comunidad, grupo, canal, publicación, hilo, votación o estación
 ### 7.1 · Mensajes, llamadas y archivos
 - Los mensajes que llegan por la malla entran en el almacén local y se fusionan con el historial de la cuenta.
 - Adjuntos, formato y citas también viajan por la malla.
+- Archivos, grupos, actualizaciones y capas como **enjambres** (seeders, imanes, espejos, canales): análisis, diseño y motor en `enjambre-datos.md` (ENJ1110A; sin enchufar aún).
 - Las llamadas eligen medio con el planificador. Por Bluetooth solo va la voz; con Wi‑Fi directo o LAN, vídeo y pantalla.
 
 #### 7.1.1 · F1 hecha en código (MSJ1108C · 2026-11-08)
