@@ -203,6 +203,28 @@ están aprobados en `memory/diseno/identidades.md` (2026-10-25). Reglas:
 - **«Semilla estelar» corta** (4,7 s): solo en tarjetas de cierre y apariciones del símbolo fuera de la intro.
 - **Display vertical 9:16:** techo de 168 px (168/28 = 6, la proporción de §4).
 
+## 8c. El símbolo en 3D (ESC1110A, 2026-11-10)
+
+Modelo procedural en three.js, sin recursos descargados: `src/components/brand/simbolo-starseed-escena.ts`
+(escena), `simbolo-starseed-medidas.ts` (las medidas del PNG oficial) y el componente
+`SimboloStarSeed3D` (`simbolo-starseed-3d.tsx`). Discos satinados con bisel fino, plegados 11° por el eje
+vertical; el diamante como gema facetada (seis facetas planas por mitad) en relieve; el ojo como almendra
+abombada con párpado, iris de brillo húmedo y el brillo del diseño emisivo (no se pierde al moverse la luz).
+
+- **Cuándo usarlo:** piezas destacadas donde el símbolo es protagonista (escritorio vacío, bienvenida,
+  portadas, conferencias). Una vez por vista. En iconos, favicons, texto o tamaños menores de ~96 px va la
+  marca plana `public/starseed-symbol.png`.
+- **Luz:** clave cálida arriba a la derecha (la misma que dibuja el arte plano), relleno frío a la izquierda,
+  contraluz por detrás, entorno generado en código (`RoomEnvironment` + PMREM), sombras PCF suaves y sombra
+  de contacto bajo la pieza. Tone mapping neutro. Los dos tonos de cada disco y de cada par de facetas los
+  hace la luz real sobre un único albedo por par, calibrado para el render frontal.
+- **Regla:** vista de frente (ortográfica, sin giro) coincide con la marca plana: silueta IoU ≥ 0,97
+  (medida: 0,9994) y colores por región a ≤ ~25/255 de los muestreados (§2). No se deforma ni se recolorea;
+  si cambia la escena, se vuelve a medir. Movimiento: flotación de 6 s, ±6° de guiñada en 14 s, inclinación
+  leve hacia el puntero; con movimiento reducido, quieto (o solo la imagen fija en aparatos débiles).
+- **Imagen fija:** `public/brand/starseed-simbolo-3d.webp` (256 × 384, misma escena y pose); es el marcador
+  instantáneo y el respaldo sin WebGL.
+
 ## 9. Nota sobre el comprobador del repo
 
 `memory/diseno/adn/starseed-os/check.py` del repo aprueba las 8 pruebas sin medir nada. No lo uses como
