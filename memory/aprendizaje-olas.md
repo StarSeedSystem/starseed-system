@@ -6633,3 +6633,12 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 
 **Lo que quedó fuera, una por una:**
 - `MGP1109-1E950F` — otra cosa: NO APLICA: la puerta de publicación volvió a verde (publicado a27d2d1e0ece)
+
+## 2026-11-09 18:31 · auto-1109-175403
+
+**Lo que se pidió.** Mando
+
+**Resultado.** 1 de 2 integradas. 1 tarea se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `SUP0911H` — otra cosa
