@@ -13,6 +13,9 @@ import { esAppNativa } from "@/lib/nativa/puente";
 import { describirCamaras, elegirCamaraPorDefecto, leerPreferencias, lineaCamaraElegida, plataformaDe, type Plataforma, restriccionesDeOpciones, leerCapacidades } from "@/lib/llamadas/camaras";
 import { anotarLlamada } from "@/lib/llamadas/voz-datos/diagnostico";
 import { getDeviceId } from "@/lib/network/device-registry";
+// PRM1109A (paso 4) · el motor de permisos es el único que habla con el
+// navegador para abrir micrófono/cámara/pantalla: aquí se le pide el stream.
+import { solicitarMedios, solicitarPantalla } from "@/lib/aurora/senses/request-permission";
 
 /** La neurona de ESTE aparato (donde se recuerdan las elecciones); sin ella, un nombre fijo. */
 function neuronaLocal(): string {
@@ -122,7 +125,7 @@ export async function afinarCamara(md: MediaDevices, stream: MediaStream, camara
             // la Desk View del iPhone). Se intenta con la del sistema abierta; si el error es de «cámara ocupada», se
             // suelta la del sistema y se reintenta; si tampoco, se reabre la del sistema: nunca sin cámara. Todo al registro.
             const abrir = async (id: string) => {
-                const otro = await md.getUserMedia({ audio: false, video: { ...restriccionesVideo(id) } });
+                const otro = await solicitarMedios({ audio: false, video: { ...restriccionesVideo(id) } }, md);
                 const nueva = otro.getVideoTracks()[0];
                 if (!nueva) throw Object.assign(new Error("sin pista"), { name: "SinPista" });
                 return nueva;
@@ -200,10 +203,10 @@ export async function obtenerMedios(p: { audio: boolean; video: boolean; microId
     }
     if (!p.audio && !p.video) return { stream: null, error: null, aviso: null };
     try {
-        const stream = await md.getUserMedia({
+        const stream = await solicitarMedios({
             audio: p.audio ? restriccionesAudio(p.microId) : false,
             video: p.video ? restriccionesVideo(p.camaraId) : false,
-        });
+        }, md);
         if (p.video) {
             await afinarCamara(md, stream, p.camaraId);
             await aplicarOpcionesGuardadas(stream.getVideoTracks()[0]);
@@ -214,7 +217,7 @@ export async function obtenerMedios(p: { audio: boolean; video: boolean; microId
         anotarLlamada("camara", null, `obtener-medios-fallo audio=${p.audio ? "si" : "no"} video=${p.video ? "si" : "no"} micro=${p.microId ? "elegido" : "sistema"} camara=${p.camaraId ? "elegida" : "sistema"} error=${(err as { name?: string })?.name ?? "desconocido"}`);
         if (p.audio && p.video) {
             try {
-                const stream = await md.getUserMedia({ audio: restriccionesAudio(p.microId), video: false });
+                const stream = await solicitarMedios({ audio: restriccionesAudio(p.microId), video: false }, md);
                 return { stream, error: null, aviso: mensajeErrorMedios(err, { audio: false, video: true }) };
             } catch (err2) {
                 anotarLlamada("camara", null, `obtener-medios-fallo solo-micro error=${(err2 as { name?: string })?.name ?? "desconocido"}`);
@@ -240,7 +243,7 @@ export async function obtenerPantalla(): Promise<{ pista: MediaStreamTrack | nul
     const md = mediaDevices() as (MediaDevices & { getDisplayMedia?: (c?: DisplayMediaStreamOptions) => Promise<MediaStream> }) | null;
     if (!md?.getDisplayMedia) return { pista: null, error: (await explicarFalloMedios({ name: "NoMediaDevices" }, { audio: false, video: true, pantalla: true })).mensaje };
     try {
-        const s = await md.getDisplayMedia({ video: { frameRate: { ideal: 15, max: 30 } }, audio: false });
+        const s = await solicitarPantalla({ video: { frameRate: { ideal: 15, max: 30 } }, audio: false }, md);
         const pista = s.getVideoTracks()[0] ?? null;
         try {
             if (pista) (pista as MediaStreamTrack & { contentHint?: string }).contentHint = "detail";

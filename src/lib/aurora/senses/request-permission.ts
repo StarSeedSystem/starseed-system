@@ -38,15 +38,55 @@ export interface ResultadoPermiso {
 const hayWin = typeof window !== "undefined";
 const nav = (): Navigator | null => (hayWin ? window.navigator : null);
 
+/**
+ * Abre el micrófono/cámara REAL y devuelve el stream. Es el ÚNICO punto del
+ * código que llama a `getUserMedia`: el resto pide el stream aquí para que el
+ * permiso del navegador pase siempre por el mismo motor (PRM1109A · paso 4 del
+ * plan de permisos unificados).
+ * NO suelta las pistas: el que llama las usa (las llamadas). `pedirPermiso` sí
+ * las suelta, porque solo quiere el permiso.
+ * Lanza con `name: "NoMediaDevices"` si el navegador no lo expone.
+ */
+export async function solicitarMedios(
+  constraints: MediaStreamConstraints,
+  md?: MediaDevices | null,
+): Promise<MediaStream> {
+  const dispositivos = md ?? nav()?.mediaDevices ?? null;
+  if (!dispositivos?.getUserMedia) {
+    throw Object.assign(new Error("Este navegador no expone la cámara/micrófono."), { name: "NoMediaDevices" });
+  }
+  return dispositivos.getUserMedia(constraints);
+}
+
+/** Comparte la pantalla por el mismo motor. Lanza si el motor no lo trae. */
+export async function solicitarPantalla(
+  opciones?: DisplayMediaStreamOptions,
+  md?: MediaDevices | null,
+): Promise<MediaStream> {
+  const dispositivos = (md ?? nav()?.mediaDevices ?? null) as
+    | (MediaDevices & { getDisplayMedia?: (o?: DisplayMediaStreamOptions) => Promise<MediaStream> })
+    | null;
+  if (!dispositivos?.getDisplayMedia) {
+    throw Object.assign(new Error("Este navegador no permite compartir la pantalla."), { name: "NoMediaDevices" });
+  }
+  return dispositivos.getDisplayMedia(opciones);
+}
+
 async function pedirMedia(constraints: MediaStreamConstraints, permiso: PermisoDispositivo): Promise<ResultadoPermiso> {
-  const n = nav();
-  if (!n?.mediaDevices?.getUserMedia) return { permiso, soportado: false, concedido: false, motivo: "Este navegador no expone la cámara/micrófono." };
   try {
-    const stream = await n.mediaDevices.getUserMedia(constraints);
+    const stream = await solicitarMedios(constraints);
     stream.getTracks().forEach((t) => t.stop()); // solo pedir el permiso, no retener el dispositivo
     return { permiso, soportado: true, concedido: true };
   } catch (e) {
-    return { permiso, soportado: true, concedido: false, motivo: e instanceof Error ? e.message : "denegado", nombreError: e instanceof Error ? e.name : undefined };
+    const nombreError = e instanceof Error ? e.name : undefined;
+    return {
+      permiso,
+      // El navegador no lo expone ≠ la persona lo denegó: solo lo primero es «no disponible».
+      soportado: nombreError !== "NoMediaDevices",
+      concedido: false,
+      motivo: e instanceof Error ? e.message : "denegado",
+      nombreError,
+    };
   }
 }
 
