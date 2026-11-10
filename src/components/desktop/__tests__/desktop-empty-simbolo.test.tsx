@@ -16,7 +16,9 @@ describe("EmptyDesktopState", () => {
             <EmptyDesktopState desktop={escritorio} onAddApps={() => {}} onAddWidgets={() => {}} onExploreLibrary={() => {}} />,
         );
         const simbolo = screen.getByTestId("simbolo-starseed-3d");
-        expect(screen.getByTestId("simbolo-starseed-fijo").getAttribute("src")).toBe("/brand/starseed-simbolo-3d.webp");
+        // ESC1110B: la imagen fija ya trae la flor fundida.
+        expect(screen.getByTestId("simbolo-starseed-fijo").getAttribute("src")).toBe("/brand/starseed-simbolo-flor-3d.webp");
+        expect(simbolo.dataset.flor).toBe("si");
 
         const pastilla = screen.getByText("Lienzo soberano");
         // El símbolo va antes que la pastilla en el documento.

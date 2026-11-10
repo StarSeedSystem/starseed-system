@@ -26,6 +26,8 @@ import type { EntityRef } from "@/lib/sync/entity-state";
 // y persiste en entity_state (clave "connectivity"). Sección opcional del diálogo.
 import { EntityConnectivityConfig } from "@/components/connectivity/entity-connectivity-config";
 import { GrupoAjustesCapsula } from "@/components/group/grupo-ajustes-capsula";
+// ESC1110B: «Símbolo del escritorio» de la página o del grupo.
+import { AjusteSimboloEscritorio } from "@/components/brand/simbolo-ajustes";
 // Catálogo + Mezclador de temas (theme-engine.ts): listThemes() incluye los
 // ~24 builtin MÁS los personalizados del usuario (incl. mezclas guardadas
 // como tema desde el Mezclador) — el mismo selector sirve para ambos.
@@ -179,6 +181,13 @@ export function EntityLayoutEditor({
                               <>
                                 <Separator />
                                 <GrupoAjustesCapsula grupoId={entityRef.id} tipo={entityRef.kind === "group" ? "grupo" : "comunidad"} />
+                              </>
+                            )}
+                            {/* ESC1110B: símbolo del escritorio de la página o del grupo (entity_state 'simbolo-escritorio') */}
+                            {(entityRef.kind === "page" || entityRef.kind === "group") && (
+                              <>
+                                <Separator />
+                                <AjusteSimboloEscritorio destino={{ ambito: entityRef.kind === "page" ? "pagina" : "grupo", id: entityRef.id }} />
                               </>
                             )}
                         </>

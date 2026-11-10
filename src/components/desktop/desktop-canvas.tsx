@@ -32,6 +32,7 @@ import {
     // Páginas del escritorio (H-3)
     MAX_DESKTOP_PAGES, desktopPageCount, desktopActivePage, iconsOfPage,
     setDesktopPage, addDesktopPage, moveIconToPage,
+    createNoteIcon, // ESC1110B: el botón «Nota» de la bienvenida
 } from "./desktop-store";
 import { useDesktopClipboard, copyIcon, cutIcon, pasteClipboard } from "./desktop-clipboard";
 // Adenda 98: menú de conexiones (red externa + malla P2P) en la barra superior.
@@ -44,7 +45,9 @@ import { DesktopWindowFrame } from "./desktop-window";
 import { DesktopWindowContent, resolveWindowChrome } from "./desktop-window-content";
 import { DesktopAddPanel, type AddPanelTab } from "./desktop-add-panel";
 import { CursorSettingsPanel } from "./cursor-fx";
-import { EmptyDesktopState } from "./desktop-empty";
+import { BienvenidaEscritorio } from "./desktop-empty"; // ESC1110B: bienvenida con salida y vuelta
+import { useSimboloEscritorio, usePerfilActivoId } from "@/components/brand/simbolo-almacen"; // ESC1110B
+import type { DestinoSimbolo } from "@/components/brand/simbolo-registro"; // ESC1110B
 import { CanvasContextMenu } from "./desktop-context-menu";
 import DesktopIconMenu from "./desktop-icon-menu";
 import {
@@ -569,7 +572,11 @@ function DesktopManagerMenu({
 // ════════════════════════════════════════════════════════════════
 // Lienzo principal
 // ════════════════════════════════════════════════════════════════
-export function DesktopCanvas({ spaceId = null }: { spaceId?: string | null } = {}): React.ReactElement {
+export function DesktopCanvas({ spaceId = null, entidadSimbolo = null }: {
+    spaceId?: string | null;
+    /** ESC1110B: página o grupo dueño de este escritorio (su símbolo gana al del perfil). */
+    entidadSimbolo?: DestinoSimbolo | null;
+} = {}): React.ReactElement {
     // Modo espacio compartido (debe montarse ANTES que useProfileDesktopsSync
     // para que su guard hasOpenSpace() vea el espacio ya abierto en el mismo ciclo).
     const sharedSpace = useSharedDesktopSpace(spaceId);
@@ -608,6 +615,13 @@ export function DesktopCanvas({ spaceId = null }: { spaceId?: string | null } = 
     // Escritorios anclados al perfil activo (SOP §10): ancla, migra el doc
     // local existente al perfil por defecto, y sincroniza en tiempo real.
     useProfileDesktopsSync();
+
+    // ESC1110B: el símbolo del escritorio (página o grupo › perfil activo › oficial).
+    const perfilActivoId = usePerfilActivoId();
+    const simbolo = useSimboloEscritorio({
+        perfil: perfilActivoId ? { ambito: "perfil", id: perfilActivoId } : null,
+        entidad: entidadSimbolo,
+    });
 
     // Siembra del primer escritorio (solo cliente).
     useEffect(() => {
@@ -1097,15 +1111,21 @@ export function DesktopCanvas({ spaceId = null }: { spaceId?: string | null } = 
                     </div>
                 )}
 
-                {/* Estado vacío premium (bienvenida + geometría sagrada) */}
-                {desktop.icons.length === 0 && desktop.windows.length === 0 && (
-                    <EmptyDesktopState
-                        desktop={desktop}
-                        onAddApps={() => openAdd("apps")}
-                        onAddWidgets={() => openAdd("widgets")}
-                        onExploreLibrary={() => openAdd("files")}
-                    />
-                )}
+                {/* Estado vacío premium (bienvenida + símbolo fundido con la flor).
+                    ESC1110B: se retira sola con transición al llegar el primer elemento
+                    (por cualquier vía) y vuelve igual si el escritorio se vacía. */}
+                <BienvenidaEscritorio
+                    vacio={desktop.icons.length === 0 && desktop.windows.length === 0}
+                    desktop={desktop}
+                    onAddApps={() => openAdd("apps")}
+                    onAddWidgets={() => openAdd("widgets")}
+                    onExploreLibrary={() => openAdd("files")}
+                    onAdd={(tab) => openAdd(tab)}
+                    onNewNote={() => { createNoteIcon(desktop.id, "Nota"); }}
+                    archivo={simbolo.archivo}
+                    rotulo={simbolo.rotulo}
+                />
+                {/* fin ESC1110B */}
             </motion.div>
 
             {/* ── Indicador de PÁGINAS (H-3) ──
