@@ -62,6 +62,8 @@ export interface VistaLlamada {
   medioElegido?: MedioLlamada;
   opcionesMedio?: OpcionMedio[];
   textoMedio?: string | null;
+  /** (LLA1110D) Carril de cada flujo con el otro: «Voz: Bluetooth · Vídeo: WebRTC». */
+  textoCarriles?: string | null;
   grabacion?: EstadoGrabacion;
   astraura?: EstadoAstraura;
   /** Reconocedor de voz disponible para la transcripción. */

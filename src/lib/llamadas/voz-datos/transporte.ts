@@ -66,15 +66,63 @@ export function enlacesDatosHacia(neurona: string): EnlaceDatosHacia[] {
   return out;
 }
 
-/** ¿Hay alguna ruta con IP hacia esa neurona (un enlace WebRTC local)? */
-export function hayRutaIpHacia(neurona: string): boolean {
+/**
+ * (LLA1110D) La red local nativa (canal TCP 47071, «nativo») también es una ruta IP: en la prueba 33, con el Wi-Fi de la
+ * tableta encendido, la señalización iba por ella pero `hayRutaIpHacia` decía «sin IP» y la voz arrancaba por Bluetooth
+ * mientras WebRTC conectaba por la LAN. La lista de enlaces nativos es asíncrona: se cachea y se refresca cada 3 s.
+ */
+const rutaNativa = new Map<string, { ip: boolean | null; t: number; enVuelo: boolean }>();
+const REFRESCO_NATIVA_MS = 3_000;
+
+function refrescarRutaNativa(neurona: string): void {
+  const ahora = Date.now();
+  const c = rutaNativa.get(neurona) ?? { ip: null, t: 0, enVuelo: false };
+  if (c.enVuelo || ahora - c.t < REFRESCO_NATIVA_MS) return;
+  c.enVuelo = true;
+  rutaNativa.set(neurona, c);
+  void import("@/lib/malla/transporte-universal")
+    .then((tu) => tu.enlacesDisponibles())
+    .then((l) => {
+      rutaNativa.set(neurona, { ip: l.some((e) => e.tipo === "nativo" && e.abierto && e.alcanza?.neuronDeviceId === neurona), t: Date.now(), enVuelo: false });
+    })
+    .catch(() => rutaNativa.set(neurona, { ip: c.ip, t: Date.now(), enVuelo: false }));
+}
+
+/** Para pruebas. */
+export function __fijarRutaNativa(neurona: string, ip: boolean | null): void {
+  if (ip === null) rutaNativa.delete(neurona);
+  else rutaNativa.set(neurona, { ip, t: Date.now() + 1e12, enVuelo: false });
+}
+
+/**
+ * ¿Hay alguna ruta con IP hacia esa neurona (enlace WebRTC local, Wi-Fi directo o la red local nativa)?
+ * null: aún no se sabe (la primera consulta de la red nativa está en vuelo): el motor no decide «sin IP» con eso.
+ */
+export function hayRutaIpHacia(neurona: string): boolean | null {
   // (LLA1108H) El enlace Wi-Fi directo (red propia de las dos neuronas, sin router) es una ruta IP aunque aún no haya WebRTC local.
   try {
     if (enlaceWifiDe(neurona)) return true;
   } catch {
     /* sin orquestación */
   }
-  return enlacesDatosHacia(neurona).some((e) => e.ip);
+  if (enlacesDatosHacia(neurona).some((e) => e.ip)) return true;
+  refrescarRutaNativa(neurona);
+  const n = rutaNativa.get(neurona)?.ip ?? null;
+  return n === null ? null : n;
+}
+
+/**
+ * (LLA1110D) ¿Hay un enlace DIRECTO con esa neurona (Bluetooth, enlace local o ruta IP sin servidor)? Basta para empezar
+ * una llamada sin internet: la señal y la voz van por él. Carga antes el motor Bluetooth si hace falta. Nunca lanza.
+ */
+export async function hayEnlaceDirectoCon(neurona: string): Promise<boolean> {
+  try {
+    await precargarTransporteVoz();
+    if (enlacesDatosHacia(neurona).length > 0) return true;
+    return hayRutaIpHacia(neurona) === true;
+  } catch {
+    return false;
+  }
 }
 
 /**

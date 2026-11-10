@@ -12,7 +12,7 @@
  * Contrato: architecture/llamadas-telefonia.md § «Vídeo ligero por enlace de datos».
  */
 import type { RelojVoz } from "@/lib/llamadas/voz-datos/sesion";
-import { ControlAdaptativo, hayHueco } from "./adaptacion";
+import { ControlAdaptativo, motivoSinHueco } from "./adaptacion";
 import { armarControlVideo, armarFragmento, esTextoVideo, fragmentar, leerControlVideo, leerFragmento, mtuSana, ReensambladorVideo } from "./paquete";
 import {
   CODECS_VIDEO,
@@ -24,6 +24,7 @@ import {
   type DecodificadorVideo,
   type FabricaVideo,
   type FuenteVideo,
+  type MotivoDescarteVideo,
   type PerfilVideo,
   type SalidaVideo,
   type TransporteVideo,
@@ -93,6 +94,16 @@ export function textoPerfil(p: PerfilVideo, c: CodecVideo | null): string {
   return `${p.w}×${p.h} · ${p.fps} fps · ${p.kbps} kbps${c ? ` · ${ETIQUETA[c]}` : ""}`;
 }
 
+/** LLA1110C: «saliendo:12,enlace-ocupado:3» con los más frecuentes primero (cabe en una línea del registro). */
+export function textoMotivos(m: Readonly<Record<string, number | undefined>>, max = 5): string {
+  return Object.entries(m)
+    .filter((e): e is [string, number] => typeof e[1] === "number" && e[1] > 0)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, max)
+    .map(([k, v]) => `${k}:${v}`)
+    .join(",");
+}
+
 export class SesionVideoDatos {
   private readonly d: DepsSesionVideo;
   private readonly ctrl: ControlAdaptativo;
@@ -145,6 +156,11 @@ export class SesionVideoDatos {
   private salidaDesde = 0;
   private ultimoLog = 0;
   private avisadoNegro = false;
+  /** LLA1110C: cada descarte con su motivo, y por qué la cámara no dio imagen. */
+  private readonly motivos: Partial<Record<MotivoDescarteVideo, number>> = {};
+  private readonly sinImagen: Record<string, number> = {};
+  /** El fotograma que sale ahora ya perdió algún trozo en el enlace (se cuenta una vez). */
+  private salidaTocada = false;
   private readonly oyentes = new Set<(e: EstadoVideoDatos) => void>();
 
   constructor(deps: DepsSesionVideo) {
@@ -300,6 +316,12 @@ export class SesionVideoDatos {
     this.codificador = null;
   }
 
+  /** LLA1110C: un fotograma que no sale, con su motivo. */
+  private descartar(m: MotivoDescarteVideo): void {
+    this.txDesc++;
+    this.motivos[m] = (this.motivos[m] ?? 0) + 1;
+  }
+
   private programarTic(): void {
     const fps = this.ctrl.perfil().fps;
     if (this.bajaTic && this.fpsProgramado === fps) return;
@@ -323,17 +345,28 @@ export class SesionVideoDatos {
     // Un fotograma anterior aún sale a trozos por la cola del enlace: no se captura otro encima.
     if (this.salidaPendiente.length) {
       this.vaciarSalida(ahora);
+      if (this.salidaPendiente.length) this.descartar("saliendo");
       return;
     }
-    const hueco = hayHueco({ vozBytes: t.colaVozBytes?.() ?? 0, videoBytes: t.colaVideoBytes?.() ?? 0, ocupado: t.ocupado() });
-    if (!hueco) {
+    const sinHueco = motivoSinHueco({ vozBytes: t.colaVozBytes?.() ?? 0, videoBytes: t.colaVideoBytes?.() ?? 0, ocupado: t.ocupado() });
+    if (sinHueco) {
       this.ctrl.registrarPresion(ahora);
-      this.txDesc++;
+      this.descartar(sinHueco);
+      return;
+    }
+    // LLA1110C: el códec aún no ha soltado los anteriores (antes se saltaba dentro del códec sin contarlo).
+    if (this.codificador.ocupado?.()) {
+      this.descartar("codec");
       return;
     }
     const p = this.ctrl.perfil();
     const frame = this.fuente.capturar(p.w, p.h);
-    if (!frame) return;
+    if (!frame) {
+      const m = this.fuente.motivoSinImagen?.() ?? "sin-datos";
+      this.sinImagen[m] = (this.sinImagen[m] ?? 0) + 1;
+      this.descartar("sin-imagen");
+      return;
+    }
     this.txCap++;
     this.txCapSinSalida++;
     const clave = this.forzarClave || ahora - this.ultimoClaveEn >= p.kfMs;
@@ -359,7 +392,7 @@ export class SesionVideoDatos {
     if (!this.salidaPendiente.length) return;
     if (ahora - this.salidaDesde > CADUCA_SALIDA_MS) {
       this.salidaPendiente = [];
-      this.txDesc++;
+      this.descartar("caducado");
       this.forzarClave = true;
       this.ctrl.registrarPresion(ahora);
       return;
@@ -378,13 +411,19 @@ export class SesionVideoDatos {
       if (r !== "ok") {
         this.ctrl.registrarPresion(ahora);
         this.forzarClave = true;
+        // El enlace tiró trozos al pasar su tope: ese fotograma ya no llega entero (se cuenta una vez).
+        if (!this.salidaTocada) {
+          this.salidaTocada = true;
+          this.descartar("enlace-tiro");
+        }
         if (r === "cerrado") {
           this.salidaPendiente = [];
           return;
         }
       }
       if (sig.ultimo) {
-        this.txEnv++;
+        if (!this.salidaTocada) this.txEnv++;
+        this.salidaTocada = false;
         this.avisar();
       }
     }
@@ -400,24 +439,25 @@ export class SesionVideoDatos {
     if (!f.clave && this.ctrl.pasaDePresupuesto(f.bytes.length, ahora)) {
       // Tirar un diferencial ya codificado rompe la cadena: el siguiente va clave.
       this.ctrl.registrarPresion(ahora);
-      this.txDesc++;
+      this.descartar("presupuesto");
       this.forzarClave = true;
       return;
     }
     if (this.salidaPendiente.length) {
       // Aún sale el anterior. Un clave nuevo lo sustituye (el viejo ya no sirve); un diferencial se tira.
       if (!f.clave) {
-        this.txDesc++;
+        this.descartar("saliendo");
         this.forzarClave = true;
         return;
       }
       this.salidaPendiente = [];
-      this.txDesc++;
+      this.salidaTocada = false;
+      this.descartar("sustituido");
     }
     const q = this.seqTx++;
     const frags = fragmentar(this.d.idLlamada, q, this.codecTx, f, this.d.transporte.mtu?.());
     if (!frags) {
-      this.txDesc++;
+      this.descartar("trocear");
       this.forzarClave = true;
       return;
     }
@@ -467,7 +507,7 @@ export class SesionVideoDatos {
   contadores(): { tx: ContadoresVideoTx; rx: ContadoresVideoRx } {
     const dg = this.fuente?.diagnostico?.();
     return {
-      tx: { capturados: this.txCap, codificados: this.txCod, enviados: this.txEnv, descartados: this.txDesc, clave: this.txClave, kbps: this.txKbps, negros: dg?.negros ?? 0, erroresCodec: this.txErrores },
+      tx: { capturados: this.txCap, codificados: this.txCod, enviados: this.txEnv, descartados: this.txDesc, clave: this.txClave, kbps: this.txKbps, negros: dg?.negros ?? 0, erroresCodec: this.txErrores, motivos: { ...this.motivos } },
       rx: { paquetes: this.rxPaq, cuadros: this.rxCuadros, decodificados: this.rxDec, pintados: this.rxPint, errores: this.rxErr, ultimoError: this.rxUltimoError },
     };
   }
@@ -480,7 +520,11 @@ export class SesionVideoDatos {
     const { tx, rx } = this.contadores();
     const dg = this.fuente?.diagnostico?.();
     if (this.fuente || tx.capturados > 0) {
-      this.d.anotar?.(`video-datos tx capturados=${tx.capturados} codificados=${tx.codificados} enviados=${tx.enviados} descartados=${tx.descartados} clave=${tx.clave} kbps=${tx.kbps} negros=${tx.negros}`);
+      this.d.anotar?.(`video-datos tx capturados=${tx.capturados} codificados=${tx.codificados} enviados=${tx.enviados} descartados=${tx.descartados} clave=${tx.clave} kbps=${tx.kbps} negros=${tx.negros}${tx.descartados ? ` motivos=${textoMotivos(tx.motivos)}` : ""}`);
+      // LLA1110C: por qué la cámara no dio imagen, y en qué estado está su <video> (WKWebView lo pausa si no lo ve).
+      if (this.sinImagen && Object.keys(this.sinImagen).length) {
+        this.d.anotar?.(`video-datos fuente sin-imagen=${textoMotivos(this.sinImagen)} pausada=${dg?.pausada ? "si" : "no"} listo=${dg?.listo ?? "?"} viva=${dg?.vivo ? "si" : "no"}${dg?.errorPlay ? ` play="${limpiar(dg.errorPlay)}"` : ""}`);
+      }
     }
     if (rx.paquetes > 0 || this.holaRecibido) {
       this.d.anotar?.(`video-datos rx paquetes=${rx.paquetes} cuadros=${rx.cuadros} decodificados=${rx.decodificados} pintados=${rx.pintados} errores=${rx.errores} ultimoError=${rx.ultimoError ? `"${rx.ultimoError}"` : "ninguno"}`);

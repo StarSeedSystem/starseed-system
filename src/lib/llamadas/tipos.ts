@@ -6,6 +6,7 @@
  * WebRTC y la interfaz. Módulo de tipos puro: sin red, sin DOM.
  */
 import type { AdjuntoLlamada, TipoLlamada } from "@/lib/mensajeria/formato-tipos";
+import type { Carril, Flujo } from "@/lib/llamadas/carriles";
 
 /** Máximo de personas en una llamada de malla completa (cada una envía a las demás). */
 export const MAX_PARTICIPANTES = 8;
@@ -126,6 +127,24 @@ export interface EstadoLlamada {
     videoDatos?: VideoDatosVista | null;
     /** (LLA1108H) Los pasos de la escalada al Wi-Fi directo («Abriendo Wi-Fi directo…», «Video por Wi-Fi directo (sin router)»). */
     escalada?: EscaladaVista | null;
+    /** (LLA1110D) Carril de cada flujo con cada par («Voz: Bluetooth · Vídeo: WebRTC»). Ver `MotorLlamada.carriles()`. */
+    carriles?: CarrilesParVista[];
+}
+
+/** (LLA1110D) Carriles de un par para la superficie. `texto` ya viene listo para enseñar. */
+export interface CarrilesParVista {
+    parId: string;
+    voz: Carril | null;
+    video: Carril | null;
+    pantalla: Carril | null;
+    senal: Carril | null;
+    /** El carril del enlace de datos con ese par ahora (aunque no lleve nada). */
+    datos: Carril | null;
+    /** Lo que la persona forzó, por flujo. */
+    forzados: Partial<Record<Flujo, Carril>>;
+    texto: string;
+    /** ¿Decide este extremo cuando los dos discrepan? (el descortés de la negociación). */
+    director: boolean;
 }
 
 /** (LLA1108H) El vídeo ligero por enlace de datos, dicho para la superficie. */

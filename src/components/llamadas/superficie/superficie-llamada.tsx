@@ -18,6 +18,49 @@ import { Barras, BotonControl, Cronometro, Pista, useSalidasAudio } from "./piez
 import { PestanaAstraura, PestanaCalidad, PestanaChat, PestanaGente, PestanaGrabar, PestanaInvitar, PestanaMedio } from "./pestanas";
 import estilos from "../llamadas.module.css";
 import { useMovimientoReducido, useSuperficie } from "./use-superficie";
+import { vigilarVisibilidad } from "@/lib/llamadas/superficie/visibilidad";
+import { streamTraeVideo } from "@/lib/llamadas/superficie/adaptador-motor";
+import { anotarLlamada } from "@/lib/llamadas/voz-datos/diagnostico";
+
+/**
+ * LLA1110C: ¿el flujo trae vídeo CON imagen ahora? Una pista WebRTC negociada sin ruta (por Bluetooth) existe pero
+ * llega «muted» para siempre: contarla como vídeo dejaba un <video> negro encima de todo. Se escucha mute/unmute.
+ */
+function useTraeVideo(stream: MediaStream | null | undefined): boolean {
+  const [si, setSi] = useState(() => streamTraeVideo(stream));
+  useEffect(() => {
+    const revisar = () => setSi(streamTraeVideo(stream));
+    revisar();
+    if (!stream) return;
+    const pistas = new Set<MediaStreamTrack>();
+    const enganchar = () => {
+      for (const t of stream.getVideoTracks()) {
+        if (pistas.has(t)) continue;
+        pistas.add(t);
+        t.addEventListener("mute", revisar);
+        t.addEventListener("unmute", revisar);
+        t.addEventListener("ended", revisar);
+      }
+      revisar();
+    };
+    enganchar();
+    stream.addEventListener?.("addtrack", enganchar);
+    stream.addEventListener?.("removetrack", revisar);
+    // Por si el motor no avisa (algunos WebView no emiten «unmute»): una mirada cada segundo.
+    const id = setInterval(revisar, 1000);
+    return () => {
+      clearInterval(id);
+      stream.removeEventListener?.("addtrack", enganchar);
+      stream.removeEventListener?.("removetrack", revisar);
+      for (const t of pistas) {
+        t.removeEventListener("mute", revisar);
+        t.removeEventListener("unmute", revisar);
+        t.removeEventListener("ended", revisar);
+      }
+    };
+  }, [stream]);
+  return si;
+}
 
 type Pestana = "calidad" | "medio" | "gente" | "invitar" | "grabar" | "astraura" | "chat";
 const TIPOS: Array<{ t: TipoSuperficie; etiqueta: string }> = [
@@ -84,11 +127,27 @@ export function SuperficieLlamada({ vista: v, acciones: a, tamanoInicial }: { vi
     return () => window.removeEventListener("keydown", f);
   }, [vivaAtajos, despachar]);
 
+  const remotoTraeVideo = useTraeVideo(v.remoto);
+  // LLA1110C: hay imagen del otro si el lienzo del vídeo ligero está o si su pista de vídeo trae imagen DE VERDAD.
+  const conVideoRemoto = !!v.remotoLienzo || remotoTraeVideo;
+  const vivaVideo = s.estado === "conectada" || s.estado === "en-espera" || s.estado === "reconectando";
+  // LLA1110C: al llegar imagen del otro con la llamada recogida en la burbuja, se abre el panel (antes se veía la píldora).
+  const habiaVideo = useRef(false);
+  useEffect(() => {
+    if (conVideoRemoto && !habiaVideo.current && vivaVideo && s.tamano === "burbuja") tamano("panel");
+    habiaVideo.current = conVideoRemoto;
+  }, [conVideoRemoto, vivaVideo, s.tamano, tamano]);
+  // LLA1110C: telemetría de visibilidad de cada mosaico con imagen (registro del enlace), cada 5 s.
+  const quiereVideo = vivaVideo && (conVideoRemoto || v.camara || !!v.remoto?.getVideoTracks().length);
+  useEffect(() => {
+    if (!quiereVideo) return;
+    return vigilarVisibilidad(() => raiz.current, (l) => anotarLlamada("medio=video-datos", null, l), 5000);
+  }, [quiereVideo]);
+
   if (s.estado === "inactiva") return null;
   const g = v.grabacion ?? GRABACION_INICIAL;
   const grabando = hayGrabacion(g);
-  const viva = s.estado === "conectada" || s.estado === "en-espera" || s.estado === "reconectando";
-  const conVideoRemoto = !!v.remoto?.getVideoTracks().length || !!v.remotoLienzo;
+  const viva = vivaVideo;
   const permitidos = tamanosPermitidos(s.estado);
   const cabeceraTexto = textoEstado(s, v.nombre);
   const tamanoActual = s.tamano;
@@ -126,7 +185,8 @@ export function SuperficieLlamada({ vista: v, acciones: a, tamanoInicial }: { vi
     const ok = puedeCambiarTipo(s, t);
     if (!ok.ok) { setAviso(ok.motivo ?? "No se puede cambiar ahora."); return; }
     despachar({ t: "cambiar-tipo", a: t });
-    try { await a.cambiarTipo?.(t); } catch { despachar({ t: "tipo-fallido" }); setAviso("No se pudo cambiar el tipo de llamada; sigue como estaba."); }
+    // LLA1110C: el motivo real (p. ej. por qué no se encendió la cámara), no un «no se pudo» genérico.
+    try { await a.cambiarTipo?.(t); } catch (err) { despachar({ t: "tipo-fallido" }); const m = err instanceof Error && err.message ? err.message : ""; setAviso(m ? `No se pudo cambiar a ${TIPOS.find((x) => x.t === t)?.etiqueta.toLowerCase() ?? t}: ${m}` : "No se pudo cambiar el tipo de llamada; sigue como estaba."); }
   };
   const pip = () => {
     const el = raiz.current?.querySelector<HTMLVideoElement>("video[data-remoto]");
@@ -248,7 +308,7 @@ export function SuperficieLlamada({ vista: v, acciones: a, tamanoInicial }: { vi
                   )}
                   {s.tipo === "pantalla" && resaltar && puntero && <span aria-hidden className="pointer-events-none absolute h-12 w-12 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-amber-300 bg-amber-300/25" style={{ left: puntero.x, top: puntero.y }} />}
                   {s.tipo === "pantalla" && resaltar && <div className="absolute inset-0" onPointerMove={(e) => { const r = e.currentTarget.getBoundingClientRect(); setPuntero({ x: e.clientX - r.left, y: e.clientY - r.top }); }} />}
-                  {v.local && v.camara && <Pista stream={v.local} video silenciar espejo={espejo} className="absolute bottom-2 right-2 h-20 w-14 rounded-lg border border-white/25 sm:h-24 sm:w-32" etiqueta="Tu cámara" />}
+                  {v.local && v.camara && <Pista stream={v.local} video silenciar local espejo={espejo} className="absolute bottom-2 right-2 h-20 w-14 rounded-lg border border-white/25 sm:h-24 sm:w-32" etiqueta="Tu cámara" />}
                   {s.tipo === "vivo" && <span className="absolute left-2 top-2 flex items-center gap-1.5 rounded-full bg-black/55 px-2 py-0.5 text-[11px]"><Eye className="h-3 w-3" /> {v.espectadores ?? "—"} · {v.relevo ?? "directo"}</span>}
                   {s.tipo === "pantalla" && v.compartiendoPantalla && <span className="absolute left-2 top-2 rounded-full bg-amber-500/80 px-2 py-0.5 text-[11px] text-black">Estás compartiendo tu pantalla</span>}
                   {s.estado === "reconectando" && <div role="status" className="absolute inset-0 flex items-center justify-center bg-black/60 text-[13px]">Reconectando…</div>}
@@ -278,6 +338,7 @@ export function SuperficieLlamada({ vista: v, acciones: a, tamanoInicial }: { vi
               {v.motivo && <p className="px-3 pb-1 text-[11.5px] text-white/65" role="status">{v.motivo}</p>}
               {(aviso ?? v.aviso) && <p className="mx-3 mb-1 rounded-lg border border-amber-300/30 bg-amber-400/10 px-2 py-1 text-[11.5px] text-amber-100" role="status">{aviso ?? v.aviso}</p>}
               {v.textoMedio && viva && <p className="px-3 pb-1 text-[11px] text-white/55">{v.textoMedio}</p>}
+              {v.textoCarriles && viva && <p className="px-3 pb-1 text-[11px] text-white/55" data-carriles="">{v.textoCarriles}</p>}
               {v.cambiandoA && <p className="px-3 pb-1 text-[11.5px] text-violet-100" role="status">Cambiando a {TIPOS.find((t) => t.t === v.cambiandoA)?.etiqueta.toLowerCase()} sin colgar…</p>}
             </div>
 
