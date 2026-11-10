@@ -51,6 +51,10 @@ const COMANDOS_APP: &[&str] = &[
     "permisos_inicio_pedir",
     "ventana_pantalla_completa",
     "recursos_ia_detectar",
+    // (MOD1110B) Instalación guiada de Ollama (solo escritorio).
+    "ollama_instalador_descargar",
+    "ollama_instalador_cancelar",
+    "ollama_instalador_abrir",
     "antenas_estado",
     "antenas_medir",
     "antenas_config",

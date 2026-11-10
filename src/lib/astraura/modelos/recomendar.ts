@@ -3,10 +3,13 @@
 // architecture/modelos-recomendados.md. Nunca recomienda lo que no está comprobado ni lo que
 // la neurona no puede ejecutar.
 
-import { recomendable, requisitosDe } from "./catalogo";
+import { listableSinFiltros, pierdeHerramientas, recomendable, requisitosDe } from "./catalogo";
 import type { PerfilNeurona } from "./perfil-neurona";
 import type { CasoUso, ModeloLocal, MotivoEncaje, Veredicto } from "./tipos";
 import { CASOS, ETIQUETA_CASO } from "./tipos";
+
+// pierdeHerramientas se reexporta para la interfaz (tarjetas de la Biblioteca).
+export { pierdeHerramientas };
 
 // ── Encaje de un modelo en una neurona ───────────────────────────────────────────────────────────
 
@@ -82,8 +85,16 @@ const PAPELES_PALABRA = new Set(["palabra", "razon", "profunda"]);
 const RANGO_PAPEL: Record<string, number> = { reflejo: 0, memoria: 0, palabra: 1, razon: 2, profunda: 3 };
 const RANGO_TIPO: Record<string, number> = { needle: 0, "capa-158": 1, estandar: 2 };
 
+/**
+ * Casos en los que una variante sin filtros puede usarse (a mano y en privado): los que son MI conversación conmigo.
+ * Nunca: bots y dots (hablan con otras personas), capas de conciencia (capas públicas/colectivas), trabajo en segundo
+ * plano ni voz. Los que necesitan herramientas (código y agentes) exigen que la variante las conserve (`elegible`).
+ */
+export const CASOS_SIN_FILTROS: ReadonlySet<CasoUso> = new Set<CasoUso>(["conversacion", "archivos-privados", "codigo-agentes", "vision"]);
+
 function elegible(m: ModeloLocal, caso: CasoUso): boolean {
   const papel = m.papel ?? "";
+  if (m.clase === "abliterated" && !CASOS_SIN_FILTROS.has(caso)) return false;
   switch (caso) {
     case "conversacion":
     case "archivos-privados":
@@ -140,7 +151,7 @@ function comparador(caso: CasoUso, p: PerfilNeurona): (a: Candidato, b: Candidat
 /** Candidatos ordenados (mejor primero) para un caso en una neurona; solo lo recomendable y ejecutable. */
 export function candidatosPara(catalogo: readonly ModeloLocal[], p: PerfilNeurona, caso: CasoUso, instalados?: ReadonlySet<string>): Candidato[] {
   return catalogo
-    .filter((m) => recomendable(m) && elegible(m, caso))
+    .filter((m) => m.clase === "normal" && recomendable(m) && elegible(m, caso)) // «Automático» NUNCA elige una variante sin filtros
     .map((m) => ({ m, e: encajar(m, p, instalados?.has(m.id) === true) }))
     .filter((c) => c.e.veredicto !== "no-cabe")
     .sort(comparador(caso, p));
@@ -318,6 +329,79 @@ export function recomendar(entrada: {
     : "No cabe aquí y no hay otra neurona, servidor propio ni proveedor disponible.";
   return { ...base, ruta: { tipo: "ninguna", porque }, modeloRuta: null, razon: `${frase(undefined, p, caso)} ${porque}${ollamaTxt}` };
 }
+
+// ── Variantes sin filtros: elección a mano, con sus límites (MOD1110B) ────────────────────────────────────────
+
+/** Dónde se usaría la respuesta. Solo `privado-propio` admite una variante sin filtros. */
+export type ContextoUso = "privado-propio" | "compartido" | "publico" | "segundo-plano" | "malla-ajena";
+
+export const ETIQUETA_CONTEXTO: Record<ContextoUso, string> = {
+  "privado-propio": "tus conversaciones privadas en tu neurona",
+  compartido: "bots, dots o asistentes de grupo, comunidad o página (hablan con otras personas)",
+  publico: "capas públicas",
+  "segundo-plano": "segundo plano y aprendizaje colectivo",
+  "malla-ajena": "servir a otra cuenta por la malla",
+};
+
+export interface EstadoSinFiltros {
+  /** La persona activó (y confirmó) «Mostrar variantes sin filtros». */
+  activado: boolean;
+  /** false = este perfil no puede usarlas (p. ej. menor de edad). */
+  disponible: boolean;
+}
+
+export interface UsoModelo {
+  /** Modelo que se usará de verdad (la variante elegida, o la recomendación normal si no procede). */
+  modelo: ModeloLocal | null;
+  /** true = se usa una variante sin filtros. */
+  sinFiltros: boolean;
+  /** Una línea que dice por qué NO se usó la variante elegida (null si se usó o no había elección). */
+  aviso: string | null;
+}
+
+/**
+ * Aplica la elección manual de una persona sobre la recomendación automática. Aquí —y no solo en la pantalla— se
+ * imponen los límites de las variantes sin filtros: interruptor encendido y permitido en el perfil, contexto privado
+ * propio, caso permitido, herramientas si el caso las necesita, comprobada, y que quepa. Si algo falla, se vuelve a la
+ * clase normal (la recomendación automática) y se dice por qué en una línea.
+ */
+export function aplicarEleccionManual(entrada: {
+  catalogo: readonly ModeloLocal[];
+  perfil: PerfilNeurona;
+  caso: CasoUso;
+  rec: Recomendacion;
+  idManual?: string | null;
+  sinFiltros: EstadoSinFiltros;
+  /** Por defecto `compartido`: lo que no declara su contexto se trata como si hablara con otras personas. */
+  contexto?: ContextoUso;
+  instalados?: ReadonlySet<string>;
+}): UsoModelo {
+  const { catalogo, perfil, caso, rec, idManual, sinFiltros } = entrada;
+  const contexto = entrada.contexto ?? "compartido";
+  const normal: UsoModelo = { modelo: rec.modelo, sinFiltros: false, aviso: null };
+  if (!idManual) return normal;
+  const elegido = catalogo.find((m) => m.id === idManual);
+  if (!elegido) return normal;
+  if (elegido.clase === "normal") return { modelo: elegido, sinFiltros: false, aviso: null };
+  const rechazo = (porque: string): UsoModelo => ({
+    modelo: rec.modelo,
+    sinFiltros: false,
+    aviso: `No se usa «${elegido.etiqueta}» para ${ETIQUETA_CASO[caso].toLowerCase()}: ${porque}${rec.modelo ? ` Se usa «${rec.modelo.etiqueta}», la versión normal.` : " Se queda en la recomendación normal."}`,
+  });
+  if (!sinFiltros.disponible) return rechazo("las variantes sin filtros no están disponibles en este perfil.");
+  if (!sinFiltros.activado) return rechazo("«Mostrar variantes sin filtros» está apagado.");
+  if (!listableSinFiltros(elegido)) return rechazo("ya no está comprobada contra la biblioteca de Ollama.");
+  if (contexto !== "privado-propio") return rechazo(`solo se usan en ${ETIQUETA_CONTEXTO["privado-propio"]}, no en ${ETIQUETA_CONTEXTO[contexto]}.`);
+  if (!CASOS_SIN_FILTROS.has(caso)) return rechazo("ese uso habla con otras personas o corre sin ti delante.");
+  if (caso === "codigo-agentes" && !elegido.herramientas) return rechazo("perdió el uso de herramientas y este caso las necesita.");
+  if (!elegible(elegido, caso)) return rechazo("no sirve para ese caso.");
+  const e = encajar(elegido, perfil, entrada.instalados?.has(elegido.id) === true);
+  if (e.veredicto === "no-cabe") return rechazo("no cabe en esta neurona.");
+  return { modelo: elegido, sinFiltros: true, aviso: null };
+}
+
+/** Una variante sin filtros nunca se sirve a otra cuenta por la malla (para la puerta; ver contrato §10). */
+export const puedeServirseAOtraCuenta = (m: ModeloLocal): boolean => m.clase === "normal";
 
 /** Recomendación para los ocho casos a la vez. */
 export function recomendarTodos(entrada: { catalogo: readonly ModeloLocal[]; perfil: PerfilNeurona; entorno?: Partial<EntornoRuta> }): Record<CasoUso, Recomendacion> {

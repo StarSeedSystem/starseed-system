@@ -44,6 +44,8 @@ export const ETIQUETA_CASO: Record<CasoUso, string> = {
   "segundo-plano": "Trabajo en segundo plano",
 };
 
+export type ClaseModelo = "normal" | "abliterated";
+
 /** estandar = build normal del editor (Ollama); capa-158 y needle = las capas propias de Astraura. */
 export type TipoModelo = "estandar" | "capa-158" | "needle";
 
@@ -72,8 +74,11 @@ export interface ModeloLocal {
   etiqueta: string;
   familia: string;
   editor: string;
-  /** Solo se admiten builds normales de los editores. */
-  clase: "normal";
+  /**
+   * normal = build del editor. abliterated = variante de la comunidad a la que un tercero le quitó los rechazos
+   * («Variantes sin filtros», MOD1110B): opcional, apagada por defecto, nunca automática ni compartida.
+   */
+  clase: ClaseModelo;
   tipo: TipoModelo;
   /** Capa de Astraura a la que pertenece (reflejo, palabra, razon…), si es una capa. */
   papel?: string;
@@ -98,6 +103,10 @@ export interface ModeloLocal {
   comprobado: string | null;
   fuentes: string[];
   nota?: string;
+  /** Solo `abliterated`: quién la publica en Ollama (cuenta de la comunidad, NO el editor del modelo base). */
+  publicador?: string;
+  /** Solo `abliterated`: id del modelo normal del que deriva; de él sale la puntuación «de la base». */
+  baseId?: string;
 }
 
 /** Un punto de la frontera: el mejor modelo cerrado conocido en esa fecha. */

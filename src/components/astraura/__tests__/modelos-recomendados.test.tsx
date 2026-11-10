@@ -8,6 +8,7 @@ import { ajustesPredeterminados } from "@/lib/astraura/modelos/almacen";
 import { catalogoCompleto } from "@/lib/astraura/modelos/catalogo";
 import { catalogoSemilla } from "@/lib/astraura/modelos/catalogo-datos";
 import { planInstalar } from "@/lib/astraura/modelos/instalar";
+import { FICHAS_OLLAMA, preguntaOllama } from "@/lib/astraura/modelos/instalar-ollama";
 import { construirPerfilNeurona, type PerfilNeurona } from "@/lib/astraura/modelos/perfil-neurona";
 import { recomendarTodos } from "@/lib/astraura/modelos/recomendar";
 import type { AccionesModelos, EstadoModelos } from "@/lib/astraura/modelos/use-modelos";
@@ -27,6 +28,11 @@ function estado(perfil: PerfilNeurona, pares: PerfilNeurona[] = [], extra: Parti
     cargando: false, catalogo, modelos, perfil, pares, ajustes: ajustesPredeterminados(),
     recomendaciones: recomendarTodos({ catalogo: modelos, perfil, entorno: { pares } }),
     instalados, aviso: null, revisando: false, estadoRevision: "",
+    usos: null, sinFiltros: { activado: false, disponible: true, motivo: null },
+    ollama: { sistema: "macos", ficha: FICHAS_OLLAMA.macos, pregunta: preguntaOllama(FICHAS_OLLAMA.macos), presente: perfil.runtimes.includes("ollama") },
+    continuar: null,
+    activarVariantes: vi.fn(), desactivarVariantes: vi.fn(), usarVariante: vi.fn(), dejarVariante: vi.fn(),
+    instalarOllama: vi.fn(), cancelarOllama: vi.fn(), vigilarOllama: vi.fn(() => () => {}), comprobarOllama: vi.fn(async () => false), descartarContinuar: vi.fn(),
     setModo: vi.fn(), elegirManual: vi.fn(), setPrivacidad: vi.fn(), setRamDeclarada: vi.fn(),
     revisarAhora: vi.fn(async () => {}), descartarAviso: vi.fn(),
     planDe: (m) => planInstalar(m, perfil, instalados.has(m.id)),

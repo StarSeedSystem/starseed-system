@@ -4,14 +4,17 @@
 // se prueba sin red. Fuentes y permisos: solo ollama.com/library y epoch.ai/data/eci_scores.csv.
 
 import { queAplicar, type DecisionAutoActualizar } from "@/lib/astraura/auto-actualizar-modelos";
+import { PUBLICADORES_SIN_FILTROS } from "./catalogo";
 import { recomendarTodos, type EntornoRuta, type Recomendacion } from "./recomendar";
 import type { PerfilNeurona } from "./perfil-neurona";
 import { CASOS, ETIQUETA_CASO, type CasoUso, type CatalogoModelos, type ModeloLocal, type PuntoFrontera } from "./tipos";
 
 export const URL_ECI = "https://epoch.ai/data/eci_scores.csv";
 export const URL_INDICE_OLLAMA = "https://ollama.com/search?o=newest";
-export const urlTags = (familia: string) => `https://ollama.com/library/${familia}/tags`;
-export const urlFamilia = (familia: string) => `https://ollama.com/library/${familia}`;
+// Una «familia» es `qwen3.5` (biblioteca oficial) o `huihui_ai/qwen3.5-abliterated` (variante sin filtros de un publicador de la lista cerrada).
+const baseFamilia = (familia: string) => (familia.includes("/") ? `https://ollama.com/${familia}` : `https://ollama.com/library/${familia}`);
+export const urlTags = (familia: string) => `${baseFamilia(familia)}/tags`;
+export const urlFamilia = (familia: string) => baseFamilia(familia);
 /** Como mucho una revisión completa al día. */
 export const INTERVALO_REVISION_MS = 24 * 60 * 60 * 1000;
 const NOMBRE_FAMILIA = /^[a-z0-9][a-z0-9._-]{0,63}$/;
@@ -25,7 +28,10 @@ export function urlPermitida(url: string): boolean {
   if (u.hostname !== "ollama.com") return false;
   if (u.pathname === "/search") return u.search === "?o=newest";
   const m = /^\/library\/([^/]+)(\/tags)?$/.exec(u.pathname);
-  return !!m && NOMBRE_FAMILIA.test(m[1]) && u.search === "";
+  if (m) return NOMBRE_FAMILIA.test(m[1]) && u.search === "";
+  // (MOD1110B) Páginas de las variantes sin filtros: SOLO de los publicadores de la lista cerrada.
+  const c = /^\/([\w.-]+)\/([^/]+)(\/tags)?$/.exec(u.pathname);
+  return !!c && PUBLICADORES_SIN_FILTROS.includes(c[1]) && NOMBRE_FAMILIA.test(c[2]) && u.search === "";
 }
 
 // ── Lectores de las fuentes ──────────────────────────────────────────────────────────────────────
@@ -78,7 +84,7 @@ export interface FilaTag { tag: string; descargaGb: number; contextoK: number; v
 /** Lee la página `/library/<familia>/tags` de Ollama: tamaño (el menor del rango), contexto y entrada. */
 export function parsearTagsOllama(html: string): FilaTag[] {
   const out = new Map<string, FilaTag>();
-  const re = /href="\/library\/([\w.-]+:[\w.-]+)"[\s\S]{0,1500}?•\s*([\d.]+)\s*(GB|MB)(?:\s*-\s*[\d.]+\s*(?:GB|MB))?\s*•\s*(\d+)K context window[\s\S]{0,300}?\b(Text, Image|Text) input/g;
+  const re = /href="\/(?:library\/)?([\w.-]+(?:\/[\w.-]+)?:[\w.-]+)"[\s\S]{0,1500}?•\s*([\d.]+)\s*(GB|MB)(?:\s*-\s*[\d.]+\s*(?:GB|MB))?\s*•\s*(\d+)K context window[\s\S]{0,300}?\b(Text, Image|Text) input/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(html))) {
     if (out.has(m[1])) continue;

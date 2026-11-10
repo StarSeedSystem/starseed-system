@@ -11,14 +11,22 @@ import capasCrudas from "../../../../config/capas-astraura.json";
 import { leerCatalogo } from "@/lib/astraura/capas/catalogo";
 import { debeRevisar, revisarFuentes, avisoDiscreto, type Mejora } from "./actualizar-catalogo";
 import {
-  EVENTO_MODELOS, guardarAjustes, guardarCatalogo, guardarRevision, leerAjustes, leerCatalogoGuardado, leerInstalados, leerRevision,
-  marcarInstalado, type AjustesModelos, type AlmacenTexto, type ModoModelos,
+  EVENTO_MODELOS, activarVariantes, desactivarVariantes, guardarAjustes, guardarCatalogo, guardarOllamaPendiente, guardarRevision, leerAjustes,
+  leerCatalogoGuardado, leerInstalados, leerOllamaPendiente, leerRevision, marcarInstalado, olvidarOllamaPendiente,
+  type AjustesModelos, type AlmacenTexto, type ModoModelos,
 } from "./almacen";
-import { catalogoCompleto, modelosDesdeCapas } from "./catalogo";
+import { catalogoCompleto, listableSinFiltros, modelosDesdeCapas } from "./catalogo";
+import { puenteNativo } from "@/lib/nativa/puente";
+import {
+  FICHAS_OLLAMA, instalarOllamaGuiado, nativoOllamaDesde, preguntaOllama, sistemaOllama, sondearOllama, vigilarOllama,
+  type FichaOllama, type PreguntaOllama, type ProgresoNativoOllama, type ResultadoInstalacionOllama, type SistemaOllama,
+} from "./instalar-ollama";
+import { CASOS_SIN_FILTROS, aplicarEleccionManual, type UsoModelo } from "./recomendar";
+import { variantesDisponibles, type DisponibilidadVariantes } from "./variantes";
 import { conHierroMedido, perfilDesdeCapacidades, type PerfilNeurona } from "./perfil-neurona";
 import { listarInstaladosOllama, planInstalar, ejecutarInstalacion, type PlanInstalacion, type ResultadoInstalacion, type Traer } from "./instalar";
 import { recomendarTodos, type Recomendacion } from "./recomendar";
-import type { CasoUso, CatalogoModelos, ModeloLocal } from "./tipos";
+import { CASOS, type CasoUso, type CatalogoModelos, type ModeloLocal } from "./tipos";
 
 const CAPAS = leerCatalogo(capasCrudas);
 const PROPIOS = modelosDesdeCapas(CAPAS);
@@ -50,6 +58,14 @@ export interface EstadoModelos {
   revisando: boolean;
   /** Mensaje corto del último intento («sin conexión: se usa el catálogo del …»). */
   estadoRevision: string;
+  /** Lo que se USA de verdad por caso: la elección manual con sus límites aplicados (las variantes sin filtros solo en privado). */
+  usos: Record<CasoUso, UsoModelo> | null;
+  /** «Mostrar variantes sin filtros»: encendido y si este perfil puede usarlo. */
+  sinFiltros: { activado: boolean } & DisponibilidadVariantes;
+  /** Instalación guiada de Ollama para el sistema de esta neurona. */
+  ollama: { sistema: SistemaOllama; ficha: FichaOllama; pregunta: PreguntaOllama; presente: boolean };
+  /** Ollama acaba de detectarse y había un modelo pendiente: el siguiente paso (con la pregunta y el tamaño de siempre). */
+  continuar: PlanInstalacion | null;
 }
 
 export interface AccionesModelos {
@@ -65,6 +81,21 @@ export interface AccionesModelos {
   instalar(plan: PlanInstalacion, confirmado: boolean, onProgreso?: (pct: number, estado: string) => void): Promise<ResultadoInstalacion>;
   /** Recomendación para una neurona de la cuenta (para «en tu MaggaBook cabría»). */
   recomendarEn(p: PerfilNeurona, caso: CasoUso): Recomendacion | null;
+  /** Enciende las variantes sin filtros. SOLO se llama tras la confirmación de la persona. */
+  activarVariantes(): void;
+  /** Las apaga: se esconden y cualquier elección manual sobre ellas vuelve a «Automático». */
+  desactivarVariantes(): void;
+  /** Elige a mano una variante para mis conversaciones privadas (los casos en que se permite). */
+  usarVariante(id: string): void;
+  dejarVariante(id: string): void;
+  /** Descarga el instalador oficial de Ollama SOLO con `confirmado`; `modeloId` es el modelo al que se seguirá después. */
+  instalarOllama(confirmado: boolean, opciones?: { modeloId?: string; onProgreso?: (p: ProgresoNativoOllama) => void }): Promise<ResultadoInstalacionOllama>;
+  cancelarOllama(): Promise<boolean>;
+  /** Mira cada pocos segundos si Ollama ya responde; devuelve la función que deja de mirar. */
+  vigilarOllama(): () => void;
+  /** Mira una vez ahora («Ya lo instalé»). */
+  comprobarOllama(): Promise<boolean>;
+  descartarContinuar(): void;
 }
 
 export function useModelosNeurona(): EstadoModelos & AccionesModelos {
@@ -77,6 +108,8 @@ export function useModelosNeurona(): EstadoModelos & AccionesModelos {
   const [revisando, setRevisando] = useState(false);
   const [estadoRevision, setEstadoRevision] = useState("");
   const [cargando, setCargando] = useState(true);
+  const [ollamaListo, setOllamaListo] = useState(false);
+  const [continuarId, setContinuarId] = useState<string | null>(null);
   const revisionEnCurso = useRef(false);
 
   // Perfil de ESTA neurona y de las demás de la cuenta.
@@ -110,9 +143,38 @@ export function useModelosNeurona(): EstadoModelos & AccionesModelos {
     return () => { vivo = false; };
   }, [ajustes.ramDeclaradaGb]);
 
+  // Ollama detectado después de instalarlo (o al arrancar con una instalación pendiente): la neurona pasa a tener ese motor.
+  const perfilEf = useMemo<PerfilNeurona | null>(
+    () => (perfil && ollamaListo && !perfil.runtimes.includes("ollama") ? { ...perfil, runtimes: [...perfil.runtimes, "ollama"], puedeInstalarOllama: false } : perfil),
+    [perfil, ollamaListo],
+  );
   const modelos = useMemo(() => catalogoCompleto(catalogo, CAPAS), [catalogo]);
   const entorno = useMemo(() => ({ pares, privacidad: ajustes.privacidad, instalados }), [pares, ajustes.privacidad, instalados]);
-  const recomendaciones = useMemo(() => (perfil ? recomendarTodos({ catalogo: modelos, perfil, entorno }) : null), [modelos, perfil, entorno]);
+  const recomendaciones = useMemo(() => (perfilEf ? recomendarTodos({ catalogo: modelos, perfil: perfilEf, entorno }) : null), [modelos, perfilEf, entorno]);
+  const disponibilidad = useMemo(() => variantesDisponibles(), []);
+  const sinFiltros = useMemo(() => ({ activado: ajustes.variantesSinFiltros && disponibilidad.disponible, ...disponibilidad }), [ajustes.variantesSinFiltros, disponibilidad]);
+  // Lo que se usa de verdad: la elección manual con los límites de las variantes sin filtros (aquí el contexto es siempre «privado-propio»:
+  // este bloque habla de MIS conversaciones en MI neurona; bots, grupos, capas públicas y segundo plano no pasan por la elección manual).
+  const usos = useMemo<Record<CasoUso, UsoModelo> | null>(() => {
+    if (!perfilEf || !recomendaciones) return null;
+    const out = {} as Record<CasoUso, UsoModelo>;
+    for (const caso of CASOS) {
+      out[caso] = aplicarEleccionManual({
+        catalogo: modelos, perfil: perfilEf, caso, rec: recomendaciones[caso],
+        idManual: ajustes.modo === "manual" ? ajustes.porCaso[caso] : null,
+        sinFiltros: { activado: sinFiltros.activado, disponible: sinFiltros.disponible },
+        contexto: "privado-propio", instalados,
+      });
+    }
+    return out;
+  }, [perfilEf, recomendaciones, modelos, ajustes.modo, ajustes.porCaso, sinFiltros.activado, sinFiltros.disponible, instalados]);
+  const sistema = useMemo(
+    () => sistemaOllama({ plataforma: perfil?.plataforma ?? "web", userAgent: typeof navigator === "undefined" ? "" : navigator.userAgent }),
+    [perfil?.plataforma],
+  );
+  const ficha = FICHAS_OLLAMA[sistema];
+  const nativo = useMemo(() => nativoOllamaDesde(puenteNativo()), []);
+  const traerLocal = useCallback<Traer>(async (u, init) => { const r = await fetch(u, init); return { ok: r.ok, status: r.status, body: r.body, json: () => r.json() }; }, []);
 
   const aplicarAjustes = useCallback((f: (a: AjustesModelos) => AjustesModelos) => {
     setAjustes((a) => {
@@ -124,7 +186,7 @@ export function useModelosNeurona(): EstadoModelos & AccionesModelos {
   }, []);
 
   const revisar = useCallback(async (forzar: boolean) => {
-    if (!perfil || revisionEnCurso.current) return;
+    if (!perfilEf || revisionEnCurso.current) return;
     const a = almacen();
     const rev = leerRevision(a);
     const enLinea = typeof navigator === "undefined" ? true : navigator.onLine !== false;
@@ -135,7 +197,7 @@ export function useModelosNeurona(): EstadoModelos & AccionesModelos {
     revisionEnCurso.current = true;
     setRevisando(true);
     try {
-      const r = await revisarFuentes(catalogo, hoy(), traerPorPuente, { perfil, entorno, propios: PROPIOS });
+      const r = await revisarFuentes(catalogo, hoy(), traerPorPuente, { perfil: perfilEf, entorno, propios: PROPIOS });
       guardarRevision(a, { ultimoIntentoMs: Date.now(), ultimoResultado: r.revisado ? "ok" : "fallo" });
       if (r.revisado) {
         guardarCatalogo(a, r.catalogo);
@@ -154,7 +216,18 @@ export function useModelosNeurona(): EstadoModelos & AccionesModelos {
       revisionEnCurso.current = false;
       setRevisando(false);
     }
-  }, [perfil, catalogo, entorno, ajustes.avisosVistos]);
+  }, [perfilEf, catalogo, entorno, ajustes.avisosVistos]);
+
+  // «En el siguiente arranque»: si se pidió instalar Ollama para un modelo, se mira una vez si ya está.
+  useEffect(() => {
+    if (!perfil || perfil.runtimes.includes("ollama")) return;
+    const pend = leerOllamaPendiente(almacen(), hoy());
+    if (!pend) return;
+    let vivo = true;
+    void sondearOllama(traerLocal).then((ok) => { if (vivo && ok) { setOllamaListo(true); setContinuarId(pend.modeloId); } });
+    return () => { vivo = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [perfil?.id]);
 
   // Revisión diaria automática (como mucho una al día; sin conexión se omite).
   useEffect(() => {
@@ -177,7 +250,7 @@ export function useModelosNeurona(): EstadoModelos & AccionesModelos {
       setAviso(null);
       if (av) aplicarAjustes((a) => ({ ...a, avisosVistos: [...a.avisosVistos, av.clave].slice(-50) }));
     },
-    planDe: (m) => (perfil ? planInstalar(m, perfil, instalados.has(m.id)) : null),
+    planDe: (m) => (perfilEf ? planInstalar(m, perfilEf, instalados.has(m.id)) : null),
     instalar: async (plan, confirmado, onProgreso) => {
       const traer: Traer = async (u, init) => { const r = await fetch(u, init); return { ok: r.ok, status: r.status, body: r.body, json: () => r.json() }; };
       const res = await ejecutarInstalacion(plan, { confirmado, traer, onProgreso });
@@ -190,7 +263,58 @@ export function useModelosNeurona(): EstadoModelos & AccionesModelos {
     recomendarEn: (p, caso) => {
       try { return recomendarTodos({ catalogo: modelos, perfil: p, entorno: { pares: [], privacidad: ajustes.privacidad } })[caso]; } catch { return null; }
     },
+    activarVariantes: () => { if (disponibilidad.disponible) aplicarAjustes((a) => activarVariantes(a, hoy())); },
+    desactivarVariantes: () => aplicarAjustes((a) => desactivarVariantes(a, (id) => modelos.some((m) => m.id === id && m.clase === "abliterated"))),
+    usarVariante: (id) => {
+      const m = modelos.find((x) => x.id === id);
+      if (!m || !sinFiltros.activado || !listableSinFiltros(m)) return;
+      aplicarAjustes((a) => {
+        const porCaso = { ...a.porCaso };
+        for (const c of CASOS_SIN_FILTROS) {
+          if (c === "codigo-agentes" && !m.herramientas) continue;
+          if (c === "vision" && !m.vision) continue;
+          porCaso[c] = id;
+        }
+        return { ...a, modo: "manual", porCaso };
+      });
+    },
+    dejarVariante: (id) => aplicarAjustes((a) => {
+      const porCaso = { ...a.porCaso };
+      for (const c of CASOS) if (porCaso[c] === id) delete porCaso[c];
+      return { ...a, porCaso, modo: Object.keys(porCaso).length === 0 ? "automatico" : a.modo };
+    }),
+    instalarOllama: async (confirmado, opciones) => {
+      if (confirmado && opciones?.modeloId) guardarOllamaPendiente(almacen(), { modeloId: opciones.modeloId, desde: hoy() });
+      const r = await instalarOllamaGuiado(ficha, { confirmado, nativo, onProgreso: opciones?.onProgreso });
+      if (r.estado === "cancelada" || r.estado === "fallo" || r.estado === "rechazada" || r.estado === "no-disponible") olvidarOllamaPendiente(almacen());
+      return r;
+    },
+    cancelarOllama: () => nativo.cancelar(),
+    vigilarOllama: () => vigilarOllama({
+      sondear: () => sondearOllama(traerLocal),
+      alDetectar: () => {
+        setOllamaListo(true);
+        const pend = leerOllamaPendiente(almacen(), hoy());
+        if (pend) setContinuarId(pend.modeloId);
+      },
+    }),
+    comprobarOllama: async () => {
+      const ok = await sondearOllama(traerLocal);
+      if (ok) {
+        setOllamaListo(true);
+        const pend = leerOllamaPendiente(almacen(), hoy());
+        if (pend) setContinuarId(pend.modeloId);
+      }
+      return ok;
+    },
+    descartarContinuar: () => { setContinuarId(null); olvidarOllamaPendiente(almacen()); },
   };
 
-  return { cargando, catalogo, modelos, perfil, pares, ajustes, recomendaciones, instalados, aviso, revisando, estadoRevision, ...acciones };
+  const continuar = useMemo<PlanInstalacion | null>(() => {
+    const m = continuarId ? modelos.find((x) => x.id === continuarId) : undefined;
+    return m && perfilEf ? planInstalar(m, perfilEf, instalados.has(m.id)) : null;
+  }, [continuarId, modelos, perfilEf, instalados]);
+
+  const ollama = { sistema, ficha, pregunta: preguntaOllama(ficha), presente: !!perfilEf?.runtimes.includes("ollama") };
+  return { cargando, catalogo, modelos, perfil: perfilEf, pares, ajustes, recomendaciones, instalados, aviso, revisando, estadoRevision, usos, sinFiltros, ollama, continuar, ...acciones };
 }

@@ -102,6 +102,9 @@ mod pista_neurona;
 // (MIC1108A) Micrófono, cámara y pantalla: solo los orígenes propios, y el sistema pregunta.
 mod permisos_medios;
 mod recursos_ia;
+// (MOD1110B) Instalación guiada de Ollama: descarga del instalador OFICIAL a Descargas y apertura (escritorio).
+#[cfg(desktop)]
+mod ollama_instalador;
 #[cfg(desktop)]
 mod segundo_plano;
 mod serie;
@@ -864,6 +867,9 @@ pub fn run() {
         migracion_origen::migracion_origen_estado,
         migracion_origen::migracion_origen_datos,
         migracion_origen::migracion_origen_confirmar,
+        ollama_instalador::ollama_instalador_descargar, // MOD1110B
+        ollama_instalador::ollama_instalador_cancelar, // MOD1110B
+        ollama_instalador::ollama_instalador_abrir, // MOD1110B
     ]);
     #[cfg(not(desktop))]
     registrar_comandos!(builder []);

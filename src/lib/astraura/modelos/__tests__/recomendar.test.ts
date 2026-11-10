@@ -23,9 +23,10 @@ const tablet = construirPerfilNeurona({ id: "tab", nombre: "Maggaboard", platafo
 const debil = construirPerfilNeurona({ id: "deb", nombre: "Móvil viejo", plataforma: "android", ramGb: 2, discoLibreGb: 5, wasm: true });
 
 describe("semilla del catálogo", () => {
-  it("solo trae builds normales, comprobados, con fecha y fuente", () => {
-    expect(semilla.modelos.length).toBeGreaterThanOrEqual(20);
-    for (const m of semilla.modelos) {
+  it("los builds normales son comprobados, con fecha y fuente (las variantes sin filtros, en variantes.test.ts)", () => {
+    const normales = semilla.modelos.filter((m) => m.clase === "normal");
+    expect(normales.length).toBeGreaterThanOrEqual(20);
+    for (const m of normales) {
       expect(modeloValido(m)).toBe(true);
       expect(m.clase).toBe("normal");
       expect(m.id).not.toMatch(/abliterat|uncensor|huihui/i);
@@ -36,9 +37,9 @@ describe("semilla del catálogo", () => {
       if (m.puntuacion) expect(m.puntuacion.comprobado).toBe("2026-11-10");
     }
   });
-  it("rechaza cualquier clase que no sea «normal»", () => {
-    const raro = { ...semilla.modelos[0], clase: "abliterated" };
-    expect(modeloValido(raro)).toBe(false);
+  it("rechaza una clase desconocida, y una «abliterated» sin su rastro (publicador, base, fuente viva)", () => {
+    expect(modeloValido({ ...semilla.modelos[0], clase: "otra" })).toBe(false);
+    expect(modeloValido({ ...semilla.modelos[0], clase: "abliterated" })).toBe(false);
   });
   it("no recomienda una puntuación inventada: Qwen3.8 27B no tiene ECI comprobado", () => {
     expect(semilla.modelos.find((m) => m.id === "qwen3.8:27b")?.puntuacion).toBeNull();

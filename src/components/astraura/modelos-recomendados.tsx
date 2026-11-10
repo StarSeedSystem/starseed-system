@@ -12,10 +12,11 @@ import { useState } from "react";
 import { Cpu, RefreshCw, Sparkles, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { fechaCorta } from "@/lib/astraura/modelos/catalogo";
-import { candidatosPara } from "@/lib/astraura/modelos/recomendar";
+import { candidatosPara, encajar } from "@/lib/astraura/modelos/recomendar";
 import { useModelosNeurona, type AccionesModelos, type EstadoModelos } from "@/lib/astraura/modelos/use-modelos";
 import { CASOS, ETIQUETA_CASO, type CasoUso, type ModeloLocal } from "@/lib/astraura/modelos/tipos";
 import { Comparacion, InsigniaPrivado, InsigniaVeredicto, PreguntaDescarga, textoRuta } from "./modelos-ui";
+import { ContinuarModelo, InsigniaSinFiltros, InstalarOllama, InterruptorSinFiltros } from "./modelos-sin-filtros-ui";
 
 const NOMBRE_CHIP = { "apple-silicon": "Apple silicon", nvidia: "GPU NVIDIA", amd: "GPU AMD", cpu: "Solo CPU", "android-soc": "Android" } as const;
 
@@ -32,6 +33,7 @@ export function ModelosRecomendadosVista({ e }: { e: EstadoModelos & AccionesMod
   }
   const rec = e.recomendaciones;
   const manual = e.ajustes.modo === "manual";
+  const abriria = Math.max(0, ...CASOS.map((c) => rec[c].abriria));
 
   return (
     <section aria-label="Modelo local recomendado para esta neurona" className="space-y-3 rounded-xl border border-white/10 bg-white/[0.03] p-3">
@@ -64,6 +66,9 @@ export function ModelosRecomendadosVista({ e }: { e: EstadoModelos & AccionesMod
         </label>
       )}
 
+      {!p.runtimes.includes("ollama") && <InstalarOllama e={e} abriria={abriria} />}
+      <ContinuarModelo e={e} />
+
       {e.aviso && (
         <div role="status" className="flex items-start gap-2 rounded-lg border border-violet-400/25 bg-violet-500/[0.08] px-2.5 py-1.5 text-[12px] text-violet-100">
           <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
@@ -75,24 +80,32 @@ export function ModelosRecomendadosVista({ e }: { e: EstadoModelos & AccionesMod
       <ul className="space-y-2">
         {CASOS.map((caso) => {
           const r = rec[caso];
-          const elegido: ModeloLocal | null = manual && e.ajustes.porCaso[caso]
-            ? e.modelos.find((m) => m.id === e.ajustes.porCaso[caso]) ?? r.modelo
+          // El uso real pasa por `aplicarEleccionManual`: una variante sin filtros solo llega aquí si todos sus límites se cumplen.
+          const uso = e.usos?.[caso];
+          const sinFiltros = uso?.sinFiltros === true;
+          const elegido: ModeloLocal | null = uso ? uso.modelo : manual && e.ajustes.porCaso[caso]
+            ? e.modelos.find((m) => m.id === e.ajustes.porCaso[caso] && m.clase === "normal") ?? r.modelo
             : r.modelo;
-          const mostrado = r.ruta.tipo === "neurona-malla" ? r.modeloRuta : elegido;
-          const ruta = textoRuta(r);
-          const plan = elegido && r.ruta.tipo === "local" && r.veredicto !== "no-cabe" ? e.planDe(elegido) : null;
+          const mostrado = !sinFiltros && r.ruta.tipo === "neurona-malla" ? r.modeloRuta : elegido;
+          const ruta = sinFiltros ? null : textoRuta(r);
+          const encaje = sinFiltros && elegido ? encajar(elegido, p, e.instalados.has(elegido.id)) : null;
+          const plan = elegido && (sinFiltros || r.ruta.tipo === "local") && (encaje ? encaje.veredicto !== "no-cabe" : r.veredicto !== "no-cabe") ? e.planDe(elegido) : null;
           const instalado = !!elegido && e.instalados.has(elegido.id);
           return (
             <li key={caso} data-caso={caso} className="rounded-lg border border-white/10 bg-white/[0.04] p-2.5">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-[12px] font-medium text-white/90">{ETIQUETA_CASO[caso]}</span>
-                <InsigniaVeredicto v={r.veredicto} liberarGb={r.liberarGb} />
+                <InsigniaVeredicto v={encaje ? encaje.veredicto : r.veredicto} liberarGb={encaje ? encaje.liberarGb : r.liberarGb} />
+                {sinFiltros && <InsigniaSinFiltros />}
                 {caso === "archivos-privados" && <InsigniaPrivado />}
                 {elegido && <span className="ml-auto text-[11px] font-mono text-white/70" data-campo="modelo">{elegido.etiqueta}</span>}
               </div>
-              <p className="mt-1 text-[12px] text-white/65" data-campo="razon">{r.razon}</p>
+              <p className="mt-1 text-[12px] text-white/65" data-campo="razon">
+                {sinFiltros && elegido ? `«${elegido.etiqueta}» es la variante sin filtros que elegiste a mano para tus conversaciones privadas: su calidad está sin medir.` : r.razon}
+              </p>
+              {uso?.aviso && <p className="mt-0.5 text-[11px] text-amber-300" data-campo="aviso-variante">{uso.aviso}</p>}
               {ruta && <p className="mt-0.5 text-[11px] text-cyan-200/80" data-campo="ruta">{ruta}{r.modeloRuta ? ` · «${r.modeloRuta.etiqueta}»` : ""}</p>}
-              {mostrado && <div className="mt-1"><Comparacion m={mostrado} frontera={e.catalogo.frontera} /></div>}
+              {mostrado && <div className="mt-1"><Comparacion m={mostrado} frontera={e.catalogo.frontera} modelos={e.modelos} /></div>}
               {r.reflejo && caso !== "capas-conciencia" && caso !== "segundo-plano" && (
                 <p className="mt-0.5 text-[11px] text-white/40">Reflejos y segundo plano: {r.reflejo.etiqueta} ({(r.reflejo.descargaGb * 1024).toFixed(0)} MB).</p>
               )}
@@ -146,6 +159,8 @@ export function ModelosRecomendadosVista({ e }: { e: EstadoModelos & AccionesMod
           También para mis archivos privados (no recomendado)
         </label>
       </fieldset>
+
+      <InterruptorSinFiltros e={e} />
 
       <footer className="flex flex-wrap items-center gap-2 text-[11px] text-white/45">
         <span data-campo="catalogo">Catálogo comprobado el {fechaCorta(e.catalogo.revisado ?? e.catalogo.actualizado)}</span>

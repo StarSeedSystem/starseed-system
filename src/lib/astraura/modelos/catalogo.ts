@@ -3,19 +3,38 @@
 
 import { usable, type EntradaCapa, type CatalogoCapas } from "@/lib/astraura/capas/catalogo";
 import { catalogoSemilla } from "./catalogo-datos";
-import type { CatalogoModelos, ModeloLocal, PuntoFrontera, RuntimeLocal } from "./tipos";
+import type { CatalogoModelos, ModeloLocal, Puntuacion, PuntoFrontera, RuntimeLocal } from "./tipos";
 
 const RUNTIMES: readonly RuntimeLocal[] = ["ollama", "llama-cpp", "bitnet-cpp", "needle-nativo", "needle-wasm", "webgpu", "colibri"];
 const FECHA = /^\d{4}-\d{2}-\d{2}$/;
 const num = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v) && v >= 0;
 const txt = (v: unknown): v is string => typeof v === "string" && v.length > 0;
 
-/** Una entrada es válida si cumple el esquema Y es un build normal (nunca se aceptan otras clases). */
+/** Publicadores de variantes sin filtros que se aceptan (lista cerrada; las demás se descartan al leer). */
+export const PUBLICADORES_SIN_FILTROS: readonly string[] = ["huihui_ai"];
+const FUENTE_SIN_FILTROS = /^https:\/\/ollama\.com\/([\w.-]+)\/[\w.-]+(\/tags)?$/;
+
+/** Una variante sin filtros solo vale con su rastro completo: publicador de la lista, fuente viva, base y sin puntuación propia. */
+function sinFiltrosValida(e: Record<string, unknown>): boolean {
+  if (e.tipo !== "estandar" || e.puntuacion !== null) return false; // nadie las midió: jamás lleva puntuación propia
+  if (!txt(e.baseId) || !txt(e.publicador)) return false;
+  if (!Array.isArray(e.runtimes) || e.runtimes.length !== 1 || e.runtimes[0] !== "ollama") return false;
+  const id = String(e.id);
+  const usuario = id.split("/")[0];
+  if (!id.includes("/") || !PUBLICADORES_SIN_FILTROS.includes(usuario)) return false;
+  const fuentes = e.fuentes as string[];
+  return fuentes.length > 0 && fuentes.every((f) => {
+    const m = FUENTE_SIN_FILTROS.exec(f);
+    return !!m && PUBLICADORES_SIN_FILTROS.includes(m[1]);
+  });
+}
+
+/** Una entrada es válida si cumple el esquema; las variantes sin filtros, además, su rastro completo (`sinFiltrosValida`). */
 export function modeloValido(v: unknown): v is ModeloLocal {
   if (typeof v !== "object" || v === null) return false;
   const e = v as Record<string, unknown>;
   if (!txt(e.id) || !txt(e.etiqueta) || !txt(e.familia) || !txt(e.editor)) return false;
-  if (e.clase !== "normal") return false;
+  if (e.clase !== "normal" && e.clase !== "abliterated") return false;
   if (e.tipo !== "estandar" && e.tipo !== "capa-158" && e.tipo !== "needle") return false;
   if (!Array.isArray(e.runtimes) || e.runtimes.length === 0 || !e.runtimes.every((r) => RUNTIMES.includes(r as RuntimeLocal))) return false;
   if (!num(e.descargaGb)) return false;
@@ -28,6 +47,7 @@ export function modeloValido(v: unknown): v is ModeloLocal {
     const p = e.puntuacion as Record<string, unknown> | undefined;
     if (!p || !num(p.eci) || !txt(p.fecha) || !txt(p.nombreEpoch) || !txt(p.comprobado)) return false;
   }
+  if (e.clase === "abliterated" && !sinFiltrosValida(e)) return false;
   return true;
 }
 
@@ -39,6 +59,10 @@ export function leerCatalogoModelos(json: unknown): CatalogoModelos {
   if (r.esquema !== 1 || !Array.isArray(r.modelos)) return semilla;
   const modelos = r.modelos.filter(modeloValido);
   if (modelos.length === 0) return semilla;
+  // Propagación a cuentas existentes (regla del OS): un catálogo guardado antes de MOD1110B no trae la clase
+  // «sin filtros»; se le añaden las de la semilla que falten. Una que ya está (aunque retirada) no se repone.
+  const vistos = new Set(modelos.map((x) => x.id));
+  for (const s of semilla.modelos) if (s.clase === "abliterated" && !vistos.has(s.id)) modelos.push(s);
   const frontera = Array.isArray(r.frontera)
     ? (r.frontera as unknown[]).filter((p): p is PuntoFrontera => {
         const q = p as Record<string, unknown> | null;
@@ -55,9 +79,35 @@ export function leerCatalogoModelos(json: unknown): CatalogoModelos {
   };
 }
 
-/** ¿Se puede recomendar? Solo lo comprobado, de clase normal y con datos de tamaño válidos. */
+/** ¿Se puede recomendar? Solo lo comprobado, de clase normal y con datos de tamaño válidos. NUNCA una variante sin filtros. */
 export function recomendable(m: ModeloLocal): boolean {
   return m.clase === "normal" && m.estado === "comprobado" && m.descargaGb > 0;
+}
+
+export const esSinFiltros = (m: ModeloLocal): boolean => m.clase === "abliterated";
+
+/** Heurística por id para ajustes viejos o ilegibles: ¿parece una variante sin filtros? */
+export const idSinFiltros = (id: string): boolean => /abliterated|uncensored/i.test(id);
+
+/**
+ * ¿Se puede LISTAR (y elegir a mano) una variante sin filtros? Solo si se comprobó contra la fuente viva (fecha y estado),
+ * tiene rastro (fuente, base) y sus datos de tamaño son válidos. Lo retirado o sin comprobar desaparece.
+ */
+export function listableSinFiltros(m: ModeloLocal): boolean {
+  return m.clase === "abliterated" && m.estado === "comprobado" && m.comprobado !== null && FECHA.test(m.comprobado) && m.descargaGb > 0 && m.fuentes.length > 0 && !!m.baseId;
+}
+
+/** Puntuación del modelo BASE (rotulada así en las tarjetas); nunca se hereda como propia. */
+export function puntuacionDeBase(m: ModeloLocal, modelos: readonly ModeloLocal[]): Puntuacion | null {
+  if (!m.baseId) return null;
+  return modelos.find((x) => x.id === m.baseId && x.clase === "normal")?.puntuacion ?? null;
+}
+
+/** La variante perdió el uso de herramientas respecto a su base (hay que decirlo y no ofrecerla donde hacen falta). */
+export function pierdeHerramientas(m: ModeloLocal, modelos: readonly ModeloLocal[]): boolean {
+  if (m.clase !== "abliterated" || m.herramientas) return false;
+  const base = modelos.find((x) => x.id === m.baseId && x.clase === "normal");
+  return base ? base.herramientas : true;
 }
 
 // ── Capas 1.58-bit y Needle, en la misma comparación ─────────────────────────────────────────────
