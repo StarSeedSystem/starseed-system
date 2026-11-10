@@ -184,3 +184,82 @@ export function unirRegistros(web: readonly EventoEnlaceBle[], nativos: readonly
   }
   return filas.sort((a, b) => a.en - b.en || a.orden - b.orden).map((f) => f.linea);
 }
+
+/* ══════════════════════ BLE1110A · registro compacto y espejo continuo ══════════════════════ */
+
+const RE_MARCA = /^(\([^)]{0,80}\) )?(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?Z)\b/;
+const RE_REPETIDA = / … \(×(\d+)\)$/;
+
+/** La hora ISO con la que empieza una línea del registro (con o sin el «(nombre) » del espejo), o null. Puro. */
+export function marcaDeLinea(linea: string): string | null {
+  const m = RE_MARCA.exec(linea);
+  return m ? m[2] : null;
+}
+
+/** Lo que hace «idéntica» a una línea: sin la hora y sin un «… (×N)» final. Puro. */
+function claveDeLinea(linea: string): string {
+  const m = RE_MARCA.exec(linea);
+  const sinHora = m ? (m[1] ?? "") + linea.slice(m[0].length) : linea;
+  return sinHora.replace(RE_REPETIDA, "");
+}
+
+/**
+ * colapsarRepetidas — líneas idénticas consecutivas (salvo la hora) → UNA con «… (×N)». Se queda la hora de la última.
+ * Un «… (×N)» que ya trae la línea suma N. Puro. (prueba.32: 68 «autocuración» iguales empujaron las útiles fuera.)
+ */
+export function colapsarRepetidas(lineas: readonly string[]): string[] {
+  const salida: string[] = [];
+  let clave: string | null = null;
+  let cuenta = 0;
+  let ultima = "";
+  const cerrar = () => {
+    if (clave === null) return;
+    salida.push(cuenta > 1 ? `${ultima.replace(RE_REPETIDA, "")} … (×${cuenta})` : ultima);
+  };
+  for (const l of lineas) {
+    const k = claveDeLinea(l);
+    const n = Number(RE_REPETIDA.exec(l)?.[1] ?? 1) || 1;
+    if (clave !== null && k === clave) {
+      cuenta += n;
+      ultima = l;
+      continue;
+    }
+    cerrar();
+    clave = k;
+    cuenta = n;
+    ultima = l;
+  }
+  cerrar();
+  return salida;
+}
+
+/**
+ * Las líneas con hora posterior a `desde` (ISO; null = todas). Las de la MISMA hora solo si no están en `yaVistas` (dos
+ * líneas pueden compartir milisegundo). Las que no traen hora se conservan. Puro.
+ */
+export function lineasPosteriores(lineas: readonly string[], desde: string | null, yaVistas?: ReadonlySet<string>): string[] {
+  if (!desde) return [...lineas];
+  return lineas.filter((l) => {
+    const m = marcaDeLinea(l);
+    return m === null || m > desde || (m === desde && !yaVistas?.has(l));
+  });
+}
+
+/** Deja las últimas líneas que quepan en `maxBytes` (al menos una, recortada si hace falta). Puro. */
+export function acotarBytes(lineas: readonly string[], maxBytes: number): string[] {
+  const l = [...lineas];
+  let total = l.reduce((s, x) => s + x.length + 1, 0);
+  while (l.length > 1 && total > maxBytes) total -= (l.shift() as string).length + 1;
+  if (l.length === 1 && l[0].length > maxBytes) l[0] = l[0].slice(0, maxBytes);
+  return l;
+}
+
+/**
+ * ¿Toca mandar el espejo continuo de una neurona? Cada `cadaMs` mientras hay enlace ligado, y jamás si compite con la voz o
+ * con un montón de datos en cola (prioridad mínima). Puro.
+ */
+export function tocaEspejoContinuo(p: { ahora: number; ultimo: number | undefined; cadaMs: number; bytesVoz: number; bytesVideo: number; bytesDatos: number; maxDatos: number }): boolean {
+  if (p.ultimo !== undefined && p.ahora - p.ultimo < p.cadaMs) return false;
+  if (p.bytesVoz > 0 || p.bytesVideo > 0) return false;
+  return p.bytesDatos <= p.maxDatos;
+}
