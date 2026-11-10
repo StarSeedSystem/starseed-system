@@ -1,0 +1,21 @@
+{
+ "ola": "nube-20261110",
+ "tareas": [
+  {
+   "id": "DR1110-1",
+   "ola": "Ola Imaginación 2026-11-10 · lo que el análisis nocturno encontró",
+   "titulo": "Unificar tres motores de permisos",
+   "archivos": [],
+   "depende": [],
+   "prompt": "ORIGEN: esto lo escribió el Dream —el análisis nocturno de Hermes— en `starseed_memory_root/dream/sugerencias-2026-11-10.md`, sección «ideas nuevas». Texto literal del informe:\n\n  Unificar tres motores de permisos — (`lib/senses`, `request-permission`, `universalDeviceBridge`) en uno solo (tarea abierta).\n\nANTES DE ESCRIBIR NADA: comprueba que sigue siendo cierto. El Dream lo escriben modelos gratuitos leyendo registros, y a veces proponen algo que YA está hecho o que se entendió mal. Si al mirar el repo resulta que no aplica, no inventes trabajo: escribe en tu respuesta una línea `NO APLICA: <motivo>` y para.\n\nSi aplica: acota el cambio a lo mínimo que resuelva lo que dice el informe, y dilo en el commit. Máximo 3 archivos y 120 líneas por archivo. Las reglas de la casa están en `memory/workflow-actual.md` — léelas: el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba."
+  },
+  {
+   "id": "DR1110-2",
+   "ola": "Ola Imaginación 2026-11-10 · lo que el análisis nocturno encontró",
+   "titulo": "Des-simular Director",
+   "archivos": [],
+   "depende": [],
+   "prompt": "ORIGEN: esto lo escribió el Dream —el análisis nocturno de Hermes— en `starseed_memory_root/dream/sugerencias-2026-11-10.md`, sección «ideas nuevas». Texto literal del informe:\n\n  Des-simular Director — : `formulate_next_intelligent_task` usa `random.choice` de blueprints → formular con motor real o `starseed-sub`.\n\nANTES DE ESCRIBIR NADA: comprueba que sigue siendo cierto. El Dream lo escriben modelos gratuitos leyendo registros, y a veces proponen algo que YA está hecho o que se entendió mal. Si al mirar el repo resulta que no aplica, no inventes trabajo: escribe en tu respuesta una línea `NO APLICA: <motivo>` y para.\n\nSi aplica: acota el cambio a lo mínimo que resuelva lo que dice el informe, y dilo en el commit. Máximo 3 archivos y 120 líneas por archivo. Las reglas de la casa están en `memory/workflow-actual.md` — léelas: el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba."
+  }
+ ]
+}
