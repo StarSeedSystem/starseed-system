@@ -26,8 +26,14 @@ import { crearCanalMultiVias, type CanalMultiVias, type TipoVia, type ViaMulti }
 import type { AjustesViasArchivo } from "@/lib/malla/ajustes-vias-archivo";
 
 export const CAPACIDAD_MULTITRAYECTO = "multitrayecto.v1";
+/** (ARC1110A) La neurona entiende `archivo.anuncio`/`archivo.preaceptar`: la ventana de «aceptar» sale antes de preparar el archivo. */
+export const CAPACIDAD_ANUNCIO = "archivo.anuncio.v1";
 /** Lo que cada neurona anuncia en su saludo / presencia de cuenta (en este orden: son las primeras de la lista). */
-export const CAPACIDADES_ARCHIVO: readonly string[] = [CAPACIDAD_CIFRADO_ARCHIVO, CAPACIDAD_MULTITRAYECTO];
+export const CAPACIDADES_ARCHIVO: readonly string[] = [CAPACIDAD_CIFRADO_ARCHIVO, CAPACIDAD_MULTITRAYECTO, CAPACIDAD_ANUNCIO];
+
+export function parAnuncia(caps: readonly string[] | null | undefined): boolean {
+  return Array.isArray(caps) && caps.includes(CAPACIDAD_ANUNCIO);
+}
 
 export function parMultitrayecto(caps: readonly string[] | null | undefined): boolean {
   return Array.isArray(caps) && caps.includes(CAPACIDAD_MULTITRAYECTO);
@@ -50,6 +56,8 @@ export interface EntradaArmado {
   bytes: number;
   /** ¿El par anuncia `archivo.e2e.v1`? */
   parCifra: boolean;
+  /** (ARC1110A) ¿TODAS las neuronas destinatarias anuncian `archivo.anuncio.v1`? Sin esto, el flujo de siempre (solo la oferta). */
+  parAnuncia?: boolean;
   /** Claves de los destinatarios (una copia por neurona). Sin ella no se sella. */
   destinatarios?: () => Promise<DestinatarioArchivo[]>;
   ajustes: AjustesViasArchivo;
@@ -149,12 +157,17 @@ export async function armarCanalArchivo(e: EntradaArmado): Promise<Armado> {
   if (!sellable) {
     // Par antiguo (o sin claves): EXACTAMENTE el camino de siempre —sin cola asíncrona, un envío fallido sigue devolviendo false—;
     // solo se le añade la marca para la interfaz.
-    const marcado: CanalArchivos & { modoCifrado(id: string): "sin-cifrado-de-archivo" } = { ...base, modoCifrado: () => "sin-cifrado-de-archivo" };
+    const marcado: CanalArchivos & { modoCifrado(id: string): "sin-cifrado-de-archivo" } = {
+      ...base,
+      modoCifrado: () => "sin-cifrado-de-archivo",
+      ...(e.parAnuncia === true ? { admiteAnuncio: () => true } : {}), // ARC1110A: ya viajaba en claro por vías directas; el anuncio no añade nada
+    };
     return { canal: marcado, sellado: null, multi, usadas, excluidas, modo: "sin-cifrado-de-archivo", copias: 0 };
   }
   const sellado = crearCanalSellado(base, {
     destinatarios: async () => destinatarios,
     parCifra: () => true,
+    parAnuncia: () => e.parAnuncia === true, // ARC1110A
     ...(e.firmar !== undefined ? { firmar: e.firmar } : {}),
     ...(e.verificar !== undefined ? { verificar: e.verificar } : {}),
     ...(e.almacen ? { almacen: e.almacen } : {}),

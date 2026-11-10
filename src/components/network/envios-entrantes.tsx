@@ -127,8 +127,9 @@ function textoFase(a: EstadoTransferencia): string {
   const pct = a.trozos > 0 ? Math.min(100, Math.round((a.progreso / a.trozos) * 100)) : 0;
   switch (a.fase) {
     case "pendiente-aceptar":
-      return "Por decidir";
+      return a.preparando ? "Preparando · por decidir" : "Por decidir"; // ARC1110A: solo llegó el anuncio
     case "transfiriendo":
+      if (a.preparando) return a.preaceptada ? "Aceptado · preparando" : "Preparando"; // ARC1110A
       return `Recibiendo · ${pct} %`;
     case "reintentando":
       return `Reintentando · ${pct} %`;
@@ -249,6 +250,7 @@ function Archivo({ a, modo, marcado, onMarcar, local, ia, blob, onCancelar }: Pr
       <span className={cn("text-[10.5px]", a.fase === "error" ? "text-[#ff8a9a]" : a.fase === "completada" ? "text-[#6ee7b7]" : "text-white/60")} role="status">
         {textoFase(a)}
       </span>
+      {a.preparando && a.motivo && <span className="text-[10.5px] text-white/60">{a.motivo}</span>} {/* ARC1110A: «<neurona> está preparando el archivo…» */}
       <CifradoViasArchivo cifradoArchivo={a.cifradoArchivo} repartoVias={a.repartoVias} velocidadBps={a.velocidadBps} verificado={false} />
     </div>
   );

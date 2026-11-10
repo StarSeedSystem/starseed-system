@@ -114,6 +114,8 @@ import {
 import { analizarArchivo } from "@/lib/malla/cristal/centinela";
 import { decidirEntrada } from "@/lib/malla/cristal/centinela-archivos";
 import { extensionDe, listarZip } from "@/lib/network/inspeccion-archivos";
+import { anotarArchivo, type HitoArchivo } from "@/lib/network/archivos-diagnostico"; // ARC1110A
+import { prepararArchivo } from "@/lib/malla/preparacion-archivo"; // ARC1110A
 
 /* ══════════════════════════ 1) Contrato de canal ══════════════════════════ */
 
@@ -174,6 +176,11 @@ export interface CanalArchivos {
    * la clave del receptor; «sin-cifrado-de-archivo» = el par es antiguo y solo protege el enlace; null = no se sabe.
    */
   modoCifrado?(id: string): "archivo" | "sin-cifrado-de-archivo" | null;
+  /**
+   * (ARC1110A) Opcional: true si el aparato de enfrente entiende `archivo.anuncio` (la ventana de «aceptar» sin esperar a
+   * que el remitente termine de preparar el archivo). Sin esto, o en false, el flujo es el de siempre: solo la oferta.
+   */
+  admiteAnuncio?(): boolean;
   /** Suscribe un callback a los mensajes entrantes. Devuelve función de baja. */
   alMensaje(cb: (data: string | ArrayBuffer) => void): () => void;
 }
@@ -346,7 +353,38 @@ export interface MsgCancelar {
   id: string;
 }
 
+/**
+ * (ARC1110A) Aviso temprano: el remitente lo manda en cuanto el usuario envía el archivo, ANTES de calcular su SHA-256.
+ * El receptor enseña ya la tarjeta («<neurona> está preparando el archivo…») y puede aceptar o rechazar de antemano.
+ * Lleva `trozos` y `tamanoTrozo` (los de la oferta que vendrá) y `sha256: ""` para poder sellarse como una oferta
+ * (el mismo sobre cifrado: quien reenvía no ve el nombre). Un aparato anterior nunca lo recibe (no anuncia la capacidad).
+ */
+export interface MsgAnuncio {
+  t: "archivo.anuncio";
+  id: string;
+  nombre: string;
+  tipo: string;
+  tamano: number;
+  sha256: "";
+  trozos: number;
+  tamanoTrozo: number;
+  preparando: true;
+  destino: DestinoArchivo;
+  origen?: string;
+  lote?: string;
+  loteTotal?: number;
+  loteMensaje?: string;
+  ruta?: string;
+}
+/** (ARC1110A) El receptor aceptó de antemano: en cuanto llegue la oferta, empieza sin preguntar otra vez. */
+export interface MsgPreaceptar {
+  t: "archivo.preaceptar";
+  id: string;
+}
+
 export type ArchivoMallaMsg =
+  | MsgAnuncio
+  | MsgPreaceptar
   | MsgOferta
   | MsgAceptar
   | MsgRechazar
@@ -379,6 +417,10 @@ export function esMensajeArchivoMalla(x: unknown): x is ArchivoMallaMsg {
         esObjeto(x.destino) &&
         typeof (x.destino as Record<string, unknown>).tipo === "string"
       );
+    case "archivo.anuncio":
+      return typeof x.nombre === "string" && typeof x.tipo === "string" && typeof x.tamano === "number" && typeof x.trozos === "number" && typeof x.tamanoTrozo === "number";
+    case "archivo.preaceptar":
+      return true;
     case "archivo.aceptar":
       return x.desde === undefined || typeof x.desde === "number";
     case "archivo.rechazar":
@@ -1438,6 +1480,11 @@ export interface EstadoTransferencia {
   repartoVias?: string;
   velocidadBps?: number;
   cifradoArchivo?: "archivo" | "sin-cifrado-de-archivo";
+  /** (ARC1110A) Rol enviar: preparando el archivo (SHA-256 en un Worker) con su avance 0..100. Rol recibir: solo llegó el anuncio. */
+  preparando?: boolean;
+  preparandoPct?: number;
+  /** (ARC1110A) Rol recibir: aceptado de antemano (empieza solo al llegar la oferta). Rol enviar: el otro ya lo aceptó. */
+  preaceptada?: boolean;
 }
 
 export interface OfertaEntranteInfo {
@@ -1535,8 +1582,8 @@ export interface OpcionesEnvioArchivo {
   lote?: { id: string; total?: number; mensaje?: string };
   /** Ruta relativa dentro de la carpeta enviada (`File.webkitRelativePath`). */
   ruta?: string;
-  /** Vista previa ya calculada (miniatura o fragmento de texto). */
-  vista?: VistaOferta;
+  /** Vista previa ya calculada (miniatura o fragmento de texto), o su promesa (ARC1110A: no se espera antes del anuncio). */
+  vista?: VistaOferta | Promise<VistaOferta | undefined>;
   /** Lista de un comprimido ya calculada (si no, el motor la lee él mismo de los ZIP). */
   contenido?: EntradaContenido[];
 }
@@ -1546,6 +1593,11 @@ export interface ResultadoEnviarArchivo {
   id: string;
   error?: string;
   aviso?: string;
+  /**
+   * (ARC1110A) `enviarArchivo` vuelve en cuanto sale el anuncio; la preparación (SHA-256 en un Worker) sigue detrás.
+   * Esta promesa se resuelve con true cuando la oferta salió y con false si se canceló, se rechazó o falló.
+   */
+  listo?: Promise<boolean>;
 }
 
 export interface MotorArchivos {
@@ -1590,6 +1642,22 @@ function idAleatorio(): string {
 
 function esperar(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
+}
+
+/** (ARC1110A) Plazo máximo para la vista previa que acompaña a la oferta: pasado, la oferta sale sin ella. */
+const PLAZO_VISTA_MS = 3_000;
+
+/** (ARC1110A) Espera `p` como mucho `ms`; pasado el plazo, `valor`. Limpia su reloj. */
+async function conPlazo<T>(p: Promise<T>, ms: number, valor: T): Promise<T> {
+  let reloj: ReturnType<typeof setTimeout> | undefined;
+  const tarde = new Promise<T>((res) => {
+    reloj = setTimeout(() => res(valor), ms);
+  });
+  try {
+    return await Promise.race([p, tarde]);
+  } finally {
+    if (reloj !== undefined) clearTimeout(reloj);
+  }
 }
 
 /** crearMotorArchivos — instancia aislada del motor (una por proceso normalmente, ver `motorArchivosCompartido`). */
@@ -1645,6 +1713,41 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
   const confianzaNodos = new Map<string, number>();
   const veredictosRed: VeredictoCompartido[] = [];
   const nodoPorId = new Map<string, string>();
+  // (ARC1110A) Receptor: anuncios sin oferta aún, los aceptados de antemano, los rechazados de antemano y a quién ya se avisó.
+  const anunciosEntrantes = new Map<string, MsgAnuncio>();
+  const preaceptadas = new Set<string>();
+  const rechazadasAntes = new Map<string, number>(); // id -> cuándo (se olvida a los 60 s: un «Reintentar» no se rechaza solo)
+  const notificadas = new Set<string>();
+  // (ARC1110A) Remitente: preparación en curso (relevo de intentos), anuncios que se siguen repitiendo y aceptaciones adelantadas.
+  const preparaciones = new Map<string, number>();
+  let contadorPrep = 0;
+  const anunciando = new Set<string>();
+  const preaceptoElOtro = new Set<string>();
+  // (ARC1110A) Hitos ya anotados (el primer trozo y 25/50/75 %, una vez por transferencia y rol).
+  const hitosHechos = new Map<string, Set<string>>();
+  const inicioTransferencia = new Map<string, number>();
+
+  function hito(id: string, nombre: HitoArchivo, detalle = ""): void {
+    anotarArchivo(nombre, id, detalle);
+  }
+  /** Anota un hito una sola vez por transferencia (`clave` lo distingue). */
+  function hitoUnico(id: string, clave: string, nombre: HitoArchivo, detalle = ""): void {
+    let s = hitosHechos.get(id);
+    if (!s) {
+      s = new Set();
+      hitosHechos.set(id, s);
+      while (hitosHechos.size > 200) hitosHechos.delete(hitosHechos.keys().next().value as string);
+    }
+    if (s.has(clave)) return;
+    s.add(clave);
+    hito(id, nombre, detalle);
+  }
+  function hitosDeProgreso(e: EstadoTransferencia, progreso: number): void {
+    if (progreso >= 1) hitoUnico(e.id, `primer-trozo.${e.rol}`, "primer-trozo", `rol=${e.rol} trozos=${e.trozos}`);
+    if (e.trozos <= 0) return;
+    const pct = (progreso / e.trozos) * 100;
+    for (const m of [25, 50, 75]) if (pct >= m && progreso < e.trozos) hitoUnico(e.id, `progreso.${e.rol}.${m}`, "progreso", `${m} rol=${e.rol}`);
+  }
 
   function aplicarEventoA(idTransferencia: string, ev: Parameters<typeof actualizarConfianza>[1]): void {
     const nodo = nodoPorId.get(idTransferencia);
@@ -1697,6 +1800,7 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
   function actualizarProgreso(id: string, progreso: number): void {
     const actual = estados.get(id);
     if (!actual) return;
+    hitosDeProgreso(actual, progreso); // ARC1110A
     emitir({ ...actual, progreso, actualizadoMs: Date.now() });
   }
 
@@ -1775,27 +1879,9 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
     const previa = opciones?.idTransferencia ? ofertasEnviadas.get(id) : undefined;
     const TAM_TROZO = previa && previa.tamano === tamano && previa.tamanoTrozo > 0 ? previa.tamanoTrozo : elegirTamanoTrozo(config.tamanoChunkBase64, canal);
     const trozos = Math.max(1, Math.ceil(tamano / TAM_TROZO));
-    const leerTrozo = async (i: number) => archivo.slice(i * TAM_TROZO, Math.min(tamano, (i + 1) * TAM_TROZO)).arrayBuffer();
-    const { raiz } = await calcularHashLista(leerTrozo, trozos);
-
-    // (ARC1108A) Los primeros bytes viajan con la oferta: el receptor inspecciona el tipo real ANTES de aceptar.
-    let inicioB64: string | undefined;
-    try {
-      inicioB64 = tamano > 0 ? sanearInicio(bufAB64(await archivo.slice(0, MAX_INICIO_BYTES).arrayBuffer())) : undefined;
-    } catch {
-      inicioB64 = undefined;
-    }
-    // (ARC1108A) Si es un ZIP (o un formato basado en ZIP), lo que lleva dentro: el receptor lo revisa ANTES de aceptar.
-    let contenido = sanearContenido(opciones?.contenido);
-    if (!contenido && tamano >= 22 && esComprimidoZip(nombre, tipoMime)) {
-      try {
-        const cola = Math.min(tamano, 256 * 1024);
-        const lista = listarZip(new Uint8Array(await archivo.slice(tamano - cola, tamano).arrayBuffer()), tamano, MAX_CONTENIDO_ENTRADAS);
-        contenido = sanearContenido(lista ?? undefined);
-      } catch {
-        contenido = undefined;
-      }
-    }
+    // (ARC1110A) Se anota ya: el estado «preparando» sale ANTES de leer el archivo (antes se calculaba el SHA-256 de
+    // TODO el archivo aquí, en el hilo principal, y la oferta salía minutos después del mensaje del chat).
+    const yaPreparada = previa && previa.tamano === tamano && previa.tamanoTrozo === TAM_TROZO && previa.sha256 ? previa : undefined;
 
     canalPorId.set(id, canal);
     archivosEnvio.set(id, archivo);
@@ -1806,12 +1892,19 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
     reanudacionesAuto.delete(id);
     intentosReintento.delete(id);
     olvidarRemitente(id);
+    preaceptoElOtro.delete(id);
+    hitosHechos.delete(id);
 
     const aviso = tamano > AVISO_BYTES ? `Archivo grande (${(tamano / 1024 / 1024).toFixed(0)} MB): la transferencia puede tardar.` : undefined;
 
     // Negociar modo: si el canal soporta binario, usamos binario; si no, base64.
     const modo: ModoTransferencia = canal.enviarBinario ? "binario" : "base64";
     modoPorId.set(id, modo);
+
+    const token = ++contadorPrep;
+    preparaciones.set(id, token);
+    const textoPrep = (pct: number): string =>
+      [aviso, `Preparando ${pct} %`, preaceptoElOtro.has(id) ? "ya lo aceptó el otro aparato" : null].filter(Boolean).join(" · ");
 
     emitir({
       id,
@@ -1823,47 +1916,259 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
       progreso: 0,
       fase: "esperando-aceptacion",
       destino,
-      motivo: aviso,
+      motivo: yaPreparada ? aviso : textoPrep(0),
+      ...(yaPreparada ? {} : { preparando: true, preparandoPct: 0 }),
       inicioMs: Date.now(),
       actualizadoMs: Date.now(),
     });
 
-    const oferta: MsgOferta = {
-      t: "archivo.oferta",
-      id,
-      nombre,
-      tipo: tipoMime,
-      tamano,
-      sha256: raiz,
-      trozos,
-      tamanoTrozo: TAM_TROZO,
-      destino,
-      modo,
+    // (ARC1110A) El anuncio: nombre, tamaño y tipo, sin esperar al SHA-256. Solo a un aparato que lo entiende.
+    const anunciada = !yaPreparada && !!canal.admiteAnuncio?.();
+    if (anunciada) {
+      const anuncio: MsgAnuncio = { t: "archivo.anuncio", id, nombre, tipo: tipoMime, tamano, sha256: "", trozos, tamanoTrozo: TAM_TROZO, preparando: true, destino, ...extrasDeEnvio(opciones, nombre) };
+      anunciando.add(id);
+      enviarAnuncio(id, canal, anuncio, token);
+      hito(id, "anuncio-enviado", `bytes=${tamano} trozos=${trozos}`);
+    }
+
+    const vigente = (): boolean => {
+      const e = estados.get(id);
+      return preparaciones.get(id) === token && !cancelados.has(id) && !!e && e.rol === "enviar" && e.fase === "esperando-aceptacion";
     };
-    // (ARC1108A) El envío al que pertenece, su ruta en la carpeta y su vista previa (todo opcional y saneado).
+    const fallar = (detalle: string, codigo: string): void => {
+      anunciando.delete(id);
+      const e = estados.get(id);
+      if (e && preparaciones.get(id) === token) {
+        emitir({ ...e, fase: "error", preparando: false, preparandoPct: undefined, motivo: `Falló en el remitente: ${detalle}`, codigo, lado: "remitente", actualizadoMs: Date.now() });
+      }
+      hito(id, "fallo", `motivo=${codigo}`);
+    };
+
+    const preparar = async (): Promise<boolean> => {
+      try {
+        let sha: string;
+        if (yaPreparada) sha = yaPreparada.sha256;
+        else {
+          let ultimo = -1;
+          const r = await prepararArchivo(archivo, TAM_TROZO, trozos, {
+            cancelado: () => !vigente(),
+            alProgreso: (pct) => {
+              if (pct === ultimo || !vigente()) return;
+              ultimo = pct;
+              const e = estados.get(id);
+              if (e) emitir({ ...e, preparandoPct: pct, motivo: textoPrep(pct), actualizadoMs: Date.now() });
+            },
+          });
+          if (!r.ok) {
+            if (!r.cancelado && vigente()) fallar(`no se pudo preparar el archivo (${r.motivo})`, "preparacion");
+            return false;
+          }
+          sha = r.raiz;
+          hito(id, "preparado", `ms=${r.ms} via=${r.via} bytes=${tamano}`);
+        }
+        if (!vigente()) return false;
+
+        // (ARC1108A) Los primeros bytes viajan con la oferta: el receptor inspecciona el tipo real ANTES de aceptar.
+        let inicioB64: string | undefined;
+        try {
+          inicioB64 = tamano > 0 ? sanearInicio(bufAB64(await archivo.slice(0, MAX_INICIO_BYTES).arrayBuffer())) : undefined;
+        } catch {
+          inicioB64 = undefined;
+        }
+        // (ARC1108A) Si es un ZIP (o un formato basado en ZIP), lo que lleva dentro: el receptor lo revisa ANTES de aceptar.
+        let contenido = sanearContenido(opciones?.contenido);
+        if (!contenido && tamano >= 22 && esComprimidoZip(nombre, tipoMime)) {
+          try {
+            const cola = Math.min(tamano, 256 * 1024);
+            const lista = listarZip(new Uint8Array(await archivo.slice(tamano - cola, tamano).arrayBuffer()), tamano, MAX_CONTENIDO_ENTRADAS);
+            contenido = sanearContenido(lista ?? undefined);
+          } catch {
+            contenido = undefined;
+          }
+        }
+        // (ARC1110A) La vista previa puede venir como promesa: se espera un rato corto, nunca se retrasa la oferta por ella.
+        const vista = await conPlazo(Promise.resolve(opciones?.vista).then((v) => sanearVista(v), () => undefined), PLAZO_VISTA_MS, undefined);
+        if (!vigente()) return false;
+
+        const oferta: MsgOferta = {
+          t: "archivo.oferta",
+          id,
+          nombre,
+          tipo: tipoMime,
+          tamano,
+          sha256: sha,
+          trozos,
+          tamanoTrozo: TAM_TROZO,
+          destino,
+          modo,
+          ...extrasDeEnvio(opciones, nombre),
+        };
+        if (inicioB64) oferta.inicioB64 = inicioB64;
+        if (contenido) oferta.contenido = contenido;
+        if (vista) oferta.vista = vista;
+        const rutaPropia = sanearRutaEnlace(canal.rutaMedida?.());
+        if (rutaPropia) oferta.rutaEnlace = rutaPropia;
+        ofertasEnviadas.set(id, oferta);
+        anunciando.delete(id);
+        const actual = estados.get(id);
+        if (actual) {
+          emitir({
+            ...actual,
+            preparando: false,
+            preparandoPct: undefined,
+            motivo: aviso,
+            ...(rutaPropia ? { rutaEnlace: rutaPropia, rutaEnlaceVerificada: null } : {}),
+            actualizadoMs: Date.now(),
+          });
+        }
+        enviarOferta(id, canal, oferta);
+        hito(id, "oferta-enviada", `bytes=${tamano} trozos=${trozos}`);
+        return true;
+      } catch (e) {
+        fallar(`no se pudo preparar el archivo (${e instanceof Error ? e.message : "error"})`, "preparacion");
+        return false;
+      }
+    };
+
+    const listo = preparar();
+    if (anunciada) return { ok: true, id, aviso, listo };
+    // Un par que no entiende el anuncio (o un reintento ya preparado): como siempre, vuelve con la oferta ya enviada
+    // (ahora con el cálculo fuera del hilo principal y con avance).
+    const salio = await listo;
+    const e = estados.get(id);
+    if (!salio && e?.fase === "error" && e.codigo === "preparacion") return { ok: false, id, error: e.motivo, aviso, listo };
+    return { ok: true, id, aviso, listo };
+  }
+
+  /** (ARC1110A) Lo que acompaña a una oferta o a un anuncio: el envío al que pertenece y su ruta en la carpeta. */
+  function extrasDeEnvio(opciones: OpcionesEnvioArchivo | undefined, nombre: string): Pick<MsgOferta, "lote" | "loteTotal" | "loteMensaje" | "ruta"> {
+    const out: Pick<MsgOferta, "lote" | "loteTotal" | "loteMensaje" | "ruta"> = {};
     const lote = sanearLote(opciones?.lote?.id);
     if (lote) {
-      oferta.lote = lote;
+      out.lote = lote;
       const total = opciones?.lote?.total;
-      if (typeof total === "number" && Number.isInteger(total) && total > 0 && total <= 10_000) oferta.loteTotal = total;
+      if (typeof total === "number" && Number.isInteger(total) && total > 0 && total <= 10_000) out.loteTotal = total;
       const mensaje = sanearMensajeEnvio(opciones?.lote?.mensaje);
-      if (mensaje) oferta.loteMensaje = mensaje;
+      if (mensaje) out.loteMensaje = mensaje;
     }
     const ruta = sanearRutaRelativa(opciones?.ruta);
-    if (ruta && ruta !== nombre) oferta.ruta = ruta;
-    if (inicioB64) oferta.inicioB64 = inicioB64;
-    if (contenido) oferta.contenido = contenido;
-    const vista = sanearVista(opciones?.vista);
-    if (vista) oferta.vista = vista;
-    const rutaPropia = sanearRutaEnlace(canal.rutaMedida?.());
-    if (rutaPropia) {
-      oferta.rutaEnlace = rutaPropia;
-      const actual = estados.get(id);
-      if (actual) emitir({ ...actual, rutaEnlace: rutaPropia, rutaEnlaceVerificada: null });
+    if (ruta && ruta !== nombre) out.ruta = ruta;
+    return out;
+  }
+
+  /**
+   * (ARC1110A) Manda el anuncio y lo repite mientras el archivo siga preparándose (solo por canales que acusan: un
+   * mensaje acusado por la radio pudo perderse arriba). El receptor ignora la repetición. Sin acuse, UNA vez.
+   */
+  function enviarAnuncio(id: string, canal: CanalArchivos, anuncio: MsgAnuncio, token: number): void {
+    const texto = JSON.stringify(anuncio);
+    const sigue = (): boolean => anunciando.has(id) && preparaciones.get(id) === token && estados.get(id)?.fase === "esperando-aceptacion" && !cancelados.has(id);
+    if (!canal.enviarConAcuse) {
+      try {
+        canal.enviar(texto);
+      } catch {
+        /* la oferta llegará de todos modos */
+      }
+      return;
     }
-    ofertasEnviadas.set(id, oferta);
-    enviarOferta(id, canal, oferta);
-    return { ok: true, id, aviso };
+    const cada = Math.max(1, config.reenvioOfertaMs ?? 6_000);
+    let veces = 0;
+    const intentar = async (): Promise<void> => {
+      if (!sigue() || veces >= 12) return;
+      veces++;
+      let ok = false;
+      try {
+        ok = await canal.enviarConAcuse!(texto);
+      } catch {
+        ok = false;
+      }
+      if (!sigue()) return;
+      if (!ok) await (canal.esperarListo?.() ?? Promise.resolve(true)).catch(() => false);
+      const t = setTimeout(() => void intentar(), ok ? cada : Math.min(cada, 1_000));
+      (t as { unref?: () => void }).unref?.();
+    };
+    void intentar();
+  }
+
+  /** (ARC1110A) El receptor aceptó de antemano: el remitente lo apunta y lo dice en su tarjeta. */
+  function manejarPreaceptar(msg: MsgPreaceptar): void {
+    const e = estados.get(msg.id);
+    if (!e || e.rol !== "enviar") return;
+    preaceptoElOtro.add(msg.id);
+    hito(msg.id, "preaceptado", "rol=enviar");
+    if (e.fase === "esperando-aceptacion") {
+      emitir({ ...e, preaceptada: true, ...(e.preparando ? { motivo: `Preparando ${e.preparandoPct ?? 0} % · ya lo aceptó el otro aparato` } : {}), actualizadoMs: Date.now() });
+    }
+  }
+
+  /**
+   * (ARC1110A) Llega el anuncio: la tarjeta aparece YA, «<neurona> está preparando el archivo…», y la persona puede
+   * aceptar o rechazar de antemano. No hay SHA-256 ni bytes que inspeccionar: la decisión de seguridad
+   * (centinela, resonancia) se toma igual cuando llega la oferta; aquí solo se corta lo que la política deniega.
+   */
+  async function manejarAnuncio(canal: CanalArchivos, msg: MsgAnuncio, contexto?: ContextoRecepcion): Promise<void> {
+    if (estados.has(msg.id) || ofertasEntrantes.has(msg.id) || anunciosEntrantes.has(msg.id)) return; // repetición, o la oferta llegó antes
+    const rechazadaEn = rechazadasAntes.get(msg.id);
+    if (rechazadaEn !== undefined && Date.now() - rechazadaEn < 60_000) {
+      canal.enviar(JSON.stringify({ t: "archivo.rechazar", id: msg.id, motivo: "Rechazado por el usuario." } satisfies MsgRechazar));
+      return;
+    }
+    if (!(msg.tamano >= 0) || msg.tamano > MAX_BYTES || !Number.isInteger(msg.trozos) || msg.trozos < 1 || msg.trozos > 1_000_000) return; // la oferta lo dirá
+    const ctx: ContextoRecepcion = contexto ?? { mismaCuenta: false };
+    hito(msg.id, "anuncio-recibido", `bytes=${msg.tamano} trozos=${msg.trozos}`);
+    cancelados.delete(msg.id);
+    canalPorId.set(msg.id, canal);
+    if (ctx.nodoId) nodoPorId.set(msg.id, ctx.nodoId);
+    anunciosEntrantes.set(msg.id, msg);
+    const decision = await Promise.resolve((config.politica ?? politicaPorDefecto)(ctx));
+    if (estados.has(msg.id) || ofertasEntrantes.has(msg.id)) return; // mientras se decidía llegó la oferta
+    const origen = msg.origen ?? ctx.etiquetaOrigen;
+    const extras = extrasDeOferta({ ...msg, sha256: "" } as unknown as MsgOferta, ctx);
+    delete extras.sha256;
+    const ahora = Date.now();
+    const base: EstadoTransferencia = {
+      id: msg.id,
+      rol: "recibir",
+      nombre: nombreSaneado(msg.nombre),
+      tipo: String(msg.tipo ?? "").slice(0, 120),
+      tamano: msg.tamano,
+      trozos: msg.trozos,
+      progreso: 0,
+      fase: "pendiente-aceptar",
+      destino: msg.destino && typeof msg.destino.tipo === "string" ? msg.destino : { tipo: "dispositivo" },
+      origen,
+      inicioMs: ahora,
+      actualizadoMs: ahora,
+      preparando: true,
+      motivo: `${origen ?? "El otro aparato"} está preparando el archivo…`,
+      ...extras,
+      ...rutaDeOferta(canal, msg as unknown as MsgOferta),
+    };
+    if (decision === "denegar") {
+      anunciosEntrantes.delete(msg.id);
+      rechazadasAntes.set(msg.id, ahora);
+      emitir({ ...base, preparando: false, fase: "rechazada", motivo: "Sin permiso para recibir archivos de esta cuenta." });
+      canal.enviar(JSON.stringify({ t: "archivo.rechazar", id: msg.id, motivo: "denegado por política de permisos" } satisfies MsgRechazar));
+      return;
+    }
+    if (decision === "auto-aceptar") {
+      // Se aceptará solo al llegar la oferta (si el centinela no pide preguntar): mientras tanto, «preparando».
+      preaceptadas.add(msg.id);
+      emitir({ ...base, fase: "transfiriendo", preaceptada: true });
+      return;
+    }
+    emitir(base);
+    notificadas.add(msg.id);
+    config.onOfertaEntrante?.({
+      id: msg.id,
+      nombre: base.nombre,
+      tipo: base.tipo,
+      tamano: msg.tamano,
+      destino: base.destino ?? { tipo: "dispositivo" },
+      origen: base.origen,
+      ...(base.lote ? { lote: base.lote } : {}),
+      ...(base.ruta ? { ruta: base.ruta } : {}),
+    });
   }
 
   /** (BLE1108B) La oferta sin lo opcional que no cabe en UN mensaje del canal (vista, contenido, inicio, en ese orden). */
@@ -1999,6 +2304,7 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
     const estado = estados.get(id);
     if (!canal || !archivo || !estado) return;
     actualizarFase(id, "transfiriendo");
+    inicioTransferencia.set(id, Date.now()); // ARC1110A
     const modo = modoPorId.get(id) ?? "base64";
     const tam = tamanoTrozoPorId.get(id) ?? ofertasEnviadas.get(id)?.tamanoTrozo ?? TAM_TROZO_POR_DEFECTO;
     const indices = indicesAMandar(id, estado.trozos);
@@ -2064,6 +2370,7 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
               lado: "remitente",
               actualizadoMs: Date.now(),
             });
+            hito(id, "fallo", "motivo=canal-no-recupera lado=remitente"); // ARC1110A
           }
           intentosReintento.delete(id);
           return;
@@ -2087,6 +2394,13 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
     }
     anotarVias(id, canal);
     if (cancelados.has(id)) return;
+    {
+      // ARC1110A: todos los trozos salieron. kbps medidos desde que empezó a mandar; vías = el reparto del canal.
+      const segundos = Math.max(0.001, (Date.now() - (inicioTransferencia.get(id) ?? Date.now())) / 1000);
+      const bytes = Math.min(archivo.size, indices.length * tam);
+      const reparto = (estados.get(id)?.repartoVias ?? canal.resumenVias?.()?.texto ?? "-").replace(/\s+/g, "_");
+      hito(id, "completo", `kbps=${Math.round((bytes * 8) / 1000 / segundos)} bytes=${bytes} vias=${reparto}`);
+    }
     // «fin» (con un par de reintentos si el canal está un momento lleno) y, desde ARC1108A, el
     // remitente queda «verificando» hasta que el receptor confirme: nunca colgado sin decir nada.
     let finSalio = false;
@@ -2110,6 +2424,7 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
   function manejarAceptar(msg: MsgAceptar): void {
     const estado = estados.get(msg.id);
     if (!estado || estado.rol !== "enviar") return;
+    if (!transmitiendo.has(msg.id)) hito(msg.id, "aceptado", "rol=enviar"); // ARC1110A
     // (ARC1108A) Un «aceptar» repetido (trama reenviada) no abre un segundo bucle de envío.
     if (transmitiendo.has(msg.id) || estado.fase === "completada") return;
     const desde = typeof msg.desde === "number" && Number.isInteger(msg.desde) ? Math.min(Math.max(0, msg.desde), estado.trozos) : 0;
@@ -2161,6 +2476,8 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
   }
 
   function manejarRechazar(msg: MsgRechazar): void {
+    anunciando.delete(msg.id); // ARC1110A: se deja de preparar lo que ya se rechazó
+    preparaciones.delete(msg.id);
     actualizarFase(msg.id, "rechazada", msg.motivo);
     // (ARC1108A) El archivo se queda: «Reintentar» lo vuelve a ofrecer sin volver a adjuntarlo.
     canalPorId.delete(msg.id);
@@ -2172,6 +2489,7 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
     const e = estados.get(msg.id);
     if (!e || e.rol !== "enviar") return;
     limpiarVigia(msg.id);
+    hito(msg.id, "verificado", "rol=enviar"); // ARC1110A
     emitir({ ...e, fase: "completada", progreso: e.trozos, motivo: undefined, codigo: undefined, lado: undefined, actualizadoMs: Date.now() });
     // (MPT1108A) El reparto final por vías (los envíos cifrados salen en segundo plano: al acabar ya se sabe).
     const canalOk = canalPorId.get(msg.id);
@@ -2197,6 +2515,7 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
     limpiarVigia(msg.id);
     intentosReintento.delete(msg.id);
     const lado: LadoFallo = msg.lado ?? (e.rol === "enviar" ? "receptor" : "remitente");
+    hito(msg.id, "fallo", `motivo=${String(msg.motivo).slice(0, 40)} lado=${lado}`); // ARC1110A
     const oferta = ofertasEnviadas.get(msg.id);
     const hechas = reanudacionesAuto.get(msg.id) ?? 0;
     if (e.rol === "enviar" && msg.motivo === "faltan-trozos" && oferta && archivosEnvio.has(msg.id) && hechas < 2 && !cancelados.has(msg.id)) {
@@ -2274,6 +2593,7 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
     if (!hashesPorId.has(id)) hashesPorId.set(id, []);
     emitir({ ...estado, fase: "transfiriendo", progreso: tenidos.size, actualizadoMs: Date.now() });
     const modo = modoPorId.get(id) ?? "base64";
+    hito(id, "aceptado", `rol=recibir desde=${desde}`); // ARC1110A
     anotarVias(id, canal);
     const rutaRecibida = sanearRutaEnlace(canal.rutaMedida?.());
     canal.enviar(JSON.stringify({ t: "archivo.aceptar", id, modo, ...(desde > 0 ? { desde } : {}), acuses: 1, ...(huecos ? { huecos } : {}), ...(rutaRecibida ? { rutaEnlace: rutaRecibida } : {}) } satisfies MsgAceptar));
@@ -2346,6 +2666,15 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
       canal.enviar(JSON.stringify({ t: "archivo.rechazar", id: msg.id, motivo: "Oferta mal formada (trozos o tamaño imposibles)." } satisfies MsgRechazar));
       return;
     }
+    // (ARC1110A) ¿La persona la rechazó de antemano, con el anuncio? Se le repite al remitente y no se vuelve a preguntar.
+    const rechazadaEn = rechazadasAntes.get(msg.id);
+    if (rechazadaEn !== undefined && Date.now() - rechazadaEn < 60_000) {
+      canal.enviar(JSON.stringify({ t: "archivo.rechazar", id: msg.id, motivo: "Rechazado por el usuario." } satisfies MsgRechazar));
+      return;
+    }
+    if (!ofertasEntrantes.has(msg.id)) hito(msg.id, "oferta-recibida", `bytes=${msg.tamano} trozos=${msg.trozos}`);
+    anunciosEntrantes.delete(msg.id);
+    const preAceptada = preaceptadas.delete(msg.id);
     // (BLE1108B) La misma oferta repetida (el remitente la reenvía hasta que le contestan) mientras la persona
     // aún decide: no se pregunta dos veces; solo se apunta por qué canal volver a hablarle.
     const preguntada = ofertasEntrantes.get(msg.id);
@@ -2476,7 +2805,7 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
       return;
     }
 
-    if (decision === "auto-aceptar" && !avisoFinal) {
+    if ((decision === "auto-aceptar" || preAceptada) && !avisoFinal) {
       pedirTrozos(canal, msg, tenidos, estadoBase);
       return;
     }
@@ -2484,7 +2813,7 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
     // "preguntar": queda pendiente hasta que la UI llame aceptarOferta/rechazarOferta.
     recibidosPorId.set(msg.id, tenidos);
     emitir(estadoBase);
-    config.onOfertaEntrante?.({
+    if (!notificadas.delete(msg.id)) config.onOfertaEntrante?.({
       id: msg.id,
       nombre: estadoBase.nombre,
       tipo: msg.tipo,
@@ -2500,6 +2829,14 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
     const oferta = ofertasEntrantes.get(id);
     const canal = canalPorId.get(id);
     const e = estados.get(id);
+    // (ARC1110A) Solo llegó el anuncio: se acepta DE ANTEMANO. Empieza sola cuando llegue la oferta.
+    if (!oferta && canal && e && e.rol === "recibir" && e.fase === "pendiente-aceptar" && e.preparando) {
+      preaceptadas.add(id);
+      emitir({ ...e, fase: "transfiriendo", preaceptada: true, motivo: `Aceptado: empezará en cuanto ${e.origen ?? "el otro aparato"} termine de preparar el archivo.`, actualizadoMs: Date.now() });
+      canal.enviar(JSON.stringify({ t: "archivo.preaceptar", id } satisfies MsgPreaceptar));
+      hito(id, "preaceptado", "rol=recibir");
+      return;
+    }
     // Solo lo que espera respuesta (un doble clic, o «Aceptar todos» tras aceptar uno, no repite nada).
     if (!oferta || !canal || !e || e.fase !== "pendiente-aceptar") return;
     pedirTrozos(canal, oferta, recibidosPorId.get(id) ?? new Set<number>(), e);
@@ -2509,6 +2846,10 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
     const e = estados.get(id);
     if (e && e.rol === "recibir" && e.fase === "completada") return;
     const canal = canalPorId.get(id);
+    if (e?.preparando || anunciosEntrantes.has(id)) rechazadasAntes.set(id, Date.now()); // ARC1110A: rechazada con solo el anuncio
+    anunciosEntrantes.delete(id);
+    preaceptadas.delete(id);
+    notificadas.delete(id);
     actualizarFase(id, "rechazada", motivo);
     canal?.enviar(JSON.stringify({ t: "archivo.rechazar", id, motivo } satisfies MsgRechazar));
     ofertasEntrantes.delete(id);
@@ -2596,6 +2937,7 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
    * en qué lado. `limpiar: false` conserva los trozos (si solo faltaban algunos, se reanuda desde ahí).
    */
   async function fallarRecepcion(canal: CanalArchivos, id: string, codigo: string, detalle: string, opciones: { limpiar: boolean; desde?: number }): Promise<void> {
+    hito(id, "fallo", `motivo=${codigo} lado=receptor`); // ARC1110A
     const e = estados.get(id);
     if (e) {
       emitir({ ...e, fase: "error", motivo: `Falló en este aparato (receptor): ${describirErrorArchivo(codigo)} — ${detalle}.`, codigo, lado: "receptor", actualizadoMs: Date.now() });
@@ -2776,6 +3118,7 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
       aplicarEventoA(id, "firma-ok");
       const hecho = estados.get(id);
       if (hecho) emitir({ ...hecho, fase: "completada", motivo: motivoPrevio, actualizadoMs: Date.now() });
+      hito(id, "verificado", `rol=recibir bytes=${blob.size}`); // ARC1110A
       olvidarLatido(id);
       canal.enviar(JSON.stringify({ t: "archivo.ok", id } satisfies MsgOk));
       config.onCompletado?.(estados.get(id) as EstadoTransferencia, blob);
@@ -2795,6 +3138,9 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
 
   function manejarCancelarRemoto(msg: MsgCancelar): void {
     cancelados.add(msg.id);
+    anunciosEntrantes.delete(msg.id); // ARC1110A
+    preaceptadas.delete(msg.id);
+    anunciando.delete(msg.id);
     limpiarVigia(msg.id);
     olvidarLatido(msg.id);
     actualizarFase(msg.id, "cancelada");
@@ -2802,6 +3148,10 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
 
   function cancelar(id: string): void {
     cancelados.add(id);
+    anunciosEntrantes.delete(id); // ARC1110A
+    preaceptadas.delete(id);
+    anunciando.delete(id);
+    preparaciones.delete(id);
     limpiarVigia(id);
     olvidarLatido(id);
     const canal = canalPorId.get(id);
@@ -2817,6 +3167,12 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
       const msg = parseArchivoMallaMensaje(data);
       if (!msg) return;
       switch (msg.t) {
+        case "archivo.anuncio":
+          void manejarAnuncio(canal, msg, contexto); // ARC1110A
+          break;
+        case "archivo.preaceptar":
+          manejarPreaceptar(msg); // ARC1110A
+          break;
         case "archivo.oferta":
           void manejarOferta(canal, msg, contexto);
           break;

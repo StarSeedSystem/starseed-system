@@ -11,7 +11,7 @@
 import type { EnlaceDisponible } from "@/lib/malla/eleccion-enlace";
 import type { DestinatarioArchivo } from "@/lib/malla/cifrado-archivo";
 import { parCifraArchivo } from "@/lib/malla/cifrado-archivo";
-import { CAPACIDADES_ARCHIVO } from "@/lib/malla/archivo-seguro";
+import { CAPACIDADES_ARCHIVO, parAnuncia as parEntiendeAnuncio } from "@/lib/malla/archivo-seguro";
 import {
   recordarClaveCertificada,
   recordarClaveViva,
@@ -84,20 +84,28 @@ export async function neuronaDeEnlace(e: EnlaceDisponible): Promise<string | nul
 }
 
 /** ¿Todas las neuronas por las que se va a enviar anuncian `archivo.e2e.v1`? Una desconocida cuenta como antigua. */
-export async function parCifraPorEnlaces(enlaces: readonly EnlaceDisponible[], extra: readonly string[] = []): Promise<{ cifra: boolean; neuronas: string[] }> {
+export async function parCifraPorEnlaces(enlaces: readonly EnlaceDisponible[], extra: readonly string[] = []): Promise<{ cifra: boolean; neuronas: string[]; anuncia: boolean }> {
   const neuronas: string[] = [];
   let todas = enlaces.length > 0;
+  let anuncia = enlaces.length > 0; // ARC1110A: todas las neuronas destinatarias entienden `archivo.anuncio.v1`
   for (const e of enlaces) {
     const n = await neuronaDeEnlace(e);
     if (!n) {
       todas = false;
+      anuncia = false;
       continue;
     }
     if (!neuronas.includes(n)) neuronas.push(n);
-    if (!parCifraArchivo(await capacidadesDeNeurona(n))) todas = false;
+    const caps = await capacidadesDeNeurona(n);
+    if (!parCifraArchivo(caps)) todas = false;
+    if (!parEntiendeAnuncio(caps)) anuncia = false;
   }
-  for (const n of extra) if (n && !neuronas.includes(n)) neuronas.push(n);
-  return { cifra: todas, neuronas };
+  for (const n of extra) {
+    if (!n || neuronas.includes(n)) continue;
+    neuronas.push(n);
+    if (!parEntiendeAnuncio(await capacidadesDeNeurona(n))) anuncia = false;
+  }
+  return { cifra: todas, neuronas, anuncia };
 }
 
 /* ── Fuentes de claves ── */

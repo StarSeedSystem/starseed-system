@@ -27,6 +27,8 @@ export type TipoEventoEnlace =
   | "listo-tarde"
   /** (LLA1108E) Hitos de una llamada: `senal-enviada|senal-recibida|contestada|medio=webrtc|enlace-datos|fallo`. */
   | "llamada"
+  /** (ARC1110A) Hitos de un archivo (solo id y tamaños): `anuncio-enviado|…|primer-trozo|completo|verificado|fallo`. */
+  | "archivo"
   /** (BLE1109A) Cambios de carril: `l2cap-abierto|l2cap-cerrado` (el enlace sigue por GATT). */
   | "canal-rapido";
 

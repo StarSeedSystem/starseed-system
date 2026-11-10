@@ -220,6 +220,10 @@ function mensajesDeAdjunto(id: string): MensajeMalla[] {
 }
 
 function alProgreso(e: EstadoTransferencia): void {
+    // ARC1110A: la persona ya pulsó «Aceptar» en el mensaje; en cuanto el motor ve el anuncio/la oferta, se acepta.
+    if (e.rol === "recibir" && e.fase === "pendiente-aceptar" && aceptadasDeAntemano.delete(e.id)) {
+        void motorPromesa?.then((mo) => mo?.aceptarOferta(e.id));
+    }
     const previo = vivos.get(e.id);
     const vivo: VivoArchivo = {
         rol: e.rol,
@@ -513,7 +517,9 @@ async function ofrecerPorMalla(m: MensajeMalla, archivo: Blob, plan: PlanEnvio, 
         cambiarArchivo(m, { fase: "ofrecido", motivo: undefined, enlaces: elegido.enlaces.map((x) => x.etiqueta) }, via ? { via } : {});
         // (ARC1108A) El envío al que pertenece, su carpeta y una vista previa: el otro decide en UNA ventana.
         const extras = extrasOferta.get(adj.id);
-        const vista = await import("@/lib/network/vista-previa-envio")
+        // ARC1110A: la vista previa NO se espera aquí (era otro retraso antes de la oferta): el motor recibe la promesa y
+        // la espera como mucho unos segundos mientras prepara el archivo.
+        const vista = import("@/lib/network/vista-previa-envio")
             .then((v) => v.vistaParaOferta(archivo, adj.nombre, adj.tipo))
             .catch(() => undefined);
         const r = await mo.enviarArchivo(
@@ -526,7 +532,7 @@ async function ofrecerPorMalla(m: MensajeMalla, archivo: Blob, plan: PlanEnvio, 
                 tipoMime: adj.tipo,
                 ...(extras?.lote ? { lote: extras.lote } : {}),
                 ...(extras?.ruta ? { ruta: extras.ruta } : {}),
-                ...(vista ? { vista } : {}),
+                vista,
             },
         );
         if (!r.ok) return { mensaje: cambiarArchivo(m, { fase: "error", motivo: r.error }), ok: false, aviso: r.error };
@@ -624,8 +630,17 @@ export async function reintentarArchivoNeurona(m: MensajeMalla): Promise<Mensaje
 /* ══════════════════════════ Recepción ══════════════════════════ */
 
 /** Acepta, rechaza o cancela una transferencia P2P (el receptor decide). */
+/** ARC1110A: «Aceptar» pulsado antes de que el motor conozca la transferencia (el mensaje del chat llega antes que el anuncio). */
+const aceptadasDeAntemano = new Set<string>();
+
 export async function aceptarArchivo(id: string): Promise<void> {
-    (await motor())?.aceptarOferta(id);
+    const mo = await motor();
+    if (!mo) return;
+    if (mo.estadoDe(id)) mo.aceptarOferta(id);
+    else {
+        aceptadasDeAntemano.add(id);
+        while (aceptadasDeAntemano.size > 64) aceptadasDeAntemano.delete(aceptadasDeAntemano.values().next().value as string);
+    }
 }
 
 export async function rechazarArchivo(id: string): Promise<void> {

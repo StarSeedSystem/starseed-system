@@ -58,6 +58,8 @@ export interface OpcionesCanalSellado {
   abrirSobre?: AbrirSobreFn;
   /** Como receptor: rechazar ofertas en claro (sin cifrado de archivo). */
   exigirCifrado?: boolean;
+  /** (ARC1110A) ¿El par anuncia `archivo.anuncio.v1`? Solo `true` deja al motor mandar el anuncio temprano (sellado como una oferta). */
+  parAnuncia?: () => boolean;
   /** Aviso del modo con el que se decidió cada transferencia. */
   alModo?: (id: string, modo: ModoCifradoArchivo, detalle?: { firmante?: string | null }) => void;
 }
@@ -76,6 +78,7 @@ interface Sellada {
 const MAX_SELLADAS = 64;
 const PREFIJO_OFERTA = '{"t":"archivo.oferta"';
 const PREFIJO_CHUNK = '{"t":"archivo.chunk"';
+const PREFIJO_ANUNCIO = '{"t":"archivo.anuncio"'; // ARC1110A
 const FINALES = ['{"t":"archivo.ok"', '{"t":"archivo.cancelar"', '{"t":"archivo.rechazar"'];
 
 function leerJson(texto: string): Record<string, unknown> | null {
@@ -131,7 +134,9 @@ export function crearCanalSellado(base: CanalArchivos, opts: OpcionesCanalSellad
 
   /** Prepara el mensaje de texto saliente: devuelve el texto a mandar (sellado si toca) o null para no mandar nada. */
   const prepararTexto = async (texto: string): Promise<string | null> => {
-    if (texto.startsWith(PREFIJO_OFERTA)) {
+    // ARC1110A: el anuncio temprano se sella EXACTAMENTE como una oferta (mismo sobre, misma clave de contenido, que la
+    // oferta real reutiliza después): quien reenvía no ve el nombre. Sin sellar no se manda nada en claro.
+    if (texto.startsWith(PREFIJO_OFERTA) || texto.startsWith(PREFIJO_ANUNCIO)) {
       const oferta = leerJson(texto);
       const id = oferta && typeof oferta.id === "string" ? oferta.id : null;
       if (!oferta || !id || !opts.destinatarios) return texto;
@@ -168,7 +173,7 @@ export function crearCanalSellado(base: CanalArchivos, opts: OpcionesCanalSellad
   };
 
   const enviar = (texto: string): boolean => {
-    const simple = !texto.startsWith(PREFIJO_OFERTA) && !texto.startsWith(PREFIJO_CHUNK);
+    const simple = !texto.startsWith(PREFIJO_OFERTA) && !texto.startsWith(PREFIJO_CHUNK) && !texto.startsWith(PREFIJO_ANUNCIO);
     if (simple && pendientes === 0) {
       const ok = base.enviar(texto);
       olvidarSiFinal(texto);
@@ -237,6 +242,7 @@ export function crearCanalSellado(base: CanalArchivos, opts: OpcionesCanalSellad
         emitir(JSON.stringify(abierta.oferta));
         return;
       }
+      if (d.startsWith(PREFIJO_ANUNCIO) && opts.exigirCifrado) return; // ARC1110A: un anuncio en claro no se enseña si se exige cifrado
       if (d.startsWith(PREFIJO_OFERTA)) {
         const of = leerJson(d);
         const id = of && typeof of.id === "string" ? of.id : null;
@@ -291,6 +297,7 @@ export function crearCanalSellado(base: CanalArchivos, opts: OpcionesCanalSellad
     // La oferta sellada pesa más (base64 dentro de un sobre): se le da menos margen al motor para aligerarla.
     ...(base.maxTextoBytes ? { maxTextoBytes: () => Math.floor((base.maxTextoBytes?.() ?? 0) * 0.55) } : {}),
     ...(base.esperarListo ? { esperarListo: () => base.esperarListo!() } : {}),
+    ...(opts.parAnuncia ? { admiteAnuncio: () => !!opts.parAnuncia?.() } : {}),
     ...(base.enlaceArriba ? { enlaceArriba: () => base.enlaceArriba!() } : {}),
     ...(base.alListoTarde ? { alListoTarde: () => base.alListoTarde!() } : {}),
     ...(base.rutaMedida ? { rutaMedida: () => base.rutaMedida!() } : {}),
