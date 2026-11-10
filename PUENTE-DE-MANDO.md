@@ -1,6 +1,6 @@
 # Genesis · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-10 08:48:17 desde Genesis vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-10 09:00:07 desde Genesis vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -13,18 +13,21 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 |---|---|
 | Genesis | **encendido** en http://127.0.0.1:9002/mando |
 | Ola arriba | Sueños profundos 2026-10-24 · propuesta |
-| Agentes escribiendo | **1** |
+| Agentes escribiendo | **0** |
 | En esta ola | integradas 0 · en curso 0 · esperando aprobación 0 · pendientes 15 |
 | Últimas 4 olas | en curso 0 · pendientes 100 · integradas 0 |
-| HEAD | `74291711b6 chore(memoria): aprendizaje de la ola auto-1110-083409` |
-| Sin publicar | 1 commits |
+| HEAD | `7a6995d1eb chore(memoria): aprendizaje de la ola auto-1110-084924` |
+| Sin publicar | 3 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-1110-083014.json`, hace 8s)
+## Quién escribe ahora (latido de `cola-auto-1110-084924.json`, hace 14s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `DR1110-2` | escribiendo | opencode/deepseek-v4.1-flash-free | 14 min | 10 s | 485418 |
+| `DR1110-2` | hecho | nvidia/nvidia/nemotron-3-super-120 | 2 min | 129 s | 564211 |
+| `IRD11103` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 4 min | 247 s | 657 |
+| `IRD11102` | hecho | groq/openai/gpt-oss-120b | 7 min | 429 s | 541 |
+| `IRD11101` | hecho | nim/minimaxai/minimax-m3.1-flash | 7 min | 436 s | 447 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
