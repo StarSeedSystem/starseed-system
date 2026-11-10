@@ -30,6 +30,9 @@ import { abrirCanalLlamada, type ConexionCanal } from "@/lib/llamadas/senalizaci
 import { SesionVozDatos, type AudioVoz, type FabricaCodecs, type RelojVoz, type TransporteVoz } from "@/lib/llamadas/voz-datos/sesion";
 import { decidirAccionMedio, ESPERA_ICE_MS, LIMITE_CONECTANDO_MS, MOTIVO_SIN_AUDIO, nivelCalidadVoz, TEXTO_CONTESTADA_CONECTANDO, TEXTO_VIDEO_BLE, textoCalidadVoz, textoMedioVoz } from "@/lib/llamadas/voz-datos/decision";
 import { anotarLlamada } from "@/lib/llamadas/voz-datos/diagnostico";
+import { leerControl } from "@/lib/llamadas/voz-datos/paquete";
+// (LLA1110D) Un carril estable por flujo (voz, vídeo, pantalla, señal) en vez de un único medio que saltaba.
+import { esCarrilBle, LimiteRegistro, SelectorCarriles, textoCarriles, soyDirector, type CambioCarril, type Carril, type Flujo, type MuestraCarril } from "@/lib/llamadas/carriles";
 import { SesionVideoDatos } from "@/lib/llamadas/video-datos/sesion-video";
 import type { FabricaVideo, FuenteVideo, SalidaVideo } from "@/lib/llamadas/video-datos/tipos";
 import { claseEscalada, debeEscalar, textoEscalada, TEXTO_PANTALLA_BLE, TEXTO_PANTALLA_SIN_P2P, type ClaseEscalada, type EstadoWifiLlamada } from "@/lib/llamadas/escalada-wifi";
@@ -58,6 +61,7 @@ import {
     type ParticipanteLlamada,
     type SenalLlamada,
     type CargaApp,
+    type CarrilesParVista,
 } from "@/lib/llamadas/tipos";
 
 /**
@@ -193,6 +197,8 @@ interface Par {
     metricas: MetricasPar | null;
     calidad: CalidadConexion;
     cadena: Promise<void>;
+    /** (LLA1110D) Hubo que ofertar sin ruta IP: la oferta sale cuando aparece una (WebRTC queda quieto mientras). */
+    ofertaPendiente: boolean;
 }
 
 const ESTADO_INICIAL: EstadoLlamada = {
@@ -210,6 +216,23 @@ const ESTADO_INICIAL: EstadoLlamada = {
     contestada: false,
     rechazos: [],
 };
+
+/**
+ * (LLA1110D) ¿Queda algo mío sin negociar? Un transceptor con pista que aún no tiene `mid`, o cuya dirección acordada
+ * no incluye enviar.
+ */
+export function necesitaNegociar(pc: Pick<RTCPeerConnection, "getTransceivers">): boolean {
+    try {
+        return pc.getTransceivers().some((t) => {
+            if ((t as RTCRtpTransceiver & { stopped?: boolean }).stopped || t.direction === "stopped" || !t.sender.track) return false;
+            if (t.mid === null) return true;
+            const cd = t.currentDirection;
+            return !!cd && cd !== "sendrecv" && cd !== "sendonly";
+        });
+    } catch {
+        return false;
+    }
+}
 
 function hayMediaStream(): boolean {
     return typeof MediaStream === "function";
@@ -287,6 +310,18 @@ export class MotorLlamada {
     private alCambiarDispositivos: (() => void) | null = null;
     /** (LLA1108G) Oyentes de los mensajes de aplicación de la superficie (cambio de tipo, grabación, Astraura…). */
     private readonly oyentesApp = new Set<(de: string, carga: CargaApp) => void>();
+    /** (LLA1110D) Carriles por flujo y por par, lo que la persona forzó, y los limitadores del registro. */
+    private readonly selectores = new Map<string, SelectorCarriles>();
+    private readonly forzadosCarril = new Map<Flujo, Carril>();
+    private readonly limiteCarril = new LimiteRegistro(4, 60_000);
+    private readonly limiteNeg = new LimiteRegistro(12, 60_000);
+    /** (LLA1110D) Por par: ¿el emisor de audio de WebRTC lleva el micro? (no mientras la voz va por el enlace de datos). */
+    private readonly audioWebrtcPuesto = new Map<string, boolean>();
+    /** (LLA1110D) Por par: el carril del enlace de datos visto en el último tic y cuándo arrancó la voz por él. */
+    private readonly carrilDatos = new Map<string, Carril | null>();
+    private readonly vozDatosDesde = new Map<string, number>();
+    /** (LLA1110D) Encender/apagar la cámara es UNA operación a la vez (dos toques seguidos ya no se pisan). */
+    private camaraEnCurso: Promise<string | null> | null = null;
 
     constructor(opciones: OpcionesMotor) {
         this.opc = opciones;
@@ -331,6 +366,7 @@ export class MotorLlamada {
                 hablante: this.hablante?.id ?? null,
                 participantes: this.construirParticipantes(),
                 ...this.vistaMedio(),
+                carriles: this.carriles(),
             };
             for (const cb of Array.from(this.oyentes)) {
                 try {
@@ -451,7 +487,8 @@ export class MotorLlamada {
         } catch {
             /* noop */
         }
-        for (const par of this.pares.values()) this.ponerEnEmisor(par, "audio", pista);
+        // (LLA1110D) Mientras la voz de un par va por el enlace de datos, su emisor de WebRTC no lleva el micro (no hay voz doble).
+        for (const par of this.pares.values()) this.ponerEnEmisor(par, "audio", this.audioWebrtcPuesto.get(par.id) === false ? null : pista);
         this.conectarAnalizadorLocal();
     }
 
@@ -473,6 +510,17 @@ export class MotorLlamada {
     }
 
     async alternarCamara(): Promise<string | null> {
+        if (this.camaraEnCurso) return this.camaraEnCurso;
+        const p = this.alternarCamaraAhora();
+        this.camaraEnCurso = p;
+        try {
+            return await p;
+        } finally {
+            if (this.camaraEnCurso === p) this.camaraEnCurso = null;
+        }
+    }
+
+    private async alternarCamaraAhora(): Promise<string | null> {
         if (this.cerrado) return null;
         if (this.pantallaOn) return "Deja de compartir la pantalla para encender la cámara.";
         const local = this.asegurarLocal();
@@ -489,13 +537,18 @@ export class MotorLlamada {
             }
         } else {
             const r = await obtenerPista("video", this.e.seleccion.camaraId);
-            if (!r.pista) return r.error;
+            // (LLA1110D) Por qué no se encendió, en el registro (en la prueba 33 la segunda llamada no dejó rastro).
+            if (!r.pista) {
+                anotarLlamada("camara", this.opc.vozDatos?.neurona ?? null, `encender-fallo pedida=${this.e.seleccion.camaraId ? "elegida" : "sistema"} error=${r.error ?? "sin-pista"}`);
+                return r.error;
+            }
             if (this.cerrado) {
                 r.pista.stop();
                 return null;
             }
             this.pistaCamara = r.pista;
             this.camaraOn = true;
+            anotarLlamada("camara", this.opc.vozDatos?.neurona ?? null, `encendida estado=${r.pista.readyState} pares=${this.pares.size}`);
             try {
                 local?.addTrack(r.pista);
             } catch {
@@ -1094,6 +1147,7 @@ export class MotorLlamada {
             metricas: null,
             calidad: "desconocida",
             cadena: Promise.resolve(),
+            ofertaPendiente: false,
         };
         this.pares.set(id, par);
 
@@ -1121,17 +1175,14 @@ export class MotorLlamada {
             if (ev.track.kind === "audio") this.conectarAnalizador(id, par.stream);
             this.emitir();
         };
-        pc.onnegotiationneeded = async () => {
+        pc.onnegotiationneeded = () => {
             if (this.pares.get(id) !== par) return;
-            try {
-                par.haciendoOferta = true;
-                await pc.setLocalDescription();
-                if (pc.localDescription) this.enviarDescripcion(par, pc.localDescription);
-            } catch {
-                /* se reintentará en la próxima negociación */
-            } finally {
-                par.haciendoOferta = false;
-            }
+            void this.ofertar(par, "negociacion-necesaria");
+        };
+        // (LLA1110D) Cada transición de la negociación queda en el registro, con quién era cortés.
+        pc.onsignalingstatechange = () => {
+            if (this.pares.get(id) !== par) return;
+            this.anotarNegociacion(par, `estado=${pc.signalingState}`);
         };
         pc.oniceconnectionstatechange = () => this.alCambiarIce(par, pc.iceConnectionState);
         pc.onconnectionstatechange = () => {
@@ -1153,6 +1204,7 @@ export class MotorLlamada {
         if (s.desc) {
             const decision = evaluarDescripcion(s.desc.type, par, pc.signalingState);
             par.ignorandoOferta = decision.ignorar;
+            if (decision.colision) this.anotarNegociacion(par, decision.ignorar ? "colision oferta-ajena-ignorada" : "colision cede-y-responde");
             if (decision.ignorar) return;
             try {
                 par.aplicandoRespuesta = s.desc.type === "answer";
@@ -1178,6 +1230,15 @@ export class MotorLlamada {
                     if (pc.localDescription) this.enviarDescripcion(par, pc.localDescription);
                 } catch {
                     /* noop */
+                }
+                // (LLA1110D) El cortés que cedió su oferta (o que respondió con pistas suyas aún sin negociar) vuelve a
+                // ofertar: el navegador no siempre repite «negotiationneeded» tras el rollback implícito, y entonces sus
+                // pistas (micro o cámara) nunca llegaban al otro lado (reproducido en el banco: cámara a la vez en los dos).
+                if (necesitaNegociar(pc)) {
+                    this.anotarNegociacion(par, "pistas-sin-negociar: se vuelve a ofertar");
+                    setTimeout(() => {
+                        if (this.pares.get(par.id) === par && pc.signalingState === "stable" && !par.haciendoOferta) void this.ofertar(par, "tras-ceder");
+                    }, 0);
                 }
             }
         }
@@ -1213,6 +1274,52 @@ export class MotorLlamada {
                 this.enviar({ tipo: "senal", de: this.miId, para: par.id, ice: lote });
             }
         }, 120);
+    }
+
+    /**
+     * (LLA1110D) Hace una oferta («perfect negotiation»: el descortés ignora las ofertas cruzadas, el cortés cede).
+     * Sin ruta IP hacia el par no se oferta: por Bluetooth ICE no puede conectar nunca y las ofertas solo
+     * ocupaban el enlace (prueba 33). La oferta queda pendiente y sale cuando aparece una ruta IP.
+     */
+    private async ofertar(par: Par, motivo: string): Promise<void> {
+        const pc = par.pc;
+        if (this.rutaIp(par.id) === false) {
+            if (!par.ofertaPendiente) this.anotarNegociacion(par, `oferta-en-espera motivo=${motivo} sin-ruta-ip`);
+            par.ofertaPendiente = true;
+            return;
+        }
+        par.ofertaPendiente = false;
+        try {
+            par.haciendoOferta = true;
+            await pc.setLocalDescription();
+            if (pc.localDescription) {
+                this.enviarDescripcion(par, pc.localDescription);
+                if (pc.localDescription.type === "offer") this.anotarNegociacion(par, `oferta-enviada motivo=${motivo}`);
+            }
+        } catch (err) {
+            this.anotarNegociacion(par, `oferta-fallida motivo=${motivo} error=${(err as Error)?.name ?? "desconocido"}`);
+        } finally {
+            par.haciendoOferta = false;
+        }
+    }
+
+    private anotarNegociacion(par: Par, detalle: string) {
+        if (!this.limiteNeg.puede(`neg:${par.id}`, Date.now()) && !/colision|espera|fallid/.test(detalle)) return;
+        anotarLlamada("negociacion", this.opc.vozDatos?.neurona ?? null, `par=${par.id} rol=${par.cortes ? "cortes" : "descortes"} ${detalle}`);
+    }
+
+    /**
+     * (LLA1110D) ¿Hay ruta IP hacia el par? Un WebRTC ya conectado ES la prueba. En la prueba 33 (Wi-Fi encendido) la
+     * red local nativa no contaba como ruta IP: «sin IP → enlace de datos» y «WebRTC conectado → vuelve a WebRTC» se
+     * contradecían en cada tic.
+     */
+    private rutaIp(id: string): boolean | null {
+        if (this.pares.get(id)?.conexion === "conectado") return true;
+        try {
+            return this.opc.vozDatos?.hayRutaIp?.(id) ?? null;
+        } catch {
+            return null;
+        }
     }
 
     private enviarDescripcion(par: Par, d: RTCSessionDescription | RTCSessionDescriptionInit) {
@@ -1276,6 +1383,10 @@ export class MotorLlamada {
         this.pararVigilante(id);
         this.pararVozDatos(id, "par-fuera");
         this.rutaIpVista.delete(id);
+        this.selectores.delete(id);
+        this.audioWebrtcPuesto.delete(id);
+        this.carrilDatos.delete(id);
+        this.vozDatosDesde.delete(id);
         const par = this.pares.get(id);
         if (!par) return;
         this.pares.delete(id);
@@ -1356,9 +1467,9 @@ export class MotorLlamada {
             if (tr && tr !== escuchado) {
                 bajaEscucha?.();
                 escuchado = tr;
-                bajaEscucha = tr.alRecibir((t) => {
-                    if (t.startsWith('{"t":"voz.') && !this.vozDatos.has(id) && !this.activandoDatos.has(id)) void this.activarVozDatos(id);
-                });
+                // (LLA1110D) Solo el control de voz del otro cuenta (un «hola» arranca, un «fin carril:…» para). Antes
+                // cualquier texto voz.* —hasta el «fin» con que el otro la paraba— rearrancaba la sesión aquí.
+                bajaEscucha = tr.alRecibir((t) => this.alControlVozAjeno(id, t));
                 this.vigiladoEscucha.set(id, () => {
                     bajaEscucha?.();
                     bajaEscucha = null;
@@ -1368,14 +1479,16 @@ export class MotorLlamada {
                 transcurridoMs: reloj.ahora() - desde,
                 webrtc: par.conexion,
                 datos: this.estadoDatosPar(id),
-                hayRutaIp: v.hayRutaIp?.(id) ?? null,
+                hayRutaIp: this.rutaIp(id),
             });
             switch (accion) {
                 case "usar-datos":
                     void this.activarVozDatos(id);
                     break;
                 case "volver-webrtc":
-                    this.pararVozDatos(id, "webrtc");
+                    // (LLA1110D) Ya solo llega aquí con la voz por datos degradada (ver `decidirAccionMedio`); el «fin» lleva el
+                    // motivo «carril:webrtc» para que el otro extremo la pare también y no la rearranque.
+                    this.pararVozDatos(id, "carril:webrtc");
                     anotarLlamada("medio=webrtc", neurona, `par=${id} (vuelve a WebRTC sin cortar)`);
                     desde = reloj.ahora();
                     break;
@@ -1405,12 +1518,200 @@ export class MotorLlamada {
             // (LLA1108H) Wi-Fi directo: pedirlo si solo hay Bluetooth, subir a WebRTC cuando aparezca una ruta IP y
             // llevar vídeo ligero por el enlace de datos mientras tanto.
             this.revisarEscalada(id, par);
+            // (LLA1110D) Un carril por flujo, con evidencia sostenida y enfriamiento.
+            this.revisarCarriles(id, par, tr);
             void this.sincronizarVideoDatos(id);
         };
         this.vigilantes.set(id, setInterval(tic, v.intervaloMs ?? 500));
     }
 
     private readonly vigiladoEscucha = new Map<string, () => void>();
+
+    /* ───────────────────────────── Carriles por flujo (LLA1110D) ───────────────────────────── */
+
+    private selectorDe(id: string): SelectorCarriles {
+        let s = this.selectores.get(id);
+        if (!s) {
+            s = new SelectorCarriles();
+            for (const [f, c] of this.forzadosCarril) s.forzar(f, c);
+            this.selectores.set(id, s);
+        }
+        return s;
+    }
+
+    /** El carril que es el enlace de datos de ahora (Bluetooth rápido o GATT, o un enlace local). */
+    private carrilDeTransporte(tr: TransporteVoz | null): Carril | null {
+        if (!tr) return null;
+        let tipo = "";
+        try {
+            tipo = tr.info().tipo;
+        } catch {
+            return null;
+        }
+        if (tipo === "ble") {
+            let kbps: number | null = null;
+            try {
+                kbps = tr.capacidadKbps?.() ?? null;
+            } catch {
+                kbps = null;
+            }
+            // El canal L2CAP rápido mide 160–170 kb/s; el GATT, unas decenas.
+            return kbps !== null && kbps < 60 ? "ble-gatt" : "ble-l2cap";
+        }
+        if (tipo === "wifi-directo") return "wifi-direct";
+        if (tipo === "wifi-aware") return "wifi-aware";
+        if (tipo === "awdl") return "awdl";
+        return "lan-tcp";
+    }
+
+    /**
+     * (LLA1110D) Lo que el otro extremo dice de la voz por el enlace de datos: un «hola» la arranca aquí (salvo que yo
+     * sea el director y mi voz vaya bien por WebRTC: entonces el otro, sin oírme, vuelve solo a WebRTC); un «fin» con
+     * motivo «carril:…» la para aquí también. Nunca la rearranca un «fin» ni un paquete de audio en vuelo.
+     */
+    private alControlVozAjeno(id: string, t: string) {
+        if (typeof t !== "string" || !t.startsWith('{"t":"voz.c"')) return;
+        const c = leerControl(t);
+        if (!c || c.s !== this.sesionId || this.cerrado) return;
+        const par = this.pares.get(id);
+        const sel = this.selectorDe(id);
+        if (c.k === "hola") {
+            if (this.vozDatos.has(id) || this.activandoDatos.has(id)) return;
+            if (par?.conexion === "conectado" && sel.carril("voz") === "webrtc" && soyDirector(this.miId, id)) {
+                if (this.limiteCarril.puede(`hola-ignorado:${id}`, Date.now())) anotarLlamada("carril", this.opc.vozDatos?.neurona ?? null, `par=${id} flujo=voz hola-ignorado motivo=director-en-webrtc`);
+                return;
+            }
+            void this.activarVozDatos(id, "el-otro-saluda");
+        } else if (c.k === "fin" && typeof c.m === "string" && c.m.startsWith("carril:")) {
+            if (!this.vozDatos.has(id)) return;
+            this.pararVozDatos(id, "sigue-al-otro");
+            const cambio = sel.seguir("voz", par?.conexion === "conectado" ? "webrtc" : null, this.relojVoz().ahora());
+            if (cambio) this.anotarCarril(id, cambio);
+        }
+    }
+
+    private anotarCarril(id: string, c: CambioCarril) {
+        if (!this.limiteCarril.puede(`carril:${id}:${c.flujo}`, Date.now())) return;
+        anotarLlamada("carril", this.opc.vozDatos?.neurona ?? null, `par=${id} flujo=${c.flujo} de=${c.de ?? "-"} a=${c.a ?? "-"} motivo=${c.motivo}${c.muestras ? ` muestras=[${c.muestras}]` : ""}`);
+    }
+
+    /** El emisor de audio de WebRTC lleva el micro solo si la voz NO va por el enlace de datos (sin voz doble). */
+    private aplicarAudioWebrtc(id: string) {
+        const par = this.pares.get(id);
+        if (!par) return;
+        const quiere = !this.vozDatos.get(id)?.estado().activa;
+        if (this.audioWebrtcPuesto.get(id) === quiere) return;
+        this.audioWebrtcPuesto.set(id, quiere);
+        this.ponerEnEmisor(par, "audio", quiere ? this.pistaAudio : null);
+    }
+
+    /**
+     * Revisa el carril de cada flujo con ese par. La voz la ARRANCA `decidirAccionMedio` (WebRTC, o el enlace de datos
+     * sin IP o con ICE sin conectar); desde ahí el selector solo la mueve si su carril se cae o se degrada de forma
+     * sostenida, una vez por enfriamiento. El vídeo y la pantalla eligen por capacidad y suben con histéresis.
+     */
+    private revisarCarriles(id: string, par: Par, tr: TransporteVoz | null) {
+        const sel = this.selectorDe(id);
+        const reloj = this.relojVoz();
+        const ahora = reloj.ahora();
+        const datosCarril = this.carrilDeTransporte(tr);
+        this.carrilDatos.set(id, datosCarril);
+        const voz = this.vozDatos.get(id);
+        const ev = voz?.estado();
+        const muestras: MuestraCarril[] = [];
+        const met = par.metricas;
+        muestras.push({
+            carril: "webrtc",
+            arriba: par.conexion === "conectado",
+            rttMs: met?.rttMs ?? null,
+            perdidaPct: par.calidad === "mala" ? 20 : met && met.recibidos + met.perdidos > 0 ? (100 * met.perdidos) / (met.recibidos + met.perdidos) : 0,
+        });
+        if (datosCarril && tr) {
+            let abierto = false;
+            try {
+                abierto = tr.abierto();
+            } catch {
+                abierto = false;
+            }
+            // Voz por datos que no recibe nada desde hace 4 s: el carril está mal aunque el enlace diga «abierto».
+            const desdeRx = ev?.activa ? ahora - Math.max(ev.ultimoRxEn || 0, this.vozDatosDesde.get(id) ?? ahora) : 0;
+            const cal = voz?.calidad();
+            let kbps: number | null = null;
+            try {
+                kbps = tr.capacidadKbps?.() ?? null;
+            } catch {
+                kbps = null;
+            }
+            muestras.push({ carril: datosCarril, arriba: abierto, rttMs: cal?.rttMs ?? null, perdidaPct: desdeRx > 4000 ? 100 : (cal?.perdidaPct ?? 0), kbps });
+        }
+        const puede = (f: Flujo, c: Carril) => {
+            if (c === "webrtc") return true;
+            if (c !== datosCarril) return false;
+            if (f === "video" || f === "pantalla") return !!this.opc.vozDatos?.video;
+            return true;
+        };
+        const cambios: CambioCarril[] = [];
+        // La voz: el selector refleja dónde va DE VERDAD (lo arrancado por la decisión de arranque o por el otro extremo).
+        const vozReal: Carril | null = ev?.activa ? datosCarril : par.conexion === "conectado" ? "webrtc" : null;
+        if (vozReal && sel.carril("voz") !== vozReal) {
+            const c = sel.fijar("voz", vozReal, ahora);
+            if (c) cambios.push({ ...c, motivo: ev?.activa ? "voz-por-datos" : "voz-por-webrtc", muestras: "" });
+        }
+        const senal = this.viaDirecta(id) ? (datosCarril ?? "lan-tcp") : null;
+        if (sel.carril("senal") !== senal) {
+            const c = sel.fijar("senal", senal, ahora);
+            if (c) cambios.push({ ...c, motivo: senal ? "enlace-directo" : "servidor" });
+        }
+        const flujos: Flujo[] = sel.carril("voz") ? ["voz", "video", "pantalla"] : ["video", "pantalla"];
+        for (const c of sel.actualizar(muestras, ahora, puede, flujos)) {
+            cambios.push(c);
+            if (c.flujo !== "voz") continue;
+            if (c.a === "webrtc" && ev?.activa) this.pararVozDatos(id, "carril:webrtc");
+            else if (c.a && c.a === datosCarril && !ev?.activa) void this.activarVozDatos(id, `carril:${c.motivo}`);
+        }
+        for (const c of cambios) this.anotarCarril(id, c);
+        this.aplicarAudioWebrtc(id);
+        if (cambios.length) this.emitir();
+    }
+
+    /** ¿El vídeo de ese par va por el enlace de datos (vídeo ligero)? */
+    private videoPorDatos(id: string, par: Par | undefined): boolean {
+        const sel = this.selectores.get(id);
+        const dc = this.carrilDatos.get(id) ?? null;
+        const elegido = sel ? (this.pantallaOn ? sel.carril("pantalla") : sel.carril("video")) : null;
+        if (elegido && dc && elegido === dc) return true;
+        if (elegido === "webrtc") return false;
+        return par?.conexion !== "conectado";
+    }
+
+    /**
+     * (LLA1110D) Carril de cada flujo con cada par, para la ventana: «Voz: Bluetooth · Vídeo: WebRTC». Forzar un carril:
+     * `forzarCarril("video", "webrtc")`; `forzarCarril("video", null)` vuelve a la elección automática.
+     */
+    carriles(): CarrilesParVista[] {
+        const out: CarrilesParVista[] = [];
+        for (const id of this.pares.keys()) {
+            const sel = this.selectores.get(id);
+            if (!sel) {
+                out.push({ parId: id, voz: null, video: null, pantalla: null, senal: null, datos: null, forzados: {}, texto: "", director: soyDirector(this.miId, id) });
+                continue;
+            }
+            const f = sel.foto();
+            const forzados: Partial<Record<Flujo, Carril>> = {};
+            for (const k of Object.keys(f) as Flujo[]) if (f[k].forzado) forzados[k] = f[k].forzado!;
+            out.push({ parId: id, voz: f.voz.carril, video: f.video.carril, pantalla: f.pantalla.carril, senal: f.senal.carril, datos: this.carrilDatos.get(id) ?? null, forzados, texto: textoCarriles(f), director: soyDirector(this.miId, id) });
+        }
+        return out;
+    }
+
+    /** (LLA1110D) La persona fuerza el carril de un flujo (null: automático). Si el forzado no está arriba, manda lo automático. */
+    forzarCarril(flujo: Flujo, carril: Carril | null): void {
+        if (carril) this.forzadosCarril.set(flujo, carril);
+        else this.forzadosCarril.delete(flujo);
+        for (const s of this.selectores.values()) s.forzar(flujo, carril);
+        anotarLlamada("carril", this.opc.vozDatos?.neurona ?? null, `flujo=${flujo} forzado=${carril ?? "automatico"}`);
+        this.emitir();
+    }
 
     private pararVigilante(id: string) {
         const t = this.vigilantes.get(id);
@@ -1427,7 +1728,7 @@ export class MotorLlamada {
         this.vigiladoEscucha.delete(id);
     }
 
-    private async activarVozDatos(id: string): Promise<void> {
+    private async activarVozDatos(id: string, motivo = "arranque"): Promise<void> {
         const v = this.opc.vozDatos;
         if (!v || this.cerrado || this.vozDatos.has(id) || this.activandoDatos.has(id)) return;
         const neurona = v.neurona ?? null;
@@ -1464,8 +1765,10 @@ export class MotorLlamada {
             }
             s.silenciar(!this.microOn);
             this.vozDatos.set(id, s);
+            this.vozDatosDesde.set(id, this.relojVoz().ahora());
             const e = s.estado();
-            anotarLlamada("medio=enlace-datos", neurona, `par=${id} codec=${e.codecTx} via=${e.medio.tipo}${e.medio.cifrada ? " cifrada" : " sin-cifrar"}`);
+            anotarLlamada("medio=enlace-datos", neurona, `par=${id} codec=${e.codecTx} via=${e.medio.tipo}${e.medio.cifrada ? " cifrada" : " sin-cifrar"} motivo=${motivo}`);
+            this.aplicarAudioWebrtc(id);
             this.emitir();
         } finally {
             this.activandoDatos.delete(id);
@@ -1477,11 +1780,13 @@ export class MotorLlamada {
         const s = this.vozDatos.get(id);
         if (!s) return;
         this.vozDatos.delete(id);
+        this.vozDatosDesde.delete(id);
         try {
             s.detener(motivo);
         } catch {
             /* noop */
         }
+        this.aplicarAudioWebrtc(id);
         this.emitir();
     }
 
@@ -1517,6 +1822,8 @@ export class MotorLlamada {
         // 1) Aparece una ruta IP (se abrió el Wi-Fi directo): WebRTC reintenta por ella, sin cortar la voz.
         const antes = this.rutaIpVista.get(id) ?? null;
         this.rutaIpVista.set(id, ip);
+        // (LLA1110D) Apareció la ruta IP y había una oferta en espera: sale ahora.
+        if (ip === true && par.ofertaPendiente && par.pc.signalingState === "stable") void this.ofertar(par, "ruta-ip-nueva");
         if (ip === true && par.conexion !== "conectado") {
             const ultimo = this.ultimoReintentoIce.get(id) ?? -Infinity;
             if (antes === false || (par.conexion === "fallida" && ahora - ultimo >= 5000 && par.reinicios < 6)) {
@@ -1570,6 +1877,10 @@ export class MotorLlamada {
     /** Qué imagen enseñar del par: la de WebRTC si trae vídeo; si no, la del enlace de datos (cuando ya llegó algo). */
     private streamDe(id: string, par: Par | undefined): MediaStream | null {
         const web = par?.stream ?? null;
+        // (LLA1110D) Si el carril de vídeo es el enlace de datos y ya llega imagen por él, se enseña esa (WebRTC puede traer una pista sin imagen).
+        const sd = this.videoDatos.get(id);
+        const sal = this.salidasVideo.get(id);
+        if (sd && sal?.stream && sd.estado().recibiendo && this.videoPorDatos(id, par)) return sal.stream;
         if (web && web.getVideoTracks().length) return web;
         const s = this.videoDatos.get(id);
         const salida = this.salidasVideo.get(id);
@@ -1580,9 +1891,11 @@ export class MotorLlamada {
     /** VID1110A: el canvas del vídeo ligero de ese par (solo si WebRTC no trae vídeo y ya llegó una imagen). */
     private lienzoDe(id: string, par: Par | undefined): HTMLCanvasElement | null {
         const web = par?.stream ?? null;
-        if (web && web.getVideoTracks().length) return null;
         const s = this.videoDatos.get(id);
         const salida = this.salidasVideo.get(id);
+        // (LLA1110D) Vídeo por el enlace de datos con imagen: el lienzo manda aunque WebRTC tenga una pista de vídeo.
+        if (s && salida?.lienzo && s.estado().recibiendo && this.videoPorDatos(id, par)) return salida.lienzo;
+        if (web && web.getVideoTracks().length) return null;
         return s && salida?.lienzo && s.estado().recibiendo ? salida.lienzo : null;
     }
 
@@ -1597,7 +1910,8 @@ export class MotorLlamada {
         if (!v || !vid || this.cerrado) return;
         const par = this.pares.get(id);
         const voz = this.vozDatos.get(id);
-        const deseada = !!par && !!voz?.estado().activa && par.conexion !== "conectado";
+        // (LLA1110D) El vídeo ligero vive mientras el carril de vídeo de ese par sea el enlace de datos (no «mientras WebRTC no conecte»).
+        const deseada = !!par && !!voz?.estado().activa && this.videoPorDatos(id, par);
         if (!deseada) {
             this.pararVideoDatos(id);
             return;
@@ -1682,7 +1996,8 @@ export class MotorLlamada {
         const webrtcOk = Array.from(this.pares.values()).some((p) => p.conexion === "conectado");
         const datos = Array.from(this.vozDatos.values()).find((s) => s.estado().activa);
         let medio: MedioVoz | null = null;
-        if (webrtcOk) medio = { tipo: "webrtc", texto: "Voz por WebRTC · cifrada", cifrada: true };
+        // (LLA1110D) La voz se queda por el enlace de datos aunque WebRTC conecte (lleva el vídeo): se dice por dónde va DE VERDAD.
+        if (webrtcOk && !datos) medio = { tipo: "webrtc", texto: "Voz por WebRTC · cifrada", cifrada: true };
         else if (datos) {
             const e = datos.estado();
             const cal = datos.calidad();
@@ -1690,7 +2005,7 @@ export class MotorLlamada {
         }
         const conAudio = webrtcOk || Array.from(this.vozDatos.values()).some((s) => s.estado().recibiendo);
         // (LLA1108H) Vídeo ligero por el enlace de datos y pasos de la escalada al Wi-Fi directo.
-        const vd = webrtcOk ? undefined : Array.from(this.videoDatos.values())[0]?.estado();
+        const vd = Array.from(this.videoDatos.values())[0]?.estado();
         const hayVideoLigero = !!this.opc.vozDatos?.video;
         const videoDatos = vd
             ? { disponible: hayVideoLigero, enviando: vd.enviando, recibiendo: vd.recibiendo, calidadTexto: vd.texto, nivel: vd.nivel }

@@ -352,10 +352,15 @@ describe("videollamada solo por Bluetooth: escalada automática al Wi-Fi directo
         expect(mac.estado().fase).toBe("en-curso");
         expect(mac.estado().medio?.tipo).toBe("enlace-datos"); // la voz sigue por Bluetooth hasta que WebRTC conecte
 
-        // 5. WebRTC conecta: la voz y el vídeo suben a WebRTC, el vídeo ligero se suelta y NUNCA se colgó.
+        // 5. WebRTC conecta. (LLA1110D) La voz que ya funciona por Bluetooth SE QUEDA (antes saltaba a WebRTC y el otro
+        // extremo la rearrancaba: el salto de la prueba 33); el vídeo sube a WebRTC tras 3 s de evidencia, sin colgar.
         for (const p of pcs) p.fijarIce("connected");
-        await esperarHasta(() => mac.estado().medio?.tipo === "webrtc");
-        await esperarHasta(() => hitos.some((h) => h.startsWith("medio=webrtc") && h.includes("vuelve a WebRTC sin cortar")));
+        await esperarHasta(() => mac.estado().carriles?.[0]?.video === "webrtc", 6000);
+        await esperarHasta(() => mac.estado().videoDatos == null, 3000);
+        expect(mac.estado().medio?.tipo).toBe("enlace-datos");
+        expect(mac.estado().carriles?.[0]?.voz).toBe("ble-l2cap");
+        expect(hitos.some((h) => h.includes("vuelve a WebRTC sin cortar"))).toBe(false);
+        expect(hitos.some((h) => h.startsWith("carril") && h.includes("flujo=video") && h.includes("a=webrtc"))).toBe(true);
         e = mac.estado();
         expect(e.fase).toBe("en-curso");
         expect(mac.cerrada).toBe(false);

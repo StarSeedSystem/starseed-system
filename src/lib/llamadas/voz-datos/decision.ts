@@ -5,7 +5,8 @@
  * datos pero no IP, y ICE no puede conectar nunca. Reglas:
  *  1. Sin ruta IP hacia ese par (solo BLE u otro enlace sin IP) → «enlace de datos» desde el primer momento.
  *  2. Con ruta IP, si ICE no conecta en ESPERA_ICE_MS (6 s) y hay enlace de datos → se pasa a él, sin colgar.
- *  3. Si luego WebRTC conecta (apareció una ruta IP) → se vuelve a WebRTC sin cortar el audio.
+ *  3. (LLA1110D) Si luego WebRTC conecta, la voz que ya funciona por datos SE QUEDA (WebRTC lleva el vídeo); solo vuelve
+ *     a WebRTC si la voz por datos se degrada de forma sostenida (`carriles.ts`).
  *  4. Si a los LIMITE_CONECTANDO_MS (15 s) ni WebRTC ni datos suenan → la llamada acaba con motivo claro.
  * Nunca «conectando» para siempre.
  */
@@ -24,12 +25,18 @@ export interface EntradaDecision {
   datos: EstadoDatosPar;
   /** ¿Hay alguna ruta IP hacia ese par? true/false; null si no se sabe (se espera a ICE). */
   hayRutaIp: boolean | null;
+  /**
+   * (LLA1110D) ¿La voz por el enlace de datos va bien? Solo `false` (degradada de forma sostenida, lo mide el selector de
+   * carriles) la devuelve a WebRTC. Antes bastaba con que WebRTC conectara: la voz que funcionaba se cortaba y el
+   * otro extremo la rearrancaba (el salto de dos veces por segundo de la prueba 33).
+   */
+  datosSana?: boolean;
 }
 
 export type AccionMedio = "esperar" | "usar-datos" | "volver-webrtc" | "mantener" | "fallar";
 
 export function decidirAccionMedio(e: EntradaDecision): AccionMedio {
-  if (e.webrtc === "conectado") return e.datos === "activo" ? "volver-webrtc" : "mantener";
+  if (e.webrtc === "conectado") return e.datos === "activo" && e.datosSana === false ? "volver-webrtc" : "mantener";
   if (e.datos === "activo") return "mantener";
   if (e.datos === "disponible") {
     if (e.hayRutaIp === false) return "usar-datos";

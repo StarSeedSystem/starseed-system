@@ -201,12 +201,81 @@ y a orígenes con consentimiento. El cifrado es el del enlace (CIF1108A): no hay
 
 1. Sin ruta IP hacia ese par (solo BLE u otro enlace sin IP): enlace de datos desde el primer momento.
 2. Con ruta IP, si ICE no conecta en 6 s y hay enlace de datos: se pasa a él sin colgar.
-3. Si WebRTC conecta más tarde: se vuelve a WebRTC sin cortar.
+3. Si WebRTC conecta más tarde: **la voz que ya funciona se queda** (LLA1110D; antes volvía a WebRTC y provocaba el
+   salto de dos veces por segundo de la prueba 33). Solo vuelve si la voz por datos se degrada de forma sostenida
+   (ver «Carriles por flujo»).
 4. A los 15 s sin audio por ninguno: la llamada acaba con motivo claro en los dos extremos (señal `fallo`),
    con «Reintentar». Nunca queda «conectando».
 
 Vídeo por BLE a calidad normal no cabe: desde LLA1108H la llamada **escala sola al Wi-Fi directo** y, mientras tanto
 (o si es imposible), lleva **vídeo ligero** por el enlace de datos (ver «Escalada y vídeo ligero» más abajo).
+
+### 9c. Carriles por flujo (LLA1110D, `carriles.ts`)
+
+**Por qué saltaba el medio (prueba 33, llamada 3, Wi-Fi encendido).** Dos señales se contradecían en los DOS extremos:
+`hayRutaIpHacia` no contaba la red local nativa (TCP 47071) como ruta IP, así que `decidirAccionMedio` decía «sin IP →
+enlace de datos» y arrancaba la voz por Bluetooth; WebRTC conectaba por la LAN medio segundo después y la misma
+función decía «WebRTC conectado → volver a WebRTC», que paraba la voz por datos mandando `voz.c fin`. El oyente pasivo
+de `vigilarMedio` arrancaba la voz por datos con CUALQUIER texto `voz.*` del otro, **incluido ese `fin`** y los paquetes
+de audio aún en vuelo: cada extremo rearrancaba lo que el otro acababa de parar. Reproducido en el banco real: 77
+reinicios por extremo en 40 s con el código de main (≈2 por segundo, como en el registro).
+
+**Arreglo de la causa.** (1) La red nativa cuenta como ruta IP (`voz-datos/transporte.ts`, caché asíncrona de 3 s;
+`null` mientras no se sabe), y un WebRTC conectado es en sí la prueba de que hay IP (`motor.rutaIp`). (2) Solo un
+`voz.c hola` arranca la voz por datos del otro lado; un `fin` con motivo `carril:…` la para también aquí; nunca la
+rearranca un `fin` ni audio en vuelo. (3) La voz que funciona no se reinicia porque aparezca otro camino.
+
+**El modelo: cada flujo tiene su carril.** Flujos: `senal`, `voz`, `video`, `pantalla`, `datos`. Carriles: `webrtc`,
+`awdl`, `wifi-aware`, `wifi-direct`, `lan-tcp`, `ble-l2cap`, `ble-gatt` (el enlace de datos se nombra por su tipo y su
+capacidad: Bluetooth por debajo de 60 kb/s es `ble-gatt`). `SelectorCarriles` (puro, uno por par) recibe en cada tic
+(500 ms) una muestra por carril (arriba, rtt, pérdida, kb/s) y aplica:
+
+| Flujo | Primera elección | Se mueve cuando | Evidencia | Enfriamiento | Sube a uno mejor |
+|---|---|---|---|---|---|
+| voz | la arranca `decidirAccionMedio` (WebRTC, o datos sin IP / ICE sin conectar a 6 s) | su carril cae (media evidencia) o se degrada (pérdida ≥ 15 %, rtt ≥ 1.2 s, o 4 s sin recibir) | 6 s | 30 s | **no** |
+| vídeo / pantalla | WebRTC si está; si no, vídeo ligero por datos | cae o se degrada | 3 s | 10 s | sí, tras 3 s sano |
+| señal | el canal por donde llega (directo o servidor) | — (lo lleva el transporte universal) | — | — | — |
+
+Con Bluetooth y Wi-Fi arriba, la voz se queda en Bluetooth y el vídeo va por WebRTC (el ejemplo de Alex); solo con
+Bluetooth, los dos por él, la voz primero (cola propia). Cada flujo cae y vuelve por su cuenta. Mientras la voz de un par
+va por datos, el emisor de audio de WebRTC de ese par lleva `null` (no hay voz doble).
+
+**Desempate.** Director = el par descortés de la negociación (id menor), el mismo en los dos extremos
+(`soyDirector`). Si el director tiene la voz por WebRTC sana, ignora el `hola` del otro; el otro, sin recibir nada por
+datos 4 s, la degrada y vuelve a WebRTC (una vez). Quien mueve la voz a WebRTC manda `fin carril:webrtc` y el otro le
+sigue sin esperar evidencia propia (cuenta como cambio: enfriamiento).
+
+**Forzar un carril.** `motor.forzarCarril("video", "webrtc")`; `forzarCarril(flujo, null)` vuelve a automático. Si el
+carril forzado no está arriba, manda la elección automática. Interfaz para la ventana: `estado().carriles` (y
+`motor.carriles()`): por par `{ parId, voz, video, pantalla, senal, datos, forzados, texto, director }`; `texto` ya
+dice «Voz: Bluetooth · Vídeo: WebRTC». LLA1110C aún no lo pinta.
+
+**Negociación sin choques.** «Perfect negotiation» con papeles fijos: cortés = id mayor (`soyCortes`). Toda oferta sale
+por `motor.ofertar`: **sin ruta IP no se oferta** (por Bluetooth ICE no conecta nunca y las ofertas solo ocupaban el
+enlace); queda `ofertaPendiente` y sale al aparecer la ruta IP. Una oferta cruzada: el descortés la ignora, el cortés
+cede (rollback implícito) y responde. Cámara: `alternarCamara` es una operación a la vez (dos toques no se pisan).
+
+**Llamar sin internet (`inicio-sin-servidor.ts`).** La tableta sin Wi-Fi nunca llamaba: `planLlamada` solo conocía el
+enlace WebRTC local o el servidor, y `empezarLlamadaSinChat` creaba la sesión en Supabase antes de nada. Ahora, si hay
+un enlace directo con la neurona (`hayEnlaceDirectoCon`), la llamada va por él: id de sesión local (uuid), sin tema de
+Supabase (solo el canal por el transporte universal), ICE sin servidores, identidad de la última conocida en el aparato,
+y el timbre es el mismo mensaje urgente de siempre (`via: "sistema-llamadas"`, el otro lado suena igual). Lo del servidor
+queda en `starseed.llamadas.pendientes-servidor.v1` y se escribe al volver la red.
+
+**Registro.** Como mucho 4 líneas por minuto y flujo; 12 de negociación por par.
+- `llamada carril par=… flujo=video de=ble-l2cap a=webrtc motivo=webrtc-mejor-sostenido muestras=[webrtc:ok rtt=20 · ble-l2cap:ok rtt=80 kbps=165]`
+- `llamada carril par=… flujo=voz hola-ignorado motivo=director-en-webrtc` · `llamada carril flujo=video forzado=webrtc`
+- `llamada negociacion par=… rol=descortes oferta-en-espera motivo=negociacion-necesaria sin-ruta-ip`
+- `llamada negociacion par=… rol=cortes colision cede-y-responde` · `… estado=have-local-offer`
+- `llamada inicio paso=sesion-servidor fallo error=…` · `llamada inicio paso=via ok via=local motivo=sin internet: va por el enlace directo` · `llamada inicio paso=timbre ok por-el-enlace-directo`
+- `llamada camara encender-fallo pedida=elegida error=…` · `llamada camara encendida estado=live pares=1`
+
+**Banco real.** `pruebas-reales/llamadas-medio/` (ver su LEEME): dos motores reales en Chromium con RTCPeerConnection,
+cámara y micro falsos, señalización en bucle y un enlace de datos simulado.
+
+**Sin verificar en aparatos:** la detección de la red nativa como ruta IP en la tableta, el `hola`/`fin` cruzados por el
+Bluetooth real, la llamada sin servidor de la tableta a la Mac (timbre por la malla sin internet) y el vídeo WebRTC por la
+LAN entre la Mac y la tableta.
 
 ### 9. Transporte de la voz (`voz-datos/*`)
 

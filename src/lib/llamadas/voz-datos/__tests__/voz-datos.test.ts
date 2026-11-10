@@ -228,9 +228,11 @@ describe("decisión de medio", () => {
     expect(decidirAccionMedio({ ...base, hayRutaIp: true, transcurridoMs: ESPERA_ICE_MS - 1 })).toBe("esperar");
     expect(decidirAccionMedio({ ...base, hayRutaIp: true, transcurridoMs: ESPERA_ICE_MS })).toBe("usar-datos");
   });
-  it("si ICE falla pasa al instante; si luego conecta WebRTC, vuelve a él", () => {
+  it("si ICE falla pasa al instante; si luego conecta WebRTC, la voz que funciona SE QUEDA (LLA1110D) salvo degradada", () => {
     expect(decidirAccionMedio({ ...base, webrtc: "fallida", hayRutaIp: true })).toBe("usar-datos");
-    expect(decidirAccionMedio({ ...base, webrtc: "conectado", datos: "activo", hayRutaIp: true })).toBe("volver-webrtc");
+    // LLA1110D: antes «volver-webrtc» aquí; era una mitad del salto de dos veces por segundo de la prueba 33.
+    expect(decidirAccionMedio({ ...base, webrtc: "conectado", datos: "activo", hayRutaIp: true })).toBe("mantener");
+    expect(decidirAccionMedio({ ...base, webrtc: "conectado", datos: "activo", hayRutaIp: true, datosSana: false })).toBe("volver-webrtc");
     expect(decidirAccionMedio({ ...base, webrtc: "conectado", datos: "sin-enlace" })).toBe("mantener");
     expect(decidirAccionMedio({ ...base, webrtc: "conectando", datos: "activo", transcurridoMs: 60_000 })).toBe("mantener");
   });

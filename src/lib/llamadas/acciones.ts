@@ -50,6 +50,9 @@ import {
     type TimbreEntrante,
 } from "@/lib/llamadas/store";
 import { MAX_PARTICIPANTES, type AdjuntoLlamadaRegistro } from "@/lib/llamadas/tipos";
+// (LLA1110D) Llamar desde una neurona sin internet: id local, identidad conocida y registro del servidor más tarde.
+import { anotarLlamada } from "@/lib/llamadas/voz-datos/diagnostico";
+import { anadirPendiente, decidirInicio, guardarIdentidadLocal, idSesionLocal, intentarServidor, leerIdentidadLocal, leerPendientes, quitarPendiente } from "@/lib/llamadas/inicio-sin-servidor";
 
 const PAUSA_RESUMEN_MS = 2400;
 
@@ -78,7 +81,13 @@ async function extrasDeNeurona(neurona: string | null | undefined): Promise<Extr
             // El motor Wi-Fi solo existe de verdad en la app nativa; si no carga, la llamada simplemente no escala.
             import("@/lib/malla/enlace-wifi-motor").catch(() => null),
         ]);
-        const [deps, codecs] = await Promise.all([ct.depsCanalTransporteReales(), aw.crearFabricaCodecsWeb()]);
+        const [deps, codecs] = await Promise.all([ct.depsCanalTransporteReales(), aw.crearFabricaCodecsWeb(), vt.precargarTransporteVoz()]);
+        // (LLA1110D) Calienta la consulta de la red local nativa: en el primer tic de la llamada ya se sabe si hay ruta IP.
+        try {
+            vt.hayRutaIpHacia(neurona);
+        } catch {
+            /* noop */
+        }
         // (LLA1108H) Una clave por llamada: la propuesta del Wi-Fi directo no se repite dentro de ella, pero la llamada siguiente sí la hace.
         const claveLlamada = `llamada:${neurona}:${Date.now().toString(36)}`;
         let fabricaVideo: ReturnType<typeof cv.crearFabricaVideoWeb> | null = null;
@@ -129,6 +138,36 @@ function unirCanales(
     const yaLocal = !!extra && enlaces.some((e) => e.par.neuronDeviceId === extra.neurona);
     if (!extra || yaLocal) return locales;
     return () => [...(locales ? locales() : []), extra.abrirCanal(sesionId, clave)];
+}
+
+/**
+ * (LLA1110D) Lo que es del servidor de una llamada hecha sin él: al volver la conexión se deja constancia (una sesión
+ * creada y terminada con el mismo tipo y título, para el historial). Idempotente; nunca lanza.
+ */
+let escuchandoVuelta = false;
+function escribirPendientesAlVolver(): void {
+    if (escuchandoVuelta || typeof window === "undefined") return;
+    escuchandoVuelta = true;
+    const escribir = async () => {
+        if (!enLinea()) return;
+        for (const p of leerPendientes()) {
+            try {
+                const { sesion } = await crearSesion({ tipo: p.tipo, titulo: p.titulo, invitados: p.invitados, ...(p.invitados.length ? { acceso: { modo: "invitados" as const, permiso: "editar" as const } } : {}) });
+                if (!sesion) continue;
+                void terminarSesion(sesion.id).catch(() => null);
+                quitarPendiente(p.sesionId);
+                anotarLlamada("inicio", p.neurona, `paso=registro-servidor ok local=${p.sesionId.slice(0, 8)} servidor=${sesion.id.slice(0, 8)}`);
+            } catch {
+                /* se reintenta en la próxima vuelta de la red */
+            }
+        }
+    };
+    try {
+        window.addEventListener("online", () => void escribir());
+    } catch {
+        /* sin eventos */
+    }
+    void escribir();
 }
 
 /** Para «Reintentar» tras una llamada sin audio (solo quien llamó). */
@@ -389,6 +428,8 @@ export async function empezarLlamadaSinChat(o: {
     avisar: (sesionId: string) => Promise<boolean>;
     /** (LLA1108E) Neurona a la que se llama: con ella, la señalización y la voz pueden ir por Bluetooth u otro enlace sin IP. */
     neurona?: string | null;
+    /** (LLA1110D) No hay internet (o el plan ya lo sabe): la llamada va por el enlace directo con un id local, sin el servidor. */
+    sinServidor?: boolean;
 }): Promise<{ ok: boolean; sesionId?: string; motivo?: string; ajustes?: AjustesMedios | null }> {
     ultimaSinChat = { ...o, pistaPantalla: null };
     const soltarPantalla = () => {
@@ -407,13 +448,22 @@ export async function empezarLlamadaSinChat(o: {
         const s = await motivoSinLlamadas(o.tipo === "video");
         return { ok: false, motivo: s.motivo, ajustes: s.ajustes };
     }
-    const yo = await miIdentidad();
+    // (LLA1110D) Cada paso del arranque queda en el registro del enlace, con el que falló.
+    const neuronaInicio = o.neurona ?? null;
+    const paso = (nombre: string, ok: boolean, detalle = "") => anotarLlamada("inicio", neuronaInicio, `paso=${nombre} ${ok ? "ok" : "fallo"}${detalle ? ` ${detalle}` : ""}`);
+    const conServidorPosible = intentarServidor({ internet: enLinea(), sinServidor: o.sinServidor });
+    let yo = await miIdentidad().catch(() => null);
+    if (yo) guardarIdentidadLocal(yo);
+    else if (o.neurona) yo = leerIdentidadLocal();
+    paso("identidad", !!yo, yo ? (yo.uid ? "conocida" : "invitado") : "sin-sesion-ni-identidad-guardada");
     if (!yo) {
         soltarPantalla();
         return { ok: false, motivo: "Inicia sesión para llamar." };
     }
     const conVideo = o.tipo === "video" && !o.pistaPantalla;
-    const [medios, ice] = await Promise.all([obtenerMedios({ audio: true, video: conVideo }), obtenerIceServidores()]);
+    const sinIce = { iceServers: [] as RTCIceServer[], turn: false, fuente: "stun" as FuenteIce };
+    const [medios, ice] = await Promise.all([obtenerMedios({ audio: true, video: conVideo }), conServidorPosible ? obtenerIceServidores() : Promise.resolve(sinIce)]);
+    paso("medios", !!medios.stream, medios.stream ? `video=${conVideo ? "si" : "no"}` : `error=${medios.error ?? "?"}`);
     if (!medios.stream) {
         soltarPantalla();
         return { ok: false, motivo: medios.error ?? "No se pudo usar el micrófono.", ajustes: medios.ajustes ?? null };
@@ -426,34 +476,65 @@ export async function empezarLlamadaSinChat(o: {
         }
     }
     const invitados = Array.from(new Set(o.invitados.filter(Boolean)));
-    const { sesion, error } = await crearSesion({
-        tipo: `llamada:${o.tipo}`,
-        titulo: o.titulo || TEXTO_TIPO[o.tipo].nombre,
-        invitados,
-        ...(invitados.length ? { acceso: { modo: "invitados" as const, permiso: "editar" as const } } : {}),
-    });
-    if (!sesion) {
-        pararStream(medios.stream);
-        return { ok: false, motivo: mensajeCrear(error) };
+    let sesionServidor: { id: string } | null = null;
+    let errorSesion: string | null = null;
+    if (conServidorPosible) {
+        const r = await crearSesion({
+            tipo: `llamada:${o.tipo}`,
+            titulo: o.titulo || TEXTO_TIPO[o.tipo].nombre,
+            invitados,
+            ...(invitados.length ? { acceso: { modo: "invitados" as const, permiso: "editar" as const } } : {}),
+        }).catch(() => ({ sesion: null, error: "sin-respuesta" }));
+        sesionServidor = r.sesion;
+        errorSesion = r.error ?? null;
+        paso("sesion-servidor", !!sesionServidor, sesionServidor ? "" : `error=${errorSesion ?? "?"}`);
     }
-    const sesionId = sesion.id;
+    // (LLA1110D) Sin servidor: si hay un enlace directo con la neurona, la llamada va por él con un id local.
+    let enlaceDirecto = false;
+    if (!sesionServidor && o.neurona) {
+        try {
+            const vt = await import("@/lib/llamadas/voz-datos/transporte");
+            enlaceDirecto = await vt.hayEnlaceDirectoCon(o.neurona);
+        } catch {
+            enlaceDirecto = false;
+        }
+    }
+    const inicio = decidirInicio({ internet: conServidorPosible, sesionServidor: sesionServidor ? "ok" : conServidorPosible ? "fallo" : "no-intentado", enlaceDirecto, neurona: !!o.neurona });
+    paso("via", inicio.via !== "imposible", `via=${inicio.via} motivo=${inicio.motivo}`);
+    if (inicio.via === "imposible") {
+        pararStream(medios.stream);
+        return { ok: false, motivo: conServidorPosible ? mensajeCrear(errorSesion) : `No hay internet ni enlace directo con esa neurona. ${inicio.motivo}.` };
+    }
+    const sinServidor = inicio.via === "local";
+    const sesionId = sesionServidor?.id ?? idSesionLocal();
+    if (sinServidor) {
+        anadirPendiente({ sesionId, tipo: `llamada:${o.tipo}`, titulo: o.titulo || TEXTO_TIPO[o.tipo].nombre, neurona: o.neurona ?? null, invitados, en: Date.now() });
+        escribirPendientesAlVolver();
+    }
     // Sesión recién creada en el servidor: hay red hacia él. Enlaces directos solo con aparatos
-    // de tu cuenta o de quien invitas (nunca con los de otras personas).
-    const hayRedSupabase = true;
+    // de tu cuenta o de quien invitas (nunca con los de otras personas). (LLA1110D) Sin servidor, solo directos.
+    const hayRedSupabase = !sinServidor;
     const vivos = enlacesLocalesVivos();
     const { utiles } = enlacesDelChat(enlacesParaDecidir(vivos), invitados, yo.uid ?? null);
     const permitidos = new Set(utiles.map((u) => u.id));
-    const decision = canalesParaLlamada({ hayRedSupabase, enlaces: vivos.filter((e) => permitidos.has(e.id)), tema: temaLlamada(sesionId) });
+    const decision = canalesParaLlamada({ hayRedSupabase, enlaces: vivos.filter((e) => permitidos.has(e.id)), tema: sinServidor ? null : temaLlamada(sesionId) });
     const tipoCanal = tipoCanalDirecto(decision, hayRedSupabase);
     const extra = await extrasDeNeurona(o.neurona);
+    paso("enlace-neurona", !!extra, extra ? "senal-y-voz-por-enlace-directo" : "sin-modulos-de-enlace");
+    if (sinServidor && !extra) {
+        pararStream(medios.stream);
+        quitarPendiente(sesionId);
+        return { ok: false, motivo: "No se pudo abrir el enlace directo con esa neurona para llamar sin internet." };
+    }
     const motor = new MotorLlamada({
         sesionId,
         yo,
         colgarAlQuedarSolo: true,
-        iceServers: tipoCanal === "directo" ? [] : ice.iceServers,
-        hayTurn: ice.turn && tipoCanal !== "directo",
-        tema: temaLlamada(sesionId),
-        resolverTema: () => resolverTemaSesion("llamada", sesionId, { fresco: true }),
+        iceServers: tipoCanal === "directo" || sinServidor ? [] : ice.iceServers,
+        hayTurn: ice.turn && tipoCanal !== "directo" && !sinServidor,
+        // (LLA1110D) Sin servidor no hay canal privado de Supabase: solo el canal por el enlace directo.
+        tema: sinServidor ? null : temaLlamada(sesionId),
+        resolverTema: sinServidor ? undefined : () => resolverTemaSesion("llamada", sesionId, { fresco: true }),
         canalesDirectos: unirCanales(
             decision.enlaces.length > 0 ? () => decision.enlaces.map((e) => abrirCanalLlamadaPorEnlace(e, sesionId, clavePestana(yo.base))) : undefined,
             extra,
@@ -471,9 +552,11 @@ export async function empezarLlamadaSinChat(o: {
     } catch {
         avisado = false;
     }
+    paso("timbre", avisado, sinServidor ? "por-el-enlace-directo" : "");
     if (!avisado) {
         pararStream(medios.stream);
-        void terminarSesion(sesionId).catch(() => null);
+        if (sinServidor) quitarPendiente(sesionId);
+        else void terminarSesion(sesionId).catch(() => null);
         return { ok: false, motivo: "La neurona no recibió el aviso de la llamada (sin medio disponible ahora)." };
     }
     activar({

@@ -198,16 +198,29 @@ export async function llamarANeurona(o: {
             internet: red.internet,
             sesion: !!red.uid,
         });
-        if (!plan.via) {
+        // (LLA1110D) Sin internet y sin enlace WebRTC local, pero con un enlace directo de datos con esa neurona (Bluetooth…):
+        // la llamada va por él, sin servidor (id local; la voz por el enlace de datos y WebRTC cuando aparezca una ruta IP).
+        // Antes aquí acababa: la tableta con el Wi-Fi apagado nunca llegaba a llamar (prueba 33).
+        let sinServidor = false;
+        if (!plan.via && neurona && permiteLocal) {
+            try {
+                const vt = await import("@/lib/llamadas/voz-datos/transporte");
+                sinServidor = await vt.hayEnlaceDirectoCon(neurona);
+            } catch {
+                sinServidor = false;
+            }
+        }
+        if (!plan.via && !sinServidor) {
             soltar(pista);
             // (INT1108C) Por Bluetooth no caben llamadas: si la neurona está al lado, se abre o se propone
             // el enlace Wi-Fi directo (según el ajuste) y la siguiente llamada ya va por él.
             avisarEnvioPesado({ destino: conv.destino, clase: tipo === "pantalla" ? "pantalla" : "llamada" });
             return { ok: false, motivo: plan.aviso, plan };
         }
-        const llamada: LlamadaNeurona = { tipo: tipo === "audio" ? "audio" : "video", via: plan.via, ...(tipo === "pantalla" ? { pantalla: true } : {}) };
+        const planEfectivo: PlanLlamada = plan.via ? plan : { via: "sistema-llamadas", motivo: "llamada por el enlace directo con la neurona (sin internet ni servidor)", descartados: plan.descartados };
+        const llamada: LlamadaNeurona = { tipo: tipo === "audio" ? "audio" : "video", via: planEfectivo.via!, ...(tipo === "pantalla" ? { pantalla: true } : {}) };
 
-        if (plan.via === "enlace-local" && plan.enlaceId) {
+        if (planEfectivo.via === "enlace-local" && plan.enlaceId) {
             const ld = await import("@/lib/malla/llamada-directa");
             const r = await ld.llamarPorEnlace(plan.enlaceId, tipo === "video", { pistaPantalla: pista });
             if (!r.ok) return { ok: false, motivo: r.motivo, plan, ajustes: r.ajustes ?? null };
@@ -234,6 +247,8 @@ export async function llamarANeurona(o: {
             invitados: conv.propia || !conv.destino.uid ? [] : [conv.destino.uid],
             pistaPantalla: pista,
             neurona: conv.destino.neuronDeviceId ?? null,
+            // (LLA1110D) Sin internet: id local y solo el enlace directo.
+            sinServidor: sinServidor || !red.internet,
             avisar: async (sesion) => {
                 aviso = await enviarANeurona({ clave: conv.clave, destino: conv.destino, texto: "", llamada: { ...llamada, sesion }, urgente: true });
                 return aviso.estado === "enviado" || aviso.estado === "confirmado";
@@ -248,7 +263,7 @@ export async function llamarANeurona(o: {
             cambiarMensajeMalla(m.clave, m.id, { registroLlamada: { fase: "sonando" } });
             void vigilarSistema(m.clave, m.id, r.sesionId);
         }
-        return { ok: true, plan };
+        return { ok: true, plan: planEfectivo };
     } catch {
         soltar(pista);
         return { ok: false, motivo: "No se pudo empezar la llamada." };
