@@ -48,6 +48,30 @@ export async function leerSubredesLocales(post: PostLocal): Promise<string[]> {
   }
 }
 
+/** PTA1110A · Puertos de IA (de la lista fija de Node) que escuchan ahora en el bucle local de esta máquina. */
+export async function leerIaLocal(post: PostLocal): Promise<number[]> {
+  try {
+    const r = await post("estado", "{}");
+    if (!r.ok) return [];
+    const j = (await r.json()) as { ia?: unknown };
+    return Array.isArray(j.ia) ? j.ia.filter((x): x is number => Number.isInteger(x) && x > 0 && x < 65536).slice(0, 4) : [];
+  } catch {
+    return [];
+  }
+}
+
+/** PTA1110A · ¿Hay salida PROPIA? La mide Node con un TCP directo. `null` = Node no contestó. */
+export async function sondaPropiaNode(post: PostLocal, host: string, port: number): Promise<{ ok: boolean; ms: number | null } | null> {
+  try {
+    const r = await post("sonda", JSON.stringify({ host, port }), { "content-type": "application/json" });
+    if (!r.ok) return null;
+    const j = (await r.json()) as { ok?: boolean; ms?: number | null };
+    return { ok: j.ok === true, ms: typeof j.ms === "number" ? j.ms : null };
+  } catch {
+    return null;
+  }
+}
+
 export async function activarModoLocal(post: PostLocal, activo: boolean, proxy = true): Promise<{ activo: boolean; proxy: number | null } | null> {
   try {
     const r = await post("modo", JSON.stringify({ activo, proxy }), { "content-type": "application/json" });

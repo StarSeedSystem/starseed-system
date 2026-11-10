@@ -16,8 +16,9 @@ import { cn } from "@/lib/utils";
 import type { ModoOtrasCuentas } from "@/lib/malla/puerta/politica";
 import { cambiarAjustesPuerta, estadoPuerta, pararDeCompartir, permitirCapasANeurona, responderPregunta, revocarVecina, suscribirPuerta } from "@/lib/malla/puerta/servicio";
 import type { CapaPuerta, TipoCapa } from "@/lib/malla/puerta/capas"; // PTA1108C
+import { AjusteUsoMalla } from "@/components/settings/neurons/ajuste-puerta-uso"; // PTA1110A
 
-const NOMBRE_CAPA: Record<TipoCapa, string> = { "servidor-propio": "Servidor propio", lan: "Red local", "router-publico": "Router" };
+const NOMBRE_CAPA: Record<TipoCapa, string> = { "servidor-propio": "Servidor propio", lan: "Red local", "router-publico": "Router", "ia-neurona": "IA de esta neurona" };
 
 /** PTA1108C · «Servidor propio · api.casa.lan:8443 · 12 ms». */
 export function resumenCapa(c: CapaPuerta): string {
@@ -92,13 +93,8 @@ export function AjustePuertaInternet() {
           ))}
         </fieldset>
 
-        <label className="flex cursor-pointer items-start gap-2 rounded-lg border border-white/10 px-3 py-2">
-          <input type="checkbox" checked={a.usarPuertas} onChange={(e) => cambiarAjustesPuerta((x) => ({ ...x, usarPuertas: e.target.checked }))} className="mt-1 accent-[#39FF14]" />
-          <span>
-            <span className="font-medium">Usar la puerta de otra neurona cuando me falte internet</span>
-            <span className="block text-xs text-muted-foreground">Elige sola la mejor y cambia a otra si se cae.</span>
-          </span>
-        </label>
+        {/* PTA1110A · Usar el internet de mis neuronas: modo, usos, carriles, puertos y topes (sustituye al interruptor único). */}
+        <AjusteUsoMalla a={a} />
 
         {/* PTA1108C · Capas distintas de internet: servidores propios, red local y routers. */}
         <fieldset className="space-y-2" aria-label="Otras capas de red que comparte esta neurona" data-testid="capas-puerta">

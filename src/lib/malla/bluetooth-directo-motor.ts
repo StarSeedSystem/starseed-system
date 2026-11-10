@@ -292,6 +292,10 @@ interface Cola {
   bytesVoz: number;
   /** (LLA1108E) Reparto entre voz y archivos: si le tocó a la voz, la próxima vez le toca a los archivos. */
   turnoVoz: boolean;
+  /** PTA1110A · Reparto con llamada activa: bytes de datos y de lo demás enviados (ventana deslizante) y hasta cuándo hay llamada. */
+  envDatos: number;
+  envOtros: number;
+  llamadaHasta: number;
   bombeando: boolean;
   cubeta: Cubeta | null;
   claveLimites: string;
@@ -299,6 +303,27 @@ interface Cola {
 }
 
 const nada = () => undefined;
+
+/**
+ * PTA1110A · Mientras hay una llamada (voz o vídeo en cola en los últimos `VENTANA_LLAMADA_BLE_MS`) la cola de datos
+ * (túneles de la puerta, archivos) tiene garantizado ESTE mínimo de lo que el enlace envía. El orden sigue siendo
+ * control > voz > vídeo > datos; solo se reserva un hueco para que el vídeo no deje a los datos sin salida.
+ */
+export const FRACCION_DATOS_LLAMADA_BLE = 0.18;
+export const VENTANA_LLAMADA_BLE_MS = 3_000;
+/** Tamaño máximo de un grupo de datos mientras hay llamada: una trama de datos grande retrasaría la voz. */
+export const MAX_GRUPO_DATOS_LLAMADA_BLE = 1;
+
+/** ¿Le toca a la cola de datos? (hay llamada, hay datos y su parte de lo enviado está por debajo del mínimo). Puro. */
+export function datosTienenTurnoEnLlamada(envDatos: number, envOtros: number, fraccion: number = FRACCION_DATOS_LLAMADA_BLE): boolean {
+  const total = envDatos + envOtros;
+  return total <= 0 || envDatos < fraccion * total;
+}
+
+/** PTA1110A · Un trozo de túnel de la puerta (`tu.msg` del canal «puerta» con trama `dat`) es DATOS: nunca va con el control. */
+export function esTextoDatosPuerta(t: string): boolean {
+  return t.startsWith('{"t":"tu.msg"') && t.includes('"c":"puerta"') && (t.includes('"k":"dat"') || t.includes('"k":"datb"'));
+}
 
 export function crearRedBle(deps: DepsBle): RedBle {
   let estado: EstadoBleNativo | null = null;
@@ -349,7 +374,7 @@ export function crearRedBle(deps: DepsBle): RedBle {
   const cola = (enlace: string): Cola => {
     let c = colas.get(enlace);
     if (!c) {
-      c = { control: [], datos: [], voz: [], vid: [], bytesVid: 0, bytesDatos: 0, bytesVoz: 0, turnoVoz: true, bombeando: false, cubeta: null, claveLimites: "", fallos: 0 };
+      c = { control: [], datos: [], voz: [], vid: [], bytesVid: 0, bytesDatos: 0, bytesVoz: 0, turnoVoz: true, envDatos: 0, envOtros: 0, llamadaHasta: 0, bombeando: false, cubeta: null, claveLimites: "", fallos: 0 };
       colas.set(enlace, c);
     }
     return c;
@@ -459,7 +484,9 @@ export function crearRedBle(deps: DepsBle): RedBle {
         }
         // Primero lo de control (chat, acuerdos). Entre voz y archivos, por turnos: ninguno deja sin salida al otro.
         let fuente: Item[];
+        const enLlamada = c.llamadaHasta > deps.ahora(); // PTA1110A
         if (c.control.length) fuente = c.control;
+        else if (enLlamada && c.datos.length && (c.voz.length || c.vid.length) && datosTienenTurnoEnLlamada(c.envDatos, c.envOtros)) fuente = c.datos; // PTA1110A: mínimo garantizado
         else if (c.voz.length && c.datos.length) {
           fuente = c.turnoVoz ? c.voz : c.datos;
           c.turnoVoz = !c.turnoVoz;
@@ -478,6 +505,7 @@ export function crearRedBle(deps: DepsBle): RedBle {
         const claroPrimero = esTextoSiempreEnClaro(fuente[0].texto);
         let largoGrupo = 1;
         while (largoGrupo < fuente.length && esTextoSiempreEnClaro(fuente[largoGrupo].texto) === claroPrimero) largoGrupo++;
+        if (enLlamada && fuente === c.datos) largoGrupo = Math.min(largoGrupo, MAX_GRUPO_DATOS_LLAMADA_BLE); // PTA1110A
         const modo: ModoEnlace = lig && !claroPrimero ? modoDe(lig) : "claro";
         if (modo === "bloqueado" && lig) {
           const motivo = `«Exigir cifrado en la red local» está activo y ${lig.nombre} no cifra (app anterior).`;
@@ -534,6 +562,14 @@ export function crearRedBle(deps: DepsBle): RedBle {
         if (r.ok) {
           const hechos = fuente.splice(0, n);
           cuentaBytes(hechos);
+          // PTA1110A: lo enviado, para el reparto con llamada (se va olvidando: la ventana es la historia reciente).
+          const enviados = hechos.reduce((a, i) => a + i.texto.length, 0);
+          if (fuente === c.datos) c.envDatos += enviados;
+          else c.envOtros += enviados;
+          if (c.envDatos + c.envOtros > 128 * 1024) {
+            c.envDatos = Math.round(c.envDatos / 2);
+            c.envOtros = Math.round(c.envOtros / 2);
+          }
           c.fallos = 0;
           rachaCaidas[enlace] = 0;
           for (const i of hechos) i.fin({ ok: true, ms: r.ms });
@@ -564,6 +600,7 @@ export function crearRedBle(deps: DepsBle): RedBle {
     if (!abierto(enlace) || caido(enlace)) return "cerrado";
     const c = cola(enlace);
     let tiro = false;
+    c.llamadaHasta = deps.ahora() + VENTANA_LLAMADA_BLE_MS; // PTA1110A
     c.voz.push({ texto, fin: nada });
     c.bytesVoz += texto.length;
     while (c.bytesVoz > MAX_COLA_VOZ_BLE && c.voz.length > 1) {
@@ -581,6 +618,7 @@ export function crearRedBle(deps: DepsBle): RedBle {
     if (!abierto(enlace) || caido(enlace)) return "cerrado";
     const c = cola(enlace);
     let tiro = false;
+    c.llamadaHasta = deps.ahora() + VENTANA_LLAMADA_BLE_MS; // PTA1110A
     c.vid.push({ texto, fin: nada });
     c.bytesVid += texto.length;
     while (c.bytesVid > MAX_COLA_VIDEO_BLE && c.vid.length > 1) {
@@ -605,7 +643,7 @@ export function crearRedBle(deps: DepsBle): RedBle {
       } else if (esTextoVoz(texto)) {
         c.voz.push(item);
         c.bytesVoz += texto.length;
-      } else if (claseDeTexto(texto) === "datos" || texto.startsWith(`{"t":"${T_ESPEJO_REGISTRO_BLE}"`)) {
+      } else if (claseDeTexto(texto) === "datos" || esTextoDatosPuerta(texto) /* PTA1110A */ || texto.startsWith(`{"t":"${T_ESPEJO_REGISTRO_BLE}"`)) {
         // BLE1109B: el espejo del registro va con los datos: nunca por delante del saludo ni de los acuses (control).
         c.datos.push(item);
         c.bytesDatos += texto.length;

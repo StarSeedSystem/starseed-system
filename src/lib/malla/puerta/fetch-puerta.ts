@@ -47,7 +47,8 @@ function urlHttps(input: RequestInfo | URL): string | null {
   try {
     const u = typeof input === "string" ? input : input instanceof URL ? input.href : (input as Request).url;
     const p = new URL(u, typeof location !== "undefined" ? location.href : undefined);
-    return p.protocol === "https:" ? p.href : null;
+    // PTA1110A: también la IA de otra neurona (`http://ia.neurona.local:<puerto>`), que solo existe por la malla.
+    return p.protocol === "https:" || (p.protocol === "http:" && p.hostname.toLowerCase() === "ia.neurona.local") ? p.href : null;
   } catch {
     return null;
   }

@@ -13,6 +13,21 @@ import type { TipoCapa } from "@/lib/malla/puerta/capas";
 
 export type ModoOtrasCuentas = "nunca" | "preguntar" | "automatico";
 
+/* ───────── PTA1110A · «Usar el internet de mis neuronas» ───────── */
+export type ModoUso = "automatico" | "preguntar" | "nunca";
+export type PoliticaOtrosPuertos = "preguntar" | "nunca" | "siempre";
+/** Qué hacer con una descarga grande por un carril lento: se pregunta una vez y se recuerda. */
+export type EleccionGrande = "preguntar" | "continuar" | "esperar" | "solo-wifi";
+export type TipoUso = "navegacion" | "datos" | "descargas" | "actualizaciones" | "ia" | "capas";
+export const TIPOS_USO: readonly TipoUso[] = ["navegacion", "datos", "descargas", "actualizaciones", "ia", "capas"];
+export type UsosPuerta = Record<TipoUso, boolean>;
+export type Carril = "bluetooth" | "wifiP2p" | "redLocal";
+export type CarrilesPuerta = Record<Carril, boolean>;
+/** Puertos de la web corriente: http, https y los alternativos más comunes. */
+export const PUERTOS_WEB_POR_DEFECTO: readonly number[] = [80, 443, 8080, 8443];
+/** Nunca por una puerta, diga lo que diga la política (correo saliente, SMB/NetBIOS, RDP, telnet). */
+export const PUERTOS_NUNCA: ReadonlySet<number> = new Set([23, 25, 135, 137, 138, 139, 445, 465, 587, 3389]);
+
 export interface TopesCompartir {
   /** Bytes que se sirven al día a todos los solicitantes de este grupo. */
   bytesDia: number;
@@ -34,8 +49,22 @@ export interface AjustesPuerta {
   usarPuertas: boolean;
   topesMias: TopesCompartir;
   topesOtras: TopesCompartir;
-  /** Puertos de salida permitidos (por defecto solo 443). */
+  /** Puertos de salida EXTRA permitidos (además de `puertosWeb`). */
   puertos: number[];
+  /** PTA1110A · «Usar el internet de mis neuronas»: Automático / Preguntar / Nunca (`usarPuertas` = distinto de «nunca»). */
+  modoUso: ModoUso;
+  /** PTA1110A · Qué puede salir por la malla cuando no hay internet propio. */
+  usos: UsosPuerta;
+  /** PTA1110A · Por qué carriles puede ir (Bluetooth, Wi‑Fi directo, red local). */
+  carriles: CarrilesPuerta;
+  /** PTA1110A · Puertos de la web (http/https y alternativos) abiertos a destinos PÚBLICOS. */
+  puertosWeb: number[];
+  /** PTA1110A · Cualquier otro puerto público: Preguntar (por defecto) / Nunca / Siempre. */
+  otrosPuertos: PoliticaOtrosPuertos;
+  /** PTA1110A · Respuesta recordada a «descarga grande por un carril lento». */
+  grandeLento: EleccionGrande;
+  /** PTA1110A · Capa «IA de esta neurona»: servidores de IA locales de ESTA neurona para las de la misma cuenta. */
+  compartirIaNeurona: boolean;
   /** OBSOLETO desde PTA1108C: ya no abre nada por sí solo. Lo privado solo se alcanza por capas concedidas (`capas.ts`). */
   permitirRedPrivada: boolean;
   /** PTA1108C · «Compartir mis servidores propios con mis neuronas». ENCENDIDO por defecto. */
@@ -62,6 +91,13 @@ export const AJUSTES_PUERTA_POR_DEFECTO: AjustesPuerta = {
   topesMias: { bytesDia: 2048 * MIB, bateriaMin: 0.2, permitirRedMedida: false, maxTuneles: 16 },
   topesOtras: { bytesDia: 100 * MIB, bateriaMin: 0.4, permitirRedMedida: false, maxTuneles: 4 },
   puertos: [443],
+  modoUso: "automatico",
+  usos: { navegacion: true, datos: true, descargas: true, actualizaciones: true, ia: true, capas: true },
+  carriles: { bluetooth: true, wifiP2p: true, redLocal: true },
+  puertosWeb: [...PUERTOS_WEB_POR_DEFECTO],
+  otrosPuertos: "preguntar",
+  grandeLento: "preguntar",
+  compartirIaNeurona: true,
   permitirRedPrivada: false,
   compartirServidoresPropios: true,
   compartirRedLocal: false,
@@ -92,7 +128,7 @@ function topes(x: unknown, def: TopesCompartir): TopesCompartir {
 const textos = (x: unknown, max: number): string[] =>
   Array.isArray(x) ? x.filter((s): s is string => typeof s === "string" && s.length > 0 && s.length <= 255).slice(0, max) : [];
 
-const TIPOS_VALIDOS: readonly TipoCapa[] = ["servidor-propio", "lan", "router-publico"];
+const TIPOS_VALIDOS: readonly TipoCapa[] = ["servidor-propio", "lan", "router-publico"]; // `ia-neurona` nunca se concede a otra cuenta (PTA1110A)
 
 function capasNeurona(x: unknown): Record<string, TipoCapa[]> {
   const out: Record<string, TipoCapa[]> = {};
@@ -122,11 +158,28 @@ export function interpretarAjustes(texto: string | null | undefined): AjustesPue
     }
   }
   const puertos = Array.isArray(o.puertos) ? o.puertos.filter((n): n is number => Number.isInteger(n) && n > 0 && n < 65536).slice(0, 8) : [];
+  // PTA1110A · MIGRACIÓN: lo guardado antes de esta versión no trae los campos nuevos. `usarPuertas:false` pasa a «Nunca»;
+  // los puertos web se SUMAN siempre a lo que hubiera (quien tenía solo 443 ahora también abre 80/8080/8443 a destinos públicos).
+  const modoUso: ModoUso = o.modoUso === "automatico" || o.modoUso === "preguntar" || o.modoUso === "nunca" ? o.modoUso : o.usarPuertas === false ? "nunca" : d.modoUso;
+  const usos = { ...d.usos };
+  const ou = (o.usos && typeof o.usos === "object" ? o.usos : {}) as Record<string, unknown>;
+  for (const k of TIPOS_USO) if (typeof ou[k] === "boolean") usos[k] = ou[k] as boolean;
+  const carriles = { ...d.carriles };
+  const oc = (o.carriles && typeof o.carriles === "object" ? o.carriles : {}) as Record<string, unknown>;
+  for (const k of ["bluetooth", "wifiP2p", "redLocal"] as const) if (typeof oc[k] === "boolean") carriles[k] = oc[k] as boolean;
+  const web = Array.isArray(o.puertosWeb) ? o.puertosWeb.filter((n): n is number => Number.isInteger(n) && n > 0 && n < 65536 && !PUERTOS_NUNCA.has(n)).slice(0, 12) : [];
   return {
     v: 1,
+    modoUso,
+    usos,
+    carriles,
+    puertosWeb: [...new Set([...PUERTOS_WEB_POR_DEFECTO, ...web])],
+    otrosPuertos: o.otrosPuertos === "nunca" || o.otrosPuertos === "siempre" || o.otrosPuertos === "preguntar" ? o.otrosPuertos : d.otrosPuertos,
+    grandeLento: o.grandeLento === "continuar" || o.grandeLento === "esperar" || o.grandeLento === "solo-wifi" || o.grandeLento === "preguntar" ? o.grandeLento : d.grandeLento,
+    compartirIaNeurona: typeof o.compartirIaNeurona === "boolean" ? o.compartirIaNeurona : d.compartirIaNeurona,
     misNeuronas: typeof o.misNeuronas === "boolean" ? o.misNeuronas : d.misNeuronas,
     otrasCuentas: o.otrasCuentas === "nunca" || o.otrasCuentas === "automatico" || o.otrasCuentas === "preguntar" ? o.otrasCuentas : d.otrasCuentas,
-    usarPuertas: typeof o.usarPuertas === "boolean" ? o.usarPuertas : d.usarPuertas,
+    usarPuertas: modoUso !== "nunca" && (typeof o.usarPuertas === "boolean" ? o.usarPuertas : d.usarPuertas),
     topesMias: topes(o.topesMias, d.topesMias),
     topesOtras: topes(o.topesOtras, d.topesOtras),
     puertos: puertos.length ? puertos : [...d.puertos],
@@ -222,3 +275,27 @@ export function hostPermitidoParaOtras(aj: AjustesPuerta, host: string): boolean
     return q.startsWith("*.") ? h.endsWith(q.slice(1)) : h === q;
   });
 }
+
+
+/* ───────────────────────── PTA1110A · puertos y carriles ───────────────────────── */
+
+export type VeredictoPuerto = "si" | "preguntar" | "no";
+
+/** ¿Se puede salir a ese puerto de un destino PÚBLICO? Los destinos privados no pasan por aquí (los gobiernan las capas). */
+export function veredictoPuerto(aj: Pick<AjustesPuerta, "puertos" | "puertosWeb" | "otrosPuertos">, puerto: number): VeredictoPuerto {
+  if (!Number.isInteger(puerto) || puerto < 1 || puerto > 65535 || PUERTOS_NUNCA.has(puerto)) return "no";
+  if (aj.puertosWeb.includes(puerto) || aj.puertos.includes(puerto)) return "si";
+  return aj.otrosPuertos === "siempre" ? "si" : aj.otrosPuertos === "nunca" ? "no" : "preguntar";
+}
+
+/** Carril de ajustes al que pertenece un enlace del transporte universal (`null` = sin restricción: malla de la cuenta, par, relé). */
+export function carrilDeEnlace(tipoEnlace: string, etiqueta = ""): Carril | null {
+  if (tipoEnlace === "ble") return "bluetooth";
+  if (tipoEnlace === "local" || tipoEnlace === "nativo") return /wi.?fi (directo|aware|p2p)|awdl|aware/i.test(etiqueta) ? "wifiP2p" : "redLocal";
+  return null;
+}
+
+export const carrilPermitido = (aj: Pick<AjustesPuerta, "carriles">, tipoEnlace: string, etiqueta = ""): boolean => {
+  const c = carrilDeEnlace(tipoEnlace, etiqueta);
+  return c === null || aj.carriles[c];
+};

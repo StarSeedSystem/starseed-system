@@ -69,6 +69,8 @@ export interface DepsFuentes {
   vecinosLan?: () => string[];
   /** Subredes de las interfaces (Node). */
   subredes?: () => Promise<string[]> | string[];
+  /** PTA1110A · Puertos de IA que escuchan en el bucle local (los mide Node). */
+  iaLocal?: () => Promise<number[]> | number[];
 }
 
 /** Reúne todas las fuentes en el formato de `detectarCapas`. Nunca lanza. */
@@ -96,7 +98,13 @@ export async function fuentesCapasReales(d: DepsFuentes = {}): Promise<FuentesCa
   } catch {
     subredes = [];
   }
-  return { servidoresPropios: servidores, vecinosLan, subredes, routers: dec.routers };
+  let iaLocal: number[] = [];
+  try {
+    iaLocal = (await d.iaLocal?.()) ?? [];
+  } catch {
+    iaLocal = [];
+  }
+  return { servidoresPropios: servidores, vecinosLan, subredes, routers: dec.routers, ...(iaLocal.length ? { iaLocal } : {}) };
 }
 
 /** IPs de las neuronas ligadas por la red local nativa (carga perezosa; vacío si el motor no corre). */

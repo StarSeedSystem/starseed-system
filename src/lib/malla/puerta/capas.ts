@@ -13,11 +13,20 @@
  */
 
 import type { AjustesPuerta } from "@/lib/malla/puerta/politica";
-import { hostPermitidoParaOtras } from "@/lib/malla/puerta/politica";
+import { hostPermitidoParaOtras, veredictoPuerto } from "@/lib/malla/puerta/politica"; // PTA1110A: veredictoPuerto
 import { hostInterno } from "@/lib/malla/puerta-internet";
 
-export type TipoCapa = "servidor-propio" | "lan" | "router-publico";
-export const TIPOS_CAPA: readonly TipoCapa[] = ["servidor-propio", "lan", "router-publico"];
+export type TipoCapa = "servidor-propio" | "lan" | "router-publico" | "ia-neurona";
+export const TIPOS_CAPA: readonly TipoCapa[] = ["servidor-propio", "lan", "router-publico", "ia-neurona"];
+
+/**
+ * PTA1110A · Capa «IA de esta neurona»: los servidores de IA que corren en el bucle local de la neurona-puerta (Astraura
+ * local, Ollama, LM Studio). Quien pide NO usa `127.0.0.1` (sería el suyo): usa este nombre, que solo la puerta traduce, y
+ * solo a los puertos declarados. Nunca se concede a otra cuenta ni se abre un puerto de bucle local que no esté declarado.
+ */
+export const HOST_IA_NEURONA = "ia.neurona.local";
+/** Puertos de IA locales que se buscan en el bucle local (Astraura 1.58, Ollama, LM Studio). */
+export const PUERTOS_IA_LOCAL: readonly number[] = [8000, 11434, 1234];
 
 export interface CapaPuerta {
   /** Estable dentro de la neurona: `srv:host:puerto`, `lan`, `rtr:host`. */
@@ -103,6 +112,8 @@ export interface FuentesCapas {
   subredes: string[];
   /** Routers declarados (host o IP). */
   routers: Array<{ host: string; etiqueta?: string; puertos?: number[]; latenciaMs?: number | null }>;
+  /** PTA1110A · Puertos de IA que escuchan AHORA en el bucle local de esta neurona (los mide Node, de una lista fija). */
+  iaLocal?: number[];
 }
 
 export const FUENTES_VACIAS: FuentesCapas = { servidoresPropios: [], vecinosLan: [], subredes: [], routers: [] };
@@ -166,6 +177,11 @@ export function detectarCapas(f: FuentesCapas): CapaPuerta[] {
     const puertos = (r.puertos ?? [443]).filter((p) => Number.isInteger(p) && p > 0 && p < 65536).slice(0, 4);
     meter({ id: `rtr:${host}`, tipo: "router-publico", etiqueta: (r.etiqueta ?? `Router ${host}`).slice(0, 60), hosts: [host], cidrs: esIp ? [`${host}/32`] : [], puertos: puertos.length ? puertos : [443], latenciaMs: r.latenciaMs ?? null });
   }
+  // 2b · PTA1110A · IA de esta neurona: solo los puertos de la lista fija que de verdad escuchan.
+  const ia = [...new Set((f.iaLocal ?? []).filter((p) => PUERTOS_IA_LOCAL.includes(p)))].slice(0, 4);
+  if (ia.length) {
+    meter({ id: "ia", tipo: "ia-neurona", etiqueta: "IA de esta neurona", hosts: [HOST_IA_NEURONA], cidrs: [], puertos: ia, latenciaMs: null });
+  }
   // 3 · La LAN: subredes de las interfaces; sin ellas, la /24 de cada vecino conocido.
   const cidrs = new Set<string>();
   for (const s of f.subredes ?? []) if (cidrDeCapaValido(s) && !s.startsWith("127.")) cidrs.add(s);
@@ -202,7 +218,8 @@ export function leerCapa(x: unknown): CapaPuerta | null {
 /** ¿La capa alcanza ese destino? (host nombrado o IP dentro de sus rangos; puerto general o declarado). */
 export function capaAlcanza(c: CapaPuerta, host: string, puerto: number): boolean {
   const h = hostNorm(host);
-  if (!(puerto === 443 || c.puertos.includes(puerto))) return false;
+  // PTA1110A: la IA de la neurona solo alcanza SUS puertos declarados (443 no es de ella).
+  if (!(c.tipo === "ia-neurona" ? c.puertos.includes(puerto) : puerto === 443 || c.puertos.includes(puerto))) return false;
   if (c.hosts.includes(h)) return true;
   return ipv4ANumero(h) !== null && c.cidrs.some((r) => ipEnCidr(h, r));
 }
@@ -237,6 +254,11 @@ export interface DecisionCapa {
 export function decidirCapa(aj: AjustesPuerta, capa: Pick<CapaPuerta, "tipo">, s: SolicitanteCapa): DecisionCapa {
   if (aj.revocadas.includes(s.id)) return { ok: false, motivo: "revocada" };
   const explicito = (aj.capasPorNeurona[s.id] ?? []).includes(capa.tipo);
+  // PTA1110A · IA de esta neurona: SOLO la misma cuenta, nunca por permiso explícito de otra.
+  if (capa.tipo === "ia-neurona") {
+    if (!s.mismaCuenta) return { ok: false, motivo: "otra-cuenta-sin-permiso" };
+    return aj.compartirIaNeurona ? { ok: true, motivo: "ok" } : { ok: false, motivo: "capa-apagada" };
+  }
   if (capa.tipo === "lan") {
     if (!aj.compartirRedLocal) return { ok: false, motivo: s.mismaCuenta ? "lan-no-compartida" : "otra-cuenta-sin-permiso" };
     if (s.mismaCuenta || explicito) return { ok: true, motivo: "ok" };
@@ -254,14 +276,24 @@ export function capasConcedidas(aj: AjustesPuerta, capas: readonly CapaPuerta[],
 /** Capas que se ANUNCIAN: las que el dueño comparte con alguien (mis neuronas o un permiso explícito). LAN apagada = no se anuncia ni su subred. */
 export function capasAnunciables(aj: AjustesPuerta, capas: readonly CapaPuerta[]): CapaPuerta[] {
   const conPermisoAjeno = (t: TipoCapa): boolean => Object.values(aj.capasPorNeurona).some((l) => l.includes(t));
-  return capas.filter((c) => (c.tipo === "lan" ? aj.compartirRedLocal : aj.compartirServidoresPropios || conPermisoAjeno(c.tipo)));
+  return capas.filter((c) => (c.tipo === "ia-neurona" ? aj.compartirIaNeurona : c.tipo === "lan" ? aj.compartirRedLocal : aj.compartirServidoresPropios || conPermisoAjeno(c.tipo)));
 }
 
 /* ───────────────────────── Evaluar un destino ───────────────────────── */
 
 export type MotivoDestino = "destino-no-valido" | "puerto-no-permitido" | "destino-interno" | "host-no-permitido" | "capa-no-concedida";
 
-export type EvaluacionDestino = { ok: true; capa: CapaPuerta | null; concedido: Concesion | null } | { ok: false; motivo: MotivoDestino };
+export type EvaluacionDestino =
+  | {
+      ok: true;
+      capa: CapaPuerta | null;
+      concedido: Concesion | null;
+      /** PTA1110A · Host que realmente se abre si no es el pedido (la IA de la neurona: `127.0.0.1`). */
+      destino?: string;
+      /** PTA1110A · Puerto público fuera de la web corriente: la política es «Preguntar» y hay que preguntar al dueño. */
+      preguntarPuerto?: boolean;
+    }
+  | { ok: false; motivo: MotivoDestino };
 
 /**
  * Qué se le permite a `s` abrir en `host:port` en esta neurona.
@@ -277,6 +309,10 @@ export function evaluarDestino(host: unknown, port: unknown, aj: AjustesPuerta, 
   const capa = capaDeDestino(capasPropias, h, port);
   if (capa) {
     if (!decidirCapa(aj, capa, s).ok) return { ok: false, motivo: "capa-no-concedida" };
+    if (capa.tipo === "ia-neurona") {
+      // La única concesión de bucle local que existe: 127.0.0.1 y ESE puerto declarado. Node la vuelve a comprobar al resolver.
+      return { ok: true, capa, destino: "127.0.0.1", concedido: { hosts: [], cidrs: ["127.0.0.1/32"], puertos: [port], subredes: false } };
+    }
     return {
       ok: true,
       capa,
@@ -287,9 +323,10 @@ export function evaluarDestino(host: unknown, port: unknown, aj: AjustesPuerta, 
     // Un puerto fuera de la capa también cae aquí: la capa solo alcanza lo declarado.
     return { ok: false, motivo: "destino-interno" };
   }
-  if (!aj.puertos.includes(port)) return { ok: false, motivo: "puerto-no-permitido" };
+  const vp = veredictoPuerto(aj, port); // PTA1110A: 80/443/8080/8443 y los extra; el resto por política
+  if (vp === "no") return { ok: false, motivo: "puerto-no-permitido" };
   if (!s.mismaCuenta && !hostPermitidoParaOtras(aj, h)) return { ok: false, motivo: "host-no-permitido" };
-  return { ok: true, capa: null, concedido: null };
+  return { ok: true, capa: null, concedido: null, ...(vp === "preguntar" ? { preguntarPuerto: true } : {}) };
 }
 
 /** Formas numéricas raras (`2130706433`, `0x7f.1`, `017700000001`): nunca son un nombre público. */

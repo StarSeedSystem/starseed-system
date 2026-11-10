@@ -51,6 +51,9 @@ const SolicitudSincronizacionFlotante = dynamic(
   { ssr: false },
 );
 
+// (2026-11-10 · PTA1110A) Indicador global «Internet por: …» y panel «Actividad de la malla».
+const IndicadorRutaMalla = dynamic(() => import("@/components/malla/indicador-ruta-malla").then((m) => m.IndicadorRutaMalla), { ssr: false });
+
 /** Arranca un motor cargado a demanda y devuelve su parada (si la tiene). */
 function useMotorPerezoso(cargar: () => Promise<() => void | (() => void)>) {
   useEffect(() => {
@@ -131,6 +134,7 @@ function MallaNeuronasEngine() {
       <LlamadaDirectaFlotante />
       <SolicitudSincronizacionFlotante />
       <EtiquetaSinInternet />
+      <IndicadorRutaMalla /> {/* PTA1110A */}
     </>
   );
 }

@@ -20,6 +20,8 @@ interface Nodo {
   est: EstadoPropio;
   sockets: FalsoSocket[];
   preguntas: string[];
+  /** PTA1110A · destinos `host:puerto` que la puerta preguntó a su dueño. */
+  hostsPreguntados: string[];
 }
 
 class FalsoSocket implements SocketSalida {
@@ -86,7 +88,7 @@ function crearRed(opts: { desordenar?: boolean } = {}) {
     },
     nodo(id: string, o: { tcp?: boolean; est?: EstadoPropio; aj?: Partial<AjustesPuerta>; pregunta?: "permitir" | "denegar" | "siempre" | "nunca" } = {}): Nodo {
       const tabla = new TablaPuertas(() => Date.now(), id);
-      const n = { id, tabla, aj: { ...AJUSTES_PUERTA_POR_DEFECTO, ...(o.aj ?? {}) }, est: o.est ?? estadoSin, sockets: [], preguntas: [] } as unknown as Nodo;
+      const n = { id, tabla, aj: { ...AJUSTES_PUERTA_POR_DEFECTO, ...(o.aj ?? {}) }, est: o.est ?? estadoSin, sockets: [], preguntas: [], hostsPreguntados: [] } as unknown as Nodo;
       cuenta.set(id, cuenta.get(id) ?? "yo");
       const transporte: TransportePuerta = {
         yo: () => id,
@@ -124,8 +126,9 @@ function crearRed(opts: { desordenar?: boolean } = {}) {
               return s;
             }
           : undefined,
-        preguntar: async (s) => {
+        preguntar: async (s, h) => {
           n.preguntas.push(s.id);
+          n.hostsPreguntados.push(String(h));
           return o.pregunta ?? "denegar";
         },
         plazoAperturaMs: 400,
@@ -498,5 +501,62 @@ describe("valores por defecto", () => {
     expect(d.permitirRedPrivada).toBe(false);
     expect(d.topesMias.permitirRedMedida).toBe(false);
     expect(d.topesOtras.bytesDia).toBeLessThan(d.topesMias.bytesDia);
+  });
+});
+
+describe("PTA1110A · puertos públicos: web corriente, política «Preguntar» y puertos nunca", () => {
+  async function par(pregunta: "permitir" | "denegar" | "siempre" | "nunca") {
+    const red = crearRed();
+    const tab = listo(red.nodo("tablet"));
+    const mac = listo(red.nodo("mac", { tcp: true, est: estadoConInternet, pregunta }));
+    red.enlazar("tablet", "mac", "ble");
+    mac.gestor.anunciar();
+    await pausa(40);
+    return { tab, mac };
+  }
+  it("80, 443, 8080 y 8443 pasan sin preguntar", async () => {
+    const { tab, mac } = await par("denegar");
+    for (const puerto of [80, 443, 8080, 8443]) {
+      const t = await tab.gestor.abrirTunel("sitio.example", puerto);
+      expect("error" in t, "puerto " + puerto).toBe(false);
+      if (!("error" in t)) t.cerrar();
+    }
+    expect(mac.hostsPreguntados).toEqual([]);
+    expect(mac.sockets.map((x) => x.port)).toEqual([80, 443, 8080, 8443]);
+  });
+  it("otro puerto (9090) pregunta al dueño de la puerta con host:puerto; «no» lo niega", async () => {
+    const { tab, mac } = await par("denegar");
+    const t = await tab.gestor.abrirTunel("sitio.example", 9090);
+    expect("error" in t).toBe(true);
+    expect(mac.hostsPreguntados).toEqual(["sitio.example:9090"]);
+    expect(mac.sockets).toHaveLength(0);
+  });
+  it("«permitir» abre solo esta vez; «siempre» recuerda el puerto y no vuelve a preguntar", async () => {
+    const { tab, mac } = await par("permitir");
+    const t = await tab.gestor.abrirTunel("sitio.example", 9090);
+    expect("error" in t).toBe(false);
+    expect(mac.sockets[0]?.port).toBe(9090);
+    expect(mac.aj.puertos).not.toContain(9090);
+    const { tab: tab2, mac: mac2 } = await par("siempre");
+    expect("error" in (await tab2.gestor.abrirTunel("sitio.example", 9091))).toBe(false);
+    expect(mac2.aj.puertos).toContain(9091);
+    expect("error" in (await tab2.gestor.abrirTunel("otro.example", 9091))).toBe(false);
+    expect(mac2.hostsPreguntados).toEqual(["sitio.example:9091"]);
+  });
+  it("puertos peligrosos (23, 25, 445, 3389) se niegan siempre, sin preguntar", async () => {
+    const { tab, mac } = await par("siempre");
+    for (const puerto of [23, 25, 445, 3389]) expect("error" in (await tab.gestor.abrirTunel("sitio.example", puerto)), "puerto " + puerto).toBe(true);
+    expect(mac.hostsPreguntados).toEqual([]);
+    expect(mac.sockets).toHaveLength(0);
+  });
+  it("con «Nunca» para otros puertos, 9090 se niega sin preguntar", async () => {
+    const red = crearRed();
+    const tab = listo(red.nodo("tablet"));
+    const mac = listo(red.nodo("mac", { tcp: true, est: estadoConInternet, pregunta: "permitir", aj: { otrosPuertos: "nunca" } }));
+    red.enlazar("tablet", "mac", "ble");
+    mac.gestor.anunciar();
+    await pausa(40);
+    expect("error" in (await tab.gestor.abrirTunel("sitio.example", 9090))).toBe(true);
+    expect(mac.hostsPreguntados).toEqual([]);
   });
 });

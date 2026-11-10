@@ -131,7 +131,8 @@ export async function resolverEndpointBitnet(target: Astraura158Target): Promise
 
     const candidatos = await obtenerCandidatosParaPreferencia(pref as TipoNodo);
     const elegido = candidatos[0] || null;
-    if (!elegido) return astraura158Endpoint(target);
+    // PTA1110A · Sin mejor opción: la IA de otra neurona de MI cuenta por la malla (capa «ia-neurona», ajuste «IA»).
+    if (!elegido) return (await urlIaPorMalla()) ?? astraura158Endpoint(target);
 
     return elegido.url;
   } catch {
@@ -176,5 +177,16 @@ async function obtenerCandidatosParaPreferencia(pref: TipoNodo): Promise<Candida
       }));
   } catch {
     return [];
+  }
+}
+
+/** PTA1110A · URL `http://ia.neurona.local:<puerto>` de la mejor IA alcanzable por la malla, o null. Nunca lanza. */
+export async function urlIaPorMalla(): Promise<string | null> {
+  try {
+    const [{ estadoPuerta }, { elegirNodoIaMalla }] = await Promise.all([import("@/lib/malla/puerta/servicio"), import("@/lib/malla/puerta/ia")]);
+    const e = estadoPuerta();
+    return elegirNodoIaMalla(e.iaPorMalla ?? [], e.ajustes)?.url ?? null;
+  } catch {
+    return null;
   }
 }
