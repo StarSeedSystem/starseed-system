@@ -12,6 +12,9 @@ import { guardarEnOpfs, type CtorGrabadora } from "@/lib/llamadas/superficie/gra
 import { registrarEnHistorial, type AlmacenMinimo } from "@/lib/llamadas/superficie/historial-llamadas";
 import { soportaAltavoz, soportaPantalla } from "@/lib/llamadas/medios";
 import { esAppNativa } from "@/lib/nativa/puente";
+import { leerPreferencias } from "@/lib/llamadas/camaras";
+import { anotarLlamada } from "@/lib/llamadas/voz-datos/diagnostico";
+import { getDeviceId } from "@/lib/network/device-registry";
 
 export function entornoDelAparato(rutasNativas = 0): EntornoLlamada {
   const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
@@ -185,6 +188,15 @@ export function depsParaLlamada(a: LlamadaActiva, extra: { rutasNativas?: number
     astraura: astrauraDeLlamada(),
     reconocedor: reconocedorDelNavegador(),
     grabacion: grabacionDelAparato(),
+    // LLA1110C: la cámara recordada de ESTA neurona (se pide al encender) y las líneas de cámara al registro del enlace.
+    preferenciaCamara: () => {
+      try {
+        return leerPreferencias(getDeviceId() || "local").camara ?? null;
+      } catch {
+        return null;
+      }
+    },
+    anotar: (linea) => anotarLlamada(linea.startsWith("camara ") ? "camara" : "medio=video-datos", null, linea.replace(/^camara /, "")),
     alTerminar: (f) => {
       const e = a.motor.estado();
       registrarEnHistorial(almacen(), {

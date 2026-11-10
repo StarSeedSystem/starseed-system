@@ -4,6 +4,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { formatearDuracion } from "@/lib/llamadas/formato";
+import { anotarLlamada } from "@/lib/llamadas/voz-datos/diagnostico";
 
 type ConSinkId = HTMLMediaElement & { setSinkId?: (id: string) => Promise<void> };
 
@@ -49,11 +50,20 @@ export function LienzoLigero({ lienzo, className, etiqueta }: { lienzo: HTMLCanv
   return <div ref={ref} data-lienzo-ligero="" className={cn("bg-black", className)} />;
 }
 
-export function Pista({ stream, lienzo, espejo, video, silenciar, sinkId, className, etiqueta, remoto, volumen }: { stream: MediaStream | null | undefined; /** VID1110A: vídeo ligero por enlace de datos; si está, se pinta en lugar del <video>. */ lienzo?: HTMLCanvasElement | null; /** VID1110A: mi vista previa como espejo. */ espejo?: boolean; video: boolean; silenciar?: boolean; sinkId?: string; className?: string; etiqueta?: string; remoto?: boolean; /** 0..1 (LLA1108G) */ volumen?: number }) {
+export function Pista({ stream, lienzo, espejo, video, silenciar, sinkId, className, etiqueta, remoto, local, volumen }: { stream: MediaStream | null | undefined; /** VID1110A: vídeo ligero por enlace de datos; si está, se pinta en lugar del <video>. */ lienzo?: HTMLCanvasElement | null; /** VID1110A: mi vista previa como espejo. */ espejo?: boolean; video: boolean; silenciar?: boolean; sinkId?: string; className?: string; etiqueta?: string; remoto?: boolean; /** LLA1110C: mi vista previa (para la telemetría de visibilidad). */ local?: boolean; /** 0..1 (LLA1108G) */ volumen?: number }) {
   const ref = useRef<HTMLMediaElement | null>(null);
+  const conLienzo = video && !!lienzo;
   useEffect(() => {
-    if (ref.current) ref.current.srcObject = stream ?? null;
-  }, [stream, video]);
+    const el = ref.current;
+    if (!el) return;
+    if (el.srcObject !== (stream ?? null)) el.srcObject = stream ?? null;
+    // LLA1110C: `autoPlay` no basta en todos los WebView (WKWebView con srcObject puesto tras montar): se pide play()
+    // y, si lo rechaza, queda en el registro (antes la promesa se tragaba y el <video> se quedaba en negro).
+    if (stream)
+      void el.play?.()?.catch((e: unknown) => {
+        anotarLlamada("medio=video-datos", null, `visibilidad play-rechazado ${video ? "video" : "audio"}${remoto ? "=remoto" : local ? "=local" : ""} error=${e instanceof Error ? e.name : "?"}`);
+      });
+  }, [stream, video, conLienzo, remoto, local]);
   useEffect(() => {
     if (ref.current && volumen !== undefined) ref.current.volume = Math.max(0, Math.min(1, volumen));
   }, [volumen, stream, video]);
@@ -64,7 +74,7 @@ export function Pista({ stream, lienzo, espejo, video, silenciar, sinkId, classN
   if (video && lienzo) return <LienzoLigero lienzo={lienzo} className={className} etiqueta={etiqueta} />;
   if (!stream) return null;
   return video ? (
-    <video ref={ref as React.RefObject<HTMLVideoElement>} autoPlay playsInline muted={silenciar} aria-label={etiqueta} data-remoto={remoto ? "" : undefined} style={espejo ? { transform: "scaleX(-1)" } : undefined} className={cn("bg-black object-cover", className)} />
+    <video ref={ref as React.RefObject<HTMLVideoElement>} autoPlay playsInline muted={silenciar} aria-label={etiqueta} data-remoto={remoto ? "" : undefined} data-local={local ? "" : undefined} style={espejo ? { transform: "scaleX(-1)" } : undefined} className={cn("bg-black object-cover", className)} />
   ) : (
     <audio ref={ref as React.RefObject<HTMLAudioElement>} autoPlay muted={silenciar} />
   );

@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import {
   describirCamaras,
   elegirCamaraPorDefecto,
+  ETIQUETA_TIPO_CAMARA,
   guardarPreferencia,
   leerCapacidades,
   leerPreferencias,
@@ -74,7 +75,11 @@ export function SelectorCamara({
                 className={cn("flex w-full cursor-pointer items-center justify-between gap-2 rounded-lg border px-2.5 py-1.5 text-left transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300/80 disabled:cursor-not-allowed disabled:opacity-50", sel ? "border-violet-300/60 bg-violet-400/20" : "border-white/10 bg-white/[0.03] hover:bg-white/[0.07]")}
               >
                 <span className="min-w-0 break-words text-[12.5px] text-white">{c.nombre}</span>
-                {c.id === porDefecto && <span className="shrink-0 rounded-full bg-white/10 px-1.5 text-[10px] text-white/70">predeterminada</span>}
+                <span className="flex shrink-0 items-center gap-1">
+                  {/* LLA1110C: el tipo de cada cámara a la vista (este aparato, Continuidad, externa, virtual). */}
+                  {!c.sinEtiqueta && <span data-tipo-camara={c.tipo} className={cn("rounded-full px-1.5 text-[10px]", c.tipo === "integrada" ? "bg-emerald-400/15 text-emerald-100" : "bg-white/10 text-white/70")}>{ETIQUETA_TIPO_CAMARA[c.tipo]}</span>}
+                  {c.id === porDefecto && <span className="rounded-full bg-violet-400/20 px-1.5 text-[10px] text-violet-100">predeterminada</span>}
+                </span>
               </button>
             );
           })}

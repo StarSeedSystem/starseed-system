@@ -22,6 +22,8 @@ export interface CamaraInfo {
   orientacion: OrientacionCamara;
   /** Nombre claro para la persona («Cámara de esta Mac», «Cámara del iPhone (Continuidad)»…). */
   nombre: string;
+  /** LLA1110C: el navegador aún no dijo su nombre (antes del permiso de cámara): no se sabe de qué tipo es. */
+  sinEtiqueta?: boolean;
 }
 
 export type Plataforma = "mac" | "ios" | "android" | "windows" | "linux" | "otra";
@@ -53,12 +55,21 @@ export function orientacionDe(etiqueta: string): OrientacionCamara {
  */
 export function clasificarCamara(etiqueta: string): TipoCamara {
   const t = normalizar(etiqueta).trim();
-  if (!t) return "integrada";
+  if (!t || esEtiquetaProvisional(etiqueta)) return "integrada";
   if (VIRTUALES.test(t)) return "virtual";
   if (CONTINUIDAD.test(t)) return "continuidad";
   if (INTEGRADA.test(t)) return "integrada";
   if (EXTERNA.test(t)) return "externa";
   return "externa";
+}
+
+/**
+ * LLA1110C: «Cámara 1», «Camera 2»… es el nombre provisional que pone `listarDispositivos` cuando el navegador aún
+ * no da la etiqueta (WebKit antes del permiso de cámara). Antes se clasificaba como «externa»; no se sabe qué es.
+ */
+export function esEtiquetaProvisional(etiqueta: string): boolean {
+  const t = normalizar(etiqueta).trim();
+  return !t || /^(camara|camera|video|videoinput)\s*\d*$/.test(t);
 }
 
 export function plataformaDe(ua: string | undefined | null): Plataforma {
@@ -113,12 +124,14 @@ function recortar(t: string): string {
 export function describirCamaras(lista: ReadonlyArray<{ id: string; nombre: string }>, plataforma: Plataforma = "otra"): CamaraInfo[] {
   const vistos: Partial<Record<TipoCamara, number>> = {};
   return lista.map((c) => {
+    const provisional = esEtiquetaProvisional(c.nombre);
     const tipo = clasificarCamara(c.nombre);
-    const orientacion = orientacionDe(c.nombre);
+    const orientacion = provisional ? null : orientacionDe(c.nombre);
     const i = vistos[tipo] ?? 0;
     vistos[tipo] = i + 1;
     // Dos integradas distintas solo se numeran si miran igual (frontal/trasera ya las distingue).
     const num = orientacion ? 0 : i;
+    if (provisional) return { id: c.id, etiqueta: "", tipo, orientacion, nombre: `${c.nombre.trim() || "Cámara"} (sin nombre hasta dar permiso)`, sinEtiqueta: true };
     return { id: c.id, etiqueta: c.nombre, tipo, orientacion, nombre: nombreCamara(c.nombre, tipo, orientacion, plataforma, num) };
   });
 }
@@ -127,8 +140,8 @@ const RANGO: Record<TipoCamara, number> = { integrada: 0, externa: 1, continuida
 
 export interface EleccionCamara {
   camara: CamaraInfo | null;
-  /** Por qué se eligió esa (queda en el registro). */
-  motivo: "guardada" | "integrada" | "sin-integrada" | "ninguna";
+  /** Por qué se eligió esa (queda en el registro). `sin-etiquetas`: sin permiso aún no se sabe cuál es cuál. */
+  motivo: "guardada" | "integrada" | "sin-integrada" | "ninguna" | "sin-etiquetas";
 }
 
 /**
@@ -144,6 +157,9 @@ export function elegirCamaraPorDefecto(lista: readonly CamaraInfo[], guardada?: 
     const g = porId ?? porEtiqueta;
     if (g) return { camara: g, motivo: "guardada" };
   }
+  // LLA1110C: sin etiquetas no se adivina (antes todas pasaban por «integradas» y se tomaba la primera, que en la
+  // Mac puede ser la Desk View del iPhone). Se deja decidir al sistema y se corrige al tener las etiquetas.
+  if (lista.every((c) => c.sinEtiqueta || !c.etiqueta)) return { camara: null, motivo: "sin-etiquetas" };
   const ordenadas = [...lista].sort((a, b) => {
     const r = RANGO[a.tipo] - RANGO[b.tipo];
     if (r) return r;
@@ -154,6 +170,39 @@ export function elegirCamaraPorDefecto(lista: readonly CamaraInfo[], guardada?: 
   });
   const c = ordenadas[0];
   return { camara: c, motivo: c.tipo === "integrada" ? "integrada" : "sin-integrada" };
+}
+
+/** LLA1110C: el tipo dicho para la persona (chip del selector). */
+export const ETIQUETA_TIPO_CAMARA: Record<TipoCamara, string> = {
+  integrada: "de este aparato",
+  continuidad: "Continuidad",
+  externa: "externa",
+  virtual: "virtual",
+  remota: "otra neurona",
+};
+
+/**
+ * LLA1110C · qué cámara pedir AL ENCENDERLA, antes de abrir nada. `seleccionId`: la que ya está elegida en la llamada
+ * (la persona la escogió en el selector). Si no hay, la de `elegirCamaraPorDefecto` (guardada › integrada…), pero solo
+ * con etiquetas: sin ellas devuelve null y se deja al sistema (y se corrige después con `correccionTrasAbrir`).
+ */
+export function camaraParaEncender(lista: readonly CamaraInfo[], seleccionId: string | null | undefined, guardada?: { id: string; etiqueta?: string } | null): { id: string | null; motivo: EleccionCamara["motivo"] | "seleccionada" } {
+  if (seleccionId && lista.some((c) => c.id === seleccionId)) return { id: seleccionId, motivo: "seleccionada" };
+  const e = elegirCamaraPorDefecto(lista, guardada);
+  return { id: e.camara?.id ?? null, motivo: e.motivo };
+}
+
+/**
+ * LLA1110C · tras abrir la cámara SIN elegirla (lo decidió el sistema): si lo abierto es Continuidad o virtual y hay
+ * una integrada, la integrada a la que hay que cambiar. null: lo abierto vale (o no se sabe).
+ */
+export function correccionTrasAbrir(lista: readonly CamaraInfo[], abierta: { id?: string | null; etiqueta?: string | null }, guardada?: { id: string; etiqueta?: string } | null): CamaraInfo | null {
+  const actual = lista.find((c) => (abierta.id && c.id === abierta.id) || (!!abierta.etiqueta && c.etiqueta === abierta.etiqueta)) ?? null;
+  const tipo = actual?.tipo ?? (abierta.etiqueta ? clasificarCamara(abierta.etiqueta) : null);
+  if (!tipo || tipo === "integrada" || tipo === "externa") return null;
+  const e = elegirCamaraPorDefecto(lista, guardada);
+  if (!e.camara || e.camara.tipo !== "integrada" || e.camara.id === actual?.id) return null;
+  return e.camara;
 }
 
 /** `camara elegida="…" (integrada|continuidad|externa|virtual)` para el registro del enlace. */

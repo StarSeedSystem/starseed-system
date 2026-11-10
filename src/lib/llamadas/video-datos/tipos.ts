@@ -44,6 +44,8 @@ export interface CodificadorVideo {
   alSalir(cb: (f: FrameCodificado) => void): void;
   /** VID1110A: el códec falló (configuración no aceptada, fotograma rechazado…). Antes se tragaba en silencio. */
   alError?(cb: (mensaje: string) => void): void;
+  /** LLA1110C: aún tiene fotogramas en cola (no da abasto); la sesión no le mete otro y lo cuenta como descarte «códec». */
+  ocupado?(): boolean;
   cerrar(): void;
 }
 
@@ -77,7 +79,9 @@ export interface FabricaVideo {
 export interface FuenteVideo {
   capturar(w: number, h: number): FrameFuente | null;
   /** VID1110A: cuántos fotogramas dio la cámara de verdad y cuántos eran negros (cámara tapada o de Continuidad sin imagen). */
-  diagnostico?(): { vistos: number; negros: number; vivo: boolean };
+  diagnostico?(): { vistos: number; negros: number; vivo: boolean; pausada?: boolean; listo?: number; errorPlay?: string };
+  /** LLA1110C: por qué el último `capturar` devolvió null («sin-datos», «pausada», «quieta», «cerrada»). */
+  motivoSinImagen?(): string | null;
   cerrar(): void;
 }
 
@@ -136,7 +140,19 @@ export interface ContadoresVideoTx {
   /** Fotogramas de la cámara que eran negros del todo. */
   negros: number;
   erroresCodec: number;
+  /** LLA1110C: cada descarte con su motivo (ver `MotivoDescarteVideo`). */
+  motivos: Partial<Record<MotivoDescarteVideo, number>>;
 }
+
+/**
+ * LLA1110C · por qué no salió un fotograma (el registro los cuenta por separado):
+ *  · `enlace-ocupado`: la voz llena la cola del enlace (contrapresión real) · `cola-video`: la cola de vídeo del enlace va llena;
+ *  · `saliendo`: aún sale a trozos el fotograma anterior · `caducado`: llevaba demasiado esperando sitio;
+ *  · `presupuesto`: pasaba de la tasa del escalón · `sustituido`: un clave nuevo reemplazó al que salía;
+ *  · `codec`: el códec no da abasto · `sin-imagen`: la cámara no dio fotograma nuevo · `trocear`: no cupo en fragmentos;
+ *  · `enlace-tiro`: el enlace tiró fragmentos al pasar su tope.
+ */
+export type MotivoDescarteVideo = "enlace-ocupado" | "cola-video" | "saliendo" | "caducado" | "presupuesto" | "sustituido" | "codec" | "sin-imagen" | "trocear" | "enlace-tiro";
 export interface ContadoresVideoRx {
   paquetes: number;
   cuadros: number;
