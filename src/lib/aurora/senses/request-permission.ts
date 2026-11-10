@@ -321,3 +321,12 @@ export async function pedirPermiso(id: PermisoDispositivo): Promise<ResultadoPer
   const r = await requestDevicePermission(id);
   return { id, estado: estadoDeResultado(r), motivo: r.motivo };
 }
+
+/** Mapa sentido → permiso para la UI de sentidos (movido de `senses.ts`). */
+export const SENTIDO_A_PERMISO: Partial<Record<SensePermission, PermisoDispositivo>> = {
+  "getUserMedia-audio": "microfono",
+  "getUserMedia-video": "camara",
+  geolocation: "ubicacion",
+  notifications: "notificaciones",
+  files: "archivos",
+};

@@ -33,9 +33,11 @@ import {
   consultarPermiso,
   entornoPermisos,
   pedirPermiso,
+  SENTIDO_A_PERMISO,
   type PermisoDispositivo,
 } from "@/lib/aurora/senses/request-permission";
 import {
+  normalizarEstado,
   estadoDeResultado,
   type EstadoPermiso,
   type ResultadoPermisoOS,
@@ -80,15 +82,6 @@ export function visorBloqueaPermisos(): { bloqueado: boolean; visor: string } {
   const visor = entornoPermisos().visor;
   return visor ? { bloqueado: true, visor } : { bloqueado: false, visor: "" };
 }
-
-/** Sentidos cuyo permiso web vive en `request-permission` (motor único). */
-export const SENTIDO_A_PERMISO: Partial<Record<SensePermission, PermisoDispositivo>> = {
-  "getUserMedia-audio": "microfono",
-  "getUserMedia-video": "camara",
-  geolocation: "ubicacion",
-  notifications: "notificaciones",
-  files: "archivos",
-};
 
 export interface SenseTestResult {
   ok: boolean;
@@ -355,7 +348,7 @@ export function estadoSense(e: EstadoPermiso): SenseTestResult["state"] {
 
 /**
  * Traduce el resultado del motor de permisos al estado habitual de
- * `SenseTestResult` usando el contrato único (`estadoDeResultado`, PRM1108A):
+ * `SenseTestResult` usando el contrato único (`normalizarEstado`, PRM1108A):
  * el «no» de Firefox (un NotAllowedError sin la palabra «denied») ya no se
  * queda como «prompt»: con el nombre de error pasa a «denied» y la UI puede
  * explicar que está bloqueado en vez de decir solo «no funciona».
@@ -367,7 +360,8 @@ export function resultadoASentido(
     | ResultadoPermisoOS,
 ): SenseTestResult {
   const estado = "estado" in r ? r.estado : estadoDeResultado(r);
-  const state = estadoSense(estado);
+  const estadoNormalizado = normalizarEstado(estado);
+  const state = estadoSense(estadoNormalizado);
   return state === "granted"
     ? { ok: true, state }
     : { ok: false, state, error: r.motivo };
