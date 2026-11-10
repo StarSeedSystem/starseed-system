@@ -167,14 +167,25 @@ export function fusionarFeed(
         .map(({ m }) => m);
 }
 
-export type FiltroFeed = "todo" | "conversacion" | "informes" | "enjambre" | "usos";
+export type FiltroFeed = "todo" | "direccion" | "conversacion" | "informes" | "enjambre" | "usos";
 
-/** Recorta el feed: conversación, informes y avisos, actualizaciones del enjambre o usos. */
+/** Recorta el feed: dirección (canal director-presidente + conversación), conversación, informes y avisos, 
+ * actualizaciones del enjambre o usos. */
 export function filtrarFeed(
     mensajes: readonly MensajeDirector[],
     filtro: FiltroFeed,
 ): MensajeDirector[] {
     if (filtro === "todo") return [...mensajes];
+    if (filtro === "direccion") {
+        return mensajes.filter((m) => {
+            // El filtro "Dirección" muestra:
+            // 1. Mensajes del canal director-presidente
+            // 2. Conversación (mensajes de Alex y respuestas) - para el contexto de dirección
+            const esDirectorPresidente = m.canal === "director-presidente";
+            const esConversacion = m.rol === "alex" || (m.id.startsWith("md-") && (m.tipo === "mensaje" || m.tipo === "respuesta"));
+            return esDirectorPresidente || esConversacion;
+        });
+    }
     return mensajes.filter((m) => {
         if (filtro === "conversacion") {
             return m.rol === "alex" || (m.id.startsWith("md-") && (m.tipo === "mensaje" || m.tipo === "respuesta"));

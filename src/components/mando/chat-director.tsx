@@ -38,6 +38,7 @@ export function estaPegadoAlFinal(nodo: { scrollHeight: number; scrollTop: numbe
 
 const FILTROS: { id: FiltroFeed; etiqueta: string }[] = [
     { id: "todo", etiqueta: "Todo" },
+    { id: "direccion", etiqueta: "Dirección" },
     { id: "conversacion", etiqueta: "Conversación" },
     { id: "informes", etiqueta: "Informes" },
     { id: "enjambre", etiqueta: "Enjambre" },

@@ -1100,7 +1100,24 @@ export function alNecesitarAncho(p: {
       m.uso();
       return;
     }
-    await m.necesitaAncho({ neurona, clase: p.clase, bytes: p.bytes, enlaceActual: enlaceActualDe(p.enlace ?? null), cerca: false });
+    // (WFA1109A) Verificar si hay Bluetooth directo con una ligadura válida a la neurona destino.
+    // Si hay, WiFi directo puede abrirse; si no, se necesita comprobar proximidad por otros medios.
+    let cerca = false;
+    try {
+      const [bd, { ligaduraDeNeuronaBle, VIDA_LIGADURA_MS }] = await Promise.all([
+        import("./bluetooth-directo-motor"),
+        import("./bluetooth-directo"),
+      ]);
+      const red = bd.bluetoothDirectoActivo();
+      if (red) {
+        const instantanea = red.instantanea();
+        const ligadura = ligaduraDeNeuronaBle(instantanea.ligaduras ?? [], neurona, Date.now());
+        cerca = !!ligadura && Date.now() - ligadura.at <= VIDA_LIGADURA_MS;
+      }
+    } catch {
+      cerca = false;
+    }
+    await m.necesitaAncho({ neurona, clase: p.clase, bytes: p.bytes, enlaceActual: enlaceActualDe(p.enlace ?? null), cerca });
   })().catch(nada);
 }
 

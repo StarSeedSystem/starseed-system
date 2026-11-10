@@ -1,6 +1,6 @@
 // Corre los escenarios del banco en Chromium (Playwright, cámara y micro falsos).
 //   node correr.mjs [salida] [escenario] [segundos]
-// escenarios: aleteo · ip-aparece · choque · video · segunda · corte-ip · sin-servidor · todos
+// escenarios: aleteo · ip-aparece · choque · video · segunda · corte-ip · sin-servidor · voz-video · todos
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
@@ -238,6 +238,31 @@ const esc = {
       const { A, B } = await b.llamada({ conDatos: true });
       await new Promise((r) => setTimeout(r, 8000));
       return { contestadaA: A.estado().contestada, contestadaB: B.estado().contestada, fase: [A.estado().fase, B.estado().fase], medio: [A.estado().medio?.tipo, B.estado().medio?.tipo], reproducidas: { ...b.audio.reproducidas }, ofertasSinIp: b.cuenta.ofertasSinIp };
+    });
+    await p.close();
+    return r;
+  },
+  // Voz y video a la vez con un enlace de ~160 kb/s: debe fallar antes del arreglo (timeout 30s = 6 fallos × 5s).
+  // Si no alcanza, se pausa el video y se avisa, con prioridad al audio.
+  async "voz-video"() {
+    const p = await pagina();
+    const r = await p.evaluate(async () => {
+      const b = window.banco;
+      // Simular ancho de banda reducido (~160 kb/s = 160000 bps)
+      b.red.anchoBanda = { bps: 160000, video: true, audio: true };
+      const { A, B } = await b.llamada({ conDatos: true, video: true });
+      // Esperar el timeout de 30 segundos (6 fallos × 5s = CAIDA_MS = 30,000)
+      await new Promise((r) => setTimeout(r, 30000));
+      const faseA = A.estado().fase;
+      const faseB = B.estado().fase;
+      // Verificar si hubo pausa de video oaviso
+      const avisos = b.lineas.filter((l) => l.hito === "aviso" && /video|pausa|ancho/.test(l.detalle));
+      return {
+        fase: [faseA, faseB],
+        medio: [A.estado().medio?.tipo, B.estado().medio?.tipo],
+        reproducidas: { ...b.audio.reproducidas },
+        avisosVideo: avisos.map((l) => l.detalle),
+      };
     });
     await p.close();
     return r;

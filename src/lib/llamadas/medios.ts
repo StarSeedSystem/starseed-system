@@ -195,6 +195,9 @@ async function errorBloqueante(err: unknown, p: { audio: boolean; video: boolean
 /**
  * Pide micro y/o cámara. Si pide los dos y la cámara falla, se queda con el micro y lo avisa
  * (mejor una llamada sin vídeo que ninguna).
+ * 
+ * (P0-3) Si se pide una cámara específica y falla con OverconstrainedError, vuelve a enumerar
+ * las cámaras y reintenta sin restricción de deviceId (usar facingMode: "user").
  */
 export async function obtenerMedios(p: { audio: boolean; video: boolean; microId?: string | null; camaraId?: string | null }): Promise<ResultadoMedios> {
     const md = mediaDevices();
@@ -215,6 +218,34 @@ export async function obtenerMedios(p: { audio: boolean; video: boolean; microId
     } catch (err) {
         // (LLA1110D) Todo fallo de medios queda en el registro del enlace (nombre del error y qué se pidió).
         anotarLlamada("camara", null, `obtener-medios-fallo audio=${p.audio ? "si" : "no"} video=${p.video ? "si" : "no"} micro=${p.microId ? "elegido" : "sistema"} camara=${p.camaraId ? "elegida" : "sistema"} error=${(err as { name?: string })?.name ?? "desconocido"}`);
+        
+        // (P0-3) Si se pide cámara con deviceId específico y falla con OverconstrainedError,
+        // vuelve a enumerar y reintenta sin restricción exacta (falling back to facingMode: "user")
+        if (p.video && p.camaraId && (err as { name?: string })?.name === "OverconstrainedError") {
+            anotarLlamada("camara", null, `cambio-sin-restriccion camaraId=${p.camaraId} reintentando-con-facingMode`);
+            try {
+                // Reenumerar dispositivos y verificar cámara integrada disponible
+                const lista = await md.enumerateDevices();
+                const camaras = lista.filter((d) => d.kind === "videoinput").map((d) => ({ id: d.deviceId, nombre: d.label || "" }));
+                anotarLlamada("camara", null, `reenumerar-camaras lista=${camaras.length} camaraId=${p.camaraId}`);
+                
+                // Intentar con facingMode: "user" (sin restricción de deviceId específico)
+                const stream2 = await solicitarMedios({
+                    audio: p.audio ? restriccionesAudio(p.microId) : false,
+                    video: true,  // facingMode: "user" por defecto
+                }, md);
+                if (p.video) {
+                    await afinarCamara(md, stream2, null);  // Sin deviceId específico
+                    await aplicarOpcionesGuardadas(stream2.getVideoTracks()[0]);
+                }
+                anotarLlamada("camara", null, `cambio-sin-restriccion OK`);
+                return { stream: stream2, error: null, aviso: null };
+            } catch (err2) {
+                anotarLlamada("camara", null, `cambio-sin-restriccion-fallo error=${(err2 as { name?: string })?.name ?? "desconocido"}`);
+                // Si también falla, caer al manejo de audio+video
+            }
+        }
+        
         if (p.audio && p.video) {
             try {
                 const stream = await solicitarMedios({ audio: restriccionesAudio(p.microId), video: false }, md);

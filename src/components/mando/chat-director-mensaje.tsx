@@ -79,7 +79,8 @@ export function MensajeDelDirector({ mensaje, entregas, modelos, modeloPorDefect
 
   const esAlex = mensaje.rol === "alex";
   const esSistema = mensaje.rol === "sistema";
-  const autorData = esAlex ? "alex" : mensaje.rol ?? mensaje.de;
+  const esDirectorPresidente = mensaje.canal === "director-presidente";
+  const autorData = esAlex ? "alex" : (esDirectorPresidente ? "director-presidente" : mensaje.rol ?? mensaje.de);
 
   // Indicador de espera: solo si es de Alex, ninguna entrega en respondido ni fallo,
   // y al menos una en pendiente o entregado.
@@ -99,40 +100,46 @@ export function MensajeDelDirector({ mensaje, entregas, modelos, modeloPorDefect
       data-autor={autorData}
       className={[
         "group rounded-xl border p-3 text-xs transition-colors duration-200",
-        esAlex ? "self-end ml-auto max-w-[85%] border-cyan-400/30 bg-cyan-500/10" : (esSistema ? "rounded-md border-amber-500/30 bg-amber-900/30 p-2 text-[11px]" : "bg-zinc-900/70 border-violet-500/20"),
+        esAlex ? "self-end ml-auto max-w-[85%] border-cyan-400/30 bg-cyan-500/10" : 
+        (esDirectorPresidente ? "self-start mr-auto max-w-[85%] border-solar-amber/30 bg-solar-amber/10" :
+        (esSistema ? "rounded-md border-amber-500/30 bg-amber-900/30 p-2 text-[11px]" : "bg-zinc-900/70 border-violet-500/20")),
       ].filter(Boolean).join(" ")}
     >
       <header className={[
         "flex flex-wrap items-center gap-2",
-        esAlex ? "text-cyan-300" : (esSistema ? "text-amber-400" : "text-zinc-400"),
+        esAlex ? "text-cyan-300" : 
+        (esDirectorPresidente ? "text-solar-amber-700" :
+        (esSistema ? "text-amber-400" : "text-zinc-400")),
       ].filter(Boolean).join(" ")}>
         {!esSistema && (
           <span className={[
             "font-semibold",
-            esAlex ? "text-cyan-200" : "text-violet-200",
+            esAlex ? "text-cyan-200" : 
+            (esDirectorPresidente ? "text-solar-amber-200" : "text-violet-200"),
           ].filter(Boolean).join(" ")}>
-            {esAlex ? "Tú" : mensaje.de}
+            {esAlex ? "Tú" : esDirectorPresidente ? "Director presidente" : mensaje.de}
           </span>
         )}
-        {!esSistema && mensaje.rol !== "alex" && (
+        {!esSistema && mensaje.rol !== "alex" && !esDirectorPresidente && (
           <span className="rounded border border-zinc-700/50 bg-zinc-800/80 px-1.5 py-0.5 text-[10px] text-zinc-300">{papel}</span>
         )}
         {!esSistema && (
           <span className="text-[10px]">desde {nombreCanal}</span>
         )}
-        <span className={["text-[10px] ml-auto", esAlex ? "text-cyan-500/80" : (esSistema ? "text-amber-500/60" : "")].filter(Boolean).join(" ")}>{horaCorta(mensaje.t)}</span>
+        <span className={["text-[10px] ml-auto", esAlex ? "text-cyan-500/80" : (esDirectorPresidente ? "text-solar-amber-600/60" : (esSistema ? "text-amber-500/60" : ""))].filter(Boolean).join(" ")}>{horaCorta(mensaje.t)}</span>
         {!esSistema && mensaje.modelo && (
           <span className={[
             "rounded border px-1.5 py-0.5 text-[10px]",
-            esAlex ? "border-cyan-400/30 bg-cyan-400/20 text-cyan-200" : "border-violet-500/30 bg-violet-600/20 text-violet-200",
+            esAlex ? "border-cyan-400/30 bg-cyan-400/20 text-cyan-200" : 
+            (esDirectorPresidente ? "border-solar-amber/30 bg-solar-amber/20 text-solar-amber-200" : "border-violet-500/30 bg-violet-600/20 text-violet-200"),
           ].filter(Boolean).join(" ")}>
             {mensaje.modelo}
           </span>
         )}
-        {!esSistema && uso && <span className={esAlex ? "text-cyan-600" : "text-zinc-500"}>{uso}</span>}
+        {!esSistema && uso && <span className={esAlex ? "text-cyan-600" : (esDirectorPresidente ? "text-solar-amber-600" : "text-zinc-500")}>{uso}</span>}
       </header>
 
-      <p className={["mt-2 whitespace-pre-line", esSistema ? "text-amber-100" : (esAlex ? "text-cyan-50" : "text-zinc-100")].filter(Boolean).join(" ")}>{mensaje.texto}</p>
+      <p className={["mt-2 whitespace-pre-line", esSistema ? "text-amber-100" : (esAlex ? "text-cyan-50" : (esDirectorPresidente ? "text-solar-amber-50" : "text-zinc-100"))].filter(Boolean).join(" ")}>{mensaje.texto}</p>
 
       {mostrarEspera && frasesEspera.length > 0 && (
         <div role="status" aria-live="polite" className="mt-2 flex flex-wrap items-center gap-2 text-cyan-200">
