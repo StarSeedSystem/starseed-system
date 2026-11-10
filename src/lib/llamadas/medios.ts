@@ -10,7 +10,7 @@ import type { AjustesMedios } from "@/lib/llamadas/permiso-medios";
 import type { DispositivosMedios } from "@/lib/llamadas/tipos";
 import { explicarFalloMedios } from "@/lib/nativa/medios-nativos";
 import { esAppNativa } from "@/lib/nativa/puente";
-import { describirCamaras, elegirCamaraPorDefecto, leerPreferencias, lineaCamaraElegida, plataformaDe, restriccionesDeOpciones, leerCapacidades } from "@/lib/llamadas/camaras";
+import { describirCamaras, elegirCamaraPorDefecto, leerPreferencias, lineaCamaraElegida, plataformaDe, type Plataforma, restriccionesDeOpciones, leerCapacidades } from "@/lib/llamadas/camaras";
 import { anotarLlamada } from "@/lib/llamadas/voz-datos/diagnostico";
 import { getDeviceId } from "@/lib/network/device-registry";
 
@@ -101,14 +101,13 @@ export function restriccionesVideo(camaraId?: string | null): MediaTrackConstrai
  * si lo abierto no es lo que se elegiría (guardada › integrada frontal › resto), se reabre la buena y se suelta la otra.
  * Nunca lanza ni deja la llamada sin cámara: si algo falla, se queda la que abrió el sistema.
  */
-export async function afinarCamara(md: MediaDevices, stream: MediaStream, camaraIdPedida?: string | null, neurona: string = neuronaLocal()): Promise<void> {
+export async function afinarCamara(md: MediaDevices, stream: MediaStream, camaraIdPedida?: string | null, neurona: string = neuronaLocal(), plataforma: Plataforma = plataformaDe(typeof navigator !== "undefined" ? navigator.userAgent : "")): Promise<void> {
     const pista = stream.getVideoTracks()[0];
     if (!pista) return;
     try {
-        const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
         const lista = describirCamaras(
             (await md.enumerateDevices()).filter((d) => d.kind === "videoinput" && d.deviceId).map((d) => ({ id: d.deviceId, nombre: d.label || "" })),
-            plataformaDe(ua),
+            plataforma,
         );
         const abiertaId = pista.getSettings?.().deviceId ?? null;
         const abierta = lista.find((c) => c.id === abiertaId) ?? lista.find((c) => c.etiqueta && c.etiqueta === pista.label) ?? null;

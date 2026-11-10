@@ -18,6 +18,7 @@ import {
   plataformaDe,
   restriccionesDeOpciones,
   type CamaraInfo,
+  type Plataforma,
   type OpcionesCamara,
 } from "@/lib/llamadas/camaras";
 
@@ -26,8 +27,13 @@ const select = "w-full rounded-lg border border-white/15 bg-slate-900 px-2 py-1 
 
 export const MOTIVO_CAMARA_REMOTA = "Llega con la siguiente ola: usar la cámara de otra de tus neuronas. Hoy, el iPhone se elige arriba como Cámara de Continuidad.";
 
-export function useCamarasDescritas(camaras: ReadonlyArray<{ id: string; nombre: string }>): CamaraInfo[] {
-  return useMemo(() => describirCamaras(camaras, plataformaDe(typeof navigator !== "undefined" ? navigator.userAgent : "")), [camaras]);
+/** La plataforma real del aparato: SOLO aquí, en el borde, se mira el navegador. Todo lo demás la recibe como dato. */
+export function plataformaActual(): Plataforma {
+  return plataformaDe(typeof navigator !== "undefined" ? navigator.userAgent : "");
+}
+
+export function useCamarasDescritas(camaras: ReadonlyArray<{ id: string; nombre: string }>, plataforma: Plataforma = plataformaActual()): CamaraInfo[] {
+  return useMemo(() => describirCamaras(camaras, plataforma), [camaras, plataforma]);
 }
 
 export function SelectorCamara({
@@ -35,13 +41,16 @@ export function SelectorCamara({
   elegidaId,
   neurona,
   onElegir,
+  plataforma,
 }: {
   camaras: ReadonlyArray<{ id: string; nombre: string }>;
   elegidaId: string | null;
   neurona: string;
   onElegir?: (id: string) => void;
+  /** Explícita en pruebas; por defecto, la detectada en el borde (`plataformaActual`). */
+  plataforma?: Plataforma;
 }) {
-  const lista = useCamarasDescritas(camaras);
+  const lista = useCamarasDescritas(camaras, plataforma);
   const porDefecto = useMemo(() => elegirCamaraPorDefecto(lista, leerPreferencias(neurona).camara).camara?.id ?? null, [lista, neurona]);
   const actual = elegidaId ?? porDefecto;
   return (

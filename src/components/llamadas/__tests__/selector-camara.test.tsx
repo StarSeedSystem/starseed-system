@@ -16,22 +16,27 @@ const MAC = [
 ];
 
 describe("SelectorCamara", () => {
-  it("marca la del propio aparato como predeterminada y elige sin cortar", () => {
+  const nombrePropia = { mac: "Cámara de esta Mac", windows: "Cámara de este equipo", linux: "Cámara de este equipo", android: "Cámara de este aparato" } as const;
+  it.each([
+    ["mac", "FaceTime HD Camera (Built-in)"],
+    ["windows", "Integrated Camera"],
+    ["linux", "Integrated_Webcam_HD: Integrate (usb-0000:00:14.0-8)"],
+    ["android", "camera2 1, facing front"],
+  ] as const)("%s: marca la del propio aparato como predeterminada y elige sin cortar", (plataforma, etiqueta) => {
     const onElegir = vi.fn();
-    render(<SelectorCamara camaras={MAC} elegidaId={null} neurona="t-sel" onElegir={onElegir} />);
-    const grupo = screen.getByRole("radiogroup", { name: "Cámara" });
-    expect(grupo.textContent).toContain("Cámara de este aparato".replace("este aparato", "este aparato"));
-    const iphone = screen.getByRole("radio", { name: /iPhone \(Continuidad\)/ });
+    const camaras = [{ id: "ph", nombre: "Maggabook's iPhone Camera" }, { id: "ft", nombre: etiqueta }];
+    render(<SelectorCamara camaras={camaras} elegidaId={null} neurona={`t-sel-${plataforma}`} onElegir={onElegir} plataforma={plataforma} />);
     const propia = screen.getAllByRole("radio").find((r) => r.textContent?.includes("predeterminada"));
-    expect(propia?.textContent).toMatch(/predeterminada/);
-    expect(iphone.textContent).not.toMatch(/predeterminada/);
+    expect(propia?.textContent).toContain(plataforma === "android" ? "Cámara frontal" : nombrePropia[plataforma]);
     expect(propia?.getAttribute("aria-checked")).toBe("true");
+    const iphone = screen.getByRole("radio", { name: /iPhone \(Continuidad\)/ });
+    expect(iphone.textContent).not.toMatch(/predeterminada/);
     fireEvent.click(iphone);
     expect(onElegir).toHaveBeenCalledWith("ph");
   });
 
   it("«Cámara de otra neurona» está desactivada y dice por qué", () => {
-    render(<SelectorCamara camaras={MAC} elegidaId={null} neurona="t-sel" onElegir={() => undefined} />);
+    render(<SelectorCamara camaras={MAC} elegidaId={null} neurona="t-sel" onElegir={() => undefined} plataforma="mac" />);
     const r = screen.getByRole("radio", { name: /Cámara de otra neurona/ }) as HTMLButtonElement;
     expect(r.disabled).toBe(true);
     expect(r.getAttribute("aria-describedby")).toBe("motivo-camara-remota");
@@ -39,7 +44,7 @@ describe("SelectorCamara", () => {
   });
 
   it("sin cámaras lo dice", () => {
-    render(<SelectorCamara camaras={[]} elegidaId={null} neurona="t-sel" />);
+    render(<SelectorCamara camaras={[]} elegidaId={null} neurona="t-sel" plataforma="linux" />);
     expect(screen.getByText(/No vemos ninguna cámara/)).toBeTruthy();
   });
 });

@@ -51,7 +51,7 @@ describe("afinarCamara", () => {
     const ft = pista("ft", "FaceTime HD Camera (Built-in)");
     const s = flujo(iphone);
     const { md, pedidos } = dispositivos({ ft });
-    await afinarCamara(md, s, null, "t-mac");
+    await afinarCamara(md, s, null, "t-mac", "mac");
     expect(pedidos).toEqual(["ft"]);
     expect(iphone.stopped).toBe(true);
     expect(s.getVideoTracks()).toEqual([ft]);
@@ -62,7 +62,7 @@ describe("afinarCamara", () => {
     const ft = pista("ft", "FaceTime HD Camera (Built-in)");
     const s = flujo(ft);
     const { md, pedidos } = dispositivos({});
-    await afinarCamara(md, s, null, "t-mac");
+    await afinarCamara(md, s, null, "t-mac", "mac");
     expect(pedidos).toEqual([]);
     expect(ft.stopped).toBe(false);
   });
@@ -72,7 +72,7 @@ describe("afinarCamara", () => {
     const iphone = pista("ph", "Maggabook's iPhone Camera");
     const s = flujo(iphone);
     const { md, pedidos } = dispositivos({});
-    await afinarCamara(md, s, null, "t-mac");
+    await afinarCamara(md, s, null, "t-mac", "mac");
     expect(pedidos).toEqual([]);
     expect(lineas.some((l) => l.includes("(continuidad) motivo=guardada"))).toBe(true);
   });
@@ -86,7 +86,7 @@ describe("afinarCamara", () => {
         throw new Error("ocupada");
       },
     } as unknown as MediaDevices;
-    await afinarCamara(md, s, null, "t-mac");
+    await afinarCamara(md, s, null, "t-mac", "mac");
     expect(s.getVideoTracks()).toEqual([iphone]);
     expect(iphone.stopped).toBe(false);
   });
@@ -95,7 +95,7 @@ describe("afinarCamara", () => {
     const iphone = pista("ph", "Maggabook's iPhone Camera");
     const s = flujo(iphone);
     const { md, pedidos } = dispositivos({});
-    await afinarCamara(md, s, "ph", "t-mac");
+    await afinarCamara(md, s, "ph", "t-mac", "mac");
     expect(pedidos).toEqual([]);
     expect(lineas.some((l) => l.includes("motivo=pedida"))).toBe(true);
   });
