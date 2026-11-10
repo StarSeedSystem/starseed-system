@@ -436,13 +436,35 @@ describe("ARC1108B · con latidos, el remitente no se rinde aunque verificar tar
   }
 
   it("receptor nuevo: late cada 4 s mientras une y verifica, y el remitente sigue esperando hasta el «ok»", async () => {
-    const { p, r, momentos, segundos, datos } = await verificacionLenta(false);
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "Date"] });
+    const almacen = almacenEnSerie({ msEscritura: 0, msLectura: 1_500, sinLotes: true });
+    const p = await par("directo", almacen, { esperaVerificacionMs: () => 85_000 }, {}, { sinSugerir: true });
+    const datos = aleatorio(64 * 16 * 1024);
+    const momentos: Array<{ fase: string; t: number; codigo?: string }> = [];
+    p.motorA.onProgreso((e: EstadoTransferencia) => {
+      if (momentos.at(-1)?.fase !== e.fase) momentos.push({ fase: e.fase, t: Date.now(), codigo: e.codigo });
+    });
+    // Envolver el envío ANTES de mandar el archivo para contar «archivo.fin»
+    let finsEnviados = 0;
+    const enviarOriginal = p.canalA.enviar.bind(p.canalA);
+    p.canalA.enviar = (t: string) => {
+      if (t.startsWith('{"t":"archivo.fin"')) finsEnviados++;
+      return enviarOriginal(t);
+    };
+    const r = await p.motorA.enviarArchivo(p.canalA, new Blob([datos]), "video.mp4", { tipo: "dispositivo" });
+    await correr(() => p.motorA.estadoDe(r.id)?.fase === "completada", 400_000);
+    const verificando = momentos.find((m) => m.fase === "verificando")?.t ?? NaN;
+    const completada = momentos.find((m) => m.fase === "completada")?.t ?? NaN;
+    const segundos = (completada - verificando) / 1000;
     expect(segundos, "verificar tardó más que el plazo de 85 s de la prueba real").toBeGreaterThan(85);
     expect(momentos.map((m) => m.fase)).not.toContain("error");
     expect(p.motorA.estadoDe(r.id)?.fase).toBe("completada");
     expect(sha(await (p.recibidos.get(r.id) as Blob).arrayBuffer())).toBe(sha(datos));
     const ensamblando = latidosDe(p).filter((l) => l.fase === "ensamblando");
     expect(ensamblando.length, "un latido cada 4 s durante ~96 s").toBeGreaterThanOrEqual(20);
+    // ARC1108B / SUP0911H: el remitente manda «archivo.fin» UNA sola vez en toda la verificación
+    // (con el bug de SUP0911G lo repetía cada vez que vencía la espera completa).
+    expect(finsEnviados, "«archivo.fin» sale una sola vez aunque la verificación dure ~96 s con latidos cada 4 s").toBe(1);
   }, 60_000);
 
   it("receptor ANTERIOR (sin latidos): tras 85 s de espera, el «fin» repetido y su gracia de 10 s (SUP0911G) pasa a «sin-confirmacion» y el «ok» que llega tarde lo da por verificado", async () => {
