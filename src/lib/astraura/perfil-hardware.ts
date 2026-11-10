@@ -118,3 +118,16 @@ export function ajustesBitnet(p: PerfilHardware): AjustesBitnet {
   }
   return { hilos: Math.min(6, p.nucleos), ctx: 4096, paralelo: 3 };
 }
+
+// ── MOD1110A · familia de chip para recomendar modelos locales (aditivo) ──────────────────────────
+// Un navegador no entrega el chip; se deduce del renderizador de GPU (WEBGL_debug_renderer_info) y la plataforma.
+export type FamiliaChipHw = "apple-silicon" | "nvidia" | "amd" | "cpu" | "android-soc";
+
+export function detectarChip(e: { plataforma: Plataforma; gpuRenderer?: string; gpuVendor?: string }): FamiliaChipHw {
+  const s = `${e.gpuRenderer ?? ""} ${e.gpuVendor ?? ""}`.toLowerCase();
+  if (e.plataforma === "android") return "android-soc";
+  if (/apple/.test(s)) return "apple-silicon";
+  if (/nvidia|geforce|rtx|gtx|quadro/.test(s)) return "nvidia";
+  if (/amd|radeon|ati\b/.test(s)) return "amd";
+  return "cpu";
+}
