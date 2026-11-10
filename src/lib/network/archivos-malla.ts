@@ -2304,7 +2304,7 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
         vigias.delete(id);
         const actual2 = estados.get(id);
         if (!actual2 || actual2.rol !== "enviar" || actual2.fase !== "verificando") return;
-        const s = Math.round(graciaMs / 1000);
+        const s = Math.round((ms + graciaMs) / 1000);
         const detalle = late
           ? `sin noticias suyas en ${s} s, cuando avisaba cada pocos segundos (¿app cerrada, en segundo plano o sin memoria?)`
           : `sin respuesta en ${s} s tras mandar el último trozo (¿app cerrada o sin memoria?)`;

@@ -155,4 +155,38 @@ describe("SUP0911G · archivo.ok perdido en la red", () => {
     expect(l.finEnviadoContador).toBe(2);
     expect(l.finContador).toBe(2);
   });
+
+  it("SUP0911J: el error cuenta toda la espera (ms + gracia), no solo la gracia", async () => {
+    const motorA = crearMotorArchivos({ almacen: crearAlmacenEnMemoria(), esperaVerificacionMs: () => 2_000 });
+    const motorB = crearMotorArchivos({
+      almacen: crearAlmacenEnMemoria(),
+      onOfertaEntrante: (o) => motorB.aceptarOferta(o.id),
+    });
+    const enlace = enlaceLocalSimulado();
+    let finRecibidosPorB = 0;
+    enlace.a.alMensaje((d) => {
+      if (typeof d !== "string") return;
+      motorA.manejarMensaje(enlace.a, d);
+    });
+    enlace.b.alMensaje((d) => {
+      if (typeof d !== "string") return;
+      if (d.startsWith('{"t":"archivo.fin"')) {
+        finRecibidosPorB++;
+        return; // descartar TODOS los fin: no se los pasa a motorB
+      }
+      motorB.manejarMensaje(enlace.b, d, { mismaCuenta: false, verificarPermiso: () => true });
+    });
+    const datos = binario(20_000);
+    const r = await motorA.enviarArchivo(enlace.a, new Blob([datos]), "z.bin", { tipo: "dispositivo" });
+    expect(r.ok).toBe(true);
+    await esperarHasta(() => motorA.estadoDe(r.id)?.fase === "verificando", 5_000);
+    await esperarHasta(() => motorA.estadoDe(r.id)?.fase === "error", 15_000);
+    const e = motorA.estadoDe(r.id);
+    expect(e?.fase).toBe("error");
+    expect(e?.codigo).toBe("sin-confirmacion");
+    // espera=2000ms, gracia=1000ms → total=3s (no 1s)
+    expect(e?.motivo).toContain("en 3 s");
+    expect(e?.motivo).not.toContain("en 1 s");
+    expect(finRecibidosPorB).toBe(2);
+  });
 });
