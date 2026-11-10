@@ -206,6 +206,12 @@ pub const PLAZO_ABRIR_MS: u64 = 8_000;
 pub const PLAZO_ESCRITURA_MS: u64 = 5_000;
 /// (BLE1109B) Con un mensaje esperando su acuse, el canal abierto sin leer NI UN byte durante esto se da por atascado.
 pub const PLAZO_SIN_LECTURA_MS: u64 = 6_000;
+/// (BLE1110A) Latido del canal: con un mensaje esperando su acuse, cada tanto se manda un eco mínimo (el mismo paquete de la
+/// autoprueba). El eco lo contesta el RUST del otro lado, sin pasar por su webview: un acuse de la app puede tardar si el
+/// webview está en segundo plano o ocupado, y eso NO es un canal atascado (prueba.32: cierres cada 8–100 s).
+pub const LATIDO_CANAL_MS: u64 = 2_000;
+/// (BLE1110A) El canal se da por atascado solo si un latido lleva sin eco esto Y no se leyó ni un byte en ese tiempo.
+pub const PLAZO_ECO_LATIDO_MS: u64 = 6_000;
 /// (BLE1109B) Fallos del canal de un mismo par que lo dejan apagado hasta reiniciar la app…
 pub const FALLOS_PARA_APAGAR: usize = 2;
 /// (BLE1109B) Un par apagado por fallos vuelve a probar el canal rápido pasada esta hora (un solo intento más: si falla, otra hora).
@@ -348,6 +354,10 @@ pub struct Carril {
     prueba_ok: bool,
     ping_por_enviar: Option<u16>,
     eco_por_enviar: Option<u16>,
+    /// (BLE1110A) Latido en curso: (nonce, desde cuándo) mientras espera su eco; y cuándo se mandó el último.
+    latido: Option<(u16, u64)>,
+    ultimo_latido_ms: u64,
+    latido_n: u16,
 }
 
 impl Carril {
@@ -367,6 +377,9 @@ impl Carril {
             prueba_ok: false,
             ping_por_enviar: None,
             eco_por_enviar: None,
+            latido: None,
+            ultimo_latido_ms: 0,
+            latido_n: 0,
         }
     }
 
@@ -396,10 +409,35 @@ impl Carril {
         self.ultimo_rx_ms = ahora.max(1);
     }
 
-    /// (BLE1109B) ¿Canal abierto, algo esperando respuesta y NADA leído en `PLAZO_SIN_LECTURA_MS`? Entonces está
-    /// atascado en la lectura (la escritura puede ir bien): se cae a GATT.
+    /// (BLE1110A) ¿Hay que mandar un latido? Con el canal en uso y un mensaje esperando su acuse, uno cada `LATIDO_CANAL_MS`
+    /// si no hay otro sin contestar. Devuelve true si deja un paquete por enviar (quien llama despierta al escritor).
+    pub fn planificar_latido(&mut self, ahora: u64, pendiente: bool) -> bool {
+        if !self.en_uso() || !pendiente || self.latido.is_some() || self.ping_por_enviar.is_some() {
+            return false;
+        }
+        if ahora.saturating_sub(self.ultimo_latido_ms.max(self.abierto_ms)) < LATIDO_CANAL_MS {
+            return false;
+        }
+        self.latido_n = self.latido_n.wrapping_add(1);
+        self.latido = Some((self.latido_n, ahora));
+        self.ultimo_latido_ms = ahora;
+        self.ping_por_enviar = Some(self.latido_n);
+        true
+    }
+
+    /// (BLE1110A) ¿Canal atascado? Solo si un latido lleva más de `PLAZO_ECO_LATIDO_MS` sin eco, no se leyó NI UN byte en
+    /// ese tiempo y sigue habiendo algo esperando. Un acuse lento de la app (webview en segundo plano) ya no lo cierra.
+    /// (Sustituye a «nada leído en 6 s con un mensaje esperando acuse» de BLE1109B.)
     pub fn atascado(&self, ahora: u64, pendiente: bool) -> bool {
-        self.estado == EstadoCarril::Abierto && self.prueba_ok && pendiente && ahora.saturating_sub(self.ultimo_rx_ms.max(self.abierto_ms)) > PLAZO_SIN_LECTURA_MS
+        if self.estado != EstadoCarril::Abierto || !self.prueba_ok || !pendiente {
+            return false;
+        }
+        match self.latido {
+            Some((_, desde)) => {
+                ahora.saturating_sub(desde) > PLAZO_ECO_LATIDO_MS && ahora.saturating_sub(self.ultimo_rx_ms.max(self.abierto_ms)) > PLAZO_ECO_LATIDO_MS
+            }
+            None => false,
+        }
     }
 
     pub fn estado(&self) -> EstadoCarril {
@@ -447,6 +485,11 @@ impl Carril {
     pub fn recibir_prueba(&mut self, es_eco: bool, nonce: u16, ahora: u64) -> Option<u64> {
         if !es_eco {
             self.eco_por_enviar = Some(nonce);
+            return None;
+        }
+        // (BLE1110A) El eco de un latido (con la autoprueba ya superada) cierra el latido.
+        if self.prueba_ok && self.latido.is_some_and(|(n, _)| n == nonce) {
+            self.latido = None;
             return None;
         }
         match self.prueba {
@@ -527,6 +570,8 @@ impl Carril {
         self.prueba = None;
         self.prueba_ok = false;
         self.ping_por_enviar = None;
+        self.latido = None;
+        self.ultimo_latido_ms = 0;
         // (el eco debido NO se borra: el ping del otro lado puede llegar antes de que este lado note que el canal abrió)
         self.abierto_ms = ahora;
         self.ultimo_rx_ms = ahora.max(1);
@@ -542,12 +587,21 @@ impl Carril {
             self.fallos = self.fallos.saturating_add(1);
         }
         // Un canal que duró se reabre YA (fallos = 0); uno que no abrió o cayó al instante espera 0, 2, 5, 15 y 60 s.
-        let espera_ms = if self.fallos == 0 { 0 } else { Self::espera_para(self.fallos - 1) };
+        // (BLE1110A) Una apertura que NO llegó a abrir (macOS «Unknown error» justo tras un cierre) nunca reintenta al instante:
+        // la escala empieza en 2 s. Un canal que abrió y duró poco sigue con 0, 2, 5, 15 y 60 s.
+        let espera_ms = if self.fallos == 0 {
+            0
+        } else if estaba_abierto {
+            Self::espera_para(self.fallos - 1)
+        } else {
+            Self::espera_para(self.fallos)
+        };
         self.proximo_ms = ahora + espera_ms;
         self.prueba = None;
         self.prueba_ok = false;
         self.ping_por_enviar = None;
         self.eco_por_enviar = None;
+        self.latido = None;
         self.estado = if self.psm.is_some() && !self.prohibido { EstadoCarril::Disponible } else { EstadoCarril::SinPsm };
         Cierre { motivo: motivo.chars().take(200).collect(), vivio_ms, espera_ms, estaba_abierto }
     }
@@ -701,7 +755,7 @@ mod pruebas {
         assert_eq!(c.debe_abrir(1_001), None, "ya pedido");
         assert!(!c.apertura_vencida(1_000 + PLAZO_ABRIR_MS));
         assert!(c.apertura_vencida(1_001 + PLAZO_ABRIR_MS));
-        // No abrió: espera y vuelve a intentar con la escala 0, 2, 5, 15, 60, 60…
+        // No abrió: espera y vuelve a intentar con la escala 2, 5, 15, 60, 60… (BLE1110A: nunca al instante: macOS «Unknown error»).
         let mut t = 10_000;
         let mut esperas = Vec::new();
         for _ in 0..7 {
@@ -714,7 +768,7 @@ mod pruebas {
             t += cierre.espera_ms;
             assert_eq!(c.debe_abrir(t), Some(0x85));
         }
-        assert_eq!(esperas, vec![0, 2_000, 5_000, 15_000, 60_000, 60_000, 60_000]);
+        assert_eq!(esperas, vec![2_000, 5_000, 15_000, 60_000, 60_000, 60_000, 60_000]);
         // Abre y dura: la caída siguiente es inmediata y el contador vuelve a cero.
         c.abierto(Some(0x85), t);
         assert!(c.es_rapido());
@@ -917,21 +971,75 @@ mod pruebas {
     }
 
     #[test]
-    fn canal_atascado_solo_con_algo_esperando_y_sin_leer() {
+    fn canal_atascado_solo_si_el_latido_no_tiene_eco_y_no_se_lee_nada() {
         let mut c = Carril::nuevo(false);
         c.abierto(Some(0x85), 1_000);
         c.iniciar_prueba(7, 1_000);
+        c.tomar_paquete_prueba();
         assert_eq!(c.recibir_prueba(true, 7, 1_001), Some(1));
-        assert!(!c.atascado(1_000 + PLAZO_SIN_LECTURA_MS + 1, false), "sin nada esperando acuse no se juzga");
-        assert!(!c.atascado(1_000 + PLAZO_SIN_LECTURA_MS, true), "justo en el plazo, vivo");
-        assert!(c.atascado(1_000 + PLAZO_SIN_LECTURA_MS + 1, true));
-        c.nota_lectura(5_000);
-        assert!(!c.atascado(5_000 + PLAZO_SIN_LECTURA_MS, true), "leyó hace poco");
-        assert!(c.atascado(5_000 + PLAZO_SIN_LECTURA_MS + 1, true));
+        // Sin latido en curso (nada esperando, o aún no tocaba) no se juzga, por callado que esté el otro lado.
+        assert!(!c.atascado(1_000 + 60_000, true), "sin latido sin eco no hay atasco: un acuse lento de la app no cuenta");
+        assert!(!c.planificar_latido(1_000 + LATIDO_CANAL_MS - 1, true), "aún no toca");
+        assert!(!c.planificar_latido(1_000 + LATIDO_CANAL_MS, false), "sin mensaje esperando no se manda latido");
+        assert!(c.planificar_latido(1_000 + LATIDO_CANAL_MS, true));
+        assert!(!c.planificar_latido(1_000 + 3 * LATIDO_CANAL_MS, true), "no se apilan latidos sin contestar");
+        let t0 = 1_000 + LATIDO_CANAL_MS;
+        assert!(!c.atascado(t0 + PLAZO_ECO_LATIDO_MS, true), "justo en el plazo, vivo");
+        assert!(c.atascado(t0 + PLAZO_ECO_LATIDO_MS + 1, true));
+        assert!(!c.atascado(t0 + PLAZO_ECO_LATIDO_MS + 1, false), "si ya no espera nada, no estorba");
+        c.nota_lectura(t0 + 4_000);
+        assert!(!c.atascado(t0 + PLAZO_ECO_LATIDO_MS + 1, true), "llegaron bytes hace poco: el canal lee");
         let mut cerrado = Carril::nuevo(false);
         assert!(!cerrado.atascado(u64::MAX / 2, true), "un canal que no está abierto no se vigila");
         cerrado.ofrecer_psm(0x85, 0);
         assert!(!cerrado.atascado(u64::MAX / 2, true));
+    }
+
+    #[test]
+    fn el_eco_del_latido_lo_cierra_y_el_canal_nunca_se_da_por_atascado() {
+        let mut a = Carril::nuevo(true);
+        let mut b = Carril::nuevo(false);
+        a.abierto(Some(0x85), 0);
+        b.abierto(None, 0);
+        a.iniciar_prueba(3, 0);
+        let p = a.tomar_paquete_prueba().unwrap();
+        let (_, n) = leer_prueba(&p).unwrap();
+        b.recibir_prueba(false, n, 10);
+        let eco = b.tomar_paquete_prueba().unwrap();
+        let (es_eco, n) = leer_prueba(&eco).unwrap();
+        assert!(es_eco);
+        assert!(a.recibir_prueba(true, n, 20).is_some());
+        // Un mensaje espera su acuse 30 s (la app del otro lado está en segundo plano): latidos y ecos cada 2 s, jamás atasco.
+        let mut t = 20;
+        while t < 30_000 {
+            t += 500;
+            if a.planificar_latido(t, true) {
+                let p = a.tomar_paquete_prueba().unwrap();
+                let (_, n) = leer_prueba(&p).unwrap();
+                b.recibir_prueba(false, n, t);
+                let e = b.tomar_paquete_prueba().unwrap();
+                let (_, n) = leer_prueba(&e).unwrap();
+                assert_eq!(a.recibir_prueba(true, n, t + 30), None, "el eco del latido no es una autoprueba");
+            }
+            assert!(!a.atascado(t, true), "t={t}");
+        }
+    }
+
+    #[test]
+    fn apertura_fallida_nunca_reintenta_al_instante() {
+        let mut c = Carril::nuevo(true);
+        c.ofrecer_psm(0x85, 0);
+        c.abierto(None, 0);
+        // Un canal estable que se cierra reabre ya…
+        let cierre = c.cerrado("el otro aparato cerró el canal L2CAP", CANAL_ESTABLE_MS + 5);
+        assert_eq!(cierre.espera_ms, 0);
+        // …pero si la reapertura falla («macOS no pudo abrir el canal L2CAP: Unknown error.») espera 2 s, luego 5 s…
+        assert_eq!(c.debe_abrir(CANAL_ESTABLE_MS + 5), None, "no ligado: no abre");
+        let c1 = c.cerrado("macOS no pudo abrir el canal L2CAP: Unknown error.", CANAL_ESTABLE_MS + 6);
+        assert!(!c1.estaba_abierto);
+        assert_eq!(c1.espera_ms, ESCALA_REAPERTURA_MS[1]);
+        let c2 = c.cerrado("macOS no pudo abrir el canal L2CAP: Unknown error.", CANAL_ESTABLE_MS + 7);
+        assert_eq!(c2.espera_ms, ESCALA_REAPERTURA_MS[2]);
     }
 
     #[test]

@@ -10,6 +10,7 @@
  *  · se acepta un tope de gente (el del motor) y se explica en vez de fallar callado.
  * Sin React ni DOM: el motor y todo lo del aparato entran por `MotorMinimo` y `DepsAdaptador` (así se prueba).
  */
+import { describirCamaras } from "@/lib/llamadas/camaras";
 import type { CargaApp, EstadoLlamada, ParticipanteLlamada } from "@/lib/llamadas/tipos";
 import type { ResumenLlamada } from "@/lib/llamadas/motor";
 import { MAX_PARTICIPANTES } from "@/lib/llamadas/tipos";
@@ -45,6 +46,8 @@ export interface MotorMinimo {
   alternarPantalla(): Promise<string | null>;
   cambiarCamara(id: string): Promise<string | null>;
   cambiarAltavoz(id: string): void;
+  cambiarMicro?(id: string): Promise<string | null>;
+  actualizarDispositivos?(): Promise<void>;
   colgar(motivo?: string): ResumenLlamada;
   metricasPares?(): Array<{ id: string; rttMs: number | null; perdidos: number; recibidos: number; jitterMs: number | null }>;
 }
@@ -422,7 +425,7 @@ export class AdaptadorMotor {
       pantallaCompartida: e.pantalla,
       videoLigero: !!e.videoDatos?.disponible,
       escalaWifi: !!e.escalada,
-      hayVideoRemoto: otros.some((p) => !!p.stream?.getVideoTracks().length),
+      hayVideoRemoto: otros.some((p) => !!p.stream?.getVideoTracks().length || !!p.lienzo),
       soyCreador: this.primero() === this.motor.miId,
       viva: e.fase === "en-curso",
     };
@@ -502,6 +505,9 @@ export class AdaptadorMotor {
         this.motor.colgar("Has terminado la llamada para todos.");
       },
       elegirSalidaAudio: (id) => this.motor.cambiarAltavoz(id),
+      elegirCamara: (id) => void this.conAviso(() => this.motor.cambiarCamara(id)),
+      elegirMicro: this.motor.cambiarMicro ? (id) => void this.conAviso(() => this.motor.cambiarMicro!(id)) : undefined,
+      actualizarDispositivos: this.motor.actualizarDispositivos ? () => void this.motor.actualizarDispositivos!() : undefined,
       descartar: () => undefined,
     };
   }
@@ -514,7 +520,10 @@ export class AdaptadorMotor {
   private async girarCamara() {
     if (!this.permitido("girar-camara")) return;
     const e = this.lastEstado;
-    const lista = e.dispositivos.camaras;
+    // VID1110A: «girar» alterna entre las cámaras del propio aparato (frontal/trasera); no salta a Continuidad ni a una virtual.
+    const todas = e.dispositivos.camaras;
+    const propias = describirCamaras(todas).filter((c) => c.tipo === "integrada").map((c) => ({ id: c.id, nombre: c.etiqueta }));
+    const lista = propias.length >= 2 ? propias : todas;
     if (lista.length < 2) return;
     const i = lista.findIndex((c) => c.id === e.seleccion.camaraId);
     const siguiente = lista[(i + 1) % lista.length];
@@ -878,6 +887,7 @@ export class AdaptadorMotor {
       nombre: p.nombre,
       yo: p.yo,
       stream: p.stream,
+      lienzo: p.lienzo ?? null,
       micro: p.micro && !this.silenciados.has(p.id),
       camara: p.camara,
       volumen: this.silenciados.has(p.id) ? 0 : (this.volumenes[p.id] ?? 1),
@@ -897,10 +907,14 @@ export class AdaptadorMotor {
       aviso: this.aviso ?? e.aviso,
       local: yo?.stream ?? null,
       remoto: foco?.stream ?? null,
+      remotoLienzo: foco?.lienzo ?? null,
       micro: e.micro,
       camara: e.camara,
       compartiendoPantalla: e.pantalla,
       camaras,
+      dispositivos: e.dispositivos,
+      seleccion: e.seleccion,
+      pistaCamara: yo?.stream?.getVideoTracks()[0] ?? null,
       participantes,
       calidad: calidadConMedio,
       medioElegido: this.medioElegido,

@@ -9,13 +9,22 @@ import { planInvitar, TEXTO_LIMITES } from "@/lib/llamadas/superficie/grupo-invi
 import type { AccionesLlamada, VistaLlamada } from "@/lib/llamadas/superficie/vista";
 import { useInfoNativaLlamada } from "./contexto-nativo";
 import { Barras, useSalidasAudio } from "./piezas";
+import { getDeviceId } from "@/lib/network/device-registry";
+import { OpcionesDeCamara, SelectorCamara } from "../selector-camara";
 
 const caja = "rounded-xl border border-white/10 bg-white/[0.04] p-2.5 text-[12px] text-white/80";
 const btnTxt = "cursor-pointer rounded-lg border border-violet-300/30 bg-violet-400/15 px-2.5 py-1 text-[11.5px] text-violet-50 transition-colors duration-200 hover:bg-violet-400/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300/80 disabled:cursor-not-allowed disabled:opacity-40";
 const NIVEL = { ok: "text-emerald-300", aviso: "text-amber-300", mal: "text-rose-300", neutro: "text-white/70" } as const;
 
-export function PestanaCalidad({ v, a, salidas }: { v: VistaLlamada; a?: AccionesLlamada; salidas: ReturnType<typeof useSalidasAudio> }) {
+export function PestanaCalidad({ v, a, salidas, espejo, onEspejo }: { v: VistaLlamada; a?: AccionesLlamada; salidas: ReturnType<typeof useSalidasAudio>; espejo?: boolean; onEspejo?: (e: boolean) => void }) {
   const nat = useInfoNativaLlamada();
+  const neurona = (() => {
+    try {
+      return getDeviceId() || "local";
+    } catch {
+      return "local";
+    }
+  })();
   const c = v.calidad;
   return (
     <div className="space-y-2">
@@ -48,6 +57,21 @@ export function PestanaCalidad({ v, a, salidas }: { v: VistaLlamada; a?: Accione
           <p id="salida-audio" className="text-white/60">Este navegador no deja elegir la salida de audio; se usa la del sistema.</p>
         )}
       </div>
+      {v.dispositivos && (
+        <div className={caja}>
+          <label className="mb-1 block text-white/55" htmlFor="micro-llamada">Micrófono</label>
+          {v.dispositivos.microfonos.length > 0 ? (
+            <select id="micro-llamada" value={v.seleccion?.microId ?? v.dispositivos.microfonos[0].id} disabled={!a?.elegirMicro} onChange={(e) => a?.elegirMicro?.(e.target.value)} className="w-full rounded-lg border border-white/15 bg-slate-900 px-2 py-1 disabled:opacity-50">
+              {v.dispositivos.microfonos.map((m) => <option key={m.id} value={m.id}>{m.nombre}</option>)}
+            </select>
+          ) : (
+            <p id="micro-llamada" className="text-white/60">No vemos ningún micrófono (o aún no hay permiso para listarlos).</p>
+          )}
+        </div>
+      )}
+      {v.dispositivos && <SelectorCamara camaras={v.dispositivos.camaras} elegidaId={v.seleccion?.camaraId ?? null} neurona={neurona} onElegir={a?.elegirCamara} />}
+      {v.dispositivos && <OpcionesDeCamara pista={v.pistaCamara} neurona={neurona} espejo={espejo} onEspejo={onEspejo} />}
+      {v.dispositivos && a?.actualizarDispositivos && <button type="button" className={btnTxt} onClick={a.actualizarDispositivos}>Volver a buscar dispositivos</button>}
     </div>
   );
 }

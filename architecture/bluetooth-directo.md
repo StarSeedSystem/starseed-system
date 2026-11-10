@@ -318,6 +318,40 @@ pierda el mensaje en vuelo; el consumo con el sondeo de 5 ms.
 
 **Diagnóstico.** La tableta escribe el mismo `enlaces.log` en su carpeta de datos. Ajustes › Neuronas › Medios › tarjeta Bluetooth: «Compartir registro de enlaces» (hoja de compartir en Android; en escritorio abre la carpeta del registro). Al ligarse, cada lado manda al otro sus últimas 50 líneas (`{"t":"nl.reg","l":[…]}`, cola de datos, como mucho una vez cada 30 s por neurona; un aparato anterior lo ignora) y el registro del otro lo muestra como «(nombre) línea».
 
+### 15.y · Prueba.32 en aparatos: el enlace aguanta (BLE1110A · 2026-11-10)
+
+**Qué mostró** (Mac `MaggaBook` central + tableta `Maggaboard` periférica, 09-11 23:33–00:00 UTC, `enlaces.log`): el enlace ligó, la voz funcionó, un vídeo llegó íntegro y el canal rápido pasó la autoprueba (`rtt=29…90 ms`, 160–460 kb/s). Cinco fallos:
+
+| # | Síntoma | Causa (en prueba.32) | Arreglo |
+| --- | --- | --- | --- |
+| 1 | `autocuracion · tormenta de desconexiones` 68 veces (≈35 en 2 s; otra ráfaga 10 min después sobre un enlace de 476 s) | `BleStarSeed.kt::anotarCaida`: la cura cancelaba conexiones y esas desconexiones volvían a contar; cada 4 programaba otra cura; sin enfriamiento; «sin enlace vivo» solo miraba `suscrito` | `ble_autocura.rs::Autocura` (gemelo `evaluarAutocura`): ver reglas 1–4 |
+| 2 | Tras la cura `suscrito · paquete 20`, `GATT 20 B` | `centrales.clear()` + `Central(d)` nuevo con paquete 20: la ACL sigue viva y no hay otro intercambio de MTU | MTU recordado por central; `mtu-soltado` si no es de fiar (reglas 5–6) |
+| 3 | `radio · … no dejó anunciarse (código 3)` | `anunciando` iba por detrás de la pila: `startAdvertising` sobre un anuncio vivo → `ADVERTISE_FAILED_ALREADY_STARTED`, que se trataba como fallo | Siempre parar antes de arrancar; código 3 = ya activo (regla 7) |
+| 4 | Canal L2CAP cerrado y reabierto cada 8–100 s (`el otro aparato cerró el canal L2CAP`, una vez `canal atascado… 345033 ms`, `macOS no pudo abrir… Unknown error`) | La regla «6 s sin leer un byte con un mensaje esperando acuse» (`Carril::atascado`) corre en AMBOS lados: un acuse lento (webview en segundo plano, fin de llamada) lo cerraba; el lado que cierra lo cuenta el otro como «el otro aparato cerró». Además el vigía de escritura de Kotlin (5 s) cerraba un canal con control de flujo apretado aunque el otro hablara, y la cura cerraba canales | Latido de canal (reglas 8–9) |
+| 5 | Espejo del registro de la tableta una sola vez | `espejarRegistro` solo corría al pasar a «ligado» | Espejo continuo (regla 11) |
+
+**Reglas nuevas.**
+1. Autocuración: NUNCA con un enlace ligado (central suscrito, cliente listo o canal L2CAP abierto) ni con tráfico (GATT o L2CAP, cualquier sentido) en los últimos 30 s; un enlace sano además borra el historial de caídas.
+2. Como mucho UNA cura cada 5 min. Las desconexiones de los 20 s siguientes a una cura no cuentan como caídas (son suyas).
+3. Las caídas se podan a la ventana de 60 s; tormenta = 4 en esa ventana, sin enlace. «Sin enlace» = 90 s sin enlace ligado con una neurona anunciándose cerca; la segunda cura seguida recrea el servidor GATT.
+4. Una línea de registro por cura con la evidencia: `autocuracion · tormenta de desconexiones (4 en 60 s), ningún enlace ligado, 95 s sin tráfico, 0 curas seguidas → recrea servidor GATT y anuncio`. La decisión vive en `ble_autocura.rs` (con pruebas); `BleStarSeed.kt` es su gemelo línea a línea: un cambio se hace en los dos.
+5. El paquete GATT negociado se recuerda por central (`paqueteRecordado`) y sobrevive a recrear el servidor; se olvida solo en una desconexión real (fuera de los 20 s de gracia). Cada cambio se anota: `mtu-cambio · p:<dirección> · paquete 512 → 20 (mtu …)`.
+6. Si un central se suscribe con paquete 20 y sin MTU recordado, se suelta UNA vez (`cancelConnection`, nota `mtu-soltado`) para que reconecte y renegocie; si vuelve a 20 en 60 s se acepta (`ble_autocura::decidir_mtu`). Nunca se mandan 20 B a un central que negoció 512.
+7. Anuncio: `anunciar()` siempre para antes de arrancar y arranca 300 ms después (un solo arranque pendiente). Código 3 = «ya anunciando»: `anuncio-ya-activo`, se para/arranca UNA vez para verificarlo y, si repite 3, se da por activo; no se avisa «solo busca y conecta». Otros códigos siguen avisando.
+8. Latido del canal (`Carril::planificar_latido`): con el canal en uso y un mensaje esperando su acuse, cada 2 s un eco mínimo (`[5|nonce]`, el mismo paquete de la autoprueba) que contesta el RUST del otro lado, sin pasar por su webview. El canal se declara atascado SOLO si un latido lleva 6 s sin eco Y no se leyó ni un byte en esos 6 s Y sigue habiendo algo esperando (`canal atascado: el latido del canal sin eco en 6000 ms y nada leído…`). Un acuse lento de la app ya no cierra nada. Sustituye a la regla 5 de §15.x.
+9. Vigía de escritura de Kotlin: 8 s sin avanzar Y sin oír nada del otro lado. Reapertura tras una apertura fallida (p. ej. macOS `Unknown error`): espera 2, 5, 15, 60 s (nunca 0). Se mantiene todo lo de BLE1109B: autoprueba antes del tráfico, vuelta a GATT sin perder el mensaje en vuelo, descanso por par tras fallos repetidos.
+10. `enlaces.log` colapsa líneas idénticas consecutivas: la primera sale al instante y al terminar la racha (o a los 5 s) sale `… (×N)` (`ble_autocura::Colapsador`, lado nativo; `colapsarRepetidas`, lado web y espejo).
+11. Espejo continuo: mientras hay enlace ligado, cada ~25 s por neurona (disparado por el refresco de 15 s) se manda SOLO lo nuevo desde el último espejo (la primera vez, las últimas 50), con repetidas colapsadas, ≤ 3,5 KB, por la cola de datos (la última) y nunca si hay voz o vídeo en cola o más de 4 KB de datos esperando. Un aparato anterior lo ignora (`nl.reg` desconocido).
+
+**Qué buscar en `enlaces.log` en la próxima ronda.**
+- Como mucho una línea `autocuracion` cada 5 min, con la evidencia; ninguna con un enlace `ligado` activo ni con `… (×N)` grandes.
+- `mtu-cambio` / `mtu-soltado`: tras cualquier cura, `suscrito · … paquete 512` (nunca `paquete 20` si antes fue 512) y `l2cap-abierto … (GATT 512 B)` en las líneas `(Maggaboard)`.
+- `anuncio-ya-activo` (código 3) en lugar de `solo busca y conecta`.
+- `l2cap-cerrado` espaciados: motivo `canal atascado: el latido…` solo si de verdad nada contesta; ya no `el otro aparato cerró` cada 8–100 s. Tras `Unknown error`, `reabre en 2000 ms`.
+- Líneas `(Maggaboard) …` nuevas cada ~25 s durante llamadas y transferencias.
+
+**Sin probar en aparatos.** Las pruebas son de lógica pura (`ble_autocura.rs`, `ble_l2cap.rs`, `registro-enlace-ble.test.ts`, `bluetooth-directo-motor.test.ts`) y compilación en Linux y cruzada (macOS, Android, Windows). El Kotlin lo compila solo la CI. La causa exacta del cierre del lado Android (regla «atascado» simétrica frente al vigía de escritura) se infiere del código y de los tiempos del registro (≈6 s + 2 s tras reabrir); la tableta no espejó su propio motivo de cierre.
+
 ## 16 · Windows: Bluetooth LE directo (WIN1109B · 2026-11-09)
 
 Windows 10 (1809+) y 11 hablan **el mismo protocolo que macOS y Android**: mismos UUID (§3), misma trama (§4), mismo

@@ -13,9 +13,11 @@ import { aplicarAltavoz } from "@/lib/llamadas/medios";
 import { ETIQUETA_CALIDAD } from "@/lib/llamadas/calidad";
 import type { ParticipanteLlamada } from "@/lib/llamadas/tipos";
 import { AvatarLlamada } from "./avatar-llamada";
+import { LienzoLigero } from "./superficie/piezas";
 import estilos from "./llamadas.module.css";
 
 function tieneVideo(p: ParticipanteLlamada): boolean {
+    if (p.lienzo && !p.yo) return true; // VID1110A: vídeo ligero por enlace de datos (canvas)
     if (!(p.camara || p.pantalla) || !p.stream) return false;
     try {
         return p.stream.getVideoTracks().some((t) => t.readyState === "live" && (p.yo || !t.muted));
@@ -155,7 +157,9 @@ export const MosaicoParticipante = memo(function MosaicoParticipante({
                 ...style,
             }}
         >
-            {video ? (
+            {video && p.lienzo && !p.yo ? (
+                <LienzoLigero lienzo={p.lienzo} className="h-full w-full" etiqueta={`Vídeo de ${nombre}`} />
+            ) : video ? (
                 <VideoStream
                     key={claveVideo(p.stream)}
                     stream={p.stream}

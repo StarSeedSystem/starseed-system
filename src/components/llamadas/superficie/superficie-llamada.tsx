@@ -34,6 +34,7 @@ export function SuperficieLlamada({ vista: v, acciones: a, tamanoInicial }: { vi
   const salidas = useSalidasAudio();
   const [pestana, setPestana] = useState<Pestana | null>(null);
   const [rejilla, setRejilla] = useState(false);
+  const [espejo, setEspejo] = useState(true); // VID1110A: mi imagen como espejo
   const [resaltar, setResaltar] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
   const [reaccionando, setReaccionando] = useState(false);
@@ -87,7 +88,7 @@ export function SuperficieLlamada({ vista: v, acciones: a, tamanoInicial }: { vi
   const g = v.grabacion ?? GRABACION_INICIAL;
   const grabando = hayGrabacion(g);
   const viva = s.estado === "conectada" || s.estado === "en-espera" || s.estado === "reconectando";
-  const conVideoRemoto = !!v.remoto?.getVideoTracks().length;
+  const conVideoRemoto = !!v.remoto?.getVideoTracks().length || !!v.remotoLienzo;
   const permitidos = tamanosPermitidos(s.estado);
   const cabeceraTexto = textoEstado(s, v.nombre);
   const tamanoActual = s.tamano;
@@ -154,7 +155,7 @@ export function SuperficieLlamada({ vista: v, acciones: a, tamanoInicial }: { vi
   const panelAbierto = !!pestana && tamanoActual !== "burbuja";
   const bloquePestana = (
     <div role="tabpanel" id={`pest-${pestana}`} aria-label={pestana ?? ""} className="max-h-[42vh] overflow-auto p-3 md:max-h-none md:flex-1">
-      {pestana === "calidad" && <PestanaCalidad v={v} a={a} salidas={salidas} />}
+      {pestana === "calidad" && <PestanaCalidad v={v} a={a} salidas={salidas} espejo={espejo} onEspejo={setEspejo} />}
       {pestana === "medio" && <PestanaMedio v={v} a={a} />}
       {pestana === "gente" && <PestanaGente v={v} a={a} />}
       {pestana === "invitar" && <PestanaInvitar v={v} a={a} />}
@@ -234,10 +235,10 @@ export function SuperficieLlamada({ vista: v, acciones: a, tamanoInicial }: { vi
                   <div className={cn("h-full w-full", rejilla && (v.participantes?.length ?? 0) > 1 && "grid grid-cols-2 gap-1")}>
                     {rejilla && v.participantes?.length ? v.participantes.map((p) => (
                       <div key={p.id} className={cn("relative overflow-hidden rounded-lg bg-slate-900", p.nivel && p.nivel > 0.08 && "ring-2 ring-emerald-300/70")}>
-                        <Pista stream={p.stream} video silenciar className="h-full w-full" etiqueta={p.nombre} />
+                        <Pista stream={p.stream} lienzo={p.lienzo} video silenciar className="h-full w-full" etiqueta={p.nombre} />
                         <span className="absolute bottom-1 left-1 rounded bg-black/55 px-1.5 text-[10.5px]">{p.nombre}</span>
                       </div>
-                    )) : <Pista stream={v.remoto} video={conVideoRemoto} remoto silenciar={!!v.participantes?.length} className={cn("h-full w-full", s.tipo === "pantalla" ? "object-contain" : "object-contain")} etiqueta={s.tipo === "pantalla" ? `Pantalla de ${v.nombre}` : `Imagen de ${v.nombre}`} sinkId={salidas.elegida} />}
+                    )) : <Pista stream={v.remoto} lienzo={v.remotoLienzo} video={conVideoRemoto} remoto silenciar={!!v.participantes?.length} className={cn("h-full w-full", s.tipo === "pantalla" ? "object-contain" : "object-contain")} etiqueta={s.tipo === "pantalla" ? `Pantalla de ${v.nombre}` : `Imagen de ${v.nombre}`} sinkId={salidas.elegida} />}
                   </div>
                   {!conVideoRemoto && !rejilla && (
                     <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 text-[13px] text-white/80">
@@ -247,7 +248,7 @@ export function SuperficieLlamada({ vista: v, acciones: a, tamanoInicial }: { vi
                   )}
                   {s.tipo === "pantalla" && resaltar && puntero && <span aria-hidden className="pointer-events-none absolute h-12 w-12 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-amber-300 bg-amber-300/25" style={{ left: puntero.x, top: puntero.y }} />}
                   {s.tipo === "pantalla" && resaltar && <div className="absolute inset-0" onPointerMove={(e) => { const r = e.currentTarget.getBoundingClientRect(); setPuntero({ x: e.clientX - r.left, y: e.clientY - r.top }); }} />}
-                  {v.local && v.camara && <Pista stream={v.local} video silenciar className="absolute bottom-2 right-2 h-20 w-14 rounded-lg border border-white/25 sm:h-24 sm:w-32" etiqueta="Tu cámara" />}
+                  {v.local && v.camara && <Pista stream={v.local} video silenciar espejo={espejo} className="absolute bottom-2 right-2 h-20 w-14 rounded-lg border border-white/25 sm:h-24 sm:w-32" etiqueta="Tu cámara" />}
                   {s.tipo === "vivo" && <span className="absolute left-2 top-2 flex items-center gap-1.5 rounded-full bg-black/55 px-2 py-0.5 text-[11px]"><Eye className="h-3 w-3" /> {v.espectadores ?? "—"} · {v.relevo ?? "directo"}</span>}
                   {s.tipo === "pantalla" && v.compartiendoPantalla && <span className="absolute left-2 top-2 rounded-full bg-amber-500/80 px-2 py-0.5 text-[11px] text-black">Estás compartiendo tu pantalla</span>}
                   {s.estado === "reconectando" && <div role="status" className="absolute inset-0 flex items-center justify-center bg-black/60 text-[13px]">Reconectando…</div>}

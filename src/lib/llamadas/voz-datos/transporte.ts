@@ -138,6 +138,10 @@ export function crearTransporteVozHacia(neurona: string): TransporteVoz | null {
       const l = local();
       return l ? l.bufferedAmount() : 0;
     },
+    /* VID1110A: el Bluetooth tira lo más viejo al pasar de este tope; el vídeo ligero deja salir un clave entero por debajo de él. */
+    topeColaVideoBytes() {
+      return ble() ? (modBle?.MAX_COLA_VIDEO_BLE ?? 24 * 1024) : null;
+    },
     capacidadKbps() {
       const b = ble();
       if (!b) return null;

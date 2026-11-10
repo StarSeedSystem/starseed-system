@@ -1689,7 +1689,11 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
   // bucle), la oferta enviada (para reanudar sin recalcular el hash) y la espera de la verificación.
   const transmitiendo = new Set<string>();
   const ofertasEnviadas = new Map<string, MsgOferta>();
-  const vigias = new Map<string, ReturnType<typeof setTimeout>>();
+  interface VigiaInfo {
+    t: ReturnType<typeof setTimeout>;
+    fase: "completa" | "gracia";
+  }
+  const vigias = new Map<string, VigiaInfo>();
   const reanudacionesAuto = new Map<string, number>();
   const esperaVerificacion = config.esperaVerificacionMs ?? ((trozos: number, bytes?: number) => 90_000 + Math.ceil((bytes ?? trozos * TAM_TROZO_POR_DEFECTO) / TAM_TROZO_POR_DEFECTO) * 100);
   const esperaSinNoticias = (trozos: number, bytes: number): number =>
@@ -2224,8 +2228,8 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
 
   /** (ARC1108A) Quita la espera de verificación de una transferencia enviada. */
   function limpiarVigia(id: string): void {
-    const t = vigias.get(id);
-    if (t !== undefined) clearTimeout(t);
+    const info = vigias.get(id);
+    if (info !== undefined) clearTimeout(info.t);
     vigias.delete(id);
   }
 
@@ -2243,9 +2247,20 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
    * con «Reintentar», que reanuda desde el primer trozo que le falte al otro. (ARC1108B) Con un receptor
    * que late es una espera SIN NOTICIAS (cada latido la reinicia: verificar 500 MB durante minutos no
    * es un fallo); con uno anterior, un plazo fijo que crece con el tamaño del archivo.
+   * (SUP0911G) Al vencer la primera espera, el remitente NO se rinde: manda una vez más «fin» y arma
+   * una última espera corta (gracia). Si en la gracia llega «ok», acaba «completada»; si llega un latido,
+   * `vigilarVerificacion` vuelve a empezar (y la próxima vez que venza, otra vez una última llamada);
+   * si no llega nada, el error «sin-confirmacion» de siempre. Una espera nueva (cada llamada a
+   * `vigilarVerificacion`) olvida la última llamada anterior **solo si ya se había reenviado «fin»**
+   * (estábamos en gracia); si aún no se reenvió, la espera completa sigue su curso.
    */
   function vigilarVerificacion(id: string): void {
-    limpiarVigia(id);
+    const infoPrev = vigias.get(id);
+    if (infoPrev?.fase === "gracia") {
+      limpiarVigia(id);
+    } else if (infoPrev?.fase === "completa") {
+      return;
+    }
     const e = estados.get(id);
     if (!e) return;
     const late = conLatido.has(id);
@@ -2254,21 +2269,61 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
       vigias.delete(id);
       const actual = estados.get(id);
       if (!actual || actual.rol !== "enviar" || actual.fase !== "verificando") return;
-      const s = Math.round(ms / 1000);
-      const detalle = late
-        ? `sin noticias suyas en ${s} s, cuando avisaba cada pocos segundos (¿app cerrada, en segundo plano o sin memoria?)`
-        : `sin respuesta en ${s} s tras mandar el último trozo (¿app cerrada o sin memoria?)`;
-      emitir({
-        ...actual,
-        fase: "error",
-        motivo: textoErrorRemoto({ motivo: "sin-confirmacion", detalle, lado: "receptor" }),
-        codigo: "sin-confirmacion",
-        lado: "receptor",
-        actualizadoMs: Date.now(),
-      });
+      const canal = canalPorId.get(id);
+      if (!canal) {
+        const s = Math.round(ms / 1000);
+        const detalle = late
+          ? `sin noticias suyas en ${s} s, cuando avisaba cada pocos segundos (¿app cerrada, en segundo plano o sin memoria?)`
+          : `sin respuesta en ${s} s tras mandar el último trozo (¿app cerrada o sin memoria?)`;
+        emitir({
+          ...actual,
+          fase: "error",
+          motivo: textoErrorRemoto({ motivo: "sin-confirmacion", detalle, lado: "receptor" }),
+          codigo: "sin-confirmacion",
+          lado: "receptor",
+          actualizadoMs: Date.now(),
+        });
+        return;
+      }
+      const finSalio = canal.enviar(JSON.stringify({ t: "archivo.fin", id } satisfies MsgFin));
+      if (!finSalio) {
+        const s = Math.round(ms / 1000);
+        const detalle = late
+          ? `sin noticias suyas en ${s} s, cuando avisaba cada pocos segundos (¿app cerrada, en segundo plano o sin memoria?)`
+          : `sin respuesta en ${s} s tras mandar el último trozo (¿app cerrada o sin memoria?)`;
+        emitir({
+          ...actual,
+          fase: "error",
+          motivo: textoErrorRemoto({ motivo: "sin-confirmacion", detalle, lado: "receptor" }),
+          codigo: "sin-confirmacion",
+          lado: "receptor",
+          actualizadoMs: Date.now(),
+        });
+        return;
+      }
+      const graciaMs = Math.min(10_000, Math.max(1, Math.round(ms / 2)));
+      const t2 = setTimeout(() => {
+        vigias.delete(id);
+        const actual2 = estados.get(id);
+        if (!actual2 || actual2.rol !== "enviar" || actual2.fase !== "verificando") return;
+        const s = Math.round(graciaMs / 1000);
+        const detalle = late
+          ? `sin noticias suyas en ${s} s, cuando avisaba cada pocos segundos (¿app cerrada, en segundo plano o sin memoria?)`
+          : `sin respuesta en ${s} s tras mandar el último trozo (¿app cerrada o sin memoria?)`;
+        emitir({
+          ...actual2,
+          fase: "error",
+          motivo: textoErrorRemoto({ motivo: "sin-confirmacion", detalle, lado: "receptor" }),
+          codigo: "sin-confirmacion",
+          lado: "receptor",
+          actualizadoMs: Date.now(),
+        });
+      }, graciaMs);
+      (t2 as { unref?: () => void }).unref?.();
+      vigias.set(id, { t: t2, fase: "gracia" });
     }, ms);
     (t as { unref?: () => void }).unref?.();
-    vigias.set(id, t);
+    vigias.set(id, { t, fase: "completa" });
   }
 
   /** (ARC1108B) Índices de esta vuelta: los huecos que pidió el receptor o, si no, de `desde` al final. */
