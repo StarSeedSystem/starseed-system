@@ -318,7 +318,11 @@ pub enum EventoRadio {
 }
 
 /// Los hitos que la radio puede anotar (lista cerrada: el texto libre va en el detalle).
-pub const NOTAS_RADIO: [&str; 10] = [
+pub const NOTAS_RADIO: [&str; 13] = [
+    // BLE1110A: cambios de MTU (anterior → nuevo), anuncio que ya estaba activo (código 3) y conexión soltada para renegociar el MTU.
+    "mtu-cambio",
+    "anuncio-ya-activo",
+    "mtu-soltado",
     "servicios-descubiertos",
     "suscrito",
     "sin-suscripcion",
@@ -463,6 +467,8 @@ struct Estado {
     registro: VecDeque<RegistroBle>,
     siguiente_reg: u64,
     por_volcar: Vec<String>,
+    /// (BLE1110A) Líneas idénticas consecutivas de `enlaces.log` → «… (×N)».
+    colapso: crate::ble_autocura::Colapsador,
     /// (BLE1109B) Fallos del canal rápido por par (2 en 10 min lo apagan hasta reiniciar).
     castigos: Castigos,
 }
@@ -489,6 +495,7 @@ fn estado() -> &'static Mutex<Estado> {
             registro: VecDeque::new(),
             siguiente_reg: 1,
             por_volcar: Vec::new(),
+            colapso: Default::default(),
             castigos: Castigos::nuevo(),
         })
     })
@@ -618,7 +625,10 @@ fn anotar(e: &mut Estado, tipo: &str, enlace: Option<&str>, neurona: Option<&str
     };
     e.siguiente_reg += 1;
     if e.por_volcar.len() < 500 {
-        e.por_volcar.push(linea_registro(&r));
+        // (BLE1110A) 68 líneas idénticas seguidas (la autocuración desbocada del 09-11) salen como una y «… (×68)».
+        let clave = format!("{}|{:?}|{:?}|{}", r.tipo, r.enlace, r.neurona, r.detalle);
+        let salida = e.colapso.empujar(&clave, linea_registro(&r), r.ms);
+        e.por_volcar.extend(salida);
     }
     e.registro.push_back(r);
     while e.registro.len() > REGISTRO_CAP {
@@ -627,7 +637,12 @@ fn anotar(e: &mut Estado, tipo: &str, enlace: Option<&str>, neurona: Option<&str
 }
 
 fn volcar_registro() {
-    let lineas = con_estado(|e| std::mem::take(&mut e.por_volcar));
+    let lineas = con_estado(|e| {
+        if let Some(r) = e.colapso.vaciar_viejas(ahora_ms(), 5_000) {
+            e.por_volcar.push(r);
+        }
+        std::mem::take(&mut e.por_volcar)
+    });
     if lineas.is_empty() {
         return;
     }
@@ -1254,8 +1269,14 @@ fn tic(ahora: u64, releer_cuenta: bool) -> Acciones {
                     a.cerrar.push(e.enlaces[i].plataforma.clone());
                 }
             } else if e.enlaces[i].carril.atascado(ahora, e.enlaces[i].nucleo.en_vuelo()) {
-                // (BLE1109B) Se escribe pero no se lee nada con un mensaje esperando su acuse: el canal está atascado.
-                a.cerrar_l2cap.push((e.enlaces[i].plataforma.clone(), format!("canal atascado: nada leído en {} ms con un mensaje esperando acuse", l2::PLAZO_SIN_LECTURA_MS)));
+                // (BLE1110A) Un latido del canal lleva sin eco y no se lee nada, con un mensaje esperando: atascado de verdad.
+                a.cerrar_l2cap.push((e.enlaces[i].plataforma.clone(), format!("canal atascado: el latido del canal sin eco en {} ms y nada leído, con un mensaje esperando acuse", l2::PLAZO_ECO_LATIDO_MS)));
+            } else if {
+                let espera = e.enlaces[i].nucleo.en_vuelo();
+                e.enlaces[i].carril.planificar_latido(ahora, espera)
+            } {
+                // (BLE1110A) Mientras un mensaje espera su acuse, un eco mínimo cada 2 s prueba el canal sin depender de la app.
+                a.datos.push(e.enlaces[i].plataforma.clone());
             }
             // (BLE1109A) Carril rápido: abrir el canal cuando toca (con la espera escalonada) o dar por perdida una
             // apertura que no llega. Mientras tanto el enlace sigue por GATT.
@@ -2174,7 +2195,11 @@ mod pruebas {
         con_estado(|e| e.enlaces.iter_mut().find(|l| l.plataforma == p).unwrap().nucleo.encolar(900, &j2, ahora_ms())).unwrap();
         // El canal escribe (sale el mensaje) pero no se lee ni un byte: atascado.
         assert!(siguiente_trama_rapida(p, 8192).is_some());
-        let a = tic(ahora_ms() + l2::PLAZO_SIN_LECTURA_MS + 100, false);
+        // (BLE1110A) Primero sale un latido (el eco lo contestaría el otro lado); sin eco y sin leer nada, atascado.
+        let t0 = ahora_ms();
+        let primero = tic(t0 + l2::LATIDO_CANAL_MS + 100, false);
+        assert!(primero.cerrar_l2cap.iter().all(|(x, _)| x != p), "un acuse lento no es un atasco: antes del plazo del eco no se cierra");
+        let a = tic(t0 + l2::LATIDO_CANAL_MS + l2::PLAZO_ECO_LATIDO_MS + 200, false);
         let (_, motivo) = a.cerrar_l2cap.iter().find(|(x, _)| x == p).expect("el tic da el canal por atascado").clone();
         assert!(motivo.contains("atascado"), "{motivo}");
         al_l2cap_cerrado(p, &motivo);

@@ -500,6 +500,33 @@ describe("Bluetooth directo · BLE1109B", () => {
     for (const j of espejos) expect((JSON.parse(j) as { l: string[] }).l.length).toBeLessThanOrEqual(50);
   });
 
+  it("BLE1110A: el espejo sigue cada ~25 s con SOLO lo nuevo (la regla «nada con voz en cola» está en tocaEspejoContinuo)", async () => {
+    const { lados, aire, reloj } = dosApps();
+    await ligar(lados);
+    const espejos = () => aire.jsons.filter((j) => j.startsWith('{"t":"nl.reg"'));
+    await esperarHasta(() => espejos().length >= 2);
+    const n0 = espejos().length;
+    // Antes de los 25 s, aunque haya líneas nuevas, no se manda.
+    lados.mac.red.registro().anotar("reintento", "n-tab", "LINEA-NUEVA-UNO");
+    await lados.mac.red.refrescar();
+    await new Promise((r) => setTimeout(r, 30));
+    expect(espejos().length).toBe(n0);
+    // Pasados los 25 s, llega lo nuevo y solo lo nuevo.
+    reloj.ahora += 26_000;
+    await lados.mac.red.refrescar();
+    await esperarHasta(() => espejos().length === n0 + 1);
+    const l = (JSON.parse(espejos()[n0]) as { l: string[] }).l;
+    expect(l.some((x) => x.includes("LINEA-NUEVA-UNO"))).toBe(true);
+    expect(l.some((x) => x.includes("ligado"))).toBe(false);
+    // Lo ya espejado no se repite: si el refresco anotó algo propio, va solo eso.
+    reloj.ahora += 26_000;
+    await lados.mac.red.refrescar();
+    await new Promise((r) => setTimeout(r, 30));
+    for (const j of espejos().slice(n0 + 1)) expect((JSON.parse(j) as { l: string[] }).l.some((x) => x.includes("LINEA-NUEVA-UNO"))).toBe(false);
+    const n1 = espejos().length;
+    expect(n1).toBeGreaterThanOrEqual(n0 + 1);
+  });
+
   it("un espejo de quien no está ligado se ignora", async () => {
     const { lados } = dosApps({ conClave: false });
     await lados.tab.red.refrescar();

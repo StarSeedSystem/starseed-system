@@ -92,7 +92,17 @@ import {
   type SesionesCifradas,
   type VerificadorCertificado,
 } from "./sesion-cifrada";
-import { crearRegistroEnlaces, unirRegistros, type RegistroEnlaces, type RegistroNativoBle } from "./registro-enlace-ble";
+import {
+  acotarBytes,
+  colapsarRepetidas,
+  crearRegistroEnlaces,
+  lineasPosteriores,
+  marcaDeLinea,
+  tocaEspejoContinuo,
+  unirRegistros,
+  type RegistroEnlaces,
+  type RegistroNativoBle,
+} from "./registro-enlace-ble";
 import {
   CLAVE_CANAL_RAPIDO_BLE,
   ESPERA_ESPEJO_REGISTRO_BLE_MS,
@@ -105,6 +115,11 @@ import {
 } from "./canal-rapido-ajuste"; // BLE1109B
 import type { EnlaceDisponible } from "./eleccion-enlace";
 import type { CanalArchivos } from "@/lib/network/archivos-malla";
+
+/** (BLE1110A) Espejo continuo del registro: cada tanto, lo nuevo, acotado en bytes y a prioridad mínima. */
+const ESPERA_ESPEJO_CONTINUO_BLE_MS = 25_000;
+const MAX_BYTES_ESPEJO_BLE = 3_500;
+const MAX_DATOS_PARA_ESPEJO_BLE = 4_096;
 
 /* ══════════════════════════ Dependencias (inyectables) ══════════════════════════ */
 
@@ -309,6 +324,7 @@ export function crearRedBle(deps: DepsBle): RedBle {
     },
   });
   const ultimoEspejo: Record<string, number> = {}; // BLE1109B: neurona → última vez que se espejó el registro
+  const marcaEspejo: Record<string, { ts: string; vistas: Set<string> }> = {}; // BLE1110A: neurona → hora ISO de la última línea espejada y las de esa misma hora
   const oyentes = new Set<() => void>();
   const oyentesControl = new Set<(c: ControlEnlaceWifi, o: OrigenControl) => void>();
 
@@ -849,18 +865,33 @@ export function crearRedBle(deps: DepsBle): RedBle {
    * el problema se vea desde cualquiera de los dos aparatos. Va por la cola de datos, como mucho una vez cada
    * 30 s por neurona, y un aparato anterior lo ignora (mensaje desconocido).
    */
-  async function espejarRegistro(enlace: string, neurona: string): Promise<void> {
+  async function espejarRegistro(enlace: string, neurona: string, continuo = false): Promise<void> {
     const ahora = deps.ahora();
-    if (ahora - (ultimoEspejo[neurona] ?? -Infinity) < ESPERA_ESPEJO_REGISTRO_BLE_MS) return;
+    if (ahora - (ultimoEspejo[neurona] ?? -Infinity) < (continuo ? ESPERA_ESPEJO_CONTINUO_BLE_MS : ESPERA_ESPEJO_REGISTRO_BLE_MS)) return;
+    if (continuo) {
+      // BLE1110A: espejo continuo = prioridad mínima. Nunca con voz o vídeo en cola ni con un montón de datos esperando.
+      const c = colas.get(enlace);
+      if (!tocaEspejoContinuo({ ahora, ultimo: ultimoEspejo[neurona], cadaMs: ESPERA_ESPEJO_CONTINUO_BLE_MS, bytesVoz: c?.bytesVoz ?? 0, bytesVideo: c?.bytesVid ?? 0, bytesDatos: c?.bytesDatos ?? 0, maxDatos: MAX_DATOS_PARA_ESPEJO_BLE })) return;
+    }
     ultimoEspejo[neurona] = ahora;
     try {
-      const crudas = deps.registroPropio ? await deps.registroPropio(MAX_LINEAS_ESPEJO_BLE) : registro.exportar().split("\n");
-      const lineas = recortarEspejoRegistro(crudas);
+      // BLE1110A: solo lo NUEVO desde el último espejo (la primera vez, las últimas 50), con las repetidas colapsadas «… (×N)» y acotado en bytes.
+      const crudas = deps.registroPropio ? await deps.registroPropio(continuo ? 200 : MAX_LINEAS_ESPEJO_BLE) : registro.exportar().split("\n");
+      const nuevas = lineasPosteriores(crudas.filter((x) => typeof x === "string" && x.trim().length > 0), marcaEspejo[neurona]?.ts ?? null, marcaEspejo[neurona]?.vistas);
+      if (!nuevas.length) return;
+      const lineas = acotarBytes(recortarEspejoRegistro(colapsarRepetidas(nuevas)), MAX_BYTES_ESPEJO_BLE);
       if (!lineas.length || !abierto(enlace) || caido(enlace)) return;
+      const ultimaMarca = marcaDeLinea(nuevas[nuevas.length - 1]);
+      if (ultimaMarca) marcaEspejo[neurona] = { ts: ultimaMarca, vistas: new Set(nuevas.filter((x) => marcaDeLinea(x) === ultimaMarca)) };
       void encolar(enlace, textoEspejoRegistro(lineas));
     } catch {
       /* el espejo es un lujo de diagnóstico: nunca molesta al enlace */
     }
+  }
+
+  /** (BLE1110A) El espejo sigue mientras el enlace está ligado: cada ~25 s, lo nuevo de cada lado (la web lo llama desde el refresco de 15 s). */
+  function espejarLigados(): void {
+    for (const lg of ligaduras) void espejarRegistro(lg.enlace, lg.neurona, true);
   }
 
   async function recibirControl(cuerpo: string, enlace: string): Promise<void> {
@@ -1031,6 +1062,7 @@ export function crearRedBle(deps: DepsBle): RedBle {
     }
     fijarEstado(e);
     await saludarPendientes();
+    espejarLigados(); // BLE1110A
     avisar();
   }
 
@@ -1305,7 +1337,8 @@ async function depsReales(): Promise<DepsBle> {
       if (temporizadorLog) return;
       temporizadorLog = setTimeout(() => {
         temporizadorLog = null;
-        const l = pendientesLog.splice(0, 60);
+        // BLE1110A: líneas idénticas seguidas → una con «… (×N)» (las 68 «autocuración» del 09-11 ya no empujan lo útil fuera).
+        const l = colapsarRepetidas(pendientesLog.splice(0, 200)).slice(-60);
         if (l.length) void puenteNativo().llamar(COMANDO_REGISTRO_ANEXAR_BLE, { lineas: l }).catch(nada);
       }, 2_000);
     },

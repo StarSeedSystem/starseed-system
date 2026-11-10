@@ -128,16 +128,19 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
     private const val REINTENTOS_SUSCRIPCION = 3
     private const val ESPERA_SUSCRIPCION_MS = 1000L
     private const val VIGIA_SUSCRIPCION_MS = 10_000L
+    private const val ESPERA_SOLTAR_MTU_MS = 60_000L // BLE1110A: ver `ble_autocura::decidir_mtu`
     // (BLE1109A) Canal L2CAP: lo que se lee/escribe de una vez, y cuánto puede estar una escritura sin avanzar.
     private const val RETRASO_PHY_MS = 5_000L
     private const val LECTURA_FLUJO = 8192
     private const val ESCRITURA_FLUJO = 8192
-    private const val PLAZO_ESCRITURA_FLUJO_MS = 5_000L
+    private const val PLAZO_ESCRITURA_FLUJO_MS = 8_000L
 
     /** (BLE1109A) Un canal L2CAP abierto: dos hilos (lee y escribe) y una señal para despertar al que escribe. */
     private class Canal(val enlace: String, val socket: BluetoothSocket, val psm: Int) {
         val cerrado = AtomicBoolean(false)
         @Volatile var escribiendoDesde = 0L
+        /** (BLE1110A) Último byte leído del canal: una escritura lenta con el otro lado hablando no es un atasco. */
+        @Volatile var ultimaLecturaMs = SystemClock.elapsedRealtime()
         val senal = ArrayBlockingQueue<Boolean>(1)
     }
 
@@ -179,6 +182,15 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
     private val caidasRecientes = ArrayList<Long>()
     private var curasSeguidas = 0
     private var vigiaAutocura = false
+    // (BLE1110A) Gemelo de `ble_autocura.rs`: última cura, último tráfico (cualquier sentido, GATT o L2CAP) y una evaluación pendiente.
+    private var ultimaCuraMs = -1L
+    @Volatile private var ultimoTraficoMs = -1L
+    private var evaluacionPendiente = false
+    // (BLE1110A) MTU recordado por central (sobrevive a recrear el servidor GATT: la conexión ACL sigue con su MTU) y cuándo se soltó uno.
+    private val paqueteRecordado = HashMap<String, Int>()
+    private val soltadoMtuMs = HashMap<String, Long>()
+    private var anuncioTurno = 0
+    private var reintentoAnuncio = false
 
     private lateinit var ctx: Context
     private val principal = Handler(Looper.getMainLooper())
@@ -520,7 +532,7 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
             principal.post {
                 val k = "p:" + d.address
                 if (newState == BluetoothProfile.STATE_CONNECTED) {
-                    if (!centrales.containsKey(k)) centrales[k] = Central(d)
+                    if (!centrales.containsKey(k)) centrales[k] = nuevaCentral(k, d)
                     val central = centrales[k]
                     pedirPhy2M { if (centrales[k]?.suscrito == true) servidor?.setPreferredPhy(d, BluetoothDevice.PHY_LE_2M_MASK, BluetoothDevice.PHY_LE_2M_MASK, BluetoothDevice.PHY_OPTION_NO_PREFERRED) }
                     // (BLE1108C) Si el otro conecta y no se suscribe a SALIDA, se anota y se suelta (él reintenta).
@@ -537,6 +549,8 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
                     }, VIGIA_SUSCRIPCION_MS)
                 } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                     val c = centrales.remove(k)
+                    // (BLE1110A) Una desconexión real olvida el MTU; las que provoca la propia cura no (la ACL puede seguir viva).
+                    if (!enGracia(SystemClock.elapsedRealtime())) paqueteRecordado.remove(k)
                     // (BLE1109B) Libera la conexión en la pila de Android: sin esto, tras caídas con estado ≠ 0 el servidor podía
                     // quedarse con conexiones a medias y dejar de aceptar centrales (macOS: «Device disconnected without being ready»).
                     try {
@@ -553,8 +567,11 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
             val d = device ?: return
             principal.post {
                 val k = "p:" + d.address
-                val c = centrales.getOrPut(k) { Central(d) }
+                val c = centrales.getOrPut(k) { nuevaCentral(k, d) }
+                val antes = c.paquete
                 c.paquete = (mtu - 3).coerceIn(PAQUETE_MIN, PAQUETE_MAX)
+                paqueteRecordado[k] = c.paquete
+                if (antes != c.paquete) nota("mtu-cambio", k, "paquete $antes → ${c.paquete} (mtu $mtu)")
                 if (c.suscrito) evento(JSONObject().put("e", "mtu").put("enlace", k).put("paquete", c.paquete))
             }
         }
@@ -601,8 +618,27 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
             val encendido = value != null && value.isNotEmpty() && (value[0].toInt() and 1) != 0
             principal.post {
                 val k = "p:" + d.address
-                val c = centrales.getOrPut(k) { Central(d) }
+                val c = centrales.getOrPut(k) { nuevaCentral(k, d) }
                 if (encendido && !c.suscrito) {
+                    // (BLE1110A) Nunca paquetes de 20 B a un central que negoció 512: se usa el MTU recordado; sin él y en el mínimo,
+                    // se suelta UNA vez la conexión para que el central reconecte y renegocie.
+                    val ahoraMs = SystemClock.elapsedRealtime()
+                    if (c.paquete <= PAQUETE_MIN) {
+                        val rec = paqueteRecordado[k]
+                        if (rec != null && rec > PAQUETE_MIN) {
+                            nota("mtu-cambio", k, "paquete ${c.paquete} → $rec (recordado de la negociación anterior)")
+                            c.paquete = rec
+                        } else if (soltadoMtuMs[k]?.let { ahoraMs - it < ESPERA_SOLTAR_MTU_MS } != true) {
+                            soltadoMtuMs[k] = ahoraMs
+                            nota("mtu-soltado", k, "se suscribió con paquete ${c.paquete} B y sin MTU negociado: se suelta para que renegocie")
+                            centrales.remove(k)
+                            try {
+                                servidor?.cancelConnection(d)
+                            } catch (e: Exception) {
+                            }
+                            return@post
+                        }
+                    }
                     c.suscrito = true
                     marcarActividad()
                     nota("suscrito", k, "el otro aparato activó las notificaciones de SALIDA, paquete ${c.paquete}")
@@ -633,6 +669,7 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
             }
             if (characteristic?.uuid != ENTRADA || value == null || value.isEmpty() || preparedWrite || offset != 0) return
             val copia = value.copyOf()
+            marcarTrafico()
             principal.post {
                 val k = "p:" + d.address
                 // Solo de quien se suscribió a SALIDA (así abre el enlace un central StarSeed).
@@ -688,6 +725,7 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
             val c = centrales[k] ?: continue
             if (notificar(s, sal, c.device, b)) {
                 servidorOcupadoDesde = SystemClock.elapsedRealtime()
+                marcarTrafico()
             } else {
                 pendienteServidor = Pair(k, b)
                 principal.postDelayed({ bombearServidor() }, 15)
@@ -711,11 +749,29 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
 
     private val anuncio = object : AdvertiseCallback() {
         override fun onStartSuccess(settingsInEffect: AdvertiseSettings?) {
-            principal.post { anunciando = true }
+            principal.post {
+                anunciando = true
+                reintentoAnuncio = false
+            }
         }
 
         override fun onStartFailure(errorCode: Int) {
             principal.post {
+                // (BLE1110A) Código 3 = ADVERTISE_FAILED_ALREADY_STARTED: el anuncio YA está activo. No es un fallo ni se dice
+                // «solo busca y conecta». Una vez se para y se vuelve a arrancar para verificarlo; si vuelve a decir 3, se da por activo.
+                if (errorCode == AdvertiseCallback.ADVERTISE_FAILED_ALREADY_STARTED) {
+                    anunciando = true
+                    if (!reintentoAnuncio) {
+                        reintentoAnuncio = true
+                        nota("anuncio-ya-activo", null, "código 3: ya estaba anunciando; se para y se arranca una vez para verificarlo")
+                        anunciar()
+                    } else {
+                        reintentoAnuncio = false
+                        nota("anuncio-ya-activo", null, "código 3 otra vez tras parar y arrancar: el anuncio está activo")
+                    }
+                    return@post
+                }
+                reintentoAnuncio = false
                 anunciando = false
                 if (ultimoEstado == "encendida") {
                     radio("encendida", "Bluetooth encendido, pero Android no dejó anunciarse (código $errorCode): solo busca y conecta.")
@@ -729,13 +785,17 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
         val u = anuncioUuid ?: return
         if (!activo || !servicioListo) return
         val adv = adaptador?.bluetoothLeAdvertiser ?: return
-        if (anunciando) {
-            try {
-                adv.stopAdvertising(anuncio)
-            } catch (e: Exception) {
-            }
-            anunciando = false
+        // (BLE1110A) SIEMPRE se para antes de arrancar (`anunciando` puede ir por detrás de la pila) y se espera un poco.
+        try {
+            adv.stopAdvertising(anuncio)
+        } catch (e: Exception) {
         }
+        anunciando = false
+        val turno = ++anuncioTurno
+        principal.postDelayed({ if (turno == anuncioTurno && activo && servicioListo) empezarAnuncio(adv, u) }, 300)
+    }
+
+    private fun empezarAnuncio(adv: android.bluetooth.le.BluetoothLeAdvertiser, u: String) {
         val ajustes = AdvertiseSettings.Builder()
             .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_BALANCED)
             .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_MEDIUM)
@@ -976,6 +1036,7 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
     private fun recibidoCliente(gatt: BluetoothGatt?, b: ByteArray) {
         val (k, c) = clientePor(gatt) ?: return
         if (!c.listo) return
+        marcarTrafico()
         try {
             PuenteBle.datos(k, aHex(b))
         } catch (t: Throwable) {
@@ -1077,12 +1138,32 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
     private const val CAIDAS_TORMENTA = 4
     private const val VECINO_CERCA_MS = 60_000L
 
+    // (BLE1110A) Reglas nuevas tras prueba.32 (68 curas, una tiró un enlace sano de 476 s). Gemelo de `ble_autocura.rs`
+    // (misma decisión, con pruebas): jamás con un enlace ligado ni con tráfico en los últimos 30 s; como mucho una cura cada
+    // 5 min; las desconexiones que provoca la propia cura no cuentan; y una línea de registro con la evidencia de cada cura.
+    private const val SIN_TRAFICO_MS = 30_000L
+    private const val ENTRE_CURAS_MS = 300_000L
+    private const val GRACIA_CURA_MS = 20_000L
+
     private fun marcarActividad() {
         ultimoEnlaceMs = SystemClock.elapsedRealtime()
         curasSeguidas = 0
     }
 
-    private fun hayEnlaceVivo(): Boolean = centrales.values.any { it.suscrito } || clientes.values.any { it.listo }
+    /** Pasaron bytes por algún enlace (GATT o L2CAP, cualquier sentido). Se llama también desde los hilos del canal. */
+    private fun marcarTrafico() {
+        ultimoTraficoMs = SystemClock.elapsedRealtime()
+    }
+
+    private fun enGracia(ahora: Long): Boolean = ultimaCuraMs >= 0 && ahora - ultimaCuraMs < GRACIA_CURA_MS
+
+    private fun nuevaCentral(k: String, d: BluetoothDevice): Central {
+        val c = Central(d)
+        paqueteRecordado[k]?.let { c.paquete = it }
+        return c
+    }
+
+    private fun hayEnlaceVivo(): Boolean = centrales.values.any { it.suscrito } || clientes.values.any { it.listo } || canales.isNotEmpty()
 
     private fun vecinoCerca(): Boolean {
         val ahora = SystemClock.elapsedRealtime()
@@ -1091,11 +1172,15 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
 
     private fun anotarCaida() {
         val ahora = SystemClock.elapsedRealtime()
+        if (enGracia(ahora)) return // las desconexiones de la propia cura no cuentan
         caidasRecientes.add(ahora)
         caidasRecientes.removeAll { ahora - it > VENTANA_TORMENTA_MS }
-        if (caidasRecientes.size >= CAIDAS_TORMENTA) {
-            caidasRecientes.clear()
-            principal.postDelayed({ if (!hayEnlaceVivo()) autocurar("tormenta de desconexiones ($CAIDAS_TORMENTA en ${VENTANA_TORMENTA_MS / 1000} s)", true) }, 2_000)
+        if (caidasRecientes.size >= CAIDAS_TORMENTA && !evaluacionPendiente) {
+            evaluacionPendiente = true
+            principal.postDelayed({
+                evaluacionPendiente = false
+                evaluarAutocura()
+            }, 2_000)
         }
     }
 
@@ -1104,18 +1189,47 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
             vigiaAutocura = false
             return
         }
-        val ahora = SystemClock.elapsedRealtime()
-        if (ultimoEstado == "encendida" && !hayEnlaceVivo() && ahora - ultimoEnlaceMs > SIN_CENTRAL_MS && vecinoCerca()) {
-            curasSeguidas += 1
-            ultimoEnlaceMs = ahora
-            autocurar("ningún enlace vivo desde hace ${SIN_CENTRAL_MS / 1000} s con una neurona anunciándose cerca", curasSeguidas >= 2)
-        }
+        evaluarAutocura()
         principal.postDelayed({ vigilarAutocura() }, VIGIA_AUTOCURA_MS)
+    }
+
+    /** La decisión (ver `ble_autocura::Autocura::decidir`). Solo aquí se cura. */
+    private fun evaluarAutocura() {
+        if (!activo || ultimoEstado != "encendida") return
+        val ahora = SystemClock.elapsedRealtime()
+        caidasRecientes.removeAll { ahora - it > VENTANA_TORMENTA_MS }
+        if (hayEnlaceVivo()) {
+            ultimoEnlaceMs = ahora
+            caidasRecientes.clear()
+            return
+        }
+        val desdeTrafico = if (ultimoTraficoMs >= 0) ahora - ultimoTraficoMs else -1L
+        if (desdeTrafico in 0 until SIN_TRAFICO_MS) return
+        if (ultimaCuraMs >= 0 && ahora - ultimaCuraMs < ENTRE_CURAS_MS) return
+        val sinEnlaceMs = ahora - ultimoEnlaceMs
+        val traficoTxt = if (desdeTrafico >= 0) "${desdeTrafico / 1000} s sin tráfico" else "sin tráfico desde que arrancó"
+        val tormenta = caidasRecientes.size >= CAIDAS_TORMENTA
+        val evidencia: String
+        val recrear: Boolean
+        if (tormenta) {
+            evidencia = "tormenta de desconexiones (${caidasRecientes.size} en ${VENTANA_TORMENTA_MS / 1000} s), ningún enlace ligado, $traficoTxt, $curasSeguidas curas seguidas"
+            recrear = true
+        } else if (sinEnlaceMs > SIN_CENTRAL_MS && vecinoCerca()) {
+            evidencia = "ningún enlace ligado desde hace ${sinEnlaceMs / 1000} s con una neurona anunciándose cerca, $traficoTxt, $curasSeguidas curas seguidas"
+            recrear = curasSeguidas + 1 >= 2
+        } else {
+            return
+        }
+        ultimaCuraMs = ahora
+        curasSeguidas += 1
+        ultimoEnlaceMs = ahora
+        caidasRecientes.clear()
+        autocurar(evidencia, recrear)
     }
 
     private fun autocurar(motivo: String, recrearServidor: Boolean) {
         if (!activo || ultimoEstado != "encendida") return
-        nota("autocuracion", null, "$motivo → " + if (recrearServidor) "se recrea el servidor GATT y el anuncio" else "se reinicia el anuncio y se sueltan las conexiones a medias")
+        nota("autocuracion", null, "$motivo → " + if (recrearServidor) "recrea servidor GATT y anuncio" else "reinicia anuncio y suelta conexiones a medias")
         try {
             for ((k, c) in centrales.entries.toList()) {
                 if (!c.suscrito) {
@@ -1363,7 +1477,11 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
                 while (!canal.cerrado.get()) {
                     val n = ent.read(buf)
                     if (n < 0) break
-                    if (n > 0) PuenteBle.rapido(k, aHex(buf.copyOf(n)))
+                    if (n > 0) {
+                        canal.ultimaLecturaMs = SystemClock.elapsedRealtime()
+                        marcarTrafico()
+                        PuenteBle.rapido(k, aHex(buf.copyOf(n)))
+                    }
                 }
             } catch (e: Exception) {
                 if (!canal.cerrado.get()) motivo = "error al leer del canal L2CAP: ${e.message ?: e.javaClass.simpleName}"
@@ -1391,6 +1509,7 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
                     canal.escribiendoDesde = SystemClock.elapsedRealtime()
                     sal.write(b)
                     canal.escribiendoDesde = 0L
+                    marcarTrafico()
                 }
             } catch (e: Exception) {
                 if (!canal.cerrado.get()) motivo = "error al escribir en el canal L2CAP: ${e.message ?: e.javaClass.simpleName}"
@@ -1428,8 +1547,10 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
         val ahora = SystemClock.elapsedRealtime()
         for (c in canales.values.toList()) {
             val desde = c.escribiendoDesde
-            if (desde != 0L && ahora - desde > PLAZO_ESCRITURA_FLUJO_MS) {
-                cerrarCanalHilos(c, "escritura atascada: sin avanzar en ${PLAZO_ESCRITURA_FLUJO_MS / 1000} s")
+            // (BLE1110A) Atascada solo si la escritura no avanza Y el otro lado tampoco dice nada: con eco o datos llegando, el
+            // canal vive y solo va con el control de flujo apretado.
+            if (desde != 0L && ahora - desde > PLAZO_ESCRITURA_FLUJO_MS && ahora - c.ultimaLecturaMs > PLAZO_ESCRITURA_FLUJO_MS) {
+                cerrarCanalHilos(c, "escritura atascada: sin avanzar en ${PLAZO_ESCRITURA_FLUJO_MS / 1000} s y sin oír nada")
             }
         }
         if (canales.isEmpty()) {
