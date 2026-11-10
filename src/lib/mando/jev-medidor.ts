@@ -56,7 +56,7 @@ export interface RespuestaJev {
     captura?: CapturaJev | null;
 }
 
-/** MGM1110B: lo que `jev_captura.py resumen --json` deja ver al Mando. Solo contadores y veredictos. */
+/** MGM1110B: lo que `jev_captura.py resumen --json` deja ver a Genesis. Solo contadores y veredictos. */
 export interface CapturaJev {
     activa: boolean;
     llamadas: number;
@@ -221,7 +221,7 @@ export function construirRespuestaJev(
     };
 }
 
-/** Limpia el JSON de `jev_captura.py resumen --json` a lo que el Mando muestra (null si no es válido). */
+/** Limpia el JSON de `jev_captura.py resumen --json` a lo que Genesis muestra (null si no es válido). */
 export function construirCapturaJev(valor: unknown): CapturaJev | null {
     if (!esRegistro(valor)) return null;
     const objetivo = numero(valor.objetivo) || 1000;
