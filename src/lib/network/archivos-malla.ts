@@ -2247,19 +2247,17 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
    * con «Reintentar», que reanuda desde el primer trozo que le falte al otro. (ARC1108B) Con un receptor
    * que late es una espera SIN NOTICIAS (cada latido la reinicia: verificar 500 MB durante minutos no
    * es un fallo); con uno anterior, un plazo fijo que crece con el tamaño del archivo.
-   * (SUP0911G) Al vencer la primera espera, el remitente NO se rinde: manda una vez más «fin» y arma
-   * una última espera corta (gracia). Si en la gracia llega «ok», acaba «completada»; si llega un latido,
-   * `vigilarVerificacion` vuelve a empezar (y la próxima vez que venza, otra vez una última llamada);
-   * si no llega nada, el error «sin-confirmacion» de siempre. Una espera nueva (cada llamada a
-   * `vigilarVerificacion`) olvida la última llamada anterior **solo si ya se había reenviado «fin»**
-   * (estábamos en gracia); si aún no se reenvió, la espera completa sigue su curso.
+   * (SUP0911G) Al vencer la espera completa, el remitente NO se rinde: manda una vez más «fin» y arma
+   * una última espera corta (gracia). Si en la gracia llega «ok», acaba «completada»; si no llega nada,
+   * el error «sin-confirmacion» de siempre.
+   * (SUP0911H) Cada llamada a `vigilarVerificacion` (al mandar «fin» y con cada latido) corta la espera
+   * que hubiera (completa o gracia, con `limpiarVigia`) y arma otra espera COMPLETA desde cero; la
+   * última llamada («fin» repetido + gracia) solo ocurre cuando la espera completa vence SIN noticias.
    */
   function vigilarVerificacion(id: string): void {
     const infoPrev = vigias.get(id);
-    if (infoPrev?.fase === "gracia") {
+    if (infoPrev !== undefined) {
       limpiarVigia(id);
-    } else if (infoPrev?.fase === "completa") {
-      return;
     }
     const e = estados.get(id);
     if (!e) return;
