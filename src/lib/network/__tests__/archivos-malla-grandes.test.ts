@@ -445,11 +445,11 @@ describe("ARC1108B · con latidos, el remitente no se rinde aunque verificar tar
     expect(ensamblando.length, "un latido cada 4 s durante ~96 s").toBeGreaterThanOrEqual(20);
   }, 60_000);
 
-  it("receptor ANTERIOR (sin latidos): a los 85 s pasa a «sin-confirmacion» y el «ok» que llega tarde lo da por verificado", async () => {
+  it("receptor ANTERIOR (sin latidos): tras 85 s de espera, el «fin» repetido y su gracia de 10 s (SUP0911G) pasa a «sin-confirmacion» y el «ok» que llega tarde lo da por verificado", async () => {
     const { p, r, momentos } = await verificacionLenta(true);
     const error = momentos.find((m) => m.fase === "error");
     expect(error?.codigo).toBe("sin-confirmacion");
-    expect(error && error.t - (momentos.find((m) => m.fase === "verificando")?.t ?? 0)).toBe(85_000);
+    expect(error && error.t - (momentos.find((m) => m.fase === "verificando")?.t ?? 0)).toBe(85_000 + 10_000); // espera + gracia (min(10 s, espera/2)) tras repetir «fin»
     expect(momentos.at(-1)?.fase).toBe("completada");
     expect(p.motorA.estadoDe(r.id)?.motivo).toBeUndefined();
   }, 60_000);

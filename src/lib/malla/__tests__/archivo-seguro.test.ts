@@ -337,7 +337,7 @@ describe("qué vías entran", () => {
 
 describe("las neuronas anuncian las capacidades", () => {
   it("archivo.e2e.v1 y multitrayecto.v1 van en la lista; un par sin ellas es antiguo", () => {
-    expect([...CAPACIDADES_ARCHIVO]).toEqual(["archivo.e2e.v1", "multitrayecto.v1"]);
+    expect([...CAPACIDADES_ARCHIVO]).toEqual(["archivo.e2e.v1", "multitrayecto.v1", "archivo.anuncio.v1"]); // ARC1110A: + anuncio temprano
     expect(parCifraArchivo(["WebRTC", ...CAPACIDADES_ARCHIVO])).toBe(true);
     expect(parCifraArchivo(["WebRTC"])).toBe(false);
     expect(parCifraArchivo(null)).toBe(false);

@@ -47,7 +47,20 @@ function huella(k: JsonWebKey): string {
   return `${k.x}.${k.y}`;
 }
 
+/** (ARC1110A) Plazo máximo de cada fuente de claves: pasado, se prueba la siguiente (no hay esperas muertas sin red). */
+export const PLAZO_FUENTE_MS = 2_500;
+
+async function conPlazoFuente<T>(p: Promise<T>): Promise<T | null> {
+  let reloj: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([p, new Promise<null>((res) => (reloj = setTimeout(() => res(null), PLAZO_FUENTE_MS)))]);
+  } finally {
+    if (reloj !== undefined) clearTimeout(reloj);
+  }
+}
+
 /** Resuelve las claves de `neuronas` con `fuentes` (se ordenan por `ORDEN_ORIGENES`). Nunca lanza. */
+
 export async function resolverClaves(neuronas: readonly string[], fuentes: readonly FuenteClave[]): Promise<ResultadoClaves> {
   const orden = [...fuentes].sort((a, b) => ORDEN_ORIGENES.indexOf(a.origen) - ORDEN_ORIGENES.indexOf(b.origen));
   const destinatarios: DestinatarioArchivo[] = [];
@@ -59,7 +72,8 @@ export async function resolverClaves(neuronas: readonly string[], fuentes: reado
     for (const f of orden) {
       let k: JsonWebKey | null | undefined;
       try {
-        k = await f.buscar(n);
+        // ARC1110A: ninguna fuente (sobre todo el servidor sin internet de verdad) bloquea la oferta más de PLAZO_FUENTE_MS.
+        k = await conPlazoFuente(Promise.resolve(f.buscar(n)));
       } catch {
         k = null;
       }

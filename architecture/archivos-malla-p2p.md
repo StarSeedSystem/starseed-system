@@ -232,6 +232,54 @@ Contrato completo en `red-sin-dependencias.md` §5.2. Resumen para quien toque e
 - **Interfaz.** `cifrado-vias-archivo.tsx`: candado «Cifrado de archivo» o aviso «Sin cifrado de archivo», reparto vivo, velocidad total y «Verificado (SHA-256)». Está en la burbuja de transferencia, en la ventana de recepción y en el panel de transferencias.
 - Tests: `src/lib/malla/__tests__/archivo-seguro.test.ts` (motor real: tres vías con una que muere, par antiguo, dos destinatarios, relé, claves, salto) y `src/components/network/__tests__/cifrado-vias-archivo.test.tsx`.
 
+## 10c. Anuncio temprano y preparación en un Worker (ARC1110A, 2026-11-10)
+
+**Qué pasó (Prueba.29 y Prueba.32).** Desde la tablet, el mensaje del archivo aparecía al instante en la Mac y la ventana para
+aceptarlo, minutos después. Causa (probada leyendo el camino): `enviarArchivo` calculaba el SHA-256 de TODO el archivo
+(`calcularHashLista`, un `slice().arrayBuffer()` por trozo de 63 KiB) **antes** de mandar la oferta, en el hilo principal del
+WebView de Android; la oferta lleva la raíz, así que no podía salir antes. Además, la vista previa se esperaba antes de empezar
+y cada fuente de claves podía esperar sin tope.
+
+**Flujo nuevo** (aparatos que anuncian `archivo.anuncio.v1`; el resto sigue como antes):
+
+```
+remitente                                           receptor
+  enviarArchivo ─ estado «Preparando 0 %» ─ vuelve ya
+  archivo.anuncio {id,nombre,tipo,tamano,trozos,tamanoTrozo,sha256:"",preparando:true} ─►  tarjeta «<neurona> está preparando el archivo…»
+  (Worker: SHA-256 por bloques de 4 MiB, «Preparando 42 %»)                               aceptar ─► archivo.preaceptar {id} ─► remitente: «ya lo aceptó»
+  archivo.oferta {…sha256…}  ─────────────────────────────────────────────────────────►  preaceptada: empieza SOLA (sin segunda pregunta)
+                                                                                           si el centinela/la resonancia avisan: se pregunta igual
+  archivo.aceptar … trozos … fin / ok  (igual que siempre; la verificación SHA-256 no cambia)
+```
+
+- **Rechazar de antemano**: `archivo.rechazar` con solo el anuncio; el remitente deja de preparar y NO manda la oferta. Se recuerda 60 s
+  (si llega la oferta de ese id, se vuelve a rechazar; un «Reintentar» pasados 60 s no se rechaza solo).
+- **Política**: «denegar» corta en el anuncio; «auto-aceptar» enseña la tarjeta en «preparando» y se acepta sola al llegar la oferta;
+  «preguntar» pregunta una vez (la notificación `onOfertaEntrante` sale con el anuncio y no se repite con la oferta).
+- **Cifrado**: el anuncio se sella como una oferta (`archivo.oferta.cif`, mismo sobre, misma clave de contenido que reutiliza la
+  oferta real): quien reenvía no ve el nombre ni el tamaño. Sin sellar no se manda nada. Por vías directas sin cifrado de archivo
+  (par sin claves) el anuncio va en claro como ya iba la oferta. Un receptor que exige cifrado descarta un anuncio en claro.
+- **Compatibilidad**: la capacidad `archivo.anuncio.v1` va en `CAPACIDADES_ARCHIVO` (saludo / presencia). `CanalArchivos.admiteAnuncio?()`
+  es `true` solo si TODAS las neuronas destinatarias la anuncian; sin ella (par anterior, canal sin armar) no se manda anuncio ni
+  `preaceptar` y el flujo es exactamente el anterior. Un receptor anterior que recibiera un anuncio lo descartaría (el guard no lo conoce).
+- **Preparación** (`src/lib/malla/preparacion-archivo*.ts`): la MISMA raíz que `calcularHashLista`, leyendo en bloques de ~4 MiB (no un viaje
+  al proveedor de contenidos por trozo) y calculando en paralelo los hashes de un bloque; en un Worker (`preparacion-archivo.worker.ts`)
+  con avance y cancelación; si no hay Worker o no arranca en 4 s, en el hilo cediendo el turno entre bloques. Nunca el archivo entero en
+  memoria. `enviarArchivo` devuelve `{ok,id,aviso,listo}`: `listo` se resuelve `true` cuando salió la oferta y `false` si se canceló,
+  rechazó o falló (estado `error`, código `preparacion`). Un reintento con el mismo id y el mismo archivo no vuelve a calcular el hash.
+- **Sin esperas muertas**: la vista previa (`opciones.vista` puede ser una promesa) se espera como mucho 3 s; cada fuente de claves
+  (`resolverClaves`) como mucho 2,5 s; `archivos-neurona` ya no espera la vista antes de llamar al motor. Un «Aceptar» pulsado en el
+  mensaje del chat antes de que el motor conozca la transferencia se recuerda y se aplica al llegar el anuncio/la oferta.
+- **No hecho**: mandar trozos mientras aún se prepara (la oferta lleva la raíz y el receptor solo pide trozos tras ella). La reserva mínima de
+  ancho para datos durante una llamada vive en `bluetooth-directo-motor.ts` (BLE1110A).
+
+**Diagnóstico** (`src/lib/network/archivos-diagnostico.ts`): eventos «archivo» del Registro del enlace → `enlaces.log` (y el espejo de la
+tablet con `(Maggaboard)`). Solo ids, tamaños y tiempos; nunca nombres ni contenido:
+`archivo <id> anuncio-enviado|anuncio-recibido|preaceptado rol=…|preparado ms=… via=worker|hilo|oferta-enviada|oferta-recibida|aceptado rol=…|primer-trozo rol=…|progreso 25|50|75 rol=…|completo kbps=… vias=…|verificado rol=…|fallo motivo=… lado=…`.
+Se lee con `grep ' archivo ' ~/Library/Logs/app.starseed.os/enlaces.log`.
+
+Tests: `archivos-malla-anuncio.test.ts` (motor real, dos neuronas), `archivo-anuncio-sellado.test.ts`, `preparacion-archivo.test.ts`.
+
 ## 11. Qué falta (fuera de alcance de esta ola)
 
 - **Camino binario real** (§3): documentado como extensión futura si el ahorro de ancho de banda

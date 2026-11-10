@@ -746,6 +746,7 @@ export async function canalParaArchivo(destino: DestinoTransporte, bytes = 0, op
       vias,
       bytes,
       parCifra: par.cifra,
+      parAnuncia: par.anuncia, // ARC1110A
       destinatarios: () => real.destinatariosReales(par.neuronas),
       ajustes,
     });
