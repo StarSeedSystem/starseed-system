@@ -4,7 +4,8 @@
 // StarSeed OS — Estado vacío premium del escritorio
 // ----------------------------------------------------------------
 // Un escritorio SIN elementos debe verse igualmente cuidado: geometría
-// sagrada sutil (semilla de la vida), orbe-estrella que respira, halos
+// sagrada sutil (semilla de la vida), el símbolo oficial StarSeed en 3D
+// real (ESC1110A: sustituye al orbe con estrella), halos
 // de gradiente StarSeed y accesos claros (Apps · Widgets · Aurora ·
 // Librería). Todo con animación líquida suave y respeto absoluto por
 // prefers-reduced-motion. Presentacional: recibe callbacks del lienzo.
@@ -15,6 +16,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import { LayoutGrid, MonitorPlay, Sparkles, Library, Plus, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Desktop } from "./desktop-store";
+import { SimboloStarSeed3D } from "@/components/brand/simbolo-starseed-3d";
 
 // ── Geometría sagrada: semilla de la vida (7 círculos) ───────────
 function SacredGeometry({ reduced }: { reduced: boolean | null }): React.ReactElement {
@@ -56,44 +58,6 @@ function SacredGeometry({ reduced }: { reduced: boolean | null }): React.ReactEl
                 <circle cx="0" cy="0" r={r * 2 + 6} fill="none" stroke="#7C3AED" strokeOpacity="0.22" strokeWidth="0.5" />
             </motion.g>
         </motion.svg>
-    );
-}
-
-// ── Orbe-estrella central (respiración sutil) ────────────────────
-function StarOrb({ reduced }: { reduced: boolean | null }): React.ReactElement {
-    return (
-        <motion.div
-            aria-hidden
-            className="relative mb-6 size-32"
-            animate={reduced ? undefined : { scale: [1, 1.05, 1] }}
-            transition={reduced ? undefined : { duration: 6, repeat: Infinity, ease: "easeInOut" }}
-        >
-            {/* Halo exterior difuso */}
-            <motion.span
-                className="absolute -inset-8 rounded-full blur-3xl"
-                style={{ background: "radial-gradient(circle, rgba(0,127,255,0.4), rgba(124,58,237,0.2) 55%, transparent 74%)" }}
-                animate={reduced ? undefined : { opacity: [0.7, 1, 0.7] }}
-                transition={reduced ? undefined : { duration: 6, repeat: Infinity, ease: "easeInOut" }}
-            />
-            {/* Núcleo cristalino */}
-            <span
-                className="absolute inset-0 rounded-full"
-                style={{ background: "radial-gradient(circle at 34% 30%, rgba(240,250,255,0.98), rgba(63,182,255,0.6) 40%, rgba(109,40,217,0.42) 70%, transparent 80%)" }}
-            />
-            <span aria-hidden className="absolute inset-2 rounded-full border border-white/25" />
-            {/* Estrella StarSeed */}
-            <motion.svg
-                viewBox="0 0 24 24"
-                className="absolute inset-0 m-auto size-14 drop-shadow-[0_0_14px_rgba(191,243,255,0.95)]"
-                animate={reduced ? undefined : { rotate: [0, 8, 0, -8, 0] }}
-                transition={reduced ? undefined : { duration: 18, repeat: Infinity, ease: "easeInOut" }}
-            >
-                <path
-                    d="M12 1 C12.9 8 15.5 10.6 22.5 12 C15.5 13.4 12.9 16 12 23 C11.1 16 8.5 13.4 1.5 12 C8.5 10.6 11.1 8 12 1 Z"
-                    fill="white"
-                />
-            </motion.svg>
-        </motion.div>
     );
 }
 
@@ -159,7 +123,8 @@ export function EmptyDesktopState({
                 transition={{ duration: 0.6, ease: "easeOut" }}
                 className="pointer-events-auto relative flex max-w-md flex-col items-center text-center"
             >
-                <StarOrb reduced={reduced} />
+                {/* ESC1110A: símbolo oficial en 3D (luz y sombras reales); imagen fija al instante. */}
+                <SimboloStarSeed3D alto={192} className="mb-3" />
 
                 <span className="mb-2 inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/[0.05] px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-cyan-200/90">
                     <Sparkles className="size-3" /> Lienzo soberano
