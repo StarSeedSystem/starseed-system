@@ -6701,3 +6701,18 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 
 **Lo que quedó fuera, una por una:**
 - `DR1110-2` — otra cosa: intento 1
+
+## 2026-11-10 09:00 · auto-1110-084924
+
+**Lo que se pidió.** ideas nuevas
+
+**Resultado.** 0 de 4 integradas. 4 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 3 tareas se fueron por lo mismo — otra cosa (IRD11101, IRD11102, IRD11103). Es 75 % de la ola.
+
+**Lo que quedó fuera, una por una:**
+- `DR1110-2` — los tipos no compilan: 2 errores tsc (rama ola/DR1110-2 conservada)
+- `IRD11101` — otra cosa: 3 propuesta(s) · starseed_memory_root/imaginacion/agentes/referencias-diseno-2026-11-10-1.json
+- `IRD11102` — otra cosa: 2 propuesta(s) · starseed_memory_root/imaginacion/agentes/referencias-diseno-2026-11-10-2.json
+- `IRD11103` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/referencias-diseno-2026-11-10-3.json
