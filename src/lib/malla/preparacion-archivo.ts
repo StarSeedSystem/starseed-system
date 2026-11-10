@@ -25,7 +25,30 @@ export interface OpcionesPreparacion {
 
 export type ResultadoPreparacion = ({ ok: true; raiz: string } | { ok: false; cancelado: boolean; motivo: string }) & { via: "worker" | "hilo"; ms: number };
 
-const ceder = (): Promise<void> => new Promise((res) => setTimeout(res, 0));
+/**
+ * Cede el turno al hilo principal SIN depender de `setTimeout` (que el navegador frena a ≥4 s en segundo plano y las
+ * pruebas con relojes falsos congelan): `setImmediate` donde existe (Node/pruebas), si no un `MessageChannel`.
+ */
+let canalCeder: MessageChannel | null = null;
+const ceder = (): Promise<void> =>
+  new Promise((res) => {
+    if (typeof setImmediate === "function") {
+      setImmediate(res);
+      return;
+    }
+    try {
+      if (typeof MessageChannel !== "undefined") {
+        if (!canalCeder) canalCeder = new MessageChannel();
+        const c = canalCeder;
+        c.port1.onmessage = () => res();
+        c.port2.postMessage(0);
+        return;
+      }
+    } catch {
+      /* cae a setTimeout */
+    }
+    setTimeout(res, 0);
+  });
 const ahora = (): number => {
   try {
     return performance.now();
