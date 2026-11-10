@@ -9,7 +9,7 @@
  * Nunca lanza y nunca escribe contenido de la llamada (ni SDP ni audio): solo el tipo, el sentido y el medio.
  */
 
-export type HitoLlamada = "senal-enviada" | "senal-recibida" | "contestada" | "medio=webrtc" | "medio=enlace-datos" | "medio=video-datos" | "escalada-wifi" | "fallo" | "reintento";
+export type HitoLlamada = "senal-enviada" | "senal-recibida" | "contestada" | "medio=webrtc" | "medio=enlace-datos" | "medio=video-datos" | "escalada-wifi" | "camara" | "fallo" | "reintento";
 
 export type SumideroDiagnostico = (linea: { hito: HitoLlamada; neurona: string | null; detalle: string }) => void;
 

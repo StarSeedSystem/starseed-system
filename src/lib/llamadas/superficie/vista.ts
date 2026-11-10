@@ -11,12 +11,15 @@ import type { MedioLlamada, OpcionMedio } from "./selector-medio";
 import type { Invitable } from "./grupo-invitar";
 import type { ControlId } from "./matriz-controles";
 import type { MensajeChatVista, ReaccionVista } from "./senales-app";
+import type { DispositivosMedios, SeleccionDispositivos } from "@/lib/llamadas/tipos";
 
 export interface ParticipanteVista {
   id: string;
   nombre: string;
   yo?: boolean;
   stream?: MediaStream | null;
+  /** VID1110A: canvas del vídeo ligero por enlace de datos (se monta tal cual; sin MediaStream). */
+  lienzo?: HTMLCanvasElement | null;
   micro: boolean;
   camara: boolean;
   /** 0..1 */
@@ -40,11 +43,17 @@ export interface VistaLlamada {
   aviso?: string | null;
   local: MediaStream | null;
   remoto: MediaStream | null;
+  /** VID1110A: canvas del vídeo ligero del foco (si lo hay, se pinta en lugar de `remoto`). */
+  remotoLienzo?: HTMLCanvasElement | null;
   micro: boolean;
   camara: boolean;
   compartiendoPantalla: boolean;
   /** Hay más de una cámara (para mostrar «girar»). */
   camaras?: number;
+  /** VID1110A: cámaras, micros y altavoces que ve el aparato y los elegidos; la pista de mi cámara para sus opciones. */
+  dispositivos?: DispositivosMedios;
+  seleccion?: SeleccionDispositivos;
+  pistaCamara?: MediaStreamTrack | null;
   participantes?: ParticipanteVista[];
   /** Transmisión en vivo. */
   espectadores?: number | null;
@@ -112,6 +121,10 @@ export interface AccionesLlamada {
   invitarConEnlace?: () => void;
   /** (LLA1108G) Elige la salida de audio (ruta nativa o `setSinkId`). */
   elegirSalidaAudio?: (id: string) => void;
+  /** VID1110A: elige la cámara o el micrófono (se recuerdan en esta neurona) sin cortar la llamada. */
+  elegirCamara?: (id: string) => void;
+  elegirMicro?: (id: string) => void;
+  actualizarDispositivos?: () => void;
 }
 
 /** Información nativa OPCIONAL (Android: rutas de audio, proximidad). LLA1108D o el integrador la conectan. */

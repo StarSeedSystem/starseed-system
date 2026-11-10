@@ -26,7 +26,30 @@ export function useSalidasAudio() {
   return { lista, elegida, elegir: setElegida, soportado };
 }
 
-export function Pista({ stream, video, silenciar, sinkId, className, etiqueta, remoto, volumen }: { stream: MediaStream | null | undefined; video: boolean; silenciar?: boolean; sinkId?: string; className?: string; etiqueta?: string; remoto?: boolean; /** 0..1 (LLA1108G) */ volumen?: number }) {
+/**
+ * VID1110A: monta TAL CUAL el canvas donde el vídeo ligero pinta lo que llega por el enlace de datos. Sin <video> ni
+ * `captureStream`: un canvas en el documento se ve igual en WKWebView que en Chromium, y se repinta solo.
+ */
+export function LienzoLigero({ lienzo, className, etiqueta }: { lienzo: HTMLCanvasElement; className?: string; etiqueta?: string }) {
+  const ref = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const host = ref.current;
+    if (!host) return;
+    lienzo.style.width = "100%";
+    lienzo.style.height = "100%";
+    lienzo.style.objectFit = "cover";
+    lienzo.style.display = "block";
+    lienzo.setAttribute("role", "img");
+    if (etiqueta) lienzo.setAttribute("aria-label", etiqueta);
+    host.appendChild(lienzo);
+    return () => {
+      if (lienzo.parentNode === host) host.removeChild(lienzo);
+    };
+  }, [lienzo, etiqueta]);
+  return <div ref={ref} data-lienzo-ligero="" className={cn("bg-black", className)} />;
+}
+
+export function Pista({ stream, lienzo, espejo, video, silenciar, sinkId, className, etiqueta, remoto, volumen }: { stream: MediaStream | null | undefined; /** VID1110A: vídeo ligero por enlace de datos; si está, se pinta en lugar del <video>. */ lienzo?: HTMLCanvasElement | null; /** VID1110A: mi vista previa como espejo. */ espejo?: boolean; video: boolean; silenciar?: boolean; sinkId?: string; className?: string; etiqueta?: string; remoto?: boolean; /** 0..1 (LLA1108G) */ volumen?: number }) {
   const ref = useRef<HTMLMediaElement | null>(null);
   useEffect(() => {
     if (ref.current) ref.current.srcObject = stream ?? null;
@@ -38,9 +61,10 @@ export function Pista({ stream, video, silenciar, sinkId, className, etiqueta, r
     const el = ref.current as ConSinkId | null;
     if (el && sinkId && el.setSinkId) void el.setSinkId(sinkId).catch(() => {});
   }, [sinkId, stream, video]);
+  if (video && lienzo) return <LienzoLigero lienzo={lienzo} className={className} etiqueta={etiqueta} />;
   if (!stream) return null;
   return video ? (
-    <video ref={ref as React.RefObject<HTMLVideoElement>} autoPlay playsInline muted={silenciar} aria-label={etiqueta} data-remoto={remoto ? "" : undefined} className={cn("bg-black object-cover", className)} />
+    <video ref={ref as React.RefObject<HTMLVideoElement>} autoPlay playsInline muted={silenciar} aria-label={etiqueta} data-remoto={remoto ? "" : undefined} style={espejo ? { transform: "scaleX(-1)" } : undefined} className={cn("bg-black object-cover", className)} />
   ) : (
     <audio ref={ref as React.RefObject<HTMLAudioElement>} autoPlay muted={silenciar} />
   );

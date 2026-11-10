@@ -9,7 +9,10 @@ import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { Camera, Loader2, LogIn, Mic, MicOff, Users, Video, VideoOff } from "lucide-react";
 import { nivelRms } from "@/lib/llamadas/hablante";
-import { obtenerMedios, obtenerPista, pararStream } from "@/lib/llamadas/medios";
+import { listarDispositivos, obtenerMedios, obtenerPista, pararStream } from "@/lib/llamadas/medios";
+import { guardarPreferencia } from "@/lib/llamadas/camaras";
+import { getDeviceId } from "@/lib/network/device-registry";
+import { SelectorCamara } from "./selector-camara";
 import { TEXTO_TIPO } from "@/lib/llamadas/formato";
 import { usePresentesLlamada } from "@/lib/llamadas/use-presencia";
 import { MAX_PARTICIPANTES, type TipoLlamada } from "@/lib/llamadas/tipos";
@@ -89,6 +92,8 @@ export function PreLlamada({
     const [error, setError] = useState<string | null>(null);
     const [nombre, setNombre] = useState(nombreInicial ?? "");
     const [entrando, setEntrando] = useState(false);
+    const [camaras, setCamaras] = useState<Array<{ id: string; nombre: string }>>([]);
+    const [camaraId, setCamaraId] = useState<string | null>(null);
     const entregado = useRef(false);
     const streamRef = useRef<MediaStream | null>(null);
     streamRef.current = stream;
@@ -121,6 +126,47 @@ export function PreLlamada({
         const a = r.stream.getAudioTracks()[0];
         if (a) a.enabled = micro;
         setStream(r.stream);
+    };
+
+    // VID1110A: con el permiso ya dado se ven las etiquetas; se lista y se marca la cámara que quedó abierta.
+    useEffect(() => {
+        if (!stream) return;
+        let vivo = true;
+        void listarDispositivos().then((d) => {
+            if (!vivo) return;
+            setCamaras(d.camaras);
+            try {
+                setCamaraId(stream.getVideoTracks()[0]?.getSettings?.().deviceId ?? null);
+            } catch {
+                setCamaraId(null);
+            }
+        });
+        return () => {
+            vivo = false;
+        };
+    }, [stream]);
+
+    /** Cambia de cámara sin cortar la vista previa; se recuerda en esta neurona. */
+    const elegirCamara = async (id: string) => {
+        if (!stream) return;
+        const r = await obtenerPista("video", id);
+        if (!r.pista) {
+            setError(r.error);
+            return;
+        }
+        for (const t of stream.getVideoTracks()) {
+            stream.removeTrack(t);
+            t.stop();
+        }
+        stream.addTrack(r.pista);
+        setCamara(true);
+        setCamaraId(id);
+        try {
+            guardarPreferencia(getDeviceId(), { camara: { id, etiqueta: camaras.find((c) => c.id === id)?.nombre ?? "" } });
+        } catch {
+            /* sin almacenamiento */
+        }
+        setStream(new MediaStream(stream.getTracks()));
     };
 
     const alternarMicro = () => {
@@ -212,6 +258,7 @@ export function PreLlamada({
                         </div>
                     </div>
                 )}
+                {stream && camaras.length > 0 && <SelectorCamara camaras={camaras} elegidaId={camaraId} neurona={(() => { try { return getDeviceId() || "local"; } catch { return "local"; } })()} onElegir={(id) => void elegirCamara(id)} />}
                 <div className="flex items-start justify-center gap-5">
                     <BotonRedondo icono={micro ? Mic : MicOff} etiqueta={micro ? "Micro encendido" : "Micro apagado"} aria={micro ? "Entrar con el micrófono apagado" : "Entrar con el micrófono encendido"} variante={micro ? "normal" : "apagado"} onClick={alternarMicro} tam={50} />
                     <BotonRedondo icono={camara ? Video : VideoOff} etiqueta={camara ? "Cámara encendida" : "Cámara apagada"} aria={camara ? "Entrar con la cámara apagada" : "Entrar con la cámara encendida"} variante={camara ? "normal" : "apagado"} onClick={() => void alternarCamara()} tam={50} />

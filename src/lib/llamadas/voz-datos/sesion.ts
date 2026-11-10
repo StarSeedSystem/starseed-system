@@ -38,6 +38,8 @@ export interface TransporteVoz {
   colaVideoBytes?(): number;
   capacidadKbps?(): number | null;
   mtu?(): number | null;
+  /** VID1110A: tope de la cola de vídeo del enlace (el Bluetooth tira lo más viejo al pasarlo). */
+  topeColaVideoBytes?(): number | null;
 }
 
 export interface CodificadorVoz {
