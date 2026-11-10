@@ -73,3 +73,9 @@ export function esUrlIaMalla(url: string): boolean {
     return false;
   }
 }
+
+/** PTA1110A · ¿Puede esta neurona usar la IA de otra por la malla? Respeta «Usar el internet de mis neuronas» y el uso «IA». */
+export function elegirNodoIaMalla(nodos: readonly NodoIaMalla[], ajustes: { modoUso: string; usos: { ia: boolean } }): NodoIaMalla | null {
+  if (ajustes.modoUso === "nunca" || !ajustes.usos.ia) return null;
+  return nodos.find((n) => n.vivo) ?? null;
+}

@@ -633,7 +633,8 @@ export function crearGestorPuerta(deps: DepsGestor): GestorPuerta {
     if (s.grandeVisto || s.bytes < BYTES_DESCARGA_GRANDE || !(s.tipo === "descargas" || s.tipo === "actualizaciones" || s.tipo === "capas")) return;
     s.grandeVisto = true;
     const em = s.b ? emisores.get(s.b.vecino) : undefined;
-    const bps = em ? bpsDe(em) : 0;
+    // Una descarga RECIBE: el emisor hacia la puerta solo manda acuses, así que la velocidad real es la que mide la sesión.
+    const bps = Math.max(em ? bpsDe(em) : 0, s.vel);
     const kbps = (bps * 8) / 1000;
     if (!(kbps > 0 && kbps < UMBRAL_LENTO_KBPS)) return;
     let eleccion: EleccionGrande = deps.ajustes().grandeLento ?? "preguntar";
@@ -980,7 +981,10 @@ export function crearGestorPuerta(deps: DepsGestor): GestorPuerta {
         s.abierta = true;
         sock.alDatos(async (b) => {
           if (s.cerrada || !s.a) return;
-          if (!(await mandarDatos(s.a, s, b))) throw new Error("tunel");
+          if (!(await mandarDatos(s.a, s, b))) {
+            if (s.cerrada) return; // PTA1110A: cerrada a propósito (p. ej. «solo Wi‑Fi») mientras llegaban datos del sitio
+            throw new Error("tunel");
+          }
           if (cuotaVencida(s)) cerrar(s, "cuota");
         });
         sock.alCerrar((e) => cerrar(s, e ? `socket:${e.slice(0, 30)}` : "fin"));

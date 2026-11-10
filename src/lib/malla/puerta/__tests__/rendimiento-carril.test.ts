@@ -77,6 +77,8 @@ type Fabrica = typeof crearNuevo;
 interface Opciones {
   gestor: "antes" | "nuevo";
   binario?: boolean;
+  /** Dependencias extra del gestor del CLIENTE (ajustes, alGrande…). */
+  clienteExtra?: Record<string, unknown>;
 }
 
 function montar(o: Opciones) {
@@ -133,6 +135,7 @@ function montar(o: Opciones) {
     tabla: cTabla,
     estado: () => estadoSin,
     anuncioPropio: () => null,
+    ...(o.clienteExtra ?? {}),
     ...(o.gestor === "antes" ? { ventana: 8 } : {}),
   } as never);
   return { carril, g, c, respuesta };
@@ -151,11 +154,11 @@ interface Medida {
 }
 
 /** Abre un túnel a `host`, pide (600 B) y mide primer byte y fin de la respuesta de `esperado` bytes. */
-function pedir(c: GestorPuerta, host: string, esperado: number): { m: Medida; listo: () => boolean } {
+function pedir(c: GestorPuerta, host: string, esperado: number, tipo?: "descargas"): { m: Medida; listo: () => boolean } {
   const m: Medida = { primeroMs: null, finMs: null, bytes: 0 };
   const t0 = Date.now();
   void (async () => {
-    const t = await c.abrirTunel(host, 443);
+    const t = await c.abrirTunel(host, 443, tipo ? { tipo } : undefined);
     if ("error" in t) {
       m.finMs = -1;
       return;
@@ -274,4 +277,61 @@ describe("PTA1110A · la puerta en un carril de 300 kb/s", () => {
     await vi.advanceTimersByTimeAsync(4_000);
     expect(grande.m.bytes).toBeGreaterThan(antes); // la grande siguió avanzando
   }, 120_000);
+
+  describe("pregunta única antes de una descarga grande por un carril lento", () => {
+    const base = (grandeLento: "preguntar" | "continuar" | "solo-wifi") => {
+      let ajustes = { ...AJUSTES_PUERTA_POR_DEFECTO, grandeLento };
+      const preguntas: unknown[] = [];
+      return {
+        preguntas,
+        ajustes: () => ajustes,
+        extra: (eleccion: "continuar" | "solo-wifi", recordar: boolean) => ({
+          ajustes: () => ajustes,
+          cambiarAjustes: (f: (a: typeof ajustes) => typeof ajustes) => {
+            ajustes = f(ajustes);
+          },
+          alGrande: async (i: unknown) => {
+            preguntas.push(i);
+            return { eleccion, recordar };
+          },
+        }),
+      };
+    };
+
+    it("pregunta UNA vez (≈1 MiB, ~300 kb/s) y la elección «continuar» se recuerda", async () => {
+      const b = base("preguntar");
+      const { c } = await preparar({ gestor: "nuevo", binario: true, clienteExtra: b.extra("continuar", true) });
+      const p = pedir(c, "bulk.test", 2 * 1024 * 1024, "descargas");
+      await avanzarHasta(p.listo, 200_000, 20);
+      expect(b.preguntas).toHaveLength(1);
+      expect(p.m.bytes).toBeGreaterThanOrEqual(2 * 1024 * 1024); // continuó hasta el final
+      expect(b.ajustes().grandeLento).toBe("continuar"); // recordada
+    }, 120_000);
+
+    it("con la elección ya recordada no vuelve a preguntar", async () => {
+      const b = base("continuar");
+      const { c } = await preparar({ gestor: "nuevo", binario: true, clienteExtra: b.extra("solo-wifi", false) });
+      const p = pedir(c, "bulk.test", 2 * 1024 * 1024, "descargas");
+      await avanzarHasta(p.listo, 200_000, 20);
+      expect(b.preguntas).toHaveLength(0);
+      expect(p.m.bytes).toBeGreaterThanOrEqual(2 * 1024 * 1024);
+    }, 120_000);
+
+    it("«solo Wi‑Fi» corta la descarga por la malla", async () => {
+      const b = base("preguntar");
+      const { c } = await preparar({ gestor: "nuevo", binario: true, clienteExtra: b.extra("solo-wifi", false) });
+      const p = pedir(c, "bulk.test", 2 * 1024 * 1024, "descargas");
+      await avanzarHasta(p.listo, 60_000, 20);
+      expect(b.preguntas).toHaveLength(1);
+      expect(p.m.bytes).toBeLessThan(2 * 1024 * 1024);
+    }, 120_000);
+
+    it("una navegación pequeña nunca pregunta", async () => {
+      const b = base("preguntar");
+      const { c } = await preparar({ gestor: "nuevo", binario: true, clienteExtra: b.extra("continuar", false) });
+      const p = pedir(c, "pagina.test", 200 * 1024);
+      await avanzarHasta(p.listo, 60_000, 10);
+      expect(b.preguntas).toHaveLength(0);
+    }, 120_000);
+  });
 });
