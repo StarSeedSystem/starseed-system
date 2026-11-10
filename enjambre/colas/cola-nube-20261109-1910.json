@@ -1,0 +1,19 @@
+{
+ "ola": "nube-20261109",
+ "tareas": [
+  {
+   "id": "SUP0911H",
+   "titulo": "Archivos por la malla · cada latido vuelve a reiniciar la espera completa del remitente",
+   "archivos": [
+    "src/lib/network/archivos-malla.ts",
+    "src/lib/network/__tests__/archivos-malla-grandes.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest) de lo que tocas, con `NODE_ENV=test`; no toques `vitest.setup-dom.ts` ni otra preparación global. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo. Pruebas deterministas: sin red; una prueba nueva tiene que fallar sin tu arreglo. Publicar no es tuyo: nunca `git push`, ni `scripts/puente/publicar.py`, ni Vercel; deja tu trabajo en un commit de tu rama. En textos y comentarios de src/ no escribas «Mando» con mayúscula (el verbo también salta): la guardia `src/lib/__tests__/nombre-genesis.test.ts` lo rechaza porque el producto se llama Genesis; córrela también.\n\nViene de SUP0911G. Mira primero en main `vigilarVerificacion` de `src/lib/network/archivos-malla.ts`: si SUP0911G no entró, o si una llamada a `vigilarVerificacion` ya vuelve a armar la espera completa desde cero en cualquier fase, responde NO APLICA y no toques nada.\n\nSUP0911G hizo que, al vencer la espera de la verificación, el remitente repita «fin» una vez y dé una gracia corta antes de rendirse (bien). Pero su versión añadió en `vigilarVerificacion` una salida temprana cuando ya hay una espera completa armada (`if (infoPrev?.fase === \"completa\") return;` o equivalente): con eso, un latido que llega mientras corre la espera completa ya NO la reinicia, y en una verificación larga (minutos, con latidos cada 4 s) el remitente repite «fin» cada vez que vence la espera. Eso rompe lo que dice ARC1108B en el mismo archivo: «Cada latido la reinicia: verificar 500 MB durante minutos no es un fallo».\n\nCambio en `archivos-malla.ts`: cada llamada a `vigilarVerificacion` (al mandar «fin» y con cada latido) corta la espera que hubiera (completa o gracia, con `limpiarVigia`) y arma otra espera COMPLETA desde cero; la última llamada («fin» repetido + gracia) solo ocurre cuando la espera completa vence SIN noticias. No cambies nada más (ni los textos, ni la gracia, ni `manejarFin`, ni las firmas).\n\nPrueba en `src/lib/network/__tests__/archivos-malla-grandes.test.ts`, en el `describe` «ARC1108B · con latidos, el remitente no se rinde aunque verificar tarde más de 85 s», caso «receptor nuevo: late cada 4 s…»: el remitente manda «archivo.fin» UNA sola vez en toda la verificación (≈96 s de reloj falso con latidos cada 4 s). Cuenta los textos que empiezan por `{\"t\":\"archivo.fin\"` que salen del remitente (envuelve el `enviar` del canal del remitente antes de `enviarArchivo`, o usa lo que ya registre `par`). En rojo con el `archivos-malla.ts` que dejó SUP0911G (lo repite), verde con el arreglo. No toques los demás casos del archivo. Corre, con `NODE_ENV=test`, por separado: `./node_modules/.bin/vitest run src/lib/network/__tests__/archivos-malla-grandes.test.ts -t \"ARC1108B · con latidos\"`, `./node_modules/.bin/vitest run src/lib/network/__tests__/archivos-malla-ok-perdido.test.ts` (las de SUP0911G, sin cambiarlas) y la guardia `src/lib/__tests__/nombre-genesis.test.ts`. El disco de la Mac va justo: no corras el archivo grandes entero (mueve 58 MB) ni los casos con archivos REALES de `archivos-malla-rutas.test.ts`; los corre la puerta.",
+   "ola": "0911 · Seguimiento de la supervisión",
+   "dependencias_ya_en_main": [
+    "SUP0911G"
+   ]
+  }
+ ]
+}
