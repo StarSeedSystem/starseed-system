@@ -6682,3 +6682,13 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 **Lo que quedó fuera, una por una:**
 - `DR1110-2` — los tipos no compilan: 2 errores tsc (rama ola/DR1110-2 conservada)
 - `DR1110-1` — no escribió nada: Jev: p=0.92 de que otro intento sea en balde (2 sin cambios) → acepto «sin cambios» y lo decide el director
+
+## 2026-11-10 01:53 · auto-1110-012452
+
+**Lo que se pidió.** ideas nuevas
+
+**Resultado.** 0 de 2 integradas. 2 tareas se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `DR1110-2` — los tipos no compilan: 2 errores tsc (rama ola/DR1110-2 conservada)
+- `DR1110-1` — no escribió nada
