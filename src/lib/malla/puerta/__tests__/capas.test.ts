@@ -164,7 +164,11 @@ describe("evaluarDestino: exactamente las capas concedidas", () => {
 
   it("destino público: puerto 443; otras cuentas respetan hostsParaOtras; sin concesión para Node", () => {
     expect(evaluarDestino("example.com", 443, aj(), yo, [SRV])).toEqual({ ok: true, capa: null, concedido: null });
-    expect(evaluarDestino("example.com", 8443, aj(), yo, [SRV])).toEqual({ ok: false, motivo: "puerto-no-permitido" });
+    // PTA1110A: 80/443/8080/8443 son la web corriente; el SMTP nunca; el resto, por la política (Preguntar por defecto).
+    expect(evaluarDestino("example.com", 8443, aj(), yo, [SRV])).toEqual({ ok: true, capa: null, concedido: null });
+    expect(evaluarDestino("example.com", 25, aj(), yo, [SRV])).toEqual({ ok: false, motivo: "puerto-no-permitido" });
+    expect(evaluarDestino("example.com", 9090, aj(), yo, [SRV])).toEqual({ ok: true, capa: null, concedido: null, preguntarPuerto: true });
+    expect(evaluarDestino("example.com", 9090, aj({ otrosPuertos: "nunca" }), yo, [SRV])).toEqual({ ok: false, motivo: "puerto-no-permitido" });
     expect(evaluarDestino("example.com", 443, aj({ hostsParaOtras: ["api.ok.com"] }), otra, [])).toEqual({ ok: false, motivo: "host-no-permitido" });
   });
 

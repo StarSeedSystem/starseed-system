@@ -32,6 +32,12 @@ const PLAZO_ABRIR_MS = 12_000;
 const INACTIVA_MS = 5 * 60_000;
 const MAX_CUERPO_ESCRIBIR = 1024 * 1024;
 const MAX_CUERPO_FETCH = 8 * 1024 * 1024;
+// PTA1110A
+const PUERTOS_WEB = [80, 443, 8080, 8443];
+const PUERTOS_IA_LOCAL = [8000, 11434, 1234]; // lista FIJA: Astraura local, Ollama, LM Studio (nunca un puerto que pida la página)
+const TTL_DNS_MS = 60_000;
+const PLAZO_CONECTAR_MS = 8_000;
+const TTL_IA_MS = 15_000;
 
 /** ¿Es una IP que una puerta nunca debe tocar? (loopback, privada, enlace local, CGNAT, multicast, mapeadas…) */
 function ipInterna(ip) {
@@ -150,6 +156,18 @@ function crearPuertaLocal(opts) {
   const tlsOpciones = o.tlsOpciones || {};
   /** @type {Map<string, any>} */
   const tuberias = new Map();
+  // PTA1110A · Caché de DNS de la puerta (60 s): la segunda petición al mismo sitio no espera al resolutor. Las direcciones
+  // cacheadas se vuelven a validar en CADA uso (`resolverSeguro`), así que no abre ninguna vía de «DNS rebinding».
+  const cacheDns = new Map();
+  const lookupConCache = async (h, op) => {
+    const c = cacheDns.get(h);
+    if (c && Date.now() - c.t < TTL_DNS_MS) return c.d;
+    const d = await (lookup || dns.promises.lookup)(h, op);
+    if (cacheDns.size >= 256) cacheDns.delete(cacheDns.keys().next().value);
+    cacheDns.set(h, { t: Date.now(), d });
+    return d;
+  };
+  let cacheIa = { t: 0, puertos: [] };
   const pendientes = []; // tuberías de ENTRADA por abrir
   let esperaPendientes = null;
   let seq = 0;
@@ -221,11 +239,18 @@ function crearPuertaLocal(opts) {
     if (!Number.isInteger(puerto) || puerto < 1 || puerto > 65535) throw new Error("puerto-no-permitido");
     // PTA1108C: lo privado exige una concesión CON ese puerto; nunca un puerto cualquiera.
     if (concedido && typeof concedido === "object" && !(Array.isArray(concedido.puertos) && concedido.puertos.includes(puerto))) throw new Error("puerto-no-permitido");
-    const { ip, todas } = await resolverSeguro(host, concedido, lookup, o.subredes);
+    const { ip, todas } = await resolverSeguro(host, concedido, lookupConCache, o.subredes);
     const t = crearTuberia("salida", host, puerto);
     await new Promise((res, rej) => {
       let s = null;
+      const plazo = setTimeout(() => {
+        // PTA1110A: fallo rápido y con motivo (antes esperaba al tiempo del sistema, minutos)
+        cerrarTuberia(t, "socket:plazo");
+        rej(new Error("plazo"));
+      }, o.plazoConectarMs || PLAZO_CONECTAR_MS);
+      plazo.unref && plazo.unref();
       s = conectar(puerto, ip, () => {
+        clearTimeout(plazo);
         // Segunda comprobación con la dirección REAL del socket: debe ser una de las ya validadas.
         const r = s && s.remoteAddress;
         if (r && !todas.includes(r) && !todas.includes(String(r).replace(/^::ffff:/, ""))) {
@@ -237,6 +262,7 @@ function crearPuertaLocal(opts) {
       t.escribir = (b) => new Promise((r) => (s.write(b) ? r() : s.once("drain", r)));
       t.destruir = () => s.destroy();
       s.setNoDelay && s.setNoDelay(true);
+      s.setKeepAlive && s.setKeepAlive(true, 30_000); // PTA1110A
       s.setTimeout && s.setTimeout(INACTIVA_MS, () => cerrarTuberia(t, "inactivo"));
       s.on("data", (b) => {
         empujar(t, b);
@@ -247,8 +273,11 @@ function crearPuertaLocal(opts) {
         }
       });
       s.on("error", (e) => {
-        cerrarTuberia(t, "socket:" + String((e && e.code) || "error").slice(0, 24));
-        rej(new Error("no-conecta"));
+        clearTimeout(plazo);
+        const cod = String((e && e.code) || "error");
+        cerrarTuberia(t, "socket:" + cod.slice(0, 24));
+        // PTA1110A: motivos que la página y el usuario entienden
+        rej(new Error(cod === "ECONNREFUSED" ? "rechazada" : cod === "ENETUNREACH" || cod === "EHOSTUNREACH" ? "inalcanzable" : cod === "ETIMEDOUT" ? "plazo" : "no-conecta"));
       });
       s.on("close", () => cerrarTuberia(t, "fin"));
     }).catch((e) => {
@@ -271,6 +300,12 @@ function crearPuertaLocal(opts) {
         cb(err);
       },
     });
+    // PTA1110A: http.request (con o sin agente) llama a estos métodos de net.Socket.
+    dup.setTimeout = () => dup;
+    dup.setNoDelay = () => dup;
+    dup.setKeepAlive = () => dup;
+    dup.ref = () => dup;
+    dup.unref = () => dup;
     t.escribir = async (b) => {
       dup.push(b);
     };
@@ -310,25 +345,47 @@ function crearPuertaLocal(opts) {
           return resp.end("Solo CONNECT para https.");
         }
         const puerto = Number(u.port || 80);
-        const { t, dup, abierto } = abrirEntrada(u.hostname, puerto);
         const cab = { ...req.headers };
         delete cab["proxy-connection"];
         delete cab["proxy-authorization"];
-        abierto.then((r) => {
-          if (!r.ok) {
+        // PTA1110A · HTTP plano con reutilización de túneles (keep-alive): un túnel por host:puerto, no uno por petición.
+        const pet = http.request({ agent: agenteHttp(), host: u.hostname, port: puerto, method: req.method, path: u.pathname + u.search, headers: cab }, (rr) => {
+          resp.writeHead(rr.statusCode || 502, rr.headers);
+          rr.pipe(resp);
+        });
+        pet.on("error", (e) => {
+          if (!resp.headersSent) {
             resp.writeHead(502, { "content-type": "text/plain; charset=utf-8" });
-            return resp.end("La puerta no pudo abrir el túnel: " + r.m);
+            resp.end("La puerta no pudo abrir el túnel: " + String((e && e.message) || "error").replace(/^puerta: /, "").slice(0, 40));
+          } else resp.destroy();
+        });
+        req.pipe(pet);
+      });
+      // PTA1110A · WebSocket sin TLS (ws://) con una petición GET + Upgrade al proxy: túnel crudo, bytes tal cual. (wss:// y los
+      // ws:// que el navegador manda por CONNECT ya pasaban por el CONNECT de abajo.)
+      srv.on("upgrade", (req, socket, cabeza) => {
+        socket.on("error", () => socket.destroy());
+        let u;
+        try {
+          u = new URL(req.url);
+        } catch {
+          return socket.end("HTTP/1.1 400 Peticion\r\nconnection: close\r\n\r\n");
+        }
+        if (!activo || !hayPaginaViva() || (u.protocol !== "http:" && u.protocol !== "ws:")) return socket.end("HTTP/1.1 503 Sin salida\r\nconnection: close\r\n\r\n");
+        const { t, dup, abierto } = abrirEntrada(u.hostname, Number(u.port || 80));
+        abierto.then((r) => {
+          if (!r.ok) return socket.end("HTTP/1.1 502 Puerta\r\nconnection: close\r\nx-puerta-motivo: " + String(r.m).replace(/[^\w:-]/g, "").slice(0, 40) + "\r\n\r\n");
+          let cab = req.method + " " + u.pathname + u.search + " HTTP/1.1\r\n";
+          for (let i = 0; i < req.rawHeaders.length; i += 2) {
+            const k = req.rawHeaders[i];
+            if (!/^proxy-/i.test(k)) cab += k + ": " + req.rawHeaders[i + 1] + "\r\n";
           }
-          const pet = http.request({ createConnection: () => dup, method: req.method, path: u.pathname + u.search, headers: cab }, (rr) => {
-            resp.writeHead(rr.statusCode || 502, rr.headers);
-            rr.pipe(resp);
-          });
-          pet.on("error", () => {
-            if (!resp.headersSent) resp.writeHead(502);
-            resp.end();
-            cerrarTuberia(t, "error");
-          });
-          req.pipe(pet);
+          dup.write(cab + "\r\n");
+          if (cabeza && cabeza.length) dup.write(cabeza);
+          socket.pipe(dup);
+          dup.pipe(socket);
+          socket.on("close", () => cerrarTuberia(t, "fin"));
+          dup.on("close", () => socket.destroy());
         });
       });
       srv.on("connect", (req, socket, cabeza) => {
@@ -385,8 +442,11 @@ function crearPuertaLocal(opts) {
       return json(resp, 400, { error: "url-no-valida" });
     }
     // PTA1108C: un puerto distinto de 443 solo si la página lo pide por una capa (la puerta de la malla lo vuelve a comprobar).
-    const puertoFetch = Number(u.port || 443);
-    if (u.protocol !== "https:" || u.username || u.password || (u.port && u.port !== "443" && !o.permitirPuertoFetch && !(p.capa === true && Number.isInteger(puertoFetch) && puertoFetch > 0 && puertoFetch < 65536))) return json(resp, 400, { error: "url-no-valida" });
+    // PTA1110A: también http:// y los puertos de la web corriente; cualquier otro solo si la página lo aprobó (`capa` o `puertoAprobado`) y la puerta lo vuelve a comprobar.
+    const plano = u.protocol === "http:";
+    const puertoFetch = Number(u.port || (plano ? 80 : 443));
+    const aprobado = p.capa === true || p.puertoAprobado === true;
+    if ((u.protocol !== "https:" && !plano) || u.username || u.password || !Number.isInteger(puertoFetch) || puertoFetch < 1 || puertoFetch > 65535 || (!PUERTOS_WEB.includes(puertoFetch) && !o.permitirPuertoFetch && !aprobado)) return json(resp, 400, { error: "url-no-valida" });
     const metodo = String(p.metodo || "GET").toUpperCase();
     if (!/^[A-Z]{3,7}$/.test(metodo)) return json(resp, 400, { error: "metodo-no-valido" });
     if (!activo || !hayPaginaViva()) return json(resp, 503, { error: "sin-pagina" });
@@ -398,15 +458,15 @@ function crearPuertaLocal(opts) {
     if (cuerpo && cuerpo.length) cab["content-length"] = String(cuerpo.length);
     let e;
     try {
-      e = abrirEntrada(u.hostname, Number(u.port || 443));
+      e = abrirEntrada(u.hostname, puertoFetch);
     } catch (x) {
       return json(resp, 503, { error: String(x.message) });
     }
     const r = await e.abierto;
     if (!r.ok) return json(resp, 502, { error: r.m });
-    const sock = tls.connect({ ...tlsOpciones, socket: e.dup, servername: net.isIP(u.hostname) ? undefined : u.hostname });
+    const sock = plano ? e.dup : tls.connect({ ...tlsOpciones, socket: e.dup, servername: net.isIP(u.hostname) ? undefined : u.hostname });
     sock.on("error", () => cerrarTuberia(e.t, "tls"));
-    const pet = https.request({ createConnection: () => sock, method: metodo, path: u.pathname + u.search, headers: cab }, (rr) => {
+    const pet = (plano ? http : https).request({ createConnection: () => sock, method: metodo, path: u.pathname + u.search, headers: cab }, (rr) => {
       const cabs = [];
       for (const [k, v] of Object.entries(rr.headers)) if (!["content-encoding", "transfer-encoding", "connection", "keep-alive"].includes(k)) cabs.push([k, Array.isArray(v) ? v.join(", ") : String(v)]);
       resp.writeHead(200, {
@@ -480,7 +540,14 @@ function crearPuertaLocal(opts) {
         }
         return json(resp, 200, { activo, proxy: puertoProxy || null });
       }
-      if (accion === "estado") return json(resp, 200, { activo, proxy: puertoProxy || null, tuberias: tuberias.size, pagina: hayPaginaViva(), subredes: subredesLocales(o.interfaces).slice(0, 8) /* PTA1108C */ });
+      if (accion === "estado") return json(resp, 200, { activo, proxy: puertoProxy || null, tuberias: tuberias.size, pagina: hayPaginaViva(), subredes: subredesLocales(o.interfaces).slice(0, 8) /* PTA1108C */, ia: await puertosIaVivos() /* PTA1110A */ });
+      if (accion === "sonda") {
+        // PTA1110A · Solo hosts PÚBLICOS (`resolverSeguro` rechaza lo interno) y solo 443/80: es una prueba de salida, no un conector.
+        const c = JSON.parse((await leerCuerpo(req, 1024)).toString("utf8") || "{}");
+        const pt = Number(c.port || 443);
+        if (!PUERTOS_WEB.includes(pt)) return json(resp, 400, { error: "puerto" });
+        return json(resp, 200, await sondaPropia(String(c.host || ""), pt));
+      }
       if (accion === "tcp") {
         const c = JSON.parse((await leerCuerpo(req, 4096)).toString("utf8") || "{}");
         try {
@@ -562,7 +629,8 @@ function crearPuertaLocal(opts) {
    * `starseedNoEnviado` (no salió ni un byte de la petición) y `starseedRed` (cuenta como fallo de red).
    */
   function agenteMalla() {
-    const agente = new https.Agent({ keepAlive: false, maxSockets: 16 });
+    // PTA1110A: con keep-alive (antes un túnel y un TLS nuevos por petición: por Bluetooth, varios viajes de ida y vuelta de más).
+    const agente = new https.Agent({ keepAlive: true, keepAliveMsecs: 15_000, maxSockets: 16, maxFreeSockets: 4, scheduling: "lifo", timeout: 60_000 });
     agente.createConnection = (opciones, cb) => {
       const host = String(opciones.host || opciones.hostname || "");
       const puerto = Number(opciones.port) || 443;
@@ -596,6 +664,85 @@ function crearPuertaLocal(opts) {
       });
     };
     return agente;
+  }
+
+  /** PTA1110A · Agente de HTTP plano por la malla (keep-alive): el proxy local lo usa para `http://` y los `ws://` sin CONNECT. */
+  let agentePlano = null;
+  function agenteHttp() {
+    if (agentePlano) return agentePlano;
+    const agente = new http.Agent({ keepAlive: true, keepAliveMsecs: 15_000, maxSockets: 16, maxFreeSockets: 4, scheduling: "lifo", timeout: 60_000 });
+    agente.createConnection = (opciones, cb) => {
+      const host = String(opciones.host || opciones.hostname || "");
+      const puerto = Number(opciones.port) || 80;
+      const fallar = (motivo) => {
+        const e = new Error("puerta: " + motivo);
+        e.code = "ENETUNREACH";
+        cb(e);
+      };
+      if (!disponibleMalla()) return fallar("sin-salida");
+      // Mismo cierre que `agenteMalla`: nunca un destino interno desde esta vía; la puerta lo vuelve a comprobar.
+      const h = host.toLowerCase().replace(/\.$/, "");
+      if (!h || (net.isIP(h) && ipInterna(h)) || h === "localhost" || h.endsWith(".localhost") || h.endsWith(".local") || h.endsWith(".internal")) return fallar("destino-interno");
+      let e;
+      try {
+        e = abrirEntrada(host, puerto);
+      } catch (x) {
+        return fallar(String((x && x.message) || "error").slice(0, 40));
+      }
+      e.abierto.then((r) => {
+        if (!r.ok) return fallar(String(r.m || "rechazada").slice(0, 40));
+        e.dup.on("close", () => cerrarTuberia(e.t, "fin"));
+        cb(null, e.dup);
+      });
+    };
+    agentePlano = agente;
+    return agente;
+  }
+
+  /** PTA1110A · ¿Qué puertos de IA escuchan en el bucle local de ESTA máquina? Solo la lista fija, cada 15 s, con 400 ms de plazo. */
+  async function puertosIaVivos() {
+    if (Date.now() - cacheIa.t < TTL_IA_MS) return cacheIa.puertos;
+    const vivos = [];
+    await Promise.all(
+      (o.puertosIa || PUERTOS_IA_LOCAL).map(
+        (p) =>
+          new Promise((res) => {
+            const sk = net.connect({ host: "127.0.0.1", port: p });
+            const fin = (ok) => {
+              sk.destroy();
+              if (ok) vivos.push(p);
+              res();
+            };
+            sk.setTimeout(400, () => fin(false));
+            sk.on("connect", () => fin(true));
+            sk.on("error", () => fin(false));
+          }),
+      ),
+    );
+    cacheIa = { t: Date.now(), puertos: vivos.sort((a, b) => a - b) };
+    return cacheIa.puertos;
+  }
+
+  /** PTA1110A · ¿Hay salida PROPIA? Un TCP directo desde Node (no desde el webview, que puede estar saliendo por el proxy de la malla). */
+  async function sondaPropia(host, puerto) {
+    const t0 = Date.now();
+    try {
+      const { ip } = await resolverSeguro(host, null, lookupConCache, o.subredes);
+      await new Promise((res, rej) => {
+        const sk = conectar(puerto, ip, () => {
+          sk.destroy();
+          res();
+        });
+        sk.setTimeout && sk.setTimeout(3_000, () => {
+          sk.destroy();
+          rej(new Error("plazo"));
+        });
+        sk.on("error", () => rej(new Error("error")));
+      });
+      return { ok: true, ms: Math.max(1, Date.now() - t0) };
+    } catch {
+      return { ok: false, ms: null };
+    }
   }
 
   // Barrido de tuberías sin movimiento.

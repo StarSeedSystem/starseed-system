@@ -20,9 +20,12 @@ import {
   type EstadoPropio,
   type Solicitante,
 } from "@/lib/malla/puerta/politica";
-import { crearGestorPuerta, type AuditoriaPuerta, type GestorPuerta, type MetaVecino, type Pregunta, type ResumenCompartiendo, type Trama, type TransportePuerta } from "@/lib/malla/puerta/tunel";
+import { crearGestorPuerta, type ActividadSesion, type AuditoriaPuerta, type CarrilVista, type GestorPuerta, type InfoGrande, type MetaVecino, type Pregunta, type ResumenCompartiendo, type Trama, type TransportePuerta } from "@/lib/malla/puerta/tunel";
+import { AvisosRuta, type AvisoRuta } from "@/lib/malla/puerta/actividad"; // PTA1110A
+import { nodosIaPorMalla, type NodoIaMalla } from "@/lib/malla/puerta/ia"; // PTA1110A
+import { carrilPermitido, type EleccionGrande } from "@/lib/malla/puerta/politica"; // PTA1110A
 import { registrarRespaldoFetch } from "@/lib/malla/puerta/fetch-puerta";
-import { activarModoLocal, atenderEntradas, crearAbrirTcpLocal, leerSubredesLocales, postLocalPorDefecto, puertaLocalDisponible, respaldoFetchLocal, type HandleAtencion, type PostLocal } from "@/lib/malla/puerta/puente-local";
+import { activarModoLocal, atenderEntradas, crearAbrirTcpLocal, leerIaLocal, leerSubredesLocales, postLocalPorDefecto, puertaLocalDisponible, respaldoFetchLocal, sondaPropiaNode, type HandleAtencion, type PostLocal } from "@/lib/malla/puerta/puente-local";
 // PTA1108B: el webview, el navegador de la app y las descargas de Rust salen por el proxy local de la puerta.
 import { crearSincroProxy, puenteProxyPorDefecto, textoVia, type PuenteProxy, type SincroProxy } from "@/lib/malla/puerta/proxy-nativo";
 
@@ -64,11 +67,26 @@ export interface EstadoServicioPuerta {
   proxyLocal: number | null;
   /** PTA1108C · Capas que ESTA neurona alcanza y podría ofrecer (se anuncian solo las que el dueño comparte). */
   capasPropias: CapaPuerta[];
+  /** PTA1110A · Procesos que pasan por esta neurona (propios y ajenos): tipo, host, bytes, velocidad, carril. Sin contenido. */
+  actividad: ActividadSesion[];
+  /** PTA1110A · Capacidad medida de cada carril con tráfico. */
+  carriles: CarrilVista[];
+  /** PTA1110A · Velocidad (bytes/s) del carril por el que sale esta neurona, si sale por la malla. */
+  bytesPorSegundo: number | null;
+  /** PTA1110A · Últimos avisos de cambio de ruta (sin repeticiones). */
+  avisos: AvisoRuta[];
+  /** PTA1110A · «Usar el internet de mis neuronas: Preguntar» espera respuesta. */
+  preguntaUso: { nombre: string } | null;
+  /** PTA1110A · Descarga grande por un carril lento: espera la elección del usuario. */
+  preguntaGrande: (InfoGrande & { nombre: string }) | null;
+  /** PTA1110A · IA de otras neuronas de mi cuenta alcanzable por la malla (para el router de Astraura). */
+  iaPorMalla: NodoIaMalla[];
 }
 
 const VACIO: EstadoServicioPuerta = {
   activo: false, nativo: false, conInternet: true, puertas: [], internetPor: null, compartiendo: [], auditoria: [],
   bytesHoy: { mias: 0, otras: 0 }, preguntas: [], ajustes: AJUSTES_PUERTA_POR_DEFECTO, proxyLocal: null, capasPropias: [],
+  actividad: [], carriles: [], bytesPorSegundo: null, avisos: [], preguntaUso: null, preguntaGrande: null, iaPorMalla: [],
 };
 
 let estado: EstadoServicioPuerta = VACIO;
@@ -105,6 +123,20 @@ export async function sondearSalida(fetchCrudo: typeof fetch = fetch, ahora: () 
   } finally {
     if (temporizador) clearTimeout(temporizador);
   }
+}
+
+/** PTA1110A · Sonda de la salida PROPIA hecha por Node (no por el webview): un TCP directo al Supabase del OS (o a 1.1.1.1:443). */
+async function sondearSalidaNode(post: PostLocal, previa: SondaSalida): Promise<SondaSalida> {
+  let host = "1.1.1.1";
+  try {
+    if (process.env.NEXT_PUBLIC_SUPABASE_URL) host = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).hostname;
+  } catch {
+    /* se usa el de respaldo */
+  }
+  const r = await sondaPropiaNode(post, host, 443);
+  // Node no contestó (sin lado de Node): se conserva lo que ya se sabía en vez de inventar un corte.
+  if (r === null) return previa;
+  return { conInternet: r.ok, latenciaMs: r.ms };
 }
 
 async function leerEstadoFisico(): Promise<Pick<EstadoPropio, "bateria" | "cargando" | "medida">> {
@@ -165,6 +197,41 @@ export function permitirCapasANeurona(id: string, tipos: TipoCapa[]): void {
   });
 }
 
+/* ── PTA1110A · Actividad de la malla, preguntas y diagnóstico ── */
+const avisosRuta = new AvisosRuta();
+let usoSesion: "desconocido" | "si" | "no" = "desconocido";
+let resUso: ((ok: boolean) => void) | null = null;
+let resGrande: ((r: { eleccion: Exclude<EleccionGrande, "preguntar">; recordar: boolean }) => void) | null = null;
+
+/** «Usar el internet de mis neuronas: Preguntar» — respuesta del usuario. */
+export function responderUso(permitir: boolean): void {
+  usoSesion = permitir ? "si" : "no";
+  resUso?.(permitir);
+  resUso = null;
+  publicar({ preguntaUso: null });
+}
+
+/** Descarga grande por un carril lento: continuar / esperar un carril más rápido / solo con Wi‑Fi. */
+export function responderGrande(eleccion: Exclude<EleccionGrande, "preguntar">, recordar: boolean): void {
+  resGrande?.({ eleccion, recordar });
+  resGrande = null;
+  publicar({ preguntaGrande: null });
+}
+
+export const pausarActividad = (id: string): void => gestorVivo?.pausar(id);
+export const reanudarActividad = (id: string): void => gestorVivo?.reanudar(id);
+export const cancelarActividad = (id: string): void => gestorVivo?.cancelar(id);
+
+/** Una línea en `enlaces.log` (la app nativa la copia a ~/Library/Logs/app.starseed.os/enlaces.log). Nunca lanza. */
+function registrarPuerta(texto: string): void {
+  try {
+    const linea = `${new Date().toISOString()} web puerta - - ${texto}`;
+    void import("@/lib/nativa/puente").then(({ puenteNativo }) => puenteNativo().llamar("ble_registro_anexar", { lineas: [linea] })).catch(() => undefined);
+  } catch {
+    /* sin registro */
+  }
+}
+
 export const pararDeCompartir = (): void => gestorVivo?.detenerCompartir();
 export const revocarVecina = (id: string): void => gestorVivo?.revocar(id);
 
@@ -191,6 +258,7 @@ export function iniciarPuertaMalla(op: OpcionesServicio = {}): () => void {
   let modoLocal = false;
   let capasDetectadas: CapaPuerta[] = []; // PTA1108C
   let cacheVecinosLan: string[] = []; // PTA1108C
+  let fallosSonda = 0; // PTA1110A
   const post = op.post ?? postLocalPorDefecto();
   aj = leerAjustesPuerta();
   publicar({ activo: true, ajustes: aj });
@@ -263,9 +331,16 @@ export function iniciarPuertaMalla(op: OpcionesServicio = {}): () => void {
           const detalle = capasAnunciables(aj, capasDetectadas);
           const capas: CapaSalida[] = e.conInternet && comparteAlguien ? ["internet"] : [];
           if (!capas.length && !detalle.length) return null;
-          return crearAnuncioPropio({ id: yo, uid: miCuenta ?? undefined, capas, detalle, latenciaMs: sonda.latenciaMs, estado: e, ahora: Date.now() });
+          return crearAnuncioPropio({ id: yo, uid: miCuenta ?? undefined, capas, detalle, latenciaMs: sonda.latenciaMs, estado: e, f: transporte.enviarBin ? ["cap", "bin"] : ["cap"], ahora: Date.now() });
         },
         capasPropias: () => capasDetectadas, // PTA1108C
+        hostsStarSeed: () => hostsStarSeed(), // PTA1110A
+        alGrande: (info) =>
+          new Promise((res) => {
+            resGrande = res;
+            publicar({ preguntaGrande: { ...info, nombre: nombres(info.id) } });
+            registrarPuerta(`grande ${info.tipo} ${info.host} ${Math.round(info.kbps)} kb/s: se pregunta`);
+          }),
         abrirTcp: nativo ? crearAbrirTcpLocal(post) : undefined,
         preguntar: (s: Solicitante, host: string) =>
           new Promise<Pregunta>((res) => {
@@ -293,8 +368,27 @@ export function iniciarPuertaMalla(op: OpcionesServicio = {}): () => void {
           auditoria: gestor.auditoria().slice(-20).reverse(),
           bytesHoy: { mias: gestor.bytesHoy("mias"), otras: gestor.bytesHoy("otras") },
           capasPropias: capasDetectadas,
+          // PTA1110A
+          actividad: gestor.actividad(),
+          carriles: gestor.carriles(),
+          bytesPorSegundo: velocidadDeRuta(propio?.puerta),
+          iaPorMalla: nodosIaPorMalla(puertas),
         });
         sincronizarProxy(); // PTA1108B
+      };
+      /** PTA1110A · bytes/s medidos en el carril hacia la puerta por la que sale esta neurona. */
+      const velocidadDeRuta = (puerta: string | undefined): number | null => {
+        if (!puerta) return null;
+        const entrada = gestorTabla.candidatas().find((e) => e.anuncio.id === puerta);
+        const c = entrada ? gestor.carriles().find((x) => x.vecino === entrada.vecino) : undefined;
+        return c && c.kbps > 0 ? c.kbps * 125 : null;
+      };
+      const hostsStarSeed = (): string[] => {
+        try {
+          return process.env.NEXT_PUBLIC_SUPABASE_URL ? [new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).hostname] : [];
+        } catch {
+          return [];
+        }
       };
       // PTA1108B · Cada vez que el proxy arranca, para o cambia la puerta que usa (neurona o vía), la app nativa lo sabe.
       const sincronizarProxy = (): void => {
@@ -311,25 +405,58 @@ export function iniciarPuertaMalla(op: OpcionesServicio = {}): () => void {
       // Salida propia, estado físico y modo «salir por la malla» (solo con lado de Node).
       const ciclo = async (): Promise<void> => {
         if (!vivo) return;
-        sonda = op.sonda ? await op.sonda() : await sondearSalida();
+        // PTA1110A · La salida PROPIA se mide desde Node (un TCP directo): una sonda del webview saldría por el proxy de la malla
+        // en cuanto este estuviera encendido, «vería internet» y apagaría el modo (parpadeo). Con histéresis: hacen falta
+        // 2 fallos seguidos para dar la salida por perdida; un acierto basta para darla por vuelta.
+        const medida = op.sonda ? await op.sonda() : nativo ? await sondearSalidaNode(post, sonda) : await sondearSalida();
+        if (medida.conInternet) {
+          fallosSonda = 0;
+          sonda = medida;
+        } else if (++fallosSonda >= 2 || !sonda.conInternet) {
+          sonda = medida;
+        }
         fisico = await leerEstadoFisico();
         // PTA1108C: capas que esta neurona alcanza (servidores propios, LAN, routers).
         try {
-          capasDetectadas = detectarCapas(await fuentesCapasReales({ vecinosLan: () => cacheVecinosLan, subredes: nativo ? () => leerSubredesLocales(post) : undefined }));
+          capasDetectadas = detectarCapas(await fuentesCapasReales({ vecinosLan: () => cacheVecinosLan, subredes: nativo ? () => leerSubredesLocales(post) : undefined, iaLocal: nativo ? () => leerIaLocal(post) : undefined /* PTA1110A */ }));
           cacheVecinosLan = await vecinosLanReales();
         } catch {
           /* sin capas: solo internet */
         }
         await refrescar();
-        const usar = nativo && aj.usarPuertas && !sonda.conInternet && gestorTabla.candidatas().length > 0;
+        // PTA1110A · solo por los carriles permitidos; «Usar el internet de mis neuronas»: Automático / Preguntar / Nunca.
+        const candidatas = gestorTabla.candidatas({ filtro: (e) => carrilPermitido(aj, e.tipoEnlace, e.enlace) });
+        if (sonda.conInternet) usoSesion = "desconocido";
+        let usar = nativo && aj.usarPuertas && aj.modoUso !== "nunca" && !sonda.conInternet && candidatas.length > 0;
+        if (usar && aj.modoUso === "preguntar" && usoSesion !== "si") {
+          usar = false;
+          if (usoSesion === "desconocido" && !resUso) {
+            const nombre = nombres(candidatas[0].anuncio.id);
+            publicar({ preguntaUso: { nombre } });
+            void new Promise<boolean>((res) => (resUso = res));
+          }
+        }
         if (usar !== modoLocal) {
           const r = await activarModoLocal(post, usar);
           if (r) {
             modoLocal = usar;
             publicar({ proxyLocal: r.activo ? r.proxy : null });
+            registrarPuerta(usar ? `modo malla encendido (sin salida propia; ${candidatas.length} puerta(s))` : "modo malla apagado");
           }
         }
         refrescarVista();
+        // PTA1110A · Aviso de cambio de ruta: uno por cambio real, sin bucles (ver AvisosRuta).
+        const e = estadoPuerta();
+        const aviso = avisosRuta.observar({ conInternet: sonda.conInternet, por: e.internetPor ? { nombre: e.internetPor.nombre, enlace: e.internetPor.enlace } : null, hayPuertas: candidatas.length > 0 });
+        if (aviso) {
+          publicar({ avisos: [...estadoPuerta().avisos, aviso].slice(-5) });
+          registrarPuerta(`ruta: ${aviso.texto}`);
+          try {
+            window.dispatchEvent(new CustomEvent("starseed:puerta-aviso", { detail: aviso }));
+          } catch {
+            /* sin eventos */
+          }
+        }
         gestor.anunciar();
       };
       if (nativo) {
@@ -345,7 +472,7 @@ export function iniciarPuertaMalla(op: OpcionesServicio = {}): () => void {
               requiereCapa: (url) => {
                 try {
                   const u = new URL(url);
-                  const puerto = Number(u.port || 443);
+                  const puerto = Number(u.port || (u.protocol === "http:" ? 80 : 443)); // PTA1110A: http también
                   if (!destinoNecesitaCapa(u.hostname) || capaDeDestino(capasDetectadas, u.hostname, puerto)) return false;
                   return gestorTabla.capaParaDestino(u.hostname, puerto) !== null;
                 } catch {
@@ -357,8 +484,14 @@ export function iniciarPuertaMalla(op: OpcionesServicio = {}): () => void {
         );
       }
       await ciclo();
-      const reloj = setInterval(() => void ciclo(), 8000);
-      bajas.push(() => clearInterval(reloj));
+      // PTA1110A: más a menudo mientras no hay salida propia (se quiere entrar en modo malla en segundos, no en medio minuto).
+      let relojCiclo: ReturnType<typeof setTimeout> | null = null;
+      const siguiente = (): void => {
+        if (!vivo) return;
+        relojCiclo = setTimeout(() => void ciclo().finally(siguiente), sonda.conInternet ? 8000 : 4000);
+      };
+      siguiente();
+      bajas.push(() => relojCiclo && clearTimeout(relojCiclo));
       const alRed = (): void => void ciclo();
       window.addEventListener("online", alRed);
       window.addEventListener("offline", alRed);
@@ -384,6 +517,9 @@ export function iniciarPuertaMalla(op: OpcionesServicio = {}): () => void {
     parar = null;
     for (const e of preguntas.values()) e.res("denegar");
     preguntas.clear();
+    resUso = null; // PTA1110A
+    resGrande = null;
+    usoSesion = "desconocido";
     void activarModoLocal(post, false);
     publicar({ ...VACIO, ajustes: aj });
   };

@@ -223,8 +223,8 @@ test("fetch: la petición de la app sale por la tubería con TLS de Node de punt
     assert.equal(j.cookie, null);
     assert.equal(j.ae, "identity");
     assert.equal(Buffer.concat(visto).toString("latin1").includes("perfiles"), false, "la malla no ve la ruta");
-    // http, credenciales y otros puertos se rechazan
-    for (const url of ["http://x.test/", "https://u:p@x.test/"]) {
+    // PTA1110A: http ya viaja (puerto 80); otros esquemas, credenciales y otros puertos se rechazan
+    for (const url of ["ftp://x.test/", "https://u:p@x.test/"]) {
       const m = await post(base, "fetch", undefined, { "x-puerta-peticion": encodeURIComponent(JSON.stringify({ url, metodo: "GET" })) });
       assert.equal(m.status, 400);
     }

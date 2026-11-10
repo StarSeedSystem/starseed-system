@@ -16,7 +16,7 @@ export const REANUNCIO_MS = 30_000;
 const LATENCIA_SALTO_MS = 60;
 
 /** Qué hay al otro lado de la puerta. */
-export type CapaSalida = "internet" | "lan" | "servidor-propio" | "router-publico";
+export type CapaSalida = "internet" | "lan" | "servidor-propio" | "router-publico" | "ia-neurona";
 
 export interface AnuncioPuerta {
   v: 1;
@@ -34,6 +34,8 @@ export interface AnuncioPuerta {
   cargando: boolean;
   /** Puerta pública de StarSeed o router declarado público. */
   publica?: boolean;
+  /** PTA1110A · Capacidades de transporte que entiende esa neurona ("cap" = ventana por capacidad y reparto justo; "bin" = trozos binarios). Se confirman por túnel en `abrir`/`ok`. */
+  f?: string[];
   /** 0 = anuncio directo de la dueña de la salida. */
   saltos: number;
   /** Neuronas por las que ya pasó el anuncio (la dueña primero): evita bucles. */
@@ -72,6 +74,8 @@ export function crearAnuncioPropio(p: {
   anchoKbps?: number | null;
   estado: EstadoPropio;
   publica?: boolean;
+  /** PTA1110A */
+  f?: string[];
   ahora: number;
 }): AnuncioPuerta | null {
   const capas: CapaSalida[] = [...new Set<CapaSalida>([...p.capas, ...(p.detalle ?? []).map((c) => c.tipo)])];
@@ -88,6 +92,7 @@ export function crearAnuncioPropio(p: {
     bateria: p.estado.bateria,
     cargando: p.estado.cargando,
     publica: p.publica,
+    ...(p.f?.length ? { f: p.f.slice(0, 4) } : {}),
     saltos: 0,
     via: [p.id],
     ts: p.ahora,
@@ -99,7 +104,7 @@ export function leerAnuncio(x: unknown): AnuncioPuerta | null {
   if (!x || typeof x !== "object") return null;
   const o = x as Record<string, unknown>;
   if (o.v !== 1 || typeof o.id !== "string" || !o.id || o.id.length > 80) return null;
-  const capas = Array.isArray(o.capas) ? o.capas.filter((c): c is CapaSalida => c === "internet" || c === "lan" || c === "servidor-propio" || c === "router-publico") : [];
+  const capas = Array.isArray(o.capas) ? o.capas.filter((c): c is CapaSalida => c === "internet" || c === "lan" || c === "servidor-propio" || c === "router-publico" || c === "ia-neurona") : [];
   if (!capas.length) return null;
   const via = Array.isArray(o.via) ? o.via.filter((s): s is string => typeof s === "string" && s.length <= 80).slice(0, MAX_SALTOS + 2) : [];
   const saltos = typeof o.saltos === "number" && Number.isInteger(o.saltos) && o.saltos >= 0 && o.saltos <= MAX_SALTOS ? o.saltos : -1;
@@ -118,6 +123,7 @@ export function leerAnuncio(x: unknown): AnuncioPuerta | null {
     bateria: typeof o.bateria === "number" && o.bateria >= 0 && o.bateria <= 1 ? o.bateria : null,
     cargando: o.cargando === true,
     publica: o.publica === true ? true : undefined,
+    ...(Array.isArray(o.f) ? { f: o.f.filter((x): x is string => typeof x === "string" && /^[a-z]{1,8}$/.test(x)).slice(0, 4) } : {}),
     saltos,
     via,
     ts: typeof o.ts === "number" ? o.ts : 0,
@@ -163,6 +169,8 @@ export interface OpcionesElegir {
   /** PTA1108C · Destino que se quiere alcanzar: elige solo puertas que tengan la capa necesaria (internet o una capa privada). */
   host?: string;
   puerto?: number;
+  /** PTA1110A · Filtro propio (carriles permitidos por el usuario). */
+  filtro?: (e: EntradaTabla) => boolean;
 }
 
 /** PTA1108C · ¿Esta puerta alcanza `host:puerto`? Un destino privado exige una capa anunciada que lo cubra; uno público, la capa «internet». */
@@ -224,6 +232,7 @@ export class TablaPuertas {
       .filter((e) => (o.capa ? e.anuncio.capas.includes(o.capa) : true))
       .filter((e) => (o.evitarMedida ? !e.anuncio.medida : true))
       .filter((e) => (o.host ? puertaAlcanza(e.anuncio, o.host, o.puerto ?? 443) : true))
+      .filter((e) => (o.filtro ? o.filtro(e) : true))
       .sort((x, y) => puntuarPuerta(y) - puntuarPuerta(x) || x.anuncio.id.localeCompare(y.anuncio.id));
   }
 
