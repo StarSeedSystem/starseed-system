@@ -30,6 +30,8 @@ export interface MetaPresencia {
 export interface ParticipanteLlamada extends MetaPresencia {
     yo: boolean;
     stream: MediaStream | null;
+    /** VID1110A: el canvas donde se pinta el vídeo ligero que llega por el enlace de datos (la superficie lo monta tal cual). */
+    lienzo?: HTMLCanvasElement | null;
     conexion: EstadoConexionPar;
     calidad: CalidadConexion;
     /** Nivel de voz suavizado, 0..1. */

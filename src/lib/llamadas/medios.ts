@@ -10,6 +10,18 @@ import type { AjustesMedios } from "@/lib/llamadas/permiso-medios";
 import type { DispositivosMedios } from "@/lib/llamadas/tipos";
 import { explicarFalloMedios } from "@/lib/nativa/medios-nativos";
 import { esAppNativa } from "@/lib/nativa/puente";
+import { describirCamaras, elegirCamaraPorDefecto, leerPreferencias, lineaCamaraElegida, plataformaDe, restriccionesDeOpciones, leerCapacidades } from "@/lib/llamadas/camaras";
+import { anotarLlamada } from "@/lib/llamadas/voz-datos/diagnostico";
+import { getDeviceId } from "@/lib/network/device-registry";
+
+/** La neurona de ESTE aparato (donde se recuerdan las elecciones); sin ella, un nombre fijo. */
+function neuronaLocal(): string {
+    try {
+        return getDeviceId() || "local";
+    } catch {
+        return "local";
+    }
+}
 
 function mediaDevices(): MediaDevices | null {
     try {
@@ -83,6 +95,62 @@ export function restriccionesVideo(camaraId?: string | null): MediaTrackConstrai
     };
 }
 
+/**
+ * VID1110A: deja en la llamada la cámara DEL PROPIO APARATO. Sin deviceId, `facingMode: "user"` deja que el sistema
+ * decida, y macOS prefiere el iPhone (Cámara de Continuidad) si está cerca. Con permiso ya dado se ven las etiquetas:
+ * si lo abierto no es lo que se elegiría (guardada › integrada frontal › resto), se reabre la buena y se suelta la otra.
+ * Nunca lanza ni deja la llamada sin cámara: si algo falla, se queda la que abrió el sistema.
+ */
+export async function afinarCamara(md: MediaDevices, stream: MediaStream, camaraIdPedida?: string | null, neurona: string = neuronaLocal()): Promise<void> {
+    const pista = stream.getVideoTracks()[0];
+    if (!pista) return;
+    try {
+        const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
+        const lista = describirCamaras(
+            (await md.enumerateDevices()).filter((d) => d.kind === "videoinput" && d.deviceId).map((d) => ({ id: d.deviceId, nombre: d.label || "" })),
+            plataformaDe(ua),
+        );
+        const abiertaId = pista.getSettings?.().deviceId ?? null;
+        const abierta = lista.find((c) => c.id === abiertaId) ?? lista.find((c) => c.etiqueta && c.etiqueta === pista.label) ?? null;
+        if (camaraIdPedida) {
+            if (abierta) anotarLlamada("camara", null, lineaCamaraElegida(abierta, "pedida"));
+            return;
+        }
+        const e = elegirCamaraPorDefecto(lista, leerPreferencias(neurona).camara);
+        let final = abierta;
+        if (e.camara && abiertaId && e.camara.id !== abiertaId) {
+            try {
+                const otro = await md.getUserMedia({ audio: false, video: { ...restriccionesVideo(e.camara.id) } });
+                const nueva = otro.getVideoTracks()[0];
+                if (nueva) {
+                    stream.addTrack(nueva);
+                    stream.removeTrack(pista);
+                    pista.stop();
+                    final = e.camara;
+                }
+            } catch {
+                /* se queda la que abrió el sistema */
+            }
+        }
+        if (final) anotarLlamada("camara", null, lineaCamaraElegida(final, final === e.camara ? e.motivo : "sistema"));
+    } catch {
+        /* sin enumerateDevices: se queda la que abrió el sistema */
+    }
+}
+
+/** Aplica unas opciones guardadas (resolución, fps, zoom…) a la pista abierta. Solo lo que esa cámara admite. */
+export async function aplicarOpcionesGuardadas(pista: MediaStreamTrack | null | undefined, neurona: string = neuronaLocal()): Promise<void> {
+    if (!pista || typeof pista.applyConstraints !== "function") return;
+    try {
+        const o = leerPreferencias(neurona).opciones?.[pista.label];
+        if (!o) return;
+        const r = restriccionesDeOpciones(o, leerCapacidades(pista));
+        if (Object.keys(r).length) await pista.applyConstraints(r);
+    } catch {
+        /* la cámara no las admite: se queda como está */
+    }
+}
+
 export interface ResultadoMedios {
     stream: MediaStream | null;
     /** Error bloqueante (no se consiguió nada de lo pedido). */
@@ -114,6 +182,10 @@ export async function obtenerMedios(p: { audio: boolean; video: boolean; microId
             audio: p.audio ? restriccionesAudio(p.microId) : false,
             video: p.video ? restriccionesVideo(p.camaraId) : false,
         });
+        if (p.video) {
+            await afinarCamara(md, stream, p.camaraId);
+            await aplicarOpcionesGuardadas(stream.getVideoTracks()[0]);
+        }
         return { stream, error: null, aviso: null };
     } catch (err) {
         if (p.audio && p.video) {

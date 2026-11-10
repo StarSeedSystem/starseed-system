@@ -10,6 +10,16 @@ import type { LucideIcon } from "lucide-react";
 import { Check, RefreshCw, X } from "lucide-react";
 import { soportaAltavoz } from "@/lib/llamadas/medios";
 import type { EstadoLlamada } from "@/lib/llamadas/tipos";
+import { getDeviceId } from "@/lib/network/device-registry";
+import { OpcionesDeCamara, SelectorCamara } from "./selector-camara";
+
+function neuronaLocal(): string {
+    try {
+        return getDeviceId() || "local";
+    } catch {
+        return "local";
+    }
+}
 
 export type VarianteBoton = "normal" | "apagado" | "acento" | "peligro" | "exito";
 
@@ -170,15 +180,8 @@ export function PanelDispositivos({
                 </div>
             </Seccion>
             <Seccion titulo="Cámara">
-                <div role="radiogroup" aria-label="Cámara" className="flex flex-col gap-1">
-                    {d.camaras.length ? (
-                        d.camaras.map((m, i) => (
-                            <Opcion key={m.id} nombre={m.nombre} activa={s.camaraId ? s.camaraId === m.id : i === 0} onElegir={() => onCamara(m.id)} />
-                        ))
-                    ) : (
-                        <p className="px-3 py-2 text-[13px] text-white/60">No vemos ninguna cámara en este dispositivo.</p>
-                    )}
-                </div>
+                <SelectorCamara camaras={d.camaras} elegidaId={s.camaraId} neurona={neuronaLocal()} onElegir={onCamara} />
+                <OpcionesDeCamara pista={estado.participantes.find((p) => p.yo)?.stream?.getVideoTracks()[0] ?? null} neurona={neuronaLocal()} />
             </Seccion>
             <Seccion titulo="Altavoz">
                 {altavoz && d.altavoces.length ? (

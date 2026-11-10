@@ -37,6 +37,8 @@ import { MENSAJE_CANAL_PRIVADO } from "@/lib/llamadas/temas";
 import { admision, evaluarDescripcion, reaccionIce, soyCortes } from "@/lib/llamadas/negociacion";
 import { elegirHablante, nivelRms, suavizarNivel, type HablanteVigente } from "@/lib/llamadas/hablante";
 import { calidadDesde, extraerMetricas, peorCalidad, perdidaEntre, type MetricasPar } from "@/lib/llamadas/calidad";
+import { guardarPreferencia } from "@/lib/llamadas/camaras";
+import { getDeviceId } from "@/lib/network/device-registry";
 import { listarDispositivos, obtenerMedios, obtenerPantalla, obtenerPista, pararStream } from "@/lib/llamadas/medios";
 import { AVISO_SIN_TURN, contieneTurn, servidoresIce } from "@/lib/llamadas/ice";
 import { clavePestana, type Identidad } from "@/lib/llamadas/identidad";
@@ -581,11 +583,22 @@ export class MotorLlamada {
         }
         this.ponerPistaAudio(r.pista);
         this.set({ seleccion: { ...this.e.seleccion, microId: id } });
+        this.recordarDispositivo("micro", id, this.e.dispositivos.microfonos);
         return null;
+    }
+
+    /** VID1110A: lo que la persona elige se recuerda en esta neurona (y gana a la elección automática). */
+    private recordarDispositivo(clave: "camara" | "micro" | "altavoz", id: string, lista: ReadonlyArray<{ id: string; nombre: string }>) {
+        try {
+            guardarPreferencia(getDeviceId(), { [clave]: { id, etiqueta: lista.find((d) => d.id === id)?.nombre ?? "" } });
+        } catch {
+            /* sin almacenamiento */
+        }
     }
 
     async cambiarCamara(id: string): Promise<string | null> {
         this.set({ seleccion: { ...this.e.seleccion, camaraId: id } });
+        this.recordarDispositivo("camara", id, this.e.dispositivos.camaras);
         if (!this.camaraOn) return null;
         const r = await obtenerPista("video", id);
         if (!r.pista) return r.error;
@@ -610,11 +623,14 @@ export class MotorLlamada {
             /* noop */
         }
         this.emitir();
+        // VID1110A: el vídeo ligero lee de la pista vieja (ya parada): sin esto, tras cambiar de cámara seguía en negro.
+        this.alCambiarVideoLocal();
         return null;
     }
 
     cambiarAltavoz(id: string) {
         this.set({ seleccion: { ...this.e.seleccion, altavozId: id } });
+        this.recordarDispositivo("altavoz", id, this.e.dispositivos.altavoces);
     }
 
     async actualizarDispositivos() {
@@ -1561,6 +1577,15 @@ export class MotorLlamada {
         return web;
     }
 
+    /** VID1110A: el canvas del vídeo ligero de ese par (solo si WebRTC no trae vídeo y ya llegó una imagen). */
+    private lienzoDe(id: string, par: Par | undefined): HTMLCanvasElement | null {
+        const web = par?.stream ?? null;
+        if (web && web.getVideoTracks().length) return null;
+        const s = this.videoDatos.get(id);
+        const salida = this.salidasVideo.get(id);
+        return s && salida?.lienzo && s.estado().recibiendo ? salida.lienzo : null;
+    }
+
     /**
      * Mantiene el vídeo ligero de ese par: existe mientras la voz va por el enlace de datos y WebRTC no ha conectado
      * (así también se RECIBE el del otro aunque mi cámara esté apagada); su fuente es mi cámara cuando está encendida.
@@ -1821,6 +1846,7 @@ export class MotorLlamada {
                 ...p,
                 yo: false,
                 stream: this.streamDe(p.id, par),
+                lienzo: this.lienzoDe(p.id, par),
                 conexion: this.vozDatos.get(p.id)?.estado().recibiendo ? "conectado" : (par?.conexion ?? "conectando"),
                 calidad: par?.calidad ?? "desconocida",
                 nivel: this.niveles[p.id] ?? 0,

@@ -276,6 +276,63 @@ otro son válidos: cada uno decodifica lo que recibe. Si llega uno que no se sab
 ligero, sube a WebRTC sin colgar, Preguntar/Nunca, cadena real `avisarEnvioPesado`), `video-datos/__tests__`
 (fragmentación, pérdida → clave, presión, prioridad) y `malla/__tests__/bluetooth-directo-motor.test.ts` (cola de vídeo).
 
+### 9. Vídeo ligero: por qué salía en negro y cómo se cierra (VID1110A)
+
+Prueba.32 (Mac ↔ tableta, solo Bluetooth): audio bien, vídeo negro en las dos puntas, VP8 negociado y paquetes recibidos. El
+registro no decía en qué etapa moría el fotograma. Etapas y lo que se cambió (`video-datos/*`):
+
+| Etapa | Riesgo encontrado | Cambio |
+|---|---|---|
+| Captura | `crearFuenteDePista` leía de un `<video>` sin montar en el documento: WKWebView no lo decodifica (`readyState` 0 → `capturar()` devolvía siempre `null`) | El `<video>` se monta fuera de vista (2×2 px, no `display:none`), se reanuda si el motor lo pausa y se cuentan los fotogramas negros (`negros=`; si todos lo son: `fuente-negra`) |
+| Codificación | Los errores del `VideoEncoder` se tragaban (`error: () => enc = null`) y se reintentaba sin fin | `alError` con motivo; 3 errores seguidos o 12 capturas sin salida → el códec se **veta** y se renegocia (VP8 → H.264 → JPEG) con un nuevo `hola` |
+| Transporte | La cola de vídeo del Bluetooth (24 KiB) tira lo más viejo: un clave de más de ≈ 24 KiB de texto perdía sus primeros fragmentos y nunca llegaba entero (el otro lado pedía clave sin fin: `pide-clave`) | Salida paciente: la sesión sólo mete fragmentos mientras `cola + fragmento ≤ topeColaVideoBytes()`; un clave sustituye al fotograma pendiente; lo que lleva > 2,5 s esperando se tira y se pide otro clave |
+| Decodificación | Un `VideoDecoder` que no devuelve imágenes ni da error dejaba al otro lado «recibiendo» pero negro | 10 fotogramas completos sin ninguna imagen → decodificador vetado, `hola` sin ese códec, el emisor pasa a otro |
+| Pintado | Se enseñaba `canvas.captureStream()` en un `<video>`; un canvas fuera del documento no emite fotogramas en WKWebView y en ningún motor emite si no se repinta | La **ruta robusta**: el canvas donde se pinta se monta tal cual en el mosaico (`LienzoLigero`; `ParticipanteLlamada.lienzo` → `VistaLlamada.remotoLienzo`). Sin `<video>` ni `MediaStream`. El `stream` sigue existiendo (grabación) y se crea al pedirlo |
+| Vista propia | Cambiar de cámara a mitad de llamada no avisaba al vídeo ligero, que seguía leyendo la pista parada | `cambiarCamara` llama a `alCambiarVideoLocal()` |
+
+Ruta por motor: **WKWebView** y **Chromium (Android)** usan el mismo camino: `<video>` montado → canvas reducido → `VideoEncoder` (VP8, o
+H.264 si es el que hay) → fragmentos → cola paciente → reensamblado → `VideoDecoder` → `drawImage` al canvas del mosaico. Si
+`VideoEncoder`/`VideoDecoder` faltan o fallan, JPEG de canvas (≤ 3 fps), que es un camino probado (`video-negro-1110.test.ts`).
+
+**Diagnóstico** (mismo canal que `voz-datos`, hito `medio=video-datos`), cada 5 s mientras hay vídeo ligero, una línea por sentido:
+
+```
+video-datos tx capturados=… codificados=… enviados=… descartados=… clave=… kbps=… negros=…
+video-datos rx paquetes=… cuadros=… decodificados=… pintados=… errores=… ultimoError="…"|ninguno
+```
+Cómo leerlas: `capturados=0` → la cámara no entrega (permiso, pista parada); `capturados>0, codificados=0` → códec mudo (saldrá
+`tx-error` o `tx=… (vp8 vetado …)`); `codificados>0, enviados=0` → cola del enlace; `paquetes>0, cuadros=0` → fragmentos
+perdidos (`pide-clave`); `cuadros>0, decodificados=0` → decodificador (`rx-vetado`); `decodificados>0, pintados=0` →
+`ultimoError="pintar: …"`; todo > 0 y negro → `negros=` casi igual a `capturados/4` (la fuente es negra: probar otra cámara).
+Otras líneas: `video-datos tx-error codec=… "…"`, `video-datos rx-vetado codec=… "…"`, `video-datos fuente-negra …`.
+
+## 9b. Cámaras y cámara remota (VID1110A)
+
+**Elección.** `camaras.ts` clasifica cada cámara por su etiqueta (`integrada` · `continuidad` · `externa` · `virtual` · `remota`) y el
+nombre que se enseña sale de ahí («Cámara de esta Mac», «Cámara del iPhone (Continuidad)», «Cámara trasera»…). **Por defecto, la del
+propio aparato** (la frontal si hay varias); externa, Continuidad y virtual sólo si no hay ninguna integrada. Antes la llamada pedía
+`facingMode: "user"` y macOS elegía el iPhone (Continuidad) por su cuenta. Ahora `obtenerMedios` → `afinarCamara`: con el permiso dado se
+ven las etiquetas y, si lo abierto no es lo que se elegiría, se reabre la buena y se suelta la otra (si falla, se queda la del sistema;
+nunca sin cámara). Registro: `llamada camara camara elegida="FaceTime HD Camera (Built-in)" (integrada) motivo=integrada|guardada|pedida|sin-integrada|sistema`.
+
+**Qué se recuerda** (`localStorage` `starseed.llamadas.dispositivos`, v2, por neurona): cámara, micrófono y altavoz elegidos a mano
+(mandan sobre la elección automática mientras sigan disponibles, por id o por etiqueta) y las opciones de cada cámara. La forma v1
+(global) se migra a v2 al leerla. Sin almacenamiento todo sigue funcionando.
+
+**Selector.** Pestaña «Calidad» de la superficie, panel «Audio y vídeo» de la ventana y la antesala (`selector-camara.tsx`): cámara
+(con «predeterminada»), micrófono, altavoz donde hay `setSinkId`, y «Opciones de cámara» (resolución, fps, zoom, linterna, enfoque,
+exposición, espejo) **sólo lo que `track.getCapabilities()` dice**; sin capacidades (WKWebView) lo explica. Cambiar de cámara no corta la
+llamada (`replaceTrack` + recaptura del vídeo ligero). «Girar cámara» alterna entre las propias (frontal/trasera): no salta a Continuidad.
+
+**Cámara remota** (otra neurona de la MISMA cuenta como cámara). Diseño: la neurona con cámara la publica como flujo
+(`flujos-neurona` / `transmision-medios`, `abrirFlujo` del transporte universal) con id `cam`; las demás neuronas de la cuenta la ven
+como `Cámara de <neurona>` (`camaraRemotaComoInfo`, `OrigenCamaraRemota`). Al elegirla, su imagen es la fuente de vídeo de la llamada,
+de la grabación y de la transmisión (`FuenteCamaraRemota`: `pista` si llega por WebRTC, `lienzo` si llega por vídeo ligero). Ruta: la
+mejor que haya (WebRTC por LAN/Wi‑Fi directo; vídeo ligero por Bluetooth, mismo motor de §9). Un iPhone se une desde la app web
+(Safari tiene WebRTC). **Estado: DIFERIDO.** Hecho: tipos, entrada del selector (desactivada con su motivo) y este contrato. Falta:
+publicar la cámara como flujo, el puente flujo → `FuenteVideo`/`MediaStream` en el motor y aceptar sólo neuronas de la cuenta.
+Mientras, el iPhone en el Mac se elige a mano como Cámara de Continuidad (se recuerda).
+
 ### 9. Prueba en dispositivos
 
 Tableta con Wi-Fi y datos apagados y solo Bluetooth; Mac con BLE central enlazado a la tableta. Llamar desde la

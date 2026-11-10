@@ -76,6 +76,14 @@ function codificadorWebCodecs(c: "vp8" | "h264"): CodificadorVideo | null {
   let perfil: PerfilVideo | null = null;
   let tsUltimo = 0;
   let enc: VideoEncoderWC | null = null;
+  let cbError: (m: string) => void = () => undefined;
+  const fallo = (e: unknown) => {
+    try {
+      cbError(e instanceof Error ? e.message || e.name : typeof e === "string" ? e : "error del codificador");
+    } catch {
+      /* el aviso no tumba el vídeo */
+    }
+  };
   const abrir = (): VideoEncoderWC | null => {
     try {
       const e = new Enc({
@@ -84,12 +92,14 @@ function codificadorWebCodecs(c: "vp8" | "h264"): CodificadorVideo | null {
           chunk.copyTo(bytes);
           cb({ clave: chunk.type === "key", bytes, ts: tsUltimo, w: perfil?.w ?? 0, h: perfil?.h ?? 0 });
         },
-        error: () => {
+        error: (e) => {
           enc = null; // se reabre en el próximo fotograma, que irá clave
+          fallo(e);
         },
       });
       return e;
-    } catch {
+    } catch (e) {
+      fallo(e);
       return null;
     }
   };
@@ -98,8 +108,9 @@ function codificadorWebCodecs(c: "vp8" | "h264"): CodificadorVideo | null {
     try {
       if (!enc) enc = abrir();
       enc?.configure({ codec: CFG_CODEC[c].codec, width: p.w, height: p.h, bitrate: p.kbps * 1000, framerate: p.fps, latencyMode: "realtime", ...CFG_CODEC[c].extra });
-    } catch {
+    } catch (e) {
       enc = null;
+      fallo(e);
     }
   };
   return {
@@ -115,12 +126,16 @@ function codificadorWebCodecs(c: "vp8" | "h264"): CodificadorVideo | null {
         const vf = new Fr(f.imagen, { timestamp: Math.round(f.ts * 1000) });
         enc.encode(vf, { keyFrame: clave });
         vf.close();
-      } catch {
+      } catch (e) {
         enc = null;
+        fallo(e);
       }
     },
     alSalir(f) {
       cb = f;
+    },
+    alError(f) {
+      cbError = f;
     },
     cerrar() {
       try {
@@ -139,29 +154,31 @@ function decodificadorWebCodecs(c: "vp8" | "h264"): DecodificadorVideo | null {
   const Dec = w.VideoDecoder;
   const Chunk = w.EncodedVideoChunk;
   let cbImg: (i: ImagenDecodificada) => void = () => undefined;
-  let cbErr: () => void = () => undefined;
+  let cbErr: (m?: string) => void = () => undefined;
   let dec: VideoDecoderWC | null = null;
   let hayClave = false;
+  const msg = (e: unknown) => (e instanceof Error ? e.message || e.name : typeof e === "string" ? e : "error del decodificador");
   const abrir = (): VideoDecoderWC | null => {
     try {
       const d = new Dec({
         output: (f) => cbImg({ imagen: f, w: f.displayWidth, h: f.displayHeight, liberar: () => f.close() }),
-        error: () => {
+        error: (e) => {
           dec = null;
           hayClave = false;
-          cbErr();
+          cbErr(msg(e));
         },
       });
       d.configure({ codec: CFG_CODEC[c].codec });
       return d;
-    } catch {
+    } catch (e) {
+      cbErr(msg(e));
       return null;
     }
   };
   return {
     decodificar(f: FrameCodificado) {
       if (!dec) {
-        if (!f.clave) return cbErr();
+        if (!f.clave) return cbErr("diferencial sin clave previa");
         dec = abrir();
       }
       if (!dec) return;
@@ -169,10 +186,10 @@ function decodificadorWebCodecs(c: "vp8" | "h264"): DecodificadorVideo | null {
       if (!hayClave) return;
       try {
         dec.decode(new Chunk({ type: f.clave ? "key" : "delta", timestamp: Math.round(f.ts * 1000), data: f.bytes }));
-      } catch {
+      } catch (e) {
         dec = null;
         hayClave = false;
-        cbErr();
+        cbErr(msg(e));
       }
     },
     alImagen(cb) {
@@ -258,7 +275,7 @@ function decodificadorJpeg(): DecodificadorVideo | null {
   const crear = (globalThis as unknown as { createImageBitmap?: (b: Blob) => Promise<{ width: number; height: number; close(): void }> }).createImageBitmap;
   if (typeof crear !== "function" || typeof Blob === "undefined") return null;
   let cbImg: (i: ImagenDecodificada) => void = () => undefined;
-  let cbErr: () => void = () => undefined;
+  let cbErr: (m?: string) => void = () => undefined;
   let vivo = true;
   return {
     decodificar(f) {
@@ -267,7 +284,7 @@ function decodificadorJpeg(): DecodificadorVideo | null {
           if (!vivo) return bm.close();
           cbImg({ imagen: bm, w: bm.width, h: bm.height, liberar: () => bm.close() });
         })
-        .catch(() => cbErr());
+        .catch(() => cbErr("jpeg ilegible"));
     },
     alImagen(cb) {
       cbImg = cb;
@@ -306,20 +323,65 @@ export async function crearFabricaVideoWeb(): Promise<FabricaVideo> {
 
 /* ───────────────────────────── Cámara reducida y salida ───────────────────────────── */
 
-/** La cámara (o la pantalla) como fuente: un <video> oculto y un canvas al tamaño pedido (recorte centrado). */
+/** VID1110A: un fotograma «negro» tiene todas las muestras por debajo de este brillo (0..255). */
+const BRILLO_NEGRO = 10;
+
+/** ¿Es negro este canvas? Mira una rejilla de ≤ 16×12 muestras; si no puede leerlo, dice que no (no inventa un fallo). */
+export function lienzoEsNegro(ctx: { getImageData(x: number, y: number, w: number, h: number): { data: ArrayLike<number> } }, w: number, h: number): boolean {
+  try {
+    const datos = ctx.getImageData(0, 0, w, h).data;
+    const pasoX = Math.max(1, Math.floor(w / 16));
+    const pasoY = Math.max(1, Math.floor(h / 12));
+    for (let y = 0; y < h; y += pasoY) {
+      for (let x = 0; x < w; x += pasoX) {
+        const o = (y * w + x) * 4;
+        if (Math.max(datos[o], datos[o + 1], datos[o + 2]) > BRILLO_NEGRO) return false;
+      }
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * La cámara (o la pantalla) como fuente: un <video> y un canvas al tamaño pedido (recorte centrado).
+ * VID1110A: el <video> SE MONTA en el documento (fuera de vista, 2×2 px, sin `display:none`): WKWebView y algunos
+ * Chromium no decodifican un <video> suelto con `srcObject` y `readyState` no pasa de 0 → todos los fotogramas
+ * eran `null` y no salía nada. Se reanuda solo si el motor lo pausa, y se cuentan los fotogramas negros.
+ */
 export function crearFuenteDePista(pista: MediaStreamTrack): FuenteVideo | null {
   if (typeof document === "undefined" || typeof MediaStream !== "function") return null;
   try {
     const video = document.createElement("video");
     video.muted = true;
+    video.defaultMuted = true;
     video.playsInline = true;
+    video.autoplay = true;
+    video.setAttribute("playsinline", "");
+    video.setAttribute("aria-hidden", "true");
+    video.tabIndex = -1;
+    video.style.cssText = "position:fixed;left:-10px;bottom:-10px;width:2px;height:2px;opacity:0.01;pointer-events:none;z-index:-1";
     video.srcObject = new MediaStream([pista]);
-    void video.play().catch(() => undefined);
+    try {
+      document.body.appendChild(video);
+    } catch {
+      /* sin body (pruebas): se sigue con el <video> suelto */
+    }
+    const reanudar = () => {
+      if (video.paused) void video.play().catch(() => undefined);
+    };
+    reanudar();
     const lienzo = document.createElement("canvas");
-    const ctx = lienzo.getContext("2d");
+    const ctx = lienzo.getContext("2d", { willReadFrequently: true } as CanvasRenderingContext2DSettings);
     if (!ctx) return null;
+    let vistos = 0;
+    let negros = 0;
+    let cerrada = false;
     return {
       capturar(w, h) {
+        if (cerrada) return null;
+        if (video.paused) reanudar();
         if (video.readyState < 2 || !video.videoWidth || !video.videoHeight) return null;
         if (lienzo.width !== w) lienzo.width = w;
         if (lienzo.height !== h) lienzo.height = h;
@@ -328,12 +390,19 @@ export function crearFuenteDePista(pista: MediaStreamTrack): FuenteVideo | null 
         const sw = w / k;
         const sh = h / k;
         ctx.drawImage(video, (video.videoWidth - sw) / 2, (video.videoHeight - sh) / 2, sw, sh, 0, 0, w, h);
+        vistos++;
+        if (vistos % 4 === 1 && lienzoEsNegro(ctx, w, h)) negros++;
         return { imagen: lienzo, w, h, ts: typeof performance !== "undefined" ? performance.now() : Date.now() };
       },
+      diagnostico() {
+        return { vistos, negros, vivo: pista.readyState === "live" && !pista.muted };
+      },
       cerrar() {
+        cerrada = true;
         try {
           video.pause();
           video.srcObject = null;
+          video.remove();
         } catch {
           /* noop */
         }
@@ -344,7 +413,12 @@ export function crearFuenteDePista(pista: MediaStreamTrack): FuenteVideo | null 
   }
 }
 
-/** Salida: un canvas cuyo `captureStream` el mosaico enseña como cualquier otra cámara remota. */
+/**
+ * Salida: un canvas que la superficie monta DIRECTAMENTE en el mosaico (`lienzo`). VID1110A: antes solo se daba su
+ * `captureStream`, que en WKWebView no emite fotogramas de un canvas fuera del documento y en cualquier motor
+ * solo emite al pintar: el <video> del mosaico se quedaba en negro. El `stream` sigue existiendo (grabación,
+ * mezcla), pero se crea la primera vez que alguien lo pide.
+ */
 export function crearSalidaVideoWeb(): SalidaVideo | null {
   if (typeof document === "undefined") return null;
   try {
@@ -352,10 +426,20 @@ export function crearSalidaVideoWeb(): SalidaVideo | null {
     lienzo.width = 160;
     lienzo.height = 120;
     const ctx = lienzo.getContext("2d");
-    if (!ctx || typeof lienzo.captureStream !== "function") return null;
-    const stream = lienzo.captureStream(15);
+    if (!ctx) return null;
+    let stream: MediaStream | null = null;
     return {
-      stream,
+      lienzo,
+      get stream(): MediaStream | null {
+        if (!stream && typeof lienzo.captureStream === "function") {
+          try {
+            stream = lienzo.captureStream(15);
+          } catch {
+            stream = null;
+          }
+        }
+        return stream;
+      },
       pintar(i) {
         try {
           if (lienzo.width !== i.w) lienzo.width = i.w;
@@ -367,7 +451,7 @@ export function crearSalidaVideoWeb(): SalidaVideo | null {
       },
       cerrar() {
         try {
-          for (const t of stream.getTracks()) t.stop();
+          for (const t of stream?.getTracks() ?? []) t.stop();
         } catch {
           /* noop */
         }

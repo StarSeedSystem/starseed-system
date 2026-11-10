@@ -42,6 +42,8 @@ export interface CodificadorVideo {
   configurar(p: PerfilVideo): void;
   codificar(f: FrameFuente, clave: boolean): void;
   alSalir(cb: (f: FrameCodificado) => void): void;
+  /** VID1110A: el códec falló (configuración no aceptada, fotograma rechazado…). Antes se tragaba en silencio. */
+  alError?(cb: (mensaje: string) => void): void;
   cerrar(): void;
 }
 
@@ -57,8 +59,8 @@ export interface ImagenDecodificada {
 export interface DecodificadorVideo {
   decodificar(f: FrameCodificado): void;
   alImagen(cb: (i: ImagenDecodificada) => void): void;
-  /** El decodificador se atascó (necesita un fotograma clave). */
-  alError(cb: () => void): void;
+  /** El decodificador se atascó (necesita un fotograma clave). VID1110A: con el motivo, para el registro. */
+  alError(cb: (mensaje?: string) => void): void;
   cerrar(): void;
 }
 
@@ -74,11 +76,16 @@ export interface FabricaVideo {
 /** La cámara (o la pantalla) reducida: devuelve un fotograma al tamaño pedido, o null si aún no hay imagen. */
 export interface FuenteVideo {
   capturar(w: number, h: number): FrameFuente | null;
+  /** VID1110A: cuántos fotogramas dio la cámara de verdad y cuántos eran negros (cámara tapada o de Continuidad sin imagen). */
+  diagnostico?(): { vistos: number; negros: number; vivo: boolean };
   cerrar(): void;
 }
 
 /** Dónde se pinta el vídeo que llega: un `MediaStream` (canvas.captureStream) que el mosaico ya sabe enseñar. */
 export interface SalidaVideo {
+  /** VID1110A: el `canvas` donde se pinta TODO lo que llega. La superficie lo monta tal cual en el mosaico (ruta robusta en WKWebView y Chromium). */
+  lienzo?: HTMLCanvasElement | null;
+  /** Solo para grabar o para quien necesite un MediaStream; se crea al pedirlo (`captureStream` de un canvas sin pintar da negro). */
   stream: MediaStream | null;
   pintar(i: ImagenDecodificada): void;
   cerrar(): void;
@@ -98,6 +105,8 @@ export interface TransporteVideo {
   capacidadKbps?(): number | null;
   /** Bytes útiles máximos por fragmento (MTU del enlace). */
   mtu?(): number | null;
+  /** VID1110A: tope de la cola de vídeo del enlace en bytes de texto (Bluetooth: 24 KiB, lo viejo se tira). */
+  topeColaVideoBytes?(): number | null;
 }
 
 /** Escalones de calidad, de menos a más. 160×120 a 4 fps y 40 kbps es el suelo; 320×240 a 12 fps y 150 kbps, el techo. */
@@ -115,3 +124,24 @@ export const PERFIL_PANTALLA_LIGERA: PerfilVideo = { w: 320, h: 180, fps: 1, kbp
 
 /** Lo que cuesta la voz ADPCM empaquetada en texto (≈ 16 kbps de audio ×1,4 de base64 y cabeceras). */
 export const KBPS_VOZ_RESERVADOS = 28;
+
+/** VID1110A: contadores por sentido que la sesión anota cada 5 s en el registro del enlace. */
+export interface ContadoresVideoTx {
+  capturados: number;
+  codificados: number;
+  enviados: number;
+  descartados: number;
+  clave: number;
+  kbps: number;
+  /** Fotogramas de la cámara que eran negros del todo. */
+  negros: number;
+  erroresCodec: number;
+}
+export interface ContadoresVideoRx {
+  paquetes: number;
+  cuadros: number;
+  decodificados: number;
+  pintados: number;
+  errores: number;
+  ultimoError: string;
+}
