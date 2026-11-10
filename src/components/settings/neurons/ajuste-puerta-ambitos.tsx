@@ -6,9 +6,13 @@
  * Una cadena de neuronas nunca ensancha la confianza: cada salto aplica su propia política al ámbito de quien pide.
  */
 
-import { Smartphone, Users, Globe } from "lucide-react";
+import { useState } from "react";
+import { Smartphone, Users, Globe, Plus } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useCurrentUid, useLiveGroups, useMyMemberships } from "@/lib/widget-data/os-live";
+import { miembrosNeuronasDeGrupo } from "@/lib/malla/puerta/grupos-fuente";
 import { cn } from "@/lib/utils";
-import { cambiarAjustesPuerta } from "@/lib/malla/puerta/servicio";
+import { cambiarAjustesPuerta, configurarGrupo } from "@/lib/malla/puerta/servicio";
 import type { AjustesPuerta, ModoGrupo, ModoMovil } from "@/lib/malla/puerta/politica";
 
 const MODOS_MOVIL: Array<{ id: ModoMovil; nombre: string; detalle: string }> = [
@@ -26,8 +30,47 @@ const MODOS_GRUPO: Array<{ id: ModoGrupo; nombre: string }> = [
 const selectCls = "rounded-md border border-white/15 bg-background/60 px-2 py-1 text-xs";
 const mibDe = (b: number): number => Math.round(b / 1024 / 1024);
 
+/** «Añadir grupo o comunidad»: elige uno de MIS grupos; entra con Preguntar en los dos sentidos y guarda sus neuronas conocidas si hay red. */
+function AnadirGrupoMalla({ a, alTerminar }: { a: AjustesPuerta; alTerminar: () => void }) {
+  const { uid } = useCurrentUid();
+  const mias = useMyMemberships(uid);
+  const grupos = useLiveGroups();
+  const nombres = new Map((grupos.rows ?? []).map((g) => [g.slug, g.name]));
+  const opciones = (mias.rows ?? []).filter((m) => !a.grupos[m.group_slug]);
+  return (
+    <div className="space-y-1.5 rounded-lg border border-white/10 px-3 py-2" data-testid="anadir-grupo">
+      {opciones.length === 0 ? (
+        <p className="text-xs text-muted-foreground">No hay más grupos ni comunidades tuyos que añadir (hace falta sesión y red para verlos).</p>
+      ) : (
+        <ul className="space-y-1">
+          {opciones.map((m) => (
+            <li key={m.group_slug} className="flex items-center justify-between gap-2 text-xs">
+              <span>{nombres.get(m.group_slug) ?? m.group_slug}</span>
+              <Button
+                size="sm"
+                variant="outline"
+                className="cursor-pointer"
+                onClick={async () => {
+                  const miembros = await miembrosNeuronasDeGrupo(m.group_slug);
+                  configurarGrupo(m.group_slug, { nombre: nombres.get(m.group_slug) ?? m.group_slug, ...(miembros ? { miembros } : {}) });
+                  alTerminar();
+                }}
+              >
+                Añadir
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <Button size="sm" variant="ghost" className="cursor-pointer" onClick={alTerminar}>Cerrar</Button>
+    </div>
+  );
+}
+
 export function AjusteAmbitosMalla({ a, esMovil }: { a: AjustesPuerta; esMovil?: boolean }) {
   const grupos = Object.entries(a.grupos);
+  const [anadiendo, setAnadiendo] = useState(false);
+  const recordadas = Object.entries(a.usoOtrasRecordadas ?? {});
   return (
     <div className="space-y-3" data-testid="ajuste-puerta-ambitos">
       <fieldset className="space-y-1.5" aria-label="Compartir también por datos móviles" data-testid="datos-moviles">
@@ -67,6 +110,31 @@ export function AjusteAmbitosMalla({ a, esMovil }: { a: AjustesPuerta; esMovil?:
         </p>
       </fieldset>
 
+      <fieldset className="space-y-1.5" aria-label="Usar el internet de neuronas de otras cuentas" data-testid="usar-otras-cuentas">
+        <legend className="mb-1 font-medium">Usar el internet de neuronas de otras cuentas</legend>
+        <p className="text-xs text-muted-foreground">Una neurona de otra cuenta enlazada contigo (vínculo aceptado) que presta su internet. Quien la presta ve a qué servidores te conectas y cuántos datos mueves, nunca el contenido.</p>
+        <select
+          className={selectCls}
+          value={a.usarOtrasCuentas}
+          onChange={(e) => cambiarAjustesPuerta((x) => ({ ...x, usarOtrasCuentas: e.target.value as ModoGrupo }))}
+          aria-label="Usar el internet de neuronas de otras cuentas"
+        >
+          {MODOS_GRUPO.map((m) => (
+            <option key={m.id} value={m.id}>{m.id === "automatico" ? "Automático" : m.nombre}</option>
+          ))}
+        </select>
+        {recordadas.length > 0 && (
+          <ul className="space-y-1 text-xs text-muted-foreground" data-testid="uso-otras-recordadas">
+            {recordadas.map(([id, r]) => (
+              <li key={id} className="flex items-center justify-between gap-2">
+                <span>{id.slice(0, 8)}: {r === "permitir" ? "permitida" : "rechazada"}</span>
+                <Button size="sm" variant="outline" className="cursor-pointer" onClick={() => cambiarAjustesPuerta((x) => { const { [id]: _quitada, ...resto } = x.usoOtrasRecordadas; void _quitada; return { ...x, usoOtrasRecordadas: resto }; })}>Retirar</Button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </fieldset>
+
       <fieldset className="space-y-1.5" aria-label="Grupos y comunidades" data-testid="grupos-puerta">
         <legend className="mb-1 flex items-center gap-2 font-medium">
           <Users className="h-4 w-4 text-[#39FF14]" aria-hidden /> Grupos y comunidades
@@ -99,6 +167,13 @@ export function AjusteAmbitosMalla({ a, esMovil }: { a: AjustesPuerta; esMovil?:
               </label>
             </div>
           ))
+        )}
+        {anadiendo ? (
+          <AnadirGrupoMalla a={a} alTerminar={() => setAnadiendo(false)} />
+        ) : (
+          <Button size="sm" variant="outline" className="cursor-pointer" onClick={() => setAnadiendo(true)}>
+            <Plus className="mr-1 h-3 w-3" aria-hidden /> Añadir grupo o comunidad
+          </Button>
         )}
         <p className="text-xs text-muted-foreground">
           Hoy la pertenencia a un grupo es la lista de miembros que esta neurona guardó cuando hubo red; sin una prueba firmada que se pueda comprobar sin internet, «Preguntar» muestra siempre la identidad de la neurona que pide.

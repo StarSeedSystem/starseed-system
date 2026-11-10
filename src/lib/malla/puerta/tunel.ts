@@ -124,7 +124,7 @@ export interface DepsGestor {
   hostsStarSeed?: () => string[];
   /** PTA1110B · Cuenta de esta neurona (para reconocer puertas «mías» que llegan reenviadas). */
   miCuenta?: () => string | null;
-  /** PTA1110B · Uso de una puerta de ámbito «Preguntar» (grupo): ¿el usuario ya dijo que sí? Sin esto se exige respuesta. */
+  /** PTA1110B · Uso de una puerta de ámbito «Preguntar» (grupo u otra cuenta): ¿el usuario ya dijo que sí? Sin esto no se pregunta (pruebas); el servicio real siempre lo da. */
   usoConfirmado?: (puerta: string, ambito: Ambito, grupo?: string) => boolean;
   /** PTA1110A · Una descarga grande va por un carril lento: pregunta (una vez) qué hacer. Sin esto se continúa. */
   alGrande?: (i: InfoGrande) => Promise<{ eleccion: Exclude<EleccionGrande, "preguntar">; recordar: boolean }>;
@@ -409,7 +409,7 @@ export function crearGestorPuerta(deps: DepsGestor): GestorPuerta {
     const r = ambitoDePuerta(aj, e, { miCuenta: deps.miCuenta?.() ?? null, vecinoMismaCuenta: (id) => metas.get(id)?.mismaCuenta === true });
     if (!r.permitido) return false;
     // «Preguntar» en grupos: hasta que el usuario conteste que sí no se usa. (Para «mias» lo gobierna el servicio con `modoUso`.)
-    if (r.ambito === "grupo" && r.preguntar) return deps.usoConfirmado?.(e.anuncio.id, r.ambito, r.grupo) === true;
+    if ((r.ambito === "grupo" || r.ambito === "otras") && r.preguntar && deps.usoConfirmado) return deps.usoConfirmado(e.anuncio.id, r.ambito, r.grupo) === true;
     return true;
   };
   const tamTrozo = (v: string): number => Math.max(512, Math.min(TROZO, T.tamTrozo?.(v) ?? TROZO));

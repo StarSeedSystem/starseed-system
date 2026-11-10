@@ -61,7 +61,6 @@ class FalsoSocket implements SocketSalida {
 }
 
 const estadoConInternet: EstadoPropio = { conInternet: true, bateria: 0.9, cargando: false, medida: false };
-const USA_PUBLICAS = { publica: { ...AJUSTES_PUERTA_POR_DEFECTO.publica, usar: true } };
 const estadoSin: EstadoPropio = { conInternet: false, bateria: 0.9, cargando: false, medida: false };
 
 function crearRed(opts: { desordenar?: boolean } = {}) {
@@ -316,7 +315,7 @@ describe("otras cuentas", () => {
   it("por defecto pregunta; sin respuesta o con «no» se deniega; «siempre» se recuerda", async () => {
     const red = crearRed();
     red.cuenta("amiga", "otra");
-    const amiga = listo(red.nodo("amiga", { aj: USA_PUBLICAS })); // PTA1110B: otra cuenta sin grupo = puerta pública para quien la usa
+    const amiga = listo(red.nodo("amiga"));
     const mac = listo(red.nodo("mac", { tcp: true, est: estadoConInternet, pregunta: "denegar" }));
     red.enlazar("amiga", "mac");
     expect(mac.aj.otrasCuentas).toBe("preguntar");
@@ -339,7 +338,7 @@ describe("otras cuentas", () => {
   it("en «Nunca» ni pregunta; en «Automático» sirve con los topes de otras cuentas", async () => {
     const red = crearRed();
     red.cuenta("amiga", "otra");
-    const amiga = listo(red.nodo("amiga", { aj: USA_PUBLICAS })); // PTA1110B: otra cuenta sin grupo = puerta pública para quien la usa
+    const amiga = listo(red.nodo("amiga"));
     const mac = listo(red.nodo("mac", { tcp: true, est: estadoConInternet, aj: { otrasCuentas: "nunca" } }));
     red.enlazar("amiga", "mac");
     mac.gestor.anunciar();
@@ -354,7 +353,7 @@ describe("otras cuentas", () => {
   it("una neurona de otra cuenta no puede hacerse pasar por mía aunque diga mc=true por un relé ajeno", async () => {
     const red = crearRed();
     red.cuenta("intruso", "otra");
-    const intruso = listo(red.nodo("intruso", { aj: USA_PUBLICAS }));
+    const intruso = listo(red.nodo("intruso"));
     const mac = listo(red.nodo("mac", { tcp: true, est: estadoConInternet }));
     red.enlazar("intruso", "mac");
     mac.gestor.anunciar();

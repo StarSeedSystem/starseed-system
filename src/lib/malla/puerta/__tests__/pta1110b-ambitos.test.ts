@@ -167,6 +167,25 @@ describe("una cadena nunca ensancha la confianza (ambitoEfectivo)", () => {
     expect(ambitoEfectivo(aj, vecinaMia, { directa: false, mc: true })).toEqual({ ambito: "mias" });
     expect(ambitoEfectivo(aj, extrana, { directa: false, mc: true })).toEqual({ ambito: "otras" });
   });
+  it("USAR una neurona de otra cuenta enlazada (vecina directa): ajuste propio, Preguntar por defecto, recordado y revocable", () => {
+    const ctx = { miCuenta: "yo", vecinoMismaCuenta: (id: string) => id === "mia2" };
+    const directa = { vecino: "amiga2", anuncio: { id: "amiga2", uid: "otra" } };
+    const sinGrupo = AJUSTES_PUERTA_POR_DEFECTO;
+    expect(sinGrupo.usarOtrasCuentas).toBe("preguntar");
+    expect(ambitoDePuerta(sinGrupo, directa, ctx)).toMatchObject({ ambito: "otras", permitido: true, preguntar: true }); // sin tocar «Usar puertas públicas»
+    // Respondido «sí»: se recuerda por neurona y ya no se pregunta; «no»: no se usa; revocar = quitar la entrada.
+    expect(ambitoDePuerta({ ...sinGrupo, usoOtrasRecordadas: { amiga2: "permitir" } }, directa, ctx)).toMatchObject({ permitido: true, preguntar: false });
+    expect(ambitoDePuerta({ ...sinGrupo, usoOtrasRecordadas: { amiga2: "denegar" } }, directa, ctx)).toMatchObject({ permitido: false });
+    expect(ambitoDePuerta({ ...sinGrupo, usoOtrasRecordadas: { otra: "permitir" } }, directa, ctx)).toMatchObject({ preguntar: true });
+    expect(ambitoDePuerta({ ...sinGrupo, usarOtrasCuentas: "nunca" }, directa, ctx)).toMatchObject({ permitido: false });
+    expect(ambitoDePuerta({ ...sinGrupo, usarOtrasCuentas: "automatico" }, directa, ctx)).toMatchObject({ permitido: true, preguntar: false });
+    // Una que se anuncia pública cuenta como pública SOLO si «Usar puertas públicas» está encendido.
+    const publicaDirecta = { vecino: "p", anuncio: { id: "p", op: true } };
+    expect(ambitoDePuerta(sinGrupo, publicaDirecta, ctx)).toMatchObject({ ambito: "otras", permitido: true, preguntar: true });
+    expect(ambitoDePuerta({ ...sinGrupo, publica: { ...sinGrupo.publica, usar: true } }, publicaDirecta, ctx)).toMatchObject({ ambito: "publica", permitido: true });
+    // Desconocida por una cadena: pública, rechazada sin el interruptor público.
+    expect(ambitoDePuerta(sinGrupo, { vecino: "amiga2", anuncio: { id: "lejana", uid: "otra" } }, ctx)).toMatchObject({ ambito: "publica", permitido: false });
+  });
   it("el espejo (usar): mías según «Usar mis neuronas»; grupos según su ajuste; el resto es pública y exige «Usar puertas públicas»", () => {
     const ctx = { miCuenta: "yo", vecinoMismaCuenta: (id: string) => id === "mia2" };
     const e = (vecino: string, id: string, uid?: string) => ({ vecino, anuncio: { id, uid } });
@@ -501,6 +520,31 @@ describe("ámbitos de punta a punta (mías, grupo, pública) y laundering", () =
     expect(await x.gestor.abrirTunel("example.org", 443)).toEqual({ error: "sin-puertas" });
   });
 
+  it("otra cuenta enlazada, directa: pregunta una vez; encadenada y desconocida: rechazada sin el interruptor público", async () => {
+    const red = crearRed();
+    const x = red.nodo("X", { cuenta: "ajena" });
+    const c = red.nodo("C", { cuenta: "mia", tcp: true, est: conInternet, aj: { otrasCuentas: "automatico" } });
+    red.enlazar("X", "C");
+    c.gestor.anunciar();
+    await pausa();
+    x.confirmado = false; // aún sin respuesta del usuario a «¿salir por esta neurona?»
+    expect(await x.gestor.abrirTunel("example.com", 443)).toEqual({ error: "sin-puertas" });
+    x.confirmado = true; // el usuario dijo que sí (el servicio lo recuerda por neurona)
+    expect("error" in (await x.gestor.abrirTunel("example.com", 443))).toBe(false);
+    // Cadena X → B → C con B de una tercera cuenta: C es desconocida para X (pública) y X no usa públicas.
+    const red2 = crearRed();
+    const x2 = red2.nodo("X", { cuenta: "ajena" });
+    red2.nodo("B", { cuenta: "tercera", est: { ...conInternet, conInternet: false } });
+    const c2 = red2.nodo("C", { cuenta: "mia", tcp: true, est: conInternet });
+    red2.enlazar("X", "B");
+    red2.enlazar("B", "C");
+    c2.gestor.anunciar();
+    await pausa(40);
+    expect(x2.tabla.candidatas().length).toBe(1);
+    expect(await x2.gestor.abrirTunel("example.com", 443)).toEqual({ error: "sin-puertas" });
+    expect(c2.sockets.length).toBe(0);
+  });
+
   it("pública: apagada en los dos sentidos por defecto", async () => {
     const red = crearRed();
     const x = red.nodo("X", { cuenta: "ajena" });
@@ -508,8 +552,10 @@ describe("ámbitos de punta a punta (mías, grupo, pública) y laundering", () =
     red.enlazar("X", "C");
     c.gestor.anunciar();
     await pausa();
-    // X no usa puertas públicas (apagado): no intenta nada.
+    // X no usa a otras cuentas («Nunca»): no intenta nada.
+    x.aj = { ...x.aj, usarOtrasCuentas: "nunca" };
     expect(await x.gestor.abrirTunel("example.com", 443)).toEqual({ error: "sin-puertas" });
+    x.aj = { ...x.aj, usarOtrasCuentas: "preguntar" };
     // X sí quiere, pero C no la ofrece: X es solo «otra cuenta» para C (se le pregunta, nunca se le sirve sola).
     x.aj = { ...x.aj, publica: { ...x.aj.publica, usar: true } };
     expect(await x.gestor.abrirTunel("example.com", 443)).toEqual({ error: "otra-cuenta" });

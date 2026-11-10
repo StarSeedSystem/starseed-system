@@ -52,7 +52,9 @@ export function PanelActividadMalla({ className }: { className?: string }) {
       {s.preguntaUso && (
         <div className="space-y-2 rounded-lg border border-amber-400/40 bg-amber-400/5 px-3 py-2" role="alertdialog" aria-label="Usar el internet de mis neuronas" data-testid="pregunta-uso">
           <p>
-            Esta neurona no tiene internet y <strong>{s.preguntaUso.nombre}</strong> puede prestarle el suyo. ¿Salir por ella?
+            Esta neurona no tiene internet y <strong>{s.preguntaUso.nombre}</strong>
+            {s.preguntaUso.ambito === "otras" ? ` (otra cuenta; identidad verificada por el vínculo, id ${(s.preguntaUso.id ?? "").slice(0, 8)})` : ""} puede prestarle el suyo. ¿Salir por ella?
+            {s.preguntaUso.ambito === "otras" ? " Quien presta la puerta ve a qué servidores te conectas y cuántos datos mueves, nunca el contenido. Tu respuesta se recuerda para esta neurona y puedes retirarla en Ajustes." : ""}
           </p>
           <div className="flex flex-wrap gap-2">
             <Button size="sm" className="cursor-pointer" onClick={() => responderUso(true)}>Usar su internet</Button>

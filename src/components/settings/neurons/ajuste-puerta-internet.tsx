@@ -59,7 +59,7 @@ export function AjustePuertaInternet() {
         {s.internetPor ? (
           <p className="rounded-lg border border-[#39FF14]/30 bg-[#39FF14]/5 px-3 py-2 text-emerald-200" data-testid="internet-por">
             Internet por: <strong>{textoCadena(s.internetPor)}</strong>
-            {s.ambitoUso === "grupo" ? " · puerta de un grupo" : s.ambitoUso === "publica" ? " · puerta pública" : ""}
+            {s.ambitoUso === "grupo" ? " · puerta de un grupo" : s.ambitoUso === "otras" ? " · neurona de otra cuenta" : s.ambitoUso === "publica" ? " · puerta pública" : ""}
           </p>
         ) : !s.conInternet ? (
           <p className="rounded-lg border border-amber-400/30 px-3 py-2 text-amber-200" data-testid="sin-salida">

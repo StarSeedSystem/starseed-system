@@ -258,10 +258,12 @@ object PuertaSegundoPlano : Application.ActivityLifecycleCallbacks {
     }
 
     override fun onActivityPaused(activity: Activity) {
+        actual = WeakReference(activity)
         if (activo) principal.postDelayed({ reanudar() }, 300)
     }
 
     override fun onActivityStopped(activity: Activity) {
+        actual = WeakReference(activity)
         if (activo) principal.postDelayed({ reanudar() }, 300)
     }
 

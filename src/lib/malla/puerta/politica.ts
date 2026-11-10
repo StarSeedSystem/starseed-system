@@ -86,6 +86,10 @@ export interface AjustesPuerta {
   datosMoviles: AjusteMovil;
   /** PTA1110B · Respuestas recordadas de «¿compartir datos móviles con esta neurona?». */
   movilRecordadas: Record<string, "permitir" | "denegar">;
+  /** PTA1110B · «Usar el internet de neuronas de otras cuentas» (vecina directa de otra cuenta, sin grupo común): Nunca / Preguntar (defecto) / Automático. */
+  usarOtrasCuentas: ModoGrupo;
+  /** PTA1110B · Respuesta recordada (y revocable) por neurona a ese «Preguntar». */
+  usoOtrasRecordadas: Record<string, "permitir" | "denegar">;
   /** «Compartir mi internet con mis neuronas». */
   misNeuronas: boolean;
   /** «… con otras cuentas». */
@@ -137,6 +141,8 @@ export const AJUSTES_PUERTA_POR_DEFECTO: AjustesPuerta = {
   publica: { ofrecer: false, usar: false, topes: { ...TOPES_PUBLICA_POR_DEFECTO } },
   datosMoviles: { modo: "nunca", bytesDia: 200 * MIB },
   movilRecordadas: {},
+  usarOtrasCuentas: "preguntar",
+  usoOtrasRecordadas: {},
   misNeuronas: true,
   otrasCuentas: "preguntar",
   usarPuertas: true,
@@ -233,6 +239,10 @@ export function interpretarAjustes(texto: string | null | undefined): AjustesPue
   if (o.movilRecordadas && typeof o.movilRecordadas === "object") {
     for (const [k, v] of Object.entries(o.movilRecordadas as Record<string, unknown>).slice(0, 200)) if (v === "permitir" || v === "denegar") movilRecordadas[k] = v;
   }
+  const usoOtrasRecordadas: Record<string, "permitir" | "denegar"> = {};
+  if (o.usoOtrasRecordadas && typeof o.usoOtrasRecordadas === "object") {
+    for (const [k, v] of Object.entries(o.usoOtrasRecordadas as Record<string, unknown>).slice(0, 200)) if (v === "permitir" || v === "denegar") usoOtrasRecordadas[k] = v;
+  }
   const op = (o.publica && typeof o.publica === "object" ? o.publica : {}) as Record<string, unknown>;
   const publica: AjustePublico = {
     ofrecer: op.ofrecer === true,
@@ -261,6 +271,8 @@ export function interpretarAjustes(texto: string | null | undefined): AjustesPue
     publica,
     datosMoviles,
     movilRecordadas,
+    usarOtrasCuentas: o.usarOtrasCuentas === "nunca" || o.usarOtrasCuentas === "automatico" || o.usarOtrasCuentas === "preguntar" ? o.usarOtrasCuentas : d.usarOtrasCuentas,
+    usoOtrasRecordadas,
     modoUso,
     usos,
     carriles,
@@ -470,7 +482,14 @@ export function ambitoDePuerta(
     // Solo se confía en la lista de miembros si la puerta es vecina directa o llegamos por una neurona mía.
     if (directa || vMia) return { ...g, permitido: modo !== "nunca", preguntar: modo === "preguntar" };
   }
-  // Cualquier otra puerta (de otra cuenta, sin grupo común) cuenta como pública: solo con «Usar puertas públicas».
+  // Vecina DIRECTA de otra cuenta (vínculo aceptado), sin grupo común y sin anunciarse como pública: ajuste propio «Usar el internet de neuronas de otras cuentas».
+  const seDeclaraPublica = e.anuncio.op === true || e.anuncio.publica === true;
+  if (directa && !(seDeclaraPublica && aj.publica.usar)) {
+    const r = aj.usoOtrasRecordadas[e.anuncio.id];
+    if (aj.usarOtrasCuentas === "nunca" || r === "denegar") return { ambito: "otras", permitido: false, preguntar: false };
+    return { ambito: "otras", permitido: true, preguntar: aj.usarOtrasCuentas === "preguntar" && r !== "permitir" };
+  }
+  // Todo lo demás (cuenta desconocida por una cadena, o una que se anuncia pública): solo con «Usar puertas públicas».
   return { ambito: "publica", permitido: aj.publica.usar, preguntar: false };
 }
 

@@ -83,7 +83,7 @@ export interface EstadoServicioPuerta {
   /** PTA1110A · Últimos avisos de cambio de ruta (sin repeticiones). */
   avisos: AvisoRuta[];
   /** PTA1110A · «Usar el internet de mis neuronas: Preguntar» espera respuesta. */
-  preguntaUso: { nombre: string } | null;
+  preguntaUso: { nombre: string; /** PTA1110B · id de la neurona y ámbito (otra cuenta / grupo) para nombrarla con su identidad y recordar la respuesta */ id?: string; ambito?: "mias" | "grupo" | "otras" } | null;
   /** PTA1110A · Descarga grande por un carril lento: espera la elección del usuario. */
   preguntaGrande: (InfoGrande & { nombre: string }) | null;
   /** PTA1110A · IA de otras neuronas de mi cuenta alcanzable por la malla (para el router de Astraura). */
@@ -93,7 +93,7 @@ export interface EstadoServicioPuerta {
   /** PTA1110B · La salida propia es una red medida (datos móviles) y cuántos bytes se sirvieron hoy por ella. */
   movil: { medida: boolean; bytesHoy: number };
   /** PTA1110B · Ámbito con el que se usa la puerta elegida (para mostrar «Internet por: … (mi neurona / grupo / pública)»). */
-  ambitoUso: "mias" | "grupo" | "publica" | null;
+  ambitoUso: "mias" | "grupo" | "otras" | "publica" | null;
 }
 
 const VACIO: EstadoServicioPuerta = {
@@ -232,6 +232,12 @@ let resGrande: ((r: { eleccion: Exclude<EleccionGrande, "preguntar">; recordar: 
 
 /** «Usar el internet de mis neuronas: Preguntar» — respuesta del usuario. */
 export function responderUso(permitir: boolean): void {
+  // PTA1110B: una neurona de otra cuenta se recuerda por su id (revocable en la tarjeta); mías y grupos valen para la sesión.
+  const p = estado.preguntaUso;
+  if (p?.ambito === "otras" && p.id) {
+    const id = p.id;
+    cambiarAjustesPuerta((a) => ({ ...a, usoOtrasRecordadas: { ...a.usoOtrasRecordadas, [id]: permitir ? "permitir" : "denegar" } }));
+  }
   usoSesion = permitir ? "si" : "no";
   resUso?.(permitir);
   resUso = null;
@@ -412,11 +418,9 @@ export function iniciarPuertaMalla(op: OpcionesServicio = {}): () => void {
         sincronizarProxy(); // PTA1108B
       };
       const ctxAmbito = () => ({ miCuenta, vecinoMismaCuenta: (id: string) => meta(id).mismaCuenta });
-      const ambitoUsoDe = (puerta: string): "mias" | "grupo" | "publica" | null => {
+      const ambitoUsoDe = (puerta: string): "mias" | "grupo" | "otras" | "publica" | null => {
         const e = gestorTabla.candidatas().find((x) => x.anuncio.id === puerta);
-        if (!e) return null;
-        const r = ambitoDePuerta(aj, e, ctxAmbito());
-        return r.ambito === "otras" ? "publica" : r.ambito;
+        return e ? ambitoDePuerta(aj, e, ctxAmbito()).ambito : null;
       };
       /** PTA1110A · bytes/s medidos en el carril hacia la puerta por la que sale esta neurona. */
       const velocidadDeRuta = (puerta: string | undefined): number | null => {
@@ -485,7 +489,7 @@ export function iniciarPuertaMalla(op: OpcionesServicio = {}): () => void {
           usar = false;
           if (usoSesion === "desconocido" && !resUso) {
             const nombre = nombres(pregunta.e.anuncio.id);
-            publicar({ preguntaUso: { nombre } });
+            publicar({ preguntaUso: { nombre, id: pregunta.e.anuncio.id, ambito: pregunta.r.ambito === "publica" ? undefined : pregunta.r.ambito } });
             void new Promise<boolean>((res) => (resUso = res));
           }
         }
