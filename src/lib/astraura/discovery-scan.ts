@@ -17,9 +17,16 @@ export function discoveryScanPath(limite?: number): string {
   return n > 0 ? `/api/discovery/scan?limite=${n}` : "/api/discovery/scan";
 }
 
-export function recortarDiscoveryScan<T extends object>(data: T, limite = DISCOVERY_SCAN_LIMITE_DEFECTO): T {
+/** Forma de respuesta del endpoint discovery/scan. */
+export interface DiscoveryScanResponse {
+  devices?: unknown[];
+  [key: string]: unknown;
+}
+
+/** Corta defensivamente la lista de dispositivos para no cargar la UI con MB de datos. */
+export function recortarDiscoveryScan<T extends DiscoveryScanResponse>(data: T, limite = DISCOVERY_SCAN_LIMITE_DEFECTO): T {
   const n = Number.isFinite(limite) && limite > 0 ? Math.floor(limite) : DISCOVERY_SCAN_LIMITE_DEFECTO;
-  const devices = (data as { devices?: unknown }).devices;
+  const devices = data.devices;
   if (!Array.isArray(devices) || devices.length <= n) return data;
   return { ...data, devices: devices.slice(0, n) };
 }

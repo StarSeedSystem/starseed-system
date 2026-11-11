@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { DISCOVERY_SCAN_LIMITE_DEFECTO, discoveryScanPath, recortarDiscoveryScan } from "@/lib/astraura/discovery-scan";
+import { DISCOVERY_SCAN_LIMITE_DEFECTO, discoveryScanPath, recortarDiscoveryScan, type DiscoveryScanResponse } from "@/lib/astraura/discovery-scan";
 
 describe("discoveryScanPath", () => {
   it("añade limite válido como query", () => {
@@ -36,5 +36,25 @@ describe("recortarDiscoveryScan", () => {
   it("tolera respuesta sin lista de dispositivos", () => {
     const data = { nota: "sin devices" };
     expect(recortarDiscoveryScan(data)).toBe(data);
+  });
+  it("maneja array de dispositivos vacío", () => {
+    const data = { devices: [], total: 0 };
+    expect(recortarDiscoveryScan(data, 10)).toBe(data);
+    expect(recortarDiscoveryScan(data, 10).devices).toEqual([]);
+  });
+  it("maneja limite menor o igual a cero", () => {
+    const devices = Array.from({ length: 10 }, (_, i) => ({ id: String(i) }));
+    const input = { devices };
+    const result = recortarDiscoveryScan(input, 0);
+    expect(result.devices).toHaveLength(10);
+    expect(result).toEqual(input);
+    expect(recortarDiscoveryScan(input, -5).devices).toHaveLength(10);
+  });
+  it("no muta el array original", () => {
+    const original = [{ id: "1" }, { id: "2" }, { id: "3" }];
+    const data = { devices: original };
+    const result = recortarDiscoveryScan(data, 2);
+    expect(result.devices).toHaveLength(2);
+    expect(original).toHaveLength(3);
   });
 });
