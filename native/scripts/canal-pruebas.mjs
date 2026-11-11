@@ -193,6 +193,8 @@ export function plataformasQueFaltan(platforms) {
  * nombre: así ninguna prueba posterior lo pisa), existe en la prerelease (`archivos`, si se pasa) y la firma del
  * manifiesto es la del `.sig` subido junto a él (`firmas`: nombre → contenido, si se pasa). Así el manifiesto y
  * el archivo al que apunta no pueden discrepar.
+ * @param {any} latest
+ * @param {{ version: string, notas?: string, archivos?: string[], firmas?: Record<string, string> }} opciones
  */
 export function manifiestoEscritorio(latest, { version, notas, archivos, firmas }) {
   const faltan = [];
