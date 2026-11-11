@@ -5,7 +5,7 @@
 - preparado por Claude en la nube a petición de Alex;
 - encolado por Claude (Cowork, con la Mac) el mismo día.
 
-**Estado:** la cola `starseed_memory_root/olas/cola-sdp1111.json` está encolada con 19 tareas (A–L y N–T).
+**Estado:** la cola `starseed_memory_root/olas/cola-sdp1111.json` está encolada con 20 tareas (A–L y N–U).
 - SDP1111M (lectura diaria de «Mi actividad» con el navegador) **no** está en la cola: espera la aprobación de Alex y
   su texto está en `starseed_memory_root/olas/pendientes/tarea-sdp1111m-pendiente.json`.
 - Nada está construido todavía.
@@ -155,6 +155,13 @@ El director llama al agente cada 15 minutos; el agente decide con su estado en q
 - **Límite:** los «recomendados» de YouTube no tienen API. Se aproximan con búsquedas por los temas del día, o con
   la lectura del navegador de la Mac si Alex aprueba SDP1111M.
 
+**Altas hechas (2026-11-11, 17:15):**
+- `~/.starseed/cuentas/alex.json` y `fundacion.json` (Mac, 0600) funcionan: renuevan y leen Gmail, Drive y YouTube.
+  fundacionstarseed no tiene canal de YouTube, así que YouTube sale sobre todo de alex.
+- La app «StarSeed actividad» sigue en estado «Prueba», con las dos cuentas como usuarias de prueba, y los tokens
+  caducan a los 7 días (hacia el 2026-11-18).
+- **SDP1111U** crea /privacidad y /terminos para poder publicarla; después se rehace el alta una vez.
+
 **Autonomía:** todo funciona sin Claude y sin la Mac. Los lectores y la entrega corren en el líder de dirección; los
 contenedores compartidos de la nube nunca reciben datos privados ni claves.
 
@@ -282,7 +289,7 @@ lee la cola como lista de tareas. SDP1111M va aparte: ver «Estado», arriba.
    "scripts/puente/test_sintesis_tareas.py"
   ],
   "depende": [
-   "SDP1111A"
+   "SDP1111A-d2"
   ],
   "prompt": "Lee architecture/sintesis-diaria-autonoma.md §3.2 y agente_referencias_diseno.tarea_de (l.954). Crea el módulo PURO sintesis_tareas.py: a partir del contexto de sintesis_fuentes devuelve las tareas de análisis libre (tipo 'analisis', modo 'libre', capacidad 'alta', privado según la rama, salida en starseed_memory_root/imaginacion/agentes/sintesis-<fecha>-<rama>.json) para las ramas: contactos, noticias, referencias, actividad, ideas, guiones; y después las de redacción y revisión. Cada prompt lleva solo el contexto de su rama, las secciones del protocolo que le tocan y la regla «todo dato con fuente y fecha; nada inventado; no se investiga a particulares». Ids con prefijo SIN + MMDD + n. La rama actividad es privado: true. Pruebas puras. Máximo 120 líneas por archivo; si no cabe, deja redacción y revisión para SDP1111D y dilo."
  },
@@ -295,7 +302,7 @@ lee la cola como lista de tareas. SDP1111M va aparte: ver «Estado», arriba.
    "scripts/puente/test_agente_sintesis.py"
   ],
   "depende": [
-   "SDP1111A",
+   "SDP1111A-d2",
    "SDP1111B",
    "SDP1111C"
   ],
@@ -455,7 +462,7 @@ lee la cola como lista de tareas. SDP1111M va aparte: ver «Estado», arriba.
   ],
   "depende": [
    "SDP1111E",
-   "SDP1111I"
+   "SDP1111I-d2"
   ],
   "prompt": "Lee architecture/sintesis-diaria-autonoma.md §4 y §5. PAPELES DE LAS CUENTAS (Alex, 2026-11-11): «alex» = alexbordongarrigos@gmail.com, cuenta Google Pro y PRINCIPAL: Drive (donde se sincroniza todo), Docs, YouTube, NotebookLM, Takeout y el Doc de la síntesis. «fundacion» = fundacionstarseed@gmail.com: sobre todo Gmail (correos enviados a comunidades y avisos de algunos servicios registrados con ella) y, en segundo plano, su Drive y YouTube. Instagram: «sociedadstarseed» = página oficial Sociedad StarSeed (cuenta de la fundación): sus publicaciones y a quién sigue; «maggasukha» = cuenta personal de Alex: guardados (referencias) y páginas que sigue (contactos y referencias). TAREA: (1) módulo PURO cuentas_actividad.py con esos papeles como datos (alias, correo, para_que, prioridad) y funciones que digan qué lector usa qué cuenta: Gmail enviados de las dos (fundacion primero); Drive, Docs, YouTube, NotebookLM y Takeout de alex primero y fundacion después con menos frecuencia. (2) actividad_instagram.py lee las exportaciones oficiales DESDE DRIVE de alex con cuentas_google (sin la Mac): carpeta «Actividad StarSeed (privado …)» id 1PvBnBhoxxNSBuCLSC2aQZ89Oe8mdJGB-, subcarpetas «Instagram maggasukha …» id 19_ymNnvy4iDpVuCLDiC47GyG2j2DVQ5U (saved_posts, saved_collections, following) e «Instagram Sociedad StarSeed …» id 1YWcHxOXG_zbE_Ea9ehuHCcVBGQcf0Z3U (publicaciones propias y following); en la Mac también mira ~/Downloads/instagram-*.zip. Cada ficha lleva la cuenta de origen y privado: true. Sigue sin abrir instagram.com ni usar la sesión de Alex. Pruebas puras con muestras pequeñas. Máximo 120 líneas tocadas por archivo."
  },
@@ -502,6 +509,18 @@ lee la cola como lista de tareas. SDP1111M va aparte: ver «Estado», arriba.
    "SDP1111C"
   ],
   "prompt": "Lee architecture/sintesis-diaria-autonoma.md §3.4 y §4. Alex (2026-11-11): la vinculación con YouTube sirve para analizar el historial y las publicaciones de canales relacionados y relevantes, y para investigaciones y referencias de estilos, storyboards, guiones, diseños, noticias, activistas y temas relevantes. Los agentes pueden buscar herramientas para VER y TRANSCRIBIR los vídeos y sacar contexto de los recomendados, del historial y de los canales seguidos, todo analizado con inteligencia para cada síntesis. Se usan LAS DOS cuentas (alex y fundacion) para el contexto y el acceso completo a YouTube. TAREA: (1) Antes de escribir, busca la mejor herramienta GRATUITA y local para cada paso en la Librería (architecture/repos-libreria-*.md, vigia-modelos.md, forja-voz-158.md: VibeASR/whisper.cpp) y en el nodo, y deja la elección justificada en ~/.starseed/herramientas-video.json. Orden por defecto: subtítulos con yt-dlp (--skip-download --write-auto-subs --sub-langs es,en; no descarga el vídeo); si no hay subtítulos, audio con yt-dlp y transcripción local (whisper.cpp, faster-whisper o VibeASR), borrando el audio al terminar; para VER el vídeo, Gemini gratuito con la URL de YouTube (GEMINI_API_KEY, respetando su cupo gratuito) o, si no, fotogramas clave con ffmpeg (detección de escena) descritos por un modelo de visión gratuito. Si falta yt-dlp o el transcriptor, el instalador del nodo lo añade (venv propio) y lo dice; nada de pago. (2) video_contexto.py: por cada candidato de youtube_candidatos (hasta 8 a fondo y el resto ligeros, a lo largo de la noche: calidad antes que tiempo) produce una ficha con: resumen de la transcripción, ideas útiles para guiones, notas de estilo (ritmo, montaje, color, tipografía, música, transiciones), storyboard extraído (escenas con marcas de tiempo), diseño, noticias, personas públicas o activistas citados y por qué importa para StarSeed; enlace y canal siempre, privado según el origen. Guarda en ~/.starseed/actividad/youtube/fichas/. (3) En sintesis_tareas.py añade la rama «youtube», que lleva esas fichas a las secciones de referencias, ideas, guiones y storyboards, creadores y noticias de la síntesis, con fuente (enlace y minuto) y fecha. Uso solo para análisis interno: no se redistribuye nada descargado. Pruebas sin red. Máximo 120 líneas tocadas por archivo."
+ },
+ {
+  "id": "SDP1111U",
+  "ola": "SDP1111",
+  "titulo": "Páginas públicas de privacidad y términos (para publicar la app OAuth «StarSeed actividad»)",
+  "archivos": [
+   "src/app/privacidad/page.tsx",
+   "src/app/terminos/page.tsx",
+   "src/app/privacidad/__tests__/page.test.tsx"
+  ],
+  "depende": [],
+  "prompt": "Lee architecture/sintesis-diaria-autonoma.md §4 y §5. Contexto: el 2026-11-11 se conectaron las cuentas alexbordongarrigos y fundacionstarseed a la app OAuth «StarSeed actividad» (proyecto de Google Cloud starseed-system, solo lectura: gmail.readonly, drive.readonly, youtube.readonly). La app está en estado «Prueba» y así los tokens caducan cada 7 días. Para PUBLICARLA, Google exige enlaces públicos a una página principal y a una política de privacidad en un dominio autorizado; hoy starseed-os.vercel.app/privacidad y /terminos dan 404. TAREA: crea las páginas públicas estáticas /privacidad y /terminos de StarSeed OS: sin sesión, accesibles a buscadores, con el estilo del OS (solo tokens de color, tipografía de la casa), en español con un resumen en inglés. Contenido real y breve: qué es StarSeed OS (en desarrollo, código abierto); que la app «StarSeed actividad» la usa SOLO su dueño para que sus agentes lean en modo de solo lectura su propia actividad (correos enviados, archivos de Drive, YouTube) y preparen síntesis privadas; que esos datos se quedan en los nodos del dueño, no se venden, no se comparten ni se usan para publicidad; cómo revocar el acceso (myaccount.google.com/permissions); contacto fundacionstarseed@gmail.com; fecha de vigencia. Cumple la Política de datos de usuario de los servicios de API de Google (uso limitado). Prueba de que ambas rutas renderizan. Máximo 120 líneas por archivo. DESPUÉS de publicarse (lo hace el director de producción), deja en tu respuesta los pasos para la consola: en Información de la marca, página principal https://starseed-os.vercel.app, privacidad …/privacidad, términos …/terminos, dominio autorizado starseed-os.vercel.app; luego Público › Publicar app; luego rehacer una vez el alta con ~/.starseed/herramientas/alta-cuentas-google.py para tener tokens sin caducidad de 7 días."
  }
 ]
 ```
