@@ -6781,3 +6781,10 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `ENT-agentes-referencias-diseno-agentes-re-806f30-v1` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/entregable-agentes-referencias-diseno-agentes-referencias-diseno-806f30-v1.json
 - `ENT-agentes-referencias-diseno-agentes-re-9312c6-v1` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/entregable-agentes-referencias-diseno-agentes-referencias-diseno-9312c6-v1.json
 - `ENT-agentes-referencias-diseno-agentes-re-409fe9-v1` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/entregable-agentes-referencias-diseno-agentes-referencias-diseno-409fe9-v1.json
+
+## 2026-11-11 03:14 · auto-1111-025033
+
+**Resultado.** 0 de 1 integradas. 1 tarea se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `IMG-diaria-auto-refresh-del-catalogo-de-mode` — pruebas en rojo: FAILED scripts/puente/test_auto_refresh_dream.py::test_if_refresh_falla_el_dream_sigue_soando
