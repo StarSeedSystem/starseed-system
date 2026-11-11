@@ -6816,3 +6816,10 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 
 **Lo que quedó fuera, una por una:**
 - `IMG-diaria-auto-refresh-del-catalogo-de-mode` — la revisión lo rechazó: no toco NINGUNO de los 1 archivos que declaraba (rama ola/IMG-diaria-auto-refresh-del-catalogo-de-mode conservada)
+
+## 2026-11-11 09:42 · auto-1111-091802
+
+**Resultado.** 0 de 1 integradas. 1 tarea se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `P37-1111-rc` — no escribió nada
