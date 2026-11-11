@@ -103,6 +103,8 @@ export interface AccionesLlamada {
   cambiarTipo?: (a: TipoSuperficie) => void | Promise<void>;
   invitar?: (quien: Invitable[]) => void | Promise<void>;
   elegirMedio?: (m: MedioLlamada) => void | Promise<void>;
+  /** (LLA1111H) El <video> del otro dice si pinta cuadros de verdad (null: no se sabe). */
+  videoWebPinta?: (pinta: boolean | null) => void;
   iniciarGrabacion?: () => void | Promise<void>;
   pararGrabacion?: () => void | Promise<void>;
   destinoGrabacion?: (d: DestinoGrabacion) => void | Promise<void>;

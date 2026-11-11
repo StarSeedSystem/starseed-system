@@ -574,3 +574,28 @@ grabación) con «Volver a llamar». Límites conocidos: la página lanza llamad
 - **Timbre:** `empezarLlamadaSinChat` usa `timbreConCola`; la ventana se abre con «Buscando una vía hasta <nombre>…» si el
   primer aviso no sale; tras 30 s sin vía cuelga diciendo «No encontramos ninguna vía hasta <nombre> en 30 s.».
 - **Banco** (`pruebas-reales/llamadas-medio`): `paso-ip`, `paso-ip-silencioso`, `timbre-cola`, `video-sube`, `wifi-directo`.
+
+## 12. Quién dice que hay imagen por WebRTC (LLA1111A/H · 2026-11-11)
+
+**El fallo.** En el banco real (`pruebas-reales/llamadas-video`, caso `carriles`, 14–17 vueltas de 20 con el código anterior) el
+vídeo subía a WebRTC y la tableta se quedaba en negro. Medido: en unas, la pista seguía `muted` con el decodificador al día
+(`framesDecoded` subía; un `<video>` nuevo la pintaba a 1280×720) y la superficie no montaba `<video>` de una pista muda; en otras,
+la pista muda **no entregaba ni un cuadro a ningún sumidero** (un `<video>` nuevo, una copia de la pista, apagarla y encenderla, un
+`MediaStreamTrackProcessor`: nada) con el decodificador decodificando. Medido en Chromium; el WebView de Android es el mismo motor (inferido, sin
+medir en la tableta); reenganchar el flujo no la recupera. Las estadísticas de WebRTC solas no bastan para decir «hay imagen».
+
+**La regla.** La imagen del otro por WebRTC cuenta cuando (1) se decodifican cuadros nuevos (`getStats`, no la marca `muted`) **y**
+(2) el `<video>` de la superficie los pinta (`ImagenRemota` → `acciones.videoWebPinta` → `MotorLlamada.informarVideoWebPinta`). Si el
+`<video>` lleva ≥ 2,5 s sin pintar (caduca a los 2 s sin cuadros nuevos; 12 s en pantalla compartida), el motor deja de dar por buena
+la imagen web: entrega el lienzo del vídeo ligero y **cuenta al otro lado** (`app` `k:"web-imagen"`, `si:false`, cada 4 s) que no
+ve su vídeo por WebRTC; el otro sigue mandando el vídeo ligero mientras lo diga (y no antes de 10 s de silencio). Un aparato de
+la versión anterior ignora el mensaje (`k` desconocido) y se comporta como antes. Sin aviso de la superficie (pestaña oculta,
+`null`), valen solo las estadísticas. Diagnóstico en `enlaces.log`: `veo-su-video-webrtc=si|no` y `el-otro-ve-mi-video-webrtc=si|no`.
+
+**El lienzo no se quita hasta que el `<video>` pinta un cuadro nuevo** (sin negro en el relevo en ningún sentido).
+
+**Medios.** Bluetooth lleva la voz y el vídeo ligero (no la pantalla: sube sola a Wi‑Fi directo). `opcionesMedio` lo dice con los
+carriles reales (qué lleva cada medio ahora) y solo «Automático» es elegible desde ahí; a mano se fija el carril de cada flujo en «Medio».
+
+**Cámara.** Cambiar de cámara abre la nueva **antes** de tocar nada: si no abre, sigue la anterior (con su imagen), se dice por qué
+y **no** se guarda como preferencia; solo la que de verdad abrió se recuerda (`recordarDispositivo` tras abrir).

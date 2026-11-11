@@ -141,6 +141,7 @@ export class MotorFalso implements MotorMinimo {
     this.emitir();
     return null;
   });
+  informarVideoWebPinta = vi.fn((parId: string, pinta: boolean | null) => void this.llamadas.push(`videoWebPinta:${parId}:${pinta}`));
   cambiarAltavoz = vi.fn((id: string) => void this.llamadas.push(`altavoz:${id}`));
   colgar = vi.fn((motivo?: string) => {
     this.llamadas.push("colgar");

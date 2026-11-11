@@ -61,6 +61,20 @@ describe("vídeo remoto: nunca un <video> negro encima del lienzo (LLA1110C)", (
     ad.destruir();
   });
 
+  it("(LLA1111H) lo que cuenta el <video> del foco llega al motor con el id de ESE par", async () => {
+    const m = new MotorFalso("yo", "Yo");
+    const base = m.estado();
+    const otro = { ...base.participantes[0], id: "otro", nombre: "Otra", yo: false, camara: true, stream: flujo([{ readyState: "live", muted: true }]), lienzo: null };
+    m.poner({ participantes: [base.participantes[0], otro] });
+    const ad = new AdaptadorMotor(m, { titulo: "Otra", unoAUno: true, entorno: () => ENTORNO_ESCRITORIO });
+    await vaciar();
+    ad.vista();
+    ad.acciones.videoWebPinta?.(false);
+    ad.acciones.videoWebPinta?.(null);
+    expect(m.llamadas).toEqual(expect.arrayContaining(["videoWebPinta:otro:false", "videoWebPinta:otro:null"]));
+    ad.destruir();
+  });
+
   it("lista de cámaras para el registro: tipo y nombre, corta", () => {
     const t = textoListaCamaras(describirCamaras([{ id: "a", nombre: "FaceTime HD Camera" }, { id: "b", nombre: "iPhone de X Desk View Camera" }, { id: "c", nombre: "Cámara 3" }]));
     expect(t.startsWith("integrada:FaceTime HD Camera|continuidad:iPhone de X Desk View Camera|sin-nombre:Cámara 3")).toBe(true);
@@ -77,8 +91,22 @@ describe("encender la cámara (LLA1110C)", () => {
     const err = await ad.encenderCamara();
     expect(err).toBeNull();
     expect(m.llamadas).toEqual(["cambiarCamara:ft", "camara"]);
-    expect(lineas[0]).toMatch(/^camara pedida lista=continuidad:iPhone de X Desk View Camera\|integrada:FaceTime HD Camera elegir="FaceTime HD Camera" motivo=integrada restr=deviceId-exacto/);
+    expect(lineas[0]).toMatch(/^camara pedida lista=continuidad:iPhone de X Desk View Camera\|integrada:FaceTime HD Camera elegir="FaceTime HD Camera" motivo=integrada restr=ideal=\d+x\d+@\d+,deviceId:exact$/);
     ad.destruir();
+  });
+
+  it("(LLA1111H) el registro no dice «facingMode» en el escritorio y sí en el teléfono, sin id de cámara", async () => {
+    for (const [plataforma, esperado] of [["mac", /restr=ideal=\d+x\d+@\d+$/], ["android", /restr=ideal=\d+x\d+@\d+,facingMode:ideal=user$/]] as const) {
+      const m = new MotorFalso("yo", "Yo");
+      m.poner({ dispositivos: { microfonos: [], altavoces: [], camaras: [] }, seleccion: { microId: null, camaraId: null, altavozId: null } });
+      const lineas: string[] = [];
+      const ad = new AdaptadorMotor(m, { titulo: "Otra", unoAUno: true, entorno: () => ENTORNO_ESCRITORIO, anotar: (l) => lineas.push(l), plataforma: () => plataforma });
+      await ad.encenderCamara();
+      const l = lineas.find((x) => x.startsWith("camara pedida")) ?? "";
+      expect(l, plataforma).toMatch(esperado);
+      expect(l).not.toMatch(/facingMode-user|deviceId-exacto/);
+      ad.destruir();
+    }
   });
 
   it("si el aparato no abre la cámara, lo dice (y lo anota) en vez de callar", async () => {

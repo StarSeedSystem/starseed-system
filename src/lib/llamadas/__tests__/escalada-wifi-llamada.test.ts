@@ -356,9 +356,11 @@ describe("videollamada solo por Bluetooth: escalada automática al Wi-Fi directo
         // extremo la rearrancaba: el salto de la prueba 33); el vídeo sube a WebRTC tras 3 s de evidencia, sin colgar.
         for (const p of pcs) p.fijarIce("connected");
         await esperarHasta(() => mac.estado().carriles?.[0]?.video === "webrtc", 6000);
-        // El vídeo ligero deja de MANDAR (su carril ya es WebRTC); la sesión sigue solo para recibir hasta que el <video>
-        // de WebRTC traiga imagen (esta PC falsa nunca la trae): así no hay hueco negro en el relevo.
-        await esperarHasta(() => mac.estado().videoDatos?.enviando !== true, 3000);
+        // (LLA1111A) Esta PC falsa nunca trae imagen: la tableta dice que no ve el vídeo de la Mac por WebRTC, así que la Mac
+        // SIGUE mandando el vídeo ligero aunque su carril ya sea WebRTC (antes dejaba de mandar y el otro se quedaba en negro).
+        await esperarHasta(() => hitos.some((h) => h.includes("el-otro-ve-mi-video-webrtc=no")), 6000);
+        await new Promise((r) => setTimeout(r, 400));
+        expect(mac.estado().videoDatos?.enviando).toBe(true);
         expect(mac.estado().medio?.tipo).toBe("enlace-datos");
         expect(mac.estado().carriles?.[0]?.voz).toBe("ble-l2cap");
         expect(hitos.some((h) => h.includes("vuelve a WebRTC sin cortar"))).toBe(false);
@@ -367,7 +369,7 @@ describe("videollamada solo por Bluetooth: escalada automática al Wi-Fi directo
         expect(e.fase).toBe("en-curso");
         expect(mac.cerrada).toBe(false);
         expect(tab.cerrada).toBe(false);
-        expect(e.videoDatos?.enviando ?? false).toBe(false); // LLA1110D: sesión solo para recibir hasta que WebRTC traiga imagen
+        expect(e.videoDatos?.enviando).toBe(true); // LLA1111A: el otro aún no ve el vídeo por WebRTC
         expect(e.escalada?.texto).toBe(TEXTO_VIDEO_WIFI_DIRECTO);
         expect(hitos.some((h) => h.startsWith("fallo"))).toBe(false);
     });

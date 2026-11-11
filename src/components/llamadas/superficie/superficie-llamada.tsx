@@ -14,7 +14,7 @@ import { formatearDuracion, iniciales } from "@/lib/llamadas/formato";
 import type { AccionesLlamada, VistaLlamada } from "@/lib/llamadas/superficie/vista";
 import { EMOJIS_REACCION } from "@/lib/llamadas/superficie/senales-app";
 import { accionDeTecla, AYUDA_ATAJOS } from "@/lib/llamadas/superficie/atajos";
-import { Barras, BotonControl, Cronometro, Pista, useSalidasAudio } from "./piezas";
+import { Barras, BotonControl, Cronometro, ImagenRemota, Pista, useSalidasAudio } from "./piezas";
 import { PestanaAstraura, PestanaCalidad, PestanaChat, PestanaGente, PestanaGrabar, PestanaInvitar, PestanaMedio } from "./pestanas";
 import estilos from "../llamadas.module.css";
 import { useMovimientoReducido, useSuperficie } from "./use-superficie";
@@ -144,8 +144,10 @@ export function SuperficieLlamada({ vista: v, acciones: a, tamanoInicial, carril
   }, [vivaAtajos, despachar]);
 
   const remotoTraeVideo = useTraeVideo(v.remoto);
+  // LLA1111A: el <video> del otro avisa si pinta cuadros de verdad (una pista WebRTC puede seguir «muted» con imagen).
+  const [videoPinta, setVideoPinta] = useState(false);
   // LLA1110C: hay imagen del otro si el lienzo del vídeo ligero está o si su pista de vídeo trae imagen DE VERDAD.
-  const conVideoRemoto = !!v.remotoLienzo || remotoTraeVideo;
+  const conVideoRemoto = !!v.remotoLienzo || remotoTraeVideo || videoPinta;
   const vivaVideo = s.estado === "conectada" || s.estado === "en-espera" || s.estado === "reconectando";
   // LLA1110C: al llegar imagen del otro con la llamada recogida en la burbuja, se abre el panel (antes se veía la píldora).
   const habiaVideo = useRef(false);
@@ -316,7 +318,7 @@ export function SuperficieLlamada({ vista: v, acciones: a, tamanoInicial, carril
                         <Pista stream={p.stream} lienzo={p.lienzo} video silenciar className="h-full w-full" etiqueta={p.nombre} />
                         <span className="absolute bottom-1 left-1 rounded bg-black/55 px-1.5 text-[10.5px]">{p.nombre}</span>
                       </div>
-                    )) : <Pista stream={v.remoto} lienzo={v.remotoLienzo} video={conVideoRemoto} remoto silenciar={!!v.participantes?.length} className={cn("h-full w-full", s.tipo === "pantalla" ? "object-contain" : "object-contain")} etiqueta={s.tipo === "pantalla" ? `Pantalla de ${v.nombre}` : `Imagen de ${v.nombre}`} sinkId={salidas.elegida} />}
+                    )) : <ImagenRemota stream={v.remoto} lienzo={v.remotoLienzo} silenciar={!!v.participantes?.length} className="h-full w-full" etiqueta={s.tipo === "pantalla" ? `Pantalla de ${v.nombre}` : `Imagen de ${v.nombre}`} sinkId={salidas.elegida} alPintar={setVideoPinta} alVideoPinta={a.videoWebPinta} vencerMs={s.tipo === "pantalla" ? 12_000 : 2000} />}
                   </div>
                   {!conVideoRemoto && !rejilla && (
                     <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 text-[13px] text-white/80">

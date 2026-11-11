@@ -211,6 +211,53 @@ export function lineaCamaraElegida(c: Pick<CamaraInfo, "etiqueta" | "nombre" | "
   return `camara elegida="${nombre}" (${c.tipo === "remota" ? "virtual" : c.tipo})${motivo ? ` motivo=${motivo}` : ""}`;
 }
 
+/* ───────────────────────── Restricciones al abrir (LLA1111A) ───────────────────────── */
+
+/** ¿Aparato con cámara frontal/trasera (teléfono o tableta)? Solo ahí tiene sentido pedir `facingMode`. */
+export function esPlataformaMovil(plataforma: Plataforma): boolean {
+  return plataforma === "android" || plataforma === "ios";
+}
+
+/**
+ * La lista de deseos de vídeo, TODO como `ideal` (LLA1111A). Antes llevaba `frameRate: { max: 30 }` (obligatorio) y
+ * `facingMode: "user"` también en el escritorio: en la Mac (prueba.35) toda petición a la «FaceTime HD Camera», a la
+ * virtual y al sistema sin id acababa en OverconstrainedError en 2–40 ms, y solo abrían las del iPhone. El único
+ * requisito obligatorio común a todas esas peticiones era ese `max`. Un `ideal` nunca hace fallar la apertura. Pura.
+ */
+export function restriccionesVideoDeseadas(camaraId: string | null | undefined, plataforma: Plataforma, eco: boolean): MediaTrackConstraints {
+  return {
+    width: { ideal: eco ? 640 : 1280 },
+    height: { ideal: eco ? 360 : 720 },
+    frameRate: { ideal: eco ? 15 : 24 },
+    ...(camaraId ? { deviceId: { exact: camaraId } } : esPlataformaMovil(plataforma) ? { facingMode: { ideal: "user" } } : {}),
+  };
+}
+
+/**
+ * Las restricciones en corto para el registro: «ideal=1280x720@24,deviceId:exact» (sin el id: es largo y no aporta).
+ * Lo que no es `ideal` sale con su modo («frameRate:max=30», «facingMode:bare=user»): es lo que puede hacer fallar.
+ */
+export function textoRestricciones(v: MediaTrackConstraints | boolean | undefined): string {
+  if (v === true) return "ninguna";
+  if (!v) return "no";
+  const c = v as Record<string, unknown>;
+  const ideal = (k: string) => (c[k] && typeof c[k] === "object" ? (c[k] as Record<string, unknown>).ideal : undefined);
+  const partes: string[] = [];
+  const w = ideal("width"), h = ideal("height"), f = ideal("frameRate");
+  if (w !== undefined || h !== undefined || f !== undefined) partes.push(`ideal=${w ?? "?"}x${h ?? "?"}${f !== undefined ? `@${f}` : ""}`);
+  for (const [k, val] of Object.entries(c)) {
+    if (val === undefined) continue;
+    if (k === "deviceId" || k === "groupId") {
+      partes.push(`${k}:${val && typeof val === "object" ? Object.keys(val).join("+") : "bare"}`);
+    } else if (val && typeof val === "object" && !Array.isArray(val)) {
+      for (const [m, x] of Object.entries(val as Record<string, unknown>)) if (!(m === "ideal" && (k === "width" || k === "height" || k === "frameRate"))) partes.push(`${k}:${m}=${String(x)}`);
+    } else {
+      partes.push(`${k}:bare=${String(val)}`);
+    }
+  }
+  return partes.join(",") || "vacia";
+}
+
 /* ───────────────────────── Opciones de la cámara (resolución, zoom, linterna…) ───────────────────────── */
 
 export interface OpcionesCamara {

@@ -272,6 +272,7 @@ class PCBanco extends PCReal {
 function super_estado(pc: RTCPeerConnection): string {
   return `${pc.signalingState}`;
 }
+const ipErrores: string[] = [];
 async function ponerIp(on: boolean) {
   ip.sinIp = !on;
   ip.cortada = !on && ip.dinamica;
@@ -284,8 +285,9 @@ async function ponerIp(on: boolean) {
           p.encodings.forEach((e) => (e.active = on));
           await s.setParameters(p);
         }
-      } catch {
-        /* emisor sin pista */
+      } catch (e) {
+        // LLA1111A · antes se tragaba: un emisor que se queda «inactive» no manda nada aunque la «red» haya vuelto.
+        ipErrores.push(`${Math.round(performance.now())} ip=${on} ${s.track?.kind ?? "sin-pista"} ${e instanceof Error ? e.name : "?"}`);
       }
     }
     pc.dispatchEvent(new Event("iceconnectionstatechange"));
@@ -484,6 +486,139 @@ function resumen() {
   marco(w: number, h: number) {
     marco = { w, h };
     oyentesLlamada.forEach((cb) => cb());
+  },
+  /** LLA1111A · diagnóstico: por receptor de vídeo, cuadros recibidos/decodificados, tamaño, y si un <video> nuevo lo pinta en 1,2 s. */
+  async probarRecepcion() {
+    const out: string[] = [];
+    for (const pc of pcs.filter((x) => x.signalingState !== "closed")) {
+      for (const r of pc.getReceivers().filter((x) => x.track?.kind === "video")) {
+        let st = "";
+        (await r.getStats()).forEach((x: Record<string, unknown>) => {
+          if (x.type === "inbound-rtp") st = `rx=${x.framesReceived ?? "?"} dec=${x.framesDecoded ?? "?"} drop=${x.framesDropped ?? "?"} ${x.frameWidth ?? 0}x${x.frameHeight ?? 0} bytes=${x.bytesReceived ?? "?"}`;
+        });
+        const v = document.createElement("video");
+        v.muted = true;
+        v.autoplay = true;
+        v.style.cssText = "position:fixed;left:0;top:0;width:64px;height:36px;opacity:0.01";
+        document.body.appendChild(v);
+        v.srcObject = new MediaStream([r.track]);
+        // play() puede no resolverse nunca si el elemento no recibe nada: no se espera más de 1,2 s en total.
+        await Promise.race([v.play().catch(() => undefined), new Promise((ok) => setTimeout(ok, 1200))]);
+        await new Promise((ok) => setTimeout(ok, 1200));
+        out.push(`${r.track.id.slice(0, 8)}${r.track.muted ? "/muda" : ""} ${st} video-nuevo=${v.readyState}/${v.videoWidth}x${v.videoHeight}`);
+        v.remove();
+      }
+    }
+    return out.join(" ; ");
+  },
+  /** LLA1111A · diagnóstico: cada emisor vivo (tipo, pista, encodings activos) y los fallos al cambiar la «red». */
+  emisores() {
+    return pcs
+      .filter((pc) => pc.signalingState !== "closed")
+      .flatMap((pc) => pc.getSenders().map((s) => `${s.track?.kind ?? "-"}:${(s.getParameters().encodings ?? []).map((e) => (e.active === false ? "off" : "on")).join("") || "sin-enc"}`))
+      .join(" ") + (ipErrores.length ? ` errores=[${ipErrores.slice(-3).join("; ")}]` : "");
+  },
+  /**
+   * LLA1111H · diagnóstico: el estado REAL de cada conexión viva (sin el «failed» fingido de la «red» cortada), y los cuadros /
+   * bytes de vídeo que entran y salen: «ice/con/sig rx=cuadros/bytes tx=cuadros/bytes par=estado-del-par-elegido».
+   */
+  async sonda() {
+    const ice = Object.getOwnPropertyDescriptor(RTCPeerConnection.prototype, "iceConnectionState")?.get;
+    const con = Object.getOwnPropertyDescriptor(RTCPeerConnection.prototype, "connectionState")?.get;
+    const real = (g: (() => string) | undefined, pc: RTCPeerConnection) => {
+      try {
+        return (g as (() => string) | undefined)?.call(pc) ?? "?";
+      } catch {
+        return "?";
+      }
+    };
+    // El getter fingido de PCBanco vive en la subclase: se lee el del prototipo del navegador (PCReal).
+    const proto = PCReal.prototype;
+    const gi = Object.getOwnPropertyDescriptor(proto, "iceConnectionState")?.get ?? ice;
+    const gc = Object.getOwnPropertyDescriptor(proto, "connectionState")?.get ?? con;
+    const out: string[] = [];
+    for (const pc of pcs.filter((x) => x.signalingState !== "closed")) {
+      let rx = "rx=-";
+      let tx = "tx=-";
+      let par = "par=-";
+      try {
+        const st = await pc.getStats();
+        let sel = "";
+        st.forEach((x: Record<string, unknown>) => {
+          if (x.type === "inbound-rtp" && x.kind === "video") rx = `rx=${x.framesDecoded ?? 0}/${x.bytesReceived ?? 0}`;
+          if (x.type === "outbound-rtp" && x.kind === "video") tx = `tx=${x.framesEncoded ?? 0}/${x.bytesSent ?? 0}`;
+          if (x.type === "transport") sel = String(x.selectedCandidatePairId ?? "");
+        });
+        st.forEach((x: Record<string, unknown>) => {
+          if (x.type === "candidate-pair" && x.id === sel) par = `par=${x.state}/rtt${Math.round(Number(x.currentRoundTripTime ?? 0) * 1000)}`;
+        });
+      } catch {
+        /* sin stats */
+      }
+      out.push(`${real(gi as (() => string) | undefined, pc)}/${real(gc as (() => string) | undefined, pc)} ${rx} ${tx} ${par}`);
+    }
+    return out.join(" ; ");
+  },
+  /**
+   * LLA1111H · diagnóstico en el estado atascado (la pista llega, los cuadros se decodifican y el <video> no pinta): qué
+   * recupera la imagen. Por cada receptor de vídeo: estado de la pista y del transceptor, estadísticas del decodificador,
+   * si un <video> nuevo pinta, uno con una copia de la pista, uno tras apagar y encender la pista, y si la pista entrega
+   * cuadros a un lector directo (MediaStreamTrackProcessor: separa «la pista no entrega» de «el <video> no pinta»).
+   */
+  async rescate() {
+    const out: string[] = [];
+    const probar = async (pista: MediaStreamTrack) => {
+      const v = document.createElement("video");
+      v.muted = true;
+      v.autoplay = true;
+      v.style.cssText = "position:fixed;left:0;top:0;width:64px;height:36px;opacity:0.01";
+      document.body.appendChild(v);
+      v.srcObject = new MediaStream([pista]);
+      void v.play().catch(() => undefined);
+      await new Promise((ok) => setTimeout(ok, 1500));
+      const r = `${v.readyState}/${v.videoWidth}x${v.videoHeight}`;
+      v.remove();
+      return r;
+    };
+    for (const pc of pcs.filter((x) => x.signalingState !== "closed")) {
+      for (const t of pc.getTransceivers().filter((x) => x.receiver.track?.kind === "video")) {
+        const pista = t.receiver.track;
+        const partes: string[] = [`mid=${t.mid} dir=${t.direction}/${t.currentDirection} muda=${pista.muted} activa=${pista.enabled} estado=${pista.readyState}`];
+        try {
+          (await t.receiver.getStats()).forEach((x: Record<string, unknown>) => {
+            if (x.type === "inbound-rtp")
+              partes.push(`ssrc=${x.ssrc} rx=${x.framesReceived} dec=${x.framesDecoded} clave=${x.keyFramesDecoded} drop=${x.framesDropped} pli=${x.pliCount} nack=${x.nackCount} congel=${x.freezeCount} dec-impl=${x.decoderImplementation} pausas=${x.pauseCount}`);
+          });
+        } catch {
+          /* sin stats */
+        }
+        partes.push(`nuevo=${await probar(pista)}`);
+        partes.push(`copia=${await probar(pista.clone())}`);
+        pista.enabled = false;
+        await new Promise((ok) => setTimeout(ok, 200));
+        pista.enabled = true;
+        partes.push(`tras-apagar=${await probar(pista)}`);
+        try {
+          const Proc = (window as unknown as { MediaStreamTrackProcessor?: new (o: { track: MediaStreamTrack }) => { readable: ReadableStream } }).MediaStreamTrackProcessor;
+          if (Proc) {
+            const lector = new Proc({ track: pista.clone() }).readable.getReader();
+            const r = await Promise.race([lector.read().then((x: ReadableStreamReadResult<unknown>) => (x.done ? "fin" : "cuadro")), new Promise<string>((ok) => setTimeout(() => ok("nada-en-2s"), 2000))]);
+            partes.push(`lector=${r}`);
+            void lector.cancel().catch(() => undefined);
+          } else partes.push("lector=no-hay");
+        } catch (e) {
+          partes.push(`lector=error:${e instanceof Error ? e.name : "?"}`);
+        }
+        out.push(partes.join(" "));
+      }
+    }
+    return out.join(" ;; ");
+  },
+  /** LLA1111A · diagnóstico: las pistas de vídeo que reciben las conexiones vivas (id, muda, estado). */
+  pistasRecibidas() {
+    return pcs
+      .filter((pc) => pc.signalingState !== "closed")
+      .flatMap((pc) => pc.getReceivers().filter((r) => r.track?.kind === "video").map((r) => `${r.track.id.slice(0, 8)}${r.track.muted ? "/muda" : ""}/${r.track.readyState}`));
   },
   /** (LLA1110D) Diagnóstico: por cada RTCPeerConnection viva, transceptores y cuadros que entran y salen. */
   async stats() {

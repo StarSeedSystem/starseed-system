@@ -35,7 +35,8 @@ describe("escaleraCamara (pura)", () => {
   });
 
   it("texto de restricciones y del error para el registro", () => {
-    expect(textoRestricciones({ width: { ideal: 1280 }, frameRate: { ideal: 24, max: 30 }, deviceId: { exact: "abc" }, facingMode: "user" })).toBe("width:ideal=1280,frameRate:ideal=24,frameRate:max=30,deviceId:exact,facingMode:bare=user");
+    expect(textoRestricciones({ width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 24, max: 30 }, deviceId: { exact: "abc" }, facingMode: "user" })).toBe("ideal=1280x720@24,frameRate:max=30,deviceId:exact,facingMode:bare=user");
+    expect(textoRestricciones({ deviceId: { exact: "abc" } })).toBe("deviceId:exact");
     expect(textoRestricciones(true)).toBe("ninguna");
     expect(describirErrorMedios({ name: "OverconstrainedError", constraint: "frameRate" })).toBe("OverconstrainedError constraint=frameRate");
     expect(describirErrorMedios({ name: "OverconstrainedError" })).toBe("OverconstrainedError constraint=?");
@@ -138,7 +139,7 @@ describe("obtenerMedios por la escalera", () => {
     poner(md);
     const r = await obtenerMedios({ audio: false, video: true, camaraId: "ft" });
     expect(r.stream?.getVideoTracks()[0].label).toBe("FaceTime HD Camera");
-    expect(lineas).toEqual(expect.arrayContaining([expect.stringMatching(/paso=deseo restr=width:ideal=1280.*deviceId:exact fallo .*error=OverconstrainedError constraint=width se relaja/), expect.stringMatching(/paso=solo-id restr=deviceId:exact ok/)]));
+    expect(lineas).toEqual(expect.arrayContaining([expect.stringMatching(/paso=deseo restr=ideal=1280x720@24,deviceId:exact fallo .*error=OverconstrainedError constraint=width se relaja/), expect.stringMatching(/paso=solo-id restr=deviceId:exact ok/)]));
   });
 
   it("si solo abre sin restricciones: video:true y después pasa a la pedida (id viejo → por etiqueta)", async () => {
@@ -170,18 +171,6 @@ describe("obtenerMedios por la escalera", () => {
     expect(r.stream).toBeNull();
     expect(r.error).toMatch(/ocupada/);
     expect(r.error).not.toMatch(/No encontramos/);
-  });
-
-  it("la elegida que no abre no se queda como la guardada: vuelve la última que abrió", async () => {
-    const { md } = macFalsa([{ id: "dv", label: "iPhone Desk View Camera", ocupada: true }, { id: "ft", label: "FaceTime HD Camera" }], 1);
-    poner(md);
-    const neurona = getDeviceId() || "local";
-    expect((await obtenerMedios({ audio: false, video: true, camaraId: "ft" })).error).toBeNull();
-    // El motor guarda la elegida ANTES de abrirla (MotorLlamada.cambiarCamara).
-    guardarPreferencia(neurona, { camara: { id: "dv", etiqueta: "iPhone Desk View Camera" } });
-    expect((await obtenerMedios({ audio: false, video: true, camaraId: "dv" })).error).toMatch(/ocupada/);
-    expect(JSON.parse(localStorage.getItem("starseed.llamadas.dispositivos") ?? "{}").neuronas[neurona].camara).toEqual({ id: "ft", etiqueta: "FaceTime HD Camera" });
-    expect(lineas.some((l) => /preferencia-restaurada a="FaceTime HD Camera"/.test(l))).toBe(true);
   });
 
   it("nunca «No encontramos ninguna cámara» con cámaras en la lista", async () => {

@@ -51,6 +51,19 @@ Casos de LLA1111A:
   cabecera y «Colgar» se vean y que la línea de estado salga una vez; y el carril por flujo de «Medio».
   `banco.marco(w, h)` pone el marco del lado al tamaño de la pantalla que se imita.
 
+`CASO=carriles` (LLA1111A) mide cada muestra de dos maneras: la captura de Playwright y la página (lo que está
+encima en el mosaico: el lienzo leído con `getImageData`, o el `<video>` dibujado en un canvas con su cuenta de
+`requestVideoFrameCallback`), y cuenta cuadros congelados. `REPETIR=n` lo corre n veces para sacar una tasa. Al fallar
+deja la serie de muestras alrededor del negro, la pista del `<video>`, las pistas recibidas, los emisores de la Mac y
+`banco.probarRecepcion()` (cuadros recibidos/decodificados y si un `<video>` nuevo pinta esa pista).
+
+LLA1111H · qué cuenta como negro: el vigía de la página (cada cuadro) o una muestra de la página en negro, o DOS capturas de Playwright
+seguidas en negro. Una captura oscura SUELTA con la página a 0 es la captura vacía de Chromium sin cabeza: se informa y no decide.
+Al fallar un tramo se imprime `SONDA …` (cada ~0,35 s: estado ICE/conexión REAL —sin el «failed» fingido del corte—, cuadros y bytes
+que entran y salen, par ICE elegido) y, la primera vez, `RESCATE …` (`banco.rescate()`: estado de la pista y del transceptor,
+estadísticas del decodificador y qué recupera la imagen: un `<video>` nuevo, una copia de la pista, apagarla y encenderla, o un
+lector directo `MediaStreamTrackProcessor`). Con eso se separó «la pista no entrega cuadros» de «el `<video>` no pinta».
+
 Deja `NN-*.png`, `resultados.json` y `registro.json` (las líneas que irían a `enlaces.log`: cámara, contadores
 `video-datos tx … motivos=…`, `visibilidad …`). `salida/` y `capturas/` no se suben.
 

@@ -344,6 +344,86 @@ describe("MotorLlamada", () => {
         b.colgar();
     });
 
+    it("(LLA1111A) cambiar a una cámara que no abre deja la elegida de antes, su imagen y lo recordado", async () => {
+        const medios = await import("@/lib/llamadas/medios");
+        const mapa = new Map<string, string>();
+        vi.stubGlobal("localStorage", { getItem: (k: string) => mapa.get(k) ?? null, setItem: (k: string, v: string) => void mapa.set(k, v), removeItem: (k: string) => void mapa.delete(k), clear: () => mapa.clear() });
+        const a = new MotorLlamada({ sesionId: "s-cam", yo: yo("a"), intervaloNivelMs: 60_000, intervaloStatsMs: 60_000 });
+        await a.prepararMedios({ audio: true, video: false });
+        a.entrar();
+        expect(await a.alternarCamara()).toBeNull();
+        const antes = a.estado().seleccion.camaraId;
+        const guardadoAntes = localStorage.getItem("starseed.llamadas.dispositivos");
+        expect(antes).toBe("video-1");
+        expect(guardadoAntes).toContain("video-1");
+        vi.mocked(medios.obtenerPista).mockResolvedValueOnce({ pista: null, error: "La cámara está ocupada por otra aplicación." });
+        expect(await a.cambiarCamara("ocupada-2")).toMatch(/ocupada/);
+        expect(a.estado().seleccion.camaraId).toBe(antes);
+        expect(a.estado().camara).toBe(true);
+        expect(localStorage.getItem("starseed.llamadas.dispositivos")).toBe(guardadoAntes);
+        a.colgar();
+        vi.unstubAllGlobals();
+    });
+
+    it("(LLA1111H) cuadros decodificados + <video> que lleva ≥ 2,5 s sin pintar: no cuenta como «imagen por WebRTC»; si avisa tarde o vuelve a pintar, sí", () => {
+        vi.useFakeTimers({ toFake: ["Date"] });
+        try {
+            vi.setSystemTime(1_000_000);
+            const m = new MotorLlamada({ sesionId: "s-wv", yo: yo("a"), intervaloNivelMs: 60_000, intervaloStatsMs: 60_000 });
+            const priv = m as unknown as { webConImagen(par: unknown): boolean; cuadrosWeb: Map<string, { n: number; en: number; pidiendo: boolean; ultimo: number }> };
+            const par = { id: "b:t", conexion: "conectado", stream: { getVideoTracks: () => [{ readyState: "live", muted: true }] } };
+            const decodificando = () => priv.cuadrosWeb.set("b:t", { n: 50, en: Date.now(), pidiendo: false, ultimo: Date.now() });
+            decodificando();
+            expect(priv.webConImagen(par)).toBe(true); // sin noticias del <video>: valen las estadísticas
+            m.informarVideoWebPinta("b:t", false);
+            vi.setSystemTime(1_001_500);
+            decodificando();
+            m.informarVideoWebPinta("b:t", false); // lo repite cada 1,5 s; «desde» no se mueve
+            expect(priv.webConImagen(par)).toBe(true); // 1,5 s: aún puede ser el primer cuadro
+            vi.setSystemTime(1_003_000);
+            decodificando();
+            m.informarVideoWebPinta("b:t", false);
+            expect(priv.webConImagen(par)).toBe(false); // 3 s sin pintar con cuadros decodificándose: el <video> no la enseña
+            m.informarVideoWebPinta("b:t", null);
+            expect(priv.webConImagen(par)).toBe(true); // pestaña oculta o superficie fuera: no se sabe
+            // Histéresis: dicho que no pinta, un cuadro suelto no lo desdice; hace falta pintar sin parar ≥ 3 s.
+            m.informarVideoWebPinta("b:t", false);
+            vi.setSystemTime(1_005_600);
+            decodificando();
+            m.informarVideoWebPinta("b:t", false);
+            expect(priv.webConImagen(par)).toBe(false);
+            m.informarVideoWebPinta("b:t", true);
+            vi.setSystemTime(1_007_000);
+            decodificando();
+            m.informarVideoWebPinta("b:t", true);
+            expect(priv.webConImagen(par)).toBe(false); // 1,4 s pintando: aún no
+            vi.setSystemTime(1_008_700);
+            decodificando();
+            m.informarVideoWebPinta("b:t", true);
+            expect(priv.webConImagen(par)).toBe(true); // 3,1 s pintando: vuelve a valer la imagen de WebRTC
+            m.informarVideoWebPinta("b:t", false);
+            vi.setSystemTime(1_030_000); // el aviso es viejo (la superficie se fue): no manda
+            decodificando();
+            expect(priv.webConImagen(par)).toBe(true);
+            m.colgar();
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it("(LLA1111H) elegir una cámara con la cámara apagada solo la apunta: no queda recordada hasta que abre", async () => {
+        const mapa = new Map<string, string>();
+        vi.stubGlobal("localStorage", { getItem: (k: string) => mapa.get(k) ?? null, setItem: (k: string, v: string) => void mapa.set(k, v), removeItem: (k: string) => void mapa.delete(k), clear: () => mapa.clear() });
+        const a = new MotorLlamada({ sesionId: "s-cam2", yo: yo("a"), intervaloNivelMs: 60_000, intervaloStatsMs: 60_000 });
+        await a.prepararMedios({ audio: true, video: false });
+        a.entrar();
+        expect(await a.cambiarCamara("elegida-3")).toBeNull();
+        expect(a.estado().seleccion.camaraId).toBe("elegida-3");
+        expect(localStorage.getItem("starseed.llamadas.dispositivos") ?? "").not.toContain("elegida-3");
+        a.colgar();
+        vi.unstubAllGlobals();
+    });
+
     it("con 8 personas dentro, la novena recibe un aviso amable y no conecta", async () => {
         for (let i = 0; i < 8; i++) {
             const m = new MotorLlamada({ sesionId: "s3", yo: yo(`p${i}`), intervaloNivelMs: 60_000, intervaloStatsMs: 60_000 });

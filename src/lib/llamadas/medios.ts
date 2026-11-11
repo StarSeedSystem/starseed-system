@@ -10,7 +10,9 @@ import type { AjustesMedios } from "@/lib/llamadas/permiso-medios";
 import type { DispositivosMedios } from "@/lib/llamadas/tipos";
 import { explicarFalloMedios } from "@/lib/nativa/medios-nativos";
 import { esAppNativa } from "@/lib/nativa/puente";
-import { describirCamaras, elegirCamaraPorDefecto, guardarPreferencia, leerPreferencias, lineaCamaraElegida, plataformaDe, type CamaraInfo, type Plataforma, restriccionesDeOpciones, leerCapacidades } from "@/lib/llamadas/camaras";
+import { describirCamaras, elegirCamaraPorDefecto, leerPreferencias, lineaCamaraElegida, plataformaDe, type CamaraInfo, type Plataforma, restriccionesDeOpciones, leerCapacidades, restriccionesVideoDeseadas, textoRestricciones } from "@/lib/llamadas/camaras";
+// LLA1111A · lo puro de las restricciones vive en camaras.ts (lo usa también el adaptador); se reexporta aquí.
+export { esPlataformaMovil, textoRestricciones } from "@/lib/llamadas/camaras";
 import { anotarLlamada } from "@/lib/llamadas/voz-datos/diagnostico";
 import { getDeviceId } from "@/lib/network/device-registry";
 // PRM1109A (paso 4) · el motor de permisos es el único que habla con el
@@ -88,11 +90,6 @@ export function restriccionesAudio(microId?: string | null): MediaTrackConstrain
     };
 }
 
-/** LLA1111A · ¿aparato con cámara frontal/trasera (teléfono o tableta)? Solo ahí tiene sentido pedir `facingMode`. */
-export function esPlataformaMovil(plataforma: Plataforma): boolean {
-    return plataforma === "android" || plataforma === "ios";
-}
-
 function plataformaActual(): Plataforma {
     return plataformaDe(typeof navigator !== "undefined" ? navigator.userAgent : "");
 }
@@ -105,12 +102,7 @@ function plataformaActual(): Plataforma {
  * Un `ideal` nunca hace fallar la apertura: el motor da lo más parecido que tenga la cámara.
  */
 export function restriccionesVideo(camaraId?: string | null, plataforma: Plataforma = plataformaActual(), eco = modoEco()): MediaTrackConstraints {
-    return {
-        width: { ideal: eco ? 640 : 1280 },
-        height: { ideal: eco ? 360 : 720 },
-        frameRate: { ideal: eco ? 15 : 24 },
-        ...(camaraId ? { deviceId: { exact: camaraId } } : esPlataformaMovil(plataforma) ? { facingMode: { ideal: "user" } } : {}),
-    };
+    return restriccionesVideoDeseadas(camaraId, plataforma, eco);
 }
 
 export type NombrePeldano = "deseo" | "solo-id" | "libre";
@@ -129,24 +121,6 @@ export function escaleraCamara(camaraId: string | null | undefined, plataforma: 
     if (camaraId) out.push({ paso: "solo-id", video: { deviceId: { exact: camaraId } } });
     out.push({ paso: "libre", video: true });
     return out;
-}
-
-/** «width:ideal=1280,frameRate:ideal=24,deviceId:exact» para el registro (sin el id: es largo y no aporta). */
-export function textoRestricciones(v: MediaTrackConstraints | boolean | undefined): string {
-    if (v === true) return "ninguna";
-    if (!v) return "no";
-    const partes: string[] = [];
-    for (const [k, val] of Object.entries(v as Record<string, unknown>)) {
-        if (val === undefined) continue;
-        if (k === "deviceId" || k === "groupId") {
-            partes.push(`${k}:${val && typeof val === "object" ? Object.keys(val).join("+") : "bare"}`);
-        } else if (val && typeof val === "object" && !Array.isArray(val)) {
-            for (const [m, x] of Object.entries(val as Record<string, unknown>)) partes.push(`${k}:${m}=${String(x)}`);
-        } else {
-            partes.push(`${k}:bare=${String(val)}`);
-        }
-    }
-    return partes.join(",") || "vacia";
 }
 
 /** Nombre y restricción que falló de un error de getUserMedia (`OverconstrainedError.constraint`). */
@@ -355,7 +329,6 @@ export async function obtenerMedios(p: { audio: boolean; video: boolean; microId
             anotarLlamada("camara", null, `tras-libre pedida=${destino ? `"${destino.etiqueta}"` : "no-esta"} ${ok ? "abierta" : "no-abre"}`);
             if (!ok && !p.audio) {
                 pararStream(stream);
-                restaurarPreferencia(p.camaraId, neurona);
                 const nombre = destino?.nombre ?? "La cámara elegida";
                 return { stream: null, error: destino ? `${nombre} no se pudo abrir. Sigue la cámara que tenías; prueba otra vez o elige otra.` : "Esa cámara ya no está conectada. Elige otra en Puertos › Cámara.", aviso: null };
             }
@@ -364,7 +337,6 @@ export async function obtenerMedios(p: { audio: boolean; video: boolean; microId
             await afinarCamara(md, stream, p.camaraId, neurona, plataforma);
         }
         await aplicarOpcionesGuardadas(stream.getVideoTracks()[0]);
-        recordarAbierta(stream.getVideoTracks()[0]);
         return { stream, error: null, aviso: null };
     } catch (err) {
         // (LLA1110D) Todo fallo de medios queda en el registro del enlace (nombre del error, restricción y qué se pidió).
@@ -378,33 +350,8 @@ export async function obtenerMedios(p: { audio: boolean; video: boolean; microId
                 return errorBloqueante(err2, p);
             }
         }
-        if (p.camaraId) restaurarPreferencia(p.camaraId, neurona);
         const r = await errorBloqueante(err, p);
         return { ...r, error: (await textoCamaraListada(md, err)) ?? r.error };
-    }
-}
-
-/** LLA1111A · la última cámara que de verdad abrió en este aparato (id y etiqueta). */
-let ultimaAbierta: { id: string; etiqueta: string } | null = null;
-
-function recordarAbierta(pista: MediaStreamTrack | undefined) {
-    const id = pista?.getSettings?.().deviceId;
-    if (id) ultimaAbierta = { id, etiqueta: pista?.label ?? "" };
-}
-
-/**
- * LLA1111A · el motor recuerda la cámara elegida en el selector ANTES de abrirla; si no abre, quedaba como la de por
- * defecto de las llamadas siguientes (en el banco, una cámara ocupada pasaba a ser «la guardada»). Si lo guardado es la
- * que no abrió, se vuelve a dejar la última que abrió.
- */
-function restaurarPreferencia(fallidaId: string, neurona: string) {
-    try {
-        const g = leerPreferencias(neurona).camara;
-        if (!g || g.id !== fallidaId || !ultimaAbierta || ultimaAbierta.id === fallidaId) return;
-        guardarPreferencia(neurona, { camara: { ...ultimaAbierta } });
-        anotarLlamada("camara", null, `preferencia-restaurada a="${ultimaAbierta.etiqueta.replace(/"/g, "'").slice(0, 40)}" (la elegida no abrió)`);
-    } catch {
-        /* sin almacenamiento */
     }
 }
 

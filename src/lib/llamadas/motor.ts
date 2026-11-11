@@ -571,7 +571,10 @@ export class MotorLlamada {
                 /* noop */
             }
             for (const par of this.pares.values()) this.ponerEnEmisor(par, "video", r.pista);
-            this.set({ seleccion: { ...this.e.seleccion, camaraId: this.idDispositivo(r.pista) ?? this.e.seleccion.camaraId } });
+            const abierta = this.idDispositivo(r.pista) ?? this.e.seleccion.camaraId;
+            this.set({ seleccion: { ...this.e.seleccion, camaraId: abierta } });
+            // (LLA1111A) Se recuerda la que de verdad abrió (no la pedida antes de abrir).
+            if (abierta) this.recordarDispositivo("camara", abierta, r.pista.label ? [{ id: abierta, nombre: r.pista.label }] : this.e.dispositivos.camaras);
         }
         this.publicarMeta();
         this.emitir();
@@ -666,15 +669,21 @@ export class MotorLlamada {
     }
 
     async cambiarCamara(id: string): Promise<string | null> {
-        this.set({ seleccion: { ...this.e.seleccion, camaraId: id } });
-        this.recordarDispositivo("camara", id, this.e.dispositivos.camaras);
-        if (!this.camaraOn) return null;
+        // (LLA1111A) Con la cámara apagada solo se apunta la elegida; se recuerda cuando abre (en `alternarCamaraAhora`).
+        if (!this.camaraOn) {
+            this.set({ seleccion: { ...this.e.seleccion, camaraId: id } });
+            return null;
+        }
         const r = await obtenerPista("video", id);
+        // (LLA1111A) Si no abre, sigue la elegida de antes y su imagen: antes se apuntaba y recordaba ANTES de abrir, y la
+        // que fallaba quedaba como seleccionada y como la de por defecto de las llamadas siguientes.
         if (!r.pista) return r.error;
         if (this.cerrado) {
             r.pista.stop();
             return null;
         }
+        this.set({ seleccion: { ...this.e.seleccion, camaraId: id } });
+        this.recordarDispositivo("camara", id, this.e.dispositivos.camaras);
         const vieja = this.pistaCamara;
         this.pistaCamara = r.pista;
         if (!this.pantallaOn) {
@@ -1089,6 +1098,19 @@ export class MotorLlamada {
             void this.revisarCanal(false);
             return;
         }
+        if (s.tipo === "app" && s.carga?.k === "web-imagen") {
+            // (LLA1111A) El otro dice si ve mi vídeo por WebRTC (solo cuenta lo que va para mí).
+            if (s.carga.para === this.miId) {
+                const si = s.carga.si === true;
+                const antes = this.otroVeWeb.get(s.de);
+                this.otroVeWeb.set(s.de, { si, en: Date.now() });
+                if (!antes || antes.si !== si) {
+                    anotarLlamada("medio=video-datos", this.opc.vozDatos?.neurona ?? null, `par=${s.de} el-otro-ve-mi-video-webrtc=${si ? "si" : "no"}`);
+                    void this.sincronizarVideoDatos(s.de);
+                }
+            }
+            return;
+        }
         if (s.tipo === "app") {
             // (LLA1108G) Mensajes de la superficie; un oyente roto no para la llamada.
             for (const cb of Array.from(this.oyentesApp)) {
@@ -1419,6 +1441,9 @@ export class MotorLlamada {
         this.carrilDatos.delete(id);
         this.vozDatosDesde.delete(id);
         this.cuadrosWeb.delete(id);
+        this.otroVeWeb.delete(id);
+        this.videoWebPinta.delete(id);
+        this.imagenWebContada.delete(id);
         const par = this.pares.get(id);
         if (!par) return;
         this.pares.delete(id);
@@ -1647,6 +1672,7 @@ export class MotorLlamada {
      */
     private revisarCarriles(id: string, par: Par, tr: TransporteVoz | null) {
         this.medirCuadrosWeb(id, par);
+        this.contarImagenWeb(id, par);
         this.medirVidaWeb(id, par);
         const sel = this.selectorDe(id);
         const reloj = this.relojVoz();
@@ -1951,16 +1977,98 @@ export class MotorLlamada {
         if (!par || par.conexion !== "conectado") return false;
         try {
             const vivas = par.stream?.getVideoTracks().filter((t) => t.readyState === "live") ?? [];
-            if (vivas.some((t) => !t.muted)) return true;
-            // Chromium deja a veces la pista «muted» aunque lleguen y se decodifiquen cuadros (tras un rollback): cuentan
-            // los cuadros decodificados de verdad (getStats), medidos en el tic.
-            return vivas.length > 0 && Date.now() - (this.cuadrosWeb.get(par.id)?.en ?? -Infinity) < 3000;
+            if (!vivas.length) return false;
+            // (LLA1111A) Mandan los cuadros decodificados de verdad (getStats, medidos en el tic), no la marca «muted»: en el
+            // banco la pista seguía «muted» con imagen, y también SIN «muted» con los cuadros parados (rx congelado y el
+            // <video> en 0x0): con la marca se soltaba el vídeo ligero y el otro se quedaba en negro. Solo si este motor no
+            // da estadísticas se usa la marca.
+            const c = this.cuadrosWeb.get(par.id);
+            if (c && c.ultimo > 0 && !c.sinStats) return Date.now() - c.en < 3000 && !this.videoWebSinPintar(par.id);
+            return vivas.some((t) => !t.muted) && !this.videoWebSinPintar(par.id);
         } catch {
             return false;
         }
     }
 
-    private readonly cuadrosWeb = new Map<string, { n: number; en: number; pidiendo: boolean; ultimo: number }>();
+    private readonly cuadrosWeb = new Map<string, { n: number; en: number; pidiendo: boolean; ultimo: number; sinStats?: boolean }>();
+
+    /**
+     * (LLA1111A) Lo que el OTRO dice de mi vídeo por WebRTC: ¿le llegan cuadros? En el banco, 3 de cada 20 llamadas el
+     * carril de vídeo pasaba a WebRTC con ICE «conectado» pero sin que llegara ni un cuadro al otro lado (rx congelado,
+     * `<video>` 0x0): quien manda dejaba el vídeo ligero porque SU carril decía WebRTC y el otro se quedaba en negro.
+     * Ahora cada lado cuenta al otro si ve su vídeo por WebRTC, y quien manda sigue con el vídeo ligero mientras el otro
+     * diga que no (y la sesión de vídeo ligero vive mientras tanto). Sin noticias (otra versión) vale lo de antes.
+     */
+    private readonly otroVeWeb = new Map<string, { si: boolean; en: number }>();
+    private readonly imagenWebContada = new Map<string, { si: boolean; en: number }>();
+
+    /** Le dice al par si me llega imagen suya por WebRTC (al cambiar, y cada 4 s para refrescar). */
+    private contarImagenWeb(id: string, par: Par) {
+        const si = this.webConImagen(par);
+        const antes = this.imagenWebContada.get(id);
+        const ahora = Date.now();
+        if (antes && antes.si === si && ahora - antes.en < 4000) return;
+        this.imagenWebContada.set(id, { si, en: ahora });
+        this.enviar({ tipo: "app", de: this.miId, carga: { k: "web-imagen", para: id, si } });
+        if (!antes || antes.si !== si) anotarLlamada("medio=video-datos", this.opc.vozDatos?.neurona ?? null, `par=${id} veo-su-video-webrtc=${si ? "si" : "no"}`);
+    }
+
+    /**
+     * (LLA1111H) Lo que cuenta el <video> de la superficie: si pinta cuadros de verdad. En el banco hubo pistas «muted» cuyo
+     * decodificador iba bien (getStats: cuadros decodificados que suben) y que no entregaban ni un cuadro a ningún <video> (ni a
+     * un lector directo de la pista): solo el elemento lo sabe. `desde` es cuándo cambió; `null` = no se sabe (pestaña oculta).
+     */
+    private readonly videoWebPinta = new Map<string, { pinta: boolean; desde: number; en: number; marcado: boolean }>();
+
+    informarVideoWebPinta(parId: string, pinta: boolean | null) {
+        const antes = this.videoWebPinta.get(parId);
+        if (pinta === null) {
+            // No se sabe (pestaña oculta, la superficie se fue): no vale lo anterior.
+            if (antes) {
+                this.videoWebPinta.delete(parId);
+                this.revisarCarrilesYa(parId);
+            }
+            return;
+        }
+        const ahora = Date.now();
+        const cambia = !antes || antes.pinta !== pinta;
+        this.videoWebPinta.set(parId, { pinta, desde: cambia ? ahora : antes!.desde, en: ahora, marcado: antes?.marcado ?? false });
+        if (cambia) this.revisarCarrilesYa(parId);
+    }
+
+    /**
+     * ¿El <video> lleva ≥ 2,5 s sin pintar? Entonces las estadísticas de WebRTC no valen como «hay imagen». Con histéresis:
+     * una vez dicho, solo se desdice cuando pinta sin parar ≥ 3 s (un cuadro suelto de una pista atascada no basta; sin esto el
+     * juicio oscilaba cada pocos segundos y el otro lado dejaba y retomaba el vídeo ligero). Un aviso de hace más de 5 s no cuenta.
+     */
+    private videoWebSinPintar(id: string): boolean {
+        const r = this.videoWebPinta.get(id);
+        if (!r) return false;
+        const ahora = Date.now();
+        if (ahora - r.en >= 5000) {
+            this.videoWebPinta.delete(id);
+            return false;
+        }
+        if (!r.pinta && ahora - r.desde >= 2500) r.marcado = true;
+        if (r.marcado && r.pinta && ahora - r.desde >= 3000) r.marcado = false;
+        return r.marcado;
+    }
+
+    private revisarCarrilesYa(id: string) {
+        const t = this.ticsMedio.get(id);
+        if (!t) return;
+        try {
+            t();
+        } catch {
+            /* un tic nunca tumba la llamada */
+        }
+    }
+
+    /** ¿El otro dijo hace poco que NO le llega mi vídeo por WebRTC? */
+    private otroSinImagenWeb(id: string): boolean {
+        const r = this.otroVeWeb.get(id);
+        return !!r && !r.si && Date.now() - r.en < 10_000;
+    }
 
     /* ───────────────────── Comprobación de vida de WebRTC y señales de red (MLL1111C) ───────────────────── */
 
@@ -2066,8 +2174,11 @@ export class MotorLlamada {
                 });
                 if (n > cc.n) cc.en = Date.now();
                 cc.n = n;
+                cc.sinStats = false;
             })
-            .catch(() => undefined)
+            .catch(() => {
+                cc.sinStats = true;
+            })
             .finally(() => {
                 cc.pidiendo = false;
                 cc.ultimo = Date.now();
@@ -2113,7 +2224,7 @@ export class MotorLlamada {
         // (LLA1110D) El vídeo ligero vive mientras el carril de vídeo de ese par sea el enlace de datos (no «mientras WebRTC no conecte»).
         // Y también mientras la pista de WebRTC de ese par no traiga imagen: en el relevo datos → WebRTC el lienzo sigue
         // hasta que el <video> tenga cuadros, y en WebRTC → datos arranca en cuanto WebRTC se cae (sin hueco negro).
-        const deseada = !!par && !!voz?.estado().activa && (this.videoPorDatos(id, par) || !this.webConImagen(par));
+        const deseada = !!par && !!voz?.estado().activa && (this.videoPorDatos(id, par) || !this.webConImagen(par) || this.otroSinImagenWeb(id));
         if (!deseada) {
             this.pararVideoDatos(id);
             return;
@@ -2158,7 +2269,8 @@ export class MotorLlamada {
         if (!s) return;
         // (LLA1110D) Solo se manda imagen por datos si el carril de vídeo de este lado es el de datos (con WebRTC sano la
         // sesión sigue viva solo para RECIBIR hasta que el <video> del otro tenga imagen).
-        const quiere = this.camaraOn && !this.pantallaOn && this.videoPorDatos(id, par) ? this.pistaCamara : null;
+        // (LLA1111A) …y también mientras el otro diga que no le llega mi vídeo por WebRTC (si no, se queda en negro).
+        const quiere = this.camaraOn && !this.pantallaOn && (this.videoPorDatos(id, par) || this.otroSinImagenWeb(id)) ? this.pistaCamara : null;
         const actual = this.pistaFuenteVideo.get(id) ?? null;
         if (quiere && actual !== quiere) {
             const f = vid.fuenteDePista(quiere);

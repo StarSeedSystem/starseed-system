@@ -10,9 +10,10 @@
  *  · se acepta un tope de gente (el del motor) y se explica en vez de fallar callado.
  * Sin React ni DOM: el motor y todo lo del aparato entran por `MotorMinimo` y `DepsAdaptador` (así se prueba).
  */
-import { camaraParaEncender, clasificarCamara, correccionTrasAbrir, describirCamaras, lineaCamaraElegida, type CamaraInfo } from "@/lib/llamadas/camaras";
+import { camaraParaEncender, clasificarCamara, correccionTrasAbrir, describirCamaras, lineaCamaraElegida, plataformaDe, restriccionesVideoDeseadas, textoRestricciones, type CamaraInfo, type Plataforma } from "@/lib/llamadas/camaras";
 import { lienzoLigeroReciente } from "@/lib/llamadas/video-datos/lienzos";
-import type { CargaApp, EstadoLlamada, ParticipanteLlamada } from "@/lib/llamadas/tipos";
+import type { CargaApp, CarrilesParVista, EstadoLlamada, ParticipanteLlamada } from "@/lib/llamadas/tipos";
+import type { Carril } from "@/lib/llamadas/carriles";
 import type { ResumenLlamada } from "@/lib/llamadas/motor";
 import { MAX_PARTICIPANTES } from "@/lib/llamadas/tipos";
 import type { EstadoSuperficie, FinSuperficie, TipoSuperficie } from "./maquina";
@@ -50,6 +51,8 @@ export interface MotorMinimo {
   cambiarMicro?(id: string): Promise<string | null>;
   actualizarDispositivos?(): Promise<void>;
   colgar(motivo?: string): ResumenLlamada;
+  /** (LLA1111H) El <video> de WebRTC de ese par pinta cuadros de verdad (null: no se sabe). */
+  informarVideoWebPinta?(parId: string, pinta: boolean | null): void;
   metricasPares?(): Array<{ id: string; rttMs: number | null; perdidos: number; recibidos: number; jitterMs: number | null }>;
 }
 
@@ -115,6 +118,8 @@ export interface DepsAdaptador {
   lienzoLigero?: () => HTMLCanvasElement | null;
   /** LLA1110C: cuánto se espera a que el aparato abra la cámara antes de decir que no responde (ms). */
   esperaCamaraMs?: number;
+  /** (LLA1111H) Plataforma del aparato para el registro de restricciones (para probar; por defecto, la del navegador). */
+  plataforma?: () => Plataforma;
 }
 
 /** LLA1110C: ¿esta pista de vídeo trae imagen ahora? (viva y no «muted»: una pista WebRTC sin ruta llega muda). */
@@ -233,6 +238,8 @@ export class AdaptadorMotor {
   private readonly ahora: () => number;
   private readonly nuevoId: () => string;
   readonly acciones: AccionesLlamada;
+  /** (LLA1111H) El participante que ocupa el foco en la última vista (a quien se refiere lo que el <video> cuenta). */
+  private focoId: string | null = null;
 
   constructor(
     private readonly motor: MotorMinimo,
@@ -515,6 +522,9 @@ export class AdaptadorMotor {
       cambiarTipo: (a) => this.cambiarTipo(a),
       invitar: (quien) => this.invitar(quien),
       elegirMedio: (m) => this.elegirMedio(m),
+      videoWebPinta: (pinta) => {
+        if (this.focoId) this.motor.informarVideoWebPinta?.(this.focoId, pinta);
+      },
       iniciarGrabacion: () => this.empezarGrabacion(),
       pararGrabacion: () => this.pararGrabacionInterno(),
       destinoGrabacion: (d) => this.resolverGrabacion(d),
@@ -582,7 +592,7 @@ export class AdaptadorMotor {
     clearTimeout(id);
     if (r === "__plazo__") {
       this.anotarCamara(`sin-respuesta ${que} ms=${ms}`);
-      return `La cámara no responde (${que}). Si es la del iPhone, desbloquéalo o elige la de este aparato en Calidad › Cámara.`;
+      return `La cámara no responde (${que}). Si es la del iPhone, desbloquéalo o elige la de este aparato en Puertos › Cámara.`;
     }
     return r;
   }
@@ -598,7 +608,7 @@ export class AdaptadorMotor {
     const pref = this.deps.preferenciaCamara?.() ?? null;
     const eleccion = camaraParaEncender(lista, e.seleccion.camaraId, pref);
     const pedida = lista.find((c) => c.id === eleccion.id) ?? null;
-    this.anotarCamara(`pedida lista=${textoListaCamaras(lista) || "vacia"} elegir=${pedida ? `"${(pedida.etiqueta || pedida.nombre).slice(0, 30)}"` : "sistema"} motivo=${eleccion.motivo} restr=${eleccion.id ? "deviceId-exacto" : "facingMode-user"}`);
+    this.anotarCamara(`pedida lista=${textoListaCamaras(lista) || "vacia"} elegir=${pedida ? `"${(pedida.etiqueta || pedida.nombre).slice(0, 30)}"` : "sistema"} motivo=${eleccion.motivo} restr=${textoRestricciones(restriccionesVideoDeseadas(eleccion.id, this.deps.plataforma?.() ?? plataformaDe(typeof navigator !== "undefined" ? navigator.userAgent : ""), typeof document !== "undefined" && document.documentElement.getAttribute("data-perf") === "eco"))}`);
     if (eleccion.id && eleccion.id !== e.seleccion.camaraId) {
       // Con la cámara apagada, el motor solo apunta la elegida (y la recuerda); la abrirá al encender.
       const err = await this.motor.cambiarCamara(eleccion.id).catch(() => null);
@@ -1006,6 +1016,7 @@ export class AdaptadorMotor {
     const conLienzo = (p: ParticipanteLlamada): HTMLCanvasElement | null => p.lienzo ?? (ligero && !streamTraeVideo(p.stream) && p === otros.find((o) => !streamTraeVideo(o.stream)) ? ligero : null);
     const tieneImagen = (p: ParticipanteLlamada) => !!conLienzo(p) || !!p.stream;
     const foco: ParticipanteLlamada | null = otros.find((p) => p.pantalla && tieneImagen(p)) ?? otros.find((p) => p.id === e.hablante && tieneImagen(p)) ?? otros.find((p) => p.camara && tieneImagen(p)) ?? otros.find((p) => tieneImagen(p)) ?? null;
+    this.focoId = foco?.id ?? null;
     const ctx = this.contextoMatriz(e);
     const nombre = this.deps.unoAUno ? (otros[0]?.nombre ?? this.deps.titulo) : this.deps.titulo;
     const metricas = this.motor.metricasPares?.() ?? [];
@@ -1063,7 +1074,7 @@ export class AdaptadorMotor {
       participantes,
       calidad: calidadConMedio,
       medioElegido: this.medioElegido,
-      opcionesMedio: this.opcionesDeMedio().map((o) => (o.medio === "automatico" ? o : { ...o, disponible: false, motivo: ctx.medio === "bluetooth" && o.medio === "bluetooth" ? "Es el medio que lleva la voz ahora; el motor lo elige solo." : o.motivo })),
+      opcionesMedio: opcionesMedioConCarriles(this.opcionesDeMedio(), e.carriles?.[0] ?? null),
       textoMedio: e.medio ? `${e.medio.texto}${e.medio.calidadTexto ? ` · ${e.medio.calidadTexto}` : ""}${textoVideoLigero(e.videoDatos)}` : null,
       // (LLA1110D) Por dónde va cada flujo (solo con un par: en grupo cada uno tiene los suyos).
       textoCarriles: e.carriles && e.carriles.length === 1 && e.carriles[0].texto ? e.carriles[0].texto : null,
@@ -1083,4 +1094,43 @@ export class AdaptadorMotor {
       topeInvitar: MAX_PARTICIPANTES,
     };
   }
+}
+
+/** (LLA1111A) A qué medio de la lista pertenece cada carril. */
+const MEDIO_DE_CARRIL: Partial<Record<Carril, Exclude<MedioLlamada, "automatico">>> = {
+  "ble-l2cap": "bluetooth",
+  "ble-gatt": "bluetooth",
+  "lan-tcp": "red-local",
+  "wifi-direct": "wifi-directo",
+  "wifi-aware": "wifi-directo",
+  awdl: "wifi-directo",
+};
+const NOMBRE_FLUJO_MEDIO: Record<"voz" | "video" | "pantalla", string> = { voz: "la voz", video: "el vídeo", pantalla: "la pantalla" };
+
+/**
+ * (LLA1111A) Los medios dichos con lo que hay de verdad: qué medio lleva cada flujo ahora y cuál tiene enlace (por los
+ * carriles del motor). Un medio concreto no se fija desde aquí (el motor elige solo; a mano se fija el carril de cada
+ * flujo en «Medio»), así que solo «Automático» queda elegible. Antes Bluetooth salía como «no puede llevar audio».
+ */
+export function opcionesMedioConCarriles(base: OpcionMedio[], par: CarrilesParVista | null): OpcionMedio[] {
+  const lleva = new Map<Exclude<MedioLlamada, "automatico">, string[]>();
+  const hay = new Set<Exclude<MedioLlamada, "automatico">>();
+  if (par) {
+    for (const c of [par.voz, par.video, par.pantalla, par.senal, par.datos]) {
+      const m = c ? MEDIO_DE_CARRIL[c] : undefined;
+      if (m) hay.add(m);
+    }
+    for (const f of ["voz", "video", "pantalla"] as const) {
+      const c = par[f];
+      const m = c ? MEDIO_DE_CARRIL[c] : undefined;
+      if (m) lleva.set(m, [...(lleva.get(m) ?? []), NOMBRE_FLUJO_MEDIO[f]]);
+    }
+  }
+  return base.map((o) => {
+    if (o.medio === "automatico") return o;
+    const flujos = lleva.get(o.medio);
+    if (flujos?.length) return { ...o, disponible: false, motivo: `Lleva ${flujos.join(", ")} ahora; el motor lo elige solo (a mano: «Carril de cada flujo»).` };
+    if (hay.has(o.medio)) return { ...o, disponible: false, motivo: "Hay enlace por este medio; para usarlo a mano, elige el carril de cada flujo." };
+    return { ...o, disponible: false };
+  });
 }

@@ -17,22 +17,26 @@ export const ETIQUETA_MEDIO: Record<MedioLlamada, string> = {
   bluetooth: "Bluetooth",
 };
 
-/** Lo que cada medio puede llevar HOY. Bluetooth aún no lleva audio ni vídeo en tiempo real. */
+/**
+ * Lo que cada medio puede llevar HOY. (LLA1111A/H) Bluetooth SÍ lleva la voz (por el enlace de datos) y el vídeo ligero de
+ * baja resolución: funciona entre la Mac y la tableta desde la prueba.32. La pantalla compartida NO cabe por Bluetooth
+ * (la llamada la sube sola a Wi‑Fi directo si se permite). Va el último en el orden de recambio porque es el más estrecho.
+ */
 const LLEVA: Record<Exclude<MedioLlamada, "automatico">, { tiempoReal: boolean; pantalla: boolean; video: boolean }> = {
   "red-local": { tiempoReal: true, pantalla: true, video: true },
   "wifi-directo": { tiempoReal: true, pantalla: true, video: true },
   cuenta: { tiempoReal: true, pantalla: true, video: true },
   turn: { tiempoReal: true, pantalla: true, video: true },
-  bluetooth: { tiempoReal: false, pantalla: false, video: false },
+  bluetooth: { tiempoReal: true, pantalla: false, video: true },
 };
 
 export function medioPuedeLlevar(medio: Exclude<MedioLlamada, "automatico">, tipo: TipoSuperficie): { ok: boolean; motivo?: string } {
   const c = LLEVA[medio];
   if (!c.tiempoReal) {
-    return { ok: false, motivo: `${ETIQUETA_MEDIO[medio]} todavía no puede llevar audio ni vídeo en tiempo real; solo mensajes y archivos.` };
+    return { ok: false, motivo: `${ETIQUETA_MEDIO[medio]} no puede llevar voz ni vídeo en tiempo real; solo mensajes y archivos.` };
   }
   if ((tipo === "video" || tipo === "vivo") && !c.video) return { ok: false, motivo: `${ETIQUETA_MEDIO[medio]} no lleva vídeo.` };
-  if (tipo === "pantalla" && !c.pantalla) return { ok: false, motivo: `${ETIQUETA_MEDIO[medio]} no lleva pantalla compartida.` };
+  if (tipo === "pantalla" && !c.pantalla) return { ok: false, motivo: `${ETIQUETA_MEDIO[medio]} no lleva la pantalla compartida: no cabe.${medio === "bluetooth" ? " La voz y el vídeo ligero sí van por Bluetooth." : ""}` };
   return { ok: true };
 }
 
@@ -57,7 +61,7 @@ export function opcionesMedio(tipo: TipoSuperficie, hay: Partial<Record<Exclude<
       medio: m,
       etiqueta: ETIQUETA_MEDIO[m],
       disponible: c.ok && esta,
-      motivo: !c.ok ? (c.motivo as string) : esta ? "Disponible con esta persona." : "No hay enlace por este medio ahora mismo.",
+      motivo: !c.ok ? (c.motivo as string) : esta ? (m === "bluetooth" ? "Disponible con esta persona: voz y vídeo ligero (baja resolución)." : "Disponible con esta persona.") : "No hay enlace por este medio ahora mismo.",
     });
   }
   return lista;

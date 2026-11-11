@@ -140,6 +140,15 @@ async function comprobarRemoto(caso, quien, de, captura) {
   await quien.screenshot({ path: join(capturas, `${captura}.png`) });
   const r = await quien.evaluate(() => window.banco.resumen());
   anotar(caso, viva(m), `${txt(m)} · remoto=${JSON.stringify(r?.remoto)} lienzo=${r?.remotoLienzo} tipo=${r?.tipo} tamaño=${await quien.locator("[data-tamano]").first().getAttribute("data-tamano").catch(() => "?")}`);
+  if (!viva(m)) {
+    // LLA1111H · al fallar, el estado de los dos lados para leerlo sin repetirlo (vídeo ligero, carriles, sonda, líneas del registro).
+    const lado = async (p) => p.evaluate(async () => {
+      const r = window.banco.resumen();
+      const reg = window.banco.registro.filter((l) => /web-imagen|ve-mi-video|veo-su-video|video-datos (tx|rx|sesion|inicia|para)|carril .*flujo=video/.test(l)).slice(-8).join(" | ");
+      return `videoDatos=${JSON.stringify(r?.videoDatos)} carriles=${JSON.stringify(r?.carriles?.[0]?.video)} sonda=[${await window.banco.sonda?.()}] reg=${reg.slice(0, 900)}`;
+    });
+    console.log(`ESTADO-FALLO ${caso}\n  quien: ${await lado(quien)}\n  de: ${await lado(de)}`);
+  }
   return m;
 }
 async function comprobarLocal(caso, p, captura) {
@@ -237,7 +246,7 @@ try {
     const on2 = await esperarHasta(mac, () => window.banco.resumen()?.camara === true, 10000);
     anotar("2.ª llamada · la cámara de la Mac se enciende", on2, JSON.stringify(await mac.evaluate(() => ({ aviso: window.banco.resumen()?.aviso, pista: window.banco.resumen()?.pistaCamara }))));
     const reg2 = await mac.evaluate(() => window.banco.registro);
-    anotar("2.ª llamada · con etiquetas, la integrada se pide directamente (deviceId exacto)", lineas(reg2, /restr=deviceId-exacto/).length > 0 && /FaceTime/.test(await mac.evaluate(() => window.banco.resumen()?.pistaCamara ?? "")), lineas(reg2, /camara /).slice(0, 2).join(" | ").slice(0, 300));
+    anotar("2.ª llamada · con etiquetas, la integrada se pide directamente (deviceId exacto)", lineas(reg2, /restr=.*deviceId:exact/).length > 0 && /FaceTime/.test(await mac.evaluate(() => window.banco.resumen()?.pistaCamara ?? "")), lineas(reg2, /camara /).slice(0, 2).join(" | ").slice(0, 300));
     await comprobarRemoto("2.ª llamada · la tableta ve a la Mac", tableta, mac, "06-ble-segunda-llamada");
     await camara(tableta);
     await comprobarRemoto("2.ª llamada · la Mac ve a la tableta", mac, tableta, "07-ble-segunda-mac-ve-tableta");
@@ -512,12 +521,106 @@ try {
   }
 
   /* 5 · (LLA1110D) Casos combinados: motor con carriles por flujo + ventana real en los dos lados. */
-  /** Brillo medio del mosaico remoto cada ~350 ms durante `ms`: cuenta las muestras oscuras (hueco negro o parpadeo). */
+  /**
+   * LLA1111A · lo que cuenta es la PÁGINA: un vigía con requestAnimationFrame mira en cada cuadro lo que está encima del
+   * mosaico (el lienzo, o el <video> con imagen y dibujado en un canvas); más una lectura así cada ~350 ms. La captura de
+   * Playwright se sigue tomando y se informa, pero no decide: en 20 vueltas dio negros sueltos justo en el relevo con el
+   * vigía a 0 cuadros negros (la captura del <video> en Chromium sin cabeza a veces sale vacía).
+   * Brillo del mosaico remoto cada ~350 ms durante `ms`, medido de DOS maneras: la captura de Playwright y
+   * la página misma (lo que hay encima en el mosaico: el lienzo leído con getImageData, o el <video> dibujado en un
+   * canvas, con su cuenta de requestVideoFrameCallback). Cuenta muestras oscuras de cada una y cuadros congelados.
+   */
   const muestrear = async (p, ms) => {
     const fin = Date.now() + ms;
     const medias = [];
+    const paginas = [];
+    let congeladas = 0;
+    let prev = null;
+    const detalleOscuras = [];
+    const serie = [];
+    const sondas = [];
+    // Vigía dentro de la página, cuadro a cuadro (requestAnimationFrame): ¿lo que está encima en el mosaico tiene imagen?
+    await p.evaluate(() => {
+      const w = (window.__vigia = { cuadros: 0, negros: 0, ejemplos: [], vivo: true });
+      const c = document.createElement("canvas");
+      c.width = 8; c.height = 8;
+      const x = c.getContext("2d", { willReadFrequently: true });
+      const lum = (fuente, fw, fh) => {
+        try {
+          x.drawImage(fuente, 0, 0, fw, fh, 0, 0, 8, 8);
+          const d = x.getImageData(0, 0, 8, 8).data;
+          let s = 0;
+          for (let i = 0; i < d.length; i += 4) s += 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+          return s / 64;
+        } catch {
+          return -1;
+        }
+      };
+      const paso = () => {
+        if (!w.vivo) return;
+        w.cuadros++;
+        const cont = document.querySelector("[data-layout] [data-imagen-remota]") ?? document.querySelector("[data-layout] > div");
+        let modo = cont?.getAttribute("data-imagen-remota") ?? (cont?.querySelector("[data-lienzo-ligero] canvas") ? "lienzo" : cont?.querySelector("video[data-remoto]") ? "video" : "nada");
+        let l = 0;
+        if (modo === "lienzo") {
+          const lz = cont.querySelector("[data-lienzo-ligero] canvas");
+          l = lz ? lum(lz, lz.width, lz.height) : 0;
+        } else if (modo === "video") {
+          const v = cont.querySelector("video[data-remoto]");
+          l = v && v.videoWidth && v.readyState >= 2 ? lum(v, v.videoWidth, v.videoHeight) : 0;
+        }
+        if (l >= 0 && l < 35) {
+          w.negros++;
+          if (w.ejemplos.length < 6) w.ejemplos.push(`${Math.round(performance.now())}:${modo}:${Math.round(l)}`);
+        }
+        requestAnimationFrame(paso);
+      };
+      requestAnimationFrame(paso);
+    });
     while (Date.now() < fin) {
       await abrirPanel(p);
+      const pag = await p.evaluate(() => {
+        // Lo que está encima en el mosaico (con la superficie de antes de LLA1111A, el <video> o el lienzo sueltos).
+        const cont = document.querySelector("[data-layout] [data-imagen-remota]") ?? document.querySelector("[data-layout] > div");
+        if (!cont) return { modo: "nada", lum: 0 };
+        const modo = cont.getAttribute("data-imagen-remota") ?? (cont.querySelector("[data-lienzo-ligero] canvas") ? "lienzo" : cont.querySelector("video[data-remoto]") ? "video" : "nada");
+        const vv = window.banco.vista();
+        const capa = cont.querySelector("[data-capa-lienzo]")?.getAttribute("data-capa-lienzo") ?? "-";
+        const pistaV = vv?.remoto?.getVideoTracks?.()[0];
+        const ctx = `L${vv?.remotoLienzo ? 1 : 0}${capa[0]}${pistaV ? (pistaV.muted ? "m" : "v") : "-"}${(vv?.remoto?.id ?? "-").slice(0, 3)}`;
+        if (modo === "nada") return { modo, lum: 0, ctx };
+        const lumDe = (fuente, w, h) => {
+          try {
+            const c = document.createElement("canvas");
+            c.width = 32; c.height = 18;
+            const x = c.getContext("2d");
+            x.drawImage(fuente, 0, 0, w || 32, h || 18, 0, 0, 32, 18);
+            const d = x.getImageData(0, 0, 32, 18).data;
+            let s = 0;
+            for (let i = 0; i < d.length; i += 4) s += 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+            return Math.round(s / (d.length / 4));
+          } catch {
+            return -1;
+          }
+        };
+        if (modo === "lienzo") {
+          const lz = cont.querySelector("[data-lienzo-ligero] canvas");
+          return { modo, lum: lz ? lumDe(lz, lz.width, lz.height) : 0, ctx };
+        }
+        const v = cont.querySelector("video[data-remoto]") ?? cont.querySelector("video");
+        if (!v) return { modo, lum: 0, ctx };
+        if (!v.__rvfc && v.requestVideoFrameCallback) {
+          v.__rvfc = 0;
+          const f = () => { v.__rvfc++; v.requestVideoFrameCallback(f); };
+          v.requestVideoFrameCallback(f);
+        }
+        return { modo, lum: v.videoWidth ? lumDe(v, v.videoWidth, v.videoHeight) : 0, rvfc: v.__rvfc ?? 0, w: v.videoWidth, h: v.videoHeight, ctx };
+      });
+      if (prev && pag.modo === "video" && prev.modo === "video" && pag.rvfc === prev.rvfc) congeladas++;
+      if (pag.lum >= 0 && pag.lum < 35) detalleOscuras.push(`${pag.modo}:${pag.lum}${pag.rvfc !== undefined ? `/rvfc=${pag.rvfc}` : ""}${pag.w !== undefined ? `/${pag.w}x${pag.h}` : ""}`);
+      prev = pag;
+      paginas.push(pag.lum);
+      const ficha = `${pag.modo[0]}${pag.lum < 35 ? "!" : ""}${pag.ctx ?? ""}${pag.rvfc !== undefined ? `r${pag.rvfc}` : ""}`;
       const loc = p.locator(REMOTO).first();
       const caja = (await loc.count()) ? await loc.boundingBox() : null;
       if (!caja || caja.width < 4) {
@@ -535,16 +638,34 @@ try {
           return Math.round(s / n);
         }, b64));
       }
+      serie.push(`${ficha}${medias[medias.length - 1] < 35 ? "C!" : ""}`);
+      sondas.push(`${Math.round((Date.now() - (fin - ms)) / 100) / 10}s ${await p.evaluate(() => window.banco.sonda?.() ?? "")}`);
       await espera(150);
     }
+    const vigia = await p.evaluate(() => {
+      const w = window.__vigia;
+      w.vivo = false;
+      return { cuadros: w.cuadros, negros: w.negros, ejemplos: w.ejemplos };
+    });
     const oscuras = medias.filter((m) => m < 35).length;
-    return { oscuras, n: medias.length, min: Math.min(...medias), txt: `oscuras=${oscuras}/${medias.length} min=${Math.min(...medias)}` };
+    // LLA1111H · una captura oscura SUELTA con la página en negro 0 veces es la captura de Playwright vacía (se informa y no
+    // decide); dos seguidas (≈0,7 s) o la página en negro, sí. Es negro de verdad.
+    let seguidas = 0, rachaMax = 0;
+    for (const m of medias) { seguidas = m < 35 ? seguidas + 1 : 0; rachaMax = Math.max(rachaMax, seguidas); }
+    const negroReal = vigia.negros > 0 || paginas.some((m) => m >= 0 && m < 35) || rachaMax >= 2;
+    const oscurasPagina = paginas.filter((m) => m >= 0 && m < 35).length;
+    return { sondas, negroReal, oscuras, oscurasPagina, vigia, congeladas, n: medias.length, min: Math.min(...medias), txt: `cuadros negros en la página=${vigia.negros}/${vigia.cuadros}${vigia.ejemplos.length ? ` [${vigia.ejemplos.join(" ")}]` : ""} oscuras captura=${oscuras}/${medias.length} página=${oscurasPagina} congeladas=${congeladas} min=${Math.min(...medias)}${detalleOscuras.length ? ` oscuras-página=[${detalleOscuras.slice(0, 4).join(" ")}]` : ""}${detalleOscuras.length || oscuras ? ` serie=${(() => { const i = serie.findIndex((x) => x.includes("!")); return serie.slice(Math.max(0, i - 4), i + 6).join(" "); })()}` : ""}` };
   };
   const resumenDe = (p) => p.evaluate(() => window.banco.resumen());
   const lineaCarriles = async (p) => (await p.locator("[data-carriles]").first().textContent().catch(() => null)) ?? null;
 
-  if (!soloCaso || soloCaso === "carriles") {
-    const ok = await llamada("car-1", { sinIp: true, ipDinamica: true });
+  // LLA1111A · REPETIR=n corre el caso n veces (para sacar una tasa: cada vuelta anota sus casos con «#i»).
+  const vueltasCarriles = soloCaso === "carriles" ? Math.max(1, +(process.env.REPETIR ?? 1)) : 1;
+  const anotarFuera = anotar;
+  for (let rep = 0; rep < vueltasCarriles && (!soloCaso || soloCaso === "carriles"); rep++) {
+    const anotar = (caso, ok, detalle) => anotarFuera(vueltasCarriles > 1 ? `${caso} #${rep + 1}` : caso, ok, detalle);
+    await mac.evaluate(() => window.banco.registro.splice(0));
+    const ok = await llamada(`car-${rep + 1}`, { sinIp: true, ipDinamica: true });
     anotar("carriles · solo Bluetooth: conecta por el enlace de datos", ok, JSON.stringify((await resumenDe(mac))?.medio));
     await camara(mac);
     await camara(tableta);
@@ -553,7 +674,12 @@ try {
     // Aparece la ruta IP en los dos: el vídeo sube a WebRTC (3 s de evidencia), la voz se queda en el enlace de datos.
     await Promise.all([mac.evaluate(() => window.banco.ip(true)), tableta.evaluate(() => window.banco.ip(true))]);
     const relevo = await muestrear(tableta, 14000);
-    anotar("carriles · relevo datos → WebRTC sin hueco negro (la tableta mira a la Mac)", relevo.oscuras === 0, relevo.txt);
+    anotar("carriles · relevo datos → WebRTC sin hueco negro (la tableta mira a la Mac)", !relevo.negroReal, relevo.txt);
+    if (relevo.negroReal && !globalThis.__rescatado) {
+      globalThis.__rescatado = true;
+      console.log(`RESCATE relevo #${rep + 1}: ${await Promise.race([tableta.evaluate(() => window.banco.rescate()), espera(30000).then(() => "sin-respuesta")])}`);
+    }
+    if (relevo.negroReal) console.log(`SONDA relevo #${rep + 1}\n${relevo.sondas.join("\n")}`);
     await esperarHasta(mac, () => window.banco.resumen()?.carriles?.[0]?.video === "webrtc", 15000);
     const rM = await resumenDe(mac);
     const rT = await resumenDe(tableta);
@@ -568,14 +694,28 @@ try {
     // La IP se corta a mitad de llamada: el vídeo vuelve al enlace de datos y se sigue viendo.
     await Promise.all([mac.evaluate(() => window.banco.ip(false)), tableta.evaluate(() => window.banco.ip(false))]);
     const corte = await muestrear(tableta, 14000);
-    anotar("carriles · corte de IP: la tableta sigue viendo a la Mac (sin hueco negro largo)", corte.oscuras <= 1, corte.txt);
+    anotar("carriles · corte de IP: la tableta sigue viendo a la Mac (sin negro)", !corte.negroReal, corte.txt);
+    if (corte.negroReal) console.log(`SONDA corte #${rep + 1}\n${corte.sondas.join("\n")}`);
     await comprobarRemoto("carriles · corte de IP: la tableta ve a la Mac por el enlace de datos", tableta, mac, "15-car-corte-tableta-ve-mac");
     const rC = await resumenDe(mac);
     anotar("carriles · corte de IP: la llamada sigue y el vídeo pasa al enlace de datos", rC?.fase === "en-curso" && rC?.carriles?.[0]?.video !== "webrtc", `fase=${rC?.fase} carriles=${JSON.stringify(rC?.carriles?.[0])}`);
     // Vuelve la IP.
     await Promise.all([mac.evaluate(() => window.banco.ip(true)), tableta.evaluate(() => window.banco.ip(true))]);
     const vuelta = await muestrear(tableta, 16000);
-    anotar("carriles · vuelve la IP: sin hueco negro", vuelta.oscuras === 0, vuelta.txt);
+    // LLA1111A · lo que había en el mosaico al terminar (para leer un fallo sin repetirlo): pista del <video>, pistas recibidas, cuadros.
+    const foto = await tableta.evaluate(async () => {
+      const v = document.querySelector("[data-layout] video[data-remoto]");
+      const t = v?.srcObject?.getVideoTracks?.()[0];
+      const reg = window.banco.registro.filter((l) => /reenganche|carril .*flujo=video|ice|renego/.test(l)).slice(-6).join(" | ");
+      return `video=${v ? `${v.readyState}/${v.videoWidth}x${v.videoHeight} pista=${t ? `${t.id.slice(0, 8)}${t.muted ? "/muda" : ""}` : "-"}` : "no"} recibidas=[${window.banco.pistasRecibidas().join(",")}] stats=${(await window.banco.stats()).slice(0, 160)} reg=${reg.slice(0, 400)}`;
+    });
+    const emisoresMac = `${await mac.evaluate(() => window.banco.emisores?.() ?? "")} stats-mac=${(await mac.evaluate(() => window.banco.stats())).slice(0, 120)} recepcion-tableta=${await Promise.race([tableta.evaluate(() => window.banco.probarRecepcion?.() ?? ""), espera(6000).then(() => "sin-respuesta")])}`;
+    anotar("carriles · vuelve la IP: sin hueco negro", !vuelta.negroReal, `${vuelta.txt} · ${foto} · emisores-mac=${emisoresMac}`);
+    if (vuelta.negroReal && !globalThis.__rescatado) {
+      globalThis.__rescatado = true;
+      console.log(`RESCATE vuelta #${rep + 1}: ${await Promise.race([tableta.evaluate(() => window.banco.rescate()), espera(30000).then(() => "sin-respuesta")])}`);
+    }
+    if (vuelta.negroReal) console.log(`SONDA vuelta #${rep + 1}\n${vuelta.sondas.join("\n")}`);
     await esperarHasta(mac, () => window.banco.resumen()?.carriles?.[0]?.video === "webrtc", 20000);
     await comprobarRemoto("carriles · vuelve la IP: la tableta ve a la Mac por WebRTC", tableta, mac, "16-car-vuelta-tableta-ve-mac");
     const reg = await mac.evaluate(() => window.banco.registro);
