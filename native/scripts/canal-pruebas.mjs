@@ -177,18 +177,46 @@ export function nombreDeUrl(url) {
   return decodeURIComponent(String(url ?? "").split("?")[0].split("/").pop() || "");
 }
 
+/** Plataformas que un latest-prueba.json completo trae (clave base de tauri-action, sin «-nsis», «-app»…). */
+export const PLATAFORMAS_ESPERADAS = ["darwin-aarch64", "darwin-x86_64", "windows-x86_64", "linux-x86_64"];
+
+/** PURA. Qué plataformas esperadas no están en un manifiesto (por su clave base). */
+export function plataformasQueFaltan(platforms) {
+  const base = new Set(Object.keys(platforms ?? {}).map((k) => k.split("-").slice(0, 2).join("-")));
+  return PLATAFORMAS_ESPERADAS.filter((p) => !base.has(p));
+}
+
 /**
- * PURA. latest-prueba.json a partir del latest.json de tauri-action: misma versión que el plan y TODAS
- * sus plataformas con firma. `faltan` dice qué no vale (sin firma no se publica: el updater lo rechazaría).
+ * PURA. latest-prueba.json a partir del latest.json de tauri-action: misma versión que el plan y las
+ * plataformas que tengan firma. `faltan` dice qué no vale (sin firma no se publica: el updater lo rechazaría).
+ * (CI1111M) Una plataforma solo entra si el archivo detrás de su URL es de ESTA versión (lleva la versión en el
+ * nombre: así ninguna prueba posterior lo pisa), existe en la prerelease (`archivos`, si se pasa) y la firma del
+ * manifiesto es la del `.sig` subido junto a él (`firmas`: nombre → contenido, si se pasa). Así el manifiesto y
+ * el archivo al que apunta no pueden discrepar.
  */
-export function manifiestoEscritorio(latest, { version, notas }) {
+export function manifiestoEscritorio(latest, { version, notas, archivos, firmas }) {
   const faltan = [];
   if (!latest || typeof latest !== "object") return { faltan: ["no hay latest.json"], manifiesto: null };
   if (latest.version !== version && latest.version !== `v${version}`) faltan.push(`versión ${latest.version} ≠ ${version}`);
+  const existentes = archivos ? new Set(archivos) : null;
   const platforms = {};
   for (const [clave, p] of Object.entries(latest.platforms ?? {})) {
     if (!p || typeof p.signature !== "string" || !p.signature.trim() || typeof p.url !== "string") {
       faltan.push(`${clave}: sin firma o sin url`);
+      continue;
+    }
+    const nombre = nombreDeUrl(p.url);
+    if (!nombre.includes(version)) {
+      faltan.push(`${clave}: ${nombre || p.url} no es de ${version} (heredado de una prueba anterior)`);
+      continue;
+    }
+    if (existentes && !(existentes.has(nombre) && existentes.has(`${nombre}.sig`))) {
+      faltan.push(`${clave}: ${nombre} o su .sig no están en la prerelease`);
+      continue;
+    }
+    const sigSubida = firmas?.[`${nombre}.sig`];
+    if (typeof sigSubida === "string" && sigSubida.trim() !== p.signature.trim()) {
+      faltan.push(`${clave}: la firma del manifiesto no es la del ${nombre}.sig subido`);
       continue;
     }
     platforms[clave] = { signature: p.signature, url: p.url };
@@ -275,7 +303,11 @@ export async function publicar(o) {
 
   // 1) Escritorio: el latest.json de tauri-action pasa a latest-prueba.json (con las notas de la prueba).
   if (assets["latest.json"]) {
-    const { faltan, manifiesto } = manifiestoEscritorio(JSON.parse(await contenido(REPO, assets["latest.json"])), { version: VERSION, notas });
+    const latest = JSON.parse(await contenido(REPO, assets["latest.json"]));
+    // Los .sig que hay en la prerelease, para comprobar que la firma del manifiesto es la del archivo subido.
+    const firmas = {};
+    for (const [n, a] of Object.entries(assets)) if (n.endsWith(".sig") && n.includes(VERSION)) firmas[n] = await contenido(REPO, a);
+    const { faltan, manifiesto } = manifiestoEscritorio(latest, { version: VERSION, notas, archivos: Object.keys(assets), firmas });
     if (faltan.length && !Object.keys(manifiesto?.platforms ?? {}).length) {
       lineas.push(`- ✗ latest-prueba.json NO se publica: ${faltan.join(" · ")}`);
       fallo = true;
@@ -285,6 +317,8 @@ export async function publicar(o) {
       const subida = release.upload_url.replace(/\{.*\}$/, `?name=${MANIFIESTO_ESCRITORIO}`);
       await gh(subida, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(manifiesto, null, 2) });
       lineas.push(`- ✓ ${MANIFIESTO_ESCRITORIO}: ${VERSION} · ${Object.keys(manifiesto.platforms).join(", ")}`);
+      const sin = plataformasQueFaltan(manifiesto.platforms);
+      if (sin.length) lineas.push(`- ⚠ latest-prueba.json sale SIN: ${sin.join(", ")} (esa plataforma falló, se colgó o no tiene firma; las demás no esperan)`);
     }
     // Intermedio de tauri-action: fuera (la próxima prueba empieza limpia).
     await gh(`/repos/${REPO}/releases/assets/${assets["latest.json"].id}`, { method: "DELETE" });

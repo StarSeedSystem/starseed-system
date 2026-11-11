@@ -288,6 +288,9 @@ jobs:
             args: ""
 
     runs-on: ${{ matrix.platform }}
+    # (CI1111M) Tope del job: un build normal tarda ~20 min por plataforma. Sin tope, un runner colgado esperaba 6 h
+    # y retenía a canal-pruebas-publicar (que espera a toda la matriz). Con él, el job se corta y se publica sin esa plataforma.
+    timeout-minutes: 50
 
     steps:
       - name: Checkout del repositorio
@@ -311,11 +314,19 @@ jobs:
           node-version: 20
 
       # ── Dependencias de sistema de Tauri en Linux ──
+      # (CI1111M) apt puede quedarse colgado en un espejo (run 43033153388: 48 min en este paso, y el re-run igual).
+      # Ahora cada intento tiene su tope (`timeout`), apt reintenta y se rinde solo (Acquire::Retries/Timeout) y el
+      # paso entero tiene `timeout-minutes`: si no hay manera, el job de Linux sale en rojo en minutos y no retiene
+      # a los demás (latest-prueba.json se publica sin Linux).
       - name: Dependencias de Linux (Tauri)
         if: matrix.platform == 'ubuntu-24.04'
+        timeout-minutes: 14
+        shell: bash
         run: |
-          sudo apt-get update
-          sudo apt-get install -y \
+          APT="-o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 -o Dpkg::Lock::Timeout=60"
+          for INTENTO in 1 2 3; do
+            echo "apt · intento $INTENTO de 3"
+            if sudo timeout 80 apt-get $APT update && sudo timeout 140 apt-get $APT install -y \
             libwebkit2gtk-4.1-dev \
             libgtk-3-dev \
             libayatana-appindicator3-dev \
@@ -334,7 +345,15 @@ jobs:
             libxdo-dev \
             libgbm-dev \
             libfuse2t64 \
-            file
+            file; then
+              exit 0
+            fi
+            echo "::warning::apt falló o se quedó sin respuesta (intento $INTENTO de 3)"
+            sudo dpkg --configure -a || true
+            sleep $((INTENTO * 10))
+          done
+          echo "::error::No se pudieron instalar las dependencias de Linux tras 3 intentos."
+          exit 1
 
       # ── Iconos del sistema que toca (regenera native/src-tauri/icons/) ──
       - name: Generar iconos para «${{ matrix.system }}»
@@ -492,6 +511,11 @@ jobs:
           # sí (el latest.json de v0.1.0 llegó a apuntar Linux a StarSeed.Nexus).
           # Nexus y Café tienen su canal propio: lo escribe `canales-updater`.
           includeUpdaterJson: ${{ matrix.system == 'os' }}
+          # (CI1111M) Canal de pruebas, macOS: el paquete del updater se llamaba igual en TODAS las versiones
+          # (StarSeed.OS_universal.app.tar.gz) y cada prueba pisaba el de la anterior mientras latest-prueba.json aún
+          # apuntaba a él con la firma vieja. Con la versión en el nombre cada prueba tiene su archivo y el
+          # manifiesto vigente nunca cambia de contenido bajo sus pies. Windows y Linux ya llevan la versión.
+          assetNamePattern: ${{ inputs.canal == 'pruebas' && matrix.platform == 'macos-latest' && '[name]_[version]_[arch][ext]' || '' }}
           # Config extra por sistema + args de target de la matriz (+ en pruebas, Linux sin .rpm · INT1108C).
           args: ${{ steps.cfg.outputs.flag }} ${{ matrix.args }} ${{ steps.cfg.outputs.bundles }}
 
@@ -544,6 +568,11 @@ jobs:
           # sí (el latest.json de v0.1.0 llegó a apuntar Linux a StarSeed.Nexus).
           # Nexus y Café tienen su canal propio: lo escribe `canales-updater`.
           includeUpdaterJson: ${{ matrix.system == 'os' }}
+          # (CI1111M) Canal de pruebas, macOS: el paquete del updater se llamaba igual en TODAS las versiones
+          # (StarSeed.OS_universal.app.tar.gz) y cada prueba pisaba el de la anterior mientras latest-prueba.json aún
+          # apuntaba a él con la firma vieja. Con la versión en el nombre cada prueba tiene su archivo y el
+          # manifiesto vigente nunca cambia de contenido bajo sus pies. Windows y Linux ya llevan la versión.
+          assetNamePattern: ${{ inputs.canal == 'pruebas' && matrix.platform == 'macos-latest' && '[name]_[version]_[arch][ext]' || '' }}
           # Config extra por sistema + args de target de la matriz (+ en pruebas, Linux sin .rpm · INT1108C).
           args: ${{ steps.cfg.outputs.flag }} ${{ matrix.args }} ${{ steps.cfg.outputs.bundles }}
 
@@ -671,6 +700,8 @@ jobs:
       matrix:
         system: ${{ fromJSON(inputs.canal == 'pruebas' && '["os"]' || '["os","nexus","cafe"]') }}
     runs-on: ubuntu-22.04
+    # (CI1111M) Tope del job (ver build-desktop). Con el servidor local de Android encendido espera hasta 60 min al build de Next.
+    timeout-minutes: ${{ (inputs.servidor_local_android == true || vars.STARSEED_SERVIDOR_LOCAL_ANDROID == '1') && 120 || 60 }}
     # (AND1107A) `actions: read` solo para esperar el artefacto `servidor-local-next` cuando el
     # interruptor del servidor local está encendido; `contents: write` es el de siempre (Release).
     permissions:
@@ -1028,6 +1059,7 @@ jobs:
     needs: [canal-pruebas-plan, build-desktop, build-android]
     if: ${{ !cancelled() && github.event_name == 'workflow_dispatch' && inputs.canal == 'pruebas' && needs.canal-pruebas-plan.result == 'success' }}
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

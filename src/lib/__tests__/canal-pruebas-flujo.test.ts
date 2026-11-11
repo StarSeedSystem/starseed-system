@@ -23,6 +23,7 @@ import {
   MANIFIESTO_ANDROID,
   MANIFIESTO_ESCRITORIO,
   plan,
+  plataformasQueFaltan,
   rangoPrueba,
   sellarCargo,
   sellarConf,
@@ -161,6 +162,49 @@ describe("versión y versionCode del canal de pruebas (canal-pruebas.mjs)", () =
   });
 });
 
+describe("CI1111M · el manifiesto y el archivo detrás de su URL no discrepan", () => {
+  const V = "0.5.1-prueba.37";
+  const u = (n: string) => `https://github.com/o/r/releases/download/canal-pruebas/${n}`;
+  const mac = `StarSeed.OS_${V}_universal.app.tar.gz`;
+  const latest = (platforms: Record<string, { signature: string; url: string }>) => ({ version: V, notes: "", pub_date: "2026-11-11T08:00:00Z", platforms });
+
+  it("una plataforma heredada de una prueba anterior (nombre sin esta versión) se deja fuera", () => {
+    const { faltan, manifiesto } = manifiestoEscritorio(
+      latest({ "darwin-aarch64": { signature: "S", url: u("StarSeed.OS_universal.app.tar.gz") }, "linux-x86_64": { signature: "L", url: u(`StarSeed.OS_${V}_amd64.AppImage`) } }),
+      { version: V, notas: "n" },
+    );
+    expect(Object.keys(manifiesto!.platforms)).toEqual(["linux-x86_64"]);
+    expect(faltan.join()).toMatch(/darwin-aarch64.*no es de 0\.5\.1-prueba\.37/);
+  });
+
+  it("con la lista de archivos: sin el archivo o sin su .sig no entra; con firma distinta tampoco", () => {
+    const l = latest({ "darwin-aarch64": { signature: "S1", url: u(mac) } });
+    const ok = manifiestoEscritorio(l, { version: V, notas: "", archivos: [mac, `${mac}.sig`], firmas: { [`${mac}.sig`]: "S1\n" } });
+    expect(Object.keys(ok.manifiesto!.platforms)).toEqual(["darwin-aarch64"]);
+    expect(ok.faltan).toEqual([]);
+    expect(manifiestoEscritorio(l, { version: V, notas: "", archivos: [mac] }).faltan.join()).toMatch(/no están en la prerelease/);
+    const otra = manifiestoEscritorio(l, { version: V, notas: "", archivos: [mac, `${mac}.sig`], firmas: { [`${mac}.sig`]: "S2" } });
+    expect(otra.faltan.join()).toMatch(/firma del manifiesto no es la del/);
+    expect(Object.keys(otra.manifiesto!.platforms)).toEqual([]);
+  });
+
+  it("qué plataformas faltan en el resumen", () => {
+    expect(plataformasQueFaltan({ "darwin-aarch64": {}, "darwin-aarch64-app": {}, "darwin-x86_64": {}, "windows-x86_64-nsis": {}, "windows-x86_64": {} })).toEqual(["linux-x86_64"]);
+    expect(plataformasQueFaltan({})).toHaveLength(4);
+  });
+
+  it("limpieza con nombres versionados: lo de la prueba anterior sale, y el paquete viejo sin versión también", () => {
+    const escritorio = { platforms: { "darwin-aarch64": { url: u(mac) } } };
+    const nombres = [MANIFIESTO_ESCRITORIO, MANIFIESTO_ANDROID, mac, `${mac}.sig`, "StarSeed.OS_0.5.1-prueba.36_universal.app.tar.gz", "StarSeed.OS_0.5.1-prueba.36_universal.app.tar.gz.sig", "StarSeed.OS_universal.app.tar.gz", "StarSeed.OS_universal.app.tar.gz.sig"];
+    expect(sobrantes(nombres, { escritorio, android: null, version: V })).toEqual([
+      "StarSeed.OS_0.5.1-prueba.36_universal.app.tar.gz",
+      "StarSeed.OS_0.5.1-prueba.36_universal.app.tar.gz.sig",
+      "StarSeed.OS_universal.app.tar.gz",
+      "StarSeed.OS_universal.app.tar.gz.sig",
+    ]);
+  });
+});
+
 describe("native-build.yml · canal de pruebas", () => {
   it("input `canal` con oficial por defecto y pruebas", () => {
     const canal = flujo.on.workflow_dispatch.inputs.canal;
@@ -280,6 +324,34 @@ describe("native-build.yml · canal de pruebas", () => {
     expect(subir).toContain("--clobber");
   });
 
+  it("(CI1111M) topes: apt acotado con reintentos, jobs con timeout y macOS con la versión en el nombre del paquete", () => {
+    const apt = paso("build-desktop", "Dependencias de Linux (Tauri)") as Paso & { "timeout-minutes"?: number };
+    expect(apt["timeout-minutes"]).toBeLessThanOrEqual(15);
+    expect(apt.run).toContain("Acquire::Retries=3");
+    expect(apt.run).toContain("Acquire::http::Timeout=30");
+    expect(apt.run).toMatch(/for INTENTO in 1 2 3/);
+    expect(apt.run).toMatch(/sudo timeout \d+ apt-get \$APT update/);
+    expect(apt.run).toMatch(/sudo timeout \d+ apt-get \$APT install/);
+    expect(apt.run).toContain("exit 1"); // tras los 3 intentos, en rojo
+    // 3 intentos acotados caben en el tope del paso
+    const topes = [...apt.run!.matchAll(/sudo timeout (\d+) apt-get/g)].map((m) => Number(m[1]));
+    expect((topes.reduce((a, b) => a + b, 0) * 3) / 60).toBeLessThan(apt["timeout-minutes"]!);
+    for (const j of ["build-desktop", "build-android", "canal-pruebas-publicar"]) {
+      expect((flujo.jobs[j] as unknown as Record<string, unknown>)["timeout-minutes"], j).toBeDefined();
+    }
+    expect(Number((flujo.jobs["build-desktop"] as unknown as Record<string, unknown>)["timeout-minutes"])).toBeLessThanOrEqual(60);
+    // el publicador no depende de que todo termine bien: corre aunque una plataforma haya fallado
+    expect(flujo.jobs["canal-pruebas-publicar"].if).toContain("!cancelled()");
+    expect(flujo.jobs["canal-pruebas-publicar"].if).not.toContain("needs.build-desktop.result");
+    const tauri = flujo.jobs["build-desktop"].steps.filter((s) => s.uses?.startsWith("tauri-apps/tauri-action"));
+    for (const t of tauri) {
+      const patron = String(t.with!.assetNamePattern);
+      expect(patron).toContain("inputs.canal == 'pruebas'");
+      expect(patron).toContain("matrix.platform == 'macos-latest'");
+      expect(patron).toContain("'[name]_[version]_[arch][ext]'");
+    }
+  });
+
   it("publicar: al final, con lo que salió de escritorio y Android, y en rojo si falla", () => {
     const job = flujo.jobs["canal-pruebas-publicar"];
     expect(job.needs).toEqual(["canal-pruebas-plan", "build-desktop", "build-android"]);
@@ -374,7 +446,7 @@ describe("publicar (con una API de GitHub de mentira)", () => {
         "StarSeed.OS_0.5.1-prueba.22_universal.app.tar.gz": "x",
         "StarSeed-os-0.5.1-prueba.22.apk": "x",
         [`StarSeed.OS_${V}_universal.app.tar.gz`]: "x",
-        [`StarSeed.OS_${V}_universal.app.tar.gz.sig`]: "x",
+        [`StarSeed.OS_${V}_universal.app.tar.gz.sig`]: "FIRMA",
         [`StarSeed-os-${V}.apk`]: "x",
       },
       { ESCRITORIO: "success", ANDROID: "success" },
@@ -403,6 +475,37 @@ describe("publicar (con una API de GitHub de mentira)", () => {
     expect(g.subidos).toEqual([]);
     expect(g.nombres()).toContain("StarSeed.OS_0.5.1-prueba.22_universal.app.tar.gz");
     expect(g.borrados).toEqual(["StarSeed-os-0.5.1-prueba.22.apk"]);
+  });
+
+  it("(CI1111M) Linux colgó: la Mac y Android salen en el manifiesto, el resumen dice que falta Linux y el paquete de la prueba anterior sigue ahí hasta el final", async () => {
+    const mac = `StarSeed.OS_${V}_universal.app.tar.gz`;
+    const g = await correr(
+      {
+        "latest.json": latest(V),
+        [MANIFIESTO_ESCRITORIO]: latest("0.5.1-prueba.22"),
+        [MANIFIESTO_ANDROID]: android(V, 5_000_002),
+        "StarSeed.OS_0.5.1-prueba.22_universal.app.tar.gz": "x",
+        "StarSeed.OS_0.5.1-prueba.22_universal.app.tar.gz.sig": "x",
+        [mac]: "x",
+        [`${mac}.sig`]: "FIRMA",
+        [`StarSeed-os-${V}.apk`]: "x",
+      },
+      { ESCRITORIO: "failure", ANDROID: "success" },
+    );
+    expect(g.r.fallo).toBe(false);
+    expect(JSON.parse(g.leerAsset(MANIFIESTO_ESCRITORIO)!).version).toBe(V);
+    expect(g.r.lineas.join("\n")).toMatch(/SIN: .*linux-x86_64/);
+    // El manifiesto se escribe ANTES de borrar el paquete que apuntaba el anterior.
+    expect(g.borrados.indexOf("StarSeed.OS_0.5.1-prueba.22_universal.app.tar.gz")).toBeGreaterThan(-1);
+    expect(g.nombres()).toContain(mac);
+  });
+
+  it("(CI1111M) latest.json con un paquete cuyo nombre es de otra versión: no se publica esa plataforma", async () => {
+    const heredado = JSON.stringify({ version: V, notes: "", pub_date: "x", platforms: { "darwin-aarch64": { signature: "VIEJA", url: url("StarSeed.OS_universal.app.tar.gz") } } });
+    const g = await correr({ "latest.json": heredado, [MANIFIESTO_ESCRITORIO]: latest("0.5.1-prueba.22"), "StarSeed.OS_universal.app.tar.gz": "x", "StarSeed.OS_universal.app.tar.gz.sig": "VIEJA" }, { ESCRITORIO: "success", ANDROID: "skipped" });
+    expect(g.subidos).toEqual([]);
+    expect(g.r.lineas.join("\n")).toMatch(/NO se publica/);
+    expect(JSON.parse(g.leerAsset(MANIFIESTO_ESCRITORIO)!).version).toBe("0.5.1-prueba.22");
   });
 
   it("instaladores sin latest.json firmado → en rojo", async () => {

@@ -257,6 +257,24 @@ Al final, `canal-pruebas-publicar` borra todo lo que ya no apunta ningún manifi
 plataforma falla en una prueba, su manifiesto sigue en la prueba anterior y sus archivos se quedan.
 Dos pruebas a la vez van en fila (`concurrency: native-canal-pruebas`).
 
+**Una plataforma colgada o caída no retiene a las demás ni deja el manifiesto mentiroso (CI1111M · run 43033153388).**
+- Tiempos: el paso de dependencias de Linux (apt) tiene tope de 14 min, 3 intentos con tope propio y
+  `Acquire::Retries/Timeout`; `build-desktop` y `build-android` tienen `timeout-minutes` (50 / 60) y
+  `canal-pruebas-publicar` 15. Una plataforma que se cuelga acaba en rojo y el publicador corre en cuanto
+  las demás terminan (`!cancelled()`): `latest-prueba.json` sale SIN ella y el resumen dice cuál falta.
+- Nombres: el paquete del updater de macOS se llamaba `StarSeed.OS_universal.app.tar.gz` en TODAS las versiones y
+  cada prueba pisaba el de la anterior mientras el manifiesto aún apuntaba a él con la firma vieja. En pruebas,
+  `assetNamePattern: [name]_[version]_[arch][ext]` le pone la versión (`StarSeed.OS_0.5.1-prueba.37_universal.app.tar.gz`,
+  y su `.sig`). Windows (`…_<v>_x64-setup.exe`), Linux (`…_<v>_amd64.AppImage`) y el APK ya la llevaban. El
+  manifiesto vigente apunta a archivos que ninguna prueba posterior toca; `sobrantes` borra los de la
+  anterior solo DESPUÉS de escribir el nuevo manifiesto.
+- Además `publicar` solo incluye una plataforma si el archivo de su URL lleva la versión de esta prueba, existe
+  en la prerelease con su `.sig` y la firma del manifiesto es la de ese `.sig`; si no, la deja fuera y lo dice.
+- Las apps ya instaladas (prueba.35/36/37) leen siempre la misma URL fija de `latest-prueba.json`; el nombre del
+  archivo al que apunta es indiferente para ellas.
+- Canal oficial: sin esas ventanas (cada etiqueta `v*` tiene su propio Release en borrador con su `latest.json`
+  y sus archivos; nada se publica hasta que Alex lo publica). Sí comparte el job: los topes y el apt acotado le valen.
+
 ### 9.4 Cómo se lanza
 
 ```
