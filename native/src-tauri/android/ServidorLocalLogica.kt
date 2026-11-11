@@ -28,9 +28,13 @@ object ServidorLocalLogica {
         return sb.toString()
     }
 
-    /** El buildId de Next se usa como nombre de carpeta: solo [A-Za-z0-9._-], 1–64, sin «.»/«..». */
+    /**
+     * El buildId de Next se usa como nombre de carpeta: solo [a-z0-9._-], 1–64, sin «.»/«..».
+     * Se normaliza a minúsculas para que dos builds que solo cambian el caso no creen carpetas
+     * distintas (macOS las trataría como la misma y la extracción se pisaría a medias).
+     */
     fun idSeguro(s: String?): String? {
-        val t = s?.trim() ?: return null
+        val t = s?.trim()?.lowercase() ?: return null
         if (t.isEmpty() || t.length > 64 || t == "." || t == "..") return null
         return if (t.all { it.isLetterOrDigit() && it.code < 128 || it == '.' || it == '_' || it == '-' }) t else null
     }
@@ -77,4 +81,25 @@ object ServidorLocalLogica {
     fun espacioSuficiente(libre: Long, total: Long): Boolean = libre >= total + total / 10 + 200L * 1024 * 1024
 
     fun mb(b: Long): Long = b / (1024 * 1024)
+
+    private val HEX = "0123456789abcdef".toCharArray()
+
+    /** Hex de TODOS los bytes recibidos: dos dígitos por byte (16 B → 32 caracteres), nunca se recorta. */
+    fun hex(b: ByteArray): String {
+        val c = CharArray(b.size * 2)
+        for (i in b.indices) {
+            val v = b[i].toInt() and 0xff
+            c[2 * i] = HEX[v ushr 4]
+            c[2 * i + 1] = HEX[v and 0x0f]
+        }
+        return String(c)
+    }
+
+    /** Un valor de 16 bits como hex de longitud FIJA (cuatro dígitos): 0x0f → «000f», 0xff → «00ff». */
+    fun hexSinRelleno(v: Int): String {
+        val n = v and 0xffff
+        val c = CharArray(4)
+        for (i in 0 until 4) c[3 - i] = HEX[(n ushr (4 * i)) and 0x0f]
+        return String(c)
+    }
 }
