@@ -212,45 +212,171 @@ const medida: Record<"AB" | "BA", MedidaSentido> = { AB: nuevaMedida(), BA: nuev
 // En el árbol viejo no existe (sale `undefined`): el banco usa entonces el umbral de antes.
 const vozOcupada = (transporteVoz as { vozOcupada?: (c: number, u: number, v: number | undefined, a: number) => boolean }).vozOcupada;
 const esVideoTxt = (t: string) => t.startsWith('{"t":"voz.v"');
+/**
+ * (LLA1111Q) Carril CALIBRADO con el registro de la prueba 37 (Mac ↔ tableta por Bluetooth, 11-11 19:19–19:21 UTC). El
+ * carril fijo de arriba es exactamente lo que suponía el modelo (capacidad fija, acuse fijo de 42 ms, sin límite de
+ * escrituras) y por eso no podía fallar como el aparato. De dónde sale cada número:
+ *  · Acuse por escritura `R` = 25 + Exp(media 30) ms, tope 115 ms, casi independiente del tamaño: ida y vuelta del
+ *    autotest 48–75 ms; lo que leyó el modelo en las escrituras pequeñas, «+23ms» a «+124ms» (Mac `enlace=15k+32ms`,
+ *    `56k+97ms`, `116k+124ms`; tableta `38k+106ms`, `49k+120ms`).
+ *  · Serialización `C` = 35–70 B de aire por ms en cada escritura: el canal rápido mide sus propios mensajes de 4–6 KB
+ *    en 104–201 ms (`l2cap-kbps … kbps=380 (4942 B en 104 ms)`, `kbps=192 (4834 B en 201 ms)`, `kbps=261 (6206 B en
+ *    190 ms)`): con el acuse de arriba quedan 35–90 B/ms; 35–70 da una mediana de ≈ 255 kb/s en mensajes de 5 KB
+ *    (la mediana de las 8 líneas del día es 258).
+ *  · Cifrado como el enlace real (CIF1108A, `sesion-cifrada.ts`): base64 (4/3) + `SOBRECARGA_FIJA` (96 B) por escritura,
+ *    y el claro de una escritura hasta `limitesParaCifrado(16 KiB)` = 11 816 B y 32 textos por lote (`MAX_POR_LOTE`).
+ *  · El emisor de verdad (`bluetooth-directo-motor.ts`, `bombear`): parada y espera, control > voz/datos por turnos >
+ *    vídeo, y la CUBETA de escrituras (`nuevaCubeta`: el otro admite 120 mensajes / 10 s; se manda al 60 % con ráfaga
+ *    del 30 % → 36 de ráfaga y 7,2 escrituras/s sostenidas). Cada escritura gasta una ficha, sea del tamaño que sea.
+ *  · Lo demás que va por el mismo enlace: la señalización de la llamada (Mac «senal-enviada app via=ble» a las :47,5,
+ *    :51,5, :55,5, :59,5…: cada ≈ 4 s, más la presencia cada 10 s → una cada 3,3 s, ≈ 400 B, por control) y el espejo del registro (BLE1109B, mensajes de 4–6 KB: los que mide `l2cap-kbps`, ≈ cada
+ *    30 s, por datos).
+ *  · Lo que la app nativa mide (`l2cap-kbps`, mensajes ≥ 2 KiB: bytes·8 / ida y vuelta) llega a la web como
+ *    `capacidadKbps` del enlace; empieza en 261 (la línea de las 19:19:45, justo antes de la llamada).
+ */
+const bleReal = {
+  activo: false,
+  rMinMs: 25,
+  rExtraMediaMs: 30,
+  rMaxMs: 115,
+  cMinBporMs: 35,
+  cMaxBporMs: 70,
+  fichasCap: 36,
+  fichasPorMs: 72 / 10_000,
+  maxClaroTrama: 11_816,
+  maxPorLote: 32,
+  controlCadaMs: 3300,
+  controlBytes: 400,
+  espejoCadaMs: 30_000,
+  espejoBytes: 5000,
+  kbpsNativoInicial: 261,
+  semilla: 37,
+};
+/** Generador con semilla (mulberry32): cada corrida del carril calibrado ve la misma secuencia de acuses. */
+function azar(semilla: number): () => number {
+  let a = semilla >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+/** (LLA1111Q) Lo que midió cada lado en el carril calibrado (para el informe del caso). */
+const medidaReal = { escrituras: [0, 0], esperaFichaMs: [0, 0], kbpsNativo: [0, 0], acuses: [[] as number[], [] as number[]] };
+const temporizadoresReal: Array<ReturnType<typeof setInterval>> = [];
 function enlaceBle(): [TransporteVoz, TransporteVoz] {
   const oy: [Set<(t: string) => void>, Set<(t: string) => void>] = [new Set(), new Set()];
   const lado = (i: 0 | 1): TransporteVoz => {
     const sentido = i === 0 ? "AB" : "BA";
     const voz: string[] = [];
     const vid: string[] = [];
+    // LLA1111Q (carril calibrado): control (señalización) y datos (espejo del registro) del mismo enlace.
+    const ctl: string[] = [];
+    const dat: string[] = [];
+    const real = bleReal.activo;
+    const rnd = azar(bleReal.semilla + i * 7919);
+    let fichas = bleReal.fichasCap;
+    let fichasEn = performance.now();
+    let turnoVoz = true;
+    let kbpsNativo = bleReal.kbpsNativoInicial;
+    medidaReal.kbpsNativo[i] = kbpsNativo;
     let bVoz = 0;
     let bVid = 0;
     let entrados = 0;
     let ultimoVideo = 0;
     let bombeando = false;
     let enVuelo: { soloVideo: boolean; ack: number; bytesVideo: number } | null = null;
+    // LLA1111Q: lo que el emisor mide de cada escritura del carril de la llamada (como `escriturasLlamada` del motor).
+    const escrituras: Array<{ fin: number; ms: number; bytes: number }> = [];
+    const juntoVoz = new Set<(audio: boolean) => void>();
     const dormir = (ms: number) => new Promise((r) => setTimeout(r, Math.max(0, ms)));
+    const tomarFicha = async () => {
+      for (;;) {
+        const ahora = performance.now();
+        fichas = Math.min(bleReal.fichasCap, fichas + (ahora - fichasEn) * bleReal.fichasPorMs);
+        fichasEn = ahora;
+        if (fichas >= 1) {
+          fichas -= 1;
+          return;
+        }
+        const e = Math.max(1, Math.ceil((1 - fichas) / bleReal.fichasPorMs));
+        medidaReal.esperaFichaMs[i] += e;
+        await dormir(e);
+      }
+    };
+    if (real) {
+      // Señalización de la llamada y espejo del registro, como en el aparato (ver `bleReal`).
+      const relleno = (t: string, n: number) => JSON.stringify({ t, x: "x".repeat(Math.max(0, n - 20)) });
+      const hCtl = setInterval(() => {
+        if (!datos.arriba) return;
+        ctl.push(relleno("llc.senal", bleReal.controlBytes));
+        void bombear();
+      }, bleReal.controlCadaMs);
+      const hDat = setInterval(() => {
+        if (!datos.arriba) return;
+        dat.push(relleno("ble.espejo", bleReal.espejoBytes));
+        void bombear();
+      }, bleReal.espejoCadaMs);
+      temporizadoresReal.push(hCtl, hDat);
+    }
     const bombear = async () => {
       if (bombeando) return;
       bombeando = true;
-      while (datos.arriba && (voz.length || vid.length)) {
+      while (datos.arriba && (voz.length || vid.length || ctl.length || dat.length)) {
         const m = medida[sentido];
-        const deVoz = voz.length > 0; // AUDIO > VÍDEO (como `bombear` del motor Bluetooth)
-        const lista = deVoz ? voz : vid;
+        // AUDIO > VÍDEO (como `bombear` del motor Bluetooth); en el carril calibrado, control primero y voz/datos por turnos.
+        let lista: string[];
+        if (ctl.length) lista = ctl;
+        else if (voz.length && dat.length) {
+          lista = turnoVoz ? voz : dat;
+          turnoVoz = !turnoVoz;
+        } else if (voz.length) lista = voz;
+        else if (vid.length) lista = vid;
+        else lista = dat;
+        const deVoz = lista === voz;
+        const deVid = lista === vid;
         const lote: string[] = [];
         let n = 0;
-        while (lista.length && (n === 0 || n + lista[0].length <= ble.maxTrama)) {
+        const maxTrama = real ? bleReal.maxClaroTrama : ble.maxTrama;
+        while (lista.length && (n === 0 || (n + lista[0].length <= maxTrama && (!real || lote.length < bleReal.maxPorLote)))) {
           n += lista[0].length;
           lote.push(lista.shift()!);
         }
+        if (real) await tomarFicha();
         const conVideo = lote.some(esVideoTxt);
-        const conVoz = lote.some((t) => !esVideoTxt(t));
+        const conVoz = (deVoz || deVid) && lote.some((t) => !esVideoTxt(t));
         m.escrituras++;
         if (conVideo && !conVoz) m.escriturasVideo++;
         if (conVideo && conVoz) m.escriturasMixtas++;
-        const serial = (bytesAire(lote) * 8) / ble.kbps;
-        m.bytesAire += bytesAire(lote);
+        let aire = bytesAire(lote);
+        let serial: number;
+        let acuse: number;
+        if (real) {
+          aire = Math.ceil(aire / 3) * 4 + 96; // cifrado del enlace (si `ble.cifrado` no lo ha puesto ya)
+          if (ble.cifrado) aire = bytesAire(lote);
+          const c = bleReal.cMinBporMs + rnd() * (bleReal.cMaxBporMs - bleReal.cMinBporMs);
+          serial = aire / c;
+          acuse = Math.min(bleReal.rMaxMs, bleReal.rMinMs - bleReal.rExtraMediaMs * Math.log(1 - rnd() * 0.999));
+          medidaReal.escrituras[i]++;
+          if (medidaReal.acuses[i].length < 5000) medidaReal.acuses[i].push(Math.round(acuse));
+          // Lo que mide la app nativa (`l2cap-kbps`): mensajes ≥ 2 KiB, bytes·8 / ida y vuelta.
+          if (aire >= 2048) {
+            kbpsNativo = Math.round((aire * 8) / (serial + acuse));
+            medidaReal.kbpsNativo[i] = kbpsNativo;
+          }
+        } else {
+          serial = (aire * 8) / ble.kbps;
+          acuse = ble.rttMs;
+        }
+        m.bytesAire += aire;
         const t0 = performance.now();
         const bytesVideoLote = lote.filter(esVideoTxt).reduce((a, t) => a + t.length, 0);
-        enVuelo = { soloVideo: conVideo && !conVoz, ack: t0 + serial + ble.rttMs, bytesVideo: bytesVideoLote };
+        enVuelo = { soloVideo: conVideo && !conVoz, ack: t0 + serial + acuse, bytesVideo: bytesVideoLote };
         const perdida = Math.random() < ble.perdida;
-        await dormir(serial + ble.rttMs / 2);
-        if (!perdida && datos.arriba) {
+        await dormir(serial + acuse / 2);
+        if (!perdida && datos.arriba && (deVoz || deVid)) {
           const ahora = Date.now();
           for (const t of lote) {
             if (!esVideoTxt(t)) {
@@ -267,9 +393,14 @@ function enlaceBle(): [TransporteVoz, TransporteVoz] {
         }
         await dormir(enVuelo.ack - performance.now());
         enVuelo = null;
+        if (deVoz || deVid) {
+          const fin = performance.now();
+          escrituras.push({ fin, ms: Math.max(1, fin - t0), bytes: n });
+          if (escrituras.length > 32) escrituras.splice(0, escrituras.length - 32);
+        }
         // Los bytes cuentan hasta el acuse, como en el Bluetooth de la Mac.
         if (deVoz) bVoz -= n;
-        else bVid -= n;
+        else if (deVid) bVid -= n;
       }
       bombeando = false;
     };
@@ -287,7 +418,9 @@ function enlaceBle(): [TransporteVoz, TransporteVoz] {
           // Espera que le pone el VÍDEO a este paquete de voz: si sale una escritura solo de vídeo, lo que le falta (con su
           // acuse); si no, lo que tardan en serializarse los bytes de vídeo que van delante (en la escritura en vuelo y en el carril).
           const delante = voz.filter(esVideoTxt).reduce((a, x) => a + x.length, 0);
-          const e = enVuelo?.soloVideo ? enVuelo.ack - performance.now() : ((delante + (enVuelo?.bytesVideo ?? 0)) * 8) / ble.kbps;
+          // LLA1111Q: en el carril calibrado, a la serialización media del aire (cifrado: 4/3) y no a `ble.kbps`.
+          const porMs = real ? ((bleReal.cMinBporMs + bleReal.cMaxBporMs) / 2) * 0.75 : ble.kbps / 8;
+          const e = enVuelo?.soloVideo ? enVuelo.ack - performance.now() : (delante + (enVuelo?.bytesVideo ?? 0)) / porMs;
           if (e > 0) m.esperasTrasVideo++;
           // VOZ1111L: también CUÁNDO (para saber si la espera larga es de la caída, de la vuelta o de siempre).
           if (e > 200) m.esperasLargas.push({ t: Math.round(performance.now()), ms: Math.round(e), solo: !!enVuelo?.soloVideo, kbps: ble.kbps });
@@ -306,7 +439,9 @@ function enlaceBle(): [TransporteVoz, TransporteVoz] {
           m.tirados++;
           tiro = true;
         }
-        void bombear();
+        // Como el motor: el bombeo arranca en una microtarea (lo encolado en el mismo turno va en la misma escritura).
+        void Promise.resolve().then(() => bombear());
+        if (!esVideoTxt(t)) for (const cb of Array.from(juntoVoz)) cb(!!pv); // LLA1111Q (`alSalirVoz`)
         return tiro ? "descartado" : "ok";
       },
       enviarVideo(t) {
@@ -320,12 +455,16 @@ function enlaceBle(): [TransporteVoz, TransporteVoz] {
           bVid -= vid.shift()!.length;
           tiro = true;
         }
-        void bombear();
+        void Promise.resolve().then(() => bombear());
         return tiro ? "descartado" : "ok";
       },
       // Igual que `crearTransporteVozHacia` (voz-datos/transporte.ts) en la versión que se pruebe.
       ocupado: () => (typeof vozOcupada === "function" ? vozOcupada(bVoz, 2048, ultimoVideo || undefined, Date.now()) : bVoz > 2048),
       colaVozBytes: () => bVoz,
+      escrituras: () => escrituras.slice(),
+      alSalirVoz: (cb: (audio: boolean) => void) => (juntoVoz.add(cb), () => void juntoVoz.delete(cb)),
+      // LLA1111Q: el carril calibrado lleva la cubeta del motor (7,2 escrituras/s); el fijo no tiene tope.
+      escriturasPorS: () => (real ? Math.round(bleReal.fichasPorMs * 10_000) / 10 : null),
       colaVideoBytes: () => bVid,
       topeColaVideoBytes: () => 24 * 1024,
       bytesEntrados: () => entrados,
@@ -333,7 +472,8 @@ function enlaceBle(): [TransporteVoz, TransporteVoz] {
       alRecibir: (cb) => (oy[i].add(cb), () => void oy[i].delete(cb)),
       abierto: () => datos.arriba,
       info: () => ({ tipo: "ble", cifrada: true }),
-      capacidadKbps: () => ble.anunciadoKbps,
+      // LLA1111Q: en el carril calibrado, lo último que midió la app nativa (como `enlaces()[…].capacidadKbps`).
+      capacidadKbps: () => (real ? kbpsNativo : ble.anunciadoKbps),
     } as TransporteVoz;
   };
   return [lado(0), lado(1)];
@@ -580,6 +720,11 @@ function estadoNeg() {
     vias.arriba = false;
   },
   ble,
+  bleReal,
+  medidaReal,
+  pararReal() {
+    for (const h of temporizadoresReal.splice(0)) clearInterval(h);
+  },
   medida,
   pintadas,
   /** (LLA1111B) Resumen de un tramo [desde, hasta) en ms de `performance.now()` y la medida de voz acumulada. */
@@ -661,6 +806,9 @@ function estadoNeg() {
     return r;
   },
   reiniciarMedida() {
+    medidaReal.escrituras = [0, 0];
+    medidaReal.esperaFichaMs = [0, 0];
+    medidaReal.acuses = [[], []];
     medida.AB = nuevaMedida();
     medida.BA = nuevaMedida();
     for (const q of ["A", "B"] as const) {

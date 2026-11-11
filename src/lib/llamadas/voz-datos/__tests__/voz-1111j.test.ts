@@ -14,7 +14,7 @@ import {
   tsCompleto,
   unidadesPaqueteVoz,
 } from "../paquete";
-import { cabeNivel, ControlNivelVoz, kbpsTextoNivel, nivelInicial, NIVELES_OPUS, type EntradaNivel } from "../niveles";
+import { cabeNivel, ControlNivelVoz, kbpsCabenVoz, kbpsTextoNivel, nivelConCiclo, nivelInicial, NIVELES_OPUS, usoNivel, type EntradaNivel } from "../niveles";
 import { __vaciarReservasVoz, fijarReservaVoz, reservaVozKbps } from "../reserva";
 import { ajustarModelo, kbpsMaxConCiclo, MedidorEnlace, presupuestoVideo, type ModeloEnlace, type ResumenEnlace } from "@/lib/llamadas/video-datos/reparto";
 import { MUESTRAS_TRAMA } from "../codec";
@@ -124,7 +124,10 @@ describe("escalera de la voz", () => {
     // Vuelve la capacidad (160): no sube antes de 6 s de calma y 3 pasos seguidos cabiendo (a los 9 s).
     for (let t = 2000; t < 9000; t += 1000) expect(c.paso(t, limpio(modelo(160)))).toBeNull();
     const s = c.paso(9000, limpio(modelo(160)));
-    expect(s).toMatchObject({ motivo: "hay-sitio", hasta: bajo - 1 });
+    // LLA1111Q: sube de una vez al escalón más alto que cabe con holgura (aquí, el de arriba del todo).
+    expect(s).toMatchObject({ motivo: "hay-sitio" });
+    expect(s!.hasta).toBeLessThan(bajo);
+    expect(cabeNivel(c.nivel, "b1", modelo(160), 0.3, ID)).toBe(true);
     // La subida provoca descartes enseguida: baja y la calma pasa a 12 s.
     expect(c.paso(10_000, { modelo: modelo(160), retrasoMaxMs: 100, descartes: 3, informe: null })?.motivo).toBe("descartes");
     expect(c.calmaMs).toBe(12_000);
@@ -399,9 +402,10 @@ function fabricaOpusFalsa(registro: Array<{ kbps: number; msTrama: number }>): F
 
 const tono = (k: number) => new Int16Array(MUESTRAS_TRAMA).fill(1000 + (k % 500));
 
-async function llamada(o: { anteriorA?: boolean; anteriorB?: boolean; perdida?: (lado: number) => boolean; capacidad?: number | null } = {}) {
+async function llamada(o: { anteriorA?: boolean; anteriorB?: boolean; perdida?: (lado: number) => boolean; capacidad?: number | null; envolverA?: (e: ReturnType<typeof enlace>[0], reloj: Reloj) => void } = {}) {
   const reloj = new Reloj();
   const [ea, eb] = enlace(reloj, o.perdida);
+  o.envolverA?.(ea, reloj); // LLA1111Q
   const cap = (e: TransporteVoz) => Object.assign(e, { capacidadKbps: () => o.capacidad ?? null });
   const aa = audio();
   const ab = audio();
@@ -503,5 +507,87 @@ describe("bajo el suelo se dice la verdad", () => {
     expect(reservaVozKbps()).toBe(kbpsTextoNivel(NIVELES_OPUS[NIVELES_OPUS.length - 1], "b1", ID));
     x.sa.detener();
     expect(reservaVozKbps()).toBeNull();
+  });
+});
+
+/* ───────────────────────── LLA1111Q: la voz con el tope de escrituras del emisor ───────────────────────── */
+
+describe("LLA1111Q · la voz con un emisor que escribe como mucho 7,2 veces por segundo", () => {
+  const radio: ModeloEnlace = { rMs: 50, bytesPorMs: 32, fuente: "supuesto", cicloMinMs: 139 };
+
+  it("el paquete nunca es más corto que ≈ 1,1 ciclos (múltiplo de la trama); sin tope, el de siempre", () => {
+    expect(nivelConCiclo(NIVELES_OPUS[0], 139)).toEqual({ ...NIVELES_OPUS[0], msPaquete: 160 });
+    expect(nivelConCiclo(NIVELES_OPUS[2], 139).msPaquete).toBe(160);
+    expect(nivelConCiclo(NIVELES_OPUS[3], 139).msPaquete).toBe(180);
+    expect(nivelConCiclo(NIVELES_OPUS[5], 139)).toBe(NIVELES_OPUS[5]);
+    expect(nivelConCiclo(NIVELES_OPUS[0], 0)).toBe(NIVELES_OPUS[0]);
+  });
+
+  it("con la radio de la prueba 37 cabe el escalón de arriba (antes solo el de 6 kb/s)", () => {
+    const n0 = nivelConCiclo(NIVELES_OPUS[0], 139);
+    expect(cabeNivel(n0, "b1", radio, 0.3, ID)).toBe(true);
+    // Lo que leía la Mac («enlace=15k+32ms», sin ciclo): no cabía ni el de 8 kb/s.
+    expect(cabeNivel(NIVELES_OPUS[4], "b1", { rMs: 32, bytesPorMs: 15 / 8, fuente: "ajuste" }, 0.3, ID)).toBe(false);
+    // El uso con ciclo: el acuse se reparte en el ciclo del emisor, no en cada paquete de 60 ms.
+    expect(usoNivel(NIVELES_OPUS[0], "b1", radio, ID)).toBeCloseTo(usoNivel(NIVELES_OPUS[0], "b1", { ...radio, cicloMinMs: 0 }, ID) - 50 / 120 + 50 / 139, 5);
+    expect(kbpsCabenVoz(radio, 60)).toBe(Math.round(8 * 32 * (1 - 50 / 139)));
+  });
+
+  it("el control sube con la radio de verdad y la espera normal de dos ciclos no es atasco", () => {
+    const c = new ControlNivelVoz(NIVELES_OPUS, "b1", 0, 5, ID);
+    expect(c.fijarCiclo(139)).toBe(false); // el de 6 kb/s ya va en paquetes de 180 ms
+    let t = 0;
+    const e = (o: Partial<EntradaNivel> = {}): EntradaNivel => ({ modelo: radio, retrasoMaxMs: 330, esperaP90Ms: 230, descartes: 0, informe: { perd: 0, tarde: 0, corte: false, edadMs: 500 }, ...o });
+    for (let k = 0; k < 60; k++) c.paso((t += 1000), e());
+    expect(c.indice).toBe(0);
+    expect(c.nivel.msPaquete).toBe(160);
+    // Sin ciclo y con el máximo como señal, esa misma espera sí sería atasco (lo que pasaba en el aparato).
+    const viejo = new ControlNivelVoz(NIVELES_OPUS, "b1", 0, 0, ID);
+    expect(viejo.paso(1000, e({ modelo: { rMs: 42, bytesPorMs: 20, fuente: "ajuste" }, retrasoMaxMs: 330 }))?.motivo).toBe("atasco");
+    // Con ciclo, un p90 de más de 2,5 ciclos y paquetes sí lo es.
+    expect(c.paso((t += 1000), e({ esperaP90Ms: 460 }))?.motivo).toBe("atasco");
+  });
+});
+
+describe("LLA1111Q · ping, pong e informes salen con la voz (no gastan escrituras propias)", () => {
+  async function llamadaContada(conTope: boolean) {
+    const salidas: Array<{ t: number; txt: string }> = [];
+    const x = await llamada({
+      envolverA: (e, reloj) => {
+        let entrados = 0;
+        const enviar = e.enviar.bind(e);
+        Object.assign(e, {
+          enviar: (t: string) => {
+            salidas.push({ t: reloj.ahora(), txt: t });
+            entrados += t.length;
+            return enviar(t);
+          },
+          colaVozBytes: () => 0,
+          bytesEntrados: () => entrados,
+          ...(conTope ? { escriturasPorS: () => 7.2 } : {}),
+        });
+      },
+    });
+    return { x, salidas };
+  }
+
+  it("con tope, cada ping/pong/informe va en el mismo turno que un paquete de voz", async () => {
+    const { x, salidas } = await llamadaContada(true);
+    x.hablar(8000);
+    const ctl = salidas.filter((s) => /"k":"(ping|pong|rep)"/.test(s.txt));
+    expect(ctl.length).toBeGreaterThan(3);
+    const conVoz = (t: number) => salidas.some((s) => s.t === t && (s.txt.startsWith('{"t":"voz.b"') || s.txt.startsWith('{"t":"voz.p"')));
+    expect(ctl.every((s) => conVoz(s.t))).toBe(true);
+    // El paquete sigue al ciclo del emisor: 160 ms o más.
+    expect(x.sa.estado().nivel!.msPaquete).toBeGreaterThanOrEqual(160);
+  });
+
+  it("sin tope (canal sin limitador), como antes: los ping salen a su hora", async () => {
+    const { x, salidas } = await llamadaContada(false);
+    x.hablar(8000);
+    const pings = salidas.filter((s) => /"k":"ping"/.test(s.txt));
+    expect(pings.length).toBeGreaterThan(3);
+    expect(pings.some((p) => !salidas.some((s) => s.t === p.t && s.txt.startsWith('{"t":"voz.b"')))).toBe(true);
+    expect(x.sa.estado().nivel!.msPaquete).toBeLessThan(160);
   });
 });

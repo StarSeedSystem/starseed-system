@@ -117,6 +117,12 @@ export interface TransporteVideo {
    * (ver `reparto.ts`). Sin él, el vídeo va por su cola propia como antes.
    */
   bytesEntrados?(): number;
+  /** LLA1111Q: últimas escrituras del carril medidas por el emisor (duración de cada una hasta su acuse). */
+  escrituras?(): ReadonlyArray<{ fin: number; ms: number; bytes: number }> | null;
+  /** LLA1111Q: escrituras por segundo que se permite el emisor (null: sin tope o no se sabe). */
+  escriturasPorS?(): number | null;
+  /** LLA1111Q: avisa justo después de que la voz encola un texto (`audio`: un paquete, no un control). Devuelve la baja. */
+  alSalirVoz?(cb: (audio: boolean) => void): () => void;
 }
 
 /** Escalones de calidad, de menos a más. 160×120 a 4 fps y 40 kbps es el suelo; 320×240 a 12 fps y 150 kbps, el techo. */

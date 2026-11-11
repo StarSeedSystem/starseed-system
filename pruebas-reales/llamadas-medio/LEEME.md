@@ -15,7 +15,7 @@ Bluetooth L2CAP: retardo, capacidad y pérdida en `banco.datos`). La ruta IP se 
 cd pruebas-reales/llamadas-medio
 node construir.mjs ../.. salida/banco.js          # esbuild con el alias @/ (entra src/lib/llamadas y, MLL1111C, malla/senales-red y malla/cola-timbre)
 cp index.html salida/
-node correr.mjs salida todos 300 > resultados.json # o: aleteo, ip-aparece, choque, video, segunda, corte-ip, sin-servidor, paso-ip, paso-ip-silencioso, timbre-cola, video-sube, wifi-directo, ble-160, ble-80, ble-40, ble-caida, ble-micro
+node correr.mjs salida todos 300 > resultados.json # o: aleteo, ip-aparece, choque, video, segunda, corte-ip, sin-servidor, paso-ip, paso-ip-silencioso, timbre-cola, video-sube, wifi-directo, ble-160, ble-80, ble-40, ble-caida, ble-micro, ble-real, ble-real-mudo
 ```
 
 Para comparar con otro árbol (p. ej. main): `node construir.mjs /ruta/al/otro/repo salida-viejo/banco.js`.
@@ -47,9 +47,20 @@ Necesita `esbuild` y `playwright` (globales o en `/opt/npm-tools`). No toca el M
 | `voz-suelo` | 160 → 8 → 160: aviso «no alcanza para la voz» en los dos en ≤ 8 s y se va en ≤ 12 s al volver. |
 | `voz-40-cif` · `voz-24-cif` · `voz-16-cif` | Como `voz-*` pero con el cifrado del enlace en el aire (`ble.cifrado`: el cuerpo en base64 + 96 B por escritura, como Mac ↔ tableta). Dicen dónde está el suelo real con cifrado. |
 | `vozvideo-80` · `vozvideo-40` | Voz y vídeo a la vez: la reserva de la voz sigue a su escalón (registro `video-datos reparto … voz=`). |
+| `ble-real` (LLA1111Q) | Carril **calibrado** con el registro de la prueba 37 (`bleReal` en `entrada.ts`, cada número con la línea del registro de la que sale): acuse por escritura 25 + Exp(30) ms (tope 115), serialización 35–70 B/ms de aire, cifrado del enlace (base64 + 96 B por escritura), la cubeta de escrituras del motor (36 de ráfaga, 7,2/s), control antes que voz/datos, la señalización cada 3,3 s y el espejo del registro (5 KB cada 30 s) en el mismo enlace, y `capacidadKbps` = lo que mide la app nativa con mensajes ≥ 2 KiB. Micros abiertos y cámaras encendidas, 120 s. Pasa con ≥ 3 fps en el 80 % de las ventanas en los dos sentidos, voz < 2 % perdida, ≤ 3 % tarde (400 ms), espera tras vídeo ≤ 150 ms, ≤ 1 hueco audible/min y ninguno > 200 ms, y la voz en Opus ≥ 12 kb/s al acabar. Con el código de antes reproduce el aparato: voz en 6 kb/s con el enlace leído a 20–40 kb/s y vídeo en pausa. |
+| `ble-real-mudo` | Igual con los dos micros en silencio: el vídeo no puede depender de que alguien hable. |
 
 Cada caso nuevo devuelve `pasa`. El árbol viejo se construye sin `cola-timbre` (el módulo llega vacío y el banco usa el
 intento único de antes).
 
 No está en CI (no hay trabajo de extremo a extremo con navegador). Lo que el banco NO cubre: radios reales, el
 transporte universal, el timbre por la malla y las vistas de la ventana.
+
+**Qué prueban los carriles simulados y qué no (LLA1111Q).** El carril fijo (`ble-160`…`vozvideo-40`) es exactamente lo
+que suponía el modelo de LLA1111B (capacidad fija, acuse fijo de 42 ms, sin tope de escrituras): prueba la lógica en
+carriles estrechos, pero un control afinado solo contra él no ve lo que el aparato hace de otra manera — la prueba 37
+falló en el aparato con todos estos casos en verde. El carril calibrado (`ble-real`) añade lo que el registro de la
+prueba 37 enseña del Bluetooth de verdad (acuse variable, tope de escrituras del emisor, cifrado, tráfico de otros
+carriles) y reproduce aquel fallo con el código de antes; sigue sin probar la radio: el reparto del aire entre los dos
+sentidos, las pausas largas de la radio, el GATT (sin canal rápido) y lo que tarda la medida nativa en llegar a la web
+(cada 15 s por `refrescar`).

@@ -18,7 +18,7 @@
  *
  * Entradas cada segundo (`paso`): el modelo del enlace (`video-datos/reparto.ts`: `ms = R + bytes/C` medido de las
  * escrituras acusadas), la espera de la voz en el carril, los descartes locales y el informe del otro (`rep`: % perdido
- * y % tarde de lo que le llega). Baja al momento con cualquier señal de atasco; sube un escalón solo tras una calma
+ * y % tarde de lo que le llega). Baja al momento con cualquier señal de atasco; sube (LLA1111Q: de una vez al escalón más alto que cabe con holgura) solo tras una calma
  * (6 s, que se duplica si la subida anterior falló, hasta 48 s) y si el modelo dice que el de arriba cabe con holgura.
  * Por debajo del último escalón con atasco sostenido: «bajo el suelo» (la llamada lo dice en palabras).
  */
@@ -58,6 +58,19 @@ export function nivelEfectivo(n: NivelVoz, formato: FormatoVoz): NivelVoz {
   return formato === "b1" ? n : { ...n, msTrama: 20 };
 }
 
+/**
+ * LLA1111Q: el paquete de un nivel cuando el emisor escribe como mucho cada `cicloMinMs` (la cubeta del Bluetooth:
+ * 7,2 escrituras/s → 139 ms). Un paquete más corto que el ciclo no sale antes (espera la ficha) y cada uno gasta una
+ * escritura: con paquetes de 60 ms la voz sola pedía 16 escrituras/s, la cubeta se vaciaba y TODO esperaba fichas
+ * (la voz, ≈ 140 ms más en cada paquete). Con ≈ 1,1 ciclos por paquete (múltiplo de la trama) la voz pide ≈ 6/s y
+ * quedan fichas: sale al momento. Los kb/s del nivel no cambian.
+ */
+export function nivelConCiclo(n: NivelVoz, cicloMinMs: number): NivelVoz {
+  if (!(cicloMinMs > 0)) return n;
+  const min = Math.ceil((1.1 * cicloMinMs) / n.msTrama) * n.msTrama;
+  return n.msPaquete >= min ? n : { ...n, msPaquete: min };
+}
+
 /** Bytes de una trama de Opus a esos kb/s (más su byte de tabla de contenido). */
 export function bytesTramaOpus(kbps: number, msTrama: number): number {
   return Math.ceil((kbps * msTrama) / 8) + 1;
@@ -85,7 +98,10 @@ export function kbpsTextoNivel(n: NivelVoz, formato: FormatoVoz, idLlamada?: str
  */
 export function usoNivel(n: NivelVoz, formato: FormatoVoz, m: ModeloEnlace, idLlamada?: string, factor = 1): number {
   const v = (factor * bytesPaqueteNivel(n, formato, idLlamada)) / n.msPaquete;
-  return v / Math.max(0.05, m.bytesPorMs) + m.rMs / (2 * n.msPaquete);
+  // LLA1111Q: con un emisor que se permite una escritura cada `cicloMinMs` (la cubeta del Bluetooth: 139 ms) el ciclo
+  // nunca baja de eso, y los paquetes de menos de medio ciclo salen juntos en una escritura: la espera de la voz queda
+  // acotada por DOS ciclos del emisor sea cual sea el paquete. Lo que cuenta es que el acuse quepa en ese ciclo.
+  return v / Math.max(0.05, m.bytesPorMs) + m.rMs / Math.max(2 * n.msPaquete, m.cicloMinMs ?? 0);
 }
 
 /** ¿Cabe ese nivel dejando libre `holgura` del carril? Sin modelo: sí. */
@@ -97,8 +113,11 @@ export function cabeNivel(n: NivelVoz, formato: FormatoVoz, m: ModeloEnlace | nu
 /** kb/s de VOZ que caben con ese modelo con paquetes de `msPaquete` (lo que se anota como «cabe»). */
 export function kbpsCabenVoz(m: ModeloEnlace | null, msPaquete: number): number | null {
   if (!m) return null;
-  return Math.max(0, Math.round(8 * m.bytesPorMs * (1 - m.rMs / Math.max(1, 2 * msPaquete))));
+  return Math.max(0, Math.round(8 * m.bytesPorMs * (1 - m.rMs / Math.max(1, 2 * msPaquete, m.cicloMinMs ?? 0)))); // LLA1111Q
 }
+
+/** LLA1111Q: separación mínima entre escrituras del emisor según el modelo (0: sin tope). */
+const cicloMin = (m: ModeloEnlace | null | undefined) => m?.cicloMinMs ?? 0;
 
 /* ───────────────────────── Control ───────────────────────── */
 
@@ -129,6 +148,8 @@ export interface EntradaNivel {
   modelo: ModeloEnlace | null;
   /** Mayor espera del byte más viejo del carril de voz en la ventana (ms). */
   retrasoMaxMs: number;
+  /** LLA1111Q: percentil 90 de lo que esperó lo acusado en cada escritura (con limitador de escrituras manda este). */
+  esperaP90Ms?: number | null;
   /** Tramas tiradas en este lado en la ventana (cola propia o el enlace tiró lo más viejo). */
   descartes: number;
   /**
@@ -159,6 +180,8 @@ export class ControlNivelVoz {
   motivo: CambioNivel["motivo"] | "inicio" = "inicio";
   /** Último paso: ¿hubo señal de atasco? (para el registro) */
   atascoAhora = false;
+  /** LLA1111Q: separación mínima entre escrituras del emisor (0: sin tope). */
+  private ciclo = 0;
 
   constructor(
     private readonly escalera: readonly NivelVoz[],
@@ -176,7 +199,19 @@ export class ControlNivelVoz {
   }
 
   get nivel(): NivelVoz {
-    return nivelEfectivo(this.escalera[this.i], this.formato);
+    return this.efectivo(this.i);
+  }
+
+  /** LLA1111Q: el nivel k tal como sale con este formato y este emisor. */
+  private efectivo(k: number): NivelVoz {
+    return nivelConCiclo(nivelEfectivo(this.escalera[k], this.formato), this.ciclo);
+  }
+
+  /** LLA1111Q: el emisor dice cada cuánto puede escribir (0: sin tope). Devuelve true si cambia el paquete en uso. */
+  fijarCiclo(ms: number): boolean {
+    const antes = this.nivel.msPaquete;
+    this.ciclo = ms > 0 ? Math.round(ms) : 0;
+    return this.nivel.msPaquete !== antes;
   }
 
   get formatoActual(): FormatoVoz {
@@ -205,7 +240,7 @@ export class ControlNivelVoz {
 
   /** El escalón más alto (índice más bajo) que cabe con esa holgura, desde `desde` hacia abajo. */
   private queCabe(m: ModeloEnlace | null, holgura: number, desde: number): number {
-    for (let k = desde; k < this.escalera.length; k++) if (cabeNivel(nivelEfectivo(this.escalera[k], this.formato), this.formato, m, holgura, this.idLlamada)) return k;
+    for (let k = desde; k < this.escalera.length; k++) if (cabeNivel(this.efectivo(k), this.formato, m, holgura, this.idLlamada)) return k;
     return this.escalera.length - 1;
   }
 
@@ -214,10 +249,11 @@ export class ControlNivelVoz {
    * Una caída brusca de capacidad (160 → 24 kb/s) vacía el búfer del otro en menos de un segundo; esperar al paso de
    * 1 s alargaba el hueco. Baja dos escalones, como mucho una vez cada 600 ms; el paso siguiente afina con lo medido.
    */
-  bajadaRapida(ahora: number, retrasoMs: number): CambioNivel | null {
+  bajadaRapida(ahora: number, retrasoMs: number, cicloMinMs = 0): CambioNivel | null {
     const n = this.nivel;
     const ultimo = this.escalera.length - 1;
-    if (this.i >= ultimo || retrasoMs <= Math.max(400, 3 * n.msPaquete) || ahora - this.ultimoCambio < 600) return null;
+    // LLA1111Q: con escrituras cada `cicloMinMs`, esperar tres ciclos es lo que tarda un atasco de verdad en notarse.
+    if (this.i >= ultimo || retrasoMs <= Math.max(400, 3 * n.msPaquete, 3 * cicloMinMs) || ahora - this.ultimoCambio < 600) return null;
     const antes = this.i;
     this.i = Math.min(ultimo, this.i + 2);
     if (ahora - this.ultimaSubida < SUBIDA_FALLIDA_MS) this.calma = Math.min(CALMA_SUBIR_MAX_MS, this.calma * 2);
@@ -231,10 +267,13 @@ export class ControlNivelVoz {
     const n = this.nivel;
     const inf = e.informe && e.informe.edadMs <= INFORME_VIGENTE_MS ? e.informe : null;
     // Lo normal en parada y espera: el paquete espera la escritura en vuelo y la suya (≈ 2 escrituras de un paquete).
-    const umbralRetraso = Math.max(300, 2.5 * n.msPaquete);
+    // LLA1111Q: y nunca menos de 2,5 ciclos del emisor (con 7,2 escrituras/s la voz espera hasta dos sin atasco).
+    const umbralRetraso = Math.max(300, 2.5 * n.msPaquete, 2.5 * cicloMin(e.modelo));
     let motivo: CambioNivel["motivo"] | null = null;
+    // LLA1111Q: con limitador de escrituras, el percentil 90 (una escritura grande de otro carril no es un atasco).
+    const espera = cicloMin(e.modelo) > 0 && typeof e.esperaP90Ms === "number" ? e.esperaP90Ms : e.retrasoMaxMs;
     if (e.descartes > 0) motivo = "descartes";
-    else if (e.retrasoMaxMs > umbralRetraso) motivo = "atasco";
+    else if (espera > umbralRetraso) motivo = "atasco";
     else if (inf && inf.perd > PERDIDA_RX_ALTA) motivo = "perdida-rx";
     else if (inf && inf.tarde > TARDE_RX_ALTA) motivo = "tarde-rx";
     this.atascoAhora = motivo !== null || !!inf?.corte;
@@ -256,7 +295,7 @@ export class ControlNivelVoz {
       let objetivo = Math.max(this.i + 1, e.modelo ? this.queCabe(e.modelo, HOLGURA_QUEDARSE, this.i + 1) : this.i + 1);
       if (typeof e.entregadoKbps === "number" && e.entregadoKbps > 0 && (motivo === "atasco" || motivo === "descartes")) {
         let k = this.i + 1;
-        while (k < this.escalera.length - 1 && kbpsTextoNivel(nivelEfectivo(this.escalera[k], this.formato), this.formato, this.idLlamada) > 0.8 * e.entregadoKbps) k++;
+        while (k < this.escalera.length - 1 && kbpsTextoNivel(this.efectivo(k), this.formato, this.idLlamada) > 0.8 * e.entregadoKbps) k++;
         objetivo = Math.max(objetivo, k);
       }
       this.i = Math.min(ultimo, objetivo);
@@ -265,13 +304,15 @@ export class ControlNivelVoz {
       this.i = this.queCabe(e.modelo, HOLGURA_QUEDARSE, this.i + 1);
       motivo = "capacidad";
     } else if (this.i > 0 && ahora - this.ultimoCambio >= this.calma && (!inf || (inf.perd <= 1 && inf.tarde <= 2 && !inf.corte))) {
-      const arriba = nivelEfectivo(this.escalera[this.i - 1], this.formato);
+      const arriba = this.efectivo(this.i - 1);
       // Tres pasos seguidos cabiendo: un modelo mal ajustado en un segundo (escrituras de tamaños mezclados) no basta. La
       // ocupación del carril no sirve de señal aquí: en parada y espera el acuse fijo lo tiene ocupado casi siempre.
-      this.cabeArriba = cabeNivel(arriba, this.formato, e.modelo, HOLGURA_SUBIR, this.idLlamada) && e.retrasoMaxMs <= Math.max(200, 1.5 * n.msPaquete) ? this.cabeArriba + 1 : 0;
+      this.cabeArriba = cabeNivel(arriba, this.formato, e.modelo, HOLGURA_SUBIR, this.idLlamada) && espera <= Math.max(200, 1.5 * n.msPaquete, 2 * cicloMin(e.modelo)) ? this.cabeArriba + 1 : 0;
       if (this.cabeArriba >= PASOS_PARA_SUBIR) {
         this.cabeArriba = 0;
-        this.i -= 1;
+        // LLA1111Q: de una vez al escalón más alto que cabe con holgura (no uno a uno): cada cambio de escalón rehace el
+        // códec y suena un instante apagado al otro lado; al volver la capacidad, cuatro subidas eran cuatro huecos.
+        this.i = e.modelo ? Math.min(this.i - 1, this.queCabe(e.modelo, HOLGURA_SUBIR, 0)) : this.i - 1;
         motivo = "hay-sitio";
         this.suelo = false;
         this.ultimaSubida = ahora;
