@@ -66,7 +66,7 @@ export function plataformaDeTexto(t: string): PlataformaMedios {
 }
 
 const NEGADO = new Set(["NotAllowedError", "SecurityError", "PermissionDeniedError"]);
-const SIN_DISPOSITIVO = new Set(["NotFoundError", "DevicesNotFoundError", "OverconstrainedError"]);
+const SIN_DISPOSITIVO = new Set(["NotFoundError", "DevicesNotFoundError"]);
 const OCUPADO = new Set(["NotReadableError", "TrackStartError", "AbortError"]);
 const SIN_API = new Set(["NoMediaDevices", "TypeError", "NotSupportedError"]);
 
@@ -125,6 +125,13 @@ const NOMBRE_SISTEMA: Record<PlataformaMedios, string> = {
  */
 export function diagnosticarMedios(err: unknown, pedido: PedidoMedios, entorno: EntornoMedios): DiagnosticoMedios {
     const nombre = nombreErrorMedios(err);
+    // LLA1111A · OverconstrainedError no es «no hay cámara»: hay una, y no acepta lo que se le pidió (en la Mac de la
+    // prueba.35 pasaba con la FaceTime). Se dice qué restricción falló, si el motor la dio.
+    if (nombre === "OverconstrainedError" && !pedido.pantalla) {
+        const r = (err as { constraint?: unknown })?.constraint;
+        const restr = typeof r === "string" && r ? ` («${r.slice(0, 40)}»)` : "";
+        return { causa: "otro", mensaje: `${pedido.video ? "La cámara" : "El micrófono"} no acepta la configuración que se le pidió${restr}. Vuelve a probar o elige otro en Puertos.`, ajustes: null };
+    }
     const causa = clasificar(nombre, pedido);
     const que = queSePide(pedido);
     if (!entorno.nativa) {

@@ -37,6 +37,20 @@ enlace de datos y la línea «Voz: … · Vídeo: WebRTC»), `CASO=tres` (tres l
 `CASO=sinservidor` (llama la tableta, sin servidor y con vídeo). La IP dinámica: `banco.ip(true|false)`; el corte se
 simula con el estado ICE en «failed» y los emisores inactivos. `banco.stats()` da transceptores y cuadros por conexión.
 
+Casos de LLA1111A:
+
+- `CASO=webkit`: la Mac de la prueba.35. `banco.camaras.rechazan` (expresión sobre la etiqueta) marca las cámaras con un
+  solo ritmo, 30,00003 fps (la FaceTime y la virtual): un `frameRate` obligatorio que lo deje fuera (`max: 30`) o un
+  `facingMode` exacto da OverconstrainedError con `constraint`, con o sin `deviceId`; sin `deviceId` el «sistema» abre
+  la primera que cumpla empezando por `porDefecto`. `banco.camaras.regla = "id+tamano"` prueba la otra hipótesis
+  (`deviceId` exacto junto a ancho/alto). `banco.camaras.ocupadas` da NotReadableError. Con el código anterior salen las
+  mismas líneas que en la Mac (`cambio-a-preferida-fallo … OverconstrainedError`, «No encontramos ninguna cámara»).
+- `CASO=ventana`: cada pestaña abierta («Puertos», «Medio», «Gente», «Invitar», «Grabar», «Astraura», «Chat») a
+  320×568, 360×640, 390×844, 640×360 y 1280×800, más pantalla completa: mide que ninguna caja quede fuera de la
+  pantalla salvo dentro de un antepasado desplazable, que los botones redondos estén enteros en ≤ 2 filas, que la
+  cabecera y «Colgar» se vean y que la línea de estado salga una vez; y el carril por flujo de «Medio».
+  `banco.marco(w, h)` pone el marco del lado al tamaño de la pantalla que se imita.
+
 Deja `NN-*.png`, `resultados.json` y `registro.json` (las líneas que irían a `enlaces.log`: cámara, contadores
 `video-datos tx … motivos=…`, `visibilidad …`). `salida/` y `capturas/` no se suben.
 

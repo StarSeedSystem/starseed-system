@@ -10,7 +10,7 @@ import type { AjustesMedios } from "@/lib/llamadas/permiso-medios";
 import type { DispositivosMedios } from "@/lib/llamadas/tipos";
 import { explicarFalloMedios } from "@/lib/nativa/medios-nativos";
 import { esAppNativa } from "@/lib/nativa/puente";
-import { describirCamaras, elegirCamaraPorDefecto, leerPreferencias, lineaCamaraElegida, plataformaDe, type Plataforma, restriccionesDeOpciones, leerCapacidades } from "@/lib/llamadas/camaras";
+import { describirCamaras, elegirCamaraPorDefecto, guardarPreferencia, leerPreferencias, lineaCamaraElegida, plataformaDe, type CamaraInfo, type Plataforma, restriccionesDeOpciones, leerCapacidades } from "@/lib/llamadas/camaras";
 import { anotarLlamada } from "@/lib/llamadas/voz-datos/diagnostico";
 import { getDeviceId } from "@/lib/network/device-registry";
 // PRM1109A (paso 4) · el motor de permisos es el único que habla con el
@@ -88,30 +88,185 @@ export function restriccionesAudio(microId?: string | null): MediaTrackConstrain
     };
 }
 
-export function restriccionesVideo(camaraId?: string | null): MediaTrackConstraints {
-    const eco = modoEco();
-    return {
-        width: { ideal: eco ? 640 : 1280 },
-        height: { ideal: eco ? 360 : 720 },
-        frameRate: { ideal: eco ? 15 : 24, max: 30 },
-        ...(camaraId ? { deviceId: { exact: camaraId } } : { facingMode: "user" }),
-    };
+/** LLA1111A · ¿aparato con cámara frontal/trasera (teléfono o tableta)? Solo ahí tiene sentido pedir `facingMode`. */
+export function esPlataformaMovil(plataforma: Plataforma): boolean {
+    return plataforma === "android" || plataforma === "ios";
+}
+
+function plataformaActual(): Plataforma {
+    return plataformaDe(typeof navigator !== "undefined" ? navigator.userAgent : "");
 }
 
 /**
- * VID1110A: deja en la llamada la cámara DEL PROPIO APARATO. Sin deviceId, `facingMode: "user"` deja que el sistema
- * decida, y macOS prefiere el iPhone (Cámara de Continuidad) si está cerca. Con permiso ya dado se ven las etiquetas:
- * si lo abierto no es lo que se elegiría (guardada › integrada frontal › resto), se reabre la buena y se suelta la otra.
+ * La lista de deseos de vídeo, TODO como `ideal` (LLA1111A). Antes llevaba `frameRate: { max: 30 }` (obligatorio) y
+ * `facingMode: "user"` también en el escritorio: en la Mac (prueba.35) toda petición a la «FaceTime HD Camera», a la
+ * virtual y al sistema sin id acababa en OverconstrainedError en 2–40 ms, y solo abrían las del iPhone. El único
+ * requisito obligatorio común a todas esas peticiones era ese `max` (el `deviceId` exacto no estaba en la del sistema).
+ * Un `ideal` nunca hace fallar la apertura: el motor da lo más parecido que tenga la cámara.
+ */
+export function restriccionesVideo(camaraId?: string | null, plataforma: Plataforma = plataformaActual(), eco = modoEco()): MediaTrackConstraints {
+    return {
+        width: { ideal: eco ? 640 : 1280 },
+        height: { ideal: eco ? 360 : 720 },
+        frameRate: { ideal: eco ? 15 : 24 },
+        ...(camaraId ? { deviceId: { exact: camaraId } } : esPlataformaMovil(plataforma) ? { facingMode: { ideal: "user" } } : {}),
+    };
+}
+
+export type NombrePeldano = "deseo" | "solo-id" | "libre";
+export interface PeldanoCamara {
+    paso: NombrePeldano;
+    video: MediaTrackConstraints | true;
+}
+
+/**
+ * LLA1111A · la escalera de relajación al abrir una cámara: 1) la lista de deseos (todo `ideal`); 2) con cámara
+ * pedida, solo su `deviceId` exacto; 3) nada (`video: true`). Después del 3, quien llama pasa a la cámara pedida
+ * con la pista ya abierta (ver `obtenerMedios`). Pura.
+ */
+export function escaleraCamara(camaraId: string | null | undefined, plataforma: Plataforma, eco = false): PeldanoCamara[] {
+    const out: PeldanoCamara[] = [{ paso: "deseo", video: restriccionesVideo(camaraId, plataforma, eco) }];
+    if (camaraId) out.push({ paso: "solo-id", video: { deviceId: { exact: camaraId } } });
+    out.push({ paso: "libre", video: true });
+    return out;
+}
+
+/** «width:ideal=1280,frameRate:ideal=24,deviceId:exact» para el registro (sin el id: es largo y no aporta). */
+export function textoRestricciones(v: MediaTrackConstraints | boolean | undefined): string {
+    if (v === true) return "ninguna";
+    if (!v) return "no";
+    const partes: string[] = [];
+    for (const [k, val] of Object.entries(v as Record<string, unknown>)) {
+        if (val === undefined) continue;
+        if (k === "deviceId" || k === "groupId") {
+            partes.push(`${k}:${val && typeof val === "object" ? Object.keys(val).join("+") : "bare"}`);
+        } else if (val && typeof val === "object" && !Array.isArray(val)) {
+            for (const [m, x] of Object.entries(val as Record<string, unknown>)) partes.push(`${k}:${m}=${String(x)}`);
+        } else {
+            partes.push(`${k}:bare=${String(val)}`);
+        }
+    }
+    return partes.join(",") || "vacia";
+}
+
+/** Nombre y restricción que falló de un error de getUserMedia (`OverconstrainedError.constraint`). */
+export function describirErrorMedios(err: unknown): string {
+    const e = err as { name?: string; constraint?: string } | null;
+    const nombre = e?.name ?? "desconocido";
+    return nombre === "OverconstrainedError" ? `${nombre} constraint=${e?.constraint || "?"}` : nombre;
+}
+
+/** ¿Merece la pena bajar un peldaño? Solo si lo pedido no encaja (o el id ya no existe), no si falta permiso u ocupa otra app. */
+export function relajarTrasError(err: unknown): boolean {
+    const n = (err as { name?: string } | null)?.name ?? "";
+    return n === "OverconstrainedError" || n === "ConstraintNotSatisfiedError" || n === "NotFoundError" || n === "DevicesNotFoundError";
+}
+
+const OCUPADA = ["NotReadableError", "AbortError", "TrackStartError"];
+
+/**
+ * Abre la cámara por la escalera; una línea al registro por intento y su resultado. Devuelve el stream y el peldaño
+ * que abrió, o lanza el último error.
+ */
+async function abrirPorEscalera(md: MediaDevices, audio: MediaTrackConstraints | false, peldanos: readonly PeldanoCamara[], que: string): Promise<{ stream: MediaStream; paso: NombrePeldano }> {
+    let ultimo: unknown = null;
+    for (let i = 0; i < peldanos.length; i++) {
+        const p = peldanos[i];
+        const t0 = Date.now();
+        try {
+            const stream = await solicitarMedios({ audio, video: p.video }, md);
+            const pista = stream.getVideoTracks()[0];
+            anotarLlamada("camara", null, `intento ${que} ${i + 1}/${peldanos.length} paso=${p.paso} restr=${textoRestricciones(p.video)} ok ms=${Date.now() - t0} abierta="${(pista?.label ?? "?").replace(/"/g, "'").slice(0, 50)}"`);
+            return { stream, paso: p.paso };
+        } catch (err) {
+            ultimo = err;
+            const sigue = relajarTrasError(err) && i < peldanos.length - 1;
+            anotarLlamada("camara", null, `intento ${que} ${i + 1}/${peldanos.length} paso=${p.paso} restr=${textoRestricciones(p.video)} fallo ms=${Date.now() - t0} error=${describirErrorMedios(err)}${sigue ? " se relaja" : ""}`);
+            if (!sigue) break;
+        }
+    }
+    throw ultimo;
+}
+
+/** Abre SOLO la pista de vídeo de una cámara concreta por la escalera (sin el peldaño libre: tiene que ser esa). */
+async function abrirPistaDe(md: MediaDevices, id: string, plataforma: Plataforma, que: string): Promise<MediaStreamTrack> {
+    const peldanos = escaleraCamara(id, plataforma, modoEco()).filter((p) => p.paso !== "libre");
+    const { stream } = await abrirPorEscalera(md, false, peldanos, que);
+    const nueva = stream.getVideoTracks()[0];
+    if (!nueva) throw Object.assign(new Error("sin pista"), { name: "SinPista" });
+    return nueva;
+}
+
+/**
+ * Cambia la pista de vídeo de `stream` por la de la cámara `destino` (LLA1110D/LLA1111A). Primero con la otra abierta;
+ * si la cámara está «ocupada» (WebKit puede no abrir dos a la vez), suelta la abierta y reintenta; si tampoco, vuelve a
+ * abrir lo que había por la escalera (nunca sin cámara). Devuelve si quedó la de destino.
+ */
+async function pasarACamara(md: MediaDevices, stream: MediaStream, destino: CamaraInfo, abiertaId: string | null, plataforma: Plataforma): Promise<boolean> {
+    const pista = stream.getVideoTracks()[0] ?? null;
+    try {
+        const nueva = await abrirPistaDe(md, destino.id, plataforma, "cambio");
+        stream.addTrack(nueva);
+        if (pista) {
+            stream.removeTrack(pista);
+            pista.stop();
+        }
+        return true;
+    } catch (err) {
+        const ocupada = OCUPADA.includes((err as { name?: string })?.name ?? "");
+        anotarLlamada("camara", null, `cambio-a-preferida-fallo elegida="${destino.etiqueta}" error=${describirErrorMedios(err)}${ocupada ? " se suelta la del sistema y se reintenta" : ""}`);
+        if (!ocupada || !pista) return false;
+        stream.removeTrack(pista);
+        pista.stop();
+        try {
+            stream.addTrack(await abrirPistaDe(md, destino.id, plataforma, "cambio-sola"));
+            return true;
+        } catch (err2) {
+            anotarLlamada("camara", null, `preferida-sola-fallo error=${describirErrorMedios(err2)} se reabre la del sistema`);
+            try {
+                const peldanos = escaleraCamara(abiertaId, plataforma, modoEco());
+                const { stream: s } = await abrirPorEscalera(md, false, peldanos, "reabrir");
+                const t = s.getVideoTracks()[0];
+                if (t) stream.addTrack(t);
+            } catch (err3) {
+                anotarLlamada("camara", null, `reabrir-sistema-fallo error=${describirErrorMedios(err3)}`);
+            }
+            return false;
+        }
+    }
+}
+
+/** Lista de cámaras ya descrita (con etiquetas si hay permiso). */
+async function camarasDe(md: MediaDevices, plataforma: Plataforma): Promise<CamaraInfo[]> {
+    return describirCamaras(
+        (await md.enumerateDevices()).filter((d) => d.kind === "videoinput" && d.deviceId).map((d) => ({ id: d.deviceId, nombre: d.label || "" })),
+        plataforma,
+    );
+}
+
+/**
+ * LLA1111A · la cámara pedida en la lista de ahora: por id, y si el id cambió (WebKit los cambia entre arranques), por
+ * la etiqueta que se recordó con ese id. Pura.
+ */
+export function resolverCamaraPedida(lista: readonly CamaraInfo[], id: string, guardada?: { id: string; etiqueta?: string } | null): CamaraInfo | null {
+    const porId = lista.find((c) => c.id === id);
+    if (porId) return porId;
+    const etiqueta = guardada && guardada.id === id ? guardada.etiqueta : undefined;
+    if (!etiqueta) return null;
+    return lista.find((c) => c.etiqueta && (c.etiqueta === etiqueta || c.nombre === etiqueta)) ?? null;
+}
+
+/**
+ * VID1110A: deja en la llamada la cámara DEL PROPIO APARATO. Sin deviceId deja decidir al sistema, y macOS prefiere el
+ * iPhone (Cámara de Continuidad) si está cerca. Con permiso ya dado se ven las etiquetas: si lo abierto no es lo que se
+ * elegiría (guardada › integrada frontal › resto), se pasa a la buena por la escalera (LLA1111A) y se suelta la otra.
  * Nunca lanza ni deja la llamada sin cámara: si algo falla, se queda la que abrió el sistema.
  */
-export async function afinarCamara(md: MediaDevices, stream: MediaStream, camaraIdPedida?: string | null, neurona: string = neuronaLocal(), plataforma: Plataforma = plataformaDe(typeof navigator !== "undefined" ? navigator.userAgent : "")): Promise<void> {
+export async function afinarCamara(md: MediaDevices, stream: MediaStream, camaraIdPedida?: string | null, neurona: string = neuronaLocal(), plataforma: Plataforma = plataformaActual()): Promise<void> {
     const pista = stream.getVideoTracks()[0];
     if (!pista) return;
     try {
-        const lista = describirCamaras(
-            (await md.enumerateDevices()).filter((d) => d.kind === "videoinput" && d.deviceId).map((d) => ({ id: d.deviceId, nombre: d.label || "" })),
-            plataforma,
-        );
+        const lista = await camarasDe(md, plataforma);
         const abiertaId = pista.getSettings?.().deviceId ?? null;
         const abierta = lista.find((c) => c.id === abiertaId) ?? lista.find((c) => c.etiqueta && c.etiqueta === pista.label) ?? null;
         if (camaraIdPedida) {
@@ -121,41 +276,7 @@ export async function afinarCamara(md: MediaDevices, stream: MediaStream, camara
         const e = elegirCamaraPorDefecto(lista, leerPreferencias(neurona).camara);
         let final = abierta;
         if (e.camara && abiertaId && e.camara.id !== abiertaId) {
-            // (LLA1110D) WebKit puede no abrir una segunda cámara con otra abierta (en la prueba 33 quedaba «motivo=sistema»,
-            // la Desk View del iPhone). Se intenta con la del sistema abierta; si el error es de «cámara ocupada», se
-            // suelta la del sistema y se reintenta; si tampoco, se reabre la del sistema: nunca sin cámara. Todo al registro.
-            const abrir = async (id: string) => {
-                const otro = await solicitarMedios({ audio: false, video: { ...restriccionesVideo(id) } }, md);
-                const nueva = otro.getVideoTracks()[0];
-                if (!nueva) throw Object.assign(new Error("sin pista"), { name: "SinPista" });
-                return nueva;
-            };
-            const nombre = (err: unknown) => (err as { name?: string })?.name ?? "desconocido";
-            try {
-                const nueva = await abrir(e.camara.id);
-                stream.addTrack(nueva);
-                stream.removeTrack(pista);
-                pista.stop();
-                final = e.camara;
-            } catch (err) {
-                const ocupada = ["NotReadableError", "AbortError", "TrackStartError"].includes(nombre(err));
-                anotarLlamada("camara", null, `cambio-a-preferida-fallo elegida="${e.camara.etiqueta}" error=${nombre(err)}${ocupada ? " se suelta la del sistema y se reintenta" : ""}`);
-                if (ocupada) {
-                    stream.removeTrack(pista);
-                    pista.stop();
-                    try {
-                        stream.addTrack(await abrir(e.camara.id));
-                        final = e.camara;
-                    } catch (err2) {
-                        anotarLlamada("camara", null, `preferida-sola-fallo error=${nombre(err2)} se reabre la del sistema`);
-                        try {
-                            stream.addTrack(await abrir(abiertaId));
-                        } catch (err3) {
-                            anotarLlamada("camara", null, `reabrir-sistema-fallo error=${nombre(err3)}`);
-                        }
-                    }
-                }
-            }
+            if (await pasarACamara(md, stream, e.camara, abiertaId, plataforma)) final = e.camara;
         }
         if (final) anotarLlamada("camara", null, lineaCamaraElegida(final, final === e.camara ? e.motivo : "sistema"));
     } catch {
@@ -195,9 +316,14 @@ async function errorBloqueante(err: unknown, p: { audio: boolean; video: boolean
 /**
  * Pide micro y/o cámara. Si pide los dos y la cámara falla, se queda con el micro y lo avisa
  * (mejor una llamada sin vídeo que ninguna).
- * 
- * (P0-3) Si se pide una cámara específica y falla con OverconstrainedError, vuelve a enumerar
- * las cámaras y reintenta sin restricción de deviceId (usar facingMode: "user").
+ *
+ * LLA1111A · la cámara se abre por la escalera de relajación (`escaleraCamara`): deseos como `ideal` › solo el
+ * `deviceId` exacto › `video: true`. Si abrió el peldaño libre y se había pedido otra cámara, se pasa a esa con la pista
+ * ya abierta (por id, o por la etiqueta recordada si el id cambió). Pedida SOLO la cámara (selector, encender) y sin
+ * poder abrir esa en concreto, no se devuelve otra en silencio: se suelta y se dice por qué (quien llama decide; el
+ * motor reintenta con la del sistema al encender y deja la anterior al cambiar). Cada intento, una línea al registro.
+ * Sustituye al reintento con `video: true` del enjambre (P0-3), que solo corría con cámara pedida y luego volvía a
+ * elegir sola (podía devolver el iPhone cuando se había pedido la FaceTime).
  */
 export async function obtenerMedios(p: { audio: boolean; video: boolean; microId?: string | null; camaraId?: string | null }): Promise<ResultadoMedios> {
     const md = mediaDevices();
@@ -205,58 +331,103 @@ export async function obtenerMedios(p: { audio: boolean; video: boolean; microId
         return errorBloqueante({ name: "NoMediaDevices" }, p);
     }
     if (!p.audio && !p.video) return { stream: null, error: null, aviso: null };
-    try {
-        const stream = await solicitarMedios({
-            audio: p.audio ? restriccionesAudio(p.microId) : false,
-            video: p.video ? restriccionesVideo(p.camaraId) : false,
-        }, md);
-        if (p.video) {
-            await afinarCamara(md, stream, p.camaraId);
-            await aplicarOpcionesGuardadas(stream.getVideoTracks()[0]);
+    const audio = p.audio ? restriccionesAudio(p.microId) : false;
+    if (!p.video) {
+        try {
+            return { stream: await solicitarMedios({ audio, video: false }, md), error: null, aviso: null };
+        } catch (err) {
+            anotarLlamada("camara", null, `obtener-medios-fallo audio=si video=no micro=${p.microId ? "elegido" : "sistema"} error=${describirErrorMedios(err)}`);
+            return errorBloqueante(err, p);
         }
+    }
+    const plataforma = plataformaActual();
+    const neurona = neuronaLocal();
+    try {
+        const { stream, paso } = await abrirPorEscalera(md, audio, escaleraCamara(p.camaraId, plataforma, modoEco()), p.camaraId ? "pedida" : "sistema");
+        if (p.camaraId && paso === "libre") {
+            // Ya hay permiso y etiquetas: se busca la pedida (el id pudo cambiar) y se pasa a ella.
+            const lista = await camarasDe(md, plataforma).catch(() => [] as CamaraInfo[]);
+            const pista = stream.getVideoTracks()[0] ?? null;
+            const abiertaId = pista?.getSettings?.().deviceId ?? null;
+            const destino = resolverCamaraPedida(lista, p.camaraId, leerPreferencias(neurona).camara);
+            let ok = !!destino && destino.id === abiertaId;
+            if (destino && !ok) ok = await pasarACamara(md, stream, destino, abiertaId, plataforma);
+            anotarLlamada("camara", null, `tras-libre pedida=${destino ? `"${destino.etiqueta}"` : "no-esta"} ${ok ? "abierta" : "no-abre"}`);
+            if (!ok && !p.audio) {
+                pararStream(stream);
+                restaurarPreferencia(p.camaraId, neurona);
+                const nombre = destino?.nombre ?? "La cámara elegida";
+                return { stream: null, error: destino ? `${nombre} no se pudo abrir. Sigue la cámara que tenías; prueba otra vez o elige otra.` : "Esa cámara ya no está conectada. Elige otra en Puertos › Cámara.", aviso: null };
+            }
+            if (destino && ok) anotarLlamada("camara", null, lineaCamaraElegida(destino, "pedida"));
+        } else {
+            await afinarCamara(md, stream, p.camaraId, neurona, plataforma);
+        }
+        await aplicarOpcionesGuardadas(stream.getVideoTracks()[0]);
+        recordarAbierta(stream.getVideoTracks()[0]);
         return { stream, error: null, aviso: null };
     } catch (err) {
-        // (LLA1110D) Todo fallo de medios queda en el registro del enlace (nombre del error y qué se pidió).
-        anotarLlamada("camara", null, `obtener-medios-fallo audio=${p.audio ? "si" : "no"} video=${p.video ? "si" : "no"} micro=${p.microId ? "elegido" : "sistema"} camara=${p.camaraId ? "elegida" : "sistema"} error=${(err as { name?: string })?.name ?? "desconocido"}`);
-        
-        // (P0-3) Si se pide cámara con deviceId específico y falla con OverconstrainedError,
-        // vuelve a enumerar y reintenta sin restricción exacta (falling back to facingMode: "user")
-        if (p.video && p.camaraId && (err as { name?: string })?.name === "OverconstrainedError") {
-            anotarLlamada("camara", null, `cambio-sin-restriccion camaraId=${p.camaraId} reintentando-con-facingMode`);
+        // (LLA1110D) Todo fallo de medios queda en el registro del enlace (nombre del error, restricción y qué se pidió).
+        anotarLlamada("camara", null, `obtener-medios-fallo audio=${p.audio ? "si" : "no"} video=si micro=${p.microId ? "elegido" : "sistema"} camara=${p.camaraId ? "elegida" : "sistema"} error=${describirErrorMedios(err)}`);
+        if (p.audio) {
             try {
-                // Reenumerar dispositivos y verificar cámara integrada disponible
-                const lista = await md.enumerateDevices();
-                const camaras = lista.filter((d) => d.kind === "videoinput").map((d) => ({ id: d.deviceId, nombre: d.label || "" }));
-                anotarLlamada("camara", null, `reenumerar-camaras lista=${camaras.length} camaraId=${p.camaraId}`);
-                
-                // Intentar con facingMode: "user" (sin restricción de deviceId específico)
-                const stream2 = await solicitarMedios({
-                    audio: p.audio ? restriccionesAudio(p.microId) : false,
-                    video: true,  // facingMode: "user" por defecto
-                }, md);
-                if (p.video) {
-                    await afinarCamara(md, stream2, null);  // Sin deviceId específico
-                    await aplicarOpcionesGuardadas(stream2.getVideoTracks()[0]);
-                }
-                anotarLlamada("camara", null, `cambio-sin-restriccion OK`);
-                return { stream: stream2, error: null, aviso: null };
+                const stream = await solicitarMedios({ audio, video: false }, md);
+                return { stream, error: null, aviso: await textoFalloCamara(md, err) };
             } catch (err2) {
-                anotarLlamada("camara", null, `cambio-sin-restriccion-fallo error=${(err2 as { name?: string })?.name ?? "desconocido"}`);
-                // Si también falla, caer al manejo de audio+video
-            }
-        }
-        
-        if (p.audio && p.video) {
-            try {
-                const stream = await solicitarMedios({ audio: restriccionesAudio(p.microId), video: false }, md);
-                return { stream, error: null, aviso: mensajeErrorMedios(err, { audio: false, video: true }) };
-            } catch (err2) {
-                anotarLlamada("camara", null, `obtener-medios-fallo solo-micro error=${(err2 as { name?: string })?.name ?? "desconocido"}`);
+                anotarLlamada("camara", null, `obtener-medios-fallo solo-micro error=${describirErrorMedios(err2)}`);
                 return errorBloqueante(err2, p);
             }
         }
-        return errorBloqueante(err, p);
+        if (p.camaraId) restaurarPreferencia(p.camaraId, neurona);
+        const r = await errorBloqueante(err, p);
+        return { ...r, error: (await textoCamaraListada(md, err)) ?? r.error };
     }
+}
+
+/** LLA1111A · la última cámara que de verdad abrió en este aparato (id y etiqueta). */
+let ultimaAbierta: { id: string; etiqueta: string } | null = null;
+
+function recordarAbierta(pista: MediaStreamTrack | undefined) {
+    const id = pista?.getSettings?.().deviceId;
+    if (id) ultimaAbierta = { id, etiqueta: pista?.label ?? "" };
+}
+
+/**
+ * LLA1111A · el motor recuerda la cámara elegida en el selector ANTES de abrirla; si no abre, quedaba como la de por
+ * defecto de las llamadas siguientes (en el banco, una cámara ocupada pasaba a ser «la guardada»). Si lo guardado es la
+ * que no abrió, se vuelve a dejar la última que abrió.
+ */
+function restaurarPreferencia(fallidaId: string, neurona: string) {
+    try {
+        const g = leerPreferencias(neurona).camara;
+        if (!g || g.id !== fallidaId || !ultimaAbierta || ultimaAbierta.id === fallidaId) return;
+        guardarPreferencia(neurona, { camara: { ...ultimaAbierta } });
+        anotarLlamada("camara", null, `preferencia-restaurada a="${ultimaAbierta.etiqueta.replace(/"/g, "'").slice(0, 40)}" (la elegida no abrió)`);
+    } catch {
+        /* sin almacenamiento */
+    }
+}
+
+/**
+ * LLA1111A · nunca «No encontramos ninguna cámara» si hay cámaras en la lista: se dice qué pasó de verdad. null si no
+ * hay ninguna listada (entonces vale el texto de siempre).
+ */
+async function textoCamaraListada(md: MediaDevices, err: unknown): Promise<string | null> {
+    let hay = false;
+    try {
+        hay = (await md.enumerateDevices()).some((d) => d.kind === "videoinput");
+    } catch {
+        hay = false;
+    }
+    if (!hay) return null;
+    const n = (err as { name?: string })?.name ?? "";
+    if (OCUPADA.includes(n)) return "La cámara está ocupada por otra aplicación. Ciérrala y vuelve a probar, o elige otra cámara.";
+    if (n === "NotAllowedError" || n === "SecurityError") return null;
+    return `La cámara no se pudo abrir (${describirErrorMedios(err)}). Vuelve a probar o elige otra en Puertos › Cámara.`;
+}
+
+async function textoFalloCamara(md: MediaDevices, err: unknown): Promise<string> {
+    return (await textoCamaraListada(md, err)) ?? mensajeErrorMedios(err, { audio: false, video: true });
 }
 
 export async function obtenerPista(tipo: "audio" | "video", deviceId?: string | null): Promise<{ pista: MediaStreamTrack | null; error: string | null }> {

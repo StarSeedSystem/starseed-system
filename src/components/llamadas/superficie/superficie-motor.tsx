@@ -75,7 +75,7 @@ export function SuperficieMotor({ activa, alInvitarConEnlace }: { activa: Llamad
 
   return (
     <ContextoNativoLlamada.Provider value={info}>
-      <SuperficieLlamada vista={vista} acciones={acciones} tamanoInicial="panel" />
+      <SuperficieLlamada vista={vista} acciones={acciones} tamanoInicial="panel" carriles={activa.motor} />
     </ContextoNativoLlamada.Provider>
   );
 }
