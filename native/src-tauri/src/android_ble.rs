@@ -283,6 +283,24 @@ mod pruebas {
         }
     }
 
+    /// (P37-1111) El hex del carril BLE: dos dígitos por byte, sin `toString(16)`/`%x` (que se comen
+    /// los ceros a la izquierda y dejarían el paquete truncado en el otro extremo). Es el mismo
+    /// contrato que `ble_trama::a_hex` y que `ServidorLocalLogica.hex`/`hexSinRelleno`.
+    #[test]
+    fn kotlin_hex_de_paquetes_es_de_dos_digitos_por_byte() {
+        let ini = KOTLIN.find("fun aHex(b: ByteArray): String").expect("aHex");
+        let fin = ini + KOTLIN[ini..].find("fun deHex(").expect("deHex");
+        let codifica = &KOTLIN[ini..fin];
+        assert!(codifica.contains("CharArray(b.size * 2)"), "un carácter por nibble: nunca se recorta el paquete");
+        assert!(codifica.contains("HEX[v ushr 4]") && codifica.contains("HEX[v and 0x0f]"), "los ceros a la izquierda también salen");
+        assert!(!codifica.contains("toString(16)") && !codifica.contains("%x"), "nada de formatos que quitan ceros");
+        let decodifica = &KOTLIN[fin..fin + 400];
+        assert!(decodifica.contains("s.length % 2 != 0") && decodifica.contains("return null"), "un hex impar no es un paquete");
+        // El gemelo de Rust produce el mismo patrón (16 B → 32 caracteres).
+        assert_eq!(crate::ble_trama::a_hex(&[0x11, 0x22, 0x33]), "112233");
+        assert_eq!(crate::ble_trama::a_hex(&[0x0f, 0x00, 0xaa]), "0f00aa");
+    }
+
     /// (BLE1108C) `reanudarRadio` solo arranca lo que falta (anuncio y escaneo): no toca el servidor GATT ni los
     /// clientes ni para un anuncio en marcha, así que un enlace con datos en vuelo jamás se cae por él.
     #[test]
