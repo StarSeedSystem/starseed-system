@@ -600,6 +600,24 @@ Wi-Fi de la tableta la llamada no salía («inicio paso=timbre fallo») y nadie 
    actual; el cambio dice `…-mas-capacidad` y la línea de carriles enseña «Datos: Wi-Fi directo». Probado en el banco con
    vías simuladas (ningún aparato de Alex forma Wi-Fi directo entre sí).
 
+### 13.1 · Canal rápido Bluetooth: el otro aparato yéndose no es un fallo (BLE1111P · 2026-11-11)
+
+El canal rápido (L2CAP sobre el enlace GATT, ~240 kb/s Mac ⇄ tableta) lo necesitan la voz y el vídeo de una llamada por
+Bluetooth. BLE1109B lo apagaba una hora por par tras 2 fallos en 10 min; el 11-11 eso saltó porque la tableta se reinició
+para actualizarse (cerró el canal, macOS no pudo reabrirlo y un segundo después cayó el enlace) y el enlace nuevo heredó la
+hora. Regla de ahora (`Castigos` en `ble_l2cap.rs`, contada en `ble.rs`):
+- **Un fallo es provisional 5 s** (`GRACIA_SALIDA_MS`). Si el enlace entero cae en ese margen, o ya había caído cuando llega
+  el cierre del canal, era el otro aparato yéndose y no cuenta (`l2cap-no-cuenta`). Los dos órdenes dan lo mismo.
+- **Todo va atado al enlace (sesión GATT).** Un enlace nuevo con el mismo par empieza limpio y pide el canal en el acto
+  (`l2cap-sesion-nueva` si había algo que olvidar).
+- **Un canal que falla de verdad con el par conectado** recibe pausas crecientes: 30 s, 2 min, 10 min, y 10 min de techo
+  (`l2cap-pausa`, con el plazo y lo que viene después). Tras cada pausa se vuelve a probar solo (`l2cap-reintento`) y un
+  fallo más abre la siguiente. Un canal que pasa la autoprueba y vive 30 s borra la escala.
+- **Solo el lado que abre (central) lleva la cuenta**; el que acepta nunca rechaza lo que el otro ofrece. Android no tiene
+  política propia: el mismo Rust decide en los dos aparatos y `BleStarSeed.kt` solo mueve el canal.
+- La web ve el plazo: `canal_rapido_pausa_ms` en cada enlace (la palabra `desactivado` se conserva para las webs
+  anteriores) y el detalle del enlace de la neurona dice «canal rápido en pausa · se vuelve a probar en 25 s».
+
 ## 14 · Relevo: una neurona llega a otra a través de las de en medio (REL1111I · 2026-11-11)
 
 Alex (11-11): «la neurona A no tiene enlace directo con la neurona C, pero la neurona B tiene enlace con ambas; entonces la malla

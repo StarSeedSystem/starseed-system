@@ -212,10 +212,16 @@ pub const PLAZO_SIN_LECTURA_MS: u64 = 6_000;
 pub const LATIDO_CANAL_MS: u64 = 2_000;
 /// (BLE1110A) El canal se da por atascado solo si un latido lleva sin eco esto Y no se leyó ni un byte en ese tiempo.
 pub const PLAZO_ECO_LATIDO_MS: u64 = 6_000;
-/// (BLE1109B) Fallos del canal de un mismo par que lo dejan apagado hasta reiniciar la app…
+/// (BLE1109B) Fallos del canal de un mismo par (dentro de `VENTANA_FALLOS_MS`) que lo dejan en pausa.
 pub const FALLOS_PARA_APAGAR: usize = 2;
-/// (BLE1109B) Un par apagado por fallos vuelve a probar el canal rápido pasada esta hora (un solo intento más: si falla, otra hora).
-pub const ESPERA_REINTENTO_MS: u64 = 60 * 60_000;
+/// (BLE1111P) Pausas crecientes del canal rápido con un par que SIGUE conectado y cuyo canal falla de verdad: 30 s, 2 min,
+/// 10 min y, de ahí en adelante, 10 min (techo). Sustituye a la hora entera de BLE1109B. Todo sigue por GATT mientras tanto.
+pub const ESCALA_PAUSA_MS: [u64; 3] = [30_000, 120_000, 600_000];
+/// (BLE1111P) Un fallo del canal no cuenta hasta pasar este margen: si en él se cae el enlace entero, era el otro aparato
+/// yéndose (reinicio, actualización, Bluetooth apagado), no un canal que falla.
+pub const GRACIA_SALIDA_MS: u64 = 5_000;
+/// (BLE1111P) Un canal que pasó la autoprueba y vivió esto o más estaba sano: borra la escala de pausas de ese par.
+pub const CANAL_SANO_MS: u64 = 30_000;
 /// (BLE1109B) Autoprueba del canal: paquete de 3 bytes [tipo | nonce] y su eco. Solo viajan por el canal; una app anterior los
 /// ignora (paquete desconocido) y entonces el eco no llega y el enlace sigue por GATT.
 pub const P_PRUEBA: u8 = 5;
@@ -247,13 +253,83 @@ pub fn leer_prueba(b: &[u8]) -> Option<(bool, u16)> {
 /// …si ocurren dentro de esta ventana (10 min).
 pub const VENTANA_FALLOS_MS: u64 = 10 * 60_000;
 
-/// (BLE1109B) Cuenta, por par, los fallos del canal rápido. Dos dentro de `VENTANA_FALLOS_MS` lo apagan para ese par
-/// durante `ESPERA_REINTENTO_MS`; pasada esa hora se da UNA oportunidad más (si falla otra vez, otra hora). Solo en memoria.
+/// (BLE1111P) Lo que se sabe del canal rápido con UN par, atado a la sesión GATT (el enlace) en que pasó.
+#[derive(Debug, Clone, Default)]
+struct Historial {
+    /// Enlace (sesión GATT) al que pertenece todo lo de abajo. Un enlace nuevo con ese par empieza limpio.
+    enlace: String,
+    /// Fallos aún sin confirmar (dentro de `GRACIA_SALIDA_MS`): un enlace que se cae en ese margen los anula.
+    provisionales: Vec<u64>,
+    /// Fallos confirmados dentro de `VENTANA_FALLOS_MS`.
+    fallos: Vec<u64>,
+    /// Pausas ya cumplidas desde el último canal sano (escalón de `ESCALA_PAUSA_MS`).
+    escalon: usize,
+    /// En pausa hasta este momento.
+    pausa_hasta: Option<u64>,
+    /// Acaba de salir de una pausa: un solo fallo confirmado más abre la siguiente.
+    tras_pausa: bool,
+    /// El enlace ya se cerró: lo que llegue tarde de él no cuenta.
+    ido: bool,
+}
+
+/// (BLE1111P) Una pausa que empieza (para el registro).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Pausa {
+    pub par: String,
+    pub enlace: String,
+    pub ms: u64,
+    /// 1, 2, 3… (el 3 y siguientes son el techo).
+    pub escalon: usize,
+    /// Fallos confirmados que la abrieron.
+    pub fallos: usize,
+    /// Venía de otra pausa (un solo fallo basta).
+    pub tras_pausa: bool,
+}
+
+impl Pausa {
+    /// «pausa de 30 s», «pausa de 2 min»…
+    pub fn texto_ms(ms: u64) -> String {
+        if ms < 60_000 {
+            format!("{} s", ms.div_ceil(1_000))
+        } else {
+            let m = ms / 60_000;
+            let s = (ms % 60_000) / 1_000;
+            if s == 0 { format!("{m} min") } else { format!("{m} min {s} s") }
+        }
+    }
+
+    /// Lo que dice `enlaces.log` al empezar la pausa, en palabras.
+    pub fn detalle(&self) -> String {
+        let causa = if self.tras_pausa {
+            "el canal rápido volvió a fallar tras la pausa anterior".to_string()
+        } else {
+            format!("{} fallos del canal rápido en 10 min con el otro aparato conectado", self.fallos)
+        };
+        let siguiente = ESCALA_PAUSA_MS[self.escalon.min(ESCALA_PAUSA_MS.len() - 1)];
+        format!(
+            "{causa}: pausa de {} (escalón {} de {}); luego se vuelve a probar solo (si falla otra vez, {}); un canal que dure {} s la anula; todo sigue por GATT",
+            Self::texto_ms(self.ms),
+            self.escalon.min(ESCALA_PAUSA_MS.len()),
+            ESCALA_PAUSA_MS.len(),
+            Self::texto_ms(siguiente),
+            CANAL_SANO_MS / 1_000
+        )
+    }
+}
+
+/// (BLE1109B → BLE1111P) Política del canal rápido por par. Ya NO apaga una hora: cuenta como fallo solo lo que falla con el
+/// otro aparato aún conectado y responde con pausas crecientes (`ESCALA_PAUSA_MS`) que un canal sano borra.
+///
+/// - Un fallo entra como PROVISIONAL. Si el enlace entero se cae en `GRACIA_SALIDA_MS` (o ya se había caído: el enlace
+///   está «ido»), se descarta: los dos órdenes posibles («canal cerrado» → «enlace caído» y al revés) dan lo mismo.
+/// - Pasado el margen, `confirmar` lo cuenta. Con `FALLOS_PARA_APAGAR` en `VENTANA_FALLOS_MS` (o uno solo justo tras una
+///   pausa) empieza la pausa del escalón que toque.
+/// - Todo está atado al ENLACE (sesión GATT): un enlace nuevo con el mismo par (el otro aparato reinició, se fue y volvió)
+///   empieza limpio y prueba el canal enseguida.
+/// - Solo en memoria. El nombre `Castigos` se conserva para no tocar a quien lo usa.
 #[derive(Default, Debug)]
 pub struct Castigos {
-    fallos: std::collections::HashMap<String, Vec<u64>>,
-    /// Par → hasta cuándo está apagado.
-    apagados: std::collections::HashMap<String, u64>,
+    pares: std::collections::HashMap<String, Historial>,
 }
 
 impl Castigos {
@@ -261,40 +337,122 @@ impl Castigos {
         Castigos::default()
     }
 
-    /// Anota un fallo. Devuelve true si el par QUEDA apagado con este.
-    pub fn fallo(&mut self, par: &str, ahora: u64) -> bool {
-        if self.apagado(par, ahora) {
-            return true;
+    /// El historial del par para ESTE enlace: si era de otro enlace, se olvida (sesión nueva). Devuelve si borró algo que
+    /// pesaba (fallos o pausa).
+    fn de_enlace(&mut self, par: &str, enlace: &str) -> (&mut Historial, bool) {
+        let h = self.pares.entry(par.to_string()).or_default();
+        let mut borro = false;
+        if h.enlace != enlace {
+            borro = h.pausa_hasta.is_some() || !h.fallos.is_empty() || !h.provisionales.is_empty() || h.escalon > 0 || h.tras_pausa;
+            *h = Historial { enlace: enlace.to_string(), ..Default::default() };
         }
-        let v = self.fallos.entry(par.to_string()).or_default();
-        v.retain(|t| ahora.saturating_sub(*t) <= VENTANA_FALLOS_MS);
-        v.push(ahora);
-        if v.len() >= FALLOS_PARA_APAGAR {
-            self.apagados.insert(par.to_string(), ahora + ESPERA_REINTENTO_MS);
-            self.fallos.remove(par);
-            return true;
-        }
-        false
+        (h, borro)
     }
 
-    pub fn apagado(&self, par: &str, ahora: u64) -> bool {
-        self.apagados.get(par).is_some_and(|hasta| ahora < *hasta)
+    /// Un enlace (sesión GATT) con el par empieza o se reconoce. Si el historial era de otro enlace, se olvida y el canal se
+    /// prueba ya. Devuelve true si había algo que olvidar (para decirlo en el registro).
+    pub fn sesion(&mut self, par: &str, enlace: &str) -> bool {
+        self.de_enlace(par, enlace).1
     }
 
-    /// Los pares cuya hora pasó: vuelven a probar, con UN fallo ya contado (otro fallo los apaga de nuevo).
-    pub fn caducados(&mut self, ahora: u64) -> Vec<String> {
-        let vencidos: Vec<String> = self.apagados.iter().filter(|(_, h)| ahora >= **h).map(|(p, _)| p.clone()).collect();
-        for p in &vencidos {
-            self.apagados.remove(p);
-            self.fallos.insert(p.clone(), vec![ahora]);
+    /// Anota un fallo del canal en ese enlace (provisional). Devuelve false si no cuenta: el enlace ya se fue.
+    pub fn fallo(&mut self, par: &str, enlace: &str, ahora: u64) -> bool {
+        if self.pares.get(par).is_some_and(|h| h.enlace == enlace && h.ido) {
+            return false;
         }
-        vencidos
+        let (h, _) = self.de_enlace(par, enlace);
+        if h.pausa_hasta.is_some_and(|t| ahora < t) {
+            return false; // en pausa: lo que caiga ahora no suma
+        }
+        h.provisionales.push(ahora);
+        true
+    }
+
+    /// El enlace entero se cayó: los fallos aún provisionales eran el otro aparato yéndose y no cuentan. Devuelve los
+    /// que se descartan (momentos), para el registro. Lo que llegue después de este enlace tampoco contará.
+    pub fn se_fue(&mut self, par: &str, enlace: &str, ahora: u64) -> Vec<u64> {
+        let Some(h) = self.pares.get_mut(par) else { return Vec::new() };
+        if h.enlace != enlace {
+            return Vec::new();
+        }
+        h.ido = true;
+        let limite = ahora.saturating_sub(GRACIA_SALIDA_MS);
+        // (Uno más viejo que el margen y aún sin confirmar ya da igual: este enlace no vuelve, y el siguiente empieza limpio.)
+        h.provisionales.drain(..).filter(|t| *t >= limite).collect()
+    }
+
+    /// Confirma los fallos que pasaron el margen sin que se cayera el enlace y abre las pausas que tocan.
+    pub fn confirmar(&mut self, ahora: u64) -> Vec<Pausa> {
+        let mut out = Vec::new();
+        for (par, h) in self.pares.iter_mut() {
+            if h.ido {
+                continue;
+            }
+            let limite = ahora.saturating_sub(GRACIA_SALIDA_MS);
+            let (listos, siguen): (Vec<u64>, Vec<u64>) = h.provisionales.drain(..).partition(|t| *t < limite);
+            h.provisionales = siguen;
+            if listos.is_empty() {
+                continue;
+            }
+            h.fallos.extend(listos);
+            h.fallos.retain(|t| ahora.saturating_sub(*t) <= VENTANA_FALLOS_MS);
+            let toca = if h.tras_pausa { !h.fallos.is_empty() } else { h.fallos.len() >= FALLOS_PARA_APAGAR };
+            if toca && h.pausa_hasta.is_none() {
+                let ms = ESCALA_PAUSA_MS[h.escalon.min(ESCALA_PAUSA_MS.len() - 1)];
+                h.escalon = h.escalon.saturating_add(1);
+                out.push(Pausa { par: par.clone(), enlace: h.enlace.clone(), ms, escalon: h.escalon, fallos: h.fallos.len(), tras_pausa: h.tras_pausa });
+                h.pausa_hasta = Some(ahora + ms);
+                h.fallos.clear();
+                h.tras_pausa = false;
+            }
+        }
+        out.sort_by(|a, b| a.par.cmp(&b.par));
+        out
+    }
+
+    /// Cuánto le queda de pausa al par en ESTE enlace (None: no está en pausa; un enlace nuevo nunca lo está).
+    pub fn pausa_restante(&self, par: &str, enlace: &str, ahora: u64) -> Option<u64> {
+        let h = self.pares.get(par)?;
+        if h.enlace != enlace {
+            return None;
+        }
+        h.pausa_hasta.filter(|t| ahora < *t).map(|t| t - ahora)
+    }
+
+    /// ¿En pausa en este enlace?
+    pub fn apagado(&self, par: &str, enlace: &str, ahora: u64) -> bool {
+        self.pausa_restante(par, enlace, ahora).is_some()
+    }
+
+    /// Las pausas que terminaron: (par, enlace). El canal vuelve a probar; un solo fallo confirmado más abre la siguiente.
+    pub fn caducados(&mut self, ahora: u64) -> Vec<(String, String)> {
+        let mut out = Vec::new();
+        for (par, h) in self.pares.iter_mut() {
+            if h.pausa_hasta.is_some_and(|t| ahora >= t) {
+                h.pausa_hasta = None;
+                h.tras_pausa = true;
+                if !h.ido {
+                    out.push((par.clone(), h.enlace.clone()));
+                }
+            }
+        }
+        out.sort();
+        out
+    }
+
+    /// Un canal sano (pasó la autoprueba y vivió `CANAL_SANO_MS`): se borra la escala de pausas del par.
+    pub fn sano(&mut self, par: &str, enlace: &str) {
+        let (h, _) = self.de_enlace(par, enlace);
+        h.provisionales.clear();
+        h.fallos.clear();
+        h.escalon = 0;
+        h.tras_pausa = false;
+        h.pausa_hasta = None;
     }
 
     /// Para pruebas y para el interruptor: olvida todo.
     pub fn limpiar(&mut self) {
-        self.fallos.clear();
-        self.apagados.clear();
+        self.pares.clear();
     }
 }
 
@@ -330,6 +488,15 @@ pub struct Cierre {
     pub espera_ms: u64,
     /// Estaba abierto (si no, solo falló la apertura).
     pub estaba_abierto: bool,
+    /// (BLE1111P) Había pasado la autoprueba (llevó tráfico del enlace).
+    pub paso_prueba: bool,
+}
+
+impl Cierre {
+    /// (BLE1111P) Un canal sano: pasó la autoprueba y vivió `CANAL_SANO_MS`. Borra la escala de pausas del par.
+    pub fn sano(&self) -> bool {
+        self.estaba_abierto && self.paso_prueba && self.vivio_ms >= CANAL_SANO_MS
+    }
 }
 
 /// La máquina del carril rápido de UN enlace.
@@ -345,7 +512,7 @@ pub struct Carril {
     pub abre_este_lado: bool,
     /// (BLE1109B) El enlace ya está LIGADO (saludo firmado intercambiado por GATT): solo entonces se abre el canal.
     ligado: bool,
-    /// (BLE1109B) Este par quedó sin canal rápido hasta reiniciar la app (2 fallos en 10 min): todo sigue por GATT.
+    /// (BLE1109B → BLE1111P) Este par está en pausa del canal rápido (pausa creciente, ver `Castigos`): todo sigue por GATT.
     prohibido: bool,
     /// (BLE1109B) Último momento en que llegaron bytes por el flujo (o en que abrió).
     ultimo_rx_ms: u64,
@@ -392,7 +559,7 @@ impl Carril {
         self.ligado
     }
 
-    /// (BLE1109B) Sin canal rápido para este par hasta reiniciar: si había uno abierto o pedido, el que llama lo cierra.
+    /// (BLE1109B → BLE1111P) Pausa del canal rápido para este par: si había uno abierto o pedido, el que llama lo cierra.
     pub fn prohibir(&mut self) {
         self.prohibido = true;
         if self.estado == EstadoCarril::Disponible {
@@ -506,7 +673,7 @@ impl Carril {
         self.probando() && self.prueba.is_some_and(|(_, desde)| ahora.saturating_sub(desde) > PLAZO_PRUEBA_MS)
     }
 
-    /// (BLE1109B) Pasada la hora del castigo: el par puede volver a probar.
+    /// (BLE1109B → BLE1111P) Terminó la pausa: el par puede volver a probar.
     pub fn permitir(&mut self) {
         self.prohibido = false;
         if self.estado == EstadoCarril::SinPsm && self.psm.is_some() {
@@ -580,6 +747,7 @@ impl Carril {
     /// El canal se cerró o no llegó a abrir. Vuelve a `Disponible` con la espera que toque (si había PSM).
     pub fn cerrado(&mut self, motivo: &str, ahora: u64) -> Cierre {
         let estaba_abierto = self.estado == EstadoCarril::Abierto;
+        let paso_prueba = estaba_abierto && self.prueba_ok;
         let vivio_ms = if estaba_abierto { ahora.saturating_sub(self.abierto_ms) } else { 0 };
         if estaba_abierto && vivio_ms >= CANAL_ESTABLE_MS {
             self.fallos = 0;
@@ -603,7 +771,7 @@ impl Carril {
         self.eco_por_enviar = None;
         self.latido = None;
         self.estado = if self.psm.is_some() && !self.prohibido { EstadoCarril::Disponible } else { EstadoCarril::SinPsm };
-        Cierre { motivo: motivo.chars().take(200).collect(), vivio_ms, espera_ms, estaba_abierto }
+        Cierre { motivo: motivo.chars().take(200).collect(), vivio_ms, espera_ms, estaba_abierto, paso_prueba }
     }
 
     /// Olvida todo (enlace GATT cerrado).
@@ -1042,33 +1210,124 @@ mod pruebas {
         assert_eq!(c2.espera_ms, ESCALA_REAPERTURA_MS[2]);
     }
 
+    // ─────────── BLE1111P: el otro aparato yéndose no es un fallo; pausas crecientes, no una hora ───────────
+
+    /// Lo que pasó el 2026-11-11 a las 19:05 (UTC) con la tableta reiniciando para actualizarse, en ms desde 19:04:59.470.
     #[test]
-    fn dos_fallos_en_diez_minutos_apagan_al_par_hasta_reiniciar() {
+    fn el_otro_aparato_reiniciando_no_pausa_y_el_enlace_nuevo_prueba_ya() {
         let mut k = Castigos::nuevo();
-        assert!(!k.fallo("n1", 0));
-        assert!(!k.apagado("n1", 0));
-        assert!(k.fallo("n1", 599_000), "el segundo dentro de 10 min lo apaga");
-        assert!(k.apagado("n1", 600_000) && !k.apagado("n2", 600_000), "solo ese par");
-        assert!(k.fallo("n1", 700_000), "ya apagado sigue apagado");
-        // Fuera de la ventana el primero ya no cuenta.
-        assert!(!k.fallo("n2", 0));
-        assert!(!k.fallo("n2", VENTANA_FALLOS_MS + 1));
-        assert!(k.fallo("n2", VENTANA_FALLOS_MS + 2));
-        k.limpiar();
-        assert!(!k.apagado("n1", 0) && !k.apagado("n2", 0));
+        let par = "e0b9faf2";
+        assert!(!k.sesion(par, "b1"), "primer enlace: nada que olvidar");
+        // 19:05:08.292 el otro cerró el canal (vivió 8,9 s: no es «estable», es fallo provisional).
+        assert!(k.fallo(par, "b1", 8_822));
+        // 19:05:09.494 macOS no pudo reabrir («Unknown error.»).
+        assert!(k.fallo(par, "b1", 10_024));
+        assert!(k.confirmar(10_024).is_empty(), "dentro del margen nada se confirma");
+        assert!(!k.apagado(par, "b1", 10_024));
+        // 19:05:09.504 el enlace entero se cae: los dos eran el otro yéndose.
+        assert_eq!(k.se_fue(par, "b1", 10_034), vec![8_822, 10_024]);
+        assert!(k.confirmar(10_034 + GRACIA_SALIDA_MS + 1).is_empty(), "nada que confirmar: no hay pausa");
+        assert!(!k.fallo(par, "b1", 10_040), "un cierre tardío del enlace que ya se fue no cuenta");
+        // 19:05:31 vuelve con una sesión GATT nueva (b2, psm 133): limpio, el canal se prueba ya.
+        k.sesion(par, "b2");
+        assert_eq!(k.pausa_restante(par, "b2", 31_836), None);
+        assert!(k.confirmar(40_000).is_empty());
     }
 
     #[test]
-    fn el_par_apagado_reintenta_una_vez_por_hora() {
+    fn enlace_caido_primero_y_canal_cerrado_despues_tampoco_cuenta() {
         let mut k = Castigos::nuevo();
-        k.fallo("n1", 0);
-        assert!(k.fallo("n1", 1_000));
-        assert!(k.apagado("n1", ESPERA_REINTENTO_MS - 1) && k.caducados(ESPERA_REINTENTO_MS - 1).is_empty());
-        let t = 1_000 + ESPERA_REINTENTO_MS;
-        assert_eq!(k.caducados(t), vec!["n1".to_string()]);
-        assert!(!k.apagado("n1", t), "vuelve a probar");
-        assert!(k.fallo("n1", t + 5_000), "un solo fallo más basta: otra hora apagado");
-        assert!(k.apagado("n1", t + 6_000));
+        k.sesion("p", "b1");
+        assert!(k.se_fue("p", "b1", 1_000).is_empty());
+        assert!(!k.fallo("p", "b1", 1_010), "el canal se cierra después de caer el enlace: no cuenta");
+        assert!(!k.fallo("p", "b1", 1_020));
+        assert!(k.confirmar(100_000).is_empty());
+        // Y en el orden contrario con el enlace cayendo justo al borde del margen.
+        let mut k = Castigos::nuevo();
+        k.fallo("p", "b1", 0);
+        k.fallo("p", "b1", 1_000);
+        assert_eq!(k.se_fue("p", "b1", GRACIA_SALIDA_MS), vec![0, 1_000]);
+        assert!(k.confirmar(GRACIA_SALIDA_MS * 3).is_empty());
+    }
+
+    #[test]
+    fn fallo_confirmado_y_enlace_que_cae_mucho_despues_si_cuenta() {
+        let mut k = Castigos::nuevo();
+        k.fallo("p", "b1", 0);
+        assert!(k.confirmar(GRACIA_SALIDA_MS + 1).is_empty(), "uno solo no pausa");
+        k.fallo("p", "b1", 20_000);
+        let p = k.confirmar(20_000 + GRACIA_SALIDA_MS + 1);
+        assert_eq!(p.len(), 1, "dos con el otro conectado: pausa");
+        assert_eq!((p[0].ms, p[0].escalon, p[0].fallos), (ESCALA_PAUSA_MS[0], 1, 2));
+        // El enlace cae luego: la pausa era de ese enlace; el siguiente empieza limpio.
+        assert!(k.se_fue("p", "b1", 40_000).is_empty());
+        assert!(k.sesion("p", "b2"), "había una pausa que olvidar");
+        assert!(!k.apagado("p", "b2", 40_001));
+    }
+
+    #[test]
+    fn canal_que_falla_de_verdad_pausas_crecientes_con_techo_y_un_canal_sano_las_borra() {
+        let mut k = Castigos::nuevo();
+        let mut t = 0u64;
+        let mut pausas = Vec::new();
+        // Primera: hacen falta 2 fallos en 10 min.
+        k.fallo("p", "b1", t);
+        t += 3_000;
+        k.fallo("p", "b1", t);
+        t += GRACIA_SALIDA_MS + 1;
+        let p = k.confirmar(t);
+        pausas.push(p[0].ms);
+        assert!(p[0].detalle().contains("pausa de 30 s") && p[0].detalle().contains("luego se vuelve a probar solo"), "{}", p[0].detalle());
+        assert!(k.apagado("p", "b1", t + p[0].ms - 1));
+        assert!(!k.fallo("p", "b1", t + 1_000), "en pausa no suma");
+        // Siguientes: tras cada pausa basta un fallo.
+        for _ in 0..4 {
+            let fin = t + *pausas.last().unwrap();
+            assert!(k.caducados(fin - 1).is_empty());
+            assert_eq!(k.caducados(fin), vec![("p".to_string(), "b1".to_string())]);
+            assert!(!k.apagado("p", "b1", fin));
+            t = fin + 500;
+            k.fallo("p", "b1", t);
+            t += GRACIA_SALIDA_MS + 1;
+            let p = k.confirmar(t);
+            assert_eq!(p.len(), 1);
+            assert!(p[0].tras_pausa);
+            pausas.push(p[0].ms);
+        }
+        assert_eq!(pausas, vec![30_000, 120_000, 600_000, 600_000, 600_000], "30 s, 2 min, 10 min y techo de 10 min");
+        assert!(*pausas.iter().max().unwrap() < 60 * 60_000, "nunca una hora");
+        assert_eq!(Pausa::texto_ms(120_000), "2 min");
+        // Un canal sano borra la escala: hacen falta otra vez 2 fallos y la pausa vuelve a ser de 30 s.
+        let fin = t + 600_000;
+        k.caducados(fin);
+        k.sano("p", "b1");
+        k.fallo("p", "b1", fin + 1);
+        assert!(k.confirmar(fin + GRACIA_SALIDA_MS + 2).is_empty(), "tras un canal sano, uno solo no pausa");
+        k.fallo("p", "b1", fin + 10_000);
+        let p = k.confirmar(fin + 10_000 + GRACIA_SALIDA_MS + 1);
+        assert_eq!(p[0].ms, ESCALA_PAUSA_MS[0]);
+        // Fuera de la ventana de 10 min el primero ya no cuenta.
+        let mut k = Castigos::nuevo();
+        k.fallo("q", "b9", 0);
+        k.confirmar(GRACIA_SALIDA_MS + 1);
+        k.fallo("q", "b9", VENTANA_FALLOS_MS + 10_000);
+        assert!(k.confirmar(VENTANA_FALLOS_MS + 10_000 + GRACIA_SALIDA_MS + 1).is_empty());
+        k.limpiar();
+    }
+
+    #[test]
+    fn cierre_sano_solo_si_paso_la_autoprueba_y_vivio_30_s() {
+        let mut c = Carril::nuevo(true);
+        c.ofrecer_psm(0x85, 0);
+        c.abierto(None, 0);
+        assert!(!c.cerrado("x", CANAL_SANO_MS + 1).sano(), "sin autoprueba superada no estaba sano");
+        c.abierto(None, 100_000);
+        c.iniciar_prueba(4, 100_000);
+        c.tomar_paquete_prueba();
+        c.recibir_prueba(true, 4, 100_050);
+        assert!(!c.clone().cerrado("x", 100_000 + CANAL_SANO_MS - 1).sano(), "vivió poco");
+        let ci = c.cerrado("x", 100_000 + CANAL_SANO_MS);
+        assert!(ci.sano() && ci.paso_prueba);
     }
 
     #[test]
