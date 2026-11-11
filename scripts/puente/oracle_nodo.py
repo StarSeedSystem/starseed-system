@@ -15,8 +15,10 @@ la llave SSH (`~/.ssh/starseed_oracle_ed25519`) y la sesión de GitHub hace con 
                          de GitHub (mismos nombres que `nube-gh.py secretos`) y las del bus, a un
                          archivo 600 del usuario del servicio; trae la clave del BitNet del A1 a
                          ~/.starseed/env. (SDP1111O) lleva también las fichas de sesión de las
-                         cuentas Google de ~/.starseed/cuentas/*.json (0600 en origen y destino).
-                         Nunca imprime un valor: solo nombres.
+                         cuentas Google de ~/.starseed/cuentas/*.json (0600) y (SDP1111R) la sesión
+                         de NotebookLM; el ciclo lanza `claves` SOLO si cambió una huella, y
+                         `instalar` añade notebooklm-py al A1 en un venv propio.
+                          Nunca imprime un valor: solo nombres.
   estado [--json]        lee el estado del nodo y lo deja en ~/.starseed/oracle.json (`nodo`,
                          `servicios`), que Genesis y `medios_disponibles` leen. Sin IPs ni claves.
   traer                  sube a GitHub las ramas `nube/a1-*` que dejó el A1 (él no puede: su copia
@@ -165,6 +167,13 @@ ARCHIVOS_ENV = ("~/.starseed/env", "~/.hermes/.env", os.path.join(RAIZ, ".env.lo
 #: por el mismo canal ssh de `claves`, sin imprimir contenido ni nombres de archivo.
 DIR_CUENTAS = os.path.join(HOME, ".starseed", "cuentas")
 DIR_CUENTAS_A1 = "/home/starseed/.starseed/cuentas"
+#: (SDP1111R) Autonomía sin la Mac: la síntesis se vigila por HUELLA (sha256 corto, nunca el valor);
+VIGILADAS_SINTESIS = ("TELEGRAM_SINTESIS_BOT_TOKEN", "TELEGRAM_SINTESIS_CHAT_ID",
+                      "GOOGLE_ACTIVIDAD_CLIENT_ID", "GOOGLE_ACTIVIDAD_CLIENT_SECRET")
+HUELLAS_SINTESIS = os.path.join(HOME, ".starseed", "claves-sintesis-huellas.json")
+ESTADO_NOTEBOOKLM = os.path.join(HOME, ".notebooklm", "profiles", "default", "storage_state.json")
+ESTADO_NOTEBOOKLM_A1 = "/home/starseed/.notebooklm/profiles/default/storage_state.json"
+VENV_NOTEBOOKLM_A1 = "/home/starseed/.starseed/venvs/notebooklm"
 NOMBRE_CLAVE_BITNET = "STARSEED_ORACLE_BITNET_KEY"
 #: Los pesos oficiales i2_s de Hugging Face vienen empaquetados para x86 (bloques de 128 valores,
 #: paso 32). En ARM `QK_I2_S` es 64 (paso 16): con ellos el A1 «responde» palabras sueltas sin
@@ -1074,6 +1083,9 @@ def instalar(esperar=False, minutos=40):
                 break
         _, cola = ssh("sudo tail -n 15 /var/log/starseed/preparar.log", timeout=40)
         res["registro"] = cola.strip().splitlines()[-15:]
+    if res.get("ok"):
+        rc_venv, _ = ssh("sudo -u starseed bash -lc '%s'" % guion_notebooklm_venv(), timeout=600)
+        res["notebooklm_venv"] = rc_venv == 0
     return res
 
 
@@ -1179,7 +1191,117 @@ def claves():
     # (SDP1111O) Y las fichas de cuentas Google (tokens de refresco) viajan por el mismo túnel,
     # 0600 en origen y destino; su resultado es solo un recuento.
     res["cuentas"] = _cuentas_al_a1()
+    # (SDP1111R) Y la sesión del perfil `default` de NotebookLM viaja por el mismo túnel (sin eco):
+    res["notebooklm"] = _notebooklm_al_a1()
     return res
+
+
+def huella_texto(texto):
+    """PURA (SDP1111R). sha256 corto (12 hex) de un texto o de bytes: nunca el valor, solo la huella."""
+    datos = texto if isinstance(texto, bytes) else str(texto or "").encode("utf-8")
+    return hashlib.sha256(datos).hexdigest()[:12]
+
+
+def huellas_sintesis(env, cuentas, notebooklm, huella=huella_texto):
+    """PURA (SDP1111R). {origen: huella} de la síntesis en el líder: variables vigiladas, fichas de cuentas (por índice anónimo) y la sesión de NotebookLM."""
+    huellas = {n: huella(env[n]) for n in VIGILADAS_SINTESIS if str(env.get(n) or "").strip()}
+    for i, contenido in enumerate((cuentas or {}).values()):
+        huellas["cuenta:%d" % i] = huella(contenido)
+    if str(notebooklm or "").strip():
+        huellas["notebooklm"] = huella(notebooklm)
+    return huellas
+
+
+def tocar_claves(actuales, guardadas):
+    """PURA (SDP1111R). (toca, motivo): ¿cambió alguna huella desde la última vez que `claves` corrió?"""
+    if not actuales:
+        return False, "no hay claves de la síntesis que vigilar en este nodo"
+    if not guardadas:
+        return True, "primera vez: registro las huellas y pongo al A1 al día"
+    cambiadas = sorted(k for k in set(actuales) | set(guardadas) if actuales.get(k) != guardadas.get(k))
+    return (False, "huellas iguales: no toca") if not cambiadas \
+        else (True, "cambió: %s" % ", ".join(cambiadas[:8]))
+
+
+def _leer_bytes(ruta):
+    """El contenido de un archivo, o b"" si no existe (las huellas nunca tumban al ciclo)."""
+    try:
+        with open(ruta, "rb") as f:
+            return f.read()
+    except OSError:
+        return b""
+
+
+def claves_sintesis_si_cambia(lanzar=None, env=None, huellas_cuentas=None, huella_notebooklm=None,
+                              guardadas=None, guardar_huellas=None):
+    """(SDP1111R) Lo que hace el ciclo del director: compara las huellas con
+    ~/.starseed/claves-sintesis-huellas.json y, si cambió alguna, lanza `claves` SOLO y guarda las
+    huellas nuevas (solo tras un envío bueno: si falló, se reintenta). Todo inyectable."""
+    if env is None and es_contenedor_nube():
+        # (SDP1111R) Los contenedores de la nube compartida nunca reciben datos privados ni claves.
+        return {"ok": True, "no": "nube compartida: la síntesis no manda nada desde aquí"}
+    env = _env_local() if env is None else env
+    if huellas_cuentas is None:
+        try:
+            huellas_cuentas = {n: _leer_bytes(os.path.join(DIR_CUENTAS, n))
+                               for n in archivos_de_cuentas(os.listdir(DIR_CUENTAS))}
+        except OSError:
+            huellas_cuentas = {}
+    if huella_notebooklm is None:
+        huella_notebooklm = _leer_bytes(ESTADO_NOTEBOOKLM)
+    actuales = huellas_sintesis(env, huellas_cuentas, huella_notebooklm)
+    guardadas = _leer(HUELLAS_SINTESIS, {}) if guardadas is None else guardadas
+    toca, motivo = tocar_claves(actuales, guardadas)
+    if not toca:
+        return {"ok": True, "no": motivo}
+    r = (lanzar or claves)()
+    if r.get("ok"):
+        (guardar_huellas or (lambda d: _escribir(HUELLAS_SINTESIS, d)))(dict(guardadas or {}, **actuales))
+    return {"ok": bool(r.get("ok")), "claves": r, "motivo": motivo}
+
+
+def guion_notebooklm(destino=ESTADO_NOTEBOOKLM_A1):
+    """PURA (SDP1111R). La orden ssh que deja la sesión en el A1: carpeta 700, ficha 0600 y todo callado."""
+    return ("set -e; sudo install -d -o starseed -g starseed -m 700 %s; "
+            "sudo install -o starseed -g starseed -m 600 /tmp/starseed-notebooklm.json %s; "
+            "rm -f /tmp/starseed-notebooklm.json; echo notebooklm-ok"
+            % (os.path.dirname(destino), destino))
+
+
+def guion_notebooklm_venv(venv=VENV_NOTEBOOKLM_A1):
+    """PURA (SDP1111R). notebooklm-py en un venv PROPIO del A1: idempotente, sin claves, sin comillas simples."""
+    return ("mkdir -p %s; if [ ! -x %s/bin/notebooklm ]; then python3 -m venv %s && "
+            "%s/bin/pip install -q notebooklm-py; fi; echo notebooklm-py-listo" % (venv, venv, venv, venv))
+
+
+def _notebooklm_al_a1(origen=ESTADO_NOTEBOOKLM, destino=ESTADO_NOTEBOOKLM_A1):
+    """(SDP1111R) La sesión de NotebookLM al A1 por el mismo túnel de `claves` (0600, sin eco);
+    sin ficha aquí no es error: la Mac la cubre encendida."""
+    datos = _leer_bytes(origen)
+    if not datos:
+        return {"ok": True, "enviado": False, "motivo": "sin sesión de NotebookLM en este nodo"}
+    rc, salida = _ssh_bytes("cat > /tmp/starseed-notebooklm.json", datos, timeout=120)
+    if rc == 0:
+        rc, salida = ssh(guion_notebooklm(destino), timeout=120)
+    return {"ok": rc == 0 and "notebooklm-ok" in salida, "enviado": rc == 0,
+            "motivo": "" if rc == 0 else tachar(salida.strip()[-120:], _ip())}
+
+
+def es_contenedor_nube(env=None):
+    """PURA (SDP1111R). ¿Corre esto en un contenedor de nube compartida (GitHub Actions y similares)?"""
+    return bool((os.environ if env is None else env).get("GITHUB_ACTIONS"))
+
+
+def se_puede_leer_actividad(es_lider, contenedor_nube=False, hay_claves=True):
+    """PURA (SDP1111R). (puede, motivo): ¿corren aquí los lectores de actividad y la entrega?
+    Solo el líder de dirección con claves (A1, Mac u otra neurona capaz); nunca la nube compartida."""
+    if contenedor_nube:
+        return False, "nube compartida: nunca recibe datos privados ni claves"
+    if not es_lider:
+        return False, "solo el líder de dirección lee actividad y entrega la síntesis"
+    if not hay_claves:
+        return False, "sin las claves de la síntesis en este nodo"
+    return True, "líder de dirección con claves"
 
 
 # ── estado ──
@@ -1695,6 +1817,10 @@ def ciclo(lanzar_si_libre=True, tope=TOPE_DEFECTO):
                 res["automejora"] = automejora_del_dia()
             except Exception as e:  # noqa: BLE001 — la automejora nunca frena el ciclo
                 res["automejora"] = {"ok": False, "motivo": tachar("%s: %s" % (type(e).__name__, e), _ip())}
+            try:
+                res["claves_sintesis"] = claves_sintesis_si_cambia()
+            except Exception as e:  # noqa: BLE001 — (SDP1111R) las claves nunca frenan el ciclo
+                res["claves_sintesis"] = {"ok": False, "motivo": tachar("%s: %s" % (type(e).__name__, e), _ip())}
             if lanzar_si_libre:
                 sin_tomar, _, _ = colas_sin_tomar(estado_a1)
                 datos = _leer(ESTADO, {}) or {}
