@@ -5,7 +5,7 @@
 - preparado por Claude en la nube a petición de Alex;
 - encolado por Claude (Cowork, con la Mac) el mismo día.
 
-**Estado:** la cola `starseed_memory_root/olas/cola-sdp1111.json` está encolada con 17 tareas (A–L y N–R).
+**Estado:** la cola `starseed_memory_root/olas/cola-sdp1111.json` está encolada con 19 tareas (A–L y N–T).
 - SDP1111M (lectura diaria de «Mi actividad» con el navegador) **no** está en la cola: espera la aprobación de Alex y
   su texto está en `starseed_memory_root/olas/pendientes/tarea-sdp1111m-pendiente.json`.
 - Nada está construido todavía.
@@ -143,6 +143,17 @@ El director llama al agente cada 15 minutos; el agente decide con su estado en q
     una subcarpeta por cuenta. Así se leen sin la Mac.
 - **Bot de las síntesis:** @StarSeed_Design_bot, con el token guardado por Alex el 2026-11-11 y probado ese día
   (getMe y un mensaje al chat privado). Al A1 llega solo, con la orden de claves (SDP1111O y SDP1111R).
+
+**YouTube a fondo (Alex, 2026-11-11), con las DOS cuentas:**
+- **Para qué:**
+  - analizar el historial y las publicaciones de canales relacionados y relevantes;
+  - buscar referencias de estilo, storyboards, guiones, diseños, noticias, activistas y temas.
+- **Qué entra:** los vídeos recomendados, el historial y los canales seguidos, vistos y transcritos por los agentes.
+- **SDP1111S** elige los candidatos del día con la API de las dos cuentas, Takeout y búsquedas por tema.
+- **SDP1111T** los ve y transcribe con herramientas gratuitas y locales (subtítulos con yt-dlp, transcriptor local,
+  Gemini gratuito con la URL) y los lleva a la síntesis con fuente y minuto.
+- **Límite:** los «recomendados» de YouTube no tienen API. Se aproximan con búsquedas por los temas del día, o con
+  la lectura del navegador de la Mac si Alex aprueba SDP1111M.
 
 **Autonomía:** todo funciona sin Claude y sin la Mac. Los lectores y la entrega corren en el líder de dirección; los
 contenedores compartidos de la nube nunca reciben datos privados ni claves.
@@ -456,6 +467,35 @@ lee la cola como lista de tareas. SDP1111M va aparte: ver «Estado», arriba.
    "SDP1111O"
   ],
   "prompt": "Lee architecture/sintesis-diaria-autonoma.md §3 y §4. Alex (2026-11-11): «todo debe funcionar aun sin Claude ni la computadora, desde MetaGenesis con todos sus medios, con los accesos y permisos completos desde cualquier medio donde se use MetaGenesis». TAREA: (1) en oracle_nodo.py, que la orden `claves` se lance SOLA desde el director cuando cambie la huella (sha256 corto, nunca el valor) de TELEGRAM_SINTESIS_BOT_TOKEN, TELEGRAM_SINTESIS_CHAT_ID, GOOGLE_ACTIVIDAD_*, de ~/.starseed/cuentas/*.json o del perfil de NotebookLM; guarda las huellas en ~/.starseed/claves-sintesis-huellas.json. (2) NotebookLM en el A1: `claves` lleva también ~/.notebooklm/profiles/default/storage_state.json (0600, mismo canal ssh, sin imprimir nada) y el instalador del A1 añade notebooklm-py en un venv propio; actividad_notebooklm.py corre en el líder que tenga el CLI y la sesión. Si Google invalida la sesión fuera de la Mac, devuelve {ok: False, motivo: 'sesión de NotebookLM no válida en este nodo'} y la Mac la cubre cuando esté encendida; nunca reintenta el login. (3) Los lectores de actividad y la entrega solo corren en el LÍDER de dirección (A1, Mac u otra neurona capaz con las claves); los contenedores de la nube compartida (GitHub Actions) nunca reciben datos privados ni claves. Pruebas sin red y sin ssh real. Máximo 120 líneas tocadas por archivo."
+ },
+ {
+  "id": "SDP1111S",
+  "ola": "SDP1111",
+  "titulo": "YouTube a fondo: canales seguidos, publicaciones relevantes y candidatos del día",
+  "archivos": [
+   "scripts/puente/youtube_candidatos.py",
+   "scripts/puente/test_youtube_candidatos.py"
+  ],
+  "depende": [
+   "SDP1111G",
+   "SDP1111Q"
+  ],
+  "prompt": "Lee architecture/sintesis-diaria-autonoma.md §4 (YouTube) y actividad_youtube.py. Alex (2026-11-11): la vinculación con YouTube sirve para analizar el historial y las publicaciones de canales relacionados y relevantes, y para investigaciones y referencias de estilos, storyboards, guiones, diseños, noticias, activistas y temas relevantes. Los agentes pueden buscar herramientas para VER y TRANSCRIBIR los vídeos y sacar contexto de los recomendados, del historial y de los canales seguidos, todo analizado con inteligencia para cada síntesis. Se usan LAS DOS cuentas (alex y fundacion) para el contexto y el acceso completo a YouTube. TAREA: youtube_candidatos.py, con los tokens de cuentas_google de las DOS cuentas (alex y fundacion): (a) suscripciones de cada cuenta → vídeos nuevos de 48 h de esos canales por su lista de subidas (playlistItems, 1 unidad de cuota; nunca search.list para esto); (b) «me gusta», listas propias y subidas propias recientes; (c) historial de vistos desde las fichas de Takeout (actividad_takeout) cuando existan; (d) los recomendados: la API ya no los da; usa como aproximación los vídeos relacionados por tema con search.list, como mucho 5 búsquedas al día (100 unidades cada una) con los temas del día (los del resumen de actividad y la rotación de la síntesis); (e) los canales de la red de resonancia y de activistas, noticias y temas relevantes que nombren las síntesis previas. Puntúa cada vídeo con Laya (relevante o no para StarSeed y para qué: estilo, storyboard, guion, diseño, noticia, activista, tema) y quita lo ya visto con LEANN. Devuelve como mucho 40 candidatos al día, ordenados, con id, canal, título, fecha, origen (cuenta y motivo) y privado: true cuando venga de la actividad personal. Guarda en ~/.starseed/actividad/youtube/candidatos-AAAA-MM-DD.json. Respeta la cuota diaria (registra las unidades gastadas). Pruebas sin red. Máximo 120 líneas por archivo; si no cabe, separa (d) y (e) y dilo."
+ },
+ {
+  "id": "SDP1111T",
+  "ola": "SDP1111",
+  "titulo": "Ver y transcribir los vídeos candidatos y llevarlos a la síntesis",
+  "archivos": [
+   "scripts/puente/video_contexto.py",
+   "scripts/puente/test_video_contexto.py",
+   "scripts/puente/sintesis_tareas.py"
+  ],
+  "depende": [
+   "SDP1111S",
+   "SDP1111C"
+  ],
+  "prompt": "Lee architecture/sintesis-diaria-autonoma.md §3.4 y §4. Alex (2026-11-11): la vinculación con YouTube sirve para analizar el historial y las publicaciones de canales relacionados y relevantes, y para investigaciones y referencias de estilos, storyboards, guiones, diseños, noticias, activistas y temas relevantes. Los agentes pueden buscar herramientas para VER y TRANSCRIBIR los vídeos y sacar contexto de los recomendados, del historial y de los canales seguidos, todo analizado con inteligencia para cada síntesis. Se usan LAS DOS cuentas (alex y fundacion) para el contexto y el acceso completo a YouTube. TAREA: (1) Antes de escribir, busca la mejor herramienta GRATUITA y local para cada paso en la Librería (architecture/repos-libreria-*.md, vigia-modelos.md, forja-voz-158.md: VibeASR/whisper.cpp) y en el nodo, y deja la elección justificada en ~/.starseed/herramientas-video.json. Orden por defecto: subtítulos con yt-dlp (--skip-download --write-auto-subs --sub-langs es,en; no descarga el vídeo); si no hay subtítulos, audio con yt-dlp y transcripción local (whisper.cpp, faster-whisper o VibeASR), borrando el audio al terminar; para VER el vídeo, Gemini gratuito con la URL de YouTube (GEMINI_API_KEY, respetando su cupo gratuito) o, si no, fotogramas clave con ffmpeg (detección de escena) descritos por un modelo de visión gratuito. Si falta yt-dlp o el transcriptor, el instalador del nodo lo añade (venv propio) y lo dice; nada de pago. (2) video_contexto.py: por cada candidato de youtube_candidatos (hasta 8 a fondo y el resto ligeros, a lo largo de la noche: calidad antes que tiempo) produce una ficha con: resumen de la transcripción, ideas útiles para guiones, notas de estilo (ritmo, montaje, color, tipografía, música, transiciones), storyboard extraído (escenas con marcas de tiempo), diseño, noticias, personas públicas o activistas citados y por qué importa para StarSeed; enlace y canal siempre, privado según el origen. Guarda en ~/.starseed/actividad/youtube/fichas/. (3) En sintesis_tareas.py añade la rama «youtube», que lleva esas fichas a las secciones de referencias, ideas, guiones y storyboards, creadores y noticias de la síntesis, con fuente (enlace y minuto) y fecha. Uso solo para análisis interno: no se redistribuye nada descargado. Pruebas sin red. Máximo 120 líneas tocadas por archivo."
  }
 ]
 ```
