@@ -747,7 +747,10 @@ export class SesionVozDatos {
       this.bytesRxVentana += texto.length;
       this.jitter.fijarMinimo(p.cubre * MS_TRAMA + 20);
       // ¿Ya manda en el último escalón (paquetes de ≥ 160 ms)? Entonces lo que no llega es que no cabe.
-      this.emisorEnSuelo = p.cubre * MS_TRAMA >= 160;
+      const enSuelo = p.cubre * MS_TRAMA >= 160;
+      // Acaba de bajar al suelo: lo malo de antes era la recolocación, no «no cabe». Se cuenta desde ahora.
+      if (enSuelo && !this.emisorEnSuelo) this.ventanasMalas = [];
+      this.emisorEnSuelo = enSuelo;
       // Redundancia primero (es más vieja), solo lo que aún no llegó y aún sirve.
       for (const t of p.red) {
         if (this.recibida(t.q)) continue;
