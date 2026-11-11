@@ -42,6 +42,11 @@ Necesita `esbuild` y `playwright` (globales o en `/opt/npm-tools`). No toca el M
 | `ble-40` | Igual a 40 kb/s (la voz sola ya no cabe): aviso de pausa en ≤ 15 s y la voz no peor que sola. |
 | `ble-caida` | 160 → 40 → 160 kb/s a mitad de llamada: pausa con aviso, y el vídeo vuelve solo en ≤ 20 s. |
 | `ble-micro` | 160 kb/s y el micro de A se silencia y abre cada 6 s: los fps no cambian. |
+| `voz-40` · `voz-24` · `voz-16` (VOZ1111J) | Solo voz, los dos micros abiertos (Opus real), carril Bluetooth a 40/24/16 kb/s (anunciado 160). Pasa con pérdida < 2 % en cada sentido, ≤ 1 hueco audible/min y ninguno > 200 ms (el «oído» del banco: marcas cada 2 s para el boca-oído; hueco = trama casi muda o ≥ 150 ms sin sonar; los saltos de < 150 ms del temporizador de 20 ms de la página se cuentan aparte, `saltosTemporizador`, porque el worklet de verdad guarda 240 ms), boca-oído p95 ≤ 900 ms y la llamada viva al acabar. |
+| `voz-caida` | 160 → 24 → 160 kb/s: lo mismo en cada tramo desde 6 s después de cada cambio (`asentados`); en esos 6 s de recolocación (`transitorios`) ningún hueco > 1 s. |
+| `voz-suelo` | 160 → 8 → 160: aviso «no alcanza para la voz» en los dos en ≤ 8 s y se va en ≤ 12 s al volver. |
+| `voz-40-cif` · `voz-24-cif` · `voz-16-cif` | Como `voz-*` pero con el cifrado del enlace en el aire (`ble.cifrado`: el cuerpo en base64 + 96 B por escritura, como Mac ↔ tableta). Dicen dónde está el suelo real con cifrado. |
+| `vozvideo-80` · `vozvideo-40` | Voz y vídeo a la vez: la reserva de la voz sigue a su escalón (registro `video-datos reparto … voz=`). |
 
 Cada caso nuevo devuelve `pasa`. El árbol viejo se construye sin `cola-timbre` (el módulo llega vacío y el banco usa el
 intento único de antes).

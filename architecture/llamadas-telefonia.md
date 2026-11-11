@@ -448,6 +448,57 @@ Bluetooth con escrituras solapadas o prioridad estricta dentro del carril (en `m
 
 Banco: `pruebas-reales/llamadas-medio` casos `ble-160`, `ble-80`, `ble-40`, `ble-caida`, `ble-micro`.
 
+### 9. La voz sigue al carril y dice la verdad bajo el suelo (VOZ1111J, `voz-datos/niveles.ts`)
+
+**Dónde se doblaba la voz.** No entre la web y la app nativa (ese paso no cuesta aire): `ble_enviar` (`native/src-tauri/src/ble.rs`)
+lleva el texto JSON tal cual dentro de la trama `SSB1` y del marco L2CAP (+17 B). El desperdicio estaba EN EL AIRE y en
+dos capas: (1) `voz.p` (`voz-datos/paquete.ts`, `armarPaquete`) = base64 de las tramas + ≈ 110 B de JSON con el id de la
+llamada por paquete: Opus 24 kb/s en paquetes de 60 ms → ≈ 48 kb/s de texto (dentro de un `nl.lote` cada comilla además se
+escapa); (2) con el enlace cifrado (CIF1108A, el caso Mac ↔ tableta) `sesion-cifrada.ts` vuelve a pasar el texto a base64 en
+`{"t":"nl.cif",…}`: ×4/3 + ≈ 96 B por escritura (`bluetooth-directo-motor.ts`, `bombear`, `cifrarHacia`). La capa (1) es de
+la voz y se quita aquí; la (2) es de la malla y queda pendiente (ver «Límites»).
+
+**Formato compacto «b1» (negociado).** `{"t":"voz.b","d":<base64>}` con cabecera binaria de 14 B (versión, códec, etiqueta
+FNV-16 del id de la llamada, q en unidades de 20 ms, reloj de 32 bits, unidades cubiertas, nº de tramas y de redundantes) y
+por trama 1 B (hueco de silencio | duración en unidades) + largo. Las unidades cubiertas sin trama son **silencio declarado**
+(DTX: −48 dBFS durante > 200 ms, no se mandan y al otro lado suenan a silencio, no son pérdida). Se anuncia en el saludo
+(`voz.c` `hola` con `fmt:["b1"]`); un aparato `0.5.1-prueba.36` no manda `fmt`, ignora `voz.b` y el control `rep`, y con él
+se sigue hablando `voz.p` con tramas de 20 ms (su decodificador numera tramas de 20 ms) en los dos sentidos.
+
+**Escalera (Opus).** 24 kb/s·20 ms·paquete 60 → 16·20·60 → 12·40·80 → 10·60·120 → 8·60·120 → 6·60·180 (kb/s de texto en
+«b1»: ≈ 39 → 10). Con un aparato anterior las tramas se quedan en 20 ms. ADPCM/μ-law solo agrandan el paquete. Entradas cada
+segundo: el modelo medido del carril (`MedidorEnlace` de `reparto.ts`: `ms = R + bytes/C`), la espera de la voz en el
+carril, los descartes propios y el informe del otro (`rep` cada 2 s: % perdido, % tarde, kb/s, `corte`). Un escalón cabe si
+`v/C + R/(2·paquete) ≤ 1 − holgura` (el Bluetooth junta en una escritura lo que espera: el ciclo queda en ≤ 2 paquetes).
+Baja al instante con atasco (espera > máx(300 ms, 2,5 paquetes)), descartes, pérdida > 3 % o tarde > 5 % informados, o si el
+modelo dice que no cabe; sube UN escalón tras 6 s de calma y con 30 % de holgura; si la subida falla en < 12 s, la calma se
+duplica (hasta 48 s). Redundancia (cada paquete repite la última trama del anterior) solo con pérdida informada ≥ 1 % y el
+escalón cabiendo dos veces. El búfer de fluctuación toma como suelo el tamaño del paquete que llega (+20 ms, tope 400 ms).
+
+**Bajo el suelo.** Quien oye: 3 s seguidos con > 25 % de audio inventado (ocultación o búfer vacío) → deja de reproducir
+fragmentos (silencio limpio) y la línea de estado dice «La señal no alcanza para la voz: en silencio hasta que mejore,
+vuelve sola»; sale con 3 s < 8 %. Quien habla: 3 s de atasco en el último escalón, o el `rep` con `corte` → «La señal no
+alcanza para la voz: al otro le llega a trozos; vuelve sola al mejorar». Va en `medio.calidadTexto` (`textoCalidadVoz`) y
+`medio.nivel` = «mala»: la ventana de la llamada ya lo pinta, sin cambios en `superficie/` ni en `components/llamadas/`.
+
+**Reserva para el vídeo.** `voz-datos/reserva.ts`: cada sesión publica los kb/s de texto de su escalón; `presupuestoVideo`
+resta la mayor entre eso y la voz medida. La voz baja → el vídeo gana ese sitio; sube → lo devuelve.
+
+Registro (`medio=enlace-datos`), cada 5 s (dos líneas: el registro corta cada detalle a 200 caracteres) y en cada cambio:
+
+```
+voz-datos tx n=5 opus=6k trama/paq=60/180ms texto=10k fmt=b1 cabe=13k enlace=15k+53ms entregado=16k espera=860ms paq=38 tiradas=0 otro:perd=0% tarde=0%
+voz-datos rx paq=37 perd=0.2% tardias=0 ocultadas=+4 inventado=0% jitter=200ms
+voz-datos nivel 3→5 motivo=descartes opus=6kbps trama=60ms paq=180ms texto≈10kbps cabe=13kbps espera=1320ms desc=4 rx-otro=perd 0% tarde 0% calma=6s
+voz-datos formato=b1 (compacto) nivel=0      ·      voz-datos formato=p (aparato anterior) nivel=0
+voz-datos bajo-suelo rx audio-inventado=100/66/76% (en silencio, aviso)   ·   voz-datos sobre-suelo rx audio-inventado=0%
+voz-datos bajo-suelo tx motivo=descartes cabe=9kbps   ·   voz-datos sobre-suelo tx
+```
+
+Límites: la reserva es global (la mayor de las llamadas activas, no por neurona). El doble base64 del cifrado sigue en el aire:
+con el enlace cifrado el suelo sube (banco: casos `-cif`); quitarlo es de `malla/` (cifrar a binario) o del marco nativo.
+Banco: `voz-40`, `voz-24`, `voz-16`, `voz-caida`, `voz-suelo`, `voz-*-cif`, `vozvideo-80`, `vozvideo-40` (LEEME).
+
 ## 9b. Cámaras y cámara remota (VID1110A)
 
 **Elección.** `camaras.ts` clasifica cada cámara por su etiqueta (`integrada` · `continuidad` · `externa` · `virtual` · `remota`) y el

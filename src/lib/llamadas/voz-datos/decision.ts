@@ -80,11 +80,16 @@ export interface CalidadVoz {
   perdidaPct: number;
   codec: string;
   jitterMs: number;
+  /** (VOZ1111J) kb/s del escalón de Opus en uso (se enseña junto al códec). */
+  kbps?: number;
+  /** (VOZ1111J) Bajo el suelo: la verdad en palabras («La señal no alcanza para la voz…»). */
+  aviso?: string | null;
 }
 
 export type NivelCalidadVoz = "buena" | "regular" | "mala";
 
 export function nivelCalidadVoz(c: CalidadVoz): NivelCalidadVoz {
+  if (c.aviso) return "mala"; // VOZ1111J
   if (c.perdidaPct >= 15 || (c.rttMs ?? 0) >= 1200) return "mala";
   if (c.perdidaPct >= 5 || (c.rttMs ?? 0) >= 500) return "regular";
   return "buena";
@@ -98,6 +103,8 @@ export function textoMedioVoz(medio: { tipo: string; cifrada: boolean }): string
 /** «Latencia 180 ms · pérdida 2 % · ADPCM». */
 export function textoCalidadVoz(c: CalidadVoz): string {
   const lat = c.rttMs === null ? "latencia sin medir" : `latencia ${Math.round(c.rttMs / 2)} ms`;
-  const cod = c.codec === "adpcm" ? "ADPCM" : c.codec === "mulaw" ? "μ-law" : "Opus";
-  return `${lat} · pérdida ${Math.round(c.perdidaPct)} % · ${cod}`;
+  const cod = c.codec === "adpcm" ? "ADPCM" : c.codec === "mulaw" ? "μ-law" : typeof c.kbps === "number" ? `Opus ${c.kbps} kb/s` : "Opus";
+  const base = `${lat} · pérdida ${Math.round(c.perdidaPct)} % · ${cod}`;
+  // VOZ1111J: bajo el suelo, la verdad primero (la ventana de la llamada ya pinta esta línea de estado).
+  return c.aviso ? `${c.aviso} · ${base}` : base;
 }

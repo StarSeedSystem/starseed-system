@@ -55,6 +55,23 @@ export class BufferJitter {
     this.objetivoMs = this.minMs;
   }
 
+  /**
+   * (VOZ1111J) Suelo del retardo objetivo: con paquetes de 120–180 ms el audio llega a golpes de ese tamaño y empezar en
+   * 60 ms suponía un vaciado (un hueco audible) por cada 20 ms que faltaban hasta acomodarse.
+   */
+  fijarMinimo(ms: number): void {
+    const m = Math.max(this.minMs, Math.min(this.maxMs, Math.round(ms)));
+    this.minimoDinamico = m;
+    if (this.objetivoMs < m) this.objetivoMs = m;
+  }
+
+  private minimoDinamico = 0;
+
+  /** (VOZ1111J) ¿Ya pasó su turno esa trama (o está guardada)? Para no decodificar redundancia que no sirve. */
+  yaNoHaceFalta(q: number): boolean {
+    return this.almacen.has(q) || (this.iniciado && this.siguiente !== null && q < this.siguiente);
+  }
+
   /** Mete una trama ya decodificada con su número. */
   meter(q: number, pcm: Int16Array): void {
     this.s.recibidas++;
@@ -119,7 +136,7 @@ export class BufferJitter {
       // 5 s estables a 20 ms/trama = 250 tramas: se baja el objetivo 10 ms.
       if (this.estables >= 5000 / this.msTrama) {
         this.estables = 0;
-        this.objetivoMs = Math.max(this.minMs, this.objetivoMs - 10);
+        this.objetivoMs = Math.max(this.minMs, this.minimoDinamico, this.objetivoMs - 10);
       }
       return { pcm: trama, oculta: false };
     }
@@ -155,7 +172,7 @@ export class BufferJitter {
     this.ultima = null;
     this.racha = 0;
     this.estables = 0;
-    this.objetivoMs = this.minMs;
+    this.objetivoMs = Math.max(this.minMs, this.minimoDinamico);
   }
 }
 

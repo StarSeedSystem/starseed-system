@@ -225,6 +225,8 @@ export function crearTransporteVozHacia(neurona: string): TransporteVoz | null {
       return ble() ? (modBle?.MAX_COLA_VIDEO_BLE ?? 24 * 1024) : null;
     },
     ...(conBle ? { bytesEntrados: () => bytesEntradosVozBle(neurona) } : {}),
+    // VOZ1111J: ¿hay vídeo en el carril de la voz (últimos 2 s)? La sesión de voz deja entonces sitio a su ventana.
+    ...(conBle ? { videoEnCarril: () => Date.now() - (videoEnCarrilVoz.get(neurona) ?? -1e12) < 2000 } : {}),
     capacidadKbps() {
       const b = ble();
       if (!b) return null;

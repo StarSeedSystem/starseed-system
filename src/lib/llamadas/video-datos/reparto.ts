@@ -34,6 +34,8 @@
  *    (hasta 40 s): no parpadea entre estados.
  */
 
+import { reservaVozKbps } from "@/lib/llamadas/voz-datos/reserva"; // VOZ1111J
+
 /* ───────────────────────── Constantes ───────────────────────── */
 
 /** Suelo del vídeo: por debajo no cabe ni ≈ 1 fotograma por segundo de 160×120 (con su clave cada 4 s). */
@@ -254,10 +256,15 @@ export class MedidorEnlace {
   }
 }
 
-/** Presupuesto del vídeo (kbps) con ese resumen: lo que cabe menos la voz, con un 10 % de margen. null: sin límite medido. */
-export function presupuestoVideo(r: ResumenEnlace): number | null {
+/**
+ * Presupuesto del vídeo (kbps) con ese resumen: lo que cabe menos la voz, con un 10 % de margen. null: sin límite medido.
+ * (VOZ1111J) La voz que se resta es la mayor entre la medida y la que su escalón reserva ahora (`voz-datos/reserva.ts`):
+ * la reserva sigue al escalón de la voz, así el vídeo gana lo que libera una voz más ligera y lo devuelve si sube.
+ */
+export function presupuestoVideo(r: ResumenEnlace, reservaVoz: number | null = reservaVozKbps()): number | null {
   if (r.maxKbps === null) return null;
-  return Math.max(0, Math.round((r.maxKbps - r.vozKbps) * 0.9));
+  const voz = Math.max(r.vozKbps, reservaVoz ?? 0); // VOZ1111J
+  return Math.max(0, Math.round((r.maxKbps - voz) * 0.9));
 }
 
 /* ───────────────────────── Control de la tasa del vídeo ───────────────────────── */

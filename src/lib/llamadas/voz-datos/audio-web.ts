@@ -216,7 +216,7 @@ interface DecodificadorNativo {
   close(): void;
 }
 interface WebCodecsGlobal {
-  AudioEncoder?: { new (i: { output: (c: { byteLength: number; copyTo(b: Uint8Array): void }) => void; error: (e: unknown) => void }): CodificadorNativo; isConfigSupported(c: Record<string, unknown>): Promise<{ supported?: boolean }> };
+  AudioEncoder?: { new (i: { output: (c: { byteLength: number; timestamp?: number; duration?: number | null; copyTo(b: Uint8Array): void }) => void; error: (e: unknown) => void }): CodificadorNativo & { flush?(): Promise<void> }; isConfigSupported(c: Record<string, unknown>): Promise<{ supported?: boolean }> };
   AudioDecoder?: { new (i: { output: (d: { numberOfFrames: number; timestamp: number; copyTo(b: Float32Array, o: Record<string, unknown>): void; close(): void }) => void; error: (e: unknown) => void }): DecodificadorNativo; isConfigSupported(c: Record<string, unknown>): Promise<{ supported?: boolean }> };
   AudioData?: new (i: Record<string, unknown>) => unknown;
   EncodedAudioChunk?: new (i: Record<string, unknown>) => unknown;
@@ -236,35 +236,85 @@ export async function opusWebCodecsSoportado(): Promise<boolean> {
   }
 }
 
+/**
+ * (VOZ1111J) ¿Admite el motor tramas de Opus de 60 ms y 6 kb/s (el suelo de la escalera)? Si no, la escalera se queda
+ * en tramas de 20 ms (`niveles.ts`): siguen bajando los kb/s y creciendo los paquetes.
+ */
+async function opusTramaLargaSoportada(w: WebCodecsGlobal): Promise<boolean> {
+  try {
+    const r = await w.AudioEncoder!.isConfigSupported({ ...CFG_OPUS, bitrate: 6_000, opus: { frameDuration: 60_000, application: "voip" } });
+    return !!r?.supported;
+  } catch {
+    return false;
+  }
+}
+
 /** Fábrica con ADPCM/μ-law siempre y Opus donde WebCodecs lo confirme. */
 export async function crearFabricaCodecsWeb(): Promise<FabricaCodecs> {
   const simples = fabricaCodecsSimples();
   const opus = await opusWebCodecsSoportado();
   if (!opus) return simples;
   const w = globalThis as unknown as WebCodecsGlobal;
+  const tramaLarga = await opusTramaLargaSoportada(w);
   return {
     soportados: () => ["opus", ...simples.soportados()] as CodecVoz[],
+    tramaLargaOpus: () => tramaLarga,
     codificador(c): CodificadorVoz | null {
       if (c !== "opus") return simples.codificador(c);
       try {
-        let salida: (b: Uint8Array) => void = () => undefined;
-        const enc = new (w.AudioEncoder as NonNullable<WebCodecsGlobal["AudioEncoder"]>)({
-          output: (ch) => {
-            const b = new Uint8Array(ch.byteLength);
-            ch.copyTo(b);
-            salida(b);
-          },
-          error: () => undefined,
-        });
-        enc.configure({ ...CFG_OPUS, bitrate: 24_000, opus: { frameDuration: MS_TRAMA * 1000, application: "voip" } });
+        let salida: (b: Uint8Array, meta?: { q: number; n: number }) => void = () => undefined;
+        const US = MS_TRAMA * 1000;
+        // (VOZ1111J) Un codificador por escalón: al cambiar kb/s o duración de trama se abre otro y el anterior se vacía y
+        // se cierra. Las marcas de tiempo son las de la captura (unidad q × 20 ms), así cada trama sale con su sitio.
+        const abrir = (kbps: number, msTrama: number) => {
+          const e = new (w.AudioEncoder as NonNullable<WebCodecsGlobal["AudioEncoder"]>)({
+            output: (ch) => {
+              const b = new Uint8Array(ch.byteLength);
+              ch.copyTo(b);
+              const q = typeof ch.timestamp === "number" ? Math.round(ch.timestamp / US) : -1;
+              const n = typeof ch.duration === "number" && ch.duration > 0 ? Math.max(1, Math.round(ch.duration / US)) : Math.max(1, Math.round(msTrama / MS_TRAMA));
+              salida(b, q >= 0 ? { q, n } : undefined);
+            },
+            error: () => undefined,
+          });
+          e.configure({ ...CFG_OPUS, bitrate: kbps * 1000, opus: { frameDuration: msTrama * 1000, application: "voip" } });
+          return e;
+        };
+        let actual = { kbps: 24, msTrama: MS_TRAMA };
+        let enc = abrir(actual.kbps, actual.msTrama);
         let t = 0;
         return {
-          codificar: (pcm) => {
+          codificar: (pcm, q) => {
             try {
-              enc.encode(new (w.AudioData as NonNullable<WebCodecsGlobal["AudioData"]>)({ format: "s16", sampleRate: FS_VOZ, numberOfFrames: pcm.length, numberOfChannels: 1, timestamp: t, data: pcm }));
-              t += MS_TRAMA * 1000;
+              const ts = typeof q === "number" ? q * US : t;
+              enc.encode(new (w.AudioData as NonNullable<WebCodecsGlobal["AudioData"]>)({ format: "s16", sampleRate: FS_VOZ, numberOfFrames: pcm.length, numberOfChannels: 1, timestamp: ts, data: pcm }));
+              t = ts + US;
             } catch {
               /* una trama que no entra: se pierde */
+            }
+          },
+          ajustar: (n) => {
+            const msTrama = tramaLarga ? n.msTrama : MS_TRAMA;
+            if (n.kbps === actual.kbps && msTrama === actual.msTrama) return;
+            actual = { kbps: n.kbps, msTrama };
+            const viejo = enc;
+            try {
+              enc = abrir(actual.kbps, actual.msTrama);
+            } catch {
+              enc = viejo;
+              return;
+            }
+            const cerrar = () => {
+              try {
+                viejo.close();
+              } catch {
+                /* noop */
+              }
+            };
+            try {
+              void (viejo.flush?.() ?? Promise.resolve()).then(cerrar, cerrar);
+            } catch {
+              cerrar();
             }
           },
           alSalir: (f) => {
@@ -298,6 +348,7 @@ export async function crearFabricaCodecsWeb(): Promise<FabricaCodecs> {
         });
         dec.configure(CFG_OPUS);
         return {
+          // (VOZ1111J) Una trama de 40/60 ms sale entera (640/960 muestras) con la marca de su primera unidad: la sesión la parte.
           decodificar: (b, q) => {
             try {
               dec.decode(new (w.EncodedAudioChunk as NonNullable<WebCodecsGlobal["EncodedAudioChunk"]>)({ type: "key", timestamp: q * MS_TRAMA * 1000, data: b }));

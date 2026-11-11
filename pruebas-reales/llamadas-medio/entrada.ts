@@ -16,7 +16,7 @@ import type { MuestraCarril } from "@/lib/llamadas/carriles";
 // MLL1111C: la cola del timbre (en el árbol viejo no existe: el módulo llega vacío y se usa el intento único de antes).
 import * as ColaTimbre from "@/lib/malla/cola-timbre";
 import { crearFabricaCodecsWeb } from "@/lib/llamadas/voz-datos/audio-web";
-import { leerPaquete } from "@/lib/llamadas/voz-datos/paquete";
+import * as PaqueteVoz from "@/lib/llamadas/voz-datos/paquete";
 import * as transporteVoz from "@/lib/llamadas/voz-datos/transporte";
 import { crearFabricaVideoWeb, crearFuenteDePista, crearSalidaVideoWeb } from "@/lib/llamadas/video-datos/codec-web";
 import type { SalidaVideo } from "@/lib/llamadas/video-datos/tipos";
@@ -167,7 +167,27 @@ function enlaceDatos(): [TransporteVoz, TransporteVoz] {
  * siguiente escritura no sale hasta el acuse: serialización + ida y vuelta), bytes contados hasta el acuse, tope de la
  * cola de voz 6 KiB y de vídeo 24 KiB (se tira lo más viejo). Mide la voz (pérdida, tránsito, espera tras vídeo) y lo
  * que llega de vídeo. `ble.kbps` se puede cambiar a mitad de llamada; `capacidadKbps()` dice lo anunciado al abrir. ── */
-const ble = { kbps: 160, rttMs: 42, perdida: 0, maxTrama: 16 * 1024, plazoVozMs: 200, anunciadoKbps: 160 };
+const ble = { kbps: 160, rttMs: 42, perdida: 0, maxTrama: 16 * 1024, plazoVozMs: 200, anunciadoKbps: 160, cifrado: false };
+/**
+ * (VOZ1111J) Lo que pesa una escritura EN EL AIRE: un texto solo va tal cual; varios, en un `nl.lote` (JSON de JSON: cada
+ * comilla interior se escapa) como `armarTrama` de `malla/red-local-nativa.ts`. Con `ble.cifrado` (el enlace de la Mac y
+ * la tableta cifra, CIF1108A) el cuerpo sale en `{"t":"nl.cif",…,"c":<base64>}`: 4/3 del cuerpo + ≈ 96 B por escritura.
+ */
+function bytesAire(lote: string[]): number {
+  const cuerpo = lote.length > 1 ? JSON.stringify({ t: "nl.lote", m: lote }).length : lote[0].length;
+  return ble.cifrado ? Math.ceil(cuerpo / 3) * 4 + 96 : cuerpo;
+}
+/** (VOZ1111J) Lee un paquete de voz en cualquier formato que entienda el árbol probado: unidades de 20 ms que trae. */
+type LectorVoz = (t: string, ahora?: number) => { ts: number; unidades: number[] } | null;
+const lectorNuevo = (PaqueteVoz as unknown as { unidadesPaqueteVoz?: LectorVoz }).unidadesPaqueteVoz;
+const leerVoz: LectorVoz =
+  typeof lectorNuevo === "function"
+    ? lectorNuevo
+    : (t) => {
+        if (!t.startsWith('{"t":"voz.p"')) return null;
+        const p = PaqueteVoz.leerPaquete(t);
+        return p ? { ts: p.ts, unidades: p.tramas.map((_, k) => p.q + k) } : null;
+      };
 interface MedidaSentido {
   vozTramas: Set<number>;
   vozQMin: number;
@@ -182,8 +202,11 @@ interface MedidaSentido {
   bytesVoz: number;
   bytesVideo: number;
   tirados: number;
+  /** (VOZ1111J) Paquetes de voz que entraron y bytes que salieron al aire. */
+  paquetesVoz: number;
+  bytesAire: number;
 }
-const nuevaMedida = (): MedidaSentido => ({ vozTramas: new Set(), vozQMin: Infinity, vozQMax: -1, transitos: [], tarde: 0, esperaTrasVideoMax: 0, esperasTrasVideo: 0, escrituras: 0, escriturasVideo: 0, escriturasMixtas: 0, bytesVoz: 0, bytesVideo: 0, tirados: 0 });
+const nuevaMedida = (): MedidaSentido => ({ vozTramas: new Set(), vozQMin: Infinity, vozQMax: -1, transitos: [], tarde: 0, esperaTrasVideoMax: 0, esperasTrasVideo: 0, escrituras: 0, escriturasVideo: 0, escriturasMixtas: 0, bytesVoz: 0, bytesVideo: 0, tirados: 0, paquetesVoz: 0, bytesAire: 0 });
 const medida: Record<"AB" | "BA", MedidaSentido> = { AB: nuevaMedida(), BA: nuevaMedida() };
 // En el árbol viejo no existe (sale `undefined`): el banco usa entonces el umbral de antes.
 const vozOcupada = (transporteVoz as { vozOcupada?: (c: number, u: number, v: number | undefined, a: number) => boolean }).vozOcupada;
@@ -219,7 +242,8 @@ function enlaceBle(): [TransporteVoz, TransporteVoz] {
         m.escrituras++;
         if (conVideo && !conVoz) m.escriturasVideo++;
         if (conVideo && conVoz) m.escriturasMixtas++;
-        const serial = (n * 8) / ble.kbps;
+        const serial = (bytesAire(lote) * 8) / ble.kbps;
+        m.bytesAire += bytesAire(lote);
         const t0 = performance.now();
         const bytesVideoLote = lote.filter(esVideoTxt).reduce((a, t) => a + t.length, 0);
         enVuelo = { soloVideo: conVideo && !conVoz, ack: t0 + serial + ble.rttMs, bytesVideo: bytesVideoLote };
@@ -228,10 +252,10 @@ function enlaceBle(): [TransporteVoz, TransporteVoz] {
         if (!perdida && datos.arriba) {
           const ahora = Date.now();
           for (const t of lote) {
-            if (!esVideoTxt(t) && t.startsWith('{"t":"voz.p"')) {
-              const p = leerPaquete(t);
+            if (!esVideoTxt(t)) {
+              const p = leerVoz(t, ahora);
               if (p) {
-                for (let k = 0; k < p.tramas.length; k++) m.vozTramas.add(p.q + k);
+                for (const u of p.unidades) m.vozTramas.add(u);
                 const tr = ahora - p.ts;
                 m.transitos.push(tr);
                 if (tr > ble.plazoVozMs) m.tarde++;
@@ -252,11 +276,12 @@ function enlaceBle(): [TransporteVoz, TransporteVoz] {
       enviar(t) {
         if (!datos.arriba) return "cerrado";
         const m = medida[sentido];
-        if (t.startsWith('{"t":"voz.p"')) {
-          const p = leerPaquete(t);
-          if (p) {
-            m.vozQMin = Math.min(m.vozQMin, p.q);
-            m.vozQMax = Math.max(m.vozQMax, p.q + p.tramas.length - 1);
+        const pv = esVideoTxt(t) ? null : leerVoz(t, Date.now());
+        if (pv) {
+          m.paquetesVoz++;
+          for (const u of pv.unidades) {
+            m.vozQMin = Math.min(m.vozQMin, u);
+            m.vozQMax = Math.max(m.vozQMax, u);
           }
           // Espera que le pone el VÍDEO a este paquete de voz: si sale una escritura solo de vídeo, lo que le falta (con su
           // acuse); si no, lo que tardan en serializarse los bytes de vídeo que van delante (en la escritura en vuelo y en el carril).
@@ -301,6 +326,7 @@ function enlaceBle(): [TransporteVoz, TransporteVoz] {
       colaVideoBytes: () => bVid,
       topeColaVideoBytes: () => 24 * 1024,
       bytesEntrados: () => entrados,
+      videoEnCarril: () => Date.now() - ultimoVideo < 2000, // VOZ1111J (como `crearTransporteVozHacia`)
       alRecibir: (cb) => (oy[i].add(cb), () => void oy[i].delete(cb)),
       abierto: () => datos.arriba,
       info: () => ({ tipo: "ble", cifrada: true }),
@@ -324,22 +350,70 @@ function salidaContada(quien: "A" | "B"): SalidaVideo | null {
 }
 
 /* ── Audio falso de la voz por datos: tono de 20 ms; cuenta lo que se reproduce ── */
+/**
+ * (VOZ1111J) Oído del banco: cada 2 s el que habla manda una MARCA (60 ms del tono a 2,5×) y el que oye la detecta al
+ * reproducirla: boca-oído = cuándo se reprodujo − cuándo se capturó. Un HUECO audible es una trama reproducida casi
+ * muda (la ocultación que se apaga o el silencio de un vaciado) o 60 ms o más sin reproducir nada.
+ */
 const audio = { reproducidas: { A: 0, B: 0 }, sesiones: { A: 0, B: 0 } };
+const oido = {
+  marcas: { A: [] as number[], B: [] as number[] },
+  bocaOido: { A: [] as number[], B: [] as number[] },
+  huecos: { A: [] as Array<{ t: number; ms: number; sinSonar?: boolean }>, B: [] as Array<{ t: number; ms: number; sinSonar?: boolean }> },
+  ultima: { A: 0, B: 0 },
+  enHueco: { A: 0, B: 0 },
+  enMarca: { A: false, B: false },
+  rms: { A: [] as number[], B: [] as number[] },
+};
+const AMP_TONO = 8000;
 function audioFalso(quien: "A" | "B"): AudioVoz {
   let t: ReturnType<typeof setInterval> | null = null;
+  const otro = quien === "A" ? "B" : "A";
+  const cerrarHueco = (ahora: number) => {
+    if (oido.enHueco[quien]) {
+      oido.huecos[quien].push({ t: oido.enHueco[quien], ms: Math.round(ahora - oido.enHueco[quien]) });
+      oido.enHueco[quien] = 0;
+    }
+  };
   return {
     async iniciar(alTrama) {
       audio.sesiones[quien]++;
       let fase = 0;
+      let n = 0;
       t = setInterval(() => {
+        const marca = n % 100 < 3;
+        if (n % 100 === 0) oido.marcas[quien].push(performance.now());
+        n++;
+        const amp = marca ? AMP_TONO * 2.5 : AMP_TONO;
         const pcm = new Int16Array(320);
-        for (let k = 0; k < 320; k++) pcm[k] = Math.round(8000 * Math.sin((fase++ * 2 * Math.PI * 440) / 16000));
+        for (let k = 0; k < 320; k++) pcm[k] = Math.round(amp * Math.sin((fase++ * 2 * Math.PI * 440) / 16000));
         alTrama(pcm);
       }, 20);
       return true;
     },
-    reproducir() {
+    reproducir(pcm: Int16Array) {
       audio.reproducidas[quien]++;
+      const ahora = performance.now();
+      let s = 0;
+      for (let k = 0; k < pcm.length; k++) s += pcm[k] * pcm[k];
+      const rms = Math.sqrt(s / Math.max(1, pcm.length));
+      if (oido.rms[quien].length < 4000) oido.rms[quien].push(Math.round(rms));
+      const nominal = AMP_TONO / Math.SQRT2;
+      // Marca: subida por encima de 1,6× lo normal → boca-oído contra la última marca del otro (cada 2 s, sin ambigüedad).
+      if (rms > nominal * 1.6) {
+        if (!oido.enMarca[quien]) {
+          const e = oido.marcas[otro].filter((x) => x <= ahora && ahora - x < 1900).pop();
+          if (e !== undefined) oido.bocaOido[quien].push(Math.round(ahora - e));
+        }
+        oido.enMarca[quien] = true;
+      } else oido.enMarca[quien] = false;
+      // Sin reproducir nada ≥ 60 ms: hueco (lo que el temporizador de 20 ms no dio).
+      const prev = oido.ultima[quien];
+      if (prev && ahora - prev >= 60 && !oido.enHueco[quien]) oido.huecos[quien].push({ t: prev, ms: Math.round(ahora - prev), sinSonar: true });
+      oido.ultima[quien] = ahora;
+      if (rms < nominal * 0.35) {
+        if (!oido.enHueco[quien]) oido.enHueco[quien] = ahora;
+      } else cerrarHueco(ahora);
     },
     detener() {
       if (t) clearInterval(t);
@@ -547,6 +621,37 @@ function estadoNeg() {
         bytesVoz: m.bytesVoz,
         bytesVideo: m.bytesVideo,
         tiradosColaVoz: m.tirados,
+        paquetesVoz: m.paquetesVoz,
+        kbpsAire: null,
+        bytesAire: m.bytesAire,
+      };
+    }
+    return r;
+  },
+  /** (VOZ1111J) Lo que se oye en cada lado en [desde, hasta): boca-oído de las marcas y huecos audibles. */
+  resumenOido(desde: number, hasta: number) {
+    const r: Record<string, unknown> = {};
+    for (const q of ["A", "B"] as const) {
+      const bo = [...oido.bocaOido[q]].sort((a, b) => a - b);
+      const pc = (p: number) => (bo.length ? bo[Math.min(bo.length - 1, Math.floor(p * bo.length))] : null);
+      // Audible: una trama casi muda (ocultación que se apaga, silencio) o ≥ 150 ms sin reproducir. Menos de 150 ms sin
+      // reproducir es el temporizador de 20 ms de la página que llega tarde (el worklet de verdad guarda 240 ms): se cuenta
+      // aparte (`saltosTemporizador`), no es audio perdido.
+      const todos = oido.huecos[q].filter((x) => x.t >= desde && x.t < hasta);
+      const h = todos.filter((x) => !x.sinSonar || x.ms >= 150);
+      const rms = [...oido.rms[q]].sort((a, b) => a - b);
+      r[q] = {
+        marcasOidas: bo.length,
+        bocaOidoP50: pc(0.5),
+        bocaOidoP95: pc(0.95),
+        huecos: h.length,
+        // Huecos por NO reproducir nada ≥ 60 ms (búfer vacío o el temporizador de 20 ms del navegador que no llegó).
+        huecosSinSonar: h.filter((x) => x.sinSonar).length,
+        saltosTemporizador: todos.length - h.length,
+        msHuecos: h.reduce((a, x) => a + x.ms, 0),
+        huecoMaxMs: h.reduce((a, x) => Math.max(a, x.ms), 0),
+        huecosPorMin: Math.round((h.length / Math.max(1, (hasta - desde) / 60000)) * 10) / 10,
+        rmsMediana: rms.length ? rms[Math.floor(rms.length / 2)] : null,
       };
     }
     return r;
@@ -554,6 +659,12 @@ function estadoNeg() {
   reiniciarMedida() {
     medida.AB = nuevaMedida();
     medida.BA = nuevaMedida();
+    for (const q of ["A", "B"] as const) {
+      oido.bocaOido[q].length = 0;
+      oido.huecos[q].length = 0;
+      oido.rms[q].length = 0;
+      oido.enHueco[q] = 0;
+    }
     pintadas.A.length = 0;
     pintadas.B.length = 0;
   },
