@@ -57,7 +57,7 @@ export function InterruptorSinFiltros({ e }: { e: VistaInterruptor }) {
 
 // ── Instalar Ollama ─────────────────────────────────────────────────────────────────────────────────
 
-type VistaOllama = Pick<EstadoModelos & AccionesModelos, "ollama" | "perfil" | "instalarOllama" | "cancelarOllama" | "vigilarOllama" | "comprobarOllama">;
+type VistaOllama = Pick<EstadoModelos & AccionesModelos, "ollama" | "perfil" | "instalarOllama" | "cancelarOllama" | "abrirInstaladorOllama" | "vigilarOllama" | "comprobarOllama">;
 
 /** Donde el recomendador dice que falta un runtime: «Instalar Ollama» (pregunta primero) o por qué no se puede. */
 export function InstalarOllama({ e, modeloId, abriria = 0 }: { e: VistaOllama; modeloId?: string; abriria?: number }) {
@@ -144,8 +144,14 @@ export function InstalarOllama({ e, modeloId, abriria = 0 }: { e: VistaOllama; m
             <div className="space-y-1" role="status">
               <p className={res.estado === "abierto" ? "text-emerald-300" : "text-amber-300"} data-campo="resultado-ollama">{res.mensaje}</p>
               <div className="flex flex-wrap gap-2">
-                {(res.estado === "abierto" || res.estado === "descargado-sin-abrir") && (
+                {(res.estado === "abierto" || res.estado === "descargado-sin-abrir" || res.estado === "necesita-acceso") && (
                   <button type="button" onClick={() => void e.comprobarOllama()} className="cursor-pointer rounded-md bg-cyan-500/20 px-2.5 py-1 text-cyan-100 hover:bg-cyan-500/30">Ya lo instalé</button>
+                )}
+                {res.estado === "necesita-acceso" && res.ruta && (
+                  <button type="button" onClick={() => { const ruta = res.ruta!; void e.abrirInstaladorOllama(ruta).then(setRes); }}
+                    className="cursor-pointer rounded-md bg-cyan-500/20 px-2.5 py-1 text-cyan-100 hover:bg-cyan-500/30" data-campo="dar-acceso-ollama">
+                    Dar acceso al equipo y abrir
+                  </button>
                 )}
                 {(res.estado === "cancelada" || res.estado === "fallo") && (
                   <button type="button" onClick={() => { setRes(null); setFase("pregunta"); }} className="cursor-pointer rounded-md bg-cyan-500/20 px-2.5 py-1 text-cyan-100 hover:bg-cyan-500/30">Volver a intentarlo</button>

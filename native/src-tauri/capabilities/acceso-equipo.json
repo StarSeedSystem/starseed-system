@@ -1,0 +1,35 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "acceso-equipo",
+  "description": "SEG1111U (2026-11-11): ejecutar programas en el aparato (`run_terminal`) y la concesión «acceso al equipo» que lo permite. Solo escritorio, solo la ventana «main», solo la web publicada de StarSeed OS y su servidor local (las webs hermanas no). Rust exige además que la persona haya dado «acceso al equipo» EN ESTE APARATO con un diálogo nativo (acceso_equipo.rs; guardado en la carpeta de configuración de la app, nunca en el almacenamiento web), con el aviso «● Acceso al equipo» visible en la barra de menús/bandeja y «Quitar el acceso al equipo ahora»; las órdenes delicadas se confirman una a una y todo queda en un registro de solo-añadir. Contrato: architecture/permisos-y-control-del-dispositivo.md §4.8.",
+  "windows": [
+    "main"
+  ],
+  "platforms": [
+    "linux",
+    "macOS",
+    "windows"
+  ],
+  "local": false,
+  "remote": {
+    "urls": [
+      "https://starseed-os.vercel.app",
+      "http://127.0.0.1:47610",
+      "http://127.0.0.1:47611",
+      "http://127.0.0.1:47612",
+      "http://127.0.0.1:47613",
+      "http://127.0.0.1:47614",
+      "http://127.0.0.1:47615",
+      "http://127.0.0.1:47616",
+      "http://127.0.0.1:47617",
+      "http://127.0.0.1:47618",
+      "http://127.0.0.1:47619"
+    ]
+  },
+  "permissions": [
+    "allow-run-terminal",
+    "allow-acceso-equipo-estado",
+    "allow-acceso-equipo-pedir",
+    "allow-acceso-equipo-revocar"
+  ]
+}

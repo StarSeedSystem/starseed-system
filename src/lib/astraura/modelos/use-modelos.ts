@@ -18,7 +18,7 @@ import {
 import { catalogoCompleto, listableSinFiltros, modelosDesdeCapas } from "./catalogo";
 import { puenteNativo } from "@/lib/nativa/puente";
 import {
-  FICHAS_OLLAMA, instalarOllamaGuiado, nativoOllamaDesde, preguntaOllama, sistemaOllama, sondearOllama, vigilarOllama,
+  FICHAS_OLLAMA, abrirInstaladorOllama, instalarOllamaGuiado, nativoOllamaDesde, preguntaOllama, sistemaOllama, sondearOllama, vigilarOllama,
   type FichaOllama, type PreguntaOllama, type ProgresoNativoOllama, type ResultadoInstalacionOllama, type SistemaOllama,
 } from "./instalar-ollama";
 import { CASOS_SIN_FILTROS, aplicarEleccionManual, type UsoModelo } from "./recomendar";
@@ -91,6 +91,8 @@ export interface AccionesModelos {
   /** Descarga el instalador oficial de Ollama SOLO con `confirmado`; `modeloId` es el modelo al que se seguirá después. */
   instalarOllama(confirmado: boolean, opciones?: { modeloId?: string; onProgreso?: (p: ProgresoNativoOllama) => void }): Promise<ResultadoInstalacionOllama>;
   cancelarOllama(): Promise<boolean>;
+  /** (SEG1111U) Vuelve a abrir el instalador ya descargado, pidiendo antes «acceso al equipo» si falta. */
+  abrirInstaladorOllama(ruta: string): Promise<ResultadoInstalacionOllama>;
   /** Mira cada pocos segundos si Ollama ya responde; devuelve la función que deja de mirar. */
   vigilarOllama(): () => void;
   /** Mira una vez ahora («Ya lo instalé»). */
@@ -290,6 +292,7 @@ export function useModelosNeurona(): EstadoModelos & AccionesModelos {
       return r;
     },
     cancelarOllama: () => nativo.cancelar(),
+    abrirInstaladorOllama: (ruta) => abrirInstaladorOllama(ficha, nativo, ruta),
     vigilarOllama: () => vigilarOllama({
       sondear: () => sondearOllama(traerLocal),
       alDetectar: () => {

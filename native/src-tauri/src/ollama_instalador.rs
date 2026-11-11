@@ -30,6 +30,8 @@ pub const TAMANO_MIN_BYTES: u64 = 20 * 1024 * 1024;
 const SALTOS_MAX: usize = 5;
 
 static EN_CURSO: AtomicBool = AtomicBool::new(false);
+/// (SEG1111U) El instalador que ESTE proceso descargó y verificó (ruta, tamaño): solo ese se abre.
+static DESCARGADO: std::sync::Mutex<Option<(PathBuf, u64)>> = std::sync::Mutex::new(None);
 static CANCELAR: AtomicBool = AtomicBool::new(false);
 
 #[derive(Serialize, Clone, Debug, PartialEq)]
@@ -280,7 +282,18 @@ pub async fn ollama_instalador_descargar(app: AppHandle, sistema: String) -> Res
     .await
     .map_err(|e| e.to_string());
     EN_CURSO.store(false, Ordering::SeqCst);
-    r?
+    let r = r?;
+    if let Ok(ok) = &r {
+        if let Ok(mut d) = DESCARGADO.lock() {
+            *d = Some((PathBuf::from(&ok.ruta), ok.bytes));
+        }
+    }
+    r
+}
+
+/// (SEG1111U) ¿Es `ruta` el instalador que este proceso descargó, con el mismo tamaño? (puro)
+pub fn es_el_descargado(descargado: Option<&(PathBuf, u64)>, ruta: &Path, bytes_ahora: Option<u64>) -> bool {
+    matches!((descargado, bytes_ahora), (Some((r, b)), Some(ahora)) if r == ruta && *b == ahora)
 }
 
 /// Cancela la descarga en curso (borra el parcial). Devuelve si había una.
@@ -295,8 +308,13 @@ pub fn ollama_instalador_cancelar() -> bool {
 
 /// Abre el instalador descargado con el programa del sistema (la persona completa la instalación) o,
 /// con `revelar`, lo muestra en el explorador de archivos. NUNCA lo ejecuta en silencio.
+///
+/// (SEG1111U) Abrir un instalador ejecuta un programa (en Windows, `explorer OllamaSetup.exe` lo lanza):
+/// exige «acceso al equipo» en este aparato, que sea el archivo que ESTE proceso descargó (mismo tamaño)
+/// y un «sí» en un diálogo nativo cada vez (instalar software se confirma siempre, §4 regla 4).
+/// Enseñarlo en el Finder/Explorador (`revelar`) no ejecuta nada y no lo necesita.
 #[tauri::command]
-pub fn ollama_instalador_abrir(app: AppHandle, ruta: String, revelar: Option<bool>) -> Result<(), String> {
+pub async fn ollama_instalador_abrir(app: AppHandle, webview: tauri::Webview, ruta: String, revelar: Option<bool>) -> Result<(), String> {
     let descargas = carpeta_descargas(&app)?;
     let ruta = PathBuf::from(ruta);
     if !ruta_abrible(&descargas, &ruta) {
@@ -306,6 +324,29 @@ pub fn ollama_instalador_abrir(app: AppHandle, ruta: String, revelar: Option<boo
         return Err("El instalador ya no está en Descargas: vuelve a descargarlo.".into());
     }
     let revelar = revelar == Some(true);
+    if !revelar {
+        let origen = crate::acceso_equipo::exigir(&app, &webview, "abrir instalador de Ollama")?;
+        let descargado = DESCARGADO.lock().ok().and_then(|d| d.clone());
+        let bytes = std::fs::metadata(&ruta).ok().map(|m| m.len());
+        if !es_el_descargado(descargado.as_ref(), &ruta, bytes) {
+            crate::acceso_equipo::anotar(&app, "rechazada", &origen, "abrir instalador de Ollama · no es el que descargó esta app");
+            return Err("Solo se abre el instalador que StarSeed acaba de descargar y comprobar: vuelve a descargarlo (o ábrelo tú desde Descargas).".into());
+        }
+        let nombre = ruta.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+        crate::acceso_equipo::confirmar(
+            &app,
+            &webview,
+            "StarSeed OS · ¿Abrir el instalador de Ollama?",
+            format!(
+                "StarSeed descargó {nombre} de la web oficial de Ollama a tu carpeta Descargas.\n\n\
+                 Abrirlo instala software en este aparato: tu sistema comprobará la firma del editor y tú completas la instalación.\n\n¿Lo abres?"
+            ),
+            "Abrir",
+        )
+        .await
+        .inspect_err(|e| crate::acceso_equipo::anotar(&app, "no abierto", &origen, e.split(" · ").next().unwrap_or("")))?;
+        crate::acceso_equipo::anotar(&app, "abierto", &origen, &format!("instalador de Ollama {nombre}"));
+    }
     #[cfg(target_os = "macos")]
     {
         let mut o = disco::orden("open");
@@ -403,6 +444,18 @@ mod pruebas {
         assert!(tamano_valido(5_000, Some(10 * gb)).is_err());
         assert!(tamano_valido(9 * gb, Some(100 * gb)).is_err());
         assert!(tamano_valido(230_000_000, None).is_err());
+    }
+
+    #[test]
+    fn solo_se_abre_el_que_descargo_esta_app() {
+        let d = Path::new("/u/Descargas");
+        let r = d.join("Ollama.dmg");
+        let hecho = (r.clone(), 100u64);
+        assert!(es_el_descargado(Some(&hecho), &r, Some(100)));
+        assert!(!es_el_descargado(None, &r, Some(100)), "tras reiniciar la app no hay descarga propia");
+        assert!(!es_el_descargado(Some(&hecho), &r, Some(101)), "otro archivo con el mismo nombre");
+        assert!(!es_el_descargado(Some(&hecho), &d.join("OllamaSetup.exe"), Some(100)));
+        assert!(!es_el_descargado(Some(&hecho), &r, None));
     }
 
     #[test]

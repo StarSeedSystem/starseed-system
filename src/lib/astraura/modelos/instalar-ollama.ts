@@ -12,6 +12,7 @@
 // Honestidad: Ollama no publica una suma de verificación junto al instalador; StarSeed NO verifica su firma por su
 // cuenta: la comprueba tu sistema (Gatekeeper en macOS, SmartScreen/Authenticode en Windows) al abrirlo.
 
+import { COMANDO_ACCESO_PEDIR, conAccesoEquipo, pedirAccesoEquipo } from "@/lib/nativa/acceso-equipo";
 import type { Plataforma } from "@/lib/astraura/perfil-hardware";
 import type { Resultado } from "@/lib/nativa/tipos";
 import { BASE_OLLAMA, type Traer } from "./instalar";
@@ -179,6 +180,8 @@ export interface NativoOllama {
   cancelar(): Promise<boolean>;
   abrir(ruta: string, revelar?: boolean): Promise<Resultado<null>>;
   alProgresar(cb: (p: ProgresoNativoOllama) => void): Promise<() => void>;
+  /** (SEG1111U) Pide a la app el diálogo nativo de «acceso al equipo» (abrir un instalador ejecuta un programa). */
+  pedirAcceso?(motivo: string): Promise<Resultado<{ activo: boolean }>>;
 }
 
 export const COMANDOS_NATIVOS_OLLAMA = {
@@ -205,6 +208,7 @@ export function nativoOllamaDesde(p: {
       const r = await p.llamar<unknown>(COMANDOS_NATIVOS_OLLAMA.abrir, { ruta, revelar: revelar === true });
       return r.ok ? { ok: true, valor: null } : r;
     },
+    pedirAcceso: (motivo) => pedirAccesoEquipo(p.llamar, motivo),
     alProgresar: (cb) => p.escuchar(COMANDOS_NATIVOS_OLLAMA.evento, (x) => {
       const o = x as Partial<ProgresoNativoOllama> | null;
       if (o && typeof o.fase === "string" && typeof o.descargado === "number" && typeof o.total === "number") {
@@ -222,6 +226,7 @@ export type EstadoInstalacionOllama =
   | "rechazada"          // la URL no era oficial (defensa en profundidad)
   | "abierto"            // descargado y abierto: la persona completa la instalación
   | "descargado-sin-abrir" // descargado, pero no se pudo abrir: está en Descargas
+  | "necesita-acceso"    // (SEG1111U) descargado; abrirlo pide «acceso al equipo» y aún no está dado
   | "cancelada"
   | "fallo";
 
@@ -259,14 +264,31 @@ export async function instalarOllamaGuiado(
         ? "Descarga cancelada: no se guardó nada y no se instaló nada."
         : `No se pudo descargar el instalador (${d.motivo}). No quedó nada a medias. ${COMO_SEGUIR}`);
     }
-    const a = await o.nativo.abrir(d.valor.ruta);
-    if (!a.ok) {
-      return { estado: "descargado-sin-abrir", ruta: d.valor.ruta, mensaje: `El instalador se descargó en tu carpeta Descargas (${ficha.archivo}) pero no pude abrirlo (${a.motivo}). Ábrelo tú para continuar.` };
-    }
-    return { estado: "abierto", ruta: d.valor.ruta, mensaje: `Se abrió ${ficha.archivo}. Completa la instalación en la ventana que apareció; StarSeed detectará Ollama cuando esté listo.` };
+    return await abrirInstaladorOllama(ficha, o.nativo, d.valor.ruta);
   } finally {
     quitar();
   }
+}
+
+/**
+ * (SEG1111U) Abre el instalador ya descargado. Abrirlo ejecuta un programa: la app exige «acceso al equipo» en
+ * esta neurona y un «sí» en un diálogo del sistema. Si falta el acceso, se pide el diálogo nativo UNA vez y se
+ * reintenta; si la persona no lo da, se dice en palabras claras y el instalador sigue en Descargas.
+ */
+export async function abrirInstaladorOllama(ficha: FichaOllama, nativo: NativoOllama, ruta: string): Promise<ResultadoInstalacionOllama> {
+  const que = "abrir el instalador de Ollama";
+  const llamar = async <T,>(cmd: string, args?: Record<string, unknown>): Promise<Resultado<T>> => {
+    if (cmd !== COMANDO_ACCESO_PEDIR || !nativo.pedirAcceso) return { ok: false, motivo: "acceso:no-aplica · sin diálogo" };
+    return (await nativo.pedirAcceso(String(args?.motivo ?? que))) as Resultado<T>;
+  };
+  const a = await conAccesoEquipo(llamar, que, () => nativo.abrir(ruta));
+  if (a.ok) {
+    return { estado: "abierto", ruta, mensaje: `Se abrió ${ficha.archivo}. Completa la instalación en la ventana que apareció; StarSeed detectará Ollama cuando esté listo.` };
+  }
+  if (a.acceso === "sin-concesion" || a.acceso === "espera" || a.acceso === "pendiente") {
+    return { estado: "necesita-acceso", ruta, mensaje: `El instalador ya está en tu carpeta Descargas (${ficha.archivo}). ${a.motivo} También puedes abrirlo tú desde Descargas.` };
+  }
+  return { estado: "descargado-sin-abrir", ruta, mensaje: `El instalador se descargó en tu carpeta Descargas (${ficha.archivo}) pero no se abrió (${a.motivo}). Ábrelo tú para continuar.` };
 }
 
 // ── Detección ─────────────────────────────────────────────────────────────────────────────────────

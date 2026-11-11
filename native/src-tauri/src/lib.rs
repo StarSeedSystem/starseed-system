@@ -19,12 +19,14 @@
 //
 // HONESTIDAD RADICAL: `run_terminal` ejecuta comandos de shell con los permisos
 // del usuario que corre la app. Es POTENTE y PELIGROSO: es literalmente dar a la
-// IA una terminal. Por eso el scope está declarado en la capability y el usuario
-// concede el acceso al instalar la app nativa. Nunca se ejecuta nada sin que la
-// cadena de permisos (capability → scope de shell) lo permita.
+// IA una terminal. Desde SEG1111U (2026-11-11) no basta con la capability: Rust
+// exige «acceso al equipo», que la persona da EN ESTE APARATO con un diálogo nativo,
+// visible en la barra de menús/bandeja y revocable (acceso_equipo.rs); las órdenes
+// delicadas se confirman una a una y todo queda en un registro de solo-añadir.
 // ═══════════════════════════════════════════════════════════════════════════
 
 use serde::Serialize;
+#[cfg(desktop)]
 use tauri_plugin_shell::ShellExt;
 
 // ─── Cuerpo nativo de StarSeed OS (2026-10-10, architecture/apps-nativas-segundo-plano.md) ───
@@ -145,6 +147,11 @@ mod ventana_remota;
 mod prestamo_ventana; // SEG1111T
 #[cfg(any(desktop, test))]
 mod prestamo_ventana_logica; // SEG1111T
+// (SEG1111U) «Acceso al equipo»: concesión nativa por aparato para ejecutar programas, aviso y registro.
+#[cfg(desktop)]
+mod acceso_equipo; // SEG1111U
+#[cfg(any(desktop, test))]
+mod acceso_equipo_logica; // SEG1111U
 #[cfg(test)]
 mod android_parche;
 #[cfg(test)]
@@ -396,6 +403,7 @@ mod actualizacion {
 // ───────────────────────── Tipos de retorno a la web ─────────────────────────
 
 /// Resultado de ejecutar un comando de terminal (lo consume Aurora).
+#[cfg(desktop)]
 #[derive(Serialize)]
 struct TerminalResult {
     /// Salida estándar (stdout) decodificada como texto.
@@ -425,28 +433,43 @@ struct DeviceInfo {
 
 // ─────────────────────────── Comando: run_terminal ───────────────────────────
 
-/// Ejecuta un comando de shell en el dispositivo y devuelve su salida.
+/// Ejecuta una orden de shell en el dispositivo y devuelve su salida. En Unix `sh -c "<orden>"`; en
+/// Windows `cmd /C "<orden>"`.
 ///
-/// Es el PUENTE de "control por terminal" para Aurora. En Unix ejecuta
-/// `sh -c "<cmd>"`; en Windows `cmd /C "<cmd>"`. El scope está declarado en la
-/// capability (`shell:allow-execute`), por eso esto solo funciona en la app
-/// nativa instalada y con el permiso concedido — un navegador NO puede hacerlo.
-///
-/// ⚠️ Potente y peligroso: da a la IA acceso de terminal con los permisos del
-/// usuario. Úsese con criterio; el usuario es soberano de lo que autoriza.
+/// (SEG1111U) Ya NO basta con que la página tenga el permiso de la capability: Rust exige además
+/// (`acceso_equipo::exigir`) que la persona haya dado «acceso al equipo» EN ESTE APARATO con el diálogo
+/// nativo, que la llamada venga de la ventana principal y de la web de StarSeed OS o su servidor local,
+/// y que el aviso «● Acceso al equipo» esté visible. Las órdenes que borran, cambian ajustes del
+/// sistema, tocan credenciales, envían datos fuera, instalan software o son opacas se confirman una a
+/// una con otro diálogo nativo. Todo queda en el registro de solo-añadir del aparato. Solo escritorio:
+/// en Android/iOS este comando no se registra. Contrato: permisos-y-control-del-dispositivo.md §4.8.
+#[cfg(desktop)]
 #[tauri::command]
-async fn run_terminal(app: tauri::AppHandle, cmd: String) -> Result<TerminalResult, String> {
-    if cmd.trim().is_empty() {
-        return Err("El comando está vacío.".into());
+async fn run_terminal(app: tauri::AppHandle, webview: tauri::Webview, cmd: String) -> Result<TerminalResult, String> {
+    use acceso_equipo_logica as al;
+    if cmd.trim().is_empty() || cmd.chars().count() > al::MAX_ORDEN {
+        return Err(al::Rechazo::Orden.mensaje());
     }
+    let origen = acceso_equipo::exigir(&app, &webview, "terminal")?;
+    let clases = al::clasificar(&cmd);
+    if !clases.is_empty() {
+        let lista = clases.iter().map(|c| format!("{c:?}").to_lowercase()).collect::<Vec<_>>().join(",");
+        acceso_equipo::anotar(&app, "a confirmar", &origen, &format!("[{lista}] {cmd}"));
+        if let Err(e) = acceso_equipo::confirmar(&app, &webview, "StarSeed OS · ¿Ejecutar esta orden?", al::texto_confirmar(&cmd, &clases), "Ejecutar").await {
+            acceso_equipo::anotar(&app, "no ejecutada", &origen, &format!("[{lista}] {}", e.split(" · ").next().unwrap_or("")));
+            return Err(e);
+        }
+        // Tras el diálogo se vuelve a mirar todo: la concesión pudo quitarse mientras tanto.
+        acceso_equipo::exigir(&app, &webview, "terminal")?;
+    }
+    acceso_equipo::anotar(&app, "ejecutada", &origen, &cmd);
 
-    // Elegimos intérprete según el sistema.
     #[cfg(windows)]
     let (program, args) = ("cmd", vec!["/C".to_string(), cmd.clone()]);
     #[cfg(not(windows))]
     let (program, args) = ("sh", vec!["-c".to_string(), cmd.clone()]);
 
-    // Ejecuta el proceso hijo vía tauri-plugin-shell y espera su salida.
+    // Ejecuta el proceso hijo vía tauri-plugin-shell (desde Rust: la web ya no tiene `shell:allow-execute`).
     let output = app
         .shell()
         .command(program)
@@ -455,6 +478,7 @@ async fn run_terminal(app: tauri::AppHandle, cmd: String) -> Result<TerminalResu
         .await
         .map_err(|e| format!("No se pudo ejecutar «{cmd}»: {e}"))?;
 
+    acceso_equipo::anotar(&app, "terminada", &origen, &format!("código {:?}", output.status.code()));
     Ok(TerminalResult {
         stdout: String::from_utf8_lossy(&output.stdout).to_string(),
         stderr: String::from_utf8_lossy(&output.stderr).to_string(),
@@ -754,6 +778,8 @@ pub fn run() {
                 if nativa::es_starseed_os(app.handle()) {
                     segundo_plano::iniciar(app.handle());
                 }
+                // (SEG1111U) Si «acceso al equipo» está dado, su aviso vuelve a la barra de menús/bandeja.
+                acceso_equipo::iniciar(app.handle());
             }
             Ok(())
         });
@@ -767,7 +793,6 @@ pub fn run() {
     macro_rules! registrar_comandos {
         ($builder:ident [$($solo_desktop:path),* $(,)?]) => {
             $builder = $builder.invoke_handler(tauri::generate_handler![
-                run_terminal,
                 check_update,
                 reiniciar_para_actualizar,
                 estado_actualizacion,
@@ -868,6 +893,10 @@ pub fn run() {
     }
     #[cfg(desktop)]
     registrar_comandos!(builder [
+        run_terminal, // SEG1111U (solo escritorio y con «acceso al equipo»)
+        acceso_equipo::acceso_equipo_estado, // SEG1111U
+        acceso_equipo::acceso_equipo_pedir, // SEG1111U
+        acceso_equipo::acceso_equipo_revocar, // SEG1111U
         ventana_remota::ventanas_prestables,
         ventana_remota::capturar_ventana,
         ventana_remota::entrada_ventana,

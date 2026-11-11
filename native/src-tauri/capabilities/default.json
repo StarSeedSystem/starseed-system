@@ -1,14 +1,20 @@
 {
   "$schema": "../gen/schemas/remote-schema.json",
   "identifier": "default",
-  "description": "Capability principal de StarSeed Native. Concede a Aurora (la web remota desplegada) CONTROL PROFUNDO del dispositivo tras la instalación nativa: terminal, procesos, archivos, sistema, notificaciones, diálogos y deep-links. (Autoarranque y updater viven en desktop.json: son plugins solo-escritorio y sus permisos no existen en Android/iOS.) Todos los permisos están DECLARADOS y limitados por su scope; el usuario los concede al instalar y ejecutar la app nativa. Un navegador por seguridad NO puede hacer esto — por eso existe este cuerpo nativo. Desde la APP1107A (2026-11-07) también el servidor local de StarSeed OS dentro de la app: SOLO los diez orígenes http://127.0.0.1:47610…47619 (los puertos fijos de src/servidor_local_logica.rs; el servidor solo escucha en 127.0.0.1 y Rust comprueba su firma antes de llevar la ventana ahí). Desde la APP1107B (2026-11-07) también los permisos `allow-<comando>` de los comandos propios de la app (generados en build.rs): desde tauri 2.11.1 una página de un origen remoto no llega a ningún comando propio sin ellos.",
-  "windows": ["main"],
-  "platforms": ["linux", "macOS", "windows", "android", "iOS"],
+  "description": "Capability principal de StarSeed OS para la web de la app (la publicada https://starseed-os.vercel.app y su servidor local http://127.0.0.1:47610…47619, los puertos fijos de src/servidor_local_logica.rs). SEG1111U (2026-11-11): mínimo privilegio. Las webs hermanas (Nexus, Café) ya NO son orígenes remotos de esta app: no llaman a nada nativo (comprobado en su código publicado). Fuera: `core:default` (traía `core:tray:default` y `core:menu:default`, con los que la página podía ocultar o quitar los avisos de la barra de menús/bandeja), `shell:allow-execute/spawn/kill/stdin-write` (sh/bash/cmd/powershell con cualquier argumento; nadie los llamaba), la lectura de archivos en `**`, la escritura y creación en `$HOME/**` y el alcance global de `$HOME`, Documentos, Descargas y Escritorio (nadie los llamaba). Archivos: solo LEER, y solo lo que la persona eligió en un selector nativo (`carpetas_conceder` añade la carpeta al alcance en tiempo de ejecución y `carpetas_revocar` la quita; el selector de archivos de `dialog` añade el archivo elegido); sin alcance estático, todo lo demás se rechaza (tampoco `fs:default`, que dejaba leer las carpetas de datos de la app, con credenciales del Wi-Fi directo). Los datos propios de la app los sirve Rust con sus comandos (capas, carpetas, NAS). `run_terminal` vive en acceso-equipo.json (solo escritorio, con «acceso al equipo» dado en el aparato) y el rescate entre puertos en rescate-origen.json (solo el servidor local). Inventario de todo lo expuesto: architecture/permisos-y-control-del-dispositivo.md §4.8.1 (una prueba lo vigila).",
+  "windows": [
+    "main"
+  ],
+  "platforms": [
+    "linux",
+    "macOS",
+    "windows",
+    "android",
+    "iOS"
+  ],
   "remote": {
     "urls": [
       "https://starseed-os.vercel.app",
-      "https://starseed-nexus.vercel.app",
-      "https://starseed-cafe.vercel.app",
       "http://127.0.0.1:47610",
       "http://127.0.0.1:47611",
       "http://127.0.0.1:47612",
@@ -22,12 +28,12 @@
     ]
   },
   "permissions": [
-    "core:default",
-    "core:app:default",
+    "core:path:default",
+    "core:event:default",
     "core:window:default",
     "core:webview:default",
-    "core:event:default",
-    "core:path:default",
+    "core:app:default",
+    "core:image:default",
     "core:resources:default",
     "core:window:allow-set-title",
     "core:window:allow-minimize",
@@ -35,63 +41,12 @@
     "core:window:allow-unmaximize",
     "core:window:allow-close",
     "core:window:allow-start-dragging",
-
-    {
-      "identifier": "shell:allow-execute",
-      "allow": [
-        {
-          "name": "sh",
-          "cmd": "sh",
-          "args": ["-c", { "validator": "\\S+" }],
-          "sidecar": false
-        },
-        {
-          "name": "bash",
-          "cmd": "bash",
-          "args": ["-c", { "validator": "\\S+" }],
-          "sidecar": false
-        },
-        {
-          "name": "cmd",
-          "cmd": "cmd",
-          "args": ["/C", { "validator": "\\S+" }],
-          "sidecar": false
-        },
-        {
-          "name": "powershell",
-          "cmd": "powershell",
-          "args": ["-Command", { "validator": "\\S+" }],
-          "sidecar": false
-        }
-      ]
-    },
-    "shell:allow-spawn",
-    "shell:allow-kill",
-    "shell:allow-stdin-write",
     "shell:allow-open",
-
-    {
-      "identifier": "fs:allow-read-text-file",
-      "allow": [{ "path": "$HOME/**" }, { "path": "**" }]
-    },
-    {
-      "identifier": "fs:allow-write-text-file",
-      "allow": [{ "path": "$HOME/**" }]
-    },
-    {
-      "identifier": "fs:allow-read-dir",
-      "allow": [{ "path": "$HOME/**" }, { "path": "**" }]
-    },
-    {
-      "identifier": "fs:allow-mkdir",
-      "allow": [{ "path": "$HOME/**" }]
-    },
-    {
-      "identifier": "fs:scope",
-      "allow": [{ "path": "$HOME/**" }, { "path": "$APPDATA/**" }, { "path": "$APPCONFIG/**" }, { "path": "$APPLOCALDATA/**" }, { "path": "$DOCUMENT/**" }, { "path": "$DOWNLOAD/**" }, { "path": "$DESKTOP/**" }]
-    },
-    "fs:default",
-
+    "fs:allow-read-dir",
+    "fs:allow-read-file",
+    "fs:allow-read-text-file",
+    "fs:allow-stat",
+    "fs:allow-exists",
     "os:allow-platform",
     "os:allow-version",
     "os:allow-os-type",
@@ -100,25 +55,19 @@
     "os:allow-hostname",
     "os:allow-locale",
     "os:allow-exe-extension",
-
     "process:allow-exit",
     "process:allow-restart",
-
     "notification:default",
     "notification:allow-notify",
     "notification:allow-request-permission",
     "notification:allow-is-permission-granted",
-
     "dialog:default",
     "dialog:allow-open",
     "dialog:allow-save",
     "dialog:allow-message",
     "dialog:allow-ask",
     "dialog:allow-confirm",
-
     "deep-link:default",
-
-    "allow-run-terminal",
     "allow-check-update",
     "allow-reiniciar-para-actualizar",
     "allow-estado-actualizacion",
@@ -182,10 +131,6 @@
     "allow-avisos-pedir-permiso",
     "allow-avisos-pendiente",
     "allow-origen-local-estado",
-    "allow-rescate-origen-exportar",
-    "allow-rescate-origen-estado",
-    "allow-rescate-origen-datos",
-    "allow-rescate-origen-confirmar",
     "allow-enlace-wifi-capacidades",
     "allow-enlace-wifi-permiso",
     "allow-enlace-wifi-abrir-ap",

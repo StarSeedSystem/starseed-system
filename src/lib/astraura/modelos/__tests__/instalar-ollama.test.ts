@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import {
+  abrirInstaladorOllama,
   COMANDOS_NATIVOS_OLLAMA, COMANDO_LINUX_OLLAMA, FICHAS_OLLAMA, instalarOllamaGuiado, nativoOllamaDesde, preguntaOllama, sistemaOllama, sondearOllama,
   tamanoLegible, urlOficialOllama, vigilarOllama, type NativoOllama, type ProgresoNativoOllama,
 } from "../instalar-ollama";
@@ -300,5 +301,86 @@ describe("la web y la app nativa (Rust) dicen lo mismo", () => {
     expect(codigo).toMatch(/orden\("open"\)/);
     expect(codigo).toMatch(/orden\("explorer\.exe"\)/);
     expect(codigo).toMatch(/"linux" => Err\(/);
+  });
+});
+
+// (SEG1111U) Abrir el instalador ejecuta un programa: la app exige «acceso al equipo» y un «sí» nativo.
+describe("abrir el instalador con «acceso al equipo» (SEG1111U)", () => {
+  const SIN = "acceso:sin-concesion · hace falta «acceso al equipo» en esta neurona";
+  function nativoConAcceso(o: { concede: boolean; confirma?: boolean }) {
+    const llamadas: string[] = [];
+    let dado = false;
+    const n: NativoOllama = {
+      disponible: true,
+      descargar: vi.fn(async () => ({ ok: true as const, valor: { ruta: "/Users/x/Downloads/Ollama.dmg", bytes: 229_996_388 } })),
+      cancelar: vi.fn(async () => true),
+      abrir: vi.fn(async () => {
+        llamadas.push(`abrir:${dado ? "con" : "sin"}`);
+        if (!dado) return { ok: false as const, motivo: SIN };
+        if (o.confirma === false) return { ok: false as const, motivo: "acceso:no-confirmado · no confirmaste esta orden" };
+        return { ok: true as const, valor: null };
+      }),
+      alProgresar: vi.fn(async () => () => {}),
+      pedirAcceso: vi.fn(async (motivo: string) => {
+        llamadas.push(`pedir:${motivo}`);
+        if (!o.concede) return { ok: false as const, motivo: "acceso:no-confirmado · no" };
+        dado = true;
+        return { ok: true as const, valor: { activo: true } };
+      }),
+    };
+    return { n, llamadas };
+  }
+
+  it("sin acceso: pide el diálogo nativo UNA vez, y con el «sí» abre como antes", async () => {
+    const { n, llamadas } = nativoConAcceso({ concede: true });
+    const r = await instalarOllamaGuiado(FICHAS_OLLAMA.macos, { confirmado: true, nativo: n });
+    expect(r.estado).toBe("abierto");
+    expect(llamadas).toEqual(["abrir:sin", "pedir:abrir el instalador de Ollama", "abrir:con"]);
+  });
+
+  it("si la persona no da el acceso, lo dice en palabras claras y deja el instalador en Descargas", async () => {
+    const { n, llamadas } = nativoConAcceso({ concede: false });
+    const r = await instalarOllamaGuiado(FICHAS_OLLAMA.macos, { confirmado: true, nativo: n });
+    expect(r.estado).toBe("necesita-acceso");
+    expect(r.ruta).toBe("/Users/x/Downloads/Ollama.dmg");
+    expect(r.mensaje).toMatch(/«acceso al equipo»/);
+    expect(r.mensaje).toMatch(/Descargas/);
+    expect(r.mensaje).not.toMatch(/acceso:/);
+    expect(llamadas.filter((l) => l.startsWith("pedir"))).toHaveLength(1);
+  });
+
+  it("con acceso pero sin confirmar la apertura: no se abre y se dice por qué", async () => {
+    const { n } = nativoConAcceso({ concede: true, confirma: false });
+    const r = await instalarOllamaGuiado(FICHAS_OLLAMA.macos, { confirmado: true, nativo: n });
+    expect(r.estado).toBe("descargado-sin-abrir");
+    expect(r.mensaje).toMatch(/no lo confirmaste/);
+  });
+
+  it("el botón «Dar acceso al equipo y abrir» reintenta solo la apertura", async () => {
+    const { n, llamadas } = nativoConAcceso({ concede: true });
+    const r = await abrirInstaladorOllama(FICHAS_OLLAMA.windows, n, "C:/Users/x/Downloads/OllamaSetup.exe");
+    expect(r.estado).toBe("abierto");
+    expect(n.descargar).not.toHaveBeenCalled();
+    expect(llamadas).toContain("abrir:con");
+  });
+
+  it("el envoltorio pide el acceso con acceso_equipo_pedir y su motivo", async () => {
+    const llamadas: Array<[string, unknown]> = [];
+    const n = nativoOllamaDesde({
+      disponible: true,
+      llamar: (async (cmd: string, args?: Record<string, unknown>) => { llamadas.push([cmd, args]); return { ok: true, valor: { activo: true } }; }) as never,
+      escuchar: async () => () => {},
+    });
+    await n.pedirAcceso!("abrir el instalador de Ollama");
+    expect(llamadas).toEqual([["acceso_equipo_pedir", { motivo: "abrir el instalador de Ollama" }]]);
+  });
+
+  it("Rust: abrir (no «revelar») pasa por la puerta del acceso, el archivo propio y el «sí» nativo", () => {
+    const rust = readFileSync(join(process.cwd(), "native/src-tauri/src/ollama_instalador.rs"), "utf8");
+    const cuerpo = rust.slice(rust.indexOf("pub async fn ollama_instalador_abrir("), rust.indexOf("#[cfg(test)]"));
+    expect(cuerpo).toMatch(/if !revelar \{\s*let origen = crate::acceso_equipo::exigir\(&app, &webview/);
+    expect(cuerpo).toContain("es_el_descargado(");
+    expect(cuerpo).toContain("crate::acceso_equipo::confirmar(");
+    expect(cuerpo.indexOf("acceso_equipo::confirmar(")).toBeLessThan(cuerpo.indexOf('orden("open")'));
   });
 });

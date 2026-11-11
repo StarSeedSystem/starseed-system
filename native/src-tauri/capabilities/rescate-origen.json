@@ -1,0 +1,35 @@
+{
+  "$schema": "../gen/schemas/remote-schema.json",
+  "identifier": "rescate-origen",
+  "description": "SEG1111U (2026-11-11): el rescate de datos entre puertos del servidor local (NOT1108A). Solo la ventana «main» y solo los diez orígenes del servidor local http://127.0.0.1:47610…47619 (antes también la web publicada y las webs hermanas, que no lo usan). Rust comprueba además que hay un rescate en curso y que la página es EXACTAMENTE la de exportar del puerto viejo o la de importar del actual, servidas por el propio Rust (origen_local.rs). En Android también (servidor local de la APK).",
+  "windows": [
+    "main"
+  ],
+  "platforms": [
+    "linux",
+    "macOS",
+    "windows",
+    "android"
+  ],
+  "local": false,
+  "remote": {
+    "urls": [
+      "http://127.0.0.1:47610",
+      "http://127.0.0.1:47611",
+      "http://127.0.0.1:47612",
+      "http://127.0.0.1:47613",
+      "http://127.0.0.1:47614",
+      "http://127.0.0.1:47615",
+      "http://127.0.0.1:47616",
+      "http://127.0.0.1:47617",
+      "http://127.0.0.1:47618",
+      "http://127.0.0.1:47619"
+    ]
+  },
+  "permissions": [
+    "allow-rescate-origen-exportar",
+    "allow-rescate-origen-estado",
+    "allow-rescate-origen-datos",
+    "allow-rescate-origen-confirmar"
+  ]
+}

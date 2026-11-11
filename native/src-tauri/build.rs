@@ -32,6 +32,8 @@ mod puerta_proxy_parche;
 /// (src/lib/nativa/__tests__/contrato-rust.test.ts) vigila que esta lista, lib.rs y las capabilities
 /// casen. (APP1107B, 2026-11-07)
 const COMANDOS_APP: &[&str] = &[
+    // (SEG1111U) Solo escritorio y con «acceso al equipo» (acceso_equipo.rs); su permiso solo lo da
+    // capabilities/acceso-equipo.json. Inventario: architecture/permisos-y-control-del-dispositivo.md §4.8.1.
     "run_terminal",
     "check_update",
     "reiniciar_para_actualizar",
@@ -148,6 +150,10 @@ const COMANDOS_APP: &[&str] = &[
     "prestamo_ventana_iniciar",
     "prestamo_ventana_parar",
     "prestamo_ventana_estado",
+    // (SEG1111U) «Acceso al equipo»: estado, pedir (diálogo nativo) y quitar. Solo escritorio.
+    "acceso_equipo_estado",
+    "acceso_equipo_pedir",
+    "acceso_equipo_revocar",
     "servidor_local_estado",
     "servidor_local_actualizar",
     "migracion_origen_exportar",

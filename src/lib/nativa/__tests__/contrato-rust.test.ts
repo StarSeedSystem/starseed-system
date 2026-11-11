@@ -68,13 +68,21 @@ describe("contrato web ↔ app nativa", () => {
     const def = cap("default.json");
     const escr = cap("desktop.json");
     const allow = (c: string) => `allow-${c.replace(/_/g, "-")}`;
-    // Lo común lo pide la web en cualquier plataforma (también el servidor local 127.0.0.1).
-    for (const c of comunes) expect(permisos(def), c).toContain(allow(c));
+    // Lo común lo pide la web en cualquier plataforma (también el servidor local 127.0.0.1). (SEG1111U) El rescate
+    // entre puertos, solo el servidor local (rescate-origen.json).
+    const rescate = permisos(cap("rescate-origen.json"));
+    for (const c of comunes) expect([...permisos(def), ...rescate], c).toContain(allow(c));
+    for (const p of permisos(def)) expect(p).not.toMatch(/^allow-rescate-origen/);
     expect(def.remote.urls).toContain("http://127.0.0.1:47610");
     const migracion = [...permisos(cap("migracion-exportar.json")), ...permisos(cap("migracion-importar.json"))];
     const capas = permisos(cap("servidor-capas.json"));
     const prestar = permisos(cap("prestar-ventana.json")); // SEG1111T
-    for (const c of escritorio) expect([...permisos(escr), ...migracion, ...capas, ...prestar], c).toContain(allow(c));
+    const acceso = permisos(cap("acceso-equipo.json")); // SEG1111U
+    for (const c of escritorio) expect([...permisos(escr), ...migracion, ...capas, ...prestar, ...acceso], c).toContain(allow(c));
+    // (SEG1111U) Ejecutar programas: solo escritorio y solo acceso-equipo.json.
+    expect(escritorio).toContain("run_terminal");
+    expect(comunes).not.toContain("run_terminal");
+    for (const p of [...permisos(def), ...permisos(escr), ...migracion, ...capas, ...prestar]) expect(p).not.toBe("allow-run-terminal");
     // La migración NO se concede a la ventana principal en la web publicada ni a nadie más.
     for (const p of [...permisos(def), ...permisos(escr)]) expect(p).not.toMatch(/^allow-migracion-origen/);
     // (CAP1107A) «Actualizar ahora» tampoco: solo el servidor local (servidor-capas.json).
@@ -156,9 +164,12 @@ describe("contrato web ↔ app nativa", () => {
     expect(lib).toMatch(/\.on_page_load\(\|webview, carga\| permisos_medios::recordar_pagina/);
     const def = JSON.parse(raiz("native/src-tauri/capabilities/default.json"));
     expect(def.permissions).toEqual(expect.arrayContaining(["allow-medios-estado", "allow-medios-abrir-ajustes"]));
-    // Los orígenes propios de los medios son los de la capability: las webs publicadas y 127.0.0.1:47610…47619.
+    // Los orígenes propios de los medios: las webs publicadas y 127.0.0.1:47610…47619. (SEG1111U) Nexus y Café ya no
+    // son orígenes remotos de las capabilities (no llaman a nada nativo), pero sus apps siguen usando micro y cámara:
+    // eso lo decide permisos_medios.rs por origen, no una capability.
     const publicadas = [...rs.match(/pub const WEBS_PUBLICADAS: \[&str; \d+\] = \[([\s\S]*?)\];/)![1].matchAll(/"([^"]+)"/g)].map((m) => m[1]);
-    expect([...publicadas].sort()).toEqual(def.remote.urls.filter((u: string) => u.startsWith("https://")).sort());
+    expect([...publicadas].sort()).toEqual(["https://starseed-cafe.vercel.app", "https://starseed-nexus.vercel.app", "https://starseed-os.vercel.app"]);
+    expect(def.remote.urls.filter((u: string) => u.startsWith("https://"))).toEqual(["https://starseed-os.vercel.app"]);
     expect(def.remote.urls.filter((u: string) => u.startsWith("http://127.0.0.1:"))).toHaveLength(10);
     expect(rust("pista_neurona.rs")).toMatch(/const PUERTOS_LOCALES: std::ops::RangeInclusive<u16> = 47610..=47619;/);
     // Android: micro, cámara y auriculares en el manifiesto (build.rs) y la ficha de la app desde Kotlin.

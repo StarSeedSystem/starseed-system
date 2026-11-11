@@ -32,7 +32,7 @@ function estado(perfil: PerfilNeurona, pares: PerfilNeurona[] = [], extra: Parti
     ollama: { sistema: "macos", ficha: FICHAS_OLLAMA.macos, pregunta: preguntaOllama(FICHAS_OLLAMA.macos), presente: perfil.runtimes.includes("ollama") },
     continuar: null,
     activarVariantes: vi.fn(), desactivarVariantes: vi.fn(), usarVariante: vi.fn(), dejarVariante: vi.fn(),
-    instalarOllama: vi.fn(), cancelarOllama: vi.fn(), vigilarOllama: vi.fn(() => () => {}), comprobarOllama: vi.fn(async () => false), descartarContinuar: vi.fn(),
+    instalarOllama: vi.fn(), cancelarOllama: vi.fn(), abrirInstaladorOllama: vi.fn(), vigilarOllama: vi.fn(() => () => {}), comprobarOllama: vi.fn(async () => false), descartarContinuar: vi.fn(),
     setModo: vi.fn(), elegirManual: vi.fn(), setPrivacidad: vi.fn(), setRamDeclarada: vi.fn(),
     revisarAhora: vi.fn(async () => {}), descartarAviso: vi.fn(),
     planDe: (m) => planInstalar(m, perfil, instalados.has(m.id)),

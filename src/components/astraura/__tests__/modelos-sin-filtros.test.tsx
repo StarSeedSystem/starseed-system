@@ -48,7 +48,7 @@ function estado(perfil: PerfilNeurona, extra: Partial<EstadoModelos & AccionesMo
     recomendarEn: vi.fn(() => null),
     activarVariantes: vi.fn(), desactivarVariantes: vi.fn(), usarVariante: vi.fn(), dejarVariante: vi.fn(),
     instalarOllama: vi.fn(async () => ({ estado: "abierto" as const, mensaje: "Se abrió Ollama.dmg. Completa la instalación en la ventana que apareció.", ruta: "/Users/x/Downloads/Ollama.dmg" })),
-    cancelarOllama: vi.fn(async () => true), vigilarOllama: vi.fn(() => () => {}), comprobarOllama: vi.fn(async () => false), descartarContinuar: vi.fn(),
+    cancelarOllama: vi.fn(async () => true), abrirInstaladorOllama: vi.fn(), vigilarOllama: vi.fn(() => () => {}), comprobarOllama: vi.fn(async () => false), descartarContinuar: vi.fn(),
     ...extra,
   };
 }

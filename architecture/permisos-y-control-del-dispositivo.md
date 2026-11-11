@@ -261,7 +261,7 @@ sesión de `recursos/sesion-prestamo.ts` solo vivía en la web, y ninguna pantal
 - **Lo que ve la persona.** El diálogo cada vez; mientras dura, el icono con el texto «● Prestando» y el destino en su
   menú. Sin bandeja posible (Linux sin libappindicator) **no se presta**; si el icono no se puede crear, la sesión se
   cierra al momento. La web ya no tiene `core:tray:default` ni `core:menu:default` (no los usaba y le habrían dejado
-  quitar o cambiar el aviso).
+  quitar o cambiar el aviso). **Corrección (SEG1111U):** sí los tenía, dentro de `core:default`; se quitaron en §4.8.
 - **Entrada acotada dentro de la sesión.** Clic: dentro de la ventana prestada y **sin otra ventana encima en ese punto**
   (orden z de xcap: un diálogo del sistema o de otra app que la tape recibiría el clic). Texto: ≤ 512 caracteres por
   orden y la ventana prestada **con el foco**. Las dos: ventana no minimizada, aparato no bloqueado y **sin entrada
@@ -278,6 +278,199 @@ sesión de `recursos/sesion-prestamo.ts` solo vivía en la web, y ninguna pantal
 - **Otros comandos expuestos de más** (no cambiados aquí; ver la lista de la tarea SEG1111T): `run_terminal` y
   `shell:allow-execute` (`sh -c` con cualquier argumento), `fs` de lectura en `**` y escritura en `$HOME/**`, `serie_*`,
   `ollama_instalador_*` y `rescate_origen_*` siguen concedidos a los trece orígenes, también Nexus y Café.
+  **Cerrado en §4.8 (SEG1111U).**
+
+
+### §4.8 Nada ejecuta programas ni toca archivos sin una concesión dada EN el aparato (SEG1111U · 2026-11-11)
+
+**Lo que había, verificado en el código** (main `2d6808cdc`, `native/src-tauri/`):
+
+- `capabilities/default.json` (todas las plataformas, ventana `main`) daba a **trece** orígenes remotos —la web
+  publicada, **Nexus y Café** y los diez puertos del servidor local— `allow-run-terminal` (`lib.rs`: `sh -c` /
+  `cmd /C` con la cadena que pasa la página, sin ninguna comprobación en Rust), `shell:allow-execute` con
+  `sh`/`bash` `-c` y `cmd /C`/`powershell -Command` y validador `\S+` (cualquier orden), `shell:allow-spawn`,
+  `-kill`, `-stdin-write`, `fs:allow-read-text-file` y `fs:allow-read-dir` en `**` (todo el disco que el usuario
+  puede leer), `fs:allow-write-text-file` y `fs:allow-mkdir` en `$HOME/**`, y un `fs:scope` global con `$HOME`,
+  Documentos, Descargas y Escritorio. También `serie_*`, `rescate_origen_*` y (en `desktop.json`)
+  `ollama_instalador_*`. En Android igual: la APK carga la web publicada y `run_terminal` estaba registrado.
+- **Correcciones a la descripción de la revisión:** (1) `fs` de lectura no era solo `**`: también listar
+  carpetas en `**`, y la escritura venía con `mkdir`. (2) Había más vías de ejecutar que `run_terminal`: el
+  plugin `shell` daba ejecutar/lanzar procesos directamente, y `ollama_instalador_abrir` **lanza** el instalador
+  en Windows (`explorer OllamaSetup.exe`). (3) **Nadie llamaba** a `run_terminal`, al plugin `shell` ni al plugin
+  `fs` (buscado en `src/`, `public/`, `native/servidor-local/` y en el código publicado de Nexus y Café): la
+  «terminal» del OS es la del backend 1.58 (`terminal-tab.tsx`, que dice que el proxy no ejecuta nada), y las
+  carpetas compartidas van por `nas_*`, que comprueban en Rust. (4) **`core:default` incluía `core:tray:default` y
+  `core:menu:default`**: la página podía ocultar (`set_visible`) o cambiar el aviso «● Prestando» de §4.7 sin
+  que la sesión terminara (el vigilante solo detecta que el icono desaparezca). §4.7 decía que la web ya no los
+  tenía; no era así. (5) `rescate_origen_*` ya comprobaban en Rust ventana, rescate en curso y página exacta.
+- **Nexus y Café** (`starseed-nexus.vercel.app`, `starseed-cafe.vercel.app/cafe/`): descargados y revisados sus 36
+  y 28 guiones publicados el 2026-11-11: **ninguno llama a nada nativo** (ni `__TAURI__`, ni `invoke`, ni
+  `ipc`). Su app nativa sigue funcionando: la actualización la hace Rust, y micrófono/cámara los decide
+  `permisos_medios.rs` por origen (no es una capability; se mantiene).
+
+**Cómo es ahora.**
+
+1. **Las webs hermanas ya no son orígenes remotos de esta app** (ninguna capability las nombra; una prueba lo
+   vigila). En sus apps nativas, sus páginas no llegan a ningún comando.
+2. **Fuera lo que nadie usaba y era peligroso:** `shell:allow-execute/spawn/kill/stdin-write`, toda la escritura
+   de `fs`, la lectura con alcance, `fs:scope`, `fs:default` (dejaba leer las carpetas de datos de la app, donde
+   están las credenciales del Wi-Fi directo y la configuración de antenas) y `core:default` → sustituido por sus
+   partes sin bandeja ni menús (`core:path/event/window/webview/app/image/resources:default`).
+3. **Archivos con alcance:** la web solo puede **leer** (`fs:allow-read-dir/read-file/read-text-file/stat/exists`
+   **sin alcance estático**), y por tanto solo lo que entra en el alcance en tiempo de ejecución: las carpetas
+   que la persona eligió en el selector nativo (`carpetas_conceder` → `permitir_en_alcance`; `carpetas_revocar`
+   las prohíbe), el archivo elegido en un diálogo `dialog:open/save` y lo arrastrado a la ventana. Todo lo
+   demás, rechazado. Los datos propios de la app los sirve Rust con sus comandos (capas, carpetas, NAS).
+   **Ninguna función dependía del alcance amplio** (nadie llamaba al plugin `fs`): no hubo que mover nada.
+4. **«Acceso al equipo»: una concesión por aparato para ejecutar programas** (`src/acceso_equipo.rs`, lógica y
+   pruebas en `src/acceso_equipo_logica.rs`, capability `acceso-equipo.json`).
+   - **Qué abre:** `run_terminal` y abrir el instalador de Ollama (`ollama_instalador_abrir`; enseñarlo en el
+     Finder no). Nada más ejecuta programas desde la web.
+   - **Alcance:** **un solo interruptor** por aparato y para la app StarSeed OS (no por función: hoy solo dos
+     funciones lo usan y una lista de interruptores sería ruido; las órdenes delicadas se confirman igual una a
+     una). Solo escritorio: en Android/iOS `run_terminal` ni se registra. Solo la ventana `main` y solo la web
+     publicada de StarSeed OS y su servidor local (misma lista que prestar ventana, también comprobada en Rust).
+   - **Cuánto dura:** hasta que la persona lo quita; **sobrevive a reiniciar y a actualizar** la app. Se guarda en
+     `<carpeta de configuración de la app>/acceso-equipo.json`, escrito solo por Rust y nunca en el
+     almacenamiento web; ilegible, a medias o de otra versión = apagado. Por qué no caduca: la persona pidió
+     que las funciones sigan funcionando tras darlo una vez; lo que lo hace seguro es que **se ve siempre**
+     y se quita con un clic.
+   - **Cómo se da:** la página llama a `acceso_equipo_pedir(motivo)`; Rust enseña un **diálogo nativo**
+     (`tauri-plugin-dialog`, «Dar acceso» / «No») con lo que permite, lo que se seguirá confirmando, dónde se
+     verá y cómo se quita; el motivo va marcado «lo dice la página». **Solo el «sí» de ese diálogo escribe el
+     archivo** (`acceso_equipo_logica::pedir` es el único camino; `Concesion::concedida` es privada y una prueba
+     comprueba que el pegamento no tiene otro). Ningún comando acepta el valor por argumento. Un diálogo a la
+     vez; tras un «no», 30 s sin volver a preguntar; si la página navega mientras el diálogo está abierto, no
+     se concede. Sin bandeja posible (Linux sin libappindicator) no se concede.
+   - **Cómo se ve y se quita:** mientras está dado hay un icono propio en la barra de menús/bandeja, como el de
+     prestar ventana (§4.7), con el texto **«● Acceso al equipo»** y un menú «Acceso al equipo dado (fecha)» ·
+     «Las órdenes delicadas se confirman una a una» · **«Quitar el acceso al equipo ahora»**, atendido en Rust
+     aunque la página esté colgada. Al arrancar, si está dado, el icono vuelve. **Sin icono visible no se usa**
+     (cada uso comprueba que existe; la web ya no tiene `core:tray`/`core:menu` para tocarlo). La página
+     también puede quitarlo (`acceso_equipo_revocar`, sin diálogo: quitar siempre se puede).
+   - **Qué se confirma una a una aunque esté dado** (`clasificar`, por palabras de la orden): **borrar o
+     sobrescribir** (`rm`, `del`, `shred`, `dd`, `mkfs`, `diskutil erase`, `find -delete`, `git clean`, `> archivo`…),
+     **ajustes del sistema, permisos, procesos o privilegios** (`sudo`, `defaults`, `launchctl`, `chmod`, `reg`,
+     `netsh`, `systemctl`, `kill`…), **credenciales** (`security`, `ssh-keygen`, `gpg`, y rutas como `.ssh`,
+     `.env`, `keychain`, `token`, `password`…), **enviar datos o mensajes fuera** (`mail`, `ssh`/`scp`/`rsync`,
+     `nc`, `curl -d/-F/-T/-X POST`, `git push`…), **instalar software** (`brew`, `apt`, `pip install`,
+     `npm i -g`, `msiexec`, `winget`, `curl … | sh`…) y **órdenes opacas** que construyen o descifran otra al
+     ejecutarse (`eval`, `` ` ``, `$(…)`, `| sh`, `base64 -d`, `python -c`, `node -e`, `osascript`,
+     `powershell -enc`…): esas no se pueden leer de antemano, así que también se confirman. **Lo que no se
+     puede detectar y no se finge:** los **pagos** (no hay palabra que los delate en una línea de órdenes), y
+     una orden disfrazada que no use ninguna de esas formas (p. ej. un programa propio que borre). La
+     clasificación es una red, no una garantía: la garantía es la concesión, el aviso y el registro. Abrir
+     el instalador de Ollama se confirma **siempre** (instalar software), y solo si es el archivo que **este
+     proceso** descargó de los anfitriones oficiales (mismo tamaño). El diálogo enseña la orden (600
+     caracteres como mucho) y sus clases; si la página navega mientras tanto, no se ejecuta. Una confirmación
+     a la vez. En macOS el botón por defecto es el afirmativo (rfd no deja cambiarlo), como en §4.7.
+   - **Registro de solo-añadir en el aparato:** macOS `~/Library/Logs/app.starseed.os/acceso-equipo.log`, resto
+     `<datos de la app>/acceso-equipo.log`. Una línea JSON por suceso (pedida, concedida, no concedida,
+     rechazada con su código, a confirmar, no ejecutada, **ejecutada con la orden** —hasta 2.000 caracteres—,
+     terminada con el código de salida, abierto/no abierto el instalador, quitada y por quién), encadenada por
+     SHA-256 con la anterior (`ant`, `h`): cambiar o quitar una línea rompe la cadena desde ahí y
+     `acceso_equipo_estado` lo dice (`registro_integro`). Nunca la salida de las órdenes. En `enlaces.log` solo
+     una línea `[acceso] <suceso>` sin la orden (ese registro se comparte en las rondas de prueba).
+5. **Los «altos»:** `rescate_origen_*` → **estrechados** a los diez orígenes del servidor local
+   (`rescate-origen.json`, escritorio y Android): Rust ya exigía rescate en curso, ventana `main` y la URL exacta
+   de exportar/importar servida por el propio Rust; con eso basta. `ollama_instalador_*` → solo OS y servidor
+   local; **descargar** sigue sin concesión (anfitriones oficiales, nombre fijo, Descargas, tamaño acotado) y
+   **abrir** pasa por la concesión, el archivo propio y el «sí» de cada vez. `serie_*` → **estrechados** a OS y
+   servidor local y **explicados**: son la radio LoRa de la malla (la malla no pide concesión, regla del
+   encargo); Rust solo abre puertos de la lista de radios detectadas (macOS/Linux: `cu.usbserial*`,
+   `cu.usbmodem*`, `ttyUSB*`, `ttyACM*`…), uno a la vez, y solo escribe en él. **Queda:** en Windows la lista
+   es cualquier `COM` (ver §4.8.2).
+6. **Lo que funcionaba y cómo sigue:** instalar Ollama (`instalar-ollama.ts`): si falta la concesión, la página
+   lo dice en palabras claras («Para abrir el instalador de Ollama, StarSeed OS necesita «acceso al equipo»…»),
+   pide el diálogo nativo **una vez** y reintenta; si la persona no lo da, el estado es `necesita-acceso` con el
+   botón «Dar acceso al equipo y abrir» y el instalador sigue en Descargas. `run_terminal` no tiene llamadas en la
+   web hoy; cualquiera que llegue usa `conAccesoEquipo` de `src/lib/nativa/acceso-equipo.ts`, que hace lo mismo.
+   Actualizar la app, la malla (antenas, Bluetooth, Wi-Fi directo, AWDL, red local, serie LoRa, proxy), las
+   llamadas y los avisos **no piden concesión** (sus permisos no cambian salvo el origen).
+
+#### §4.8.1 Inventario de lo que llega a un origen remoto
+
+Todo permiso que una capability con `remote` concede, con lo que puede hacer en el aparato, quién puede
+llamarlo, quién lo llama en `src/` (o en las páginas del servidor local) y su clase: **inofensivo** · **solo-app**
+(basta con que lo pida la web de la app; un fallo de esa web lo podría usar, con el daño acotado que dice la
+fila) · **concesión** (además hace falta algo que la persona dio EN el aparato con un diálogo o selector nativo).
+**Orígenes:** `OS+local` = `https://starseed-os.vercel.app` + `http://127.0.0.1:47610…47619`; `local` = solo esos
+diez puertos; `OS·migración` = solo la web publicada en la ventana oculta `migracion-origen`. **Plataformas:**
+`todas` (escritorio, Android, iOS), `escritorio`, `escritorio+Android`. La prueba
+`src/lib/nativa/__tests__/inventario-nativo.test.ts` se pone roja si una capability concede algo que no está
+aquí, si una fila no está concedida o si los orígenes o plataformas de una fila no son los de verdad.
+
+<!-- inventario:inicio -->
+| Permiso | Qué puede hacer en el aparato | Orígenes · plataformas | Quién lo llama | Clase |
+|---|---|---|---|---|
+| `core:path:default` `core:event:default` `core:app:default` `core:image:default` `core:resources:default` | Rutas estándar, eventos entre página y Rust, versión y nombre de la app, imágenes y recursos propios | OS+local · todas | `nativa/puente.ts` (eventos), `nativa/info-neurona.ts` (`plugin:app\|version`) | inofensivo |
+| `core:window:default` `core:webview:default` `core:window:allow-set-title` `core:window:allow-minimize` `core:window:allow-maximize` `core:window:allow-unmaximize` `core:window:allow-close` `core:window:allow-start-dragging` | Consultar, mover, minimizar o cerrar su propia ventana | OS+local · todas | ninguno por nombre en `src/` | inofensivo |
+| `shell:allow-open` | Abrir un enlace `https:`/`mailto:`/`tel:` con el programa por defecto (alcance por defecto del plugin; no ejecuta archivos) | OS+local · todas | ninguno por nombre | inofensivo |
+| `fs:allow-read-dir` `fs:allow-read-file` `fs:allow-read-text-file` `fs:allow-stat` `fs:allow-exists` | LEER, sin alcance estático: solo carpetas concedidas en el selector nativo, el archivo elegido en un diálogo y lo arrastrado a la ventana | OS+local · todas | ninguno por plugin hoy (las carpetas compartidas van por `nas_*`) | concesión |
+| `os:allow-platform` `os:allow-version` `os:allow-os-type` `os:allow-family` `os:allow-arch` `os:allow-hostname` `os:allow-locale` `os:allow-exe-extension` | Leer sistema, versión, arquitectura, nombre del equipo e idioma | OS+local · todas | ninguno por plugin (`device_info` va por Rust) | inofensivo |
+| `process:allow-exit` `process:allow-restart` | Cerrar o reiniciar la propia app | OS+local · todas | ninguno por nombre | inofensivo |
+| `notification:default` `notification:allow-notify` `notification:allow-request-permission` `notification:allow-is-permission-granted` | Avisos del sistema y pedir su permiso (lo pregunta el sistema) | OS+local · todas | `aurora/senses/request-permission.ts`, `notifications/avisos-mensajes.ts` | inofensivo |
+| `dialog:default` `dialog:allow-open` `dialog:allow-save` `dialog:allow-message` `dialog:allow-ask` `dialog:allow-confirm` | Diálogos nativos; lo elegido en abrir/guardar entra en el alcance de LECTURA. Una página puede imitar el texto de un diálogo de StarSeed, pero contestarlo no concede nada | OS+local · todas | ninguno por nombre | solo-app |
+| `deep-link:default` | Leer el enlace `starseed://` con el que se abrió la app | OS+local · todas | ninguno por nombre | inofensivo |
+| `allow-check-update` `allow-reiniciar-para-actualizar` `allow-estado-actualizacion` `allow-buscar-actualizacion` | Buscar e instalar la actualización FIRMADA de la app y reiniciar para aplicarla | OS+local · todas | `nativa/actualizador.ts`, `actualizaciones/aplicadores.ts`, `pwa/actualizacion-nativa.tsx`, `actualizaciones/aviso-actualizacion.tsx` | solo-app |
+| `allow-device-info` `allow-info-neurona` `allow-recursos-ia-detectar` | Leer sistema, versión, procesador, memoria y disco | OS+local · todas | `neurons/maquina.ts`, `settings/neurons/esta-neurona.tsx`, `neurons/aparato-este-medio.ts`, `recursos-ia/deteccion.ts` | inofensivo |
+| `allow-pista-neurona` `allow-pista-neurona-leer` | Escribir y leer la pista del id de neurona (Rust exige la web publicada) | OS+local · todas | `neurons/aparato-este-medio.ts`, `neurons/adopcion-arranque.ts` | solo-app |
+| `allow-medios-estado` `allow-medios-abrir-ajustes` `allow-permisos-inicio-estado` `allow-permisos-inicio-pedir` `allow-permisos-sistema-estado` `allow-permisos-sistema-pedir` `allow-permisos-sistema-abrir` | Leer el estado de los permisos del sistema, hacer que el SISTEMA pregunte y abrir una pantalla FIJA de Ajustes | OS+local · todas | `nativa/medios-nativos.ts`, `llamadas/permiso-medios.ts`, `nativa/permisos-inicio-ejecutor.ts`, `nativa/asistente-permisos.tsx` | inofensivo |
+| `allow-ventana-pantalla-completa` | Pantalla completa de la propia ventana | OS+local · todas | `system/system-chrome.tsx`, `nativa/pantalla-completa.ts` | inofensivo |
+| `allow-antenas-estado` `allow-antenas-medir` `allow-antenas-config` `allow-antenas-configurar` `allow-fondo-estado` `allow-fondo-fijar` `allow-fondo-arranque` `allow-fondo-pedir-bateria` | Medir y configurar las antenas de la malla; segundo plano, abrir al iniciar sesión, pedir la exención de batería (Android pregunta) | OS+local · todas | `nativa/puente.ts`, `nativa/permisos-inicio-ejecutor.ts`, `nativa/defectos-antenas-aplicar.ts`, `nativa/asistente-permisos.tsx` | solo-app |
+| `allow-carpetas-conceder` | Abrir el selector NATIVO de carpetas: la página no pasa rutas; lo elegido entra en el alcance de lectura | OS+local · todas | `nativa/puente.ts` | concesión |
+| `allow-carpetas-listar` `allow-carpetas-revocar` `allow-carpetas-nas` | Listar y quitar carpetas concedidas; compartir con la malla una YA concedida | OS+local · todas | `nativa/puente.ts` | solo-app |
+| `allow-nas-listar` `allow-nas-leer` | Listar y leer (≤ 256 KiB por llamada) dentro de una carpeta concedida Y compartida; Rust lo comprueba sobre el disco real | OS+local · todas | `nativa/nas.ts` | concesión |
+| `allow-serie-puertos` `allow-serie-abrir` `allow-serie-escribir` `allow-serie-cerrar` | Abrir, escribir y cerrar UN puerto serie de la lista de radios detectadas (radio LoRa de la malla) | OS+local · todas | `nativa/serie-nativa.ts`, `nativa/vista-antenas.ts` | solo-app |
+| `allow-capas-estado` `allow-capas-descargar` `allow-capas-verificar` `allow-capas-borrar` | Capas de IA en la carpeta de la app: descarga verificada por SHA-256 con tope de disco, comprobar y borrar (nombres saneados) | OS+local · todas | `nativa/capas-nativas.ts`, `nativa/puente.ts` | solo-app |
+| `allow-malla-local-enviar` `allow-malla-local-estado` `allow-malla-local-recibidos` | Canal de datos de la malla por la red local (TCP 47071) | OS+local · todas | `malla/sincronizacion-neuronas-motor.ts`, `malla/red-local-nativa-motor.ts` | solo-app |
+| `allow-ble-estado` `allow-ble-abrir` `allow-ble-cerrar` `allow-ble-enviar` `allow-ble-recibidos` `allow-ble-activar` `allow-ble-pedir-permiso` `allow-ble-registro` `allow-ble-registro-anexar` `allow-ble-canal-rapido` `allow-ble-enlace-ligado` `allow-ble-registro-compartir` | Bluetooth directo de la malla, su registro y compartirlo | OS+local · todas | `malla/bluetooth-directo.ts`, `malla/bluetooth-directo-motor.ts`, `malla/registro-enlace-ble.ts`, `malla/canal-rapido-ajuste.ts` | solo-app |
+| `allow-enlace-wifi-capacidades` `allow-enlace-wifi-permiso` `allow-enlace-wifi-abrir-ap` `allow-enlace-wifi-credenciales` `allow-enlace-wifi-unirse` `allow-enlace-wifi-estado` `allow-enlace-wifi-cerrar` `allow-enlace-wifi-comprobar` `allow-awdl-iniciar` `allow-awdl-detener` `allow-awdl-estado` | Wi-Fi directo entre neuronas: levantar la red, unirse a la del par con sus credenciales, AWDL | OS+local · todas | `malla/enlace-wifi-motor.ts`, `malla/matriz-enlaces.ts`, `malla/lanas-propias.ts` (`awdl_detener`: ninguno) | solo-app |
+| `allow-puerta-proxy-local` `allow-puerta-proxy-estado` | Poner el proxy local de la puerta de internet de la malla al webview y a las descargas de Rust | OS+local · todas | `malla/puerta/proxy-nativo.ts` | solo-app |
+| `allow-apk-actualizar` `allow-apk-estado` `allow-apk-instalar` | Android: descargar y verificar la actualización del APK y abrir el instalador del sistema (que pregunta) | OS+local · todas | `nativa/actualizador-apk.ts` | solo-app |
+| `allow-aviso-mensaje` `allow-avisos-config` `allow-avisos-estado` `allow-avisos-pedir-permiso` `allow-avisos-pendiente` `allow-origen-local-estado` | Avisos de mensajes; estado del origen del servidor local | OS+local · todas | `notifications/avisos-mensajes.ts`, `nativa/avisos-nativos.ts` | inofensivo |
+| `allow-llamada-nativa-iniciar` `allow-llamada-nativa-estado` `allow-llamada-nativa-ruta-audio` `allow-llamada-nativa-proximidad` `allow-llamada-nativa-capacidades` `allow-llamada-nativa-permiso` `allow-llamada-nativa-ignorar` `allow-llamada-nativa-recientes` `allow-llamada-silencios-sincronizar` `allow-llamada-timbre-firmar` | Llamadas como las del teléfono; firmar el timbre con la clave de faro de la cuenta | OS+local · todas | `llamadas/nativa/puente-llamada-nativa.ts`, `llamadas/nativa/espejo-silencios.ts`, `malla/llamada-directa-respaldo.ts` | solo-app |
+| `autostart:default` `autostart:allow-enable` `autostart:allow-disable` `autostart:allow-is-enabled` | Abrir la app al iniciar sesión | OS+local · escritorio | ninguno por plugin (`fondo_arranque` va por Rust) | solo-app |
+| `updater:default` `updater:allow-check` `updater:allow-download-and-install` | Buscar e instalar una actualización FIRMADA con la clave de la app | OS+local · escritorio | ninguno por plugin (`check_update` va por Rust) | solo-app |
+| `allow-servidor-local-estado` | Estado del servidor local | OS+local · escritorio | `nativa/estado-servidor-local.ts` | inofensivo |
+| `allow-ollama-instalador-descargar` `allow-ollama-instalador-cancelar` | Descargar el instalador OFICIAL de Ollama a Descargas (anfitriones y nombre fijos) | OS+local · escritorio | `astraura/modelos/instalar-ollama.ts` | solo-app |
+| `allow-ollama-instalador-abrir` | ABRIR (ejecutar) el instalador que esta app descargó; o enseñarlo en el Finder/Explorador | OS+local · escritorio | `astraura/modelos/instalar-ollama.ts` | concesión |
+| `allow-run-terminal` | Ejecutar cualquier orden de shell con los permisos del usuario | OS+local · escritorio | ninguno en `src/` | concesión |
+| `allow-acceso-equipo-estado` `allow-acceso-equipo-pedir` `allow-acceso-equipo-revocar` | Leer la concesión; pedir que Rust enseñe su diálogo nativo (solo el «sí» la da); quitarla | OS+local · escritorio | `nativa/acceso-equipo.ts`, `astraura/modelos/instalar-ollama.ts` | inofensivo |
+| `allow-prestamo-ventana-iniciar` `allow-prestamo-ventana-parar` `allow-prestamo-ventana-estado` `allow-ventanas-prestables` `allow-capturar-ventana` `allow-entrada-ventana` | Ver y teclear en ventanas prestadas, con sesión nativa (§4.7) | OS+local · escritorio | `apps-remotas/nativo.ts`, `apps-remotas/anfitrion.ts` | concesión |
+| `allow-servidor-local-actualizar` | Reiniciar el servidor local con una capa ya verificada | local · escritorio | `nativa/estado-servidor-local.ts` | solo-app |
+| `allow-migracion-origen-estado` `allow-migracion-origen-datos` `allow-migracion-origen-confirmar` | Importar lo que la app guardaba en el origen publicado (página de migración del servidor local) | local · escritorio | `native/servidor-local/migracion-origen.js` | solo-app |
+| `allow-migracion-origen-exportar` | Exportar lo guardado en el origen publicado (ventana oculta de la migración) | OS·migración · escritorio | `native/servidor-local/migracion-origen.js` | solo-app |
+| `allow-rescate-origen-exportar` `allow-rescate-origen-estado` `allow-rescate-origen-datos` `allow-rescate-origen-confirmar` | Rescate de datos entre puertos del servidor local (páginas servidas por Rust durante el rescate) | local · escritorio+Android | `native/servidor-local/rescate-origen.js` | solo-app |
+<!-- inventario:fin -->
+
+**En números:** **156 permisos** llegan hoy a un origen remoto (109 de comandos propios, 47 de plugins): **50 inofensivos**, **90 solo-app** y **16 con concesión** de la persona en el aparato. Antes de este cambio eran 13 orígenes (con Nexus y Café) y, además, `shell:allow-execute/spawn/kill/stdin-write`, la lectura en `**`, la escritura en `$HOME/**`, `core:tray`/`core:menu` y `fs:default`.
+
+#### §4.8.2 Lo que queda expuesto después de este cambio
+
+- **Alta:** un script en la web de StarSeed OS (o su servidor local) con «acceso al equipo» ya dado puede
+  ejecutar órdenes que la clasificación no reconozca sin preguntar (un binario propio que borre, una orden
+  escrita para esquivar las palabras). Lo acotan el aviso siempre visible, quitarlo con un clic y el registro;
+  no lo impiden. Lo que lo cerraría del todo: no ejecutar texto libre (órdenes con nombre y argumentos tipados).
+- **Media:** `serie_*` en **Windows** abre cualquier puerto `COM` (no solo radios): una página comprometida podría
+  mandar bytes a otro aparato serie conectado. Arreglo: filtrar por VID/PID USB de radios (SetupAPI).
+- **Media:** `allow-llamada-timbre-firmar` firma timbres con la clave de faro de la cuenta: una página
+  comprometida podría hacer sonar las otras neuronas de la cuenta. `allow-enlace-wifi-unirse` une el aparato a
+  la red Wi-Fi que diga la página. `allow-puerta-proxy-local` pone el proxy del webview (a 127.0.0.1).
+- **Media:** `allow-carpetas-nas` comparte con la malla una carpeta ya concedida sin otra pregunta.
+- **Baja:** `dialog:allow-message/ask/confirm` permiten a la página imitar el aspecto de los diálogos de
+  StarSeed (contestarlos no concede nada). En macOS el botón por defecto de los diálogos nativos es el
+  afirmativo. El nombre del motivo que se enseña lo da la página.
+- **Baja:** la página local de arranque (`tauri://localhost`, `native/arranque/index.html`) sigue recibiendo
+  `default.json` (sin `"local": false`); es nuestra, sin red y con CSP `default-src 'none'`.
+- **Sin cambio:** en `carpetas_revocar` el alcance PROHIBIDO dura hasta reiniciar (volver a conceder la misma
+  carpeta en la misma sesión no la vuelve a abrir al plugin `fs`; sí a `nas_*`).
+
+**Solo un aparato puede confirmar:** que el diálogo nativo y el icono «● Acceso al equipo» salen y se ven en
+macOS (título en la barra de menús), Windows y Linux; que «Quitar el acceso al equipo ahora» funciona con la
+página colgada; que el icono vuelve al reiniciar; que tras el «sí» el instalador de Ollama se abre; que la web
+publicada sigue funcionando sin `core:default` (ninguna llamada a `plugin:tray|`/`plugin:menu|` en `src/`); y
+que la app de Nexus y la de Café siguen igual sin IPC.
 
 
 ---
