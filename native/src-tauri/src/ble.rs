@@ -227,8 +227,11 @@ pub struct EnlaceBle {
     pub kbps: Option<u32>,
     /// (BLE1109A) "gatt" | "rapido" (canal L2CAP abierto: todos los paquetes salen por él).
     pub carril: String,
-    /// (BLE1109A) Estado del canal rápido: "sin-psm" | "disponible" | "abriendo" | "abierto".
+    /// (BLE1109A) Estado del canal rápido: "sin-psm" | "disponible" | "abriendo" | "abierto" | "apagado" (ajuste) |
+    /// "desactivado" (BLE1111P: EN PAUSA, ver `canal_rapido_pausa_ms`; la palabra se conserva por las webs anteriores).
     pub canal_rapido: String,
+    /// (BLE1111P) Con el canal rápido en pausa: cuánto falta para que se vuelva a probar solo (ms). Si no, null.
+    pub canal_rapido_pausa_ms: Option<u64>,
     /// (BLE1109A) PSM del canal L2CAP, si se conoce.
     pub psm: Option<u16>,
     /// (BLE1109A) Lo medido en cada carril (el otro puede seguir con su último valor).
@@ -470,7 +473,8 @@ struct Estado {
     por_volcar: Vec<String>,
     /// (BLE1110A) Líneas idénticas consecutivas de `enlaces.log` → «… (×N)».
     colapso: crate::ble_autocura::Colapsador,
-    /// (BLE1109B) Fallos del canal rápido por par (2 en 10 min lo apagan hasta reiniciar).
+    /// (BLE1109B → BLE1111P) Fallos del canal rápido por par y enlace: pausas crecientes (30 s, 2 min, 10 min), nunca por
+    /// el otro aparato yéndose, y un enlace nuevo empieza limpio.
     castigos: Castigos,
 }
 
@@ -877,6 +881,23 @@ pub fn al_desconectar(plataforma: &str, motivo: &str) {
         let Some(i) = e.enlaces.iter().position(|l| l.plataforma == plataforma) else { return };
         let mut l = e.enlaces.remove(i);
         let ahora = ahora_ms();
+        // (BLE1111P) Los fallos del canal rápido de los últimos segundos eran el otro aparato yéndose: no cuentan.
+        let anulados = e.castigos.se_fue(&par_de(&l), &l.id, ahora);
+        if !anulados.is_empty() {
+            let hace = ahora.saturating_sub(*anulados.iter().min().unwrap_or(&ahora));
+            anotar(
+                e,
+                "l2cap-no-cuenta",
+                Some(&l.id),
+                l.neurona.as_deref(),
+                &format!(
+                    "el enlace entero se cayó {},{} s después de {} del canal rápido: era el otro aparato yéndose (reinicio, actualización o Bluetooth apagado), no un canal que falla; no cuenta para ninguna pausa",
+                    hace / 1000,
+                    (hace % 1000) / 100,
+                    if anulados.len() == 1 { "1 cierre".to_string() } else { format!("{} cierres", anulados.len()) }
+                ),
+            );
+        }
         let vida = ahora.saturating_sub(l.desde_ms);
         let m = l.nucleo.medidas.clone();
         let pendientes = l.nucleo.pendientes();
@@ -1022,12 +1043,19 @@ pub fn al_psm(plataforma: &str, psm: u16) {
     let ahora = ahora_ms();
     con_estado(|e| {
         let Some(i) = e.enlaces.iter().position(|l| l.plataforma == plataforma) else { return };
-        let apagado = e.castigos.apagado(&par_de(&e.enlaces[i]), ahora);
+        let par = par_de(&e.enlaces[i]);
+        let id = e.enlaces[i].id.clone();
+        // (BLE1111P) Una sesión GATT nueva con ese par empieza limpia: lo de un enlace anterior (fallos, pausa) se olvida.
+        if e.castigos.sesion(&par, &id) {
+            let neurona = e.enlaces[i].neurona.clone();
+            anotar(e, "l2cap-sesion-nueva", Some(&id), neurona.as_deref(), &format!("el otro aparato volvió con una sesión GATT nueva (psm={psm}): se olvidan los fallos y la pausa del enlace anterior y el canal rápido se prueba ya"));
+        }
+        let apagado = e.castigos.apagado(&par, &id, ahora);
         let l = &mut e.enlaces[i];
         if apagado {
             l.carril.prohibir();
         }
-        let (id, neurona) = (l.id.clone(), l.neurona.clone());
+        let neurona = l.neurona.clone();
         if l.carril.ofrecer_psm(psm, ahora) {
             anotar(e, "l2cap-psm", Some(&id), neurona.as_deref(), &format!("psm={psm}"));
         } else {
@@ -1042,10 +1070,11 @@ pub fn al_l2cap_abierto(plataforma: &str, psm: Option<u16>) {
     let ahora = ahora_ms();
     let conocido = con_estado(|e| {
         let Some(i) = e.enlaces.iter().position(|l| l.plataforma == plataforma) else { return false };
+        // (BLE1111P) El que acepta (periférico) nunca está en pausa: no rechaza lo que el otro lado abre.
         if !canal_rapido_activo() || e.enlaces[i].carril.prohibido() {
             // (BLE1109B) Un canal que no se pidió (ajuste apagado o par apagado): se cierra y GATT sigue.
             let (id, neurona) = (e.enlaces[i].id.clone(), e.enlaces[i].neurona.clone());
-            anotar(e, "l2cap-rechazado", Some(&id), neurona.as_deref(), "canal rápido apagado para este par: se cierra, el enlace sigue por GATT");
+            anotar(e, "l2cap-rechazado", Some(&id), neurona.as_deref(), "canal rápido apagado o en pausa con este par: se cierra, el enlace sigue por GATT");
             return false;
         }
         let l = &mut e.enlaces[i];
@@ -1075,7 +1104,7 @@ pub fn al_l2cap_abierto(plataforma: &str, psm: Option<u16>) {
 
 /// El canal L2CAP se cerró (o no llegó a abrir): el enlace sigue por GATT, sin soltarlo, y el canal se reintenta con la
 /// espera escalonada de `ble_l2cap`. (BLE1109B) Lo que estaba en vuelo se reenvía entero por GATT, el otro lado recibe
-/// la tregua de latidos y, tras 2 fallos del mismo par en 10 min, ese par queda sin canal rápido hasta reiniciar.
+/// la tregua de latidos y (BLE1111P) el fallo se cuenta para las pausas crecientes solo si el otro aparato sigue ahí.
 pub fn al_l2cap_cerrado(plataforma: &str, motivo: &str) {
     let ahora = ahora_ms();
     let hubo = con_estado(|e| {
@@ -1096,11 +1125,21 @@ pub fn al_l2cap_cerrado(plataforma: &str, motivo: &str) {
             (cierre, l.nucleo.medidas.clone())
         };
         let estable = cierre.estaba_abierto && cierre.vivio_ms >= l2::CANAL_ESTABLE_MS;
-        let apagado = if estable { false } else { e.castigos.fallo(&par, ahora) };
-        if apagado {
-            e.enlaces[i].carril.prohibir();
-        }
         let (id, neurona) = (e.enlaces[i].id.clone(), e.enlaces[i].neurona.clone());
+        // (BLE1111P) Solo el lado que ABRE lleva la cuenta (el que acepta nunca rechaza lo que el otro ofrece). Un fallo
+        // es provisional `GRACIA_SALIDA_MS`: si el enlace entero cae en ese margen, era el otro yéndose y se descarta.
+        // La pausa, si toca, la abre `confirmar` en el tic. Un canal sano borra la escala.
+        let abre = e.enlaces[i].carril.abre_este_lado;
+        let cuenta = if cierre.sano() {
+            e.castigos.sano(&par, &id);
+            "canal sano: se borra la escala de pausas".to_string()
+        } else if estable || !abre {
+            "no cuenta como fallo".to_string()
+        } else if e.castigos.fallo(&par, &id, ahora) {
+            format!("fallo provisional: cuenta si el enlace sigue vivo dentro de {} s", l2::GRACIA_SALIDA_MS / 1000)
+        } else {
+            "no cuenta como fallo".to_string()
+        };
         if probando {
             anotar(e, "l2cap-prueba-fallida", Some(&id), neurona.as_deref(), &format!("motivo={}", linea_limpia(&cierre.motivo, 160)));
         }
@@ -1110,17 +1149,15 @@ pub fn al_l2cap_cerrado(plataforma: &str, motivo: &str) {
             Some(&id),
             neurona.as_deref(),
             &format!(
-                "motivo={} · {} · vivió {} ms · se sigue por GATT · reabre en {} ms · último kbps rápido={}",
+                "motivo={} · {} · vivió {} ms · se sigue por GATT · reabre en {} ms · último kbps rápido={} · {}",
                 linea_limpia(&cierre.motivo, 160),
                 if cierre.estaba_abierto { "estaba abierto" } else { "no llegó a abrir" },
                 cierre.vivio_ms,
                 cierre.espera_ms,
-                m.kbps_rapido.map(|k| k.to_string()).unwrap_or_else(|| "sin medir".into())
+                m.kbps_rapido.map(|k| k.to_string()).unwrap_or_else(|| "sin medir".into()),
+                cuenta
             ),
         );
-        if apagado {
-            anotar(e, "l2cap-desactivado", Some(&id), neurona.as_deref(), "2 fallos del canal rápido en 10 min con este par: sin canal rápido durante 1 hora (luego un intento más); todo sigue por GATT");
-        }
         marcar_cambio(e);
         true
     });
@@ -1291,13 +1328,26 @@ fn tic(ahora: u64, releer_cuenta: bool) -> Acciones {
                 a.abrir_l2cap.push((plataforma, psm));
             }
         }
-        // (BLE1109B) Pasada la hora de castigo, el par vuelve a probar el canal rápido (un solo fallo más lo apaga otra hora).
-        for par in e.castigos.caducados(ahora) {
-            for i in 0..e.enlaces.len() {
-                if par_de(&e.enlaces[i]) == par && e.enlaces[i].carril.prohibido() {
+        // (BLE1111P) Fallos que pasaron su margen con el enlace vivo: se confirman y, si toca, empieza una pausa creciente.
+        for pausa in e.castigos.confirmar(ahora) {
+            if let Some(i) = e.enlaces.iter().position(|l| l.id == pausa.enlace) {
+                e.enlaces[i].carril.prohibir();
+                if e.enlaces[i].carril.estado() == l2::EstadoCarril::Abierto {
+                    a.cerrar_l2cap.push((e.enlaces[i].plataforma.clone(), format!("pausa del canal rápido de {}", l2::Pausa::texto_ms(pausa.ms))));
+                }
+                let neurona = e.enlaces[i].neurona.clone();
+                anotar(e, "l2cap-pausa", Some(&pausa.enlace), neurona.as_deref(), &pausa.detalle());
+                marcar_cambio(e);
+            }
+        }
+        // (BLE1111P) Terminó la pausa: se vuelve a probar el canal rápido (un solo fallo más abre la pausa siguiente).
+        for (par, enlace) in e.castigos.caducados(ahora) {
+            if let Some(i) = e.enlaces.iter().position(|l| l.id == enlace && par_de(l) == par) {
+                if e.enlaces[i].carril.prohibido() {
                     e.enlaces[i].carril.permitir();
-                    let (id, neurona) = (e.enlaces[i].id.clone(), e.enlaces[i].neurona.clone());
-                    anotar(e, "l2cap-reintento", Some(&id), neurona.as_deref(), "pasó la hora de castigo: se vuelve a probar el canal rápido");
+                    let neurona = e.enlaces[i].neurona.clone();
+                    anotar(e, "l2cap-reintento", Some(&enlace), neurona.as_deref(), "terminó la pausa: se vuelve a probar el canal rápido (si falla otra vez, la pausa siguiente es más larga)");
+                    marcar_cambio(e);
                 }
             }
         }
@@ -1402,12 +1452,13 @@ fn foto(e: &Estado, ahora: u64) -> EstadoBle {
                 canal_rapido: if !canal_rapido_activo() {
                     "apagado".to_string() // (BLE1109B) ajuste apagado: GATT puro
                 } else if l.carril.prohibido() {
-                    "desactivado".to_string() // (BLE1109B) 2 fallos en 10 min con este par
+                    "desactivado".to_string() // (BLE1111P) en pausa: `canal_rapido_pausa_ms` dice cuánto falta
                 } else if l.carril.probando() {
                     "abriendo".to_string() // (BLE1109B) abierto, pero aún en autoprueba
                 } else {
                     l.carril.estado().texto().to_string()
                 },
+                canal_rapido_pausa_ms: if canal_rapido_activo() && l.carril.prohibido() { e.castigos.pausa_restante(&par_de(l), &l.id, ahora) } else { None },
                 psm: l.carril.psm(),
                 kbps_rapido: m.kbps_rapido,
                 kbps_gatt: m.kbps_gatt,
@@ -2148,7 +2199,7 @@ mod pruebas {
     }
 
     #[test]
-    fn fallos_del_canal_caen_a_gatt_sin_cerrar_el_enlace_y_dos_apagan_al_par() {
+    fn fallos_del_canal_caen_a_gatt_sin_cerrar_el_enlace_y_dos_lo_pausan_30_s() {
         let _g = con_ajuste(true);
         let p = "c:AA:BB:CC:DD:EE:73";
         al_conectar(p, "central", Some("AA:BB:CC:DD:EE:73"), 64);
@@ -2162,21 +2213,95 @@ mod pruebas {
         al_l2cap_datos(p, &[0, 1, 0]);
         let e = estado_enlace(&id);
         assert_eq!(e.carril, "gatt");
-        assert_ne!(e.canal_rapido, "desactivado", "un fallo solo no apaga al par");
+        assert_ne!(e.canal_rapido, "desactivado", "un fallo solo no pausa");
         // 2 · Cierre desde la plataforma (el otro lado, error de lectura/escritura…).
         al_l2cap_abierto(p, Some(0x85));
         al_l2cap_cerrado(p, "el otro aparato cerró el canal L2CAP");
-        let e = estado_enlace(&id);
-        assert_eq!((e.carril.as_str(), e.canal_rapido.as_str()), ("gatt", "desactivado"), "2 fallos en 10 min: apagado hasta reiniciar");
+        assert_ne!(estado_enlace(&id).canal_rapido, "desactivado", "BLE1111P: aún provisional (¿se está yendo el otro?)");
         let reg = ble_registro();
-        assert!(reg.iter().any(|x| x.tipo == "l2cap-desactivado" && x.enlace.as_deref() == Some(id.as_str())), "{reg:?}");
-        // 3 · Apagado: ni el PSM ni una apertura cambian nada, y el enlace sigue vivo y hablando por GATT.
+        assert!(reg.iter().any(|x| x.tipo == "l2cap-cerrado" && x.enlace.as_deref() == Some(id.as_str()) && x.detalle.contains("fallo provisional")), "{reg:?}");
+        // Pasado el margen con el enlace vivo, los dos cuentan: pausa de 30 s, dicha en palabras.
+        let _ = tic(ahora_ms() + l2::GRACIA_SALIDA_MS + 1, false);
+        let e = estado_enlace(&id);
+        assert_eq!((e.carril.as_str(), e.canal_rapido.as_str()), ("gatt", "desactivado"));
+        // (la foto mide desde «ahora» real; la pausa empezó en el tic, `GRACIA_SALIDA_MS` más tarde)
+        assert!(e.canal_rapido_pausa_ms.is_some_and(|ms| ms > 20_000 && ms <= 30_000 + l2::GRACIA_SALIDA_MS + 1_000), "{:?}", e.canal_rapido_pausa_ms);
+        let reg = ble_registro();
+        let linea = reg.iter().find(|x| x.tipo == "l2cap-pausa" && x.enlace.as_deref() == Some(id.as_str())).expect("pausa anotada");
+        assert!(linea.detalle.contains("pausa de 30 s") && linea.detalle.contains("se vuelve a probar solo"), "{}", linea.detalle);
+        // 3 · En pausa: ni el PSM ni una apertura cambian nada, y el enlace sigue vivo y hablando por GATT.
         al_psm(p, 0x85);
         al_l2cap_abierto(p, Some(0x85));
         assert_eq!(estado_enlace(&id).carril, "gatt");
         let mut otra = Enlace::nuevo(64);
         assert_eq!(mensaje_por_gatt(p, &id, &mut otra, "{\"t\":\"a\",\"d\":\"sigue\"}").len(), 1);
-        // 4 · Cambiar el ajuste olvida los fallos.
+        con_estado(|e| e.castigos.limpiar());
+        al_desconectar(p, "fin de la prueba");
+    }
+
+    /// (BLE1111P) El 2026-11-11 la tableta reinició para actualizarse: cerró el canal, macOS no pudo reabrirlo y un segundo
+    /// después cayó el enlace. Nada de eso es un fallo del canal; el enlace nuevo prueba el canal rápido en el acto.
+    #[test]
+    fn el_otro_aparato_reiniciando_no_deja_el_enlace_nuevo_sin_canal_rapido() {
+        let _g = con_ajuste(true);
+        let p = "c:AA:BB:CC:DD:EE:83";
+        al_conectar(p, "central", Some("AA:BB:CC:DD:EE:83"), 64);
+        let id = id_de_enlace(p);
+        assert!(ble_enlace_ligado(id.clone()));
+        al_psm(p, 132);
+        al_l2cap_abierto(p, Some(132));
+        superar_prueba(p);
+        al_l2cap_cerrado(p, "el otro aparato cerró el canal L2CAP");
+        let _ = tic(ahora_ms(), false); // reabre en 0 ms…
+        al_l2cap_cerrado(p, "macOS no pudo abrir el canal L2CAP: Unknown error.");
+        al_desconectar(p, "el otro aparato se desconectó: The specified device has disconnected from us.");
+        let reg = ble_registro();
+        assert!(reg.iter().any(|x| x.tipo == "l2cap-no-cuenta" && x.enlace.as_deref() == Some(id.as_str()) && x.detalle.contains("2 cierres")), "{reg:?}");
+        // Cierre tardío del enlace ido: no hay enlace, no cuenta.
+        al_l2cap_cerrado(p, "tarde");
+        let _ = tic(ahora_ms() + l2::GRACIA_SALIDA_MS + 1, false);
+        assert!(!ble_registro().iter().any(|x| x.tipo == "l2cap-pausa" && x.enlace.as_deref() == Some(id.as_str())), "sin pausa");
+        // Vuelve con una sesión GATT nueva y un psm nuevo: el canal se pide en el acto.
+        al_conectar(p, "central", Some("AA:BB:CC:DD:EE:83"), 64);
+        let id2 = id_de_enlace(p);
+        assert_ne!(id, id2);
+        assert!(ble_enlace_ligado(id2.clone()));
+        al_psm(p, 133);
+        let e = estado_enlace(&id2);
+        assert_eq!((e.canal_rapido.as_str(), e.canal_rapido_pausa_ms), ("disponible", None));
+        let a = tic(ahora_ms(), false);
+        assert!(a.abrir_l2cap.iter().any(|(x, psm)| x == p && *psm == 133), "{:?}", a.abrir_l2cap);
+        al_desconectar(p, "fin de la prueba");
+    }
+
+    /// (BLE1111P) Orden contrario: el enlace cae primero y el canal se cierra después. Tampoco cuenta.
+    #[test]
+    fn enlace_caido_antes_que_el_canal_no_cuenta_y_una_pausa_no_pasa_al_enlace_nuevo() {
+        let _g = con_ajuste(true);
+        let p = "c:AA:BB:CC:DD:EE:84";
+        al_conectar(p, "central", Some("AA:BB:CC:DD:EE:84"), 64);
+        let id = id_de_enlace(p);
+        assert!(ble_enlace_ligado(id.clone()));
+        al_psm(p, 0x85);
+        // Un canal que falla de verdad con el par conectado: pausa…
+        al_l2cap_abierto(p, Some(0x85));
+        al_l2cap_cerrado(p, "fallo 1");
+        al_l2cap_abierto(p, Some(0x85));
+        al_l2cap_cerrado(p, "fallo 2");
+        let _ = tic(ahora_ms() + l2::GRACIA_SALIDA_MS + 1, false);
+        assert_eq!(estado_enlace(&id).canal_rapido, "desactivado");
+        // …el enlace cae y luego llega el cierre del canal: nada.
+        al_desconectar(p, "el otro aparato se desconectó");
+        al_l2cap_cerrado(p, "el otro aparato cerró el canal L2CAP");
+        // Sesión nueva: limpia, se dice en el registro y el canal se pide ya.
+        al_conectar(p, "central", Some("AA:BB:CC:DD:EE:84"), 64);
+        let id2 = id_de_enlace(p);
+        assert!(ble_enlace_ligado(id2.clone()));
+        al_psm(p, 0x86);
+        assert!(ble_registro().iter().any(|x| x.tipo == "l2cap-sesion-nueva" && x.enlace.as_deref() == Some(id2.as_str())));
+        assert_eq!(estado_enlace(&id2).canal_rapido, "disponible");
+        let a = tic(ahora_ms(), false);
+        assert!(a.abrir_l2cap.iter().any(|(x, psm)| x == p && *psm == 0x86));
         con_estado(|e| e.castigos.limpiar());
         al_desconectar(p, "fin de la prueba");
     }
@@ -2321,7 +2446,7 @@ mod pruebas {
     }
 
     #[test]
-    fn el_par_apagado_vuelve_a_probar_pasada_una_hora() {
+    fn la_pausa_termina_sola_y_vuelve_a_probar() {
         let _g = con_ajuste(true);
         let p = "c:AA:BB:CC:DD:EE:82";
         al_conectar(p, "central", Some("AA:BB:CC:DD:EE:82"), 64);
@@ -2332,13 +2457,17 @@ mod pruebas {
         al_l2cap_cerrado(p, "fallo 1");
         al_l2cap_abierto(p, Some(0x85));
         al_l2cap_cerrado(p, "fallo 2");
+        let t0 = ahora_ms() + l2::GRACIA_SALIDA_MS + 1;
+        let _ = tic(t0, false);
         assert_eq!(estado_enlace(&id).canal_rapido, "desactivado");
-        let _ = tic(ahora_ms() + l2::ESPERA_REINTENTO_MS / 2, false);
-        assert_eq!(estado_enlace(&id).canal_rapido, "desactivado", "aún dentro de la hora");
-        let _ = tic(ahora_ms() + l2::ESPERA_REINTENTO_MS + 1_000, false);
-        assert_ne!(estado_enlace(&id).canal_rapido, "desactivado", "pasada la hora vuelve a probar");
+        let _ = tic(t0 + l2::ESCALA_PAUSA_MS[0] / 2, false);
+        assert_eq!(estado_enlace(&id).canal_rapido, "desactivado", "aún dentro de la pausa");
+        let _ = tic(t0 + l2::ESCALA_PAUSA_MS[0] + 1, false);
+        let e = estado_enlace(&id);
+        assert_ne!(e.canal_rapido, "desactivado", "terminada la pausa vuelve a probar");
+        assert_eq!(e.canal_rapido_pausa_ms, None);
         let reg = ble_registro();
-        assert!(reg.iter().any(|x| x.tipo == "l2cap-reintento"), "{reg:?}");
+        assert!(reg.iter().any(|x| x.tipo == "l2cap-reintento" && x.enlace.as_deref() == Some(id.as_str())), "{reg:?}");
         con_estado(|e| e.castigos.limpiar());
         al_desconectar(p, "fin de la prueba");
     }

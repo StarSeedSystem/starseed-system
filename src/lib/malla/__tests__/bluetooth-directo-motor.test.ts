@@ -15,7 +15,7 @@ import {
   type RedBle,
 } from "@/lib/malla/bluetooth-directo-motor";
 import { crearSesionesCifradas } from "@/lib/malla/sesion-cifrada";
-import { T_OFERTA_WIFI, leerEstadoBle, textoCanalBle, type ControlEnlaceWifi, type EstadoBleNativo } from "@/lib/malla/bluetooth-directo";
+import { T_OFERTA_WIFI, leerEstadoBle, senalesBluetoothDirecto, textoCanalBle, textoPausaCanalBle, type ControlEnlaceWifi, type EstadoBleNativo } from "@/lib/malla/bluetooth-directo";
 import { crearAlmacenEnMemoria, crearMotorArchivos, type MotorArchivos } from "@/lib/network/archivos-malla";
 
 const MAX_CUERPO = 16 * 1024;
@@ -476,6 +476,27 @@ describe("Bluetooth directo · motor (BLE1108A)", () => {
     expect(textoCanalBle(raro)).toBe("Bluetooth directo · 640 kb/s");
     expect(textoCanalBle({ carril: "rapido", kbps: null })).toBe("Bluetooth directo · canal rápido · sin medir");
     expect(textoCanalBle(null)).toBe("Bluetooth directo");
+  });
+
+  it("(BLE1111P) el canal rápido en pausa dice cuánto falta y que se vuelve a probar, no que no existe", () => {
+    const base = { id: "b1", rol: "central", paquete: 512, rtt_ms: 30, kbps: 40, pendientes: 0, bytes_enviados: 0, bytes_recibidos: 0, abierto_hace_ms: 5 };
+    const bruto = (x: Record<string, unknown>) => ({ disponible: true, activo: true, radio: "encendida", enlaces: [{ ...base, ...x }], vecinos: [] });
+    const pausa = leerEstadoBle(bruto({ carril: "gatt", canal_rapido: "desactivado", canal_rapido_pausa_ms: 24_200 }))?.enlaces[0];
+    expect(pausa).toMatchObject({ canal_rapido: "desactivado", canal_rapido_pausa_ms: 24_200 });
+    expect(textoPausaCanalBle(pausa)).toBe("canal rápido en pausa · se vuelve a probar en 25 s");
+    expect(textoPausaCanalBle({ canal_rapido: "desactivado", canal_rapido_pausa_ms: 120_000 })).toBe("canal rápido en pausa · se vuelve a probar en 2 min");
+    expect(textoPausaCanalBle({ canal_rapido: "desactivado", canal_rapido_pausa_ms: 95_000 })).toBe("canal rápido en pausa · se vuelve a probar en 1 min 35 s");
+    expect(textoPausaCanalBle({ canal_rapido: "desactivado", canal_rapido_pausa_ms: 599_000 })).toBe("canal rápido en pausa · se vuelve a probar en 10 min");
+    // Una app nativa anterior no manda el plazo: se dice igual que vuelve a probar, sin inventar cifra.
+    const vieja = leerEstadoBle(bruto({ carril: "gatt", canal_rapido: "desactivado" }))?.enlaces[0];
+    expect(vieja?.canal_rapido_pausa_ms).toBeNull();
+    expect(textoPausaCanalBle(vieja)).toBe("canal rápido en pausa · se vuelve a probar solo");
+    expect(textoPausaCanalBle({ canal_rapido: "disponible", canal_rapido_pausa_ms: 5_000 })).toBeNull();
+    expect(textoPausaCanalBle(null)).toBeNull();
+    // Y llega a los detalles del enlace de la neurona (radar).
+    const est = leerEstadoBle({ ...bruto({ carril: "gatt", canal_rapido: "desactivado", canal_rapido_pausa_ms: 30_000 }), vecinos: [{ id: "v0a1b2c3d", rssi: -60, uuid: "x", propia: true, tipo: "mac", servidor: true, visto_hace_ms: 0, enlace: "b1" }] });
+    const metr = senalesBluetoothDirecto(est, 0)[0]?.metrics ?? [];
+    expect(metr.find((m) => m.label === "Enlace")?.value).toContain("canal rápido en pausa · se vuelve a probar en 30 s");
   });
 });
 

@@ -91,8 +91,11 @@ export interface EnlaceBleNativo {
   kbps: number | null;
   /** (BLE1109A) Carril en uso: «rapido» (L2CAP) o «gatt». Opcional: una app nativa anterior no lo manda. */
   carril?: "rapido" | "gatt";
-  /** (BLE1109A) Estado del canal rápido: sin-psm | disponible | abriendo | abierto. */
+  /** (BLE1109A) Estado del canal rápido: sin-psm | disponible | abriendo | abierto | apagado (ajuste) | desactivado
+   * (BLE1111P: EN PAUSA, se vuelve a probar solo; ver `canal_rapido_pausa_ms`). */
   canal_rapido?: "sin-psm" | "disponible" | "abriendo" | "abierto" | "apagado" | "desactivado";
+  /** (BLE1111P) Con el canal rápido en pausa: cuánto falta para que se vuelva a probar (ms). Una app anterior no lo manda. */
+  canal_rapido_pausa_ms?: number | null;
   psm?: number | null;
   kbps_rapido?: number | null;
   kbps_gatt?: number | null;
@@ -201,6 +204,7 @@ export function leerEstadoBle(x: unknown): EstadoBleNativo | null {
       kbps: numONull(e.kbps),
       carril: e.carril === "rapido" ? "rapido" : "gatt",
       canal_rapido: (["sin-psm", "disponible", "abriendo", "abierto", "apagado", "desactivado"] as const).find((x) => x === e.canal_rapido) ?? "sin-psm",
+      canal_rapido_pausa_ms: numONull(e.canal_rapido_pausa_ms),
       psm: numONull(e.psm),
       kbps_rapido: numONull(e.kbps_rapido),
       kbps_gatt: numONull(e.kbps_gatt),
@@ -383,6 +387,20 @@ export function textoCanalBle(e: Pick<EnlaceBleNativo, "carril" | "kbps"> | null
   return k != null ? `Bluetooth directo · ${k} kb/s` : "Bluetooth directo";
 }
 
+/**
+ * (BLE1111P) El canal rápido en pausa no es un canal que no existe: dice cuánto falta y que se vuelve a probar solo
+ * («canal rápido en pausa · se vuelve a probar en 25 s»). Una app anterior (pausa de 1 h sin plazo) sale sin cifra. Sin
+ * pausa: null. Puro.
+ */
+export function textoPausaCanalBle(e: Pick<EnlaceBleNativo, "canal_rapido" | "canal_rapido_pausa_ms"> | null | undefined): string | null {
+  if (e?.canal_rapido !== "desactivado") return null;
+  const ms = typeof e.canal_rapido_pausa_ms === "number" && Number.isFinite(e.canal_rapido_pausa_ms) && e.canal_rapido_pausa_ms > 0 ? e.canal_rapido_pausa_ms : null;
+  if (ms == null) return "canal rápido en pausa · se vuelve a probar solo";
+  const s = Math.ceil(ms / 1000);
+  const plazo = s < 60 ? `${s} s` : s % 60 === 0 || s >= 300 ? `${Math.round(s / 60)} min` : `${Math.floor(s / 60)} min ${s % 60} s`;
+  return `canal rápido en pausa · se vuelve a probar en ${plazo}`;
+}
+
 /** Cuánto tardaría un archivo por Bluetooth: con la medida, una cifra; sin ella, una horquilla. Puro. */
 export function duracionArchivoBle(bytes: number, kbps: number | null | undefined): string {
   const fmt = (s: number) => (s < 90 ? `${Math.max(1, Math.round(s))} s` : s < 5400 ? `${Math.round(s / 60)} min` : `${Math.round(s / 360) / 10} h`);
@@ -414,7 +432,7 @@ export function senalesBluetoothDirecto(
       { label: "Señal", value: `${v.rssi} dBm` },
       { label: "Último anuncio", value: `hace ${Math.round(v.visto_hace_ms / 1000)} s` },
       { label: "Tipo de aparato", value: v.tipo },
-      { label: "Enlace", value: enlace ? `abierto (${enlace.rtt_ms != null ? `${enlace.rtt_ms} ms` : "sin medir"} · ${textoVelocidadBle(enlace.kbps)}${enlace.carril === "rapido" ? " · canal rápido" : ""})` : v.servidor ? "sin abrir (acepta conexiones)" : "sin abrir (no acepta conexiones ahora)" },
+      { label: "Enlace", value: enlace ? `abierto (${enlace.rtt_ms != null ? `${enlace.rtt_ms} ms` : "sin medir"} · ${textoVelocidadBle(enlace.kbps)}${enlace.carril === "rapido" ? " · canal rápido" : textoPausaCanalBle(enlace) ? ` · ${textoPausaCanalBle(enlace)}` : ""})` : v.servidor ? "sin abrir (acepta conexiones)" : "sin abrir (no acepta conexiones ahora)" },
     ];
     const metros = v.rssi > -127 ? metrosPorRssi(v.rssi, "bt") : null;
     const placement =
