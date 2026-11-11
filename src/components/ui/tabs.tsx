@@ -25,7 +25,7 @@ const TabsList = React.forwardRef<
         <TabsPrimitive.List
           ref={ref}
           className={cn(
-            "flex items-center justify-center rounded-full bg-transparent p-1 text-foreground relative z-10 w-full h-full drop-shadow-sm",
+            "flex flex-wrap items-center justify-center gap-1 rounded-3xl bg-transparent p-1 text-foreground relative z-10 w-full h-auto drop-shadow-sm" /* VEN1111D: varias filas si no caben */,
             className,
           )}
           {...props}
@@ -38,7 +38,7 @@ const TabsList = React.forwardRef<
     <TabsPrimitive.List
       ref={ref}
       className={cn(
-        "flex w-full items-center justify-center rounded-full p-1 text-muted-foreground/70 bento-base",
+        "flex w-full flex-wrap items-center justify-center gap-1 h-auto rounded-3xl p-1 text-muted-foreground/70 bento-base",
         isCrystal && "crystal-tab-list bg-transparent",
         className,
       )}
@@ -63,7 +63,7 @@ const TabsTrigger = React.forwardRef<
       <TabsPrimitive.Trigger
         ref={ref}
         className={cn(
-          "flex-1 inline-flex items-center justify-center whitespace-nowrap rounded-full px-5 py-2 text-sm font-medium outline-offset-2 cursor-pointer transition-all duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring/70 disabled:pointer-events-none disabled:opacity-50",
+          "flex-1 inline-flex max-w-full items-center justify-center whitespace-nowrap rounded-full px-3 sm:px-5 py-2 text-sm font-medium outline-offset-2 cursor-pointer transition-all duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring/70 disabled:pointer-events-none disabled:opacity-50",
           "text-foreground/70 hover:text-foreground hover:bg-foreground/5 data-[state=active]:bg-foreground/10 data-[state=active]:text-foreground data-[state=active]:shadow-lg border border-transparent data-[state=active]:border-foreground/20 backdrop-blur-sm",
           className,
         )}
@@ -76,7 +76,7 @@ const TabsTrigger = React.forwardRef<
     <TabsPrimitive.Trigger
       ref={ref}
       className={cn(
-        "flex-1 inline-flex items-center justify-center whitespace-nowrap rounded-full px-5 py-2 text-sm font-medium outline-offset-2 cursor-pointer transition-all duration-200 hover:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring/70 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=active]:shadow-black/5",
+        "flex-1 inline-flex max-w-full items-center justify-center whitespace-nowrap rounded-full px-3 sm:px-5 py-2 text-sm font-medium outline-offset-2 cursor-pointer transition-all duration-200 hover:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring/70 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=active]:shadow-black/5",
         isCrystal && "crystal-tab-trigger data-[state=active]:bg-transparent data-[state=active]:shadow-none",
         className,
       )}

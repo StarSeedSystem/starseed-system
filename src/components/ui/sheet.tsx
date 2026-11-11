@@ -32,13 +32,13 @@ const SheetOverlay = React.forwardRef<
 SheetOverlay.displayName = SheetPrimitive.Overlay.displayName
 
 const sheetVariants = cva(
-  "fixed z-[121] gap-4 bg-background p-6 shadow-lg transition ease-in-out data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:duration-300 data-[state=open]:duration-500",
+  "fixed z-[121] gap-4 bg-background p-4 sm:p-6 pt-[calc(1rem+env(safe-area-inset-top,0px))] pb-[calc(1rem+env(safe-area-inset-bottom,0px))] shadow-lg transition ease-in-out data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:duration-300 data-[state=open]:duration-500",
   {
     variants: {
       side: {
-        top: "inset-x-0 top-0 border-b data-[state=closed]:slide-out-to-top data-[state=open]:slide-in-from-top",
+        top: "inset-x-0 top-0 ss-ventana-limite border-b data-[state=closed]:slide-out-to-top data-[state=open]:slide-in-from-top",
         bottom:
-          "inset-x-0 bottom-0 border-t data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom",
+          "inset-x-0 bottom-0 ss-ventana-limite border-t data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom",
         left: "inset-y-0 left-0 h-full w-3/4 border-r data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left sm:max-w-sm",
         right:
           "inset-y-0 right-0 h-full w-3/4  border-l data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right sm:max-w-sm",
@@ -77,7 +77,7 @@ const SheetContent = React.forwardRef<
         {isPrimary && (
           <div className="absolute inset-0 z-0 opacity-40 bg-gradient-to-br from-white/10 to-transparent pointer-events-none" />
         )}
-        <div className={cn("relative z-10 w-full h-full flex flex-col", isPrimary && "drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]")}>
+        <div className={cn("relative z-10 w-full h-full min-h-0 flex flex-col overflow-y-auto overscroll-contain", isPrimary && "drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]")}>
           {children}
         </div>
         {/* X común del OS en la esquina que mira al centro: en un panel lateral
@@ -103,7 +103,7 @@ const SheetHeader = ({
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn(
-      "flex flex-col space-y-2 text-center sm:text-left",
+      "flex flex-col space-y-2 pr-10 text-center sm:text-left ss-titulo-seguro",
       className
     )}
     {...props}
@@ -117,7 +117,7 @@ const SheetFooter = ({
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn(
-      "flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2",
+      "flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-0 sm:space-x-2 ss-dialogo-pie",
       className
     )}
     {...props}
@@ -131,7 +131,7 @@ const SheetTitle = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <SheetPrimitive.Title
     ref={ref}
-    className={cn("text-lg font-semibold text-foreground", className)}
+    className={cn("text-lg font-semibold text-foreground ss-titulo-seguro", className)}
     {...props}
   />
 ))

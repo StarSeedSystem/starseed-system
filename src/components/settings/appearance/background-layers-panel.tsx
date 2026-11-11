@@ -204,8 +204,8 @@ function AudiomorphicFullSettings({ visual, onReplaceVisual, onClose }: {
     };
 
     return (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 p-3 backdrop-blur-sm">
-            <div className="flex h-[92vh] w-full max-w-5xl flex-col">
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 backdrop-blur-sm ss-capa-modal">
+            <div className="flex h-[92vh] supports-[height:100dvh]:h-[92dvh] max-h-full min-h-0 w-full max-w-5xl flex-col">
                 <AudiomorphicControlPanel
                     params={params}
                     setParams={setParams}

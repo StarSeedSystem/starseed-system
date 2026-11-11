@@ -157,7 +157,7 @@ export function ConfirmarPublicacion({
 
     return (
         <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm ss-capa-modal"
             role="presentation"
             onMouseDown={(e) => {
                 // Clic fuera del panel cierra; el panel detiene la propagación.
@@ -168,7 +168,7 @@ export function ConfirmarPublicacion({
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="titulo-confirmar-publicacion"
-                className="w-full max-w-lg rounded-2xl border border-white/10 bg-zinc-950 p-5 shadow-2xl"
+                className="w-full max-w-lg rounded-2xl border border-white/10 bg-zinc-950 p-4 sm:p-5 shadow-2xl ss-ventana-limite"
                 onMouseDown={(e) => e.stopPropagation()}
             >
                 <div className="mb-3 flex items-start justify-between gap-3">

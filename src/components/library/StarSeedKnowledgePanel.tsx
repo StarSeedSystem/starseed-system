@@ -56,13 +56,13 @@ function EmbeddedViewer({
 
   return (
     <div
-      className="fixed inset-0 z-[120] flex items-center justify-center p-[clamp(0.5rem,2vw,2rem)] bg-black/80 backdrop-blur-sm"
+      className="fixed inset-0 z-[120] flex items-center justify-center p-[clamp(0.5rem,2vw,2rem)] pt-[max(0.5rem,env(safe-area-inset-top,0px))] pb-[max(0.5rem,env(safe-area-inset-bottom,0px))] bg-black/80 backdrop-blur-sm"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
     >
       <div
-        className="relative flex flex-col w-full max-w-6xl h-[88vh] rounded-2xl overflow-hidden border shadow-2xl bg-[#0b0d14]/95"
+        className="relative flex flex-col w-full max-w-6xl h-[88vh] supports-[height:100dvh]:h-[88dvh] max-h-full min-h-0 rounded-2xl overflow-hidden border shadow-2xl bg-[#0b0d14]/95"
         style={{ borderColor: "rgba(233,196,106,0.25)" }}
         onClick={(e) => e.stopPropagation()}
       >

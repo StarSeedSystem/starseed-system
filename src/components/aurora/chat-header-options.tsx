@@ -77,7 +77,7 @@ export function ChatHeaderOptions({ context = "astraura", convId }: { context?: 
           aunque se desplieguen sus secciones. Cierra al pulsar el fondo o Escape. */}
       {optsOpen && typeof document !== "undefined" && createPortal(
         <div
-          className="fixed inset-0 z-[9999] flex items-end justify-center bg-black/50 p-0 backdrop-blur-sm sm:items-center sm:p-4"
+          className="fixed inset-0 z-[9999] flex items-end justify-center bg-black/50 p-0 backdrop-blur-sm sm:items-center sm:p-4 pt-[env(safe-area-inset-top,0px)] pb-[env(safe-area-inset-bottom,0px)]"
           role="dialog"
           aria-modal="true"
           onMouseDown={(e) => {

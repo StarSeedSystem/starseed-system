@@ -3919,3 +3919,41 @@ html.ss-gesto [data-ventana-escritorio] {
    circulares de los widgets libres, el inicio y el bloqueo (orbes, teclado del PIN, pastillas)
    lo recuperan con esta clase. */
 .ss-redondo { border-radius: 9999px !important; }
+
+/* VEN1111D — ventanas que NUNCA se cortan en pantallas pequeñas.
+   Alto máximo = viewport visible (dvh con respaldo vh) − márgenes de zonas
+   seguras; el contenido largo desplaza DENTRO de la ventana. */
+.ss-ventana-limite {
+  --ss-vent-margen: 0.5rem;
+  max-height: calc(100vh - 2 * var(--ss-vent-margen) - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  min-width: 0;
+}
+@supports (height: 100dvh) {
+  .ss-ventana-limite {
+    max-height: calc(100dvh - 2 * var(--ss-vent-margen) - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+  }
+}
+/* Capa que sostiene una ventana centrada: respeta zonas seguras y, si por
+   algo la ventana aún no cupiera, la capa desplaza en vez de recortar. */
+.ss-capa-modal {
+  padding-top: max(0.5rem, env(safe-area-inset-top, 0px));
+  padding-bottom: max(0.5rem, env(safe-area-inset-bottom, 0px));
+  padding-left: max(0.5rem, env(safe-area-inset-left, 0px));
+  padding-right: max(0.5rem, env(safe-area-inset-right, 0px));
+  overflow-y: auto;
+  align-items: safe center;
+}
+/* Pie de acciones que queda visible al pie de la zona que desplaza. */
+.ss-dialogo-pie {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  background: linear-gradient(to top, hsl(var(--background-hsl) / 0.96) 65%, transparent);
+  padding-top: 0.5rem;
+}
+/* Títulos largos: parten palabra en vez de empujar el diseño. */
+.ss-titulo-seguro { overflow-wrap: anywhere; min-width: 0; }
+/* Barras de pestañas / botones que no caben: pasan a varias filas. */
+.ss-barra-ajusta { display: flex; flex-wrap: wrap; gap: 0.25rem; height: auto; }

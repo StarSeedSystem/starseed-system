@@ -308,11 +308,11 @@ function UseForPicker({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm ss-capa-modal"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md rounded-2xl border border-white/10 bg-[#0b1020]/95 p-4 shadow-2xl"
+        className="w-full max-w-md rounded-2xl border border-white/10 bg-[#0b1020]/95 p-4 shadow-2xl ss-ventana-limite"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-2 flex items-center gap-2">

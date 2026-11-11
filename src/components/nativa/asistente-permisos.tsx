@@ -176,10 +176,10 @@ export function AsistentePermisos() {
       aria-modal="true"
       aria-label="Permisos de tu neurona"
       data-testid="asistente-permisos"
-      className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/60 backdrop-blur-sm ss-capa-modal"
     >
-      <div className="w-[min(34rem,94vw)] rounded-3xl border border-white/10 bg-gradient-to-b from-white/[0.07] to-black/70 p-5 text-white shadow-2xl backdrop-blur-xl">
-        <header className="flex items-start gap-3">
+      <div className="flex w-[min(34rem,94vw)] flex-col ss-ventana-limite !overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-b from-white/[0.07] to-black/70 p-4 sm:p-5 text-white shadow-2xl backdrop-blur-xl">
+        <header className="flex shrink-0 items-start gap-3">
           <span className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-xl border border-[#39FF14]/30 bg-[#39FF14]/10 text-[#39FF14]">
             <ShieldCheck className="size-5" aria-hidden />
           </span>
@@ -201,7 +201,8 @@ export function AsistentePermisos() {
           </button>
         </header>
 
-        <ol className="mt-4 space-y-1.5" aria-label="Permisos">
+        <div className="mt-4 min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1">
+        <ol className="space-y-1.5" aria-label="Permisos">
           {estado.cola.map((d, i) => {
             const r = estado.resultados[d.id];
             const esActual = estado.fase === "pidiendo" && i === estado.indice;
@@ -234,14 +235,15 @@ export function AsistentePermisos() {
             );
           })}
         </ol>
+        </div>
 
         {esperando && (
-          <p role="status" className="mt-3 text-xs text-[#39FF14]/90">
+          <p role="status" className="mt-3 shrink-0 text-xs text-[#39FF14]/90">
             Esperando tu respuesta al aviso del sistema… (si no lo ves, mira detrás de esta ventana).
           </p>
         )}
 
-        <footer className="mt-4 flex flex-wrap items-center justify-end gap-2">
+        <footer className="mt-4 flex shrink-0 flex-wrap items-center justify-end gap-2">
           {estado.fase === "presentacion" && (
             <>
               <button type="button" onClick={() => enviar({ t: "omitir-todo" })} className="cursor-pointer rounded-lg px-3 py-1.5 text-xs text-white/60 hover:bg-white/10">

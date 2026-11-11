@@ -415,14 +415,14 @@ export default function AbilitiesHub() {
       {attachFor && (
         <div
           ref={attachDialogRef}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 ss-capa-modal"
           onClick={() => setAttachFor(null)}
           role="dialog"
           aria-modal="true"
           aria-label={`Atar «${attachFor.name}» a un objetivo`}
         >
           <div
-            className="w-full max-w-md rounded-2xl border border-violet-500/30 bg-zinc-950 p-5 shadow-2xl"
+            className="w-full max-w-md rounded-2xl border border-violet-500/30 bg-zinc-950 p-4 sm:p-5 shadow-2xl ss-ventana-limite"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-2">

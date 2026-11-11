@@ -625,14 +625,14 @@ export function LibrarySourcesPanel() {
       {installFor && (
         <div
           ref={installDialogRef}
-          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4"
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 ss-capa-modal"
           onClick={() => setInstallFor(null)}
           role="dialog"
           aria-modal="true"
           aria-label={`Instalar «${installFor.label}» en cerebro`}
         >
           <div
-            className="w-full max-w-md rounded-2xl border border-white/10 bg-[#0b0b12] p-5 shadow-2xl space-y-4"
+            className="w-full max-w-md rounded-2xl border border-white/10 bg-[#0b0b12] p-4 sm:p-5 shadow-2xl space-y-4 ss-ventana-limite"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-2">

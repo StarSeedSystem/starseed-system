@@ -324,7 +324,7 @@ export function StartupUpdatesModal() {
   return (
     <div
       ref={containerRef}
-      className="fixed inset-0 z-[120] flex flex-col items-center justify-center bg-black/60 p-3 backdrop-blur-sm"
+      className="fixed inset-0 z-[120] flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm ss-capa-modal"
       role="dialog"
       aria-modal="true"
       aria-label="Configuración de sistemas de Astraura en esta neurona"

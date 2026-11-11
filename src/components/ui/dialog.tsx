@@ -43,6 +43,19 @@ DialogOverlay.displayName = DialogPrimitive.Overlay.displayName
  */
 function RegistroModalAbierto() {
   React.useEffect(() => acquireFullscreenModal(), []);
+  // VEN1111D: con el teclado en pantalla, el campo enfocado se desplaza a la vista
+  // dentro del cuerpo de la ventana (el pie sticky no lo tapa).
+  React.useEffect(() => {
+    const alEnfocar = (e: FocusEvent) => {
+      const el = e.target as HTMLElement | null;
+      if (!el || !/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) return;
+      window.setTimeout(() => {
+        try { el.scrollIntoView({ block: "center", behavior: "smooth" }); } catch { /* sin soporte */ }
+      }, 250);
+    };
+    document.addEventListener("focusin", alEnfocar);
+    return () => document.removeEventListener("focusin", alEnfocar);
+  }, []);
   return null;
 }
 
@@ -62,7 +75,7 @@ const DialogContent = React.forwardRef<
       <DialogPrimitive.Content
         ref={ref}
         className={cn(
-          "fixed left-[50%] top-[50%] z-[121] flex flex-col w-[95vw] md:w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border p-6 ss-dialogo sm:rounded-lg",
+          "fixed left-[50%] top-[50%] z-[121] flex flex-col w-[95vw] md:w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border p-4 sm:p-6 ss-dialogo sm:rounded-lg ss-ventana-limite !overflow-hidden",
           isPrimary ? "bg-black/10 border-white/10 text-white shadow-2xl backdrop-blur-sm overflow-hidden" : "bg-background liquid-glass-panel",
           className
         )}
@@ -76,7 +89,7 @@ const DialogContent = React.forwardRef<
         )}
         {/* (Adenda 190) flex-1 + min-h-0 + overflow: el contenido largo SCROLLEA
             dentro del diálogo (antes h-full lo recortaba en pantallas bajas). */}
-        <div className={cn("relative z-10 w-full flex-1 min-h-0 overflow-y-auto", isPrimary && "drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]")}>
+        <div className={cn("relative z-10 w-full flex-1 min-h-0 overflow-y-auto overscroll-contain scroll-pb-24 pr-1", isPrimary && "drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]")}>
           {children}
         </div>
         {/* X común del OS (2026-09-25): antes 32 px y casi invisible; ahora el
@@ -96,7 +109,7 @@ const DialogHeader = ({
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn(
-      "flex flex-col space-y-1.5 text-center sm:text-left",
+      "flex flex-col space-y-1.5 pr-10 text-center sm:text-left ss-titulo-seguro",
       className
     )}
     {...props}
@@ -110,7 +123,7 @@ const DialogFooter = ({
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn(
-      "flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2",
+      "flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-0 sm:space-x-2 ss-dialogo-pie",
       className
     )}
     {...props}
@@ -125,7 +138,7 @@ const DialogTitle = React.forwardRef<
   <DialogPrimitive.Title
     ref={ref}
     className={cn(
-      "text-lg font-semibold leading-none tracking-tight",
+      "text-lg font-semibold leading-tight tracking-tight ss-titulo-seguro",
       className
     )}
     {...props}

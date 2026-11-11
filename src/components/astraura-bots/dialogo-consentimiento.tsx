@@ -71,8 +71,8 @@ export function DialogoConsentimiento({
 
   return (
     <div role="dialog" aria-modal="true" aria-label={`Permiso de ${bot.nombre}`}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-lg space-y-4 rounded-xl border border-white/10 bg-zinc-950/95 p-6 text-zinc-100 shadow-xl">
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm ss-capa-modal">
+      <div className="w-full max-w-lg space-y-4 rounded-xl border border-white/10 bg-zinc-950/95 p-4 sm:p-6 text-zinc-100 shadow-xl ss-ventana-limite">
         <div className="flex items-start justify-between gap-4">
           <h2 className="text-lg font-semibold">{bot.nombre} quiere usar {NOMBRE_SENTIDO[sentido]}</h2>
           <button type="button" onClick={onDenegar} aria-label="Cerrar sin conceder" title="Cerrar sin conceder"

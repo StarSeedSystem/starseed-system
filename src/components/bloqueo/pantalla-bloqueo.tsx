@@ -95,7 +95,7 @@ export function PantallaBloqueo({ cfg, avisos, onDesbloqueado }: { cfg: ConfigBl
     return (
         <motion.div role="dialog" aria-modal="true" aria-label="Pantalla de bloqueo"
             initial={reducido ? false : { opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[2147483000] flex flex-col items-center justify-between overflow-hidden px-6 py-12 text-white backdrop-blur-2xl"
+            className="fixed inset-0 z-[2147483000] flex flex-col items-center justify-between overflow-y-auto overscroll-contain gap-4 px-6 pt-[max(1.5rem,env(safe-area-inset-top,0px))] pb-[max(1.5rem,env(safe-area-inset-bottom,0px))] sm:py-12 text-white backdrop-blur-2xl"
             style={{ background: "radial-gradient(120% 90% at 50% 20%, #2a1a6ecc, #06121acc 60%, #020409f2)" }}>
             <div className="relative flex flex-col items-center gap-2 pt-6">
                 <div aria-hidden className="ss-respirar absolute -top-10 size-64 rounded-full ss-redondo" style={{ ["--ss-dur" as string]: "7s", background: "radial-gradient(closest-side,#7c5cff55,#23d5ab22 60%,transparent)" }} />

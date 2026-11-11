@@ -43,8 +43,8 @@ export function DesktopWidgetConfigPanel({
             <div
                 role="dialog"
                 aria-label={`Configurar ${icon.name}`}
-                style={{ left: x, top: y, width: 264 }}
-                className="fixed z-[65] max-w-[calc(100vw-16px)] rounded-2xl border border-white/12 bg-card/95 p-3 shadow-2xl backdrop-blur-2xl"
+                style={{ left: x, top: y, width: 264, maxHeight: `calc(100dvh - ${Math.max(0, y)}px - 8px)` }}
+                className="fixed z-[65] max-w-[calc(100vw-16px)] overflow-y-auto overscroll-contain rounded-2xl border border-white/12 bg-card/95 p-3 shadow-2xl backdrop-blur-2xl"
                 onPointerDown={(e) => e.stopPropagation()}
             >
                 <span aria-hidden className="pointer-events-none absolute inset-x-5 top-0 h-px bg-gradient-to-r from-transparent via-violet-300/60 to-transparent" />
