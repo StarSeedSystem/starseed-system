@@ -227,6 +227,59 @@ cualquier ventana listada. **No se ha cambiado** en esta tarea (el encargo proh�
 sesión, y la regla 3 (indicador + parar) también para «prestar ventana». Por esa razón Accesibilidad y Pantalla figuran
 como *opcionales* en la lista de macOS: se ofrecen, no se imponen.
 
+### §4.7 Cierre de §4.6: prestar una ventana solo con sesión nativa (SEG1111T · 2026-11-11)
+
+**Lo que había, verificado en el código** (main `340c797990`): `capabilities/desktop.json` concedía
+`allow-ventanas-prestables`, `allow-capturar-ventana` y `allow-entrada-ventana` a los **trece** orígenes remotos (la web
+publicada, **Nexus y Café** y los diez puertos del servidor local), y `ventana_remota.rs` no comprobaba ni sesión, ni
+origen, ni que la persona hubiera prestado nada: `ventanas_prestables` devolvía id, app y **título** de toda ventana de
+las apps que la página nombrara, `capturar_ventana` capturaba **cualquier** id y `entrada_ventana` escribía texto con
+`enigo.text` **sin mirar el foco** (las teclas iban a la app que lo tuviera, también un diálogo del sistema). La
+sesión de `recursos/sesion-prestamo.ts` solo vivía en la web, y ninguna pantalla del OS abría un préstamo.
+
+**Cómo es ahora** (`src/prestamo_ventana.rs`, lógica pura y pruebas en `src/prestamo_ventana_logica.rs`):
+
+- **Empieza solo en el aparato.** La página llama a `prestamo_ventana_iniciar(apps, ventanas?, destino)`. Rust lista
+  las ventanas él mismo y enseña un **diálogo nativo** (`tauri-plugin-dialog`, «Prestar» / «No prestar») con cada
+  ventana (app y título), el nombre del destino (marcado como «nombre que da la página»: hasta la fase 3 Rust no puede
+  comprobar la neurona) y cómo termina. Antes del «sí» la página no recibe ni un título. Un diálogo a la vez; tras un
+  «no», 30 s sin volver a preguntar. Si la página cambia de origen mientras el diálogo está abierto, no se abre.
+- **Lo que permite.** Un token opaco de 128 bits, el origen que lo pidió y como mucho 8 ventanas, todo en memoria de
+  Rust. `ventanas_prestables`, `capturar_ventana` y `entrada_ventana` exigen token, **el mismo origen**, la ventana
+  `main` y una ventana de la sesión; si no, error `prestamo:<código>` (`sin-sesion`, `token`, `origen`,
+  `ventana-ajena`, `caducada`, `parada`…) que `src/lib/apps-remotas/nativo.ts` entiende para parar sin reintentar.
+  Solo pueden pedir préstamo `https://starseed-os.vercel.app` y `http://127.0.0.1:47610…47619` (también en Rust), y solo
+  en StarSeed OS (no en las apps Nexus y Café).
+- **Cómo termina.** La persona: menú del icono propio de la barra de menús/bandeja («● Prestando», «Dejar de prestar
+  ahora»), atendido en Rust aunque la página esté colgada. La página: `prestamo_ventana_parar` (sin token: parar
+  siempre se puede). Solo: **2 min sin ninguna captura ni entrada** (mientras la otra neurona mira llegan varias
+  capturas por segundo; dos minutos sin ninguna es que nadie mira), **1 h como máximo** aunque se use (un préstamo
+  olvidado no queda abierto la tarde entera; para seguir, se vuelve a confirmar), **reposo** (el reloj de pared salta
+  más de 15 s por encima del monótono), **pantalla bloqueada** (macOS `CGSSessionScreenIsLocked` o fuera de consola;
+  Windows `OpenInputDesktop`/`SwitchDesktop`), **ventana cerrada** (la última que quedaba), **indicador desaparecido**,
+  otra sesión nueva o salir de la app (la sesión no se guarda en disco). El vigilante mira cada segundo.
+- **Lo que ve la persona.** El diálogo cada vez; mientras dura, el icono con el texto «● Prestando» y el destino en su
+  menú. Sin bandeja posible (Linux sin libappindicator) **no se presta**; si el icono no se puede crear, la sesión se
+  cierra al momento. La web ya no tiene `core:tray:default` ni `core:menu:default` (no los usaba y le habrían dejado
+  quitar o cambiar el aviso).
+- **Entrada acotada dentro de la sesión.** Clic: dentro de la ventana prestada y **sin otra ventana encima en ese punto**
+  (orden z de xcap: un diálogo del sistema o de otra app que la tape recibiría el clic). Texto: ≤ 512 caracteres por
+  orden y la ventana prestada **con el foco**. Las dos: ventana no minimizada, aparato no bloqueado y **sin entrada
+  segura** (macOS `IsSecureEventInputEnabled`: hay un campo de contraseña con el foco o una app la activó; Windows: el
+  control con el foco es un `Edit` con `ES_PASSWORD`). Cada sesión y cada rechazo se apuntan con `[prestamo]` en
+  `enlaces.log` (nunca títulos ni tokens).
+- **Lo que NO se puede hacer cumplir todavía.** En macOS el «foco» de xcap es el de la **app** (no de la ventana): el
+  texto podría ir a otra ventana de la misma app prestada. Los campos de contraseña de navegadores, WPF o UWP en Windows
+  no tienen `ES_PASSWORD`. Linux: ni bloqueo (logind `LockedHint`) ni contraseñas (AT-SPI), y en Wayland xcap/enigo
+  apenas funcionan. Un script en la web de StarSeed OS con una sesión ya abierta puede usarla dentro de lo prestado
+  (por eso es corta, visible y parable). El nombre del destino lo da la página. Sin atajo global para parar ni pausa
+  por actividad local (§4 regla 3: fase 3). En macOS el botón por defecto del diálogo es «Prestar» (rfd no deja
+  cambiarlo).
+- **Otros comandos expuestos de más** (no cambiados aquí; ver la lista de la tarea SEG1111T): `run_terminal` y
+  `shell:allow-execute` (`sh -c` con cualquier argumento), `fs` de lectura en `**` y escritura en `$HOME/**`, `serie_*`,
+  `ollama_instalador_*` y `rescate_origen_*` siguen concedidos a los trece orígenes, también Nexus y Café.
+
+
 ---
 
 ## §5 Fase 1 (HECHA): la lista de permisos de cada neurona
@@ -279,7 +332,7 @@ con guardas de SDK) y que `servicio.json` traiga los campos nuevos al volver a l
 
 | Fase | Qué prueba | Necesita de antes | Tamaño |
 |---|---|---|---|
-| **2. Pantalla compartida segura** | Cierre de §4.6 (sesión y token en Rust para `ventana_remota`, indicador + parar nativos); compartir pantalla en llamadas y salas en las 4 plataformas: macOS/Windows/Linux por getDisplayMedia o xcap → pista WebRTC; Android con MediaProjection + servicio `mediaProjection` + pista nativa al WebView | fase 1 (Pantalla concedida, `necesitaPara("compartir-pantalla")`) | M–L (Rust + Kotlin + llamadas) |
+| **2. Pantalla compartida segura** | ~~Cierre de §4.6~~ hecho en §4.7 (SEG1111T); compartir pantalla en llamadas y salas en las 4 plataformas: macOS/Windows/Linux por getDisplayMedia o xcap → pista WebRTC; Android con MediaProjection + servicio `mediaProjection` + pista nativa al WebView | fase 1 (Pantalla concedida, `necesitaPara("compartir-pantalla")`) | M–L (Rust + Kotlin + llamadas) |
 | **3. Control entre neuronas de la misma cuenta** | §4 reglas 1–6 completas: interruptor local, órdenes firmadas, indicador, parar, pausa por actividad local, registro, bloqueo; Android: servicio de accesibilidad (`dispatchGesture`) + superposición + aviso de ajustes restringidos; Wayland por portal RemoteDesktop | fase 2 (canal y cierre) ; declara en el manifiesto accesibilidad y superposición | L |
 | **4. Astraura actúa** | Lista de capacidades por sesión, confirmaciones nativas, nunca contraseñas; Automatización de apps con su aviso por app; árbol de accesibilidad para leer en vez de capturar | fase 3 | L |
 | **5. Centro de control con ajustes reales** | Lo de §3 que cada sistema permite, por API pública, y «abrir Ajustes» para lo que no (BT en macOS, Wi-Fi/BT en Android 13+, Focus) | fase 1; Android declara `ACCESS_NOTIFICATION_POLICY` y `WRITE_SETTINGS` | M |
