@@ -8,7 +8,7 @@ import {
   MUESTRAS_TRAMA,
   relacionSenalRuido,
 } from "../codec";
-import { armarControl, armarPaquete, esTextoVoz, leerControl, leerPaquete } from "../paquete";
+import { armarControl, armarPaquete, esTextoVoz, leerControl, leerPaquete, unidadesPaqueteVoz } from "../paquete";
 import { BufferJitter } from "../jitter";
 import { agruparConsecutivas, ColaSalidaVoz } from "../cola-salida";
 import {
@@ -351,6 +351,8 @@ function audioFalso() {
   return { audio, reproducido, hablar: (p: Int16Array) => alTrama(p) };
 }
 
+const esPaqueteVoz = (t: string) => t.startsWith('{"t":"voz.p"') || t.startsWith('{"t":"voz.b"');
+
 describe("sesión de voz por enlace de datos (dos extremos en memoria)", () => {
   async function par(opts: Parameters<typeof enlaceMemoria>[1] = {}) {
     const reloj = new RelojFalso();
@@ -401,10 +403,12 @@ describe("sesión de voz por enlace de datos (dos extremos en memoria)", () => {
   it("negocia el códec con el saludo y manda paquetes de varias tramas (≥ 2 por escritura)", async () => {
     const x = await par();
     hablar(x, "a", 400);
-    const paquetes = x.ea.enviados.filter((t) => t.startsWith('{"t":"voz.p"')).map(leerPaquete);
+    // VOZ1111J: entre dos aparatos nuevos va el formato compacto «b1»; se cuentan las unidades de 20 ms de cada paquete.
+    const paquetes = x.ea.enviados.filter(esPaqueteVoz).map((t) => unidadesPaqueteVoz(t));
     expect(paquetes.length).toBeGreaterThan(0);
-    expect(paquetes.every((p) => p && p.tramas.length >= 1 && p.tramas.length <= 8)).toBe(true);
-    expect(Math.max(...paquetes.map((p) => p!.tramas.length))).toBeGreaterThanOrEqual(2);
+    expect(x.ea.enviados.some((t) => t.startsWith('{"t":"voz.b"'))).toBe(true);
+    expect(paquetes.every((p) => p && p.unidades.length >= 1 && p.unidades.length <= 9)).toBe(true);
+    expect(Math.max(...paquetes.map((p) => p!.unidades.length))).toBeGreaterThanOrEqual(2);
     expect(x.ea.enviados.some((t) => t.includes('"k":"hola"'))).toBe(true);
   });
 
@@ -412,12 +416,12 @@ describe("sesión de voz por enlace de datos (dos extremos en memoria)", () => {
     const x = await par();
     x.ea.ocupadoAhora = true;
     hablar(x, "a", 3000); // 3 s hablando con el enlace atascado
-    const antes = x.ea.enviados.filter((t) => t.startsWith('{"t":"voz.p"')).length;
+    const antes = x.ea.enviados.filter(esPaqueteVoz).length;
     expect(antes).toBe(0);
     expect(x.sa.estado().descartadas).toBeGreaterThan(100);
     x.ea.ocupadoAhora = false;
     x.reloj.avanzar(200);
-    const tramasEnviadas = x.ea.enviados.filter((t) => t.startsWith('{"t":"voz.p"')).flatMap((t) => leerPaquete(t)?.tramas ?? []);
+    const tramasEnviadas = x.ea.enviados.filter(esPaqueteVoz).flatMap((t) => unidadesPaqueteVoz(t)?.unidades ?? []);
     // Como mucho 240 ms de audio (12 tramas) más lo que se generó mientras vaciaba.
     expect(tramasEnviadas.length).toBeLessThanOrEqual(15);
     expect(tramasEnviadas.length).toBeGreaterThanOrEqual(10);
@@ -436,10 +440,10 @@ describe("sesión de voz por enlace de datos (dos extremos en memoria)", () => {
     const x = await par();
     x.sa.silenciar(true);
     hablar(x, "a", 400);
-    expect(x.ea.enviados.filter((t) => t.startsWith('{"t":"voz.p"')).length).toBe(0);
+    expect(x.ea.enviados.filter(esPaqueteVoz).length).toBe(0);
     x.sa.silenciar(false);
     hablar(x, "a", 200);
-    expect(x.ea.enviados.filter((t) => t.startsWith('{"t":"voz.p"')).length).toBeGreaterThan(0);
+    expect(x.ea.enviados.filter(esPaqueteVoz).length).toBeGreaterThan(0);
     x.sa.detener("colgada");
     expect(x.ea.enviados.some((t) => t.includes('"k":"fin"'))).toBe(true);
     x.reloj.avanzar(5);
