@@ -153,3 +153,6 @@ supabase/.temp/cli-latest
 # (1105 · JS) Nunca JS compilado junto al TypeScript de src/: Vite resuelve `.js` antes que `.ts` y la copia
 # compilada (CommonJS, con require de alias `@/`) tumba todas las suites que importan ese módulo.
 src/**/*.js
+
+# (FIX1111R · 2026-11-11) Artefactos de compilación de Rust: nunca al repositorio (un agente del enjambre subió 816 archivos, 434 MB).
+native/src-tauri/target/
