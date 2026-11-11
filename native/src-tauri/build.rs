@@ -50,6 +50,10 @@ const COMANDOS_APP: &[&str] = &[
     "permisos_inicio_estado",
     "permisos_inicio_pedir",
     "ventana_pantalla_completa",
+    // (PER1111S) Lista de permisos de cada neurona: estado real, aviso del sistema y pantalla de Ajustes.
+    "permisos_sistema_estado",
+    "permisos_sistema_pedir",
+    "permisos_sistema_abrir",
     "recursos_ia_detectar",
     // (MOD1110B) Instalación guiada de Ollama (solo escritorio).
     "ollama_instalador_descargar",

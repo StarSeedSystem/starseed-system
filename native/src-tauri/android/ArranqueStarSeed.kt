@@ -87,6 +87,9 @@ object Vigia : Application.ActivityLifecycleCallbacks {
                 // (PER1108A) «permiso:<id>»: uno cada vez, lo pide el asistente del primer arranque.
                 val accion = p.optString("accion")
                 if (accion.startsWith("permiso:")) pedirPermiso(a, accion.removePrefix("permiso:"))
+                // (PER1111S) «panel:<id>»: la pantalla EXACTA de Ajustes de un acceso especial. Solo se abre;
+                // lo concede la persona allí y el estado se relee al volver (onActivityResumed).
+                if (accion.startsWith("panel:")) abrirPanel(a, accion.removePrefix("panel:"))
             }
         }
     }
@@ -122,6 +125,32 @@ object Vigia : Application.ActivityLifecycleCallbacks {
         }
         try {
             a.requestPermissions(arrayOf(permiso), 4731)
+        } catch (e: Exception) {
+            abrirAjustes(a)
+        }
+    }
+
+    // (PER1111S) Pantallas de accesos especiales. Las mismas ids que PANELES_ANDROID de permisos_sistema.rs.
+    // Cada una con su guarda de SDK; si la pantalla no existe en este aparato, la ficha de la app.
+    private fun abrirPanel(a: Activity, id: String) {
+        val paquete = Uri.parse("package:" + a.packageName)
+        val sdk = android.os.Build.VERSION.SDK_INT
+        val intento: Intent? = when (id) {
+            "accesibilidad" -> Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+            "superposicion" -> if (sdk >= 23) Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, paquete) else null
+            "no-molestar" -> if (sdk >= 23) Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS) else null
+            "escribir-ajustes" -> if (sdk >= 23) Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS, paquete) else null
+            "todos-archivos" -> if (sdk >= 30) Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, paquete) else null
+            "notificaciones" -> if (sdk >= 26) Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, a.packageName) else null
+            "bateria" -> { pedirBateria(a); return }
+            else -> null
+        }
+        if (intento == null) {
+            abrirAjustes(a)
+            return
+        }
+        try {
+            a.startActivity(intento)
         } catch (e: Exception) {
             abrirAjustes(a)
         }

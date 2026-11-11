@@ -114,6 +114,27 @@ object Archivos {
                 false
             },
         )
+        // (PER1111S) Accesos especiales: solo se LEEN (nada de esto los concede). Si una lectura falla,
+        // el campo no se escribe y la web dice «no se puede leer» en vez de inventar un «no».
+        val sdk = Build.VERSION.SDK_INT
+        try {
+            j.put("superposicion", sdk < 23 || android.provider.Settings.canDrawOverlays(ctx))
+        } catch (e: Exception) {}
+        try {
+            val nm = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            j.put("no_molestar", sdk >= 23 && nm.isNotificationPolicyAccessGranted)
+        } catch (e: Exception) {}
+        try {
+            j.put("escribir_ajustes", sdk < 23 || android.provider.Settings.System.canWrite(ctx))
+        } catch (e: Exception) {}
+        try {
+            if (sdk >= 30) j.put("todos_archivos", android.os.Environment.isExternalStorageManager())
+        } catch (e: Exception) {}
+        j.put(
+            "ubicacion",
+            concedido(ctx, android.Manifest.permission.ACCESS_FINE_LOCATION) ||
+                concedido(ctx, android.Manifest.permission.ACCESS_COARSE_LOCATION),
+        )
         escribir(ctx, SERVICIO, j)
     }
 

@@ -54,6 +54,8 @@ mod puerta_proxy;
 mod puerta_proxy_logica;
 // (PER1108A) Permisos del primer arranque (Android) y pantalla completa de la ventana (escritorio).
 mod permisos_inicio;
+// (PER1111S) Estado real de los permisos del sistema, avisos del propio sistema y su pantalla de Ajustes.
+mod permisos_sistema;
 // (ACT1108A) Canal de actualización (oficial / pruebas) y actualizador interno del APK. §9 del contrato.
 mod canal_actualizacion;
 mod canal_actualizacion_logica;
@@ -774,6 +776,9 @@ pub fn run() {
                 permisos_inicio::permisos_inicio_estado,
                 permisos_inicio::permisos_inicio_pedir,
                 permisos_inicio::ventana_pantalla_completa,
+                permisos_sistema::permisos_sistema_estado,
+                permisos_sistema::permisos_sistema_pedir,
+                permisos_sistema::permisos_sistema_abrir,
                 recursos_ia::recursos_ia_detectar,
                 nativa::antenas_estado,
                 nativa::antenas_medir,

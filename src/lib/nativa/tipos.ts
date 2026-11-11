@@ -64,6 +64,12 @@ export interface ServicioAndroid {
   microfono: boolean;
   camara: boolean;
   instalar_apps: boolean;
+  // (PER1111S) Accesos especiales; ausentes en un APK anterior (entonces «no se puede leer»).
+  superposicion?: boolean | null;
+  no_molestar?: boolean | null;
+  escribir_ajustes?: boolean | null;
+  todos_archivos?: boolean | null;
+  ubicacion?: boolean | null;
 }
 
 export interface EstadoFondo {

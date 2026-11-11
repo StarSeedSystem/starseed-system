@@ -33,7 +33,7 @@ describe("primitivas de ventana con límites", () => {
     ["components/ui/dialog.tsx", "ss-ventana-limite"],
     ["components/ui/alert-dialog.tsx", "ss-ventana-limite"],
     ["components/ui/sheet.tsx", "ss-ventana-limite"],
-    ["components/nativa/asistente-permisos.tsx", "ss-ventana-limite"],
+    ["components/nativa/lista-permisos.tsx", "ss-ventana-limite"], // PER1111S: la ventana vive aquí; asistente-permisos.tsx solo la monta
     ["components/ui/popover.tsx", "available-height"],
     ["components/ui/dropdown-menu.tsx", "available-height"],
     ["components/ui/select.tsx", "available-height"],

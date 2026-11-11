@@ -120,13 +120,14 @@ export default function PermisosAntenas() {
       {esAppNativa() && (
         <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-[#39FF14]/20 bg-[#39FF14]/[0.04] p-3" data-testid="repasar-permisos">
           <p className="min-w-0 flex-1 text-[12px] text-white/60">
-            Bluetooth directo, Wi-Fi directo y red local vienen encendidos de fábrica. Si omitiste algún permiso al instalar, aquí lo retomas, de uno en uno.
+            {/* PER1111S: la lista entera de esta neurona (antenas, llamadas, pantalla y control, segundo plano, archivos) con su estado real. */}
+            Todos los permisos de esta neurona, con su estado real y para qué sirve cada uno: antenas, llamadas, pantalla y control, segundo plano y archivos. Lo que omitiste se retoma aquí.
           </p>
           <button
             onClick={() => window.dispatchEvent(new CustomEvent(EVENTO_ABRIR_ASISTENTE))}
-            className="cursor-pointer rounded-lg border border-[#39FF14]/40 bg-[#39FF14]/15 px-3 py-1.5 text-[12px] font-medium text-[#39FF14] transition-colors hover:bg-[#39FF14]/25"
+            className="min-h-9 cursor-pointer rounded-lg border border-[#39FF14]/40 bg-[#39FF14]/15 px-3 py-1.5 text-[12px] font-medium text-[#39FF14] transition-colors hover:bg-[#39FF14]/25"
           >
-            Repasar permisos
+            Permisos de esta neurona
           </button>
         </div>
       )}

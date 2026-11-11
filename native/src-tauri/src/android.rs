@@ -67,6 +67,18 @@ pub struct ServicioAndroid {
     pub camara: bool,
     #[serde(default)]
     pub instalar_apps: bool,
+    // (PER1111S) Accesos especiales que Kotlin mide desde PER1111S. `None` = un APK anterior que no los
+    // mide: la lista dice «no se puede leer» en vez de inventar un «no».
+    #[serde(default)]
+    pub superposicion: Option<bool>,
+    #[serde(default)]
+    pub no_molestar: Option<bool>,
+    #[serde(default)]
+    pub escribir_ajustes: Option<bool>,
+    #[serde(default)]
+    pub todos_archivos: Option<bool>,
+    #[serde(default)]
+    pub ubicacion: Option<bool>,
 }
 
 fn escribir_atomico(dir: &Path, nombre: &str, texto: &str) -> Result<(), String> {

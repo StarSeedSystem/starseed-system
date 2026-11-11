@@ -1,39 +1,38 @@
 "use client";
 
 /*
- * AsistentePermisos — «Dejemos lista tu neurona»: los permisos del primer arranque, de uno en uno (PER1108A, 2026-11-08).
- * Contrato: architecture/red-sin-dependencias.md §4 · máquina de estados: src/lib/nativa/permisos-inicio.ts ·
- * quien pide al sistema: src/lib/nativa/permisos-inicio-ejecutor.ts (reutiliza Bluetooth, Wi-Fi directo y medios).
+ * AsistentePermisos — la lista de permisos de cada neurona (PER1108A → PER1111S, 2026-11-11).
+ * Contrato: architecture/permisos-y-control-del-dispositivo.md §5 · registro único: src/lib/nativa/permisos-registro.ts ·
+ * máquina de estados: src/lib/nativa/permisos-inicio.ts · quien pide al sistema: permisos-inicio-ejecutor.ts ·
+ * la ventana (solo pintura): ./lista-permisos.tsx.
  *
- * Solo en las apps nativas de macOS y Android, global (layout raíz). Se abre solo la primera vez y cuando una
- * actualización AÑADE permisos nuevos; se puede omitir cada uno o todo, y se reabre desde
- * Ajustes › Permisos y antenas (evento `starseed:permisos-inicio-abrir`). También aplica, una vez por versión,
- * los defectos de antenas encendidas (`aplicarDefectosAntenas`).
- * Va de UNO en UNO: macOS deja el aviso de privacidad pendiente y, mientras, la ventana no recibe clics; por eso
- * los botones se desactivan mientras el sistema espera y el texto lo dice.
+ * En las apps nativas de macOS, Android, Windows y Linux, global (layout raíz). Se abre sola la primera vez y
+ * cuando una actualización AÑADE permisos (solo los nuevos y solo si no están ya concedidos); se reabre desde los
+ * ajustes de la neurona (evento `starseed:permisos-inicio-abrir`). Lee el estado REAL de cada permiso al abrir, al
+ * volver a la ventana (la persona regresa de Ajustes del Sistema) y mientras espera: así nota una concesión sin
+ * reiniciar nada. También aplica, una vez por versión, los defectos de antenas encendidas (`aplicarDefectosAntenas`).
  */
 
 import { useCallback, useEffect, useReducer, useRef } from "react";
-import { Check, CircleAlert, Loader2, ShieldCheck, X } from "lucide-react";
 import { esAppNativa, puenteNativo } from "@/lib/nativa/puente";
 import {
   ASISTENTE_OCULTO,
   CLAVE_PERMISOS_INICIO,
   EVENTO_ABRIR_ASISTENTE,
   abrirAsistente,
+  accionEn,
   debeAbrirseSolo,
   guardadoTras,
   leerGuardadoPermisos,
-  permisoActual,
   reducirAsistente,
   serializarGuardadoPermisos,
-  textoResultado,
+  sistemaDeAsistente,
   type DefPermiso,
   type EstadoAsistente,
-  type ResultadoPermiso,
 } from "@/lib/nativa/permisos-inicio";
-import { pedirPermisoInicio, type DepsEjecutor } from "@/lib/nativa/permisos-inicio-ejecutor";
+import { leerEstadosSistema, pedirPermisoInicio, type DepsEjecutor } from "@/lib/nativa/permisos-inicio-ejecutor";
 import { aplicarDefectosAntenas } from "@/lib/nativa/defectos-antenas-aplicar";
+import { ListaPermisos } from "./lista-permisos";
 
 function leerAlmacen(clave: string): string | null {
   try {
@@ -56,11 +55,12 @@ async function plataformaDeLaApp(): Promise<string> {
   if (r.ok && r.valor && typeof r.valor.plataforma === "string") return r.valor.plataforma;
   // Una app anterior a PER1108A no tiene el comando: se deduce del agente.
   const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
-  return /Android/i.test(ua) ? "android" : /Mac/i.test(ua) ? "macos" : "otra";
+  return /Android/i.test(ua) ? "android" : /Mac/i.test(ua) ? "macos" : /Windows/i.test(ua) ? "windows" : /Linux/i.test(ua) ? "linux" : "otra";
 }
 
 function depsReales(): DepsEjecutor {
   const p = puenteNativo();
+  const tauriNotif = () => (window as unknown as { __TAURI__?: { notification?: { requestPermission?: () => Promise<string>; isPermissionGranted?: () => Promise<boolean> } } }).__TAURI__?.notification;
   return {
     llamar: (c, a) => p.llamar(c, a),
     pedirMedio:
@@ -77,22 +77,19 @@ function depsReales(): DepsEjecutor {
           }
         : null,
     pedirNotificaciones: async () => {
-      const w = window as unknown as { __TAURI__?: { notification?: { requestPermission?: () => Promise<string> } } };
-      const f = w.__TAURI__?.notification?.requestPermission;
+      const f = tauriNotif()?.requestPermission;
       if (typeof f === "function") return f();
       return typeof Notification !== "undefined" ? Notification.requestPermission() : null;
+    },
+    notificacionesConcedidas: async () => {
+      const f = tauriNotif()?.isPermissionGranted;
+      if (typeof f === "function") return f();
+      return typeof Notification !== "undefined" ? Notification.permission === "granted" : null;
     },
     dormir: (ms) => new Promise((r) => setTimeout(r, ms)),
     ahora: () => Date.now(),
   };
 }
-
-const ICONO: Record<ResultadoPermiso, string> = {
-  concedido: "text-emerald-300",
-  denegado: "text-rose-300",
-  omitido: "text-white/45",
-  "no-disponible": "text-white/45",
-};
 
 /* El reductor puro no sabe «abrir»: este contenedor lo añade (el estado inicial lo calcula `abrirAsistente`). */
 type Accion = Parameters<typeof reducirAsistente>[1] | { t: "abrir"; estado: EstadoAsistente };
@@ -104,9 +101,19 @@ function reductor(e: EstadoAsistente, a: Accion): EstadoAsistente {
 export function AsistentePermisos() {
   const [estado, enviar] = useReducer(reductor, ASISTENTE_OCULTO);
   const enCurso = useRef(false);
-  const plataforma = useRef<string | null>(null);
+  const plataforma = useRef<{ plat: string; sesion: string | null } | null>(null);
+  const visible = estado.fase !== "oculto";
 
-  // Arranque: defectos de antenas (una vez por versión) y, si toca, abrir el asistente.
+  /** Lee el estado real y la plataforma (un solo sitio). */
+  const leer = useCallback(async () => {
+    const plat = plataforma.current?.plat ?? (await plataformaDeLaApp());
+    const sistema = sistemaDeAsistente(plat, plataforma.current?.sesion);
+    const l = await leerEstadosSistema(sistema, depsReales());
+    plataforma.current = { plat, sesion: l.sesion ?? plataforma.current?.sesion ?? null };
+    return { plat, sesion: plataforma.current.sesion, estados: l.estados };
+  }, []);
+
+  // Arranque: defectos de antenas (una vez por versión) y, si toca, abrir la lista.
   useEffect(() => {
     if (!esAppNativa()) return;
     let vivo = true;
@@ -126,38 +133,62 @@ export function AsistentePermisos() {
         },
         escribirConfig: async (c) => (await p.llamar("antenas_configurar", { config: c })).ok,
       });
-      const plat = await plataformaDeLaApp();
+      const { plat, sesion, estados } = await leer();
       if (!vivo) return;
-      plataforma.current = plat;
       const g = leerGuardadoPermisos(leerAlmacen(CLAVE_PERMISOS_INICIO));
-      if (debeAbrirseSolo(plat, g)) enviar({ t: "abrir", estado: abrirAsistente(plat, g) });
+      if (debeAbrirseSolo(plat, g, estados, sesion)) enviar({ t: "abrir", estado: abrirAsistente(plat, g, false, estados, sesion) });
     })();
     return () => {
       vivo = false;
     };
-  }, []);
+  }, [leer]);
 
-  // Desde Ajustes › Permisos y antenas: se repasan todos.
+  // Desde los ajustes de la neurona: la lista entera, con todo lo pedible aún sin conceder.
   useEffect(() => {
     const abrir = () => {
-      const plat = plataforma.current;
-      if (!plat) return;
-      enviar({ t: "abrir", estado: abrirAsistente(plat, leerGuardadoPermisos(leerAlmacen(CLAVE_PERMISOS_INICIO)), true) });
+      void (async () => {
+        const { plat, sesion, estados } = await leer();
+        enviar({ t: "abrir", estado: abrirAsistente(plat, leerGuardadoPermisos(leerAlmacen(CLAVE_PERMISOS_INICIO)), true, estados, sesion) });
+      })();
     };
     window.addEventListener(EVENTO_ABRIR_ASISTENTE, abrir);
     return () => window.removeEventListener(EVENTO_ABRIR_ASISTENTE, abrir);
-  }, []);
+  }, [leer]);
+
+  // Al volver a la ventana (de Ajustes del Sistema, por ejemplo) se relee el estado real: la concesión se nota sola.
+  useEffect(() => {
+    if (!visible) return;
+    let vivo = true;
+    const releer = () => {
+      void leer().then((l) => {
+        if (vivo) enviar({ t: "estados", estados: l.estados });
+      });
+    };
+    const alVolver = () => {
+      if (document.visibilityState === "visible") releer();
+    };
+    window.addEventListener("focus", releer);
+    document.addEventListener("visibilitychange", alVolver);
+    return () => {
+      vivo = false;
+      window.removeEventListener("focus", releer);
+      document.removeEventListener("visibilitychange", alVolver);
+    };
+  }, [visible, leer]);
 
   const pedir = useCallback(
-    async (def: DefPermiso, sistema: "macos" | "android") => {
-      if (enCurso.current) return;
+    async (def: DefPermiso, e: EstadoAsistente) => {
+      if (enCurso.current || !e.sistema) return;
       enCurso.current = true;
-      enviar({ t: "pedir" });
-      const r = await pedirPermisoInicio(def.id, sistema, depsReales());
+      const accion = accionEn(e, def);
+      enviar({ t: "pedir", id: def.id });
+      const r = await pedirPermisoInicio(def.id, e.sistema, depsReales(), accion);
+      const l = await leer();
+      enviar({ t: "estados", estados: l.estados });
       enviar({ t: "resultado", id: def.id, r });
       enCurso.current = false;
     },
-    [],
+    [leer],
   );
 
   const cerrar = () => {
@@ -167,118 +198,14 @@ export function AsistentePermisos() {
   };
 
   if (estado.fase === "oculto" || !estado.sistema) return null;
-  const actual = permisoActual(estado);
-  const esperando = estado.esperando !== null;
-
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label="Permisos de tu neurona"
-      data-testid="asistente-permisos"
-      className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/60 backdrop-blur-sm ss-capa-modal"
-    >
-      <div className="flex w-[min(34rem,94vw)] flex-col ss-ventana-limite !overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-b from-white/[0.07] to-black/70 p-4 sm:p-5 text-white shadow-2xl backdrop-blur-xl">
-        <header className="flex shrink-0 items-start gap-3">
-          <span className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-xl border border-[#39FF14]/30 bg-[#39FF14]/10 text-[#39FF14]">
-            <ShieldCheck className="size-5" aria-hidden />
-          </span>
-          <div className="min-w-0 flex-1">
-            <h2 className="text-base font-semibold">Dejemos lista tu neurona</h2>
-            <p className="mt-0.5 text-xs leading-relaxed text-white/60">
-              Tus antenas (Bluetooth, Wi-Fi directo y red local) quedan encendidas de fábrica. Para que funcionen, el sistema te pedirá estos permisos, de uno en uno. Puedes omitir
-              cualquiera: lo retomas en Ajustes › Permisos y antenas.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={cerrar}
-            disabled={esperando}
-            aria-label="Cerrar"
-            className="cursor-pointer rounded-lg p-1 text-white/50 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
-          >
-            <X className="size-4" aria-hidden />
-          </button>
-        </header>
-
-        <div className="mt-4 min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1">
-        <ol className="space-y-1.5" aria-label="Permisos">
-          {estado.cola.map((d, i) => {
-            const r = estado.resultados[d.id];
-            const esActual = estado.fase === "pidiendo" && i === estado.indice;
-            return (
-              <li
-                key={d.id}
-                data-testid={`permiso-${d.id}`}
-                className={`flex items-start gap-2.5 rounded-xl border px-3 py-2 text-xs ${esActual ? "border-[#39FF14]/40 bg-[#39FF14]/5" : "border-white/10 bg-white/[0.02]"}`}
-              >
-                <span className="mt-0.5 shrink-0">
-                  {r === "concedido" ? (
-                    <Check className={`size-4 ${ICONO.concedido}`} aria-hidden />
-                  ) : r ? (
-                    <CircleAlert className={`size-4 ${ICONO[r]}`} aria-hidden />
-                  ) : esActual && esperando ? (
-                    <Loader2 className="size-4 animate-spin text-[#39FF14]" aria-hidden />
-                  ) : (
-                    <span className="block size-4 rounded-full border border-white/20" aria-hidden />
-                  )}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="font-medium text-white/90">
-                    {d.titulo}
-                    {d.opcional && <span className="ml-1.5 text-[10px] font-normal text-white/40">opcional</span>}
-                  </span>
-                  <span className="block leading-relaxed text-white/55">{d.porQue}</span>
-                  {r && <span className={`block ${ICONO[r]}`}>{textoResultado(r)}</span>}
-                </span>
-              </li>
-            );
-          })}
-        </ol>
-        </div>
-
-        {esperando && (
-          <p role="status" className="mt-3 shrink-0 text-xs text-[#39FF14]/90">
-            Esperando tu respuesta al aviso del sistema… (si no lo ves, mira detrás de esta ventana).
-          </p>
-        )}
-
-        <footer className="mt-4 flex shrink-0 flex-wrap items-center justify-end gap-2">
-          {estado.fase === "presentacion" && (
-            <>
-              <button type="button" onClick={() => enviar({ t: "omitir-todo" })} className="cursor-pointer rounded-lg px-3 py-1.5 text-xs text-white/60 hover:bg-white/10">
-                Ahora no
-              </button>
-              <button type="button" onClick={() => enviar({ t: "empezar" })} className="cursor-pointer rounded-lg border border-[#39FF14]/40 bg-[#39FF14]/15 px-3.5 py-1.5 text-xs font-medium text-[#39FF14] hover:bg-[#39FF14]/25">
-                Empezar
-              </button>
-            </>
-          )}
-          {estado.fase === "pidiendo" && actual && (
-            <>
-              <button type="button" disabled={esperando} onClick={() => enviar({ t: "omitir-todo" })} className="cursor-pointer rounded-lg px-3 py-1.5 text-xs text-white/60 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40">
-                Omitir todo
-              </button>
-              <button type="button" disabled={esperando} onClick={() => enviar({ t: "omitir" })} className="cursor-pointer rounded-lg border border-white/15 px-3 py-1.5 text-xs text-white/75 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40">
-                Omitir este
-              </button>
-              <button
-                type="button"
-                disabled={esperando}
-                onClick={() => void pedir(actual, estado.sistema as "macos" | "android")}
-                className="cursor-pointer rounded-lg border border-[#39FF14]/40 bg-[#39FF14]/15 px-3.5 py-1.5 text-xs font-medium text-[#39FF14] hover:bg-[#39FF14]/25 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                Permitir {actual.titulo}
-              </button>
-            </>
-          )}
-          {estado.fase === "resumen" && (
-            <button type="button" onClick={cerrar} className="cursor-pointer rounded-lg border border-[#39FF14]/40 bg-[#39FF14]/15 px-3.5 py-1.5 text-xs font-medium text-[#39FF14] hover:bg-[#39FF14]/25">
-              Listo
-            </button>
-          )}
-        </footer>
-      </div>
-    </div>
+    <ListaPermisos
+      estado={estado}
+      onEmpezar={() => enviar({ t: "empezar" })}
+      onOmitir={() => enviar({ t: "omitir" })}
+      onOmitirTodo={() => enviar({ t: "omitir-todo" })}
+      onPedir={(d) => void pedir(d, estado)}
+      onCerrar={cerrar}
+    />
   );
 }

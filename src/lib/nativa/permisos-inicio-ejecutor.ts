@@ -11,7 +11,8 @@
  * da por «omitido» (no se insiste: la persona lo contesta cuando quiera y se ve en Ajustes).
  */
 
-import type { IdPermiso, ResultadoPermiso } from "./permisos-inicio";
+import type { EstadosSistema, IdPermiso, ResultadoPermiso, SistemaAsistente } from "./permisos-inicio";
+import { normalizarEstados, type AccionPermiso, type EstadoSistema } from "./permisos-registro";
 
 export interface DepsEjecutor {
   /** Llama a un comando de la app. */
@@ -20,6 +21,8 @@ export interface DepsEjecutor {
   pedirMedio: ((tipo: "audio" | "video") => Promise<"ok" | "denegado" | "no-hay">) | null;
   /** Notificaciones: "granted" | "denied" | "default" | null (no hay API). */
   pedirNotificaciones: (() => Promise<string | null>) | null;
+  /** (PER1111S) Notificaciones ya concedidas, SIN preguntar (plugin de Tauri); null si no se puede saber. */
+  notificacionesConcedidas?: (() => Promise<boolean | null>) | null;
   dormir(ms: number): Promise<void>;
   ahora(): number;
 }
@@ -220,9 +223,135 @@ async function pedirPorKotlin(d: DepsEjecutor, id: IdPermiso): Promise<Resultado
   return valor ? "concedido" : agotado ? "omitido" : "denegado";
 }
 
-/** Pide UN permiso al sistema y espera su respuesta. Nunca lanza. */
-export async function pedirPermisoInicio(id: IdPermiso, sistema: "macos" | "android", d: DepsEjecutor): Promise<ResultadoPermiso> {
+/* ══════════════════ (PER1111S) Estado real, avisos del sistema y pantallas de Ajustes ══════════════════ */
+
+export interface LecturaSistema {
+  plataforma: string | null;
+  /** Linux: «x11» | «wayland». */
+  sesion: string | null;
+  estados: EstadosSistema;
+}
+
+/**
+ * Lee el estado REAL de todo lo que este sistema deja leer, sin abrir ningún aviso. Lo que no se puede leer no
+ * aparece (la lista lo dice). Una app anterior a PER1111S no tiene `permisos_sistema_estado`: se lee lo de siempre.
+ * Nunca lanza.
+ */
+export async function leerEstadosSistema(sistema: SistemaAsistente | null, d: DepsEjecutor): Promise<LecturaSistema> {
+  const out: LecturaSistema = { plataforma: null, sesion: null, estados: {} };
   try {
+    const r = await d.llamar<{ plataforma?: unknown; sesion?: unknown; estados?: unknown }>("permisos_sistema_estado");
+    if (r.ok && r.valor) {
+      out.estados = normalizarEstados(r.valor.estados);
+      if (typeof r.valor.plataforma === "string") out.plataforma = r.valor.plataforma;
+      if (typeof r.valor.sesion === "string" && r.valor.sesion) out.sesion = r.valor.sesion;
+    }
+  } catch {
+    /* sin el comando: se sigue con lo demás */
+  }
+  const poner = (id: IdPermiso, e: EstadoSistema | null) => {
+    if (e && !out.estados[id]) out.estados[id] = e;
+  };
+  try {
+    if (sistema === "android") {
+      const radio = await radioBle(d);
+      poner("cercanos", radio === "sin-permiso" ? "no-concedido" : radio === "encendida" || radio === "apagada" ? "concedido" : null);
+      const c = await d.llamar("llamada_nativa_capacidades");
+      const l = c.ok ? resultadoLlamadas(c.valor) : null;
+      poner("llamadas", l === "concedido" ? "concedido" : l === "no-disponible" ? "no-aplica" : l === "esperar" ? "no-concedido" : null);
+    }
+    if (sistema && sistema !== "android") {
+      const f = await d.llamar<{ arranque_con_sistema?: unknown }>("fondo_estado");
+      const a = f.ok && f.valor ? f.valor.arranque_con_sistema : null;
+      poner("arranque", a === true ? "concedido" : a === false ? "no-concedido" : null);
+    }
+    if (sistema === "macos" && d.notificacionesConcedidas) {
+      const n = await d.notificacionesConcedidas();
+      poner("notificaciones", n === true ? "concedido" : n === false ? "no-concedido" : null);
+    }
+  } catch {
+    /* lo que falle queda «sin dato» */
+  }
+  return out;
+}
+
+/** Espera a que el sistema dé `id` por concedido (la persona lo activa en Ajustes y vuelve). Pura (con deps). */
+async function esperarConcedido(id: IdPermiso, sistema: SistemaAsistente, d: DepsEjecutor, op: OpcionesEspera = ESPERA_AJUSTES): Promise<ResultadoPermiso> {
+  const { valor, agotado } = await esperarHasta(
+    async () => (await leerEstadosSistema(sistema, d)).estados[id],
+    (e) => e === "concedido" || e === "no-aplica",
+    d,
+    op,
+  );
+  if (valor === "concedido" || valor === "no-aplica") return "concedido";
+  return agotado ? "omitido" : "denegado";
+}
+
+/** La pantalla de Android que abre cada permiso (`panel:<id>` en Kotlin). */
+export function panelAndroid(id: IdPermiso): string {
+  switch (id) {
+    case "accesibilidad":
+    case "superposicion":
+    case "no-molestar":
+    case "escribir-ajustes":
+    case "todos-archivos":
+    case "notificaciones":
+    case "bateria":
+      return id;
+    default:
+      return "app";
+  }
+}
+
+const MEDIOS_CON_AJUSTES: Partial<Record<IdPermiso, string>> = { microfono: "microfono", camara: "camara", pantalla: "pantalla" };
+
+/** Abre la pantalla EXACTA de Ajustes del permiso y espera a que la persona lo active. Nunca lanza. */
+async function abrirAjustesYEsperar(id: IdPermiso, sistema: SistemaAsistente, d: DepsEjecutor): Promise<ResultadoPermiso> {
+  if (sistema === "android" && (id === "instalar" || id === "bateria")) return pedirPorKotlin(d, id);
+  if (sistema === "android" && id === "llamadas") return pedirLlamadas(d);
+  const panel = sistema === "android" ? panelAndroid(id) : id;
+  let abierto = (await d.llamar("permisos_sistema_abrir", { id: panel })).ok;
+  // App anterior a PER1111S: micrófono, cámara y pantalla ya tenían su camino.
+  if (!abierto && MEDIOS_CON_AJUSTES[id]) abierto = (await d.llamar("medios_abrir_ajustes", { tipo: MEDIOS_CON_AJUSTES[id] })).ok;
+  if (!abierto) return "no-disponible";
+  return esperarConcedido(id, sistema, d);
+}
+
+/** macOS: el aviso del PROPIO sistema (Accesibilidad, Grabación de pantalla, Monitorización de entrada). */
+async function pedirAvisoMacos(id: IdPermiso, d: DepsEjecutor): Promise<ResultadoPermiso> {
+  const r = await d.llamar<boolean>("permisos_sistema_pedir", { id });
+  if (!r.ok) {
+    // Sin el comando (app anterior): se abre directamente su pantalla de Ajustes.
+    return abrirAjustesYEsperar(id, "macos", d);
+  }
+  if (r.valor === true) return "concedido";
+  // El aviso de macOS lleva a Ajustes; se espera a que la persona lo active y vuelva.
+  return esperarConcedido(id, "macos", d);
+}
+
+/** Escritorio: abrir al iniciar sesión (el interruptor de la propia app; el sistema lo enseña en sus ajustes). */
+async function pedirArranque(sistema: SistemaAsistente, d: DepsEjecutor): Promise<ResultadoPermiso> {
+  const r = await d.llamar<{ arranque_con_sistema?: unknown }>("fondo_arranque", { activo: true });
+  if (!r.ok) return "no-disponible";
+  if (r.valor && r.valor.arranque_con_sistema === true) return "concedido";
+  return esperarConcedido("arranque", sistema, d, ESPERA_AVISO);
+}
+
+/**
+ * Pide UN permiso al sistema y espera su respuesta. `accion` es la que enseña la lista (del registro): con
+ * «abrir-ajustes» se abre la pantalla de Ajustes en vez de preguntar. Nunca lanza.
+ */
+export async function pedirPermisoInicio(
+  id: IdPermiso,
+  sistema: SistemaAsistente,
+  d: DepsEjecutor,
+  accion: AccionPermiso = "pedir",
+): Promise<ResultadoPermiso> {
+  try {
+    if (accion === "abrir-ajustes") return await abrirAjustesYEsperar(id, sistema, d);
+    if (id === "arranque" && sistema !== "android") return await pedirArranque(sistema, d);
+    if (sistema === "macos" && (id === "accesibilidad" || id === "pantalla" || id === "monitor-entrada")) return await pedirAvisoMacos(id, d);
+    if (sistema !== "macos" && sistema !== "android") return "no-disponible";
     if (sistema === "android") {
       if (id === "cercanos") return await pedirCercanos(d);
       if (id === "llamadas") return await pedirLlamadas(d);
