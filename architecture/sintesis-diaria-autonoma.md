@@ -5,7 +5,7 @@
 - preparado por Claude en la nube a petición de Alex;
 - encolado por Claude (Cowork, con la Mac) el mismo día.
 
-**Estado:** la cola `starseed_memory_root/olas/cola-sdp1111.json` está encolada con 14 tareas (A–L, N y O).
+**Estado:** la cola `starseed_memory_root/olas/cola-sdp1111.json` está encolada con 15 tareas (A–L, N, O y P).
 - SDP1111M (lectura diaria de «Mi actividad» con el navegador) **no** está en la cola: espera la aprobación de Alex y
   su texto está en `starseed_memory_root/olas/pendientes/tarea-sdp1111m-pendiente.json`.
 - Nada está construido todavía.
@@ -102,6 +102,9 @@ El director llama al agente cada 15 minutos; el agente decide con su estado en q
 - **Variables** (solo nombres): `TELEGRAM_SINTESIS_BOT_TOKEN` y `TELEGRAM_SINTESIS_CHAT_ID`, en `~/.starseed/env`
   del A1 y de la Mac.
 - Hermes y `telegram:Maggasukha` no se usan para esto.
+- **Sin token propio** (2026-11-11): en la Mac no hay token de @StarSeed_Design_bot. El único bot conectado es
+  @starseed_puente_bot («Puente de Mando StarSeed», `TELEGRAM_BOT_TOKEN`). SDP1111P hace que la síntesis salga por él,
+  con la cabecera «Síntesis de Producción StarSeed», hasta que exista `TELEGRAM_SINTESIS_BOT_TOKEN`.
 
 ### 3.4 Herramientas que usa cada agente
 
@@ -393,6 +396,21 @@ lee la cola como lista de tareas. SDP1111M va aparte: ver «Estado», arriba.
    "SDP1111L"
   ],
   "prompt": "El contrato ya está en architecture/sintesis-diaria-autonoma.md (lo guardó Claude el 2026-11-11): léelo, no lo reescribas. Añade una entrada corta en memory/workflow-actual.md sobre la síntesis autónoma. Deja cableado parte_diario_metagenesis.py en el A1 con un timer oneshot diario (patrón starseed-metageminis.timer) para que Claude nube, cuando esté activo, tenga contexto. La migración 20261108120000_metagenesis_buzon.sql la aplica el director al publicar. buzon_telegram.py queda sin cablear: la síntesis ya no pasa por él."
+ },
+ {
+  "id": "SDP1111P",
+  "ola": "SDP1111",
+  "titulo": "Reutilizar las conexiones que ya existen (bot del Puente y cliente OAuth del OS)",
+  "archivos": [
+   "scripts/puente/sintesis_telegram.py",
+   "scripts/puente/cuentas_google.py",
+   "scripts/puente/test_sintesis_conexiones.py"
+  ],
+  "depende": [
+   "SDP1111B",
+   "SDP1111E"
+  ],
+  "prompt": "Lee architecture/sintesis-diaria-autonoma.md §3.3 y §5. Alex (2026-11-11) aclaró que el bot y las cuentas YA están conectados en la Mac: no hay que pedirle claves nuevas si se puede usar lo que existe. Ajusta, sin romper sus pruebas: (1) sintesis_telegram.py: si falta TELEGRAM_SINTESIS_BOT_TOKEN, usa el bot ya conectado TELEGRAM_BOT_TOKEN (de ~/.starseed/env o ~/.hermes/.env; es @starseed_puente_bot, el del Puente de Mando, el chat vinculado de MetaGenesis y Hermes) con TELEGRAM_SINTESIS_CHAT_ID y, si falta, TELEGRAM_CHAT_ID; antepone la cabecera «Síntesis de Producción StarSeed · AAAA-MM-DD» para que se distinga en ese chat. Si un día existe TELEGRAM_SINTESIS_BOT_TOKEN, manda ese. (2) cuentas_google.py: antes de pedir un cliente nuevo, prueba el cliente OAuth que el OS ya tiene (NEXT_PUBLIC_GOOGLE_CLIENT_ID y GOOGLE_OAUTH_CLIENT_SECRET de .env.local del repo; leer sin imprimir) con redirección fija http://127.0.0.1:8765/ ; si Google responde redirect_uri_mismatch o el proyecto no tiene activadas Gmail API o YouTube Data API v3, dilo en una línea con el arreglo exacto (añadir esa URI de redirección al cliente existente o activar la API, con el enlace de la consola) y solo entonces cae a GOOGLE_ACTIVIDAD_* o al client_secret_*.json de Descargas. Nunca imprime ni registra tokens ni secretos. Pruebas sin red. Máximo 120 líneas tocadas por archivo."
  }
 ]
 ```
