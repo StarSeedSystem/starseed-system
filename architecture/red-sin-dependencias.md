@@ -599,3 +599,86 @@ Wi-Fi de la tableta la llamada no salía («inicio paso=timbre fallo») y nadie 
    Wi-Fi (directo, Aware, AWDL, red local) por kb/s penalizados por el retardo, con un 25 % de histéresis a favor del
    actual; el cambio dice `…-mas-capacidad` y la línea de carriles enseña «Datos: Wi-Fi directo». Probado en el banco con
    vías simuladas (ningún aparato de Alex forma Wi-Fi directo entre sí).
+
+## 14 · Relevo: una neurona llega a otra a través de las de en medio (REL1111I · 2026-11-11)
+
+Alex (11-11): «la neurona A no tiene enlace directo con la neurona C, pero la neurona B tiene enlace con ambas; entonces la malla
+inteligente debe seleccionar automáticamente las mejores antenas disponibles para la transmisión relevada por la neurona B, de A a
+C … a cualquier distancia, cualquier neurona puede funcionar como nodo … en todas las capas de conciencia privadas y públicas».
+
+### 14.0 · Lo que ya había y lo que faltaba (medido en el código el 11-11)
+
+| Pieza | Qué hace | Relevo de A a C |
+|---|---|---|
+| `transporte-universal.ts` · `crearEnviador` | Elige un carril directo (`elegirEnlaces`) y espera su acuse; si no, relé del servidor o LoRa | **No**: sin carril directo, `«Ningún enlace abierto llega a ese destino»` |
+| `rele-archivo.ts` · salto de archivo (MPT1108B) | B pasa trozos sellados de A a C, solo por la malla WebRTC de la cuenta | Solo archivos, solo carril «cuenta» (que necesita internet para señalizarse), sin anuncio de quién llega a quién (A intenta por cada neurona de la cuenta a ciegas), y C contesta por `canalNulo`: no puede aceptar ni pedir huecos de vuelta |
+| `rele-bidireccional.ts` / `rele-propio.ts` (PTA1108C) | Relé del servidor de StarSeed o servidor propio, de dos vías | Necesita internet o un servidor |
+| `puerta/tabla.ts` (PTA1108A/1110B) | Anuncios con saltos (`via`, `ttl`, `MAX_SALTOS = 3`, caducidad de 90 s) y ámbitos de confianza | Solo para salir a internet o a una capa; no lleva mensajes entre neuronas |
+| `canal-sellado.ts` + `cifrado-archivo.ts` | Archivo sellado de punta a punta, independiente del camino | Sí sirve tal cual por un relevo |
+| Mensajes `tu.msg` | Cifrado por carril (CIF1108A: TCP y Bluetooth; WebRTC DTLS) | **Un relevo los vería en claro**: hacía falta sello de punta a punta |
+| Capas de conciencia (ámbitos) | `puerta/politica.ts` · `Ambito`: `mias` > `grupo` > `otras` > `publica`, con topes por ámbito y una cadena que nunca ensancha la confianza (`ambitoEfectivo`) | Es el modelo que usa este contrato |
+
+### 14.1 · Alcance: qué sabe cada neurona y cuánto vale
+
+- **Anuncio `tu.rva`** a cada vecina DIRECTA de mi cuenta, por su mejor carril, cada `ANUNCIO_MS` = 10 s y en cuanto cambia algo (un carril sube o baja, una vecina nueva habla relevo, cambia mi «releva / no releva»). Lleva: quién soy (`n`, `u`, `nm`), mi pública ECDH de cifrado (`e`), si hago de relevo ahora (`rel`, ya con mis topes) y mis vecinas directas `vs[] = {n, c (carril), k (kb/s medidos), l (ms medidos), r (habla relevo), h (huella probada por el saludo), e (su pública)}`. Unos 200 B + 250 B por vecina. Solo neuronas de la cuenta: a otras cuentas no se les dice a quién veo.
+- **Quién se cree**: un anuncio solo vale si `n` es la neurona que ya probó el carril (saludo firmado, certificado o malla de la cuenta). Nadie se anuncia por otro.
+- **Caducidad**: `CADUCA_MS` = 35 s sin renovar; al caer MI carril con una vecina se olvida todo lo suyo en el acto; un anuncio nuevo sustituye entero al anterior (si B deja de ver a C, su siguiente anuncio ya no lo lleva y sale en cuanto cambia, no a los 10 s); un número de secuencia descarta anuncios viejos que llegan tarde.
+- **Fase 1 = un salto de relevo**: el anuncio lleva solo vecinas directas (no se reanuncia lo aprendido). La ruta más larga es A → B → C. Fase 2 (§14.5) pasa a vector de distancias con `via` y `MAX_SALTOS = 3`, como la puerta.
+- Una app anterior (prueba 36) no anuncia: su vecina la lista con `r = 0` y nunca es destino ni relevo.
+
+### 14.2 · Elección de ruta y cambios
+
+- **Métrica**: ms que tarda en cruzar un trozo de referencia de 24 KiB cada tramo = ida y vuelta medida + serialización a la capacidad medida, más 25 ms por relevo. Sin medida, el valor de diseño del carril (Bluetooth 150 kb/s · 90 ms; red local 20 Mb/s · 8 ms; malla de la cuenta 5 Mb/s · 60 ms). El primer tramo lo mide A; el segundo lo anuncia B.
+- **Orden**: 1) un carril directo con el destino gana siempre (con directo no se relevea; lo que funciona hoy no cambia); 2) fuera los relevos vetados; 3) **histéresis del 25 %** (como los carriles de Wi‑Fi de MLL1111C): la ruta actual solo cambia por otra que cueste un 25 % menos; 4) si la actual ya no es posible, la mejor que quede.
+- **Vetos**: un relevo que dice que no (`tu.rvn`) queda vetado 30 s para ese destino; uno por el que no llegó el acuse, 12 s; el veto se levanta en cuanto ese relevo anuncia algo nuevo.
+- **Bucles**: imposibles en fase 1 por construcción: un relevo SOLO entrega por un carril directo con el destino (nunca a otro relevo) y la trama lleva `r` (neuronas por las que pasó, el origen primero) y `ttl` (2): si me llega con mi id en `r`, la corto; si el último de `r` no es quien me la da, la tiro; con `ttl` agotado, digo que no.
+- **El relevo cae a mitad**: un mensaje se repite con el MISMO id por la siguiente ruta (o espera a que aparezca una, dentro de su plazo de 20 s; el destino lo entrega una sola vez). Un archivo va trama a trama con acuse de punta a punta; la trama sin acuse se repite por otra ruta y, sin ruta, el canal dice «sin enlace» (`enlaceArriba`/`esperarListo`) y el motor de archivos espera en el mismo trozo hasta 60 s por vuelta, con sus reintentos.
+- **Aparece un directo**: la siguiente trama ya va por él (`a=directo motivo=directo`); los mensajes nuevos van por el camino de siempre.
+
+### 14.3 · Privacidad, consentimiento y topes
+
+- **Lo que el relevo lleva sin poder leer**: un `tu.msg` va en un sobre `recipient-crypto` v:3 (ECDH P‑256 efímero → HKDF‑SHA256 → AES‑256‑GCM) para la clave de cifrado de la neurona destino, con la firma ECDSA de la identidad de malla del remitente dentro. Un archivo va con su sello de siempre (oferta en sobre, cada trozo AES‑256‑GCM). El acuse va sellado para el origen y firmado por el destino: un relevo no puede fingir una entrega.
+- **Lo que el relevo SÍ ve** (y se dice en la ventana): origen y destino (neuronas), la cuenta del origen, el tipo de trama (mensaje, acuse, archivo), el id, el tamaño y la hora; de un archivo, además, las tramas de control del motor (aceptar, progreso, fin) y el número de trozos, como cualquier relé de MPT1108B. Nunca el texto, el nombre del archivo, su contenido ni las claves.
+- **Quién releva para quién** (capas de conciencia = `Ambito` de la puerta):
+
+| Ámbito del origen y del destino | Fase | Por defecto |
+|---|---|---|
+| **Mis neuronas** (las dos de mi cuenta, probada por el carril) | 1 (hecha) | Encendido: «Relés · mis neuronas» de Envíos de archivos |
+| **Grupo o comunidad** | 4 | «Preguntar», como la puerta; necesita la prueba de pertenencia sin internet (§5.3 «lo que falta») |
+| **Otras cuentas** (vínculo aceptado) | 4 | «Preguntar» por neurona; un relevo nunca ensancha la confianza (`ambitoEfectivo`) |
+| **Pública** | 5 | Apagado, con tope de 20 MiB/día, como la puerta |
+
+  En fase 1 un relevo dice que no si quien se lo da o el destino no son de su cuenta.
+- **Topes del relevo**: los de «Relés · mis neuronas» (`topesSalto`: interruptor, batería mínima 20 % salvo cargando, datos del día), que ya valían para el salto de archivos. Con un tope alcanzado, el anuncio dice `rel = 0` y cada trama recibe un `tu.rvn` con el motivo («batería por debajo del…»).
+
+### 14.4 · Entrega
+
+- **Exactamente una vez a la aplicación**: el destino guarda los ids entregados (30 min, 8 192) y vuelve a acusar un repetido sin entregarlo; además pasa por `entregar` del transporte, que también descarta repetidos. Las tramas de archivo, por su id; los trozos, además, por índice en el motor.
+- **Orden**: un mensaje es una unidad; dos mensajes pueden adelantarse si cambian de ruta (como hoy entre carriles). Un archivo va en orden: una trama no sale hasta que se acusa la anterior.
+- **Acuse de punta a punta**: `ResultadoEnvio.confirmado` solo con el acuse sellado del destino. La pastilla del mensaje dice «Mesh · por relevo de <nombre>» (`mensajeria/medios/medios.ts · etiquetaVia`) y el archivo «por relevo de <nombre>» en su reparto y su vía.
+- **Destino fuera de alcance un rato**: fase 1 espera en el ORIGEN (mensaje: 20 s; archivo: lo que aguante el motor) y luego lo dice. Guardar en el relevo y entregar cuando el destino vuelva (custodia, con tope y caducidad) es la fase 3.
+
+### 14.5 · Fases (cada una se da por hecha solo en aparatos reales)
+
+| Fase | Contenido | Qué prueba |
+|---|---|---|
+| **1 · Un relevo de mi cuenta (HECHA en código, probada con motores reales y carriles simulados)** | Anuncio y tabla, ruta con histéresis y vetos, mensajes y archivos sellados de punta a punta, acuses sellados, cambio de relevo, espera y reanudación, paso al directo, negativas y topes, registro | Mac, tableta y un tercer aparato de la cuenta |
+| 2 · Varios relevos | Vector de distancias con `via` y `MAX_SALTOS = 3` (como la puerta), coste acumulado, «split horizon»; certificado cuenta → neurona (IDN1108A) en el anuncio para que la huella y la clave no dependan de lo que diga una vecina | Cuatro aparatos en fila |
+| 3 · Custodia y segundo plano | El relevo guarda (cifrado, con tope y caducidad) lo que va a un destino ausente; reenvío de tramas `tu.rvd` en Rust/Kotlin sin la página (el relevo nunca descifra, así que el lado nativo puede reenviar) | Tableta con la pantalla apagada como relevo |
+| 4 · Grupo y otras cuentas | Ámbitos de la puerta aplicados al relevo, «Preguntar» por neurona, pertenencia sin internet | Dos cuentas |
+| 5 · Pública y voz | Relevo público con su tope; flujos (voz Opus por Bluetooth en dos tramos) con prioridad y sin reintento | Llamada A → B → C |
+
+### 14.6 · Llamadas por un relevo
+
+- **Lo que ya cruza**: la señalización del canal de llamadas por el transporte (`llamadas/canal-enlace-transporte.ts`, `llc.pres`/`llc.senal`) usa `enviarMensaje({neuronDeviceId})`, que ahora cae al relevo: en el banco, la presencia de A llega a C por B en 132 ms y la de C a A.
+- **Lo que falta para que suene en la pantalla** (no tocado aquí: carpetas de LLA1111H y de mensajería): `llamadas/acciones.ts` manda el timbre con `o.avisar` (la burbuja del chat, que planifica `mensajeria/neuronas` sin relevo) y `extrasNeurona` solo abre el canal por el transporte si hay carril directo con la neurona. Hace falta (1) que `planParaDatos` añada un paso «relevo» cuando `relevo/real.estadoRelevo()` alcanza la neurona y (2) que `extrasNeurona` acepte esa alcanzabilidad.
+- **Voz y vídeo**: la voz por datos (`voz-datos`) va por tramas propias del carril, no por `tu.*`. Por un relevo haría falta una clase «flujo» en `tu.rvd` sin acuse ni reintento, con prioridad sobre los datos en el relevo y el reparto de llamada de cada carril; Opus a 16–24 kb/s cabe en dos tramos de Bluetooth si el relevo no va cargado (≈ 2 × 40–90 ms más de retardo). Vídeo, solo si los dos tramos son Wi‑Fi o red local.
+
+### 14.7 · Lo que no está probado
+
+- **Aparatos reales**: nada. Todo está probado con el código real (transporte, relevo, motor de archivos, sello, señalización de llamadas) en Chromium, una neurona por contexto con sus propias claves, sobre carriles simulados.
+- **Segundo plano**: el relevo vive en la página. En el Mac la app sigue viva (barra de menús). En Android, con la pantalla apagada, el WebView pausa sus temporizadores; `PuertaSegundoPlano` de `ServicioAntenas.kt` lo reanuda cada 15 s mientras el servicio de antenas corre (PTA1110B, sin verificar en aparato), así que como mucho relevaría a ráfagas. Lo fiable es la fase 3 (reenvío en Rust/Kotlin). iOS: sin build.
+- **Más de un relevo**: no (fase 2).
+
+**Registro** (`grep ' relevo ' enlaces.log`): `tabla <vecina> releva|no-releva alcanza=…`, `ruta destino=… de=… a=… motivo=inicial|mejor|caida|vetada|directo|sin-ruta carril=… coste=…ms`, `veto …`, `en-espera …`, `reanuda … tras=…ms`, `entregado … intento=N ms=…`, `relevo-pasa o=… d=… entra=… sale=…` (una vez cada 30 s por pareja), `no-relevo … motivo=…`, `bucle-cortado …`, `rechazado …`, `agotado …`.
+**Código**: `src/lib/malla/relevo/{tabla,ruta,sobre,motor,real}.ts`; ganchos aditivos en `transporte-universal.ts` (`DepsEnvio.relevo`, `fijarReceptorRelevo`, `entregarDesdeRelevo`, `enviarTextoPorEnlace`, archivo por relevo en `canalParaArchivo`, arranque en `iniciarTransporteUniversal`). Banco: `pruebas-reales/relevo-malla`.

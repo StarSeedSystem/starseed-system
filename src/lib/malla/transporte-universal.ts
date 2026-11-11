@@ -162,6 +162,17 @@ export interface ResultadoEnvio {
   intentos: IntentoEnvio[];
   descartados: Eleccion["descartados"];
   motivo?: string;
+  /** (REL1111I) Fue por otra neurona de la cuenta («por relevo de <nombre>»). */
+  relevo?: { neurona: string; nombre: string | null };
+}
+
+/** (REL1111I) Lo que devuelve un envío por relevo (ver `relevo/motor.ts`). */
+export interface ResultadoRelevoEnvio {
+  ok: boolean;
+  confirmado: boolean;
+  enlace: { id: string; tipo: TipoEnlace; etiqueta: string } | null;
+  relevo: { neurona: string; nombre: string | null } | null;
+  detalle: string;
 }
 
 export interface DepsEnvio {
@@ -179,6 +190,12 @@ export interface DepsEnvio {
   enviarNativo?(enlace: EnlaceDisponible, texto: string): Promise<{ ok: boolean; detalle: string }>;
   /** (BLE1108A) Bluetooth directo (`ble:<id>`): como el nativo, un «ok» es el ACUSE de la otra app. */
   enviarBle?(enlace: EnlaceDisponible, texto: string): Promise<{ ok: boolean; detalle: string }>;
+  /**
+   * (REL1111I) Por otra neurona de la cuenta cuando ningún carril directo llega (o todos fallaron), antes del relé del
+   * servidor y de LoRa. `esperarRuta`: sin ruta ahora, esperar (dentro de su plazo) a que aparezca; si no, null al momento.
+   * null = no aplica (sin motor de relevo, destino sin neurona o sin ruta). Sin esta dependencia todo es como antes.
+   */
+  relevo?(destino: DestinoTransporte, sobre: SobreMensaje, o: { esperarRuta: boolean }): Promise<ResultadoRelevoEnvio | null>;
 }
 
 export interface OpcionesEnvio {
@@ -218,7 +235,26 @@ export function crearEnviador(deps: DepsEnvio) {
     const eleccion = elegirEnlaces(lista, destino, "mensaje", tamano(cuerpo), {});
     const intentos: IntentoEnvio[] = [];
     const base = { intentos, descartados: eleccion.descartados };
+    // REL1111I ── por otra neurona de la cuenta (una sola vez por envío; el mismo id, así el destino lo entrega una vez)
+    const sobre: SobreMensaje = { t: "tu.msg", v: 1, id: deps.nuevoId(), c: canal, b: cuerpo, de: deps.origen() };
+    let relevoProbado = false;
+    const porRelevo = async (esperarRuta: boolean): Promise<ResultadoEnvio | null> => {
+      if (relevoProbado || !deps.relevo || destino.enlaceId) return null;
+      relevoProbado = true;
+      let r: ResultadoRelevoEnvio | null = null;
+      try {
+        r = await deps.relevo(destino, sobre, { esperarRuta });
+      } catch {
+        r = null;
+      }
+      if (!r) return null;
+      intentos.push({ enlaceId: r.enlace?.id ?? "relevo", tipo: r.enlace?.tipo ?? "cuenta", ok: r.ok, detalle: r.detalle });
+      if (!r.ok) return null;
+      return { ...base, ok: true, confirmado: r.confirmado, enlace: r.enlace, ...(r.relevo ? { relevo: r.relevo } : {}) };
+    };
     if (!eleccion.elegidos.length) {
+      const rv = await porRelevo(true);
+      if (rv) return rv;
       return {
         ...base,
         ok: false,
@@ -227,12 +263,16 @@ export function crearEnviador(deps: DepsEnvio) {
         motivo: lista.length ? "Ningún enlace abierto llega a ese destino." : "No hay ningún enlace abierto ahora mismo.",
       };
     }
-    const sobre: SobreMensaje = { t: "tu.msg", v: 1, id: deps.nuevoId(), c: canal, b: cuerpo, de: deps.origen() };
     const texto = JSON.stringify(sobre);
     let enviadoSinAcuse: EnlaceDisponible | null = null;
     for (const { enlace } of eleccion.elegidos) {
       const ref = { id: enlace.id, tipo: enlace.tipo, etiqueta: enlace.etiqueta };
       if (enlace.tipo === "rele" || enlace.tipo === "lora") {
+        // REL1111I: antes del servidor o de la radio, una neurona de la cuenta que llegue (solo si hay ruta ya).
+        if (!enviadoSinAcuse) {
+          const rv = await porRelevo(false);
+          if (rv) return rv;
+        }
         let r: { ok: boolean; detalle: string };
         try {
           r = enlace.tipo === "rele" ? await deps.enviarRele(destino, sobre) : await deps.enviarLora(destino, sobre);
@@ -287,6 +327,8 @@ export function crearEnviador(deps: DepsEnvio) {
         motivo: "Enviado, pero el otro aparato no confirmó la llegada.",
       };
     }
+    const rv = await porRelevo(false); // REL1111I: los carriles directos fallaron; si una neurona de la cuenta llega, por ella
+    if (rv) return rv;
     return { ...base, ok: false, confirmado: false, enlace: null, motivo: "Todos los enlaces fallaron." };
   };
 }
@@ -556,7 +598,49 @@ export const enviarMensaje = crearEnviador({
       ? { ok: true, detalle: `entregado por Bluetooth directo: la app del otro aparato acusó recibo${typeof r.ms === "number" ? ` (${r.ms} ms)` : ""}` }
       : { ok: false, detalle: r.motivo ?? "no salió por Bluetooth" };
   },
+  // REL1111I: por otra neurona de la cuenta (perezoso: el motor de relevo solo se carga si hace falta).
+  relevo: async (destino, sobre, o) => {
+    try {
+      const m = await import("./relevo/real");
+      return await m.enviarPorRelevo(destino, sobre, o);
+    } catch {
+      return null;
+    }
+  },
 });
+
+/* ══════════════════════════ REL1111I · relevo por otra neurona de la cuenta ══════════════════════════ */
+
+let receptorRelevo: ((texto: string, origen: MensajeEntrante["origen"]) => void) | null = null;
+
+/** El motor de relevo de esta neurona se engancha aquí para recibir las tramas `tu.rv*` de cualquier carril. */
+export function fijarReceptorRelevo(f: ((texto: string, origen: MensajeEntrante["origen"]) => void) | null): void {
+  receptorRelevo = f;
+}
+
+/** Entrega a la aplicación un mensaje que llegó por relevo (una sola vez por id, como cualquier otro). */
+export function entregarDesdeRelevo(m: MensajeEntrante): void {
+  entregar(m);
+}
+
+/** Manda un texto por un enlace directo concreto (lo usa el relevo). true = salió (en la red local y el Bluetooth, con acuse del otro). */
+export async function enviarTextoPorEnlace(enlace: EnlaceDisponible, texto: string): Promise<boolean> {
+  try {
+    if (enlace.tipo === "nativo") {
+      const ip = ipDeEnlaceNativo(enlace.id);
+      const red = (await cargarNativo())?.redLocalNativaActiva();
+      return !!ip && !!red && (await red.enviarTexto(ip, texto)).ok;
+    }
+    if (enlace.tipo === "ble") {
+      const b = enlaceBleDe(enlace.id);
+      const red = (await cargarBle())?.bluetoothDirectoActivo();
+      return !!b && !!red && (await red.enviarTexto(b, texto)).ok;
+    }
+    return enviarP2PReal(enlace, texto);
+  } catch {
+    return false;
+  }
+}
 
 /* ══════════════════════════ Recepción ══════════════════════════ */
 
@@ -605,6 +689,15 @@ export function despacharTextoTransporte(
   origen: MensajeEntrante["origen"],
   responder: (texto: string) => void,
 ): void {
+  if (data.startsWith('{"t":"tu.rv')) {
+    // REL1111I: trama del relevo. Sin motor (o en una app anterior, que ni llega aquí) se descarta en silencio.
+    try {
+      receptorRelevo?.(data, origen);
+    } catch {
+      /* el relevo nunca tumba la recepción */
+    }
+    return;
+  }
   let msg: unknown;
   try {
     msg = JSON.parse(data);
@@ -726,6 +819,15 @@ export async function canalParaArchivo(destino: DestinoTransporte, bytes = 0, op
     .map((e) => ({ e, canal: canalDeEnlace(e) }))
     .filter((x): x is { e: EnlaceDisponible; canal: CanalArchivos } => !!x.canal);
   if (!subs.length) {
+    // REL1111I: sin carril directo, por otra neurona de la cuenta (sellado de punta a punta; nunca en claro).
+    if (!destino.enlaceId && opciones.permitirRele !== false && ajustes.modo === "automatico" && ajustes.releNeuronas) {
+      try {
+        const rv = await (await import("./relevo/real")).canalArchivoPorRelevo(destino);
+        if (rv) return { ...rv, descartados: eleccion.descartados };
+      } catch {
+        /* sin relevo: como antes */
+      }
+    }
     return { canal: null, enlaces: [], multi: null, descartados: eleccion.descartados, motivo: "No hay ningún enlace P2P abierto hacia ese aparato." };
   }
   // MPT1108B ── sellado de punta a punta + multitrayecto por todas las vías (los relés suman, nunca sustituyen una vía directa)
@@ -1294,6 +1396,12 @@ export function iniciarTransporteUniversal(): () => void {
   let reintento: ReturnType<typeof setTimeout> | null = null;
   const reles = iniciarRecepcionRele(motorArchivosCompartido); // MPT1108B
   bajas.push(...reles.bajas);
+  // REL1111I: el motor de relevo (anuncia a quién llego, aprende de las vecinas y hace de relevo con sus topes).
+  void import("./relevo/real")
+    .then((m) => {
+      if (activo) bajas.push(m.iniciarRelevo());
+    })
+    .catch(() => undefined);
 
   // 1) Malla de la cuenta (el mismo mesh compartido de siempre).
   const conectarMesh = () => {
