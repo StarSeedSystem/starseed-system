@@ -163,5 +163,92 @@ class TestPromptDirector(unittest.TestCase):
         self.assertNotIn("Alex: t7\n", p)
 
 
+AVISO_PAUSA = (
+    "\u23f8 This chat is paused. Hermes couldn't confirm how the last turn ended (usually because it "
+    "restarted mid-turn): \"Diriges el enjambre de agentes de StarSeed OS y una tarea est\u00e1 atascada. "
+    "Elige \u2026\" Hermes won't re-run it by itself, since it may already have done part of the work. "
+    "Your message was not sent. To continue, run `hermes sessions discard 20260909_210504_867626 --yes`, "
+    "or resume this session in an interactive chat and /discard the paused turn there; then send it again."
+)
+
+
+class TestPausaHermes(unittest.TestCase):
+    """HER1111K: reconocer el aviso de sesi\u00f3n en pausa por el c\u00f3digo y por el texto."""
+
+    def test_el_aviso_real_se_reconoce_con_cualquier_codigo(self):
+        for rc in (0, 1, 3):
+            self.assertTrue(M.es_pausa_hermes(rc, AVISO_PAUSA), rc)
+
+    def test_apostrofe_tipografico_y_mayusculas(self):
+        self.assertTrue(M.es_pausa_hermes(0, AVISO_PAUSA.replace("'", "\u2019").upper()))
+
+    def test_codigo_3_sin_texto_es_pausa_y_con_otro_texto_no(self):
+        self.assertTrue(M.es_pausa_hermes(3, ""))
+        self.assertFalse(M.es_pausa_hermes(3, "Error: se acab\u00f3 la cuota"))
+
+    def test_redaccion_cambiada_sigue_reconociendose(self):
+        self.assertTrue(M.es_pausa_hermes(3, "Session paused. Run: hermes sessions discard abc_123"))
+        self.assertTrue(M.es_pausa_hermes(0, "Could not confirm how the last turn ended; /discard the paused turn"))
+
+    def test_una_respuesta_normal_o_larga_no_es_pausa(self):
+        self.assertFalse(M.es_pausa_hermes(0, "Hola, todo bien."))
+        self.assertFalse(M.es_pausa_hermes(0, "Para reabrir usa hermes sessions discard. " + "x" * 2000))
+        self.assertFalse(M.es_pausa_hermes(1, ""))
+
+    def test_id_de_sesion(self):
+        self.assertEqual("20260909_210504_867626", M.id_sesion_pausada(AVISO_PAUSA, "otra"))
+        self.assertEqual("otra", M.id_sesion_pausada("sin id", "otra"))
+
+    def test_orden_de_reabrir_es_solo_texto(self):
+        self.assertEqual("hermes sessions discard s1 --yes", M.orden_reabrir_hermes("s1"))
+        self.assertFalse(hasattr(M, "descartar_sesion"))
+
+
+class TestHermesConPausa(unittest.TestCase):
+    def ejecutor(self, respuestas):
+        llamadas = []
+
+        def ejecutar(prompt, sesion):
+            llamadas.append((prompt, sesion))
+            return respuestas[len(llamadas) - 1]
+
+        return ejecutar, llamadas
+
+    def test_sin_pausa_una_sola_llamada(self):
+        ej, ll = self.ejecutor([(0, "hola", {})])
+        r = M.hermes_con_pausa(ej, "p", lambda: "fresco", "s1", registrar=lambda t: None)
+        self.assertEqual([("p", "s1")], ll)
+        self.assertEqual(("hola", None, False), (r["salida"], r["pausa"], r["fresca"]))
+
+    def test_pausa_y_fresca_ok(self):
+        ej, ll = self.ejecutor([(3, AVISO_PAUSA, {}), (0, "respuesta", {"input_tokens": 1})])
+        visto = []
+        r = M.hermes_con_pausa(ej, "p", lambda: "fresco", "s1", registrar=visto.append)
+        self.assertEqual([("p", "s1"), ("fresco", None)], ll)
+        self.assertEqual("respuesta", r["salida"])
+        self.assertTrue(r["fresca"])
+        self.assertEqual("20260909_210504_867626", r["pausa"]["sesion"])
+        self.assertIn("hermes sessions discard", visto[0])  # el texto crudo queda en el registro
+
+    def test_pausa_y_fresca_falla(self):
+        ej, _ = self.ejecutor([(3, AVISO_PAUSA, {}), (1, "boom", {})])
+        r = M.hermes_con_pausa(ej, "p", lambda: "f", "s1", registrar=lambda t: None)
+        self.assertFalse(r["fresca"])
+        self.assertNotEqual(0, r["rc"])
+        self.assertIsNotNone(r["pausa"])
+
+    def test_fresca_que_tambien_avisa_de_pausa_no_se_entrega(self):
+        ej, _ = self.ejecutor([(3, AVISO_PAUSA, {}), (0, AVISO_PAUSA, {})])
+        r = M.hermes_con_pausa(ej, "p", lambda: "f", "s1", registrar=lambda t: None)
+        self.assertEqual("", r["salida"])
+        self.assertNotEqual(0, r["rc"])
+
+    def test_sin_sesion_no_hay_segundo_intento(self):
+        ej, ll = self.ejecutor([(0, AVISO_PAUSA, {})])
+        r = M.hermes_con_pausa(ej, "p", lambda: "f", None, registrar=lambda t: None)
+        self.assertEqual(1, len(ll))
+        self.assertEqual("", r["salida"])
+
+
 if __name__ == "__main__":
     unittest.main()

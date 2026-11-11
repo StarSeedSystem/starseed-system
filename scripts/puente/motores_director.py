@@ -7,8 +7,10 @@ Codex (ChatGPT) y traduce sus salidas. Nunca guarda ni imprime claves.
 
 import json
 import os
+import re
 import signal
 import subprocess
+import sys
 
 MODELO_DIRECTOR = "claude-opus-5-5"
 
@@ -95,6 +97,107 @@ def orden_hermes(prompt: str, modelo=None, archivo_uso=None, sesion=None) -> lis
     if archivo_uso:
         orden += ["--usage-file", archivo_uso]
     return orden
+
+
+# ── HER1111K · sesión de Hermes en pausa ──────────────────────────────────────────
+# Cuando el gateway de Hermes muere a mitad de un turno, Hermes marca el turno perdido como
+# «desconocido» y bloquea esa sesión hasta que una persona lo confirme. Cada mensaje posterior
+# devuelve un aviso de pausa EN LUGAR de una respuesta (`hermes sessions discard --help`: con
+# `--resume <id> -q` sale con código 3). Ese aviso no es una respuesta y nunca se publica como tal.
+# Confirmar el turno perdido (`hermes sessions discard`) queda SIEMPRE en manos de una persona:
+# aquí solo se reconoce la pausa y se compone el texto de la orden para decírsela a Alex.
+
+CODIGO_PAUSA_HERMES = 3
+#: Trozos del aviso (en minúsculas, apóstrofe recto). La redacción de Hermes puede cambiar:
+#: basta con reconocer dos, o uno de los dos fuertes.
+_PAUSA_FUERTES = ("hermes sessions discard", "this chat is paused")
+_PAUSA_DEBILES = (
+    "couldn't confirm how the last turn ended",
+    "could not confirm how the last turn ended",
+    "paused turn",
+    "/discard",
+    "your message was not sent",
+    "won't re-run it by itself",
+)
+#: Un aviso de pausa es corto; una respuesta larga que lo mencione no lo es.
+_PAUSA_MAX_CHARS = 1500
+_ID_SESION = re.compile(r"hermes\s+sessions\s+discard\s+([A-Za-z0-9][A-Za-z0-9_\-]*)", re.IGNORECASE)
+_ID_SESION_SUELTO = re.compile(r"\b(\d{8}_\d{6}_[0-9a-f]+)\b")
+_FALLOS_HERMES = ("kept failing over", "every provider in the fallback chain", "invalid api key")
+
+
+def es_pausa_hermes(rc, salida) -> bool:
+    """PURA. ¿Lo que devolvió `hermes` es el aviso de sesión en pausa y no una respuesta?
+
+    Por el código de salida (3 sin texto, o 3 con rastro del aviso) y por el texto (aunque el
+    código sea 0, como se vio el 2026-11-11). Defensiva con la redacción: normaliza apóstrofes
+    y mayúsculas, y solo mira salidas cortas.
+    """
+    texto = (salida or "").replace("\u2019", "'").replace("\u2018", "'").lower()
+    fuertes = sum(1 for m in _PAUSA_FUERTES if m in texto)
+    debiles = sum(1 for m in _PAUSA_DEBILES if m in texto)
+    if rc == CODIGO_PAUSA_HERMES and (not texto.strip() or fuertes or debiles):
+        return True
+    if len(texto) > _PAUSA_MAX_CHARS:
+        return False
+    return fuertes >= 1 or debiles >= 2
+
+
+def es_fallo_hermes(texto) -> bool:
+    """PURA. «Ningún proveedor de la cadena contestó»: texto corto de error, no una respuesta."""
+    bajo = (texto or "").lower()
+    return len(bajo) < 600 and any(m in bajo for m in _FALLOS_HERMES)
+
+
+def id_sesion_pausada(salida, por_defecto=None):
+    """PURA. El id de sesión que nombra el aviso (`hermes sessions discard <id>`), o `por_defecto`."""
+    texto = salida or ""
+    for patron in (_ID_SESION, _ID_SESION_SUELTO):
+        m = patron.search(texto)
+        if m:
+            return m.group(1)
+    return por_defecto
+
+
+def orden_reabrir_hermes(sesion) -> str:
+    """PURA. La orden que REABRE la sesión, SOLO como texto para decírsela a Alex. No se ejecuta."""
+    return "hermes sessions discard %s --yes" % sesion
+
+
+def _registrar_pausa(crudo):
+    try:
+        import director_chat  # noqa: PLC0415 — mismo directorio
+
+        crudo = director_chat.tachar(crudo)
+    except Exception:  # noqa: BLE001 — el registro nunca rompe la entrega
+        pass
+    print("[hermes en pausa] salida cruda: %s" % crudo[:2000].replace("\n", " "), file=sys.stderr, flush=True)
+
+
+def hermes_con_pausa(ejecutar, prompt, prompt_fresco, sesion, registrar=None):
+    """Llama a Hermes; si su sesión está en pausa, reintenta en una sesión nueva (una sola vez).
+
+    `ejecutar(prompt, sesion) -> (rc, salida, uso)` lanza la orden. `prompt_fresco()` devuelve el
+    prompt con el contexto del hilo para la sesión nueva (sin `--resume` no recuerda nada).
+    Devuelve {rc, salida, uso, pausa, fresca}: `pausa` es None o {sesion, crudo}; `fresca` es True
+    si hay una respuesta válida de la sesión nueva. Si lo que queda es otro aviso de pausa, `salida`
+    sale vacía y `rc` distinto de 0: quien llama sigue su camino de fallo.
+    """
+    registrar = registrar or _registrar_pausa
+    rc, salida, uso = ejecutar(prompt, sesion)
+    if not es_pausa_hermes(rc, salida):
+        return {"rc": rc, "salida": salida, "uso": uso, "pausa": None, "fresca": False}
+    registrar(salida or "(sin texto, rc=%s)" % rc)
+    pausa = {"sesion": id_sesion_pausada(salida, sesion), "crudo": (salida or "")[:2000]}
+    if not sesion:
+        # Ya era una conversación nueva y aun así avisa de pausa: no hay otra vía que probar.
+        return {"rc": rc or 1, "salida": "", "uso": uso, "pausa": pausa, "fresca": False}
+    rc2, salida2, uso2 = ejecutar(prompt_fresco(), None)
+    if es_pausa_hermes(rc2, salida2):
+        registrar(salida2 or "(sin texto, rc=%s)" % rc2)
+        return {"rc": rc2 or 1, "salida": "", "uso": uso2, "pausa": pausa, "fresca": False}
+    bien = rc2 == 0 and bool((salida2 or "").strip()) and not es_fallo_hermes(salida2)
+    return {"rc": rc2, "salida": salida2, "uso": uso2, "pausa": pausa, "fresca": bien}
 
 
 def orden_codex(modelo: str, raiz: str) -> list:

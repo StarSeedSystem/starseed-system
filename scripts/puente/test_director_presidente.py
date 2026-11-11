@@ -288,5 +288,156 @@ class TestPublicarDesdeLaTerminal(unittest.TestCase):
             self.assertEqual("viejo", dc.leer(raiz=tmp)[0]["texto"])
 
 
+AVISO_PAUSA = (
+    "\u23f8 This chat is paused. Hermes couldn't confirm how the last turn ended (usually because it "
+    "restarted mid-turn): \"Diriges el enjambre\u2026\" Hermes won't re-run it by itself. Your message was "
+    "not sent. To continue, run `hermes sessions discard 20260909_210504_867626 --yes`, or resume this "
+    "session in an interactive chat and /discard the paused turn there; then send it again."
+)
+SESION = "20260909_210504_867626"
+
+
+class FalsoHermesPausado:
+    """`correr` falso de Hermes: la sesi\u00f3n (`--resume`) est\u00e1 en pausa mientras `pausada`; sin
+    `--resume` contesta `fresca`. Guarda cada orden para ver qu\u00e9 se lanz\u00f3."""
+
+    def __init__(self, pausada=True, fresca=(0, "Respuesta desde sesi\u00f3n nueva"), reanudada=(0, "Vuelvo")):
+        self.pausada, self.fresca, self.reanudada = pausada, fresca, reanudada
+        self.ordenes = []
+
+    def __call__(self, orden, entrada=None, segundos=300, env=None, cwd=None):
+        self.ordenes.append(list(orden))
+        assert orden[0] == "hermes", orden
+        assert "discard" not in orden and "sessions" not in orden  # jam\u00e1s se confirma el turno perdido
+        if "--resume" in orden:
+            return (3, AVISO_PAUSA) if self.pausada else self.reanudada
+        return self.fresca
+
+
+class TestHermesPausado(Base):
+    def atender_h(self, falso, **kw):
+        sin_claude = lambda n: n == "hermes"  # noqa: E731
+        return P.atender(self.alex, self.estado, raiz=self.raiz, correr=falso, existe=sin_claude, limites={},
+                         ahora=kw.pop("ahora", AHORA), tope_opus=40, sesion_hermes=SESION)
+
+    def avisos(self):
+        return [r for r in self.chat() if r.get("tipo") == "aviso"]
+
+    def test_pausada_y_fresca_contesta_con_contexto_y_lo_dice(self):
+        dc.publicar("Hilo previo de otro director", de="hermes", rol="director", tipo="informe", raiz=self.raiz)
+        falso = FalsoHermesPausado()
+        self.assertEqual("respondido", self.atender_h(falso))
+        self.assertEqual(2, len(falso.ordenes))
+        self.assertIn("--resume", falso.ordenes[0])
+        self.assertNotIn("--resume", falso.ordenes[1])
+        prompt_fresco = falso.ordenes[1][falso.ordenes[1].index("-z") + 1]
+        self.assertIn("Hilo previo de otro director", prompt_fresco)
+        self.assertIn("sesi\u00f3n nueva", prompt_fresco)
+        r = self.respuestas()[-1]
+        self.assertEqual("Respuesta desde sesi\u00f3n nueva", r["texto"])
+        self.assertNotIn("paused", r["texto"])
+        self.assertTrue(r["eleccion"]["sesionNueva"])
+        self.assertIn("sesi\u00f3n nueva", r["eleccion"]["modelo"])
+        self.assertIn("en pausa", r["eleccion"]["modelo"])
+        self.assertEqual("hermes-sesion-nueva", r["uso"]["via"])
+        self.assertEqual("respondido", self.entregas()[-1]["estado"])
+
+    def test_pausada_y_fresca_falla_sigue_el_camino_de_fallo_sin_publicar_la_pausa(self):
+        falso = FalsoHermesPausado(fresca=(1, "boom"))
+        sin_codex = lambda n: n == "hermes"  # noqa: E731
+        self.assertEqual("cola", self.atender_h(falso))
+        self.assertEqual([], self.respuestas())
+        self.assertFalse(any("paused" in (r.get("texto") or "") for r in self.chat()))
+        self.assertIn("hermes", self.estado["presidente"]["enfriados"])
+        self.assertEqual(1, len(self.avisos()))  # la pausa es real aunque la sesi\u00f3n nueva fallara
+        del sin_codex
+
+    def test_pausada_y_fresca_falla_pasa_al_siguiente_proveedor(self):
+        class Dos(FalsoHermesPausado):
+            def __call__(self, orden, **k):
+                if orden[0] == "codex":
+                    return (0, "Respuesta de Codex")
+                return super().__call__(orden, **k)
+
+        falso = Dos(fresca=(1, "boom"))
+        r = P.atender(self.alex, self.estado, raiz=self.raiz, correr=falso, existe=lambda n: n != "claude",
+                      limites={}, ahora=AHORA, tope_opus=40, sesion_hermes=SESION)
+        self.assertEqual("respondido", r)
+        self.assertEqual("chatgpt", self.respuestas()[-1]["eleccion"]["proveedor"])
+
+    def test_sin_pausa_no_hay_aviso_ni_segunda_llamada(self):
+        falso = FalsoHermesPausado(pausada=False)
+        self.assertEqual("respondido", self.atender_h(falso))
+        self.assertEqual(1, len(falso.ordenes))
+        self.assertEqual([], self.avisos())
+        r = self.respuestas()[-1]
+        self.assertNotIn("sesionNueva", r["eleccion"])
+        self.assertEqual("hermes/predeterminado", r["eleccion"]["modelo"])
+
+    def test_aviso_una_vez_por_sesion_y_otra_pasado_un_dia(self):
+        falso = FalsoHermesPausado()
+        self.atender_h(falso)
+        avisos = self.avisos()
+        self.assertEqual(1, len(avisos))
+        t = avisos[0]["texto"]
+        self.assertIn(SESION, t)
+        self.assertIn("hermes sessions discard %s --yes" % SESION, t)
+        self.assertIn("en pausa", t)
+        self.assertIn("sesiones nuevas", t)
+        self.assertEqual(("cartero", "sistema", "mando"), (avisos[0]["de"], avisos[0]["rol"], avisos[0]["canal"]))
+        # Otro mensaje, misma sesi\u00f3n en pausa: no se repite.
+        otro = dc.publicar("Otra pregunta", de="alex", rol="alex", tipo="mensaje",
+                           canales=["director-presidente"], raiz=self.raiz)
+        P.atender(otro, self.estado, raiz=self.raiz, correr=falso, existe=lambda n: n == "hermes",
+                  limites={}, ahora=AHORA + 3600, tope_opus=40, sesion_hermes=SESION)
+        self.assertEqual(1, len(self.avisos()))
+        # Un d\u00eda despu\u00e9s y sigue en pausa: otra vez.
+        otro2 = dc.publicar("Y otra", de="alex", rol="alex", tipo="mensaje",
+                            canales=["director-presidente"], raiz=self.raiz)
+        P.atender(otro2, self.estado, raiz=self.raiz, correr=falso, existe=lambda n: n == "hermes",
+                  limites={}, ahora=AHORA + P.REAVISO_PAUSA_S + 1, tope_opus=40, sesion_hermes=SESION)
+        self.assertEqual(2, len(self.avisos()))
+
+    def test_al_reabrirse_vuelve_sola_y_lo_dice_una_vez(self):
+        falso = FalsoHermesPausado()
+        self.atender_h(falso)
+        falso.pausada = False
+        otro = dc.publicar("Ya?", de="alex", rol="alex", tipo="mensaje",
+                           canales=["director-presidente"], raiz=self.raiz)
+        r = P.atender(otro, self.estado, raiz=self.raiz, correr=falso, existe=lambda n: n == "hermes",
+                      limites={}, ahora=AHORA + 600, tope_opus=40, sesion_hermes=SESION)
+        self.assertEqual("respondido", r)
+        self.assertEqual("Vuelvo", self.respuestas()[-1]["texto"])
+        self.assertNotIn("sesionNueva", self.respuestas()[-1]["eleccion"])
+        vueltas = [a for a in self.avisos() if "vuelve a estar abierta" in a["texto"]]
+        self.assertEqual(1, len(vueltas))
+        self.assertEqual({}, self.estado["hermes_pausas"])
+        # Un tercer mensaje ya no repite nada.
+        t = dc.publicar("Otra", de="alex", rol="alex", tipo="mensaje", canales=["director-presidente"],
+                        raiz=self.raiz)
+        P.atender(t, self.estado, raiz=self.raiz, correr=falso, existe=lambda n: n == "hermes", limites={},
+                  ahora=AHORA + 700, tope_opus=40, sesion_hermes=SESION)
+        self.assertEqual(1, len([a for a in self.avisos() if "vuelve a estar abierta" in a["texto"]]))
+        self.assertEqual(1, len([a for a in self.avisos() if "est\u00e1 en pausa" in a["texto"]]))
+
+
+class TestPromptSesionFresca(unittest.TestCase):
+    def test_lleva_contexto_hilo_y_nota(self):
+        hilo = [{"id": "a", "rol": "alex", "tipo": "mensaje", "texto": "uno"}]
+        p = P.prompt_sesion_fresca("\u00bfy ahora?", hilo, "CTX")
+        self.assertIn("sesi\u00f3n nueva", p)
+        self.assertIn("CTX", p)
+        self.assertIn("uno", p)
+        self.assertIn("\u00bfy ahora?", p)
+
+    def test_acotado_descarta_lo_mas_antiguo_y_conserva_la_pregunta(self):
+        hilo = [{"id": str(i), "rol": "alex", "tipo": "mensaje", "texto": ("m%02d " % i) * 300} for i in range(20)]
+        p = P.prompt_sesion_fresca("PREGUNTA FINAL", hilo, "c" * 8000, tope=6000)
+        self.assertLessEqual(len(p), 6000)
+        self.assertIn("PREGUNTA FINAL", p)
+        self.assertIn("m19", p)
+        self.assertNotIn("m00", p)
+
+
 if __name__ == "__main__":
     unittest.main()

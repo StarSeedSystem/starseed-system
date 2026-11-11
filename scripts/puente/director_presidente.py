@@ -52,7 +52,10 @@ MAX_COLA = 200
 RAIZ = Path(__file__).resolve().parent.parent.parent
 
 #: Lo que Hermes escribe cuando NINGÚN proveedor de su cadena contestó: no es una respuesta.
-_FALLOS_HERMES = ("kept failing over", "every provider in the fallback chain", "invalid api key")
+_FALLOS_HERMES = motores_director._FALLOS_HERMES
+#: HER1111K · tope del prompt de una sesión nueva de Hermes (caracteres) y aviso de pausa repetido a diario.
+TOPE_PROMPT_FRESCO = 24000
+REAVISO_PAUSA_S = 24 * 3600
 
 
 # ── Qué cuenta como dirección (igual que `esDireccion` de chat-director-feed.ts) ──────
@@ -89,10 +92,10 @@ def hilo_direccion(registros, excluir_id=None, maximo=20):
     return hilo[-maximo:]
 
 
-def prompt_presidente(pregunta, hilo, contexto=""):
+def prompt_presidente(pregunta, hilo, contexto="", rol_texto=None):
     """PURA. El prompt del presidente: reglas, contexto del proyecto y el hilo de dirección."""
     partes = [
-        "Eres el Director presidente de Genesis (StarSeed OS): la voz principal de la "
+        rol_texto or "Eres el Director presidente de Genesis (StarSeed OS): la voz principal de la "
         "dirección. Responde en español, claro y breve, con la síntesis de lo que han dicho "
         "los demás directores cuando venga al caso.",
         "Reglas: no escribes código (lo escribe el enjambre tarea a tarea); propones olas, "
@@ -110,6 +113,29 @@ def prompt_presidente(pregunta, hilo, contexto=""):
         partes.append("Hilo de dirección (lo más reciente al final):\n" + "\n".join(lineas))
     partes.append("Mensaje de Alex al Director presidente: " + (pregunta or ""))
     return "\n\n".join(partes)
+
+
+def prompt_sesion_fresca(pregunta, hilo, contexto="", rol_texto=None, tope=TOPE_PROMPT_FRESCO):
+    """PURA. (HER1111K) Prompt para una sesión NUEVA de Hermes: no recuerda nada, así que lleva el
+    mismo contexto y el mismo hilo de dirección que se le daría al presidente, acotado a `tope`
+    caracteres (se descartan primero los mensajes más antiguos del hilo y luego se recorta el contexto)."""
+    nota = ("Nota: esta es una sesión nueva de Hermes (la sesión de dirección está en pausa). No "
+            "recuerdas la conversación: lo que sigue es el contexto y el hilo reciente.")
+    hilo = list(hilo or [])
+    contexto = contexto or ""
+    while True:
+        prompt = nota + "\n\n" + prompt_presidente(pregunta, hilo, contexto, rol_texto)
+        exceso = len(prompt) - tope
+        if exceso <= 0:
+            return prompt
+        if len(contexto) > 1500:  # primero el contexto del proyecto (el hilo vale más)
+            contexto = contexto[: max(1500, len(contexto) - exceso)]
+        elif hilo:
+            hilo = hilo[1:]
+        elif contexto:
+            contexto = ""
+        else:
+            return prompt[:tope]
 
 
 # ── Quién puede contestar ahora ──────────────────────────────────────────────────
@@ -196,25 +222,41 @@ def _llamar_claude(prompt, correr):
     return lectura["texto"].strip(), "", uso
 
 
-def _llamar_hermes(prompt, correr, sesion=None):
+def _ejecutar_hermes(correr):
+    """`ejecutar(prompt, sesion) -> (rc, salida, uso)` con el archivo de uso temporal de Hermes."""
     import json  # noqa: PLC0415
 
-    with tempfile.NamedTemporaryFile(mode="r", suffix=".json", delete=False, encoding="utf-8") as f:
-        archivo_uso = f.name
-    try:
-        rc, salida = correr(motores_director.orden_hermes(prompt, None, archivo_uso, sesion), segundos=600)
+    def ejecutar(prompt, sesion):
+        with tempfile.NamedTemporaryFile(mode="r", suffix=".json", delete=False, encoding="utf-8") as f:
+            archivo_uso = f.name
         try:
-            datos = json.loads(Path(archivo_uso).read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            datos = {}
-    finally:
-        try:
-            os.unlink(archivo_uso)
-        except OSError:
-            pass
-    texto = (salida or "").strip()
-    bajo = texto.lower()
-    if (rc != 0 and not texto) or not texto or (len(texto) < 600 and any(m in bajo for m in _FALLOS_HERMES)):
+            rc, salida = correr(motores_director.orden_hermes(prompt, None, archivo_uso, sesion), segundos=600)
+            try:
+                datos = json.loads(Path(archivo_uso).read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                datos = {}
+        finally:
+            try:
+                os.unlink(archivo_uso)
+            except OSError:
+                pass
+        return rc, salida, datos
+
+    return ejecutar
+
+
+def _llamar_hermes(prompt, correr, sesion=None, prompt_fresco=None, info=None):
+    """(HER1111K) Con `sesion` en pausa, reintenta en una sesión nueva con `prompt_fresco()`.
+    `info` (dict) recibe {"pausa": …, "fresca": bool} para que `atender` avise y atribuya."""
+    res = motores_director.hermes_con_pausa(
+        _ejecutar_hermes(correr), prompt, prompt_fresco or (lambda: prompt), sesion)
+    if info is not None:
+        info["pausa"], info["fresca"] = res["pausa"], res["fresca"]
+    rc, datos = res["rc"], res["uso"] or {}
+    texto = (res["salida"] or "").strip()
+    if res["pausa"] and not res["fresca"]:
+        return None, "la sesión de dirección de Hermes está en pausa y la sesión nueva tampoco contestó", {}
+    if (rc != 0 and not texto) or not texto or motores_director.es_fallo_hermes(texto):
         return None, director_chat.tachar((texto or "sin salida (rc=%s)" % rc)[:200]), {}
     uso = {"tokensEntrada": datos.get("input_tokens", 0), "tokensSalida": datos.get("output_tokens", 0),
            "coste": datos.get("cost_usd", 0.0)}
@@ -227,6 +269,71 @@ def _llamar_chatgpt(prompt, correr):
     if rc != 0 or not texto:
         return None, director_chat.tachar((texto or "sin salida (rc=%s)" % rc)[:200]), {}
     return texto, "", {}
+
+
+# ── HER1111K · avisos de la sesión de Hermes en pausa ────────────────────────────
+
+def _hora_local(epoch):
+    return datetime.fromtimestamp(epoch, timezone.utc).astimezone().strftime("%Y-%m-%d %H:%M")
+
+
+def texto_aviso_pausa(sesion, desde):
+    """PURA. El aviso para Alex: qué sesión, desde cuándo, qué significa, qué hace Genesis, cómo se reabre."""
+    return (
+        "La sesión de dirección de Hermes (%s) está en pausa, detectada el %s. Hermes la bloqueó porque no "
+        "pudo confirmar cómo terminó su último turno (suele pasar si se reinicia a mitad de turno) y no la "
+        "usa hasta que una persona lo confirme; el mensaje que llegue a esa sesión no se envía. Mientras "
+        "tanto Genesis sigue contestando desde sesiones nuevas de Hermes, con el hilo de dirección como "
+        "contexto, y cada respuesta lo dice. Para reabrirla, en la Mac: %s (descarta ese turno perdido; "
+        "no se repite). Al siguiente mensaje Genesis vuelve a ella solo y te lo dirá."
+        % (sesion, _hora_local(desde), motores_director.orden_reabrir_hermes(sesion))
+    )
+
+
+def texto_aviso_recuperada(sesion):
+    return ("La sesión de dirección de Hermes (%s) vuelve a estar abierta: Genesis ha vuelto a contestar "
+            "desde ella." % sesion)
+
+
+def _publicar_aviso(texto, raiz):
+    director_chat.publicar(texto, de="cartero", rol="sistema", tipo="aviso", canal="mando", raiz=raiz)
+
+
+def avisar_pausa_hermes(estado, pausa, raiz=None, ahora=None):
+    """Avisa a Alex UNA vez por sesión en pausa (otra vez solo si pasa un día y sigue). Guarda en
+    `estado["hermes_pausas"]` {sesión: {desde, avisado}}. Devuelve True si publicó el aviso."""
+    ahora = time.time() if ahora is None else ahora
+    sesion = (pausa or {}).get("sesion")
+    if not sesion:
+        return False
+    pausas = estado.setdefault("hermes_pausas", {})
+    reg = pausas.setdefault(sesion, {"desde": ahora, "avisado": 0})
+    if reg.get("avisado") and ahora - float(reg["avisado"]) < REAVISO_PAUSA_S:
+        return False
+    try:
+        _publicar_aviso(texto_aviso_pausa(sesion, float(reg.get("desde") or ahora)), raiz)
+    except (OSError, ValueError):
+        return False  # sin aviso publicado no se anota: se intenta en el siguiente mensaje
+    reg["avisado"] = ahora
+    return True
+
+
+def hermes_reabierta(estado, sesion, raiz=None):
+    """Si la sesión estaba anotada en pausa y ya contesta, lo dice UNA vez y borra la anotación."""
+    pausas = (estado or {}).get("hermes_pausas")
+    if not pausas or not sesion or sesion not in pausas:
+        return False
+    try:
+        _publicar_aviso(texto_aviso_recuperada(sesion), raiz)
+    except (OSError, ValueError):
+        return False
+    pausas.clear()  # otras anotaciones eran de sesiones que ya no son la de dirección
+    return True
+
+
+def descripcion_sesion_nueva(sesion_pausada):
+    return "sesión nueva de Hermes: la de dirección%s está en pausa" % (
+        " (%s)" % sesion_pausada if sesion_pausada else "")
 
 
 def fuera_de_vista(estado, ids_vistos):
@@ -281,15 +388,24 @@ def atender(mensaje, estado, raiz=None, correr=None, existe=None, limites=None,
 
     if registros is None:
         registros = director_chat.leer(limite=200, raiz=raiz)
-    prompt = prompt_presidente(mensaje.get("texto", ""), hilo_direccion(registros, idm), contexto)
+    hilo = hilo_direccion(registros, idm)
+    prompt = prompt_presidente(mensaje.get("texto", ""), hilo, contexto)
 
     for p in candidatos:
         inicio = time.time()
+        info = {}
         try:
             if p == "claude":
                 texto, motivo, uso = _llamar_claude(prompt, correr)
             elif p == "hermes":
-                texto, motivo, uso = _llamar_hermes(prompt, correr, sesion_hermes)
+                texto, motivo, uso = _llamar_hermes(
+                    prompt, correr, sesion_hermes,
+                    lambda: prompt_sesion_fresca(mensaje.get("texto", ""), hilo, contexto), info)
+                # HER1111K: aviso único de la pausa / de la vuelta a la sesión de dirección.
+                if info.get("pausa"):
+                    avisar_pausa_hermes(estado, info["pausa"], raiz=raiz, ahora=ahora)
+                elif texto and sesion_hermes:
+                    hermes_reabierta(estado, sesion_hermes, raiz=raiz)
             else:
                 texto, motivo, uso = _llamar_chatgpt(prompt, correr)
         except OSError as e:
@@ -304,6 +420,11 @@ def atender(mensaje, estado, raiz=None, correr=None, existe=None, limites=None,
         uso = dict(uso)
         uso["segundos"] = round(time.time() - inicio, 1)
         eleccion = {"proveedor": p, "modelo": MODELOS[p]}
+        if p == "hermes" and info.get("fresca"):
+            # La tarjeta enseña «Contestó Hermes · <modelo>»: aquí queda dicho que fue una sesión nueva.
+            eleccion["modelo"] = "%s (%s)" % (MODELOS[p], descripcion_sesion_nueva((info["pausa"] or {}).get("sesion")))
+            eleccion["sesionNueva"] = True
+            uso["via"] = "hermes-sesion-nueva"
         if descartes:
             eleccion["descartes"] = [{"proveedor": d, "motivo": m} for d, m in descartes]
         director_chat.publicar(

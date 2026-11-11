@@ -182,6 +182,22 @@ de los 200 registros que lee el cartero.
 `PROVEEDORES_PRESIDENTE`/`PROVEEDORES`, tienen el mismo orden; `chat-director-direccion.test.ts` y
 `test_director_presidente.py` fallan si se separan.
 
+### Sesión de dirección de Hermes en pausa (HER1111K · 2026-11-11)
+
+Hermes bloquea una sesión cuando su gateway muere a mitad de turno y no la usa hasta que una persona confirme
+el turno perdido; mientras, cada mensaje devuelve un aviso de pausa (`hermes --resume <id> -z …`, código 3 o,
+como se vio, 0). `motores_director.es_pausa_hermes(rc, salida)` lo reconoce por código y por texto (defensivo:
+salidas cortas con «hermes sessions discard», «this chat is paused» u otros rastros) y `hermes_con_pausa`
+reintenta UNA vez sin `--resume` (sesión nueva, un solo tiro) con el contexto y el hilo de dirección del
+presidente acotados a 24 000 caracteres. El aviso crudo va al registro del cartero y **nunca** se publica como
+respuesta; si la sesión nueva también falla, sigue el camino de fallo de siempre (siguiente proveedor / cola /
+`fallo`). La respuesta sale atribuida: `uso.via = "hermes-sesion-nueva"`, `eleccion.modelo` con «sesión nueva…
+en pausa» y `eleccion.sesionNueva` (presidente), o una primera línea en el texto (canal `hermes`). Alex recibe UN
+aviso del cartero por sesión en pausa (id, desde cuándo, qué significa, que Genesis sigue con sesiones nuevas y
+la orden `hermes sessions discard <id> --yes`); `cartero-estado.json › hermes_pausas` lo recuerda y solo lo repite
+si pasa un día y sigue. Cada mensaje prueba antes la sesión de dirección: al reabrirse, Genesis vuelve a ella
+sola y lo dice una vez. Confirmar el turno perdido es de una persona: ningún código lo ejecuta.
+
 ## 9. La respuesta final de un director de fuera de Genesis
 
 ```

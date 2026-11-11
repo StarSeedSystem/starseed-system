@@ -57,6 +57,7 @@ def cargar_estado(raiz=None):
     estado.setdefault("ultimo_informe", 0.0)
     estado.setdefault("opus_fecha", "")
     estado.setdefault("opus_hoy", 0)
+    estado.setdefault("hermes_pausas", {})  # HER1111K: sesiones de Hermes en pausa ya avisadas
     return estado
 
 
@@ -204,45 +205,73 @@ def _entregar_claude_mac(mensaje, estado, modelo_pedido, raiz=None, canal="claud
     )
 
 
-def _entregar_hermes(mensaje, modelo_pedido, raiz=None):
+def _entregar_hermes(mensaje, modelo_pedido, raiz=None, estado=None):
     modelo = modelo_pedido.split("/", 1)[-1] if "/" in modelo_pedido else None
-    with tempfile.NamedTemporaryFile(
-        mode="r", suffix=".json", delete=False, encoding="utf-8"
-    ) as f:
-        archivo_uso = f.name
+    estado = estado if estado is not None else {}
+    sesion = motores_director.direccion_motor().get("sesion")
     inicio = time.time()
-    try:
-        rc, salida = motores_director.correr(
-            motores_director.orden_hermes(
-                mensaje.get("texto", ""), modelo, archivo_uso,
-                motores_director.direccion_motor().get("sesion"),
-            ),
-            segundos=600,
-        )
+
+    def ejecutar(prompt, ses):
+        with tempfile.NamedTemporaryFile(
+            mode="r", suffix=".json", delete=False, encoding="utf-8"
+        ) as f:
+            archivo_uso = f.name
         try:
-            datos_uso = json.loads(Path(archivo_uso).read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            datos_uso = {}
-    finally:
-        try:
-            os.unlink(archivo_uso)
-        except OSError:
-            pass
-    if rc != 0 and not salida.strip():
-        _fallo(
-            mensaje,
-            "hermes",
-            director_chat.tachar((salida or "sin salida")[:300]),
-            raiz=raiz,
+            rc, salida = motores_director.correr(
+                motores_director.orden_hermes(prompt, modelo, archivo_uso, ses),
+                segundos=600,
+            )
+            try:
+                datos = json.loads(Path(archivo_uso).read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                datos = {}
+        finally:
+            try:
+                os.unlink(archivo_uso)
+            except OSError:
+                pass
+        return rc, salida, datos
+
+    def prompt_fresco():
+        # HER1111K: una sesión nueva no recuerda el hilo; lleva el mismo contexto que el presidente.
+        registros = director_chat.leer(limite=200, raiz=raiz)
+        return director_presidente.prompt_sesion_fresca(
+            mensaje.get("texto", ""),
+            director_presidente.hilo_direccion(registros, mensaje.get("id")),
+            _contexto(),
+            rol_texto="Eres Hermes, una de las direcciones de Genesis (StarSeed OS). Responde en "
+                      "español, claro y breve.",
         )
+
+    res = motores_director.hermes_con_pausa(ejecutar, mensaje.get("texto", ""), prompt_fresco, sesion)
+    rc, salida, datos_uso = res["rc"], res["salida"] or "", res["uso"] or {}
+    pausa = res["pausa"]
+    if pausa:
+        director_presidente.avisar_pausa_hermes(estado, pausa, raiz=raiz)
+    # Un aviso de pausa o el fallo de la cadena de Hermes nunca se publican como respuesta.
+    if (pausa and not res["fresca"]) or rc != 0 or not salida.strip() \
+            or motores_director.es_fallo_hermes(salida):
+        detalle = (
+            "la sesión de dirección de Hermes está en pausa y la sesión nueva tampoco contestó"
+            if pausa
+            else (salida or "sin salida (rc=%s)" % rc)[:300]
+        )
+        _fallo(mensaje, "hermes", director_chat.tachar(detalle), raiz=raiz)
         return
+    if sesion and not pausa:
+        director_presidente.hermes_reabierta(estado, sesion, raiz=raiz)
     uso = {
         "tokensEntrada": datos_uso.get("input_tokens", 0),
         "tokensSalida": datos_uso.get("output_tokens", 0),
         "segundos": round(time.time() - inicio, 1),
         "coste": datos_uso.get("cost_usd", 0.0),
     }
-    _publicar_respuesta(mensaje, "hermes", salida.strip(), modelo_pedido, uso, raiz)
+    texto = salida.strip()
+    if res["fresca"]:
+        nota = director_presidente.descripcion_sesion_nueva(pausa.get("sesion"))
+        uso["via"] = "hermes-sesion-nueva"
+        texto = "(%s.)\n\n%s" % (nota[0].upper() + nota[1:], texto)
+    _publicar_respuesta(mensaje, "hermes", texto, modelo_pedido, uso, raiz)
 
 
 def _entregar_chatgpt(mensaje, modelo_pedido, raiz=None):
@@ -312,7 +341,7 @@ def atender(mensaje, canal, estado, raiz=None):
     try:
         if canal in ("claude-mac", "claude-cowork") and motores_director.direccion_motor()["motor"] == "hermes":
             # (2026-10-29, DIR1029A) La dirección va por Hermes: contesta en su sesión de dirección.
-            _entregar_hermes(mensaje, "hermes/predeterminado", raiz=raiz)
+            _entregar_hermes(mensaje, "hermes/predeterminado", raiz=raiz, estado=estado)
         elif canal in ("claude-mac", "claude-cowork"):
             _entregar_claude_mac(
                 mensaje,
@@ -323,7 +352,7 @@ def atender(mensaje, canal, estado, raiz=None):
             )
         elif canal == "hermes":
             _entregar_hermes(
-                mensaje, mensaje.get("modelo") or "hermes/predeterminado", raiz=raiz
+                mensaje, mensaje.get("modelo") or "hermes/predeterminado", raiz=raiz, estado=estado
             )
         elif canal == "chatgpt":
             _entregar_chatgpt(

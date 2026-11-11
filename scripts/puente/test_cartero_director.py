@@ -279,5 +279,121 @@ class TestClaudeCoworkAlMomento(unittest.TestCase):
         self.assertEqual("claude-mac", k["de"])
         self.assertNotIn("via", k["uso"])
 
+
+class TestHermesPausadoEnElCartero(unittest.TestCase):
+    """HER1111K: el canal hermes nunca publica el aviso de pausa como respuesta."""
+
+    SESION = "20260909_210504_867626"
+    AVISO = (
+        "\u23f8 This chat is paused. Hermes couldn't confirm how the last turn ended: \"Diriges\u2026\" "
+        "Your message was not sent. To continue, run `hermes sessions discard 20260909_210504_867626 --yes`."
+    )
+
+    def setUp(self):
+        from unittest import mock
+        import director_chat as dc
+        self.mock, self.dc = mock, dc
+        self.tmp = tempfile.TemporaryDirectory()
+        self.raiz = self.tmp.name
+        self.alex = dc.publicar("\u00bfestado?", de="alex", rol="alex", tipo="mensaje",
+                                canales=["hermes"], raiz=self.raiz)
+        self.estado = {"atendidos": [], "sesion_claude": None, "opus_fecha": "", "opus_hoy": 0}
+        self.ordenes = []
+        self.pausada = True
+        self.fresca = (0, "respuesta fresca")
+        p = mock.patch.object(C.motores_director, "direccion_motor",
+                              return_value={"motor": "hermes", "sesion": self.SESION})
+        p.start()
+        self.addCleanup(p.stop)
+        q = mock.patch.object(C.motores_director, "correr", side_effect=self.correr)
+        q.start()
+        self.addCleanup(q.stop)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def correr(self, orden, **k):
+        self.ordenes.append(list(orden))
+        assert "discard" not in orden
+        if "--resume" in orden:
+            return (3, self.AVISO) if self.pausada else (0, "de la sesi\u00f3n de dirección")
+        return self.fresca
+
+    def chat(self):
+        return self.dc.leer(limite=500, raiz=self.raiz)
+
+    def entregar(self, mensaje=None):
+        C.atender(mensaje or self.alex, "hermes", self.estado, raiz=self.raiz)
+
+    def respuestas(self):
+        return [r for r in self.chat() if r.get("tipo") == "respuesta"]
+
+    def avisos(self):
+        return [r for r in self.chat() if r.get("tipo") == "aviso"]
+
+    def ultima_entrega(self, idm):
+        return [r for r in self.chat() if r.get("tipo") == "entrega" and r.get("de_id") == idm][-1]["estado"]
+
+    def test_pausada_responde_desde_sesion_nueva_con_contexto_y_dice_que_lo_es(self):
+        self.dc.publicar("Informe de otro director", de="chatgpt", rol="director", tipo="informe", raiz=self.raiz)
+        self.entregar()
+        self.assertEqual(2, len(self.ordenes))
+        self.assertNotIn("--resume", self.ordenes[1])
+        fresco = self.ordenes[1][self.ordenes[1].index("-z") + 1]
+        self.assertIn("Informe de otro director", fresco)
+        self.assertIn("\u00bfestado?", fresco)
+        r = self.respuestas()[-1]
+        self.assertIn("respuesta fresca", r["texto"])
+        self.assertIn("Sesi\u00f3n nueva de Hermes", r["texto"])
+        self.assertNotIn("paused", r["texto"])
+        self.assertEqual("hermes-sesion-nueva", r["uso"]["via"])
+        self.assertEqual("respondido", self.ultima_entrega(self.alex["id"]))
+
+    def test_pausada_y_fresca_falla_es_fallo_y_no_se_publica_la_pausa(self):
+        self.fresca = (1, "boom")
+        self.entregar()
+        self.assertEqual([], self.respuestas())
+        self.assertFalse(any("paused" in (r.get("texto") or "") for r in self.chat()))
+        self.assertEqual("fallo", self.ultima_entrega(self.alex["id"]))
+
+    def test_no_pausada_una_llamada_y_sin_avisos(self):
+        self.pausada = False
+        self.entregar()
+        self.assertEqual(1, len(self.ordenes))
+        self.assertEqual("de la sesi\u00f3n de direcci\u00f3n", self.respuestas()[-1]["texto"])
+        self.assertEqual([], self.avisos())
+
+    def test_aviso_una_sola_vez_aunque_lleguen_varios_mensajes(self):
+        self.entregar()
+        for i in range(3):
+            m = self.dc.publicar("otro %d" % i, de="alex", rol="alex", tipo="mensaje", canales=["hermes"],
+                                 raiz=self.raiz)
+            self.entregar(m)
+        avisos = self.avisos()
+        self.assertEqual(1, len(avisos))
+        self.assertIn("hermes sessions discard %s --yes" % self.SESION, avisos[0]["texto"])
+        self.assertEqual(4, len(self.respuestas()))
+
+    def test_recuperacion_vuelve_sola_y_lo_dice_una_vez(self):
+        self.entregar()
+        self.pausada = False
+        for i in range(2):
+            m = self.dc.publicar("ya %d" % i, de="alex", rol="alex", tipo="mensaje", canales=["hermes"],
+                                 raiz=self.raiz)
+            self.entregar(m)
+        self.assertEqual(1, len([a for a in self.avisos() if "vuelve a estar abierta" in a["texto"]]))
+        self.assertEqual({}, self.estado["hermes_pausas"])
+        self.assertEqual("de la sesi\u00f3n de direcci\u00f3n", self.respuestas()[-1]["texto"])
+
+    def test_error_de_hermes_con_texto_no_se_publica_como_respuesta(self):
+        self.pausada = False
+        self.mock.patch.object(C.motores_director, "correr", return_value=(
+            1, "Error: every provider in the fallback chain kept failing over")).start()
+        self.entregar()
+        self.assertEqual([], self.respuestas())
+        self.assertEqual("fallo", self.ultima_entrega(self.alex["id"]))
+        self.mock.patch.stopall()
+
+
 if __name__ == "__main__":
     unittest.main()
