@@ -6865,3 +6865,10 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 
 **Lo que quedó fuera, una por una:**
 - `P37-1111-rc` — la revisión lo rechazó: no toco NINGUNO de los 1 archivos que declaraba (rama ola/P37-1111-rc conservada)
+
+## 2026-11-11 11:11 · auto-1111-104704
+
+**Resultado.** 0 de 1 integradas. 1 tarea se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `P37-1111-rc` — otra cosa: sin decisión en 0 h; rama ola/P37-1111-rc conservada
