@@ -1,0 +1,16 @@
+{
+  "formato": 1,
+  "pruebas": {
+    "36": {
+      "version": "0.5.1-prueba.36",
+      "sha": "a8051ea953aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "comprobaciones": [
+        { "id": "c1", "texto": "Tres llamadas Mac ↔ tablet solo por Bluetooth, con cámara", "aparato": "Mac", "estado": "bien", "nota": "", "quien": "alex", "t": "2026-11-11T09:00:00Z" },
+        { "id": "c2", "texto": "Calidad › Cámara: cambiar a la del iPhone y volver", "aparato": "Mac", "estado": "falla", "nota": "selector vacío", "quien": "alex", "t": "2026-11-11T09:05:00Z" },
+        { "id": "c3", "texto": "Con el Wi-Fi apagado, llamar a la Mac desde la tablet", "aparato": "Android", "estado": "bien", "nota": "", "quien": "director", "t": "2026-11-11T09:10:00Z" },
+        { "id": "c4", "texto": "Llamada con Wi-Fi y cámara en los dos lados", "aparato": "Android", "estado": "pendiente", "nota": "", "quien": "director", "t": null }
+      ],
+      "aprobacion": null
+    }
+  }
+}

@@ -473,3 +473,105 @@ rm -f clave.pem cert.pem cert.cnf
 
 La primera app firmada con el certificado nuevo pide los permisos otra vez una sola vez; a partir de ahí se conservan entre actualizaciones. Mientras tanto, en un Mac con la app ya instalada y sin permiso, el arreglo manual (comprobado el 08-11) es
 `codesign --force --deep --sign - --identifier app.starseed.os "/Applications/StarSeed OS.app"`.
+
+## 10 · Versiones de prueba con su medidor y «Aprobar» (VER1111F · 2026-11-11)
+
+Petición de Alex: «los medidores deberían estar activos, con medidores de las versiones de prueba, y una opción para que,
+cuando una prueba se apruebe, se lancen las actualizaciones con los builds completos de las versiones oficiales de todos
+los sistemas de las apps». Hasta hoy nada unía las dos etapas y Genesis no enseñaba nada de una prueba.
+
+### 10.1 La sección «Versiones de prueba» (panel «Versiones»)
+
+`src/components/mando/versiones-prueba.tsx`, dentro de `PanelVersiones`, sondea `GET /api/mando/lanzamientos/pruebas`
+cada 30 s (pestaña visible). Enseña la prueba en marcha y las 4 últimas publicadas o fallidas. Lógica pura:
+`src/lib/mando/lanzamientos-pruebas.ts`; fuentes (solo servidor): `lanzamientos-pruebas-fuentes.ts`; tipos:
+`lanzamientos-pruebas-tipos.ts`.
+
+| Dato | De dónde sale |
+|---|---|
+| N, versión, commit, fecha, enlace al run | `gh run list --workflow native-build.yml` (workflow_dispatch en main) + `gh run view --json jobs`: es de pruebas si tiene el job «canal de pruebas · versión y prerelease» sin omitir; N = número de ejecución; versión = `<NATIVE_VERSION + 1 parche>-prueba.N` |
+| build por plataforma | jobs `os · macos-latest/windows-latest/ubuntu-24.04/android`: en cola · compilando (desde `startedAt`) · publicando (escritorio compilado, falta «latest-prueba.json y limpieza») · publicada · falló (nombra el job; un omitido por otro fallo nombra el que falló). iOS omitido no cuenta |
+| esperando a main | `~/.starseed/opus1031/lanzar-prueba<N>.log` (solo lectura): vacío y < 4 h 10 min = esperando; «ya está en origin/main» + JSON = pedido; «se acabó la espera» = expiró; vacío y más viejo = mudo |
+| qué sirve hoy el canal | `latest-prueba.json` y `latest-prueba-android.json` (directa → API, `leerJsonConRutas`) |
+| qué trae | `git log --no-merges <commit de la prueba anterior>..<commit>`, agrupado por id de tarea (`LLA1111A: …` o `<ola> · ID: …`); lo que no lleva id, al final |
+| main después de lo probado | `git log <commit>..HEAD` del repo (solo si lo probado está dentro de HEAD) |
+| comprobaciones y aprobación | `~/.starseed/produccion/pruebas-comprobaciones.json` (§10.3) |
+| lo que dice el director | `lanzamientos-estado.json` → `aprobacion`, `aprobaciones`, `aprobacion_ultima` |
+| web | `autopublicar-estado.json` → último sha publicado y verificado |
+
+Lo que Genesis no sabe se dice en la tarjeta («Sin saber: …») y lo que no se pudo leer, arriba (`avisos`). Mientras el
+lanzador espera, el commit solo se sabe si el registro lo escribe (línea «espero <sha> en origin/main», pendiente de añadir
+al lanzador del supervisor) o si se registraron las comprobaciones con `--sha`.
+
+Resumen de una línea, puro (`resumenPruebas`): «prueba.36 · Android compilando 12 min · 3 de 8 comprobaciones», en
+`GET /api/mando/lanzamientos/pruebas` (`resumen`) y en `GET /api/mando/lanzamientos` (`resumenPruebas`, null si tarda
+más de 1,5 s), para que otros medidores lo enseñen.
+
+### 10.2 «Aprobar»
+
+- Se ofrece cuando la prueba está **publicada en todas las plataformas para las que se compiló**. Las comprobaciones
+  pendientes o que fallan **no bloquean**: la confirmación las enseña una por una.
+- La confirmación dice la versión de prueba, la oficial que la corona (`0.5.1-prueba.36` → `0.5.1`), el commit y qué se
+  lanza: macOS, Windows, Linux y Android de OS, Nexus y Café; iOS sigue en la PWA; los tres canales del actualizador; la
+  web (la publica la autopublicación desde main: qué commit sirve hoy). Dice también que la prueba solo compiló OS.
+- `POST /api/mando/lanzamientos/pruebas {accion:"aprobar", numero, sha, lanzar_sha}`: solo `guardianMando` **y** desde
+  esta máquina (`esPeticionDeEstaMaquina`) **y** desde la página (`Sec-Fetch-Site: same-origin`); otra neurona ve «se
+  aprueba desde Genesis en la Mac». La ruta vuelve a leerlo todo en ese momento (no se fía del panel), comprueba que el
+  commit es el de la prueba, que está publicada en todas y que `lanzar_sha` es la cabeza de main AHORA. Una segunda
+  pulsación con la aprobación ya registrada responde `repetida` y no escribe nada. Si el director no ha leído aún otra
+  petición, 409.
+- Registra la aprobación en el archivo de comprobaciones (cuándo, versión, commit, commit a lanzar, quién y el estado de
+  cada comprobación en ese momento) y escribe en `lanzamientos-peticion.json`:
+  `{"accion":"aprobar-prueba","version":"0.5.1-prueba.36","sha":"<40>","lanzar_sha":"<40>","quien":"genesis","t":…}`.
+
+**El director** (`pasada`): la petición `aprobar-prueba` se toma **después** de saber que dirige y de traer main (si no
+dirige, se queda para el líder). `decidir_aprobacion` (pura) la acepta solo si: viene de `genesis`; la versión es de prueba;
+el commit está en origin/main y el que se lanza lo contiene; no hay otro lanzamiento a medias (fase `esperando-lista`,
+`lanzado` o `esperando-publicacion` sin `preparado_sha`) ni otra aprobación en curso; la oficial es más nueva que la del repo y
+no es mayor. Aceptada: `esperando-publicacion` con `lista_sha = lanzar_sha`, `version_aprobada` y `aprobacion` en curso, y a
+partir de ahí **sus pasos de siempre** (§2.2 publicado y verificado → §2.3 commit de versión → etiqueta → compilación →
+archivos → publicación → medios). La versión es la oficial que corona la prueba, no «menor».
+
+- **La pausa general sigue.** `pausado` solo deja pasar la pasada que trae la petición y las de una aprobación en curso.
+  Al llegar a `lanzado` la aprobación se cierra (`aprobaciones[-1].estado = "lanzada"`) y la pausa vuelve a mandar.
+  El automático (`lanzamientos.json`) no se toca.
+- **Lo probado es lo que se lanza.** Dentro del cerrojo de commits, antes del commit de versión, `cabeza_para_preparar`
+  exige `HEAD == lanzar_sha`. Si main se movió, la aprobación queda `caducada` con el motivo, el director vuelve a
+  `esperando-lista` y se avisa en el Chat Director: nunca sube la versión encima de commits sin probar.
+- Un arreglo de código del director (§3) cambia lo probado: la aprobación queda `superada` y, en pausa, se para.
+
+**Lanzar un commit que no es la cabeza de main no es posible hoy**: `_preparar` sube la versión encima de `HEAD` y
+`_etiquetar` exige que ese commit esté en origin/main. Por eso, si main avanzó, la confirmación lo dice («Main avanzó N
+commits desde lo probado», con lo añadido agrupado por tarea) y Alex elige entre **aprobar y lanzar main tal como está**
+(lo probado + N sin probar, `lanzar_sha` = cabeza) o **cancelar**. Para lanzar exactamente lo probado con el enjambre
+integrando, main tiene que estar quieto desde la aprobación hasta el commit de versión.
+
+### 10.3 Comprobaciones en aparatos
+
+Un archivo, `~/.starseed/produccion/pruebas-comprobaciones.json`, para el panel y para el comando:
+
+```json
+{"formato": 1, "pruebas": {"36": {"version": "0.5.1-prueba.36", "sha": "<40>",
+  "comprobaciones": [{"id": "c1", "texto": "…", "aparato": "Mac", "estado": "pendiente|bien|falla",
+                      "nota": "", "quien": "director", "t": "<ISO>"}],
+  "aprobacion": null}}}
+```
+
+Clave = número de la prueba («36», «prueba36», «prueba.36» y «0.5.1-prueba.36» valen lo mismo). Escritura atómica
+(tmp + rename) en los dos lados; un texto repetido no se duplica. Alex marca con un toque en el panel (Bien · Falla ·
+Pendiente · Nota; `POST {accion:"marcar"}`, también desde MetaGenesis remoto). Los directores, desde la terminal:
+
+```
+python3 scripts/puente/comprobaciones_prueba.py registrar 36 --sha a8051ea953 --aparato Mac "Tres llamadas solo por Bluetooth con cámara"
+python3 scripts/puente/comprobaciones_prueba.py marcar 36 c1 falla --nota "vídeo negro" --quien director
+python3 scripts/puente/comprobaciones_prueba.py ver 36
+```
+
+`STARSEED_PRODUCCION_DIR` cambia la carpeta (las pruebas usan una temporal). El comando nunca aprueba. Ejemplo
+compartido por las dos pruebas: `src/lib/mando/__tests__/fixtures/pruebas-comprobaciones.json`.
+
+### 10.4 Pruebas
+
+`scripts/puente/test_aprobar_prueba.py` (petición, decisión, pausa, main movido, doble pulsación, no-líder, lanzada,
+arreglo, nada sin petición; con falsos y un repo temporal), `test_comprobaciones_prueba.py`,
+`src/lib/mando/__tests__/lanzamientos-pruebas.test.ts`, `src/components/mando/__tests__/versiones-prueba.test.tsx`.

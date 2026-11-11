@@ -13,6 +13,7 @@
  * «Publicar ahora»). Debajo, la línea de tiempo: `pasos` (fase, hora, detalle)
  * y `jobs` (medio, job, estado, duración, enlace). Sondea
  * `GET /api/mando/lanzamientos` cada 5 s solo con la pestaña visible.
+ * (VER1111F) Debajo de los medios, «Versiones de prueba» (`versiones-prueba.tsx`, contrato §10).
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -42,6 +43,7 @@ import { Button } from "@/components/ui/button";
 
 import type { LanzamientoEstado, MedioFila } from "@/lib/mando/lanzamientos-tipos";
 import { filasDeMedios } from "@/lib/mando/lanzamientos";
+import { VersionesPrueba } from "@/components/mando/versiones-prueba";
 
 interface DatosLanzamiento {
     estado: LanzamientoEstado;
@@ -438,6 +440,9 @@ export function PanelVersiones() {
                             </div>
                         )}
                     </div>
+
+                    {/* VER1111F · cada versión de prueba con su build, sus comprobaciones y «Aprobar» (§10). */}
+                    <VersionesPrueba />
 
                     <LineaTiempo pasos={estado.pasos} jobs={estado.jobs} />
                 </div>
