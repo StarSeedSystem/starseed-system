@@ -1,0 +1,38 @@
+{
+ "ola": "nube-20261111",
+ "tareas": [
+  {
+   "id": "SDP1111A",
+   "ola": "SDP1111",
+   "titulo": "Síntesis · fuentes y rotación (módulo puro)",
+   "archivos": [
+    "scripts/puente/sintesis_fuentes.py",
+    "scripts/puente/test_sintesis_fuentes.py"
+   ],
+   "depende": [],
+   "prompt": "Lee architecture/sintesis-diaria-autonoma.md §3.2. Crea el módulo PURO sintesis_fuentes.py: funciones que, dada la raíz, devuelven el contexto común de la síntesis diaria de producción audiovisual: las 3 últimas síntesis de starseed_memory_root/produccion-audiovisual/sintesis/ y su sección «Mañana» (la rotación: 2 vídeos de los 15, 2-3 contactos, 1 categoría nueva; sin repetir lo de las 3 últimas), las salidas de Imaginación de 24 h (starseed_memory_root/imaginacion/agentes/*.json), los informes nuevos de directores y sueños, y el resumen de actividad si existe (~/.starseed/actividad/resumen-AAAA-MM-DD.json). Todo inyectable, sin red. Si no hay síntesis previas, la rotación empieza por los vídeos 4 y 5 y los contactos Cole Hastings, Sunseed y Damanhur. Pruebas con directorios temporales. Máximo 120 líneas por archivo; tsc no aplica; pytest en verde."
+  },
+  {
+   "id": "SDP1111B",
+   "ola": "SDP1111",
+   "titulo": "Síntesis · envío al chat propio de Telegram",
+   "archivos": [
+    "scripts/puente/sintesis_telegram.py",
+    "scripts/puente/test_sintesis_telegram.py"
+   ],
+   "depende": [],
+   "prompt": "Lee architecture/sintesis-diaria-autonoma.md §3.3. Crea sintesis_telegram.py: enviar(texto, boton_url=None, pedir=None) llama a la API de bots de Telegram (sendMessage) con urllib, en texto plano, troceando a 3500 caracteres por límites de párrafo. Lee TELEGRAM_SINTESIS_BOT_TOKEN y TELEGRAM_SINTESIS_CHAT_ID de ~/.starseed/env y del entorno. Solo admite ese chat. Nunca imprime ni registra el token (tacha cualquier URL con /bot). Sin token devuelve {ok: False, motivo: 'sin token'} sin lanzar. `pedir` inyectable para las pruebas, que van sin red. CLI: `prueba` envía una línea de comprobación. Máximo 120 líneas por archivo."
+  },
+  {
+   "id": "SDP1111I",
+   "ola": "SDP1111",
+   "titulo": "Actividad · guardados de Instagram desde la exportación oficial",
+   "archivos": [
+    "scripts/puente/actividad_instagram.py",
+    "scripts/puente/test_actividad_instagram.py"
+   ],
+   "depende": [],
+   "prompt": "Lee architecture/sintesis-diaria-autonoma.md §4. Crea actividad_instagram.py: lee SOLO la exportación oficial «Descargar tu información» (saved_posts.json y saved_collections.json, sueltos o dentro del zip) que Alex deja en ~/.starseed/actividad/entrada/instagram/ o en ~/Downloads/ (el zip oficial se llama instagram-<usuario>-<fecha>-<id>.zip; solo se leen esos zips y nunca se borran de Descargas). Fichas con enlace, autor y fecha, privado: true. No abre Instagram, no usa la sesión de Alex, no hace peticiones a instagram.com. Incremental por enlace. Pruebas con una muestra. Máximo 120 líneas por archivo."
+  }
+ ]
+}
