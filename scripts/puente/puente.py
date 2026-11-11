@@ -346,10 +346,58 @@ def cmd_olas(n=6):
         print("· %-70s total %s" % (str(o.get("id"))[:70], o.get("total")))
 
 
+#: (SUP1111B) Estados en los que aprobar/rechazar ya no le llega a nadie: el orquestador solo atiende esas órdenes
+#: para una tarea SUYA que todavía va a decidir, y una cerrada, prestada a otra máquina o parada nunca lee el control.
+ESTADOS_SIN_DECISION = frozenset({"commit", "integrada", "hecho", "sustituida", "descartada", "rechazada",
+                                  "duplicada", "no_aplica", "reasignada", "bloqueante", "bloqueada"})
+
+
+def separar_ordenes_de_decision(ids, progreso):
+    """PURA (SUP1111B): (validas, ignoradas) para aprobar/rechazar. `ignoradas`: [(id, motivo)] de las que ya no
+    esperan decisión (motivo: su estado) o no están en progreso.json. Sin un dict, o con una entrada que no es un
+    dict, la tarea vale (no se sabe: como antes). Sin repetidos y en el orden recibido; nunca lanza."""
+    validas, ignoradas, vistos = [], [], set()
+    for tid in ids or ():
+        if tid in vistos:
+            continue
+        vistos.add(tid)
+        if not isinstance(progreso, dict):
+            validas.append(tid)
+        elif tid not in progreso:
+            ignoradas.append((tid, "no está en progreso.json"))
+        elif isinstance(progreso[tid], dict) and progreso[tid].get("estado") in ESTADOS_SIN_DECISION:
+            ignoradas.append((tid, progreso[tid].get("estado")))
+        else:
+            validas.append(tid)
+    return validas, ignoradas
+
+
+def _solo_las_que_esperan_decision(accion, ids, quien):
+    """(SUP1111B) Las de `ids` que aún pueden recibir aprobar/rechazar; dice cuáles no y por qué (11-11: Hermes
+    «cerró» así cinco tareas y ninguna cambió)."""
+    progreso = leer_json_entero(os.path.join(OLAS, "progreso.json"))
+    if not progreso:
+        print("no pude leer progreso.json entero: escribo la orden sin comprobar el estado")
+        return list(ids)
+    validas, ignoradas = separar_ordenes_de_decision(ids, progreso)
+    for tid, motivo in ignoradas:
+        print("%s: «%s» — aprobar/rechazar solo llega a una tarea que el orquestador todavía va a decidir; "
+              "no escribo la orden" % (tid, motivo))
+    if ignoradas:
+        decir("orden «%s» NO escrita para %s: ya no esperan decisión"
+              % (accion, ", ".join(tid for tid, _ in ignoradas)), quien, "aviso")
+    return validas
+
+
 def orden(accion, ids, extra=None):
     cola, _, _ = cola_viva()
     if not cola:
         print("No hay cola viva: no hay a quién dar la orden."); return 1
+    quien = os.environ.get("STARSEED_IDE") or "ide"
+    if accion in ("aprobar", "rechazar"):
+        ids = _solo_las_que_esperan_decision(accion, ids, quien)
+        if not ids:
+            return 1
     # El orquestador construye el nombre con splitext(): «cola-310-…» SIN extension.
     # `cola_viva()` la devuelve CON ella, asi que hay que quitarsela o sale
     # «control-cola-310-….json.json», un archivo que nadie lee nunca. Estuvo asi desde el
@@ -359,7 +407,6 @@ def orden(accion, ids, extra=None):
     if d is None:
         print("%s no se pudo leer entero: no lo toco. Repite la orden en un momento." % os.path.basename(ruta))
         return 1
-    quien = os.environ.get("STARSEED_IDE") or "ide"
     for i in ids:
         d[i] = {"accion": accion, "quien": quien, "t": time.strftime("%Y-%m-%d %H:%M:%S")}
         if extra:
