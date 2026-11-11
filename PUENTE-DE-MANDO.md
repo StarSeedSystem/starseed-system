@@ -1,6 +1,6 @@
 # Genesis · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-10 09:18:49 desde Genesis vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-11 02:49:07 desde Genesis vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -16,15 +16,32 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | Agentes escribiendo | **0** |
 | En esta ola | integradas 0 · en curso 0 · esperando aprobación 0 · pendientes 15 |
 | Últimas 4 olas | en curso 0 · pendientes 100 · integradas 0 |
-| HEAD | `423a1e4ebe chore(memoria): aprendizaje de la ola auto-1110-091529` |
-| Sin publicar | 11 commits |
+| HEAD | `a36f8da2f4 chore(memoria): aprendizaje de la ola auto-1111-005959` |
+| Sin publicar | 7 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-1110-091529.json`, hace 12s)
+## Quién escribe ahora (latido de `cola-auto-1111-005959.json`, hace 13s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `DR1110-2` | hecho | nvidia/nvidia/nemotron-3-super-120 | 2 min | 135 s | 829383 |
+| `IMG-diaria-auto-refresh-del-catalogo-de-mode` | hecho | freellmapi/auto | 3 min | 152 s | 245974 |
+| `IMG-diaria-discovery-scan-sin-paginacion` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 4 min | 267 s | 256907 |
+| `IMG-diaria-tres-motores-de-permisos-duplicad` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 7 min | 390 s | 84501 |
+| `IMG-diaria-quantumorbavatar-en-listas-de-pro` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 13 min | 760 s | 128633 |
+| `ENT-agentes-referencias-diseno-agentes-re-ca957d-v1` | hecho | nim/minimaxai/minimax-m3.1-flash | 62 min | 3705 s | 711 |
+| `ENT-agentes-referencias-diseno-agentes-re-bf4400-v1` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 65 min | 3885 s | 700 |
+| `ENT-agentes-referencias-diseno-agentes-re-7a5bfc-v1` | hecho | nim/minimaxai/minimax-m3.1-flash | 67 min | 4006 s | 494 |
+| `ENT-agentes-referencias-diseno-agentes-re-26bcda-v1` | hecho | groq/openai/gpt-oss-120b | 68 min | 4087 s | 486 |
+| `ENT-agentes-referencias-diseno-agentes-re-b241b7-v1` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 68 min | 4093 s | 718 |
+| `ENT-agentes-referencias-diseno-agentes-re-e8ac80-v1` | hecho | nim/minimaxai/minimax-m3.1-flash | 72 min | 4299 s | 493 |
+| `IMG-diaria-onboarding-fusionado-voz-paso-1-c` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 74 min | 4433 s | 52353 |
+| `ENT-agentes-referencias-diseno-agentes-re-409fe9-v1` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 75 min | 4481 s | 499 |
+| `ENT-agentes-referencias-diseno-agentes-re-9312c6-v1` | hecho | nim/minimaxai/minimax-m3.1-flash | 77 min | 4593 s | 707 |
+| `ENT-agentes-referencias-diseno-agentes-re-806f30-v1` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 80 min | 4790 s | 697 |
+| `ENT-agentes-referencias-diseno-agentes-re-7917ec-v1` | hecho | nim/minimaxai/minimax-m3.1-flash | 82 min | 4892 s | 904 |
+| `ENT-agentes-referencias-diseno-agentes-re-0cf0d8-v1` | hecho | groq/openai/gpt-oss-120b | 85 min | 5084 s | 485 |
+| `ENT-agentes-referencias-diseno-agentes-re-54650c-v1` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 85 min | 5091 s | 1002 |
+| `ENT-agentes-referencias-diseno-agentes-re-46a3cd-v1` | hecho | nim/minimaxai/minimax-m3.1-flash | 88 min | 5271 s | 493 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
