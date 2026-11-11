@@ -34,12 +34,36 @@ fun main() {
         val t = ServidorLocalLogica.lineas(linkedMapOf("fase" to "error", "motivo" to "uno\ndos\rtres", "nada" to null, "a=b" to "x", "hecho" to 5L))
         igual("fase=error\nmotivo=uno dos tres\nhecho=5\n", t)
     }
-    prueba("buildId seguro como nombre de carpeta") {
-        igual("AA0YdaG0s8hV9CgdmX1rc", ServidorLocalLogica.idSeguro(" AA0YdaG0s8hV9CgdmX1rc "))
+    prueba("buildId seguro como nombre de carpeta, siempre en minúsculas") {
+        igual("aa0ydag0s8hv9cgdmx1rc", ServidorLocalLogica.idSeguro(" AA0YdaG0s8hV9CgdmX1rc "))
         igual("v1.2_3-x", ServidorLocalLogica.idSeguro("v1.2_3-x"))
         for (malo in listOf(null, "", ".", "..", "a/b", "a\\b", "ñ", "x".repeat(65), "a b")) {
             igual(null, ServidorLocalLogica.idSeguro(malo))
         }
+    }
+    prueba("buildId seguro normaliza a minúsculas (nunca dos carpetas que solo cambian el caso)") {
+        igual("b1", ServidorLocalLogica.idSeguro("B1\n"))
+        igual("b1", ServidorLocalLogica.idSeguro("  B1  "))
+        igual("b1", ServidorLocalLogica.idSeguro("  b1  "))
+        // El mismo id escrito de dos formas cae en la MISMA carpeta, no en dos sensibles al caso.
+        igual(ServidorLocalLogica.idSeguro("AA0YdaG0s8hV9CgdmX1rc"), ServidorLocalLogica.idSeguro("aa0ydag0s8hv9cgdmx1rc"))
+    }
+    prueba("hex: dos dígitos por byte, sin perder ninguno") {
+        igual(
+            "112233445566778899aabbccddeeff",
+            ServidorLocalLogica.hex(byteArrayOf(0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88.toByte(), 0x99.toByte(), 0xaa.toByte(), 0xbb.toByte(), 0xcc.toByte(), 0xdd.toByte(), 0xee.toByte(), 0xff.toByte())),
+        )
+        // 16 bytes → 32 caracteres: los ceros a la izquierda de cada byte también salen.
+        igual("00112233445566778899aabbccddeeff", ServidorLocalLogica.hex(byteArrayOf(0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88.toByte(), 0x99.toByte(), 0xaa.toByte(), 0xbb.toByte(), 0xcc.toByte(), 0xdd.toByte(), 0xee.toByte(), 0xff.toByte())))
+        igual(32, ServidorLocalLogica.hex(ByteArray(16) { (it + 1).toByte() }).length)
+        igual("", ServidorLocalLogica.hex(ByteArray(0)))
+    }
+    prueba("hexSinRelleno: longitud fija de cuatro dígitos (no se comen los ceros)") {
+        igual("000f", ServidorLocalLogica.hexSinRelleno(0x0f))
+        igual("00ff", ServidorLocalLogica.hexSinRelleno(0xff))
+        igual("0100", ServidorLocalLogica.hexSinRelleno(0x100))
+        igual("1234", ServidorLocalLogica.hexSinRelleno(0x1234))
+        igual("ffff", ServidorLocalLogica.hexSinRelleno(0x1_ffff))
     }
     prueba("zip slip: nada fuera de la carpeta") {
         val base = Files.createTempDirectory("ss-sl").toFile()
