@@ -393,6 +393,61 @@ perdidos (`pide-clave`); `cuadros>0, decodificados=0` → decodificador (`rx-vet
 `ultimoError="pintar: …"`; todo > 0 y negro → `negros=` casi igual a `capturados/4` (la fuente es negra: probar otra cámara).
 Otras líneas: `video-datos tx-error codec=… "…"`, `video-datos rx-vetado codec=… "…"`, `video-datos fuente-negra …`.
 
+### 9. Reparto voz/vídeo en un enlace estrecho (LLA1111B, `video-datos/reparto.ts`)
+
+Prueba.35 (Mac ↔ tableta por Bluetooth): el vídeo ligero solo se movía con el micro silenciado. Dos causas que se suman:
+el motor Bluetooth (`malla/bluetooth-directo-motor.ts`, `bombear`) saca SIEMPRE antes su carril de voz que el de vídeo y
+escribe en parada y espera (≈ 42 ms de acuse por escritura): con voz cada 60 ms el carril de voz nunca está vacío y el de
+vídeo no sale; y la sesión de vídeo solo capturaba con menos de 2 KiB de voz en cola (`hayHueco`, todo o nada). En la Mac,
+toda la llamada: `video-datos tx … kbps=0 motivos=cola-video:…`.
+
+Reglas del reparto (solo vídeo ligero por el carril de datos con contadores, hoy el Bluetooth; WebRTC y la red local no
+cambian: sin `bytesEntrados` la sesión sigue el camino de antes):
+
+- **Un solo carril, la voz primero.** Los fragmentos de vídeo entran en el carril de la VOZ (cada escritura lleva voz y
+  vídeo juntos) y la voz entra siempre directa, nunca espera a la sesión de vídeo. `vozOcupada` no cuenta como
+  contrapresión los bytes de la ventana de vídeo.
+- **Ningún fragmento tapa a la voz más de una escritura.** Ventana = lo que cabe en una escritura de `CICLO_OBJETIVO_MS`
+  (100 ms): `(100 − R)·C` bytes, entre 300 B y 1,5 KiB. El vídeo solo entra con el carril (que cuenta lo que está en vuelo
+  hasta el acuse) por debajo de dos ventanas, y cada fragmento cabe en una ventana. Un paquete de voz espera como mucho la
+  escritura en vuelo y sale en la siguiente.
+- **Lo que cabe se mide.** De `bytesEntrados` y `colaVozBytes` sale lo acusado; cada escritura acusada con el carril ocupado da
+  un par (bytes, ms) y se ajusta `ms = R + bytes/C`. Cabe `8·C·(1 − R/ciclo)` kb/s; el presupuesto del vídeo es eso menos la
+  voz medida, con un 10 % de margen.
+- **Control (cada segundo, `ControlReparto`).** Baja al presupuesto (`capacidad`), ×0,6 si la voz espera > 260 ms
+  (`retraso-voz`), ×0,7 si el receptor informa > 15 % de fotogramas perdidos (`perdida-receptor`, control `rep` cada 2 s);
+  sube +15 % (≥ 4 kb/s) si la voz espera < 210 ms y el vídeo quiere más (`hay-sitio`). Una cubeta de fichas a la tasa
+  objetivo pasa los fragmentos: un clave grande sale a ese ritmo, nunca de golpe (claves cada ≥ 5 s).
+- **Escalón por coste real (`CosteEscalon`).** `PERFILES_VIDEO_REPARTO` va de 160×120 a 1 fps hasta 320×240 a 12 fps;
+  abajo bajan primero los fps (6 → 1) a 160×120. El escalón es el más alto cuyo coste previsto (kb/s configurados × lo que el
+  códec gasta de verdad en texto por fotograma, media móvil) cabe en el objetivo; subir pide un 10 % de holgura y 3 s.
+- **Pausa con histéresis.** Suelo `SUELO_KBPS` = 12 kb/s (≈ 1 fps a 160×120). Bajo el suelo 3 s seguidos → pausa: no se
+  captura, se manda `pausa` al otro, el último fotograma se queda en pantalla y los dos ven «Vídeo en pausa: la señal solo
+  alcanza para la voz» (en `videoDatos.calidadTexto` → línea de estado). Se reanuda sola, con `sigue` y un clave, tras 5 s
+  seguidos con la voz esperando poco y sitio para el doble del suelo (y ≥ 4 s en pausa); si vuelve a pausarse antes de 20 s
+  de reanudar, la calma pedida se duplica (hasta 40 s). Igual cuando el estrecho es el propio lado.
+- **Línea de estado veraz.** Con reparto dice lo MEDIDO (fps y kb/s que salen de verdad) o el aviso de pausa.
+
+Registro (`medio=video-datos`), cada 5 s y en cada cambio de estado:
+
+```
+video-datos reparto activo motivo=capacidad kbps obj=40 voz=50 video=44 cabe=94 enlace=166+43ms espera-voz=200ms vent=1180B coste=x1.8 fps=4 perd-rx=0%
+video-datos pausa motivo=suelo cabe=31kbps voz=50kbps retraso=180ms calma-pedida=5s
+video-datos sigue motivo=sitio-de-nuevo cabe=92kbps voz=48kbps retraso=140ms
+video-datos otro-en-pausa motivo=suelo (se queda el último fotograma)
+video-datos perfil=160×120 · 4 fps · 18 kbps · VP8 motivo=hay-sitio coste=x1.9
+```
+(`enlace=C+R`: capacidad serializada en kb/s y acuse fijo; `cabe`: voz + vídeo con escrituras de 100 ms; los descartes siguen
+en `video-datos tx … motivos=…`, ahora también `pausa:N`).
+
+Límites conocidos: la voz Opus de 24 kb/s ocupa ≈ 48 kb/s de texto en el carril (base64 + JSON con el id de la llamada):
+con 40 kb/s no cabe ni sola. Con el vídeo en pausa y solo voz, las escrituras son iguales y el modelo supone la capacidad
+anunciada; si el enlace real es más estrecho que lo anunciado (80 kb/s anunciando 160), el vídeo se queda en pausa aunque
+cupiera ≈ 1 fps. La espera de la voz es inherente a la parada y espera (≈ 2 escrituras): el arreglo de fondo sería un
+Bluetooth con escrituras solapadas o prioridad estricta dentro del carril (en `malla/`).
+
+Banco: `pruebas-reales/llamadas-medio` casos `ble-160`, `ble-80`, `ble-40`, `ble-caida`, `ble-micro`.
+
 ## 9b. Cámaras y cámara remota (VID1110A)
 
 **Elección.** `camaras.ts` clasifica cada cámara por su etiqueta (`integrada` · `continuidad` · `externa` · `virtual` · `remota`) y el

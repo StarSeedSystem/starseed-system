@@ -126,6 +126,30 @@ export async function hayEnlaceDirectoCon(neurona: string): Promise<boolean> {
 }
 
 /**
+ * (LLA1111B) Bytes que entraron en el carril de voz del Bluetooth hacia cada neurona (voz, vídeo y controles de la
+ * llamada), acumulados y sin bajar nunca: con `colaVozBytes` dan lo que el enlace acusa de verdad (ver
+ * `video-datos/reparto.ts`). Por neurona y no por enlace: si el enlace cambia de id («b2» → «b3») la cuenta sigue.
+ */
+const entradosVozBle = new Map<string, number>();
+/** (LLA1111B) Última vez que entró vídeo en el carril de voz hacia cada neurona (ms). */
+const videoEnCarrilVoz = new Map<string, number>();
+/** (LLA1111B) Lo que el vídeo puede tener en el carril delante de la voz (= `VENTANA_MAX_BYTES` de `reparto.ts`). */
+export const VENTANA_VIDEO_EN_CARRIL_VOZ = 1536;
+
+/**
+ * (LLA1111B) «Ocupado» para la sesión de voz: más de `umbral` bytes en el carril, sin contar la ventana que puede ocupar
+ * el vídeo si ha entrado vídeo en los últimos 2 s (si no, la voz se retendría por bytes de vídeo y llegaría tarde).
+ */
+export function vozOcupada(cola: number, umbral: number, ultimoVideo: number | undefined, ahora: number): boolean {
+  const conVideo = typeof ultimoVideo === "number" && ahora - ultimoVideo < 2000;
+  return cola > umbral + (conVideo ? VENTANA_VIDEO_EN_CARRIL_VOZ : 0);
+}
+
+export function bytesEntradosVozBle(neurona: string): number {
+  return entradosVozBle.get(neurona) ?? 0;
+}
+
+/**
  * El transporte de voz hacia esa neurona, o null si no hay ningún enlace de datos ahora.
  * Elige en cada envío (si el enlace cambia de id —«b3» → «b4»— la voz sigue).
  */
@@ -145,10 +169,20 @@ export function crearTransporteVozHacia(neurona: string): TransporteVoz | null {
   };
   // Preferencia: Bluetooth (su cola ya limita y reparte); el enlace local solo si no hay Bluetooth.
   if (!ble() && !local()) return null;
+  // (LLA1111B) Con Bluetooth al abrir, el vídeo ligero comparte el carril de la voz con reparto medido (`bytesEntrados`).
+  // Un canal WebRTC local no lo necesita (no es «parada y espera» y su cola no se mide igual): ahí sigue como antes.
+  const conBle = !!ble();
   return {
     enviar(texto) {
       const b = ble();
-      if (b) return b.red.enviarVoz(b.id, texto);
+      if (b) {
+        const r = b.red.enviarVoz(b.id, texto);
+        if (r !== "cerrado") {
+          entradosVozBle.set(neurona, (entradosVozBle.get(neurona) ?? 0) + texto.length);
+          if (texto.startsWith('{"t":"voz.v"')) videoEnCarrilVoz.set(neurona, Date.now());
+        }
+        return r;
+      }
       const l = local();
       if (!l) return "cerrado";
       try {
@@ -159,7 +193,7 @@ export function crearTransporteVozHacia(neurona: string): TransporteVoz | null {
     },
     ocupado() {
       const b = ble();
-      if (b) return b.red.colaVozBytes(b.id) > (modBle?.UMBRAL_VOZ_OCUPADA_BLE ?? 2048);
+      if (b) return vozOcupada(b.red.colaVozBytes(b.id), modBle?.UMBRAL_VOZ_OCUPADA_BLE ?? 2048, videoEnCarrilVoz.get(neurona), Date.now());
       const l = local();
       return l ? l.bufferedAmount() > 16 * 1024 : false;
     },
@@ -190,6 +224,7 @@ export function crearTransporteVozHacia(neurona: string): TransporteVoz | null {
     topeColaVideoBytes() {
       return ble() ? (modBle?.MAX_COLA_VIDEO_BLE ?? 24 * 1024) : null;
     },
+    ...(conBle ? { bytesEntrados: () => bytesEntradosVozBle(neurona) } : {}),
     capacidadKbps() {
       const b = ble();
       if (!b) return null;

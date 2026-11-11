@@ -15,6 +15,11 @@ import type { MetaPresencia, SenalLlamada } from "@/lib/llamadas/tipos";
 import type { MuestraCarril } from "@/lib/llamadas/carriles";
 // MLL1111C: la cola del timbre (en el árbol viejo no existe: el módulo llega vacío y se usa el intento único de antes).
 import * as ColaTimbre from "@/lib/malla/cola-timbre";
+import { crearFabricaCodecsWeb } from "@/lib/llamadas/voz-datos/audio-web";
+import { leerPaquete } from "@/lib/llamadas/voz-datos/paquete";
+import * as transporteVoz from "@/lib/llamadas/voz-datos/transporte";
+import { crearFabricaVideoWeb, crearFuenteDePista, crearSalidaVideoWeb } from "@/lib/llamadas/video-datos/codec-web";
+import type { SalidaVideo } from "@/lib/llamadas/video-datos/tipos";
 
 type Linea = { t: number; hito: string; neurona: string | null; detalle: string };
 const lineas: Linea[] = [];
@@ -157,6 +162,167 @@ function enlaceDatos(): [TransporteVoz, TransporteVoz] {
   return [lado(0), lado(1)];
 }
 
+/* ── (LLA1111B) Enlace como el Bluetooth de verdad (bluetooth-directo-motor): carriles de voz y de vídeo con prioridad
+ * estricta (la voz primero), cada escritura agrupa lo que haya en UN carril (hasta 16 KiB), parada y espera (la
+ * siguiente escritura no sale hasta el acuse: serialización + ida y vuelta), bytes contados hasta el acuse, tope de la
+ * cola de voz 6 KiB y de vídeo 24 KiB (se tira lo más viejo). Mide la voz (pérdida, tránsito, espera tras vídeo) y lo
+ * que llega de vídeo. `ble.kbps` se puede cambiar a mitad de llamada; `capacidadKbps()` dice lo anunciado al abrir. ── */
+const ble = { kbps: 160, rttMs: 42, perdida: 0, maxTrama: 16 * 1024, plazoVozMs: 200, anunciadoKbps: 160 };
+interface MedidaSentido {
+  vozTramas: Set<number>;
+  vozQMin: number;
+  vozQMax: number;
+  transitos: number[];
+  tarde: number;
+  esperaTrasVideoMax: number;
+  esperasTrasVideo: number;
+  escrituras: number;
+  escriturasVideo: number;
+  escriturasMixtas: number;
+  bytesVoz: number;
+  bytesVideo: number;
+  tirados: number;
+}
+const nuevaMedida = (): MedidaSentido => ({ vozTramas: new Set(), vozQMin: Infinity, vozQMax: -1, transitos: [], tarde: 0, esperaTrasVideoMax: 0, esperasTrasVideo: 0, escrituras: 0, escriturasVideo: 0, escriturasMixtas: 0, bytesVoz: 0, bytesVideo: 0, tirados: 0 });
+const medida: Record<"AB" | "BA", MedidaSentido> = { AB: nuevaMedida(), BA: nuevaMedida() };
+// En el árbol viejo no existe (sale `undefined`): el banco usa entonces el umbral de antes.
+const vozOcupada = (transporteVoz as { vozOcupada?: (c: number, u: number, v: number | undefined, a: number) => boolean }).vozOcupada;
+const esVideoTxt = (t: string) => t.startsWith('{"t":"voz.v"');
+function enlaceBle(): [TransporteVoz, TransporteVoz] {
+  const oy: [Set<(t: string) => void>, Set<(t: string) => void>] = [new Set(), new Set()];
+  const lado = (i: 0 | 1): TransporteVoz => {
+    const sentido = i === 0 ? "AB" : "BA";
+    const voz: string[] = [];
+    const vid: string[] = [];
+    let bVoz = 0;
+    let bVid = 0;
+    let entrados = 0;
+    let ultimoVideo = 0;
+    let bombeando = false;
+    let enVuelo: { soloVideo: boolean; ack: number; bytesVideo: number } | null = null;
+    const dormir = (ms: number) => new Promise((r) => setTimeout(r, Math.max(0, ms)));
+    const bombear = async () => {
+      if (bombeando) return;
+      bombeando = true;
+      while (datos.arriba && (voz.length || vid.length)) {
+        const m = medida[sentido];
+        const deVoz = voz.length > 0; // AUDIO > VÍDEO (como `bombear` del motor Bluetooth)
+        const lista = deVoz ? voz : vid;
+        const lote: string[] = [];
+        let n = 0;
+        while (lista.length && (n === 0 || n + lista[0].length <= ble.maxTrama)) {
+          n += lista[0].length;
+          lote.push(lista.shift()!);
+        }
+        const conVideo = lote.some(esVideoTxt);
+        const conVoz = lote.some((t) => !esVideoTxt(t));
+        m.escrituras++;
+        if (conVideo && !conVoz) m.escriturasVideo++;
+        if (conVideo && conVoz) m.escriturasMixtas++;
+        const serial = (n * 8) / ble.kbps;
+        const t0 = performance.now();
+        const bytesVideoLote = lote.filter(esVideoTxt).reduce((a, t) => a + t.length, 0);
+        enVuelo = { soloVideo: conVideo && !conVoz, ack: t0 + serial + ble.rttMs, bytesVideo: bytesVideoLote };
+        const perdida = Math.random() < ble.perdida;
+        await dormir(serial + ble.rttMs / 2);
+        if (!perdida && datos.arriba) {
+          const ahora = Date.now();
+          for (const t of lote) {
+            if (!esVideoTxt(t) && t.startsWith('{"t":"voz.p"')) {
+              const p = leerPaquete(t);
+              if (p) {
+                for (let k = 0; k < p.tramas.length; k++) m.vozTramas.add(p.q + k);
+                const tr = ahora - p.ts;
+                m.transitos.push(tr);
+                if (tr > ble.plazoVozMs) m.tarde++;
+              }
+            }
+            oy[1 - i].forEach((cb) => cb(t));
+          }
+        }
+        await dormir(enVuelo.ack - performance.now());
+        enVuelo = null;
+        // Los bytes cuentan hasta el acuse, como en el Bluetooth de la Mac.
+        if (deVoz) bVoz -= n;
+        else bVid -= n;
+      }
+      bombeando = false;
+    };
+    return {
+      enviar(t) {
+        if (!datos.arriba) return "cerrado";
+        const m = medida[sentido];
+        if (t.startsWith('{"t":"voz.p"')) {
+          const p = leerPaquete(t);
+          if (p) {
+            m.vozQMin = Math.min(m.vozQMin, p.q);
+            m.vozQMax = Math.max(m.vozQMax, p.q + p.tramas.length - 1);
+          }
+          // Espera que le pone el VÍDEO a este paquete de voz: si sale una escritura solo de vídeo, lo que le falta (con su
+          // acuse); si no, lo que tardan en serializarse los bytes de vídeo que van delante (en la escritura en vuelo y en el carril).
+          const delante = voz.filter(esVideoTxt).reduce((a, x) => a + x.length, 0);
+          const e = enVuelo?.soloVideo ? enVuelo.ack - performance.now() : ((delante + (enVuelo?.bytesVideo ?? 0)) * 8) / ble.kbps;
+          if (e > 0) m.esperasTrasVideo++;
+          m.esperaTrasVideoMax = Math.max(m.esperaTrasVideoMax, Math.round(e));
+        }
+        if (esVideoTxt(t)) {
+          m.bytesVideo += t.length;
+          ultimoVideo = Date.now();
+        } else m.bytesVoz += t.length;
+        voz.push(t);
+        bVoz += t.length;
+        entrados += t.length;
+        let tiro = false;
+        while (bVoz > 6 * 1024 && voz.length > 1) {
+          bVoz -= voz.shift()!.length;
+          m.tirados++;
+          tiro = true;
+        }
+        void bombear();
+        return tiro ? "descartado" : "ok";
+      },
+      enviarVideo(t) {
+        if (!datos.arriba) return "cerrado";
+        const m = medida[sentido];
+        m.bytesVideo += t.length;
+        vid.push(t);
+        bVid += t.length;
+        let tiro = false;
+        while (bVid > 24 * 1024 && vid.length > 1) {
+          bVid -= vid.shift()!.length;
+          tiro = true;
+        }
+        void bombear();
+        return tiro ? "descartado" : "ok";
+      },
+      // Igual que `crearTransporteVozHacia` (voz-datos/transporte.ts) en la versión que se pruebe.
+      ocupado: () => (typeof vozOcupada === "function" ? vozOcupada(bVoz, 2048, ultimoVideo || undefined, Date.now()) : bVoz > 2048),
+      colaVozBytes: () => bVoz,
+      colaVideoBytes: () => bVid,
+      topeColaVideoBytes: () => 24 * 1024,
+      bytesEntrados: () => entrados,
+      alRecibir: (cb) => (oy[i].add(cb), () => void oy[i].delete(cb)),
+      abierto: () => datos.arriba,
+      info: () => ({ tipo: "ble", cifrada: true }),
+      capacidadKbps: () => ble.anunciadoKbps,
+    } as TransporteVoz;
+  };
+  return [lado(0), lado(1)];
+}
+
+/* ── (LLA1111B) Lo que se pinta de vídeo ligero en cada lado (marca de tiempo de cada imagen) ── */
+const pintadas: Record<"A" | "B", number[]> = { A: [], B: [] };
+function salidaContada(quien: "A" | "B"): SalidaVideo | null {
+  const s = crearSalidaVideoWeb();
+  if (!s) return null;
+  const pintar = s.pintar.bind(s);
+  s.pintar = (img) => {
+    pintadas[quien].push(performance.now());
+    pintar(img);
+  };
+  return s;
+}
+
 /* ── Audio falso de la voz por datos: tono de 20 ms; cuenta lo que se reproduce ── */
 const audio = { reproducidas: { A: 0, B: 0 }, sesiones: { A: 0, B: 0 } };
 function audioFalso(quien: "A" | "B"): AudioVoz {
@@ -222,11 +388,11 @@ async function timbre(ventanaMs = 30_000): Promise<{ ok: boolean; intentos: numb
 
 /* ── Una llamada entre A y B ── */
 let n = 0;
-async function llamada(o: { conDatos: boolean; video?: boolean; videoFalso?: boolean }) {
+async function llamada(o: { conDatos: boolean; video?: boolean; videoFalso?: boolean; ble?: boolean; videoDatos?: boolean; opus?: boolean }) {
   n++;
   const sesionId = crypto.randomUUID();
   const [ca, cb] = bucleSenal(sesionId);
-  const [ta, tb] = enlaceDatos();
+  const [ta, tb] = o.ble ? enlaceBle() : enlaceDatos();
   const hacer = (quien: "A" | "B", canal: () => ConexionCanal, tr: TransporteVoz) => {
     const m = new MotorLlamada({
       sesionId,
@@ -242,11 +408,16 @@ async function llamada(o: { conDatos: boolean; video?: boolean; videoFalso?: boo
             transporteHacia: () => (datos.arriba ? tr : null),
             hayRutaIp: () => red.ipVista[quien],
             crearAudio: () => audioFalso(quien),
-            codecs: () => fabricaCodecsSimples(),
+            codecs: () => (o.opus ? crearFabricaCodecsWeb() : fabricaCodecsSimples()),
             intervaloMs: 500,
             carrilesExtra: () => carrilesExtra(),
             // MLL1111C: «vídeo ligero» de mentira: deja que el selector elija el enlace de datos para el vídeo (sin códec).
-            ...(o.videoFalso ? { video: { fabrica: () => Promise.reject(new Error("banco: sin vídeo ligero")), fuenteDePista: () => null, crearSalida: () => null } } : {}),
+            // (LLA1111B) `videoDatos`: el vídeo ligero de verdad (WebCodecs) con la salida contada del banco.
+            ...(o.videoFalso
+              ? { video: { fabrica: () => Promise.reject(new Error("banco: sin vídeo ligero")), fuenteDePista: () => null, crearSalida: () => null } }
+              : o.videoDatos
+                ? { video: { fabrica: () => crearFabricaVideoWeb(), fuenteDePista: (p: MediaStreamTrack) => crearFuenteDePista(p), crearSalida: () => salidaContada(quien) } }
+                : {}),
           }
         : undefined,
     });
@@ -330,6 +501,61 @@ function estadoNeg() {
     cuenta.ofertas = cuenta.ofertasSinIp = cuenta.iceTirados = 0;
     extras.lan = extras.directo = null;
     vias.arriba = false;
+  },
+  ble,
+  medida,
+  pintadas,
+  /** (LLA1111B) Resumen de un tramo [desde, hasta) en ms de `performance.now()` y la medida de voz acumulada. */
+  resumenTramo(desde: number, hasta: number) {
+    const fps = (q: "A" | "B") => {
+      const l = pintadas[q].filter((t) => t >= desde && t < hasta);
+      const seg = Math.max(1, (hasta - desde) / 1000);
+      const ventanas: number[] = [];
+      for (let t = desde; t + 5000 <= hasta; t += 5000) ventanas.push(l.filter((x) => x >= t && x < t + 5000).length / 5);
+      let hueco = 0;
+      let prev = desde;
+      for (const x of l) {
+        hueco = Math.max(hueco, x - prev);
+        prev = x;
+      }
+      hueco = Math.max(hueco, hasta - prev);
+      return { fps: Math.round((l.length / seg) * 10) / 10, ventanas5s: ventanas, huecoMaxMs: Math.round(hueco) };
+    };
+    return { enA: fps("A"), enB: fps("B") };
+  },
+  resumenVoz() {
+    const r: Record<string, unknown> = {};
+    for (const k of ["AB", "BA"] as const) {
+      const m = medida[k];
+      const esperadas = m.vozQMax >= m.vozQMin ? m.vozQMax - m.vozQMin + 1 : 0;
+      const tr = [...m.transitos].sort((a, b) => a - b);
+      const pc = (p: number) => (tr.length ? tr[Math.min(tr.length - 1, Math.floor(p * tr.length))] : null);
+      r[k] = {
+        tramasEsperadas: esperadas,
+        perdidaPct: esperadas ? Math.round((1000 * (esperadas - m.vozTramas.size)) / esperadas) / 10 : null,
+        paquetes: tr.length,
+        transitoP50: pc(0.5),
+        transitoP95: pc(0.95),
+        transitoMax: tr.length ? tr[tr.length - 1] : null,
+        tardePct: tr.length ? Math.round((1000 * m.tarde) / tr.length) / 10 : null,
+        esperaTrasVideoMaxMs: m.esperaTrasVideoMax,
+        esperasTrasVideo: m.esperasTrasVideo,
+        escrituras: m.escrituras,
+        escriturasSoloVideo: m.escriturasVideo,
+        escriturasMixtas: m.escriturasMixtas,
+        kbpsVoz: null,
+        bytesVoz: m.bytesVoz,
+        bytesVideo: m.bytesVideo,
+        tiradosColaVoz: m.tirados,
+      };
+    }
+    return r;
+  },
+  reiniciarMedida() {
+    medida.AB = nuevaMedida();
+    medida.BA = nuevaMedida();
+    pintadas.A.length = 0;
+    pintadas.B.length = 0;
   },
   listo: true,
 };

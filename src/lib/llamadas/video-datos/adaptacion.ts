@@ -10,6 +10,9 @@
  *  · Con presión (cola ocupada o fragmentos descartados) en los últimos 2 s se baja UN escalón (resolución y
  *    fps a la vez, por la escalera `PERFILES_VIDEO`); tras 6 s sin presión y con holgura se sube uno.
  *  · El techo lo fija la capacidad del enlace: la mitad de lo que mide (o anuncia) menos lo que ya come la voz.
+ * LLA1111B: esto es ahora solo el camino de un enlace SIN contadores del carril (`bytesEntrados`). Con ellos (el
+ * Bluetooth) el reparto lo lleva `reparto.ts`: voz y vídeo en el mismo carril, tasa medida y pausa con histéresis. El
+ * hueco de «todo o nada» (`UMBRAL_VOZ_HUECO_BYTES`) dejaba el vídeo parado mientras el micro estaba abierto.
  */
 import { KBPS_VOZ_RESERVADOS, PERFILES_VIDEO, type PerfilVideo } from "./tipos";
 
@@ -79,6 +82,14 @@ export class ControlAdaptativo {
 
   get indice(): number {
     return this.idx;
+  }
+
+  /** LLA1111B: el reparto elige el escalón (devuelve true si cambió). */
+  fijarIndice(i: number): boolean {
+    const n = Math.max(0, Math.min(this.escalera.length - 1, Math.floor(i)));
+    if (n === this.idx) return false;
+    this.idx = n;
+    return true;
   }
 
   perfil(): PerfilVideo {

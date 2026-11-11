@@ -111,6 +111,12 @@ export interface TransporteVideo {
   mtu?(): number | null;
   /** VID1110A: tope de la cola de vídeo del enlace en bytes de texto (Bluetooth: 24 KiB, lo viejo se tira). */
   topeColaVideoBytes?(): number | null;
+  /**
+   * LLA1111B: bytes que entraron en el carril de la voz desde que se abrió (voz + vídeo + controles). Con él y
+   * `colaVozBytes` la sesión mide lo que el enlace acusa de verdad y reparte: el vídeo va en el MISMO carril que la voz
+   * (ver `reparto.ts`). Sin él, el vídeo va por su cola propia como antes.
+   */
+  bytesEntrados?(): number;
 }
 
 /** Escalones de calidad, de menos a más. 160×120 a 4 fps y 40 kbps es el suelo; 320×240 a 12 fps y 150 kbps, el techo. */
@@ -121,6 +127,27 @@ export const PERFILES_VIDEO: readonly PerfilVideo[] = [
   { w: 240, h: 180, fps: 10, kbps: 100, kfMs: 2000 },
   { w: 320, h: 240, fps: 10, kbps: 130, kfMs: 2000 },
   { w: 320, h: 240, fps: 12, kbps: 150, kfMs: 2000 },
+];
+
+/**
+ * LLA1111B · escalera del reparto (voz y vídeo en el mismo carril estrecho). Más fina y más barata por fotograma que
+ * `PERFILES_VIDEO`: a 160×120, 4–7 kbit por fotograma ya dan una imagen reconocible (≈ 0,2–0,4 bits por píxel), y lo
+ * que se ahorra se convierte en fotogramas por segundo. De arriba abajo baja primero los fps y luego el tamaño; abajo
+ * del todo quedan 3 → 2 → 1 fps a 160×120 antes de pausar (el de 1 fps es el suelo, `SUELO_KBPS` en `reparto.ts`).
+ * Lo que de verdad cuesta cada escalón en el carril lo mide `CosteEscalon` (el códec rara vez gasta lo configurado).
+ */
+export const PERFILES_VIDEO_REPARTO: readonly PerfilVideo[] = [
+  { w: 160, h: 120, fps: 1, kbps: 6, kfMs: 8000 },
+  { w: 160, h: 120, fps: 2, kbps: 10, kfMs: 6000 },
+  { w: 160, h: 120, fps: 3, kbps: 14, kfMs: 5000 },
+  { w: 160, h: 120, fps: 4, kbps: 18, kfMs: 5000 },
+  { w: 160, h: 120, fps: 5, kbps: 22, kfMs: 5000 },
+  { w: 160, h: 120, fps: 6, kbps: 27, kfMs: 5000 },
+  { w: 192, h: 144, fps: 6, kbps: 34, kfMs: 5000 },
+  { w: 192, h: 144, fps: 8, kbps: 44, kfMs: 4000 },
+  { w: 240, h: 180, fps: 10, kbps: 65, kfMs: 4000 },
+  { w: 320, h: 240, fps: 10, kbps: 95, kfMs: 3000 },
+  { w: 320, h: 240, fps: 12, kbps: 115, kfMs: 3000 },
 ];
 
 /** Pantalla compartida por Bluetooth: apenas un fotograma por segundo, solo si no estorba. */
@@ -150,9 +177,10 @@ export interface ContadoresVideoTx {
  *  · `saliendo`: aún sale a trozos el fotograma anterior · `caducado`: llevaba demasiado esperando sitio;
  *  · `presupuesto`: pasaba de la tasa del escalón · `sustituido`: un clave nuevo reemplazó al que salía;
  *  · `codec`: el códec no da abasto · `sin-imagen`: la cámara no dio fotograma nuevo · `trocear`: no cupo en fragmentos;
- *  · `enlace-tiro`: el enlace tiró fragmentos al pasar su tope.
+ *  · `enlace-tiro`: el enlace tiró fragmentos al pasar su tope · `pausa` (LLA1111B): el vídeo está en pausa porque la
+ *    señal solo alcanza para la voz (no se captura).
  */
-export type MotivoDescarteVideo = "enlace-ocupado" | "cola-video" | "saliendo" | "caducado" | "presupuesto" | "sustituido" | "codec" | "sin-imagen" | "trocear" | "enlace-tiro";
+export type MotivoDescarteVideo = "pausa" | "enlace-ocupado" | "cola-video" | "saliendo" | "caducado" | "presupuesto" | "sustituido" | "codec" | "sin-imagen" | "trocear" | "enlace-tiro";
 export interface ContadoresVideoRx {
   paquetes: number;
   cuadros: number;

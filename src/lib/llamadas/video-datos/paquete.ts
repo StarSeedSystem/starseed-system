@@ -84,13 +84,23 @@ export function leerFragmento(texto: string): FragmentoVideo | null {
   }
 }
 
-export type KControlVideo = "hola" | "kf" | "fin";
+/**
+ * LLA1111B: además `pausa` / `sigue` (el que manda pausa su vídeo porque la señal solo alcanza para la voz, y lo
+ * reanuda) y `rep` (informe del que recibe cada 2 s: fotogramas completos `vis` y perdidos `per` desde el anterior).
+ * Una app anterior no los entiende y los ignora (no rompe nada).
+ */
+export type KControlVideo = "hola" | "kf" | "fin" | "pausa" | "sigue" | "rep";
 
 export interface ControlVideo {
   s: string;
   k: KControlVideo;
   /** hola: códecs que sé decodificar. */
   dec?: CodecVideo[];
+  /** rep: fotogramas completos y perdidos desde el informe anterior. */
+  vis?: number;
+  per?: number;
+  /** pausa: por qué (corto). */
+  m?: string;
 }
 
 export function armarControlVideo(c: ControlVideo): string {
@@ -102,9 +112,15 @@ export function leerControlVideo(texto: string): ControlVideo | null {
   try {
     const o = JSON.parse(texto) as Record<string, unknown>;
     if (o.t !== "voz.w" || typeof o.s !== "string" || !o.s || o.s.length > 80) return null;
-    if (o.k !== "hola" && o.k !== "kf" && o.k !== "fin") return null;
+    if (o.k !== "hola" && o.k !== "kf" && o.k !== "fin" && o.k !== "pausa" && o.k !== "sigue" && o.k !== "rep") return null;
     const c: ControlVideo = { s: o.s, k: o.k };
     if (Array.isArray(o.dec)) c.dec = o.dec.filter(esCodecVideo).slice(0, 3);
+    const entero = (v: unknown) => (typeof v === "number" && Number.isInteger(v) && v >= 0 && v < 1e6 ? v : undefined);
+    if (o.k === "rep") {
+      c.vis = entero(o.vis) ?? 0;
+      c.per = entero(o.per) ?? 0;
+    }
+    if (o.k === "pausa" && typeof o.m === "string") c.m = o.m.replace(/[^a-z0-9-]/gi, "").slice(0, 24);
     return c;
   } catch {
     return null;

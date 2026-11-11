@@ -182,6 +182,15 @@ export function medidasDeTexto(t: string | undefined): { rttMs: number | null; p
   return { rttMs: rtt ? Number(rtt[1].replace(",", ".")) : null, perdidaPct: per ? Number(per[1].replace(",", ".")) : null, codec: cod ?? null };
 }
 
+/**
+ * LLA1111B · el trozo del vídeo ligero en la línea de estado: lo medido («vídeo ligero 160×120 · 4 fps · 38 kbps · VP8»)
+ * o, si el vídeo está en pausa por falta de señal, el aviso tal cual («Vídeo en pausa: la señal solo alcanza para la voz»).
+ */
+export function textoVideoLigero(v: { enviando: boolean; recibiendo: boolean; calidadTexto: string | null } | null | undefined): string {
+  if (!v || !(v.enviando || v.recibiendo) || !v.calidadTexto) return "";
+  return /^vídeo en pausa/i.test(v.calidadTexto) ? ` · ${v.calidadTexto}` : ` · vídeo ligero ${v.calidadTexto}`;
+}
+
 export class AdaptadorMotor {
   private readonly oyentes = new Set<() => void>();
   private snap: VistaLlamada;
@@ -1055,7 +1064,7 @@ export class AdaptadorMotor {
       calidad: calidadConMedio,
       medioElegido: this.medioElegido,
       opcionesMedio: this.opcionesDeMedio().map((o) => (o.medio === "automatico" ? o : { ...o, disponible: false, motivo: ctx.medio === "bluetooth" && o.medio === "bluetooth" ? "Es el medio que lleva la voz ahora; el motor lo elige solo." : o.motivo })),
-      textoMedio: e.medio ? `${e.medio.texto}${e.medio.calidadTexto ? ` · ${e.medio.calidadTexto}` : ""}${e.videoDatos && (e.videoDatos.enviando || e.videoDatos.recibiendo) && e.videoDatos.calidadTexto ? ` · vídeo ligero ${e.videoDatos.calidadTexto}` : ""}` : null,
+      textoMedio: e.medio ? `${e.medio.texto}${e.medio.calidadTexto ? ` · ${e.medio.calidadTexto}` : ""}${textoVideoLigero(e.videoDatos)}` : null,
       // (LLA1110D) Por dónde va cada flujo (solo con un par: en grupo cada uno tiene los suyos).
       textoCarriles: e.carriles && e.carriles.length === 1 && e.carriles[0].texto ? e.carriles[0].texto : null,
       grabacion: this.avisandoGrab ? { ...this.grab, fase: "avisando" } : this.grab,
