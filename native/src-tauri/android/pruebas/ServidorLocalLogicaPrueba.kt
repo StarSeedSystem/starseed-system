@@ -41,6 +41,16 @@ fun main() {
             igual(null, ServidorLocalLogica.idSeguro(malo))
         }
     }
+    prueba("buildId seguro conserva el caso (contrato del BUILD_ID de Next, AND1107A)") {
+        // El BUILD_ID de Next (p. ej. «AA0YdaG0s8hV9CgdmX1rc») va como carpeta y como nombre de
+        // archivo en TODO el carril y sin cambiar el caso: Rust lo valida con
+        // servidor_capas_logica::build_id_seguro ([A-Za-z0-9_-]), nombra «servidor-capa-{build}.tar.gz»
+        // y compara el build_id del manifiesto caso a caso. Normalizar a minúsculas rompería esas
+        // comparaciones y haría que la versión nunca se viera completa; aquí solo se recortan blancos.
+        igual("B1", ServidorLocalLogica.idSeguro("B1\n"))
+        igual("b1", ServidorLocalLogica.idSeguro("  b1  "))
+        igual("AA0YdaG0s8hV9CgdmX1rc", ServidorLocalLogica.idSeguro("AA0YdaG0s8hV9CgdmX1rc"))
+    }
     prueba("zip slip: nada fuera de la carpeta") {
         val base = Files.createTempDirectory("ss-sl").toFile()
         cierto(ServidorLocalLogica.destinoSeguro(base, ".next/server/app/page.js")?.path?.startsWith(base.canonicalPath) == true, "ruta normal")
