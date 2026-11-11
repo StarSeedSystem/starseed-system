@@ -95,7 +95,12 @@ class EspejoDrive(unittest.TestCase):
                 mock.patch.object(self.E, "indice", side_effect=OSError(11, "Resource deadlock avoided")):
             r = self.E.sincronizar(host="prueba")
         self.assertFalse(r["ok"])
-        self.assertTrue(any(f.startswith("INDICE.md: OSError") for f in r["fallos"]), r["fallos"])
+        # OSError(11) se instancia como BlockingIOError (errno EAGAIN): el nombre que sale
+        # es el del tipo real, que es lo que debe verse en el aviso.
+        self.assertTrue(any(
+            f.startswith("INDICE.md: ") and "Resource deadlock avoided" in f
+            for f in r["fallos"]
+        ), r["fallos"])
         self.assertTrue(os.path.isfile(os.path.join(self.destino, "estado.json")))
 
     def test_con_poco_disco_no_copia_la_memoria(self):
