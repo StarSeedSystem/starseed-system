@@ -1,6 +1,6 @@
 # Genesis · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-11 03:56:55 desde Genesis vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-11 09:42:14 desde Genesis vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -16,15 +16,15 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | Agentes escribiendo | **0** |
 | En esta ola | integradas 0 · en curso 0 · esperando aprobación 0 · pendientes 15 |
 | Últimas 4 olas | en curso 0 · pendientes 100 · integradas 0 |
-| HEAD | `04371d6ae3 chore(memoria): aprendizaje de la ola auto-1111-034555` |
-| Sin publicar | 9 commits |
+| HEAD | `4219230092 chore(memoria): aprendizaje de la ola auto-1111-091802` |
+| Sin publicar | 5 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-1111-034555.json`, hace 15s)
+## Quién escribe ahora (latido de `cola-auto-1111-091802.json`, hace 15s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `IMG-diaria-auto-refresh-del-catalogo-de-mode` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 3 min | 152 s | 580604 |
+| `P37-1111-rc` | hecho | apinex/free/glm-5.3-flash | 2 min | 139 s | 100763 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
