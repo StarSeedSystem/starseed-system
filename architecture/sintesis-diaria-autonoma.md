@@ -5,7 +5,7 @@
 - preparado por Claude en la nube a petición de Alex;
 - encolado por Claude (Cowork, con la Mac) el mismo día.
 
-**Estado:** la cola `starseed_memory_root/olas/cola-sdp1111.json` está encolada con 15 tareas (A–L, N, O y P).
+**Estado:** la cola `starseed_memory_root/olas/cola-sdp1111.json` está encolada con 17 tareas (A–L y N–R).
 - SDP1111M (lectura diaria de «Mi actividad» con el navegador) **no** está en la cola: espera la aprobación de Alex y
   su texto está en `starseed_memory_root/olas/pendientes/tarea-sdp1111m-pendiente.json`.
 - Nada está construido todavía.
@@ -131,6 +131,22 @@ El director llama al agente cada 15 minutos; el agente decide con su estado en q
 
 ## 4. Actividad personal de Alex: qué se puede leer y cómo
 
+**Papeles de cada cuenta (Alex, 2026-11-11):**
+- **alexbordongarrigos@gmail.com** («alex»): cuenta Google Pro y **principal**. Es donde se sincroniza todo Drive, y
+  la de YouTube, Docs y NotebookLM.
+- **fundacionstarseed@gmail.com** («fundacion»): sobre todo **Gmail** y las cuentas de algunos servicios. Sus
+  correos se consideran.
+- **Instagram:**
+  - **Sociedad StarSeed** es la página oficial, de la fundación;
+  - **maggasukha** es la personal de Alex: guardados (referencias) y páginas que sigue (contactos y referencias).
+  - Las exportaciones se dejan en Drive (alex), en «Actividad StarSeed (privado …)» (`1PvBnBhoxxNSBuCLSC2aQZ89Oe8mdJGB-`):
+    una subcarpeta por cuenta. Así se leen sin la Mac.
+- **Bot de las síntesis:** @StarSeed_Design_bot, con el token guardado por Alex el 2026-11-11 y probado ese día
+  (getMe y un mensaje al chat privado). Al A1 llega solo, con la orden de claves (SDP1111O y SDP1111R).
+
+**Autonomía:** todo funciona sin Claude y sin la Mac. Los lectores y la entrega corren en el líder de dirección; los
+contenedores compartidos de la nube nunca reciben datos privados ni claves.
+
 Todo lo de esta sección es **privado**:
 - las fichas llevan `privado: true` y viven solo en los nodos, en `~/.starseed/actividad/`;
 - van **fuera** de `starseed_memory_root`, porque en la Mac esa carpeta se sincroniza con Google Drive;
@@ -164,8 +180,7 @@ Todo lo de esta sección es **privado**:
 ## 5. Lo que Alex hace una sola vez (todo lo demás es automático)
 
 1. **Token del bot de síntesis.**
-   - En la Mac: `bash scripts/puente/guardar-clave.sh TELEGRAM_SINTESIS_BOT_TOKEN --ambos`, y pegar el token que dio
-     BotFather.
+   - **Hecho el 2026-11-11:** guardado con `guardar-clave.sh TELEGRAM_SINTESIS_BOT_TOKEN --ambos`.
    - El chat_id no es secreto y lo pone la ola.
    - Al A1 llega con `python3 scripts/puente/oracle_nodo.py claves`, en cuanto SDP1111O esté integrada. Esa tarea añade
      los nombres nuevos y los archivos de cuentas a la orden de claves.
@@ -411,6 +426,36 @@ lee la cola como lista de tareas. SDP1111M va aparte: ver «Estado», arriba.
    "SDP1111E"
   ],
   "prompt": "Lee architecture/sintesis-diaria-autonoma.md §3.3 y §5. Alex (2026-11-11) aclaró que el bot y las cuentas YA están conectados en la Mac: no hay que pedirle claves nuevas si se puede usar lo que existe. Ajusta, sin romper sus pruebas: (1) sintesis_telegram.py: si falta TELEGRAM_SINTESIS_BOT_TOKEN, usa el bot ya conectado TELEGRAM_BOT_TOKEN (de ~/.starseed/env o ~/.hermes/.env; es @starseed_puente_bot, el del Puente de Mando, el chat vinculado de MetaGenesis y Hermes) con TELEGRAM_SINTESIS_CHAT_ID y, si falta, TELEGRAM_CHAT_ID; antepone la cabecera «Síntesis de Producción StarSeed · AAAA-MM-DD» para que se distinga en ese chat. Si un día existe TELEGRAM_SINTESIS_BOT_TOKEN, manda ese. (2) cuentas_google.py: antes de pedir un cliente nuevo, prueba el cliente OAuth que el OS ya tiene (NEXT_PUBLIC_GOOGLE_CLIENT_ID y GOOGLE_OAUTH_CLIENT_SECRET de .env.local del repo; leer sin imprimir) con redirección fija http://127.0.0.1:8765/ ; si Google responde redirect_uri_mismatch o el proyecto no tiene activadas Gmail API o YouTube Data API v3, dilo en una línea con el arreglo exacto (añadir esa URI de redirección al cliente existente o activar la API, con el enlace de la consola) y solo entonces cae a GOOGLE_ACTIVIDAD_* o al client_secret_*.json de Descargas. Nunca imprime ni registra tokens ni secretos. Pruebas sin red. Máximo 120 líneas tocadas por archivo."
+ },
+ {
+  "id": "SDP1111Q",
+  "ola": "SDP1111",
+  "titulo": "Papeles de cada cuenta e Instagram desde Drive (sin la Mac)",
+  "archivos": [
+   "scripts/puente/cuentas_actividad.py",
+   "scripts/puente/actividad_instagram.py",
+   "scripts/puente/test_cuentas_actividad.py"
+  ],
+  "depende": [
+   "SDP1111E",
+   "SDP1111I"
+  ],
+  "prompt": "Lee architecture/sintesis-diaria-autonoma.md §4 y §5. PAPELES DE LAS CUENTAS (Alex, 2026-11-11): «alex» = alexbordongarrigos@gmail.com, cuenta Google Pro y PRINCIPAL: Drive (donde se sincroniza todo), Docs, YouTube, NotebookLM, Takeout y el Doc de la síntesis. «fundacion» = fundacionstarseed@gmail.com: sobre todo Gmail (correos enviados a comunidades y avisos de algunos servicios registrados con ella) y, en segundo plano, su Drive y YouTube. Instagram: «sociedadstarseed» = página oficial Sociedad StarSeed (cuenta de la fundación): sus publicaciones y a quién sigue; «maggasukha» = cuenta personal de Alex: guardados (referencias) y páginas que sigue (contactos y referencias). TAREA: (1) módulo PURO cuentas_actividad.py con esos papeles como datos (alias, correo, para_que, prioridad) y funciones que digan qué lector usa qué cuenta: Gmail enviados de las dos (fundacion primero); Drive, Docs, YouTube, NotebookLM y Takeout de alex primero y fundacion después con menos frecuencia. (2) actividad_instagram.py lee las exportaciones oficiales DESDE DRIVE de alex con cuentas_google (sin la Mac): carpeta «Actividad StarSeed (privado …)» id 1PvBnBhoxxNSBuCLSC2aQZ89Oe8mdJGB-, subcarpetas «Instagram maggasukha …» id 19_ymNnvy4iDpVuCLDiC47GyG2j2DVQ5U (saved_posts, saved_collections, following) e «Instagram Sociedad StarSeed …» id 1YWcHxOXG_zbE_Ea9ehuHCcVBGQcf0Z3U (publicaciones propias y following); en la Mac también mira ~/Downloads/instagram-*.zip. Cada ficha lleva la cuenta de origen y privado: true. Sigue sin abrir instagram.com ni usar la sesión de Alex. Pruebas puras con muestras pequeñas. Máximo 120 líneas tocadas por archivo."
+ },
+ {
+  "id": "SDP1111R",
+  "ola": "SDP1111",
+  "titulo": "Autonomía sin la Mac: claves, cuentas y NotebookLM en el líder",
+  "archivos": [
+   "scripts/puente/oracle_nodo.py",
+   "scripts/puente/actividad_notebooklm.py",
+   "scripts/puente/test_autonomia_sintesis.py"
+  ],
+  "depende": [
+   "SDP1111J",
+   "SDP1111O"
+  ],
+  "prompt": "Lee architecture/sintesis-diaria-autonoma.md §3 y §4. Alex (2026-11-11): «todo debe funcionar aun sin Claude ni la computadora, desde MetaGenesis con todos sus medios, con los accesos y permisos completos desde cualquier medio donde se use MetaGenesis». TAREA: (1) en oracle_nodo.py, que la orden `claves` se lance SOLA desde el director cuando cambie la huella (sha256 corto, nunca el valor) de TELEGRAM_SINTESIS_BOT_TOKEN, TELEGRAM_SINTESIS_CHAT_ID, GOOGLE_ACTIVIDAD_*, de ~/.starseed/cuentas/*.json o del perfil de NotebookLM; guarda las huellas en ~/.starseed/claves-sintesis-huellas.json. (2) NotebookLM en el A1: `claves` lleva también ~/.notebooklm/profiles/default/storage_state.json (0600, mismo canal ssh, sin imprimir nada) y el instalador del A1 añade notebooklm-py en un venv propio; actividad_notebooklm.py corre en el líder que tenga el CLI y la sesión. Si Google invalida la sesión fuera de la Mac, devuelve {ok: False, motivo: 'sesión de NotebookLM no válida en este nodo'} y la Mac la cubre cuando esté encendida; nunca reintenta el login. (3) Los lectores de actividad y la entrega solo corren en el LÍDER de dirección (A1, Mac u otra neurona capaz con las claves); los contenedores de la nube compartida (GitHub Actions) nunca reciben datos privados ni claves. Pruebas sin red y sin ssh real. Máximo 120 líneas tocadas por archivo."
  }
 ]
 ```
