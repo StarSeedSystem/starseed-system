@@ -1,0 +1,40 @@
+{
+ "ola": "oracle-20261111",
+ "medio": "oracle",
+ "tareas": [
+  {
+   "ola": "Relevo del carril Claude · 20261111-0812",
+   "titulo": "prueba.37: publicar main bbacfc2c2d y compilar la versión de prueba (Mac y Android)",
+   "archivos": [
+    "native/src-tauri/android/BleStarSeed.kt"
+   ],
+   "depende": [],
+   "origen": "relevo-carril-claude",
+   "relevo_de": "P37-1111",
+   "capacidad": "alta",
+   "medio": "oracle",
+   "segundos": 1294,
+   "t": "2026-11-11 11:09:18",
+   "modelos_fallidos": [
+    "openrouter/nvidia/nemotron-3-super-120b-a12b:free",
+    "apinex/free/deepseek-v4-flash-0731",
+    "apinex/free/deepseek-v4-pro-0813",
+    "nvidia/nvidia/nemotron-3-ultra-550b-a55b",
+    "apinex/free/gemini-3.8-flash",
+    "apinex/free/glm-5.3-flash"
+   ],
+   "intentos_auto": 6,
+   "reintentos_medio": 0,
+   "corregido": "2026-11-11 10:27:21",
+   "rama": "ola/P37-1111-rc",
+   "sha": "59918b99f4f95c30110e75a537d70c15329f882f",
+   "revisado_por": "revisor-bloqueadas",
+   "revisor": "bloqueante",
+   "motivo_vb": "revisión bloqueante confirmada",
+   "faltan": [],
+   "id": "P37-1111-rcb",
+   "prompt": "RELEVO DEL CARRIL CLAUDE (REL1026A): esta tarea la empezó un agente de Claude que se quedó sin crédito. Empieza desde main (lo que hubiera escrito no llegó). Si al leer el código ya está hecha, responde NO APLICA con la prueba. Si es más de lo que cabe en una tarea (más de 3 archivos), haz la primera parte coherente y deja dicho qué falta: el revisor la dividirá.\n\nmain local bbacfc2c2d pasó la puerta (950 archivos, 10 835 pruebas, tsc 0). El lanzador ~/.starseed/opus1031/lanzar-prueba-cuando.sh (etiqueta prueba37) dispara native-build.yml canal=pruebas en cuanto la autopublicación suba main, y ~/.starseed/opus1031/vigilar-prueba37.sh avisa a Alex por Genesis y Telegram. Vigilar el run; si Kotlin (BleStarSeed.kt) o Rust no compilan, arreglarlo y relanzar. Las 15 comprobaciones están registradas (comprobaciones_prueba.py ver 37).\n\n## REPARACIÓN\nCorrige cada punto de esta objeción literal y añade una prueba para cada uno:\nRiesgos reales:\n1. **`hex` no genera el patrón esperado** – la función solo concatena los bytes recibidos; el test espera una cadena de 32 caracteres (`112233445566778899aabbccddeeff`). Si la función se usa para construir paquetes BLE, el mensaje será incompleto y la comunicación fallará.  \n2. **`hexSinRelleno` devuelve “0f” en vez de “000f”** – el formato `%x` elimina ceros a la izquierda. Un payload BLE que dependa de longitud fija se truncará, provocando errores de parsing en el dispositivo.  \n3. **`idSeguro` no normaliza a minúsculas** – el test verifica que `\"B1\\n\"` devuelva `\"b1\"`. Sin `lowercase()`, se devolverá `\"B1\"` y la carpeta de build podrá colisionar con nombres sensibles a mayúsculas, rompiendo la lógica de extracción/actualización.\n\nSeguimiento: sí, bloqueante — comportamiento incorrecto de `hex`, `hexSinRelleno` e `idSeguro`. Hasta que se alineen con la especificación (incluyendo lower‑casing y relleno de ceros) y los tests pasen, el commit no debe fusionarse.\n\nCorrige cada punto y añade pruebas que demuestren la reparación.",
+   "modelo": "codex/gpt-5.6-sol"
+  }
+ ]
+}
