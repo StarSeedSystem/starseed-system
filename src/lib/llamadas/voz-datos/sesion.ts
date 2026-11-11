@@ -245,7 +245,7 @@ export class SesionVozDatos {
     if (!this.soportados.length) this.soportados.push("adpcm");
     this.etiqueta = etiquetaLlamada(deps.idLlamada);
     // VOZ1111J: el carril se mide solo si el enlace cuenta lo que entra (el Bluetooth). Un canal WebRTC local no.
-    this.medidor = typeof deps.transporte.bytesEntrados === "function" && typeof deps.transporte.colaVozBytes === "function" ? new MedidorEnlace(this.bytesPorMsAnunciados() ?? undefined) : null;
+    this.medidor = typeof deps.transporte.bytesEntrados === "function" && typeof deps.transporte.colaVozBytes === "function" ? new MedidorEnlace(this.bytesPorMsAnunciados() ?? undefined, { aisladas: false }) : null;
   }
 
   private bytesPorMsAnunciados(): number | null {

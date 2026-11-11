@@ -16,7 +16,7 @@ import {
 } from "../paquete";
 import { cabeNivel, ControlNivelVoz, kbpsTextoNivel, nivelInicial, NIVELES_OPUS, type EntradaNivel } from "../niveles";
 import { __vaciarReservasVoz, fijarReservaVoz, reservaVozKbps } from "../reserva";
-import { presupuestoVideo, type ModeloEnlace, type ResumenEnlace } from "@/lib/llamadas/video-datos/reparto";
+import { ajustarModelo, kbpsMaxConCiclo, MedidorEnlace, presupuestoVideo, type ModeloEnlace, type ResumenEnlace } from "@/lib/llamadas/video-datos/reparto";
 import { MUESTRAS_TRAMA } from "../codec";
 import { AVISO_SIN_VOZ_RX, SesionVozDatos, fabricaCodecsSimples, type AudioVoz, type FabricaCodecs, type RelojVoz, type TransporteVoz } from "../sesion";
 import { textoCalidadVoz, nivelCalidadVoz } from "../decision";
@@ -209,6 +209,54 @@ describe("reserva de la voz en el reparto con el vídeo", () => {
     expect(presupuestoVideo(r({ vozKbps: 30 }))).toBe(Math.round((80 - 30) * 0.9));
     fijarReservaVoz(DUENO, null);
     expect(reservaVozKbps()).toBeNull();
+  });
+});
+
+describe("VOZ1111L: el modelo del carril también aprende de escrituras aisladas", () => {
+  it("con escrituras aisladas, tamaños de poca amplitud no dan pendiente (se usa el «supuesto»)", () => {
+    // 160 kb/s, acuse 42 ms, voz sola de 200–300 B con ± 10 ms de muestreo: la pendiente al azar decía ≈ 60 kb/s.
+    const pares = Array.from({ length: 12 }, (_, k) => ({ bytes: 150 + (k % 3) * 100, ms: 42 + (150 + (k % 3) * 100) / 20 + (k % 3 === 2 ? 14 : k % 3 === 0 ? -8 : 0) }));
+    expect(ajustarModelo(pares, 20)!.fuente).toBe("ajuste");
+    const m = ajustarModelo(pares, 20, true)!;
+    expect(m.fuente).toBe("supuesto");
+    expect(kbpsMaxConCiclo(m, 100)).toBeGreaterThan(80);
+  });
+
+  it("voz ligera en un carril estrecho: el «supuesto» no inventa sitio para el vídeo", () => {
+    // 40 kb/s (5 B/ms), acuse 42 ms, voz sola de 220 B: 86 ms por escritura.
+    const estrecho = Array.from({ length: 10 }, () => ({ bytes: 220, ms: 42 + 220 / 5 }));
+    expect(kbpsMaxConCiclo(ajustarModelo(estrecho, 20)!, 100)).toBeGreaterThan(30); // sin escrituras aisladas: como antes
+    expect(kbpsMaxConCiclo(ajustarModelo(estrecho, 20, true)!, 100)).toBeLessThan(25);
+    const ancho = Array.from({ length: 10 }, () => ({ bytes: 220, ms: 42 + 220 / 20 }));
+    expect(kbpsMaxConCiclo(ajustarModelo(ancho, 20, true)!, 100)).toBeGreaterThan(80);
+  });
+
+  it("con voz ligera (carril vacío entre paquetes) el modelo se rehace con la capacidad nueva", () => {
+    // Carril de 40 kb/s (5 B/ms) y acuse de 42 ms; paquetes de 150–350 B cada 200 ms, siempre con el carril vacío antes.
+    const simular = (bytesPorMs: number, m: MedidorEnlace, t0: number, entrados0: number) => {
+      let t = t0;
+      let entrados = entrados0;
+      for (let k = 0; k < 45; k++) {
+        const b = 150 + (k % 5) * 50;
+        const fin = t + 42 + b / bytesPorMs;
+        entrados += b;
+        // Muestras cada 20 ms: entra, en vuelo, acusado.
+        for (let s = t + 20; s < t + 200; s += 20) m.muestra(s, { cola: s < fin ? b : 0, entrados });
+        t += 200;
+      }
+      return { t, entrados };
+    };
+    const m = new MedidorEnlace(20);
+    m.muestra(0, { cola: 0, entrados: 0 });
+    const a = simular(5, m, 0, 0);
+    m.cerrarVentana(a.t);
+    expect(m.modelo).not.toBeNull();
+    // Lo que cabe (voz + vídeo, escrituras de 100 ms) en 40 kb/s con 42 ms de acuse es ≈ 23 kb/s: el modelo no da sitio de más.
+    expect(kbpsMaxConCiclo(m.modelo!, 100)).toBeLessThan(40);
+    // Vuelve a 160 kb/s: el modelo lo ve sin que haga falta llenar el carril.
+    const b = simular(20, m, a.t, a.entrados);
+    m.cerrarVentana(b.t);
+    expect(kbpsMaxConCiclo(m.modelo!, 100)).toBeGreaterThan(75);
   });
 });
 
@@ -449,9 +497,11 @@ describe("bajo el suelo se dice la verdad", () => {
     __vaciarReservasVoz();
     const x = await llamada({ capacidad: 16 });
     x.hablar(200);
+    // VOZ1111L: con dos sesiones activas (los dos extremos aquí) no se sabe cuál comparte carril: sin reserva.
+    expect(reservaVozKbps()).toBeNull();
+    x.sb.detener();
     expect(reservaVozKbps()).toBe(kbpsTextoNivel(NIVELES_OPUS[NIVELES_OPUS.length - 1], "b1", ID));
     x.sa.detener();
-    x.sb.detener();
     expect(reservaVozKbps()).toBeNull();
   });
 });

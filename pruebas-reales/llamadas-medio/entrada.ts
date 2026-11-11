@@ -202,11 +202,12 @@ interface MedidaSentido {
   bytesVoz: number;
   bytesVideo: number;
   tirados: number;
+  esperasLargas: Array<{ t: number; ms: number; solo: boolean; kbps: number }>;
   /** (VOZ1111J) Paquetes de voz que entraron y bytes que salieron al aire. */
   paquetesVoz: number;
   bytesAire: number;
 }
-const nuevaMedida = (): MedidaSentido => ({ vozTramas: new Set(), vozQMin: Infinity, vozQMax: -1, transitos: [], tarde: 0, esperaTrasVideoMax: 0, esperasTrasVideo: 0, escrituras: 0, escriturasVideo: 0, escriturasMixtas: 0, bytesVoz: 0, bytesVideo: 0, tirados: 0, paquetesVoz: 0, bytesAire: 0 });
+const nuevaMedida = (): MedidaSentido => ({ vozTramas: new Set(), vozQMin: Infinity, vozQMax: -1, transitos: [], tarde: 0, esperaTrasVideoMax: 0, esperasTrasVideo: 0, escrituras: 0, escriturasVideo: 0, escriturasMixtas: 0, bytesVoz: 0, bytesVideo: 0, tirados: 0, paquetesVoz: 0, bytesAire: 0, esperasLargas: [] });
 const medida: Record<"AB" | "BA", MedidaSentido> = { AB: nuevaMedida(), BA: nuevaMedida() };
 // En el árbol viejo no existe (sale `undefined`): el banco usa entonces el umbral de antes.
 const vozOcupada = (transporteVoz as { vozOcupada?: (c: number, u: number, v: number | undefined, a: number) => boolean }).vozOcupada;
@@ -288,6 +289,8 @@ function enlaceBle(): [TransporteVoz, TransporteVoz] {
           const delante = voz.filter(esVideoTxt).reduce((a, x) => a + x.length, 0);
           const e = enVuelo?.soloVideo ? enVuelo.ack - performance.now() : ((delante + (enVuelo?.bytesVideo ?? 0)) * 8) / ble.kbps;
           if (e > 0) m.esperasTrasVideo++;
+          // VOZ1111L: también CUÁNDO (para saber si la espera larga es de la caída, de la vuelta o de siempre).
+          if (e > 200) m.esperasLargas.push({ t: Math.round(performance.now()), ms: Math.round(e), solo: !!enVuelo?.soloVideo, kbps: ble.kbps });
           m.esperaTrasVideoMax = Math.max(m.esperaTrasVideoMax, Math.round(e));
         }
         if (esVideoTxt(t)) {
@@ -622,6 +625,7 @@ function estadoNeg() {
         bytesVideo: m.bytesVideo,
         tiradosColaVoz: m.tirados,
         paquetesVoz: m.paquetesVoz,
+        esperasLargas: m.esperasLargas.slice(0, 20),
         kbpsAire: null,
         bytesAire: m.bytesAire,
       };

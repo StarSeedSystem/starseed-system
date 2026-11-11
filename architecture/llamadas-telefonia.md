@@ -484,6 +484,23 @@ alcanza para la voz: al otro le llega a trozos; vuelve sola al mejorar». Va en 
 **Reserva para el vídeo.** `voz-datos/reserva.ts`: cada sesión publica los kb/s de texto de su escalón; `presupuestoVideo`
 resta la mayor entre eso y la voz medida. La voz baja → el vídeo gana ese sitio; sube → lo devuelve.
 
+**Escrituras aisladas en el modelo (VOZ1111L).** `MedidorEnlace` contaba solo escrituras seguidas (carril ocupado de un acuse al
+siguiente). Con la voz ligera en un carril holgado no hay escrituras seguidas: el modelo se quedaba con lo medido durante una
+caída y el vídeo seguía en pausa ~24 s tras volver la capacidad. Ahora una escritura que empieza con el carril vacío también da
+su par (de que entra a su acuse, los dos a mitad del intervalo de 20 ms). Y un par de más de 1,5 s sale del modelo en cuanto hay 6
+más nuevos (`EDAD_PAR_MS`): con la voz ligera, 40 pares eran 5–8 s de memoria del carril de antes. Solo el vídeo cuenta las
+aisladas (`MedidorEnlace(…, { aisladas: false })` en la voz): con paquetes de tamaño casi fijo el ajuste cae en «supuesto»
+(C = lo anunciado) y la escalera de la voz creía caber un escalón de más en un carril estrecho. Y en el vídeo, con escrituras aisladas, la pendiente
+solo se cree si los tamaños abarcan ≥ 25 ms de serialización a lo anunciado (la voz sola no: sería ruido del muestreo de
+20 ms); si no, «supuesto» con el acuse fijo del Bluetooth
+(`ACUSE_BLE_MS` = 42 ms): C = bytes / (ms − 42), como mucho lo anunciado. Sin eso la voz ligera de un carril de 40 kb/s
+parecía dejar ≈ 47 kb/s y el vídeo volvía en falso a mitad del estrecho. Todo esto (aisladas, olvido de 1,5 s, «supuesto» con acuse) solo mientras
+no entra vídeo (en pausa) y no en el medidor de la voz; con el vídeo en marcha el modelo es el de LLA1111B.
+
+Queda (no es de la voz): en el instante de una caída, el vídeo que ya estaba en el carril con la ventana de la capacidad de
+antes (`ventanaBytes`, hasta 1,5 KiB, dos ventanas) tarda ≈ 260 ms en salir a 40 kb/s; el banco lo mide en `ble-caida`
+(«esperó ≈ 259 ms tras un vídeo», también sin VOZ1111J).
+
 Registro (`medio=enlace-datos`), cada 5 s (dos líneas: el registro corta cada detalle a 200 caracteres) y en cada cambio:
 
 ```
@@ -495,7 +512,8 @@ voz-datos bajo-suelo rx audio-inventado=100/66/76% (en silencio, aviso)   ·   v
 voz-datos bajo-suelo tx motivo=descartes cabe=9kbps   ·   voz-datos sobre-suelo tx
 ```
 
-Límites: la reserva es global (la mayor de las llamadas activas, no por neurona). El doble base64 del cifrado sigue en el aire:
+Límites: la reserva solo vale con UNA sesión de voz activa; con varias (o los dos extremos del banco en una página) manda la
+voz medida en el carril (VOZ1111L). El doble base64 del cifrado sigue en el aire:
 con el enlace cifrado el suelo sube (banco: casos `-cif`); quitarlo es de `malla/` (cifrar a binario) o del marco nativo.
 Banco: `voz-40`, `voz-24`, `voz-16`, `voz-caida`, `voz-suelo`, `voz-*-cif`, `vozvideo-80`, `vozvideo-40` (LEEME).
 

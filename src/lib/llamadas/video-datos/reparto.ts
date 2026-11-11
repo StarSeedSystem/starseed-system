@@ -70,6 +70,15 @@ export const CUBETA_MS = 400;
 export const BYTES_POR_MS_SUPUESTOS = 20;
 /** Pares (bytes, ms) que se recuerdan para el modelo. */
 export const PARES_MODELO = 40;
+/**
+ * VOZ1111L: un par más viejo que esto sale del modelo en cuanto quedan `PARES_MINIMOS_FRESCOS` más nuevos. Con 40 pares
+ * y la voz ligera (≈ 5–8 escrituras por segundo) el modelo tardaba 5–8 s en olvidar el carril de antes de una caída o
+ * de su vuelta: la ventana del vídeo seguía con la capacidad vieja y el vídeo, en pausa.
+ */
+export const EDAD_PAR_MS = 1500;
+/** VOZ1111L: acuse fijo de una escritura del Bluetooth (medido en el de Alex; `ventanaBytes` supone lo mismo sin modelo). */
+export const ACUSE_BLE_MS = 42;
+export const PARES_MINIMOS_FRESCOS = 6;
 
 /* ───────────────────────── Modelo del enlace ───────────────────────── */
 
@@ -85,7 +94,7 @@ export interface ModeloEnlace {
  * Ajusta `ms = R + bytes/C` a los pares (bytes, ms) de escrituras con el carril ocupado. Si los tamaños apenas varían
  * (solo voz) no se puede separar R de C: se supone C (`bytesPorMsSupuestos`, lo anunciado) y R sale de la mediana.
  */
-export function ajustarModelo(pares: ReadonlyArray<{ bytes: number; ms: number }>, bytesPorMsSupuestos: number = BYTES_POR_MS_SUPUESTOS): ModeloEnlace | null {
+export function ajustarModelo(pares: ReadonlyArray<{ bytes: number; ms: number }>, bytesPorMsSupuestos: number = BYTES_POR_MS_SUPUESTOS, exigirAmplitud = false): ModeloEnlace | null {
   if (pares.length < 6) return null;
   const n = pares.length;
   const mb = pares.reduce((a, p) => a + p.bytes, 0) / n;
@@ -99,10 +108,28 @@ export function ajustarModelo(pares: ReadonlyArray<{ bytes: number; ms: number }
   const desv = Math.sqrt(vb / n);
   const supuesto = (): ModeloEnlace => {
     const c = Math.max(1, bytesPorMsSupuestos);
+    // VOZ1111L: con escrituras aisladas de voz ligera, que R absorba la serialización hace creer que cabe de más en un carril
+    // estrecho (40 kb/s con voz de 10 kb/s: «cabe» 47 kb/s → el vídeo volvía y se volvía a pausar). Se toma el acuse fijo
+    // del Bluetooth (`ACUSE_BLE_MS`, el mismo que supone `ventanaBytes`) y la capacidad sale de la escritura típica.
+    if (exigirAmplitud) {
+      const med = (xs: number[]) => xs.sort((a, b) => a - b)[Math.floor(xs.length / 2)];
+      const ms = med(pares.map((p) => p.ms));
+      const by = med(pares.map((p) => p.bytes));
+      if (ms - ACUSE_BLE_MS > 2 && by / (ms - ACUSE_BLE_MS) < c) return { rMs: ACUSE_BLE_MS, bytesPorMs: Math.max(0.5, Math.round((by / (ms - ACUSE_BLE_MS)) * 10) / 10), fuente: "supuesto" };
+    }
     const rs = pares.map((p) => p.ms - p.bytes / c).sort((a, b) => a - b);
     return { rMs: Math.max(0, Math.min(250, rs[Math.floor(rs.length / 2)])), bytesPorMs: c, fuente: "supuesto" };
   };
   if (mb <= 0 || desv / mb < 0.25 || vb <= 0) return supuesto();
+  // VOZ1111L (`exigirAmplitud`, con escrituras aisladas): la pendiente solo se cree si los tamaños abarcan ≥ 25 ms de
+  // serialización a lo anunciado. La voz sola (200–400 B) da diferencias de 10–20 ms, del orden del muestreo (20 ms), y su
+  // pendiente salía al azar (≈ 60 kb/s en un carril de 160). Con vídeo en el carril (300 B–1,5 KiB) sí hay ajuste. Si no,
+  // «supuesto»: la escritura típica dice cuánto tarda la voz y eso, con lo anunciado, da lo que cabe (como antes de VOZ1111J).
+  if (exigirAmplitud) {
+    const ord = pares.map((p) => p.bytes).sort((a, b) => a - b);
+    const amplitud = ord[Math.floor(ord.length * 0.9)] - ord[Math.floor(ord.length * 0.1)];
+    if (amplitud / Math.max(1, bytesPorMsSupuestos) < 25) return supuesto();
+  }
   const b = cv / vb;
   if (!(b > 0)) return supuesto();
   const c = Math.max(1, Math.min(250, 1 / b));
@@ -173,13 +200,24 @@ export class MedidorEnlace {
   private acusadoMax = 0;
   private ultimaEscritura = 0;
   private ocupadoDesdeEscritura = false;
-  private pares: Array<{ bytes: number; ms: number }> = [];
+  /** VOZ1111L: cuándo empezó la escritura en vuelo si el carril estaba vacío antes (0: no hay). */
+  private inicioAislada = 0;
+  private pares: Array<{ bytes: number; ms: number; t?: number; aislada?: boolean }> = [];
   /** Edad del byte más viejo del carril ahora (ms). */
   retrasoMs = 0;
   /** El último modelo calculado. */
   modelo: ModeloEnlace | null = null;
 
-  constructor(private readonly bytesPorMsSupuestos: number = BYTES_POR_MS_SUPUESTOS) {}
+  /**
+   * `aisladas` (VOZ1111L): contar también las escrituras que empiezan con el carril vacío. Sí para el vídeo (en pausa solo
+   * va la voz, ligera, y sin ellas no ve volver la capacidad). No para la escalera de la voz: con paquetes de tamaño casi
+   * fijo el ajuste cae en «supuesto» (C = lo anunciado) y en un carril estrecho le hacía creer que cabía el escalón de
+   * arriba (subía, descartaba y bajaba: huecos de 60 ms). La voz sigue midiendo con las escrituras seguidas, como antes.
+   */
+  constructor(
+    private readonly bytesPorMsSupuestos: number = BYTES_POR_MS_SUPUESTOS,
+    private readonly opc: { aisladas?: boolean } = {},
+  ) {}
 
   muestra(ahora: number, m: MuestraCarril): void {
     const cola = Math.max(0, m.cola);
@@ -196,12 +234,28 @@ export class MedidorEnlace {
       // un canal WebRTC, nunca cuenta como ocupado: sin medida no hay modelo ni techo).
       if (prev.cola > 0 || cola > 0) this.ocupadoMs += dt;
       if (prev.cola <= 0) this.ocupadoDesdeEscritura = false;
+      // VOZ1111L: el carril estaba vacío y entró algo que aún no se acusa: una escritura AISLADA empieza ahora (a mitad
+      // del intervalo, ± 10 ms). Su duración también vale para el modelo. Sin esto solo contaban las escrituras seguidas
+      // y, con la voz ligera de VOZ1111J en un carril holgado, no entraba ningún par nuevo: el modelo se quedaba con lo
+      // medido durante la caída y el vídeo seguía en pausa ~24 s después de volver la capacidad.
+      if (this.opc.aisladas !== false && prev.cola <= 0 && cola > 0 && dAc === 0 && m.entrados > prev.entrados) this.inicioAislada = prev.t + dt / 2;
       if (dAc > 0) {
         // Acabó una escritura (su acuse). Si el carril estuvo ocupado desde la anterior, su duración vale para el modelo.
         if (this.ultimaEscritura && this.ocupadoDesdeEscritura) {
-          this.pares.push({ bytes: dAc, ms: ahora - this.ultimaEscritura });
+          this.pares.push({ bytes: dAc, ms: ahora - this.ultimaEscritura, t: ahora });
+          if (this.pares.length > PARES_MODELO) this.pares.shift();
+        } else if (this.inicioAislada && prev.t + dt / 2 > this.inicioAislada) {
+          // VOZ1111L: escritura aislada, de que entró a su acuse (los dos a mitad de su intervalo: sin sesgo de muestreo).
+          this.pares.push({ bytes: dAc, ms: prev.t + dt / 2 - this.inicioAislada, t: ahora, aislada: true });
           if (this.pares.length > PARES_MODELO) this.pares.shift();
         }
+        this.inicioAislada = 0;
+        // VOZ1111L: lo viejo se olvida si hay bastante nuevo.
+        const corte = ahora - EDAD_PAR_MS;
+        let viejos = 0;
+        while (viejos < this.pares.length && (this.pares[viejos].t ?? ahora) < corte) viejos++;
+        // Solo sin vídeo en el carril (en pausa): con el vídeo en marcha, la memoria de 40 pares de LLA1111B.
+        if (this.videoVentana <= 0 && this.opc.aisladas !== false && viejos > 0 && this.pares.length - viejos >= PARES_MINIMOS_FRESCOS) this.pares.splice(0, viejos);
         this.ultimaEscritura = ahora;
         this.ocupadoDesdeEscritura = cola > 0;
       }
@@ -235,7 +289,11 @@ export class MedidorEnlace {
   cerrarVentana(ahora: number): ResumenEnlace {
     const ms = Math.max(1, ahora - (this.desde || ahora));
     const kbps = (b: number, t: number) => Math.round((b * 8) / Math.max(1, t));
-    const nuevo = ajustarModelo(this.pares, this.bytesPorMsSupuestos);
+    // VOZ1111L: las escrituras aisladas solo cuentan mientras NO entra vídeo (en pausa: para ver volver la capacidad). Con
+    // el vídeo en marcha el modelo es el de LLA1111B (escrituras seguidas, «supuesto» con lo anunciado), que es lo que fija
+    // su escalón en carriles de 80 kb/s.
+    const soloVoz = this.videoVentana <= 0 && this.opc.aisladas !== false;
+    const nuevo = ajustarModelo(soloVoz ? this.pares : this.pares.filter((p) => !p.aislada), this.bytesPorMsSupuestos, soloVoz);
     if (nuevo) this.modelo = nuevo;
     const r: ResumenEnlace = {
       modelo: this.modelo,

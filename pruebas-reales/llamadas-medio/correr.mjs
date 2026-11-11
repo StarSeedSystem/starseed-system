@@ -615,7 +615,7 @@ async function casoBle(nombre, tramos, extra = {}) {
   const r = await p.evaluate(
     ({ t0, t1, tramosMs, marcas }) => {
       const b = window.banco;
-      const out = { total: b.resumenTramo(t0, t1), voz: b.resumenVoz() };
+      const out = { total: b.resumenTramo(t0, t1), voz: b.resumenVoz(), t0: Math.round(t0) };
       // Por tramos de capacidad (para la caída) y por estado del micro.
       const cortes = [t0, ...tramosMs.map((x) => x.en), t1];
       out.tramos = cortes.slice(0, -1).map((d, i) => ({ desde: Math.round(d - t0), hasta: Math.round(cortes[i + 1] - t0), ...b.resumenTramo(d, cortes[i + 1]) }));
@@ -641,7 +641,7 @@ async function casoBle(nombre, tramos, extra = {}) {
       }
       out.textos = cambios.slice(0, 40);
       out.pausaEn = txt.filter((m) => /pausa/i.test(`${m.A} ${m.B}`)).map((m) => Math.round((m.t - t0) / 1000));
-      out.registro = b.lineas.filter((l) => /video-datos (tx|reparto|pausa|sigue)|voz-datos (plan|reparto)/.test(l.detalle)).slice(-14).map((l) => `${Math.round((l.t - t0) / 1000)}s ${l.neurona ?? "-"} ${l.detalle}`);
+      out.registro = b.lineas.filter((l) => /video-datos (tx|reparto|pausa|sigue)|voz-datos (plan|reparto)/.test(l.detalle)).slice(-80).map((l) => `${Math.round((l.t - t0) / 1000)}s ${l.neurona ?? "-"} ${l.detalle}`);
       return out;
     },
     { t0, t1, tramosMs, marcas },
