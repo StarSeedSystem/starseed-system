@@ -10,22 +10,22 @@ describe("página pública /privacidad", () => {
   it("renderiza sin sesión con el título, la app y el alcance de lectura", () => {
     render(<PrivacidadPage />);
     expect(screen.getByRole("heading", { level: 1, name: /Política de privacidad/i })).toBeTruthy();
-    expect(screen.getByText(/StarSeed actividad/i)).toBeTruthy();
-    expect(screen.getByText(/solo lectura/i)).toBeTruthy();
+    expect(screen.getAllByText(/StarSeed actividad/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/solo lectura/i).length).toBeGreaterThan(0);
   });
 
   it("declara que los datos se quedan en los nodos del dueño y el uso limitado de Google", () => {
     render(<PrivacidadPage />);
-    expect(screen.getByText(/no se venden/i)).toBeTruthy();
-    expect(screen.getByText(/Uso limitado/i)).toBeTruthy();
+    expect(screen.getAllByText(/no se vende/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Uso limitado/i).length).toBeGreaterThan(0);
   });
 
   it("ofrece cómo revocar el acceso y un contacto real", () => {
     render(<PrivacidadPage />);
-    const revocar = screen.getByRole("link", { name: /myaccount\.google\.com\/permissions/i });
+    const revocar = screen.getAllByRole("link", { name: /myaccount\.google\.com\/permissions/i })[0];
     expect(revocar.getAttribute("href")).toBe("https://myaccount.google.com/permissions");
-    expect(screen.getByText(/fundacionstarseed@gmail\.com/i)).toBeTruthy();
-    expect(screen.getByText(/2026-11-11/)).toBeTruthy();
+    expect(screen.getAllByText(/fundacionstarseed@gmail\.com/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/2026-11-11/).length).toBeGreaterThan(0);
   });
 
   it("incluye un resumen en inglés y enlaza a los términos", () => {
@@ -42,15 +42,15 @@ describe("página pública /terminos", () => {
   it("renderiza con el título, la vigencia y el enlace a la privacidad", () => {
     render(<TerminosPage />);
     expect(screen.getByRole("heading", { level: 1, name: /Términos/i })).toBeTruthy();
-    expect(screen.getByText(/2026-11-11/)).toBeTruthy();
+    expect(screen.getAllByText(/2026-11-11/).length).toBeGreaterThan(0);
     const privacidad = screen.getByRole("link", { name: /Política de privacidad/i });
     expect(privacidad.getAttribute("href")).toBe("/privacidad");
   });
 
   it("describe la app de solo lectura y el uso limitado de Google", () => {
     render(<TerminosPage />);
-    expect(screen.getByText(/StarSeed actividad/i)).toBeTruthy();
-    expect(screen.getByText(/solo lectura/i)).toBeTruthy();
-    expect(screen.getByText(/Uso limitado/i)).toBeTruthy();
+    expect(screen.getAllByText(/StarSeed actividad/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/solo lectura/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Uso limitado/i).length).toBeGreaterThan(0);
   });
 });
