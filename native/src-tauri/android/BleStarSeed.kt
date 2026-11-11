@@ -1159,6 +1159,10 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
     }
 
     // ───────────────────────────── Hex ─────────────────────────────
+    // (P37-1111) Los paquetes BLE viajan en hex por el puente con Rust: SIEMPRE dos dígitos por byte
+    // (16 B → 32 caracteres, 0x0f → «0f»). Nunca `toString(16)` ni `%x`, que se comen los ceros a la
+    // izquierda y truncarían el paquete en el otro extremo del enlace. Lo vigila
+    // android_ble::kotlin_hex_de_paquetes_es_de_dos_digitos_por_byte.
 
     private val HEX = "0123456789abcdef".toCharArray()
 
@@ -1628,6 +1632,7 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
         evento(JSONObject().put("e", "psm").put("enlace", k).put("psm", psm))
     }
 
+    /** Bytes → hex de longitud fija: dos caracteres por byte (nunca se recorta ningún cero). */
     fun aHex(b: ByteArray): String {
         val c = CharArray(b.size * 2)
         for (i in b.indices) {
@@ -1638,6 +1643,7 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
         return String(c)
     }
 
+    /** Hex (par, sin recortar) → bytes. Un texto impar o con un dígito que no sea hex no es un paquete. */
     fun deHex(s: String): ByteArray? {
         if (s.isEmpty() || s.length % 2 != 0) return null
         val out = ByteArray(s.length / 2)
