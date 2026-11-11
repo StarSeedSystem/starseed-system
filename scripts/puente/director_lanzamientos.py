@@ -133,6 +133,15 @@ def _preparar(m, est, ahora):
         return _paso(est, "preparando", "espero un momento seguro para el commit de versión", ahora)
     with open(cs.CERROJO, "a") as lk:
         fcntl.flock(lk, fcntl.LOCK_EX)
+        # (VER1111F) Con la aprobación de una prueba, la versión sube SOLO encima del commit probado: con el
+        # cerrojo de commits tomado nadie integra entre esta comprobación y el commit de versión.
+        if est.get("aprobacion"):
+            _, cabeza, _ = m.git(["rev-parse", "HEAD"])
+            ok, motivo = L.cabeza_para_preparar(est["aprobacion"], cabeza)
+            if not ok:
+                m.avisar("Aprobación de %s sin lanzar: %s" % (est["aprobacion"].get("version"), motivo), tipo="alerta")
+                est = L.cerrar_aprobacion(est, "caducada", motivo, ahora)
+                return _paso(est, "esperando-lista", motivo, ahora, **OLVIDAR_LANZAMIENTO)
         textos = {r: open(os.path.join(m.raiz, r), encoding="utf-8").read() for r in ARCHIVOS_VERSION}
         try:
             nuevos = L.aplicar_version(textos, v, time.strftime("%Y-%m-%d", time.localtime(ahora)), notas)
@@ -276,6 +285,8 @@ def _verificar_medios(m, est, ahora):
     hist = list(est.get("historial") or []) + [{"t": ahora, "tipo": "lanzado", "version": est["version"]}]
     m.avisar("StarSeed OS v%s lanzada en macOS, Windows, Linux y Android (iOS: PWA). %s"
              % (est["version"], est.get("release_url") or ""), tipo="informe")
+    if est.get("aprobacion"):  # (VER1111F) la aprobación de Alex queda cumplida; la pausa general sigue igual
+        est = L.cerrar_aprobacion(est, "lanzada", "v%s lanzada" % est["version"], ahora)
     return _paso(est, "lanzado", "v%s lanzada y verificada en cada medio" % est["version"], ahora,
                  historial=hist[-30:], version_sin_lanzar=None, arreglo_titulo=None)
 
@@ -286,24 +297,61 @@ OLVIDAR_LANZAMIENTO = dict(preparado_sha=None, version=None, run=None, run_previ
                            compilando_desde=None, volver_a=None, arreglo=None, notas=None)
 
 
+def _quitar_peticion(m):
+    borrar = getattr(m, "borrar", None)
+    if borrar:
+        borrar(PETICION)
+        return
+    try:
+        os.remove(PETICION)
+    except OSError:
+        pass
+
+
+def _tomar_aprobacion(m, est, peticion, ahora):
+    """(VER1111F) La aprobación de Alex de una versión de prueba → el lanzamiento de ESE commit por los pasos
+    de siempre (§2), o el motivo por el que no se toma. Contrato §10."""
+    _, _, a = L.validar_peticion_aprobacion(peticion)
+    en_main = desciende = False
+    if a:
+        en_main = m.git(["merge-base", "--is-ancestor", a["sha"], "origin/main"], timeout=30)[0] == 0
+        desciende = a["lanzar_sha"] == a["sha"] or m.git(
+            ["merge-base", "--is-ancestor", a["sha"], a["lanzar_sha"]], timeout=30)[0] == 0
+    acepta, motivo, aprobacion = L.decidir_aprobacion(est, peticion, _version_actual(m), en_main, desciende)
+    if not acepta:
+        rechazo = {"version": (peticion or {}).get("version"), "sha": (peticion or {}).get("sha"),
+                   "estado": "rechazada", "detalle": motivo, "cerrada": ahora}
+        if not motivo.startswith("repetida"):
+            m.avisar("Aprobación de %s no tomada: %s" % (rechazo["version"], motivo), tipo="alerta")
+            est = dict(est, aprobaciones=(list(est.get("aprobaciones") or []) + [rechazo])[-20:])
+        return dict(est, aprobacion_ultima=rechazo)
+    aprobacion["tomada"] = ahora
+    m.avisar("Alex aprobó la prueba %s: lanzo la %s desde %s por los pasos de siempre"
+             % (aprobacion["version"], aprobacion["oficial"], aprobacion["lanzar_sha"][:10]), tipo="informe")
+    return _paso(est, "esperando-publicacion", aprobacion["detalle"], ahora, manual=True,
+                 lista_sha=aprobacion["lanzar_sha"], version_aprobada=aprobacion["oficial"], aprobacion=aprobacion,
+                 aprobacion_ultima=None, version_sin_lanzar=None, arreglo_titulo=None, tipo_siguiente=None,
+                 **OLVIDAR_LANZAMIENTO)
+
+
 def pasada(m, est, cfg, ahora):
     est = dict(est or {})
     if est.get("fase") not in L.FASES + ("atascado",):
         est["fase"] = "esperando-lista"  # estado nuevo o roto: se empieza por el principio, sin adivinar
     peticion = m.leer(PETICION, None)
-    if peticion:
-        try:
-            os.remove(PETICION)
-        except OSError:
-            pass
-        accion = (peticion or {}).get("accion")
+    accion = (peticion or {}).get("accion") if isinstance(peticion, dict) else None
+    # (VER1111F) La aprobación se toma DESPUÉS de saber que dirijo y de traer main (más abajo): si no dirijo,
+    # la petición se queda para el líder en vez de perderse.
+    if peticion and accion != "aprobar-prueba":
+        _quitar_peticion(m)
         if accion in ("pausar", "reanudar"):
             est["pausado"] = accion == "pausar"
         elif accion == "lanzar" and est.get("fase") in ("esperando-lista", "lanzado", None):
             est = _paso(est, "esperando-publicacion", "lanzamiento pedido desde MetaGenesis", ahora, manual=True)
         elif accion == "reintentar" and est.get("fase") == "atascado":
             est = _paso(est, est.get("volver_a") or "esperando-publicacion", "reintento pedido", ahora)
-    if est.get("pausado"):
+    # (VER1111F) La pausa general sigue: solo la atraviesa una aprobación de Alex (una versión, no el automático).
+    if est.get("pausado") and not (L.aprobacion_en_curso(est) or accion == "aprobar-prueba"):
         return dict(est, detalle="en pausa (MetaGenesis)", t=ahora)
     dirijo, porque = m.lider(ahora)
     if not dirijo:
@@ -311,6 +359,12 @@ def pasada(m, est, cfg, ahora):
     # Solo main: `--tags` trae objetos de etiquetas viejas y pasó de 120 s (04-11). Las etiquetas
     # remotas se miran con `ls-remote` cuando hace falta.
     m.git(["fetch", "-q", "origin", "main"], timeout=120)
+    if accion == "aprobar-prueba":
+        _quitar_peticion(m)
+        est = _tomar_aprobacion(m, est, peticion, ahora)
+        if est.get("pausado") and not L.aprobacion_en_curso(est):
+            return dict(est, detalle="en pausa (MetaGenesis) · %s" % (est.get("aprobacion_ultima") or {}).get(
+                "detalle", ""), t=ahora)
     fase = est.get("fase")
     if fase in ("esperando-lista", "lanzado"):
         if not _auto(m, cfg):
@@ -342,7 +396,8 @@ def pasada(m, est, cfg, ahora):
         if not L.puede_lanzar_hoy(est.get("historial"), ahora, cfg.get("tope_dia", 1)):
             return dict(est, detalle="hoy ya hubo un lanzamiento (tope %d al día)" % cfg.get("tope_dia", 1), t=ahora)
         tipo = est.get("tipo_siguiente") or cfg.get("tipo", "menor")
-        v = L.siguiente_version(_version_actual(m), tipo)
+        # (VER1111F) Con una aprobación, la versión es la oficial que corona la prueba (0.5.1-prueba.36 → 0.5.1).
+        v = est.get("version_aprobada") or L.siguiente_version(_version_actual(m), tipo)
         est = _paso(est, "preparando", "preparo v%s" % v, ahora, version=v, preparado_sha=None, run=None,
                     run_previo=None, reintentos=0, regeneraciones=0, jobs=[], medios={}, tipo_siguiente=None)
         return _preparar(m, est, ahora)
@@ -359,6 +414,13 @@ def pasada(m, est, cfg, ahora):
     if fase == "verificando-medios":
         return _verificar_medios(m, est, ahora)
     if fase == "atascado" and est.get("arreglo") and est["arreglo"] in _ids_en_main(m):
+        if est.get("aprobacion"):
+            # (VER1111F) El parche lleva código que nadie probó: la aprobación no lo cubre (con la pausa, se para).
+            est = L.cerrar_aprobacion(est, "superada", "el arreglo %s cambia lo probado: hace falta otra prueba"
+                                      % est["arreglo"], ahora)
+            if est.get("pausado"):
+                return dict(est, detalle="en pausa (MetaGenesis): el arreglo %s necesita otra prueba" % est["arreglo"],
+                            t=ahora)
         v = L.siguiente_version(est["version"], "parche")
         _, lista_sha, _ = m.git(["rev-parse", "origin/main"])
         return _paso(est, "esperando-publicacion", "arreglo %s integrado: preparo el parche v%s" % (est["arreglo"], v),

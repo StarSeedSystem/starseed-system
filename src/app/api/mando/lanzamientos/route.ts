@@ -16,6 +16,9 @@
  *        con {"accion": "revisar"}; las demás (también `pausar`/`reanudar`, que lee el
  *        director) escriben `lanzamientos-peticion.json` (escritura atómica: tmp + rename).
  *
+ * (VER1111F) GET añade `resumenPruebas` («prueba.36 · Android compilando 12 min · 3 de 8 comprobaciones»), la
+ *        línea de las versiones de prueba (detalle en `/api/mando/lanzamientos/pruebas`).
+ *
  * ⚠️ Solo local (`guardianMando`). Jamás devuelve rutas del disco ni claves:
  * los errores de escritura son genéricos.
  */
@@ -29,6 +32,8 @@ import { guardianMando } from "@/lib/mando/guardian";
 import { raizDelProyecto } from "@/lib/mando/raiz";
 import { validarPeticion, filasDeMedios, normalizarEstado } from "@/lib/mando/lanzamientos";
 import { NATIVE_VERSION } from "@/lib/version/os-release";
+// VER1111F · la línea de las versiones de prueba para quien la quiera enseñar (medidores principales).
+import { pruebasCompartidas } from "@/lib/mando/lanzamientos-pruebas-fuentes";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -86,9 +91,14 @@ export async function GET(peticion: Request): Promise<Response> {
             : false;
 
     const filas = filasDeMedios(estado, NATIVE_VERSION);
+    // VER1111F · no hace esperar al panel: si la foto de las pruebas tarda más de 1,5 s, va null.
+    const resumenPruebas = await Promise.race([
+        pruebasCompartidas().then((f) => f.resumen).catch(() => null),
+        new Promise<null>((r) => setTimeout(() => r(null), 1_500)),
+    ]);
 
     return Response.json(
-        { estado, auto, filas, actualizadoEn: new Date().toISOString() },
+        { estado, auto, filas, resumenPruebas, actualizadoEn: new Date().toISOString() },
         { headers: { "Cache-Control": "no-store" } },
     );
 }

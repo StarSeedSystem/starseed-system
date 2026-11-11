@@ -364,3 +364,102 @@ def cuerpo_de_release(version, notas):
         "- **Android** avisa desde la app cuando hay un APK nuevo: instalarlo es un toque.",
         "- **Sin firma de pago.** En macOS, la primera vez: clic derecho → Abrir. En Windows: «Más información» → "
         "«Ejecutar de todas formas». Las actualizaciones van firmadas con la clave de StarSeed.", ""])
+
+
+# ═══════════════════════════════════════════════════════════════════════════════════════════════════
+# (VER1111F · 2026-11-11) Aprobar una versión de prueba → lanzar las oficiales desde el commit probado.
+# Contrato: architecture/centro-versiones-1105.md §10. Alex aprueba en Genesis (solo la Genesis local); la
+# ruta escribe la petición `aprobar-prueba` y el director la toma en su pasada como su visto bueno para ESE
+# commit, por los pasos de siempre (§2). La pausa general sigue: una aprobación lanza UNA versión.
+# ═══════════════════════════════════════════════════════════════════════════════════════════════════
+_PRUEBA = re.compile(r"^v?(\d+)\.(\d+)\.(\d+)-prueba\.(\d+)$")
+_SHA40 = re.compile(r"^[0-9a-f]{40}$")
+#: Fases desde las que una aprobación puede arrancar: nada preparado todavía.
+FASES_APROBABLES = ("esperando-lista", "lanzado", "esperando-publicacion")
+
+
+def version_oficial_de_prueba(version):
+    """PURA: '0.5.1-prueba.36' → '0.5.1' (la oficial que corona esa prueba). None si no es de prueba."""
+    m = _PRUEBA.match((version or "").strip())
+    return "%s.%s.%s" % m.groups()[:3] if m else None
+
+
+def _tupla(v):
+    m = _SEMVER.match((v or "").strip())
+    return tuple(int(x) for x in m.groups()) if m else None
+
+
+def validar_peticion_aprobacion(p):
+    """PURA: la petición del panel → (ok, motivo, normalizada). Solo la escribe la Genesis local (`quien`)."""
+    if not isinstance(p, dict) or p.get("accion") != "aprobar-prueba":
+        return False, "no es una petición de aprobación", None
+    version = str(p.get("version") or "").strip()
+    oficial = version_oficial_de_prueba(version)
+    if not oficial:
+        return False, "versión de prueba no válida: %r" % version[:40], None
+    sha = str(p.get("sha") or "").strip().lower()
+    lanzar = str(p.get("lanzar_sha") or sha).strip().lower()
+    if not _SHA40.match(sha) or not _SHA40.match(lanzar):
+        return False, "commit no válido (hacen falta los 40 caracteres)", None
+    if p.get("quien") != "genesis":
+        return False, "solo la Genesis local puede aprobar", None
+    return True, "", {"version": version, "oficial": oficial, "sha": sha, "lanzar_sha": lanzar,
+                      "t": p.get("t"), "prueba": int(_PRUEBA.match(version).group(4))}
+
+
+def decidir_aprobacion(est, peticion, version_actual, en_main, lanzar_desciende):
+    """PURA: ¿el director acepta esta aprobación? → (acepta, motivo, aprobacion).
+
+    `en_main`: el commit probado está en origin/main. `lanzar_desciende`: el commit a lanzar es el probado o
+    desciende de él (si Alex aceptó lanzar main tal como estaba). Una segunda petición igual no hace nada nuevo."""
+    ok, motivo, a = validar_peticion_aprobacion(peticion)
+    if not ok:
+        return False, motivo, None
+    est = est or {}
+    for previa in [est.get("aprobacion")] + list(est.get("aprobaciones") or []):
+        if (previa and previa.get("version") == a["version"] and previa.get("sha") == a["sha"]
+                and previa.get("estado") in ("en-curso", "lanzada")):
+            return False, "repetida: esa aprobación ya está tomada (%s)" % previa.get("estado"), None
+    actual = est.get("aprobacion") or {}
+    if actual.get("estado") == "en-curso":
+        return False, "ya hay otra aprobación en curso (%s)" % actual.get("version"), None
+    if est.get("fase") not in FASES_APROBABLES or est.get("preparado_sha"):
+        return False, "hay un lanzamiento a medias (%s): termina o se reintenta antes" % est.get("fase"), None
+    if not en_main:
+        return False, "el commit probado %s aún no está en origin/main" % a["sha"][:10], None
+    if not lanzar_desciende:
+        return False, "el commit a lanzar no contiene el probado", None
+    va, vo = _tupla(version_actual), _tupla(a["oficial"])
+    if not va or not vo or vo <= va:
+        return False, "la %s no es más nueva que la versión del repo (%s)" % (a["oficial"], version_actual), None
+    if vo[0] != va[0]:
+        return False, "una versión mayor sigue siendo de Alex a mano", None
+    aprobacion = dict(a, estado="en-curso", detalle="aprobada en Genesis: lanzo la %s" % a["oficial"])
+    return True, "", aprobacion
+
+
+def aprobacion_en_curso(est):
+    """PURA: ¿hay una aprobación que el director lleva adelante (y que pasa por encima de la pausa)?"""
+    return ((est or {}).get("aprobacion") or {}).get("estado") == "en-curso"
+
+
+def cabeza_para_preparar(aprobacion, cabeza):
+    """PURA: antes del commit de versión, la cabeza de main debe ser EXACTAMENTE lo aprobado (el director sube
+    la versión encima de HEAD: lo que haya encima entraría sin probar). → (ok, motivo)."""
+    if not aprobacion:
+        return True, ""
+    esperado = aprobacion.get("lanzar_sha") or aprobacion.get("sha")
+    if (cabeza or "").strip().lower() == esperado:
+        return True, ""
+    return False, ("main avanzó desde la aprobación (HEAD %s, aprobado %s): no lanzo commits sin probar; "
+                   "vuelve a aprobar" % ((cabeza or "?")[:10], (esperado or "?")[:10]))
+
+
+def cerrar_aprobacion(est, estado, detalle, ahora):
+    """PURA: la aprobación en curso pasa a `estado` y queda en el historial `aprobaciones` (últimas 20)."""
+    a = dict((est or {}).get("aprobacion") or {})
+    if not a:
+        return dict(est or {})
+    a.update(estado=estado, detalle=detalle, cerrada=ahora)
+    hist = list(est.get("aprobaciones") or []) + [a]
+    return dict(est, aprobacion=None, aprobaciones=hist[-20:], version_aprobada=None)
