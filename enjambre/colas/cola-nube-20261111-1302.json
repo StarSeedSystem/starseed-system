@@ -1,0 +1,39 @@
+{
+ "ola": "nube-20261111",
+ "tareas": [
+  {
+   "ola": "Relevo del carril Claude · 20261111-0812",
+   "titulo": "prueba.37: publicar main bbacfc2c2d y compilar la versión de prueba (Mac y Android)",
+   "archivos": [
+    "native/src-tauri/android/BleStarSeed.kt"
+   ],
+   "depende": [],
+   "relevo_de": "P37-1111",
+   "capacidad": "alta",
+   "medio": "oracle",
+   "segundos": 1294,
+   "t": "2026-11-11 11:09:18",
+   "modelos_fallidos": [
+    "openrouter/nvidia/nemotron-3-super-120b-a12b:free",
+    "apinex/free/deepseek-v4-flash-0731",
+    "apinex/free/deepseek-v4-pro-0813",
+    "nvidia/nvidia/nemotron-3-ultra-550b-a55b",
+    "apinex/free/gemini-3.8-flash",
+    "apinex/free/glm-5.3-flash"
+   ],
+   "intentos_auto": 6,
+   "reintentos_medio": 0,
+   "corregido": "2026-11-11 10:27:21",
+   "rama": "ola/P37-1111-rc",
+   "sha": "59918b99f4f95c30110e75a537d70c15329f882f",
+   "revisado_por": "revisor-bloqueadas",
+   "revisor": "bloqueante",
+   "motivo_vb": "revisión bloqueante confirmada",
+   "faltan": [],
+   "id": "P37-1111-rcbb",
+   "prompt": "RELEVO DEL CARRIL CLAUDE (REL1026A): esta tarea la empezó un agente de Claude que se quedó sin crédito. Empieza desde main (lo que hubiera escrito no llegó). Si al leer el código ya está hecha, responde NO APLICA con la prueba. Si es más de lo que cabe en una tarea (más de 3 archivos), haz la primera parte coherente y deja dicho qué falta: el revisor la dividirá.\n\nmain local bbacfc2c2d pasó la puerta (950 archivos, 10 835 pruebas, tsc 0). El lanzador ~/.starseed/opus1031/lanzar-prueba-cuando.sh (etiqueta prueba37) dispara native-build.yml canal=pruebas en cuanto la autopublicación suba main, y ~/.starseed/opus1031/vigilar-prueba37.sh avisa a Alex por Genesis y Telegram. Vigilar el run; si Kotlin (BleStarSeed.kt) o Rust no compilan, arreglarlo y relanzar. Las 15 comprobaciones están registradas (comprobaciones_prueba.py ver 37).\n\n## REPARACIÓN\nCorrige cada punto de esta objeción literal y añade una prueba para cada uno:\nRiesgos reales:\n1. **`hex` no genera el patrón esperado** – la función solo concatena los bytes recibidos; el test espera una cadena de 32 caracteres (`112233445566778899aabbccddeeff`). Si la función se usa para construir paquetes BLE, el mensaje será incompleto y la comunicación fallará.  \n2. **`hexSinRelleno` devuelve “0f” en vez de “000f”** – el formato `%x` elimina ceros a la izquierda. Un payload BLE que dependa de longitud fija se truncará, provocando errores de parsing en el dispositivo.  \n3. **`idSeguro` no normaliza a minúsculas** – el test verifica que `\"B1\\n\"` devuelva `\"b1\"`. Sin `lowercase()`, se devolverá `\"B1\"` y la carpeta de build podrá colisionar con nombres sensibles a mayúsculas, rompiendo la lógica de extracción/actualización.\n\nSeguimiento: sí, bloqueante — comportamiento incorrecto de `hex`, `hexSinRelleno` e `idSeguro`. Hasta que se alineen con la especificación (incluyendo lower‑casing y relleno de ceros) y los tests pasen, el commit no debe fusionarse.\n\nCorrige cada punto y añade pruebas que demuestren la reparación.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261111-175020-P37-1111-rcb`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261111-175020-P37-1111-rcb:refs/remotes/origin/nube/a1-20261111-175020-P37-1111-rcb\"` y `git cherry-pick --no-commit e0a1054b8eac 33079a580011 3720418f52a5`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: native/src-tauri/android/ServidorLocalLogica.kt, native/src-tauri/android/pruebas/ServidorLocalLogicaPrueba.kt.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261111-175020-P37-1111-rcb"
+  }
+ ]
+}
