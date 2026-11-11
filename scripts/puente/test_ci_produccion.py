@@ -44,6 +44,42 @@ class PruebaCiYml(unittest.TestCase):
         self.assertIn("npx tsc --noEmit", self.texto)
         self.assertIn("npm run build", self.texto)
 
+    def test_tauri_check_tiene_tope_y_apt_con_reintentos(self):
+        # (SUP1111A) tauri-check es informativo (continue-on-error), pero sin tope un apt colgado en un espejo lo
+        # dejaba 46-55 min en «Dependencias de sistema de Tauri v2» (runs 43046445511 y 43055580534, 11-11): el run
+        # no terminaba y la autopublicación vetaba el candidato con «CI sin terminar en 50 min» aunque `verify`
+        # ya tuviera veredicto. El job y el paso de apt llevan tope, y apt reintenta con su propio plazo.
+        bloque = _bloque_job(self.texto, "tauri-check")
+        tope = re.search(r"(?m)^    timeout-minutes: (\d+)\s*$", bloque)
+        self.assertIsNotNone(tope, "tauri-check necesita timeout-minutes a nivel de job")
+        self.assertLess(int(tope.group(1)), 50, "el tope debe quedar por debajo de los 50 min de la autopublicación")
+        paso = _bloque_paso(bloque, "Dependencias de sistema de Tauri v2")
+        tope_paso = re.search(r"(?m)^        timeout-minutes: (\d+)\s*$", paso)
+        self.assertIsNotNone(tope_paso, "el paso de apt necesita timeout-minutes")
+        self.assertLess(int(tope_paso.group(1)), int(tope.group(1)))
+        self.assertIn("Acquire::Retries", paso)
+        self.assertRegex(paso, r"timeout \d+ apt-get \$APT update")
+        self.assertRegex(paso, r"timeout \d+ apt-get \$APT install -y")
+        # Los paquetes no cambian: siguen los que necesita `cargo check` (tray-icon, PipeWire…).
+        for paquete in ("libwebkit2gtk-4.1-dev", "libayatana-appindicator3-dev", "libpipewire-0.3-dev", "libxdo-dev"):
+            self.assertIn(paquete, paso)
+
+
+def _bloque_job(texto: str, nombre: str) -> str:
+    """El bloque de un job de `jobs:` (dos espacios de sangría) hasta el siguiente job o el final."""
+    m = re.search(r"(?ms)^  %s:\n(?P<cuerpo>.*?)(?=^  \S|\Z)" % re.escape(nombre), texto)
+    if not m:
+        raise AssertionError("ci.yml no tiene el job `%s`" % nombre)
+    return m.group("cuerpo")
+
+
+def _bloque_paso(bloque: str, nombre: str) -> str:
+    """Un paso (`      - name: …`) del job hasta el siguiente paso o el final del job."""
+    m = re.search(r"(?ms)^      - name: %s\n(?P<cuerpo>.*?)(?=^      - |\Z)" % re.escape(nombre), bloque)
+    if not m:
+        raise AssertionError("tauri-check no tiene el paso «%s»" % nombre)
+    return m.group("cuerpo")
+
 
 def _bloque_push(texto: str) -> str:
     """Extrae el bloque `push:` del gatillo `on:` para no confundirlo con pull_request."""

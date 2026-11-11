@@ -91,6 +91,11 @@ jobs:
     # continue-on-error: la verificación de la app nativa (Tauri) es informativa
     # por ahora; no debe bloquear la puerta web de `verify` ante un fallo propio.
     continue-on-error: true
+    # (SUP1111A) Tope del job: normalmente tarda 2-3 min (apt ~1 min y cargo check con caché <1 min). Sin tope, un
+    # apt colgado en un espejo lo dejó 46-55 min en «Dependencias de sistema de Tauri v2» (runs 43046445511 y
+    # 43055580534, 11-11): el run no terminaba y la autopublicación vetaba el candidato con «CI sin terminar en
+    # 50 min» aunque `verify` ya tuviera veredicto. Con tope, el job se corta y no retiene la puerta.
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       # Mismas dependencias de sistema que usa native-build.yml para su job de
@@ -99,26 +104,41 @@ jobs:
       # libappindicator3-dev en runners recientes de Ubuntu) para que `cargo
       # check` resuelva el feature `tray-icon` de Cargo.toml sin fallar.
       - name: Dependencias de sistema de Tauri v2
+        # (SUP1111A) El mismo remedio que CI1111M en native-build.yml: cada intento con su tope (`timeout`), apt
+        # reintenta y se rinde solo (Acquire::Retries/Timeout) y el paso entero tiene `timeout-minutes`. Si no hay
+        # manera, el job sale en rojo en minutos (es informativo: no tumba la puerta web).
+        timeout-minutes: 14
+        shell: bash
         run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libwebkit2gtk-4.1-dev \
-            libgtk-3-dev \
-            libayatana-appindicator3-dev \
-            librsvg2-dev \
-            patchelf \
-            libssl-dev \
-            build-essential \
-            libpipewire-0.3-dev \
-            libspa-0.2-dev \
-            libclang-dev \
-            libxcb1-dev \
-            libxrandr-dev \
-            libdbus-1-dev \
-            libegl-dev \
-            libwayland-dev \
-            libxdo-dev \
-            file
+          APT="-o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 -o Dpkg::Lock::Timeout=60"
+          for INTENTO in 1 2 3; do
+            echo "apt · intento $INTENTO de 3"
+            if sudo timeout 80 apt-get $APT update && sudo timeout 140 apt-get $APT install -y \
+              libwebkit2gtk-4.1-dev \
+              libgtk-3-dev \
+              libayatana-appindicator3-dev \
+              librsvg2-dev \
+              patchelf \
+              libssl-dev \
+              build-essential \
+              libpipewire-0.3-dev \
+              libspa-0.2-dev \
+              libclang-dev \
+              libxcb1-dev \
+              libxrandr-dev \
+              libdbus-1-dev \
+              libegl-dev \
+              libwayland-dev \
+              libxdo-dev \
+              file; then
+              exit 0
+            fi
+            echo "::warning::apt falló o se quedó sin respuesta (intento $INTENTO de 3)"
+            sudo dpkg --configure -a || true
+            sleep $((INTENTO * 10))
+          done
+          echo "::error::No se pudieron instalar las dependencias de sistema de Tauri tras 3 intentos."
+          exit 1
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
