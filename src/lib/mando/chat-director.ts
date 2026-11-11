@@ -17,6 +17,7 @@ import {
     desdeEvento,
     epochDe,
     fusionarFeed,
+    plegarDetalles,
     plegarEntregas,
 } from "./chat-director-feed";
 import {
@@ -90,6 +91,8 @@ export async function leerFeedDirector(
 ): Promise<{
     mensajes: MensajeDirector[];
     entregas: ReturnType<typeof plegarEntregas>;
+    /** (DIR1111G) Detalle de la última entrega (p. ej. «En cola: …» del Director presidente). */
+    detalles: ReturnType<typeof plegarDetalles>;
     ultimoModelo: string;
 }> {
     const mem = path.join(raizDelProyecto(), "starseed_memory_root");
@@ -105,6 +108,7 @@ export async function leerFeedDirector(
             !!r && typeof r === "object" && (r as { tipo?: unknown }).tipo !== "entrega",
     );
     const entregas = plegarEntregas(registros);
+    const detalles = plegarDetalles(registros);
     const fusion = fusionarFeed(
         mensajesChat,
         parsear(lCanal).map(desdeCanal).filter((m): m is MensajeDirector => !!m),
@@ -117,6 +121,7 @@ export async function leerFeedDirector(
     return {
         mensajes: filtrados.slice(-limite),
         entregas,
+        detalles,
         ultimoModelo: ultimoModeloDirector(fusion),
     };
 }

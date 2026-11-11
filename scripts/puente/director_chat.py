@@ -13,8 +13,11 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
+#: El mismo orden que `CANALES` de `src/lib/mando/chat-director-tipos.ts`: una prueba de
+#: cada lado (`test_director_presidente.py` y `chat-director-canales.test.ts`) falla si se separan.
 CANALES = (
     "mando",
+    "director-presidente",
     "claude-cowork",
     "claude-mac",
     "hermes",
@@ -156,8 +159,15 @@ def publicar(
     tarea=None,
     uso=None,
     raiz=None,
+    sintesis=False,
+    eleccion=None,
 ):
-    """Publica un mensaje y deja copia en las bandejas que corresponda."""
+    """Publica un mensaje y deja copia en las bandejas que corresponda.
+
+    (DIR1111G) `sintesis=True` marca la respuesta principal de un director (destaca en la
+    pestaña «Dirección»); `eleccion` solo la pone el Director presidente: quién contestó y
+    por qué. Los dos son opcionales: las líneas sin ellos se leen igual que siempre.
+    """
     if rol not in ("alex", "director", "agente", "sistema"):
         raise ValueError("rol no válido: %s" % rol)
     if canal not in CANALES:
@@ -183,8 +193,12 @@ def publicar(
         mensaje["uso"] = {
             k: v
             for k, v in uso.items()
-            if k in ("tokensEntrada", "tokensSalida", "segundos", "coste")
+            if k in ("tokensEntrada", "tokensSalida", "segundos", "coste", "via")
         }
+    if sintesis:
+        mensaje["sintesis"] = True
+    if eleccion:
+        mensaje["eleccion"] = eleccion
     entregas = []
     for destino in canales or []:
         if destino not in CANALES_BANDEJA:
@@ -313,7 +327,8 @@ def bandeja(canal, solo_pendientes=True, raiz=None):
 CLASE_PUERTA = "metagenesis"
 CHAT_TTL_S = 7200
 _PREFIJO_CHAT_PUERTA = "chat."
-_campos_puerta = ("id", "t", "de", "rol", "tipo", "texto", "canal", "canales", "modelo", "respondeA", "tarea")
+_campos_puerta = ("id", "t", "de", "rol", "tipo", "texto", "canal", "canales", "modelo", "respondeA", "tarea",
+                  "sintesis", "eleccion")
 
 _la_puerta_instancia = None
 
@@ -415,6 +430,22 @@ def incorporar(mensajes, raiz=None):
     return list(mensajes)
 
 
+def canal_de_director(de):
+    """PURA (DIR1111G). Canal propio de un director de conversación, o None.
+
+    Igual que `canalDeDirector` de `chat-director-tipos.ts`: así un informe publicado con
+    `--de hermes` se ve «desde Hermes» y no «desde este chat».
+    """
+    q = (de or "").lower()
+    if q in ("director-presidente", "hermes", "claude-mac", "antigravity"):
+        return q
+    if q in ("chatgpt", "codex"):
+        return "chatgpt"
+    if q.startswith("claude"):
+        return "claude-cowork"
+    return None
+
+
 def _formatear(registro):
     try:
         hora = datetime.fromisoformat(registro.get("t", "")).strftime("%H:%M")
@@ -429,11 +460,13 @@ def _formatear(registro):
             registro.get("estado"),
         )
     texto = (registro.get("texto") or "").replace("\n", " ")
-    return "%s %s [%s]%s: %s" % (
+    marca = " ★síntesis" if registro.get("sintesis") else ""
+    return "%s %s [%s]%s%s: %s" % (
         hora,
         registro.get("de"),
         registro.get("rol"),
         modelo,
+        marca,
         texto,
     )
 
@@ -455,9 +488,16 @@ def _principal(argv=None):
     s.add_argument("texto", nargs="?", default=None)
     s.add_argument("--de", default="claude-cowork")
     s.add_argument("--tipo", default="informe")
+    s.add_argument("--canal", default=None, choices=CANALES,
+                   help="de dónde viene (por defecto, el canal propio de --de si lo tiene)")
     s.add_argument("--modelo", default=None)
     s.add_argument("--archivo", default=None)
     s.add_argument("--a", default=None)
+    # (DIR1111G) La respuesta final de un director de fuera de Genesis (Hermes, Claude…).
+    s.add_argument("--sintesis", action="store_true",
+                   help="marca la respuesta principal: destaca en la pestaña Dirección")
+    s.add_argument("--responde-a", dest="responde_a", default=None,
+                   help="id del mensaje al que contesta (md-…)")
     s = sub.add_parser("bandeja", help="ver la bandeja de un canal")
     s.add_argument("canal", choices=CANALES_BANDEJA)
     s.add_argument("--todas", action="store_true")
@@ -494,8 +534,11 @@ def _principal(argv=None):
             de=args.de,
             rol="director",
             tipo=args.tipo,
+            canal=args.canal or canal_de_director(args.de) or "mando",
             modelo=args.modelo,
             canales=destinos,
+            responde_a=args.responde_a,
+            sintesis=args.sintesis,
         )
         print("Publicado como %s" % m["id"])
     elif args.orden == "bandeja":

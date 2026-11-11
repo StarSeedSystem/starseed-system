@@ -5,6 +5,8 @@ import { Send, Reply } from "lucide-react";
 import {
   CANALES,
   MODELO_DIRECTOR_DEFECTO,
+  PROVEEDORES_PRESIDENTE,
+  type EleccionPresidente,
   type CanalId,
   type EstadoEntrega,
   type MensajeDirector,
@@ -16,6 +18,8 @@ import { SelectorCanales } from "./selector-canales";
 export interface MensajeDelDirectorProps {
   mensaje: MensajeDirector;
   entregas?: Partial<Record<CanalId, EstadoEntrega>>;
+  /** (DIR1111G) Detalle de la última entrega por canal (p. ej. «En cola: …»). */
+  detalles?: Partial<Record<CanalId, string>>;
   modelos: { id: string; nombre: string }[];
   /** Último modelo del director preseleccionado (lo que Alex usó por última vez). */
   modeloPorDefecto?: string;
@@ -29,8 +33,9 @@ function horaCorta(t: string): string {
   return d.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
 }
 
-function textoEspera(canal: CanalId, estado: EstadoEntrega): string | null {
+function textoEspera(canal: CanalId, estado: EstadoEntrega, detalle?: string): string | null {
   if (estado !== "pendiente" && estado !== "entregado") return null;
+  if (detalle && detalle.startsWith("En cola")) return detalle;
   const nombre = CANALES.find((c) => c.id === canal)?.nombre ?? canal;
   const canalObj = CANALES.find((c) => c.id === canal);
   const respuesta = canalObj?.respuesta ?? "ninguna";
@@ -51,16 +56,34 @@ function textoUso(uso: UsoMensaje): string {
   return partes.join(" · ");
 }
 
-function lineaEntrega(canal: CanalId, estado: EstadoEntrega): { texto: string; rojo: boolean } {
+/** (DIR1111G) «Contestó Hermes (hermes/predeterminado) · Claude no: …» de una respuesta del presidente. */
+export function textoEleccion(e: EleccionPresidente): { quien: string; porque: string | null } {
+  const nombre = (id: string) => PROVEEDORES_PRESIDENTE.find((p) => p.id === id)?.nombre ?? id;
+  const quien = `Contestó ${nombre(e.proveedor)} · ${e.modelo}`;
+  const descartes = (e.descartes ?? []).map((d) => `${nombre(d.proveedor)} no: ${d.motivo}`);
+  return { quien, porque: descartes.length > 0 ? descartes.join(" · ") : null };
+}
+
+function lineaEntrega(canal: CanalId, estado: EstadoEntrega, detalle?: string): { texto: string; rojo: boolean } {
   const nombre = CANALES.find((c) => c.id === canal)?.nombre ?? canal;
+  if (estado === "pendiente" && detalle && detalle.startsWith("En cola")) return { texto: `${nombre}: en cola`, rojo: false };
   if (estado === "pendiente") return { texto: `${nombre}: pendiente`, rojo: false };
   if (estado === "entregado") return { texto: `${nombre}: entregado`, rojo: false };
   if (estado === "respondido") return { texto: `${nombre}: respondido`, rojo: false };
   return { texto: `${nombre}: fallo en la entrega`, rojo: true };
 }
 
+/** ¿Alguna entrega pendiente está en la cola del presidente? */
+function frasesEsperaEnCola(
+  entregas: Partial<Record<CanalId, EstadoEntrega>> | undefined,
+  detalles: Partial<Record<CanalId, string>> | undefined,
+): boolean {
+  return (Object.entries(entregas ?? {}) as [CanalId, EstadoEntrega][])
+    .some(([canal, e]) => e === "pendiente" && (detalles?.[canal] ?? "").startsWith("En cola"));
+}
+
 /** Tarjeta de un mensaje del Chat Director con sus acciones y entregas. */
-export function MensajeDelDirector({ mensaje, entregas, modelos, modeloPorDefecto, onResponder, onReenviar }: MensajeDelDirectorProps) {
+export function MensajeDelDirector({ mensaje, entregas, detalles, modelos, modeloPorDefecto, onResponder, onReenviar }: MensajeDelDirectorProps) {
   const inicial = modeloPorDefecto && modeloPorDefecto.trim() !== "" ? modeloPorDefecto : MODELO_DIRECTOR_DEFECTO;
   const [modelo, setModelo] = useState(inicial);
   // Mientras Alex no haya tocado el selector, el valor sigue al `modeloPorDefecto`
@@ -79,7 +102,9 @@ export function MensajeDelDirector({ mensaje, entregas, modelos, modeloPorDefect
 
   const esAlex = mensaje.rol === "alex";
   const esSistema = mensaje.rol === "sistema";
-  const esDirectorPresidente = mensaje.canal === "director-presidente";
+  const esDirectorPresidente = mensaje.canal === "director-presidente" && mensaje.rol !== "alex";
+  const eleccion = esDirectorPresidente && mensaje.eleccion ? textoEleccion(mensaje.eleccion) : null;
+  const enColaAhora = frasesEsperaEnCola(entregas, detalles);
   const autorData = esAlex ? "alex" : (esDirectorPresidente ? "director-presidente" : mensaje.rol ?? mensaje.de);
 
   // Indicador de espera: solo si es de Alex, ninguna entrega en respondido ni fallo,
@@ -91,7 +116,7 @@ export function MensajeDelDirector({ mensaje, entregas, modelos, modeloPorDefect
   const mostrarEspera = esAlex && !hayRespondido && !hayFallo && hayPendienteOEntregado;
   const frasesEspera = entregasCanales
     .filter(([, e]) => e === "pendiente" || e === "entregado")
-    .map(([canal, estado]) => textoEspera(canal, estado))
+    .map(([canal, estado]) => textoEspera(canal, estado, detalles?.[canal]))
     .filter((t): t is string => t !== null);
 
   return (
@@ -101,21 +126,21 @@ export function MensajeDelDirector({ mensaje, entregas, modelos, modeloPorDefect
       className={[
         "group rounded-xl border p-3 text-xs transition-colors duration-200",
         esAlex ? "self-end ml-auto max-w-[85%] border-cyan-400/30 bg-cyan-500/10" : 
-        (esDirectorPresidente ? "self-start mr-auto max-w-[85%] border-solar-amber/30 bg-solar-amber/10" :
+        (esDirectorPresidente ? "self-start mr-auto max-w-[92%] sm:max-w-[85%] border-amber-400/35 bg-amber-500/10" :
         (esSistema ? "rounded-md border-amber-500/30 bg-amber-900/30 p-2 text-[11px]" : "bg-zinc-900/70 border-violet-500/20")),
       ].filter(Boolean).join(" ")}
     >
       <header className={[
         "flex flex-wrap items-center gap-2",
         esAlex ? "text-cyan-300" : 
-        (esDirectorPresidente ? "text-solar-amber-700" :
+        (esDirectorPresidente ? "text-amber-300" :
         (esSistema ? "text-amber-400" : "text-zinc-400")),
       ].filter(Boolean).join(" ")}>
         {!esSistema && (
           <span className={[
             "font-semibold",
             esAlex ? "text-cyan-200" : 
-            (esDirectorPresidente ? "text-solar-amber-200" : "text-violet-200"),
+            (esDirectorPresidente ? "text-amber-100" : "text-violet-200"),
           ].filter(Boolean).join(" ")}>
             {esAlex ? "Tú" : esDirectorPresidente ? "Director presidente" : mensaje.de}
           </span>
@@ -123,27 +148,37 @@ export function MensajeDelDirector({ mensaje, entregas, modelos, modeloPorDefect
         {!esSistema && mensaje.rol !== "alex" && !esDirectorPresidente && (
           <span className="rounded border border-zinc-700/50 bg-zinc-800/80 px-1.5 py-0.5 text-[10px] text-zinc-300">{papel}</span>
         )}
-        {!esSistema && (
+        {!esSistema && !esDirectorPresidente && (
           <span className="text-[10px]">desde {nombreCanal}</span>
         )}
-        <span className={["text-[10px] ml-auto", esAlex ? "text-cyan-500/80" : (esDirectorPresidente ? "text-solar-amber-600/60" : (esSistema ? "text-amber-500/60" : ""))].filter(Boolean).join(" ")}>{horaCorta(mensaje.t)}</span>
+        <span className={["text-[10px] ml-auto", esAlex ? "text-cyan-500/80" : (esDirectorPresidente ? "text-amber-300/70" : (esSistema ? "text-amber-500/60" : ""))].filter(Boolean).join(" ")}>{horaCorta(mensaje.t)}</span>
         {!esSistema && mensaje.modelo && (
           <span className={[
             "rounded border px-1.5 py-0.5 text-[10px]",
             esAlex ? "border-cyan-400/30 bg-cyan-400/20 text-cyan-200" : 
-            (esDirectorPresidente ? "border-solar-amber/30 bg-solar-amber/20 text-solar-amber-200" : "border-violet-500/30 bg-violet-600/20 text-violet-200"),
+            (esDirectorPresidente ? "border-amber-400/30 bg-amber-500/20 text-amber-100" : "border-violet-500/30 bg-violet-600/20 text-violet-200"),
           ].filter(Boolean).join(" ")}>
             {mensaje.modelo}
           </span>
         )}
-        {!esSistema && uso && <span className={esAlex ? "text-cyan-600" : (esDirectorPresidente ? "text-solar-amber-600" : "text-zinc-500")}>{uso}</span>}
+        {mensaje.sintesis && (
+          <span data-testid="marca-sintesis" className="rounded border border-amber-400/40 bg-amber-500/15 px-1.5 py-0.5 text-[10px] text-amber-100">síntesis</span>
+        )}
+        {!esSistema && uso && <span className={esAlex ? "text-cyan-600" : (esDirectorPresidente ? "text-amber-300/70" : "text-zinc-500")}>{uso}</span>}
       </header>
 
-      <p className={["mt-2 whitespace-pre-line", esSistema ? "text-amber-100" : (esAlex ? "text-cyan-50" : (esDirectorPresidente ? "text-solar-amber-50" : "text-zinc-100"))].filter(Boolean).join(" ")}>{mensaje.texto}</p>
+      <p className={["mt-2 whitespace-pre-line break-words [overflow-wrap:anywhere]", esSistema ? "text-amber-100" : (esAlex ? "text-cyan-50" : (esDirectorPresidente ? "text-amber-50" : "text-zinc-100"))].filter(Boolean).join(" ")}>{mensaje.texto}</p>
+
+      {eleccion && (
+        <p data-testid="eleccion-presidente" className="mt-2 text-[10px] leading-relaxed text-amber-200/80">
+          {eleccion.quien}
+          {eleccion.porque ? <span className="block text-amber-200/60">Por qué no el primero: {eleccion.porque}</span> : null}
+        </p>
+      )}
 
       {mostrarEspera && frasesEspera.length > 0 && (
-        <div role="status" aria-live="polite" className="mt-2 flex flex-wrap items-center gap-2 text-cyan-200">
-          <span className="inline-flex items-center gap-1">
+        <div role="status" aria-live="polite" className={["mt-2 flex flex-wrap items-center gap-2", enColaAhora ? "text-amber-200" : "text-cyan-200"].join(" ")}>
+          {!enColaAhora && <span className="inline-flex items-center gap-1">
             {/* `delay-*` de Tailwind solo retrasa transiciones: el escalonado va en animationDelay. */}
             {[0, 150, 300].map((ms) => (
               <span
@@ -153,8 +188,8 @@ export function MensajeDelDirector({ mensaje, entregas, modelos, modeloPorDefect
                 className="motion-safe:animate-bounce inline-block h-1.5 w-1.5 rounded-full bg-cyan-400"
               />
             ))}
-          </span>
-          <span className="text-[11px]">
+          </span>}
+          <span className="text-[11px] break-words">
             {frasesEspera.join(" · ")}
           </span>
         </div>
@@ -163,7 +198,7 @@ export function MensajeDelDirector({ mensaje, entregas, modelos, modeloPorDefect
       {estados.length > 0 && (
         <ul className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[10px]">
           {estados.map(([canal, estado]) => {
-            const { texto, rojo } = lineaEntrega(canal, estado);
+            const { texto, rojo } = lineaEntrega(canal, estado, detalles?.[canal]);
             return (
               <li key={canal} className={rojo ? "text-rose-400" : "text-zinc-500"}>
                 {texto}

@@ -253,4 +253,41 @@ describe("MensajeDelDirector", () => {
     expect(screen.queryByLabelText("Responder con")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Responder/ })).not.toBeInTheDocument();
   });
+
+  // DIR1111G
+  it("la respuesta del presidente dice quién contestó, con qué modelo y por qué no el primero", () => {
+    render(
+      <MensajeDelDirector
+        mensaje={mensaje({
+          de: "director-presidente", canal: "director-presidente", tipo: "respuesta", sintesis: true,
+          modelo: "hermes/predeterminado",
+          eleccion: { proveedor: "hermes", modelo: "hermes/predeterminado", descartes: [{ proveedor: "claude", motivo: "límite de la sesión al 96 %" }] },
+        })}
+        modelos={MODELOS}
+        onResponder={() => {}}
+        onReenviar={() => {}}
+      />,
+    );
+    expect(screen.getByText("Director presidente")).toBeInTheDocument();
+    expect(screen.getByTestId("marca-sintesis")).toBeInTheDocument();
+    const linea = screen.getByTestId("eleccion-presidente");
+    expect(linea).toHaveTextContent("Contestó Hermes · hermes/predeterminado");
+    expect(linea).toHaveTextContent("Claude Opus 5.5 (Mac) no: límite de la sesión al 96 %");
+  });
+
+  it("un mensaje en la cola del presidente lo dice tal cual, sin «está respondiendo»", () => {
+    render(
+      <MensajeDelDirector
+        mensaje={mensaje({ de: "alex", rol: "alex", tipo: "mensaje", canales: ["director-presidente"] })}
+        entregas={{ "director-presidente": "pendiente" }}
+        detalles={{ "director-presidente": "En cola: ningún director puede contestar ahora (Hermes: sin salida). Se reintenta solo cada 2 min." }}
+        modelos={MODELOS}
+        onResponder={() => {}}
+        onReenviar={() => {}}
+      />,
+    );
+    expect(screen.getByRole("status")).toHaveTextContent("En cola: ningún director puede contestar ahora");
+    expect(screen.queryByText(/está respondiendo/)).not.toBeInTheDocument();
+    expect(screen.getByText("Director presidente: en cola")).toBeInTheDocument();
+  });
 });

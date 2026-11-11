@@ -34,7 +34,11 @@ Nadie reescribe líneas: las correcciones son registros nuevos.
 | `modelo` | `motor/modelo` | no | con qué modelo se respondió o se pide responder |
 | `respondeA` | id | no | hilo |
 | `tarea` | id | no | tarea del enjambre relacionada |
-| `uso` | `{tokensEntrada, tokensSalida, segundos, coste}` | no | lo que costó esa respuesta |
+| `uso` | `{tokensEntrada, tokensSalida, segundos, coste, via?}` | no | lo que costó esa respuesta |
+| `sintesis` | `true` | no | (DIR1111G) respuesta principal de un director: destaca en «Dirección» |
+| `eleccion` | `{proveedor, modelo, descartes?: [{proveedor, motivo}]}` | no | (DIR1111G) solo respuestas del Director presidente: quién contestó y por qué no los anteriores |
+
+Los dos campos nuevos son opcionales: las líneas antiguas se leen igual y el código anterior los ignora.
 
 ### 1.2 Registro «entrega»
 
@@ -47,6 +51,7 @@ El estado de un mensaje en un canal es el **último** registro de entrega de ese
 | Canal | Qué es | Cómo se entrega | Cómo responde |
 |---|---|---|---|
 | `mando` | el propio chat | — | — |
+| `director-presidente` | **el Director presidente** (DIR1111G): destinatario por defecto del compositor | el cartero (`director_presidente.py`) | al momento si alguien puede; si no, EN COLA (§8) |
 | `claude-cowork` | **la sesión de Claude Opus 5.5 en Cowork** (la de la dirección, con todo el contexto del proyecto) | `bandeja/claude-cowork.jsonl` | en su próxima revisión programada o cuando Alex le escribe allí; publica con `director_chat.py publicar` |
 | `claude-mac` | Claude Code en la Mac (`claude -p --model claude-opus-5-5 --resume <sesión del director>`, en la raíz del repo: CLAUDE.md, memory/, skills, MCP) | el cartero lo ejecuta | al momento; herramientas solo de lectura |
 | `hermes` | Hermes Agent | `hermes -z <prompt> [-m modelo] --usage-file` | al momento |
@@ -62,16 +67,19 @@ API —sin saldo— en vez del inicio de sesión de claude.ai). Ninguna clave se
 
 ## 3. Modelos («motor/modelo»)
 
-- `claude-cowork/claude-opus-5-5` — **por defecto**. La dirección.
+- `director-presidente/auto` — **por defecto desde DIR1111G**: el presidente elige quién contesta (§8).
+- `claude-cowork/claude-opus-5-5` — la dirección en Cowork.
 - `claude-mac/claude-opus-5-5` — Opus 5.5 en la Mac (necesita la cuenta de Claude Code con saldo o con
   suscripción; hoy, 2026-10-04, contesta «Credit balance is too low»).
 - `hermes/<modelo>` · `codex/<modelo>` — motores por CLI.
 - Cualquier id del catálogo `GET /api/mando/modelos` (`nim/…`, `xkiro/…`, `gemini/…`, `openrouter/…`,
   pasarelas) — responde la ruta con `llamarModelo` y el contexto de `agente-puente`.
 
-**Último modelo:** el selector se abre con el último `motor/modelo` que eligió Alex (localStorage
-`starseed.mando.director.modelo`); si no hay, con el `modelo` de la última `respuesta` de rol
-`director` del chat; si no, `claude-cowork/claude-opus-5-5`.
+**Modelo inicial:** el compositor se abre con el último `motor/modelo` que eligió Alex en ese aparato
+(localStorage `starseed.mando.director.modelo`); si no hay, con `director-presidente/auto`. Una sola vez
+por aparato (`starseed.mando.director.presidente-1111`) lo guardado pasa al presidente; después manda lo
+que Alex elija. El «Responder con» de cada mensaje sigue usando el último modelo del feed (una respuesta
+del presidente cuenta como `director-presidente/auto`).
 
 ## 4. El hilo: lo que entra además de la conversación
 
@@ -100,7 +108,21 @@ usos (uso, consumo, jev). El resto: agente.
 
 En `/genesis`, **encima** del «Pulso del trabajo» (`centro-mando.tsx`), plegable y abierto por defecto:
 
-- Filtros: Todo · Conversación · Informes · Enjambre · Usos.
+- Pestañas: Todo · Dirección · Conversación · Informes · Enjambre · Usos.
+- **Dirección** (`esDireccion`, igual en `director_presidente.es_direccion`): todo lo de Alex; todo lo del
+  canal `director-presidente` o con `sintesis`; lo que publica un **director de conversación**
+  (`esDirectorDeConversacion`: `director-presidente`, `hermes`, `chatgpt`, `codex`, `antigravity`, `claude*`)
+  salvo una respuesta a algo que se ve y no es de Alex; y la respuesta de un modelo de la API a Alex. Los
+  servicios que firman «director-…» (revisor-bloqueadas, director-autocuracion, director-produccion…) no son
+  directores de conversación: medido el 2026-11-11 eran el 95 % del chat, y 91 respuestas de Hermes
+  contestaban avisos del desatascador.
+- **Chips de filtro** bajo las pestañas, uno activo por pestaña, recordado en el aparato
+  (`starseed.mando.director.filtros`). Solo se ofrece un chip que deja algo y no lo deja todo igual:
+  Todo → Sin el enjambre · Última hora · Hoy; Dirección → Todos los directores · Director presidente ·
+  cada director presente · Solo síntesis; Conversación → Solo tuyos · cada director que contestó;
+  Informes → Informes · Avisos · autores más activos; Enjambre → Fallos · Commits · Aprobaciones ·
+  Proveedores caídos · Colas terminadas (campo `evento`, solo en memoria) · Última hora; Usos → Hoy · 7 días.
+  Un chip guardado que hoy no deja nada lo dice y se quita con un toque («Quitar el filtro»).
 - Cada mensaje: autor y papel, canal de origen, modelo, uso, hora; botones **«Responder con [modelo ▾]»**
   y **«Enviar a [canales ▾]»**; estado de entrega por canal («en la próxima revisión de Claude» cuando
   es `claude-cowork`, para no prometer inmediatez).
@@ -122,3 +144,51 @@ La sesión de Cowork no puede recibir un empujón desde la Mac. Por eso: (1) pub
 cada revisión programada, **lo primero** es leer `bandeja/claude-cowork.jsonl`, contestar en el chat y
 marcar la entrega `respondido`. Mientras el código no exista, publica en `canal.jsonl` con
 `quien: claude-cowork` (el feed ya lo recoge).
+
+## 8. El Director presidente (DIR1111G · 2026-11-11)
+
+> Alex: «un canal principal, el Director presidente, que se autoenrute entre modelos, contigo [Claude] así
+> como con Hermes y otros medios y proveedores… el que debe responder lo principal de los chats de dirección».
+
+**Camino de un mensaje.** Compositor (por defecto `director-presidente/auto`) → `POST /api/mando/director-chat`
+`decir` → la ruta publica el mensaje con `canales: ["director-presidente"]` y su entrega `pendiente` (igual que
+cualquier motor) → el cartero (cada 5 s) lo ve en `que_hacer` y llama a `director_presidente.atender`.
+
+**Quién contesta**, en este orden, con lo que Genesis ya tiene (no hay lista nueva de modelos):
+1. **Claude** Opus 5.5 en la Mac (`claude -p`, el motor de `claude-mac`), solo si `limites_claude.estado` tiene
+   una lectura de menos de 2 h, ni la sesión ni la semana en «peligro» (≥ umbral, 90 %), y el tope diario de Opus
+   del cartero (`opus_hoy` < `STARSEED_DIRECTOR_TOPE_OPUS`, compartido con `claude-mac`) no está agotado. Sin lectura
+   reciente no se arriesga.
+2. **Hermes** (`hermes -z`, en la sesión de dirección de `direccion-motor.json`), que se autoenruta por los
+   proveedores gratuitos vivos (`enrutar-hermes.py`). Una salida «every provider in the fallback chain kept
+   failing over» no es una respuesta.
+3. **ChatGPT** por Codex (`codex exec`), si la orden está instalada.
+
+Un proveedor que falla queda apartado 10 min y se prueba el siguiente. El prompt lleva el contexto del proyecto
+y los últimos 20 mensajes de **dirección** (no la rutina), con autor y tipo, para que pueda hablar de lo que
+informaron los demás directores.
+
+**La respuesta** se publica con `de: "director-presidente"`, `canal: "director-presidente"`, `tipo: "respuesta"`,
+`modelo` = el que contestó, `respondeA`, `uso`, `sintesis: true` y `eleccion` (quién, con qué modelo y por qué no
+los anteriores); la tarjeta lo enseña debajo del texto.
+
+**Si nadie puede**: no se tira ni se contesta con una frase hecha. La entrega sigue `pendiente` con
+`detalle: "En cola: ningún director puede contestar ahora (…motivo de cada uno…). Se reintenta solo cada 2 min."`
+(solo se escribe cuando cambia), la tarjeta lo dice tal cual y el cartero no lo da por atendido: lo reintenta
+cada 2 min. El mensaje se guarda en `cartero-estado.json` (`presidente.cola`), así que sigue en cola aunque salga
+de los 200 registros que lee el cartero.
+
+**Canales iguales en los dos lados**: `CANALES` de `chat-director-tipos.ts` y de `director_chat.py`, y
+`PROVEEDORES_PRESIDENTE`/`PROVEEDORES`, tienen el mismo orden; `chat-director-direccion.test.ts` y
+`test_director_presidente.py` fallan si se separan.
+
+## 9. La respuesta final de un director de fuera de Genesis
+
+```
+python3 scripts/puente/director_chat.py publicar "<respuesta final>" --de hermes --sintesis [--modelo hermes/<modelo>] [--responde-a md-…]
+python3 scripts/puente/director_chat.py publicar --archivo informe.md --de claude-cowork --sintesis
+```
+
+`--de` con un director de conversación pone su canal propio (`hermes` → «desde Hermes», `claude-*` →
+`claude-cowork`, `codex` → `chatgpt`); `--canal` lo cambia. Sale en «Dirección», atribuido a quien firma, y con
+`--sintesis` en «Solo síntesis».

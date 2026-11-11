@@ -13,7 +13,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, ChevronRight, MessagesSquare } from "lucide-react";
 
-import { filtrarFeed, fusionarFeed, type FiltroFeed } from "@/lib/mando/chat-director-feed";
+import {
+    FILTRO_TODOS,
+    aplicarFiltro,
+    etiquetaDeFiltro,
+    filtrarFeed,
+    fusionarFeed,
+    opcionesDeFiltro,
+    type FiltroFeed,
+} from "@/lib/mando/chat-director-feed";
 import {
     CANALES,
     MODELO_DIRECTOR_DEFECTO,
@@ -23,10 +31,12 @@ import {
     type MensajeDirector,
 } from "@/lib/mando/chat-director-tipos";
 import { MensajeDelDirector } from "@/components/mando/chat-director-mensaje";
-import { CompositorDirector, type ModeloOpcion } from "@/components/mando/chat-director-compositor";
+import { CompositorDirector, migrarAPresidente, type ModeloOpcion } from "@/components/mando/chat-director-compositor";
 
 const CLAVE_PLEGADO = "starseed.mando.director.plegado";
 const CLAVE_MODELO = "starseed.mando.director.modelo";
+/** (DIR1111G) El chip activo de cada pestaña, recordado en este aparato. */
+const CLAVE_FILTROS = "starseed.mando.director.filtros";
 const INTERVALO_NORMAL_MS = 10_000;
 const INTERVALO_RESPUESTA_MS = 3_000;
 const MARGEN_FINAL_PX = 80;
@@ -48,7 +58,37 @@ const FILTROS: { id: FiltroFeed; etiqueta: string }[] = [
 interface FeedRespuesta {
     mensajes?: MensajeDirector[];
     entregas?: Record<string, Partial<Record<CanalId, EstadoEntrega>>>;
+    detalles?: Record<string, Partial<Record<CanalId, string>>>;
     ultimoModelo?: string;
+}
+
+type Detalles = Record<string, Partial<Record<CanalId, string>>>;
+
+/** (DIR1111G) Lee el chip guardado de cada pestaña; cualquier fallo devuelve {}. */
+export function filtrosGuardados(): Partial<Record<FiltroFeed, string>> {
+    try {
+        if (typeof window === "undefined") return {};
+        const crudo = JSON.parse(window.localStorage.getItem(CLAVE_FILTROS) || "{}") as unknown;
+        if (!crudo || typeof crudo !== "object" || Array.isArray(crudo)) return {};
+        const salida: Partial<Record<FiltroFeed, string>> = {};
+        for (const [k, v] of Object.entries(crudo as Record<string, unknown>)) {
+            if (typeof v === "string" && FILTROS.some((f) => f.id === k)) salida[k as FiltroFeed] = v;
+        }
+        return salida;
+    } catch {
+        return {};
+    }
+}
+
+function guardarFiltros(f: Partial<Record<FiltroFeed, string>>): void {
+    try {
+        window.localStorage.setItem(CLAVE_FILTROS, JSON.stringify(f));
+    } catch { /* sin almacenamiento: se recuerda solo en memoria */ }
+}
+
+/** ¿La entrega está en la cola del presidente (nadie puede contestar ahora)? */
+function enCola(detalle: string | undefined): boolean {
+    return typeof detalle === "string" && detalle.startsWith("En cola");
 }
 
 interface EnvioLocal {
@@ -86,6 +126,7 @@ const CLAVE_MIGRACION_HERMES = "starseed.mando.director.hermes-1029";
 function modeloGuardado(): string {
     try {
         if (typeof window === "undefined") return "";
+        migrarAPresidente(window.localStorage);
         const guardado = window.localStorage.getItem(CLAVE_MODELO)?.trim() ?? "";
         // (2026-10-29, DIR1029A) Una sola vez: quien tenía Claude guardado pasa a Hermes; después manda lo suyo.
         if (guardado.startsWith("claude-") && !window.localStorage.getItem(CLAVE_MIGRACION_HERMES)) {
@@ -102,6 +143,8 @@ function modeloGuardado(): string {
 export function ChatDirector() {
     const [plegado, setPlegado] = useState<boolean>(plegadoInicial);
     const [filtro, setFiltro] = useState<FiltroFeed>("todo");
+    const [chips, setChips] = useState<Partial<Record<FiltroFeed, string>>>(filtrosGuardados);
+    const [detalles, setDetalles] = useState<Detalles>({});
     const [mensajes, setMensajes] = useState<MensajeDirector[]>([]);
     const [entregas, setEntregas] = useState<Record<string, Partial<Record<CanalId, EstadoEntrega>>>>({});
     const [ultimoModelo, setUltimoModelo] = useState("");
@@ -143,6 +186,7 @@ export function ChatDirector() {
             setMensajes((previos) => (soloNuevos ? fusionarFeed(previos, recibidos) : fusionarFeed(recibidos)).slice(-500));
             setEnvioLocal((local) => local && feedConfirmaEnvio(local, recibidos) ? null : local);
             if (datos.entregas) setEntregas(datos.entregas);
+            if (datos.detalles) setDetalles(datos.detalles);
             if (typeof datos.ultimoModelo === "string") setUltimoModelo(datos.ultimoModelo);
             setCargado(true);
             setAviso(null);
@@ -162,8 +206,10 @@ export function ChatDirector() {
     const esperaRespuestaInmediata = useMemo(() => mensajes.some((mensaje) => {
         if (mensaje.rol !== "alex") return false;
         return Object.entries(entregas[mensaje.id] ?? {}).some(([canal, estado]) =>
-            esRespuestaInmediata(canal) && entregaEsperaRespuesta(estado));
-    }), [entregas, mensajes]);
+            esRespuestaInmediata(canal) && entregaEsperaRespuesta(estado)
+            // En cola del presidente no hay nada que leer cada 3 s: se vuelve al ritmo normal.
+            && !enCola(detalles[mensaje.id]?.[canal as CanalId]));
+    }), [detalles, entregas, mensajes]);
 
     useEffect(() => {
         const intervalo = esperaRespuestaInmediata ? INTERVALO_RESPUESTA_MS : INTERVALO_NORMAL_MS;
@@ -243,7 +289,23 @@ export function ChatDirector() {
         }
     }, [cargar]);
 
-    const visibles = useMemo(() => filtrarFeed(mensajes, filtro), [mensajes, filtro]);
+    const dePestana = useMemo(() => filtrarFeed(mensajes, filtro), [mensajes, filtro]);
+    const chipActivo = chips[filtro] ?? FILTRO_TODOS;
+    // La hora se toma con cada cambio del feed (cada 10 s como mucho): basta para «Última hora» y «Hoy».
+    const ahoraMs = useMemo(() => Date.now(), [mensajes]); // eslint-disable-line react-hooks/exhaustive-deps
+    const opciones = useMemo(
+        () => opcionesDeFiltro(filtro, dePestana, ahoraMs, chipActivo),
+        [filtro, dePestana, ahoraMs, chipActivo],
+    );
+    const visibles = useMemo(() => aplicarFiltro(dePestana, chipActivo, ahoraMs), [dePestana, chipActivo, ahoraMs]);
+    const elegirChip = useCallback((id: string) => {
+        setChips((previos) => {
+            const nuevos = { ...previos, [filtro]: id };
+            if (id === FILTRO_TODOS) delete nuevos[filtro];
+            guardarFiltros(nuevos);
+            return nuevos;
+        });
+    }, [filtro]);
     const ultimoVisible = visibles.length > 0 ? visibles[visibles.length - 1] : null;
     // La identidad del último mensaje y el largo de su texto, no la longitud de la lista:
     // con el recorte a 500, cada mensaje nuevo saca otro y `length` nunca cambia.
@@ -369,6 +431,23 @@ export function ChatDirector() {
                             </button>
                         ))}
                     </div>
+                    {opciones.length > 1 ? (
+                        <div className="flex flex-wrap gap-1" role="group" aria-label={`Filtros de ${FILTROS.find((f) => f.id === filtro)?.etiqueta ?? filtro}`}>
+                            {opciones.map((o) => (
+                                <button
+                                    key={o.id}
+                                    type="button"
+                                    aria-pressed={chipActivo === o.id}
+                                    onClick={() => elegirChip(o.id)}
+                                    className={`cursor-pointer rounded-md border px-2 py-0.5 text-[10px] transition-colors duration-150 ${chipActivo === o.id
+                                        ? "border-amber-400/60 bg-amber-500/15 text-amber-100"
+                                        : "border-white/10 text-white/45 hover:text-white/80"}`}
+                                >
+                                    {o.etiqueta} <span className="text-white/35">{o.cuenta}</span>
+                                </button>
+                            ))}
+                        </div>
+                    ) : null}
                     {aviso ? (
                         <p role="status" className="rounded-lg border border-amber-400/30 bg-amber-500/10 px-2.5 py-1.5 text-[11px] text-amber-200">
                             {aviso}
@@ -383,14 +462,33 @@ export function ChatDirector() {
                             className="flex max-h-[min(340px,40vh)] flex-col overflow-y-auto"
                         >
                             <div ref={contenidoRef} className="flex flex-col gap-2">
-                                {visibles.length === 0 ? (
-                                    <p className="text-[11px] text-white/40">Nadie ha hablado todavía; empieza abajo.</p>
+                                {visibles.length === 0 && chipActivo !== FILTRO_TODOS ? (
+                                    <p data-testid="filtro-vacio" className="flex flex-wrap items-center gap-2 text-[11px] text-white/50">
+                                        Nada con «{etiquetaDeFiltro(chipActivo)}» en {FILTROS.find((f) => f.id === filtro)?.etiqueta ?? filtro}
+                                        {dePestana.length > 0 ? ` (hay ${dePestana.length} sin el filtro)` : ""}.
+                                        <button
+                                            type="button"
+                                            onClick={() => elegirChip(FILTRO_TODOS)}
+                                            className="cursor-pointer rounded-md border border-amber-400/50 px-2 py-0.5 text-amber-100 hover:bg-amber-500/15"
+                                        >
+                                            Quitar el filtro
+                                        </button>
+                                    </p>
+                                ) : visibles.length === 0 ? (
+                                    <p className="text-[11px] text-white/40">
+                                        {mensajes.length === 0
+                                            ? "Nadie ha hablado todavía; empieza abajo."
+                                            : filtro === "direccion"
+                                                ? `Ningún director ha hablado en los últimos ${mensajes.length} mensajes del chat; escribe abajo al Director presidente.`
+                                                : `Nada en esta pestaña entre los últimos ${mensajes.length} mensajes.`}
+                                    </p>
                                 ) : (
                                     visibles.map((m) => (
                                         <MensajeDelDirector
                                             key={m.id}
                                             mensaje={m}
                                             entregas={entregas[m.id]}
+                                            detalles={detalles[m.id]}
                                             modelos={modelosConMotores}
                                             modeloPorDefecto={modeloPreferido}
                                             onResponder={(id, modelo) => void publicar({ accion: "responder", respondeA: id, modelo })}
