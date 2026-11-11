@@ -15,11 +15,14 @@ suscripción de Alex, solo lectura del repo y el mismo tope diario. Su copia en
 Con `--una-vez` hace una pasada y sale; con `--uso` publica el informe.
 """
 
+import contextlib
 import json
 import os
 import sys
 import tempfile
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -216,10 +219,12 @@ def _entregar_hermes(mensaje, modelo_pedido, raiz=None, estado=None):
             mode="r", suffix=".json", delete=False, encoding="utf-8"
         ) as f:
             archivo_uso = f.name
+        # DIR1111N: la sesión nueva (la de dirección está en pausa) no pasa de dos minutos.
+        segundos = motores_director.SEGUNDOS_SESION_FRESCA if (ses is None and sesion) else 600
         try:
             rc, salida = motores_director.correr(
                 motores_director.orden_hermes(prompt, modelo, archivo_uso, ses),
-                segundos=600,
+                segundos=segundos,
             )
             try:
                 datos = json.loads(Path(archivo_uso).read_text(encoding="utf-8"))
@@ -260,6 +265,7 @@ def _entregar_hermes(mensaje, modelo_pedido, raiz=None, estado=None):
         return
     if sesion and not pausa:
         director_presidente.hermes_reabierta(estado, sesion, raiz=raiz)
+    director_presidente.despertar_cola(estado)  # DIR1111N: Hermes contesta; la cola del presidente se reintenta ya
     uso = {
         "tokensEntrada": datos_uso.get("input_tokens", 0),
         "tokensSalida": datos_uso.get("output_tokens", 0),
@@ -304,7 +310,7 @@ def _entregar_telegram(mensaje, raiz=None):
     texto = mensaje.get("texto", "")[:3500]
     rc, salida = motores_director.correr(
         ["hermes", "send", "-t", "telegram:Maggasukha", "-s", "Genesis", texto],
-        segundos=120,
+        segundos=motores_director.SEGUNDOS_AVISO_TELEGRAM,
     )
     if rc != 0:
         _fallo(
@@ -471,19 +477,121 @@ def publicar_informe_uso(estado, raiz=None):
     estado["ultimo_informe"] = time.time()
 
 
-def pasada(estado, raiz=None):
-    registros = director_chat.leer(limite=200, raiz=raiz)
-    por_id = {r["id"]: r for r in registros if r.get("id")}
-    for id_mensaje, canal in que_hacer(registros, estado):
-        mensaje = por_id.get(id_mensaje)
-        if mensaje:
-            atender(mensaje, canal, estado, raiz=raiz)
-    # DIR1111G: lo que sigue en cola del presidente aunque ya no quepa en los 200 últimos registros.
-    for mensaje in director_presidente.fuera_de_vista(estado, por_id.keys()):
-        atender(mensaje, director_presidente.CANAL, estado, raiz=raiz)
-    if time.time() - estado.get("ultimo_informe", 0.0) >= INFORME_CADA_SEGUNDOS:
-        publicar_informe_uso(estado, raiz=raiz)
-    guardar_estado(estado, raiz=raiz)
+# ── DIR1111N · las entregas rápidas nunca esperan a las lentas ───────────────────────
+# El 2026-11-11 una sola llamada a Hermes (600 s) dejó 10 minutos sin salir un aviso a Telegram. Diseño:
+#  · RÁPIDAS (no usan modelo: telegram) se atienden en el hilo principal en cada pasada, ANTES de lanzar
+#    nada lento, y la pasada nunca espera a un proveedor.
+#  · LENTAS (usan un proveedor) van a dos carriles de un hilo cada uno: el de la cola del Director
+#    presidente (sus reintentos son lentos y fallidos por naturaleza) y el de las direcciones directas
+#    (claude-mac, hermes, chatgpt), para que ni un reintento largo retrase un mensaje nuevo ni al revés.
+#  · El estado (`cartero-estado.json`) lo escribe SOLO el hilo principal, bajo un cerrojo que el hilo
+#    lento SUELTA mientras dura la llamada al proveedor (`motores_director.SOLTAR_DURANTE_LLAMADA`): el
+#    principal solo espera a ediciones de milisegundos. El chat ya es de un solo escritor con flock.
+# Por qué no «solo ordenar»: ordenar no ayuda a lo que llega MIENTRAS corre una llamada; y los topes
+# de tiempo solos dejan hasta 2 minutos (o 6 con tres proveedores) de espera.
+RAPIDOS = ("telegram",)
+CARRIL_COLA = "presidente"
+CARRIL_DIRECTO = "directo"
+
+
+class CerrojoEstado:
+    """Cerrojo del estado del cartero que su dueño puede soltar durante una llamada bloqueante."""
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._dueno = None
+
+    def __enter__(self):
+        self._lock.acquire()
+        self._dueno = threading.get_ident()
+        return self
+
+    def __exit__(self, *_):
+        self._dueno = None
+        self._lock.release()
+
+    @contextlib.contextmanager
+    def soltar(self):
+        if self._dueno != threading.get_ident():
+            yield
+            return
+        self._dueno = None
+        self._lock.release()
+        try:
+            yield
+        finally:
+            self._lock.acquire()
+            self._dueno = threading.get_ident()
+
+
+CERROJO = CerrojoEstado()
+motores_director.SOLTAR_DURANTE_LLAMADA = CERROJO.soltar
+
+
+class Despachador:
+    """Lanza las entregas lentas en dos hilos (uno por carril) y recuerda lo que va en vuelo."""
+
+    def __init__(self):
+        self.carriles = {c: ThreadPoolExecutor(max_workers=1, thread_name_prefix="cartero-" + c)
+                         for c in (CARRIL_COLA, CARRIL_DIRECTO)}
+        self.en_vuelo = set()
+
+    def lanzar(self, carril, clave, trabajo, estado_ref):
+        if clave in self.en_vuelo:
+            return False
+        self.en_vuelo.add(clave)
+
+        def tarea():
+            try:
+                with CERROJO:
+                    if "%s|%s" % clave in (estado_ref.get("atendidos") or []):
+                        return  # lo atendió otro hilo entre que se decidió y que le tocó
+                    trabajo()
+            except Exception as e:  # noqa: BLE001 — un fallo propio nunca mata el carril
+                print("cartero: %s: %s" % (type(e).__name__, e), file=sys.stderr, flush=True)
+            finally:
+                with CERROJO:
+                    self.en_vuelo.discard(clave)
+
+        self.carriles[carril].submit(tarea)
+        return True
+
+    def esperar(self):
+        """Para `--una-vez` y las pruebas: vuelve cuando los carriles están vacíos."""
+        for c in self.carriles.values():
+            c.submit(lambda: None).result()
+
+
+def _carril(canal):
+    return CARRIL_COLA if canal == director_presidente.CANAL else CARRIL_DIRECTO
+
+
+def pasada(estado, raiz=None, despachador=None):
+    """Una pasada. Sin `despachador` todo corre aquí (en orden: rápidas antes que lentas); con él, las
+    lentas salen a sus carriles y la pasada no espera a ningún proveedor."""
+    with CERROJO:
+        registros = director_chat.leer(limite=200, raiz=raiz)
+        por_id = {r["id"]: r for r in registros if r.get("id")}
+        trabajos = []
+        for id_mensaje, canal in que_hacer(registros, estado):
+            mensaje = por_id.get(id_mensaje)
+            if mensaje:
+                trabajos.append((mensaje, canal))
+        # DIR1111G: lo que sigue en cola del presidente aunque ya no quepa en los 200 últimos registros.
+        for mensaje in director_presidente.fuera_de_vista(estado, por_id.keys()):
+            trabajos.append((mensaje, director_presidente.CANAL))
+        trabajos.sort(key=lambda t: t[1] not in RAPIDOS)  # estable: las rápidas primero
+    for mensaje, canal in trabajos:
+        if canal in RAPIDOS or despachador is None:
+            with CERROJO:
+                atender(mensaje, canal, estado, raiz=raiz)
+        else:
+            despachador.lanzar(_carril(canal), (mensaje["id"], canal),
+                               lambda m=mensaje, c=canal: atender(m, c, estado, raiz=raiz), estado)
+    with CERROJO:
+        if time.time() - estado.get("ultimo_informe", 0.0) >= INFORME_CADA_SEGUNDOS:
+            publicar_informe_uso(estado, raiz=raiz)
+        guardar_estado(estado, raiz=raiz)
 
 
 def main(argv=None):
@@ -508,8 +616,9 @@ def main(argv=None):
     if args.una_vez:
         pasada(estado)
         return 0
+    despachador = Despachador()
     while True:
-        pasada(estado)
+        pasada(estado, despachador=despachador)
         time.sleep(PAUSA_SEGUNDOS)
 
 

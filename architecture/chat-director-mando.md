@@ -173,9 +173,9 @@ informaron los demás directores.
 los anteriores); la tarjeta lo enseña debajo del texto.
 
 **Si nadie puede**: no se tira ni se contesta con una frase hecha. La entrega sigue `pendiente` con
-`detalle: "En cola: ningún director puede contestar ahora (…motivo de cada uno…). Se reintenta solo cada 2 min."`
-(solo se escribe cuando cambia), la tarjeta lo dice tal cual y el cartero no lo da por atendido: lo reintenta
-cada 2 min. El mensaje se guarda en `cartero-estado.json` (`presidente.cola`), así que sigue en cola aunque salga
+`detalle: "En cola: ningún director puede contestar ahora (…motivo de cada uno…). Intento N; el siguiente hacia las
+HH:MM (en X min)…"` (se escribe en cada intento: el motivo, el número y la hora del siguiente), la tarjeta lo dice
+tal cual y el cartero no lo da por atendido: lo reintenta con intervalos que crecen (DIR1111N, abajo). El mensaje se guarda en `cartero-estado.json` (`presidente.cola`), así que sigue en cola aunque salga
 de los 200 registros que lee el cartero.
 
 **Canales iguales en los dos lados**: `CANALES` de `chat-director-tipos.ts` y de `director_chat.py`, y
@@ -208,3 +208,20 @@ python3 scripts/puente/director_chat.py publicar --archivo informe.md --de claud
 `--de` con un director de conversación pone su canal propio (`hermes` → «desde Hermes», `claude-*` →
 `claude-cowork`, `codex` → `chatgpt`); `--canal` lo cambia. Sale en «Dirección», atribuido a quien firma, y con
 `--sintesis` en «Solo síntesis».
+
+### Entregas rápidas, llamadas acotadas y cola con retroceso (DIR1111N · 2026-11-11)
+
+El 2026-11-11 un solo mensaje sin respuesta dejó al cartero 10 minutos dentro de una llamada a Hermes y retrasó un
+aviso a Telegram. Reglas desde entonces: (1) **lo que no usa modelo (Telegram) nunca espera a un proveedor**: se
+atiende en el hilo principal en cada pasada, antes de lanzar nada lento; las entregas con proveedor corren en dos
+carriles de un hilo (`presidente` para su cola y `directo` para claude-mac/hermes/chatgpt) y la pasada no espera
+a ninguno. El estado (`cartero-estado.json`) lo escribe solo el hilo principal bajo `CerrojoEstado`, que el hilo
+lento suelta mientras dura la llamada (`motores_director.SOLTAR_DURANTE_LLAMADA`); el chat sigue siendo de un solo
+escritor con `flock`. (2) **Toda llamada del presidente y todo intento en sesión nueva de Hermes dura como mucho
+120 s** (`SEGUNDOS_PROVEEDOR_PRESIDENTE`, `SEGUNDOS_SESION_FRESCA`); el aviso a Telegram, 60 s. (3) **La cola
+retrocede**: 2, 4, 8 y 15 min (techo) entre intentos (`INTERVALOS_COLA_S`), y se adelanta, reiniciando la cuenta,
+cuando cambia la última lectura de límites de Claude o la sesión de dirección de Hermes, o cuando cualquier proveedor
+contesta (`despertar_cola`). Si solo se reabre la sesión de Hermes a mano, se nota en el siguiente intento (≤ 15
+min) o al siguiente mensaje. (4) **Una lectura de límites de Claude de más de 3 h se dice una vez** en el chat
+(`vigia_medidores.vigilar_lectura_claude`), con el último error del lector; la lectura la alimenta el servicio
+`com.starseed.medidores` (ahora en `instalar-servicios.py`) o la línea de estado de Claude Code.

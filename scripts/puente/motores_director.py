@@ -5,6 +5,7 @@ Módulo puro salvo `correr`: construye órdenes para Claude (Mac), Hermes y
 Codex (ChatGPT) y traduce sus salidas. Nunca guarda ni imprime claves.
 """
 
+import contextlib
 import json
 import os
 import re
@@ -236,11 +237,29 @@ def prompt_director(pregunta: str, historial: list, contexto: str) -> str:
     return "\n\n".join(partes)
 
 
+#: DIR1111N · tiempos de las llamadas a proveedores. Lo que espera una persona: el Director presidente y
+#: los intentos en sesión nueva no pasan de dos minutos (medido el 2026-11-11: una sesión nueva de Hermes
+#: contesta en ~30-40 s cuando contesta; si no, se queda colgada hasta el tope, sea cual sea el contexto).
+SEGUNDOS_PROVEEDOR_PRESIDENTE = 120
+SEGUNDOS_SESION_FRESCA = 120
+SEGUNDOS_AVISO_TELEGRAM = 60
+
+#: DIR1111N · gancho opcional: un `callable` que devuelve un gestor de contexto. El cartero lo usa para
+#: soltar el cerrojo de su estado mientras dura la llamada bloqueante (nadie espera detrás de un proveedor).
+SOLTAR_DURANTE_LLAMADA = None
+
+
 def correr(orden, entrada=None, segundos=300, env=None, cwd=None):
     """Ejecuta la orden en su propio grupo de procesos.
 
     Devuelve (rc, salida); al agotar el tiempo mata el grupo completo.
     """
+    gancho = SOLTAR_DURANTE_LLAMADA
+    with (gancho() if gancho else contextlib.nullcontext()):
+        return _correr(orden, entrada, segundos, env, cwd)
+
+
+def _correr(orden, entrada, segundos, env, cwd):
     proc = subprocess.Popen(
         orden,
         stdin=subprocess.PIPE if entrada is not None else None,
@@ -259,5 +278,9 @@ def correr(orden, entrada=None, segundos=300, env=None, cwd=None):
             os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
         except (ProcessLookupError, PermissionError):
             pass
-        salida, _ = proc.communicate()
+        try:
+            # DIR1111N: un nieto que conserve la tubería no debe colgar al cartero tras matar el grupo.
+            salida, _ = proc.communicate(timeout=10)
+        except subprocess.TimeoutExpired:
+            salida = ""
         return -9, (salida or "") + "\n[tiempo agotado]"

@@ -402,7 +402,11 @@ def instalar_calendario(etiqueta, orden, log, cuando):
 # las rutas de la Mac de Alex y aquí solo se cambian por las de esta instalación.
 #   «alta-nube» (Ola 1022C, ALT1022Ac): cada 15 min trae lo que dejaron las sesiones de Claude en
 #   la nube y lanza otras con el crédito de sesiones en la nube (`alta-capacidad-nube.py ciclo`).
-PERIODICOS = {"alta-nube": P("com.starseed.alta-nube.plist")}
+#   «medidores» (DIR1111N): cada 10 min recoge los medidores de crédito y, con ellos, la lectura de límites de
+#   Claude (`limites-claude.json`). Su plist estaba en el repo pero ningún instalador lo cargaba: el servicio
+#   no existía en la Mac y la lectura se paró (última buena 2026-11-06). Solo: STARSEED_SOLO=medidores.
+PERIODICOS = {"alta-nube": P("com.starseed.alta-nube.plist"),
+              "medidores": P("com.starseed.medidores.plist")}
 
 
 def adaptar_plist(texto):

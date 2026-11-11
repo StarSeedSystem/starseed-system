@@ -46,7 +46,11 @@ MODELOS = {
     "chatgpt": "codex/gpt-5-codex",
 }
 CANAL = "director-presidente"
-REINTENTO_COLA_S = 120
+REINTENTO_COLA_S = 120  # primer reintento; los siguientes crecen (DIR1111N)
+#: DIR1111N · intervalos entre reintentos de un mensaje que nadie puede contestar: crecen y se paran en
+#: el techo (15 min). Una señal de que un proveedor volvió (lectura nueva de límites, una respuesta de
+#: cualquier proveedor, la sesión de Hermes reabierta) adelanta el reintento y reinicia la cuenta.
+INTERVALOS_COLA_S = (120, 240, 480, 900)
 ENFRIAMIENTO_S = 600
 MAX_COLA = 200
 RAIZ = Path(__file__).resolve().parent.parent.parent
@@ -198,9 +202,44 @@ def texto_descartes(descartes):
     return "; ".join("%s: %s" % (NOMBRES.get(p, p), m) for p, m in descartes)
 
 
-def detalle_cola(descartes):
-    return ("En cola: ningún director puede contestar ahora (%s). Se reintenta solo cada %d min."
-            % (texto_descartes(descartes) or "sin proveedores", REINTENTO_COLA_S // 60))
+def intervalo_cola(intentos):
+    """PURA. Segundos hasta el siguiente reintento tras `intentos` intentos fallidos (≥ 1)."""
+    i = max(1, int(intentos or 1)) - 1
+    return INTERVALOS_COLA_S[min(i, len(INTERVALOS_COLA_S) - 1)]
+
+
+def _en_min(segundos):
+    m = max(1, int(round(segundos / 60.0)))
+    return "%d min" % m
+
+
+def detalle_cola(descartes, intentos=1, proximo=None, ahora=None):
+    """El motivo visible de «En cola»: quién no pudo y por qué, cuántos intentos y cuándo es el siguiente."""
+    base = "En cola: ningún director puede contestar ahora (%s)." % (texto_descartes(descartes) or "sin proveedores")
+    if proximo is None:
+        return base + " Se reintenta solo."
+    espera = intervalo_cola(intentos)
+    return "%s Intento %d; el siguiente hacia las %s (en %s), cada vez más espaciado hasta %s. " \
+           "Si un director vuelve antes, se contesta en cuanto se note." % (
+               base, intentos, _hora_corta(proximo), _en_min(espera), _en_min(INTERVALOS_COLA_S[-1]))
+
+
+def _hora_corta(epoch):
+    return datetime.fromtimestamp(epoch, timezone.utc).astimezone().strftime("%H:%M")
+
+
+def huella_proveedores(datos_limites, sesion_hermes):
+    """PURA. Lo que cambia cuando un proveedor puede haber vuelto: la última lectura de límites de Claude y
+    la sesión de dirección de Hermes. Si cambia, un mensaje en cola se reintenta sin esperar."""
+    lecturas = (datos_limites or {}).get("lecturas") if isinstance(datos_limites, dict) else None
+    ultima = lecturas[-1].get("t") if lecturas and isinstance(lecturas[-1], dict) else None
+    return "%s|%s" % (ultima or "", sesion_hermes or "")
+
+
+def despertar_cola(estado, ahora=None):
+    """Un proveedor contestó: los mensajes en cola se reintentan ya, sin esperar su intervalo."""
+    ahora = time.time() if ahora is None else ahora
+    estado.setdefault("presidente", {})["despertar"] = ahora
 
 
 # ── Llamadas (con `correr` inyectado) ────────────────────────────────────────────
@@ -210,7 +249,7 @@ def _llamar_claude(prompt, correr):
         motores_director.orden_claude(prompt, motores_director.MODELO_DIRECTOR, None),
         env=motores_director.entorno_sin_claves_api(os.environ),
         cwd=str(RAIZ),
-        segundos=600,
+        segundos=motores_director.SEGUNDOS_PROVEEDOR_PRESIDENTE,
     )
     if "Credit balance is too low" in (salida or ""):
         return None, "la cuenta de Claude Code no tiene saldo", {}
@@ -222,15 +261,16 @@ def _llamar_claude(prompt, correr):
     return lectura["texto"].strip(), "", uso
 
 
-def _ejecutar_hermes(correr):
+def _ejecutar_hermes(correr, segundos=None):
     """`ejecutar(prompt, sesion) -> (rc, salida, uso)` con el archivo de uso temporal de Hermes."""
+    segundos = segundos or motores_director.SEGUNDOS_PROVEEDOR_PRESIDENTE
     import json  # noqa: PLC0415
 
     def ejecutar(prompt, sesion):
         with tempfile.NamedTemporaryFile(mode="r", suffix=".json", delete=False, encoding="utf-8") as f:
             archivo_uso = f.name
         try:
-            rc, salida = correr(motores_director.orden_hermes(prompt, None, archivo_uso, sesion), segundos=600)
+            rc, salida = correr(motores_director.orden_hermes(prompt, None, archivo_uso, sesion), segundos=segundos)
             try:
                 datos = json.loads(Path(archivo_uso).read_text(encoding="utf-8"))
             except (OSError, ValueError):
@@ -264,7 +304,8 @@ def _llamar_hermes(prompt, correr, sesion=None, prompt_fresco=None, info=None):
 
 
 def _llamar_chatgpt(prompt, correr):
-    rc, salida = correr(motores_director.orden_codex("gpt-5-codex", str(RAIZ)), entrada=prompt, segundos=600)
+    rc, salida = correr(motores_director.orden_codex("gpt-5-codex", str(RAIZ)), entrada=prompt,
+                        segundos=motores_director.SEGUNDOS_PROVEEDOR_PRESIDENTE)
     texto = (salida or "").strip()
     if rc != 0 or not texto:
         return None, director_chat.tachar((texto or "sin salida (rc=%s)" % rc)[:200]), {}
@@ -372,8 +413,16 @@ def atender(mensaje, estado, raiz=None, correr=None, existe=None, limites=None,
     idm = mensaje["id"]
 
     previo = cola.get(idm) or {}
-    if float(previo.get("proximo") or 0) > ahora:
-        return "espera"
+    huella = huella_proveedores(datos_limites, sesion_hermes)
+    if previo:
+        # DIR1111N: en cola, se espera el intervalo… salvo que un proveedor haya podido volver.
+        volvio = (huella != previo.get("huella", huella)
+                  or float(pres.get("despertar") or 0) > float(previo.get("visto") or 0))
+        if float(previo.get("proximo") or 0) > ahora and not volvio:
+            return "espera"
+        enfriados.clear()  # el reintento espaciado manda sobre el enfriamiento de 10 min
+        if volvio:
+            previo = dict(previo, intentos=0)
 
     if estado.get("opus_fecha") != _hoy(ahora):
         estado["opus_fecha"] = _hoy(ahora)
@@ -433,13 +482,17 @@ def atender(mensaje, estado, raiz=None, correr=None, existe=None, limites=None,
         )
         director_chat.entrega(idm, CANAL, "respondido", raiz=raiz)
         cola.pop(idm, None)
+        despertar_cola(estado, ahora)  # un proveedor contesta: lo que siga en cola se reintenta ya
         return "respondido"
 
-    detalle = detalle_cola(descartes)
+    intentos = int(previo.get("intentos") or 0) + 1
+    proximo = ahora + intervalo_cola(intentos)
+    detalle = detalle_cola(descartes, intentos, proximo)
     if previo.get("detalle") != detalle:
         director_chat.entrega(idm, CANAL, "pendiente", detalle=detalle, raiz=raiz)
     # Se guarda el mensaje: si el chat avanza y sale de la ventana que lee el cartero, sigue en cola.
-    cola[idm] = {"proximo": ahora + REINTENTO_COLA_S, "detalle": detalle,
+    cola[idm] = {"proximo": proximo, "detalle": detalle, "intentos": intentos, "huella": huella,
+                 "visto": ahora, "desde": previo.get("desde") or ahora,
                  "mensaje": {k: mensaje[k] for k in ("id", "t", "de", "rol", "tipo", "texto", "canal",
                                                      "canales", "modelo") if k in mensaje}}
     if len(cola) > MAX_COLA:

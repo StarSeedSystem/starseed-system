@@ -294,6 +294,78 @@ def _avisar(texto: str, cada_s: int = 3600) -> str:
     return "avisado en el canal"
 
 
+# ── DIR1111N · una lectura de límites de Claude que se queda vieja se dice, una vez ───────────
+# El 2026-11-11 se vio que la lectura llevaba 5 días parada (el servicio de medidores no existía y
+# `claude -p /usage` ya no traía los límites) y nadie lo sabía: el Director presidente nunca elegía a
+# Claude («sin lectura no se arriesga»). Ahora el vigía lo dice en el Chat Director.
+AVISO_LECTURA = os.path.expanduser("~/.starseed/vigia-lectura-claude.json")
+LECTURA_VIEJA_MIN = 180  # el presidente exige < 120 min; con 3 h no se avisa por un hueco normal
+
+
+def aviso_lectura_claude(datos_limites: dict, ahora, previo: dict, error_medidor: str | None = None):
+    """PURA. (texto|None, estado_nuevo). Avisa UNA vez por cada lectura que envejece; al llegar una
+    lectura fresca se olvida el aviso y, si vuelve a envejecer, se avisa otra vez."""
+    import limites_claude
+
+    est = limites_claude.estado(datos_limites if isinstance(datos_limites, dict) else {}, ahora)
+    hace = est.get("lectura_hace_min")
+    lecturas = (datos_limites or {}).get("lecturas") or [] if isinstance(datos_limites, dict) else []
+    t = lecturas[-1].get("t") if lecturas and isinstance(lecturas[-1], dict) else None
+    vieja = hace is None or hace >= LECTURA_VIEJA_MIN
+    if not vieja:
+        return None, {}
+    if (previo or {}).get("avisada") == (t or "sin lectura"):
+        return None, previo
+    if hace is None:
+        cuando = "no hay ninguna lectura de los límites de Claude"
+    elif hace >= 2 * 1440:
+        cuando = "la última lectura de los límites de Claude es de hace %d días" % round(hace / 1440)
+    else:
+        cuando = "la última lectura de los límites de Claude es de hace %d h" % round(hace / 60)
+    texto = ("AVISO · %s. Mientras no haya una lectura de menos de 2 h, el Director presidente no elige "
+             "a Claude («sin lectura no se arriesga»)." % cuando)
+    if error_medidor:
+        texto += " Último intento del lector por terminal: %s." % str(error_medidor)[:160]
+    texto += " Para ver el estado: python3 scripts/puente/limites_claude.py estado"
+    return texto, {"avisada": t or "sin lectura", "t": ahora.isoformat()}
+
+
+def vigilar_lectura_claude(ahora=None, leer_limites=None, ruta=AVISO_LECTURA, publicar=None, ruta_medidores=None) -> str:
+    """Lee la lectura de límites, decide con `aviso_lectura_claude` y publica en el chat si toca."""
+    from datetime import datetime
+
+    import limites_claude
+
+    ahora = ahora or datetime.now().astimezone()
+    datos = (leer_limites or limites_claude.leer)()
+    try:
+        with open(ruta, encoding="utf-8") as f:
+            previo = json.load(f)
+    except (OSError, ValueError):
+        previo = {}
+    error = None
+    try:
+        with open(ruta_medidores or os.path.expanduser("~/.starseed/medidores-credito.json"), encoding="utf-8") as f:
+            error = ((json.load(f).get("medidores") or {}).get("claude") or {}).get("error")
+    except (OSError, ValueError, AttributeError):
+        pass
+    texto, nuevo = aviso_lectura_claude(datos, ahora, previo if isinstance(previo, dict) else {}, error)
+    if texto:
+        if publicar is None:
+            import director_chat
+
+            publicar = lambda t: director_chat.publicar(t, de="vigia-medidores", rol="director", tipo="aviso")  # noqa: E731
+        publicar(texto)  # si falla, no se anota y se reintenta en la pasada siguiente
+    if nuevo != previo:
+        try:
+            os.makedirs(os.path.dirname(ruta), exist_ok=True)
+            with open(ruta, "w", encoding="utf-8") as f:
+                json.dump(nuevo, f)
+        except OSError:
+            pass
+    return "avisado" if texto else ("vieja, ya avisada" if nuevo else "al día")
+
+
 def aplicar(problema: dict) -> str:
     """Ejecuta el remedio y devuelve lo que pasó, en castellano."""
     remedio = problema.get("remedio")
@@ -399,6 +471,11 @@ def una_pasada(aplicar_remedios=True) -> dict:
         except Exception as e:
             print("vigia-medidores: autocuración: %s: %s" % (type(e).__name__, e), flush=True)
     medidores = leer_medidores()
+    if aplicar_remedios:
+        try:
+            vigilar_lectura_claude()  # DIR1111N
+        except Exception as e:  # noqa: BLE001
+            print("vigia-medidores: lectura de Claude: %s: %s" % (type(e).__name__, e), flush=True)
     try:
         with open(BUSCAR_CAPACIDAD, encoding="utf-8") as f:
             sin_hueco = nube_sin_hueco(json.load(f), time.time())

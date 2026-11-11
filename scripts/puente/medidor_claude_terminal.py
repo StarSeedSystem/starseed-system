@@ -63,6 +63,14 @@ def interpretar(texto:str,ahora:datetime)->dict:
         ventanas.append({"id":vid,"etiqueta":etiq,"usado_pct":pct,"reinicia":fecha_local.isoformat()})
     extras={"lineas_sin_entender":lineas} if lineas else {}
     base={"id":"claude","proveedor":"anthropic","nombre":"Claude · plan","tipo":"plan","enlace":"https://claude.ai/settings/usage","fuente":"terminal: claude -p /usage","leido":ahora.isoformat(),"saldo":None,"extras":extras,"ventanas":[]}
+    if not plan_ok and not ventanas:
+        bajo=texto.lower()
+        if "total cost:" in bajo and "current" not in bajo:
+            # DIR1111N (2026-11-11): `claude -p /usage` sin sesión iniciada (o sin plan) solo cuenta la sesión
+            # (coste, duración, tokens a 0): no trae los límites. Decirlo así evita buscar el fallo en otro sitio.
+            base.update({"ok":False,"obsoleto":False,"plan":None,
+                         "error":"claude -p /usage solo da el coste de la sesión, no los límites: sin sesión iniciada en esta cuenta (claude auth status)"})
+            return base
     if not plan_ok:
         base.update({"ok":False,"obsoleto":False,"error":"claude no está usando la suscripción","plan":None})
         return base
