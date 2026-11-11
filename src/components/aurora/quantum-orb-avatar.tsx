@@ -19,11 +19,20 @@
  * (sin audio real: una fila de lista no tiene micrófono propio) y por defecto
  * respire en reposo, encendiéndose solo cuando quien la monta le pasa un
  * `state` distinto de "idle" (p. ej. "thinking" mientras ese agente procesa).
+ *
+ * PUBLICA su vector visual (turbulence, spikiness, symmetry, hueShift, breath)
+ * en el canal `params` del bus de la orbe (onda 1.58b) para que otras
+ * instancias o el backend 1.58b puedan reaccionar/sincronizarse.
  */
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useMemo } from "react";
 import { cn } from "@/lib/utils";
-import { resolveQuantumOrbTheme, type QuantumOrbParams } from "@/lib/aurora/quantum-orb-theme";
+import {
+  resolveQuantumOrbTheme,
+  mergeQuantumOrbParams,
+  DEFAULT_QUANTUM_ORB_PARAMS,
+  type QuantumOrbParams,
+} from "@/lib/aurora/quantum-orb-theme";
 import {
   createQuantumOrbRenderer,
   prefersReducedMotion,
@@ -45,6 +54,67 @@ export interface QuantumOrbAvatarProps {
 /** Menos partículas que `<QuantumOrb>` (28) — "ligera", pensada para listas. */
 const AVATAR_PARTICLE_COUNT = 8;
 
+/** Ajustes base por personalidad (derivados de su estilo visual). */
+const PERSONA_PARAM_ADJUSTMENTS: Record<string, Partial<QuantumOrbParams>> = {
+  hephaestus: { turbulence: 0.6, spikiness: 0.7, symmetry: 0.3, hueShift: 0.1, breath: 0.4 },
+  hermione: { turbulence: 0.2, spikiness: 0.3, symmetry: 0.9, hueShift: 0.4, breath: 0.3 },
+  atenea: { turbulence: 0.3, spikiness: 0.4, symmetry: 0.8, hueShift: 0.3, breath: 0.5 },
+  oneiros: { turbulence: 0.7, spikiness: 0.2, symmetry: 0.4, hueShift: 0.6, breath: 0.7 },
+  hermes: { turbulence: 0.4, spikiness: 0.5, symmetry: 0.5, hueShift: 0.2, breath: 0.6 },
+  logos: { turbulence: 0.1, spikiness: 0.2, symmetry: 0.95, hueShift: 0.0, breath: 0.3 },
+  mnemosyne: { turbulence: 0.3, spikiness: 0.2, symmetry: 0.6, hueShift: 0.5, breath: 0.5 },
+  kallisti: { turbulence: 0.5, spikiness: 0.6, symmetry: 0.4, hueShift: 0.8, breath: 0.6 },
+  astraura_prime: { turbulence: 0.2, spikiness: 0.3, symmetry: 0.85, hueShift: 0.1, breath: 0.4 },
+  aurora: { turbulence: 0.35, spikiness: 0.4, symmetry: 0.6, hueShift: 0.5, breath: 0.5 },
+};
+
+/** Ajustes por estado (modulan el vector base). */
+const STATE_PARAM_ADJUSTMENTS: Record<QuantumOrbState, Partial<QuantumOrbParams>> = {
+  idle: { turbulence: 0.0, spikiness: 0.0, symmetry: 0.0, hueShift: 0.0, breath: 0.0 },
+  listening: { turbulence: 0.1, spikiness: -0.1, symmetry: 0.05, hueShift: 0.0, breath: 0.15 },
+  user_speaking: { turbulence: 0.2, spikiness: 0.1, symmetry: -0.05, hueShift: 0.05, breath: 0.2 },
+  thinking: { turbulence: 0.25, spikiness: 0.15, symmetry: -0.1, hueShift: 0.1, breath: 0.1 },
+  speaking: { turbulence: 0.15, spikiness: 0.05, symmetry: 0.1, hueShift: -0.05, breath: 0.3 },
+  error: { turbulence: 0.5, spikiness: 0.4, symmetry: -0.3, hueShift: 0.2, breath: -0.1 },
+};
+
+function clampUnit(n: number): number {
+  return Math.max(0, Math.min(1, n));
+}
+
+/** Calcula el vector de params efectivo combinando: defaults + persona + state + props. */
+function computeEffectiveParams(
+  personaId: string,
+  state: QuantumOrbState,
+  propsParams?: Partial<QuantumOrbParams>
+): QuantumOrbParams {
+  const base = { ...DEFAULT_QUANTUM_ORB_PARAMS };
+  const personaAdj = PERSONA_PARAM_ADJUSTMENTS[personaId.toLowerCase()] ?? PERSONA_PARAM_ADJUSTMENTS.aurora;
+  const stateAdj = STATE_PARAM_ADJUSTMENTS[state] ?? STATE_PARAM_ADJUSTMENTS.idle;
+
+  // Aplicar ajustes de personalidad
+  (Object.keys(personaAdj) as Array<keyof QuantumOrbParams>).forEach((k) => {
+    const val = personaAdj[k];
+    if (val !== undefined) base[k] = clampUnit(base[k] + val);
+  });
+
+  // Aplicar ajustes de estado
+  (Object.keys(stateAdj) as Array<keyof QuantumOrbParams>).forEach((k) => {
+    const val = stateAdj[k];
+    if (val !== undefined) base[k] = clampUnit(base[k] + val);
+  });
+
+  // Merge con props (props gana)
+  if (propsParams) {
+    (Object.keys(propsParams) as Array<keyof QuantumOrbParams>).forEach((k) => {
+      const val = propsParams[k];
+      if (val !== undefined) base[k] = clampUnit(val);
+    });
+  }
+
+  return base;
+}
+
 export function QuantumOrbAvatar({
   personaId = "aurora",
   size = 36,
@@ -56,16 +126,20 @@ export function QuantumOrbAvatar({
   const rendererRef = useRef<QuantumOrbRenderer | null>(null);
   if (!rendererRef.current) rendererRef.current = createQuantumOrbRenderer(AVATAR_PARTICLE_COUNT);
 
+  // Vector efectivo calculado (memoizado para no recalcular en cada render).
+  const effectiveParams = useMemo(
+    () => computeEffectiveParams(personaId, state, params),
+    [personaId, state, params]
+  );
+
   // Estado vivo leído dentro del rAF (no recrea el bucle en cada re-render).
-  const liveRef = useRef({ personaId, state, params });
-  liveRef.current = { personaId, state, params };
+  const liveRef = useRef({ personaId, state, params: effectiveParams });
+  liveRef.current = { personaId, state, params: effectiveParams };
 
   // Publica los parámetros en el bus `params` cuando cambian (onda 1.58b).
   useEffect(() => {
-    if (params && Object.keys(params).length > 0) {
-      emitQuantumOrbParams(params);
-    }
-  }, [params]);
+    emitQuantumOrbParams(effectiveParams);
+  }, [effectiveParams]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -94,9 +168,6 @@ export function QuantumOrbAvatar({
       last = t;
       if (docVisible) {
         const live = liveRef.current;
-        // Sin audio real: una fila de lista no tiene micrófono propio. El
-        // "aliento" vivo viene del ruido interno del motor + el `state`
-        // (p. ej. "thinking" mientras ESE agente concreto procesa).
         renderer.frame(ctx, {
           nowMs: t,
           dtSeconds: dt,
