@@ -357,5 +357,71 @@ class Leann(unittest.TestCase):
                 self.assertTrue(os.path.exists(os.path.join(tmp, rel)), rel)
 
 
+class CuentasAlA1(unittest.TestCase):
+    """(SDP1111O) Los cuatro nombres nuevos de la síntesis y la actividad de Google viajan en la
+    lista blanca, y las fichas de cuentas Google (`~/.starseed/cuentas/*.json`, tokens de
+    refresco) viajan al A1 empaquetadas con 0600 en origen y destino, sin leer ni imprimir valores."""
+
+    def test_los_cuatro_nombres_nuevos_estan_en_la_lista(self):
+        for nombre in ("TELEGRAM_SINTESIS_BOT_TOKEN", "TELEGRAM_SINTESIS_CHAT_ID",
+                       "GOOGLE_ACTIVIDAD_CLIENT_ID", "GOOGLE_ACTIVIDAD_CLIENT_SECRET"):
+            self.assertIn(nombre, N.CLAVES_A1)
+
+    def test_los_nombres_nuevos_viajan_cuando_tienen_valor(self):
+        env = {"TELEGRAM_SINTESIS_BOT_TOKEN": "t", "TELEGRAM_SINTESIS_CHAT_ID": "c",
+               "GOOGLE_ACTIVIDAD_CLIENT_ID": "i", "GOOGLE_ACTIVIDAD_CLIENT_SECRET": "s"}
+        van, faltan = N.variables_para_a1(env)
+        self.assertEqual(set(van), set(env))
+        self.assertNotIn("TELEGRAM_SINTESIS_BOT_TOKEN", faltan)
+
+    def test_empaquetado_solo_json_y_con_modo_0600(self):
+        import tarfile
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            ficha = os.path.join(tmp, "alex.json")
+            with open(ficha, "w", encoding="utf-8") as f:
+                f.write('{"refresh_token": "valor-que-nadie-lee"}')
+            os.chmod(ficha, 0o600)
+            with open(os.path.join(tmp, "notas.txt"), "w", encoding="utf-8") as f:
+                f.write("x")
+            with open(os.path.join(tmp, "alex.json.tmp"), "w", encoding="utf-8") as f:
+                f.write("x")
+            tgz = os.path.join(tmp, "cuentas.tgz")
+            nombres, ruta = N.empaquetar_cuentas(tmp, tgz)
+            self.assertEqual(nombres, ["alex.json"])
+            self.assertEqual(ruta, tgz)
+            with tarfile.open(tgz) as t:
+                miembros = t.getmembers()
+            self.assertEqual([m.name for m in miembros], ["alex.json"])
+            self.assertEqual(miembros[0].mode & 0o777, 0o600)
+
+    def test_sin_carpeta_o_vacia_no_es_error_ni_empaqueta(self):
+        import tempfile
+
+        self.assertEqual(N.empaquetar_cuentas("/no-existe-sdp1111o", None), ([], None))
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertEqual(N.empaquetar_cuentas(tmp, os.path.join(tmp, "c.tgz")), ([], None))
+
+    def test_el_destino_en_el_a1_queda_0600_y_sin_eco_de_nombres(self):
+        guion = N.guion_cuentas()
+        self.assertIn("install -d -o starseed -g starseed -m 700", guion)
+        self.assertIn("chmod 600", guion)
+        self.assertIn("cuentas-ok", guion)
+        self.assertIn("2>/dev/null", guion)  # tar y find callados: ningún nombre en el registro
+        self.assertNotIn("ls ", guion)
+        self.assertNotIn("cat ", guion)
+
+    def test_sin_carpeta_de_cuentas_no_llama_a_ssh(self):
+        llamadas = []
+        original = N._ssh_bytes
+        N._ssh_bytes = lambda *a, **k: llamadas.append(a) or (0, "")
+        try:
+            r = N._cuentas_al_a1(carpeta="/no-existe-sdp1111o")
+        finally:
+            N._ssh_bytes = original
+        self.assertEqual((r.get("ok"), r.get("enviados"), len(llamadas)), (True, 0, 0))
+
+
 if __name__ == "__main__":
     unittest.main()

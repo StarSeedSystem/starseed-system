@@ -14,7 +14,9 @@ la llave SSH (`~/.ssh/starseed_oracle_ed25519`) y la sesión de GitHub hace con 
   claves                 copia al A1 SOLO las claves de los proveedores GRATUITOS que ya usa la nube
                          de GitHub (mismos nombres que `nube-gh.py secretos`) y las del bus, a un
                          archivo 600 del usuario del servicio; trae la clave del BitNet del A1 a
-                         ~/.starseed/env. Nunca imprime un valor: solo nombres.
+                         ~/.starseed/env. (SDP1111O) lleva también las fichas de sesión de las
+                         cuentas Google de ~/.starseed/cuentas/*.json (0600 en origen y destino).
+                         Nunca imprime un valor: solo nombres.
   estado [--json]        lee el estado del nodo y lo deja en ~/.starseed/oracle.json (`nodo`,
                          `servicios`), que Genesis y `medios_disponibles` leen. Sin IPs ni claves.
   traer                  sube a GitHub las ramas `nube/a1-*` que dejó el A1 (él no puede: su copia
@@ -152,8 +154,17 @@ CLAVES_A1 = (
     # (2026-10-20) Mistral (modo Free de Studio, sin tarjeta) y Cerebras (si algún día existe la
     # clave): los dos están en el mapa del lanzador del A1 (`a1_freellmapi.py`) pero no viajaban.
     "MISTRAL_API_KEY", "CEREBRAS_API_KEY",
+    # (SDP1111O) Síntesis de producción (bot propio de Telegram) y cliente OAuth de la actividad
+    # de Google de Alex (solo lectura). Solo NOMBRES: los valores los guarda Alex en env.
+    "TELEGRAM_SINTESIS_BOT_TOKEN", "TELEGRAM_SINTESIS_CHAT_ID",
+    "GOOGLE_ACTIVIDAD_CLIENT_ID", "GOOGLE_ACTIVIDAD_CLIENT_SECRET",
 )
 ARCHIVOS_ENV = ("~/.starseed/env", "~/.hermes/.env", os.path.join(RAIZ, ".env.local"))
+#: (SDP1111O) Las fichas de sesión de las cuentas Google (`cuentas_google.py`: tokens de refresco
+#: de alex y fundacion), 0600 en origen (`escribir_json`): viajan a la carpeta equivalente del A1
+#: por el mismo canal ssh de `claves`, sin imprimir contenido ni nombres de archivo.
+DIR_CUENTAS = os.path.join(HOME, ".starseed", "cuentas")
+DIR_CUENTAS_A1 = "/home/starseed/.starseed/cuentas"
 NOMBRE_CLAVE_BITNET = "STARSEED_ORACLE_BITNET_KEY"
 #: Los pesos oficiales i2_s de Hugging Face vienen empaquetados para x86 (bloques de 128 valores,
 #: paso 32). En ARM `QK_I2_S` es 64 (paso 16): con ellos el A1 «responde» palabras sueltas sin
@@ -1080,6 +1091,61 @@ def _env_local():
     return env
 
 
+def archivos_de_cuentas(nombres):
+    """PURA. (SDP1111O) Los nombres de la carpeta de cuentas que viajan: solo fichas `.json`
+    de `cuentas_google` (tokens de refresco); copias temporales y cualquier otra cosa no viaja."""
+    return sorted(n for n in nombres if n.endswith(".json") and not n.endswith(".tmp"))
+
+
+def empaquetar_cuentas(carpeta=DIR_CUENTAS, destino_tgz=None):
+    """IO acotada a la carpeta de cuentas. Tar.gz con cada ficha `.json` conservando su modo
+    original (0600, lo deja `escribir_json` de cuentas_google_env). Devuelve (nombres, ruta del
+    tgz); sin carpeta, vacía o sin fichas que viajar: ([], None), sin error."""
+    try:
+        nombres = archivos_de_cuentas(os.listdir(carpeta))
+    except OSError:
+        return [], None
+    if not nombres:
+        return [], None
+    destino_tgz = destino_tgz or os.path.join(tempfile.gettempdir(), "starseed-cuentas-%d.tgz" % os.getpid())
+    with tarfile.open(destino_tgz, "w:gz") as t:
+        for n in nombres:
+            t.add(os.path.join(carpeta, n), arcname=n)
+    return nombres, destino_tgz
+
+
+def guion_cuentas(destino=DIR_CUENTAS_A1):
+    """PURA. La orden ssh que despliega el tgz que va en la entrada: carpeta 700 y cada ficha
+    600 en el destino. Todo callado (`2>/dev/null`) y un solo eco sin nombres de archivo."""
+    return ("set -e; sudo install -d -o starseed -g starseed -m 700 %s; "
+            "sudo tar xzf /tmp/starseed-cuentas.tgz -C %s 2>/dev/null; "
+            "sudo find %s -type f -exec chmod 600 {} + 2>/dev/null; "
+            "sudo chmod 700 %s; rm -f /tmp/starseed-cuentas.tgz; echo cuentas-ok"
+            % (destino, destino, destino, destino))
+
+
+def _cuentas_al_a1(carpeta=DIR_CUENTAS, destino=DIR_CUENTAS_A1):
+    """(SDP1111O) Las fichas de cuentas Google al A1, por el mismo túnel de `claves`: tgz por la
+    entrada y despliegue con `guion_cuentas` (0600 en destino). Sin carpeta o vacía: sin error.
+    El resultado solo lleva un recuento: nunca el contenido ni los nombres de archivo."""
+    nombres, tgz = empaquetar_cuentas(carpeta)
+    if not nombres or not tgz:
+        return {"ok": True, "enviados": 0}
+    try:
+        with open(tgz, "rb") as f:
+            datos = f.read()
+        os.remove(tgz)
+    except OSError as e:  # noqa: BLE001 — un fallo de cuentas nunca tumba la orden de claves
+        return {"ok": False, "enviados": 0, "motivo": "%s: %s" % (type(e).__name__, e)}
+    rc, _ = _ssh_bytes("cat > /tmp/starseed-cuentas.tgz", datos, timeout=300)
+    salida = ""
+    if rc == 0:
+        rc, salida = ssh(guion_cuentas(destino), timeout=120)
+    return {"ok": rc == 0 and "cuentas-ok" in salida,
+            "enviados": len(nombres) if rc == 0 else 0,
+            "motivo": "" if rc == 0 else tachar(salida.strip()[-120:], _ip())}
+
+
 def claves():
     van, faltan = variables_para_a1(_env_local())
     rc, salida = ssh("umask 077; cat > /tmp/starseed-env.$$ && sudo install -o starseed -g starseed -m 600 /tmp/starseed-env.$$ "
@@ -1110,6 +1176,9 @@ def claves():
         res["clave_bitnet"] = "aún no existe en el A1 (la crea preparar-a1.sh)"
     # Sin reiniciar nada: el orquestador lee ~/.starseed/env al arrancar cada cola, y reiniciar el
     # nodo a mitad de una cola o del guardián tiraba trabajo (medido el 2026-10-10).
+    # (SDP1111O) Y las fichas de cuentas Google (tokens de refresco) viajan por el mismo túnel,
+    # 0600 en origen y destino; su resultado es solo un recuento.
+    res["cuentas"] = _cuentas_al_a1()
     return res
 
 
