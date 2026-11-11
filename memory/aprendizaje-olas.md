@@ -6795,3 +6795,10 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 
 **Lo que quedó fuera, una por una:**
 - `IMG-diaria-auto-refresh-del-catalogo-de-mode` — pruebas en rojo: FAILED scripts/puente/test_auto_refresh_dream.py::test_if_refresh_falla_el_dream_sigue_soando
+
+## 2026-11-11 03:29 · auto-1111-032259
+
+**Resultado.** 0 de 1 integradas. 1 tarea se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `IMG-diaria-auto-refresh-del-catalogo-de-mode` — pruebas en rojo: FAILED scripts/puente/test_auto_refresh_dream.py::test_if_refresh_falla_el_dream_sigue_soando
