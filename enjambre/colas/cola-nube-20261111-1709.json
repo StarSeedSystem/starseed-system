@@ -1,0 +1,20 @@
+{
+ "ola": "nube-20261111",
+ "tareas": [
+  {
+   "ola": "SDP1111",
+   "id": "SDP1111A-d1",
+   "titulo": "Síntesis · fuentes y rotación (módulo puro) (parte 1 de 2)",
+   "archivos": [
+    "scripts/puente/sintesis_fuentes.py"
+   ],
+   "depende": [],
+   "prompt": "Lee architecture/sintesis-diaria-autonoma.md §3.2. Crea el módulo PURO sintesis_fuentes.py: funciones que, dada la raíz, devuelven el contexto común de la síntesis diaria de producción audiovisual: las 3 últimas síntesis de starseed_memory_root/produccion-audiovisual/sintesis/ y su sección «Mañana» (la rotación: 2 vídeos de los 15, 2-3 contactos, 1 categoría nueva; sin repetir lo de las 3 últimas), las salidas de Imaginación de 24 h (starseed_memory_root/imaginacion/agentes/*.json), los informes nuevos de directores y sueños, y el resumen de actividad si existe (~/.starseed/actividad/resumen-AAAA-MM-DD.json). Todo inyectable, sin red. Si no hay síntesis previas, la rotación empieza por los vídeos 4 y 5 y los contactos Cole Hastings, Sunseed y Damanhur. Pruebas con directorios temporales. Máximo 120 líneas por archivo; tsc no aplica; pytest en verde.\n\n## PARTE 1 DE 2 (la dirección dividió SDP1111A: falla por sí misma (tarea:pruebas))\nEn esta parte tocas SOLO: scripts/puente/sintesis_fuentes.py. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "SDP1111A",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:pruebas)"
+   }
+  }
+ ]
+}
