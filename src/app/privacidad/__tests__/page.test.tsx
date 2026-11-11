@@ -103,4 +103,11 @@ describe("el estilo de las dos páginas", () => {
     const { container: terminos } = render(<TerminosPage />);
     expect(terminos.innerHTML).toContain("font-headline");
   });
+
+  it("pone un velo adaptativo para que el texto se lea sobre el fondo del OS", () => {
+    const { container: privacidad } = render(<PrivacidadPage />);
+    expect(privacidad.innerHTML).toContain("from-background/");
+    const { container: terminos } = render(<TerminosPage />);
+    expect(terminos.innerHTML).toContain("from-background/");
+  });
 });

@@ -6,17 +6,12 @@ export const metadata: Metadata = {
   title: "Términos · StarSeed OS",
   description: "Términos de uso de la app «StarSeed actividad» de StarSeed OS: acceso de solo lectura para el dueño y datos privados en sus nodos. Resumen en inglés.",
   alternates: { canonical: "/terminos" },
-  openGraph: {
-    title: "Términos · StarSeed OS",
-    description: "Solo lectura para el dueño, datos privados en sus nodos. Resumen en inglés.",
-    url: "/terminos",
-    locale: "es_ES",
-  },
+  openGraph: { title: "Términos · StarSeed OS", description: "Solo lectura para el dueño, datos privados en sus nodos. Resumen en inglés.", url: "/terminos", locale: "es_ES" },
 };
 
 const CONTACTO = "fundacionstarseed@gmail.com";
 const VIGENCIA = "2026-11-11";
-const URL_REVocar = "https://myaccount.google.com/permissions";
+const URL_REVOCAR = "https://myaccount.google.com/permissions";
 const URL_POLITICA_GOOGLE = "https://developers.google.com/terms/api-services-user-data-policy";
 
 /** Estilos de la casa: titular Space Grotesk, cuerpo Inter, acentos Trinity. */
@@ -48,7 +43,10 @@ function Seccion({ titulo, acento, children }: { titulo: string; acento: string;
 export default function TerminosPage() {
   return (
     <main className="relative min-h-dvh px-5 pb-28 pt-12 md:px-8 md:pt-16">
-      <div className="mx-auto w-full max-w-3xl space-y-10 rounded-3xl border border-border/40 bg-background/70 p-6 backdrop-blur-xl md:p-10">
+      {/* Velo adaptativo (regla de contraste del design system): el texto se lee
+          igual sobre el fondo animado del OS, claro u oscuro. */}
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-gradient-to-b from-background/70 to-background/90" />
+      <div className="relative z-10 mx-auto w-full max-w-3xl space-y-10 rounded-3xl border border-border/40 bg-background/80 p-6 backdrop-blur-xl md:p-10">
         <header className="space-y-3">
           <p className="font-code text-[11px] uppercase tracking-[0.2em] text-muted-foreground">StarSeed OS · documento público</p>
           <h1 className={H1}>Términos</h1>
@@ -80,7 +78,7 @@ export default function TerminosPage() {
             El tratamiento de los datos recibidos de las API de Google respeta la{" "}
             <Externo href={URL_POLITICA_GOOGLE}>Política de datos de usuario de los servicios de API de Google</Externo>{" "}
             (<strong className={FUERTE}>Uso limitado</strong>). Puedes revocar el acceso cuando quieras desde{" "}
-            <Externo href={URL_REVocar}>myaccount.google.com/permissions</Externo>.
+            <Externo href={URL_REVOCAR}>myaccount.google.com/permissions</Externo>.
           </p>
         </Seccion>
 
@@ -94,7 +92,7 @@ export default function TerminosPage() {
             actividad» serves <strong className={FUERTE}>only its owner</strong>: agents read the owner&apos;s own activity (sent emails, Drive files,
             YouTube) in <strong className={FUERTE}>read-only mode</strong> to prepare private syntheses; they never write to the accounts. Data
             stays on the owner&apos;s nodes — never sold, never shared, never used for advertising. Google API data is handled under the Google API
-            Services User Data Policy (Limited Use). Revoke access at <Externo href={URL_REVocar}>myaccount.google.com/permissions</Externo>.
+            Services User Data Policy (Limited Use). Revoke access at <Externo href={URL_REVOCAR}>myaccount.google.com/permissions</Externo>.
             Contact: {CONTACTO}. Effective date: 11 November 2026.
           </p>
         </section>
