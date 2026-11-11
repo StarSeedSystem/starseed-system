@@ -133,8 +133,11 @@ export async function hayEnlaceDirectoCon(neurona: string): Promise<boolean> {
 const entradosVozBle = new Map<string, number>();
 /** (LLA1111B) Última vez que entró vídeo en el carril de voz hacia cada neurona (ms). */
 const videoEnCarrilVoz = new Map<string, number>();
-/** (LLA1111B) Lo que el vídeo puede tener en el carril delante de la voz (= `VENTANA_MAX_BYTES` de `reparto.ts`). */
-export const VENTANA_VIDEO_EN_CARRIL_VOZ = 1536;
+/**
+ * (LLA1111B) Lo que el vídeo puede tener en el carril delante de la voz. LLA1111Q: dos ventanas de `reparto.ts`
+ * (2 × `VENTANA_MAX_BYTES`): la escritura en vuelo y la siguiente. La voz no se retiene por esos bytes.
+ */
+export const VENTANA_VIDEO_EN_CARRIL_VOZ = 2 * 2304;
 
 /**
  * (LLA1111B) «Ocupado» para la sesión de voz: más de `umbral` bytes en el carril, sin contar la ventana que puede ocupar
@@ -143,6 +146,18 @@ export const VENTANA_VIDEO_EN_CARRIL_VOZ = 1536;
 export function vozOcupada(cola: number, umbral: number, ultimoVideo: number | undefined, ahora: number): boolean {
   const conVideo = typeof ultimoVideo === "number" && ahora - ultimoVideo < 2000;
   return cola > umbral + (conVideo ? VENTANA_VIDEO_EN_CARRIL_VOZ : 0);
+}
+
+/**
+ * LLA1111Q: quien quiere salir JUNTO a la voz hacia cada neurona (el vídeo ligero): se le avisa justo después de que la
+ * voz encola un texto, en el mismo turno, para que lo suyo vaya en la MISMA escritura del Bluetooth y no gaste otra ficha
+ * de la cubeta del emisor (7,2 escrituras/s).
+ */
+const oyentesSalidaVoz = new Map<string, Set<(audio: boolean) => void>>();
+
+/** LLA1111Q: ¿es un paquete de audio (no un control de la voz)? */
+export function esPaqueteAudio(texto: string): boolean {
+  return texto.startsWith('{"t":"voz.b"') || texto.startsWith('{"t":"voz.p"');
 }
 
 export function bytesEntradosVozBle(neurona: string): number {
@@ -180,6 +195,14 @@ export function crearTransporteVozHacia(neurona: string): TransporteVoz | null {
         if (r !== "cerrado") {
           entradosVozBle.set(neurona, (entradosVozBle.get(neurona) ?? 0) + texto.length);
           if (texto.startsWith('{"t":"voz.v"')) videoEnCarrilVoz.set(neurona, Date.now());
+          else
+            for (const cb of Array.from(oyentesSalidaVoz.get(neurona) ?? [])) {
+              try {
+                cb(esPaqueteAudio(texto));
+              } catch {
+                /* un oyente roto no tumba la voz */
+              }
+            }
         }
         return r;
       }
@@ -227,6 +250,28 @@ export function crearTransporteVozHacia(neurona: string): TransporteVoz | null {
     ...(conBle ? { bytesEntrados: () => bytesEntradosVozBle(neurona) } : {}),
     // VOZ1111J: ¿hay vídeo en el carril de la voz (últimos 2 s)? La sesión de voz deja entonces sitio a su ventana.
     ...(conBle ? { videoEnCarril: () => Date.now() - (videoEnCarrilVoz.get(neurona) ?? -1e12) < 2000 } : {}),
+    // LLA1111Q: lo que el emisor del Bluetooth mide de cada escritura de la llamada y su tope de escrituras por segundo.
+    ...(conBle
+      ? {
+          alSalirVoz: (cb: (audio: boolean) => void) => {
+            const l = oyentesSalidaVoz.get(neurona) ?? new Set<(audio: boolean) => void>();
+            l.add(cb);
+            oyentesSalidaVoz.set(neurona, l);
+            return () => {
+              l.delete(cb);
+              if (!l.size) oyentesSalidaVoz.delete(neurona);
+            };
+          },
+          escrituras: () => {
+            const b = ble();
+            return b?.red.escriturasLlamada ? b.red.escriturasLlamada(b.id) : null;
+          },
+          escriturasPorS: () => {
+            const b = ble();
+            return b?.red.escriturasPorS ? b.red.escriturasPorS(b.id) : null;
+          },
+        }
+      : {}),
     capacidadKbps() {
       const b = ble();
       if (!b) return null;

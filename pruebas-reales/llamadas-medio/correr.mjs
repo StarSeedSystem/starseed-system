@@ -1,6 +1,6 @@
 // Corre los escenarios del banco en Chromium (Playwright, cámara y micro falsos).
 //   node correr.mjs [salida] [escenario] [segundos]
-// escenarios: aleteo · ip-aparece · choque · video · segunda · corte-ip · sin-servidor · voz-video · paso-ip · paso-ip-silencioso · timbre-cola · video-sube · wifi-directo · ble-160 · ble-80 · ble-40 · ble-caida · ble-micro · voz-40 · voz-24 · voz-16 · voz-caida · voz-suelo · voz-40-cif · voz-24-cif · voz-16-cif · vozvideo-80 · vozvideo-40 · todos
+// escenarios: aleteo · ip-aparece · choque · video · segunda · corte-ip · sin-servidor · voz-video · paso-ip · paso-ip-silencioso · timbre-cola · video-sube · wifi-directo · ble-160 · ble-80 · ble-40 · ble-caida · ble-micro · voz-40 · voz-24 · voz-16 · voz-caida · voz-suelo · voz-40-cif · voz-24-cif · voz-16-cif · vozvideo-80 · vozvideo-40 · ble-real · ble-real-mudo · todos
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
@@ -365,6 +365,11 @@ const esc = {
   "ble-caida": () => casoBle("ble-caida", [{ t: 0, kbps: 160 }, { t: 0.35, kbps: 40 }, { t: 0.65, kbps: 160 }], { plazo: 400 }),
   // Micro de A silenciado y abierto cada 6 s: el vídeo no debe cambiar.
   "ble-micro": () => casoBle("ble-micro", [{ t: 0, kbps: 160 }], { microCadaS: 6, plazo: 250 }),
+  // (LLA1111Q) Carril CALIBRADO con el registro de la prueba 37 (`bleReal` en entrada.ts: acuse variable, cubeta de
+  // escrituras del motor, cifrado, señalización y espejo en el mismo enlace). Micros abiertos y cámaras encendidas.
+  "ble-real": () => casoBle("ble-real", [{ t: 0, kbps: 160 }], { plazo: 400, real: true }),
+  // (LLA1111Q) Igual, con los dos micros en silencio: el vídeo no puede depender de que alguien hable.
+  "ble-real-mudo": () => casoBle("ble-real-mudo", [{ t: 0, kbps: 160 }], { plazo: 400, real: true, mudos: true }),
   // (VOZ1111J) Solo voz, los dos micros abiertos (Opus real), por un carril como el Bluetooth cada vez más estrecho.
   // `-cif`: con el cifrado del enlace (CIF1108A) en el aire, como entre la Mac y la tableta (ver `bytesAire`).
   "voz-40": () => casoVoz("voz-40", [{ t: 0, kbps: 40 }]),
@@ -555,22 +560,26 @@ async function pasoIp({ modo, senal }) {
 // vídeo no le quite nada: aviso de pausa a tiempo, ninguna espera tras vídeo de más de una ventana a 40 kb/s (250 ms)
 // y la voz no peor que sola (`vozSolaPerdidaPct`). `tardeVozPct`: tránsito por encima del plazo del caso.
 const UMBRAL = { fpsMin: 3, ventanasOk: 0.8, perdidaVozPct: 2, tardeVozPct: 3, esperaTrasVideoMs: 150, esperaTrasVideoEstrechoMs: 250, reanudarS: 20, pausaS: 15, vozSolaPerdidaPct: { "ble-40": 18.7 + 1, "ble-caida": 5.4 + 1 } };
+// LLA1111Q: en el carril calibrado la espera tras vídeo se mide a la serialización media del aire con cifrado (ver
+// `enlaceBle`): dos ventanas (2 × 2304 B en claro) son ≈ 118 ms, por debajo del mismo tope de 150 ms.
 const vozNoCabe = (nombre) => nombre === "ble-40" || nombre === "ble-caida";
 
 async function casoBle(nombre, tramos, extra = {}) {
   const dur = Math.min(segundos, 600);
   const p = await pagina();
-  await p.evaluate(async ([k0, plazo]) => {
+  await p.evaluate(async ([k0, plazo, real]) => {
     const b = window.banco;
+    b.bleReal.activo = real;
     b.ble.plazoVozMs = plazo;
     b.red.ip = false;
     b.red.ipVista.A = b.red.ipVista.B = false;
     b.ble.kbps = k0;
     b.ble.anunciadoKbps = 160;
     window.__ll = await b.llamada({ conDatos: true, video: true, ble: true, videoDatos: true, opus: true });
-  }, [tramos[0].kbps, extra.plazo ?? 200]);
+  }, [tramos[0].kbps, extra.plazo ?? 200, !!extra.real]);
   // Arranque: voz por datos, saludo del vídeo y primer clave.
   await espera(15_000);
+  if (extra.mudos) await p.evaluate(async () => { await window.__ll.A.alternarMicro(); await window.__ll.B.alternarMicro(); });
   const t0 = await p.evaluate(() => {
     window.banco.reiniciarMedida();
     window.__textos = [];
@@ -615,7 +624,13 @@ async function casoBle(nombre, tramos, extra = {}) {
   const r = await p.evaluate(
     ({ t0, t1, tramosMs, marcas }) => {
       const b = window.banco;
-      const out = { total: b.resumenTramo(t0, t1), voz: b.resumenVoz(), t0: Math.round(t0) };
+      const out = { total: b.resumenTramo(t0, t1), voz: b.resumenVoz(), oido: b.resumenOido(t0, t1), t0: Math.round(t0) };
+      // LLA1111Q: lo que hizo el carril calibrado (escrituras, espera por fichas, acuses, lo que midió la app nativa).
+      const mr = b.medidaReal;
+      const pct = (l, q) => { const s = [...l].sort((x, y) => x - y); return s.length ? s[Math.min(s.length - 1, Math.floor(q * s.length))] : null; };
+      out.carril = b.bleReal.activo ? [0, 1].map((i) => ({ escrituras: mr.escrituras[i], escriturasPorS: Math.round((mr.escrituras[i] / ((t1 - t0) / 1000)) * 10) / 10, esperaFichaMs: Math.round(mr.esperaFichaMs[i]), acuseP50: pct(mr.acuses[i], 0.5), acuseP95: pct(mr.acuses[i], 0.95), kbpsNativo: mr.kbpsNativo[i] })) : null;
+      // Escalón de la voz y del vídeo en el último minuto (de las líneas periódicas).
+      out.niveles = b.lineas.filter((l) => /voz-datos tx n=/.test(l.detalle)).slice(-12).map((l) => `${l.neurona} ${l.detalle.slice(0, 160)}`);
       // Por tramos de capacidad (para la caída) y por estado del micro.
       const cortes = [t0, ...tramosMs.map((x) => x.en), t1];
       out.tramos = cortes.slice(0, -1).map((d, i) => ({ desde: Math.round(d - t0), hasta: Math.round(cortes[i + 1] - t0), ...b.resumenTramo(d, cortes[i + 1]) }));
@@ -641,11 +656,12 @@ async function casoBle(nombre, tramos, extra = {}) {
       }
       out.textos = cambios.slice(0, 40);
       out.pausaEn = txt.filter((m) => /pausa/i.test(`${m.A} ${m.B}`)).map((m) => Math.round((m.t - t0) / 1000));
-      out.registro = b.lineas.filter((l) => /video-datos (tx|reparto|pausa|sigue)|voz-datos (plan|reparto)/.test(l.detalle)).slice(-80).map((l) => `${Math.round((l.t - t0) / 1000)}s ${l.neurona ?? "-"} ${l.detalle}`);
+      out.registro = b.lineas.filter((l) => /video-datos (tx|reparto|pausa|sigue)|voz-datos (plan|reparto|tx n=|nivel)/.test(l.detalle)).slice(-80).map((l) => `${Math.round((l.t - t0) / 1000)}s ${l.neurona ?? "-"} ${l.detalle}`);
       return out;
     },
     { t0, t1, tramosMs, marcas },
   );
+  await p.evaluate(() => window.banco.pararReal());
   await p.close();
   r.veredicto = juzgar(nombre, r, tramosMs.length ? tramosMs.map((x) => Math.round((x.en - t0) / 1000)) : []);
   return r;
@@ -666,6 +682,24 @@ function juzgar(nombre, r, cambiosS) {
     if (v.esperaTrasVideoMaxMs > UMBRAL.esperaTrasVideoMs) fallos.push(`voz ${k} esperó ${v.esperaTrasVideoMaxMs} ms tras un vídeo`);
   }
   const fluye = (lado) => lado.ventanas5s.length > 0 && lado.ventanas5s.filter((f) => f >= UMBRAL.fpsMin).length / lado.ventanas5s.length >= UMBRAL.ventanasOk;
+  if (nombre === "ble-real" || nombre === "ble-real-mudo") {
+    // LLA1111Q: los dos sentidos ≥ 3 fps sostenidos y, con micros abiertos, la voz sin huecos audibles y en un escalón bueno.
+    if (!fluye(r.total.enA)) fallos.push(`vídeo en A: ${r.total.enA.fps} fps, ventanas ${JSON.stringify(r.total.enA.ventanas5s)}`);
+    if (!fluye(r.total.enB)) fallos.push(`vídeo en B: ${r.total.enB.fps} fps, ventanas ${JSON.stringify(r.total.enB.ventanas5s)}`);
+    if (nombre === "ble-real") {
+      for (const q of ["A", "B"]) {
+        const o = r.oido?.[q];
+        if (!o || o.huecosPorMin > 1 || o.huecoMaxMs > 200) fallos.push(`voz en ${q}: ${o?.huecos} huecos (${o?.huecosPorMin}/min), el mayor ${o?.huecoMaxMs} ms`);
+      }
+      // Escalón de la voz al final: Opus de 12 kb/s o más (n ≤ 2) en las últimas líneas de los dos lados.
+      const ult = {};
+      for (const l of r.niveles ?? []) {
+        const m = /^(\S+) voz-datos tx n=(\d+)/.exec(l);
+        if (m) ult[m[1]] = Number(m[2]);
+      }
+      for (const [q, n] of Object.entries(ult)) if (n > 2) fallos.push(`voz de ${q} en el escalón ${n} al acabar (Opus < 12 kb/s)`);
+    }
+  }
   if (nombre === "ble-160" || nombre === "ble-micro") {
     if (!fluye(r.total.enA)) fallos.push(`vídeo en A: ${r.total.enA.fps} fps, ventanas ${JSON.stringify(r.total.enA.ventanas5s)}`);
     if (!fluye(r.total.enB)) fallos.push(`vídeo en B: ${r.total.enB.fps} fps, ventanas ${JSON.stringify(r.total.enB.ventanas5s)}`);

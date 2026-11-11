@@ -37,6 +37,7 @@ import {
   maxTextoPorTrama,
   mismaPrueba,
   nuevaCubeta,
+  FRACCION_RITMO, // LLA1111Q
   textoPruebaCuenta,
   tomarFicha,
   type Cubeta,
@@ -208,6 +209,13 @@ export interface RedBle {
   /** (LLA1108E) Bytes de voz esperando salir por ese enlace (la sesión de voz retiene sus tramas mientras haya). */
   colaVozBytes(enlace: string): number;
   /**
+   * LLA1111Q: las últimas escrituras del carril de la llamada (voz y vídeo): cuándo llegó su acuse, lo que tardaron
+   * desde que se entregaron a la app nativa (sin la espera por fichas) y sus bytes en claro.
+   */
+  escriturasLlamada?(enlace: string): Array<{ fin: number; ms: number; bytes: number }>;
+  /** LLA1111Q: escrituras por segundo sostenidas que se permite este emisor hacia ese enlace (su cubeta). */
+  escriturasPorS?(enlace: string): number;
+  /**
    * (LLA1108H) Vídeo ligero de la llamada: cola PROPIA, siempre por detrás de la voz y del control; con tope, lo
    * más viejo se tira (un fotograma viejo no sirve). Sin acuse por fragmento.
    */
@@ -333,6 +341,9 @@ export function crearRedBle(deps: DepsBle): RedBle {
   const ultimoHola: Record<string, number> = {};
   const caidas: Record<string, number> = {};
   const colas = new Map<string, Cola>();
+  // LLA1111Q: lo que tardó cada escritura del carril de la llamada (voz y vídeo), de entregarla a la app nativa a su
+  // acuse, sin la espera por fichas. Es lo que el enlace dice de sí mismo; el reparto de la llamada lo usa para su modelo.
+  const escriturasLlamada = new Map<string, Array<{ fin: number; ms: number; bytes: number }>>();
   const canales = new Map<string, CanalArchivos>();
   const canalesNeurona = new Map<string, CanalArchivos>();
   const rachaCaidas: Record<string, number> = {};
@@ -554,10 +565,19 @@ export function crearRedBle(deps: DepsBle): RedBle {
           cuerpoAire = cf.texto;
         }
         let r: Awaited<ReturnType<DepsBle["enviar"]>>;
+        const inicioEnvio = deps.ahora(); // LLA1111Q
         try {
           r = await deps.enviar(enlace, cuerpoAire);
         } catch {
           r = { ok: false, motivo: "la app nativa no respondió" };
+        }
+        if (r.ok && (fuente === c.voz || fuente === c.vid)) {
+          // LLA1111Q: duración de esta escritura de la llamada (bytes en claro, como cuenta `colaVozBytes`).
+          const fin = deps.ahora();
+          const l = escriturasLlamada.get(enlace) ?? [];
+          l.push({ fin, ms: Math.max(1, fin - inicioEnvio), bytes: fuente.slice(0, n).reduce((a, i) => a + i.texto.length, 0) });
+          if (l.length > 32) l.splice(0, l.length - 32);
+          escriturasLlamada.set(enlace, l);
         }
         if (r.ok) {
           const hechos = fuente.splice(0, n);
@@ -1132,6 +1152,13 @@ export function crearRedBle(deps: DepsBle): RedBle {
     enviarTexto: (enlace, texto) => encolar(enlace, texto),
     enviarVoz: (enlace, texto) => encolarVoz(enlace, texto),
     colaVozBytes: (enlace) => colas.get(enlace)?.bytesVoz ?? 0,
+    // LLA1111Q: lo que tardaron las últimas escrituras de la llamada y cuántas por segundo se permite este emisor.
+    escriturasLlamada: (enlace) => escriturasLlamada.get(enlace)?.slice() ?? [],
+    escriturasPorS: (enlace) => {
+      const lig = ligaduraDeEnlace(ligaduras, enlace, deps.ahora());
+      const lim: LimitesCanal = lig?.limites ?? LIMITES_BLE_DEFECTO;
+      return Math.round((Math.max(1, Math.floor(lim.porVentana * FRACCION_RITMO)) / lim.ventanaMs) * 10_000) / 10;
+    },
     enviarVideo: (enlace, texto) => encolarVideo(enlace, texto),
     colaVideoBytes: (enlace) => colas.get(enlace)?.bytesVid ?? 0,
     canalArchivos,

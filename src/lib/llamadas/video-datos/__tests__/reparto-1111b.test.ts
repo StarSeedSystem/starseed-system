@@ -169,7 +169,8 @@ describe("control del reparto: la voz primero, el vídeo con lo que sobra", () =
     expect(c.estado).toBe("pausa");
     expect(paso(holgado)?.motivo).toBe("sitio-de-nuevo");
     expect(c.estado).toBe("activo");
-    expect(c.objetivoKbps).toBeGreaterThanOrEqual(2 * SUELO_KBPS);
+    // LLA1111Q: vuelve al suelo, como prueba (antes 2–3 veces el suelo); de ahí sube con lo medido.
+    expect(c.objetivoKbps).toBe(SUELO_KBPS);
     // Vuelve a faltar enseguida: la próxima reanudación pide el doble de calma.
     for (let i = 0; i < BAJO_SUELO_PARA_PAUSAR_S; i++) paso(estrecho);
     expect(c.estado).toBe("pausa");
@@ -251,6 +252,8 @@ describe("lo que ve la persona y lo que viaja", () => {
     expect(vozOcupada(3000, 2048, 1000, 1500)).toBe(false);
     expect(vozOcupada(3000, 2048, undefined, 1500)).toBe(true);
     expect(vozOcupada(3000, 2048, 1000, 4000)).toBe(true);
-    expect(vozOcupada(4000, 2048, 1000, 1500)).toBe(true);
+    // LLA1111Q: la ventana del vídeo en el carril de la voz son ahora dos ventanas de 2304 B (4608 B).
+    expect(vozOcupada(4000, 2048, 1000, 1500)).toBe(false);
+    expect(vozOcupada(7000, 2048, 1000, 1500)).toBe(true);
   });
 });

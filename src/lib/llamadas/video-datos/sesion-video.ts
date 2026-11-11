@@ -15,7 +15,7 @@
  */
 import type { RelojVoz } from "@/lib/llamadas/voz-datos/sesion";
 import { ControlAdaptativo, motivoSinHueco, techoDePerfiles } from "./adaptacion";
-import { CLAVE_MIN_MS, ControlReparto, CosteEscalon, Cubeta, MedidorEnlace, mtuParaVentana, SUELO_KBPS, ventanaBytes, type ResumenEnlace } from "./reparto";
+import { CLAVE_MIN_MS, ControlReparto, CosteEscalon, Cubeta, MedidorEnlace, mtuParaVentana, muestraDeTransporte, SUELO_KBPS, sueloMedido, textoEnlace, ventanaBytes, ventanaParaTasa, type ResumenEnlace } from "./reparto";
 import { armarControlVideo, armarFragmento, esTextoVideo, fragmentar, leerControlVideo, leerFragmento, mtuSana, ReensambladorVideo } from "./paquete";
 import {
   CODECS_VIDEO,
@@ -182,6 +182,13 @@ export class SesionVideoDatos {
   private readonly cubeta = new Cubeta();
   private readonly escalera: readonly PerfilVideo[];
   private bajaMarcapasos: (() => void) | null = null;
+  /* LLA1111Q: salir junto a la voz con un emisor con tope de escrituras. */
+  private bajaJuntoVoz: (() => void) | null = null;
+  private enConLaVoz = false;
+  private ultimaVozEn = 0;
+  private esperaJuntoDesde = 0;
+  private controlesJunto: string[] = [];
+  private controlesJuntoDesde = 0;
   private limitado = false;
   private ultimoResumen: ResumenEnlace | null = null;
   private ultimoLogReparto = 0;
@@ -295,6 +302,8 @@ export class SesionVideoDatos {
     this.bajaRx = this.d.transporte.alRecibir((t) => this.alTexto(t));
     this.bajaSeg = this.d.reloj.cada(() => this.cadaSegundo(), 1000);
     if (this.reparto) this.bajaMarcapasos = this.d.reloj.cada(() => this.marcapasos(), PERIODO_MARCAPASOS_MS);
+    // LLA1111Q: con tope de escrituras del emisor, lo del vídeo sale JUNTO a la voz (misma escritura, sin gastar ficha).
+    if (this.reparto && this.d.transporte.alSalirVoz) this.bajaJuntoVoz = this.d.transporte.alSalirVoz((audio) => this.conLaVoz(audio));
     this.saludar();
     if (this.reparto) this.d.anotar?.(`video-datos reparto carril=compartido objetivo=${this.reparto.objetivoKbps}kbps escalon=${textoPerfil(this.ctrl.perfil(), null)}`);
     this.avisar();
@@ -477,9 +486,53 @@ export class SesionVideoDatos {
    * viejo al pasarse (24 KiB), y si lo viejo era la primera mitad de un fotograma clave, ese clave no llegaba nunca
    * entero y el otro lado se quedaba en negro pidiendo claves. Así un clave grande sale a trozos, sin pérdida.
    */
-  private vaciarSalida(ahora: number): void {
+  /** LLA1111Q: ciclo mínimo del emisor (0: sin tope de escrituras). */
+  private cicloEmisor(): number {
+    return this.medidor?.cicloMinMs ?? 0;
+  }
+
+  /**
+   * LLA1111Q: la voz acaba de encolar un texto: lo que el vídeo tenga listo entra en el carril AHORA, en la misma
+   * escritura. Sin voz (micro en silencio), sale solo cuando lo más viejo ya esperó 1,5 ciclos del emisor.
+   */
+  private conLaVoz(audio: boolean): void {
+    if (!this.activa || this.enConLaVoz) return;
+    this.enConLaVoz = true;
+    try {
+      const ahora = this.d.reloj.ahora();
+      if (audio) this.ultimaVozEn = ahora;
+      this.soltarControlesJunto();
+      if (this.salidaPendiente.length && this.d.transporte.abierto()) this.vaciarSalida(ahora, true);
+    } finally {
+      this.enConLaVoz = false;
+    }
+  }
+
+  /** LLA1111Q: un control del vídeo que no corre prisa (informe): con tope de escrituras espera a la voz (≤ 1 s). */
+  private enviarControlJunto(txt: string): void {
+    if (!(this.cicloEmisor() > 0) || !this.d.transporte.alSalirVoz) {
+      this.d.transporte.enviar(txt);
+      return;
+    }
+    if (!this.controlesJunto.length) this.controlesJuntoDesde = this.d.reloj.ahora();
+    this.controlesJunto.push(txt);
+    if (this.controlesJunto.length > 4) this.controlesJunto.shift();
+  }
+
+  private soltarControlesJunto(): void {
+    for (const txt of this.controlesJunto.splice(0)) this.d.transporte.enviar(txt);
+  }
+
+  private vaciarSalida(ahora: number, conVoz = false): void {
     const t = this.d.transporte;
     if (!this.salidaPendiente.length) return;
+    // LLA1111Q: con tope de escrituras, el vídeo no abre una escritura propia si la voz va a salir pronto.
+    const ciclo = this.cicloEmisor();
+    // Si la voz lleva medio segundo sin salir (micro en silencio), no hay a quién esperar.
+    if (this.reparto && ciclo > 0 && t.alSalirVoz && !conVoz && ahora - this.ultimaVozEn < 500) {
+      if (!this.esperaJuntoDesde) this.esperaJuntoDesde = ahora;
+      if (ahora - this.esperaJuntoDesde < 1.5 * ciclo) return;
+    }
     // LLA1111B: con reparto un clave grande sale a la tasa objetivo; caduca cuando tarda 1,5 veces lo que le toca.
     const caduca = this.reparto ? Math.max(CADUCA_SALIDA_MS, ((this.salidaBytes * 8) / Math.max(1, this.reparto.objetivoKbps)) * 1.5) : CADUCA_SALIDA_MS;
     if (ahora - this.salidaDesde > caduca) {
@@ -511,6 +564,7 @@ export class SesionVideoDatos {
         this.medidor?.videoMetido(sig.txt.length);
       }
       this.salidaPendiente.shift();
+      this.esperaJuntoDesde = 0; // LLA1111Q: lo siguiente cuenta su espera desde aquí
       const r = enviar(sig.txt);
       this.txBytesDesdeLog += sig.txt.length;
       this.ctrl.registrarSalida(sig.txt.length, ahora);
@@ -637,7 +691,7 @@ export class SesionVideoDatos {
       if (!this.ultimoInforme) this.ultimoInforme = ahora;
       if (ahora - this.ultimoInforme >= PERIODO_INFORME_MS && (this.rxInformeVis || this.rxInformePer)) {
         this.ultimoInforme = ahora;
-        this.d.transporte.enviar(armarControlVideo({ s: this.d.idLlamada, k: "rep", vis: this.rxInformeVis, per: this.rxInformePer }));
+        this.enviarControlJunto(armarControlVideo({ s: this.d.idLlamada, k: "rep", vis: this.rxInformeVis, per: this.rxInformePer })); // LLA1111Q
         this.rxInformeVis = 0;
         this.rxInformePer = 0;
       }
@@ -661,6 +715,8 @@ export class SesionVideoDatos {
 
   /** LLA1111B: bytes que el vídeo puede tener en el carril delante de la voz ahora. */
   private ventana(): number {
+    // LLA1111Q: la que pide la tasa del vídeo (dos ciclos), nunca más de lo que cabe en una escritura del ciclo.
+    if (this.reparto) return ventanaParaTasa(this.medidor?.modelo ?? null, this.d.transporte.capacidadKbps?.() ?? null, Math.max(this.reparto.objetivoKbps, SUELO_KBPS));
     return ventanaBytes(this.medidor?.modelo ?? null, this.d.transporte.capacidadKbps?.() ?? null);
   }
 
@@ -670,11 +726,13 @@ export class SesionVideoDatos {
     const t = this.d.transporte;
     const ahora = this.d.reloj.ahora();
     try {
-      this.medidor.muestra(ahora, { cola: t.colaVozBytes?.() ?? 0, entrados: t.bytesEntrados?.() ?? 0 });
+      this.medidor.muestra(ahora, muestraDeTransporte(t)); // LLA1111Q: con lo que el emisor mide de cada escritura
     } catch {
       /* contadores no disponibles un instante */
     }
     if (this.salidaPendiente.length && t.abierto()) this.vaciarSalida(ahora);
+    // LLA1111Q: un informe que lleva 1 s esperando a la voz (micro en silencio) sale solo.
+    if (this.controlesJunto.length && ahora - this.controlesJuntoDesde >= 1000) this.soltarControlesJunto();
   }
 
   /** LLA1111B: un paso del control con lo medido en el último segundo. */
@@ -693,7 +751,7 @@ export class SesionVideoDatos {
     this.limitado = false;
     const antes = rep.estado;
     // Sin cámara no hay nada que repartir: el control se queda quieto (la voz va sola).
-    const cambio = enviando ? rep.paso(ahora, { enlace: r, limitado, perdidaReceptor: perdida }) : null;
+    const cambio = enviando ? rep.paso(ahora, { enlace: r, limitado, perdidaReceptor: perdida, sueloKbps: sueloMedido(this.coste, this.escalera[0]) }) : null;
     if (cambio) {
       this.motivoCambio = cambio.motivo;
       if (cambio.estado === "pausa" && antes !== "pausa") {
@@ -701,11 +759,11 @@ export class SesionVideoDatos {
         this.salidaTocada = false;
         this.cubeta.vaciar();
         this.d.transporte.enviar(armarControlVideo({ s: this.d.idLlamada, k: "pausa", m: cambio.motivo }));
-        this.d.anotar?.(`video-datos pausa motivo=${cambio.motivo} cabe=${r.maxKbps ?? "?"}kbps voz=${r.vozKbps}kbps retraso=${r.retrasoMaxMs}ms calma-pedida=${rep.calmaPedidaS}s`);
+        this.d.anotar?.(`video-datos pausa motivo=${cambio.motivo} cabe=${r.maxKbps ?? "?"}kbps voz=${r.vozKbps}kbps ${textoEnlace(r)} calma-pedida=${rep.calmaPedidaS}s`);
       } else if (cambio.estado === "activo" && antes === "pausa") {
         this.forzarClave = true;
         this.d.transporte.enviar(armarControlVideo({ s: this.d.idLlamada, k: "sigue" }));
-        this.d.anotar?.(`video-datos sigue motivo=${cambio.motivo} cabe=${r.maxKbps ?? "?"}kbps voz=${r.vozKbps}kbps retraso=${r.retrasoMaxMs}ms`);
+        this.d.anotar?.(`video-datos sigue motivo=${cambio.motivo} cabe=${r.maxKbps ?? "?"}kbps voz=${r.vozKbps}kbps ${textoEnlace(r)}`);
       }
       this.avisar();
     }
@@ -740,7 +798,8 @@ export class SesionVideoDatos {
       this.ultimoLogReparto = ahora;
       this.d.anotar?.(
         // Cabe en una línea del registro (200 caracteres): kbps salvo donde se dice.
-        `video-datos reparto ${rep.estado} motivo=${this.motivoCambio} kbps obj=${rep.objetivoKbps} voz=${r.vozKbps} video=${r.videoKbps} cabe=${r.maxKbps ?? "?"} enlace=${r.modelo ? `${Math.round(r.modelo.bytesPorMs * 8)}+${r.modelo.rMs}ms` : "?"} espera-voz=${r.retrasoMaxMs}ms vent=${this.ventana()}B coste=x${this.coste.factor.toFixed(1)} fps=${this.txFpsReal}${perdida !== null ? ` perd-rx=${Math.round(perdida * 100)}%` : ""}${this.pausadoOtro ? " otro=pausa" : ""}`,
+        // LLA1111Q: lo que el control usó (modelo / ciclo del emisor, la radio al lado, lo acusado, escrituras y espera).
+        `video-datos reparto ${rep.estado} motivo=${this.motivoCambio} obj=${rep.objetivoKbps} voz=${r.vozKbps} vid=${r.videoKbps} cabe=${r.maxKbps ?? "?"} ${textoEnlace(r)} vent=${this.ventana()}B fps=${this.txFpsReal}${perdida !== null ? ` perd-rx=${Math.round(perdida * 100)}%` : ""}${this.pausadoOtro ? " otro=pausa" : ""}`,
       );
     }
   }
@@ -942,6 +1001,8 @@ export class SesionVideoDatos {
     this.pararTic();
     this.bajaMarcapasos?.();
     this.bajaMarcapasos = null;
+    this.bajaJuntoVoz?.();
+    this.bajaJuntoVoz = null;
     this.bajaSeg?.();
     this.bajaSeg = null;
     this.bajaRx?.();

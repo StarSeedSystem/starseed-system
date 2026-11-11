@@ -517,6 +517,89 @@ voz medida en el carril (VOZ1111L). El doble base64 del cifrado sigue en el aire
 con el enlace cifrado el suelo sube (banco: casos `-cif`); quitarlo es de `malla/` (cifrar a binario) o del marco nativo.
 Banco: `voz-40`, `voz-24`, `voz-16`, `voz-caida`, `voz-suelo`, `voz-*-cif`, `vozvideo-80`, `vozvideo-40` (LEEME).
 
+### 9. El reparto sobre lo que el enlace de verdad dice (LLA1111Q, 2026-11-11)
+
+**Lo que pasó (prueba 37, `0.5.1-prueba.37`, Mac ↔ tableta solo por Bluetooth).** La radio medía 192–380 kb/s con sus
+mensajes de 4–6 KB (`ble l2cap-kbps … kbps=237`) y el modelo de la llamada leía 8–35 kb/s (`video-datos reparto pausa
+motivo=suelo … enlace=34+42ms … vent=300B`; `voz-datos tx n=5 opus=6k … enlace=15k+32ms`). La voz se quedó en 6 kb/s
+(la tableta inventó el 68 % del audio) y el vídeo en pausa salvo 10 s. Tres causas, todas del modelo y no de la radio:
+1. **La cubeta del emisor.** `bluetooth-directo-motor.ts` (`bombear`, `nuevaCubeta` de `red-local-nativa.ts`) gasta una
+   ficha por escritura, sea del tamaño que sea: el otro admite 120 mensajes / 10 s, se manda al 60 % → **7,2 escrituras/s**
+   (ráfaga de 36). La voz en paquetes de 60–180 ms más ping, pong e informes (≈ 1,8 escrituras/s por lado) pedían más de
+   eso: la cubeta se vaciaba y TODO esperaba su ficha (≈ 140 ms por escritura).
+2. **El modelo medía esa espera como capacidad.** `MedidorEnlace` deducía la duración de cada escritura de lo que bajaba
+   la cola entre muestras: con la espera por fichas dentro y el acuse supuesto de 42 ms (`ACUSE_BLE_MS`), «bytes / (tiempo
+   − 42)» con escrituras de 300 B daba decenas de kb/s.
+3. **Se alimentaba sola.** Poca capacidad leída → ventana de 300 B → escrituras pequeñas → poco caudal → poca capacidad.
+El carril fijo del banco (capacidad fija, acuse fijo de 42 ms, sin tope de escrituras) es exactamente lo que suponía el
+modelo: no podía fallar así.
+
+**Qué manda ahora.** Todo lo que mueve el escalón de la voz, la parte del vídeo, la ventana y la pausa sale de lo que el
+enlace dice de sí mismo:
+- **Duración de cada escritura medida por el emisor** (`escriturasLlamada` del motor: de entregarla a la app nativa a su
+  acuse, sin la espera por fichas; adición marcada `LLA1111Q` en `bluetooth-directo-motor.ts`). Es el par (bytes, ms) del
+  modelo `ms = R + bytes/C` (`ajustarEscrituras`): la pendiente solo se cree si los tamaños separan las escrituras más de
+  3 veces lo que se desvían de la recta (sin ruido, como el carril fijo, basta cualquier variación; en el aparato el
+  acuse va de 25 a 115 ms y la pendiente de escrituras de 300–2000 B es ruido); si no, **C = lo que mide la app nativa**
+  con sus mensajes grandes (`capacidadKbps` del enlace, `l2cap-kbps`, en vivo) y R = la mediana de lo que queda. Ningún
+  acuse fijo en ningún cálculo con medidas (`ACUSE_ARRANQUE_MS` = 50 ms solo hasta las 6 primeras escrituras).
+- **El tope de escrituras del emisor** (`escriturasPorS` del motor, de los límites que el otro anuncia firmados) va en el
+  modelo como `cicloMinMs` (139 ms). El ciclo de reparto es `max(100 ms, cicloMinMs)`: lo que cabe es `8·C·(1 − R/ciclo)`
+  y la ventana `(ciclo − R)·C` (300 B – 2,25 KiB), no 300 B.
+- **La voz no gasta escrituras de más.** Con tope de escrituras el paquete de cada escalón dura al menos ≈ 1,1 ciclos
+  (`nivelConCiclo`: 160 ms con tramas de 20/40 ms, 180 con 60 ms; los kb/s del escalón no cambian): ≈ 6 escrituras/s y la
+  cubeta no se vacía. Ping, pong e informe salen en la misma escritura que el siguiente paquete (sin voz, a los 600 ms).
+  Un escalón cabe si `v/C + R / max(2·paquete, cicloMinMs) ≤ 1 − holgura` (con paquetes de menos de medio ciclo, varios
+  salen en una escritura). Atasco = espera > `max(300 ms, 2,5 paquetes, 2,5 ciclos)`; para subir, ≤ `max(200 ms, 1,5
+  paquetes, 2 ciclos)`. Con tope, la espera que cuenta es el **percentil 90 por escritura** (lo que esperó en el carril lo
+  acusado en cada una), no el máximo: una escritura del espejo del registro (5 KB) no es un atasco de la voz.
+  Al subir, **de una vez** al escalón más alto que cabe con holgura (no uno a uno): cada cambio rehace el códec Opus y
+  suena un instante apagado al otro lado; al volver la capacidad tras una caída, cuatro subidas eran cuatro huecos
+  (`voz-caida` fallaba por eso ya antes; `voz-suelo` empezaba a fallar en cuanto la voz volvía a subir).
+- **El vídeo sale con la voz.** El transporte avisa (`alSalirVoz`) justo después de encolar cada texto de la voz; el
+  vídeo mete entonces sus fragmentos y su informe, en el mismo turno: van en la MISMA escritura y no gastan ficha. Sin
+  voz en el último medio segundo (micro en silencio) sale solo, a los 1,5 ciclos.
+- **Control del vídeo (`ControlReparto`), por la espera de la voz.** Con tope de escrituras: baja ×0,6 si el p90 pasa
+  de 2 ciclos (278 ms) o el máximo de 2,5 (el atasco de la escalera de la voz: el vídeo cede ANTES); sube +15 % si el
+  p90 es < 1,6 ciclos y el vídeo quiere más; sin tope, como LLA1111B (260/210 ms sobre el máximo). Techo: lo que cabe
+  menos la reserva de la voz. **Ventana = dos ciclos de su tasa** (`ventanaParaTasa`), nunca más de lo que cabe en una
+  escritura: una escritura no lleva más vídeo del que el vídeo necesita, y la voz que llega detrás espera menos.
+- **Suelo y pausa.** El suelo es lo que cuesta DE VERDAD el escalón de 1 fps (×1,25; `sueloMedido`), al menos 12 kb/s:
+  con un códec que gasta el doble de lo configurado, 12 kb/s eran 0,8 fps sin pausa (`ble-80`). Reanudar es una
+  **prueba**: vuelve al suelo, no sube en 3 s (`PRUEBA_S`) y, si la voz se atasca en ella, a la pausa AL MOMENTO con la
+  calma doblada. En pausa la capacidad se sigue midiendo sin vídeo ni voz: las escrituras de la voz o de sus controles
+  dan R, la app nativa da C; un vídeo en pausa vuelve sin que nadie hable (`ble-real-mudo`).
+
+**El tope de la espera de la voz detrás del vídeo.** El vídeo puede tener en el carril, como mucho, dos ventanas (la
+escritura en vuelo y la siguiente): 2 × 2304 B en claro = 6,2 KB en el aire con el cifrado, ≈ 118 ms a la serialización
+media del calibrado y 176 ms a la más lenta medida (35 B/ms). Dos ventanas más un paquete de voz caben en la cola de voz
+del Bluetooth (6 KiB, `MAX_COLA_VOZ_BLE`) sin que tire nada, y `vozOcupada` no retiene la voz por esos 4608 B.
+
+Registro, cada 5 s (lo que el control usó; la radio al lado del modelo):
+```
+video-datos reparto activo motivo=hay-sitio obj=115 voz=35 vid=65 cabe=168 enlace=191k+17ms/139 nativo=191k entregado=106k esc=7x1.9K espera=180/180ms vent=2304B fps=6.5 perd-rx=0%
+voz-datos tx n=0 opus=24k 20/160ms texto=36k b1 otro:perd=0%/tarde=0% cabe=207k enlace=237k+40ms/139 nativo=237k entregado=94k esc=6x2K espera=120/120ms paq=803 tiradas=0
+voz-datos ciclo-emisor=139ms paq=160ms (una escritura por paquete, sin esperar fichas)
+video-datos pausa motivo=prueba-fallida cabe=22kbps voz=10kbps enlace=36k+38ms nativo=… entregado=… espera=…/…ms calma-pedida=10s
+```
+(`enlace=C+R/ciclo`: el modelo y el ciclo mínimo del emisor; `nativo`: lo que mide la radio con mensajes ≥ 2 KiB;
+`esc=escrituras/s x bytes medios`; `espera=p90/máx` de la voz en el carril. Si `enlace` y `nativo` discrepan mucho, o
+`esc` va pegado a 7,2 con escrituras pequeñas, es el fallo de la prueba 37 otra vez.)
+
+**Banco (LLA1111Q, 90–120 s cada caso, uno a uno).** Carril calibrado `ble-real`: antes voz en 6 kb/s, 6 huecos/min,
+vídeo 0 fps (pausa «suelo» con `enlace=25–38k`); ahora Opus 24 kb/s en paquetes de 160 ms (36 kb/s de texto), 0 huecos,
+pérdida 0,1 %, vídeo 6 fps en los dos sentidos (≈ 55–65 kb/s de texto), espera tras vídeo ≤ 139 ms. `ble-real-mudo`:
+antes 3,2 / 0 fps, ahora 6,3 / 6,6. `ble-80` ya no se queda en 0,8 fps sin aviso: se pausa con aviso. Queda marginal
+`ble-caida` en el instante de la caída (la voz espera 208–287 ms tras el vídeo que ya estaba en el carril, según la
+corrida; con el código de antes 214–244): el vídeo que entró con la capacidad de antes no se puede sacar del carril.
+
+**Qué prueban los carriles simulados y qué no.** El carril fijo del banco prueba la lógica en carriles estrechos y nada
+más; el control de LLA1111B y VOZ1111J estaba afinado contra él y falló en el aparato. El carril calibrado (`ble-real`,
+`pruebas-reales/llamadas-medio`) añade lo que el registro de la prueba 37 enseña (acuse variable, tope de escrituras,
+cifrado, señalización y espejo en el mismo enlace) y reproduce aquel fallo con el código de antes; no prueba la radio
+(reparto del aire entre los dos sentidos, pausas largas, GATT sin canal rápido, la medida nativa que llega cada 15 s).
+Lo que manda es la siguiente ronda en los aparatos.
+
 ## 9b. Cámaras y cámara remota (VID1110A)
 
 **Elección.** `camaras.ts` clasifica cada cámara por su etiqueta (`integrada` · `continuidad` · `externa` · `virtual` · `remota`) y el

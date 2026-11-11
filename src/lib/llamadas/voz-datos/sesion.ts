@@ -26,7 +26,7 @@ import type { CalidadVoz } from "./decision";
 // VOZ1111J: la voz sigue al enlace (escalera, medida del carril, informe del otro, reserva para el vídeo).
 import { bytesPaqueteNivel, ControlNivelVoz, kbpsCabenVoz, kbpsTextoNivel, nivelInicial, NIVELES_OPUS, NIVELES_SIMPLES, type FormatoVoz, type NivelVoz } from "./niveles";
 import { fijarReservaVoz } from "./reserva";
-import { MedidorEnlace, type ResumenEnlace } from "@/lib/llamadas/video-datos/reparto";
+import { MedidorEnlace, muestraDeTransporte, textoEnlace, type EscrituraCarril, type ResumenEnlace } from "@/lib/llamadas/video-datos/reparto";
 
 export interface TransporteVoz {
   /** Encola un texto `voz.*` en el enlace. «descartado»: el enlace tiró lo más viejo; «cerrado»: ya no hay enlace. */
@@ -48,6 +48,15 @@ export interface TransporteVoz {
   bytesEntrados?(): number;
   /** (VOZ1111J) ¿Entró vídeo en el carril de la voz hace poco? (su ventana no cuenta como voz atascada) */
   videoEnCarril?(): boolean;
+  /** LLA1111Q: últimas escrituras del carril de voz medidas por el emisor (duración de cada una hasta su acuse). */
+  escrituras?(): ReadonlyArray<EscrituraCarril> | null;
+  /** LLA1111Q: escrituras por segundo que se permite el emisor (su cubeta; null: sin tope o no se sabe). */
+  escriturasPorS?(): number | null;
+  /**
+   * LLA1111Q: avisa justo después de que la voz encola un texto (para salir en la misma escritura); `audio`: era un
+   * paquete de audio (no un control). Devuelve la baja.
+   */
+  alSalirVoz?(cb: (audio: boolean) => void): () => void;
 }
 
 export interface CodificadorVoz {
@@ -389,6 +398,28 @@ export class SesionVozDatos {
     this.d.transporte.enviar(armarControl({ s: this.d.idLlamada, ...c }));
   }
 
+  /**
+   * LLA1111Q: ping, pong e informe, con un emisor que tiene tope de escrituras (el Bluetooth: 7,2/s), no gastan una
+   * escritura propia: esperan al siguiente paquete de voz y salen en la misma (o, sin voz, a los 600 ms). Eran ≈ 1,8
+   * escrituras/s por lado: con la voz, la cubeta se vaciaba y todo esperaba fichas.
+   */
+  private mandarControlJunto(armar: () => Omit<ControlVoz, "s">): void {
+    if (!(this.medidor && this.medidor.cicloMinMs > 0)) {
+      this.mandarControl(armar());
+      return;
+    }
+    if (!this.controlesPendientes.length) this.controlesDesde = this.d.reloj.ahora();
+    this.controlesPendientes.push(armar);
+    if (this.controlesPendientes.length > 8) this.controlesPendientes.shift();
+  }
+
+  private soltarControles(): void {
+    for (const f of this.controlesPendientes.splice(0)) this.mandarControl(f());
+  }
+
+  private controlesPendientes: Array<() => Omit<ControlVoz, "s">> = [];
+  private controlesDesde = 0;
+
   /** Abre el micro y arranca. Devuelve false si no se pudo capturar. */
   async iniciar(): Promise<boolean> {
     if (this.activa) return true;
@@ -415,7 +446,7 @@ export class SesionVozDatos {
       this.d.reloj.cada(() => {
         // Saludo hasta oír al otro (los primeros pueden perderse); luego, ping para medir la latencia.
         if (!this.holaRecibido && this.holasEnviadas < 8) this.saludar();
-        else this.mandarControl({ k: "ping", ts: this.d.reloj.ahora() });
+        else this.mandarControlJunto(() => ({ k: "ping", ts: this.d.reloj.ahora() })); // LLA1111Q
       }, 1500),
     );
     this.saludar();
@@ -481,7 +512,7 @@ export class SesionVozDatos {
     if (!this.d.transporte.abierto()) return;
     // VOZ1111J: atasco grave entre pasos → baja ya (ver `bajadaRapida`).
     if (this.medidor && this.control && !this.mudo) {
-      const c = this.control.bajadaRapida(ahora, this.medidor.retrasoMs);
+      const c = this.control.bajadaRapida(ahora, this.medidor.retrasoMs, this.medidor.modelo?.cicloMinMs ?? 0);
       if (c) {
         this.aplicarNivel();
         const n = this.control.nivel;
@@ -491,6 +522,8 @@ export class SesionVozDatos {
     }
     const n = this.control?.nivel ?? { msPaquete: 60, msTrama: 20 as const, kbps: 24 };
     const unidadesPaquete = Math.max(1, Math.round(n.msPaquete / MS_TRAMA));
+    // LLA1111Q: controles que esperaban a la voz y llevan 600 ms sin ella (micro en silencio): salen solos.
+    if (this.controlesPendientes.length && ahora - this.controlesDesde >= 600) this.soltarControles();
     const items = this.cola.mirar();
     if (!items.length) return;
     const listo = this.cola.unidadesEnCola >= unidadesPaquete || ahora - items[0].ts >= n.msPaquete;
@@ -513,6 +546,7 @@ export class SesionVozDatos {
     const tramas = this.cola.sacar(k);
     if (this.formato === "b1") this.mandarB(tramas);
     else this.mandarP(tramas.filter((t) => !t.silencio));
+    this.soltarControles(); // LLA1111Q: en la misma escritura que este paquete
   }
 
   private registrarEnvio(r: "ok" | "descartado" | "cerrado", tramas: number): void {
@@ -574,7 +608,7 @@ export class SesionVozDatos {
   private medirCarril(ahora: number): void {
     if (!this.medidor) return;
     try {
-      this.medidor.muestra(ahora, { cola: this.d.transporte.colaVozBytes!(), entrados: this.d.transporte.bytesEntrados!() });
+      this.medidor.muestra(ahora, muestraDeTransporte(this.d.transporte)); // LLA1111Q
     } catch {
       /* un enlace que no mide */
     }
@@ -590,7 +624,13 @@ export class SesionVozDatos {
     this.descartesAntes = this.cola.descartadas;
     this.descartesVentana = 0;
     const inf = this.informe ? { perd: this.informe.perd, tarde: this.informe.tarde, corte: this.informe.corte, edadMs: ahora - this.informe.en } : null;
-    const entrada = { modelo: r?.modelo ?? null, retrasoMaxMs: r?.retrasoMaxMs ?? 0, descartes: this.mudo ? 0 : desc, informe: inf, entregadoKbps: r ? r.entregadoKbps : null };
+    // LLA1111Q: el paquete sigue al ciclo del emisor (ver `nivelConCiclo`).
+    if (this.medidor && this.control.fijarCiclo(this.medidor.cicloMinMs)) {
+      this.aplicarNivel();
+      const n = this.control.nivel;
+      this.d.anotar?.(`voz-datos ciclo-emisor=${this.medidor.cicloMinMs}ms paq=${n.msPaquete}ms (una escritura por paquete, sin esperar fichas)`);
+    }
+    const entrada = { modelo: r?.modelo ?? null, retrasoMaxMs: r?.retrasoMaxMs ?? 0, esperaP90Ms: r?.esperaP90Ms ?? null, descartes: this.mudo ? 0 : desc, informe: inf, entregadoKbps: r ? r.entregadoKbps : null };
     const sueloAntes = this.control.bajoSuelo;
     const cambio = this.mudo ? null : this.control.paso(ahora, entrada);
     this.redundanciaOn = this.control.redundancia(entrada);
@@ -598,7 +638,7 @@ export class SesionVozDatos {
       this.aplicarNivel();
       const n = this.control.nivel;
       this.d.anotar?.(
-        `voz-datos nivel ${cambio.desde}→${cambio.hasta} motivo=${cambio.motivo} opus=${n.kbps}kbps trama=${n.msTrama}ms paq=${n.msPaquete}ms texto≈${kbpsTextoNivel(n, this.formato, this.d.idLlamada)}kbps cabe=${kbpsCabenVoz(r?.modelo ?? null, n.msPaquete) ?? "?"}kbps espera=${r?.retrasoMaxMs ?? 0}ms desc=${desc}${inf ? ` rx-otro=perd ${inf.perd}% tarde ${inf.tarde}%` : ""} calma=${Math.round(this.control.calmaMs / 1000)}s`,
+        `voz-datos nivel ${cambio.desde}→${cambio.hasta} motivo=${cambio.motivo} opus=${n.kbps}kbps trama=${n.msTrama}ms paq=${n.msPaquete}ms texto≈${kbpsTextoNivel(n, this.formato, this.d.idLlamada)}kbps cabe=${kbpsCabenVoz(r?.modelo ?? null, n.msPaquete) ?? "?"}kbps espera=${r?.esperaP90Ms ?? "-"}/${r?.retrasoMaxMs ?? 0}ms desc=${desc}${inf ? ` rx-otro=perd ${inf.perd}% tarde ${inf.tarde}%` : ""} calma=${Math.round(this.control.calmaMs / 1000)}s`,
       );
     }
     if (this.control.bajoSuelo !== sueloAntes) this.d.anotar?.(this.control.bajoSuelo ? `voz-datos bajo-suelo tx motivo=${this.control.motivo} cabe=${kbpsCabenVoz(r?.modelo ?? null, this.control.nivel.msPaquete) ?? "?"}kbps` : "voz-datos sobre-suelo tx");
@@ -645,7 +685,8 @@ export class SesionVozDatos {
       const seg = Math.max(1, (ahora - this.ultimoInforme) / 1000);
       this.ultimoInforme = ahora;
       if (hablando || this.sinVozRx) {
-        this.mandarControl({ k: "rep", perd: tot ? Math.round((1000 * a.perdidas) / tot) / 10 : 0, tarde: tot ? Math.round((1000 * a.tardias) / tot) / 10 : 0, kbps: Math.round((this.bytesRxVentana * 8) / seg / 1000), ...(this.sinVozRx ? { corte: 1 } : {}) });
+        const rep: Omit<ControlVoz, "s"> = { k: "rep", perd: tot ? Math.round((1000 * a.perdidas) / tot) / 10 : 0, tarde: tot ? Math.round((1000 * a.tardias) / tot) / 10 : 0, kbps: Math.round((this.bytesRxVentana * 8) / seg / 1000), ...(this.sinVozRx ? { corte: 1 } : {}) };
+        this.mandarControlJunto(() => rep); // LLA1111Q
       }
       this.acumuladoInforme = { recibidas: 0, perdidas: 0, tardias: 0 };
       this.bytesRxVentana = 0;
@@ -659,7 +700,7 @@ export class SesionVozDatos {
 
   /**
    * Dos líneas cortas (el registro corta cada detalle a 200 caracteres):
-   *   voz-datos tx n=3 opus=10k trama/paq=60/120ms texto=17k fmt=b1 cabe=30k enlace=36k+40ms entregado=19k espera=121ms paq=581 tiradas=0 otro:perd=0% tarde=0%
+   *   voz-datos tx n=0 opus=24k 20/160ms texto=36k b1 otro:perd=0%/tarde=0% cabe=214k enlace=247k+43ms/139 nativo=249k entregado=97k esc=6.7x1.6K espera=120/160ms paq=796 tiradas=0
    *   voz-datos rx paq=599 perd=0.2% tardias=3 ocultadas=+12 inventado=0% jitter=200ms
    */
   private anotarEstado(ahora: number, r: ResumenEnlace | null): void {
@@ -670,9 +711,11 @@ export class SesionVozDatos {
     const m = r?.modelo ?? null;
     const k = (x: number | null | undefined) => (typeof x === "number" ? `${x}k` : "?");
     this.d.anotar?.(
-      `voz-datos tx n=${this.control.indice} ${this.codecTx}=${k(n.kbps)} trama/paq=${n.msTrama}/${n.msPaquete}ms texto=${k(kbpsTextoNivel(n, this.formato, this.d.idLlamada))} fmt=${this.formato}` +
-        ` cabe=${k(kbpsCabenVoz(m, n.msPaquete))} enlace=${m ? `${Math.round(m.bytesPorMs * 8)}k+${m.rMs}ms` : "?"} entregado=${k(r?.entregadoKbps)} espera=${r?.retrasoMaxMs ?? "?"}ms` +
-        ` paq=${this.paquetesTx} tiradas=${this.cola.descartadas}${inf ? ` otro:perd=${inf.perd}% tarde=${inf.tarde}%` : ""}${this.redundanciaOn ? " red" : ""}${this.control.bajoSuelo ? " BAJO-SUELO" : ""}${this.mudo ? " mudo" : ""}`,
+      // LLA1111Q: lo que más importa primero (el registro corta a 200 caracteres): escalón, banderas, lo que dice el otro;
+      // luego el enlace con lo que el control usó (modelo/ciclo del emisor, la radio, lo acusado, escrituras, espera p90/máx).
+      `voz-datos tx n=${this.control.indice} ${this.codecTx}=${k(n.kbps)} ${n.msTrama}/${n.msPaquete}ms texto=${k(kbpsTextoNivel(n, this.formato, this.d.idLlamada))} ${this.formato}` +
+        `${this.mudo ? " mudo" : ""}${this.control.bajoSuelo ? " BAJO-SUELO" : ""}${this.redundanciaOn ? " red" : ""}${inf ? ` otro:perd=${inf.perd}%/tarde=${inf.tarde}%` : ""}` +
+        ` cabe=${k(kbpsCabenVoz(m, n.msPaquete))} ${r ? textoEnlace(r) : "enlace=?"} paq=${this.paquetesTx} tiradas=${this.cola.descartadas}`,
     );
     this.d.anotar?.(
       `voz-datos rx paq=${this.paquetesRx} perd=${this.jitter.perdidaPct()}% tardias=${st.tardias} ocultadas=+${st.ocultadas - this.ocultadasRegistro} inventado=${Math.round(this.ultimaFraccionMala * 100)}% jitter=${st.objetivoMs}ms${this.sinVozRx ? " BAJO-SUELO" : ""}`,
@@ -813,7 +856,7 @@ export class SesionVozDatos {
       }
       this.avisar();
     } else if (c.k === "ping") {
-      this.mandarControl({ k: "pong", ts: c.ts });
+      this.mandarControlJunto(() => ({ k: "pong", ts: c.ts })); // LLA1111Q
     } else if (c.k === "pong" && typeof c.ts === "number") {
       const rtt = this.d.reloj.ahora() - c.ts;
       if (rtt >= 0 && rtt < 60_000) {

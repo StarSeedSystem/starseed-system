@@ -32,6 +32,20 @@
  *    sabe). Se reanuda solo, con un clave, cuando la voz sola deja el carril holgado `CALMA_REANUDAR_S` seguidos (y al
  *    menos `PAUSA_MINIMA_S` en pausa); si vuelve a pausarse antes de `REINCIDENCIA_S`, la calma pedida se duplica
  *    (hasta 40 s): no parpadea entre estados.
+ *
+ * LLA1111Q — lo que el enlace de verdad dice, no lo que suponía el simulador (prueba 37, Mac ↔ tableta):
+ *  · El modelo se ajusta con la DURACIÓN DE CADA ESCRITURA tal como la mide el emisor (`escrituras` del transporte: de
+ *    entregarla a la app nativa a su acuse). Antes se deducía de lo que bajaba la cola entre muestras, y en el Bluetooth
+ *    de verdad ese intervalo lleva dentro la espera por fichas de la cubeta del emisor (7,2 escrituras/s): con escrituras
+ *    de 300 B, «bytes / (tiempo − 42 ms)» daba 8–35 kb/s en un enlace que mide 192–380 kb/s con mensajes grandes, la
+ *    ventana se quedaba en 300 B, las escrituras pequeñas daban poco… y el modelo lo leía como poca capacidad.
+ *  · El ritmo de escrituras que el emisor se permite (`escriturasPorS`, de lo que el otro anuncia que admite) es parte
+ *    del modelo (`cicloMinMs`): cada escritura cuesta una ficha sea del tamaño que sea, así que el ciclo es
+ *    `max(CICLO_OBJETIVO_MS, cicloMinMs)` y la ventana `(ciclo − R)·C` crece hasta llenarlo (ya no 300 B con 4 KB de sitio).
+ *  · Con solo voz (tamaños parecidos) C es lo que mide la app nativa con sus mensajes grandes (`nativoKbps`, la línea
+ *    `l2cap-kbps`), en vivo; sin ella, lo anunciado. Ya no hay acuse fijo de 42 ms en ningún cálculo con medidas.
+ *  · Los umbrales de espera de la voz escalan con el ciclo: con 139 ms por escritura, que la voz espere dos ciclos es lo
+ *    normal, no un atasco.
  */
 
 import { reservaVozKbps } from "@/lib/llamadas/voz-datos/reserva"; // VOZ1111J
@@ -60,10 +74,22 @@ export const PAUSA_MINIMA_S = 4;
 /** Si se vuelve a pausar antes de esto tras reanudar, la calma pedida se duplica. */
 export const REINCIDENCIA_S = 20;
 export const CALMA_MAXIMA_S = 40;
+/**
+ * LLA1111Q: tras reanudar, el vídeo va `PRUEBA_S` segundos al suelo sin subir: es una prueba. Con solo voz en el carril el
+ * modelo no puede separar acuse y capacidad (tamaños iguales) y lo que dice puede ser viejo (la capacidad que anuncia la
+ * radio se mide con mensajes grandes, cada ≈ 30 s): la prueba lo comprueba con poco, y si la voz se atasca durante ella
+ * el vídeo vuelve a la pausa AL MOMENTO (con la calma doblada), sin tres segundos más de vídeo encima de la voz.
+ */
+export const PRUEBA_S = 3;
 /** Pérdida de fotogramas que informa el receptor a partir de la cual se baja. */
 export const PERDIDA_RECEPTOR_ALTA = 0.15;
 export const VENTANA_MIN_BYTES = 300;
-export const VENTANA_MAX_BYTES = 1536;
+/**
+ * LLA1111Q: hasta 2,25 KiB por escritura (antes 1,5). Tope por el carril: el vídeo puede tener DOS ventanas en él
+ * (la escritura en vuelo y la siguiente) y el Bluetooth tira lo más viejo del carril de voz al pasar de 6 KiB
+ * (`MAX_COLA_VOZ_BLE`): 2 × 2304 deja 1,5 KiB para la voz que llega mientras tanto.
+ */
+export const VENTANA_MAX_BYTES = 2304;
 /** Profundidad de la cubeta de fichas (ms a la tasa objetivo). */
 export const CUBETA_MS = 400;
 /** Sin medida de escrituras se supone esto (bytes por ms ≈ 160 kb/s, lo que midió el canal rápido L2CAP). */
@@ -88,14 +114,68 @@ export interface ModeloEnlace {
   bytesPorMs: number;
   /** De dónde salió: «ajuste» (pares variados), «supuesto» (C supuesta, R de los pares). */
   fuente: "ajuste" | "supuesto";
+  /**
+   * LLA1111Q: separación mínima entre escrituras que se permite el emisor (ms; 1000 / escrituras por segundo de su
+   * cubeta). 0 o ausente: sin tope (un canal sin limitador, como el carril fijo del banco).
+   */
+  cicloMinMs?: number;
+}
+
+/** LLA1111Q: una escritura del carril tal como la midió el emisor (de entregarla a la app nativa a su acuse). */
+export interface EscrituraCarril {
+  /** Cuándo llegó el acuse (ms del mismo reloj que las muestras). */
+  fin: number;
+  /** Lo que tardó (ms): sin la espera por fichas, que es del emisor y no del enlace. */
+  ms: number;
+  /** Bytes de texto (en claro) que llevaba. */
+  bytes: number;
+}
+
+/** LLA1111Q: el ciclo de escritura al que se reparte con ese modelo: el objetivo o el que permite el emisor. */
+export function cicloEfectivoMs(m: ModeloEnlace | null | undefined): number {
+  return Math.max(CICLO_OBJETIVO_MS, m?.cicloMinMs ?? 0);
+}
+
+/**
+ * LLA1111Q: con la voz esperando más que esto, el vídeo baja. Sin limitador de escrituras, 260 ms (LLA1111B). Con él, dos
+ * ciclos del emisor (278 ms con 7,2 escrituras/s): la voz que llega espera, como mucho, a la ficha de la siguiente
+ * escritura y a esa escritura; más es que el vídeo ya le quita sitio. Siempre por debajo del umbral de atasco de la
+ * escalera de la voz (2,5 ciclos): el vídeo cede ANTES de que la voz tenga que bajar.
+ */
+export function retrasoAltoMs(m: ModeloEnlace | null | undefined): number {
+  return Math.max(RETRASO_ALTO_MS, Math.round(2 * cicloEfectivoMs(m)));
+}
+
+/** LLA1111Q: con la voz esperando menos que esto, el vídeo puede subir o volver (210 ms; 1,6 ciclos con limitador). */
+export function retrasoBajoMs(m: ModeloEnlace | null | undefined): number {
+  return Math.max(RETRASO_BAJO_MS, Math.round(1.6 * cicloEfectivoMs(m)));
+}
+
+/**
+ * LLA1111Q: la espera de la voz con la que decide el reparto. Con limitador de escrituras, el percentil 90 de lo que
+ * esperó lo acusado en cada escritura (el máximo de la ventana lo marca una sola escritura grande de otro carril —el
+ * espejo del registro— o un acuse lento suelto). Sin limitador, el máximo, como en LLA1111B.
+ */
+export function esperaVozMs(r: ResumenEnlace): number {
+  return r.modelo?.cicloMinMs && typeof r.esperaP90Ms === "number" ? r.esperaP90Ms : r.retrasoMaxMs;
+}
+
+/**
+ * LLA1111Q: ventana del vídeo para su tasa: dos ciclos de lo que tiene que sacar (nunca más que `ventanaBytes`). Una
+ * escritura no necesita llevar más vídeo que eso, y cuanto menos lleva, menos espera la voz que llega detrás.
+ */
+export function ventanaParaTasa(m: ModeloEnlace | null, anunciadoKbps: number | null | undefined, objetivoKbps: number): number {
+  const porCiclo = ((2 * Math.max(0, objetivoKbps)) / 8) * cicloEfectivoMs(m);
+  return Math.round(Math.max(VENTANA_MIN_BYTES, Math.min(ventanaBytes(m, anunciadoKbps), porCiclo)));
 }
 
 /**
  * Ajusta `ms = R + bytes/C` a los pares (bytes, ms) de escrituras con el carril ocupado. Si los tamaños apenas varían
  * (solo voz) no se puede separar R de C: se supone C (`bytesPorMsSupuestos`, lo anunciado) y R sale de la mediana.
  */
-export function ajustarModelo(pares: ReadonlyArray<{ bytes: number; ms: number }>, bytesPorMsSupuestos: number = BYTES_POR_MS_SUPUESTOS, exigirAmplitud = false): ModeloEnlace | null {
+export function ajustarModelo(pares: ReadonlyArray<{ bytes: number; ms: number }>, bytesPorMsSupuestos: number = BYTES_POR_MS_SUPUESTOS, exigirAmplitud = false, duracionesExactas = false): ModeloEnlace | null {
   if (pares.length < 6) return null;
+  if (duracionesExactas) return ajustarEscrituras(pares, bytesPorMsSupuestos); // LLA1111Q
   const n = pares.length;
   const mb = pares.reduce((a, p) => a + p.bytes, 0) / n;
   const mm = pares.reduce((a, p) => a + p.ms, 0) / n;
@@ -118,7 +198,7 @@ export function ajustarModelo(pares: ReadonlyArray<{ bytes: number; ms: number }
       if (ms - ACUSE_BLE_MS > 2 && by / (ms - ACUSE_BLE_MS) < c) return { rMs: ACUSE_BLE_MS, bytesPorMs: Math.max(0.5, Math.round((by / (ms - ACUSE_BLE_MS)) * 10) / 10), fuente: "supuesto" };
     }
     const rs = pares.map((p) => p.ms - p.bytes / c).sort((a, b) => a - b);
-    return { rMs: Math.max(0, Math.min(250, rs[Math.floor(rs.length / 2)])), bytesPorMs: c, fuente: "supuesto" };
+    return { rMs: Math.round(Math.max(0, Math.min(250, rs[Math.floor(rs.length / 2)]))), bytesPorMs: Math.round(c * 10) / 10, fuente: "supuesto" };
   };
   if (mb <= 0 || desv / mb < 0.25 || vb <= 0) return supuesto();
   // VOZ1111L (`exigirAmplitud`, con escrituras aisladas): la pendiente solo se cree si los tamaños abarcan ≥ 25 ms de
@@ -137,16 +217,63 @@ export function ajustarModelo(pares: ReadonlyArray<{ bytes: number; ms: number }
   return { rMs: Math.round(r), bytesPorMs: Math.round(c * 10) / 10, fuente: "ajuste" };
 }
 
-/** Lo que cabe por ms (voz + vídeo) escribiendo cada `cicloMs` con ese modelo, en kbps. */
-export function kbpsMaxConCiclo(m: ModeloEnlace, cicloMs: number = CICLO_OBJETIVO_MS): number {
-  return Math.max(0, Math.round(8 * m.bytesPorMs * (1 - m.rMs / cicloMs)));
+/**
+ * LLA1111Q: el modelo con las duraciones que mide el emisor de cada escritura. La pendiente (C) solo se cree si explica la
+ * variación: lo que separan los tamaños (p10–p90) a esa C debe ser al menos 3 veces lo que se desvían las escrituras de la
+ * recta (mediana de |residuo|). En un canal sin ruido (el carril fijo del banco) basta cualquier variación y la recta es
+ * exacta; en el Bluetooth de verdad el acuse va de 25 a 115 ms de una escritura a otra y la pendiente de escrituras de
+ * 300–2000 B es ruido: entonces C es la que mide la radio con sus mensajes grandes (`cSupuesta`) y R la mediana de lo que
+ * queda. La pendiente es robusta (mediana de las pendientes entre pares que difieren ≥ 50 B): un acuse lento no la tuerce.
+ */
+export function ajustarEscrituras(pares: ReadonlyArray<{ bytes: number; ms: number }>, cSupuesta: number): ModeloEnlace | null {
+  const n = pares.length;
+  if (n < 6) return null;
+  const med = (xs: number[]) => {
+    const o = [...xs].sort((a, b) => a - b);
+    return o[Math.floor(o.length / 2)];
+  };
+  const supuesto = (): ModeloEnlace => {
+    const c = Math.max(0.5, cSupuesta);
+    return { rMs: Math.round(Math.max(0, Math.min(250, med(pares.map((p) => p.ms - p.bytes / c))))), bytesPorMs: Math.round(c * 10) / 10, fuente: "supuesto" };
+  };
+  const pend: number[] = [];
+  for (let i = 0; i < n; i++)
+    for (let j = i + 1; j < n; j++) {
+      const db = pares[j].bytes - pares[i].bytes;
+      if (Math.abs(db) >= 50) pend.push((pares[j].ms - pares[i].ms) / db);
+    }
+  if (pend.length < 6) return supuesto();
+  const bm = med(pend);
+  if (!(bm > 0)) return supuesto();
+  const c = Math.max(0.5, Math.min(250, 1 / bm));
+  const r = med(pares.map((p) => p.ms - p.bytes / c));
+  const desvio = med(pares.map((p) => Math.abs(p.ms - (r + p.bytes / c))));
+  const tam = pares.map((p) => p.bytes).sort((a, b) => a - b);
+  const separa = (tam[Math.floor(0.9 * (n - 1))] - tam[Math.floor(0.1 * (n - 1))]) / c;
+  if (separa < Math.max(2, 3 * desvio)) return supuesto();
+  return { rMs: Math.round(Math.max(0, Math.min(250, r))), bytesPorMs: Math.round(c * 10) / 10, fuente: "ajuste" };
 }
+
+/**
+ * Lo que cabe por ms (voz + vídeo) escribiendo cada `cicloMs` con ese modelo, en kbps. LLA1111Q: el ciclo nunca es más
+ * corto que el que se permite el emisor (`cicloMinMs`): con 7,2 escrituras/s, cada una puede llevar `(139 − R)·C` bytes.
+ */
+export function kbpsMaxConCiclo(m: ModeloEnlace, cicloMs: number = CICLO_OBJETIVO_MS): number {
+  const t = Math.max(cicloMs, m.cicloMinMs ?? 0);
+  return Math.max(0, Math.round(8 * m.bytesPorMs * (1 - m.rMs / t)));
+}
+
+/**
+ * LLA1111Q: acuse por escritura que se toma mientras aún no hay 6 escrituras medidas (los primeros cientos de ms). Es
+ * solo el arranque: en cuanto hay medidas manda el modelo.
+ */
+export const ACUSE_ARRANQUE_MS = 50;
 
 /** Bytes que puede llevar el carril delante de la voz: lo que cabe en una escritura de un ciclo. */
 export function ventanaBytes(m: ModeloEnlace | null, anunciadoKbps?: number | null): number {
   const c = m ? m.bytesPorMs : typeof anunciadoKbps === "number" && anunciadoKbps > 0 ? anunciadoKbps / 8 : BYTES_POR_MS_SUPUESTOS;
-  const r = m ? m.rMs : 42;
-  return Math.round(Math.max(VENTANA_MIN_BYTES, Math.min(VENTANA_MAX_BYTES, (CICLO_OBJETIVO_MS - r) * c)));
+  const r = m ? m.rMs : ACUSE_ARRANQUE_MS;
+  return Math.round(Math.max(VENTANA_MIN_BYTES, Math.min(VENTANA_MAX_BYTES, (cicloEfectivoMs(m) - r) * c)));
 }
 
 /** Cabecera de un fragmento de vídeo en texto (JSON con el id de la llamada), por lo alto. */
@@ -165,6 +292,39 @@ export interface MuestraCarril {
   cola: number;
   /** Bytes que entraron en el carril desde que se abrió (voz + vídeo, `bytesEntrados`). */
   entrados: number;
+  /** LLA1111Q: las últimas escrituras del carril medidas por el emisor (si el transporte las da). */
+  escrituras?: ReadonlyArray<EscrituraCarril> | null;
+  /** LLA1111Q: escrituras por segundo que se permite el emisor (null: sin limitador o no se sabe). */
+  escriturasPorS?: number | null;
+  /** LLA1111Q: lo último que midió la app nativa con mensajes grandes (`l2cap-kbps`), kb/s (null: sin medida). */
+  nativoKbps?: number | null;
+}
+
+/** LLA1111Q: lo que un transporte de voz puede decir de su carril (todo opcional). */
+export interface FuenteCarril {
+  colaVozBytes?(): number;
+  bytesEntrados?(): number;
+  escrituras?(): ReadonlyArray<EscrituraCarril> | null;
+  escriturasPorS?(): number | null;
+  capacidadKbps?(): number | null;
+}
+
+/** LLA1111Q: una muestra del carril con todo lo que el enlace sabe decir de sí mismo (nunca lanza). */
+export function muestraDeTransporte(t: FuenteCarril): MuestraCarril {
+  const leer = <T>(f: () => T, defecto: T): T => {
+    try {
+      return f();
+    } catch {
+      return defecto;
+    }
+  };
+  return {
+    cola: leer(() => t.colaVozBytes?.() ?? 0, 0),
+    entrados: leer(() => t.bytesEntrados?.() ?? 0, 0),
+    escrituras: t.escrituras ? leer(() => t.escrituras!(), null) : undefined,
+    escriturasPorS: t.escriturasPorS ? leer(() => t.escriturasPorS!(), null) : undefined,
+    nativoKbps: leer(() => t.capacidadKbps?.() ?? null, null),
+  };
 }
 
 export interface ResumenEnlace {
@@ -182,6 +342,13 @@ export interface ResumenEnlace {
   retrasoMaxMs: number;
   /** Fracción del tiempo con el carril ocupado. */
   ocupacion: number;
+  /** LLA1111Q: percentil 90 de lo que esperó en el carril lo acusado en cada escritura (ms; null: ninguna acusada). */
+  esperaP90Ms?: number | null;
+  /** LLA1111Q: escrituras acusadas en la ventana, por segundo, y bytes medios de cada una. */
+  escriturasPorS?: number;
+  bytesPorEscritura?: number;
+  /** LLA1111Q: lo que mide la app nativa (kb/s) cuando se sabe: para ver en una línea si el modelo y la radio discrepan. */
+  nativoKbps?: number | null;
 }
 
 /**
@@ -203,6 +370,14 @@ export class MedidorEnlace {
   /** VOZ1111L: cuándo empezó la escritura en vuelo si el carril estaba vacío antes (0: no hay). */
   private inicioAislada = 0;
   private pares: Array<{ bytes: number; ms: number; t?: number; aislada?: boolean }> = [];
+  /* LLA1111Q: lo que el emisor mide de cada escritura, su tope de escrituras y lo que mide la app nativa. */
+  private ultimaFinEscritura = -Infinity;
+  private conEscrituras = false;
+  private cicloMin = 0;
+  private nativo: number | null = null;
+  private esperasAcuse: number[] = [];
+  private escriturasVentana = 0;
+  private bytesEscriturasVentana = 0;
   /** Edad del byte más viejo del carril ahora (ms). */
   retrasoMs = 0;
   /** El último modelo calculado. */
@@ -220,6 +395,21 @@ export class MedidorEnlace {
   ) {}
 
   muestra(ahora: number, m: MuestraCarril): void {
+    // LLA1111Q: las escrituras que midió el emisor (cada una una vez) son los pares del modelo: duración exacta, sin la
+    // espera por fichas. Con ellas no se deducen pares de la cola.
+    if (m.escrituras) {
+      for (const e of m.escrituras) {
+        if (!(e.fin > this.ultimaFinEscritura) || !(e.ms > 0) || !(e.bytes > 0)) continue;
+        this.ultimaFinEscritura = e.fin;
+        this.conEscrituras = true;
+        this.pares.push({ bytes: e.bytes, ms: e.ms, t: ahora });
+        if (this.pares.length > PARES_MODELO) this.pares.shift();
+        this.escriturasVentana++;
+        this.bytesEscriturasVentana += e.bytes;
+      }
+    }
+    if (m.escriturasPorS !== undefined) this.cicloMin = typeof m.escriturasPorS === "number" && m.escriturasPorS > 0 ? 1000 / m.escriturasPorS : 0;
+    if (typeof m.nativoKbps === "number" && m.nativoKbps > 0) this.nativo = m.nativoKbps;
     const cola = Math.max(0, m.cola);
     const acusado = Math.max(this.acusadoMax, m.entrados - cola);
     this.acusadoMax = acusado;
@@ -240,8 +430,15 @@ export class MedidorEnlace {
       // medido durante la caída y el vídeo seguía en pausa ~24 s después de volver la capacidad.
       if (this.opc.aisladas !== false && prev.cola <= 0 && cola > 0 && dAc === 0 && m.entrados > prev.entrados) this.inicioAislada = prev.t + dt / 2;
       if (dAc > 0) {
+        // LLA1111Q: lo que esperó en el carril lo que acaba de acusarse (el byte más viejo pendiente, hasta ahora).
+        if (prev.cola > 0) {
+          this.esperasAcuse.push(this.retrasoMs + dt);
+          if (this.esperasAcuse.length > 200) this.esperasAcuse.shift();
+        }
         // Acabó una escritura (su acuse). Si el carril estuvo ocupado desde la anterior, su duración vale para el modelo.
-        if (this.ultimaEscritura && this.ocupadoDesdeEscritura) {
+        if (this.conEscrituras) {
+          /* LLA1111Q: los pares ya vienen medidos por el emisor */
+        } else if (this.ultimaEscritura && this.ocupadoDesdeEscritura) {
           this.pares.push({ bytes: dAc, ms: ahora - this.ultimaEscritura, t: ahora });
           if (this.pares.length > PARES_MODELO) this.pares.shift();
         } else if (this.inicioAislada && prev.t + dt / 2 > this.inicioAislada) {
@@ -275,6 +472,11 @@ export class MedidorEnlace {
     this.ultimo = { t: ahora, acusado, entrados: m.entrados, cola };
   }
 
+  /** LLA1111Q: separación mínima entre escrituras que se permite el emisor (0: sin tope o no se sabe todavía). */
+  get cicloMinMs(): number {
+    return Math.round(this.cicloMin);
+  }
+
   /** Cuenta los bytes de vídeo que YO metí en el carril (para separar la voz de lo que entró). */
   videoMetido(bytes: number): void {
     this.videoVentana += Math.max(0, bytes);
@@ -293,8 +495,17 @@ export class MedidorEnlace {
     // el vídeo en marcha el modelo es el de LLA1111B (escrituras seguidas, «supuesto» con lo anunciado), que es lo que fija
     // su escalón en carriles de 80 kb/s.
     const soloVoz = this.videoVentana <= 0 && this.opc.aisladas !== false;
-    const nuevo = ajustarModelo(soloVoz ? this.pares : this.pares.filter((p) => !p.aislada), this.bytesPorMsSupuestos, soloVoz);
+    // LLA1111Q: con duraciones del emisor, C supuesta = lo que mide la app nativa (en vivo) o lo anunciado, y la pendiente
+    // solo se cree con tamaños que abarquen ≥ 25 ms de serialización (la voz sola no los tiene; con vídeo, sí).
+    const cSup = this.nativo ? this.nativo / 8 : this.bytesPorMsSupuestos;
+    const nuevo = this.conEscrituras ? ajustarModelo(this.pares, cSup, true, true) : ajustarModelo(soloVoz ? this.pares : this.pares.filter((p) => !p.aislada), this.bytesPorMsSupuestos, soloVoz);
     if (nuevo) this.modelo = nuevo;
+    if (this.modelo) {
+      const ciclo = Math.round(this.cicloMin);
+      if (ciclo > 0) this.modelo = { ...this.modelo, cicloMinMs: ciclo };
+      else if (this.modelo.cicloMinMs) this.modelo = { rMs: this.modelo.rMs, bytesPorMs: this.modelo.bytesPorMs, fuente: this.modelo.fuente };
+    }
+    const esp = [...this.esperasAcuse].sort((a, b) => a - b);
     const r: ResumenEnlace = {
       modelo: this.modelo,
       maxKbps: this.modelo ? kbpsMaxConCiclo(this.modelo) : null,
@@ -303,7 +514,14 @@ export class MedidorEnlace {
       videoKbps: kbps(this.videoVentana, ms),
       retrasoMaxMs: Math.round(this.retrasoMax),
       ocupacion: Math.min(1, Math.round((this.ocupadoMs / ms) * 100) / 100),
+      esperaP90Ms: esp.length ? Math.round(esp[Math.floor(0.9 * (esp.length - 1))]) : null,
+      escriturasPorS: Math.round((this.escriturasVentana * 10000) / ms) / 10,
+      bytesPorEscritura: this.escriturasVentana ? Math.round(this.bytesEscriturasVentana / this.escriturasVentana) : 0,
+      nativoKbps: this.nativo,
     };
+    this.esperasAcuse = [];
+    this.escriturasVentana = 0;
+    this.bytesEscriturasVentana = 0;
     this.desde = ahora;
     this.acusadoVentana = 0;
     this.ocupadoMs = 0;
@@ -325,6 +543,22 @@ export function presupuestoVideo(r: ResumenEnlace, reservaVoz: number | null = r
   return Math.max(0, Math.round((r.maxKbps - voz) * 0.9));
 }
 
+/**
+ * LLA1111Q: el enlace en pocas letras para el registro, con lo que el control usó de verdad:
+ * «enlace=223k+50ms/139 nativo=249k entregado=97k esc=6.7x1.6K espera=140/160ms» — modelo (C + R / ciclo del emisor),
+ * lo que mide la app nativa al lado (si discrepan, se ve aquí), lo acusado, escrituras/s × bytes medios, y la espera de
+ * la voz (p90 por escritura / máximo).
+ */
+export function textoEnlace(r: ResumenEnlace): string {
+  const m = r.modelo;
+  const k = (b: number) => (b >= 1000 ? `${Math.round(b / 100) / 10}K` : `${b}`);
+  const modelo = m ? `${Math.round(m.bytesPorMs * 8)}k+${Math.round(m.rMs)}ms${m.cicloMinMs ? `/${m.cicloMinMs}` : ""}` : "?";
+  const nativo = typeof r.nativoKbps === "number" ? ` nativo=${Math.round(r.nativoKbps)}k` : "";
+  const esc = typeof r.escriturasPorS === "number" && r.escriturasPorS > 0 ? ` esc=${r.escriturasPorS}x${k(r.bytesPorEscritura ?? 0)}` : "";
+  const p90 = typeof r.esperaP90Ms === "number" ? `${r.esperaP90Ms}/` : "";
+  return `enlace=${modelo}${nativo} entregado=${r.entregadoKbps}k${esc} espera=${p90}${r.retrasoMaxMs}ms`;
+}
+
 /* ───────────────────────── Control de la tasa del vídeo ───────────────────────── */
 
 export type EstadoReparto = "activo" | "pausa";
@@ -335,6 +569,16 @@ export interface Entrada {
   limitado: boolean;
   /** Fracción de fotogramas perdidos que informa el receptor (null: sin informe reciente). */
   perdidaReceptor: number | null;
+  /**
+   * LLA1111Q: lo que cuesta DE VERDAD el escalón más bajo (1 fps) con su margen, kb/s (`sueloMedido`). Si pasa de
+   * `SUELO_KBPS`, manda: con el códec gastando el doble de lo configurado, 12 kb/s eran 0,8 fps sin pausa (banco `ble-80`).
+   */
+  sueloKbps?: number;
+}
+
+/** LLA1111Q: el suelo con lo que cuesta de verdad 1 fps (más un 25 %: que salga al menos 1 fps, no 0,8). */
+export function sueloMedido(coste: CosteEscalon, escalonMasBajo: { kbps: number }): number {
+  return Math.max(SUELO_KBPS, Math.round(1.25 * coste.prevision(escalonMasBajo)));
 }
 
 export interface Cambio {
@@ -382,9 +626,25 @@ export class ControlReparto {
     const l = e.enlace;
     const pres = presupuestoVideo(l);
     const techo = pres === null ? this.maxKbps : Math.min(this.maxKbps, pres);
+    const alto = retrasoAltoMs(l.modelo);
+    const bajo = retrasoBajoMs(l.modelo);
+    const suelo = Math.max(SUELO_KBPS, e.sueloKbps ?? 0); // LLA1111Q
+    const espera = esperaVozMs(l);
+    // Con limitador, un máximo de más de 2,5 ciclos (el atasco de la escalera de la voz) también baja el vídeo.
+    const maxAlto = l.modelo?.cicloMinMs ? l.retrasoMaxMs > 2.5 * cicloEfectivoMs(l.modelo) : false;
     if (this.est === "activo") {
       let motivo: string | null = null;
-      if (l.retrasoMaxMs > RETRASO_ALTO_MS) {
+      const enPrueba = ahora - this.reanudadoEn < PRUEBA_S * 1000; // LLA1111Q
+      if ((espera > alto || maxAlto) && enPrueba) {
+        this.est = "pausa";
+        this.pausas++;
+        this.enPausaDesde = ahora;
+        this.calma = 0;
+        this.calmaPedida = Math.min(CALMA_MAXIMA_S, this.calmaPedida * 2);
+        this.motivo = "prueba-fallida";
+        return { estado: this.est, objetivoKbps: 0, motivo: this.motivo };
+      }
+      if (espera > alto || maxAlto) {
         this.obj = Math.min(this.obj * 0.6, techo);
         motivo = "retraso-voz";
       } else if (e.perdidaReceptor !== null && e.perdidaReceptor > PERDIDA_RECEPTOR_ALTA) {
@@ -393,14 +653,14 @@ export class ControlReparto {
       } else if (this.obj > techo) {
         this.obj = techo;
         motivo = "capacidad";
-      } else if (l.retrasoMaxMs < RETRASO_BAJO_MS && e.limitado && this.obj < techo) {
+      } else if (espera < bajo && e.limitado && this.obj < techo && !enPrueba) {
         this.obj = Math.min(techo, this.obj + Math.max(4, this.obj * 0.15));
         motivo = "hay-sitio";
       }
       this.obj = Math.round(Math.max(0, this.obj));
-      if (this.obj < SUELO_KBPS) {
+      if (this.obj < suelo) {
         this.bajoSuelo++;
-        this.obj = SUELO_KBPS;
+        this.obj = suelo;
         if (this.bajoSuelo >= BAJO_SUELO_PARA_PAUSAR_S) {
           this.est = "pausa";
           this.pausas++;
@@ -416,12 +676,13 @@ export class ControlReparto {
       if (motivo) this.motivo = motivo;
     } else {
       // En pausa solo va la voz: se reanuda si la voz espera poco y el modelo deja sitio para el doble del suelo.
-      const holgura = pres === null || pres >= 2 * SUELO_KBPS;
-      if (l.retrasoMaxMs < RETRASO_BAJO_MS && holgura) this.calma++;
+      const holgura = pres === null || pres >= 2 * suelo;
+      if (espera < bajo && !maxAlto && holgura) this.calma++;
       else this.calma = 0;
       if (this.calma >= this.calmaPedida && ahora - this.enPausaDesde >= PAUSA_MINIMA_S * 1000) {
         this.est = "activo";
-        this.obj = Math.min(this.maxKbps, Math.max(2 * SUELO_KBPS, Math.min(techo, 3 * SUELO_KBPS)));
+        // LLA1111Q: vuelve AL SUELO (una prueba, ver `PRUEBA_S`); de ahí sube con lo medido.
+        this.obj = Math.min(this.maxKbps, suelo);
         this.bajoSuelo = 0;
         this.reanudadoEn = ahora;
         this.motivo = "sitio-de-nuevo";
