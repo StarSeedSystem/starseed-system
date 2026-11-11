@@ -496,12 +496,12 @@ export class SesionVozDatos {
     const listo = this.cola.unidadesEnCola >= unidadesPaquete || ahora - items[0].ts >= n.msPaquete;
     if (!listo) return;
     if (this.d.transporte.ocupado()) return; // contrapresión: se queda en la cola (y cae lo más viejo)
-    // VOZ1111J: con un carril estrecho, 2 KiB en el enlace son segundos de voz vieja. Como mucho dos paquetes de este
-    // escalón esperando (más la ventana del vídeo si lo hay): lo demás espera aquí, donde cae lo más viejo y se cuenta.
-    if (this.d.transporte.colaVozBytes) {
+    // VOZ1111J: con un carril estrecho, 2 KiB en el enlace son segundos de voz vieja. Sin vídeo en el carril, como mucho
+    // dos paquetes de este escalón esperando: lo demás espera aquí, donde cae lo más viejo y se cuenta. Con vídeo manda
+    // el reparto de LLA1111B (su ventana ya acota lo que va delante de la voz): retener aquí la dejaría detrás del vídeo.
+    if (this.d.transporte.colaVozBytes && !this.d.transporte.videoEnCarril?.()) {
       const paquete = this.control ? bytesPaqueteNivel(this.control.nivel, this.formato, this.d.idLlamada) : 400;
-      const tope = Math.max(400, 2 * paquete) + (this.d.transporte.videoEnCarril?.() ? 1536 : 0);
-      if (this.d.transporte.colaVozBytes() > tope) return;
+      if (this.d.transporte.colaVozBytes() > Math.max(400, 2 * paquete)) return;
     }
     // Tramas enteras hasta llenar el paquete.
     let u = 0;
