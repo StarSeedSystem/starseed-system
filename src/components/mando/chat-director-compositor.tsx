@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { Send } from "lucide-react";
 import {
   MODELO_DIRECTOR_DEFECTO,
+  MODELO_PRESIDENTE,
   MOTORES_DIRECTOR,
   motorDe,
   type CanalId,
@@ -20,18 +21,38 @@ export interface CompositorDirectorProps {
 }
 
 const CLAVE_MODELO = "starseed.mando.director.modelo";
+/** (DIR1111G) Marca de la migración única al Director presidente como destinatario por defecto. */
+export const CLAVE_MIGRACION_PRESIDENTE = "starseed.mando.director.presidente-1111";
 
-/** Elige el modelo inicial: el guardado si existe entre los disponibles, si no el último, si no el de defecto. */
-export function modeloInicial(guardado: string | null, ultimo: string, disponibles: string[]): string {
+/**
+ * Elige el modelo inicial: el guardado si existe entre los disponibles; si no, el Director
+ * presidente (DIR1111G: Alex lo quiere como destinatario por defecto). El último modelo del
+ * feed ya no manda: con 91 respuestas de Hermes a avisos de rutina, abría siempre Hermes.
+ */
+export function modeloInicial(guardado: string | null, _ultimo: string, disponibles: string[]): string {
   if (guardado && disponibles.includes(guardado)) return guardado;
-  if (ultimo && ultimo.trim() !== "") return ultimo;
   return MODELO_DIRECTOR_DEFECTO;
+}
+
+/**
+ * (DIR1111G) Una sola vez por aparato: lo guardado pasa al Director presidente (lo que Alex
+ * pidió como destinatario por defecto). Después, lo que él elija se respeta. Devuelve el valor
+ * guardado tras migrar.
+ */
+export function migrarAPresidente(almacen: Pick<Storage, "getItem" | "setItem">): string | null {
+  if (!almacen.getItem(CLAVE_MIGRACION_PRESIDENTE)) {
+    almacen.setItem(CLAVE_MIGRACION_PRESIDENTE, "1");
+    almacen.setItem(CLAVE_MODELO, MODELO_PRESIDENTE);
+    // La migración vieja (DIR1029A) ya no tiene nada que mover.
+    almacen.setItem("starseed.mando.director.hermes-1029", "1");
+  }
+  return almacen.getItem(CLAVE_MODELO);
 }
 
 function leerGuardado(): string | null {
   try {
     if (typeof window === "undefined" || !window.localStorage) return null;
-    return window.localStorage.getItem(CLAVE_MODELO);
+    return migrarAPresidente(window.localStorage);
   } catch { return null; }
 }
 
@@ -83,7 +104,9 @@ export function CompositorDirector({ modelos, ultimoModelo, enviando = false, on
     setTexto("");
   };
 
-  const ayuda = modelo.startsWith("claude-cowork/")
+  const ayuda = modelo.startsWith("director-presidente/")
+    ? "Contesta el director que pueda ahora: Claude si sus límites lo permiten, si no Hermes o ChatGPT. Si nadie puede, queda en cola."
+    : modelo.startsWith("claude-cowork/")
     ? "Te responde la sesión de dirección de Claude en su próxima revisión."
     : modelo.startsWith("claude-mac/")
       ? "Opus 5.5 en tu Mac, con el proyecto entero (solo lectura)."
@@ -106,7 +129,7 @@ export function CompositorDirector({ modelos, ultimoModelo, enviando = false, on
           aria-label="Modelo con el que responder"
           value={modelo}
           onChange={(e) => cambiarModelo(e.target.value)}
-          className="cursor-pointer rounded-lg border border-violet-500/30 bg-zinc-900 px-2.5 py-1.5 text-xs text-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-400/60"
+          className="min-w-0 max-w-full cursor-pointer truncate rounded-lg border border-violet-500/30 bg-zinc-900 px-2.5 py-1.5 text-xs text-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-400/60"
         >
           {!disponibles.includes(modelo) && modelo.trim() !== "" && (
             <option value={modelo}>{modelo}</option>

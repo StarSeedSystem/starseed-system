@@ -1,0 +1,327 @@
+# -*- coding: utf-8 -*-
+"""Director presidente del Chat Director de Genesis (DIR1111G).
+
+Alex (2026-11-11): «un canal principal, el Director presidente, que se autoenrute entre
+modelos, contigo [Claude] así como con Hermes y otros medios y proveedores… el que debe
+responder lo principal de los chats de dirección».
+
+El cartero (`cartero_director.py`) llama a `atender` por cada mensaje con entrega
+pendiente en el canal «director-presidente». Aquí se decide QUIÉN contesta, sin listas
+nuevas de modelos: se reutiliza lo que Genesis ya tiene.
+
+  1. Claude Opus 5.5 en la Mac (`claude -p`, el motor de «claude-mac»), solo si sus límites
+     lo permiten: lectura reciente de `limites_claude.py` sin la sesión ni la semana en
+     «peligro», y el tope diario de Opus del cartero sin agotar.
+  2. Hermes (`hermes -z`), que ya se autoenruta por los proveedores gratuitos vivos
+     (`enrutar-hermes.py` ordena su cadena con el informe de pasarelas).
+  3. ChatGPT por Codex (`codex exec`), si está instalado.
+
+Si el primero no está o falla, se prueba el siguiente y la respuesta dice por qué. Si
+nadie puede, el mensaje queda EN COLA (entrega «pendiente» con su detalle visible) y se
+reintenta solo; nunca se tira ni se contesta con una frase hecha.
+
+Todo lo que toca el mundo (ejecutar órdenes, leer límites, ver si hay CLI) se inyecta:
+las pruebas usan falsos y carpetas temporales.
+"""
+
+import os
+import shutil
+import sys
+import tempfile
+import time
+from datetime import datetime, timezone
+from pathlib import Path
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+import director_chat
+import motores_director
+
+#: Mismo orden e ids que `PROVEEDORES_PRESIDENTE` de `src/lib/mando/chat-director-tipos.ts`.
+PROVEEDORES = ("claude", "hermes", "chatgpt")
+NOMBRES = {"claude": "Claude", "hermes": "Hermes", "chatgpt": "ChatGPT"}
+MODELOS = {
+    "claude": "claude-mac/" + motores_director.MODELO_DIRECTOR,
+    "hermes": "hermes/predeterminado",
+    "chatgpt": "codex/gpt-5-codex",
+}
+CANAL = "director-presidente"
+REINTENTO_COLA_S = 120
+ENFRIAMIENTO_S = 600
+MAX_COLA = 200
+RAIZ = Path(__file__).resolve().parent.parent.parent
+
+#: Lo que Hermes escribe cuando NINGÚN proveedor de su cadena contestó: no es una respuesta.
+_FALLOS_HERMES = ("kept failing over", "every provider in the fallback chain", "invalid api key")
+
+
+# ── Qué cuenta como dirección (igual que `esDireccion` de chat-director-feed.ts) ──────
+
+def es_director_de_conversacion(de):
+    q = (de or "").lower()
+    return q in ("director-presidente", "hermes", "chatgpt", "codex", "antigravity") or q.startswith("claude")
+
+
+def es_direccion(r, por_id=None):
+    """PURA. ¿El registro es conversación de dirección (no rutina del enjambre)?"""
+    if not isinstance(r, dict) or r.get("tipo") == "entrega":
+        return False
+    if r.get("rol") == "alex":
+        return True
+    if r.get("canal") == CANAL or r.get("sintesis") is True:
+        return True
+    if r.get("tipo") in ("uso", "actualizacion"):
+        return False
+    original = (por_id or {}).get(r.get("respondeA")) if r.get("respondeA") else None
+    if r.get("tipo") == "respuesta" and original and original.get("rol") != "alex":
+        return False
+    if es_director_de_conversacion(r.get("de")):
+        return True
+    return r.get("tipo") == "respuesta" and r.get("rol") == "director" and bool(original) \
+        and original.get("rol") == "alex"
+
+
+def hilo_direccion(registros, excluir_id=None, maximo=20):
+    """PURA. Los últimos `maximo` mensajes de dirección (sin el que se contesta)."""
+    por_id = {r.get("id"): r for r in registros if isinstance(r, dict) and r.get("id")}
+    hilo = [r for r in registros if r.get("id") != excluir_id and es_direccion(r, por_id)]
+    hilo.sort(key=director_chat._epoch_de)
+    return hilo[-maximo:]
+
+
+def prompt_presidente(pregunta, hilo, contexto=""):
+    """PURA. El prompt del presidente: reglas, contexto del proyecto y el hilo de dirección."""
+    partes = [
+        "Eres el Director presidente de Genesis (StarSeed OS): la voz principal de la "
+        "dirección. Responde en español, claro y breve, con la síntesis de lo que han dicho "
+        "los demás directores cuando venga al caso.",
+        "Reglas: no escribes código (lo escribe el enjambre tarea a tarea); propones olas, "
+        "verificas puertas y decides rumbo. Si no sabes algo, dilo.",
+    ]
+    if contexto:
+        partes.append("Contexto del proyecto:\n" + contexto[:8000])
+    if hilo:
+        lineas = []
+        for r in hilo:
+            quien = "Alex" if r.get("rol") == "alex" else (r.get("de") or "director")
+            marca = " (síntesis)" if r.get("sintesis") else ""
+            tipo = r.get("tipo") or "mensaje"
+            lineas.append("[%s · %s%s] %s" % (quien, tipo, marca, (r.get("texto") or "")[:1500]))
+        partes.append("Hilo de dirección (lo más reciente al final):\n" + "\n".join(lineas))
+    partes.append("Mensaje de Alex al Director presidente: " + (pregunta or ""))
+    return "\n\n".join(partes)
+
+
+# ── Quién puede contestar ahora ──────────────────────────────────────────────────
+
+def _hoy(ahora):
+    return datetime.fromtimestamp(ahora, timezone.utc).astimezone().strftime("%Y-%m-%d")
+
+
+def _horas(minutos):
+    if minutos is None:
+        return "?"
+    if minutos >= 48 * 60:
+        return "%d días" % round(minutos / 1440)
+    if minutos >= 120:
+        return "%d h" % round(minutos / 60)
+    return "%d min" % round(minutos)
+
+
+def disponibilidad_claude(datos_limites, ahora, opus_hoy, tope_opus):
+    """PURA. (puede, motivo) de Claude según `limites_claude.estado` y el tope diario de Opus."""
+    import limites_claude  # noqa: PLC0415 — mismo directorio
+
+    if opus_hoy >= tope_opus:
+        return False, "tope de Opus del día alcanzado (%d de %d)" % (opus_hoy, tope_opus)
+    if not isinstance(datos_limites, dict) or not datos_limites.get("lecturas"):
+        return False, "no hay lecturas de sus límites (limites_claude.py declarar)"
+    est = limites_claude.estado(datos_limites, datetime.fromtimestamp(ahora, timezone.utc))
+    if est.get("desactualizada"):
+        return False, "su última lectura de límites es de hace %s; sin lectura no se arriesga" % _horas(
+            est.get("lectura_hace_min"))
+    for campo, nombre in (("sesion", "sesión"), ("semana", "semana")):
+        v = est.get(campo) or {}
+        if v.get("tono") == "peligro":
+            pct = v.get("pct")
+            return False, "límite de la %s al %s %%" % (nombre, "?" if pct is None else int(round(pct)))
+    return True, ""
+
+
+def ordenar(disponibilidad, enfriados, ahora):
+    """PURA. Orden de intento y descartes.
+
+    `disponibilidad`: {proveedor: (puede, motivo)}; `enfriados`: {proveedor: {hasta, motivo}}
+    (los que fallaron hace poco). Devuelve (candidatos, [(proveedor, motivo), …]).
+    """
+    candidatos, descartes = [], []
+    for p in PROVEEDORES:
+        puede, motivo = disponibilidad.get(p, (False, "no configurado"))
+        frio = (enfriados or {}).get(p) or {}
+        if not puede:
+            descartes.append((p, motivo or "no disponible"))
+        elif float(frio.get("hasta") or 0) > ahora:
+            descartes.append((p, "falló hace poco (%s)" % (frio.get("motivo") or "sin detalle")))
+        else:
+            candidatos.append(p)
+    return candidatos, descartes
+
+
+def texto_descartes(descartes):
+    """PURA. «Claude: …; Hermes: …» para la respuesta o el detalle de la cola."""
+    return "; ".join("%s: %s" % (NOMBRES.get(p, p), m) for p, m in descartes)
+
+
+def detalle_cola(descartes):
+    return ("En cola: ningún director puede contestar ahora (%s). Se reintenta solo cada %d min."
+            % (texto_descartes(descartes) or "sin proveedores", REINTENTO_COLA_S // 60))
+
+
+# ── Llamadas (con `correr` inyectado) ────────────────────────────────────────────
+
+def _llamar_claude(prompt, correr):
+    rc, salida = correr(
+        motores_director.orden_claude(prompt, motores_director.MODELO_DIRECTOR, None),
+        env=motores_director.entorno_sin_claves_api(os.environ),
+        cwd=str(RAIZ),
+        segundos=600,
+    )
+    if "Credit balance is too low" in (salida or ""):
+        return None, "la cuenta de Claude Code no tiene saldo", {}
+    lectura = motores_director.leer_claude(salida)
+    if lectura.get("error") or not lectura.get("texto"):
+        return None, director_chat.tachar((lectura.get("error") or salida or "sin salida")[:200]), {}
+    uso = {"tokensEntrada": lectura["tokens_entrada"], "tokensSalida": lectura["tokens_salida"],
+           "coste": lectura["coste"]}
+    return lectura["texto"].strip(), "", uso
+
+
+def _llamar_hermes(prompt, correr, sesion=None):
+    import json  # noqa: PLC0415
+
+    with tempfile.NamedTemporaryFile(mode="r", suffix=".json", delete=False, encoding="utf-8") as f:
+        archivo_uso = f.name
+    try:
+        rc, salida = correr(motores_director.orden_hermes(prompt, None, archivo_uso, sesion), segundos=600)
+        try:
+            datos = json.loads(Path(archivo_uso).read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            datos = {}
+    finally:
+        try:
+            os.unlink(archivo_uso)
+        except OSError:
+            pass
+    texto = (salida or "").strip()
+    bajo = texto.lower()
+    if (rc != 0 and not texto) or not texto or (len(texto) < 600 and any(m in bajo for m in _FALLOS_HERMES)):
+        return None, director_chat.tachar((texto or "sin salida (rc=%s)" % rc)[:200]), {}
+    uso = {"tokensEntrada": datos.get("input_tokens", 0), "tokensSalida": datos.get("output_tokens", 0),
+           "coste": datos.get("cost_usd", 0.0)}
+    return texto, "", uso
+
+
+def _llamar_chatgpt(prompt, correr):
+    rc, salida = correr(motores_director.orden_codex("gpt-5-codex", str(RAIZ)), entrada=prompt, segundos=600)
+    texto = (salida or "").strip()
+    if rc != 0 or not texto:
+        return None, director_chat.tachar((texto or "sin salida (rc=%s)" % rc)[:200]), {}
+    return texto, "", {}
+
+
+def fuera_de_vista(estado, ids_vistos):
+    """PURA. Mensajes en cola que ya no están en la ventana del cartero (para no perderlos)."""
+    cola = ((estado or {}).get("presidente") or {}).get("cola") or {}
+    vistos = set(ids_vistos or ())
+    return [e["mensaje"] for i, e in cola.items()
+            if i not in vistos and isinstance(e, dict) and isinstance(e.get("mensaje"), dict)]
+
+
+def existe_cli(nombre):
+    """¿Está instalada la orden? (también en ~/.local/bin, donde vive Hermes)."""
+    return bool(shutil.which(nombre)) or os.path.exists(os.path.expanduser("~/.local/bin/" + nombre))
+
+
+def leer_limites():
+    import limites_claude  # noqa: PLC0415
+
+    return limites_claude.leer()
+
+
+def atender(mensaje, estado, raiz=None, correr=None, existe=None, limites=None,
+            contexto="", tope_opus=40, ahora=None, sesion_hermes=None, registros=None):
+    """Contesta un mensaje al presidente o lo deja en cola.
+
+    Devuelve «respondido», «cola» (nadie pudo: queda pendiente con su detalle) o «espera»
+    (sigue en cola y aún no toca reintentar). Nunca lanza por un proveedor caído.
+    """
+    correr = correr or motores_director.correr
+    existe = existe or existe_cli
+    ahora = time.time() if ahora is None else ahora
+    datos_limites = leer_limites() if limites is None else limites
+    pres = estado.setdefault("presidente", {})
+    cola = pres.setdefault("cola", {})
+    enfriados = pres.setdefault("enfriados", {})
+    idm = mensaje["id"]
+
+    previo = cola.get(idm) or {}
+    if float(previo.get("proximo") or 0) > ahora:
+        return "espera"
+
+    if estado.get("opus_fecha") != _hoy(ahora):
+        estado["opus_fecha"] = _hoy(ahora)
+        estado["opus_hoy"] = 0
+    disponibilidad = {
+        "claude": disponibilidad_claude(datos_limites, ahora, int(estado.get("opus_hoy") or 0), tope_opus)
+        if existe("claude") else (False, "la orden claude no está instalada"),
+        "hermes": (True, "") if existe("hermes") else (False, "la orden hermes no está instalada"),
+        "chatgpt": (True, "") if existe("codex") else (False, "la orden codex no está instalada"),
+    }
+    candidatos, descartes = ordenar(disponibilidad, enfriados, ahora)
+
+    if registros is None:
+        registros = director_chat.leer(limite=200, raiz=raiz)
+    prompt = prompt_presidente(mensaje.get("texto", ""), hilo_direccion(registros, idm), contexto)
+
+    for p in candidatos:
+        inicio = time.time()
+        try:
+            if p == "claude":
+                texto, motivo, uso = _llamar_claude(prompt, correr)
+            elif p == "hermes":
+                texto, motivo, uso = _llamar_hermes(prompt, correr, sesion_hermes)
+            else:
+                texto, motivo, uso = _llamar_chatgpt(prompt, correr)
+        except OSError as e:
+            texto, motivo, uso = None, "no se pudo lanzar: %s" % e, {}
+        if not texto:
+            enfriados[p] = {"hasta": ahora + ENFRIAMIENTO_S, "motivo": motivo}
+            descartes.append((p, motivo))
+            continue
+        if p == "claude":
+            estado["opus_hoy"] = int(estado.get("opus_hoy") or 0) + 1
+        enfriados.pop(p, None)
+        uso = dict(uso)
+        uso["segundos"] = round(time.time() - inicio, 1)
+        eleccion = {"proveedor": p, "modelo": MODELOS[p]}
+        if descartes:
+            eleccion["descartes"] = [{"proveedor": d, "motivo": m} for d, m in descartes]
+        director_chat.publicar(
+            texto, de=CANAL, rol="director", tipo="respuesta", canal=CANAL, modelo=MODELOS[p],
+            responde_a=idm, uso=uso, raiz=raiz, sintesis=True, eleccion=eleccion,
+        )
+        director_chat.entrega(idm, CANAL, "respondido", raiz=raiz)
+        cola.pop(idm, None)
+        return "respondido"
+
+    detalle = detalle_cola(descartes)
+    if previo.get("detalle") != detalle:
+        director_chat.entrega(idm, CANAL, "pendiente", detalle=detalle, raiz=raiz)
+    # Se guarda el mensaje: si el chat avanza y sale de la ventana que lee el cartero, sigue en cola.
+    cola[idm] = {"proximo": ahora + REINTENTO_COLA_S, "detalle": detalle,
+                 "mensaje": {k: mensaje[k] for k in ("id", "t", "de", "rol", "tipo", "texto", "canal",
+                                                     "canales", "modelo") if k in mensaje}}
+    if len(cola) > MAX_COLA:
+        for viejo in sorted(cola, key=lambda k: cola[k].get("proximo", 0))[: len(cola) - MAX_COLA]:
+            cola.pop(viejo, None)
+    return "cola"

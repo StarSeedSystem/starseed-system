@@ -26,10 +26,12 @@ from pathlib import Path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import director_chat
+import director_presidente  # DIR1111G
 import motores_director
 
 RAIZ = Path(__file__).resolve().parent.parent.parent
-CANALES_ACTIVOS = ("claude-mac", "claude-cowork", "hermes", "chatgpt", "telegram")
+CANALES_ACTIVOS = ("claude-mac", "claude-cowork", "hermes", "chatgpt", "telegram",
+                   "director-presidente")  # DIR1111G
 PAUSA_SEGUNDOS = 5
 INFORME_CADA_SEGUNDOS = 3 * 3600
 TOPE_OPUS = int(os.environ.get("STARSEED_DIRECTOR_TOPE_OPUS", "40"))
@@ -287,6 +289,26 @@ def _entregar_telegram(mensaje, raiz=None):
 
 
 def atender(mensaje, canal, estado, raiz=None):
+    # DIR1111G ── El Director presidente elige quién contesta (director_presidente.py). Si nadie
+    # puede, el mensaje queda EN COLA y NO se anota como atendido: se reintenta solo.
+    if canal == director_presidente.CANAL:
+        try:
+            r = director_presidente.atender(
+                mensaje, estado, raiz=raiz, contexto=_contexto(), tope_opus=TOPE_OPUS,
+                sesion_hermes=motores_director.direccion_motor().get("sesion"),
+            )
+        except Exception as e:  # noqa: BLE001 — un fallo propio queda en cola, nunca se tira
+            cola = estado.setdefault("presidente", {}).setdefault("cola", {})
+            detalle = "En cola: fallo del cartero (%s); se reintenta solo." % type(e).__name__
+            if (cola.get(mensaje["id"]) or {}).get("detalle") != detalle:
+                director_chat.entrega(mensaje["id"], canal, "pendiente", detalle=detalle, raiz=raiz)
+            cola[mensaje["id"]] = {"proximo": time.time() + director_presidente.REINTENTO_COLA_S,
+                                   "detalle": detalle}
+            return
+        if r == "respondido":
+            estado["atendidos"].append("%s|%s" % (mensaje["id"], canal))
+        return
+    # /DIR1111G
     try:
         if canal in ("claude-mac", "claude-cowork") and motores_director.direccion_motor()["motor"] == "hermes":
             # (2026-10-29, DIR1029A) La dirección va por Hermes: contesta en su sesión de dirección.
@@ -427,6 +449,9 @@ def pasada(estado, raiz=None):
         mensaje = por_id.get(id_mensaje)
         if mensaje:
             atender(mensaje, canal, estado, raiz=raiz)
+    # DIR1111G: lo que sigue en cola del presidente aunque ya no quepa en los 200 últimos registros.
+    for mensaje in director_presidente.fuera_de_vista(estado, por_id.keys()):
+        atender(mensaje, director_presidente.CANAL, estado, raiz=raiz)
     if time.time() - estado.get("ultimo_informe", 0.0) >= INFORME_CADA_SEGUNDOS:
         publicar_informe_uso(estado, raiz=raiz)
     guardar_estado(estado, raiz=raiz)

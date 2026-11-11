@@ -71,12 +71,13 @@ describe("CANALES", () => {
         expect(new Set(ids).size).toBe(10); // FIX1111A: el enjambre añadió «director-presidente»
     });
 
-    it("cada motor tiene canal de verdad y el de defecto es el de Cowork", () => {
+    it("cada motor tiene canal de verdad y el de defecto es el Director presidente (DIR1111G)", () => {
         const idsCanales = new Set(CANALES.map((c) => c.id));
         for (const motor of MOTORES_DIRECTOR) {
             expect(idsCanales.has(motor.canal)).toBe(true);
         }
-        expect(MODELO_DIRECTOR_DEFECTO).toBe("hermes/predeterminado");
+        expect(MODELO_DIRECTOR_DEFECTO).toBe("director-presidente/auto");
+        expect(motorDe(MODELO_DIRECTOR_DEFECTO)).toBe("director-presidente");
     });
 });
 

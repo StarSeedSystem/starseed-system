@@ -86,6 +86,37 @@ describe("ChatDirector", () => {
     expect(await screen.findByText("Recibido, al lío.")).toBeInTheDocument();
   });
 
+  // DIR1111G
+  it("Dirección tiene chips, recuerda el de cada pestaña y avisa con un toque para quitarlo si deja vacío", async () => {
+    render(<ChatDirector />);
+    await screen.findByText("Hola, dirección");
+    fireEvent.click(screen.getByRole("tab", { name: "Dirección" }));
+    const grupo = screen.getByRole("group", { name: "Filtros de Dirección" });
+    expect(grupo).toHaveTextContent("Todos los directores");
+    // Solo claude-cowork habló: su chip existe; el del presidente no (no tiene nada detrás).
+    fireEvent.click(screen.getByRole("button", { name: /Claude \(Cowork\)/ }));
+    expect(screen.getByText("Recibido, al lío.")).toBeInTheDocument();
+    expect(screen.queryByText("Ola integrada sin novedad.")).not.toBeInTheDocument();
+    expect(JSON.parse(window.localStorage.getItem("starseed.mando.director.filtros") || "{}")).toEqual({ direccion: "director:claude-cowork" });
+    // Otra pestaña tiene su propio chip (ninguno) y la de Dirección conserva el suyo.
+    fireEvent.click(screen.getByRole("tab", { name: "Informes" }));
+    expect(screen.getByText("Ola integrada sin novedad.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: "Dirección" }));
+    expect(screen.getByRole("button", { name: /Claude \(Cowork\)/ })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("un chip guardado que hoy no deja nada lo dice y se quita de un toque", async () => {
+    window.localStorage.setItem("starseed.mando.director.filtros", JSON.stringify({ direccion: "presidente" }));
+    render(<ChatDirector />);
+    await screen.findByRole("tab", { name: "Todo" });
+    fireEvent.click(screen.getByRole("tab", { name: "Dirección" }));
+    const vacio = await screen.findByTestId("filtro-vacio");
+    expect(vacio).toHaveTextContent("Nada con «Director presidente» en Dirección");
+    fireEvent.click(screen.getByRole("button", { name: "Quitar el filtro" }));
+    expect(screen.getByText("Recibido, al lío.")).toBeInTheDocument();
+    expect(window.localStorage.getItem("starseed.mando.director.filtros")).toBe("{}");
+  });
+
   it("filtra por Informes", async () => {
     render(<ChatDirector />);
     await screen.findByText("Hola, dirección");
@@ -111,7 +142,9 @@ describe("ChatDirector", () => {
     const cuerpo = JSON.parse(String(post?.init?.body)) as Record<string, unknown>;
     expect(cuerpo.accion).toBe("decir");
     expect(cuerpo.texto).toBe("Revisen la cola");
-    expect(cuerpo.modelo).toBe("nim/mixtral");
+    // DIR1111G: el destinatario por defecto es el Director presidente.
+    expect(cuerpo.modelo).toBe("director-presidente/auto");
+    expect(cuerpo.canales).toEqual(["director-presidente"]);
   });
 
   it("lee el feed UNA vez al montar, no en bucle", async () => {
