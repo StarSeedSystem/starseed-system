@@ -122,3 +122,44 @@ Cuando el BitNet de la Mac duerme (o no está), la capa de capas de conciencia d
   no se sondea nada.
 - **URL por entorno** (nunca hardcode): `STARSEED_ORACLE_BITNET_URL` en `~/.starseed/env`
   de la Mac; ante 429/402/errores, relevo a la cadena del sistema sin insistir.
+
+## 7. De dónde leen los medidores lo que corre ahora (MED1111E · 2026-11-11)
+
+**Alex (2026-11-11):** «reporta los procesos activos, ya que en MetaGenesis siguen sin aparecer, que ya te lo había
+pedido, los medidores». Durante seis horas un director de Claude repartió cuatro agentes y corrió cuatro puertas de
+integración, y Genesis marcó cero procesos: leía el enjambre, las nubes y el A1, pero no los dos sitios donde vive ese
+trabajo. Ahora los lee, y la regla de siempre manda («basta de ilusiones»): algo es un proceso vivo solo mientras haya
+rastro reciente de que lo está.
+
+### 7.1 Las fuentes de «Agentes» y de «Qué corre ahora»
+
+| Fuente | Dónde está | Qué cuenta | Módulo |
+|---|---|---|---|
+| Enjambre de la Mac, nubes, Cloudroom, A1 | latidos del bus, `alta-capacidad-nube.json`, `cloudroom-hilos.json`, ciclo del nodo | agentes por tarea (sin cambios) | `agentes-*.ts`, `medidores.ts` |
+| **Carril de Claude** | `starseed_memory_root/olas/carril-claude/registro.json` (lo escribe `relevo_carril_claude.py`) | cada tarea `en_curso` es un agente **solo si el latido del carril tiene ≤ 45 min** (el mismo umbral con que Python lo da por muerto y relevo); con el latido viejo se enseña «sin latido desde hace N min» y no cuenta; las `pendiente` son cola, nunca agentes | `carril-claude.ts` |
+| **Puerta de integración** | `~/.starseed/produccion/puerta-estado.json` y, de respaldo, el `~/.starseed/opus1031/aplicar-*.log` más nuevo | ramas, paso (esperando, integrando, pruebas, tipos, final, terminado), minutos en el paso, resultado con cuentas o el primer fallo; «en curso» sin rastro en 40 min = «sin señal», no «corriendo» | `puerta-integracion.ts`, `en-marcha-disco.ts` |
+| Publicación | `autopublicar-estado.json` | fase `ci`/`verificando` = publicando (sin novedad en 90 min = sin señal) | `en-marcha.ts` |
+
+`en-marcha.ts` junta las tres en un solo lugar y **en este orden** (carril, puerta, publicación). Sin nada corriendo
+dice «No corre nada ahora» y nombra lo último que terminó y cuándo. Se ve en `EnMarchaAhora`
+(`src/components/mando/en-marcha-ahora.tsx`): arriba del panel de procesos y arriba de los medidores «Agentes» y
+«En curso». `GET /api/mando/medidores` lo devuelve como `enMarcha` (nivel superior, junto a `detalle`).
+
+### 7.2 El estado de la puerta (el script del supervisor lo escribe en cada paso)
+`scripts/puente/puerta_estado.py` (`iniciar`, `paso`, `pruebas`, `cerrar`; también por línea de órdenes). Campos de
+`puerta-estado.json`: `nombre`, `ramas`, `base`, `paso`, `inicio`, `actualizado` (cuándo empezó el paso actual),
+`fin`, `resultado` (`en_curso`, `verde`, `rojo`), `pruebas` {`archivos`, `pruebas`, `falladas`, `omitidas`}, `fallo`
+(una frase sin rutas). Nunca lanza: si no puede escribir devuelve `False` y la puerta sigue. El lector es tolerante:
+sin el archivo cae al log, que cubre la puerta que ya corre.
+`relevo_carril_claude.py cerrar` anota ahora `cerrada` en la tarea para que Genesis diga cuándo terminó lo último.
+
+### 7.3 A otras neuronas
+La foto de medidores que el líder copia a la puerta (`espejo_puerta.py · resumen_medidores`) lleva `en_marcha`; la
+Genesis de otra neurona lo lee con `parsearFoto` y lo pinta igual. Viaja **solo** ids de tarea y de rama, títulos
+(recortados a 160 caracteres), estados, cuentas y tiempos. **Nunca** el `prompt` de una tarea, sus `archivos`, ninguna
+ruta absoluta (se tachan como `[ruta]`) ni claves: lista blanca de campos en Python y en TypeScript, con pruebas en
+ambos lados.
+
+### 7.4 Lo que no hace
+No toca el script de la puerta (es del supervisor y vive fuera del repo); no escribe en `~/.starseed/produccion/`
+más que `puerta-estado.json` y solo desde el script de la puerta; no cuenta como agente nada que no tenga latido.

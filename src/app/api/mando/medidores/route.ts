@@ -23,6 +23,10 @@ import { lanzarPublicacion, leerDiario } from "@/lib/mando/publicador";
 import { POST as reintentarTareas } from "@/app/api/mando/reintentar/route";
 import { leerCreditosPago } from "@/lib/mando/creditos-pago";
 import { agentesDeClaudeNube } from "@/lib/mando/agentes-claude-nube";
+// MED1111E
+import { agentesDeCarrilClaude } from "@/lib/mando/carril-claude";
+import { type EnMarcha, publicacionParaEnviar } from "@/lib/mando/en-marcha";
+import { leerCarrilDeDisco, leerPuertaDeDisco } from "@/lib/mando/en-marcha-disco";
 import { agentesDeCloudroom } from "@/lib/mando/agentes-cloudroom";
 import { agentesDelA1, colaDelA1, DONDE_ORACLE } from "@/lib/mando/agentes-oracle";
 import {
@@ -98,7 +102,24 @@ async function leerAutopublicacion(): Promise<DatosMedidores["autopublicacion"]>
         fase: typeof estado.fase === "string" ? estado.fase : undefined,
         detalle: typeof estado.detalle === "string" ? estado.detalle : undefined,
         ultimaMs: Number.isFinite(ultima) && ultima > 0 ? ultima * 1000 : undefined,
+        // MED1111E: cuándo anotó su fase («2026-11-11 01:14:14», hora local), para no dar por viva una fase «ci» vieja.
+        actualizadoMs: typeof estado.actualizado === "string" && Number.isFinite(Date.parse(estado.actualizado.replace(" ", "T")))
+            ? Date.parse(estado.actualizado.replace(" ", "T"))
+            : undefined,
     };
+}
+
+// MED1111E · El carril de Claude y la puerta de integración ───────────────────────────────────────
+async function leerEnMarcha(): Promise<EnMarcha | null> {
+    const [carril, puerta, publicacion] = await Promise.all([
+        leerCarrilDeDisco(RAÍZ),
+        leerPuertaDeDisco(
+            path.join(os.homedir(), ".starseed", "produccion", "puerta-estado.json"),
+            path.join(os.homedir(), ".starseed", "opus1031"),
+        ),
+        leerAutopublicacion().then(publicacionParaEnviar).catch(() => null),
+    ]);
+    return carril || puerta || publicacion ? { generadoMs: Date.now(), carril, puerta, publicacion } : null;
 }
 
 /** (2026-11-05, VER1105D) Estado del director de lanzamientos (Centro de Versiones).
@@ -875,6 +896,11 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
         titulos[agentesA1[0].tarea] = `Cola ${agentesA1[0].cola} en el A1 de Oracle${n ? ` (${n} tarea${n === 1 ? "" : "s"})` : ""}`;
     }
 
+    // MED1111E · Los agentes del carril de Claude: cuentan SOLO con el latido del carril reciente.
+    const enMarcha = await midiendo("enMarcha", leerEnMarcha());
+    const agentesCarril = agentesDeCarrilClaude(enMarcha?.carril);
+    for (const a of agentesCarril) if (!titulos[a.tarea]) titulos[a.tarea] = a.titulo;
+
     // Si tardó más de 5 s, se dice QUÉ fuente lo hizo (las tres más lentas): así el log
     // de Genesis explica las esperas en vez de solo registrar «heap out of memory».
     const total = Date.now() - inicio;
@@ -896,6 +922,7 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
             ...latidosDeAqui,
             ...agentesNube,
             ...(await leerSesionesClaudeNube(progreso)),
+            ...agentesCarril, // MED1111E
             ...(await leerHilosCloudroom(progreso)),
             ...agentesA1,
         ],
@@ -919,6 +946,7 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
         publicacion: await leerDiario().catch(() => null),
         // (2026-10-08) Y el de la autopublicación: quién publica el OS y cuándo lo hizo por última vez.
         autopublicacion: await leerAutopublicacion().catch(() => null),
+        enMarcha, // MED1111E
         ejecutables,
         enjambreVivo: vivo,
         enjambrePausado: pausado,
@@ -1028,10 +1056,14 @@ export async function GET(peticion: Request): Promise<Response> {
         // Lo que la foto puede decir en forma propia de `DatosMedidores` sin inventar nada más.
         datos.enjambreVivo = puerta.foto.enjambreVivo;
         datos.enjambrePausado = puerta.foto.enjambrePausado;
+        // MED1111E: el carril y la puerta de la neurona que tiene los archivos (solo ids, títulos, estados, cuentas y tiempos).
+        if (puerta.foto.enMarcha) datos.enMarcha = puerta.foto.enMarcha;
     }
     return Response.json(
         {
             detalle: detalleDeMedidor(clave, datos),
+            // MED1111E · Qué corre ahora y qué acaba de terminar (carril de Claude, puerta, publicación). Sin prompts ni rutas.
+            enMarcha: datos.enMarcha ?? null,
             generadoEn: new Date().toISOString(),
             datosDe,
             obsoleto: turno.obsoleto,

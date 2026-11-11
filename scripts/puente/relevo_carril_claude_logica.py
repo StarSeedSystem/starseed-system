@@ -159,8 +159,13 @@ def registrar(registro: Dict[str, Any], nuevas: List[Dict[str, Any]], ahora: dat
     return {**registro, "tareas": list(por_id.values()), "latido": ahora.isoformat()}
 
 
-def cerrar(registro: Dict[str, Any], ids: Iterable[str], estado: str = "hecha") -> Dict[str, Any]:
-    """Claude cierra lo que terminó (hecha) o descarta (cancelada)."""
+def cerrar(registro: Dict[str, Any], ids: Iterable[str], estado: str = "hecha",
+           ahora: Optional[datetime] = None) -> Dict[str, Any]:
+    """Claude cierra lo que terminó (hecha) o descarta (cancelada).
+
+    MED1111E: con `ahora` cada tarea cerrada lleva su hora en `cerrada`, para que Genesis pueda decir
+    cuándo terminó lo último (sin ella solo sabe que terminó)."""
     ids = set(ids)
-    return {**registro, "tareas": [dict(t, estado=estado) if t.get("id") in ids else t
+    sello = {"cerrada": ahora.isoformat()} if ahora is not None else {}
+    return {**registro, "tareas": [dict(t, estado=estado, **sello) if t.get("id") in ids else t
                                    for t in registro.get("tareas") or []]}

@@ -5,6 +5,7 @@
  * (`metagenesis/estado.medidores`, `espejo_puerta.py · resumen_medidores`) y su arriendo
  * (`director/direccion.lider`, que dice de qué neurona). Aquí el parseo, la decisión y la marca.
  */
+import { sanearEnMarcha, type EnMarcha } from "./en-marcha";
 export const MAS_VIEJA_MS = 10 * 60_000;
 export const VIDA_FOTO_MS = 2 * 3_600_000;
 export const CACHE_MS = 60_000;
@@ -12,6 +13,8 @@ export const TOPE_PETICION_MS = 4_000;
 export interface FotoPuerta {
     generadoEn: string; obsoleto: boolean; enjambreVivo: boolean; enjambrePausado: boolean;
     agentes: number; fila: number; estados: Record<string, number>;
+    /** (MED1111E) El carril de Claude, la puerta de integración y la publicación de la neurona líder. Solo ids, títulos, estados, cuentas y tiempos. */
+    enMarcha?: EnMarcha;
 }
 /** `desde`: el dueño del arriendo vigente (`mac-…`); `tFoto`: ms de 1970 de la foto (0 si no hay). */
 export interface LecturaPuerta {
@@ -28,7 +31,9 @@ export function parsearFoto(datos: unknown): FotoPuerta | null {
     if (!generadoEn || !Number.isFinite(Date.parse(generadoEn))) return null;
     const num = (v: unknown) => Math.max(0, Math.trunc(Number(v)) || 0);
     const estados = Object.entries((d.estados ?? {}) as Record<string, unknown>).slice(0, 10);
+    const enMarcha = sanearEnMarcha(d.en_marcha); // MED1111E
     return {
+        ...(enMarcha ? { enMarcha } : {}),
         generadoEn, obsoleto: d.obsoleto === true, enjambreVivo: d.enjambre_vivo === true, enjambrePausado: d.enjambre_pausado === true,
         agentes: num(d.agentes), fila: num(d.fila),
         estados: Object.fromEntries(estados.filter(([k]) => /^[a-z_]{1,20}$/.test(k)).map(([k, c]) => [k, num(c)])),

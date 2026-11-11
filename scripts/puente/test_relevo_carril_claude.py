@@ -98,5 +98,19 @@ class DeExtremoAExtremo(unittest.TestCase):
             self.assertFalse(r["relevado"])
 
 
+class CerrarConHora(unittest.TestCase):
+    def test_cerrar_anota_cuando_se_cerro(self):
+        reg = L.registrar({}, [tarea("P1"), tarea("P2")], T0)
+        cerrado = L.cerrar(reg, ["P1"], "hecha", T0 + timedelta(minutes=5))
+        p1, p2 = cerrado["tareas"]
+        self.assertEqual(p1["estado"], "hecha")
+        self.assertEqual(p1["cerrada"], (T0 + timedelta(minutes=5)).isoformat())
+        self.assertNotIn("cerrada", p2)
+
+    def test_sin_hora_queda_como_antes(self):
+        reg = L.cerrar(L.registrar({}, [tarea("P1")], T0), ["P1"])
+        self.assertNotIn("cerrada", reg["tareas"][0])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -112,7 +112,7 @@ def main(argv=None) -> int:
         guardar(reg)
         print("registradas %d · abiertas %d" % (len(nuevas) if isinstance(nuevas, list) else 1, len(L.tareas_abiertas(reg))))
     elif a.orden == "cerrar":
-        guardar(L.cerrar(leer(), a.ids, "cancelada" if a.cancelar else "hecha"))
+        guardar(L.cerrar(leer(), a.ids, "cancelada" if a.cancelar else "hecha", ahora()))
         print("cerradas: %s" % ", ".join(a.ids))
     elif a.orden == "estado":
         reg, m = leer(), ahora()

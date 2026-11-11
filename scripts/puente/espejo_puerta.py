@@ -12,6 +12,7 @@ copiar cada 5 min inflaría esa cifra sin ahorrar nada). Sin puerta configurada 
 Nunca imprime la URL de la puerta ni la ficha. Solo biblioteca estándar.
 """
 import json
+import re
 import os
 import time
 import urllib.request
@@ -132,6 +133,55 @@ def resumir_colas(colas, progreso):
     return fuera
 
 
+def _num(v):
+    return v if isinstance(v, (int, float)) and not isinstance(v, bool) and v >= 0 else None
+
+
+def _txt(v, tope):
+    if not isinstance(v, str):
+        return ""
+    sin_rutas = re.sub(r"(?:[A-Za-z]:\\|/(?:Users|home|tmp|var|private|mnt|opt|root)/)[^\s\"')\]]*", "[ruta]", v)
+    return tachar_valor(sin_rutas, tope)
+
+
+def resumir_en_marcha(en):
+    """PURA (MED1111E). El carril de Claude, la puerta de integración y la publicación de la foto de medidores:
+    SOLO ids, títulos, estados, cuentas y tiempos, con lista blanca de campos. Nunca el `prompt` de una tarea ni
+    una ruta (aunque llegaran en la foto): lo que no está en la lista no pasa."""
+    if not isinstance(en, dict):
+        return None
+    salida = {}
+    c = en.get("carril")
+    if isinstance(c, dict):
+        tareas = []
+        for t in (c.get("tareas") if isinstance(c.get("tareas"), list) else [])[:40]:
+            if isinstance(t, dict) and isinstance(t.get("id"), str):
+                tareas.append({"id": _txt(t["id"], 40), "titulo": _txt(t.get("titulo"), 160),
+                               "estado": _txt(t.get("estado"), 20), "ola": _txt(t.get("ola"), 20),
+                               "desdeMs": _num(t.get("desdeMs")), "cerradaMs": _num(t.get("cerradaMs"))})
+        salida["carril"] = {"latidoMs": _num(c.get("latidoMs")), "tareas": tareas}
+    p = en.get("puerta")
+    if isinstance(p, dict):
+        pr = p.get("pruebas") if isinstance(p.get("pruebas"), dict) else None
+        salida["puerta"] = {
+            "origen": "log" if p.get("origen") == "log" else "estado", "nombre": _txt(p.get("nombre"), 40),
+            "ramas": [_txt(r, 80) for r in (p.get("ramas") if isinstance(p.get("ramas"), list) else [])[:20] if isinstance(r, str)],
+            "base": _txt(p.get("base"), 10), "paso": _txt(p.get("paso"), 20), "resultado": _txt(p.get("resultado"), 20),
+            "inicioMs": _num(p.get("inicioMs")), "actualizadoMs": _num(p.get("actualizadoMs")), "finMs": _num(p.get("finMs")),
+            "fallo": _txt(p.get("fallo"), 240),
+            "pruebas": ({k: _num(pr.get(k)) for k in ("archivos", "pruebas", "falladas", "omitidas")} if pr else None),
+        }
+    b = en.get("publicacion")
+    if isinstance(b, dict):
+        salida["publicacion"] = {"activa": b.get("activa") is True, "fase": _txt(b.get("fase"), 20),
+                                 "detalle": _txt(b.get("detalle"), 200),
+                                 "ultimaMs": _num(b.get("ultimaMs")), "actualizadoMs": _num(b.get("actualizadoMs"))}
+    if not salida:
+        return None
+    salida["generadoMs"] = _num(en.get("generadoMs")) or 0
+    return salida
+
+
 def resumen_medidores(foto):
     """PURA. Resumen de una foto de /api/mando/medidores: cifras, sin rutas ni claves."""
     foto = foto if isinstance(foto, dict) else {}
@@ -141,7 +191,7 @@ def resumen_medidores(foto):
         if isinstance(v, dict) and v.get("estado"):
             cuenta[str(v["estado"])] = cuenta.get(str(v["estado"]), 0) + 1
     es_lista = lambda x: x if isinstance(x, list) else []  # noqa: E731
-    return {
+    resumen = {
         "generado_en": str(foto.get("generadoEn") or ""),
         "obsoleto": bool(foto.get("obsoleto")),
         "enjambre_vivo": bool(detalle.get("enjambreVivo")),
@@ -150,6 +200,10 @@ def resumen_medidores(foto):
         "fila": len(es_lista(detalle.get("fila"))),
         "estados": cuenta,
     }
+    en_marcha = resumir_en_marcha(foto.get("enMarcha"))
+    if en_marcha:
+        resumen["en_marcha"] = en_marcha
+    return resumen
 
 
 def decidir_espejar_estado(previo, ahora, latido_s=ESTADO_S):

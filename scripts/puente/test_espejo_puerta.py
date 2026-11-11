@@ -128,6 +128,30 @@ class TestEstado(unittest.TestCase):
         self.assertEqual(r, {"generado_en": "t1", "obsoleto": True, "enjambre_vivo": True,
                              "enjambre_pausado": False, "agentes": 2, "fila": 1, "estados": {"integrada": 1}})
 
+    def test_medidores_resumen_en_marcha_solo_lo_publico(self):
+        # MED1111E: el carril, la puerta y la publicación viajan con lista blanca; el prompt y las rutas no.
+        foto = {"generadoEn": "t1", "detalle": {}, "enMarcha": {
+            "generadoMs": 5,
+            "carril": {"latidoMs": 10, "tareas": [{"id": "A1", "titulo": "Hace /Users/alex/x.ts", "estado": "en_curso",
+                                                    "prompt": "SECRETO", "archivos": ["/Users/alex/a"], "desdeMs": 9}]},
+            "puerta": {"origen": "log", "nombre": "1111e", "ramas": ["opus1106/X"], "paso": "pruebas", "resultado": "en_curso",
+                       "actualizadoMs": 7, "ruta": "/Users/alex/log", "pruebas": {"archivos": 3, "pruebas": 9, "falladas": 0, "omitidas": 1}},
+            "publicacion": {"activa": True, "fase": "ci", "detalle": "CI", "token": "x"}}}
+        r = resumen_medidores(foto)["en_marcha"]
+        t = r["carril"]["tareas"][0]
+        self.assertEqual((t["id"], t["estado"], t["desdeMs"]), ("A1", "en_curso", 9))
+        self.assertNotIn("/Users", json.dumps(r))
+        self.assertNotIn("SECRETO", json.dumps(r))
+        self.assertNotIn("prompt", t)
+        self.assertNotIn("archivos", t)
+        self.assertEqual(r["puerta"]["pruebas"]["pruebas"], 9)
+        self.assertNotIn("ruta", r["puerta"])
+        self.assertNotIn("token", r["publicacion"])
+
+    def test_medidores_resumen_sin_en_marcha_no_cambia(self):
+        self.assertNotIn("en_marcha", resumen_medidores({"generadoEn": "t1", "detalle": {}}))
+        self.assertNotIn("en_marcha", resumen_medidores({"enMarcha": "basura"}))
+
     def test_decidir_estado(self):
         previo = {"t": 100}
         self.assertEqual(decidir_espejar_estado({}, 1)[1], "primera vez")

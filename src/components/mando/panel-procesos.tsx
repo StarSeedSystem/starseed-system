@@ -27,6 +27,7 @@ import { BotonMedios } from "@/components/mando/medios-computo";
 import { pedirVerTarea } from "@/lib/mando/asistente-cliente";
 import { ETAPAS } from "@/lib/mando/etapas";
 import { filaDeLatido } from "@/lib/mando/fila-agente";
+import { EnMarchaAhora } from "@/components/mando/en-marcha-ahora"; // MED1111E
 
 /** Formatea una fecha ISO a hora local corta. */
 function horaCorta(fecha: string): string {
@@ -430,6 +431,8 @@ export function PanelProcesos() {
 
     return (
         <div className="space-y-4">
+            {/* (MED1111E) Lo primero: qué corre AHORA y qué acaba de terminar (carril de Claude, puerta, publicación). */}
+            <EnMarchaAhora />
             {/* (2026-09-15) Alex: «traslada y fusiona eso con la ventana de ramificación y
                 también la de Ramificación 1.58». Había TRES ventanas seguidas hablando de lo
                 mismo —quién trabaja ahora— cada una con su propio marco y su propio título:

@@ -19,6 +19,9 @@ import { obtenerIdsBloqueados, type FilaContable } from "@/lib/mando/conteo-oper
 import { ENLACE_USO_CLAUDE, estadoCreditoClaude, resumenCreditoClaude, type ConfigCreditoClaude } from "./credito-claude";
 import { estadoLimitesClaude, resumenLimitesClaude } from "./limites-claude";
 import { DONDE_CLAUDE_NUBE, TEXTO_CLAUDE_NUBE } from "./agentes-claude-nube";
+// MED1111E
+import { DONDE_CARRIL_CLAUDE, TEXTO_CARRIL_CLAUDE, vistaCarril } from "./carril-claude";
+import type { EnMarcha } from "./en-marcha";
 import { DONDE_CLOUDROOM, TEXTO_CLOUDROOM } from "./agentes-cloudroom";
 import { DONDE_ORACLE, TEXTO_ORACLE } from "./agentes-oracle";
 import { estadoCreditos, type DocCreditos } from "./creditos-pago-tipos";
@@ -885,6 +888,8 @@ export function dondeLegible(donde: string | undefined): string {
             return "GitHub Actions (nube)";
         case DONDE_CLAUDE_NUBE:
             return "Sesión de Claude Code en la nube (crédito de sesiones)";
+        case DONDE_CARRIL_CLAUDE: // MED1111E
+            return "Carril del director de Claude (sus agentes en la sesión de Claude Code)";
         case DONDE_CLOUDROOM:
             return "Hilo de la nube de Cloudroom";
         default:
@@ -903,6 +908,8 @@ export function dondeCorto(donde: string | undefined): string {
             return "GitHub Actions";
         case DONDE_CLAUDE_NUBE:
             return "Claude en la nube";
+        case DONDE_CARRIL_CLAUDE: // MED1111E
+            return "carril de Claude";
         case DONDE_CLOUDROOM:
             return "Cloudroom";
         case "nube-cowork":
@@ -1510,7 +1517,11 @@ export interface DatosMedidores {
         detalle?: string;
         /** Última publicación hecha por la autopublicación (ms). */
         ultimaMs?: number;
+        /** (MED1111E) Cuándo anotó la autopublicación su fase actual (ms): sin él no se sabe si «ci» sigue vivo. */
+        actualizadoMs?: number;
     } | null;
+    /** (MED1111E) El carril de Claude y la puerta de integración: lo que corre ahora y lo que acaba de terminar. */
+    enMarcha?: EnMarcha | null;
     /** `esperaA`: las dependencias que le faltan. Si viene, la tarea NO se puede coger. */
     ejecutables: { id: string; titulo: string; ola?: string; esperaA?: string[] }[];
     /** Asuntos recientes de `main`; ausente si Git no pudo leerse. */
@@ -2489,6 +2500,11 @@ export function detalleDeMedidor(
                             ? ` · su tanda: ${tanda.slice(0, 6).join(", ")}${tanda.length > 6 ? ` y ${tanda.length - 6} más` : ""} · qué tarea lleva cada trabajador lo dice su rama al entregar`
                             : " · su cola no está en esta neurona (una de la bandeja de MetaGenesis)") +
                         ` · su estado llega con el ciclo del nodo (cada 30 min; último hace ${Math.round((l.latidoHaceS ?? 0) / 60)} min)`;
+                } else if (l.donde === DONDE_CARRIL_CLAUDE) {
+                    // MED1111E: una tarea `en_curso` del registro del carril de Claude con el latido del carril
+                    // reciente (con el latido viejo no llega aquí: `agentesDeCarrilClaude` no la cuenta).
+                    estado = "escribiendo";
+                    porque = `${TEXTO_CARRIL_CLAUDE} · figura en curso en su registro y el latido del carril es reciente`;
                 } else if (externo) {
                     estado = "trabajando fuera";
                     porque = `fase: ${l.fase ?? "sin fase"} · avisa al cambiar de fase (no escribe registro en la Mac)`;
@@ -2554,6 +2570,13 @@ export function detalleDeMedidor(
                 ...(d.fantasmas ?? []).map((id) => ({ id })),
             ];
             const filas = filasTodas.filter((f) => f.estado !== "sin proceso");
+            // MED1111E: las tareas del carril de Claude con el latido viejo NO cuentan como agentes vivos, pero
+            // se nombran: «basta de ilusiones» también vale para no esconder lo que se quedó sin latido.
+            const carrilSinLatido = vistaCarril(d.enMarcha?.carril, ahora ?? Date.now());
+            const avisoCarril =
+                carrilSinLatido.estado === "sin-latido" && carrilSinLatido.sinLatido.length
+                    ? `Carril de Claude: ${carrilSinLatido.texto}. Sin latido: ${carrilSinLatido.sinLatido.map((t) => t.id).join(", ")}.`
+                    : undefined;
             const cuenta = (e: string) => filas.filter((f) => f.estado === e).length;
             const partes = [
                 [cuenta("escribiendo"), "escribiendo"],
@@ -2583,6 +2606,7 @@ export function detalleDeMedidor(
                               fantasmas.length ? ` · ${fantasmas.length} latido(s) viejo(s) descartado(s): ${fantasmas.map((f) => f.id).join(", ")}` : ""
                           }`,
                 filas,
+                ...(avisoCarril ? { aviso: avisoCarril } : {}),
                 porcentajeMedio: mediaDeAvance(filas),
                 acciones: [...accionesDeCapacidad(d, ahora), IR_A("Ver la ramificación", "procesos")],
                 vacio: fantasmas.length

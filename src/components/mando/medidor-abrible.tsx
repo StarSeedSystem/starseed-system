@@ -25,6 +25,8 @@ import { ChevronDown, Loader2 } from "lucide-react";
 import { BloqueadasPanel, itemDesdeFilaMedidor } from "@/components/mando/bloqueadas-panel";
 import { BloqueadasGrupos, CadenasBloqueadas } from "@/components/mando/bloqueadas-grupos";
 import { InterruptorAutopublicacion } from "@/components/mando/interruptor-autopublicacion";
+import { EnMarchaAhora } from "@/components/mando/en-marcha-ahora"; // MED1111E
+import type { EnMarcha } from "@/lib/mando/en-marcha"; // MED1111E
 import { PanelImaginacion } from "@/components/mando/panel-imaginacion";
 import { PanelVersiones } from "@/components/mando/panel-versiones";
 import { BotonReparar, ResultadoReparacion, useReparacion } from "@/components/mando/reparar-medidor";
@@ -487,6 +489,7 @@ export function PanelMedidor({
     alCambiar?: () => void;
 }) {
     const [datos, setDatos] = useState<DetalleMedidor | null>(null);
+    const [enMarcha, setEnMarcha] = useState<EnMarcha | null | undefined>(undefined); // MED1111E
     const [cargando, setCargando] = useState(false);
     /**
      * Lo que contestó la ÚLTIMA acción que pulsaste.
@@ -555,8 +558,9 @@ export function PanelMedidor({
         try {
             const deAmbito = ambito ? `&ambito=${encodeURIComponent(ambito)}` : "";
             const r = await fetch(`/api/mando/medidores?clave=${encodeURIComponent(clave)}${deAmbito}`, { cache: "no-store" });
-            const d = (await r.json()) as { detalle?: DetalleMedidor };
+            const d = (await r.json()) as { detalle?: DetalleMedidor; enMarcha?: EnMarcha | null };
             setDatos(d.detalle ?? null);
+            setEnMarcha(d.enMarcha ?? null); // MED1111E
             setErrorLectura(null);
         } catch {
             setErrorLectura("No se pudo leer el detalle.");
@@ -756,6 +760,12 @@ export function PanelMedidor({
             ) : null}
 
             <ResultadoReparacion reparacion={reparacion.reparacion} />
+
+            {clave === "agentes" || clave === "en-curso" ? (
+                // (MED1111E) Alex: «reporta los procesos activos, ya que en MetaGenesis siguen sin aparecer».
+                // Arriba, en orden: el carril de Claude, la puerta de integración y la publicación.
+                enMarcha === undefined ? null : <div className="mt-2"><EnMarchaAhora datos={enMarcha} /></div>
+            ) : null}
 
             {clave === "sin-publicar" ? (
                 // (2026-10-08) Alex: «añade el ajuste de publicación automática dentro del medidor».
