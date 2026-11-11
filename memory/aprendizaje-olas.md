@@ -6752,3 +6752,32 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 
 **Lo que quedó fuera, una por una:**
 - `DR1110-2` — los tipos no compilan: 2 errores tsc (rama ola/DR1110-2 conservada)
+
+## 2026-11-11 02:49 · auto-1111-005959
+
+**Lo que se pidió.** pendiente de verificar
+
+**Resultado.** 4 de 18 integradas. 14 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 13 tareas se fueron por lo mismo — otra cosa (ENT-agentes-referencias-diseno-agentes-re-e8ac80-v1, ENT-agentes-referencias-diseno-agentes-re-b241b7-v1, ENT-agentes-referencias-diseno-agentes-re-26bcda-v1, ENT-agentes-referencias-diseno-agentes-re-7a5bfc-v1, ENT-agentes-referencias-diseno-agentes-re-bf4400-v1, ENT-agentes-referencias-diseno-agentes-re-ca957d-v1). Es 72 % de la ola.
+- nim/minimaxai/minimax-m3.1-flash no integró ninguna de sus 6 tareas.
+- nim/nvidia/nemotron-3-ultra-550b-a55b no integró ninguna de sus 5 tareas.
+- groq/openai/gpt-oss-120b no integró ninguna de sus 2 tareas.
+- nvidia/nvidia/nemotron-3-ultra-550b-a55b integró 4 tareas sin fallar una.
+
+**Lo que quedó fuera, una por una:**
+- `IMG-diaria-auto-refresh-del-catalogo-de-mode` — no escribió nada: Jev: p=0.91 de que otro intento sea en balde (4 sin cambios) → acepto «sin cambios» y lo decide el director
+- `ENT-agentes-referencias-diseno-agentes-re-e8ac80-v1` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/entregable-agentes-referencias-diseno-agentes-referencias-diseno-e8ac80-v1.json
+- `ENT-agentes-referencias-diseno-agentes-re-b241b7-v1` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/entregable-agentes-referencias-diseno-agentes-referencias-diseno-b241b7-v1.json
+- `ENT-agentes-referencias-diseno-agentes-re-26bcda-v1` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/entregable-agentes-referencias-diseno-agentes-referencias-diseno-26bcda-v1.json
+- `ENT-agentes-referencias-diseno-agentes-re-7a5bfc-v1` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/entregable-agentes-referencias-diseno-agentes-referencias-diseno-7a5bfc-v1.json
+- `ENT-agentes-referencias-diseno-agentes-re-bf4400-v1` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/entregable-agentes-referencias-diseno-agentes-referencias-diseno-bf4400-v1.json
+- `ENT-agentes-referencias-diseno-agentes-re-ca957d-v1` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/entregable-agentes-referencias-diseno-agentes-referencias-diseno-ca957d-v1.json
+- `ENT-agentes-referencias-diseno-agentes-re-46a3cd-v1` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/entregable-agentes-referencias-diseno-agentes-referencias-diseno-46a3cd-v1.json
+- `ENT-agentes-referencias-diseno-agentes-re-54650c-v1` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/entregable-agentes-referencias-diseno-agentes-referencias-diseno-54650c-v1.json
+- `ENT-agentes-referencias-diseno-agentes-re-0cf0d8-v1` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/entregable-agentes-referencias-diseno-agentes-referencias-diseno-0cf0d8-v1.json
+- `ENT-agentes-referencias-diseno-agentes-re-7917ec-v1` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/entregable-agentes-referencias-diseno-agentes-referencias-diseno-7917ec-v1.json
+- `ENT-agentes-referencias-diseno-agentes-re-806f30-v1` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/entregable-agentes-referencias-diseno-agentes-referencias-diseno-806f30-v1.json
+- `ENT-agentes-referencias-diseno-agentes-re-9312c6-v1` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/entregable-agentes-referencias-diseno-agentes-referencias-diseno-9312c6-v1.json
+- `ENT-agentes-referencias-diseno-agentes-re-409fe9-v1` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/entregable-agentes-referencias-diseno-agentes-referencias-diseno-409fe9-v1.json
