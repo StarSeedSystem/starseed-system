@@ -318,7 +318,7 @@ pub enum EventoRadio {
 }
 
 /// Los hitos que la radio puede anotar (lista cerrada: el texto libre va en el detalle).
-pub const NOTAS_RADIO: [&str; 13] = [
+pub const NOTAS_RADIO: [&str; 14] = [
     // BLE1110A: cambios de MTU (anterior → nuevo), anuncio que ya estaba activo (código 3) y conexión soltada para renegociar el MTU.
     "mtu-cambio",
     "anuncio-ya-activo",
@@ -334,6 +334,7 @@ pub const NOTAS_RADIO: [&str; 13] = [
     "conexion-vencida",
     "redescubriendo",
     "l2cap-servidor", // BLE1109B: el socket L2CAP del periférico Android (creado en su propio hilo)
+    "contador-enlaces", // MLL1111C: conexiones y desconexiones REALES por minuto (y los avisos repetidos aparte)
 ];
 
 fn texto_de(v: &serde_json::Value, k: &str, max: usize) -> Option<String> {

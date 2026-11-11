@@ -191,6 +191,14 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
     private val soltadoMtuMs = HashMap<String, Long>()
     private var anuncioTurno = 0
     private var reintentoAnuncio = false
+    // (MLL1111C) Gemelo de `ble_autocura::Anuncio`: cuándo se pidió el arranque en curso (-1: ninguno); una reanudación
+    // pendiente (se juntan); y el contador de hechos REALES por minuto (`ble_autocura::ContadorEnlaces`).
+    private var anuncioPedidoMs = -1L
+    private var reanudarPendiente = false
+    private var contDesdeMs = -1L
+    private var contConexiones = 0
+    private var contReales = 0
+    private var contRepetidas = 0
 
     private lateinit var ctx: Context
     private val principal = Handler(Looper.getMainLooper())
@@ -324,9 +332,13 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
      * servidor GATT ni los clientes, así que un enlace en marcha jamás se cae por esto.
      */
     private fun reanudarRadio() {
+        // (MLL1111C) Una sola reanudación pendiente: una ráfaga de avisos no programa cientos (prueba 35: ~300 por segundo).
+        if (reanudarPendiente) return
+        reanudarPendiente = true
         principal.postDelayed({
+            reanudarPendiente = false
             if (!activo || ultimoEstado != "encendida") return@postDelayed
-            if (!anunciando) anunciar()
+            if (!anunciando) anunciar(false)
             escanear()
         }, 400)
     }
@@ -532,7 +544,10 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
             principal.post {
                 val k = "p:" + d.address
                 if (newState == BluetoothProfile.STATE_CONNECTED) {
-                    if (!centrales.containsKey(k)) centrales[k] = nuevaCentral(k, d)
+                    if (!centrales.containsKey(k)) {
+                        centrales[k] = nuevaCentral(k, d)
+                        contConexiones++ // MLL1111C: hechos reales
+                    }
                     val central = centrales[k]
                     pedirPhy2M { if (centrales[k]?.suscrito == true) servidor?.setPreferredPhy(d, BluetoothDevice.PHY_LE_2M_MASK, BluetoothDevice.PHY_LE_2M_MASK, BluetoothDevice.PHY_OPTION_NO_PREFERRED) }
                     // (BLE1108C) Si el otro conecta y no se suscribe a SALIDA, se anota y se suelta (él reintenta).
@@ -545,10 +560,20 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
                                 servidor?.cancelConnection(c.device)
                             } catch (e: Exception) {
                             }
+                            reanudarRadio() // MLL1111C: su desconexión llegará como repetida y ya no reanuda la radio
                         }
                     }, VIGIA_SUSCRIPCION_MS)
                 } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                     val c = centrales.remove(k)
+                    // (MLL1111C) Gemelo de `ble_autocura::clasificar_desconexion`. Un aparato que NO constaba como conectado
+                    // es un aviso repetido (el eco de nuestro propio `cancelConnection`): no se cancela otra vez, no cuenta
+                    // como caída y no toca la radio. Antes cada aviso cancelaba de nuevo → otro aviso → bucle de ~300/s
+                    // («tormenta» de 18 000/min) y el anuncio no llegaba a arrancar nunca: nueve horas sin enlace.
+                    if (c == null) {
+                        contRepetidas++
+                        return@post
+                    }
+                    contReales++
                     // (BLE1110A) Una desconexión real olvida el MTU; las que provoca la propia cura no (la ACL puede seguir viva).
                     if (!enGracia(SystemClock.elapsedRealtime())) paqueteRecordado.remove(k)
                     // (BLE1109B) Libera la conexión en la pila de Android: sin esto, tras caídas con estado ≠ 0 el servidor podía
@@ -751,12 +776,14 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
         override fun onStartSuccess(settingsInEffect: AdvertiseSettings?) {
             principal.post {
                 anunciando = true
+                anuncioPedidoMs = -1L // MLL1111C: confirmado
                 reintentoAnuncio = false
             }
         }
 
         override fun onStartFailure(errorCode: Int) {
             principal.post {
+                anuncioPedidoMs = -1L // MLL1111C: la pila contestó (bien o mal): se puede volver a pedir
                 // (BLE1110A) Código 3 = ADVERTISE_FAILED_ALREADY_STARTED: el anuncio YA está activo. No es un fallo ni se dice
                 // «solo busca y conecta». Una vez se para y se vuelve a arrancar para verificarlo; si vuelve a decir 3, se da por activo.
                 if (errorCode == AdvertiseCallback.ADVERTISE_FAILED_ALREADY_STARTED) {
@@ -781,18 +808,27 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
     }
 
     /** Anuncia SOLO el UUID rotatorio (cabe en el paquete principal: 3 B de indicadores + 18 B). */
-    private fun anunciar() {
-        val u = anuncioUuid ?: return
+    private fun anunciar(forzar: Boolean = true) {
+        anuncioUuid ?: return
         if (!activo || !servicioListo) return
         val adv = adaptador?.bluetoothLeAdvertiser ?: return
+        // (MLL1111C) Gemelo de `ble_autocura::Anuncio::pedir`: un arranque en curso (pedido hace < 3 s y sin confirmar) no se
+        // reinicia, y si ya se anuncia solo se rearranca forzado (UUID nuevo, servidor recreado).
+        val ahora = SystemClock.elapsedRealtime()
+        if (anuncioPedidoMs >= 0 && ahora - anuncioPedidoMs < CONFIRMAR_ANUNCIO_MS) return
+        if (anunciando && !forzar) return
         // (BLE1110A) SIEMPRE se para antes de arrancar (`anunciando` puede ir por detrás de la pila) y se espera un poco.
         try {
             adv.stopAdvertising(anuncio)
         } catch (e: Exception) {
         }
         anunciando = false
+        anuncioPedidoMs = ahora
         val turno = ++anuncioTurno
-        principal.postDelayed({ if (turno == anuncioTurno && activo && servicioListo) empezarAnuncio(adv, u) }, 300)
+        principal.postDelayed({
+            val uuid = anuncioUuid
+            if (turno == anuncioTurno && activo && servicioListo && uuid != null) empezarAnuncio(adv, uuid) else anuncioPedidoMs = -1L
+        }, 300)
     }
 
     private fun empezarAnuncio(adv: android.bluetooth.le.BluetoothLeAdvertiser, u: String) {
@@ -1144,6 +1180,9 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
     private const val SIN_TRAFICO_MS = 30_000L
     private const val ENTRE_CURAS_MS = 300_000L
     private const val GRACIA_CURA_MS = 20_000L
+    // (MLL1111C) Gemelos de `ble_autocura.rs`.
+    private const val ENTRE_CURAS_MAX_MS = 1_800_000L
+    private const val CONFIRMAR_ANUNCIO_MS = 3_000L
 
     private fun marcarActividad() {
         ultimoEnlaceMs = SystemClock.elapsedRealtime()
@@ -1184,11 +1223,30 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
         }
     }
 
+    private fun plazoEntreCuras(n: Int): Long =
+        if (n <= 1) ENTRE_CURAS_MS else minOf(ENTRE_CURAS_MS shl minOf(n - 1, 10), ENTRE_CURAS_MAX_MS)
+
+    /** (MLL1111C) Gemelo de `ble_autocura::ContadorEnlaces::cerrar`: una línea por minuto con hechos (un minuto callado no escribe). */
+    private fun cerrarContador() {
+        val ahora = SystemClock.elapsedRealtime()
+        if (contDesdeMs < 0) contDesdeMs = ahora
+        val ms = ahora - contDesdeMs
+        if (ms < 60_000L) return
+        if (contConexiones + contReales + contRepetidas > 0) {
+            nota("contador-enlaces", null, "en ${ms / 1000} s: $contConexiones conexiones, $contReales desconexiones reales, $contRepetidas avisos repetidos ignorados")
+        }
+        contDesdeMs = ahora
+        contConexiones = 0
+        contReales = 0
+        contRepetidas = 0
+    }
+
     private fun vigilarAutocura() {
         if (!activo) {
             vigiaAutocura = false
             return
         }
+        cerrarContador()
         evaluarAutocura()
         principal.postDelayed({ vigilarAutocura() }, VIGIA_AUTOCURA_MS)
     }
@@ -1205,7 +1263,8 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
         }
         val desdeTrafico = if (ultimoTraficoMs >= 0) ahora - ultimoTraficoMs else -1L
         if (desdeTrafico in 0 until SIN_TRAFICO_MS) return
-        if (ultimaCuraMs >= 0 && ahora - ultimaCuraMs < ENTRE_CURAS_MS) return
+        // (MLL1111C) Gemelo de `ble_autocura::plazo_entre_curas`: 5, 5, 10, 20 y 30 min de tope según la racha.
+        if (ultimaCuraMs >= 0 && ahora - ultimaCuraMs < plazoEntreCuras(curasSeguidas)) return
         val sinEnlaceMs = ahora - ultimoEnlaceMs
         val traficoTxt = if (desdeTrafico >= 0) "${desdeTrafico / 1000} s sin tráfico" else "sin tráfico desde que arrancó"
         val tormenta = caidasRecientes.size >= CAIDAS_TORMENTA
@@ -1245,6 +1304,7 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
             } catch (e: Exception) {
             }
             anunciando = false
+            anuncioPedidoMs = -1L // MLL1111C: parado a propósito
             if (recrearServidor) {
                 for ((k, c) in centrales.entries.toList()) {
                     if (c.suscrito) desconectado(k, "se recrea el servidor Bluetooth (autocuración)")

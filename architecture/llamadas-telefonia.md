@@ -497,3 +497,25 @@ grabación) con «Volver a llamar». Límites conocidos: la página lanza llamad
 3. Pestaña Astraura en las dos: pregunta en la Mac; sale la misma respuesta en las dos.
 4. Solo Bluetooth: Cámara y Pantalla desactivadas con su motivo; chat, reacciones y Astraura funcionan.
 5. Android: Pantalla desactivada con motivo; girar cámara; elegir ruta de audio.
+
+## 11. Paso de carril al instante, timbre en cola y vídeo que sube (MLL1111C · 2026-11-11)
+
+- **Interfaz del motor (solo añadidos):** `OpcionesVozDatos.carrilesExtra?(parId)` (otros carriles medidos para el flujo de
+  datos); `carriles.ts` exporta `SILENCIO_WEBRTC_MS`, `esperaReintentoIce`, `MARGEN_CAPACIDAD`, `capacidadCarril`,
+  `ordenPorCapacidad`; `ReglaFlujo` gana `caidaMs?` y `porCapacidad?`. Nada se renombra ni se quita.
+- **Caído ≠ degradado.** Caído (ICE caído, o WebRTC sin bytes de entrada 1 s con la voz por él): voz y señal se van en el
+  primer tic; vídeo, pantalla y datos tras 1 s. Degradado sigue pidiendo la evidencia entera (la voz se queda donde
+  funciona). Línea: `carril conmutacion par=… flujo=voz de=webrtc a=ble-l2cap motivo=webrtc-caido deteccion=vida|estado-ice
+  sin-entrada=Xms senal=offline@…|ninguna`.
+- **Señales de red:** el motor escucha `senales-red.ts` desde el primer par vigilado (`carril senal-red escucha
+  senales=online/offline,network-information vida-webrtc=1000ms`); un aviso (`carril senal-red offline sin red`) mide y
+  revisa los carriles a 150, 450 y 900 ms.
+- **Vídeo hacia el carril ancho.** La prueba 35 muestra que el vídeo SÍ subía a WebRTC 3,5 s después de conectar (19:01:20 y
+  19:03:18); a las 19:03:53 WebRTC se cayó y los reintentos de ICE salían cada ~60 s y nunca reconectaron, así que la tableta
+  siguió con vídeo ligero por Bluetooth. Ahora, con ruta IP viva y WebRTC caído, ICE se reintenta a 3, 6, 12 y luego cada
+  15 s (`medio=webrtc … se reintenta WebRTC sin colgar intento=N siguiente-en=Xms`), y el vídeo sube con la histéresis de
+  siempre (3 s sano; 10 s de enfriamiento si acababa de bajar). El lienzo del vídeo ligero sigue hasta que el `<video>` de
+  WebRTC trae imagen (sin hueco negro).
+- **Timbre:** `empezarLlamadaSinChat` usa `timbreConCola`; la ventana se abre con «Buscando una vía hasta <nombre>…» si el
+  primer aviso no sale; tras 30 s sin vía cuelga diciendo «No encontramos ninguna vía hasta <nombre> en 30 s.».
+- **Banco** (`pruebas-reales/llamadas-medio`): `paso-ip`, `paso-ip-silencioso`, `timbre-cola`, `video-sube`, `wifi-directo`.

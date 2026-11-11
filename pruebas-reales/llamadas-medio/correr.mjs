@@ -267,7 +267,130 @@ const esc = {
     await p.close();
     return r;
   },
+  // MLL1111C · Las dos vías arriba y voz por WebRTC; a media llamada se corta la IP CON la señal del sistema («offline»,
+  // ICE a «failed»). Mide cuánto tarda la voz en volver a sonar en los dos (por el enlace de datos ya abierto).
+  async "paso-ip"() {
+    return pasoIp({ modo: "estado", senal: true });
+  },
+  // MLL1111C · Igual, pero el corte es SILENCIOSO: ICE sigue «conectado», no hay señal del sistema y solo dejan de entrar bytes
+  // (apagar el Wi-Fi del otro aparato). Solo la comprobación de vida lo detecta.
+  async "paso-ip-silencioso"() {
+    return pasoIp({ modo: "silencio", senal: false });
+  },
+  // MLL1111C · Se llama sin ninguna vía; a los 5 s liga una. El timbre debe salir solo (cola), sin «timbre fallo» seco.
+  async "timbre-cola"() {
+    const p = await pagina();
+    const r = await p.evaluate(async () => {
+      const b = window.banco;
+      b.vias.arriba = false;
+      const pr = b.timbre(30000);
+      setTimeout(() => b.abrirVia("bluetooth"), 5000);
+      const x = await pr;
+      return { ...x, lineas: b.lineas.filter((l) => l.hito === "inicio").map((l) => `${l.t}ms ${l.detalle}`) };
+    });
+    r.pasa = r.ok && r.ms >= 4900 && r.ms <= 6500;
+    await p.close();
+    return r;
+  },
+  // MLL1111C · La llamada conecta mientras WebRTC aún está subiendo (ICE lento, 5 s): el vídeo arranca por el enlace de datos
+  // y debe SUBIR a WebRTC pocos segundos después de que conecte (prueba 35, D).
+  async "video-sube"() {
+    const p = await pagina();
+    const r = await p.evaluate(async () => {
+      const b = window.banco;
+      // Al contestar aún no hay ruta IP (WebRTC subiendo); a los 3 s aparece, como en la prueba 35 (19:01: «webrtc:caido» y
+      // WebRTC conectado medio segundo después).
+      b.red.ip = false;
+      b.red.ipVista.A = b.red.ipVista.B = false;
+      window.__ll = await b.llamada({ conDatos: true, video: true, videoFalso: true });
+      await new Promise((r) => setTimeout(r, 3000));
+      b.red.ipVista.A = b.red.ipVista.B = true;
+      b.cambiarRedIp(true);
+      await new Promise((r) => setTimeout(r, 22000));
+      const L = b.lineas;
+      const web = L.find((l) => l.hito === "carril" && l.neurona === "B" && /flujo=voz .*a=webrtc|flujo=voz de=- a=webrtc/.test(l.detalle)) ?? L.find((l) => l.hito === "medio=webrtc" && l.t > 3000);
+      const primera = L.find((l) => l.hito === "carril" && /flujo=video de=- a=ble/.test(l.detalle));
+      const sube = L.find((l) => l.hito === "carril" && /flujo=video de=ble\S* a=webrtc/.test(l.detalle));
+      return {
+        primeraPorDatos: !!primera,
+        webrtcConectaMs: web?.t ?? null,
+        videoSubeMs: sube?.t ?? null,
+        subeTrasConectarMs: web && sube ? sube.t - web.t : null,
+        carriles: window.__ll.A.carriles?.() ?? null,
+        lineasVideo: L.filter((l) => l.hito === "carril" && /flujo=video/.test(l.detalle)).map((l) => `${l.t}ms ${l.neurona} ${l.detalle.replace(/ muestras=.*/, "")}`),
+      };
+    });
+    r.pasa = r.subeTrasConectarMs !== null && r.subeTrasConectarMs <= 5000;
+    await p.close();
+    return r;
+  },
+  // MLL1111C · Petición 8: Wi-Fi directo y red del router a la vez (simulados, con su medida). Los datos toman el que más
+  // mide, cambian si el otro pasa a medir mucho más y no se mueven por diferencias pequeñas (histéresis).
+  async "wifi-directo"() {
+    const p = await pagina();
+    const r = await p.evaluate(async () => {
+      const b = window.banco;
+      b.red.ip = true;
+      b.extras.lan = { kbps: 40000, rtt: 6 };
+      b.extras.directo = { kbps: 200000, rtt: 2 };
+      window.__ll = await b.llamada({ conDatos: true });
+      const datos = () => (window.__ll.A.carriles?.() ?? [])[0]?.texto ?? null;
+      await new Promise((r) => setTimeout(r, 6000));
+      const fase1 = datos();
+      // El directo se degrada: el router mide más del doble → cambia.
+      b.extras.directo = { kbps: 15000, rtt: 20 };
+      await new Promise((r) => setTimeout(r, 6000));
+      const fase2 = datos();
+      // El directo vuelve a medir un poco más que el router (+12 %): dentro del margen, no se mueve.
+      b.extras.directo = { kbps: 45000, rtt: 6 };
+      await new Promise((r) => setTimeout(r, 15000));
+      const fase3 = datos();
+      const cambios = b.lineas.filter((l) => l.hito === "carril" && /flujo=datos/.test(l.detalle)).map((l) => `${l.t}ms ${l.neurona} ${l.detalle.replace(/ muestras=.*/, "")}`);
+      return { fase1, fase2, fase3, cambios };
+    });
+    r.pasa = /Datos: Wi-Fi directo/.test(r.fase1 ?? "") && /Datos: red local/.test(r.fase2 ?? "") && /Datos: red local/.test(r.fase3 ?? "");
+    await p.close();
+    return r;
+  },
 };
+
+// MLL1111C · Corte de la IP a media llamada con las dos vías abiertas: ¿cuánto tarda la voz en volver a sonar en los dos?
+async function pasoIp({ modo, senal }) {
+  const p = await pagina();
+  const r = await p.evaluate(
+    async ({ modo, senal }) => {
+      const b = window.banco;
+      b.red.ip = true;
+      b.red.ipVista.A = b.red.ipVista.B = true;
+      const ll = await b.llamada({ conDatos: true });
+      window.__ll = ll;
+      const hasta = async (f, ms) => {
+        const fin = performance.now() + ms;
+        while (!f() && performance.now() < fin) await new Promise((r) => setTimeout(r, 25));
+        return f();
+      };
+      const vozWeb = () => ["A", "B"].every((q) => (window.__ll[q].carriles?.() ?? [])[0]?.voz === "webrtc");
+      const listo = await hasta(vozWeb, 15000);
+      await new Promise((r) => setTimeout(r, 3000));
+      const antes = { ...b.audio.reproducidas };
+      const t0 = performance.now();
+      b.red.modoCorte = modo;
+      if (senal) b.red.ipVista.A = b.red.ipVista.B = false;
+      b.cambiarRedIp(false, { senal });
+      const suena = await hasta(() => b.audio.reproducidas.A >= antes.A + 5 && b.audio.reproducidas.B >= antes.B + 5, 20000);
+      const ms = Math.round(performance.now() - t0);
+      return {
+        vozWebAntes: listo,
+        vozSuenaTrasCorteMs: suena ? ms : null,
+        lineas: b.lineas.filter((l) => l.t >= Math.round(t0 - 0) - 2000 && (l.hito === "carril" || /voz-datos iniciada/.test(l.detalle))).map((l) => `${l.t}ms ${l.neurona} ${l.hito} ${l.detalle.replace(/ muestras=.*/, "")}`).slice(0, 16),
+      };
+    },
+    { modo, senal },
+  );
+  r.pasa = r.vozSuenaTrasCorteMs !== null && r.vozSuenaTrasCorteMs <= 2000;
+  await p.close();
+  return r;
+}
 
 const lista = escenario === "todos" ? Object.keys(esc) : escenario.split(",");
 for (const e of lista) {

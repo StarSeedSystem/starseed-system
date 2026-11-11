@@ -475,3 +475,12 @@ características (`codec-web.ts`) y, sin `VideoEncoder`/`VideoDecoder`, el víde
 sistema). Capacidad `soportado=true` en `linux` (apagable con `STARSEED_SIN_PROXY_PUERTA=1`).
 
 > Qué Bluetooth cabe con cada plataforma (GATT en Windows/Linux, L2CAP, roles) y el orden frente a Wi‑Fi y red local: [`matriz-enlaces-directos.md`](matriz-enlaces-directos.md) (MTZ1109A).
+
+### 15.z · Prueba 35: nueve horas sin enlace por un bucle de desconexiones (MLL1111C · 2026-11-11)
+
+`servidorCb.onConnectionStateChange(STATE_DISCONNECTED)` cancelaba la conexión también de un aparato que ya no constaba
+como conectado; la pila contestaba con otro `STATE_DISCONNECTED` → ~300 por segundo («tormenta de desconexiones (18235 en
+60 s)», 106 curas seguidas) y cada vuelta reprogramaba el anuncio, que no arrancaba nunca. Reglas nuevas, en
+`ble_autocura.rs` con pruebas y gemelas en `BleStarSeed.kt` (comprobadas por `android_ble::kotlin_es_gemelo_de_la_tormenta_de_la_prueba_35`):
+desconexión repetida ignorada; `Anuncio` que junta peticiones; una sola reanudación de radio pendiente; plazo entre curas
+5 · 5 · 10 · 20 · 30 min; nota `contador-enlaces` por minuto con hechos reales. Ver `red-sin-dependencias.md` §13.

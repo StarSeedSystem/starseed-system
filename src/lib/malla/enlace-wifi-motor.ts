@@ -1100,21 +1100,19 @@ export function alNecesitarAncho(p: {
       m.uso();
       return;
     }
-    // (WFA1109A) Verificar si hay Bluetooth directo con una ligadura válida a la neurona destino.
-    // Si hay, WiFi directo puede abrirse; si no, se necesita comprobar proximidad por otros medios.
+    // (WFA1109A, revisado en MLL1111C) Prueba de proximidad: una ligadura Bluetooth VIGENTE con esa neurona sobre un enlace que
+    // sigue abierto (el Bluetooth solo llega a unos metros). Se queda: es una prueba real y `necesitaAncho` ya la sumaba por
+    // la vía cercana registrada; lo que sobraba era volver a medir la edad con el plazo de la RED LOCAL (`red-local-nativa`):
+    // `ligaduraDeNeuronaBle` ya aplica la vida de la ligadura Bluetooth. Ahora además se exige que el enlace siga abierto.
     let cerca = false;
     try {
-      // FIX1111A: VIDA_LIGADURA_MS se exporta desde red-local-nativa, no desde bluetooth-directo.
-      const [bd, { ligaduraDeNeuronaBle }, { VIDA_LIGADURA_MS }] = await Promise.all([
-        import("./bluetooth-directo-motor"),
-        import("./bluetooth-directo"),
-        import("./red-local-nativa"),
-      ]);
+      const [bd, { ligaduraDeNeuronaBle }] = await Promise.all([import("./bluetooth-directo-motor"), import("./bluetooth-directo")]);
       const red = bd.bluetoothDirectoActivo();
       if (red) {
-        const instantanea = red.instantanea();
-        const ligadura = ligaduraDeNeuronaBle(instantanea.ligaduras ?? [], neurona, Date.now());
-        cerca = !!ligadura && Date.now() - ligadura.at <= VIDA_LIGADURA_MS;
+        const inst = red.instantanea();
+        const ligadura = ligaduraDeNeuronaBle(inst.ligaduras ?? [], neurona, Date.now());
+        const abiertos = new Set((inst.estado?.enlaces ?? []).map((e) => e.id));
+        cerca = !!ligadura && (!inst.estado || abiertos.has(ligadura.enlace));
       }
     } catch {
       cerca = false;

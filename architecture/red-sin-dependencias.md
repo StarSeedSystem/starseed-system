@@ -560,3 +560,42 @@ Una app nativa puede hacer de **estación base**: sirve la web y su API local a 
 - **LoRa.** Es lento por naturaleza y la ley limita su tiempo de aire.
 - **Islas.** Dos zonas sin ningún medio entre ellas no se ven hasta que alguien lleve los datos (guardar y reenviar) o haya una puerta.
 - **Cuentas nuevas.** Crear una cuenta nueva sin ninguna neurona de confianza cerca necesita, al menos una vez, un ancla de identidad: QR de otra persona o internet.
+
+## 13 · Todas las vías arriba a la vez y paso al instante (MLL1111C · 2026-11-11)
+
+Prueba 35 (10-11): el Bluetooth Mac ↔ tableta estuvo caído casi nueve horas con los dos en el mismo Wi-Fi; al apagar el
+Wi-Fi de la tableta la llamada no salía («inicio paso=timbre fallo») y nadie la repetía. Reglas desde ahora:
+
+1. **El Bluetooth siempre ligado con la neurona cerca, haya o no otra vía.** Causa de las nueve horas (leída en el código y
+   reproducida con un modelo de la pila de Android en `ble_autocura.rs::pruebas_mll1111c`): el periférico Android
+   cancelaba la conexión en CADA `STATE_DISCONNECTED`, también de un aparato ya desconectado; la pila contestaba con otro
+   `STATE_DISCONNECTED` → bucle de ~300/s (las «18 000 desconexiones en 60 s») y cada vuelta reprogramaba el anuncio, que no
+   llegaba a arrancar nunca: el Mac no veía a la tableta y no intentaba conectar. Arreglo y estructura:
+   - una desconexión de un aparato que no constaba como conectado es **repetida**: no se cancela otra vez, no cuenta como
+     caída y no toca la radio (`clasificar_desconexion`, gemelo en `BleStarSeed.kt`);
+   - **un solo dueño de la reconexión**: el central en Rust (`Vecindario`, 0 · 2 · 5 · 15 s con tope); el periférico solo
+     se anuncia; las peticiones de anuncio se juntan (`Anuncio`: un arranque en curso no se reinicia; sin confirmar en 3 s se
+     puede repetir) y las reanudaciones de radio también (una pendiente);
+   - la **cura** solo con evidencia de atasco real (desconexiones REALES o sin enlace con una neurona cerca) y con plazo
+     creciente entre curas: 5, 5, 10, 20 y 30 min de tope;
+   - **contador real** por minuto en `enlaces.log`: `contador-enlaces · en 60 s: N conexiones, N desconexiones reales,
+     N avisos repetidos ignorados` (un minuto sin hechos no escribe).
+2. **Vías en reserva caliente.** Ninguna vía se cierra porque otra funcione. Coste de mantenerlas, por par: Bluetooth,
+   latido de 3 B cada 8 s en un enlace callado (`ble_trama::LATIDO_MS`): 22,5 B/min de carga útil (≈ 160 B/min con
+   cabeceras ATT/L2CAP/LL) y 7,5 despertares/min por lado; durante una llamada, la comprobación de vida de WebRTC lee
+   `getStats` 4 veces por segundo (10 tras un aviso de red), sin tráfico extra por la red. La red local no mantiene socket:
+   cada mensaje abre su conexión TCP (2 s de plazo), así que su reserva no cuesta nada.
+3. **Paso al instante.** Señales del sistema (`src/lib/malla/senales-red.ts`): `online`/`offline` en todas las vistas web
+   (WKWebView, WebView de Android, WebView2, WebKitGTK) y `navigator.connection` `change` donde existe (Android, Windows).
+   Donde no hay señal (o el corte es del router con la interfaz arriba), comprobación de vida: con la voz por WebRTC, si no
+   entra ningún byte en 1 s (400 ms tras un aviso de red), WebRTC cuenta como caído aunque ICE diga «conectado». La voz y
+   la señal dejan un carril caído en el primer tic; vídeo y datos tras 1 s. Medido en el banco: 433 ms (con señal) y
+   1 261 ms (corte silencioso; antes no se detectaba en 20 s).
+4. **El timbre nunca se rinde en silencio** (`src/lib/malla/cola-timbre.ts`): cola de 30 s, se repite en cuanto liga
+   cualquier vía (Bluetooth con esa neurona, enlace local, internet) y si no a 1, 2, 3, 3… s; quien llama ve «Buscando una vía
+   hasta <nombre>…». Líneas: `inicio paso=timbre en-cola …`, `reintento-fallido …`, `ok intento=N tras=Xms motivo=via-nueva:…`,
+   `agotada …`.
+5. **El Wi-Fi directo gana al router si mide más** (petición 8): `carriles.ts::ordenPorCapacidad` reordena los carriles
+   Wi-Fi (directo, Aware, AWDL, red local) por kb/s penalizados por el retardo, con un 25 % de histéresis a favor del
+   actual; el cambio dice `…-mas-capacidad` y la línea de carriles enseña «Datos: Wi-Fi directo». Probado en el banco con
+   vías simuladas (ningún aparato de Alex forma Wi-Fi directo entre sí).

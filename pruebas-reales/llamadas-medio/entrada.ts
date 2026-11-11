@@ -12,6 +12,9 @@ import { fijarSumideroDiagnostico } from "@/lib/llamadas/voz-datos/diagnostico";
 import { fabricaCodecsSimples, type AudioVoz, type TransporteVoz } from "@/lib/llamadas/voz-datos/sesion";
 import type { ConexionCanal } from "@/lib/llamadas/senalizacion";
 import type { MetaPresencia, SenalLlamada } from "@/lib/llamadas/tipos";
+import type { MuestraCarril } from "@/lib/llamadas/carriles";
+// MLL1111C: la cola del timbre (en el árbol viejo no existe: el módulo llega vacío y se usa el intento único de antes).
+import * as ColaTimbre from "@/lib/malla/cola-timbre";
 
 type Linea = { t: number; hito: string; neurona: string | null; detalle: string };
 const lineas: Linea[] = [];
@@ -19,7 +22,14 @@ const t0 = performance.now();
 fijarSumideroDiagnostico((l) => lineas.push({ t: Math.round(performance.now() - t0), ...l }));
 
 /* ── Ruta IP simulada: por PC, con estado forzado mientras está cortada ── */
-const red = { ip: true, retardoIceMs: 1500, ipVista: { A: true as boolean | null, B: true as boolean | null } };
+const red = {
+  ip: true,
+  retardoIceMs: 1500,
+  ipVista: { A: true as boolean | null, B: true as boolean | null },
+  // MLL1111C: «estado» fuerza ICE a «failed» al cortar (como antes); «silencio» deja ICE «conectado» y congela los bytes de
+  // entrada (lo que pasa de verdad al apagar el Wi-Fi del otro: ICE tarda 5–30 s en enterarse).
+  modoCorte: "estado" as "estado" | "silencio",
+};
 const PCReal = window.RTCPeerConnection;
 const pcs: RTCPeerConnection[] = [];
 class PCBanco extends PCReal {
@@ -28,15 +38,25 @@ class PCBanco extends PCReal {
     pcs.push(this);
   }
   get iceConnectionState(): RTCIceConnectionState {
-    return red.ip ? super.iceConnectionState : super.iceConnectionState === "new" ? "new" : "failed";
+    return red.ip || red.modoCorte === "silencio" ? super.iceConnectionState : super.iceConnectionState === "new" ? "new" : "failed";
   }
   get connectionState(): RTCPeerConnectionState {
-    return red.ip ? super.connectionState : super.connectionState === "new" ? "new" : "failed";
+    return red.ip || red.modoCorte === "silencio" ? super.connectionState : super.connectionState === "new" ? "new" : "failed";
+  }
+  private congelado: RTCStatsReport | null = null;
+  // MLL1111C: con la IP cortada no entra nada: los contadores de getStats se quedan donde estaban.
+  async getStats(sel?: MediaStreamTrack | null): Promise<RTCStatsReport> {
+    if (!red.ip && this.congelado) return this.congelado;
+    const r = await super.getStats(sel ?? null);
+    if (red.ip && !sel) this.congelado = r;
+    return r;
   }
 }
 (window as unknown as { RTCPeerConnection: unknown }).RTCPeerConnection = PCBanco;
-function cambiarRedIp(on: boolean) {
+function cambiarRedIp(on: boolean, o: { senal?: boolean } = {}) {
   red.ip = on;
+  // MLL1111C: la señal del sistema (online/offline) cuando la hay; sin ella, solo la comprobación de vida.
+  if (o.senal) window.dispatchEvent(new Event(on ? "online" : "offline"));
   for (const pc of pcs) {
     try {
       pc.dispatchEvent(new Event("iceconnectionstatechange"));
@@ -162,9 +182,47 @@ function audioFalso(quien: "A" | "B"): AudioVoz {
   };
 }
 
+/* ── MLL1111C: otros carriles simulados (Wi-Fi directo y red del router), con su medida ── */
+const extras: { lan: { kbps: number; rtt: number } | null; directo: { kbps: number; rtt: number } | null } = { lan: null, directo: null };
+function carrilesExtra(): MuestraCarril[] {
+  const out: MuestraCarril[] = [];
+  if (extras.lan) out.push({ carril: "lan-tcp", arriba: true, kbps: extras.lan.kbps, rttMs: extras.lan.rtt });
+  if (extras.directo) out.push({ carril: "wifi-direct", arriba: true, kbps: extras.directo.kbps, rttMs: extras.directo.rtt });
+  return out;
+}
+
+/* ── MLL1111C: el timbre con vías simuladas (ninguna, y una que liga más tarde) ── */
+const vias = { arriba: false, oyentes: new Set<(v: string) => void>(), intentos: 0 };
+function abrirVia(nombre = "bluetooth") {
+  vias.arriba = true;
+  vias.oyentes.forEach((cb) => cb(nombre));
+}
+async function timbre(ventanaMs = 30_000): Promise<{ ok: boolean; intentos: number; ms: number; cola: boolean; motivo: string }> {
+  vias.intentos = 0;
+  const t0 = performance.now();
+  const avisar = async () => {
+    vias.intentos++;
+    await new Promise((r) => setTimeout(r, 30));
+    return vias.arriba;
+  };
+  const conCola = typeof (ColaTimbre as { VENTANA_TIMBRE_MS?: unknown }).VENTANA_TIMBRE_MS === "number";
+  if (!conCola) {
+    // El código de antes: un intento y, si falla, «inicio paso=timbre fallo» sin reintento.
+    const ok = await avisar();
+    return { ok, intentos: vias.intentos, ms: Math.round(performance.now() - t0), cola: false, motivo: ok ? "primer-intento" : "fallo-sin-reintento" };
+  }
+  const r = await ColaTimbre.timbreConCola({
+    avisar,
+    alVia: (cb) => (vias.oyentes.add(cb), () => void vias.oyentes.delete(cb)),
+    anotar: (d) => lineas.push({ t: Math.round(performance.now() - t0), hito: "inicio", neurona: null, detalle: `paso=timbre ${d}` }),
+    ventanaMs,
+  });
+  return { ...r, ms: Math.round(r.ms), cola: true };
+}
+
 /* ── Una llamada entre A y B ── */
 let n = 0;
-async function llamada(o: { conDatos: boolean; video?: boolean }) {
+async function llamada(o: { conDatos: boolean; video?: boolean; videoFalso?: boolean }) {
   n++;
   const sesionId = crypto.randomUUID();
   const [ca, cb] = bucleSenal(sesionId);
@@ -186,6 +244,9 @@ async function llamada(o: { conDatos: boolean; video?: boolean }) {
             crearAudio: () => audioFalso(quien),
             codecs: () => fabricaCodecsSimples(),
             intervaloMs: 500,
+            carrilesExtra: () => carrilesExtra(),
+            // MLL1111C: «vídeo ligero» de mentira: deja que el selector elija el enlace de datos para el vídeo (sin códec).
+            ...(o.videoFalso ? { video: { fabrica: () => Promise.reject(new Error("banco: sin vídeo ligero")), fuenteDePista: () => null, crearSalida: () => null } } : {}),
           }
         : undefined,
     });
@@ -256,6 +317,10 @@ function estadoNeg() {
   pcs,
   cambiarRedIp,
   llamada,
+  extras,
+  vias,
+  abrirVia,
+  timbre,
   videoRemoto,
   estadoNeg,
   limpiar() {
@@ -263,6 +328,8 @@ function estadoNeg() {
     audio.reproducidas.A = audio.reproducidas.B = 0;
     audio.sesiones.A = audio.sesiones.B = 0;
     cuenta.ofertas = cuenta.ofertasSinIp = cuenta.iceTirados = 0;
+    extras.lan = extras.directo = null;
+    vias.arriba = false;
   },
   listo: true,
 };

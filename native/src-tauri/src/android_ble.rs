@@ -294,8 +294,29 @@ mod pruebas {
         for prohibido in ["stopAdvertising", "cancelConnection", "disconnect", "close", "servidor", "clientes", "centrales", "limpiar", "cerrarCliente", "desconectar("] {
             assert!(!f.contains(prohibido), "reanudarRadio no debe tocar «{prohibido}»");
         }
-        assert!(f.contains("if (!anunciando) anunciar()"), "solo anuncia si no hay anuncio");
+        assert!(f.contains("if (!anunciando) anunciar(false)"), "solo anuncia si no hay anuncio (sin forzar: MLL1111C)");
         assert!(f.contains("escanear()"));
+        assert!(f.contains("if (reanudarPendiente) return"), "MLL1111C: una sola reanudación pendiente");
+    }
+
+    /// (MLL1111C) El gemelo Kotlin de `ble_autocura` (desconexión repetida, anuncio que junta peticiones, plazo creciente
+    /// y contador real) sigue escrito como en Rust.
+    #[test]
+    fn kotlin_es_gemelo_de_la_tormenta_de_la_prueba_35() {
+        let ini = KOTLIN.find("STATE_DISCONNECTED) {\n                    val c = centrales.remove(k)").expect("desconexión del servidor");
+        let f = &KOTLIN[ini..ini + 1400];
+        let repetida = f.find("if (c == null) {").expect("una desconexión sin conexión previa es repetida");
+        let cancela = f.find("cancelConnection(d)").expect("la real se libera");
+        assert!(repetida < cancela, "la repetida sale ANTES de cancelar otra vez (el bucle de la prueba 35)");
+        assert!(f[repetida..cancela].contains("return@post"));
+        let an = KOTLIN.find("private fun anunciar(forzar: Boolean = true)").expect("anunciar con forzar");
+        let g = &KOTLIN[an..an + 900];
+        assert!(g.contains("ahora - anuncioPedidoMs < CONFIRMAR_ANUNCIO_MS) return"), "un arranque en curso no se reinicia");
+        assert!(g.contains("if (anunciando && !forzar) return"));
+        assert!(KOTLIN.contains("CONFIRMAR_ANUNCIO_MS = 3_000L") && crate::ble_autocura::CONFIRMAR_ANUNCIO_MS == 3_000);
+        assert!(KOTLIN.contains("ENTRE_CURAS_MAX_MS = 1_800_000L") && crate::ble_autocura::ENTRE_CURAS_MAX_MS == 1_800_000);
+        assert!(KOTLIN.contains("plazoEntreCuras(curasSeguidas)"));
+        assert!(KOTLIN.contains("nota(\"contador-enlaces\""));
     }
 
     /// (BLE1108C) Los hitos que Kotlin anota son los que Rust acepta, y cubren descubrimiento, suscripción,

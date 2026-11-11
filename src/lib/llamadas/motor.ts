@@ -32,7 +32,9 @@ import { decidirAccionMedio, ESPERA_ICE_MS, LIMITE_CONECTANDO_MS, MOTIVO_SIN_AUD
 import { anotarLlamada } from "@/lib/llamadas/voz-datos/diagnostico";
 import { leerControl } from "@/lib/llamadas/voz-datos/paquete";
 // (LLA1110D) Un carril estable por flujo (voz, vídeo, pantalla, señal) en vez de un único medio que saltaba.
-import { esCarrilBle, LimiteRegistro, SelectorCarriles, textoCarriles, soyDirector, type CambioCarril, type Carril, type Flujo, type MuestraCarril } from "@/lib/llamadas/carriles";
+import { esCarrilBle, esperaReintentoIce, etiquetaCarril, LimiteRegistro, SelectorCarriles, SILENCIO_WEBRTC_MS, textoCarriles, soyDirector, type CambioCarril, type Carril, type Flujo, type MuestraCarril } from "@/lib/llamadas/carriles";
+// (MLL1111C) Las señales de cambio de red del sistema (online/offline y Network Information): el paso de carril al instante.
+import { senalesDisponibles, vigilarSenalesRed, type SenalRed } from "@/lib/malla/senales-red";
 import { SesionVideoDatos } from "@/lib/llamadas/video-datos/sesion-video";
 import type { FabricaVideo, FuenteVideo, SalidaVideo } from "@/lib/llamadas/video-datos/tipos";
 import { claseEscalada, debeEscalar, textoEscalada, TEXTO_PANTALLA_BLE, TEXTO_PANTALLA_SIN_P2P, type ClaseEscalada, type EstadoWifiLlamada } from "@/lib/llamadas/escalada-wifi";
@@ -139,6 +141,11 @@ export interface OpcionesVozDatos {
     estadoWifi?(): EstadoWifiLlamada;
     /** (LLA1108H) Vídeo ligero por el enlace de datos mientras no hay red IP (todo inyectable). */
     video?: OpcionesVideoDatos;
+    /**
+     * (MLL1111C) Otros carriles abiertos hacia ese par con su medida (Wi-Fi directo, red local del router…): el selector los
+     * compara por capacidad para el flujo de datos (petición 8: el directo gana al router si mide más, con histéresis).
+     */
+    carrilesExtra?(parId: string): MuestraCarril[];
 }
 
 /** (LLA1108H) Lo que el motor necesita para llevar vídeo de baja resolución por el enlace de datos. */
@@ -1548,6 +1555,8 @@ export class MotorLlamada {
             void this.sincronizarVideoDatos(id);
         };
         this.vigilantes.set(id, setInterval(tic, v.intervaloMs ?? 500));
+        this.ticsMedio.set(id, tic);
+        this.escucharSenalesRed();
     }
 
     private readonly vigiladoEscucha = new Map<string, () => void>();
@@ -1638,6 +1647,7 @@ export class MotorLlamada {
      */
     private revisarCarriles(id: string, par: Par, tr: TransporteVoz | null) {
         this.medirCuadrosWeb(id, par);
+        this.medirVidaWeb(id, par);
         const sel = this.selectorDe(id);
         const reloj = this.relojVoz();
         const ahora = reloj.ahora();
@@ -1647,9 +1657,12 @@ export class MotorLlamada {
         const ev = voz?.estado();
         const muestras: MuestraCarril[] = [];
         const met = par.metricas;
+        // (MLL1111C) Comprobación de vida: con la voz por WebRTC, si no entra nada en 1 s (400 ms tras un aviso de red del
+        // sistema), WebRTC cuenta como caído aunque ICE aún diga «conectado» (ICE tarda 5–30 s en enterarse).
+        const callado = par.conexion === "conectado" && sel.carril("voz") === "webrtc" ? this.webrtcCallado(id) : null;
         muestras.push({
             carril: "webrtc",
-            arriba: par.conexion === "conectado",
+            arriba: par.conexion === "conectado" && callado === null,
             rttMs: met?.rttMs ?? null,
             perdidaPct: par.calidad === "mala" ? 20 : met && met.recibidos + met.perdidos > 0 ? (100 * met.perdidos) / (met.recibidos + met.perdidos) : 0,
         });
@@ -1671,7 +1684,17 @@ export class MotorLlamada {
             }
             muestras.push({ carril: datosCarril, arriba: abierto, rttMs: cal?.rttMs ?? null, perdidaPct: desdeRx > 4000 ? 100 : (cal?.perdidaPct ?? 0), kbps });
         }
+        // (MLL1111C) Los demás carriles abiertos hacia ese par (Wi-Fi directo, red local…), con su medida.
+        let extras: MuestraCarril[] = [];
+        try {
+            extras = (this.opc.vozDatos?.carrilesExtra?.(id) ?? []).filter((m) => m && m.carril !== "webrtc" && m.carril !== datosCarril);
+        } catch {
+            extras = [];
+        }
+        muestras.push(...extras);
+        const extra = new Set(extras.map((m) => m.carril));
         const puede = (f: Flujo, c: Carril) => {
+            if (extra.has(c)) return f === "datos";
             if (c === "webrtc") return true;
             if (c !== datosCarril) return false;
             if (f === "video" || f === "pantalla") return !!this.opc.vozDatos?.video;
@@ -1690,9 +1713,19 @@ export class MotorLlamada {
             if (c) cambios.push({ ...c, motivo: senal ? "enlace-directo" : "servidor" });
         }
         const flujos: Flujo[] = sel.carril("voz") ? ["voz", "video", "pantalla"] : ["video", "pantalla"];
+        if (extras.length) flujos.push("datos");
         for (const c of sel.actualizar(muestras, ahora, puede, flujos)) {
             cambios.push(c);
             if (c.flujo !== "voz") continue;
+            // (MLL1111C) Conmutación de la voz: cuánto tardó en detectarse y con qué señal.
+            if (c.de === "webrtc" && c.a) {
+                const sinDatos = callado ?? (this.vidaWeb.get(id) ? Date.now() - this.vidaWeb.get(id)!.cambio : null);
+                anotarLlamada(
+                    "carril",
+                    this.opc.vozDatos?.neurona ?? null,
+                    `conmutacion par=${id} flujo=voz de=webrtc a=${c.a} motivo=${c.motivo} deteccion=${callado !== null ? "vida" : "estado-ice"} sin-entrada=${sinDatos ?? "-"}ms senal=${this.ultimaSenalRed ?? "ninguna"}`,
+                );
+            }
             if (c.a === "webrtc" && ev?.activa) this.pararVozDatos(id, "carril:webrtc");
             else if (c.a && c.a === datosCarril && !ev?.activa) void this.activarVozDatos(id, `carril:${c.motivo}`);
         }
@@ -1726,7 +1759,7 @@ export class MotorLlamada {
             const f = sel.foto();
             const forzados: Partial<Record<Flujo, Carril>> = {};
             for (const k of Object.keys(f) as Flujo[]) if (f[k].forzado) forzados[k] = f[k].forzado!;
-            out.push({ parId: id, voz: f.voz.carril, video: f.video.carril, pantalla: f.pantalla.carril, senal: f.senal.carril, datos: this.carrilDatos.get(id) ?? null, forzados, texto: textoCarriles(this.pantallaOn ? { voz: f.voz, pantalla: f.pantalla } : { voz: f.voz, video: f.video }), director: soyDirector(this.miId, id) });
+            out.push({ parId: id, voz: f.voz.carril, video: f.video.carril, pantalla: f.pantalla.carril, senal: f.senal.carril, datos: this.carrilDatos.get(id) ?? null, forzados, texto: textoCarriles(this.pantallaOn ? { voz: f.voz, pantalla: f.pantalla } : { voz: f.voz, video: f.video }) + (f.datos.carril ? ` · Datos: ${etiquetaCarril(f.datos.carril)}` : ""), director: soyDirector(this.miId, id) });
         }
         return out;
     }
@@ -1744,6 +1777,8 @@ export class MotorLlamada {
         const t = this.vigilantes.get(id);
         if (t) clearInterval(t);
         this.vigilantes.delete(id);
+        this.ticsMedio.delete(id);
+        this.vidaWeb.delete(id);
         const baja = this.vigiladoEscucha.get(id);
         if (baja) {
             try {
@@ -1851,13 +1886,19 @@ export class MotorLlamada {
         this.rutaIpVista.set(id, ip);
         // (LLA1110D) Apareció la ruta IP y había una oferta en espera: sale ahora.
         if (ip === true && par.ofertaPendiente && par.pc.signalingState === "stable") void this.ofertar(par, "ruta-ip-nueva");
+        if (par.conexion === "conectado") this.reintentosIce.delete(id);
         if (ip === true && par.conexion !== "conectado") {
             const ultimo = this.ultimoReintentoIce.get(id) ?? -Infinity;
-            if (antes === false || (par.conexion === "fallida" && ahora - ultimo >= 5000 && par.reinicios < 6)) {
+            // (MLL1111C) Con una ruta IP viva y WebRTC caído, ICE se reintenta a 3, 6, 12 y luego cada 15 s (antes: tras 5 s
+            // solo si «fallida», con tope de 6, y en la prueba 35 se vio cada ~60 s): el vídeo vuelve a WebRTC en segundos.
+            const n = this.reintentosIce.get(id) ?? 0;
+            const vence = par.conexion === "fallida" || par.conexion === "reconectando" ? ahora - ultimo >= esperaReintentoIce(n) : false;
+            if (antes === false || vence) {
                 if (ahora - ultimo >= 1500) {
                     this.ultimoReintentoIce.set(id, ahora);
+                    this.reintentosIce.set(id, n + 1);
                     par.reinicios = 0;
-                    anotarLlamada("medio=webrtc", neurona, `par=${id} ruta IP nueva (Wi-Fi directo): se reintenta WebRTC sin colgar`);
+                    anotarLlamada("medio=webrtc", neurona, `par=${id} ruta IP nueva (Wi-Fi directo): se reintenta WebRTC sin colgar intento=${n + 1} siguiente-en=${esperaReintentoIce(n + 1)}ms`);
                     this.reiniciarIce(par);
                 }
             }
@@ -1920,6 +1961,92 @@ export class MotorLlamada {
     }
 
     private readonly cuadrosWeb = new Map<string, { n: number; en: number; pidiendo: boolean; ultimo: number }>();
+
+    /* ───────────────────── Comprobación de vida de WebRTC y señales de red (MLL1111C) ───────────────────── */
+
+    /** Por par: bytes de entrada de WebRTC vistos y cuándo crecieron por última vez. */
+    private readonly vidaWeb = new Map<string, { bytes: number; cambio: number; pidiendo: boolean; ultimo: number }>();
+    /** El tic de cada par (para revisarlo YA cuando el sistema avisa de un cambio de red). */
+    private readonly ticsMedio = new Map<string, () => void>();
+    /** Por par: reintentos de ICE seguidos con una ruta IP viva (marcan la espera: 3, 6, 12, 15 s). */
+    private readonly reintentosIce = new Map<string, number>();
+    /** Hasta cuándo se sospecha de la red (el sistema avisó de un cambio): la comprobación de vida se afina. */
+    private sospechaRedHasta = 0;
+    private ultimaSenalRed: string | null = null;
+    private bajaSenalesRed: (() => void) | null = null;
+
+    /** Pide (sin esperar) los bytes de entrada de WebRTC de ese par: 4 veces por segundo, 10 si se sospecha de la red. */
+    private medirVidaWeb(id: string, par: Par) {
+        if (par.conexion !== "conectado") {
+            this.vidaWeb.delete(id);
+            return;
+        }
+        const ahora = Date.now();
+        let v = this.vidaWeb.get(id);
+        if (!v) this.vidaWeb.set(id, (v = { bytes: -1, cambio: ahora, pidiendo: false, ultimo: 0 }));
+        if (v.pidiendo || ahora - v.ultimo < (ahora < this.sospechaRedHasta ? 100 : 250)) return;
+        v.pidiendo = true;
+        const vv = v;
+        try {
+            void par.pc
+                .getStats()
+                .then((st) => {
+                    let b = 0;
+                    st.forEach((r: Record<string, unknown>) => {
+                        if (r.type === "inbound-rtp" && typeof r.bytesReceived === "number") b += r.bytesReceived;
+                    });
+                    if (b > vv.bytes) vv.cambio = Date.now();
+                    vv.bytes = b;
+                })
+                .catch(() => undefined)
+                .finally(() => {
+                    vv.pidiendo = false;
+                    vv.ultimo = Date.now();
+                });
+        } catch {
+            vv.pidiendo = false;
+        }
+    }
+
+    /** ¿WebRTC «conectado» pero sin que entre nada desde hace `SILENCIO_WEBRTC_MS` (400 ms si el sistema avisó de la red)? */
+    private webrtcCallado(id: string): number | null {
+        const v = this.vidaWeb.get(id);
+        if (!v || v.bytes < 0) return null;
+        const ahora = Date.now();
+        const umbral = ahora < this.sospechaRedHasta ? 400 : SILENCIO_WEBRTC_MS;
+        const ms = ahora - v.cambio;
+        return ms >= umbral ? ms : null;
+    }
+
+    /** El sistema avisó de un cambio de red: se mide ya y se revisan los carriles en 150 y 450 ms (sin esperar al tic). */
+    private alSenalRed(sr: SenalRed) {
+        if (this.cerrado) return;
+        this.sospechaRedHasta = Date.now() + 3_000;
+        this.ultimaSenalRed = `${sr.tipo}@${Date.now()}`;
+        anotarLlamada("carril", this.opc.vozDatos?.neurona ?? null, `senal-red ${sr.tipo} ${sr.detalle} pares=${this.pares.size}`);
+        for (const [id, par] of this.pares) {
+            const v = this.vidaWeb.get(id);
+            if (v) v.ultimo = 0;
+            this.medirVidaWeb(id, par);
+        }
+        for (const ms of [150, 450, 900]) {
+            setTimeout(() => {
+                for (const t of Array.from(this.ticsMedio.values())) {
+                    try {
+                        t();
+                    } catch {
+                        /* un tic nunca tumba la llamada */
+                    }
+                }
+            }, ms);
+        }
+    }
+
+    private escucharSenalesRed() {
+        if (this.bajaSenalesRed || this.cerrado) return;
+        this.bajaSenalesRed = vigilarSenalesRed((sr) => this.alSenalRed(sr));
+        anotarLlamada("carril", this.opc.vozDatos?.neurona ?? null, `senal-red escucha senales=${senalesDisponibles().join(",") || "ninguna"} vida-webrtc=${SILENCIO_WEBRTC_MS}ms`);
+    }
 
     /** (LLA1110D) Cuadros de vídeo decodificados que entran por WebRTC de ese par (como mucho una consulta por segundo). */
     private medirCuadrosWeb(id: string, par: Par) {
@@ -2289,6 +2416,12 @@ export class MotorLlamada {
 
     private limpiar() {
         this.cerrado = true;
+        try {
+            this.bajaSenalesRed?.();
+        } catch {
+            /* noop */
+        }
+        this.bajaSenalesRed = null;
         if (this.temporizadorNivel) clearInterval(this.temporizadorNivel);
         if (this.temporizadorStats) clearInterval(this.temporizadorStats);
         this.temporizadorNivel = null;

@@ -28,7 +28,9 @@ import { registrarFinLlamada } from "@/lib/llamadas/registro";
 import { abrirCanalLlamada } from "@/lib/llamadas/senalizacion";
 import { obtenerIceServidores, type FuenteIce } from "@/lib/llamadas/ice";
 import { temaLlamada } from "@/lib/llamadas/temas";
-import { enlacesLocalesVivos } from "@/lib/malla/registro-enlaces-locales";
+import { enlacesLocalesVivos, suscribirEnlacesLocales } from "@/lib/malla/registro-enlaces-locales";
+// (MLL1111C) El timbre nunca se rinde en silencio: cola de 30 s que se repite en cuanto liga cualquier vía.
+import { textoBuscandoVia, timbreConCola, VENTANA_TIMBRE_MS } from "@/lib/malla/cola-timbre";
 import { abrirCanalLlamadaPorEnlace } from "@/lib/llamadas/canal-enlace-local";
 import { canalesParaLlamada } from "@/lib/llamadas/canales-directos";
 import { iceParaCanal, tipoCanalDirecto } from "@/lib/llamadas/decision-ice";
@@ -546,34 +548,103 @@ export async function empezarLlamadaSinChat(o: {
     });
     await motor.prepararMedios({ audio: true, video: conVideo || !!o.pistaPantalla, stream: medios.stream });
     if (medios.aviso) motor.avisar(medios.aviso);
-    let avisado = false;
-    try {
-        avisado = await o.avisar(sesionId);
-    } catch {
-        avisado = false;
-    }
-    paso("timbre", avisado, sinServidor ? "por-el-enlace-directo" : "");
+    // (MLL1111C) Prueba 35 (18:31): «inicio paso=timbre fallo» y nada más; el Bluetooth ligó un minuto después y nadie repitió
+    // el aviso. Ahora, si el primer aviso no sale, la ventana se abre ya con «Buscando una vía hasta <nombre>…» y el timbre
+    // queda en cola `VENTANA_TIMBRE_MS`: se repite en cuanto liga cualquier vía (Bluetooth con esa neurona, un enlace local,
+    // internet) y si no a 1, 2, 3, 3… s; quien entrega (`o.avisar`) elige en cada intento la mejor vía viva, así un aviso que
+    // falló por una vía se reintenta por la siguiente.
+    let abierta = false;
+    const abrirVentana = () => {
+        if (abierta) return;
+        abierta = true;
+        activar({
+            sesionId,
+            tipo: o.tipo,
+            hiloId: null,
+            titulo: o.titulo || TEXTO_TIPO[o.tipo].nombre,
+            mensajeId: null,
+            adjunto: null,
+            esCreador: true,
+            token: null,
+            unoAUno: true,
+            motor,
+            minimizada: false,
+        });
+        motor.entrar();
+    };
+    const timbre = await timbreConCola({
+        avisar: async () => {
+            try {
+                return await o.avisar(sesionId);
+            } catch {
+                return false;
+            }
+        },
+        alVia: (cb) => vigilarViasHacia(o.neurona ?? null, cb),
+        anotar: (d) => anotarLlamada("inicio", neuronaInicio, `paso=timbre ${d}`),
+        alBuscar: (buscando) => {
+            if (buscando) {
+                abrirVentana();
+                motor.avisar(textoBuscandoVia(o.titulo));
+            } else if (!motor.cerrada) {
+                motor.avisar(null);
+            }
+        },
+        cancelada: () => motor.cerrada,
+    });
+    const avisado = timbre.ok;
+    paso("timbre", avisado, `${sinServidor ? "por-el-enlace-directo " : ""}intentos=${timbre.intentos} tras=${timbre.ms}ms motivo=${timbre.motivo}`.trim());
     if (!avisado) {
-        pararStream(medios.stream);
+        const motivo =
+            timbre.motivo === "cancelada" ? "Llamada cancelada." : `No encontramos ninguna vía hasta ${o.titulo || "esa neurona"} en ${Math.round(VENTANA_TIMBRE_MS / 1000)} s.`;
+        if (abierta && !motor.cerrada) colgarLlamada(motivo);
+        else if (!abierta) pararStream(medios.stream);
         if (sinServidor) quitarPendiente(sesionId);
         else void terminarSesion(sesionId).catch(() => null);
-        return { ok: false, motivo: "La neurona no recibió el aviso de la llamada (sin medio disponible ahora)." };
+        return { ok: false, motivo };
     }
-    activar({
-        sesionId,
-        tipo: o.tipo,
-        hiloId: null,
-        titulo: o.titulo || TEXTO_TIPO[o.tipo].nombre,
-        mensajeId: null,
-        adjunto: null,
-        esCreador: true,
-        token: null,
-        unoAUno: true,
-        motor,
-        minimizada: false,
-    });
-    motor.entrar();
+    abrirVentana();
     return { ok: true, sesionId };
+}
+
+/**
+ * (MLL1111C) Avisa cuando liga una vía que puede llevar el timbre hasta esa neurona: Bluetooth ligado con ella, un enlace
+ * local nuevo o internet que vuelve. Devuelve la baja. Nunca lanza.
+ */
+function vigilarViasHacia(neurona: string | null, cb: (via: string) => void): () => void {
+    const bajas: (() => void)[] = [];
+    let cerrado = false;
+    try {
+        bajas.push(suscribirEnlacesLocales(() => cb("enlace-local")));
+    } catch {
+        /* sin registro de enlaces */
+    }
+    if (typeof window !== "undefined") {
+        const enLinea = () => cb("internet");
+        window.addEventListener("online", enLinea);
+        bajas.push(() => window.removeEventListener("online", enLinea));
+    }
+    if (neurona) {
+        void import("@/lib/malla/bluetooth-directo-motor")
+            .then((m) => {
+                const baja = m.alLigarBle((n) => {
+                    if (n === neurona) cb("bluetooth");
+                });
+                if (cerrado) baja();
+                else bajas.push(baja);
+            })
+            .catch(() => undefined);
+    }
+    return () => {
+        cerrado = true;
+        for (const b of bajas.splice(0)) {
+            try {
+                b();
+            } catch {
+                /* noop */
+            }
+        }
+    };
 }
 
 /**

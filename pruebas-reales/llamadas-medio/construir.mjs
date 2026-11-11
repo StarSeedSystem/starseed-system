@@ -26,6 +26,11 @@ const resolverTs = (p) => {
   return null;
 };
 const PERMITIDO = path.join(raiz, "src/lib/llamadas") + path.sep;
+// MLL1111C: las dos piezas de la malla que usa el motor (señales de red) y el timbre (cola), y el sustituto del motor de
+// permisos de Aurora (no entra en el paquete).
+const MALLA_PERMITIDA = ["src/lib/malla/senales-red.ts", "src/lib/malla/cola-timbre.ts"].map((f) => path.join(raiz, f));
+const SUSTITUTOS = { "@/lib/aurora/senses/request-permission": path.join(aqui, "shim-permisos.ts") };
+const permitido = (p) => (p.startsWith(PERMITIDO) || MALLA_PERMITIDA.includes(p)) && !NO.some((r) => r.test(p));
 const NO = [/\/superficie\//, /\/nativa\//];
 
 await esbuild.build({
@@ -41,14 +46,15 @@ await esbuild.build({
       name: "banco",
       setup(b) {
         b.onResolve({ filter: /^@\// }, (a) => {
+          if (SUSTITUTOS[a.path]) return { path: SUSTITUTOS[a.path] };
           const p = resolverTs(path.join(raiz, "src", a.path.slice(2)));
-          if (!p || !p.startsWith(PERMITIDO) || NO.some((r) => r.test(p))) return { path: a.path, namespace: "vacio" };
+          if (!p || !permitido(p)) return { path: a.path, namespace: "vacio" };
           return { path: p };
         });
         b.onResolve({ filter: /^\.\.?\// }, (a) => {
           if (a.importer.startsWith(aqui)) return undefined;
           const p = resolverTs(path.resolve(path.dirname(a.importer), a.path));
-          if (!p || !p.startsWith(PERMITIDO) || NO.some((r) => r.test(p))) return { path: a.path, namespace: "vacio" };
+          if (!p || !permitido(p)) return { path: a.path, namespace: "vacio" };
           return { path: p };
         });
         b.onResolve({ filter: /^[^./@]|^@[^/]/ }, (a) => ({ path: a.path, namespace: "vacio" }));

@@ -40,6 +40,13 @@ export interface ReglaFlujo {
   enfriamientoMs: number;
   /** ¿Sube a un carril preferido cuando aparece (con histéresis)? La voz NO. */
   subir: boolean;
+  /**
+   * (MLL1111C) Cuánto tiempo seguido CAÍDO (no degradado) hace falta para dejar el carril si hay otro ya abierto. La voz y la
+   * señal se van en el primer tic (0 ms): la comprobación de vida ya dio la evidencia. Sin valor: la mitad de `evidenciaMs`.
+   */
+  caidaMs?: number;
+  /** (MLL1111C) ¿Ordena por capacidad medida los carriles Wi-Fi (directo frente a router)? Vídeo, pantalla y datos. */
+  porCapacidad?: boolean;
 }
 
 const BLE: readonly Carril[] = ["ble-l2cap", "ble-gatt"];
@@ -47,12 +54,51 @@ const IP: readonly Carril[] = ["webrtc", "wifi-direct", "wifi-aware", "awdl", "l
 
 export const REGLAS: Record<Flujo, ReglaFlujo> = {
   // La señalización va por lo que esté: la prioridad es que llegue (el transporte universal ya reintenta).
-  senal: { preferencia: ["lan-tcp", "wifi-direct", "wifi-aware", "awdl", ...BLE, "webrtc"], evidenciaMs: 3_000, enfriamientoMs: 10_000, subir: false },
-  voz: { preferencia: ["webrtc", ...BLE, "lan-tcp", "wifi-direct", "wifi-aware", "awdl"], evidenciaMs: 6_000, enfriamientoMs: 30_000, subir: false },
-  video: { preferencia: [...IP, ...BLE], evidenciaMs: 3_000, enfriamientoMs: 10_000, subir: true },
-  pantalla: { preferencia: [...IP, ...BLE], evidenciaMs: 3_000, enfriamientoMs: 10_000, subir: true },
-  datos: { preferencia: ["lan-tcp", "wifi-direct", "wifi-aware", "awdl", "webrtc", ...BLE], evidenciaMs: 3_000, enfriamientoMs: 10_000, subir: true },
+  senal: { preferencia: ["lan-tcp", "wifi-direct", "wifi-aware", "awdl", ...BLE, "webrtc"], evidenciaMs: 3_000, enfriamientoMs: 10_000, subir: false, caidaMs: 0 },
+  voz: { preferencia: ["webrtc", ...BLE, "lan-tcp", "wifi-direct", "wifi-aware", "awdl"], evidenciaMs: 6_000, enfriamientoMs: 30_000, subir: false, caidaMs: 0 },
+  video: { preferencia: [...IP, ...BLE], evidenciaMs: 3_000, enfriamientoMs: 10_000, subir: true, caidaMs: 1_000, porCapacidad: true },
+  pantalla: { preferencia: [...IP, ...BLE], evidenciaMs: 3_000, enfriamientoMs: 10_000, subir: true, caidaMs: 1_000, porCapacidad: true },
+  datos: { preferencia: ["lan-tcp", "wifi-direct", "wifi-aware", "awdl", "webrtc", ...BLE], evidenciaMs: 3_000, enfriamientoMs: 10_000, subir: true, caidaMs: 1_000, porCapacidad: true },
 };
+
+/**
+ * (MLL1111C) Comprobación de vida de WebRTC: con el par «conectado», si en este tiempo no entra NINGÚN byte (ni audio, ni
+ * vídeo, ni RTCP), el carril se da por caído sin esperar al plazo de ICE (que tarda 5–30 s en decir «disconnected»).
+ */
+export const SILENCIO_WEBRTC_MS = 1_000;
+
+/** (MLL1111C) Espera antes del reintento n de ICE con una ruta IP viva: 3, 6, 12 y luego cada 15 s (antes, 60 s fijos). */
+export function esperaReintentoIce(n: number): number {
+  const escala = [3_000, 6_000, 12_000, 15_000];
+  return escala[Math.min(Math.max(0, Math.floor(n)), escala.length - 1)];
+}
+
+/** (MLL1111C) Carriles Wi-Fi que compiten por capacidad: el directo entre neuronas frente al router (red local). */
+const POR_CAPACIDAD: readonly Carril[] = ["wifi-direct", "wifi-aware", "awdl", "lan-tcp"];
+
+/** (MLL1111C) Histéresis: otro carril tiene que medir un 25 % más que el actual para quitarle el sitio. */
+export const MARGEN_CAPACIDAD = 1.25;
+
+/** (MLL1111C) Capacidad útil de un carril: kb/s medidos penalizados por el retardo (100 ms de ida y vuelta la parten a la mitad). */
+export function capacidadCarril(m: MuestraCarril | undefined | null): number | null {
+  if (!m || !m.arriba || typeof m.kbps !== "number" || !(m.kbps > 0)) return null;
+  const rtt = typeof m.rttMs === "number" && m.rttMs > 0 ? m.rttMs : 0;
+  return (m.kbps * 100) / (100 + rtt);
+}
+
+/**
+ * (MLL1111C, petición 8 de Alex) Orden de preferencia con los carriles Wi-Fi reordenados por capacidad medida: si el Wi-Fi
+ * directo entre las neuronas mide más que la red del router, va delante (y al revés). Solo cuando hay al menos DOS carriles
+ * Wi-Fi medidos; los demás conservan su sitio. `actual` lleva la ventaja de la histéresis (`MARGEN_CAPACIDAD`).
+ */
+export function ordenPorCapacidad(pref: readonly Carril[], porCarril: ReadonlyMap<Carril, MuestraCarril>, actual: Carril | null): Carril[] {
+  const medidos = pref.filter((c) => POR_CAPACIDAD.includes(c) && capacidadCarril(porCarril.get(c)) !== null);
+  if (medidos.length < 2) return [...pref];
+  const efectiva = (c: Carril) => (capacidadCarril(porCarril.get(c)) ?? 0) * (c === actual ? MARGEN_CAPACIDAD : 1);
+  const ordenados = [...medidos].sort((a, b) => efectiva(b) - efectiva(a) || pref.indexOf(a) - pref.indexOf(b));
+  let k = 0;
+  return pref.map((c) => (medidos.includes(c) ? ordenados[k++] : c));
+}
 
 /** Umbrales de «sano» (los mismos que `nivelCalidadVoz` usa para «mala»). */
 export function carrilSano(m: MuestraCarril | undefined | null): boolean {
@@ -168,9 +214,15 @@ export class SelectorCarriles {
     return { flujo: f, de, a: c, motivo: "arranque", muestras: "" };
   }
 
+  /** El orden de preferencia de ese flujo ahora (MLL1111C: con los carriles Wi-Fi ordenados por capacidad si el flujo la pide). */
+  private orden(f: Flujo, porCarril: Map<Carril, MuestraCarril>): readonly Carril[] {
+    const r = this.reglas[f];
+    return r.porCapacidad ? ordenPorCapacidad(r.preferencia, porCarril, this.e.get(f)!.actual) : r.preferencia;
+  }
+
   /** Carriles que pueden llevar ese flujo, en su orden de preferencia, entre los que están arriba. */
   private candidatos(f: Flujo, porCarril: Map<Carril, MuestraCarril>, puede: (f: Flujo, c: Carril) => boolean): Carril[] {
-    return this.reglas[f].preferencia.filter((c) => puede(f, c) && carrilSano(porCarril.get(c)));
+    return this.orden(f, porCarril).filter((c) => puede(f, c) && carrilSano(porCarril.get(c)));
   }
 
   /**
@@ -215,7 +267,8 @@ export class SelectorCarriles {
         const caido = !actual?.arriba;
         // Caído del todo: basta media evidencia; degradado: la evidencia entera. Siempre con enfriamiento,
         // salvo que el carril haya desaparecido y haya otro (no se deja el flujo sin carril por el enfriamiento).
-        const espera = caido ? regla.evidenciaMs / 2 : regla.evidenciaMs;
+        // (MLL1111C) Caído: `caidaMs` (voz y señal, el primer tic; vídeo y datos, 1 s). Antes: media evidencia (3 s la voz).
+        const espera = caido ? (regla.caidaMs ?? regla.evidenciaMs / 2) : regla.evidenciaMs;
         const enfriado = ahora - s.ultimoCambio >= regla.enfriamientoMs || caido;
         if (ahora - s.maloDesde >= espera && enfriado) {
           const destino = cands.find((c) => c !== s.actual) ?? null;
@@ -227,8 +280,9 @@ export class SelectorCarriles {
       s.maloDesde = null;
       // 4) Sano. La voz se queda; los flujos que suben miran si hay uno preferido sano de forma sostenida.
       if (!regla.subir) continue;
-      const iActual = regla.preferencia.indexOf(s.actual);
-      const mejor = cands.find((c) => regla.preferencia.indexOf(c) < iActual) ?? null;
+      const orden = this.orden(f, porCarril);
+      const iActual = orden.indexOf(s.actual);
+      const mejor = cands.find((c) => orden.indexOf(c) < iActual) ?? null;
       if (!mejor) {
         s.mejor = null;
         s.mejorDesde = null;
@@ -238,7 +292,11 @@ export class SelectorCarriles {
         s.mejor = mejor;
         s.mejorDesde = ahora;
       }
-      if (ahora - (s.mejorDesde ?? ahora) >= regla.evidenciaMs && ahora - s.ultimoCambio >= regla.enfriamientoMs) mover(mejor, `${mejor}-mejor-sostenido`);
+      if (ahora - (s.mejorDesde ?? ahora) >= regla.evidenciaMs && ahora - s.ultimoCambio >= regla.enfriamientoMs) {
+        // (MLL1111C) Si sube porque mide más (y no por el orden de siempre), lo dice.
+        const porCapacidad = regla.preferencia.indexOf(mejor) > regla.preferencia.indexOf(s.actual);
+        mover(mejor, porCapacidad ? `${mejor}-mas-capacidad` : `${mejor}-mejor-sostenido`);
+      }
     }
     return cambios;
   }
