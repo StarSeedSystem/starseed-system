@@ -6830,3 +6830,10 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 
 **Lo que quedó fuera, una por una:**
 - `P37-1111-rc` — no escribió nada
+
+## 2026-11-11 10:12 · auto-1111-095747
+
+**Resultado.** 0 de 1 integradas. 1 tarea se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `P37-1111-rc` — no escribió nada
