@@ -5,7 +5,7 @@
 - preparado por Claude en la nube a petición de Alex;
 - encolado por Claude (Cowork, con la Mac) el mismo día.
 
-**Estado:** la cola `starseed_memory_root/olas/cola-sdp1111.json` está encolada con 13 tareas (A–L y N).
+**Estado:** la cola `starseed_memory_root/olas/cola-sdp1111.json` está encolada con 14 tareas (A–L, N y O).
 - SDP1111M (lectura diaria de «Mi actividad» con el navegador) **no** está en la cola: espera la aprobación de Alex y
   su texto está en `starseed_memory_root/olas/pendientes/tarea-sdp1111m-pendiente.json`.
 - Nada está construido todavía.
@@ -164,7 +164,8 @@ Todo lo de esta sección es **privado**:
    - En la Mac: `bash scripts/puente/guardar-clave.sh TELEGRAM_SINTESIS_BOT_TOKEN --ambos`, y pegar el token que dio
      BotFather.
    - El chat_id no es secreto y lo pone la ola.
-   - El token tiene que llegar también al A1, por la vía habitual de claves.
+   - Al A1 llega con `python3 scripts/puente/oracle_nodo.py claves`, en cuanto SDP1111O esté integrada. Esa tarea añade
+     los nombres nuevos y los archivos de cuentas a la orden de claves.
 2. **Cliente OAuth de Google** (unos 10 minutos, gratis), en console.cloud.google.com con cualquiera de las dos
    cuentas:
    - crear un proyecto «StarSeed actividad»;
@@ -365,6 +366,19 @@ lee la cola como lista de tareas. SDP1111M va aparte: ver «Estado», arriba.
    "SDP1111K"
   ],
   "prompt": "Cablea como _agente_alcance (director_autodesarrollo.py l.170 y l.523): añade _agente_sintesis(raiz, ahora) con import protegido de agente_sintesis.ciclo, llamado en cada ciclo del director cuando este nodo dirige. Antes de la fase recolectar, el agente llama a los lectores de actividad que estén disponibles en este nodo (protegidos: si uno falla, sigue). Añade a contexto_agente.py el rol 'sintesis-produccion' con sus reglas (fuente y fecha, no copiar, no investigar a particulares, normas de marca) y la salida esperada. Prueba: el director sigue si el módulo falta o lanza. Máximo 120 líneas tocadas por archivo."
+ },
+ {
+  "id": "SDP1111O",
+  "ola": "SDP1111",
+  "titulo": "Claves y cuentas de la síntesis hacia el A1",
+  "archivos": [
+   "scripts/puente/oracle_nodo.py",
+   "scripts/puente/test_oracle_nodo.py"
+  ],
+  "depende": [
+   "SDP1111E"
+  ],
+  "prompt": "Lee architecture/sintesis-diaria-autonoma.md §3.3, §4 y §5 y la orden `claves` de oracle_nodo.py (la lista de NOMBRES de variables que viajan al A1, l.~130-150, y la función claves()). Añade a esa lista, SOLO por nombre: TELEGRAM_SINTESIS_BOT_TOKEN, TELEGRAM_SINTESIS_CHAT_ID, GOOGLE_ACTIVIDAD_CLIENT_ID y GOOGLE_ACTIVIDAD_CLIENT_SECRET. Haz que `claves` lleve también los archivos de ~/.starseed/cuentas/*.json (tokens de refresco de cuentas_google, permisos 0600 en origen y destino, mismo canal ssh que ya usa claves, sin imprimir su contenido ni sus nombres de archivo en registros). Si no existen todavía, sigue sin error. Pruebas: la lista contiene los cuatro nombres y el empaquetado de cuentas respeta 0600 sin leer valores. Máximo 120 líneas tocadas por archivo."
  },
  {
   "id": "SDP1111N",
