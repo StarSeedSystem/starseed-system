@@ -6895,3 +6895,12 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 
 **Lo que quedó fuera, una por una:**
 - `SUP1111B` — no escribió nada
+
+## 2026-11-11 12:23 · auto-1111-120017
+
+**Lo que se pidió.** add/add
+
+**Resultado.** 1 de 2 integradas. 1 tarea se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `P37-1111-rcbb` — no escribió nada
