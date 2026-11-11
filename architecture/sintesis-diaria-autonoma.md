@@ -173,8 +173,8 @@ Todo lo de esta sección es **privado**:
    - pantalla de consentimiento: tipo «Externo», añadir los dos correos como usuarios de prueba y después **publicar
      la app** (si se queda «en pruebas», el acceso caduca cada 7 días);
    - crear credenciales › ID de cliente de OAuth › «App de escritorio»;
-   - guardar las dos claves con `guardar-clave.sh GOOGLE_ACTIVIDAD_CLIENT_ID --ambos` y
-     `guardar-clave.sh GOOGLE_ACTIVIDAD_CLIENT_SECRET --ambos`.
+   - pulsar «Descargar JSON» y dejarlo en Descargas. `cuentas_google.py importar` (o el primer `alta`) guarda las dos
+     claves sin mostrarlas y aparta el archivo a `~/.starseed/cuentas/` con permisos 0600.
 3. **Iniciar sesión con cada cuenta**, cuando SDP1111E esté integrada:
    - `python3 scripts/puente/cuentas_google.py alta alex` y `… alta fundacion`;
    - se abre el navegador. Google avisará de «app no verificada» porque es propia: Avanzado › Continuar.
@@ -275,7 +275,7 @@ lee la cola como lista de tareas. SDP1111M va aparte: ver «Estado», arriba.
    "scripts/puente/test_cuentas_google.py"
   ],
   "depende": [],
-  "prompt": "Lee architecture/sintesis-diaria-autonoma.md §4 y §5. Crea cuentas_google.py: flujo OAuth de app de escritorio (redirección a 127.0.0.1 con puerto libre, PKCE) con GOOGLE_ACTIVIDAD_CLIENT_ID y GOOGLE_ACTIVIDAD_CLIENT_SECRET, scopes SOLO de lectura: gmail.readonly, drive.readonly, youtube.readonly. CLI: `alta <alias>` (alex|fundacion) abre el navegador y guarda el token de refresco en ~/.starseed/cuentas/<alias>.json con permisos 0600; `estado` lista alias, correo y si el token sigue vivo, sin imprimir tokens; `token(alias)` devuelve un token de acceso renovado. Solo biblioteca estándar. Pruebas sin red con el intercambio inyectado. Máximo 120 líneas por archivo."
+  "prompt": "Lee architecture/sintesis-diaria-autonoma.md §4 y §5. Crea cuentas_google.py: flujo OAuth de app de escritorio (redirección a 127.0.0.1 con puerto libre, PKCE) con GOOGLE_ACTIVIDAD_CLIENT_ID y GOOGLE_ACTIVIDAD_CLIENT_SECRET, scopes SOLO de lectura: gmail.readonly, drive.readonly, youtube.readonly. CLI: `alta <alias>` (alex|fundacion) abre el navegador y guarda el token de refresco en ~/.starseed/cuentas/<alias>.json con permisos 0600; `estado` lista alias, correo y si el token sigue vivo, sin imprimir tokens; `token(alias)` devuelve un token de acceso renovado. Añade la orden `importar [ruta]`: si no se da ruta, toma el client_secret_*.json más reciente de ~/Downloads (el que descarga la consola de Google al crear el cliente «App de escritorio»), guarda GOOGLE_ACTIVIDAD_CLIENT_ID y GOOGLE_ACTIVIDAD_CLIENT_SECRET en ~/.starseed/env y ~/.hermes/.env con la misma lógica de scripts/puente/guardar-clave.sh (entrecomillar, reemplazar sin duplicar, comprobar que el archivo se carga entero), sin imprimir valores (solo una huella de 8 caracteres), y mueve el JSON a ~/.starseed/cuentas/cliente-oauth.json con permisos 0600. `importar` también se llama sola al empezar `alta` si las variables faltan y hay un client_secret_*.json en Descargas. Solo biblioteca estándar. Pruebas sin red con el intercambio inyectado. Máximo 120 líneas por archivo."
  },
  {
   "id": "SDP1111F",
