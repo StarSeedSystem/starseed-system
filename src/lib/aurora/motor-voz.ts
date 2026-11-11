@@ -40,6 +40,8 @@ export {
     type OpcionesHablar,
     type PreferenciaNivel,
 } from "@/lib/aurora/voz-starseed/motor";
+
+export { hay158 };
 import { VOZ_STARSEED_ID, nivelPreferido } from "@/lib/aurora/voz-starseed/motor";
 import { nivelPara } from "@/lib/aurora/voz-starseed/niveles";
 import type { NivelVoz } from "@/lib/aurora/voz-starseed/niveles";
