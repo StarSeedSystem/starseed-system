@@ -1,16 +1,20 @@
 #!/usr/bin/env python3
 """Actividad · cuadernos de NotebookLM (SDP1111J · §4 de sintesis-diaria-autonoma).
 
-El CLI `notebooklm` (notebooklm-py v0.8.6) solo vive en la Mac (/Users/alex/bin/notebooklm), con
-perfiles: `default` = alexbordongarrigos@gmail.com y `fundacion` = fundacionstarseed@gmail.com.
+El CLI `notebooklm` (notebooklm-py v0.8.6) vive en la Mac (/Users/alex/bin/notebooklm) y, desde
+SDP1111R, también en el líder del A1 (venv propio con notebooklm-py y la sesión que `claves`
+lleva por el túnel ssh), con perfiles: `default` = alexbordongarrigos@gmail.com y
+`fundacion` = fundacionstarseed@gmail.com.
 Se listan los cuadernos de cada perfil y, por cuaderno, las fuentes y notas nuevas desde la
 última pasada, con `privado: true` en ~/.starseed/actividad/ (fuera de starseed_memory_root).
-Sin CLI o con la sesión caducada: {ok: False, motivo} sin fallar ni reintentar el login; `ejecutar` es inyectable.
+Sin CLI o con la sesión caducada: {ok: False, motivo} sin fallar ni reintentar el login (si
+Google invalida la sesión fuera de la Mac, la Mac la cubre cuando esté encendida); `ejecutar` es inyectable.
 """
 import json, os, shutil, subprocess, time
 
 PERFILES = {"default": "alexbordongarrigos@gmail.com", "fundacion": "fundacionstarseed@gmail.com"}
 CLI_MAC = "/Users/alex/bin/notebooklm"
+CLI_VENV_A1 = os.path.expanduser("~/.starseed/venvs/notebooklm/bin/notebooklm")
 DIR_ACTIVIDAD = os.path.expanduser("~/.starseed/actividad")
 NOMBRE_ESTADO = "notebooklm-estado.json"
 CLAVES_FILAS = ("notebooks", "sources", "notes", "items", "results", "data")
@@ -19,8 +23,9 @@ SEÑALES_SESION = ("unauthorized", "401", "session expired", "not authenticated"
 TAREAS = (("fuente", ["source", "list"], "sources"), ("nota", ["note", "list"], "notes"))
 
 def buscar_cli(existe=os.path.isfile, cual=shutil.which):
-    """Ruta del CLI en este nodo: la de la Mac o la del PATH. None si no está."""
-    return CLI_MAC if existe(CLI_MAC) else cual("notebooklm")
+    """Ruta del CLI en este nodo (solo el líder que tenga CLI y sesión): la de la Mac, la del
+    venv propio del A1 o la del PATH. None si no está."""
+    return CLI_MAC if existe(CLI_MAC) else (CLI_VENV_A1 if existe(CLI_VENV_A1) else cual("notebooklm"))
 
 def ejecutar_cli(args, binario, timeout=90):
     """Una llamada al CLI: sin shell, con la salida capturada. No escribe nada."""
