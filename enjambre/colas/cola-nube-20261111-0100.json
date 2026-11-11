@@ -1,0 +1,18 @@
+{
+ "ola": "nube-20261111",
+ "tareas": [
+  {
+   "id": "IMG-diaria-tres-motores-de-permisos-duplicad",
+   "titulo": "Tres motores de permisos duplicados",
+   "area": "imaginacion",
+   "archivos": [],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Tres motores de permisos duplicados. `lib/senses`, `request-permission`, `universalDeviceBridge` hacen lo mismo (`tasks abiertas`); unificar reduce superficie de bugs y latencia de prompts de permiso. Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1111-005959.json": [
+   "IMG-diaria-tres-motores-de-permisos-duplicad"
+  ]
+ }
+}
