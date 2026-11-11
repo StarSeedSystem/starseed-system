@@ -53,7 +53,46 @@ const camaras = {
   unaALaVez: false,
   abiertas: new Set<MediaStreamTrack>(),
   pedidas: [] as string[],
+  /**
+   * LLA1111A · como la Mac de la prueba.35: las cámaras cuya etiqueta case con esto (la FaceTime, la virtual) solo
+   * tienen UN ritmo, 30.000030517578125 fps (lo que AVFoundation da para «30»). Un `frameRate` obligatorio que lo deje
+   * fuera (`max: 30`, `exact`, `min` mayor) o un `facingMode` exacto acaba en OverconstrainedError en milisegundos, con o
+   * sin `deviceId`. Las de Continuidad (iPhone) tienen un rango 1–60 y lo aceptan. Sin `deviceId`, el «sistema» abre la
+   * primera que cumpla empezando por `porDefecto`; si ninguna cumple, OverconstrainedError.
+   */
+  rechazan: null as string | null,
+  /** LLA1111A · etiquetas de cámaras que otra app tiene ocupadas (NotReadableError siempre). */
+  ocupadas: null as string | null,
+  /** «fps» (la de arriba) u otra hipótesis: «id+tamano», un `deviceId` exacto junto a ancho/alto (aunque sean `ideal`). */
+  regla: "fps" as "fps" | "id+tamano",
 };
+const FPS_FIJO = 30.000030517578125;
+function noCumple(v: unknown): string | null {
+  if (!v || typeof v !== "object") return null;
+  const c = v as Record<string, unknown>;
+  if (camaras.regla === "id+tamano") {
+    const id = c.deviceId as Record<string, unknown> | string | undefined;
+    const exacto = typeof id === "object" && id && "exact" in id;
+    if (exacto && c.width !== undefined) return "width";
+    if (exacto && c.height !== undefined) return "height";
+  }
+  const fr = c.frameRate as Record<string, number> | number | undefined;
+  if (fr && typeof fr === "object") {
+    if ((fr.max !== undefined && fr.max < FPS_FIJO) || (fr.exact !== undefined && fr.exact !== FPS_FIJO) || (fr.min !== undefined && fr.min > FPS_FIJO)) return "frameRate";
+  }
+  const fm = c.facingMode as Record<string, unknown> | undefined;
+  if (fm && typeof fm === "object" && fm.exact !== undefined) return "facingMode";
+  return null;
+}
+function errorRestriccion(constraint: string): Error {
+  const Ctor = (window as unknown as { OverconstrainedError?: new (c: string, m?: string) => Error }).OverconstrainedError;
+  try {
+    if (Ctor) return new Ctor(constraint, "Invalid constraint");
+  } catch {
+    /* sin constructor */
+  }
+  return Object.assign(new DOMException("Invalid constraint", "OverconstrainedError"), { constraint }) as unknown as Error;
+}
 md.enumerateDevices = async () => {
   const l = await enumerarReal();
   let i = 0;
@@ -67,11 +106,24 @@ md.enumerateDevices = async () => {
 };
 md.getUserMedia = async (c?: MediaStreamConstraints) => {
   camaras.pedidas.push(JSON.stringify(c?.video ?? false));
-  // Sin deviceId, el «sistema» elige la suya (como macOS con la cámara de Continuidad).
-  if (c?.video && !(typeof c.video === "object" && (c.video as MediaTrackConstraints).deviceId)) {
+  if (c?.video) {
     const lista = (await enumerarReal()).filter((d) => d.kind === "videoinput");
-    const d = lista[camaras.porDefecto] ?? lista[0];
-    if (d) c = { ...c, video: { ...(typeof c.video === "object" ? c.video : {}), facingMode: undefined, deviceId: { exact: d.deviceId } } };
+    const etiquetaDe = (id: string) => camaras.etiquetas[lista.findIndex((d) => d.deviceId === id)] ?? "";
+    const rechaza = (id: string) => (camaras.rechazan && new RegExp(camaras.rechazan, "i").test(etiquetaDe(id)) ? noCumple(c?.video) : null);
+    const pedida = typeof c.video === "object" ? (c.video as MediaTrackConstraints).deviceId : undefined;
+    const idPedido = typeof pedida === "string" ? pedida : pedida && typeof pedida === "object" ? ((pedida as { exact?: string; ideal?: string }).exact ?? (pedida as { ideal?: string }).ideal) : undefined;
+    if (idPedido) {
+      const r = rechaza(idPedido);
+      if (r) throw errorRestriccion(r);
+      if (camaras.ocupadas && new RegExp(camaras.ocupadas, "i").test(etiquetaDe(idPedido))) throw new DOMException("Could not start video source", "NotReadableError");
+    } else {
+      // Sin deviceId, el «sistema» elige la suya (como macOS con la cámara de Continuidad), entre las que cumplen.
+      const orden = [lista[camaras.porDefecto], ...lista.filter((_, i) => i !== camaras.porDefecto)].filter(Boolean);
+      const d = orden.find((x) => !rechaza(x.deviceId));
+      if (!d) throw errorRestriccion(noCumple(c.video) ?? "frameRate");
+      if (camaras.ocupadas && new RegExp(camaras.ocupadas, "i").test(etiquetaDe(d.deviceId))) throw new DOMException("Could not start video source", "NotReadableError");
+      c = { ...c, video: { ...(typeof c.video === "object" ? c.video : {}), facingMode: undefined, deviceId: { exact: d.deviceId } } };
+    }
   }
   if (c?.video && camaras.unaALaVez) {
     for (const t of camaras.abiertas) if (t.readyState !== "live") camaras.abiertas.delete(t);
@@ -305,6 +357,8 @@ interface Llamada {
 }
 let actual: Llamada | null = null;
 const oyentesLlamada = new Set<() => void>();
+/** LLA1111A · tamaño del marco de cada lado (los casos de ventana lo ponen al de la pantalla que imitan). */
+let marco = { w: 480, h: 640 };
 
 function Pane() {
   const ll = useSyncExternalStore(
@@ -314,12 +368,19 @@ function Pane() {
     },
     () => actual,
   );
+  const m = useSyncExternalStore(
+    (cb) => {
+      oyentesLlamada.add(cb);
+      return () => void oyentesLlamada.delete(cb);
+    },
+    () => marco,
+  );
   const ad = ll?.adaptador ?? null;
   const vista = useSyncExternalStore(ad ? ad.suscribir : () => () => undefined, ad ? ad.vista : () => VACIA);
   return (
-    <div data-lado={LADO} style={{ position: "relative", width: 480, height: 640, transform: "translateZ(0)", overflow: "hidden", background: "#223" }}>
+    <div data-lado={LADO} style={{ position: "relative", width: m.w, height: m.h, transform: "translateZ(0)", overflow: "hidden", background: "#223" }}>
       <p style={{ color: "#fff", font: "12px sans-serif", margin: 4 }}>{LADO}</p>
-      {ad && <SuperficieLlamada key={ll?.n} vista={vista} acciones={{ ...ad.acciones, descartar: () => undefined }} tamanoInicial="panel" />}
+      {ad && <SuperficieLlamada key={ll?.n} vista={vista} acciones={{ ...ad.acciones, descartar: () => undefined }} tamanoInicial="panel" carriles={ll?.motor} />}
     </div>
   );
 }
@@ -419,6 +480,11 @@ function resumen() {
   motor: () => actual?.motor ?? null,
   tirados: () => tirados,
   ip: (on: boolean) => ponerIp(on),
+  /** LLA1111A · el marco al tamaño de la pantalla que se imita (el viewport lo pone Playwright). */
+  marco(w: number, h: number) {
+    marco = { w, h };
+    oyentesLlamada.forEach((cb) => cb());
+  },
   /** (LLA1110D) Diagnóstico: por cada RTCPeerConnection viva, transceptores y cuadros que entran y salen. */
   async stats() {
     const out: string[] = [];

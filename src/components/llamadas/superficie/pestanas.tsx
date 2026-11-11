@@ -1,7 +1,7 @@
 "use client";
 
-/** Pestañas del panel de la llamada (LLA1108C): calidad, medio, invitar, grabar, Astraura, gente. */
-import { useState } from "react";
+/** Pestañas del panel de la llamada (LLA1108C): puertos (antes «Calidad»), medio, invitar, grabar, Astraura, gente. */
+import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { hayGrabacion, textoIndicador, GRABACION_INICIAL } from "@/lib/llamadas/superficie/grabacion";
 import { textoTranscripcion } from "@/lib/llamadas/superficie/astraura-llamada";
@@ -11,6 +11,9 @@ import { useInfoNativaLlamada } from "./contexto-nativo";
 import { Barras, useSalidasAudio } from "./piezas";
 import { getDeviceId } from "@/lib/network/device-registry";
 import { OpcionesDeCamara, SelectorCamara } from "../selector-camara";
+import type { Carril } from "@/lib/llamadas/carriles";
+import type { CarrilesParVista } from "@/lib/llamadas/tipos";
+import { eleccionesCarril, parPrincipal, webrtcConectadoCon, type FuenteCarriles } from "./carriles-eleccion";
 
 const caja = "rounded-xl border border-white/10 bg-white/[0.04] p-2.5 text-[12px] text-white/80";
 const btnTxt = "cursor-pointer rounded-lg border border-violet-300/30 bg-violet-400/15 px-2.5 py-1 text-[11.5px] text-violet-50 transition-colors duration-200 hover:bg-violet-400/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300/80 disabled:cursor-not-allowed disabled:opacity-40";
@@ -76,14 +79,20 @@ export function PestanaCalidad({ v, a, salidas, espejo, onEspejo }: { v: VistaLl
   );
 }
 
-export function PestanaMedio({ v, a }: { v: VistaLlamada; a: AccionesLlamada }) {
+/** El motivo con que `opcionesMedio` marca un medio sin enlace ahora (esos van juntos en una línea). */
+const SIN_ENLACE_MEDIO = /^No hay enlace por este medio/;
+
+export function PestanaMedio({ v, a, carriles }: { v: VistaLlamada; a: AccionesLlamada; /** LLA1111A: el motor, para elegir el carril de cada flujo. */ carriles?: FuenteCarriles | null }) {
   const opciones = v.opcionesMedio ?? [];
+  // LLA1111A: solo los medios que hay ahora como filas; los que no, en una línea (antes: una fila muerta por medio).
+  const vivos = opciones.filter((o) => o.disponible || (v.medioElegido ?? "automatico") === o.medio || !SIN_ENLACE_MEDIO.test(o.motivo));
+  const muertos = opciones.filter((o) => !vivos.includes(o));
   return (
     <div className="space-y-2">
-      <p className={caja}>{v.textoMedio ?? "El planificador elige el mejor medio disponible y lo cambia solo si se cae."}</p>
-      {v.textoCarriles && <p className={caja}>{v.textoCarriles}</p>}
+      {/* LLA1111A: la línea de estado («Voz por… · Voz: … · Vídeo: …») ya está debajo de la imagen: no se repite aquí. */}
+      {!v.textoMedio && <p className={caja}>El planificador elige el mejor medio disponible y lo cambia solo si se cae.</p>}
       <div role="radiogroup" aria-label="Medio de transmisión" className="space-y-1">
-        {opciones.map((o) => {
+        {vivos.map((o) => {
           const sel = (v.medioElegido ?? "automatico") === o.medio;
           return (
             <button
@@ -100,8 +109,57 @@ export function PestanaMedio({ v, a }: { v: VistaLlamada; a: AccionesLlamada }) 
             </button>
           );
         })}
+        {muertos.length > 0 && <p className="px-1 text-[11px] text-white/50" data-sin-enlace="">Sin enlace ahora: {muertos.map((o) => o.etiqueta).join(", ")}.</p>}
         {opciones.length === 0 && <p className={caja}>Sin opciones de medio todavía.</p>}
       </div>
+      {carriles && <CarrilesPorFlujo fuente={carriles} />}
+    </div>
+  );
+}
+
+/** LLA1111A · el carril de la voz, el vídeo y la pantalla: el que va ahora y elegir «Automático» o uno de los que hay. */
+function CarrilesPorFlujo({ fuente }: { fuente: FuenteCarriles }) {
+  // El motor avisa al cambiar, pero un forzado puede no cambiar nada visible en la vista: se relee cada segundo y medio.
+  const [, setTic] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTic((n) => n + 1), 1500);
+    return () => clearInterval(id);
+  }, []);
+  let par: CarrilesParVista | null = null;
+  try {
+    par = parPrincipal(fuente.carriles());
+  } catch {
+    par = null;
+  }
+  if (!par) return <p className={caja}>Los carriles aparecen en cuanto la llamada conecta con alguien.</p>;
+  const elecciones = eleccionesCarril(par, webrtcConectadoCon(fuente, par));
+  return (
+    <div className={cn(caja, "space-y-1.5")} data-carriles-flujo="">
+      <p className="text-white/55">Carril de cada flujo</p>
+      {elecciones.map((e) => (
+        <div key={e.flujo} className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <label htmlFor={`carril-${e.flujo}`} className="min-w-[4.5rem] text-white/90">{e.nombre}</label>
+          <span className="flex-1 text-[11px] text-white/60" data-carril-actual={e.flujo}>ahora: {e.textoActual}{e.forzado ? " · elegido a mano" : ""}</span>
+          <select
+            id={`carril-${e.flujo}`}
+            aria-label={`Carril de ${e.nombre.toLowerCase()}`}
+            value={e.valor}
+            onChange={(ev) => {
+              fuente.forzarCarril(e.flujo, ev.target.value === "auto" ? null : (ev.target.value as Carril));
+              setTic((n) => n + 1);
+            }}
+            className="max-w-full rounded-lg border border-white/15 bg-slate-900 px-2 py-1 text-[12px]"
+          >
+            <option value="auto">Automático</option>
+            {e.opciones.map((o) => (
+              <option key={o.carril} value={o.carril} disabled={!o.arriba}>{o.etiqueta}</option>
+            ))}
+          </select>
+        </div>
+      ))}
+      {elecciones[0] && elecciones[0].sinEnlace.length > 0 && (
+        <p className="text-[11px] text-white/45" data-sin-enlace-carril="">Sin enlace ahora: {Array.from(new Set(elecciones.flatMap((e) => e.sinEnlace))).join(", ")}.</p>
+      )}
     </div>
   );
 }

@@ -61,3 +61,47 @@ describe("SuperficieLlamada (LLA1108C)", () => {
     expect(screen.queryByTestId("superficie-llamada")).toBeNull();
   });
 });
+
+describe("SuperficieLlamada · LLA1111A (Puertos, estado una vez, carriles, alto máximo)", () => {
+  const conectada = (o: Partial<VistaLlamada> = {}) => base({ estado: "conectada", desde: Date.now(), tipo: "video", textoMedio: "Voz por Bluetooth directo · cifrada", textoCarriles: "Voz: Bluetooth · Vídeo: Bluetooth", ...o });
+  const abrir = (v: VistaLlamada, extra: Record<string, unknown> = {}) => {
+    const a: AccionesLlamada = { colgar: vi.fn() };
+    render(<SuperficieLlamada vista={v} acciones={a} tamanoInicial="panel" {...extra} />);
+  };
+  it("el botón se llama «Puertos» (y su panel también); ya no hay «Calidad»", () => {
+    abrir(conectada());
+    expect(screen.queryByRole("tab", { name: /Calidad/ })).toBeNull();
+    fireEvent.click(screen.getByRole("tab", { name: /Puertos/ }));
+    expect(screen.getByRole("tabpanel", { name: "Puertos" })).toBeTruthy();
+  });
+  it("con «Medio» abierto la línea de estado sale una sola vez", () => {
+    abrir(conectada());
+    fireEvent.click(screen.getByRole("tab", { name: /Medio/ }));
+    const sec = screen.getByTestId("superficie-llamada");
+    expect(sec.textContent?.split("Voz por Bluetooth directo · cifrada").length).toBe(2);
+    expect(sec.textContent?.split("Voz: Bluetooth · Vídeo: Bluetooth").length).toBe(2);
+  });
+  it("«Medio» con el motor: un selector por flujo que fuerza el carril y vuelve a automático", () => {
+    const forzar = vi.fn();
+    const carriles = {
+      carriles: () => [{ parId: "p", voz: "ble-l2cap", video: "ble-l2cap", pantalla: "ble-l2cap", senal: "ble-l2cap", datos: "ble-l2cap", forzados: {}, texto: "", director: true }],
+      estado: () => ({ participantes: [] }),
+      forzarCarril: forzar,
+    };
+    abrir(conectada(), { carriles });
+    fireEvent.click(screen.getByRole("tab", { name: /Medio/ }));
+    const sel = screen.getByRole("combobox", { name: "Carril de vídeo" }) as HTMLSelectElement;
+    expect([...sel.options].map((o) => o.value)).toEqual(["auto", "ble-l2cap"]);
+    fireEvent.change(sel, { target: { value: "ble-l2cap" } });
+    expect(forzar).toHaveBeenCalledWith("video", "ble-l2cap");
+    fireEvent.change(sel, { target: { value: "auto" } });
+    expect(forzar).toHaveBeenLastCalledWith("video", null);
+    expect(screen.getByRole("combobox", { name: "Carril de voz" })).toBeTruthy();
+    expect(screen.getByRole("combobox", { name: "Carril de pantalla" })).toBeTruthy();
+  });
+  it("la ventana flotante lleva un alto máximo con las zonas seguras (nunca más alta que lo visible)", () => {
+    abrir(conectada());
+    const sec = screen.getByTestId("superficie-llamada");
+    expect(sec.getAttribute("style") ?? "").toMatch(/max-height: calc\(100dvh/);
+  });
+});

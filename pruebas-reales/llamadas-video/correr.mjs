@@ -263,6 +263,228 @@ try {
     await espera(1200);
   }
 
+  /* 2d · LLA1111A · la Mac de la prueba.35: la FaceTime y la virtual rechazan el `frameRate` obligatorio (OverconstrainedError). */
+  if (!soloCaso || soloCaso === "webkit") {
+    const preparar = (o) => mac.evaluate((o) => {
+      try { localStorage.clear(); } catch {}
+      Object.assign(window.banco.camaras, { permiso: false, rechazan: "FaceTime|OBS|Virtual", ocupadas: null, regla: "fps", pedidas: [] }, o ?? {});
+      window.banco.registro.splice(0);
+    }, o);
+    const encender = async () => {
+      await camara(mac);
+      await esperarHasta(mac, () => window.banco.resumen()?.camara === true, 12000);
+      await espera(2500);
+      return { r: await mac.evaluate(() => window.banco.resumen()), reg: await mac.evaluate(() => window.banco.registro), pedidas: await mac.evaluate(() => window.banco.camaras.pedidas) };
+    };
+    const cortar = async () => {
+      await mac.evaluate(() => window.banco.colgar());
+      await tableta.evaluate(() => window.banco.colgar());
+      await espera(1200);
+    };
+    const resumenCam = (x) => lineas(x.reg, /camara /).filter((l) => !/visibilidad/.test(l)).slice(0, 6).join(" | ").slice(0, 600);
+
+    // W1 · primera vez (sin etiquetas): el sistema abre la Desk View; hay que acabar en la FaceTime.
+    await preparar();
+    await llamada("wk-1", { sinIp: true });
+    const w1 = await encender();
+    anotar("webkit · 1.ª vez sin etiquetas: la Mac acaba en la FaceTime (que rechaza frameRate max)", /FaceTime/.test(w1.r?.pistaCamara ?? "") && w1.r?.camara === true, `pista=${w1.r?.pistaCamara} · ${resumenCam(w1)}`);
+    anotar("webkit · ninguna petición lleva facingMode (escritorio) ni un frameRate obligatorio", !w1.pedidas.some((p) => /facingMode|"max"|"exact":\d/.test(p)), w1.pedidas.slice(0, 4).join(" ; ").slice(0, 300));
+    await mac.screenshot({ path: join(capturas, "20-webkit-1a-vez.png") });
+    await cortar();
+
+    // W2 · segunda llamada (con etiquetas y la FaceTime guardada): se pide por id y abre.
+    await mac.evaluate(() => { window.banco.registro.splice(0); window.banco.camaras.pedidas = []; });
+    await llamada("wk-2", { sinIp: true });
+    const w2 = await encender();
+    anotar("webkit · 2.ª llamada: la FaceTime pedida por id abre (antes: elegida-no-abre → sistema)", /FaceTime/.test(w2.r?.pistaCamara ?? "") && !lineas(w2.reg, /elegida-no-abre/).length, `pista=${w2.r?.pistaCamara} · ${resumenCam(w2)}`);
+    await cortar();
+
+    // W3 · otra regla posible de WebKit: deviceId exacto + tamaño → rechaza (constraint=width). La escalera baja a «solo-id».
+    await preparar({ permiso: true, regla: "id+tamano" });
+    await llamada("wk-3", { sinIp: true });
+    const w3 = await encender();
+    const fallo3 = lineas(w3.reg, /intento .*paso=deseo .*fallo .*constraint=width/);
+    const ok3 = lineas(w3.reg, /intento .*paso=solo-id .*ok/);
+    anotar("webkit · regla deviceId+tamaño: la escalera registra la restricción y abre la FaceTime con solo el id", /FaceTime/.test(w3.r?.pistaCamara ?? "") && fallo3.length > 0 && ok3.length > 0, `pista=${w3.r?.pistaCamara} · ${(fallo3[0] ?? "sin línea de fallo").slice(0, 200)} | ${(ok3[0] ?? "sin línea ok").slice(0, 160)}`);
+    await cortar();
+
+    // W4 · como a las 09:37: sin iPhone que cumpla (todas rechazan) y sin etiquetas: antes «No encontramos ninguna cámara».
+    await preparar({ rechazan: "." });
+    await llamada("wk-4", { sinIp: true });
+    const w4 = await encender();
+    const nada = lineas(w4.reg, /No encontramos ninguna c/);
+    anotar("webkit · todas rechazan el frameRate obligatorio: igual abre una cámara y nunca «No encontramos»", w4.r?.camara === true && nada.length === 0, `pista=${w4.r?.pistaCamara} aviso=${w4.r?.aviso} · ${resumenCam(w4)}`);
+    await mac.screenshot({ path: join(capturas, "21-webkit-todas-rechazan.png") });
+    await cortar();
+
+    // W5 · selector: al iPhone y de vuelta a la FaceTime sin colgar; una cámara ocupada dice por qué y deja la anterior.
+    await preparar({ permiso: true });
+    await llamada("wk-5", { sinIp: true });
+    const w5 = await encender();
+    const ids = await mac.evaluate(() => { const v = window.banco.vista(); return v.dispositivos.camaras.map((c) => ({ id: c.id, nombre: c.nombre })); });
+    const idDe = (re) => ids.find((c) => re.test(c.nombre))?.id ?? null;
+    await mac.evaluate((id) => window.banco.acciones().elegirCamara(id), idDe(/Desk View/));
+    const aIphone = await esperarHasta(mac, () => /Desk View/.test(window.banco.resumen()?.pistaCamara ?? ""), 8000);
+    await mac.evaluate((id) => window.banco.acciones().elegirCamara(id), idDe(/FaceTime/));
+    const deVuelta = await esperarHasta(mac, () => /FaceTime/.test(window.banco.resumen()?.pistaCamara ?? ""), 8000);
+    const r5 = await mac.evaluate(() => window.banco.resumen());
+    anotar("webkit · selector: iPhone y de vuelta a la FaceTime en vivo, sin colgar", aIphone && deVuelta && r5?.fase === "en-curso", `inicio=${w5.r?.pistaCamara} → iPhone=${aIphone} → FaceTime=${deVuelta} fase=${r5?.fase}`);
+    await comprobarRemoto("webkit · selector: la tableta ve la FaceTime de nuevo", tableta, mac, "22-webkit-selector-vuelta");
+    await mac.evaluate(() => { window.banco.camaras.ocupadas = "Desk View"; });
+    await mac.evaluate((id) => window.banco.acciones().elegirCamara(id), idDe(/Desk View/));
+    await espera(2500);
+    const r6 = await mac.evaluate(() => window.banco.resumen());
+    const avisoVisible = await mac.locator('[data-testid="superficie-llamada"] [role="status"]').allTextContents().catch(() => []);
+    anotar("webkit · selector: cámara ocupada → dice por qué en palabras y sigue la anterior", /FaceTime/.test(r6?.pistaCamara ?? "") && r6?.camara === true && r6?.fase === "en-curso" && /ocupada|no se pudo/i.test(`${r6?.aviso ?? ""} ${avisoVisible.join(" ")}`), `pista=${r6?.pistaCamara} aviso=${r6?.aviso} textos=${avisoVisible.join(" / ").slice(0, 200)}`);
+    await mac.screenshot({ path: join(capturas, "23-webkit-ocupada.png") });
+    const pref6 = await mac.evaluate(() => {
+      try {
+        const a = JSON.parse(localStorage.getItem("starseed.llamadas.dispositivos") ?? "{}");
+        return Object.values(a.neuronas ?? {}).map((n) => n.camara).find(Boolean) ?? null;
+      } catch {
+        return null;
+      }
+    });
+    anotar("webkit · selector: la cámara que no abrió no queda como la guardada", /FaceTime/.test(pref6?.etiqueta ?? ""), JSON.stringify(pref6).slice(0, 160));
+    await cortar();
+    // Lo elegido en estos casos (la Desk View que no abrió queda recordada por el motor) no pasa a los siguientes.
+    for (const p of [mac, tableta]) await p.evaluate(() => { try { localStorage.clear(); } catch {} Object.assign(window.banco.camaras, { ocupadas: null, rechazan: null, regla: "fps", permiso: true }); });
+  }
+
+  /* 2e · LLA1111A · la ventana cabe: cada panel abierto a cada tamaño, medido (no a ojo). */
+  if (!soloCaso || soloCaso === "ventana") {
+    const TAMANOS = [
+      { n: "320x568", w: 320, h: 568 },
+      { n: "360x640", w: 360, h: 640 },
+      { n: "390x844", w: 390, h: 844 },
+      { n: "640x360", w: 640, h: 360 },
+      { n: "escritorio-1280x800", w: 1280, h: 800 },
+    ];
+    const PANELES = ["Puertos", "Medio", "Gente", "Invitar", "Grabar", "Astraura", "Chat"];
+    await llamada("ven-1", { sinIp: true });
+    await camara(mac);
+    await camara(tableta);
+    await esperarHasta(mac, () => window.banco.resumen()?.camara === true, 10000);
+    await espera(3000);
+    /** Mide la ventana: cajas fuera de la pantalla sin un antepasado desplazable que las contenga, controles enteros, filas, estado repetido. */
+    const medirVentana = (p) => p.evaluate(() => {
+      const sec = document.querySelector('[data-testid="superficie-llamada"]');
+      if (!sec) return { error: "sin ventana" };
+      const W = window.innerWidth, H = window.innerHeight;
+      const r = sec.getBoundingClientRect();
+      const fuera = (b) => b.top < -0.5 || b.left < -0.5 || b.bottom > H + 0.5 || b.right > W + 0.5;
+      const desplazable = (el) => {
+        for (let a = el.parentElement; a && a !== sec.parentElement; a = a.parentElement) {
+          const cs = getComputedStyle(a);
+          const sy = /(auto|scroll)/.test(cs.overflowY) && a.scrollHeight > a.clientHeight + 1;
+          const sx = /(auto|scroll)/.test(cs.overflowX) && a.scrollWidth > a.clientWidth + 1;
+          if ((sy || sx) && !fuera(a.getBoundingClientRect())) return true;
+        }
+        return false;
+      };
+      const malos = [];
+      for (const el of [sec, ...sec.querySelectorAll("*")]) {
+        const b = el.getBoundingClientRect();
+        if (b.width === 0 && b.height === 0) continue;
+        if (getComputedStyle(el).visibility === "hidden") continue;
+        if (el.closest(".sr-only")) continue;
+        if (fuera(b) && !desplazable(el)) malos.push(`${el.tagName.toLowerCase()}${el.getAttribute("aria-label") ? `[${el.getAttribute("aria-label")}]` : ""} ${Math.round(b.top)}..${Math.round(b.bottom)}`);
+      }
+      const dentro = (b) => b.top >= r.top - 0.5 && b.bottom <= r.bottom + 0.5 && b.left >= r.left - 0.5 && b.right <= r.right + 0.5 && !fuera(b);
+      const ctrls = [...sec.querySelectorAll("footer > button, footer > span > button")].map((b) => b.getBoundingClientRect());
+      const filas = new Set(ctrls.map((b) => Math.round(b.top))).size;
+      const nombre = sec.querySelector("header h2")?.getBoundingClientRect();
+      const colgar = sec.querySelector('footer button[aria-label="Colgar"]')?.getBoundingClientRect();
+      const texto = sec.innerText;
+      const veces = (t) => (t ? texto.split(t).length - 1 : -1);
+      const medio = window.banco.vista()?.textoMedio ?? null;
+      const carr = window.banco.vista()?.textoCarriles ?? null;
+      return {
+        caja: `${Math.round(r.left)},${Math.round(r.top)} ${Math.round(r.width)}×${Math.round(r.height)} de ${W}×${H}`,
+        ventanaDentro: !fuera(r),
+        malos: malos.slice(0, 6),
+        nMalos: malos.length,
+        controles: ctrls.length,
+        controlesEnteros: ctrls.every(dentro),
+        filas,
+        cabecera: !!nombre && dentro(nombre),
+        colgar: !!colgar && dentro(colgar),
+        vecesMedio: veces(medio),
+        vecesCarriles: veces(carr),
+        tabCalidad: [...sec.querySelectorAll('[role="tab"]')].some((t) => /Calidad/.test(t.textContent ?? "")),
+      };
+    });
+    const abrirPestana = async (p, nombre) => {
+      const tab = p.getByRole("tab", { name: nombre, exact: false }).first();
+      if (!(await tab.count())) return false;
+      if ((await tab.getAttribute("aria-selected")) !== "true") await tab.click();
+      await espera(350);
+      return true;
+    };
+    const cerrarPestana = async (p) => {
+      const sel = p.locator('[role="tab"][aria-selected="true"]').first();
+      if (await sel.count()) await sel.click();
+      await espera(200);
+    };
+    for (const t of TAMANOS) {
+      await mac.setViewportSize({ width: t.w, height: t.h });
+      await mac.evaluate(({ w, h }) => window.banco.marco(w, h), t);
+      await espera(500);
+      await abrirPanel(mac);
+      for (const nombre of PANELES) {
+        const hay = await abrirPestana(mac, nombre);
+        const m = hay ? await medirVentana(mac) : { error: "sin pestaña" };
+        const ok = hay && m.ventanaDentro && m.nMalos === 0 && m.controlesEnteros && m.controles > 0 && m.filas <= 2 && m.cabecera && m.colgar && m.vecesMedio <= 1 && m.vecesCarriles <= 1 && !m.tabCalidad;
+        anotar(`ventana · ${t.n} · «${nombre}» abierto: cabe, controles enteros, estado una vez`, ok, hay ? `caja=${m.caja} fuera=${m.nMalos}${m.malos.length ? ` [${m.malos.join("; ")}]` : ""} controles=${m.controles} filas=${m.filas} enteros=${m.controlesEnteros} cabecera=${m.cabecera} colgar=${m.colgar} estado×${m.vecesMedio}/${m.vecesCarriles}` : m.error);
+        if (nombre === "Medio" || (t.n === "320x568" && nombre === "Puertos")) await mac.screenshot({ path: join(capturas, `30-ventana-${t.n}-${nombre.toLowerCase()}.png`) });
+        await cerrarPestana(mac);
+      }
+    }
+    // Pantalla completa con «Medio» abierto (teléfono vertical y apaisado).
+    for (const t of [TAMANOS[2], TAMANOS[3]]) {
+      await mac.setViewportSize({ width: t.w, height: t.h });
+      await mac.evaluate(({ w, h }) => window.banco.marco(w, h), t);
+      await espera(400);
+      await mac.getByRole("button", { name: "Pantalla completa" }).first().click().catch(() => undefined);
+      await espera(500);
+      await abrirPestana(mac, "Medio");
+      const m = await medirVentana(mac);
+      const ok = m.ventanaDentro && m.nMalos === 0 && m.controlesEnteros && m.filas <= 2 && m.cabecera && m.colgar && m.vecesMedio <= 1;
+      anotar(`ventana · pantalla completa ${t.n} · «Medio» abierto: cabe`, ok, `caja=${m.caja} fuera=${m.nMalos}${m.malos.length ? ` [${m.malos.join("; ")}]` : ""} controles=${m.controles} filas=${m.filas} cabecera=${m.cabecera} colgar=${m.colgar}`);
+      await mac.screenshot({ path: join(capturas, `31-completa-${t.n}-medio.png`) });
+      await cerrarPestana(mac);
+      await mac.getByRole("button", { name: /Salir de pantalla completa/ }).first().click().catch(() => undefined);
+      await espera(300);
+    }
+    // Carril por flujo, a mano, en «Medio».
+    await mac.setViewportSize({ width: 390, height: 844 });
+    await mac.evaluate(() => window.banco.marco(390, 844));
+    await espera(300);
+    await abrirPestana(mac, "Medio");
+    const sels = await mac.locator("[data-carriles-flujo] select").count();
+    const opcionesVideo = await mac.locator("#carril-video option").evaluateAll((os) => os.map((o) => ({ v: o.value, t: o.textContent, d: o.disabled })));
+    const elegible = opcionesVideo.find((o) => o.v !== "auto" && !o.d);
+    if (elegible) await mac.selectOption("#carril-video", elegible.v);
+    await espera(600);
+    const forzado = await mac.evaluate(() => window.banco.motor()?.carriles()?.[0]?.forzados?.video ?? null);
+    const textoActual = await mac.locator('[data-carril-actual="video"]').textContent().catch(() => null);
+    await mac.selectOption("#carril-video", "auto");
+    await espera(600);
+    const auto = await mac.evaluate(() => window.banco.motor()?.carriles()?.[0]?.forzados?.video ?? null);
+    const sinEnlace = await mac.locator("[data-sin-enlace-carril]").textContent().catch(() => "");
+    const filasMuertas = await mac.locator("[data-carriles-flujo] option[disabled]").count();
+    anotar("medio · carril por flujo: voz, vídeo y pantalla; forzar uno y volver a «Automático»", sels === 3 && !!elegible && forzado === elegible?.v && auto === null, `selects=${sels} opciones vídeo=${JSON.stringify(opcionesVideo)} forzado=${forzado} → auto=${auto} actual=«${textoActual}»`);
+    anotar("medio · los carriles sin enlace van en una línea, no como filas muertas", /Sin enlace ahora:/.test(sinEnlace ?? "") && filasMuertas === 0, `«${(sinEnlace ?? "").slice(0, 160)}» opciones-deshabilitadas=${filasMuertas}`);
+    await mac.screenshot({ path: join(capturas, "32-medio-carriles.png") });
+    await cerrarPestana(mac);
+    await mac.setViewportSize({ width: 480, height: 640 });
+    await mac.evaluate(() => window.banco.marco(480, 640));
+    await mac.evaluate(() => window.banco.colgar());
+    await tableta.evaluate(() => window.banco.colgar());
+    await espera(1200);
+    for (const p of [mac, tableta]) await p.evaluate(() => { try { localStorage.clear(); } catch {} });
+  }
+
   /* 2b · Wi-Fi sin ruta (ofertas WebRTC por el enlace, sin conectar): la pista WebRTC llega muda y el lienzo debe verse. */
   if (!soloCaso || soloCaso === "fantasma") {
     const ok = await llamada("fantasma-1", { sinIp: true, ipFantasma: true });

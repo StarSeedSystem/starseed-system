@@ -20,6 +20,7 @@ import estilos from "../llamadas.module.css";
 import { useMovimientoReducido, useSuperficie } from "./use-superficie";
 import { vigilarVisibilidad } from "@/lib/llamadas/superficie/visibilidad";
 import { streamTraeVideo } from "@/lib/llamadas/superficie/adaptador-motor";
+import type { FuenteCarriles } from "./carriles-eleccion";
 import { anotarLlamada } from "@/lib/llamadas/voz-datos/diagnostico";
 
 /**
@@ -70,8 +71,14 @@ const TIPOS: Array<{ t: TipoSuperficie; etiqueta: string }> = [
   { t: "vivo", etiqueta: "En vivo" },
 ];
 const ic = "h-[18px] w-[18px]";
+/**
+ * LLA1111A · la ventana nunca es más alta que lo visible menos las zonas seguras y el margen de 1 rem arriba y abajo
+ * (antes crecía hacia arriba con un panel abierto y la cabecera se salía de la pantalla). `dvh` sigue a la barra del
+ * navegador del móvil; donde no exista, el `vh` de antes.
+ */
+const ALTO_MAXIMO = "calc(100dvh - max(1rem, env(safe-area-inset-top)) - max(1rem, env(safe-area-inset-bottom)))";
 
-export function SuperficieLlamada({ vista: v, acciones: a, tamanoInicial }: { vista: VistaLlamada; acciones: AccionesLlamada; /** Tamaño al conectar (por defecto la burbuja discreta de la llamada directa). */ tamanoInicial?: "panel" | "pantalla-completa" }) {
+export function SuperficieLlamada({ vista: v, acciones: a, tamanoInicial, carriles }: { vista: VistaLlamada; acciones: AccionesLlamada; /** Tamaño al conectar (por defecto la burbuja discreta de la llamada directa). */ tamanoInicial?: "panel" | "pantalla-completa"; /** LLA1111A: el motor, para elegir a mano el carril de cada flujo en «Medio». */ carriles?: FuenteCarriles | null }) {
   const { s, despachar, duracion, tamano } = useSuperficie(v);
   const reducido = useMovimientoReducido();
   const salidas = useSalidasAudio();
@@ -92,6 +99,15 @@ export function SuperficieLlamada({ vista: v, acciones: a, tamanoInicial }: { vi
     if (s.estado === "entrante") raiz.current?.querySelector<HTMLElement>("[data-contestar]")?.focus();
   }, [s.estado]);
   useEffect(() => { if (!aviso) return; const id = setTimeout(() => setAviso(null), 6000); return () => clearTimeout(id); }, [aviso]);
+  // LLA1111A: al abrir una pestaña en una pantalla baja, el cuerpo de la ventana se desplaza hasta ella (sin mover la página).
+  useEffect(() => {
+    if (!pestana) return;
+    const cuerpo = raiz.current?.querySelector<HTMLElement>("[data-cuerpo-llamada]");
+    const panel = raiz.current?.querySelector<HTMLElement>("[data-panel-llamada]");
+    if (!cuerpo || !panel || cuerpo.scrollHeight <= cuerpo.clientHeight) return;
+    const delta = panel.getBoundingClientRect().top - cuerpo.getBoundingClientRect().top;
+    if (delta > 0) cuerpo.scrollTop += delta - 8;
+  }, [pestana]);
 
   useEffect(() => {
     if (s.estado === "conectada" && tamanoInicial && !inicialAplicado.current) {
@@ -200,10 +216,11 @@ export function SuperficieLlamada({ vista: v, acciones: a, tamanoInicial }: { vi
       : s.estado === "entrante"
         ? "left-1/2 top-[max(0.75rem,env(safe-area-inset-top))] w-[min(94vw,400px)] -translate-x-1/2 rounded-3xl sm:left-auto sm:right-5 sm:translate-x-0"
         : tamanoActual === "panel"
-          ? "bottom-[max(1rem,env(safe-area-inset-bottom))] right-4 w-[min(94vw,400px)] rounded-3xl max-sm:inset-x-2 max-sm:w-auto"
+          ? "bottom-[max(1rem,env(safe-area-inset-bottom))] right-4 w-[min(94vw,400px)] rounded-3xl max-sm:inset-x-2 max-sm:w-auto [@media(max-height:520px)_and_(min-width:640px)]:w-[min(94vw,600px)]"
           : "bottom-[max(1rem,env(safe-area-inset-bottom))] right-4 w-[min(88vw,290px)] rounded-full";
   const pestanas: Array<{ id: Pestana; etiqueta: string; icono: React.ReactNode }> = [
-    { id: "calidad", etiqueta: "Calidad", icono: <Signal className="h-3.5 w-3.5" /> },
+    // LLA1111A: el botón se llama «Puertos» (el id interno sigue siendo «calidad»).
+    { id: "calidad", etiqueta: "Puertos", icono: <Signal className="h-3.5 w-3.5" /> },
     { id: "medio", etiqueta: "Medio", icono: <Radio className="h-3.5 w-3.5" /> },
     { id: "gente", etiqueta: "Gente", icono: <Users className="h-3.5 w-3.5" /> },
     { id: "invitar", etiqueta: "Invitar", icono: <UserPlus className="h-3.5 w-3.5" /> },
@@ -214,9 +231,9 @@ export function SuperficieLlamada({ vista: v, acciones: a, tamanoInicial }: { vi
   const completa = tamanoActual === "pantalla-completa";
   const panelAbierto = !!pestana && tamanoActual !== "burbuja";
   const bloquePestana = (
-    <div role="tabpanel" id={`pest-${pestana}`} aria-label={pestana ?? ""} className="max-h-[42vh] overflow-auto p-3 md:max-h-none md:flex-1">
+    <div role="tabpanel" id={`pest-${pestana}`} aria-label={pestanas.find((p) => p.id === pestana)?.etiqueta ?? ""} className={cn("p-3", completa && "md:min-h-0 md:flex-1 md:overflow-y-auto")} data-panel-llamada="">
       {pestana === "calidad" && <PestanaCalidad v={v} a={a} salidas={salidas} espejo={espejo} onEspejo={setEspejo} />}
-      {pestana === "medio" && <PestanaMedio v={v} a={a} />}
+      {pestana === "medio" && <PestanaMedio v={v} a={a} carriles={carriles} />}
       {pestana === "gente" && <PestanaGente v={v} a={a} />}
       {pestana === "invitar" && <PestanaInvitar v={v} a={a} />}
       {pestana === "grabar" && <PestanaGrabar v={v} a={a} />}
@@ -241,7 +258,7 @@ export function SuperficieLlamada({ vista: v, acciones: a, tamanoInicial }: { vi
       onPointerMove={moviendo}
       onPointerUp={soltando}
       onKeyDown={teclaBurbuja}
-      style={tamanoActual === "burbuja" ? { transform: `translate(${arrastre.x}px, ${arrastre.y}px)`, touchAction: "none" } : undefined}
+      style={{ ...(tamanoActual === "burbuja" ? { transform: `translate(${arrastre.x}px, ${arrastre.y}px)`, touchAction: "none" } : {}), ...(completa ? {} : { maxHeight: ALTO_MAXIMO }) }}
       className={cn(
         "fixed z-[465] flex flex-col overflow-hidden border border-violet-300/25 bg-slate-950/90 text-white shadow-2xl backdrop-blur-xl",
         "bg-[radial-gradient(120%_80%_at_0%_0%,rgba(139,92,246,0.18),transparent_60%),radial-gradient(100%_70%_at_100%_100%,rgba(56,189,248,0.12),transparent_60%)]",
@@ -270,7 +287,7 @@ export function SuperficieLlamada({ vista: v, acciones: a, tamanoInicial }: { vi
         </div>
       ) : (
         <>
-          <header className="flex items-center gap-2 px-3 pb-1 pt-3">
+          <header className={cn("flex shrink-0 items-center gap-2 px-3 pb-1", completa ? "pt-[max(0.75rem,env(safe-area-inset-top))]" : "pt-3")}>
             <span aria-hidden className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-violet-500/40 text-[12px] font-semibold">{iniciales(v.nombre)}</span>
             <div className="min-w-0 flex-1 leading-tight">
               <h2 className="truncate text-[14px] font-medium">{v.nombre}</h2>
@@ -279,7 +296,7 @@ export function SuperficieLlamada({ vista: v, acciones: a, tamanoInicial }: { vi
               </p>
             </div>
             {viva && v.calidad && (
-              <button type="button" onClick={() => setPestana((p) => (p === "calidad" ? null : "calidad"))} aria-label={`Calidad: ${v.calidad.texto}`} className="cursor-pointer rounded-lg p-1.5 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300/80">
+              <button type="button" onClick={() => setPestana((p) => (p === "calidad" ? null : "calidad"))} aria-label={`Puertos: ${v.calidad.texto}`} className="cursor-pointer rounded-lg p-1.5 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300/80">
                 <Barras n={v.calidad.barras} texto={v.calidad.texto} />
               </button>
             )}
@@ -287,11 +304,12 @@ export function SuperficieLlamada({ vista: v, acciones: a, tamanoInicial }: { vi
             <BotonControl pequeno icono={completa ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />} etiqueta={completa ? "Salir de pantalla completa (Esc)" : "Pantalla completa"} onClick={() => despachar({ t: "alternar-completa" })} />
           </header>
 
-          <div className={cn("flex min-h-0 flex-1", completa ? "flex-col md:flex-row landscape:flex-row" : "flex-col")}>
-            <div className={cn("relative flex min-w-0 flex-1 flex-col", completa && "min-h-[40vh]")}>
+          {/* LLA1111A: lo de en medio (imagen, avisos y el panel abierto) se desplaza DENTRO de la ventana; la cabecera y los controles quedan fijos. */}
+          <div className={cn("flex min-h-0 flex-1 overscroll-contain", completa ? "flex-col overflow-y-auto md:flex-row md:overflow-hidden" : "flex-col overflow-y-auto")} data-cuerpo-llamada="">
+            <div className={cn("relative flex min-w-0 flex-col", completa ? "min-h-[40vh] flex-1 md:min-h-0" : "shrink-0")}>
               <div key={s.tipo} className={cn("flex min-h-0 flex-1 flex-col", !reducido && estilos.entraTipo)} data-layout={s.tipo}>
               {(s.tipo === "video" || s.tipo === "pantalla" || s.tipo === "vivo" || s.tipo === "grupo") && viva ? (
-                <div className={cn("relative mx-3 my-2 overflow-hidden rounded-2xl bg-black", completa ? "flex-1" : "aspect-video")}>
+                <div className={cn("relative mx-3 my-2 shrink-0 overflow-hidden rounded-2xl bg-black", completa ? "flex-1" : "aspect-video")} style={!completa && panelAbierto ? { maxHeight: "22dvh" } : undefined}>
                   <div className={cn("h-full w-full", rejilla && (v.participantes?.length ?? 0) > 1 && "grid grid-cols-2 gap-1")}>
                     {rejilla && v.participantes?.length ? v.participantes.map((p) => (
                       <div key={p.id} className={cn("relative overflow-hidden rounded-lg bg-slate-900", p.nivel && p.nivel > 0.08 && "ring-2 ring-emerald-300/70")}>
@@ -342,11 +360,11 @@ export function SuperficieLlamada({ vista: v, acciones: a, tamanoInicial }: { vi
               {v.cambiandoA && <p className="px-3 pb-1 text-[11.5px] text-violet-100" role="status">Cambiando a {TIPOS.find((t) => t.t === v.cambiandoA)?.etiqueta.toLowerCase()} sin colgar…</p>}
             </div>
 
-            {panelAbierto && <aside className={cn("border-t border-white/10 md:border-l md:border-t-0", completa ? "md:flex md:w-[340px] md:flex-col" : "")}>{bloquePestana}</aside>}
+            {panelAbierto && <aside className={cn("shrink-0 border-t border-white/10", completa ? "md:flex md:min-h-0 md:w-[340px] md:flex-col md:border-l md:border-t-0" : "")}>{bloquePestana}</aside>}
           </div>
 
           {viva && (
-            <div role="radiogroup" aria-label="Tipo de llamada" className="mx-3 mb-1 flex gap-1 rounded-full bg-white/[0.06] p-0.5">
+            <div role="radiogroup" aria-label="Tipo de llamada" className="mx-3 mb-1 mt-1 flex shrink-0 gap-1 rounded-full bg-white/[0.06] p-0.5">
               {TIPOS.map(({ t, etiqueta }) => {
                 const sel = s.tipo === t;
                 const puede = puedeCambiarTipo(s, t);
@@ -360,7 +378,7 @@ export function SuperficieLlamada({ vista: v, acciones: a, tamanoInicial }: { vi
           )}
 
           {viva && (
-            <div role="tablist" aria-label="Más de la llamada" className="mx-3 flex gap-1 overflow-x-auto pb-1">
+            <div role="tablist" aria-label="Más de la llamada" className="mx-3 flex shrink-0 flex-nowrap gap-1 overflow-x-auto pb-1">
               {pestanas.map((p) => (
                 <button key={p.id} type="button" role="tab" aria-selected={pestana === p.id} aria-controls={`pest-${p.id}`} onClick={() => setPestana((x) => (x === p.id ? null : p.id))} className={cn("inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-full border px-2.5 py-1 text-[11.5px] transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300/80", pestana === p.id ? "border-violet-300/60 bg-violet-400/25" : "border-white/10 text-white/75 hover:bg-white/10", p.id === "grabar" && grabando && "border-rose-400/60 text-rose-100")}>
                   {p.icono} {p.etiqueta}
@@ -370,7 +388,7 @@ export function SuperficieLlamada({ vista: v, acciones: a, tamanoInicial }: { vi
           )}
 
           {viva && <p className="sr-only">{AYUDA_ATAJOS}</p>}
-          <footer className="flex flex-wrap items-center justify-center gap-2 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2">
+          <footer className="flex shrink-0 flex-wrap items-center justify-center gap-2 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2" data-controles-llamada="">
             {s.estado === "entrante" && (
               <>
                 <BotonControl peligro icono={<PhoneOff className={ic} />} etiqueta="Rechazar" onClick={a.rechazar} />
