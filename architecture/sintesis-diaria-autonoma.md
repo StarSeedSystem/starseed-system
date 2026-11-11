@@ -204,7 +204,13 @@ Todo lo de esta sección es **privado**:
    - crear credenciales › ID de cliente de OAuth › «App de escritorio»;
    - pulsar «Descargar JSON» y dejarlo en Descargas. `cuentas_google.py importar` (o el primer `alta`) guarda las dos
      claves sin mostrarlas y aparta el archivo a `~/.starseed/cuentas/` con permisos 0600.
-3. **Iniciar sesión con cada cuenta**, cuando SDP1111E esté integrada:
+3. **Iniciar sesión con cada cuenta.** Desde el 2026-11-11 se hace **antes** de que SDP1111E esté integrada, con la herramienta local
+   `~/.starseed/herramientas/alta-cuentas-google.py`:
+   - las APIs Gmail, Drive y YouTube ya están activadas en el proyecto `starseed-system`;
+   - los tokens se guardan en `~/.starseed/cuentas/<alias>.json`;
+   - SDP1111P hace que `cuentas_google.py` los acepte.
+
+   Antes era así, cuando SDP1111E estuviera integrada:
    - `python3 scripts/puente/cuentas_google.py alta alex` y `… alta fundacion`;
    - se abre el navegador. Google avisará de «app no verificada» porque es propia: Avanzado › Continuar.
 4. **Takeout programado**, en takeout.google.com, con cada cuenta:
@@ -436,7 +442,7 @@ lee la cola como lista de tareas. SDP1111M va aparte: ver «Estado», arriba.
    "SDP1111B",
    "SDP1111E"
   ],
-  "prompt": "Lee architecture/sintesis-diaria-autonoma.md §3.3 y §5. Alex (2026-11-11) aclaró que el bot y las cuentas YA están conectados en la Mac: no hay que pedirle claves nuevas si se puede usar lo que existe. Ajusta, sin romper sus pruebas: (1) sintesis_telegram.py: si falta TELEGRAM_SINTESIS_BOT_TOKEN, usa el bot ya conectado TELEGRAM_BOT_TOKEN (de ~/.starseed/env o ~/.hermes/.env; es @starseed_puente_bot, el del Puente de Mando, el chat vinculado de MetaGenesis y Hermes) con TELEGRAM_SINTESIS_CHAT_ID y, si falta, TELEGRAM_CHAT_ID; antepone la cabecera «Síntesis de Producción StarSeed · AAAA-MM-DD» para que se distinga en ese chat. Si un día existe TELEGRAM_SINTESIS_BOT_TOKEN, manda ese. (2) cuentas_google.py: antes de pedir un cliente nuevo, prueba el cliente OAuth que el OS ya tiene (NEXT_PUBLIC_GOOGLE_CLIENT_ID y GOOGLE_OAUTH_CLIENT_SECRET de .env.local del repo; leer sin imprimir) con redirección fija http://127.0.0.1:8765/ ; si Google responde redirect_uri_mismatch o el proyecto no tiene activadas Gmail API o YouTube Data API v3, dilo en una línea con el arreglo exacto (añadir esa URI de redirección al cliente existente o activar la API, con el enlace de la consola) y solo entonces cae a GOOGLE_ACTIVIDAD_* o al client_secret_*.json de Descargas. Nunca imprime ni registra tokens ni secretos. Pruebas sin red. Máximo 120 líneas tocadas por archivo."
+  "prompt": "Lee architecture/sintesis-diaria-autonoma.md §3.3 y §5. Alex (2026-11-11) aclaró que el bot y las cuentas YA están conectados en la Mac: no hay que pedirle claves nuevas si se puede usar lo que existe. Ajusta, sin romper sus pruebas: (1) sintesis_telegram.py: si falta TELEGRAM_SINTESIS_BOT_TOKEN, usa el bot ya conectado TELEGRAM_BOT_TOKEN (de ~/.starseed/env o ~/.hermes/.env; es @starseed_puente_bot, el del Puente de Mando, el chat vinculado de MetaGenesis y Hermes) con TELEGRAM_SINTESIS_CHAT_ID y, si falta, TELEGRAM_CHAT_ID; antepone la cabecera «Síntesis de Producción StarSeed · AAAA-MM-DD» para que se distinga en ese chat. Si un día existe TELEGRAM_SINTESIS_BOT_TOKEN, manda ese. (2) cuentas_google.py: antes de pedir un cliente nuevo, prueba el cliente OAuth que el OS ya tiene (NEXT_PUBLIC_GOOGLE_CLIENT_ID y GOOGLE_OAUTH_CLIENT_SECRET de .env.local del repo; leer sin imprimir) con redirección fija http://127.0.0.1:8765/ ; si Google responde redirect_uri_mismatch o el proyecto no tiene activadas Gmail API o YouTube Data API v3, dilo en una línea con el arreglo exacto (añadir esa URI de redirección al cliente existente o activar la API, con el enlace de la consola) y solo entonces cae a GOOGLE_ACTIVIDAD_* o al client_secret_*.json de Descargas. (3) ALTA YA HECHA FUERA DEL OS (2026-11-11): Claude dejó la herramienta local ~/.starseed/herramientas/alta-cuentas-google.py (google-auth-oauthlib, venv ~/.starseed/venv-cuentas). Crea ~/.starseed/cuentas/alex.json y ~/.starseed/cuentas/fundacion.json en formato authorized_user de google-auth (client_id, client_secret, refresh_token, token_uri, scopes, alias, correo; 0600), con el cliente «App de escritorio» del proyecto starseed-system (~/.starseed/cuentas/cliente-oauth.json) y las APIs Gmail, Drive y YouTube ya activadas. cuentas_google.py debe ACEPTAR esos archivos tal cual (token(alias) renueva con refresh_token en https://oauth2.googleapis.com/token) y `estado` debe mostrarlos vivos; no pidas un alta nueva si existen. Nunca imprime ni registra tokens ni secretos. Pruebas sin red. Máximo 120 líneas tocadas por archivo."
  },
  {
   "id": "SDP1111Q",
