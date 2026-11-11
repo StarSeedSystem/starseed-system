@@ -37,6 +37,7 @@ import {
 } from "@/lib/aurora/senses/request-permission";
 import {
   estadoDeResultado,
+  normalizarEstado,
   type EstadoPermiso,
   type ResultadoPermisoOS,
 } from "@/lib/permisos/contrato";
@@ -339,9 +340,11 @@ function findSense(senseId: string): Sense | undefined {
 }
 
 /** Estado del catálogo de sentidos (`SenseTestResult`) a partir del del
- * contrato (`EstadoPermiso`), PRM1108B · paso 2 del plan unificado. */
+ * contrato (`EstadoPermiso`), PRM1108B · paso 2 del plan unificado.
+ * Usa `normalizarEstado` del contrato único para idempotencia. */
 export function estadoSense(e: EstadoPermiso): SenseTestResult["state"] {
-  switch (e) {
+  const normalizado = normalizarEstado(e);
+  switch (normalizado) {
     case "concedido":
       return "granted";
     case "denegado":
