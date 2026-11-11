@@ -65,10 +65,10 @@ describe("ultimoModeloDirector", () => {
 });
 
 describe("CANALES", () => {
-    it("son los nueve ids del contrato, únicos y en su orden", () => {
+    it("son los diez ids del contrato, únicos y en su orden", () => {
         const ids = CANALES.map((c) => c.id);
-        expect(ids).toEqual(["mando", "claude-cowork", "claude-mac", "hermes", "telegram", "chatgpt", "antigravity", "ide", "terminal"]);
-        expect(new Set(ids).size).toBe(9);
+        expect(ids).toEqual(["mando", "director-presidente", "claude-cowork", "claude-mac", "hermes", "telegram", "chatgpt", "antigravity", "ide", "terminal"]);
+        expect(new Set(ids).size).toBe(10); // FIX1111A: el enjambre añadió «director-presidente»
     });
 
     it("cada motor tiene canal de verdad y el de defecto es el de Cowork", () => {
@@ -90,7 +90,7 @@ describe("claude-cowork contesta al momento (2026-10-04)", () => {
 
 describe("canalesQueEsperan", () => {
     it("deja solo los que responden en revisión o por archivo", () => {
-        const pedidos: CanalId[] = ["mando", "claude-cowork", "telegram", "terminal"];
+        const pedidos: CanalId[] = ["mando", "director-presidente", "claude-cowork", "telegram", "terminal"];
         expect(canalesQueEsperan(pedidos)).toEqual(["claude-cowork", "terminal"]);
     });
 

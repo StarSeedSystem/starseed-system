@@ -1104,9 +1104,11 @@ export function alNecesitarAncho(p: {
     // Si hay, WiFi directo puede abrirse; si no, se necesita comprobar proximidad por otros medios.
     let cerca = false;
     try {
-      const [bd, { ligaduraDeNeuronaBle, VIDA_LIGADURA_MS }] = await Promise.all([
+      // FIX1111A: VIDA_LIGADURA_MS se exporta desde red-local-nativa, no desde bluetooth-directo.
+      const [bd, { ligaduraDeNeuronaBle }, { VIDA_LIGADURA_MS }] = await Promise.all([
         import("./bluetooth-directo-motor"),
         import("./bluetooth-directo"),
+        import("./red-local-nativa"),
       ]);
       const red = bd.bluetoothDirectoActivo();
       if (red) {
