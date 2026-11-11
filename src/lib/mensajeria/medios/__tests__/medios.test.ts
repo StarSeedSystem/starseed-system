@@ -219,3 +219,11 @@ describe("la ruta en la pastilla y la info (BLE1108B)", () => {
         expect(textoRutaOtroLado({ ruta: "misma-red-local", rutaOtro: "misma-red-local" })).toBe("Verificada por ambos aparatos");
     });
 });
+
+// REL1111I: un mensaje que llegó por otra neurona de la cuenta dice por cuál, no el carril del último tramo.
+describe("etiquetaVia · relevo (REL1111I)", () => {
+    it("«Mesh · por relevo de <nombre>»", () => {
+        expect(etiquetaVia({ medio: "bluetooth", direccion: "entra", enlace: "por relevo de Maggaboard", enlaceId: "relevo:n-123", confirmado: false })).toBe("Mesh · por relevo de Maggaboard");
+        expect(etiquetaVia({ medio: "bluetooth", direccion: "entra", enlace: "Tablet", enlaceId: "ble:b3", confirmado: false })).toBe("Bluetooth directo");
+    });
+});

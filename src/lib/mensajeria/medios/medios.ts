@@ -308,6 +308,13 @@ function msMedidos(n: number | null | undefined): string | null {
 /** Texto corto de la pastilla: «Mesh · Wi-Fi local · 12 ms ✓», «Servidor StarSeed», «LoRa»… */
 export function etiquetaVia(v: ViaMensaje): string {
     const partes: string[] = [];
+    // REL1111I: llegó (o salió) por otra neurona de la cuenta: «Mesh · por relevo de <nombre>», no el carril del último tramo.
+    if (v.enlaceId?.startsWith("relevo:") && v.enlace) {
+        partes.push("Mesh", v.enlace);
+        const msR = msMedidos(v.latenciaMs);
+        if (msR) partes.push(msR);
+        return partes.join(" · ") + (v.direccion === "sale" && v.confirmado && v.confirmadoPor !== "servidor" ? " ✓" : "");
+    }
     switch (v.medio) {
         case "local":
             partes.push("Mesh", esViaWifiDirecto(v) ? etiquetaEnlaceP2p(v.enlaceId) : esEnlaceRedLocalNativa(v.enlaceId) ? ETIQUETA_RED_LOCAL_NATIVA : "Sin internet");
