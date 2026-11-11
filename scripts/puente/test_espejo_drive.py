@@ -95,7 +95,12 @@ class EspejoDrive(unittest.TestCase):
                 mock.patch.object(self.E, "indice", side_effect=OSError(11, "Resource deadlock avoided")):
             r = self.E.sincronizar(host="prueba")
         self.assertFalse(r["ok"])
-        self.assertTrue(any(f.startswith("INDICE.md: OSError") for f in r["fallos"]), r["fallos"])
+        # OSError(11) llega como BlockingIOError (Python lo traduce al errno):
+        # lo que importa es que el fallo quede registrado con su causa.
+        self.assertTrue(
+            any(f.startswith("INDICE.md: ") and "Resource deadlock" in f for f in r["fallos"]),
+            r["fallos"],
+        )
         self.assertTrue(os.path.isfile(os.path.join(self.destino, "estado.json")))
 
     def test_con_poco_disco_no_copia_la_memoria(self):
