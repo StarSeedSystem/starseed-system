@@ -73,7 +73,8 @@ describe("contrato web ↔ app nativa", () => {
     expect(def.remote.urls).toContain("http://127.0.0.1:47610");
     const migracion = [...permisos(cap("migracion-exportar.json")), ...permisos(cap("migracion-importar.json"))];
     const capas = permisos(cap("servidor-capas.json"));
-    for (const c of escritorio) expect([...permisos(escr), ...migracion, ...capas], c).toContain(allow(c));
+    const prestar = permisos(cap("prestar-ventana.json")); // SEG1111T
+    for (const c of escritorio) expect([...permisos(escr), ...migracion, ...capas, ...prestar], c).toContain(allow(c));
     // La migración NO se concede a la ventana principal en la web publicada ni a nadie más.
     for (const p of [...permisos(def), ...permisos(escr)]) expect(p).not.toMatch(/^allow-migracion-origen/);
     // (CAP1107A) «Actualizar ahora» tampoco: solo el servidor local (servidor-capas.json).

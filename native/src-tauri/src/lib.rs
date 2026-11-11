@@ -140,6 +140,11 @@ mod sha256;
 // en el target cfg de escritorio de Cargo.toml (móvil ni compilan).
 #[cfg(desktop)]
 mod ventana_remota;
+// (SEG1111T) Sesión nativa de «prestar ventana»: diálogo nativo, indicador y vencimientos.
+#[cfg(desktop)]
+mod prestamo_ventana; // SEG1111T
+#[cfg(any(desktop, test))]
+mod prestamo_ventana_logica; // SEG1111T
 #[cfg(test)]
 mod android_parche;
 #[cfg(test)]
@@ -866,6 +871,9 @@ pub fn run() {
         ventana_remota::ventanas_prestables,
         ventana_remota::capturar_ventana,
         ventana_remota::entrada_ventana,
+        prestamo_ventana::prestamo_ventana_iniciar, // SEG1111T
+        prestamo_ventana::prestamo_ventana_parar, // SEG1111T
+        prestamo_ventana::prestamo_ventana_estado, // SEG1111T
         servidor_local::servidor_local_estado,
         servidor_local::servidor_local_actualizar,
         migracion_origen::migracion_origen_exportar,
@@ -887,6 +895,7 @@ pub fn run() {
             #[cfg(desktop)]
             {
                 if matches!(_evento, tauri::RunEvent::Exit) {
+                    prestamo_ventana::al_salir(_app); // SEG1111T
                     servidor_local::apagar();
                 }
             }

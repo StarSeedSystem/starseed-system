@@ -1,0 +1,37 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "prestar-ventana",
+  "description": "SEG1111T (2026-11-11): «prestar una ventana» a otra neurona. Ver, listar y teclear en ventanas del aparato SOLO desde la ventana «main», SOLO desde la web publicada de StarSeed OS y el servidor local (127.0.0.1:47610…47619); las webs hermanas (Nexus, Café) no. Además Rust exige una sesión de préstamo abierta por la persona con un diálogo NATIVO (prestamo_ventana.rs), su token, el mismo origen que la abrió y una de las ventanas que nombra; con indicador en la barra de menús/bandeja y «Dejar de prestar». Contrato: architecture/permisos-y-control-del-dispositivo.md §4.7.",
+  "windows": [
+    "main"
+  ],
+  "platforms": [
+    "linux",
+    "macOS",
+    "windows"
+  ],
+  "local": false,
+  "remote": {
+    "urls": [
+      "https://starseed-os.vercel.app",
+      "http://127.0.0.1:47610",
+      "http://127.0.0.1:47611",
+      "http://127.0.0.1:47612",
+      "http://127.0.0.1:47613",
+      "http://127.0.0.1:47614",
+      "http://127.0.0.1:47615",
+      "http://127.0.0.1:47616",
+      "http://127.0.0.1:47617",
+      "http://127.0.0.1:47618",
+      "http://127.0.0.1:47619"
+    ]
+  },
+  "permissions": [
+    "allow-prestamo-ventana-iniciar",
+    "allow-prestamo-ventana-parar",
+    "allow-prestamo-ventana-estado",
+    "allow-ventanas-prestables",
+    "allow-capturar-ventana",
+    "allow-entrada-ventana"
+  ]
+}

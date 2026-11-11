@@ -1,6 +1,10 @@
 // Lado anfitrión de la ventana transmitida (§9): fotogramas de la app nativa al lienzo,
 // pista WebRTC y entradas reenviadas solo con la sesión de préstamo viva.
+// (SEG1111T) La sesión que manda es la NATIVA: `capturar` se construye con `crearCapturaNativa`
+// (nativo.ts) a partir de la sesión que la persona abrió con el diálogo nativo, y cualquier rechazo
+// `prestamo:…` que diga que la sesión terminó para la transmisión aquí (no se reintenta).
 import { avisoAnfitrion, permitido, type Sesion, type TipoAlcance } from "../recursos/sesion-prestamo";
+import { esRechazoQueCierra } from "./nativo";
 
 export type EntradaVentana = { tipo: "teclado" | "raton" | "tacto"; accion: string; x?: number; y?: number; tecla?: string; boton?: number };
 export type FotogramaAnfitrion = { ancho: number; alto: number; datos?: unknown; bytes?: number };
@@ -17,6 +21,8 @@ export type DepsAnfitrion = {
   ventana?: string; capturar: (orden: OrdenVentana) => RespuestaVentana | Promise<RespuestaVentana>; dibujar: Dibujar;
   crearPista: (fps: number) => PistaAnfitriona; sesion: () => Sesion; fps: number; anchoMax: number; altoMax?: number;
   medirAnchoBanda?: () => number; reloj?: () => number;
+  /** (SEG1111T) ¿Hay sesión nativa abierta (token de `pedirPrestamo`)? Sin ella no se arranca. */
+  sesionNativa?: () => boolean;
 };
 export type Anfitrion = {
   arrancar(ahora?: number): EstadoAnfitrion; paso(ahora?: number): Promise<boolean>; pista(): PistaAnfitriona | null;
@@ -56,7 +62,19 @@ export function crearAnfitrion(deps: DepsAnfitrion): Anfitrion {
 
   return { arrancar, paso, entrada, pista: () => pista, estado, parar };
 
-  function vigente(ahora: number): boolean { return permitido(deps.sesion(), "anfitrion", ahora); }
+  function vigente(ahora: number): boolean {
+    if (deps.sesionNativa && !deps.sesionNativa()) return false;
+    return permitido(deps.sesion(), "anfitrion", ahora);
+  }
+  /** Llama a la app nativa; si dice que la sesión ya no vale, para y devuelve `{ ok: false }`. */
+  async function nativo(orden: OrdenVentana): Promise<{ ok: true; r: RespuestaVentana } | { ok: false }> {
+    try {
+      return { ok: true, r: await deps.capturar(orden) };
+    } catch (e) {
+      if (esRechazoQueCierra(e)) { parar(); return { ok: false }; }
+      throw e;
+    }
+  }
   function parar(): void { transmitiendo = false; pista?.stop(); pista = null; }
   function arrancar(ahora = reloj()): EstadoAnfitrion {
     if (!vigente(ahora)) { parar(); return estado(ahora); }
@@ -69,7 +87,9 @@ export function crearAnfitrion(deps: DepsAnfitrion): Anfitrion {
     if (!transmitiendo) return false;
     if (!vigente(ahora)) { parar(); return false; }
     recalcular(ahora);
-    const respuesta = await deps.capturar({ comando: "capturar_ventana", ventana, ancho: calidad.ancho, alto: calidad.alto, fps: calidad.fps });
+    const hecho = await nativo({ comando: "capturar_ventana", ventana, ancho: calidad.ancho, alto: calidad.alto, fps: calidad.fps });
+    if (!hecho.ok) return false;
+    const respuesta = hecho.r;
     if (!esFotograma(respuesta)) return false;
     deps.dibujar(respuesta, { ...calidad }); cuadros += 1;
     return true;
@@ -77,8 +97,8 @@ export function crearAnfitrion(deps: DepsAnfitrion): Anfitrion {
   async function entrada(datos: EntradaVentana, ahora = reloj()): Promise<boolean> {
     if (!transmitiendo) return false;
     if (!vigente(ahora)) { parar(); return false; }
-    await deps.capturar({ comando: "entrada_ventana", ventana, entrada: datos });
-    return true;
+    const hecho = await nativo({ comando: "entrada_ventana", ventana, entrada: datos });
+    return hecho.ok;
   }
   function recalcular(ahora: number): void {
     if (ahora - ultimaMedicion < INTERVALO_MEDICION_MS) return;

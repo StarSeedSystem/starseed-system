@@ -4,21 +4,36 @@
 //! devuelve un `image::RgbaImage` (image 0.25) listo para codificar. La entrada
 //! (`entrada_ventana`, con enigo 0.6) rehecha en APR1019B.
 
+//!
+//! (SEG1111T) Los tres comandos ya NO responden a cualquier página de un origen permitido: exigen
+//! el token de una sesión de préstamo que la persona abrió en ESTE aparato con el diálogo nativo
+//! (`prestamo_ventana.rs`), desde el mismo origen que la abrió, y solo actúan sobre las ventanas que
+//! esa sesión nombra. La entrada además se rechaza si la ventana no tiene el foco (texto), si otra
+//! ventana la tapa en ese punto (clic) o si el sistema tiene la entrada segura activa (contraseñas).
+
+use crate::prestamo_ventana as prestamo;
+use crate::prestamo_ventana_logica as pl;
 use base64::Engine as _;
 use enigo::{Button, Coordinate, Direction, Enigo, Keyboard, Mouse, Settings};
 use serde::Serialize;
 use std::collections::HashSet;
 use tauri::AppHandle;
 
-/// Lista de ventanas prestables: las que pertenecen a apps marcadas como
-/// prestables por el dueño. Sin duplicados por id (la misma ventana puede
-/// aparecer más de una vez en la lista que devuelve `Window::all()`).
+/// Ventanas de la sesión de préstamo abierta (las que la persona vio y aceptó en el diálogo nativo),
+/// con su título de ahora. Sin sesión, sin token o desde otro origen: error `prestamo:…`, nada más.
+/// Para construir la lista ANTES de prestar está `prestamo_ventana_iniciar`, que solo enseña los
+/// títulos en el diálogo nativo.
 #[tauri::command]
-pub fn ventanas_prestables(_app: AppHandle, apps: Vec<String>) -> Result<Vec<VentanaInfo>, String> {
-    let apps_set: HashSet<String> = apps.into_iter().collect();
+pub fn ventanas_prestables(app: AppHandle, webview: tauri::Webview, token: String) -> Result<Vec<VentanaInfo>, String> {
+    let sesion = prestamo::exigir(&app, &webview, &token, None)?;
+    let todas = listar_todas()?;
+    Ok(todas.into_iter().filter(|w| sesion.ventanas.contains(&w.id)).collect())
+}
+
+/// Todas las ventanas visibles para xcap, sin duplicados por id. Solo para uso interno de Rust.
+fn listar_todas() -> Result<Vec<VentanaInfo>, String> {
     let mut vistas: HashSet<u32> = HashSet::new();
     let mut ventanas = Vec::new();
-
     for window in
         xcap::Window::all().map_err(|e| format!("No se pudieron listar las ventanas: {e}"))?
     {
@@ -32,18 +47,40 @@ pub fn ventanas_prestables(_app: AppHandle, apps: Vec<String>) -> Result<Vec<Ven
         let app_name = window
             .app_name()
             .unwrap_or_else(|_| "desconocido".to_string());
-        if !apps_set.contains(&app_name) {
-            continue;
-        }
         let title = window.title().unwrap_or_else(|_| "desconocido".to_string());
-        ventanas.push(VentanaInfo {
-            id,
-            app_name,
-            title,
-        });
+        ventanas.push(VentanaInfo { id, app_name, title });
     }
-
     Ok(ventanas)
+}
+
+/// Ventanas de las apps marcadas como prestables (lo usa el diálogo de `prestamo_ventana_iniciar`).
+pub fn listar_de_apps(apps: &[String]) -> Result<Vec<VentanaInfo>, String> {
+    let apps_set: HashSet<&String> = apps.iter().collect();
+    Ok(listar_todas()?.into_iter().filter(|w| apps_set.contains(&w.app_name)).collect())
+}
+
+/// Ids de las ventanas que existen ahora (lo usa el vigilante del préstamo).
+pub fn ids_existentes() -> Result<HashSet<u32>, String> {
+    Ok(xcap::Window::all()
+        .map_err(|e| format!("No se pudieron listar las ventanas: {e}"))?
+        .into_iter()
+        .filter_map(|w| w.id().ok())
+        .collect())
+}
+
+/// Busca la ventana prestada; si ya no existe, la saca de la sesión (y la cierra si era la última).
+fn ventana_prestada(app: &AppHandle, id: u32) -> Result<xcap::Window, String> {
+    let encontrada = xcap::Window::all()
+        .map_err(|e| format!("No se pudieron listar las ventanas: {e}"))?
+        .into_iter()
+        .find(|w| w.id().map(|wid| wid == id).unwrap_or(false));
+    match encontrada {
+        Some(w) => Ok(w),
+        None => {
+            prestamo::ventana_desaparecida(app, id);
+            Err(format!("No se encontró la ventana con el ID {id}"))
+        }
+    }
 }
 
 /// Información de una ventana para enviar a la web.
@@ -86,23 +123,36 @@ fn limite<T>(r: xcap::XCapResult<T>) -> Result<T, String> {
 
 /// Entrada remota (teclado y ratón) sobre una ventana prestada, con enigo 0.6.
 /// `tipo` es `"click"` (necesita `x`, `y` en coordenadas absolutas de pantalla)
-/// o `"texto"` (necesita `texto`). Solo actúa si el punto cae dentro de los
-/// límites de la ventana: un clic fuera podría tocar otra app que el dueño no
-/// prestó. Para el texto se exige además que la ventana siga existiendo.
+/// o `"texto"` (necesita `texto`). (SEG1111T) Antes de tocar nada:
+/// - la sesión de préstamo, el token, el origen y la ventana (`prestamo::exigir`);
+/// - la entrada segura del sistema apagada (ningún campo de contraseña con el foco);
+/// - clic: el punto dentro de la ventana prestada y ninguna otra ventana encima en ese punto
+///   (un diálogo del sistema o de otra app que la tape recibiría el clic);
+/// - texto: la ventana prestada con el foco y sin minimizar (si no, las teclas irían a otra app).
 #[tauri::command]
 pub fn entrada_ventana(
-    _app: AppHandle,
+    app: AppHandle,
+    webview: tauri::Webview,
+    token: String,
     id: u32,
     tipo: String,
     x: Option<i32>,
     y: Option<i32>,
     texto: Option<String>,
 ) -> Result<(), String> {
-    let ventana = xcap::Window::all()
-        .map_err(|e| format!("No se pudieron listar las ventanas: {e}"))?
-        .into_iter()
-        .find(|w| w.id().map(|wid| wid == id).unwrap_or(false))
-        .ok_or_else(|| format!("No se encontró la ventana con el ID {id}"))?;
+    prestamo::exigir(&app, &webview, &token, Some(id))?;
+    let ventana = ventana_prestada(&app, id)?;
+    if prestamo::sistema::pantalla_bloqueada() {
+        prestamo::terminar(&app, pl::Fin::Bloqueo);
+        return Err(pl::Rechazo::Caducada(pl::Fin::Bloqueo).mensaje());
+    }
+    if prestamo::sistema::entrada_segura() {
+        prestamo::anotar(&app, "entrada rechazada · entrada segura activa");
+        return Err("prestamo:entrada-segura · hay un campo de contraseña o una entrada segura activa en el aparato".into());
+    }
+    if limite(ventana.is_minimized())? {
+        return Err(format!("prestamo:ventana-oculta · la ventana {id} está minimizada"));
+    }
 
     match tipo.as_str() {
         "click" => {
@@ -114,6 +164,10 @@ pub fn entrada_ventana(
             if !punto_dentro(px, py, wx, wy, ancho, alto) {
                 return Err(format!("El punto ({px}, {py}) cae fuera de la ventana {id}"));
             }
+            if tapada_en(&ventana, id, px, py)? {
+                prestamo::anotar(&app, "clic rechazado · otra ventana encima");
+                return Err(format!("prestamo:tapada · otra ventana está encima de la ventana {id} en ({px}, {py})"));
+            }
             let mut enigo = Enigo::new(&Settings::default())
                 .map_err(|e| format!("No se pudo abrir la entrada del sistema: {e}"))?;
             enigo
@@ -124,9 +178,12 @@ pub fn entrada_ventana(
                 .map_err(|e| format!("No se pudo pulsar: {e}"))?;
         }
         "texto" | "teclado" => {
-            let Some(t) = texto.filter(|t| !t.is_empty()) else {
-                return Err("Escribir necesita un texto no vacío".into());
-            };
+            let t = texto.unwrap_or_default();
+            pl::texto_valido(&t)?;
+            // Sin foco, las teclas irían a la app que lo tenga (o a un diálogo del sistema).
+            if !ventana.is_focused().unwrap_or(false) {
+                return Err(format!("prestamo:sin-foco · la ventana {id} no tiene el foco; haz clic en ella primero"));
+            }
             let mut enigo = Enigo::new(&Settings::default())
                 .map_err(|e| format!("No se pudo abrir la entrada del sistema: {e}"))?;
             enigo
@@ -138,21 +195,34 @@ pub fn entrada_ventana(
     Ok(())
 }
 
-/// Captura un fotograma de la ventana con el `id` dado y lo devuelve como PNG
-/// en base64. `ancho_max` es el ancho máximo en píxeles; se escala manteniendo
-/// la proporción.
-#[tauri::command]
-pub fn capturar_ventana(_app: AppHandle, id: u32, ancho_max: u32) -> Result<String, String> {
-    // xcap 0.9: `Window::all()` devuelve ventanas de todos los monitores; las
-    // buscamos por id en esa lista única (los duplicados comparten el id real).
-    let ventana = xcap::Window::all()
-        .map_err(|e| format!("No se pudieron listar las ventanas: {e}"))?
-        .into_iter()
-        .find(|w| w.id().map(|wid| wid == id).unwrap_or(false))
-        .ok_or_else(|| format!("No se encontró la ventana con el ID {id}"))?;
+/// ¿Hay otra ventana por encima de la prestada en el punto? Ante la duda (no se puede leer el orden
+/// de la prestada), se responde que sí: mejor un clic rechazado que uno en otra app.
+fn tapada_en(ventana: &xcap::Window, id: u32, px: i32, py: i32) -> Result<bool, String> {
+    let Ok(z) = ventana.z() else { return Ok(true) };
+    let mut otras = Vec::new();
+    for w in xcap::Window::all().map_err(|e| format!("No se pudieron listar las ventanas: {e}"))? {
+        if w.id().map(|wid| wid == id).unwrap_or(true) || w.is_minimized().unwrap_or(false) {
+            continue;
+        }
+        let (Ok(wz), Ok(x), Ok(y), Ok(ancho), Ok(alto)) = (w.z(), w.x(), w.y(), w.width(), w.height()) else { continue };
+        otras.push((wz, pl::Rect { x, y, ancho, alto }));
+    }
+    Ok(pl::tapada(px, py, z, &otras))
+}
 
-    // `capture_image()` ya devuelve un `image::RgbaImage` (image 0.25): no hay
-    // que convertir BGRA, como en la versión anterior.
+/// Captura un fotograma de la ventana prestada `id` y lo devuelve como PNG en base64. `ancho_max` es
+/// el ancho máximo en píxeles; se escala manteniendo la proporción. (SEG1111T) Solo con la sesión de
+/// préstamo abierta, su token, su origen y una de sus ventanas.
+#[tauri::command]
+pub fn capturar_ventana(app: AppHandle, webview: tauri::Webview, token: String, id: u32, ancho_max: u32) -> Result<String, String> {
+    prestamo::exigir(&app, &webview, &token, Some(id))?;
+    let ventana = ventana_prestada(&app, id)?;
+    capturar_png(&ventana, ancho_max)
+}
+
+/// La captura en sí (sin comprobaciones de sesión): PNG reducido en base64.
+fn capturar_png(ventana: &xcap::Window, ancho_max: u32) -> Result<String, String> {
+    // `capture_image()` ya devuelve un `image::RgbaImage` (image 0.25).
     let imagen = ventana
         .capture_image()
         .map_err(|e| format!("No se pudo capturar la ventana: {e}"))?;
@@ -174,8 +244,7 @@ pub fn capturar_ventana(_app: AppHandle, id: u32, ancho_max: u32) -> Result<Stri
         .write_to(&mut png, image::ImageFormat::Png)
         .map_err(|e| format!("No se pudo codificar la captura como PNG: {e}"))?;
 
-    // base64 0.22: engine estándar (`STANDARD`); el trait `Engine` está
-    // importado arriba con `use base64::Engine as _;`.
+    // base64 0.22: engine estándar (`STANDARD`).
     Ok(base64::engine::general_purpose::STANDARD.encode(png.into_inner()))
 }
 
@@ -183,7 +252,7 @@ pub fn capturar_ventana(_app: AppHandle, id: u32, ancho_max: u32) -> Result<Stri
 mod pruebas {
     use super::{altura_escalada, punto_dentro};
     #[cfg(ventana_falsa)]
-    use super::{capturar_ventana, ventanas_prestables};
+    use super::{capturar_png, listar_de_apps};
     #[cfg(ventana_falsa)]
     use base64::Engine as _;
 
@@ -239,16 +308,14 @@ mod pruebas {
             xcap::VentanaFalsa::nueva(2, "Otra", "Otra ventana"),
             xcap::VentanaFalsa::nueva(1, "Astra", "Astra duplicada"),
         ]);
-        let app = tauri::AppHandle;
-
-        let res = ventanas_prestables(app.clone(), vec!["Astra".to_string()]).unwrap();
+        let res = listar_de_apps(&["Astra".to_string()]).unwrap();
         assert_eq!(res.len(), 1);
         assert_eq!(res[0].id, 1);
         assert_eq!(res[0].app_name, "Astra");
         assert_eq!(res[0].title, "Astra · mando");
 
         // Una app que no está en la lista marca no devuelve nada.
-        let vacia = ventanas_prestables(app, vec!["Inexistente".to_string()]).unwrap();
+        let vacia = listar_de_apps(&["Inexistente".to_string()]).unwrap();
         assert!(vacia.is_empty());
     }
 
@@ -266,7 +333,8 @@ mod pruebas {
             imagen,
         )]);
 
-        let png_b64 = capturar_ventana(tauri::AppHandle, 7, 4).unwrap();
+        let v = xcap::Window::all().unwrap().into_iter().next().unwrap();
+        let png_b64 = capturar_png(&v, 4).unwrap();
         let png = base64::engine::general_purpose::STANDARD
             .decode(png_b64)
             .unwrap();
@@ -277,14 +345,14 @@ mod pruebas {
 
     #[cfg(ventana_falsa)]
     #[test]
-    fn captura_rechaza_id_inexistente_y_ancho_invalido() {
+    fn captura_rechaza_ancho_invalido() {
         xcap::poner_ventanas_de_prueba(vec![xcap::VentanaFalsa::nueva(
             7,
             "Astra",
             "Astra · mando",
         )]);
 
-        assert!(capturar_ventana(tauri::AppHandle, 99, 100).is_err());
-        assert!(capturar_ventana(tauri::AppHandle, 7, 0).is_err());
+        let v = xcap::Window::all().unwrap().into_iter().next().unwrap();
+        assert!(capturar_png(&v, 0).is_err());
     }
 }

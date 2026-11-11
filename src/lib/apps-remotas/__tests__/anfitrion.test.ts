@@ -118,3 +118,23 @@ describe("crearAnfitrion", () => {
     expect(m.dibujos).toHaveLength(0);
   });
 });
+
+describe("crearAnfitrion · sesión nativa (SEG1111T)", () => {
+  it("sin sesión nativa abierta no arranca aunque la sesión web sea válida", () => {
+    let nativa = false;
+    const m = montar({ sesionNativa: () => nativa });
+    const a = crearAnfitrion(m.deps);
+    expect(a.arrancar(INICIO).transmitiendo).toBe(false);
+    expect(m.pistas).toHaveLength(0);
+    nativa = true;
+    expect(a.arrancar(INICIO).transmitiendo).toBe(true);
+  });
+  it("un rechazo nativo que cierra la sesión para la transmisión sin reintentar", async () => {
+    const m = montar({ capturar: () => { throw "prestamo:caducada · la sesión terminó: dos minutos sin uso"; } });
+    const a = crearAnfitrion(m.deps);
+    a.arrancar(INICIO);
+    expect(await a.paso(INICIO)).toBe(false);
+    expect(m.pistas[0].parada).toBe(true);
+    expect(a.estado(INICIO).transmitiendo).toBe(false);
+  });
+});

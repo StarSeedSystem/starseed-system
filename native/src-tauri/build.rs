@@ -144,6 +144,10 @@ const COMANDOS_APP: &[&str] = &[
     "ventanas_prestables",
     "capturar_ventana",
     "entrada_ventana",
+    // (SEG1111T) Abrir, parar y consultar la sesión nativa de préstamo de ventanas.
+    "prestamo_ventana_iniciar",
+    "prestamo_ventana_parar",
+    "prestamo_ventana_estado",
     "servidor_local_estado",
     "servidor_local_actualizar",
     "migracion_origen_exportar",
