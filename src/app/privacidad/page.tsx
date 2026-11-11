@@ -6,17 +6,12 @@ export const metadata: Metadata = {
   title: "Política de privacidad · StarSeed OS",
   description: "Qué datos toca la app «StarSeed actividad»: solo lectura, en los nodos del dueño, sin venta, sin compartir y sin publicidad. Resumen en inglés.",
   alternates: { canonical: "/privacidad" },
-  openGraph: {
-    title: "Política de privacidad · StarSeed OS",
-    description: "Solo lectura, datos privados del dueño, sin venta ni publicidad.",
-    url: "/privacidad",
-    locale: "es_ES",
-  },
+  openGraph: { title: "Política de privacidad · StarSeed OS", description: "Solo lectura, datos privados del dueño, sin venta ni publicidad.", url: "/privacidad", locale: "es_ES" },
 };
 
 const CONTACTO = "fundacionstarseed@gmail.com";
 const VIGENCIA = "2026-11-11";
-const URL_REVocar = "https://myaccount.google.com/permissions";
+const URL_REVOCAR = "https://myaccount.google.com/permissions";
 const URL_POLITICA_GOOGLE = "https://developers.google.com/terms/api-services-user-data-policy";
 
 /** Estilos de la casa: titular Space Grotesk, cuerpo Inter, acentos Trinity. */
@@ -48,7 +43,10 @@ function Seccion({ titulo, acento, children }: { titulo: string; acento: string;
 export default function PrivacidadPage() {
   return (
     <main className="relative min-h-dvh px-5 pb-28 pt-12 md:px-8 md:pt-16">
-      <div className="mx-auto w-full max-w-3xl space-y-10 rounded-3xl border border-border/40 bg-background/70 p-6 backdrop-blur-xl md:p-10">
+      {/* Velo adaptativo (regla de contraste del design system): el texto se lee
+          igual sobre el fondo animado del OS, claro u oscuro. */}
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-gradient-to-b from-background/70 to-background/90" />
+      <div className="relative z-10 mx-auto w-full max-w-3xl space-y-10 rounded-3xl border border-border/40 bg-background/80 p-6 backdrop-blur-xl md:p-10">
         <header className="space-y-3">
           <p className="font-code text-[11px] uppercase tracking-[0.2em] text-muted-foreground">StarSeed OS · documento público</p>
           <h1 className={H1}>Política de privacidad</h1>
@@ -88,7 +86,7 @@ export default function PrivacidadPage() {
         <Seccion titulo="Cómo revocar el acceso" acento="bg-trinity-crimson">
           <p>
             En cualquier momento puedes retirar el permiso desde{" "}
-            <Externo href={URL_REVocar}>myaccount.google.com/permissions</Externo>. Al revocarlo, la app deja de tener acceso a tus cuentas y sus
+            <Externo href={URL_REVOCAR}>myaccount.google.com/permissions</Externo>. Al revocarlo, la app deja de tener acceso a tus cuentas y sus
             tokens caducan.
           </p>
         </Seccion>
@@ -103,7 +101,7 @@ export default function PrivacidadPage() {
             <strong className={FUERTE}>only by its owner</strong>: agents read the owner&apos;s own activity (sent emails, Drive files, YouTube) in{" "}
             <strong className={FUERTE}>read-only mode</strong> to prepare private syntheses; they never write to the accounts. Data stays on the
             owner&apos;s nodes — never sold, never shared, never used for advertising. Google API data is handled under the Google API Services User
-            Data Policy (Limited Use). Access can be revoked at <Externo href={URL_REVocar}>myaccount.google.com/permissions</Externo>. Contact:{" "}
+            Data Policy (Limited Use). Access can be revoked at <Externo href={URL_REVOCAR}>myaccount.google.com/permissions</Externo>. Contact:{" "}
             {CONTACTO}. Effective date: 11 November 2026.
           </p>
         </section>
