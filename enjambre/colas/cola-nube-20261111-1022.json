@@ -1,0 +1,19 @@
+{
+ "ola": "oracle-20261111",
+ "medio": "oracle",
+ "tareas": [
+  {
+   "id": "P37-1111-rc",
+   "ola": "Relevo del carril Claude · 20261111-0812",
+   "titulo": "prueba.37: publicar main bbacfc2c2d y compilar la versión de prueba (Mac y Android)",
+   "archivos": [
+    "native/src-tauri/android/BleStarSeed.kt"
+   ],
+   "depende": [],
+   "prompt": "RELEVO DEL CARRIL CLAUDE (REL1026A): esta tarea la empezó un agente de Claude que se quedó sin crédito. Empieza desde main (lo que hubiera escrito no llegó). Si al leer el código ya está hecha, responde NO APLICA con la prueba. Si es más de lo que cabe en una tarea (más de 3 archivos), haz la primera parte coherente y deja dicho qué falta: el revisor la dividirá.\n\nmain local bbacfc2c2d pasó la puerta (950 archivos, 10 835 pruebas, tsc 0). El lanzador ~/.starseed/opus1031/lanzar-prueba-cuando.sh (etiqueta prueba37) dispara native-build.yml canal=pruebas en cuanto la autopublicación suba main, y ~/.starseed/opus1031/vigilar-prueba37.sh avisa a Alex por Genesis y Telegram. Vigilar el run; si Kotlin (BleStarSeed.kt) o Rust no compilan, arreglarlo y relanzar. Las 15 comprobaciones están registradas (comprobaciones_prueba.py ver 37).",
+   "origen": "relevo-carril-claude",
+   "relevo_de": "P37-1111",
+   "capacidad": "alta"
+  }
+ ]
+}
