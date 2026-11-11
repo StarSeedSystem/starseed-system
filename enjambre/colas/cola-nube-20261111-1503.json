@@ -1,0 +1,89 @@
+{
+ "ola": "nube-20261111",
+ "tareas": [
+  {
+   "id": "SDP1111A",
+   "ola": "SDP1111",
+   "titulo": "Síntesis · fuentes y rotación (módulo puro)",
+   "archivos": [
+    "scripts/puente/sintesis_fuentes.py",
+    "scripts/puente/test_sintesis_fuentes.py"
+   ],
+   "depende": [],
+   "prompt": "Lee architecture/sintesis-diaria-autonoma.md §3.2. Crea el módulo PURO sintesis_fuentes.py: funciones que, dada la raíz, devuelven el contexto común de la síntesis diaria de producción audiovisual: las 3 últimas síntesis de starseed_memory_root/produccion-audiovisual/sintesis/ y su sección «Mañana» (la rotación: 2 vídeos de los 15, 2-3 contactos, 1 categoría nueva; sin repetir lo de las 3 últimas), las salidas de Imaginación de 24 h (starseed_memory_root/imaginacion/agentes/*.json), los informes nuevos de directores y sueños, y el resumen de actividad si existe (~/.starseed/actividad/resumen-AAAA-MM-DD.json). Todo inyectable, sin red. Si no hay síntesis previas, la rotación empieza por los vídeos 4 y 5 y los contactos Cole Hastings, Sunseed y Damanhur. Pruebas con directorios temporales. Máximo 120 líneas por archivo; tsc no aplica; pytest en verde."
+  },
+  {
+   "id": "SDP1111B",
+   "ola": "SDP1111",
+   "titulo": "Síntesis · envío al chat propio de Telegram",
+   "archivos": [
+    "scripts/puente/sintesis_telegram.py",
+    "scripts/puente/test_sintesis_telegram.py"
+   ],
+   "depende": [],
+   "prompt": "Lee architecture/sintesis-diaria-autonoma.md §3.3. Crea sintesis_telegram.py: enviar(texto, boton_url=None, pedir=None) llama a la API de bots de Telegram (sendMessage) con urllib, en texto plano, troceando a 3500 caracteres por límites de párrafo. Lee TELEGRAM_SINTESIS_BOT_TOKEN y TELEGRAM_SINTESIS_CHAT_ID de ~/.starseed/env y del entorno. Solo admite ese chat. Nunca imprime ni registra el token (tacha cualquier URL con /bot). Sin token devuelve {ok: False, motivo: 'sin token'} sin lanzar. `pedir` inyectable para las pruebas, que van sin red. CLI: `prueba` envía una línea de comprobación. Máximo 120 líneas por archivo."
+  },
+  {
+   "id": "SDP1111E",
+   "ola": "SDP1111",
+   "titulo": "Cuentas de Google · alta por OAuth de solo lectura",
+   "archivos": [
+    "scripts/puente/cuentas_google.py",
+    "scripts/puente/test_cuentas_google.py"
+   ],
+   "depende": [],
+   "prompt": "Lee architecture/sintesis-diaria-autonoma.md §4 y §5. Crea cuentas_google.py: flujo OAuth de app de escritorio (redirección a 127.0.0.1 con puerto libre, PKCE) con GOOGLE_ACTIVIDAD_CLIENT_ID y GOOGLE_ACTIVIDAD_CLIENT_SECRET, scopes SOLO de lectura: gmail.readonly, drive.readonly, youtube.readonly. CLI: `alta <alias>` (alex|fundacion) abre el navegador y guarda el token de refresco en ~/.starseed/cuentas/<alias>.json con permisos 0600; `estado` lista alias, correo y si el token sigue vivo, sin imprimir tokens; `token(alias)` devuelve un token de acceso renovado. Añade la orden `importar [ruta]`: si no se da ruta, toma el client_secret_*.json más reciente de ~/Downloads (el que descarga la consola de Google al crear el cliente «App de escritorio»), guarda GOOGLE_ACTIVIDAD_CLIENT_ID y GOOGLE_ACTIVIDAD_CLIENT_SECRET en ~/.starseed/env y ~/.hermes/.env con la misma lógica de scripts/puente/guardar-clave.sh (entrecomillar, reemplazar sin duplicar, comprobar que el archivo se carga entero), sin imprimir valores (solo una huella de 8 caracteres), y mueve el JSON a ~/.starseed/cuentas/cliente-oauth.json con permisos 0600. `importar` también se llama sola al empezar `alta` si las variables faltan y hay un client_secret_*.json en Descargas. Solo biblioteca estándar. Pruebas sin red con el intercambio inyectado. Máximo 120 líneas por archivo."
+  },
+  {
+   "id": "SDP1111I",
+   "ola": "SDP1111",
+   "titulo": "Actividad · guardados de Instagram desde la exportación oficial",
+   "archivos": [
+    "scripts/puente/actividad_instagram.py",
+    "scripts/puente/test_actividad_instagram.py"
+   ],
+   "depende": [],
+   "prompt": "Lee architecture/sintesis-diaria-autonoma.md §4. Crea actividad_instagram.py: lee SOLO la exportación oficial «Descargar tu información» (saved_posts.json y saved_collections.json, sueltos o dentro del zip) que Alex deja en ~/.starseed/actividad/entrada/instagram/ o en ~/Downloads/ (el zip oficial se llama instagram-<usuario>-<fecha>-<id>.zip; solo se leen esos zips y nunca se borran de Descargas). Fichas con enlace, autor y fecha, privado: true. No abre Instagram, no usa la sesión de Alex, no hace peticiones a instagram.com. Incremental por enlace. Pruebas con una muestra. Máximo 120 líneas por archivo."
+  },
+  {
+   "id": "SDP1111J",
+   "ola": "SDP1111",
+   "titulo": "Actividad · cuadernos de NotebookLM",
+   "archivos": [
+    "scripts/puente/actividad_notebooklm.py",
+    "scripts/puente/test_actividad_notebooklm.py"
+   ],
+   "depende": [],
+   "prompt": "Lee architecture/sintesis-diaria-autonoma.md §4. Crea actividad_notebooklm.py: si el CLI `notebooklm` existe en este nodo (solo la Mac, /Users/alex/bin/notebooklm, v0.8.6 con perfiles: `-p default` es alexbordongarrigos@gmail.com y `-p fundacion` es fundacionstarseed@gmail.com), lista los cuadernos de cada perfil, y por cuaderno las fuentes y notas nuevas desde la última pasada. Fichas privado: true. Si el CLI no está o la sesión caducó, devuelve {ok: False, motivo} sin fallar y sin reintentar el login. `ejecutar` inyectable; pruebas sin el CLI. Máximo 120 líneas por archivo."
+  },
+  {
+   "id": "BLE1111P-rc",
+   "ola": "Relevo del carril Claude · 20261111-1419",
+   "titulo": "El canal rápido de Bluetooth no se apaga una hora porque el otro aparato se reinició",
+   "archivos": [
+    "native/src-tauri/src/ble_l2cap.rs",
+    "native/src-tauri/src/ble.rs"
+   ],
+   "depende": [],
+   "prompt": "RELEVO DEL CARRIL CLAUDE (REL1026A): esta tarea la empezó un agente de Claude que se quedó sin crédito. Empieza desde main (lo que hubiera escrito no llegó). Si al leer el código ya está hecha, responde NO APLICA con la prueba. Si es más de lo que cabe en una tarea (más de 3 archivos), haz la primera parte coherente y deja dicho qué falta: el revisor la dividirá.\n\nble_l2cap.rs (BLE1109B) apaga el canal rápido L2CAP una hora tras 2 fallos en 10 min. El 11-11 saltó porque la tablet se reinició para actualizarse: los dos «fallos» eran el par yéndose, y el enlace nuevo heredó la hora sin canal rápido. Que la marcha del par no cuente, que un enlace nuevo con par reiniciado empiece limpio, y que lo que quede sea una espera creciente (30 s, 2 min, 10 min) y no una hora. Pruebas de la política con esa secuencia.",
+   "origen": "relevo-carril-claude",
+   "relevo_de": "BLE1111P",
+   "capacidad": "alta"
+  },
+  {
+   "id": "LLA1111Q-rc",
+   "ola": "Relevo del carril Claude · 20261111-1419",
+   "titulo": "Voz y vídeo por el Bluetooth real: el medidor de capacidad ya no confunde el ida y vuelta con el ancho",
+   "archivos": [
+    "src/lib/llamadas/video-datos/reparto.ts",
+    "src/lib/llamadas/voz-datos/niveles.ts",
+    "pruebas-reales/llamadas-medio/entrada.ts"
+   ],
+   "depende": [],
+   "prompt": "RELEVO DEL CARRIL CLAUDE (REL1026A): esta tarea la empezó un agente de Claude que se quedó sin crédito. Empieza desde main (lo que hubiera escrito no llegó). Si al leer el código ya está hecha, responde NO APLICA con la prueba. Si es más de lo que cabe en una tarea (más de 3 archivos), haz la primera parte coherente y deja dicho qué falta: el revisor la dividirá.\n\nEn prueba.37 la llamada solo Bluetooth leyó 8-35 kb/s en un enlace que la capa nativa mide a 237 kb/s: voz en Opus 6 kb/s y vídeo en pausa por suelo. El modelo del carril (reparto.ts MedidorEnlace, niveles.ts) toma el ida y vuelta por envío por capacidad y encoge la ventana a 300 B. Calibrar el carril del arnés llamadas-medio con ~/.starseed/opus1031/evidencia/enlaces-prueba37.log, reproducir el fallo y rehacer el control (por espera real de la voz y entrega medida) para que voz y vídeo vayan a la vez.",
+   "origen": "relevo-carril-claude",
+   "relevo_de": "LLA1111Q",
+   "capacidad": "alta"
+  }
+ ]
+}
