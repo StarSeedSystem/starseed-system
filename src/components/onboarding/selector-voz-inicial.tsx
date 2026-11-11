@@ -15,7 +15,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Volume2, Sliders, Sparkles, Loader2, Play, Square, Cpu } from "lucide-react";
+import { Volume2, Sliders, Sparkles, Loader2, Play, Square, Cpu, CheckCircle2, AlertCircle, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   getModoVoz, setModoVoz, MODOS_VOZ, hayVozRealPara, generoEfectivo,
@@ -28,6 +28,7 @@ import { SelectorTimbres } from "@/components/onboarding/selector-timbres";
 import { hablarRito, callarRito } from "@/lib/aurora/voz-rito";
 import { motorNeuralListo, precalentarMotorNeural, type MotorVoz } from "@/lib/aurora/motor-voz";
 import { cortarVoz } from "@/lib/aurora/narracion-ventana";
+import { checkVoz158Explicito, checkVoz158Rapido, type CheckVoz158 } from "@/lib/onboarding/check-voz-158";
 
 const FRASE_PRUEBA =
   "Hola, soy Astraura. Así sueno en este dispositivo; puedes cambiarme cuando quieras.";
@@ -46,6 +47,9 @@ export function SelectorVozInicial({
   const [sonando, setSonando] = useState(false);
   // ¿El equipo tiene voz real del género elegido? Si no, se dice con honestidad.
   const [sinVozReal, setSinVozReal] = useState(false);
+  // (IMG-diaria-onboarding-fusionado-voz-paso-1-c) Check explícito 1.58-bit
+  const [check158, setCheck158] = useState<CheckVoz158 | null>(null);
+  const [check158Cargando, setCheck158Cargando] = useState(true);
 
   useEffect(() => { setModo(getModoVoz()); }, []);
   // (Adenda 204) Al desmontar se corta SOLO si esta prueba estaba sonando.
@@ -58,6 +62,24 @@ export function SelectorVozInicial({
   useEffect(() => () => {
     if (!sonandoRef.current) return;
     try { window.speechSynthesis?.cancel(); } catch { /* sin motor */ }
+  }, []);
+
+  // Check explícito 1.58-bit al montar: informa al usuario qué motor sonará AHORA.
+  useEffect(() => {
+    let vivo = true;
+    // Rápido (síncrono, desde caché/localStorage) para mostrar algo inmediato
+    const rapido = checkVoz158Rapido();
+    if (vivo) setCheck158(rapido);
+    // Completo (async, sondea daemon real) para confirmar
+    checkVoz158Explicito().then((completo) => {
+      if (vivo) {
+        setCheck158(completo);
+        setCheck158Cargando(false);
+      }
+    }).catch(() => {
+      if (vivo) setCheck158Cargando(false);
+    });
+    return () => { vivo = false; };
   }, []);
 
   const elegir = useCallback(async (m: ModoVoz) => {
@@ -233,6 +255,51 @@ export function SelectorVozInicial({
       {modo !== "autonoma" && (
         <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
           <SelectorTimbres genero={generoEfectivo(modo)} onProbar={probarVozActual} />
+        </div>
+      )}
+
+      {/* (IMG-diaria-onboarding-fusionado-voz-paso-1-c) Check explícito 1.58-bit:
+          muestra al usuario qué motor de voz está ACTIVO en este dispositivo
+          AHORA MISMO, para que no haya sorpresas ni fricción inicial. */}
+      {check158 && (
+        <div
+          className={cn(
+            "rounded-xl p-3 text-[11px] leading-snug transition-all duration-200",
+            check158.disponible
+              ? "border-emerald-400/30 bg-emerald-500/[0.07] text-emerald-100"
+              : check158.motor === "sistema"
+                ? "border-amber-400/30 bg-amber-500/[0.07] text-amber-100"
+                : "border-cyan-400/30 bg-cyan-500/[0.07] text-cyan-100",
+          )}
+        >
+          <div className="flex items-start gap-2">
+            <span className="mt-0.5 flex-shrink-0">
+              {check158.disponible ? (
+                <CheckCircle2 className="h-4 w-4 text-emerald-300" aria-hidden />
+              ) : check158.motor === "sistema" ? (
+                <AlertCircle className="h-4 w-4 text-amber-300" aria-hidden />
+              ) : (
+                <Info className="h-4 w-4 text-cyan-300" aria-hidden />
+              )}
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5">
+                <span className="font-semibold">
+                  {check158.disponible ? "✓ 1.58-bit nativo DISPONIBLE" : "Motor de voz activo:"}
+                </span>
+                {check158Cargando && (
+                  <Loader2 className="h-3 w-3 animate-spin text-white/40" aria-hidden />
+                )}
+              </div>
+              <p className="mt-0.5 text-[10.5px] text-white/70">{check158.nombre}</p>
+              <p className="mt-1 text-[10px] text-white/55">{check158.nota}</p>
+              {check158.local && (
+                <span className="inline-flex items-center gap-1 mt-1.5 rounded-full border border-emerald-400/30 bg-emerald-500/10 px-1.5 py-0.5 text-[9px] font-medium text-emerald-200">
+                  100 % local · sin red · CPU
+                </span>
+              )}
+            </div>
+          </div>
         </div>
       )}
 
