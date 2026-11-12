@@ -12,7 +12,7 @@ import { guardarEnOpfs, type CtorGrabadora } from "@/lib/llamadas/superficie/gra
 import { registrarEnHistorial, type AlmacenMinimo } from "@/lib/llamadas/superficie/historial-llamadas";
 import { soportaAltavoz, soportaPantalla } from "@/lib/llamadas/medios";
 import { esAppNativa } from "@/lib/nativa/puente";
-import { leerPreferencias } from "@/lib/llamadas/camaras";
+import { guardarPreferencia, leerPreferencias } from "@/lib/llamadas/camaras";
 import { anotarLlamada } from "@/lib/llamadas/voz-datos/diagnostico";
 import { getDeviceId } from "@/lib/network/device-registry";
 
@@ -194,6 +194,14 @@ export function depsParaLlamada(a: LlamadaActiva, extra: { rutasNativas?: number
         return leerPreferencias(getDeviceId() || "local").camara ?? null;
       } catch {
         return null;
+      }
+    },
+    // LLA1112B: dejar la predeterminada como estaba cuando la cámara elegida no se queda.
+    guardarPreferenciaCamara: (p) => {
+      try {
+        guardarPreferencia(getDeviceId() || "local", { camara: p ? { id: p.id, etiqueta: p.etiqueta ?? "" } : undefined });
+      } catch {
+        /* sin almacenamiento */
       }
     },
     anotar: (linea) => anotarLlamada(linea.startsWith("camara ") ? "camara" : "medio=video-datos", null, linea.replace(/^camara /, "")),

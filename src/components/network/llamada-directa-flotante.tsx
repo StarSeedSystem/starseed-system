@@ -9,7 +9,7 @@
  * `architecture/transporte-universal-sin-internet.md`.
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { avisarFalloMedios } from "@/lib/llamadas/aviso-medios";
 import { crearTono, vibrar } from "@/lib/llamadas/sonido";
 import { useDecisionTimbre } from "@/lib/llamadas/nativa/use-decision-timbre";
@@ -21,10 +21,12 @@ import { vistaDeDirecta } from "@/lib/llamadas/superficie/adaptador-directa";
 import type { AccionesLlamada } from "@/lib/llamadas/superficie/vista";
 import { useCifradoNeurona } from "@/lib/malla/use-cifrado-enlace";
 import {
+  alternarCamaraDirecta, // LLA1112B
   alternarMicro,
   asegurarEscuchaLlamadas,
   colgarLlamada,
   contestarLlamada,
+  estadoLlamadaDirecta, // LLA1112B
   rechazarLlamada,
   useLlamadaDirecta,
 } from "@/lib/malla/llamada-directa";
@@ -112,8 +114,35 @@ const ACCIONES_DIRECTA: AccionesLlamada = {
 
 function SuperficieDirecta({ ll }: { ll: ReturnType<typeof useLlamadaDirecta> }) {
   const cifrado = useCifradoNeurona(ll.neurona ?? "");
+  // LLA1112B · la cámara se enciende y se apaga también aquí; si no puede, la ventana dice por qué.
+  const [aviso, setAviso] = useState<string | null>(null);
+  useEffect(() => {
+    if (!aviso) return;
+    const id = setTimeout(() => setAviso(null), 8000);
+    return () => clearTimeout(id);
+  }, [aviso]);
+  const acciones = useMemo<AccionesLlamada>(
+    () => ({
+      ...ACCIONES_DIRECTA,
+      alternarCamara: () => void alternarCamaraDirecta().then((m) => setAviso(m)),
+      cambiarTipo: async (a) => {
+        const conCamara = (estadoLlamadaDirecta().local?.getVideoTracks() ?? []).some((t) => t.readyState === "live");
+        if (a === "video" && !conCamara) {
+          const m = await alternarCamaraDirecta();
+          if (m) throw new Error(m);
+        } else if (a === "voz" && conCamara) {
+          const m = await alternarCamaraDirecta();
+          if (m) throw new Error(m);
+        } else if (a !== "voz" && a !== "video") {
+          throw new Error("esta llamada directa solo lleva voz o vídeo");
+        }
+      },
+    }),
+    [],
+  );
   const vista = vistaDeDirecta(ll, { medio: "enlace local (sin internet)" });
   vista.calidad = resumirCalidadLlamada({ ruta: null, rttMs: null, bitrateKbps: null, perdidaPct: null, jitterMs: null, codec: null, cifrado: ll.neurona ? cifrado : null });
   vista.textoMedio = "Llamada directa por el enlace local de las dos neuronas, sin pasar por internet.";
-  return <SuperficieLlamada vista={vista} acciones={ACCIONES_DIRECTA} />;
+  if (aviso) vista.aviso = aviso;
+  return <SuperficieLlamada vista={vista} acciones={acciones} />;
 }

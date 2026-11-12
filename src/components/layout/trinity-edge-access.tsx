@@ -51,6 +51,7 @@ import {
 } from "@/lib/gestos";
 import { useArrastreDesdeBorde } from "@/hooks/use-arrastre-desde-borde";
 import styles from "./trinity-edge-access.module.css";
+import { puntoSobreVentanaLlamada } from "@/lib/llamadas/superficie/zona-llamada"; // LLA1112B
 
 type Edge = Exclude<PerimeterEdge, null>;
 
@@ -173,6 +174,8 @@ export function TrinityEdgeAccess() {
             if (activeRef.current) return; // ya hay un menú abierto
             if (e.touches.length !== 1) return;
             const t = e.touches[0];
+            // LLA1112B: un dedo que nace sobre la ventana de una llamada pulsa SU botón; no abre el dock aunque se deslice un poco.
+            if (puntoSobreVentanaLlamada(t.clientX, t.clientY)) return;
             const edge = detectEdge(t.clientX, t.clientY);
             if (!edge) return;
             gestureRef.current = { edge, inicio: muestra(t, e), activo: false };

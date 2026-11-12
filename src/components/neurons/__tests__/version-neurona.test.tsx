@@ -15,6 +15,12 @@ vi.mock("@/lib/neurons/pedir-actualizacion", async (original) => ({
   pedirActualizacion: vi.fn(async () => ({ ok: true, texto: "Pedido a «Tablet» por el canal de tu cuenta." })),
 }));
 
+const fresco = vi.hoisted(() => ({ aparato: null as unknown }));
+vi.mock("@/lib/neurons/version-reportada", async (original) => ({
+  ...(await original<typeof import("@/lib/neurons/version-reportada")>()),
+  leerAparatoFresco: vi.fn(async () => fresco.aparato),
+}));
+
 import { VersionNeurona } from "../version-neurona";
 import { EVENTO_BUSCAR_ACTUALIZACION, pedirActualizacion } from "@/lib/neurons/pedir-actualizacion";
 import { registrarEnlaceLocal, type EnlaceLocalVivo } from "@/lib/malla/registro-enlaces-locales";
@@ -109,5 +115,16 @@ describe("(NEU1108A) la misma verdad que el radar", () => {
     presencia.medios = [medio("pc", { v: { nativa: "0.6.0" }, d: { medio: "escritorio", app: "os", so: "macos", pa: 1 } })];
     render(<VersionNeurona neuronaId="pc" nombre="PC" />);
     expect(screen.getByTestId("estado-vivo")).toHaveTextContent("en línea · vía internet");
+  });
+});
+
+describe("VersionNeurona · versión según su registro (LLA1112B)", () => {
+  it("lee la ficha fresca (no la copia de la lista) y dice cuándo la informó", async () => {
+    fresco.aparato = { v: 1, medio: "android", app: "os", so: "android", soV: "16", equipo: "Samsung SM-X900", version: "0.5.1-prueba.39", visto: new Date(Date.now() - 5 * 60_000).toISOString() };
+    render(<VersionNeurona neuronaId="tablet-reg" nombre="Tablet" capacidades={{ platform: "Android", aparato: { v: 1, medio: "android", app: "os", so: "android", soV: "16", equipo: "Samsung SM-X900", version: "0.5.1-prueba.37" } }} />);
+    expect(await screen.findByText(/Versión 0\.5\.1-prueba\.39/)).toBeInTheDocument();
+    expect(screen.getByText(/según su registro, informada hace 5 min/)).toBeInTheDocument();
+    expect(screen.queryByText(/prueba\.37/)).not.toBeInTheDocument();
+    fresco.aparato = null;
   });
 });

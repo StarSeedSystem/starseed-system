@@ -22,7 +22,7 @@ import { AdaptadorMotor } from "@/lib/llamadas/superficie/adaptador-motor";
 import { SuperficieLlamada } from "@/components/llamadas/superficie/superficie-llamada";
 import type { VistaLlamada } from "@/lib/llamadas/superficie/vista";
 import type { EntornoLlamada } from "@/lib/llamadas/superficie/matriz-controles";
-import { leerPreferencias } from "@/lib/llamadas/camaras";
+import { guardarPreferencia, leerPreferencias } from "@/lib/llamadas/camaras";
 import { anotarLlamada } from "@/lib/llamadas/voz-datos/diagnostico";
 import { getDeviceId } from "@/lib/network/device-registry";
 
@@ -65,6 +65,12 @@ const camaras = {
   ocupadas: null as string | null,
   /** «fps» (la de arriba) u otra hipótesis: «id+tamano», un `deviceId` exacto junto a ancho/alto (aunque sean `ideal`). */
   regla: "fps" as "fps" | "id+tamano",
+  /** LLA1112B · cámaras (por etiqueta) que abren una pista viva pero solo con cuadros NEGROS (cámara virtual sin fuente, iPhone dormido). */
+  negras: null as string | null,
+  /** LLA1112B · cámaras que abren una pista viva que NUNCA entrega un cuadro (Continuidad sin iPhone cerca). */
+  mudas: null as string | null,
+  /** LLA1112B · cámaras que dan una tarjeta fija de color (la tarjeta de espera de una cámara virtual: imagen real, no es la persona). */
+  tarjeta: null as string | null,
 };
 const FPS_FIJO = 30.000030517578125;
 function noCumple(v: unknown): string | null {
@@ -128,6 +134,46 @@ md.getUserMedia = async (c?: MediaStreamConstraints) => {
   if (c?.video && camaras.unaALaVez) {
     for (const t of camaras.abiertas) if (t.readyState !== "live") camaras.abiertas.delete(t);
     if (camaras.abiertas.size) throw new DOMException("Could not start video source", "NotReadableError");
+  }
+  if (c?.video) {
+    // LLA1112B · pistas falsas de cámaras que no dan una imagen usable.
+    const lista = (await enumerarReal()).filter((d) => d.kind === "videoinput");
+    const pedido = typeof c.video === "object" ? (c.video as MediaTrackConstraints).deviceId : undefined;
+    const id = typeof pedido === "string" ? pedido : pedido && typeof pedido === "object" ? ((pedido as { exact?: string }).exact ?? null) : null;
+    const i = lista.findIndex((d) => d.deviceId === id);
+    const et = i >= 0 ? (camaras.etiquetas[i] ?? "") : "";
+    const modo = camaras.mudas && new RegExp(camaras.mudas, "i").test(et) ? "muda" : camaras.negras && new RegExp(camaras.negras, "i").test(et) ? "negra" : camaras.tarjeta && new RegExp(camaras.tarjeta, "i").test(et) ? "tarjeta" : null;
+    if (modo) {
+      const cv = document.createElement("canvas");
+      cv.width = 320;
+      cv.height = 240;
+      const x = cv.getContext("2d")!;
+      const pinta = () => {
+        x.fillStyle = modo === "tarjeta" ? "#2a6" : "#000";
+        x.fillRect(0, 0, 320, 240);
+        if (modo === "tarjeta") {
+          x.fillStyle = "#fff";
+          x.font = "20px sans-serif";
+          x.fillText("OBS: sin fuente", 60, 120);
+        }
+      };
+      const flujo = cv.captureStream(modo === "muda" ? 0 : 15);
+      if (modo !== "muda") {
+        pinta();
+        setInterval(pinta, 100);
+      }
+      const t = flujo.getVideoTracks()[0];
+      Object.defineProperty(t, "label", { value: et, configurable: true });
+      const gs = t.getSettings.bind(t);
+      t.getSettings = () => ({ ...gs(), deviceId: id ?? undefined });
+      camaras.permiso = true;
+      camaras.abiertas.add(t);
+      if (c.audio) {
+        const a = await gumReal({ audio: c.audio });
+        for (const pa of a.getAudioTracks()) flujo.addTrack(pa);
+      }
+      return flujo;
+    }
   }
   const s = await gumReal(c);
   if (c?.video) camaras.permiso = true;
@@ -419,6 +465,7 @@ async function llamar(o: { sid: string; sinIp?: boolean; enlace?: OpcEnlace; vid
     unoAUno: true,
     entorno: () => ENTORNO,
     preferenciaCamara: () => leerPreferencias(getDeviceId() || "local").camara ?? null,
+    guardarPreferenciaCamara: (p: { id: string; etiqueta?: string } | null) => guardarPreferencia(getDeviceId() || "local", { camara: p ?? undefined }),
     anotar: (l: string) => anotarLlamada(l.startsWith("camara ") ? "camara" : "medio=video-datos", null, l.replace(/^camara /, "")),
   } as ConstructorParameters<typeof AdaptadorMotor>[1]);
   actual = {

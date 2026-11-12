@@ -81,7 +81,7 @@ describe("SuperficieLlamada · LLA1111A (Puertos, estado una vez, carriles, alto
     expect(sec.textContent?.split("Voz por Bluetooth directo · cifrada").length).toBe(2);
     expect(sec.textContent?.split("Voz: Bluetooth · Vídeo: Bluetooth").length).toBe(2);
   });
-  it("«Medio» con el motor: un selector por flujo que fuerza el carril y vuelve a automático", () => {
+  it("«Medio» con el motor: botones por flujo (sin menús nativos) que fuerzan el carril y vuelven a automático", () => {
     const forzar = vi.fn();
     const carriles = {
       carriles: () => [{ parId: "p", voz: "ble-l2cap", video: "ble-l2cap", pantalla: "ble-l2cap", senal: "ble-l2cap", datos: "ble-l2cap", forzados: {}, texto: "", director: true }],
@@ -90,18 +90,56 @@ describe("SuperficieLlamada · LLA1111A (Puertos, estado una vez, carriles, alto
     };
     abrir(conectada(), { carriles });
     fireEvent.click(screen.getByRole("tab", { name: /Medio/ }));
-    const sel = screen.getByRole("combobox", { name: "Carril de vídeo" }) as HTMLSelectElement;
-    expect([...sel.options].map((o) => o.value)).toEqual(["auto", "ble-l2cap"]);
-    fireEvent.change(sel, { target: { value: "ble-l2cap" } });
+    // LLA1112B: ningún <select>; cada flujo es un grupo de radios con «Automático» primero y marcado.
+    expect(document.querySelectorAll("[data-carriles-flujo] select").length).toBe(0);
+    const grupo = screen.getByRole("radiogroup", { name: "Carril de vídeo" });
+    const radios = [...grupo.querySelectorAll('[role="radio"]')] as HTMLButtonElement[];
+    expect(radios.map((r) => r.textContent)).toEqual(["Automático", "Bluetooth rápido"]);
+    expect(radios[0].getAttribute("aria-checked")).toBe("true");
+    fireEvent.click(radios[1]);
     expect(forzar).toHaveBeenCalledWith("video", "ble-l2cap");
-    fireEvent.change(sel, { target: { value: "auto" } });
+    fireEvent.click(radios[0]);
     expect(forzar).toHaveBeenLastCalledWith("video", null);
-    expect(screen.getByRole("combobox", { name: "Carril de voz" })).toBeTruthy();
-    expect(screen.getByRole("combobox", { name: "Carril de pantalla" })).toBeTruthy();
+    // Teclado: la flecha mueve la elección.
+    radios[0].focus();
+    fireEvent.keyDown(radios[0], { key: "ArrowRight" });
+    expect(forzar).toHaveBeenLastCalledWith("video", "ble-l2cap");
+    fireEvent.keyDown(radios[1], { key: "Home" });
+    expect(forzar).toHaveBeenLastCalledWith("video", null);
+    expect(screen.getByRole("radiogroup", { name: "Carril de voz" })).toBeTruthy();
+    expect(screen.getByRole("radiogroup", { name: "Carril de pantalla" })).toBeTruthy();
   });
   it("la ventana flotante lleva un alto máximo con las zonas seguras (nunca más alta que lo visible)", () => {
     abrir(conectada());
     const sec = screen.getByTestId("superficie-llamada");
     expect(sec.getAttribute("style") ?? "").toMatch(/max-height: calc\(100dvh/);
+  });
+});
+
+describe("SuperficieLlamada · LLA1112B (botón de cámara y zona de la ventana)", () => {
+  const conectada = (o: Partial<VistaLlamada> = {}) => base({ estado: "conectada", desde: Date.now(), ...o });
+  const abrirPanel = () => fireEvent.keyDown(screen.getByTestId("superficie-llamada"), { key: "Enter" });
+
+  it("con acción de cámara: dice lo que hace y funciona", () => {
+    const a: AccionesLlamada = { alternarCamara: vi.fn() };
+    render(<SuperficieLlamada vista={conectada({ tipo: "video", camara: true })} acciones={a} />);
+    abrirPanel();
+    fireEvent.click(screen.getByRole("button", { name: "Apagar cámara" }));
+    expect(a.alternarCamara).toHaveBeenCalled();
+  });
+  it("sin acción de cámara en una llamada de voz: explica cómo añadir vídeo (no «no lleva cámara»)", () => {
+    render(<SuperficieLlamada vista={conectada({ tipo: "voz" })} acciones={{}} />);
+    abrirPanel();
+    const b = screen.getByRole("button", { name: /cámara/i });
+    expect(b.getAttribute("title") ?? "").toMatch(/para añadir vídeo pulsa «Vídeo» o «Encender cámara»/);
+    expect(b.getAttribute("title") ?? "").not.toMatch(/no lleva cámara/);
+  });
+  it("la ventana se registra como zona de llamada mientras está montada", async () => {
+    const { hayVentanaLlamada } = await import("@/lib/llamadas/superficie/zona-llamada");
+    const { unmount } = render(<SuperficieLlamada vista={conectada()} acciones={{}} />);
+    expect(hayVentanaLlamada()).toBe(true);
+    expect(screen.getByTestId("superficie-llamada").hasAttribute("data-ventana-llamada")).toBe(true);
+    unmount();
+    expect(hayVentanaLlamada()).toBe(false);
   });
 });

@@ -212,3 +212,18 @@ describe("dock (Anchor) deslizable", () => {
         expect(fijo).not.toHaveBeenCalled();
     });
 });
+
+describe("el dock cede ante la ventana de llamada (LLA1112B)", () => {
+    it("sin llamada el sensor conserva su capa; con una ventana registrada baja por debajo de ella", async () => {
+        const { registrarVentanaLlamada, Z_SENSOR_CON_LLAMADA } = await import("@/lib/llamadas/superficie/zona-llamada");
+        entorno(true);
+        render(<PerimeterProvider><PerimeterInterface /></PerimeterProvider>);
+        const sensor = document.querySelector('[data-trinity-sensor="logic"]') as HTMLElement;
+        expect(sensor.style.zIndex).toBe("");
+        let baja = () => {};
+        act(() => { baja = registrarVentanaLlamada(); });
+        expect(sensor.style.zIndex).toBe(String(Z_SENSOR_CON_LLAMADA));
+        act(() => baja());
+        expect(sensor.style.zIndex).toBe("");
+    });
+});
