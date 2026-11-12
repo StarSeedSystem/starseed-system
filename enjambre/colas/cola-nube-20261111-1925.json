@@ -1,0 +1,16 @@
+{
+ "ola": "nube-20261111",
+ "tareas": [
+  {
+   "id": "NAV1112A",
+   "ola": "NAV1112",
+   "titulo": "Navegador propio · sesiones y reglas (módulo puro)",
+   "archivos": [
+    "scripts/puente/navegador_reglas.py",
+    "scripts/puente/test_navegador_reglas.py"
+   ],
+   "depende": [],
+   "prompt": "Lee architecture/navegador-propio-metagenesis.md §4 y §5. Crea el módulo PURO navegador_reglas.py: el registro de sesiones (google-alex, google-fundacion, instagram-maggasukha, instagram-sociedad) con su lista de dominios permitidos, sus topes (páginas al día, pausa mínima entre páginas) y su estado (viva, caducada, sin alta, última comprobación) guardado en ~/.starseed/navegador/estado.json con escritura atómica. Funciones: permitida(sesion, url) (solo https y solo dominios de la lista), selector_prohibido(texto_o_selector) (enviar, publicar, eliminar, seguir, me gusta, guardar cambios y sus equivalentes en inglés), dentro_de_tope(sesion, ahora), apagado(entorno) con STARSEED_NAVEGADOR y STARSEED_NAVEGADOR_INSTAGRAM. Sin red. Pruebas de cada regla. Máximo 120 líneas por archivo."
+  }
+ ]
+}
