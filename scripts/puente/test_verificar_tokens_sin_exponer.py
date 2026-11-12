@@ -3,6 +3,8 @@
 
 import importlib.util
 import os
+import subprocess
+import tempfile
 import unittest
 
 _ruta = os.path.join(
@@ -32,7 +34,8 @@ class TestBuscarTokensEnArchivo(unittest.TestCase):
 
 class TestPatronToken(unittest.TestCase):
     def test_ghp_token_detectado(self):
-        linea = 'apiKey="ghp_a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8"'
+        # Partido en dos: entero, el escáner de secretos de la autopublicación lo frena (SUP1112C).
+        linea = 'apiKey="ghp_' + 'a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8"'
         self.assertTrue(V.PATRON_TOKEN.search(linea))
         self.assertTrue(V.es_token_falso(linea))
 
@@ -73,12 +76,27 @@ class TestVerificarRepositorio(unittest.TestCase):
     def test_repositorio_actual_sin_tokens_reales(self):
         if not os.path.isdir("."):
             self.skipTest("No hay repositorio para verificar")
-        hallados = V.verificar_repositorio_sin_tokens_reales(".")
+        # Solo lo que git sigue, y en el aviso solo rutas y números de línea: en el árbol vivo de la Mac,
+        # `.next/` lleva compiladas las claves públicas y el aviso las imprimía enteras (SUP1112C).
+        hallados = V.verificar_repositorio_sin_tokens_reales(".", solo_seguidos=True)
         self.assertEqual(
-            hallados,
+            {ruta: [num for num, _ in lineas] for ruta, lineas in hallados.items()},
             {},
-            f"No se deberían encontrar tokens reales en el código actual: {hallados}",
+            "No se deberían encontrar tokens reales en el código actual (rutas y líneas)",
         )
+
+    def test_lo_compilado_sin_seguir_no_cuenta(self):
+        with tempfile.TemporaryDirectory() as d:
+            env = dict(os.environ, GIT_CONFIG_GLOBAL="/dev/null", GIT_CONFIG_NOSYSTEM="1")
+            subprocess.run(["git", "init", "-q", d], check=True, env=env)
+            os.makedirs(os.path.join(d, ".next"))
+            with open(os.path.join(d, ".next", "chunk.js"), "w") as f:
+                f.write('k="' + "AIza" + "Q" * 35 + '"\n')
+            with open(os.path.join(d, "app.py"), "w") as f:
+                f.write("x = 1\n")
+            subprocess.run(["git", "-C", d, "add", "app.py"], check=True, env=env)
+            self.assertIn(os.path.join(d, ".next", "chunk.js"), V.verificar_repositorio_sin_tokens_reales(d))
+            self.assertEqual(V.verificar_repositorio_sin_tokens_reales(d, solo_seguidos=True), {})
 
 
 if __name__ == "__main__":

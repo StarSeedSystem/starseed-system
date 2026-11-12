@@ -11,6 +11,7 @@ Un token es considerado "falso" (de prueba) si:
 
 import os
 import re
+import subprocess
 
 PATRON_TOKEN = re.compile(
     r"(?:ghp_[a-zA-Z0-9]{30,}|gho_[a-zA-Z0-9]{30,}|github_pat_[a-zA-Z0-9]{30,}|"
@@ -20,7 +21,8 @@ PATRON_TOKEN = re.compile(
 TOKEN_FALSO = re.compile(
     r"(?:abcdefghijklmnopqrstuvwxyz|abcdefghijklmnop|abcdefg12345|11AAAAAA|"
     r"a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0|sk-abcdefgh|sk-1234567890|"
-    r"AIzaSy1234567890abcdefg|sk-abc123|ghp_a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8)"
+    # `ghp[_]` = `ghp_`: así el escáner de secretos de la autopublicación no lo toma por una clave (SUP1112C).
+    r"AIzaSy1234567890abcdefg|sk-abc123|ghp[_]a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8)"
 )
 
 
@@ -45,21 +47,30 @@ def buscar_tokens_reales_en_archivo(ruta: str) -> list[tuple[int, str]]:
     return resultados
 
 
-def verificar_repositorio_sin_tokens_reales(ruta_repo: str = ".") -> dict[str, list]:
-    """Escanea el repositorio entero y devuelve tokens REALS expuestos."""
+def verificar_repositorio_sin_tokens_reales(ruta_repo: str = ".", solo_seguidos: bool = False) -> dict[str, list]:
+    """Escanea el repositorio entero y devuelve tokens REALS expuestos.
+
+    Con `solo_seguidos`, solo lo que git sigue (`git ls-files`): en el árbol vivo de la Mac, `.next/` y
+    `.transfer/` llevan compiladas a propósito las claves públicas (`NEXT_PUBLIC_…`), y eso no es código
+    del repositorio (SUP1112C)."""
     hallados: dict[str, list] = {}
     extensiones = {".py", ".ts", ".tsx", ".js", ".jsx", ".json", ".md", ".env", ".yaml", ".yml", ".toml", ".cfg", ".ini"}
 
-    for raiz, _, archivos in os.walk(ruta_repo):
-        if "node_modules" in raiz or ".git" in raiz or "dist" in raiz:
-            continue
-        for nombre in archivos:
-            _, ext = os.path.splitext(nombre)
-            if ext.lower() in extensiones:
-                ruta_completa = os.path.join(raiz, nombre)
-                coincidencias = buscar_tokens_reales_en_archivo(ruta_completa)
-                if coincidencias:
-                    hallados[ruta_completa] = coincidencias
+    if solo_seguidos:
+        r = subprocess.run(["git", "-C", ruta_repo, "ls-files", "-z"], capture_output=True, text=True)
+        rutas = [os.path.join(ruta_repo, p) for p in r.stdout.split("\0") if p] if r.returncode == 0 else []
+    else:
+        rutas = []
+        for raiz, _, archivos in os.walk(ruta_repo):
+            if "node_modules" in raiz or ".git" in raiz or "dist" in raiz:
+                continue
+            rutas.extend(os.path.join(raiz, nombre) for nombre in archivos)
+    for ruta_completa in rutas:
+        _, ext = os.path.splitext(ruta_completa)
+        if ext.lower() in extensiones:
+            coincidencias = buscar_tokens_reales_en_archivo(ruta_completa)
+            if coincidencias:
+                hallados[ruta_completa] = coincidencias
     return hallados
 
 

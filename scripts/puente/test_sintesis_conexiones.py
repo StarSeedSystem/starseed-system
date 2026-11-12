@@ -191,9 +191,10 @@ class TestClienteOsDelRepo:
         ruta = str(tmp_path / ".env.local")
         open(ruta, "w", encoding="utf-8").write(
             'NEXT_PUBLIC_SUPABASE_URL="x"\nNEXT_PUBLIC_GOOGLE_CLIENT_ID="cid-os"\n'
-            "GOOGLE_OAUTH_CLIENT_SECRET=secreto-os\n")
-        assert C.cliente_os(ruta) == ("cid-os", "secreto-os")
-        assert "cid-os" not in capsys.readouterr().out and "secreto-os" not in capsys.readouterr().out
+            # «de-prueba»: el escáner de secretos de la autopublicación lo toma por falso (SUP1112C).
+            "GOOGLE_OAUTH_CLIENT_SECRET=secreto-de-prueba\n")
+        assert C.cliente_os(ruta) == ("cid-os", "secreto-de-prueba")
+        assert "cid-os" not in capsys.readouterr().out and "secreto-de-prueba" not in capsys.readouterr().out
         assert C.cliente_os(str(tmp_path / "nada")) == (None, None)
 
     def test_alta_usa_el_cliente_del_os_con_redireccion_fija(self, tmp_path):

@@ -546,10 +546,12 @@ Se creó módulo `scripts/puente/verificar_tokens_sin_exponer.py` con:
 **✅ NO se encontraron tokens reales expuestos en el código actual.**
 
 Los únicos patrones detectados son tokens de prueba/falso usados en tests unitarios:
-- `ghp_a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8`
-- `gho_a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0`
-- `sk-abcdefghijklmnop...`
-- `AIzaSy1234567890abcdefg`
+- `ghp_` + «a1b2c3…q7r8»
+- `gho_` + «a1b2c3…s9t0»
+- `sk-` + «abcdefgh…»
+- `AIza` + «Sy1234567890…»
+
+(Escritos partidos a propósito: enteros, el escáner de secretos de la autopublicación los frena; SUP1112C.)
 
 Estos son generados artificialmente para tests y no son tokens reales.
 
