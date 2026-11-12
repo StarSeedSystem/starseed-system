@@ -183,6 +183,36 @@ def confirmado_por_version(sha, servida):
     return sha.lower() == servida.lower()
 
 
+def veredicto_por_jobs(jobs):
+    """\"verde\" | \"rojo\" | None según los jobs de un run de CI. PURA. Nunca lanza.
+
+    `jobs`: lista de dicts con `status` y `conclusion` (respuesta de
+    `GET repos/<REPO>/actions/runs/<id>/jobs?filter=latest&per_page=50`).
+
+    None si `jobs` no es lista no vacía, algún elemento no es dict,
+    o algún job no tiene `status == "completed"`.
+    \"rojo\" si algún `conclusion` está en (\"failure\", \"cancelled\", \"timed_out\",
+    \"action_required\", \"startup_failure\").
+    \"verde\" si todos los `conclusion` están en (\"success\", \"skipped\", \"neutral\").
+    Cualquier otro caso (p.ej. `conclusion` None con `status` completed) → None.
+    """
+    if not isinstance(jobs, list) or not jobs:
+        return None
+    rojas = {"failure", "cancelled", "timed_out", "action_required", "startup_failure"}
+    verdes = {"success", "skipped", "neutral"}
+    for j in jobs:
+        if not isinstance(j, dict):
+            return None
+        if j.get("status") != "completed":
+            return None
+        c = j.get("conclusion")
+        if c in rojas:
+            return "rojo"
+        if c not in verdes:
+            return None
+    return "verde"
+
+
 def publicadas_hoy(historial, ahora):
     hoy = time.strftime("%Y-%m-%d", time.localtime(ahora))
     return sum(1 for h in historial or [] if h.get("resultado") == "publicado" and str(h.get("dia")) == hoy)
@@ -825,6 +855,30 @@ def _seguir_ci(m, est, ahora):
     espera = ahora - float(est.get("desde") or ahora)
     if estado in ("sin-run", "esperando"):
         if espera > CI_TOPE_S:
+            if estado == "esperando" and run_id:
+                jobs_resp = m.gh("repos/%s/actions/runs/%s/jobs?filter=latest&per_page=50" % (REPO, run_id))
+                if isinstance(jobs_resp, dict):
+                    jobs = jobs_resp.get("jobs")
+                    veredicto = veredicto_por_jobs(jobs)
+                    if veredicto in ("verde", "rojo"):
+                        m.avisar("Autopublicación: GitHub no cerró en 50 min el run de %s, "
+                                 "pero todos sus jobs terminaron (%s): decido por ellos." % (sha[:8], veredicto))
+                        if veredicto == "rojo":
+                            log = m.log_fallido(run_id) if run_id else ""
+                            _ci_rojo_a_cola(m, log, ahora, url, sha)
+                            return vetar(est, sha, "CI en rojo", ahora, url=url, evidencia=log)
+                        # verde → publicar ESE commit, solo si es avance rápido
+                        if m.git(["merge-base", "--is-ancestor", "origin/main", sha])[0] != 0:
+                            return con_fase(est, "al-dia",
+                                            "origin/main ya no es antecesor del candidato: rehago el lote.",
+                                            ahora, sha=None)
+                        rc, _, err = m.git(["push", "origin", "%s:main" % sha], timeout=300)
+                        if rc != 0:
+                            m.avisar("Autopublicación: GitHub rechazó el push de %s: %s" % (sha[:8], err[-400:]), tipo="aviso")
+                            return vetar(est, sha, "push rechazado", ahora, url=url)
+                        m.avisar("Autopublicación: %s publicado en origin/main con el CI en verde (%s). Verifico Vercel." % (sha[:8], url or ""))
+                        return con_fase(est, "verificando", "Esperando el despliegue de producción en Vercel.", ahora,
+                                        desde=ahora, url=url, ultima_publicacion=ahora)
             m.avisar("Autopublicación: el CI de %s no terminó en 50 min (%s)." % (sha[:8], url or "sin run"), tipo="aviso")
             return vetar(est, sha, "CI sin terminar en 50 min", ahora, url=url)
         return con_fase(est, "ci", "CI en marcha (%d min)." % (espera // 60), ahora, url=url)
