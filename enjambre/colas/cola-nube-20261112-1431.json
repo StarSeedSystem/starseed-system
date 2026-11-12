@@ -1,0 +1,16 @@
+{
+ "ola": "nube-20261112",
+ "tareas": [
+  {
+   "id": "PET1112D",
+   "ola": "PET1112",
+   "titulo": "Síntesis diaria atascada · que salga cada día",
+   "archivos": [
+    "scripts/puente/agente_sintesis.py",
+    "scripts/puente/test_agente_sintesis.py"
+   ],
+   "depende": [],
+   "prompt": "Lee architecture/peticiones-telegram-a1.md §1 (último punto) y architecture/sintesis-diaria-autonoma.md. El 2026-11-12 agente_sintesis encoló a las 06:24 SIN11121–SIN11127 en starseed_memory_root/olas/cola-suenos-sintesis.json (821 KB). Ningún director las tomó: no aparecen en progreso.json, y produccion-audiovisual/estado.json sigue en fase 'entregar' con sintesis_path null. Diagnostica la causa leyendo cómo escanean las colas los directores (nombre del archivo, tamaño de los prompts frente a sus topes, campos obligatorios) y corrígela en agente_sintesis sin tocar los directores, salvo que sea imprescindible. Añade un respaldo: si a la hora de entregar (07:54 de America/Mexico_City) no hay texto, la síntesis se redacta directamente con la flota gratuita en un solo paso (como la prueba del 2026-11-11), se guarda, se sube a Drive y se envía. Un día nunca queda sin síntesis. Pruebas sin red: cola sin tomar en la entrega lleva al respaldo y produce una entrega."
+  }
+ ]
+}
