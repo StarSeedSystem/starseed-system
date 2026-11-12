@@ -61,6 +61,7 @@ def apagado(entorno=None, sesion=None):
 def _sesion_por_defecto():
     return {"estado": "sin alta", "ultima_comprobacion": "", "dia": "", "paginas": 0, "ultima_pagina": ""}
 
+
 def cargar_estado(ruta=RUTA_ESTADO):
     estado = {"sesiones": {nombre: _sesion_por_defecto() for nombre in SESIONES}}
     try:
@@ -72,6 +73,23 @@ def cargar_estado(ruta=RUTA_ESTADO):
         if isinstance(filas.get(nombre), dict):
             estado["sesiones"][nombre].update(filas[nombre])
     return estado
+
+
+def sesion_activa(ruta=RUTA_ESTADO):
+    """Devuelve el nombre de la sesión con estado 'viva', o None."""
+    estado = cargar_estado(ruta)
+    for nombre, datos in estado.get("sesiones", {}).items():
+        if datos.get("estado") == "viva":
+            return nombre
+    # Fallback: si no hay sesión viva, usar google-alex por defecto
+    return "google-alex"
+
+
+def obtener_estado_actual(ruta=None):
+    """Devuelve el estado actual con la sesión activa."""
+    if ruta is None:
+        ruta = RUTA_ESTADO
+    return {"sesion": sesion_activa(ruta)}
 
 def guardar_estado(estado, ruta=RUTA_ESTADO):
     os.makedirs(os.path.dirname(ruta) or ".", exist_ok=True)

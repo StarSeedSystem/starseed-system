@@ -135,7 +135,7 @@ def abrir(url: str) -> None:
 
     try:
         import navegador_reglas as NR
-        if not NR.permitida(NR.ESTADO_ACTUAL.get("sesion"), url):
+        if not NR.permitida(NR.obtener_estado_actual(ESTADO).get("sesion"), url):
             raise ValueError(f"URL no permitida: {url}")
     except ImportError:
         estado = _estado_sesion()
@@ -239,21 +239,8 @@ def esqueleto() -> str:
     html_str = re.sub(r'<script[^>]*>.*?</script>', '', html_str, flags=re.DOTALL)
     html_str = re.sub(r'<style[^>]*>.*?</style>', '', html_str, flags=re.DOTALL)
 
-    def vaciar_texto(match):
-        attrs = match.group(1) or ''
-        text = match.group(2) or ''
-        tag = match.group(3) or ''
-        if text and text.strip():
-            return f'<{tag}{attrs}>{text}</{tag}>'
-        return f'<{tag}{attrs}></{tag}>'
+    html_str = re.sub(r'>[^<]+<', '><', html_str)
 
-    html_str = re.sub(
-        r'<([a-zA-Z][^>]*)>([^<]*?)<(/?[a-zA-Z][^>]*)>',
-        lambda m: f'<{m.group(1)}>{m.group(2)}</{m.group(3).lstrip("/")}>' if m.group(2) and m.group(2).strip()
-        else f'<{m.group(1)}></{m.group(3).lstrip("/")}>',
-        html_str,
-        flags=re.DOTALL
-    )
     html_str = re.sub(r'>\s{2,}<', '><', html_str)
     html_str = re.sub(r'>\s+<', '><', html_str)
 
