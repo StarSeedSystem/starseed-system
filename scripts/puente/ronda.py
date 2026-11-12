@@ -471,7 +471,7 @@ def esperar(nombre="un trabajo pesado", mundo=None, avisar=None, dormir=time.sle
     while True:
         hay, linea = activa(mundo)
         if not hay:
-            return max(0, mundo.ahora() - t0)
+            return 0 if primera else max(0, mundo.ahora() - t0)   # 0 EXACTO si no hubo que esperar
         ahora = mundo.ahora()
         if avisar and (primera or ahora - ultimo >= aviso_s):
             ultimo = ahora

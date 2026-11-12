@@ -2839,12 +2839,16 @@ def esperar_ronda_aparatos():
     de contar el plazo del turno y antes de que el sh() de la puerta arranque su reloj. Lo que ya corre no se toca.
     → segundos esperados. Sin ronda.py o con un fallo, deja pasar."""
     try:
-        ruta_puente = os.path.join(ROOT, "scripts", "puente")
-        if ruta_puente not in sys.path:
-            sys.path.insert(0, ruta_puente)
-        import ronda
+        # Sólo se busca bajo ROOT (nunca en sys.path): sin ronda.py ahí, no hay ronda que esperar.
+        ruta = os.path.join(ROOT, "scripts", "puente", "ronda.py")
+        if not os.path.isfile(ruta):
+            return 0
+        import importlib.util
 
-        return ronda.esperar("una puerta del enjambre", avisar=lambda t, seg: print(t, flush=True))
+        espec = importlib.util.spec_from_file_location("ronda_aparatos_de_root", ruta)
+        modulo = importlib.util.module_from_spec(espec)
+        espec.loader.exec_module(modulo)
+        return modulo.esperar("una puerta del enjambre", avisar=lambda t, seg: print(t, flush=True)) or 0
     except Exception:
         return 0
 

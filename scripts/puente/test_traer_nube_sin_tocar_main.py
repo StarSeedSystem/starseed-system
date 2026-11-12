@@ -179,5 +179,23 @@ class TraerSinTocarMain(unittest.TestCase):
         self.assertEqual(_git(self.raiz, "rev-parse", "main"), self.base)
 
 
+
+# RON1112E: estas pruebas pasan por la puerta de la ronda de aparatos; que NUNCA lean la ronda real de ~/.starseed/produccion.
+def setUpModule():
+    import tempfile
+    global _RON_DIR, _RON_ANTES
+    _RON_DIR = tempfile.mkdtemp(prefix="ron1112e-")
+    _RON_ANTES = os.environ.get("STARSEED_PRODUCCION_DIR")
+    os.environ["STARSEED_PRODUCCION_DIR"] = _RON_DIR
+
+
+def tearDownModule():
+    import shutil
+    if _RON_ANTES is None:
+        os.environ.pop("STARSEED_PRODUCCION_DIR", None)
+    else:
+        os.environ["STARSEED_PRODUCCION_DIR"] = _RON_ANTES
+    shutil.rmtree(_RON_DIR, ignore_errors=True)
+
 if __name__ == "__main__":
     unittest.main()

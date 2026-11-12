@@ -395,5 +395,18 @@ def test_cerrojo_pesado_espera_la_ronda_y_no_gasta_el_plazo_del_turno(cerrojos_t
 def test_esperar_ronda_aparatos_sin_ronda_py_deja_pasar(monkeypatch, tmp_path):
     """Sin ronda.py (o con un fallo) el orquestador no se para: devuelve 0."""
     monkeypatch.setattr(enjambre, "ROOT", str(tmp_path))
-    sys.modules.pop("ronda", None)
+    # aunque un ronda real ya esté importado o en sys.path (otros tests), sólo cuenta el de ROOT
+    puente = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "puente")
+    monkeypatch.syspath_prepend(puente)
     assert enjambre.esperar_ronda_aparatos() == 0
+
+
+def test_esperar_ronda_aparatos_usa_el_ronda_py_de_root(monkeypatch, tmp_path):
+    """Con un ronda.py bajo ROOT se usa ése (y su resultado), sin tocar sys.modules['ronda']."""
+    carpeta = tmp_path / "scripts" / "puente"
+    carpeta.mkdir(parents=True)
+    (carpeta / "ronda.py").write_text("def esperar(nombre, avisar=None):\n    return 7\n", encoding="utf-8")
+    monkeypatch.setattr(enjambre, "ROOT", str(tmp_path))
+    antes = sys.modules.get("ronda")
+    assert enjambre.esperar_ronda_aparatos() == 7
+    assert sys.modules.get("ronda") is antes
