@@ -160,4 +160,60 @@ describe("PanelPruebas", () => {
         await screen.findByTestId("aparato-mac");
         expect(screen.queryByTestId("abrir-app")).toBeNull();
     });
+
+    describe("PRB1111Z · versión de la evidencia", () => {
+        const aparatoMac = { id: "mac", nombre: "Esta Mac", esta: true, version: "0.5.1-prueba.39", versionDe: "app-instalada", appAbierta: true, ultimoArranque: null, errores: [], visto: ahoraIso(), versionDesde: "2026-11-12T01:49:00Z", versionDesdeFuente: "paquete-instalado" };
+        const llamadaOtra = { id: "llamada-20261111T191944", desde: "2026-11-11T19:19:44Z", hasta: null, duracionS: 90, con: "maggaboard", terminada: true, medios: [], kbps: null, lados: [], versionRelacion: "otra", versionMac: "0.5.1-prueba.37" };
+        const comps = [
+            { id: "c19", texto: "Arranque limpio", aparato: "Mac", estado: "pendiente", nota: "", quien: "", t: null, senal: "arranque-limpio" },
+            { id: "c7", texto: "El vídeo llega a 5 fps", aparato: "Mac y tablet", estado: "pendiente", nota: "", quien: "", t: null, senal: "video-fps-ble" },
+        ];
+        const caso = (extra: Record<string, unknown> = {}) => {
+            const banco = { t: ahoraIso(), cadaS: 60, lineasLeidas: 1, sugerenciasNota: null, aparatos: [aparatoMac], llamadas: [llamadaOtra],
+                sugerencias: [{ prueba: 39, comprobacion: "c19", senal: "arranque-limpio", veredicto: "bien", motivo: "arranque limpio", llamada: null }],
+                sinEvidencia: [{ prueba: 39, comprobacion: "c7", senal: "video-fps-ble", razon: "La tablet no da señal desde 21:01Z.", produciria: "una llamada con la 39 en la Mac y la tablet" }], ...extra };
+            servir(vivo({ banco: banco as never, versiones: [version(39, [plataforma("macos", "publicada")], { publicadaEnTodas: true, comprobaciones: comps as never })] }));
+            montar();
+        };
+
+        it("la llamada de otra versión es historia, con su versión, y no cuenta como evidencia", async () => {
+            caso();
+            const h = await screen.findByTestId("historia-llamadas");
+            expect(within(h).getByTestId("version-llamada-llamada-20261111T191944")).toHaveTextContent(/hecha con 0\.5\.1-prueba\.37/);
+            expect(screen.getByTestId("sin-llamadas-esta")).toHaveTextContent(/Ninguna llamada hecha con esta versión/);
+            expect(screen.queryByTestId("llamadas")).toBeNull();
+        });
+
+        it("una llamada de versión desconocida lo dice", async () => {
+            caso({ llamadas: [{ ...llamadaOtra, id: "llamada-x", versionRelacion: "desconocida", versionMac: null }] });
+            expect(await screen.findByTestId("version-llamada-llamada-x")).toHaveTextContent(/No se sabe con qué versión/);
+        });
+
+        it("bajo la comprobación sin evidencia: texto, razón y qué la produciría; no parece sugerencia ni fallo", async () => {
+            caso();
+            const c7 = await screen.findByTestId("sin-evidencia-c7");
+            expect(c7).toHaveTextContent("sin evidencia aún con esta versión");
+            expect(c7).toHaveTextContent(/La tablet no da señal desde 21:01Z/);
+            expect(c7).toHaveTextContent(/Lo que la produciría: una llamada con la 39/);
+            expect(screen.queryByTestId("sugerencia-c7")).toBeNull();
+            expect(screen.queryByTestId("pedir-arreglo-c7")).toBeNull();
+            expect(screen.getByTestId("sugerencia-c19")).toHaveTextContent(/bien/);
+            expect(screen.queryByTestId("sin-evidencia-c19")).toBeNull();
+        });
+
+        it("la fila de la Mac dice desde cuándo corre su versión", async () => {
+            caso();
+            expect(await screen.findByTestId("desde-mac")).toHaveTextContent(/Con esta versión desde .*según el paquete instalado/);
+        });
+
+        it("un archivo sin los campos v1.3 se ve como antes", async () => {
+            const { versionDesde, versionDesdeFuente, ...mac } = aparatoMac;
+            const { versionRelacion, versionMac, ...ll } = llamadaOtra;
+            caso({ aparatos: [mac], llamadas: [ll], sinEvidencia: undefined });
+            expect(await screen.findByTestId("llamadas")).toBeInTheDocument();
+            expect(screen.queryByTestId("historia-llamadas")).toBeNull();
+            expect(screen.queryByTestId("desde-mac")).toBeNull();
+            expect(screen.queryByTestId("sin-evidencia-c7")).toBeNull();
+        });
+    });
 });
