@@ -33,14 +33,14 @@ def _contexto_ejemplo(fecha="2026-11-11"):
     }
 
 
-def test_generar_tareas_analisis_seis_ramas():
+def test_generar_tareas_analisis_siete_ramas():
     with tempfile.TemporaryDirectory() as tmp:
         _crear_estructura(tmp)
         ctx = _contexto_ejemplo()
         tareas = st.generar_tareas_analisis(ctx, raiz=tmp, ahora="2026-11-11T10:00:00")
-        assert len(tareas) == 6
+        assert len(tareas) == 7
         ramas = [t["rama"] for t in tareas]
-        assert set(ramas) == {"contactos", "noticias", "referencias", "actividad", "ideas", "guiones"}
+        assert set(ramas) == {"contactos", "noticias", "referencias", "actividad", "ideas", "guiones", "youtube"}
 
 
 def test_tarea_analisis_estructura_comun():
@@ -132,6 +132,27 @@ def test_tarea_guiones_incluye_rotacion_videos():
         assert "vídeo 6" in t_guiones["prompt"].lower() or "video 6" in t_guiones["prompt"].lower()
 
 
+def test_salida_en_ruta_correcta():
+    with tempfile.TemporaryDirectory() as tmp:
+        _crear_estructura(tmp)
+        ctx = _contexto_ejemplo("2026-11-11")
+        tareas = st.generar_tareas_analisis(ctx, raiz=tmp, ahora="2026-11-11T10:00:00")
+        for t in tareas:
+            esperada = f"starseed_memory_root/imaginacion/agentes/sintesis-2026-11-11-{t['rama']}.json"
+            assert t["salida"] == esperada
+
+
+def test_tarea_youtube_incluye_rotacion_videos():
+    with tempfile.TemporaryDirectory() as tmp:
+        _crear_estructura(tmp)
+        ctx = _contexto_ejemplo()
+        tareas = st.generar_tareas_analisis(ctx, raiz=tmp, ahora="2026-11-11T10:00:00")
+        t_youtube = next(t for t in tareas if t["rama"] == "youtube")
+        prompt_lower = t_youtube["prompt"].lower()
+        assert "vídeo 5" in prompt_lower
+        assert "vídeo 6" in prompt_lower
+
+
 def test_ids_unicos_con_prefijo_sin_mmdd_n():
     with tempfile.TemporaryDirectory() as tmp:
         _crear_estructura(tmp)
@@ -141,16 +162,6 @@ def test_ids_unicos_con_prefijo_sin_mmdd_n():
         for id_ in ids:
             assert id_.startswith("SIN1111")
         assert len(set(ids)) == len(ids)
-
-
-def test_salida_en_ruta_correcta():
-    with tempfile.TemporaryDirectory() as tmp:
-        _crear_estructura(tmp)
-        ctx = _contexto_ejemplo("2026-11-11")
-        tareas = st.generar_tareas_analisis(ctx, raiz=tmp, ahora="2026-11-11T10:00:00")
-        for t in tareas:
-            esperada = f"starseed_memory_root/imaginacion/agentes/sintesis-2026-11-11-{t['rama']}.json"
-            assert t["salida"] == esperada
 
 
 if __name__ == "__main__":
