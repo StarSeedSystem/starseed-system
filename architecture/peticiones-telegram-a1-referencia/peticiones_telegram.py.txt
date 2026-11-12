@@ -40,7 +40,8 @@ CARPETA_SINTESIS = os.environ.get("STARSEED_CARPETA_SINTESIS", "1PenzAWw1VWpSAMX
 ENLACE_CUADERNO = "https://notebooklm.google.com/notebook/" + CUADERNO
 LLM_URL = os.environ.get("STARSEED_LLM_URL", "http://127.0.0.1:3001/v1/chat/completions")
 # Nunca Claude: modelos gratuitos con nombre propio (sin "auto", que podría enrutar a Claude).
-MODELOS = ["gemini-flash", "qwen3.8-max", "gemini-3.5-flash", "glm-5.3-flash", "qwen3.6-plus"]
+MODELOS = ["gemini-flash-lite", "gemini-flash", "gemini-3.5-flash", "gemini-3.6-flash", "qwen3.8-max",
+           "gemma-4-31b-it", "nemotron-3-ultra-550b", "qwen3.5-plus"]
 REINTENTO_S = 300
 VIDA_S = 24 * 3600
 REFRESCO_S = 20 * 60
@@ -176,21 +177,34 @@ def subir(metodo, campo, ruta, pie=""):
 
 # ---------------------------------------------------------------- modelos gratuitos
 
-def llm(mensajes, max_tokens=1500):
+_enfriar = {}          # modelo -> instante hasta el que no se vuelve a intentar
+_ultimo_bueno = [None]  # el último modelo que respondió va primero
+
+
+def llm(mensajes, max_tokens=1500, presupuesto_s=180):
+    """Prueba modelos gratuitos con nombre (y «auto» al final, rechazando Claude) dentro de un presupuesto de tiempo."""
     clave = ENV.get("FREELLMAPI_KEY", "")
-    for modelo in MODELOS:
+    inicio = time.time()
+    orden = sorted(MODELOS, key=lambda m: m != _ultimo_bueno[0]) + ["auto"]
+    for modelo in orden:
+        resto = presupuesto_s - (time.time() - inicio)
+        if resto < 8:
+            break
+        if _enfriar.get(modelo, 0) > time.time():
+            continue
         cuerpo = json.dumps({"model": modelo, "messages": mensajes, "max_tokens": max_tokens,
                              "temperature": 0.2}).encode()
         req = urllib.request.Request(LLM_URL, cuerpo, {"Authorization": "Bearer " + clave,
                                                        "Content-Type": "application/json"})
-        d = _respuesta_http(lambda: urllib.request.urlopen(req, timeout=150))
+        d = _respuesta_http(lambda: urllib.request.urlopen(req, timeout=min(45, resto)))
         usado = str(d.get("model") or modelo)
         texto = ((d.get("choices") or [{}])[0].get("message") or {}).get("content") or ""
-        if "claude" in usado.lower():
-            continue
-        if texto.strip():
+        if texto.strip() and "claude" not in usado.lower():
+            _ultimo_bueno[0] = modelo
             return texto.strip(), usado
-        log("llm sin respuesta de", modelo, (d.get("error") or {}).get("message", "") if isinstance(d.get("error"), dict) else "")
+        _enfriar[modelo] = time.time() + 600
+        error = d.get("error")
+        log("llm sin respuesta de", modelo, (error.get("message", "") if isinstance(error, dict) else d.get("description", ""))[:120])
     return "", ""
 
 
@@ -224,7 +238,7 @@ def por_reglas(texto):
 
 def interpretar(texto):
     reglas = por_reglas(texto)
-    crudo, modelo = llm([{"role": "system", "content": INSTRUCCION}, {"role": "user", "content": texto}], 600)
+    crudo, modelo = llm([{"role": "system", "content": INSTRUCCION}, {"role": "user", "content": texto}], 600, 75)
     plan = None
     m = re.search(r"\{.*\}", crudo or "", re.S)
     if m:
