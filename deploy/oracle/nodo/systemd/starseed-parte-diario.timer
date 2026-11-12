@@ -1,0 +1,12 @@
+[Unit]
+Description=StarSeed · Parte diario MetaGenesis para síntesis Claude nube (BZN1108/SDP1111N)
+# requiere: scripts/puente/parte_diario_metagenesis.py
+
+[Timer]
+# Oneshot diario a las 07:30 America/Mexico_City (ventana ±30 min en el script)
+OnCalendar=*-*-* 07:30:00
+RandomizedDelaySec=10min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -77,3 +77,18 @@ verificación cambio a cambio (integrado **y** aplicado). Nunca `git push` a man
 Toda respuesta a Alex acaba con un informe de uso: qué modelos y APIs se usaron, qué queda, y
 qué opciones de enrutamiento hay. Y nunca se le dice que algo está arreglado sin haberlo visto
 funcionando en `localhost`.
+
+---
+
+## Síntesis diaria autónoma (SDP1111)
+
+La síntesis de producción audiovisual ya no depende de la tarea programada de Claude. Funciona
+desde MetaGenesis con sus directores, agentes de Imaginación, Jev, Laya y la flota gratuita.
+El agente `scripts/puente/agente_sintesis.py` (cableado en `director_autodesarrollo.py`) ejecuta
+tres fases diarias: recolectar y encargar análisis (00:30 CDMX), redactar y revisar (06:30), y
+verificar/entregar (07:54 objetivo). La entrega va al chat propio de Telegram
+(@StarSeed_Design_bot, chat_id 8670436815) y, si Drive está vinculado, crea un Doc en la carpeta
+`1PenzAWw1VWpSAMXa7ms2VRrEhJ5uFbmI`. El parte diario para que Claude nube tenga contexto se genera
+con `parte_diario_metagenesis.py` vía timer oneshot diario a las 07:30 en el A1 (líder de
+dirección). `buzon_telegram.py` queda sin cablear. La migración `20261108120000_metagenesis_buzon.sql`
+la aplica el director al publicar.

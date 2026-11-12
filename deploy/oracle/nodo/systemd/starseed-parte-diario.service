@@ -1,0 +1,16 @@
+[Unit]
+Description=StarSeed · Parte diario MetaGenesis → Supabase (BZN1108/SDP1111N)
+After=network-online.target
+# requiere: scripts/puente/parte_diario_metagenesis.py
+# temporizado por starseed-parte-diario.timer
+
+[Service]
+Type=oneshot
+User=starseed
+Group=starseed
+WorkingDirectory=/opt/starseed/nodo
+Environment=STARSEED_MEDIO=oracle_a1 PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/python3 /opt/starseed/nodo/scripts/puente/parte_diario_metagenesis.py
+TimeoutStartSec=1800
+MemoryMax=512M
+Nice=10
