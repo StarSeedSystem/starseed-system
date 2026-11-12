@@ -92,3 +92,14 @@ verificar/entregar (07:54 objetivo). La entrega va al chat propio de Telegram
 con `parte_diario_metagenesis.py` vía timer oneshot diario a las 07:30 en el A1 (líder de
 dirección). `buzon_telegram.py` queda sin cablear. La migración `20261108120000_metagenesis_buzon.sql`
 la aplica el director al publicar.
+
+## Navegador propio de MetaGenesis (NAV1112)
+
+Lectores diarios en el A1 (Oracle, siempre encendido) que acceden con sesiones iniciadas manualmente
+por Alex a: `myactivity.google.com` (YouTube visto, Búsqueda, Gemini), `www.youtube.com` (inicio e
+historial), `notebooklm.google.com` (cuadernos, fuentes, notas) y `www.instagram.com/saved` (guardados
+de maggasukha) + seguidos. Sustituye a SDP1111M (navegador en la Mac) y elimina la dependencia de
+Takeout (cada 2 meses), exportación manual de Instagram y CLI de NotebookLM en la Mac — estos tres
+quedan como respaldo. Seguridad: solo lectura, dominios permitidos por sesión, sin puertos hacia
+fuera, perfiles 0700, cerrojo y `STARSEED_NAVEGADOR=0` / `STARSEED_NAVEGADOR_INSTAGRAM=0` para apagar.
+Documentación en `architecture/navegador-propio-metagenesis.md`.

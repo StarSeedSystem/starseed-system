@@ -145,17 +145,11 @@ El director llama al agente cada 15 minutos; el agente decide con su estado en q
     una subcarpeta por cuenta. Así se leen sin la Mac.
 - **Bot de las síntesis:** @StarSeed_Design_bot, con el token guardado por Alex el 2026-11-11 y probado ese día
   (getMe y un mensaje al chat privado). Al A1 llega solo, con la orden de claves (SDP1111O y SDP1111R).
-
-**YouTube a fondo (Alex, 2026-11-11), con las DOS cuentas:**
-- **Para qué:**
-  - analizar el historial y las publicaciones de canales relacionados y relevantes;
-  - buscar referencias de estilo, storyboards, guiones, diseños, noticias, activistas y temas.
-- **Qué entra:** los vídeos recomendados, el historial y los canales seguidos, vistos y transcritos por los agentes.
-- **SDP1111S** elige los candidatos del día con la API de las dos cuentas, Takeout y búsquedas por tema.
-- **SDP1111T** los ve y transcribe con herramientas gratuitas y locales (subtítulos con yt-dlp, transcriptor local,
-  Gemini gratuito con la URL) y los lleva a la síntesis con fuente y minuto.
-- **Límite:** los «recomendados» de YouTube no tienen API. Se aproximan con búsquedas por los temas del día, o con
-  la lectura del navegador de la Mac si Alex aprueba SDP1111M.
+- **NAV1112 (navegador propio, aprobado 2026-11-12):** lectores diarios en el A1 que leen con sesiones iniciadas por Alex:
+  - `myactivity.google.com` (YouTube visto, Búsqueda, Gemini) — diario;
+  - `www.youtube.com` (inicio y `/feed/history`) — diario;
+  - `notebooklm.google.com` (cuadernos, fuentes, notas) — diario, sin la Mac;
+  - `www.instagram.com/saved` y seguidos (maggasukha) / publicaciones propias (sociedad) — diario.
 
 **Altas hechas (2026-11-11, 17:15):**
 - `~/.starseed/cuentas/alex.json` y `fundacion.json` (Mac, 0600) funcionan: renuevan y leen Gmail, Drive y YouTube.
@@ -183,24 +177,26 @@ Todo lo de esta sección es **privado**:
 |---|---|---|---|
 | Gmail (enviados), Drive y Docs de las dos cuentas | API de Google con OAuth de solo lectura (gmail.readonly, drive.readonly) | diaria | crear el cliente OAuth una vez e iniciar sesión con cada cuenta (§5, pasos 2 y 3) |
 | YouTube: me gusta, listas, suscripciones, subidas | YouTube Data API (youtube.readonly) | diaria | el mismo inicio de sesión |
-| YouTube: **historial de vídeos vistos** | no está en la API: Google Takeout con exportación programada a Drive | cada 2 meses (límite de Google), o cuando Alex lance una exportación | programar Takeout (§5, paso 4) |
-| Historial de búsquedas y chats de Gemini | no hay API: van en «Mi actividad» de Takeout | igual que la anterior | el mismo Takeout |
-| NotebookLM (cuadernos, fuentes, notas) | CLI `notebooklm` de la Mac (v0.8.6), un perfil por cuenta: `default` = alexbordongarrigos, `fundacion` = fundacionstarseed | diaria, **solo con la Mac encendida** | iniciar sesión una vez por perfil |
-| Instagram: guardados | no hay API: exportación «Descargar tu información» (JSON) | cuando Alex exporte | pedir la exportación y dejar el zip en Descargas, sin moverlo (§5, paso 6) |
+| YouTube: **historial de vídeos vistos** | navegador propio (myactivity.google.com + YouTube /feed/history) | **diaria** | alta manual de la sesión google-alex en el A1 (NAV1112D) |
+| Historial de búsquedas y chats de Gemini | navegador propio (myactivity.google.com) | **diaria** | misma sesión google-alex / google-fundacion |
+| NotebookLM (cuadernos, fuentes, notas) | navegador propio (notebooklm.google.com) | **diaria**, sin la Mac | alta manual de las sesiones google-alex y google-fundacion |
+| Instagram: guardados (maggasukha) | navegador propio (www.instagram.com/saved) | **diaria** | alta manual de la sesión instagram-maggasukha |
 | Instagram: páginas y grupos públicos | fuentes públicas con agent-reach | diaria | nada |
+
+**Respaldo (si una sesión del navegador cae, la síntesis sigue con lo que haya):**
+- Google Takeout (historial YouTube, Búsqueda, Gemini) — exportación programada cada 2 meses a Drive
+- Exportación oficial de Instagram («Descargar tu información», JSON) — cuando Alex la pida
+- CLI `notebooklm` de la Mac (v0.8.6, perfiles `default` y `fundacion`) — diaria, solo con la Mac encendida
 
 **Lo que hay que decidir, porque tiene coste:**
 
 - **Historial de YouTube, búsquedas y Gemini a diario.** Takeout solo da una foto cada 2 meses. La alternativa
-  diaria es que un agente lea myactivity.google.com con el navegador de la Mac, donde Alex ya tiene la sesión
-  abierta.
-  - Solo funciona con la Mac encendida.
-  - Se rompe cuando Google cambia la página.
-  - Queda como tarea opcional, SDP1111M, apagada y fuera de la cola.
+  diaria era que un agente leyera myactivity.google.com con el navegador de la Mac (SDP1111M, apagada).
+  - **Resuelto con NAV1112E:** el navegador propio en el A1 lo lee diario, sin la Mac.
 - **Instagram con la sesión de Alex.** Automatizar la lectura de los guardados con su cuenta va contra las
   condiciones de Instagram y puede acabar en un bloqueo de la cuenta.
-  - Además, `alcance_fuentes.py` (l.17) prohíbe hoy Instagram como fuente.
-  - Esta ola solo lee la exportación oficial. Lo otro no se construye salvo que Alex lo pida sabiendo el riesgo.
+  - **Mitigado con NAV1112H:** una sola pasada al día, pocas páginas, ritmo lento, cerrojo y aviso ante cualquier
+    verificación. `STARSEED_NAVEGADOR_INSTAGRAM=0` lo apaga si hace falta. La exportación oficial queda como respaldo.
 
 ## 5. Lo que Alex hace una sola vez (todo lo demás es automático)
 

@@ -1,6 +1,6 @@
 # Navegador propio de MetaGenesis · contrato y cola NAV1112
 
-**Fecha:** 2026-11-12 · preparado por Claude (nube) a petición de Alex. Amplía `architecture/sintesis-diaria-autonoma.md` (ola SDP1111). **Estado:** encolada el 2026-11-11 (Cowork con la Mac) en `starseed_memory_root/olas/cola-nav1112.json`, 11 tareas. Nada construido todavía. **Destino en el repo:** `architecture/navegador-propio-metagenesis.md` (este texto) y `starseed_memory_root/olas/cola-nav1112.json` (la cola de §8).
+**Fecha:** 2026-11-12 · preparado por Claude (nube) a petición de Alex. Amplía `architecture/sintesis-diaria-autonoma.md` (ola SDP1111). **Estado:** documentación completada (NAV1112K); la cola `starseed_memory_root/olas/cola-nav1112.json` está encolada con 11 tareas (A–K) desde el 2026-11-11. **Destino en el repo:** `architecture/navegador-propio-metagenesis.md` (este texto) y `starseed_memory_root/olas/cola-nav1112.json` (la cola de §8).
 
 ## 1\. Qué pidió Alex (2026-11-12, literal en lo esencial)
 
