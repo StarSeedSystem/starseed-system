@@ -108,9 +108,10 @@ def _enviar_con(env, texto, boton_url, pedir):
     return {"ok": True, "trozos": len(trozos), "chat_id": chat_id}
 
 
-def enviar(texto, boton_url=None, pedir=None):
+def enviar(texto, boton_url=None, pedir=None, leer_env=None):
     """Envía el texto al chat de las síntesis. Devuelve {ok, motivo|trozos}."""
-    return _enviar_con(_leer_env(), texto, boton_url, pedir)
+    lector = leer_env or _leer_env
+    return _enviar_con(lector(), texto, boton_url, pedir)
 
 
 def enviar_desde(ruta_env, texto, boton_url=None, pedir=None):

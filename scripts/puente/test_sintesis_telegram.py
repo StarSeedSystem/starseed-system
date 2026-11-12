@@ -58,12 +58,12 @@ class TestEnviar(unittest.TestCase):
         os.environ[CLAVES[1]] = CHAT
 
     def test_sin_token_devuelve_motivo_sin_llamar(self):
-        self.assertEqual(S.enviar("hola", pedir=self.pedir()), {"ok": False, "motivo": "sin token"})
+        self.assertEqual(S.enviar("hola", pedir=self.pedir(), leer_env=lambda: {}), {"ok": False, "motivo": "sin token"})
         self.assertEqual(self.peticiones, [])
 
     def test_token_sin_chat_tambien_es_sin_token(self):
         os.environ[CLAVES[0]] = TOKEN
-        self.assertEqual(S.enviar("hola", pedir=self.pedir())["motivo"], "sin token")
+        self.assertEqual(S.enviar("hola", pedir=self.pedir(), leer_env=lambda: {CLAVES[0]: TOKEN})["motivo"], "sin token")
 
     def test_envio_basico_chat_id_y_texto_plano(self):
         self.con_credenciales()
