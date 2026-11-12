@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """sintesis_tareas · tareas de análisis por rama para la síntesis diaria (puro).
 SDP1111C (§3.2 architecture/sintesis-diaria-autonoma.md y agente_referencias_diseno.tarea_de l.954).
-Devuelve 6 tareas de análisis libre (tipo 'analisis', modo 'libre', capacidad 'alta',
+SDP1111T (§3.4 youtube: video_contexto.py). Devuelve tareas de análisis libre (tipo 'analisis', modo 'libre', capacidad 'alta',
 privado según rama, salida en starseed_memory_root/imaginacion/agentes/sintesis-<fecha>-<rama>.json)
-para: contactos, noticias, referencias, actividad, ideas, guiones.
+para: contactos, noticias, referencias, actividad, ideas, guiones, youtube.
 Cada prompt: contexto de su rama, secciones del protocolo, regla «todo dato con fuente y fecha; nada inventado; no se investiga a particulares».
 Ids: SIN + MMDD + n. Rama actividad: privado=true. Redacción/revisión → SDP1111D.
 """
@@ -11,7 +11,7 @@ import json
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-RAMAS = ("contactos", "noticias", "referencias", "actividad", "ideas", "guiones")
+RAMAS = ("contactos", "noticias", "referencias", "actividad", "ideas", "guiones", "youtube")
 REGLA = "todo dato con fuente y fecha; nada inventado; no se investiga a particulares"
 COMUNES = ["3.2 (ciclo en tres pasadas)", "3.4 (herramientas: Jev, Laya, LEANN, fuentes públicas)"]
 ESPECIFICAS = {
@@ -21,6 +21,7 @@ ESPECIFICAS = {
     "actividad": ["3.2.1 (actividad de Alex: qué temas tocó ayer y qué sugieren)", "4 (actividad personal: qué se puede leer)"],
     "ideas": ["3.2.1 (ideas de vídeo y redes)"],
     "guiones": ["3.2.1 (guion y storyboard de los 2 vídeos de la rotación)"],
+    "youtube": ["3.4 (fichas de video_contexto: transcripción, ideas, notas estilo, storyboard, diseño, noticias, personas)"],
 }
 CTX_KEYS = {
     "contactos": ("rotacion_contactos", "sintesis_previas"),
@@ -29,6 +30,7 @@ CTX_KEYS = {
     "actividad": ("resumen_actividad", "informes"),
     "ideas": ("imaginacion", "informes", "rotacion_categorias"),
     "guiones": ("rotacion_videos", "rotacion_contactos", "imaginacion"),
+    "youtube": ("rotacion_videos", "rotacion_categorias", "imaginacion", "fichas_youtube"),
 }
 
 
@@ -54,6 +56,7 @@ def _ctx_rama(ctx: Dict[str, Any], rama: str) -> Dict[str, Any]:
         "imaginacion": ctx.get("imaginacion", []),
         "informes": ctx.get("informes", []),
         "resumen_actividad": ctx.get("resumen_actividad"),
+        "fichas_youtube": ctx.get("fichas_youtube", []),
     }
     return {**base, **{k: mapping[k] for k in CTX_KEYS[rama] if k in mapping}}
 

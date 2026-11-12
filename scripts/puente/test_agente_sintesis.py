@@ -53,12 +53,12 @@ class TestFechaCDMX(unittest.TestCase):
 
 
 class TestGenerarTareasAnalisis(unittest.TestCase):
-    def test_seis_ramas_con_ids_sin_formato(self):
+    def test_siete_ramas_con_ids_sin_formato(self):
         ctx = ctx_base()
         tareas = ST.generar_tareas_analisis(ctx, "/tmp", ahora=A._iso(AHORA_CDMX_00))
-        self.assertEqual(len(tareas), 6)
+        self.assertEqual(len(tareas), 7)
         ramas = [t["rama"] for t in tareas]
-        self.assertEqual(ramas, ["contactos", "noticias", "referencias", "actividad", "ideas", "guiones"])
+        self.assertEqual(ramas, ["contactos", "noticias", "referencias", "actividad", "ideas", "guiones", "youtube"])
         for t in tareas:
             self.assertTrue(t["id"].startswith("SIN"))
             self.assertEqual(t["tipo"], "analisis")
@@ -173,12 +173,12 @@ class TestPlan(unittest.TestCase):
     def tearDown(self):
         self._tmp.cleanup()
 
-    def test_plan_devuelve_seis_tareas(self):
+    def test_plan_devuelve_siete_tareas(self):
         d = A._plan(self.raiz, AHORA_CDMX_00, self.home)
         self.assertTrue(d["ok"])
         self.assertEqual(d["fase"], "redactar")
-        self.assertEqual(d["tareas"], 6)
-        self.assertEqual(len(d["detalle"]), 6)
+        self.assertEqual(d["tareas"], 7)
+        self.assertEqual(len(d["detalle"]), 7)
 
 
 class TestEstado(unittest.TestCase):
