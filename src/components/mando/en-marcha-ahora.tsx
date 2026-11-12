@@ -58,7 +58,7 @@ function Fila({ id, titulo, detalle }: { id: string; titulo: string; detalle?: s
 
 export function EnMarchaAhoraVista({ datos, ahora }: { datos: EnMarcha | null | undefined; ahora: number }) {
     const v = vistaEnMarcha(datos, ahora);
-    const { carril, puerta, publicacion } = v;
+    const { carril, puerta, publicacion, prueba } = v;
     const tonoCarril: Tono = carril.estado === "vivo" ? "vivo" : carril.estado === "sin-latido" ? "aviso" : "quieto";
     const etiquetaCarril =
         carril.estado === "vivo"
@@ -143,6 +143,30 @@ export function EnMarchaAhoraVista({ datos, ahora }: { datos: EnMarcha | null | 
                         {publicacion.texto}
                     </p>
                 </Bloque>
+
+                {prueba ? (
+                    // PRB1111V · el build de prueba en marcha (o fallido hasta que otro lo sustituya), solo con rastro.
+                    <Bloque
+                        n={4}
+                        id="prueba"
+                        titulo="Versión de prueba"
+                        tono={prueba.estado === "fallo" ? "rojo" : prueba.estado === "esperando-main" ? "aviso" : "vivo"}
+                        etiqueta={{ "esperando-main": "esperando a main", "en-cola": "en cola", compilando: "compilando", publicando: "publicando", fallo: "falló" }[prueba.estado]}
+                    >
+                        <p className="break-words" data-testid="en-marcha-prueba-texto">
+                            <span className="font-mono text-white/85">{prueba.etiqueta}</span> · {prueba.texto}
+                        </p>
+                        {prueba.plataformas.some((x) => x.detalle) ? (
+                            <ul className="space-y-1" data-testid="en-marcha-prueba-plataformas">
+                                {prueba.plataformas.filter((x) => x.detalle).map((x) => (
+                                    <li key={x.titulo} className="break-words text-[12px] text-white/65">
+                                        <span className="font-medium text-white/85">{x.titulo}</span> · {x.detalle}
+                                    </li>
+                                ))}
+                            </ul>
+                        ) : null}
+                    </Bloque>
+                ) : null}
             </div>
         </article>
     );

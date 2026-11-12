@@ -29,6 +29,7 @@ import { EnMarchaAhora } from "@/components/mando/en-marcha-ahora"; // MED1111E
 import type { EnMarcha } from "@/lib/mando/en-marcha"; // MED1111E
 import { PanelImaginacion } from "@/components/mando/panel-imaginacion";
 import { PanelVersiones } from "@/components/mando/panel-versiones";
+import { PanelPruebas } from "@/components/mando/panel-pruebas"; // PRB1111V
 import { BotonReparar, ResultadoReparacion, useReparacion } from "@/components/mando/reparar-medidor";
 import { SeccionPlegable } from "@/components/mando/seccion-plegable";
 import type { AccionMedidor, ClaveMedidor, DetalleMedidor, FilaMedidor } from "@/lib/mando/medidores";
@@ -171,6 +172,7 @@ export function PastillaMedidor({
     alPulsar,
     alClic,
     cargando = false,
+    valorLargo = false,
 }: {
     /** Sin `clave` la pastilla NO se abre: es informativa y se nota (no lleva chevrón). */
     clave?: ClaveMedidor;
@@ -184,6 +186,8 @@ export function PastillaMedidor({
     alClic?: () => void;
     /** (2026-09-23) Algo está en marcha detrás (p. ej. publicando): giro junto al valor. */
     cargando?: boolean;
+    /** PRB1111V: el valor es una frase (el resumen de las pruebas): se parte en líneas en vez de cortarse. */
+    valorLargo?: boolean;
 }) {
     const pulsable = Boolean(clave || alClic);
     const contenido = (
@@ -192,7 +196,12 @@ export function PastillaMedidor({
             {/* (2026-10-09) Un valor largo (el título entero de una ola) hacía una pastilla cuatro
                 veces más alta que sus vecinas: el valor va en una línea y lo largo, al detalle. */}
             <span
-                className={`inline-flex max-w-full items-center gap-1.5 truncate text-lg font-semibold leading-tight ${TEXTO[tono]}`}
+                title={valorLargo ? valor : undefined}
+                className={
+                    valorLargo
+                        ? `line-clamp-3 max-w-full break-words text-center text-sm font-semibold leading-tight ${TEXTO[tono]}`
+                        : `inline-flex max-w-full items-center gap-1.5 truncate text-lg font-semibold leading-tight ${TEXTO[tono]}`
+                }
             >
                 {cargando ? <Loader2 className="h-3.5 w-3.5 animate-spin text-cyan-200" aria-label="en marcha" /> : null}
                 {valor}
@@ -478,8 +487,11 @@ export function PanelMedidor({
     alCerrar,
     ambito,
     alCambiar,
+    alAbrirMedidor,
 }: {
     clave: ClaveMedidor;
+    /** PRB1111V: abre otro medidor (el panel «Versiones» lleva a «Pruebas»). */
+    alAbrirMedidor?: (clave: ClaveMedidor) => void;
     alAccionar?: (clave: ClaveMedidor, a: AccionMedidor, f: FilaMedidor | undefined, texto: string) => Promise<string>;
     alIrA?: (destino: string) => void;
     alCerrar: () => void;
@@ -827,8 +839,10 @@ export function PanelMedidor({
                 </p>
             ) : null}
 
-            {clave === "versiones" ? (
-                <PanelVersiones />
+            {clave === "pruebas" ? (
+                <PanelPruebas />
+            ) : clave === "versiones" ? (
+                <PanelVersiones alAbrirPruebas={alAbrirMedidor ? () => alAbrirMedidor("pruebas") : undefined} />
             ) : clave === "imaginacion" ? (
                 // (IMG1024B) «Imaginación» tiene su panel propio: propuestas libres, integrar, reimaginar,
                 // lote y el automático, contra `/api/mando/imaginacion`. Lee sus datos por su cuenta (si el

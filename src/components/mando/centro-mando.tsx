@@ -24,6 +24,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MenuListaMovil } from "@/components/ui/menu-lista-movil";
 import type { EstadoMando, ProveedorUso } from "@/lib/mando/tipos";
 import type { LanzamientoEstado } from "@/lib/mando/lanzamientos-tipos";
+import type { RespuestaPruebas } from "@/lib/mando/lanzamientos-pruebas-tipos"; // PRB1111V
+import { detalleDePastilla, tonoDePruebas, versionEnFoco } from "@/lib/mando/pruebas-vivas"; // PRB1111V
 import { flotaConocida } from "@/lib/mando/flota";
 import "@/components/mando/mando-cristal.css";
 // (2026-10-29 · UIG1029D) Ventanas plegables: cada panel de cada pestaña se pliega
@@ -285,6 +287,7 @@ const LUGAR_EN_PULSO: Record<string, [GrupoPulso, number]> = {
     integradas: ["entrega", 0],
     "sin-publicar": ["entrega", 1],
     versiones: ["entrega", 2],
+    pruebas: ["entrega", 2.5], // PRB1111V: justo después de «Versiones»
     "Tu visto bueno": ["entrega", 3],
     "Te toca a ti": ["entrega", 4],
     proveedores: ["modelos", 0],
@@ -967,6 +970,8 @@ export function CentroMando() {
     // Panel "Te toca a ti" (AX1): separado de los medidores estándar.
     const [accionesAlexAbierto, setAccionesAlexAbierto] = useState(false);
     const [lanzamientoEstado, setLanzamientoEstado] = useState<LanzamientoEstado | null>(null);
+    // PRB1111V: resumen de las pruebas para la pastilla (el panel lee lo suyo, en vivo, por su cuenta).
+    const [pruebasPulso, setPruebasPulso] = useState<RespuestaPruebas | null | undefined>(undefined);
 
     // Un solo origen de verdad para los medidores "listas" y "bloqueadas" (Ola 337 · MND2).
     // POR QUÉ: La cifra de la pastilla y el detalle al abrirla DEBEN salir del mismo sitio
@@ -1344,6 +1349,36 @@ export function CentroMando() {
         const cada = window.setInterval(() => void cargarLanzamiento(), 20_000);
         const alVolver = () => {
             if (document.visibilityState === "visible") void cargarLanzamiento();
+        };
+        document.addEventListener("visibilitychange", alVolver);
+        return () => {
+            vivo = false;
+            window.clearInterval(cada);
+            document.removeEventListener("visibilitychange", alVolver);
+        };
+    }, []);
+
+    // PRB1111V: pastilla «Pruebas»; 30 s y solo con la pestaña visible.
+    useEffect(() => {
+        let vivo = true;
+        const cargar = async () => {
+            if (!vivo || document.visibilityState === "hidden") return;
+            try {
+                const r = await fetch("/api/mando/lanzamientos/pruebas", { cache: "no-store" });
+                if (!r.ok) {
+                    if (vivo) setPruebasPulso(null);
+                    return;
+                }
+                const c = (await r.json()) as RespuestaPruebas;
+                if (vivo) setPruebasPulso(c && Array.isArray(c.versiones) ? c : null);
+            } catch {
+                if (vivo) setPruebasPulso(null);
+            }
+        };
+        void cargar();
+        const cada = window.setInterval(() => void cargar(), 30_000);
+        const alVolver = () => {
+            if (document.visibilityState === "visible") void cargar();
         };
         document.addEventListener("visibilitychange", alVolver);
         return () => {
@@ -2191,6 +2226,19 @@ export function CentroMando() {
                                  detalle: lanzamientoEstado?.detalle ?? "leyendo estado del lanzamiento…",
                              },
                              {
+                                 clave: "pruebas" as const,
+                                 titulo: "Pruebas",
+                                 valor:
+                                     pruebasPulso === undefined
+                                         ? "leyendo las pruebas…"
+                                         : pruebasPulso === null
+                                           ? "no se pudieron leer las pruebas"
+                                           : pruebasPulso.resumen,
+                                 tono: (pruebasPulso ? tonoDePruebas(versionEnFoco(pruebasPulso.versiones), null) : "normal") as TonoMedidor,
+                                 detalle: pruebasPulso ? detalleDePastilla(versionEnFoco(pruebasPulso.versiones), null) : undefined,
+                                 valorLargo: true,
+                             },
+                             {
                                  clave: "proveedores" as const,
                                 // (2026-10-09) «Proveedores agotados 10» contaba lo que NO hay. Lo que
                                 // decide si el enjambre escribe es cuántos modelos tienen cupo.
@@ -2422,6 +2470,7 @@ export function CentroMando() {
                             alCerrar={() => setMedidorAbierto(null)}
                             ambito={medidorAbierto === "imaginacion" ? ambitoPulso : undefined}
                             alCambiar={() => void cargarMedidoresResumen(true)}
+                            alAbrirMedidor={(c) => setMedidorAbierto(c)}
                         />
                     ) : accionesAlexAbierto ? (
                         <PanelAccionesAlex
@@ -2493,6 +2542,7 @@ export function CentroMando() {
                                                             }}
                                                             alClic={"alClic" in m ? m.alClic : undefined}
                                                             cargando={"cargando" in m ? Boolean(m.cargando) : false}
+                                                            valorLargo={"valorLargo" in m ? Boolean(m.valorLargo) : false}
                                                         />
                                                     </li>
                                                 ))}

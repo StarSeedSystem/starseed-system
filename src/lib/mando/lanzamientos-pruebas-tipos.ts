@@ -25,6 +25,19 @@ export interface BuildPlataforma {
     job: string | null;
     url: string | null;
     detalle: string;
+    /** (PRB1111V) Id del run y del job (el que falló, si falló) para pedir su registro; null si no se sabe. */
+    runId?: number | null;
+    jobId?: number | null;
+    /** (PRB1111V) Pasos del job de la plataforma: hechos, total y el que va ahora; null si GitHub no los dio. */
+    pasos?: ProgresoPasos | null;
+    /** (PRB1111V) El paso que falló (nombre) en el job que falló; null si no consta. */
+    pasoFallido?: string | null;
+}
+
+export interface ProgresoPasos {
+    hechos: number;
+    total: number;
+    actual: string | null;
 }
 
 export interface CommitPrueba {
@@ -55,6 +68,17 @@ export interface Comprobacion {
     nota: string;
     quien: string;
     t: string | null;
+    /** (PRB1111V) Señal automática del banco de pruebas (`video-fps-ble`…); null = se comprueba mirando. */
+    senal?: string | null;
+    /** (PRB1111V) La última vez que se pidió arreglo de esta comprobación. */
+    arreglo?: ArregloPedido | null;
+}
+
+export interface ArregloPedido {
+    t: string;
+    quien: string;
+    nota: string;
+    peticion: string;
 }
 
 export interface ResumenComprobaciones {

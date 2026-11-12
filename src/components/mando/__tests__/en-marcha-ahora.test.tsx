@@ -90,3 +90,19 @@ describe("EnMarchaAhora con datos dados no pide nada", () => {
         expect(screen.getByTestId("en-marcha-ahora")).toBeInTheDocument();
     });
 });
+
+describe("EnMarchaAhoraVista · versión de prueba (PRB1111V)", () => {
+    it("enseña la prueba en marcha con plataformas y su paso", () => {
+        const datos: EnMarcha = {
+            ...QUIETO,
+            pruebas: { numero: 40, etiqueta: "prueba.40", fase: "compilando", esperaA: null, falloEn: [], desdeMs: AHORA - 20 * 60_000, generadoMs: AHORA, plataformas: [{ id: "macos", titulo: "macOS", estado: "compilando", desdeMs: AHORA - 15 * 60_000, pasoActual: "Compilar", pasosHechos: 6, pasosTotal: 11, tipicoMin: null }] },
+        };
+        render(<EnMarchaAhoraVista datos={datos} ahora={AHORA} />);
+        expect(screen.getByTestId("en-marcha-prueba-texto")).toBeInTheDocument();
+        expect(screen.getByTestId("en-marcha-prueba-plataformas")).toHaveTextContent(/macOS/);
+    });
+    it("sin prueba no hay bloque", () => {
+        render(<EnMarchaAhoraVista datos={QUIETO} ahora={AHORA} />);
+        expect(screen.queryByTestId("en-marcha-prueba-texto")).toBeNull();
+    });
+});
