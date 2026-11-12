@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ControlNivelVoz, NIVELES_OPUS, nivelEfectivo, FormatoVoz, nivelInicial } from "../niveles";
-import type { ModeloEnlace } from "../video-datos/reparto";
+import type { ModeloEnlace } from "../../video-datos/reparto";
 
 describe("ControlNivelVoz: cuando se pierde el Wi-Fi (sin modelo), sale inmediatamente del estado bajo el suelo", () => {
   it("salen del estado bajo el suelo si no hay modelo (Wi-Fi cortado) incluso si no están limpios", () => {
