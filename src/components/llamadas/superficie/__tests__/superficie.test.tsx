@@ -84,7 +84,7 @@ describe("SuperficieLlamada · LLA1111A (Puertos, estado una vez, carriles, alto
   it("«Medio» con el motor: un selector por flujo que fuerza el carril y vuelve a automático", () => {
     const forzar = vi.fn();
     const carriles = {
-      carriles: () => [{ parId: "p", voz: "ble-l2cap", video: "ble-l2cap", pantalla: "ble-l2cap", senal: "ble-l2cap", datos: "ble-l2cap", forzados: {}, texto: "", director: true }],
+      carriles: () => [{ parId: "p", voz: "ble-l2cap" as const, video: "ble-l2cap" as const, pantalla: "ble-l2cap" as const, senal: "ble-l2cap" as const, datos: "ble-l2cap" as const, forzados: {}, texto: "", director: true }],
       estado: () => ({ participantes: [] }),
       forzarCarril: forzar,
     };
@@ -147,7 +147,7 @@ describe("SuperficieLlamada · LLA1111A (Puertos, estado una vez, carriles, alto
   it("la pestaña Medio usa selectores personalizados (no select nativo) para elegir carriles", () => {
     const forzar = vi.fn();
     const carriles = {
-      carriles: () => [{ parId: "p", voz: "ble-l2cap", video: "ble-l2cap", pantalla: "ble-l2cap", senal: "ble-l2cap", datos: "ble-l2cap", forzados: {}, texto: "", director: true }],
+      carriles: () => [{ parId: "p", voz: "ble-l2cap" as const, video: "ble-l2cap" as const, pantalla: "ble-l2cap" as const, senal: "ble-l2cap" as const, datos: "ble-l2cap" as const, forzados: {}, texto: "", director: true }],
       estado: () => ({ participantes: [] }),
       forzarCarril: forzar,
     };
