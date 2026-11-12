@@ -1,0 +1,260 @@
+2026-11-11T19:19:45.694Z ble l2cap-kbps enlace=b1 neurona=00000000-0000-4000-8000-0000000000a1 · kbps=261 (mensaje de 6206 B en 190 ms)
+2026-11-11T19:19:47.004Z web 2026-11-11T19:19:44.999Z · llamada · b1 · neurona 00000000-0000-4000-8000-0000000000a1 · senal-recibida app
+2026-11-11T19:19:47.004Z web 2026-11-11T19:19:44.999Z · llamada · b1 · neurona 00000000-0000-4000-8000-0000000000a1 · senal-recibida senal offer
+2026-11-11T19:19:47.004Z web 2026-11-11T19:19:44.999Z · llamada · b1 · neurona 00000000-0000-4000-8000-0000000000a1 · negociacion par=00000000-0000-4000-8000-0000000000a1:c93f0f rol=descortes colision oferta-ajena-ignorada
+2026-11-11T19:19:47.004Z web 2026-11-11T19:19:44.999Z · llamada · b1 · neurona 00000000-0000-4000-8000-0000000000a1 · senal-recibida senal ice
+2026-11-11T19:19:47.004Z web 2026-11-11T19:19:45.399Z · llamada · b1 · neurona 00000000-0000-4000-8000-0000000000a1 · negociacion par=00000000-0000-4000-8000-0000000000a1:c93f0f rol=descortes estado=stable
+2026-11-11T19:19:47.004Z web 2026-11-11T19:19:45.403Z · llamada · b1 · neurona 00000000-0000-4000-8000-0000000000a1 · negociacion par=00000000-0000-4000-8000-0000000000a1:c93f0f rol=descortes oferta-en-espera motivo=negociacion-necesaria sin-ruta-ip
+2026-11-11T19:19:47.004Z web 2026-11-11T19:19:45.600Z · llamada · b1 · neurona 00000000-0000-4000-8000-0000000000a1 · senal-enviada senal answer via=ble
+2026-11-11T19:19:47.004Z web 2026-11-11T19:19:45.661Z · llamada · b1 · neurona 00000000-0000-4000-8000-0000000000a1 · senal-recibida senal ice
+2026-11-11T19:19:47.004Z web 2026-11-11T19:19:45.692Z · llamada · medio=video-datos visibilidad video=remoto doc=si caja=374x212 display=block vis=visible op=1 arriba=si brillo=? listo=0 tam=0x0 pausado=no pistas=v:live/on/sonando
+2026-11-11T19:19:47.004Z web 2026-11-11T19:19:46.020Z · llamada · b1 · neurona 00000000-0000-4000-8000-0000000000a1 · senal-recibida senal ice
+2026-11-11T19:19:47.004Z web 2026-11-11T19:19:46.152Z · llamada · b1 · neurona 00000000-0000-4000-8000-0000000000a1 · senal-enviada senal answer via=ble
+2026-11-11T19:19:47.004Z web 2026-11-11T19:19:46.214Z · llamada · b1 · neurona 00000000-0000-4000-8000-0000000000a1 · senal-enviada senal ice via=ble
+2026-11-11T19:19:49.209Z web 2026-11-11T19:19:47.208Z · llamada · b1 · neurona 00000000-0000-4000-8000-0000000000a1 · medio=video-datos video-datos reparto pausa motivo=suelo kbps obj=0 voz=1 video=0 cabe=20 enlace=34+42ms espera-voz=47ms vent=300B coste=x2.1 fps=0 otro=pausa
+2026-11-11T19:19:49.209Z web 2026-11-11T19:19:47.521Z · llamada · b1 · neurona 00000000-0000-4000-8000-0000000000a1 · senal-enviada app via=ble
+2026-11-11T19:19:49.209Z web 2026-11-11T19:19:47.944Z · llamada · b1 · neurona 00000000-0000-4000-8000-0000000000a1 · medio=enlace-datos voz-datos tx n=5 opus=6k trama/paq=60/180ms texto=10k fmt=b1 cabe=14k enlace=15k+32ms entregado=1k espera=81ms paq=287 tiradas=41 mudo
+2026-11-11T19:19:49.209Z web 2026-11-11T19:19:47.944Z · llamada · b1 · neurona 00000000-0000-4000-8000-0000000000a1 · medio=enlace-datos voz-datos rx paq=176 perd=3.3% tardias=0 ocultadas=+0 inventado=0% jitter=250ms
+2026-11-11T19:19:49.209Z web 2026-11-11T19:19:48.209Z · llamada · b1 · neurona 00000000-0000-4000-8000-0000000000a1 · medio=video-datos video-datos tx capturados=2 codificados=2 enviados=2 descartados=64 clave=1 kbps=0 negros=0 motivos=pausa:61,saliendo:3
+2026-11-11T19:19:49.209Z web 2026-11-11T19:19:48.209Z · llamada · b1 · neurona 00000000-0000-4000-8000-0000000000a1 · medio=video-datos video-datos rx paquetes=3 cuadros=0 decodificados=0 pintados=0 errores=0 ultimoError=ninguno
+2026-11-11T19:19:52.694Z web 2026-11-11T19:19:52.215Z · llamada · b1 · neurona 00000000-0000-4000-8000-0000000000a1 · medio=video-datos video-datos reparto pausa motivo=suelo kbps obj=0 voz=1 video=0 cabe=20 enlace=34+42ms espera-voz=42ms vent=300B coste=x2.1 fps=0 otro=pausa
+2026-11-11T19:19:54.979Z web 2026-11-11T19:19:52.978Z · llamada · b1 · neurona 00000000-0000-4000-8000-0000000000a1 · medio=enlace-datos voz-datos tx n=5 opus=6k trama/paq=60/180ms texto=10k fmt=b1 cabe=14k enlace=15k+28ms entregado=0k espera=0ms paq=287 tiradas=41 mudo
+2026-11-11T19:19:54.979Z web 2026-11-11T19:19:52.978Z · llamada · b1 · neurona 00000000-0000-4000-8000-0000000000a1 · medio=enlace-datos voz-datos rx paq=176 perd=3.3% tardias=0 ocultadas=+0 inventado=0% jitter=250ms
+2026-11-11T19:19:54.979Z web 2026-11-11T19:19:53.215Z · llamada · b1 · neurona 00000000-0000-4000-8000-0000000000a1 · medio=video-datos video-datos tx capturados=2 codificados=2 enviados=2 descartados=69 clave=1 kbps=0 negros=0 motivos=pausa:66,saliendo:3
+2026-11-11T19:19:54.979Z web 2026-11-11T19:19:53.215Z · llamada · b1 · neurona 00000000-0000-4000-8000-0000000000a1 · medio=video-datos video-datos rx paquetes=3 cuadros=0 decodificados=0 pintados=0 errores=0 ultimoError=ninguno
+2026-11-11T19:19:55.324Z ble l2cap-kbps enlace=b1 neurona=00000000-0000-4000-8000-0000000000a1 · kbps=380 (mensaje de 4942 B en 104 ms)
+2026-11-11T19:20:10.073Z web 2026-11-11T19:20:09.106Z · llamada · b1 · neurona 00000000-0000-4000-8000-0000000000a1 · medio=webrtc par=00000000-0000-4000-8000-0000000000a1:c93f0f ruta IP nueva (Wi-Fi directo): se reintenta WebRTC sin colgar intento=4 siguiente-en=15000ms
+2026-11-11T19:20:13.755Z web 2026-11-11T19:20:12.543Z · llamada · camara pedida lista=integrada:FaceTime HD Camera|virtual:OBS Virtual Camera|externa:Immersed Camera|continuidad:iPhone de Usuario Camera elegir="FaceTime HD Camera" motivo=seleccionada restr=
+2026-11-11T19:20:13.755Z web 2026-11-11T19:20:12.557Z · llamada · camara intento pedida 1/3 paso=deseo restr=ideal=1280x720@24,deviceId:exact ok ms=16 abierta="FaceTime HD Camera"
+2026-11-11T19:20:13.755Z web 2026-11-11T19:20:12.563Z · llamada · camara camara elegida="FaceTime HD Camera" (integrada) motivo=pedida
+2026-11-11T19:20:13.755Z web 2026-11-11T19:20:13.724Z · llamada · b1 · neurona 00000000-0000-4000-8000-0000000000a1 · camara encendida estado=live pares=1
+2026-11-11T19:20:13.755Z web 2026-11-11T19:20:13.736Z · llamada · camara abierta elegida="FaceTime HD Camera" (integrada) motivo=pedida ms=1195 ajustes=1280x720 estado=live
+2026-11-11T19:20:25.463Z ble l2cap-kbps enlace=b1 neurona=00000000-0000-4000-8000-0000000000a1 · kbps=215 (mensaje de 4838 B en 180 ms)
+2026-11-11T19:20:30.174Z web 2026-11-11T19:20:29.173Z · llamada · b1 · neurona 00000000-0000-4000-8000-0000000000a1 · medio=enlace-datos voz-datos tx n=5 opus=6k trama/paq=60/180ms texto=10k fmt=b1 cabe=16k enlace=18k+36ms entregado=8k espera=125ms paq=308 tiradas=41 otro:perd=3.6% tarde=17.5%
+2026-11-11T19:20:30.174Z web 2026-11-11T19:20:29.173Z · llamada · b1 · neurona 00000000-0000-4000-8000-0000000000a1 · medio=enlace-datos voz-datos rx paq=176 perd=3.3% tardias=0 ocultadas=+0 inventado=0% jitter=250ms
+2026-11-11T19:20:30.174Z web (Maggaboard) 2026-11-11T19:20:19.912Z · web · llamada · b2 · neurona 00000000-0000-4000-8000-0000000000a1 · medio=video-datos video-datos rx paquetes=6 cuadros=2 decodificados=2 pintados=2 errores=0 ultimoError=ninguno
+2026-11-11T19:20:30.174Z web (Maggaboard) 2026-11-11T19:20:19.958Z · web · llamada · b2 · neurona 00000000-0000-4000-8000-0000000000a1 · senal-recibida app
+2026-11-11T19:20:30.174Z web (Maggaboard) 2026-11-11T19:20:20.535Z · web · llamada · b2 · neurona 00000000-0000-4000-8000-0000000000a1 · senal-enviada app via=ble
+2026-11-11T19:20:30.174Z web (Maggaboard) 2026-11-11T19:20:20.909Z · web · llamada · b2 · neurona 00000000-0000-4000-8000-0000000000a1 · medio=video-datos video-datos reparto pausa motivo=suelo kbps obj=0 voz=0 video=0 cabe=5 enlace=9+42ms espera-voz=115ms vent=300B coste=x2.1 fps=
+2026-11-11T19:20:30.174Z web (Maggaboard) 2026-11-11T19:20:23.519Z · web · llamada · medio=video-datos visibilidad lienzo=remoto doc=si caja=374x210 display=block vis=visible op=1 arriba=no tapa=video.absolute.inset-0 brillo=162 lienzo=160x120
+2026-11-11T19:20:30.174Z web (Maggaboard) 2026-11-11T19:20:23.519Z · web · llamada · medio=video-datos visibilidad video=remoto doc=si caja=374x210 display=block vis=visible op=1 arriba=si brillo=161 listo=4 tam=160x120 pausado=no pistas=v:live/on/sonando
+2026-11-11T19:20:30.174Z web (Maggaboard) 2026-11-11T19:20:24.920Z · web · llamada · b2 · neurona 00000000-0000-4000-8000-0000000000a1 · medio=video-datos video-datos tx capturados=1 codificados=1 enviados=0 descartados=102 clave=1 kbps=0 negros=0 motivos=pausa:97,saliendo:5
+2026-11-11T19:20:30.174Z web (Maggaboard) 2026-11-11T19:20:24.920Z · web · llamada · b2 · neurona 00000000-0000-4000-8000-0000000000a1 · medio=video-datos video-datos rx paquetes=6 cuadros=2 decodificados=2 pintados=2 errores=0 ultimoError=ninguno
+2026-11-11T19:20:30.174Z web (Maggaboard) 2026-11-11T19:20:25.782Z · web · llamada · b2 · neurona 00000000-0000-4000-8000-0000000000a1 · medio=enlace-datos voz-datos tx n=5 opus=6k trama/paq=60/180ms texto=10k fmt=b1 cabe=61k enlace=89k+113ms entregado=0k espera=0ms paq=176 tiradas
+2026-11-11T19:20:30.174Z web (Maggaboard) 2026-11-11T19:20:25.782Z · web · llamada · b2 · neurona 00000000-0000-4000-8000-0000000000a1 · medio=enlace-datos voz-datos rx paq=194 perd=0.1% tardias=37 ocultadas=+0 inventado=68% jitter=310ms
+2026-11-11T19:20:30.174Z web (Maggaboard) 2026-11-11T19:20:25.913Z · web · llamada · b2 · neurona 00000000-0000-4000-8000-0000000000a1 · medio=video-datos video-datos reparto pausa motivo=suelo kbps obj=0 voz=2 video=0 cabe=6 enlace=10+42ms espera-voz=125ms vent=300B coste=x2.1 fps
+2026-11-11T19:20:30.174Z web 2026-11-11T19:20:30.026Z · llamada · b1 · neurona 00000000-0000-4000-8000-0000000000a1 · senal-enviada senal offer via=ble
+2026-11-11T19:20:32.180Z web 2026-11-11T19:20:30.176Z · llamada · b1 · neurona 00000000-0000-4000-8000-0000000000a1 · medio=video-datos video-datos sigue motivo=sitio-de-nuevo cabe=46kbps voz=10kbps retraso=169ms
+2026-11-11T19:20:32.180Z web 2026-11-11T19:20:30.176Z · llamada · b1 · neurona 00000000-0000-4000-8000-0000000000a1 · medio=video-datos video-datos perfil=160×120 · 2 fps · 10 kbps · VP8 motivo=sitio-de-nuevo coste=x2.15
+2026-11-11T19:20:32.180Z web 2026-11-11T19:20:30.176Z · llamada · b1 · neurona 00000000-0000-4000-8000-0000000000a1 · medio=video-datos video-datos reparto activo motivo=sitio-de-nuevo kbps obj=32 voz=10 video=0 cabe=46 enlace=80+42ms espera-voz=169ms vent=580B coste=x2.1 fps=0 otro=pausa
+2026-11-11T19:20:32.180Z web 2026-11-11T19:20:30.176Z · llamada · b1 · neurona 00000000-0000-4000-8000-0000000000a1 · medio=video-datos video-datos tx capturados=2 codificados=2 enviados=2 descartados=102 clave=1 kbps=0 negros=0 motivos=pausa:99,saliendo:3
+2026-11-11T19:20:32.180Z web 2026-11-11T19:20:30.176Z · llamada · b1 · neurona 00000000-0000-4000-8000-0000000000a1 · medio=video-datos video-datos rx paquetes=3 cuadros=0 decodificados=0 pintados=0 errores=0 ultimoError=ninguno
+2026-11-11T19:20:32.180Z web 2026-11-11T19:20:30.261Z · llamada · b1 · neurona 00000000-0000-4000-8000-0000000000a1 · senal-recibida senal answer
+2026-11-11T19:20:32.180Z web 2026-11-11T19:20:30.262Z · llamada · b1 · neurona 00000000-0000-4000-8000-0000000000a1 · negociacion par=00000000-0000-4000-8000-0000000000a1:c93f0f rol=descortes estado=stable
+2026-11-11T19:20:32.180Z web 2026-11-11T19:20:30.262Z · llamada · b1 · neurona 00000000-0000-4000-8000-0000000000a1 · negociacion par=00000000-0000-4000-8000-0000000000a1:c93f0f rol=descortes oferta-en-espera motivo=negociacion-necesaria sin-ruta-ip
+2026-11-11T19:20:32.180Z web 2026-11-11T19:20:31.176Z · llamada · b1 · neurona 00000000-0000-4000-8000-0000000000a1 · medio=enlace-datos voz-datos bajo-suelo tx motivo=atasco cabe=63kbps
+2026-11-11T19:20:34.340Z web 2026-11-11T19:20:34.175Z · llamada · b1 · neurona 00000000-0000-4000-8000-0000000000a1 · medio=enlace-datos voz-datos sobre-suelo tx
+2026-11-11T19:20:37.178Z web 2026-11-11T19:20:35.177Z · llamada · b1 · neurona 00000000-0000-4000-8000-0000000000a1 · medio=video-datos video-datos perfil=160×120 · 3 fps · 14 kbps · VP8 motivo=hay-sitio coste=x1.65
+2026-11-11T19:20:37.178Z web 2026-11-11T19:20:35.177Z · llamada · b1 · neurona 00000000-0000-4000-8000-0000000000a1 · medio=video-datos video-datos reparto activo motivo=hay-sitio kbps obj=30 voz=7 video=10 cabe=51 enlace=80+36ms espera-voz=63ms vent=640B coste=x1.6 fps=2 perd-rx=0% otro=pausa
+2026-11-11T19:20:39.759Z web 2026-11-11T19:20:38.187Z · llamada · b1 · neurona 00000000-0000-4000-8000-0000000000a1 · medio=enlace-datos voz-datos nivel 5→4 motivo=hay-sitio opus=8kbps trama=60ms paq=120ms texto≈14kbps cabe=79kbps espera=82ms desc=0 rx-otro=perd 0% tarde 0% calma=6s
+2026-11-11T19:20:39.759Z web 2026-11-11T19:20:38.188Z · llamada · b1 · neurona 00000000-0000-4000-8000-0000000000a1 · medio=video-datos video-datos perfil=160×120 · 5 fps · 22 kbps · VP8 motivo=hay-sitio coste=x1.63
+2026-11-11T19:20:42.192Z web 2026-11-11T19:20:40.186Z · llamada · b1 · neurona 00000000-0000-4000-8000-0000000000a1 · medio=video-datos video-datos perfil=160×120 · 3 fps · 14 kbps · VP8 motivo=retraso-voz coste=x1.27
+2026-11-11T19:20:42.192Z web 2026-11-11T19:20:40.186Z · llamada · b1 · neurona 00000000-0000-4000-8000-0000000000a1 · medio=video-datos video-datos reparto activo motivo=retraso-voz kbps obj=22 voz=12 video=20 cabe=38 enlace=88+57ms espera-voz=271ms vent=473B coste=x1.3 fps=4 perd-rx=0% otro=pausa
+2026-11-11T19:20:42.192Z web 2026-11-11T19:20:41.185Z · llamada · b1 · neurona 00000000-0000-4000-8000-0000000000a1 · medio=video-datos video-datos perfil=160×120 · 1 fps · 6 kbps · VP8 motivo=retraso-voz coste=x1.70
+2026-11-11T19:20:42.192Z web 2026-11-11T19:20:42.185Z · llamada · b1 · neurona 00000000-0000-4000-8000-0000000000a1 · medio=enlace-datos voz-datos nivel 4→5 motivo=atasco opus=6kbps trama=60ms paq=180ms texto≈10kbps cabe=80kbps espera=376ms desc=0 rx-otro=perd 3.7% tarde 17.8% calma=12s
+2026-11-11T19:20:45.191Z web 2026-11-11T19:20:43.186Z · llamada · b1 · neurona 00000000-0000-4000-8000-0000000000a1 · medio=video-datos video-datos pausa motivo=suelo cabe=0kbps voz=13kbps retraso=312ms calma-pedida=10s
+2026-11-11T19:20:55.599Z ble l2cap-kbps enlace=b1 neurona=00000000-0000-4000-8000-0000000000a1 · kbps=192 (mensaje de 4834 B en 201 ms)
+2026-11-11T19:21:00.202Z web (Maggaboard) 2026-11-11T19:20:51.907Z · web · llamada · b2 · neurona 00000000-0000-4000-8000-0000000000a1 · medio=video-datos video-datos tx capturados=1 codificados=1 enviados=0 descartados=129 clave=1 kbps=0 negros=0 motivos=pausa:124,saliendo:5
+2026-11-11T19:21:00.202Z web (Maggaboard) 2026-11-11T19:20:51.908Z · web · llamada · b2 · neurona 00000000-0000-4000-8000-0000000000a1 · medio=video-datos video-datos rx paquetes=59 cuadros=26 decodificados=26 pintados=26 errores=0 ultimoError=ninguno
+2026-11-11T19:21:00.202Z web (Maggaboard) 2026-11-11T19:20:53.779Z · web · llamada · b2 · neurona 00000000-0000-4000-8000-0000000000a1 · medio=enlace-datos voz-datos tx n=5 opus=6k trama/paq=60/180ms texto=10k fmt=b1 cabe=27k enlace=38k+106ms entregado=1k espera=129ms paq=200 tirad
+2026-11-11T19:21:00.202Z web (Maggaboard) 2026-11-11T19:20:53.779Z · web · llamada · b2 · neurona 00000000-0000-4000-8000-0000000000a1 · medio=enlace-datos voz-datos rx paq=310 perd=0.7% tardias=242 ocultadas=+0 inventado=0% jitter=380ms
+2026-11-11T19:21:00.202Z web (Maggaboard) 2026-11-11T19:20:53.910Z · web · llamada · b2 · neurona 00000000-0000-4000-8000-0000000000a1 · medio=video-datos video-datos reparto pausa motivo=suelo kbps obj=0 voz=1 video=0 cabe=5 enlace=8+42ms espera-voz=140ms vent=300B coste=x2.1 fps=
+2026-11-11T19:21:00.202Z web (Maggaboard) 2026-11-11T19:20:56.922Z · web · llamada · b2 · neurona 00000000-0000-4000-8000-0000000000a1 · medio=video-datos video-datos tx capturados=1 codificados=1 enviados=0 descartados=134 clave=1 kbps=0 negros=0 motivos=pausa:129,saliendo:5
+2026-11-11T19:21:00.202Z web (Maggaboard) 2026-11-11T19:20:56.922Z · web · llamada · b2 · neurona 00000000-0000-4000-8000-0000000000a1 · medio=video-datos video-datos rx paquetes=59 cuadros=26 decodificados=26 pintados=26 errores=0 ultimoError=ninguno
+2026-11-11T19:21:04.728Z web 2026-11-11T19:21:04.201Z · llamada · b1 · neurona 00000000-0000-4000-8000-0000000000a1 · medio=enlace-datos voz-datos tx n=5 opus=6k trama/paq=60/180ms texto=10k fmt=b1 cabe=32k enlace=42k+80ms entregado=1k espera=42ms paq=407 tiradas=41 mudo
+2026-11-11T19:21:04.728Z web 2026-11-11T19:21:04.201Z · llamada · b1 · neurona 00000000-0000-4000-8000-0000000000a1 · medio=enlace-datos voz-datos rx paq=200 perd=2.8% tardias=0 ocultadas=+0 inventado=0% jitter=290ms
+2026-11-11T19:21:06.803Z web 2026-11-11T19:21:05.206Z · llamada · b1 · neurona 00000000-0000-4000-8000-0000000000a1 · medio=video-datos video-datos tx capturados=27 codificados=27 enviados=26 descartados=130 clave=4 kbps=0 negros=0 motivos=pausa:121,saliendo:9
+2026-11-11T19:21:06.803Z web 2026-11-11T19:21:05.206Z · llamada · b1 · neurona 00000000-0000-4000-8000-0000000000a1 · medio=video-datos video-datos rx paquetes=3 cuadros=0 decodificados=0 pintados=0 errores=0 ultimoError=ninguno
+2026-11-11T19:21:09.237Z web 2026-11-11T19:21:08.208Z · llamada · b1 · neurona 00000000-0000-4000-8000-0000000000a1 · medio=video-datos video-datos reparto pausa motivo=suelo kbps obj=0 voz=1 video=0 cabe=20 enlace=35+42ms espera-voz=41ms vent=300B coste=x1.7 fps=0 otro=pausa
+2026-11-11T19:21:09.237Z web 2026-11-11T19:21:09.208Z · llamada · b1 · neurona 00000000-0000-4000-8000-0000000000a1 · medio=enlace-datos voz-datos tx n=5 opus=6k trama/paq=60/180ms texto=10k fmt=b1 cabe=28k enlace=34k+67ms entregado=0k espera=0ms paq=407 tiradas=41 mudo
+2026-11-11T19:21:09.237Z web 2026-11-11T19:21:09.209Z · llamada · b1 · neurona 00000000-0000-4000-8000-0000000000a1 · medio=enlace-datos voz-datos rx paq=200 perd=2.8% tardias=0 ocultadas=+0 inventado=0% jitter=290ms
+2026-11-11T19:21:12.268Z web 2026-11-11T19:21:10.262Z · llamada · b1 · neurona 00000000-0000-4000-8000-0000000000a1 · medio=video-datos video-datos tx capturados=27 codificados=27 enviados=26 descartados=135 clave=4 kbps=0 negros=0 motivos=pausa:126,saliendo:9
+2026-11-11T19:21:12.268Z web 2026-11-11T19:21:10.262Z · llamada · b1 · neurona 00000000-0000-4000-8000-0000000000a1 · medio=video-datos video-datos rx paquetes=3 cuadros=0 decodificados=0 pintados=0 errores=0 ultimoError=ninguno
+2026-11-11T19:21:12.268Z web 2026-11-11T19:21:11.201Z · llamada · b1 · neurona 00000000-0000-4000-8000-0000000000a1 · senal-recibida app
+2026-11-11T19:21:14.866Z web 2026-11-11T19:21:12.863Z · llamada · b1 · neurona 00000000-0000-4000-8000-0000000000a1 · senal-enviada app via=ble
+2026-11-11T19:21:14.866Z web 2026-11-11T19:21:13.267Z · llamada · b1 · neurona 00000000-0000-4000-8000-0000000000a1 · medio=video-datos video-datos reparto pausa motivo=suelo kbps obj=0 voz=1 video=0 cabe=20 enlace=35+42ms espera-voz=82ms vent=300B coste=x1.7 fps=0 otro=pausa
+2026-11-11T19:21:14.866Z web 2026-11-11T19:21:14.050Z · llamada · b1 · neurona 00000000-0000-4000-8000-0000000000a1 · senal-recibida colgar
+2026-11-11T19:21:14.866Z web 2026-11-11T19:21:14.651Z · llamada · b1 · neurona 00000000-0000-4000-8000-0000000000a1 · senal-enviada colgar via=ble
+2026-11-11T19:21:26.998Z ble l2cap-kbps enlace=b1 neurona=00000000-0000-4000-8000-0000000000a1 · kbps=258 (mensaje de 4618 B en 143 ms)
+2026-11-11T19:21:28.335Z web 2026-11-11T19:21:26.233Z · hola · b1 · neurona 00000000-0000-4000-8000-0000000000a1 · saludo firmado (primero); prueba de cuenta incluida
+2026-11-11T19:21:31.741Z web (Maggaboard) 2026-11-11T19:21:03.636Z · web · llamada · camara abierta elegida="camera 1, facing front" (integrada) motivo=pedida ms=1103 ajustes=1280x720 estado=live
+2026-11-11T19:21:31.741Z web (Maggaboard) 2026-11-11T19:21:04.783Z · web · llamada · b2 · neurona 00000000-0000-4000-8000-0000000000a1 · medio=enlace-datos voz-datos tx n=5 opus=6k trama/paq=60/180ms texto=10k fmt=b1 cabe=30k enlace=45k+115ms entregado=0k espera=0ms paq=200 tiradas
+2026-11-11T19:21:31.741Z web (Maggaboard) 2026-11-11T19:21:04.783Z · web · llamada · b2 · neurona 00000000-0000-4000-8000-0000000000a1 · medio=enlace-datos voz-datos rx paq=310 perd=0.7% tardias=242 ocultadas=+0 inventado=0% jitter=380ms
+2026-11-11T19:21:31.741Z web (Maggaboard) 2026-11-11T19:21:04.919Z · web · llamada · b2 · neurona 00000000-0000-4000-8000-0000000000a1 · medio=video-datos video-datos reparto pausa motivo=suelo kbps obj=0 voz=1 video=0 cabe=5 enlace=8+42ms espera-voz=62ms vent=300B coste=x2.1 fps=0
+2026-11-11T19:21:31.741Z web (Maggaboard) 2026-11-11T19:21:08.908Z · web · llamada · b2 · neurona 00000000-0000-4000-8000-0000000000a1 · medio=video-datos video-datos tx capturados=1 codificados=1 enviados=0 descartados=143 clave=1 kbps=0 negros=0 motivos=pausa:138,saliendo:5
+2026-11-11T19:21:31.741Z web (Maggaboard) 2026-11-11T19:21:08.908Z · web · llamada · b2 · neurona 00000000-0000-4000-8000-0000000000a1 · medio=video-datos video-datos rx paquetes=59 cuadros=26 decodificados=26 pintados=26 errores=0 ultimoError=ninguno
+2026-11-11T19:21:31.741Z web (Maggaboard) 2026-11-11T19:21:10.789Z · web · llamada · b2 · neurona 00000000-0000-4000-8000-0000000000a1 · medio=enlace-datos voz-datos tx n=5 opus=6k trama/paq=60/180ms texto=10k fmt=b1 cabe=33k enlace=49k+120ms entregado=0k espera=0ms paq=200 tiradas
+2026-11-11T19:21:31.741Z web (Maggaboard) 2026-11-11T19:21:10.789Z · web · llamada · b2 · neurona 00000000-0000-4000-8000-0000000000a1 · medio=enlace-datos voz-datos rx paq=310 perd=0.7% tardias=242 ocultadas=+0 inventado=0% jitter=380ms
+2026-11-11T19:21:31.741Z web (Maggaboard) 2026-11-11T19:21:10.907Z · web · llamada · b2 · neurona 00000000-0000-4000-8000-0000000000a1 · medio=video-datos video-datos reparto pausa motivo=suelo kbps obj=0 voz=1 video=0 cabe=5 enlace=9+42ms espera-voz=115ms vent=300B coste=x2.1 fps=
+2026-11-11T19:21:31.741Z web (Maggaboard) 2026-11-11T19:21:10.986Z · web · llamada · b2 · neurona 00000000-0000-4000-8000-0000000000a1 · senal-enviada app via=ble
+2026-11-11T19:21:31.741Z web (Maggaboard) 2026-11-11T19:21:12.586Z · web · llamada · b2 · neurona 00000000-0000-4000-8000-0000000000a1 · senal-recibida app
+2026-11-11T19:21:31.741Z web (Maggaboard) 2026-11-11T19:21:13.757Z · web · llamada · b2 · neurona 00000000-0000-4000-8000-0000000000a1 · senal-enviada colgar via=ble
+2026-11-11T19:21:31.741Z web (Maggaboard) 2026-11-11T19:21:26.317Z · web · hola · b2 · neurona 00000000-0000-4000-8000-0000000000a1 · saludo firmado (respuesta); prueba de cuenta incluida
+2026-11-11T19:22:03.034Z web (Maggaboard) 2026-11-11T19:21:28.861Z · nativa · l2cap-kbps · b2 · neurona 00000000-0000-4000-8000-0000000000a1 · kbps=344 (mensaje de 4861 B en 113 ms)
+2026-11-11T19:28:00.215Z ble l2cap-kbps enlace=b1 neurona=00000000-0000-4000-8000-0000000000a1 · kbps=259 (mensaje de 4153 B en 128 ms)
+2026-11-11T19:35:32.354Z ble l2cap-kbps enlace=b1 neurona=00000000-0000-4000-8000-0000000000a1 · kbps=160 (mensaje de 2774 B en 138 ms)
+2026-11-11T19:37:48.665Z ble l2cap-kbps enlace=b1 neurona=00000000-0000-4000-8000-0000000000a1 · kbps=211 (mensaje de 2773 B en 105 ms)
+2026-11-11T19:43:31.213Z web (Maggaboard) 2026-11-11T19:43:22.250Z · web · llamada · b2 · neurona 00000000-0000-4000-8000-0000000000a1 · inicio paso=registro-servidor ok local=7aa79709 servidor=9904f0f6
+2026-11-11T19:43:56.446Z web 2026-11-11T19:43:56.444Z web relevo - - tabla Maggaboard releva alcanza=62d50afc(nativo),62d50afc(ble)
+2026-11-11T19:47:46.511Z web 2026-11-11T19:47:46.430Z web relevo - - tabla Maggaboard releva alcanza=62d50afc(local),62d50afc(nativo),62d50afc(ble)
+2026-11-11T19:48:28.678Z ble radio · encendida:
+2026-11-11T19:48:29.145Z ble conectar neurona=00000000-0000-4000-8000-0000000000a1 · intento 1 (espera previa 0 ms)
+2026-11-11T19:48:30.069Z ble servicios-descubiertos · servicio StarSeed encontrado, pidiendo características (c:00000000-0000-4000-8000-0000000000a1)
+2026-11-11T19:48:30.189Z ble suscrito · notificaciones de SALIDA activas, paquete 512 (c:00000000-0000-4000-8000-0000000000a1)
+2026-11-11T19:48:30.189Z ble enlace-abierto enlace=b1 neurona=00000000-0000-4000-8000-0000000000a1 · rol=central paquete=512 intentos-previos=1
+2026-11-11T19:48:30.584Z ble primer-dato-recibido enlace=b1 neurona=00000000-0000-4000-8000-0000000000a1 · 512 B, 395 ms después de abrir el enlace
+2026-11-11T19:48:30.640Z ble primer-paquete-retirado enlace=b1 neurona=00000000-0000-4000-8000-0000000000a1 · 3 B, 451 ms después de abrir el enlace
+2026-11-11T19:48:41.371Z ble l2cap-listo enlace=b1 neurona=00000000-0000-4000-8000-0000000000a1 · enlace ligado por GATT: el canal rápido ya puede negociarse (psm=aún sin leer)
+2026-11-11T19:48:41.395Z ble l2cap-psm enlace=b1 neurona=00000000-0000-4000-8000-0000000000a1 · psm=133
+2026-11-11T19:48:41.540Z ble l2cap-abriendo enlace=b1 neurona=00000000-0000-4000-8000-0000000000a1 · psm=133 (intento 1)
+2026-11-11T19:48:41.618Z ble l2cap-abierto enlace=b1 neurona=00000000-0000-4000-8000-0000000000a1 · psm=133 · paquete 4096 B (GATT 512 B) · autoprueba en curso, por ahora todo sigue por GATT
+2026-11-11T19:48:41.683Z ble l2cap-prueba-ok enlace=b1 neurona=00000000-0000-4000-8000-0000000000a1 · rtt=65ms · desde ahora el tráfico del enlace sale por el canal rápido
+2026-11-11T19:48:41.794Z ble l2cap-kbps enlace=b1 neurona=00000000-0000-4000-8000-0000000000a1 · kbps=209 (mensaje de 2276 B en 87 ms)
+2026-11-11T19:48:43.055Z web 2026-11-11T19:48:41.052Z · abierto · b1 · neurona 00000000-0000-4000-8000-0000000000a1 · enlace central abierto (paquete 512 B, -60 dBm); a saludar
+2026-11-11T19:48:43.055Z web 2026-11-11T19:48:41.370Z · ligado · b1 · neurona 00000000-0000-4000-8000-0000000000a1 · ligado al saludo firmado (neurona vinculada), cifrado v1
+2026-11-11T19:48:43.055Z web 2026-11-11T19:48:41.837Z · canal-rapido · b1 · neurona 00000000-0000-4000-8000-0000000000a1 · canal rápido L2CAP abierto (psm 133, 209 kb/s)
+2026-11-11T19:48:43.055Z web (Maggaboard) 2026-11-11T19:48:23.095Z · nativa · l2cap-cerrado · b2 · neurona 00000000-0000-4000-8000-0000000000a1 · motivo=el otro aparato cerró el canal L2CAP · estaba abierto · vivió 2270243 ms · se sigue por GATT · reabre en 0 ms · último kbps rápid
+2026-11-11T19:48:43.055Z web (Maggaboard) 2026-11-11T19:48:23.096Z · nativa · enlace-cerrado · b2 · neurona 00000000-0000-4000-8000-0000000000a1 · el otro aparato se desuscribió · vivo 2468 s · rol=periferico · enviado 456810 B / recibido 788830 B · 0 msg en cola · 0 reintentos · 0
+2026-11-11T19:48:43.055Z web (Maggaboard) 2026-11-11T19:48:23.224Z · web · perdido · b2 · neurona 00000000-0000-4000-8000-0000000000a1 · el enlace se cerró (abierto 2458 s, rol periferico, 456810 B enviados / 788830 B recibidos)
+2026-11-11T19:48:43.055Z web (Maggaboard) 2026-11-11T19:48:29.660Z · nativa · mtu-cambio · paquete 20 → 512 (mtu 517) (p:C0:95:6D:3D:8A:3B)
+2026-11-11T19:48:43.055Z web (Maggaboard) 2026-11-11T19:48:29.941Z · nativa · suscrito · el otro aparato activó las notificaciones de SALIDA, paquete 512 (p:C0:95:6D:3D:8A:3B)
+2026-11-11T19:48:43.055Z web (Maggaboard) 2026-11-11T19:48:29.941Z · nativa · enlace-abierto · b3 · neurona 00000000-0000-4000-8000-0000000000a1 · rol=periferico paquete=512 intentos-previos=0
+2026-11-11T19:48:43.055Z web (Maggaboard) 2026-11-11T19:48:30.211Z · web · abierto · b3 · neurona 00000000-0000-4000-8000-0000000000a1 · enlace periferico abierto (paquete 512 B, -34 dBm); a saludar
+2026-11-11T19:48:43.055Z web (Maggaboard) 2026-11-11T19:48:30.311Z · nativa · primer-paquete-retirado · b3 · neurona 00000000-0000-4000-8000-0000000000a1 · 512 B, 370 ms después de abrir el enlace
+2026-11-11T19:48:43.055Z web (Maggaboard) 2026-11-11T19:48:30.414Z · nativa · primer-dato-recibido · b3 · neurona 00000000-0000-4000-8000-0000000000a1 · 3 B, 472 ms después de abrir el enlace
+2026-11-11T19:48:43.055Z web (Maggaboard) 2026-11-11T19:48:32.212Z · web · reintento · b3 · neurona 00000000-0000-4000-8000-0000000000a1 · el enlace sigue sin ligar tras 2 s: se vuelve a saludar
+2026-11-11T19:48:43.055Z web (Maggaboard) 2026-11-11T19:48:37.364Z · web · reintento · b3 · neurona 00000000-0000-4000-8000-0000000000a1 · el enlace sigue sin ligar tras 5 s: se vuelve a saludar
+2026-11-11T19:48:43.055Z web (Maggaboard) 2026-11-11T19:48:41.064Z · nativa · contador-enlaces · en 60 s: 1 conexiones, 1 desconexiones reales, 1 avisos repetidos ignorados
+2026-11-11T19:48:43.055Z web (Maggaboard) 2026-11-11T19:48:41.156Z · web · reconectado · b3 · neurona 00000000-0000-4000-8000-0000000000a1 · enlace nuevo b3 (antes b2) tras 18 s sin enlace
+2026-11-11T19:48:43.055Z web (Maggaboard) 2026-11-11T19:48:41.186Z · nativa · l2cap-listo · b3 · neurona 00000000-0000-4000-8000-0000000000a1 · enlace ligado por GATT: el canal rápido ya puede negociarse (psm=aún sin leer)
+2026-11-11T19:48:43.055Z web (Maggaboard) 2026-11-11T19:48:41.330Z · nativa · l2cap-abierto · b3 · neurona 00000000-0000-4000-8000-0000000000a1 · psm=133 · paquete 4096 B (GATT 512 B) · autoprueba en curso, por ahora todo sigue por GATT
+2026-11-11T19:48:43.055Z web (Maggaboard) 2026-11-11T19:48:41.399Z · nativa · l2cap-prueba-ok · b3 · neurona 00000000-0000-4000-8000-0000000000a1 · rtt=69ms · desde ahora el tráfico del enlace sale por el canal rápido
+2026-11-11T19:48:43.055Z web (Maggaboard) 2026-11-11T19:48:41.493Z · web · canal-rapido · b3 · neurona 00000000-0000-4000-8000-0000000000a1 · canal rápido L2CAP abierto (psm 133, sin medir kb/s)
+2026-11-11T19:49:16.142Z web (Maggaboard) 2026-11-11T19:48:41.949Z · nativa · l2cap-kbps · b3 · neurona 00000000-0000-4000-8000-0000000000a1 · kbps=355 (mensaje de 4840 B en 109 ms)
+2026-11-11T19:50:36.383Z web 2026-11-11T19:50:36.372Z web relevo - - tabla Maggaboard releva alcanza=62d50afc(local),62d50afc(nativo),62d50afc(ble),62d50afc(cuenta)
+2026-11-11T20:03:46.251Z web 2026-11-11T20:03:46.192Z web relevo - - tabla Maggaboard releva alcanza=62d50afc(local),62d50afc(nativo),62d50afc(ble)
+2026-11-11T20:03:47.767Z web (Maggaboard) 2026-11-11T20:03:30.686Z · web · hola · b3 · neurona 00000000-0000-4000-8000-0000000000a1 · saludo firmado (respuesta); prueba de cuenta incluida
+2026-11-11T20:05:59.048Z web 2026-11-11T20:05:59.041Z web relevo - - anuncio-caducado Maggaboard
+2026-11-11T21:01:32.583Z web 2026-11-11T21:01:30.580Z · ligado · b1 · neurona 00000000-0000-4000-8000-0000000000a1 · ligado al saludo firmado (neurona vinculada), cifrado v1
+2026-11-11T21:01:32.583Z web 2026-11-11T21:01:30.627Z · cifrado · b1 · neurona 00000000-0000-4000-8000-0000000000a1 · el cifrado del enlace Bluetooth aún no está listo; se reintenta (1 mensaje(s) devueltos)
+2026-11-11T21:01:34.468Z web 2026-11-11T21:01:34.460Z web relevo - - tabla Maggaboard releva alcanza=62d50afc(local),62d50afc(nativo),62d50afc(ble)
+2026-11-11T21:02:03.405Z web (Maggaboard) 2026-11-11T21:01:29.356Z · web · cifrado · b3 · neurona 00000000-0000-4000-8000-0000000000a1 · el cifrado del enlace Bluetooth aún no está listo; se reintenta (1 mensaje(s) devueltos)
+2026-11-11T21:02:56.061Z web 2026-11-11T21:02:56.050Z web relevo - - anuncio-caducado Maggaboard
+2026-11-11T21:55:10.132Z ble l2cap-kbps enlace=b1 neurona=00000000-0000-4000-8000-0000000000a1 · kbps=234 (mensaje de 4137 B en 141 ms)
+2026-11-11T22:30:08.063Z ble l2cap-kbps enlace=b1 neurona=00000000-0000-4000-8000-0000000000a1 · kbps=234 (mensaje de 4136 B en 141 ms)
+2026-11-12T00:06:09.943Z ble l2cap-cerrado enlace=b1 neurona=00000000-0000-4000-8000-0000000000a1 · motivo=el otro aparato cerró el canal L2CAP · estaba abierto · vivió 15448325 ms · se sigue por GATT · reabre en 0 ms · último kbps rápido=234
+2026-11-12T00:06:10.069Z ble l2cap-abriendo enlace=b1 neurona=00000000-0000-4000-8000-0000000000a1 · psm=133 (intento 1)
+2026-11-12T00:06:10.703Z ble listo-tarde enlace=b1 neurona=00000000-0000-4000-8000-0000000000a1 · sin «listo para escribir» en 400 ms: se escribe igual (aviso 1)
+2026-11-12T00:06:10.704Z ble listo-tarde enlace=b1 neurona=00000000-0000-4000-8000-0000000000a1 · sin «listo para escribir» en 400 ms: se escribe igual (aviso 3)
+2026-11-12T00:06:10.978Z ble l2cap-cerrado enlace=b1 neurona=00000000-0000-4000-8000-0000000000a1 · motivo=macOS no pudo abrir el canal L2CAP: Unknown error. · no llegó a abrir · vivió 0 ms · se sigue por GATT · reabre en 2000 ms · último kbps rápido=234
+2026-11-12T00:06:10.988Z ble enlace-cerrado enlace=b1 neurona=00000000-0000-4000-8000-0000000000a1 · el otro aparato se desconectó: The specified device has disconnected from us. · vivo 15460 s · rol=central · enviado 316775 B / recibido 34358 B · 1 msg en cola · 0 reintentos · 1 s sin oír al otro · latidos=sí
+2026-11-12T00:06:10.988Z ble envio-fallido enlace=b1 · Bluetooth directo: el enlace Bluetooth se cerró: el otro aparato se desconectó: The specified device has disconnected from us..
+2026-11-12T00:06:12.121Z web 2026-11-12T00:06:10.115Z · canal-rapido · b1 · neurona 00000000-0000-4000-8000-0000000000a1 · canal rápido cerrado: sigue por GATT (sin medir kb/s)
+2026-11-12T00:06:12.121Z web 2026-11-12T00:06:11.157Z · perdido · b1 · neurona 00000000-0000-4000-8000-0000000000a1 · el enlace se cerró sin llegar a ligarse (abierto 15460 s, rol central, 316775 B enviados / 34358 B recibidos, 2 mensaje(s) sin enviar devueltos)
+2026-11-12T00:06:15.656Z web 2026-11-12T00:06:13.454Z · abierto · b2 · neurona 00000000-0000-4000-8000-0000000000a1 · enlace central abierto (paquete 512 B, -53 dBm); a saludar
+2026-11-12T00:06:37.127Z web 2026-11-12T00:06:15.655Z · reintento · b2 · neurona 00000000-0000-4000-8000-0000000000a1 · el enlace sigue sin ligar tras 2 s: se vuelve a saludar
+2026-11-12T00:06:39.302Z web 2026-11-12T00:06:37.217Z · reintento · b2 · neurona 00000000-0000-4000-8000-0000000000a1 · el enlace sigue sin ligar tras 5 s: se vuelve a saludar
+2026-11-12T00:10:31.834Z web 2026-11-12T00:10:29.767Z · reintento · b2 · neurona 00000000-0000-4000-8000-0000000000a1 · el enlace sigue sin ligar tras 15 s: se vuelve a saludar
+2026-11-12T00:15:09.953Z web 2026-11-12T00:15:07.641Z · reintento · b2 · neurona 00000000-0000-4000-8000-0000000000a1 · el enlace sigue sin ligar tras 15 s: se vuelve a saludar
+2026-11-12T00:15:36.947Z web 2026-11-12T00:15:27.639Z · reintento · b2 · neurona 00000000-0000-4000-8000-0000000000a1 · el enlace sigue sin ligar tras 15 s: se vuelve a saludar
+2026-11-12T00:37:32.481Z web 2026-11-12T00:37:30.472Z · perdido · b2 · neurona 00000000-0000-4000-8000-0000000000a1 · el enlace se cerró sin llegar a ligarse (abierto 1753 s, rol central, 22526 B enviados / 0 B recibidos)
+2026-11-12T00:37:32.481Z web 2026-11-12T00:37:31.877Z · abierto · b3 · neurona 00000000-0000-4000-8000-0000000000a1 · enlace central abierto (paquete 512 B, -52 dBm); a saludar
+2026-11-12T00:37:56.930Z web 2026-11-12T00:37:33.976Z · reintento · b3 · neurona 00000000-0000-4000-8000-0000000000a1 · el enlace sigue sin ligar tras 2 s: se vuelve a saludar
+2026-11-12T00:37:59.004Z web 2026-11-12T00:37:56.994Z · reintento · b3 · neurona 00000000-0000-4000-8000-0000000000a1 · el enlace sigue sin ligar tras 5 s: se vuelve a saludar
+2026-11-12T00:40:05.937Z web 2026-11-12T00:40:03.835Z · reintento · b3 · neurona 00000000-0000-4000-8000-0000000000a1 · el enlace sigue sin ligar tras 15 s: se vuelve a saludar
+2026-11-12T00:40:32.779Z web 2026-11-12T00:40:30.773Z · reintento · b3 · neurona 00000000-0000-4000-8000-0000000000a1 · el enlace sigue sin ligar tras 15 s: se vuelve a saludar
+2026-11-12T00:40:32.779Z web 2026-11-12T00:40:31.394Z · perdido · b3 · neurona 00000000-0000-4000-8000-0000000000a1 · el enlace se cerró sin llegar a ligarse (abierto 179 s, rol central, 9652 B enviados / 0 B recibidos, 1 mensaje(s) sin enviar devueltos)
+2026-11-12T00:40:40.269Z web 2026-11-12T00:40:38.261Z · abierto · b4 · neurona 00000000-0000-4000-8000-0000000000a1 · enlace central abierto (paquete 512 B, -49 dBm); a saludar
+2026-11-12T00:40:40.269Z web 2026-11-12T00:40:39.261Z · perdido · b4 · neurona 00000000-0000-4000-8000-0000000000a1 · el enlace se cerró sin llegar a ligarse (abierto 0 s, rol central, 0 B enviados / 0 B recibidos, 1 mensaje(s) sin enviar devueltos)
+2026-11-12T00:40:59.530Z ble conexion-vencida · la conexión llevaba más de 15 s sin llegar a listo: se cancela y se reintenta (c:00000000-0000-4000-8000-0000000000a1)
+2026-11-12T00:41:12.190Z web 2026-11-12T00:41:09.981Z · abierto · b5 · neurona 00000000-0000-4000-8000-0000000000a1 · enlace central abierto (paquete 512 B, -50 dBm); a saludar
+2026-11-12T00:45:01.893Z web 2026-11-12T00:41:12.193Z · reintento · b5 · neurona 00000000-0000-4000-8000-0000000000a1 · el enlace sigue sin ligar tras 2 s: se vuelve a saludar
+2026-11-12T00:45:04.395Z web 2026-11-12T00:45:01.982Z · reintento · b5 · neurona 00000000-0000-4000-8000-0000000000a1 · el enlace sigue sin ligar tras 5 s: se vuelve a saludar
+2026-11-12T00:45:09.331Z web 2026-11-12T00:45:07.328Z · perdido · b5 · neurona 00000000-0000-4000-8000-0000000000a1 · el enlace se cerró sin llegar a ligarse (abierto 232 s, rol central, 3678 B enviados / 0 B recibidos)
+2026-11-12T00:45:11.805Z web 2026-11-12T00:45:09.623Z · abierto · b6 · neurona 00000000-0000-4000-8000-0000000000a1 · enlace central abierto (paquete 512 B, -53 dBm); a saludar
+2026-11-12T00:45:27.761Z web 2026-11-12T00:45:11.806Z · reintento · b6 · neurona 00000000-0000-4000-8000-0000000000a1 · el enlace sigue sin ligar tras 2 s: se vuelve a saludar
+2026-11-12T00:45:29.970Z web 2026-11-12T00:45:27.770Z · reintento · b6 · neurona 00000000-0000-4000-8000-0000000000a1 · el enlace sigue sin ligar tras 5 s: se vuelve a saludar
+2026-11-12T00:50:10.173Z web 2026-11-12T00:50:08.166Z · reintento · b6 · neurona 00000000-0000-4000-8000-0000000000a1 · el enlace sigue sin ligar tras 15 s: se vuelve a saludar
+2026-11-12T00:50:31.113Z web 2026-11-12T00:50:29.014Z · reintento · b6 · neurona 00000000-0000-4000-8000-0000000000a1 · el enlace sigue sin ligar tras 15 s: se vuelve a saludar
+2026-11-12T00:51:36.051Z web 2026-11-12T00:51:33.951Z · perdido · b6 · neurona 00000000-0000-4000-8000-0000000000a1 · el enlace se cerró sin llegar a ligarse (abierto 320 s, rol central, 11493 B enviados / 0 B recibidos)
+2026-11-12T00:51:36.051Z web 2026-11-12T00:51:36.023Z · abierto · b7 · neurona 00000000-0000-4000-8000-0000000000a1 · enlace central abierto (paquete 512 B, -49 dBm); a saludar
+2026-11-12T00:51:38.121Z web 2026-11-12T00:51:38.116Z · reintento · b7 · neurona 00000000-0000-4000-8000-0000000000a1 · el enlace sigue sin ligar tras 2 s: se vuelve a saludar
+2026-11-12T00:52:04.663Z web 2026-11-12T00:52:02.563Z · reintento · b7 · neurona 00000000-0000-4000-8000-0000000000a1 · el enlace sigue sin ligar tras 5 s: se vuelve a saludar
+2026-11-12T00:55:07.624Z web 2026-11-12T00:55:05.616Z · reintento · b7 · neurona 00000000-0000-4000-8000-0000000000a1 · el enlace sigue sin ligar tras 15 s: se vuelve a saludar
+2026-11-12T00:55:09.993Z web 2026-11-12T00:55:07.988Z · perdido · b7 · neurona 00000000-0000-4000-8000-0000000000a1 · el enlace se cerró sin llegar a ligarse (abierto 211 s, rol central, 7357 B enviados / 0 B recibidos, 1 mensaje(s) sin enviar devueltos)
+2026-11-12T00:55:13.785Z web 2026-11-12T00:55:11.677Z · abierto · b8 · neurona 00000000-0000-4000-8000-0000000000a1 · enlace central abierto (paquete 512 B, -50 dBm); a saludar
+2026-11-12T00:55:30.634Z web 2026-11-12T00:55:13.784Z · reintento · b8 · neurona 00000000-0000-4000-8000-0000000000a1 · el enlace sigue sin ligar tras 2 s: se vuelve a saludar
+2026-11-12T00:55:42.608Z web 2026-11-12T00:55:38.729Z · reintento · b8 · neurona 00000000-0000-4000-8000-0000000000a1 · el enlace sigue sin ligar tras 5 s: se vuelve a saludar
+2026-11-12T00:55:42.608Z web 2026-11-12T00:55:42.226Z · perdido · b8 · neurona 00000000-0000-4000-8000-0000000000a1 · el enlace se cerró sin llegar a ligarse (abierto 22 s, rol central, 3680 B enviados / 0 B recibidos, 1 mensaje(s) sin enviar devueltos)
+2026-11-12T00:55:44.474Z web 2026-11-12T00:55:42.291Z · caida · b8 · sin acuse tras 6 intentos (Bluetooth directo: el enlace Bluetooth se cerró: el otro aparato se desconectó: The connection has timed out unexpectedly..); racha 1, se reintenta en 2 s; 0 mensaje(s) devueltos
+2026-11-12T00:55:44.474Z web 2026-11-12T00:55:44.301Z · abierto · b9 · neurona 00000000-0000-4000-8000-0000000000a1 · enlace central abierto (paquete 512 B, -52 dBm); a saludar
+2026-11-12T00:55:47.396Z web 2026-11-12T00:55:45.434Z · perdido · b9 · neurona 00000000-0000-4000-8000-0000000000a1 · el enlace se cerró sin llegar a ligarse (abierto 0 s, rol central, 0 B enviados / 0 B recibidos, 1 mensaje(s) sin enviar devueltos)
+2026-11-12T00:55:51.765Z web 2026-11-12T00:55:49.757Z · abierto · b10 · neurona 00000000-0000-4000-8000-0000000000a1 · enlace central abierto (paquete 512 B, -51 dBm); a saludar
+2026-11-12T00:55:51.765Z web 2026-11-12T00:55:50.805Z · perdido · b10 · neurona 00000000-0000-4000-8000-0000000000a1 · el enlace se cerró sin llegar a ligarse (abierto 0 s, rol central, 0 B enviados / 0 B recibidos, 1 mensaje(s) sin enviar devueltos)
+2026-11-12T00:55:51.765Z web 2026-11-12T00:55:50.808Z · caida · b10 · sin acuse tras 6 intentos (El enlace Bluetooth «b10» ya no está abierto.); racha 1, se reintenta en 2 s; 0 mensaje(s) devueltos
+2026-11-12T00:55:57.221Z web 2026-11-12T00:55:55.180Z · abierto · b11 · neurona 00000000-0000-4000-8000-0000000000a1 · enlace central abierto (paquete 512 B, -52 dBm); a saludar
+2026-11-12T00:55:57.221Z web 2026-11-12T00:55:56.179Z · perdido · b11 · neurona 00000000-0000-4000-8000-0000000000a1 · el enlace se cerró sin llegar a ligarse (abierto 0 s, rol central, 0 B enviados / 0 B recibidos, 1 mensaje(s) sin enviar devueltos)
+2026-11-12T00:56:05.269Z web 2026-11-12T00:56:03.264Z · abierto · b12 · neurona 00000000-0000-4000-8000-0000000000a1 · enlace central abierto (paquete 512 B, -49 dBm); a saludar
+2026-11-12T00:56:05.269Z web 2026-11-12T00:56:04.252Z · perdido · b12 · neurona 00000000-0000-4000-8000-0000000000a1 · el enlace se cerró sin llegar a ligarse (abierto 0 s, rol central, 0 B enviados / 0 B recibidos, 1 mensaje(s) sin enviar devueltos)
+2026-11-12T00:56:24.898Z web 2026-11-12T00:56:22.883Z · abierto · b13 · neurona 00000000-0000-4000-8000-0000000000a1 · enlace central abierto (paquete 512 B, -50 dBm); a saludar
+2026-11-12T00:56:26.996Z web 2026-11-12T00:56:24.893Z · reintento · b13 · neurona 00000000-0000-4000-8000-0000000000a1 · el enlace sigue sin ligar tras 2 s: se vuelve a saludar
+2026-11-12T00:56:34.791Z web 2026-11-12T00:56:32.688Z · reintento · b13 · neurona 00000000-0000-4000-8000-0000000000a1 · el enlace sigue sin ligar tras 5 s: se vuelve a saludar
+2026-11-12T01:00:34.434Z web 2026-11-12T01:00:32.368Z · reintento · b13 · neurona 00000000-0000-4000-8000-0000000000a1 · el enlace sigue sin ligar tras 15 s: se vuelve a saludar
+2026-11-12T01:05:06.964Z web 2026-11-12T01:05:03.686Z · reintento · b13 · neurona 00000000-0000-4000-8000-0000000000a1 · el enlace sigue sin ligar tras 15 s: se vuelve a saludar
+2026-11-12T01:05:25.044Z web 2026-11-12T01:05:22.979Z · reintento · b13 · neurona 00000000-0000-4000-8000-0000000000a1 · el enlace sigue sin ligar tras 15 s: se vuelve a saludar
+2026-11-12T01:11:55.951Z web 2026-11-12T01:11:53.051Z · perdido · b13 · neurona 00000000-0000-4000-8000-0000000000a1 · el enlace se cerró sin llegar a ligarse (abierto 891 s, rol central, 24370 B enviados / 0 B recibidos)
+2026-11-12T01:11:55.951Z web 2026-11-12T01:11:53.146Z · abierto · b13 · neurona 00000000-0000-4000-8000-0000000000a1 · enlace central abierto (paquete 512 B, ? dBm); a saludar
+2026-11-12T01:11:55.951Z web 2026-11-12T01:11:54.581Z · perdido · b13 · neurona 00000000-0000-4000-8000-0000000000a1 · el enlace se cerró sin llegar a ligarse (abierto 911 s, rol central, 26209 B enviados / 0 B recibidos, 1 mensaje(s) sin enviar devueltos)
+2026-11-12T01:11:58.671Z web 2026-11-12T01:11:56.420Z · caida · b13 · sin acuse tras 6 intentos (El enlace Bluetooth «b13» ya no está abierto.); racha 1, se reintenta en 2 s; 0 mensaje(s) devueltos
+2026-11-12T01:12:03.071Z web 2026-11-12T01:12:01.066Z · abierto · b14 · neurona 00000000-0000-4000-8000-0000000000a1 · enlace central abierto (paquete 512 B, -50 dBm); a saludar
+2026-11-12T01:12:03.071Z web 2026-11-12T01:12:02.069Z · perdido · b14 · neurona 00000000-0000-4000-8000-0000000000a1 · el enlace se cerró sin llegar a ligarse (abierto 0 s, rol central, 0 B enviados / 0 B recibidos, 1 mensaje(s) sin enviar devueltos)
+2026-11-12T01:12:37.618Z web 2026-11-12T01:12:34.683Z · abierto · b15 · neurona 00000000-0000-4000-8000-0000000000a1 · enlace central abierto (paquete 512 B, -49 dBm); a saludar
+2026-11-12T01:12:37.618Z web 2026-11-12T01:12:37.535Z · perdido · b15 · neurona 00000000-0000-4000-8000-0000000000a1 · el enlace se cerró sin llegar a ligarse (abierto 0 s, rol central, 0 B enviados / 0 B recibidos, 1 mensaje(s) sin enviar devueltos)
+2026-11-12T01:12:39.564Z web 2026-11-12T01:12:37.551Z · caida · b15 · sin acuse tras 6 intentos (Bluetooth directo: el enlace Bluetooth se cerró: el otro aparato se desconectó: The connection has timed out unexpectedly..); racha 1, se reintenta en 2 s; 0 mensaje(s) devueltos
+2026-11-12T01:12:42.664Z web 2026-11-12T01:12:40.090Z · abierto · b16 · neurona 00000000-0000-4000-8000-0000000000a1 · enlace central abierto (paquete 512 B, -53 dBm); a saludar
+2026-11-12T01:13:18.342Z web 2026-11-12T01:12:42.791Z · reintento · b16 · neurona 00000000-0000-4000-8000-0000000000a1 · el enlace sigue sin ligar tras 2 s: se vuelve a saludar
+2026-11-12T01:13:28.054Z web 2026-11-12T01:13:15.779Z · reintento · b16 · neurona 00000000-0000-4000-8000-0000000000a1 · el enlace sigue sin ligar tras 5 s: se vuelve a saludar
+2026-11-12T01:13:31.056Z web 2026-11-12T01:13:28.968Z · perdido · b16 · neurona 00000000-0000-4000-8000-0000000000a1 · el enlace se cerró sin llegar a ligarse (abierto 40 s, rol central, 3678 B enviados / 0 B recibidos, 1 mensaje(s) sin enviar devueltos)
+2026-11-12T01:13:31.056Z web 2026-11-12T01:13:29.026Z · caida · b16 · sin acuse tras 6 intentos (Bluetooth directo: el enlace Bluetooth se cerró: el otro aparato se desconectó: The connection has timed out unexpectedly..); racha 1, se reintenta en 2 s; 0 mensaje(s) devueltos
+2026-11-12T01:13:33.287Z web 2026-11-12T01:13:31.275Z · abierto · b17 · neurona 00000000-0000-4000-8000-0000000000a1 · enlace central abierto (paquete 512 B, -53 dBm); a saludar
+2026-11-12T01:13:33.287Z web 2026-11-12T01:13:32.254Z · perdido · b17 · neurona 00000000-0000-4000-8000-0000000000a1 · el enlace se cerró sin llegar a ligarse (abierto 0 s, rol central, 0 B enviados / 0 B recibidos, 1 mensaje(s) sin enviar devueltos)
+2026-11-12T01:13:52.317Z ble conexion-vencida · la conexión llevaba más de 15 s sin llegar a listo: se cancela y se reintenta (c:00000000-0000-4000-8000-0000000000a1)
+2026-11-12T01:13:56.090Z web 2026-11-12T01:13:53.998Z · abierto · b18 · neurona 00000000-0000-4000-8000-0000000000a1 · enlace central abierto (paquete 512 B, -50 dBm); a saludar
+2026-11-12T01:13:58.379Z web 2026-11-12T01:13:56.087Z · reintento · b18 · neurona 00000000-0000-4000-8000-0000000000a1 · el enlace sigue sin ligar tras 2 s: se vuelve a saludar
+2026-11-12T01:14:05.787Z web 2026-11-12T01:14:03.732Z · reintento · b18 · neurona 00000000-0000-4000-8000-0000000000a1 · el enlace sigue sin ligar tras 5 s: se vuelve a saludar
+2026-11-12T01:14:05.787Z web 2026-11-12T01:14:04.647Z · perdido · b18 · neurona 00000000-0000-4000-8000-0000000000a1 · el enlace se cerró sin llegar a ligarse (abierto 9 s, rol central, 3676 B enviados / 0 B recibidos, 1 mensaje(s) sin enviar devueltos)
+2026-11-12T01:14:11.175Z ble envio-fallido enlace=b19 · Bluetooth directo: el enlace Bluetooth se cerró: el otro aparato se desconectó: The connection has timed out unexpectedly..
+2026-11-12T01:14:12.748Z web 2026-11-12T01:14:10.642Z · abierto · b19 · neurona 00000000-0000-4000-8000-0000000000a1 · enlace central abierto (paquete 512 B, -52 dBm); a saludar
+2026-11-12T01:14:12.748Z web 2026-11-12T01:14:11.760Z · perdido · b19 · neurona 00000000-0000-4000-8000-0000000000a1 · el enlace se cerró sin llegar a ligarse (abierto 0 s, rol central, 0 B enviados / 0 B recibidos, 1 mensaje(s) sin enviar devueltos)
+2026-11-12T01:14:12.748Z web 2026-11-12T01:14:11.794Z · caida · b19 · sin acuse tras 6 intentos (El enlace Bluetooth «b19» ya no está abierto.); racha 1, se reintenta en 2 s; 0 mensaje(s) devueltos
+2026-11-12T01:14:21.653Z web 2026-11-12T01:14:19.458Z · abierto · b20 · neurona 00000000-0000-4000-8000-0000000000a1 · enlace central abierto (paquete 512 B, -53 dBm); a saludar
+2026-11-12T01:14:33.849Z web 2026-11-12T01:14:21.653Z · reintento · b20 · neurona 00000000-0000-4000-8000-0000000000a1 · el enlace sigue sin ligar tras 2 s: se vuelve a saludar
+2026-11-12T01:14:35.318Z web 2026-11-12T01:14:33.263Z · reintento · b20 · neurona 00000000-0000-4000-8000-0000000000a1 · el enlace sigue sin ligar tras 5 s: se vuelve a saludar
+2026-11-12T01:15:31.886Z web 2026-11-12T01:15:28.550Z · reintento · b20 · neurona 00000000-0000-4000-8000-0000000000a1 · el enlace sigue sin ligar tras 15 s: se vuelve a saludar
+2026-11-12T01:16:13.499Z web 2026-11-12T01:16:11.066Z · reintento · b20 · neurona 00000000-0000-4000-8000-0000000000a1 · el enlace sigue sin ligar tras 15 s: se vuelve a saludar
+2026-11-12T01:17:30.531Z web 2026-11-12T01:16:47.693Z · reintento · b20 · neurona 00000000-0000-4000-8000-0000000000a1 · el enlace sigue sin ligar tras 15 s: se vuelve a saludar
+2026-11-12T01:38:16.825Z ble enlace-cerrado enlace=b20 neurona=00000000-0000-4000-8000-0000000000a1 · el otro aparato se desconectó: The connection has timed out unexpectedly. · vivo 1437 s · rol=central · enviado 64844 B / recibido 0 B · 0 msg en cola · 0 reintentos · 2 s sin oír al otro · latidos=sí
+2026-11-12T01:38:20.510Z web 2026-11-12T01:38:18.338Z · perdido · b20 · neurona 00000000-0000-4000-8000-0000000000a1 · el enlace se cerró sin llegar a ligarse (abierto 1433 s, rol central, 64844 B enviados / 0 B recibidos)
+2026-11-12T01:38:20.792Z ble conectar neurona=00000000-0000-4000-8000-0000000000a1 · intento 1 (espera previa 0 ms)
+2026-11-12T01:38:21.817Z ble servicios-descubiertos · servicio StarSeed encontrado, pidiendo características (c:00000000-0000-4000-8000-0000000000a1)
+2026-11-12T01:38:22.056Z ble suscrito · notificaciones de SALIDA activas, paquete 512 (c:00000000-0000-4000-8000-0000000000a1)
+2026-11-12T01:38:22.056Z ble enlace-abierto enlace=b21 neurona=00000000-0000-4000-8000-0000000000a1 · rol=central paquete=512 intentos-previos=1
+2026-11-12T01:38:22.321Z ble primer-paquete-retirado enlace=b21 neurona=00000000-0000-4000-8000-0000000000a1 · 512 B, 265 ms después de abrir el enlace
+2026-11-12T01:38:22.582Z ble primer-dato-recibido enlace=b21 neurona=00000000-0000-4000-8000-0000000000a1 · 3 B, 526 ms después de abrir el enlace
+2026-11-12T01:38:24.276Z web 2026-11-12T01:38:22.144Z · abierto · b21 · neurona 00000000-0000-4000-8000-0000000000a1 · enlace central abierto (paquete 512 B, -56 dBm); a saludar
+2026-11-12T01:38:26.474Z web 2026-11-12T01:38:24.321Z · reintento · b21 · neurona 00000000-0000-4000-8000-0000000000a1 · el enlace sigue sin ligar tras 2 s: se vuelve a saludar
+2026-11-12T01:38:32.530Z web 2026-11-12T01:38:29.899Z · reintento · b21 · neurona 00000000-0000-4000-8000-0000000000a1 · el enlace sigue sin ligar tras 5 s: se vuelve a saludar
+2026-11-12T01:39:17.370Z web 2026-11-12T01:39:03.346Z · reintento · b21 · neurona 00000000-0000-4000-8000-0000000000a1 · el enlace sigue sin ligar tras 15 s: se vuelve a saludar
+2026-11-12T01:39:36.761Z web 2026-11-12T01:39:34.654Z · reintento · b21 · neurona 00000000-0000-4000-8000-0000000000a1 · el enlace sigue sin ligar tras 15 s: se vuelve a saludar
+2026-11-12T01:39:52.483Z web 2026-11-12T01:39:50.191Z · reintento · b21 · neurona 00000000-0000-4000-8000-0000000000a1 · el enlace sigue sin ligar tras 15 s: se vuelve a saludar
+2026-11-12T01:45:23.042Z web 2026-11-12T01:45:13.741Z · hola · b21 · neurona 00000000-0000-4000-8000-0000000000a1 · saludo firmado (primero); prueba de cuenta incluida
