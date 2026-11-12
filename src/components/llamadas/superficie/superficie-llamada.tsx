@@ -5,7 +5,7 @@
  * tamaños (burbuja arrastrable, panel, pantalla completa) y seis estados (LLA1108C). No conoce los motores:
  * recibe una `VistaLlamada` y unas `AccionesLlamada`. Contrato: `architecture/llamadas-telefonia.md`.
  */
-import { useEffect, useRef, useState, type PointerEvent as PE } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Circle, Eye, Maximize2, MessageSquare, Minimize2, Mic, MicOff, Minus, Monitor, MonitorOff, Pause, PictureInPicture2, Phone, PhoneOff, Play, Radio, Signal, Smile, Sparkles, SwitchCamera, UserPlus, Users, Video, VideoOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { hayGrabacion, textoIndicador, GRABACION_INICIAL } from "@/lib/llamadas/superficie/grabacion";
@@ -176,12 +176,12 @@ export function SuperficieLlamada({ vista: v, acciones: a, tamanoInicial, carril
   const tamanoActual = s.tamano;
   const hablando = !!v.participantes?.some((p) => !p.yo && (p.nivel ?? 0) > 0.08);
 
-  const arrastrando = (e: PE<HTMLElement>) => {
+  const arrastrando = (e: React.PointerEvent<HTMLElement>) => {
     if (tamanoActual !== "burbuja" || (e.target as HTMLElement).closest("button")) return;
     punto.current = { x: e.clientX, y: e.clientY, ox: arrastre.x, oy: arrastre.y, mov: false };
     (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
   };
-  const moviendo = (e: PE<HTMLElement>) => {
+  const moviendo = (e: React.PointerEvent<HTMLElement>) => {
     const p = punto.current;
     if (!p) return;
     const dx = e.clientX - p.x, dy = e.clientY - p.y;
