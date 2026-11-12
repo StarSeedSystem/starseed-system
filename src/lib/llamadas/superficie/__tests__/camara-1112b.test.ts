@@ -28,7 +28,7 @@ describe("decidirImagen (pura)", () => {
   });
 });
 
-function montar(prueba: (id: string) => ResultadoImagen, pref: { id: string; etiqueta?: string } | null = { id: "ft", etiqueta: "FaceTime HD Camera" }) {
+function montar(prueba: (id: string) => ResultadoImagen, pref: { id: string; etiqueta: string } | null = { id: "ft", etiqueta: "FaceTime HD Camera" }) {
   const m = new MotorFalso("yo", "Yo");
   m.camara = true;
   const pista = { label: "x", readyState: "live", muted: false } as unknown as MediaStreamTrack;
@@ -50,7 +50,7 @@ function montar(prueba: (id: string) => ResultadoImagen, pref: { id: string; eti
     ponerCamara(id);
     return null;
   });
-  const guardadas: Array<{ id: string; etiqueta?: string } | null> = [];
+  const guardadas: Array<{ id: string; etiqueta: string } | null> = [];
   const lineas: string[] = [];
   const deps: Partial<DepsAdaptador> = {
     preferenciaCamara: () => pref,

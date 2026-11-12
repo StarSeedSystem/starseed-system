@@ -22,7 +22,7 @@ import { AdaptadorMotor } from "@/lib/llamadas/superficie/adaptador-motor";
 import { SuperficieLlamada } from "@/components/llamadas/superficie/superficie-llamada";
 import type { VistaLlamada } from "@/lib/llamadas/superficie/vista";
 import type { EntornoLlamada } from "@/lib/llamadas/superficie/matriz-controles";
-import { guardarPreferencia, leerPreferencias } from "@/lib/llamadas/camaras";
+import { guardarPreferencia, leerPreferencias, type DispositivoGuardado } from "@/lib/llamadas/camaras";
 import { anotarLlamada } from "@/lib/llamadas/voz-datos/diagnostico";
 import { getDeviceId } from "@/lib/network/device-registry";
 
@@ -465,7 +465,7 @@ async function llamar(o: { sid: string; sinIp?: boolean; enlace?: OpcEnlace; vid
     unoAUno: true,
     entorno: () => ENTORNO,
     preferenciaCamara: () => leerPreferencias(getDeviceId() || "local").camara ?? null,
-    guardarPreferenciaCamara: (p: { id: string; etiqueta?: string } | null) => guardarPreferencia(getDeviceId() || "local", { camara: p ?? undefined }),
+    guardarPreferenciaCamara: (p: DispositivoGuardado | null) => guardarPreferencia(getDeviceId() || "local", { camara: p ?? undefined }),
     anotar: (l: string) => anotarLlamada(l.startsWith("camara ") ? "camara" : "medio=video-datos", null, l.replace(/^camara /, "")),
   } as ConstructorParameters<typeof AdaptadorMotor>[1]);
   actual = {

@@ -199,7 +199,7 @@ export function depsParaLlamada(a: LlamadaActiva, extra: { rutasNativas?: number
     // LLA1112B: dejar la predeterminada como estaba cuando la cámara elegida no se queda.
     guardarPreferenciaCamara: (p) => {
       try {
-        guardarPreferencia(getDeviceId() || "local", { camara: p ? { id: p.id, etiqueta: p.etiqueta ?? "" } : undefined });
+        guardarPreferencia(getDeviceId() || "local", { camara: p ?? undefined });
       } catch {
         /* sin almacenamiento */
       }

@@ -10,7 +10,7 @@
  *  · se acepta un tope de gente (el del motor) y se explica en vez de fallar callado.
  * Sin React ni DOM: el motor y todo lo del aparato entran por `MotorMinimo` y `DepsAdaptador` (así se prueba).
  */
-import { camaraParaEncender, clasificarCamara, correccionTrasAbrir, describirCamaras, lineaCamaraElegida, plataformaDe, restriccionesVideoDeseadas, textoRestricciones, type CamaraInfo, type Plataforma } from "@/lib/llamadas/camaras";
+import { camaraParaEncender, clasificarCamara, correccionTrasAbrir, describirCamaras, lineaCamaraElegida, plataformaDe, restriccionesVideoDeseadas, textoRestricciones, type CamaraInfo, type DispositivoGuardado, type Plataforma } from "@/lib/llamadas/camaras";
 import { lienzoLigeroReciente } from "@/lib/llamadas/video-datos/lienzos";
 import type { CargaApp, CarrilesParVista, EstadoLlamada, ParticipanteLlamada } from "@/lib/llamadas/tipos";
 import type { Carril } from "@/lib/llamadas/carriles";
@@ -112,7 +112,7 @@ export interface DepsAdaptador {
   /** Cuánto dura una reacción en pantalla (ms). */
   duracionReaccionMs?: number;
   /** LLA1110C: la cámara que la persona eligió antes en esta neurona (para pedirla al encender). */
-  preferenciaCamara?: () => { id: string; etiqueta?: string } | null;
+  preferenciaCamara?: () => DispositivoGuardado | null;
   /** LLA1110C: línea al registro del enlace (cámara, visibilidad). Por defecto, nada. */
   anotar?: (linea: string) => void;
   /** LLA1110C: el lienzo del vídeo ligero pintado lo último (por defecto, el registro de `video-datos/lienzos`). */
@@ -126,7 +126,7 @@ export interface DepsAdaptador {
   /** LLA1112B: cuánto se espera a que la cámara elegida dé imagen (ms). */
   plazoImagenMs?: number;
   /** LLA1112B: deja la cámara predeterminada de esta neurona como estaba (null: sin predeterminada). */
-  guardarPreferenciaCamara?: (p: { id: string; etiqueta?: string } | null) => void;
+  guardarPreferenciaCamara?: (p: DispositivoGuardado | null) => void;
 }
 
 /** LLA1110C: ¿esta pista de vídeo trae imagen ahora? (viva y no «muted»: una pista WebRTC sin ruta llega muda). */
