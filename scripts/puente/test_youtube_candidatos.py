@@ -193,17 +193,39 @@ def test_canales_resonancia_activistas(tmp_path):
 
 
 def test_puntaje_laya_y_orden(tmp_path):
-    """Puntaje con Laya: relevante + tema, ordenados por relevancia."""
+    """Puntaje con Laya: solo relevantes, ordenados por tema (diseño < guion < noticia)."""
     def laya_selectiva(f):
-        if "diseño" in f.get("titulo", "").lower():
+        t = (f.get("titulo") or "").lower()
+        if "diseño" in t:
             return {"relevante": True, "tema": "diseño"}
-        if "guion" in f.get("titulo", "").lower():
+        if "guion" in t:
             return {"relevante": True, "tema": "guion"}
+        if "noticia" in t:
+            return {"relevante": True, "tema": "noticia"}
         return {"relevante": False, "tema": None}
-    llamadas = []
+
+    def pedir(alias, url, params):
+        if url.rsplit("/", 1)[-1] == "playlistItems" and params.get("playlistId") == "LL":
+            base = AYER.isoformat()
+            return {"items": [
+                {"snippet": {"publishedAt": base, "title": "Diseño del cosmos",
+                             "resourceId": {"videoId": "vDis"}, "channelTitle": "Canal D",
+                             "videoOwnerChannelTitle": "Canal D"}},
+                {"snippet": {"publishedAt": base, "title": "Guion épico",
+                             "resourceId": {"videoId": "vGuion"}, "channelTitle": "Canal G",
+                             "videoOwnerChannelTitle": "Canal G"}},
+                {"snippet": {"publishedAt": base, "title": "Noticia de la galaxia",
+                             "resourceId": {"videoId": "vNot"}, "channelTitle": "Canal N",
+                             "videoOwnerChannelTitle": "Canal N"}},
+                {"snippet": {"publishedAt": base, "title": "Video sin interés",
+                             "resourceId": {"videoId": "vNo"}, "channelTitle": "Canal X",
+                             "videoOwnerChannelTitle": "Canal X"}},
+            ]}
+        return {"items": []}
+
     res = Y.candidatos_dia(
         cuentas=("alex",),
-        pedir_actividad=lambda a, u, p: api_falsa_actividad(a, llamadas)(u, p),
+        pedir_actividad=pedir,
         pedir_takeout=lambda a: [],
         temas_dia=[],
         resonancia_canales=[],
@@ -214,6 +236,11 @@ def test_puntaje_laya_y_orden(tmp_path):
         dir_salida=str(tmp_path),
     )
     candidatos = res["candidatos"]
+    assert [c["id"] for c in candidatos] == ["vDis", "vGuion", "vNot"]
+    assert candidatos[0]["laya"]["tema"] == "diseño"
+    assert candidatos[1]["laya"]["tema"] == "guion"
+    assert candidatos[2]["laya"]["tema"] == "noticia"
+    assert "vNo" not in {c["id"] for c in candidatos}
     assert all(c.get("laya", {}).get("relevante") for c in candidatos)
     assert len(candidatos) <= 40
 
