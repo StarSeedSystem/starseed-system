@@ -1,0 +1,61 @@
+version: "3.8"
+
+# Navegador propio de MetaGenesis (NAV1112B): un contenedor por sesión, con
+# Chromium, Xvfb y Playwright. Apagado por defecto: restart "no" y todos los
+# servicios bajo el perfil "navegador", así `docker compose up -d` sin más
+# no enciende nada. Un volumen por sesión guarda el perfil de Chromium, con
+# dueño sin privilegios (uid 1000). NINGÚN puerto publicado: el puerto de
+# depuración de Chromium escucha solo en 127.0.0.1 dentro del contenedor.
+
+x-navegador: &navegador
+  build:
+    context: .
+    dockerfile: Dockerfile
+  restart: "no"
+  mem_limit: 1500m
+  shm_size: 512mb
+  profiles: ["navegador"]
+  command: ["bash", "-lc", "exec xvfb-run -a chromium --user-data-dir=/home/navegador/perfiles --remote-debugging-address=127.0.0.1 --remote-debugging-port=9222 --no-sandbox --disable-dev-shm-usage --no-first-run --no-default-browser-check \"$${STARSEED_NAVEGADOR_URL:-about:blank}\""]
+
+services:
+  navegador-google-alex:
+    <<: *navegador
+    container_name: starseed-navegador-google-alex
+    environment:
+      SESION: google-alex
+      STARSEED_NAVEGADOR_URL: https://myactivity.google.com
+    volumes:
+      - navegador_google_alex:/home/navegador/perfiles
+
+  navegador-google-fundacion:
+    <<: *navegador
+    container_name: starseed-navegador-google-fundacion
+    environment:
+      SESION: google-fundacion
+      STARSEED_NAVEGADOR_URL: https://myactivity.google.com
+    volumes:
+      - navegador_google_fundacion:/home/navegador/perfiles
+
+  navegador-instagram-maggasukha:
+    <<: *navegador
+    container_name: starseed-navegador-instagram-maggasukha
+    environment:
+      SESION: instagram-maggasukha
+      STARSEED_NAVEGADOR_URL: https://www.instagram.com
+    volumes:
+      - navegador_instagram_maggasukha:/home/navegador/perfiles
+
+  navegador-instagram-sociedad:
+    <<: *navegador
+    container_name: starseed-navegador-instagram-sociedad
+    environment:
+      SESION: instagram-sociedad
+      STARSEED_NAVEGADOR_URL: https://www.instagram.com
+    volumes:
+      - navegador_instagram_sociedad:/home/navegador/perfiles
+
+volumes:
+  navegador_google_alex: {}
+  navegador_google_fundacion: {}
+  navegador_instagram_maggasukha: {}
+  navegador_instagram_sociedad: {}
