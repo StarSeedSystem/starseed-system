@@ -151,6 +151,11 @@ SERVICIOS = {
     # de Genesis encendido, lleva main a producción tras análisis, pruebas, CI y verificación
     # (`autopublicar.py`, una pasada cada 5 min). Apagado, solo informa.
     "produccion": ([PY3, P("autopublicar.py"), "--bucle"], "/tmp/starseed-produccion.log", True),
+    # PRB1111W (2026-11-12) Director de pruebas: sigue cada versión `0.5.1-prueba.N` hasta que está publicada, la anuncia una vez y
+    # atiende las peticiones de Genesis (compilar, cancelar, reintentar, republicar, pedir arreglo, abrir la app). Una pasada por
+    # minuto en un proceso nuevo; sin peticiones ni compilación en marcha no hace ninguna llamada de red. Pausa:
+    # `director_pruebas.py pausar "motivo"`. Contrato: architecture/centro-versiones-1105.md §11.
+    "pruebas": ([PY3, P("director_pruebas.py"), "--bucle"], "/tmp/starseed-pruebas.log", True),
     # (2026-10-10) Revisor automático de bloqueadas (OPB1011, `architecture/ninguna-tarea-se-desperdicia.md`):
     # cada 5 min transforma cada tarea quieta —reordena, reintenta sin gastar intento lo que falló
     # por el medio, reescribe con el contexto de hoy, divide, fusiona, cierra lo que main ya tiene— y

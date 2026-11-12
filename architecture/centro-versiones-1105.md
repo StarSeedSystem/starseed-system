@@ -593,3 +593,115 @@ compartido por las dos pruebas: `src/lib/mando/__tests__/fixtures/pruebas-compro
 `scripts/puente/test_aprobar_prueba.py` (petición, decisión, pausa, main movido, doble pulsación, no-líder, lanzada,
 arreglo, nada sin petición; con falsos y un repo temporal), `test_comprobaciones_prueba.py`,
 `src/lib/mando/__tests__/lanzamientos-pruebas.test.ts`, `src/components/mando/__tests__/versiones-prueba.test.tsx`.
+
+## 11 · Director de pruebas y banco de pruebas (PRB1111W · 2026-11-12)
+
+Hasta esta sección una versión de prueba (`0.5.1-prueba.N`) solo existía porque el supervisor corría a mano cuatro
+guiones de `~/.starseed/opus1031/` (`lanzar-prueba-cuando.sh`, `vigilar-prueba39.sh`, `respaldo-prueba39.sh`,
+`comprobaciones-prueba39.sh`) y luego leía a mano la evidencia de los aparatos. Ahora hay dos servicios en
+`scripts/puente/` y una sola puerta para pedirles cosas: archivos pequeños (peticiones) que escribe Genesis o un
+comando del mismo guion.
+
+### 11.1 Qué hace cada uno
+
+- **`director_pruebas.py`** (lógica pura en `director_pruebas_logica.py`). Actúa **solo por petición**; lo único que
+  hace sin que se lo pidan es seguir hasta el final lo que ya había en marcha: sigue el run, publica los manifiestos
+  que el run no actualizó (lo que hacía el guion de respaldo), avisa **una vez** al chat de dirección cuando la
+  prueba está publicada o ha fallado (con el nombre del job que falló) y crea la entrada de la versión en
+  `pruebas-comprobaciones.json`.
+- **`banco_pruebas.py`** (lógica pura en `banco_pruebas_logica.py`). Lee los registros del Mac, los deduce a
+  aparatos, llamadas y sugerencias, y escribe `pruebas-banco.json`. Solo vuelve a escribir cuando cambió lo leído
+  (campo `firma`). No toca la red.
+
+### 11.2 Peticiones
+
+Carpeta `~/.starseed/produccion/pruebas-peticiones/<id>.json`; las atendidas pasan a `hechas/` con `estado`,
+`resultado` (una frase legible) y `t_fin`. Acciones (conjunto cerrado): `compilar`, `cancelar`, `reintentar`,
+`republicar`, `pedir-arreglo`, `app-abrir`. Desde una terminal:
+
+```
+python3 scripts/puente/director_pruebas.py pedir compilar [--sha <40 hex>] --quien alex|claude|hermes
+python3 scripts/puente/director_pruebas.py pedir cancelar|reintentar|republicar [--numero N] --quien …
+python3 scripts/puente/director_pruebas.py pedir pedir-arreglo --prueba 39 --comprobacion c7 [--plataforma …] [--nota "…" (500)] --quien …
+python3 scripts/puente/director_pruebas.py pedir app-abrir --quien …
+python3 scripts/puente/director_pruebas.py estado | pausar "motivo" | reanudar
+```
+
+Reglas que el código hace cumplir:
+
+- **Solo la última.** `compilar` sin commit toma la cabeza de `main` publicada; con commit espera a que
+  `origin/main` lo contenga (como el lanzador). Una petición nueva **sustituye** a la que sigue esperando; mientras
+  hay una prueba compilando se **rechaza** con el motivo («ya está compilando la prueba N; espera a que acabe»).
+- **Una en vuelo.** El estado guarda el run seguido; ningún `compilar` se atiende con otro en curso. `cancelar` y
+  `reintentar` (solo los jobs fallidos) actúan sobre ese run.
+- **Reiniciable.** La intención se escribe en disco antes de lanzar (si se mata entre medias, la pasada siguiente
+  encuentra el run en vez de lanzar otro); doble pasada idempotente; cerrojo `flock`; el archivo
+  `pruebas-director.pausa` (primera línea = motivo) deja al director solo mirando.
+- **Validación.** Acción de un conjunto fijo, commit de 40 hex que desciende de lo exigido, enteros; los comandos
+  son listas fijas y ningún texto de una petición llega a un shell.
+- **Quieto = sin red.** Sin nada en vuelo y sin peticiones, la pasada no llama a `gh` ni a git por la red.
+
+### 11.3 Archivos que lee Genesis
+
+Los formatos exactos (con un ejemplo por archivo y qué campos pueden ser `null`) están en la carpeta de trabajo de
+esta tarea (`formatos.md`) y se resumen aquí:
+
+| Archivo (en `~/.starseed/produccion/`) | Quién lo escribe | Contenido |
+| --- | --- | --- |
+| `pruebas-director-estado.json` | director | `t` y `cada_s` (última pasada y cada cuánto debe pasar), si está pausado, qué espera y por qué, el run en vuelo con `plataformas[]` (`en-cola|compilando|compilada|publicada|fallo|omitida|cancelada`), las últimas peticiones con su resultado |
+| `pruebas-banco.json` | banco | `aparatos[]`, `llamadas[]` (ambos lados, números y 3 a 6 líneas crudas), `sugerencias[]`, `firma` |
+| `pruebas-comprobaciones.json` | `comprobaciones_prueba.py` | lo que ya había, más por comprobación `senal` (opcional) y `arreglo` (`{t, quien, nota, peticion}`, opcional) |
+
+Ningún archivo lleva rutas absolutas del disco ni claves.
+
+### 11.4 La evidencia: qué sabe y qué no
+
+Sabe, del **Mac**: la versión instalada (del paquete de la app), si la app está abierta, el último arranque y los
+errores de arranque de sus registros. De las **llamadas** (de `enlaces.log`, con las líneas de la tableta marcadas
+`(Maggaboard)` como el otro lado): escalón y tasa de la voz, audio inventado, espera de la voz, imágenes por
+segundo enviadas y recibidas, pausas con su motivo, qué enlaces la llevaron, kbps medidos del canal rápido y los
+intentos de cámara.
+
+Señales de las comprobaciones (vocabulario cerrado; se asignan con `python3 scripts/puente/comprobaciones_prueba.py
+senales N`, que mira el texto de cada comprobación): `enlace-ble-hora`, `voz-sin-corte`, `llamada-ble`,
+`video-sin-negro`, `video-fps-ble`, `video-sin-pausa-mudo`, `video-pausa-ancho`, `voz-limpia-lejos`, `camara-abre`,
+`camara-cambia`, `camara-conserva`, `arranque-limpio`. Para cada comprobación con señal el banco propone `bien` o
+`falla` con el motivo y la llamada que usó. **Una sugerencia nunca marca nada**: lo hace una persona o un director.
+Una prueba nueva hereda las comprobaciones de la anterior (copiadas, con su señal); no se proponen sugerencias si la
+versión instalada no es la de la prueba.
+
+**No puede saber**: la versión de la tableta (nada del Mac la registra: figura como `desconocida`); si una voz
+viaja por WebRTC (no hay marca en el registro); cómo se escribe un fallo de cámara (no hay ejemplo real, por eso
+solo cuenta los intentos); el estado del Wi‑Fi; ni la prueba de «una hora por Bluetooth» si el registro cubre menos
+de una hora. Donde no lo sabe lo dice, no lo adivina.
+
+### 11.5 «Pedir arreglo» y «Abrir la app»
+
+- **Pedir arreglo** publica **un** mensaje en el chat de dirección dirigido a `claude-cowork` y `hermes`
+  (`director_chat.publicar`), con la versión, la comprobación, la nota (máx. 500) y el resumen de la evidencia, y
+  anota `arreglo` en la comprobación. Repetirlo dentro de 5 minutos no hace nada nuevo.
+- **Abrir la app** ejecuta solo `open -b app.starseed.os` en el Mac (nunca cierra ni mata la aplicación; si ya está
+  abierta, la trae al frente).
+- **¿Se puede pedir una actualización?** No desde fuera mientras la app está abierta: comprueba actualizaciones a
+  los ~25 s de arrancar y cada 6 h, y no tiene enlace profundo, argumento ni archivo vigilado para forzarlo.
+  Abrir una app cerrada sí provoca una comprobación a los ~25 s. Añadir un disparador exigiría un cambio en la app
+  nativa (fuera de esta tarea).
+
+### 11.6 Programación e instalación
+
+Va en `SERVICIOS` de `instalar-servicios.py` con la clave `pruebas` (director en bucle: una pasada por minuto, que
+también ejecuta el banco). Instalación (la hace el supervisor, no el código):
+
+```
+STARSEED_SOLO=pruebas python3 /Users/alex/Documents/starseed-os-main/scripts/puente/instalar-servicios.py /Users/alex/Documents/starseed-os-main /opt/homebrew/bin/python3
+```
+
+Después de instalarlo, los cuatro guiones a mano se **retiran** (no se borran: se dejan sin ejecutar). Mientras
+convivan con el director, `lanzar-prueba-cuando.sh` y el director podrían lanzar dos veces: no los dejes juntos.
+
+### 11.7 Pruebas
+
+`test_director_pruebas.py` (reglas de petición, solo la última, una en vuelo, doble pasada, reinicio a media
+compilación, pausa, petición mal formada, aviso una vez, arreglo repetido, sin red en reposo),
+`test_banco_pruebas.py` (con `fixtures/enlaces-log-prueba39.txt`, extracto saneado del registro real),
+`test_instalar_servicios_pruebas.py`, `test_comprobaciones_prueba.py`.

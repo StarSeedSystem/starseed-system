@@ -28,6 +28,26 @@ import re
 import sys
 
 ESTADOS = ("pendiente", "bien", "falla")
+# PRB1111W · Señales: el vocabulario fijo con el que el banco de pruebas (banco_pruebas.py) propone «bien» o «falla»
+# leyendo los registros de los aparatos. Una comprobación puede llevar una (`senal`); el banco NUNCA la marca.
+SENALES = ("enlace-ble-hora", "voz-sin-corte", "llamada-ble", "video-sin-negro", "video-fps-ble", "video-sin-pausa-mudo",
+           "video-pausa-ancho", "voz-limpia-lejos", "camara-abre", "camara-cambia", "camara-conserva", "arranque-limpio")
+# Trozos del texto de las comprobaciones de 38 y 39 → señal (el primero que encaja; en minúsculas, sin tildes).
+_SENAL_POR_TEXTO = (
+    ("mismo wi-fi una hora", "enlace-ble-hora"),
+    ("apagar el wi-fi de la tablet: la voz sigue", "voz-sin-corte"),
+    ("wi-fi apagado desde antes", "llamada-ble"),
+    ("llamar desde la tablet a la mac", "llamada-ble"),
+    ("nunca se queda en negro", "video-sin-negro"),
+    ("solo por bluetooth, 2 minutos", "video-fps-ble"),
+    ("silenciar los dos microfonos", "video-sin-pausa-mudo"),
+    ("video en pausa: la senal solo alcanza", "video-pausa-ancho"),
+    ("alejando mas: la voz sigue limpia", "voz-limpia-lejos"),
+    ("abre su propia camara", "camara-abre"),
+    ("cambiar a la camara del iphone", "camara-cambia"),
+    ("camara que no abre", "camara-conserva"),
+    ("la app arranca y funciona normal", "arranque-limpio"),
+)
 NOMBRE = "pruebas-comprobaciones.json"
 _NUM = re.compile(r"^(?:v?\d+\.\d+\.\d+-)?(?:prueba\.?)?(\d{1,5})$")
 
@@ -58,18 +78,26 @@ def normalizar(datos):
         for c in p.get("comprobaciones") or []:
             if not isinstance(c, dict) or not str(c.get("id") or "").strip() or not str(c.get("texto") or "").strip():
                 continue
-            lista.append({"id": str(c["id"])[:20], "texto": str(c["texto"])[:400],
-                          "aparato": str(c.get("aparato") or "")[:40],
-                          "estado": c.get("estado") if c.get("estado") in ESTADOS else "pendiente",
-                          "nota": str(c.get("nota") or "")[:400], "quien": str(c.get("quien") or "")[:40],
-                          "t": c.get("t") if isinstance(c.get("t"), str) else None})
+            nueva = {"id": str(c["id"])[:20], "texto": str(c["texto"])[:400],
+                     "aparato": str(c.get("aparato") or "")[:40],
+                     "estado": c.get("estado") if c.get("estado") in ESTADOS else "pendiente",
+                     "nota": str(c.get("nota") or "")[:400], "quien": str(c.get("quien") or "")[:40],
+                     "t": c.get("t") if isinstance(c.get("t"), str) else None}
+            # PRB1111W: campos opcionales; ausentes = null y no se escriben (el archivo de siempre no cambia).
+            if c.get("senal") in SENALES:
+                nueva["senal"] = c["senal"]
+            ar = c.get("arreglo")
+            if isinstance(ar, dict) and isinstance(ar.get("t"), str):
+                nueva["arreglo"] = {"t": ar["t"][:30], "quien": str(ar.get("quien") or "")[:40],
+                                    "nota": str(ar.get("nota") or "")[:500], "peticion": str(ar.get("peticion") or "")[:40]}
+            lista.append(nueva)
         fuera["pruebas"][str(n)] = {"version": str(p.get("version") or ""), "sha": str(p.get("sha") or ""),
                                     "comprobaciones": lista,
                                     "aprobacion": p.get("aprobacion") if isinstance(p.get("aprobacion"), dict) else None}
     return fuera
 
 
-def registrar(datos, prueba, textos, aparato="", version="", sha="", quien="director", t=None):
+def registrar(datos, prueba, textos, aparato="", version="", sha="", quien="director", t=None, senal=""):
     """PURA: añade las comprobaciones (un texto repetido no se duplica) → (datos, ids nuevos)."""
     datos = normalizar(datos)
     n = numero_de_prueba(prueba)
@@ -90,8 +118,11 @@ def registrar(datos, prueba, textos, aparato="", version="", sha="", quien="dire
         cid = "c%d" % siguiente
         siguiente += 1
         hechos.add(texto.lower())
-        p["comprobaciones"].append({"id": cid, "texto": texto[:400], "aparato": aparato[:40], "estado": "pendiente",
-                                    "nota": "", "quien": quien[:40], "t": t})
+        nueva = {"id": cid, "texto": texto[:400], "aparato": aparato[:40], "estado": "pendiente",
+                 "nota": "", "quien": quien[:40], "t": t}
+        if senal in SENALES:
+            nueva["senal"] = senal
+        p["comprobaciones"].append(nueva)
         nuevos.append(cid)
     return datos, nuevos
 
@@ -110,6 +141,76 @@ def marcar(datos, prueba, cid, estado, nota="", quien="director", t=None):
     if nota is not None:
         c["nota"] = nota[:400]
     return datos
+
+
+def _sin_tildes(texto):
+    import unicodedata
+    return "".join(c for c in unicodedata.normalize("NFD", str(texto or "").lower()) if unicodedata.category(c) != "Mn")
+
+
+def senal_de_texto(texto):
+    """PURA (PRB1111W): la señal que corresponde al texto de una comprobación (None si ninguna)."""
+    t = _sin_tildes(texto)
+    return next((s for trozo, s in _SENAL_POR_TEXTO if trozo in t), None)
+
+
+def asignar_senales(datos, prueba):
+    """PURA (PRB1111W): pone `senal` a las comprobaciones de la prueba que no la tienen y cuyo texto la sugiere
+    → (datos, ids cambiados). No toca estados ni notas."""
+    datos = normalizar(datos)
+    n = numero_de_prueba(prueba)
+    p = datos["pruebas"].get(str(n)) if n is not None else None
+    cambiados = []
+    for c in (p or {}).get("comprobaciones", []):
+        s = None if c.get("senal") else senal_de_texto(c["texto"])
+        if s:
+            c["senal"] = s
+            cambiados.append(c["id"])
+    return datos, cambiados
+
+
+def heredar(datos, prueba, desde=None, version="", sha="", t=None, quien="director"):
+    """PURA (PRB1111W): crea la entrada de la prueba (versión y commit) y, si está vacía, le copia las comprobaciones de la
+    prueba anterior (o de `desde`) como PENDIENTES con su señal → (datos, ids nuevos). Idempotente."""
+    datos = normalizar(datos)
+    n = numero_de_prueba(prueba)
+    if n is None:
+        raise ValueError("prueba no válida: %r" % prueba)
+    p = datos["pruebas"].setdefault(str(n), {"version": "", "sha": "", "comprobaciones": [], "aprobacion": None})
+    if version:
+        p["version"] = version
+    if sha and not p["sha"]:
+        p["sha"] = sha.lower()
+    nuevos = []
+    if not p["comprobaciones"]:
+        previas = [int(k) for k in datos["pruebas"] if int(k) < n and datos["pruebas"][k]["comprobaciones"]]
+        base = datos["pruebas"].get(str(numero_de_prueba(desde))) if desde else (
+            datos["pruebas"][str(max(previas))] if previas else None)
+        for c in (base or {}).get("comprobaciones", []):
+            datos, ids = registrar(datos, n, [c["texto"]], aparato=c["aparato"], quien=quien, t=t, senal=c.get("senal") or "")
+            nuevos += ids
+    return datos, nuevos
+
+
+def pedir_arreglo(datos, prueba, cid, quien, nota, t, peticion="", minutos=5):
+    """PURA (PRB1111W): anota en la comprobación que se pidió arreglo → (datos, anotado). Si ya se pidió hace menos de
+    `minutos`, no cambia nada (anotado=False). ValueError si no existe."""
+    datos = normalizar(datos)
+    n = numero_de_prueba(prueba)
+    p = datos["pruebas"].get(str(n)) if n is not None else None
+    c = next((c for c in (p or {}).get("comprobaciones", []) if c["id"] == cid), None)
+    if not c:
+        raise ValueError("no existe la comprobación %s de la prueba %s" % (cid, prueba))
+    previo = (c.get("arreglo") or {}).get("t")
+    if previo and t:
+        try:
+            dif = (datetime.datetime.strptime(t[:19], "%Y-%m-%dT%H:%M:%S") - datetime.datetime.strptime(previo[:19], "%Y-%m-%dT%H:%M:%S")).total_seconds()
+            if 0 <= dif < minutos * 60:
+                return datos, False
+        except ValueError:
+            pass
+    c["arreglo"] = {"t": t, "quien": quien[:40], "nota": (nota or "")[:500], "peticion": peticion[:40]}
+    return datos, True
 
 
 def resumen(p):
@@ -147,6 +248,9 @@ def _texto_prueba(n, p):
     for c in p["comprobaciones"]:
         lineas.append("  %-4s %-9s %s%s%s" % (c["id"], c["estado"], ("[%s] " % c["aparato"]) if c["aparato"] else "",
                                               c["texto"], (" · " + c["nota"]) if c["nota"] else ""))
+        if c.get("senal") or c.get("arreglo"):
+            lineas.append("       %s%s" % (("señal: %s" % c["senal"]) if c.get("senal") else "",
+                                           (" · arreglo pedido el %s por %s" % (c["arreglo"]["t"], c["arreglo"]["quien"])) if c.get("arreglo") else ""))
     if p.get("aprobacion"):
         lineas.append("  aprobada en Genesis el %s" % p["aprobacion"].get("t"))
     return "\n".join(lineas)
@@ -162,12 +266,15 @@ def main(argv=None):
     r.add_argument("--version", default="")
     r.add_argument("--sha", default="")
     r.add_argument("--quien", default="director")
+    r.add_argument("--senal", default="", choices=("",) + SENALES, help="señal con la que el banco propone el resultado")
     m = sub.add_parser("marcar", help="marcar el resultado de una comprobación")
     m.add_argument("prueba")
     m.add_argument("id")
     m.add_argument("estado", choices=ESTADOS)
     m.add_argument("--nota", default=None)
     m.add_argument("--quien", default="director")
+    g = sub.add_parser("senales", help="asignar a las comprobaciones de una prueba la señal que sugiere su texto")
+    g.add_argument("prueba")
     v = sub.add_parser("ver", help="ver las comprobaciones")
     v.add_argument("prueba", nargs="?")
     a = ap.parse_args(argv)
@@ -176,9 +283,13 @@ def main(argv=None):
         if a.orden == "registrar":
             if a.sha and not re.match(r"^[0-9a-fA-F]{7,40}$", a.sha):
                 raise ValueError("commit no válido: %r" % a.sha)
-            datos, nuevos = registrar(datos, a.prueba, a.textos, a.aparato, a.version, a.sha, a.quien, _ahora())
+            datos, nuevos = registrar(datos, a.prueba, a.textos, a.aparato, a.version, a.sha, a.quien, _ahora(), a.senal)
             escribir(datos)
             print("registradas %d: %s" % (len(nuevos), ", ".join(nuevos) or "ninguna nueva"))
+        elif a.orden == "senales":
+            datos, cambiados = asignar_senales(datos, a.prueba)
+            escribir(datos)
+            print("señal asignada a %d: %s" % (len(cambiados), ", ".join(cambiados) or "ninguna"))
         elif a.orden == "marcar":
             datos = marcar(datos, a.prueba, a.id, a.estado, a.nota, a.quien, _ahora())
             escribir(datos)
