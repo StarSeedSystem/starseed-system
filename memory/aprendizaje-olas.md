@@ -6913,3 +6913,33 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 
 **Lo que quedó fuera, una por una:**
 - `P37-1111-rcbb` — la revisión lo rechazó: no toco NINGUNO de los 1 archivos que declaraba (rama ola/P37-1111-rcbb conservada)
+
+## 2026-11-12 04:48 · auto-1112-013753
+
+**Lo que se pidió.** Encargar trabajo a MetaGenesis sin la Mac
+
+**Resultado.** 6 de 21 integradas. 15 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 11 tareas se fueron por lo mismo — otra cosa (LLA1112A-rc-d1, SDP1111T, ENC1111C, ENT-agentes-referencias-diseno-agentes-re-a467d8-v1, ENT-agentes-referencias-diseno-agentes-re-ed5819-v1, ENT-agentes-referencias-diseno-agentes-re-6258d7-v1). Es 52 % de la ola.
+- 3 tareas se fueron por lo mismo — los tipos no compilan (LLA1112B-rc-d1, LLA1112A-rc, LLA1112B-rc). Es 14 % de la ola.
+- groq/openai/gpt-oss-120b no integró ninguna de sus 4 tareas.
+- nim/nvidia/nemotron-3-ultra-550b-a55b no integró ninguna de sus 2 tareas.
+- nim/minimaxai/minimax-m3.1-flash no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `LLA1112B-rc-d1` — los tipos no compilan: 1 errores tsc (rama ola/LLA1112B-rc-d1 conservada)
+- `LLA1112A-rc-d1` — otra cosa: director: reintento gratuito 6/8
+- `SDP1111T` — otra cosa: director: reintento gratuito 2/8
+- `RON1112C-rcs` — la revisión lo rechazó: no toco NINGUNO de los 1 archivos que declaraba (rama ola/RON1112C-rcs conservada)
+- `LLA1112A-rc` — los tipos no compilan: revisor: dividida en LLA1112A-rc-d1, LLA1112A-rc-d2, LLA1112A-rc-d3 (tarea:tsc con 3 archivos: se divide en 3 partes encadenadas)
+- `ENC1111C` — otra cosa: revisor: dividida en ENC1111C-d1, ENC1111C-d2, ENC1111C-d3 (tarea:pruebas con 3 archivos: se divide en 3 partes encadenadas)
+- `LLA1112B-rc` — los tipos no compilan: revisor: dividida en LLA1112B-rc-d1, LLA1112B-rc-d2, LLA1112B-rc-d3 (tarea:tsc con 3 archivos: se divide en 3 partes encadenadas)
+- `ENT-agentes-referencias-diseno-agentes-re-a467d8-v1` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/entregable-agentes-referencias-diseno-agentes-referencias-diseno-a467d8-v1.json
+- `ENT-agentes-referencias-diseno-agentes-re-ed5819-v1` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/entregable-agentes-referencias-diseno-agentes-referencias-diseno-ed5819-v1.json
+- `ENT-agentes-referencias-diseno-agentes-re-6258d7-v1` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/entregable-agentes-referencias-diseno-agentes-referencias-diseno-6258d7-v1.json
+- `IRD11121` — otra cosa: 3 propuesta(s) · starseed_memory_root/imaginacion/agentes/referencias-diseno-2026-11-12-1.json
+- `IRD11122` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/referencias-diseno-2026-11-12-2.json
+- `IRD11123` — otra cosa: 2 propuesta(s) · starseed_memory_root/imaginacion/agentes/referencias-diseno-2026-11-12-3.json
+- `ENT-agentes-referencias-diseno-agentes-re-91b5c1-v1` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/entregable-agentes-referencias-diseno-agentes-referencias-diseno-91b5c1-v1.json
+- `ENT-agentes-referencias-diseno-agentes-re-8950c2-v1` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/entregable-agentes-referencias-diseno-agentes-referencias-diseno-8950c2-v1.json
