@@ -97,10 +97,11 @@ class TestCiclo(unittest.TestCase):
         self.assertEqual(r["fase"], "redactar")
         self.assertEqual(r["resultado"]["accion"], "esperando_salidas")
 
-    def test_ciclo_entregar_sin_sintesis_falla(self):
+    def test_ciclo_entregar_sin_sintesis_en_seco_no_escribe(self):
         r = A.ciclo(self.raiz, AHORA_CDMX_07, encargar=False, jev=False, home=self.home, seco=True)
         self.assertEqual(r["fase"], "entregar")
-        self.assertEqual(r["resultado"]["accion"], "sin_sintesis")
+        self.assertEqual(r["resultado"]["accion"], "seco")
+        self.assertFalse(os.path.exists(os.path.join(self.raiz, A.REL_SINTESIS)))
 
     def test_entregar_con_sintesis_envia_resumen_y_completa(self):
         # Crea síntesis en disco
@@ -224,6 +225,177 @@ class TestEscrituraAtomica(unittest.TestCase):
         self.assertTrue(os.path.exists(ruta))
         with open(ruta, encoding="utf-8") as f:
             self.assertEqual(f.read(), "Contenido de prueba")
+
+
+class TestTopesDePrompt(unittest.TestCase):
+    """PET1112D: el 2026-11-12 la cola pesó 821 KB (~117 KB por prompt), por encima del tope
+    de la flota (16000 del analista libre). El contexto se encoge y ningún prompt sale a tope."""
+
+    def test_encoger_contexto_capa_los_textos(self):
+        ctx = ctx_base()
+        ctx["sintesis_previas"] = [{"fecha": FECHA, "ruta": "x.md", "texto": "a" * 40000}]
+        ctx["informes"] = [{"ruta": "i.md", "texto": "b" * 9000}]
+        ctx["imaginacion"] = [{"agente": "g", "ruta": "r.json", "datos": {"propuestas": ["x" * 5000]}}]
+        fuera = A._encoger_contexto(ctx)
+        self.assertLessEqual(len(fuera["sintesis_previas"][0]["texto"]), A.TOPE_PREVIA)
+        self.assertLessEqual(len(fuera["informes"][0]["texto"]), A.TOPE_INFORME)
+        self.assertEqual(fuera["imaginacion"][0].get("datos"), None)
+        self.assertEqual(ctx["sintesis_previas"][0]["texto"], "a" * 40000)  # no muta el original
+
+    def test_a_topes_recorta_el_prompt_largo(self):
+        tareas = [{"id": "SIN00000", "prompt": "p" * 20000}]
+        fuera = A._a_topes(tareas)
+        self.assertLessEqual(len(fuera[0]["prompt"]), A.TOPE_PROMPT)
+        self.assertIn("fuente, fecha", fuera[0]["prompt"])
+
+    def test_generar_con_contexto_encogido_cabe_en_topes(self):
+        ctx = ctx_base()
+        ctx["sintesis_previas"] = [{"fecha": FECHA, "ruta": "x.md", "texto": "a" * 40000}]
+        ctx["informes"] = [{"ruta": "i.md", "texto": "b" * 9000}] * 20
+        tareas = ST.generar_tareas_analisis(A._encoger_contexto(ctx), "/tmp", ahora=A._iso(AHORA_CDMX_00))
+        for t in A._a_topes(tareas):
+            self.assertLessEqual(len(t["prompt"]), A.TOPE_PROMPT)
+
+
+class TestEncargarPorFlota(unittest.TestCase):
+    """PET1112D: la cola `cola-suenos-sintesis.json` no la escaneaba NADIE (`tareas_esperadas`
+    solo lee `cola-suenos-reimaginar-*` y `cola-suenos-entregables-*`). El encargo va por la vía
+    que SÍ funciona: fundir en la cola y, con un orquestador vivo apto, a su cola viva."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.tmp = self._tmp.name
+        self.raiz = os.path.join(self.tmp, "repo")
+        os.makedirs(os.path.join(self.raiz, "starseed_memory_root", "olas"))
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def _tarea(self, n=1):
+        return {"id": "SIN1112%d" % n, "agente": "sintesis-produccion", "creada": "2026-11-12T06:24:00Z",
+                "tipo": "analisis", "modo": "libre", "prompt": "x", "salida": "y.json"}
+
+    def test_sin_orquestador_deja_la_cola_lista(self):
+        d = A.encargar_por_flota(self.raiz, [self._tarea()], vivos=[], apto=(True, 100.0), libre=(True, 100.0))
+        self.assertEqual(d["accion"], "cola_lista")
+        ruta = os.path.join(self.raiz, "starseed_memory_root", "olas", A.NOMBRE_COLA)
+        with open(ruta, encoding="utf-8") as f:
+            cola = json.load(f)
+        self.assertEqual([t["id"] for t in cola], ["SIN11121"])
+
+    def test_tanda_viva_metelas_tareas_en_la_cola_del_orquestador(self):
+        viva = os.path.join(self.raiz, "starseed_memory_root", "olas", "cola-codigo.json")
+        with open(viva, "w", encoding="utf-8") as f:
+            json.dump([{"id": "COD1"}], f)
+        vivo = {"pid": 123, "cola": "cola-codigo.json", "segundos": 3600, "solo": False}
+        d = A.encargar_por_flota(self.raiz, [self._tarea()], vivos=[vivo],
+                                 apto=(True, 100.0), libre=(True, 100.0))
+        self.assertEqual(d["accion"], "tanda_viva")
+        with open(viva, encoding="utf-8") as f:
+            viva_t = json.load(f)
+        self.assertEqual([t["id"] for t in viva_t], ["COD1", "SIN11121"])
+
+    def test_poda_lo_propio_viejo(self):
+        vieja = dict(self._tarea(1), creada="2026-10-01T00:00:00Z")
+        A.encargar_por_flota(self.raiz, [vieja, self._tarea(2)], vivos=[], apto=(True, 100.0), libre=(True, 100.0))
+        ruta = os.path.join(self.raiz, "starseed_memory_root", "olas", A.NOMBRE_COLA)
+        with open(ruta, encoding="utf-8") as f:
+            cola = json.load(f)
+        self.assertEqual([t["id"] for t in cola], ["SIN11122"])
+
+
+class TestRespaldo(unittest.TestCase):
+    """PET1112D: a la hora de entregar (07:54) sin texto, la flota gratuita redacta la síntesis
+    en UN paso (la prueba del 2026-11-11), se guarda, se sube a Drive y se envía. Sin red."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.tmp = self._tmp.name
+        self.raiz = os.path.join(self.tmp, "repo")
+        os.makedirs(self.raiz)
+        self.home = os.path.join(self.tmp, "home")
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def test_prompt_respaldo_lleva_regla_secciones_y_salidas(self):
+        ctx = A._encoger_contexto(SF.contexto(self.raiz, hoy=FECHA, ahora=AHORA_CDMX_07.timestamp(), casa=self.home))
+        prompt = A._prompt_respaldo(ctx, FECHA, salidas=[{"agente": "s", "datos": "{}"}])
+        self.assertIn(ST.REGLA, prompt)
+        self.assertIn("Secciones:", prompt)
+        self.assertIn("Salidas de análisis del día:", prompt)
+        self.assertLessEqual(len(prompt), A.TOPE_PROMPT)
+
+    def test_respaldo_redacta_guarda_y_sube(self):
+        subido = []
+        estado = A.estado_vacio()
+
+        def redactar(prompt):
+            return "```markdown\n" + "Síntesis de respaldo con fuentes y fechas. " * 40 + "\n```"
+
+        def subir_drive(fecha, texto):
+            subido.append((fecha, texto))
+            return "doc-123"
+
+        r = A._respaldo(self.raiz, estado, AHORA_CDMX_07, redactar=redactar, subir_drive=subir_drive)
+        self.assertTrue(r["ok"])
+        self.assertEqual(r["accion"], "respaldo")
+        self.assertTrue(r["drive"])
+        ruta = os.path.join(self.raiz, A.REL_SINTESIS, "%s.md" % FECHA)
+        self.assertTrue(os.path.exists(ruta))
+        with open(ruta, encoding="utf-8") as f:
+            texto = f.read()
+        self.assertNotIn("```", texto)
+        self.assertEqual(subido[0][1], texto)
+        self.assertTrue(estado["respaldo"])
+
+    def test_respaldo_sin_texto_de_la_flota_falla_sin_escribir(self):
+        estado = A.estado_vacio()
+        r = A._respaldo(self.raiz, estado, AHORA_CDMX_07, redactar=lambda p: None)
+        self.assertFalse(r["ok"])
+        self.assertEqual(r["accion"], "sin_sintesis")
+        self.assertFalse(os.path.exists(os.path.join(self.raiz, A.REL_SINTESIS)))
+
+    def test_respaldo_drive_que_falla_no_bloquea(self):
+        estado = A.estado_vacio()
+        r = A._respaldo(self.raiz, estado, AHORA_CDMX_07, redactar=lambda p: "T" * 500,
+                        subir_drive=lambda f, t: (_ for _ in ()).throw(OSError("sin red")))
+        self.assertTrue(r["ok"])
+        self.assertFalse(r["drive"])
+
+    def test_respaldo_seco_no_redacta_nada(self):
+        estado = A.estado_vacio()
+        r = A._respaldo(self.raiz, estado, AHORA_CDMX_07, redactar=lambda p: (_ for _ in ()).throw(AssertionError("no")), seco=True)
+        self.assertEqual(r["accion"], "seco")
+
+    def test_entregar_sin_sintesis_lleva_al_respaldo_y_entrega(self):
+        enviados = []
+        os.makedirs(self.home, exist_ok=True)
+
+        def enviar_falso(texto, **kw):
+            enviados.append(texto)
+            return {"ok": True, "trozos": 1}
+
+        r = A.ciclo(self.raiz, AHORA_CDMX_07, encargar=False, jev=False, enviar=enviar_falso,
+                    home=self.home, redactar=lambda p: "Síntesis de respaldo completa. " * 30,
+                    subir_drive=lambda f, t: None)
+        self.assertTrue(r["ok"])
+        self.assertEqual(r["resultado"]["accion"], "entregada")
+        self.assertEqual(len(enviados), 2)
+        estado = A.cargar_estado(self.raiz)
+        self.assertTrue(estado["entregada"])
+        self.assertTrue(estado["respaldo"])
+
+    def test_antes_de_0754_sin_sintesis_espera(self):
+        ahora = datetime(2026, 11, 11, 13, 0, tzinfo=timezone.utc)  # 07:00 CDMX
+        r = A.ciclo(self.raiz, ahora, encargar=False, jev=False, home=self.home, seco=True)
+        self.assertEqual(r["resultado"]["accion"], "esperando_redaccion")
+
+    def test_redactar_flota_sin_clave_no_llama_a_nada(self):
+        self.assertIsNone(A._redactar_flota("p", clave=None))
+
+    def test_subir_doc_sin_token_devuelve_none(self):
+        self.assertIsNone(A._subir_doc(FECHA, "texto", pedir=lambda u, c: None))
 
 
 class TestPuntuacionJev(unittest.TestCase):
