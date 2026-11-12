@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi, afterEach } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { SuperficieLlamada } from "../superficie-llamada";
 import type { AccionesLlamada, VistaLlamada } from "@/lib/llamadas/superficie/vista";
 import { aplicarAviso, GRABACION_INICIAL } from "@/lib/llamadas/superficie/grabacion";
@@ -90,18 +90,75 @@ describe("SuperficieLlamada · LLA1111A (Puertos, estado una vez, carriles, alto
     };
     abrir(conectada(), { carriles });
     fireEvent.click(screen.getByRole("tab", { name: /Medio/ }));
-    const sel = screen.getByRole("combobox", { name: "Carril de vídeo" }) as HTMLSelectElement;
-    expect([...sel.options].map((o) => o.value)).toEqual(["auto", "ble-l2cap"]);
-    fireEvent.change(sel, { target: { value: "ble-l2cap" } });
+    // Ahora usa radio buttons en lugar de select nativo
+    const rgVideo = screen.getByRole("radiogroup", { name: /Carril de vídeo/ });
+    expect(rgVideo).toBeTruthy();
+    fireEvent.click(within(rgVideo).getByRole("radio", { name: /Bluetooth rápido/ }));
     expect(forzar).toHaveBeenCalledWith("video", "ble-l2cap");
-    fireEvent.change(sel, { target: { value: "auto" } });
+    fireEvent.click(within(rgVideo).getByRole("radio", { name: /Automático/ }));
     expect(forzar).toHaveBeenLastCalledWith("video", null);
-    expect(screen.getByRole("combobox", { name: "Carril de voz" })).toBeTruthy();
-    expect(screen.getByRole("combobox", { name: "Carril de pantalla" })).toBeTruthy();
+    expect(screen.getByRole("radiogroup", { name: /Carril de voz/ })).toBeTruthy();
+    expect(screen.getByRole("radiogroup", { name: /Carril de pantalla/ })).toBeTruthy();
   });
   it("la ventana flotante lleva un alto máximo con las zonas seguras (nunca más alta que lo visible)", () => {
     abrir(conectada());
     const sec = screen.getByTestId("superficie-llamada");
     expect(sec.getAttribute("style") ?? "").toMatch(/max-height: calc\(100dvh/);
+  });
+
+  it("el alto máximo descuenta la altura del dock para que los controles no queden tapados", () => {
+    abrir(conectada());
+    const sec = screen.getByTestId("superficie-llamada");
+    const style = sec.getAttribute("style") ?? "";
+    expect(style).toMatch(/max-height: calc\(100dvh/);
+    expect(style).toMatch(/var\(--dock-height/);
+  });
+
+  it("el botón de cámara NO está deshabilitado en una videollamada conectada", () => {
+    const a: AccionesLlamada = { colgar: vi.fn(), alternarCamara: vi.fn() };
+    const v = base({ estado: "conectada", desde: Date.now(), tipo: "video", camara: true });
+    render(<SuperficieLlamada vista={v} acciones={a} tamanoInicial="panel" />);
+    const btnCamara = screen.getByRole("button", { name: /Apagar c.mara/ });
+    expect(btnCamara.disabled).toBe(false);
+  });
+
+  it("el botón de cámara SÍ está deshabilitado cuando no hay cámara disponible en la llamada", () => {
+    const a: AccionesLlamada = { colgar: vi.fn(), alternarCamara: vi.fn() };
+    const v = base({ estado: "conectada", desde: Date.now(), tipo: "voz", camara: false, motivos: { camara: "esta llamada no lleva cámara" } });
+    render(<SuperficieLlamada vista={v} acciones={a} tamanoInicial="panel" />);
+    const btnCamara = screen.getByRole("button", { name: /Encender c.mara/ });
+    expect(btnCamara.disabled).toBe(true);
+  });
+
+  it("muestra aviso cuando la cámara local está encendida pero no envía vídeo", () => {
+    const a: AccionesLlamada = { colgar: vi.fn() };
+    const mockTrack = {
+      readyState: 'live',
+      muted: true,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    };
+    const localStream = { getVideoTracks: () => [mockTrack] } as unknown as MediaStream;
+    const v = base({ estado: "conectada", desde: Date.now(), tipo: "video", camara: true, local: localStream });
+    render(<SuperficieLlamada vista={v} acciones={a} tamanoInicial="panel" />);
+    expect(screen.getByText(/C.mara encendida sin imagen/)).toBeTruthy();
+  });
+
+  it("la pestaña Medio usa selectores personalizados (no select nativo) para elegir carriles", () => {
+    const forzar = vi.fn();
+    const carriles = {
+      carriles: () => [{ parId: "p", voz: "ble-l2cap", video: "ble-l2cap", pantalla: "ble-l2cap", senal: "ble-l2cap", datos: "ble-l2cap", forzados: {}, texto: "", director: true }],
+      estado: () => ({ participantes: [] }),
+      forzarCarril: forzar,
+    };
+    const v = base({ estado: "conectada", desde: Date.now(), tipo: "video", textoMedio: "Voz por Bluetooth directo · cifrada", textoCarriles: "Voz: Bluetooth · Vídeo: Bluetooth" });
+    const a: AccionesLlamada = { colgar: vi.fn() };
+    render(<SuperficieLlamada vista={v} acciones={a} tamanoInicial="panel" carriles={carriles} />);
+    fireEvent.click(screen.getByRole("tab", { name: /Medio/ }));
+    expect(screen.queryByRole("combobox")).toBeNull();
+    const rgVideo = screen.getByRole("radiogroup", { name: /Carril de vídeo/ });
+    expect(rgVideo).toBeTruthy();
+    expect(within(rgVideo).getByRole("radio", { name: /Automático/ })).toBeTruthy();
+    expect(within(rgVideo).getByRole("radio", { name: /Bluetooth rápido/ })).toBeTruthy();
   });
 });

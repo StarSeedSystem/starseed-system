@@ -72,11 +72,11 @@ const TIPOS: Array<{ t: TipoSuperficie; etiqueta: string }> = [
 ];
 const ic = "h-[18px] w-[18px]";
 /**
- * LLA1111A · la ventana nunca es más alta que lo visible menos las zonas seguras y el margen de 1 rem arriba y abajo
- * (antes crecía hacia arriba con un panel abierto y la cabecera se salía de la pantalla). `dvh` sigue a la barra del
- * navegador del móvil; donde no exista, el `vh` de antes.
+ * LLA1111A · la ventana nunca es más alta que lo visible menos las zonas seguras, el margen de 1 rem arriba y abajo,
+ * y la altura del dock (para que los controles no queden tapados). `dvh` sigue a la barra del navegador del móvil;
+ * donde no exista, el `vh` de antes. `--dock-height` lo define el OmniDock (fallback 80px).
  */
-const ALTO_MAXIMO = "calc(100dvh - max(1rem, env(safe-area-inset-top)) - max(1rem, env(safe-area-inset-bottom)))";
+const ALTO_MAXIMO = "calc(100dvh - max(1rem, env(safe-area-inset-top)) - max(1rem, env(safe-area-inset-bottom)) - var(--dock-height, 80px))";
 
 export function SuperficieLlamada({ vista: v, acciones: a, tamanoInicial, carriles }: { vista: VistaLlamada; acciones: AccionesLlamada; /** Tamaño al conectar (por defecto la burbuja discreta de la llamada directa). */ tamanoInicial?: "panel" | "pantalla-completa"; /** LLA1111A: el motor, para elegir a mano el carril de cada flujo en «Medio». */ carriles?: FuenteCarriles | null }) {
   const { s, despachar, duracion, tamano } = useSuperficie(v);
@@ -149,6 +149,11 @@ export function SuperficieLlamada({ vista: v, acciones: a, tamanoInicial, carril
   // LLA1110C: hay imagen del otro si el lienzo del vídeo ligero está o si su pista de vídeo trae imagen DE VERDAD.
   const conVideoRemoto = !!v.remotoLienzo || remotoTraeVideo || videoPinta;
   const vivaVideo = s.estado === "conectada" || s.estado === "en-espera" || s.estado === "reconectando";
+
+  // LLA1112B: ¿la cámara local trae imagen ahora? (pista viva y no muted)
+  const localTraeVideo = useTraeVideo(v.local);
+  // LLA1112B: aviso cuando la cámara está encendida pero no envía vídeo
+  const localCamaraSinImagen = vivaVideo && v.camara && v.local && !localTraeVideo;
   // LLA1110C: al llegar imagen del otro con la llamada recogida en la burbuja, se abre el panel (antes se veía la píldora).
   const habiaVideo = useRef(false);
   useEffect(() => {
@@ -329,6 +334,12 @@ export function SuperficieLlamada({ vista: v, acciones: a, tamanoInicial, carril
                   {s.tipo === "pantalla" && resaltar && puntero && <span aria-hidden className="pointer-events-none absolute h-12 w-12 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-amber-300 bg-amber-300/25" style={{ left: puntero.x, top: puntero.y }} />}
                   {s.tipo === "pantalla" && resaltar && <div className="absolute inset-0" onPointerMove={(e) => { const r = e.currentTarget.getBoundingClientRect(); setPuntero({ x: e.clientX - r.left, y: e.clientY - r.top }); }} />}
                   {v.local && v.camara && <Pista stream={v.local} video silenciar local espejo={espejo} className="absolute bottom-2 right-2 h-20 w-14 rounded-lg border border-white/25 sm:h-24 sm:w-32" etiqueta="Tu cámara" />}
+                  {localCamaraSinImagen && (
+                    <div role="status" className="absolute bottom-2 right-2 translate-y-full mb-2 flex items-center gap-1.5 rounded-full bg-amber-500/90 px-2 py-1 text-[11px] text-black shadow-lg" aria-live="polite">
+                      <VideoOff className="h-3.5 w-3.5" />
+                      Cámara encendida sin imagen
+                    </div>
+                  )}
                   {s.tipo === "vivo" && <span className="absolute left-2 top-2 flex items-center gap-1.5 rounded-full bg-black/55 px-2 py-0.5 text-[11px]"><Eye className="h-3 w-3" /> {v.espectadores ?? "—"} · {v.relevo ?? "directo"}</span>}
                   {s.tipo === "pantalla" && v.compartiendoPantalla && <span className="absolute left-2 top-2 rounded-full bg-amber-500/80 px-2 py-0.5 text-[11px] text-black">Estás compartiendo tu pantalla</span>}
                   {s.estado === "reconectando" && <div role="status" className="absolute inset-0 flex items-center justify-center bg-black/60 text-[13px]">Reconectando…</div>}

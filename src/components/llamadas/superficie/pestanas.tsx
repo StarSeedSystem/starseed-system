@@ -137,24 +137,46 @@ function CarrilesPorFlujo({ fuente }: { fuente: FuenteCarriles }) {
     <div className={cn(caja, "space-y-1.5")} data-carriles-flujo="">
       <p className="text-white/55">Carril de cada flujo</p>
       {elecciones.map((e) => (
-        <div key={e.flujo} className="flex flex-wrap items-center gap-x-2 gap-y-1">
-          <label htmlFor={`carril-${e.flujo}`} className="min-w-[4.5rem] text-white/90">{e.nombre}</label>
-          <span className="flex-1 text-[11px] text-white/60" data-carril-actual={e.flujo}>ahora: {e.textoActual}{e.forzado ? " · elegido a mano" : ""}</span>
-          <select
-            id={`carril-${e.flujo}`}
-            aria-label={`Carril de ${e.nombre.toLowerCase()}`}
-            value={e.valor}
-            onChange={(ev) => {
-              fuente.forzarCarril(e.flujo, ev.target.value === "auto" ? null : (ev.target.value as Carril));
-              setTic((n) => n + 1);
-            }}
-            className="max-w-full rounded-lg border border-white/15 bg-slate-900 px-2 py-1 text-[12px]"
-          >
-            <option value="auto">Automático</option>
+        <div key={e.flujo} className="space-y-1">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <label className="min-w-[4.5rem] text-white/90">{e.nombre}</label>
+            <span className="flex-1 text-[11px] text-white/60" data-carril-actual={e.flujo}>ahora: {e.textoActual}{e.forzado ? " · elegido a mano" : ""}</span>
+          </div>
+          <div role="radiogroup" aria-label={`Carril de ${e.nombre.toLowerCase()}`} className="flex flex-wrap gap-1.5">
+            <button
+              type="button"
+              role="radio"
+              aria-checked={e.valor === "auto"}
+              onClick={() => {
+                fuente.forzarCarril(e.flujo, null);
+                setTic((n) => n + 1);
+              }}
+              className={cn("cursor-pointer rounded-lg border px-2.5 py-1.5 text-left transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300/80 text-[12px]", e.valor === "auto" ? "border-violet-300/60 bg-violet-400/20" : "border-white/10 bg-white/[0.03] hover:bg-white/[0.07]")}
+            >
+              Automático
+            </button>
             {e.opciones.map((o) => (
-              <option key={o.carril} value={o.carril} disabled={!o.arriba}>{o.etiqueta}</option>
+              <button
+                key={o.carril}
+                type="button"
+                role="radio"
+                aria-checked={e.valor === o.carril}
+                disabled={!o.arriba}
+                onClick={() => {
+                  if (o.arriba) {
+                    fuente.forzarCarril(e.flujo, o.carril);
+                    setTic((n) => n + 1);
+                  }
+                }}
+                className={cn("cursor-pointer rounded-lg border px-2.5 py-1.5 text-left transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300/80 text-[12px] disabled:cursor-not-allowed disabled:opacity-50", e.valor === o.carril ? "border-violet-300/60 bg-violet-400/20" : "border-white/10 bg-white/[0.03] hover:bg-white/[0.07]")}
+              >
+                <span className="flex items-center gap-1.5">
+                  {o.etiqueta}
+                  {!o.arriba && <span className="text-[10px] text-white/40">(sin enlace ahora)</span>}
+                </span>
+              </button>
             ))}
-          </select>
+          </div>
         </div>
       ))}
       {elecciones[0] && elecciones[0].sinEnlace.length > 0 && (
