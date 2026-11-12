@@ -1,0 +1,8 @@
+[Unit]
+Description=StarSeed · vigila las cuentas del A1 y les devuelve el dueño starseed
+
+[Path]
+PathChanged=/home/starseed/.starseed/cuentas
+
+[Install]
+WantedBy=multi-user.target

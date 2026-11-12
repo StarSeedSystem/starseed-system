@@ -1,0 +1,17 @@
+[Unit]
+Description=StarSeed · peticiones de Alex por Telegram (@StarSeed_Design_bot) atendidas en el A1, sin la Mac ni Claude
+After=network-online.target starseed-freellmapi.service
+Wants=network-online.target
+
+[Service]
+User=starseed
+Environment=HOME=/home/starseed
+Environment=PYTHONUNBUFFERED=1
+ExecStartPre=+/bin/chown -R starseed:starseed /home/starseed/.starseed/cuentas
+ExecStart=/usr/bin/python3 -u /home/starseed/herramientas/peticiones-telegram/peticiones_telegram.py
+Restart=always
+RestartSec=20
+MemoryMax=900M
+
+[Install]
+WantedBy=multi-user.target

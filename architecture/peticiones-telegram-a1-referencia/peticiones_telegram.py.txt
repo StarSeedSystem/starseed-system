@@ -1,0 +1,607 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""Peticiones de Alex por Telegram, atendidas por MetaGenesis en el A1 (sin la Mac ni Claude).
+
+Escucha @StarSeed_Design_bot (TELEGRAM_SINTESIS_BOT_TOKEN) y solo acepta el chat
+TELEGRAM_SINTESIS_CHAT_ID. Acusa recibo, interpreta con modelos gratuitos de FreeLLMAPI
+(nunca Claude) y ejecuta:
+  - NotebookLM, cuaderno «StarSeed: Producción audiovisual»: infografía, audio, vídeo,
+    presentación, mapa mental, informe, cuestionario, tarjetas y tabla. Fuente: la última
+    «Síntesis diaria AAAA-MM-DD» de Drive, un Doc de Drive que Alex enlace, o el cuaderno.
+  - Cualquier otra cosa: respuesta escrita con modelos gratuitos.
+Comandos: /estado y /ayuda.
+
+Cada petición se guarda en ~/.starseed/peticiones/cola.json antes de confirmar el mensaje, así
+que un reinicio no pierde nada. Si la sesión de NotebookLM caduca, la petición espera y se hace
+sola cuando vuelve (hasta 24 h). Mantiene viva la sesión del A1 con `auth refresh` cada 20 min.
+Nunca imprime tokens ni la IP.
+"""
+import datetime
+import json
+import os
+import re
+import subprocess
+import threading
+import time
+import traceback
+import urllib.error
+import urllib.parse
+import urllib.request
+import uuid
+
+CASA = os.path.expanduser("~")
+DIR = os.path.join(CASA, ".starseed", "peticiones")
+ESTADO = os.path.join(DIR, "estado.json")
+COLA = os.path.join(DIR, "cola.json")
+SALIDAS = os.path.join(DIR, "salidas")
+NBLM = os.path.join(CASA, ".starseed", "venvs", "notebooklm", "bin", "notebooklm")
+CUADERNO = os.environ.get("STARSEED_CUADERNO_PRODUCCION", "dc62bea7-a241-46b6-a9f9-1ea954f0ea16")
+CARPETA_SINTESIS = os.environ.get("STARSEED_CARPETA_SINTESIS", "1PenzAWw1VWpSAMXa7ms2VRrEhJ5uFbmI")
+ENLACE_CUADERNO = "https://notebooklm.google.com/notebook/" + CUADERNO
+LLM_URL = os.environ.get("STARSEED_LLM_URL", "http://127.0.0.1:3001/v1/chat/completions")
+# Nunca Claude: modelos gratuitos con nombre propio (sin "auto", que podría enrutar a Claude).
+MODELOS = ["gemini-flash", "qwen3.8-max", "gemini-3.5-flash", "glm-5.3-flash", "qwen3.6-plus"]
+REINTENTO_S = 300
+VIDA_S = 24 * 3600
+REFRESCO_S = 20 * 60
+# tipo: (nombre, extensión, opciones fijas, tope en s, acepta --language, acepta --wait)
+TIPOS = {
+    "infographic": ("infografía", ".png", ["--orientation", "portrait", "--detail", "detailed"], 900, True, True),
+    "audio": ("resumen en audio (podcast)", ".m4a", ["--format", "deep-dive"], 2700, True, True),
+    "video": ("vídeo resumen", ".mp4", [], 2700, True, True),
+    "slide-deck": ("presentación", ".pdf", [], 1500, True, True),
+    "report": ("informe", ".md", [], 900, True, True),
+    "mind-map": ("mapa mental", ".json", [], 600, True, False),
+    "quiz": ("cuestionario", ".json", [], 900, False, True),
+    "flashcards": ("tarjetas de estudio", ".json", [], 900, False, True),
+    "data-table": ("tabla de datos", ".csv", [], 900, True, True),
+}
+INDICACIONES = {
+    "infographic": "Infografía en español, clara y legible, con lo esencial: las recomendaciones principales, "
+                   "las ideas de vídeo y de redes, las referencias de diseño y los próximos pasos.",
+    "audio": "Conversación en español, cálida y clara, que explique lo esencial y las recomendaciones "
+             "accionables para la producción audiovisual de StarSeed.",
+}
+CLAVES_TIPO = [("infographic", r"infogr[aá]f"), ("audio", r"\baudio|podcast"), ("video", r"\bv[ií]deo\b"),
+               ("slide-deck", r"presentaci[oó]n|diapositiva|slides"), ("mind-map", r"mapa mental"),
+               ("report", r"\binforme\b|\breporte\b"), ("quiz", r"cuestionario|\bquiz"),
+               ("flashcards", r"tarjetas|flashcards"), ("data-table", r"tabla de datos")]
+AYUDA = ("Soy MetaGenesis desde el A1 (funciono sin la Mac y sin Claude).\n"
+         "Pídeme en lenguaje normal, por ejemplo:\n"
+         "• «Infografía y audio tipo podcast de la última síntesis»\n"
+         "• «Mapa mental del cuaderno de producción»\n"
+         "• «Presentación de este Doc: <enlace de Drive>»\n"
+         "• Cualquier pregunta: te respondo con modelos gratuitos.\n"
+         "/estado: sesión de NotebookLM y cola de peticiones.")
+
+RENOVAR = ("Para renovarla hace falta iniciar sesión una vez con alexbordongarrigos: pídeselo a Claude en el chat "
+           "del proyecto (abre la ventana en la Mac y la sesión pasa al A1). Cuando el enjambre integre PET1112E, se "
+           "renovará desde MetaGenesis › Apps Linux, sin la Mac.")
+bloqueo = threading.Lock()
+hay_trabajo = threading.Event()
+
+
+class SesionCaducada(Exception):
+    pass
+
+
+def leer_env(ruta=os.path.join(CASA, ".starseed", "env")):
+    datos = {}
+    try:
+        with open(ruta) as f:
+            for linea in f:
+                linea = linea.strip()
+                if not linea or linea.startswith("#") or "=" not in linea:
+                    continue
+                k, v = linea.split("=", 1)
+                datos[k.replace("export ", "").strip()] = v.strip().strip('"').strip("'")
+    except OSError:
+        pass
+    return datos
+
+
+ENV = leer_env()
+TOKEN = ENV.get("TELEGRAM_SINTESIS_BOT_TOKEN", "")
+CHAT = str(ENV.get("TELEGRAM_SINTESIS_CHAT_ID", ""))
+
+
+def log(*partes):
+    texto = " ".join(str(p) for p in partes)
+    if TOKEN:
+        texto = texto.replace(TOKEN, "***")
+    print(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), texto, flush=True)
+
+
+def leer_json(ruta, defecto):
+    try:
+        with open(ruta) as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return defecto
+
+
+def escribir_json(ruta, datos):
+    tmp = ruta + ".tmp"
+    with open(tmp, "w") as f:
+        json.dump(datos, f, ensure_ascii=False, indent=1)
+    os.replace(tmp, ruta)
+
+
+# ---------------------------------------------------------------- Telegram
+
+def _respuesta_http(abrir):
+    try:
+        with abrir() as r:
+            return json.load(r)
+    except urllib.error.HTTPError as e:
+        try:
+            return json.load(e)
+        except Exception:
+            return {"ok": False, "description": "HTTP %s" % e.code}
+    except Exception as e:
+        return {"ok": False, "description": type(e).__name__}
+
+
+def tg(metodo, datos=None, timeout=70):
+    url = "https://api.telegram.org/bot%s/%s" % (TOKEN, metodo)
+    cuerpo = urllib.parse.urlencode(datos or {}).encode()
+    return _respuesta_http(lambda: urllib.request.urlopen(url, cuerpo, timeout=timeout))
+
+
+def decir(texto):
+    for i in range(0, max(len(texto), 1), 3900):
+        r = tg("sendMessage", {"chat_id": CHAT, "text": texto[i:i + 3900], "disable_web_page_preview": "true"})
+        if not r.get("ok"):
+            log("sendMessage falló:", r.get("description"))
+
+
+def subir(metodo, campo, ruta, pie=""):
+    frontera = uuid.uuid4().hex
+    partes = []
+    for k, v in (("chat_id", CHAT), ("caption", pie[:1000])):
+        partes.append(('--%s\r\nContent-Disposition: form-data; name="%s"\r\n\r\n%s\r\n' % (frontera, k, v)).encode())
+    with open(ruta, "rb") as f:
+        contenido = f.read()
+    cabecera = ('--%s\r\nContent-Disposition: form-data; name="%s"; filename="%s"\r\n'
+                'Content-Type: application/octet-stream\r\n\r\n' % (frontera, campo, os.path.basename(ruta)))
+    partes.append(cabecera.encode() + contenido + b"\r\n")
+    partes.append(("--%s--\r\n" % frontera).encode())
+    req = urllib.request.Request("https://api.telegram.org/bot%s/%s" % (TOKEN, metodo), b"".join(partes),
+                                 {"Content-Type": "multipart/form-data; boundary=%s" % frontera})
+    r = _respuesta_http(lambda: urllib.request.urlopen(req, timeout=900))
+    if not r.get("ok"):
+        log(metodo, "falló:", r.get("description"))
+    return r
+
+
+# ---------------------------------------------------------------- modelos gratuitos
+
+def llm(mensajes, max_tokens=1500):
+    clave = ENV.get("FREELLMAPI_KEY", "")
+    for modelo in MODELOS:
+        cuerpo = json.dumps({"model": modelo, "messages": mensajes, "max_tokens": max_tokens,
+                             "temperature": 0.2}).encode()
+        req = urllib.request.Request(LLM_URL, cuerpo, {"Authorization": "Bearer " + clave,
+                                                       "Content-Type": "application/json"})
+        d = _respuesta_http(lambda: urllib.request.urlopen(req, timeout=150))
+        usado = str(d.get("model") or modelo)
+        texto = ((d.get("choices") or [{}])[0].get("message") or {}).get("content") or ""
+        if "claude" in usado.lower():
+            continue
+        if texto.strip():
+            return texto.strip(), usado
+        log("llm sin respuesta de", modelo, (d.get("error") or {}).get("message", "") if isinstance(d.get("error"), dict) else "")
+    return "", ""
+
+
+INSTRUCCION = (
+    "Eres el despachador de MetaGenesis (StarSeed). Alex escribe peticiones por Telegram. Devuelve SOLO un "
+    "objeto JSON, sin texto alrededor, con esta forma: {\"tipo\": \"notebooklm\" o \"respuesta\", "
+    "\"fuente\": \"ultima_sintesis\" | \"drive\" | \"cuaderno\", \"drive_id\": \"\", "
+    "\"artefactos\": [{\"tipo\": uno de infographic, audio, video, slide-deck, mind-map, report, quiz, "
+    "flashcards, data-table, \"indicaciones\": \"qué destacar, en español\"}], "
+    "\"resumen\": \"una frase en español de lo que vas a hacer\"}. "
+    "Usa \"notebooklm\" si pide algo que se genera en NotebookLM (infografía, audio, podcast, resumen de audio, "
+    "vídeo, presentación, diapositivas, mapa mental, informe, cuestionario, tarjetas, tabla). Fuente "
+    "\"ultima_sintesis\" si habla de la última síntesis o de la síntesis diaria; \"drive\" si da un enlace o id de "
+    "Drive (ponlo en drive_id); \"cuaderno\" si no da una fuente concreta. \"respuesta\" para todo lo demás, con "
+    "artefactos vacío.")
+
+
+def por_reglas(texto):
+    t = texto.lower()
+    artefactos = [{"tipo": k, "indicaciones": ""} for k, patron in CLAVES_TIPO if re.search(patron, t)]
+    m = re.search(r"/d/([A-Za-z0-9_-]{20,})", texto)
+    if m:
+        fuente = "drive"
+    elif re.search(r"s[ií]ntesis", t):
+        fuente = "ultima_sintesis"
+    else:
+        fuente = "cuaderno"
+    return {"tipo": "notebooklm" if artefactos else "respuesta", "fuente": fuente,
+            "drive_id": m.group(1) if m else "", "artefactos": artefactos, "resumen": ""}
+
+
+def interpretar(texto):
+    reglas = por_reglas(texto)
+    crudo, modelo = llm([{"role": "system", "content": INSTRUCCION}, {"role": "user", "content": texto}], 600)
+    plan = None
+    m = re.search(r"\{.*\}", crudo or "", re.S)
+    if m:
+        try:
+            plan = json.loads(m.group(0))
+        except ValueError:
+            plan = None
+    if not isinstance(plan, dict):
+        log("interpretación por reglas (modelo no dio JSON)")
+        return reglas
+    artefactos = []
+    for a in plan.get("artefactos") or []:
+        if isinstance(a, dict) and a.get("tipo") in TIPOS and a["tipo"] not in [x["tipo"] for x in artefactos]:
+            artefactos.append({"tipo": a["tipo"], "indicaciones": str(a.get("indicaciones") or "")[:800]})
+    if not artefactos and reglas["artefactos"]:
+        artefactos = reglas["artefactos"]
+    fuente = plan.get("fuente") if plan.get("fuente") in ("ultima_sintesis", "drive", "cuaderno") else reglas["fuente"]
+    drive_id = reglas["drive_id"] or (str(plan.get("drive_id") or "") if re.fullmatch(r"[A-Za-z0-9_-]{20,}", str(plan.get("drive_id") or "")) else "")
+    if fuente == "drive" and not drive_id:
+        fuente = reglas["fuente"] if reglas["fuente"] != "drive" else "cuaderno"
+    log("plan de", modelo, ":", [a["tipo"] for a in artefactos], fuente)
+    return {"tipo": "notebooklm" if artefactos else "respuesta", "fuente": fuente, "drive_id": drive_id,
+            "artefactos": artefactos[:4], "resumen": str(plan.get("resumen") or "")[:300]}
+
+
+# ---------------------------------------------------------------- Google Drive (cuenta alex, solo lectura)
+
+def token_google(alias="alex"):
+    c = leer_json(os.path.join(CASA, ".starseed", "cuentas", alias + ".json"), {})
+    datos = urllib.parse.urlencode({"client_id": c.get("client_id", ""), "client_secret": c.get("client_secret", ""),
+                                    "refresh_token": c.get("refresh_token", ""),
+                                    "grant_type": "refresh_token"}).encode()
+    d = _respuesta_http(lambda: urllib.request.urlopen(c.get("token_uri") or "https://oauth2.googleapis.com/token",
+                                                       datos, timeout=30))
+    if not d.get("access_token"):
+        raise RuntimeError("no pude renovar el acceso a Drive de la cuenta %s (%s)" % (alias, d.get("error", "?")))
+    return d["access_token"]
+
+
+def drive(ruta, params):
+    tok = token_google()
+    url = "https://www.googleapis.com/drive/v3/%s?%s" % (ruta, urllib.parse.urlencode(params))
+    req = urllib.request.Request(url, headers={"Authorization": "Bearer " + tok})
+    return _respuesta_http(lambda: urllib.request.urlopen(req, timeout=30))
+
+
+def ultima_sintesis():
+    q = ("'%s' in parents and trashed=false and mimeType='application/vnd.google-apps.document'"
+         % CARPETA_SINTESIS)
+    d = drive("files", {"q": q, "orderBy": "createdTime desc", "pageSize": "30", "fields": "files(id,name)"})
+    for a in d.get("files") or []:
+        if re.match(r"^S[ií]ntesis diaria \d{4}-\d{2}-\d{2}", a.get("name", "")):
+            return a["id"], a["name"]
+    raise RuntimeError("no encontré ninguna «Síntesis diaria AAAA-MM-DD» en la carpeta de Drive")
+
+
+def nombre_drive(fid):
+    d = drive("files/" + fid, {"fields": "name"})
+    if not d.get("name"):
+        raise RuntimeError("no encuentro ese archivo de Drive con la cuenta alexbordongarrigos")
+    return d["name"]
+
+
+# ---------------------------------------------------------------- NotebookLM
+
+def nb(args, timeout=600):
+    entorno = dict(os.environ, HOME=CASA, NOTEBOOKLM_HL="es")
+    try:
+        p = subprocess.run([NBLM] + args, capture_output=True, text=True, timeout=timeout, env=entorno, cwd=CASA)
+    except subprocess.TimeoutExpired:
+        return 124, "", "tiempo agotado"
+    todo = (p.stdout or "") + (p.stderr or "")
+    if re.search(r"Authentication (expired|error)|Run 'notebooklm login'", todo):
+        raise SesionCaducada(todo[-300:])
+    return p.returncode, p.stdout or "", p.stderr or ""
+
+
+def json_de(texto):
+    try:
+        return json.loads(texto)
+    except ValueError:
+        m = re.search(r"\{.*\}", texto, re.S)
+        if m:
+            try:
+                return json.loads(m.group(0))
+            except ValueError:
+                pass
+    return {}
+
+
+def sesion_viva():
+    try:
+        rc, _, _ = nb(["list", "--json"], 120)
+        return rc == 0
+    except SesionCaducada:
+        return False
+
+
+def asegurar_fuente(fid, titulo):
+    rc, out, err = nb(["source", "list", "-n", CUADERNO, "--json"], 180)
+    for s in json_de(out).get("sources") or []:
+        if s.get("drive_document_id") == fid and s.get("status") == "ready":
+            return s["id"]
+    rc, out, err = nb(["source", "add-drive", "-n", CUADERNO, fid, titulo, "--json"], 300)
+    d = json_de(out)
+    sid = d.get("source_id") or d.get("id") or (d.get("source") or {}).get("id")
+    if rc != 0 or not sid:
+        raise RuntimeError("no pude añadir «%s» al cuaderno: %s" % (titulo, (err or out)[-300:]))
+    nb(["source", "wait", "-n", CUADERNO, sid, "--timeout", "600"], 660)
+    return sid
+
+
+def lanzar(tipo, indicaciones, sid):
+    nombre, _ext, fijas, tope, idioma, espera = TIPOS[tipo]
+    args = ["generate", tipo, "-n", CUADERNO, "--json"] + fijas
+    if sid:
+        args += ["-s", sid]
+    if idioma:
+        args += ["--language", "es"]
+    texto = indicaciones or INDICACIONES.get(tipo, "En español, con lo esencial de la fuente.")
+    if not espera:  # mapa mental: es síncrono
+        rc, out, err = nb(args + [texto], tope)
+        if rc != 0:
+            raise RuntimeError("%s: %s" % (nombre, (err or out)[-400:]))
+        return "sincrono:" + json.dumps(json_de(out), ensure_ascii=False)
+    rc, out, err = nb(args + ["--no-wait", "--retry", "2", texto], 300)
+    tarea = json_de(out).get("task_id")
+    if rc != 0 or not tarea:
+        raise RuntimeError("%s no arrancó: %s" % (nombre, (err or out)[-400:]))
+    return tarea
+
+
+def esperar_y_bajar(tipo, tarea, peticion):
+    nombre, ext, _f, tope, _i, _e = TIPOS[tipo]
+    os.makedirs(SALIDAS, exist_ok=True)
+    ruta = os.path.join(SALIDAS, "%s-%s%s" % (peticion, tipo, ext))
+    if tarea.startswith("sincrono:"):
+        with open(ruta, "w") as f:
+            f.write(tarea[len("sincrono:"):])
+        return ruta
+    rc, out, err = nb(["artifact", "wait", "-n", CUADERNO, tarea, "--timeout", str(tope), "--json"], tope + 120)
+    estado = json_de(out).get("status", "")
+    if rc != 0 or estado not in ("completed", ""):
+        raise RuntimeError("%s no terminó (%s): %s" % (nombre, estado or rc, (err or out)[-300:]))
+    rc, out, err = nb(["download", tipo, "-n", CUADERNO, "-a", tarea, ruta, "--force"], 900)
+    if rc != 0 or not os.path.exists(ruta):
+        raise RuntimeError("no pude descargar %s: %s" % (nombre, (err or out)[-300:]))
+    return ruta
+
+
+def ffmpeg(args):
+    return subprocess.run(["ffmpeg", "-y", "-loglevel", "error"] + args, capture_output=True, timeout=1800).returncode
+
+
+def enviar_resultado(tipo, ruta, titulo):
+    nombre = TIPOS[tipo][0]
+    pie = "%s · %s" % (nombre.capitalize(), titulo or "cuaderno StarSeed: Producción audiovisual")
+    tam = os.path.getsize(ruta)
+    if tipo == "infographic":
+        if tam < 10 * 1024 * 1024:
+            subir("sendPhoto", "photo", ruta, pie)
+        subir("sendDocument", "document", ruta, pie + " (calidad completa)")
+        return
+    if tipo == "audio":
+        mp3 = ruta[:-4] + ".mp3"
+        if ffmpeg(["-i", ruta, "-vn", "-ac", "1", "-b:a", "96k", mp3]) == 0 and os.path.exists(mp3):
+            if os.path.getsize(mp3) > 49 * 1024 * 1024:
+                ffmpeg(["-i", ruta, "-vn", "-ac", "1", "-b:a", "48k", mp3])
+            ruta = mp3
+        r = subir("sendAudio", "audio", ruta, pie)
+        if not r.get("ok"):
+            subir("sendDocument", "document", ruta, pie)
+        return
+    if tipo == "video":
+        if tam > 49 * 1024 * 1024:
+            chico = ruta[:-4] + "-tg.mp4"
+            if ffmpeg(["-i", ruta, "-vf", "scale=-2:720", "-c:v", "libx264", "-crf", "30", "-preset", "veryfast",
+                       "-c:a", "aac", "-b:a", "96k", chico]) == 0:
+                ruta = chico
+        if os.path.getsize(ruta) <= 49 * 1024 * 1024:
+            subir("sendVideo", "video", ruta, pie)
+        else:
+            decir("%s: pesa demasiado para Telegram; está en el cuaderno: %s" % (pie, ENLACE_CUADERNO))
+        return
+    subir("sendDocument", "document", ruta, pie)
+
+
+def hacer_notebooklm(p, plan):
+    titulo, sid = None, p.get("fuente_id")
+    if plan["fuente"] == "ultima_sintesis":
+        fid, titulo = ultima_sintesis()
+    elif plan["fuente"] == "drive" and plan["drive_id"]:
+        fid = plan["drive_id"]
+        titulo = nombre_drive(fid)
+    else:
+        fid = None
+    hechos = set(p.get("hechos") or [])
+    pendientes = [a for a in plan["artefactos"] if a["tipo"] not in hechos]
+    nombres = ", ".join(TIPOS[a["tipo"]][0] for a in pendientes)
+    decir("En marcha en NotebookLM (cuaderno «StarSeed: Producción audiovisual»): %s%s.\n"
+          "La infografía tarda unos minutos; el audio, 10–25 min. Te los envío aquí en cuanto estén."
+          % (nombres, " a partir de «%s»" % titulo if titulo else ""))
+    if fid and not sid:
+        sid = asegurar_fuente(fid, titulo)
+        actualizar(p["id"], fuente_id=sid)
+    tareas = []
+    for a in pendientes:  # se lanzan todas a la vez; se esperan de la más rápida a la más lenta
+        tareas.append((a["tipo"], lanzar(a["tipo"], a.get("indicaciones", ""), sid)))
+    tareas.sort(key=lambda t: TIPOS[t[0]][3])
+    for tipo, tarea in tareas:
+        ruta = esperar_y_bajar(tipo, tarea, p["id"])
+        enviar_resultado(tipo, ruta, titulo)
+        hechos.add(tipo)
+        actualizar(p["id"], hechos=sorted(hechos))
+    decir("Listo ✓ También quedó en el cuaderno: %s" % ENLACE_CUADERNO)
+
+
+def responder(p):
+    sistema = ("Eres MetaGenesis, el sistema de agentes de StarSeed, respondiendo a Alex por Telegram. Responde en "
+               "español, claro y útil, en menos de 1.500 caracteres. Si la petición exige algo que no puedes hacer "
+               "desde aquí (publicar, escribir código del OS, tocar cuentas o enviar mensajes a terceros), dilo y "
+               "propón cómo encargarlo a MetaGenesis.")
+    texto, modelo = llm([{"role": "system", "content": sistema}, {"role": "user", "content": p["texto"]}])
+    if not texto:
+        raise RuntimeError("los modelos gratuitos no respondieron")
+    decir("%s\n\n— MetaGenesis · %s" % (texto, modelo))
+
+
+# ---------------------------------------------------------------- cola y trabajo
+
+def actualizar(pid, **cambios):
+    with bloqueo:
+        cola = leer_json(COLA, [])
+        for x in cola:
+            if x["id"] == pid:
+                x.update(cambios)
+        escribir_json(COLA, cola)
+
+
+def atender(p):
+    actualizar(p["id"], estado="en_curso", intentos=p.get("intentos", 0) + 1)
+    try:
+        plan = p.get("plan") or interpretar(p["texto"])
+        actualizar(p["id"], plan=plan)
+        if plan["tipo"] == "notebooklm" and plan["artefactos"]:
+            hacer_notebooklm(p, plan)
+        else:
+            responder(p)
+        actualizar(p["id"], estado="hecha", terminada=time.time())
+    except SesionCaducada:
+        actualizar(p["id"], estado="esperando_sesion")
+        if not p.get("avisada_sesion"):
+            actualizar(p["id"], avisada_sesion=True)
+            decir("La sesión de NotebookLM del A1 caducó. Tu petición queda en cola y se hará sola en cuanto vuelva "
+                  "(hasta 24 h). " + RENOVAR)
+    except Exception as e:
+        log("falló", p["id"], traceback.format_exc()[-1500:])
+        n = p.get("intentos", 0) + 1
+        if n < 3:
+            actualizar(p["id"], estado="reintentar")
+            decir("Un paso falló (%s). Lo reintento en 5 min (%d/3)." % (str(e)[:300], n))
+        else:
+            actualizar(p["id"], estado="fallida")
+            decir("No pude completar tu petición tras 3 intentos: %s" % str(e)[:500])
+
+
+def trabajar():
+    while True:
+        hay_trabajo.wait(timeout=REINTENTO_S)
+        hay_trabajo.clear()
+        with bloqueo:
+            cola = leer_json(COLA, [])
+        for p in cola:
+            if p.get("estado") not in ("nueva", "en_curso", "reintentar", "esperando_sesion"):
+                continue
+            if time.time() - p.get("recibida", 0) > VIDA_S:
+                actualizar(p["id"], estado="caducada")
+                decir("Retiro de la cola tras 24 h sin poder hacerla: «%s»" % p["texto"][:120])
+                continue
+            if p.get("estado") == "esperando_sesion" and not sesion_viva():
+                continue
+            atender(p)
+
+
+def mantener_sesion():
+    avisado = False
+    while True:
+        try:
+            rc, out, err = nb(["auth", "refresh"], 180)
+            ok = rc == 0
+        except SesionCaducada:
+            ok = False
+        marca = {"viva": ok, "comprobada": datetime.datetime.now().isoformat(timespec="minutes")}
+        with bloqueo:
+            escribir_json(ESTADO, dict(leer_json(ESTADO, {}), notebooklm=marca))
+        if not ok and not avisado:
+            decir("Aviso de MetaGenesis: la sesión de NotebookLM del A1 caducó. Las peticiones esperan en cola. "
+                  + RENOVAR)
+            avisado = True
+        if ok:
+            if avisado:
+                hay_trabajo.set()
+            avisado = False
+        time.sleep(REFRESCO_S)
+
+
+def texto_estado():
+    cola = leer_json(COLA, [])
+    nb_estado = leer_json(ESTADO, {}).get("notebooklm", {})
+    activas = [p for p in cola if p.get("estado") in ("nueva", "en_curso", "reintentar", "esperando_sesion")]
+    lineas = ["Estado de MetaGenesis (A1):",
+              "• NotebookLM: %s (comprobada %s)" % ("viva" if nb_estado.get("viva") else "caducada o sin comprobar",
+                                                   nb_estado.get("comprobada", "—")),
+              "• Peticiones en curso: %d · hechas: %d" % (len(activas),
+                                                         len([p for p in cola if p.get("estado") == "hecha"]))]
+    for p in activas[:5]:
+        lineas.append("   – %s · %s" % (p["estado"], p["texto"][:70]))
+    return "\n".join(lineas)
+
+
+def recibir(upd):
+    m = upd.get("message") or {}
+    if str((m.get("chat") or {}).get("id")) != CHAT:
+        log("ignoro un mensaje de otro chat")
+        return
+    texto = (m.get("text") or m.get("caption") or "").strip()
+    if not texto:
+        decir("Por ahora atiendo mensajes de texto.")
+        return
+    if texto.startswith("/estado"):
+        decir(texto_estado())
+        return
+    if texto.startswith(("/start", "/ayuda", "/help")):
+        decir(AYUDA)
+        return
+    with bloqueo:
+        cola = leer_json(COLA, [])
+        if any(p["id"] == upd["update_id"] for p in cola):
+            return
+        cola.append({"id": upd["update_id"], "texto": texto, "recibida": time.time(), "estado": "nueva",
+                     "intentos": 0})
+        escribir_json(COLA, cola[-200:])
+    decir("Recibido ✓ Lo atiende MetaGenesis en el A1, sin la Mac ni Claude.")
+    hay_trabajo.set()
+
+
+def escuchar():
+    offset = leer_json(ESTADO, {}).get("offset", 0)
+    while True:
+        r = tg("getUpdates", {"timeout": 50, "offset": offset, "allowed_updates": json.dumps(["message"])}, 75)
+        if not r.get("ok"):
+            log("getUpdates:", r.get("description"))
+            time.sleep(15)
+            continue
+        for u in r.get("result") or []:
+            try:
+                recibir(u)
+            except Exception:
+                log("recibir falló", traceback.format_exc()[-800:])
+            offset = u["update_id"] + 1
+            with bloqueo:
+                escribir_json(ESTADO, dict(leer_json(ESTADO, {}), offset=offset))
+
+
+def main():
+    if not TOKEN or not CHAT:
+        raise SystemExit("faltan TELEGRAM_SINTESIS_BOT_TOKEN o TELEGRAM_SINTESIS_CHAT_ID en ~/.starseed/env")
+    os.makedirs(SALIDAS, exist_ok=True)
+    for x in leer_json(COLA, []):  # tras un reinicio, lo que quedó a medias se retoma
+        if x.get("estado") == "en_curso":
+            actualizar(x["id"], estado="reintentar")
+    log("escuchando @StarSeed_Design_bot")
+    threading.Thread(target=trabajar, daemon=True).start()
+    threading.Thread(target=mantener_sesion, daemon=True).start()
+    hay_trabajo.set()
+    escuchar()
+
+
+if __name__ == "__main__":
+    main()
