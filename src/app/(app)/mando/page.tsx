@@ -1,7 +1,9 @@
 "use client";
 
 /**
- * /mando — PUENTE DE MANDO (Ola 231).
+ * /mando — MetaGenesis (Ola 231). El producto se llama Genesis: ver la cabecera de
+ * `src/lib/__tests__/nombre-genesis.test.ts`. En el servidor de Next esta página no se sirve:
+ * `next.config.ts` redirige /mando a /genesis.
  * ─────────────────────────────────────────────────────────────────────────────
  * Consola de producción y desarrollo del StarSeed OS: el pulso del trabajo
  * (olas, tareas, commits, flota de proveedores), los procesos en marcha, los
@@ -17,7 +19,7 @@ export default function MandoPage() {
     return (
         <main className="min-h-screen px-4 py-8 md:px-8">
             <header className="mb-6">
-                <h1 className="text-2xl font-semibold">Puente de Mando · StarSeed OS</h1>
+                <h1 className="text-2xl font-semibold">MetaGenesis · StarSeed OS</h1>
                 <p className="mt-1 text-sm text-muted-foreground">
                     Consola de producción y desarrollo: olas, tareas, flota de
                     proveedores y el relevo entre agentes, en vivo y en tu máquina.
