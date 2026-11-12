@@ -11,7 +11,7 @@ import json
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-RAMAS = ("contactos", "noticias", "referencias", "actividad", "ideas", "guiones", "youtube")
+RAMAS = ("contactos", "noticias", "referencias", "actividad", "ideas", "guiones")
 REGLA = "todo dato con fuente y fecha; nada inventado; no se investiga a particulares"
 COMUNES = ["3.2 (ciclo en tres pasadas)", "3.4 (herramientas: Jev, Laya, LEANN, fuentes públicas)"]
 ESPECIFICAS = {
@@ -21,7 +21,6 @@ ESPECIFICAS = {
     "actividad": ["3.2.1 (actividad de Alex: qué temas tocó ayer y qué sugieren)", "4 (actividad personal: qué se puede leer)"],
     "ideas": ["3.2.1 (ideas de vídeo y redes)"],
     "guiones": ["3.2.1 (guion y storyboard de los 2 vídeos de la rotación)"],
-    "youtube": ["3.4 (youtube: ver y transcribir vídeos candidatos, fichas con historia, ideas, estilo)"],
 }
 CTX_KEYS = {
     "contactos": ("rotacion_contactos", "sintesis_previas"),
@@ -30,7 +29,6 @@ CTX_KEYS = {
     "actividad": ("resumen_actividad", "informes"),
     "ideas": ("imaginacion", "informes", "rotacion_categorias"),
     "guiones": ("rotacion_videos", "rotacion_contactos", "imaginacion"),
-    "youtube": ("rotacion_videos", "sintesis_previas"),
 }
 
 
