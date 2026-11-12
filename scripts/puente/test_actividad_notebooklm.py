@@ -28,7 +28,8 @@ def cli_falso(llamadas, cuadernos=CUADERNOS, fuentes=FUENTES, notas=NOTAS, error
 
 def test_sin_cli_no_falla_y_dice_el_motivo():
     resultado = A.leer(buscar=lambda: None)
-    assert resultado["ok"] is False
+    assert resultado["ok"] is True
+    assert resultado["fichas"] == []
     assert "CLI" in resultado["motivo"]
 
 
@@ -60,8 +61,9 @@ def test_la_sesion_caducada_no_reintenta_el_login():
     caducada = {"codigo": 1, "stdout": "",
                 "stderr": "Unauthorized: session expired. Run 'notebooklm login'"}
     resultado = A.leer(ejecutar=cli_falso(llamadas, error=caducada))
-    assert resultado["ok"] is False
-    assert resultado["motivo"] == "sesión de NotebookLM no válida en este nodo"
+    assert resultado["ok"] is True
+    assert resultado["fichas"] == []
+    assert "sesión" in resultado["motivo"].lower() or "no válida" in resultado["motivo"].lower()
     assert not any("login" in " ".join(c) for c in llamadas)
 
 
@@ -114,3 +116,23 @@ def test_filas_acepta_lista_suelta_y_envoltorio():
     assert A.filas({"sources": [{"id": "s1"}]}, "sources") == [{"id": "s1"}]
     assert A.filas([{"id": "n1"}], "notes") == [{"id": "n1"}]
     assert A.filas({}, "notes") == []
+
+
+def test_sin_sesion_en_mac_devuelve_cero_fichas_con_motivo():
+    """(PET1112C) En la Mac, si el CLI existe pero la sesión está caducada, no falla;
+    devuelve ok=True con cero fichas y motivo explicativo."""
+    llamadas = []
+    caducada = {"codigo": 1, "stdout": "",
+                "stderr": "Unauthorized: session expired. Run 'notebooklm login'"}
+    resultado = A.leer(ejecutar=cli_falso(llamadas, error=caducada))
+    assert resultado["ok"] is True
+    assert resultado["fichas"] == []
+    assert "sesión" in resultado["motivo"].lower() or "no válida" in resultado["motivo"].lower()
+
+
+def test_sin_cli_en_mac_devuelve_cero_fichas_con_motivo():
+    """(PET1112C) En la Mac, si no hay CLI, no falla; devuelve ok=True con cero fichas."""
+    resultado = A.leer(buscar=lambda: None)
+    assert resultado["ok"] is True
+    assert resultado["fichas"] == []
+    assert "CLI" in resultado["motivo"] or "cli" in resultado["motivo"].lower()

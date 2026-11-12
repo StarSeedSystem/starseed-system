@@ -1128,12 +1128,14 @@ def empaquetar_cuentas(carpeta=DIR_CUENTAS, destino_tgz=None):
 
 def guion_cuentas(destino=DIR_CUENTAS_A1):
     """PURA. La orden ssh que despliega el tgz que va en la entrada: carpeta 700 y cada ficha
-    600 en el destino. Todo callado (`2>/dev/null`) y un solo eco sin nombres de archivo."""
+    600 en el destino, todo con dueño starseed:starseed. Todo callado (`2>/dev/null`) y un solo
+    eco sin nombres de archivo. (PET1112C) Añade chown -R para corregir uid 501:staff que venía del tar."""
     return ("set -e; sudo install -d -o starseed -g starseed -m 700 %s; "
             "sudo tar xzf /tmp/starseed-cuentas.tgz -C %s 2>/dev/null; "
+            "sudo chown -R starseed:starseed %s 2>/dev/null; "
             "sudo find %s -type f -exec chmod 600 {} + 2>/dev/null; "
             "sudo chmod 700 %s; rm -f /tmp/starseed-cuentas.tgz; echo cuentas-ok"
-            % (destino, destino, destino, destino))
+            % (destino, destino, destino, destino, destino))
 
 
 def _cuentas_al_a1(carpeta=DIR_CUENTAS, destino=DIR_CUENTAS_A1):
@@ -1274,17 +1276,29 @@ def guion_notebooklm_venv(venv=VENV_NOTEBOOKLM_A1):
             "%s/bin/pip install -q notebooklm-py; fi; echo notebooklm-py-listo" % (venv, venv, venv, venv))
 
 
-def _notebooklm_al_a1(origen=ESTADO_NOTEBOOKLM, destino=ESTADO_NOTEBOOKLM_A1):
-    """(SDP1111R) La sesión de NotebookLM al A1 por el mismo túnel de `claves` (0600, sin eco);
-    sin ficha aquí no es error: la Mac la cubre encendida."""
+def _notebooklm_al_a1(origen=ESTADO_NOTEBOOKLM, destino=ESTADO_NOTEBOOKLM_A1,
+                      venv_notebooklm=VENV_NOTEBOOKLM_A1):
+    """(PET1112C) El A1 es el ÚNICO dueño de la sesión de NotebookLM.
+    Antes de copiar, comprueba en el A1 `notebooklm auth check` con el venv.
+    Si la sesión del A1 está viva, NO copia nada y devuelve {'ok': True, 'enviado': False,
+    'motivo': 'el A1 es el dueño y está viva'}.
+    Solo copia si el A1 no tiene sesión o la tiene caducada, y entonces avisa de que
+    la de la Mac deja de usarse. Sin ficha en la Mac no es error."""
     datos = _leer_bytes(origen)
     if not datos:
         return {"ok": True, "enviado": False, "motivo": "sin sesión de NotebookLM en este nodo"}
+    # Comprobar si el A1 ya tiene una sesión viva
+    cli_venv = os.path.join(venv_notebooklm, "bin", "notebooklm")
+    rc_check, salida_check = ssh("%s auth check" % cli_venv, timeout=60)
+    if rc_check == 0:
+        return {"ok": True, "enviado": False, "motivo": "el A1 es el dueño y está viva"}
+    # A1 no tiene sesión válida: copiar la de la Mac y avisar que la Mac deja de usarse
     rc, salida = _ssh_bytes("cat > /tmp/starseed-notebooklm.json", datos, timeout=120)
     if rc == 0:
         rc, salida = ssh(guion_notebooklm(destino), timeout=120)
     return {"ok": rc == 0 and "notebooklm-ok" in salida, "enviado": rc == 0,
-            "motivo": "" if rc == 0 else tachar(salida.strip()[-120:], _ip())}
+            "motivo": "la sesión de la Mac deja de usarse; el A1 es el dueño ahora"
+            if rc == 0 else tachar(salida.strip()[-120:], _ip())}
 
 
 def es_contenedor_nube(env=None):

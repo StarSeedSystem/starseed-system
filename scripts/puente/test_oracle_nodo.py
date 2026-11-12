@@ -422,6 +422,123 @@ class CuentasAlA1(unittest.TestCase):
             N._ssh_bytes = original
         self.assertEqual((r.get("ok"), r.get("enviados"), len(llamadas)), (True, 0, 0))
 
+    def test_guion_cuentas_incluye_chown_de_archivos_a_starseed(self):
+        """(PET1112C) Los archivos extraídos deben quedar con dueño starseed:starseed, no 501:staff."""
+        guion = N.guion_cuentas()
+        self.assertIn("chown -R starseed:starseed", guion)
+        self.assertIn("install -d -o starseed -g starseed -m 700", guion)
+        self.assertIn("chmod 600", guion)
+
+
+class NotebookLMAlA1(unittest.TestCase):
+    """(PET1112C) El A1 es el único dueño de la sesión de NotebookLM."""
+
+    def _ssh_mock(self, respuestas):
+        """Crea un mock de ssh que devuelve respuestas en secuencia."""
+        self._ssh_llamadas = []
+        def mock_ssh(orden, entrada=None, timeout=120):
+            self._ssh_llamadas.append({"orden": orden, "entrada": entrada})
+            if not respuestas:
+                return 0, ""
+            return respuestas.pop(0)
+        return mock_ssh
+
+    def _ssh_bytes_mock(self, respuestas):
+        """Crea un mock de _ssh_bytes que devuelve respuestas en secuencia."""
+        self._ssh_bytes_llamadas = []
+        def mock_ssh_bytes(orden, datos, timeout=300):
+            self._ssh_bytes_llamadas.append({"orden": orden, "datos": datos})
+            if not respuestas:
+                return 0, ""
+            return respuestas.pop(0)
+        return mock_ssh_bytes
+
+    def test_si_a1_tiene_sesion_viva_no_copia_y_avisa(self):
+        """Si `notebooklm auth check` en el A1 dice que la sesión está viva, no se copia nada."""
+        original_ssh = N.ssh
+        original_ssh_bytes = N._ssh_bytes
+        # 1ª llamada: notebooklm auth check -> ok (sesión viva)
+        # 2ª llamada: guion_notebooklm (no debería llamarse)
+        N.ssh = self._ssh_mock([(0, "ok")])
+        N._ssh_bytes = self._ssh_bytes_mock([])
+        try:
+            # Crear una sesión falsa en la Mac
+            import tempfile, os
+            with tempfile.TemporaryDirectory() as tmp:
+                origen = os.path.join(tmp, "storage_state.json")
+                with open(origen, "w") as f:
+                    f.write('{"cookies": []}')
+                r = N._notebooklm_al_a1(origen=origen)
+            self.assertTrue(r["ok"])
+            self.assertFalse(r["enviado"])
+            self.assertEqual(r["motivo"], "el A1 es el dueño y está viva")
+            # Verificar que solo se llamó auth check, no el guion de copia
+            ordenes = [c["orden"] for c in self._ssh_llamadas]
+            self.assertTrue(any("auth check" in o for o in ordenes))
+            self.assertFalse(any("notebooklm-ok" in o for o in ordenes))
+        finally:
+            N.ssh = original_ssh
+            N._ssh_bytes = original_ssh_bytes
+
+    def test_si_a1_no_tiene_sesion_copia_y_avisa_que_mac_deja_de_usarse(self):
+        """Si `notebooklm auth check` en el A1 falla (sin sesión o caducada), copia y avisa."""
+        original_ssh = N.ssh
+        original_ssh_bytes = N._ssh_bytes
+        # 1ª llamada: notebooklm auth check -> falla (sesión no válida)
+        # 2ª llamada: _ssh_bytes para enviar el archivo
+        # 3ª llamada: guion_notebooklm para desplegar
+        N.ssh = self._ssh_mock([
+            (1, "session expired"),  # auth check falla
+            (0, "notebooklm-ok"),    # guion_notebooklm ok
+        ])
+        N._ssh_bytes = self._ssh_bytes_mock([(0, "")])  # envío del archivo ok
+        try:
+            import tempfile, os
+            with tempfile.TemporaryDirectory() as tmp:
+                origen = os.path.join(tmp, "storage_state.json")
+                with open(origen, "w") as f:
+                    f.write('{"cookies": [{"name": "test"}]}')
+                r = N._notebooklm_al_a1(origen=origen)
+            self.assertTrue(r["ok"])
+            self.assertTrue(r["enviado"])
+            self.assertIn("la Mac deja de usarse", r["motivo"])
+            # Verificar que se llamó auth check y luego el guion de copia
+            ordenes = [c["orden"] for c in self._ssh_llamadas]
+            self.assertTrue(any("auth check" in o for o in ordenes))
+            self.assertTrue(any("notebooklm-ok" in o for o in ordenes))
+        finally:
+            N.ssh = original_ssh
+            N._ssh_bytes = original_ssh_bytes
+
+    def test_si_a1_auth_check_falla_por_otro_motivo_tambien_copia(self):
+        """Si auth check falla por cualquier motivo (CLI no instalado, error), se copia."""
+        original_ssh = N.ssh
+        original_ssh_bytes = N._ssh_bytes
+        N.ssh = self._ssh_mock([
+            (1, "command not found: notebooklm"),  # auth check falla
+            (0, "notebooklm-ok"),
+        ])
+        N._ssh_bytes = self._ssh_bytes_mock([(0, "")])
+        try:
+            import tempfile, os
+            with tempfile.TemporaryDirectory() as tmp:
+                origen = os.path.join(tmp, "storage_state.json")
+                with open(origen, "w") as f:
+                    f.write('{"cookies": []}')
+                r = N._notebooklm_al_a1(origen=origen)
+            self.assertTrue(r["ok"])
+            self.assertTrue(r["enviado"])
+        finally:
+            N.ssh = original_ssh
+            N._ssh_bytes = original_ssh_bytes
+
+    def test_sin_sesion_en_mac_no_falla_devuelve_motivo(self):
+        """Si no hay archivo de sesión en la Mac, no falla; devuelve ok con enviado=False."""
+        r = N._notebooklm_al_a1(origen="/no-existe-pet1112c")
+        self.assertTrue(r["ok"])
+        self.assertFalse(r["enviado"])
+        self.assertEqual(r["motivo"], "sin sesión de NotebookLM en este nodo")
+
 
 if __name__ == "__main__":
     unittest.main()

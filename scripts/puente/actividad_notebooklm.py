@@ -7,8 +7,8 @@ lleva por el túnel ssh), con perfiles: `default` = alexbordongarrigos@gmail.com
 `fundacion` = fundacionstarseed@gmail.com.
 Se listan los cuadernos de cada perfil y, por cuaderno, las fuentes y notas nuevas desde la
 última pasada, con `privado: true` en ~/.starseed/actividad/ (fuera de starseed_memory_root).
-Sin CLI o con la sesión caducada: {ok: False, motivo} sin fallar ni reintentar el login (si
-Google invalida la sesión fuera de la Mac, la Mac la cubre cuando esté encendida); `ejecutar` es inyectable.
+(PET1112C) En la Mac, si no hay CLI o la sesión está caducada, devuelve ok=True con cero
+fichas y motivo explicativo (no falla). En el A1 (líder) se espera sesión viva; `ejecutar` es inyectable.
 """
 import json, os, shutil, subprocess, time
 
@@ -70,21 +70,28 @@ def _ficha(perfil, correo, cuaderno, tipo, fila, hoy):
             "texto": str(fila.get("content") or fila.get("text") or "")[:1500]}
 
 def leer(ejecutar=None, buscar=buscar_cli, perfiles=None, estado=None, dir_actividad=None):
-    """Cuadernos, fuentes y notas nuevas por perfil; nunca falla ni reintenta el login."""
+    """Cuadernos, fuentes y notas nuevas por perfil; nunca falla ni reintenta el login.
+    (PET1112C) En la Mac, si no hay CLI o la sesión está caducada, devuelve ok=True con
+    cero fichas y motivo explicativo (no falla). En el A1 (líder) se espera sesión viva."""
     perfiles = dict(perfiles or PERFILES)
     binario = None if ejecutar else buscar()
     if not binario and not ejecutar:
-        return {"ok": False, "motivo": "no hay CLI de NotebookLM en este nodo"}
+        return {"ok": True, "cuadernos": [], "fichas": [], "estado": {},
+                "motivo": "no hay CLI de NotebookLM en este nodo", "errores": []}
     llamar = ejecutar or (lambda args: ejecutar_cli(args, binario))
     estado = estado or (leer_estado(os.path.join(dir_actividad, NOMBRE_ESTADO)) if dir_actividad else None)
     vistos, nuevo = dict(estado or {}), dict(estado or {})
     hoy = time.strftime("%Y-%m-%d")  # el día local del nodo (el de Alex)
     cuadernos, fichas, errores = [], [], []
+    sesion_invalida = False
+    motivo_sesion = ""
     for perfil, correo in perfiles.items():
         salida = llamar(["-p", perfil, "list", "--json"]) or {}
         if salida.get("codigo") != 0:
             if sesion_caducada(salida):
-                return {"ok": False, "motivo": "sesión de NotebookLM no válida en este nodo", "perfil": perfil}
+                sesion_invalida = True
+                motivo_sesion = "sesión de NotebookLM no válida en este nodo (perfil: %s)" % perfil
+                break
             errores.append("%s: %s" % (perfil, (salida.get("stderr") or "")[:120]))
             continue
         for cuaderno in filas(salida, "notebooks"):
@@ -95,12 +102,19 @@ def leer(ejecutar=None, buscar=buscar_cli, perfiles=None, estado=None, dir_activ
                 salida2 = llamar(["-p", perfil] + orden + ["-n", cuaderno["id"], "--json"]) or {}
                 if salida2.get("codigo") != 0:
                     if sesion_caducada(salida2):
-                        return {"ok": False, "motivo": "sesión de NotebookLM no válida en este nodo", "perfil": perfil}
+                        sesion_invalida = True
+                        motivo_sesion = "sesión de NotebookLM no válida en este nodo (perfil: %s, %s)" % (perfil, tipo)
+                        break
                     errores.append("%s/%s: %s" % (perfil, tipo, (salida2.get("stderr") or "")[:120]))
                     continue
                 clave_estado = "%s|%s|%s" % (perfil, cuaderno["id"], tipo)
                 nuevas, nuevo[clave_estado] = _nuevas(vistos, clave_estado, filas(salida2, clave))
                 fichas.extend(_ficha(perfil, correo, cuaderno, tipo, fila, hoy) for _, fila in nuevas)
+        if sesion_invalida:
+            break
+    if sesion_invalida:
+        return {"ok": True, "cuadernos": [], "fichas": [], "estado": {},
+                "motivo": motivo_sesion, "errores": []}
     if dir_actividad:
         for perfil in perfiles:
             guardar(nuevo, [f for f in fichas if f["perfil"] == perfil], perfil, hoy, dir_actividad)
