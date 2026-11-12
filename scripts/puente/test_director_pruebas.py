@@ -532,5 +532,21 @@ class Comprobaciones(unittest.TestCase):
             self.assertEqual(C.senal_de_texto(t), s, t)
 
 
+class AvisoDelBanco(Base):
+    def test_el_aviso_lleva_el_mensaje_y_el_sitio_no_solo_el_tipo(self):
+        m = self.m
+
+        def roto():
+            return {}["clave-que-no-esta"]
+        m.pasada_banco = roto
+        est = DP.pasada(m)
+        self.assertEqual(len(est["avisos"]), 1)
+        self.assertIn("KeyError", est["avisos"][0]); self.assertIn("clave-que-no-esta", est["avisos"][0])
+        self.assertIn("test_director_pruebas.py", est["avisos"][0])
+        self.assertNotIn("/home", est["avisos"][0])
+        m.t += 60
+        self.assertEqual(len(DP.pasada(m)["avisos"]), 1)          # el mismo aviso no se repite pasada tras pasada
+
+
 if __name__ == "__main__":
     unittest.main()

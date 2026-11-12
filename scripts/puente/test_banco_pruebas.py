@@ -258,6 +258,147 @@ class EvidenciaDeUnaVersion(unittest.TestCase):
         self.assertEqual(len(b["sin_evidencia"]), 1)
 
 
+REAL39 = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures", "enlaces-log-prueba39-real.txt"), encoding="utf-8").read()
+MAC39_REAL = {"version": "0.5.1-prueba.39", "app_abierta": True, "ultimo_arranque": "2026-11-12T02:01:59Z", "errores_arranque": [],
+              "version_desde": "2026-11-12T01:49:31Z", "version_desde_fuente": "paquete-instalado"}
+
+
+class RegistroDeLaPrueba39(unittest.TestCase):
+    """PRB1111AB: las llamadas reales de la 39 (congestión rehecha) se leen bien y nada tumba el archivo."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.b = B.construir(REAL39, MAC39_REAL, comprobaciones("39"), 0)
+        cls.ll = cls.b["llamadas"][0]
+        cls.mac, cls.tab = cls.ll["lados"]["mac"], cls.ll["lados"]["maggaboard"]
+
+    def test_la_llamada_real_se_construye_sin_problemas(self):
+        self.assertEqual(self.b["problemas"], []); self.assertEqual(self.b["problemas_total"], 0)
+        self.assertEqual(self.b["fuente"]["ilegibles"]["lineas"], 0)
+        self.assertEqual(len(self.b["llamadas"]), 1)
+        self.assertEqual((self.ll["desde"], self.ll["duracion_s"]), ("2026-11-12T03:47:04Z", 51))
+        self.assertEqual(self.ll["version_relacion"], "esta")
+        self.assertIn("enlace-datos", self.ll["medios"]); self.assertEqual(self.ll["enlaces"], ["b2", "b1"])
+
+    def test_voz_escalon_tasa_suelo_y_lo_que_dice_el_otro(self):
+        v = self.mac["voz"]
+        self.assertEqual((v["nivel_min"], v["nivel_max"], v["nivel_ultimo"]), (0, 5, 5))
+        self.assertEqual((v["opus_kbps_min"], v["opus_kbps_max"]), (6, 16))
+        self.assertEqual(v["bajo_suelo_lineas"], 3)
+        self.assertEqual(v["otro_perdida_pct_max"], 18); self.assertEqual(v["tarde_pct_max"], 57.5)
+        self.assertEqual((v["enlace_kbps"], v["entregado_kbps_max"]), (160, 56))
+
+    def test_la_espera_son_dos_numeros_percentil_90_y_maximo(self):
+        self.assertEqual(B._espera("espera=72/89ms"), (72.0, 89.0))
+        self.assertEqual(B._espera("espera=89ms"), (None, 89.0))
+        self.assertEqual(B._espera("espera=-/0ms"), (None, 0.0))
+        self.assertEqual(B._espera("entregado=2k espera=85/65m"), (85.0, 65.0))          # la línea cortada por el registro
+        self.assertEqual(B._enlace("enlace=160k+29ms/139"), (160.0, 29.0, 139.0))
+        self.assertEqual(B._otro("BAJO-SUELO red otro:perd=18%/tarde=57.5% cabe"), (18.0, 57.5))
+        v = self.mac["voz"]
+        self.assertGreaterEqual(v["espera_voz_ms_max"], v["espera_voz_p90_ms_max"])
+
+    def test_audio_inventado_sin_las_muestras_de_arranque(self):
+        self.assertEqual(self.mac["voz"]["inventado_pct_max"], 67)          # no el 100 % de la primera muestra (paq=2)
+        self.assertEqual(self.mac["voz"]["perdida_pct_max"], 2.2)
+
+    def test_imagenes_por_segundo_enviadas_y_vistas_en_cada_sentido(self):
+        self.assertEqual(self.mac["video"]["fps_enviados_med"], 5.1)
+        self.assertEqual(self.mac["video"]["fps_recibidos_med"], 1)          # lo que la Mac pinta de la tablet
+        self.assertEqual(self.tab["video"]["fps_recibidos_med"], 3)          # lo que la tablet pinta de la Mac
+        self.assertEqual(self.mac["video"]["fps_activo"]["med"], 5.5)
+        self.assertEqual(self.mac["video"]["otro_pausado_lineas"], 1)
+        self.assertEqual(self.mac["video"]["pausas"], [])
+
+    def test_la_linea_de_reparto_sin_fps_no_rompe_nada(self):          # el fallo original: «reparto carril=… escalon=…» sin fps
+        lin = [l for l in REAL39.splitlines() if "reparto carril=" in l]
+        self.assertTrue(lin)
+        self.assertIsNotNone(B.construir("\n".join(lin), MAC39_REAL, {"pruebas": {}}, 0))
+        cortada = [B.parse_linea(x.split("fps=")[0]) for x in REAL39.splitlines() if "reparto activo" in x][:1]      # activo, sin fps
+        lado = B.metricas_lado([B.parse_linea(lin[0])] + cortada, 0, 1)
+        self.assertIsNone(lado["video"]["fps_medio"])
+
+    def test_sugerencias_de_la_llamada_real(self):
+        por = {s["senal"]: s for s in self.b["sugerencias"]}
+        self.assertEqual(por["video-fps-ble"]["veredicto"], "falla")          # la Mac ve 1 imagen/s de la tablet
+        self.assertIn("mac 1", por["video-fps-ble"]["motivo"]); self.assertIn("maggaboard 3", por["video-fps-ble"]["motivo"])
+        self.assertEqual(por["voz-limpia-lejos"]["veredicto"], "falla")       # BAJO-SUELO y la voz inventada llegó al 67 %
+        self.assertEqual(por["llamada-ble"]["veredicto"], "bien"); self.assertIn("2 min", por["llamada-ble"]["motivo"])
+        self.assertEqual(por["voz-sin-corte"]["veredicto"], "bien")
+        sin = {e["senal"] for e in self.b["sin_evidencia"]}
+        self.assertIn("video-sin-pausa-mudo", sin)                # no hubo micrófono mudo
+        self.assertIn("enlace-ble-hora", sin)
+
+    def test_lineas_ilegibles_se_cuentan_y_se_nombran(self):
+        sucio = REAL39 + "\nesto no es una línea del registro\n\notra cosa rara\n"
+        b = B.construir(sucio, MAC39_REAL, comprobaciones("39"), 0)
+        self.assertEqual(b["fuente"]["ilegibles"]["lineas"], 2)
+        self.assertIn("esto no es", b["fuente"]["ilegibles"]["ejemplo"])
+        self.assertEqual(b["llamadas"][0]["id"], self.ll["id"]); self.assertTrue(b["sugerencias"])
+
+    def test_una_llamada_que_no_se_puede_construir_no_borra_las_demas(self):
+        orig = B.construir_llamada
+
+        def con_fallo(g, ble, prob=None):
+            ll = orig(g, ble, prob)
+            if ll["id"].endswith("191944"):
+                raise TypeError("campo roto de prueba")
+            return ll
+        B.construir_llamada = con_fallo
+        try:
+            b = B.construir(TEXTO + "\n" + REAL39, MAC39_REAL, comprobaciones("39"), 0)
+        finally:
+            B.construir_llamada = orig
+        ids = {l["id"]: l for l in b["llamadas"]}
+        self.assertTrue(ids["llamada-20261111T191944"]["ilegible"])
+        self.assertIn("campo roto de prueba", ids["llamada-20261111T191944"]["error"])
+        self.assertNotIn("ilegible", ids["llamada-20261112T034704"])
+        self.assertEqual(b["problemas_total"], 1); self.assertIn("TypeError", b["problemas"][0]["error"])
+        self.assertTrue(b["aparatos"]); self.assertTrue(b["sugerencias"])
+
+    def test_una_seccion_rota_deja_la_punta_con_lo_demas(self):
+        orig = B._video
+        B._video = lambda *a, **k: 1 / 0
+        try:
+            b = B.construir(REAL39, MAC39_REAL, comprobaciones("39"), 0)
+        finally:
+            B._video = orig
+        lado = b["llamadas"][0]["lados"]["mac"]
+        self.assertIsNone(lado["video"]); self.assertIsNotNone(lado["voz"])
+        self.assertTrue(any("video" in p["donde"] and "ZeroDivisionError" in p["error"] for p in b["problemas"]))
+
+    def test_una_senal_que_revienta_queda_sin_evidencia_y_las_otras_siguen(self):
+        orig = B.regla
+
+        def mala(senal, llamada, ctx):
+            if senal == "llamada-ble":
+                raise ValueError("regla rota")
+            return orig(senal, llamada, ctx)
+        B.regla = mala
+        try:
+            b = B.construir(REAL39, MAC39_REAL, comprobaciones("39"), 0)
+        finally:
+            B.regla = orig
+        self.assertTrue(any(e["senal"] == "llamada-ble" and "regla rota" in e["razon"] for e in b["sin_evidencia"]))
+        self.assertTrue(any(s["senal"] == "video-fps-ble" for s in b["sugerencias"]))
+
+    def test_el_archivo_en_disco_sale_aunque_haya_un_defecto(self):
+        with tempfile.TemporaryDirectory() as d:
+            ruta = os.path.join(d, "enlaces.log")
+            open(ruta, "w", encoding="utf-8").write(REAL39 + "\nbasura\n")
+
+            class M(BP.Medios):
+                def plist(self):
+                    return {"CFBundleShortVersionString": "0.5.1-prueba.39", "CFBundleExecutable": "x"}
+
+                def app_abierta(self, e):
+                    return True
+            _, b = BP.pasada(M(log=ruta, salida=d, logs=d))
+            self.assertEqual(b["fuente"]["ilegibles"]["lineas"], 1)
+            self.assertEqual(len(b["llamadas"]), 1)
+            self.assertNotIn(d, json.dumps(b))
+
+
 class MemoriaDeVersion(unittest.TestCase):
     T = 1794448000.0
 

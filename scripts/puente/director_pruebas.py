@@ -520,7 +520,9 @@ def pasada(m):
     try:
         m.pasada_banco()
     except Exception as e:  # noqa: BLE001 — la evidencia falla sola; el director sigue
-        est["avisos"] = (est["avisos"] + ["el banco de pruebas falló: %s" % type(e).__name__])[-3:]
+        import banco_pruebas_logica as BL
+        aviso = tachar("el banco de pruebas falló: %s" % BL.describir_error(e))       # el mensaje y el sitio, no solo el tipo
+        est["avisos"] = (est["avisos"] if aviso in est["avisos"] else est["avisos"] + [aviso])[-3:]
         _guardar(m, est)
     return est
 
