@@ -56,7 +56,7 @@ import mensajes_agente as _mensajes
 # (Ola 1018L · L) Tarjeta de habilidad de Matt Pocock al final del prompt del escritor.
 import habilidades_enjambre as _habilidades_enjambre
 from clasificar_fallo_motor import clasificar
-from puerta_degenerados import archivos_degenerados
+from puerta_degenerados import archivos_degenerados, secretos_en_cambios
 from proveedor_anthropic import cabeceras_api as cabeceras_anthropic
 from proveedor_anthropic import escalon as escalon_anthropic, ordenar_por_precio
 
@@ -8834,6 +8834,7 @@ def ejecutar(t, intento=1):
     )
     if rc_br == 0:
         nombres_deg |= set(out_br.splitlines())
+    nombres_sec = {n.strip() for n in nombres_deg if n.strip()}
     nombres_deg = {
         n.strip()
         for n in nombres_deg
@@ -8870,6 +8871,54 @@ def ejecutar(t, intento=1):
             )
             limpiar_worktree(tid, borrar_rama=False)
             return
+
+    # Puerta de secretos: escanea los mismos cambios (incluyendo starseed_memory_root/)
+    # en busca de cadenas con forma de clave.
+    if nombres_sec:
+        cambios_sec = []
+        for r_sec in sorted(nombres_sec):
+            p_sec = os.path.join(wt, r_sec)
+            desp_sec = (
+                open(p_sec, "r", encoding="utf-8", errors="replace").read()
+                if os.path.isfile(p_sec)
+                else ""
+            )
+            rc_s, out_s = sh(["git", "show", "main:" + r_sec], cwd=wt, timeout=30)
+            if rc_s != 0:
+                rc_s, out_s = sh(["git", "show", "HEAD:" + r_sec], cwd=wt, timeout=30)
+            ant_sec = out_s if rc_s == 0 else ""
+            cambios_sec.append((r_sec, ant_sec, desp_sec))
+
+        escanear = None
+        try:
+            ruta_puente = os.path.join(ROOT, "scripts", "puente")
+            if ruta_puente not in sys.path:
+                sys.path.insert(0, ruta_puente)
+            import produccion_puertas as _pp
+            escanear = _pp.escanear_secretos
+        except Exception:
+            escanear = None
+
+        razones_sec = secretos_en_cambios(cambios_sec, escanear)
+        if razones_sec:
+            nota_sec = ("posible secreto: " + "; ".join(razones_sec))[:200]
+            set_estado(
+                tid,
+                estado="fallo",
+                modelo=modelo_ok,
+                segundos=int(time.time() - t0),
+                nota=nota_sec,
+            )
+            evento(
+                "fallo",
+                tid,
+                "cadenas con forma de clave rechazadas (el análisis de la autopublicación las frena para todos): "
+                + "; ".join(razones_sec)
+                + ". Si es una clave de prueba, parte el literal ('ghp_' + '…') o usa un valor de marcador (de-prueba, xxxx).",
+            )
+            limpiar_worktree(tid, borrar_rama=False)
+            return
+
     msg = (
         "%s · %s: %s\n\nEnjambre libre v2 (opencode · %s). Archivos: %s\n\nCo-Authored-By: Enjambre StarSeed <enjambre@starseed.local>"
         % (

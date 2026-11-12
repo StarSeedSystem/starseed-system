@@ -5,7 +5,7 @@ import sys
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from puerta_degenerados import archivos_degenerados
+from puerta_degenerados import archivos_degenerados, secretos_en_cambios
 
 
 class TestPuertaDegenerados(unittest.TestCase):
@@ -124,6 +124,124 @@ class TestPuertaDegenerados(unittest.TestCase):
             ("docs/backups.md", "", "contenido"),
         ]
         self.assertEqual(archivos_degenerados(cambios), [])
+
+
+class TestSecretosEnCambios(unittest.TestCase):
+    """Pruebas para la detección de secretos en cambios."""
+
+    @classmethod
+    def setUpClass(cls):
+        """Carga el escáner real de produccion_puertas."""
+        import importlib.util
+        import sys
+
+        ruta_puente = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "..", "puente"
+        )
+        if ruta_puente not in sys.path:
+            sys.path.insert(0, ruta_puente)
+
+        spec = importlib.util.spec_from_file_location(
+            "produccion_puertas",
+            os.path.join(ruta_puente, "produccion_puertas.py"),
+        )
+        if spec is None or spec.loader is None:
+            cls.escanear = None
+            return
+        modulo = importlib.util.module_from_spec(spec)
+        try:
+            spec.loader.exec_module(modulo)
+            cls.escanear = modulo.escanear_secretos
+        except Exception:
+            cls.escanear = None
+
+    def _skip_if_no_scanner(self):
+        if type(self).escanear is None:
+            self.skipTest("No se pudo cargar produccion_puertas.escanear_secretos")
+
+    def _get_escanear(self):
+        return type(self).escanear
+
+    def test_archivo_no_prueba_con_ghp(self):
+        """(a) Archivo no de prueba que añade un ghp_ → una razón."""
+        self._skip_if_no_scanner()
+        # ghp_ + 36 caracteres alfanuméricos variados (sin rachas abc/123)
+        token = "gh" + "p_" + "Xk9mP2qR5vW8yZ1aB3cD7eF4gH6jK8lM0nQ"
+        cambios = [("scripts/puente/m.py", "", f"TOKEN = \"{token}\"")]
+        razones = secretos_en_cambios(cambios, self._get_escanear())
+        self.assertEqual(len(razones), 1)
+        self.assertTrue(razones[0].startswith("scripts/puente/m.py:1:"))
+        self.assertIn("(ghp)", razones[0])
+        # El valor nunca aparece en la razón
+        self.assertNotIn(token, razones[0])
+
+    def test_mismo_valor_en_antes_y_despues_no_cuenta(self):
+        """(b) El mismo valor ya en antes e igual en despues → [] (solo cuenta lo añadido)."""
+        self._skip_if_no_scanner()
+        token = "gh" + "p_" + "Xk9mP2qR5vW8yZ1aB3cD7eF4gH6jK8lM0nQ"
+        antes = f"TOKEN = \"{token}\""
+        despues = f"TOKEN = \"{token}\"\nOTRO = 1"
+        cambios = [("scripts/puente/m.py", antes, despues)]
+        razones = secretos_en_cambios(cambios, self._get_escanear())
+        self.assertEqual(razones, [])
+
+    def test_archivo_prueba_con_marcador_sk_no_cuenta(self):
+        """(c) Archivo de prueba con sk- de-prueba-xxxx → [] (marcador en archivo de prueba)."""
+        self._skip_if_no_scanner()
+        token = "s" + "k-" + "de-prueba-xxxx-xxxx"
+        cambios = [("scripts/puente/test_m.py", "", f"TOKEN = \"{token}\"")]
+        razones = secretos_en_cambios(cambios, self._get_escanear())
+        self.assertEqual(razones, [])
+
+    def test_escanear_lanza_excepcion_devuelve_vacio(self):
+        """(d) escanear que lanza RuntimeError → []."""
+        def escanear_falso(_diff):
+            raise RuntimeError("fallo simulado")
+        cambios = [("scripts/puente/m.py", "", 'TOKEN = "ghp_Xk9mP2qR5vW8yZ1aB3cD7eF4gH6jK8lM0nQ"')]
+        razones = secretos_en_cambios(cambios, escanear_falso)
+        self.assertEqual(razones, [])
+
+    def test_escanear_none_devuelve_vacio(self):
+        """(e) escanear=None → []."""
+        cambios = [("scripts/puente/m.py", "", 'TOKEN = "ghp_Xk9mP2qR5vW8yZ1aB3cD7eF4gH6jK8lM0nQ"')]
+        razones = secretos_en_cambios(cambios, None)
+        self.assertEqual(razones, [])
+
+    def test_cambio_con_despues_vacio_no_llega_al_diff(self):
+        """(f) Cambio con despues vacío (borrado) no llega al diff."""
+        self._skip_if_no_scanner()
+        recibidos = []
+
+        def escanear_espia(diff):
+            recibidos.append(diff)
+            return []
+
+        token = "gh" + "p_" + "Xk9mP2qR5vW8yZ1aB3cD7eF4gH6jK8lM0nQ"
+        # Borrado: despues vacío
+        cambios = [("scripts/puente/m.py", f'TOKEN = "{token}"', "")]
+        razones = secretos_en_cambios(cambios, escanear_espia)
+        self.assertEqual(razones, [])
+        # El escáner no debería haber recibido la ruta del archivo borrado
+        self.assertEqual(len(recibidos), 0)
+
+    def test_starseed_memory_root_con_sk(self):
+        """(g) starseed_memory_root/state.md con sk- + 20 chars → una razón (no excluye rutas)."""
+        self._skip_if_no_scanner()
+        token = "s" + "k-" + "Xk9mP2qR5vW8yZ1aB3cD"
+        cambios = [("starseed_memory_root/state.md", "", f"API_KEY = \"{token}\"")]
+        razones = secretos_en_cambios(cambios, self._get_escanear())
+        self.assertEqual(len(razones), 1)
+        self.assertTrue(razones[0].startswith("starseed_memory_root/state.md:"))
+        self.assertIn("(sk)", razones[0])
+
+    def test_ninguna_razion_contiene_el_valor(self):
+        """(h) Ninguna razón contiene el valor del secreto."""
+        self._skip_if_no_scanner()
+        token = "gh" + "p_" + "Xk9mP2qR5vW8yZ1aB3cD7eF4gH6jK8lM0nQ"
+        cambios = [("scripts/puente/m.py", "", f"TOKEN = \"{token}\"")]
+        razones = secretos_en_cambios(cambios, self._get_escanear())
+        for r in razones:
+            self.assertNotIn(token, r)
 
 
 if __name__ == "__main__":

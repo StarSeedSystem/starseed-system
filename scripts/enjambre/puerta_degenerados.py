@@ -1,7 +1,9 @@
 """Puerta de validación contra archivos degenerados o truncados por LLM."""
 
 import ast
+import difflib
 import re
+from typing import Callable, Optional
 
 
 def _tiene_marcas_conflicto(contenido: str) -> bool:
@@ -82,4 +84,57 @@ def archivos_degenerados(cambios: list[tuple[str, str, str]]) -> list[str]:
         if _es_copia_seguridad(ruta, desp):
             razones.append(f"{ruta}: copia de seguridad (no va al repo)")
 
+    return razones
+
+
+def secretos_en_cambios(
+    cambios: list[tuple[str, str, str]],
+    escanear: Optional[Callable[[str], list[dict]]],
+) -> list[str]:
+    """Escanea cambios en busca de cadenas con forma de clave.
+
+    `cambios`: lista de (ruta, contenido_antes, contenido_despues).
+    `escanear`: función que recibe un diff unificado y devuelve lista de
+    dicts con claves 'archivo', 'linea', 'tipo'. En producción será
+    `produccion_puertas.escanear_secretos`.
+
+    Devuelve lista de strings "archivo:linea: posible secreto (tipo)".
+    Si no hay cambios con contenido después, si escanear es None o si
+    lanza excepción, devuelve [] (esta puerta nunca tumba la integración
+    por un fallo propio).
+    """
+    if escanear is None:
+        return []
+
+    diffs: list[str] = []
+    for ruta, antes, despues in cambios:
+        if not despues:
+            continue
+        ant_lines = (antes or "").splitlines()
+        desp_lines = despues.splitlines()
+        diff = difflib.unified_diff(
+            ant_lines,
+            desp_lines,
+            fromfile="a/" + ruta,
+            tofile="b/" + ruta,
+            lineterm="",
+            n=0,
+        )
+        diffs.append("\n".join(diff))
+
+    if not diffs:
+        return []
+
+    diff_unificado = "\n".join(diffs)
+    try:
+        hallazgos = escanear(diff_unificado)
+    except Exception:
+        return []
+
+    razones: list[str] = []
+    for h in hallazgos:
+        archivo = h.get("archivo", "")
+        linea = h.get("linea", 0)
+        tipo = h.get("tipo", "desconocido")
+        razones.append(f"{archivo}:{linea}: posible secreto ({tipo})")
     return razones
