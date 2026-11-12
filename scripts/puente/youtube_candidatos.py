@@ -55,7 +55,7 @@ def _buscar(token, query, max_results=10):
     return None
 
 
-def _procesar_items(items, cuenta, motivo, corte, privados):
+def _procesar_items(items, cuenta, motivo, corte, privado):
     """Convierte playlistItems/search results en fichas base, filtra por fecha."""
     salida = []
     for it in items or []:
@@ -68,7 +68,7 @@ def _procesar_items(items, cuenta, motivo, corte, privados):
             continue
         salida.append(_ficha_base(vid, sn.get("title", ""), sn.get("channelTitle", ""),
                                  f"https://www.youtube.com/watch?v={vid}", fecha,
-                                 cuenta, motivo, privados))
+                                 cuenta, motivo, privado))
     return salida
 
 
@@ -85,6 +85,39 @@ def candidatos_dia(cuentas, pedir_actividad, pedir_takeout, temas_dia, resonanci
         cuota["unidades"] += uds
         cuota["detalle"][origen] = cuota["detalle"].get(origen, 0) + uds
 
+    # (b) Me gusta, listas propias, subidas propias
+    for cuenta in cuentas:
+        # Me gusta (playlist LL)
+        items_resp = pedir_actividad(cuenta, f"{API}/playlistItems",
+                                   {"part": "snippet", "playlistId": "LL", "maxResults": 10})
+        sumar_cuota(f"playlistItems:me_gusta:{cuenta}", 1)
+        for f in _procesar_items(items_resp.get("items", []), cuenta, "me_gusta", corte, privado=True):
+            if f["id"] not in vistos:
+                vistos.add(f["id"]); todos.append(f)
+        # Listas propias (playlists → playlistItems)
+        listas = pedir_actividad(cuenta, f"{API}/playlists",
+                                {"part": "snippet", "mine": "true", "maxResults": 5})
+        sumar_cuota(f"playlists:{cuenta}", 1)
+        for pl in (listas.get("items") or [])[:5]:
+            items_resp = pedir_actividad(cuenta, f"{API}/playlistItems",
+                                       {"part": "snippet", "playlistId": pl["id"], "maxResults": 5})
+            sumar_cuota(f"playlistItems:lista:{cuenta}", 1)
+            for f in _procesar_items(items_resp.get("items", []), cuenta, "lista_propia", corte, privado=True):
+                if f["id"] not in vistos:
+                    vistos.add(f["id"]); todos.append(f)
+        # Subidas propias (canal mine → uploads)
+        canal = pedir_actividad(cuenta, f"{API}/channels",
+                               {"part": "contentDetails", "mine": "true", "maxResults": 1})
+        sumar_cuota(f"channels:mine:{cuenta}", 1)
+        uploads = ((canal.get("items") or [{}])[0].get("contentDetails") or {}).get("relatedPlaylists", {}).get("uploads")
+        if uploads:
+            items_resp = pedir_actividad(cuenta, f"{API}/playlistItems",
+                                       {"part": "snippet", "playlistId": uploads, "maxResults": 10})
+            sumar_cuota(f"playlistItems:subidas:{cuenta}", 1)
+            for f in _procesar_items(items_resp.get("items", []), cuenta, "subida_propia", corte, privado=True):
+                # Permitir duplicados con suscripciones: no comprobamos ni añadimos a vistos aquí
+                todos.append(f)
+
     # (a) Suscripciones → uploads de cada canal (playlistItems = 1 ud)
     for cuenta in cuentas:
         subs = pedir_actividad(cuenta, f"{API}/subscriptions",
@@ -95,55 +128,25 @@ def candidatos_dia(cuentas, pedir_actividad, pedir_takeout, temas_dia, resonanci
         canal_ids = [c for c in canal_ids if c]
         if not canal_ids:
             continue
+        # Obtener títulos de canales (para el campo canal en la ficha)
         info = pedir_actividad(cuenta, f"{API}/channels",
-                              {"part": "snippet,contentDetails", "id": ",".join(canal_ids[:50]), "maxResults": 50})
+                              {"part": "snippet", "id": ",".join(canal_ids[:50]), "maxResults": 50})
         sumar_cuota(f"channels:{cuenta}", 1)
-        for ch in info.get("items") or []:
-            uploads = ((ch.get("contentDetails") or {}).get("relatedPlaylists") or {}).get("uploads")
+        canal_titulos = {ch["id"]: (ch.get("snippet") or {}).get("title", "") for ch in info.get("items") or []}
+        for ch_id in canal_ids:
+            # El playlist de subidas de un canal es "UU" + channel_id[2:] (p. ej. UCxxx → UUxxx)
+            uploads = "UU" + ch_id[2:] if ch_id.startswith("UC") else None
             if not uploads:
                 continue
-            items = pedir_actividad(cuenta, f"{API}/playlistItems",
-                                   {"part": "snippet", "playlistId": uploads, "maxResults": 10})
+            items_resp = pedir_actividad(cuenta, f"{API}/playlistItems",
+                                       {"part": "snippet", "playlistId": uploads, "maxResults": 10})
             sumar_cuota(f"playlistItems:uploads:{cuenta}", 1)
-            canal_titulo = (ch.get("snippet") or {}).get("title", "")
-            motivo = "resonancia" if ch["id"] in resonancia_canales else ("activista" if ch["id"] in activistas_canales else "suscripcion_nueva")
-            for f in _procesar_items(items, cuenta, motivo, corte, privado=True):
+            canal_titulo = canal_titulos.get(ch_id, "")
+            motivo = "suscripcion_nueva"
+            for f in _procesar_items(items_resp.get("items", []), cuenta, motivo, corte, privado=True):
                 if f["id"] not in vistos:
                     vistos.add(f["id"])
                     todos.append(f)
-
-    # (b) Me gusta, listas propias, subidas propias
-    for cuenta in cuentas:
-        # Me gusta (playlist LL)
-        items = pedir_actividad(cuenta, f"{API}/playlistItems",
-                               {"part": "snippet", "playlistId": "LL", "maxResults": 10})
-        sumar_cuota(f"playlistItems:me_gusta:{cuenta}", 1)
-        for f in _procesar_items(items, cuenta, "me_gusta", corte, privado=True):
-            if f["id"] not in vistos:
-                vistos.add(f["id"]); todos.append(f)
-        # Listas propias (playlists → playlistItems)
-        listas = pedir_actividad(cuenta, f"{API}/playlists",
-                                {"part": "snippet", "mine": "true", "maxResults": 5})
-        sumar_cuota(f"playlists:{cuenta}", 1)
-        for pl in (listas.get("items") or [])[:5]:
-            items = pedir_actividad(cuenta, f"{API}/playlistItems",
-                                   {"part": "snippet", "playlistId": pl["id"], "maxResults": 5})
-            sumar_cuota(f"playlistItems:lista:{cuenta}", 1)
-            for f in _procesar_items(items, cuenta, "lista_propia", corte, privado=True):
-                if f["id"] not in vistos:
-                    vistos.add(f["id"]); todos.append(f)
-        # Subidas propias (canal mine → uploads)
-        canal = pedir_actividad(cuenta, f"{API}/channels",
-                               {"part": "contentDetails", "mine": "true", "maxResults": 1})
-        sumar_cuota(f"channels:mine:{cuenta}", 1)
-        uploads = ((canal.get("items") or [{}])[0].get("contentDetails") or {}).get("relatedPlaylists", {}).get("uploads")
-        if uploads:
-            items = pedir_actividad(cuenta, f"{API}/playlistItems",
-                                   {"part": "snippet", "playlistId": uploads, "maxResults": 10})
-            sumar_cuota(f"playlistItems:subidas:{cuenta}", 1)
-            for f in _procesar_items(items, cuenta, "subida_propia", corte, privado=True):
-                if f["id"] not in vistos:
-                    vistos.add(f["id"]); todos.append(f)
 
     # (c) Historial Takeout (ya vistos → LEANN)
     for cuenta in cuentas:
@@ -154,30 +157,26 @@ def candidatos_dia(cuentas, pedir_actividad, pedir_takeout, temas_dia, resonanci
 
     # (d) Búsquedas por temas del día (máx 5, 100 ud c/u)
     for i, tema in enumerate(temas_dia[:5]):
-        items = pedir_actividad("busqueda", f"{API}/search",
-                               {"part": "snippet", "q": tema, "type": "video", "maxResults": 10,
-                                "order": "date", "publishedAfter": corte})
+        items_resp = pedir_actividad("busqueda", f"{API}/search",
+                                   {"part": "snippet", "q": tema, "type": "video", "maxResults": 10,
+                                    "order": "date", "publishedAfter": corte})
         sumar_cuota(f"search:{tema}", 100)
-        for f in _procesar_items(items, "busqueda", f"busqueda:{tema}", corte, privado=False):
+        for f in _procesar_items(items_resp.get("items", []), "busqueda", f"busqueda:{tema}", corte, privado=False):
             if f["id"] not in vistos:
                 vistos.add(f["id"]); todos.append(f)
 
     # (e) Canales resonancia/activistas extra (suscripciones ya los cubre, pero forzamos búsqueda por canal)
     for ch_id in resonancia_canales + activistas_canales:
-        if ch_id in vistos:
+        uploads = "UU" + ch_id[2:] if ch_id.startswith("UC") else None
+        if not uploads:
             continue
-        info = pedir_actividad("extra", f"{API}/channels",
-                              {"part": "contentDetails", "id": ch_id, "maxResults": 1})
-        sumar_cuota(f"channels:extra", 1)
-        uploads = ((info.get("items") or [{}])[0].get("contentDetails") or {}).get("relatedPlaylists", {}).get("uploads")
-        if uploads:
-            items = pedir_actividad("extra", f"{API}/playlistItems",
+        items_resp = pedir_actividad("extra", f"{API}/playlistItems",
                                    {"part": "snippet", "playlistId": uploads, "maxResults": 5})
-            sumar_cuota(f"playlistItems:extra", 1)
-            motivo = "resonancia" if ch_id in resonancia_canales else "activista"
-            for f in _procesar_items(items, "extra", motivo, corte, privado=False):
-                if f["id"] not in vistos:
-                    vistos.add(f["id"]); todos.append(f)
+        sumar_cuota(f"playlistItems:extra", 1)
+        motivo = "resonancia" if ch_id in resonancia_canales else "activista"
+        for f in _procesar_items(items_resp.get("items", []), "extra", motivo, corte, privado=False):
+            if f["id"] not in vistos:
+                vistos.add(f["id"]); todos.append(f)
 
     # Puntuar con Laya y filtrar con LEANN
     finales = []
