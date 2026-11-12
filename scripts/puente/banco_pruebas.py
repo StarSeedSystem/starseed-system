@@ -22,6 +22,7 @@ sys.path.insert(0, DIRECTORIO)
 import banco_pruebas_logica as L  # noqa: E402
 
 NOMBRE = "pruebas-banco.json"
+MEMORIA = "pruebas-banco-version.json"      # desde cuándo corre esta Mac la versión instalada (sobrevive a reinicios)
 CADA_S = 60
 APP = "/Applications/StarSeed OS.app"
 LOGS = os.path.expanduser("~/Library/Logs/app.starseed.os")
@@ -69,6 +70,14 @@ class Medios:
         except Exception:  # noqa: BLE001 — sin app o plist ilegible = no se sabe
             return None
 
+    def sello_paquete(self):
+        """Cuándo se instaló el paquete de la app: el cambio de inodo (ctime) de su Info.plist. A diferencia de la fecha de
+        modificación, no la conserva el instalador (que deja la del día en que se compiló). None si no se puede saber."""
+        try:
+            return float(os.stat(os.path.join(self.app, "Contents", "Info.plist")).st_ctime)
+        except OSError:
+            return None
+
     def app_abierta(self, ejecutable):
         """`pgrep -x <nombre exacto>`: solo mira si existe, sin -l ni -f. None si no se puede saber."""
         if not ejecutable or sys.platform != "darwin":
@@ -100,14 +109,20 @@ def pasada(m, version_mac=None, forzar=False):
     info = m.plist() or {}
     version = version_mac or info.get("CFBundleShortVersionString") or None
     abierta = m.app_abierta(info.get("CFBundleExecutable"))
+    ruta_mem = os.path.join(m.salida, MEMORIA)
+    mem, escribir = L.actualizar_memoria(m.leer_json(ruta_mem), version, m.sello_paquete(), m.ahora())
+    if escribir:
+        m.escribir_json(ruta_mem, mem)
+    mem = mem if isinstance(mem, dict) and mem.get("version") == version else {}
     comp_ruta = os.path.join(m.salida, "pruebas-comprobaciones.json")
-    firma = L.firma_de(m.stat(m.log), m.stat(m.servidor_log), version, abierta, m.stat(comp_ruta))
+    firma = L.firma_de(m.stat(m.log), m.stat(m.servidor_log), version, abierta, m.stat(comp_ruta), mem.get("desde"))
     previo = m.leer_json(ruta_banco)
     if not forzar and isinstance(previo, dict) and previo.get("firma") == firma:
         return None, previo
     texto = m.leer_cola(m.log) or ""
     arranque, errores = L.info_arranque(m.leer_cola(m.servidor_log) or "")
-    mac = {"version": version, "app_abierta": abierta, "ultimo_arranque": arranque, "errores_arranque": errores}
+    mac = {"version": version, "app_abierta": abierta, "ultimo_arranque": arranque, "errores_arranque": errores,
+           "version_desde": mem.get("desde"), "version_desde_fuente": mem.get("fuente"), "version_anterior": mem.get("anterior")}
     comprobaciones = m.leer_json(comp_ruta)
     try:
         import comprobaciones_prueba as C

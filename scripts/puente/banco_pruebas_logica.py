@@ -359,62 +359,174 @@ def contexto_llamada(grupo):
     return {"mudo_tramos": [tuple(x) for x in mudo], "ultima_voz_t": ult_voz, "reintento_t": reintento}
 
 
-def sugerir(comprobaciones, grupos, llamadas, version_mac, ble_eventos, mac, ahora_epoch):
-    """PURA. `comprobaciones` = datos normalizados de pruebas-comprobaciones.json. → (sugerencias, nota)."""
-    sugerencias, nota = [], None
+PRODUCIRIA = {
+    "enlace-ble-hora": "una hora seguida de registro del enlace Bluetooth con la Mac y la tablet abiertas, ya con esta versión",
+    "voz-sin-corte": "una llamada entre la Mac y la tablet, hecha con esta versión, en la que se reintente WebRTC sin colgar",
+    "llamada-ble": "una llamada entre la Mac y la tablet, solo por Bluetooth, hecha con esta versión",
+    "video-sin-negro": "una llamada con vídeo hecha con esta versión",
+    "video-fps-ble": "una llamada de vídeo entre la Mac y la tablet por Bluetooth, hecha con esta versión",
+    "video-sin-pausa-mudo": "una llamada entre la Mac y la tablet con vídeo y el micrófono mudo más de 20 s, hecha con esta versión",
+    "video-pausa-ancho": "una llamada entre la Mac y la tablet en la que el vídeo se pause por ancho de banda, hecha con esta versión",
+    "voz-limpia-lejos": "una llamada entre la Mac y la tablet con el enlace justo (vídeo en pausa por «suelo»), hecha con esta versión",
+    "camara-abre": "una llamada con vídeo en la Mac, hecha con esta versión",
+    "camara-cambia": "una llamada en la Mac en la que se cambie de cámara, hecha con esta versión",
+    "camara-conserva": "una llamada en la Mac en la que una cámara no abra, hecha con esta versión",
+    "arranque-limpio": "abrir la app de nuevo después de actualizar, sin errores en el arranque",
+}
+# señales que juzgan algo ENTRE la Mac y la tablet: sin señal de vida de las dos puntas no hay sugerencia
+DOS_APARATOS = frozenset(("enlace-ble-hora", "voz-sin-corte", "llamada-ble", "video-fps-ble", "video-sin-pausa-mudo",
+                          "video-pausa-ancho", "voz-limpia-lejos"))
+TRAMOS_VIDA = 6               # la hora del enlace se mira en 6 tramos de 10 min
+TRAMOS_MIN_TABLET = 3         # la tablet debe dar señal en la mitad de ellos
+
+
+def _hora(epoch):
+    return _a_iso(epoch) if epoch else "—"
+
+
+def relacion_version(llamada_desde, version_desde_epoch):
+    """'esta' si la llamada se hizo cuando la Mac ya corría la versión instalada; 'otra' si fue antes; 'desconocida' si
+    no se sabe desde cuándo la corre."""
+    if version_desde_epoch is None:
+        return "desconocida"
+    t = _a_epoch(llamada_desde)
+    return "esta" if (t is not None and t >= version_desde_epoch) else "otra"
+
+
+def ambas_puntas(llamada):
+    """La llamada tiene líneas de la Mac y de la tablet (las dos dieron señal mientras duró)."""
+    lados = llamada.get("lados") or {}
+    return bool(lados.get("mac")) and any(v for a, v in lados.items() if a != "mac")
+
+
+def vida_en_ventana(lineas, ini, fin):
+    """→ {'mac': (n, ult, tramos), 'tablet': (...)}: líneas de cada punta dentro de [ini, fin]."""
+    largo = max((fin - ini) / TRAMOS_VIDA, 1.0)
+    out = {"mac": [0, None, set()], "tablet": [0, None, set()]}
+    for l in lineas:
+        if l["t"] is None or not (ini <= l["t"] <= fin):
+            continue
+        o = out["mac" if l["aparato"] == "mac" else "tablet"]
+        o[0] += 1
+        o[1] = max(o[1] or 0, l["t"])
+        o[2].add(min(int((l["t"] - ini) / largo), TRAMOS_VIDA - 1))
+    return {k: (v[0], v[1], len(v[2])) for k, v in out.items()}
+
+
+def _ultima_vez(lineas, aparato_tablet, hasta):
+    ts = [l["t"] for l in lineas if l["t"] is not None and l["t"] <= hasta and ((l["aparato"] != "mac") == aparato_tablet)]
+    return max(ts) if ts else None
+
+
+def _regla_ble(ble, lineas, desde_epoch):
+    """enlace-ble-hora: en la última hora del enlace (ya con esta versión y con las dos puntas vivas), ¿se cerró alguna vez?
+    → (veredicto | None, texto). Con None el texto es la razón de que no haya evidencia."""
+    if desde_epoch is None:
+        return None, "no se sabe desde cuándo la Mac corre esta versión"
+    ev = [b for b in ble if b["t"] is not None and b["t"] >= desde_epoch]
+    if not ev:
+        return None, "no hay registro del enlace Bluetooth desde que la Mac corre esta versión (%s)" % _hora(desde_epoch)
+    fin = max(b["t"] for b in ev)
+    ini = max(desde_epoch, min(b["t"] for b in ev))
+    if fin - ini < 3600:
+        return None, "desde que la Mac corre esta versión solo hay %d min de registro del enlace; se piden 60" % int((fin - ini) // 60)
+    v0 = fin - 3600
+    vida = vida_en_ventana(lineas, v0, fin)
+    if vida["mac"][0] == 0:
+        return None, "la Mac no da señal en la última hora del registro"
+    if vida["tablet"][0] == 0:
+        return None, ("la tablet no da señal desde %s" % _hora(_ultima_vez(lineas, True, fin))) if _ultima_vez(lineas, True, fin) else "la tablet no da señal en todo el registro"
+    if vida["tablet"][2] < TRAMOS_MIN_TABLET:
+        return None, "la tablet solo dio señal en %d de %d tramos de diez minutos de la última hora (última a las %s)" % (
+            vida["tablet"][2], TRAMOS_VIDA, _hora(vida["tablet"][1]))
+    cierres = [b for b in ev if b["t"] >= v0 and b["tipo"] in ("enlace-cerrado", "conexion-vencida", "envio-fallido")]
+    if cierres:
+        return "falla", "En la última hora del registro el enlace Bluetooth se cerró o falló %d veces." % len(cierres)
+    return "bien", "En la última hora del registro el enlace Bluetooth no se cerró ni falló."
+
+
+def sugerir(comprobaciones, pares, llamadas_todas, version_mac, ble_eventos, mac, lineas=()):
+    """PURA. `pares` = [(llamada, grupo)] de más reciente a más antigua; `mac` lleva `version_desde` (ISO | None).
+    Una comprobación solo se juzga con evidencia hecha mientras la Mac corría esa versión.
+    → (sugerencias, sin_evidencia, nota)."""
+    sugerencias, sin, nota = [], [], None
     pruebas = (comprobaciones or {}).get("pruebas") or {}
     nums_mac = re.search(r"prueba\.(\d+)$", version_mac or "")
     instalada = nums_mac.group(1) if nums_mac else None
     con_senal = [(n, c) for n, p in pruebas.items() for c in p.get("comprobaciones", []) if c.get("senal")]
     if not con_senal:
-        return [], "Ninguna comprobación lleva señal todavía (comprobaciones_prueba.py senales N)."
+        return [], [], "Ninguna comprobación lleva señal todavía (comprobaciones_prueba.py senales N)."
+    desde = _a_epoch(mac.get("version_desde")) if mac.get("version_desde") else None
+
+    def sin_ev(n, c, razon):
+        sin.append({"prueba": int(n), "comprobacion": c["id"], "senal": c["senal"], "razon": razon[:1].upper() + razon[1:] + ".",
+                    "produciria": PRODUCIRIA.get(c["senal"], "evidencia hecha con esta versión")})
+
     if instalada is None:
-        return [], "La versión instalada de la Mac no se conoce: no se propone nada."
+        for n, c in con_senal:
+            sin_ev(n, c, "la versión instalada de la Mac no se conoce")
+        return [], sin, "La versión instalada de la Mac no se conoce: no se propone nada."
     ajenas = sorted({n for n, _ in con_senal if n != instalada}, key=int)
     if ajenas and not any(n == instalada for n, _ in con_senal):
-        return [], "La Mac tiene instalada la %s; las comprobaciones son de la %s." % (
-            version_mac, " y la ".join(ajenas))
-    # las llamadas, de la más reciente a la más antigua, con su contexto
-    pares = list(zip(llamadas, grupos))
+        for n, c in con_senal:
+            sin_ev(n, c, "la Mac tiene instalada la %s y esta comprobación es de la %s" % (version_mac, n))
+        return [], sin, "La Mac tiene instalada la %s; las comprobaciones son de la %s." % (version_mac, " y la ".join(ajenas))
+    propias = [(ll, g) for ll, g in pares if ll.get("version_relacion") == "esta"]
+    ajenas_ll = [ll for ll, _ in pares if ll.get("version_relacion") != "esta"]
     for n, c in con_senal:
         if n != instalada:
+            sin_ev(n, c, "la Mac tiene instalada la %s y esta comprobación es de la %s" % (version_mac, n))
             continue
         s = c["senal"]
-        veredicto, motivo, usada = None, "", None
+        if desde is None:
+            sin_ev(n, c, "no se sabe desde cuándo la Mac corre la %s" % version_mac)
+            continue
+        veredicto, motivo, usada, razon = None, "", None, ""
         if s == "arranque-limpio":
-            if mac.get("app_abierta") and not mac.get("errores_arranque"):
-                veredicto, motivo = "bien", "La app está abierta y el registro de arranque no tiene errores."
+            arr = _a_epoch(mac.get("ultimo_arranque")) if mac.get("ultimo_arranque") else None
+            if arr is None or arr < desde:
+                razon = "el último arranque registrado (%s) es anterior a la actualización a la %s (%s)" % (
+                    mac.get("ultimo_arranque") or "ninguno", version_mac, _hora(desde))
             elif mac.get("errores_arranque"):
                 veredicto, motivo = "falla", "El arranque dejó %d error(es): %s" % (len(mac["errores_arranque"]), mac["errores_arranque"][0]["texto"][:120])
+            elif mac.get("app_abierta"):
+                veredicto, motivo = "bien", "La app arrancó a las %s, después de actualizar, y el registro de arranque no tiene errores." % mac["ultimo_arranque"]
+            else:
+                razon = "la app está cerrada y no se puede confirmar que el arranque siga limpio"
         elif s == "enlace-ble-hora":
-            veredicto, motivo = _regla_ble(ble_eventos, ahora_epoch)
+            veredicto, motivo = _regla_ble(ble_eventos, list(lineas), desde)
+            if veredicto is None:
+                razon, motivo = motivo, ""
         else:
-            for ll, g in pares:
+            sin_dos = None
+            for ll, g in propias:
+                if s in DOS_APARATOS and not ambas_puntas(ll):
+                    sin_dos = sin_dos or ll
+                    continue
                 v, mo = regla(s, ll, contexto_llamada(g))
                 if v:
                     veredicto, motivo, usada = v, mo, ll["id"]
                     break
+            if not veredicto:
+                if sin_dos:
+                    tab = _ultima_vez(list(lineas), True, _a_epoch(sin_dos["hasta"]) or 0)
+                    razon = "en la llamada %s solo hay líneas de la Mac: la tablet no da señal %s" % (
+                        sin_dos["id"], "desde " + _hora(tab) if tab else "en el registro")
+                elif propias:
+                    razon = "ninguna llamada hecha con la %s permite decidirlo" % version_mac
+                elif ajenas_ll:
+                    razon = "las llamadas del registro (la última, %s) son de otra versión; ninguna se hizo con la %s" % (
+                        ajenas_ll[0]["id"], version_mac)
+                else:
+                    razon = "no hay llamadas en el registro"
         if veredicto:
             sugerencias.append({"prueba": int(n), "comprobacion": c["id"], "senal": s, "veredicto": veredicto,
                                 "motivo": motivo, "llamada": usada})
+        else:
+            sin_ev(n, c, razon)
     if not sugerencias:
-        nota = "Ninguna llamada del registro permite decidir las comprobaciones con señal de la %s." % instalada
-    return sugerencias, nota
-
-
-def _regla_ble(ble, ahora_epoch):
-    """enlace-ble-hora: en la última hora de registro del enlace, ¿se cerró alguna vez?"""
-    if not ble:
-        return None, ""
-    fin = max(b["t"] for b in ble)
-    ini = min(b["t"] for b in ble)
-    if fin - ini < 3600:
-        return None, ""
-    ventana = [b for b in ble if b["t"] >= fin - 3600]
-    cierres = [b for b in ventana if b["tipo"] in ("enlace-cerrado", "conexion-vencida", "envio-fallido")]
-    if cierres:
-        return "falla", "En la última hora del registro el enlace Bluetooth se cerró o falló %d veces." % len(cierres)
-    return "bien", "En la última hora del registro el enlace Bluetooth no se cerró ni falló."
+        nota = "Ninguna comprobación con señal de la %s tiene evidencia hecha con esta versión." % instalada
+    return sugerencias, sin, nota
 
 
 # ── todo junto ──────────────────────────────────────────────────────────────────────────────────────────────────
@@ -430,10 +542,12 @@ def aparatos_vistos(lineas, mac):
     lista = [{"id": "mac", "nombre": "Esta Mac", "esta": True, "version": mac.get("version"),
               "version_de": "app-instalada" if mac.get("version") else None, "app_abierta": mac.get("app_abierta"),
               "ultimo_arranque": mac.get("ultimo_arranque"), "errores_arranque": mac.get("errores_arranque") or [],
-              "visto": _a_iso(ult_mac)}]
+              "visto": _a_iso(ult_mac), "version_desde": mac.get("version_desde"),
+              "version_desde_fuente": mac.get("version_desde_fuente")}]
     for a, d in sorted(vistos.items()):
         lista.append({"id": a, "nombre": "Tablet (%s)" % d["nombre"], "esta": False, "version": None, "version_de": None,
-                      "app_abierta": None, "ultimo_arranque": None, "errores_arranque": [], "visto": _a_iso(d["visto"])})
+                      "app_abierta": None, "ultimo_arranque": None, "errores_arranque": [], "visto": _a_iso(d["visto"]),
+                      "version_desde": None, "version_desde_fuente": None})
     return lista
 
 
@@ -445,11 +559,49 @@ def construir(texto_log, mac, comprobaciones, ahora_epoch):
     ble = [l for l in validas if l["canal"] == "ble"]
     grupos_rec = sorted(grupos, key=lambda g: g[0]["t"], reverse=True)[:MAX_LLAMADAS]
     llamadas = [construir_llamada(g, ble) for g in grupos_rec]
-    sug, nota = sugerir(comprobaciones, grupos_rec, llamadas, mac.get("version"), ble, mac, ahora_epoch)
+    desde = _a_epoch(mac.get("version_desde")) if mac.get("version_desde") else None
+    for ll in llamadas:
+        rel = relacion_version(ll["desde"], desde)
+        ll["version_relacion"] = rel
+        ll["version_mac"] = mac.get("version") if rel == "esta" else (mac.get("version_anterior") if rel == "otra" else None)
+    sug, sin, nota = sugerir(comprobaciones, list(zip(llamadas, grupos_rec)), llamadas, mac.get("version"), ble, mac, validas)
     ts = [l["t"] for l in validas if l["t"] is not None]
     return {"formato": 1,
             "fuente": {"lineas": len(validas), "desde": _a_iso(min(ts)) if ts else None, "hasta": _a_iso(max(ts)) if ts else None},
-            "aparatos": aparatos_vistos(validas, mac), "llamadas": llamadas, "sugerencias": sug, "sugerencias_nota": nota}
+            "aparatos": aparatos_vistos(validas, mac), "llamadas": llamadas, "sugerencias": sug, "sin_evidencia": sin,
+            "sugerencias_nota": nota}
+
+
+MEMORIA_REFRESCO_S = 600
+
+
+def actualizar_memoria(mem, version, sello_epoch, ahora_epoch):
+    """PURA. La memoria de «desde cuándo corre esta Mac la versión X» → (memoria nueva, ¿hay que escribirla?).
+    Vive en un archivo propio, así que sobrevive a reinicios de la Mac y del servicio y a las actualizaciones.
+    - misma versión que la memoria: se conserva `desde` (solo se refresca `visto`, a lo sumo cada 10 min);
+    - versión nueva: `desde` = el instante en que se instaló el paquete (`sello_epoch`), pero nunca antes de la última
+      vez que se vio la versión anterior; sin sello (o sin memoria ni sello) = ahora, que es lo prudente."""
+    if not version:
+        return mem, False
+    ahora_iso = _a_iso(ahora_epoch)
+    if isinstance(mem, dict) and mem.get("version") == version and mem.get("desde"):
+        visto = _a_epoch(mem.get("visto")) or 0
+        if ahora_epoch - visto < MEMORIA_REFRESCO_S:
+            return mem, False
+        return dict(mem, visto=ahora_iso), True
+    anterior = None
+    piso = None
+    if isinstance(mem, dict) and mem.get("version"):
+        anterior = mem["version"]
+        piso = _a_epoch(mem.get("visto"))
+    if sello_epoch is None:
+        desde, fuente = ahora_epoch, "primera-vez-visto"
+    elif piso is not None and sello_epoch < piso:
+        desde, fuente = piso, "ultima-vez-vista-la-anterior"
+    else:
+        desde, fuente = sello_epoch, "paquete-instalado"
+    return {"formato": 1, "version": version, "desde": _a_iso(desde), "fuente": fuente, "visto": ahora_iso,
+            "anterior": anterior}, True
 
 
 def resumen_texto(banco, prueba=None, cid=None):
@@ -469,6 +621,9 @@ def resumen_texto(banco, prueba=None, cid=None):
     for s in banco.get("sugerencias", []):
         if (prueba is None or s["prueba"] == prueba) and (cid is None or s["comprobacion"] == cid):
             lin.append("El banco propone «%s» para %s: %s" % (s["veredicto"], s["comprobacion"], s["motivo"]))
+    for e in banco.get("sin_evidencia") or []:
+        if (prueba is None or e["prueba"] == prueba) and (cid is None or e["comprobacion"] == cid):
+            lin.append("Sin evidencia aún con esta versión para %s: %s" % (e["comprobacion"], e["razon"]))
     return "\n".join(lin)
 
 

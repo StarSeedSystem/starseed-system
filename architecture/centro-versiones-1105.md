@@ -705,3 +705,28 @@ convivan con el director, `lanzar-prueba-cuando.sh` y el director podrían lanza
 compilación, pausa, petición mal formada, aviso una vez, arreglo repetido, sin red en reposo),
 `test_banco_pruebas.py` (con `fixtures/enlaces-log-prueba39.txt`, extracto saneado del registro real),
 `test_instalar_servicios_pruebas.py`, `test_comprobaciones_prueba.py`.
+
+### 11.8 La evidencia pertenece a una versión (PRB1111Y · 2026-11-12)
+
+Regla de Alex: Genesis no muestra nada que no sea verdad. Una comprobación de la prueba N solo se juzga con evidencia
+que produjo la N.
+
+- **Desde cuándo corre la Mac la N.** El banco guarda una memoria propia, `pruebas-banco-version.json` (en la carpeta
+  de producción, no en `/tmp`: sobrevive a reinicios de la Mac y del servicio y a las actualizaciones), con la versión,
+  el `desde` y la `fuente`. Al ver una versión nueva toma el instante en que se instaló el paquete (el cambio de inodo,
+  `ctime`, del `Info.plist` de la app: la fecha de modificación no sirve porque el instalador deja la de compilación),
+  nunca antes de la última vez que vio la versión anterior; sin ese dato, «ahora» (lo prudente). Una vez escrito, el
+  `desde` no se mueve aunque el sistema vuelva a tocar el paquete. Se publica en `aparatos[mac].version_desde`.
+- **Cada llamada dice con qué versión se hizo** (`version_relacion`: `esta|otra|desconocida`; `version_mac` si se sabe).
+  Las de otra versión quedan como historia y no producen sugerencias.
+- **Señales de dos aparatos** (`DOS_APARATOS`): `enlace-ble-hora`, `voz-sin-corte`, `llamada-ble`, `video-fps-ble`,
+  `video-sin-pausa-mudo`, `video-pausa-ancho`, `voz-limpia-lejos`. Solo se proponen si la Mac y la tablet dieron
+  señal dentro de lo que se juzga: en una llamada, líneas de las dos puntas; en `enlace-ble-hora`, una hora de
+  registro ya con esta versión con señal de la tablet en al menos 3 de sus 6 tramos de diez minutos. Si no, queda en
+  `sin_evidencia` con «la tablet no da señal desde …». `video-sin-negro` y las tres de cámara las mide la Mac sola.
+- **Sin evidencia es un estado, no un veredicto**: `sin_evidencia[]` con `razon` y `produciria`. `arranque-limpio` se
+  juzga con un arranque posterior a la actualización a la N.
+- No se sabe la versión de la tablet, así que «dos aparatos con señal» no prueba que la tablet corra la N.
+
+Pruebas: `test_banco_pruebas.py` (clases `EvidenciaDeUnaVersion`, `MemoriaDeVersion`; la situación real —prueba.39 con
+una llamada hecha con la .37— es el primer caso).
