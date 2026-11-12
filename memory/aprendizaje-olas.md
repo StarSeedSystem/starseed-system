@@ -6979,3 +6979,15 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 
 **Lo que quedó fuera, una por una:**
 - `LLA1112A-rc-d2` — los tipos no compilan: 1 errores tsc (rama ola/LLA1112A-rc-d2 conservada)
+
+## 2026-11-12 06:53 · auto-1112-061626
+
+**Resultado.** 1 de 3 integradas. 2 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — no escribió nada (LLA1112B-rc-d3, LLA1112A-rc-d3). Es 67 % de la ola.
+- sin modelo anotado no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `LLA1112B-rc-d3` — no escribió nada
+- `LLA1112A-rc-d3` — no escribió nada
