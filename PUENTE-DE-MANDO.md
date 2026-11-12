@@ -1,6 +1,6 @@
 # Genesis · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-12 04:48:38 desde Genesis vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-12 06:00:50 desde Genesis vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -16,35 +16,21 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | Agentes escribiendo | **0** |
 | En esta ola | integradas 0 · en curso 0 · esperando aprobación 0 · pendientes 15 |
 | Últimas 4 olas | en curso 0 · pendientes 100 · integradas 0 |
-| HEAD | `0aba4a363 chore(memoria): aprendizaje de la ola auto-1112-013753` |
-| Sin publicar | 37 commits |
+| HEAD | `a8e339444 chore(memoria): aprendizaje de la ola auto-1112-044917` |
+| Sin publicar | 57 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-1112-013753.json`, hace 16s)
+## Quién escribe ahora (latido de `cola-auto-1112-044917.json`, hace 11s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `LLA1112B-rc-d1` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 2 min | 139 s | 226519 |
-| `LLA1112A-rc-d1` | hecho | openrouter/cohere/north-mini-code: | 4 min | 239 s | 96050 |
-| `SDP1111T` | hecho | openrouter/google/gemma-4-31b-it:f | 5 min | 326 s | 253807 |
-| `ENC1111C-d2` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 21 min | 1231 s | 15581 |
-| `ENC1111C-d1` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 26 min | 1582 s | 81425 |
-| `RON1112C-rcs` | hecho | freellmapi/auto | 39 min | 2336 s | 178601 |
-| `ENC1111C` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 55 min | 3285 s | 203423 |
-| `LLA1112A-rc` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 79 min | 4727 s | 136305 |
-| `SDP1111S-d2` | hecho | freellmapi/auto | 80 min | 4786 s | 119188 |
-| `RON1112C-rc` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 88 min | 5281 s | 172339 |
-| `LLA1112B-rc` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 125 min | 7495 s | 152165 |
-| `SDP1111S-d1` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 131 min | 7840 s | 328356 |
-| `NAV1112K` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 145 min | 8686 s | 30231 |
-| `ENT-agentes-referencias-diseno-agentes-re-8950c2-v1` | hecho | nim/minimaxai/minimax-m3.1-flash | 163 min | 9766 s | 1121 |
-| `ENT-agentes-referencias-diseno-agentes-re-a467d8-v1` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 164 min | 9831 s | 494 |
-| `ENT-agentes-referencias-diseno-agentes-re-ed5819-v1` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 164 min | 9835 s | 494 |
-| `ENT-agentes-referencias-diseno-agentes-re-6258d7-v1` | hecho | nim/minimaxai/minimax-m3.1-flash | 164 min | 9844 s | 489 |
-| `ENT-agentes-referencias-diseno-agentes-re-91b5c1-v1` | hecho | groq/openai/gpt-oss-120b | 174 min | 10445 s | 809 |
-| `IRD11121` | hecho | groq/openai/gpt-oss-120b | 175 min | 10523 s | 676 |
-| `IRD11122` | hecho | groq/openai/gpt-oss-120b | 179 min | 10742 s | 541 |
-| `IRD11123` | hecho | groq/openai/gpt-oss-120b | 179 min | 10742 s | 439 |
+| `LLA1112A-rc-d2` | hecho | openrouter/cohere/north-mini-code: | 2 min | 119 s | 46782 |
+| `LLA1112B-rc-d1` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 15 min | 897 s | 358944 |
+| `LLA1112A-rc-d1b` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 16 min | 932 s | 36732 |
+| `DR1112-1` | hecho | freellmapi/auto | 30 min | 1803 s | 253030 |
+| `LLA1112A-rc-d1` | hecho | openrouter/cohere/north-mini-code: | 39 min | 2336 s | 173083 |
+| `SDP1111T` | hecho | freellmapi/auto | 44 min | 2654 s | 413146 |
+| `DR1112-2` | hecho | freellmapi/auto | 54 min | 3231 s | 68587 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
