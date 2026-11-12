@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """Pruebas de navegador_alta sin red (NAV1112D): dobles inyectados, sin Playwright."""
+import json
 import os
 import sys
 import unittest
@@ -14,6 +15,8 @@ import navegador_reglas as NR  # noqa: E402
 class Base(unittest.TestCase):
     def setUp(self):
         self.telegram, self.llamadas, self.espera = [], [], True
+        self.viva = "google-alex"
+        self.cookies = [{"name": "__Secure-1PSID", "domain": ".google.com", "value": "secreto-cookie"}]
 
         def registra(nombre, resultado=None):
             def falso(*args):
@@ -29,6 +32,10 @@ class Base(unittest.TestCase):
             "_abrir_pagina_inicio_sesion": registra("pagina"),
             "_obtener_cliente": registra("cliente", object()),
             "_esperar_hasta_30_minutos": lambda sesion: self.espera,
+            "_sesion_viva": lambda sesion: sesion == self.viva,
+            "_extraer_cookies_google": lambda sesion: list(self.cookies),
+            "_importar_cookies": registra("importar", {"ok": True, "motivo": ""}),
+            "_comprobar_cli": registra("check", {"ok": True, "motivo": ""}),
         }
         for objetivo, valor in dobles.items():
             parche = patch.object(N, objetivo, valor)
@@ -79,6 +86,44 @@ class TestAlta(Base):
         self.assertEqual((self.llamadas, self.telegram), ([], []))
 
 
+class TestNotebooklm(Base):
+    def test_con_sesion_viva_importa_comprueba_y_avisa(self):
+        r = N.notebooklm()
+        self.assertTrue(r["ok"])
+        self.assertEqual(self.llamadas, [("importar", self.cookies), ("check",)])
+        self.assertEqual(len(self.telegram), 1)
+        self.assertNotIn("secreto-cookie", self.telegram[0] + json.dumps(r))
+        self.assertFalse([c for c in self.llamadas if c[0] in ("fill", "type", "password")])
+
+    def test_sin_sesion_viva_hace_el_alta_y_repite(self):
+        self.viva = None
+        r = N.notebooklm()
+        self.assertFalse(r["ok"])
+        self.assertEqual([c[0] for c in self.llamadas if c[0] in ("encender", "importar")],
+                         ["encender", "encender"])
+        self.assertIn("abre MetaGenesis › Apps Linux", self.telegram[0])
+        self.assertFalse([c for c in self.llamadas if c[0] in ("fill", "type", "password")])
+
+    def test_si_el_alta_falla_avisa_y_no_importa_cookies(self):
+        self.viva = None
+        self.espera = False
+        r = N.notebooklm()
+        self.assertFalse(r["ok"])
+        self.assertIn("alta fallida", r["motivo"])
+        self.assertNotIn("importar", [c[0] for c in self.llamadas])
+        self.assertEqual(len(self.telegram), 2)
+        self.assertNotIn("secreto-cookie", "".join(self.telegram))
+
+    def test_si_el_check_caduca_avisa_del_fracaso_sin_mostrar_cookies(self):
+        self.viva = "google-alex"
+        with patch.object(N, "_comprobar_cli", lambda: {"ok": False, "motivo": "el CLI sigue sin sesión viva"}):
+            r = N.notebooklm()
+        self.assertFalse(r["ok"])
+        self.assertEqual(len(self.telegram), 1)
+        self.assertIn("NotebookLM", self.telegram[0])
+        self.assertNotIn("secreto-cookie", self.telegram[0])
+
+
 class TestEstado(Base):
     def test_marca_cada_sesion_y_respeta_la_caducada(self):
         with patch.object(NR, "marcar_estado", self.marcar({"instagram-sociedad"})):
@@ -114,6 +159,7 @@ class TestCli(Base):
             self.assertEqual(N.main(["n", "alta", "google-alex"]), 0)
             self.assertEqual(N.main(["n", "estado"]), 0)
             self.assertEqual(N.main(["n", "vigilar"]), 0)
+            self.assertEqual(N.main(["n", "notebooklm"]), 0)
         self.assertEqual(N.main(["n", "desconocido"]), 1)
 
 if __name__ == "__main__":
