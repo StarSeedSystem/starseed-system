@@ -118,7 +118,7 @@ describe("SuperficieLlamada · LLA1111A (Puertos, estado una vez, carriles, alto
     const a: AccionesLlamada = { colgar: vi.fn(), alternarCamara: vi.fn() };
     const v = base({ estado: "conectada", desde: Date.now(), tipo: "video", camara: true });
     render(<SuperficieLlamada vista={v} acciones={a} tamanoInicial="panel" />);
-    const btnCamara = screen.getByRole("button", { name: /Apagar c.mara/ });
+    const btnCamara = screen.getByRole("button", { name: /Apagar c.mara/ }) as HTMLButtonElement;
     expect(btnCamara.disabled).toBe(false);
   });
 
@@ -126,7 +126,7 @@ describe("SuperficieLlamada · LLA1111A (Puertos, estado una vez, carriles, alto
     const a: AccionesLlamada = { colgar: vi.fn(), alternarCamara: vi.fn() };
     const v = base({ estado: "conectada", desde: Date.now(), tipo: "voz", camara: false, motivos: { camara: "esta llamada no lleva cámara" } });
     render(<SuperficieLlamada vista={v} acciones={a} tamanoInicial="panel" />);
-    const btnCamara = screen.getByRole("button", { name: /Encender c.mara/ });
+    const btnCamara = screen.getByRole("button", { name: /Encender c.mara/ }) as HTMLButtonElement;
     expect(btnCamara.disabled).toBe(true);
   });
 
