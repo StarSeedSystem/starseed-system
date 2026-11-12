@@ -1,0 +1,18 @@
+{
+ "ola": "oracle-20261111",
+ "medio": "oracle",
+ "tareas": [
+  {
+   "id": "SDP1111U",
+   "ola": "SDP1111",
+   "titulo": "Páginas públicas de privacidad y términos (para publicar la app OAuth «StarSeed actividad»)",
+   "archivos": [
+    "src/app/privacidad/page.tsx",
+    "src/app/terminos/page.tsx",
+    "src/app/privacidad/__tests__/page.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee architecture/sintesis-diaria-autonoma.md §4 y §5. Contexto: el 2026-11-11 se conectaron las cuentas alexbordongarrigos y fundacionstarseed a la app OAuth «StarSeed actividad» (proyecto de Google Cloud starseed-system, solo lectura: gmail.readonly, drive.readonly, youtube.readonly). La app está en estado «Prueba» y así los tokens caducan cada 7 días. Para PUBLICARLA, Google exige enlaces públicos a una página principal y a una política de privacidad en un dominio autorizado; hoy starseed-os.vercel.app/privacidad y /terminos dan 404. TAREA: crea las páginas públicas estáticas /privacidad y /terminos de StarSeed OS: sin sesión, accesibles a buscadores, con el estilo del OS (solo tokens de color, tipografía de la casa), en español con un resumen en inglés. Contenido real y breve: qué es StarSeed OS (en desarrollo, código abierto); que la app «StarSeed actividad» la usa SOLO su dueño para que sus agentes lean en modo de solo lectura su propia actividad (correos enviados, archivos de Drive, YouTube) y preparen síntesis privadas; que esos datos se quedan en los nodos del dueño, no se venden, no se comparten ni se usan para publicidad; cómo revocar el acceso (myaccount.google.com/permissions); contacto fundacionstarseed@gmail.com; fecha de vigencia. Cumple la Política de datos de usuario de los servicios de API de Google (uso limitado). Prueba de que ambas rutas renderizan. Máximo 120 líneas por archivo. DESPUÉS de publicarse (lo hace el director de producción), deja en tu respuesta los pasos para la consola: en Información de la marca, página principal https://starseed-os.vercel.app, privacidad …/privacidad, términos …/terminos, dominio autorizado starseed-os.vercel.app; luego Público › Publicar app; luego rehacer una vez el alta con ~/.starseed/herramientas/alta-cuentas-google.py para tener tokens sin caducidad de 7 días."
+  }
+ ]
+}
