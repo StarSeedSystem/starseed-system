@@ -1,0 +1,19 @@
+{
+ "ola": "nube-20261112",
+ "tareas": [
+  {
+   "id": "PET1112E",
+   "ola": "PET1112",
+   "titulo": "NotebookLM del A1 · renovar sin la Mac",
+   "archivos": [
+    "scripts/puente/navegador_alta.py",
+    "scripts/puente/test_navegador_alta.py"
+   ],
+   "depende": [],
+   "prompt": "Lee architecture/peticiones-telegram-a1.md y architecture/navegador-propio-metagenesis.md §4. Cuando la sesión del CLI de NotebookLM del A1 caduca (lo detecta peticiones_telegram con `auth refresh`), hoy hace falta la Mac. Añade a navegador_alta.py una orden `notebooklm`: si la sesión google-alex del navegador propio está viva, extrae sus cookies de Google del perfil (sin imprimirlas) y las importa al perfil default del CLI con `notebooklm auth import-cookies`. Después comprueba con `notebooklm auth check` y avisa por sintesis_telegram del resultado. Si google-alex no está viva, lanza el `alta google-alex` existente y repite. Ningún paso teclea ni lee contraseñas. Con todo inyectable y pruebas sin red. Al terminar, el texto RENOVAR de peticiones_telegram debe decir «MetaGenesis › Apps Linux».",
+   "dependencias_ya_en_main": [
+    "PET1112A"
+   ]
+  }
+ ]
+}
