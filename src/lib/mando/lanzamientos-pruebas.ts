@@ -16,6 +16,7 @@
 import type {
     AprobacionDirector,
     ArchivoComprobaciones,
+    ArregloPedido,
     BuildPlataforma,
     Comprobacion,
     CommitPrueba,
@@ -25,6 +26,7 @@ import type {
     MainMovido,
     PlanAprobacion,
     PlataformaPrueba,
+    ProgresoPasos,
     PruebaEnArchivo,
     ResumenComprobaciones,
     VersionPrueba,
@@ -137,7 +139,16 @@ export function leerLanzador(etiqueta: string, contenido: string, mtimeMs: numbe
 
 // ── Build por plataforma (jobs del run) ────────────────────────────────────────────────────────────
 
+export interface StepGh {
+    name?: string;
+    status?: string;
+    conclusion?: string;
+    number?: number;
+}
+
 export interface JobGh {
+    databaseId?: number;
+    steps?: StepGh[];
     name?: string;
     status?: string;
     conclusion?: string;
@@ -228,7 +239,33 @@ export function buildsDeRun(run: RunGh, jobs: JobGh[] | null): BuildPlataforma[]
         }
         fuera.push({ ...base, estado, detalle });
     }
-    return fuera;
+    return fuera.map((b) => anotarPasos(b, run, jobs));
+}
+
+const pasoTerminado = (s: StepGh) => s.status === "completed";
+const pasoFallido = (s: StepGh) => pasoTerminado(s) && ["failure", "cancelled", "timed_out"].includes(s.conclusion ?? "");
+
+/** (PRB1111V) Pasos hechos / total / el que va ahora de un job. Pura. */
+export function progresoDePasos(j: JobGh | undefined): ProgresoPasos | null {
+    const pasos = (j?.steps ?? []).filter((s) => s && typeof s.name === "string");
+    if (!pasos.length) return null;
+    const hechos = pasos.filter(pasoTerminado).length;
+    const ahora = pasos.find((s) => s.status === "in_progress") ?? pasos.find((s) => !pasoTerminado(s));
+    return { hechos, total: pasos.length, actual: ahora ? String(ahora.name).slice(0, 120) : null };
+}
+
+/** Añade run, job y pasos a un build. Los pasos son los del job de la plataforma; el job y el paso que fallaron, los del job que falló. */
+function anotarPasos(b: BuildPlataforma, run: RunGh, jobs: JobGh[]): BuildPlataforma {
+    const propio = jobs.find((x) => plataformaDeJob(x.name) === b.plataforma);
+    const delFallo = b.estado === "fallo" ? jobs.find((x) => x.name === b.job) : undefined;
+    const id = (n: number | undefined) => (typeof n === "number" && Number.isInteger(n) && n > 0 ? n : null);
+    return {
+        ...b,
+        runId: id(run.databaseId),
+        jobId: id((delFallo ?? propio)?.databaseId),
+        pasos: progresoDePasos(propio),
+        pasoFallido: delFallo?.steps?.find(pasoFallido)?.name ?? null,
+    };
 }
 
 /** «compilando 12 min», «1 h 5 min». */
@@ -262,6 +299,9 @@ export function normalizarComprobaciones(crudo: unknown): ArchivoComprobaciones 
                 nota: texto(o.nota),
                 quien: texto(o.quien, 40),
                 t: typeof o.t === "string" ? o.t : null,
+                // (PRB1111V) Lo que añade el banco de pruebas: no se pierde al reescribir el archivo.
+                ...(typeof o.senal === "string" ? { senal: o.senal.slice(0, 40) } : {}),
+                ...(arregloDe(o.arreglo) ? { arreglo: arregloDe(o.arreglo) } : {}),
             });
         }
         const a = objeto(p.aprobacion);
@@ -273,6 +313,12 @@ export function normalizarComprobaciones(crudo: unknown): ArchivoComprobaciones 
         };
     }
     return fuera;
+}
+
+function arregloDe(v: unknown): ArregloPedido | null {
+    const o = objeto(v);
+    if (typeof o.t !== "string" || !o.t) return null;
+    return { t: o.t.slice(0, 40), quien: texto(o.quien, 40), nota: texto(o.nota, 500), peticion: texto(o.peticion, 40) };
 }
 
 export function resumenComprobaciones(lista: Comprobacion[]): ResumenComprobaciones {

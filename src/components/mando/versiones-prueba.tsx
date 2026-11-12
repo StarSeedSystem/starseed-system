@@ -10,7 +10,7 @@
  * pestaña visible. En el teléfono todo se apila y nada se recorta.
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { CheckCircle2, ChevronDown, CircleDashed, ExternalLink, FlaskConical, Loader2, ShieldCheck, XCircle } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -103,10 +103,13 @@ function FilaComprobacion({
     c,
     ocupado,
     alMarcar,
+    extra,
 }: {
     c: Comprobacion;
     ocupado: boolean;
     alMarcar: (id: string, estado: EstadoComprobacion, nota?: string) => void;
+    /** (PRB1111V) Lo que el panel «Pruebas» pone bajo la comprobación: la sugerencia del banco y «Pedir arreglo». */
+    extra?: ReactNode;
 }) {
     const [nota, setNota] = useState<string | null>(null);
     const Icono = c.estado === "bien" ? CheckCircle2 : c.estado === "falla" ? XCircle : CircleDashed;
@@ -166,6 +169,7 @@ function FilaComprobacion({
                     </Button>
                 </div>
             ) : null}
+            {extra}
         </li>
     );
 }
@@ -256,11 +260,15 @@ function TarjetaPrueba({
     ocupado,
     alMarcar,
     alAprobar,
+    ocultarBuild,
+    extraComprobacion,
 }: {
     v: VersionPrueba;
     datos: Datos;
     ahora: number;
     ocupado: boolean;
+    ocultarBuild?: boolean;
+    extraComprobacion?: (c: Comprobacion, v: VersionPrueba) => ReactNode;
     alMarcar: (numero: number, id: string, estado: EstadoComprobacion, nota?: string) => void;
     alAprobar: (v: VersionPrueba, lanzarSha: string) => Promise<boolean>;
 }) {
@@ -298,7 +306,7 @@ function TarjetaPrueba({
                 ) : null}
             </p>
 
-            {v.plataformas.length ? (
+            {v.plataformas.length && !ocultarBuild ? (
                 <ul className="mt-2 space-y-1.5">
                     {v.plataformas.map((p, i) => (
                         <FilaBuild key={p.plataforma} p={p} ahora={ahora} repetido={i > 0 && v.plataformas[i - 1].detalle === p.detalle} />
@@ -325,7 +333,7 @@ function TarjetaPrueba({
                 {r.total ? (
                     <ul className="mt-1.5 space-y-1.5">
                         {v.comprobaciones.map((c) => (
-                            <FilaComprobacion key={c.id} c={c} ocupado={ocupado} alMarcar={(id, e, nota) => alMarcar(v.numero, id, e, nota)} />
+                            <FilaComprobacion key={c.id} c={c} ocupado={ocupado} alMarcar={(id, e, nota) => alMarcar(v.numero, id, e, nota)} extra={extraComprobacion?.(c, v)} />
                         ))}
                     </ul>
                 ) : (
@@ -379,12 +387,28 @@ function TarjetaPrueba({
     );
 }
 
-export function VersionesPrueba() {
-    const [datos, setDatos] = useState<Datos | null>(null);
+export function VersionesPrueba({
+    datos: datosExternos,
+    alRecargar,
+    ocultarBuild,
+    extraComprobacion,
+    ahoraExterno,
+}: {
+    /** (PRB1111V) Si el panel «Pruebas» ya tiene los datos, los pasa y esta sección no sondea por su cuenta. */
+    datos?: Datos | null;
+    alRecargar?: () => Promise<void> | void;
+    ocultarBuild?: boolean;
+    extraComprobacion?: (c: Comprobacion, v: VersionPrueba) => ReactNode;
+    ahoraExterno?: number;
+} = {}) {
+    const externo = datosExternos !== undefined;
+    const [datosPropios, setDatos] = useState<Datos | null>(null);
+    const datos = (externo ? datosExternos : datosPropios) ?? null;
     const [error, setError] = useState<string | null>(null);
     const [aviso, setAviso] = useState<string | null>(null);
     const [ocupado, setOcupado] = useState(false);
-    const [ahora, setAhora] = useState(() => Date.now());
+    const [ahoraPropio, setAhora] = useState(() => Date.now());
+    const ahora = ahoraExterno ?? ahoraPropio;
     const vivo = useRef(true);
 
     useEffect(() => () => void (vivo.current = false), []);
@@ -408,6 +432,7 @@ export function VersionesPrueba() {
     }, []);
 
     useEffect(() => {
+        if (externo) return;
         void cargar();
         const id = window.setInterval(() => void cargar(), 30_000);
         const reloj = window.setInterval(() => setAhora(Date.now()), 60_000);
@@ -415,7 +440,7 @@ export function VersionesPrueba() {
             window.clearInterval(id);
             window.clearInterval(reloj);
         };
-    }, [cargar]);
+    }, [cargar, externo]);
 
     const enviar = useCallback(
         async (cuerpo: Record<string, unknown>): Promise<boolean> => {
@@ -434,7 +459,8 @@ export function VersionesPrueba() {
                 }
                 if (salida.repetida) setAviso("Esa aprobación ya estaba registrada: no se pidió nada nuevo.");
                 else if (cuerpo.accion === "aprobar") setAviso("Aprobada. El director la toma en su próxima pasada (cada 5 min).");
-                await cargar();
+                if (externo) await alRecargar?.();
+                else await cargar();
                 return true;
             } catch {
                 setAviso("No se pudo completar.");
@@ -443,7 +469,7 @@ export function VersionesPrueba() {
                 setOcupado(false);
             }
         },
-        [cargar],
+        [cargar, externo, alRecargar],
     );
 
     const versiones = datos?.versiones ?? [];
@@ -480,6 +506,8 @@ export function VersionesPrueba() {
                             datos={datos}
                             ahora={ahora}
                             ocupado={ocupado}
+                            ocultarBuild={ocultarBuild}
+                            extraComprobacion={extraComprobacion}
                             alMarcar={(numero, id, estado, nota) => void enviar({ accion: "marcar", numero, id, estado, ...(nota !== undefined ? { nota } : {}) })}
                             alAprobar={(ver, lanzarSha) => enviar({ accion: "aprobar", numero: ver.numero, sha: ver.sha, lanzar_sha: lanzarSha })}
                         />

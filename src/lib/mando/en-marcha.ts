@@ -9,6 +9,7 @@
  */
 import { agentesDeCarrilClaude, duracionCorta, leerRegistroCarril, limpiarTexto, vistaCarril, type LecturaCarril, type TareaCarril, type VistaCarril } from "./carril-claude";
 import { parsearEstadoPuerta, textoPruebas, vistaPuerta, type EstadoPuerta, type VistaPuerta } from "./puerta-integracion";
+import { sanearPrueba, type PruebaParaEnviar } from "./pruebas-vivas"; // PRB1111V
 
 export interface EnMarcha {
     /** Cuándo se leyó (ms de época). */
@@ -17,6 +18,8 @@ export interface EnMarcha {
     puerta: EstadoPuerta | null;
     /** La autopublicación, ya en la lista blanca de `publicacionParaEnviar`. */
     publicacion?: AutopublicacionVista | null;
+    /** (PRB1111V) La versión de prueba en marcha o fallida sin sustituir; null/ausente = no consta ninguna. */
+    pruebas?: PruebaParaEnviar | null;
 }
 
 /** Lo que Genesis ya sabe de la autopublicación (`DatosMedidores["autopublicacion"]`), más cuándo se anotó. */
@@ -81,6 +84,8 @@ export interface VistaEnMarcha {
     carril: VistaCarril;
     puerta: VistaPuerta;
     publicacion: VistaPublicacion;
+    /** (PRB1111V) El build de prueba, solo si hay rastro de uno en marcha o fallido. */
+    prueba: VistaPrueba | null;
     /** Hay algo corriendo de verdad (agentes vivos, puerta en marcha o publicación en curso). */
     algoCorre: boolean;
     /** Cuántos procesos vivos hay en total (agentes del carril + puerta + publicación). */
@@ -90,16 +95,50 @@ export interface VistaEnMarcha {
     frase: string;
 }
 
+export interface VistaPrueba {
+    estado: "esperando-main" | "en-cola" | "compilando" | "publicando" | "fallo";
+    etiqueta: string;
+    texto: string;
+    plataformas: { titulo: string; estado: string; detalle: string }[];
+}
+
+/** (PRB1111V) Una línea por plataforma: dónde va y cuánto lleva frente a lo que suele tardar. PURA. */
+export function vistaPrueba(p: PruebaParaEnviar | null | undefined, ahora: number): VistaPrueba | null {
+    if (!p) return null;
+    const plataformas = p.plataformas.map((x) => {
+        const lleva = x.desdeMs ? Math.max(0, Math.round((ahora - x.desdeMs) / 60_000)) : null;
+        const partes: string[] = [];
+        if (x.estado === "compilando") {
+            if (lleva !== null) partes.push(`lleva ${duracionCorta(lleva)}`);
+            if (x.pasoActual) partes.push(`paso «${x.pasoActual}»${x.pasosHechos !== null && x.pasosTotal ? ` (${x.pasosHechos} de ${x.pasosTotal})` : ""}`);
+            if (x.tipicoMin !== null && lleva !== null) partes.push(x.tipicoMin - lleva > 0 ? `suele tardar ${x.tipicoMin} min · faltan unos ${x.tipicoMin - lleva}` : `suele tardar ${x.tipicoMin} min · ya pasó`);
+            else partes.push("aún no se sabe cuánto suele tardar");
+        }
+        return { titulo: x.titulo, estado: x.estado, detalle: partes.join(" · ") };
+    });
+    const nombres = (e: string) => plataformas.filter((x) => x.estado === e).map((x) => x.titulo).join(", ");
+    const texto =
+        p.fase === "esperando-main" ? `espera ${p.esperaA ?? "a que main tenga el commit"}`
+        : p.fase === "compilando" ? `compilando ${nombres("compilando")}${nombres("en-cola") ? ` · en cola ${nombres("en-cola")}` : ""}${p.falloEn.length ? ` · falló ${p.falloEn.join(", ")}` : ""}`
+        : p.fase === "publicando" ? "compilada; publicando latest-prueba.json y limpieza"
+        : p.fase === "en-cola" ? `en cola en GitHub (${nombres("en-cola") || "sin plataforma"})`
+        : `falló ${p.falloEn.join(", ") || "una plataforma"}; sigue así hasta que una prueba nueva la sustituya`;
+    return { estado: p.fase as VistaPrueba["estado"], etiqueta: p.etiqueta, texto, plataformas };
+}
+
 /** PURA. Lo que se pinta, con las edades calculadas a la hora de `ahora`. */
 export function vistaEnMarcha(e: EnMarcha | null | undefined, ahora: number = Date.now()): VistaEnMarcha {
     const publicacion = e?.publicacion ?? null;
     const carril = vistaCarril(e?.carril, ahora);
     const puerta = vistaPuerta(e?.puerta, ahora);
     const pub = vistaPublicacion(publicacion, ahora);
+    const prueba = vistaPrueba(e?.pruebas, ahora); // PRB1111V
     const vivosCarril = carril.estado === "vivo" ? carril.agentes.length : 0;
     const puertaViva = puerta.estado === "corriendo" ? 1 : 0;
     const pubViva = pub.estado === "publicando" ? 1 : 0;
-    const vivos = vivosCarril + puertaViva + pubViva;
+    // PRB1111V: una prueba esperando a main es una espera real, pero no un proceso vivo; compilando, en cola o publicando sí.
+    const pruebaViva = prueba && ["compilando", "publicando", "en-cola"].includes(prueba.estado) ? 1 : 0;
+    const vivos = vivosCarril + puertaViva + pubViva + pruebaViva;
 
     const candidatos: UltimoTerminado[] = [];
     if (puerta.estado === "verde" || puerta.estado === "rojo") {
@@ -121,14 +160,16 @@ export function vistaEnMarcha(e: EnMarcha | null | undefined, ahora: number = Da
             vivosCarril ? `${vivosCarril} ${vivosCarril === 1 ? "agente" : "agentes"} de Claude` : "",
             puertaViva ? "la puerta de integración" : "",
             pubViva ? "la publicación" : "",
+            pruebaViva && prueba ? `la ${prueba.etiqueta}` : "",
         ].filter(Boolean);
         frase = `Corre ahora: ${partes.join(", ")}.`;
     } else {
         const cuando = ultimo ? ` Lo último que terminó: ${ultimo.texto}, hace ${duracionCorta(Math.max(0, Math.floor((ahora - ultimo.cuandoMs) / 60_000)))}.` : " No consta cuándo terminó lo último.";
         const avisos = [carril.estado === "sin-latido" ? "el carril de Claude tiene tareas abiertas pero sin latido" : "", puerta.estado === "sin-senal" ? "la puerta no da señal" : "", pub.estado === "sin-senal" ? "la publicación no da señal" : ""].filter(Boolean);
-        frase = `No corre nada ahora.${cuando}${avisos.length ? ` Ojo: ${avisos.join("; ")}.` : ""}`;
+        const pruebaAviso = prueba ? ` Prueba: ${prueba.etiqueta} ${prueba.texto}.` : "";
+        frase = `No corre nada ahora.${cuando}${pruebaAviso}${avisos.length ? ` Ojo: ${avisos.join("; ")}.` : ""}`;
     }
-    return { carril, puerta, publicacion: pub, algoCorre: vivos > 0, vivos, ultimo, frase };
+    return { carril, puerta, publicacion: pub, prueba, algoCorre: vivos > 0, vivos, ultimo, frase };
 }
 
 /**
@@ -157,9 +198,10 @@ export function sanearEnMarcha(crudo: unknown): EnMarcha | null {
           })
         : null;
     const publicacion = publicacionParaEnviar(x.publicacion);
-    if (!carril && !puerta && !publicacion) return null;
+    const pruebas = sanearPrueba((x as { pruebas?: unknown }).pruebas); // PRB1111V
+    if (!carril && !puerta && !publicacion && !pruebas) return null;
     const origen = p?.origen === "log" ? "log" : "estado";
-    return { generadoMs: Number.isFinite(generadoMs) ? generadoMs : 0, carril, puerta: puerta ? { ...puerta, origen } : null, publicacion };
+    return { generadoMs: Number.isFinite(generadoMs) ? generadoMs : 0, carril, puerta: puerta ? { ...puerta, origen } : null, publicacion, ...(pruebas ? { pruebas } : {}) };
 }
 
 export { agentesDeCarrilClaude };

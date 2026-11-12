@@ -43,7 +43,7 @@ import { Button } from "@/components/ui/button";
 
 import type { LanzamientoEstado, MedioFila } from "@/lib/mando/lanzamientos-tipos";
 import { filasDeMedios } from "@/lib/mando/lanzamientos";
-import { VersionesPrueba } from "@/components/mando/versiones-prueba";
+import { LineaDePruebas } from "@/components/mando/pruebas-linea"; // PRB1111V
 
 interface DatosLanzamiento {
     estado: LanzamientoEstado;
@@ -236,7 +236,7 @@ function LineaTiempo({ pasos, jobs }: { pasos: LanzamientoEstado["pasos"]; jobs:
     );
 }
 
-export function PanelVersiones() {
+export function PanelVersiones({ alAbrirPruebas }: { alAbrirPruebas?: () => void } = {}) {
     const [datos, setDatos] = useState<DatosLanzamiento | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [ocupado, setOcupado] = useState(false);
@@ -441,8 +441,8 @@ export function PanelVersiones() {
                         )}
                     </div>
 
-                    {/* VER1111F · cada versión de prueba con su build, sus comprobaciones y «Aprobar» (§10). */}
-                    <VersionesPrueba />
+                    {/* PRB1111V · las versiones de prueba viven en el medidor «Pruebas»; aquí, una línea que lleva allí. */}
+                    <LineaDePruebas alAbrir={alAbrirPruebas} />
 
                     <LineaTiempo pasos={estado.pasos} jobs={estado.jobs} />
                 </div>

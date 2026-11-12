@@ -19,6 +19,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 
 import { guardianMando } from "@/lib/mando/guardian";
+import { pruebaParaEnMarcha } from "@/lib/mando/pruebas-vivas-fuentes"; // PRB1111V
 import { lanzarPublicacion, leerDiario } from "@/lib/mando/publicador";
 import { POST as reintentarTareas } from "@/app/api/mando/reintentar/route";
 import { leerCreditosPago } from "@/lib/mando/creditos-pago";
@@ -111,15 +112,17 @@ async function leerAutopublicacion(): Promise<DatosMedidores["autopublicacion"]>
 
 // MED1111E · El carril de Claude y la puerta de integración ───────────────────────────────────────
 async function leerEnMarcha(): Promise<EnMarcha | null> {
-    const [carril, puerta, publicacion] = await Promise.all([
+    const [carril, puerta, publicacion, pruebas] = await Promise.all([
         leerCarrilDeDisco(RAÍZ),
         leerPuertaDeDisco(
             path.join(os.homedir(), ".starseed", "produccion", "puerta-estado.json"),
             path.join(os.homedir(), ".starseed", "opus1031"),
         ),
         leerAutopublicacion().then(publicacionParaEnviar).catch(() => null),
+        // PRB1111V · la versión de prueba en marcha (o fallida sin sustituir), solo con rastro en GitHub.
+        pruebaParaEnMarcha().catch(() => null),
     ]);
-    return carril || puerta || publicacion ? { generadoMs: Date.now(), carril, puerta, publicacion } : null;
+    return carril || puerta || publicacion || pruebas ? { generadoMs: Date.now(), carril, puerta, publicacion, ...(pruebas ? { pruebas } : {}) } : null;
 }
 
 /** (2026-11-05, VER1105D) Estado del director de lanzamientos (Centro de Versiones).
@@ -1025,6 +1028,13 @@ export async function GET(peticion: Request): Promise<Response> {
         const estado = await leerLanzamientosEstado().catch(() => null);
         return Response.json(
             { detalle: detalleDeMedidor(clave, { lanzamientosEstado: estado }), generadoEn: new Date().toISOString() },
+            { headers: { "Cache-Control": "no-store" } },
+        );
+    }
+    // PRB1111V: «Pruebas» no usa la reunión (su panel pide /api/mando/lanzamientos/pruebas/vivo).
+    if (clave === "pruebas") {
+        return Response.json(
+            { detalle: detalleDeMedidor(clave, {}), generadoEn: new Date().toISOString() },
             { headers: { "Cache-Control": "no-store" } },
         );
     }

@@ -93,7 +93,9 @@ export type ClaveMedidor =
     // reimaginar». Sustituye a IMN1021H/J (architecture/imaginacion-autodesarrollo.md §6).
     | "imaginacion"
     // (2026-11-05, VER1105D) Centro de Versiones: versión publicada, versión en curso y tono.
-    | "versiones";
+    | "versiones"
+    // PRB1111V: el medidor «Pruebas» (compilaciones 0.5.1-prueba.N); su panel propio lo lee en vivo.
+    | "pruebas";
 
 export type ClaseAccion =
     | "descartar"
@@ -2350,6 +2352,17 @@ export function detalleDeMedidor(
             };
         }
 
+        // PRB1111V: el panel «Pruebas» trae sus propios datos; esto es solo el respaldo barato.
+        case "pruebas":
+            return {
+                clave,
+                titulo: "Pruebas",
+                resumen: "versiones de prueba: se leen en vivo en su panel",
+                filas: [],
+                acciones: [],
+                vacio: "Abre el panel para ver las pruebas en vivo.",
+            };
+
         case "versiones": {
             const estado = d.lanzamientosEstado;
             if (!estado) {
@@ -3322,6 +3335,7 @@ export const ORDEN_POR_DEFECTO: ClaveMedidor[] = [
     "en-cadena",
     "sin-publicar",
     "versiones",
+    "pruebas", // PRB1111V
     "proveedores",
     "memoria",
     "disco",

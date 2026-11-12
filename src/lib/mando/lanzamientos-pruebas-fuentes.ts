@@ -27,6 +27,8 @@ import { raizDelProyecto } from "@/lib/mando/raiz";
 import { NATIVE_VERSION } from "@/lib/version/os-release";
 
 import type { ArchivoComprobaciones, CommitPrueba, RespuestaPruebas } from "./lanzamientos-pruebas-tipos";
+import { tiemposTipicos } from "./pruebas-vivas"; // PRB1111V
+import type { Tipicos } from "./pruebas-vivas-tipos"; // PRB1111V
 import {
     aprobacionesDelDirector,
     construirVersiones,
@@ -195,7 +197,7 @@ function ultimoPublicado(autopub: unknown): string | null {
 }
 
 /** Reúne todo y monta la respuesta del panel. */
-export async function reunirPruebas(ahora = Date.now()): Promise<RespuestaPruebas> {
+export async function reunirPruebas(ahora = Date.now()): Promise<RespuestaPruebas & { tipicos: Tipicos }> {
     const avisos: string[] = [];
     const [runs, lz, archivo, man, estadoDirector, autopub, cabeza] = await Promise.all([
         runsDePruebas(avisos),
@@ -252,6 +254,7 @@ export async function reunirPruebas(ahora = Date.now()): Promise<RespuestaPrueba
         versiones,
         resumen: resumenPruebas(versiones, ahora),
         web: ultimoPublicado(autopub),
+        tipicos: tiemposTipicos(runs), // PRB1111V
         avisos,
         generadoEn: new Date(ahora).toISOString(),
     };
