@@ -1,6 +1,6 @@
 # Genesis · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-11 12:23:17 desde Genesis vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-12 04:48:38 desde Genesis vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -16,16 +16,35 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | Agentes escribiendo | **0** |
 | En esta ola | integradas 0 · en curso 0 · esperando aprobación 0 · pendientes 15 |
 | Últimas 4 olas | en curso 0 · pendientes 100 · integradas 0 |
-| HEAD | `f07b6593c chore(memoria): aprendizaje de la ola auto-1111-120017` |
-| Sin publicar | 6 commits |
+| HEAD | `0aba4a363 chore(memoria): aprendizaje de la ola auto-1112-013753` |
+| Sin publicar | 37 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-1111-120017.json`, hace 23s)
+## Quién escribe ahora (latido de `cola-auto-1112-013753.json`, hace 16s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `P37-1111-rcbb` | hecho | openrouter/nvidia/nemotron-3-super | 2 min | 142 s | 10541 |
-| `SUP1111B` | hecho | openrouter/cohere/north-mini-code: | 3 min | 201 s | 152598 |
+| `LLA1112B-rc-d1` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 2 min | 139 s | 226519 |
+| `LLA1112A-rc-d1` | hecho | openrouter/cohere/north-mini-code: | 4 min | 239 s | 96050 |
+| `SDP1111T` | hecho | openrouter/google/gemma-4-31b-it:f | 5 min | 326 s | 253807 |
+| `ENC1111C-d2` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 21 min | 1231 s | 15581 |
+| `ENC1111C-d1` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 26 min | 1582 s | 81425 |
+| `RON1112C-rcs` | hecho | freellmapi/auto | 39 min | 2336 s | 178601 |
+| `ENC1111C` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 55 min | 3285 s | 203423 |
+| `LLA1112A-rc` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 79 min | 4727 s | 136305 |
+| `SDP1111S-d2` | hecho | freellmapi/auto | 80 min | 4786 s | 119188 |
+| `RON1112C-rc` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 88 min | 5281 s | 172339 |
+| `LLA1112B-rc` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 125 min | 7495 s | 152165 |
+| `SDP1111S-d1` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 131 min | 7840 s | 328356 |
+| `NAV1112K` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 145 min | 8686 s | 30231 |
+| `ENT-agentes-referencias-diseno-agentes-re-8950c2-v1` | hecho | nim/minimaxai/minimax-m3.1-flash | 163 min | 9766 s | 1121 |
+| `ENT-agentes-referencias-diseno-agentes-re-a467d8-v1` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 164 min | 9831 s | 494 |
+| `ENT-agentes-referencias-diseno-agentes-re-ed5819-v1` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 164 min | 9835 s | 494 |
+| `ENT-agentes-referencias-diseno-agentes-re-6258d7-v1` | hecho | nim/minimaxai/minimax-m3.1-flash | 164 min | 9844 s | 489 |
+| `ENT-agentes-referencias-diseno-agentes-re-91b5c1-v1` | hecho | groq/openai/gpt-oss-120b | 174 min | 10445 s | 809 |
+| `IRD11121` | hecho | groq/openai/gpt-oss-120b | 175 min | 10523 s | 676 |
+| `IRD11122` | hecho | groq/openai/gpt-oss-120b | 179 min | 10742 s | 541 |
+| `IRD11123` | hecho | groq/openai/gpt-oss-120b | 179 min | 10742 s | 439 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
@@ -153,3 +172,29 @@ verificación cambio a cambio (integrado **y** aplicado). Nunca `git push` a man
 Toda respuesta a Alex acaba con un informe de uso: qué modelos y APIs se usaron, qué queda, y
 qué opciones de enrutamiento hay. Y nunca se le dice que algo está arreglado sin haberlo visto
 funcionando en `localhost`.
+
+---
+
+## Síntesis diaria autónoma (SDP1111)
+
+La síntesis de producción audiovisual ya no depende de la tarea programada de Claude. Funciona
+desde MetaGenesis con sus directores, agentes de Imaginación, Jev, Laya y la flota gratuita.
+El agente `scripts/puente/agente_sintesis.py` (cableado en `director_autodesarrollo.py`) ejecuta
+tres fases diarias: recolectar y encargar análisis (00:30 CDMX), redactar y revisar (06:30), y
+verificar/entregar (07:54 objetivo). La entrega va al chat propio de Telegram
+(@StarSeed_Design_bot, chat_id 8670436815) y, si Drive está vinculado, crea un Doc en la carpeta
+`1PenzAWw1VWpSAMXa7ms2VRrEhJ5uFbmI`. El parte diario para que Claude nube tenga contexto se genera
+con `parte_diario_metagenesis.py` vía timer oneshot diario a las 07:30 en el A1 (líder de
+dirección). `buzon_telegram.py` queda sin cablear. La migración `20261108120000_metagenesis_buzon.sql`
+la aplica el director al publicar.
+
+## Navegador propio de MetaGenesis (NAV1112)
+
+Lectores diarios en el A1 (Oracle, siempre encendido) que acceden con sesiones iniciadas manualmente
+por Alex a: `myactivity.google.com` (YouTube visto, Búsqueda, Gemini), `www.youtube.com` (inicio e
+historial), `notebooklm.google.com` (cuadernos, fuentes, notas) y `www.instagram.com/saved` (guardados
+de maggasukha) + seguidos. Sustituye a SDP1111M (navegador en la Mac) y elimina la dependencia de
+Takeout (cada 2 meses), exportación manual de Instagram y CLI de NotebookLM en la Mac — estos tres
+quedan como respaldo. Seguridad: solo lectura, dominios permitidos por sesión, sin puertos hacia
+fuera, perfiles 0700, cerrojo y `STARSEED_NAVEGADOR=0` / `STARSEED_NAVEGADOR_INSTAGRAM=0` para apagar.
+Documentación en `architecture/navegador-propio-metagenesis.md`.
