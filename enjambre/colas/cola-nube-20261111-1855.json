@@ -1,0 +1,43 @@
+{
+ "ola": "nube-20261111",
+ "tareas": [
+  {
+   "id": "NAV1112A",
+   "ola": "NAV1112",
+   "titulo": "Navegador propio · sesiones y reglas (módulo puro)",
+   "archivos": [
+    "scripts/puente/navegador_reglas.py",
+    "scripts/puente/test_navegador_reglas.py"
+   ],
+   "depende": [],
+   "prompt": "Lee architecture/navegador-propio-metagenesis.md §4 y §5. Crea el módulo PURO navegador_reglas.py: el registro de sesiones (google-alex, google-fundacion, instagram-maggasukha, instagram-sociedad) con su lista de dominios permitidos, sus topes (páginas al día, pausa mínima entre páginas) y su estado (viva, caducada, sin alta, última comprobación) guardado en ~/.starseed/navegador/estado.json con escritura atómica. Funciones: permitida(sesion, url) (solo https y solo dominios de la lista), selector_prohibido(texto_o_selector) (enviar, publicar, eliminar, seguir, me gusta, guardar cambios y sus equivalentes en inglés), dentro_de_tope(sesion, ahora), apagado(entorno) con STARSEED_NAVEGADOR y STARSEED_NAVEGADOR_INSTAGRAM. Sin red. Pruebas de cada regla. Máximo 120 líneas por archivo."
+  },
+  {
+   "id": "SDP1111K",
+   "ola": "SDP1111",
+   "titulo": "Actividad · resumen diario por temas con Laya y LEANN",
+   "archivos": [
+    "scripts/puente/actividad_resumen.py",
+    "scripts/puente/test_actividad_resumen.py"
+   ],
+   "depende": [],
+   "prompt": "Lee architecture/sintesis-diaria-autonoma.md §3.4 y §4. Crea actividad_resumen.py: reúne las fichas del día de ~/.starseed/actividad/fichas/, clasifica cada una con Laya (relevante o no para StarSeed y para qué tema: mesh, IA abierta, democracia directa, economía ecológica, comunidades, solarpunk, diseño, programación), pide a LEANN lo ya conocido del tema, y escribe ~/.starseed/actividad/resumen-AAAA-MM-DD.json: por tema, títulos, enlaces y una línea, tope 12000 caracteres. Marca privado: true y nunca incluye cuerpos de correo completos. Este resumen no sale a Supabase, ni al parte diario, ni a Drive. Clasificador y recuerdo inyectables; pruebas puras. Máximo 120 líneas por archivo.",
+   "dependencias_ya_en_main": [
+    "SDP1111F",
+    "SDP1111G"
+   ]
+  },
+  {
+   "id": "NAV1112B",
+   "ola": "NAV1112",
+   "titulo": "Navegador propio · contenedor en el A1",
+   "archivos": [
+    "deploy/oracle/nodo/navegador/compose-navegador.yml",
+    "deploy/oracle/nodo/navegador/Dockerfile",
+    "deploy/oracle/nodo/navegador/LEEME.md"
+   ],
+   "depende": [],
+   "prompt": "Lee architecture/navegador-propio-metagenesis.md §3 y §5 y deploy/oracle/nodo/selkies/ (patrón). Crea un contenedor linux/arm64 con Chromium, Xvfb y Playwright para Python. Apagado por defecto (restart: no). Un volumen por sesión para el perfil (navegador_google_alex, etc.), propiedad de un usuario sin privilegios. Chromium arranca con el perfil de la sesión pedida y --remote-debugging-address=127.0.0.1; NINGÚN puerto publicado. Tope de memoria 1500M. Para el alta manual, el mismo perfil se abre dentro del escritorio Selkies existente (comparte el volumen); documenta cómo. LEEME: encender, apagar, dónde están los perfiles y que nunca se copian fuera. No toques compose-a1.yml."
+  }
+ ]
+}
