@@ -1,0 +1,23 @@
+{
+ "ola": "nube-20261112",
+ "tareas": [
+  {
+   "ola": "ENC1111",
+   "id": "ENC1111C-d3",
+   "titulo": "Encargos de los chats · cableado en el líder y guía para los chats (parte 3 de 3)",
+   "archivos": [
+    "AGENTS.md"
+   ],
+   "depende": [],
+   "prompt": "Lee architecture/encargos-chats-metagenesis.md entero. (1) En director_autodesarrollo.py añade _buzon_encargos(raiz, ahora) con import protegido de encargos_buzon.ciclo, como _agente_alcance, llamado como mucho cada 10 minutos cuando este nodo dirige; si falla, el director sigue. (2) En CLAUDE.md y AGENTS.md añade una sección corta «Encargar trabajo a MetaGenesis sin la Mac»: carpeta de Drive «Encargos para MetaGenesis» (id 1lZaGcZ8COkaunilTxYLj-SWuFkGTwmrF), formato del Doc (título con «(léelo, director)», línea «Destino en el repo», bloque JSON de la cola) y enlace a architecture/encargos-chats-metagenesis.md. Máximo 120 líneas tocadas por archivo; prueba de que el director sigue si el módulo falta.\n\n## PARTE 3 DE 3 (la dirección dividió ENC1111C: falla por sí misma (tarea:pruebas))\nEn esta parte tocas SOLO: AGENTS.md. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "ENC1111C",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:pruebas)"
+   },
+   "dependencias_ya_en_main": [
+    "ENC1111C-d2"
+   ]
+  }
+ ]
+}
