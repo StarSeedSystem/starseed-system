@@ -1,6 +1,6 @@
 # Genesis · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-12 06:16:03 desde Genesis vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-12 06:53:09 desde Genesis vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -13,18 +13,20 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 |---|---|
 | Genesis | **encendido** en http://127.0.0.1:9002/mando |
 | Ola arriba | Sueños profundos 2026-10-24 · propuesta |
-| Agentes escribiendo | **0** |
+| Agentes escribiendo | **1** |
 | En esta ola | integradas 0 · en curso 0 · esperando aprobación 0 · pendientes 15 |
 | Últimas 4 olas | en curso 0 · pendientes 100 · integradas 0 |
-| HEAD | `b8717acd3 chore(memoria): aprendizaje de la ola auto-1112-061321` |
-| Sin publicar | 63 commits |
+| HEAD | `0d0cfba46 chore(memoria): aprendizaje de la ola auto-1112-061626` |
+| Sin publicar | 68 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-1112-061321.json`, hace 15s)
+## Quién escribe ahora (latido de `cola-auto-1112-061626.json`, hace 13s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `LLA1112A-rc-d2` | hecho | openrouter/thinkingmachines/inklin | 2 min | 132 s | 53667 |
+| `LLA1112A-rc-d3` | hecho | freellmapi/auto | 2 min | 146 s | 96839 |
+| `LLA1112B-rc-d3` | hecho | openrouter/nvidia/nemotron-3-super | 23 min | 1388 s | 32837 |
+| `LLA1112A-rc-d2` | hecho | openrouter/cohere/north-mini-code: | 30 min | 1828 s | 75287 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
