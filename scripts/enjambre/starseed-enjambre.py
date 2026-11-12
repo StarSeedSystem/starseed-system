@@ -4701,11 +4701,16 @@ def _tocados_por_la_tarea(cwd, log=None):
     también el árbol de trabajo y lo que no está bajo seguimiento. La puerta de
     pytest del enjambre llevaba desde el 07/09 preguntándolo así y por eso casi
     nunca se disparaba.
+    OJO (2026-11-12): `git diff --name-only main` comparaba con el main VIVO
+    (que se mueve en cada integración), así que listaba lo que main ganó después
+    de la bifurcación. Cambiado a `git diff --name-only HEAD` (lo no commiteado
+    de la tarea; lo commiteado ya sale con main...HEAD y lo nuevo sin seguimiento
+    con ls-files --others).
     """
     vistos = []
     for orden in (
         "git diff --name-only main...HEAD",
-        "git diff --name-only main",
+        "git diff --name-only HEAD",
         "git ls-files --others --exclude-standard",
     ):
         try:
@@ -5252,6 +5257,7 @@ def _puerta_python(wt, tid=None, log=None):
     """
     tocados = _tocados_por_la_tarea(wt, log)
     py_tocados = [f for f in tocados if f.endswith(".py")]
+    py_tocados = [f for f in py_tocados if os.path.isfile(os.path.join(wt, f))]
     if not py_tocados:
         return 0, ""
 
