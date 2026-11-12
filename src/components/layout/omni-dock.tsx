@@ -91,6 +91,9 @@ export function OmniDock() {
 
     // Sombras de scroll del dock: indican que hay MÁS opciones al deslizar.
     const stripRef = useRef<HTMLDivElement | null>(null);
+    // LLA1112B · el dock publica su altura real para que la ventana de llamada
+    // no esconda sus controles detrás de él (ver `--dock-height` en la superficie).
+    const pillRef = useRef<HTMLDivElement | null>(null);
     const [shadow, setShadow] = useState<{ l: boolean; r: boolean }>({ l: false, r: false });
     const updateShadows = useCallback(() => {
         const el = stripRef.current;
@@ -380,6 +383,42 @@ export function OmniDock() {
     // (Ola 227) Rito de verdad en primer plano: el dock NO puede salir
     // (ni siquiera el FAB Trinity; él también se auto-oculta por su cuenta).
     const rito = useRitoActivo();
+
+    // LLA1112B · publica la altura REAL que ocupa el dock en `--dock-height`, en
+    // la raíz del documento: la ventana de llamada la descuenta para que sus
+    // botones nunca queden debajo. Con el dock cerrado o el rito en primer plano
+    // vale 0px (el fallback de 80px solo cubre el primer instante sin medir).
+    // Se mide desde la parte de arriba de la píldora hasta el borde inferior del
+    // viewport, así entran el margen inferior, la zona segura y el tirador.
+    useEffect(() => {
+        const raiz = document.documentElement;
+        if (!isVisible || rito) {
+            raiz.style.setProperty("--dock-height", "0px");
+            return () => raiz.style.removeProperty("--dock-height");
+        }
+        const el = pillRef.current;
+        if (!el) return;
+        const medir = () => {
+            const caja = el.getBoundingClientRect();
+            // Durante la animación de entrada la píldora aún está fuera: no
+            // publicar una altura falsa (0) que encogería la ventana de llamada.
+            if (caja.height <= 0) return;
+            const alto = Math.max(0, Math.round(window.innerHeight - caja.top));
+            raiz.style.setProperty("--dock-height", `${alto}px`);
+        };
+        medir();
+        const observador = typeof ResizeObserver !== "undefined" ? new ResizeObserver(medir) : null;
+        observador?.observe(el);
+        window.addEventListener("resize", medir);
+        const id = window.setTimeout(medir, 300); // tras la animación de entrada
+        return () => {
+            observador?.disconnect();
+            window.removeEventListener("resize", medir);
+            window.clearTimeout(id);
+            raiz.style.removeProperty("--dock-height");
+        };
+    }, [isVisible, rito, editMode, compact]);
+
     if (rito) return null;
 
     return (
@@ -449,7 +488,7 @@ export function OmniDock() {
                             alCerrar={() => setQuitado(null)}
                         />
                     )}
-                    <div data-agarre-panel="" data-ss-coreo="dock" className={cn(
+                    <div ref={pillRef} data-agarre-panel="" data-ss-coreo="dock" className={cn(
                         "omni-dock-pill glass-depth glass-edge glass-sheen-slow pointer-events-auto",
                         "bg-card/40 dark:bg-black/40 backdrop-blur-3xl border border-foreground/10",
                         // En móvil un radio moderado (los extremos redondeados de
