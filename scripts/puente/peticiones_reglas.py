@@ -48,9 +48,9 @@ AYUDA = (
 )
 
 RENOVAR = (
-    "Para renovarla hace falta iniciar sesión una vez con alexbordongarrigos: pídeselo a Claude en el chat "
-    "del proyecto (abre la ventana en la Mac y la sesión pasa al A1). Cuando el enjambre integre PET1112E, se "
-    "renovará desde MetaGenesis › Apps Linux, sin la Mac."
+    "Se renueva desde MetaGenesis › Apps Linux, sin la Mac: MetaGenesis rehace la sesión del A1 con la orden "
+    "«notebooklm» del navegador propio (cookies de la sesión google-alex). Si esa sesión también caducó, abre "
+    "MetaGenesis › Apps Linux e inicia sesión una vez con alexbordongarrigos cuando llegue el aviso del alta."
 )
 
 

@@ -13,6 +13,13 @@ CLI `estado`:
 CLI `vigilar`:
   - Si una sesión pasa a caducada avisa una vez por Telegram y no reintenta
 
+CLI `notebooklm`:
+  - Renueva la sesión del CLI de NotebookLM del A1 con las cookies de Google de la sesión
+    google-alex del navegador propio: si está viva las extrae del perfil (sin imprimirlas) y
+    las importa al perfil default del CLI con `notebooklm auth import-cookies`; comprueba con
+    `notebooklm auth check` y avisa por sintesis_telegram. Si google-alex no está viva, lanza
+    el `alta google-alex` existente y repite. Ningún paso teclea ni lee contraseñas
+
 Todo inyectable; pruebas sin red. Máximo 120 líneas por archivo.
 """
 import os
@@ -202,14 +209,118 @@ def vigilar() -> Dict[str, Any]:
     return resultado
 
 
+def _ruta_cli() -> str:
+    """Ruta del CLI notebooklm en este nodo (venv del A1 o bin de la Mac; inyectable por entorno)."""
+    candidatos = [
+        os.environ.get("STARSEED_NOTEBOOKLM_CLI") or "",
+        os.path.expanduser("~/.starseed/venvs/notebooklm/bin/notebooklm"),
+        os.path.expanduser("~/bin/notebooklm"),
+    ]
+    for ruta in candidatos:
+        if ruta and os.path.isfile(ruta):
+            return ruta
+    return ""
+
+
+def _ejecutar_cli(args: list, entrada: str = "") -> Dict[str, Any]:
+    """Ejecuta el CLI notebooklm (inyectable). Nunca devuelve contraseñas ni cookies."""
+    ruta = _ruta_cli()
+    if not ruta:
+        return {"ok": False, "salida": "", "motivo": "CLI notebooklm no encontrado en este nodo"}
+    try:
+        import subprocess
+        p = subprocess.run([ruta] + args, input=entrada, capture_output=True, text=True, timeout=180)
+        return {"ok": p.returncode == 0, "salida": p.stdout + p.stderr}
+    except Exception as e:
+        return {"ok": False, "salida": "", "motivo": str(e)}
+
+
+def _sesion_viva(sesion: str) -> bool:
+    """Comprueba si la sesión del navegador propio está viva (inyectable)."""
+    try:
+        fila = (NR.cargar_estado().get("sesiones") or {}).get(sesion) or {}
+        return fila.get("estado") == "viva"
+    except Exception:
+        return False
+
+
+def _extraer_cookies(sesion: str) -> list:
+    """Extrae las cookies de Google del perfil de la sesión (inyectable; nunca se imprimen)."""
+    puerto = _obtener_urls_perfil(sesion).get("playwright")
+    if not puerto:
+        return []
+    try:
+        from playwright.sync_api import sync_playwright
+    except ImportError:
+        return []
+    try:
+        with sync_playwright() as p:
+            navegador = p.chromium.connect_over_cdp("http://" + puerto)
+            contexto = navegador.contexts[0] if navegador.contexts else None
+            if contexto is None:
+                return []
+            return [c for c in contexto.cookies() if (c.get("domain") or "").endswith("google.com")]
+    except Exception:
+        return []
+
+
+def _importar_cookies(cookies: list) -> Dict[str, Any]:
+    """Importa las cookies al perfil default del CLI (inyectable; nunca se imprimen)."""
+    return _ejecutar_cli(["auth", "import-cookies"], entrada=json.dumps(cookies, ensure_ascii=False))
+
+
+def _comprobar_cli() -> Dict[str, Any]:
+    """Comprueba la sesión del CLI con `auth check` (inyectable)."""
+    return _ejecutar_cli(["auth", "check"])
+
+
+def _avisar_renovacion(ok: bool, detalle: str = "") -> None:
+    """Avisa por sintesis_telegram del resultado de la renovación."""
+    if ok:
+        _obtener_telegram().enviar("sesión de NotebookLM renovada desde el navegador propio: "
+                                   "auth check en verde")
+    else:
+        _obtener_telegram().enviar("no pude renovar NotebookLM: %s. Abre MetaGenesis › Apps Linux "
+                                   "si llega el aviso del alta" % (detalle or "auth check en rojo"))
+
+
+def notebooklm() -> Dict[str, Any]:
+    """CLI `notebooklm`: renueva la sesión del CLI con las cookies del navegador propio."""
+    sesion = "google-alex"
+    if not _sesion_viva(sesion):
+        resultado_alta = alta(sesion)
+        if not resultado_alta.get("ok"):
+            detalle = "falló el alta de %s: %s" % (sesion, resultado_alta.get("motivo"))
+            _avisar_renovacion(False, detalle)
+            return {"ok": False, "motivo": detalle}
+    cookies = _extraer_cookies(sesion)
+    if not cookies:
+        detalle = "sin cookies de Google en el perfil de %s" % sesion
+        _avisar_renovacion(False, detalle)
+        return {"ok": False, "motivo": detalle}
+    importada = _importar_cookies(cookies)
+    if not importada.get("ok"):
+        detalle = "import-cookies falló: %s" % (importada.get("motivo") or importada.get("salida", "")[:200])
+        _avisar_renovacion(False, detalle)
+        return {"ok": False, "motivo": detalle}
+    comprobada = _comprobar_cli()
+    ok = bool(comprobada.get("ok"))
+    if ok:
+        _avisar_renovacion(True)
+    else:
+        _avisar_renovacion(False, "auth check falló (la sesión sigue en rojo)")
+    return {"ok": ok}
+
+
 def main(argv) -> int:
     """CLI principal."""
     if len(argv) < 2:
         print("Uso: python3 navegador_alta.py <comando> [argumento]")
         print("\nComandos:")
         print("  alta <sesion>     Enciende Selkies y Chromium para una sesión")
-        print("  estado           Verifica el estado de todas las sesiones")
-        print("  vigilar          Avisa si una sesión está viva")
+        print("  estado            Verifica el estado de todas las sesiones")
+        print("  vigilar           Avisa si una sesión está viva")
+        print("  notebooklm        Renueva la sesión del CLI con las cookies del navegador propio")
         return 1
     
     comando = argv[1]
@@ -228,7 +339,12 @@ def main(argv) -> int:
         resultado = vigilar()
         print(json.dumps(resultado, ensure_ascii=False))
         return 0
-    
+
+    elif comando == "notebooklm":
+        resultado = notebooklm()
+        print(json.dumps({"ok": resultado.get("ok")}, ensure_ascii=False))
+        return 0 if resultado.get("ok") else 1
+
     else:
         print(f"Comando desconocido: {comando}")
         return 1
