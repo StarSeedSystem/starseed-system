@@ -6943,3 +6943,18 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `IRD11123` — otra cosa: 2 propuesta(s) · starseed_memory_root/imaginacion/agentes/referencias-diseno-2026-11-12-3.json
 - `ENT-agentes-referencias-diseno-agentes-re-91b5c1-v1` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/entregable-agentes-referencias-diseno-agentes-referencias-diseno-91b5c1-v1.json
 - `ENT-agentes-referencias-diseno-agentes-re-8950c2-v1` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/entregable-agentes-referencias-diseno-agentes-referencias-diseno-8950c2-v1.json
+
+## 2026-11-12 06:00 · auto-1112-044917
+
+**Lo que se pidió.** riesgos
+
+**Resultado.** 5 de 7 integradas. 2 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- openrouter/cohere/north-mini-code:free no integró ninguna de sus 2 tareas.
+- nvidia/nvidia/nemotron-3-ultra-550b-a55b integró 2 tareas sin fallar una.
+- freellmapi/auto integró 3 tareas sin fallar una.
+
+**Lo que quedó fuera, una por una:**
+- `LLA1112A-rc-d1` — otra cosa: revisor: la cadena ya sigue por su sucesora LLA1112A-rc-d1b (en_curso): esta copia se cierra con su rama guardada
+- `LLA1112A-rc-d2` — los tipos no compilan: 1 errores tsc (rama ola/LLA1112A-rc-d2 conservada)
