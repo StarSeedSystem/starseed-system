@@ -123,4 +123,41 @@ describe("PanelPruebas", () => {
         montar();
         expect(await screen.findByRole("alert")).toBeInTheDocument();
     });
+
+    it("PRB1111X: con algo compilando, «Compilar» está desactivado y dice por qué; «Cancelar» sigue activo", async () => {
+        const v = version(40, [plataforma("macos", "compilando"), plataforma("windows", "en-cola")]);
+        servir(vivo({ versiones: [v] }));
+        montar();
+        const g = await screen.findByRole("group", { name: /Acciones sobre las pruebas/ });
+        expect(within(g).getByRole("button", { name: /Compilar prueba ahora/ })).toBeDisabled();
+        expect(within(g).getByRole("button", { name: /^Cancelar$/ })).toBeEnabled();
+        expect(within(g).getByText(/Ya hay una compilación en marcha/)).toBeInTheDocument();
+    });
+
+    it("PRB1111X: esperando a main se puede sustituir: «Compilar» sigue activo", async () => {
+        const v = version(40, [plataforma("macos", "esperando-main"), plataforma("windows", "esperando-main")]);
+        servir(vivo({ versiones: [v] }));
+        montar();
+        const g = await screen.findByRole("group", { name: /Acciones sobre las pruebas/ });
+        expect(within(g).getByRole("button", { name: /Compilar prueba ahora/ })).toBeEnabled();
+    });
+
+    it("PRB1111X: «Abrir la app» sale con la app cerrada, pide confirmar y escribe app-abrir", async () => {
+        const banco = { t: ahoraIso(), cadaS: 60, lineasLeidas: 10, sugerenciasNota: null, llamadas: [], sugerencias: [], aparatos: [{ id: "mac", nombre: "Esta Mac", esta: true, version: "0.5.1-prueba.39", versionDe: "app-instalada", appAbierta: false, ultimoArranque: null, errores: [], visto: ahoraIso() }] };
+        servir(vivo({ banco: banco as never, versiones: [version(39, [plataforma("macos", "publicada")], { publicadaEnTodas: true })] }));
+        montar();
+        const caja = await screen.findByTestId("abrir-app");
+        fireEvent.click(within(caja).getByRole("button", { name: "Abrir la app" }));
+        expect(pedidos.some((p) => p.metodo === "POST")).toBe(false);
+        fireEvent.click(within(caja).getByRole("button", { name: /Sí, abrir la app/ }));
+        await waitFor(() => expect(pedidos.find((p) => p.metodo === "POST")?.cuerpo).toEqual({ accion: "app-abrir" }));
+    });
+
+    it("PRB1111X: con la app abierta no se ofrece", async () => {
+        const banco = { t: ahoraIso(), cadaS: 60, lineasLeidas: 10, sugerenciasNota: null, llamadas: [], sugerencias: [], aparatos: [{ id: "mac", nombre: "Esta Mac", esta: true, version: null, versionDe: null, appAbierta: true, ultimoArranque: null, errores: [], visto: null }] };
+        servir(vivo({ banco: banco as never }));
+        montar();
+        await screen.findByTestId("aparato-mac");
+        expect(screen.queryByTestId("abrir-app")).toBeNull();
+    });
 });

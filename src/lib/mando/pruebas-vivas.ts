@@ -600,10 +600,11 @@ export function plataformaParaPeticion(p: string | null | undefined): string | n
 export function validarControl(body: unknown): PeticionControl | { error: string } {
     const o = objeto(body);
     const accion = o.accion as AccionControl;
-    if (!["compilar", "cancelar", "reintentar", "republicar", "pedir-arreglo"].includes(accion)) return { error: "Acción no válida." };
+    if (!["compilar", "cancelar", "reintentar", "republicar", "pedir-arreglo", "app-abrir"].includes(accion)) return { error: "Acción no válida." };
     const nota = typeof o.nota === "string" && o.nota.trim() ? o.nota.trim() : null;
     if (nota !== null && nota.length > 500) return { error: "La nota es demasiado larga (500 caracteres como mucho)." };
     const base: PeticionControl = { accion, sha: null, numero: null, prueba: null, comprobacion: null, plataforma: null, nota };
+    if (accion === "app-abrir") return { ...base, nota: null }; // PRB1111X: sin más campos
     if (accion === "compilar") {
         if (o.sha === null || o.sha === undefined) return base;
         if (typeof o.sha !== "string" || !SHA40.test(o.sha.toLowerCase())) return { error: "Commit no válido (hacen falta los 40 caracteres)." };
@@ -654,7 +655,7 @@ export interface TextoConfirmacion {
 }
 
 export function textoDeConfirmacion(
-    p: { accion: Exclude<AccionControl, "pedir-arreglo"> },
+    p: { accion: Exclude<AccionControl, "pedir-arreglo" | "app-abrir"> },
     ctx: { cola: ColaLocal; enCurso: { numero: number | null; version: string | null } | null; objetivo: { numero: number | null; version: string | null } | null; ultimaPublicada: string | null },
 ): TextoConfirmacion {
     const nombre = (x: { numero: number | null; version: string | null } | null) => x?.version ?? (x?.numero ? `prueba.${x.numero}` : "la que consta en el director");
@@ -766,7 +767,8 @@ export type { Comprobacion };
 /** La prueba que el panel pone en primer plano: la que está en marcha; si no, la más nueva con algo fallido; si no, la más nueva. Pura. */
 export function versionEnFoco(versiones: VersionPrueba[]): VersionPrueba | null {
     const orden = [...versiones].sort((a, b) => b.numero - a.numero);
-    return orden.find(estaEnMarcha) ?? orden.find((v) => v.plataformas.some((p) => p.estado === "fallo")) ?? orden[0] ?? null;
+    // Una prueba fallida importa hasta que otra más nueva la sustituye: la más nueva manda (PRB1111X).
+    return orden.find(estaEnMarcha) ?? orden[0] ?? null;
 }
 
 /** La última prueba publicada en todas sus plataformas (para «Volver a publicar el manifiesto» y los accesos). Pura. */

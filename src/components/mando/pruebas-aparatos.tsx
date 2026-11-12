@@ -7,6 +7,7 @@
  * líneas crudas a petición. La sugerencia nunca marca: marcar sigue siendo un toque de Alex.
  */
 
+import { Button } from "@/components/ui/button";
 import { useState } from "react";
 
 import type { Comprobacion, VersionPrueba } from "@/lib/mando/lanzamientos-pruebas-tipos";
@@ -66,6 +67,46 @@ function Llamada({ ll, ahora }: { ll: LlamadaBanco; ahora: number }) {
     );
 }
 
+/** PRB1111X: «Abrir la app» en esta Mac. Escribe la petición `app-abrir`; el director solo ABRE la app instalada. */
+function AbrirApp() {
+    const c = usePruebas();
+    const [confirmando, setConfirmando] = useState(false);
+    const [ocupado, setOcupado] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    if (!c) return null;
+    const pendiente = c.datos.peticiones.some((p) => p.accion === "app-abrir" && (p.estado === "pendiente" || p.estado === "escrita"));
+    const sin = !c.puedePedir ? c.motivo : pendiente ? "Ya hay una petición «abrir la app» sin atender." : "";
+    const enviar = async () => {
+        setOcupado(true);
+        setError(null);
+        const r = await c.pedir({ accion: "app-abrir" }, "Abrir la app en esta Mac");
+        setOcupado(false);
+        if (r.ok) setConfirmando(false);
+        else setError(r.error ?? "No se pudo pedir.");
+    };
+    return (
+        <div className="mt-1.5 space-y-1" data-testid="abrir-app">
+            {!confirmando ? (
+                <Button size="sm" variant="outline" disabled={!!sin} onClick={() => setConfirmando(true)} className="h-8 text-xs">
+                    Abrir la app
+                </Button>
+            ) : (
+                <div role="dialog" aria-label="Abrir la app" className="space-y-1.5 rounded-md border border-amber-400/30 bg-amber-500/[0.06] p-2">
+                    <p className="break-words text-white/75">Pide al director que abra la app de StarSeed ya instalada en esta Mac. Solo la abre: no la cierra ni la actualiza.</p>
+                    <div className="flex flex-wrap gap-2">
+                        <Button size="sm" disabled={ocupado} onClick={() => void enviar()} className="h-8 text-xs">
+                            {ocupado ? "Escribiendo la petición…" : "Sí, abrir la app"}
+                        </Button>
+                        <Button size="sm" variant="outline" disabled={ocupado} onClick={() => setConfirmando(false)} className="h-8 text-xs">No, volver</Button>
+                    </div>
+                </div>
+            )}
+            {sin ? <p className="break-words text-[11px] text-white/45">{sin}</p> : null}
+            {error ? <p className="break-words text-rose-200" role="alert">{error}</p> : null}
+        </div>
+    );
+}
+
 export function AparatosYEvidencia() {
     const c = usePruebas();
     const [todas, setTodas] = useState(false);
@@ -112,6 +153,7 @@ export function AparatosYEvidencia() {
                             <p className="break-words text-white/70">
                                 App: {a.appAbierta === null ? "no se pudo saber si está abierta" : a.appAbierta ? "abierta" : "cerrada"} · último arranque: {a.ultimoArranque ? `${fechaCorta(a.ultimoArranque)} (${haceTexto(a.ultimoArranque, c.ahora)})` : "no consta"} · visto {haceTexto(a.visto, c.ahora) ?? "nunca"}
                             </p>
+                            {a.esta && a.appAbierta !== true ? <AbrirApp /> : null}
                             {a.errores.length ? (
                                 <details className="mt-1">
                                     <summary className="cursor-pointer text-red-300">{a.errores.length} error{a.errores.length === 1 ? "" : "es"} al arrancar</summary>

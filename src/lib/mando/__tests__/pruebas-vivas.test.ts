@@ -197,3 +197,38 @@ describe("registro del fallo", () => {
         expect(limpiarLineaDeRegistro("2026-11-12T01:00:03.1234567Z hola")).toBe("hola");
     });
 });
+
+describe("PRB1111X · el foco con los datos reales", () => {
+    const todas = (e: string[]) => ["publicada", "publicada", "publicada", "publicada"].map((x, i) => e[i] ?? x);
+    const v39 = version(39, todas([]), { comprobaciones: [{ id: "c1", texto: "x", aparato: "Mac", estado: "pendiente", nota: "", quien: "", t: null } as never] });
+    const versiones = [
+        version(36, todas([])),
+        version(37, todas(["fallo", "fallo", "fallo"])),
+        version(38, todas([])),
+        v39,
+    ];
+    it("una prueba fallida de hace dos pruebas no toma el foco", () => {
+        expect(versionEnFoco(versiones)?.numero).toBe(39);
+    });
+    it("la pastilla dice publicada y comprobaciones pendientes, sin peligro", () => {
+        const f = versionEnFoco(versiones);
+        expect(tonoDePruebas(f, null)).not.toBe("peligro");
+        expect(detalleDePastilla(f, null)).toMatch(/publicada/);
+        expect(detalleDePastilla(f, null)).toMatch(/faltan comprobaciones/);
+        expect(detalleDePastilla(f, null)).not.toMatch(/falló/);
+    });
+    it("si la más nueva es la que falló, sigue mandando el fallo", () => {
+        const f = versionEnFoco([version(38, todas([])), version(39, todas(["fallo"]))]);
+        expect(f?.numero).toBe(39);
+        expect(tonoDePruebas(f, null)).toBe("peligro");
+    });
+    it("la fallida sigue en la lista de versiones", () => {
+        expect(versiones.some((x) => x.numero === 37)).toBe(true);
+    });
+    it("app-abrir se valida sin más campos", () => {
+        expect(validarControl({ accion: "app-abrir", nota: "x" })).toMatchObject({ accion: "app-abrir", nota: null, sha: null, numero: null });
+        const p = validarControl({ accion: "app-abrir" });
+        if ("error" in p) throw new Error("no debía fallar");
+        expect(cuerpoDePeticion(p, "pet-1-aaaa", "2026-11-12T02:00:00Z")).toMatchObject({ accion: "app-abrir", sha: null, numero: null, prueba: null, nota: null });
+    });
+});

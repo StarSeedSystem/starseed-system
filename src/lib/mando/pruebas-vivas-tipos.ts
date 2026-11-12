@@ -255,7 +255,7 @@ export interface RespuestaVivo extends RespuestaPruebas {
 
 // ── Peticiones de la pantalla ──────────────────────────────────────────────────────────────────────
 
-export type AccionControl = "compilar" | "cancelar" | "reintentar" | "republicar" | "pedir-arreglo";
+export type AccionControl = "compilar" | "cancelar" | "reintentar" | "republicar" | "pedir-arreglo" | "app-abrir";
 
 export interface PeticionControl {
     accion: AccionControl;

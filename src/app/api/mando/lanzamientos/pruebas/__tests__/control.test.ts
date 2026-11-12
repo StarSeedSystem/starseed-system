@@ -78,6 +78,14 @@ describe("POST /pruebas/control", () => {
         expect((await post({ accion: "compilar" })).status).toBe(409);
         expect(await escritas()).toHaveLength(1);
     });
+    it("PRB1111X: app-abrir escribe una petición sin más campos", async () => {
+        await directorVivo();
+        const r = await post({ accion: "app-abrir" });
+        expect(r.status).toBe(200);
+        const [f] = await escritas();
+        const escrito = JSON.parse(await readFile(path.join(dir, "pruebas-peticiones", f), "utf8"));
+        expect(escrito).toMatchObject({ formato: 1, accion: "app-abrir", sha: null, numero: null, prueba: null, nota: null });
+    });
     it("pedir arreglo de una comprobación que no existe: 404", async () => {
         await directorVivo();
         const r = await post({ accion: "pedir-arreglo", prueba: 39, comprobacion: "c7" });

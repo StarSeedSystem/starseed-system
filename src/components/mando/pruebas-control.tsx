@@ -136,13 +136,18 @@ export function ControlPruebas() {
     const { datos } = c;
     const foco = versionEnFoco(datos.versiones);
     const enMarcha = datos.versiones.find(estaEnMarcha) ?? null;
-    const conFallo = [...datos.versiones].sort((a, b) => b.numero - a.numero).find((v) => v.plataformas.some((p) => p.estado === "fallo")) ?? null;
+    // PRB1111X: solo cuenta la más nueva: una fallida que otra ya sustituyó no se reintenta desde aquí.
+    const masNueva = [...datos.versiones].sort((a, b) => b.numero - a.numero)[0] ?? null;
+    const conFallo = masNueva && masNueva.plataformas.some((p) => p.estado === "fallo") ? masNueva : null;
     const publicada = ultimaPublicada(datos.versiones);
     const cola = datos.cola;
     const hayCola = (cola.sinPublicar ?? 0) > 0 && !!cola.local;
 
+    // PRB1111X: el director rechaza compilar mientras algo compila; solo acepta sustituir una que aún espera a main.
+    const compilando = datos.versiones.some((v) => v.plataformas.some((pl) => ["en-cola", "compilando", "publicando"].includes(pl.estado)));
+    const razonCompilar = compilando ? "Ya hay una compilación en marcha: el director no acepta otra hasta que acabe (o la canceles)." : "";
     const razon: Record<Accion, string> = {
-        compilar: "",
+        compilar: razonCompilar,
         cancelar: enMarcha ? "" : "No hay ninguna compilación en marcha que cancelar.",
         reintentar: conFallo ? "" : "Ninguna prueba tiene un job fallido.",
         republicar: publicada ? "" : "Aún no hay ninguna prueba publicada en todas sus plataformas.",
