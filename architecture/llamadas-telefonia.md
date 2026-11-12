@@ -751,3 +751,78 @@ carriles reales (qué lleva cada medio ahora) y solo «Automático» es elegible
 
 **Cámara.** Cambiar de cámara abre la nueva **antes** de tocar nada: si no abre, sigue la anterior (con su imagen), se dice por qué
 y **no** se guarda como preferencia; solo la que de verdad abrió se recuerda (`recordarDispositivo` tras abrir).
+
+## 13. La llamada sobrevive a perder el Wi-Fi, no persigue rutas que no llevan nada y el lado lento deja de ser el débil (LLA1112A · 2026-11-12)
+
+Registro de la prueba 39 (`0.5.1-prueba.39`, Mac ↔ tableta). Tres fallos:
+
+**B · Apagar el Wi-Fi de la tableta colgaba** (04:28:40–04:29:50 UTC, «La llamada falló… Se perdió el enlace directo» con el
+Bluetooth `b3` abierto). Esa llamada no era del motor de llamadas: no dejó ninguna línea `llamada` en el registro porque fue por la
+**llamada directa** (`malla/llamada-directa.ts`). `planLlamada` (`mensajeria/neuronas/datos-neurona.ts`) elige «enlace-local» en cuanto
+hay un enlace WebRTC local con esa neurona, y la llamada directa solo tiene ese enlace; al desaparecer del registro,
+`suscribirEnlacesLocales` la acababa en el acto. Ahora:
+- **Con enlace local Y un enlace de datos sin IP (Bluetooth) con esa neurona, la llamada va por el motor de llamadas**
+  (`llamadas/ruta-llamada-neurona.ts`, bloque `LLA1112A` en `llamadas-neurona.ts`; con servidor si hay internet y sesión, si no
+  sin servidor): carriles por flujo, la voz pasa al Bluetooth y vuelve sin colgar.
+- **La llamada directa (sin Bluetooth) ya no cuelga al perder su enlace**: pasa a otro enlace vivo con esa neurona si lo hay, o dice
+  «Reconectando…» y espera **`ESPERA_VUELTA_ENLACE_MS` = 20 s** (pide uno nuevo por el canal de la app); el primero que llega
+  retoma la conversación con las pistas puestas. Solo sin ningún enlace en 20 s acaba («no volvió en 20 s»). Por qué 20 s: el enlace
+  local se rehace solo al volver la red, el Bluetooth de la prueba 39 religó en 1–6 s, y es algo más que los 15 s sin audio con los que
+  el motor da por fallida una llamada que no arranca: lo que una persona espera con «Reconectando…» antes de colgar ella.
+
+**C · Con solo Bluetooth, la Mac reintentaba WebRTC 8 veces por llamada** (`ruta IP nueva (Wi-Fi directo): se reintenta WebRTC sin
+colgar intento=N`, cada 15–35 s) con la ventana en «Reconectando…» y el aviso «No se pudo conectar con Yo por el enlace directo…»
+hasta colgar. `hayRutaIpHacia` es verdad con cualquier ruta ANUNCIADA (un enlace local registrado, la red nativa con su ligadura
+vigente, el Wi-Fi directo) y `revisarEscalada` reintentaba ICE cada 15 s para siempre. En la tercera llamada (04:37) sí había red
+nativa (`senal-enviada app via=nativo`) y aun así ICE nunca conectó. Ahora (`carriles.ts › decidirReintentoIce`):
+- **Pruebas de tráfico**: solo se reintenta por una ruta que lleva algo (`transporte.ts › rutaIpConTrafico`: Wi-Fi directo activo,
+  enlace local con su ida y vuelta medida, red nativa con rtt medido). Sin esa opción (otro motor, el banco) se reintenta como antes.
+- **Escala más larga** 3, 6, 12, 30, 60 y 120 s, contada **por fuente** (`fuenteRutaIpHacia`: «wifi-directo», «local:…», «nativo»), y
+  como mucho **`TOPE_REINTENTOS_ICE_RUTA` = 4** por la misma fuente (cubren 51 s); otra fuente, o la ruta que vuelve tras irse,
+  empieza la cuenta.
+- **«Reconectando…» solo si no hay otro carril**: el participante está «conectado» mientras la voz por datos esté abierta y llevando
+  audio en algún sentido, o el vídeo ligero llegue. El aviso de ICE fallido **no se pone** con la voz por datos activa y **se retira**
+  en cuanto la llamada está en pie (`aviso-retirado`).
+- **Nombre del aparato**: en una llamada a una neurona el otro se ve con el nombre de su aparato (`OpcionesVozDatos.nombreAparato`,
+  el título de la llamada: «Maggaboard»), no con el de la cuenta ni «Yo».
+
+**A · El lado que escribe despacio y a ráfagas** (03:47:04–03:47:54, Mac en reposo: la Mac en `opus=6k … BAJO-SUELO … otro:tarde=57.5%`
+con su enlace leído a 160 kb/s y esperando 72/89 ms; la Mac inventó hasta el 67 % de la voz de la tableta; la tableta cortó su vídeo a
+1 fps por `retraso-voz`). Comprobado en el banco con el carril de la tableta (`ble-tableta`, abajo):
+1. **El búfer era corto para un carril que entrega a ráfagas** — sí. Subía 20 ms por vaciado y bajaba 10 ms cada 5 s: con paradas de
+   cientos de ms tardaba diez vaciados en llegar. Ahora sigue a cómo llega el audio (`BufferJitter.llegada`: percentil 95 del desfase
+   llegada − marca de trama sobre el menor, más una trama, en los últimos 120 paquetes; tope 640 ms).
+2. **Las dos escaleras se empujaban** — sí. La voz bajaba por el «tarde» que informa el otro aunque la suya apenas esperara y el escalón
+   cupiera: lo que llega tarde por las paradas del camino no se arregla bajando. Ahora el informe del otro (pérdida, tarde) solo baja la
+   voz si es **suyo** (su espera > la mitad del umbral de atasco o el escalón no cabe); sin modelo medido, como antes.
+3. **Paradas, no capacidad** (`MedidorEnlace`): una espera sin acuses con algo en el carril de más de `max(PARADA_MIN_MS = 320 ms, 2
+   escrituras del modelo, 1,5 ciclos del emisor)` (y hasta `PARADA_MAX_MS` = 1,2 s), **aislada** (la anterior acabó hace ≥ 1 s,
+`SEPARACION_PARADAS_MS`: una caída de capacidad alarga todas las escrituras seguidas y cuenta como siempre), es una **parada**: no cuenta en `esperaP90Ms` ni en
+   `retrasoMaxMs` (tampoco lo que se juntó en ella, hasta que se acusa), no entra en el modelo; una bajada rápida de la voz hecha durante ella (no se sabe que es parada hasta el acuse) se deshace si
+   el escalón de antes cabe y la voz ya no espera (`motivo=parada`; en una caída de capacidad de verdad el modelo no lo deja); y los
+   descartes de una ventana con parada no bajan la voz si el escalón cabe. La cola de salida de la voz crece hasta la parada más larga
+   reciente + un paquete (tope 640 ms): lo que se juntó sale tarde y el búfer del otro lo reproduce.
+4. **La voz cede al vídeo**: con el vídeo ligero de ese lado en pausa por falta de sitio, la voz baja hasta Opus 12 kb/s
+   (`ESCALON_CEDE_VIDEO`, aún un escalón bueno) y sigue ahí mientras haya vídeo ligero (`voz-datos cede-video`).
+5. **Escrituras más grandes del lado lento** — no se cambió: sin medida del aparato de que ayude, y la voz ya sale con el vídeo en la
+   misma escritura (LLA1111Q).
+
+### Banco (`pruebas-reales/llamadas-medio`), casos nuevos
+
+| Caso | Qué simula (de dónde) | Árbol de antes | Con LLA1112A |
+|---|---|---|---|
+| `ble-tableta` | `ble-real` con el lado B como la tableta de las 03:47: acuse 45 + Exp(35) ms (tope 160; la tableta lee `+70ms`/`+85ms`), 20–45 B/ms (`kbps=162 (2586 B en 127 ms)`), y **paradas** cada Exp(2 s) de 150–450 ms en las que B ni escribe ni entrega a su web (`espera=164/155ms`, `tardias=994 … jitter=400ms`, `inventado=67%`); app nativa 162 kb/s | voz de B en 6 kb/s (n=5), vídeo B→A 0 fps, inventado hasta 74 % | voz buena en los dos (n=0 y n≤2), vídeo B→A **0,2–0,8 fps: no llega a 3** |
+| `wifi-cae` | (B) llamada con IP y Bluetooth de 160 kb/s, voz y vídeo por WebRTC; corte SILENCIOSO de la IP (Wi-Fi de la tableta apagado) 20 s y vuelta; además, la llamada directa con un enlace local que desaparece | motor elegido «directa»; la directa acaba en 2 s «Se perdió el enlace directo.» | motor de llamadas; voz en los dos en ≈ 2 s, vídeo ligero durante el corte, vídeo por WebRTC sin negro al volver; la directa sigue «Reconectando…» |
+| `ruta-fantasma` | (C) solo Bluetooth, con una ruta IP anunciada (`hayRutaIp` = true) sin tráfico, 180 s, misma cuenta | reintentos cada 15 s, el aviso y «Yo» | 0 reintentos, 0 «Reconectando…», aviso retirado, «Maggaboard» |
+
+**Qué no prueban.** Las paradas de `ble-tableta` son un modelo (Exp/Uniforme con semilla) de lo que el registro deja ver; no se sabe si en
+la tableta son de la radio, de la WebView o del hilo nativo, ni su forma real. `wifi-cae` corta la IP a nivel de estado y bytes del
+banco (no el sistema real ni la malla de la cuenta que rehace el enlace local), y la llamada directa del banco solo tiene el lado de la
+Mac con una tableta que contesta sola. `ruta-fantasma` inyecta la prueba de tráfico (`red.ip`): no prueba que `rutaIpConTrafico` acierte
+con los enlaces de verdad (rtt de la red nativa que se queda tras apagar el Wi-Fi, por ejemplo). Ninguno prueba la radio.
+
+### Registro (`enlaces.log`)
+- Cambia (campos al final): `llamada medio=webrtc par=… ruta IP nueva (Wi-Fi directo): se reintenta WebRTC sin colgar intento=1 siguiente-en=6000ms fuente=nativo trafico=si motivo=ruta-nueva`.
+- Nuevas: `llamada medio=webrtc par=… ruta IP sin usar motivo=sin-trafico|tope fuente=… intentos=N` (una por fuente y motivo);
+  `llamada medio=webrtc par=… aviso-retirado motivo=voz-por-datos|webrtc-conectado`; `llamada medio=enlace-datos voz-datos cede-video si techo=2 nivel 0→2`;
+  `llamada directa enlace-perdido espera=20000ms` · `llamada directa enlace-recuperado enlace=… motivo=enlace-nuevo|otro-enlace-vivo|asegurado tras=…ms` · `llamada directa fin motivo=sin-enlace tras=…ms`.

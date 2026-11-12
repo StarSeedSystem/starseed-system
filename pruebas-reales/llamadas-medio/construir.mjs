@@ -28,7 +28,8 @@ const resolverTs = (p) => {
 const PERMITIDO = path.join(raiz, "src/lib/llamadas") + path.sep;
 // MLL1111C: las dos piezas de la malla que usa el motor (señales de red) y el timbre (cola), y el sustituto del motor de
 // permisos de Aurora (no entra en el paquete).
-const MALLA_PERMITIDA = ["src/lib/malla/senales-red.ts", "src/lib/malla/cola-timbre.ts"].map((f) => path.join(raiz, f));
+// LLA1112A: y la llamada directa con su registro de enlaces locales (caso `wifi-cae`).
+const MALLA_PERMITIDA = ["src/lib/malla/senales-red.ts", "src/lib/malla/cola-timbre.ts", "src/lib/malla/llamada-directa.ts", "src/lib/malla/registro-enlaces-locales.ts"].map((f) => path.join(raiz, f));
 const SUSTITUTOS = { "@/lib/aurora/senses/request-permission": path.join(aqui, "shim-permisos.ts") };
 const permitido = (p) => (p.startsWith(PERMITIDO) || MALLA_PERMITIDA.includes(p)) && !NO.some((r) => r.test(p));
 const NO = [/\/superficie\//, /\/nativa\//];

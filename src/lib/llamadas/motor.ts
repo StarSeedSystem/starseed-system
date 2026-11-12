@@ -32,7 +32,7 @@ import { decidirAccionMedio, ESPERA_ICE_MS, LIMITE_CONECTANDO_MS, MOTIVO_SIN_AUD
 import { anotarLlamada } from "@/lib/llamadas/voz-datos/diagnostico";
 import { leerControl } from "@/lib/llamadas/voz-datos/paquete";
 // (LLA1110D) Un carril estable por flujo (voz, vídeo, pantalla, señal) en vez de un único medio que saltaba.
-import { esCarrilBle, esperaReintentoIce, etiquetaCarril, LimiteRegistro, SelectorCarriles, SILENCIO_WEBRTC_MS, textoCarriles, soyDirector, type CambioCarril, type Carril, type Flujo, type MuestraCarril } from "@/lib/llamadas/carriles";
+import { decidirReintentoIce, esCarrilBle, esperaReintentoIce, etiquetaCarril, LimiteRegistro, SelectorCarriles, SILENCIO_WEBRTC_MS, textoCarriles, soyDirector, type CambioCarril, type Carril, type Flujo, type MuestraCarril } from "@/lib/llamadas/carriles";
 // (MLL1111C) Las señales de cambio de red del sistema (online/offline y Network Information): el paso de carril al instante.
 import { senalesDisponibles, vigilarSenalesRed, type SenalRed } from "@/lib/malla/senales-red";
 import { SesionVideoDatos } from "@/lib/llamadas/video-datos/sesion-video";
@@ -141,6 +141,19 @@ export interface OpcionesVozDatos {
     estadoWifi?(): EstadoWifiLlamada;
     /** (LLA1108H) Vídeo ligero por el enlace de datos mientras no hay red IP (todo inyectable). */
     video?: OpcionesVideoDatos;
+    /**
+     * LLA1112A: ¿la ruta IP hacia el par lleva tráfico de verdad? (un enlace local con su ida y vuelta medida, un enlace Wi-Fi
+     * directo activo, la red nativa con rtt). `false`: la ruta se anuncia pero no hay pruebas, y ICE no se reintenta por ella.
+     * Sin esta opción (o null) se reintenta como antes.
+     */
+    rutaIpConTrafico?(parId: string): boolean | null;
+    /** LLA1112A: identidad de esa ruta («local:<id>», «nativo», «wifi-directo»): un cambio cuenta como ruta nueva. */
+    fuenteRutaIp?(parId: string): string | null;
+    /**
+     * LLA1112A: nombre del APARATO del otro (una llamada a una neurona). Los dos aparatos de una cuenta se presentan con el
+     * nombre de la cuenta (o «Yo» sin servidor): la ventana y los avisos dicen este.
+     */
+    nombreAparato?: string | null;
     /**
      * (MLL1111C) Otros carriles abiertos hacia ese par con su medida (Wi-Fi directo, red local del router…): el selector los
      * compara por capacidad para el flujo de datos (petición 8: el directo gana al router si mide más, con histéresis).
@@ -1405,20 +1418,69 @@ export class MotorLlamada {
                 break;
             case "fallida": {
                 par.conexion = "fallida";
-                const nombre = this.presentes.find((p) => p.id === par.id)?.nombre ?? "una persona";
-                this.set({
-                    aviso: this.viaDirecta(par.id)
+                const nombre = this.nombrePar(par.id) ?? "una persona";
+                // LLA1112A: con la llamada en pie por otro carril (la voz por el enlace de datos), WebRTC que no conecta no es
+                // un fallo de la llamada: no se avisa (en la prueba 39 el aviso se quedaba hasta colgar una llamada que iba).
+                if (this.vozDatos.get(par.id)?.estado().activa) break;
+                const texto = this.viaDirecta(par.id)
                         ? `No se pudo conectar con ${nombre} por el enlace directo. Los dos aparatos tienen que estar en la misma red para llamar sin servidor.`
                         : this.conTurn
                           ? `No se pudo conectar con ${nombre}. Probad a salir y volver a entrar.`
-                          : `No se pudo conectar con ${nombre}. ${AVISO_SIN_TURN}`,
-                });
+                          : `No se pudo conectar con ${nombre}. ${AVISO_SIN_TURN}`;
+                this.avisoIceFallida = texto;
+                this.set({ aviso: texto });
                 break;
             }
             default:
                 return;
         }
         this.emitir();
+    }
+
+    /**
+     * LLA1112A: el nombre con el que se presenta a un par. En una llamada a una neurona (1:1) con el nombre de su aparato,
+     * ese (los dos aparatos de la misma cuenta se presentan con el de la cuenta, o «Yo» sin servidor).
+     */
+    private nombrePar(id: string): string | null {
+        const p = this.presentes.find((x) => x.id === id);
+        const aparato = this.opc.vozDatos?.nombreAparato?.trim();
+        if (aparato && this.opc.vozDatos?.neurona && this.presentes.length <= 1) return aparato;
+        return p?.nombre ?? null;
+    }
+
+    /**
+     * LLA1112A · Con el vídeo ligero de este lado en pausa por falta de sitio, la voz del mismo carril cede a Opus 12 kb/s
+     * (`SesionVozDatos.cederAlVideo`) y sigue cediendo mientras ese vídeo exista (si dejara de ceder al reanudarse, la voz
+     * volvería a subir y el vídeo a pausarse en bucle). Sin vídeo ligero, la voz vuelve a su escalera entera.
+     */
+    private readonly vozCedida = new Set<string>();
+    private revisarCesionVoz(id: string) {
+        const voz = this.vozDatos.get(id);
+        const vid = this.videoDatos.get(id);
+        if (!voz) return;
+        const ev = vid?.estado();
+        const mando = !!ev && ev.activa && (ev.enviando || !!ev.pausado);
+        if (mando && ev?.pausado) this.vozCedida.add(id);
+        if (!mando) this.vozCedida.delete(id);
+        try {
+            voz.cederAlVideo(this.vozCedida.has(id));
+        } catch {
+            /* la voz sigue como estaba */
+        }
+    }
+
+    /**
+     * LLA1112A: retira el aviso de «no se pudo conectar» en cuanto la llamada está en pie con ese par (WebRTC conectado o la
+     * voz por el enlace de datos activa). Antes se quedaba hasta colgar.
+     */
+    private retirarAvisoIce(id: string) {
+        if (!this.avisoIceFallida || this.e.aviso !== this.avisoIceFallida) return;
+        const par = this.pares.get(id);
+        if (par?.conexion === "conectado" || this.vozDatos.get(id)?.estado().activa) {
+            this.avisoIceFallida = null;
+            anotarLlamada("medio=webrtc", this.opc.vozDatos?.neurona ?? null, `par=${id} aviso-retirado motivo=${par?.conexion === "conectado" ? "webrtc-conectado" : "voz-por-datos"}`);
+            this.set({ aviso: null });
+        }
     }
 
     private reiniciarIce(par: Par) {
@@ -1436,6 +1498,7 @@ export class MotorLlamada {
         this.pararVigilante(id);
         this.pararVozDatos(id, "par-fuera");
         this.rutaIpVista.delete(id);
+        this.fuenteReintentoIce.delete(id); // LLA1112A
         this.selectores.delete(id);
         this.audioWebrtcPuesto.delete(id);
         this.carrilDatos.delete(id);
@@ -1907,25 +1970,61 @@ export class MotorLlamada {
             }
         })();
         const ahora = this.relojVoz().ahora();
+        this.retirarAvisoIce(id); // LLA1112A
+        this.revisarCesionVoz(id); // LLA1112A
         // 1) Aparece una ruta IP (se abrió el Wi-Fi directo): WebRTC reintenta por ella, sin cortar la voz.
         const antes = this.rutaIpVista.get(id) ?? null;
         this.rutaIpVista.set(id, ip);
         // (LLA1110D) Apareció la ruta IP y había una oferta en espera: sale ahora.
         if (ip === true && par.ofertaPendiente && par.pc.signalingState === "stable") void this.ofertar(par, "ruta-ip-nueva");
-        if (par.conexion === "conectado") this.reintentosIce.delete(id);
+        if (par.conexion === "conectado") {
+            this.reintentosIce.delete(id);
+            this.fuenteReintentoIce.delete(id);
+        }
         if (ip === true && par.conexion !== "conectado") {
-            const ultimo = this.ultimoReintentoIce.get(id) ?? -Infinity;
-            // (MLL1111C) Con una ruta IP viva y WebRTC caído, ICE se reintenta a 3, 6, 12 y luego cada 15 s (antes: tras 5 s
-            // solo si «fallida», con tope de 6, y en la prueba 35 se vio cada ~60 s): el vídeo vuelve a WebRTC en segundos.
-            const n = this.reintentosIce.get(id) ?? 0;
-            const vence = par.conexion === "fallida" || par.conexion === "reconectando" ? ahora - ultimo >= esperaReintentoIce(n) : false;
-            if (antes === false || vence) {
-                if (ahora - ultimo >= 1500) {
-                    this.ultimoReintentoIce.set(id, ahora);
-                    this.reintentosIce.set(id, n + 1);
-                    par.reinicios = 0;
-                    anotarLlamada("medio=webrtc", neurona, `par=${id} ruta IP nueva (Wi-Fi directo): se reintenta WebRTC sin colgar intento=${n + 1} siguiente-en=${esperaReintentoIce(n + 1)}ms`);
-                    this.reiniciarIce(par);
+            // (MLL1111C) Con una ruta IP viva y WebRTC caído, ICE se reintenta (el vídeo vuelve a WebRTC en segundos).
+            // LLA1112A: solo con una ruta que lleva tráfico, con la escala contada por fuente (3, 6, 12, 30, 60 s) y como mucho
+            // `TOPE_REINTENTOS_ICE_RUTA` veces por la misma ruta (`decidirReintentoIce`). Antes: cada 15 s para siempre, con
+            // cualquier ruta anunciada (prueba 39: ocho intentos por llamada solo por Bluetooth).
+            const fuente = (() => {
+                try {
+                    return v.fuenteRutaIp?.(id) ?? null;
+                } catch {
+                    return null;
+                }
+            })();
+            const conTrafico = (() => {
+                try {
+                    return v.rutaIpConTrafico?.(id) ?? null;
+                } catch {
+                    return null;
+                }
+            })();
+            const d = decidirReintentoIce({
+                ahora,
+                ip,
+                antes,
+                conTrafico,
+                fuente,
+                fuenteAnterior: this.fuenteReintentoIce.get(id) ?? null,
+                conexion: par.conexion,
+                intentos: this.reintentosIce.get(id) ?? 0,
+                ultimoIntento: this.ultimoReintentoIce.get(id) ?? -Infinity,
+            });
+            if (d.reintentar) {
+                this.ultimoReintentoIce.set(id, ahora);
+                this.reintentosIce.set(id, d.n);
+                this.fuenteReintentoIce.set(id, fuente);
+                par.reinicios = 0;
+                // Campos de siempre primero; LLA1112A añade al final la fuente, si lleva tráfico y por qué.
+                anotarLlamada("medio=webrtc", neurona, `par=${id} ruta IP nueva (Wi-Fi directo): se reintenta WebRTC sin colgar intento=${d.n} siguiente-en=${esperaReintentoIce(d.n)}ms fuente=${fuente ?? "-"} trafico=${conTrafico === null ? "?" : conTrafico ? "si" : "no"} motivo=${d.motivo}`);
+                this.reiniciarIce(par);
+            } else if (d.motivo === "sin-trafico" || d.motivo === "tope") {
+                // Una línea por fuente y motivo (no una por tic): se ve por qué NO se persigue la ruta.
+                const clave = `${id}|${fuente ?? "-"}|${d.motivo}`;
+                if (!this.rutaIgnoradaAnotada.has(clave)) {
+                    this.rutaIgnoradaAnotada.add(clave);
+                    anotarLlamada("medio=webrtc", neurona, `par=${id} ruta IP sin usar motivo=${d.motivo} fuente=${fuente ?? "-"} intentos=${this.reintentosIce.get(id) ?? 0}`);
                 }
             }
         }
@@ -2078,6 +2177,11 @@ export class MotorLlamada {
     private readonly ticsMedio = new Map<string, () => void>();
     /** Por par: reintentos de ICE seguidos con una ruta IP viva (marcan la espera: 3, 6, 12, 15 s). */
     private readonly reintentosIce = new Map<string, number>();
+    /** LLA1112A: fuente de la ruta IP del último reintento de ICE por par, y las rutas ya anotadas como «sin usar». */
+    private readonly fuenteReintentoIce = new Map<string, string | null>();
+    /** LLA1112A: el texto del aviso de ICE fallido que puso este motor (para retirarlo, y solo ese). */
+    private avisoIceFallida: string | null = null;
+    private readonly rutaIgnoradaAnotada = new Set<string>();
     /** Hasta cuándo se sospecha de la red (el sistema avisó de un cambio): la comprobación de vida se afina. */
     private sospechaRedHasta = 0;
     private ultimaSenalRed: string | null = null;
@@ -2473,12 +2577,17 @@ export class MotorLlamada {
         };
         const otros = this.presentes.map((p): ParticipanteLlamada => {
             const par = this.pares.get(p.id);
+            // LLA1112A: con la voz por el enlace de datos en marcha (abierta y llevando audio en algún sentido) o el vídeo ligero
+            // llegando, el par ESTÁ conectado aunque WebRTC esté reintentando por una ruta IP: un intento no es «Reconectando…».
+            const vd = this.vozDatos.get(p.id)?.estado();
+            const porDatos = !!vd && (vd.recibiendo || (vd.activa && vd.enviadas > 0)) || !!this.videoDatos.get(p.id)?.estado().recibiendo;
             return {
                 ...p,
+                nombre: this.nombrePar(p.id) ?? p.nombre,
                 yo: false,
                 stream: this.streamDe(p.id, par),
                 lienzo: this.lienzoDe(p.id, par),
-                conexion: this.vozDatos.get(p.id)?.estado().recibiendo ? "conectado" : (par?.conexion ?? "conectando"),
+                conexion: porDatos ? "conectado" : (par?.conexion ?? "conectando"),
                 calidad: par?.calidad ?? "desconocida",
                 nivel: this.niveles[p.id] ?? 0,
             };

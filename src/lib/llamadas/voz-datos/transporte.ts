@@ -71,7 +71,7 @@ export function enlacesDatosHacia(neurona: string): EnlaceDatosHacia[] {
  * tableta encendido, la señalización iba por ella pero `hayRutaIpHacia` decía «sin IP» y la voz arrancaba por Bluetooth
  * mientras WebRTC conectaba por la LAN. La lista de enlaces nativos es asíncrona: se cachea y se refresca cada 3 s.
  */
-const rutaNativa = new Map<string, { ip: boolean | null; t: number; enVuelo: boolean }>();
+const rutaNativa = new Map<string, { ip: boolean | null; t: number; enVuelo: boolean; rtt?: number | null }>();
 const REFRESCO_NATIVA_MS = 3_000;
 
 function refrescarRutaNativa(neurona: string): void {
@@ -83,7 +83,9 @@ function refrescarRutaNativa(neurona: string): void {
   void import("@/lib/malla/transporte-universal")
     .then((tu) => tu.enlacesDisponibles())
     .then((l) => {
-      rutaNativa.set(neurona, { ip: l.some((e) => e.tipo === "nativo" && e.abierto && e.alcanza?.neuronDeviceId === neurona), t: Date.now(), enVuelo: false });
+      const n = l.find((e) => e.tipo === "nativo" && e.abierto && e.alcanza?.neuronDeviceId === neurona);
+      // LLA1112A: también su ida y vuelta medida (la prueba de que la red nativa lleva algo).
+      rutaNativa.set(neurona, { ip: !!n, t: Date.now(), enVuelo: false, rtt: typeof n?.rttMs === "number" ? n.rttMs : null });
     })
     .catch(() => rutaNativa.set(neurona, { ip: c.ip, t: Date.now(), enVuelo: false }));
 }
@@ -109,6 +111,47 @@ export function hayRutaIpHacia(neurona: string): boolean | null {
   refrescarRutaNativa(neurona);
   const n = rutaNativa.get(neurona)?.ip ?? null;
   return n === null ? null : n;
+}
+
+/**
+ * LLA1112A · De dónde sale la ruta IP hacia esa neurona (la misma prioridad que `hayRutaIpHacia`): «wifi-directo», «local:<id>»
+ * (enlace WebRTC local) o «nativo» (red local de la app). null: ninguna. Va al registro y distingue una ruta nueva de la misma.
+ */
+export function fuenteRutaIpHacia(neurona: string): string | null {
+  try {
+    if (enlaceWifiDe(neurona)) return "wifi-directo";
+  } catch {
+    /* sin orquestación */
+  }
+  try {
+    const l = enlaceVivoMasNuevoCon(neurona);
+    if (l) return `local:${l.id.slice(-6)}`; // corto: la línea del registro se corta a 200 caracteres
+  } catch {
+    /* sin registro */
+  }
+  return rutaNativa.get(neurona)?.ip ? "nativo" : null;
+}
+
+/**
+ * LLA1112A · ¿La ruta IP hacia esa neurona lleva tráfico de verdad? Un enlace Wi-Fi directo activo sí (lo abrió el sistema
+ * con su IP); un enlace WebRTC local solo con su ida y vuelta medida (`rttMs()`: el canal llevó y devolvió algo); la red
+ * nativa solo con su rtt medido. Sin ruta: false. Así una ruta que se anuncia y no lleva nada (prueba 39: la Mac persiguió
+ * una ruta «Wi-Fi directo» ocho veces por llamada con la tableta sin Wi-Fi) no hace reintentar WebRTC.
+ */
+export function rutaIpConTrafico(neurona: string): boolean {
+  try {
+    if (enlaceWifiDe(neurona)) return true;
+  } catch {
+    /* sin orquestación */
+  }
+  try {
+    const l = enlaceVivoMasNuevoCon(neurona);
+    if (l && typeof l.rttMs() === "number") return true;
+  } catch {
+    /* sin registro */
+  }
+  const n = rutaNativa.get(neurona);
+  return !!n?.ip && typeof n.rtt === "number";
 }
 
 /**

@@ -349,6 +349,34 @@ export interface ResumenEnlace {
   bytesPorEscritura?: number;
   /** LLA1111Q: lo que mide la app nativa (kb/s) cuando se sabe: para ver en una línea si el modelo y la radio discrepan. */
   nativoKbps?: number | null;
+  /**
+   * LLA1112A: PARADAS del enlace en la ventana: con algo esperando, ningún acuse durante mucho más de lo que dice el modelo
+   * (la radio o el aparato se paran y luego sale todo junto). Lo que esperó la voz por una parada no cuenta como atasco
+   * (`esperaP90Ms` y `retrasoMaxMs` ya lo excluyen): bajar la voz o el vídeo no la evita.
+   */
+  paradas?: number;
+  /** LLA1112A: la parada más larga de la ventana (ms). */
+  paradaMaxMs?: number;
+}
+
+/** LLA1112A: una espera sin acuses de al menos esto (y de 2 veces lo que el modelo espera de una escritura) es una parada. */
+export const PARADA_MIN_MS = 320;
+/** LLA1112A: más de esto sin ningún acuse ya no es una parada: el enlace no da (se cuenta como atasco, como antes). */
+export const PARADA_MAX_MS = 1200;
+/**
+ * LLA1112A: separación mínima con la espera larga anterior para que una cuente como parada. Las de la tableta llegan cada ≈ 2 s;
+ * una caída de capacidad (160 → 40 kb/s, banco `ble-caida`) alarga cada escritura una tras otra y no se excusa.
+ */
+export const SEPARACION_PARADAS_MS = 1000;
+
+/**
+ * LLA1112A · ¿Cuánto puede tardar el siguiente acuse sin que sea una parada? Dos escrituras del modelo con lo que espera (o
+ * la mayor que cabe), y nunca menos de 1,5 ciclos del emisor ni de `PARADA_MIN_MS`. Pura.
+ */
+export function umbralParadaMs(m: ModeloEnlace | null | undefined, bytesPendientes: number, cicloMinMs = 0): number {
+  const b = Math.min(Math.max(0, bytesPendientes), 11_816);
+  const escritura = m ? m.rMs + b / Math.max(0.05, m.bytesPorMs) : ACUSE_BLE_MS + b / BYTES_POR_MS_SUPUESTOS;
+  return Math.round(Math.max(PARADA_MIN_MS, 2 * escritura, 1.5 * cicloMinMs));
 }
 
 /**
@@ -378,6 +406,18 @@ export class MedidorEnlace {
   private esperasAcuse: number[] = [];
   private escriturasVentana = 0;
   private bytesEscriturasVentana = 0;
+  /* LLA1112A: paradas del enlace (ver `ResumenEnlace.paradas`). */
+  private paradasVentana = 0;
+  private paradaMaxVentana = 0;
+  /** Hasta cuándo lo que se acusa todavía es lo que se juntó en la última parada (no cuenta como espera). */
+  private excusaHasta = 0;
+  /** LLA1112A: y hasta que se acuse todo lo que había entrado al acabar la parada (lo juntado sale en varias escrituras). */
+  private excusaAcusado = 0;
+  private excusaFin = 0;
+  /** LLA1112A: desde cuándo el carril tiene algo esperando (0: vacío). */
+  private conColaDesde = 0;
+  /** LLA1112A: cuándo acabó la última espera larga sin acuses (excusada o no). */
+  private finUltimaLarga = -Infinity;
   /** Edad del byte más viejo del carril ahora (ms). */
   retrasoMs = 0;
   /** El último modelo calculado. */
@@ -402,6 +442,8 @@ export class MedidorEnlace {
         if (!(e.fin > this.ultimaFinEscritura) || !(e.ms > 0) || !(e.bytes > 0)) continue;
         this.ultimaFinEscritura = e.fin;
         this.conEscrituras = true;
+        // LLA1112A: una escritura que duró una parada (la radio se paró con ella en vuelo) no dice nada de la capacidad.
+        if (this.modelo && e.ms > umbralParadaMs(this.modelo, e.bytes, this.cicloMin) && e.ms <= PARADA_MAX_MS) continue;
         this.pares.push({ bytes: e.bytes, ms: e.ms, t: ahora });
         if (this.pares.length > PARES_MODELO) this.pares.shift();
         this.escriturasVentana++;
@@ -430,8 +472,23 @@ export class MedidorEnlace {
       // medido durante la caída y el vídeo seguía en pausa ~24 s después de volver la capacidad.
       if (this.opc.aisladas !== false && prev.cola <= 0 && cola > 0 && dAc === 0 && m.entrados > prev.entrados) this.inicioAislada = prev.t + dt / 2;
       if (dAc > 0) {
+        // LLA1112A: ¿este acuse llega tras una PARADA (nada acusado con algo esperando, mucho más de lo que dice el modelo)?
+        const sinAcuse = this.sinAcuseMs(ahora);
+        const larga = prev.cola > 0 && sinAcuse > umbralParadaMs(this.modelo, prev.cola, this.cicloMin);
+        // Solo una espera larga AISLADA es una parada: si la anterior acabó hace menos de `SEPARACION_PARADAS_MS`, el enlace
+        // está lento de verdad (una caída de capacidad alarga TODAS las escrituras) y cuenta como siempre.
+        const aislada = ahora - sinAcuse - this.finUltimaLarga >= SEPARACION_PARADAS_MS;
+        if (larga) this.finUltimaLarga = ahora;
+        if (larga && aislada && sinAcuse <= PARADA_MAX_MS) {
+          this.paradasVentana++;
+          this.paradaMaxVentana = Math.max(this.paradaMaxVentana, Math.round(sinAcuse));
+          // Lo que se juntó sale en las dos escrituras siguientes (o dos ciclos del emisor).
+          this.excusaHasta = ahora + 2 * Math.max(this.cicloMin, CICLO_OBJETIVO_MS, this.modelo ? this.modelo.rMs : ACUSE_BLE_MS);
+          this.excusaAcusado = m.entrados;
+          this.excusaFin = ahora + PARADA_MAX_MS;
+        }
         // LLA1111Q: lo que esperó en el carril lo que acaba de acusarse (el byte más viejo pendiente, hasta ahora).
-        if (prev.cola > 0) {
+        if (prev.cola > 0 && !this.excusado(ahora, acusado)) {
           this.esperasAcuse.push(this.retrasoMs + dt);
           if (this.esperasAcuse.length > 200) this.esperasAcuse.shift();
         }
@@ -468,8 +525,34 @@ export class MedidorEnlace {
       const h = this.hist.find((x) => x.e > acusado);
       this.retrasoMs = h ? Math.max(0, ahora - h.t) : 0;
     }
-    this.retrasoMax = Math.max(this.retrasoMax, this.retrasoMs);
+    // LLA1112A: el carril pasa de vacío a tener algo (para medir las paradas desde ahí, no desde el último acuse).
+    if (cola <= 0) this.conColaDesde = 0;
+    else if (!this.conColaDesde) this.conColaDesde = ahora;
+    // LLA1112A: la espera que pone una parada en curso (nada acusado, aún dentro de `PARADA_MAX_MS`) o lo que sale justo
+    // después no es atasco: no sube el máximo de la ventana. Pasado `PARADA_MAX_MS` sí cuenta (el enlace no da).
+    const sinAcuseAhora = this.sinAcuseMs(ahora);
+    const enParada = cola > 0 && sinAcuseAhora > umbralParadaMs(this.modelo, cola, this.cicloMin) && sinAcuseAhora <= PARADA_MAX_MS && ahora - sinAcuseAhora - this.finUltimaLarga >= SEPARACION_PARADAS_MS;
+    if (!enParada && !this.excusado(ahora, acusado)) this.retrasoMax = Math.max(this.retrasoMax, this.retrasoMs);
     this.ultimo = { t: ahora, acusado, entrados: m.entrados, cola };
+  }
+
+  /** LLA1112A: ¿lo que se acusa ahora es aún lo juntado en la última parada? */
+  private excusado(ahora: number, acusado: number): boolean {
+    return ahora <= this.excusaHasta || (acusado < this.excusaAcusado && ahora <= this.excusaFin);
+  }
+
+  /** LLA1112A: ms sin ningún acuse con algo esperando en el carril (desde el último acuse o desde que entró algo, lo último). */
+  sinAcuseMs(ahora: number): number {
+    if (!this.conColaDesde) return 0;
+    return Math.max(0, ahora - Math.max(this.ultimaEscritura, this.conColaDesde));
+  }
+
+  /** LLA1112A: ¿lo que espera ahora en el carril se explica por una parada (en curso o recién acabada)? */
+  enParada(ahora: number): boolean {
+    if (this.excusado(ahora, this.acusadoMax)) return true;
+    const c = this.ultimo?.cola ?? 0;
+    const s = this.sinAcuseMs(ahora);
+    return c > 0 && s > umbralParadaMs(this.modelo, c, this.cicloMin) && s <= PARADA_MAX_MS && ahora - s - this.finUltimaLarga >= SEPARACION_PARADAS_MS;
   }
 
   /** LLA1111Q: separación mínima entre escrituras que se permite el emisor (0: sin tope o no se sabe todavía). */
@@ -518,7 +601,11 @@ export class MedidorEnlace {
       escriturasPorS: Math.round((this.escriturasVentana * 10000) / ms) / 10,
       bytesPorEscritura: this.escriturasVentana ? Math.round(this.bytesEscriturasVentana / this.escriturasVentana) : 0,
       nativoKbps: this.nativo,
+      paradas: this.paradasVentana,
+      paradaMaxMs: this.paradaMaxVentana,
     };
+    this.paradasVentana = 0;
+    this.paradaMaxVentana = 0;
     this.esperasAcuse = [];
     this.escriturasVentana = 0;
     this.bytesEscriturasVentana = 0;
@@ -527,7 +614,7 @@ export class MedidorEnlace {
     this.ocupadoMs = 0;
     this.entradosVentana = 0;
     this.videoVentana = 0;
-    this.retrasoMax = this.retrasoMs;
+    this.retrasoMax = this.enParada(ahora) ? 0 : this.retrasoMs;
     return r;
   }
 }

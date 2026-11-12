@@ -159,12 +159,14 @@ export interface EntradaNivel {
   entregadoKbps?: number | null;
   /** Lo último que informó el otro de lo que le llega (null: nada, o un aparato anterior). */
   informe: { perd: number; tarde: number; corte: boolean; edadMs: number } | null;
+  /** LLA1112A: paradas del enlace en la ventana (`MedidorEnlace`): lo que se juntó o se tiró en una parada no es atasco. */
+  paradas?: number;
 }
 
 export interface CambioNivel {
   desde: number;
   hasta: number;
-  motivo: "atasco" | "descartes" | "perdida-rx" | "tarde-rx" | "capacidad" | "hay-sitio" | "formato";
+  motivo: "atasco" | "descartes" | "perdida-rx" | "tarde-rx" | "capacidad" | "hay-sitio" | "formato" | "cede-video" | "parada";
 }
 
 export class ControlNivelVoz {
@@ -196,6 +198,27 @@ export class ControlNivelVoz {
 
   get indice(): number {
     return this.i;
+  }
+
+  /**
+   * LLA1112A · Escalón más alto permitido (índice mínimo). Con el vídeo de este lado en pausa por falta de sitio, la voz cede
+   * hasta `ESCALON_CEDE_VIDEO` (Opus 12 kb/s, aún un escalón bueno): en el carril lento de la tableta (prueba 39) la voz en
+   * 24 kb/s dejaba al vídeo sin su suelo y la tableta mandaba 1 fps. Devuelve el cambio si baja ya.
+   */
+  private techo = 0;
+  /** LLA1112A: el escalón de antes de la última bajada rápida (para deshacerla si resulta que fue una parada). */
+  private antesRapida: { i: number; en: number } | null = null;
+  fijarTecho(min: number, ahora: number): CambioNivel | null {
+    this.techo = Math.max(0, Math.min(this.escalera.length - 1, Math.round(min)));
+    if (this.i >= this.techo) return null;
+    const antes = this.i;
+    this.i = this.techo;
+    this.ultimoCambio = ahora;
+    this.motivo = "cede-video";
+    return { desde: antes, hasta: this.i, motivo: "cede-video" };
+  }
+  get techoActual(): number {
+    return this.techo;
   }
 
   get nivel(): NivelVoz {
@@ -255,6 +278,7 @@ export class ControlNivelVoz {
     // LLA1111Q: con escrituras cada `cicloMinMs`, esperar tres ciclos es lo que tarda un atasco de verdad en notarse.
     if (this.i >= ultimo || retrasoMs <= Math.max(400, 3 * n.msPaquete, 3 * cicloMinMs) || ahora - this.ultimoCambio < 600) return null;
     const antes = this.i;
+    this.antesRapida = { i: antes, en: ahora }; // LLA1112A
     this.i = Math.min(ultimo, this.i + 2);
     if (ahora - this.ultimaSubida < SUBIDA_FALLIDA_MS) this.calma = Math.min(CALMA_SUBIR_MAX_MS, this.calma * 2);
     this.ultimoCambio = ahora;
@@ -272,11 +296,33 @@ export class ControlNivelVoz {
     let motivo: CambioNivel["motivo"] | null = null;
     // LLA1111Q: con limitador de escrituras, el percentil 90 (una escritura grande de otro carril no es un atasco).
     const espera = cicloMin(e.modelo) > 0 && typeof e.esperaP90Ms === "number" ? e.esperaP90Ms : e.retrasoMaxMs;
-    if (e.descartes > 0) motivo = "descartes";
+    // LLA1112A: ¿lo que pasa es MÍO (mi carril no da para este escalón) o del camino? Si mi voz apenas espera y el modelo dice
+    // que el escalón cabe, lo que el otro recibe tarde o se tira en una parada no se arregla bajando: con dos lados que se
+    // informan «tarde» uno a otro, las dos escaleras se empujaban al suelo (prueba 39: la Mac en 6 kb/s con su enlace leído
+    // a 160 kb/s y su voz esperando 72/89 ms).
+    const cabeAhora = cabeNivel(n, this.formato, e.modelo, HOLGURA_QUEDARSE, this.idLlamada);
+    // Sin modelo medido no se puede atribuir: manda el informe del otro, como antes.
+    const esMio = !e.modelo || espera > umbralRetraso / 2 || !cabeAhora;
+    const descartesDeParada = e.descartes > 0 && (e.paradas ?? 0) > 0 && cabeAhora && espera <= umbralRetraso;
+    if (e.descartes > 0 && !descartesDeParada) motivo = "descartes";
     else if (espera > umbralRetraso) motivo = "atasco";
-    else if (inf && inf.perd > PERDIDA_RX_ALTA) motivo = "perdida-rx";
-    else if (inf && inf.tarde > TARDE_RX_ALTA) motivo = "tarde-rx";
+    else if (inf && inf.perd > PERDIDA_RX_ALTA && esMio) motivo = "perdida-rx";
+    else if (inf && inf.tarde > TARDE_RX_ALTA && esMio) motivo = "tarde-rx";
     this.atascoAhora = motivo !== null || !!inf?.corte;
+    // LLA1112A · La bajada rápida no puede saber si la espera es una parada del enlace o una caída de capacidad (no hay acuses
+    // hasta que acaba la escritura). Si en este paso se confirma una parada, el escalón de antes cabe con lo medido y la voz
+    // ya no espera, se deshace: vuelve al de antes. En una caída de verdad (banco `voz-caida`) el modelo nuevo no lo deja.
+    if (this.antesRapida && ahora - this.antesRapida.en > 3000) this.antesRapida = null;
+    if (this.antesRapida && (e.paradas ?? 0) > 0 && !motivo && this.antesRapida.i < this.i && cabeNivel(this.efectivo(this.antesRapida.i), this.formato, e.modelo, HOLGURA_QUEDARSE, this.idLlamada) && espera <= umbralRetraso / 2) {
+      const antesP = this.i;
+      this.i = Math.max(this.techo, this.antesRapida.i);
+      this.antesRapida = null;
+      if (this.i !== antesP) {
+        this.ultimoCambio = ahora;
+        this.motivo = "parada";
+        return { desde: antesP, hasta: this.i, motivo: "parada" };
+      }
+    }
     const ultimo = this.escalera.length - 1;
     // «Bajo el suelo»: en el último escalón y con atasco sostenido (o el otro ya no entiende).
     if (this.atascoAhora && this.i === ultimo) {
@@ -303,7 +349,7 @@ export class ControlNivelVoz {
     } else if (e.modelo && !cabeNivel(n, this.formato, e.modelo, HOLGURA_QUEDARSE, this.idLlamada) && this.i < ultimo) {
       this.i = this.queCabe(e.modelo, HOLGURA_QUEDARSE, this.i + 1);
       motivo = "capacidad";
-    } else if (this.i > 0 && ahora - this.ultimoCambio >= this.calma && (!inf || (inf.perd <= 1 && inf.tarde <= 2 && !inf.corte))) {
+    } else if (this.i > this.techo && ahora - this.ultimoCambio >= this.calma && (!inf || !inf.corte) && (!inf || !esMio || (inf.perd <= 1 && inf.tarde <= 2))) {
       const arriba = this.efectivo(this.i - 1);
       // Tres pasos seguidos cabiendo: un modelo mal ajustado en un segundo (escrituras de tamaños mezclados) no basta. La
       // ocupación del carril no sirve de señal aquí: en parada y espera el acuse fijo lo tiene ocupado casi siempre.
@@ -312,7 +358,7 @@ export class ControlNivelVoz {
         this.cabeArriba = 0;
         // LLA1111Q: de una vez al escalón más alto que cabe con holgura (no uno a uno): cada cambio de escalón rehace el
         // códec y suena un instante apagado al otro lado; al volver la capacidad, cuatro subidas eran cuatro huecos.
-        this.i = e.modelo ? Math.min(this.i - 1, this.queCabe(e.modelo, HOLGURA_SUBIR, 0)) : this.i - 1;
+        this.i = Math.max(this.techo, e.modelo ? Math.min(this.i - 1, this.queCabe(e.modelo, HOLGURA_SUBIR, 0)) : this.i - 1);
         motivo = "hay-sitio";
         this.suelo = false;
         this.ultimaSubida = ahora;
@@ -326,6 +372,9 @@ export class ControlNivelVoz {
     return { desde: antes, hasta: this.i, motivo: this.motivo as CambioNivel["motivo"] };
   }
 }
+
+/** LLA1112A: hasta dónde cede la voz para que el vídeo salga de su pausa (índice de `NIVELES_OPUS`: Opus 12 kb/s). */
+export const ESCALON_CEDE_VIDEO = 2;
 
 /** El escalón con el que empezar: el más alto que cabe en lo anunciado (con el acuse típico del Bluetooth, 42 ms). */
 export function nivelInicial(escalera: readonly NivelVoz[], formato: FormatoVoz, anunciadoKbps: number | null | undefined, idLlamada?: string): number {
