@@ -44,6 +44,16 @@ describe("VersionNeurona", () => {
     expect(await screen.findByRole("status")).toHaveTextContent("Pedido a «Tablet»");
   });
 
+  it("PRUEBA EMPÍRICA: la neurona se actualiza y se reanuncia; la fila deja el aviso y enseña la versión nueva", () => {
+    presencia.medios = [medio("tablet", { v: { nativa: "0.5.0" }, d: { medio: "android", app: "os", so: "android", pa: 1 } })];
+    const { rerender } = render(<VersionNeurona neuronaId="tablet" nombre="Tablet" />);
+    expect(screen.getByText(/Nueva versión disponible: 0\.6\.0/)).toBeInTheDocument();
+    presencia.medios = [medio("tablet", { v: { nativa: "0.6.0" }, d: { medio: "android", app: "os", so: "android", pa: 1 } })];
+    rerender(<VersionNeurona neuronaId="tablet" nombre="Tablet" />);
+    expect(screen.getByText(/Versión 0\.6\.0/)).toBeInTheDocument();
+    expect(screen.queryByText(/Nueva versión disponible/)).not.toBeInTheDocument();
+  });
+
   it("neurona con una web anterior (sin `d`): no hay botón, se dice cómo actualizarla desde la Librería", () => {
     presencia.medios = [medio("vieja", { v: { nativa: "0.5.0" }, plataforma: "Windows" })];
     render(<VersionNeurona neuronaId="vieja" nombre="PC" />);
