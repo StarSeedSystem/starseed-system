@@ -40,8 +40,14 @@ CARPETA_SINTESIS = os.environ.get("STARSEED_CARPETA_SINTESIS", "1PenzAWw1VWpSAMX
 ENLACE_CUADERNO = "https://notebooklm.google.com/notebook/" + CUADERNO
 LLM_URL = os.environ.get("STARSEED_LLM_URL", "http://127.0.0.1:3001/v1/chat/completions")
 # Nunca Claude: modelos gratuitos con nombre propio (sin "auto", que podría enrutar a Claude).
-MODELOS = ["gemini-flash-lite", "gemini-flash", "gemini-3.5-flash", "gemini-3.6-flash", "qwen3.8-max",
-           "gemma-4-31b-it", "nemotron-3-ultra-550b", "qwen3.5-plus"]
+NIM_URL = "https://integrate.api.nvidia.com/v1/chat/completions"
+# (url, variable de la clave, modelo). Gratuitos y con nombre; «auto» solo al final y rechazando Claude.
+RUTAS = ([(LLM_URL, "FREELLMAPI_KEY", "gemini-flash-lite")]
+         + [(NIM_URL, "NVIDIA_API_KEY", m) for m in ("minimaxai/minimax-m3.1-flash",
+                                                     "nvidia/nemotron-3.5-lightning-30b-a3b")]
+         + [(LLM_URL, "FREELLMAPI_KEY", m) for m in ("gemini-flash", "gemini-3.6-flash", "gemini-3.5-flash",
+                                                     "gemma-4-31b-it", "nemotron-3-ultra-550b", "qwen3.5-plus")]
+         + [(LLM_URL, "FREELLMAPI_KEY", "auto")])
 REINTENTO_S = 300
 VIDA_S = 24 * 3600
 REFRESCO_S = 20 * 60
@@ -150,6 +156,7 @@ def tg(metodo, datos=None, timeout=70):
 
 
 def decir(texto):
+    log("→ telegram:", texto[:90].replace("\n", " "))
     for i in range(0, max(len(texto), 1), 3900):
         r = tg("sendMessage", {"chat_id": CHAT, "text": texto[i:i + 3900], "disable_web_page_preview": "true"})
         if not r.get("ok"):
@@ -181,27 +188,27 @@ _enfriar = {}          # modelo -> instante hasta el que no se vuelve a intentar
 _ultimo_bueno = [None]  # el último modelo que respondió va primero
 
 
-def llm(mensajes, max_tokens=1500, presupuesto_s=180):
-    """Prueba modelos gratuitos con nombre (y «auto» al final, rechazando Claude) dentro de un presupuesto de tiempo."""
-    clave = ENV.get("FREELLMAPI_KEY", "")
+def llm(mensajes, max_tokens=3000, presupuesto_s=180):
+    """Prueba rutas gratuitas con nombre (y «auto» al final, rechazando Claude) dentro de un presupuesto de tiempo."""
     inicio = time.time()
-    orden = sorted(MODELOS, key=lambda m: m != _ultimo_bueno[0]) + ["auto"]
-    for modelo in orden:
+    orden = sorted(RUTAS, key=lambda r: r[2] != _ultimo_bueno[0])
+    for url, variable, modelo in orden:
         resto = presupuesto_s - (time.time() - inicio)
         if resto < 8:
             break
-        if _enfriar.get(modelo, 0) > time.time():
+        if _enfriar.get(modelo, 0) > time.time() or not ENV.get(variable):
             continue
         cuerpo = json.dumps({"model": modelo, "messages": mensajes, "max_tokens": max_tokens,
                              "temperature": 0.2}).encode()
-        req = urllib.request.Request(LLM_URL, cuerpo, {"Authorization": "Bearer " + clave,
-                                                       "Content-Type": "application/json"})
-        d = _respuesta_http(lambda: urllib.request.urlopen(req, timeout=min(45, resto)))
+        req = urllib.request.Request(url, cuerpo, {"Authorization": "Bearer " + ENV[variable],
+                                                   "Content-Type": "application/json"})
+        d = _respuesta_http(lambda: urllib.request.urlopen(req, timeout=min(60, resto)))
         usado = str(d.get("model") or modelo)
         texto = ((d.get("choices") or [{}])[0].get("message") or {}).get("content") or ""
-        if texto.strip() and "claude" not in usado.lower():
+        texto = re.sub(r"<think>.*?</think>", "", texto, flags=re.S).strip()
+        if texto and "claude" not in usado.lower():
             _ultimo_bueno[0] = modelo
-            return texto.strip(), usado
+            return texto, usado
         _enfriar[modelo] = time.time() + 600
         error = d.get("error")
         log("llm sin respuesta de", modelo, (error.get("message", "") if isinstance(error, dict) else d.get("description", ""))[:120])
@@ -238,7 +245,7 @@ def por_reglas(texto):
 
 def interpretar(texto):
     reglas = por_reglas(texto)
-    crudo, modelo = llm([{"role": "system", "content": INSTRUCCION}, {"role": "user", "content": texto}], 600, 75)
+    crudo, modelo = llm([{"role": "system", "content": INSTRUCCION}, {"role": "user", "content": texto}], 3000, 90)
     plan = None
     m = re.search(r"\{.*\}", crudo or "", re.S)
     if m:
@@ -304,14 +311,23 @@ def nombre_drive(fid):
 
 # ---------------------------------------------------------------- NotebookLM
 
-def nb(args, timeout=600):
-    entorno = dict(os.environ, HOME=CASA, NOTEBOOKLM_HL="es")
+nb_cerrojo = threading.Lock()  # una sola orden de NotebookLM a la vez: dos a la vez rotan la cookie y se pisan
+
+
+def nb(args, timeout=600, esperar=True):
+    """Ejecuta el CLI de NotebookLM. Devuelve (rc, stdout, stderr), o None si esperar=False y otra orden está en curso.
+    Solo lanza SesionCaducada si la orden FALLA con un error de autenticación (los avisos con rc 0 no cuentan)."""
+    if not nb_cerrojo.acquire(blocking=esperar):
+        return None
     try:
+        entorno = dict(os.environ, HOME=CASA, NOTEBOOKLM_HL="es")
         p = subprocess.run([NBLM] + args, capture_output=True, text=True, timeout=timeout, env=entorno, cwd=CASA)
     except subprocess.TimeoutExpired:
         return 124, "", "tiempo agotado"
+    finally:
+        nb_cerrojo.release()
     todo = (p.stdout or "") + (p.stderr or "")
-    if re.search(r"Authentication (expired|error)|Run 'notebooklm login'", todo):
+    if p.returncode != 0 and re.search(r"Authentication (expired|error)|Run 'notebooklm login'", todo):
         raise SesionCaducada(todo[-300:])
     return p.returncode, p.stdout or "", p.stderr or ""
 
@@ -489,6 +505,11 @@ def atender(p):
             responder(p)
         actualizar(p["id"], estado="hecha", terminada=time.time())
     except SesionCaducada:
+        time.sleep(30)
+        if sesion_viva():  # fallo pasajero (cookie rotando): se reintenta sin molestar a Alex
+            actualizar(p["id"], estado="reintentar")
+            hay_trabajo.set()
+            return
         actualizar(p["id"], estado="esperando_sesion")
         if not p.get("avisada_sesion"):
             actualizar(p["id"], avisada_sesion=True)
@@ -523,26 +544,38 @@ def trabajar():
             atender(p)
 
 
+def _sesion_ok(orden, timeout):
+    """True si la orden funciona o si otra orden de NotebookLM está en curso (la sesión se está usando)."""
+    try:
+        r = nb(orden, timeout, esperar=False)
+        return r is None or r[0] == 0
+    except SesionCaducada:
+        return False
+
+
 def mantener_sesion():
-    avisado = False
+    """Refresca la sesión cada 20 min. Solo avisa tras 3 comprobaciones fallidas seguidas (unos 15 min), porque un
+    fallo suelto suele ser una rotación de cookie a la vez que otra orden, no una caducidad."""
+    avisado, fallos = False, 0
     while True:
-        try:
-            rc, out, err = nb(["auth", "refresh"], 180)
-            ok = rc == 0
-        except SesionCaducada:
-            ok = False
-        marca = {"viva": ok, "comprobada": datetime.datetime.now().isoformat(timespec="minutes")}
+        ok = _sesion_ok(["auth", "refresh"], 180)
+        if not ok:
+            time.sleep(60)
+            ok = _sesion_ok(["list", "--json"], 120)
+        fallos = 0 if ok else fallos + 1
+        marca = {"viva": ok, "fallos_seguidos": fallos,
+                 "comprobada": datetime.datetime.now().isoformat(timespec="minutes")}
         with bloqueo:
             escribir_json(ESTADO, dict(leer_json(ESTADO, {}), notebooklm=marca))
-        if not ok and not avisado:
-            decir("Aviso de MetaGenesis: la sesión de NotebookLM del A1 caducó. Las peticiones esperan en cola. "
-                  + RENOVAR)
+        if fallos >= 3 and not avisado:
+            decir("Aviso de MetaGenesis: la sesión de NotebookLM del A1 caducó (3 comprobaciones seguidas). Las "
+                  "peticiones esperan en cola. " + RENOVAR)
             avisado = True
-        if ok:
-            if avisado:
-                hay_trabajo.set()
+        if ok and avisado:
+            decir("La sesión de NotebookLM del A1 vuelve a estar viva ✓ Retomo lo que estaba en cola.")
             avisado = False
-        time.sleep(REFRESCO_S)
+            hay_trabajo.set()
+        time.sleep(REFRESCO_S if ok else 300)
 
 
 def texto_estado():
