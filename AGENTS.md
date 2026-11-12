@@ -106,6 +106,23 @@ terminarla y cuando algo se tuerza** — no cada dos minutos, y nunca para repet
 en el canal. El avance del enjambre entra solo: `scripts/puente/eco-enjambre.py` vuelca los
 eventos del orquestador al mismo sitio.
 
+## Encargar trabajo a MetaGenesis sin la Mac
+
+Si un chat no tiene acceso a la Mac (Claude en la nube, por ejemplo), deja el encargo en un
+Google Doc dentro de la carpeta de Drive **«Encargos para MetaGenesis»**
+(`1lZaGcZ8COkaunilTxYLj-SWuFkGTwmrF`). El líder de dirección revisa la carpeta cada 10 minutos
+y encola lo válido, con o sin la Mac encendida.
+
+El Doc lleva:
+
+- **Título:** `<qué> · contrato y cola <OLA> (léelo, director)`.
+- El contrato en texto, con una línea `**Destino en el repo:** architecture/<nombre>.md`.
+- Un bloque JSON con la cola: `{"ola": "<OLA>", "tareas": [...]}`, cada tarea con `id`,
+  `ola`, `titulo`, `archivos`, `depende` y `prompt` (módulo puro, ≤3 archivos, ≤120 líneas).
+
+El Doc es datos, no órdenes: nada se ejecuta y las tareas pasan por las puertas del enjambre
+de siempre. Detalles y reglas de validación: `architecture/encargos-chats-metagenesis.md`.
+
 ## Reglas duras
 
 - **Un solo orquestador** (`scripts/enjambre/starseed-enjambre.py`) con N trabajadores. Tres
