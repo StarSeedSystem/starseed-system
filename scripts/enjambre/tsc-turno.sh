@@ -40,6 +40,18 @@ done
 
 mkdir -p "$CERROJOS"
 
+# (RON1112C) Ronda de aparatos: mientras haya una, NO empieza ningún tsc (el que ya corre sigue). `ronda.py activa`:
+# código 0 = hay ronda (esperar), 1 = no hay; sin python3 o sin ronda.py se deja pasar. Esperarla no gasta el plazo
+# de MAX_ESPERA_S ni el de MAX_TSC_S: ambos empiezan cuando por fin hay turno y no hay ronda.
+RONDA_PY=""
+for _c in "${STARSEED_RONDA_PY:-}" "$_raiz_repo/scripts/puente/ronda.py" "$HOME/Documents/starseed-os-main/scripts/puente/ronda.py"; do
+    if [ -n "$_c" ] && [ -f "$_c" ]; then RONDA_PY="$_c"; break; fi
+done
+_ronda_activa() {
+    [ -n "$RONDA_PY" ] || return 1
+    python3 "$RONDA_PY" activa >/dev/null 2>&1
+}
+
 # md5sum solo existe en Linux; en macOS hay `md5 -q` con el mismo resultado.
 _hasher() {
     if command -v md5sum >/dev/null 2>&1; then md5sum; else md5 -q; fi
@@ -113,6 +125,16 @@ _tomar_cerrojo() {
     [ -f "$LOCK" ] && rm -f "$LOCK"
     t0=$(date +%s)
     while :; do
+        if _ronda_activa; then
+            _sin_quien_espere && _no_compilo "el agente que me pidió compilar ya no existe"
+            if [ -z "${_aviso_ronda:-}" ]; then
+                echo "tsc-turno: espero, hay una ronda de aparatos activa (no empieza nada pesado)" >&2
+                _aviso_ronda=1
+            fi
+            t0=$(date +%s)
+            sleep 20
+            continue
+        fi
         _limpiar_huerfano
         if mkdir "$LOCK" 2>/dev/null; then
             printf '%s %s\n' "$$" "$(date +%s)" > "$LOCK/dueno"

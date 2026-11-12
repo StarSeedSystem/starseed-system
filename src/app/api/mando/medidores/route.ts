@@ -19,7 +19,8 @@ import path from "node:path";
 import { promisify } from "node:util";
 
 import { guardianMando } from "@/lib/mando/guardian";
-import { pruebaParaEnMarcha } from "@/lib/mando/pruebas-vivas-fuentes"; // PRB1111V
+import { leerRondaArchivo, pruebaParaEnMarcha } from "@/lib/mando/pruebas-vivas-fuentes"; // PRB1111V
+import { rondaParaEnviar } from "@/lib/mando/ronda-aparatos"; // RON1112C
 import { lanzarPublicacion, leerDiario } from "@/lib/mando/publicador";
 import { POST as reintentarTareas } from "@/app/api/mando/reintentar/route";
 import { leerCreditosPago } from "@/lib/mando/creditos-pago";
@@ -112,7 +113,7 @@ async function leerAutopublicacion(): Promise<DatosMedidores["autopublicacion"]>
 
 // MED1111E · El carril de Claude y la puerta de integración ───────────────────────────────────────
 async function leerEnMarcha(): Promise<EnMarcha | null> {
-    const [carril, puerta, publicacion, pruebas] = await Promise.all([
+    const [carril, puerta, publicacion, pruebas, rondaLeida] = await Promise.all([
         leerCarrilDeDisco(RAÍZ),
         leerPuertaDeDisco(
             path.join(os.homedir(), ".starseed", "produccion", "puerta-estado.json"),
@@ -121,8 +122,10 @@ async function leerEnMarcha(): Promise<EnMarcha | null> {
         leerAutopublicacion().then(publicacionParaEnviar).catch(() => null),
         // PRB1111V · la versión de prueba en marcha (o fallida sin sustituir), solo con rastro en GitHub.
         pruebaParaEnMarcha().catch(() => null),
+        Promise.resolve().then(() => leerRondaArchivo()).catch(() => null), // RON1112C · la ronda de aparatos
     ]);
-    return carril || puerta || publicacion || pruebas ? { generadoMs: Date.now(), carril, puerta, publicacion, ...(pruebas ? { pruebas } : {}) } : null;
+    const ronda = rondaParaEnviar(rondaLeida, Date.now()); // RON1112C: sólo si está en vigor a esta hora
+    return carril || puerta || publicacion || pruebas || ronda ? { generadoMs: Date.now(), carril, puerta, publicacion, ...(pruebas ? { pruebas } : {}), ...(ronda ? { ronda } : {}) } : null;
 }
 
 /** (2026-11-05, VER1105D) Estado del director de lanzamientos (Centro de Versiones).

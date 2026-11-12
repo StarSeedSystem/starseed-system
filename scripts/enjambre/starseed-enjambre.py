@@ -2834,6 +2834,21 @@ def rebase_saltando_basura(wt, tid, timeout=300):
     return rc, out
 
 
+def esperar_ronda_aparatos():
+    """(RON1112C) Con una «ronda de aparatos» (scripts/puente/ronda.py) no EMPIEZA ningún tsc ni vitest: espera aquí, ANTES
+    de contar el plazo del turno y antes de que el sh() de la puerta arranque su reloj. Lo que ya corre no se toca.
+    → segundos esperados. Sin ronda.py o con un fallo, deja pasar."""
+    try:
+        ruta_puente = os.path.join(ROOT, "scripts", "puente")
+        if ruta_puente not in sys.path:
+            sys.path.insert(0, ruta_puente)
+        import ronda
+
+        return ronda.esperar("una puerta del enjambre", avisar=lambda t, seg: print(t, flush=True))
+    except Exception:
+        return 0
+
+
 @contextlib.contextmanager
 def cerrojo_pesado():
     """Cerrojo de tsc ENTRE PROCESOS como DIRECTORIO atómico con `dueno` (pid + epoch):
@@ -2848,6 +2863,8 @@ def cerrojo_pesado():
             pass
     t0 = time.time()
     while True:
+        if esperar_ronda_aparatos():
+            t0 = time.time()  # (RON1112C) esperar una ronda no gasta el plazo del turno
         _limpiar_pesado_huerfano(ruta)
         try:
             os.mkdir(ruta)

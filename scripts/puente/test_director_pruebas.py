@@ -10,6 +10,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import comprobaciones_prueba as C  # noqa: E402
 import director_pruebas as DP  # noqa: E402
 import director_pruebas_logica as D  # noqa: E402
+import ronda as R  # noqa: E402
+from test_ronda import MundoFalso  # noqa: E402
 
 SHA = "a" * 40
 SHA2 = "b" * 40
@@ -109,6 +111,11 @@ class Falso(DP.Medios):
 
     def pasada_banco(self):
         self.banco_pasadas += 1
+
+    def mundo_ronda(self):                  # RON1112C: sin procesos, sin carga ni cerrojos reales
+        w = MundoFalso(self.dir, t=self.t)
+        w.ahora = self.ahora
+        return w
 
     # ayudas de la prueba
     def run_de(self, rid, numero, status="in_progress", concl=None, jb=None, sha=SHA, creado=None, actualizado=None):
@@ -530,6 +537,82 @@ class Comprobaciones(unittest.TestCase):
         }
         for t, s in textos.items():
             self.assertEqual(C.senal_de_texto(t), s, t)
+
+
+class RondaDeAparatos(Base):
+    """RON1112C: iniciar y terminar la ronda son peticiones al director, como las demás acciones."""
+
+    def ronda(self):
+        return R.leer(self.m.mundo_ronda())["ronda"]
+
+    def test_iniciar_por_peticion_escribe_el_archivo_con_quien_por_que_y_cuando(self):
+        pid = self.pedir("ronda-iniciar", quien="claude", nota="llamadas con la tableta", minutos=45)
+        est = self.paso()
+        self.assertEqual(self.hecha(pid)["estado"], "hecha")
+        r = self.ronda()
+        self.assertEqual((r["quien"], r["motivo"], r["peticion"]), ("claude", "llamadas con la tableta", pid))
+        self.assertEqual(R.de_iso(r["hasta"]) - R.de_iso(r["desde"]), 45 * 60)
+        self.assertTrue(R.activa(self.m.mundo_ronda())[0])
+        self.assertEqual(est["peticiones"][0]["accion"], "ronda-iniciar")
+        self.assertEqual(self.m.red, 0)
+
+    def test_iniciar_otra_vez_renueva_y_terminar_la_termina_de_un_paso(self):
+        self.pedir("ronda-iniciar", nota="llamadas")
+        self.paso()
+        pid = self.pedir("ronda-iniciar", quien="hermes", nota="llamadas", minutos=30)
+        self.paso(600)
+        self.assertIn("renovada", self.hecha(pid)["resultado"])
+        self.assertEqual(self.ronda()["renovaciones"], 1)
+        pid = self.pedir("ronda-terminar", quien="alex")
+        self.paso()
+        self.assertEqual(self.hecha(pid)["estado"], "hecha")
+        self.assertFalse(R.activa(self.m.mundo_ronda())[0])
+        self.assertEqual(self.ronda()["fin_por"], "alex")
+
+    def test_peticiones_de_ronda_mal_hechas_no_se_escriben_y_si_llegan_a_mano_se_rechazan_con_motivo(self):
+        malas = (({"nota": None}, "motivo"), ({"nota": "x" * 201}, "200"), ({"nota": "ok", "minutos": 91}, "minutos"),
+                 ({"nota": "ok", "minutos": 0}, "minutos"))
+        for campos, texto in malas:
+            with self.assertRaises(ValueError) as cm:
+                self.pedir("ronda-iniciar", **campos)
+            self.assertIn(texto, str(cm.exception))
+            crudo = {"formato": 1, "id": "pet-5-%04d" % len(texto), "accion": "ronda-iniciar", "quien": "alex", "t": D.a_iso(self.m.t)}
+            crudo.update({k: v for k, v in campos.items() if v is not None})
+            os.makedirs(os.path.join(self.tmp, "pruebas-peticiones"), exist_ok=True)
+            with open(os.path.join(self.tmp, "pruebas-peticiones", crudo["id"] + ".json"), "w") as f:
+                json.dump(crudo, f)
+            self.paso()
+            self.assertEqual(self.hecha(crudo["id"])["estado"], "rechazada")
+            self.assertIn(texto, self.hecha(crudo["id"])["resultado"])
+        self.assertIsNone(self.ronda())
+        self.assertIsNotNone(D.validar_peticion({"id": "pet-1-abcd", "accion": "compilar", "quien": "a", "minutos": 5})[1])
+
+    def test_en_pausa_la_ronda_se_atiende_y_lo_demas_espera(self):
+        open(os.path.join(self.tmp, "pruebas-director.pausa"), "w").write("mantenimiento\n")
+        pr = self.pedir("ronda-iniciar", nota="llamadas")
+        pc = self.pedir("compilar")
+        self.paso()
+        self.assertEqual(self.hecha(pr)["estado"], "hecha")
+        self.assertTrue(R.activa(self.m.mundo_ronda())[0])
+        self.assertEqual(self.pendientes(), [pc + ".json"])      # compilar sigue sin atender: en pausa solo mira
+        self.assertEqual(self.m.lanzados, [])
+
+    def test_cada_pasada_pone_al_dia_el_silencio_y_caduca_lo_vencido(self):
+        self.pedir("ronda-iniciar", nota="llamadas", minutos=5)
+        self.paso()
+        self.assertTrue(self.ronda()["activa"])
+        self.paso(6 * 60)
+        r = R.leer(self.m.mundo_ronda())
+        self.assertFalse(r["ronda"]["activa"])
+        self.assertEqual(r["ronda"]["fin_por"], "caducó")
+        self.assertEqual(r["silencio"]["t"], R.a_iso(self.m.t))
+
+    def test_si_medir_falla_el_director_sigue_y_lo_dice(self):
+        def roto():
+            raise OSError("disco")
+        self.m.pasada_ronda = roto
+        est = self.paso()
+        self.assertTrue(any("ronda de aparatos" in a for a in est["avisos"]))
 
 
 class AvisoDelBanco(Base):

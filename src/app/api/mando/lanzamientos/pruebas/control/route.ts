@@ -12,7 +12,7 @@
 
 import { guardianMando } from "@/lib/mando/guardian";
 import { leerComprobaciones } from "@/lib/mando/lanzamientos-pruebas-fuentes";
-import { peticionPendienteDe, validarControl, vistaDirector } from "@/lib/mando/pruebas-vivas";
+import { leePeticionesDeRonda, peticionPendienteDe, validarControl, vistaDirector } from "@/lib/mando/pruebas-vivas";
 import { escribirPeticion, leerDirectorArchivo, leerPeticiones } from "@/lib/mando/pruebas-vivas-fuentes";
 import { esPeticionDeEstaMaquina } from "@/lib/seguridad/misma-maquina";
 
@@ -39,7 +39,9 @@ export async function POST(peticion: Request): Promise<Response> {
 
     const director = await leerDirectorArchivo();
     const vista = vistaDirector(director, Date.now());
-    if (!vista.leePeticiones) return error(vista.texto, 409);
+    // RON1112C: las de la ronda de aparatos las atiende el director aun en pausa (proteger la Mac no lanza nada).
+    const deRonda = p.accion === "ronda-iniciar" || p.accion === "ronda-terminar";
+    if (!(deRonda ? leePeticionesDeRonda(vista) : vista.leePeticiones)) return error(vista.texto, 409);
 
     if (p.accion === "pedir-arreglo") {
         const archivo = await leerComprobaciones();
@@ -49,6 +51,7 @@ export async function POST(peticion: Request): Promise<Response> {
         }
     }
     const previas = await leerPeticiones(director);
+    // RON1112C: terminar una ronda ya terminada, o iniciar otra mientras la anterior espera, son dos pulsaciones para lo mismo.
     const repetida = peticionPendienteDe(p.accion, previas);
     if (repetida) return error(`Ya hay una petición «${p.accion}» sin atender (${repetida.id}): el director aún no la ha leído.`, 409);
 

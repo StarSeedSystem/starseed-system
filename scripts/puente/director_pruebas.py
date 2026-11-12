@@ -10,6 +10,8 @@ Genesis o la orden `pedir`— y, sin que nadie lo pida, sigue hasta el final la 
   python3 scripts/puente/director_pruebas.py pedir cancelar|reintentar|republicar [--numero N] --quien claude
   python3 scripts/puente/director_pruebas.py pedir pedir-arreglo --prueba 39 --comprobacion c7 [--nota "…"] --quien alex
   python3 scripts/puente/director_pruebas.py pedir app-abrir --quien alex
+  python3 scripts/puente/director_pruebas.py pedir ronda-iniciar --nota "llamadas con la tableta" [--minutos 30] --quien alex
+  python3 scripts/puente/director_pruebas.py pedir ronda-terminar --quien alex
   python3 scripts/puente/director_pruebas.py pasada [--json]     una pasada (la que corre el servicio)
   python3 scripts/puente/director_pruebas.py --bucle             el servicio de launchd: una pasada por minuto
   python3 scripts/puente/director_pruebas.py estado | pausar "motivo" | reanudar
@@ -39,6 +41,7 @@ sys.path.insert(0, DIRECTORIO)
 import comprobaciones_prueba as C  # noqa: E402
 import director_pruebas_logica as D  # noqa: E402
 import lanzamientos_logica as LL  # noqa: E402
+import ronda as R  # noqa: E402  (RON1112C: la ronda de aparatos)
 
 REPO = LL.REPO
 FLUJO = "native-build.yml"
@@ -233,6 +236,15 @@ class Medios:
         if not ejecutable or sys.platform != "darwin":
             return None
         return self.sh(["pgrep", "-x", ejecutable])[0] == 0
+
+    # RON1112C: la ronda de aparatos vive en su propio archivo (ronda.py); el director es el único que lo escribe
+    def mundo_ronda(self):
+        w = R.Mundo(dir_estado=self.dir)
+        w.ahora = self.ahora                      # un solo reloj para todo el director
+        return w
+
+    def pasada_ronda(self):
+        return R.pasada(self.mundo_ronda())
 
     # chat y comprobaciones
     def chat(self, texto, canales, tipo, tarea=None):
@@ -467,6 +479,9 @@ def _atender(m, est, nombre, pet, ahora):
         return ("hecha", "manifiestos republicados para %s" % version) if ok else ("rechazada", "no se pudo republicar: %s" % resumen[:150])
     if a == "pedir-arreglo":
         return _pedir_arreglo(m, est, pet, ahora)
+    if a in D.ACCIONES_RONDA:
+        # RON1112C: instantáneo, sin red. Iniciar con una ronda activa la renueva (nunca pasa de 90 min desde que empezó).
+        return R.aplicar(m.mundo_ronda(), a, pet["quien"], pet["nota"], pet["minutos"], pet["id"])
     if a == "app-abrir":
         if m.app_abierta():
             return "hecha", ("la app ya estaba abierta, no la toco. Pedirle desde fuera que busque una actualización no es posible: "
@@ -516,6 +531,12 @@ def pasada(m):
         _con_peticiones(m, est, ahora)
         if D.vivo(est["en_curso"]):
             _seguir(m, est, ahora)
+    else:
+        _con_peticiones(m, est, ahora, solo_ronda=True)   # RON1112C: proteger la Mac no es lanzar nada: se atiende aun en pausa
+    try:
+        m.pasada_ronda()                                  # RON1112C: caduca lo vencido y mide si la Mac está tranquila
+    except Exception as e:  # noqa: BLE001 — la ronda falla sola; el director sigue
+        est["avisos"] = (est["avisos"] + [tachar("la ronda de aparatos falló al medir: %s" % type(e).__name__)])[-3:]
     _guardar(m, est)
     try:
         m.pasada_banco()
@@ -527,11 +548,13 @@ def pasada(m):
     return est
 
 
-def _con_peticiones(m, est, ahora):
+def _con_peticiones(m, est, ahora, solo_ronda=False):
     pendientes = m.peticiones_pendientes()
     validas = []
     for nombre, crudo in pendientes[:D.MAX_PASADA]:
         pid = nombre[:-5]
+        if solo_ronda and not (isinstance(crudo, dict) and crudo.get("accion") in D.ACCIONES_RONDA):
+            continue                              # en pausa solo se atienden las de la ronda; el resto espera
         if m.peticion_hecha(pid):                 # ya atendida antes de un corte: solo falta quitar la pendiente
             try:
                 os.unlink(m.ruta(PETICIONES, nombre))
@@ -649,6 +672,7 @@ def main(argv=None):
     p.add_argument("--comprobacion")
     p.add_argument("--plataforma")
     p.add_argument("--nota")
+    p.add_argument("--minutos", type=int)
     s = sub.add_parser("pasada")
     s.add_argument("--json", action="store_true")
     sub.add_parser("estado")
@@ -660,7 +684,7 @@ def main(argv=None):
     if a.orden == "pedir":
         try:
             pid = escribir_peticion(m.dir, a.accion, a.quien, m.ahora(), sha=a.sha, numero=a.numero, prueba=a.prueba,
-                                    comprobacion=a.comprobacion, plataforma=a.plataforma, nota=a.nota)
+                                    comprobacion=a.comprobacion, plataforma=a.plataforma, nota=a.nota, minutos=a.minutos)
         except ValueError as e:
             print("error: %s" % e, file=sys.stderr)
             return 2

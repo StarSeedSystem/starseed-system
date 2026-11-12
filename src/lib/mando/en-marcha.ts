@@ -10,6 +10,7 @@
 import { agentesDeCarrilClaude, duracionCorta, leerRegistroCarril, limpiarTexto, vistaCarril, type LecturaCarril, type TareaCarril, type VistaCarril } from "./carril-claude";
 import { parsearEstadoPuerta, textoPruebas, vistaPuerta, type EstadoPuerta, type VistaPuerta } from "./puerta-integracion";
 import { sanearPrueba, type PruebaParaEnviar } from "./pruebas-vivas"; // PRB1111V
+import { sanearRonda, vistaRondaEnviada, type RondaParaEnviar } from "./ronda-aparatos"; // RON1112C
 
 export interface EnMarcha {
     /** Cuándo se leyó (ms de época). */
@@ -20,6 +21,8 @@ export interface EnMarcha {
     publicacion?: AutopublicacionVista | null;
     /** (PRB1111V) La versión de prueba en marcha o fallida sin sustituir; null/ausente = no consta ninguna. */
     pruebas?: PruebaParaEnviar | null;
+    /** (RON1112C) La ronda de aparatos en vigor (nada pesado empieza en la Mac mientras dura); ausente = no hay. */
+    ronda?: RondaParaEnviar | null;
 }
 
 /** Lo que Genesis ya sabe de la autopublicación (`DatosMedidores["autopublicacion"]`), más cuándo se anotó. */
@@ -86,6 +89,8 @@ export interface VistaEnMarcha {
     publicacion: VistaPublicacion;
     /** (PRB1111V) El build de prueba, solo si hay rastro de uno en marcha o fallido. */
     prueba: VistaPrueba | null;
+    /** (RON1112C) La ronda de aparatos, sólo si está en vigor a esta hora. NO es un proceso: no cuenta como «corre». */
+    ronda: { activa: true; quedaS: number; texto: string } | null;
     /** Hay algo corriendo de verdad (agentes vivos, puerta en marcha o publicación en curso). */
     algoCorre: boolean;
     /** Cuántos procesos vivos hay en total (agentes del carril + puerta + publicación). */
@@ -133,6 +138,7 @@ export function vistaEnMarcha(e: EnMarcha | null | undefined, ahora: number = Da
     const puerta = vistaPuerta(e?.puerta, ahora);
     const pub = vistaPublicacion(publicacion, ahora);
     const prueba = vistaPrueba(e?.pruebas, ahora); // PRB1111V
+    const ronda = vistaRondaEnviada(e?.ronda, ahora); // RON1112C
     const vivosCarril = carril.estado === "vivo" ? carril.agentes.length : 0;
     const puertaViva = puerta.estado === "corriendo" ? 1 : 0;
     const pubViva = pub.estado === "publicando" ? 1 : 0;
@@ -169,7 +175,8 @@ export function vistaEnMarcha(e: EnMarcha | null | undefined, ahora: number = Da
         const pruebaAviso = prueba ? ` Prueba: ${prueba.etiqueta} ${prueba.texto}.` : "";
         frase = `No corre nada ahora.${cuando}${pruebaAviso}${avisos.length ? ` Ojo: ${avisos.join("; ")}.` : ""}`;
     }
-    return { carril, puerta, publicacion: pub, prueba, algoCorre: vivos > 0, vivos, ultimo, frase };
+    if (ronda) frase = `${ronda.texto} ${frase}`; // RON1112C: lo primero que hay que saber de la Mac
+    return { carril, puerta, publicacion: pub, prueba, ronda, algoCorre: vivos > 0, vivos, ultimo, frase };
 }
 
 /**
@@ -199,9 +206,10 @@ export function sanearEnMarcha(crudo: unknown): EnMarcha | null {
         : null;
     const publicacion = publicacionParaEnviar(x.publicacion);
     const pruebas = sanearPrueba((x as { pruebas?: unknown }).pruebas); // PRB1111V
-    if (!carril && !puerta && !publicacion && !pruebas) return null;
+    const ronda = sanearRonda((x as { ronda?: unknown }).ronda); // RON1112C
+    if (!carril && !puerta && !publicacion && !pruebas && !ronda) return null;
     const origen = p?.origen === "log" ? "log" : "estado";
-    return { generadoMs: Number.isFinite(generadoMs) ? generadoMs : 0, carril, puerta: puerta ? { ...puerta, origen } : null, publicacion, ...(pruebas ? { pruebas } : {}) };
+    return { generadoMs: Number.isFinite(generadoMs) ? generadoMs : 0, carril, puerta: puerta ? { ...puerta, origen } : null, publicacion, ...(pruebas ? { pruebas } : {}), ...(ronda ? { ronda } : {}) };
 }
 
 export { agentesDeCarrilClaude };
