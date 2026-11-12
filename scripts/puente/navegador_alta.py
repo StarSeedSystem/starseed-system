@@ -19,6 +19,7 @@ import os
 import sys
 import time
 import json
+import subprocess
 from datetime import datetime
 
 from typing import Any, Dict, Optional
@@ -29,12 +30,17 @@ import navegador_reglas as NR
 import navegador_cliente as NC
 
 RUTA_ESTADO = os.path.expanduser("~/.starseed/navegador/estado.json")
+CLI_NOTEBOOKLM = os.environ.get(
+    "STARSEED_NOTEBOOKLM_CLI",
+    os.path.expanduser("~/.starseed/venvs/notebooklm/bin/notebooklm"),
+)
 
 try:
-    from playwright.sync_api import sync_playwright
+    from playwright.sync_api import sync_playwright  # type: ignore[import]
     PLAYWRIGHT_AVAILABLE = True
 except ImportError:
     PLAYWRIGHT_AVAILABLE = False
+    sync_playwright = None  # type: ignore[assignment]
 
 
 def _encender_selkies(sesion: str) -> bool:
@@ -202,12 +208,73 @@ def vigilar() -> Dict[str, Any]:
     return resultado
 
 
+def _sesion_viva(sesion: str) -> bool:
+    """¿La sesión del navegador propio está viva según el estado guardado?"""
+    estado = NR.cargar_estado()
+    return estado.get("sesiones", {}).get(sesion, {}).get("estado") == "viva"
+
+
+def _extraer_cookies(sesion: str) -> list:
+    """Extrae las cookies de Google del perfil del navegador. Nunca las imprime."""
+    if not PLAYWRIGHT_AVAILABLE or sync_playwright is None:
+        raise RuntimeError("playwright no está disponible")
+    urls = _obtener_urls_perfil(sesion)
+    with sync_playwright() as p:
+        navegador = p.chromium.connect_over_cdp(urls.get("playwright", "127.0.0.1:9222"))
+        contexto = navegador.contexts[0]
+        galletas = [c for c in contexto.cookies() if "google" in c.get("domain", "")]
+        navegador.close()
+        return galletas
+
+
+def _importar_cookies(cookies: list) -> bool:
+    """Importa las cookies al perfil default del CLI, por stdin (sin imprimirlas)."""
+    resultado = subprocess.run(
+        [CLI_NOTEBOOKLM, "auth", "import-cookies"],
+        input=json.dumps(cookies), capture_output=True, text=True,
+    )
+    return resultado.returncode == 0
+
+
+def _cli_auth_check() -> bool:
+    """Comprueba con `notebooklm auth check` si la sesión del CLI está viva."""
+    resultado = subprocess.run(
+        [CLI_NOTEBOOKLM, "auth", "check"], capture_output=True, text=True,
+    )
+    return resultado.returncode == 0
+
+
+def notebooklm() -> Dict[str, Any]:
+    """CLI `notebooklm`: renueva la sesión del CLI desde google-alex del navegador propio."""
+    telegram = _obtener_telegram()
+    try:
+        if not _sesion_viva("google-alex"):
+            alta("google-alex")
+            if not _sesion_viva("google-alex"):
+                telegram.enviar("no pude renovar NotebookLM: google-alex sigue sin sesión viva")
+                return {"ok": False, "motivo": "google-alex sin sesión viva"}
+        galletas = _extraer_cookies("google-alex")
+        if not _importar_cookies(galletas):
+            telegram.enviar("falló la importación de cookies al CLI de NotebookLM")
+            return {"ok": False, "motivo": "falló la importación de cookies"}
+        viva = _cli_auth_check()
+        telegram.enviar(
+            "sesión de NotebookLM renovada desde el navegador propio"
+            if viva else "importé las cookies pero `notebooklm auth check` sigue en rojo"
+        )
+        return {"ok": viva}
+    except Exception as e:
+        telegram.enviar(f"no pude renovar NotebookLM: {e}")
+        return {"ok": False, "motivo": str(e)}
+
+
 def main(argv) -> int:
     """CLI principal."""
     if len(argv) < 2:
         print("Uso: python3 navegador_alta.py <comando> [argumento]")
         print("\nComandos:")
         print("  alta <sesion>     Enciende Selkies y Chromium para una sesión")
+        print("  notebooklm        Renueva la sesión del CLI desde google-alex")
         print("  estado           Verifica el estado de todas las sesiones")
         print("  vigilar          Avisa si una sesión está viva")
         return 1
@@ -219,6 +286,11 @@ def main(argv) -> int:
         print(json.dumps(resultado, ensure_ascii=False))
         return 0 if resultado.get("ok") else 1
     
+    elif comando == "notebooklm":
+        resultado = notebooklm()
+        print(json.dumps(resultado, ensure_ascii=False))
+        return 0 if resultado.get("ok") else 1
+
     elif comando == "estado":
         resultado = estado()
         print(json.dumps(resultado, ensure_ascii=False))

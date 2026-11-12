@@ -108,6 +108,82 @@ class TestVigilar(Base):
         alta_falsa.assert_not_called()
 
 
+class TestNotebooklm(Base):
+    def setUp(self):
+        super().setUp()
+        self.cookies = [{"name": "__Secure-1PSID", "domain": ".google.com", "value": "secreto"}]
+        self.extraidas, self.importadas, self.checks, self.sesion, self.resultado_alta = [], [], [], True, {"ok": True}
+
+        def extrae(sesion):
+            self.extraidas.append(sesion)
+            return self.cookies
+
+        def importa(galletas):
+            self.importadas.append(len(galletas))
+            return True
+
+        def chequea():
+            self.checks.append(True)
+            return True
+
+        def viva(sesion):
+            return self.sesion
+
+        def alta_falsa(sesion):
+            self.llamadas.append(("alta", sesion))
+            if self.resultado_alta.get("ok"):
+                self.sesion = True
+            return self.resultado_alta
+
+        for objetivo, valor in {
+            "_sesion_viva": viva,
+            "_extraer_cookies": extrae,
+            "_importar_cookies": importa,
+            "_cli_auth_check": chequea,
+            "alta": alta_falsa,
+        }.items():
+            parche = patch.object(N, objetivo, valor)
+            parche.start()
+            self.addCleanup(parche.stop)
+
+    def test_sesion_viva_importa_avisa_y_no_imprime_cookies(self):
+        r = N.notebooklm()
+        self.assertTrue(r["ok"])
+        self.assertEqual(self.extraidas, ["google-alex"])
+        self.assertEqual(self.importadas, [1])
+        self.assertEqual(self.checks, [True])
+        self.assertEqual(len(self.telegram), 1)
+        self.assertIn("NotebookLM", self.telegram[0])
+        self.assertNotIn("secreto", self.telegram[0])
+
+    def test_sesion_caducada_lanza_alta_google_alex_y_repite(self):
+        self.sesion = False
+        r = N.notebooklm()
+        self.assertTrue(r["ok"])
+        self.assertIn(("alta", "google-alex"), self.llamadas)
+        self.assertEqual(self.importadas, [1])
+
+    def test_si_el_alta_no_consigue_sesion_no_importa_nada(self):
+        self.sesion = False
+        self.resultado_alta = {"ok": False, "motivo": "tiempo de espera excedido"}
+        r = N.notebooklm()
+        self.assertFalse(r["ok"])
+        self.assertEqual((self.importadas, self.checks), ([], []))
+        self.assertEqual(len(self.telegram), 1)
+        self.assertIn("google-alex", self.telegram[0])
+
+    def test_check_en_rojo_avisa_del_fracaso(self):
+        with patch.object(N, "_cli_auth_check", lambda: False):
+            r = N.notebooklm()
+        self.assertFalse(r["ok"])
+        self.assertEqual(self.importadas, [1])
+        self.assertEqual(len(self.telegram), 1)
+        self.assertNotIn("secreto", self.telegram[0])
+
+    def test_cli_despacha_notebooklm(self):
+        self.assertEqual(N.main(["n", "notebooklm"]), 0)
+
+
 class TestCli(Base):
     def test_despacha_los_tres_comandos_y_rechaza_lo_demas(self):
         with patch.object(NR, "marcar_estado", self.marcar()):
