@@ -22,6 +22,7 @@ import { vigilarVisibilidad } from "@/lib/llamadas/superficie/visibilidad";
 import { streamTraeVideo } from "@/lib/llamadas/superficie/adaptador-motor";
 import type { FuenteCarriles } from "./carriles-eleccion";
 import { anotarLlamada } from "@/lib/llamadas/voz-datos/diagnostico";
+import { botonCamaraDeshabilitado, camaraLocalSinImagen, PADDING_FOOTER_DOCK } from "@/lib/llamadas/superficie/controles-llamada";
 
 /**
  * LLA1110C: ¿el flujo trae vídeo CON imagen ahora? Una pista WebRTC negociada sin ruta (por Bluetooth) existe pero
@@ -152,8 +153,8 @@ export function SuperficieLlamada({ vista: v, acciones: a, tamanoInicial, carril
 
   // LLA1112B: ¿la cámara local trae imagen ahora? (pista viva y no muted)
   const localTraeVideo = useTraeVideo(v.local);
-  // LLA1112B: aviso cuando la cámara está encendida pero no envía vídeo
-  const localCamaraSinImagen = vivaVideo && v.camara && v.local && !localTraeVideo;
+  // LLA1112B: aviso cuando la cámara está encendida pero no envía vídeo (lógica pura en controles-llamada)
+  const localCamaraSinImagen = camaraLocalSinImagen(vivaVideo, v.camara, v.local, streamTraeVideo);
   // LLA1110C: al llegar imagen del otro con la llamada recogida en la burbuja, se abre el panel (antes se veía la píldora).
   const habiaVideo = useRef(false);
   useEffect(() => {
@@ -401,7 +402,7 @@ export function SuperficieLlamada({ vista: v, acciones: a, tamanoInicial, carril
           )}
 
           {viva && <p className="sr-only">{AYUDA_ATAJOS}</p>}
-          <footer className="flex shrink-0 flex-wrap items-center justify-center gap-2 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2" data-controles-llamada="">
+          <footer className="flex shrink-0 flex-wrap items-center justify-center gap-2 px-3 pt-2" style={{ paddingBottom: PADDING_FOOTER_DOCK }} data-controles-llamada="">
             {s.estado === "entrante" && (
               <>
                 <BotonControl peligro icono={<PhoneOff className={ic} />} etiqueta="Rechazar" onClick={a.rechazar} />
@@ -412,7 +413,7 @@ export function SuperficieLlamada({ vista: v, acciones: a, tamanoInicial, carril
             {viva && (
               <>
                 <BotonControl icono={v.micro ? <Mic className={ic} /> : <MicOff className={ic} />} etiqueta={v.micro ? "Silenciar micrófono" : "Activar micrófono"} activo={!v.micro} onClick={a.alternarMicro} motivo="no disponible" />
-                <BotonControl icono={v.camara ? <Video className={ic} /> : <VideoOff className={ic} />} etiqueta={v.camara ? "Apagar cámara" : "Encender cámara"} activo={!v.camara} onClick={a.alternarCamara} deshabilitado={!v.camara && !!v.motivos?.camara} motivo={v.motivos?.camara ?? "esta llamada no lleva cámara; cambia a Vídeo"} />
+                <BotonControl icono={v.camara ? <Video className={ic} /> : <VideoOff className={ic} />} etiqueta={v.camara ? "Apagar cámara" : "Encender cámara"} activo={!v.camara} onClick={a.alternarCamara} deshabilitado={botonCamaraDeshabilitado(v.camara, v.motivos?.camara)} motivo={v.motivos?.camara ?? "esta llamada no lleva cámara; cambia a Vídeo"} />
                 {(v.camaras ?? 0) > 1 && <BotonControl icono={<SwitchCamera className={ic} />} etiqueta="Girar cámara (frontal/trasera)" onClick={a.girarCamara} deshabilitado={!!v.motivos?.["girar-camara"]} motivo={v.motivos?.["girar-camara"]} />}
                 <BotonControl icono={v.compartiendoPantalla ? <MonitorOff className={ic} /> : <Monitor className={ic} />} etiqueta={v.compartiendoPantalla ? "Dejar de compartir pantalla" : "Compartir pantalla (elige ventana o pantalla)"} activo={v.compartiendoPantalla} onClick={a.alternarPantalla} deshabilitado={!v.compartiendoPantalla && !!v.motivos?.pantalla} motivo={v.motivos?.pantalla ?? "no disponible en esta llamada"} />
                 <BotonControl icono={s.estado === "en-espera" ? <Play className={ic} /> : <Pause className={ic} />} etiqueta={s.estado === "en-espera" ? "Reanudar llamada" : "Poner en espera"} activo={s.estado === "en-espera"} onClick={a.alternarEspera} motivo="la llamada directa aún no admite espera" />
