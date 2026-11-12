@@ -1,216 +1,120 @@
 #!/usr/bin/env python3
-"""Pruebas de navegador_alta sin red (NAV1112D)."""
+# -*- coding: utf-8 -*-
+"""Pruebas de navegador_alta sin red (NAV1112D): dobles inyectados, sin Playwright."""
 import os
 import sys
-import json
-import time
-from pathlib import Path
+import unittest
+from unittest.mock import patch
 
-# Add current directory to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import navegador_alta as N  # noqa: E402
+import navegador_reglas as NR  # noqa: E402
 
-import navegador_alta as N
 
+class Base(unittest.TestCase):
+    def setUp(self):
+        self.telegram, self.llamadas, self.espera = [], [], True
 
-class MockTelegram:
-    """Mock para las pruebas del cliente Telegram."""
-    def __init__(self):
-        self.mensajes = []
-    
+        def registra(nombre, resultado=None):
+            def falso(*args):
+                self.llamadas.append((nombre,) + args)
+                return True if resultado is None else resultado
+            return falso
+
+        dobles = {
+            "_obtener_telegram": lambda: self,
+            "_encender_selkies": registra("encender"),
+            "_apagar_selkies": registra("apagar"),
+            "_iniciar_cromium": registra("chromium"),
+            "_abrir_pagina_inicio_sesion": registra("pagina"),
+            "_obtener_cliente": registra("cliente", object()),
+            "_esperar_hasta_30_minutos": lambda sesion: self.espera,
+        }
+        for objetivo, valor in dobles.items():
+            parche = patch.object(N, objetivo, valor)
+            parche.start()
+            self.addCleanup(parche.stop)
+
     def enviar(self, texto, boton_url=None):
-        self.mensajes.append(("enviar", texto, boton_url))
+        self.telegram.append(texto)
         return {"ok": True, "trozos": 1}
 
-
-class MockSelkies:
-    """Mock para las pruebas del cliente Selkies."""
-    def __init__(self):
-        self.estado = "apagado"
-        self.sesiones = {}
-    
-    def encender(self, sesion):
-        self.estado = "encendido"
-        self.sesiones[sesion] = "activo"
-    
-    def apagar(self):
-        self.estado = "apagado"
-        self.sesiones = {}
+    def marcar(self, caducadas=()):
+        def falso(sesion, nuevo, ahora=None, ruta=None):
+            return {"sesiones": {s: {"estado": "caducada" if s in caducadas else "viva",
+                                     "ultima_comprobacion": "2026-11-12T10:00:00Z"}
+                                 for s in NR.SESIONES}}
+        return falso
 
 
-class MockChromium:
-    """Mock para las pruebas del cliente Chromium."""
-    def __init__(self):
-        self.estado = "cerrado"
-        self.pagina_abierta = None
-    
-    def abrir_pagina_inicio_sesion(self):
-        self.pagina_abierta = "pagina_inicio_sesion"
-    
-    def cerrar(self):
-        self.pagina_abierta = None
-        self.estado = "cerrado"
+class TestAlta(Base):
+    def test_avisa_sin_ip_ni_url_y_apaga_selkies(self):
+        self.assertEqual(N.alta("google-alex"), {"ok": True, "sesion": "google-alex"})
+        self.assertEqual(len(self.telegram), 1)
+        aviso = self.telegram[0]
+        self.assertTrue(aviso.startswith("abre MetaGenesis › Apps Linux e inicia sesión en google-alex"))
+        self.assertNotRegex(aviso, r"https?://|\d{1,3}(?:\.\d{1,3}){3}|:\d{2,5}")
+        self.assertEqual(self.llamadas[:2], [("encender", "google-alex"), ("chromium", "google-alex")])
+        self.assertIn(("pagina",), self.llamadas)
+        self.assertEqual(self.llamadas[-1], ("apagar",))
+        self.assertFalse([c for c in self.llamadas if c[0] in ("fill", "type", "password")])
+
+    def test_apaga_selkies_si_la_espera_caduca(self):
+        self.espera = False
+        r = N.alta("google-fundacion")
+        self.assertFalse(r["ok"])
+        self.assertIn("tiempo de espera excedido", r["motivo"])
+        self.assertEqual(self.llamadas[-1], ("apagar",))
+
+    def test_apaga_selkies_si_chromium_falla(self):
+        with patch.object(N, "_iniciar_cromium", side_effect=RuntimeError("sin docker")):
+            r = N.alta("instagram-maggasukha")
+        self.assertFalse(r["ok"])
+        self.assertEqual(self.llamadas[-1], ("apagar",))
+
+    def test_sesion_desconocida_no_enciende_nada(self):
+        r = N.alta("otra-sesion")
+        self.assertFalse(r["ok"])
+        self.assertIn("desconocida", r["motivo"])
+        self.assertEqual((self.llamadas, self.telegram), ([], []))
 
 
-class MockCliente:
-    """Mock para las pruebas del cliente de navegador."""
-    def __init__(self):
-        self.estado_sesion = {"sesion": "google-alex"}
-        self.estado_vivo = False
-    
-    def estado(self):
-        return self.estado_sesion
+class TestEstado(Base):
+    def test_marca_cada_sesion_y_respeta_la_caducada(self):
+        with patch.object(NR, "marcar_estado", self.marcar({"instagram-sociedad"})):
+            r = N.estado()
+        self.assertEqual(set(r["sesiones"]), set(NR.SESIONES))
+        estados = [r["sesiones"][s]["estado"] for s in ("google-alex", "instagram-sociedad")]
+        self.assertEqual(estados, ["viva", "caducada"])
+        self.assertEqual(r["sesiones"]["google-alex"]["cuenta"], NR.SESIONES["google-alex"]["cuenta"])
+        self.assertIn(("cliente",), self.llamadas)
 
 
-class TestNavegadorAlta:
-    """Pruebas para el cliente de alta de navegador."""
-    
-    def setup_method(self):
-        """Configurar el entorno antes de cada prueba."""
-        self.telegram_mock = MockTelegram()
-        self.selkies_mock = MockSelkies()
-        self.chromium_mock = MockChromium()
-        self.cliente_mock = MockCliente()
-        
-        # Reemplazar clientes mock
-        N._obtener_telegram = lambda: self.telegram_mock
-        N._encender_selkies = lambda sesion: self.selkies_mock.encender(sesion)
-        N._apagar_selkies = lambda: self.selkies_mock.apagar()
-        N._iniciar_cromium = lambda sesion: self.chromium_mock.iniciar(sesion)
-        N._abrir_pagina_inicio_sesion = lambda: self.chromium_mock.abrir_pagina_inicio_sesion()
-        N._esperar_hasta_30_minutos = lambda sesion: time.sleep(0.1)
-        N._obtener_cliente = lambda: self.cliente_mock
-        
-        # Limpiar historial de mensajes
-        self.telegram_mock.mensajes = []
-    
-    def test_comando_alta_espera_sesiones_vivas(self):
-        """Test: El comando alta espera hasta que una sesión esté viva."""
-        # Configurar estado: sesión inicialmente viva
-        self.cliente_mock.estado_vivo = True
-        
-        # Ejecutar alta
-        resultado = N.alta("google-alex")
-        
-        # Verificar resultados
-        assert resultado["ok"] is True
-        assert len(self.telegram_mock.mensajes) == 1
-        assert "MetaGenesis › Apps Linux e inicia sesión en google-alex" in self.telegram_mock.mensajes[0][1]
-        assert self.selkies_mock.estado == "apagado"
-        assert self.chromium_mock.estado == "cerrado"
-    
-    def test_comando_alta_notifica_via_telegram(self):
-        """Test: El comando alta notifica vía Telegram."""
-        # Configurar estado: sesión viva
-        self.cliente_mock.estado_vivo = True
-        
-        # Ejecutar alta
-        N.alta("google-alex")
-        
-        # Verificar notificación
-        assert len(self.telegram_mock.mensajes) == 1
-        assert "MetaGenesis › Apps Linux e inicia sesión en google-alex" in self.telegram_mock.mensajes[0][1]
-    
-    def test_comando_alta_apaga_selkies_al_terminar(self):
-        """Test: El comando alta apaga Selkies al terminar."""
-        # Configurar estado: sesión viva
-        self.cliente_mock.estado_vivo = True
-        
-        # Ejecutar alta
-        N.alta("google-alex")
-        
-        # Verificar que Selkies está apagado
-        assert self.selkies_mock.estado == "apagado"
-    
-    def test_comando_estado_verifica_sesiones(self):
-        """Test: El comando estado verifica cada sesión."""
-        # Mockear obtener_cliente para devolver diferentes estados
-        def obtener_cliente_estado():
-            cliente = MockCliente()
-            cliente.estado_sesion = {"sesion": "google-alex"}
-            return cliente
-        
-        N._obtener_cliente = obtener_cliente_estado
-        
-        # Ejecutar estado
-        resultado = N.estado()
-        
-        # Verificar resultados
-        assert "sesiones" in resultado
-        assert len(resultado["sesiones"]) == 2  # google-alex e instagram-maggasukha
-        assert resultado["sesiones"]["google-alex"]["estado"] == "viva"
-        assert resultado["sesiones"]["instagram-maggasukha"]["estado"] == "viva"
-    
-    def test_comando_vigilar_notifica_cuando_expira(self):
-        """Test: El comando vigilar notifica cuando una sesión expira."""
-        # Configurar estado: sesión inicialmente viva
-        self.cliente_mock.estado_vivo = True
-        
-        # Ejecutar alta (marca como viva)
-        N.alta("google-alex")
-        
-        # Simular que la sesión expira
-        self.cliente_mock.estado_vivo = False
-        
-        # Ejecutar vigilar
-        N.vigilar("google-alex")
-        
-        # Verificar que hubo una notificación
-        assert len(self.telegram_mock.mensajes) == 1
-        assert "google-alex" in self.telegram_mock.mensajes[0][1]
-    
-    def test_comando_vigilar_no_reintenta(self):
-        """Test: El comando vigilar no reintenta cuando expira."""
-        # Configurar estado: sesión inicialmente viva
-        self.cliente_mock.estado_vivo = True
-        
-        # Ejecutar alta (marca como viva)
-        N.alta("google-alex")
-        
-        # Simular que la sesión expira
-        self.cliente_mock.estado_vivo = False
-        
-        # Ejecutar vigilar
-        N.vigilar("google-alex")
-        
-        # Simular expiración de nuevo
-        self.cliente_mock.estado_vivo = True
-        
-        # Ejecutar vigilar nuevamente
-        N.vigilar("google-alex")
-        
-        # Verificar que solo hubo una notificación
-        assert len(self.telegram_mock.mensajes) == 1
+class TestVigilar(Base):
+    def test_avisa_una_vez_solo_de_la_caducada(self):
+        with patch.object(NR, "marcar_estado", self.marcar()):
+            self.assertFalse(N.vigilar()["aviso"])
+        self.assertEqual(self.telegram, [])
+        with patch.object(NR, "marcar_estado", self.marcar({"instagram-maggasukha"})):
+            r = N.vigilar()
+        self.assertTrue(r["aviso"])
+        self.assertEqual(len(self.telegram), 1)
+        self.assertIn("instagram-maggasukha", self.telegram[0])
 
+    def test_no_reintenta_el_alta(self):
+        with patch.object(NR, "marcar_estado", self.marcar(set(NR.SESIONES))):
+            with patch.object(N, "alta") as alta_falsa:
+                N.vigilar()
+        alta_falsa.assert_not_called()
+
+
+class TestCli(Base):
+    def test_despacha_los_tres_comandos_y_rechaza_lo_demas(self):
+        with patch.object(NR, "marcar_estado", self.marcar()):
+            self.assertEqual(N.main(["n", "alta", "google-alex"]), 0)
+            self.assertEqual(N.main(["n", "estado"]), 0)
+            self.assertEqual(N.main(["n", "vigilar"]), 0)
+        self.assertEqual(N.main(["n", "desconocido"]), 1)
 
 if __name__ == "__main__":
-    print("Ejecutando pruebas para navegador_alta...")
-    
-    # Crear instancia de prueba y ejecutar pruebas
-    test = TestNavegadorAlta()
-    
-    # Ejecutar todas las pruebas
-    test.setup_method()
-    test.test_comando_alta_espera_sesiones_vivas()
-    print("✓ test_comando_alta_espera_sesiones_vivas")
-    
-    test.setup_method()
-    test.test_comando_alta_notifica_via_telegram()
-    print("✓ test_comando_alta_notifica_via_telegram")
-    
-    test.setup_method()
-    test.test_comando_alta_apaga_selkies_al_terminar()
-    print("✓ test_comando_alta_apaga_selkies_al_terminar")
-    
-    test.setup_method()
-    test.test_comando_estado_verifica_sesiones()
-    print("✓ test_comando_estado_verifica_sesiones")
-    
-    test.setup_method()
-    test.test_comando_vigilar_notifica_cuando_expira()
-    print("✓ test_comando_vigilar_notifica_cuando_expira")
-    
-    test.setup_method()
-    test.test_comando_vigilar_no_reintenta()
-    print("✓ test_comando_vigilar_no_reintenta")
-    
-    print("\n¡Todas las pruebas pasaron!")
+    unittest.main()
