@@ -30,6 +30,18 @@ import sintesis_tareas as ST
 import sintesis_telegram as SG
 import suenos as S
 
+def _navegador_estado(raiz: str) -> dict:
+    """Estado del navegador propio: sesiones vivas y última comprobación."""
+    ruta_estado = os.path.expanduser("~/.starseed/navegador/estado.json")
+    try:
+        with open(ruta_estado, encoding="utf-8") as f:
+            datos = json.load(f)
+        sesiones = datos.get("sesiones", {})
+        vivas = [nombre for nombre, datos in sesiones.items() if datos.get("estado") == "viva"]
+        return {"ok": True, "vivas": vivas, "total": len(sesiones), "detalle": sesiones}
+    except (OSError, ValueError):
+        return {"ok": False, "vivas": [], "total": 0, "detalle": {}, "motivo": "sin_estado"}
+
 RAIZ = os.environ.get("STARSEED_ROOT") or os.path.dirname(os.path.dirname(DIRECTORIO))
 AGENTE = "sintesis-produccion"
 REL_ESTADO = "starseed_memory_root/produccion-audiovisual/estado.json"
@@ -315,7 +327,7 @@ def _estado(raiz):
 
 def parser():
     p = argparse.ArgumentParser(description="Agente de síntesis diaria de producción")
-    p.add_argument("orden", choices=("plan", "ciclo", "estado"))
+    p.add_argument("orden", choices=("plan", "ciclo", "estado", "navegador-estado"))
     p.add_argument("--raiz", default=RAIZ)
     p.add_argument("--home")
     p.add_argument("--seco", action="store_true")
@@ -333,6 +345,8 @@ def main(argv=None, salida=None):
     elif a.orden == "ciclo":
         d = ciclo(a.raiz, ahora, encargar=None, jev=False if a.sin_jev else None,
                   enviar=None, forzar=a.forzar, seco=a.seco, home=a.home)
+    elif a.orden == "navegador-estado":
+        d = _navegador_estado(a.raiz)
     else:
         d = _estado(a.raiz)
     salida = salida or sys.stdout

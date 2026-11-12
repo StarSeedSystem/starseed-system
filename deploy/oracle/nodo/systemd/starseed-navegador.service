@@ -1,0 +1,20 @@
+[Unit]
+Description=StarSeed · Navegador propio: vigilia, lectura y reparación diaria (NAV1112J)
+After=network-online.target
+Wants=network-online.target
+# requiere: scripts/puente/navegador_ciclo.py, navegador_alta.py, navegador_reparar.py, lectores de actividad
+
+[Service]
+Type=oneshot
+User=starseed
+Group=starseed
+WorkingDirectory=/home/starseed/starseed-system
+Environment=STARSEED_ROOT=/home/starseed/starseed-system PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/python3 /home/starseed/starseed-system/scripts/puente/navegador_ciclo.py
+TimeoutStartSec=7200
+MemoryMax=1500M
+Nice=10
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
