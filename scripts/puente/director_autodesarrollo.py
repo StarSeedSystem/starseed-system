@@ -191,6 +191,18 @@ def _agente_sintesis(raiz, ahora):
     return {"ok": True} if r is None else r
 
 
+def _buzon_encargos(raiz, ahora):
+    """`encargos_buzon.ciclo(raiz, ahora)` si ese módulo existe; None si no hay buzón."""
+    try:
+        import encargos_buzon as E
+    except Exception:
+        return None
+    f = getattr(E, "ciclo", None)
+    if not callable(f): return None
+    r = f(raiz=raiz, ahora=ahora)
+    return {"ok": True} if r is None else r
+
+
 def _es_alcance(p):
     """Un borrador del agente de alcance: su destino es SIEMPRE la aprobación de una persona (R2, R8)."""
     return str(p.get("agente") or "").strip().lower() == "alcance"
@@ -483,12 +495,13 @@ def fusionar_con_disco(inicial, propuestas, disco_crudo):
 
 def ciclo(seco=False, ahora=None, capacidad=-1, home=None, raiz=None, lanzador_diario=None, lanzador_profundo=None,
           existe_ruta=None, datos=None, avisar=None, consejo=None, agente_referencias=None, aplicar_astraura=None,
-          a_la_flota=None, agente_alcance=None, agente_sintesis=None, llamar_egm=None):
+          a_la_flota=None, agente_alcance=None, agente_sintesis=None, agente_buzon_encargos=None, llamar_egm=None):
     """Un ciclo (§5). `datos`: {diaria, profunda, astraura, directores, agentes} para no leer disco ni red.
     `consejo(p)`: Jev para el veto de lo que se integraría solo (None = solo la regla). `agente_referencias(raiz,
     ahora)`: el agente de referencias de diseño (por defecto, el módulo si existe); devuelve None si no hay agente.
     `agente_alcance(raiz, ahora)`: el agente de alcance (por defecto, `agente_alcance.ciclo` si existe).
     `agente_sintesis(raiz, ahora)`: el agente de síntesis de producción (por defecto, `agente_sintesis.ciclo` si existe).
+    `agente_buzon_encargos(raiz, ahora)`: el buzón de encargos de Drive (por defecto, `encargos_buzon.ciclo` si existe).
     `aplicar_astraura(item)`: aplica una creación en el backend 1.58 (None si lo hizo, o el error); por defecto, HTTP.
     `a_la_flota(raiz, tareas)`: entrega el análisis encolado al orquestador vivo (por defecto `AR.a_la_flota`).
     `llamar_egm(prompt, modelo)`: función para llamar a modelos en la revisión EGM (None = usa modelos por defecto).
@@ -539,6 +552,14 @@ def ciclo(seco=False, ahora=None, capacidad=-1, home=None, raiz=None, lanzador_d
             try: sin = (agente_sintesis or _agente_sintesis)(raiz, ahora)
             except Exception as e: sin = {"ok": False, "error": type(e).__name__}
             if sin is not None: lanzo.append("sintesis-produccion")
+            # Buzón de encargos: como mucho cada 10 min cuando este nodo dirige
+            ult_buzon = est.get("buzon_encargos")
+            if not ult_buzon or ahora.timestamp() - float(ult_buzon) >= 600:
+                try: buz = (agente_buzon_encargos or _buzon_encargos)(raiz, ahora)
+                except Exception as e: buz = {"ok": False, "error": type(e).__name__}
+                if buz is not None:
+                    lanzo.append("buzon-encargos")
+                    est["buzon_encargos"] = ahora.timestamp()
             _escribir(est_ruta, est)
         d, f = datos or {}, aj["fuentes"]
         enc = _json(os.path.join(home, "dream-encargado.json"), {}); claves = enc.get("claves", []) if isinstance(enc, dict) else list(enc)

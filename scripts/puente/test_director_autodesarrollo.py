@@ -31,6 +31,7 @@ class DirectorTest(unittest.TestCase):
                     lanzador_profundo=lambda *a: self.llamadas.append(a) or True,
                     agente_referencias=lambda raiz, ahora: None,  # sin el agente real (red) en las pruebas
                     agente_alcance=lambda raiz, ahora: None,  # sin el agente real (red) en las pruebas
+                    agente_buzon_encargos=lambda raiz, ahora: None,  # sin el agente real (red) en las pruebas
                     datos={"diaria": MD, "profunda": {}, "astraura": {}, "directores": {}})
         args.setdefault("a_la_flota", self._flota)
         args.update(kw); return D.ciclo(**args)
@@ -185,6 +186,7 @@ class Imaginacion1024Test(unittest.TestCase):
                     lanzador_diario=lambda: True, lanzador_profundo=lambda *a: True,
                     agente_referencias=lambda raiz, ahora: self.referencias.append((raiz, ahora)) or {"ok": True},
                     agente_alcance=lambda raiz, ahora: None,
+                    agente_buzon_encargos=lambda raiz, ahora: None,
                     datos={"diaria": "", "profunda": {}, "astraura": {}, "directores": {}})
         args.setdefault("a_la_flota", self._flota)
         args.update(kw); return D.ciclo(**args)
@@ -360,6 +362,33 @@ class Imaginacion1024Test(unittest.TestCase):
         self.correr(seco=True, capacidad=None)
         self.assertEqual(len(llamadas), 1)
 
+    def test_buzon_encargos_protegido(self):
+        """_buzon_encargos importa protegido y llama a encargos_buzon.ciclo si existe."""
+        import types
+        llamadas, previo = [], sys.modules.get("encargos_buzon")
+        try:
+            sys.modules["encargos_buzon"] = None  # no existe: import falla → nada
+            self.assertIsNone(D._buzon_encargos(self.raiz, NOCHE))
+            m = types.ModuleType("encargos_buzon"); sys.modules["encargos_buzon"] = m
+            self.assertIsNone(D._buzon_encargos(self.raiz, NOCHE))  # sin `ciclo`
+            m.ciclo = lambda raiz, ahora, **kw: llamadas.append((raiz, ahora))
+            self.assertEqual(D._buzon_encargos(self.raiz, NOCHE), {"ok": True})
+            self.assertEqual(llamadas, [(self.raiz, NOCHE)])
+            m.ciclo = lambda raiz, ahora, **kw: 1 / 0
+            r = self.correr(agente_buzon_encargos=None)
+            self.assertIn("buzon-encargos", r["lanzado"])  # su fallo no tumba el ciclo
+        finally:
+            if previo is None: sys.modules.pop("encargos_buzon", None)
+            else: sys.modules["encargos_buzon"] = previo
+
+    def test_el_director_llama_al_buzon_encargos_si_existe(self):
+        llamadas = []
+        r = self.correr(agente_buzon_encargos=lambda raiz, ahora: llamadas.append((raiz, ahora)) or {"ok": True})
+        self.assertEqual(llamadas, [(self.raiz, NOCHE)])
+        self.assertIn("buzon-encargos", r["lanzado"])
+        self.correr(seco=True, capacidad=None)
+        self.assertEqual(len(llamadas), 1)
+
 
 class Ola1025STest(unittest.TestCase):
     """Ola 1025S · IMG1025A: el automático decide todas las fuentes y tipos, con tope por ciclo y sin duplicadas."""
@@ -388,7 +417,8 @@ class Ola1025STest(unittest.TestCase):
     def correr(self, **kw):
         args = dict(ahora=NOCHE, capacidad=CAP, home=self.home, raiz=self.raiz, existe_ruta=lambda r: False,
                     lanzador_diario=lambda: True, lanzador_profundo=lambda *a: True, agente_referencias=lambda raiz, ahora: None,
-                    agente_alcance=lambda raiz, ahora: None, aplicar_astraura=self.aplicar,
+                    agente_alcance=lambda raiz, ahora: None, agente_buzon_encargos=lambda raiz, ahora: None,
+                    aplicar_astraura=self.aplicar,
                     datos={"diaria": "", "profunda": {}, "astraura": {}, "directores": {}, "agentes": {}})
         args.setdefault("a_la_flota", self._flota)
         args.update(kw); return D.ciclo(**args)
@@ -614,6 +644,7 @@ class EGMRevisionTest(unittest.TestCase):
                     lanzador_diario=lambda: True, lanzador_profundo=lambda *a: True,
                     agente_referencias=lambda raiz, ahora: None,
                     agente_alcance=lambda raiz, ahora: None,
+                    agente_buzon_encargos=lambda raiz, ahora: None,
                     datos={"diaria": MD, "profunda": {}, "astraura": {}, "directores": {}, "agentes": {}})
         args.setdefault("a_la_flota", self._flota)
         if llamar_egm is not None:
