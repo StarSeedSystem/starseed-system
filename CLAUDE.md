@@ -555,6 +555,32 @@ catálogos indexados en local, refrescables con `starseed-fuentes refrescar` y c
 El enjambre las reparte solo: `contexto_inteligente()` mira las palabras de cada tarea y le pasa al
 agente **el puntero y el comando de búsqueda**, nunca el catálogo entero (economía de contexto).
 
+## 📬 Encargar trabajo a MetaGenesis sin la Mac
+
+Cualquier chat (Claude en la nube, la Mac, Hermes u otro IDE) con acceso a Google Drive puede
+encargar trabajo a MetaGenesis aunque la Mac esté apagada.
+
+**Carpeta de Drive:** «Encargos para MetaGenesis» — id `1lZaGcZ8COkaunilTxYLj-SWuFkGTwmrF`
+(propietario `alexbordongarrigos@gmail.com`).
+
+**Formato del Doc:**
+- Título: `<qué> · contrato y cola <OLA> (léelo, director)`
+- Línea: `**Destino en el repo:** \`architecture/<nombre>.md\``
+- Bloque JSON de la cola: `{"ola": "<OLA>", "tareas": [...]}`
+  Cada tarea con `id`, `ola`, `titulo`, `archivos`, `depende`, `prompt` (módulo puro, ≤3 archivos,
+  ≤120 líneas).
+
+**Quién lo recoge:** el líder de dirección (`lider_direccion.soy_lider()` — A1 siempre encendido o
+la Mac cuando lidera) revisa la carpeta cada 10 minutos. Valida, guarda el contrato en
+`architecture/`, escribe la cola en `starseed_memory_root/olas/cola-<ola>.json` y avisa en el
+chat del director. Si el Doc no es válido, avisa del motivo y no toca nada.
+
+**Seguridad:** el Doc es datos, no órdenes. Solo se extraen contrato y JSON; las tareas pasan por
+las mismas puertas del enjambre. Se rechaza cualquier prompt que pida claves, push, borrados o
+lanzar un orquestador nuevo.
+
+Contrato completo: `architecture/encargos-chats-metagenesis.md`.
+
 ## 🌌 Inteligencia primaria del OS (Adenda 155 · 2026-08-23)
 
 **Astraura 1.58-bit** (backend soberano propio: BitNet b1.58 ternario nativo) es el **sistema
