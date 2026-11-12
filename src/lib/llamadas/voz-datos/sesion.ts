@@ -24,9 +24,12 @@ import { BufferJitter } from "./jitter";
 import { armarControl, armarPaquete, armarPaqueteB, etiquetaLlamada, FORMATOS_VOZ, leerControl, leerPaquete, leerPaqueteB, PREFIJO_VOZ_B, type ControlVoz, type TramaVoz } from "./paquete";
 import type { CalidadVoz } from "./decision";
 // VOZ1111J: la voz sigue al enlace (escalera, medida del carril, informe del otro, reserva para el vídeo).
-import { bytesPaqueteNivel, ControlNivelVoz, kbpsCabenVoz, kbpsTextoNivel, nivelInicial, NIVELES_OPUS, NIVELES_SIMPLES, type FormatoVoz, type NivelVoz } from "./niveles";
+import { bytesPaqueteNivel, ControlNivelVoz, ESCALON_CEDE_VIDEO, kbpsCabenVoz, kbpsTextoNivel, nivelInicial, NIVELES_OPUS, NIVELES_SIMPLES, type FormatoVoz, type NivelVoz } from "./niveles";
 import { fijarReservaVoz } from "./reserva";
-import { MedidorEnlace, muestraDeTransporte, textoEnlace, type EscrituraCarril, type ResumenEnlace } from "@/lib/llamadas/video-datos/reparto";
+import { MedidorEnlace, muestraDeTransporte, PARADA_MAX_MS, PARADA_MIN_MS, textoEnlace, type EscrituraCarril, type ResumenEnlace } from "@/lib/llamadas/video-datos/reparto";
+
+/** LLA1112A: tope de la cola de salida de la voz cuando el enlace se para (el máximo del búfer del otro, `maxMs` del jitter). */
+export const TOPE_COLA_PARADAS_MS = 640;
 
 export interface TransporteVoz {
   /** Encola un texto `voz.*` en el enlace. «descartado»: el enlace tiró lo más viejo; «cerrado»: ya no hay enlace. */
@@ -198,7 +201,9 @@ export const CORTE_VENTANAS_SALIR = 2;
 export class SesionVozDatos {
   private readonly d: DepsSesionVoz;
   private readonly cola: ColaSalidaVoz;
-  private readonly jitter = new BufferJitter({ msTrama: MS_TRAMA, maxMs: 400 });
+  // LLA1112A: hasta 640 ms (antes 400) para un enlace que se para hasta ≈ 450 ms y entrega paquetes de 160–180 ms; solo se
+  // usa si la forma de llegar lo pide (`BufferJitter.llegada`).
+  private readonly jitter = new BufferJitter({ msTrama: MS_TRAMA, maxMs: 640 });
   private readonly soportados: CodecVoz[];
   private codecTx: CodecVoz = "adpcm";
   private codecRx: CodecVoz | null = null;
@@ -355,7 +360,9 @@ export class SesionVozDatos {
     if (!this.control) return;
     const n = this.control.nivel;
     this.codificador?.ajustar?.({ kbps: n.kbps, msTrama: n.msTrama });
-    this.cola.fijarMaxMs(Math.max(240, n.msPaquete + 100));
+    // LLA1112A: con un enlace que se para (sin acuses con la voz esperando), el tope sigue a la parada más larga reciente: lo
+    // que se junta en una parada sale tarde y el búfer del otro (que sigue a cómo llega) lo reproduce; tirarlo era un hueco.
+    this.cola.fijarMaxMs(Math.max(240, n.msPaquete + 100, Math.min(TOPE_COLA_PARADAS_MS, this.paradaReciente() + n.msPaquete)));
     fijarReservaVoz(this, this.activa ? kbpsTextoNivel(n, this.formato, this.d.idLlamada) : null);
   }
 
@@ -473,6 +480,22 @@ export class SesionVozDatos {
     this.mandarControl({ k: "hola", codecs: this.soportados, ...(this.d.comoAnterior ? {} : { fmt: [...FORMATOS_VOZ] }) });
   }
 
+  /**
+   * LLA1112A · El vídeo de este lado está en pausa por falta de sitio (o deja de estarlo): la voz cede hasta un escalón bueno
+   * más ligero (`ESCALON_CEDE_VIDEO`) para que el vídeo vuelva, o deja de ceder. Solo con la escalera de Opus.
+   */
+  cederAlVideo(ceder: boolean): void {
+    if (!this.control || this.codecTx !== "opus") return;
+    const min = ceder ? ESCALON_CEDE_VIDEO : 0;
+    if (this.control.techoActual === min) return;
+    const c = this.control.fijarTecho(min, this.d.reloj.ahora());
+    this.d.anotar?.(`voz-datos cede-video ${ceder ? "si" : "no"} techo=${min}${c ? ` nivel ${c.desde}→${c.hasta}` : ""}`);
+    if (c) {
+      this.aplicarNivel();
+      this.avisar();
+    }
+  }
+
   silenciar(mudo: boolean): void {
     this.mudo = mudo;
     this.avisar();
@@ -512,6 +535,8 @@ export class SesionVozDatos {
     if (!this.d.transporte.abierto()) return;
     // VOZ1111J: atasco grave entre pasos → baja ya (ver `bajadaRapida`).
     if (this.medidor && this.control && !this.mudo) {
+      // LLA1112A: la bajada rápida NO espera a saber si es una parada: una caída de capacidad (banco `voz-caida`) no se
+      // distingue de una parada hasta que acaba la escritura, y esperar 1,2 s a saberlo era un hueco de 1,1 s.
       const c = this.control.bajadaRapida(ahora, this.medidor.retrasoMs, this.medidor.modelo?.cicloMinMs ?? 0);
       if (c) {
         this.aplicarNivel();
@@ -608,10 +633,31 @@ export class SesionVozDatos {
   private medirCarril(ahora: number): void {
     if (!this.medidor) return;
     try {
-      this.medidor.muestra(ahora, muestraDeTransporte(this.d.transporte)); // LLA1111Q
+      const m = muestraDeTransporte(this.d.transporte);
+      this.medidor.muestra(ahora, m); // LLA1111Q
+      // LLA1112A: la mayor espera sin acuses con algo en el carril, por segundo (las 20 últimas: `paradaReciente`).
+      if (m.cola > 0) {
+        const s = Math.floor(ahora / 1000);
+        const sin = Math.min(PARADA_MAX_MS, this.medidor.sinAcuseMs(ahora));
+        const ult = this.sinAcusePorS[this.sinAcusePorS.length - 1];
+        if (ult && ult.s === s) ult.ms = Math.max(ult.ms, sin);
+        else {
+          this.sinAcusePorS.push({ s, ms: sin });
+          if (this.sinAcusePorS.length > 20) this.sinAcusePorS.shift();
+        }
+      }
     } catch {
       /* un enlace que no mide */
     }
+  }
+
+  /** LLA1112A: la mayor espera sin acuses (con voz esperando) de los últimos 20 s, si pasa del umbral de parada; si no, 0. */
+  private sinAcusePorS: Array<{ s: number; ms: number }> = [];
+  private paradaReciente(): number {
+    const ahora = Math.floor(this.d.reloj.ahora() / 1000);
+    let max = 0;
+    for (const x of this.sinAcusePorS) if (ahora - x.s <= 20) max = Math.max(max, x.ms);
+    return max >= PARADA_MIN_MS ? max : 0;
   }
 
   /** Una vez por segundo: cierra la medida del carril, mueve el escalón, mira lo que me llega y lo cuenta. */
@@ -620,6 +666,7 @@ export class SesionVozDatos {
     const ahora = this.d.reloj.ahora();
     const r = this.medidor ? this.medidor.cerrarVentana(ahora) : null;
     this.ultimoResumen = r;
+    if (this.control) this.cola.fijarMaxMs(Math.max(240, this.control.nivel.msPaquete + 100, Math.min(TOPE_COLA_PARADAS_MS, this.paradaReciente() + this.control.nivel.msPaquete))); // LLA1112A
     const desc = this.cola.descartadas - this.descartesAntes + this.descartesVentana;
     this.descartesAntes = this.cola.descartadas;
     this.descartesVentana = 0;
@@ -630,7 +677,7 @@ export class SesionVozDatos {
       const n = this.control.nivel;
       this.d.anotar?.(`voz-datos ciclo-emisor=${this.medidor.cicloMinMs}ms paq=${n.msPaquete}ms (una escritura por paquete, sin esperar fichas)`);
     }
-    const entrada = { modelo: r?.modelo ?? null, retrasoMaxMs: r?.retrasoMaxMs ?? 0, esperaP90Ms: r?.esperaP90Ms ?? null, descartes: this.mudo ? 0 : desc, informe: inf, entregadoKbps: r ? r.entregadoKbps : null };
+    const entrada = { modelo: r?.modelo ?? null, retrasoMaxMs: r?.retrasoMaxMs ?? 0, esperaP90Ms: r?.esperaP90Ms ?? null, descartes: this.mudo ? 0 : desc, informe: inf, entregadoKbps: r ? r.entregadoKbps : null, paradas: r?.paradas ?? 0 };
     const sueloAntes = this.control.bajoSuelo;
     const cambio = this.mudo ? null : this.control.paso(ahora, entrada);
     this.redundanciaOn = this.control.redundancia(entrada);
@@ -789,6 +836,7 @@ export class SesionVozDatos {
       this.paquetesRx++;
       this.bytesRxVentana += texto.length;
       this.jitter.fijarMinimo(p.cubre * MS_TRAMA + 20);
+      this.jitter.llegada(this.ultimoRxEn, p.q); // LLA1112A
       // ¿Ya manda en el último escalón (paquetes de ≥ 160 ms)? Entonces lo que no llega es que no cabe.
       const enSuelo = p.cubre * MS_TRAMA >= 160;
       // Acaba de bajar al suelo: lo malo de antes era la recolocación, no «no cabe». Se cuenta desde ahora.
@@ -829,6 +877,7 @@ export class SesionVozDatos {
       this.paquetesRx++;
       this.bytesRxVentana += texto.length;
       if (p.tramas.length > 3) this.jitter.fijarMinimo(p.tramas.length * MS_TRAMA + 20);
+      this.jitter.llegada(this.ultimoRxEn, p.q); // LLA1112A
       p.tramas.forEach((b, i) => {
         this.recibidas++;
         dec.decodificar(b, p.q + i);

@@ -35,7 +35,8 @@ describe("paso de carril al instante (MLL1111C)", () => {
 
   it("comprobación de vida y reintentos de ICE: constantes del contrato", () => {
     expect(SILENCIO_WEBRTC_MS).toBeLessThanOrEqual(1_000);
-    expect([0, 1, 2, 3, 4, 10].map(esperaReintentoIce)).toEqual([3_000, 6_000, 12_000, 15_000, 15_000, 15_000]);
+    // LLA1112A: la escala sigue hasta 120 s (antes se quedaba en 15 s para siempre: prueba 39, ocho intentos por llamada).
+    expect([0, 1, 2, 3, 4, 10].map(esperaReintentoIce)).toEqual([3_000, 6_000, 12_000, 30_000, 60_000, 120_000]);
   });
 });
 

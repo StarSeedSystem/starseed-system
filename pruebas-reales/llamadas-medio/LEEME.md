@@ -15,7 +15,7 @@ Bluetooth L2CAP: retardo, capacidad y pérdida en `banco.datos`). La ruta IP se 
 cd pruebas-reales/llamadas-medio
 node construir.mjs ../.. salida/banco.js          # esbuild con el alias @/ (entra src/lib/llamadas y, MLL1111C, malla/senales-red y malla/cola-timbre)
 cp index.html salida/
-node correr.mjs salida todos 300 > resultados.json # o: aleteo, ip-aparece, choque, video, segunda, corte-ip, sin-servidor, paso-ip, paso-ip-silencioso, timbre-cola, video-sube, wifi-directo, ble-160, ble-80, ble-40, ble-caida, ble-micro, ble-real, ble-real-mudo
+node correr.mjs salida todos 300 > resultados.json # o: aleteo, ip-aparece, choque, video, segunda, corte-ip, sin-servidor, paso-ip, paso-ip-silencioso, timbre-cola, video-sube, wifi-directo, ble-160, ble-80, ble-40, ble-caida, ble-micro, ble-real, ble-real-mudo, ble-tableta, wifi-cae, ruta-fantasma
 ```
 
 Para comparar con otro árbol (p. ej. main): `node construir.mjs /ruta/al/otro/repo salida-viejo/banco.js`.
@@ -49,8 +49,11 @@ Necesita `esbuild` y `playwright` (globales o en `/opt/npm-tools`). No toca el M
 | `vozvideo-80` · `vozvideo-40` | Voz y vídeo a la vez: la reserva de la voz sigue a su escalón (registro `video-datos reparto … voz=`). |
 | `ble-real` (LLA1111Q) | Carril **calibrado** con el registro de la prueba 37 (`bleReal` en `entrada.ts`, cada número con la línea del registro de la que sale): acuse por escritura 25 + Exp(30) ms (tope 115), serialización 35–70 B/ms de aire, cifrado del enlace (base64 + 96 B por escritura), la cubeta de escrituras del motor (36 de ráfaga, 7,2/s), control antes que voz/datos, la señalización cada 3,3 s y el espejo del registro (5 KB cada 30 s) en el mismo enlace, y `capacidadKbps` = lo que mide la app nativa con mensajes ≥ 2 KiB. Micros abiertos y cámaras encendidas, 120 s. Pasa con ≥ 3 fps en el 80 % de las ventanas en los dos sentidos, voz < 2 % perdida, ≤ 3 % tarde (400 ms), espera tras vídeo ≤ 150 ms, ≤ 1 hueco audible/min y ninguno > 200 ms, y la voz en Opus ≥ 12 kb/s al acabar. Con el código de antes reproduce el aparato: voz en 6 kb/s con el enlace leído a 20–40 kb/s y vídeo en pausa. |
 | `ble-real-mudo` | Igual con los dos micros en silencio: el vídeo no puede depender de que alguien hable. |
+| `ble-tableta` (LLA1112A) | `ble-real` con el lado B como la tableta de la prueba 39 (`bleReal.ladoB` = `LADO_TABLETA_39` en `entrada.ts`, cada número con su línea): acuse más largo, serialización más lenta y PARADAS (B ni escribe ni entrega a su web durante 150–450 ms cada ≈ 2 s; una escritura en vuelo se alarga hasta que acaba). 120 s, micros abiertos y cámaras. Pasa con lo de `ble-real` (tránsito aparte: aquí manda lo que se reproduce) más: audio inventado ≤ 5 % en cada ventana de 5 s y el «tarde» que informa el otro ≤ 5 % (desde los 20 s), espera tras vídeo ≤ 250 ms (carril lento). |
+| `wifi-cae` (LLA1112A) | Llamada con IP y Bluetooth (160 kb/s, vídeo ligero de verdad), voz y vídeo por WebRTC; corte silencioso de la IP 20 s y vuelta. Pasa si el motor elegido para «enlace local + Bluetooth» es el de llamadas, la voz suena en los dos en ≤ 2,5 s, hay vídeo ligero (≥ 1 fps) durante el corte, la llamada sigue y el vídeo vuelve por WebRTC sin negro; y si la llamada directa sigue en curso 2 s después de perder su enlace. |
+| `ruta-fantasma` (LLA1112A) | Solo Bluetooth con una ruta IP anunciada que no lleva nada (los dos aparatos de la misma cuenta, «Yo»), 180 s. Pasa con ≤ 2 reintentos de WebRTC, ningún «Reconectando…» con la voz por Bluetooth, sin el aviso de enlace fallido al acabar y el otro con el nombre de su aparato. |
 
-Cada caso nuevo devuelve `pasa`. El árbol viejo se construye sin `cola-timbre` (el módulo llega vacío y el banco usa el
+Cada caso nuevo devuelve `pasa`. Para correrlo desde una copia fuera del repo (si el `playwright` del repo no casa con los navegadores instalados), copia `correr.mjs` y `salida/` a otra carpeta y córrelo allí: usa el de `/opt/npm-tools`. El árbol viejo se construye sin `cola-timbre` (el módulo llega vacío y el banco usa el
 intento único de antes).
 
 No está en CI (no hay trabajo de extremo a extremo con navegador). Lo que el banco NO cubre: radios reales, el

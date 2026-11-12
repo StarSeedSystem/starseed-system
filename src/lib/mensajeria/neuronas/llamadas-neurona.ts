@@ -202,6 +202,24 @@ export async function llamarANeurona(o: {
         // la llamada va por él, sin servidor (id local; la voz por el enlace de datos y WebRTC cuando aparezca una ruta IP).
         // Antes aquí acababa: la tableta con el Wi-Fi apagado nunca llegaba a llamar (prueba 33).
         let sinServidor = false;
+        // LLA1112A — con el enlace WebRTC local Y un enlace de datos sin IP (Bluetooth) con esa neurona, la llamada va por el
+        // motor de llamadas (carriles por flujo): si la red se va a mitad, la voz sigue por Bluetooth sin colgar (prueba 39).
+        // Ver `src/lib/llamadas/ruta-llamada-neurona.ts`.
+        let porCarriles = false;
+        if (plan.via === "enlace-local" && neurona) {
+            try {
+                const [vt, rl] = await Promise.all([import("@/lib/llamadas/voz-datos/transporte"), import("@/lib/llamadas/ruta-llamada-neurona")]);
+                await vt.precargarTransporteVoz();
+                const r = rl.rutaLlamadaNeurona({ via: plan.via, permiteLocal, enlacesSinIp: vt.enlacesDatosHacia(neurona).filter((x) => !x.ip).length });
+                if (r.cambiada) {
+                    porCarriles = true;
+                    sinServidor = !(red.internet && red.uid);
+                }
+            } catch {
+                porCarriles = false;
+            }
+        }
+        // LLA1112A — fin
         if (!plan.via && neurona && permiteLocal) {
             try {
                 const vt = await import("@/lib/llamadas/voz-datos/transporte");
@@ -217,7 +235,9 @@ export async function llamarANeurona(o: {
             avisarEnvioPesado({ destino: conv.destino, clase: tipo === "pantalla" ? "pantalla" : "llamada" });
             return { ok: false, motivo: plan.aviso, plan };
         }
-        const planEfectivo: PlanLlamada = plan.via ? plan : { via: "sistema-llamadas", motivo: "llamada por el enlace directo con la neurona (sin internet ni servidor)", descartados: plan.descartados };
+        const planEfectivo: PlanLlamada = porCarriles // LLA1112A
+            ? { via: "sistema-llamadas", motivo: "llamada con carriles: WebRTC por la red y la voz por Bluetooth si la red se va (sin colgar)", descartados: plan.descartados }
+            : plan.via ? plan : { via: "sistema-llamadas", motivo: "llamada por el enlace directo con la neurona (sin internet ni servidor)", descartados: plan.descartados };
         const llamada: LlamadaNeurona = { tipo: tipo === "audio" ? "audio" : "video", via: planEfectivo.via!, ...(tipo === "pantalla" ? { pantalla: true } : {}) };
 
         if (planEfectivo.via === "enlace-local" && plan.enlaceId) {

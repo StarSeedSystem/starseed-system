@@ -67,10 +67,65 @@ export const REGLAS: Record<Flujo, ReglaFlujo> = {
  */
 export const SILENCIO_WEBRTC_MS = 1_000;
 
-/** (MLL1111C) Espera antes del reintento n de ICE con una ruta IP viva: 3, 6, 12 y luego cada 15 s (antes, 60 s fijos). */
+/**
+ * (MLL1111C) Espera antes del reintento n de ICE con una ruta IP viva. LLA1112A: 3, 6, 12, 30, 60 y luego cada 120 s (antes
+ * 3, 6, 12 y cada 15 s: en la prueba 39 la Mac reintentó ocho veces en cada llamada solo por Bluetooth, cada 15–35 s, con una
+ * ruta anunciada que no llevaba nada, y la ventana decía «Reconectando…» en cada intento).
+ */
 export function esperaReintentoIce(n: number): number {
-  const escala = [3_000, 6_000, 12_000, 15_000];
+  const escala = [3_000, 6_000, 12_000, 30_000, 60_000, 120_000];
   return escala[Math.min(Math.max(0, Math.floor(n)), escala.length - 1)];
+}
+
+/**
+ * LLA1112A: intentos de WebRTC por la MISMA ruta IP (misma fuente: el mismo enlace local, la misma red nativa o el mismo Wi-Fi
+ * directo) sin que ICE llegue a conectar; pasado el tope no se vuelve a intentar hasta que la ruta cambie (otra fuente u otro
+ * enlace) o vuelva a aparecer tras desaparecer. Cuatro intentos cubren 51 s con la escala de arriba: lo que tarda de sobra
+ * una ruta de verdad en dejar pasar ICE (1,5 s en el aparato, prueba 33).
+ */
+export const TOPE_REINTENTOS_ICE_RUTA = 4;
+
+/** LLA1112A: lo que el motor sabe de la ruta IP hacia un par en un tic. */
+export interface EntradaReintentoIce {
+  ahora: number;
+  /** ¿Hay ruta IP? (lo que dice el transporte: wifi directo, enlace local o red nativa). */
+  ip: boolean | null;
+  /** Lo visto en el tic anterior. */
+  antes: boolean | null;
+  /** ¿La ruta lleva tráfico de verdad? (un rtt medido, un enlace Wi-Fi directo activo…). null: no se sabe (se acepta, como antes). */
+  conTrafico: boolean | null;
+  /** Identidad de la ruta («local:…», «nativo», «wifi-directo»…): un cambio es una ruta nueva. */
+  fuente: string | null;
+  /** Fuente del último intento. */
+  fuenteAnterior: string | null;
+  /** Estado WebRTC del par. */
+  conexion: string;
+  /** Intentos ya hechos con esta fuente sin conectar. */
+  intentos: number;
+  ultimoIntento: number;
+}
+
+export type DecisionReintentoIce =
+  | { reintentar: true; n: number; motivo: "ruta-nueva" | "vence" }
+  | { reintentar: false; motivo: "conectado" | "sin-ruta" | "sin-trafico" | "tope" | "espera" | "rebote" };
+
+/**
+ * LLA1112A · ¿Se reintenta ICE ahora? Pura. Solo con una ruta IP que lleva tráfico (o de la que no se sabe, el
+ * comportamiento de antes), con la escala de `esperaReintentoIce` contada POR FUENTE y como mucho `TOPE_REINTENTOS_ICE_RUTA`
+ * veces por la misma. Una fuente nueva (otro enlace, o la ruta que vuelve tras desaparecer) empieza la cuenta.
+ */
+export function decidirReintentoIce(e: EntradaReintentoIce): DecisionReintentoIce {
+  if (e.conexion === "conectado") return { reintentar: false, motivo: "conectado" };
+  if (e.ip !== true) return { reintentar: false, motivo: "sin-ruta" };
+  if (e.conTrafico === false) return { reintentar: false, motivo: "sin-trafico" };
+  const nueva = e.antes === false || (e.fuente !== null && e.fuente !== e.fuenteAnterior);
+  const n = nueva ? 0 : e.intentos;
+  if (n >= TOPE_REINTENTOS_ICE_RUTA) return { reintentar: false, motivo: "tope" };
+  if (e.ahora - e.ultimoIntento < 1500) return { reintentar: false, motivo: "rebote" };
+  if (nueva) return { reintentar: true, n: 1, motivo: "ruta-nueva" };
+  const caida = e.conexion === "fallida" || e.conexion === "reconectando";
+  if (caida && e.ahora - e.ultimoIntento >= esperaReintentoIce(n)) return { reintentar: true, n: n + 1, motivo: "vence" };
+  return { reintentar: false, motivo: "espera" };
 }
 
 /** (MLL1111C) Carriles Wi-Fi que compiten por capacidad: el directo entre neuronas frente al router (red local). */

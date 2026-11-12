@@ -19,6 +19,11 @@ import { crearFabricaCodecsWeb } from "@/lib/llamadas/voz-datos/audio-web";
 import * as PaqueteVoz from "@/lib/llamadas/voz-datos/paquete";
 import * as transporteVoz from "@/lib/llamadas/voz-datos/transporte";
 import { crearFabricaVideoWeb, crearFuenteDePista, crearSalidaVideoWeb } from "@/lib/llamadas/video-datos/codec-web";
+// LLA1112A (B): qué motor lleva la llamada a una neurona con enlace local Y Bluetooth (en el árbol viejo no existe: llega
+// vacío y la llamada va, como entonces, por la llamada directa) y la llamada directa misma, con un enlace local de mentira.
+import * as RutaLlamada from "@/lib/llamadas/ruta-llamada-neurona";
+import * as Directa from "@/lib/malla/llamada-directa";
+import * as RegistroLocal from "@/lib/malla/registro-enlaces-locales";
 import type { SalidaVideo } from "@/lib/llamadas/video-datos/tipos";
 
 type Linea = { t: number; hito: string; neurona: string | null; detalle: string };
@@ -251,7 +256,36 @@ const bleReal = {
   espejoBytes: 5000,
   kbpsNativoInicial: 261,
   semilla: 37,
+  /**
+   * LLA1112A: el lado B (la tableta) escribe más despacio y A RÁFAGAS (null: los dos lados iguales, el `ble-real` de siempre).
+   * Sale de la única llamada válida de la prueba 39 (03:47:04–03:47:54 UTC, Mac en reposo), líneas de la tableta:
+   *  · acuse por escritura más largo: el modelo de la tableta lee `enlace=160k+70ms` y `+85ms` (la Mac, `+13ms` a `+59ms`)
+   *    → R = 45 + Exp(35) ms, tope 160;
+   *  · serialización más lenta: la tableta mide `l2cap-kbps … kbps=162 (2586 B en 127 ms)` (la Mac, 171–381 kb/s en el
+   *    mismo minuto) → 20–45 B de aire por ms;
+   *  · a ráfagas: su voz espera `espera=164/155ms` (p90/máx) con `esc=6x621` y `esc=5x57` (escrituras pequeñas y pocas), la
+   *    Mac oye su voz con `inventado=67%` en sus peores 5 s y la tableta registra `tardias=994 … jitter=400ms` de la voz de
+   *    la Mac: los dos sentidos se le atascan a la vez, que es lo que hace una pausa del aparato (radio o hilo de la
+   *    WebView) y no la capacidad. Se modela como PARADAS del lado B: cada Exp(media `paradaCadaMs`) ms, durante
+   *    U(`paradaMinMs`, `paradaMaxMs`) ms, B ni escribe ni entrega a su web lo que le llega; al acabar sale todo junto.
+   *  · lo que mide su app nativa empieza en 162 (la línea de las 03:47:52).
+   */
+  ladoB: null as null | {
+    rMinMs: number;
+    rExtraMediaMs: number;
+    rMaxMs: number;
+    cMinBporMs: number;
+    cMaxBporMs: number;
+    kbpsNativoInicial: number;
+    paradaCadaMs: number;
+    paradaMinMs: number;
+    paradaMaxMs: number;
+  },
 };
+/** LLA1112A: lo que dice `bleReal.ladoB` para la tableta del registro de la prueba 39. */
+const LADO_TABLETA_39 = { rMinMs: 45, rExtraMediaMs: 35, rMaxMs: 160, cMinBporMs: 20, cMaxBporMs: 45, kbpsNativoInicial: 162, paradaCadaMs: 2000, paradaMinMs: 150, paradaMaxMs: 450 };
+/** LLA1112A: hasta cuándo está parado el lado B (ms de `performance.now()`), y cuántas paradas hubo. */
+const paradaB = { hasta: 0, n: 0, ms: 0 };
 /** Generador con semilla (mulberry32): cada corrida del carril calibrado ve la misma secuencia de acuses. */
 function azar(semilla: number): () => number {
   let a = semilla >>> 0;
@@ -268,6 +302,46 @@ const medidaReal = { escrituras: [0, 0], esperaFichaMs: [0, 0], kbpsNativo: [0, 
 const temporizadoresReal: Array<ReturnType<typeof setInterval>> = [];
 function enlaceBle(): [TransporteVoz, TransporteVoz] {
   const oy: [Set<(t: string) => void>, Set<(t: string) => void>] = [new Set(), new Set()];
+  // LLA1112A: lo que llega al lado B mientras está parado se le entrega junto, en orden, al acabar la parada.
+  const retenidos: string[] = [];
+  let soltarRetenidos: ReturnType<typeof setTimeout> | null = null;
+  const entregar = (a: 0 | 1, t: string) => {
+    const espera = a === 1 && bleReal.ladoB ? paradaB.hasta - performance.now() : 0;
+    if (espera <= 0 && !retenidos.length) {
+      oy[a].forEach((cb) => cb(t));
+      return;
+    }
+    retenidos.push(t);
+    if (soltarRetenidos) return;
+    const vaciar = () => {
+      const e = paradaB.hasta - performance.now();
+      if (e > 0) {
+        soltarRetenidos = setTimeout(vaciar, e);
+        return;
+      }
+      soltarRetenidos = null;
+      for (const x of retenidos.splice(0)) oy[1].forEach((cb) => cb(x));
+    };
+    soltarRetenidos = setTimeout(vaciar, Math.max(0, espera));
+  };
+  if (bleReal.activo && bleReal.ladoB) {
+    // Paradas del lado B: cada Exp(media) ms, una de U(min, max) ms.
+    const rndP = azar(bleReal.semilla + 4242);
+    const prog = () => {
+      const lb = bleReal.ladoB;
+      if (!lb) return;
+      const cada = -lb.paradaCadaMs * Math.log(1 - rndP() * 0.999);
+      const h = setTimeout(() => {
+        const dur = lb.paradaMinMs + rndP() * (lb.paradaMaxMs - lb.paradaMinMs);
+        paradaB.hasta = performance.now() + dur;
+        paradaB.n++;
+        paradaB.ms += dur;
+        prog();
+      }, cada);
+      temporizadoresReal.push(h as unknown as ReturnType<typeof setInterval>);
+    };
+    prog();
+  }
   const lado = (i: 0 | 1): TransporteVoz => {
     const sentido = i === 0 ? "AB" : "BA";
     const voz: string[] = [];
@@ -277,10 +351,13 @@ function enlaceBle(): [TransporteVoz, TransporteVoz] {
     const dat: string[] = [];
     const real = bleReal.activo;
     const rnd = azar(bleReal.semilla + i * 7919);
+    // LLA1112A: el lado B con sus números si el caso lo pide (la tableta del registro de la prueba 39).
+    const P = real && i === 1 && bleReal.ladoB ? { ...bleReal, ...bleReal.ladoB } : bleReal;
+    const parado = () => (i === 1 && bleReal.ladoB ? paradaB.hasta - performance.now() : 0);
     let fichas = bleReal.fichasCap;
     let fichasEn = performance.now();
     let turnoVoz = true;
-    let kbpsNativo = bleReal.kbpsNativoInicial;
+    let kbpsNativo = P.kbpsNativoInicial;
     medidaReal.kbpsNativo[i] = kbpsNativo;
     let bVoz = 0;
     let bVid = 0;
@@ -345,6 +422,8 @@ function enlaceBle(): [TransporteVoz, TransporteVoz] {
           lote.push(lista.shift()!);
         }
         if (real) await tomarFicha();
+        // LLA1112A: mientras el lado B está parado no escribe (lo que se junte sale en la escritura siguiente).
+        while (parado() > 0) await dormir(parado());
         const conVideo = lote.some(esVideoTxt);
         const conVoz = (deVoz || deVid) && lote.some((t) => !esVideoTxt(t));
         m.escrituras++;
@@ -356,9 +435,9 @@ function enlaceBle(): [TransporteVoz, TransporteVoz] {
         if (real) {
           aire = Math.ceil(aire / 3) * 4 + 96; // cifrado del enlace (si `ble.cifrado` no lo ha puesto ya)
           if (ble.cifrado) aire = bytesAire(lote);
-          const c = bleReal.cMinBporMs + rnd() * (bleReal.cMaxBporMs - bleReal.cMinBporMs);
+          const c = P.cMinBporMs + rnd() * (P.cMaxBporMs - P.cMinBporMs);
           serial = aire / c;
-          acuse = Math.min(bleReal.rMaxMs, bleReal.rMinMs - bleReal.rExtraMediaMs * Math.log(1 - rnd() * 0.999));
+          acuse = Math.min(P.rMaxMs, P.rMinMs - P.rExtraMediaMs * Math.log(1 - rnd() * 0.999));
           medidaReal.escrituras[i]++;
           if (medidaReal.acuses[i].length < 5000) medidaReal.acuses[i].push(Math.round(acuse));
           // Lo que mide la app nativa (`l2cap-kbps`): mensajes ≥ 2 KiB, bytes·8 / ida y vuelta.
@@ -376,19 +455,27 @@ function enlaceBle(): [TransporteVoz, TransporteVoz] {
         enVuelo = { soloVideo: conVideo && !conVoz, ack: t0 + serial + acuse, bytesVideo: bytesVideoLote };
         const perdida = Math.random() < ble.perdida;
         await dormir(serial + acuse / 2);
+        // LLA1112A: una parada del lado B con la escritura en vuelo la alarga hasta que acaba (la radio se paró con ella).
+        if (parado() > 0) {
+          const extra = parado();
+          await dormir(extra);
+          enVuelo.ack += extra;
+        }
         if (!perdida && datos.arriba && (deVoz || deVid)) {
           const ahora = Date.now();
+          // LLA1112A: si el que recibe es el lado B y está parado, lo recibe al acabar la parada.
+          const retenB = i === 0 && bleReal.ladoB ? Math.max(0, paradaB.hasta - performance.now()) : 0;
           for (const t of lote) {
             if (!esVideoTxt(t)) {
               const p = leerVoz(t, ahora);
               if (p) {
                 for (const u of p.unidades) m.vozTramas.add(u);
-                const tr = ahora - p.ts;
+                const tr = ahora + retenB - p.ts;
                 m.transitos.push(tr);
                 if (tr > ble.plazoVozMs) m.tarde++;
               }
             }
-            oy[1 - i].forEach((cb) => cb(t));
+            entregar((1 - i) as 0 | 1, t);
           }
         }
         await dormir(enVuelo.ack - performance.now());
@@ -419,7 +506,7 @@ function enlaceBle(): [TransporteVoz, TransporteVoz] {
           // acuse); si no, lo que tardan en serializarse los bytes de vídeo que van delante (en la escritura en vuelo y en el carril).
           const delante = voz.filter(esVideoTxt).reduce((a, x) => a + x.length, 0);
           // LLA1111Q: en el carril calibrado, a la serialización media del aire (cifrado: 4/3) y no a `ble.kbps`.
-          const porMs = real ? ((bleReal.cMinBporMs + bleReal.cMaxBporMs) / 2) * 0.75 : ble.kbps / 8;
+          const porMs = real ? ((P.cMinBporMs + P.cMaxBporMs) / 2) * 0.75 : ble.kbps / 8; // LLA1112A: la del lado que escribe
           const e = enVuelo?.soloVideo ? enVuelo.ack - performance.now() : (delante + (enVuelo?.bytesVideo ?? 0)) / porMs;
           if (e > 0) m.esperasTrasVideo++;
           // VOZ1111L: también CUÁNDO (para saber si la espera larga es de la caída, de la vuelta o de siempre).
@@ -605,7 +692,7 @@ async function timbre(ventanaMs = 30_000): Promise<{ ok: boolean; intentos: numb
 
 /* ── Una llamada entre A y B ── */
 let n = 0;
-async function llamada(o: { conDatos: boolean; video?: boolean; videoFalso?: boolean; ble?: boolean; videoDatos?: boolean; opus?: boolean }) {
+async function llamada(o: { conDatos: boolean; video?: boolean; videoFalso?: boolean; ble?: boolean; videoDatos?: boolean; opus?: boolean; rutaConPruebas?: boolean; mismaCuenta?: boolean }) {
   n++;
   const sesionId = crypto.randomUUID();
   const [ca, cb] = bucleSenal(sesionId);
@@ -613,7 +700,8 @@ async function llamada(o: { conDatos: boolean; video?: boolean; videoFalso?: boo
   const hacer = (quien: "A" | "B", canal: () => ConexionCanal, tr: TransporteVoz) => {
     const m = new MotorLlamada({
       sesionId,
-      yo: { base: quien === "A" ? "a-mac" : "b-tableta", uid: quien, nombre: quien, avatar: null, invitado: false },
+      // LLA1112A (C): dos aparatos de la misma cuenta se presentan con el mismo nombre («Yo» sin servidor).
+      yo: { base: quien === "A" ? "a-mac" : "b-tableta", uid: o.mismaCuenta ? "cuenta" : quien, nombre: o.mismaCuenta ? "Yo" : quien, avatar: null, invitado: false },
       iceServers: [],
       hayTurn: false,
       tema: null,
@@ -628,6 +716,9 @@ async function llamada(o: { conDatos: boolean; video?: boolean; videoFalso?: boo
             codecs: () => (o.opus ? crearFabricaCodecsWeb() : fabricaCodecsSimples()),
             intervaloMs: 500,
             carrilesExtra: () => carrilesExtra(),
+            // LLA1112A (C): la ruta anunciada lleva tráfico solo si la IP es de verdad (`red.ip`); su fuente, la red nativa.
+            ...(o.rutaConPruebas ? { rutaIpConTrafico: () => red.ip, fuenteRutaIp: () => (red.ipVista[quien] ? "nativo" : null) } : {}),
+            ...(o.mismaCuenta ? { nombreAparato: quien === "A" ? "Maggaboard" : "MaggaBook" } : {}),
             // MLL1111C: «vídeo ligero» de mentira: deja que el selector elija el enlace de datos para el vídeo (sin códec).
             // (LLA1111B) `videoDatos`: el vídeo ligero de verdad (WebCodecs) con la salida contada del banco.
             ...(o.videoFalso
@@ -692,6 +783,58 @@ async function videoRemoto(m: MotorLlamada): Promise<{ pista: string | null; cua
   return { pista: v ? v.readyState : null, cuadros, noNegro };
 }
 
+/**
+ * LLA1112A · (B) La llamada directa con un enlace local de mentira hacia una tableta que contesta sola: se quita el enlace
+ * (el Wi-Fi de la tableta se apaga) y se mira qué dice la llamada a los 2 s. Es lo que pasó en la prueba 39 (04:29):
+ * «La llamada falló… Se perdió el enlace directo» con el Bluetooth abierto.
+ */
+async function directaCaeWifi(): Promise<{ faseTras2s: string; fin: string | null; motivo: string | null }> {
+  const id = "local:banco-wifi";
+  const oy = new Set<(d: string | ArrayBuffer) => void>();
+  const enlace = {
+    id,
+    par: { nombre: "Maggaboard", neuronDeviceId: "nTab", origen: "red-local-nativa" as const },
+    desde: Date.now(),
+    abierto: () => true,
+    rttMs: () => 5,
+    ruta: () => null,
+    capacidadKbps: () => null,
+    enviar: (t: string) => {
+      // La tableta contesta en cuanto suena.
+      try {
+        const o = JSON.parse(t) as { t?: string; id?: string };
+        if (o.t === "ll.sonar") setTimeout(() => oy.forEach((cb) => cb(JSON.stringify({ t: "ll.aceptar", id: o.id, enlace: id }))), 50);
+      } catch {
+        /* nada */
+      }
+      return true;
+    },
+    enviarBinario: () => true,
+    bufferedAmount: () => 0,
+    alMensaje: (cb: (d: string | ArrayBuffer) => void) => (oy.add(cb), () => void oy.delete(cb)),
+    ponerPistas: async () => true,
+    alFlujoRemoto: () => () => undefined,
+    cerrar: () => undefined,
+  };
+  RegistroLocal.registrarEnlaceLocal(enlace);
+  Directa.asegurarEscuchaLlamadas();
+  await Directa.llamarPorEnlace(id, false);
+  await new Promise((r) => setTimeout(r, 600));
+  RegistroLocal.quitarEnlaceLocal(id);
+  await new Promise((r) => setTimeout(r, 2000));
+  const e = Directa.estadoLlamadaDirecta();
+  const r = { faseTras2s: e.fase, fin: e.fin, motivo: e.motivo };
+  Directa.colgarLlamada();
+  return r;
+}
+
+/** LLA1112A · (B) Qué motor elige el árbol probado para una neurona con enlace local y un Bluetooth. */
+function motorParaWifiYBluetooth(): string {
+  const f = (RutaLlamada as { rutaLlamadaNeurona?: (e: { via: "enlace-local"; permiteLocal: boolean; enlacesSinIp: number }) => { motor: string } | undefined }).rutaLlamadaNeurona;
+  const r = typeof f === "function" ? f({ via: "enlace-local", permiteLocal: true, enlacesSinIp: 1 }) : undefined;
+  return r?.motor ?? "directa";
+}
+
 function estadoNeg() {
   return pcs.map((p) => p.signalingState);
 }
@@ -711,6 +854,8 @@ function estadoNeg() {
   timbre,
   videoRemoto,
   estadoNeg,
+  directaCaeWifi,
+  motorParaWifiYBluetooth,
   limpiar() {
     lineas.length = 0;
     audio.reproducidas.A = audio.reproducidas.B = 0;
@@ -723,8 +868,14 @@ function estadoNeg() {
   bleReal,
   medidaReal,
   pararReal() {
-    for (const h of temporizadoresReal.splice(0)) clearInterval(h);
+    for (const h of temporizadoresReal.splice(0)) {
+      clearInterval(h);
+      clearTimeout(h as unknown as ReturnType<typeof setTimeout>);
+    }
   },
+  // LLA1112A: el lado B de la tableta (prueba 39) y sus paradas.
+  ladoTableta39: LADO_TABLETA_39,
+  paradaB,
   medida,
   pintadas,
   /** (LLA1111B) Resumen de un tramo [desde, hasta) en ms de `performance.now()` y la medida de voz acumulada. */

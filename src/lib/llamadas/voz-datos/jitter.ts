@@ -34,6 +34,9 @@ export interface EstadisticasJitter {
   ocultadas: number;
 }
 
+/** LLA1112A: paquetes recientes con los que se mide cómo llega el audio (≈ 20 s a 6 paquetes por segundo). */
+export const VENTANA_LLEGADAS = 120;
+
 export class BufferJitter {
   private readonly minMs: number;
   private readonly maxMs: number;
@@ -66,6 +69,35 @@ export class BufferJitter {
   }
 
   private minimoDinamico = 0;
+
+  /*
+   * LLA1112A · El retardo objetivo también sigue a CÓMO LLEGA el audio, no solo a los vaciados. Con un enlace que entrega a
+   * ráfagas (la tableta de la prueba 39: paradas de cientos de ms y luego todo junto) subir 20 ms por vaciado tardaba diez
+   * vaciados en llegar a lo necesario (diez huecos), y bajaba 10 ms cada 5 s: la Mac inventó hasta el 67 % de la voz de la
+   * tableta con el objetivo en 180–200 ms. Ahora cada paquete deja su desfase (llegada − su marca de trama); lo que hace
+   * falta es el percentil 95 de esos desfases sobre el menor (la ráfaga más tardía frente a la más temprana) más una
+   * trama, y el objetivo nunca baja de eso mientras dure en la ventana (`VENTANA_LLEGADAS` paquetes).
+   */
+  private llegadas: number[] = [];
+  private minimoLlegadas = 0;
+
+  /** Llegó un paquete cuya primera trama es `q`, en `ahora` (ms de un reloj cualquiera, el mismo siempre). */
+  llegada(ahora: number, q: number): void {
+    if (!Number.isFinite(ahora) || !Number.isFinite(q)) return;
+    this.llegadas.push(ahora - q * this.msTrama);
+    if (this.llegadas.length > VENTANA_LLEGADAS) this.llegadas.shift();
+    if (this.llegadas.length < 8) return;
+    const o = [...this.llegadas].sort((a, b) => a - b);
+    const p95 = o[Math.min(o.length - 1, Math.floor(0.95 * o.length))];
+    const falta = Math.min(this.maxMs, Math.round((p95 - o[0] + this.msTrama) / 10) * 10);
+    this.minimoLlegadas = falta;
+    if (falta > this.objetivoMs) this.objetivoMs = falta;
+  }
+
+  /** LLA1112A: lo que pide la forma de llegar del audio (ms; 0 sin datos). */
+  get objetivoPorLlegadas(): number {
+    return this.minimoLlegadas;
+  }
 
   /** (VOZ1111J) ¿Ya pasó su turno esa trama (o está guardada)? Para no decodificar redundancia que no sirve. */
   yaNoHaceFalta(q: number): boolean {
@@ -136,7 +168,7 @@ export class BufferJitter {
       // 5 s estables a 20 ms/trama = 250 tramas: se baja el objetivo 10 ms.
       if (this.estables >= 5000 / this.msTrama) {
         this.estables = 0;
-        this.objetivoMs = Math.max(this.minMs, this.minimoDinamico, this.objetivoMs - 10);
+        this.objetivoMs = Math.max(this.minMs, this.minimoDinamico, Math.min(this.maxMs, this.minimoLlegadas), this.objetivoMs - 10);
       }
       return { pcm: trama, oculta: false };
     }
@@ -173,6 +205,8 @@ export class BufferJitter {
     this.racha = 0;
     this.estables = 0;
     this.objetivoMs = Math.max(this.minMs, this.minimoDinamico);
+    this.llegadas = [];
+    this.minimoLlegadas = 0;
   }
 }
 

@@ -245,6 +245,7 @@ function pararLocal(): void {
 }
 
 function terminar(ev: EventoLlamada, motivo: string | null, fin: FinLlamadaDirecta): void {
+  pararEsperaVuelta(); // LLA1112A
   if (temporizador) clearTimeout(temporizador);
   temporizador = null;
   const e = estado.enlaceId ? enlaceLocal(estado.enlaceId) : undefined;
@@ -288,6 +289,70 @@ function soltarStream(s: MediaStream | null | undefined): void {
   }
 }
 
+/* ── LLA1112A: la conversación sobrevive a que su enlace se caiga y vuelva ───────────────────── */
+
+/**
+ * Lo que una conversación espera a que vuelva un enlace con la otra neurona antes de darse por perdida. 20 s: el enlace
+ * WebRTC local se rehace solo al volver la red (la malla de la cuenta lo vuelve a abrir, y `asegurarEnlace` lo pide por el
+ * canal de la app), el Bluetooth de la prueba 39 tardó 1–6 s en religar (`reconectado · b3 … tras 1 s sin enlace`, la tableta
+ * `tras 6 s`), y es algo más que los 15 s sin audio con los que el motor de llamadas da por fallida una llamada que no arranca
+ * (`LIMITE_CONECTANDO_MS`): una persona espera eso con «Reconectando…» antes de colgar ella.
+ */
+export const ESPERA_VUELTA_ENLACE_MS = 20_000;
+let esperaVuelta: ReturnType<typeof setTimeout> | null = null;
+let perdidoEn = 0;
+
+function anotarDirecta(detalle: string): void {
+  void import("@/lib/llamadas/voz-datos/diagnostico")
+    .then((d) => d.anotarLlamada("directa", estado.neurona, detalle))
+    .catch(() => undefined);
+}
+
+function pararEsperaVuelta(): void {
+  if (esperaVuelta) clearTimeout(esperaVuelta);
+  esperaVuelta = null;
+}
+
+/** El enlace de la conversación desapareció: se pasa a otro vivo con esa neurona o se espera a que vuelva uno. */
+function perderEnlaceEnCurso(): void {
+  const id = estado.id;
+  const otro = estado.neurona ? enlaceVivoMasNuevoCon(estado.neurona) : null;
+  if (otro && otro.id !== estado.enlaceId) {
+    reanudarCon(otro, "otro-enlace-vivo");
+    return;
+  }
+  perdidoEn = Date.now();
+  // El último flujo remoto se queda (la ventana no pasa a negro de golpe); el aviso dice lo que pasa.
+  poner({ enlaceId: null, motivo: "Se cortó el enlace directo (¿se apagó el Wi-Fi?). Reconectando…" });
+  anotarDirecta(`enlace-perdido espera=${ESPERA_VUELTA_ENLACE_MS}ms`);
+  pararEsperaVuelta();
+  esperaVuelta = setTimeout(() => {
+    esperaVuelta = null;
+    if (estado.id !== id || estado.fase !== "en-curso" || estado.enlaceId) return;
+    anotarDirecta(`fin motivo=sin-enlace tras=${Date.now() - perdidoEn}ms`);
+    terminar("enlace-perdido", `Se perdió el enlace directo y no volvió en ${Math.round(ESPERA_VUELTA_ENLACE_MS / 1000)} s.`, "fallo");
+  }, ESPERA_VUELTA_ENLACE_MS);
+  // Se pide ya un enlace nuevo por el canal de la app (si lo hay): el primero que llegue retoma la conversación.
+  if (estado.neurona && respaldo?.asegurarEnlace) {
+    void respaldo
+      .asegurarEnlace(estado.neurona, ESPERA_VUELTA_ENLACE_MS)
+      .then((e) => {
+        if (e && estado.id === id && estado.fase === "en-curso" && !estado.enlaceId) reanudarCon(e, "asegurado");
+      })
+      .catch(() => undefined);
+  }
+}
+
+/** Retoma la conversación por ese enlace: sus pistas, su flujo remoto y fuera el aviso. */
+function reanudarCon(e: EnlaceLocalVivo, motivo: string): void {
+  pararEsperaVuelta();
+  const tras = perdidoEn ? Date.now() - perdidoEn : 0;
+  perdidoEn = 0;
+  poner({ enlaceId: e.id, remoto: remotos.get(e.id) ?? estado.remoto, motivo: null });
+  void e.ponerPistas(estado.local);
+  anotarDirecta(`enlace-recuperado enlace=${e.id} motivo=${motivo} tras=${tras}ms`);
+}
+
 /* ── escucha de los enlaces y del canal de la app ──────────────────────────────────────────── */
 
 let escuchando = false;
@@ -317,9 +382,18 @@ export function asegurarEscuchaLlamadas(): void {
     });
   });
   suscribirEnlacesLocales(() => {
+    // LLA1112A: esperando a que vuelva el enlace de una conversación: el primero vivo con esa neurona la retoma.
+    if (estado.fase === "en-curso" && !estado.enlaceId && esperaVuelta) {
+      const otro = estado.neurona ? enlaceVivoMasNuevoCon(estado.neurona) : null;
+      if (otro) reanudarCon(otro, "enlace-nuevo");
+      return;
+    }
     if (!estado.enlaceId || estado.fase === "inactiva" || estado.fase === "terminada" || enlaceLocal(estado.enlaceId)) return;
-    // Sin el enlace del audio, la conversación se acaba; mientras suena, el timbre sigue por el canal de la app.
-    if (estado.fase === "en-curso" || !respaldo || !estado.neurona) terminar("enlace-perdido", "Se perdió el enlace directo.", "fallo");
+    // LLA1112A: sin el enlace del audio, la conversación ya NO se acaba al instante (prueba 39: apagar el Wi-Fi de la tableta
+    // colgaba con «Se perdió el enlace directo»): espera a que vuelva (`ESPERA_VUELTA_ENLACE_MS`). Mientras suena, el timbre
+    // sigue por el canal de la app.
+    if (estado.fase === "en-curso") perderEnlaceEnCurso();
+    else if (!respaldo || !estado.neurona) terminar("enlace-perdido", "Se perdió el enlace directo.", "fallo");
     else poner({ enlaceId: null });
   });
   // (LLA1108A) En la app (no en las pruebas): el canal de la app como respaldo de los controles.

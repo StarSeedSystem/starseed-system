@@ -71,7 +71,7 @@ interface ExtrasNeurona {
  * un canal de señalización por el transporte universal y la voz por enlace de datos como respaldo de WebRTC.
  * Sin neurona conocida, o sin app/enlaces, devuelve null y la llamada va como siempre. Nunca lanza.
  */
-async function extrasDeNeurona(neurona: string | null | undefined): Promise<ExtrasNeurona | null> {
+async function extrasDeNeurona(neurona: string | null | undefined, nombreAparato?: string | null): Promise<ExtrasNeurona | null> {
     if (!neurona) return null;
     try {
         const [ct, vt, aw, cv, esc, ew] = await Promise.all([
@@ -100,6 +100,11 @@ async function extrasDeNeurona(neurona: string | null | undefined): Promise<Extr
                 neurona,
                 transporteHacia: () => vt.crearTransporteVozHacia(neurona),
                 hayRutaIp: () => vt.hayRutaIpHacia(neurona),
+                // LLA1112A: WebRTC solo se reintenta por una ruta que lleva tráfico; la fuente distingue una ruta nueva.
+                rutaIpConTrafico: () => vt.rutaIpConTrafico(neurona),
+                fuenteRutaIp: () => vt.fuenteRutaIpHacia(neurona),
+                // LLA1112A: el otro se nombra por su aparato (los dos de la misma cuenta se presentan como «Yo» o con la cuenta).
+                nombreAparato: nombreAparato?.trim() || null,
                 crearAudio: (micro) => aw.crearAudioWeb(micro),
                 codecs: () => codecs,
                 // (LLA1108H) Solo Bluetooth y se quiere vídeo: la llamada pide sola el Wi-Fi directo (según el ajuste) y sube a WebRTC sin colgar.
@@ -521,7 +526,7 @@ export async function empezarLlamadaSinChat(o: {
     const permitidos = new Set(utiles.map((u) => u.id));
     const decision = canalesParaLlamada({ hayRedSupabase, enlaces: vivos.filter((e) => permitidos.has(e.id)), tema: sinServidor ? null : temaLlamada(sesionId) });
     const tipoCanal = tipoCanalDirecto(decision, hayRedSupabase);
-    const extra = await extrasDeNeurona(o.neurona);
+    const extra = await extrasDeNeurona(o.neurona, o.titulo);
     paso("enlace-neurona", !!extra, extra ? "senal-y-voz-por-enlace-directo" : "sin-modulos-de-enlace");
     if (sinServidor && !extra) {
         pararStream(medios.stream);
@@ -682,7 +687,7 @@ export async function unirseALlamada(o: {
     // (LLA1108E) Sin internet no se puede preguntar al servidor qué canal toca: con la neurona que llama se entra igualmente
     // por el enlace de datos (antes se quedaba en «conectando» para siempre o decía que el enlace no era válido).
     if (!tema && !o.neurona) return "Este enlace de llamada no es válido.";
-    const extra = await extrasDeNeurona(o.neurona);
+    const extra = await extrasDeNeurona(o.neurona, o.titulo);
     // (NEU1107A) Sin TURN la fuente ICE es «stun» aunque haya internet: eso no quiere decir que
     // falte la red (si no, con un enlace local se quitaba hasta el STUN y fallaba por internet).
     const hayRedSupabase = enLinea() || ice.fuente !== "stun";

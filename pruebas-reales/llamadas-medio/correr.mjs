@@ -1,6 +1,6 @@
 // Corre los escenarios del banco en Chromium (Playwright, cámara y micro falsos).
 //   node correr.mjs [salida] [escenario] [segundos]
-// escenarios: aleteo · ip-aparece · choque · video · segunda · corte-ip · sin-servidor · voz-video · paso-ip · paso-ip-silencioso · timbre-cola · video-sube · wifi-directo · ble-160 · ble-80 · ble-40 · ble-caida · ble-micro · voz-40 · voz-24 · voz-16 · voz-caida · voz-suelo · voz-40-cif · voz-24-cif · voz-16-cif · vozvideo-80 · vozvideo-40 · ble-real · ble-real-mudo · todos
+// escenarios: aleteo · ip-aparece · choque · video · segunda · corte-ip · sin-servidor · voz-video · paso-ip · paso-ip-silencioso · timbre-cola · video-sube · wifi-directo · ble-160 · ble-80 · ble-40 · ble-caida · ble-micro · voz-40 · voz-24 · voz-16 · voz-caida · voz-suelo · voz-40-cif · voz-24-cif · voz-16-cif · vozvideo-80 · vozvideo-40 · ble-real · ble-real-mudo · ble-tableta · wifi-cae · ruta-fantasma · todos
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
@@ -279,6 +279,114 @@ const esc = {
   async "paso-ip-silencioso"() {
     return pasoIp({ modo: "silencio", senal: false });
   },
+  // LLA1112A · (B) Prueba 39, 04:28:40–04:29:50: llamada con Wi-Fi Y Bluetooth; la tableta apaga el Wi-Fi (corte SILENCIOSO:
+  // ICE sigue «conectado» y dejan de entrar bytes; a los 3 s la ruta IP deja de verse) 20 s y lo vuelve a encender.
+  // Pasa si: el motor elegido para «enlace local + Bluetooth» es el de llamadas (la llamada directa no tiene otro carril),
+  // la voz suena en los dos en ≤ 2 s tras el corte, nadie termina la llamada, el vídeo vuelve por WebRTC sin negro en los
+  // dos, y la llamada directa (cuando se use, sin Bluetooth) sigue en curso 2 s después de perder su enlace.
+  async "wifi-cae"() {
+    const p = await pagina();
+    const motor = await p.evaluate(() => window.banco.motorParaWifiYBluetooth());
+    const directa = await p.evaluate(() => window.banco.directaCaeWifi());
+    const r = await p.evaluate(async () => {
+      const b = window.banco;
+      b.red.ip = true;
+      b.red.modoCorte = "estado";
+      b.red.ipVista.A = b.red.ipVista.B = true;
+      b.bleReal.activo = false;
+      b.bleReal.ladoB = null;
+      b.ble.kbps = 160;
+      // El Bluetooth de verdad (carril fijo de 160 kb/s) con el vídeo ligero de verdad: si WebRTC se va, el vídeo puede seguir por él.
+      const ll = await b.llamada({ conDatos: true, video: true, ble: true, videoDatos: true, opus: true });
+      window.__ll = ll;
+      const hasta = async (f, ms) => {
+        const fin = performance.now() + ms;
+        while (!f() && performance.now() < fin) await new Promise((r) => setTimeout(r, 25));
+        return f();
+      };
+      const car = (q) => (window.__ll[q].carriles?.() ?? [])[0] ?? {};
+      const listo = await hasta(() => ["A", "B"].every((q) => car(q).voz === "webrtc" && car(q).video === "webrtc"), 20000);
+      await new Promise((r) => setTimeout(r, 3000));
+      const antes = { ...b.audio.reproducidas };
+      const t0 = performance.now();
+      b.red.modoCorte = "silencio";
+      b.cambiarRedIp(false);
+      setTimeout(() => {
+        b.red.ipVista.A = b.red.ipVista.B = false;
+      }, 3000);
+      const suena = await hasta(() => b.audio.reproducidas.A >= antes.A + 5 && b.audio.reproducidas.B >= antes.B + 5, 20000);
+      const vozMs = suena ? Math.round(performance.now() - t0) : null;
+      await new Promise((r) => setTimeout(r, Math.max(0, 20000 - (performance.now() - t0))));
+      // Imagen durante el corte (vídeo ligero pintado en cada lado entre los 8 y los 20 s: fps).
+      const pint = (q) => b.pintadas[q].filter((x) => x >= t0 + 8000 && x < t0 + 20000).length / 12;
+      const sinIp = { fase: [ll.A.estado().fase, ll.B.estado().fase], carriles: [car("A"), car("B")].map((c) => `${c.voz}/${c.video}`), aviso: [ll.A.estado().aviso, ll.B.estado().aviso], fpsLigero: { enA: Math.round(pint("A") * 10) / 10, enB: Math.round(pint("B") * 10) / 10 } };
+      b.red.ipVista.A = b.red.ipVista.B = true;
+      b.cambiarRedIp(true);
+      const vuelve = await hasta(() => ["A", "B"].every((q) => car(q).video === "webrtc"), 30000);
+      await new Promise((r) => setTimeout(r, 4000));
+      const enA = await b.videoRemoto(ll.B);
+      const enB = await b.videoRemoto(ll.A);
+      const fin = { fase: [ll.A.estado().fase, ll.B.estado().fase], carriles: [car("A"), car("B")].map((c) => `${c.voz}/${c.video}`) };
+      const fallos = b.lineas.filter((l) => l.hito === "fallo").map((l) => l.detalle);
+      ll.A.colgar();
+      ll.B.colgar();
+      return { listo, vozMs, sinIp, vuelve, enA, enB, fin, fallos };
+    });
+    await p.close();
+    const fallos = [];
+    if (motor !== "sistema-llamadas") fallos.push(`con enlace local y Bluetooth la llamada va por «${motor}» (sin otro carril)`);
+    if (directa.faseTras2s !== "en-curso") fallos.push(`la llamada directa acaba al perder su enlace: ${directa.fin} «${directa.motivo}»`);
+    if (!r.listo) fallos.push("voz y vídeo no llegaron a WebRTC antes del corte");
+    // «En unos dos segundos» (el requisito): 1 s sin bytes para ver el corte (`SILENCIO_WEBRTC_MS`), un tic del vigilante y el
+    // búfer del otro; se exige ≤ 2,5 s y se informa el número.
+    if (r.vozMs === null || r.vozMs > 2500) fallos.push(`la voz no suena en los dos en 2,5 s tras el corte (${r.vozMs} ms)`);
+    if (r.sinIp.fpsLigero.enA < 1 || r.sinIp.fpsLigero.enB < 1) fallos.push(`sin imagen durante el corte: ${JSON.stringify(r.sinIp.fpsLigero)} fps de vídeo ligero`);
+    if ([...r.sinIp.fase, ...r.fin.fase].some((f) => f !== "en-curso")) fallos.push(`la llamada no siguió en curso: ${JSON.stringify([r.sinIp.fase, r.fin.fase])}`);
+    if (!r.vuelve || !r.enA.noNegro || !r.enB.noNegro) fallos.push(`el vídeo no volvió por WebRTC sin negro: ${JSON.stringify({ vuelve: r.vuelve, enA: r.enA, enB: r.enB })}`);
+    return { motor, directa, ...r, veredicto: { pasa: fallos.length === 0, fallos } };
+  },
+  // LLA1112A · (C) Prueba 39, 04:30:21–04:36:15 y 04:37:26–04:40:26: llamada solo por Bluetooth (ICE no puede conectar) con
+  // una ruta IP ANUNCIADA (`hayRutaIp` = true) que no lleva nada, 180 s, los dos aparatos de la misma cuenta. Cuenta los
+  // reintentos de WebRTC, las veces que la ventana diría «Reconectando…» con la voz por Bluetooth, el aviso de enlace directo
+  // fallido al acabar y el nombre con el que se ve al otro.
+  async "ruta-fantasma"() {
+    const p = await pagina();
+    const dur = Math.min(segundos, 180);
+    const r = await p.evaluate(async (dur) => {
+      const b = window.banco;
+      b.red.ip = false;
+      b.red.ipVista.A = b.red.ipVista.B = true;
+      const ll = await b.llamada({ conDatos: true, video: true, rutaConPruebas: true, mismaCuenta: true });
+      const muestras = { reconectando: 0, total: 0, nombres: new Set(), avisos: new Set() };
+      const t0 = performance.now();
+      while (performance.now() - t0 < dur * 1000) {
+        await new Promise((r) => setTimeout(r, 1000));
+        if (performance.now() - t0 < 10000) continue;
+        for (const m of [ll.A, ll.B]) {
+          const e = m.estado();
+          const otro = e.participantes.find((x) => !x.yo);
+          muestras.total++;
+          if (otro && otro.conexion !== "conectado") muestras.reconectando++;
+          if (otro) muestras.nombres.add(otro.nombre);
+          if (e.aviso) muestras.avisos.add(e.aviso);
+        }
+      }
+      const reintentos = b.lineas.filter((l) => /se reintenta WebRTC/.test(l.detalle)).map((l) => `${Math.round(l.t / 1000)}s ${l.neurona} ${l.detalle.replace(/par=\S+ /, "")}`);
+      const sinUsar = b.lineas.filter((l) => /ruta IP sin usar|aviso-retirado/.test(l.detalle)).map((l) => `${Math.round(l.t / 1000)}s ${l.neurona} ${l.detalle.replace(/par=\S+ /, "")}`);
+      const fin = { aviso: [ll.A.estado().aviso, ll.B.estado().aviso], fase: [ll.A.estado().fase, ll.B.estado().fase], rep: { ...b.audio.reproducidas } };
+      ll.A.colgar();
+      ll.B.colgar();
+      return { reintentos, sinUsar, reconectando: muestras.reconectando, muestras: muestras.total, nombres: [...muestras.nombres], avisos: [...muestras.avisos], fin };
+    }, dur);
+    await p.close();
+    const fallos = [];
+    if (r.reintentos.length > 2) fallos.push(`${r.reintentos.length} reintentos de WebRTC por una ruta sin tráfico en ${dur} s`);
+    if (r.reconectando > 0) fallos.push(`«Reconectando…» en ${r.reconectando} de ${r.muestras} muestras con la voz por Bluetooth`);
+    if (r.fin.aviso.some((a) => a && /No se pudo conectar/.test(a))) fallos.push(`sigue el aviso al acabar: ${JSON.stringify(r.fin.aviso)}`);
+    if (r.nombres.some((n) => n === "Yo")) fallos.push(`el otro aparato se llama ${JSON.stringify(r.nombres)}`);
+    if (r.fin.fase.some((f) => f !== "en-curso")) fallos.push(`la llamada no siguió: ${JSON.stringify(r.fin.fase)}`);
+    return { ...r, veredicto: { pasa: fallos.length === 0, fallos } };
+  },
   // MLL1111C · Se llama sin ninguna vía; a los 5 s liga una. El timbre debe salir solo (cola), sin «timbre fallo» seco.
   async "timbre-cola"() {
     const p = await pagina();
@@ -370,6 +478,9 @@ const esc = {
   "ble-real": () => casoBle("ble-real", [{ t: 0, kbps: 160 }], { plazo: 400, real: true }),
   // (LLA1111Q) Igual, con los dos micros en silencio: el vídeo no puede depender de que alguien hable.
   "ble-real-mudo": () => casoBle("ble-real-mudo", [{ t: 0, kbps: 160 }], { plazo: 400, real: true, mudos: true }),
+  // LLA1112A · (A) el carril calibrado con el lado B como la tableta de la prueba 39: escribe más despacio y a ráfagas
+  // (paradas en las que ni escribe ni entrega lo que le llega). Micros abiertos y cámaras encendidas.
+  "ble-tableta": () => casoBle("ble-tableta", [{ t: 0, kbps: 160 }], { plazo: 400, real: true, tableta: true }),
   // (VOZ1111J) Solo voz, los dos micros abiertos (Opus real), por un carril como el Bluetooth cada vez más estrecho.
   // `-cif`: con el cifrado del enlace (CIF1108A) en el aire, como entre la Mac y la tableta (ver `bytesAire`).
   "voz-40": () => casoVoz("voz-40", [{ t: 0, kbps: 40 }]),
@@ -567,16 +678,17 @@ const vozNoCabe = (nombre) => nombre === "ble-40" || nombre === "ble-caida";
 async function casoBle(nombre, tramos, extra = {}) {
   const dur = Math.min(segundos, 600);
   const p = await pagina();
-  await p.evaluate(async ([k0, plazo, real]) => {
+  await p.evaluate(async ([k0, plazo, real, tableta]) => {
     const b = window.banco;
     b.bleReal.activo = real;
+    b.bleReal.ladoB = tableta ? b.ladoTableta39 : null; // LLA1112A
     b.ble.plazoVozMs = plazo;
     b.red.ip = false;
     b.red.ipVista.A = b.red.ipVista.B = false;
     b.ble.kbps = k0;
     b.ble.anunciadoKbps = 160;
     window.__ll = await b.llamada({ conDatos: true, video: true, ble: true, videoDatos: true, opus: true });
-  }, [tramos[0].kbps, extra.plazo ?? 200, !!extra.real]);
+  }, [tramos[0].kbps, extra.plazo ?? 200, !!extra.real, !!extra.tableta]);
   // Arranque: voz por datos, saludo del vídeo y primer clave.
   await espera(15_000);
   if (extra.mudos) await p.evaluate(async () => { await window.__ll.A.alternarMicro(); await window.__ll.B.alternarMicro(); });
@@ -631,6 +743,10 @@ async function casoBle(nombre, tramos, extra = {}) {
       out.carril = b.bleReal.activo ? [0, 1].map((i) => ({ escrituras: mr.escrituras[i], escriturasPorS: Math.round((mr.escrituras[i] / ((t1 - t0) / 1000)) * 10) / 10, esperaFichaMs: Math.round(mr.esperaFichaMs[i]), acuseP50: pct(mr.acuses[i], 0.5), acuseP95: pct(mr.acuses[i], 0.95), kbpsNativo: mr.kbpsNativo[i] })) : null;
       // Escalón de la voz y del vídeo en el último minuto (de las líneas periódicas).
       out.niveles = b.lineas.filter((l) => /voz-datos tx n=/.test(l.detalle)).slice(-12).map((l) => `${l.neurona} ${l.detalle.slice(0, 160)}`);
+      // LLA1112A: lo que cada lado reproduce (audio inventado por ventana, tardías) y las paradas del lado B.
+      out.rx = b.lineas.filter((l) => l.t >= t0 && /voz-datos rx paq=/.test(l.detalle)).map((l) => `${Math.round((l.t - t0) / 1000)}s ${l.neurona} ${l.detalle}`);
+      out.txOtro = b.lineas.filter((l) => l.t >= t0 && /voz-datos tx n=/.test(l.detalle)).map((l) => `${Math.round((l.t - t0) / 1000)}s ${l.neurona} ${l.detalle.replace(/ enlace=.*/, "")}`);
+      out.paradasB = { ...b.paradaB };
       // Por tramos de capacidad (para la caída) y por estado del micro.
       const cortes = [t0, ...tramosMs.map((x) => x.en), t1];
       out.tramos = cortes.slice(0, -1).map((d, i) => ({ desde: Math.round(d - t0), hasta: Math.round(cortes[i + 1] - t0), ...b.resumenTramo(d, cortes[i + 1]) }));
@@ -667,6 +783,28 @@ async function casoBle(nombre, tramos, extra = {}) {
   return r;
 }
 
+/**
+ * LLA1112A · Voz limpia en `ble-tableta`, de lo que cada motor dice que reproduce (las líneas `voz-datos rx` cada 5 s y el
+ * informe del otro en `voz-datos tx … otro:perd=…/tarde=…`), pasado el arranque (desde los 20 s de medida):
+ *  · audio inventado ≤ 5 % en cada ventana de 5 s: una trama oculta suelta (con fundido) no se oye; en el aparato la peor
+ *    ventana fue 67 %;
+ *  · tardías ≤ 3 % de lo recibido en el total y lo que informa el otro ≤ 5 % (`TARDE_RX_ALTA` de `niveles.ts`: por encima, el
+ *    otro baja su voz).
+ */
+const UMBRAL_TABLETA = { inventadoPct: 5, tardiasPct: 3, tardeOtroPct: 5, desdeS: 20 };
+function juzgarTableta(r, fallos) {
+  for (const l of r.rx ?? []) {
+    const m = /^(\d+)s (\S+) .*inventado=(\d+)%/.exec(l);
+    if (m && Number(m[1]) >= UMBRAL_TABLETA.desdeS && Number(m[3]) > UMBRAL_TABLETA.inventadoPct) fallos.push(`voz en ${m[2]} a los ${m[1]} s: inventado ${m[3]}% > ${UMBRAL_TABLETA.inventadoPct}%`);
+  }
+  for (const l of r.txOtro ?? []) {
+    const m = /^(\d+)s (\S+) .*otro:perd=([\d.]+)%\/tarde=([\d.]+)%/.exec(l);
+    if (m && Number(m[1]) >= UMBRAL_TABLETA.desdeS && Number(m[4]) > UMBRAL_TABLETA.tardeOtroPct) fallos.push(`la voz de ${m[2]} llega tarde al otro a los ${m[1]} s: ${m[4]}% > ${UMBRAL_TABLETA.tardeOtroPct}%`);
+  }
+  // Tardías acumuladas en la última línea rx de cada lado, frente a los paquetes × tramas por paquete no se sabe: se usa
+  // el informe (arriba) y el oído (huecos); aquí solo se deja constancia.
+}
+
 function juzgar(nombre, r, cambiosS) {
   const fallos = [];
   for (const k of ["AB", "BA"]) {
@@ -678,15 +816,21 @@ function juzgar(nombre, r, cambiosS) {
       continue;
     }
     if (v.perdidaPct === null || v.perdidaPct > UMBRAL.perdidaVozPct) fallos.push(`voz ${k} pérdida ${v.perdidaPct}% > ${UMBRAL.perdidaVozPct}%`);
-    if (v.tardePct === null || v.tardePct > UMBRAL.tardeVozPct) fallos.push(`voz ${k} tarde ${v.tardePct}% > ${UMBRAL.tardeVozPct}%`);
-    if (v.esperaTrasVideoMaxMs > UMBRAL.esperaTrasVideoMs) fallos.push(`voz ${k} esperó ${v.esperaTrasVideoMaxMs} ms tras un vídeo`);
+    // LLA1112A: en `ble-tableta` el tránsito pasa del plazo por las paradas del aparato (física, no el control): cuenta lo que
+    // se REPRODUCE (audio inventado y tardías que informa cada lado), juzgado abajo.
+    if (nombre !== "ble-tableta" && (v.tardePct === null || v.tardePct > UMBRAL.tardeVozPct)) fallos.push(`voz ${k} tarde ${v.tardePct}% > ${UMBRAL.tardeVozPct}%`);
+    // LLA1112A: el carril de la tableta serializa a 20–45 B/ms (la mitad que la Mac): dos ventanas de vídeo delante son ≈ 190 ms;
+    // se le aplica el tope del carril estrecho (250 ms).
+    const topeEspera = nombre === "ble-tableta" ? UMBRAL.esperaTrasVideoEstrechoMs : UMBRAL.esperaTrasVideoMs;
+    if (v.esperaTrasVideoMaxMs > topeEspera) fallos.push(`voz ${k} esperó ${v.esperaTrasVideoMaxMs} ms tras un vídeo`);
   }
   const fluye = (lado) => lado.ventanas5s.length > 0 && lado.ventanas5s.filter((f) => f >= UMBRAL.fpsMin).length / lado.ventanas5s.length >= UMBRAL.ventanasOk;
-  if (nombre === "ble-real" || nombre === "ble-real-mudo") {
+  if (nombre === "ble-tableta") juzgarTableta(r, fallos);
+  if (nombre === "ble-real" || nombre === "ble-real-mudo" || nombre === "ble-tableta") {
     // LLA1111Q: los dos sentidos ≥ 3 fps sostenidos y, con micros abiertos, la voz sin huecos audibles y en un escalón bueno.
     if (!fluye(r.total.enA)) fallos.push(`vídeo en A: ${r.total.enA.fps} fps, ventanas ${JSON.stringify(r.total.enA.ventanas5s)}`);
     if (!fluye(r.total.enB)) fallos.push(`vídeo en B: ${r.total.enB.fps} fps, ventanas ${JSON.stringify(r.total.enB.ventanas5s)}`);
-    if (nombre === "ble-real") {
+    if (nombre === "ble-real" || nombre === "ble-tableta") {
       for (const q of ["A", "B"]) {
         const o = r.oido?.[q];
         if (!o || o.huecosPorMin > 1 || o.huecoMaxMs > 200) fallos.push(`voz en ${q}: ${o?.huecos} huecos (${o?.huecosPorMin}/min), el mayor ${o?.huecoMaxMs} ms`);
