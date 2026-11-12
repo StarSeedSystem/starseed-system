@@ -91,7 +91,7 @@ class Roles(unittest.TestCase):
 
     def test_lista_de_roles_incluye_los_investigadores(self):
         self.assertEqual(C.ROLES, ("escritor", "revisor", "analista", "supervisor", "subagente",
-                                   "investigador-diseno", "investigador-alcance"))
+                                   "investigador-diseno", "investigador-alcance", "sintesis-produccion"))
         self.assertEqual(len(C.ROLES), len(set(C.ROLES)))
 
 

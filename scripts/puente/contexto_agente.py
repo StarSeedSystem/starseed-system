@@ -30,7 +30,7 @@ if DIRECTORIO not in sys.path:
     sys.path.insert(0, DIRECTORIO)
 
 ROLES = ("escritor", "revisor", "analista", "supervisor", "subagente", "investigador-diseno",
-         "investigador-alcance")
+         "investigador-alcance", "sintesis-produccion")
 TODOS = ROLES
 #: (IMG1024D) El investigador de referencias de diseño de MetaGenesis (`agente_referencias_diseno.py`):
 #: lo carga el encargo libre de la flota y cualquier IDE o subagente que haga ese papel.
@@ -38,6 +38,9 @@ INVESTIGADOR = ("investigador-diseno",)
 #: (INV1025K) El investigador de alcance del contrato de investigación: redacta borradores
 #: honestos desde fuentes públicas y los deja SIEMPRE a la aprobación de una persona.
 ALCANCE = ("investigador-alcance",)
+#: (SDP1111L) El agente de síntesis de producción: redacta la síntesis diaria desde la actividad
+#: y las fuentes, con Jev y Laya, y la entrega al chat propio.
+SINTESIS = ("sintesis-produccion",)
 MAX_POR_DEFECTO = 6000
 #: Por debajo de este tope el contexto va COMPACTO: reglas sin su fuente y herramientas sin
 #: explicación (en el prompt de un escritor o de un analista cada carácter se paga).
@@ -159,10 +162,23 @@ REGLAS = [
      "Mensaje honesto con la firma real del remitente: cada afirmación sobre el destinatario con su fuente https, "
      "sin adjuntos ni píxeles de seguimiento, sin falsa urgencia ni falsa cercanía y con forma de no recibir más.",
      "architecture/repos-libreria-1025.md · §7.1 R7"),
-    ("importancia-alta", ALCANCE,
-     "Importancia siempre «alta»: los borradores de alcance siempre pasan por una persona; un objetivo sin nivel "
-     "se trata como nivel alto (solo manual).",
-     "architecture/repos-libreria-1025.md · §7.1 R8"),
+("importancia-alta", ALCANCE,
+      "Importancia siempre «alta»: los borradores de alcance siempre pasan por una persona; un objetivo sin nivel "
+      "se trata como nivel alto (solo manual).",
+      "architecture/repos-libreria-1025.md · §7.1 R8"),
+    # (SDP1111L) Síntesis de producción: redacta la síntesis diaria desde la actividad y las fuentes.
+    ("fuente-y-fecha", SINTESIS,
+     "Cada dato en la síntesis lleva su fuente (enlace https o referencia a archivo) y su fecha; nada se inventa ni se copia sin citar.",
+     "architecture/sintesis-diaria-autonoma.md · §6"),
+    ("no-copiar-particulares", SINTESIS,
+     "No se investiga a particulares: nombres privados esperan a que Alex diga quiénes son; solo personas públicas con fuente verificable.",
+     "architecture/sintesis-diaria-autonoma.md · §6"),
+    ("normas-marca", SINTESIS,
+     "Colores solo de los tokens; el símbolo nunca se genera con IA; lo que no existe se rotula «en desarrollo».",
+     "architecture/sintesis-diaria-autonoma.md · §6"),
+    ("flota-gratis", SINTESIS,
+     "Solo modelos de la flota gratuita (NIM, AIHubMix, OpenRouter :free, Gemini gratuito, BitNet local); nada de pago sin la palabra de Alex.",
+     "architecture/sintesis-diaria-autonoma.md · §3.4"),
 ]
 
 # ─────────────────────────── reglas de diseño (solo interfaz) ───────────────────────────
@@ -218,28 +234,40 @@ HERRAMIENTAS = [
     ("gitnexus", ("escritor", "revisor", "analista", "subagente"),
      "gitnexus context <símbolo> · gitnexus impact <símbolo> · gitnexus query \"<concepto>\" · gitnexus detect-changes",
      "mapa del código antes que grep a ciegas (Mac, índice en .gitnexus/)", None),
-    ("fuentes", ("escritor", "analista", "supervisor", "subagente", "investigador-diseno"),
-     "starseed-fuentes buscar <texto>",
-     "catálogos de APIs, MCP y patrones antes de inventar uno (Mac)", None),
+("fuentes", ("escritor", "analista", "supervisor", "subagente", "investigador-diseno", "sintesis-produccion"),
+      "starseed-fuentes buscar <texto>",
+      "catálogos de APIs, MCP y patrones antes de inventar uno (Mac)", None),
     ("referencias-diseno", INVESTIGADOR,
-     "python3 scripts/puente/agente_referencias_diseno.py plan --json",
-     "mapa de proyectos de diseño y referencias elegidas por contexto (sin red ni Jev)",
-     "scripts/puente/agente_referencias_diseno.py"),
+      "python3 scripts/puente/agente_referencias_diseno.py plan --json",
+      "mapa de proyectos de diseño y referencias elegidas por contexto (sin red ni Jev)",
+      "scripts/puente/agente_referencias_diseno.py"),
+    ("referencias-diseno", SINTESIS,
+      "python3 scripts/puente/agente_referencias_diseno.py plan --json",
+      "mapa de proyectos de diseño y referencias elegidas por contexto (sin red ni Jev)",
+      "scripts/puente/agente_referencias_diseno.py"),
     ("vigia-referencias", INVESTIGADOR,
      "python3 scripts/puente/vigia_referencias.py",
      "novedades por los canales permitidos del catálogo (RSS, sitemap, GitHub, npm, Fontshare)",
      "scripts/puente/vigia_referencias.py"),
-    ("agent-reach", ALCANCE,
-     "agent-reach read <url> · agent-reach github search \"<texto>\" · agent-reach youtube subtitle <url>",
-     "lectura pública sin sesión solo de web, GitHub y YouTube; los canales con login quedan apagados (R1)",
-     ".agent/skills/agent-reach/SKILL.md"),
+("agent-reach", ALCANCE,
+      "agent-reach read <url> · agent-reach github search \"<texto>\" · agent-reach youtube subtitle <url>",
+      "lectura pública sin sesión solo de web, GitHub y YouTube; los canales con login quedan apagados (R1)",
+      ".agent/skills/agent-reach/SKILL.md"),
+    ("agent-reach", SINTESIS,
+      "agent-reach read <url> · agent-reach github search \"<texto>\" · agent-reach youtube subtitle <url>",
+      "lectura pública sin sesión solo de web, GitHub y YouTube; los canales con login quedan apagados (R1)",
+      ".agent/skills/agent-reach/SKILL.md"),
     ("lectura-cortes", ALCANCE,
-     "python3 scripts/puente/vigia_referencias.py · src/ai/astraura/web-access.ts",
-     "lectura cortés de URLs oficiales, RSS y sitemap: robots.txt, 10 s por dominio y topes de tamaño y tiempo",
-     "scripts/puente/vigia_referencias.py"),
-    ("decir", ("supervisor", "subagente"),
-     "starseed-puente decir \"<texto>\" --de <tú> --tipo aviso|hecho|error",
-     "el canal común de Genesis y de los IDE", "scripts/puente/puente.py"),
+      "python3 scripts/puente/vigia_referencias.py · src/ai/astraura/web-access.ts",
+      "lectura cortés de URLs oficiales, RSS y sitemap: robots.txt, 10 s por dominio y topes de tamaño y tiempo",
+      "scripts/puente/vigia_referencias.py"),
+    ("lectura-cortes", SINTESIS,
+      "python3 scripts/puente/vigia_referencias.py · src/ai/astraura/web-access.ts",
+      "lectura cortés de URLs oficiales, RSS y sitemap: robots.txt, 10 s por dominio y topes de tamaño y tiempo",
+      "scripts/puente/vigia_referencias.py"),
+("decir", ("supervisor", "subagente", "sintesis-produccion"),
+      "starseed-puente decir \"<texto>\" --de <tú> --tipo aviso|hecho|error",
+      "el canal común de Genesis y de los IDE", "scripts/puente/puente.py"),
     ("relevo", ("supervisor", "subagente"),
      "starseed-relevo nota --de <tú> \"hecho…; sigue…\"",
      "dejar el punto de relevo para el siguiente agente (Mac)", None),
@@ -271,6 +299,7 @@ ORDEN = {
     "subagente": ("reglas", "protocolo", "herramientas", "nube", "relevo", "area", "archivos", "recuerdos"),
     "investigador-diseno": ("reglas", "salida", "protocolo", "herramientas", "area", "archivos", "recuerdos"),
     "investigador-alcance": ("reglas", "salida", "protocolo", "herramientas", "area", "archivos", "recuerdos"),
+    "sintesis-produccion": ("reglas", "salida", "protocolo", "herramientas", "area", "archivos", "recuerdos"),
 }
 
 #: Lo que cada rol debe devolver, cuando su salida tiene forma fija (solo los roles que la tienen).
@@ -291,6 +320,16 @@ SALIDAS = {
         "Markdown y `referencias` es [{titulo, url https}] ≤ 20; cada `afirmación` lleva su `fuente_url` https. "
         "Mensaje ≤ 220 palabras, sin dirección; se normaliza, se valida y espera aprobación humana. Devolver 0 "
         "variantes es una respuesta válida.",
+    ),
+    "sintesis-produccion": (
+        "## Salida esperada (contrato SDP1111D)",
+        "La síntesis diaria se guarda en `starseed_memory_root/produccion-audiovisual/sintesis/AAAA-MM-DD.md` "
+        "y se entrega al chat de Telegram de las síntesis: primero un resumen de 1500–3000 caracteres y luego "
+        "la síntesis completa troceada a 3500 caracteres. Cada dato lleva fuente y fecha; secciones completas "
+        "según el protocolo (Mañana con rotación de 2 vídeos, 2–3 contactos, 1 categoría; Imaginación; "
+        "Actividad por temas; Ideas; Guiones). Jev puntúa la calidad (fuente y fecha, nada inventado, "
+        "secciones completas); con nota baja se entrega igual marcada «borrador sin verificar». "
+        "Una sola entrega al día. CLI: `plan|ciclo|estado [--seco --json]`.",
     ),
 }
 
@@ -411,6 +450,14 @@ def seccion_protocolo(rol, compacto=False):
                   "regla: honestidad y fuente verificable > afinidad con StarSeed > novedad; si dudas entre dos "
                   "enfoques, propón ambos como variantes; si no hay base suficiente, devuelve 0 variantes. Jev es "
                   "consejero: si calla, manda la regla."]
+    elif rol == "sintesis-produccion":
+        # La síntesis ya pasó por Jev para elegir temas y puntuar la calidad. Tu regla: fuente y fecha en cada
+        # dato, nada inventado, secciones completas; Laya filtra relevancia; LEANN evita repetir lo sabido.
+        lineas = ["## Cómo se decide (protocolo Jev)",
+                  "Los temas del día y la puntuación de calidad ya pasaron por Jev (quien «sintesis-produccion\": "
+                  "elige con p ≥ 0,8 y veta lo dudoso). Tu regla: todo dato con fuente y fecha; nada inventado; "
+                  "secciones completas; Laya clasifica relevancia; LEANN recupera lo ya sabido. Jev es consejero: "
+                  "si calla, manda la regla."]
     return "\n".join(lineas)
 
 

@@ -44,7 +44,7 @@ class DirectorTest(unittest.TestCase):
         self.assertFalse(os.path.exists(os.path.join(self.raiz, "starseed_memory_root")))
 
     def test_lanza_diaria_y_profunda_una_vez(self):
-        r = self.correr(); self.assertEqual(r["lanzado"], ["diaria", "profunda"])
+        r = self.correr(); self.assertEqual(r["lanzado"], ["diaria", "profunda", "sintesis-produccion"])
         self.correr(); self.assertEqual(self.llamadas.count("diaria"), 1)  # no repite el mismo día
         self.assertEqual(self.llamadas.count(("lanzar",)), 1)
         self.correr(); self.assertIn(("consolidar", "--sin-telegram"), self.llamadas)
@@ -332,6 +332,33 @@ class Imaginacion1024Test(unittest.TestCase):
             self.assertIsNone(D._consejo_jev({"titulo": "x"}))
         finally:
             decidir.consultar = previo
+
+    def test_agente_sintesis_protegido(self):
+        """_agente_sintesis importa protegido y llama a agente_sintesis.ciclo si existe."""
+        import types
+        llamadas, previo = [], sys.modules.get("agente_sintesis")
+        try:
+            sys.modules["agente_sintesis"] = None  # no existe: import falla → nada
+            self.assertIsNone(D._agente_sintesis(self.raiz, NOCHE))
+            m = types.ModuleType("agente_sintesis"); sys.modules["agente_sintesis"] = m
+            self.assertIsNone(D._agente_sintesis(self.raiz, NOCHE))  # sin `ciclo`
+            m.ciclo = lambda raiz, ahora, **kw: llamadas.append((raiz, ahora))
+            self.assertEqual(D._agente_sintesis(self.raiz, NOCHE), {"ok": True})
+            self.assertEqual(llamadas, [(self.raiz, NOCHE)])
+            m.ciclo = lambda raiz, ahora, **kw: 1 / 0
+            r = self.correr(agente_sintesis=None)
+            self.assertIn("sintesis-produccion", r["lanzado"])  # su fallo no tumba el ciclo
+        finally:
+            if previo is None: sys.modules.pop("agente_sintesis", None)
+            else: sys.modules["agente_sintesis"] = previo
+
+    def test_el_director_llama_al_agente_sintesis_si_existe(self):
+        llamadas = []
+        r = self.correr(agente_sintesis=lambda raiz, ahora: llamadas.append((raiz, ahora)) or {"ok": True})
+        self.assertEqual(llamadas, [(self.raiz, NOCHE)])
+        self.assertIn("sintesis-produccion", r["lanzado"])
+        self.correr(seco=True, capacidad=None)
+        self.assertEqual(len(llamadas), 1)
 
 
 class Ola1025STest(unittest.TestCase):
