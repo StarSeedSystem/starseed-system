@@ -5,7 +5,7 @@ sueltos o dentro de un zip oficial instagram-<usuario>-<fecha>-<id>.zip en
 ~/.starseed/actividad/entrada/instagram/ o ~/Downloads/ (los zips no se borran nunca).
 Sin red ni sesión de Alex: fichas {enlace, autor, fecha, privado: true}, incremental por enlace.
 """
-import json, os, re, time, zipfile
+import json, os, re, time, zipfile, uuid
 
 FUENTE = "instagram"
 DIR_ENTRADA = os.path.expanduser("~/.starseed/actividad/entrada/instagram")
@@ -14,6 +14,19 @@ DIR_ACTIVIDAD = os.path.expanduser("~/.starseed/actividad")
 NOMBRE_ESTADO = "instagram-estado.json"
 ARCHIVOS_DATO = ("saved_posts.json", "saved_collections.json")
 ZIP_OK = re.compile(r"^instagram-[A-Za-z0-9._]+-\d{4}-\d{2}-\d{2}-[A-Za-z0-9]+\.zip$")
+CUENTA_SEGURA = re.compile(r"[^A-Za-z0-9._-]")
+
+def _sanitizar_cuenta(cuenta: str) -> str:
+    """Sanitiza el nombre de cuenta para uso seguro en rutas de archivo."""
+    if not cuenta:
+        return "desconocida"
+    # Elimina path traversal y caracteres peligrosos
+    segura = CUENTA_SEGURA.sub("_", cuenta)
+    # Evita nombres reservados y vacíos tras sanitizar
+    if segura in {"", ".", ".."} or segura.startswith("."):
+        return "desconocida"
+    return segura[:64]  # límite razonable
+
 
 def texto_de(fila):
     titulo = fila.get("title") or fila.get("name")
@@ -90,7 +103,8 @@ def leer(dirs=None, dir_actividad=None, estado=None):
     vistos, fichas, errores = set((estado or {}).get("enlaces", [])), [], []
     for ruta in cargas_disponibles(dirs or [DIR_ENTRADA, DIR_DESCARGAS]):
         es_zip = ruta.lower().endswith(".zip")
-        cuenta = os.path.basename(ruta).split("-")[1] if es_zip else ""
+        cuenta_raw = os.path.basename(ruta).split("-")[1] if es_zip else ""
+        cuenta = _sanitizar_cuenta(cuenta_raw)
         try:
             cargas = cargas_de_zip(ruta) if es_zip else {os.path.basename(ruta).lower(): json.load(open(ruta, encoding="utf-8"))}
         except (OSError, ValueError, zipfile.BadZipFile) as error:
@@ -103,10 +117,22 @@ def leer(dirs=None, dir_actividad=None, estado=None):
     guardado = guardar(estado_nuevo, nuevas, dir_actividad or DIR_ACTIVIDAD) if nuevas else {}
     return {"ok": True, "fichas": nuevas, "estado": estado_nuevo, "errores": errores, **guardado}
 
+def _nombre_archivo_fichas(fecha: str, cuenta: str) -> str:
+    """Genera nombre único para el archivo de fichas: fecha-cuenta-uuid.json."""
+    sufijo = uuid.uuid4().hex[:8]
+    return f"{fecha}-instagram-{cuenta}-{sufijo}.json"
+
+
 def guardar(estado, fichas, dir_actividad=DIR_ACTIVIDAD):
-    """Guarda las fichas nuevas y el estado de enlaces, con escritura atómica."""
+    """Guarda las fichas nuevas y el estado de enlaces, con escritura atómica.
+    Cada ejecución crea un archivo único (fecha-cuenta-uuid) para evitar sobrescrituras.
+    """
     os.makedirs(os.path.join(dir_actividad, "fichas"), exist_ok=True)
-    fecha, destino = time.strftime("%Y-%m-%d"), os.path.join(dir_actividad, "fichas", time.strftime("%Y-%m-%d") + "-instagram.json")
+    fecha = time.strftime("%Y-%m-%d")
+    # Extrae la cuenta de la primera ficha si hay fichas; si no, usa "general"
+    cuenta = fichas[0].get("cuenta", "general") if fichas else "general"
+    cuenta = _sanitizar_cuenta(cuenta)
+    destino = os.path.join(dir_actividad, "fichas", _nombre_archivo_fichas(fecha, cuenta))
     for ruta, contenido in ((destino, {"fecha": fecha, "fuente": FUENTE, "privado": True, "fichas": fichas}),
                             (os.path.join(dir_actividad, NOMBRE_ESTADO), estado)):
         json.dump(contenido, open(ruta + ".tmp", "w", encoding="utf-8"), ensure_ascii=False, indent=1)
