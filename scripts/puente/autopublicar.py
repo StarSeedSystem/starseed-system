@@ -32,6 +32,7 @@ import subprocess
 import sys
 import time
 import urllib.request
+from datetime import datetime, timezone
 
 DIRECTORIO = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, DIRECTORIO)
@@ -47,7 +48,13 @@ REPO = "StarSeedSystem/starseed-system"
 RAMA_CANDIDATO = "produccion/candidato"
 WEB = "https://starseed-os.vercel.app"
 RUTAS_HUMO = ("/", "/login", "/version.json")
+#: (RON1112C, 2026-11-12) El plazo del CI cuenta el CI, no lo que pasó antes. Hasta entonces corría desde que el
+#: candidato EMPEZABA (`est["desde"]`: las puertas locales y la espera a que GitHub creara el run). El 11-11 el
+#: candidato 6539048b4e empezó a las 20:25, GitHub creó su run a las 21:01 y a las 21:17 (16 min de CI sano, que
+#: acabó en verde) se vetó por «CI sin terminar en 50 min». Pasó cuatro veces ese día. Ahora el plazo de 50 min
+#: corre desde la CREACIÓN del run en GitHub, y esperar a que el run aparezca tiene su propia cota y su propio mensaje.
 CI_TOPE_S = 50 * 60
+CI_APARICION_S = int(os.environ.get("STARSEED_PUBLICAR_CI_APARICION_S", str(15 * 60)))
 VERCEL_TOPE_S = 45 * 60  # Vercel ha llegado a tardar 27 min en compilar (CLAUDE.md, «Publicar»)
 VERCEL_SIN_ESTADO_S = 10 * 60  # sin estado de GitHub, tras 10 min se consulta /version.json
 VENTANA_S = 20 * 60
@@ -158,6 +165,28 @@ def estado_ci(runs, sha):
     if r.get("status") != "completed":
         return "esperando", r.get("html_url"), r.get("id")
     return ("verde" if r.get("conclusion") == "success" else "rojo"), r.get("html_url"), r.get("id")
+
+
+def run_de_ci(runs, sha):
+    """El run de CI más reciente de ese commit (el dict de GitHub) o None. PURA."""
+    propios = [r for r in (runs or []) if r.get("head_sha") == sha]
+    return sorted(propios, key=lambda x: x.get("created_at") or "")[-1] if propios else None
+
+
+def epoch_de_iso(texto):
+    """'2026-11-11T21:01:00Z' → epoch, o None. PURA."""
+    try:
+        return datetime.strptime(str(texto)[:19], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=timezone.utc).timestamp()
+    except (ValueError, TypeError):
+        return None
+
+
+def inicio_del_ci(creado, empujado, ahora):
+    """PURA (RON1112C). Cuándo empieza a contar el plazo del CI: la creación del run en GitHub, pero nunca antes de que
+    el candidato se subiera (un reloj distinto o un run viejo reutilizado no deben adelantarlo) ni después de ahora."""
+    base = float(empujado)
+    t = epoch_de_iso(creado)
+    return min(max(t, base), ahora) if t is not None else base
 
 
 def estado_vercel(estados):
@@ -454,6 +483,15 @@ class Medios(object):
             fcntl.flock(f, fcntl.LOCK_UN)
             f.close()
 
+    def reloj(self):
+        return time.time()
+
+    def ronda_activa(self):
+        """(RON1112C) La línea de la ronda de aparatos si hay una activa, o None. Nunca lanza."""
+        import ronda
+        hay, linea = ronda.activa()
+        return linea if hay else None
+
     def pruebas_python(self, sha):
         """(True|False|None, detalle). None = no se pudo probar ahora (reintentar en la próxima pasada).
 
@@ -463,6 +501,9 @@ class Medios(object):
         import publicar as PUB
         if self.git(["rev-parse", "HEAD"])[1] != sha:
             return None, "main cambió antes de empezar las pruebas"
+        ronda = self.ronda_activa()          # (RON1112C) por si la ronda empezó entre la comprobación y aquí
+        if ronda:
+            return None, "no empiezo las pruebas del puente: " + ronda
         py = PUB.python_de_pruebas()
         destino = os.path.join(CARPETA, "arbol-pruebas")
         arbol = arbol_limpio(self.raiz, sha, lambda a, timeout=180: self.git(a, timeout=timeout), destino)
@@ -728,6 +769,14 @@ def _nuevo_lote(m, est, ahora):
     if espera:
         return con_fase(est, "esperando", espera + ".", ahora, pendientes=pendientes)
 
+    # (RON1112C) Ronda de aparatos: con una ronda activa no empieza NADA pesado (ni las pruebas del puente ni el
+    # análisis y Jev que las preceden: se repetirían cada pasada). Esperar aquí no gasta ningún plazo: `desde`, el
+    # tope de las pruebas y el del CI empiezan cuando el lote arranca de verdad.
+    ronda = m.ronda_activa() if hasattr(m, "ronda_activa") else None
+    if ronda:
+        return con_fase(est, "esperando", "%s. Las pruebas del puente esperan; al terminar la ronda sigo con %s." % (ronda, head[:8]),
+                        ahora, pendientes=pendientes)
+
     # 1. Análisis del lote
     diff = m.git(["diff", "origin/main..%s" % head], timeout=300)[1]
     nombres = m.git(["diff", "--name-only", "origin/main..%s" % head])[1].splitlines()
@@ -798,8 +847,12 @@ def _nuevo_lote(m, est, ahora):
         nota_jev = " Jev saltado desde Genesis para este lote."
     m.avisar("Autopublicación: %d commit(s) (%s) pasaron el análisis y las pruebas del puente; CI en GitHub "
              "(tsc, vitest, next build) en marcha.%s" % (pendientes, head[:8], nota_jev))
+    # `empujado` = cuándo se subió el candidato (después de las puertas locales, que pueden haber durado media hora):
+    # de ahí corre la cota de «GitHub no creó el run»; el plazo del CI corre desde que GitHub crea el run (RON1112C).
+    empujado = m.reloj() if hasattr(m, "reloj") else ahora
     return con_fase(est, "ci", "CI en GitHub Actions: tsc, vitest, núcleo mesh y next build.", ahora,
-                    sha=head, desde=ahora, pendientes=pendientes, asuntos=asuntos[:12], url=None)
+                    sha=head, desde=ahora, empujado=empujado, ci_desde=None, run_creado=None, pendientes=pendientes,
+                    asuntos=asuntos[:12], url=None)
 
 
 def solo_ya_incluidos(cherry):
@@ -852,10 +905,29 @@ def _seguir_ci(m, est, ahora):
     sha = est.get("sha")
     datos = m.gh("repos/%s/actions/workflows/ci.yml/runs?head_sha=%s&per_page=5" % (REPO, sha)) or {}
     estado, url, run_id = estado_ci(datos.get("workflow_runs"), sha)
-    espera = ahora - float(est.get("desde") or ahora)
-    if estado in ("sin-run", "esperando"):
+    # (RON1112C) Dos relojes distintos, cada uno con su mensaje: cuánto tarda GitHub en crear el run (desde que se
+    # subió el candidato) y cuánto lleva el CI (desde que GitHub creó el run). Antes era uno solo desde que el
+    # candidato empezaba, con las puertas locales dentro.
+    empujado = float(est.get("empujado") or est.get("desde") or ahora)
+    if estado == "sin-run":
+        sin_run = ahora - empujado
+        if sin_run > CI_APARICION_S:
+            m.avisar("Autopublicación: GitHub no creó el run de CI de %s en %d min desde que subí el candidato." % (
+                sha[:8], CI_APARICION_S // 60), tipo="aviso")
+            return vetar(est, sha, "GitHub no creó el run de CI en %d min" % (CI_APARICION_S // 60), ahora)
+        return con_fase(est, "ci", "Esperando a que GitHub cree el run de CI (%d min; hasta %d)." % (sin_run // 60, CI_APARICION_S // 60),
+                        ahora)
+    run = run_de_ci(datos.get("workflow_runs"), sha) or {}
+    creado = run.get("created_at")
+    ci_desde = est.get("ci_desde")
+    if ci_desde is None:
+        ci_desde = inicio_del_ci(creado, empujado, ahora)
+    ci_desde = float(ci_desde)
+    espera = ahora - ci_desde
+    est = dict(est, ci_desde=ci_desde, run_creado=creado)
+    if estado == "esperando":
         if espera > CI_TOPE_S:
-            if estado == "esperando" and run_id:
+            if run_id:
                 jobs_resp = m.gh("repos/%s/actions/runs/%s/jobs?filter=latest&per_page=50" % (REPO, run_id))
                 if isinstance(jobs_resp, dict):
                     jobs = jobs_resp.get("jobs")

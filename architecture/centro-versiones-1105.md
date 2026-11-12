@@ -747,3 +747,100 @@ La 39 cambió lo que escriben las llamadas (control de congestión rehecho) y el
 
 Formatos: `formatos.md` v1.4. Pruebas: `RegistroDeLaPrueba39` (con `fixtures/enlaces-log-prueba39-real.txt`, las líneas
 reales de la 39) y `AvisoDelBanco`.
+
+## 12 · Ronda de aparatos y reloj del CI (RON1112C · 2026-11-12)
+
+El 11-11 a las 22:22 la autopublicación tomó un candidato y arrancó sus puertas locales; la carga de la Mac fue de 34 a
+60 durante veinte minutos, justo mientras Alex hacía las llamadas de prueba con la tableta. La voz y el vídeo dependen de
+temporizadores, así que esos números no valieron y una llamada se cayó. Nada avisaba a los trabajos pesados de que había
+una ronda, ni a Alex de que la Mac no estaba tranquila. Además, esa misma noche la autopublicación vetó un candidato con un
+CI sano porque el plazo del CI contaba también las puertas locales. Este apartado arregla las dos cosas.
+
+### 12.1 La ronda de aparatos
+
+Un archivo, `~/.starseed/produccion/ronda-aparatos.json` (formato en `formatos.md` §(e)), que escribe SOLO el director de
+pruebas a petición. Dice quién la pidió, para qué, desde cuándo y hasta cuándo.
+
+- **Se pide** con las acciones `ronda-iniciar` (motivo obligatorio ≤ 200 en `nota`; `minutos` 1 a 90, 30 por defecto) y
+  `ronda-terminar`, que son las dos peticiones nuevas del director de pruebas. Lo mismo desde la sección «Ronda de
+  aparatos» del panel «Pruebas» de Genesis que desde la línea de órdenes:
+  `python3 scripts/puente/director_pruebas.py pedir ronda-iniciar --nota "llamadas con la tableta" --minutos 30` y
+  `… pedir ronda-terminar`. Iniciar con una ronda activa la RENUEVA. Terminarla es una pulsación, sin confirmación.
+- **Caduca sola**: 30 min por defecto, renovable, nunca más de 90 desde que empezó (el tope se recalcula al leer: un
+  `hasta` más lejano no alarga nada). Quien admite trabajos pesados NO se fía de la bandera `activa`: compara `hasta` con
+  el reloj, así que aunque el director esté parado la ronda se acaba a su hora.
+- **Se atiende aun con el director en pausa** (proteger la Mac no lanza nada). Parado, sin archivo o ilegible, nadie las
+  leería y la ruta de Genesis responde 409 con el motivo.
+- **Falla abierto**: un archivo que falta, vacío o ilegible significa «sin ronda». Una ronda que nadie puede leer no debe
+  parar la fábrica.
+- **No mata nada.** Los trabajos que ya corren siguen; sólo esperan los que van a EMPEZAR.
+
+**La puerta de admisión.** Cada lugar que lanza algo pesado en la Mac pregunta
+`python3 scripts/puente/ronda.py activa` (una línea; código 0 = HAY ronda, espera; 1 = no hay). Los puntos de lanzamiento:
+
+| Punto | Qué hace con una ronda activa |
+|---|---|
+| `turno_pesado.turno()` (lo usan `publicar.py`, `con-turno.py`, `aprobador_automatico.py` y `director-produccion.py`) | espera antes de pedir el cerrojo `pesado.lock`; los plazos del turno empiezan DESPUÉS |
+| `scripts/enjambre/tsc-turno.sh` (tsc del enjambre) | espera; ni `MAX_ESPERA_S` ni `MAX_TSC_S` corren mientras tanto |
+| `cerrojo_pesado()` del orquestador del enjambre (`starseed-enjambre.py`) | espera y reinicia `t0` (esperar una ronda no gasta `PESADO_ESPERA_S`) |
+| `autopublicar._nuevo_lote` | no empieza las pruebas del puente, ni el análisis, ni gasta Jev: fase `esperando`; no se fija `desde` |
+| `autopublicar.Medios.pruebas_python` | segunda guarda por si la ronda empezó entre la comprobación y el arranque |
+| `director_lanzamientos._preparar` | no empieza la preparación (vitest); queda en «preparando · espero» |
+| `traer_nube._puertas` (sin turno) | `esperar_ronda` antes de las pruebas locales |
+
+Esperar una ronda **no cuenta contra ningún plazo** de ningún trabajo. Al volver, el trabajo empieza de cero.
+
+**La verdad del silencio.** El estado de la ronda lleva `silencio`, la medición que hace el director cada pasada: qué
+trabajos pesados siguen vivos (lista cerrada en la tabla de procesos: tsc, vitest, pytest, unittest, next build, más el
+dueño vivo del cerrojo `pesado.lock`), cuánto llevan y cuánto SUELEN tardar (la mediana de las veces que este mismo
+servicio los vio terminar, en `ronda-duraciones.json`), la carga y los núcleos y la presión de memoria de macOS.
+Si hay un trabajo pesado dice «espera a que termine …, unos N min»; si la carga es alta sin un trabajo conocido, lo dice
+y no adivina; si no pudo medir, dice que no sabe. Lo que NO sabe: qué hace la tableta, apps ajenas que no estén en la
+lista, el disco ni la red. La pantalla trata una medición con más de 3 pasadas de antigüedad como «sin medir»: nunca
+afirma calma con un dato viejo.
+
+**Dónde se ve.** (1) Sección «Ronda de aparatos» del panel «Pruebas» (quién, para qué, cuánto queda, Mac tranquila u
+ocupada, Terminar, Renovar, Empezar; con el director parado los botones se desactivan y se dice que la ronda caduca sola).
+(2) «Qué corre ahora» (`EnMarcha.ronda`, sólo si está en vigor a esa hora; no cuenta como proceso vivo). Lo que viaja a
+otras neuronas es sólo `{quien, motivo, desdeMs, hastaMs}`, ya sin rutas.
+
+**Servicios.** Para que el cambio surta efecto hay que reiniciar los procesos largos, que cargan el código una vez:
+el director de pruebas (`com.starseed.pruebas`: atiende las peticiones y mide el silencio), la autopublicación
+(`com.starseed.produccion`) y el orquestador del enjambre (copia instalada en `~/.local/bin` por
+`scripts/enjambre/instalar.sh`: hay que volver a ejecutarlo para copiar `starseed-enjambre.py` y `tsc-turno.sh`, y luego
+reiniciar el enjambre como siempre). `publicar.py`, `ronda.py activa` y `tsc-turno.sh` se leen en cada ejecución. El servidor
+de Genesis (Next) sólo necesita el despliegue normal de la interfaz.
+
+### 12.2 El plazo del CI cuenta el CI
+
+Antes el plazo de 50 min (`CI_TOPE_S`) se medía desde `desde`, el inicio de toda la pasada, que incluía las puertas
+locales y la espera a que GitHub creara el run. Línea de tiempo real del candidato `6539048b4e` (11-11):
+
+| Hora | Hecho |
+|---|---|
+| 20:25 | la pasada toma el candidato y empieza sus puertas locales (`desde`) |
+| 20:57 | acaban las puertas locales y se sube el candidato (`empujado`) |
+| 21:01 | GitHub crea el run del CI (`run.created_at`) |
+| 21:17 | la regla antigua veta el candidato: `ahora - desde` = 52 min > 50, con un CI sano que llevaba 16 min |
+
+Ahora: `ci_desde = min(max(run.created_at, empujado), ahora)` y el plazo es `ahora - ci_desde`. Con la línea de tiempo real
+a las 21:17 el CI lleva 16 min y no se veta; sigue vetando a los 50 min contados desde la creación del run. Un run con
+hora anterior a la subida no adelanta el reloj, uno con hora futura no cuenta. El plazo se guarda en el estado
+(`ci_desde`, `run_creado`) y sobrevive a reinicios; un estado de antes sin `empujado` sigue con `desde`.
+
+**Un run que nunca aparece** tiene su propia cota, `CI_APARICION_S` (15 min, `STARSEED_PUBLICAR_CI_APARICION_S`), contada
+desde `empujado`, y su propio mensaje: «GitHub no creó el run de CI en 15 min». Mientras espera dice «Esperando a que
+GitHub cree el run …». No se confunde con el tope de 50 min del CI.
+
+### 12.3 Pruebas
+
+`test_ronda.py` (reglas puras, caducidad y tope de 90, falla abierto, silencio con tabla de procesos y reloj falsos,
+`esperar`, la CLI, tsc-turno.sh con un `ronda.py` falso), `test_director_pruebas.py` (clase `RondaDeAparatos`: pedir,
+renovar, terminar, pausa, petición mal hecha), `test_autopublicar_ronda_1112.py` (la línea de tiempo real, el plazo
+desde la creación del run, la cota del run que no aparece, el portón de la ronda), `test_turno_pesado.py`, y en
+TypeScript `ronda-aparatos.test.ts`, `control-ronda.test.ts` y `ronda-aparatos.test.tsx`. Todas usan relojes, GitHub y tabla de
+procesos falsos y escriben sólo en carpetas temporales.
+
+**Para la puerta de integración del supervisor** (vive fuera del repo): una sola línea que debe llamar antes de lanzar
+pruebas locales pesadas: `python3 /Users/alex/Documents/starseed-os-main/scripts/puente/ronda.py esperar --nombre "la puerta de integración"`
+(se queda mientras haya ronda, una línea por minuto, y sale con 0 cuando ya no hay).

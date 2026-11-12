@@ -810,6 +810,8 @@ def _puertas(base_sha, shas, cambiados, cwd=None):
     codigo_ts = [c for c in cambiados if c.startswith("src/") and re.search(r"\.(ts|tsx)$", c)]
     # El turno de la máquina (uno pesado a la vez) solo hace falta para tsc y vitest; unas pocas
     # pruebas del puente en Python no esperan detrás de un tsc de 15 min de otra tarea.
+    if not (archivos_ts(cambiados) or codigo_ts):
+        turno_pesado.esperar_ronda(nombre="las pruebas del puente")     # RON1112C: sin turno, pero sin ronda tampoco
     turno = turno_pesado.turno() if (archivos_ts(cambiados) or codigo_ts) else contextlib.nullcontext()
     with turno:
         if archivos_ts(cambiados):

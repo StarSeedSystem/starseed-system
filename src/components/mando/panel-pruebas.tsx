@@ -26,6 +26,7 @@ import { BuildsDePrueba } from "./pruebas-builds";
 import { CadenaDeEntrega } from "./pruebas-cadena";
 import { Chip, haceTexto, ProveedorPruebas, usePruebas, type ResultadoPedir, type Seguimiento, type ValorPruebas } from "./pruebas-contexto";
 import { ControlPruebas } from "./pruebas-control";
+import { RondaAparatos } from "./ronda-aparatos"; // RON1112C
 import { VersionesPrueba } from "./versiones-prueba";
 
 export const INTERVALO_EN_MARCHA_MS = 15_000;
@@ -161,6 +162,7 @@ export function PanelPruebas() {
                     <Cabecera cargando={cargando} alRecargar={() => void cargar()} />
                     <BuildsDePrueba />
                     <CadenaDeEntrega />
+                    <RondaAparatos /> {/* RON1112C */}
                     <ControlPruebas />
                     <AparatosYEvidencia />
                     <VersionesPrueba datos={valor.datos} alRecargar={cargar} ocultarBuild ahoraExterno={ahora} extraComprobacion={(c, v) => <ExtraDeComprobacion c={c} v={v} />} />

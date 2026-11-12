@@ -10,7 +10,9 @@ from datetime import datetime, timezone
 
 import lanzamientos_logica as LL
 
-ACCIONES = ("compilar", "cancelar", "reintentar", "republicar", "pedir-arreglo", "app-abrir")
+ACCIONES = ("compilar", "cancelar", "reintentar", "republicar", "pedir-arreglo", "app-abrir",
+            "ronda-iniciar", "ronda-terminar")      # RON1112C: la «ronda de aparatos» (ronda.py)
+ACCIONES_RONDA = ("ronda-iniciar", "ronda-terminar")
 PLATAFORMAS = ("mac", "windows", "linux", "android", "tablet", "telefono")
 QUIENES_CONOCIDOS = ("alex", "claude", "hermes", "genesis", "director")
 ESPERA_MAX_S = 4 * 3600          # «cuando el commit X esté publicado»: hasta 4 h, como el lanzador de a mano
@@ -76,7 +78,8 @@ def validar_peticion(crudo, nombre_archivo=None, ahora=None):
     if t is not None and (not isinstance(t, str) or de_iso(t) is None):
         return None, "hora no válida (se espera 2026-11-12T01:10:00Z)"
     p = {"formato": 1, "id": pid, "accion": accion, "quien": quien.lower(), "t": t or a_iso(ahora),
-         "sha": None, "numero": None, "prueba": None, "comprobacion": None, "plataforma": None, "nota": None}
+         "sha": None, "numero": None, "prueba": None, "comprobacion": None, "plataforma": None, "nota": None,
+         "minutos": None}
     sha = crudo.get("sha")
     if sha is not None:
         if accion != "compilar":
@@ -104,6 +107,18 @@ def validar_peticion(crudo, nombre_archivo=None, ahora=None):
         p["comprobacion"], p["plataforma"] = cid, plat
     elif any(crudo.get(k) is not None for k in ("prueba", "comprobacion", "plataforma")):
         return None, "«prueba», «comprobacion» y «plataforma» solo valen para pedir arreglo"
+    # RON1112C: `minutos` (1 a 90) solo vale para iniciar una ronda; el motivo de la ronda viaja en `nota` (≤ 200).
+    if crudo.get("minutos") is not None:
+        mi = _entero(crudo["minutos"], 1, 90)
+        if mi is None or accion != "ronda-iniciar":
+            return None, "«minutos» no válido (entero de 1 a 90 y solo para iniciar una ronda)"
+        p["minutos"] = mi
+    if accion == "ronda-iniciar":
+        mot = " ".join(str(crudo.get("nota") or "").split()) if isinstance(crudo.get("nota"), (str, type(None))) else ""
+        if not mot:
+            return None, "la ronda necesita un motivo (en «nota»: qué se va a probar)"
+        if len(mot) > 200:
+            return None, "el motivo de la ronda pasa de 200 caracteres (tiene %d)" % len(mot)
     nota = crudo.get("nota")
     if nota is not None:
         if not isinstance(nota, str):

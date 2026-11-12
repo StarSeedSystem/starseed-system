@@ -8,6 +8,7 @@
 
 import type { EnMarcha } from "./en-marcha";
 import type { PlataformaPrueba, RespuestaPruebas } from "./lanzamientos-pruebas-tipos";
+import type { RondaArchivo } from "./ronda-aparatos"; // RON1112C
 
 // ── El director de pruebas (pruebas-director-estado.json) ──────────────────────────────────────────
 
@@ -267,13 +268,15 @@ export interface RespuestaVivo extends RespuestaPruebas {
     /** false = no pude leer el prerelease de GitHub (los accesos no se saben). */
     prereleaseLeido: boolean;
     enMarcha: EnMarcha | null;
+    /** RON1112C: la ronda de aparatos tal como está en el disco: null = sin archivo, "ilegible" = no se pudo leer. */
+    ronda?: RondaArchivo | "ilegible" | null;
     /** Cuándo (ms) se montó esta respuesta, para calcular edades en el cliente. */
     ahoraServidor: number;
 }
 
 // ── Peticiones de la pantalla ──────────────────────────────────────────────────────────────────────
 
-export type AccionControl = "compilar" | "cancelar" | "reintentar" | "republicar" | "pedir-arreglo" | "app-abrir";
+export type AccionControl = "compilar" | "cancelar" | "reintentar" | "republicar" | "pedir-arreglo" | "app-abrir" | "ronda-iniciar" | "ronda-terminar"; // RON1112C: las dos últimas
 
 export interface PeticionControl {
     accion: AccionControl;
@@ -284,4 +287,6 @@ export interface PeticionControl {
     comprobacion: string | null;
     plataforma: string | null;
     nota: string | null;
+    /** RON1112C: `ronda-iniciar`: minutos de la ronda (1 a 90); null = 30. El motivo viaja en `nota`. */
+    minutos?: number | null;
 }

@@ -355,3 +355,58 @@ def test_tsc_turno_en_verde_y_sin_cambios_no_mira_el_disco(cerrojos_tmp, tmp_pat
                         capture_output=True, text=True, timeout=60)
     assert r2.returncode == 0 and "sin cambios" in r2.stdout, r2.stderr
     assert llamadas.read_text().split() == ["x"]
+
+
+# ── RON1112C · ronda de aparatos en el orquestador ────────────────────────────────────────────────────────────────
+
+def test_cerrojo_pesado_espera_la_ronda_y_no_gasta_el_plazo_del_turno(cerrojos_tmp, monkeypatch):
+    """Con una ronda activa el turno NO se toma; al terminar la ronda no se fuerza el turno aunque la ronda durara más que
+    PESADO_ESPERA_S: esperar una ronda no gasta el plazo del turno (t0 se reinicia)."""
+    ruta = os.path.join(str(cerrojos_tmp), "pesado.lock")
+    reloj = {"t": 1_000_000.0}
+    monkeypatch.setattr(enjambre.time, "time", lambda: reloj["t"])
+    monkeypatch.setattr(enjambre, "PESADO_ESPERA_S", 60)
+    estado = {"llamadas": 0, "soltado": False}
+    rmtree = shutil.rmtree
+
+    def esperar_falso():
+        estado["llamadas"] += 1
+        if estado["llamadas"] == 1:
+            reloj["t"] += 600  # diez minutos de ronda: diez veces el plazo del turno
+            return 600
+        return 0
+
+    def dormir(s):
+        reloj["t"] += s
+        if reloj["t"] >= 1_000_000.0 + 600 + 30 and not estado["soltado"]:
+            estado["soltado"] = True  # el dueño vivo suelta 30 s después de la ronda: dentro del plazo si t0 se reinició
+            rmtree(ruta, ignore_errors=True)
+
+    monkeypatch.setattr(enjambre, "esperar_ronda_aparatos", esperar_falso)
+    monkeypatch.setattr(enjambre.time, "sleep", dormir)
+    os.mkdir(ruta)  # un dueño vivo de verdad (este proceso) que no suelta hasta `dormir`
+    with open(os.path.join(ruta, "dueno"), "w", encoding="utf-8") as f:
+        f.write("%d %d" % (os.getpid(), int(reloj["t"]) + 600))
+    with enjambre.cerrojo("pesado"):
+        assert estado["soltado"], "el turno se tomó por la fuerza en vez de esperar a que el dueño lo soltara"
+    assert estado["llamadas"] >= 2, "la ronda se consulta en cada intento, no sólo al entrar"
+
+
+def test_esperar_ronda_aparatos_sin_ronda_py_deja_pasar(monkeypatch, tmp_path):
+    """Sin ronda.py (o con un fallo) el orquestador no se para: devuelve 0."""
+    monkeypatch.setattr(enjambre, "ROOT", str(tmp_path))
+    # aunque un ronda real ya esté importado o en sys.path (otros tests), sólo cuenta el de ROOT
+    puente = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "puente")
+    monkeypatch.syspath_prepend(puente)
+    assert enjambre.esperar_ronda_aparatos() == 0
+
+
+def test_esperar_ronda_aparatos_usa_el_ronda_py_de_root(monkeypatch, tmp_path):
+    """Con un ronda.py bajo ROOT se usa ése (y su resultado), sin tocar sys.modules['ronda']."""
+    carpeta = tmp_path / "scripts" / "puente"
+    carpeta.mkdir(parents=True)
+    (carpeta / "ronda.py").write_text("def esperar(nombre, avisar=None):\n    return 7\n", encoding="utf-8")
+    monkeypatch.setattr(enjambre, "ROOT", str(tmp_path))
+    antes = sys.modules.get("ronda")
+    assert enjambre.esperar_ronda_aparatos() == 7
+    assert sys.modules.get("ronda") is antes

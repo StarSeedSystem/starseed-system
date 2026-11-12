@@ -56,7 +56,10 @@ def tomar_turno(diario):
             "esperando turno de máquina (%d s): el enjambre está compilando" % segundos,
         )
 
-    cm = TP.turno(avisar=avisar)
+    def avisar_ronda(texto, segundos):                       # RON1112C: la espera a una ronda se dice como lo que es
+        diario.marcar("tsc", "corriendo", texto)
+
+    cm = TP.turno(avisar=avisar, avisar_ronda=avisar_ronda)
     cm.__enter__()
     _TURNO["cm"] = cm
     atexit.register(soltar_turno)

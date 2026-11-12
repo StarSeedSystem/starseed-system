@@ -143,15 +143,17 @@ class SeguirCiConJobs(unittest.TestCase):
         self.assertFalse(any("/jobs" in r for r in m.rutas_gh))
 
     def test_sin_run_no_cambia(self):
-        """(f) sin-run no cambia: sigue el comportamiento actual."""
+        """(f) sin run: RON1112C le puso su propia cota (CI_APARICION_S) y su propio mensaje; el «50 min» es del CI."""
         m = FalsoConJobs(
             runs=[],
             ancestro=True,
         )
         base = {"fase": "ci", "sha": SHA, "desde": T0}
-        e = A.pasada(m, base, T0 + A.CI_TOPE_S + 1)
+        e = A.pasada(m, base, T0 + A.CI_APARICION_S + 1)
         self.assertEqual(e["fase"], "bloqueado")
-        self.assertEqual(e["detalle"], "CI sin terminar en 50 min")
+        self.assertEqual(e["detalle"], "GitHub no creó el run de CI en %d min" % (A.CI_APARICION_S // 60))
+        e = A.pasada(m, base, T0 + 60)
+        self.assertEqual(e["fase"], "ci")
 
 
 if __name__ == "__main__":

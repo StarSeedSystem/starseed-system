@@ -38,6 +38,7 @@ pruebas cubran justo lo que se rompe: decidir si un turno está huérfano.
 import contextlib
 import os
 import shutil
+import sys
 import time
 
 CERROJOS = os.path.expanduser("~/.starseed/cerrojos")
@@ -109,6 +110,33 @@ def puedo_soltar(texto_dueno_actual, mi_pid):
     return pid == int(mi_pid)
 
 
+# ── la ronda de aparatos (RON1112C) ───────────────────────────────────────────
+
+
+def esperar_ronda(avisar_ronda=None, nombre="un trabajo pesado"):
+    """Mientras haya una «ronda de aparatos» (ronda.py) no EMPIEZA nada pesado. → segundos esperados (0 si no había).
+
+    Un trabajo que ya corre no se toca. Quien llama empieza sus plazos DESPUÉS de esto: esperar una ronda no gasta
+    ninguno. Si ronda.py falla o no está, se deja pasar (una ronda ilegible no puede parar la fábrica).
+    `avisar_ronda(texto, segundos)` se llama al empezar a esperar y cada minuto."""
+    try:
+        if os.path.dirname(os.path.abspath(__file__)) not in sys.path:
+            sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import ronda
+    except Exception:
+        return 0
+
+    def decir(texto, seg):
+        print(texto, flush=True)
+        if avisar_ronda:
+            avisar_ronda(texto, seg)
+
+    try:
+        return ronda.esperar(nombre, avisar=decir)
+    except Exception:
+        return 0
+
+
 # ── la parte que sí toca el disco ───────────────────────────────────────────
 
 
@@ -135,7 +163,7 @@ def _leer_dueno(ruta):
 
 
 @contextlib.contextmanager
-def turno(espera_s=ESPERA_S, reintento_s=REINTENTO_S, avisar=None):
+def turno(espera_s=ESPERA_S, reintento_s=REINTENTO_S, avisar=None, avisar_ronda=None):
     """Toma el turno de lo pesado, lo suelta pase lo que pase.
 
         with turno():
@@ -155,6 +183,9 @@ def turno(espera_s=ESPERA_S, reintento_s=REINTENTO_S, avisar=None):
     t0 = time.time()
     ultimo_aviso = t0
     while True:
+        # (RON1112C) Con una ronda de aparatos no se toma el turno; esperarla no cuenta para el plazo de forzarlo.
+        if esperar_ronda(avisar_ronda):
+            t0 = ultimo_aviso = time.time()
         if os.path.isdir(ruta) and es_huerfano(_leer_dueno(ruta), _pids_vivos(), time.time()):
             shutil.rmtree(ruta, ignore_errors=True)
         try:

@@ -170,6 +170,15 @@ export function vistaDirector(d: DirectorLeido | "ilegible" | null | undefined, 
     return { estado: "corriendo", leePeticiones: true, haceS, texto: `El director de pruebas pasó hace ${duracionS(haceS)}.` };
 }
 
+/**
+ * RON1112C. Las peticiones de la ronda de aparatos las atiende el director aun EN PAUSA (proteger la Mac no lanza
+ * nada), así que su pantalla y su ruta las aceptan con el director corriendo o en pausa; con él parado, sin archivo o
+ * ilegible nadie las leería. Pura.
+ */
+export function leePeticionesDeRonda(v: VistaDirector): boolean {
+    return v.estado === "corriendo" || v.estado === "pausado";
+}
+
 export function duracionS(s: number): string {
     if (s < 90) return `${s} s`;
     const m = Math.round(s / 60);
@@ -612,11 +621,24 @@ export function plataformaParaPeticion(p: string | null | undefined): string | n
 export function validarControl(body: unknown): PeticionControl | { error: string } {
     const o = objeto(body);
     const accion = o.accion as AccionControl;
-    if (!["compilar", "cancelar", "reintentar", "republicar", "pedir-arreglo", "app-abrir"].includes(accion)) return { error: "Acción no válida." };
+    if (!["compilar", "cancelar", "reintentar", "republicar", "pedir-arreglo", "app-abrir", "ronda-iniciar", "ronda-terminar"].includes(accion)) return { error: "Acción no válida." };
     const nota = typeof o.nota === "string" && o.nota.trim() ? o.nota.trim() : null;
     if (nota !== null && nota.length > 500) return { error: "La nota es demasiado larga (500 caracteres como mucho)." };
     const base: PeticionControl = { accion, sha: null, numero: null, prueba: null, comprobacion: null, plataforma: null, nota };
     if (accion === "app-abrir") return { ...base, nota: null }; // PRB1111X: sin más campos
+    // RON1112C: la ronda de aparatos. Iniciar lleva motivo (en `nota`, hasta 200) y minutos (1 a 90, 30 si no se dice); terminar, nada.
+    if (accion === "ronda-terminar") return { ...base, nota: null };
+    if (accion === "ronda-iniciar") {
+        const motivo = nota ? nota.replace(/\s+/g, " ") : "";
+        if (!motivo) return { error: "La ronda necesita un motivo: qué se va a probar." };
+        if (motivo.length > 200) return { error: "El motivo de la ronda es demasiado largo (200 caracteres como mucho)." };
+        let minutos: number | null = null;
+        if (o.minutos !== null && o.minutos !== undefined) {
+            minutos = typeof o.minutos === "number" ? entero(o.minutos) : null;
+            if (minutos === null || minutos < 1 || minutos > 90) return { error: "Los minutos de la ronda van de 1 a 90." };
+        }
+        return { ...base, nota: motivo, minutos };
+    }
     if (accion === "compilar") {
         if (o.sha === null || o.sha === undefined) return base;
         if (typeof o.sha !== "string" || !SHA40.test(o.sha.toLowerCase())) return { error: "Commit no válido (hacen falta los 40 caracteres)." };
@@ -651,6 +673,7 @@ export function cuerpoDePeticion(p: PeticionControl, id: string, t: string, quie
         comprobacion: p.accion === "pedir-arreglo" ? p.comprobacion : null,
         plataforma: p.accion === "pedir-arreglo" ? p.plataforma : null,
         nota: p.nota,
+        ...(p.accion === "ronda-iniciar" && p.minutos ? { minutos: p.minutos } : {}), // RON1112C
     };
 }
 
@@ -667,7 +690,7 @@ export interface TextoConfirmacion {
 }
 
 export function textoDeConfirmacion(
-    p: { accion: Exclude<AccionControl, "pedir-arreglo" | "app-abrir"> },
+    p: { accion: Exclude<AccionControl, "pedir-arreglo" | "app-abrir" | "ronda-iniciar" | "ronda-terminar"> }, // RON1112C
     ctx: { cola: ColaLocal; enCurso: { numero: number | null; version: string | null } | null; objetivo: { numero: number | null; version: string | null } | null; ultimaPublicada: string | null },
 ): TextoConfirmacion {
     const nombre = (x: { numero: number | null; version: string | null } | null) => x?.version ?? (x?.numero ? `prueba.${x.numero}` : "la que consta en el director");

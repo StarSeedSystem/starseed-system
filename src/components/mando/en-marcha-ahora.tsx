@@ -58,7 +58,7 @@ function Fila({ id, titulo, detalle }: { id: string; titulo: string; detalle?: s
 
 export function EnMarchaAhoraVista({ datos, ahora }: { datos: EnMarcha | null | undefined; ahora: number }) {
     const v = vistaEnMarcha(datos, ahora);
-    const { carril, puerta, publicacion, prueba } = v;
+    const { carril, puerta, publicacion, prueba, ronda } = v;
     const tonoCarril: Tono = carril.estado === "vivo" ? "vivo" : carril.estado === "sin-latido" ? "aviso" : "quieto";
     const etiquetaCarril =
         carril.estado === "vivo"
@@ -165,6 +165,15 @@ export function EnMarchaAhoraVista({ datos, ahora }: { datos: EnMarcha | null | 
                                 ))}
                             </ul>
                         ) : null}
+                    </Bloque>
+                ) : null}
+
+                {ronda ? (
+                    // RON1112C · la ronda de aparatos: no es un proceso, es una orden de calma para la Mac mientras se prueba con los aparatos.
+                    <Bloque n={5} id="ronda" titulo="Ronda de aparatos" tono="aviso" etiqueta="en vigor">
+                        <p className="break-words" data-testid="en-marcha-ronda-texto">
+                            {ronda.texto}
+                        </p>
                     </Bloque>
                 ) : null}
             </div>

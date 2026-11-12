@@ -18,6 +18,7 @@ import { promisify } from "node:util";
 import { publicacionParaEnviar, type EnMarcha } from "@/lib/mando/en-marcha";
 import { leerCarrilDeDisco, leerPuertaDeDisco } from "@/lib/mando/en-marcha-disco";
 import { raizDelProyecto } from "@/lib/mando/raiz";
+import { leerRonda, rondaParaEnviar, type RondaArchivo } from "@/lib/mando/ronda-aparatos"; // RON1112C
 
 import { aplicarArchivo, estaEnMarcha, resumenPruebas } from "./lanzamientos-pruebas";
 import {
@@ -55,6 +56,7 @@ const GH = ["/opt/homebrew/bin/gh", "/usr/local/bin/gh", "gh"];
 export const ARCHIVO_DIRECTOR = "pruebas-director-estado.json";
 export const ARCHIVO_BANCO = "pruebas-banco.json";
 export const CARPETA_PETICIONES = "pruebas-peticiones";
+export const ARCHIVO_RONDA = "ronda-aparatos.json"; // RON1112C
 
 export function rutaPeticiones(): string {
     return path.join(carpetaProduccion(), CARPETA_PETICIONES);
@@ -78,6 +80,13 @@ export async function leerDirectorArchivo(): Promise<DirectorLeido | "ilegible" 
     const r = await leerJsonDe(path.join(carpetaProduccion(), ARCHIVO_DIRECTOR));
     if (!r.ok) return r.falta ? null : "ilegible";
     return leerDirector(r.valor) ?? "ilegible";
+}
+
+/** RON1112C. La ronda de aparatos: null = no hay archivo (sin ronda), "ilegible" = hay y no se pudo leer (se trata como sin ronda y se dice). */
+export async function leerRondaArchivo(): Promise<RondaArchivo | "ilegible" | null> {
+    const r = await leerJsonDe(path.join(carpetaProduccion(), ARCHIVO_RONDA));
+    if (!r.ok) return r.falta ? null : "ilegible";
+    return leerRonda(r.valor) ?? "ilegible";
 }
 
 export async function leerBancoArchivo(): Promise<BancoLeido | "ilegible" | null> {
@@ -188,12 +197,13 @@ export async function leerEnMarchaLigero(): Promise<EnMarcha | null> {
             actualizadoMs: Number.isFinite(act) ? act : undefined,
         };
     };
+    const ronda = rondaParaEnviar(await leerRondaArchivo().catch(() => null), Date.now()); // RON1112C
     const [carril, puerta, publicacion] = await Promise.all([
         leerCarrilDeDisco(raizDelProyecto()).catch(() => null),
         leerPuertaDeDisco(path.join(carpeta, "puerta-estado.json"), path.join(os.homedir(), ".starseed", "opus1031")).catch(() => null),
         autopub().then(publicacionParaEnviar).catch(() => null),
     ]);
-    return carril || puerta || publicacion ? { generadoMs: Date.now(), carril, puerta, publicacion } : null;
+    return carril || puerta || publicacion || ronda ? { generadoMs: Date.now(), carril, puerta, publicacion, ...(ronda ? { ronda } : {}) } : null;
 }
 
 // ── Registro de un paso que falló ──────────────────────────────────────────────────────────────────
@@ -235,7 +245,7 @@ export async function pruebaParaEnMarcha(esperaMs = 2_500): Promise<ReturnType<t
 /** La respuesta de `GET …/pruebas/vivo`. */
 export async function reunirVivo(opciones: { aprobarAqui: boolean; ahora?: number }): Promise<RespuestaVivo> {
     const ahora = opciones.ahora ?? Date.now();
-    const [foto, archivo, director, banco, cola, enMarchaBase, archivos] = await Promise.all([
+    const [foto, archivo, director, banco, cola, enMarchaBase, archivos, ronda] = await Promise.all([
         pruebasCompartidas(),
         leerComprobaciones(),
         leerDirectorArchivo(),
@@ -243,6 +253,7 @@ export async function reunirVivo(opciones: { aprobarAqui: boolean; ahora?: numbe
         colaLocal(),
         leerEnMarchaLigero().catch(() => null),
         archivosDelPrerelease(ahora),
+        leerRondaArchivo().catch(() => "ilegible" as const), // RON1112C
     ]);
     const peticiones = await leerPeticiones(director);
     const versiones = aplicarArchivo(foto.versiones, archivo);
@@ -271,6 +282,7 @@ export async function reunirVivo(opciones: { aprobarAqui: boolean; ahora?: numbe
         accesos,
         prereleaseLeido: archivos !== null,
         enMarcha,
+        ronda,
         ahoraServidor: ahora,
     };
 }

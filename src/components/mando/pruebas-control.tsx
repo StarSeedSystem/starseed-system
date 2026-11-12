@@ -26,6 +26,8 @@ const NOMBRE: Record<string, string> = {
     reintentar: "Reintentar lo que falló",
     republicar: "Volver a publicar el manifiesto",
     "pedir-arreglo": "Pedir arreglo a la dirección",
+    "ronda-iniciar": "Ronda de aparatos: empezar o renovar", // RON1112C
+    "ronda-terminar": "Ronda de aparatos: terminar", // RON1112C
 };
 
 /** El estado de UNA petición que esta pantalla escribió (o de una reciente del director). */
@@ -200,9 +202,9 @@ export function ControlPruebas() {
         { accion: "republicar", sha: null, texto: "Volver a publicar el manifiesto" },
     ];
 
-    const mias = c.seguimiento.slice(-4).reverse();
+    const mias = c.seguimiento.filter((s) => !s.accion.startsWith("ronda-")).slice(-4).reverse(); // RON1112C: las de la ronda se ven en su sección
     const idsMios = new Set(mias.map((m) => m.id));
-    const recientes = datos.peticiones.filter((p) => !idsMios.has(p.id)).slice(0, 3);
+    const recientes = datos.peticiones.filter((p) => !idsMios.has(p.id) && !p.accion.startsWith("ronda-")).slice(0, 3); // RON1112C
 
     return (
         <Seccion titulo="Control (pide al director de pruebas)" id="control">

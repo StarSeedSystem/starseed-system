@@ -122,6 +122,14 @@ def _preparar(m, est, ahora):
     cs = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(cs)
     v = est["version"]
+    # (RON1112C) Esta preparación corre una prueba de vitest: con una ronda de aparatos activa no empieza.
+    try:
+        import ronda as _ronda
+        hay_ronda, linea_ronda = _ronda.activa()
+    except Exception:  # noqa: BLE001 — sin ronda.py se sigue
+        hay_ronda, linea_ronda = False, ""
+    if hay_ronda:
+        return _paso(est, "preparando", "espero: " + linea_ronda, ahora)
     _, ultimo, _ = m.git(["describe", "--tags", "--abbrev=0", "--match", "v*", "origin/main"], timeout=30)
     rango = ("%s..origin/main" % ultimo) if ultimo else "-n200"
     _, asuntos, _ = m.git(["log", "--format=%s", rango], timeout=60)
