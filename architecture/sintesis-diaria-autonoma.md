@@ -10,6 +10,8 @@
   su texto está en `starseed_memory_root/olas/pendientes/tarea-sdp1111m-pendiente.json`.
 - Nada está construido todavía.
 
+- **SDP1111M queda sustituida por NAV1112E** («Navegador propio de MetaGenesis», `architecture/navegador-propio-metagenesis.md`), aprobada por Alex el 2026-11-12. Su texto se conserva en `starseed_memory_root/olas/pendientes/tarea-sdp1111m-sustituida-por-nav1112e.json`.
+
 **Fuente:** el Doc de Drive `1EWYkJscwVhuizSYfY5AhrKQQNAZTXWGASvyLYKe6oZs` (Pláticas y videos › Síntesis diarias).
 
 ## 1. Qué pidió Alex (2026-11-11, literal en lo esencial)
