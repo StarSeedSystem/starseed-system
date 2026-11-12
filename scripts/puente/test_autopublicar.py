@@ -100,6 +100,9 @@ class Falso(object):
     def avisar(self, texto, tipo="informe"):
         self.avisos.append(texto)
 
+    def ronda_estado(self):
+        return self.o.get("ronda_estado", {})
+
 
 def run(estado, conclusion="success"):
     return {"head_sha": SHA, "status": estado, "conclusion": conclusion, "html_url": "https://ci/1", "id": 1,
@@ -221,6 +224,17 @@ class Puertas(unittest.TestCase):
         # dice cuándo sale el lote: «… hacia las HH:MM», 20 min después de la última
         sale = A.time.strftime("%H:%M", A.time.localtime(T0 - 60 + A.VENTANA_S))
         self.assertIn("hacia las %s" % sale, e["detalle"])
+
+    def test_ronda_activa_frena_la_autopublicacion(self):
+        m = Falso(ronda_estado={"activa": True, "sha": SHA, "numero": 37, "fase": "compilando", "t_caduca": T0 + 3600})
+        e = A.pasada(m, {}, T0)
+        self.assertEqual(e["fase"], "esperando")
+        self.assertIn("Ronda de aparatos en marcha", e["detalle"])
+        self.assertEqual(m.pushes, [])
+        # Segunda pasada con la misma ronda: no repite el aviso
+        e = A.pasada(m, e, T0 + 300)
+        self.assertEqual(e["fase"], "esperando")
+        self.assertEqual(len(m.avisos), 1)
 
 
 class CicloCompleto(unittest.TestCase):
