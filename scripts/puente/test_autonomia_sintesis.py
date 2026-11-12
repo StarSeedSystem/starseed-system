@@ -111,7 +111,11 @@ class SesionNotebooklm(unittest.TestCase):
     def test_viaja_por_el_mismo_tunel_y_nada_sale_por_la_salida(self):
         enviados, orig_b, orig_s = [], N._ssh_bytes, N.ssh
         N._ssh_bytes = lambda orden, datos, **k: enviados.append((orden, datos)) or (0, "")
-        N.ssh = lambda orden, **k: (0, "notebooklm-ok")
+        def ssh_mock(orden, **k):
+            if "auth check" in str(orden):
+                return (1, "")  # A1 no tiene sesión válida
+            return (0, "notebooklm-ok")  # instalación ok
+        N.ssh = ssh_mock
         try:
             r = N._notebooklm_al_a1(origen=__file__)
         finally:
