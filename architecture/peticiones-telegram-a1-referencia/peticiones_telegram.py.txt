@@ -57,7 +57,7 @@ TIPOS = {
     "audio": ("resumen en audio (podcast)", ".m4a", ["--format", "deep-dive"], 2700, True, True),
     "video": ("vídeo resumen", ".mp4", [], 2700, True, True),
     "slide-deck": ("presentación", ".pdf", [], 1500, True, True),
-    "report": ("informe", ".md", [], 900, True, True),
+    "report": ("informe", ".md", ["--format", "custom"], 1200, True, True),
     "mind-map": ("mapa mental", ".json", [], 600, True, False),
     "quiz": ("cuestionario", ".json", [], 900, False, True),
     "flashcards": ("tarjetas de estudio", ".json", [], 900, False, True),
@@ -69,17 +69,49 @@ INDICACIONES = {
     "audio": "Conversación en español, cálida y clara, que explique lo esencial y las recomendaciones "
              "accionables para la producción audiovisual de StarSeed.",
 }
-CLAVES_TIPO = [("infographic", r"infogr[aá]f"), ("audio", r"\baudio|podcast"), ("video", r"\bv[ií]deo\b"),
+CLAVES_TIPO = [("infographic", r"infogr[aá]f"), ("audio", r"\baudio\b|podcast"), ("video", r"\bv[ií]deo\b"),
                ("slide-deck", r"presentaci[oó]n|diapositiva|slides"), ("mind-map", r"mapa mental"),
                ("report", r"\binforme\b|\breporte\b"), ("quiz", r"cuestionario|\bquiz"),
                ("flashcards", r"tarjetas|flashcards"), ("data-table", r"tabla de datos")]
-AYUDA = ("Soy MetaGenesis desde el A1 (funciono sin la Mac y sin Claude).\n"
+AYUDA = ("Soy MetaGenesis desde el A1 (siempre encendido; uso la Mac y a Claude cuando están).\n"
          "Pídeme en lenguaje normal, por ejemplo:\n"
+         "• Un ENCARGO de varias horas: «se aprueban las recomendaciones… desarrolla…». Lo planifico por frentes, "
+         "investigo a fondo con NotebookLM, produzco cada entregable, lo guardo en su carpeta de Drive y te mando "
+         "avances. Mientras corre, escríbeme ajustes y los aplico en los frentes siguientes.\n"
          "• «Infografía y audio tipo podcast de la última síntesis»\n"
-         "• «Mapa mental del cuaderno de producción»\n"
          "• «Presentación de este Doc: <enlace de Drive>»\n"
+         "• «Recuerda que…»: lo guardo en mis preferencias.\n"
          "• Cualquier pregunta: te respondo con modelos gratuitos.\n"
-         "/estado: sesión de NotebookLM y cola de peticiones.")
+         "/estado · /encargos · /pausa · /sigue · /cancela")
+ENCARGOS = os.path.join(DIR, "encargos.json")
+PREFS = os.path.join(DIR, "preferencias.json")
+PREFS_INICIALES = ["Quien te escribe se llama Maggasukha (no Alex): llámalo siempre así.",
+                   "En el material de producción oficial de StarSeed no uses su nombre.",
+                   "Cuando la Mac esté disponible y sea útil, MetaGenesis la usa junto con el resto de sus medios "
+                   "(y a Claude como dirección); sin la Mac, todo sigue en el A1."]
+CARPETA_PRODUCCION = "1gYbjOTbE5GhpmTdvnmqklvLMdM2GjN9P"  # Drive › Pláticas y videos
+DESTINOS = {"fuentes": "1wyQaChAJwQwt9VG3Bi_zEJj9TWA7Qcf9",      # Fuentes y gráficas
+            "fundamentos": "1n_xD7ltHIV2daLBUsuG01TuT25C_hE9E",  # Fundamentos teóricos
+            "videos": "1t-OuVdOyj2GW0XomHmgUveWrixM0_M7v",       # Videos › Proyectos en desarrollo
+            "eventos": "1s1suEbl9nALm62I3ekWmPksKYuTle4hb",      # Eventos históricos
+            "herramientas": "1X1g9rHKoyBszsBjdvGjuvC8-yiqEZ7ci",  # Herramientas de producción
+            "produccion": CARPETA_PRODUCCION}
+CAPACIDADES = (
+    "Corres en el A1 de MetaGenesis, siempre encendido. Puedes: NotebookLM con la cuenta de producción (cuadernos, "
+    "investigación profunda en la web, informes, infografías, audio, vídeo, presentaciones, mapas mentales, tablas); "
+    "Google Drive (leer y crear documentos y carpetas de producción); modelos gratuitos; y ENCARGOS de varias horas "
+    "que planificas por frentes, ejecutas, guardas en Drive y de los que mandas avances por este chat. La Mac es otra "
+    "neurona de MetaGenesis: cuando está encendida, la dirección la usa (Claude Opus vía el Director presidente, "
+    "Blender, Hermes) y retoma tus encargos desde el panel de Drive. No digas que no puedes algo que MetaGenesis hace "
+    "por otra vía, y nunca afirmes haber guardado o hecho algo que no hiciste.")
+REGLAS_MARCA = (
+    "Escribe en español, a nivel profesional. Reglas de StarSeed: revolución de diseño, no de conflicto; Periodismo de "
+    "Soluciones (todo diagnóstico desemboca en una propuesta); cada dato con fuente y fecha; lo que aún no existe se "
+    "rotula «en desarrollo»; colores solo de los tokens de marca; el símbolo de StarSeed nunca se genera con IA: se "
+    "usa el original; de las referencias se dice qué se toma, nunca se copia; nada se publica ni se contacta a nadie; "
+    "no uses el nombre de la persona que encarga en el material oficial. Matriz audiovisual: Semilla (cálido, "
+    "artesanal, Arts & Crafts), Fruto/Cosecha (solarpunk, luz dorada, esmeralda, Art Nouveau), Mente Digital "
+    "(bioluminiscente, glassmorphism, data art).")
 
 RENOVAR = ("Para renovarla hace falta iniciar sesión una vez con alexbordongarrigos: pídeselo a Claude en el chat "
            "del proyecto (abre la ventana en la Mac y la sesión pasa al A1). Cuando el enjambre integre PET1112E, se "
@@ -215,21 +247,26 @@ def llm(mensajes, max_tokens=3000, presupuesto_s=180):
     return "", ""
 
 
+TIPOS_PETICION = ("encargo", "ajuste", "preferencia", "notebooklm", "respuesta")
 INSTRUCCION = (
-    "Eres el despachador de MetaGenesis (StarSeed). Alex escribe peticiones por Telegram. Devuelve SOLO un "
-    "objeto JSON, sin texto alrededor, con esta forma: {\"tipo\": \"notebooklm\" o \"respuesta\", "
-    "\"fuente\": \"ultima_sintesis\" | \"drive\" | \"cuaderno\", \"drive_id\": \"\", "
+    "Eres el despachador de MetaGenesis (StarSeed). Maggasukha escribe peticiones por Telegram. Devuelve SOLO un "
+    "objeto JSON, sin texto alrededor, con esta forma: {\"tipo\": uno de encargo, ajuste, preferencia, notebooklm, "
+    "respuesta, \"fuente\": \"ultima_sintesis\" | \"drive\" | \"cuaderno\", \"drive_id\": \"\", "
     "\"artefactos\": [{\"tipo\": uno de infographic, audio, video, slide-deck, mind-map, report, quiz, "
-    "flashcards, data-table, \"indicaciones\": \"qué destacar, en español\"}], "
-    "\"resumen\": \"una frase en español de lo que vas a hacer\"}. "
-    "Usa \"notebooklm\" si pide algo que se genera en NotebookLM (infografía, audio, podcast, resumen de audio, "
-    "vídeo, presentación, diapositivas, mapa mental, informe, cuestionario, tarjetas, tabla). Fuente "
-    "\"ultima_sintesis\" si habla de la última síntesis o de la síntesis diaria; \"drive\" si da un enlace o id de "
-    "Drive (ponlo en drive_id); \"cuaderno\" si no da una fuente concreta. \"respuesta\" para todo lo demás, con "
-    "artefactos vacío.")
+    "flashcards, data-table, \"indicaciones\": \"qué destacar, en español\"}], \"recordar\": \"\", "
+    "\"resumen\": \"una frase en español de lo que vas a hacer\"}. Tipos: "
+    "\"encargo\" si aprueba o encarga TRABAJO de varios pasos o de horas (aprobar recomendaciones o próximos pasos, "
+    "desarrollar, investigar y producir, guiones, storyboards, personajes, referencias, guardar en Drive, listas de "
+    "tareas); un mensaje largo con muchos entregables es SIEMPRE encargo, aunque nombre audio o audiovisual. "
+    "\"ajuste\" si da indicaciones o correcciones para el encargo en curso (solo si se te dice que hay uno activo). "
+    "\"preferencia\" si pide recordar algo de forma permanente (su nombre, cómo tratarlo, reglas); pon en \"recordar\" "
+    "la regla en una frase. \"notebooklm\" solo si pide un artefacto concreto de NotebookLM (infografía, audio o "
+    "podcast, vídeo resumen, presentación, mapa mental, informe, cuestionario, tarjetas, tabla) de una fuente; fuente "
+    "\"ultima_sintesis\" si habla de la última síntesis, \"drive\" si da un enlace o id de Drive, \"cuaderno\" si no. "
+    "\"respuesta\" para preguntas y todo lo demás.")
 
 
-def por_reglas(texto):
+def por_reglas(texto, hay_encargo=False):
     t = texto.lower()
     artefactos = [{"tipo": k, "indicaciones": ""} for k, patron in CLAVES_TIPO if re.search(patron, t)]
     m = re.search(r"/d/([A-Za-z0-9_-]{20,})", texto)
@@ -239,13 +276,25 @@ def por_reglas(texto):
         fuente = "ultima_sintesis"
     else:
         fuente = "cuaderno"
-    return {"tipo": "notebooklm" if artefactos else "respuesta", "fuente": fuente,
-            "drive_id": m.group(1) if m else "", "artefactos": artefactos, "resumen": ""}
+    if re.search(r"recu[eé]rd(alo|a que|ame)|mi nombre es|ll[aá]mame", t):
+        tipo = "preferencia"
+    elif len(texto) > 400 or re.search(r"se aprueba|apruebo|desarroll|encarg|pr[oó]ximos pasos", t):
+        tipo = "ajuste" if hay_encargo and len(texto) < 400 else "encargo"
+    elif (hay_encargo and re.search(r"priori|añad|agreg|cambi|ajust|tambi[eé]n|en vez|quita|incluye|enf[oó]ca|"
+                                    r"guion|storyboard|frente|personaje", t)
+          and not re.search(r"env[ií]a|hazme|genera|m[aá]ndame", t)):
+        tipo = "ajuste"
+    else:
+        tipo = "notebooklm" if artefactos else "respuesta"
+    return {"tipo": tipo, "fuente": fuente, "drive_id": m.group(1) if m else "",
+            "artefactos": artefactos if tipo == "notebooklm" else [], "recordar": "", "resumen": ""}
 
 
-def interpretar(texto):
-    reglas = por_reglas(texto)
-    crudo, modelo = llm([{"role": "system", "content": INSTRUCCION}, {"role": "user", "content": texto}], 3000, 90)
+def interpretar(texto, hay_encargo=False):
+    reglas = por_reglas(texto, hay_encargo)
+    contexto = ("Hay un encargo en curso: %s." % hay_encargo) if hay_encargo else "No hay ningún encargo en curso."
+    crudo, modelo = llm([{"role": "system", "content": INSTRUCCION + " " + contexto},
+                         {"role": "user", "content": texto}], 3000, 90)
     plan = None
     m = re.search(r"\{.*\}", crudo or "", re.S)
     if m:
@@ -260,15 +309,26 @@ def interpretar(texto):
     for a in plan.get("artefactos") or []:
         if isinstance(a, dict) and a.get("tipo") in TIPOS and a["tipo"] not in [x["tipo"] for x in artefactos]:
             artefactos.append({"tipo": a["tipo"], "indicaciones": str(a.get("indicaciones") or "")[:800]})
-    if not artefactos and reglas["artefactos"]:
-        artefactos = reglas["artefactos"]
+    tipo = plan.get("tipo") if plan.get("tipo") in TIPOS_PETICION else reglas["tipo"]
+    # Guardas: las reglas mandan en lo inequívoco (un encargo largo nunca se convierte en un audio).
+    if reglas["tipo"] == "ajuste":
+        tipo = "ajuste"
+    elif reglas["tipo"] in ("encargo", "preferencia"):
+        tipo = reglas["tipo"] if not (tipo == "ajuste" and hay_encargo and reglas["tipo"] == "encargo"
+                                      and len(texto) < 400) else "ajuste"
+    if tipo == "ajuste" and not hay_encargo:
+        tipo = "respuesta"
+    if tipo == "notebooklm" and not artefactos:
+        artefactos = reglas["artefactos"] or []
+        tipo = "notebooklm" if artefactos else "respuesta"
     fuente = plan.get("fuente") if plan.get("fuente") in ("ultima_sintesis", "drive", "cuaderno") else reglas["fuente"]
     drive_id = reglas["drive_id"] or (str(plan.get("drive_id") or "") if re.fullmatch(r"[A-Za-z0-9_-]{20,}", str(plan.get("drive_id") or "")) else "")
     if fuente == "drive" and not drive_id:
         fuente = reglas["fuente"] if reglas["fuente"] != "drive" else "cuaderno"
-    log("plan de", modelo, ":", [a["tipo"] for a in artefactos], fuente)
-    return {"tipo": "notebooklm" if artefactos else "respuesta", "fuente": fuente, "drive_id": drive_id,
-            "artefactos": artefactos[:4], "resumen": str(plan.get("resumen") or "")[:300]}
+    log("plan de", modelo, ":", tipo, [a["tipo"] for a in artefactos], fuente)
+    return {"tipo": tipo, "fuente": fuente, "drive_id": drive_id,
+            "artefactos": artefactos[:4] if tipo == "notebooklm" else [],
+            "recordar": str(plan.get("recordar") or "")[:300], "resumen": str(plan.get("resumen") or "")[:300]}
 
 
 # ---------------------------------------------------------------- Google Drive (cuenta alex, solo lectura)
@@ -353,23 +413,23 @@ def sesion_viva():
         return False
 
 
-def asegurar_fuente(fid, titulo):
-    rc, out, err = nb(["source", "list", "-n", CUADERNO, "--json"], 180)
+def asegurar_fuente(fid, titulo, cuaderno=CUADERNO):
+    rc, out, err = nb(["source", "list", "-n", cuaderno, "--json"], 180)
     for s in json_de(out).get("sources") or []:
         if s.get("drive_document_id") == fid and s.get("status") == "ready":
             return s["id"]
-    rc, out, err = nb(["source", "add-drive", "-n", CUADERNO, fid, titulo, "--json"], 300)
+    rc, out, err = nb(["source", "add-drive", "-n", cuaderno, fid, titulo, "--json"], 300)
     d = json_de(out)
     sid = d.get("source_id") or d.get("id") or (d.get("source") or {}).get("id")
     if rc != 0 or not sid:
         raise RuntimeError("no pude añadir «%s» al cuaderno: %s" % (titulo, (err or out)[-300:]))
-    nb(["source", "wait", "-n", CUADERNO, sid, "--timeout", "600"], 660)
+    nb(["source", "wait", "-n", cuaderno, sid, "--timeout", "600"], 660)
     return sid
 
 
-def lanzar(tipo, indicaciones, sid):
+def lanzar(tipo, indicaciones, sid, cuaderno=CUADERNO):
     nombre, _ext, fijas, tope, idioma, espera = TIPOS[tipo]
-    args = ["generate", tipo, "-n", CUADERNO, "--json"] + fijas
+    args = ["generate", tipo, "-n", cuaderno, "--json"] + fijas
     if sid:
         args += ["-s", sid]
     if idioma:
@@ -387,7 +447,7 @@ def lanzar(tipo, indicaciones, sid):
     return tarea
 
 
-def esperar_y_bajar(tipo, tarea, peticion):
+def esperar_y_bajar(tipo, tarea, peticion, cuaderno=CUADERNO):
     nombre, ext, _f, tope, _i, _e = TIPOS[tipo]
     os.makedirs(SALIDAS, exist_ok=True)
     ruta = os.path.join(SALIDAS, "%s-%s%s" % (peticion, tipo, ext))
@@ -395,11 +455,11 @@ def esperar_y_bajar(tipo, tarea, peticion):
         with open(ruta, "w") as f:
             f.write(tarea[len("sincrono:"):])
         return ruta
-    rc, out, err = nb(["artifact", "wait", "-n", CUADERNO, tarea, "--timeout", str(tope), "--json"], tope + 120)
+    rc, out, err = nb(["artifact", "wait", "-n", cuaderno, tarea, "--timeout", str(tope), "--json"], tope + 120)
     estado = json_de(out).get("status", "")
     if rc != 0 or estado not in ("completed", ""):
         raise RuntimeError("%s no terminó (%s): %s" % (nombre, estado or rc, (err or out)[-300:]))
-    rc, out, err = nb(["download", tipo, "-n", CUADERNO, "-a", tarea, ruta, "--force"], 900)
+    rc, out, err = nb(["download", tipo, "-n", cuaderno, "-a", tarea, ruta, "--force"], 900)
     if rc != 0 or not os.path.exists(ruta):
         raise RuntimeError("no pude descargar %s: %s" % (nombre, (err or out)[-300:]))
     return ruta
@@ -472,15 +532,379 @@ def hacer_notebooklm(p, plan):
     decir("Listo ✓ También quedó en el cuaderno: %s" % ENLACE_CUADERNO)
 
 
+def preferencias():
+    p = leer_json(PREFS, None)
+    if p is None:
+        p = list(PREFS_INICIALES)
+        escribir_json(PREFS, p)
+    return p
+
+
+def contexto_sistema():
+    activo = encargo_activo()
+    texto = CAPACIDADES + "\nPreferencias guardadas (cúmplelas siempre):\n- " + "\n- ".join(preferencias())
+    if activo:
+        hechos = sum(1 for f in activo["frentes"] if f.get("estado") == "hecho")
+        texto += "\nEncargo en curso: «%s», frentes hechos %d/%d; panel: %s" % (
+            activo["titulo"], hechos, len(activo["frentes"]), activo.get("panel_enlace", "—"))
+    return texto
+
+
 def responder(p):
-    sistema = ("Eres MetaGenesis, el sistema de agentes de StarSeed, respondiendo a Alex por Telegram. Responde en "
-               "español, claro y útil, en menos de 1.500 caracteres. Si la petición exige algo que no puedes hacer "
-               "desde aquí (publicar, escribir código del OS, tocar cuentas o enviar mensajes a terceros), dilo y "
-               "propón cómo encargarlo a MetaGenesis.")
+    sistema = ("Eres MetaGenesis, el sistema de agentes de StarSeed, respondiendo por Telegram. Responde en español, "
+               "claro y útil, en menos de 1.500 caracteres. " + contexto_sistema())
     texto, modelo = llm([{"role": "system", "content": sistema}, {"role": "user", "content": p["texto"]}])
     if not texto:
         raise RuntimeError("los modelos gratuitos no respondieron")
     decir("%s\n\n— MetaGenesis · %s" % (texto, modelo))
+
+
+# ---------------------------------------------------------------- Drive (escritura con alex-docs: drive.file)
+
+def _drive_pedir(metodo, url, cuerpo, tipo):
+    tok = token_google("alex-docs")
+    req = urllib.request.Request(url, cuerpo, {"Authorization": "Bearer " + tok, "Content-Type": tipo}, method=metodo)
+    return _respuesta_http(lambda: urllib.request.urlopen(req, timeout=600))
+
+
+def drive_carpeta(nombre, padre):
+    d = _drive_pedir("POST", "https://www.googleapis.com/drive/v3/files?fields=id,webViewLink",
+                     json.dumps({"name": nombre, "mimeType": "application/vnd.google-apps.folder",
+                                 "parents": [padre]}).encode(), "application/json")
+    if not d.get("id"):
+        raise RuntimeError("no pude crear la carpeta «%s» en Drive: %s" % (nombre, str(d)[:200]))
+    return d["id"], d.get("webViewLink", "")
+
+
+def drive_doc(nombre, markdown, padre=None, archivo_id=None):
+    """Crea (o reescribe) un Google Doc a partir de markdown. Devuelve (id, enlace)."""
+    meta = {"name": nombre}
+    if not archivo_id:
+        meta.update({"mimeType": "application/vnd.google-apps.document", "parents": [padre]})
+    frontera = uuid.uuid4().hex
+    cuerpo = ("--%s\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n%s\r\n--%s\r\n"
+              "Content-Type: text/markdown; charset=UTF-8\r\n\r\n" % (frontera, json.dumps(meta), frontera)).encode()
+    cuerpo += markdown.encode("utf-8") + ("\r\n--%s--\r\n" % frontera).encode()
+    url = "https://www.googleapis.com/upload/drive/v3/files%s?uploadType=multipart&fields=id,webViewLink" % (
+        "/" + archivo_id if archivo_id else "")
+    d = _drive_pedir("PATCH" if archivo_id else "POST", url, cuerpo, "multipart/related; boundary=" + frontera)
+    if not d.get("id"):
+        raise RuntimeError("no pude guardar «%s» en Drive: %s" % (nombre, str(d)[:200]))
+    return d["id"], d.get("webViewLink", "")
+
+
+def drive_archivo(ruta, padre, nombre=None):
+    """Sube un archivo binario (png, mp3, mp4, pdf, csv, json) con subida reanudable. Devuelve (id, enlace)."""
+    nombre = nombre or os.path.basename(ruta)
+    tipos = {".png": "image/png", ".mp3": "audio/mpeg", ".m4a": "audio/mp4", ".mp4": "video/mp4",
+             ".pdf": "application/pdf", ".csv": "text/csv", ".json": "application/json", ".md": "text/markdown"}
+    mime = tipos.get(os.path.splitext(ruta)[1].lower(), "application/octet-stream")
+    tok = token_google("alex-docs")
+    req = urllib.request.Request(
+        "https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&fields=id,webViewLink",
+        json.dumps({"name": nombre, "parents": [padre]}).encode(),
+        {"Authorization": "Bearer " + tok, "Content-Type": "application/json; charset=UTF-8",
+         "X-Upload-Content-Type": mime}, method="POST")
+    with urllib.request.urlopen(req, timeout=60) as r:
+        destino = r.headers.get("Location")
+    with open(ruta, "rb") as f:
+        datos = f.read()
+    req = urllib.request.Request(destino, datos, {"Content-Type": mime}, method="PUT")
+    d = _respuesta_http(lambda: urllib.request.urlopen(req, timeout=1800))
+    if not d.get("id"):
+        raise RuntimeError("no pude subir %s a Drive: %s" % (nombre, str(d)[:200]))
+    return d["id"], d.get("webViewLink", "")
+
+
+# ---------------------------------------------------------------- encargos de varias horas (el productor)
+
+ENTREGABLES_VALIDOS = ("informe", "documento") + tuple(TIPOS)
+productor_trabajo = threading.Event()
+
+
+def encargos():
+    return leer_json(ENCARGOS, [])
+
+
+def guardar_encargo(enc):
+    """Guarda el encargo del productor sin perder lo que Maggasukha cambió entretanto (ajustes, pausa, cancelación)."""
+    with bloqueo:
+        todos = leer_json(ENCARGOS, [])
+        viejo = next((e for e in todos if e["id"] == enc["id"]), None)
+        if viejo:
+            enc["notas"] = list(enc.get("notas", [])) + [n for n in viejo.get("notas", [])
+                                                           if n not in enc.get("notas", [])]
+            if viejo.get("estado") in ("pausado", "cancelado") and enc.get("estado") == "activo":
+                enc["estado"] = viejo["estado"]
+        todos = [e for e in todos if e["id"] != enc["id"]] + [enc]
+        escribir_json(ENCARGOS, todos)
+
+
+def modificar_encargo(eid, nota=None, estado=None):
+    with bloqueo:
+        todos = leer_json(ENCARGOS, [])
+        for e in todos:
+            if e["id"] == eid:
+                if nota:
+                    e.setdefault("notas", []).append(nota)
+                if estado:
+                    e["estado"] = estado
+        escribir_json(ENCARGOS, todos)
+
+
+def encargo_activo():
+    for e in encargos():
+        if e.get("estado") in ("activo", "pausado"):
+            return e
+    return None
+
+
+def validar_plan(plan):
+    """Normaliza un plan de encargo: ≤ 10 frentes, ≤ 3 investigaciones y ≤ 8 entregables por frente."""
+    frentes = []
+    for i, f in enumerate((plan.get("frentes") or [])[:10], 1):
+        entregables = []
+        for e in (f.get("entregables") or [])[:8]:
+            if isinstance(e, dict) and e.get("tipo") in ENTREGABLES_VALIDOS and e.get("titulo"):
+                entregables.append({"tipo": e["tipo"], "titulo": str(e["titulo"])[:150],
+                                    "prompt": str(e.get("prompt") or e["titulo"])[:6000],
+                                    "enviar": bool(e.get("enviar"))})
+        if not entregables:
+            continue
+        frentes.append({"id": "F%d" % i, "nombre": str(f.get("nombre") or "Frente %d" % i)[:120],
+                        "destino": f.get("destino") if f.get("destino") in DESTINOS else "produccion",
+                        "investigacion": [str(q)[:1500] for q in (f.get("investigacion") or [])[:3]],
+                        "fuentes_drive": [x for x in (f.get("fuentes_drive") or []) if isinstance(x, list)][:8],
+                        "entregables": entregables, "estado": "pendiente"})
+    if not frentes:
+        raise ValueError("el plan no tiene frentes con entregables válidos")
+    return frentes
+
+
+PROMPT_PLAN = (
+    "Eres el director de producción de MetaGenesis (StarSeed). Convierte el encargo de Maggasukha en un plan de "
+    "trabajo profesional por frentes, empezando por las investigaciones más relevantes. Devuelve SOLO JSON: "
+    "{\"titulo\": \"…\", \"frentes\": [{\"nombre\": \"…\", \"destino\": uno de fuentes, fundamentos, videos, eventos, "
+    "herramientas, produccion, \"investigacion\": [\"consultas de investigación profunda en la web, 0 a 2\"], "
+    "\"entregables\": [{\"tipo\": uno de informe (documento largo), documento (texto corto), infographic, "
+    "mind-map, slide-deck, data-table, audio, video, \"titulo\": \"…\", \"prompt\": \"qué debe contener, "
+    "con detalle\"}]}]}. Entre 4 y 8 frentes y entre 2 y 6 entregables por frente. Usa audio y video con mesura "
+    "(máximo uno de cada en total). El último frente siempre es «Plan y listas de tareas» con próximos pasos y "
+    "listas de tareas por tipo de contenido.")
+
+
+def planificar(texto):
+    crudo, modelo = llm([{"role": "system", "content": PROMPT_PLAN + " " + contexto_sistema()},
+                         {"role": "user", "content": texto}], 6000, 240)
+    m = re.search(r"\{.*\}", crudo or "", re.S)
+    plan = {}
+    if m:
+        try:
+            plan = json.loads(m.group(0))
+        except ValueError:
+            plan = {}
+    try:
+        frentes = validar_plan(plan)
+    except ValueError:
+        log("plan del modelo no válido; uso el plan base")
+        frentes = validar_plan({"frentes": [
+            {"nombre": "Investigación", "destino": "fuentes", "investigacion": [texto[:1200]],
+             "entregables": [{"tipo": "informe", "titulo": "Informe de investigación", "prompt": texto},
+                             {"tipo": "mind-map", "titulo": "Mapa de la investigación"}]},
+            {"nombre": "Desarrollo", "destino": "produccion",
+             "entregables": [{"tipo": "informe", "titulo": "Desarrollo del encargo", "prompt": texto}]},
+            {"nombre": "Plan y listas de tareas", "destino": "produccion",
+             "entregables": [{"tipo": "informe", "titulo": "Próximos pasos y listas de tareas", "prompt":
+                              "Próximos pasos y listas de tareas por tipo de contenido para: " + texto}]}]})
+    return str(plan.get("titulo") or "Encargo de Maggasukha")[:120], frentes, modelo
+
+
+def nuevo_encargo(texto, titulo, frentes, origen):
+    enc = {"id": "ENC-" + datetime.datetime.now().strftime("%m%d-%H%M"), "titulo": titulo, "texto": texto,
+           "frentes": frentes, "estado": "activo", "notas": [], "creado": time.time(), "origen": origen}
+    guardar_encargo(enc)
+    productor_trabajo.set()
+    return enc
+
+
+def texto_panel(enc):
+    lineas = ["# Panel · %s" % enc["titulo"], "",
+              "Encargo %s · estado: **%s** · actualizado %s" % (
+                  enc["id"], enc["estado"], datetime.datetime.now().strftime("%Y-%m-%d %H:%M")), "",
+              "> " + enc["texto"][:1500].replace("\n", "\n> "), ""]
+    if enc.get("notas"):
+        lineas += ["## Ajustes de Maggasukha", ""] + ["- " + n for n in enc["notas"]] + [""]
+    for f in enc["frentes"]:
+        marca = {"hecho": "✅", "en_curso": "⏳"}.get(f.get("estado"), "⬜")
+        lineas.append("## %s %s · %s" % (marca, f["id"], f["nombre"]))
+        if f.get("carpeta_enlace"):
+            lineas.append("Carpeta: %s" % f["carpeta_enlace"])
+        if f.get("cuaderno"):
+            lineas.append("Cuaderno de NotebookLM: https://notebooklm.google.com/notebook/%s" % f["cuaderno"])
+        for q in f.get("investigacion", []):
+            lineas.append("- %s Investigación: %s" % ("✅" if q in f.get("investigado", []) else "⬜", q[:160]))
+        for e in f["entregables"]:
+            marca = "✅" if e.get("enlace") else ("⚠️" if e.get("fallo") else "⬜")
+            extra = e.get("enlace") or e.get("fallo") or ""
+            lineas.append("- %s %s · %s %s" % (marca, TIPOS.get(e["tipo"], (e["tipo"],))[0], e["titulo"], extra))
+        lineas.append("")
+    return "\n".join(lineas)
+
+
+def actualizar_panel(enc):
+    try:
+        if enc.get("panel"):
+            drive_doc("Panel · %s" % enc["titulo"], texto_panel(enc), archivo_id=enc["panel"])
+        else:
+            enc["panel"], enc["panel_enlace"] = drive_doc("Panel · %s (%s)" % (enc["titulo"], enc["id"]),
+                                                          texto_panel(enc), CARPETA_PRODUCCION)
+            guardar_encargo(enc)
+    except Exception as e:
+        log("panel:", e)
+
+
+def cuaderno_de(frente, enc):
+    if frente.get("cuaderno"):
+        return frente["cuaderno"]
+    rc, out, err = nb(["create", "StarSeed · %s · %s" % (enc["id"], frente["nombre"][:60]), "--json"], 180)
+    d = json_de(out)
+    cid = d.get("id") or (d.get("notebook") or {}).get("id") or d.get("active_notebook_id")
+    if rc != 0 or not cid:
+        raise RuntimeError("no pude crear el cuaderno de NotebookLM: %s" % (err or out)[-200:])
+    frente["cuaderno"] = cid
+    guardar_encargo(enc)
+    for fid, titulo in frente.get("fuentes_drive", []):
+        try:
+            asegurar_fuente(fid, titulo, cid)
+        except Exception as e:
+            log("fuente base", titulo, e)
+    return cid
+
+
+def investigar(frente, enc, cid):
+    for q in frente.get("investigacion", []):
+        if q in frente.setdefault("investigado", []):
+            continue
+        rc, out, err = nb(["source", "add-research", "-n", cid, "--mode", "deep", "--import-all", "--cited-only",
+                           "--timeout", "1500", q], 3300)
+        if rc != 0:
+            log("investigación falló:", (err or out)[-300:])
+            frente.setdefault("avisos", []).append("una investigación no terminó: " + q[:80])
+        frente["investigado"].append(q)
+        guardar_encargo(enc)
+
+
+def instrucciones(enc, e):
+    notas = ("\nAjustes de Maggasukha que debes aplicar: " + " | ".join(enc["notas"])) if enc.get("notas") else ""
+    return "%s\n\n%s%s\nEncargo original: %s" % (e["prompt"], REGLAS_MARCA, notas, enc["texto"][:2500])
+
+
+def producir(e, frente, enc, cid):
+    titulo = "%s · %s" % (e["titulo"], enc["id"])
+    if e["tipo"] == "documento":
+        rc, out, err = nb(["ask", "-n", cid, "--json", instrucciones(enc, e)], 600)
+        d = json_de(out)
+        respuesta = d.get("answer") or d.get("text") or ""
+        if rc != 0 or not respuesta:
+            raise RuntimeError("NotebookLM no respondió: %s" % (err or out)[-200:])
+        return drive_doc(titulo, "# %s\n\n%s" % (e["titulo"], respuesta), frente["carpeta"])
+    tipo = "report" if e["tipo"] == "informe" else e["tipo"]
+    tarea = lanzar(tipo, instrucciones(enc, e), None, cid)
+    ruta = esperar_y_bajar(tipo, tarea, "%s-%s" % (enc["id"], frente["id"]), cid)
+    if tipo == "report":
+        with open(ruta, encoding="utf-8") as f:
+            return drive_doc(titulo, f.read(), frente["carpeta"])
+    if e.get("enviar") or tipo == "infographic":
+        try:
+            enviar_resultado(tipo, ruta, e["titulo"])
+        except Exception as ex:
+            log("envío a Telegram:", ex)
+    return drive_archivo(ruta, frente["carpeta"], titulo + os.path.splitext(ruta)[1])
+
+
+def ejecutar_encargo(enc):
+    if not enc.get("anunciado"):
+        actualizar_panel(enc)
+        decir("Encargo %s en marcha: «%s».\n%d frentes: %s.\nPanel con el avance: %s\nPuedes escribirme ajustes "
+              "cuando quieras (los aplico en los frentes siguientes) · /pausa · /cancela" % (
+                  enc["id"], enc["titulo"], len(enc["frentes"]),
+                  "; ".join("%s %s" % (f["id"], f["nombre"]) for f in enc["frentes"]), enc.get("panel_enlace", "")))
+        enc["anunciado"] = True
+        guardar_encargo(enc)
+    for frente in enc["frentes"]:
+        actual = next((e for e in encargos() if e["id"] == enc["id"]), enc)
+        enc["notas"], enc["estado"] = actual.get("notas", []), actual.get("estado", enc["estado"])
+        if enc["estado"] in ("cancelado", "pausado"):
+            return
+        if frente.get("estado") == "hecho":
+            continue
+        frente["estado"] = "en_curso"
+        if not frente.get("carpeta"):
+            frente["carpeta"], frente["carpeta_enlace"] = drive_carpeta(
+                "%s · %s (%s)" % (frente["id"], frente["nombre"], enc["id"]), DESTINOS[frente["destino"]])
+        guardar_encargo(enc)
+        cid = cuaderno_de(frente, enc)
+        investigar(frente, enc, cid)
+        for e in frente["entregables"]:
+            if e.get("enlace"):
+                continue
+            try:
+                _, e["enlace"] = producir(e, frente, enc, cid)
+                e.pop("fallo", None)
+            except SesionCaducada:
+                raise
+            except Exception as ex:
+                e["fallo"] = str(ex)[:200]
+                log("entregable falló", e["titulo"], traceback.format_exc()[-600:])
+            guardar_encargo(enc)
+        frente["estado"] = "hecho"
+        guardar_encargo(enc)
+        actualizar_panel(enc)
+        hechos = [e for e in frente["entregables"] if e.get("enlace")]
+        fallos = [e for e in frente["entregables"] if e.get("fallo")]
+        n = sum(1 for f in enc["frentes"] if f.get("estado") == "hecho")
+        decir("Avance %s · %d/%d · %s ✓\n%s%s\nCarpeta: %s" % (
+            enc["id"], n, len(enc["frentes"]), frente["nombre"],
+            "\n".join("• %s: %s" % (e["titulo"], e["enlace"]) for e in hechos),
+            ("\nPendiente de reintentar: " + "; ".join(e["titulo"] for e in fallos)) if fallos else "",
+            frente.get("carpeta_enlace", "")))
+    pendientes = [e for f in enc["frentes"] for e in f["entregables"] if not e.get("enlace")]
+    if pendientes and enc.get("vueltas", 0) < 2:
+        enc["vueltas"] = enc.get("vueltas", 0) + 1
+        for f in enc["frentes"]:
+            if any(not e.get("enlace") for e in f["entregables"]):
+                f["estado"] = "pendiente"
+        guardar_encargo(enc)
+        return
+    enc["estado"] = "hecho"
+    guardar_encargo(enc)
+    actualizar_panel(enc)
+    decir("Encargo %s terminado ✓ «%s»\n%d entregables en Drive%s.\nPanel: %s" % (
+        enc["id"], enc["titulo"], sum(1 for f in enc["frentes"] for e in f["entregables"] if e.get("enlace")),
+        (" · %d no salieron (detalle en el panel)" % len(pendientes)) if pendientes else "", enc.get("panel_enlace")))
+
+
+def productor():
+    while True:
+        productor_trabajo.wait(timeout=REINTENTO_S)
+        productor_trabajo.clear()
+        enc = encargo_activo()
+        if not enc:
+            en_espera = [e for e in encargos() if e.get("estado") == "en_espera"]
+            if en_espera:
+                modificar_encargo(en_espera[0]["id"], estado="activo")
+                enc = encargo_activo()
+        if not enc or enc.get("estado") != "activo":
+            continue
+        try:
+            ejecutar_encargo(enc)
+        except SesionCaducada:
+            log("productor: sesión de NotebookLM caída; espero")
+        except Exception:
+            log("productor falló", traceback.format_exc()[-1200:])
+            decir("El encargo %s tuvo un error y lo retomo en 5 min: %s" % (
+                enc["id"], traceback.format_exc().strip().splitlines()[-1][:300]))
+        # si queda trabajo (reintentos), el bucle vuelve a entrar a los 5 min por el timeout del wait
 
 
 # ---------------------------------------------------------------- cola y trabajo
@@ -497,9 +921,30 @@ def actualizar(pid, **cambios):
 def atender(p):
     actualizar(p["id"], estado="en_curso", intentos=p.get("intentos", 0) + 1)
     try:
-        plan = p.get("plan") or interpretar(p["texto"])
+        activo = encargo_activo()
+        plan = p.get("plan") or interpretar(p["texto"], activo["titulo"] if activo else False)
         actualizar(p["id"], plan=plan)
-        if plan["tipo"] == "notebooklm" and plan["artefactos"]:
+        if plan["tipo"] == "preferencia":
+            regla = plan.get("recordar") or p["texto"][:300]
+            prefs = preferencias()
+            if regla not in prefs:
+                prefs.append(regla)
+                escribir_json(PREFS, prefs)
+            decir("Guardado en mis preferencias permanentes (A1): «%s». Lo aplico desde ya en todo lo que haga." % regla)
+        elif plan["tipo"] == "ajuste" and activo:
+            modificar_encargo(activo["id"], nota=p["texto"][:1500])
+            decir("Anotado en el encargo %s ✓ Lo aplico en los frentes y entregables que faltan." % activo["id"])
+        elif plan["tipo"] == "encargo":
+            if activo:
+                decir("Ya hay un encargo en curso (%s). Pongo este a continuación y lo planifico ahora." % activo["id"])
+            titulo, frentes, modelo = planificar(p["texto"])
+            enc = nuevo_encargo(p["texto"], titulo, frentes, "telegram")
+            if activo:
+                modificar_encargo(enc["id"], estado="en_espera")
+            decir("Plan del encargo %s (%s): %d frentes, %d entregables. %s" % (
+                enc["id"], modelo or "plan base", len(frentes), sum(len(f["entregables"]) for f in frentes),
+                "Empiezo ya y te mando avances." if not activo else "Arranca al terminar el actual."))
+        elif plan["tipo"] == "notebooklm" and plan["artefactos"]:
             hacer_notebooklm(p, plan)
         else:
             responder(p)
@@ -589,6 +1034,22 @@ def texto_estado():
                                                          len([p for p in cola if p.get("estado") == "hecha"]))]
     for p in activas[:5]:
         lineas.append("   – %s · %s" % (p["estado"], p["texto"][:70]))
+    lineas.append(texto_encargos())
+    return "\n".join(lineas)
+
+
+def texto_encargos():
+    todos = encargos()
+    if not todos:
+        return "• Encargos: ninguno."
+    lineas = ["• Encargos:"]
+    for e in todos[-5:]:
+        hechos = sum(1 for f in e["frentes"] if f.get("estado") == "hecho")
+        actual = next((f["nombre"] for f in e["frentes"] if f.get("estado") == "en_curso"), "")
+        lineas.append("   – %s · %s · %s · frentes %d/%d%s%s" % (
+            e["id"], e["estado"], e["titulo"][:60], hechos, len(e["frentes"]),
+            (" · ahora: " + actual) if actual and e["estado"] == "activo" else "",
+            ("\n     panel: " + e["panel_enlace"]) if e.get("panel_enlace") else ""))
     return "\n".join(lineas)
 
 
@@ -607,6 +1068,20 @@ def recibir(upd):
     if texto.startswith(("/start", "/ayuda", "/help")):
         decir(AYUDA)
         return
+    if texto.startswith("/encargos"):
+        decir(texto_encargos())
+        return
+    if texto.startswith(("/pausa", "/sigue", "/cancela")):
+        activo = encargo_activo()
+        if not activo:
+            decir("No hay ningún encargo en curso.")
+            return
+        estado = {"/pausa": "pausado", "/sigue": "activo", "/cancela": "cancelado"}[texto.split()[0]]
+        modificar_encargo(activo["id"], estado=estado)
+        productor_trabajo.set()
+        decir("Encargo %s: %s. %s" % (activo["id"], estado, "Lo hecho sigue en Drive." if estado != "activo"
+                                      else "Sigo desde donde lo dejé."))
+        return
     with bloqueo:
         cola = leer_json(COLA, [])
         if any(p["id"] == upd["update_id"] for p in cola):
@@ -614,7 +1089,7 @@ def recibir(upd):
         cola.append({"id": upd["update_id"], "texto": texto, "recibida": time.time(), "estado": "nueva",
                      "intentos": 0})
         escribir_json(COLA, cola[-200:])
-    decir("Recibido ✓ Lo atiende MetaGenesis en el A1, sin la Mac ni Claude.")
+    decir("Recibido ✓")
     hay_trabajo.set()
 
 
@@ -643,12 +1118,33 @@ def main():
     for x in leer_json(COLA, []):  # tras un reinicio, lo que quedó a medias se retoma
         if x.get("estado") == "en_curso":
             actualizar(x["id"], estado="reintentar")
+    preferencias()
     log("escuchando @StarSeed_Design_bot")
     threading.Thread(target=trabajar, daemon=True).start()
     threading.Thread(target=mantener_sesion, daemon=True).start()
+    threading.Thread(target=productor, daemon=True).start()
     hay_trabajo.set()
+    productor_trabajo.set()
     escuchar()
 
 
+def encargar_desde_archivo(ruta):
+    """CLI: deja un encargo ya planificado (por la dirección: Claude o un director) para que el servicio lo ejecute."""
+    with open(ruta, encoding="utf-8") as f:
+        plan = json.load(f)
+    frentes = validar_plan(plan)
+    enc = {"id": plan.get("id") or "ENC-" + datetime.datetime.now().strftime("%m%d-%H%M"),
+           "titulo": plan["titulo"], "texto": plan["texto"], "frentes": frentes, "notas": plan.get("notas", []),
+           "estado": "en_espera" if encargo_activo() else "activo", "creado": time.time(),
+           "origen": plan.get("origen", "dirección")}
+    guardar_encargo(enc)
+    print("encargo", enc["id"], enc["estado"], len(frentes), "frentes",
+          sum(len(f["entregables"]) for f in frentes), "entregables")
+
+
 if __name__ == "__main__":
-    main()
+    import sys
+    if sys.argv[1:2] == ["encargar"]:
+        encargar_desde_archivo(sys.argv[2])
+    else:
+        main()
