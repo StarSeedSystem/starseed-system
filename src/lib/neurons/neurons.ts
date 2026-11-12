@@ -614,6 +614,8 @@ let neuronaLocalEn = 0;
 let neuronaLocalEnVuelo: Promise<Neuron | null> | null = null;
 let latido: BucleFondo | null = null;
 let latidosDesdeFicha = 0;
+/** LLA1112B: la última subida de la ficha falló (sin red al arrancar, lectura fallida): se repite en el SIGUIENTE latido, no 6 después. */
+let fichaPendiente = false;
 /** Última capacidad de Blender leída de la ruta local (null si no hay Blender). */
 let capacidadesBlender: NeuronCapabilities["blender"] | null = null;
 const CLAVES_BLENDER = ["v", "instalado", "version", "hash", "serie", "perfil", "motores", "gpu", "hilos", "ramGB", "ramLibreGB", "formatos", "visto"] as const;
@@ -712,13 +714,15 @@ async function latirUnaVez(idInicial: string): Promise<{ fallo: FalloConsulta | 
   // ¿Fusionaron esta neurona con otra desde otro medio? Se adopta antes de latir (si no, el
   // latido volvería a crear la fila borrada y el duplicado reaparecería).
   const id = resolverAliasEsteMedio() || idInicial;
-  if (latidosDesdeFicha % LATIDOS_POR_FICHA === 0) {
+  if (latidosDesdeFicha % LATIDOS_POR_FICHA === 0 || fichaPendiente) {
     const reciente = neuronaLocal && neuronaLocal.id === id && Date.now() - neuronaLocalEn < 60_000;
     const fresca = reciente && neuronaLocal ? neuronaLocal : await construirNeuronaLocal(id);
     neuronaLocal = fresca;
     neuronaLocalEn = Date.now();
     latidosDesdeFicha += 1;
-    return { fallo: await upsertRemote(fresca) };
+    const falloFicha = await upsertRemote(fresca);
+    fichaPendiente = !!falloFicha; // LLA1112B
+    return { fallo: falloFicha };
   }
   latidosDesdeFicha += 1;
   // Latido ligero: ACTUALIZA la hora de la fila; nunca crea una fila vacía (así nacían las
@@ -845,6 +849,7 @@ export function _detenerLatidoParaPruebas(): void {
   latido?.detener();
   latido = null;
   latidosDesdeFicha = 0;
+  fichaPendiente = false;
   identidadRevisada = null;
   identidadEnVuelo = null;
   neuronaLocal = null;

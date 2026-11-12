@@ -657,6 +657,48 @@ export function alternarMicro(): void {
   poner({ micro: on });
 }
 
+// LLA1112B · encender o apagar la cámara DENTRO de la llamada directa (antes la superficie pintaba «Apagar cámara» con el botón
+// muerto: la llamada nacía con vídeo pero no había ninguna acción de cámara). Devuelve el motivo si no pudo, o null.
+export async function alternarCamaraDirecta(): Promise<string | null> {
+  if (estado.fase !== "en-curso" || !estado.local) return "La llamada aún no está conectada.";
+  if (estado.pantalla) return "Deja de compartir la pantalla para encender la cámara.";
+  const local = estado.local;
+  const vivas = local.getVideoTracks().filter((t) => t.readyState === "live");
+  if (vivas.length) {
+    for (const t of vivas) {
+      try {
+        local.removeTrack(t);
+        t.stop();
+      } catch {
+        /* noop */
+      }
+    }
+    poner({ video: false });
+  } else {
+    const m = await pedirMedios(true);
+    const pista = m.stream?.getVideoTracks()[0] ?? null;
+    if (!pista) {
+      soltarStream(m.stream);
+      return m.error ?? "No se pudo abrir la cámara.";
+    }
+    for (const a of m.stream?.getAudioTracks() ?? []) a.stop();
+    if (estado.fase !== "en-curso" || estado.local !== local) {
+      pista.stop();
+      return null;
+    }
+    try {
+      local.addTrack(pista);
+    } catch {
+      pista.stop();
+      return "No se pudo añadir la cámara a la llamada.";
+    }
+    poner({ video: true });
+  }
+  const vivo = estado.enlaceId ? enlaceLocal(estado.enlaceId) : undefined;
+  if (vivo) void vivo.ponerPistas(local);
+  return null;
+}
+
 export function estadoLlamadaDirecta(): EstadoLlamadaDirecta {
   return estado;
 }

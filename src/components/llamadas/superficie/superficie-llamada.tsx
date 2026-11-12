@@ -22,6 +22,7 @@ import { vigilarVisibilidad } from "@/lib/llamadas/superficie/visibilidad";
 import { streamTraeVideo } from "@/lib/llamadas/superficie/adaptador-motor";
 import type { FuenteCarriles } from "./carriles-eleccion";
 import { anotarLlamada } from "@/lib/llamadas/voz-datos/diagnostico";
+import { ATRIBUTO_VENTANA_LLAMADA, registrarVentanaLlamada } from "@/lib/llamadas/superficie/zona-llamada"; // LLA1112B
 
 /**
  * LLA1110C: ¿el flujo trae vídeo CON imagen ahora? Una pista WebRTC negociada sin ruta (por Bluetooth) existe pero
@@ -94,10 +95,17 @@ export function SuperficieLlamada({ vista: v, acciones: a, tamanoInicial, carril
   const punto = useRef<{ x: number; y: number; ox: number; oy: number; mov: boolean } | null>(null);
   const [puntero, setPuntero] = useState<{ x: number; y: number } | null>(null);
 
+  // LLA1112B: mientras la ventana existe, el dock y los sensores de borde la respetan (`zona-llamada.ts`).
+  useEffect(() => registrarVentanaLlamada(), []);
+
   // Foco al primer control cuando suena (teclado y lector de pantalla).
   useEffect(() => {
     if (s.estado === "entrante") raiz.current?.querySelector<HTMLElement>("[data-contestar]")?.focus();
   }, [s.estado]);
+  // LLA1112B: un aviso nuevo se trae a la vista (con «Puertos» abierto y desplazado quedaba fuera y la persona no veía por qué volvió la cámara).
+  const refAviso = useRef<HTMLParagraphElement | null>(null);
+  const textoAviso = aviso ?? v.aviso ?? null;
+  useEffect(() => { if (textoAviso) refAviso.current?.scrollIntoView?.({ block: "nearest" }); }, [textoAviso]);
   useEffect(() => { if (!aviso) return; const id = setTimeout(() => setAviso(null), 6000); return () => clearTimeout(id); }, [aviso]);
   // LLA1111A: al abrir una pestaña en una pantalla baja, el cuerpo de la ventana se desplaza hasta ella (sin mover la página).
   useEffect(() => {
@@ -248,6 +256,7 @@ export function SuperficieLlamada({ vista: v, acciones: a, tamanoInicial, carril
     <section
       ref={raiz}
       data-testid="superficie-llamada"
+      {...{ [ATRIBUTO_VENTANA_LLAMADA]: "" }}
       data-tamano={tamanoActual}
       data-estado={s.estado}
       data-tipo={s.tipo}
@@ -356,7 +365,7 @@ export function SuperficieLlamada({ vista: v, acciones: a, tamanoInicial, carril
                 </div>
               )}
               {v.motivo && <p className="px-3 pb-1 text-[11.5px] text-white/65" role="status">{v.motivo}</p>}
-              {(aviso ?? v.aviso) && <p className="mx-3 mb-1 rounded-lg border border-amber-300/30 bg-amber-400/10 px-2 py-1 text-[11.5px] text-amber-100" role="status">{aviso ?? v.aviso}</p>}
+              {(aviso ?? v.aviso) && <p ref={refAviso} className="mx-3 mb-1 rounded-lg border border-amber-300/30 bg-amber-400/10 px-2 py-1 text-[11.5px] text-amber-100" role="status">{aviso ?? v.aviso}</p>}
               {v.textoMedio && viva && <p className="px-3 pb-1 text-[11px] text-white/55">{v.textoMedio}</p>}
               {v.textoCarriles && viva && <p className="px-3 pb-1 text-[11px] text-white/55" data-carriles="">{v.textoCarriles}</p>}
               {v.cambiandoA && <p className="px-3 pb-1 text-[11.5px] text-violet-100" role="status">Cambiando a {TIPOS.find((t) => t.t === v.cambiandoA)?.etiqueta.toLowerCase()} sin colgar…</p>}
@@ -401,7 +410,7 @@ export function SuperficieLlamada({ vista: v, acciones: a, tamanoInicial, carril
             {viva && (
               <>
                 <BotonControl icono={v.micro ? <Mic className={ic} /> : <MicOff className={ic} />} etiqueta={v.micro ? "Silenciar micrófono" : "Activar micrófono"} activo={!v.micro} onClick={a.alternarMicro} motivo="no disponible" />
-                <BotonControl icono={v.camara ? <Video className={ic} /> : <VideoOff className={ic} />} etiqueta={v.camara ? "Apagar cámara" : "Encender cámara"} activo={!v.camara} onClick={a.alternarCamara} deshabilitado={!v.camara && !!v.motivos?.camara} motivo={v.motivos?.camara ?? "esta llamada no lleva cámara; cambia a Vídeo"} />
+                <BotonControl icono={v.camara ? <Video className={ic} /> : <VideoOff className={ic} />} etiqueta={a.alternarCamara ? (v.camara ? "Apagar cámara" : "Encender cámara") : v.camara ? "Cámara encendida" : "Cámara apagada"} activo={!v.camara} onClick={a.alternarCamara} deshabilitado={!v.camara && !!v.motivos?.camara} motivo={v.motivos?.camara ?? (v.tipo === "voz" ? "esta llamada es de voz; para añadir vídeo pulsa «Vídeo» o «Encender cámara»" : "esta llamada no permite cambiar la cámara desde aquí")} />
                 {(v.camaras ?? 0) > 1 && <BotonControl icono={<SwitchCamera className={ic} />} etiqueta="Girar cámara (frontal/trasera)" onClick={a.girarCamara} deshabilitado={!!v.motivos?.["girar-camara"]} motivo={v.motivos?.["girar-camara"]} />}
                 <BotonControl icono={v.compartiendoPantalla ? <MonitorOff className={ic} /> : <Monitor className={ic} />} etiqueta={v.compartiendoPantalla ? "Dejar de compartir pantalla" : "Compartir pantalla (elige ventana o pantalla)"} activo={v.compartiendoPantalla} onClick={a.alternarPantalla} deshabilitado={!v.compartiendoPantalla && !!v.motivos?.pantalla} motivo={v.motivos?.pantalla ?? "no disponible en esta llamada"} />
                 <BotonControl icono={s.estado === "en-espera" ? <Play className={ic} /> : <Pause className={ic} />} etiqueta={s.estado === "en-espera" ? "Reanudar llamada" : "Poner en espera"} activo={s.estado === "en-espera"} onClick={a.alternarEspera} motivo="la llamada directa aún no admite espera" />

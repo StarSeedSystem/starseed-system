@@ -16,6 +16,7 @@ import type { CargaApp, CarrilesParVista, EstadoLlamada, ParticipanteLlamada } f
 import type { Carril } from "@/lib/llamadas/carriles";
 import type { ResumenLlamada } from "@/lib/llamadas/motor";
 import { MAX_PARTICIPANTES } from "@/lib/llamadas/tipos";
+import { avisoCamaraVirtual, PLAZO_IMAGEN_MS, probarImagen, textoCamaraFallida, type ResultadoImagen } from "./prueba-camara"; // LLA1112B
 import type { EstadoSuperficie, FinSuperficie, TipoSuperficie } from "./maquina";
 import { puedeCambiarTipo } from "./maquina";
 import type { AccionesLlamada, VistaLlamada, ParticipanteVista } from "./vista";
@@ -120,6 +121,12 @@ export interface DepsAdaptador {
   esperaCamaraMs?: number;
   /** (LLA1111H) Plataforma del aparato para el registro de restricciones (para probar; por defecto, la del navegador). */
   plataforma?: () => Plataforma;
+  /** LLA1112B: ¿la pista da imagen usable? Por defecto, la medida real en el navegador (`prueba-camara.ts`). */
+  probarImagen?: (pista: MediaStreamTrack, plazoMs: number) => Promise<ResultadoImagen>;
+  /** LLA1112B: cuánto se espera a que la cámara elegida dé imagen (ms). */
+  plazoImagenMs?: number;
+  /** LLA1112B: deja la cámara predeterminada de esta neurona como estaba (null: sin predeterminada). */
+  guardarPreferenciaCamara?: (p: { id: string; etiqueta?: string } | null) => void;
 }
 
 /** LLA1110C: ¿esta pista de vídeo trae imagen ahora? (viva y no «muted»: una pista WebRTC sin ruta llega muda). */
@@ -475,10 +482,10 @@ export class AdaptadorMotor {
     };
   }
 
-  private decirAviso(t: string | null) {
+  private decirAviso(t: string | null, ms = 6000) {
     this.aviso = t;
     this.notificar();
-    if (t) this.temporizar(6000, () => {
+    if (t) this.temporizar(ms, () => {
       if (this.aviso === t) {
         this.aviso = null;
         this.notificar();
@@ -655,15 +662,60 @@ export class AdaptadorMotor {
     return null;
   }
 
-  /** Elegir en el selector: se apunta y, con la cámara encendida, se cambia en vivo sin colgar. */
+  /**
+   * Elegir en el selector: se apunta y, con la cámara encendida, se cambia en vivo sin colgar.
+   * LLA1112B: la cámara nueva se MIDE (cuadros y brillo, `prueba-camara.ts`). Si no da imagen usable en unos segundos no se
+   * queda: vuelve la anterior, la predeterminada queda como estaba y la ventana dice cuál falló y por qué. Una cámara virtual
+   * que sí da imagen se queda solo en esta llamada y se avisa de lo que no se puede comprobar (que sea la tuya).
+   */
+  private secuenciaCamara = 0;
   private async elegirCamara(id: string): Promise<string | null> {
     const lista = describirCamaras(this.motor.estado().dispositivos.camaras);
     const c = lista.find((x) => x.id === id);
-    this.anotarCamara(`selector elige="${(c?.etiqueta || c?.nombre || id).slice(0, 40)}" (${c?.tipo ?? "?"}) encendida=${this.lastEstado.camara ? "si" : "no"}`);
+    const nombre = c?.nombre ?? c?.etiqueta ?? "la cámara elegida";
+    const encendida = this.lastEstado.camara;
+    const previaId = this.motor.estado().seleccion.camaraId;
+    const previa = lista.find((x) => x.id === previaId) ?? null;
+    const prefAntes = this.deps.preferenciaCamara?.() ?? null;
+    const mia = ++this.secuenciaCamara;
+    this.anotarCamara(`selector elige="${(c?.etiqueta || c?.nombre || id).slice(0, 40)}" (${c?.tipo ?? "?"}) encendida=${encendida ? "si" : "no"}`);
     const err = await this.conPlazo(() => this.motor.cambiarCamara(id), this.deps.esperaCamaraMs ?? 12_000, "al cambiar");
-    if (err) this.anotarCamara(`selector-fallo error="${err.replace(/"/g, "'").slice(0, 110)}"`);
-    else if (this.lastEstado.camara) this.anotarCamara(`selector abierta="${(this.pistaLocal()?.label ?? "?").slice(0, 40)}"`);
-    return err ? `No se pudo cambiar de cámara: ${err}` : null;
+    if (err) {
+      this.anotarCamara(`selector-fallo error="${err.replace(/"/g, "'").slice(0, 110)}"`);
+      return `No se pudo cambiar de cámara: ${err}`;
+    }
+    if (!encendida) return null; // apagada: solo se apuntó; se abre (y se mide) al encenderla
+    const pista = this.pistaLocal();
+    this.anotarCamara(`selector abierta="${(pista?.label ?? "?").slice(0, 40)}"`);
+    if (!pista || id === previaId) return null;
+    const plazo = this.deps.plazoImagenMs ?? PLAZO_IMAGEN_MS;
+    const r = await (this.deps.probarImagen ?? probarImagen)(pista, plazo).catch((): ResultadoImagen => ({ ok: true, cuadros: 0, brillo: null }));
+    if (mia !== this.secuenciaCamara) return null; // la persona ya eligió otra: esa manda
+    if (r.ok) {
+      this.anotarCamara(`selector-imagen ok cuadros=${r.cuadros} brillo=${r.brillo ?? "?"}`);
+      if (c?.tipo === "virtual" || c?.tipo === "remota") {
+        // Una tarjeta de espera es una imagen real: no se puede distinguir. Vale para esta llamada, no se guarda como predeterminada.
+        this.deps.guardarPreferenciaCamara?.(prefAntes);
+        this.anotarCamara(`selector-virtual sin-guardar nombre="${nombre.slice(0, 40)}"`);
+        this.decirAviso(avisoCamaraVirtual(nombre, previa?.nombre ?? null), 14_000);
+      }
+      return null;
+    }
+    this.anotarCamara(`selector-sin-imagen nombre="${nombre.slice(0, 40)}" motivo=${r.motivo} cuadros=${r.cuadros} brillo=${r.brillo ?? "?"}`);
+    let texto = textoCamaraFallida(nombre, r.motivo, previa?.nombre ?? null, plazo);
+    if (previaId) {
+      const vuelta = await this.conPlazo(() => this.motor.cambiarCamara(previaId), this.deps.esperaCamaraMs ?? 12_000, "al volver");
+      this.deps.guardarPreferenciaCamara?.(prefAntes);
+      if (vuelta) {
+        this.anotarCamara(`selector-no-vuelve error="${vuelta.replace(/"/g, "'").slice(0, 90)}"`);
+        texto += ` No se pudo volver a ella: ${vuelta}`;
+      } else this.anotarCamara(`selector-vuelve a="${(previa?.etiqueta || previa?.nombre || previaId).slice(0, 40)}"`);
+    } else {
+      this.deps.guardarPreferenciaCamara?.(prefAntes);
+      texto += " Elige otra cámara en Puertos.";
+    }
+    this.decirAviso(texto, 14_000);
+    return null;
   }
 
   /* ── Cámara frontal/trasera ── */

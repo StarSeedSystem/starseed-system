@@ -35,7 +35,7 @@ function normalizar(t: string): string {
     .toLowerCase();
 }
 
-const VIRTUALES = /\b(obs|snap camera|virtual|manycam|droidcam|epoccam|camo|xsplit|streamlabs|nvidia broadcast|mmhmm|splitcam|vcam|ndi video|iriun|irium|elgato.*(virtual|screen link)|logi capture|chromacam|youcam|cyberlink)\b/;
+const VIRTUALES = /\b(obs|snap camera|virtual|manycam|droidcam|epoccam|camo|xsplit|streamlabs|nvidia broadcast|mmhmm|splitcam|vcam|ndi video|iriun|irium|elgato.*(virtual|screen link)|logi capture|chromacam|youcam|cyberlink|immersed)\b/;
 const CONTINUIDAD = /(iphone|ipad|continuity|continuidad|desk view)/;
 const INTEGRADA = /(facetime|built-?in|integrated|integrad[ao]|internal|interna\b|isight|macbook|imac\b.*camera|surface (front|back)|(front|back|rear) .*camera|camara (frontal|trasera)|camera2 \d+, facing (front|back)|camera \d+, facing (front|back)|truevision|webcam integrada|hp wide vision|hp hd camera|thinkpad|ideapad|chicony|realtek.*camera|sunplus|azurewave|ov\d{3,4}|laptop)/;
 const EXTERNA = /(logitech|c9\d\d|c270|brio|razer|kiyo|elgato|facecam|insta360|obsbot|poly\b|jabra|anker|aukey|hd pro webcam|studio display|usb camera|usb2\.0|usb video|uvc|external|externa|facing external|webcam c\d)/;

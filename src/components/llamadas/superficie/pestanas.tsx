@@ -1,7 +1,7 @@
 "use client";
 
 /** Pestañas del panel de la llamada (LLA1108C): puertos (antes «Calidad»), medio, invitar, grabar, Astraura, gente. */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { hayGrabacion, textoIndicador, GRABACION_INICIAL } from "@/lib/llamadas/superficie/grabacion";
 import { textoTranscripcion } from "@/lib/llamadas/superficie/astraura-llamada";
@@ -117,6 +117,58 @@ export function PestanaMedio({ v, a, carriles }: { v: VistaLlamada; a: AccionesL
   );
 }
 
+interface OpcionGrupo {
+  valor: string;
+  etiqueta: string;
+  deshabilitada: boolean;
+}
+
+/**
+ * LLA1112B · un grupo de botones de radio (ratón, toque y teclado): flechas mueven la elección, Inicio/Fin saltan al primero/último
+ * habilitado, Tab entra en el grupo en la opción marcada. Cada botón mide 36 px de alto como mínimo y las filas se parten en
+ * líneas (nada se corta a 360 px).
+ */
+export function GrupoCarril({ etiqueta, valor, opciones, alElegir }: { etiqueta: string; valor: string; opciones: OpcionGrupo[]; alElegir: (v: string) => void }) {
+  const refs = useRef<Array<HTMLButtonElement | null>>([]);
+  const habilitadas = opciones.map((o, i) => (o.deshabilitada ? -1 : i)).filter((i) => i >= 0);
+  const marcada = opciones.findIndex((o) => o.valor === valor);
+  const alTeclear = (ev: React.KeyboardEvent, i: number) => {
+    let destino: number | null = null;
+    const pos = habilitadas.indexOf(i);
+    if (ev.key === "ArrowRight" || ev.key === "ArrowDown") destino = habilitadas[(pos + 1) % habilitadas.length];
+    else if (ev.key === "ArrowLeft" || ev.key === "ArrowUp") destino = habilitadas[(pos - 1 + habilitadas.length) % habilitadas.length];
+    else if (ev.key === "Home") destino = habilitadas[0];
+    else if (ev.key === "End") destino = habilitadas[habilitadas.length - 1];
+    if (destino === null || destino === undefined) return;
+    ev.preventDefault();
+    refs.current[destino]?.focus();
+    alElegir(opciones[destino].valor);
+  };
+  return (
+    <div role="radiogroup" aria-label={etiqueta} className="flex flex-wrap gap-1.5">
+      {opciones.map((o, i) => {
+        const sel = i === marcada;
+        return (
+          <button
+            key={o.valor}
+            ref={(el) => { refs.current[i] = el; }}
+            type="button"
+            role="radio"
+            aria-checked={sel}
+            disabled={o.deshabilitada}
+            tabIndex={sel || (marcada < 0 && i === habilitadas[0]) ? 0 : -1}
+            onClick={() => alElegir(o.valor)}
+            onKeyDown={(ev) => alTeclear(ev, i)}
+            className={cn("min-h-9 max-w-full cursor-pointer break-words rounded-full border px-3 py-1 text-left text-[12px] leading-tight transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300/80 disabled:cursor-not-allowed disabled:opacity-50", sel ? "border-violet-300/60 bg-violet-400/25 text-white" : "border-white/15 bg-white/[0.04] text-white/80 hover:bg-white/10")}
+          >
+            {o.etiqueta}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 /** LLA1111A · el carril de la voz, el vídeo y la pantalla: el que va ahora y elegir «Automático» o uno de los que hay. */
 function CarrilesPorFlujo({ fuente }: { fuente: FuenteCarriles }) {
   // El motor avisa al cambiar, pero un forzado puede no cambiar nada visible en la vista: se relee cada segundo y medio.
@@ -137,24 +189,21 @@ function CarrilesPorFlujo({ fuente }: { fuente: FuenteCarriles }) {
     <div className={cn(caja, "space-y-1.5")} data-carriles-flujo="">
       <p className="text-white/55">Carril de cada flujo</p>
       {elecciones.map((e) => (
-        <div key={e.flujo} className="flex flex-wrap items-center gap-x-2 gap-y-1">
-          <label htmlFor={`carril-${e.flujo}`} className="min-w-[4.5rem] text-white/90">{e.nombre}</label>
-          <span className="flex-1 text-[11px] text-white/60" data-carril-actual={e.flujo}>ahora: {e.textoActual}{e.forzado ? " · elegido a mano" : ""}</span>
-          <select
-            id={`carril-${e.flujo}`}
-            aria-label={`Carril de ${e.nombre.toLowerCase()}`}
-            value={e.valor}
-            onChange={(ev) => {
-              fuente.forzarCarril(e.flujo, ev.target.value === "auto" ? null : (ev.target.value as Carril));
+        <div key={e.flujo} className="space-y-1" data-flujo-carril={e.flujo}>
+          <div className="flex flex-wrap items-baseline gap-x-2">
+            <span id={`carril-${e.flujo}`} className="min-w-[4.5rem] text-white/90">{e.nombre}</span>
+            <span className="min-w-0 flex-1 text-[11px] text-white/60" data-carril-actual={e.flujo}>ahora: {e.textoActual}{e.forzado ? " · elegido a mano" : ""}</span>
+          </div>
+          {/* LLA1112B: opciones a la vista (antes un menú nativo que no se veía por control remoto y en el móvil abría el selector del sistema encima de la llamada). */}
+          <GrupoCarril
+            etiqueta={`Carril de ${e.nombre.toLowerCase()}`}
+            valor={e.valor}
+            opciones={[{ valor: "auto", etiqueta: "Automático", deshabilitada: false }, ...e.opciones.map((o) => ({ valor: o.carril as string, etiqueta: o.etiqueta, deshabilitada: !o.arriba }))]}
+            alElegir={(v) => {
+              fuente.forzarCarril(e.flujo, v === "auto" ? null : (v as Carril));
               setTic((n) => n + 1);
             }}
-            className="max-w-full rounded-lg border border-white/15 bg-slate-900 px-2 py-1 text-[12px]"
-          >
-            <option value="auto">Automático</option>
-            {e.opciones.map((o) => (
-              <option key={o.carril} value={o.carril} disabled={!o.arriba}>{o.etiqueta}</option>
-            ))}
-          </select>
+          />
         </div>
       ))}
       {elecciones[0] && elecciones[0].sinEnlace.length > 0 && (

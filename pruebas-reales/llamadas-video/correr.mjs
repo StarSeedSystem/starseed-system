@@ -470,19 +470,21 @@ try {
     await mac.evaluate(() => window.banco.marco(390, 844));
     await espera(300);
     await abrirPestana(mac, "Medio");
-    const sels = await mac.locator("[data-carriles-flujo] select").count();
-    const opcionesVideo = await mac.locator("#carril-video option").evaluateAll((os) => os.map((o) => ({ v: o.value, t: o.textContent, d: o.disabled })));
-    const elegible = opcionesVideo.find((o) => o.v !== "auto" && !o.d);
-    if (elegible) await mac.selectOption("#carril-video", elegible.v);
+    // LLA1112B · botones de radio en vez de menús nativos.
+    const sels = await mac.locator('[data-carriles-flujo] [role="radiogroup"]').count();
+    const menus = await mac.locator("[data-carriles-flujo] select").count();
+    const opcionesVideo = await mac.locator('[aria-label="Carril de vídeo"] [role="radio"]').evaluateAll((os) => os.map((o) => ({ v: o.textContent, t: o.textContent, d: o.disabled })));
+    const elegible = opcionesVideo.find((o) => o.v !== "Automático" && !o.d);
+    if (elegible) await mac.locator('[aria-label="Carril de vídeo"] [role="radio"]', { hasText: elegible.v }).click();
     await espera(600);
     const forzado = await mac.evaluate(() => window.banco.motor()?.carriles()?.[0]?.forzados?.video ?? null);
     const textoActual = await mac.locator('[data-carril-actual="video"]').textContent().catch(() => null);
-    await mac.selectOption("#carril-video", "auto");
+    await mac.locator('[aria-label="Carril de vídeo"] [role="radio"]', { hasText: "Automático" }).click();
     await espera(600);
     const auto = await mac.evaluate(() => window.banco.motor()?.carriles()?.[0]?.forzados?.video ?? null);
     const sinEnlace = await mac.locator("[data-sin-enlace-carril]").textContent().catch(() => "");
-    const filasMuertas = await mac.locator("[data-carriles-flujo] option[disabled]").count();
-    anotar("medio · carril por flujo: voz, vídeo y pantalla; forzar uno y volver a «Automático»", sels === 3 && !!elegible && forzado === elegible?.v && auto === null, `selects=${sels} opciones vídeo=${JSON.stringify(opcionesVideo)} forzado=${forzado} → auto=${auto} actual=«${textoActual}»`);
+    const filasMuertas = await mac.locator('[data-carriles-flujo] [role="radio"][disabled]').count();
+    anotar("medio · carril por flujo: voz, vídeo y pantalla; forzar uno y volver a «Automático»", sels === 3 && menus === 0 && !!elegible && !!forzado && auto === null, `grupos=${sels} menus=${menus} opciones vídeo=${JSON.stringify(opcionesVideo)} forzado=${forzado} → auto=${auto} actual=«${textoActual}»`);
     anotar("medio · los carriles sin enlace van en una línea, no como filas muertas", /Sin enlace ahora:/.test(sinEnlace ?? "") && filasMuertas === 0, `«${(sinEnlace ?? "").slice(0, 160)}» opciones-deshabilitadas=${filasMuertas}`);
     await mac.screenshot({ path: join(capturas, "32-medio-carriles.png") });
     await cerrarPestana(mac);

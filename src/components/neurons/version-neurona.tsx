@@ -15,7 +15,7 @@
  *   (`capabilities.aparato`), dichos como «según su registro».
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { BellRing, Loader2, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -25,6 +25,8 @@ import { formatearInfoNeurona } from "@/lib/neurons/info-publica";
 import { EVENTO_BUSCAR_ACTUALIZACION, pedirActualizacion } from "@/lib/neurons/pedir-actualizacion";
 import { EVENTO_COMPROBACION, type UltimaComprobacion } from "@/lib/actualizaciones/ultima-comprobacion";
 import { useUltimaPublicada } from "@/lib/actualizaciones/ultima-publicada";
+import { leerAparato, type AparatoRegistro } from "@/lib/neurons/aparato-registro";
+import { leerAparatoFresco, textoHaceTiempo } from "@/lib/neurons/version-reportada"; // LLA1112B
 
 export interface VersionNeuronaProps {
   neuronaId: string;
@@ -38,7 +40,21 @@ export interface VersionNeuronaProps {
 }
 
 export function VersionNeurona({ neuronaId, nombre, esEsta = false, miNombre, capacidades, className }: VersionNeuronaProps) {
-  const viva = usePresenciaViva(neuronaId, capacidades);
+  // LLA1112B: la ficha de la lista puede tener hasta 30 min; la de ESTA fila se relee ahora (y cada minuto mientras se mira).
+  const [fresco, setFresco] = useState<AparatoRegistro | null>(null);
+  useEffect(() => {
+    if (esEsta || !neuronaId) return;
+    let vivo = true;
+    const leer = () => void leerAparatoFresco(neuronaId).then((a) => { if (vivo && a) setFresco(a); });
+    leer();
+    const id = setInterval(leer, 60_000);
+    return () => {
+      vivo = false;
+      clearInterval(id);
+    };
+  }, [esEsta, neuronaId]);
+  const capsEfectivas = useMemo(() => (fresco ? { ...(capacidades ?? {}), aparato: fresco } : capacidades), [capacidades, fresco]);
+  const viva = usePresenciaViva(neuronaId, capsEfectivas);
   const ultima = useUltimaPublicada();
   const [ocupado, setOcupado] = useState(false);
   const [texto, setTexto] = useState("");
@@ -78,7 +94,9 @@ export function VersionNeurona({ neuronaId, nombre, esEsta = false, miNombre, ca
     setOcupado(false);
   };
 
-  const etiqueta = viva.fuenteInfo === "registro" && vista.version ? `${vista.etiquetaVersion} (según su registro)` : vista.etiquetaVersion;
+  // LLA1112B: «según su registro» dice cuándo lo informó ella (`aparato.visto`).
+  const informada = viva.fuenteInfo === "registro" ? textoHaceTiempo(leerAparato(capsEfectivas)?.visto) : null;
+  const etiqueta = viva.fuenteInfo === "registro" && vista.version ? `${vista.etiquetaVersion} (según su registro${informada ? `, informada ${informada}` : ""})` : vista.etiquetaVersion;
   const partes = [etiqueta, vista.medio, vista.aparato].filter((x): x is string => !!x);
 
   return (

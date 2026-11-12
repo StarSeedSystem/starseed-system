@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { useArrastreDesdeBorde } from "@/hooks/use-arrastre-desde-borde";
 
 import { useAppearance } from "@/context/appearance-context";
+import { Z_SENSOR_CON_LLAMADA, puntoSobreVentanaLlamada, useHayVentanaLlamada } from "@/lib/llamadas/superficie/zona-llamada"; // LLA1112B
 
 // --- Configuration ---
 const GLOW_COLOR_MAP: Record<string, string> = {
@@ -43,6 +44,8 @@ const EdgeSensor = ({ edge, className, dwellTime = 500, size = 24, showIndicator
     const [isHovering, setIsHovering] = useState(false);
     const [hasTriggered, setHasTriggered] = useState(false);
     const [arrastrando, setArrastrando] = useState(false);
+    // LLA1112B: con una ventana de llamada abierta el sensor queda DEBAJO de ella (antes, a z-9999, se comía los clics de sus botones).
+    const hayLlamada = useHayVentanaLlamada();
 
     // (2026-09-25) Tirar del borde con ratón o lápiz abre la cortina siguiendo al
     // puntero; un clic quieto sigue alternándola como siempre.
@@ -124,10 +127,10 @@ const EdgeSensor = ({ edge, className, dwellTime = 500, size = 24, showIndicator
                 apartado && "pointer-events-none",
                 className
             )}
-            style={{ ...dynamicStyle }}
+            style={{ ...dynamicStyle, ...(hayLlamada ? { zIndex: Z_SENSOR_CON_LLAMADA } : {}) }}
             data-trinity-edge={edge ?? undefined}
             data-trinity-sensor={edge ?? undefined}
-            onMouseEnter={() => setIsHovering(true)}
+            onMouseEnter={(e) => { if (!puntoSobreVentanaLlamada(e.clientX, e.clientY)) setIsHovering(true); }}
             onMouseLeave={handleMouseLeave}
             onClick={handleClick}
             {...(manejadores ?? {})}
