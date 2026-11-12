@@ -1,0 +1,23 @@
+{
+ "ola": "nube-20261111",
+ "tareas": [
+  {
+   "ola": "NAV1112",
+   "id": "NAV1112D-d2",
+   "titulo": "Navegador propio · alta manual y vigilancia de sesiones (parte 2 de 2)",
+   "archivos": [
+    "scripts/puente/test_navegador_alta.py"
+   ],
+   "depende": [],
+   "prompt": "Lee architecture/navegador-propio-metagenesis.md §4 y §7. Crea navegador_alta.py. CLI `alta <sesion>`: enciende Selkies y el Chromium de esa sesión en su página de inicio de sesión, avisa a Alex con sintesis_telegram.enviar («abre MetaGenesis › Apps Linux e inicia sesión en <sesion>»; nunca la IP ni una URL del nodo), espera hasta 30 minutos a que la sesión esté viva y apaga Selkies siempre al terminar. `estado`: para cada sesión abre una página de comprobación y marca viva o caducada. `vigilar`: si una sesión pasa a caducada avisa una vez por Telegram y no reintenta. Ningún paso teclea ni lee contraseñas. Todo inyectable; pruebas sin red. Máximo 120 líneas por archivo.\n\n## PARTE 2 DE 2 (la dirección dividió NAV1112D: falla por sí misma (tarea:pruebas))\nEn esta parte tocas SOLO: scripts/puente/test_navegador_alta.py. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "NAV1112D",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:pruebas)"
+   },
+   "dependencias_ya_en_main": [
+    "NAV1112D-d1"
+   ]
+  }
+ ]
+}
