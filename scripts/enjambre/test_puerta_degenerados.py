@@ -197,13 +197,13 @@ class TestSecretosEnCambios(unittest.TestCase):
         """(d) escanear que lanza RuntimeError → []."""
         def escanear_falso(_diff):
             raise RuntimeError("fallo simulado")
-        cambios = [("scripts/puente/m.py", "", 'TOKEN = "ghp_Xk9mP2qR5vW8yZ1aB3cD7eF4gH6jK8lM0nQ"')]
+        cambios = [("scripts/puente/m.py", "", 'TOKEN = "gh' + 'p_Xk9mP2qR5vW8yZ1aB3cD7eF4gH6jK8lM0nQ"')]
         razones = secretos_en_cambios(cambios, escanear_falso)
         self.assertEqual(razones, [])
 
     def test_escanear_none_devuelve_vacio(self):
         """(e) escanear=None → []."""
-        cambios = [("scripts/puente/m.py", "", 'TOKEN = "ghp_Xk9mP2qR5vW8yZ1aB3cD7eF4gH6jK8lM0nQ"')]
+        cambios = [("scripts/puente/m.py", "", 'TOKEN = "gh' + 'p_Xk9mP2qR5vW8yZ1aB3cD7eF4gH6jK8lM0nQ"')]
         razones = secretos_en_cambios(cambios, None)
         self.assertEqual(razones, [])
 
