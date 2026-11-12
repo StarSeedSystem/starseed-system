@@ -3,8 +3,8 @@ import { describe, expect, it } from "vitest";
 import type { CarrilesParVista } from "@/lib/llamadas/tipos";
 import { carrilesArriba, eleccionesCarril, parPrincipal, webrtcConectadoCon, type FuenteCarriles } from "../carriles-eleccion";
 
-const soloBle: CarrilesParVista = { parId: "tab:1", voz: "ble-l2cap" as const, video: "ble-l2cap" as const, pantalla: "ble-l2cap" as const, senal: "ble-l2cap" as const, datos: "ble-l2cap" as const, forzados: {}, texto: "Voz: Bluetooth · Vídeo: Bluetooth", director: true };
-const conIp: CarrilesParVista = { ...soloBle, video: "webrtc" as const, pantalla: "webrtc" as const };
+const soloBle: CarrilesParVista = { parId: "tab:1", voz: "ble-l2cap", video: "ble-l2cap", pantalla: "ble-l2cap", senal: "ble-l2cap", datos: "ble-l2cap", forzados: {}, texto: "Voz: Bluetooth · Vídeo: Bluetooth", director: true };
+const conIp: CarrilesParVista = { ...soloBle, video: "webrtc", pantalla: "webrtc" };
 
 describe("eleccionesCarril", () => {
   it("solo Bluetooth: «Automático» y el Bluetooth rápido; WebRTC y el resto en la línea de «sin enlace»", () => {
@@ -25,14 +25,14 @@ describe("eleccionesCarril", () => {
   });
 
   it("un forzado que se cayó se enseña marcado (y es el valor del selector)", () => {
-    const e = eleccionesCarril({ ...soloBle, forzados: { video: "webrtc" as const } }, false);
+    const e = eleccionesCarril({ ...soloBle, forzados: { video: "webrtc" } }, false);
     expect(e[1].valor).toBe("webrtc");
     expect(e[1].opciones).toContainEqual({ carril: "webrtc", etiqueta: "WebRTC (IP) (sin enlace ahora)", arriba: false });
     expect(e[0].valor).toBe("auto");
   });
 
   it("carrilesArriba cuenta lo que lleva algo, el enlace de datos y WebRTC si está conectado", () => {
-    expect([...carrilesArriba({ ...soloBle, datos: "ble-gatt" as const }, false)].sort()).toEqual(["ble-gatt", "ble-l2cap"]);
+    expect([...carrilesArriba({ ...soloBle, datos: "ble-gatt" }, false)].sort()).toEqual(["ble-gatt", "ble-l2cap"]);
     expect(carrilesArriba(soloBle, true).has("webrtc")).toBe(true);
   });
 

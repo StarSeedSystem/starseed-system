@@ -27,26 +27,6 @@ env:
   DO_NOT_TRACK: "1"
 
 jobs:
-  bitnet-patch:
-    name: BitNet · parche ReLU² (LLM_FFN_RELU_SQR)
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - name: Checkout BitNet
-        run: |
-          git clone --depth 1 https://github.com/microsoft/BitNet.git /tmp/bitnet-check
-          if grep -q "LLM_FFN_RELU_SQR" /tmp/bitnet-check/src/ggml-bitnet-mad.cpp; then
-            echo "::group::Parche LLM_FFN_RELU_SQR encontrado"
-            grep -n "LLM_FFN_RELU_SQR" /tmp/bitnet-check/src/ggml-bitnet-mad.cpp | head -5
-            echo "::endgroup::"
-            echo "✅ Parche ReLU² presente: BitNet b1.58 funcionará con PPL ~5.38"
-          else
-            echo "::error::Parche LLM_FFN_RELU_SQR NO encontrado en ggml-bitnet-mad.cpp"
-            echo "El modelo BitNet b1.58 usaría PLM 40.9 en lugar de 5.38 (bucle de inferencia)."
-            echo "Necesario aplicar el parche ReLU² o usar una rama con el parche."
-            exit 1
-          fi
-
   verify:
     name: Typecheck · Unit · Mesh · Build
     runs-on: ubuntu-latest
@@ -68,7 +48,7 @@ jobs:
         run: npx tsc --noEmit
         env:
           # (2026-10-26) Con el montón por defecto (~4 GB) tsc ya muere por memoria («JavaScript heap out of
-          # memory», exit 134: runs 40265392894, 40267313642, 40269427314) y la autopublicación se frena con
+          # memory», exit 134: runs 40265392894, 40267313842, 40269427314) y la autopublicación se frena con
           # «CI en rojo». La máquina tiene 16 GB, como para el build de abajo.
           NODE_OPTIONS: --max-old-space-size=8192
       - name: Tests unitarios (Vitest · gobernanza + seguridad)

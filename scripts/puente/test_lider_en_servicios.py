@@ -143,9 +143,6 @@ class Doble(object):
     def gh(self, ruta):
         return self.ghs.append(ruta) or []
 
-    def ronda_estado(self):
-        return {}
-
 
 class Autopublicacion(unittest.TestCase):
     def test_sin_ser_lider_no_publica_ni_sube_candidatos_y_dice_quien_dirige(self):

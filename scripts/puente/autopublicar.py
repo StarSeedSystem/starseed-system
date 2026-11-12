@@ -43,7 +43,6 @@ INTERRUPTOR = os.path.join(CARPETA, "autopublicar.json")
 ESTADO = os.path.join(CARPETA, "autopublicar-estado.json")
 CERROJO = os.path.expanduser("~/.starseed/cerrojos/autopublicar.lock")
 DIARIO_MANUAL = os.path.join(RAIZ, "starseed_memory_root", "mando", "publicacion-estado.json")
-RONDA_ESTADO = os.path.join(CARPETA, "ronda-estado.json")
 REPO = "StarSeedSystem/starseed-system"
 RAMA_CANDIDATO = "produccion/candidato"
 WEB = "https://starseed-os.vercel.app"
@@ -112,28 +111,6 @@ def manual_viva(diario, pid_vivo, ahora, mtime):
         return True, "proceso manual activo (sin pid y %d min sin cambios)" % ((ahora - mtime) // 60)
     
     return False, "sin cambios desde hace %d min" % ((ahora - mtime) // 60)
-
-
-def ronda_activa(ronda_estados, ahora):
-    """PURA: (bool, detalle) True si hay una ronda de aparatos activa y no caducada.
-    
-    Una ronda está activa si: el estado tiene "activa" == True, y no ha caducado
-    (t_caduca en el futuro, o run_creado_t existe y no han pasado 50 min desde la creación).
-    """
-    if not isinstance(ronda_estados, dict):
-        return False, ""
-    if not ronda_estados.get("activa"):
-        return False, ""
-    t_caduca = ronda_estados.get("t_caduca")
-    if t_caduca is not None and ahora >= t_caduca:
-        return False, ""
-    run_creado_t = ronda_estados.get("run_creado_t")
-    if run_creado_t is not None and ahora - run_creado_t > 50 * 60:
-        return False, ""
-    fase = ronda_estados.get("fase") or "esperando-run"
-    sha = ronda_estados.get("sha") or ""
-    numero = ronda_estados.get("numero")
-    return True, "ronda de aparatos %s (prueba %s, %s)" % (sha[:8] if sha else "?", numero or "?", fase)
 
 
 # Lo idempotente y lo que solo NOMBRA un borrado no borra nada: recrear una política o un trigger
@@ -423,10 +400,6 @@ class Medios(object):
         viva, motivo = manual_viva(diario, lambda pid: os.kill(pid, 0), ahora, mtime)
         return viva
 
-    def ronda_estado(self):
-        """Lee el estado de la ronda de aparatos."""
-        return _leer(RONDA_ESTADO, {})
-
     def lider(self, ahora=None):
         """(IND1029Cb) (¿publico yo?, por qué), con el arriendo de dirección (IND1029B) solo leído y la
         regla pura de la autocuración. Sin el módulo, sin puerta o sin arriendo vigente: como hoy."""
@@ -697,13 +670,6 @@ def pasada(m, est, ahora):
         return con_fase(est, "apagado", "Autopublicación apagada (Genesis · Ajustes).", ahora)
     if m.publicando_a_mano():
         return con_fase(est, "esperando", "Hay una publicación manual en curso; espero a que termine.", ahora)
-    # Ronda de aparatos activa: retiene las puertas locales y los tsc/vitest del enjambre
-    ronda_est = m.ronda_estado()
-    activa, detalle_ronda = ronda_activa(ronda_est, ahora)
-    if activa:
-        if not (est.get("fase") == "esperando" and "ronda" in (est.get("detalle") or "")):
-            m.avisar("Autopublicación en espera: %s." % detalle_ronda, tipo="aviso")
-        return con_fase(est, "esperando", "Ronda de aparatos en marcha: %s." % detalle_ronda, ahora)
     # (IND1029Cb) La Mac y el A1 corren esta misma autopublicación: solo el líder de dirección publica y sube
     # candidatos; las demás neuronas no tocan git ni el CI y lo dicen («espera: dirige <neurona>»). Lo que esta
     # neurona ya empujó a main sí lo termina de verificar en Vercel (solo mira), para no dejarlo a medias.

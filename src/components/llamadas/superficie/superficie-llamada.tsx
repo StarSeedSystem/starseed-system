@@ -5,7 +5,7 @@
  * tamaños (burbuja arrastrable, panel, pantalla completa) y seis estados (LLA1108C). No conoce los motores:
  * recibe una `VistaLlamada` y unas `AccionesLlamada`. Contrato: `architecture/llamadas-telefonia.md`.
  */
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type PointerEvent as PE } from "react";
 import { Circle, Eye, Maximize2, MessageSquare, Minimize2, Mic, MicOff, Minus, Monitor, MonitorOff, Pause, PictureInPicture2, Phone, PhoneOff, Play, Radio, Signal, Smile, Sparkles, SwitchCamera, UserPlus, Users, Video, VideoOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { hayGrabacion, textoIndicador, GRABACION_INICIAL } from "@/lib/llamadas/superficie/grabacion";
@@ -22,7 +22,6 @@ import { vigilarVisibilidad } from "@/lib/llamadas/superficie/visibilidad";
 import { streamTraeVideo } from "@/lib/llamadas/superficie/adaptador-motor";
 import type { FuenteCarriles } from "./carriles-eleccion";
 import { anotarLlamada } from "@/lib/llamadas/voz-datos/diagnostico";
-import { botonCamaraDeshabilitado, camaraLocalSinImagen, PADDING_FOOTER_DOCK } from "@/lib/llamadas/superficie/controles-llamada";
 
 /**
  * LLA1110C: ¿el flujo trae vídeo CON imagen ahora? Una pista WebRTC negociada sin ruta (por Bluetooth) existe pero
@@ -73,11 +72,11 @@ const TIPOS: Array<{ t: TipoSuperficie; etiqueta: string }> = [
 ];
 const ic = "h-[18px] w-[18px]";
 /**
- * LLA1111A · la ventana nunca es más alta que lo visible menos las zonas seguras, el margen de 1 rem arriba y abajo,
- * y la altura del dock (para que los controles no queden tapados). `dvh` sigue a la barra del navegador del móvil;
- * donde no exista, el `vh` de antes. `--dock-height` lo define el OmniDock (fallback 80px).
+ * LLA1111A · la ventana nunca es más alta que lo visible menos las zonas seguras y el margen de 1 rem arriba y abajo
+ * (antes crecía hacia arriba con un panel abierto y la cabecera se salía de la pantalla). `dvh` sigue a la barra del
+ * navegador del móvil; donde no exista, el `vh` de antes.
  */
-const ALTO_MAXIMO = "calc(100dvh - max(1rem, env(safe-area-inset-top)) - max(1rem, env(safe-area-inset-bottom)) - var(--dock-height, 80px))";
+const ALTO_MAXIMO = "calc(100dvh - max(1rem, env(safe-area-inset-top)) - max(1rem, env(safe-area-inset-bottom)))";
 
 export function SuperficieLlamada({ vista: v, acciones: a, tamanoInicial, carriles }: { vista: VistaLlamada; acciones: AccionesLlamada; /** Tamaño al conectar (por defecto la burbuja discreta de la llamada directa). */ tamanoInicial?: "panel" | "pantalla-completa"; /** LLA1111A: el motor, para elegir a mano el carril de cada flujo en «Medio». */ carriles?: FuenteCarriles | null }) {
   const { s, despachar, duracion, tamano } = useSuperficie(v);
@@ -150,11 +149,6 @@ export function SuperficieLlamada({ vista: v, acciones: a, tamanoInicial, carril
   // LLA1110C: hay imagen del otro si el lienzo del vídeo ligero está o si su pista de vídeo trae imagen DE VERDAD.
   const conVideoRemoto = !!v.remotoLienzo || remotoTraeVideo || videoPinta;
   const vivaVideo = s.estado === "conectada" || s.estado === "en-espera" || s.estado === "reconectando";
-
-  // LLA1112B: ¿la cámara local trae imagen ahora? (pista viva y no muted)
-  const localTraeVideo = useTraeVideo(v.local);
-  // LLA1112B: aviso cuando la cámara está encendida pero no envía vídeo (lógica pura en controles-llamada)
-  const localCamaraSinImagen = camaraLocalSinImagen(vivaVideo, v.camara, v.local, streamTraeVideo);
   // LLA1110C: al llegar imagen del otro con la llamada recogida en la burbuja, se abre el panel (antes se veía la píldora).
   const habiaVideo = useRef(false);
   useEffect(() => {
@@ -177,12 +171,12 @@ export function SuperficieLlamada({ vista: v, acciones: a, tamanoInicial, carril
   const tamanoActual = s.tamano;
   const hablando = !!v.participantes?.some((p) => !p.yo && (p.nivel ?? 0) > 0.08);
 
-  const arrastrando = (e: React.PointerEvent<HTMLElement>) => {
+  const arrastrando = (e: PE<HTMLElement>) => {
     if (tamanoActual !== "burbuja" || (e.target as HTMLElement).closest("button")) return;
     punto.current = { x: e.clientX, y: e.clientY, ox: arrastre.x, oy: arrastre.y, mov: false };
     (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
   };
-  const moviendo = (e: React.PointerEvent<HTMLElement>) => {
+  const moviendo = (e: PE<HTMLElement>) => {
     const p = punto.current;
     if (!p) return;
     const dx = e.clientX - p.x, dy = e.clientY - p.y;
@@ -335,12 +329,6 @@ export function SuperficieLlamada({ vista: v, acciones: a, tamanoInicial, carril
                   {s.tipo === "pantalla" && resaltar && puntero && <span aria-hidden className="pointer-events-none absolute h-12 w-12 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-amber-300 bg-amber-300/25" style={{ left: puntero.x, top: puntero.y }} />}
                   {s.tipo === "pantalla" && resaltar && <div className="absolute inset-0" onPointerMove={(e) => { const r = e.currentTarget.getBoundingClientRect(); setPuntero({ x: e.clientX - r.left, y: e.clientY - r.top }); }} />}
                   {v.local && v.camara && <Pista stream={v.local} video silenciar local espejo={espejo} className="absolute bottom-2 right-2 h-20 w-14 rounded-lg border border-white/25 sm:h-24 sm:w-32" etiqueta="Tu cámara" />}
-                  {localCamaraSinImagen && (
-                    <div role="status" className="absolute bottom-2 right-2 translate-y-full mb-2 flex items-center gap-1.5 rounded-full bg-amber-500/90 px-2 py-1 text-[11px] text-black shadow-lg" aria-live="polite">
-                      <VideoOff className="h-3.5 w-3.5" />
-                      Cámara encendida sin imagen
-                    </div>
-                  )}
                   {s.tipo === "vivo" && <span className="absolute left-2 top-2 flex items-center gap-1.5 rounded-full bg-black/55 px-2 py-0.5 text-[11px]"><Eye className="h-3 w-3" /> {v.espectadores ?? "—"} · {v.relevo ?? "directo"}</span>}
                   {s.tipo === "pantalla" && v.compartiendoPantalla && <span className="absolute left-2 top-2 rounded-full bg-amber-500/80 px-2 py-0.5 text-[11px] text-black">Estás compartiendo tu pantalla</span>}
                   {s.estado === "reconectando" && <div role="status" className="absolute inset-0 flex items-center justify-center bg-black/60 text-[13px]">Reconectando…</div>}
@@ -402,7 +390,7 @@ export function SuperficieLlamada({ vista: v, acciones: a, tamanoInicial, carril
           )}
 
           {viva && <p className="sr-only">{AYUDA_ATAJOS}</p>}
-          <footer className="flex shrink-0 flex-wrap items-center justify-center gap-2 px-3 pt-2" style={{ paddingBottom: PADDING_FOOTER_DOCK }} data-controles-llamada="">
+          <footer className="flex shrink-0 flex-wrap items-center justify-center gap-2 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2" data-controles-llamada="">
             {s.estado === "entrante" && (
               <>
                 <BotonControl peligro icono={<PhoneOff className={ic} />} etiqueta="Rechazar" onClick={a.rechazar} />
@@ -413,7 +401,7 @@ export function SuperficieLlamada({ vista: v, acciones: a, tamanoInicial, carril
             {viva && (
               <>
                 <BotonControl icono={v.micro ? <Mic className={ic} /> : <MicOff className={ic} />} etiqueta={v.micro ? "Silenciar micrófono" : "Activar micrófono"} activo={!v.micro} onClick={a.alternarMicro} motivo="no disponible" />
-                <BotonControl icono={v.camara ? <Video className={ic} /> : <VideoOff className={ic} />} etiqueta={v.camara ? "Apagar cámara" : "Encender cámara"} activo={!v.camara} onClick={a.alternarCamara} deshabilitado={botonCamaraDeshabilitado(v.camara, v.motivos?.camara)} motivo={v.motivos?.camara ?? "esta llamada no lleva cámara; cambia a Vídeo"} />
+                <BotonControl icono={v.camara ? <Video className={ic} /> : <VideoOff className={ic} />} etiqueta={v.camara ? "Apagar cámara" : "Encender cámara"} activo={!v.camara} onClick={a.alternarCamara} deshabilitado={!v.camara && !!v.motivos?.camara} motivo={v.motivos?.camara ?? "esta llamada no lleva cámara; cambia a Vídeo"} />
                 {(v.camaras ?? 0) > 1 && <BotonControl icono={<SwitchCamera className={ic} />} etiqueta="Girar cámara (frontal/trasera)" onClick={a.girarCamara} deshabilitado={!!v.motivos?.["girar-camara"]} motivo={v.motivos?.["girar-camara"]} />}
                 <BotonControl icono={v.compartiendoPantalla ? <MonitorOff className={ic} /> : <Monitor className={ic} />} etiqueta={v.compartiendoPantalla ? "Dejar de compartir pantalla" : "Compartir pantalla (elige ventana o pantalla)"} activo={v.compartiendoPantalla} onClick={a.alternarPantalla} deshabilitado={!v.compartiendoPantalla && !!v.motivos?.pantalla} motivo={v.motivos?.pantalla ?? "no disponible en esta llamada"} />
                 <BotonControl icono={s.estado === "en-espera" ? <Play className={ic} /> : <Pause className={ic} />} etiqueta={s.estado === "en-espera" ? "Reanudar llamada" : "Poner en espera"} activo={s.estado === "en-espera"} onClick={a.alternarEspera} motivo="la llamada directa aún no admite espera" />

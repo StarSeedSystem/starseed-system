@@ -288,11 +288,6 @@ export class ControlNivelVoz {
       this.atascoSeguido = 0;
       if (this.limpioSeguido >= SUELO_SALIR_S) this.suelo = false;
     }
-    // Si el enlace no tiene medida (sin modelo, Wi-Fi cortado), salir inmediatamente de la parte baja.
-    if (this.suelo && !e.modelo && this.i === ultimo) {
-      this.suelo = false;
-      this.limpioSeguido = 0;
-    }
     const antes = this.i;
     if (motivo) {
       // Atasco: al escalón que cabe con el modelo (si lo hay) y, como poco, uno más abajo.

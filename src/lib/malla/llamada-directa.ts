@@ -19,13 +19,6 @@
  *  · el fin se dice tal cual (`fin`): colgada, rechazada, sin respuesta o fallo; el timbre de quien
  *    recibe caduca con el mismo tope que el de quien llama.
  *
- * (LLA1112A · 2026-11-12, prueba .39) Al apagarse el Wi-Fi de la tableta la llamada acabó en «fallo»
- * con el enlace Bluetooth ABIERTO. Ahora:
- *  · perder el enlace del audio no acaba la llamada si queda otro enlace abierto con la misma
- *    neurona: se pasa a él y se renegocia (el timbre de quien recibe caduca igual);
- *  · el timbre y la espera del enlace de quien llama no se anclan a un enlace que no está abierto:
- *  · si hay cualquier otro enlace abierto con esa neurona, por él va, sin perseguir una ruta que no existe.
- *
  * Consentimiento: el enlace existe porque las dos personas se pasaron el código (o son dos neuronas
  * vinculadas); aun así cada llamada SUENA y solo se envía audio/vídeo cuando la otra persona contesta.
  * Nada se graba.
@@ -325,14 +318,6 @@ export function asegurarEscuchaLlamadas(): void {
   });
   suscribirEnlacesLocales(() => {
     if (!estado.enlaceId || estado.fase === "inactiva" || estado.fase === "terminada" || enlaceLocal(estado.enlaceId)) return;
-    // (LLA1112A) Se perdió el enlace del audio (se apagó el Wi-Fi de la tableta): si queda OTRO enlace
-    // abierto con la misma neurona (el Bluetooth, p. ej.), la llamada se pasa a él y sigue.
-    const otro = estado.neurona ? enlaceVivoMasNuevoCon(estado.neurona) : null;
-    if (otro) {
-      poner({ enlaceId: otro.id, remoto: remotos.get(otro.id) ?? null });
-      if (estado.fase === "en-curso") void otro.ponerPistas(estado.local);
-      return;
-    }
     // Sin el enlace del audio, la conversación se acaba; mientras suena, el timbre sigue por el canal de la app.
     if (estado.fase === "en-curso" || !respaldo || !estado.neurona) terminar("enlace-perdido", "Se perdió el enlace directo.", "fallo");
     else poner({ enlaceId: null });
@@ -391,9 +376,7 @@ function manejar(origen: Origen, o: Record<string, unknown>): void {
       }
       if (temporizador) clearTimeout(temporizador);
       temporizador = null;
-      // (LLA1112A) El timbre va por un enlace ABIERTO: uno medio abierto (el otro pasó a segundo plano)
-      // o muerto (se apagó el Wi-Fi) no sirve; si hay otro enlace vivo con esa neurona, por él.
-      const enlace = abiertoYa(origen.enlace) ? origen.enlace : neurona ? enlaceVivoMasNuevoCon(neurona) : null;
+      const enlace = origen.enlace ?? (neurona ? enlaceVivoMasNuevoCon(neurona) : null);
       aplicar("sonar-recibido", {
         id,
         enlaceId: enlace?.id ?? null,
@@ -480,8 +463,7 @@ async function aceptada(id: string, origen: Origen, preferido: string | null): P
   }
 }
 
-/** Espera a que se abra ESE enlace (el que abrió quien contesta); si se abre OTRO vivo con esa
- * neurona antes, por ese va: no se espera a una ruta que no va a llegar (LLA1112A). */
+/** Espera a que se registre ESE enlace (el que abrió quien contesta). */
 function esperarEnlace(enlaceId: string, ms: number): Promise<EnlaceLocalVivo | null> {
   return new Promise((fin) => {
     let hecho = false;
@@ -494,19 +476,11 @@ function esperarEnlace(enlaceId: string, ms: number): Promise<EnlaceLocalVivo | 
       baja();
       fin(e);
     };
-    const buscar = (): EnlaceLocalVivo | null => {
-      const p = enlaceLocal(enlaceId);
-      if (abiertoYa(p)) return p;
-      return estado.neurona ? enlaceVivoMasNuevoCon(estado.neurona) : null;
-    };
     t = setTimeout(() => acabar(null), ms);
     baja = suscribirEnlacesLocales(() => {
-      const e = buscar();
-      if (e) acabar(e);
+      const e = enlaceLocal(enlaceId);
+      if (abiertoYa(e)) acabar(e);
     });
-    // La suscripción no dispara con lo que ya hay: se mira una vez al entrar.
-    const ya = buscar();
-    if (ya) acabar(ya);
   });
 }
 

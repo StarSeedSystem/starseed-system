@@ -706,12 +706,12 @@ export class MotorLlamada {
         return null;
     }
 
-    cambiarAltavoz(id: string): void {
+    cambiarAltavoz(id: string) {
         this.set({ seleccion: { ...this.e.seleccion, altavozId: id } });
         this.recordarDispositivo("altavoz", id, this.e.dispositivos.altavoces);
     }
 
-    async actualizarDispositivos(): Promise<void> {
+    async actualizarDispositivos() {
         const d = await listarDispositivos();
         if (!this.cerrado) this.set({ dispositivos: d });
     }
@@ -1238,7 +1238,7 @@ export class MotorLlamada {
         return par;
     }
 
-    private async procesarSenal(par: Par, s: Extract<SenalLlamada, { tipo: "senal" }>): Promise<void> {
+    private async procesarSenal(par: Par, s: Extract<SenalLlamada, { tipo: "senal" }>) {
         if (this.pares.get(par.id) !== par) return;
         const pc = par.pc;
         if (s.desc) {
@@ -1294,7 +1294,7 @@ export class MotorLlamada {
         }
     }
 
-    private async aplicarIce(par: Par, c: RTCIceCandidateInit): Promise<void> {
+    private async aplicarIce(par: Par, c: RTCIceCandidateInit) {
         if (!par.pc.remoteDescription) {
             if (par.icePendiente.length < 200) par.icePendiente.push(c);
             return;
@@ -1306,7 +1306,7 @@ export class MotorLlamada {
         }
     }
 
-    private async vaciarIcePendiente(par: Par): Promise<void> {
+    private async vaciarIcePendiente(par: Par) {
         const lista = par.icePendiente.splice(0);
         for (const c of lista) await this.aplicarIce(par, c);
     }
@@ -1785,18 +1785,7 @@ export class MotorLlamada {
             const f = sel.foto();
             const forzados: Partial<Record<Flujo, Carril>> = {};
             for (const k of Object.keys(f) as Flujo[]) if (f[k].forzado) forzados[k] = f[k].forzado!;
-            const item: CarrilesParVista = {
-                parId: id,
-                voz: f.voz.carril,
-                video: f.video.carril,
-                pantalla: f.pantalla.carril,
-                senal: f.senal.carril,
-                datos: this.carrilDatos.get(id) ?? null,
-                forzados,
-                texto: textoCarriles(this.pantallaOn ? { voz: f.voz, pantalla: f.pantalla } : { voz: f.voz, video: f.video }) + (f.datos.carril ? ` · Datos: ${etiquetaCarril(f.datos.carril)}` : ""),
-                director: soyDirector(this.miId, id),
-            };
-            out.push(item);
+            out.push({ parId: id, voz: f.voz.carril, video: f.video.carril, pantalla: f.pantalla.carril, senal: f.senal.carril, datos: this.carrilDatos.get(id) ?? null, forzados, texto: textoCarriles(this.pantallaOn ? { voz: f.voz, pantalla: f.pantalla } : { voz: f.voz, video: f.video }) + (f.datos.carril ? ` · Datos: ${etiquetaCarril(f.datos.carril)}` : ""), director: soyDirector(this.miId, id) });
         }
         return out;
     }
@@ -2031,7 +2020,7 @@ export class MotorLlamada {
      */
     private readonly videoWebPinta = new Map<string, { pinta: boolean; desde: number; en: number; marcado: boolean }>();
 
-    informarVideoWebPinta(parId: string, pinta: boolean | null): void {
+    informarVideoWebPinta(parId: string, pinta: boolean | null) {
         const antes = this.videoWebPinta.get(parId);
         if (pinta === null) {
             // No se sabe (pestaña oculta, la superficie se fue): no vale lo anterior.
@@ -2526,7 +2515,7 @@ export class MotorLlamada {
     }
 
     /** Aviso amable para la persona (lo pinta la ventana). */
-    avisar(texto: string | null): void {
+    avisar(texto: string | null) {
         this.set({ aviso: texto });
     }
 
