@@ -107,6 +107,9 @@ export interface AparatoBanco {
     ultimoArranque: string | null;
     errores: { t: string | null; texto: string }[];
     visto: string | null;
+    /** v1.3 (PRB1111Z): desde cuándo corre esta versión y de dónde se sabe; null = el archivo no lo dice. */
+    versionDesde?: string | null;
+    versionDesdeFuente?: string | null;
 }
 
 export interface RangoFps {
@@ -148,6 +151,19 @@ export interface LlamadaBanco {
     medios: string[];
     kbps: { min: number | null; max: number | null; muestras: number | null } | null;
     lados: LadoLlamada[];
+    /** v1.3: con qué versión se hizo frente a la que se prueba. Ausente/null = archivo anterior a la v1.3. */
+    versionRelacion?: "esta" | "otra" | "desconocida" | null;
+    /** v1.3: versión de la Mac en esa llamada (null = no se sabe). */
+    versionMac?: string | null;
+}
+
+/** v1.3: una comprobación con señal que aún no tiene evidencia hecha con la versión que se prueba. */
+export interface SinEvidencia {
+    prueba: number;
+    comprobacion: string;
+    senal: string;
+    razon: string;
+    produciria: string;
 }
 
 export interface SugerenciaBanco {
@@ -167,6 +183,8 @@ export interface BancoLeido {
     sugerencias: SugerenciaBanco[];
     /** Por qué no hay sugerencias, si el banco lo dice (la Mac tiene instalada otra prueba…). */
     sugerenciasNota: string | null;
+    /** v1.3: comprobaciones con señal sin evidencia de esta versión (nunca también en `sugerencias`). */
+    sinEvidencia?: SinEvidencia[];
     /** Lo que el banco dice de sus fuentes (cuántas líneas de registro leyó). */
     lineasLeidas: number | null;
 }

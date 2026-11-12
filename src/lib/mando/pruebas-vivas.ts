@@ -32,6 +32,7 @@ import type {
     RangoFps,
     PeticionControl,
     PeticionVista,
+    SinEvidencia,
     SugerenciaBanco,
     Tipicos,
     VistaDirector,
@@ -195,6 +196,8 @@ function aparato(crudo: unknown): AparatoBanco | null {
             return { t: fechaIso(x.t), texto: texto(x.texto, 300) };
         }).filter((e) => e.texto),
         visto: fechaIso(o.visto),
+        versionDesde: fechaIso(o.version_desde),
+        versionDesdeFuente: textoONulo(o.version_desde_fuente, 40),
     };
 }
 
@@ -249,6 +252,8 @@ function llamada(crudo: unknown): LlamadaBanco | null {
         terminada: booleano(o.terminada),
         medios: lista(o.medios).filter((c): c is string => typeof c === "string").map((c) => c.slice(0, 40)).slice(0, 8),
         kbps: Object.keys(kb).length ? { min: numero(kb.min), max: numero(kb.max), muestras: numero(kb.muestras) } : null,
+        versionRelacion: o.version_relacion === "esta" || o.version_relacion === "otra" || o.version_relacion === "desconocida" ? o.version_relacion : null,
+        versionMac: textoONulo(o.version_mac, 80),
         lados: Object.entries(objeto(o.lados)).map(([k, v]) => lado(k.slice(0, 30), v)).filter((l): l is LadoLlamada => l !== null).slice(0, 4),
     };
 }
@@ -272,6 +277,13 @@ export function leerBanco(crudo: unknown): BancoLeido | null {
             return { prueba, comprobacion, senal: texto(x.senal, 40), veredicto: x.veredicto, motivo: texto(x.motivo, 300), llamada: textoONulo(x.llamada, 60) } as SugerenciaBanco;
         }).filter((s): s is SugerenciaBanco => s !== null).slice(0, 60),
         sugerenciasNota: textoONulo(o.sugerencias_nota, 300),
+        sinEvidencia: lista(o.sin_evidencia).map((s) => {
+            const x = objeto(s);
+            const prueba = entero(x.prueba);
+            const comprobacion = texto(x.comprobacion, 20);
+            if (prueba === null || !comprobacion) return null;
+            return { prueba, comprobacion, senal: texto(x.senal, 40), razon: texto(x.razon, 300), produciria: texto(x.produciria, 300) };
+        }).filter((s): s is SinEvidencia => s !== null).slice(0, 80),
         lineasLeidas: entero(enlaces.lineas),
     };
 }

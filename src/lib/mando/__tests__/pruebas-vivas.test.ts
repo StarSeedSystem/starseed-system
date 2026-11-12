@@ -232,3 +232,32 @@ describe("PRB1111X · el foco con los datos reales", () => {
         expect(cuerpoDePeticion(p, "pet-1-aaaa", "2026-11-12T02:00:00Z")).toMatchObject({ accion: "app-abrir", sha: null, numero: null, prueba: null, nota: null });
     });
 });
+
+describe("PRB1111Z · la evidencia pertenece a una versión (formato v1.3)", () => {
+    const crudo = {
+        formato: 1, t: "2026-11-12T02:00:00Z", cada_s: 60,
+        aparatos: [{ id: "mac", nombre: "Esta Mac", esta: true, version: "0.5.1-prueba.39", version_de: "app-instalada", version_desde: "2026-11-12T01:49:00Z", version_desde_fuente: "paquete-instalado", app_abierta: true }],
+        llamadas: [
+            { id: "llamada-20261111T191944", desde: "2026-11-11T19:19:44Z", version_relacion: "otra", version_mac: "0.5.1-prueba.37", lados: {} },
+            { id: "llamada-x", version_relacion: "desconocida", version_mac: null, lados: {} },
+            { id: "llamada-vieja", lados: {} },
+        ],
+        sugerencias: [{ prueba: 39, comprobacion: "c19", senal: "arranque-limpio", veredicto: "bien", motivo: "arranque limpio", llamada: null }],
+        sin_evidencia: [{ prueba: 39, comprobacion: "c7", senal: "video-fps-ble", razon: "La tablet no da señal desde 21:01Z.", produciria: "una llamada con la 39 en ambos aparatos" }, { prueba: "x" }],
+    };
+    it("lee la versión desde cuándo, la relación de cada llamada y sin_evidencia", () => {
+        const b = leerBanco(crudo)!;
+        expect(b.aparatos[0].versionDesde).toBe("2026-11-12T01:49:00Z");
+        expect(b.aparatos[0].versionDesdeFuente).toBe("paquete-instalado");
+        expect(b.llamadas.map((l) => l.versionRelacion)).toEqual(["otra", "desconocida", null]);
+        expect(b.llamadas[0].versionMac).toBe("0.5.1-prueba.37");
+        expect(b.sinEvidencia).toEqual([{ prueba: 39, comprobacion: "c7", senal: "video-fps-ble", razon: "La tablet no da señal desde 21:01Z.", produciria: "una llamada con la 39 en ambos aparatos" }]);
+        expect(b.sugerencias.map((x) => x.comprobacion)).toEqual(["c19"]);
+    });
+    it("un archivo anterior a la v1.3 se lee igual, sin inventar nada", () => {
+        const b = leerBanco({ formato: 1, aparatos: [{ id: "mac" }], llamadas: [{ id: "llamada-1" }] })!;
+        expect(b.aparatos[0].versionDesde).toBeNull();
+        expect(b.llamadas[0].versionRelacion).toBeNull();
+        expect(b.sinEvidencia).toEqual([]);
+    });
+});

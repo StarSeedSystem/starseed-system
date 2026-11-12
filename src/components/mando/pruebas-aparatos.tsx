@@ -17,6 +17,12 @@ import type { BancoLeido, LadoLlamada, LlamadaBanco } from "@/lib/mando/pruebas-
 import { PedirArreglo } from "./pruebas-control";
 import { Chip, cifra, duracionDeLlamada, fechaCorta, haceTexto, Seccion, usePruebas } from "./pruebas-contexto";
 
+const DESDE_FUENTE: Record<string, string> = {
+    "paquete-instalado": "según el paquete instalado",
+    "ultima-vez-vista-la-anterior": "desde la última vez que se vio la anterior (como pronto)",
+    "primera-vez-visto": "desde la primera vez que se la vio (puede ser anterior)",
+};
+
 const ESTADO_CHIP = {
     "al-dia": { tono: "ok", texto: "al día" },
     "mas-nueva": { tono: "info", texto: "más nueva que la prueba" },
@@ -52,8 +58,12 @@ function Lado({ l }: { l: LadoLlamada }) {
 }
 
 function Llamada({ ll, ahora }: { ll: LlamadaBanco; ahora: number }) {
+    const otra = ll.versionRelacion === "otra";
     return (
-        <li className="min-w-0 rounded-md border border-white/10 bg-black/25 p-2 text-xs" data-testid={`llamada-${ll.id}`}>
+        <li className={`min-w-0 rounded-md border p-2 text-xs ${otra ? "border-dashed border-white/10 bg-black/10 opacity-80" : "border-white/10 bg-black/25"}`} data-testid={`llamada-${ll.id}`} data-version={ll.versionRelacion ?? "sin-dato"}>
+            {ll.versionRelacion === "esta" ? <p className="mb-0.5 text-[11px] text-emerald-200/90" data-testid={`version-llamada-${ll.id}`}>Hecha con esta versión{ll.versionMac ? ` (${ll.versionMac})` : ""}.</p> : null}
+            {otra ? <p className="mb-0.5 break-words text-[11px] text-white/55" data-testid={`version-llamada-${ll.id}`}>Historia: hecha con {ll.versionMac ?? "otra versión"}; no es evidencia de la versión que se prueba.</p> : null}
+            {ll.versionRelacion === "desconocida" ? <p className="mb-0.5 break-words text-[11px] text-amber-200/80" data-testid={`version-llamada-${ll.id}`}>No se sabe con qué versión se hizo: no la cuento como evidencia de esta.</p> : null}
             <p className="break-words text-white/85">
                 <span className="font-mono">{ll.id.replace("llamada-", "")}</span> · {fechaCorta(ll.desde)} ({haceTexto(ll.desde, ahora) ?? "?"}) · {duracionDeLlamada(ll.duracionS)}
                 {ll.con ? ` · con ${ll.con}` : " · el otro aparato no escribió líneas"}
@@ -127,7 +137,11 @@ export function AparatosYEvidencia() {
     }
     const b: BancoLeido = banco;
     const edad = edadDelBanco(b, c.ahora);
-    const llamadas = todas ? b.llamadas : b.llamadas.slice(0, 3);
+    // PRB1111Z: las hechas con otra versión son historia y van aparte; no leen como evidencia de la versión en foco.
+    const deEsta = b.llamadas.filter((l) => l.versionRelacion !== "otra");
+    const historia = b.llamadas.filter((l) => l.versionRelacion === "otra");
+    const llamadas = todas ? deEsta : deEsta.slice(0, 3);
+    const historiaVista = todas ? historia : historia.slice(0, 2);
     return (
         <Seccion titulo={`Aparatos y evidencia${objetivo ? ` · frente a ${objetivo}` : ""}`} id="aparatos">
             <p className={`break-words text-xs ${edad.viejo ? "text-amber-200" : "text-white/55"}`} data-testid="edad-banco">
@@ -150,6 +164,11 @@ export function AparatosYEvidencia() {
                                 {a.versionDe ? <span className="text-white/45"> ({a.versionDe})</span> : null}
                                 {objetivo && a.version && a.version !== objetivo ? <span className="text-white/45"> · la prueba es {objetivo}</span> : null}
                             </p>
+                            {a.versionDesde ? (
+                                <p className="break-words text-white/60" data-testid={`desde-${a.id}`}>
+                                    Con esta versión desde {fechaCorta(a.versionDesde)} ({haceTexto(a.versionDesde, c.ahora) ?? "?"}) · {DESDE_FUENTE[a.versionDesdeFuente ?? ""] ?? "fuente no indicada"}
+                                </p>
+                            ) : null}
                             <p className="break-words text-white/70">
                                 App: {a.appAbierta === null ? "no se pudo saber si está abierta" : a.appAbierta ? "abierta" : "cerrada"} · último arranque: {a.ultimoArranque ? `${fechaCorta(a.ultimoArranque)} (${haceTexto(a.ultimoArranque, c.ahora)})` : "no consta"} · visto {haceTexto(a.visto, c.ahora) ?? "nunca"}
                             </p>
@@ -169,11 +188,23 @@ export function AparatosYEvidencia() {
             <div>
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-white/40">Últimas llamadas</p>
                 {b.llamadas.length === 0 ? <p className="mt-1 text-xs text-white/50">El registro no tiene llamadas.</p> : (
-                    <ul className="mt-1 space-y-1.5" data-testid="llamadas">
-                        {llamadas.map((ll) => <Llamada key={ll.id} ll={ll} ahora={c.ahora} />)}
-                    </ul>
+                    <>
+                        {deEsta.length ? (
+                            <ul className="mt-1 space-y-1.5" data-testid="llamadas">
+                                {llamadas.map((ll) => <Llamada key={ll.id} ll={ll} ahora={c.ahora} />)}
+                            </ul>
+                        ) : (
+                            <p className="mt-1 text-xs text-white/55" data-testid="sin-llamadas-esta">Ninguna llamada hecha con esta versión{objetivo ? ` (${objetivo})` : ""}: no hay evidencia de llamadas todavía.</p>
+                        )}
+                        {historia.length ? (
+                            <div className="mt-2" data-testid="historia-llamadas">
+                                <p className="text-[11px] font-semibold uppercase tracking-wide text-white/35">Historia · hechas con otra versión</p>
+                                <ul className="mt-1 space-y-1.5">{historiaVista.map((ll) => <Llamada key={ll.id} ll={ll} ahora={c.ahora} />)}</ul>
+                            </div>
+                        ) : null}
+                    </>
                 )}
-                {b.llamadas.length > 3 ? (
+                {deEsta.length > 3 || historia.length > 2 ? (
                     <button type="button" className="mt-1.5 cursor-pointer text-xs text-sky-300 hover:underline" onClick={() => setTodas(!todas)}>
                         {todas ? "Ver solo las 3 últimas" : `Ver las ${b.llamadas.length} llamadas`}
                     </button>
@@ -192,6 +223,7 @@ export function ExtraDeComprobacion({ c: comp, v }: { c: Comprobacion; v: Versio
     const banco = ctx.datos.banco && ctx.datos.banco !== "ilegible" ? ctx.datos.banco : null;
     const s = banco?.sugerencias.find((x) => x.prueba === v.numero && x.comprobacion === comp.id) ?? null;
     const ll = s?.llamada ? banco?.llamadas.find((l) => l.id === s.llamada) ?? null : null;
+    const sinEv = s ? null : banco?.sinEvidencia?.find((x) => x.prueba === v.numero && x.comprobacion === comp.id) ?? null;
     const fallaEnBuild = comp.estado === "falla";
     return (
         <div className="mt-2 space-y-1.5" data-testid={`extra-${comp.id}`}>
@@ -210,6 +242,12 @@ export function ExtraDeComprobacion({ c: comp, v }: { c: Comprobacion; v: Versio
                             {lineas ? <div className="mt-1 space-y-1">{ll.lados.map((l) => <LineasCrudas key={l.aparato} lineas={l.lineas} etiqueta={l.aparato} />)}</div> : null}
                         </>
                     ) : null}
+                </div>
+            ) : sinEv ? (
+                <div className="rounded-md border border-dashed border-white/15 p-2 text-xs" data-testid={`sin-evidencia-${comp.id}`}>
+                    <p className="break-words text-white/70"><Chip tono="quieto">sin evidencia aún con esta versión</Chip></p>
+                    {sinEv.razon ? <p className="mt-0.5 break-words text-white/60">{sinEv.razon}</p> : null}
+                    {sinEv.produciria ? <p className="break-words text-[11px] text-white/45">Lo que la produciría: {sinEv.produciria}</p> : null}
                 </div>
             ) : comp.senal ? (
                 <p className="break-words text-[11px] text-white/40">Señal automática {comp.senal}: el banco aún no tiene con qué sugerir.</p>
