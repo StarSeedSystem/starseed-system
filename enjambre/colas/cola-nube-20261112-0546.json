@@ -1,0 +1,25 @@
+{
+ "ola": "nube-20261112",
+ "tareas": [
+  {
+   "ola": "Relevo del carril Claude · 20261112-0137",
+   "origen": "relevo-carril-claude",
+   "relevo_de": "LLA1112B",
+   "id": "LLA1112B-rc-d2",
+   "titulo": "La ventana de llamada dice la verdad y sus botones siempre se pueden pulsar (parte 2 de 3)",
+   "archivos": [
+    "src/components/layout/omni-dock.tsx"
+   ],
+   "depende": [],
+   "prompt": "RELEVO DEL CARRIL CLAUDE (REL1026A): esta tarea la empezó un agente de Claude que se quedó sin crédito. Empieza desde main (lo que hubiera escrito no llegó). Si al leer el código ya está hecha, responde NO APLICA con la prueba. Si es más de lo que cabe en una tarea (más de 3 archivos), haz la primera parte coherente y deja dicho qué falta: el revisor la dividirá.\n\nEl dock tapa los botones de la llamada; botón de cámara desactivado en una videollamada; una cámara sin imagen se queda puesta sin aviso; los carriles de Medio son selectores nativos; la versión de otra neurona queda vieja tras actualizar.\n\n## PARTE 2 DE 3 (la dirección dividió LLA1112B-rc: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: src/components/layout/omni-dock.tsx. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "LLA1112B-rc",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   },
+   "dependencias_ya_en_main": [
+    "LLA1112B-rc-d1"
+   ]
+  }
+ ]
+}
