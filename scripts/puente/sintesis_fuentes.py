@@ -84,7 +84,7 @@ def salidas_imagenacion(raiz, ahora=None, horas=24):
         leido = _leer(os.path.join(carpeta, nombre), datos=True)
         if leido and (not corte or leido[0] >= corte):
             halladas.append((leido[0], {"agente": nombre[: -5], "ruta": os.path.join(carpeta, nombre), "datos": leido[1]}))
-    return [x for _mt, x in sorted(halladas, reverse=True)]
+    return [x for _mt, x in sorted(halladas, key=lambda t: t[0], reverse=True)]
 def informes_nuevos(raiz, ahora=None, dias=2):
     """Informes nuevos de directores (`informes/`) y sueños (`dream/`) de los últimos `dias`."""
     corte = (datetime.fromtimestamp(ahora) - timedelta(days=dias)).timestamp() if ahora else None
@@ -101,7 +101,7 @@ def informes_nuevos(raiz, ahora=None, dias=2):
                     halladas.append((leido[0], {"ruta": os.path.relpath(ruta, raiz),
                                                 "fecha": datetime.fromtimestamp(leido[0]).strftime("%Y-%m-%d"),
                                                 "texto": leido[1]}))
-    return [x for _mt, x in sorted(halladas, reverse=True)]
+    return [x for _mt, x in sorted(halladas, key=lambda t: t[0], reverse=True)]
 def resumen_actividad(casa, fecha=None):
     """El resumen de actividad del día en `~/.starseed/actividad/`, si existe (inyectable)."""
     try:
