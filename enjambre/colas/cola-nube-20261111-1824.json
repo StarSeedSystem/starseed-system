@@ -1,0 +1,20 @@
+{
+ "ola": "nube-20261111",
+ "tareas": [
+  {
+   "id": "SDP1111K",
+   "ola": "SDP1111",
+   "titulo": "Actividad · resumen diario por temas con Laya y LEANN",
+   "archivos": [
+    "scripts/puente/actividad_resumen.py",
+    "scripts/puente/test_actividad_resumen.py"
+   ],
+   "depende": [],
+   "prompt": "Lee architecture/sintesis-diaria-autonoma.md §3.4 y §4. Crea actividad_resumen.py: reúne las fichas del día de ~/.starseed/actividad/fichas/, clasifica cada una con Laya (relevante o no para StarSeed y para qué tema: mesh, IA abierta, democracia directa, economía ecológica, comunidades, solarpunk, diseño, programación), pide a LEANN lo ya conocido del tema, y escribe ~/.starseed/actividad/resumen-AAAA-MM-DD.json: por tema, títulos, enlaces y una línea, tope 12000 caracteres. Marca privado: true y nunca incluye cuerpos de correo completos. Este resumen no sale a Supabase, ni al parte diario, ni a Drive. Clasificador y recuerdo inyectables; pruebas puras. Máximo 120 líneas por archivo.",
+   "dependencias_ya_en_main": [
+    "SDP1111F",
+    "SDP1111G"
+   ]
+  }
+ ]
+}
