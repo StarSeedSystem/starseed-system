@@ -1,0 +1,26 @@
+{
+ "ola": "nube-20261112",
+ "tareas": [
+  {
+   "ola": "Relevo del carril Claude · 20261112-0137",
+   "origen": "relevo-carril-claude",
+   "relevo_de": "LLA1112A",
+   "capacidad": "alta",
+   "id": "LLA1112A-rc-d3",
+   "titulo": "La llamada aguanta perder el Wi-Fi de la tablet, no persigue una ruta que no existe y el envío de la tablet deja de ser el sentido flojo (parte 3 de 3)",
+   "archivos": [
+    "src/lib/malla/llamada-directa.ts"
+   ],
+   "depende": [],
+   "prompt": "RELEVO DEL CARRIL CLAUDE (REL1026A): esta tarea la empezó un agente de Claude que se quedó sin crédito. Empieza desde main (lo que hubiera escrito no llegó). Si al leer el código ya está hecha, responde NO APLICA con la prueba. Si es más de lo que cabe en una tarea (más de 3 archivos), haz la primera parte coherente y deja dicho qué falta: el revisor la dividirá.\n\nCon la prueba.39: al apagar el Wi-Fi de la tablet la llamada falló con el enlace Bluetooth abierto; en llamadas solo Bluetooth se reintenta WebRTC por una ruta IP inexistente cada 15-35 s; la tablet envía 1,3 imágenes/s y la voz queda en el escalón más bajo. Reproducir en el arnés llamadas-medio y arreglar en src/lib/llamadas (motor, voz-datos, video-datos) sin tocar lo nativo.\n\n## PARTE 3 DE 3 (la dirección dividió LLA1112A-rc: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: src/lib/malla/llamada-directa.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "LLA1112A-rc",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   },
+   "dependencias_ya_en_main": [
+    "LLA1112A-rc-d2"
+   ]
+  }
+ ]
+}
