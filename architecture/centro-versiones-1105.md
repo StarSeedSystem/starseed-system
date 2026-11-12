@@ -730,3 +730,20 @@ que produjo la N.
 
 Pruebas: `test_banco_pruebas.py` (clases `EvidenciaDeUnaVersion`, `MemoriaDeVersion`; la situación real —prueba.39 con
 una llamada hecha con la .37— es el primer caso).
+
+### 11.9 Leer bien las llamadas de la 39 y no caerse nunca (PRB1111AB · 2026-11-12)
+
+La 39 cambió lo que escriben las llamadas (control de congestión rehecho) y el banco se cayó con la primera
+(`TypeError` al promediar un `fps` que faltaba en una línea `reparto carril=…`), dejando el archivo congelado. Ahora:
+
+- Se leen las líneas nuevas: escalón y tasa de la voz, `BAJO-SUELO`, lo que dice el otro extremo (`otro:perd=…/tarde=…`),
+  el modelo del enlace (`enlace=kbps+ms/ciclo`) y lo entregado (`entregado=`), la espera de la voz (`espera=a/b ms`:
+  `a` percentil 90 por escritura, `b` lo más que esperó; `voz-datos/sesion.ts`, `textoEnlace` en `reparto.ts`), y las
+  imágenes por segundo enviadas y pintadas en cada sentido. Las líneas de reparto que no son un estado
+  (`reparto carril=…`) ya no cuentan como «activo».
+- **Nunca se cae por una línea**: lo ilegible se cuenta y se nombra (`fuente.ilegibles`, `problemas`); una sección,
+  una punta, una llamada o una señal que no se puede leer queda anotada y lo demás se escribe.
+- El aviso del director lleva el mensaje y el sitio del error (sin rutas), una sola vez.
+
+Formatos: `formatos.md` v1.4. Pruebas: `RegistroDeLaPrueba39` (con `fixtures/enlaces-log-prueba39-real.txt`, las líneas
+reales de la 39) y `AvisoDelBanco`.
