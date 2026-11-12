@@ -706,12 +706,12 @@ export class MotorLlamada {
         return null;
     }
 
-    cambiarAltavoz(id: string) {
+    cambiarAltavoz(id: string): void {
         this.set({ seleccion: { ...this.e.seleccion, altavozId: id } });
         this.recordarDispositivo("altavoz", id, this.e.dispositivos.altavoces);
     }
 
-    async actualizarDispositivos() {
+    async actualizarDispositivos(): Promise<void> {
         const d = await listarDispositivos();
         if (!this.cerrado) this.set({ dispositivos: d });
     }
@@ -1238,7 +1238,7 @@ export class MotorLlamada {
         return par;
     }
 
-    private async procesarSenal(par: Par, s: Extract<SenalLlamada, { tipo: "senal" }>) {
+    private async procesarSenal(par: Par, s: Extract<SenalLlamada, { tipo: "senal" }>): Promise<void> {
         if (this.pares.get(par.id) !== par) return;
         const pc = par.pc;
         if (s.desc) {
@@ -1294,7 +1294,7 @@ export class MotorLlamada {
         }
     }
 
-    private async aplicarIce(par: Par, c: RTCIceCandidateInit) {
+    private async aplicarIce(par: Par, c: RTCIceCandidateInit): Promise<void> {
         if (!par.pc.remoteDescription) {
             if (par.icePendiente.length < 200) par.icePendiente.push(c);
             return;
@@ -1306,7 +1306,7 @@ export class MotorLlamada {
         }
     }
 
-    private async vaciarIcePendiente(par: Par) {
+    private async vaciarIcePendiente(par: Par): Promise<void> {
         const lista = par.icePendiente.splice(0);
         for (const c of lista) await this.aplicarIce(par, c);
     }
@@ -2020,7 +2020,7 @@ export class MotorLlamada {
      */
     private readonly videoWebPinta = new Map<string, { pinta: boolean; desde: number; en: number; marcado: boolean }>();
 
-    informarVideoWebPinta(parId: string, pinta: boolean | null) {
+    informarVideoWebPinta(parId: string, pinta: boolean | null): void {
         const antes = this.videoWebPinta.get(parId);
         if (pinta === null) {
             // No se sabe (pestaña oculta, la superficie se fue): no vale lo anterior.
@@ -2515,7 +2515,7 @@ export class MotorLlamada {
     }
 
     /** Aviso amable para la persona (lo pinta la ventana). */
-    avisar(texto: string | null) {
+    avisar(texto: string | null): void {
         this.set({ aviso: texto });
     }
 
