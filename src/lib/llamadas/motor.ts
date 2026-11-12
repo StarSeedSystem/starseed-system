@@ -1785,7 +1785,7 @@ export class MotorLlamada {
             const f = sel.foto();
             const forzados: Partial<Record<Flujo, Carril>> = {};
             for (const k of Object.keys(f) as Flujo[]) if (f[k].forzado) forzados[k] = f[k].forzado!;
-            out.push({ parId: id, voz: f.voz.carril, video: f.video.carril, pantalla: f.pantalla.carril, senal: f.senal.carril, datos: this.carrilDatos.get(id) ?? null, forzados, texto: textoCarriles(this.pantallaOn ? { voz: f.voz, pantalla: f.pantalla } : { voz: f.voz, video: f.video }) + (f.datos.carril ? ` · Datos: ${etiquetaCarril(f.datos.carril)}` : ""), director: soyDirector(this.miId, id) });
+            out.push({ parId: id, voz: f.voz.carril, video: f.video.carril, pantalla: f.pantalla.carril, senal: f.senal.carril, datos: this.carrilDatos.get(id) ?? null, forzados, texto: textoCarriles(this.pantallaOn ? { voz: f.voz, pantalla: f.pantalla } : { voz: f.voz, video: f.video }) + (f.datos.carril ? ` · Datos: ${etiquetaCarril(f.datos.carril)}` : ""), director: soyDirector(this.miId, id) } as CarrilesParVista);
         }
         return out;
     }
