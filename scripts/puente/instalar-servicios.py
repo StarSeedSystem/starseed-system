@@ -252,6 +252,43 @@ if "genesis-chats" in {n.strip() for n in os.environ.get("STARSEED_SOLO", "").sp
     SERVICIOS["genesis-chats"] = ([PY3, "-u", P("genesis_chats_puerta.py")], "/tmp/starseed-genesis-chats.log", True)
 # /GEN1113B
 
+# GEN1114C (2026-11-13) Túneles de Cloudflare hacia la Mac: SOLO si se piden expresamente.
+# Alex apagó `com.starseed.mando.tunel` esa noche y una reinstalación general lo volvía a cargar (hecho de
+# operaciones 2; contrato astraura-chats-identidad-firma.md §3.11.11, D17): por esos túneles se llega a la Mac sin
+# la firma de un aparato. `tunel-metagenesis` lo instalaba el mismo recorrido (SERVICIOS), así que vale igual.
+# Pedirlo: STARSEED_SOLO lo nombra (`mando-tunel`, `tunel-metagenesis`) o STARSEED_TUNEL_MANDO=1 /
+# STARSEED_TUNEL_METAGENESIS=1. Sin pedirlo, no se carga, y si ya está cargado se dice sin tocarlo.
+TUNELES_A_LA_MAC = {
+    "mando-tunel": ("com.starseed.mando.tunel", "STARSEED_TUNEL_MANDO"),
+    "tunel-metagenesis": ("com.starseed.tunel-metagenesis", "STARSEED_TUNEL_METAGENESIS"),
+}
+
+
+def tunel_pedido(nombre, entorno=None):
+    """¿Se pidió expresamente instalar ese túnel? Solo por nombre en STARSEED_SOLO o con su variable a 1."""
+    entorno = os.environ if entorno is None else entorno
+    solo = {n.strip() for n in entorno.get("STARSEED_SOLO", "").split(",") if n.strip()}
+    return nombre in solo or entorno.get(TUNELES_A_LA_MAC[nombre][1], "").strip() == "1"
+
+
+def avisar_tunel_cargado(nombre):
+    """Solo mira (`launchctl list <etiqueta>`): si está cargado lo dice; no lo descarga ni lo toca."""
+    etiqueta = TUNELES_A_LA_MAC[nombre][0]
+    try:
+        cargado = subprocess.run(["launchctl", "list", etiqueta], capture_output=True).returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        return False
+    if cargado:
+        print("  %-10s AVISO · sigue cargado en launchd y este instalador no lo toca. Para apagarlo: "
+              "launchctl unload ~/Library/LaunchAgents/%s.plist" % (nombre, etiqueta))
+    return cargado
+
+
+_ENTRADA_TUNEL_METAGENESIS = SERVICIOS.pop("tunel-metagenesis")
+if tunel_pedido("tunel-metagenesis"):
+    SERVICIOS["tunel-metagenesis"] = _ENTRADA_TUNEL_METAGENESIS
+# /GEN1114C
+
 PLANTILLA = """<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
@@ -428,6 +465,15 @@ def instalar_calendario(etiqueta, orden, log, cuando):
 #   no existía en la Mac y la lectura se paró (última buena 2026-11-06). Solo: STARSEED_SOLO=medidores.
 PERIODICOS = {"alta-nube": P("com.starseed.alta-nube.plist"),
               "medidores": P("com.starseed.medidores.plist")}
+
+# GEN1114C (2026-11-13) Catálogo de chats de Genesis: `genesis_canon.py subir` cuando cambia canon.json (WatchPaths)
+# y cada 10 min. Solo se instala si se nombra (STARSEED_SOLO=genesis-canon) o si Alex ya sembró el registro
+# (`genesis_canon.py descubrir --aplicar`) y la ficha de la Mac está en ~/.starseed/env: nunca lo enciende sola
+# una reinstalación general antes de eso. Deshacer: launchctl unload del plist.
+if "genesis-canon" in {n.strip() for n in os.environ.get("STARSEED_SOLO", "").split(",")} or (
+        os.path.exists(os.path.join(HOME, ".starseed", "genesis-chats", "canon.json")) and _ficha_genesis_mac()):
+    PERIODICOS["genesis-canon"] = P("com.starseed.genesis-canon.plist")
+# /GEN1114C
 
 
 def adaptar_plist(texto):
@@ -644,6 +690,31 @@ for nombre, (orden, log, cada_s, tipo) in CADA.items():
     if SOLO and nombre not in SOLO:
         continue
     instalar_cada("com.starseed." + nombre, orden, log, cada_s, tipo)
+
+# GEN1114C (2026-11-13) El túnel de Genesis (era incondicional más abajo; hecho de operaciones 2). Mismo guion y
+# mismo plist que antes, pero solo con STARSEED_SOLO=mando-tunel o STARSEED_TUNEL_MANDO=1. En una ejecución normal
+# no se carga; si lo encuentra cargado, lo dice y no lo toca (igual para tunel-metagenesis).
+# (2026-09-17) Hacia :9002; su guion vuelve enseguida si ya hay túnel vivo; launchd lo relanza cada 5 min y, si la
+# URL cambia, tunel-mando.sh la guarda en ~/.starseed/tunel-mando.json (nunca en el repo).
+TUNEL_MANDO = P("tunel-mando.sh")
+if tunel_pedido("mando-tunel"):
+    if os.path.exists(TUNEL_MANDO):
+        instalar(
+            "com.starseed.mando.tunel",
+            LANZ + ["--", "/bin/bash", TUNEL_MANDO],
+            os.path.expanduser("~/.starseed/tunel-mando.log"),
+            True,
+        )
+    else:
+        print("  mando-tunel OMITIDO · falta %s" % TUNEL_MANDO)
+elif not SOLO:
+    print("  mando-tunel OMITIDO · solo se instala si se pide (STARSEED_SOLO=mando-tunel o STARSEED_TUNEL_MANDO=1)")
+    avisar_tunel_cargado("mando-tunel")
+if not SOLO and not tunel_pedido("tunel-metagenesis"):
+    print("  tunel-metagenesis OMITIDO · solo se instala si se pide (STARSEED_SOLO=tunel-metagenesis o "
+          "STARSEED_TUNEL_METAGENESIS=1)")
+    avisar_tunel_cargado("tunel-metagenesis")
+# /GEN1114C
 if SOLO:
     sys.exit(0)
 
@@ -658,19 +729,8 @@ if os.path.exists(TUNEL):
         True,
     )
 
-# (2026-09-17) El túnel de Genesis: mismo mecanismo que el de Astraura,
-# hacia :9002. Pedido por Alex para abrir y vincular Genesis desde cualquier
-# navegador. Su guion vuelve enseguida si ya hay túnel vivo; launchd lo relanza
-# cada 5 min como vigilante, y si la URL cambia, tunel-mando.sh la guarda en
-# ~/.starseed/tunel-mando.json (nunca en el repo).
-TUNEL_MANDO = P("tunel-mando.sh")
-if os.path.exists(TUNEL_MANDO):
-    instalar(
-        "com.starseed.mando.tunel",
-        LANZ + ["--", "/bin/bash", TUNEL_MANDO],
-        os.path.expanduser("~/.starseed/tunel-mando.log"),
-        True,
-    )
+# GEN1114C: el túnel de Genesis (com.starseed.mando.tunel) ya no se instala aquí sin pedirlo; ver el bloque
+# GEN1114C de arriba, antes de `if SOLO`.
 
 # (2026-09-19) FreeLLMAPI: pasarela unificada OpenAI-compatible en :3001 que
 # reparte entre los proveedores gratuitos con las claves que ya tenemos. Pedida

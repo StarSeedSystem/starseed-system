@@ -181,6 +181,24 @@ def _relevo():
                 "solo cuenta el estado y cada entorno se inventa el método. Escríbelo.")
 
 
+# GEN1114C (2026-11-13) Chats de Genesis: un nombre y un id por chat en todos los medios (contrato
+# astraura-chats-identidad-firma.md §2.5 y §7.4). Se LEE el registro de la Mac (~/.starseed/genesis-chats/canon.json,
+# lo escribe solo genesis_canon.py); si aún no existe, la semilla en memoria (chats.json + CANALES), sin escribir nada.
+def seccion_chats_genesis(base=None):
+    try:
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import genesis_canon as G
+        import genesis_canon_logica as GL
+        base = base or G.base_dir()
+        canon, _avisos = G.leer_canon_sin_copias(base)
+        if canon is None or not canon.get("chats"):
+            canon = G.semilla_desde_disco(G.RAIZ)
+        return GL.seccion_punteros(canon)
+    except (Exception, SystemExit) as e:  # noqa: BLE001 — un fallo aquí nunca deja a los IDE sin puntero
+        return "## Chats de Genesis\n\n(no se pudo leer el registro: %s)\n" % type(e).__name__
+# /GEN1114C
+
+
 def repartir(texto):
     destinos = []
     # Codex y Antigravity leen AGENTS.md del repo; Hermes y Claude tienen los suyos.
@@ -197,6 +215,9 @@ def repartir(texto):
     # La misma regla en el puntero para que ningún IDE tenga que abrir el documento
     # antes de lanzar un build a mano: el 29-10 lo hicieron dos veces y las dos murió.
     puntero += "\n## Regla de compilación\n\n" + "\n".join(regla_reconstruir()) + "\n"
+    # GEN1114C (2026-11-13) La misma sección «Chats de Genesis» (nombre · id de los 13 chats) en todos los punteros.
+    puntero += "\n" + seccion_chats_genesis()
+    # /GEN1114C
     # (2026-09-16) Alex pidió que TODOS los IDE lleven el mismo workflow, no solo estos
     # tres: Cursor y VS Code/Copilot leen sus propios archivos, y si no se los dejamos
     # aquí trabajan a ciegas sobre el mismo repo. El puntero es el mismo para todos:
