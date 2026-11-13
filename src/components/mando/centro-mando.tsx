@@ -56,6 +56,7 @@ import { PanelEntornos } from "@/components/mando/panel-entornos";
 import { PanelAjustes } from "@/components/mando/panel-ajustes";
 import { MetaGenesisAccesos } from "@/components/mando/metagenesis-accesos";
 import { TunelMetaGenesisEstado } from "@/components/mando/tunel-metagenesis-estado";
+import { BuzonMetaGenesis } from "@/components/mando/buzon-metagenesis";
 import { PanelNeurona } from "@/components/mando/panel-neurona";
 import { PanelServidor } from "@/components/mando/panel-servidor";
 import { PanelAprendizaje } from "@/components/mando/panel-aprendizaje";
@@ -353,6 +354,8 @@ const PESTANAS = [
      { id: "accesos", etiqueta: "Accesos", grupo: "Ajustes" },
      // Estado del túnel de MetaGenesis
      { id: "tunel-metagenesis", etiqueta: "Túnel MetaGenesis", grupo: "Ajustes" },
+     // Buzón de avisos de Claude nube → Telegram (BZN1108A)
+     { id: "buzon", etiqueta: "Buzón MetaGenesis", grupo: "Ajustes" },
 ] as const;
 
 type IdPestana = (typeof PESTANAS)[number]["id"];
@@ -2802,11 +2805,16 @@ export function CentroMando() {
                          <MetaGenesisAccesos />
                     </VentanaPestana>
                  </TabsContent>
-                 <TabsContent value="tunel-metagenesis">
-                    <VentanaPestana pestana="tunel-metagenesis" panel="tunel" titulo="Túnel MetaGenesis">
+<TabsContent value="tunel-metagenesis">
+                     <VentanaPestana pestana="tunel-metagenesis" panel="tunel" titulo="Túnel MetaGenesis">
                          <TunelMetaGenesisEstado />
-                    </VentanaPestana>
-                 </TabsContent>
+                     </VentanaPestana>
+                  </TabsContent>
+                  <TabsContent value="buzon">
+                     <VentanaPestana pestana="buzon" panel="buzon" titulo="Buzón MetaGenesis">
+                         <BuzonMetaGenesis />
+                     </VentanaPestana>
+                  </TabsContent>
             <TabsContent value="capas-red">
                 <VentanaPestana pestana="capas-red" panel="capas-red" titulo="Capas de red">
                     <PanelCapasRed />

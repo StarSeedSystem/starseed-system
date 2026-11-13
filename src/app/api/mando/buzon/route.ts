@@ -67,3 +67,33 @@ export async function GET(request: Request): Promise<Response> {
         });
     }
 }
+
+export async function POST(request: Request): Promise<Response> {
+    const veto = await guardianMando(request);
+    if (veto) return veto;
+
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const clave = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!url || !clave) {
+        return Response.json({ ok: false, error: "Sin credenciales" }, { status: 500 });
+    }
+
+    try {
+        const sb = createClient(url, clave, { auth: { persistSession: false } });
+
+        const { error } = await sb
+            .from("metagenesis_buzon")
+            .update({ estado: "pendiente", detalle: null })
+            .eq("clase", "aviso")
+            .eq("estado", "fallo");
+
+        if (error) {
+            return Response.json({ ok: false, error: error.message }, { status: 500 });
+        }
+
+        return Response.json({ ok: true });
+    } catch (e) {
+        return Response.json({ ok: false, error: e instanceof Error ? e.message : "Error desconocido" }, { status: 500 });
+    }
+}
