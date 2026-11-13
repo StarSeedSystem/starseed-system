@@ -127,10 +127,13 @@ type ViaSync = "red-local-nativa" | "enlace-local" | "malla-cuenta" | "vinculo-p
   Pendiente de comprobar a mano en dos aparatos: que `antenas_configurar` haga que el faro en marcha pase a
   emitir con la clave nueva sin reiniciar la app (el Rust no se tocó en esta ola y no hay Rust en la Mac).
 - Identidad entre cuentas sin servidor: la cuenta que dice el otro no se puede comprobar offline (se dice
-  así en la ventana); la huella sí.
-- `/genesis` y `/voces` no montan `MallaNeuronasMount`: allí no sale la ventana.
+  así en la ventana); la huella sí. (código en `src/lib/neurons/pedir-actualizacion.ts`,
+  `src/ai/astraura/mesh/server-relay.ts` (`boundAccountFor`), `src/lib/malla/emparejar-sin-internet.ts`;
+  falta probarlo en aparatos)
+- `/genesis` y `/voces` no montan `MallaNeuronasMount`: allí no sale la ventana (depende de la app de
+  escritorio; estas rutas no existen en el OS).
 
-Revisado el 2026-11-13 contra main (9339e035b): 1 hecho, 2 pendientes.
+Revisado el 2026-11-13 contra main (b379f795c): 1 hecho, 2 pendientes.
 
 ## 8 · Panel del vínculo (VIN1107A · 2026-11-07)
 

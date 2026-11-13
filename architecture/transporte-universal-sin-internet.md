@@ -136,4 +136,4 @@ llamada. Con el Wi-Fi sin salida a internet (o el punto de acceso de un móvil s
 - **App nativa 0.4**: descubrimiento UDP multicast firmado y señalizador local para los navegadores del
   mismo Wi-Fi (quita el gesto del código). Bluetooth, LoRa como señalizador y Reticulum, después.
 
-Revisado el 2026-11-13 contra main (9339e035b): 1 hecho, 3 pendientes.
+Revisado el 2026-11-13 contra main (b379f795c): 1 hecho, 3 pendientes.
