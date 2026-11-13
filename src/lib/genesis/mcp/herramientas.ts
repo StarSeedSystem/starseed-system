@@ -354,7 +354,7 @@ export const opciones_sugerir: FichaHerramientaMcp = {
 };
 
 /**
- * Envía un mensaje en el chat de Genesis.
+ * Propone un mensaje para el chat de Genesis (aún no lo envía: llegará como borrador).
  * Permiso: chat:enviar
  *
  * Argumentos obligatorios:
@@ -364,10 +364,13 @@ export const opciones_sugerir: FichaHerramientaMcp = {
  * Argumentos opcionales:
  * - formato: formato de mensaje ("texto" | "markdown")
  * - prioridad: nivel de prioridad (1-5, default: 3)
+ *
+ * Contrato GEN1114 §1.3 y §10, fase 3: borradores que la persona firma.
+ * La herramienta NO envía nada; solo devuelve el borrador para confirmación.
  */
 export const chat: FichaHerramientaMcp = {
   nombre: "chat",
-  descripcion: "Envía un mensaje en el chat de Genesis",
+  descripcion: "Propone un mensaje para el chat de Genesis (aún no lo envía: llegará como borrador)",
   permiso: "chat:enviar",
   esquema: {
     type: "object",
@@ -386,7 +389,7 @@ export const chat: FichaHerramientaMcp = {
     const prioridad = Number(args.prioridad ?? 3);
     return {
       contenido: [
-        { tipo: "texto", texto: `Mensaje enviado a ${destino}` },
+        { tipo: "texto", texto: `Aún no envía: los mensajes desde aquí llegarán como borradores. Nada se ha enviado a ${destino}.` },
         { tipo: "texto", texto: `Contenido: ${contenido.substring(0, 100)}${contenido.length > 100 ? "…" : ""}` },
         { tipo: "texto", texto: `Formato: ${formato}` },
         { tipo: "texto", texto: `Prioridad: ${prioridad}` },

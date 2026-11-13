@@ -244,15 +244,18 @@ describe("herramientas MCP · manejadores", () => {
     expect(resultado.contenido.some((b) => b.texto.includes("persona"))).toBe(true);
   });
 
-  it("chat envía mensaje con destino y contenido", async () => {
+  it("chat dice la verdad: aún no envía", async () => {
     const respuesta = await llamarHerramienta([chat], "chat", {
       destino: "persona",
       contenido: "Hola mundo",
       formato: "texto",
     });
     const resultado = resultadoDe(respuesta);
+    expect(resultado.contenido.some((b) => b.texto.includes("Aún no envía"))).toBe(true);
+    expect(resultado.contenido.every((b) => !b.texto.includes("Mensaje enviado"))).toBe(true);
     expect(resultado.contenido.some((b) => b.texto.includes("persona"))).toBe(true);
     expect(resultado.contenido.some((b) => b.texto.includes("Hola mundo"))).toBe(true);
+    expect(chat.descripcion.startsWith("Envía")).toBe(false);
   });
 });
 
