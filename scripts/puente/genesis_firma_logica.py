@@ -82,14 +82,32 @@ LECTURA_B = frozenset(("estado", "ayuda"))
 RETIRADAS = ("revocarme", "revocar-aparato")
 
 #: Sin canon.json (la Mac aún no lo sembró) solo valen estos ids y nombres, fijos en el código (§3.5.4).
+#: (GEN1114INT) Un solo esquema de ids en B, C y E: el id de un puente antes de descubrirlo es
+#: `telegram.<clave de GEN1113>`, el mismo que siembra `genesis_canon_logica.id_provisional_de_puente` (C) y que
+#: firma la web con un catálogo sembrado (E). Así lo que firma E es lo que acepta B, haya o no registro.
 ALIAS_GEN1113 = {
     "direccion": {"chat": "genesis", "nombres": ("direccion", "mando", "Dirección", "GENESIS · StarSeed OS")},
-    "puente:hermes-avisos": {"chat": "hermes-avisos",
+    "puente:hermes-avisos": {"chat": "telegram.hermes-avisos",
                              "nombres": ("puente:hermes-avisos", "hermes-avisos", "Hermes y avisos")},
-    "puente:peticiones": {"chat": "peticiones",
+    "puente:peticiones": {"chat": "telegram.peticiones",
                           "nombres": ("puente:peticiones", "peticiones", "Peticiones y encargos")},
-    "puente:avisos-directores": {"chat": "avisos-directores",
+    "puente:avisos-directores": {"chat": "telegram.avisos-directores",
                                  "nombres": ("puente:avisos-directores", "avisos-directores", "Avisos de los directores")},
+}
+
+#: (GEN1114INT) Los nombres de los nueve canales tal como los pinta la web sin catálogo (`CANALES` de
+#: src/lib/mando/chat-director-tipos.ts): sin canon.json, la cabecera de un hilo con un solo canal enseña este
+#: nombre y es el que se firma. Una prueba compara esta tabla con el archivo TS (no se pueden separar).
+NOMBRES_CANAL = {
+    "director-presidente": "Director presidente",
+    "claude-cowork": "Claude Opus 5.5 · dirección (Cowork)",
+    "claude-mac": "Claude Opus 5.5 · Mac (Claude Code)",
+    "hermes": "Hermes",
+    "telegram": "Telegram (tu móvil)",
+    "chatgpt": "ChatGPT (Codex)",
+    "antigravity": "Antigravity",
+    "ide": "Chat de un IDE",
+    "terminal": "Terminal",
 }
 
 
@@ -356,7 +374,7 @@ def chat_cuadra(carga, canon):
             if chat_id == "genesis":
                 return None if visto in ALIAS_GEN1113["direccion"]["nombres"] else "nombre-distinto"
             canal = chat_id[len("genesis.canal."):]
-            return None if visto in (canal, chat_id) else "nombre-distinto"
+            return None if visto in (canal, chat_id, NOMBRES_CANAL.get(canal)) else "nombre-distinto"
         iguales = [c for c in chats if c.get("id") == chat_id]
         if len(iguales) != 1:
             return "chat-distinto"
@@ -516,6 +534,22 @@ def comprobar_entrada_firmada(e, altas, retirados, canon, vistos, ahora, destino
     if clave_nonce(carga) in vistos:
         return False, "nonce-repetido", carga
     return True, "ok", carga
+
+
+def rechazo_definitivo(motivo, carga, altas):
+    """(GEN1114INT) ¿Se anotan `aparato:seq` y `cuenta:nonce` de una carga con firma buena que se rechaza?
+
+    Solo si el rechazo sale de lo FIRMADO (o del estado de la Mac), nunca de lo que la puerta pone en el sobre:
+    si no, una puerta tomada «quemaría» una entrada buena entregándola antes con otra cuenta o con una hora de
+    recepción vieja, y la entrega honrada posterior saldría `seq-repetido` (la prueba cruzada lo comprobó). No
+    abre repeticiones: lo que no se anota tampoco se ejecutó, y si se vuelve a entregar se comprueba de nuevo."""
+    if motivo in ("ok", "seq-repetido", "nonce-repetido", "caducada", "limite"):
+        return False
+    if motivo == "cuenta-distinta" and isinstance(carga, dict):
+        huella = _txt(carga.get("aparato")).lower()
+        fila = next((f for f in aparatos_validos(altas)["aparatos"] if f["huella"] == huella), None)
+        return not (fila is not None and carga.get("cuenta") == fila["cuenta"])   # solo el sobre no cuadra
+    return True
 
 
 def entrada_para_gen1113(e, carga):

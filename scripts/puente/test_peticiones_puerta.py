@@ -9,6 +9,7 @@ import base64
 import datetime
 import hashlib
 import json
+import re
 import os
 import sys
 import time
@@ -129,6 +130,11 @@ class PuertaFalsa:
     def detalles(self):
         return [a.get("detalle", "") for a in self.acuses if a["estado"] != "entregado"]
 
+    def motivos(self):
+        """(GEN1114INT) El código de cada detalle «[motivo] texto» (el mismo formato que acusa la Mac)."""
+        return [re.match(r"^\[([a-z-]+)\]", d).group(1) if re.match(r"^\[[a-z-]+\]", d) else d
+                for d in self.detalles()]
+
 
 def _privado(ruta, datos):
     ruta.write_text(json.dumps(datos))
@@ -217,15 +223,19 @@ def test_sin_lista_de_cuentas_no_se_ejecuta_nada(tmp_path):
 
 @requiere_firma
 def test_estado_contesta_al_espejo_y_no_a_telegram(tmp_path):
-    ap = Aparato(nivel="texto")                       # /estado y /ayuda son «bajo»: valen desde un aparato «texto»
+    # Las ÓRDENES estado y ayuda son «bajo»: valen desde un aparato «texto». (GEN1114INT) Un TEXTO que empieza
+    # por «/» sigue siendo texto firmado («alto», como en la Mac, la puerta y la web): desde «texto» → `nivel`.
+    ap = Aparato(nivel="texto")
     puente, falsa, d = montar(tmp_path, aparatos=[ap])
     antes = (d / "estado.json").read_bytes()
     with patch.object(pt, "tg", side_effect=AssertionError("Telegram no debe usarse")), \
          patch.object(pt, "decir", side_effect=AssertionError("Telegram no debe usarse")):
-        vuelta(puente, falsa, firmada(1, ap, texto="/estado"),
+        vuelta(puente, falsa, firmada(1, ap, accion="orden", orden={"nombre": "estado", "args": []}),
                firmada(2, ap, accion="orden", orden={"nombre": "estado", "args": []}),
-               firmada(3, ap, texto="/ayuda"))
-    assert falsa.finales() == [(1, "hecho"), (2, "hecho"), (3, "hecho")]
+               firmada(3, ap, accion="orden", orden={"nombre": "ayuda", "args": []}),
+               firmada(4, ap, texto="/estado"))
+    assert falsa.finales() == [(1, "hecho"), (2, "hecho"), (3, "hecho"), (4, "rechazado")]
+    assert falsa.detalles()[3].startswith("[nivel]")
     primera, resto = falsa.espejo[0]["texto"].split("\n", 1)
     assert primera == "Este chat: Bot B de ejemplo · id telegram.ejemplo_b_bot"
     assert resto.startswith("Estado de MetaGenesis (A1):")
@@ -279,7 +289,7 @@ def test_nonce_repetido_no_se_ejecuta_dos_veces(tmp_path):
     vuelta(puente, falsa, firmada(1, ap, nonce="a" * 22))
     vuelta(puente, falsa, firmada(2, ap, nonce="a" * 22))   # otra carga, otro seq, el mismo nonce
     assert len(cola_de(d)) == 1
-    assert falsa.finales() == [(1, "hecho"), (2, "rechazado")] and falsa.detalles()[1] == "nonce-repetido"
+    assert falsa.finales() == [(1, "hecho"), (2, "rechazado")] and falsa.motivos()[1] == "nonce-repetido"
     assert len(falsa.espejo) == 1
 
 
@@ -291,7 +301,7 @@ def test_misma_entrada_reentregada_no_duplica_la_cola(tmp_path):
     vuelta(puente, falsa, e)
     puente.estado["vistos"].clear()                      # p. ej. se perdió el estado propio
     vuelta(puente, falsa, e)
-    assert len(cola_de(d)) == 1 and falsa.detalles()[-1] == "seq-repetido"
+    assert len(cola_de(d)) == 1 and falsa.motivos()[-1] == "seq-repetido"
 
 
 @requiere_firma
@@ -504,7 +514,7 @@ def test_v1_sin_firma_se_rechaza_aunque_la_cuenta_este_en_la_lista(tmp_path):
     puente, falsa, d = montar(tmp_path, aparatos=[ap])
     vuelta(puente, falsa, entrada_v1(1), entrada_v1(2, texto="/estado"))
     assert falsa.finales() == [(1, "rechazado"), (2, "rechazado")]
-    assert falsa.detalles() == ["sin-firma", "sin-firma"] and _nada_corrio(falsa, d)
+    assert falsa.motivos() == ["sin-firma", "sin-firma"] and _nada_corrio(falsa, d)
 
 
 @requiere_firma
@@ -531,12 +541,12 @@ def test_cada_motivo_se_acusa_y_no_corre_nada(tmp_path):
         (firmada(14, ap, carga_extra={"aud": "otra.cosa"}), "aud"),
     ]
     vuelta(puente, falsa, *[e for e, _ in casos])
-    assert falsa.detalles() == [m for _, m in casos]
+    assert falsa.motivos() == [m for _, m in casos]
     assert falsa.finales() == [(e["id"], "caducado" if m == "caducada" else "rechazado") for e, m in casos]
     assert _nada_corrio(falsa, d)
     vuelta(puente, falsa, repetida)                       # buena: entra
     vuelta(puente, falsa, dict(repetida, id=15))          # la misma carga con otro id de la puerta (§7.8 k)
-    assert falsa.finales()[-2:] == [(9, "hecho"), (15, "rechazado")] and falsa.detalles()[-1] == "seq-repetido"
+    assert falsa.finales()[-2:] == [(9, "hecho"), (15, "rechazado")] and falsa.motivos()[-1] == "seq-repetido"
     assert len(cola_de(d)) == 1
 
 
@@ -556,7 +566,7 @@ def test_firmada_antes_de_retirar_y_entregada_despues_se_rechaza(tmp_path):
     e = firmada(1, ap)
     _privado(d / "aparatos-retirados.json", {"v": 1, "retirados": [{"huella": ap.huella, "t": "x", "por": "mac"}]})
     vuelta(puente, falsa, e)
-    assert falsa.detalles() == ["aparato-revocado"] and _nada_corrio(falsa, d)
+    assert falsa.motivos() == ["aparato-revocado"] and _nada_corrio(falsa, d)
 
 
 @requiere_firma
@@ -577,9 +587,15 @@ def test_retirados_o_vistos_que_otro_pudo_tocar_no_valen(tmp_path):
 def test_sin_chat_a1_solo_valen_los_alias_fijos_y_estado_no_inventa_nombre(tmp_path):
     ap = Aparato(nivel="texto")
     puente, falsa, d = montar(tmp_path, aparatos=[ap], chat=False)
-    vuelta(puente, falsa, firmada(1, ap, texto="/estado", carga_extra={"chatNombre": "Peticiones y encargos"}),
-           firmada(2, ap, texto="/estado", carga_extra={"chatNombre": "Nombre inventado por la puerta"}))
-    assert falsa.finales() == [(1, "hecho"), (2, "rechazado")] and falsa.detalles()[1] == "nombre-distinto"
+    # GEN1114INT: sin chat-a1.json vale el id provisional del esquema común (`telegram.peticiones`, el de C).
+    estado = {"accion": "orden", "orden": {"nombre": "estado", "args": []}}
+    vuelta(puente, falsa,
+           firmada(1, ap, carga_extra={"chat": "telegram.peticiones", "chatNombre": "Peticiones y encargos"}, **estado),
+           firmada(2, ap, carga_extra={"chat": "telegram.peticiones", "chatNombre": "Nombre inventado por la puerta"},
+                   **estado),
+           firmada(3, ap, carga_extra={"chatNombre": "Peticiones y encargos"}, **estado))
+    assert falsa.finales() == [(1, "hecho"), (2, "rechazado"), (3, "rechazado")]
+    assert falsa.detalles()[1].startswith("[nombre-distinto]") and falsa.detalles()[2].startswith("[chat-distinto]")
     assert falsa.espejo[0]["texto"].split("\n", 1)[0] == "Este chat: nombre aún no publicado por la Mac"
 
 

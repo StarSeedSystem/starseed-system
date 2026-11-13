@@ -246,7 +246,12 @@ class PuenteGenesis:
     def _firma_datos(self):
         import genesis_aparatos as A
         altas, _problema = A.leer_altas(self.ruta_altas, self.dueno_altas)
-        retirados = A.leer_retirados(self._r("aparatos-retirados.json"))
+        # GEN1114INT: también las retiradas del registro de solo añadir (al lado de la lista de root). Si existe y
+        # no se puede leer, no vale ningún aparato: mejor no ejecutar nada que resucitar uno retirado.
+        sistema = A.ruta_retirados_sistema(self.ruta_altas)
+        if A.leer_retirados_sistema(sistema)[1]:
+            altas = {"v": 1, "aparatos": []}
+        retirados = A.leer_retirados(self._r("aparatos-retirados.json"), sistema)
         canon = A.leer_canon(self._r("canon.json"))
         return altas, retirados, canon
 
@@ -296,7 +301,8 @@ class PuenteGenesis:
             detalle = "ese aparato ya estaba retirado"
         else:
             ahora = self.ahora()
-            A.anadir_retirado(self._r("aparatos-retirados.json"), objetivo, "aparato:%s" % carga["aparato"][:8], ahora)
+            A.anadir_retirado(self._r("aparatos-retirados.json"), objetivo, "aparato:%s" % carga["aparato"][:8], ahora,
+                              A.ruta_retirados_sistema(self.ruta_altas))          # GEN1114INT
             quitado, desde = filas.get(objetivo) or {}, filas.get(carga["aparato"]) or {}
             A.registrar(self._r("aparatos.log"), carga["entrada"]["accion"], ahora, objetivo,
                         quitado.get("cuenta"), quitado.get("nombre"))
@@ -336,7 +342,9 @@ class PuenteGenesis:
                     return previo["estado"], "ya atendida"
             retiro = F.retiro_de(sobre.get("aparato"), retirados) if motivo == "aparato-revocado" else None
             resultado = "caducado" if motivo == "caducada" else "rechazado"
-            if carga is not None and motivo not in ("seq-repetido", "nonce-repetido"):
+            # GEN1114INT: solo se anota si el rechazo sale de lo firmado; lo que depende del sobre de la puerta
+            # (cuenta, hora de recepción) o es pasajero (límite por hora) no «quema» la entrada.
+            if carga is not None and F.rechazo_definitivo(motivo, carga, altas):
                 self._anotar_firma(vistos, carga, sobre, resultado)
             self._registrar(self._e_registro(sobre, carga), resultado, motivo, firma)
             return resultado, F.texto_de_motivo(motivo, A.fecha_retiro(retiro))

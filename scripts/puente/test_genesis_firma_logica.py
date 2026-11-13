@@ -418,12 +418,43 @@ class Chat(unittest.TestCase):
         self.assertEqual(F.chat_cuadra(self.carga(texto_a_hermes(), CHAT_A), canon), "chat-distinto")
 
     def test_sin_canon_solo_valen_los_alias_fijos(self):
-        self.assertIsNone(F.chat_cuadra(self.carga(texto_a_hermes(), ("hermes-avisos", "Hermes y avisos")), None))
+        # GEN1114INT: un solo esquema de ids (el provisional de C, `telegram.<clave>`), no la clave suelta.
+        self.assertIsNone(F.chat_cuadra(self.carga(texto_a_hermes(), ("telegram.hermes-avisos", "Hermes y avisos")), None))
+        self.assertEqual(F.chat_cuadra(self.carga(texto_a_hermes(), ("hermes-avisos", "Hermes y avisos")), None),
+                         "chat-distinto")
         self.assertEqual(F.chat_cuadra(self.carga(texto_a_hermes(), CHAT_A), None), "chat-distinto")
-        self.assertEqual(F.chat_cuadra(self.carga(texto_a_hermes(), ("hermes-avisos", "Peticiones y encargos")), None),
+        self.assertEqual(F.chat_cuadra(self.carga(texto_a_hermes(), ("telegram.hermes-avisos", "Peticiones y encargos")),
+                                       None), "nombre-distinto")
+        # Un hilo con un solo canal, sin canon: el nombre que pinta la web (CANALES) es el que vale.
+        hilo = dict(decir_al_hilo(), canales=["director-presidente"])
+        self.assertIsNone(F.chat_cuadra(self.carga(hilo, ("genesis.canal.director-presidente", "Director presidente")), None))
+        self.assertEqual(F.chat_cuadra(self.carga(hilo, ("genesis.canal.director-presidente", "Hermes")), None),
                          "nombre-distinto")
         self.assertIsNone(F.chat_cuadra(self.carga(decir_al_hilo(), ("genesis", "Dirección")), None))
         self.assertIsNone(F.chat_cuadra(self.carga(decir_al_hilo(), ("genesis", "mando")), {"basura": 1}))
+
+    def test_lo_que_depende_del_sobre_de_la_puerta_no_quema_la_entrada(self):
+        """GEN1114INT: un rechazo por el sobre (cuenta de la puerta, hora de recepción, límite) no se anota."""
+        a = Aparato()
+        altas = altas_de(a)
+        c = a.carga(texto_a_hermes())
+        self.assertFalse(F.rechazo_definitivo("cuenta-distinta", c, altas))           # la cuenta firmada es la suya
+        self.assertTrue(F.rechazo_definitivo("cuenta-distinta", dict(c, cuenta=OTRO), altas))
+        for m in ("caducada", "limite", "seq-repetido", "nonce-repetido", "ok"):
+            self.assertFalse(F.rechazo_definitivo(m, c, altas), m)
+        for m in ("aud", "destino", "chat-distinto", "nombre-distinto", "nivel", "futuro", "firma-mala"):
+            self.assertTrue(F.rechazo_definitivo(m, c, altas), m)
+
+    def test_nombres_de_canal_iguales_que_en_la_web(self):
+        """GEN1114INT: NOMBRES_CANAL es copia de CANALES de chat-director-tipos.ts (la web firma ese nombre)."""
+        import re
+        ts = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "src", "lib", "mando",
+                          "chat-director-tipos.ts")
+        with open(ts, encoding="utf-8") as f:
+            texto = f.read()
+        bloque = texto[texto.index("CANALES"):]
+        web = dict(re.findall(r'\{\s*id:\s*"([a-z-]+)",\s*nombre:\s*"([^"]+)"', bloque)[:10])
+        self.assertEqual({k: v for k, v in web.items() if k != "mando"}, F.NOMBRES_CANAL)
 
     def test_retiradas_solo_en_genesis(self):
         r = {"v": 1, "nonce": nonce(1), "t": F.iso_utc(T0), "fuente": "direccion", "accion": "revocarme"}

@@ -194,7 +194,13 @@ class Puente:
                                                             vistos, ahora, "a1")
         self.firma_info.update(firma="ok" if ok else motivo, seq=(carga or {}).get("seq"))
         if not ok:
-            return ("caducado" if motivo == "caducada" else "rechazado"), motivo, None
+            # GEN1114INT: el mismo detalle que acusa la Mac («[motivo] texto», §3.9), para que la web lo traduzca igual.
+            retiro = firma.retiro_de(e.get("aparato"), retirados) if motivo == "aparato-revocado" else None
+            fecha = None
+            if retiro:
+                t = firma.epoch_de(retiro.get("t"))
+                fecha = time.strftime("el %d-%m a las %H:%M", time.localtime(t)) if t else None
+            return ("caducado" if motivo == "caducada" else "rechazado"), firma.texto_de_motivo(motivo, fecha), None
         estado, detalle, accion = self._procesar_gen1113(firma.entrada_para_gen1113(e, carga))
         if accion:
             firma.anotar(vistos, carga, ahora)

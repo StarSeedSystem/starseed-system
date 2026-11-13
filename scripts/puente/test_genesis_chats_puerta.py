@@ -21,6 +21,8 @@ import director_chat  # noqa: E402
 import genesis_chats_logica as L  # noqa: E402
 import genesis_chats_puerta as G  # noqa: E402
 import puerta_datos_cliente  # noqa: E402
+import genesis_firma_logica as F  # noqa: E402  (GEN1114B)
+from test_genesis_firma_logica import CANON, Aparato  # noqa: E402  (GEN1114B)
 
 _spec = importlib.util.spec_from_file_location("telegram_puente_prueba_puerta", os.path.join(CARPETA, "telegram-puente.py"))
 TG = importlib.util.module_from_spec(_spec)
@@ -97,12 +99,32 @@ class Red:
         return [c for c in self.llamadas if c["url"].startswith(prefijo) and (metodo is None or c["metodo"] == metodo)]
 
 
+# GEN1114B · la Mac solo ejecuta entradas firmadas por un aparato emparejado: cada entrada de estas pruebas
+# va firmada por un aparato de prueba de su cuenta (todos de nivel «completo» y en la lista de altas), con
+# el chat y el nombre del `canon.json` de ejemplo del contrato GEN1114 §8.3.
+APARATOS = {c: Aparato(cuenta=c, nivel="completo") for c in (DUENO, DESA, OTRO)}
+CHATS = {"direccion": ("genesis", "GENESIS · StarSeed OS"), "puente:hermes-avisos": ("telegram.ejemplo_a_bot", "Bot A de ejemplo")}
+CAMPOS_ENTRADA = ("v", "nonce", "t", "fuente", "accion", "orden", "texto", "canales", "modelo", "respondeA", "reenviar")
+_SEQ = [0]
+
+
+def firmada(e):
+    """La fila v2 que entregaría la puerta para la entrada de GEN1113 `e` (firmada por su aparato)."""
+    _SEQ[0] += 1
+    ap = APARATOS[e["cuenta"]]
+    ent = {k: e[k] for k in CAMPOS_ENTRADA if e.get(k) is not None}
+    rec = F.epoch_de(e["recibido"])
+    c = ap.carga(ent, chat=CHATS[e["fuente"]], t=rec, seq=_SEQ[0])
+    return ap.sobre(c, ident=e["id"], rol=e["rol"], recibido=rec)
+
+
 def entrada(ident=1, **kw):
     e = {"v": 1, "id": ident, "nonce": ("n%d" % ident).ljust(24, "x"), "t": "2027-01-15T08:00:00Z",
          "fuente": "puente:hermes-avisos", "accion": "orden", "orden": {"nombre": "aprobar", "args": ["T1"]},
          "cuenta": DUENO, "rol": "dueño", "destino": "mac", "recibido": L.iso_utc(T0 - 60)}
     e.update(kw)
-    return e
+    return firmada(e)
+# /GEN1114B
 
 
 class Base(unittest.TestCase):
@@ -115,11 +137,18 @@ class Base(unittest.TestCase):
         self.log = []
         self.ide_antes = os.environ.get("STARSEED_IDE")
         tg = types.SimpleNamespace(parsear_orden=TG.parsear_orden, es_repetido=TG.es_repetido, _importa=lambda f: True)
+        # GEN1114B: la lista de altas (aquí de este usuario, en una carpeta temporal) y el canon de ejemplo.
+        self.ruta_altas = os.path.join(self.dir, "StarSeed", "genesis-aparatos.json")
+        os.makedirs(os.path.dirname(self.ruta_altas), mode=0o755)
+        G.escribir_json(self.ruta_altas, {"v": 1, "aparatos": [a.fila() for a in APARATOS.values()]})
+        os.chmod(self.ruta_altas, 0o644)
+        G.escribir_json(os.path.join(self.base, "canon.json"), CANON)
         self.svc = G.PuenteGenesis(URL, FICHA, base=self.base, raiz=self.raiz, mando="http://127.0.0.1:9002",
                                    http=self.red, ahora=self.reloj, stat=self._stat,
                                    modulos={"puente": self.p, "telegram": tg, "director_chat": self.d,
                                             "cliente": puerta_datos_cliente},
-                                   salida=self.log.append)
+                                   salida=self.log.append, ruta_altas=self.ruta_altas, dueno_altas=os.getuid(),
+                                   llevar=lambda **kw: (True, "prueba"))
 
     def tearDown(self):
         shutil.rmtree(self.dir, ignore_errors=True)
@@ -196,7 +225,8 @@ class Entradas(Base):
         self.red.entradas = [entrada(1, recibido=L.iso_utc(T0 - 31 * 60))]
         self.svc.ciclo_entradas()
         self.assertEqual(self.p.ordenes, [])
-        self.assertEqual((self.acuses()[0]["estado"], self.acuses()[0]["detalle"]), ("caducado", L.CADUCADA))
+        self.assertEqual((self.acuses()[0]["estado"], self.acuses()[0]["detalle"]),
+                         ("caducado", F.texto_de_motivo("caducada")))     # GEN1114B: la caducidad firmada
         self.assertEqual(self.registro()[0]["resultado"], "caducado")
 
     def test_nonce_visto_se_ignora(self):
@@ -209,16 +239,17 @@ class Entradas(Base):
         self.assertEqual(len(self.p.ordenes), 1)
         self.assertEqual([a["estado"] for a in self.acuses()], ["hecho", "hecho"])
         # Otro id con el mismo nonce: rechazado y sin ejecutar.
-        self.red.entradas = [entrada(5, nonce=entrada(1)["nonce"])]
+        self.red.entradas = [entrada(5, nonce="n1".ljust(24, "x"))]     # GEN1114B: el nonce va en la carga
         self.svc.ciclo_entradas()
         self.assertEqual(len(self.p.ordenes), 1)
-        self.assertEqual((self.acuses()[-1]["estado"], self.acuses()[-1]["detalle"]), ("rechazado", L.REPETIDO))
+        self.assertEqual((self.acuses()[-1]["estado"], self.acuses()[-1]["detalle"]),
+                         ("rechazado", F.texto_de_motivo("nonce-repetido")))     # GEN1114B
 
     def test_interrumpida_a_medias_no_se_repite(self):
         self.cuentas()
         e = entrada(1)
-        G.escribir_json(os.path.join(self.base, "vistos.json"),
-                        {L.clave_nonce(e): {"t": T0, "id": 1, "estado": "en-curso"}})
+        G.escribir_json(os.path.join(self.base, "vistos.json"),       # GEN1114B: la clave sale de la carga
+                        {"%s:%s" % (DUENO, "n1".ljust(24, "x")): {"t": T0, "id": 1, "estado": "en-curso"}})
         self.red.entradas = [e]
         self.svc.ciclo_entradas()
         self.assertEqual(self.p.ordenes, [])
@@ -231,7 +262,7 @@ class Entradas(Base):
         def comprobar(cuerpo):
             self.assertEqual(len(self.p.ordenes), 1)
             vistos = G.leer_json(vistos_ruta, {})
-            self.assertEqual([v["estado"] for v in vistos.values()], ["hecho"])
+            self.assertEqual([v["estado"] for v in vistos.values()], ["hecho", "hecho"])   # GEN1114B: seq y nonce
             self.assertEqual(self.registro()[-1]["resultado"], "hecho")
             comprobar.veces += 1
         comprobar.veces = 0
