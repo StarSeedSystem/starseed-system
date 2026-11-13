@@ -166,19 +166,70 @@ def marca_envio(t_envio, huella):
     return "%d %s" % (int(t_envio), huella)
 
 
-def guion_compilar(raiz=RAIZ_A1, dist=DIST_BUILD, heap=4096, marca=None):
-    """PURA: la build como la Mac: dist aparte, 4096 de heap, nice 10 y STARSEED_BUILD_LIGERO=1 (30-10: OOM).
+#: (REC1113A, 12-11, MEDIDO) La build del A1 murió a las 23:33 con «Ineffective mark-compacts near heap
+#: limit … JavaScript heap out of memory» (rc 134, 847 s, último GC 3732 MB de 4096): el TECHO DE MONTÓN que
+#: le poníamos, no la RAM del A1 (12 GB, 7 GB disponibles, swap a medias, sin oom-killer sobre la build).
+#: Main creció esa noche (biblioteca nueva, componentes, chat más grande) y 4096 ya no cabía; la de las
+#: 23:00, con 4096, aún pasó. El montón se pide a la medida de lo que el A1 tiene libre AL EMPEZAR:
+#: MemAvailable − margen, nunca menos del piso (lo de siempre) ni más del techo.
+HEAP_PISO_MB = int(os.environ.get("STARSEED_A1_HEAP_PISO_MB", "4096"))
+HEAP_TECHO_MB = int(os.environ.get("STARSEED_A1_HEAP_TECHO_MB", "6144"))
+HEAP_MARGEN_MB = int(os.environ.get("STARSEED_A1_HEAP_MARGEN_MB", "1024"))
+
+
+def heap_para(disponible_mb, piso=HEAP_PISO_MB, techo=HEAP_TECHO_MB, margen=HEAP_MARGEN_MB):
+    """PURA: el montón (MB) para `next build` con `disponible_mb` libres. La MISMA cuenta que `frag_heap`."""
+    try:
+        d = int(disponible_mb)
+    except (TypeError, ValueError):
+        d = 0
+    return max(int(piso), min(int(techo), d - int(margen)))
+
+
+def frag_heap(piso=HEAP_PISO_MB, techo=HEAP_TECHO_MB, margen=HEAP_MARGEN_MB):
+    """PURA: `sh` que deja en `$h` el montón según MemAvailable (`heap_para`) y lo anota en el registro
+    (`heap=N MB`). Sin `/proc/meminfo` (o sin awk), el piso. Sin comillas simples: viaja en `sh -c '…'`."""
+    return ('d=$(awk "/^MemAvailable:/{print int(\\$2/1024)}" /proc/meminfo 2>/dev/null); '
+            'h=$(( ${d:-0} - %d )); if [ "$h" -gt %d ]; then h=%d; fi; if [ "$h" -lt %d ]; then h=%d; fi; '
+            'echo "heap=$h MB (MemAvailable ${d:-?} MB)"; '
+            % (int(margen), int(techo), int(techo), int(piso), int(piso)))
+
+
+_HEAP_AGOTADO = re.compile(r"heap out of memory|reached heap limit|ineffective mark-compacts", re.I)
+
+
+def motivo_fallo(texto):
+    """PURA: la causa legible de una build roja del A1 a partir de su registro (o None). Antes el detalle
+    eran los últimos 400 caracteres: media pila de V8 («onst*, v8::OOMDetails…») sin decir qué pasó."""
+    t = str(texto or "")
+    heap = re.findall(r"heap=(\d+) MB", t)
+    if _HEAP_AGOTADO.search(t):
+        return "se agotó el montón de V8 de la build%s (JavaScript heap out of memory)" % (
+            " (%s MB)" % heap[-1] if heap else "")
+    if re.search(r"(^|\s)Killed(\s|$)", t):
+        return "el sistema del A1 mató la build (Killed: falta de memoria de la máquina)"
+    for linea in t.splitlines():
+        l = linea.strip()
+        if l.startswith(("Type error:", "Error:", "Failed to compile")) or "error TS" in l:
+            return l[:200]
+    return None
+
+
+def guion_compilar(raiz=RAIZ_A1, dist=DIST_BUILD, heap=None, marca=None):
+    """PURA: la build como la Mac: dist aparte, nice 10 y STARSEED_BUILD_LIGERO=1 (30-10: OOM).
+    (REC1113A) `heap=None`: montón a la medida del A1 (`frag_heap`); un número lo fija.
     (SUP0111A) Con `marca`, al acabar BIEN deja `dist/.envio-a1`: la próxima pasada puede traerlo sin recompilar."""
-    guion = ("cd %s && rm -rf %s && STARSEED_BUILD_LIGERO=1 STARSEED_DIST=%s "
-             "NODE_OPTIONS=--max-old-space-size=%d nice -n 10 npx next build"
-             % (shlex.quote(raiz), shlex.quote(dist), shlex.quote(dist), heap))
+    previo, techo = (frag_heap(), "$h") if heap is None else ("", "%d" % int(heap))
+    guion = ("%scd %s && rm -rf %s && STARSEED_BUILD_LIGERO=1 STARSEED_DIST=%s "
+             "NODE_OPTIONS=--max-old-space-size=%s nice -n 10 npx next build"
+             % (previo, shlex.quote(raiz), shlex.quote(dist), shlex.quote(dist), techo))
     if marca and re.fullmatch(r"\d+ [0-9a-f]{16,64}", str(marca)):
         guion += " && echo %s > %s/%s" % (marca, shlex.quote(dist), MARCA_A1)
     return guion
 
 
-def orden_compilar(raiz=RAIZ_A1, dist=DIST_BUILD, heap=4096, marca=None):
-    """PURA: build con `nice` y 4096 de heap, en dist aparte, igual que la Mac."""
+def orden_compilar(raiz=RAIZ_A1, dist=DIST_BUILD, heap=None, marca=None):
+    """PURA: build con `nice` y el montón de `guion_compilar`, en dist aparte, igual que la Mac."""
     return "sudo -u starseed -H sh -c '%s'" % guion_compilar(raiz, dist, heap, marca=marca)
 
 
@@ -256,8 +307,11 @@ def orden_sondeo(estado=ESTADO_GUION):
 
 
 def orden_cola_log(log=LOG_GUION):
-    """PURA: el final del registro de la build del A1 (para el detalle de un fallo)."""
-    return "sudo -u starseed -H tail -c 2000 %s 2>/dev/null; true" % shlex.quote(log)
+    """PURA: el final del registro de la build del A1 (para el detalle de un fallo), con la línea del
+    montón pedido (`heap=…`, REC1113A) delante: está al principio del registro y la cola no la ve."""
+    q = shlex.quote(log)
+    return ("sudo -u starseed -H sh -c %s"
+            % shlex.quote("grep -m1 '^heap=' %s 2>/dev/null; tail -c 2000 %s 2>/dev/null; true" % (q, q)))
 
 
 def leer_sondeo(salida):
@@ -425,10 +479,12 @@ def _veredicto(rc_build, detalle, aviso, sin_turno=False):
         return 0, ""
     if rc_build is None:
         return None, detalle
-    cola_log = cola(oracle_nodo.ssh(orden_cola_log(), timeout=60)[1])
+    registro = oracle_nodo.ssh(orden_cola_log(), timeout=60)[1]
+    cola_log = cola(registro)
     if rc_build == SIN_TURNO and sin_turno:
         return None, "sin turno en el A1: %s" % cola_log
-    return None, "%s: %s" % (detalle or aviso, cola_log)
+    causa = motivo_fallo(registro)  # (REC1113A) la causa delante; la cola, detrás
+    return None, "%s: %s%s" % (detalle or aviso, "%s · " % causa if causa else "", cola_log)
 
 
 def traer_previo(raiz=RAIZ, visto=None):

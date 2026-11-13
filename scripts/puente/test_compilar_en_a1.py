@@ -751,6 +751,82 @@ class Desacoplado(unittest.TestCase):
                 self.assertIn("hola", f.read())
 
 
+class MontonALaMedida(unittest.TestCase):
+    """REC1113A: la build del A1 murió por SU techo de montón (4096), no por la RAM del A1."""
+
+    REGISTRO_23_33 = (
+        "heap=4096 MB (MemAvailable ? MB)\n"
+        "[2064375:0xfbdc385a0000]   847500 ms: Mark-Compact (reduce) 3732.5 (4143.2) -> 3728.3 (4123.8) MB\n"
+        "FATAL ERROR: Ineffective mark-compacts near heap limit Allocation failed - "
+        "JavaScript heap out of memory\n"
+        " 2: 0x11cd5ec v8::Utils::ReportOOMFailure(v8::internal::Isolate*, char const*, v8::OOMDetails const&) [node]\n"
+        "Aborted (core dumped)\n")
+
+    def test_heap_para(self):
+        self.assertEqual(C.heap_para(7000, 4096, 6144, 1024), 5976)   # el A1 de esta noche
+        self.assertEqual(C.heap_para(9000, 4096, 6144, 1024), 6144)   # nunca más del techo
+        self.assertEqual(C.heap_para(3000, 4096, 6144, 1024), 4096)   # nunca menos de lo de siempre
+        self.assertEqual(C.heap_para(None, 4096, 6144, 1024), 4096)
+        self.assertEqual(C.heap_para("x", 4096, 6144, 1024), 4096)
+
+    def test_por_defecto_ya_no_es_4096_fijo_y_un_numero_lo_fija(self):
+        g = C.guion_compilar("/r")
+        self.assertIn("--max-old-space-size=$h", g)
+        self.assertNotIn("--max-old-space-size=4096", g)
+        self.assertIn("MemAvailable", g)
+        self.assertIn("--max-old-space-size=5000", C.guion_compilar("/r", heap=5000))
+        self.assertNotIn("MemAvailable", C.guion_compilar("/r", heap=5000))
+        self.assertNotIn("'", C.frag_heap())  # viaja dentro de `sh -c '…'` (orden_compilar)
+
+    def _heap_del_guion(self, meminfo):
+        """Ejecuta el trozo de verdad con un /proc/meminfo de mentira y devuelve lo que anota."""
+        with tempfile.TemporaryDirectory() as d:
+            ruta = os.path.join(d, "meminfo")
+            if meminfo is not None:
+                with open(ruta, "w", encoding="utf-8") as f:
+                    f.write(meminfo)
+            frag = C.frag_heap(4096, 6144, 1024).replace("/proc/meminfo", shlex.quote(ruta))
+            r = subprocess.run(["sh", "-c", frag + 'echo "fin=$h"'], capture_output=True, text=True, timeout=20)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            return r.stdout
+
+    def test_el_trozo_de_sh_hace_la_misma_cuenta_que_heap_para(self):
+        for disp_kb, esperado in ((7168000, C.heap_para(7000, 4096, 6144, 1024)),
+                                  (12211460, 6144), (2097152, 4096)):
+            salida = self._heap_del_guion("MemTotal: 12211460 kB\nMemAvailable: %d kB\n" % disp_kb)
+            self.assertIn("fin=%d" % esperado, salida)
+            self.assertIn("heap=%d MB" % esperado, salida)
+        self.assertIn("fin=4096", self._heap_del_guion(None))  # sin meminfo (la Mac): el piso
+
+    def test_la_build_de_verdad_recibe_el_monton_calculado(self):
+        with tempfile.TemporaryDirectory() as d:
+            binario = os.path.join(d, "bin")
+            os.makedirs(binario)
+            with open(os.path.join(binario, "npx"), "w", encoding="utf-8") as f:
+                f.write('#!/bin/sh\nmkdir -p "$STARSEED_DIST"\necho "NODE_OPTIONS=$NODE_OPTIONS"\n')
+            os.chmod(os.path.join(binario, "npx"), 0o755)
+            r = subprocess.run(["sh", "-c", C.guion_compilar(d)], capture_output=True, text=True, timeout=30,
+                               env=dict(os.environ, PATH=binario + os.pathsep + os.environ.get("PATH", "")))
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertRegex(r.stdout, r"NODE_OPTIONS=--max-old-space-size=\d{4}\b")
+
+    def test_motivo_del_fallo_de_las_23_33(self):
+        m = C.motivo_fallo(self.REGISTRO_23_33)
+        self.assertIn("montón de V8", m)
+        self.assertIn("4096 MB", m)
+        self.assertIn("sistema", C.motivo_fallo("…\nKilled\n"))
+        self.assertEqual(C.motivo_fallo("Type error: x no existe\n"), "Type error: x no existe")
+        self.assertIsNone(C.motivo_fallo("todo bien"))
+
+    def test_el_veredicto_dice_la_causa_y_no_solo_la_pila(self):
+        with mock.patch.object(C.oracle_nodo, "ssh", return_value=(0, self.REGISTRO_23_33)) as ssh:
+            rc, detalle = C._veredicto(134, "", "next build en el A1")
+        self.assertIsNone(rc)
+        self.assertTrue(detalle.startswith("next build en el A1: se agotó el montón de V8"), detalle)
+        self.assertEqual(ssh.call_args[0][0], C.orden_cola_log())
+        self.assertIn("grep -m1", C.orden_cola_log())  # la línea `heap=` está al principio del registro
+
+
 if __name__ == "__main__":
     unittest.main()
 

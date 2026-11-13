@@ -354,3 +354,24 @@ Lo que hay ahora, más simple y comprobado:
   autopublicar-peticion.json`, que el director lee y borra). Esos botones solo levantan un veto de Jev;
   los deterministas (análisis, pruebas, CI, Vercel, humo) no se tocan. Cada pasada del servicio corre
   en un proceso nuevo: los cambios del repo valen sin reiniciarlo.
+
+## Genesis local: la build del A1 y el montón (REC1113A, 2026-11-12)
+
+La página de :9002 se sirve con `next start` desde `.next`; la rehace el servicio `com.starseed.reconstruir`
+(`reconstruir_mando.py`, una pasada cada 180 s, registro en `/tmp/starseed-reconstruir.log`, estado en
+`starseed_memory_root/mando/reconstruccion.json`). Con más de 4,0 GB de swap la Mac no compila (freno de
+swap, intocable: una build con swap ya congeló esta Mac) y la build va al A1 (`compilar_en_a1.py`: rsync,
+`next build` desacoplado en el A1, registro en `~starseed/.starseed/compilar-a1/build.log`, traer y cambiar).
+
+- **12-11, 23:33 (medido):** la build del A1 murió con «Ineffective mark-compacts near heap limit … JavaScript
+  heap out of memory» (rc 134, 847 s; último GC 3732 MB de 4096). Fue el techo de montón que le pasábamos
+  (`--max-old-space-size=4096`), no la RAM del A1 (12 GB, ~7 GB disponibles, ningún oom-killer sobre la
+  build). Main había crecido esa noche; la build de las 23:00 aún cupo en 4096.
+- **Desde entonces:** el montón se pide a la medida al empezar la build en el A1: `MemAvailable − 1024 MB`,
+  entre 4096 y 6144 (`STARSEED_A1_HEAP_PISO_MB`, `_TECHO_MB`, `_MARGEN_MB`); queda escrito en el registro
+  como `heap=N MB`. Un fallo se resume por su causa (`motivo_fallo`: montón agotado, Killed, error de tipos)
+  delante de la cola del registro, en vez de media pila de V8.
+- **El servicio se relee:** vive días y Python no relee lo importado; un arreglo en main no se usaba hasta
+  reiniciarlo a mano. Ahora, entre pasada y pasada, si cambian `reconstruir_mando.py`, `compilar_en_a1.py`,
+  `oracle_nodo.py` o `con-turno.py`, se reemplaza a sí mismo con `execv` (mismo pid para launchd). Esto
+  solo funciona a partir del primer arranque con este código.
