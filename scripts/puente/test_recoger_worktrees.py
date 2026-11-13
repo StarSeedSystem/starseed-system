@@ -160,7 +160,7 @@ class Reglas(Base):
     def test_el_worktree_principal_nunca_se_toca(self):
         self.progreso["starseed-os-main"] = {"estado": "commit"}
         plan = RW.planificar(self.repo, raices=[self.dir], progreso=self.progreso, vivas=set())
-        principal = [p for p in plan if p["ruta"] == self.repo][0]
+        principal = [p for p in plan if os.path.realpath(p["ruta"]) == os.path.realpath(self.repo)][0]   # macOS: /var → /private/var
         self.assertEqual(principal["accion"], "conservar")
         self.assertIn("principal", principal["motivo"])
 
