@@ -44,15 +44,36 @@ oficial de contenido profesional.
 
 - El bot del A1 (herramienta `peticiones_telegram`) ya **propone** piezas de Higgsfield con los créditos estimados en
   la síntesis (sección 5 quinquies) y nunca las ejecuta.
-- **Conectado a la cuenta de la Fundación** (fund…@gmail.com, plan gratuito, 10 créditos): el conector de Claude,
-  el CLI del A1 (usuario `starseed`, workspace `cfecc5a9…`) y el CLI de la Mac.
-- **Guardia en los dos nodos:**
-  - el binario real es `higgsfield-cli`;
-  - `higgsfield` solo deja pasar órdenes que no gastan (`account`, `workspace`, `model`, `preset`, `voices`,
-    `version`, `auth`, `generate cost`, `list`, `get` y `wait`, `project list`);
-  - lo demás exige `HIGGSFIELD_APROBACION=<id>`.
-  - `higgsfield_aprobado.py` (HGF1113A) llama a `higgsfield-cli` con esa variable SOLO tras la aprobación, y cotiza
-    antes con `generate cost`.
+- El conector de Claude todavía apunta a una cuenta gratuita.
+- El CLI aún no está instalado: la instalación quedó pendiente del visto bueno de Maggasukha.
+
+## 5. Proyectos de StarSeed en Higgsfield (creados el 2026-11-13, workspace `cfecc5a9…`)
+
+Cada proyecto tiene 4 carpetas: 01 Referencias, 02 Pruebas, 03 Aprobados y 04 Finales. El de marca tiene una quinta,
+«05 Looks por fase de la Matriz». Cada descripción lleva su contexto y las reglas de marca.
+
+| Clave | Proyecto | project_id |
+|---|---|---|
+| sistema-diseno | StarSeed · Sistema de diseño y marca | b9c64503-b075-4794-96bd-2fe8a6cc66e3 |
+| recorrido-os | StarSeed OS · Recorrido real | 0a164695-de83-4b8f-9f22-7f0a623a124e |
+| paz | Una solución para la paz | c7cc3bfb-9e4a-4c2e-acdf-d96e5603bdec |
+| manifiesto | Manifiesto · La Revolución del Diseño | c2cd4e9f-92a5-477a-a873-6a57d4e703ed |
+| fase-semilla | Fase Semilla · Centro social piloto | 51a10c6a-1a19-405f-a930-41e7e3b20a25 |
+| videos-4-5 | Vídeos 4 y 5 · Valor, IA y sobreproducción | ddb86707-1f80-49d2-9a0b-d3f42d17eceb |
+| personajes | Personajes icono de StarSeed | 7405688e-8491-4c88-be9c-cc3422cea04c |
+| redes | Redes · shorts, reels y carruseles | ac48b50d-5877-4430-9ceb-45571dd08c8a |
+
+Mapa con las carpetas: `~/.starseed/produccion/higgsfield/proyectos.json` en el A1.
+
+**Guardia en el A1 y en la Mac:**
+- la gestión de proyectos pasa (list, get, create, update; carpetas y archivos salvo borrar);
+- delete, archive y publication quedan bloqueados;
+- generar exige `HIGGSFIELD_APROBACION`.
+
+**Lo que se actualiza y aprende solo:**
+- HGF1113E sincroniza los proyectos con las producciones de StarSeed;
+- HGF1113F mantiene el catálogo de capacidades y costes;
+- HGF1113G arma los briefs desde el sistema de diseño y aprende de cada aprobación.
 
 ## 4. Cola HGF1113
 
@@ -112,6 +133,41 @@ oficial de contenido profesional.
 "HGF1113B"
 ],
 "prompt": "Lee architecture/higgsfield-aprobado-1113.md. En memory/orquestacion-economica.md añade Higgsfield como proveedor de PAGO con créditos limitados: solo con aprobación de Maggasukha, por presupuesto de proyecto, a través de higgsfield_aprobado.py; nunca para tareas rutinarias ni como respaldo automático de otros modelos. En CLAUDE.md y AGENTS.md añade «Higgsfield (solo con aprobación)» en 3 a 5 líneas: vías (el conector de Claude y el CLI en los nodos), regla de aprobación, presupuesto y marca. Añade también una entrada corta en memory/workflow-actual.md."
+},
+{
+"id": "HGF1113E",
+"ola": "HGF1113",
+"titulo": "Higgsfield · sincronizar solo los proyectos de StarSeed",
+"archivos": [
+"scripts/puente/higgsfield_sync.py",
+"scripts/puente/test_higgsfield_sync.py"
+],
+"depende": [],
+"prompt": "Lee architecture/higgsfield-aprobado-1113.md (§3 bis y §5). Crea higgsfield_sync.py, que corre una vez al día en el líder con el CLI ya conectado. Usa SOLO órdenes que no gastan créditos: project list, get, create y update; project folders y assets, nunca delete. Mapa en ~/.starseed/produccion/higgsfield/proyectos.json (ya hay 8 proyectos con sus carpetas 01 Referencias, 02 Pruebas, 03 Aprobados y 04 Finales). (1) Lee las producciones de StarSeed en curso: el índice de vídeos en Drive (1J6UokADVb5FbQ5rSLKJrAwQPLbeUGD1ZpKPGS_XAuVQ, cuenta alex), los encargos del bot del A1 (~/.starseed/peticiones/encargos.json) y las propuestas de Higgsfield aprobadas. (2) Si una producción nueva pasa a «producción oficial» (aprobada por Maggasukha), crea su proyecto con las 4 carpetas, color y emoji válidos (cyan, slate, lime, violet, purple, pink o yellow) y una descripción con su fase de la Matriz, su carpeta de Drive y las reglas de marca. (3) Actualiza la descripción de los existentes con su estado actual. (4) Sube al proyecto «StarSeed · Sistema de diseño y marca», carpeta 01 Referencias, las referencias de marca aprobadas (carteles, redes, iconos de identidad/sistema-de-diseno-claude/sistema-de-diseno/assets), NUNCA el archivo del símbolo. Avisa de los cambios en el canal del Mando. Pruebas con un CLI falso, sin red."
+},
+{
+"id": "HGF1113F",
+"ola": "HGF1113",
+"titulo": "Higgsfield · catálogo vivo de capacidades y costes",
+"archivos": [
+"scripts/puente/higgsfield_catalogo.py",
+"scripts/puente/test_higgsfield_catalogo.py"
+],
+"depende": [],
+"prompt": "Lee architecture/higgsfield-aprobado-1113.md. Crea higgsfield_catalogo.py, que corre una vez por semana en el líder. Con órdenes que no gastan créditos (model list --json por tipo, model get, preset, workflow list y generate cost) arma ~/.starseed/produccion/higgsfield/catalogo.json: modelos de imagen, vídeo y audio, workflows y presets, y el coste estimado de las piezas típicas de StarSeed (imagen de referencia, plano de vídeo de 5 y 10 s, voz, reencuadre). Marca las novedades frente a la semana anterior. Expón mejor_opcion(tipo_de_pieza, presupuesto), que da el modelo con mejor relación calidad/coste según el catálogo y el historial de aprobaciones (HGF1113G). Añade a la síntesis diaria, si hay novedades, una línea «Novedades de Higgsfield». Pruebas con un CLI falso, sin red."
+},
+{
+"id": "HGF1113G",
+"ola": "HGF1113",
+"titulo": "Higgsfield · briefs desde el sistema de diseño que aprenden de cada aprobación",
+"archivos": [
+"scripts/puente/higgsfield_brief.py",
+"scripts/puente/test_higgsfield_brief.py"
+],
+"depende": [
+"HGF1113A"
+],
+"prompt": "Lee architecture/higgsfield-aprobado-1113.md y el sistema de diseño (starseed_memory_root/identidad/sistema-de-diseno-claude/sistema-de-diseno: tokens.json, design-system.json, 01-fundamentos.md, 04-movimiento.md, 08-capa-de-video.md). Crea higgsfield_brief.py: dado un proyecto del mapa, una pieza y una fase de la Matriz (Semilla, Fruto y Cosecha, Mente Digital), construye el prompt y el brief con la paleta de los tokens, la luz, la cámara y el movimiento de esa fase, los referentes de la Matriz y las restricciones (sin el símbolo ni logotipos; el símbolo se compone en posproducción). El resultado es la propuesta para higgsfield_aprobado, con coste estimado por higgsfield_catalogo. Aprendizaje: guarda en ~/.starseed/produccion/higgsfield/biblioteca.json cada prompt con su resultado (aprobado o rechazado por Maggasukha, nota y créditos) y prioriza los patrones aprobados por proyecto y fase. Pruebas sin red."
 }
 ]
 }
