@@ -7030,3 +7030,12 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 ## 2026-11-12 20:44 · auto-1112-203814
 
 **Resultado.** 1 de 1 integradas.
+
+## 2026-11-13 00:20 · auto-1112-234556
+
+**Lo que se pidió.** next build en el A1: … v8::FatalProcessOutOfMemory … Aborted (core dumped)
+
+**Resultado.** 2 de 2 integradas.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- nvidia/nvidia/nemotron-3-ultra-550b-a55b integró 2 tareas sin fallar una.
