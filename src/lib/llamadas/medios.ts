@@ -279,6 +279,8 @@ export interface ResultadoMedios {
     aviso: string | null;
     /** (MIC1108A) Qué ajustes del sistema abre «Abrir ajustes» (solo en la app y si el fallo fue de permisos). */
     ajustes?: AjustesMedios | null;
+    /** LLA1113A: la cámara no abrió porque está ocupada (NotReadableError…): con otra abierta, se puede soltar y reintentar. */
+    ocupada?: boolean;
 }
 
 /** (MIC1108A) El error bloqueante, dicho para ESTE entorno (app nativa de cada sistema o navegador). */
@@ -351,7 +353,7 @@ export async function obtenerMedios(p: { audio: boolean; video: boolean; microId
             }
         }
         const r = await errorBloqueante(err, p);
-        return { ...r, error: (await textoCamaraListada(md, err)) ?? r.error };
+        return { ...r, error: (await textoCamaraListada(md, err)) ?? r.error, ocupada: OCUPADA.includes((err as { name?: string })?.name ?? "") };
     }
 }
 
@@ -377,7 +379,7 @@ async function textoFalloCamara(md: MediaDevices, err: unknown): Promise<string>
     return (await textoCamaraListada(md, err)) ?? mensajeErrorMedios(err, { audio: false, video: true });
 }
 
-export async function obtenerPista(tipo: "audio" | "video", deviceId?: string | null): Promise<{ pista: MediaStreamTrack | null; error: string | null }> {
+export async function obtenerPista(tipo: "audio" | "video", deviceId?: string | null): Promise<{ pista: MediaStreamTrack | null; error: string | null; ocupada?: boolean }> {
     const r = await obtenerMedios({
         audio: tipo === "audio",
         video: tipo === "video",
@@ -385,7 +387,7 @@ export async function obtenerPista(tipo: "audio" | "video", deviceId?: string | 
         camaraId: tipo === "video" ? deviceId : null,
     });
     const pista = (tipo === "audio" ? r.stream?.getAudioTracks()[0] : r.stream?.getVideoTracks()[0]) ?? null;
-    return { pista, error: pista ? null : r.error ?? r.aviso };
+    return { pista, error: pista ? null : r.error ?? r.aviso, ...(!pista && r.ocupada ? { ocupada: true } : {}) }; // LLA1113A: ocupada
 }
 
 export async function obtenerPantalla(): Promise<{ pista: MediaStreamTrack | null; error: string | null }> {

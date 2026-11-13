@@ -31,6 +31,43 @@ const lineas: Linea[] = [];
 const t0 = performance.now();
 fijarSumideroDiagnostico((l) => lineas.push({ t: Math.round(performance.now() - t0), ...l }));
 
+/*
+ * LLA1113A · Temporizadores LENTOS de la página (prueba 40, Mac sin nadie delante): WebKit alinea los temporizadores de una
+ * página oculta o tapada a 1 s. La firma en el registro del aparato: «espera=992…1015/0ms» en `video-datos reparto` y
+ * `voz-datos nivel` (la espera medida es el hueco entre dos muestras de 20 ms que llegaron con 1 s entre medias, y el máximo
+ * queda en 0), 48 veces en las dos llamadas limpias y ninguna en las rondas anteriores. El motor ve sus setInterval/
+ * setTimeout de la página por `__bancoT` (ver `construir.mjs`); con `lentos.activo` cada uno corre como mucho una vez por
+ * segundo y los plazos cortos se alargan hasta el siguiente segundo entero. Lo del banco (carril, oído) sigue con los reales.
+ */
+const lentos = { activo: false };
+{
+  const RI = window.setInterval.bind(window);
+  const CI = window.clearInterval.bind(window);
+  const RT = window.setTimeout.bind(window);
+  const CT = window.clearTimeout.bind(window);
+  (globalThis as unknown as { __bancoT: unknown }).__bancoT = {
+    setInterval: (f: (...x: unknown[]) => void, ms?: number, ...x: unknown[]) => {
+      const p = Math.max(0, Number(ms) || 0);
+      if (p >= 1000) return RI(f, p, ...x);
+      let ult = -Infinity;
+      return RI(() => {
+        const ahora = Date.now();
+        if (lentos.activo && ahora - ult < 990) return;
+        ult = ahora;
+        f(...x);
+      }, p);
+    },
+    setTimeout: (f: (...x: unknown[]) => void, ms?: number, ...x: unknown[]) => {
+      const p = Math.max(0, Number(ms) || 0);
+      if (!lentos.activo || p >= 1000) return RT(f, p, ...x);
+      const ahora = Date.now();
+      return RT(f, Math.ceil((ahora + p + 1) / 1000) * 1000 - ahora, ...x);
+    },
+    clearInterval: (id: number) => CI(id),
+    clearTimeout: (id: number) => CT(id),
+  };
+}
+
 /* ── Ruta IP simulada: por PC, con estado forzado mientras está cortada ── */
 const red = {
   ip: true,
@@ -971,5 +1008,7 @@ function estadoNeg() {
     pintadas.A.length = 0;
     pintadas.B.length = 0;
   },
+  /** LLA1113A: temporizadores de la página lentos (`ble-lento`). */
+  lentos,
   listo: true,
 };

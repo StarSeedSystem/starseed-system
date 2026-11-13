@@ -59,6 +59,20 @@ await esbuild.build({
           return { path: p };
         });
         b.onResolve({ filter: /^[^./@]|^@[^/]/ }, (a) => ({ path: a.path, namespace: "vacio" }));
+        // LLA1113A: los temporizadores de la PÁGINA que usa el motor (setInterval/setTimeout sueltos) pasan por
+        // `globalThis.__bancoT` si el banco lo define: así el banco los hace «lentos» (alineados a 1 s, como WebKit con la
+        // página oculta o tapada) sin tocar los suyos (el carril simulado, el oído). Los de un Worker no pasan por aquí.
+        b.onLoad({ filter: /\.tsx?$/ }, (a) => {
+          if (!permitido(a.path)) return undefined;
+          const fuente = fs.readFileSync(a.path, "utf8");
+          const g = "((globalThis as any).__bancoT ?? globalThis)";
+          const cuna =
+            `const setInterval = ((f: any, ms?: number, ...x: any[]) => ${g}.setInterval(f, ms, ...x)) as any;` +
+            `const setTimeout = ((f: any, ms?: number, ...x: any[]) => ${g}.setTimeout(f, ms, ...x)) as any;` +
+            `const clearInterval = ((id: any) => ${g}.clearInterval(id)) as any;` +
+            `const clearTimeout = ((id: any) => ${g}.clearTimeout(id)) as any;\n`;
+          return { contents: cuna + fuente, loader: a.path.endsWith(".tsx") ? "tsx" : "ts" };
+        });
         b.onLoad({ filter: /.*/, namespace: "vacio" }, () => ({
           contents: "module.exports = new Proxy({}, { get: (_, k) => k === '__esModule' ? true : k === 'default' ? undefined : () => undefined });",
           loader: "js",

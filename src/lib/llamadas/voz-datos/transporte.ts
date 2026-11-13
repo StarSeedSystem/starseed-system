@@ -83,9 +83,13 @@ function refrescarRutaNativa(neurona: string): void {
   void import("@/lib/malla/transporte-universal")
     .then((tu) => tu.enlacesDisponibles())
     .then((l) => {
-      const n = l.find((e) => e.tipo === "nativo" && e.abierto && e.alcanza?.neuronDeviceId === neurona);
-      // LLA1112A: también su ida y vuelta medida (la prueba de que la red nativa lleva algo).
-      rutaNativa.set(neurona, { ip: !!n, t: Date.now(), enVuelo: false, rtt: typeof n?.rttMs === "number" ? n.rttMs : null });
+      const suyos = l.filter((e) => e.tipo === "nativo" && e.alcanza?.neuronDeviceId === neurona);
+      const n = suyos.find((e) => e.abierto);
+      // LLA1112A: también su ida y vuelta medida (la prueba de que la red nativa lleva algo). LLA1113A: también la de un enlace
+      // CAÍDO (la red nativa lo lista con `abierto: false` y el rtt de su último envío bueno): así, si vuelve con ese mismo rtt,
+      // se sabe que no ha llevado nada desde entonces (ver `observarRutasIp`).
+      const conRtt = n ?? suyos[0];
+      rutaNativa.set(neurona, { ip: !!n, t: Date.now(), enVuelo: false, rtt: typeof conRtt?.rttMs === "number" ? conRtt.rttMs : null });
     })
     .catch(() => rutaNativa.set(neurona, { ip: c.ip, t: Date.now(), enVuelo: false }));
 }
@@ -109,8 +113,61 @@ export function hayRutaIpHacia(neurona: string): boolean | null {
   }
   if (enlacesDatosHacia(neurona).some((e) => e.ip)) return true;
   refrescarRutaNativa(neurona);
+  observarRutasIp(neurona); // LLA1113A
   const n = rutaNativa.get(neurona)?.ip ?? null;
   return n === null ? null : n;
+}
+
+/*
+ * LLA1113A · Una ruta que cae y vuelve con el MISMO rtt no ha llevado nada desde entonces.
+ * Prueba 40 (Mac ↔ tableta con el Wi-Fi de la tableta apagado): la red nativa hacia la tableta se daba por caída tras seis
+ * envíos sin acuse (30 s, `CAIDA_MS` de la red local nativa) y volvía a «abierta» sola, con el rtt del último envío que salió
+ * bien MINUTOS antes (el rtt solo cambia con un envío que sale bien; nunca se borra). Cada vuelta era «ruta nueva» (la cuenta de
+ * reintentos empezaba en 1) y «con tráfico» (había un rtt): 32 reintentos de WebRTC en 12 min, ninguno con salida, y la regla
+ * «ruta IP sin usar» de LLA1112A nunca se cumplía. Ahora se guarda el rtt de cada ruta cuando deja de verse; si vuelve con el
+ * mismo, no cuenta como tráfico hasta que un envío de verdad lo cambie (lo que pasa en cuanto la ruta lleva algo otra vez).
+ */
+const rttAlCaer = new Map<string, number>();
+const rutasVistas = new Map<string, Map<string, number | null>>();
+
+const numero = (x: unknown): number | null => (typeof x === "number" && Number.isFinite(x) ? x : null);
+
+/** Las rutas IP que lleva hacia esa neurona ahora («local:…» y «nativo»), con su rtt; guarda el de las que dejaron de verse. */
+function observarRutasIp(neurona: string): Map<string, number | null> {
+  const ahora = new Map<string, number | null>();
+  try {
+    const l = enlaceVivoMasNuevoCon(neurona);
+    if (l) ahora.set(`local:${l.id.slice(-6)}`, numero(l.rttMs()));
+  } catch {
+    /* sin registro */
+  }
+  const n = rutaNativa.get(neurona);
+  if (n?.ip) ahora.set("nativo", numero(n.rtt));
+  // Caída AHORA y con un rtt conocido (el de su último envío bueno): ese rtt ya no prueba nada si vuelve igual.
+  else if (n && numero(n.rtt) !== null) rttAlCaer.set(`${neurona}|nativo`, n.rtt as number);
+  const antes = rutasVistas.get(neurona);
+  if (antes) {
+    for (const [fuente, rtt] of antes) if (!ahora.has(fuente) && rtt !== null) rttAlCaer.set(`${neurona}|${fuente}`, rtt);
+  }
+  rutasVistas.set(neurona, ahora);
+  return ahora;
+}
+
+/** ¿Ese rtt es una medida nueva? (no lo es si la ruta cayó con él y volvió sin que cambiara). */
+function rttNuevo(neurona: string, fuente: string, rtt: number | null): boolean {
+  if (rtt === null) return false;
+  const clave = `${neurona}|${fuente}`;
+  if (!rttAlCaer.has(clave)) return true;
+  if (rttAlCaer.get(clave) === rtt) return false;
+  rttAlCaer.delete(clave);
+  return true;
+}
+
+/** Para pruebas. */
+export function __olvidarRutasIp(): void {
+  rttAlCaer.clear();
+  rutasVistas.clear();
+  rutaNativa.clear();
 }
 
 /**
@@ -144,14 +201,10 @@ export function rutaIpConTrafico(neurona: string): boolean {
   } catch {
     /* sin orquestación */
   }
-  try {
-    const l = enlaceVivoMasNuevoCon(neurona);
-    if (l && typeof l.rttMs() === "number") return true;
-  } catch {
-    /* sin registro */
-  }
-  const n = rutaNativa.get(neurona);
-  return !!n?.ip && typeof n.rtt === "number";
+  // LLA1113A: el rtt cuenta solo si es una medida nueva (ver `observarRutasIp`): uno que sobrevivió a la caída de su ruta, no.
+  const rutas = observarRutasIp(neurona);
+  for (const [fuente, rtt] of rutas) if (rttNuevo(neurona, fuente, rtt)) return true;
+  return false;
 }
 
 /**

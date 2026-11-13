@@ -365,6 +365,43 @@ describe("MotorLlamada", () => {
         vi.unstubAllGlobals();
     });
 
+    it("(LLA1113A) como la tableta de la prueba 40: con su cámara abierta otra da NotReadableError; se suelta la de ahora y se abre en serie", async () => {
+        const medios = await import("@/lib/llamadas/medios");
+        const mapa = new Map<string, string>();
+        vi.stubGlobal("localStorage", { getItem: (k: string) => mapa.get(k) ?? null, setItem: (k: string, v: string) => void mapa.set(k, v), removeItem: (k: string) => void mapa.delete(k), clear: () => mapa.clear() });
+        const a = new MotorLlamada({ sesionId: "s-cam-serie", yo: yo("a"), intervaloNivelMs: 60_000, intervaloStatsMs: 60_000 });
+        await a.prepararMedios({ audio: true, video: false });
+        a.entrar();
+        expect(await a.alternarCamara()).toBeNull();
+        const delantera = (a as unknown as { pistaCamara: PistaFalsa | null }).pistaCamara ?? undefined;
+        expect(delantera?.readyState).toBe("live");
+        // Android: una segunda cámara no abre mientras la primera esté viva (lo que dio el registro de la tableta).
+        const vivas = () => (delantera ? delantera.readyState === "live" : false);
+        vi.mocked(medios.obtenerPista).mockImplementation(async (tipo) =>
+            tipo === "video" && vivas() ? { pista: null, error: "La cámara está ocupada por otra aplicación.", ocupada: true } : { pista: new PistaFalsa(tipo) as unknown as MediaStreamTrack, error: null },
+        );
+        try {
+            expect(await a.cambiarCamara("trasera-2")).toBeNull();
+            expect(delantera?.readyState).toBe("ended");
+            expect(a.estado().camara).toBe(true);
+            expect(a.estado().seleccion.camaraId).toBe("trasera-2");
+            // Y si la pedida tampoco abre con la otra suelta, vuelve la de antes (la llamada no se queda sin imagen) y se dice.
+            vi.mocked(medios.obtenerPista).mockReset();
+            vi.mocked(medios.obtenerPista)
+                .mockResolvedValueOnce({ pista: null, error: "La cámara está ocupada por otra aplicación.", ocupada: true })
+                .mockResolvedValueOnce({ pista: null, error: "No abre.", ocupada: true })
+                .mockResolvedValueOnce({ pista: new PistaFalsa("video") as unknown as MediaStreamTrack, error: null });
+            expect(await a.cambiarCamara("otra-3")).toBe("No abre.");
+            expect(a.estado().camara).toBe(true);
+            expect(a.estado().seleccion.camaraId).not.toBe("otra-3");
+        } finally {
+            vi.mocked(medios.obtenerPista).mockReset();
+            vi.mocked(medios.obtenerPista).mockImplementation(async (tipo) => ({ pista: new PistaFalsa(tipo) as unknown as MediaStreamTrack, error: null }));
+            a.colgar();
+            vi.unstubAllGlobals();
+        }
+    });
+
     it("(LLA1111H) cuadros decodificados + <video> que lleva ≥ 2,5 s sin pintar: no cuenta como «imagen por WebRTC»; si avisa tarde o vuelve a pintar, sí", () => {
         vi.useFakeTimers({ toFake: ["Date"] });
         try {
