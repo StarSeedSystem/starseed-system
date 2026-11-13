@@ -1484,18 +1484,51 @@ def una_pasada(forzar: bool = False) -> bool:
     return False
 
 
+#: (REC1113A, 12-11) El servicio vive días (KeepAlive) y Python no relee lo que ya importó: el arreglo de
+#: una build del A1 llegaba a main y el servicio seguía lanzando la build VIEJA hasta que alguien lo
+#: reiniciaba a mano. Si cambia su propio código (o el de las piezas que importa para compilar), entre
+#: pasada y pasada se reemplaza a sí mismo (`execv`: mismo pid para launchd, nada se mata).
+CODIGO_PROPIO = ("reconstruir_mando.py", "compilar_en_a1.py", "oracle_nodo.py", "con-turno.py")
+
+
+def huella_codigo(carpeta=None, nombres=CODIGO_PROPIO):
+    """(ruta, mtime_ns, tamaño) de las piezas del propio servicio; las que faltan cuentan como None."""
+    carpeta = carpeta or os.path.dirname(os.path.abspath(__file__))
+    filas = []
+    for n in nombres:
+        try:
+            st = os.stat(os.path.join(carpeta, n))
+            filas.append((n, st.st_mtime_ns, st.st_size))
+        except OSError:
+            filas.append((n, None, None))
+    return tuple(filas)
+
+
+def codigo_cambiado(al_arrancar, ahora) -> bool:
+    """PURA: ¿hay que releerse? Solo si el propio script sigue ahí (un checkout a medias que lo quita
+    no puede dejar al servicio ejecutando un archivo que no existe) y algo cambió desde el arranque."""
+    if not al_arrancar or not ahora:
+        return False
+    propio = dict((n, m) for n, m, _t in ahora).get(CODIGO_PROPIO[0])
+    return propio is not None and tuple(ahora) != tuple(al_arrancar)
+
+
 def main() -> int:
     if "--una-vez" in sys.argv:
         una_pasada(forzar="--ya" in sys.argv)
         return 0
     print("Reconstructor de Genesis · cada %d s · el build va con el turno de la máquina"
           % INTERVALO_S, flush=True)
+    al_arrancar = huella_codigo()
     while True:
         try:
             una_pasada()
         except Exception as e:
             print("reconstruir-mando: %s: %s" % (type(e).__name__, e), flush=True)
         time.sleep(INTERVALO_S)
+        if codigo_cambiado(al_arrancar, huella_codigo()):
+            print("[%s] mi código cambió en el disco: me releo" % time.strftime("%H:%M"), flush=True)
+            os.execv(sys.executable, [sys.executable, os.path.abspath(__file__)] + sys.argv[1:])
 
 
 if __name__ == "__main__":

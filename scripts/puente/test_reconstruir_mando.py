@@ -1248,3 +1248,43 @@ class ArtefactoCI(unittest.TestCase):
         with mock.patch.object(R.subprocess, "run", return_value=mock.Mock(returncode=1, stdout="", stderr="boom")):
             self.assertIsNone(R.artefacto_ci_disponible("h", raiz=raiz))
 
+
+
+class ServicioSeRelee(unittest.TestCase):
+    """REC1113A: el servicio no se queda con el código viejo en memoria tras un arreglo en main."""
+
+    def setUp(self):
+        self.d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.d, True)
+        for n in R.CODIGO_PROPIO:
+            with open(os.path.join(self.d, n), "w", encoding="utf-8") as f:
+                f.write("x")
+
+    def test_sin_cambios_no_se_relee(self):
+        h = R.huella_codigo(self.d)
+        self.assertFalse(R.codigo_cambiado(h, R.huella_codigo(self.d)))
+
+    def test_cambia_una_pieza_que_importa_y_se_relee(self):
+        h = R.huella_codigo(self.d)
+        with open(os.path.join(self.d, "compilar_en_a1.py"), "w", encoding="utf-8") as f:
+            f.write("montón a la medida")
+        self.assertTrue(R.codigo_cambiado(h, R.huella_codigo(self.d)))
+
+    def test_sin_el_propio_script_no_se_relee(self):
+        h = R.huella_codigo(self.d)
+        os.remove(os.path.join(self.d, "reconstruir_mando.py"))  # checkout a medias
+        self.assertFalse(R.codigo_cambiado(h, R.huella_codigo(self.d)))
+        self.assertFalse(R.codigo_cambiado((), R.huella_codigo(self.d)))
+
+    def test_el_bucle_se_relee_entre_pasadas_y_no_a_mitad(self):
+        orden = []
+        huellas = iter([(("reconstruir_mando.py", 1, 1),), (("reconstruir_mando.py", 2, 1),)])
+        with mock.patch.object(R.sys, "argv", ["reconstruir_mando.py"]), \
+                mock.patch.object(R, "una_pasada", side_effect=lambda: orden.append("pasada")), \
+                mock.patch.object(R.time, "sleep", side_effect=lambda s: orden.append("espera")), \
+                mock.patch.object(R, "huella_codigo", side_effect=lambda: next(huellas)), \
+                mock.patch.object(R.os, "execv", side_effect=SystemExit("execv")) as execv:
+            with self.assertRaises(SystemExit):
+                R.main()
+        self.assertEqual(orden, ["pasada", "espera"])
+        self.assertTrue(execv.call_args[0][1][1].endswith("reconstruir_mando.py"))
