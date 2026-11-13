@@ -8,6 +8,7 @@ import sys
 import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
+from unittest.mock import patch
 
 DIRECTORIO = os.path.dirname(os.path.abspath(__file__))
 if DIRECTORIO not in sys.path:
@@ -384,6 +385,7 @@ class TestRespaldo(unittest.TestCase):
         self.assertTrue(r["ok"])
         self.assertEqual(r["resultado"]["accion"], "entregada")
         self.assertEqual(len(enviados), 2)
+        self.assertIn("Pídeme en este chat", enviados[1])
         estado = A.cargar_estado(self.raiz)
         self.assertTrue(estado["entregada"])
         self.assertTrue(estado["respaldo"])
@@ -397,7 +399,9 @@ class TestRespaldo(unittest.TestCase):
         self.assertIsNone(A._redactar_flota("p", clave=None))
 
     def test_subir_doc_sin_token_devuelve_none(self):
-        self.assertIsNone(A._subir_doc(FECHA, "texto", pedir=lambda u, c: None))
+        import cuentas_google as CG
+        with patch.object(CG, 'token', return_value=None):
+            self.assertIsNone(A._subir_doc(FECHA, "texto", pedir=lambda u, c: None))
 
 
 class TestPuntuacionJev(unittest.TestCase):
@@ -475,6 +479,42 @@ class TestNotebookLMSource(unittest.TestCase):
                     drive_doc_id="doc-xyz")
         self.assertTrue(r["ok"])
         self.assertEqual(r["resultado"]["accion"], "entregada")
+
+    def test_entregar_sube_drive_y_luego_asegura_fuente(self):
+        """PET1112F: si no hay drive_doc_id, sube a Drive primero y usa el id para NotebookLM."""
+        os.makedirs(os.path.join(self.raiz, A.REL_SINTESIS), exist_ok=True)
+        ruta = os.path.join(self.raiz, A.REL_SINTESIS, f"{FECHA}.md")
+        texto = "Síntesis con fuentes. " * 50
+        with open(ruta, "w", encoding="utf-8") as f:
+            f.write(texto)
+
+        enviados = []
+        subidos = []
+        nb_calls = []
+
+        def enviar_falso(texto, **kw):
+            enviados.append(texto)
+            return {"ok": True, "trozos": 1}
+
+        def subir_drive_falso(fecha, texto):
+            subidos.append((fecha, texto[:50]))
+            return "drive-doc-789"
+
+        def asegurar_fuente_falso(fid, titulo):
+            nb_calls.append(("asegurar_fuente", fid, titulo))
+            return "source-456"
+
+        r = A.ciclo(self.raiz, AHORA_CDMX_07, encargar=False, jev=False,
+                    enviar=enviar_falso, home=self.home, seco=False,
+                    asegurar_fuente=asegurar_fuente_falso,
+                    subir_drive=subir_drive_falso)
+        self.assertTrue(r["ok"])
+        self.assertEqual(r["resultado"]["accion"], "entregada")
+        self.assertEqual(len(enviados), 2)
+        self.assertEqual(len(subidos), 1)
+        self.assertEqual(subidos[0][0], FECHA)
+        self.assertEqual(len(nb_calls), 1)
+        self.assertEqual(nb_calls[0][1], "drive-doc-789")
 
 
 if __name__ == "__main__":

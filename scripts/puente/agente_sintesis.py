@@ -499,7 +499,7 @@ def _respaldo(raiz, estado, ahora, redactar=None, subir_drive=None, seco=False, 
 def _entregar(raiz, estado, ahora, enviar, jev, seco, redactar=None, subir_drive=None,
               asegurar_fuente=None, drive_doc_id=None):
     """Fase 3: a las 07:54 sin texto, respaldo (la flota redacta en un paso); luego puntúa,
-    guarda markdown, envía a Telegram y añade la fuente a NotebookLM."""
+    guarda markdown, envía a Telegram, sube a Drive y añade la fuente a NotebookLM."""
     fecha = _fecha_cdmx(ahora)
     ruta_md = os.path.join(raiz, REL_SINTESIS, f"{fecha}.md")
     if not os.path.exists(ruta_md):
@@ -514,6 +514,22 @@ def _entregar(raiz, estado, ahora, enviar, jev, seco, redactar=None, subir_drive
         texto = f.read()
     if seco:
         return {"accion": "seco", "mensaje": "(seco) no se envía ni se marca entregada", "resumen": _resumen_1500_3000(texto)}
+
+    # Subir a Drive y obtener el id (antes de enviar a Telegram)
+    if not drive_doc_id:
+        try:
+            subidor = subir_drive or _subir_doc
+            texto_limpio = texto
+            lineas = texto.splitlines()
+            if lineas and lineas[0].startswith("```"):
+                lineas = lineas[1:]
+            if lineas and lineas[-1].strip().startswith("```"):
+                lineas = lineas[:-1]
+            texto_limpio = "\n".join(lineas).strip() if lineas else texto
+            drive_doc_id = subidor(fecha, texto_limpio)
+        except Exception:
+            drive_doc_id = None
+
     puntuacion = _puntuar({"texto": texto[:6000]}, jev)
     estado["puntuacion"] = puntuacion
     resumen = _resumen_1500_3000(texto)
