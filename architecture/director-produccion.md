@@ -369,7 +369,9 @@ swap, intocable: una build con swap ya congeló esta Mac) y la build va al A1 (`
   build). Main había crecido esa noche; la build de las 23:00 aún cupo en 4096.
 - **Desde entonces:** el montón se pide a la medida al empezar la build en el A1: `MemAvailable − 1024 MB`,
   entre 4096 y 6144 (`STARSEED_A1_HEAP_PISO_MB`, `_TECHO_MB`, `_MARGEN_MB`); queda escrito en el registro
-  como `heap=N MB`. Un fallo se resume por su causa (`motivo_fallo`: montón agotado, Killed, error de tipos)
+  como `heap=N MB`. Si no hay piso + margen (5120 MB) disponibles —el 13-11 a las 00:10 el `next build` del
+  propio medio del A1 ocupaba 8,7 GB con el swap lleno—, espera hasta 20 min (`STARSEED_A1_ESPERA_MEMORIA_S`)
+  y anota `espero memoria`; pasado el plazo compila con el piso. Un fallo se resume por su causa (`motivo_fallo`: montón agotado, Killed, error de tipos)
   delante de la cola del registro, en vez de media pila de V8.
 - **El servicio se relee:** vive días y Python no relee lo importado; un arreglo en main no se usaba hasta
   reiniciarlo a mano. Ahora, entre pasada y pasada, si cambian `reconstruir_mando.py`, `compilar_en_a1.py`,

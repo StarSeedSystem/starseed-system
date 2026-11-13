@@ -186,13 +186,27 @@ def heap_para(disponible_mb, piso=HEAP_PISO_MB, techo=HEAP_TECHO_MB, margen=HEAP
     return max(int(piso), min(int(techo), d - int(margen)))
 
 
-def frag_heap(piso=HEAP_PISO_MB, techo=HEAP_TECHO_MB, margen=HEAP_MARGEN_MB):
+#: (REC1113A, 13-11 00:10, MEDIDO) Mientras esta build esperaba turno, el `next build` del propio medio
+#: del A1 (starseed-medio.service) ocupaba 8,7 GB con el swap lleno: 0,9 GB disponibles. Empezar así,
+#: aun con el piso, es empujar al A1 al oom-killer. Si no hay piso + margen libres, se espera (como mucho
+#: esto) a que los haya; pasado el plazo se compila con el piso, como antes de REC1113A.
+ESPERA_MEMORIA_S = int(os.environ.get("STARSEED_A1_ESPERA_MEMORIA_S", "1200"))
+
+
+def frag_heap(piso=HEAP_PISO_MB, techo=HEAP_TECHO_MB, margen=HEAP_MARGEN_MB,
+              espera_s=ESPERA_MEMORIA_S, paso_s=30):
     """PURA: `sh` que deja en `$h` el montón según MemAvailable (`heap_para`) y lo anota en el registro
-    (`heap=N MB`). Sin `/proc/meminfo` (o sin awk), el piso. Sin comillas simples: viaja en `sh -c '…'`."""
-    return ('d=$(awk "/^MemAvailable:/{print int(\\$2/1024)}" /proc/meminfo 2>/dev/null); '
+    (`heap=N MB`). Con menos de piso + margen disponibles espera hasta `espera_s` a que se liberen.
+    Sin `/proc/meminfo` (o sin awk), el piso y sin esperar. Sin comillas simples: viaja en `sh -c '…'`."""
+    medir = 'd=$(awk "/^MemAvailable:/{print int(\\$2/1024)}" /proc/meminfo 2>/dev/null); '
+    return (medir +
+            'n=0; while [ -r /proc/meminfo ] && [ "${d:-0}" -lt %d ] && [ "$n" -lt %d ]; do '
+            'if [ "$n" -eq 0 ]; then echo "espero memoria: ${d:-?} MB disponibles, hacen falta %d"; fi; '
+            'sleep %d; n=$(( n + %d )); %sdone; '
             'h=$(( ${d:-0} - %d )); if [ "$h" -gt %d ]; then h=%d; fi; if [ "$h" -lt %d ]; then h=%d; fi; '
             'echo "heap=$h MB (MemAvailable ${d:-?} MB)"; '
-            % (int(margen), int(techo), int(techo), int(piso), int(piso)))
+            % (int(piso) + int(margen), int(espera_s), int(piso) + int(margen), int(paso_s), int(paso_s), medir,
+               int(margen), int(techo), int(techo), int(piso), int(piso)))
 
 
 _HEAP_AGOTADO = re.compile(r"heap out of memory|reached heap limit|ineffective mark-compacts", re.I)

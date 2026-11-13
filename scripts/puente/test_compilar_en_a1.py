@@ -778,17 +778,29 @@ class MontonALaMedida(unittest.TestCase):
         self.assertNotIn("MemAvailable", C.guion_compilar("/r", heap=5000))
         self.assertNotIn("'", C.frag_heap())  # viaja dentro de `sh -c '…'` (orden_compilar)
 
-    def _heap_del_guion(self, meminfo):
+    def _heap_del_guion(self, meminfo, espera_s=0, paso_s=1):
         """Ejecuta el trozo de verdad con un /proc/meminfo de mentira y devuelve lo que anota."""
         with tempfile.TemporaryDirectory() as d:
             ruta = os.path.join(d, "meminfo")
             if meminfo is not None:
                 with open(ruta, "w", encoding="utf-8") as f:
                     f.write(meminfo)
-            frag = C.frag_heap(4096, 6144, 1024).replace("/proc/meminfo", shlex.quote(ruta))
+            frag = C.frag_heap(4096, 6144, 1024, espera_s=espera_s, paso_s=paso_s).replace(
+                "/proc/meminfo", shlex.quote(ruta))
             r = subprocess.run(["sh", "-c", frag + 'echo "fin=$h"'], capture_output=True, text=True, timeout=20)
             self.assertEqual(r.returncode, 0, r.stderr)
             return r.stdout
+
+    def test_con_el_a1_apretado_espera_memoria_con_plazo(self):
+        # 00:10 del 13-11: el next build del medio del A1 dejó 0,9 GB disponibles y el swap lleno.
+        t0 = time.time()
+        salida = self._heap_del_guion("MemAvailable: 921600 kB\n", espera_s=2, paso_s=1)
+        self.assertIn("espero memoria: 900 MB disponibles, hacen falta 5120", salida)
+        self.assertEqual(salida.count("espero memoria"), 1)
+        self.assertIn("fin=4096", salida)  # agotado el plazo, el piso de siempre
+        self.assertLess(time.time() - t0, 10)
+        self.assertNotIn("espero", self._heap_del_guion("MemAvailable: 7168000 kB\n", espera_s=2))
+        self.assertNotIn("espero", self._heap_del_guion(None, espera_s=2))  # sin meminfo no espera
 
     def test_el_trozo_de_sh_hace_la_misma_cuenta_que_heap_para(self):
         for disp_kb, esperado in ((7168000, C.heap_para(7000, 4096, 6144, 1024)),
