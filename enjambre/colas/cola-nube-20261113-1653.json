@@ -1,0 +1,16 @@
+{
+ "ola": "nube-20261113",
+ "tareas": [
+  {
+   "id": "HGF1113A",
+   "ola": "HGF1113",
+   "titulo": "Higgsfield · registro de propuestas, aprobaciones y gasto",
+   "archivos": [
+    "scripts/puente/higgsfield_aprobado.py",
+    "scripts/puente/test_higgsfield_aprobado.py"
+   ],
+   "depende": [],
+   "prompt": "Lee architecture/higgsfield-aprobado-1113.md. Crea higgsfield_aprobado.py, con núcleo PURO y E/S inyectable. Propuestas en starseed_memory_root/produccion/higgsfield/propuestas.json: id, proyecto, pieza, modelo, comando exacto del CLI `higgsfield`, tomas, créditos estimados y motivo. Aprobar guarda el sha256 del comando, quién y cuándo; rechazar; presupuestos por proyecto, con aviso al 80 % y parada al 100 %. ejecutar(id) SOLO corre si la aprobación existe y el hash coincide; invoca el CLI con subprocess (inyectable), registra el gasto real en gasto.jsonl y nunca reintenta. Si el CLI no está instalado o no hay sesión, devuelve un motivo claro sin fallar. Pruebas sin red: un comando cambiado no hereda la aprobación; sin aprobación no hay ejecución; al 100 % del presupuesto se para. Máximo 120 líneas por archivo."
+  }
+ ]
+}
