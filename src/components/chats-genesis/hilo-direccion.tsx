@@ -14,13 +14,19 @@
  * Pantallas pequeñas (§8): por debajo de `sm` las vistas y los filtros se eligen en lista completa
  * y las acciones de cada mensaje van en «⋯»; el hilo tiene su propio scroll y el cuadro de texto
  * queda abajo, también con el teclado abierto (`useTecladoVisible`).
+ *
+ * GEN1114F (contrato GEN1114 §3.4, §3.9 y §8.5): encima del hilo, el nombre del chat del catálogo (el
+ * que se firma); sin aparato emparejado, la tarjeta de emparejar en lugar del cuadro de texto; con un
+ * aparato de nivel «texto», solo «al hilo» (sin motores); y antes de algo que despierta a un director,
+ * la línea «Va a …» con la descripción fija del código y el chat que se firma.
  */
 
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
-import { createPortal } from "react-dom";
-import { ArrowDown, Filter, LayoutList, MoreHorizontal, Reply, Send, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ArrowDown, Filter, LayoutList, MoreHorizontal, Reply, Route, Send } from "lucide-react";
 
-import { MenuListaMovil } from "@/components/ui/menu-lista-movil";
+import { DESTINO_DE_FUENTE } from "@/lib/chats-genesis/alias-gen1113";
+import { chatDeFuente, chatParaFirmar, nombreDeChat, type CatalogoCanon } from "@/lib/chats-genesis/canon";
+import { riesgoDeEntrada, type AparatoLocal } from "@/lib/chats-genesis/firma-aparato";
 import {
     FILTRO_TODOS,
     aplicarFiltro,
@@ -43,16 +49,23 @@ import type { ClienteChatsGenesis } from "@/lib/chats-genesis/puerta-chats";
 import { cn } from "@/lib/utils";
 
 import {
+    CabeceraChat,
     CabeceraEspejo,
     momentoTexto,
     textoEnvio,
     useAhora,
     useEnvios,
     useFeedEspejo,
+    type ChatVisto,
     type EnvioLocal,
     type Origen,
     type RegistroEspejo,
 } from "./cabecera-espejo";
+import { EmparejarAparato } from "./emparejar-aparato";
+import { Hoja } from "./hoja";
+import { InfoChat } from "./info-chat";
+// GEN1114F: las listas de vistas y filtros van en la hoja de Genesis (deja libre el carril de los flotantes).
+import { MenuListaHoja as MenuListaMovil } from "./menu-lista-hoja";
 import { ANCHO_LG, ANCHO_SM, usePantallaAncha } from "./lista-chats-genesis";
 
 // ── Vistas y filtros ─────────────────────────────────────────────────────────
@@ -164,33 +177,7 @@ export function useTecladoVisible() {
     return { logRef, compositorRef, pegadoRef, pegado, bajar, alDesplazar };
 }
 
-/** Hoja de opciones: abajo en móvil, centrada en pantallas grandes (mismo aire que MenuListaMovil). */
-export function Hoja({ titulo, abierta, onCerrar, children, pie }: { titulo: string; abierta: boolean; onCerrar: () => void; children: ReactNode; pie?: ReactNode }) {
-    const idTitulo = useId();
-    useEffect(() => {
-        if (!abierta) return;
-        const alTeclado = (e: KeyboardEvent) => { if (e.key === "Escape") onCerrar(); };
-        window.addEventListener("keydown", alTeclado);
-        return () => window.removeEventListener("keydown", alTeclado);
-    }, [abierta, onCerrar]);
-    if (!abierta || typeof document === "undefined") return null;
-    return createPortal(
-        <div className="fixed inset-0 z-[95] flex items-end justify-center sm:items-center" role="dialog" aria-modal="true" aria-labelledby={idTitulo}>
-            <button type="button" aria-label="Cerrar" className="absolute inset-0 cursor-default bg-black/60" onClick={onCerrar} />
-            <div className="relative z-10 flex max-h-[82dvh] w-full max-w-md flex-col overflow-hidden rounded-t-2xl border border-white/12 bg-[#0a0e1a] pb-[env(safe-area-inset-bottom)] shadow-2xl sm:rounded-2xl">
-                <div className="flex shrink-0 items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
-                    <span id={idTitulo} className="text-sm font-semibold text-white">{titulo}</span>
-                    <button type="button" onClick={onCerrar} aria-label="Cerrar la lista" className="grid size-9 cursor-pointer place-items-center rounded-full border border-white/10 text-white/60 transition-colors duration-200 hover:bg-white/10 hover:text-white">
-                        <X className="size-4" />
-                    </button>
-                </div>
-                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-2">{children}</div>
-                {pie ? <div className="flex shrink-0 flex-wrap justify-end gap-2 border-t border-white/10 px-4 py-3">{pie}</div> : null}
-            </div>
-        </div>,
-        document.body,
-    );
-}
+export { Hoja };
 
 /** Un envío hecho desde aquí, con su estado real. */
 export function TarjetaEnvio({ envio, ahora, destino, onQuitar }: { envio: EnvioLocal; ahora: number; destino: Origen; onQuitar: (clave: string) => void }) {
@@ -207,6 +194,7 @@ export function TarjetaEnvio({ envio, ahora, destino, onQuitar }: { envio: Envio
             <header className="flex flex-wrap items-center gap-2 text-cyan-300">
                 <span className="font-semibold text-cyan-200">Tú</span>
                 <span className="rounded border border-cyan-400/30 bg-cyan-400/15 px-1.5 py-0.5 text-[10px] text-cyan-100">vía Genesis en Astraura</span>
+                {envio.firmado ? <span data-testid="marca-firmado" className="rounded border border-emerald-400/30 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] text-emerald-100">firmado · {envio.firmado}</span> : null}
                 <span className="ml-auto text-[10px] text-cyan-500/80">{horaMensaje(new Date(envio.iniciado).toISOString(), ahora)}</span>
             </header>
             <p className="mt-2 whitespace-pre-line break-words text-cyan-50 [overflow-wrap:anywhere]">{envio.texto}</p>
@@ -320,9 +308,11 @@ function TarjetaDireccion({ mensaje: m, ahora, esDueno, anchaSm, onAccion }: Tar
 
 // ── Hoja de acciones de un mensaje («Responder con» y «Enviar a») ────────────
 
-function HojaAcciones({ mensaje, modo, onCerrar, onResponder, onReenviar }: {
+function HojaAcciones({ mensaje, modo, vaA, onCerrar, onResponder, onReenviar }: {
     mensaje: RegistroEspejo | null;
     modo: "responder" | "reenviar";
+    /** «Va a …»: responder y reenviar siempre ponen a trabajar a alguien (§3.6, `alto`). */
+    vaA: string;
     onCerrar: () => void;
     onResponder: (id: string, modelo: string) => void;
     onReenviar: (id: string, canales: CanalId[]) => void;
@@ -342,7 +332,7 @@ function HojaAcciones({ mensaje, modo, onCerrar, onResponder, onReenviar }: {
         </button>
     );
     return (
-        <Hoja titulo="Acciones del mensaje" abierta onCerrar={onCerrar} pie={pie}>
+        <Hoja titulo="Acciones del mensaje" abierta onCerrar={onCerrar} pie={<div className="flex w-full flex-col items-end gap-2"><LineaVaA texto={vaA} />{pie}</div>}>
             <div role="tablist" aria-label="Acción" className="mb-2 grid grid-cols-2 gap-1 rounded-xl border border-white/10 p-1">
                 {(["responder", "reenviar"] as const).map((s) => (
                     <button key={s} type="button" role="tab" aria-selected={seccion === s} onClick={() => setSeccion(s)} className={cn("cursor-pointer rounded-lg px-2 py-2 text-xs", seccion === s ? "bg-white/10 text-white" : "text-white/55 hover:text-white")}>
@@ -380,11 +370,33 @@ function HojaAcciones({ mensaje, modo, onCerrar, onResponder, onReenviar }: {
 
 const SOLO_HILO = "";
 
-function CompositorDireccion({ esDueno, onEnviar, aviso }: {
+/** La línea «Va a …» (§3.9): la descripción fija del destino y el chat que se firma. */
+export function LineaVaA({ texto }: { texto: string | null }) {
+    if (!texto) return null;
+    return (
+        <p data-testid="linea-va-a" className="flex w-full items-start gap-1.5 rounded-lg border border-violet-400/25 bg-violet-500/10 px-2.5 py-1.5 text-left text-[11.5px] leading-snug text-violet-100">
+            <Route className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+            <span className="min-w-0 break-words [overflow-wrap:anywhere]">{texto}</span>
+        </p>
+    );
+}
+
+/** El chat que se firma al escribir a la dirección con estos canales (§3.4): un solo canal → su chat. */
+export function chatDeDireccion(catalogo: CatalogoCanon | null, canales: readonly CanalId[]): ChatVisto | null {
+    const unico = canales.length === 1 && canales[0] !== "mando" ? canales[0]! : null;
+    const c = chatParaFirmar(catalogo, "direccion", unico);
+    return c ? { id: c.id, nombre: c.nombre } : null;
+}
+
+function CompositorDireccion({ esDueno, soloTexto, catalogo, onEnviar, aviso }: {
     esDueno: boolean;
+    /** Aparato de nivel «texto»: escribe solo al hilo, sin motores (§3.9). */
+    soloTexto: boolean;
+    catalogo: CatalogoCanon | null;
     aviso: string | null;
     onEnviar: (d: { texto: string; modelo: string; canales: CanalId[] }) => Promise<boolean>;
 }) {
+    const conMotores = esDueno && !soloTexto;
     const [texto, setTexto] = useState("");
     const [enviando, setEnviando] = useState(false);
     const [modelo, setModelo] = useState<string>(() => {
@@ -405,7 +417,7 @@ function CompositorDireccion({ esDueno, onEnviar, aviso }: {
         const cuerpo = texto.trim();
         if (!cuerpo || enviando) return;
         setEnviando(true);
-        const ok = await onEnviar(esDueno ? { texto: cuerpo, modelo, canales } : { texto: cuerpo, modelo: SOLO_HILO, canales: ["mando"] });
+        const ok = await onEnviar(conMotores ? { texto: cuerpo, modelo, canales } : { texto: cuerpo, modelo: SOLO_HILO, canales: ["mando"] });
         setEnviando(false);
         // Si no se envió, el borrador se queda tal cual (§7.2).
         if (ok) {
@@ -414,9 +426,15 @@ function CompositorDireccion({ esDueno, onEnviar, aviso }: {
         }
     };
 
+    // «Va a …» solo cuando lo que se va a enviar despierta a un director (alto).
+    const prevista = conMotores ? { fuente: "direccion" as const, accion: "decir" as const, canales, ...(modelo ? { modelo } : {}) } : null;
+    const chatPrevisto = prevista ? chatDeDireccion(catalogo, canales) : null;
+    const vaA = prevista && chatPrevisto && riesgoDeEntrada(prevista) === "alto" ? `Va a ${DESTINO_DE_FUENTE.direccion} · chat «${chatPrevisto.nombre}»` : null;
+
     return (
         <div data-testid="compositor-genesis" className="flex flex-col gap-2 rounded-2xl border border-white/10 bg-white/[0.03] p-2 backdrop-blur-sm">
             {aviso ? <p role="alert" data-testid="aviso-envio" className="rounded-lg border border-rose-400/30 bg-rose-500/10 px-2.5 py-1.5 text-[11.5px] text-rose-100">{aviso}</p> : null}
+            <LineaVaA texto={vaA} />
             <textarea
                 ref={areaRef}
                 rows={1}
@@ -434,7 +452,7 @@ function CompositorDireccion({ esDueno, onEnviar, aviso }: {
                 className="max-h-44 min-h-[44px] w-full resize-none rounded-xl border border-white/10 bg-background/50 px-3.5 py-2.5 text-[15px] leading-6 text-white placeholder:text-white/40 focus:border-violet-400/50 focus:outline-none focus:ring-2 focus:ring-violet-500/30"
             />
             <div className="flex min-w-0 items-center gap-2">
-                {esDueno ? (
+                {conMotores ? (
                     <>
                         <select
                             aria-label="Quién contesta"
@@ -455,7 +473,11 @@ function CompositorDireccion({ esDueno, onEnviar, aviso }: {
                         </button>
                     </>
                 ) : (
-                    <p className="min-w-0 flex-1 text-[11px] leading-snug text-white/45">Escribes solo al hilo. Poner a trabajar a un director lo hace un dueño de MetaGenesis.</p>
+                    <p data-testid={soloTexto && esDueno ? "aviso-nivel" : undefined} className="min-w-0 flex-1 text-[11px] leading-snug text-white/45">
+                        {esDueno
+                            ? "Desde este aparato solo escribes al hilo. Para poner a trabajar a un director, emparéjalo como completo en la Mac."
+                            : "Escribes solo al hilo. Poner a trabajar a un director lo hace un dueño de MetaGenesis."}
+                    </p>
                 )}
                 <button
                     type="button"
@@ -499,11 +521,23 @@ function canalesDe(modelo: string): CanalId[] {
 export interface HiloDireccionProps {
     cliente: ClienteChatsGenesis;
     esDueno: boolean;
+    /** GEN1114F: la clave de este aparato (undefined = aún se está leyendo; null = no hay). */
+    aparato?: AparatoLocal | null;
+    /** GEN1114F: el catálogo de nombres (de él salen el nombre de la cabecera y el chat que se firma). */
+    catalogo?: CatalogoCanon | null;
+    /** GEN1114F: la tarjeta de emparejar avisa cuando cambia el aparato. */
+    onAparato?: (a: AparatoLocal | null) => void;
 }
 
-export function HiloDireccion({ cliente, esDueno }: HiloDireccionProps) {
+export function HiloDireccion({ cliente, esDueno, aparato, catalogo = null, onAparato }: HiloDireccionProps) {
     const feed = useFeedEspejo(cliente, "direccion");
-    const { envios, enviar, quitar } = useEnvios(cliente);
+    const emparejado = aparato?.estado === "emparejado" ? aparato : null;
+    const { envios, enviar, quitar } = useEnvios(cliente, emparejado ? emparejado.codigo.split("-")[0] : null);
+    const [info, setInfo] = useState(false);
+    // La cabecera enseña el chat de la dirección; es el que se firma con lo que va «al hilo».
+    const chatHilo = chatDeDireccion(catalogo, ["mando"]);
+    const nombreHilo = chatHilo?.nombre ?? nombreDeChat(catalogo, "direccion").nombre;
+    const provisionalHilo = chatParaFirmar(catalogo, "direccion")?.provisional ?? true;
     const ahora = useAhora(1000);
     const anchaSm = usePantallaAncha(ANCHO_SM);
     const anchaLg = usePantallaAncha(ANCHO_LG);
@@ -554,16 +588,18 @@ export function HiloDireccion({ cliente, esDueno }: HiloDireccionProps) {
 
     const mandar = useCallback(async (entrada: Parameters<ClienteChatsGenesis["enviar"]>[0], texto: string) => {
         bajar();
-        const r = await enviar(entrada, texto);
+        const chat = chatDeDireccion(catalogo, entrada.accion === "decir" ? entrada.canales ?? ["mando"] : []);
+        const r = await enviar(entrada, texto, chat);
         setAviso(r.ok ? null : r.motivo);
         return r.ok;
-    }, [bajar, enviar]);
+    }, [bajar, enviar, catalogo]);
 
     const etiquetaVista = VISTAS.find((v) => v.id === vista)?.etiqueta ?? vista;
     const chipsEnLista = !anchaLg && opciones.length > 3;
 
     return (
         <section aria-label="Dirección de MetaGenesis" data-testid="hilo-direccion" className="flex min-h-0 min-w-0 flex-1 flex-col gap-2">
+            <CabeceraChat nombre={nombreHilo} provisional={provisionalHilo} onInfo={() => setInfo(true)} />
             <CabeceraEspejo latido={feed.latido} fallo={feed.fallo} cargado={feed.cargado} origen="mac" queEs="direccion" ahora={ahora} onReintentar={feed.releer} />
 
             <div className={cn("flex min-w-0 shrink-0 gap-2", !anchaSm && chipsEnLista ? "flex-row" : "flex-col")}>
@@ -619,7 +655,7 @@ export function HiloDireccion({ cliente, esDueno }: HiloDireccionProps) {
                                     : `Nada en ${etiquetaVista} entre los últimos ${mensajes.length} mensajes de la copia.`}
                             </p>
                         ) : (
-                            visibles.map((m) => <TarjetaDireccion key={m.id} mensaje={m} ahora={ahora} esDueno={esDueno} anchaSm={anchaSm} onAccion={(mensaje, modo) => setAccion({ mensaje, modo })} />)
+                            visibles.map((m) => <TarjetaDireccion key={m.id} mensaje={m} ahora={ahora} esDueno={esDueno && emparejado?.nivel === "completo"} anchaSm={anchaSm} onAccion={(mensaje, modo) => setAccion({ mensaje, modo })} />)
                         )}
                         {envios.map((e) => <TarjetaEnvio key={e.clave} envio={e} ahora={ahora} destino="mac" onQuitar={quitar} />)}
                     </div>
@@ -628,20 +664,33 @@ export function HiloDireccion({ cliente, esDueno }: HiloDireccionProps) {
             </div>
 
             <div ref={compositorRef} className="shrink-0 pb-[env(safe-area-inset-bottom)]">
+                {aparato === undefined ? (
+                    <p role="status" className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 text-[12px] text-white/55">Comprobando la clave de este aparato…</p>
+                ) : !emparejado ? (
+                    <EmparejarAparato alCambiar={onAparato} />
+                ) : (
                 <CompositorDireccion
                     esDueno={esDueno}
+                    soloTexto={emparejado.nivel !== "completo"}
+                    catalogo={catalogo}
                     aviso={aviso}
                     onEnviar={({ texto, modelo, canales }) => mandar(
                         { fuente: "direccion", accion: "decir", texto, canales, ...(modelo ? { modelo } : {}) },
                         texto,
                     )}
                 />
+                )}
             </div>
 
-            {esDueno && accion ? (
+            <Hoja titulo="Información del chat" abierta={info} onCerrar={() => setInfo(false)} completa>
+                <InfoChat chat={chatDeFuente(catalogo, "direccion")} claveGen1113="direccion" esDueno={esDueno} />
+            </Hoja>
+
+            {esDueno && accion && emparejado?.nivel === "completo" ? (
                 <HojaAcciones
                     mensaje={accion.mensaje}
                     modo={accion.modo}
+                    vaA={`Va a ${DESTINO_DE_FUENTE.direccion} · chat «${nombreHilo}»`}
                     onCerrar={() => setAccion(null)}
                     onResponder={(id, modelo) => void mandar({ fuente: "direccion", accion: "responder", respondeA: id, modelo }, `Pedir respuesta a ${nombreCortoMotor(modelo)}`)}
                     onReenviar={(id, canales) => void mandar({ fuente: "direccion", accion: "reenviar", reenviar: id, canales }, `Reenviar a ${canales.map(nombreCanal).join(", ")}`)}

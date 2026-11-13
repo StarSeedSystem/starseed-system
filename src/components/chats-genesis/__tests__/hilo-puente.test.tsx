@@ -5,7 +5,7 @@ import "@testing-library/jest-dom/vitest";
 import type { RegistroEspejo } from "@/lib/chats-genesis/tipos";
 
 import { HiloPuente, analizarEscrito } from "../hilo-puente";
-import { clienteFalso, haceMin, ponerAncho, respuestaFeed } from "./ayudas";
+import { APARATO_COMPLETO, catalogoDeEjemplo, clienteFalso, haceMin, ponerAncho, respuestaFeed } from "./ayudas";
 
 const AVISO: RegistroEspejo = { id: "cn-1-vigilante", t: haceMin(4), de: "vigilante", rol: "agente", tipo: "aviso", texto: "Cola parada", canal: "mando", fuente: "puente:hermes-avisos" };
 
@@ -35,23 +35,26 @@ describe("HiloPuente", () => {
         window.localStorage.clear();
     });
 
-    it("«Hermes y avisos»: /estado se envía como orden y queda esperando a la Mac", async () => {
+    it("puente A: /estado se envía como orden, firmado con el chat que se ve, y queda esperando a la Mac", async () => {
         ponerAncho(360);
         const { cliente, enviar } = clienteFalso({ feeds: { "puente:hermes-avisos": respuestaFeed([AVISO], 15) } });
-        render(<HiloPuente cliente={cliente} puente="hermes-avisos" esDueno />);
+        render(<HiloPuente cliente={cliente} puente="hermes-avisos" esDueno aparato={APARATO_COMPLETO} catalogo={catalogoDeEjemplo()} />);
         expect(await screen.findByText("Cola parada")).toBeInTheDocument();
         expect(screen.getByTestId("cabecera-espejo")).toHaveTextContent("En vivo desde la Mac");
         const area = screen.getByRole("textbox", { name: "Mensaje u orden para el puente" });
         fireEvent.change(area, { target: { value: "/estado" } });
         fireEvent.keyDown(area, { key: "Enter" });
-        await waitFor(() => expect(enviar).toHaveBeenCalledWith({ fuente: "puente:hermes-avisos", accion: "orden", orden: { nombre: "estado", args: [] } }));
+        await waitFor(() => expect(enviar).toHaveBeenCalledWith(
+            { fuente: "puente:hermes-avisos", accion: "orden", orden: { nombre: "estado", args: [] } },
+            { id: "telegram.hermes_starseed_bot", nombre: "Hermes StarSeed" },
+        ));
         expect(await screen.findByTestId("envio-local")).toHaveTextContent(/En la puerta del A1 · esperando a la Mac/);
     });
 
     it("una orden que no existe no se envía y el borrador se queda", async () => {
         ponerAncho(1440);
         const { cliente, enviar } = clienteFalso();
-        render(<HiloPuente cliente={cliente} puente="hermes-avisos" esDueno />);
+        render(<HiloPuente cliente={cliente} puente="hermes-avisos" esDueno aparato={APARATO_COMPLETO} catalogo={catalogoDeEjemplo()} />);
         const area = screen.getByRole("textbox", { name: "Mensaje u orden para el puente" }) as HTMLTextAreaElement;
         fireEvent.change(area, { target: { value: "/borrar todo" } });
         fireEvent.keyDown(area, { key: "Enter" });
@@ -63,24 +66,25 @@ describe("HiloPuente", () => {
     it("la lista de órdenes se abre completa y una orden se pone en el cuadro de texto", async () => {
         ponerAncho(360);
         const { cliente } = clienteFalso();
-        render(<HiloPuente cliente={cliente} puente="peticiones" esDueno />);
+        render(<HiloPuente cliente={cliente} puente="hermes-avisos" esDueno aparato={APARATO_COMPLETO} catalogo={catalogoDeEjemplo()} />);
         fireEvent.click(screen.getByText("Órdenes"));
         const hoja = screen.getByRole("dialog");
-        // GEN1113INT: solo lo que funciona hoy (/estado y /ayuda) se ofrece; lo demás se nombra como «aún no».
-        expect(within(hoja).getAllByRole("button").filter((b) => b.textContent?.startsWith("/")).map((b) => b.querySelector("code")?.textContent)).toEqual(["/estado", "/ayuda"]);
-        expect(within(hoja).getByTestId("ordenes-aun-no")).toHaveTextContent("Aún no disponibles");
-        expect(within(hoja).getByTestId("ordenes-aun-no")).toHaveTextContent("/encargos · /pausa · /sigue · /cancela");
+        const usos = within(hoja).getAllByRole("button").map((b) => b.querySelector("code")?.textContent).filter(Boolean);
+        expect(usos).toContain("/estado");
+        expect(usos).toContain("/aprobar <ids>");
         fireEvent.click(within(hoja).getByText("/estado"));
         expect((screen.getByRole("textbox", { name: "Mensaje u orden para el puente" }) as HTMLTextAreaElement).value).toBe("/estado ");
     });
 
-    it("«Peticiones y encargos» lo recoge el A1: lo escrito espera al A1", async () => {
+    it("el puente del A1 se lee, pero en la fase 1a no se escribe y se dice por qué", async () => {
         ponerAncho(1440);
-        const { cliente } = clienteFalso({ feeds: { "puente:peticiones": { ok: true, registros: [], cursor: 0, latido: { t: new Date().toISOString(), de: "a1" } } } });
-        render(<HiloPuente cliente={cliente} puente="peticiones" esDueno />);
+        const { cliente, enviar } = clienteFalso({ feeds: { "puente:peticiones": { ok: true, registros: [], cursor: 0, latido: { t: new Date().toISOString(), de: "a1" } } } });
+        render(<HiloPuente cliente={cliente} puente="peticiones" esDueno aparato={APARATO_COMPLETO} catalogo={catalogoDeEjemplo()} />);
         await waitFor(() => expect(screen.getByTestId("cabecera-espejo")).toHaveTextContent("En vivo desde el A1"));
-        fireEvent.click(screen.getByText("/ayuda"));
-        expect(await screen.findByTestId("envio-local")).toHaveTextContent(/esperando al A1/);
+        expect(screen.getByTestId("a1-sin-escritura")).toHaveTextContent("Escribir a Peticiones llega cuando el A1 tenga la versión nueva");
+        expect(screen.queryByRole("textbox")).toBeNull();
+        expect(screen.queryByText("/ayuda")).toBeNull();
+        expect(enviar).not.toHaveBeenCalled();
     });
 
     it("«Avisos de los directores» es solo lectura", async () => {

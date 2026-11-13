@@ -33,6 +33,37 @@ const ENTIDADES_VISIBLES = 4;
 
 type Conexiones = PrefsChatsGenesis["conexiones"];
 
+/**
+ * GEN1114F · Una sola historia para el agente de Mi Genesis, la misma en Conexiones de chat y en la
+ * pestaña Genesis (revisión del 13-11: una decía «aún no está activa» y la otra enseñaba «Usar mis
+ * memorias» encendido, que parecía activo). Sin nada guardado, el agente está APAGADO y la memoria
+ * vale lo que valdrá al activarlo (sí, por defecto). Puro.
+ */
+export function estadoAgenteGenesis(g: { activo: boolean; memoria: boolean } | undefined): {
+  activo: boolean;
+  memoria: boolean;
+  texto: string;
+} {
+  const activo = g?.activo === true;
+  const memoria = g ? g.memoria !== false : true;
+  if (activo) {
+    return {
+      activo,
+      memoria,
+      texto: memoria
+        ? "Activo: el agente de Mi Genesis entra en tus chats y usa tus memorias y contexto."
+        : "Activo: el agente de Mi Genesis entra en tus chats, sin tus memorias ni tu contexto.",
+    };
+  }
+  return {
+    activo,
+    memoria,
+    texto: `Apagado: el agente de Mi Genesis no entra en tus chats. ${
+      memoria ? "Cuando lo actives, usará tus memorias y contexto." : "Cuando lo actives, no usará tus memorias."
+    }`,
+  };
+}
+
 export interface ConexionesGenesisProps {
   foco?: FocoGenesis;
   /** `null` mientras se lee (el panel lo lee una vez para todas sus opciones). */
@@ -95,6 +126,7 @@ export function ConexionesGenesis({ foco, prefs, acceso, onGuardar }: Conexiones
   }
 
   const g = prefs.conexiones.genesis ?? { activo: false, memoria: true };
+  const historia = estadoAgenteGenesis(prefs.conexiones.genesis);
   const pg = prefs.conexiones.poligenesis ?? { activo: false, entidades: [] };
   const mg = prefs.conexiones.metagenesis;
   const lista = entidades ?? [];
@@ -124,8 +156,17 @@ export function ConexionesGenesis({ foco, prefs, acceso, onGuardar }: Conexiones
             El agente de Mi Genesis entra en tus chats como interlocutor: propone cambios en tu cuenta como operaciones
             con vista previa, que tú confirmas y puedes deshacer. No ejecuta órdenes ni código.
           </p>
-          <label className="flex items-center justify-between gap-2 rounded-lg border border-fuchsia-500/15 bg-fuchsia-950/10 px-3 py-2 text-[11px] text-fuchsia-100/85">
-            <span>Usar mis memorias y contexto</span>
+          <p
+            data-testid="estado-agente-genesis"
+            className={cn(
+              "rounded-md border px-3 py-2 text-[11px] leading-relaxed",
+              historia.activo ? "border-emerald-500/25 bg-emerald-950/20 text-emerald-100/90" : "border-white/10 bg-black/20 text-white/70",
+            )}
+          >
+            {historia.texto}
+          </p>
+          <label className={cn("flex items-center justify-between gap-2 rounded-lg border border-fuchsia-500/15 bg-fuchsia-950/10 px-3 py-2 text-[11px] text-fuchsia-100/85", !g.activo && "opacity-75")}>
+            <span>{g.activo ? "Usar mis memorias y contexto" : "Al activarlo, usar mis memorias y contexto"}</span>
             <Switch
               checked={g.memoria}
               disabled={guardando}

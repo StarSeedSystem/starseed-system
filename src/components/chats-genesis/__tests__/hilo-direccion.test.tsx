@@ -5,12 +5,13 @@ import "@testing-library/jest-dom/vitest";
 import { MODELO_PRESIDENTE } from "@/lib/mando/chat-director-tipos";
 
 import { HiloDireccion, CLAVE_FILTROS, leerFiltros, llegoPorGenesis } from "../hilo-direccion";
-import { clienteFalso, feedDeEjemplo, ponerAncho, respuestaFeed } from "./ayudas";
+import { APARATO_COMPLETO, clienteFalso, feedDeEjemplo, ponerAncho, respuestaFeed } from "./ayudas";
 
 async function montar(op: Parameters<typeof clienteFalso>[0] & { esDueno?: boolean; ancho?: number; latidoS?: number | null } = {}) {
     ponerAncho(op.ancho ?? 1440);
     const falso = clienteFalso({ feeds: { direccion: respuestaFeed(feedDeEjemplo(), op.latidoS === undefined ? 10 : op.latidoS) }, ...op });
-    render(<HiloDireccion cliente={falso.cliente} esDueno={op.esDueno ?? true} />);
+    // GEN1114F: con un aparato emparejado (nivel completo); sin él, el cuadro de texto no se ofrece.
+    render(<HiloDireccion cliente={falso.cliente} esDueno={op.esDueno ?? true} aparato={APARATO_COMPLETO} />);
     await screen.findAllByTestId("mensaje-direccion");
     return falso;
 }
@@ -132,7 +133,7 @@ describe("HiloDireccion", () => {
         await act(async () => {
             ponerAncho(1440);
             const f = clienteFalso({ feeds: { direccion: respuestaFeed(feedDeEjemplo(), 10) } });
-            render(<HiloDireccion cliente={f.cliente} esDueno />);
+            render(<HiloDireccion cliente={f.cliente} esDueno aparato={APARATO_COMPLETO} />);
         });
         const vacio = await screen.findByTestId("filtro-vacio");
         expect(vacio).toHaveTextContent("Nada con «nadie» en Todo");

@@ -1020,17 +1020,19 @@ export function ChatSurface({ variant = "embedded", className, initialConvId }: 
       <ScrollArea className="flex-1 p-2.5 sm:p-4" ref={scrollRef}>
         <div className="flex flex-col gap-3 sm:gap-4 max-w-3xl mx-auto pt-14 sm:pt-12">
           {!conv.activeId ? (
-            <div className="flex flex-col items-center justify-center text-center gap-4 py-8 sm:py-14 px-2">
-              <span className="grid place-items-center h-14 w-14 rounded-2xl bg-gradient-to-tr from-primary/25 to-fuchsia-500/25 border border-white/10">
-                <Bot className="w-7 h-7 text-primary" />
+            // GEN1114F (revisión del 13-11, 360×640): más compacto en móvil y con aire debajo, para que
+            // «Abrir navegación» no quede cortado por el borde del hilo.
+            <div data-testid="chat-sin-conversacion" className="flex flex-col items-center text-center gap-3 sm:gap-4 pt-2 pb-6 sm:py-14 px-2">
+              <span className="grid place-items-center h-11 w-11 sm:h-14 sm:w-14 rounded-2xl bg-gradient-to-tr from-primary/25 to-fuchsia-500/25 border border-white/10">
+                <Bot className="w-6 h-6 sm:w-7 sm:h-7 text-primary" />
               </span>
               <div className="space-y-1">
                 <h3 className="text-base font-semibold text-white">Sin conversación activa</h3>
-                <p className="max-w-md text-sm text-white/50">
-                  Escribe abajo para empezar un chat nuevo con Astraura, o abre la navegación para elegir un espacio de trabajo, folder o chat.
+                <p className="max-w-md text-[13px] sm:text-sm leading-snug text-white/50">
+                  Escribe abajo para empezar un chat nuevo con Astraura, o abre la navegación para elegir un espacio de trabajo, una carpeta o un chat.
                 </p>
               </div>
-              <Button variant="outline" className="gap-2 border-white/15 bg-white/[0.03] cursor-pointer" onClick={() => setDrawerOpen(true)}>
+              <Button variant="outline" className="min-h-11 shrink-0 gap-2 border-white/15 bg-white/[0.03] cursor-pointer" onClick={() => setDrawerOpen(true)}>
                 <Menu className="w-4 h-4" /> Abrir navegación
               </Button>
             </div>

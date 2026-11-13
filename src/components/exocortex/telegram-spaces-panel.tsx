@@ -91,7 +91,7 @@ export function TelegramSpacesPanel() {
             </a>
             <a href={BOT} target="_blank" rel="noopener noreferrer">
               <Button size="sm" variant="outline" className="gap-2 border-cyan-500/30 text-cyan-100">
-                <Bot className="w-4 h-4" /> Chatbot
+                <Bot className="w-4 h-4" /> Chat con el bot
               </Button>
             </a>
           </div>

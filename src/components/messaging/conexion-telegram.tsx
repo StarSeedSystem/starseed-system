@@ -8,11 +8,13 @@
  *   1. Vinculación de la cuenta: «Conectar Telegram» / «Reconectar Telegram», el estado de
  *      `telegram_links` y el registro en `messaging_channels.external.config` (lo hace el panel,
  *      igual que antes; aquí solo se pinta).
- *   2. `TelegramSpacesPanel` montado SIN cambios: bot, «Conectar mi cuenta», «Chatbot», los siete
+ *   2. `TelegramSpacesPanel` montado SIN cambios: bot, «Conectar mi cuenta», «Chat con el bot», los siete
  *      canales y grupos de StarSeed y los mensajes sincronizados en tiempo real.
  *   3. Nuevo: por cada chat sincronizado, «Mostrar en Chats» y «Mostrar en Genesis» (vínculos, §2.4).
  *   4. Nuevo, solo con acceso a MetaGenesis: los tres puentes de Telegram con su último aviso,
  *      leído del espejo de la puerta del A1, y «Abrir en Genesis». Los tokens nunca se ven ni viajan.
+ *   5. GEN1114F: el nombre de cada puente y su id de StarSeed salen del catálogo de la Mac (`nombreDeChat`),
+ *      los mismos que en la pestaña Genesis; sin catálogo, el de GEN1113 marcado «nombre provisional».
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -32,13 +34,17 @@ import type { TelegramLink } from "@/lib/messaging/messaging-channels";
 import type { Bandeja, PrefsChatsGenesis, PuenteTelegram, FuenteChat } from "@/lib/chats-genesis/tipos";
 import { idDeVinculo, vincular, cambiarBandejas } from "@/lib/chats-genesis/vinculos";
 import { crearClienteChatsGenesis, estadoEspejo, type ClienteChatsGenesis } from "@/lib/chats-genesis/puerta-chats";
+import { crearClienteCanon, leerCopiaCanon, nombreDeChat, type CatalogoCanon } from "@/lib/chats-genesis/canon";
 import type { AccesoMeta } from "./conexiones-genesis";
 
-/** Los tres puentes de §1.5 (decisión D1). Sus nombres siguen la guardia de `nombre-genesis.test.ts`. */
-export const PUENTES: { id: PuenteTelegram; nombre: string; que: string; soloDueno: boolean }[] = [
-  { id: "hermes-avisos", nombre: "Hermes y avisos", que: "Conversación con Hermes y las órdenes del puente.", soloDueno: true },
-  { id: "peticiones", nombre: "Peticiones y encargos", que: "Peticiones a NotebookLM y encargos largos; lo atiende el A1.", soloDueno: true },
-  { id: "avisos-directores", nombre: "Avisos de los directores", que: "Solo lectura: los avisos de los directores.", soloDueno: false },
+/**
+ * Los tres puentes de §1.5 (decisión D1). GEN1114F: sin nombre fijo; el nombre es el del catálogo de la
+ * Mac (`nombreDeChat`), el mismo que en la pestaña Genesis y en la barra de Chats.
+ */
+export const PUENTES: { id: PuenteTelegram; que: string; soloDueno: boolean }[] = [
+  { id: "hermes-avisos", que: "Conversación con Hermes y las órdenes del puente.", soloDueno: true },
+  { id: "peticiones", que: "Peticiones a NotebookLM y encargos largos; lo atiende el A1.", soloDueno: true },
+  { id: "avisos-directores", que: "Solo lectura: los avisos de los directores.", soloDueno: false },
 ];
 
 export interface ConexionTelegramProps {
@@ -53,6 +59,8 @@ export interface ConexionTelegramProps {
   onGuardar: (siguiente: PrefsChatsGenesis) => Promise<boolean>;
   /** Para pruebas; por defecto, el cliente de la puerta del A1. */
   cliente?: ClienteChatsGenesis;
+  /** GEN1114F · para pruebas; por defecto, el cliente del catálogo de nombres. */
+  clienteCanon?: ReturnType<typeof crearClienteCanon>;
 }
 
 export function ConexionTelegram(props: ConexionTelegramProps) {
@@ -104,7 +112,7 @@ export function ConexionTelegram(props: ConexionTelegramProps) {
 
           <ChatsSincronizados accountId={accountId} prefs={props.prefs} onGuardar={props.onGuardar} />
 
-          {props.acceso?.miembro && <PuentesTelegram dueno={props.acceso.dueno} cliente={props.cliente} />}
+          {props.acceso?.miembro && <PuentesTelegram dueno={props.acceso.dueno} cliente={props.cliente} clienteCanon={props.clienteCanon} />}
         </CardContent>
       )}
     </Card>
@@ -236,9 +244,23 @@ type EstadoPuente =
   | { tipo: "ok"; ultimo: { de: string; t: string } | null; latido: { t: string } | null }
   | { tipo: "error"; texto: string };
 
-function PuentesTelegram({ dueno, cliente }: { dueno: boolean; cliente?: ClienteChatsGenesis }) {
+function PuentesTelegram({ dueno, cliente, clienteCanon }: { dueno: boolean; cliente?: ClienteChatsGenesis; clienteCanon?: ReturnType<typeof crearClienteCanon> }) {
   const cli = useMemo(() => cliente ?? crearClienteChatsGenesis(), [cliente]);
   const [estados, setEstados] = useState<Record<string, EstadoPuente>>({});
+  const [catalogo, setCatalogo] = useState<CatalogoCanon | null>(() => leerCopiaCanon()?.catalogo ?? null);
+
+  useEffect(() => {
+    let vivo = true;
+    void (clienteCanon ?? crearClienteCanon())
+      .leer()
+      .then((r) => {
+        if (vivo) setCatalogo(r.ok ? r.catalogo : r.copia);
+      })
+      .catch(() => { /* sin catálogo: nombres provisionales */ });
+    return () => {
+      vivo = false;
+    };
+  }, [clienteCanon]);
 
   useEffect(() => {
     let vivo = true;
@@ -275,10 +297,16 @@ function PuentesTelegram({ dueno, cliente }: { dueno: boolean; cliente?: Cliente
         <RadioTower className="h-3.5 w-3.5" /> Puentes de Telegram de MetaGenesis
       </h3>
       <ul className="space-y-1.5">
-        {PUENTES.map((p) => (
+        {PUENTES.map((p) => {
+          const n = nombreDeChat(catalogo, `puente:${p.id}`);
+          return (
           <li key={p.id} data-puente={p.id} className="flex flex-col gap-2 rounded-lg border border-violet-500/20 bg-violet-950/10 px-3 py-2 sm:flex-row sm:items-center">
             <div className="min-w-0 flex-1">
-              <div className="text-xs font-medium text-violet-100">{p.nombre}</div>
+              <div className="break-words text-xs font-medium text-violet-100 [overflow-wrap:anywhere]">{n.nombre}</div>
+              {n.provisional ? (
+                <div className="text-[10px] text-amber-200/80">(nombre provisional: la Mac aún no ha publicado el nombre real)</div>
+              ) : null}
+              {n.id ? <div className="break-all text-[10px] text-white/40">Id del chat: {n.id}</div> : null}
               <div className="text-[10px] text-white/45">{p.que}</div>
               <div className="mt-0.5 text-[11px] text-white/70">{textoEstado(estados[p.id])}</div>
             </div>
@@ -286,7 +314,8 @@ function PuentesTelegram({ dueno, cliente }: { dueno: boolean; cliente?: Cliente
               <ExternalLink className="h-3 w-3" /> Abrir en Genesis
             </Link>
           </li>
-        ))}
+          );
+        })}
       </ul>
     </section>
   );

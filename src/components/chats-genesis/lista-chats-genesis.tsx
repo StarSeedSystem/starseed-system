@@ -7,14 +7,20 @@
  * cuenta) y PoliGenesis (mis grupos y páginas con rango ≥ 2). En pantalla ancha es una columna;
  * por debajo de `lg` es UN botón con el chat actual que abre la lista completa (MenuListaMovil),
  * nunca una tira que se corte. Esconder una entrada es comodidad: quien decide es la puerta.
+ *
+ * GEN1114F: los nombres salen del catálogo de la Mac (`nombreDeChat`); sin catálogo se ve el nombre de
+ * GEN1113 con la marca «nombre provisional» y la lista dice desde cuándo falta el catálogo. La lista
+ * de móvil va en la hoja de Genesis, que deja libre el carril de los botones flotantes.
  */
 
 import { useSyncExternalStore, type ComponentType } from "react";
 import { BellRing, Bot, Building2, ListTodo, MessageSquare, MessagesSquare, Send, Users } from "lucide-react";
 
-import { MenuListaMovil } from "@/components/ui/menu-lista-movil";
+import { nombreDeChat, type CatalogoCanon } from "@/lib/chats-genesis/canon";
 import type { VinculoChat } from "@/lib/chats-genesis/tipos";
 import { cn } from "@/lib/utils";
+
+import { MenuListaHoja } from "./menu-lista-hoja";
 
 // ── Ancho de pantalla (las pruebas lo simulan con matchMedia) ────────────────
 
@@ -49,6 +55,8 @@ export interface EntradaChat {
     acento: string;
     /** Subtítulo dentro del grupo («Puentes de Telegram»). */
     seccion?: string;
+    /** GEN1114F: el nombre aún no lo ha publicado la Mac (es el de GEN1113). */
+    provisional?: boolean;
 }
 
 export interface EntidadLista {
@@ -72,12 +80,17 @@ export const NOMBRE_GRUPO: Record<GrupoChats, string> = {
 export const ID_DIRECCION = "direccion";
 export const ID_AGENTE_GENESIS = "genesis:agente";
 
-/** Los tres puentes, con el nombre que fija el contrato (§2.3 y §8). */
+/**
+ * Los tres puentes. GEN1114F: sin nombre aquí; el nombre es el del catálogo (`nombreDeChat` con su clave de
+ * transporte) y, sin catálogo, el de GEN1113 marcado como provisional (`ALIAS_GEN1113`, de la biblioteca).
+ */
 export const PUENTES = [
-    { puente: "hermes-avisos", etiqueta: "Hermes y avisos", ayuda: "Órdenes y conversación con Hermes en la Mac", icono: Send, soloDueno: true },
-    { puente: "peticiones", etiqueta: "Peticiones y encargos", ayuda: "Peticiones y encargos largos que atiende el A1", icono: ListTodo, soloDueno: true },
-    { puente: "avisos-directores", etiqueta: "Avisos de los directores", ayuda: "Solo lectura: los avisos de los directores", icono: BellRing, soloDueno: false },
+    { puente: "hermes-avisos", ayuda: "Órdenes y conversación con Hermes en la Mac", icono: Send, soloDueno: true },
+    { puente: "peticiones", ayuda: "Encargos largos y peticiones que atiende el A1", icono: ListTodo, soloDueno: true },
+    { puente: "avisos-directores", ayuda: "Solo lectura: los avisos de los directores", icono: BellRing, soloDueno: false },
 ] as const;
+
+export const TEXTO_MARCA_PROVISIONAL = "nombre provisional";
 
 export const TEXTO_SIN_META = "MetaGenesis es para cuentas con acceso; lo da un dueño en Ajustes › Accesos.";
 export const TEXTO_GENESIS_VACIO = "Aún no has llevado ningún chat a Genesis. Desde Chats: menú del chat › Llevar a Genesis.";
@@ -100,13 +113,15 @@ export function idDeEntradaVinculo(v: VinculoChat): string {
 }
 
 /** Las entradas de la lista, en orden (puro). `acceso` null = no se pudo comprobar. */
-export function entradasDeLista(acceso: AccesoMeta | null, entidades: readonly EntidadLista[], vinculos: readonly VinculoChat[]): EntradaChat[] {
+export function entradasDeLista(acceso: AccesoMeta | null, entidades: readonly EntidadLista[], vinculos: readonly VinculoChat[], catalogo: CatalogoCanon | null = null): EntradaChat[] {
     const salida: EntradaChat[] = [];
     if (acceso?.miembro) {
-        salida.push({ id: ID_DIRECCION, grupo: "metagenesis", etiqueta: "Dirección", ayuda: "Todo · Dirección · Conversación · Informes · Enjambre · Usos", icono: MessagesSquare, acento: "text-violet-300" });
+        const dir = nombreDeChat(catalogo, "direccion");
+        salida.push({ id: ID_DIRECCION, grupo: "metagenesis", etiqueta: dir.nombre, provisional: dir.provisional, ayuda: "Dirección · Todo · Conversación · Informes · Enjambre · Usos", icono: MessagesSquare, acento: "text-violet-300" });
         for (const p of PUENTES) {
             if (p.soloDueno && !acceso.dueno) continue;
-            salida.push({ id: `puente:${p.puente}`, grupo: "metagenesis", seccion: "Puentes de Telegram", etiqueta: p.etiqueta, ayuda: p.ayuda, icono: p.icono, acento: p.soloDueno ? "text-sky-300" : "text-amber-300" });
+            const n = nombreDeChat(catalogo, `puente:${p.puente}`);
+            salida.push({ id: `puente:${p.puente}`, grupo: "metagenesis", seccion: "Puentes de Telegram", etiqueta: n.nombre, provisional: n.provisional, ayuda: p.ayuda, icono: p.icono, acento: p.soloDueno ? "text-sky-300" : "text-amber-300" });
         }
         for (const v of vinculos.filter((x) => enGenesis(x, "metagenesis"))) {
             salida.push({ id: idDeEntradaVinculo(v), grupo: "metagenesis", seccion: "Chats vinculados", etiqueta: tituloDe(v), ayuda: "Chat de Astraura vinculado a MetaGenesis", icono: MessageSquare, acento: "text-violet-200" });
@@ -144,6 +159,10 @@ export interface ListaChatsGenesisProps {
     valor: string;
     onElegir: (id: string) => void;
     onReintentarAcceso?: () => void;
+    /** GEN1114F: el catálogo de nombres de la Mac (null = no hay). */
+    catalogo?: CatalogoCanon | null;
+    /** GEN1114F: por qué no hay catálogo y desde cuándo («Sin catálogo de la Mac desde…»), o null. */
+    avisoCatalogo?: string | null;
 }
 
 /** Líneas que explican lo que falta en cada grupo (puro). */
@@ -162,16 +181,17 @@ const GRUPOS: GrupoChats[] = ["metagenesis", "genesis", "poligenesis"];
 
 export function ListaChatsGenesis(props: ListaChatsGenesisProps) {
     const ancha = usePantallaAncha(ANCHO_LG);
-    const entradas = entradasDeLista(props.acceso, props.entidades, props.vinculos);
+    const entradas = entradasDeLista(props.acceso, props.entidades, props.vinculos, props.catalogo ?? null);
     const avisos = avisosDeLista(props);
+    if (props.acceso?.miembro && props.avisoCatalogo) avisos.metagenesis.push(props.avisoCatalogo);
     const reintentar = !props.comprobandoAcceso && props.acceso === null && props.onReintentarAcceso;
 
     if (!ancha) {
         return (
             <div data-testid="lista-chats-genesis" data-modo="menu" className="flex min-w-0 shrink-0 flex-col gap-1.5">
-                <MenuListaMovil
+                <MenuListaHoja
                     titulo="Chats de Genesis"
-                    opciones={entradas.map((e) => ({ id: e.id, label: e.etiqueta, hint: `${NOMBRE_GRUPO[e.grupo]}${e.seccion ? ` · ${e.seccion}` : ""} · ${e.ayuda}`, icon: e.icono, accent: e.acento }))}
+                    opciones={entradas.map((e) => ({ id: e.id, label: e.etiqueta, hint: `${e.provisional ? `(${TEXTO_MARCA_PROVISIONAL}) · ` : ""}${NOMBRE_GRUPO[e.grupo]}${e.seccion ? ` · ${e.seccion}` : ""} · ${e.ayuda}`, icon: e.icono, accent: e.acento }))}
                     valor={props.valor}
                     onCambiar={props.onElegir}
                 />
@@ -217,6 +237,9 @@ export function ListaChatsGenesis(props: ListaChatsGenesisProps) {
                                 </div>
                             );
                         })}
+                                {g === "metagenesis" && props.avisoCatalogo ? (
+                            <p className="px-2 pt-1 text-[11px] leading-snug text-amber-200/70">{props.avisoCatalogo}</p>
+                        ) : null}
                         {g !== "metagenesis" && avisos[g].map((t) => (
                             <p key={t} className="px-2 pt-1 text-[11px] leading-snug text-white/40">{t}</p>
                         ))}
@@ -244,6 +267,9 @@ function BotonEntrada({ entrada, activa, onElegir }: { entrada: EntradaChat; act
             </span>
             <span className="min-w-0 flex-1">
                 <span className="block break-words text-[13px] font-medium leading-snug [overflow-wrap:anywhere]">{entrada.etiqueta}</span>
+                {entrada.provisional ? (
+                    <span data-testid="marca-provisional-lista" className="mt-0.5 inline-block rounded border border-amber-400/30 bg-amber-500/10 px-1 py-px text-[10px] leading-tight text-amber-100/90">{TEXTO_MARCA_PROVISIONAL}</span>
+                ) : null}
                 <span className="block break-words text-[11px] leading-snug text-white/40">{entrada.ayuda}</span>
             </span>
         </button>

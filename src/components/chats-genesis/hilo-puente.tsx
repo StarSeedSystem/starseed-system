@@ -3,23 +3,34 @@
 /**
  * Chats de Genesis · un puente de Telegram sin Telegram (GEN1113D · 2026-11-13, contrato §2.3 y §4.4)
  * ─────────────────────────────────────────────────────────────────────────────
- * Los tres puentes: «Hermes y avisos» (A, lo atiende la Mac), «Peticiones y encargos» (B, lo atiende
- * el A1 aunque la Mac esté apagada) y «Avisos de los directores» (C, solo lectura). El cuadro de texto
+ * Los tres puentes: A (`hermes-avisos`, lo atiende la Mac), B (`peticiones`, lo atiende el A1 aunque
+ * la Mac esté apagada) y C (`avisos-directores`, solo lectura). El cuadro de texto
  * acepta las mismas órdenes que el bot de ese puente y texto suelto; la lista de órdenes está cerrada
  * (§4.4) y lo que no esté en ella no se envía. La puerta y la Mac vuelven a comprobarlo todo.
+ *
+ * GEN1114F (contrato GEN1114 §3.4, §3.8, §3.9 y §8.5): el nombre de la cabecera es el del catálogo y es
+ * el que se firma con cada envío; sin aparato emparejado el cuadro de texto se sustituye por la
+ * tarjeta de emparejar; un aparato de nivel «texto» solo ve las órdenes que no despiertan a nadie;
+ * antes de enviar algo que despierta a un agente se lee «Va a …» con una descripción FIJA del
+ * código (nunca del catálogo). El puente del A1 se lee pero no se escribe hasta la fase 1b.
  */
 
 import { useEffect, useRef, useState } from "react";
-import { HelpCircle, Lock, SquareTerminal, Send } from "lucide-react";
+import { HelpCircle, Lock, Route, SquareTerminal, Send } from "lucide-react";
 
+import { DESTINO_DE_FUENTE } from "@/lib/chats-genesis/alias-gen1113";
+import { chatDeFuente, chatParaFirmar, nombreDeChat, type CatalogoCanon } from "@/lib/chats-genesis/canon";
+import { riesgoDeEntrada, type AparatoLocal } from "@/lib/chats-genesis/firma-aparato";
 import type { ClienteChatsGenesis } from "@/lib/chats-genesis/puerta-chats";
-import type { PuenteTelegram } from "@/lib/chats-genesis/tipos";
+import { TEXTOS_SIN_RED } from "@/lib/chats-genesis/puerta-chats";
+import type { FuenteEspejo, PuenteTelegram } from "@/lib/chats-genesis/tipos";
 import { nombreDeAutor } from "@/lib/mando/chat-director-feed";
 import { cn } from "@/lib/utils";
 
-import { CabeceraEspejo, useAhora, useEnvios, useFeedEspejo, type EntradaEnvio, type RegistroEspejo } from "./cabecera-espejo";
+import { CabeceraChat, CabeceraEspejo, useAhora, useEnvios, useFeedEspejo, type ChatVisto, type EntradaEnvio, type RegistroEspejo } from "./cabecera-espejo";
+import { EmparejarAparato } from "./emparejar-aparato";
 import { BotonBajar, Hoja, TarjetaEnvio, horaMensaje, llegoPorGenesis, useTecladoVisible } from "./hilo-direccion";
-import { PUENTES } from "./lista-chats-genesis";
+import { InfoChat } from "./info-chat";
 
 // ── Órdenes de cada puente (§4.4, cerradas) ──────────────────────────────────
 
@@ -62,6 +73,19 @@ export const AUN_NO_DISPONIBLES: Partial<Record<Exclude<PuenteTelegram, "avisos-
 };
 
 export const TEXTO_AUN_NO = "Aún no disponibles: el bot de peticiones del A1 todavía no tiene estas órdenes.";
+
+/**
+ * GEN1114F · Fase 1a (contrato GEN1114 §7): escribir al puente del A1 no se enciende hasta que el A1 corra
+ * la versión del repo que verifica firmas (fase 1b). La puerta además rechaza `destino: "a1"`.
+ */
+export const ESCRITURA_A1 = false;
+export const TEXTO_A1_SIN_ESCRITURA = "Escribir a Peticiones llega cuando el A1 tenga la versión nueva.";
+/** Lo que se dice a un aparato de nivel «texto» en un hilo donde escribir despierta a un agente (§3.9). */
+export const TEXTO_NIVEL_TEXTO = TEXTOS_SIN_RED.nivel ?? "Desde este aparato solo puedes escribir texto en el hilo y pedir el estado. Para hablar con Hermes, aprobar tareas o pedir trabajo, emparéjalo como completo en la Mac.";
+/** «Va a …»: descripción fija del destino (del código, nunca del catálogo) junto al nombre del chat. */
+export function lineaVaA(fuente: FuenteEspejo, chat: ChatVisto): string {
+    return `Va a ${DESTINO_DE_FUENTE[fuente]} · chat «${chat.nombre}»`;
+}
 
 const RE_ID = /^[A-Za-z0-9_.-]{2,40}$/;
 const RE_MODELO = /^[a-z0-9._/:-]{3,120}$/;
@@ -129,6 +153,12 @@ export interface HiloPuenteProps {
     cliente: ClienteChatsGenesis;
     puente: PuenteTelegram;
     esDueno: boolean;
+    /** GEN1114F: la clave de este aparato (undefined = aún se está leyendo; null = no hay). */
+    aparato?: AparatoLocal | null;
+    /** GEN1114F: el catálogo de nombres (de él sale el chat que se firma). */
+    catalogo?: CatalogoCanon | null;
+    /** GEN1114F: la tarjeta de emparejar avisa cuando cambia el aparato. */
+    onAparato?: (a: AparatoLocal | null) => void;
 }
 
 const PISTA: Record<PuenteTelegram, string> = {
@@ -137,8 +167,8 @@ const PISTA: Record<PuenteTelegram, string> = {
     "avisos-directores": "Canal de avisos: solo lectura. Lo que algunos scripts mandan solo a Telegram aún no llega aquí.",
 };
 
-export function HiloPuente({ cliente, puente, esDueno }: HiloPuenteProps) {
-    const nombre = PUENTES.find((p) => p.puente === puente)?.etiqueta ?? puente;
+export function HiloPuente({ cliente, puente, esDueno, aparato, catalogo = null, onAparato }: HiloPuenteProps) {
+    const nombre = nombreDeChat(catalogo, `puente:${puente}`).nombre;
     // A y B son solo para dueños (§4.2): sin rol de dueño ni se pide la copia.
     if (puente !== "avisos-directores" && !esDueno) {
         return (
@@ -148,12 +178,28 @@ export function HiloPuente({ cliente, puente, esDueno }: HiloPuenteProps) {
             </section>
         );
     }
-    return <HiloPuenteAbierto cliente={cliente} puente={puente} nombre={nombre} />;
+    return <HiloPuenteAbierto cliente={cliente} puente={puente} esDueno={esDueno} aparato={aparato} catalogo={catalogo} onAparato={onAparato} />;
 }
 
-function HiloPuenteAbierto({ cliente, puente, nombre }: { cliente: ClienteChatsGenesis; puente: PuenteTelegram; nombre: string }) {
-    const feed = useFeedEspejo(cliente, `puente:${puente}`);
-    const { envios, enviar, quitar } = useEnvios(cliente);
+function HiloPuenteAbierto({ cliente, puente, esDueno, aparato, catalogo, onAparato }: {
+    cliente: ClienteChatsGenesis;
+    puente: PuenteTelegram;
+    esDueno: boolean;
+    aparato: AparatoLocal | null | undefined;
+    catalogo: CatalogoCanon | null;
+    onAparato?: (a: AparatoLocal | null) => void;
+}) {
+    const fuente = `puente:${puente}` as FuenteEspejo;
+    // El nombre que se ve ES el que se firma: los dos salen del mismo chat del catálogo.
+    const firmable = chatParaFirmar(catalogo, fuente);
+    const respaldo = nombreDeChat(catalogo, fuente);
+    const nombre = firmable?.nombre ?? respaldo.nombre;
+    const provisional = firmable ? firmable.provisional : respaldo.provisional;
+    const chatVisto: ChatVisto | null = firmable ? { id: firmable.id, nombre: firmable.nombre } : null;
+    const [info, setInfo] = useState(false);
+    const feed = useFeedEspejo(cliente, fuente);
+    const emparejado = aparato?.estado === "emparejado" ? aparato : null;
+    const { envios, enviar, quitar } = useEnvios(cliente, emparejado ? emparejado.codigo.split("-")[0] : null);
     const ahora = useAhora(1000);
     const { logRef, compositorRef, pegadoRef, pegado, bajar, alDesplazar } = useTecladoVisible();
     const origen = puente === "peticiones" ? "a1" : "mac";
@@ -166,6 +212,7 @@ function HiloPuenteAbierto({ cliente, puente, nombre }: { cliente: ClienteChatsG
 
     return (
         <section aria-label={nombre} data-testid="hilo-puente" className="flex min-h-0 min-w-0 flex-1 flex-col gap-2">
+            <CabeceraChat nombre={nombre} provisional={provisional} onInfo={() => setInfo(true)} />
             <CabeceraEspejo latido={feed.latido} fallo={feed.fallo} cargado={feed.cargado} origen={origen} queEs="puente" ahora={ahora} onReintentar={feed.releer} />
             <div className="relative flex min-h-0 flex-1 flex-col">
                 <div ref={logRef} role="log" aria-label={`Mensajes de ${nombre}`} onScroll={alDesplazar} className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain rounded-xl border border-white/5 bg-black/20 p-2">
@@ -186,22 +233,95 @@ function HiloPuenteAbierto({ cliente, puente, nombre }: { cliente: ClienteChatsG
             <div ref={compositorRef} className="shrink-0 pb-[env(safe-area-inset-bottom)]">
                 {soloLectura ? (
                     <p className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 text-[12px] leading-snug text-white/55">{PISTA[puente]}</p>
+                ) : puente === "peticiones" && !ESCRITURA_A1 ? (
+                    <p data-testid="a1-sin-escritura" className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 text-[12px] leading-snug text-white/60">{TEXTO_A1_SIN_ESCRITURA} Mientras tanto, aquí se lee y en Telegram sigue funcionando.</p>
+                ) : aparato === undefined ? (
+                    <p role="status" className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 text-[12px] text-white/55">Comprobando la clave de este aparato…</p>
+                ) : !emparejado ? (
+                    <EmparejarAparato alCambiar={onAparato} />
+                ) : !chatVisto ? (
+                    <p data-testid="sin-chat-firmable" className="rounded-xl border border-amber-400/30 bg-amber-500/10 px-3 py-2.5 text-[12px] leading-snug text-amber-100">
+                        Aún no se puede escribir aquí: la Mac no ha publicado el nombre real de este puente, y la Mac solo acepta lo que va firmado con el nombre que tiene ella.
+                    </p>
                 ) : (
                     <CompositorPuente
                         puente={puente}
+                        chat={chatVisto}
+                        nivel={emparejado.nivel}
+                        esDueno={esDueno}
                         onEnviar={async (entrada, texto) => {
                             bajar();
-                            return enviar(entrada, texto);
+                            return enviar(entrada, texto, chatVisto);
                         }}
                     />
                 )}
             </div>
+            <Hoja titulo="Información del chat" abierta={info} onCerrar={() => setInfo(false)} completa>
+                <InfoChat chat={chatDeFuente(catalogo, fuente)} claveGen1113={fuente} esDueno={esDueno} />
+            </Hoja>
         </section>
     );
 }
 
-function CompositorPuente({ puente, onEnviar }: {
+/** Las órdenes que se ofrecen desde un aparato de este nivel (§3.6: «texto» solo lo que no despierta a nadie). */
+export function ordenesOfrecidas(puente: Exclude<PuenteTelegram, "avisos-directores">, nivel: "texto" | "completo"): OrdenPuente[] {
+    const fuente = `puente:${puente}` as const;
+    return ORDENES[puente].filter((o) => nivel === "completo" || riesgoDeEntrada({ fuente, accion: "orden", orden: { nombre: o.nombre, args: [] } }) === "bajo");
+}
+
+function CompositorPuente({ puente, chat, nivel, onEnviar }: {
     puente: Exclude<PuenteTelegram, "avisos-directores">;
+    chat: ChatVisto;
+    nivel: "texto" | "completo";
+    esDueno: boolean;
+    onEnviar: (entrada: EntradaEnvio, texto: string) => Promise<{ ok: true } | { ok: false; motivo: string }>;
+}) {
+    if (nivel === "texto") return <CompositorPuenteTexto puente={puente} onEnviar={onEnviar} />;
+    return <CompositorPuenteCompleto puente={puente} chat={chat} onEnviar={onEnviar} />;
+}
+
+/**
+ * Nivel «texto» (§3.9): ni texto suelto (iría a Hermes o a los agentes del A1) ni órdenes que cambian;
+ * solo las de lectura, cada una con su botón (el toque es la acción que dice qué se envía).
+ */
+function CompositorPuenteTexto({ puente, onEnviar }: {
+    puente: Exclude<PuenteTelegram, "avisos-directores">;
+    onEnviar: (entrada: EntradaEnvio, texto: string) => Promise<{ ok: true } | { ok: false; motivo: string }>;
+}) {
+    const [aviso, setAviso] = useState<string | null>(null);
+    const [enviando, setEnviando] = useState(false);
+    const fuente = `puente:${puente}` as const;
+    const ofrecidas = ordenesOfrecidas(puente, "texto");
+    return (
+        <div data-testid="compositor-puente" data-nivel="texto" className="flex flex-col gap-2 rounded-2xl border border-white/10 bg-white/[0.03] p-2 backdrop-blur-sm">
+            {aviso ? <p role="alert" data-testid="aviso-envio" className="rounded-lg border border-rose-400/30 bg-rose-500/10 px-2.5 py-1.5 text-[11.5px] text-rose-100">{aviso}</p> : null}
+            <p data-testid="aviso-nivel" className="px-1 text-[11.5px] leading-snug text-white/60">{TEXTO_NIVEL_TEXTO}</p>
+            <div role="group" aria-label="Órdenes de lectura" className="flex flex-wrap gap-1.5">
+                {ofrecidas.map((o) => (
+                    <button
+                        key={o.nombre}
+                        type="button"
+                        disabled={enviando}
+                        title={o.ayuda}
+                        onClick={async () => {
+                            setEnviando(true);
+                            const r = await onEnviar({ fuente, accion: "orden", orden: { nombre: o.nombre, args: [] } }, `/${o.nombre}`);
+                            setEnviando(false);
+                            setAviso(r.ok ? null : r.motivo);
+                        }}
+                        className="flex h-10 cursor-pointer items-center gap-1.5 rounded-lg border border-sky-500/30 bg-zinc-900 px-3 text-xs text-sky-200 hover:border-sky-400 disabled:opacity-40"
+                    >
+                        <SquareTerminal className="size-3.5" aria-hidden /> /{o.nombre}
+                    </button>
+                ))}
+            </div>
+        </div>
+    );
+}
+
+function CompositorPuenteCompleto({ puente, chat, onEnviar }: {
+    puente: Exclude<PuenteTelegram, "avisos-directores">;
+    chat: ChatVisto;
     onEnviar: (entrada: EntradaEnvio, texto: string) => Promise<{ ok: true } | { ok: false; motivo: string }>;
 }) {
     const [texto, setTexto] = useState("");
@@ -209,6 +329,10 @@ function CompositorPuente({ puente, onEnviar }: {
     const [enviando, setEnviando] = useState(false);
     const [hoja, setHoja] = useState(false);
     const areaRef = useRef<HTMLTextAreaElement | null>(null);
+
+    // «Va a …» antes de enviar algo que despierta a un agente (§3.9), con la descripción fija del código.
+    const analizado = texto.trim() ? analizarEscrito(texto, puente) : null;
+    const vaA = analizado?.ok && riesgoDeEntrada(analizado.entrada) === "alto" ? lineaVaA(`puente:${puente}`, chat) : null;
 
     const mandar = async (escrito: string, limpiarAlFinal: boolean) => {
         const r = analizarEscrito(escrito, puente);
@@ -224,6 +348,12 @@ function CompositorPuente({ puente, onEnviar }: {
         <div data-testid="compositor-puente" className="flex flex-col gap-2 rounded-2xl border border-white/10 bg-white/[0.03] p-2 backdrop-blur-sm">
             {aviso ? <p role="alert" data-testid="aviso-envio" className="rounded-lg border border-rose-400/30 bg-rose-500/10 px-2.5 py-1.5 text-[11.5px] text-rose-100">{aviso}</p> : null}
             <p className="px-1 text-[11px] leading-snug text-white/45">{PISTA[puente]}</p>
+            {vaA ? (
+                <p data-testid="linea-va-a" className="flex items-start gap-1.5 rounded-lg border border-violet-400/25 bg-violet-500/10 px-2.5 py-1.5 text-[11.5px] leading-snug text-violet-100">
+                    <Route className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+                    <span className="min-w-0 break-words [overflow-wrap:anywhere]">{vaA}</span>
+                </p>
+            ) : null}
             <textarea
                 ref={areaRef}
                 rows={1}

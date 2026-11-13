@@ -362,7 +362,9 @@ export function ChatConnectionsPanel({ className, foco, clienteChatsGenesis }: C
           <Loader2 className="h-4 w-4 animate-spin" /> Cargando conexiones…
         </div>
       ) : (
-        <div className="grid gap-3 lg:grid-cols-3">
+        // GEN1114F: las tres tarjetas miden lo mismo y sus «Guardar» quedan en la misma línea. `Card` envuelve a
+        // sus hijos en un contenedor propio, así que la columna flexible va dentro (`h-full`), no en la tarjeta.
+        <div data-testid="fuentes-chat" className="grid gap-3 lg:grid-cols-3 lg:items-stretch">
           {SCOPE_ORDER.map((scope) => {
             const c = byScope.get(scope)!;
             const meta = SCOPE_META[scope];
@@ -379,13 +381,15 @@ export function ChatConnectionsPanel({ className, foco, clienteChatsGenesis }: C
             return (
               <Card
                 key={scope}
+                data-fuente={scope}
                 className={cn(
-                  "backdrop-blur-sm transition flex flex-col",
+                  "backdrop-blur-sm transition h-full",
                   c.enabled
                     ? meta.accent
                     : "border-white/5 bg-background/40 opacity-80",
                 )}
               >
+                <div data-testid="columna-fuente" className="flex h-full min-h-0 flex-col">
                 <CardHeader className="flex flex-row items-start justify-between gap-2 pb-3">
                   <div className="min-w-0">
                     <CardTitle className="flex items-center gap-2 text-sm">
@@ -414,10 +418,11 @@ export function ChatConnectionsPanel({ className, foco, clienteChatsGenesis }: C
                   <Switch
                     checked={c.enabled}
                     onCheckedChange={(v) => patch(scope, { enabled: v })}
+                    aria-label={`Activar ${meta.label}`}
                   />
                 </CardHeader>
 
-                <CardContent className="space-y-3 flex-1">
+                <CardContent className="space-y-3 flex-1 min-h-0">
                   <p className="text-[11px] leading-relaxed text-muted-foreground">
                     {meta.blurb}
                   </p>
@@ -571,7 +576,7 @@ export function ChatConnectionsPanel({ className, foco, clienteChatsGenesis }: C
                   </div>
                 </CardContent>
 
-                <div className="px-6 pb-4">
+                <div data-testid="pie-fuente" className="mt-auto px-6 pb-4">
                   <Button
                     size="sm"
                     variant="outline"
@@ -586,6 +591,7 @@ export function ChatConnectionsPanel({ className, foco, clienteChatsGenesis }: C
                     )}
                     Guardar
                   </Button>
+                </div>
                 </div>
               </Card>
             );

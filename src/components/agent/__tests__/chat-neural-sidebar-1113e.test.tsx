@@ -153,7 +153,8 @@ describe("GEN1113E · qué se ve en la barra", () => {
       conexiones: {},
     };
     render(<ChatNeuralSidebar variant="panel" />);
-    const enlace = await screen.findByRole("link", { name: /Dirección de MetaGenesis/ });
+    // GEN1114F: el nombre sale del catálogo (aquí no hay: el provisional de la dirección).
+    const enlace = await screen.findByRole("link", { name: /GENESIS · StarSeed OS/ });
     expect(enlace).toHaveAttribute("href", "/agent?tab=chats-genesis");
     expect(screen.queryByText("Peticiones y encargos")).toBeNull();
   });

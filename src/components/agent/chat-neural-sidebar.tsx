@@ -54,6 +54,7 @@ import {
 } from "@/lib/chats-genesis/vinculos";
 import type { NivelGenesis, PrefsChatsGenesis, VinculoChat, Bandeja } from "@/lib/chats-genesis/tipos";
 import { miAccesoMetaGenesis } from "@/lib/metagenesis/accesos";
+import { crearClienteCanon, leerCopiaCanon, nombreDeChat, type CatalogoCanon } from "@/lib/chats-genesis/canon";
 import { misEntidades, type EntidadGestionable } from "@/lib/genesis/entidades";
 
 /** ¿Este chat sigue en la bandeja Chats? Sin vínculo, sí (así era antes de GEN1113). */
@@ -69,13 +70,20 @@ export function enCarpetaGenesis(vinculos: readonly VinculoChat[]): VinculoChat[
   return vinculos.filter((v) => (v.fuente.tipo === "direccion" || v.fuente.tipo === "puente") && v.en.includes("chats"));
 }
 
-function nombreDeVinculo(v: VinculoChat): string {
-  if (v.titulo) return v.titulo;
-  if (v.fuente.tipo === "direccion") return "Dirección de MetaGenesis";
-  if (v.fuente.tipo === "puente") {
-    return { "hermes-avisos": "Hermes y avisos", peticiones: "Peticiones y encargos", "avisos-directores": "Avisos de los directores" }[v.fuente.puente];
+/**
+ * GEN1114F (contrato GEN1114 §2.6 y §5.1): el nombre de la carpeta «Genesis» sale del catálogo de la Mac
+ * (`nombreDeChat`), el mismo que en la pestaña Genesis. Un título puesto a mano en el vínculo se respeta
+ * como nombre LOCAL, y se dice cuál es el del chat. Sin catálogo, el nombre es provisional.
+ */
+export function nombreDeVinculo(v: VinculoChat, catalogo: CatalogoCanon | null = null): { nombre: string; nota: string | null; provisional: boolean } {
+  const clave = v.fuente.tipo === "direccion" ? "direccion" : v.fuente.tipo === "puente" ? `puente:${v.fuente.puente}` : null;
+  // Siempre por la clave de transporte (relación fija de §3.4), nunca por un id que diga el vínculo.
+  const delChat = clave ? nombreDeChat(catalogo, clave) : null;
+  if (v.titulo) {
+    return { nombre: v.titulo, nota: delChat ? `Nombre puesto por ti; el del chat es «${delChat.nombre}»` : null, provisional: false };
   }
-  return v.id;
+  if (delChat) return { nombre: delChat.nombre, nota: delChat.provisional ? "Nombre provisional: la Mac aún no ha publicado el nombre real" : null, provisional: delChat.provisional };
+  return { nombre: v.id, nota: null, provisional: false };
 }
 
 function whenLabel(ts: number): string {
@@ -130,6 +138,22 @@ export function ChatNeuralSidebar({
   const vinculos = prefsCG?.vinculos ?? [];
   const conversations = todas.filter((c) => estaEnChats(c, vinculos));
   const carpetaGenesis = enCarpetaGenesis(vinculos);
+  // GEN1114F: el catálogo de nombres, solo si hay algo en la carpeta «Genesis».
+  const [catalogo, setCatalogo] = useState<CatalogoCanon | null>(() => leerCopiaCanon()?.catalogo ?? null);
+  const hayCarpeta = carpetaGenesis.length > 0;
+  useEffect(() => {
+    if (!hayCarpeta) return;
+    let vivo = true;
+    void crearClienteCanon()
+      .leer()
+      .then((r) => {
+        if (vivo) setCatalogo(r.ok ? r.catalogo : r.copia);
+      })
+      .catch(() => { /* sin catálogo: nombres provisionales */ });
+    return () => {
+      vivo = false;
+    };
+  }, [hayCarpeta]);
   const pick = (id: string) => {
     setActive(id);
     onPick?.();
@@ -277,18 +301,24 @@ export function ChatNeuralSidebar({
             </button>
             {open.__genesis__ !== false && (
               <div className="ml-2 space-y-0.5 border-l border-cyan-500/10 pl-2">
-                {carpetaGenesis.map((v) => (
-                  <Link
-                    key={v.id}
-                    href="/agent?tab=chats-genesis"
-                    onClick={() => onPick?.()}
-                    className="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs text-cyan-100/80 transition-colors duration-150 hover:bg-white/5"
-                    title={`Abrir «${nombreDeVinculo(v)}» en la pestaña Genesis`}
-                  >
-                    <Dna className="w-3 h-3 shrink-0 text-cyan-500/50" />
-                    <span className="min-w-0 flex-1 truncate">{nombreDeVinculo(v)}</span>
-                  </Link>
-                ))}
+                {carpetaGenesis.map((v) => {
+                  const n = nombreDeVinculo(v, catalogo);
+                  return (
+                    <Link
+                      key={v.id}
+                      href="/agent?tab=chats-genesis"
+                      onClick={() => onPick?.()}
+                      className="flex items-start gap-2 rounded-md px-2 py-1.5 text-xs text-cyan-100/80 transition-colors duration-150 hover:bg-white/5"
+                      title={`Abrir «${n.nombre}» en la pestaña Genesis${n.nota ? `. ${n.nota}` : ""}`}
+                    >
+                      <Dna className="mt-0.5 w-3 h-3 shrink-0 text-cyan-500/50" />
+                      <span className="min-w-0 flex-1">
+                        <span className="line-clamp-2 break-words [overflow-wrap:anywhere]">{n.nombre}</span>
+                        {n.provisional ? <span className="block text-[10px] text-amber-200/70">nombre provisional</span> : null}
+                      </span>
+                    </Link>
+                  );
+                })}
               </div>
             )}
           </div>
