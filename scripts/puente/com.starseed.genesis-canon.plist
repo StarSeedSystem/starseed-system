@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- GEN1114C · Sube el catálogo de chats de Genesis (sin secretos) a la puerta del A1 cuando cambia canon.json
+     (WatchPaths) y cada 10 min como latido. `subir` no escribe canon.json, así que no se dispara a sí mismo.
+     Lo instala instalar-servicios.py solo si se nombra (STARSEED_SOLO=genesis-canon) o si el registro y la ficha
+     de la Mac ya existen. Deshacer: launchctl unload ~/Library/LaunchAgents/com.starseed.genesis-canon.plist -->
+<plist version="1.0"><dict>
+  <key>Label</key><string>com.starseed.genesis-canon</string>
+  <key>ProgramArguments</key><array>
+    <string>/opt/homebrew/bin/python3</string>
+    <string>-u</string>
+    <string>/Users/alex/Documents/starseed-os-main/scripts/puente/genesis_canon.py</string>
+    <string>subir</string>
+  </array>
+  <key>WatchPaths</key><array>
+    <string>/Users/alex/.starseed/genesis-chats/canon.json</string>
+  </array>
+  <key>RunAtLoad</key><true/>
+  <key>StartInterval</key><integer>600</integer>
+  <key>ThrottleInterval</key><integer>30</integer>
+  <key>Nice</key><integer>10</integer>
+  <key>EnvironmentVariables</key><dict>
+    <key>PATH</key><string>/Users/alex/.local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+  </dict>
+  <key>StandardOutPath</key><string>/tmp/starseed-genesis-canon.log</string>
+  <key>StandardErrorPath</key><string>/tmp/starseed-genesis-canon.log</string>
+  <key>WorkingDirectory</key><string>/Users/alex/Documents/starseed-os-main</string>
+</dict></plist>
