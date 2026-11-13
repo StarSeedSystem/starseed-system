@@ -20,10 +20,16 @@ Si el primero no está o falla, se prueba el siguiente y la respuesta dice por q
 nadie puede, el mensaje queda EN COLA (entrega «pendiente» con su detalle visible) y se
 reintenta solo; nunca se tira ni se contesta con una frase hecha.
 
+PET1112I: Cuando llega un encargo del A1 (tipo `mg_aviso` de `peticiones-a1`), el Director
+presidente revisa el plan y puede devolver un plan mejorado (mismo esquema JSON), que el
+A1 aplica a los frentes que aún no empezaron. Los entregables 2D/3D (Blender, HyperFrames)
+se atienden en la Mac; sin la Mac, quedan en el panel del A1.
+
 Todo lo que toca el mundo (ejecutar órdenes, leer límites, ver si hay CLI) se inyecta:
 las pruebas usan falsos y carpetas temporales.
 """
 
+import json
 import os
 import shutil
 import sys
@@ -31,6 +37,7 @@ import tempfile
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -60,6 +67,13 @@ _FALLOS_HERMES = motores_director._FALLOS_HERMES
 #: HER1111K · tope del prompt de una sesión nueva de Hermes (caracteres) y aviso de pausa repetido a diario.
 TOPE_PROMPT_FRESCO = 24000
 REAVISO_PAUSA_S = 24 * 3600
+
+# ── Tipos de evento del bus (relevo_eventos) ──────────────────────────────────────
+# Deben coincidir con peticiones_direccion.py
+T_AVISO = "mg_aviso"
+T_PLAN_DIR = "mg_plan_direccion"
+T_AVANCE_DIR = "mg_avance_direccion"
+T_ENTREGABLE_2D3D = "mg_entregable_2d3d"
 
 
 # ── Qué cuenta como dirección (igual que `esDireccion` de chat-director-feed.ts) ──────
@@ -385,6 +399,139 @@ def fuera_de_vista(estado, ids_vistos):
             if i not in vistos and isinstance(e, dict) and isinstance(e.get("mensaje"), dict)]
 
 
+# ── PET1112I: Manejo de encargos del A1 ──────────────────────────────────────────
+
+def es_mensaje_encargo(mensaje: Dict[str, Any]) -> bool:
+    """PURA. ¿Es un mensaje de aviso de encargo del A1 (peticiones-a1, tipo aviso)?"""
+    return (mensaje.get("de") == "peticiones-a1"
+            and mensaje.get("rol") == "sistema"
+            and mensaje.get("tipo") == "aviso"
+            and mensaje.get("canal") == CANAL)
+
+
+def extraer_datos_encargo(mensaje: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """PURA. Extrae los datos del encargo del texto del mensaje (formato mg_aviso).
+    
+    El texto tiene formato: "Nuevo encargo ENC-1112-1430: «Título» · N frentes (F1 Nombre, F2 Nombre) · M entregables"
+    """
+    texto = mensaje.get("texto", "")
+    if not texto.startswith("Nuevo encargo "):
+        return None
+    try:
+        # Extraer ID del encargo
+        partes = texto.split(": ", 1)
+        enc_id = partes[0].replace("Nuevo encargo ", "").strip()
+        resto = partes[1] if len(partes) > 1 else ""
+        # Extraer título entre «»
+        import re
+        m_titulo = re.search(r"«([^»]+)»", resto)
+        titulo = m_titulo.group(1) if m_titulo else ""
+        # Extraer frentes
+        m_frentes = re.search(r"· (\d+) frentes \(([^)]+)\)", resto)
+        n_frentes = int(m_frentes.group(1)) if m_frentes else 0
+        frentes_str = m_frentes.group(2) if m_frentes else ""
+        # Extraer entregables
+        m_entregables = re.search(r"· (\d+) entregables", resto)
+        n_entregables = int(m_entregables.group(1)) if m_entregables else 0
+        
+        return {
+            "encargo_id": enc_id,
+            "titulo": titulo,
+            "n_frentes": n_frentes,
+            "frentes_str": frentes_str,
+            "n_entregables": n_entregables,
+            "tarea": mensaje.get("tarea", enc_id),
+        }
+    except (IndexError, ValueError, AttributeError):
+        return None
+
+
+def prompt_revisar_plan(encargo: Dict[str, Any], hilo: List[Dict[str, Any]], contexto: str = "") -> str:
+    """PURA. Prompt para que el Director presidente revise y mejore el plan del encargo.
+    
+    El modelo debe responder SOLO con el JSON del plan mejorado (mismo esquema).
+    """
+    frentes_info = encargo.get("frentes_str", "")
+    partes = [
+        "Eres el Director presidente de Genesis (StarSeed OS).",
+        "Recibes un nuevo encargo desde el A1 (Telegram) y debes revisar su plan.",
+        "",
+        f"Encargo: {encargo.get('encargo_id', '?')} — «{encargo.get('titulo', '?')}»",
+        f"Frentes: {frentes_info or '?'}",
+        f"Entregables totales: {encargo.get('n_entregables', '?')}",
+        "",
+        "Tu tarea: revisar el plan y devolver UN ÚNICO JSON con el plan mejorado.",
+        "El JSON debe tener exactamente este esquema:",
+        '{"frentes": [{"id": "F1", "nombre": "...", "destino": "fuentes|produccion",',
+        ' "estado": "pendiente", "entregables": [',
+        ' {"tipo": "informe|documento|video|blender|hyperframes|mind-map|audio|infographic",',
+        '  "titulo": "...", "prompt": "..."}]}]}',
+        "",
+        "Reglas:",
+        "• Solo devuelve el JSON, sin explicaciones ni markdown.",
+        "• Mantén los mismos IDs de frentes si es posible.",
+        "• Los entregables 2D/3D (blender, hyperframes, video, 3d) se hacen en la Mac.",
+        "• No añadas frentes que no estén en el original salvo que sea claramente necesario.",
+        "• Mejora prompts, añade entregables faltantes, corrige tipos.",
+        "",
+        "Contexto del proyecto:" + (contexto[:4000] if contexto else " (sin contexto adicional)"),
+    ]
+    if hilo:
+        partes.append("Hilo de dirección reciente:")
+        for r in hilo[-5:]:
+            quien = "Alex" if r.get("rol") == "alex" else (r.get("de") or "director")
+            partes.append(f"  [{quien}] {(r.get('texto') or '')[:200]}")
+    partes.append("\nDevuelve SOLO el JSON del plan mejorado:")
+    return "\n".join(partes)
+
+
+def parsear_plan_mejorado(respuesta: str) -> Optional[Dict[str, Any]]:
+    """PURA. Extrae y valida el JSON del plan mejorado de la respuesta del modelo."""
+    respuesta = (respuesta or "").strip()
+    # Buscar JSON entre llaves (puede venir con texto alrededor)
+    inicio = respuesta.find("{")
+    fin = respuesta.rfind("}")
+    if inicio >= 0 and fin > inicio:
+        json_str = respuesta[inicio:fin+1]
+        try:
+            plan = json.loads(json_str)
+            if isinstance(plan, dict) and isinstance(plan.get("frentes"), list):
+                return plan
+        except json.JSONDecodeError:
+            pass
+    return None
+
+
+def es_mensaje_entregable_2d3d(mensaje: Dict[str, Any]) -> bool:
+    """PURA. ¿Es una solicitud de entregable 2D/3D para la Mac?"""
+    return (mensaje.get("de") == "peticiones-a1"
+            and mensaje.get("rol") == "sistema"
+            and mensaje.get("tipo") == "aviso"
+            and "Entregable 2D/3D para la Mac" in (mensaje.get("texto") or ""))
+
+
+def prompt_entregable_2d3d(mensaje: Dict[str, Any], hilo: List[Dict[str, Any]], contexto: str = "") -> str:
+    """PURA. Prompt para atender un entregable 2D/3D (Blender, HyperFrames) en la Mac."""
+    texto = mensaje.get("texto", "")
+    partes = [
+        "Eres el Director presidente de Genesis (StarSeed OS) en la Mac.",
+        "Recibes una solicitud de entregable 2D/3D (Blender, HyperFrames, video) para producir en esta Mac.",
+        "",
+        f"Solicitud: {texto}",
+        "",
+        "Responde confirmando que se atenderá en la Mac, o indica qué se necesita.",
+        "Si necesitas más información del encargo, pídela.",
+        "",
+        "Contexto del proyecto:" + (contexto[:4000] if contexto else " (sin contexto adicional)"),
+    ]
+    if hilo:
+        partes.append("Hilo de dirección reciente:")
+        for r in hilo[-5:]:
+            quien = "Alex" if r.get("rol") == "alex" else (r.get("de") or "director")
+            partes.append(f"  [{quien}] {(r.get('texto') or '')[:200]}")
+    return "\n".join(partes)
+
+
 def existe_cli(nombre):
     """¿Está instalada la orden? (también en ~/.local/bin, donde vive Hermes)."""
     return bool(shutil.which(nombre)) or os.path.exists(os.path.expanduser("~/.local/bin/" + nombre))
@@ -402,6 +549,10 @@ def atender(mensaje, estado, raiz=None, correr=None, existe=None, limites=None,
 
     Devuelve «respondido», «cola» (nadie pudo: queda pendiente con su detalle) o «espera»
     (sigue en cola y aún no toca reintentar). Nunca lanza por un proveedor caído.
+
+    PET1112I: Si el mensaje es un encargo del A1 (peticiones-a1, tipo aviso),
+    el Director presidente revisa el plan y devuelve un plan mejorado (JSON).
+    Si es un entregable 2D/3D, confirma que se atenderá en la Mac.
     """
     correr = correr or motores_director.correr
     existe = existe or existe_cli
@@ -438,7 +589,27 @@ def atender(mensaje, estado, raiz=None, correr=None, existe=None, limites=None,
     if registros is None:
         registros = director_chat.leer(limite=200, raiz=raiz)
     hilo = hilo_direccion(registros, idm)
-    prompt = prompt_presidente(mensaje.get("texto", ""), hilo, contexto)
+
+    # PET1112I: Detectar tipo de mensaje especial del A1
+    es_encargo = es_mensaje_encargo(mensaje)
+    es_2d3d = es_mensaje_entregable_2d3d(mensaje)
+    datos_encargo = extraer_datos_encargo(mensaje) if es_encargo else None
+
+    if es_encargo and datos_encargo:
+        # Mensaje de nuevo encargo: revisar plan y devolver plan mejorado (JSON)
+        prompt = prompt_revisar_plan(datos_encargo, hilo, contexto)
+        # Solo Claude puede responder a esto (necesita razonamiento complejo y JSON válido)
+        candidatos = [p for p in candidatos if p == "claude"]
+        if not candidatos:
+            # Si no hay Claude, dejar en cola con detalle específico
+            descartes.append(("claude", "requerido para revisar planes (JSON)"))
+    elif es_2d3d:
+        # Entregable 2D/3D para la Mac: confirmar que se atiende
+        prompt = prompt_entregable_2d3d(mensaje, hilo, contexto)
+        # Cualquier proveedor puede confirmar, pero preferimos Claude
+    else:
+        # Mensaje normal: prompt estándar
+        prompt = prompt_presidente(mensaje.get("texto", ""), hilo, contexto)
 
     for p in candidatos:
         inicio = time.time()
@@ -469,6 +640,23 @@ def atender(mensaje, estado, raiz=None, correr=None, existe=None, limites=None,
         uso = dict(uso)
         uso["segundos"] = round(time.time() - inicio, 1)
         eleccion = {"proveedor": p, "modelo": MODELOS[p]}
+
+        # PET1112I: Para encargo, la respuesta es el plan mejorado (JSON)
+        if es_encargo and datos_encargo:
+            plan_mejorado = parsear_plan_mejorado(texto)
+            if plan_mejorado:
+                # Publicar el plan mejorado como respuesta estructurada
+                eleccion["plan_mejorado"] = True
+                eleccion["plan"] = plan_mejorado
+                # El texto visible es un resumen
+                n_frentes = len(plan_mejorado.get("frentes", []))
+                texto = f"Plan mejorado para {datos_encargo['encargo_id']}: {n_frentes} frentes actualizados"
+            else:
+                # Si no se pudo parsear JSON, tratar como fallo
+                enfriados[p] = {"hasta": ahora + ENFRIAMIENTO_S, "motivo": "respuesta no es JSON válido"}
+                descartes.append((p, "respuesta no es JSON válido"))
+                continue
+
         if p == "hermes" and info.get("fresca"):
             # La tarjeta enseña «Contestó Hermes · <modelo>»: aquí queda dicho que fue una sesión nueva.
             eleccion["modelo"] = "%s (%s)" % (MODELOS[p], descripcion_sesion_nueva((info["pausa"] or {}).get("sesion")))
@@ -499,3 +687,22 @@ def atender(mensaje, estado, raiz=None, correr=None, existe=None, limites=None,
         for viejo in sorted(cola, key=lambda k: cola[k].get("proximo", 0))[: len(cola) - MAX_COLA]:
             cola.pop(viejo, None)
     return "cola"
+
+
+# Exportar funciones públicas (incluye PET1112I)
+__all__ = [
+    "PROVEEDORES", "NOMBRES", "MODELOS", "CANAL",
+    "REINTENTO_COLA_S", "INTERVALOS_COLA_S", "ENFRIAMIENTO_S", "MAX_COLA",
+    "es_director_de_conversacion", "es_direccion", "hilo_direccion",
+    "prompt_presidente", "prompt_sesion_fresca",
+    "disponibilidad_claude", "ordenar", "texto_descartes",
+    "intervalo_cola", "detalle_cola", "huella_proveedores", "despertar_cola",
+    "_llamar_claude", "_llamar_hermes", "_llamar_chatgpt",
+    "texto_aviso_pausa", "texto_aviso_recuperada", "avisar_pausa_hermes",
+    "hermes_reabierta", "descripcion_sesion_nueva", "fuera_de_vista",
+    "existe_cli", "leer_limites", "atender",
+    # PET1112I
+    "T_AVISO", "T_PLAN_DIR", "T_AVANCE_DIR", "T_ENTREGABLE_2D3D",
+    "es_mensaje_encargo", "extraer_datos_encargo", "prompt_revisar_plan",
+    "parsear_plan_mejorado", "es_mensaje_entregable_2d3d", "prompt_entregable_2d3d",
+]

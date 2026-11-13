@@ -439,5 +439,215 @@ class TestPromptSesionFresca(unittest.TestCase):
         self.assertNotIn("m00", p)
 
 
+# ── PET1112I: Tests de manejo de encargos ──────────────────────────────────────
+
+def mensaje_encargo(enc_id="ENC-1112-1430", titulo="Desarrollo de síntesis"):
+    """Crea un mensaje de aviso de encargo como lo envía peticiones-a1."""
+    texto = (f"Nuevo encargo {enc_id}: «{titulo}» · 3 frentes (F1 Investigación, F2 Desarrollo, F3 Plan y listas de tareas) · 6 entregables")
+    return {
+        "id": f"md-{int(AHORA * 1000)}-abcd",
+        "t": "2026-11-12T10:00:00+00:00",
+        "de": "peticiones-a1",
+        "rol": "sistema",
+        "tipo": "aviso",
+        "texto": texto,
+        "canal": "director-presidente",
+        "canales": ["director-presidente"],
+        "tarea": enc_id,
+    }
+
+
+def mensaje_2d3d(enc_id="ENC-1112-1430", frente="F2 Desarrollo", tipo="blender", titulo="Escena Blender"):
+    """Crea un mensaje de entregable 2D/3D como lo envía peticiones-a1."""
+    texto = f"Entregable 2D/3D para la Mac: {enc_id} · {frente} · {titulo} ({tipo})"
+    return {
+        "id": f"md-{int(AHORA * 1000)}-efgh",
+        "t": "2026-11-12T10:00:00+00:00",
+        "de": "peticiones-a1",
+        "rol": "sistema",
+        "tipo": "aviso",
+        "texto": texto,
+        "canal": "director-presidente",
+        "canales": ["director-presidente"],
+        "tarea": f"{enc_id}/{frente}/{tipo}",
+    }
+
+
+class TestPET1112IEncargo(unittest.TestCase):
+    """Tests para el manejo de encargos del A1 (PET1112I)."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.raiz = self.tmp.name
+        self.estado = {"atendidos": []}
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_es_mensaje_encargo_detecta_correctamente(self):
+        """es_mensaje_encargo detecta mensajes de peticiones-a1 con tipo aviso."""
+        msg = mensaje_encargo()
+        self.assertTrue(P.es_mensaje_encargo(msg))
+
+        # No es encargo si viene de Alex
+        msg_alex = dict(msg, de="alex", rol="alex")
+        self.assertFalse(P.es_mensaje_encargo(msg_alex))
+
+        # No es encargo si no es tipo aviso
+        msg_otro = dict(msg, tipo="mensaje")
+        self.assertFalse(P.es_mensaje_encargo(msg_otro))
+
+    def test_extraer_datos_encargo_parsea_texto(self):
+        """extraer_datos_encargo extrae ID, título, frentes y entregables del texto."""
+        msg = mensaje_encargo("ENC-1112-1430", "Desarrollo de síntesis")
+        datos = P.extraer_datos_encargo(msg)
+
+        self.assertIsNotNone(datos)
+        self.assertEqual(datos["encargo_id"], "ENC-1112-1430")
+        self.assertEqual(datos["titulo"], "Desarrollo de síntesis")
+        self.assertEqual(datos["n_frentes"], 3)
+        self.assertEqual(datos["n_entregables"], 6)
+        self.assertIn("F1 Investigación", datos["frentes_str"])
+        self.assertIn("F2 Desarrollo", datos["frentes_str"])
+
+    def test_extraer_datos_encargo_none_si_formato_invalido(self):
+        """extraer_datos_encargo devuelve None si el texto no tiene el formato esperado."""
+        msg = dict(mensaje_encargo(), texto="Mensaje sin formato de encargo")
+        self.assertIsNone(P.extraer_datos_encargo(msg))
+
+    def test_prompt_revisar_plan_incluye_info_encargo(self):
+        """prompt_revisar_plan genera prompt con info del encargo y reglas JSON."""
+        datos = {"encargo_id": "ENC-1112-1430", "titulo": "Test", "n_frentes": 2, "n_entregables": 4, "frentes_str": "F1, F2"}
+        hilo = [{"id": "x1", "rol": "alex", "tipo": "mensaje", "texto": "Contexto previo"}]
+        prompt = P.prompt_revisar_plan(datos, hilo, "CONTEXTO PROYECTO")
+        
+        self.assertIn("ENC-1112-1430", prompt)
+        self.assertIn("Test", prompt)
+        self.assertIn("F1, F2", prompt)  # Se muestra como "Frentes: F1, F2"
+        self.assertIn("Entregables totales: 4", prompt)
+        self.assertIn("CONTEXTO PROYECTO", prompt)
+        self.assertIn("Contexto previo", prompt)
+        self.assertIn("SOLO el JSON", prompt)
+        self.assertIn('"frentes"', prompt)
+
+    def test_parsear_plan_mejorado_json_valido(self):
+        """parsear_plan_mejorado extrae JSON válido de la respuesta."""
+        respuesta = '{"frentes": [{"id": "F1", "nombre": "Investigación", "entregables": []}]}'
+        plan = P.parsear_plan_mejorado(respuesta)
+
+        self.assertIsNotNone(plan)
+        self.assertEqual(len(plan["frentes"]), 1)
+        self.assertEqual(plan["frentes"][0]["id"], "F1")
+
+    def test_parsear_plan_mejorado_json_con_texto_alrededor(self):
+        """parsear_plan_mejorado extrae JSON aunque venga con texto alrededor."""
+        respuesta = "Aquí tienes el plan:\n```json\n{\"frentes\": [{\"id\": \"F1\"}]}\n```\nFin."
+        plan = P.parsear_plan_mejorado(respuesta)
+
+        self.assertIsNotNone(plan)
+        self.assertEqual(len(plan["frentes"]), 1)
+
+    def test_parsear_plan_mejorado_none_si_invalido(self):
+        """parsear_plan_mejorado devuelve None si no hay JSON válido."""
+        self.assertIsNone(P.parsear_plan_mejorado("Solo texto sin JSON"))
+        self.assertIsNone(P.parsear_plan_mejorado('{"frentes": "no es lista"}'))
+
+    def test_es_mensaje_entregable_2d3d_detecta_correctamente(self):
+        """es_mensaje_entregable_2d3d detecta mensajes de entregable 2D/3D."""
+        msg = mensaje_2d3d()
+        self.assertTrue(P.es_mensaje_entregable_2d3d(msg))
+
+        msg_normal = dict(msg, texto="Mensaje normal")
+        self.assertFalse(P.es_mensaje_entregable_2d3d(msg_normal))
+
+    def test_prompt_entregable_2d3d_incluye_solicitud(self):
+        """prompt_entregable_2d3d genera prompt con la solicitud y contexto."""
+        msg = mensaje_2d3d(tipo="hyperframes", titulo="Animación")
+        hilo = [{"id": "x1", "rol": "alex", "tipo": "mensaje", "texto": "Contexto"}]
+        prompt = P.prompt_entregable_2d3d(msg, hilo, "CONTEXTO")
+
+        self.assertIn("Entregable 2D/3D para la Mac", prompt)
+        self.assertIn("hyperframes", prompt.lower())
+        self.assertIn("Animación", prompt)
+        self.assertIn("CONTEXTO", prompt)
+        self.assertIn("Contexto", prompt)
+
+
+class TestPET1112IAtenderEncargo(Base):
+    """Tests de atender() con mensajes de encargo (PET1112I)."""
+
+    def atender_encargo(self, falso, msg=None, lim=None, ahora=AHORA, existe=None):
+        msg = msg or mensaje_encargo()
+        return P.atender(msg, self.estado, raiz=self.raiz, correr=falso, existe=existe or (lambda n: n == "claude"),
+                         limites=limites() if lim is None else lim, ahora=ahora, tope_opus=40)
+
+    def test_encargo_con_claude_devuelve_plan_mejorado(self):
+        """Al recibir encargo, solo Claude contesta y devuelve plan mejorado (JSON)."""
+        plan_json = json.dumps({
+            "frentes": [
+                {"id": "F1", "nombre": "Investigación MEJORADA", "destino": "fuentes", "estado": "pendiente",
+                 "entregables": [{"tipo": "informe", "titulo": "Informe 1", "prompt": "Investiga"}]},
+                {"id": "F2", "nombre": "Desarrollo MEJORADO", "destino": "produccion", "estado": "pendiente",
+                 "entregables": [{"tipo": "documento", "titulo": "Guion", "prompt": "Escribe"},
+                                 {"tipo": "video", "titulo": "Vídeo", "prompt": "Haz vídeo"}]},
+            ]
+        })
+        falso = Falso(claude=claude_ok(plan_json))
+
+        r = self.atender_encargo(falso)
+
+        self.assertEqual("respondido", r)
+        self.assertEqual(["claude"], falso.llamadas)
+        resp = self.respuestas()[-1]
+        self.assertTrue(resp["eleccion"].get("plan_mejorado"))
+        self.assertIn("plan", resp["eleccion"])
+        self.assertEqual(len(resp["eleccion"]["plan"]["frentes"]), 2)
+        self.assertIn("Plan mejorado", resp["texto"])
+
+    def test_encargo_sin_claude_queda_en_cola(self):
+        """Si no hay Claude, el encargo queda en cola (solo Claude puede revisar planes)."""
+        falso = Falso(hermes=(0, "Hermes no puede hacer JSON"))
+        sin_claude = lambda n: n != "claude"
+
+        r = self.atender_encargo(falso, lim={}, existe=sin_claude)
+
+        self.assertEqual("cola", r)
+        self.assertEqual([], self.respuestas())
+        e = self.entregas()[-1]
+        self.assertEqual("pendiente", e["estado"])
+        self.assertIn("requerido para revisar planes", e["detalle"])
+
+    def test_encargo_respuesta_no_json_vuelve_a_cola(self):
+        """Si Claude responde sin JSON válido, se enfriada y queda en cola."""
+        falso = Falso(claude=claude_ok("Esto no es JSON"))
+
+        r = self.atender_encargo(falso)
+
+        self.assertEqual("cola", r)
+        self.assertEqual([], self.respuestas())
+        self.assertIn("claude", self.estado["presidente"]["enfriados"])
+        self.assertIn("JSON", self.estado["presidente"]["enfriados"]["claude"]["motivo"])
+
+
+class TestPET1112IAtender2D3D(Base):
+    """Tests de atender() con entregables 2D/3D (PET1112I)."""
+
+    def atender_2d3d(self, falso, msg=None, lim=None, ahora=AHORA):
+        msg = msg or mensaje_2d3d()
+        return P.atender(msg, self.estado, raiz=self.raiz, correr=falso, existe=lambda n: True,
+                         limites=limites() if lim is None else lim, ahora=ahora, tope_opus=40)
+
+    def test_entregable_2d3d_claude_confirma(self):
+        """Entregable 2D/3D: Claude confirma que se atiende en la Mac."""
+        falso = Falso(claude=claude_ok("Confirmado: se producirá la escena Blender en la Mac."))
+
+        r = self.atender_2d3d(falso)
+
+        self.assertEqual("respondido", r)
+        resp = self.respuestas()[-1]
+        self.assertIn("Confirmado", resp["texto"])
+        self.assertEqual("claude", resp["eleccion"]["proveedor"])
+
+
 if __name__ == "__main__":
     unittest.main()

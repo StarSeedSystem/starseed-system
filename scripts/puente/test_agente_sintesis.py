@@ -317,8 +317,19 @@ class TestRespaldo(unittest.TestCase):
         self.raiz = os.path.join(self.tmp, "repo")
         os.makedirs(self.raiz)
         self.home = os.path.join(self.tmp, "home")
+        self._cuentas_dir = os.path.join(self.tmp, "cuentas")
+        os.makedirs(self._cuentas_dir, exist_ok=True)
+        self._patch_dir = __import__("cuentas_google_env")
+        self._orig_dir = self._patch_dir.DIR_CUENTAS
+        self._patch_dir.DIR_CUENTAS = self._cuentas_dir
+        import cuentas_google as CG
+        self._orig_cg_dir = CG.DIR_CUENTAS
+        CG.DIR_CUENTAS = self._cuentas_dir
 
     def tearDown(self):
+        self._patch_dir.DIR_CUENTAS = self._orig_dir
+        import cuentas_google as CG
+        CG.DIR_CUENTAS = self._orig_cg_dir
         self._tmp.cleanup()
 
     def test_prompt_respaldo_lleva_regla_secciones_y_salidas(self):
