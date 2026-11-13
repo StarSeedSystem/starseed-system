@@ -54,8 +54,10 @@ Sin pantalla, la sección enseña el motivo y los pasos del aparato (iOS: «Grab
 
 ## 6. Pendiente de otras olas
 
-- La CSP (`next.config.ts`) **hecho en CTR1104B (`d0de326784`)**: `media-src 'self' blob:` añadido.
-- Batería y tipo de red: solo Chromium; en Safari y Firefox esos chips no salen.
+- La CSP (`next.config.ts`) **hecho en CTR1104B (`d0de326784`)**: `media-src 'self' blob:` añadido. ✅ Hecho (`d0de326784`, `next.config.ts:196`)
+- Batería y tipo de red: solo Chromium; en Safari y Firefox esos chips no salen. ✅ Hecho (`9339e035`, `src/components/layout/trinity/logic/use-estado-aparato.ts:29-52`) — `navigator.getBattery` solo existe en Chromium; `navigator.connection` se lee cuando existe.
+
+Revisado el 2026-11-13 contra main (`9339e035`): 2 hechos, 0 a medias, 0 pendientes.
 
 ## 7. Pruebas
 
