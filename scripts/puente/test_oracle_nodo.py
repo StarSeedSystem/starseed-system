@@ -540,5 +540,132 @@ class NotebookLMAlA1(unittest.TestCase):
         self.assertEqual(r["motivo"], "sin sesión de NotebookLM en este nodo")
 
 
+class PeticionesAlA1(unittest.TestCase):
+    """(PET1112B) La orden `peticiones`: unidades systemd al A1, la nueva activa antes de retirar
+    la herramienta vieja y el offset conservado. Guion puro, sin red."""
+
+    def test_guion_copia_modulo_las_tres_unidades_y_luego_systemd(self):
+        pasos = N.guion_peticiones(True, "20261113")
+        self.assertEqual([p["que"] for p in pasos],
+                         ["copiar-modulo", "copiar-unidad", "copiar-unidad", "copiar-unidad",
+                          "systemd", "retirar-vieja"])
+        self.assertEqual([p["nombre"] for p in pasos[1:4]], list(N.UNIDADES_PETICIONES))
+        self.assertIn("peticiones_telegram.py", pasos[0]["destino"])
+
+    def test_systemd_recarga_habilita_reinicia_la_nueva_y_arranca_el_path(self):
+        orden = next(p for p in N.guion_peticiones(True, "x") if p["que"] == "systemd")["orden"]
+        self.assertIn("daemon-reload", orden)
+        self.assertIn("enable starseed-peticiones-telegram.service starseed-cuentas-dueno.path "
+                      "starseed-cuentas-dueno.service", orden)
+        self.assertIn("restart starseed-peticiones-telegram.service", orden)
+        self.assertIn("start starseed-cuentas-dueno.path", orden)
+
+    def test_la_vieja_solo_aparece_con_la_nueva_activa(self):
+        self.assertNotIn("retirar-vieja", [p["que"] for p in N.guion_peticiones(False, "x")])
+        retirada = next(p for p in N.guion_peticiones(True, "x") if p["que"] == "retirar-vieja")
+        self.assertIn(N.HERRAMIENTA_VIEJA_PETICIONES, retirada["orden"])
+        self.assertEqual(retirada["orden"], N.orden_retirada_vieja("x"))
+
+    def test_retirada_para_aparca_y_comprueba_el_offset_sin_borrarlo(self):
+        orden = N.orden_retirada_vieja("20261113")
+        self.assertIn("pkill -f", orden)
+        self.assertIn("mv", orden)
+        self.assertIn("retirada-20261113", orden)
+        self.assertIn("test -f", orden)
+        self.assertEqual(orden.count("estado.json"), 1)  # solo el `test -f`: el offset no se borra
+        self.assertNotIn("rm ", orden)
+
+    def test_guion_y_plan_sin_ips_ni_claves(self):
+        import json
+        import re
+        texto = json.dumps(N.guion_peticiones(True, "x")) + json.dumps(N.plan_peticiones())
+        self.assertIsNone(re.search(r"\b\d{1,3}(?:\.\d{1,3}){3}\b", texto))
+
+    def test_sin_aplicar_ensena_el_plan_y_no_toca_ssh(self):
+        llamadas = []
+        originales = (N.ssh, N._poner_en_a1)
+        N.ssh = lambda *a, **k: llamadas.append(a) or (0, "")
+        N._poner_en_a1 = lambda *a, **k: llamadas.append(a) or (0, "")
+        try:
+            r = N.peticiones(aplicar=False)
+        finally:
+            N.ssh, N._poner_en_a1 = originales
+        self.assertEqual((r["ok"], r["aplicado"]), (True, False))
+        self.assertEqual(llamadas, [])
+
+    def _unidades_en(self, tmp):
+        for nombre in N.UNIDADES_PETICIONES:
+            with open(os.path.join(tmp, nombre), "w", encoding="utf-8") as f:
+                f.write("[Unit]\n")
+
+    def test_falta_una_unidad_no_arranca_nada(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:  # sin ninguna unidad dentro
+            llamadas = []
+            originales = (N.ssh, N._poner_en_a1)
+            N.ssh = lambda *a, **k: llamadas.append(a) or (0, "")
+            N._poner_en_a1 = lambda *a, **k: llamadas.append(a) or (0, "")
+            try:
+                r = N.peticiones(aplicar=True, carpeta_unidades=tmp)
+            finally:
+                N.ssh, N._poner_en_a1 = originales
+        self.assertFalse(r["ok"])
+        self.assertEqual(llamadas, [])
+
+    def test_aplica_en_orden_y_sin_la_nueva_activa_la_vieja_sigue(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            self._unidades_en(tmp)
+            llamadas = []
+
+            def ssh_falso(orden, entrada=None, timeout=120):
+                llamadas.append(orden)
+                return (1, "inactive") if "is-active" in orden else (0, "")
+
+            originales = (N.ssh, N._poner_en_a1)
+            N.ssh = ssh_falso
+            N._poner_en_a1 = lambda contenido, destino, modo=0o644, dueno="root": (
+                llamadas.append("instalar %s" % destino) or (0, ""))
+            try:
+                r = dict(N.peticiones(aplicar=True, carpeta_unidades=tmp))
+            finally:
+                N.ssh, N._poner_en_a1 = originales
+        self.assertTrue(r["ok"])
+        import json
+        hechos = json.loads(json.dumps(r.get("hecho") or []))
+        self.assertEqual([h["que"] for h in hechos[:5]],
+                         ["copiar-modulo", "copiar-unidad", "copiar-unidad", "copiar-unidad", "systemd"])
+        self.assertEqual(hechos[0]["ok"], True)
+        self.assertIn("/starseed-system/scripts/puente/peticiones_telegram.py", llamadas[0])
+        self.assertIn("/etc/systemd/system/starseed-peticiones-telegram.service", llamadas[1])
+        self.assertIn("la nueva no quedó activa", str(r["hecho"][-1]))
+        self.assertEqual([l for l in llamadas if "retirada-" in l], [])  # la vieja sigue en marcha
+
+    def test_con_la_nueva_activa_retira_la_vieja_y_conserva_el_offset(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            self._unidades_en(tmp)
+            llamadas = []
+
+            def ssh_falso(orden, entrada=None, timeout=120):
+                llamadas.append(orden)
+                return (0, "active") if "is-active" in orden else (0, "")
+
+            originales = (N.ssh, N._poner_en_a1)
+            N.ssh = ssh_falso
+            N._poner_en_a1 = lambda contenido, destino, modo=0o644, dueno="root": (
+                llamadas.append("instalar %s" % destino) or (0, ""))
+            try:
+                r = N.peticiones(aplicar=True, carpeta_unidades=tmp)
+            finally:
+                N.ssh, N._poner_en_a1 = originales
+        self.assertTrue(r["ok"])
+        retirada = next(l for l in llamadas if "retirada-" in l)
+        self.assertLess(llamadas.index(next(l for l in llamadas if "is-active" in l)),
+                        llamadas.index(retirada))  # solo se retira tras comprobar la nueva
+        self.assertIn(N.HERRAMIENTA_VIEJA_PETICIONES, retirada)
+        self.assertIn(".starseed/peticiones/estado.json", retirada)
+
+
 if __name__ == "__main__":
     unittest.main()

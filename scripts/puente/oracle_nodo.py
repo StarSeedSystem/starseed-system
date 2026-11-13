@@ -56,9 +56,13 @@ la llave SSH (`~/.ssh/starseed_oracle_ed25519`) y la sesión de GitHub hace con 
                          va en encuesta solo en el líder: dos encuestas del mismo bot se pisan.
                          Sin `--aplicar` solo enseña el plan.
   leann [--aplicar]      el recuerdo semántico LEANN en el A1 (LNN1028C): venv de starseed con
-                          leann==0.3.8, el modelo qwen3-embedding con su licencia comprobada y
-                          starseed-leann.service en 127.0.0.1:4495. Sin `--aplicar` solo enseña
-                          el plan; sin el servidor el recuerdo sigue con Memvid y nada falla.
+                           leann==0.3.8, el modelo qwen3-embedding con su licencia comprobada y
+                           starseed-leann.service en 127.0.0.1:4495. Sin `--aplicar` solo enseña
+                           el plan; sin el servidor el recuerdo sigue con Memvid y nada falla.
+  peticiones [--aplicar] las peticiones de Alex por Telegram versionadas al A1 (PET1112B): módulo
+                           del repo al checkout y las tres unidades systemd; la herramienta vieja
+                           (/home/starseed/herramientas/peticiones-telegram) se para y retira SOLO
+                           cuando la nueva quedó activa, y el offset (estado.json) se conserva.
 
 
 Reglas: Oracle SOLO Always Free (esto no crea nada en Oracle); nada se publica (main no se toca:
@@ -218,6 +222,16 @@ LEANN_INSTALADOR = os.path.join(RAIZ, "deploy", "oracle", "nodo", "leann-a1.sh")
 LEANN_UNIDAD = os.path.join(RAIZ, "deploy", "oracle", "nodo", "systemd", "starseed-leann.service")
 #: Los módulos que viajan con el paquete a `leann/` junto al servidor (mismas rutas allí).
 LEANN_FUENTES = ("leann_servidor.py", "leann_indices.py", "fusion_recuerdos.py")
+#: (PET1112B) Las peticiones de Alex por Telegram (@StarSeed_Design_bot) ya funcionan en el A1
+#: hechas a mano fuera del repo; esto las versiona: unidades systemd, módulo del repo corriendo
+#: desde el checkout del A1 y retiro de la herramienta vieja SOLO cuando la nueva quedó activa.
+UNIDADES_PETICIONES = ("starseed-peticiones-telegram.service", "starseed-cuentas-dueno.path",
+                       "starseed-cuentas-dueno.service")
+CARPETA_UNIDADES_PETICIONES = os.path.join(RAIZ, "deploy", "oracle", "nodo", "systemd")
+SYSTEMD_A1 = "/etc/systemd/system"
+PETICIONES_PY_A1 = os.path.join(REPO_A1, "scripts", "puente", "peticiones_telegram.py")
+HERRAMIENTA_VIEJA_PETICIONES = "/home/starseed/herramientas/peticiones-telegram"
+ESTADO_PETICIONES_A1 = "/home/starseed/.starseed/peticiones/estado.json"
 
 
 # ── decisiones (puras) ──────────────────────────────────────────────────────────────────────────
@@ -2119,6 +2133,101 @@ def freellmapi():
     return dict(res, ok=rc == 0, pasos=lineas or salida.strip().splitlines()[-8:])
 
 
+def peticiones(aplicar=False, carpeta_unidades=CARPETA_UNIDADES_PETICIONES):
+    """(PET1112B) Despliega las peticiones de Telegram en el A1: copia el módulo al checkout y
+    las unidades systemd, recarga y reinicia la nueva y —solo si quedó activa— para y retira la
+    herramienta vieja conservando el offset. Sin `--aplicar` solo enseña el plan. Ninguna IP se
+    imprime: los detalles salen por `tachar`."""
+    res = {"ok": True, "aplicado": bool(aplicar), "pasos": plan_peticiones()}
+    if not aplicar:
+        return res
+    try:
+        with open(_ruta_puente("peticiones_telegram.py"), encoding="utf-8") as f:
+            modulo = f.read()
+        unidades = {}
+        for n in UNIDADES_PETICIONES:
+            with open(os.path.join(carpeta_unidades, n), encoding="utf-8") as f:
+                unidades[n] = f.read()
+    except OSError as e:
+        return dict(res, ok=False, motivo="falta %s en el repo" % os.path.basename(e.filename or ""))
+    res["hecho"] = []
+
+    def apuntar(que, rc, salida):
+        detalle = tachar(salida.strip()[-160:], _ip())
+        hecho = {"que": que, "ok": rc == 0}
+        if detalle:
+            hecho["detalle"] = detalle
+        res["hecho"].append(hecho)
+        res["ok"] = res["ok"] and rc == 0
+
+    fecha = time.strftime("%Y%m%d")
+    for paso in guion_peticiones(True, fecha):
+        if paso["que"] == "retirar-vieja":
+            continue  # la retirada se decide tras comprobar que la nueva quedó activa
+        if paso["que"] == "copiar-modulo":
+            rc, salida = _poner_en_a1(modulo, paso["destino"], dueno="starseed")
+        elif paso["que"] == "copiar-unidad":
+            rc, salida = _poner_en_a1(unidades[paso["nombre"]], paso["destino"])
+        else:
+            rc, salida = ssh(paso["orden"], timeout=120)
+        apuntar(paso["que"], rc, salida)
+        if not res["ok"]:
+            return res
+    rc, salida = ssh("systemctl is-active starseed-peticiones-telegram 2>/dev/null || true", timeout=40)
+    activa = rc == 0 and salida.strip() == "active"
+    if activa:
+        rc, salida = ssh(orden_retirada_vieja(fecha), timeout=120)
+        apuntar("retirar-vieja", rc, salida)
+    else:
+        res["hecho"].append({"que": "retirar-vieja", "ok": True,
+                             "detalle": "la nueva no quedó activa: la herramienta vieja sigue en marcha"})
+    return res
+
+
+# ── peticiones (PET1112B) ────────────────────────────────────────────────────────────────────────
+
+def orden_retirada_vieja(fecha, vieja=HERRAMIENTA_VIEJA_PETICIONES, estado=ESTADO_PETICIONES_A1):
+    """PURA (PET1112B). Para y retira la herramienta vieja: mata cualquier proceso suyo que
+    quedara, aparca su carpeta y comprueba que el offset (estado.json) sigue donde estaba."""
+    return ("sudo pkill -f '%s' 2>/dev/null; true; "
+            "test -d %s && sudo mv %s %s.retirada-%s || true; "
+            "test -f %s && echo offset-conservado"
+            % (vieja, vieja, vieja, vieja, fecha, estado))
+
+
+def guion_peticiones(activa, fecha, unidades=UNIDADES_PETICIONES, destino_py=PETICIONES_PY_A1,
+                     systemd=SYSTEMD_A1):
+    """PURA (PET1112B). El guion de la orden `peticiones`, EN ORDEN: el módulo del repo al
+    checkout, las unidades a /etc/systemd, daemon-reload con enable y restart de la nueva, y la
+    retirada de la herramienta vieja SOLO si la nueva quedó activa (`activa`)."""
+    pasos = [{"que": "copiar-modulo", "destino": destino_py}]
+    pasos += [{"que": "copiar-unidad", "nombre": n, "destino": os.path.join(systemd, n)}
+              for n in unidades]
+    reiniciar = next(n for n in unidades if n.endswith(".service") and "peticiones" in n)
+    al_arranque = [n for n in unidades if n.endswith(".path")]
+    pasos.append({"que": "systemd", "orden": (
+        "sudo systemctl daemon-reload && sudo systemctl enable %s && "
+        "sudo systemctl restart %s && sudo systemctl start %s"
+        % (" ".join(unidades), reiniciar, " ".join(al_arranque)))})
+    if activa:
+        pasos.append({"que": "retirar-vieja", "orden": orden_retirada_vieja(fecha)})
+    return pasos
+
+
+def plan_peticiones():
+    """PURA (PET1112B). El plan de la orden `peticiones`, para enseñarlo sin tocar nada."""
+    return [
+        {"que": "copiar", "destino": PETICIONES_PY_A1,
+         "porque": "el módulo del repo corre en el checkout del A1"},
+        *[{"que": "copiar", "destino": os.path.join(SYSTEMD_A1, n), "porque": "unidad %s" % n}
+          for n in UNIDADES_PETICIONES],
+        {"que": "systemd",
+         "porque": "daemon-reload, enable, restart de la nueva y arranque del .path de cuentas"},
+        {"que": "retirar-vieja",
+         "porque": "SOLO si la nueva quedó activa; conserva el offset (%s)" % ESTADO_PETICIONES_A1},
+    ]
+
+
 def main(argv):
     orden = argv[1] if len(argv) > 1 else "estado"
     tope = int(argv[argv.index("--tope") + 1]) if "--tope" in argv else TOPE_DEFECTO
@@ -2160,6 +2269,8 @@ def main(argv):
         r = hermes(aplicar="--aplicar" in argv)
     elif orden == "leann":
         r = leann(aplicar="--aplicar" in argv)
+    elif orden == "peticiones":
+        r = peticiones(aplicar="--aplicar" in argv)
     elif orden == "freellmapi":
         r = freellmapi()
     elif orden == "probar-bitnet":
