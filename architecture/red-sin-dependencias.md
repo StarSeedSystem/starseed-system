@@ -628,13 +628,15 @@ C … a cualquier distancia, cualquier neurona puede funcionar como nodo … en 
 
 | Pieza | Qué hace | Relevo de A a C |
 |---|---|---|
-| `transporte-universal.ts` · `crearEnviador` | Elige un carril directo (`elegirEnlaces`) y espera su acuse; si no, relé del servidor o LoRa | **No**: sin carril directo, `«Ningún enlace abierto llega a ese destino»` |
-| `rele-archivo.ts` · salto de archivo (MPT1108B) | B pasa trozos sellados de A a C, solo por la malla WebRTC de la cuenta | Solo archivos, solo carril «cuenta» (que necesita internet para señalizarse), sin anuncio de quién llega a quién (A intenta por cada neurona de la cuenta a ciegas), y C contesta por `canalNulo`: no puede aceptar ni pedir huecos de vuelta |
-| `rele-bidireccional.ts` / `rele-propio.ts` (PTA1108C) | Relé del servidor de StarSeed o servidor propio, de dos vías | Necesita internet o un servidor |
-| `puerta/tabla.ts` (PTA1108A/1110B) | Anuncios con saltos (`via`, `ttl`, `MAX_SALTOS = 3`, caducidad de 90 s) y ámbitos de confianza | Solo para salir a internet o a una capa; no lleva mensajes entre neuronas |
-| `canal-sellado.ts` + `cifrado-archivo.ts` | Archivo sellado de punta a punta, independiente del camino | Sí sirve tal cual por un relevo |
-| Mensajes `tu.msg` | Cifrado por carril (CIF1108A: TCP y Bluetooth; WebRTC DTLS) | **Un relevo los vería en claro**: hacía falta sello de punta a punta |
-| Capas de conciencia (ámbitos) | `puerta/politica.ts` · `Ambito`: `mias` > `grupo` > `otras` > `publica`, con topes por ámbito y una cadena que nunca ensancha la confianza (`ambitoEfectivo`) | Es el modelo que usa este contrato |
+| `transporte-universal.ts` · `crearEnviador` | Elige un carril directo (`elegirEnlaces`) y espera su acuse; si no, relé del servidor o LoRa | **No**: sin carril directo, `«Ningún enlace abierto llega a ese destino»` (a medias: gancho `DepsEnvio.relevo` añadido en REL1111I `15ccc785d`, `src/lib/malla/transporte-universal.ts:198` y `602`; falta cablear elegidores) |
+| `rele-archivo.ts` · salto de archivo (MPT1108B) | B pasa trozos sellados de A a C, solo por la malla WebRTC de la cuenta | Solo archivos, solo carril «cuenta» (que necesita internet para señalizarse), sin anuncio de quién llega a quién (A intenta por cada neurona de la cuenta a ciegas), y C contesta por `canalNulo`: no puede aceptar ni pedir huecos de vuelta (a medias: relevo de archivos por `relevo/real.ts` en REL1111I `15ccc785d`, usa `canal-sellado.ts` + `cifrado-archivo.ts`; falta probar en aparatos reales) |
+| `rele-bidireccional.ts` / `rele-propio.ts` (PTA1108C) | Relé del servidor de StarSeed o servidor propio, de dos vías | Necesita internet o un servidor (a medias: `rele-propio.ts` y `rele-bidireccional.ts` en REL1111I `15ccc785d`, `src/lib/malla/rele-propio.ts`, `src/lib/malla/rele-bidireccional.ts`; servidor real pendiente) |
+| `puerta/tabla.ts` (PTA1108A/1110B) | Anuncios con saltos (`via`, `ttl`, `MAX_SALTOS = 3`, caducidad de 90 s) y ámbitos de confianza | Solo para salir a internet o a una capa; no lleva mensajes entre neuronas (a medias: tabla de relevo `relevo/tabla.ts` en REL1111I `15ccc785d` usa mismo modelo `tu.rva` con `via`/`ttl`; fase 1 solo un salto) |
+| `canal-sellado.ts` + `cifrado-archivo.ts` | Archivo sellado de punta a punta, independiente del camino | ✅ Hecho (`15ccc785d`, `src/lib/malla/canal-sellado.ts`, `src/lib/malla/cifrado-archivo.ts`) — sirve tal cual por un relevo |
+| Mensajes `tu.msg` | Cifrado por carril (CIF1108A: TCP y Bluetooth; WebRTC DTLS) | **Un relevo los vería en claro**: hacía falta sello de punta a punta ✅ Hecho (`15ccc785d`, `src/lib/malla/relevo/sobre.ts`) — mensajes sellados con `recipient-crypto` v:3 + firma ECDSA de identidad de malla |
+| Capas de conciencia (ámbitos) | `puerta/politica.ts` · `Ambito`: `mias` > `grupo` > `otras` > `publica`, con topes por ámbito y una cadena que nunca ensancha la confianza (`ambitoEfectivo`) | (a medias: modelo `Ambito` y `ambitoEfectivo` existen en `src/lib/malla/puerta/politica.ts` y `src/lib/malla/puerta/__tests__/pta1110b-ambitos.test.ts`; el relevo aún no los integra — fase 4 §14.5) |
+
+Revisado el 2026-11-13 contra main (`9339e035`): 2 hechos, 5 a medias, 0 pendientes (F2 y F3 esperan palabra de Alex).
 
 ### 14.1 · Alcance: qué sabe cada neurona y cuánto vale
 

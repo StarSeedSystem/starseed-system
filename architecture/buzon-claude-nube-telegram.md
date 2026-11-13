@@ -119,7 +119,9 @@ psql "$SUPABASE_DB_URL" -c "
 
 ## Pendiente (fuera de este encargo)
 
-- BZN1108B: tarea de entrega (corre en el líder, usa `hermes send`).
-- BZN1108C: lectura del parte por Claude nube (SQL ya documentado arriba).
-- Integración en la consola `/mando` (pestaña MetaGenesis → sección Buzón).
-- Programar la síntesis diaria en la NUBE (Alex: conector MCP + cron de la nube).
+- BZN1108B: tarea de entrega (corre en el líder, usa `hermes send`). ✅ Hecho (`9339e035`, `scripts/puente/buzon_telegram.py`) — ciclo cada 120 s, solo si líder (`lider_direccion.soy_lider()`), valida tope 10/día, lista blanca `telegram:Maggasukha`, parte en trozos ≤ 3500 chars, marca `entregado`/`fallo`.
+- BZN1108C: lectura del parte por Claude nube (SQL ya documentado arriba). ✅ Hecho (`9339e035`, `scripts/puente/parte_diario_metagenesis.py`) — líder a las 07:30 CDMX, arma JSON ≤ 38k chars (medidores, colas, referencias imaginación, informes, áreas, neuronas, proveedores), inserta en `metagenesis_buzon` clase `parte` estado `archivado`, destino `NULL`.
+- Integración en la consola `/mando` (pestaña MetaGenesis → sección Buzón). (a medias: pestañas `accesos` y `tunel-metagenesis` existen en `centro-mando.tsx:2800-2809`; falta sección «Buzón MetaGenesis» con últimos 20 avisos y botón «Reintentar fallos»).
+- Programar la síntesis diaria en la NUBE (Alex: conector MCP + cron de la nube). (fuera del repo: infraestructura de Alex).
+
+Revisado el 2026-11-13 contra main (`9339e035`): 2 hechos, 1 a medias, 1 pendiente (fuera del repo).
