@@ -410,15 +410,17 @@ class EstadoYEscritorio(Base):
                                entorno={A.VAR_A1: ALIAS}, env_archivo=os.path.join(self.dir, "x"))
         self.assertIn("Hay un túnel abierto a la Mac (com.starseed.mando.tunel): la firma no lo cubre", texto)
         self.assertIn(a.huella[:8], texto)
-        for prohibido in (a.huella, DUENO, ALIAS, "123"):
+        for prohibido in (a.huella, DUENO, ALIAS):
             self.assertNotIn(prohibido, texto)
+        # El pid no sale como número suelto (la huella8 al azar puede contener «123» dentro: no cuenta).
+        self.assertIsNone(re.search(r"\b123\b", texto))
         # GEN1114INT · decisión de Alex: el de MetaGenesis sigue encendido; se avisa y se dice por qué, sin bloquear.
         self.ej.launchctl = "PID\tStatus\tLabel\n456\t0\tcom.starseed.tunel-metagenesis\n"
         texto = A.estado_texto(base=self.base, ruta_altas=self.ruta_altas, dueno_altas=YO, ahora=T0, ejecutar=self.ej,
                                entorno={A.VAR_A1: ALIAS}, env_archivo=os.path.join(self.dir, "x"))
         self.assertIn("la firma no lo cubre", texto)
         self.assertIn("sigue encendido por decisión de Alex", texto)
-        self.assertNotIn("456", texto)
+        self.assertIsNone(re.search(r"\b456\b", texto))
         self.ej.launchctl = "PID\tStatus\tLabel\n"
         texto = A.estado_texto(base=self.base, ruta_altas=self.ruta_altas, dueno_altas=0, ahora=T0, ejecutar=self.ej,
                                entorno={}, env_archivo=os.path.join(self.dir, "x"))
