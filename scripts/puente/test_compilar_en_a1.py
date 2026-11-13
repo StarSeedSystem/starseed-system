@@ -769,11 +769,12 @@ class MontonALaMedida(unittest.TestCase):
         self.assertEqual(C.heap_para(None, 4096, 6144, 1024), 4096)
         self.assertEqual(C.heap_para("x", 4096, 6144, 1024), 4096)
 
-    def test_por_defecto_ya_no_es_4096_fijo_y_un_numero_lo_fija(self):
+    def test_por_defecto_es_5120_como_el_guardian_y_un_numero_lo_fija(self):
         g = C.guion_compilar("/r")
-        self.assertIn("--max-old-space-size=$h", g)
+        self.assertIn("--max-old-space-size=5120", g)
         self.assertNotIn("--max-old-space-size=4096", g)
-        self.assertIn("MemAvailable", g)
+        self.assertNotIn("--max-old-space-size=$h", g)
+        self.assertNotIn("MemAvailable", g)
         self.assertIn("--max-old-space-size=5000", C.guion_compilar("/r", heap=5000))
         self.assertNotIn("MemAvailable", C.guion_compilar("/r", heap=5000))
         self.assertNotIn("'", C.frag_heap())  # viaja dentro de `sh -c '…'` (orden_compilar)
