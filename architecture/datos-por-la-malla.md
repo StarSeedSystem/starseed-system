@@ -104,7 +104,7 @@ llamada directa con pantalla en `llamada-directa.ts` (`llamarPorEnlace(…, { pi
 - **Verificar con dos aparatos reales** (no se puede en una sola máquina): llamada directa con
   pantalla por un enlace emparejado; archivo de >1 GB reanudado tras recargar; transmisión en vivo
   con acuses; timbre de una llamada por internet entre dos neuronas; llamada desde un chat 1:1 sin
-  internet con su burbuja por «chat-malla»; archivos a cada miembro de un grupo por la malla.
+  internet con su burbuja por «chat-malla»; archivos a cada miembro de un grupo por la malla (código en `src/lib/malla/llamada-directa.ts`, `src/lib/network/archivos-malla.ts`, `src/lib/mensajeria/neuronas/flujo-datos.ts`, `src/lib/mensajeria/neuronas/llamadas-neurona.ts`, `src/lib/llamadas/medio-llamada-chat.ts`; falta probarlo en aparatos).
 - ~~Canal local nativo en el transporte universal~~ → hecho en MLT1107A (§6); falta verificarlo con
   dos aparatos reales (§6.5).
 - ~~Llamadas de grupo sin internet~~ → hechas en GRP1107A (§7.1): malla COMPLETA (no estrella),
@@ -115,6 +115,8 @@ llamada directa con pantalla en `llamada-directa.ts` (`llamarPorEnlace(…, { pi
   almacenamiento de la cuenta solo comparte con tus propias neuronas).
 - ~~Flujos de audio/vídeo genéricos por canal de datos~~ → hechos en GRP1107A (§7.3).
 - Lo que GRP1107A deja para aparatos reales y para después está en §7.5.
+
+Revisado el 2026-11-13 contra main (9339e035b): 4 hechos, 0 a medias, 3 pendientes.
 
 ## 6 · Red local entre apps nativas, sin internet (MLT1107A · 2026-11-07)
 
@@ -192,14 +194,16 @@ Rust `malla_local_trama` (+2: dos trozos por trama, limitador 300/10 s).
 ### 6.5 · Lo que necesita dos aparatos reales (pendiente)
 
 - Que la Mac y la tablet (apps nativas con este cambio, misma red, sin internet) se liguen solas tras
-  «Sincronizar ahora» y digan «Mesh · Red local (app nativa)» en los mensajes.
+  «Sincronizar ahora» y digan «Mesh · Red local (app nativa)» en los mensajes (código en `src/lib/malla/red-local-nativa.ts`, `src/lib/malla/red-local-nativa-motor.ts`; falta probarlo en aparatos).
 - Que el WebRTC se abra sin QR en los WebView reales (WKWebView en macOS/iOS, WebView de Android):
-  `RTCPeerConnection` con `iceServers: []` y candidatos `.local`; medir si hace falta la copia con IP.
+  `RTCPeerConnection` con `iceServers: []` y candidatos `.local`; medir si hace falta la copia con IP (código en `src/lib/malla/emparejar-sin-internet.ts`; falta probarlo en aparatos).
 - Llamada de voz, vídeo y pantalla por `local:nativo-…`; archivo de > 1 GB por el WebRTC y uno
-  pequeño solo por el TCP (desactivando WebRTC) con su ritmo real.
-- La app 0.5.0 (sin este cambio de Rust) frente a una nueva: los límites se respetan (30/10 s).
+  pequeño solo por el TCP (desactivando WebRTC) con su ritmo real (código en `src/lib/malla/llamada-directa.ts`, `src/lib/network/archivos-malla.ts`; falta probarlo en aparatos).
+- La app 0.5.0 (sin este cambio de Rust) frente a una nueva: los límites se respetan (30/10 s) (código en `src/lib/malla/red-local-nativa.ts`, `native/src-tauri/src/malla_local_trama.rs`; falta probarlo en aparatos).
 - Cortafuegos: macOS «Red local» y Windows «Redes privadas» para el TCP 47071 (ya en §2 del contrato
-  de sincronización); ningún puerto nuevo (el WebRTC usa los suyos, efímeros, dentro de la red).
+  de sincronización); ningún puerto nuevo (el WebRTC usa los suyos, efímeros, dentro de la red) (código en `native/src-tauri/src/malla_local_servidor.rs`; falta probarlo en aparatos).
+
+Revisado el 2026-11-13 contra main (9339e035b): 0 hechos, 0 a medias, 5 pendientes.
 
 ### 6.6 · Por qué la Mac mandó por el servidor a la tablet de al lado (MLL1107A · 2026-11-07)
 
@@ -441,19 +445,21 @@ real), `src/components/messages/__tests__/correos-malla.test.tsx` (3);
 - **Grupo sin internet** con 3 aparatos vinculados por pares (QR o apps nativas): que suene en los
   dos, que al aceptar se vean los tres (malla completa) y que, quitando el enlace B–C, el aviso diga
   que B y C no se oyen. Medir CPU y subida con 4 aparatos con vídeo y con 6 en solo voz (el umbral
-  de 4/700 kbps es una estimación: ajustarlo con lo medido).
+  de 4/700 kbps es una estimación: ajustarlo con lo medido) (código en `src/lib/llamadas/grupo-malla-motor.ts`; falta probarlo en aparatos).
 - **Correos**: Mac sin internet → tablet (relevo) que luego tiene internet → el correo aparece una
   sola vez en el buzón de Ana y «En el servidor» vuelve a la Mac; y Mac → móvil de Ana sin internet
   (entrega directa) y después reconciliación. Comprobar IndexedDB y la clave no extraíble en Safari
-  (WKWebView) y en el WebView de Android; en una pestaña privada de Firefox, que diga «en memoria».
+  (WKWebView) y en el WebView de Android; en una pestaña privada de Firefox, que diga «en memoria» (código en `src/lib/mail/correo-malla-motor.ts`, `src/lib/mail/boveda-correo-malla.ts`; falta probarlo en aparatos).
 - **Medios por canal de datos**: por la malla de la cuenta (canal de datos) entre dos aparatos;
   que MediaSource admita los segmentos webm encadenados en Chrome/Edge/Firefox y el respaldo archivo
   a archivo en Safari (MediaRecorder de Safari graba `audio/mp4`/`video/mp4`: comprobar que el otro
-  lado lo reproduce); afinar el umbral de saturación (75 %) con acuses reales, que llegan con retraso.
+  lado lo reproduce); afinar el umbral de saturación (75 %) con acuses reales, que llegan con retraso (código en `src/lib/mensajeria/neuronas/transmision-medios.ts`; falta probarlo en aparatos).
 - Lo que no está: reenviar medios de un grupo por un tercero cuando una pareja no tiene enlace (SFU
   en una neurona), adjuntos de correo por la malla (hoy por el chat o «Neuronas»), y que un
   destinatario suba al buzón un correo que solo él recibió por la malla (no puede escribir como el
   remitente: lo sube el remitente o su relevo al tener internet).
+
+Revisado el 2026-11-13 contra main (9339e035b): 0 hechos, 0 a medias, 4 pendientes.
 
 ## 8 · Archivos: integridad por la red local y la ventana de un envío (ARC1108A · 2026-11-08)
 
@@ -571,12 +577,14 @@ una inspección de seguridad con IA».
 ### 8.6 · Lo que necesita aparatos reales (pendiente)
 
 - Repetir la prueba de los 18 archivos Mac → tableta y tableta → Mac con la web publicada: los 18
-  «Verificado (SHA-256)» por `local:nativo-…` y también forzando el canal TCP (WebRTC desactivado).
+  «Verificado (SHA-256)» por `local:nativo-…` y también forzando el canal TCP (WebRTC desactivado) (código en `src/lib/network/archivos-malla.ts`; falta probarlo en aparatos).
 - Qué almacén elige cada WebView (`almacen.tipo`): WKWebView de macOS (¿OPFS con `createWritable`?) y
   WebView de Android en el origen 127.0.0.1 (¿OPFS? ¿IndexedDB?); el .bin de 50 MB en la tableta
-  (memoria si cae a la memoria).
+  (memoria si cae a la memoria) (código en `src/lib/network/archivos-malla.ts`; falta probarlo en aparatos).
 - La ventana del envío en la tableta (vertical y horizontal) y en el teléfono; las miniaturas que
-  genera el WKWebView (HEIC) y el WebView de Android; «Inspeccionar con IA» con el router real.
+  genera el WKWebView (HEIC) y el WebView de Android; «Inspeccionar con IA» con el router real (código en `src/components/network/envios-entrantes.tsx`, `src/lib/network/inspeccion-ia.ts`; falta probarlo en aparatos).
+
+Revisado el 2026-11-13 contra main (9339e035b): 0 hechos, 0 a medias, 3 pendientes.
 
 ### 8.7 · Archivos grandes sin que el remitente se rinda (ARC1108B · 2026-11-08)
 
@@ -801,6 +809,6 @@ orden con 10 minutos de desfase; migración con datos de forma real (450 mensaje
 respaldo; subida sin duplicar desde dos aparatos; fusión con el servidor; arranque y caída a localStorage.
 
 ### 10.7 · Pendiente en aparatos reales
-Migración con el historial real Mac ↔ tableta (comprobar el respaldo y el recuento antes/después); mensaje de la tableta en
-modo avión que aparece en la Mac al volver el Wi-Fi sin duplicarse; edición/borrado con la otra neurona offline; abrir dos
-pestañas de la web y ver que la bandeja se sincroniza; IndexedDB en la webview de Tauri (Android e iOS).
+Migración con el historial real Mac ↔ tableta (comprobar el respaldo y el recuento antes/después); mensaje de la tableta en modo avión que aparece en la Mac al volver el Wi-Fi sin duplicarse; edición/borrado con la otra neurona offline; abrir dos pestañas de la web y ver que la bandeja se sincroniza; IndexedDB en la webview de Tauri (Android e iOS) (código en `src/lib/mensajeria/almacen/persistencia-bandeja.ts`, `src/lib/mensajeria/almacen/almacen-mensajeria-malla.ts`; falta probarlo en aparatos).
+
+Revisado el 2026-11-13 contra main (9339e035b): 0 hechos, 0 a medias, 1 pendiente.
