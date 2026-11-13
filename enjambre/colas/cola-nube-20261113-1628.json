@@ -1,0 +1,29 @@
+{
+ "ola": "nube-20261113",
+ "tareas": [
+  {
+   "id": "DR1113-3",
+   "ola": "Ola Imaginación 2026-11-13 · lo que el análisis nocturno encontró",
+   "titulo": "Des-simular `formulate_next_intelligent_task` del Director",
+   "archivos": [],
+   "depende": [],
+   "prompt": "ORIGEN: esto lo escribió el Dream —el análisis nocturno de Hermes— en `starseed_memory_root/dream/sugerencias-2026-11-13.md`, sección «ideas nuevas». Texto literal del informe:\n\n  Des-simular `formulate_next_intelligent_task` del Director — (hoy `random.choice` de blueprints) → formular con motor real o `starseed-sub`.\n\nANTES DE ESCRIBIR NADA: comprueba que sigue siendo cierto. El Dream lo escriben modelos gratuitos leyendo registros, y a veces proponen algo que YA está hecho o que se entendió mal. Si al mirar el repo resulta que no aplica, no inventes trabajo: escribe en tu respuesta una línea `NO APLICA: <motivo>` y para.\n\nSi aplica: acota el cambio a lo mínimo que resuelva lo que dice el informe, y dilo en el commit. Máximo 3 archivos y 120 líneas por archivo. Las reglas de la casa están en `memory/workflow-actual.md` — léelas: el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba."
+  },
+  {
+   "id": "ALC1113D",
+   "ola": "ALC1113",
+   "titulo": "Alcance · mensajes personalizados para contactos de GitHub",
+   "archivos": [
+    "scripts/puente/alcance_plan.py",
+    "scripts/puente/agente_alcance.py",
+    "scripts/puente/test_agente_alcance.py"
+   ],
+   "depende": [],
+   "prompt": "Lee architecture/alcance-github-1113.md §3.1, §3.2 y §3.6. Amplía el agente de alcance existente (no hagas uno nuevo) para que acepte fichas de fuente 'github'. Hasta 5 borradores al día en estado 'esperando-aprobacion', cada uno con: id corto, destinatario, canal (github_discussion con repo y categoría, email de contacto publicado, foro o chat, o 'asistido'), idioma, asunto, texto de 220 palabras como máximo con las reglas de §3.6 (personalizado, repo de StarSeed, fases, una petición, línea de baja, firma de la Fundación, sin el nombre de Maggasukha) y motivo de la elección. Valida: el canal debe estar en canal_oficial de la ficha; si no hay canal publicado, no hay borrador. Nunca issues ni PR. Pruebas sin red, incluida una que rechaza un correo sacado de un commit.",
+   "dependencias_ya_en_main": [
+    "ALC1113A",
+    "ALC1113B"
+   ]
+  }
+ ]
+}
