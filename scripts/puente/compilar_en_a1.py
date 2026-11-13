@@ -16,7 +16,7 @@ Lo que hace (el mismo camino que la Mac, pero compilando fuera):
    navegador al compilar y sin ellas la pantalla llamaría al proyecto viejo.
 3. INSTALAR · `npm ci --ignore-scripts` SOLO si cambió `package-lock.json`.
 4. COMPILAR · `next build` en `.next-build` igual que la Mac (`STARSEED_DIST`),
-   5120 de heap y `nice`, corriendo como starseed via `--rsync-path`/sudo.
+   4096 de heap y `nice`, corriendo como starseed via `--rsync-path`/sudo.
 5. TRAER   · el build vuelve a la Mac sin `cache` ni `standalone`; después se
    borra `.env.production.local` del A1 — ahí las claves nunca hacen falta.
 6. CAMBIAR · `marcar_listo` con la hora del envío, estado `al-dia` con la huella
@@ -175,9 +175,6 @@ def marca_envio(t_envio, huella):
 HEAP_PISO_MB = int(os.environ.get("STARSEED_A1_HEAP_PISO_MB", "4096"))
 HEAP_TECHO_MB = int(os.environ.get("STARSEED_A1_HEAP_TECHO_MB", "6144"))
 HEAP_MARGEN_MB = int(os.environ.get("STARSEED_A1_HEAP_MARGEN_MB", "1024"))
-#: (SUP1112I) 5120 por defecto: la build del A1 murió tres veces el 12-11 con 4096 (OOM, caché en memoria);
-#: el guardián del A1 compila con 5120 y nunca falló.
-HEAP_COMPILAR_A1 = 5120
 
 
 def heap_para(disponible_mb, piso=HEAP_PISO_MB, techo=HEAP_TECHO_MB, margen=HEAP_MARGEN_MB):
@@ -234,11 +231,9 @@ def motivo_fallo(texto):
 
 def guion_compilar(raiz=RAIZ_A1, dist=DIST_BUILD, heap=None, marca=None):
     """PURA: la build como la Mac: dist aparte, nice 10 y STARSEED_BUILD_LIGERO=1 (30-10: OOM).
-    `heap=None`: 5120 fijo (HEAP_COMPILAR_A1, como el guardián); un número lo fija.
+    (REC1113A) `heap=None`: montón a la medida del A1 (`frag_heap`); un número lo fija.
     (SUP0111A) Con `marca`, al acabar BIEN deja `dist/.envio-a1`: la próxima pasada puede traerlo sin recompilar."""
-    if heap is None:
-        heap = HEAP_COMPILAR_A1
-    previo, techo = "", "%d" % int(heap)
+    previo, techo = (frag_heap(), "$h") if heap is None else ("", "%d" % int(heap))
     guion = ("%scd %s && rm -rf %s && STARSEED_BUILD_LIGERO=1 STARSEED_DIST=%s "
              "NODE_OPTIONS=--max-old-space-size=%s nice -n 10 npx next build"
              % (previo, shlex.quote(raiz), shlex.quote(dist), shlex.quote(dist), techo))
@@ -248,7 +243,7 @@ def guion_compilar(raiz=RAIZ_A1, dist=DIST_BUILD, heap=None, marca=None):
 
 
 def orden_compilar(raiz=RAIZ_A1, dist=DIST_BUILD, heap=None, marca=None):
-    """PURA: build con `nice` y 5120 de heap por defecto (HEAP_COMPILAR_A1), en dist aparte, igual que la Mac."""
+    """PURA: build con `nice` y el montón de `guion_compilar`, en dist aparte, igual que la Mac."""
     return "sudo -u starseed -H sh -c '%s'" % guion_compilar(raiz, dist, heap, marca=marca)
 
 

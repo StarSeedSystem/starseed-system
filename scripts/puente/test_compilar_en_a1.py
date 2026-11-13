@@ -769,12 +769,11 @@ class MontonALaMedida(unittest.TestCase):
         self.assertEqual(C.heap_para(None, 4096, 6144, 1024), 4096)
         self.assertEqual(C.heap_para("x", 4096, 6144, 1024), 4096)
 
-    def test_por_defecto_es_5120_como_el_guardian_y_un_numero_lo_fija(self):
+    def test_por_defecto_ya_no_es_4096_fijo_y_un_numero_lo_fija(self):
         g = C.guion_compilar("/r")
-        self.assertIn("--max-old-space-size=5120", g)
+        self.assertIn("--max-old-space-size=$h", g)
         self.assertNotIn("--max-old-space-size=4096", g)
-        self.assertNotIn("--max-old-space-size=$h", g)
-        self.assertNotIn("MemAvailable", g)
+        self.assertIn("MemAvailable", g)
         self.assertIn("--max-old-space-size=5000", C.guion_compilar("/r", heap=5000))
         self.assertNotIn("MemAvailable", C.guion_compilar("/r", heap=5000))
         self.assertNotIn("'", C.frag_heap())  # viaja dentro de `sh -c '…'` (orden_compilar)
@@ -838,29 +837,6 @@ class MontonALaMedida(unittest.TestCase):
         self.assertTrue(detalle.startswith("next build en el A1: se agotó el montón de V8"), detalle)
         self.assertEqual(ssh.call_args[0][0], C.orden_cola_log())
         self.assertIn("grep -m1", C.orden_cola_log())  # la línea `heap=` está al principio del registro
-
-
-class HeapCompilarA1(unittest.TestCase):
-    """SUP1112I: el heap por defecto de la build en el A1 es 5120 (como el guardián), no 4096."""
-
-    def test_guion_compilar_usa_5120_por_defecto(self):
-        g = C.guion_compilar(raiz="/n")
-        self.assertIn("--max-old-space-size=5120", g)
-        self.assertNotIn("--max-old-space-size=4096", g)
-
-    def test_orden_compilar_usa_5120_por_defecto(self):
-        o = C.orden_compilar(raiz="/n")
-        self.assertIn("--max-old-space-size=5120", o)
-        self.assertNotIn("--max-old-space-size=4096", o)
-
-    def test_orden_compilar_respeta_heap_pasado(self):
-        o = C.orden_compilar(raiz="/n", heap=3000)
-        self.assertIn("--max-old-space-size=3000", o)
-        self.assertNotIn("--max-old-space-size=5120", o)
-        self.assertNotIn("--max-old-space-size=4096", o)
-
-    def test_constante_heap_compilar_a1(self):
-        self.assertEqual(C.HEAP_COMPILAR_A1, 5120)
 
 
 if __name__ == "__main__":
