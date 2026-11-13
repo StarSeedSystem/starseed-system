@@ -45,7 +45,36 @@ describe("SelectorCamara", () => {
 
   it("sin cámaras lo dice", () => {
     render(<SelectorCamara camaras={[]} elegidaId={null} neurona="t-sel" plataforma="linux" />);
-    expect(screen.getByText(/No vemos ninguna cámara/)).toBeTruthy();
+    expect(screen.getByText(/El sistema no da ninguna cámara/)).toBeTruthy();
+  });
+
+  it("(LLA1113B) con cámaras contadas pero sin permiso (WebView de Android) no dice «ninguna»: dice cuántas y qué hacer", () => {
+    render(<SelectorCamara camaras={[]} ocultas={4} elegidaId={null} neurona="t-sel" plataforma="android" />);
+    expect(screen.getByText(/Este aparato tiene 4 cámaras, pero .* Enciende la cámara y aparecerán aquí/)).toBeTruthy();
+    expect(screen.queryByText(/ninguna cámara/)).toBeNull();
+  });
+
+  it("(LLA1113B) las cámaras de la tableta con su nombre claro: frontales y traseras, todas elegibles", () => {
+    const onElegir = vi.fn();
+    render(
+      <SelectorCamara
+        camaras={[
+          { id: "c1", nombre: "camera 1, facing front" },
+          { id: "c3", nombre: "camera 3, facing front" },
+          { id: "c2", nombre: "camera 2, facing back" },
+          { id: "c0", nombre: "camera 0, facing back" },
+        ]}
+        elegidaId="c1"
+        neurona="t-sel-and"
+        plataforma="android"
+        onElegir={onElegir}
+      />,
+    );
+    const radios = screen.getAllByRole("radio").filter((r) => !(r as HTMLButtonElement).disabled);
+    expect(radios).toHaveLength(4);
+    expect(radios.map((r) => r.textContent ?? "").join(" | ")).toMatch(/frontal.*frontal.*trasera.*trasera/i);
+    radios[2].click();
+    expect(onElegir).toHaveBeenCalledWith("c2");
   });
 });
 

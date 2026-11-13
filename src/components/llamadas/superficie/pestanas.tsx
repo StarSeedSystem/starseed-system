@@ -29,6 +29,12 @@ export function PestanaCalidad({ v, a, salidas, espejo, onEspejo }: { v: VistaLl
     }
   })();
   const c = v.calidad;
+  // LLA1113B: al abrir «Puertos» se vuelve a listar (cámaras y micros): lo que se ve es lo que hay ahora, no lo de al
+  // empezar la llamada (en Android, antes del permiso de cámara, la lista salía vacía y no se rehacía).
+  const refrescar = useRef(a?.actualizarDispositivos);
+  useEffect(() => {
+    refrescar.current?.();
+  }, []);
   return (
     <div className="space-y-2">
       {c ? (
@@ -72,7 +78,7 @@ export function PestanaCalidad({ v, a, salidas, espejo, onEspejo }: { v: VistaLl
           )}
         </div>
       )}
-      {v.dispositivos && <SelectorCamara camaras={v.dispositivos.camaras} elegidaId={v.seleccion?.camaraId ?? null} neurona={neurona} onElegir={a?.elegirCamara} />}
+      {v.dispositivos && <SelectorCamara camaras={v.dispositivos.camaras} ocultas={v.dispositivos.ocultas?.camaras ?? 0} elegidaId={v.seleccion?.camaraId ?? null} neurona={neurona} onElegir={a?.elegirCamara} />}
       {v.dispositivos && <OpcionesDeCamara pista={v.pistaCamara} neurona={neurona} espejo={espejo} onEspejo={onEspejo} />}
       {v.dispositivos && a?.actualizarDispositivos && <button type="button" className={btnTxt} onClick={a.actualizarDispositivos}>Volver a buscar dispositivos</button>}
     </div>

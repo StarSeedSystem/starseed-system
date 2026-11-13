@@ -414,16 +414,37 @@ export async function listarDispositivos(): Promise<DispositivosMedios> {
     try {
         const lista = await md.enumerateDevices();
         const out: DispositivosMedios = { microfonos: [], camaras: [], altavoces: [] };
+        // LLA1113B: las que el sistema enseña sin id (sin permiso de ese tipo todavía) no se pueden elegir, pero se cuentan:
+        // la ventana dice «hay N, enciende la cámara para verlas» en vez de «no hay ninguna».
+        const ocultas = { camaras: 0, microfonos: 0 };
         for (const d of lista) {
-            if (!d.deviceId) continue;
+            if (!d.deviceId) {
+                if (d.kind === "videoinput") ocultas.camaras++;
+                else if (d.kind === "audioinput") ocultas.microfonos++;
+                continue;
+            }
             if (d.kind === "audioinput") out.microfonos.push({ id: d.deviceId, nombre: d.label || `Micrófono ${out.microfonos.length + 1}` });
             else if (d.kind === "videoinput") out.camaras.push({ id: d.deviceId, nombre: d.label || `Cámara ${out.camaras.length + 1}` });
             else if (d.kind === "audiooutput") out.altavoces.push({ id: d.deviceId, nombre: d.label || `Altavoz ${out.altavoces.length + 1}` });
         }
+        // Con alguna ya visible, las ocultas son la entrada genérica que Chrome añade sin permiso: no se cuentan dos veces.
+        if (!out.camaras.length && ocultas.camaras) out.ocultas = { camaras: ocultas.camaras, microfonos: out.microfonos.length ? 0 : ocultas.microfonos };
+        else if (!out.microfonos.length && ocultas.microfonos) out.ocultas = { camaras: 0, microfonos: ocultas.microfonos };
         return out;
     } catch {
         return vacio;
     }
+}
+
+/**
+ * LLA1113B · La lista de cámaras para el registro (`camara lista …`): cuántas, cuántas con nombre, cuántas ocultas (sin
+ * permiso) y cuáles (el nombre del sistema, recortado). Así la próxima ronda dice si el selector tenía qué enseñar. Pura.
+ */
+export function resumenCamaras(d: Pick<DispositivosMedios, "camaras" | "ocultas">, plataforma: Plataforma = plataformaActual()): string {
+    const lista = describirCamaras(d.camaras, plataforma);
+    const conNombre = lista.filter((c) => !c.sinEtiqueta).length;
+    const nombres = lista.map((c) => `${c.tipo}:${(c.etiqueta || "?").replace(/[|"]/g, "'").slice(0, 28)}`).join("|");
+    return `n=${lista.length} con-nombre=${conNombre} ocultas=${d.ocultas?.camaras ?? 0}${nombres ? ` lista=${nombres}` : ""}`;
 }
 
 /** Aplica el altavoz elegido a un elemento de audio/vídeo (si el navegador lo permite). */

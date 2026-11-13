@@ -87,6 +87,11 @@ export interface DispositivosMedios {
     microfonos: { id: string; nombre: string }[];
     camaras: { id: string; nombre: string }[];
     altavoces: { id: string; nombre: string }[];
+    /**
+     * LLA1113B · Las que el sistema dice que hay pero aún no deja ver (sin `deviceId` ni nombre hasta dar el permiso de ESE
+     * tipo: el WebView de Android antes de abrir la cámara una vez). No se pueden elegir; la ventana lo dice en vez de «no hay».
+     */
+    ocultas?: { camaras: number; microfonos: number };
 }
 
 export interface SeleccionDispositivos {

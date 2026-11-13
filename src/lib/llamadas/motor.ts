@@ -43,9 +43,9 @@ import { MENSAJE_CANAL_PRIVADO } from "@/lib/llamadas/temas";
 import { admision, evaluarDescripcion, reaccionIce, soyCortes } from "@/lib/llamadas/negociacion";
 import { elegirHablante, nivelRms, suavizarNivel, type HablanteVigente } from "@/lib/llamadas/hablante";
 import { calidadDesde, extraerMetricas, peorCalidad, perdidaEntre, type MetricasPar } from "@/lib/llamadas/calidad";
-import { guardarPreferencia } from "@/lib/llamadas/camaras";
+import { esPlataformaMovil, guardarPreferencia, plataformaDe } from "@/lib/llamadas/camaras";
 import { getDeviceId } from "@/lib/network/device-registry";
-import { listarDispositivos, obtenerMedios, obtenerPantalla, obtenerPista, pararStream } from "@/lib/llamadas/medios";
+import { listarDispositivos, obtenerMedios, obtenerPantalla, obtenerPista, pararStream, resumenCamaras } from "@/lib/llamadas/medios";
 import { AVISO_SIN_TURN, contieneTurn, servidoresIce } from "@/lib/llamadas/ice";
 import { clavePestana, type Identidad } from "@/lib/llamadas/identidad";
 import {
@@ -346,6 +346,8 @@ export class MotorLlamada {
     private readonly vozDatosDesde = new Map<string, number>();
     /** (LLA1110D) Encender/apagar la cámara es UNA operación a la vez (dos toques seguidos ya no se pisan). */
     private camaraEnCurso: Promise<string | null> | null = null;
+    /** LLA1113B: qué es lo que está en curso en la cola de la cámara (encender/apagar o cambiar). */
+    private camaraEnCursoEs: "alternar" | "cambiar" = "alternar";
 
     constructor(opciones: OpcionesMotor) {
         this.opc = opciones;
@@ -534,8 +536,13 @@ export class MotorLlamada {
     }
 
     async alternarCamara(): Promise<string | null> {
+        // Dos pulsaciones de encender/apagar seguidas son una (la que está en curso).
+        // LLA1113B: con un CAMBIO de cámara en curso, «apagar» no se pierde: espera a que acabe y apaga (antes corrían a la vez y
+        // la cámara nueva podía quedar abierta y enviándose con el botón en «apagada»).
+        while (this.camaraEnCurso && this.camaraEnCursoEs !== "alternar") await this.camaraEnCurso.catch(() => null);
         if (this.camaraEnCurso) return this.camaraEnCurso;
         const p = this.alternarCamaraAhora();
+        this.camaraEnCursoEs = "alternar";
         this.camaraEnCurso = p;
         try {
             return await p;
@@ -589,6 +596,9 @@ export class MotorLlamada {
             this.set({ seleccion: { ...this.e.seleccion, camaraId: abierta } });
             // (LLA1111A) Se recuerda la que de verdad abrió (no la pedida antes de abrir).
             if (abierta) this.recordarDispositivo("camara", abierta, r.pista.label ? [{ id: abierta, nombre: r.pista.label }] : this.e.dispositivos.camaras);
+            // LLA1113B: con la cámara recién abierta el sistema ya deja ver todas (ids y nombres): se vuelve a listar. En el WebView
+            // de Android una llamada empezada solo con voz no tenía permiso de cámara y el selector se quedaba sin ninguna.
+            void this.actualizarDispositivos().catch(() => undefined);
         }
         this.publicarMeta();
         this.emitir();
@@ -682,40 +692,78 @@ export class MotorLlamada {
         }
     }
 
+    /**
+     * LLA1113B · Cambiar de cámara va en la MISMA cola que encender/apagar (`camaraEnCurso`): antes, «apagar» durante un
+     * cambio en serie dejaba la cámara nueva abierta y enviándose con el botón en «apagada». Una petición que llega con otra
+     * en curso espera a que acabe y luego corre (la última elección de la persona es la que queda).
+     */
     async cambiarCamara(id: string): Promise<string | null> {
+        // Espera a lo que haya en curso (encender, apagar u otro cambio); si mientras tanto empezó otra cosa, también.
+        while (this.camaraEnCurso) await this.camaraEnCurso.catch(() => null);
+        const p = this.cambiarCamaraAhora(id);
+        this.camaraEnCursoEs = "cambiar";
+        this.camaraEnCurso = p;
+        try {
+            return await p;
+        } finally {
+            if (this.camaraEnCurso === p) this.camaraEnCurso = null;
+        }
+    }
+
+    /** LLA1113B: el nombre del sistema de una cámara (para el registro), o «?». */
+    private etiquetaCamara(id: string | null): string {
+        if (!id) return "?";
+        const n = this.e.dispositivos.camaras.find((c) => c.id === id)?.nombre;
+        return (n ?? (this.pistaCamara && this.idDispositivo(this.pistaCamara) === id ? this.pistaCamara.label : "") ?? "?").replace(/"/g, "'").slice(0, 40) || "?";
+    }
+
+    private async cambiarCamaraAhora(id: string): Promise<string | null> {
         // (LLA1111A) Con la cámara apagada solo se apunta la elegida; se recuerda cuando abre (en `alternarCamaraAhora`).
         if (!this.camaraOn) {
             this.set({ seleccion: { ...this.e.seleccion, camaraId: id } });
             return null;
         }
         const neurona = this.opc.vozDatos?.neurona ?? null;
-        // LLA1113A: cada cambio con la cámara encendida, al registro (en la prueba 40 la tableta pidió la cámara tres veces sin
-        // que constara por qué).
-        anotarLlamada("camara", neurona, `cambiar con-camara=si misma=${id === (this.idDispositivo(this.pistaCamara) ?? this.e.seleccion.camaraId) ? "si" : "no"}`);
-        let r = await obtenerPista("video", id);
+        const viejaId = this.idDispositivo(this.pistaCamara) ?? this.e.seleccion.camaraId;
+        // LLA1113B: en un teléfono o una tableta se suelta la de ahora ANTES de abrir la pedida. Prueba 40, tableta: abrir la
+        // pedida con la otra en marcha dio NotReadableError las tres veces (Android no abre dos), y tras el tercer intento la
+        // tableta no envió ni un fotograma en toda la llamada: el intento en paralelo no solo falla, puede dejar parada la que
+        // había. En el escritorio se sigue abriendo primero (sin hueco en la imagen) y en serie solo si dice «ocupada».
+        const serie = esPlataformaMovil(plataformaDe(typeof navigator !== "undefined" ? navigator.userAgent : ""));
+        // LLA1113A/B: cada cambio con la cámara encendida, al registro, con qué cámara se deja y cuál se pide.
+        anotarLlamada("camara", neurona, `cambiar con-camara=si de="${this.etiquetaCamara(viejaId)}" a="${this.etiquetaCamara(id)}" misma=${id === viejaId ? "si" : "no"} modo=${serie ? "serie" : "paralelo"}`);
+        let r: Awaited<ReturnType<typeof obtenerPista>> = { pista: null, error: null };
+        if (!serie) r = await obtenerPista("video", id);
         let elegida = id;
         let errorVuelta: string | null = null;
         // LLA1113A · Prueba 40, tableta: «intento pedida … deviceId:exact fallo error=NotReadableError» tres veces, con su cámara
-        // abierta: Android (como WebKit, ver `encenderCamara`) no abre una segunda cámara con la primera en marcha. Se suelta la
-        // de ahora y se abre la pedida EN SERIE; si tampoco abre, vuelve la de antes (la llamada no se queda sin imagen).
-        if (!r.pista && r.ocupada && this.pistaCamara && !this.cerrado) {
-            const viejaId = this.idDispositivo(this.pistaCamara) ?? this.e.seleccion.camaraId;
-            anotarLlamada("camara", neurona, "cambiar en-serie motivo=ocupada (se suelta la de ahora y se abre la pedida)");
+        // abierta. Se suelta la de ahora y se abre la pedida EN SERIE; si tampoco abre, vuelve la de antes (la llamada no se
+        // queda sin imagen). En el móvil se va directo aquí (LLA1113B).
+        if ((serie || (!r.pista && r.ocupada)) && this.pistaCamara && this.camaraOn && !this.cerrado) {
+            if (!serie) anotarLlamada("camara", neurona, "cambiar en-serie motivo=ocupada (se suelta la de ahora y se abre la pedida)");
             try {
                 this.pistaCamara.stop();
             } catch {
                 /* noop */
             }
+            const t0 = Date.now();
             r = await obtenerPista("video", id);
+            anotarLlamada("camara", neurona, `cambiar en-serie pedida=${r.pista ? "abre" : "no-abre"} hueco-ms=${Date.now() - t0}${r.pista ? "" : ` error="${(r.error ?? "?").replace(/"/g, "'").slice(0, 70)}"`}`);
             if (!r.pista && viejaId && !this.cerrado) {
                 errorVuelta = r.error;
                 const v = await obtenerPista("video", viejaId);
-                anotarLlamada("camara", neurona, `cambiar en-serie no-abre vuelve-la-de-antes=${v.pista ? "si" : "no"}`);
+                anotarLlamada("camara", neurona, `cambiar en-serie no-abre vuelve-la-de-antes=${v.pista ? "si" : "no"} a="${this.etiquetaCamara(viejaId)}"`);
                 if (v.pista) {
                     r = v;
                     elegida = viejaId;
                 }
             }
+        }
+        // LLA1113B: la persona apagó la cámara mientras se abría la nueva (la cola lo evita casi siempre; esto es el cinturón).
+        if (r.pista && !this.camaraOn) {
+            anotarLlamada("camara", neurona, "cambiar se-apago-entretanto (la nueva se suelta)");
+            r.pista.stop();
+            return null;
         }
         // (LLA1111A) Si no abre, sigue la elegida de antes y su imagen: antes se apuntaba y recordaba ANTES de abrir, y la
         // que fallaba quedaba como seleccionada y como la de por defecto de las llamadas siguientes.
@@ -772,8 +820,24 @@ export class MotorLlamada {
 
     async actualizarDispositivos() {
         const d = await listarDispositivos();
-        if (!this.cerrado) this.set({ dispositivos: d });
+        if (this.cerrado || !d) return;
+        this.set({ dispositivos: d });
+        // LLA1113B: la lista de cámaras al registro cada vez que cambia (cuántas, con nombre o no, ocultas sin permiso, cuáles):
+        // en la prueba 40 la tableta dijo «no aparecía la lista» y el registro no tenía con qué comprobarlo. Si los ids cambian
+        // con los mismos nombres (WebKit entre arranques), también se dice.
+        try {
+            const resumen = resumenCamaras(d);
+            const ids = d.camaras.map((c) => c.id).join(",");
+            if (resumen !== this.ultimaListaCamaras.resumen || ids !== this.ultimaListaCamaras.ids) {
+                const idsCambian = this.ultimaListaCamaras.resumen === resumen && !!this.ultimaListaCamaras.ids;
+                this.ultimaListaCamaras = { resumen, ids };
+                anotarLlamada("camara", this.opc.vozDatos?.neurona ?? null, `lista ${resumen}${idsCambian ? " ids-cambian=si" : ""} camara-abierta="${(this.pistaCamara?.label ?? "ninguna").replace(/"/g, "'").slice(0, 40)}"`);
+            }
+        } catch {
+            /* el registro no tumba la llamada */
+        }
     }
+    private ultimaListaCamaras: { resumen: string; ids: string } = { resumen: "", ids: "" };
 
     private escucharDispositivos() {
         if (this.alCambiarDispositivos || typeof navigator === "undefined") return;

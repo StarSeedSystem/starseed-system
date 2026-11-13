@@ -43,6 +43,7 @@ export function SelectorCamara({
   neurona,
   onElegir,
   plataforma,
+  ocultas = 0,
 }: {
   camaras: ReadonlyArray<{ id: string; nombre: string }>;
   elegidaId: string | null;
@@ -50,6 +51,8 @@ export function SelectorCamara({
   onElegir?: (id: string) => void;
   /** Explícita en pruebas; por defecto, la detectada en el borde (`plataformaActual`). */
   plataforma?: Plataforma;
+  /** LLA1113B: cámaras que el sistema cuenta pero aún no deja ver (sin permiso de cámara todavía). */
+  ocultas?: number;
 }) {
   const lista = useCamarasDescritas(camaras, plataforma);
   const porDefecto = useMemo(() => elegirCamaraPorDefecto(lista, leerPreferencias(neurona).camara).camara?.id ?? null, [lista, neurona]);
@@ -58,7 +61,13 @@ export function SelectorCamara({
     <div className={caja}>
       <label className="mb-1 block text-white/55" htmlFor="camara-llamada">Cámara</label>
       {lista.length === 0 ? (
-        <p id="camara-llamada" className="text-white/60">No vemos ninguna cámara en este aparato (o aún no hay permiso para listarlas).</p>
+        // LLA1113B: lo que de verdad pasa. Con cámaras contadas pero sin permiso (WebView de Android antes de abrir la cámara
+        // una vez) se dice cuántas hay y qué hacer; «ninguna» solo cuando el sistema no da ninguna.
+        <p id="camara-llamada" data-camaras-ocultas={ocultas} className="text-white/60">
+          {ocultas > 0
+            ? `Este aparato tiene ${ocultas === 1 ? "una cámara" : `${ocultas} cámaras`}, pero hasta que la app pueda usar la cámara no deja ver cuáles son. Enciende la cámara y aparecerán aquí para elegir.`
+            : "El sistema no da ninguna cámara en este aparato. Si tiene una, mira que la app tenga permiso de cámara y pulsa «Volver a buscar dispositivos»."}
+        </p>
       ) : (
         <div id="camara-llamada" role="radiogroup" aria-label="Cámara" className="flex flex-col gap-1">
           {lista.map((c) => {

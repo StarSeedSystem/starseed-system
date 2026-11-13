@@ -180,7 +180,7 @@ export function PanelDispositivos({
                 </div>
             </Seccion>
             <Seccion titulo="Cámara">
-                <SelectorCamara camaras={d.camaras} elegidaId={s.camaraId} neurona={neuronaLocal()} onElegir={onCamara} />
+                <SelectorCamara camaras={d.camaras} ocultas={d.ocultas?.camaras ?? 0} elegidaId={s.camaraId} neurona={neuronaLocal()} onElegir={onCamara} />
                 <OpcionesDeCamara pista={estado.participantes.find((p) => p.yo)?.stream?.getVideoTracks()[0] ?? null} neurona={neuronaLocal()} />
             </Seccion>
             <Seccion titulo="Altavoz">

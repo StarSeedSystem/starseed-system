@@ -32,6 +32,9 @@ export const UMBRAL_PAGINA_LENTA_MS = 400;
 /** Tanto tiempo seguido con la página a su ritmo para dar por acabado un tramo lento. */
 export const PAGINA_NORMAL_TRAS_MS = 5_000;
 
+/** LLA1113B: un Worker que en este tiempo no ha dado ningún tic (ni error) se da por muerto. */
+export const SIN_TIC_MS = 3_000;
+
 /** Una vuelta vale si pasó al menos esta fracción del periodo desde la anterior (dos fuentes, una sola vuelta). */
 const FRACCION_MIN = 0.8;
 
@@ -48,6 +51,10 @@ export interface TicWorker {
   postMessage(m: unknown): void;
   terminate(): void;
   onmessage: ((e: unknown) => void) | null;
+  /** LLA1113B: el script del Worker no cargó (CSP que bloquea `blob:`, WebView sin Workers…): se vuelve a la página. */
+  onerror?: ((e: unknown) => void) | null;
+  /** LLA1113B: suelta la URL del Blob (se suelta tras el primer tic o el error, no al crearlo: WebKit puede cargarlo tarde). */
+  revocar?: () => void;
 }
 
 export interface OpcionesRelojEstable {
@@ -75,13 +82,27 @@ function workerDeBlob(): TicWorker | null {
   try {
     if (typeof Worker === "undefined" || typeof Blob === "undefined" || typeof URL === "undefined" || typeof URL.createObjectURL !== "function") return null;
     const url = URL.createObjectURL(new Blob([CODIGO_TIC], { type: "text/javascript" }));
-    const w = new Worker(url);
+    let w: Worker;
     try {
+      w = new Worker(url);
+    } catch (e) {
       URL.revokeObjectURL(url);
-    } catch {
-      /* el Worker ya cargó o cargará con su copia */
+      throw e;
     }
-    return w as unknown as TicWorker;
+    // LLA1113B: la URL se suelta tras el primer tic o el error (`revocar`), no aquí: soltarla en el mismo instante en que se crea
+    // el Worker depende de que el motor ya la haya resuelto, y no hace falta arriesgarlo por unos bytes.
+    const t = w as unknown as TicWorker;
+    let suelta = false;
+    t.revocar = () => {
+      if (suelta) return;
+      suelta = true;
+      try {
+        URL.revokeObjectURL(url);
+      } catch {
+        /* noop */
+      }
+    };
+    return t;
   } catch {
     return null;
   }
@@ -110,6 +131,9 @@ export class RelojEstable implements RelojLlamada {
   private worker: TicWorker | null = null;
   private workerIntentado = false;
   private ultTicWorker = 0;
+  /** LLA1113B: cuándo se creó el Worker (para saber si nunca dio un tic) y si ya se dijo que corre. */
+  private workerDesde = 0;
+  private avisadoActivo = false;
   private huecoWorkerMax = 0;
   private paginaLenta = false;
   private huecoPaginaMax = 0;
@@ -178,6 +202,11 @@ export class RelojEstable implements RelojLlamada {
     if (s.ms < UMBRAL_PAGINA_LENTA_MS) this.medirPagina(ahora - s.ultPagina, ahora);
     s.ultPagina = ahora;
     if (!this.subs.has(s)) return;
+    // LLA1113B: un Worker que no ha dado ni un tic en `SIN_TIC_MS` (ni error) no sirve: se suelta y se dice.
+    if (this.worker && !this.ultTicWorker && ahora - this.workerDesde > SIN_TIC_MS) {
+      this.anotar(`reloj worker-sin-tic tras=${Math.round(ahora - this.workerDesde)}ms (mandan los temporizadores de la página)`);
+      this.pararWorker(true);
+    }
     if (this.worker) {
       this.correr(s, ahora);
       return;
@@ -193,6 +222,18 @@ export class RelojEstable implements RelojLlamada {
 
   private vueltaWorker(): void {
     const ahora = this.reloj();
+    if (!this.ultTicWorker && this.worker) {
+      // LLA1113B: el Worker corre de verdad en este motor web (WKWebView, WebView de Android): una línea, la primera vez.
+      try {
+        this.worker.revocar?.();
+      } catch {
+        /* noop */
+      }
+      if (!this.avisadoActivo) {
+        this.avisadoActivo = true;
+        this.anotar(`reloj worker-activo primer-tic=${Math.round(ahora - this.workerDesde)}ms visible=${this.visible()}`);
+      }
+    }
     if (this.ultTicWorker) this.huecoWorkerMax = Math.max(this.huecoWorkerMax, ahora - this.ultTicWorker);
     this.ultTicWorker = ahora;
     for (const s of Array.from(this.subs)) this.correr(s, ahora);
@@ -246,21 +287,37 @@ export class RelojEstable implements RelojLlamada {
     }
     this.worker = w;
     this.ultTicWorker = 0;
+    this.workerDesde = this.reloj();
     w.onmessage = () => this.vueltaWorker();
+    // LLA1113B: si el script del Worker no carga (una CSP que no admita `blob:` en worker-src, un WebView sin Workers), el
+    // constructor NO lanza: llega un `error` después. Sin esto el reloj se creía «con Worker» (y lo decía en el registro)
+    // sin tener ninguno. Se suelta y mandan los temporizadores de la página, como antes de LLA1113A.
+    w.onerror = () => {
+      if (this.worker !== w) return;
+      this.anotar("reloj worker-fallo (no cargó: mandan los temporizadores de la página)");
+      this.pararWorker(true);
+    };
     try {
       w.postMessage({ ms: PERIODO_TIC_MS });
     } catch {
-      this.pararWorker();
+      this.pararWorker(true);
     }
   }
 
-  private pararWorker(): void {
+  /** `definitivo`: el Worker no sirve aquí; no se vuelve a intentar en esta llamada. */
+  private pararWorker(definitivo = false): void {
     const w = this.worker;
     this.worker = null;
-    this.workerIntentado = false;
+    this.workerIntentado = definitivo;
     if (!w) return;
     try {
+      w.revocar?.();
+    } catch {
+      /* noop */
+    }
+    try {
       w.onmessage = null;
+      if (w.onerror !== undefined) w.onerror = null;
       w.postMessage({ ms: 0 });
       w.terminate();
     } catch {
