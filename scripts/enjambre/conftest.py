@@ -5,6 +5,14 @@ import sys
 from pathlib import Path
 import pytest
 
+# TMP1113B: una raíz temporal propia por corrida, quitada al salir (módulo de scripts/puente, ver raiz_pruebas.py).
+_PUENTE = str(Path(__file__).resolve().parent.parent / "puente")
+if _PUENTE not in sys.path:
+    sys.path.append(_PUENTE)
+import raiz_pruebas as _raiz_pruebas  # noqa: E402
+
+_raiz_pruebas.abrir()
+
 # Ruta al módulo real del orquestador (puede cargarse con nombres distintos).
 RUTA_ENJAMBRE = Path(__file__).parent / "starseed-enjambre.py"
 

@@ -37,6 +37,7 @@ from datetime import datetime, timezone
 DIRECTORIO = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, DIRECTORIO)
 import produccion_puertas as PP  # noqa: E402
+import raiz_pruebas as RAIZ_PRUEBAS  # noqa: E402  # TMP1113B
 
 RAIZ = os.environ.get("STARSEED_ROOT") or os.path.dirname(os.path.dirname(DIRECTORIO))
 CARPETA = os.path.expanduser("~/.starseed/produccion")
@@ -307,7 +308,9 @@ def correr_pruebas(ordenes, cwd, env, tope_s=None, correr=subprocess.run, reloj=
         if queda < 60:
             return None, "%s: no quedó tiempo para %s (tope de %d min para todas)" % (TOPE_PRUEBAS, nombre, tope_s // 60)
         try:
-            r = correr(orden, cwd=cwd, capture_output=True, text=True, timeout=queda, env=env)
+            # TMP1113B: cada orden de pruebas con su raíz temporal propia, quitada al acabar (también si se corta por tope).
+            r = RAIZ_PRUEBAS.correr_con_raiz(orden, env=env, correr=correr, cwd=cwd, capture_output=True, text=True,
+                                             timeout=queda)
         except subprocess.TimeoutExpired as ex:
             cola = " ".join((_texto_de(ex.stdout) + "\n" + _texto_de(ex.stderr)).split())[-300:]
             return None, "%s: %s seguía a los %d min (tope de %d min para todas, con la Mac cargada)%s" % (

@@ -62,6 +62,7 @@ RAIZ = os.environ.get("STARSEED_ROOT") or os.path.dirname(os.path.dirname(DIRECT
 if DIRECTORIO not in sys.path:
     sys.path.insert(0, DIRECTORIO)
 
+import raiz_pruebas as RAIZ_PRUEBAS  # noqa: E402  # TMP1113B
 import vigia_runs_nube as VR  # noqa: E402 — la misma lectura de la reasignación que el vigía
 import revisor_bloqueadas_logica as RBL  # noqa: E402 — el tope de las cadenas de rescate (RESC1031A)
 
@@ -740,7 +741,8 @@ def _correr_en(cwd, orden, timeout, memoria=None):
     if memoria:
         env = dict(env, NODE_OPTIONS=memoria)
     try:
-        r = subprocess.run(orden, cwd=cwd, capture_output=True, text=True, timeout=timeout, env=env)
+        # TMP1113B: raíz temporal propia por orden de pruebas, quitada al acabar.
+        r = RAIZ_PRUEBAS.correr_con_raiz(orden, env=env, cwd=cwd, capture_output=True, text=True, timeout=timeout)
         return r.returncode, ((r.stdout or "") + (r.stderr or ""))[-4000:]
     except subprocess.TimeoutExpired:
         return 124, "se pasó de %d s sin terminar" % timeout

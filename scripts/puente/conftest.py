@@ -23,6 +23,12 @@ _CARPETA = os.path.dirname(os.path.abspath(__file__))
 if _CARPETA not in sys.path:
     sys.path.insert(0, _CARPETA)
 
+# TMP1113B: cada corrida es dueña de UNA raíz temporal (`raiz_pruebas.py`) y la quita al salir (pase, falle o se
+# interrumpa). Va ANTES de cualquier `mkdtemp` de este archivo para que todo caiga dentro.
+import raiz_pruebas as _raiz_pruebas  # noqa: E402
+
+_raiz_pruebas.abrir()
+
 # (1103 · U) Las pruebas nunca leen ni escriben las preguntas de «Potenciar» de verdad: Genesis se las enseña a Alex.
 import tempfile as _tempfile  # noqa: E402
 

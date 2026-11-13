@@ -566,7 +566,7 @@ def _tareas_vivas():
     return progreso, sorted(vivas)
 
 
-def limpiar_worktrees(raiz_wt=None):
+def _limpiar_worktrees_wt(raiz_wt=None):
     """Quita los worktrees limpios de tareas cerradas y los node_modules propios (no enlazados)
     de los que no trabajan. Las ramas `ola/<ID>` se quedan: `git worktree remove` no las toca."""
     import shutil
@@ -587,6 +587,28 @@ def limpiar_worktrees(raiz_wt=None):
          if not os.path.basename(x["ruta"]).startswith("_")]  # `_traer` es de traer_nube
     plan = limpieza_worktrees.plan(w, progreso, vivas)
     return limpieza_worktrees.aplicar(plan, RAIZ, _git_wt, shutil.rmtree)
+
+
+def limpiar_worktrees(raiz_wt=None):
+    """La pasada de siempre (`_limpiar_worktrees_wt`: worktrees de starseed-wt y node_modules duplicados) y, después,
+    la recogida estricta de TMP1113B (`recoger_worktrees`): también starseed-opus, con plazo de reposo (24 h),
+    sin trabajo sin guardar y con registro de lo quitado y lo conservado. Una falla de la segunda no tapa a la primera."""
+    r = _limpiar_worktrees_wt(raiz_wt)
+    if raiz_wt is None:  # TMP1113B: solo la llamada de verdad (con una raíz inyectada, las pruebas no tocan otros repos)
+        try:
+            import recoger_worktrees as RW
+
+            r2 = RW.recoger(RAIZ, aplicar_ya=True, olas=OLAS)
+            r = dict(r or {})
+            ya = {os.path.realpath(x) for x in r.get("quitados") or []}
+            r["quitados"] = list(r.get("quitados") or []) + [x["ruta"] for x in r2.get("quitados", [])
+                                                              if os.path.realpath(x["ruta"]) not in ya]
+            r["errores"] = list(r.get("errores") or []) + r2.get("errores", [])
+            r["conservados_tmp1113b"] = len(r2.get("conservados", []))
+        except Exception as e:  # noqa: BLE001 — se dice, no se calla ni se desactiva
+            r = dict(r or {})
+            r["errores"] = list(r.get("errores") or []) + ["recogida de worktrees: %s: %s" % (type(e).__name__, e)]
+    return r
 
 
 def _reparar_medidores_en_fondo(forzar=False):

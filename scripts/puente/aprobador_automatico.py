@@ -32,6 +32,7 @@ DIRECTORIO = os.path.dirname(os.path.abspath(__file__))
 if DIRECTORIO not in sys.path:
     sys.path.insert(0, DIRECTORIO)
 
+import raiz_pruebas as RAIZ_PRUEBAS  # noqa: E402  # TMP1113B
 import aprobador_logica as L  # noqa: E402
 
 RAIZ = os.environ.get("STARSEED_ROOT") or os.path.dirname(os.path.dirname(DIRECTORIO))
@@ -319,7 +320,7 @@ def _puertas_en(arbol, cambiados):
 
     def correr(orden, timeout):
         try:
-            r = subprocess.run(orden, cwd=arbol, capture_output=True, text=True, timeout=timeout, env=PUB.entorno())
+            r = RAIZ_PRUEBAS.correr_con_raiz(orden, env=PUB.entorno(), cwd=arbol, capture_output=True, text=True, timeout=timeout)  # TMP1113B
             return r.returncode, ((r.stdout or "") + (r.stderr or ""))[-1500:]
         except subprocess.TimeoutExpired:
             return 124, "se pasó de %d s" % timeout

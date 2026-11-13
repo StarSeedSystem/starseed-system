@@ -31,6 +31,7 @@ if DIRECTORIO not in sys.path:
 import atexit
 import fcntl
 
+import raiz_pruebas as RAIZ_PRUEBAS  # TMP1113B
 import reventon as RV
 import turno_pesado as TP
 import verificacion_cambios as VC
@@ -215,13 +216,14 @@ def entorno():
 def correr(orden, timeout=1800, env=None):
     """Devuelve (codigo, salida recortada). Nunca lanza: un fallo es un dato."""
     try:
-        r = subprocess.run(
+        # TMP1113B: las puertas (vitest, unittest, pytest) corren con una raíz temporal propia que se quita al acabar.
+        r = RAIZ_PRUEBAS.correr_con_raiz(
             orden,
+            env=env or entorno(),
             cwd=RAIZ,
             capture_output=True,
             text=True,
             timeout=timeout,
-            env=env or entorno(),
         )
         return r.returncode, ((r.stdout or "") + (r.stderr or ""))[-4000:]
     except subprocess.TimeoutExpired:

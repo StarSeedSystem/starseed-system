@@ -566,8 +566,10 @@ def _avisar(texto):
 #: (SUP0111I, 2026-11-01) `revisor_bloqueadas_logica.py`: desde RESC1031A `traer_nube` lo importa al
 #: arrancar (el tope de las cadenas de rescate). Es PURO (solo re/time/typing al nivel superior) y
 #: lo que `traer_nube` usa de él no importa nada más. Faltaba aquí y vetaba la autopublicación.
+#: (TMP1113B, 2026-11-13) `raiz_pruebas.py`: `traer_nube` lo importa al arrancar (la raíz temporal de cada orden de
+#: pruebas). Es PURO (solo biblioteca estándar).
 MODULOS_DEL_NODO = ("puerta_datos_cliente.py", "colmena_logica.py", "traer_nube.py", "vigia_runs_nube.py",
-                    "revisor_bloqueadas_logica.py")
+                    "revisor_bloqueadas_logica.py", "raiz_pruebas.py")
 
 #: (IND1029D) Dirección en el A1: unidad del repo, arranque generado allí y repo de las piezas; sin claves.
 UNIDAD_DIRECCION = os.path.join(os.path.dirname(os.path.dirname(DIRECTORIO)), "deploy", "oracle",

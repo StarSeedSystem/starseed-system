@@ -2748,6 +2748,42 @@ def _reintentar_index_lock(ejecutar):
         time.sleep(1)
 
 
+_ORDEN_DE_PRUEBAS = re.compile(r"(^|[\s/])(pytest|vitest|unittest)(\s|$)")
+
+
+def _raiz_para_pruebas(cmd, e):
+    """TMP1113B: si `cmd` es una corrida de pruebas, crea su raíz temporal propia, la pone en el entorno `e`
+    (TMPDIR/TEMP/TMP) y la devuelve; si no, o si el módulo no está, None. Nunca lanza."""
+    try:
+        texto = cmd if isinstance(cmd, str) else " ".join(str(x) for x in cmd)
+        if not _ORDEN_DE_PRUEBAS.search(texto):
+            return None
+        ruta_puente = os.path.join(ROOT, "scripts", "puente")
+        if ruta_puente not in sys.path:
+            sys.path.insert(0, ruta_puente)
+        import raiz_pruebas as _rp
+
+        if e.get(_rp.VAR_RAIZ) and os.path.isdir(e[_rp.VAR_RAIZ]):
+            return None  # ya hay una raíz del padre: la quitará él
+        raiz = _rp.crear(e.get("TMPDIR") if e.get("TMPDIR") and os.path.isdir(e["TMPDIR"]) else None)
+        e.update(_rp.entorno_con_raiz({}, raiz))
+        return raiz
+    except Exception:  # noqa: BLE001 — sin raíz propia la corrida sigue como antes; no es motivo para no probar
+        return None
+
+
+def _quitar_raiz_pruebas(raiz):
+    """TMP1113B: quita la raíz que creó `_raiz_para_pruebas` (solo esa, solo con el prefijo del módulo)."""
+    if not raiz:
+        return
+    try:
+        import raiz_pruebas as _rp
+
+        _rp.quitar(raiz)
+    except Exception:  # noqa: BLE001
+        pass
+
+
 def sh(cmd, cwd=ROOT, timeout=120, env=None, log=None):
     """Corre una orden y devuelve (código, salida). Con tiempo agotado → 124.
 
@@ -2760,6 +2796,9 @@ def sh(cmd, cwd=ROOT, timeout=120, env=None, log=None):
     # GUA1113A: las puertas que corren en un worktree (tsc, vitest, las pruebas que escribió el
     # agente) también heredan el tope del núcleo y las vigila el worktree entero.
     _en_wt = _en_worktree(cwd) and timeout >= 60
+    # TMP1113B: una orden de pruebas (pytest, unittest, vitest) corre con una raíz temporal propia, quitada al acabar
+    # (también si se corta por tiempo). Nada más cambia: el resto de órdenes no pasa por aquí.
+    raiz_pruebas = _raiz_para_pruebas(cmd, e)
     def ejecutar():
         p = None
         vigia = None
@@ -2798,7 +2837,10 @@ def sh(cmd, cwd=ROOT, timeout=120, env=None, log=None):
         bool(orden) and orden[0] == "git"
         and os.path.realpath(cwd or ROOT) == os.path.realpath(ROOT)
     )
-    rc, out = _reintentar_index_lock(ejecutar) if git_main else ejecutar()
+    try:
+        rc, out = _reintentar_index_lock(ejecutar) if git_main else ejecutar()
+    finally:
+        _quitar_raiz_pruebas(raiz_pruebas)  # TMP1113B
     if log:
         with open(log, "a", encoding="utf-8") as f:
             f.write(
