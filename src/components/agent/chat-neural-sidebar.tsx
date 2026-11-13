@@ -11,8 +11,10 @@
  * y lo que escribas aquí aparece en el Exocórtex de Astraura IA. En tiempo real.
  */
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import {
+  Dna,
   ChevronDown,
   ChevronRight,
   MessageSquare,
@@ -39,6 +41,42 @@ import { useChatFolders } from "@/lib/aurora/chat-folders-store";
 import { ChatFolders } from "@/components/aurora/chat-folders";
 import { groupConversationsByPersonality } from "@/lib/aurora/chat-grouping";
 import { useChatContextMenu } from "@/components/aurora/chat-context-menu";
+// GEN1113E (contrato `architecture/astraura-chats-genesis.md` §2.4): un chat puede estar en
+// Chats y en Genesis a la vez. «Llevar a Genesis…» le pone un VÍNCULO (nunca lo copia ni borra
+// nada); los chats cuyo vínculo ya no incluye Chats se esconden aquí; la dirección y los puentes
+// que se añadieron a Chats salen en la carpeta «Genesis» y abren la pestaña Genesis.
+import {
+  leerPrefsChatsGenesis,
+  guardarPrefsChatsGenesis,
+  vincular,
+  idDeVinculo,
+  marcarConversacionGenesis,
+} from "@/lib/chats-genesis/vinculos";
+import type { NivelGenesis, PrefsChatsGenesis, VinculoChat, Bandeja } from "@/lib/chats-genesis/tipos";
+import { miAccesoMetaGenesis } from "@/lib/metagenesis/accesos";
+import { misEntidades, type EntidadGestionable } from "@/lib/genesis/entidades";
+
+/** ¿Este chat sigue en la bandeja Chats? Sin vínculo, sí (así era antes de GEN1113). */
+export function estaEnChats(c: Pick<AiConversation, "id" | "meta">, vinculos: readonly VinculoChat[]): boolean {
+  const v = vinculos.find((x) => x.id === idDeVinculo({ tipo: "astraura", convId: c.id }));
+  if (v) return v.en.includes("chats");
+  const en = (c.meta as { genesis?: { en?: unknown } } | null | undefined)?.genesis?.en;
+  return Array.isArray(en) ? en.includes("chats") : true;
+}
+
+/** Lo que va en la carpeta «Genesis» de la barra: dirección y puentes añadidos a Chats. */
+export function enCarpetaGenesis(vinculos: readonly VinculoChat[]): VinculoChat[] {
+  return vinculos.filter((v) => (v.fuente.tipo === "direccion" || v.fuente.tipo === "puente") && v.en.includes("chats"));
+}
+
+function nombreDeVinculo(v: VinculoChat): string {
+  if (v.titulo) return v.titulo;
+  if (v.fuente.tipo === "direccion") return "Dirección de MetaGenesis";
+  if (v.fuente.tipo === "puente") {
+    return { "hermes-avisos": "Hermes y avisos", peticiones: "Peticiones y encargos", "avisos-directores": "Avisos de los directores" }[v.fuente.puente];
+  }
+  return v.id;
+}
 
 function whenLabel(ts: number): string {
   try {
@@ -70,7 +108,28 @@ export function ChatNeuralSidebar({
   /** Se llama al abrir una conversación (para cerrar el drawer, p.ej.). */
   onPick?: () => void;
 } = {}) {
-  const { conversations, activeId, setActive, create, rename, remove } = useAiConversations();
+  const { conversations: todas, activeId, setActive, create, rename, remove } = useAiConversations();
+  // GEN1113E: vínculos con Genesis (una lectura; la verdad está en `user_settings.prefs`).
+  const [prefsCG, setPrefsCG] = useState<PrefsChatsGenesis | null>(null);
+  const [llevando, setLlevando] = useState<string | null>(null);
+  const [prefsFallo, setPrefsFallo] = useState(false);
+  useEffect(() => {
+    let vivo = true;
+    void leerPrefsChatsGenesis()
+      .then((p) => {
+        if (vivo) setPrefsCG(p);
+      })
+      .catch(() => {
+        // Sin preferencias legibles: todo sigue en Chats, como antes de GEN1113.
+        if (vivo) setPrefsFallo(true);
+      });
+    return () => {
+      vivo = false;
+    };
+  }, []);
+  const vinculos = prefsCG?.vinculos ?? [];
+  const conversations = todas.filter((c) => estaEnChats(c, vinculos));
+  const carpetaGenesis = enCarpetaGenesis(vinculos);
   const pick = (id: string) => {
     setActive(id);
     onPick?.();
@@ -198,9 +257,41 @@ export function ChatNeuralSidebar({
       <div className="flex-1 overflow-y-auto p-2 space-y-1">
         {conversations.length === 0 && (
           <p className="px-2 py-6 text-center text-[11px] leading-relaxed text-cyan-100/40">
-            Aún no hay conversaciones. Escribe aquí, o háblale a Aurora desde el orbe: el
-            historial es el mismo.
+            {todas.length > 0
+              ? "Tus chats están solo en Genesis. Ábrelos en la pestaña Genesis o vuelve a mostrarlos en Chats desde allí."
+              : "Aún no hay conversaciones. Escribe aquí, o háblale a Aurora desde el orbe: el historial es el mismo."}
           </p>
+        )}
+
+        {/* GEN1113E: carpeta «Genesis» — la dirección y los puentes añadidos a Chats */}
+        {carpetaGenesis.length > 0 && (
+          <div className="space-y-0.5" data-testid="carpeta-genesis">
+            <button
+              onClick={() => setOpen((o) => ({ ...o, __genesis__: o.__genesis__ === false }))}
+              className="flex w-full cursor-pointer items-center px-2 py-1.5 text-xs font-semibold text-cyan-300/80 transition-colors duration-150 hover:text-cyan-200"
+            >
+              {open.__genesis__ !== false ? <ChevronDown className="w-3 h-3 mr-1" /> : <ChevronRight className="w-3 h-3 mr-1" />}
+              <Dna className="w-3 h-3 mr-2 text-cyan-400/70" />
+              <span className="min-w-0 flex-1 truncate text-left">Genesis</span>
+              <span className="text-[10px] font-normal text-cyan-100/40">{carpetaGenesis.length}</span>
+            </button>
+            {open.__genesis__ !== false && (
+              <div className="ml-2 space-y-0.5 border-l border-cyan-500/10 pl-2">
+                {carpetaGenesis.map((v) => (
+                  <Link
+                    key={v.id}
+                    href="/agent?tab=chats-genesis"
+                    onClick={() => onPick?.()}
+                    className="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs text-cyan-100/80 transition-colors duration-150 hover:bg-white/5"
+                    title={`Abrir «${nombreDeVinculo(v)}» en la pestaña Genesis`}
+                  >
+                    <Dna className="w-3 h-3 shrink-0 text-cyan-500/50" />
+                    <span className="min-w-0 flex-1 truncate">{nombreDeVinculo(v)}</span>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
         )}
 
         {groups.map((g) => {
@@ -226,8 +317,8 @@ export function ChatNeuralSidebar({
               {open[g.id] !== false && (
                 <div className="ml-2 space-y-0.5 border-l border-cyan-500/10 pl-2">
                   {[...g.items].sort(pinnedThenRecent).map((c) => (
+                    <div key={c.id}>
                     <div
-                      key={c.id}
                       {...ctxBind({ kind: "chat", id: c.id, name: c.title, folder: c.folder ?? null })}
                       className={cn(
                         "group flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs transition-colors duration-150",
@@ -283,6 +374,19 @@ export function ChatNeuralSidebar({
                             </span>
                           </button>
                           <button
+                            onClick={() => setLlevando((x) => (x === c.id ? null : c.id))}
+                            className={cn(
+                              "cursor-pointer hover:text-emerald-300",
+                              llevando === c.id ? "block text-emerald-300" : "text-white/40 lg:hidden lg:group-hover:block",
+                              variant === "panel" && "!block",
+                            )}
+                            title="Llevar a Genesis…"
+                            aria-label={`Llevar «${c.title}» a Genesis`}
+                            aria-expanded={llevando === c.id}
+                          >
+                            <Dna className="w-3 h-3" />
+                          </button>
+                          <button
                             onClick={() => {
                               setEditing(c.id);
                               setDraft(c.title);
@@ -301,6 +405,25 @@ export function ChatNeuralSidebar({
                           </button>
                         </>
                       )}
+                    </div>
+                    {llevando === c.id && prefsCG && (
+                      <LlevarAGenesis
+                        conv={c}
+                        prefs={prefsCG}
+                        onHecho={(p) => {
+                          setPrefsCG(p);
+                          setLlevando(null);
+                        }}
+                        onCancelar={() => setLlevando(null)}
+                      />
+                    )}
+                    {llevando === c.id && !prefsCG && (
+                      <p className="px-2 py-1 text-[10px] text-amber-200/70">
+                        {prefsFallo
+                          ? "No se pudieron leer tus vínculos con Genesis; vuelve a intentarlo en un rato."
+                          : "Leyendo tus vínculos con Genesis…"}
+                      </p>
+                    )}
                     </div>
                   ))}
                 </div>
@@ -371,6 +494,162 @@ export function ChatNeuralSidebar({
         </div>
       </div>
       {ctxMenu}
+    </div>
+  );
+}
+
+const NIVELES: { id: NivelGenesis; label: string }[] = [
+  { id: "genesis", label: "Mi Genesis" },
+  { id: "poligenesis", label: "PoliGenesis" },
+  { id: "metagenesis", label: "MetaGenesis" },
+];
+
+/**
+ * «Llevar a Genesis…» (GEN1113E, §2.4): crea o actualiza el VÍNCULO del chat con Genesis. El chat
+ * sigue en Chats salvo que se marque «Quitar de Chats» (= «Trasladar»). Nunca borra nada.
+ */
+export function LlevarAGenesis({
+  conv,
+  prefs,
+  onHecho,
+  onCancelar,
+}: {
+  conv: Pick<AiConversation, "id" | "title">;
+  prefs: PrefsChatsGenesis;
+  onHecho: (p: PrefsChatsGenesis) => void;
+  onCancelar: () => void;
+}) {
+  const actual = prefs.vinculos.find((v) => v.id === idDeVinculo({ tipo: "astraura", convId: conv.id }));
+  const [nivel, setNivel] = useState<NivelGenesis>(actual?.nivel ?? "genesis");
+  const [entidad, setEntidad] = useState<string>(actual?.entidad ?? "");
+  const [trasladar, setTrasladar] = useState(false);
+  const [miembro, setMiembro] = useState(false);
+  const [entidades, setEntidades] = useState<EntidadGestionable[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [guardando, setGuardando] = useState(false);
+
+  useEffect(() => {
+    let vivo = true;
+    void miAccesoMetaGenesis()
+      .then((a) => {
+        if (vivo) setMiembro(a?.miembro === true);
+      })
+      .catch(() => undefined);
+    return () => {
+      vivo = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (nivel !== "poligenesis" || entidades) return;
+    let vivo = true;
+    void misEntidades()
+      .then((r) => {
+        if (!vivo) return;
+        const lista = r.ok ? r.lista.filter((e) => e.rango >= 2) : [];
+        setEntidades(lista);
+        if (!entidad && lista[0]) setEntidad(lista[0].id);
+      })
+      .catch(() => {
+        if (vivo) setEntidades([]);
+      });
+    return () => {
+      vivo = false;
+    };
+  }, [nivel, entidades, entidad]);
+
+  const llevar = useCallback(async () => {
+    if (nivel === "poligenesis" && !entidad) return;
+    setGuardando(true);
+    setError(null);
+    const en: Bandeja[] = trasladar ? ["genesis"] : ["chats", "genesis"];
+    const g = { nivel, entidad: nivel === "poligenesis" ? entidad : null, en };
+    let siguiente: PrefsChatsGenesis;
+    try {
+      siguiente = vincular(
+        prefs,
+        { fuente: { tipo: "astraura", convId: conv.id }, ...g, titulo: conv.title.slice(0, 120) },
+        new Date().toISOString(),
+      );
+      await guardarPrefsChatsGenesis(siguiente);
+    } catch (e) {
+      setError(
+        e instanceof RangeError
+          ? "Ya tienes 500 chats vinculados a Genesis: quita alguno antes."
+          : "No se pudo guardar el vínculo; el chat sigue como estaba.",
+      );
+      setGuardando(false);
+      return;
+    }
+    // La marca en el propio chat es comodidad (la verdad está en las preferencias): si falla, no se deshace nada.
+    await marcarConversacionGenesis(conv.id, g).catch(() => undefined);
+    setGuardando(false);
+    onHecho(siguiente);
+  }, [nivel, entidad, trasladar, prefs, conv.id, conv.title, onHecho]);
+
+  const niveles = NIVELES.filter((n) => n.id !== "metagenesis" || miembro || actual?.nivel === "metagenesis");
+
+  return (
+    <div className="my-1 space-y-2 rounded-md border border-emerald-500/20 bg-emerald-950/15 p-2 text-[11px] text-emerald-50/90" role="group" aria-label="Llevar a Genesis">
+      <p className="leading-snug">
+        {actual?.en.includes("genesis")
+          ? "Ya está en Genesis. Puedes cambiar el nivel."
+          : "El chat sigue aquí y aparece también en la pestaña Genesis."}
+      </p>
+      <div className="flex flex-wrap gap-1">
+        {niveles.map((n) => (
+          <button
+            key={n.id}
+            type="button"
+            onClick={() => setNivel(n.id)}
+            aria-pressed={nivel === n.id}
+            className={cn(
+              "cursor-pointer rounded-md px-2 py-1 transition-colors duration-150",
+              nivel === n.id ? "bg-emerald-500/20 text-emerald-50 ring-1 ring-emerald-400/40" : "text-emerald-100/60 hover:bg-white/5",
+            )}
+          >
+            {n.label}
+          </button>
+        ))}
+      </div>
+      {nivel === "poligenesis" && (
+        entidades === null ? (
+          <p className="text-emerald-100/50">Buscando tus grupos y páginas…</p>
+        ) : entidades.length === 0 ? (
+          <p className="text-amber-200/80">No colaboras (rango 2 o más) en ningún grupo ni página.</p>
+        ) : (
+          <select
+            value={entidad}
+            onChange={(e) => setEntidad(e.target.value)}
+            aria-label="Grupo o página"
+            className="w-full rounded-md border border-white/10 bg-background/60 px-2 py-1.5 text-[11px] text-foreground"
+          >
+            {entidades.map((e) => (
+              <option key={e.id} value={e.id} className="bg-zinc-900">
+                {e.nombre} · {e.tipo === "grupo" ? "grupo" : "página"}
+              </option>
+            ))}
+          </select>
+        )
+      )}
+      <label className="flex items-center gap-1.5 text-emerald-100/70">
+        <input type="checkbox" checked={trasladar} onChange={(e) => setTrasladar(e.target.checked)} className="h-3.5 w-3.5 accent-emerald-500" />
+        Quitar de Chats (trasladar)
+      </label>
+      {error && <p className="text-rose-300">{error}</p>}
+      <div className="flex gap-1.5">
+        <button
+          type="button"
+          onClick={() => void llevar()}
+          disabled={guardando || (nivel === "poligenesis" && !entidad)}
+          className="flex-1 cursor-pointer rounded-md bg-emerald-600/80 px-2 py-1.5 font-medium text-white transition-colors duration-150 hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {guardando ? "Guardando…" : "Llevar a Genesis"}
+        </button>
+        <button type="button" onClick={onCancelar} className="cursor-pointer rounded-md px-2 py-1.5 text-emerald-100/60 hover:bg-white/5">
+          Cancelar
+        </button>
+      </div>
     </div>
   );
 }

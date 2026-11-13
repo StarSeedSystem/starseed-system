@@ -221,7 +221,16 @@ const OficinaSeres = nextDynamic(() => import("@/components/astraura/genesis/ofi
 });
 // Voz coherente: persona portátil que se mantiene al cambiar de modelo (Adenda 112).
 const PersonaCoherencePanel = nextDynamic(() => import("@/components/aurora/persona-coherence-panel").then(m => m.PersonaCoherencePanel), { ssr: false });
-import { TelegramSpacesPanel } from "@/components/exocortex/telegram-spaces-panel";
+// GEN1113E: `TelegramSpacesPanel` ya no se monta aquí: lo monta «Conexiones de chat».
+// La pestaña «Genesis» (chats de Genesis, PoliGenesis y MetaGenesis, GEN1113D): solo en cliente.
+const PestanaGenesis = nextDynamic(() => import("@/components/chats-genesis/pestana-genesis").then(m => m.PestanaGenesis), {
+  ssr: false,
+  loading: () => (
+    <div className="rounded-xl border border-white/10 bg-black/20 p-10 text-center text-sm text-white/50">
+      Abriendo los chats de Genesis…
+    </div>
+  ),
+});
 import { ChatNeuralSidebar } from "@/components/agent/chat-neural-sidebar";
 import { NexusWorkspaces } from "@/components/agent/nexus-workspaces";
 // Adenda 76 · G1: cuerpo de chat compartido + panel de uso Nexus.
@@ -311,7 +320,9 @@ const STUDIO_SECTIONS: StudioSection[] = [
       { value: "chat", label: "Chats", icon: Bot },
       { value: "chat-158", label: "Multiagente 1.58", icon: Users },
       { value: "conexiones-chat", label: "Conexiones de chat", icon: Send },
-      { value: "telegram", label: "Telegram", icon: Send },
+      // GEN1113E: la pestaña Telegram pasa a ser una opción de «Conexiones de chat»
+      // (`?tab=telegram` sigue funcionando por alias) y en su lugar entra «Genesis».
+      { value: "chats-genesis", label: "Genesis", icon: Dna },
     ],
   },
   {
@@ -722,11 +733,32 @@ const TAB_ALIASES: Record<string, string> = {
   oficina: "genesis-oficina",
   "oficina-3d": "genesis-oficina",
   "genesis-oficina-3d": "genesis-oficina",
+  // GEN1113E (contrato astraura-chats-genesis §2.1): la pestaña Telegram ya no
+  // existe; sus enlaces caen en «Conexiones de chat» con la opción Telegram
+  // abierta (ver `focoDeConexiones`). `genesis` NO cambia (sigue en Seres, D2):
+  // los chats de Genesis son `chats-genesis`.
+  telegram: "conexiones-chat",
+  tg: "conexiones-chat",
+  "telegram-spaces": "conexiones-chat",
+  "chats-genesis": "chats-genesis",
+  "genesis-chats": "chats-genesis",
+  "metagenesis-chats": "chats-genesis",
 };
 function normalizeTab(raw: string | null | undefined): string | null {
   if (!raw) return null;
   const v = TAB_ALIASES[raw] ?? raw;
   return VALUE_TO_SECTION[v] ? v : null;
+}
+/** Qué opción de «Conexiones de chat» abrir: la de Telegram si se llegó por un
+ *  enlace viejo de la pestaña Telegram, o la de `?foco=` si es una válida. */
+const TABS_TELEGRAM = new Set(["telegram", "tg", "telegram-spaces"]);
+const FOCOS_CONEXIONES = new Set(["telegram", "genesis", "poligenesis", "metagenesis"]);
+function focoDeConexiones(
+  tab: string | null | undefined,
+  foco: string | null | undefined,
+): "telegram" | "genesis" | "poligenesis" | "metagenesis" | undefined {
+  if (tab && TABS_TELEGRAM.has(tab)) return "telegram";
+  return foco && FOCOS_CONEXIONES.has(foco) ? (foco as "telegram" | "genesis" | "poligenesis" | "metagenesis") : undefined;
 }
 
 // --- Types ---
@@ -1303,7 +1335,7 @@ function AgentPageInner() {
       <div className="flex items-center justify-between flex-wrap gap-3 w-full max-w-full box-border">
         <h1 className="text-lg sm:text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-purple-400 flex items-center gap-2 sm:gap-3 min-w-0">
           <BrainCircuit className="w-6 h-6 sm:w-8 sm:h-8 text-primary shrink-0" />
-          <span className="truncate">Astraura AI & Orchestration</span>
+          <span className="truncate">Astraura IA y Orquestación</span>
         </h1>
         <div className="flex items-center gap-2 flex-wrap min-w-0 max-w-full">
           {activeProviderConfig ? (
@@ -1850,8 +1882,7 @@ function AgentPageInner() {
           <SensesPanel />
         </TabsContent>
 
-        {/* --- TAB: ACCESOS RÁPIDOS (mismo catálogo del dock y Nexus) --- */}
-        <TabsContent value="telegram" className={TAB_SCROLL}><TelegramSpacesPanel /></TabsContent>
+        {/* GEN1113E: la pestaña Telegram se quitó; su contenido vive en «Conexiones de chat». */}
 
         <TabsContent value="memorias" className={TAB_SCROLL}><MemoryHub /></TabsContent>
 
@@ -1877,7 +1908,10 @@ function AgentPageInner() {
 
         <TabsContent value="coherencia" className={TAB_SCROLL}><PersonaCoherencePanel /></TabsContent>
 
-        <TabsContent value="conexiones-chat" className={TAB_SCROLL}><ChatConnectionsPanel /></TabsContent>
+        <TabsContent value="conexiones-chat" className={TAB_SCROLL}><ChatConnectionsPanel foco={focoDeConexiones(tabParam, params?.get('foco'))} /></TabsContent>
+
+        {/* GEN1113E: chats de Genesis, PoliGenesis y MetaGenesis (la pestaña es de GEN1113D). */}
+        <TabsContent value="chats-genesis" className={TAB_FILL}><PestanaGenesis /></TabsContent>
 
         <TabsContent value="almacenes" className={TAB_SCROLL}><StoragePanel /></TabsContent>
 
