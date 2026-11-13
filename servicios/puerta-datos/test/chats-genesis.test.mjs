@@ -123,7 +123,7 @@ test("desarrollador: texto al hilo sí (201); todo lo que pone a un agente a tra
     entrada({ canales: ["mando", "director-presidente"] }),
     entrada({ modelo: "director-presidente" }),
     entrada({ accion: "responder", respondeA: "md-1762990000000-a1b2" }),
-    entrada({ accion: "reenviar", texto: undefined, reenviar: "md-1762990000000-a1b2" }),
+    entrada({ accion: "reenviar", texto: undefined, reenviar: "md-1762990000000-a1b2", canales: ["hermes"] }),
     orden("aprobar", ["X1"]),
     orden("estado"),
     entrada({ fuente: "puente:hermes-avisos", accion: "texto" }),
@@ -292,7 +292,7 @@ test("caducidad: una orden que cambia algo y nadie recogió en 30 min no se entr
   const prev = await pedir("/v1/genesis/chats/entrada?destino=mac", { cred: fMac });
   for (const e of prev.j.entradas) await pedir("/v1/genesis/chats/acuse", { metodo: "POST", cred: fMac, cuerpo: { id: e.id, estado: "hecho" } });
   const o = await enviar(DUENO, orden("soltar", ["T9"]));
-  const t = await enviar(DUENO, orden("decir", ["hola", "Hermes"]));
+  const t = await enviar(DUENO, orden("decir", [], { texto: "hola Hermes" }));
   const motor = await enviar(DUENO, entrada({ modelo: "hermes/predeterminado", canales: ["hermes"] }));
   ahora.avanzar(31 * 60_000);
   const l = await pedir("/v1/genesis/chats/entrada?destino=mac", { cred: fMac });
@@ -396,4 +396,22 @@ test("esMetagenesisDueno: caché de 60 s para sí y no; un fallo lanza (nunca co
   respuesta = { ok: true, datos: true };
   assert.equal(await esDueno(DUENO, "jwt"), true);
   assert.equal(llamadas, 4);
+});
+
+test("GEN1113INT: /decir y /a llevan el texto en «texto» (como la pestaña); «responder» no pide texto; «reenviar» pide canales", async () => {
+  const largo = "x".repeat(500); // más de 120: no cabría en `args`
+  assert.equal((await enviar(DUENO, orden("decir", [], { texto: largo }))).estado, 201);
+  assert.equal((await enviar(DUENO, orden("a", ["claude"], { texto: largo }))).estado, 201);
+  assert.equal((await enviar(DUENO, entrada({ accion: "responder", texto: undefined, respondeA: "md-1762990000000-a1b2", modelo: "hermes/predeterminado" }))).estado, 201);
+  for (const malo of [
+    orden("decir", []),                                   // sin texto
+    orden("decir", ["hola"], { texto: "hola" }),          // el texto va en «texto», no en args
+    orden("a", ["claude"]),                               // sin texto
+    orden("a", ["no vale"], { texto: "hola" }),           // agente con espacios
+    orden("aprobar", ["X1"], { texto: "colado" }),        // las demás órdenes no llevan texto
+    entrada({ accion: "reenviar", texto: undefined, reenviar: "md-1762990000000-a1b2" }),
+  ]) {
+    const r = await enviar(DUENO, malo);
+    assert.deepEqual([r.estado, r.j.codigo], [400, "forma"], JSON.stringify(malo).slice(0, 200));
+  }
 });

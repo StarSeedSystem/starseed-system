@@ -8,7 +8,7 @@ import type { PrefsChatsGenesis } from "@/lib/chats-genesis/tipos";
 import { clienteFalso, feedDeEjemplo, ponerAncho, respuestaFeed } from "./ayudas";
 
 const acceso = vi.hoisted(() => ({ valor: null as { miembro: boolean; dueno: boolean } | null }));
-const prefsGuardadas = vi.hoisted(() => ({ lista: [] as unknown[], leer: null as unknown }));
+const prefsGuardadas = vi.hoisted(() => ({ lista: [] as unknown[], leer: null as unknown, falla: false }));
 
 vi.mock("@/lib/metagenesis/accesos", () => ({ miAccesoMetaGenesis: vi.fn(async () => acceso.valor) }));
 vi.mock("@/lib/genesis/entidades", () => ({
@@ -20,7 +20,10 @@ vi.mock("@/lib/chats-genesis/vinculos", async (original) => {
         ...real,
         leerCopiaLocalChatsGenesis: () => ({ v: 1, vinculos: [], conexiones: {} }),
         leerPrefsChatsGenesis: vi.fn(async () => prefsGuardadas.leer ?? { v: 1, vinculos: [], conexiones: {} }),
-        guardarPrefsChatsGenesis: vi.fn(async (p: unknown) => { prefsGuardadas.lista.push(p); }),
+        guardarPrefsChatsGenesis: vi.fn(async (p: unknown) => {
+            if (prefsGuardadas.falla) throw new Error("No se guardaron los chats de Genesis en tu cuenta");
+            prefsGuardadas.lista.push(p);
+        }),
     };
 });
 
@@ -186,5 +189,32 @@ describe("PestanaGenesis", () => {
             expect(await screen.findByTestId("hilo-puente")).toBeInTheDocument();
             expect(screen.getByTestId("compositor-puente")).toBeInTheDocument();
         });
+    });
+});
+
+describe("PestanaGenesis · guardado de la primera visita (GEN1113INT)", () => {
+    beforeEach(() => {
+        acceso.valor = { miembro: true, dueno: true };
+        prefsGuardadas.lista = [];
+        prefsGuardadas.leer = null;
+        prefsGuardadas.falla = false;
+    });
+    afterEach(() => {
+        cleanup();
+        window.localStorage.clear();
+        prefsGuardadas.falla = false;
+    });
+
+    it("la primera visita de un miembro escribe una vez la conexión a MetaGenesis con el ayudante de la biblioteca", async () => {
+        await montar({ ancho: 1440 });
+        await waitFor(() => expect(prefsGuardadas.lista).toHaveLength(1));
+        expect((prefsGuardadas.lista[0] as PrefsChatsGenesis).conexiones.metagenesis).toEqual({ activo: true });
+        expect(screen.queryByTestId("aviso-prefs")).toBeNull();
+    });
+
+    it("si la cuenta no guarda, se dice en la pestaña", async () => {
+        prefsGuardadas.falla = true;
+        await montar({ ancho: 1440 });
+        expect(await screen.findByTestId("aviso-prefs")).toHaveTextContent("No se pudo guardar en tu cuenta la conexión a MetaGenesis");
     });
 });

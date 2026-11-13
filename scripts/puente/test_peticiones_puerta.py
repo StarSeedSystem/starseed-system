@@ -61,6 +61,7 @@ def montar(tmp_path, cuentas=True):
     d.mkdir()
     if cuentas:
         (d / "cuentas.json").write_text(json.dumps({"duenos": [DUENO]}))
+        os.chmod(d / "cuentas.json", 0o600)   # (GEN1113INT) la lista solo vale con permisos 600
     (d / "estado.json").write_text(json.dumps({"offset": 77, "notebooklm": {"viva": True, "comprobada": "ayer"}}))
     for k, v in (("DIR", str(d)), ("COLA", str(d / "cola.json")), ("ESTADO", str(d / "estado.json"))):
         patcher = patch.object(pt, k, v)
@@ -277,3 +278,67 @@ def test_arranque_con_ficha_en_subproceso_no_toca_telegram(tmp_path):
                        cwd=os.path.dirname(__file__), env=env, capture_output=True, text=True, timeout=30)
     assert r.returncode == 0 and r.stdout.strip().endswith("True"), r.stderr[-300:]
     assert "ficha-de-prueba" not in r.stdout + r.stderr
+
+
+# ── GEN1113INT ───────────────────────────────────────────────────────────────
+
+def test_lista_con_permisos_abiertos_no_autoriza_nada(tmp_path):
+    puente, falsa, d = montar(tmp_path)
+    os.chmod(d / "cuentas.json", 0o644)
+    vuelta(puente, falsa, entrada(1))
+    assert falsa.finales() == [(1, "rechazado")]
+    assert "600" in falsa.acuses[-1]["detalle"] and not (d / "cola.json").exists()
+
+
+def test_respuestas_largas_van_en_lotes_que_caben_en_la_puerta(tmp_path):
+    """La puerta corta el cuerpo en 64 KB y el registro en 48 KB: nada de lo que se sube pasa de ahí."""
+    puente, falsa, _ = montar(tmp_path)
+    cuerpos = []
+    real = falsa.__call__
+
+    def midiendo(metodo, url, cabeceras, cuerpo=None, timeout=8):
+        if cuerpo is not None and url.endswith("/espejo"):
+            cuerpos.append(len(json.dumps(cuerpo, ensure_ascii=False).encode("utf-8")))
+        return real(metodo, url, cabeceras, cuerpo, timeout)
+    puente.puerta.http = midiendo
+    puente.subir_espejo("é🚀" * 30000)                     # ≈ 180 KB en UTF-8
+    while puente.salida:
+        puente.vaciar()
+    assert cuerpos and max(cuerpos) <= 60 * 1024
+    assert all(len(json.dumps(r, ensure_ascii=False).encode("utf-8")) <= 40 * 1024 for r in falsa.espejo)
+    assert "".join(r["texto"] for r in falsa.espejo) == "é🚀" * 30000
+
+
+def test_un_lote_que_la_puerta_rechaza_no_atasca_el_espejo(tmp_path):
+    puente, falsa, _ = montar(tmp_path)
+    puente.puerta.http = lambda *a, **k: (413, {"error": "grande"})
+    puente.subir_espejo("uno")
+    assert puente.salida == []
+
+
+def test_retiro_de_una_peticion_de_genesis_va_al_espejo_sin_su_texto(tmp_path):
+    puente, falsa, _ = montar(tmp_path)
+    mandados = []
+
+    class Modulo:
+        pass
+    m = Modulo()
+    m.__dict__.update({k: getattr(pt, k) for k in ("leer_json", "escribir_json", "log", "DIR", "TIPOS", "ENV")})
+    m.decir = mandados.append
+    m.enviar_resultado = lambda *a: None
+    m.atender = lambda p: None
+    m.main = lambda: None
+    cambios = []
+    m.actualizar = lambda pid, **c: cambios.append((pid, c))
+    puerta = Puerta(url="https://example.invalid", ficha="ficha-de-prueba", http=falsa)
+    with patch.object(pp.threading, "Thread"):
+        pp.enganchar(m, puerta)
+    # Lo mismo que hace `trabajar()` con una petición de más de 24 h:
+    m.actualizar("g-9", estado="caducada")
+    m.decir("Retiro de la cola tras 24 h sin poder hacerla: «TEXTO-PRIVADO de la petición»")
+    assert mandados == [] and cambios == [("g-9", {"estado": "caducada"})]
+    assert len(falsa.espejo) == 1 and "TEXTO-PRIVADO" not in falsa.espejo[0]["texto"]
+    # Una de Telegram sigue yendo a Telegram, con su texto, como hoy.
+    m.actualizar(41, estado="caducada")
+    m.decir("Retiro de la cola tras 24 h sin poder hacerla: «otra»")
+    assert mandados == ["Retiro de la cola tras 24 h sin poder hacerla: «otra»"]

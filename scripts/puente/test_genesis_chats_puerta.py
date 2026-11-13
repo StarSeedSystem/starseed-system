@@ -134,6 +134,10 @@ class Base(unittest.TestCase):
         G.escribir_cuentas(os.path.join(self.base, "cuentas.json"), duenos, desarrolladores)
 
     def acuses(self):
+        """Los acuses FINALES (GEN1113INT: antes de ejecutar va además un «entregado» intermedio)."""
+        return [c["cuerpo"] for c in self.red.a(URL + "/v1/genesis/chats/acuse") if c["cuerpo"]["estado"] != "entregado"]
+
+    def todos_los_acuses(self):
         return [c["cuerpo"] for c in self.red.a(URL + "/v1/genesis/chats/acuse")]
 
     def registro(self):
@@ -397,6 +401,116 @@ class Espejo(Base):
         regs = [s["registros"][0] for s in self.subidas("direccion")]
         self.assertEqual([r["entregas"]["hermes"]["estado"] for r in regs], ["pendiente", "respondido"])
         self.assertEqual(regs[0]["origen"], "genesis-web")
+
+
+def _otro_hilo_puede_tomar_el_cerrojo():
+    import threading
+    pudo = []
+
+    def probar():
+        ok = G.CERROJO_PROCESO.acquire(blocking=False)
+        pudo.append(ok)
+        if ok:
+            G.CERROJO_PROCESO.release()
+    h = threading.Thread(target=probar)
+    h.start()
+    h.join()
+    return pudo[0]
+
+
+class Integracion1113(Base):
+    """GEN1113INT: lo que hacía falta para que los seis paquetes encajen."""
+
+    def tocar(self, nombre="chat", ns=1):
+        self.mtimes[G.rutas_feed(self.raiz)[nombre]] = ns
+
+    def subidas(self, fuente="direccion"):
+        return [c["cuerpo"] for c in self.red.a(URL + "/v1/genesis/chats/espejo")
+                if c["cuerpo"]["registros"] and c["cuerpo"]["fuente"] == fuente]
+
+    def test_decir_y_a_con_el_texto_en_texto_como_los_manda_la_pestana(self):
+        self.cuentas()
+        self.red.entradas = [
+            entrada(1, orden={"nombre": "decir", "args": []}, texto="hola a todos, " + "x" * 300),
+            entrada(2, orden={"nombre": "a", "args": ["claude"]}, texto="revisa la ola"),
+        ]
+        self.svc.ciclo_entradas()
+        self.assertEqual([a["estado"] for a in self.acuses()], ["hecho", "hecho"])
+        self.assertEqual(self.p.dichos[0]["texto"], "hola a todos, " + "x" * 300)
+        self.assertEqual((self.p.dichos[1]["texto"], self.p.dichos[1]["quien"]),
+                         ("revisa la ola", "genesis-web-11111111|claude"))
+
+    def test_entregado_antes_del_acuse_final(self):
+        self.cuentas()
+        self.red.entradas = [entrada(1), entrada(2, cuenta=OTRO)]
+        self.svc.ciclo_entradas()
+        self.assertEqual([(a["id"], a["estado"]) for a in self.todos_los_acuses()],
+                         [(1, "entregado"), (1, "hecho"), (2, "rechazado")])
+
+    def test_puente_orden_corre_con_el_cerrojo_del_proceso(self):
+        self.cuentas()
+        visto = []
+        orden_real = self.p.orden
+
+        def orden(accion, ids, extra=None):
+            visto.append((os.environ.get("STARSEED_IDE"), _otro_hilo_puede_tomar_el_cerrojo()))
+            return orden_real(accion, ids, extra)
+        self.p.orden = orden
+        self.red.entradas = [entrada(1)]
+        self.svc.ciclo_entradas()
+        self.assertEqual(visto, [("genesis-web-11111111", False)])
+        self.assertTrue(_otro_hilo_puede_tomar_el_cerrojo())
+
+    def test_el_espejo_clasifica_con_el_cerrojo_del_proceso(self):
+        visto = []
+        self.svc.mod["telegram"]._importa = lambda fila: visto.append(_otro_hilo_puede_tomar_el_cerrojo()) or True
+        self.tocar()
+        self.red.feed["mensajes"] = [{"id": "cn-1-vigilante", "t": "2027-01-15 08:00:01", "de": "vigilante",
+                                      "rol": "director", "tipo": "aviso", "texto": "aviso", "canal": "mando"}]
+        self.svc.tick_espejo()
+        self.assertEqual(visto, [False])
+
+    def test_lotes_por_tamano_y_registros_recortados(self):
+        self.tocar()
+        grande = "ñ" * 30000                        # 60 KB de UTF-8: no cabe en un registro de la puerta
+        self.red.feed["mensajes"] = [mensaje("md-1800000000000-%04x" % i, "2027-01-15T08:00:00Z", texto="é" * 12000)
+                                     for i in range(5)] + [mensaje("md-1800000000000-ffff", "2027-01-15T08:00:01Z",
+                                                                   texto=grande)]
+        self.assertEqual(self.svc.tick_espejo(), "subido")
+        cuerpos = [len(json.dumps(c, ensure_ascii=False).encode("utf-8")) for c in self.subidas()]
+        self.assertTrue(len(cuerpos) >= 2 and max(cuerpos) <= 60 * 1024, cuerpos)
+        regs = [r for c in self.subidas() for r in c["registros"]]
+        self.assertEqual(len(regs), 6)
+        ultimo = regs[-1]
+        self.assertLessEqual(len(json.dumps(ultimo, ensure_ascii=False).encode("utf-8")), L.MAX_REGISTRO_BYTES)
+        self.assertTrue(ultimo["texto"].endswith(L.RECORTADO))
+
+    def test_un_lote_que_la_puerta_rechaza_se_salta_sin_parar_el_espejo(self):
+        self.tocar()
+        self.red.feed["mensajes"] = [mensaje("md-1800000000000-0007", "2027-01-15T08:00:00Z")]
+        self.red.codigo_espejo = 400
+        self.assertNotEqual(self.svc.tick_espejo(), "fallo")
+        self.assertEqual(self.svc.estado["espejo"]["saltados"], 1)
+
+    def test_marca_via_genesis_aunque_el_espejo_lo_subiera_antes(self):
+        """La ruta local publica el mensaje antes de contestar: el espejo lo sube sin marca y luego con ella."""
+        self.cuentas()
+        self.tocar()
+        self.red.feed["mensajes"] = [mensaje("md-1800000000000-beef", "2027-01-15T08:00:00Z", texto="al presidente")]
+        self.red.feed["entregas"] = {"md-1800000000000-beef": {"director-presidente": "pendiente"}}
+        self.svc.tick_espejo()
+        self.assertNotIn("origen", self.subidas()[0]["registros"][0])
+        self.red.entradas = [entrada(1, fuente="direccion", accion="decir", orden=None, texto="al presidente",
+                                     modelo="director-presidente/auto", canales=["director-presidente"])]
+        self.svc.ciclo_entradas()
+        self.assertEqual(self.acuses()[0]["estado"], "hecho")
+        self.svc.tick_espejo()                       # sin cambios de mtime: aun así sube la marca
+        ultimo = self.subidas()[-1]["registros"][0]
+        self.assertEqual((ultimo["id"], ultimo["origen"]), ("md-1800000000000-beef", "genesis-web"))
+        self.assertEqual(ultimo["entregas"]["director-presidente"]["estado"], "pendiente")
+        n = len(self.subidas())
+        self.svc.tick_espejo()
+        self.assertEqual(len(self.subidas()), n)     # una sola vez
 
 
 class Servicio(Base):

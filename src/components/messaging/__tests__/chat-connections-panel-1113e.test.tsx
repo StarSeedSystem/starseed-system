@@ -120,7 +120,8 @@ describe("GEN1113E · opción Telegram dentro de Conexiones de chat", () => {
     expect(tarjeta).toHaveAttribute("data-abierta", "si");
     const t = within(tarjeta);
     expect(t.getByText("StarSeed Neurocortex · Telegram")).toBeInTheDocument();
-    expect(t.getByRole("button", { name: /Conectar mi cuenta/ })).toBeInTheDocument();
+    // GEN1113INT: el botón depende de la cuenta, que llega después (con la máquina cargada no da tiempo).
+    expect(await t.findByRole("button", { name: /Conectar mi cuenta/ }, { timeout: 5000 })).toBeInTheDocument();
     expect(t.getByRole("button", { name: /Chatbot/ })).toBeInTheDocument();
     for (const n of SIETE) expect(t.getByText(n)).toBeInTheDocument();
     expect(t.getByText("Chats sincronizados desde Telegram")).toBeInTheDocument();

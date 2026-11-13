@@ -20,7 +20,11 @@ describe("analizarEscrito", () => {
         expect(analizarEscrito("/reasignar T1", "hermes-avisos").ok).toBe(false);
         expect(analizarEscrito("/aprobar", "hermes-avisos").ok).toBe(false);
         expect(analizarEscrito("/borrar todo", "hermes-avisos")).toEqual({ ok: false, motivo: expect.stringContaining("Orden no permitida en este puente: /borrar") });
-        expect(analizarEscrito("/encargos", "peticiones")).toMatchObject({ ok: true, entrada: { fuente: "puente:peticiones", orden: { nombre: "encargos" } } });
+        expect(analizarEscrito("/estado", "peticiones")).toMatchObject({ ok: true, entrada: { fuente: "puente:peticiones", orden: { nombre: "estado" } } });
+        // GEN1113INT: lo que el bot del A1 aún no tiene no se envía, y se dice por qué.
+        for (const n of ["encargos", "pausa", "sigue", "cancela"]) {
+            expect(analizarEscrito(`/${n}`, "peticiones")).toEqual({ ok: false, motivo: expect.stringContaining(`/${n} aún no está disponible`) });
+        }
         expect(analizarEscrito("/aprobar X", "peticiones").ok).toBe(false);
     });
 });
@@ -62,9 +66,12 @@ describe("HiloPuente", () => {
         render(<HiloPuente cliente={cliente} puente="peticiones" esDueno />);
         fireEvent.click(screen.getByText("Órdenes"));
         const hoja = screen.getByRole("dialog");
-        expect(within(hoja).getAllByRole("button").filter((b) => b.textContent?.startsWith("/"))).toHaveLength(6);
-        fireEvent.click(within(hoja).getByText("/encargos"));
-        expect((screen.getByRole("textbox", { name: "Mensaje u orden para el puente" }) as HTMLTextAreaElement).value).toBe("/encargos ");
+        // GEN1113INT: solo lo que funciona hoy (/estado y /ayuda) se ofrece; lo demás se nombra como «aún no».
+        expect(within(hoja).getAllByRole("button").filter((b) => b.textContent?.startsWith("/")).map((b) => b.querySelector("code")?.textContent)).toEqual(["/estado", "/ayuda"]);
+        expect(within(hoja).getByTestId("ordenes-aun-no")).toHaveTextContent("Aún no disponibles");
+        expect(within(hoja).getByTestId("ordenes-aun-no")).toHaveTextContent("/encargos · /pausa · /sigue · /cancela");
+        fireEvent.click(within(hoja).getByText("/estado"));
+        expect((screen.getByRole("textbox", { name: "Mensaje u orden para el puente" }) as HTMLTextAreaElement).value).toBe("/estado ");
     });
 
     it("«Peticiones y encargos» lo recoge el A1: lo escrito espera al A1", async () => {
