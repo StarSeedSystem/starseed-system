@@ -89,8 +89,8 @@ integrado en olas posteriores; ver `gestion-por-neurona.md` (item #4) para el es
 - **Descubrimiento automático de pares de confianza** desde el registro de identidades de la
   cuenta/grupo — a medias: hay PEX de confianza filtrable por allowlist en el servidor de
   referencia (`docs/examples/starseed-mesh-server/index.mjs`, Adenda 117) y descubrimiento
-  pasivo de nodos en `mesh/discovery.ts` (Adenda 97), pero la conexión automática "desde el
-  registro de identidades de la cuenta/grupo" no está integrada.
+  pasivo de nodos en `src/ai/astraura/mesh/discovery.ts` (Adenda 97), pero la conexión automática
+  "desde el registro de identidades de la cuenta/grupo" no está integrada.
 
 *Relacionado: `astraura-inteligencia.md` (router LLM gratis-primero), `astraura-mesh-meshtastic.md`
 (neuronas = cerebro+servidor), `servidor-propio-protocolo.md` (Adendas 99-108).*

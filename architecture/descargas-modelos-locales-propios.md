@@ -43,8 +43,9 @@ kind (inválido → local/llm) y filtro por tipo.
 - **Instalación completa de la app del OS** para modelos locales fuera del navegador (hoy se
   descargan los de navegador WebGPU/WASM; los de Ollama/LM Studio requieren el servidor local).
 - ✅ **Persistir la cola entre recargas duras** — hecho en CTR1106D (`2824c35e3b`: `localStorage` `starseed.model-downloads.v1`, tope de 20 terminadas, lo interrumpido sale como error).
-- Probar/configurar el modelo propio desde la ficha (ping al endpoint/MCP) y auto-adaptar
-  personalidades al terminar la descarga.
+- Probar/configurar el modelo propio desde la ficha (ping al endpoint/MCP): ✅ hecho (`probeCustomModel` en `custom-models.ts`, botón «Probar» en la ficha, `scripts/test-neuron-config.ts` 12/12)
+  (a medias: falta la auto-adaptación de personalidades al terminar la descarga — solo el aviso en
+  `model-download-notifier.tsx`; no hay lógica de adaptación).
 
 Roadmap restante del mega-encargo: (4) gestión completa por neurona; (5) seguridad de la 108.
 
