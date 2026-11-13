@@ -598,8 +598,15 @@ def limpiar_worktrees(raiz_wt=None):
         try:
             import recoger_worktrees as RW
 
-            r2 = RW.recoger(RAIZ, aplicar_ya=True, olas=OLAS)
+            permitida = RW.hay_permiso()
+            r2 = RW.recoger(RAIZ, aplicar_ya=permitida, olas=OLAS)
             r = dict(r or {})
+            if not permitida:
+                # Sin la marca del dueño solo se simula: se dice cuántos quitaría y que espera su primera recogida.
+                r["pendientes_tmp1113b"] = r2["resumen"]["quitaria"]
+                r["aviso_recogida"] = ("recogida de worktrees: quitaría %d y espera la primera recogida hecha por una "
+                                       "persona (recoger_worktrees.py --aplicar)" % r2["resumen"]["quitaria"])
+                return r
             ya = {os.path.realpath(x) for x in r.get("quitados") or []}
             r["quitados"] = list(r.get("quitados") or []) + [x["ruta"] for x in r2.get("quitados", [])
                                                               if os.path.realpath(x["ruta"]) not in ya]

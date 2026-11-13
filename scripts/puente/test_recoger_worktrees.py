@@ -282,37 +282,63 @@ class Aplicar(Base):
             json.dump(self.progreso, f)
         base = [sys.executable, os.path.join(DIRECTORIO, "recoger_worktrees.py"), "--raiz", self.repo, "--raices",
                 self.wt, "--olas", olas]
-        env = dict(ENV, STARSEED_REGISTRO_WORKTREES=os.path.join(self.dir, "reg.jsonl"))
+        permiso = os.path.join(self.dir, "permiso")
+        env = dict(ENV, STARSEED_REGISTRO_WORKTREES=os.path.join(self.dir, "reg.jsonl"),
+                   STARSEED_PERMISO_WORKTREES=permiso)
         r = subprocess.run(base, env=env, capture_output=True, text=True)
         self.assertIn("SIMULACRO", r.stdout)
         self.assertIn("quitaría A1", r.stdout)
         self.assertTrue(os.path.isdir(a))
         self.assertFalse(os.path.exists(os.path.join(self.dir, "reg.jsonl")))          # el simulacro no escribe
+        self.assertFalse(os.path.exists(permiso))                                        # ni la marca de permiso
         r = subprocess.run(base + ["--aplicar"], env=env, capture_output=True, text=True)
         self.assertIn("APLICADO", r.stdout)
+        with open(permiso, encoding="utf-8") as f:                                       # --aplicar la escribe
+            marca = json.load(f)
+        self.assertEqual(sorted(marca), ["conservados", "quitados", "t"])
+        self.assertEqual(marca["quitados"], 1)
         self.assertFalse(os.path.exists(a))
         self.assertTrue(os.path.isfile(os.path.join(self.dir, "reg.jsonl")))
 
 
 class LlamadaDesdeLaAutocuracion(Base):
-    def test_la_pasada_diaria_recoge_tambien_starseed_opus(self):
-        from unittest import mock
-        import autocuracion_mando as A
-
-        vieja = self.nuevo("OPUS1106-V1", raiz=self.opus, rama="opus1106/V1", commit=True)
-        reciente = self.nuevo("OPUS1106-V2", raiz=self.opus, rama="opus1106/V2", commit=True, edad_h=1)
+    def preparar(self):
+        self.vieja = self.nuevo("OPUS1106-V1", raiz=self.opus, rama="opus1106/V1", commit=True)
+        self.reciente = self.nuevo("OPUS1106-V2", raiz=self.opus, rama="opus1106/V2", commit=True, edad_h=1)
         olas = os.path.join(self.dir, "olas")
         os.makedirs(olas)
         with open(os.path.join(olas, "progreso.json"), "w") as f:
             json.dump({"V1": {"estado": "commit"}, "V2": {"estado": "commit"}}, f)
-        reg = os.path.join(self.dir, "reg.jsonl")
+        self.reg = os.path.join(self.dir, "reg.jsonl")
+        self.permiso = os.path.join(self.dir, "permiso")
+        return olas
+
+    def llamar(self, olas):
+        from unittest import mock
+        import autocuracion_mando as A
+
         with mock.patch.multiple(A, RAIZ=self.repo, OLAS=olas, RAIZ_WT=os.path.join(self.dir, "no-existe")), \
-                mock.patch.object(RW, "REGISTRO", reg):
-            r = A.limpiar_worktrees()
+                mock.patch.multiple(RW, REGISTRO=self.reg, PERMISO=self.permiso):
+            return A.limpiar_worktrees()
+
+    def test_sin_la_marca_del_dueno_solo_simula_y_dice_cuantos_quitaria(self):
+        olas = self.preparar()
+        r = self.llamar(olas)
+        self.assertEqual(r.get("quitados") or [], [])
+        self.assertEqual(r["pendientes_tmp1113b"], 1)
+        self.assertIn("primera recogida hecha por una persona", r["aviso_recogida"])
+        self.assertTrue(os.path.isdir(self.vieja) and os.path.isdir(self.reciente))
+        self.assertFalse(os.path.exists(self.reg) or os.path.exists(self.permiso))
+
+    def test_con_la_marca_la_pasada_diaria_recoge_tambien_starseed_opus(self):
+        olas = self.preparar()
+        with open(self.permiso, "w") as f:
+            f.write("{}")
+        r = self.llamar(olas)
         self.assertEqual([os.path.basename(x) for x in r["quitados"]], ["OPUS1106-V1"], r)
-        self.assertFalse(os.path.exists(vieja))
-        self.assertTrue(os.path.isdir(reciente))          # dentro del plazo de reposo
-        self.assertTrue(os.path.isfile(reg))
+        self.assertFalse(os.path.exists(self.vieja))
+        self.assertTrue(os.path.isdir(self.reciente))          # dentro del plazo de reposo
+        self.assertTrue(os.path.isfile(self.reg))
 
 
 if __name__ == "__main__":

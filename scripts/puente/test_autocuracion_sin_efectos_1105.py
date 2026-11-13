@@ -54,8 +54,14 @@ class LimpiezaDeWorktreesSinProgreso(unittest.TestCase):
             os.makedirs(os.path.join(self.wt, t, "node_modules", "paquete"))
         self._p = mock.patch.multiple(A, RAIZ=self.repo, RAIZ_WT=self.wt, OLAS=self.olas)
         self._p.start()
+        # TMP1113B: la recogida de worktrees nunca toca el ~/.starseed real (registro y marca de permiso).
+        import recoger_worktrees as RW
+        self._rw = mock.patch.multiple(RW, REGISTRO=os.path.join(self.tmp, "reg.jsonl"),
+                                       PERMISO=os.path.join(self.tmp, "permiso"))
+        self._rw.start()
 
     def tearDown(self):
+        self._rw.stop()
         self._p.stop()
         shutil.rmtree(self.tmp, ignore_errors=True)
 

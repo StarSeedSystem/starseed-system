@@ -27,6 +27,12 @@ conozca), la RAMA se queda, y después `git worktree prune` quita los registros 
 Sin `progreso.json` legible no se sabe qué tareas están vivas: no se toca ningún worktree
 (mismo criterio que SUP0511E en `autocuracion_mando`).
 
+PERMISO DEL DUEÑO: la pasada automática (`autocuracion_mando.limpiar_worktrees`) solo QUITA si existe la marca
+`~/.starseed/recogida-worktrees.permitida` (ruta cambiable con STARSEED_PERMISO_WORKTREES). Sin ella hace el
+simulacro y dice cuántos quitaría y que espera la primera recogida hecha por una persona. La marca (fecha y cifras,
+nada más) la escribe `recoger_worktrees.py --aplicar` desde la línea de órdenes: esa primera recogida manual,
+con la palabra del dueño, es lo que enciende las automáticas. No hay otro interruptor.
+
 Es lo único que este módulo borra: worktrees que git conoce, que están limpios, quietos y cerrados.
 
 Uso:
@@ -52,6 +58,7 @@ ESTADOS_FINALES = frozenset({"commit", "integrada", "rechazada", "sustituida", "
 ESTADOS_VIVOS = frozenset({"pendiente", "en_curso", "reasignada", "por_traer"})
 HORAS_POR_DEFECTO = 24.0
 #: Registro de lo quitado y lo conservado (una línea JSON por worktree y por pasada). El simulacro no escribe.
+PERMISO = os.path.expanduser(os.environ.get("STARSEED_PERMISO_WORKTREES") or "~/.starseed/recogida-worktrees.permitida")
 REGISTRO = os.path.expanduser(os.environ.get("STARSEED_REGISTRO_WORKTREES") or "~/.starseed/recogida-worktrees.jsonl")
 
 
@@ -312,6 +319,24 @@ def escribir_registro(registro, quitados, conservados, prunados, ahora=None):
         pass  # el registro es informativo: que no se pueda escribir no debe impedir ni deshacer nada
 
 
+def hay_permiso(ruta=None):
+    return os.path.isfile(ruta or PERMISO)
+
+
+def escribir_permiso(r, ruta=None, ahora=None):
+    """Marca de la primera recogida hecha por una persona: fecha y cifras, nada más. Nunca lanza."""
+    ruta = ruta or PERMISO
+    ahora = time.time() if ahora is None else ahora
+    try:
+        os.makedirs(os.path.dirname(ruta) or ".", exist_ok=True)
+        with open(ruta, "w", encoding="utf-8") as f:
+            json.dump({"t": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(ahora)),
+                       "quitados": len(r.get("quitados", [])), "conservados": len(r.get("conservados", []))}, f)
+        return True
+    except OSError:
+        return False
+
+
 def resumen(plan):
     """Solo cifras: cuántos se quitarían o prunarían y cuántos se conservan, con el motivo principal de cada grupo."""
     quitar = [p for p in plan if p["accion"] == "quitar"]
@@ -342,7 +367,9 @@ def recoger(repo=None, raices=None, base="main", horas=HORAS_POR_DEFECTO, aplica
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description="Quita los worktrees terminados, limpios y quietos (simulacro por defecto).")
-    ap.add_argument("--aplicar", action="store_true", help="quita de verdad (sin esto solo lista)")
+    ap.add_argument("--aplicar", action="store_true",
+                    help="quita de verdad (sin esto solo lista). La primera vez escribe la marca que permite las "
+                         "recogidas automáticas (%s)" % PERMISO)
     ap.add_argument("--horas", type=float, default=float(os.environ.get("STARSEED_WT_REPOSO_H") or HORAS_POR_DEFECTO))
     ap.add_argument("--base", default="main")
     ap.add_argument("--raiz", default=RAIZ, help="repositorio principal")
@@ -352,6 +379,8 @@ def main(argv=None):
     a = ap.parse_args(argv)
     raices = [r for r in a.raices.split(",") if r] or None
     r = recoger(a.raiz, raices, a.base, a.horas, aplicar_ya=a.aplicar, olas=a.olas)
+    if a.aplicar and r["aplicado"]:
+        escribir_permiso(r)
     if a.json:
         print(json.dumps(r["resumen"], ensure_ascii=False))
         return 0

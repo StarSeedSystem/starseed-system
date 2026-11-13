@@ -29,6 +29,10 @@ import raiz_pruebas as _raiz_pruebas  # noqa: E402
 
 _raiz_pruebas.abrir()
 
+# TMP1113B: la recogida de worktrees (registro y marca de permiso) jamás escribe en el ~/.starseed real desde pytest.
+os.environ["STARSEED_REGISTRO_WORKTREES"] = os.path.join(os.environ["TMPDIR"], "recogida-worktrees.jsonl")
+os.environ["STARSEED_PERMISO_WORKTREES"] = os.path.join(os.environ["TMPDIR"], "recogida-worktrees.permitida")
+
 # (1103 · U) Las pruebas nunca leen ni escriben las preguntas de «Potenciar» de verdad: Genesis se las enseña a Alex.
 import tempfile as _tempfile  # noqa: E402
 
