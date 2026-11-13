@@ -6,6 +6,11 @@ Cada 20 h elige ≤ 2 objetivos, funde los encargos en `olas/cola-suenos-alcance
 título ≤ 200, cuerpo ≤ 8000 y mensaje ≤ 220 palabras; referencias https de la ficha o de
 StarSeed; cada afirmación con fuente de la ficha; sin adjuntos, píxeles ni dirección;
 importancia «alta» y estado «esperando-aprobacion» (R2, R5, R7, R8). Estado solo ids/fechas.
+
+ALC1113D: orden `borradores` — fichas de fuente 'github' (alcance/github/<fecha>.json) se
+convierten en ≤ 5 borradores al día en `alcance/borradores/borradores-<fecha>.json`, cada uno
+con id corto, destinatario, canal publicado (nunca issues ni PR ni correos de commits), idioma,
+asunto, texto ≤ 220 palabras (§3.6) y motivo. Sin carta, no hay borradores.
 """
 from __future__ import annotations
 import argparse, json, os, re, sys
@@ -207,14 +212,41 @@ def _estado(raiz):
             "salidas": len(e.get("salidas") or {}), "falta_carta": bool(e.get("falta_carta")), "cola": "%s/%s" % (REL_OLAS, NOMBRE_COLA)}
 
 
+def fichas_github_del_dia(raiz, fecha, leer=None):
+    """Las fichas candidatas de fuente 'github' que ALC1113A dejó hoy (alcance/github/<fecha>.json)."""
+    leer = leer or R.disco(raiz)[0]
+    dato = R._json(leer("starseed_memory_root/alcance/github/%s.json" % fecha), None)
+    lista = (dato.get("fichas") if isinstance(dato, dict) else dato) or []
+    return [f for f in lista if isinstance(f, dict)] if isinstance(lista, list) else []
+
+
+def borradores_del_dia(raiz, ahora=None, fichas=None, escribir=True):
+    """ALC1113D: hasta 5 borradores al día para fichas de GitHub, en 'esperando-aprobacion',
+    deduplicados por destinatario (no repite los ya guardados hoy). Sin carta, no hay. Sin red."""
+    momento, fecha = R._como_fecha(ahora), R._como_fecha(ahora).date().isoformat()
+    rel = "%s/borradores-%s.json" % (P.REL_BORRADORES, fecha)
+    prev = R._json(R.disco(raiz)[0](rel), []) or []
+    lista = prev if isinstance(prev, list) else (prev.get("borradores") or [])
+    if not (R.disco(raiz)[0](P.REL_CARTA) or ""):
+        return {"ok": True, "fecha": fecha, "pendientes": len(lista), "nuevos": 0, "motivo": "falta_carta"}
+    fichas = fichas if fichas is not None else fichas_github_del_dia(raiz, fecha)
+    nuevos = P.borradores_github(fichas, momento, tope=P.TOPE_BORRADORES_DIA - len(lista), ya=lista)
+    if escribir and nuevos: R._escribir_json(os.path.join(raiz, rel), list(lista) + nuevos)
+    return {"ok": True, "fecha": fecha, "pendientes": len(lista), "nuevos": len(nuevos),
+            "borradores": [b["id"] for b in nuevos]}
+
+
 def parser():
     p = argparse.ArgumentParser(description="Agente de alcance")
-    p.add_argument("orden", choices=("plan", "ciclo", "estado")); p.add_argument("--raiz", default=RAIZ); p.add_argument("--home")
+    p.add_argument("orden", choices=("plan", "ciclo", "estado", "borradores")); p.add_argument("--raiz", default=RAIZ); p.add_argument("--home")
     p.add_argument("--seco", action="store_true"); p.add_argument("--forzar", action="store_true"); p.add_argument("--sin-jev", action="store_true")
     return p
 
 
 def main(argv=None, salida=None):
     a = parser().parse_args(argv); ahora = R._como_fecha(None)
-    d = _plan(a.raiz, ahora, a.home) if a.orden == "plan" else (ciclo(a.raiz, ahora, jev=False if a.sin_jev else None, home=a.home, seco=a.seco, forzar=a.forzar) if a.orden == "ciclo" else _estado(a.raiz))
+    if a.orden == "plan": d = _plan(a.raiz, ahora, a.home)
+    elif a.orden == "ciclo": d = ciclo(a.raiz, ahora, jev=False if a.sin_jev else None, home=a.home, seco=a.seco, forzar=a.forzar)
+    elif a.orden == "borradores": d = borradores_del_dia(a.raiz, ahora)
+    else: d = _estado(a.raiz)
     print(json.dumps(d, ensure_ascii=False, indent=1), file=salida or sys.stdout); return 0 if d.get("ok") else 1
