@@ -8,6 +8,12 @@ Con la variable STARSEED_PUERTA_FICHA_GENESIS_A1 (la ficha de la puerta, jamás 
 comprueba la Mac (lista local de cuentas, forma, caducidad, nonce), las mete en SU cola durable con
 `origen: "genesis"` y sube sus respuestas al espejo `puente:peticiones` en vez de mandarlas a Telegram.
 Sin la variable no se engancha nada. No toca el offset de Telegram. Solo biblioteca estándar.
+
+GEN1114D (contrato astraura-chats-identidad-firma.md §3.5.3, §3.6, §3.7 y §8.2): solo se atienden entradas
+`v:2` firmadas por un aparato emparejado en la Mac. Se verifican con `genesis_firma_logica` (GEN1114B, el mismo
+checkout; necesita `cryptography`) contra `aparatos.json`, `aparatos-retirados.json`, `chat-a1.json` y
+`vistos.json` de esta carpeta (los tres primeros los lleva la Mac por ssh; todos 600 y de este usuario). Sin
+lista de aparatos no se ejecuta nada. No hay ninguna opción para aceptar `v:1`.
 """
 import datetime
 import json
@@ -19,6 +25,13 @@ import uuid
 
 from director_chat import tachar as tachar_claves
 from puerta_datos_cliente import Puerta, tachar
+
+# GEN1114D · la verificación es la de la Mac (GEN1114B), importada del mismo checkout, nunca copiada. Si falta
+# (o falta `cryptography`), el bot sigue con Telegram y el puente rechaza todo lo que llega por la puerta.
+try:
+    import genesis_firma_logica as firma
+except ImportError:
+    firma = None
 
 VAR_FICHA = "STARSEED_PUERTA_FICHA_GENESIS_A1"
 FUENTE = "puente:peticiones"
@@ -137,8 +150,59 @@ class Puente:
                              % (len(lote), self.ultimo_estado))
                 del self.salida[:len(lote)]
 
-    # ── una entrada ──
+    # ── GEN1114D · entradas firmadas por el aparato (§3.5.3) ──
+    def _privado_o(self, nombre, si_falta):
+        """El JSON de un archivo 600 de este usuario; `si_falta` si no existe; None si existe y no vale."""
+        ruta = self._ruta(nombre)
+        if not os.path.lexists(ruta):
+            return si_falta
+        d = self.mod.leer_privado(ruta)
+        return d if isinstance(d, dict) else None
+
+    def _guardar_vistos(self, vistos, ahora):
+        for k in [k for k, v in vistos.items()
+                  if not (isinstance(v, dict) and isinstance(v.get("t"), (int, float))) or ahora - v["t"] > firma.VISTOS_S]:
+            del vistos[k]
+        ruta = self._ruta("vistos.json")
+        tmp = ruta + ".tmp"
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w") as f:
+            json.dump(vistos, f)
+            f.flush()
+            os.fsync(f.fileno())
+        os.chmod(tmp, 0o600)
+        os.replace(tmp, ruta)
+
     def procesar(self, e):
+        """(estado, detalle, ejecutar) · primero la firma, como en la Mac (§3.5, pasos 1-7, con destino "a1");
+        después las comprobaciones de GEN1113 sobre el objeto del paso 8, sacado SOLO de la carga firmada. Los
+        `aparato:seq` y nonces se anotan antes de ejecutar (paso 9). Nada corre si falla una."""
+        self.firma_info = {"firma": "sin-comprobar", "aparato8": str(e.get("aparato") or "")[:8], "seq": None}
+        if firma is None:
+            return "rechazado", "falta la verificación de firmas en el A1 (genesis_firma_logica o cryptography)", None
+        altas = self._privado_o("aparatos.json", None)
+        if altas is None:
+            return "rechazado", "falta la lista de aparatos en el A1 (o no tiene permisos 600)", None
+        retirados = self._privado_o("aparatos-retirados.json", {"v": 1, "retirados": []})
+        vistos = self._privado_o("vistos.json", {})
+        if retirados is None or vistos is None:
+            return "rechazado", "aparatos-retirados.json o vistos.json ilegibles o sin permisos 600", None
+        chat = self.mod.chat_a1()   # lo lleva la Mac (llevar-a1); nunca el catálogo de la puerta
+        canon = None if chat is None else {"v": 2, "chats": [dict(chat, v=2, tipo="puente-telegram", fuente=FUENTE)]}
+        ahora = self.ahora()
+        ok, motivo, carga = firma.comprobar_entrada_firmada(e, firma.aparatos_validos(altas), retirados, canon,
+                                                            vistos, ahora, "a1")
+        self.firma_info.update(firma="ok" if ok else motivo, seq=(carga or {}).get("seq"))
+        if not ok:
+            return ("caducado" if motivo == "caducada" else "rechazado"), motivo, None
+        estado, detalle, accion = self._procesar_gen1113(firma.entrada_para_gen1113(e, carga))
+        if accion:
+            firma.anotar(vistos, carga, ahora)
+            self._guardar_vistos(vistos, ahora)
+        return estado, detalle, accion
+
+    # ── una entrada ──
+    def _procesar_gen1113(self, e):
         """(estado, detalle, ejecutar) · las comprobaciones de §4.3, en su orden. Nada corre si falla una."""
         if not (isinstance(e, dict) and e.get("v") == 1 and e.get("fuente") == FUENTE and e.get("destino") == "a1"
                 and isinstance(e.get("id"), int) and not isinstance(e.get("id"), bool)
@@ -156,7 +220,7 @@ class Puente:
             return "rechazado", "orden no permitida", None
         if nombre is None and not texto:
             return "rechazado", "texto vacío", None
-        if nombre in CAMBIAN:
+        if nombre in CAMBIAN or nombre is None:   # GEN1114D: una petición en texto también es «alto» (§3.6): 30 min
             enviada = _epoch(e.get("recibido"))
             if enviada is None or self.ahora() - enviada > CADUCA_S:
                 return "caducado", "Caducó sin ejecutarse; vuelve a enviarla si aún la quieres", None
@@ -190,7 +254,7 @@ class Puente:
                 cola, est = m.leer_json(m.COLA, []), m.leer_json(m.ESTADO, {})
             self.subir_espejo(m.texto_estado(cola, est.get("notebooklm", {})))
         elif nombre == "ayuda":
-            self.subir_espejo(m.AYUDA)
+            self.subir_espejo(m.texto_ayuda())   # GEN1114D: con «Este chat: …» de chat-a1.json
         else:
             pid = "g-%d" % e["id"]
             with m.bloqueo:
@@ -204,9 +268,12 @@ class Puente:
 
     def atender_entrada(self, e):
         """True si quedó acusada (y se puede avanzar el cursor). `e["id"]` ya es un entero."""
-        vistos, nonce = self._vistos(), e.get("nonce")
-        if isinstance(nonce, str) and nonce in vistos:   # §4.3: nonce repetido; no se vuelve a ejecutar
-            return self._cerrar(e, vistos[nonce][1], "ya recibida")
+        # GEN1114D: la v2 no trae nonce fuera de la carga. Aquí solo se recuerda el acuse de una entrega repetida
+        # del MISMO id (p. ej. si falló el acuse); lo que impide repetir una carga, con este id o con otro, es
+        # `vistos.json` (seq-repetido / nonce-repetido).
+        vistos, clave = self._vistos(), "id:%d" % e["id"]
+        if clave in vistos:
+            return self._cerrar(e, vistos[clave][1], "ya recibida")
         self.acusar(e["id"], "entregado")
         estado, detalle, accion = self.procesar(e)
         if accion:
@@ -214,10 +281,11 @@ class Puente:
                 self.ejecutar(e, *accion)
             except Exception as ex:  # noqa: BLE001
                 estado, detalle = "fallo", type(ex).__name__
-        if isinstance(nonce, str) and NONCE.match(nonce):
-            vistos[nonce] = [self.ahora(), estado]
+        vistos[clave] = [self.ahora(), estado]
         self._guardar()
-        self.mod.log("genesis", str(e.get("cuenta", ""))[:8], e.get("accion"), estado)
+        info = getattr(self, "firma_info", {})   # GEN1114D §3.10: aparato8, firma y seq; nunca carga ni texto
+        self.mod.log("genesis", str(e.get("cuenta", ""))[:8], "aparato8=%s" % info.get("aparato8", ""),
+                     "seq=%s" % info.get("seq"), "firma=%s" % info.get("firma"), estado)
         return self._cerrar(e, estado, detalle)
 
     def _cerrar(self, e, estado, detalle):

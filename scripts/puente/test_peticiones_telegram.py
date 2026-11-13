@@ -535,3 +535,64 @@ def test_main_inicializa_y_arranca_hilos(tmp_path):
 if __name__ == "__main__":
     import pytest
     pytest.main([__file__, "-v"])
+
+# ── GEN1114D · «Este chat: <nombre> · id <id>» en /estado y /ayuda, leído de chat-a1.json ──
+
+def _chat_a1(tmp_path, datos, modo=0o600):
+    ruta = tmp_path / "chat-a1.json"
+    ruta.write_text(json.dumps(datos, ensure_ascii=False))
+    os.chmod(ruta, modo)
+
+
+def _responde(tmp_path, monkeypatch, texto):
+    for k, v in (("CHAT", "123456"), ("TOKEN", "fake"), ("DIR", str(tmp_path)),
+                 ("COLA", str(tmp_path / "cola.json")), ("ESTADO", str(tmp_path / "estado.json"))):
+        monkeypatch.setattr(mod, k, v)
+    respuestas = []
+    monkeypatch.setattr(mod, "decir", respuestas.append)
+    recibir({"update_id": 3, "message": {"chat": {"id": "123456"}, "text": texto}})
+    assert len(respuestas) == 1
+    return respuestas[0]
+
+
+CHAT_B = {"v": 1, "id": "telegram.ejemplo_b_bot", "nombre": "Bot B de ejemplo",
+          "alias": ["puente:peticiones", "peticiones", "Peticiones y encargos"]}
+
+
+def test_estado_y_ayuda_empiezan_con_el_nombre_y_el_id_del_chat(tmp_path, monkeypatch):
+    _chat_a1(tmp_path, CHAT_B)
+    for orden in ("/estado", "/ayuda", "/start"):
+        primera, resto = _responde(tmp_path, monkeypatch, orden).split("\n", 1)
+        assert primera == "Este chat: Bot B de ejemplo · id telegram.ejemplo_b_bot"
+        assert ("Estado de MetaGenesis (A1):" in resto) if orden == "/estado" else (resto == mod.AYUDA)
+    assert not (tmp_path / "estado.json").exists()        # contestar no mueve el offset ni escribe estado
+
+
+def test_sin_chat_a1_no_se_inventa_nombre(tmp_path, monkeypatch):
+    assert _responde(tmp_path, monkeypatch, "/estado").startswith("Este chat: nombre aún no publicado por la Mac\n")
+
+
+def test_chat_a1_que_otro_pudo_tocar_o_mal_formado_no_vale(tmp_path, monkeypatch):
+    _chat_a1(tmp_path, CHAT_B, modo=0o644)
+    assert "nombre aún no publicado" in _responde(tmp_path, monkeypatch, "/ayuda")
+    for malo in (dict(CHAT_B, id="Telegram.Mayus"), dict(CHAT_B, v=2), dict(CHAT_B, nombre=""), ["no", "es", "objeto"]):
+        _chat_a1(tmp_path, malo)
+        assert mod.chat_a1() is None
+
+
+def test_nombre_del_chat_sin_controles_ni_marcas_bidi(tmp_path, monkeypatch):
+    _chat_a1(tmp_path, dict(CHAT_B, nombre="Bot\u202e B\u2066\n de\u200f ejemplo" + "x" * 100))
+    primera = _responde(tmp_path, monkeypatch, "/estado").split("\n", 1)[0]
+    assert primera.startswith("Este chat: Bot B de ejemplo") and len(primera) < 140
+    assert not any(c in primera for c in "\u202e\u2066\u200f")
+
+
+def test_sin_ficha_importar_el_bot_no_carga_la_puerta_ni_las_firmas(tmp_path):
+    """Sin la variable de la puerta el bot es el de hoy: ni peticiones_puerta ni genesis_firma_logica se cargan."""
+    import subprocess
+    env = dict(os.environ, HOME=str(tmp_path))
+    env.pop("STARSEED_PUERTA_FICHA_GENESIS_A1", None)
+    codigo = "import sys, peticiones_telegram; print(sorted({'peticiones_puerta', 'genesis_firma_logica'} & set(sys.modules)))"
+    r = subprocess.run([sys.executable, "-c", codigo], cwd=os.path.dirname(os.path.abspath(__file__)), env=env,
+                       capture_output=True, text=True, timeout=30)
+    assert r.returncode == 0 and r.stdout.strip() == "[]", r.stderr[-300:]
