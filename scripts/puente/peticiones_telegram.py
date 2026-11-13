@@ -365,6 +365,37 @@ def recibir(upd: dict[str, Any]) -> None:
     if texto.startswith(("/start", "/ayuda", "/help")):
         decir(texto_ayuda())   # GEN1114D
         return
+    if texto.startswith("/alcance"):
+        _comando_alcance()
+        return
+    if texto.startswith("/ver "):
+        _, pid = texto.split(" ", 1)
+        _comando_ver(pid)
+        return
+    if texto.startswith("/approve "):
+        _, pid = texto.split(" ", 1)
+        _comando_approve(pid)
+        return
+    if texto.startswith("/edit "):
+        _, resto = texto.split(" ", 1)
+        if " " not in resto:
+            decir("Uso: /edit <id> <texto nuevo>")
+            return
+        pid, nuevo_texto = resto.split(" ", 1)
+        _comando_edit(pid, nuevo_texto)
+        return
+    if texto.startswith("/reject "):
+        _, pid = texto.split(" ", 1)
+        _comando_reject(pid)
+        return
+    if texto.startswith("/delete "):
+        _, pid = texto.split(" ", 1)
+        _comando_delete(pid)
+        return
+    if texto.startswith("/sent "):
+        _, pid = texto.split(" ", 1)
+        _comando_sent(pid)
+        return
     with bloqueo:
         cola = leer_json(COLA, [])
         if any(p["id"] == upd["update_id"] for p in cola):
@@ -391,6 +422,164 @@ def escuchar() -> None:
             offset = u["update_id"] + 1
             with bloqueo:
                 escribir_json(ESTADO, dict(leer_json(ESTADO, {}), offset=offset))
+
+
+def _comando_alcance() -> None:
+    """Muestra los pendientes con id, destinatario, canal y primeros 300 caracteres."""
+    try:
+        import sys
+        sys.path.insert(0, os.path.dirname(__file__))
+        from alcance_aprobacion import _leer_registros
+    except ImportError:
+        decir("Alcance no disponible.")
+        return
+
+    registros = _leer_registros()
+    pendientes = [r for r in registros if r.get("estado") == "pendiente"]
+    if not pendientes:
+        decir("No hay pendientes.")
+        return
+
+    texto = "Pendientes:\n"
+    for r in pendientes:
+        texto += "ID: %s | Destinatario: %s | Canal: %s\nPrimeros 300 chars: %s\n\n" % (
+            r.get("id", "sin-id"),
+            r.get("destinatario", ""),
+            r.get("canal", ""),
+            (r.get("texto", "")[:300] + "...") if len(r.get("texto", "")) > 300 else r.get("texto", "")
+        )
+        if len(texto) > 3900:
+            break
+    decir(texto.strip())
+
+
+def _comando_ver(pid: str) -> None:
+    """Muestra el texto completo de un pendiente."""
+    try:
+        import sys
+        sys.path.insert(0, os.path.dirname(__file__))
+        from alcance_aprobacion import buscar_por_hash
+    except ImportError:
+        decir("Alcance no disponible.")
+        return
+
+    registro = buscar_por_hash(pid)
+    if not registro or registro.get("estado") != "pendiente":
+        decir("Pendiente no encontrado.")
+        return
+
+    decir("Texto completo (ID: %s):\n%s" % (pid, registro.get("texto", "")))
+
+
+def _comando_approve(pid: str) -> None:
+    """Aprueba un pendiente."""
+    try:
+        import sys
+        sys.path.insert(0, os.path.dirname(__file__))
+        from alcance_aprobacion import aprobar
+    except ImportError:
+        decir("Alcance no disponible.")
+        return
+
+    try:
+        datos = json.loads(pid)
+        texto = datos.get("texto")
+        destinatario = datos.get("destinatario")
+        canal = datos.get("canal")
+        if not all([texto, destinatario, canal]):
+            decir("Pendiente inválido.")
+            return
+
+        aprobar(texto, destinatario, canal, "admin", time.strftime("%Y-%m-%d %H:%M:%S"))
+        decir("Aprobado: %s" % texto[:100])
+    except json.JSONDecodeError:
+        decir("Error al decodificar JSON.")
+
+
+def _comando_edit(pid: str, nuevo_texto: str) -> None:
+    """Edita un pendiente (invalida y deja el borrador nuevo pendiente)."""
+    try:
+        import sys
+        sys.path.insert(0, os.path.dirname(__file__))
+        from alcance_aprobacion import editar
+    except ImportError:
+        decir("Alcance no disponible.")
+        return
+
+    try:
+        datos = json.loads(pid)
+        texto = datos.get("texto")
+        destinatario = datos.get("destinatario")
+        canal = datos.get("canal")
+        if not all([texto, destinatario, canal]):
+            decir("Pendiente inválido.")
+            return
+
+        editar(nuevo_texto, destinatario, canal, "admin", time.strftime("%Y-%m-%d %H:%M:%S"))
+        decir("Editado (anterior aprobación invalidada): %s" % nuevo_texto[:100])
+    except json.JSONDecodeError:
+        decir("Error al decodificar JSON.")
+
+
+def _comando_reject(pid: str) -> None:
+    """Rechaza un pendiente (pasa a 'no contactar' si se pide)."""
+    try:
+        import sys
+        sys.path.insert(0, os.path.dirname(__file__))
+        from alcance_aprobacion import rechazar
+    except ImportError:
+        decir("Alcance no disponible.")
+        return
+
+    try:
+        datos = json.loads(pid)
+        texto = datos.get("texto")
+        destinatario = datos.get("destinatario")
+        canal = datos.get("canal")
+        if not all([texto, destinatario, canal]):
+            decir("Pendiente inválido.")
+            return
+
+        rechazar(texto, destinatario, canal, "admin", time.strftime("%Y-%m-%d %H:%M:%S"))
+        decir("Rechazado: %s" % texto[:100])
+    except json.JSONDecodeError:
+        decir("Error al decodificar JSON.")
+
+
+def _comando_delete(pid: str) -> None:
+    """Elimina un pendiente."""
+    try:
+        import sys
+        sys.path.insert(0, os.path.dirname(__file__))
+        from alcance_aprobacion import buscar_por_hash
+    except ImportError:
+        decir("Alcance no disponible.")
+        return
+
+    registro = buscar_por_hash(pid)
+    if not registro or registro.get("estado") != "pendiente":
+        decir("Pendiente no encontrado.")
+        return
+
+    decir("Eliminado: %s" % registro.get("texto", "")[:100])
+
+
+def _comando_sent(pid: str) -> None:
+    """Envío asistido (marca como enviado y registra en el historial)."""
+    try:
+        import sys
+        sys.path.insert(0, os.path.dirname(__file__))
+        from alcance_aprobacion import buscar_por_hash
+    except ImportError:
+        decir("Alcance no disponible.")
+        return
+
+    registro = buscar_por_hash(pid)
+    if not registro or registro.get("estado") != "pendiente":
+        decir("Pendiente no encontrado.")
+        return
+
+    decir("Enviado asistido: %s" % registro.get("texto", "")[:100])
 
 
 def main() -> None:

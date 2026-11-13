@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 
+
 class Aprobacion:
     def __init__(self, texto: str, destinatario: str, canal: str):
         self.texto = texto
@@ -17,6 +18,7 @@ class Aprobacion:
             "destinatario": self.destinatario,
             "canal": self.canal
         }
+
 
 class AprobacionRegistro:
     def __init__(self, aprobacion: Aprobacion, quien: str, cuando: str):
@@ -35,11 +37,30 @@ class AprobacionRegistro:
             "estado": "aprobado"
         }
 
+
+class RechazoRegistro:
+    def __init__(self, aprobacion: Aprobacion, quien: str, cuando: str):
+        self.aprobacion = aprobacion
+        self.quien = quien
+        self.cuando = cuando
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "hash": self.aprobacion.hash,
+            "texto": self.aprobacion.texto,
+            "destinatario": self.aprobacion.destinatario,
+            "canal": self.aprobacion.canal,
+            "quien": self.quien,
+            "cuando": self.cuando,
+            "estado": "rechazado"
+        }
+
+
 def aprobar(texto: str, destinatario: str, canal: str, quien: str, cuando: str) -> Dict[str, Any]:
     """Registra una nueva aprobación."""
     aprobacion = Aprobacion(texto, destinatario, canal)
-    registro = AprobRegistro(aprobacion, quien, cuando)
-    _guardar_registro(registro)
+    registro = AprobacionRegistro(aprobacion, quien, cuando)
+    _guardar_registro(registro.to_dict())
     return registro.to_dict()
 
 
@@ -52,10 +73,12 @@ def editar(texto: str, destinatario: str, canal: str, quien: str, cuando: str) -
     hash_nuevo = hashlib.sha256(texto.encode('utf-8')).hexdigest()
     aprobacion = Aprobacion(texto, destinatario, canal)
 
-    _invalidar_hash(hash_nuevo)
+    hash_antiguo = _encontrar_hash_aprobado(texto, destinatario, canal)
+    if hash_antiguo:
+        _invalidar_hash(hash_antiguo)
 
-    registro = AprobRegistro(aprobacion, quien, cuando)
-    _guardar_registro(registro)
+    registro = AprobacionRegistro(aprobacion, quien, cuando)
+    _guardar_registro(registro.to_dict())
     return registro.to_dict()
 
 
@@ -63,7 +86,7 @@ def rechazar(texto: str, destinatario: str, canal: str, quien: str, cuando: str)
     """Rechaza un texto como 'no contactar' si se solicita."""
     aprobacion = Aprobacion(texto, destinatario, canal)
     registro = RechazoRegistro(aprobacion, quien, cuando)
-    _guardar_registro(registro)
+    _guardar_registro(registro.to_dict())
     return registro.to_dict()
 
 
@@ -78,6 +101,18 @@ def buscar_por_hash(hash: str) -> Optional[Dict[str, Any]]:
 def existe_aprobado(hash: str) -> bool:
     """Verifica si existe una aprobación para este hash."""
     return _obtener_aprobado(hash) is not None
+
+
+def _encontrar_hash_aprobado(texto: str, destinatario: str, canal: str) -> Optional[str]:
+    """Encuentra el hash aprobado para un texto/destinatario/canal específico."""
+    hash_texto = hashlib.sha256(texto.encode('utf-8')).hexdigest()
+    for registro in _leer_registros():
+        if (registro.get("hash") == hash_texto and
+                registro.get("destinatario") == destinatario and
+                registro.get("canal") == canal and
+                registro.get("estado") == "aprobado"):
+            return hash_texto
+    return None
 
 
 def _leer_registros() -> List[Dict[str, Any]]:
