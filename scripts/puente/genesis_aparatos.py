@@ -27,6 +27,7 @@ import json
 import os
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -118,20 +119,68 @@ def leer_bytes_altas(ruta=RUTA_ALTAS):
         return None
 
 
-def leer_retirados(ruta):
-    return F.retirados_validos(G.leer_json(ruta, None))
+# GEN1114INT · registro de retiradas de SOLO AÑADIR, al lado de la lista de root. `aparatos-retirados.json` es de
+# Alex (600): cualquier programa que corra como él puede vaciarlo y devolver la validez a un aparato retirado
+# (riesgo residual que dejó B). Este segundo registro lo crea `emparejar` con el mismo sudo del alta (sin pedir
+# nada más): es de Alex (600) para que retirar siga sin pedir contraseña, pero lleva la marca de sistema `sappnd`
+# (solo root la quita) y vive en la carpeta de root: Alex y sus programas pueden AÑADIR líneas, no vaciarlo,
+# reescribirlo, borrarlo ni moverlo. Un aparato vale si está en la lista de root y no está en NINGUNO de los dos.
+NOMBRE_RETIRADOS_SISTEMA = "genesis-aparatos-retirados.jsonl"
 
 
-def anadir_retirado(ruta, huella, por, ahora):
-    """Añade una retirada (600). La lista solo crece; repetir no cambia nada. Devuelve la fila."""
-    actual = leer_retirados(ruta)
-    previa = F.retiro_de(huella, actual)
-    if previa:
-        return previa
-    fila = {"huella": huella.lower(), "t": F.iso_utc(ahora), "por": por}
-    actual["retirados"].append(fila)
-    G.escribir_json(ruta, actual)
-    os.chmod(ruta, 0o600)
+def ruta_retirados_sistema(ruta_altas=RUTA_ALTAS):
+    return os.path.join(os.path.dirname(ruta_altas), NOMBRE_RETIRADOS_SISTEMA)
+
+
+def leer_retirados_sistema(ruta):
+    """(filas, problema). Las retiradas del registro de solo añadir. Sin el archivo: ([], None). Si existe y no
+    se puede leer (alguien le quitó el permiso de lectura): ([], "ilegible"), y quien llama no ejecuta nada."""
+    if not ruta or not os.path.lexists(ruta):
+        return [], None
+    try:
+        with open(ruta, "rb") as f:
+            crudo = f.read(8 * 1024 * 1024)
+    except OSError:
+        return [], "ilegible"
+    filas = []
+    for linea in crudo.decode("utf-8", "replace").splitlines():
+        try:
+            filas.append(json.loads(linea))
+        except ValueError:
+            continue                      # una línea rota (o basura añadida) no quita las demás
+    return F.retirados_validos({"retirados": filas})["retirados"], None
+
+
+def leer_retirados(ruta, sistema=None):
+    """Las retiradas de `aparatos-retirados.json` MÁS las del registro de solo añadir (`sistema`): una retirada
+    en cualquiera de los dos vale, así vaciar el archivo de Alex no devuelve nada."""
+    actual = F.retirados_validos(G.leer_json(ruta, None))
+    vistas = {f["huella"] for f in actual["retirados"]}
+    for f in leer_retirados_sistema(sistema)[0]:
+        if f["huella"] not in vistas:
+            actual["retirados"].append(f)
+            vistas.add(f["huella"])
+    return actual
+
+
+def anadir_retirado(ruta, huella, por, ahora, sistema=None):
+    """Añade una retirada (600) y, si existe, una línea al registro de solo añadir. La lista solo crece;
+    repetir no cambia nada. Devuelve la fila."""
+    huella = huella.lower()
+    actual = F.retirados_validos(G.leer_json(ruta, None))
+    fila = F.retiro_de(huella, actual) or {"huella": huella, "t": F.iso_utc(ahora), "por": por}
+    if not F.retiro_de(huella, actual):
+        actual["retirados"].append(fila)
+        G.escribir_json(ruta, actual)
+        os.chmod(ruta, 0o600)
+    if sistema and os.path.lexists(sistema) and not any(f["huella"] == huella for f in leer_retirados_sistema(sistema)[0]):
+        try:
+            with open(sistema, "a", encoding="utf-8") as f:      # O_APPEND: lo único que permite `sappnd`
+                f.write(json.dumps(fila, ensure_ascii=False) + "\n")
+                f.flush()
+                os.fsync(f.fileno())
+        except OSError:
+            pass                                                  # queda en el archivo de Alex; --estado lo dice
     return fila
 
 
@@ -267,7 +316,16 @@ def instalar_altas(datos, ruta, ejecutar):
             if getattr(r, "returncode", 1) != 0:
                 return False
         r = ejecutar([SUDO, "-p", aviso, INSTALL, "-S", "-o", "root", "-g", "wheel", "-m", "644", tmp, ruta])
-        return getattr(r, "returncode", 1) == 0
+        if getattr(r, "returncode", 1) != 0:
+            return False
+        # GEN1114INT: el registro de retiradas de solo añadir, con la misma contraseña (sudo la recuerda unos
+        # minutos). Es de Alex (retirar no pide contraseña) con la marca `sappnd` (no se puede vaciar). Si falla,
+        # el alta ya está hecha y vale; `--estado` lo dice.
+        sistema = ruta_retirados_sistema(ruta)
+        if not os.path.lexists(sistema):
+            ejecutar([SUDO, "-p", aviso, INSTALL, "-o", str(os.getuid()), "-g", str(os.getgid()), "-m", "600",
+                      "-f", "sappnd", "/dev/null", sistema])
+        return True
     except (OSError, subprocess.SubprocessError):
         return False
     finally:
@@ -296,7 +354,7 @@ def emparejar(puerta, base=G.BASE, ruta_altas=RUTA_ALTAS, dueno_altas=0, entrada
     if problema not in (None, "falta"):
         salida("La lista de aparatos de la Mac no vale (%s): no la toco. Avisa a la dirección." % problema)
         return 1
-    retirados = leer_retirados(r["retirados"])
+    retirados = leer_retirados(r["retirados"], ruta_retirados_sistema(ruta_altas))
     cuentas, prob_cuentas = G.leer_cuentas(r["cuentas"])
     if cuentas is None:
         salida("Falta la lista de cuentas de la Mac (%s): sin ella no se puede emparejar." % prob_cuentas)
@@ -434,7 +492,8 @@ def llevar_a1(base=G.BASE, ruta_altas=RUTA_ALTAS, ahora=time.time, ejecutar=subp
     crudo = leer_bytes_altas(ruta_altas)
     archivos.append(("aparatos.json", crudo if crudo is not None else b'{"v": 1, "aparatos": []}'))
     archivos.append(("aparatos-retirados.json",
-                     json.dumps(leer_retirados(r["retirados"]), ensure_ascii=False).encode("utf-8")))
+                     json.dumps(leer_retirados(r["retirados"], ruta_retirados_sistema(ruta_altas)),
+                                ensure_ascii=False).encode("utf-8")))
     chat = chat_a1(leer_canon(r["canon"]))
     if chat:
         archivos.append(("chat-a1.json", json.dumps(chat, ensure_ascii=False).encode("utf-8")))
@@ -500,7 +559,7 @@ def revocar(objetivo, puerta, base=G.BASE, ruta_altas=RUTA_ALTAS, dueno_altas=0,
     """Retira un aparato: lo añade a aparatos-retirados.json (600). La lista de root NO se toca."""
     r = rutas(base)
     altas, problema = leer_altas(ruta_altas, dueno_altas)
-    retirados = leer_retirados(r["retirados"])
+    retirados = leer_retirados(r["retirados"], ruta_retirados_sistema(ruta_altas))
     activos = [f for f in altas["aparatos"] if not F.retiro_de(f["huella"], retirados)]
     if not activos:
         salida("No hay aparatos activos que retirar%s." % ((" (lista de altas: %s)" % problema) if problema else ""))
@@ -522,7 +581,7 @@ def revocar(objetivo, puerta, base=G.BASE, ruta_altas=RUTA_ALTAS, dueno_altas=0,
     if not F.codigos_iguales(confirmacion or "", F.codigo_de(f["huella"], f["cuenta"])):
         salida("El código no coincide: no se ha retirado nada.")
         return 1
-    anadir_retirado(r["retirados"], f["huella"], "mac", ahora())
+    anadir_retirado(r["retirados"], f["huella"], "mac", ahora(), ruta_retirados_sistema(ruta_altas))
     registrar(r["log"], "revocado", ahora(), f["huella"], f["cuenta"], f["nombre"])
     puerta.resultado(f["huella"], "revocado")
     ok, texto = (llevar or llevar_a1)(base=base, ruta_altas=ruta_altas, ahora=ahora, ejecutar=ejecutar)
@@ -534,7 +593,7 @@ def revocar(objetivo, puerta, base=G.BASE, ruta_altas=RUTA_ALTAS, dueno_altas=0,
 
 def listar(base=G.BASE, ruta_altas=RUTA_ALTAS, dueno_altas=0, salida=print):
     altas, problema = leer_altas(ruta_altas, dueno_altas)
-    retirados = leer_retirados(rutas(base)["retirados"])
+    retirados = leer_retirados(rutas(base)["retirados"], ruta_retirados_sistema(ruta_altas))
     if problema:
         salida("Lista de altas: %s." % problema)
     if not altas["aparatos"]:
@@ -577,7 +636,8 @@ def estado_texto(base=G.BASE, ruta_altas=RUTA_ALTAS, dueno_altas=0, ahora=None, 
     ahora = time.time() if ahora is None else ahora
     r = rutas(base)
     altas, problema = leer_altas(ruta_altas, dueno_altas)
-    retirados = leer_retirados(r["retirados"])
+    sistema = ruta_retirados_sistema(ruta_altas)
+    retirados = leer_retirados(r["retirados"], sistema)
     lineas = ["Aparatos de Genesis (GEN1114B)"]
     if problema:
         lineas.append("· Lista de altas (root, 644): %s → no se ejecuta nada que llegue por la puerta" % problema)
@@ -586,6 +646,7 @@ def estado_texto(base=G.BASE, ruta_altas=RUTA_ALTAS, dueno_altas=0, ahora=None, 
     for i, f in enumerate(altas["aparatos"], 1):
         lineas.append(describir_aparato(i, f, retirados).replace("  %d. " % i, "  · ", 1))
     lineas.append("· Retirados: %d" % len(retirados["retirados"]))
+    lineas.append("· Registro de retiradas de solo añadir: %s" % estado_retirados_sistema(sistema))
     llevar = G.leer_json(r["llevar"], {})
     llevar = llevar if isinstance(llevar, dict) else {}
     lineas.append("· Al A1 (%s): %s · última llegada %s · %s" % (
@@ -600,6 +661,19 @@ def estado_texto(base=G.BASE, ruta_altas=RUTA_ALTAS, dueno_altas=0, ahora=None, 
     else:
         lineas.append("· Túneles a la Mac: ninguno cargado")
     return "\n".join(lineas)
+
+
+def estado_retirados_sistema(sistema, lstat=os.lstat):
+    """GEN1114INT · cómo está el registro de solo añadir (una frase, sin huellas)."""
+    try:
+        st = lstat(sistema)
+    except OSError:
+        return "aún no existe (lo crea el primer emparejamiento)"
+    if leer_retirados_sistema(sistema)[1]:
+        return "⚠ existe pero no se puede leer → no se ejecuta nada"
+    if not getattr(st, "st_flags", 0) & getattr(stat, "SF_APPEND", 0x00040000):
+        return "⚠ sin la marca de solo añadir (sappnd): un programa podría vaciarlo"
+    return "bien (solo añadir)"
 
 
 def acceso_escritorio(raiz=None, escritorio=None, salida=print):
@@ -632,7 +706,9 @@ def main(argv=None, puerta=None):
     rv = sub.add_parser("revocar")
     rv.add_argument("objetivo", nargs="?", default="")
     sub.add_parser("llevar-a1")
-    sub.add_parser("acceso-escritorio")
+    ae = sub.add_parser("acceso-escritorio", help="copia los dos lanzadores (doble clic) al Escritorio o a --carpeta")
+    # GEN1114INT: otra carpeta (p. ej. ~/Applications/StarSeed) para no depender del permiso de macOS sobre el Escritorio.
+    ae.add_argument("--carpeta", default=None)
     a = ap.parse_args(argv)
     if a.estado:
         print(estado_texto())
@@ -652,7 +728,7 @@ def main(argv=None, puerta=None):
         print("Al A1: " + texto)
         return 0 if ok else 1
     if a.orden == "acceso-escritorio":
-        return acceso_escritorio()
+        return acceso_escritorio(escritorio=os.path.expanduser(a.carpeta) if a.carpeta else None)
     ap.print_help()
     return 1
 
