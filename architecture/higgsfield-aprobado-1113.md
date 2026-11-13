@@ -44,8 +44,15 @@ oficial de contenido profesional.
 
 - El bot del A1 (herramienta `peticiones_telegram`) ya **propone** piezas de Higgsfield con los créditos estimados en
   la síntesis (sección 5 quinquies) y nunca las ejecuta.
-- El conector de Claude todavía apunta a una cuenta gratuita.
-- El CLI aún no está instalado: la instalación quedó pendiente del visto bueno de Maggasukha.
+- **Conectado a la cuenta de la Fundación** (fund…@gmail.com, plan gratuito, 10 créditos): el conector de Claude,
+  el CLI del A1 (usuario `starseed`, workspace `cfecc5a9…`) y el CLI de la Mac.
+- **Guardia en los dos nodos:**
+  - el binario real es `higgsfield-cli`;
+  - `higgsfield` solo deja pasar órdenes que no gastan (`account`, `workspace`, `model`, `preset`, `voices`,
+    `version`, `auth`, `generate cost`, `list`, `get` y `wait`, `project list`);
+  - lo demás exige `HIGGSFIELD_APROBACION=<id>`.
+  - `higgsfield_aprobado.py` (HGF1113A) llama a `higgsfield-cli` con esa variable SOLO tras la aprobación, y cotiza
+    antes con `generate cost`.
 
 ## 4. Cola HGF1113
 
