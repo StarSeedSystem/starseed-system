@@ -5,7 +5,7 @@ POR QUÉ existe: las suites de `scripts/puente` y `scripts/enjambre` (miles de p
 día y cada corrida dejaba sus carpetas en `$(getconf DARWIN_USER_TEMP_DIR)`: medido el 13-11 en la Mac,
 ~72 000 entradas, 34 000 solo del 12-11 (`tmpXXXXXXXX`, `potenciar-pruebas*`, `cupo-codex*`, `memvid-origen*`…),
 y macOS solo vacía esa carpeta al reiniciar. Una sesión no puede barrer la carpeta compartida a ojo, así que
-se arregla en el origen: cada corrida es DUEÑA de una raíz propia (`<tmp>/sspruebas-<pid>-XXXX`), `tempfile`
+se arregla en el origen: cada corrida es DUEÑA de una raíz propia (`<tmp>/ssp-<pid>-<4 hex>`), `tempfile`
 y todo lo que lea `TMPDIR` cae dentro, y la raíz se quita al salir (éxito, fallo, Ctrl-C o SIGTERM).
 
 Dos formas de usarlo, que se apilan sin estorbarse:
@@ -13,13 +13,14 @@ Dos formas de usarlo, que se apilan sin estorbarse:
   · FUERA, alrededor de un hijo: `entorno_con_raiz()` / `correr_con_raiz()` / `python3 raiz_pruebas.py -- <orden>`.
     Cubre también unittest y vitest (Node respeta `TMPDIR`), que no tienen un gancho de sesión.
 
-Lo único que se borra es lo que este módulo creó y marcó con su prefijo `sspruebas-`. Las raíces de una corrida
+Lo único que se borra es lo que este módulo creó y marcó con su prefijo `ssp-`. Las raíces de una corrida
 que murió sin poder limpiar (SIGKILL, corte de luz) se reconocen por su pid muerto y se quitan en la corrida
 siguiente (`barrer_huerfanas`); nunca se toca una cuyo pid siga vivo ni una de otro prefijo.
 Los tests que quieran una ruta fuera de la raíz (`/tmp/…`, `dir=`) siguen funcionando: solo cambia el DEFECTO.
 """
 import atexit
 import os
+import random
 import re
 import shutil
 import signal
@@ -27,7 +28,10 @@ import subprocess
 import sys
 import tempfile
 
-PREFIJO = "sspruebas-"
+#: El nombre es CORTO a propósito: en macOS un socket UNIX admite 103 caracteres de ruta y el temporal del usuario
+#: ya ocupa ~47; `ssp-12345-ab12` son 14 (antes 24). Una prueba que ata un socket, o un `multiprocessing`
+#: (`pymp-XXXXXXXX/listener-XXXXXXXX`), cuelga de aquí. NO lo alargues: hay una prueba que fija el tope.
+PREFIJO = "ssp-"
 #: Variable que marca «ya estoy dentro de una raíz de pruebas» (el hijo no abre otra: la del padre lo cubre).
 VAR_RAIZ = "STARSEED_RAIZ_PRUEBAS"
 #: Un pid vivo con raíz de más de este tiempo se respeta igual; solo se barren las de pid muerto.
@@ -70,7 +74,7 @@ def _pid_vivo(pid):
 
 
 def barrer_huerfanas(base=None, vivo=_pid_vivo):
-    """Quita las raíces `sspruebas-<pid>-*` de `base` cuyo pid ya no existe. Devuelve cuántas quitó."""
+    """Quita las raíces `ssp-<pid>-<4 hex>` de `base` cuyo pid ya no existe. Devuelve cuántas quitó."""
     base = base or tempfile.gettempdir()
     quitadas = 0
     try:
@@ -78,7 +82,7 @@ def barrer_huerfanas(base=None, vivo=_pid_vivo):
     except OSError:
         return 0
     for nombre in nombres:
-        m = re.fullmatch(re.escape(PREFIJO) + r"(\d+)-[A-Za-z0-9_]+", nombre)
+        m = re.fullmatch(re.escape(PREFIJO) + r"(\d+)-[0-9a-f]{4}", nombre)
         if not m or vivo(int(m.group(1))):
             continue
         if quitar(os.path.join(base, nombre)):
@@ -90,7 +94,17 @@ def crear(base=None):
     """Crea una raíz nueva (sin tocar el entorno ni `tempfile`). Barre antes las huérfanas de corridas muertas."""
     base = base or tempfile.gettempdir()
     barrer_huerfanas(base)
-    raiz = tempfile.mkdtemp(prefix="%s%d-" % (PREFIJO, os.getpid()), dir=base)
+    raiz = None
+    for _ in range(200):  # 4 hex = 65 536 nombres por pid: si colisiona (otra raíz del mismo pid), se prueba otro
+        candidata = os.path.join(base, "%s%d-%s" % (PREFIJO, os.getpid(), "%04x" % random.randrange(0x10000)))
+        try:
+            os.mkdir(candidata, 0o700)
+            raiz = candidata
+            break
+        except FileExistsError:
+            continue
+    if raiz is None:
+        raise FileExistsError("no pude crear una raíz de pruebas bajo %s" % base)
     # 0711: otro usuario (p. ej. `runuser -u postgres` en las pruebas del nodo) debe poder ATRAVESARLA hasta la
     # subcarpeta que su prueba abrió con permisos propios; listarla, no. Con 0700 esas pruebas dejaban de llegar.
     os.chmod(raiz, 0o711)

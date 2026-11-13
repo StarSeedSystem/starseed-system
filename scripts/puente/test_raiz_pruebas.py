@@ -80,9 +80,9 @@ class RaizPorProceso(unittest.TestCase):
 
     def test_una_corrida_muerta_a_la_fuerza_se_barre_en_la_siguiente(self):
         # SIGKILL no se puede atrapar: la raíz queda, con el pid del muerto; la siguiente corrida la quita.
-        huerfana = os.path.join(self.base, "%s%d-abcd1234" % (RP.PREFIJO, 2 ** 22 + 12345))
+        huerfana = os.path.join(self.base, "%s%d-abcd" % (RP.PREFIJO, 2 ** 22 + 12345))
         os.makedirs(os.path.join(huerfana, "x"))
-        viva = os.path.join(self.base, "%s%d-vivaviva" % (RP.PREFIJO, os.getpid()))
+        viva = os.path.join(self.base, "%s%d-beef" % (RP.PREFIJO, os.getpid()))
         os.makedirs(viva)
         ajena = os.path.join(self.base, "tmpAJENA123")   # lo que no es nuestro no se toca nunca
         os.makedirs(ajena)
@@ -108,6 +108,49 @@ class RaizPorProceso(unittest.TestCase):
         r = subprocess.run([sys.executable, "-I", "-c", hijo], env=env, capture_output=True, text=True)
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertTrue(os.path.isdir(fuera))
+
+
+class NombreCortoParaLosSockets(unittest.TestCase):
+    """En macOS un socket UNIX admite 103 caracteres de ruta y el temporal del usuario ya ocupa ~47-49."""
+    BASE_MAC = 49          # largo de `/var/folders/xx/<28>/T`, con margen
+    PID5 = 99999
+
+    def test_el_nombre_de_la_raiz_no_pasa_de_14_caracteres_con_pid_de_5_cifras(self):
+        raiz = RP.crear(tempfile.mkdtemp(prefix="b-"))
+        self.addCleanup(_borrar, os.path.dirname(raiz))
+        nombre = os.path.basename(raiz)
+        self.assertRegex(nombre, r"^ssp-\d+-[0-9a-f]{4}$")
+        self.assertLessEqual(len("%s%d-%s" % (RP.PREFIJO, self.PID5, "abcd")), 14)
+        self.assertLessEqual(len(nombre) - len(str(os.getpid())) + 5, 14, "alargaste el nombre de la raíz")
+
+    def test_un_socket_a_la_profundidad_de_automejora_dentro_cabe_en_103(self):
+        import socket
+        # Base de 49 caracteres como en macOS, raíz con pid de 5 cifras, tmpXXXXXXXX y pasarela-falsa.sock.
+        base = tempfile.mkdtemp(prefix="b-", dir="/tmp" if os.path.isdir("/tmp") else None)   # corta, fuera de la raíz
+        self.addCleanup(_borrar, base)
+        if len(base) > self.BASE_MAC - 2:
+            self.skipTest("no hay una carpeta base corta para simular los 49 caracteres de macOS")
+        largo = os.path.join(base, "x" * (self.BASE_MAC - len(base) - 1))
+        self.assertEqual(len(largo), self.BASE_MAC)
+        os.makedirs(largo)
+        raiz = os.path.join(largo, "%s%d-abcd" % (RP.PREFIJO, self.PID5))
+        carpeta = os.path.join(raiz, "tmpab12cd34")
+        os.makedirs(carpeta)
+        ruta = os.path.join(carpeta, "pasarela-falsa.sock")
+        self.assertLessEqual(len(ruta), 103 - 7, len(ruta))      # con 7 de margen: pymp/listener pesa lo mismo
+        try:
+            s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        except (AttributeError, OSError):
+            self.skipTest("sin sockets UNIX")
+        self.addCleanup(s.close)
+        if len(ruta) > 103:
+            self.skipTest("la carpeta de pruebas de Linux ya es más larga que la de macOS")
+        s.bind(ruta)
+
+    def test_el_listener_de_multiprocessing_cabe(self):
+        raiz = os.path.join("x" * (self.BASE_MAC - 1), "%s%d-abcd" % (RP.PREFIJO, self.PID5))
+        listener = os.path.join(raiz, "pymp-abcd1234", "listener-abcd1234")
+        self.assertLessEqual(len(listener), 103 - 7, len(listener))
 
 
 class RaizAlrededorDeUnHijo(unittest.TestCase):
