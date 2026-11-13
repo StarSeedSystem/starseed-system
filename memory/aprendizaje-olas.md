@@ -6997,3 +6997,32 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 **Lo que se pidió.** análisis: posible secreto …
 
 **Resultado.** 1 de 1 integradas.
+
+## 2026-11-12 20:37 · auto-1112-143153
+
+**Lo que se pidió.** Pídeme en este chat infografía, audio, vídeo o presentación de esta síntesis
+
+**Resultado.** 9 de 24 integradas. 15 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 14 tareas se fueron por lo mismo — otra cosa (PET1112F, PET1112B-d1b, PRD1005Tbsb, CB1013Dc, IMG-agentes-reimaginada-agentes-reimaginadab, IMG-diaria-auto-refresh-del-catalogo-de-modeb). Es 58 % de la ola.
+- sin modelo anotado no integró ninguna de sus 9 tareas.
+- openrouter/cohere/north-mini-code:free no integró ninguna de sus 2 tareas.
+- freellmapi/auto integró 2 tareas sin fallar una.
+
+**Lo que quedó fuera, una por una:**
+- `PET1112F` — otra cosa: revisor: dividida en PET1112F-d1, PET1112F-d2 (tarea:otro con 2 archivos: se divide en 2 partes encadenadas)
+- `PET1112B-d1b` — otra cosa: huérfana: ninguna cola fuente la define ya (estaba pendiente)
+- `PRD1005Tbsb` — otra cosa: huérfana: ninguna cola fuente la define ya (estaba pendiente)
+- `CB1013Dc` — otra cosa: huérfana: ninguna cola fuente la define ya (estaba pendiente)
+- `IMG-agentes-reimaginada-agentes-reimaginadab` — otra cosa: huérfana: ninguna cola fuente la define ya (estaba pendiente)
+- `IMG-diaria-auto-refresh-del-catalogo-de-modeb` — otra cosa: huérfana: ninguna cola fuente la define ya (estaba pendiente)
+- `PET1112B-d1` — otra cosa: revisor: la cadena ya sigue por su sucesora PET1112B-d1b (pendiente): esta copia se cierra con su rama guardada
+- `CB1013Db` — otra cosa: huérfana: ninguna cola fuente la define ya (estaba pendiente)
+- `INV1025Fc` — otra cosa: huérfana: ninguna cola fuente la define ya (estaba pendiente)
+- `DR1110-2b` — otra cosa: huérfana: ninguna cola fuente la define ya (estaba pendiente)
+- `PET1112Hb` — otra cosa: huérfana: ninguna cola fuente la define ya (estaba pendiente)
+- `PET1112E` — otra cosa: revisor: la cadena ya sigue por su sucesora PET1112Eb (pendiente): esta copia se cierra con su rama guardada
+- `PET1112H` — otra cosa: revisor: dividida en PET1112H-d1, PET1112H-d2 (tarea:pruebas con 4 archivos: se divide en 2 partes encadenadas)
+- `PET1112B` — otra cosa: revisor: dividida en PET1112B-d1, PET1112B-d2 (tarea:pruebas con 5 archivos: se divide en 2 partes encadenadas)
+- `PET1112I` — pruebas en rojo: vitest falla (rama conservada)
