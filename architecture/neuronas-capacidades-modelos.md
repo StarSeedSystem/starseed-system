@@ -51,30 +51,46 @@ una prueba funcional. Es la base de la política local-vs-servidor.
   servidor (media sin app · móvil · desconocido), bestServer=StarSeed, `describeReq`.
 
 ## Pendiente / próximos pasos (roadmap del mega-encargo)
-Esta ola es la **fundación** (detección + requisitos + recomendación + pestaña). Faltan, en olas
-siguientes, el resto de lo pedido:
-1. **Ventana unificada de inicio/actualizaciones** de Astraura + OmniVoice: al entrar en una
-   neurona por primera vez o cuando haya **nuevos modelos** (OpenRouter/OmniVoice/servidor),
-   emergente con las selecciones automáticas por capacidades + preferencias de cuenta, pruebas e
-   instalaciones, y actualizaciones opcionalmente automáticas. Reaparece al detectar novedades.
-2. **Coherencia de voz y personalidad al cambiar de modelo**: mantener tono/emoción/carácter y
-   conocimientos del cerebro aunque cambie el sistema de voz o LLM; presets de voz de referencia
-   por defecto (audio refs si el modelo lo permite); detección/selección de idioma por chat, en
-   **todas** las secciones de chat de Astraura.
-3. **Descarga de modelos locales** en la app (segundo plano + notificaciones al completar) y gating
-   por instalación del OS; integración de modelos propios por clave (API) o MCP; los de StarSeed =
-   los que ofrezca el servidor oficial.
-4. **Gestión completa por neurona** en la pestaña Neuronas: ubicación, estado, cerebros, antenas,
-   conexiones (mesh pública/privada), vínculo a servidores, ofrecer internet público con recursos
-   o puerto, logs por neurona, rol servidor/receptor y política de memorias/sincronización.
+Esta ola es la **fundación** (detección + requisitos + recomendación + pestaña). El resto está
+integrado en olas posteriores; ver `gestion-por-neurona.md` (item #4) para el estado:
+1. **Ventana unificada de inicio/actualizaciones** de Astraura + OmniVoice — ✅ hecha (Adenda 111,
+   `startup-updates-modal.tsx` + `startup-updates.ts`, `src/app/(app)/app-providers.tsx`; contrato
+   propio: `ventana-inicio-actualizaciones.md`).
+2. **Coherencia de voz y personalidad al cambiar de modelo** — ✅ hecha (Adenda 112,
+   `persona-coherence.ts` + `lang-detect.ts`, `persona-coherence-panel.tsx`; contrato propio:
+   `coherencia-persona-voz.md`).
+3. **Descarga de modelos locales** en segundo plano + notificaciones + modelos propios (API/MCP)
+   — ✅ hecha (Adenda 113, `model-downloads.ts`, `custom-models.ts`, `model-downloads-panel.tsx`,
+   `model-download-notifier.tsx`; contrato propio: `descargas-modelos-locales-propios.md`).
+4. **Gestión completa por neurona** en la pestaña Neuronas (ubicación, rol servidor/receptor,
+   ofrecer internet público con puerto, logs por neurona, política de memorias/sincronización) —
+   ✅ hecha (Adenda 114, `neuron-server-config.tsx`, `neuron-logs.ts`, `neurons.ts`; contrato propio:
+   `gestion-por-neurona.md`).
 
 ## Pendiente de seguridad (horizonte de la Adenda 108)
 - **Revocación por autoridad de cuenta** (revocar la fp de un dispositivo perdido sin su clave, vía
-  certificado de revocación pre-generado o firma de clave de cuenta superior).
+  certificado de revocación pre-generado o firma de clave de cuenta superior) — ✅ hecha (Adenda 115:
+  `mesh-identity.ts::getRevocationCert()` persiste el acta de revocación pre-generada;
+  `server-relay.ts::registerIdentity()` la sube a la cuenta como `kind:"revocation-cert"`,
+  `revokeDeviceByCert()` la publica, `refreshRevocations()` la honra; panel en
+  `connectivity-config-panel.tsx`).
 - **Emisión/renovación de tokens** (endpoint de emisión, refresh y lista de revocación) más allá
-  del `exp` estático.
-- **Reloj lógico** entre pares para reconciliar orden con relojes desincronizados.
-- **Descubrimiento automático de pares de confianza** desde el registro de identidades de la cuenta/grupo.
+  del `exp` estático — ✅ hecha (Adenda 117: servidor de referencia con `verifySignedToken`
+  HMAC/SHA256 de clave rotable, `/tokens/issue`/`/tokens/rotate-key`, `/tokens/revoke`; cliente en
+  `src/ai/astraura/mesh/server-admin.ts` con `issueServerToken`, `refreshServerToken`,
+  `revokeServerToken`, `rotateServerTokenKey`; UI en
+  `src/components/connectivity/server-token-admin.tsx`; contrato propio:
+  `refinamientos-pex-tokens-oferta.md`).
+- **Reloj lógico** entre pares para reconciliar orden con relojes desincronizados — ✅ hecha
+  (Adenda 115: `mesh/logical-clock.ts` con `tick()`/`observe()`/`current()`/`compareLamport()`,
+  persistido; estampa `lc` en los envelopes a servidores propios y en `pullFromEndpoint`;
+  columna en Postgres/SQLite; contrato: `seguridad-revocacion-reloj.md`; tests:
+  `scripts/test-logical-clock.ts` 12/12).
+- **Descubrimiento automático de pares de confianza** desde el registro de identidades de la
+  cuenta/grupo — a medias: hay PEX de confianza filtrable por allowlist en el servidor de
+  referencia (`docs/examples/starseed-mesh-server/index.mjs`, Adenda 117) y descubrimiento
+  pasivo de nodos en `mesh/discovery.ts` (Adenda 97), pero la conexión automática "desde el
+  registro de identidades de la cuenta/grupo" no está integrada.
 
 *Relacionado: `astraura-inteligencia.md` (router LLM gratis-primero), `astraura-mesh-meshtastic.md`
 (neuronas = cerebro+servidor), `servidor-propio-protocolo.md` (Adendas 99-108).*
