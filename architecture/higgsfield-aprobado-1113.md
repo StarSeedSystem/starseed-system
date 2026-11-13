@@ -54,8 +54,8 @@ Cada proyecto tiene 4 carpetas: 01 Referencias, 02 Pruebas, 03 Aprobados y 04 Fi
 
 | Clave | Proyecto | project_id |
 |---|---|---|
-| sistema-diseno | StarSeed · Sistema de diseño y marca | b9c64503-b075-4794-96bd-2fe8a6cc66e3 |
-| recorrido-os | StarSeed OS · Recorrido real | 0a164695-de83-4b8f-9f22-7f0a623a124e |
+| sistema-diseno | StarSeed · Sistema de diseño y marca | b229e2b5-9ec1-4a73-9ba2-917a0968d11b (Cinema; CLI b9c64503… archivado) |
+| recorrido-os | StarSeed OS · Recorrido real | bdabaeff-723a-473a-932d-1582b0a15130 (Cinema; CLI 0a164695… archivado) |
 | paz | Una solución para la paz | c7cc3bfb-9e4a-4c2e-acdf-d96e5603bdec |
 | manifiesto | Manifiesto · La Revolución del Diseño | c2cd4e9f-92a5-477a-a873-6a57d4e703ed |
 | fase-semilla | Fase Semilla · Centro social piloto | 51a10c6a-1a19-405f-a930-41e7e3b20a25 |
@@ -64,6 +64,19 @@ Cada proyecto tiene 4 carpetas: 01 Referencias, 02 Pruebas, 03 Aprobados y 04 Fi
 | redes | Redes · shorts, reels y carruseles | ac48b50d-5877-4430-9ceb-45571dd08c8a |
 
 Mapa con las carpetas: `~/.starseed/produccion/higgsfield/proyectos.json` en el A1.
+
+**Visibilidad en la web (2026-11-13, 23:30 UTC):**
+- La web de Higgsfield solo lista los proyectos de Cinema Studio (`surface: cinematic_studio`). Los demás aparecen
+  en `higgsfield.ai/es/generate` › Proyectos.
+- Los creados con el CLI (`surface: cli`) existen, pero no se ven.
+- La pestaña Proyectos del perfil público solo enseña lo publicado, que requiere aprobación.
+- El CLI 1.2.2 no puede elegir la superficie. Por eso los proyectos nuevos los crea **el conector de Claude** como
+  Cinema Studio, y `cine.py` (A1) les pone metadatos y carpetas y archiva el CLI anterior.
+- Los 6 que aún están en CLI se pasan cuando baje el límite de creación de Higgsfield (429).
+- **HGF1113E no crea proyectos con el CLI.** Si una producción nueva necesita proyecto:
+  - deja una petición «crear proyecto Cinema» en el buzón para Claude;
+  - o usa la API con la sesión del CLI, si demuestra con una prueba que acepta `surface: cinematic_studio`.
+  - Archivar es reversible; borrar nunca.
 
 **Guardia en el A1 y en la Mac:**
 - la gestión de proyectos pasa (list, get, create, update; carpetas y archivos salvo borrar);
