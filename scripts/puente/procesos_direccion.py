@@ -669,6 +669,13 @@ def main(argv=None) -> int:
             f = abrir(x.id, x.titulo, x.modelo, x.arbol, x.rama, x.tipo, x.relevable, x.prompt)
             print("abierto %s · %s · %s%s" % (f["id"], f["modelo"], con_virgulilla(f["arbol"]) or "sin árbol",
                                                " · relevable: %s" % f.get("relevo") if f["relevable"] else " · no relevable"))
+            try:  # PRE1113D: avisa (nunca rechaza) si el modelo pedido es más fuerte que el presupuesto de Claude
+                import presupuesto_claude
+                aviso = presupuesto_claude.aviso_para_modelo(f["modelo"])
+                if aviso:
+                    print(aviso)
+            except Exception as e:  # el aviso nunca impide abrir
+                print("presupuesto de Claude: no se pudo calcular (%s)" % str(e)[:80])
         elif x.orden == "latido":
             f = latido(x.id, x.fase)
             print("latido %s%s" % (f["id"], " · fase: %s" % f["fase"] if f.get("fase") else ""))
