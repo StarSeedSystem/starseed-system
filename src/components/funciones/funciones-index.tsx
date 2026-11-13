@@ -62,6 +62,7 @@ import {
   Sliders,
   Layers,
   Gauge,
+  Dna,
   type LucideIcon,
 } from "lucide-react";
 
@@ -90,7 +91,7 @@ type FeatureGroup = {
 const GROUPS: FeatureGroup[] = [
   {
     id: "ia-studio",
-    title: "Astraura AI & Orchestration",
+    title: "Astraura IA y Orquestación",
     description: "Las 21 áreas del sistema soberano 1.58-bit: imaginación, enjambre, cerebros, memoria, sensorium, bóveda y todo lo demás.",
     icon: Sparkles,
     accent: "fuchsia",
@@ -128,7 +129,9 @@ const GROUPS: FeatureGroup[] = [
       { label: "Tools", route: "/agent?tab=tools", blurb: "Herramientas conectadas al agente.", icon: Wrench },
       { label: "MCPs", route: "/agent?tab=mcps", blurb: "Servidores Model Context Protocol.", icon: Plug },
       { label: "Sentidos", route: "/agent?tab=sentidos", blurb: "Canales de percepción multimodal del agente.", icon: Eye },
-      { label: "Telegram", route: "/agent?tab=telegram", blurb: "Astraura en tu Telegram.", icon: Send },
+      // GEN1113E: Telegram es ahora una opción de «Conexiones de chat»; y entran los chats de Genesis.
+      { label: "Telegram", route: "/agent?tab=conexiones-chat&foco=telegram", blurb: "Astraura en tu Telegram.", icon: Send },
+      { label: "Chats de Genesis", route: "/agent?tab=chats-genesis", blurb: "Chats de Genesis, PoliGenesis y MetaGenesis.", icon: Dna },
       { label: "Baúles", route: "/agent?tab=baules", blurb: "Agrupa memorias y conexiones.", icon: Boxes },
       { label: "Mapa 3D", route: "/agent?tab=mapa-3d", blurb: "Visualiza memorias en el espacio.", icon: Map },
       { label: "Agentes (runtimes)", route: "/agent?tab=agentes", blurb: "Dónde corren tus agentes: dispositivo, multi-neurona o VPS.", icon: Bot },

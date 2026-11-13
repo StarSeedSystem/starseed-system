@@ -21,6 +21,14 @@
  * Persistencia: `@/lib/messaging/messaging-channels` (tabla `messaging_channels`,
  * RLS por owner, Realtime). Los tres canales conviven y se integran con Astraura
  * + Aurora y sus memorias de forma automática.
+ *
+ * GEN1113E (contrato `architecture/astraura-chats-genesis.md` §2.2): debajo de
+ * las tres fuentes, cuatro opciones más, en este orden:
+ *   • Telegram (`conexion-telegram.tsx`): TODO lo que tenía la pestaña Telegram
+ *     de `/agent` (que desaparece) + dónde se ve cada chat + los puentes.
+ *   • Agentes de Genesis, de PoliGenesis y de MetaGenesis (`conexiones-genesis.tsx`),
+ *     guardados en `user_settings.prefs.chatsGenesis` (no en esta tabla, D3).
+ * `foco` abre y lleva a la vista una opción (lo pasa `/agent` para `?tab=telegram`).
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -50,7 +58,6 @@ import {
   Loader2,
   Info,
   CheckCircle2,
-  ExternalLink,
   Save,
 } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
@@ -65,6 +72,12 @@ import {
   type ChannelScope,
   type TelegramLink,
 } from "@/lib/messaging/messaging-channels";
+import { ConexionTelegram } from "@/components/messaging/conexion-telegram";
+import { ConexionesGenesis, type AccesoMeta } from "@/components/messaging/conexiones-genesis";
+import { leerPrefsChatsGenesis, guardarPrefsChatsGenesis } from "@/lib/chats-genesis/vinculos";
+import type { PrefsChatsGenesis } from "@/lib/chats-genesis/tipos";
+import type { ClienteChatsGenesis } from "@/lib/chats-genesis/puerta-chats";
+import { miAccesoMetaGenesis } from "@/lib/metagenesis/accesos";
 
 // ── Metadatos de presentación por canal ──────────────────────────────────────
 
@@ -117,11 +130,17 @@ const EXTERNAL_PROVIDERS: { value: string; label: string }[] = [
 
 export interface ChatConnectionsPanelProps {
   className?: string;
+  /** Opción que se abre y se lleva a la vista al entrar (contrato §7.4). */
+  foco?: "telegram" | "genesis" | "poligenesis" | "metagenesis";
+  /** Solo para pruebas: cliente de la puerta del A1 para los puentes. */
+  clienteChatsGenesis?: ClienteChatsGenesis;
 }
+
+const PREFS_VACIAS: PrefsChatsGenesis = { v: 1, vinculos: [], conexiones: {} };
 
 // ── Componente ───────────────────────────────────────────────────────────────
 
-export function ChatConnectionsPanel({ className }: ChatConnectionsPanelProps) {
+export function ChatConnectionsPanel({ className, foco, clienteChatsGenesis }: ChatConnectionsPanelProps) {
   const [channels, setChannels] = useState<MessagingChannel[]>(() =>
     defaultChannels(),
   );
@@ -129,6 +148,58 @@ export function ChatConnectionsPanel({ className }: ChatConnectionsPanelProps) {
   const [savingScope, setSavingScope] = useState<ChannelScope | null>(null);
   const [accountId, setAccountId] = useState<string | null>(null);
   const [tgLink, setTgLink] = useState<TelegramLink | null>(null);
+  // GEN1113E: la opción Telegram (abierta si se llega con `foco="telegram"`), las
+  // preferencias de Chats de Genesis (una lectura para todas las opciones) y el
+  // acceso a MetaGenesis (decide qué se pinta; quién puede qué lo dice el servidor).
+  const [telegramAbierto, setTelegramAbierto] = useState(foco === "telegram");
+  const [prefsCG, setPrefsCG] = useState<PrefsChatsGenesis | null>(null);
+  const [acceso, setAcceso] = useState<AccesoMeta>(null);
+  const prefsRef = useRef<PrefsChatsGenesis | null>(null);
+  prefsRef.current = prefsCG;
+
+  useEffect(() => {
+    if (foco === "telegram") setTelegramAbierto(true);
+  }, [foco]);
+
+  useEffect(() => {
+    let alive = true;
+    void Promise.all([
+      leerPrefsChatsGenesis().catch(() => PREFS_VACIAS),
+      miAccesoMetaGenesis().catch(() => null),
+    ]).then(([p, a]) => {
+      if (!alive) return;
+      setPrefsCG(p);
+      setAcceso(a);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  // Con `foco="telegram"`, la opción ya está abierta: al terminar de cargar se lleva a la vista.
+  useEffect(() => {
+    if (loading || foco !== "telegram") return;
+    document.getElementById("conexion-telegram")?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+  }, [loading, foco]);
+
+  const guardarPrefsCG = useCallback(async (siguiente: PrefsChatsGenesis): Promise<boolean> => {
+    const anterior = prefsRef.current;
+    setPrefsCG(siguiente);
+    try {
+      await guardarPrefsChatsGenesis(siguiente);
+      toast.success("Guardado en tu cuenta");
+      return true;
+    } catch {
+      setPrefsCG(anterior);
+      toast.error("No se pudo guardar; no ha cambiado nada");
+      return false;
+    }
+  }, []);
+
+  const verOpcionTelegram = useCallback(() => {
+    setTelegramAbierto(true);
+    setTimeout(() => document.getElementById("conexion-telegram")?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
+  }, []);
 
   // Evita pisar ediciones locales con un eco de Realtime de nuestro guardado.
   const dirtyRef = useRef(false);
@@ -298,7 +369,12 @@ export function ChatConnectionsPanel({ className }: ChatConnectionsPanelProps) {
             const Icon = meta.icon;
             const isStarseed = scope === "starseed";
             const isExternal = scope === "external";
-            const isTelegram = isExternal && c.provider === "telegram";
+            // GEN1113E: el selector ya mostraba «Telegram» cuando el proveedor guardado no es
+            // ninguno de la lista (p. ej. "none", el valor por defecto); ahora lo de debajo
+            // corresponde a lo que se ve en el selector.
+            const isTelegram =
+              isExternal &&
+              (EXTERNAL_PROVIDERS.some((p) => p.value === c.provider) ? c.provider : "telegram") === "telegram";
             const saving = savingScope === scope;
             return (
               <Card
@@ -394,45 +470,30 @@ export function ChatConnectionsPanel({ className }: ChatConnectionsPanelProps) {
                         </select>
                       </div>
 
-                      {/* Telegram: conectar + estado */}
+                      {/* Telegram: su opción propia, más abajo (GEN1113E) */}
                       {isTelegram ? (
                         <div className="space-y-2 rounded-lg border border-cyan-500/20 bg-cyan-950/15 p-3">
                           <div className="flex items-center gap-2 text-[11px] text-cyan-100/85">
-                            <Send className="h-3.5 w-3.5 text-cyan-300" />
+                            <Send className="h-3.5 w-3.5 shrink-0 text-cyan-300" />
                             <span>
-                              Vincula tu cuenta StarSeed con el bot de Telegram
-                              <span className="font-mono">
-                                {" "}
-                                @starseed_nexus_bot
-                              </span>
-                              .
+                              {tgLink ? (
+                                <>
+                                  <CheckCircle2 className="mr-1 inline h-3.5 w-3.5 text-emerald-300" />
+                                  Conectado: {tgLink.display_name || tgLink.handle || tgLink.telegram_id}
+                                </>
+                              ) : (
+                                "La vinculación, los canales y los chats de Telegram tienen su propia opción."
+                              )}
                             </span>
                           </div>
-                          {tgLink ? (
-                            <div className="flex items-center gap-2 text-[11px] text-emerald-200">
-                              <CheckCircle2 className="h-3.5 w-3.5" />
-                              Conectado:{" "}
-                              <span className="font-medium">
-                                {tgLink.display_name ||
-                                  tgLink.handle ||
-                                  tgLink.telegram_id}
-                              </span>
-                            </div>
-                          ) : (
-                            <div className="text-[10px] text-cyan-300/70">
-                              {accountId
-                                ? "Aún no vinculado. Pulsa el botón y envía /start al bot."
-                                : "Inicia sesión en StarSeed para vincular tu cuenta. Puedes abrir el bot igualmente."}
-                            </div>
-                          )}
                           <Button
                             size="sm"
-                            onClick={connectTelegram}
-                            className="w-full gap-2 bg-cyan-600 hover:bg-cyan-500 text-white"
+                            variant="outline"
+                            onClick={verOpcionTelegram}
+                            className="w-full gap-2 border-cyan-500/30 text-cyan-100"
                           >
                             <Link2 className="h-4 w-4" />
-                            {tgLink ? "Reconectar Telegram" : "Conectar Telegram"}
-                            <ExternalLink className="h-3 w-3 opacity-70" />
+                            Ver la opción Telegram
                           </Button>
                         </div>
                       ) : (
@@ -529,6 +590,29 @@ export function ChatConnectionsPanel({ className }: ChatConnectionsPanelProps) {
               </Card>
             );
           })}
+        </div>
+      )}
+
+      {/* GEN1113E: Telegram y los agentes de Genesis, PoliGenesis y MetaGenesis */}
+      {!loading && (
+        <div className="space-y-3">
+          <ConexionTelegram
+            abierto={telegramAbierto}
+            onAlternar={() => setTelegramAbierto((v) => !v)}
+            accountId={accountId}
+            tgLink={tgLink}
+            onConectar={() => void connectTelegram()}
+            prefs={prefsCG}
+            acceso={acceso}
+            onGuardar={guardarPrefsCG}
+            cliente={clienteChatsGenesis}
+          />
+          <ConexionesGenesis
+            foco={foco === "telegram" ? undefined : foco}
+            prefs={prefsCG}
+            acceso={acceso}
+            onGuardar={guardarPrefsCG}
+          />
         </div>
       )}
 
