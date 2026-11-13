@@ -245,11 +245,13 @@ NAS), y el transporte elige el enlace (local, cuenta, par, relé, LoRa) con `ele
 ### 4.2 Android · PENDIENTE (plugin Kotlin, siguiente ola)
 
 - **Tienda y por defecto:** Storage Access Framework (`ACTION_OPEN_DOCUMENT_TREE` +
-  `takePersistableUriPermission`): la persona elige la carpeta y el permiso sobrevive a reinicios.
+  `takePersistableUriPermission`): la persona elige la carpeta y el permiso sobrevive a reinicios. (pendiente: falta plugin Kotlin SAF en `native/src-tauri/android/`)
 - **APK propio (sideload):** `MANAGE_EXTERNAL_STORAGE` («Acceso a todos los archivos»), pedido con una
   pantalla que explique por qué. Google Play solo lo concede tras revisión a gestores de archivos,
-  copias de seguridad, antivirus y similares; para la tienda se usa SAF.
-- Hoy en Android `carpetas_conceder` devuelve un error que lo dice.
+  copias de seguridad, antivirus y similares; para la tienda se usa SAF. (pendiente)
+- Hoy en Android `carpetas_conceder` devuelve un error que lo dice (`native/src-tauri/src/nativa.rs:312-315`). El comando existe en Rust y la web lo llama, pero en Android falla con mensaje honesto.
+
+Revisado el 2026-11-13 contra main (`a67965c`): 0 hechos, 0 a medias, 3 pendientes.
 
 ---
 

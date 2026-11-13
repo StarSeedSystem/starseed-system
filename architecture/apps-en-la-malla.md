@@ -41,14 +41,16 @@ y `vigia-modelos.md` §5 (instalación por neurona y capa «malla»).
 
 **Lo que falta:**
 1. **No hay una bolsa común de recursos.** Astraura, la Protomolécula, las capas, los archivos y los agentes deciden
-   cada uno por su lado dónde calcular y de dónde leer.
+   cada uno por su lado dónde calcular y de dónde leer. **✅ Hecho (`src/lib/recursos/bolsa.ts`, `src/lib/recursos/oferta.ts`, `src/lib/recursos/adaptadores.ts`; planificadores conectados vía `adaptadores.ts`)**
 2. **Abrir una app es siempre local.** El catálogo no dice qué necesita cada app ni de cuántas formas puede abrirse.
-   Una neurona sin recursos simplemente no puede.
-3. **Nadie puede usar una app instalada en otra neurona** (no hay ventana transmitida).
-4. **Las neuronas y el A1 no son almacenamiento** de otros, y las apps nativas no pueden vivir fuera del disco.
-5. **Publicaciones y transmisiones** se bajan siempre del origen: quien mira no retransmite a sus vecinos.
+   Una neurona sin recursos simplemente no puede. **(a medias: `comoAbrir` en `src/lib/recursos/modos-app.ts` y tipos en `launcher-types.ts` existen; falta añadir `ejecucion`/`requisitos` a las apps del catálogo en `app-catalog.ts`)**
+3. **Nadie puede usar una app instalada en otra neurona** (no hay ventana transmitida). (pendiente)
+4. **Las neuronas y el A1 no son almacenamiento** de otros, y las apps nativas no pueden vivir fuera del disco. (pendiente)
+5. **Publicaciones y transmisiones** se bajan siempre del origen: quien mira no retransmite a sus vecinos. (pendiente)
 6. **En Ajustes del cerebro** aún no hay medios (CB1013). Cuando lleguen, capacidades y almacenamiento deben
-   aplicarse de verdad, no solo guardarse.
+   aplicarse de verdad, no solo guardarse. **✅ Hecho (`src/lib/cerebros/medios-efectivos.ts`, `src/components/cerebro/ajustes-medios.tsx`; se aplican destinos reales con `setMemoryDestinations`)**
+
+Revisado el 2026-11-13 contra main (`a67965c`): 2 hechos, 1 a medias, 3 pendientes.
 
 ## 2. La idea: cada contexto tiene un servidor vivo hecho de toda su red
 

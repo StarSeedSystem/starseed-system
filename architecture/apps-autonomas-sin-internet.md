@@ -1112,26 +1112,28 @@ Siguiente paso posible: bajar solo lo cambiado (el manifiesto ya trae el SHA-256
 
 | Id | Tarea |
 |---|---|
-| T1 | Capas del servidor local con firma y rollback: **ESCRITA SIN PUBLICAR (CAP1107A, §10)** — capa firmada con la clave del updater, canal fijo `servidor-local` (apagado hasta `SERVIDOR_CAPAS_CANAL=1`), «Actualizar ahora» sin cerrar la app, vuelta atrás a los 60 s / 30 s. Falta verla en macOS y Windows (con T12) y, si se quiere, bajar solo lo cambiado |
-| T2 | Android opción C (precarga del SW): **ESCRITA SIN PUBLICAR (SW1107A, §9.1.1)**. Falta A (nodejs-mobile, §9.1) |
-| T1 | Capas del servidor local con firma y rollback (§10) |
-| T2 | Android: opción C (precarga del SW) **ESCRITA SIN PUBLICAR (SW1107A, §9.1.1)**; opción A (nodejs-mobile) **ESCRITA SIN PUBLICAR detrás de un interruptor apagado (AND1107A, §9.1)**. Falta probar A en una tablet (receta en §9.1) y decidir si se enciende |
-| T3 | Medir en el CI los tamaños reales y corregir §6 |
-| T4 | Migrar al origen local lo que vivía en el origen de la web publicada: **ESCRITA SIN PUBLICAR (APP1107B, §2.1)** — localStorage + IndexedDB, sin sesión, fusión sin pisar, copia sin secretos, marcador, aviso. Falta T12 |
-| T4b | Migración SIN internet al primer arranque: **ESCRITA SIN PUBLICAR (TAM1107A, §2.1.1)** — HTML del binario con la dirección de la web (`load_html` / `loadHTMLString:baseURL:` / `WebResourceRequested`), sin leer los archivos del motor; probada con la app real en Linux sin red. Falta verla en macOS y Windows (con T12) |
-| T5 | Pasar los 3 flujos de Genkit (server actions) a rutas `/api` para que viajen a la web con internet |
-| T6 | Enseñar `servidor_local_estado` en Ajustes → Neurona y en las señales del medio («app nativa · servidor local») |
-| T7 | Nexus y Café con sus archivos dentro (§9.3) |
-| T8 | Quitar del build nativo lo que solo vive en la Mac: **ESCRITA SIN PUBLICAR (APP1107B)** — `/api/mando/**` fuera (−65,6 MB instalado, −2 MB en dmg/msi/deb; §6) y 404 en el envoltorio. `/genesis`, `/metagenesis` y `/poligenesis` se quedan: no son solo de la Mac (§5) |
-| T9 | Enseñar el estado de la precarga (evento `starseed:precarga`) en Ajustes → Neurona, con un botón «Descargar para usar sin internet» (`STARSEED_PRECARGAR(true)`, para quien solo tiene datos móviles) |
-| T10 | Probar el SW v8 en un navegador real contra un `next start` del build (en el A1 o el CI, no en la Mac): precarga completa, modo avión y vuelta de la red |
-| T11 | Guarda en el envoltorio contra peticiones de otras webs al servidor local: **HECHA (SEG1107A, §3.1)** — Host exacto (rebinding), Origin/Sec-Fetch-Site, pase de Rust en cookie `HttpOnly; SameSite=Strict` para `/api`, cambios y WebSocket, sin CORS abierto y el Next interno solo para la puerta. Falta verla con la app real en macOS y Windows (con T12) |
-| T12 | Probar la migración (T4) con la app real en macOS y Windows (receta en §8; Linux ya probado, §2.1) |
-| T13 | Bajar el peso de los 291 `*_client-reference-manifest.js` en el paquete nativo: **ESCRITA SIN PUBLICAR (TAM1107A, §6.1)** — 192 → 20 MB en la app (−172 MB instalado), mismo HTML byte a byte con el standalone real. Falta ver el resumen del primer CI (T3) |
-| T13 | Bajar el peso de los 291 `*_client-reference-manifest.js` (252,6 MB, §6) en el paquete nativo |
-| T14 | Android con el interruptor: traer lo del origen de la web publicada al origen local (T4 en Android: la ventana única carga primero `offline.html` de la web con el script de exportación y luego va al servidor local) |
-| T15 | Android con el interruptor: ICU completo (`icudt78l.dat` en los assets + `NODE_ICU_DATA`) para que el servidor formatee en español |
-| T16 | (MIC1108A, §13) Ver en aparatos reales: aviso de micrófono y cámara de macOS, avisos de Android, «Abrir ajustes», pantalla compartida en macOS/Windows/Linux, auriculares Bluetooth en Android 12+. iOS (`Info.ios.plist`) sin cubrir |
+| T1 | Capas del servidor local con firma y rollback: **✅ Hecho (código en `native/src-tauri/src/servidor_capas.rs`, `native/servidor-local/capa.mjs`, `native/servidor-local/publicar-capa.sh`; probado en Linux con app real; falta probar en macOS y Windows con T12)** |
+| T2 | Android opción C (precarga del SW): **✅ Hecho (`public/sw-v8.js`, `public/sw-logica.js`, `scripts/precarga-sw.mjs`; llega con publicar la web, sin reinstalar APK)** |
+| T1 | Capas del servidor local con firma y rollback (§10): **✅ Hecho (código en `native/src-tauri/src/servidor_capas.rs`, `native/servidor-local/capa.mjs`; probado en Linux con app real; falta macOS/Windows con T12)** |
+| T2 | Android: opción C (precarga del SW) **✅ Hecho (`public/sw-v8.js`, `public/sw-logica.js`; llega con publicar la web)**; opción A (nodejs-mobile) **ESCRITA SIN PUBLICAR detrás de un interruptor apagado (AND1107A, §9.1)**. Falta probar A en una tablet (receta en §9.1) y decidir si se enciende |
+| T3 | Medir en el CI los tamaños reales y corregir §6 (pendiente) |
+| T4 | Migrar al origen local lo que vivía en el origen de la web publicada: **✅ Hecho (`native/src-tauri/src/migracion_origen.rs`, `native/servidor-local/migracion-origen.js`, `src/components/nativa/aviso-migracion-origen.tsx`; probado en Linux con app real; falta macOS/Windows con T12)** |
+| T4b | Migración SIN internet al primer arranque: **✅ Hecho (`native/src-tauri/src/migracion_origen_local.rs`, `native/servidor-local/rescate-origen.js`; probado en Linux con app real sin red; falta macOS/Windows con T12)** |
+| T5 | Pasar los 3 flujos de Genkit (server actions) a rutas `/api` para que viajen a la web con internet (pendiente: `src/ai/flows/*.ts` siguen como `'use server'`) |
+| T6 | Enseñar `servidor_local_estado` en Ajustes → Neurona y en las señales del medio («app nativa · servidor local»): **✅ Hecho (`src/components/nativa/estado-servidor-local.tsx` en `src/components/settings/neurons/esta-neurona.tsx` y `neurons-panel.tsx`)** |
+| T7 | Nexus y Café con sus archivos dentro (§9.3) (pendiente) |
+| T8 | Quitar del build nativo lo que solo vive en la Mac: **✅ Hecho (`native/servidor-local/solo-mac.mjs` quita `/api/mando/**` −65,6 MB instalado; 404 en el envoltorio; `/genesis`, `/metagenesis`, `/poligenesis` se quedan)** |
+| T9 | Enseñar el estado de la precarga (evento `starseed:precarga`) en Ajustes → Neurona, con un botón «Descargar para usar sin internet» (`STARSEED_PRECARGAR(true)`): **✅ Hecho (`src/components/settings/neurons/precarga-sin-internet.tsx` en `neurons-panel.tsx`)** |
+| T10 | Probar el SW v8 en un navegador real contra un `next start` del build (en el A1 o el CI, no en la Mac): precarga completa, modo avión y vuelta de la red (pendiente: requiere prueba manual) |
+| T11 | Guarda en el envoltorio contra peticiones de otras webs al servidor local: **✅ Hecho (`native/servidor-local/guarda.cjs`, `native/src-tauri/src/servidor_local.rs`; probado en Linux con app real; falta macOS/Windows con T12)** |
+| T12 | Probar la migración (T4) con la app real en macOS y Windows (receta en §8; Linux ya probado, §2.1) (pendiente: requiere aparatos reales) |
+| T13 | Bajar el peso de los 291 `*_client-reference-manifest.js` en el paquete nativo: **✅ Hecho (`native/servidor-local/compactar-manifiestos.mjs`, `native/servidor-local/__tests__/compactar-manifiestos.test.mjs`; 192 → 20 MB en la app; falta ver el resumen del primer CI (T3))** |
+| T13 | Bajar el peso de los 291 `*_client-reference-manifest.js` (252,6 MB, §6) en el paquete nativo: **✅ Hecho (`native/servidor-local/compactar-manifiestos.mjs`; probado con standalone real de Next 15.5.21)** |
+| T14 | Android con el interruptor: traer lo del origen de la web publicada al origen local (T4 en Android: la ventana única carga primero `offline.html` de la web con el script de exportación y luego va al servidor local) (pendiente) |
+| T15 | Android con el interruptor: ICU completo (`icudt78l.dat` en los assets + `NODE_ICU_DATA`) para que el servidor formatee en español (pendiente) |
+| T16 | (MIC1108A, §13) Ver en aparatos reales: aviso de micrófono y cámara de macOS, avisos de Android, «Abrir ajustes», pantalla compartida en macOS/Windows/Linux, auriculares Bluetooth en Android 12+. iOS (`Info.ios.plist`) sin cubrir (pendiente: requiere aparatos reales) |
+
+Revisado el 2026-11-13 contra main (`a67965c`): 10 hechos, 2 a medias, 4 pendientes.
 
 ## 13. Micrófono, cámara y pantalla en las apps instaladas (MIC1108A · ESCRITO SIN PUBLICAR)
 
