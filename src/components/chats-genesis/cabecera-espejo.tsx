@@ -13,10 +13,11 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { CloudOff, Loader2, Lock, Radio, TimerOff } from "lucide-react";
+import { CloudOff, Info, Loader2, Lock, Radio, TimerOff } from "lucide-react";
 
 import { AvisoSesion } from "@/components/auth/aviso-sesion";
 import { estadoEspejo, TEXTO_SIN_SESION, type ClienteChatsGenesis } from "@/lib/chats-genesis/puerta-chats";
+import { TEXTOS_SIN_RED } from "@/lib/chats-genesis/puerta-chats";
 import { fusionarFeed } from "@/lib/mando/chat-director-feed";
 import { cn } from "@/lib/utils";
 
@@ -155,6 +156,8 @@ export type EstadoEnvio = "enviando" | "en-cola" | "entregado" | "hecho" | "rech
 
 export interface EnvioLocal {
     clave: string;
+    /** GEN1114F: primer grupo del código del aparato que firmó («firmado · ABCD»); solo si salió firmado. */
+    firmado?: string;
     /** Id que dio la puerta (null mientras se envía o si no se envió). */
     id: number | null;
     /** Lo que se ve en el hilo: el texto o la orden. */
@@ -168,8 +171,40 @@ export interface EnvioLocal {
 const ACUSES_CADA_MS = 3_000;
 const ACUSES_VALIDOS = new Set<EstadoEnvio>(["entregado", "hecho", "rechazado", "caducado", "fallo"]);
 
+/**
+ * GEN1114F · Lo que dice cada rechazo de una entrada firmada (§3.9). La Mac y el A1 acusan con un
+ * código estable en `detalle` (solo o seguido de «: …»); si no es ninguno de estos, se enseña tal cual.
+ */
+export const TEXTO_RECHAZO: Readonly<Record<string, string>> = Object.freeze({
+    "sin-firma": "Llegó sin firma; no se ejecutó nada",
+    "aparato-desconocido": "La Mac no conoce este aparato: el emparejamiento no llegó a hacerse. Vuelve a emparejarlo.",
+    "aparato-revocado": "Este aparato fue retirado en la Mac. Para volver a escribir, emparéjalo de nuevo.",
+    "firma-mala": "La firma no cuadra: la entrada se cambió por el camino; no se ejecutó nada",
+    "seq-repetido": "Esta entrada ya se había recibido; no se ejecutó otra vez",
+    "nonce-repetido": "Esta entrada ya se había recibido; no se ejecutó otra vez",
+    "cuenta-distinta": "La cuenta de la firma no es la que la Mac tiene en su lista; no se ejecutó nada",
+    caducada: "Caducó sin ejecutarse; vuelve a enviarla si aún la quieres",
+    futuro: "La hora de este aparato va adelantada; corrígela y vuelve a enviar",
+    nivel: "Este aparato solo puede escribir texto en el hilo; para poner agentes a trabajar, emparéjalo como completo en la Mac",
+    limite: "Demasiadas órdenes de este aparato en una hora; espera y vuelve a intentarlo",
+    "chat-distinto": "El chat de la entrada no es el de su origen en la Mac; no se ejecutó nada",
+    "nombre-distinto": "El nombre del chat que viste no es el de la Mac; puede que la puerta mostrara uno falso. No se ejecutó nada",
+    destino: "La entrada iba a otro destino; no se ejecutó nada",
+    aud: "La firma no es para los chats de Genesis; no se ejecutó nada",
+});
+
+/** El texto de un rechazo: el del código si lo hay, si no el detalle tal cual. */
+export function textoRechazo(detalle: string | undefined): string | undefined {
+    if (!detalle) return undefined;
+    const codigo = /^[a-z][a-z-]*/.exec(detalle.trim())?.[0];
+    return (codigo && TEXTO_RECHAZO[codigo]) || detalle;
+}
+
 /** Palabras para un envío que la puerta no aceptó (el servidor decide; aquí solo se traduce). */
 export function motivoNoEnviado(r: { estado: number; codigo?: string; error: string }): string {
+    // GEN1114F: lo que `enviar` decide sin red (sin aparato, sin chat, otra cuenta, nivel…) trae su texto.
+    if (r.estado === 0 && r.codigo && TEXTOS_SIN_RED[r.codigo]) return TEXTOS_SIN_RED[r.codigo]!;
+    if (r.codigo === "destino-cerrado") return r.error;
     if (r.estado === 403 && r.codigo === "solo-dueno") return "Esta orden solo la puede dar un dueño de MetaGenesis";
     if (r.estado === 403) return "Tu cuenta no tiene acceso a MetaGenesis";
     if (r.estado === 401) return TEXTO_SIN_SESION;
@@ -189,7 +224,7 @@ export function textoEnvio(e: EnvioLocal, ahora: number, destino: Origen): strin
     if (e.estado === "en-cola") return `En la puerta del A1 · esperando ${quien} desde ${momentoTexto(e.iniciado, ahora)}`;
     if (e.estado === "entregado") return `${recoge} lo recogió · en marcha`;
     if (e.estado === "hecho") return `Hecho${e.detalle ? ` · ${e.detalle}` : ""}`;
-    if (e.estado === "rechazado") return `${recoge} lo rechazó${e.detalle ? `: ${e.detalle}` : ""}`;
+    if (e.estado === "rechazado") return `${recoge} lo rechazó${e.detalle ? `: ${textoRechazo(e.detalle)}` : ""}`;
     if (e.estado === "caducado") return `Caducó sin ejecutarse (${destino === "a1" ? "el A1 no lo recogió" : "la Mac estaba apagada"}); vuelve a enviarla si aún la quieres`;
     if (e.estado === "fallo") return `Falló al ejecutarse${e.detalle ? `: ${e.detalle}` : ""}`;
     return `No enviado: ${e.detalle ?? "sin motivo"}`;
@@ -199,30 +234,37 @@ export function textoEnvio(e: EnvioLocal, ahora: number, destino: Origen): strin
  * Envía por la puerta (nunca por una cola local: si falla, se dice y el borrador se queda) y sigue
  * el acuse de cada envío cada 3 s mientras espera. «Hecho» solo con el acuse `hecho` (§8).
  */
-export function useEnvios(cliente: ClienteChatsGenesis) {
+/** GEN1114F · El chat que la persona ve (su id canónico y el nombre tal como está en pantalla). */
+export interface ChatVisto {
+    id: string;
+    nombre: string;
+}
+
+export function useEnvios(cliente: ClienteChatsGenesis, marcaFirma?: string | null) {
     const [envios, setEnvios] = useState<EnvioLocal[]>([]);
     const contador = useRef(0);
 
-    const enviar = useCallback(async (entrada: EntradaEnvio, texto: string): Promise<{ ok: true } | { ok: false; motivo: string }> => {
+    const enviar = useCallback(async (entrada: EntradaEnvio, texto: string, chat?: ChatVisto | null): Promise<{ ok: true } | { ok: false; motivo: string }> => {
         contador.current += 1;
         const clave = `local-${Date.now()}-${contador.current}`;
         const base: EnvioLocal = { clave, id: null, texto, iniciado: Date.now(), estado: "enviando", entrada };
         setEnvios((l) => [...l, base]);
         let r: Awaited<ReturnType<ClienteChatsGenesis["enviar"]>>;
         try {
-            r = await cliente.enviar(entrada);
+            // GEN1114F: `chat` es lo que enseña la cabecera; sin él, `enviar` no firma ni sale nada (§3.4).
+            r = await cliente.enviar(entrada, chat ?? undefined);
         } catch {
             r = { ok: false, estado: 0, error: "sin respuesta" };
         }
         if (r.ok) {
             const id = r.id;
-            setEnvios((l) => l.map((e) => (e.clave === clave ? { ...e, id, estado: "en-cola" } : e)));
+            setEnvios((l) => l.map((e) => (e.clave === clave ? { ...e, id, estado: "en-cola", ...(marcaFirma ? { firmado: marcaFirma } : {}) } : e)));
             return { ok: true };
         }
         const motivo = motivoNoEnviado(r);
         setEnvios((l) => l.map((e) => (e.clave === clave ? { ...e, estado: "no-enviado", detalle: motivo } : e)));
         return { ok: false, motivo };
-    }, [cliente]);
+    }, [cliente, marcaFirma]);
 
     const quitar = useCallback((clave: string) => setEnvios((l) => l.filter((e) => e.clave !== clave)), []);
 
@@ -332,6 +374,38 @@ export function CabeceraEspejo(props: CabeceraEspejoProps) {
                     className="shrink-0 cursor-pointer rounded-md border border-white/20 px-2 py-0.5 text-[11px] opacity-90 transition-opacity hover:opacity-100"
                 >
                     Reintentar
+                </button>
+            ) : null}
+        </div>
+    );
+}
+
+// ── GEN1114F · el nombre del chat encima del hilo ────────────────────────────
+
+export const TEXTO_PROVISIONAL = "nombre provisional: la Mac aún no ha publicado el nombre real";
+
+/**
+ * El nombre del chat tal como se firma (§3.4: `chatNombre` es lo que la persona VE aquí). Un nombre de
+ * 80 caracteres pasa a dos líneas; nunca se corta sin poder leerlo (la información lo enseña entero).
+ */
+export function CabeceraChat({ nombre, provisional, onInfo }: { nombre: string; provisional: boolean; onInfo?: () => void }) {
+    return (
+        <div data-testid="cabecera-chat" className="flex min-w-0 shrink-0 items-center gap-2 px-1">
+            <div className="min-w-0 flex-1">
+                <h2 data-testid="nombre-chat" title={nombre} className="line-clamp-2 break-words text-[14px] font-semibold leading-snug text-white [overflow-wrap:anywhere]">{nombre}</h2>
+                {provisional ? (
+                    <p data-testid="marca-provisional" className="text-[11px] leading-snug text-amber-200/80">({TEXTO_PROVISIONAL})</p>
+                ) : null}
+            </div>
+            {onInfo ? (
+                <button
+                    type="button"
+                    onClick={onInfo}
+                    aria-label="Información del chat"
+                    title="Información del chat"
+                    className="grid size-9 shrink-0 cursor-pointer place-items-center rounded-lg border border-white/10 text-white/60 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40"
+                >
+                    <Info className="size-4" aria-hidden />
                 </button>
             ) : null}
         </div>

@@ -101,6 +101,9 @@ import GovernancePanel from "@/components/governance/governance-panel";
 import GovNotifications from "@/components/governance/notifications-panel";
 import MyActivity from "@/components/decisions/my-activity";
 import { ChatConnectionsPanel } from "@/components/messaging/chat-connections-panel";
+// GEN1114F: lista completa de las pestañas de Chat en móvil y el carril de los botones flotantes.
+import { MenuListaHoja } from "@/components/chats-genesis/menu-lista-hoja";
+import { useReservaFlotantes } from "@/components/chats-genesis/reserva-flotantes";
 import { OssLibraryBrowser } from "@/components/settings/ai/oss-library-browser";
 import { LibrarySourcesPanel } from "@/components/library/library-sources-panel";
 // Adenda 132: configuración unificada de Astraura & OmniVoice.
@@ -849,6 +852,12 @@ interface AgentRenderMsg {
 const TAB_SCROLL = "mt-0 flex-1 min-h-0 w-full max-w-full box-border overflow-y-auto";
 // (2026-09-26 · móvil) max-lg:min-h: el chat nunca se aplasta a 0 px; si no cabe, la página se desplaza.
 const TAB_FILL = "mt-0 flex-1 min-h-0 max-lg:min-h-[30rem] w-full max-w-full box-border overflow-hidden data-[state=active]:flex data-[state=active]:flex-col";
+// GEN1114F · sección Chat: la cabecera es más baja en móvil, así que el chat cabe sin desplazar la página a
+// 360×640 (24rem en vez de 30rem), y todas sus pestañas dejan libre a la derecha el carril de los botones
+// flotantes (`--reserva-flotantes`, la mide el panel con `useReservaFlotantes`; 0 si nada tapa).
+const LIBRE_FLOTANTES = "pr-[var(--reserva-flotantes,0px)]";
+const TAB_FILL_CHAT = `mt-0 flex-1 min-h-0 max-lg:min-h-[24rem] w-full max-w-full box-border overflow-hidden data-[state=active]:flex data-[state=active]:flex-col ${LIBRE_FLOTANTES}`;
+const TAB_SCROLL_CHAT = `${TAB_SCROLL} ${LIBRE_FLOTANTES}`;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Mundo 3D de Génesis: `<MundoSeres>` es puro presentacional (nunca llama al
@@ -975,6 +984,12 @@ function AgentPageInner() {
     () => VALUE_TO_SECTION[initialTab] ?? 'chats'
   );
   const currentSection = STUDIO_SECTIONS.find(s => s.id === activeSection) ?? STUDIO_SECTIONS[0];
+  // GEN1114F: la sección Chat (Chats, Multiagente, Conexiones de chat y Genesis).
+  const esSeccionChat = currentSection.id === "chat";
+  const panelSeccionRef = useRef<HTMLDivElement>(null);
+  const reservaFlotantes = useReservaFlotantes(panelSeccionRef, esSeccionChat);
+  // El chip del proveedor se corta en móvil: tocarlo lo despliega entero.
+  const [chipProveedorAbierto, setChipProveedorAbierto] = useState(false);
 
   // Al elegir una sección, saltamos a su primer ítem (mantiene el panel a la vista).
   const selectSection = useCallback((sectionId: string) => {
@@ -1332,26 +1347,40 @@ function AgentPageInner() {
       // en vez de aplastar el chat a 0 px (Alex: «no se ve el chat ni el cuadro de texto»).
       className="flex flex-col h-[100dvh] gap-2.5 sm:gap-4 p-3 sm:p-4 md:p-5 pl-[max(0.75rem,env(safe-area-inset-left))] pr-[max(0.75rem,env(safe-area-inset-right))] max-w-[1600px] mx-auto w-full box-border overflow-x-hidden overflow-y-auto lg:overflow-hidden">
 
-      <div className="flex items-center justify-between flex-wrap gap-3 w-full max-w-full box-border">
-        <h1 className="text-lg sm:text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-purple-400 flex items-center gap-2 sm:gap-3 min-w-0">
-          <BrainCircuit className="w-6 h-6 sm:w-8 sm:h-8 text-primary shrink-0" />
+      {/* GEN1114F · móvil: título y los dos botones en UNA fila; el chip del proveedor en la suya, a
+          todo el ancho y desplegable (antes se cortaba «Astraura 1.58-bit · astraur…» sin forma de leerlo). */}
+      <div data-testid="cabecera-agente" className="flex items-center justify-between flex-wrap gap-x-3 gap-y-2 sm:gap-3 w-full max-w-full box-border">
+        <h1 className="text-base sm:text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-purple-400 flex items-center gap-2 sm:gap-3 min-w-0 max-sm:flex-1">
+          <BrainCircuit className="w-5 h-5 sm:w-8 sm:h-8 text-primary shrink-0" />
           <span className="truncate">Astraura IA y Orquestación</span>
         </h1>
-        <div className="flex items-center gap-2 flex-wrap min-w-0 max-w-full">
+        <div className="flex items-center gap-2 flex-wrap min-w-0 max-w-full max-sm:contents">
           {activeProviderConfig ? (
-            <Badge
-              variant="outline"
-              className={`gap-1 max-w-[56vw] sm:max-w-[60vw] truncate ${
-                activeProviderInfo?.local
-                  ? "border-emerald-500/50 text-emerald-400 bg-emerald-500/10"
-                  : "border-blue-500/50 text-blue-400 bg-blue-500/10"
-              }`}
+            <button
+              type="button"
+              data-testid="chip-proveedor"
+              aria-expanded={chipProveedorAbierto}
+              aria-label={`Proveedor activo: ${activeProviderConfig.label} · ${activeProviderConfig.defaultModel}. ${chipProveedorAbierto ? "Toca para recogerlo" : "Toca para verlo entero"}`}
+              title={`${activeProviderConfig.label} · ${activeProviderConfig.defaultModel}`}
+              onClick={() => setChipProveedorAbierto((v) => !v)}
+              className="min-w-0 max-w-full cursor-pointer rounded-full text-left max-sm:order-last max-sm:basis-full sm:max-w-[60vw] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40"
             >
-              {activeProviderInfo?.local ? <Cpu className="h-3 w-3 shrink-0" /> : <Cloud className="h-3 w-3 shrink-0" />}
-              <span className="truncate">{activeProviderConfig.label} · {activeProviderConfig.defaultModel}</span>
-            </Badge>
+              <Badge
+                variant="outline"
+                className={cn(
+                  "gap-1 max-w-full",
+                  chipProveedorAbierto ? "whitespace-normal" : "truncate",
+                  activeProviderInfo?.local
+                    ? "border-emerald-500/50 text-emerald-400 bg-emerald-500/10"
+                    : "border-blue-500/50 text-blue-400 bg-blue-500/10",
+                )}
+              >
+                {activeProviderInfo?.local ? <Cpu className="h-3 w-3 shrink-0" /> : <Cloud className="h-3 w-3 shrink-0" />}
+                <span className={chipProveedorAbierto ? "min-w-0 break-words [overflow-wrap:anywhere]" : "truncate"}>{activeProviderConfig.label} · {activeProviderConfig.defaultModel}</span>
+              </Badge>
+            </button>
           ) : (
-            <Link href="/settings">
+            <Link href="/settings" className="max-sm:order-last max-sm:basis-full">
               <Badge variant="outline" className="border-amber-500/50 text-amber-400 bg-amber-500/10 cursor-pointer hover:bg-amber-500/20">
                 Configura un proveedor de IA →
               </Badge>
@@ -1392,9 +1421,13 @@ function AgentPageInner() {
       {/* Presencia Astraura 1.58 (Ola 5 · Adenda 157, SOP §5): línea discreta
           bajo la cabecera de la sección — no es una notificación, no se
           superpone a nada, y no pinta nada si el backend 1.58 no responde. */}
-      <Astraura158PresenceBar />
+      {/* GEN1114F: en móvil y tableta, dentro de la sección Chat, la tira de presencia no se pinta: llegaba
+          tarde y empujaba la página justo cuando se iba a tocar algo. En el resto de secciones sigue igual. */}
+      <div data-testid="presencia-agente" className={cn("empty:hidden", esSeccionChat && "max-lg:hidden")}>
+        <Astraura158PresenceBar />
+      </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col lg:flex-row gap-3 lg:gap-4 min-h-0 w-full max-w-full box-border">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col lg:flex-row gap-2 sm:gap-3 lg:gap-4 min-h-0 w-full max-w-full box-border">
 
         {/* ── RAIL DE SECCIONES ──────────────────────────────────────────────
             Desktop: navegación vertical fija a la izquierda.
@@ -1402,21 +1435,33 @@ function AgentPageInner() {
             desborda el viewport. */}
         {/* Móvil y tableta: las 22 secciones ya no se arrastran en una tira; un botón con la
             sección actual abre la lista completa (MenuListaMovil). Junto a él, «Configurar». */}
-        <div className="flex lg:hidden items-center gap-2 shrink-0 w-full max-w-full box-border">
+        {/* GEN1114F · sección Chat por debajo de `sm`: la sección y su pestaña son dos botones en la misma
+            fila, cada uno con su lista completa (antes una tira que se salía por la derecha y escondía
+            «Genesis»). El botón de configurar ya está en la cabecera («Configurar IA»): aquí sobra. */}
+        <div data-testid="fila-secciones-movil" className="flex lg:hidden items-center gap-2 shrink-0 w-full max-w-full box-border">
           <MenuListaMovil
             titulo="Secciones de Astraura"
             opciones={STUDIO_SECTIONS.map((sec) => ({ id: sec.id, label: sec.label, icon: sec.icon, hint: sec.hint, accent: sec.accent }))}
             valor={activeSection}
             onCambiar={(id) => selectSection(id as typeof activeSection)}
-            className="flex-1"
+            className="flex-1 basis-0"
           />
+          {esSeccionChat && (
+            <MenuListaHoja
+              titulo="Pestañas de Chat"
+              opciones={currentSection.items.map((it) => ({ id: it.value, label: it.label, icon: it.icon, accent: currentSection.accent }))}
+              valor={activeTab}
+              onCambiar={setActiveTab}
+              className="flex-1 basis-0 sm:hidden"
+            />
+          )}
           <Button
             type="button"
             variant="outline"
             onClick={() => openAstrauraConfig()}
             aria-label="Configurar Astraura y OmniVoice"
             title="Configurar Astraura y OmniVoice"
-            className="size-11 shrink-0 rounded-xl px-0 border-fuchsia-400/40 bg-fuchsia-500/10 text-fuchsia-200 hover:bg-fuchsia-500/20 cursor-pointer"
+            className={cn("size-11 shrink-0 rounded-xl px-0 border-fuchsia-400/40 bg-fuchsia-500/10 text-fuchsia-200 hover:bg-fuchsia-500/20 cursor-pointer", esSeccionChat && "max-sm:hidden")}
           >
             <SlidersHorizontal className="h-4 w-4" />
           </Button>
@@ -1450,10 +1495,17 @@ function AgentPageInner() {
         </nav>
 
         {/* ── PANEL DE LA SECCIÓN ACTIVA ─────────────────────────────────── */}
-        <div className="flex-1 flex flex-col gap-3 min-h-0 min-w-0 w-full max-w-full box-border">
+        <div
+          ref={panelSeccionRef}
+          data-testid="panel-seccion"
+          data-reserva-flotantes={esSeccionChat ? reservaFlotantes : undefined}
+          style={esSeccionChat ? ({ "--reserva-flotantes": `${reservaFlotantes}px` } as React.CSSProperties) : undefined}
+          className="flex-1 flex flex-col gap-2 sm:gap-3 min-h-0 min-w-0 w-full max-w-full box-border"
+        >
 
-          {/* Cabecera de la sección + sub-pestañas deslizables */}
-          <div className={cn("shrink-0 w-full max-w-full box-border rounded-xl border border-white/5 bg-black/20 backdrop-blur-md p-1.5 sm:p-2.5", currentSection.items.length > 1 ? "" : "hidden lg:block")}>
+          {/* Cabecera de la sección + sub-pestañas (en la sección Chat: en varias líneas, nunca deslizables;
+              por debajo de `sm` van en la lista de la fila de arriba) */}
+          <div data-testid="cabecera-seccion" className={cn("shrink-0 w-full max-w-full box-border rounded-xl border border-white/5 bg-black/20 backdrop-blur-md p-1.5 sm:p-2.5", currentSection.items.length > 1 ? "" : "hidden lg:block", esSeccionChat && "max-sm:hidden")}>
             <div className="hidden lg:flex items-center gap-2 px-1 pb-2 min-w-0">
               <currentSection.icon className={cn("w-4 h-4 shrink-0", currentSection.accent)} />
               <span className="text-sm font-semibold text-white truncate">{currentSection.label}</span>
@@ -1477,7 +1529,13 @@ function AgentPageInner() {
               </Button>
             </div>
             {currentSection.items.length > 1 && (
-              <TabsList className="ss-hscroll ss-hscroll-fade w-full max-w-full box-border justify-start bg-transparent border-0 py-0 px-1 lg:px-3 scroll-px-3 gap-1 h-auto flex-nowrap">
+              <TabsList
+                data-testid="pestanas-seccion"
+                className={cn(
+                  "w-full max-w-full box-border justify-start bg-transparent border-0 py-0 px-1 lg:px-3 gap-1 h-auto",
+                  esSeccionChat ? "flex-wrap" : "ss-hscroll ss-hscroll-fade scroll-px-3 flex-nowrap",
+                )}
+              >
                 {currentSection.items.map((it) => {
                   const ItemIcon = it.icon;
                   return (
@@ -1538,7 +1596,7 @@ function AgentPageInner() {
         </TabsContent>
 
         {/* --- TAB: CHAT (cuerpo extraído a ChatSurface · Adenda 76 · G1) --- */}
-        <TabsContent value="chat" className={TAB_FILL}>
+        <TabsContent value="chat" className={TAB_FILL_CHAT}>
           <ChatSurface />
         </TabsContent>
 
@@ -1908,10 +1966,10 @@ function AgentPageInner() {
 
         <TabsContent value="coherencia" className={TAB_SCROLL}><PersonaCoherencePanel /></TabsContent>
 
-        <TabsContent value="conexiones-chat" className={TAB_SCROLL}><ChatConnectionsPanel foco={focoDeConexiones(tabParam, params?.get('foco'))} /></TabsContent>
+        <TabsContent value="conexiones-chat" className={TAB_SCROLL_CHAT}><ChatConnectionsPanel foco={focoDeConexiones(tabParam, params?.get('foco'))} /></TabsContent>
 
         {/* GEN1113E: chats de Genesis, PoliGenesis y MetaGenesis (la pestaña es de GEN1113D). */}
-        <TabsContent value="chats-genesis" className={TAB_FILL}><PestanaGenesis /></TabsContent>
+        <TabsContent value="chats-genesis" className={TAB_FILL_CHAT}><PestanaGenesis /></TabsContent>
 
         <TabsContent value="almacenes" className={TAB_SCROLL}><StoragePanel /></TabsContent>
 
@@ -1993,7 +2051,7 @@ function AgentPageInner() {
           <ImaginacionView />
         </TabsContent>
 
-        <TabsContent value="chat-158" className={TAB_SCROLL}><S158TabHost tab="chat" /></TabsContent>
+        <TabsContent value="chat-158" className={TAB_SCROLL_CHAT}><S158TabHost tab="chat" /></TabsContent>
         <TabsContent value="voz-158" className={TAB_SCROLL}><S158TabHost tab="voz" /></TabsContent>
         <TabsContent value="proyectos-158" className={TAB_SCROLL}><S158TabHost tab="proyectos" /></TabsContent>
         <TabsContent value="almacenamiento-158" className={TAB_SCROLL}><S158TabHost tab="almacenamiento" /></TabsContent>

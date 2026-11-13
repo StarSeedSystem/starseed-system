@@ -27,6 +27,18 @@ vi.mock("@/lib/chats-genesis/vinculos", async (original) => {
     };
 });
 
+// GEN1114F: la clave del aparato y su estado en la puerta (sin IndexedDB ni red en jsdom).
+vi.mock("@/lib/chats-genesis/firma-aparato", async (original) => {
+    const real = await original<typeof import("@/lib/chats-genesis/firma-aparato")>();
+    const { APARATO_COMPLETO: a } = await import("./ayudas");
+    return { ...real, aparatoLocal: vi.fn(async () => a) };
+});
+vi.mock("@/lib/chats-genesis/emparejar", async (original) => {
+    const real = await original<typeof import("@/lib/chats-genesis/emparejar")>();
+    const { APARATO_COMPLETO: a } = await import("./ayudas");
+    return { ...real, consultarEmparejamiento: vi.fn(async () => a), crearClienteAparatos: vi.fn(() => ({ solicitar: vi.fn(), estado: vi.fn(async () => null) })) };
+});
+
 import { PestanaGenesis } from "../pestana-genesis";
 import { VISTAS } from "../hilo-direccion";
 import { TEXTO_SIN_META } from "../lista-chats-genesis";
@@ -37,7 +49,9 @@ async function montar(opciones: { ancho: number; registros?: ReturnType<typeof f
     ponerAncho(opciones.ancho);
     const registros = opciones.registros ?? feedDeEjemplo();
     const falso = clienteFalso({ feeds: { direccion: respuestaFeed(registros, opciones.latidoS === undefined ? 20 : opciones.latidoS) } });
-    render(<PestanaGenesis cliente={falso.cliente} />);
+    // Sin catálogo (la Mac aún no lo publicó): los nombres son los provisionales de GEN1113.
+    const clienteCanon = { leer: vi.fn(async () => ({ ok: true as const, catalogo: null })) };
+    render(<PestanaGenesis cliente={falso.cliente} clienteCanon={clienteCanon} />);
     await act(async () => { await Promise.resolve(); });
     return { ...falso, registros };
 }
@@ -56,7 +70,8 @@ describe("PestanaGenesis", () => {
     it("un dueño ve el grupo MetaGenesis con Dirección y los tres puentes, y las seis vistas", async () => {
         await montar({ ancho: 1440 });
         const grupo = await screen.findByRole("group", { name: "MetaGenesis" });
-        expect(within(grupo).getByText("Dirección")).toBeInTheDocument();
+        expect(within(grupo).getByText("GENESIS · StarSeed OS")).toBeInTheDocument();
+        expect(within(grupo).getAllByTestId("marca-provisional-lista").length).toBe(4);
         for (const p of ["Hermes y avisos", "Peticiones y encargos", "Avisos de los directores"]) expect(within(grupo).getByText(p)).toBeInTheDocument();
         expect(within(grupo).getByText("Puentes de Telegram")).toBeInTheDocument();
         const vistas = await screen.findByRole("tablist", { name: "Vistas de dirección" });
@@ -100,7 +115,7 @@ describe("PestanaGenesis", () => {
         const { feed } = await montar({ ancho: 1440 });
         await screen.findByText(TEXTO_SIN_META);
         expect(screen.queryByRole("group", { name: "MetaGenesis" })).toBeNull();
-        expect(screen.queryByText("Dirección")).toBeNull();
+        expect(screen.queryByText("GENESIS · StarSeed OS")).toBeNull();
         expect(screen.queryByText("Hermes y avisos")).toBeNull();
         expect(screen.getByRole("heading", { name: "Agente de Mi Genesis" })).toBeInTheDocument();
         expect(feed).not.toHaveBeenCalled();
@@ -133,7 +148,7 @@ describe("PestanaGenesis", () => {
             await montar({ ancho: 360 });
             const lista = await screen.findByTestId("lista-chats-genesis");
             expect(lista).toHaveAttribute("data-modo", "menu");
-            expect(within(lista).getByRole("button", { name: "Chats de Genesis: Dirección" })).toBeInTheDocument();
+            expect(within(lista).getByRole("button", { name: "Chats de Genesis: GENESIS · StarSeed OS" })).toBeInTheDocument();
             await screen.findAllByTestId("mensaje-direccion");
             expect(screen.queryByRole("tablist", { name: "Vistas de dirección" })).toBeNull();
             expect(screen.getByTestId("vistas-en-lista")).toBeInTheDocument();
@@ -187,7 +202,9 @@ describe("PestanaGenesis", () => {
             await montar({ ancho: 1440 });
             fireEvent.click(await screen.findByText("Hermes y avisos"));
             expect(await screen.findByTestId("hilo-puente")).toBeInTheDocument();
-            expect(screen.getByTestId("compositor-puente")).toBeInTheDocument();
+            // GEN1114F: sin catálogo no hay id real del puente, así que no se ofrece escribir y se dice por qué.
+            expect(screen.getByTestId("sin-chat-firmable")).toBeInTheDocument();
+            expect(screen.queryByTestId("compositor-puente")).toBeNull();
         });
     });
 });

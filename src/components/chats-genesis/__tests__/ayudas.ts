@@ -6,6 +6,8 @@ import { vi } from "vitest";
 
 import type { ClienteChatsGenesis } from "@/lib/chats-genesis/puerta-chats";
 import type { RegistroEspejo } from "@/lib/chats-genesis/tipos";
+import type { CatalogoCanon } from "@/lib/chats-genesis/canon";
+import type { AparatoLocal } from "@/lib/chats-genesis/firma-aparato";
 
 type RespFeed = Awaited<ReturnType<ClienteChatsGenesis["feed"]>>;
 type RespEnviar = Awaited<ReturnType<ClienteChatsGenesis["enviar"]>>;
@@ -35,7 +37,7 @@ export function ponerAncho(px: number): void {
  */
 export function clienteFalso(op: {
     feeds?: Record<string, RespFeed>;
-    enviar?: (e: Parameters<ClienteChatsGenesis["enviar"]>[0]) => Promise<RespEnviar>;
+    enviar?: (e: Parameters<ClienteChatsGenesis["enviar"]>[0], chat?: Parameters<ClienteChatsGenesis["enviar"]>[1]) => Promise<RespEnviar>;
     acuses?: (ids: number[]) => Promise<RespAcuses>;
 } = {}) {
     const feed = vi.fn((f: Parameters<ClienteChatsGenesis["feed"]>[0], senal?: AbortSignal): Promise<RespFeed> => {
@@ -46,7 +48,8 @@ export function clienteFalso(op: {
             senal?.addEventListener("abort", () => resolver({ ok: false, estado: 0, error: "cancelado" }), { once: true });
         });
     });
-    const enviar = vi.fn(op.enviar ?? (async () => ({ ok: true as const, id: 7 })));
+    // GEN1114F: `enviar` recibe también el chat que se ve (segundo argumento).
+    const enviar = vi.fn(op.enviar ?? (async (_e: Parameters<ClienteChatsGenesis["enviar"]>[0], _chat?: Parameters<ClienteChatsGenesis["enviar"]>[1]): Promise<RespEnviar> => ({ ok: true as const, id: 7 })));
     const acuses = vi.fn(op.acuses ?? (async () => ({})));
     const cliente: ClienteChatsGenesis = { feed, enviar, acuses };
     return { cliente, feed, enviar, acuses };
@@ -92,3 +95,49 @@ export function respuestaFeed(registros: RegistroEspejo[], latidoS: number | nul
         latido: latidoS === null ? null : { t: new Date(Date.now() - latidoS * 1000).toISOString(), de: "mac" },
     };
 }
+
+/**
+ * GEN1114F · aparatos y catálogo de ejemplo para las pruebas de la interfaz (contrato GEN1114 §5.1 y §8.4).
+ * Los nombres de los puentes son inventados («Hermes StarSeed»…): sirven para comprobar que con
+ * catálogo no aparece ninguna etiqueta de GEN1113.
+ */
+export const APARATO_COMPLETO: AparatoLocal = {
+    huella: "17a3b6ff31fccb5586b758b98e5cfcc2c4c4b68aa103288765360cfd0f64d80c",
+    codigo: "7ETY-DGGK-DY2F",
+    cuenta: "00000000-0000-4000-8000-000000000001",
+    nombre: "iPhone de prueba",
+    creado: "2026-11-13T01:00:00.000Z",
+    seq: 3,
+    nivel: "completo",
+    estado: "emparejado",
+    desde: "2026-11-13T01:05:00.000Z",
+};
+export const APARATO_TEXTO: AparatoLocal = { ...APARATO_COMPLETO, nivel: "texto" };
+
+const MEDIO_WEB = { medio: "genesis-web" as const, nombreEnMedio: null, estadoNombre: "sin-comprobar" as const, comprobado: null, huella: null };
+
+export function catalogoDeEjemplo(): CatalogoCanon {
+    const base = { v: 2 as const, nombreProvisional: false, version: 4, actualizado: "2026-11-13T01:00:00.000Z" };
+    return {
+        v: 2,
+        version: 4,
+        t: "2026-11-13T01:00:00.000Z",
+        chats: [
+            { ...base, id: "genesis", nombre: "GENESIS · StarSeed OS", tipo: "direccion", fuente: "direccion", alias: ["direccion", "mando"], medios: [MEDIO_WEB] },
+            { ...base, id: "genesis.canal.director-presidente", nombre: "Director presidente", tipo: "canal-director", padre: "genesis", fuente: null, alias: [], medios: [MEDIO_WEB] },
+            {
+                ...base, id: "telegram.hermes_starseed_bot", nombre: "Hermes StarSeed", tipo: "puente-telegram", fuente: "puente:hermes-avisos",
+                alias: ["puente:hermes-avisos", "hermes-avisos", "Hermes y avisos"],
+                medios: [
+                    { medio: "telegram", nombreEnMedio: "Hermes del grupo", estadoNombre: "distinto", comprobado: "2026-11-13T01:00:00.000Z", huella: "a1b2c3d4", usuario: "@hermes_starseed_bot" },
+                    MEDIO_WEB,
+                ],
+            },
+            { ...base, id: "telegram.sintesis_starseed_bot", nombre: "Síntesis StarSeed", tipo: "puente-telegram", fuente: "puente:peticiones", alias: ["puente:peticiones", "peticiones", "Peticiones y encargos"], medios: [MEDIO_WEB] },
+            { ...base, id: "telegram.avisos_starseed_bot", nombre: "Avisos StarSeed", tipo: "puente-telegram", fuente: "puente:avisos-directores", alias: ["puente:avisos-directores", "avisos-directores", "Avisos de los directores"], medios: [MEDIO_WEB] },
+        ],
+    } as CatalogoCanon;
+}
+
+/** Las tres etiquetas de GEN1113 que, con catálogo, no deben verse en ninguna pantalla (§7.3). */
+export const ETIQUETAS_GEN1113 = ["Hermes y avisos", "Peticiones y encargos", "Avisos de los directores"];
