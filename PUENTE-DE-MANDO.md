@@ -1,6 +1,6 @@
 # Genesis · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-13 15:15:20 desde Genesis vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-13 15:47:42 desde Genesis vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -16,26 +16,18 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | Agentes escribiendo | **0** |
 | En esta ola | integradas 0 · en curso 0 · esperando aprobación 0 · pendientes 15 |
 | Últimas 4 olas | en curso 0 · pendientes 100 · integradas 0 |
-| HEAD | `b7bfca2fb chore(memoria): aprendizaje de la ola auto-1113-120832` |
-| Sin publicar | 20 commits |
-| Árbol | 3 archivos sin commitear |
+| HEAD | `4b48f21ff chore(memoria): aprendizaje de la ola auto-1113-151648` |
+| Sin publicar | 9 commits |
+| Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-1113-120832.json`, hace 13s)
+## Quién escribe ahora (latido de `cola-auto-1113-151648.json`, hace 11s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `ALC1113As` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 1 min | 54 s | 110948 |
-| `CTD1113Ab` | hecho | openrouter/cohere/north-mini-code: | 10 min | 577 s | 106900 |
-| `ALC1113A` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 13 min | 797 s | 202091 |
-| `CTD1113Eb` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 17 min | 992 s | 143 |
-| `CTD1113G` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 21 min | 1284 s | 81682 |
-| `CTD1113F` | hecho | apinex/free/gemini-3.8-flash | 28 min | 1666 s | 94880 |
-| `CTD1113A` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 29 min | 1724 s | 262480 |
-| `CTD1113E` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 29 min | 1764 s | 200653 |
-| `CTD1113D` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 30 min | 1797 s | 136753 |
-| `CTD1113B` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 31 min | 1848 s | 160510 |
-| `SUP1113C` | hecho | openrouter/cohere/north-mini-code: | 45 min | 2715 s | 262550 |
-| `CTD1113C` | hecho | google/gemini-3.6-flash | 169 min | 10125 s | 31796 |
+| `DR1113-1` | hecho | openrouter/cohere/north-mini-code: | 2 min | 123 s | 192143 |
+| `ALC1113B` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 2 min | 149 s | 153264 |
+| `DR1113-2` | hecho | openrouter/cohere/north-mini-code: | 5 min | 312 s | 96043 |
+| `ALC1113C` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 16 min | 946 s | 117197 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
