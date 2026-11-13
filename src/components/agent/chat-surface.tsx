@@ -91,6 +91,7 @@ import { PROVIDERS } from "@/ai/providers";
 import type { ProviderConfig, ChatMessage } from "@/ai/providers/types";
 import { persona158For } from "@/ai/providers/astraura-158";
 import { createStreamingVoice, type StreamingVoicePersona } from "@/lib/aurora/streaming-voice";
+import { emitirVectorPorClausula } from "@/lib/aurora/vector-por-clausula";
 import { buildSystemContext, snapshotToSystemPrompt } from "@/hermes-integration/system-context";
 import { getLivingGraphStore } from "@/hermes-integration/living-graph-store";
 import { getOpenHumanEngine } from "@/hermes-integration/openhuman-bridge";
@@ -501,6 +502,11 @@ export function ChatSurface({ variant = "embedded", className, initialConvId }: 
    * termina de verdad (ver `advanceTtsQueue` en engine.ts).
    */
   function speakStreamingClause(text: string, personaId?: string) {
+    // Vector visual por cláusula (Dream 2026-11-13): cada cláusula hablada
+    // publica su expresión (`turbulence`, `spikiness`, `symmetry`, `hueShift`,
+    // `breath`) en el canal `params` del bus de la orbe, que `aurora-orb.tsx`
+    // ya consume. Nunca lanza ni toca la voz.
+    emitirVectorPorClausula(text);
     const profile = personaId ? getPersonalityProfile(personaId) : null;
     try {
       aurora?.speakQueued?.(text, profile ?? undefined);
