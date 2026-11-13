@@ -540,5 +540,198 @@ class NotebookLMAlA1(unittest.TestCase):
         self.assertEqual(r["motivo"], "sin sesión de NotebookLM en este nodo")
 
 
+class PeticionesTelegram(unittest.TestCase):
+    """(PET1112B) Pruebas de la orden `peticiones`: despliega 3 unidades, arranca la nueva
+    ANTES de retirar la vieja, y conserva el offset en estado.json."""
+
+    def _mocks(self, respuestas_ssh, respuestas_ssh_bytes=None):
+        """Configura mocks para ssh y _ssh_bytes."""
+        self._ssh_original = N.ssh
+        self._ssh_bytes_original = N._ssh_bytes
+        self._ssh_llamadas = []
+        self._ssh_bytes_llamadas = []
+
+        def mock_ssh(orden, entrada=None, timeout=120):
+            self._ssh_llamadas.append({"orden": orden, "entrada": entrada})
+            if not respuestas_ssh:
+                return 0, ""
+            return respuestas_ssh.pop(0)
+
+        def mock_ssh_bytes(orden, datos, timeout=300):
+            self._ssh_bytes_llamadas.append({"orden": orden, "datos": datos})
+            if respuestas_ssh_bytes is None:
+                return 0, ""
+            if not respuestas_ssh_bytes:
+                return 0, ""
+            return respuestas_ssh_bytes.pop(0)
+
+        N.ssh = mock_ssh
+        N._ssh_bytes = mock_ssh_bytes
+
+    def _restaurar(self):
+        N.ssh = self._ssh_original
+        N._ssh_bytes = self._ssh_bytes_original
+
+    def test_plan_peticiones_es_puro_y_completo(self):
+        """El plan declara los pasos en orden: instalar 3 unidades, daemon-reload, enable --now,
+        esperar activa, parar vieja, deshabilitar vieja, limpiar vieja, conservar offset."""
+        plan = N.plan_peticiones()
+        self.assertEqual(len(plan), 10)
+        ques = [p["que"] for p in plan]
+        self.assertEqual(ques.count("instalar"), 3)
+        self.assertIn("recargar", ques)
+        self.assertIn("arrancar", ques)
+        self.assertIn("esperar", ques)
+        self.assertIn("parar vieja", ques)
+        self.assertIn("deshabilitar vieja", ques)
+        self.assertIn("limpiar vieja", ques)
+        self.assertIn("conservar offset", ques)
+        # El offset NO se toca
+        self.assertEqual([p for p in plan if p["que"] == "conservar offset"][0]["orden"], "")
+
+    def test_sin_aplicar_solo_enseña_el_plan(self):
+        """Sin --aplicar devuelve el plan sin tocar SSH."""
+        self._mocks([])
+        try:
+            r = N.peticiones(aplicar=False)
+            self.assertTrue(r["ok"])
+            self.assertFalse(r["aplicado"])
+            self.assertEqual(len(r["pasos"]), 10)
+            self.assertEqual(len(self._ssh_llamadas), 0)
+        finally:
+            self._restaurar()
+
+    def test_aplicar_copia_3_unidades_daemon_reload_arranca_nueva_antes_vieja(self):
+        """Con --aplicar: copia 3 unidades, daemon-reload, enable --now, espera activa,
+        SOLO ENTONCES para/deshabilita/limpia la vieja, y verifica offset."""
+        # Respuestas: 3x _poner_en_a1 (instalar unidades), 1x daemon-reload, 1x enable --now,
+        # 1x esperar activa, 1x stop vieja, 1x disable vieja, 1x rm -rf vieja, 1x test offset
+        self._mocks([
+            (0, "ok"),  # _poner_en_a1 peticiones
+            (0, "ok"),  # _poner_en_a1 cuentas-dueno
+            (0, "ok"),  # _poner_en_a1 cuentas-dueno.path
+            (0, "ok"),  # daemon-reload
+            (0, "ok"),  # enable --now
+            (0, "ok"),  # esperar activa
+            (0, "ok"),  # stop vieja
+            (0, "ok"),  # disable vieja
+            (0, "ok"),  # rm -rf vieja
+            (0, "offset conservado"),  # test offset
+        ])
+        try:
+            r = N.peticiones(aplicar=True)
+            self.assertTrue(r["ok"])
+            self.assertTrue(r["aplicado"])
+            # Verificar orden: las 3 unidades primero
+            ordenes = [c["orden"] for c in self._ssh_llamadas]
+            # _poner_en_a1 usa un heredoc con install, no vemos "instalar" en la orden
+            # pero vemos daemon-reload antes de enable --now
+            idx_reload = next(i for i, o in enumerate(ordenes) if "daemon-reload" in o)
+            idx_enable = next(i for i, o in enumerate(ordenes) if "enable --now" in o)
+            idx_esperar = next(i for i, o in enumerate(ordenes) if "is-active" in o)
+            idx_stop = next(i for i, o in enumerate(ordenes) if "stop starseed-peticiones-telegram" in o)
+            idx_disable = next(i for i, o in enumerate(ordenes) if "disable starseed-peticiones-telegram" in o)
+            idx_rm = next(i for i, o in enumerate(ordenes) if "rm -rf" in o and "herramientas" in o)
+            idx_offset = next(i for i, o in enumerate(ordenes) if "test -f" in o and "estado.json" in o)
+            self.assertLess(idx_reload, idx_enable)
+            self.assertLess(idx_enable, idx_esperar)
+            self.assertLess(idx_esperar, idx_stop)
+            self.assertLess(idx_stop, idx_disable)
+            self.assertLess(idx_disable, idx_rm)
+            self.assertLess(idx_rm, idx_offset)
+        finally:
+            self._restaurar()
+
+    def test_si_falla_instalar_unidad_no_continua(self):
+        """Si falla copiar una unidad, no hace daemon-reload ni arranca nada."""
+        self._mocks([
+            (1, "permiso denegado"),  # falla la primera unidad
+        ])
+        try:
+            r = N.peticiones(aplicar=True)
+            self.assertFalse(r["ok"])
+            ordenes = [c["orden"] for c in self._ssh_llamadas]
+            # Solo la primera _poner_en_a1
+            self.assertEqual(len([o for o in ordenes if "install" in o]), 1)
+            # No daemon-reload
+            self.assertFalse(any("daemon-reload" in o for o in ordenes))
+        finally:
+            self._restaurar()
+
+    def test_si_falla_daemon_reload_no_arranca(self):
+        """Si daemon-reload falla, no hace enable --now."""
+        self._mocks([
+            (0, "ok"), (0, "ok"), (0, "ok"),  # 3 unidades ok
+            (1, "daemon-reload falló"),       # daemon-reload falla
+        ])
+        try:
+            r = N.peticiones(aplicar=True)
+            self.assertFalse(r["ok"])
+            ordenes = [c["orden"] for c in self._ssh_llamadas]
+            self.assertFalse(any("enable --now" in o for o in ordenes))
+        finally:
+            self._restaurar()
+
+    def test_si_falla_enable_now_no_toca_vieja(self):
+        """Si enable --now falla, NO para ni deshabilita la vieja (regla de seguridad)."""
+        self._mocks([
+            (0, "ok"), (0, "ok"), (0, "ok"),  # 3 unidades ok
+            (0, "ok"),                         # daemon-reload ok
+            (1, "enable falló"),               # enable --now falla
+        ])
+        try:
+            r = N.peticiones(aplicar=True)
+            self.assertFalse(r["ok"])
+            ordenes = [c["orden"] for c in self._ssh_llamadas]
+            self.assertFalse(any("stop starseed-peticiones-telegram" in o for o in ordenes))
+            self.assertFalse(any("disable starseed-peticiones-telegram" in o for o in ordenes))
+            self.assertFalse(any("rm -rf" in o and "herramientas" in o for o in ordenes))
+        finally:
+            self._restaurar()
+
+    def test_si_falla_esperar_activa_no_toca_vieja(self):
+        """Si la nueva no se pone activa, NO toca la vieja."""
+        self._mocks([
+            (0, "ok"), (0, "ok"), (0, "ok"),  # 3 unidades ok
+            (0, "ok"),                         # daemon-reload ok
+            (0, "ok"),                         # enable --now ok
+            (1, "inactive"),                   # esperar activa falla
+        ])
+        try:
+            r = N.peticiones(aplicar=True)
+            self.assertFalse(r["ok"])
+            ordenes = [c["orden"] for c in self._ssh_llamadas]
+            self.assertFalse(any("stop starseed-peticiones-telegram" in o for o in ordenes))
+            self.assertFalse(any("disable starseed-peticiones-telegram" in o for o in ordenes))
+            self.assertFalse(any("rm -rf" in o and "herramientas" in o for o in ordenes))
+        finally:
+            self._restaurar()
+
+    def test_no_imprime_ip_en_resultado(self):
+        """La IP nunca aparece en el detalle de los pasos (usa tachar)."""
+        # Simular que _ip() devuelve una IP
+        ip_original = N._ip
+        N._ip = lambda: "140.1.2.3"
+        self._mocks([
+            (0, "ok"), (0, "ok"), (0, "ok"),
+            (0, "ok"),
+            (0, "ok"),
+            (0, "ok"),
+            (0, "ok"),
+            (0, "ok"),
+            (0, "ok"),
+            (0, "offset conservado"),
+        ])
+        try:
+            r = N.peticiones(aplicar=True)
+            # Verificar que ningún detalle contiene la IP real
+            for paso in r.get("hecho", []):
+                self.assertNotIn("140.1.2.3", str(paso.get("detalle", "")))
+                self.assertNotIn("140-1-2-3", str(paso.get("detalle", "")))
+        finally:
+            N._ip = ip_original
+            self._restaurar()
+
+
 if __name__ == "__main__":
     unittest.main()

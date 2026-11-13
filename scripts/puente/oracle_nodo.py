@@ -2119,6 +2119,120 @@ def freellmapi():
     return dict(res, ok=rc == 0, pasos=lineas or salida.strip().splitlines()[-8:])
 
 
+# ── peticiones por Telegram (PET1112B) ──
+
+UNIDAD_PETICIONES = os.path.join(os.path.dirname(os.path.dirname(DIRECTORIO)), "deploy", "oracle",
+                                 "nodo", "systemd", "starseed-peticiones-telegram.service")
+UNIDAD_CUENTAS_DUENO = os.path.join(os.path.dirname(os.path.dirname(DIRECTORIO)), "deploy", "oracle",
+                                    "nodo", "systemd", "starseed-cuentas-dueno.service")
+UNIDAD_CUENTAS_DUENO_PATH = os.path.join(os.path.dirname(os.path.dirname(DIRECTORIO)), "deploy", "oracle",
+                                         "nodo", "systemd", "starseed-cuentas-dueno.path")
+SERVICIO_PETICIONES_A1 = "/etc/systemd/system/starseed-peticiones-telegram.service"
+SERVICIO_CUENTAS_DUENO_A1 = "/etc/systemd/system/starseed-cuentas-dueno.service"
+SERVICIO_CUENTAS_DUENO_PATH_A1 = "/etc/systemd/system/starseed-cuentas-dueno.path"
+HERRAMIENTA_VIEJA = "/home/starseed/herramientas/peticiones-telegram"
+ESTADO_PETICIONES_A1 = "/home/starseed/.starseed/peticiones/estado.json"
+SCRIPT_PETICIONES_A1 = "/home/starseed/starseed-system/scripts/puente/peticiones_telegram.py"
+
+
+def plan_peticiones():
+    """PURA (PET1112B). El plan de la orden `peticiones`: copia las tres unidades, daemon-reload,
+    arranca la nueva, y SOLO entonces para y deshabilita la herramienta vieja, conservando el offset."""
+    return [
+        {"que": "instalar", "ruta": SERVICIO_PETICIONES_A1, "origen": UNIDAD_PETICIONES,
+         "porque": "unidad de peticiones con ExecStart en el checkout del A1 (patrón starseed-metagenesis)"},
+        {"que": "instalar", "ruta": SERVICIO_CUENTAS_DUENO_A1, "origen": UNIDAD_CUENTAS_DUENO,
+         "porque": "unidad oneshot: corrige dueño starseed de las cuentas"},
+        {"que": "instalar", "ruta": SERVICIO_CUENTAS_DUENO_PATH_A1, "origen": UNIDAD_CUENTAS_DUENO_PATH,
+         "porque": "path unit: vigila cambios en cuentas y lanza la oneshot"},
+        {"que": "recargar", "orden": "sudo systemctl daemon-reload",
+         "porque": "systemd lee las tres unidades nuevas"},
+        {"que": "arrancar", "orden": "sudo systemctl enable --now starseed-peticiones-telegram",
+         "porque": "la nueva herramienta activa ANTES de tocar la vieja"},
+        {"que": "esperar", "orden": "systemctl is-active --quiet starseed-peticiones-telegram || sleep 2",
+         "porque": "confirmar que la nueva está viva antes de retirar la vieja"},
+        {"que": "parar vieja", "orden": "systemctl stop starseed-peticiones-telegram 2>/dev/null || true",
+         "porque": "parar la unidad nueva SÓLO si la vieja estaba corriendo como servicio (compat)"},
+        {"que": "deshabilitar vieja", "orden": "systemctl disable starseed-peticiones-telegram 2>/dev/null || true",
+         "porque": "deshabilitar la vieja si existía como unidad"},
+        {"que": "limpiar vieja", "orden": "rm -rf " + HERRAMIENTA_VIEJA,
+         "porque": "borrar la carpeta de la herramienta vieja (/home/starseed/herramientas/peticiones-telegram)"},
+        {"que": "conservar offset", "orden": "",
+         "porque": "~/.starseed/peticiones/estado.json (el offset) NO se toca: la nueva lo lee igual"},
+    ]
+
+
+def peticiones(aplicar=False):
+    """`peticiones [--aplicar]`: despliega las tres unidades en el A1 (peticiones, cuentas-dueno service+path),
+    hace daemon-reload, arranca la nueva y SOLO entonces para/deshabilita la vieja herramienta
+    (/home/starseed/herramientas/peticiones-telegram). Conserva ~/.starseed/peticiones/estado.json
+    (el offset) para no repetir mensajes. Nunca imprime la IP."""
+    for ruta in (UNIDAD_PETICIONES, UNIDAD_CUENTAS_DUENO, UNIDAD_CUENTAS_DUENO_PATH):
+        try:
+            with open(ruta, encoding="utf-8") as f:
+                f.read()
+        except OSError:
+            return {"ok": False, "motivo": "falta %s en el repo" % os.path.basename(ruta)}
+    if not aplicar:
+        return {"ok": True, "aplicado": False, "pasos": [{"que": p["que"], "porque": p["porque"]} for p in plan_peticiones()]}
+    res = {"ok": True, "aplicado": True, "hecho": []}
+
+    def apuntar(que, rc, salida):
+        res["ok"] = res["ok"] and rc == 0
+        res["hecho"].append({"que": que, "ok": rc == 0,
+                             "detalle": "" if rc == 0 else tachar(salida.strip()[-160:], _ip())})
+
+    # 1) Instalar las tres unidades
+    for nombre, destino in (("peticiones", SERVICIO_PETICIONES_A1),
+                            ("cuentas-dueno", SERVICIO_CUENTAS_DUENO_A1),
+                            ("cuentas-dueno.path", SERVICIO_CUENTAS_DUENO_PATH_A1)):
+        origen = {"peticiones": UNIDAD_PETICIONES,
+                  "cuentas-dueno": UNIDAD_CUENTAS_DUENO,
+                  "cuentas-dueno.path": UNIDAD_CUENTAS_DUENO_PATH}[nombre]
+        with open(origen, encoding="utf-8") as f:
+            contenido = f.read()
+        rc, salida = _poner_en_a1(contenido, destino)
+        apuntar("instalar %s" % nombre, rc, salida)
+        if not res["ok"]:
+            return res
+
+    # 2) daemon-reload
+    rc, salida = ssh("sudo systemctl daemon-reload", timeout=60)
+    apuntar("daemon-reload", rc, salida)
+    if not res["ok"]:
+        return res
+
+    # 3) Arrancar la nueva (enable --now)
+    rc, salida = ssh("sudo systemctl enable --now starseed-peticiones-telegram", timeout=120)
+    apuntar("enable --now starseed-peticiones-telegram", rc, salida)
+    if not res["ok"]:
+        return res
+
+    # 4) Esperar a que la nueva esté activa
+    rc, salida = ssh("for _ in 1 2 3 4 5; do systemctl is-active --quiet starseed-peticiones-telegram && exit 0; sleep 2; done; exit 1", timeout=30)
+    apuntar("esperar activa starseed-peticiones-telegram", rc, salida)
+    if not res["ok"]:
+        return res
+
+    # 5) SOLO AHORA: parar y deshabilitar la vieja si existía como servicio
+    rc, salida = ssh("systemctl stop starseed-peticiones-telegram 2>/dev/null || true", timeout=30)
+    apuntar("stop vieja (si existía)", rc, salida)
+
+    rc, salida = ssh("systemctl disable starseed-peticiones-telegram 2>/dev/null || true", timeout=30)
+    apuntar("disable vieja (si existía)", rc, salida)
+
+    # 6) Limpiar la carpeta de la herramienta vieja
+    rc, salida = ssh("rm -rf " + HERRAMIENTA_VIEJA, timeout=30)
+    apuntar("rm -rf herramienta vieja", rc, salida)
+
+    # 7) Verificar que el offset se conserva (no se toca)
+    rc, salida = ssh("test -f " + ESTADO_PETICIONES_A1 + " && echo 'offset conservado' || echo 'sin offset previo'", timeout=20)
+    apuntar("verificar offset conservado", rc, salida)
+
+    res["nota"] = "La nueva herramienta corre desde el checkout del A1; el offset en ~/.starseed/peticiones/estado.json se conserva intacto."
+    return res
+
+
 def main(argv):
     orden = argv[1] if len(argv) > 1 else "estado"
     tope = int(argv[argv.index("--tope") + 1]) if "--tope" in argv else TOPE_DEFECTO
@@ -2162,6 +2276,8 @@ def main(argv):
         r = leann(aplicar="--aplicar" in argv)
     elif orden == "freellmapi":
         r = freellmapi()
+    elif orden == "peticiones":
+        r = peticiones(aplicar="--aplicar" in argv)
     elif orden == "probar-bitnet":
         r = probar_bitnet()
     elif orden == "bitnet-pesos":

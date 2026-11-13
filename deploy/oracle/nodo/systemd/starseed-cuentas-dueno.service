@@ -1,0 +1,6 @@
+[Unit]
+Description=StarSeed · las cuentas de Google del A1 siempre de starseed (la orden claves las copia con el uid de la Mac)
+
+[Service]
+Type=oneshot
+ExecStart=/bin/chown -R starseed:starseed /home/starseed/.starseed/cuentas
