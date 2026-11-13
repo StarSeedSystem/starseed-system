@@ -1,0 +1,24 @@
+{
+ "ola": "nube-20261112",
+ "tareas": [
+  {
+   "ola": "PET1112",
+   "id": "PET1112B-d2",
+   "titulo": "Peticiones por Telegram · unidades y despliegue en el A1 (parte 2 de 2)",
+   "archivos": [
+    "scripts/puente/oracle_nodo.py",
+    "scripts/puente/test_oracle_nodo.py"
+   ],
+   "depende": [],
+   "prompt": "Lee architecture/peticiones-telegram-a1.md §2. Versiona las tres unidades que ya funcionan en el A1 (copias exactas en architecture/peticiones-telegram-a1-referencia/*.txt), pero con ExecStart apuntando a scripts/puente/peticiones_telegram.py del checkout del A1 (patrón starseed-metagenesis.service; usuario starseed, Restart=always, MemoryMax=900M; ExecStartPre=+chown de cuentas). Añade a oracle_nodo una orden `peticiones` que copie las unidades, haga daemon-reload, pare y deshabilite la herramienta vieja (/home/starseed/herramientas/peticiones-telegram) SOLO después de que la nueva esté activa, y conserve ~/.starseed/peticiones/estado.json (el offset) para no repetir mensajes. Nunca imprimas la IP (usa tachar). Pruebas del guion generado sin red.\n\n## PARTE 2 DE 2 (la dirección dividió PET1112B: falla por sí misma (tarea:pruebas))\nEn esta parte tocas SOLO: scripts/puente/oracle_nodo.py, scripts/puente/test_oracle_nodo.py. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "PET1112B",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:pruebas)"
+   },
+   "revisor_quitadas": [
+    "PET1112B-d1b"
+   ]
+  }
+ ]
+}
