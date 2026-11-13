@@ -110,6 +110,8 @@ Node ≥ 22.13 sin dependencias (`node:http`, `node:crypto`, `node:sqlite`), un 
 | Llave de nodo de MetaGenesis | sha256 registrada por una ficha `admin` (misma llave que usa con las tablas de OPA1011) | Arriendo de líder |
 | Ficha `genesis-mac` (GEN1113A) | como cualquier ficha; **solo** este ámbito abre las rutas de chats de Genesis (ni `admin` las abre) | La Mac: lee las entradas con `destino=mac`, las acusa y escribe el espejo de `direccion`, `puente:hermes-avisos` y `puente:avisos-directores` |
 | Ficha `genesis-a1` (GEN1113A) | ídem | El A1 (`peticiones_puerta.py`): lee y acusa las entradas con `destino=a1` y escribe el espejo de `puente:peticiones`; nada más |
+| Ficha `genesis-mac` en las rutas nuevas (GEN1114A) | ídem (ni `admin`) | Lee las solicitudes de emparejar pendientes, anota su resultado (`emparejado`/`rechazado`/`revocado`) y publica el catálogo de chats (`POST …/chats/canon`) |
+| Ficha `genesis-a1` en las rutas nuevas (GEN1114A) | ídem | **Solo lee** el catálogo de chats (para el `/estado` del bot B); no escribe en él |
 | Rol de MetaGenesis (GEN1113A) | `rpc/es_metagenesis_dueno` con la sesión de la cuenta, caché 60 s (sí y no); si Supabase no responde **no** es «no»: la puerta responde 503 y no encola nada | Todo lo que pone a un agente a trabajar en los chats de Genesis (architecture/astraura-chats-genesis.md §4.2) |
 
 `es_metagenesis` se pregunta a Supabase **con la sesión de esa misma cuenta**
@@ -119,6 +121,13 @@ sesión o ficha.
 
 Límites: 120 peticiones/min por cuenta, 600/min por ficha, cuerpo ≤ 64 KB, solo JSON, CORS solo
 para los orígenes del OS (sin cookies), cabeceras de seguridad, registros sin fichas ni IPs.
+
+**`tokens.json` (GEN1114A).** `escribirArchivoFichas` escribe un temporal en el mismo directorio con el
+dueño, el grupo y el modo del archivo que sustituye (si no existe, `0640`), hace `fsync` y lo renombra; si
+no puede poner ese dueño o grupo, se para sin tocar el archivo. Así `ficha nueva` lanzado como root ya no
+deja el archivo ilegible para el usuario de la puerta (hecho de operaciones del 2026-11-13: 4 min sin
+fichas de máquina). Registro de las rutas de Genesis: ruta, código, ms, `cuenta8` y, en los rechazos,
+`motivo` (`sin-firma`, `firma-cuenta`, `solicitud-limite`, `grande`…); nunca carga, firma ni texto.
 
 ### 4.2 Rutas (v1)
 
@@ -139,6 +148,13 @@ para los orígenes del OS (sin cookies), cabeceras de seguridad, registros sin f
 | `POST /v1/genesis/chats/espejo` (GEN1113A) | ficha `genesis-mac` / `genesis-a1` (cada una sus fuentes) | `{fuente, registros ≤ 200, latido?}` → `{ok, n, cursor}`; un registro que vuelve (mismo `id`) se mueve al final del cursor; cada escritura es también el latido de la Mac o del A1. Retención: 30 días o 60.000 registros |
 | `GET /v1/genesis/chats/feed?fuente=&desde=&limite=≤500&esperar=≤25` (GEN1113A) | sesión + miembro; `puente:hermes-avisos` y `puente:peticiones` solo dueño | `{registros, cursor, latido: {t, de} \| null}`, con espera larga |
 | `POST /v1/genesis/chats/entrada` (GEN1113A) | sesión; rol de Supabase (nunca del cuerpo) | `201 {id, destino, estado:"en-cola"}` · 400 `forma` · 403 `no-miembro`/`solo-dueno` · 409 nonce repetido · 413 > 16 KB · 429 (30/min, 300/día por cuenta) · 503 rol sin comprobar. Retención 7 días |
+| `POST /v1/genesis/chats/entrada` (**GEN1114A**, sustituye a la de arriba) | sesión; rol de Supabase (nunca del cuerpo) | Solo `EntradaFirmada` v2 `{v:2, carga, firma, aparato}` (architecture/astraura-chats-identidad-firma.md §3.4). La puerta **no es de confianza**: no verifica la firma (la Mac y el A1 sí), comprueba solo la forma (`carga` en base64url canónico, `aud`, `carga.cuenta` = sesión, `carga.aparato` = `aparato`, destino según la fuente, `chat`/`chatNombre`, `t` ≤ ahora + 5 min, `caduca` futura, la entrada de GEN1113 más `revocarme`/`revocar-aparato`, reglas de rol) y guarda y entrega `carga`, `firma` y `aparato` **tal cual** (byte a byte). `201` · 400 `sin-firma` (cualquier entrada sin sobre, para todos los roles; no hay opción que la acepte)/`forma` · 403 `firma-cuenta`/`solo-dueno`/`no-miembro`/`destino-cerrado` (destino `a1` sin `PUERTA_GENESIS_A1_ESCRITURA=1`) · 409 `nonce-repetido` (el de `carga.entrada.nonce`) · 413 `grande` (cuerpo > 48 KB, carga decodificada > 32 KB, o cuerpo > 64 KB) · 429 · 503. Lo `alto` (tabla de riesgo, §3.6: incluye el texto a Hermes) caduca a los 30 min en la puerta |
+| `GET /v1/genesis/chats/entrada?destino=` (**GEN1114A**) | ficha del destino | Una fila v2 se entrega como `{id, cuenta, rol, destino, recibido, v:2, carga, firma, aparato}`: **nada** de la entrada en primer nivel (el verificador no tiene otra copia que la carga). Una fila v1 vieja se entrega como antes, para que la Mac la acuse «sin firma (anterior a GEN1114)» |
+| `POST /v1/genesis/aparatos/solicitud` (GEN1114A) | sesión + miembro | `{spki (base64url, P-256, ≤ 200 B), nombre 1..60 sin controles ni bidi, plataforma}` → `201 {solicitud, caduca (15 min), huella}` (la huella la calcula la puerta; la Mac la recalcula) · 400 · 403 · 429 `solicitud-limite` (≤ 3 pendientes por cuenta; la misma clave repetida devuelve la misma solicitud). Retención 30 días |
+| `GET /v1/genesis/aparatos/solicitudes` · `POST /v1/genesis/aparatos/resultado` (GEN1114A) | ficha `genesis-mac` | pendientes no caducadas `{id, cuenta, spki, nombre, plataforma, t, caduca}` · `{solicitud?, huella, estado: emparejado\|rechazado\|revocado, nivel?: texto\|completo}` → `{ok}` (sin `solicitud`: por huella, para las retiradas) |
+| `GET /v1/genesis/aparatos/estado?huella=` (GEN1114A) | sesión (solo **su** cuenta; lo ajeno es `desconocido`) | `{estado: pendiente\|emparejado\|rechazado\|caducada\|revocado\|desconocido, t, nivel?}` — informativo: lo dice la puerta |
+| `POST /v1/genesis/chats/canon` · `GET /v1/genesis/chats/canon` (GEN1114A) | ficha `genesis-mac` escribe / sesión + miembro o ficha `genesis-a1` leen | `{catalogo: CatalogoCanon}` ≤ 64 KB, una sola fila. Solo los campos del contrato (§5.1): cualquier otro (`refs`, `versiones`, `permisos`, `contexto.instrucciones`, un id en un medio…) → 400 `forma`; 7 o más cifras seguidas fuera de `huella`, `version` y fechas → 400 `ids-nativos`; huellas de 8 hex. Lectura: dueño y ficha del A1, todo; desarrollador, sin los puentes A y B y sin `usuario`; Supabase caído → 503 |
+
 | `GET /v1/genesis/chats/entrada?destino=mac\|a1&desde=&esperar=≤25` (GEN1113A) | ficha del destino | `{entradas}` sin cerrar, con `cuenta`, `rol`, `destino`, `recibido` puestos por la puerta; una orden que cambia algo y nadie recogió en 30 min se marca `caducado` y no se entrega |
 | `POST /v1/genesis/chats/acuse` · `GET /v1/genesis/chats/acuses?ids=≤50` (GEN1113A) | ficha del destino / sesión (solo sus entradas) | estado `entregado → hecho\|rechazado\|caducado\|fallo` con `detalle ≤ 300`; un estado final no cambia. Registro de estas rutas: ruta, código, ms y 8 caracteres de la cuenta, nunca texto |
 

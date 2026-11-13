@@ -4,10 +4,23 @@
 // imprimirla). Contrato: architecture/puerta-datos-a1.md §4.1.
 
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
-import { readFileSync, renameSync, statSync, writeFileSync, mkdirSync, chmodSync } from "node:fs";
-import { dirname } from "node:path";
+import {
+  chownSync, closeSync, fchmodSync, fstatSync, fsyncSync, mkdirSync, openSync, readFileSync, renameSync, statSync, unlinkSync, writeSync,
+} from "node:fs";
+import { basename, dirname, join } from "node:path";
 
 export const AMBITOS = Object.freeze(["bus", "latidos", "malla", "astraura", "freno", "metricas", "metagenesis", "admin", "genesis-mac", "genesis-a1"]);
+
+// GEN1114A · qué abre cada ámbito de Genesis en las rutas nuevas (§8.1). Ni `admin` las abre:
+//   · `genesis-mac` (la ficha `genesis-chats-mac`): leer las solicitudes de emparejar, avisar del
+//     resultado y publicar el catálogo de chats;
+//   · `genesis-a1` (la ficha `genesis-chats-a1`): SOLO leer el catálogo (para el /estado del bot B).
+export const PERMISOS_GENESIS = Object.freeze({
+  "aparatos.solicitudes": "genesis-mac",
+  "aparatos.resultado": "genesis-mac",
+  "canon.escribir": "genesis-mac",
+  "canon.leer": "genesis-a1",
+});
 const NOMBRE = /^[a-z0-9][a-z0-9-]{1,40}$/;
 
 export function huella(texto) {
@@ -40,12 +53,71 @@ export function leerArchivoFichas(ruta) {
   }
 }
 
-export function escribirArchivoFichas(ruta, datos) {
-  mkdirSync(dirname(ruta), { recursive: true });
-  const tmp = `${ruta}.tmp-${process.pid}`;
-  writeFileSync(tmp, JSON.stringify(normalizar(datos), null, 1), { mode: 0o640 });
-  chmodSync(tmp, 0o640);
-  renameSync(tmp, ruta);
+// GEN1114A · escritura atómica y conservadora (architecture/astraura-chats-identidad-firma.md §8.1,
+// hecho de operaciones 1). `ficha nueva` lanzado como root dejaba tokens.json de root:root 640 y el
+// usuario de la puerta no podía leerlo: todas las fichas de máquina fallaron 4 min. Ahora:
+//   · el temporal va en el MISMO directorio (el `rename` es atómico y nunca cruza discos);
+//   · lleva el dueño, el grupo y el modo del archivo que sustituye (si no existe, 0o640 y los del
+//     proceso); si no se puede poner ese dueño o grupo, se para sin tocar el archivo;
+//   · `fsync` del temporal antes del `rename` y del directorio después: nunca queda a medias.
+// `op` solo sirve a las pruebas: inyectar `chownSync`/`fsyncSync` (sin ser root no se puede cambiar
+// el dueño de verdad) y `statSync` para simular el archivo de otro usuario.
+export const MODO_FICHAS = 0o640;
+
+export function escribirArchivoFichas(ruta, datos, op = {}) {
+  const fs = { chownSync, fsyncSync, statSync, ...op };
+  const dir = dirname(ruta);
+  mkdirSync(dir, { recursive: true });
+  let previo = null;
+  try {
+    const s = fs.statSync(ruta);
+    previo = { uid: s.uid, gid: s.gid, modo: s.mode & 0o7777 };
+  } catch (e) {
+    if (e?.code !== "ENOENT") throw e;
+  }
+  const modo = previo ? previo.modo : MODO_FICHAS;
+  const tmp = join(dir, `.${basename(ruta)}.tmp-${process.pid}-${randomBytes(6).toString("hex")}`);
+  const texto = JSON.stringify(normalizar(datos), null, 1);
+  let fd = null;
+  try {
+    // `wx`: nunca se reutiliza ni se sigue un temporal que ya existiera.
+    fd = openSync(tmp, "wx", 0o600);
+    const buf = Buffer.from(texto, "utf8");
+    for (let hecho = 0; hecho < buf.length;) hecho += writeSync(fd, buf, hecho, buf.length - hecho);
+    if (previo) {
+      const t = fstatSync(fd);
+      if (t.uid !== previo.uid || t.gid !== previo.gid) fs.chownSync(tmp, previo.uid, previo.gid);
+    }
+    fchmodSync(fd, modo);
+    fs.fsyncSync(fd);
+    closeSync(fd);
+    fd = null;
+    renameSync(tmp, ruta);
+  } catch (e) {
+    if (fd !== null) {
+      try {
+        closeSync(fd);
+      } catch {
+        /* ya cerrado */
+      }
+    }
+    try {
+      unlinkSync(tmp);
+    } catch {
+      /* no llegó a existir o ya se renombró */
+    }
+    throw e;
+  }
+  try {
+    const d = openSync(dir, "r");
+    try {
+      fs.fsyncSync(d);
+    } finally {
+      closeSync(d);
+    }
+  } catch {
+    /* algunos sistemas no dejan fsync de un directorio: el rename ya es atómico */
+  }
 }
 
 /** Alta (o cambio de ámbitos) de una ficha; devuelve la ficha EN CLARO, una sola vez. */

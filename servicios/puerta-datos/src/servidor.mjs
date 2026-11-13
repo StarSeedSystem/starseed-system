@@ -76,6 +76,38 @@ function leerCuerpo(req) {
   });
 }
 
+// GEN1114A · como leerCuerpo, pero devuelve también los bytes crudos recibidos: el tope de una
+// entrada firmada (48 KB) se mide sobre lo que mandó el aparato, no sobre un JSON rehecho.
+function leerCuerpoConTamano(req) {
+  return new Promise((resolver, rechazar) => {
+    const trozos = [];
+    let total = 0;
+    let excedido = false;
+    req.on("data", (t) => {
+      if (excedido) return;
+      total += t.length;
+      if (total > CUERPO_MAX) {
+        excedido = true;
+        trozos.length = 0;
+        rechazar(new ErrorHttp(413, "cuerpo de más de 64 KB"));
+        return;
+      }
+      trozos.push(t);
+    });
+    req.on("end", () => {
+      if (excedido) return;
+      if (total === 0) return resolver({ valor: {}, bytes: 0 });
+      try {
+        const v = JSON.parse(Buffer.concat(trozos).toString("utf8"));
+        resolver({ valor: v && typeof v === "object" ? v : {}, bytes: total });
+      } catch {
+        rechazar(new ErrorHttp(400, "JSON no válido"));
+      }
+    });
+    req.on("error", () => rechazar(new ErrorHttp(400, "cuerpo interrumpido")));
+  });
+}
+
 /**
  * @param {object} c componentes: config, verificador, fichero, bus, arriendo, presencia, malla,
  *   cache, replica, metricas, esMetagenesis, estadoCaddy, ahora, registrar
@@ -322,13 +354,20 @@ export function crearManejador(c) {
       // GEN1113A · chats de Genesis (architecture/astraura-chats-genesis.md §7.1). Rutas propias porque
       // responden 201/409/503 y llevan `codigo` en el error; misma identidad, límite por identidad,
       // JSON y tope de cuerpo que el resto. El registro: ruta, código, ms y 8 caracteres de la cuenta.
-      if (url.pathname.startsWith("/v1/genesis/chats/")) {
+      // GEN1114A · también `/v1/genesis/aparatos/*` (emparejar) y `/v1/genesis/chats/canon` (catálogo),
+      // con las mismas reglas. El cuerpo se lee con su tamaño en bytes (el tope de las entradas v2 es
+      // 48 KB del cuerpo crudo) y uno de más de 64 KB responde 413 con `codigo: "grande"`. Las
+      // entradas sin firma (v1) se rechazan siempre; `destino: "a1"` solo se acepta con la variable
+      // PUERTA_GENESIS_A1_ESCRITURA=1 (fase 1b del contrato). El registro añade `motivo` (el código del
+      // rechazo, p. ej. `sin-firma`, `firma-cuenta`, `solicitud-limite`), nunca contenido.
+      if (url.pathname.startsWith("/v1/genesis/chats/") || url.pathname.startsWith("/v1/genesis/aparatos/")) {
         if (!c.chatsGenesis && c.db) {
           c.chatsGenesis = crearChatsGenesis({
             db: c.db,
             esMetagenesis: c.esMetagenesis,
             esMetagenesisDueno: c.esMetagenesisDueno ?? (c.esMetagenesisDueno = crearCacheMetagenesisDueno(c.supabase, { ahora })),
             ahora,
+            a1Escritura: c.genesisA1Escritura ?? (() => String(process.env.PUERTA_GENESIS_A1_ESCRITURA || "") === "1"),
           });
         }
         if (!c.chatsGenesis) throw new ErrorHttp(404, "chats de Genesis sin configurar");
@@ -338,12 +377,26 @@ export function crearManejador(c) {
         const idG = await identidad(req);
         const claveG = idG.tipo === "cuenta" ? `c:${idG.cuenta}` : idG.tipo === "ficha" ? `f:${idG.nombre}` : `ip:${String(req.headers["x-forwarded-for"] || req.socket.remoteAddress || "?").split(",")[0].trim()}`;
         if (!permitir(claveG, idG.tipo === "ficha" ? 600 : idG.tipo === "cuenta" ? 120 : 60)) throw new ErrorHttp(429, "demasiadas peticiones; vuelve en un minuto");
-        const cuerpoG = req.method === "GET" ? {} : await leerCuerpo(req);
+        const cuenta8G = idG.tipo === "cuenta" ? { cuenta8: idG.cuenta.slice(0, 8) } : {};
+        let cuerpoG = {};
+        let bytesG = 0;
+        if (req.method !== "GET") {
+          try {
+            ({ valor: cuerpoG, bytes: bytesG } = await leerCuerpoConTamano(req));
+          } catch (e) {
+            if (!(e instanceof ErrorHttp)) throw e;
+            const codigoG = e.codigo === 413 ? "grande" : "forma";
+            responder(e.codigo, { error: e.message, codigo: codigoG });
+            registrar({ ruta, codigo: e.codigo, ms: ahora() - inicio, ...cuenta8G, motivo: codigoG });
+            return;
+          }
+        }
         const acG = new AbortController();
         res.on("close", () => acG.abort());
-        const r = await c.chatsGenesis.atender({ metodo: req.method, ruta: url.pathname, id: idG, cuerpo: cuerpoG, q: url.searchParams, senal: acG.signal });
+        const r = await c.chatsGenesis.atender({ metodo: req.method, ruta: url.pathname, id: idG, cuerpo: cuerpoG, q: url.searchParams, senal: acG.signal, bytes: bytesG });
         responder(r.estado, r.cuerpo);
-        registrar({ ruta, codigo: r.estado, ms: ahora() - inicio, ...(idG.tipo === "cuenta" ? { cuenta8: idG.cuenta.slice(0, 8) } : {}) });
+        const motivoG = r.estado >= 400 && typeof r.cuerpo?.codigo === "string" ? { motivo: r.cuerpo.codigo } : {};
+        registrar({ ruta, codigo: r.estado, ms: ahora() - inicio, ...cuenta8G, ...motivoG });
         return;
       }
       const encontrada = rutas.find(([m, p]) => m === req.method && p.test(url.pathname));

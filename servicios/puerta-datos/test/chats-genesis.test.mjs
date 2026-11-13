@@ -3,7 +3,7 @@
 // Contrato: architecture/astraura-chats-genesis.md §4.1–§4.5, §5.2 y §7.1.
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { randomBytes } from "node:crypto";
+import { createHash, generateKeyPairSync, randomBytes, sign } from "node:crypto";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -11,7 +11,7 @@ import { abrirAlmacen } from "../src/almacen.mjs";
 import { crearArriendo } from "../src/arriendo.mjs";
 import { crearBus } from "../src/bus.mjs";
 import { crearCache } from "../src/cache.mjs";
-import { crearChatsGenesis, validarEntrada, requiereDueno, caduca } from "../src/chats-genesis.mjs";
+import { crearChatsGenesis, validarEntrada, requiereDueno, caduca, destinoDe } from "../src/chats-genesis.mjs";
 import { leerConfig } from "../src/config.mjs";
 import { crearFichero, nuevaFicha } from "../src/fichas.mjs";
 import { crearVerificador } from "../src/jwt.mjs";
@@ -78,6 +78,7 @@ before(async () => {
     esMetagenesis: crearCacheMetagenesis(supabase),
     estadoCaddy: () => ({ ok: true }),
     registrar: (r) => registros.push(r),
+    genesisA1Escritura: true, // GEN1114A: estas pruebas escriben también al A1 (fase 1b)
   };
   servidor = crearServidor(comp);
   await new Promise((r) => servidor.listen(0, "127.0.0.1", r));
@@ -97,7 +98,29 @@ async function pedir(ruta, { metodo = "GET", cred = null, cuerpo } = {}) {
 
 const nonce = () => randomBytes(16).toString("base64url");
 const entrada = (extra = {}) => ({ v: 1, nonce: nonce(), t: new Date().toISOString(), fuente: "direccion", accion: "decir", texto: "hola", ...extra });
-const enviar = (sub, cuerpo) => pedir("/v1/genesis/chats/entrada", { metodo: "POST", cred: sesion(k, { sub }), cuerpo });
+
+// GEN1114A: desde la segunda ola la puerta solo acepta entradas firmadas por un aparato (v2, §3.4 de
+// architecture/astraura-chats-identidad-firma.md). Estas pruebas de GEN1113 siguen comprobando lo
+// mismo (rol, forma, nonce, límites, caducidad, fichas), pero cada EntradaChat va dentro de una carga
+// firmada con una clave de prueba, como hará la web. La puerta no verifica la firma (lo hace la Mac).
+const aparatoPrueba = (() => {
+  const { privateKey, publicKey } = generateKeyPairSync("ec", { namedCurve: "P-256" });
+  const huellaA = createHash("sha256").update(publicKey.export({ format: "der", type: "spki" })).digest("hex");
+  return { privateKey, huella: huellaA, seq: 0 };
+})();
+function firmada(sub, e) {
+  const t = ahora();
+  const carga = {
+    aud: "starseed.genesis.chats.v1", cuenta: sub, aparato: aparatoPrueba.huella, seq: ++aparatoPrueba.seq,
+    t: new Date(t).toISOString(), caduca: new Date(t + 7 * 86_400_000).toISOString(),
+    destino: destinoDe(e.fuente), chat: "genesis", chatNombre: "GENESIS · StarSeed OS", entrada: e,
+  };
+  const bytes = Buffer.from(JSON.stringify(carga), "utf8");
+  const firma = sign("sha256", bytes, { key: aparatoPrueba.privateKey, dsaEncoding: "ieee-p1363" }).toString("base64url");
+  return { v: 2, carga: bytes.toString("base64url"), firma, aparato: aparatoPrueba.huella };
+}
+const deCarga = (fila) => JSON.parse(Buffer.from(fila.carga, "base64url").toString("utf8"));
+const enviar = (sub, cuerpo) => pedir("/v1/genesis/chats/entrada", { metodo: "POST", cred: sesion(k, { sub }), cuerpo: cuerpo?.v === 1 ? firmada(sub, cuerpo) : cuerpo });
 const orden = (nombre, args = [], extra = {}) => entrada({ fuente: "puente:hermes-avisos", accion: "orden", texto: undefined, orden: { nombre, args }, ...extra });
 const cuantas = () => Number(db.prepare("SELECT count(*) AS n FROM genesis_entradas").get().n);
 
@@ -171,8 +194,9 @@ test("dueño: órdenes y motores (201), destino por fuente; forma estricta (400)
   assert.deepEqual([otra.estado, otra.j.codigo], [409, "nonce-repetido"]);
   // El mismo nonce de OTRA cuenta no choca (único por cuenta).
   assert.equal((await enviar(DEV, repetida)).estado, 201);
-  const grande = await enviar(DUENO, entrada({ texto: "x".repeat(7000), relleno: "y".repeat(10_000) }));
-  assert.equal(grande.estado, 413);
+  // GEN1114A: el tope pasa de 16 KB a 48 KB de cuerpo y 32 KB de carga (§3.4 [REV]).
+  const grande = await enviar(DUENO, entrada({ texto: "x".repeat(7000), relleno: "y".repeat(30_000) }));
+  assert.deepEqual([grande.estado, grande.j.codigo], [413, "grande"]);
 });
 
 test("`cuenta` y `rol` del cuerpo se ignoran: los pone la puerta desde la sesión y Supabase", async () => {
@@ -183,7 +207,8 @@ test("`cuenta` y `rol` del cuerpo se ignoran: los pone la puerta desde la sesió
   const l = await pedir("/v1/genesis/chats/entrada?destino=mac", { cred: fMac });
   const mia = l.j.entradas.find((e) => e.id === r.j.id);
   assert.deepEqual([mia.cuenta, mia.rol, mia.destino], [DEV, "desarrollador", "mac"]);
-  assert.ok(typeof mia.recibido === "string" && mia.nonce && mia.texto === "hola");
+  // GEN1114A: la fila entregada lleva el sobre firmado, no la entrada en primer nivel (§5.2 [REV]).
+  assert.ok(typeof mia.recibido === "string" && mia.v === 2 && mia.texto === undefined && deCarga(mia).entrada.texto === "hola");
 });
 
 test("fichas: genesis-a1 no lee lo de la Mac ni escribe la dirección; cada una acusa solo lo suyo", async () => {
@@ -201,7 +226,8 @@ test("fichas: genesis-a1 no lee lo de la Mac ni escribe la dirección; cada una 
   // La del A1 sí lee lo suyo y acusa; la de la Mac no puede acusar una entrada del A1.
   const a1 = await pedir("/v1/genesis/chats/entrada?destino=a1", { cred: fA1 });
   assert.equal(a1.estado, 200);
-  assert.ok(a1.j.entradas.length >= 1 && a1.j.entradas.every((e) => e.destino === "a1" && e.fuente === "puente:peticiones"));
+  // GEN1114A: la fuente viaja dentro de la carga firmada, no en primer nivel.
+  assert.ok(a1.j.entradas.length >= 1 && a1.j.entradas.every((e) => e.destino === "a1" && e.fuente === undefined && deCarga(e).entrada.fuente === "puente:peticiones"));
   const idA1 = a1.j.entradas[0].id;
   assert.equal((await pedir("/v1/genesis/chats/acuse", { metodo: "POST", cred: fMac, cuerpo: { id: idA1, estado: "hecho" } })).estado, 404);
   const ok = await pedir("/v1/genesis/chats/acuse", { metodo: "POST", cred: fA1, cuerpo: { id: idA1, estado: "hecho", detalle: "contestado" } });
@@ -254,7 +280,7 @@ test("espera larga: la entrada y el espejo responden en cuanto llega algo", asyn
   setTimeout(() => enviar(DUENO, entrada({ texto: "llega ya" })), 150);
   const r = await espera;
   assert.equal(r.j.entradas.length, 1);
-  assert.equal(r.j.entradas[0].texto, "llega ya");
+  assert.equal(deCarga(r.j.entradas[0]).entrada.texto, "llega ya");
   assert.ok(Date.now() - t0 < 3000, `tardó ${Date.now() - t0} ms`);
 
   const f = await pedir("/v1/genesis/chats/feed?fuente=direccion", { cred: sesion(k, { sub: DEV }) });
@@ -292,14 +318,17 @@ test("caducidad: una orden que cambia algo y nadie recogió en 30 min no se entr
   const prev = await pedir("/v1/genesis/chats/entrada?destino=mac", { cred: fMac });
   for (const e of prev.j.entradas) await pedir("/v1/genesis/chats/acuse", { metodo: "POST", cred: fMac, cuerpo: { id: e.id, estado: "hecho" } });
   const o = await enviar(DUENO, orden("soltar", ["T9"]));
-  const t = await enviar(DUENO, orden("decir", [], { texto: "hola Hermes" }));
+  // GEN1114A [REV §3.6]: un texto a Hermes (`decir`) ya es «alto» y caduca a los 30 min; lo que no
+  // caduca es lo «bajo», como `/estado`.
+  const t = await enviar(DUENO, orden("estado"));
+  const hermes = await enviar(DUENO, orden("decir", [], { texto: "hola Hermes" }));
   const motor = await enviar(DUENO, entrada({ modelo: "hermes/predeterminado", canales: ["hermes"] }));
   ahora.avanzar(31 * 60_000);
   const l = await pedir("/v1/genesis/chats/entrada?destino=mac", { cred: fMac });
   assert.deepEqual(l.j.entradas.map((e) => e.id), [t.j.id]);
-  const a = await pedir(`/v1/genesis/chats/acuses?ids=${o.j.id},${motor.j.id},${t.j.id}`, { cred: sesion(k, { sub: DUENO }) });
+  const a = await pedir(`/v1/genesis/chats/acuses?ids=${o.j.id},${motor.j.id},${t.j.id},${hermes.j.id}`, { cred: sesion(k, { sub: DUENO }) });
   const porId = Object.fromEntries(a.j.acuses.map((x) => [x.id, x.estado]));
-  assert.deepEqual([porId[o.j.id], porId[motor.j.id], porId[t.j.id]], ["caducado", "caducado", "en-cola"]);
+  assert.deepEqual([porId[o.j.id], porId[motor.j.id], porId[t.j.id], porId[hermes.j.id]], ["caducado", "caducado", "en-cola", "caducado"]);
   // Una orden ya recogida por la Mac antes de los 30 min no la caduca la puerta: la Mac decide.
   const o2 = await enviar(DUENO, orden("rechazar", ["T8"]));
   await pedir("/v1/genesis/chats/entrada?destino=mac", { cred: fMac });

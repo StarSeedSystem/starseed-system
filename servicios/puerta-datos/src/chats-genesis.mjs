@@ -5,13 +5,20 @@
 //   · la cuenta y el rol salen SOLO de la sesión verificada y de Supabase; el cuerpo no los declara;
 //   · un desarrollador escribe texto al hilo (`mando`); todo lo que pone a un agente a trabajar
 //     exige dueño (403 `solo-dueno`); sin respuesta de Supabase para el rol, 503 y nada en cola;
-//   · nonce único por cuenta (409), 30 entradas/min y 300/día por cuenta, cuerpo ≤ 16 KB;
+//   · nonce único por cuenta (409), 30 entradas/min y 300/día por cuenta, cuerpo ≤ 16 KB
+//     (GEN1114A: ≤ 48 KB y solo entradas firmadas v2; las v1 → 400 `sin-firma`);
 //   · las fichas `genesis-mac` y `genesis-a1` solo ven y escriben lo suyo;
 //   · una orden que cambia algo y nadie recogió en 30 min se marca `caducada` y no se entrega (§4.5);
 //   · nada de esto escribe texto en el registro: el registro lo pone servidor.mjs sin contenido.
 // Retención (§5.2): espejo 30 días o 60.000 registros; entradas y acuses 7 días.
 
 import { enTransaccion, escribirKv, leerKv, parsear, tamanoJson } from "./almacen.mjs";
+// GEN1114A · segunda ola (architecture/astraura-chats-identidad-firma.md §3.4, §3.5.1, §5.2, §8.1):
+// entradas firmadas por el aparato, emparejar y catálogo. Estos módulos solo usan lo de aquí dentro
+// de funciones (nunca al cargar), así que la importación circular con chats-genesis-firma.mjs es segura.
+import { CUERPO_MAX_V2, validarEntradaFirmada } from "./chats-genesis-firma.mjs";
+import { crearAparatos } from "./chats-genesis-aparatos.mjs";
+import { crearCanon } from "./chats-genesis-canon.mjs";
 
 export const FUENTES = Object.freeze(["direccion", "puente:hermes-avisos", "puente:peticiones", "puente:avisos-directores"]);
 export const CANALES = Object.freeze(["mando", "director-presidente", "claude-cowork", "claude-mac", "hermes", "telegram", "chatgpt", "antigravity", "ide", "terminal"]);
@@ -52,6 +59,13 @@ CREATE INDEX IF NOT EXISTS genesis_entradas_destino ON genesis_entradas (destino
 CREATE INDEX IF NOT EXISTS genesis_entradas_cuenta ON genesis_entradas (cuenta, recibido);
 `;
 
+// GEN1114A · columnas nuevas de `genesis_entradas` (§5.2, solo añadir; NULL en las filas v1).
+const COLUMNAS_V2 = Object.freeze(["carga", "firma", "aparato"]);
+function anadirColumnasV2(db) {
+  const hay = new Set(db.prepare("PRAGMA table_info(genesis_entradas)").all().map((c) => c.name));
+  for (const c of COLUMNAS_V2) if (!hay.has(c)) db.exec(`ALTER TABLE genesis_entradas ADD COLUMN ${c} TEXT`);
+}
+
 /** Error con su estado HTTP y un `codigo` estable que la interfaz traduce (§4.5). */
 export class ErrorChats extends Error {
   constructor(estado, codigo, mensaje) {
@@ -76,7 +90,9 @@ export function fuentesDeFicha(ambitos = []) {
 function textoOpcional(v, nombre, max) {
   if (v == null) return undefined;
   if (typeof v !== "string") throw forma(`«${nombre}» debe ser texto`);
-  if (v.length > max) throw forma(`«${nombre}» pasa de ${max} caracteres`);
+  // GEN1114A: se cuentan caracteres (puntos de código), como la Mac en Python. Con `length` (UTF-16)
+  // un texto de 8.000 caracteres de 4 bytes contaba 16.000 y no cabía (§3.4 [REV], prueba de 40 KB).
+  if (v.length > max && [...v].length > max) throw forma(`«${nombre}» pasa de ${max} caracteres`);
   return v;
 }
 
@@ -154,6 +170,8 @@ export function validarEntrada(c) {
 
 /** ¿Pone a trabajar a un agente o cambia algo? (§4.2, última columna). Entonces solo dueño. */
 export function requiereDueno(e) {
+  // GEN1114A: retirarse a uno mismo no da poder a nadie (cualquier rol); retirar otro aparato, solo dueño.
+  if (e.accion === "revocarme") return false;
   if (e.fuente !== "direccion") return true;
   if (e.accion !== "decir") return true;
   if (e.modelo) return true;
@@ -175,8 +193,12 @@ function entero(v, defecto, min, max) {
  * @param {object} op db (SQLite de la puerta), esMetagenesis(cuenta, jwt) → bool,
  *   esMetagenesisDueno(cuenta, jwt) → bool | lanza (sin respuesta de Supabase), ahora
  */
-export function crearChatsGenesis({ db, esMetagenesis, esMetagenesisDueno, ahora = () => Date.now() }) {
+export function crearChatsGenesis({ db, esMetagenesis, esMetagenesisDueno, ahora = () => Date.now(), a1Escritura = false }) {
   db.exec(ESQUEMA);
+  anadirColumnasV2(db); // GEN1114A
+  // GEN1114A [REV §7 fase 1a]: `destino: "a1"` se rechaza (403 `destino-cerrado`) mientras la
+  // variable de la puerta PUERTA_GENESIS_A1_ESCRITURA no valga 1. Se acepta un booleano o una función.
+  const escribirA1 = typeof a1Escritura === "function" ? a1Escritura : () => a1Escritura === true;
   const esperas = new Set();
   const avisar = () => {
     for (const despertar of [...esperas]) despertar();
@@ -316,22 +338,31 @@ export function crearChatsGenesis({ db, esMetagenesis, esMetagenesisDueno, ahora
   }
 
   // ── Entradas y acuses ──────────────────────────────────────────────────────────────────────────
-  async function crearEntrada(id, cuerpo) {
+  // GEN1114A · solo entradas firmadas (v2, §3.5.1). Una v1 (o cualquier cosa sin sobre de firma) →
+  // 400 `sin-firma` para todos los roles: no hay opción ni variable que la vuelva a aceptar. Se
+  // guardan `carga`, `firma` y `aparato` TAL CUAL llegaron (la cadena, no una copia rehecha); `datos`
+  // es la entrada validada, solo para uso interno de la puerta (nunca se entrega).
+  // `bytes` = tamaño del cuerpo crudo que midió servidor.mjs (si falta, se mide el JSON).
+  async function crearEntrada(id, cuerpo, bytes) {
     exigirCuenta(id);
-    if (tamanoJson(cuerpo) > 16 * 1024) throw fallo(413, "grande", "entrada de más de 16 KB");
+    const tam = Number.isFinite(bytes) ? bytes : tamanoJson(cuerpo);
+    if (tam > CUERPO_MAX_V2) throw fallo(413, "grande", "entrada de más de 48 KB");
     const rol = await rolDe(id);
     if (!rol) throw fallo(403, "no-miembro", "solo miembros de MetaGenesis");
-    const e = validarEntrada(cuerpo);
-    if (requiereDueno(e) && rol !== "dueño") throw fallo(403, "solo-dueno", "esta orden solo la puede dar un dueño de MetaGenesis");
     const t = ahora();
+    const { entrada: e, riesgo } = validarEntradaFirmada(cuerpo, id.cuenta, t);
+    if (requiereDueno(e) && rol !== "dueño") throw fallo(403, "solo-dueno", "esta orden solo la puede dar un dueño de MetaGenesis");
+    const destino = destinoDe(e.fuente);
+    if (destino === "a1" && !escribirA1()) {
+      throw fallo(403, "destino-cerrado", "Escribir a Peticiones llega cuando el A1 tenga la versión nueva");
+    }
     const cuenta = (desde) => Number(db.prepare("SELECT count(*) AS n FROM genesis_entradas WHERE cuenta = ? AND recibido > ?").get(id.cuenta, desde)?.n ?? 0);
     if (cuenta(t - 60_000) >= POR_MIN || cuenta(t - DIA) >= POR_DIA) throw fallo(429, "limite", "demasiadas entradas: 30 por minuto y 300 al día");
-    const destino = destinoDe(e.fuente);
     let nuevo;
     try {
       nuevo = Number(db.prepare(
-        "INSERT INTO genesis_entradas (cuenta, rol, destino, nonce, datos, cambia, recibido, estado, actualizado) VALUES (?, ?, ?, ?, ?, ?, ?, 'en-cola', ?)",
-      ).run(id.cuenta, rol, destino, e.nonce, JSON.stringify(e), caduca(e) ? 1 : 0, t, t).lastInsertRowid);
+        "INSERT INTO genesis_entradas (cuenta, rol, destino, nonce, datos, cambia, recibido, estado, actualizado, carga, firma, aparato) VALUES (?, ?, ?, ?, ?, ?, ?, 'en-cola', ?, ?, ?, ?)",
+      ).run(id.cuenta, rol, destino, e.nonce, JSON.stringify(e), riesgo === "alto" ? 1 : 0, t, t, cuerpo.carga, cuerpo.firma, cuerpo.aparato).lastInsertRowid);
     } catch (err) {
       if (/UNIQUE/i.test(String(err?.message))) throw fallo(409, "nonce-repetido", "esta entrada ya se recibió (nonce repetido)");
       throw err;
@@ -348,7 +379,13 @@ export function crearChatsGenesis({ db, esMetagenesis, esMetagenesisDueno, ahora
   }
 
   function aRecibida(f) {
-    return { ...parsear(f.datos, {}), id: Number(f.id), cuenta: f.cuenta, rol: f.rol, destino: f.destino, recibido: new Date(Number(f.recibido)).toISOString() };
+    const puestos = { id: Number(f.id), cuenta: f.cuenta, rol: f.rol, destino: f.destino, recibido: new Date(Number(f.recibido)).toISOString() };
+    // GEN1114A (§5.2 [REV]): una fila v2 se entrega SOLO con lo que puso la puerta y el sobre tal cual
+    // llegó; nada de la entrada en primer nivel, para que el verificador no tenga otra copia que la carga.
+    if (f.carga != null) return { ...puestos, v: 2, carga: f.carga, firma: f.firma, aparato: f.aparato };
+    // Filas v1 de antes de GEN1114 (no debería haber: la escritura estaba parada). Se entregan como
+    // estaban para que la Mac las acuse `rechazado` con «sin firma (anterior a GEN1114)» (§2.6).
+    return { ...parsear(f.datos, {}), ...puestos };
   }
 
   async function leerEntradas(id, q, senal) {
@@ -398,7 +435,7 @@ export function crearChatsGenesis({ db, esMetagenesis, esMetagenesisDueno, ahora
     "/v1/genesis/chats/espejo": { POST: ({ id, cuerpo }) => escribirEspejo(id, cuerpo) },
     "/v1/genesis/chats/feed": { GET: ({ id, q, senal }) => feed(id, q, senal) },
     "/v1/genesis/chats/entrada": {
-      POST: ({ id, cuerpo }) => crearEntrada(id, cuerpo),
+      POST: ({ id, cuerpo, bytes }) => crearEntrada(id, cuerpo, bytes),
       GET: ({ id, q, senal }) => leerEntradas(id, q, senal),
     },
     "/v1/genesis/chats/acuse": { POST: ({ id, cuerpo }) => acusar(id, cuerpo) },
@@ -409,13 +446,20 @@ export function crearChatsGenesis({ db, esMetagenesis, esMetagenesisDueno, ahora
    * Atiende una petición ya identificada por servidor.mjs. Nunca lanza un ErrorChats: devuelve
    * `{estado, cuerpo}` con `{error, codigo}` en los fallos.
    */
-  async function atender({ metodo, ruta, id, cuerpo = {}, q = new URLSearchParams(), senal = null }) {
+  // GEN1114A · emparejar aparatos y catálogo de chats: módulos propios con las mismas reglas de
+  // identidad y rol (siempre del servidor) que las entradas.
+  const ayudas = { fallo, forma, exigirCuenta, exigirMiembro, exigirFicha, rolDe, ahora };
+  const aparatos = crearAparatos({ db, ...ayudas });
+  const canon = crearCanon({ db, ...ayudas });
+  Object.assign(RUTAS, aparatos.RUTAS, canon.RUTAS);
+
+  async function atender({ metodo, ruta, id, cuerpo = {}, q = new URLSearchParams(), senal = null, bytes }) {
     const r = RUTAS[ruta];
     if (!r) return { estado: 404, cuerpo: { error: "ruta desconocida", codigo: "ruta" } };
     const fn = r[metodo];
     if (!fn) return { estado: 405, cuerpo: { error: "método no admitido", codigo: "metodo" } };
     try {
-      const salida = await fn({ id, cuerpo: cuerpo ?? {}, q, senal });
+      const salida = await fn({ id, cuerpo: cuerpo ?? {}, q, senal, bytes });
       return salida && typeof salida.estado === "number" && salida.cuerpo ? salida : { estado: 200, cuerpo: salida };
     } catch (e) {
       if (e instanceof ErrorChats) return { estado: e.estado, cuerpo: { error: e.message, codigo: e.codigoError } };
@@ -424,5 +468,12 @@ export function crearChatsGenesis({ db, esMetagenesis, esMetagenesisDueno, ahora
   }
 
   podar();
-  return { atender, podar, esperandoAhora: () => esperas.size };
+  return {
+    atender,
+    podar: (t) => {
+      podar(t);
+      aparatos.podar(t); // GEN1114A: solicitudes 30 días
+    },
+    esperandoAhora: () => esperas.size,
+  };
 }
