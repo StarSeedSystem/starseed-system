@@ -325,7 +325,8 @@ export function crearClienteChatsGenesis(op: OpcionesClienteChats = {}): Cliente
         const forma = (error: string): RespuestaEnviar => ({ ok: false, estado: 400, codigo: "forma", error });
         if (!esObjeto(e) || !(FUENTES_ENTRADA as readonly string[]).includes(e.fuente)) return forma("Ese chat no admite mensajes");
         if (!(ACCIONES_ENTRADA_FIRMADA as readonly string[]).includes(e.accion)) return forma("Acción no válida");
-        if (e.texto !== undefined && (typeof e.texto !== "string" || e.texto.length > LIMITE_TEXTO_ENTRADA)) {
+        // GEN1114E · el largo se cuenta en caracteres como Python (puntos de código), igual que la puerta.
+        if (e.texto !== undefined && (typeof e.texto !== "string" || [...e.texto].length > LIMITE_TEXTO_ENTRADA)) {
             return forma(`El texto pasa de ${LIMITE_TEXTO_ENTRADA} caracteres`);
         }
         const retirada = e.accion === "revocarme" || e.accion === "revocar-aparato";

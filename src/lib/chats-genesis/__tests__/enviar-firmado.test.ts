@@ -176,6 +176,16 @@ describe("lo que sale: bytes firmados una vez, y nunca por la cola", () => {
         expect(await c.enviar({ fuente: "direccion", accion: "revocar-aparato", huella: "b".repeat(64) })).toEqual({ ok: true, id: 5 });
     });
 
+    it("el largo del texto se cuenta en puntos de código (como Python): 8.000 emojis caben y firman; 8.001, no", async () => {
+        await emparejar("completo");
+        const fetch = vi.fn<FetchLike>(async () => respuesta(201, { id: 4 }));
+        const { c } = cliente(fetch);
+        expect(await c.enviar({ ...hilo, texto: "🌱".repeat(8000) }, DIRECCION)).toEqual({ ok: true, id: 4 });
+        expect(deB64url(JSON.parse(String(fetch.mock.calls[0][1]!.body)).carga).length).toBeLessThanOrEqual(32 * 1024);
+        expect(await c.enviar({ ...hilo, texto: "🌱".repeat(8001) }, DIRECCION)).toMatchObject({ ok: false, estado: 400 });
+        expect(fetch).toHaveBeenCalledTimes(1);
+    });
+
     it("traduce los códigos nuevos de la puerta", async () => {
         await emparejar("completo");
         for (const [codigo, texto] of [
