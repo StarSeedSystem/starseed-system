@@ -355,7 +355,8 @@ describe("MotorLlamada", () => {
         const antes = a.estado().seleccion.camaraId;
         const guardadoAntes = localStorage.getItem("starseed.llamadas.dispositivos");
         expect(antes).toBe("video-1");
-        expect(guardadoAntes).toContain("video-1");
+        // LLA1113C: lo que abre el sistema por su cuenta ya no se guarda como preferencia (solo lo que elige la persona).
+        expect(guardadoAntes).toBeNull();
         vi.mocked(medios.obtenerPista).mockResolvedValueOnce({ pista: null, error: "La cámara está ocupada por otra aplicación." });
         expect(await a.cambiarCamara("ocupada-2")).toMatch(/ocupada/);
         expect(a.estado().seleccion.camaraId).toBe(antes);

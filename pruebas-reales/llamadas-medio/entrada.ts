@@ -293,6 +293,8 @@ const bleReal = {
   espejoBytes: 5000,
   kbpsNativoInicial: 261,
   semilla: 37,
+  /** LLA1113C: como en el aparato (pruebas 40 y 41), la web no recibe lo que mide la app nativa: `capacidadKbps()` = null. */
+  sinNativo: false,
   /**
    * LLA1112A: el lado B (la tableta) escribe más despacio y A RÁFAGAS (null: los dos lados iguales, el `ble-real` de siempre).
    * Sale de la única llamada válida de la prueba 39 (03:47:04–03:47:54 UTC, Mac en reposo), líneas de la tableta:
@@ -321,6 +323,18 @@ const bleReal = {
 };
 /** LLA1112A: lo que dice `bleReal.ladoB` para la tableta del registro de la prueba 39. */
 const LADO_TABLETA_39 = { rMinMs: 45, rExtraMediaMs: 35, rMaxMs: 160, cMinBporMs: 20, cMaxBporMs: 45, kbpsNativoInicial: 162, paradaCadaMs: 2000, paradaMinMs: 150, paradaMaxMs: 450 };
+/**
+ * LLA1113C: la tableta de la prueba 41 (13-11, 18:54:57–18:55:49 UTC, solo Bluetooth) y de la 40 (12/13-11), de sus
+ * líneas `video-datos reparto … enlace=160k+<R>ms/139` (el modelo de la tableta, C supuesta = 160k):
+ *  · R leído (escritura − bytes/20) en 41 líneas de la tableta: 67–203 ms, mediana 108 (prueba 41: 84, 100, 101, 149, 154;
+ *    la Mac en el mismo minuto: 31–83) → acuse = 70 + Exp(45) ms (mediana 101, media 115), tope 260;
+ *  · ninguna línea de NINGÚN lado lleva `nativo=`: en el aparato `capacidadKbps()` no llega a la web y el modelo usa la C
+ *    supuesta (160k). El banco lo daba siempre (la medida de la app nativa) y por eso la tableta del banco veía 135–316k
+ *    → `sinNativo`;
+ *  · serialización y paradas, como la 39 (la tableta mide `l2cap-kbps` 311–332 kb/s con mensajes de 4,7–14 KB: entra en
+ *    20–45 B/ms; «nivel 4→2 motivo=parada» a las 18:55:43).
+ */
+const LADO_TABLETA_41 = { ...LADO_TABLETA_39, rMinMs: 70, rExtraMediaMs: 45, rMaxMs: 260 };
 /** LLA1112A: hasta cuándo está parado el lado B (ms de `performance.now()`), y cuántas paradas hubo. */
 const paradaB = { hasta: 0, n: 0, ms: 0 };
 /** Generador con semilla (mulberry32): cada corrida del carril calibrado ve la misma secuencia de acuses. */
@@ -597,7 +611,7 @@ function enlaceBle(): [TransporteVoz, TransporteVoz] {
       abierto: () => datos.arriba,
       info: () => ({ tipo: "ble", cifrada: true }),
       // LLA1111Q: en el carril calibrado, lo último que midió la app nativa (como `enlaces()[…].capacidadKbps`).
-      capacidadKbps: () => (real ? kbpsNativo : ble.anunciadoKbps),
+      capacidadKbps: () => (real ? (bleReal.sinNativo ? null : kbpsNativo) : ble.anunciadoKbps),
     } as TransporteVoz;
   };
   return [lado(0), lado(1)];
@@ -912,6 +926,7 @@ function estadoNeg() {
   },
   // LLA1112A: el lado B de la tableta (prueba 39) y sus paradas.
   ladoTableta39: LADO_TABLETA_39,
+  ladoTableta41: LADO_TABLETA_41, // LLA1113C
   paradaB,
   medida,
   pintadas,

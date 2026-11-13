@@ -35,6 +35,26 @@ describe("SelectorCamara", () => {
     expect(onElegir).toHaveBeenCalledWith("ph");
   });
 
+  it("LLA1113C: una cámara que el sistema lista pero que no abrió en esta sesión se ve como tal, y se puede volver a elegir", async () => {
+    const { marcarCamaraNoAbre, __vaciarCamarasNoAbren } = await import("@/lib/llamadas/camaras");
+    __vaciarCamarasNoAbren();
+    marcarCamaraNoAbre({ id: "c3", etiqueta: "camera 3, facing front" }, "NotFoundError");
+    const onElegir = vi.fn();
+    const camaras = [
+      { id: "c1", nombre: "camera 1, facing front" },
+      { id: "c3", nombre: "camera 3, facing front" },
+      { id: "c2", nombre: "camera 2, facing back" },
+    ];
+    render(<SelectorCamara camaras={camaras} elegidaId="c1" neurona="t-sel-41" onElegir={onElegir} plataforma="android" />);
+    const radios = screen.getAllByRole("radio").filter((r) => r.textContent?.startsWith("Cámara"));
+    expect(radios.filter((r) => /no abrió/.test(r.textContent ?? ""))).toHaveLength(1);
+    const mala = radios.find((r) => /no abrió/.test(r.textContent ?? ""))!;
+    expect(mala.getAttribute("aria-checked")).toBe("false");
+    fireEvent.click(mala);
+    expect(onElegir).toHaveBeenCalledWith("c3");
+    __vaciarCamarasNoAbren();
+  });
+
   it("«Cámara de otra neurona» está desactivada y dice por qué", () => {
     render(<SelectorCamara camaras={MAC} elegidaId={null} neurona="t-sel" onElegir={() => undefined} plataforma="mac" />);
     const r = screen.getByRole("radio", { name: /Cámara de otra neurona/ }) as HTMLButtonElement;

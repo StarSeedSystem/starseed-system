@@ -10,6 +10,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import {
+  camaraNoAbre,
   describirCamaras,
   elegirCamaraPorDefecto,
   ETIQUETA_TIPO_CAMARA,
@@ -88,6 +89,9 @@ export function SelectorCamara({
                   {/* LLA1110C: el tipo de cada cámara a la vista (este aparato, Continuidad, externa, virtual). */}
                   {!c.sinEtiqueta && <span data-tipo-camara={c.tipo} className={cn("rounded-full px-1.5 text-[10px]", c.tipo === "integrada" ? "bg-emerald-400/15 text-emerald-100" : "bg-white/10 text-white/70")}>{ETIQUETA_TIPO_CAMARA[c.tipo]}</span>}
                   {c.id === porDefecto && <span className="rounded-full bg-violet-400/20 px-1.5 text-[10px] text-violet-100">predeterminada</span>}
+                  {/* LLA1113C: una cámara que el sistema lista pero que en esta sesión no abrió (prueba 41: «camera 3, facing front»). Se
+                      puede volver a elegir, pero no se esconde que falló. */}
+                  {camaraNoAbre(c) && <span data-camara-no-abre="si" className="rounded-full bg-amber-400/15 px-1.5 text-[10px] text-amber-100">no abrió</span>}
                 </span>
               </button>
             );

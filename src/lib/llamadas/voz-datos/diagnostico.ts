@@ -9,7 +9,7 @@
  * Nunca lanza y nunca escribe contenido de la llamada (ni SDP ni audio): solo el tipo, el sentido y el medio.
  */
 
-export type HitoLlamada = "senal-enviada" | "senal-recibida" | "contestada" | "medio=webrtc" | "medio=enlace-datos" | "medio=video-datos" | "escalada-wifi" | "camara" | "fallo" | "reintento" | "carril" | "negociacion" | "inicio" | "directa"; // LLA1112A: «directa», la llamada directa por un enlace local (`malla/llamada-directa.ts`)
+export type HitoLlamada = "senal-enviada" | "senal-recibida" | "contestada" | "medio=webrtc" | "medio=enlace-datos" | "medio=video-datos" | "escalada-wifi" | "camara" | "fallo" | "reintento" | "carril" | "negociacion" | "inicio" | "directa" | "fin"; // LLA1112A · LLA1113C: «fin», cómo acabó la llamada en este lado: «directa», la llamada directa por un enlace local (`malla/llamada-directa.ts`)
 
 export type SumideroDiagnostico = (linea: { hito: HitoLlamada; neurona: string | null; detalle: string }) => void;
 

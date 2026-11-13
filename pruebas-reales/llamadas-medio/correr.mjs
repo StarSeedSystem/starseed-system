@@ -1,6 +1,6 @@
 // Corre los escenarios del banco en Chromium (Playwright, cámara y micro falsos).
 //   node correr.mjs [salida] [escenario] [segundos]
-// escenarios: aleteo · ip-aparece · choque · video · segunda · corte-ip · sin-servidor · voz-video · paso-ip · paso-ip-silencioso · timbre-cola · video-sube · wifi-directo · ble-160 · ble-80 · ble-40 · ble-caida · ble-micro · voz-40 · voz-24 · voz-16 · voz-caida · voz-suelo · voz-40-cif · voz-24-cif · voz-16-cif · vozvideo-80 · vozvideo-40 · ble-real · ble-real-mudo · ble-tableta · wifi-cae · ruta-fantasma · todos
+// escenarios: aleteo · ip-aparece · choque · video · segunda · corte-ip · sin-servidor · voz-video · paso-ip · paso-ip-silencioso · timbre-cola · video-sube · wifi-directo · ble-160 · ble-80 · ble-40 · ble-caida · ble-micro · voz-40 · voz-24 · voz-16 · voz-caida · voz-suelo · voz-40-cif · voz-24-cif · voz-16-cif · vozvideo-80 · vozvideo-40 · ble-real · ble-real-mudo · ble-tableta · ble-tableta-41 · wifi-cae · ruta-fantasma · todos
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
@@ -296,6 +296,7 @@ const esc = {
       b.red.ipVista.A = b.red.ipVista.B = true;
       b.bleReal.activo = false;
       b.bleReal.ladoB = null;
+      b.bleReal.sinNativo = false; // LLA1113C
       b.ble.kbps = 160;
       // El Bluetooth de verdad (carril fijo de 160 kb/s) con el vídeo ligero de verdad: si WebRTC se va, el vídeo puede seguir por él.
       const ll = await b.llamada({ conDatos: true, video: true, ble: true, videoDatos: true, opus: true });
@@ -482,6 +483,11 @@ const esc = {
   // LLA1112A · (A) el carril calibrado con el lado B como la tableta de la prueba 39: escribe más despacio y a ráfagas
   // (paradas en las que ni escribe ni entrega lo que le llega). Micros abiertos y cámaras encendidas.
   "ble-tableta": () => casoBle("ble-tableta", [{ t: 0, kbps: 160 }], { plazo: 400, real: true, tableta: true }),
+  // LLA1113C · la tableta de la prueba 41 (acuse 70 + Exp(45) ms y la web SIN la medida nativa, como en el aparato: ver
+  // `LADO_TABLETA_41` en entrada.ts). En el aparato su vídeo se pausó por «suelo» y no volvió en 120 s con la voz sola en
+  // el carril (`cabe=21–63 enlace=160k+84…154ms/139`). Pasa con lo de `ble-tableta` y, además, el vídeo de B (pintado en A)
+  // ≥ 1 fps en el 25 % de las ventanas desde los 20 s, ninguna pausa de B de más de 60 s y la voz no peor (ver `juzgarTableta41`).
+  "ble-tableta-41": () => casoBle("ble-tableta-41", [{ t: 0, kbps: 160 }], { plazo: 400, real: true, tableta: 41 }),
   // LLA1113A · `ble-real` con los temporizadores de la página LENTOS (alineados a 1 s, como WebKit con la ventana de la Mac
   // oculta o tapada) en dos tramos de 30 s, como en las dos llamadas limpias de la prueba 40 (10–35 s seguidos). Pasa con lo de
   // `ble-real` y además: ninguna pausa del vídeo y la voz nunca al escalón 5, con el carril a 160 kb/s todo el rato.
@@ -686,14 +692,15 @@ async function casoBle(nombre, tramos, extra = {}) {
   await p.evaluate(async ([k0, plazo, real, tableta]) => {
     const b = window.banco;
     b.bleReal.activo = real;
-    b.bleReal.ladoB = tableta ? b.ladoTableta39 : null; // LLA1112A
+    b.bleReal.ladoB = tableta === 41 ? b.ladoTableta41 : tableta ? b.ladoTableta39 : null; // LLA1112A · LLA1113C
+    b.bleReal.sinNativo = tableta === 41; // LLA1113C: en el aparato la web no recibe la medida nativa
     b.ble.plazoVozMs = plazo;
     b.red.ip = false;
     b.red.ipVista.A = b.red.ipVista.B = false;
     b.ble.kbps = k0;
     b.ble.anunciadoKbps = 160;
     window.__ll = await b.llamada({ conDatos: true, video: true, ble: true, videoDatos: true, opus: true });
-  }, [tramos[0].kbps, extra.plazo ?? 200, !!extra.real, !!extra.tableta]);
+  }, [tramos[0].kbps, extra.plazo ?? 200, !!extra.real, extra.tableta === 41 ? 41 : !!extra.tableta]);
   // Arranque: voz por datos, saludo del vídeo y primer clave.
   await espera(15_000);
   if (extra.mudos) await p.evaluate(async () => { await window.__ll.A.alternarMicro(); await window.__ll.B.alternarMicro(); });
@@ -769,6 +776,9 @@ async function casoBle(nombre, tramos, extra = {}) {
       out.paradasB = { ...b.paradaB };
       // LLA1113A: pausas del vídeo y la voz al escalón 5 (6 kb/s) durante la medida, con su línea (lo del aparato en la prueba 40).
       out.pausas = b.lineas.filter((l) => l.t >= t0 && /video-datos pausa motivo=/.test(l.detalle)).map((l) => `${Math.round((l.t - t0) / 1000)}s ${l.neurona} ${l.detalle.slice(0, 150)}`);
+      // LLA1113C: pausas y vueltas del vídeo de B (sus líneas van con neurona «A»), desde el arranque (t negativo: antes de medir).
+      out.pausasB = b.lineas.filter((l) => l.neurona === "A" && /video-datos (pausa|sigue) motivo=/.test(l.detalle)).map((l) => `${Math.round((l.t - t0) / 1000)}s ${l.neurona} ${l.detalle.slice(0, 190)}`);
+      out.duracionS = Math.round((t1 - t0) / 1000);
       out.vozAl5 = b.lineas.filter((l) => l.t >= t0 && /voz-datos nivel \d→5 /.test(l.detalle)).map((l) => `${Math.round((l.t - t0) / 1000)}s ${l.neurona} ${l.detalle.slice(0, 150)}`);
       out.reloj = b.lineas.filter((l) => /reloj /.test(l.detalle)).slice(0, 12).map((l) => `${Math.round((l.t - t0) / 1000)}s ${l.neurona ?? "-"} ${l.detalle.slice(0, 150)}`);
       // Por tramos de capacidad (para la caída) y por estado del micro.
@@ -833,8 +843,50 @@ function juzgarTableta(r, fallos) {
   // el informe (arriba) y el oído (huecos); aquí solo se deja constancia.
 }
 
+/** LLA1113C: los dos escenarios de la tableta (39 y 41) se juzgan igual en la voz. */
+const esTableta = (n) => n === "ble-tableta" || n === "ble-tableta-41";
+
+/**
+ * LLA1113C · Cómo se juzga `ble-tableta-41` (solo con esto: los umbrales de voz de `ble-tableta` no pasan en la Mac ni con
+ * el vídeo de B en pausa toda la llamada, ver el LEEME). En este carril la voz SOLA de la tableta ya cae a Opus 6 kb/s a ratos
+ * («atasco-rapido espera≈500ms» con el vídeo en pausa, como la tableta a las 18:53:59): el vídeo solo puede salir a ratos.
+ * Lo que falló en el aparato y aquí se exige:
+ *  · el vídeo de la tableta (B, pintado en A) vuelve: ninguna pausa de B de más de `PAUSA_MAX_S` (en el aparato, 120 s
+ *    seguidos con la voz sola y «cabe=21–63») y ≥ 1 fps de verdad (pintado en A) en al menos `VENTANAS_MIN` ventana de 5 s (en el aparato, ninguna)
+ *    desde los 20 s. La fracción de ventanas con vídeo se deja en `fraccionVideoB` (dato, no umbral: en este carril depende
+ *    de cuánto se atasca la voz sola);
+ *  · la voz no peor que con el vídeo de B en pausa toda la llamada (el árbol de antes, medido: A oye a B con 14,9 huecos/min,
+ *    el mayor de 1159 ms): `HUECOS_MIN_MAX` huecos/min y ninguno de más de `HUECO_MAX_MS` en cada lado.
+ */
+const UMBRAL_T41 = { PAUSA_MAX_S: 60, VENTANAS_MIN: 1, HUECOS_MIN_MAX: 18, HUECO_MAX_MS: 1500 };
+function juzgarTableta41(r, fallos) {
+  const v = (r.total?.enA?.ventanas5s ?? []).slice(4);
+  const ok = v.filter((f) => f >= 1).length;
+  r.fraccionVideoB = v.length ? Math.round((ok / v.length) * 100) / 100 : 0;
+  if (ok < UMBRAL_T41.VENTANAS_MIN) fallos.push(`vídeo de la tableta (en A) ≥ 1 fps solo en ${ok}/${v.length} ventanas desde los 20 s: ${JSON.stringify(v)}`);
+  const ev = (r.pausasB ?? []).map((l) => /^(-?\d+)s (\S+) video-datos (pausa|sigue)/.exec(l)).filter(Boolean);
+  let desde = null;
+  for (const m of ev) {
+    const t = Number(m[1]);
+    if (m[3] === "pausa" && desde === null) desde = t;
+    if (m[3] === "sigue" && desde !== null) {
+      if (t - Math.max(0, desde) > UMBRAL_T41.PAUSA_MAX_S) fallos.push(`vídeo de la tableta en pausa ${t - Math.max(0, desde)} s (desde ${desde} s)`);
+      desde = null;
+    }
+  }
+  if (desde !== null && r.duracionS - Math.max(0, desde) > UMBRAL_T41.PAUSA_MAX_S) fallos.push(`vídeo de la tableta en pausa desde ${desde} s y no volvió (hasta ${r.duracionS} s)`);
+  for (const q of ["A", "B"]) {
+    const o = r.oido?.[q];
+    if (!o || o.huecosPorMin > UMBRAL_T41.HUECOS_MIN_MAX || o.huecoMaxMs > UMBRAL_T41.HUECO_MAX_MS) fallos.push(`voz en ${q}: ${o?.huecos} huecos (${o?.huecosPorMin}/min), el mayor ${o?.huecoMaxMs} ms`);
+  }
+}
+
 function juzgar(nombre, r, cambiosS) {
   const fallos = [];
+  if (nombre === "ble-tableta-41") {
+    juzgarTableta41(r, fallos); // LLA1113C: solo lo suyo (ver arriba)
+    return { pasa: fallos.length === 0, fallos };
+  }
   for (const k of ["AB", "BA"]) {
     const v = r.voz[k];
     if (vozNoCabe(nombre)) {
@@ -846,24 +898,24 @@ function juzgar(nombre, r, cambiosS) {
     if (v.perdidaPct === null || v.perdidaPct > UMBRAL.perdidaVozPct) fallos.push(`voz ${k} pérdida ${v.perdidaPct}% > ${UMBRAL.perdidaVozPct}%`);
     // LLA1112A: en `ble-tableta` el tránsito pasa del plazo por las paradas del aparato (física, no el control): cuenta lo que
     // se REPRODUCE (audio inventado y tardías que informa cada lado), juzgado abajo.
-    if (nombre !== "ble-tableta" && (v.tardePct === null || v.tardePct > UMBRAL.tardeVozPct)) fallos.push(`voz ${k} tarde ${v.tardePct}% > ${UMBRAL.tardeVozPct}%`);
+    if (!esTableta(nombre) && (v.tardePct === null || v.tardePct > UMBRAL.tardeVozPct)) fallos.push(`voz ${k} tarde ${v.tardePct}% > ${UMBRAL.tardeVozPct}%`);
     // LLA1112A: el carril de la tableta serializa a 20–45 B/ms (la mitad que la Mac): dos ventanas de vídeo delante son ≈ 190 ms;
     // se le aplica el tope del carril estrecho (250 ms).
-    const topeEspera = nombre === "ble-tableta" ? UMBRAL.esperaTrasVideoEstrechoMs : UMBRAL.esperaTrasVideoMs;
+    const topeEspera = esTableta(nombre) ? UMBRAL.esperaTrasVideoEstrechoMs : UMBRAL.esperaTrasVideoMs;
     if (v.esperaTrasVideoMaxMs > topeEspera) fallos.push(`voz ${k} esperó ${v.esperaTrasVideoMaxMs} ms tras un vídeo`);
   }
   const fluye = (lado) => lado.ventanas5s.length > 0 && lado.ventanas5s.filter((f) => f >= UMBRAL.fpsMin).length / lado.ventanas5s.length >= UMBRAL.ventanasOk;
-  if (nombre === "ble-tableta") juzgarTableta(r, fallos);
+  if (esTableta(nombre)) juzgarTableta(r, fallos);
   if (nombre === "ble-lento") {
     // LLA1113A: con el carril a 160 kb/s, ni pausa por «suelo»/«prueba-fallida» ni la voz a 6 kb/s por unos temporizadores lentos.
     for (const l of r.pausas ?? []) fallos.push(`pausa del vídeo: ${l}`);
     for (const l of r.vozAl5 ?? []) fallos.push(`voz al escalón 5: ${l}`);
   }
-  if (nombre === "ble-real" || nombre === "ble-real-mudo" || nombre === "ble-tableta" || nombre === "ble-lento") {
+  if (nombre === "ble-real" || nombre === "ble-real-mudo" || esTableta(nombre) || nombre === "ble-lento") {
     // LLA1111Q: los dos sentidos ≥ 3 fps sostenidos y, con micros abiertos, la voz sin huecos audibles y en un escalón bueno.
     if (!fluye(r.total.enA)) fallos.push(`vídeo en A: ${r.total.enA.fps} fps, ventanas ${JSON.stringify(r.total.enA.ventanas5s)}`);
     if (!fluye(r.total.enB)) fallos.push(`vídeo en B: ${r.total.enB.fps} fps, ventanas ${JSON.stringify(r.total.enB.ventanas5s)}`);
-    if (nombre === "ble-real" || nombre === "ble-tableta" || nombre === "ble-lento") {
+    if (nombre === "ble-real" || esTableta(nombre) || nombre === "ble-lento") {
       for (const q of ["A", "B"]) {
         const o = r.oido?.[q];
         if (!o || o.huecosPorMin > 1 || o.huecoMaxMs > 200) fallos.push(`voz en ${q}: ${o?.huecos} huecos (${o?.huecosPorMin}/min), el mayor ${o?.huecoMaxMs} ms`);

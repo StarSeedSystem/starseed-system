@@ -10,7 +10,7 @@ import type { AjustesMedios } from "@/lib/llamadas/permiso-medios";
 import type { DispositivosMedios } from "@/lib/llamadas/tipos";
 import { explicarFalloMedios } from "@/lib/nativa/medios-nativos";
 import { esAppNativa } from "@/lib/nativa/puente";
-import { describirCamaras, elegirCamaraPorDefecto, leerPreferencias, lineaCamaraElegida, plataformaDe, type CamaraInfo, type Plataforma, restriccionesDeOpciones, leerCapacidades, restriccionesVideoDeseadas, textoRestricciones } from "@/lib/llamadas/camaras";
+import { avisoCamaraOlvidada, describirCamaras, elegirCamaraPorDefecto, esPlataformaMovil, leerPreferencias, lineaCamaraElegida, marcarCamaraNoAbre, olvidarCamaraGuardada, plataformaDe, type CamaraInfo, type Plataforma, restriccionesDeOpciones, leerCapacidades, restriccionesVideoDeseadas, textoRestricciones } from "@/lib/llamadas/camaras";
 // LLA1111A · lo puro de las restricciones vive en camaras.ts (lo usa también el adaptador); se reexporta aquí.
 export { esPlataformaMovil, textoRestricciones } from "@/lib/llamadas/camaras";
 import { anotarLlamada } from "@/lib/llamadas/voz-datos/diagnostico";
@@ -172,42 +172,64 @@ async function abrirPistaDe(md: MediaDevices, id: string, plataforma: Plataforma
 }
 
 /**
- * Cambia la pista de vídeo de `stream` por la de la cámara `destino` (LLA1110D/LLA1111A). Primero con la otra abierta;
- * si la cámara está «ocupada» (WebKit puede no abrir dos a la vez), suelta la abierta y reintenta; si tampoco, vuelve a
- * abrir lo que había por la escalera (nunca sin cámara). Devuelve si quedó la de destino.
+ * Cambia la pista de vídeo de `stream` por la de la cámara `destino` (LLA1110D/LLA1111A). En el escritorio, primero con la
+ * otra abierta (sin hueco en la imagen); si la cámara está «ocupada» (WebKit puede no abrir dos a la vez), suelta la abierta
+ * y reintenta. LLA1113C: en un teléfono o una tableta NUNCA con dos abiertas: se suelta la de ahora y se abre la pedida sola
+ * (prueba 41: «cambio … NotReadableError» con la frontal abierta, como en la 40). Si la pedida no abre ni sola, se vuelve
+ * a abrir la del sistema por la escalera (en el móvil sin `deviceId`: el id de la que se acaba de soltar dio
+ * `NotFoundError` en 20 ms en la prueba 41) — nunca sin cámara. Devuelve si quedó la de destino y, si no, el error.
  */
-async function pasarACamara(md: MediaDevices, stream: MediaStream, destino: CamaraInfo, abiertaId: string | null, plataforma: Plataforma): Promise<boolean> {
+async function pasarACamara(md: MediaDevices, stream: MediaStream, destino: CamaraInfo, abiertaId: string | null, plataforma: Plataforma): Promise<{ ok: boolean; error: string | null }> {
     const pista = stream.getVideoTracks()[0] ?? null;
-    try {
-        const nueva = await abrirPistaDe(md, destino.id, plataforma, "cambio");
-        stream.addTrack(nueva);
-        if (pista) {
-            stream.removeTrack(pista);
-            pista.stop();
-        }
-        return true;
-    } catch (err) {
-        const ocupada = OCUPADA.includes((err as { name?: string })?.name ?? "");
-        anotarLlamada("camara", null, `cambio-a-preferida-fallo elegida="${destino.etiqueta}" error=${describirErrorMedios(err)}${ocupada ? " se suelta la del sistema y se reintenta" : ""}`);
-        if (!ocupada || !pista) return false;
-        stream.removeTrack(pista);
-        pista.stop();
+    const movil = esPlataformaMovil(plataforma);
+    let error: unknown = null;
+    if (!movil || !pista) {
         try {
-            stream.addTrack(await abrirPistaDe(md, destino.id, plataforma, "cambio-sola"));
-            return true;
-        } catch (err2) {
-            anotarLlamada("camara", null, `preferida-sola-fallo error=${describirErrorMedios(err2)} se reabre la del sistema`);
-            try {
-                const peldanos = escaleraCamara(abiertaId, plataforma, modoEco());
-                const { stream: s } = await abrirPorEscalera(md, false, peldanos, "reabrir");
-                const t = s.getVideoTracks()[0];
-                if (t) stream.addTrack(t);
-            } catch (err3) {
-                anotarLlamada("camara", null, `reabrir-sistema-fallo error=${describirErrorMedios(err3)}`);
+            const nueva = await abrirPistaDe(md, destino.id, plataforma, "cambio");
+            stream.addTrack(nueva);
+            if (pista) {
+                stream.removeTrack(pista);
+                pista.stop();
             }
-            return false;
+            return { ok: true, error: null };
+        } catch (err) {
+            error = err;
+            const ocupada = OCUPADA.includes((err as { name?: string })?.name ?? "");
+            anotarLlamada("camara", null, `cambio-a-preferida-fallo elegida="${destino.etiqueta}" error=${describirErrorMedios(err)}${ocupada ? " se suelta la del sistema y se reintenta" : ""}`);
+            if (!ocupada || !pista) return { ok: false, error: describirErrorMedios(err) };
         }
+    } else {
+        anotarLlamada("camara", null, `cambio-en-serie elegida="${destino.etiqueta}" (móvil: se suelta la abierta antes de abrir otra)`);
     }
+    stream.removeTrack(pista!);
+    pista!.stop();
+    try {
+        stream.addTrack(await abrirPistaDe(md, destino.id, plataforma, "cambio-sola"));
+        return { ok: true, error: null };
+    } catch (err2) {
+        error = err2;
+        anotarLlamada("camara", null, `preferida-sola-fallo error=${describirErrorMedios(err2)} se reabre la del sistema`);
+        try {
+            const peldanos = escaleraCamara(movil ? null : abiertaId, plataforma, modoEco());
+            const { stream: s } = await abrirPorEscalera(md, false, peldanos, "reabrir");
+            const t = s.getVideoTracks()[0];
+            if (t) stream.addTrack(t);
+        } catch (err3) {
+            anotarLlamada("camara", null, `reabrir-sistema-fallo error=${describirErrorMedios(err3)}`);
+        }
+        return { ok: false, error: describirErrorMedios(error) };
+    }
+}
+
+/**
+ * LLA1113C · ¿El fallo al abrir una cámara SOLA dice que esa cámara no abre en este aparato (y no que ahora esté ocupada)?
+ * NotFoundError / OverconstrainedError: siempre. «Ocupada» (NotReadableError…) abierta sola: solo en el móvil (no hay otra
+ * app que la tenga: en la prueba 41 la tableta no abrió «camera 3» ni sola); en el escritorio suele ser otra app. Pura.
+ */
+export function falloDefinitivo(error: string | null | undefined, plataforma: Plataforma): boolean {
+    const e = String(error ?? "");
+    if (/NotFoundError|DevicesNotFoundError|OverconstrainedError|ConstraintNotSatisfiedError/.test(e)) return true;
+    return esPlataformaMovil(plataforma) && /NotReadableError|TrackStartError|AbortError/.test(e);
 }
 
 /** Lista de cámaras ya descrita (con etiquetas si hay permiso). */
@@ -236,26 +258,41 @@ export function resolverCamaraPedida(lista: readonly CamaraInfo[], id: string, g
  * elegiría (guardada › integrada frontal › resto), se pasa a la buena por la escalera (LLA1111A) y se suelta la otra.
  * Nunca lanza ni deja la llamada sin cámara: si algo falla, se queda la que abrió el sistema.
  */
-export async function afinarCamara(md: MediaDevices, stream: MediaStream, camaraIdPedida?: string | null, neurona: string = neuronaLocal(), plataforma: Plataforma = plataformaActual()): Promise<void> {
+export async function afinarCamara(md: MediaDevices, stream: MediaStream, camaraIdPedida?: string | null, neurona: string = neuronaLocal(), plataforma: Plataforma = plataformaActual()): Promise<string | null> {
     const pista = stream.getVideoTracks()[0];
-    if (!pista) return;
+    if (!pista) return null;
+    let aviso: string | null = null;
     try {
         const lista = await camarasDe(md, plataforma);
         const abiertaId = pista.getSettings?.().deviceId ?? null;
         const abierta = lista.find((c) => c.id === abiertaId) ?? lista.find((c) => c.etiqueta && c.etiqueta === pista.label) ?? null;
         if (camaraIdPedida) {
             if (abierta) anotarLlamada("camara", null, lineaCamaraElegida(abierta, "pedida"));
-            return;
+            return null;
         }
         const e = elegirCamaraPorDefecto(lista, leerPreferencias(neurona).camara);
         let final = abierta;
         if (e.camara && abiertaId && e.camara.id !== abiertaId) {
-            if (await pasarACamara(md, stream, e.camara, abiertaId, plataforma)) final = e.camara;
+            const r = await pasarACamara(md, stream, e.camara, abiertaId, plataforma);
+            if (r.ok) final = e.camara;
+            else if (e.motivo === "guardada" && !falloDefinitivo(r.error, plataforma)) {
+                // Ocupada por otra app en el escritorio, o sin permiso: no es la cámara, es ahora. Se vuelve a probar la próxima vez.
+                anotarLlamada("camara", null, `preferida-no-abre-ahora elegida="${e.camara.etiqueta}" error=${r.error ?? "?"} (se guarda; se probará en la próxima)`);
+            } else if (e.motivo === "guardada") {
+                // LLA1113C · La elección guardada está en la lista pero no abre (prueba 41: «camera 3, facing front», NotFoundError
+                // sola): se olvida y se dice, en vez de reintentarla al empezar cada llamada. Queda la del sistema.
+                marcarCamaraNoAbre(e.camara, r.error ?? "?");
+                olvidarCamaraGuardada(neurona);
+                aviso = avisoCamaraOlvidada(e.camara);
+                anotarLlamada("camara", null, `preferida-olvidada elegida="${e.camara.etiqueta}" error=${r.error ?? "?"} (no se volverá a pedir sola; queda la del sistema)`);
+                final = stream.getVideoTracks()[0] ? (lista.find((c) => c.id === stream.getVideoTracks()[0]?.getSettings?.().deviceId) ?? abierta) : null;
+            }
         }
         if (final) anotarLlamada("camara", null, lineaCamaraElegida(final, final === e.camara ? e.motivo : "sistema"));
     } catch {
         /* sin enumerateDevices: se queda la que abrió el sistema */
     }
+    return aviso;
 }
 
 /** Aplica unas opciones guardadas (resolución, fps, zoom…) a la pista abierta. Solo lo que esa cámara admite. */
@@ -318,6 +355,7 @@ export async function obtenerMedios(p: { audio: boolean; video: boolean; microId
     }
     const plataforma = plataformaActual();
     const neurona = neuronaLocal();
+    let avisoCamara: string | null = null; // LLA1113C: la cámara guardada no abrió y se olvidó
     try {
         const { stream, paso } = await abrirPorEscalera(md, audio, escaleraCamara(p.camaraId, plataforma, modoEco()), p.camaraId ? "pedida" : "sistema");
         if (p.camaraId && paso === "libre") {
@@ -327,7 +365,7 @@ export async function obtenerMedios(p: { audio: boolean; video: boolean; microId
             const abiertaId = pista?.getSettings?.().deviceId ?? null;
             const destino = resolverCamaraPedida(lista, p.camaraId, leerPreferencias(neurona).camara);
             let ok = !!destino && destino.id === abiertaId;
-            if (destino && !ok) ok = await pasarACamara(md, stream, destino, abiertaId, plataforma);
+            if (destino && !ok) ok = (await pasarACamara(md, stream, destino, abiertaId, plataforma)).ok;
             anotarLlamada("camara", null, `tras-libre pedida=${destino ? `"${destino.etiqueta}"` : "no-esta"} ${ok ? "abierta" : "no-abre"}`);
             if (!ok && !p.audio) {
                 pararStream(stream);
@@ -336,10 +374,10 @@ export async function obtenerMedios(p: { audio: boolean; video: boolean; microId
             }
             if (destino && ok) anotarLlamada("camara", null, lineaCamaraElegida(destino, "pedida"));
         } else {
-            await afinarCamara(md, stream, p.camaraId, neurona, plataforma);
+            avisoCamara = await afinarCamara(md, stream, p.camaraId, neurona, plataforma);
         }
         await aplicarOpcionesGuardadas(stream.getVideoTracks()[0]);
-        return { stream, error: null, aviso: null };
+        return { stream, error: null, aviso: avisoCamara };
     } catch (err) {
         // (LLA1110D) Todo fallo de medios queda en el registro del enlace (nombre del error, restricción y qué se pidió).
         anotarLlamada("camara", null, `obtener-medios-fallo audio=${p.audio ? "si" : "no"} video=si micro=${p.microId ? "elegido" : "sistema"} camara=${p.camaraId ? "elegida" : "sistema"} error=${describirErrorMedios(err)}`);
@@ -379,7 +417,7 @@ async function textoFalloCamara(md: MediaDevices, err: unknown): Promise<string>
     return (await textoCamaraListada(md, err)) ?? mensajeErrorMedios(err, { audio: false, video: true });
 }
 
-export async function obtenerPista(tipo: "audio" | "video", deviceId?: string | null): Promise<{ pista: MediaStreamTrack | null; error: string | null; ocupada?: boolean }> {
+export async function obtenerPista(tipo: "audio" | "video", deviceId?: string | null): Promise<{ pista: MediaStreamTrack | null; error: string | null; ocupada?: boolean; aviso?: string | null }> {
     const r = await obtenerMedios({
         audio: tipo === "audio",
         video: tipo === "video",
@@ -387,7 +425,8 @@ export async function obtenerPista(tipo: "audio" | "video", deviceId?: string | 
         camaraId: tipo === "video" ? deviceId : null,
     });
     const pista = (tipo === "audio" ? r.stream?.getAudioTracks()[0] : r.stream?.getVideoTracks()[0]) ?? null;
-    return { pista, error: pista ? null : r.error ?? r.aviso, ...(!pista && r.ocupada ? { ocupada: true } : {}) }; // LLA1113A: ocupada
+    // LLA1113A: ocupada · LLA1113C: con pista, el aviso (la cámara guardada no abrió y se olvidó) también sale.
+    return { pista, error: pista ? null : r.error ?? r.aviso, ...(!pista && r.ocupada ? { ocupada: true } : {}), ...(pista && r.aviso ? { aviso: r.aviso } : {}) };
 }
 
 export async function obtenerPantalla(): Promise<{ pista: MediaStreamTrack | null; error: string | null }> {

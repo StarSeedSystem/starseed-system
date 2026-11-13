@@ -15,7 +15,7 @@
  */
 import type { RelojVoz } from "@/lib/llamadas/voz-datos/sesion";
 import { ControlAdaptativo, motivoSinHueco, techoDePerfiles } from "./adaptacion";
-import { CLAVE_MIN_MS, ControlReparto, CosteEscalon, Cubeta, MedidorEnlace, mtuParaVentana, muestraDeTransporte, SUELO_KBPS, sueloMedido, textoEnlace, ventanaBytes, ventanaParaTasa, type ResumenEnlace } from "./reparto";
+import { CLAVE_MIN_MS, cicloRepartoMs, ControlReparto, CosteEscalon, Cubeta, MedidorEnlace, mtuParaVentana, muestraDeTransporte, SUELO_KBPS, sueloMedido, textoEnlace, ventanaBytes, ventanaParaTasa, type ResumenEnlace } from "./reparto";
 import { armarControlVideo, armarFragmento, esTextoVideo, fragmentar, leerControlVideo, leerFragmento, mtuSana, ReensambladorVideo } from "./paquete";
 import {
   CODECS_VIDEO,
@@ -759,14 +759,17 @@ export class SesionVideoDatos {
         this.salidaTocada = false;
         this.cubeta.vaciar();
         this.d.transporte.enviar(armarControlVideo({ s: this.d.idLlamada, k: "pausa", m: cambio.motivo }));
-        this.d.anotar?.(`video-datos pausa motivo=${cambio.motivo} cabe=${r.maxKbps ?? "?"}kbps voz=${r.vozKbps}kbps ${textoEnlace(r)} calma-pedida=${rep.calmaPedidaS}s`);
+        this.d.anotar?.(`video-datos pausa motivo=${cambio.motivo} cabe=${r.maxKbps ?? "?"}kbps voz=${r.vozKbps}kbps ${textoEnlace(r)} ciclo=${cicloRepartoMs(r.modelo)} calma-pedida=${rep.calmaPedidaS}s`);
       } else if (cambio.estado === "activo" && antes === "pausa") {
         this.forzarClave = true;
         this.d.transporte.enviar(armarControlVideo({ s: this.d.idLlamada, k: "sigue" }));
-        this.d.anotar?.(`video-datos sigue motivo=${cambio.motivo} cabe=${r.maxKbps ?? "?"}kbps voz=${r.vozKbps}kbps ${textoEnlace(r)}`);
+        this.d.anotar?.(`video-datos sigue motivo=${cambio.motivo} cabe=${r.maxKbps ?? "?"}kbps voz=${r.vozKbps}kbps ${textoEnlace(r)} ciclo=${cicloRepartoMs(r.modelo)}`);
       }
       this.avisar();
     }
+    // LLA1113C: el ciclo del reparto (de él salen los umbrales de espera de la voz: 1,6 y 2 ciclos), para el registro. Corto:
+    // la línea se corta a 200 caracteres y la espera de la voz (al final del texto del enlace) tiene que caber.
+    const ciclo = `ciclo=${cicloRepartoMs(r.modelo)}`;
     const reiniciarProducido = () => {
       this.producidoBytes = 0;
       this.producidoFotos = 0;
@@ -799,7 +802,7 @@ export class SesionVideoDatos {
       this.d.anotar?.(
         // Cabe en una línea del registro (200 caracteres): kbps salvo donde se dice.
         // LLA1111Q: lo que el control usó (modelo / ciclo del emisor, la radio al lado, lo acusado, escrituras y espera).
-        `video-datos reparto ${rep.estado} motivo=${this.motivoCambio} obj=${rep.objetivoKbps} voz=${r.vozKbps} vid=${r.videoKbps} cabe=${r.maxKbps ?? "?"} ${textoEnlace(r)} vent=${this.ventana()}B fps=${this.txFpsReal}${perdida !== null ? ` perd-rx=${Math.round(perdida * 100)}%` : ""}${this.pausadoOtro ? " otro=pausa" : ""}`,
+        `video-datos reparto ${rep.estado} motivo=${this.motivoCambio} obj=${rep.objetivoKbps} voz=${r.vozKbps} vid=${r.videoKbps} cabe=${r.maxKbps ?? "?"} ${ciclo} ${textoEnlace(r)} vent=${this.ventana()}B fps=${this.txFpsReal}${perdida !== null ? ` perd-rx=${Math.round(perdida * 100)}%` : ""}${this.pausadoOtro ? " otro=pausa" : ""}`,
       );
     }
   }

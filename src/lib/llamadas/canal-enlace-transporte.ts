@@ -83,10 +83,16 @@ export function abrirCanalLlamadaPorTransporte(neurona: string, sesionId: string
         });
     };
 
-    /** Envía con reintentos si NINGÚN enlace lo llevó. Las señales importantes no se pierden por un bache del enlace. */
-    const mandar = (msg: MensajeCanal, reintentos = REINTENTOS) => {
+    /**
+     * Envía con reintentos si NINGÚN enlace lo llevó. Las señales importantes no se pierden por un bache del enlace.
+     * LLA1113C · `trasCerrar`: sigue reintentando aunque el canal ya se haya soltado. Colgar suelta el canal en el mismo
+     * instante en que manda «colgar»: si ese primer envío no tenía acuse en 1,5 s, el bucle veía `cerrado` y acababa sin
+     * reintentar y SIN dejar línea. Prueba 41: la primera llamada acabó en la Mac a las 18:53:47 sin ninguna línea de fin y
+     * la tableta siguió dentro, sin oír nada, hasta que la presencia de la Mac caducó (30 s) y se empezó la segunda.
+     */
+    const mandar = (msg: MensajeCanal, reintentos = REINTENTOS, trasCerrar = false) => {
         void (async () => {
-            for (let intento = 0; intento <= reintentos && !cerrado; intento++) {
+            for (let intento = 0; intento <= reintentos && (!cerrado || trasCerrar); intento++) {
                 let r: { ok: boolean; via?: string } = { ok: false };
                 try { r = await deps.enviar(neurona, msg); } catch { /* sin enlace */ }
                 if (r.ok) {
@@ -95,12 +101,12 @@ export function abrirCanalLlamadaPorTransporte(neurona: string, sesionId: string
                         presenciaAnotada = true;
                         anotarLlamada("senal-enviada", neurona, `presencia via=${r.via ?? "?"}`);
                     }
-                    if (msg.t === "llc.senal") anotarLlamada("senal-enviada", neurona, `${msg.senal.tipo}${msg.senal.tipo === "senal" ? (msg.senal.desc ? ` ${msg.senal.desc.type}` : msg.senal.ice ? " ice" : "") : ""} via=${r.via ?? "?"}`);
+                    if (msg.t === "llc.senal") anotarLlamada("senal-enviada", neurona, `${msg.senal.tipo}${msg.senal.tipo === "senal" ? (msg.senal.desc ? ` ${msg.senal.desc.type}` : msg.senal.ice ? " ice" : "") : ""} via=${r.via ?? "?"}${intento > 0 ? ` intento=${intento + 1}` : ""}`);
                     return;
                 }
                 if (intento < reintentos) await esperar(1000 * 2 ** intento);
             }
-            if (!cerrado && msg.t === "llc.senal") anotarLlamada("fallo", neurona, `señal ${msg.senal.tipo} sin enlace tras ${reintentos + 1} intentos`);
+            if ((!cerrado || trasCerrar) && msg.t === "llc.senal") anotarLlamada("fallo", neurona, `señal ${msg.senal.tipo} sin enlace tras ${reintentos + 1} intentos`);
         })();
     };
 
@@ -184,7 +190,8 @@ export function abrirCanalLlamadaPorTransporte(neurona: string, sesionId: string
         onSenal(cb) { oyentesSenal.add(cb); return () => { oyentesSenal.delete(cb); }; },
         onSuscrito(cb) { oyentesSuscrito.add(cb); return () => { oyentesSuscrito.delete(cb); }; },
         onEstado(cb) { oyentesEstado.add(cb); return () => { oyentesEstado.delete(cb); }; },
-        enviar(s) { if (!cerrado) mandar({ t: "llc.senal", s: sesionId, dn: miNeurona(), senal: s }); },
+        // LLA1113C: «colgar» se sigue reintentando aunque el motor suelte el canal justo después (ver `mandar`).
+        enviar(s) { if (!cerrado) mandar({ t: "llc.senal", s: sesionId, dn: miNeurona(), senal: s }, REINTENTOS, s.tipo === "colgar"); },
         publicar(meta) {
             if (cerrado) return;
             miMeta = meta;

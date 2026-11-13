@@ -43,7 +43,7 @@ import { MENSAJE_CANAL_PRIVADO } from "@/lib/llamadas/temas";
 import { admision, evaluarDescripcion, reaccionIce, soyCortes } from "@/lib/llamadas/negociacion";
 import { elegirHablante, nivelRms, suavizarNivel, type HablanteVigente } from "@/lib/llamadas/hablante";
 import { calidadDesde, extraerMetricas, peorCalidad, perdidaEntre, type MetricasPar } from "@/lib/llamadas/calidad";
-import { esPlataformaMovil, guardarPreferencia, plataformaDe } from "@/lib/llamadas/camaras";
+import { desmarcarCamaraNoAbre, esPlataformaMovil, guardarPreferencia, marcarCamaraNoAbre, plataformaDe } from "@/lib/llamadas/camaras";
 import { getDeviceId } from "@/lib/network/device-registry";
 import { listarDispositivos, obtenerMedios, obtenerPantalla, obtenerPista, pararStream, resumenCamaras } from "@/lib/llamadas/medios";
 import { AVISO_SIN_TURN, contieneTurn, servidoresIce } from "@/lib/llamadas/ice";
@@ -593,9 +593,13 @@ export class MotorLlamada {
             }
             for (const par of this.pares.values()) this.ponerEnEmisor(par, "video", r.pista);
             const abierta = this.idDispositivo(r.pista) ?? this.e.seleccion.camaraId;
-            this.set({ seleccion: { ...this.e.seleccion, camaraId: abierta } });
-            // (LLA1111A) Se recuerda la que de verdad abrió (no la pedida antes de abrir).
-            if (abierta) this.recordarDispositivo("camara", abierta, r.pista.label ? [{ id: abierta, nombre: r.pista.label }] : this.e.dispositivos.camaras);
+            const elegidaAntes = this.camaraElegidaPorPersona;
+            this.camaraElegidaPorPersona = null;
+            this.set({ seleccion: { ...this.e.seleccion, camaraId: abierta }, ...(r.aviso ? { aviso: r.aviso } : {}) });
+            // (LLA1111A) Se recuerda la que de verdad abrió (no la pedida antes de abrir). LLA1113C: y solo si la eligió la
+            // persona (en «Puertos» con la cámara apagada): lo que abre el sistema por su cuenta no es una preferencia. Así
+            // quedó guardada en la tableta una «camera 3, facing front» que luego no abría al empezar cada llamada (prueba 41).
+            if (abierta && elegidaAntes && elegidaAntes === abierta) this.recordarDispositivo("camara", abierta, r.pista.label ? [{ id: abierta, nombre: r.pista.label }] : this.e.dispositivos.camaras);
             // LLA1113B: con la cámara recién abierta el sistema ya deja ver todas (ids y nombres): se vuelve a listar. En el WebView
             // de Android una llamada empezada solo con voz no tenía permiso de cámara y el selector se quedaba sin ninguna.
             void this.actualizarDispositivos().catch(() => undefined);
@@ -721,6 +725,7 @@ export class MotorLlamada {
         // (LLA1111A) Con la cámara apagada solo se apunta la elegida; se recuerda cuando abre (en `alternarCamaraAhora`).
         if (!this.camaraOn) {
             this.set({ seleccion: { ...this.e.seleccion, camaraId: id } });
+            this.camaraElegidaPorPersona = id; // LLA1113C: se recuerda al abrir solo si es esta
             return null;
         }
         const neurona = this.opc.vozDatos?.neurona ?? null;
@@ -759,6 +764,9 @@ export class MotorLlamada {
                 }
             }
         }
+        // LLA1113C: la pedida no abrió (ni volviendo a la de antes cuenta): el selector lo dice («no abrió») en esta sesión.
+        if (!r.pista || elegida !== id) marcarCamaraNoAbre({ id, etiqueta: this.e.dispositivos.camaras.find((c) => c.id === id)?.nombre ?? "" }, errorVuelta ?? r.error ?? "?");
+        else desmarcarCamaraNoAbre(id);
         // LLA1113B: la persona apagó la cámara mientras se abría la nueva (la cola lo evita casi siempre; esto es el cinturón).
         if (r.pista && !this.camaraOn) {
             anotarLlamada("camara", neurona, "cambiar se-apago-entretanto (la nueva se suelta)");
@@ -838,6 +846,8 @@ export class MotorLlamada {
         }
     }
     private ultimaListaCamaras: { resumen: string; ids: string } = { resumen: "", ids: "" };
+    /** LLA1113C: la cámara que la persona eligió con la cámara apagada (se recuerda como preferencia solo si abre esa). */
+    private camaraElegidaPorPersona: string | null = null;
 
     private escucharDispositivos() {
         if (this.alCambiarDispositivos || typeof navigator === "undefined") return;
@@ -2723,6 +2733,8 @@ export class MotorLlamada {
             otrosDentro: this.presentes.length,
         };
         const resumen = this.resumenFinal;
+        // LLA1113C: el fin de la llamada, siempre en el registro (en la prueba 41 una llamada acabó sin dejar ninguna línea).
+        anotarLlamada("fin", this.opc.vozDatos?.neurona ?? null, `por=colgar motivo="${motivo.replace(/"/g, "'").slice(0, 60)}" contestada=${this.contestada ? "si" : "no"} dur-s=${Math.round(resumen.duracionMs / 1000)} canales=${this.canales.length}`);
         this.enviar({ tipo: "colgar", de: this.miId });
         this.limpiar();
         this.set({ fase: "terminada", motivoFin: motivo });
@@ -2747,6 +2759,7 @@ export class MotorLlamada {
 
     private terminar(fase: "llena" | "error", motivo: string) {
         if (this.cerrado) return;
+        anotarLlamada("fin", this.opc.vozDatos?.neurona ?? null, `por=${fase} motivo="${motivo.replace(/"/g, "'").slice(0, 60)}" contestada=${this.contestada ? "si" : "no"}`); // LLA1113C
         this.resumenFinal = { duracionMs: 0, contestada: this.contestada, otrosDentro: this.presentes.length };
         this.limpiar();
         this.set({ fase, motivoFin: motivo });

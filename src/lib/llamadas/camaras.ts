@@ -151,6 +151,8 @@ export interface EleccionCamara {
  */
 export function elegirCamaraPorDefecto(lista: readonly CamaraInfo[], guardada?: { id: string; etiqueta?: string } | null): EleccionCamara {
   if (!lista.length) return { camara: null, motivo: "ninguna" };
+  // LLA1113C: una guardada que en esta sesión ya no abrió no se vuelve a probar (se olvida al fallar; esto es el cinturón).
+  if (guardada && camaraNoAbre(guardada)) guardada = null;
   if (guardada) {
     const porId = lista.find((c) => c.id === guardada.id);
     const porEtiqueta = guardada.etiqueta ? lista.find((c) => c.etiqueta && c.etiqueta === guardada.etiqueta) : undefined;
@@ -456,6 +458,67 @@ export function guardarPreferencia(neurona: string, cambio: Partial<Preferencias
   } catch {
     /* sin almacenamiento: la elección vale solo para esta llamada */
   }
+}
+
+/**
+ * LLA1113C · Olvida la cámara guardada de esta neurona (la elección de la persona que ya no abre). Las opciones por cámara
+ * y el micro y el altavoz se quedan.
+ */
+export function olvidarCamaraGuardada(neurona: string): void {
+  const s = almacen();
+  if (!s) return;
+  try {
+    const a = migrarDispositivos(s.getItem(CLAVE_DISPOSITIVOS), neurona);
+    const actual = a.neuronas[neurona];
+    if (!actual?.camara) return;
+    const { camara: _olvidada, ...resto } = actual;
+    a.neuronas[neurona] = resto;
+    s.setItem(CLAVE_DISPOSITIVOS, JSON.stringify(a));
+  } catch {
+    /* sin almacenamiento */
+  }
+}
+
+/* ───────────────────────── Cámaras que no abren en esta sesión (LLA1113C) ───────────────────────── */
+
+/**
+ * LLA1113C · Prueba 41, tableta (18:54:20–18:54:28 UTC): la cámara guardada («camera 3, facing front») está en la lista
+ * del sistema pero el WebView no la abre ni sola (`NotFoundError` con su `deviceId` exacto tras 5,2 s, y otra vez con
+ * solo el id). Que un id esté en la lista no dice que abra. Lo que no abrió en esta sesión se recuerda aquí (por id y por
+ * etiqueta, sin almacenamiento: al reiniciar la app se vuelve a poder probar a mano) para no volver a pedirlo solo y para
+ * decirlo en el selector.
+ */
+const noAbren = new Map<string, { etiqueta: string; error: string }>();
+
+export function marcarCamaraNoAbre(c: { id: string; etiqueta?: string }, error: string): void {
+  if (!c.id) return;
+  noAbren.set(c.id, { etiqueta: c.etiqueta ?? "", error: String(error).slice(0, 60) });
+  if (noAbren.size > 16) noAbren.delete(noAbren.keys().next().value as string);
+}
+
+/** ¿Esa cámara (por id, o por su etiqueta si el id cambió) ya no abrió en esta sesión? */
+export function camaraNoAbre(c: { id: string; etiqueta?: string } | null | undefined): boolean {
+  if (!c) return false;
+  if (noAbren.has(c.id)) return true;
+  const e = c.etiqueta?.trim();
+  if (!e) return false;
+  for (const v of noAbren.values()) if (v.etiqueta && v.etiqueta === e) return true;
+  return false;
+}
+
+/** Abrió bien (la persona la volvió a elegir y esta vez sí): deja de contar como que no abre. */
+export function desmarcarCamaraNoAbre(id: string): void {
+  noAbren.delete(id);
+}
+
+/** Solo pruebas. */
+export function __vaciarCamarasNoAbren(): void {
+  noAbren.clear();
+}
+
+/** LLA1113C: el aviso para la persona cuando la cámara que eligió antes ya no abre (sin jerga). */
+export function avisoCamaraOlvidada(c: Pick<CamaraInfo, "nombre">): string {
+  return `No se pudo abrir ${c.nombre}, la cámara que elegiste antes. Se usa la de este aparato y ya no se pedirá sola; puedes elegir otra en Puertos › Cámara.`;
 }
 
 /* ───────────────────────── Cámara remota: otra neurona como cámara (diseño, primera rebanada) ───────────────────────── */

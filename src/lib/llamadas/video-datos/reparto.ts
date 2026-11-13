@@ -81,6 +81,16 @@ export const CALMA_MAXIMA_S = 40;
  * el vídeo vuelve a la pausa AL MOMENTO (con la calma doblada), sin tres segundos más de vídeo encima de la voz.
  */
 export const PRUEBA_S = 3;
+/**
+ * LLA1113C · Segundos de la prueba con la voz esperando más de `retrasoAltoMs` para darla por fallida (de `PRUEBA_S`). Con un
+ * atasco claro (más de `ATASCO_PRUEBA` veces ese umbral, o el máximo de la escalera de la voz) falla al momento, como
+ * antes. Un segundo suelto no basta: en la tableta la voz SOLA, en pausa, ya pasa del umbral algún segundo (banco
+ * `ble-tableta-41`, calibrado con el aparato: «pausa … espera=400/380ms», «300/319ms» sin vídeo; en el aparato
+ * «espera=327/361ms» y «334/340ms» en pausa) y cada prueba acababa en «prueba-fallida» por ese segundo, con la calma
+ * doblándose hasta 40 s.
+ */
+export const PRUEBA_MALOS_S = 2;
+export const ATASCO_PRUEBA = 1.5;
 /** Pérdida de fotogramas que informa el receptor a partir de la cual se baja. */
 export const PERDIDA_RECEPTOR_ALTA = 0.15;
 export const VENTANA_MIN_BYTES = 300;
@@ -137,18 +147,42 @@ export function cicloEfectivoMs(m: ModeloEnlace | null | undefined): number {
 }
 
 /**
+ * LLA1113C: serialización mínima de cada escritura del reparto con un emisor con tope de escrituras (ms). Con un acuse más
+ * largo que `139 − 60 = 79 ms` la escritura se alarga en vez de quedarse sin sitio; con el de la Mac (mediana ≈ 55 ms) nada
+ * cambia. 60 y no 80 por la voz: en el banco `ble-tableta-41` (calibrado con la tableta) con 80 el vídeo de la tableta salía
+ * en el 15–55 % de las ventanas pero su voz, oída en la Mac, pasaba de 14,9 a 17,9–18,4 huecos/min; con 60, 14,0 (como con
+ * el vídeo en pausa toda la llamada) y el vídeo vuelve igualmente.
+ */
+export const SERIAL_MIN_MS = 60;
+
+/**
+ * LLA1113C · El ciclo de cada escritura del reparto: el del emisor (`cicloEfectivoMs`) o, si el acuse se come casi todo ese
+ * ciclo, `R + SERIAL_MIN_MS`. En parada y espera el ciclo NO está fijo: una escritura dura lo que su acuse más lo que lleva,
+ * y con el acuse de la tableta (prueba 41: `enlace=160k+84…154ms/139`) el ciclo fijo de 139 ms dejaba 0–55 ms para
+ * serializar: «cabe=2–63» con 160 kb/s de carril, y el vídeo en pausa por «suelo» los 120 s (la voz, que cuenta su ciclo
+ * con sus paquetes, leía «cabe=83–116» en el mismo carril). Solo con tope de escrituras (el Bluetooth): el carril fijo del
+ * banco sigue igual. Con el acuse de la Mac (≤ 79 ms) no cambia nada.
+ */
+export function cicloRepartoMs(m: ModeloEnlace | null | undefined): number {
+  const c = cicloEfectivoMs(m);
+  if (!m || !(m.cicloMinMs && m.cicloMinMs > 0)) return c;
+  return Math.max(c, Math.round(m.rMs + SERIAL_MIN_MS));
+}
+
+/**
  * LLA1111Q: con la voz esperando más que esto, el vídeo baja. Sin limitador de escrituras, 260 ms (LLA1111B). Con él, dos
  * ciclos del emisor (278 ms con 7,2 escrituras/s): la voz que llega espera, como mucho, a la ficha de la siguiente
  * escritura y a esa escritura; más es que el vídeo ya le quita sitio. Siempre por debajo del umbral de atasco de la
  * escalera de la voz (2,5 ciclos): el vídeo cede ANTES de que la voz tenga que bajar.
  */
 export function retrasoAltoMs(m: ModeloEnlace | null | undefined): number {
-  return Math.max(RETRASO_ALTO_MS, Math.round(2 * cicloEfectivoMs(m)));
+  // LLA1113C: dos ciclos del REPARTO (con acuse largo, la escritura en vuelo y la suya duran más que el ciclo del emisor).
+  return Math.max(RETRASO_ALTO_MS, Math.round(2 * cicloRepartoMs(m)));
 }
 
 /** LLA1111Q: con la voz esperando menos que esto, el vídeo puede subir o volver (210 ms; 1,6 ciclos con limitador). */
 export function retrasoBajoMs(m: ModeloEnlace | null | undefined): number {
-  return Math.max(RETRASO_BAJO_MS, Math.round(1.6 * cicloEfectivoMs(m)));
+  return Math.max(RETRASO_BAJO_MS, Math.round(1.6 * cicloRepartoMs(m))); // LLA1113C
 }
 
 /**
@@ -165,7 +199,7 @@ export function esperaVozMs(r: ResumenEnlace): number {
  * escritura no necesita llevar más vídeo que eso, y cuanto menos lleva, menos espera la voz que llega detrás.
  */
 export function ventanaParaTasa(m: ModeloEnlace | null, anunciadoKbps: number | null | undefined, objetivoKbps: number): number {
-  const porCiclo = ((2 * Math.max(0, objetivoKbps)) / 8) * cicloEfectivoMs(m);
+  const porCiclo = ((2 * Math.max(0, objetivoKbps)) / 8) * cicloRepartoMs(m); // LLA1113C
   return Math.round(Math.max(VENTANA_MIN_BYTES, Math.min(ventanaBytes(m, anunciadoKbps), porCiclo)));
 }
 
@@ -259,7 +293,8 @@ export function ajustarEscrituras(pares: ReadonlyArray<{ bytes: number; ms: numb
  * corto que el que se permite el emisor (`cicloMinMs`): con 7,2 escrituras/s, cada una puede llevar `(139 − R)·C` bytes.
  */
 export function kbpsMaxConCiclo(m: ModeloEnlace, cicloMs: number = CICLO_OBJETIVO_MS): number {
-  const t = Math.max(cicloMs, m.cicloMinMs ?? 0);
+  // LLA1113C: con tope de escrituras, el ciclo del reparto (`cicloRepartoMs`): con acuse largo la escritura se alarga.
+  const t = Math.max(cicloMs, m.cicloMinMs ?? 0, m.cicloMinMs && m.cicloMinMs > 0 ? m.rMs + SERIAL_MIN_MS : 0);
   return Math.max(0, Math.round(8 * m.bytesPorMs * (1 - m.rMs / t)));
 }
 
@@ -273,7 +308,7 @@ export const ACUSE_ARRANQUE_MS = 50;
 export function ventanaBytes(m: ModeloEnlace | null, anunciadoKbps?: number | null): number {
   const c = m ? m.bytesPorMs : typeof anunciadoKbps === "number" && anunciadoKbps > 0 ? anunciadoKbps / 8 : BYTES_POR_MS_SUPUESTOS;
   const r = m ? m.rMs : ACUSE_ARRANQUE_MS;
-  return Math.round(Math.max(VENTANA_MIN_BYTES, Math.min(VENTANA_MAX_BYTES, (cicloEfectivoMs(m) - r) * c)));
+  return Math.round(Math.max(VENTANA_MIN_BYTES, Math.min(VENTANA_MAX_BYTES, (cicloRepartoMs(m) - r) * c))); // LLA1113C
 }
 
 /** Cabecera de un fragmento de vídeo en texto (JSON con el id de la llamada), por lo alto. */
@@ -683,6 +718,8 @@ export class ControlReparto {
   private enPausaDesde = 0;
   private reanudadoEn = -1e12;
   private calmaPedida = CALMA_REANUDAR_S;
+  /** LLA1113C: segundos de la prueba en curso con la voz por encima del umbral alto. */
+  private pruebaMalos = 0;
   /** Último motivo (para el registro). */
   motivo = "inicio";
   pausas = 0;
@@ -718,11 +755,17 @@ export class ControlReparto {
     const suelo = Math.max(SUELO_KBPS, e.sueloKbps ?? 0); // LLA1111Q
     const espera = esperaVozMs(l);
     // Con limitador, un máximo de más de 2,5 ciclos (el atasco de la escalera de la voz) también baja el vídeo.
-    const maxAlto = l.modelo?.cicloMinMs ? l.retrasoMaxMs > 2.5 * cicloEfectivoMs(l.modelo) : false;
+    const maxAlto = l.modelo?.cicloMinMs ? l.retrasoMaxMs > 2.5 * cicloRepartoMs(l.modelo) : false; // LLA1113C
+    // LLA1113C: carril de acuse largo (la tableta): el ciclo del reparto pasa del del emisor. Solo ahí se toleran los segundos
+    // sueltos de espera en la prueba y en la calma (con el acuse de la Mac, todo como antes).
+    const acuseLargo = cicloRepartoMs(l.modelo) > cicloEfectivoMs(l.modelo);
     if (this.est === "activo") {
       let motivo: string | null = null;
       const enPrueba = ahora - this.reanudadoEn < PRUEBA_S * 1000; // LLA1111Q
-      if ((espera > alto || maxAlto) && enPrueba) {
+      // LLA1113C: en la prueba, un atasco claro la hace fallar al momento; un segundo por encima del umbral, solo si se repite.
+      if (enPrueba && espera > alto && !maxAlto && espera <= ATASCO_PRUEBA * alto) this.pruebaMalos++;
+      const limiteMalos = acuseLargo ? PRUEBA_MALOS_S : 1;
+      if (enPrueba && (maxAlto || espera > ATASCO_PRUEBA * alto || this.pruebaMalos >= limiteMalos)) {
         this.est = "pausa";
         this.pausas++;
         this.enPausaDesde = ahora;
@@ -731,7 +774,9 @@ export class ControlReparto {
         this.motivo = "prueba-fallida";
         return { estado: this.est, objetivoKbps: 0, motivo: this.motivo };
       }
-      if (espera > alto || maxAlto) {
+      if (enPrueba && espera > alto && !maxAlto) {
+        // LLA1113C: un segundo malo en la prueba: el vídeo se queda en el suelo (no sube ni baja) y se mira el siguiente.
+      } else if (espera > alto || maxAlto) {
         this.obj = Math.min(this.obj * 0.6, techo);
         motivo = "retraso-voz";
       } else if (e.perdidaReceptor !== null && e.perdidaReceptor > PERDIDA_RECEPTOR_ALTA) {
@@ -765,12 +810,19 @@ export class ControlReparto {
       // En pausa solo va la voz: se reanuda si la voz espera poco y el modelo deja sitio para el doble del suelo.
       const holgura = pres === null || pres >= 2 * suelo;
       if (espera < bajo && !maxAlto && holgura) this.calma++;
-      else this.calma = 0;
+      // LLA1113C: un segundo con la voz entre los dos umbrales (ni holgada ni atascada) no cuenta, pero tampoco borra la calma.
+      // En la tableta la voz SOLA pasa del umbral bajo uno de cada cuatro segundos (paradas y acuses de hasta 260 ms: en el
+      // aparato «espera=327/361ms» y «171/200ms» en pausa); con la calma a cero en cada uno, pedir 20 s seguidos tras dos
+      // pruebas fallidas era no volver nunca (banco `ble-tableta-41`). Sin sitio o con atasco, la calma vuelve a cero.
+      else if (acuseLargo && holgura && !maxAlto && espera <= alto) {
+        /* ni suma ni borra */
+      } else this.calma = 0;
       if (this.calma >= this.calmaPedida && ahora - this.enPausaDesde >= PAUSA_MINIMA_S * 1000) {
         this.est = "activo";
         // LLA1111Q: vuelve AL SUELO (una prueba, ver `PRUEBA_S`); de ahí sube con lo medido.
         this.obj = Math.min(this.maxKbps, suelo);
         this.bajoSuelo = 0;
+        this.pruebaMalos = 0; // LLA1113C
         this.reanudadoEn = ahora;
         this.motivo = "sitio-de-nuevo";
       }
