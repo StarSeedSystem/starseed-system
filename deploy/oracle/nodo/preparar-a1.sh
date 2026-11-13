@@ -43,7 +43,8 @@ chgrp "$U" /etc/starseed
 # ── 2. paquetes ───────────────────────────────────────────────────────────────────────────────
 export DEBIAN_FRONTEND=noninteractive
 faltan=()
-for p in cmake clang ninja-build python3-venv python3-pip jq logrotate curl git; do
+# GEN1114D: python3-cryptography para verificar las entradas firmadas en el bot de peticiones (genesis_firma_logica).
+for p in cmake clang ninja-build python3-venv python3-pip python3-cryptography jq logrotate curl git; do
   dpkg -s "$p" >/dev/null 2>&1 || faltan+=("$p")
 done
 if [ ${#faltan[@]} -gt 0 ]; then

@@ -305,6 +305,51 @@ def mantener_sesion() -> None:
         time.sleep(REFRESCO_S)
 
 
+# GEN1114D · /estado y /ayuda empiezan con «Este chat: <nombre> · id <id>», leído de chat-a1.json (lo lleva la Mac
+# por ssh con `llevar-a1`), NUNCA del catálogo de la puerta, que no es de confianza. Sin él no se inventa nombre.
+ID_CHAT = re.compile(r"^[a-z0-9][a-z0-9._-]{1,62}$")
+RAROS = re.compile("[\u0000-\u001f\u007f-\u009f\u200e\u200f\u202a-\u202e\u2066-\u2069]")
+
+
+def leer_privado(ruta: str, defecto: Any = None) -> Any:
+    """El JSON de un archivo solo si es de este usuario y nadie más puede leerlo ni escribirlo (600)."""
+    try:
+        st = os.stat(ruta)
+    except OSError:
+        return defecto
+    if st.st_uid != os.getuid() or st.st_mode & 0o077:
+        return defecto
+    return leer_json(ruta, defecto)
+
+
+def chat_a1() -> dict[str, Any] | None:
+    """{id, nombre, alias} del chat canónico de este bot (§5.1), o None si falta o no vale."""
+    d = leer_privado(os.path.join(DIR, "chat-a1.json"))
+    if not (isinstance(d, dict) and d.get("v") == 1 and isinstance(d.get("id"), str) and ID_CHAT.match(d["id"])):
+        return None
+    nombre = RAROS.sub("", d.get("nombre") if isinstance(d.get("nombre"), str) else "").strip()[:80]
+    alias = [RAROS.sub("", a).strip()[:80] for a in d.get("alias") or [] if isinstance(a, str)][:20]
+    return {"id": d["id"], "nombre": nombre, "alias": alias} if nombre else None
+
+
+def linea_chat() -> str:
+    c = chat_a1()
+    if c is None:
+        return "Este chat: nombre aún no publicado por la Mac"
+    return "Este chat: %s · id %s" % (c["nombre"], c["id"])
+
+
+_texto_estado_gen1113 = texto_estado
+
+
+def texto_estado(cola: list[Any], notebooklm: dict[str, Any]) -> str:  # noqa: F811 · la de peticiones_reglas + la línea
+    return linea_chat() + "\n" + _texto_estado_gen1113(cola, notebooklm)
+
+
+def texto_ayuda() -> str:
+    return linea_chat() + "\n" + AYUDA
+
+
 def recibir(upd: dict[str, Any]) -> None:
     m = upd.get("message") or {}
     if str((m.get("chat") or {}).get("id")) != CHAT:
@@ -318,7 +363,7 @@ def recibir(upd: dict[str, Any]) -> None:
         decir(texto_estado(leer_json(COLA, []), leer_json(ESTADO, {}).get("notebooklm", {})))
         return
     if texto.startswith(("/start", "/ayuda", "/help")):
-        decir(AYUDA)
+        decir(texto_ayuda())   # GEN1114D
         return
     with bloqueo:
         cola = leer_json(COLA, [])

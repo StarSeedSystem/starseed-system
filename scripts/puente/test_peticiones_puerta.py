@@ -1,12 +1,20 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""GEN1113F · pruebas de peticiones_puerta.py: sin red, con puerta y bot de mentira, datos inventados."""
+"""GEN1113F · pruebas de peticiones_puerta.py: sin red, con puerta y bot de mentira, datos inventados.
+
+GEN1114D: las entradas llegan firmadas (v:2) por un aparato emparejado, con claves de prueba creadas aquí. La
+verificación es la de `genesis_firma_logica` (GEN1114B); si ese módulo aún no está en el checkout, las pruebas que
+firman se saltan y lo dicen (el resto sigue corriendo)."""
+import base64
 import datetime
+import hashlib
 import json
 import os
 import sys
 import time
 from unittest.mock import patch
+
+import pytest
 
 sys.path.insert(0, os.path.dirname(__file__))
 
@@ -14,8 +22,83 @@ import peticiones_puerta as pp
 import peticiones_telegram as pt
 from puerta_datos_cliente import Puerta
 
+try:
+    import genesis_firma_logica as L
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import ec
+    from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature
+except ImportError:
+    L = None
+
+requiere_firma = pytest.mark.skipif(L is None, reason="falta genesis_firma_logica (GEN1114B) o cryptography")
+
 DUENO = "11111111-2222-3333-4444-555555555555"
 OTRA = "99999999-8888-7777-6666-555555555555"
+# chat-a1.json del puente B, sacado del canon.json de ejemplo de §8.3 (usuarios de bot inventados)
+CHAT_B = {"v": 1, "id": "telegram.ejemplo_b_bot", "nombre": "Bot B de ejemplo",
+          "alias": ["puente:peticiones", "peticiones", "Peticiones y encargos"]}
+CHAT_A = ("telegram.ejemplo_a_bot", "Bot A de ejemplo")
+
+
+def _b64(b):
+    return base64.urlsafe_b64encode(b).rstrip(b"=").decode()
+
+
+class Aparato:
+    """Una clave P-256 de prueba, como la de WebCrypto: firma r‖s de 64 bytes sobre los bytes de la carga."""
+
+    def __init__(self, cuenta=DUENO, nivel="completo", nombre="Móvil de prueba"):
+        self.clave = ec.generate_private_key(ec.SECP256R1())
+        self.spki = self.clave.public_key().public_bytes(serialization.Encoding.DER,
+                                                         serialization.PublicFormat.SubjectPublicKeyInfo)
+        self.huella = hashlib.sha256(self.spki).hexdigest()
+        self.cuenta, self.nivel, self.nombre = cuenta, nivel, nombre
+        self.seq = 0
+
+    def alta(self):
+        return {"huella": self.huella, "spki": _b64(self.spki), "cuenta": self.cuenta, "nombre": self.nombre,
+                "plataforma": "navegador", "nivel": self.nivel, "alta": "2026-11-13T00:00:00Z"}
+
+    def firmar(self, datos):
+        r, s = decode_dss_signature(self.clave.sign(datos, ec.ECDSA(hashes.SHA256())))
+        return _b64(r.to_bytes(32, "big") + s.to_bytes(32, "big"))
+
+
+def _iso(t):
+    return datetime.datetime.fromtimestamp(t, datetime.timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def firmada(i, ap, texto="infografía de la última síntesis", accion="texto", nonce=None, seq=None, hace_s=0,
+            recibido=None, cuenta_puerta=None, rol="dueño", carga_extra=None, firmante=None, cambiar_byte=False,
+            **extra_entrada):
+    """EntradaRecibida v2 tal como la entrega la puerta (§5.2): {id, cuenta, rol, destino, recibido, v, carga, …}."""
+    ahora = time.time() - hace_s
+    if seq is None:
+        ap.seq += 1
+        seq = ap.seq
+    entrada = {"v": 1, "nonce": nonce or ("n%021d" % (i * 1000 + seq)), "t": _iso(ahora),
+               "fuente": "puente:peticiones", "accion": accion}
+    if accion == "texto":
+        entrada["texto"] = texto
+    entrada.update(extra_entrada)
+    carga = {"aud": "starseed.genesis.chats.v1", "cuenta": ap.cuenta, "aparato": ap.huella, "seq": seq,
+             "t": _iso(ahora), "caduca": _iso(ahora + 25 * 60), "destino": "a1", "chat": CHAT_B["id"],
+             "chatNombre": CHAT_B["nombre"], "entrada": entrada}
+    carga.update(carga_extra or {})
+    datos = json.dumps(carga, ensure_ascii=False).encode("utf-8")
+    firma = (firmante or ap).firmar(datos)
+    if cambiar_byte:
+        datos = datos.replace(b'"seq": %d,' % seq, b'"seq": %d,' % (seq + 1000))   # un cambio por el camino
+    return {"id": i, "cuenta": cuenta_puerta or ap.cuenta, "rol": rol, "destino": "a1",
+            "recibido": recibido or _iso(time.time()), "v": 2, "carga": _b64(datos), "firma": firma,
+            "aparato": ap.huella}
+
+
+def entrada_v1(i, cuenta=DUENO, texto="infografía de la última síntesis"):
+    """Una entrada de GEN1113, sin firma."""
+    return {"v": 1, "nonce": "n%021d" % i, "t": "2026-11-13T10:00:00Z", "fuente": "puente:peticiones",
+            "accion": "texto", "texto": texto, "id": i, "cuenta": cuenta, "rol": "dueño", "destino": "a1",
+            "recibido": datetime.datetime.now(datetime.timezone.utc).isoformat()}
 
 
 class PuertaFalsa:
@@ -43,25 +126,28 @@ class PuertaFalsa:
     def finales(self):
         return [(a["id"], a["estado"]) for a in self.acuses if a["estado"] != "entregado"]
 
-
-def entrada(i, texto="infografía de la última síntesis", cuenta=DUENO, rol="dueño", accion="texto",
-            nonce=None, recibido=None, **extra):
-    e = {"v": 1, "nonce": nonce or ("n%021d" % i), "t": "2026-11-13T10:00:00Z", "fuente": "puente:peticiones",
-         "accion": accion, "id": i, "cuenta": cuenta, "rol": rol, "destino": "a1",
-         "recibido": recibido or datetime.datetime.now(datetime.timezone.utc).isoformat()}
-    if accion == "texto":
-        e["texto"] = texto
-    e.update(extra)
-    return e
+    def detalles(self):
+        return [a.get("detalle", "") for a in self.acuses if a["estado"] != "entregado"]
 
 
-def montar(tmp_path, cuentas=True):
+def _privado(ruta, datos):
+    ruta.write_text(json.dumps(datos))
+    os.chmod(ruta, 0o600)
+
+
+def montar(tmp_path, cuentas=True, aparatos=(), retirados=None, chat=True):
     """Puente con el módulo real del bot apuntando a una carpeta de prueba."""
     d = tmp_path / "peticiones"
     d.mkdir()
     if cuentas:
-        (d / "cuentas.json").write_text(json.dumps({"duenos": [DUENO]}))
-        os.chmod(d / "cuentas.json", 0o600)   # (GEN1113INT) la lista solo vale con permisos 600
+        _privado(d / "cuentas.json", {"duenos": [DUENO]})   # (GEN1113INT) la lista solo vale con permisos 600
+    if aparatos is not None:
+        _privado(d / "aparatos.json", {"v": 1, "aparatos": [a.alta() for a in aparatos]})
+    if retirados:
+        _privado(d / "aparatos-retirados.json", {"v": 1, "retirados": [
+            {"huella": a.huella, "t": "2026-11-13T00:00:00Z", "por": "mac"} for a in retirados]})
+    if chat:
+        _privado(d / "chat-a1.json", CHAT_B)
     (d / "estado.json").write_text(json.dumps({"offset": 77, "notebooklm": {"viva": True, "comprobada": "ayer"}}))
     for k, v in (("DIR", str(d)), ("COLA", str(d / "cola.json")), ("ESTADO", str(d / "estado.json"))):
         patcher = patch.object(pt, k, v)
@@ -86,98 +172,134 @@ def vuelta(puente, falsa, *entradas):
     puente.una_vuelta()
 
 
+def cola_de(d):
+    return json.loads((d / "cola.json").read_text()) if (d / "cola.json").exists() else []
+
+
+# ── GEN1113F (adaptadas a GEN1114D: ahora llegan firmadas) ────────────────────
+
+@requiere_firma
 def test_entrada_de_dueno_entra_en_la_cola_con_origen_genesis(tmp_path):
-    puente, falsa, d = montar(tmp_path)
-    vuelta(puente, falsa, entrada(5))
-    cola = json.loads((d / "cola.json").read_text())
+    ap = Aparato()
+    puente, falsa, d = montar(tmp_path, aparatos=[ap])
+    vuelta(puente, falsa, firmada(5, ap))
+    cola = cola_de(d)
     assert len(cola) == 1 and cola[0]["origen"] == "genesis" and cola[0]["estado"] == "nueva"
     assert cola[0]["id"] == "g-5" and cola[0]["texto"] == "infografía de la última síntesis"
     assert falsa.finales() == [(5, "hecho")]
     assert "Recibido" in falsa.espejo[0]["texto"]
     assert puente.estado["desde"] == 5
+    # §3.5 paso 9: aparato:seq y cuenta:nonce anotados antes de ejecutar, en un vistos.json 600
+    vistos = json.loads((d / "vistos.json").read_text())
+    assert len(vistos) == 2 and oct(os.stat(d / "vistos.json").st_mode & 0o777) == "0o600"
 
 
+@requiere_firma
 def test_cuenta_fuera_de_la_lista_se_rechaza_y_no_corre_nada(tmp_path):
-    puente, falsa, d = montar(tmp_path)
-    vuelta(puente, falsa, entrada(1, cuenta=OTRA), entrada(2, rol="desarrollador"),
-           entrada(3, accion="orden", orden={"nombre": "estado", "args": []}, cuenta=OTRA))
+    otro = Aparato(cuenta=OTRA)                       # emparejado, pero su cuenta no es dueña en el A1
+    ap = Aparato()
+    puente, falsa, d = montar(tmp_path, aparatos=[otro, ap])
+    vuelta(puente, falsa, firmada(1, otro), firmada(2, ap, rol="desarrollador"),
+           firmada(3, otro, accion="orden", orden={"nombre": "estado", "args": []}))
     assert falsa.finales() == [(1, "rechazado"), (2, "rechazado"), (3, "rechazado")]
-    assert not (d / "cola.json").exists() and falsa.espejo == []
+    assert cola_de(d) == [] and falsa.espejo == []
 
 
+@requiere_firma
 def test_sin_lista_de_cuentas_no_se_ejecuta_nada(tmp_path):
-    puente, falsa, d = montar(tmp_path, cuentas=False)
-    vuelta(puente, falsa, entrada(1))
+    ap = Aparato()
+    puente, falsa, d = montar(tmp_path, cuentas=False, aparatos=[ap])
+    vuelta(puente, falsa, firmada(1, ap))
     assert falsa.finales() == [(1, "rechazado")]
     assert "lista de cuentas" in falsa.acuses[-1]["detalle"]
-    assert not (d / "cola.json").exists()
+    assert cola_de(d) == []
 
 
+@requiere_firma
 def test_estado_contesta_al_espejo_y_no_a_telegram(tmp_path):
-    puente, falsa, d = montar(tmp_path)
+    ap = Aparato(nivel="texto")                       # /estado y /ayuda son «bajo»: valen desde un aparato «texto»
+    puente, falsa, d = montar(tmp_path, aparatos=[ap])
     antes = (d / "estado.json").read_bytes()
     with patch.object(pt, "tg", side_effect=AssertionError("Telegram no debe usarse")), \
          patch.object(pt, "decir", side_effect=AssertionError("Telegram no debe usarse")):
-        vuelta(puente, falsa, entrada(1, texto="/estado"),
-               entrada(2, accion="orden", orden={"nombre": "estado", "args": []}),
-               entrada(3, texto="/ayuda"))
+        vuelta(puente, falsa, firmada(1, ap, texto="/estado"),
+               firmada(2, ap, accion="orden", orden={"nombre": "estado", "args": []}),
+               firmada(3, ap, texto="/ayuda"))
     assert falsa.finales() == [(1, "hecho"), (2, "hecho"), (3, "hecho")]
-    assert falsa.espejo[0]["texto"].startswith("Estado de MetaGenesis (A1):")
-    assert falsa.espejo[2]["texto"] == pt.AYUDA
+    primera, resto = falsa.espejo[0]["texto"].split("\n", 1)
+    assert primera == "Este chat: Bot B de ejemplo · id telegram.ejemplo_b_bot"
+    assert resto.startswith("Estado de MetaGenesis (A1):")
+    assert falsa.espejo[2]["texto"] == pt.texto_ayuda() and pt.AYUDA in falsa.espejo[2]["texto"]
     assert (d / "estado.json").read_bytes() == antes     # el offset de Telegram no cambia
-    assert not (d / "cola.json").exists()
+    assert cola_de(d) == []
 
 
+@requiere_firma
 def test_orden_que_cambia_algo_caduca_a_los_30_min(tmp_path):
-    puente, falsa, _ = montar(tmp_path)
-    vieja = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(minutes=31)).isoformat()
-    reciente = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(minutes=5)).isoformat()
-    vuelta(puente, falsa, entrada(1, accion="orden", orden={"nombre": "pausa", "args": []}, recibido=vieja),
-           entrada(2, texto="/cancela", recibido="no es una fecha"),
-           entrada(3, accion="orden", orden={"nombre": "sigue", "args": []}, recibido=reciente))
+    ap = Aparato()
+    puente, falsa, _ = montar(tmp_path, aparatos=[ap])
+    vieja = _iso(time.time() - 31 * 60)
+    reciente = _iso(time.time() - 5 * 60)
+    vuelta(puente, falsa, firmada(1, ap, accion="orden", orden={"nombre": "pausa", "args": []}, recibido=vieja),
+           firmada(2, ap, texto="/cancela", hace_s=31 * 60),
+           firmada(3, ap, accion="orden", orden={"nombre": "sigue", "args": []}, recibido=reciente))
     assert falsa.finales() == [(1, "caducado"), (2, "caducado"), (3, "rechazado")]   # 3: la orden aún no existe aquí
     assert "no existe" in falsa.acuses[-1]["detalle"]
 
 
-def test_un_mensaje_de_texto_viejo_no_caduca(tmp_path):
-    puente, falsa, d = montar(tmp_path)
-    vieja = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=3)).isoformat()
-    vuelta(puente, falsa, entrada(1, recibido=vieja))
-    assert falsa.finales() == [(1, "hecho")] and len(json.loads((d / "cola.json").read_text())) == 1
+@requiere_firma
+def test_peticion_en_texto_tambien_caduca_a_los_30_min(tmp_path):
+    """GEN1114D (§3.6): una petición en texto es «alto» (la trabajan agentes): ya no vive 7 días."""
+    ap = Aparato()
+    puente, falsa, d = montar(tmp_path, aparatos=[ap])
+    vuelta(puente, falsa, firmada(1, ap, recibido=_iso(time.time() - 31 * 60)),
+           firmada(2, ap, hace_s=3 * 3600))
+    assert falsa.finales() == [(1, "caducado"), (2, "caducado")]
+    assert cola_de(d) == [] and falsa.espejo == []
 
 
+@requiere_firma
 def test_forma_y_lista_blanca(tmp_path):
-    puente, falsa, d = montar(tmp_path)
+    ap = Aparato()
+    puente, falsa, d = montar(tmp_path, aparatos=[ap])
     vuelta(puente, falsa,
-           entrada(1, destino="mac"), entrada(2, fuente="direccion"), entrada(3, nonce="corto"),
-           entrada(4, texto="/borra-todo"), entrada(5, accion="orden", orden={"nombre": "rm", "args": []}),
-           entrada(6, accion="orden", orden={"nombre": "estado", "args": ["x"] * 11}),
-           entrada(7, texto="x" * 8001), entrada(8, texto="   "))
+           firmada(1, ap, carga_extra={"destino": "mac"}), firmada(2, ap, fuente="direccion"),
+           firmada(3, ap, nonce="corto"), firmada(4, ap, texto="/borra-todo"),
+           firmada(5, ap, accion="orden", orden={"nombre": "rm", "args": []}),
+           firmada(6, ap, accion="orden", orden={"nombre": "estado", "args": ["x"] * 11}),
+           firmada(7, ap, texto="x" * 8001), firmada(8, ap, texto="   "))
     assert [e for _, e in falsa.finales()] == ["rechazado"] * 8
-    assert not (d / "cola.json").exists() and falsa.espejo == []
+    assert cola_de(d) == [] and falsa.espejo == []
 
 
+@requiere_firma
 def test_nonce_repetido_no_se_ejecuta_dos_veces(tmp_path):
-    puente, falsa, d = montar(tmp_path)
-    vuelta(puente, falsa, entrada(1, nonce="a" * 22))
-    vuelta(puente, falsa, entrada(2, nonce="a" * 22))
-    assert len(json.loads((d / "cola.json").read_text())) == 1
-    assert falsa.finales() == [(1, "hecho"), (2, "hecho")]
+    ap = Aparato()
+    puente, falsa, d = montar(tmp_path, aparatos=[ap])
+    vuelta(puente, falsa, firmada(1, ap, nonce="a" * 22))
+    vuelta(puente, falsa, firmada(2, ap, nonce="a" * 22))   # otra carga, otro seq, el mismo nonce
+    assert len(cola_de(d)) == 1
+    assert falsa.finales() == [(1, "hecho"), (2, "rechazado")] and falsa.detalles()[1] == "nonce-repetido"
     assert len(falsa.espejo) == 1
 
 
+@requiere_firma
 def test_misma_entrada_reentregada_no_duplica_la_cola(tmp_path):
-    puente, falsa, d = montar(tmp_path)
-    vuelta(puente, falsa, entrada(9))
+    ap = Aparato()
+    puente, falsa, d = montar(tmp_path, aparatos=[ap])
+    e = firmada(9, ap)
+    vuelta(puente, falsa, e)
     puente.estado["vistos"].clear()                      # p. ej. se perdió el estado propio
-    vuelta(puente, falsa, entrada(9))
-    assert len(json.loads((d / "cola.json").read_text())) == 1
+    vuelta(puente, falsa, e)
+    assert len(cola_de(d)) == 1 and falsa.detalles()[-1] == "seq-repetido"
 
 
+@requiere_firma
 def test_si_no_se_puede_acusar_el_cursor_no_avanza(tmp_path):
-    puente, falsa, _ = montar(tmp_path)
+    ap = Aparato()
+    puente, falsa, d = montar(tmp_path, aparatos=[ap])
     falsa.acuse_ok = False
-    falsa.entradas = [entrada(4)]
+    falsa.entradas = [firmada(4, ap)]
     try:
         puente.una_vuelta()
         assert False, "debía fallar"
@@ -185,13 +307,15 @@ def test_si_no_se_puede_acusar_el_cursor_no_avanza(tmp_path):
         pass
     assert puente.estado.get("desde", 0) == 0
     falsa.acuse_ok = True
-    puente.una_vuelta()                                   # se reintenta: sin duplicar
-    assert puente.estado["desde"] == 4 and falsa.finales() == [(4, "hecho")]
+    puente.una_vuelta()                                   # se reintenta: sin duplicar, con el acuse de antes
+    assert puente.estado["desde"] == 4 and falsa.finales() == [(4, "hecho")] and len(cola_de(d)) == 1
 
 
+@requiere_firma
 def test_la_consulta_va_al_destino_a1_con_el_cursor(tmp_path):
-    puente, falsa, _ = montar(tmp_path)
-    vuelta(puente, falsa, entrada(12))
+    ap = Aparato()
+    puente, falsa, _ = montar(tmp_path, aparatos=[ap])
+    vuelta(puente, falsa, firmada(12, ap))
     vuelta(puente, falsa)
     assert "destino=a1" in falsa.consultas[0] and "desde=0" in falsa.consultas[0]
     assert "desde=12" in falsa.consultas[1]
@@ -282,12 +406,14 @@ def test_arranque_con_ficha_en_subproceso_no_toca_telegram(tmp_path):
 
 # ── GEN1113INT ───────────────────────────────────────────────────────────────
 
+@requiere_firma
 def test_lista_con_permisos_abiertos_no_autoriza_nada(tmp_path):
-    puente, falsa, d = montar(tmp_path)
+    ap = Aparato()
+    puente, falsa, d = montar(tmp_path, aparatos=[ap])
     os.chmod(d / "cuentas.json", 0o644)
-    vuelta(puente, falsa, entrada(1))
+    vuelta(puente, falsa, firmada(1, ap))
     assert falsa.finales() == [(1, "rechazado")]
-    assert "600" in falsa.acuses[-1]["detalle"] and not (d / "cola.json").exists()
+    assert "600" in falsa.acuses[-1]["detalle"] and cola_de(d) == []
 
 
 def test_respuestas_largas_van_en_lotes_que_caben_en_la_puerta(tmp_path):
@@ -342,3 +468,155 @@ def test_retiro_de_una_peticion_de_genesis_va_al_espejo_sin_su_texto(tmp_path):
     m.actualizar(41, estado="caducada")
     m.decir("Retiro de la cola tras 24 h sin poder hacerla: «otra»")
     assert mandados == ["Retiro de la cola tras 24 h sin poder hacerla: «otra»"]
+
+
+# ── GEN1114D · entradas firmadas por el aparato (§3.5.3, §3.6, §3.7) ─────────
+
+def _nada_corrio(falsa, d):
+    return cola_de(d) == [] and falsa.espejo == []
+
+
+@requiere_firma
+def test_sin_lista_de_aparatos_no_se_atiende_nada_y_telegram_sigue_igual(tmp_path):
+    ap = Aparato()
+    puente, falsa, d = montar(tmp_path, aparatos=None)
+    antes = (d / "estado.json").read_bytes()
+    vuelta(puente, falsa, firmada(1, ap), firmada(2, ap, texto="/estado"), entrada_v1(3))
+    assert falsa.finales() == [(1, "rechazado"), (2, "rechazado"), (3, "rechazado")]
+    assert all("lista de aparatos" in x for x in falsa.detalles())
+    assert _nada_corrio(falsa, d) and (d / "estado.json").read_bytes() == antes
+    assert not (d / "vistos.json").exists()
+
+
+@requiere_firma
+def test_lista_de_aparatos_con_permisos_abiertos_no_vale(tmp_path):
+    ap = Aparato()
+    puente, falsa, d = montar(tmp_path, aparatos=[ap])
+    os.chmod(d / "aparatos.json", 0o644)
+    vuelta(puente, falsa, firmada(1, ap))
+    assert falsa.finales() == [(1, "rechazado")] and "lista de aparatos" in falsa.detalles()[0]
+    assert _nada_corrio(falsa, d)
+
+
+@requiere_firma
+def test_v1_sin_firma_se_rechaza_aunque_la_cuenta_este_en_la_lista(tmp_path):
+    ap = Aparato()
+    puente, falsa, d = montar(tmp_path, aparatos=[ap])
+    vuelta(puente, falsa, entrada_v1(1), entrada_v1(2, texto="/estado"))
+    assert falsa.finales() == [(1, "rechazado"), (2, "rechazado")]
+    assert falsa.detalles() == ["sin-firma", "sin-firma"] and _nada_corrio(falsa, d)
+
+
+@requiere_firma
+def test_cada_motivo_se_acusa_y_no_corre_nada(tmp_path):
+    ap, texto = Aparato(), Aparato(nivel="texto")
+    ajeno = Aparato()                                     # nunca emparejado
+    de_otra = Aparato(cuenta=OTRA)                        # emparejado con otra cuenta
+    retirado = Aparato()
+    puente, falsa, d = montar(tmp_path, aparatos=[ap, texto, de_otra, retirado], retirados=[retirado])
+    repetida = firmada(9, ap)
+    casos = [
+        (firmada(1, ajeno), "aparato-desconocido"),
+        (firmada(2, retirado), "aparato-revocado"),
+        (firmada(3, ap, cambiar_byte=True), "firma-mala"),
+        (firmada(4, ap, firmante=ajeno), "firma-mala"),
+        (firmada(5, de_otra, cuenta_puerta=DUENO), "cuenta-distinta"),          # aparato de otra cuenta
+        (firmada(6, ap, carga_extra={"cuenta": OTRA}), "cuenta-distinta"),      # carga que dice otra cuenta
+        (firmada(7, ap, carga_extra={"destino": "mac"}), "destino"),            # una entrada para la Mac
+        (firmada(8, ap, carga_extra={"chat": CHAT_A[0]}), "chat-distinto"),
+        (firmada(10, ap, carga_extra={"chatNombre": CHAT_A[1]}), "nombre-distinto"),
+        (firmada(11, ap, hace_s=-15 * 60), "futuro"),
+        (firmada(12, ap, hace_s=31 * 60), "caducada"),
+        (firmada(13, texto), "nivel"),                    # una petición (alto) desde un aparato «texto»
+        (firmada(14, ap, carga_extra={"aud": "otra.cosa"}), "aud"),
+    ]
+    vuelta(puente, falsa, *[e for e, _ in casos])
+    assert falsa.detalles() == [m for _, m in casos]
+    assert falsa.finales() == [(e["id"], "caducado" if m == "caducada" else "rechazado") for e, m in casos]
+    assert _nada_corrio(falsa, d)
+    vuelta(puente, falsa, repetida)                       # buena: entra
+    vuelta(puente, falsa, dict(repetida, id=15))          # la misma carga con otro id de la puerta (§7.8 k)
+    assert falsa.finales()[-2:] == [(9, "hecho"), (15, "rechazado")] and falsa.detalles()[-1] == "seq-repetido"
+    assert len(cola_de(d)) == 1
+
+
+@requiere_firma
+def test_dos_cargas_en_orden_inverso_entran_las_dos(tmp_path):
+    ap = Aparato()
+    puente, falsa, d = montar(tmp_path, aparatos=[ap])
+    vuelta(puente, falsa, firmada(1, ap, seq=8, texto="la de seq 8"), firmada(2, ap, seq=7, texto="la de seq 7"))
+    assert falsa.finales() == [(1, "hecho"), (2, "hecho")]
+    assert [p["texto"] for p in cola_de(d)] == ["la de seq 8", "la de seq 7"]
+
+
+@requiere_firma
+def test_firmada_antes_de_retirar_y_entregada_despues_se_rechaza(tmp_path):
+    ap = Aparato()
+    puente, falsa, d = montar(tmp_path, aparatos=[ap])
+    e = firmada(1, ap)
+    _privado(d / "aparatos-retirados.json", {"v": 1, "retirados": [{"huella": ap.huella, "t": "x", "por": "mac"}]})
+    vuelta(puente, falsa, e)
+    assert falsa.detalles() == ["aparato-revocado"] and _nada_corrio(falsa, d)
+
+
+@requiere_firma
+def test_retirados_o_vistos_que_otro_pudo_tocar_no_valen(tmp_path):
+    ap = Aparato()
+    puente, falsa, d = montar(tmp_path, aparatos=[ap])
+    _privado(d / "aparatos-retirados.json", {"v": 1, "retirados": []})
+    os.chmod(d / "aparatos-retirados.json", 0o664)
+    vuelta(puente, falsa, firmada(1, ap))
+    os.chmod(d / "aparatos-retirados.json", 0o600)
+    (d / "vistos.json").write_text("{roto")
+    os.chmod(d / "vistos.json", 0o600)
+    vuelta(puente, falsa, firmada(2, ap))
+    assert falsa.finales() == [(1, "rechazado"), (2, "rechazado")] and _nada_corrio(falsa, d)
+
+
+@requiere_firma
+def test_sin_chat_a1_solo_valen_los_alias_fijos_y_estado_no_inventa_nombre(tmp_path):
+    ap = Aparato(nivel="texto")
+    puente, falsa, d = montar(tmp_path, aparatos=[ap], chat=False)
+    vuelta(puente, falsa, firmada(1, ap, texto="/estado", carga_extra={"chatNombre": "Peticiones y encargos"}),
+           firmada(2, ap, texto="/estado", carga_extra={"chatNombre": "Nombre inventado por la puerta"}))
+    assert falsa.finales() == [(1, "hecho"), (2, "rechazado")] and falsa.detalles()[1] == "nombre-distinto"
+    assert falsa.espejo[0]["texto"].split("\n", 1)[0] == "Este chat: nombre aún no publicado por la Mac"
+
+
+@requiere_firma
+def test_vistos_se_podan_a_8_dias_no_a_7(tmp_path):
+    ap = Aparato()
+    puente, falsa, d = montar(tmp_path, aparatos=[ap])
+    ahora = time.time()
+    _privado(d / "vistos.json", {"aparato:%s:100" % ap.huella: {"t": ahora - 7.5 * 86400},
+                                 "viejo": {"t": ahora - 8.5 * 86400}})
+    vuelta(puente, falsa, firmada(1, ap))
+    vistos = json.loads((d / "vistos.json").read_text())
+    assert "aparato:%s:100" % ap.huella in vistos and "viejo" not in vistos and len(vistos) == 3
+
+
+@requiere_firma
+def test_sin_el_modulo_de_firmas_no_corre_nada(tmp_path):
+    ap = Aparato()
+    puente, falsa, d = montar(tmp_path, aparatos=[ap])
+    with patch.object(pp, "firma", None):
+        vuelta(puente, falsa, firmada(1, ap))
+    assert falsa.finales() == [(1, "rechazado")] and "verificación de firmas" in falsa.detalles()[0]
+    assert _nada_corrio(falsa, d)
+
+
+@requiere_firma
+def test_registros_y_acuses_sin_texto_tokens_ni_identificadores_enteros(tmp_path):
+    ap = Aparato()
+    puente, falsa, d = montar(tmp_path, aparatos=[ap])
+    lineas = []
+    secreto = "TEXTO-PRIVADO de una petición"
+    with patch.object(pt, "log", lambda *p: lineas.append(" ".join(str(x) for x in p))):
+        vuelta(puente, falsa, firmada(1, ap, texto=secreto), firmada(2, ap, texto=secreto, cambiar_byte=True),
+               firmada(3, Aparato(), texto=secreto), entrada_v1(4, texto=secreto))
+    todo = "\n".join(lineas) + json.dumps(falsa.acuses, ensure_ascii=False)
+    assert len(lineas) == 4
+    for prohibido in (secreto, DUENO, ap.huella, "ficha-de-prueba", firmada(5, ap)["carga"][:40]):
+        assert prohibido not in todo
+    assert "aparato8=%s" % ap.huella[:8] in lineas[0] and "firma=ok" in lineas[0] and "seq=" in lineas[0]
+    assert "firma=firma-mala" in lineas[1] and DUENO[:8] in lineas[0]
