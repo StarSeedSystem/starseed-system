@@ -122,6 +122,8 @@ llamada. Con el Wi-Fi sin salida a internet (o el punto de acceso de un móvil s
     o si el servidor no responde al crear la sesión, un chat 1:1 con enlace al aparato de la otra
     persona llama DIRECTO por él (timbre, voz, vídeo; burbuja por «chat-malla»). Ya no se deduce «sin
     red» de la fuente ICE (sin TURN se quitaba hasta el STUN). Ver `architecture/datos-por-la-malla.md`.
+    ✅ Hecho (9339e035b, `src/lib/llamadas/acciones.ts`, `src/lib/llamadas/motor.ts`,
+    `src/lib/llamadas/canal-enlace-local.ts`, `src/lib/llamadas/medio-llamada-chat.ts`)
   - ~~Falta: llamadas de GRUPO sin internet~~ → hechas en GRP1107A: sala `malla-grupo:…` sin sesión
     del servidor, timbre `llg.*` por el enlace a cada miembro y malla COMPLETA (cada par por su
     enlace, también `local:nativo-…`; el canal local nativo señaliza ese WebRTC desde MLT1107A). Ver
@@ -133,3 +135,5 @@ llamada. Con el Wi-Fi sin salida a internet (o el punto de acceso de un móvil s
   `enviarMensaje(…, "chat", …)` cuando no hay internet y reconciliarlo al volver.
 - **App nativa 0.4**: descubrimiento UDP multicast firmado y señalizador local para los navegadores del
   mismo Wi-Fi (quita el gesto del código). Bluetooth, LoRa como señalizador y Reticulum, después.
+
+Revisado el 2026-11-13 contra main (9339e035b): 1 hecho, 3 pendientes.

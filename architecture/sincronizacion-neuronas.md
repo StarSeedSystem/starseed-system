@@ -122,12 +122,15 @@ type ViaSync = "red-local-nativa" | "enlace-local" | "malla-cuenta" | "vinculo-p
 
 ## 7 · Pendiente (con motivo)
 
-- La clave de faro de la cuenta YA se reparte a la app nativa (VIN1107A, §8.3). Pendiente de comprobar a mano en
-  dos aparatos: que `antenas_configurar` haga que el faro en marcha pase a emitir con la clave nueva sin
-  reiniciar la app (el Rust no se tocó en esta ola y no hay Rust en la Mac).
+- La clave de faro de la cuenta YA se reparte a la app nativa (VIN1107A, §8.3):
+  ✅ Hecho (9339e035b, `src/lib/nativa/faro-clave-cuenta.ts`, `src/components/network/malla-neuronas-mount.tsx`).
+  Pendiente de comprobar a mano en dos aparatos: que `antenas_configurar` haga que el faro en marcha pase a
+  emitir con la clave nueva sin reiniciar la app (el Rust no se tocó en esta ola y no hay Rust en la Mac).
 - Identidad entre cuentas sin servidor: la cuenta que dice el otro no se puede comprobar offline (se dice
   así en la ventana); la huella sí.
 - `/genesis` y `/voces` no montan `MallaNeuronasMount`: allí no sale la ventana.
+
+Revisado el 2026-11-13 contra main (9339e035b): 1 hecho, 2 pendientes.
 
 ## 8 · Panel del vínculo (VIN1107A · 2026-11-07)
 
