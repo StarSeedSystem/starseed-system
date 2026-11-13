@@ -83,6 +83,23 @@ def a_medias(ruta):
     return tipo, sha
 
 
+def _sin_lo_grande(ruta):
+    """GUA1113A: lo que pasa del tope por archivo o es salida de build NO entra en la rama de archivo.
+    Sale del índice pero sigue en el disco, así que `sucio()` lo sigue contando y el worktree NO se
+    poda: nada se pierde, lo decide una persona. Si el módulo falta, no hace nada."""
+    try:
+        sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "enjambre"))
+        import guardia_disco as GD
+
+        def _sh(cmd, cwd=None, timeout=120, env=None, **_):
+            rc, out = git(cwd or ruta, *cmd[1:], timeout=timeout)
+            return rc, out
+
+        GD.filtrar_indice(_sh, ruta, tid=os.path.basename(ruta))
+    except Exception:
+        pass
+
+
 def archivar(ruta, nombre, hoy):
     """Guarda lo sin guardar en una rama nueva. Devuelve (ok, rama o motivo)."""
     _, ramas = git(ruta, "for-each-ref", "--format=%(refname:short)", "refs/heads/archivo-wt/")
@@ -100,6 +117,8 @@ def archivar(ruta, nombre, hoy):
         rc, out = git(ruta, *paso, timeout=300)
         if rc:
             return False, "%s: %s" % (paso[0], out.strip()[:160])
+        if paso[:1] == ["add"]:
+            _sin_lo_grande(ruta)  # GUA1113A
     return (sucio(ruta) == 0), rama
 
 

@@ -11,6 +11,8 @@ RUTA_ENJAMBRE = Path(__file__).parent / "starseed-enjambre.py"
 
 @pytest.fixture(autouse=True)
 def aislador_hermetico(monkeypatch, tmp_path):
+    # GUA1113A: el estado del freno de disco (y su evidencia) jamás sale de la carpeta temporal.
+    monkeypatch.setenv("STARSEED_DISCO_DIR", str(tmp_path / "disco-hermetico"))
     """Parchea EVENTOS, ANON, HERMES y RELEVO en todo módulo importado como enjambre."""
     # Detecta cualquier módulo en sys.modules cuyo archivo sea el orquestador.
     for nombre, mod in list(sys.modules.items()):

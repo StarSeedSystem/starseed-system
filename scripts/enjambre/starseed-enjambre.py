@@ -76,6 +76,18 @@ try:
 except Exception:  # pragma: no cover — sin el módulo, el orquestador funciona como antes
     _puntos_control = None
 
+# GUA1113A · Guardia del disco: tope del núcleo y vigía del worktree para los agentes, nada grande ni
+# generado en los commits y un freno por espacio libre. Sin el módulo el orquestador arranca igual.
+try:
+    import guardia_disco as _gd
+
+    DiscoDesbocado = _gd.DiscoDesbocado
+except Exception:  # pragma: no cover — instalación sin el módulo
+    _gd = None
+
+    class DiscoDesbocado(RuntimeError):
+        """Marcador: sin guardia_disco nadie la lanza."""
+
 
 
 # El MISMO archivo corre en la Mac de Alex y en el contenedor de Cowork: sin variables de
@@ -2605,6 +2617,92 @@ def _claves_que_viajan():
     return nombres
 
 
+# ── GUA1113A · guardia del disco (ver guardia_disco.py) ─────────────────────────────
+def _en_worktree(cwd):
+    """¿`cwd` está dentro de la carpeta de worktrees de las tareas? (no el main ni otros repos)"""
+    try:
+        base = os.path.realpath(WT_BASE)
+        ruta = os.path.realpath(cwd or "")
+        return ruta != base and ruta.startswith(base + os.sep)
+    except Exception:
+        return False
+
+
+def _con_tope_de_disco(cmd):
+    """La orden del agente con `RLIMIT_FSIZE` heredable por todo su árbol (incluso los nietos que
+    se van a otra sesión, que `matar_grupo` no alcanza). Sin el módulo, la orden tal cual."""
+    if _gd is None:
+        return cmd
+    try:
+        return _gd.envolver_con_limite(cmd)
+    except Exception:
+        return cmd
+
+
+def _vigia_de_disco(cwd, proceso, tid):
+    """Arranca el vigía del worktree para este agente. None si no aplica o no se pudo."""
+    if _gd is None or not _en_worktree(cwd):
+        return None
+    try:
+        v = _gd.VigiaArbol(cwd, matar=lambda: matar_grupo(proceso), tid=tid or os.path.basename(cwd))
+        v.__enter__()
+        return v
+    except Exception:
+        return None
+
+
+def _cerrar_vigia(vigia):
+    if vigia is not None:
+        try:
+            vigia.__exit__(None, None, None)
+        except Exception:
+            pass
+
+
+def _fallar_si_desbocado(vigia, tid):
+    """Si el vigía cortó al agente, la tarea falla con la razón en claro (la recoge ejecutar_seguro)."""
+    d = getattr(vigia, "disparo", None)
+    if d:
+        evento("fallo", tid or "", "guardia de disco: " + d["motivo"])
+        raise DiscoDesbocado(d["motivo"])
+
+
+def _filtrar_commit(cwd, tid, env=None):
+    """Justo después de cada `git add -A` del enjambre: fuera del índice lo grande y lo generado."""
+    if _gd is None:
+        return []
+    try:
+        return _gd.filtrar_indice(
+            sh, cwd, env=env, tid=tid or "", avisar=lambda t: evento("aviso", tid or "", t)
+        )
+    except Exception:
+        return []
+
+
+def _avisar_disco(texto):
+    evento("aviso", "", texto)
+
+
+def disco_retiene_arranques():
+    """¿Hay poco disco? Entonces no empieza ninguna tarea nueva (se reanuda sola)."""
+    if _gd is None:
+        return False
+    try:
+        return _gd.FRENO.retiene_arranques(_avisar_disco)
+    except Exception:
+        return False
+
+
+def esperar_disco_pesado():
+    """Con menos del umbral crítico no EMPIEZA ninguna puerta pesada. → segundos esperados."""
+    if _gd is None:
+        return 0
+    try:
+        return _gd.FRENO.esperar_pesado(_avisar_disco)
+    except Exception:
+        return 0
+
+
 def matar_grupo(proceso):
     """Mata el grupo de procesos entero de `proceso` (él y todos sus descendientes que no
     se hayan ido a otro grupo). Nunca lanza. Si el grupo ya no existe, mata al proceso.
@@ -2659,21 +2757,32 @@ def sh(cmd, cwd=ROOT, timeout=120, env=None, log=None):
     `node (vitest N)` de ~2,2 GB cada uno, huérfanos 49 minutos, dejaron la Mac sin RAM
     y Genesis sin contestar."""
     e = entorno_hijo(env)
+    # GUA1113A: las puertas que corren en un worktree (tsc, vitest, las pruebas que escribió el
+    # agente) también heredan el tope del núcleo y las vigila el worktree entero.
+    _en_wt = _en_worktree(cwd) and timeout >= 60
     def ejecutar():
         p = None
+        vigia = None
         try:
             p = subprocess.Popen(
-                cmd,
+                _con_tope_de_disco(cmd) if _en_wt else cmd,
                 cwd=cwd,
-                shell=isinstance(cmd, str),
+                shell=isinstance(cmd, str) and not _en_wt,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
                 env=e,
                 start_new_session=True,
             )
-            stdout, stderr = p.communicate(timeout=timeout)
+            if _en_wt:
+                vigia = _vigia_de_disco(cwd, p, os.path.basename(cwd))
+            try:
+                stdout, stderr = p.communicate(timeout=timeout)
+            finally:
+                _cerrar_vigia(vigia)
             out = (stdout or "") + (stderr or "")
+            if getattr(vigia, "disparo", None):
+                out += "\nGUARDIA DE DISCO: " + vigia.disparo["motivo"]
         except subprocess.TimeoutExpired:
             matar_grupo(p)
             try:
@@ -2869,6 +2978,8 @@ def cerrojo_pesado():
     while True:
         if esperar_ronda_aparatos():
             t0 = time.time()  # (RON1112C) esperar una ronda no gasta el plazo del turno
+        if esperar_disco_pesado():
+            t0 = time.time()  # (GUA1113A) con poco disco no empieza ninguna puerta pesada
         _limpiar_pesado_huerfano(ruta)
         try:
             os.mkdir(ruta)
@@ -3998,7 +4109,7 @@ def opencode(prompt, modelo, cwd, log, timeout=1500, tid=None):
             f.write("\n$ opencode run --model %s · %s\n" % (modelo, ahora()))
             f.flush()
             p = subprocess.Popen(
-                [OPENCODE, "run", prompt, "--model", modelo, "--dir", cwd],
+                _con_tope_de_disco([OPENCODE, "run", prompt, "--model", modelo, "--dir", cwd]),
                 cwd=cwd,
                 stdout=f,
                 stderr=subprocess.STDOUT,
@@ -4015,6 +4126,8 @@ def opencode(prompt, modelo, cwd, log, timeout=1500, tid=None):
         if tid:
             with PROCESOS_LOCK:
                 PROCESOS[tid] = p
+        # GUA1113A: el vigía corta al agente si el worktree se desboca (ver guardia_disco.py).
+        vigia = _vigia_de_disco(cwd, p, tid)
         try:
             rc = p.wait(timeout=timeout)
         except subprocess.TimeoutExpired:
@@ -4024,11 +4137,13 @@ def opencode(prompt, modelo, cwd, log, timeout=1500, tid=None):
                 pass
             rc = 124
         finally:
+            _cerrar_vigia(vigia)
             # Termine como termine, el LSP del motor (tsserver ~2 GB) no le sobrevive.
             recoger_grupo(p)
             if tid:
                 with PROCESOS_LOCK:
                     PROCESOS.pop(tid, None)
+        _fallar_si_desbocado(vigia, tid)
         try:
             with open(log, encoding="utf-8", errors="replace") as f:
                 f.seek(desde)
@@ -4159,7 +4274,7 @@ def escribir_con_codex(prompt, modelo, cwd, log, timeout=1500, tid=None):
             )
             f.flush()
             p = subprocess.Popen(
-                cmd,
+                _con_tope_de_disco(cmd),
                 cwd=cwd,
                 stdin=subprocess.PIPE,
                 stdout=f,
@@ -4182,6 +4297,8 @@ def escribir_con_codex(prompt, modelo, cwd, log, timeout=1500, tid=None):
         if tid:
             with PROCESOS_LOCK:
                 PROCESOS[tid] = p
+        # GUA1113A: el vigía corta al agente si el worktree se desboca (ver guardia_disco.py).
+        vigia = _vigia_de_disco(cwd, p, tid)
         try:
             rc = p.wait(timeout=timeout)
         except subprocess.TimeoutExpired:
@@ -4191,11 +4308,13 @@ def escribir_con_codex(prompt, modelo, cwd, log, timeout=1500, tid=None):
                 pass
             rc = 124
         finally:
+            _cerrar_vigia(vigia)
             # Termine como termine, el LSP del motor (tsserver ~2 GB) no le sobrevive.
             recoger_grupo(p)
             if tid:
                 with PROCESOS_LOCK:
                     PROCESOS.pop(tid, None)
+        _fallar_si_desbocado(vigia, tid)
         try:
             with open(log, encoding="utf-8", errors="replace") as f:
                 f.seek(desde)
@@ -4370,6 +4489,7 @@ def _foto_del_arbol(cwd, tid):
         rc, _ = sh(["git", "add", "-A"], cwd=cwd, timeout=300, env=env)
         if rc != 0:
             return None, ("git add -A", rc)
+        _filtrar_commit(cwd, tid, env=env)  # GUA1113A
         rc, arbol = sh(["git", "write-tree"], cwd=cwd, timeout=60, env=env)
         arbol = (arbol or "").strip()
         if rc != 0 or not arbol:
@@ -5646,6 +5766,7 @@ def commit_salvavidas(tid: str) -> str | None:
     sh(["git", "checkout", "-q", "ola/" + tid], cwd=wt, timeout=30)
     # Añadir todo (staged + unstaged + untracked) antes del commit
     sh(["git", "add", "-A", "."], cwd=wt, timeout=60)
+    _filtrar_commit(wt, tid)  # GUA1113A: nada grande ni generado entra en el salvavidas
     # (2026-09-20) …menos lo que nunca es trabajo: copias y temporales que deja el agente
     # (`colas.ts.backup`, `.tmp`, `.orig`, `.bak`) y las notas del director. ola/RS3c llevaba
     # 1.855 líneas de eso y conflictos que no eran de la tarea.
@@ -8844,6 +8965,7 @@ def ejecutar(t, intento=1):
         cwd=wt,
         timeout=60,
     )
+    _filtrar_commit(wt, tid)  # GUA1113A: ni el commit de la rama lleva lo grande o generado
     rc_deg, out_deg = sh(["git", "diff", "--cached", "--name-only"], cwd=wt, timeout=30)
     nombres_deg = set(out_deg.splitlines()) if rc_deg == 0 else set()
     # (2026-09-21) El salvavidas commitea ANTES que esta puerta, asi que el indice
@@ -9396,6 +9518,11 @@ def ejecutar_seguro(t):
     perdido = False
     try:
         ejecutar(t)
+    except DiscoDesbocado as e:
+        # GUA1113A: el agente escribió demasiado y se le cortó. La tarea falla con la razón en claro;
+        # el worktree se conserva (sin el archivo desbocado) para que una persona lo mire.
+        set_estado(t["id"], estado="fallo", nota=("disco: " + str(e))[:300])
+        evento("fallo", t["id"], "parada por tamaño: " + str(e)[:400])
     except ArriendoPerdido as e:
         perdido = True
         evento(
@@ -9995,7 +10122,9 @@ def main():
                 "vuelve a la tanda (reabierta); se repartirá en cuanto haya un trabajador libre",
             )
 
-        for tid, t in list(pendientes.items()):
+        # GUA1113A: con poco disco no arranca ninguna tarea nueva (se reanuda sola al liberarse).
+        _disco_retiene = disco_retiene_arranques()
+        for tid, t in ([] if _disco_retiene else list(pendientes.items())):
             if tid in SOLTADAS:
                 pendientes.pop(tid)
                 hechas.add(tid)

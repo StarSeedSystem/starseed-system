@@ -146,7 +146,8 @@ PYEOF
 
     # Commit
     cd "$WT_PATH"
-    git add . && git commit -m "fix: ${TITULO:0:60}" 2>&1 | tee -a "$LOG" || true
+    git add . && python3 "$RAIZ/scripts/enjambre/guardia_disco.py" indice . 2>&1 | tee -a "$LOG" || true  # GUA1113A: fuera lo grande y lo generado
+    git commit -m "fix: ${TITULO:0:60}" 2>&1 | tee -a "$LOG" || true
     cd "$RAIZ"
 
     # Actualizar estado
