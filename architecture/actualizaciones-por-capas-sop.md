@@ -67,14 +67,16 @@ política antes de recargar y anota `STARSEED_BUILD_INICIAL`), `src/lib/neurons/
 
 - **Coordinación entre neuronas** (estado del despliegue compartido, canaria remota, descarga por la
   malla): el planificador lo calcula, pero el estado necesita `os_versiones_neurona` (migración sin
-  aplicar). Hasta entonces cada neurona decide sola con su política.
-- **Publicar manifiestos** en `os_versiones` desde «Publicar» (MetaGenesis) y desde PoliGenesis/Genesis.
+  aplicar). Hasta entonces cada neurona decide sola con su política. ✅ Hecho (`9339e03`, `supabase/migrations/20261010140000_os_versiones.sql`); la migración existe en código pero está marcada «SIN APLICAR» — falta aplicarla en Supabase.
+- **Publicar manifiestos** en `os_versiones` desde «Publicar» (MetaGenesis) y desde PoliGenesis/Genesis. (pendiente: no hay código que escriba en `os_versiones`).
 - **Marca de directo**: la llamada activa ya se lee del almacén de llamadas; los directos ya marcan
-  `data-en-directo` y llaman a `marcarOcupado(id, "directo")`.
-- **Aplicador de modelos** (AlmacenCapas) y de **datos** (UiSpec/operaciones de Genesis).
-- **`/version.json` con `OS_VERSION`**: la interfaz se compara por build id (servidor frente a la pestaña).
-- Montar las variantes en `mi-genesis.tsx` y `poligenesis.tsx` (de otro agente: no se tocaron).
+  `data-en-directo` y llaman a `marcarOcupado(id, "directo")`. ✅ Hecho (`9339e03`, `src/lib/actualizaciones/momento-navegador.ts:25-30`, `src/lib/estaciones/sesion-en-vivo.ts:52,55`).
+- **Aplicador de modelos** (AlmacenCapas) y de **datos** (UiSpec/operaciones de Genesis). (a medias: `datos` tiene framework `registrarAplicadorDatos` en `src/lib/actualizaciones/aplicadores.ts:33-42` pero no hay implementaciones registradas; `modelos` solo tiene stub que dice «aún sin aplicador» en `aplicadores.ts:153`).
+- **`/version.json` con `OS_VERSION`**: la interfaz se compara por build id (servidor frente a la pestaña). (pendiente: `public/version.json` no existe; el código lo lee en `src/lib/actualizaciones/version-por-medio.ts:78` y `src/components/pwa/register-sw.tsx:53` pero se genera en build o se sirve por Next.js, no contiene `OS_VERSION`).
+- Montar las variantes en `mi-genesis.tsx` y `poligenesis.tsx` (de otro agente: no se tocaron). ✅ Hecho (`9339e03`, `src/components/genesis/mi-genesis.tsx:184-194`, `src/components/genesis/poligenesis.tsx:351-358`).
 Todas están troceadas como tareas del enjambre en el informe de la ola.
+
+Revisado el 2026-11-13 contra main (`9339e03`): 3 hechos, 1 a medias, 2 pendientes.
 
 ## 5. Verificación
 
