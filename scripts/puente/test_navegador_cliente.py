@@ -28,6 +28,8 @@ class TestCerrojo(unittest.TestCase):
             os.unlink(lock_file)
         except FileNotFoundError:
             pass
+        import shutil
+        shutil.rmtree(self.tmp, ignore_errors=True)
 
     def test_cerrojo_impide_sesiones_simultaneas(self):
         """Una sesión a la vez, con cerrojo en ~/.starseed/cerrojos/."""
@@ -76,6 +78,8 @@ class TestAbrir(unittest.TestCase):
     def tearDown(self):
         lock_file = os.path.join(NC.CERROJOS, "navegador.lock")
         Path(lock_file).unlink(missing_ok=True)
+        import shutil
+        shutil.rmtree(self.tmp, ignore_errors=True)
 
     def test_abrir_lanza_error_si_url_no_permitida(self):
         """Pasa por navegador_reglas.permitida; si no, lanza."""
@@ -183,6 +187,10 @@ class TestCerrar(unittest.TestCase):
         NC.CERROJOS = os.path.join(self.tmp, "cerrojos")
         NC._tomado = False
         os.makedirs(NC.CERROJOS, exist_ok=True)
+
+    def tearDown(self):
+        import shutil
+        shutil.rmtree(self.tmp, ignore_errors=True)
 
     def test_cerrar_libera_cerrojo_y_detiene_contenedor(self):
         """cerrar() libera el cerrojo y detiene el contenedor."""
