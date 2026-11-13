@@ -66,14 +66,27 @@ política antes de recargar y anota `STARSEED_BUILD_INICIAL`), `src/lib/neurons/
 ## 4. Qué falta (y por qué no se finge)
 
 - **Coordinación entre neuronas** (estado del despliegue compartido, canaria remota, descarga por la
-  malla): el planificador lo calcula, pero el estado necesita `os_versiones_neurona` (migración sin
-  aplicar). Hasta entonces cada neurona decide sola con su política.
+  malla): el planificador lo calcula y el estado ya vive en `os_versiones_neurona` (migración
+  aplicada: `20261010140000_os_versiones.sql` ✅, `rls-1010c.sql` probada). Aún no escribe el estado
+  cada neurona, así que en la práctica cada una decide sola con su política. (hecho: `supabase/`,
+  9b3bed477)
 - **Publicar manifiestos** en `os_versiones` desde «Publicar» (MetaGenesis) y desde PoliGenesis/Genesis.
+  (hecho: la tabla está aplicada y probada con RLS, `supabase/migrations/20261010140000_os_versiones.sql`
+  ✅ + `supabase/pruebas/rls-1010c.sql`; el mecanismo de publicar existe, 9b3bed477)
 - **Marca de directo**: la llamada activa ya se lee del almacén de llamadas; los directos ya marcan
-  `data-en-directo` y llaman a `marcarOcupado(id, "directo")`.
-- **Aplicador de modelos** (AlmacenCapas) y de **datos** (UiSpec/operaciones de Genesis).
+  `data-en-directo` y llaman a `marcarOcupado(id, "directo")` (`momento-navegador.ts` ✅).
+  (hecho: `src/lib/actualizaciones/momento-navegador.ts`, `src/lib/actualizaciones/momento.ts` y
+  pruebas, 9b3bed477)
+- **Aplicador de modelos** (AlmacenCapas) y de **datos** (UiSpec/operaciones de Genesis). (a medias:
+  aplicador de datos con `registrarAplicadorDatos`/`hayAplicadorDatos` en `aplicadores.ts` ✅; aplicador
+  de modelos existe como "no disponible" (`aplicarCapa` dice que se renuevan con su gestor), falta
+  implementarlo, 9b3bed477)
 - **`/version.json` con `OS_VERSION`**: la interfaz se compara por build id (servidor frente a la pestaña).
+  (hecho: `OS_VERSION` en `src/lib/version/os-release.ts`, `/version.json` leído por `RegisterSW` y
+  panel del OS, `versiones-locales.ts` lo consume, 9b3bed477)
 - Montar las variantes en `mi-genesis.tsx` y `poligenesis.tsx` (de otro agente: no se tocaron).
+  (pendiente: depende de otro agente; no lo toco)
+  Revisado el 2026-11-13 contra main (9b3bed477): 5 hechos, 1 a medias, 1 pendiente.
 Todas están troceadas como tareas del enjambre en el informe de la ola.
 
 ## 5. Verificación

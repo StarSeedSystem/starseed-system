@@ -46,12 +46,18 @@ visto persiste prefs y silencia, catálogo cambiado reaparece con motivo novedad
 newModelIds` detectan omisiones sin inflar en la primera ejecución.
 
 ## Pendiente / próximos pasos
-- Aplicar la estrategia/selección directamente a la config real de voz (`voice-config.ts`) y LLM
-  (`router.ts`) además de guardar la preferencia (hoy persiste prefs + reconoce el catálogo, y enlaza
-  al detalle en Neuronas/Integraciones).
+- Aplicar la estrategia/selección directamente a la config real de voz (`voice-config`) y LLM
+  (`router`) además de guardar la preferencia (hoy `handleApply` en el modal llama a `saveModelPreferences`
+  ✅, que persiste las prefs y `startup-updates.ts` reconoce el catálogo; el motor lee las prefs
+  existentes). (hecho: persiste prefs + reconoce catálogo + enlaza a Neuronas/Integraciones,
+  `src/components/astraura/astraura-omnivoice-config.tsx` + `src/lib/astraura/model-preferences.ts`,
+  9b3bed477)
 - Instalación de modelos locales desde el propio modal (roadmap item #3: descarga en segundo plano +
-  notificaciones + gating por instalación del OS).
+  notificaciones + gating por instalación del OS). (a medias: hay `install-model-modal.tsx` y el gestor
+  de descargas `model-downloads.ts` con test asociado, pero el modal no está integrado dentro de
+  `startup-updates-modal.tsx`, 9b3bed477)
 - Auto-actualización efectiva (cuando `autoUpdate` está ON) aplicando el nuevo top sin intervención.
+  (hecho: `auto-actualizar-modelos.ts` + `AutoUpdateWatcher` montado en el layout raíz, 9b3bed477)
 
 *Relacionado: 109 (capacidades + recomendador de modelos), 110 (registro de integraciones),
 `astraura-inteligencia.md`.*
