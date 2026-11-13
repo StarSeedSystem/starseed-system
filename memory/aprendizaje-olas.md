@@ -7079,3 +7079,13 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `DR1113-1` — otra cosa: degenerado: src/lib/protomolecula/__tests__/orbe-bus.test.ts: encogió de 210 a 0 líneas (más de la mitad)
 - `DR1113-2` — otra cosa: director: reintento gratuito 1/8
 - `ALC1113D` — otra cosa
+
+## 2026-11-13 15:55 · auto-1113-154851
+
+**Lo que se pidió.** ideas nuevas
+
+**Resultado.** 0 de 2 integradas. 2 tareas se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `DR1113-2` — los tipos no compilan: 5 errores tsc (rama ola/DR1113-2 conservada)
+- `DR1113-1` — otra cosa: degenerado: src/lib/protomolecula/__tests__/orbe-bus.test.ts: encogió de 210 a 0 líneas (más de la mitad)
