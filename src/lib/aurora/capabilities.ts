@@ -28,6 +28,10 @@
 import { isOssSttSupported } from "@/lib/aurora/stt-oss/oss-stt";
 import { isOssSttEnabled } from "@/lib/aurora/stt-oss/opt-in";
 import { isMobileDevice, queryMicPermission } from "@/lib/aurora/voice-autonomy";
+// (DR1113-2 · cierre del plan de permisos unificados) El sondeo de micro pasa
+// por el ÚNICO punto del código que llama a `getUserMedia`: el mismo motor que
+// el resto del OS, sin duplicar la petición aquí.
+import { solicitarMedios } from "@/lib/aurora/senses/request-permission";
 
 // ── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -455,7 +459,7 @@ export async function requestMaxAccess(
     mic = "granted";
   } else if (caps.hasMediaDevices && caps.isSecureContext) {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await solicitarMedios({ audio: true });
       mic = "granted";
       // Libera el stream de prueba de inmediato: no retenemos el micrófono.
       try {

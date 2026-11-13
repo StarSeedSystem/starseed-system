@@ -29,18 +29,17 @@ import { toast } from "sonner";
 import { useNotifications } from "@/context/notifications-context";
 import { dueAlarms, dismissAlarm, snoozeAlarm, subscribeAlarms, type AlarmItem } from "@/lib/alarms/alarms";
 import { startAlarmSound, stopAlarmSound } from "@/components/calendar/alarm-scheduler";
+// (DR1113-2 · cierre del plan de permisos unificados) Se pide por el motor
+// único: emite `starseed:permiso` y los paneles vivos se actualizan solos.
+import { requestDevicePermission } from "@/lib/aurora/senses/request-permission";
 
 const POLL_MS = 20_000;
 
-function ensureNotificationPermission(): void {
+async function ensureNotificationPermission(): Promise<void> {
     if (typeof window === "undefined" || !("Notification" in window)) return;
-    if (Notification.permission === "default") {
-        try {
-            void Notification.requestPermission();
-        } catch {
-            /* noop */
-        }
-    }
+    if (Notification.permission !== "default") return;
+    // Nunca lanza; el resultado viaja en el evento del motor.
+    await requestDevicePermission("notificaciones");
 }
 
 function fireBrowserNotification(alarm: AlarmItem): void {
@@ -111,7 +110,7 @@ export function AlarmsEngine() {
             }
         };
 
-        ensureNotificationPermission();
+        void ensureNotificationPermission();
         check();
         const id = window.setInterval(check, POLL_MS);
         const unsub = subscribeAlarms(check);
