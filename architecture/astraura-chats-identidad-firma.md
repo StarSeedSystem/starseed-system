@@ -689,7 +689,8 @@ volver a escribir, emparéjalo de nuevo».
 11. [REV] **Caminos a los agentes que no pasan por la puerta**, y que por tanto esta firma no cierra:
     - el túnel de Cloudflare `com.starseed.mando.tunel` (`tunel-mando.sh`, hacia :9002) y, INFERIDO por su nombre y su
       SOP, `tunel-metagenesis`: por ahí cualquier miembro podía pedir a `hermes` o a `claude-mac` (GEN1113 §4.2,
-      INFERIDO). **La fase 1 exige que estén apagados**, y el instalador deja de encender `com.starseed.mando.tunel` solo
+      INFERIDO). **La fase 1 exige que estén apagados** ([INT] salvo `tunel-metagenesis`, que Alex decidió dejar
+      encendido por ahora: §14.6), y el instalador deja de encender `com.starseed.mando.tunel` solo
       (GEN1114C, hecho de operaciones 2: lo volvía a cargar aunque Alex lo hubiera apagado). Mientras uno esté encendido,
       la pestaña Genesis no dice «firmado» como si fuera la única vía: `--estado` de la Mac lo avisa («hay un túnel abierto
       a la Mac: la firma no lo cubre»);
@@ -832,8 +833,6 @@ escribe `emparejar` con sudo; A1: `~/.starseed/peticiones/aparatos.json`, 600, d
 
 **`aparatos-retirados.json`** [REV] (Mac: `~/.starseed/genesis-chats/`, 600; A1: `~/.starseed/peticiones/`, 600):
 `{"v": 1, "retirados": [{"huella": "<64 hex>", "t": "<ISO>", "por": "mac|aparato:<huella8>"}]}`. Solo crece.
-[INT] En la Mac, además, `/Library/Application Support/StarSeed/genesis-aparatos-retirados.jsonl` (una fila por
-línea, de Alex, 600, marca `sappnd`): §14.3.
 
 **`vistos.json`** [REV] (Mac y A1; sustituye a `seq.json`, que ya no existe): las claves `aparato:<huella>:<seq>` y
 `<cuenta>:<nonce>` con `{"t": <época>}`, podadas a 8 días.
@@ -910,7 +909,8 @@ línea, de Alex, 600, marca `sappnd`): §14.3.
   El puente B se lee pero **no** se escribe: la pestaña lo dice («Escribir a Peticiones llega cuando el A1 tenga la
   versión nueva») y la puerta (A) rechaza `destino: "a1"` con 403 `destino-cerrado` mientras la variable de la puerta
   `PUERTA_GENESIS_A1_ESCRITURA` no valga `1` (comodidad: lo que protege es que ningún código del A1 lea entradas, §3.11.13).
-  Requisitos antes de encender: los túneles a la Mac apagados (§3.11.11) y `cuentas.json` creado **después** de que el
+  Requisitos antes de encender: los túneles a la Mac apagados (§3.11.11; [INT] salvo `tunel-metagenesis`, encendido
+  por decisión de Alex, §14.6) y `cuentas.json` creado **después** de que el
   servicio de la Mac corra B (§5.3).
 - **1b (cuando se sustituya la copia suelta del bot de peticiones del A1 por el checkout del repo con GEN1114D):**
   `llevar-a1`, variable de la puerta a `1`, y las comprobaciones 5 y 9 (parte del A1). No se enciende antes, y el informe
@@ -1417,7 +1417,7 @@ No es un séptimo paquete en paralelo: empieza cuando los seis entregan.
 - La cruzada de §7.8 entera, con la puerta real de A.
 - Las comprobaciones 1–4, 6–8 y 10–13 de §7 que se puedan hacer sin Alex; las que piden su móvil o su contraseña
   quedan listadas para él.
-- Antes de encender la fase 1a: túneles apagados, `cuentas.json` solo después de B, y la comprobación del A1 de
+- Antes de encender la fase 1a: túneles apagados ([INT] salvo `tunel-metagenesis`, §14.6), `cuentas.json` solo después de B, y la comprobación del A1 de
   §3.11.13.
 
 ---
@@ -1488,7 +1488,9 @@ No es un séptimo paquete en paralelo: empieza cuando los seis entregan.
   cambia algo, y así lo eligió Alex en la Mac sabiendo que quien publique la web podría usarlo. (Sí, `texto`. **Necesita a
   Alex**: es la decisión de si tolera ese riesgo hasta la fase 2.)
 - **[REV] D17.** La fase 1 se enciende con los túneles de Cloudflare a la Mac apagados, y el instalador deja de
-  encenderlos solo. (Sí.)
+  encenderlos solo. (Sí.) [INT] **Cambiada por Alex el 13-11:** `tunel-metagenesis` sigue encendido y el
+  instalador lo carga por defecto hasta que la escritura firmada lo sustituya; solo `com.starseed.mando.tunel` queda
+  apagado salvo que se pida. Riesgo que queda: §14.6.
 - **[REV] D18.** El puente B no se escribe desde la web hasta que el bot del A1 corra el código del repo (fase 1b). (Sí.)
 
 ---
@@ -1577,24 +1579,30 @@ lenguajes y la cruzada de la puerta son de GEN1114INT. D se construye pero no se
 
 ## 14. Integración (GEN1114INT · 2026-11-13) — lo que hace el código, donde difiere del texto de arriba
 
-Rama `opus1106/GEN1114INT`: A, E, B, C, D y F fundidos en ese orden, sin conflictos. Lo que sigue **manda sobre el
+Rama `opus1106/GEN1114INT`: A, E, B, C, D y F fundidos en ese orden, sin conflictos (fundidos A, B, C, D, E, F dan
+el mismo árbol, comprobado con `git merge-tree`). Lo que sigue **manda sobre el
 texto de arriba** cuando no coinciden. Marcado **[INT]**.
 
-### 14.1 Un solo esquema de ids y nombres (B, C, E)
+### 14.1 Un solo esquema de ids y nombres (B, C, D, E, F), antes y después de descubrir
 
-- **Sin registro** (`canon.json` no existe en la Mac): el id de un puente es `telegram.<clave de GEN1113>`
-  (`telegram.hermes-avisos`, `telegram.peticiones`, `telegram.avisos-directores`), el mismo que siembra
-  `genesis_canon_logica.id_provisional_de_puente` antes de descubrir. B ya no acepta las claves sueltas
-  (`hermes-avisos`…). La web (E) no escribe a un puente sin catálogo (no sabe su id real): no cambia.
-- **Sin registro, dirección con un solo canal**: la web firma `genesis.canal.<c>` con el nombre de `CANALES`
-  (p. ej. «Director presidente»). B lo acepta por `NOMBRES_CANAL` (copia fija; una prueba la compara con
-  `chat-director-tipos.ts`). Antes B solo aceptaba el id del canal como nombre y rechazaba lo que la web firmaba.
-- **Con registro sembrado** y **tras descubrir**: lo que la web firma (`chatParaFirmar` sobre el catálogo que sube
-  C) es lo que B acepta con su `canon.json`. Lo firmado antes de descubrir y entregado después sale `chat-distinto`
-  (el id cambió); es lo esperado.
+- **Ids canónicos:** `genesis`, `genesis.canal.<canal>` y, para un puente, `telegram.<clave de GEN1113>`
+  (`telegram.hermes-avisos`, `telegram.peticiones`, `telegram.avisos-directores`) mientras no se descubre, el mismo que
+  siembra `genesis_canon_logica.id_provisional_de_puente`; al descubrirlo, `telegram.<usuario>` y el provisional pasa
+  a **alias** del chat.
+- **Alias:** todo lo que nombró antes al chat (`puente:hermes-avisos`, `hermes-avisos`, «Hermes y avisos»; `direccion`,
+  `mando`). Valen como **nombre** visto y, si tienen forma de id, también como **id firmado**, pero solo del chat al que
+  pertenecen y solo si ningún otro chat los usa como id o alias (`_es_id_de` en `genesis_firma_logica.py`). Así una
+  entrada firmada con el id provisional y entregada después de descubrir sigue llegando al MISMO chat, y nunca a otro.
+- **Sin catálogo en la web:** la dirección firma `{genesis, «GENESIS · StarSeed OS»}`; un canal, su id con el nombre de
+  `CANALES`; **un puente, su id provisional con la etiqueta que enseña la cabecera** (`chatParaFirmar` e
+  `idProvisionalDeFuente`, E). F ya no bloquea la escritura a un puente por falta de catálogo. `nombreDeChat` devuelve
+  también ese id provisional (antes `null`).
+- **En la Mac (B) y en el A1 (D):** sin `canon.json` (o sin `chat-a1.json`), los ids `telegram.<clave>`, `<clave>` y
+  los nombres de `ALIAS_GEN1113`; con él, el id o un alias con forma de id del chat que la relación fija da para la
+  fuente, y su nombre o alias. Para un canal, sin registro, el nombre de `CANALES` (`NOMBRES_CANAL`, con una prueba
+  que lo compara con `chat-director-tipos.ts`).
 - **Riesgo de un texto que empieza por «/»**: es texto firmado y por tanto `alto`, en la puerta, la Mac, el A1 y la
-  web (la tabla de §3.6 habla de órdenes, `accion: "orden"`). Las pruebas de D que mandaban «/estado» como texto
-  desde un aparato `texto` se corrigieron: ahora lo mandan como orden.
+  web (la tabla de §3.6 habla de órdenes, `accion: "orden"`).
 
 ### 14.2 Lo que una puerta tomada ya no puede «quemar»
 
@@ -1606,15 +1614,20 @@ cuenta y la entrega honrada salía `seq-repetido` (lo encontró la prueba cruzad
 se anota tampoco se ejecutó. (Lo que rechaza la validación de GEN1113 después de la firma —p. ej. el rol que baja la
 puerta— sí se anota: equivale a que la puerta la tire, que siempre puede.)
 
-### 14.3 Registro de retiradas de solo añadir (riesgo residual de B)
+### 14.3 Riesgos residuales de B, aceptados en esta fase (decisión de la dirección, 13-11)
 
-`aparatos-retirados.json` es de Alex: cualquier programa que corra como él puede vaciarlo y devolver la validez a
-un aparato retirado. **[INT]** El primer `emparejar` crea además, con el **mismo** sudo del alta,
-`/Library/Application Support/StarSeed/genesis-aparatos-retirados.jsonl`: de Alex, 600, con la marca de sistema
-`sappnd` (`install -f sappnd`; solo root la quita) dentro de la carpeta de root. Retirar sigue sin contraseña
-(se añade una línea); vaciarlo, reescribirlo, borrarlo o moverlo no se puede sin root. Un aparato vale si está en la
-lista de root y **no** está en ninguno de los dos registros. Si el registro existe y no se puede leer, no vale ningún
-aparato. `--estado` dice si existe y si tiene la marca. Lo que sigue abierto está en el informe de integración.
+1. **Un programa que corra como Alex puede cambiar los lanzadores o `genesis_aparatos.py`** (son archivos suyos) y,
+   cuando Alex teclee la contraseña, dar de alta otro aparato. La contraseña cierra el alta directa, no una orden
+   cambiada por un programa. Se cierra en la fase 2 con una orden de emparejar de root.
+2. **Un programa que corra como Alex puede vaciar `aparatos-retirados.json`** (de Alex, 600) y devolver la validez a
+   un aparato retirado. Se cierra con la misma orden de root de la fase 2.
+
+Los dos se aceptan para la fase 1: un programa que corre como Alex también puede cambiar el propio código del
+verificador (`genesis_firma_logica.py`, `genesis_chats_puerta.py`), así que ninguna marca sobre un archivo cierra la
+clase de riesgo. Por eso la integración **retiró** el registro de retiradas de solo añadir (marca `sappnd`) que había
+añadido en una pasada anterior: pedía una segunda instalación con la contraseña en el primer emparejamiento, sin
+probarla de verdad, y no cambiaba esa conclusión. Se mantiene `acceso-escritorio --carpeta <ruta>` (lanzadores fuera
+del Escritorio).
 
 ### 14.4 Otros cambios de la integración
 
@@ -1638,3 +1651,41 @@ pruebas de E), la puerta real (A) en 127.0.0.1, la Mac real (B, con el emparejam
 y el A1 real (D). Sustituye a la `vectores-lenguajes.test.ts` + `test_genesis_firma_lenguajes.py` que pedía §9 (una
 sola prueba, de punta a punta, en lugar de vectores en un archivo). La prueba cruzada de GEN1113
 (`test_genesis_chats_cruce.py`) firma ahora sus entradas con aparatos de prueba de Python.
+
+Ampliada en la segunda pasada de integración: además del código de emparejar (vectores de §3.3), la firma de cinco
+cargas, un byte cambiado en cada posición, otra cuenta, aparato sin emparejar, retirado, contador repetido, caducada,
+otro destino, aparato `texto` que intenta despertar a un agente y el nombre del chat contra el registro, lee los acuses
+y el `feed` (espejo de la Mac y del A1) con el cliente real de la web, y comprueba que el catálogo de C trae los
+campos que pinta F. Cubre el esquema único de §14.1 en los tres estados (sin registro, sembrado, descubierto).
+
+### 14.6 Decisión de Alex: `tunel-metagenesis` sigue encendido (13-11)
+
+Es como Alex usa la sala de control desde otros aparatos hasta que la escritura firmada lo sustituya.
+`instalar-servicios.py` lo instala y lo carga en una ejecución normal (como antes de GEN1114C); se puede dejar fuera de
+una ejecución con `STARSEED_TUNEL_METAGENESIS=0`. Solo `com.starseed.mando.tunel` sigue apagado salvo que se pida.
+`genesis_aparatos.py --estado` avisa de que es un camino que la firma no cubre; nada se niega a funcionar porque esté
+cargado.
+
+**Riesgo que queda (dicho tal cual):** por ese túnel se llega a `/api/mando` de la Mac (puerta :9012, solo miembros
+según su SOP, INFERIDO) sin pasar por la puerta del A1 ni por la firma de un aparato. Mientras esté encendido, la frase
+«sin firma no se ejecuta nada» vale solo para lo que llega por la puerta de datos; quien tenga una sesión de miembro
+que ese túnel acepte puede pedir a la sala de control lo que ese camino permita hoy (§3.11.11). Lo cierra apagar el
+túnel cuando la escritura firmada esté en uso.
+
+### 14.7 «Olvidar este aparato» y «Retirar otro aparato» no están en la interfaz de la fase 1
+
+La fase 1 no los exige: no están en las comprobaciones de §7, ni en las props de §8.5, ni en las pruebas de F. La
+puerta (A), la Mac (B) y la biblioteca (E) ya aceptan `revocarme` y `revocar-aparato`, pero «Retirar otro aparato»
+necesitaría una lista de los aparatos de la cuenta que la puerta aún no sirve. En la fase 1 se retira en la Mac (doble
+clic en «Retirar aparato» o `genesis_aparatos.py revocar`). Ninguna pantalla los ofrece (comprobado en `src/`).
+
+### 14.8 Lo que expone `com.starseed.astraura.tunnel` (revisado, sin cambiar)
+
+Un túnel rápido de Cloudflare hacia el backend Astraura 1.58-bit de la Mac (puerto 8000, uvicorn); su URL se escribe
+en `frontend/public/active_tunnel.json` para la web. El backend tiene un middleware (`ASTRAURA_AUTH_MODE`, por defecto
+`local-only`): lo marcado como peligroso (ejecutar órdenes y código, archivos, bóveda, claves, sincronización,
+flujos) solo se acepta desde loopback sin cabeceras de proxy o con una clave; por el túnel llega con
+`CF-Connecting-IP`, así que cuenta como remoto. Siguen **abiertas sin clave** las rutas no marcadas, entre ellas el
+chat (`/api/chat`, `/ws/chat`) y varias de agentes (`/api/aprendizaje/agentes/{id}/ejecutar`,
+`/api/projects/agent/run_cycle`, `/api/router/subagents`). No toca la puerta de datos ni :9002/:9012, así que no es
+un camino a las entradas de Genesis; si esas rutas pueden usar herramientas en la Mac no se revisó.

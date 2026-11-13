@@ -25,6 +25,7 @@ import {
     PREFIJO_TELEGRAM,
     etiquetaProvisional,
     fuenteDeAlias,
+    idProvisionalDeFuente,
 } from "./alias-gen1113";
 import { FUENTES_ESPEJO, MAX_NOMBRE_CHAT, RE_ID_CHAT, type Bandeja, type FuenteEspejo } from "./tipos";
 import type { AlmacenLocal } from "./vinculos";
@@ -248,7 +249,8 @@ export function nombreDeChat(cat: CatalogoCanon | null, clave: string): { nombre
         else chat = cat.chats.find((c) => c.id === k) ?? (cat.chats.filter((c) => c.alias.includes(k)).length === 1 ? cat.chats.find((c) => c.alias.includes(k)) ?? null : null);
     }
     if (chat) return { nombre: chat.nombre, id: chat.id, provisional: chat.nombreProvisional };
-    if (fuente) return { nombre: etiquetaProvisional(fuente), id: fuente === "direccion" ? ID_DIRECCION : null, provisional: true };
+    // GEN1114INT: sin catálogo, el id provisional del esquema común (`genesis`, `telegram.<clave>`), el mismo de la Mac.
+    if (fuente) return { nombre: etiquetaProvisional(fuente), id: idProvisionalDeFuente(fuente), provisional: true };
     const canal = nombreDeCanal(k);
     if (canal) return { nombre: canal, id: k, provisional: true };
     return { nombre: k || "Chat sin nombre", id: null, provisional: true };
@@ -257,7 +259,9 @@ export function nombreDeChat(cat: CatalogoCanon | null, clave: string): { nombre
 /**
  * El `{id, nombre}` que se firma al escribir en una fuente (§3.4): el que la cabecera del hilo
  * enseña. `canal` es el único canal elegido en la dirección (si hay uno y no es `mando`).
- * Para un puente sin catálogo válido devuelve null: sin su id real no se puede escribir.
+ * Sin catálogo válido (GEN1114INT, un solo esquema): el id provisional (`genesis`, `telegram.<clave>`) y la
+ * etiqueta provisional que enseña la cabecera; la Mac acepta ese par sin registro y, después de descubrir el
+ * puente, como alias del mismo chat. Solo devuelve null para un canal que no existe.
  */
 export function chatParaFirmar(
     cat: CatalogoCanon | null,
@@ -273,8 +277,7 @@ export function chatParaFirmar(
     }
     const c = chatDeFuente(cat, fuente);
     if (c) return { id: c.id, nombre: c.nombre, provisional: c.nombreProvisional };
-    if (fuente === "direccion") return { id: ID_DIRECCION, nombre: etiquetaProvisional("direccion"), provisional: true };
-    return null;
+    return { id: idProvisionalDeFuente(fuente), nombre: etiquetaProvisional(fuente), provisional: true };
 }
 
 /** Los alias fijos de una fuente (la Mac los acepta como nombre mientras no tenga `canon.json`). */

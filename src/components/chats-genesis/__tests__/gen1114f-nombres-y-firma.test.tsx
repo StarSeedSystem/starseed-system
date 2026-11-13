@@ -114,9 +114,10 @@ describe("nombres reales (§2.3, §2.4)", () => {
         render(<HiloPuente cliente={cliente} puente="hermes-avisos" esDueno aparato={APARATO_COMPLETO} catalogo={null} />);
         expect(screen.getByTestId("nombre-chat")).toHaveTextContent("Hermes y avisos");
         expect(screen.getByTestId("marca-provisional")).toHaveTextContent("nombre provisional: la Mac aún no ha publicado el nombre real");
-        // Sin el id real del puente no se puede firmar: no hay cuadro de texto y se dice por qué.
-        expect(screen.queryByRole("textbox")).toBeNull();
-        expect(screen.getByTestId("sin-chat-firmable")).toBeInTheDocument();
+        // GEN1114INT · un solo esquema: sin catálogo se firma el id provisional y el nombre que se ve (la Mac lo acepta
+        // sin registro y, tras descubrir el puente, como alias del mismo chat).
+        expect(screen.queryByTestId("sin-chat-firmable")).toBeNull();
+        expect(screen.getByRole("textbox")).toBeInTheDocument();
         const v: VinculoChat = { v: 1, id: "puente:hermes-avisos", fuente: { tipo: "puente", puente: "hermes-avisos" }, nivel: "metagenesis", en: ["chats"], creado: "", actualizado: "" };
         expect(nombreDeVinculo(v, null)).toMatchObject({ nombre: "Hermes y avisos", provisional: true });
     });
@@ -319,6 +320,35 @@ describe("lo que se envía y lo que vuelve (§3.4, §3.9)", () => {
         fireEvent.keyDown(area, { key: "Enter" });
         await waitFor(() => expect(enviar).toHaveBeenCalledTimes(2));
         expect(enviar.mock.calls[1]![1]).toEqual({ id: "genesis.canal.director-presidente", nombre: "Director presidente" });
+    });
+
+    it("GEN1114INT · `enviar` se llama DENTRO del toque (sin esperas antes: `userActivation` sigue viva) y con el nombre que se ve", () => {
+        // La biblioteca (E) se niega a firmar sin un gesto reciente de la persona; Safari solo lo da ~1 s. Si un
+        // componente esperara algo antes de llamar a `enviar`, este `expect` síncrono fallaría.
+        ponerAncho(1440);
+        const d = clienteFalso({ feeds: { direccion: respuestaFeed([], 5) } });
+        render(<HiloDireccion cliente={d.cliente} esDueno aparato={APARATO_COMPLETO} catalogo={catalogoDeEjemplo()} />);
+        const area = screen.getByRole("textbox", { name: "Mensaje a la dirección" });
+        fireEvent.change(area, { target: { value: "en el mismo toque" } });
+        fireEvent.click(screen.getByRole("button", { name: "Enviar" }));
+        expect(d.enviar).toHaveBeenCalledTimes(1);
+        cleanup();
+        // Puente sin catálogo (un solo esquema): se firma el id provisional y la etiqueta que enseña la cabecera.
+        const p = clienteFalso();
+        render(<HiloPuente cliente={p.cliente} puente="hermes-avisos" esDueno aparato={APARATO_COMPLETO} catalogo={null} />);
+        const visto = screen.getByTestId("nombre-chat").textContent;
+        const caja = screen.getByRole("textbox", { name: "Mensaje u orden para el puente" });
+        fireEvent.change(caja, { target: { value: "Hermes, hola" } });
+        fireEvent.keyDown(caja, { key: "Enter" });
+        expect(p.enviar).toHaveBeenCalledTimes(1);
+        expect(p.enviar.mock.calls[0]![1]).toEqual({ id: "telegram.hermes-avisos", nombre: visto });
+        expect(visto).toBe("Hermes y avisos");
+        cleanup();
+        // Aparato «texto»: la orden de lectura también sale en el mismo toque.
+        const t = clienteFalso();
+        render(<HiloPuente cliente={t.cliente} puente="hermes-avisos" esDueno aparato={APARATO_TEXTO} catalogo={catalogoDeEjemplo()} />);
+        fireEvent.click(within(screen.getByTestId("compositor-puente")).getByRole("button", { name: "/estado" }));
+        expect(t.enviar).toHaveBeenCalledTimes(1);
     });
 
     it("lo enviado firmado lleva «firmado · <código>»", async () => {

@@ -138,6 +138,21 @@ const ORDENES = {
     usar(o.aparato);
     return { firmada: await W.firmarEntrada(o.entrada, o.ctx) };
   },
+  /** El feed y los acuses con el cliente REAL de la web (lo que pinta la pestaña Genesis). */
+  async feed(o) {
+    const c = W.crearClienteChatsGenesis(opciones(o.quien));
+    return { feed: await c.feed({ fuente: o.fuente, limite: 500 }) };
+  },
+  async acuses(o) {
+    // `acuses` va por `puertaA1().operar` (el adaptador de la web, que aquí no hay): un GET directo con la sesión,
+    // con la forma de resultado del adaptador ({via: "puerta", datos}).
+    const operar = async ({ metodo, ruta }) => {
+      const r = await fetch(base + ruta, { method: metodo, headers: { authorization: `Bearer ${sesiones[o.quien]}` } });
+      return { via: "puerta", estado: r.status, datos: await r.json() };
+    };
+    const c = W.crearClienteChatsGenesis(opciones(o.quien, { puerta: { ...puerta, operar } }));
+    return { acuses: await c.acuses(o.ids) };
+  },
   async riesgo(o) {
     return { riesgos: o.entradas.map((e) => W.riesgoDeEntrada(e)) };
   },

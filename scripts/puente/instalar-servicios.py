@@ -255,9 +255,9 @@ if "genesis-chats" in {n.strip() for n in os.environ.get("STARSEED_SOLO", "").sp
 # GEN1114C (2026-11-13) Túneles de Cloudflare hacia la Mac: SOLO si se piden expresamente.
 # Alex apagó `com.starseed.mando.tunel` esa noche y una reinstalación general lo volvía a cargar (hecho de
 # operaciones 2; contrato astraura-chats-identidad-firma.md §3.11.11, D17): por esos túneles se llega a la Mac sin
-# la firma de un aparato. `tunel-metagenesis` lo instalaba el mismo recorrido (SERVICIOS), así que vale igual.
-# Pedirlo: STARSEED_SOLO lo nombra (`mando-tunel`, `tunel-metagenesis`) o STARSEED_TUNEL_MANDO=1 /
-# STARSEED_TUNEL_METAGENESIS=1. Sin pedirlo, no se carga, y si ya está cargado se dice sin tocarlo.
+# la firma de un aparato. Pedirlo: STARSEED_SOLO lo nombra (`mando-tunel`) o STARSEED_TUNEL_MANDO=1. Sin pedirlo,
+# no se carga, y si ya está cargado se dice sin tocarlo. (GEN1114INT: `tunel-metagenesis` NO entra en esta regla
+# por decisión de Alex; ver el bloque GEN1114INT de abajo.)
 TUNELES_A_LA_MAC = {
     "mando-tunel": ("com.starseed.mando.tunel", "STARSEED_TUNEL_MANDO"),
     "tunel-metagenesis": ("com.starseed.tunel-metagenesis", "STARSEED_TUNEL_METAGENESIS"),
@@ -284,9 +284,19 @@ def avisar_tunel_cargado(nombre):
     return cargado
 
 
-_ENTRADA_TUNEL_METAGENESIS = SERVICIOS.pop("tunel-metagenesis")
-if tunel_pedido("tunel-metagenesis"):
-    SERVICIOS["tunel-metagenesis"] = _ENTRADA_TUNEL_METAGENESIS
+# GEN1114INT (2026-11-13) DECISIÓN DE ALEX: `tunel-metagenesis` SIGUE ENCENDIDO por ahora (es como usa la sala de
+# control desde otros aparatos hasta que la escritura firmada lo sustituya). Una ejecución normal lo instala y lo
+# carga, como antes de GEN1114C. Riesgo que queda (contrato §3.11.11 y §14.6): por ese túnel se llega a /api/mando de
+# la Mac sin la firma de un aparato. Para dejarlo fuera de una ejecución: STARSEED_TUNEL_METAGENESIS=0.
+# Solo el túnel viejo (`com.starseed.mando.tunel`) sigue apagado salvo que se pida.
+def tunel_metagenesis_excluido(entorno=None):
+    entorno = os.environ if entorno is None else entorno
+    return entorno.get("STARSEED_TUNEL_METAGENESIS", "").strip() == "0"
+
+
+if tunel_metagenesis_excluido():
+    SERVICIOS.pop("tunel-metagenesis")
+# /GEN1114INT
 # /GEN1114C
 
 PLANTILLA = """<?xml version="1.0" encoding="UTF-8"?>
@@ -710,9 +720,8 @@ if tunel_pedido("mando-tunel"):
 elif not SOLO:
     print("  mando-tunel OMITIDO · solo se instala si se pide (STARSEED_SOLO=mando-tunel o STARSEED_TUNEL_MANDO=1)")
     avisar_tunel_cargado("mando-tunel")
-if not SOLO and not tunel_pedido("tunel-metagenesis"):
-    print("  tunel-metagenesis OMITIDO · solo se instala si se pide (STARSEED_SOLO=tunel-metagenesis o "
-          "STARSEED_TUNEL_METAGENESIS=1)")
+if not SOLO and tunel_metagenesis_excluido():          # GEN1114INT: solo si se excluye a mano
+    print("  tunel-metagenesis OMITIDO · STARSEED_TUNEL_METAGENESIS=0 (por defecto se instala: decisión de Alex)")
     avisar_tunel_cargado("tunel-metagenesis")
 # /GEN1114C
 if SOLO:

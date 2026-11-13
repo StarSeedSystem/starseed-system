@@ -388,21 +388,30 @@ class TestInstalador(unittest.TestCase):
         return [c for c in self.llamadas if c[:1] == ["launchctl"] and c[1] in ("load", "unload")
                 and os.path.basename(c[-1]) == etiqueta + ".plist"]
 
-    def test_una_ejecucion_normal_no_carga_los_tuneles(self):
+    def test_una_ejecucion_normal_no_carga_el_tunel_viejo_y_si_el_de_metagenesis(self):
+        """GEN1114INT · decisión de Alex: `tunel-metagenesis` sigue encendido por defecto; el viejo, solo si se pide."""
         mod = self.cargar(solo="")
-        for etiqueta in ("com.starseed.mando.tunel", "com.starseed.tunel-metagenesis"):
-            self.assertEqual(self.tocados(etiqueta), [], etiqueta)
-            self.assertFalse(os.path.exists(os.path.join(self.ag, etiqueta + ".plist")), etiqueta)
-        self.assertNotIn("tunel-metagenesis", mod.SERVICIOS)
+        self.assertEqual(self.tocados("com.starseed.mando.tunel"), [])
+        self.assertFalse(os.path.exists(os.path.join(self.ag, "com.starseed.mando.tunel.plist")))
+        self.assertIn("tunel-metagenesis", mod.SERVICIOS)
+        self.assertTrue(os.path.exists(os.path.join(self.ag, "com.starseed.tunel-metagenesis.plist")))
+        self.assertIn("load", [c[1] for c in self.tocados("com.starseed.tunel-metagenesis")])
         self.assertTrue(os.path.exists(os.path.join(self.ag, "com.starseed.cartero.plist")), "el resto sí se instala")
         self.assertIn("mando-tunel OMITIDO", self.salida)
+        self.assertNotIn("tunel-metagenesis OMITIDO", self.salida)
         self.assertNotIn("genesis-canon", mod.PERIODICOS)
 
-    def test_si_ya_esta_cargado_lo_dice_y_no_lo_toca(self):
-        self.cargar(solo="", cargados=("com.starseed.mando.tunel", "com.starseed.tunel-metagenesis"))
+    def test_tunel_metagenesis_se_puede_excluir_a_mano(self):
+        mod = self.cargar(solo="", extra={"STARSEED_TUNEL_METAGENESIS": "0"}, cargados=("com.starseed.tunel-metagenesis",))
+        self.assertNotIn("tunel-metagenesis", mod.SERVICIOS)
+        self.assertEqual(self.tocados("com.starseed.tunel-metagenesis"), [])     # ni lo instala ni lo descarga
+        self.assertIn("tunel-metagenesis OMITIDO", self.salida)
+        self.assertIn("AVISO · sigue cargado", self.salida)
+
+    def test_si_el_viejo_ya_esta_cargado_lo_dice_y_no_lo_toca(self):
+        self.cargar(solo="", cargados=("com.starseed.mando.tunel",))
         self.assertIn("AVISO · sigue cargado", self.salida)
         self.assertEqual(self.tocados("com.starseed.mando.tunel"), [])
-        self.assertEqual(self.tocados("com.starseed.tunel-metagenesis"), [])
 
     def test_con_starseed_solo_mando_tunel_si(self):
         self.cargar(solo="mando-tunel")
@@ -412,9 +421,8 @@ class TestInstalador(unittest.TestCase):
     def test_con_la_variable_explicita_si(self):
         self.cargar(solo="", extra={"STARSEED_TUNEL_MANDO": "1"})
         self.assertIn("load", [c[1] for c in self.tocados("com.starseed.mando.tunel")])
-        self.assertEqual(self.tocados("com.starseed.tunel-metagenesis"), [])
 
-    def test_tunel_metagenesis_solo_si_se_nombra(self):
+    def test_tunel_metagenesis_solo_cuando_se_nombra_solo_el(self):
         self.cargar(solo="tunel-metagenesis")
         self.assertEqual(os.listdir(self.ag), ["com.starseed.tunel-metagenesis.plist"])
 

@@ -130,11 +130,6 @@ def _instalar_falso(registro):
         if list(args[:2]) == [A.SUDO, "-k"]:
             return subprocess.CompletedProcess(args, 0)
         assert args[0] == A.SUDO and A.INSTALL in args
-        if "sappnd" in args:                    # el registro de retiradas de solo añadir: de Alex, 600 (§14.3)
-            assert args[args.index("-o") + 1] == str(os.getuid()) and args[args.index("-m") + 1] == "600"
-            open(args[-1], "a").close()
-            os.chmod(args[-1], 0o600)
-            return subprocess.CompletedProcess(args, 0)
         assert args[args.index("-o") + 1] == "root" and args[args.index("-m") + 1] in ("644", "755")
         if "-d" in args:
             os.makedirs(args[-1], exist_ok=True)
@@ -361,9 +356,12 @@ def test_sin_registro_un_aparato_completo_emparejado_escribe_una_vez_y_repetir_n
         r = web.pedir("canon", quien="dueno", claves=["direccion", "puente:hermes-avisos"],
                       fuentes=["direccion", "puente:hermes-avisos"])
         assert r["catalogo"] is None                                      # la Mac aún no publicó nada
-        assert r["nombres"]["puente:hermes-avisos"] == {"nombre": "Hermes y avisos", "id": None, "provisional": True}
+        # Un solo esquema (GEN1114INT): sin registro, el id provisional `telegram.<clave>` y la etiqueta que se ve.
+        assert r["nombres"]["puente:hermes-avisos"] == {"nombre": "Hermes y avisos", "id": "telegram.hermes-avisos",
+                                                       "provisional": True}
         assert r["paraFirmar"]["direccion"] == {"id": "genesis", "nombre": "GENESIS · StarSeed OS", "provisional": True}
-        assert r["paraFirmar"]["puente:hermes-avisos"] is None             # sin id real no se escribe a un puente
+        assert r["paraFirmar"]["puente:hermes-avisos"] == {"id": "telegram.hermes-avisos", "nombre": "Hermes y avisos",
+                                                          "provisional": True}
         assert not os.path.exists(os.path.join(mac.base, "canon.json"))
         emparejar(puerta, web, mac, "movil", "dueno", nivel="completo")
 
@@ -376,14 +374,30 @@ def test_sin_registro_un_aparato_completo_emparejado_escribe_una_vez_y_repetir_n
         assert e2["chat"] == {"id": "genesis.canal.director-presidente", "nombre": "Director presidente"}
         e3 = web.pedir("enviar", aparato="movil", quien="dueno", catalogoDe="dueno",
                        entrada=entrada("puente:hermes-avisos", "texto", texto="Hermes, hola"))
-        assert e3["resultado"]["codigo"] == "sin-chat" and e3["mandado"] == []
-        ids = [e["resultado"]["id"] for e in (e1, e2)]
+        assert e3["chat"] == {"id": "telegram.hermes-avisos", "nombre": "Hermes y avisos"}
+        ids = [e["resultado"]["id"] for e in (e1, e2, e3)]
         mac.vuelta()
-        assert [acuse(puerta, "dueno", i)["estado"] for i in ids] == ["hecho", "hecho"]
+        assert [acuse(puerta, "dueno", i)["estado"] for i in ids] == ["hecho", "hecho", "hecho"]
         assert [p["texto"] for p in mac.director.publicados] == ["Prueba GEN1114 firmada"]
         assert mac.local.posts == [{"accion": "decir", "texto": "¿Cómo va la ola?", "modelo": "director-presidente/auto",
-                                    "canales": ["director-presidente"]}]
-        assert [x["firma"] for x in mac.registro()[-2:]] == ["ok", "ok"]
+                                    "canales": ["director-presidente"]},
+                                   {"accion": "decir", "texto": "Hermes, hola", "modelo": "hermes/predeterminado",
+                                    "canales": ["hermes"]}]
+        assert [x["firma"] for x in mac.registro()[-3:]] == ["ok", "ok", "ok"]
+        # Los acuses, leídos con el cliente REAL de la web (lo que pinta el estado de cada envío).
+        acs = web.pedir("acuses", quien="dueno", ids=ids)["acuses"]
+        assert [acs[str(i)]["estado"] for i in ids] == ["hecho", "hecho", "hecho"]
+        # El espejo de la Mac vuelve por `feed` (cliente real de la web) con los campos que pintan las tarjetas.
+        yo = "md-1800000009000-0b01"
+        mac.local.feed = {"mensajes": [C._mensaje(yo, "2027-01-15T08:00:00Z", "Prueba GEN1114 firmada")],
+                          "entregas": {}, "detalles": {}}
+        mac.svc._marcar_origen({"id": yo})
+        mac.tocar()
+        assert mac.svc.tick_espejo() == "subido"
+        f = web.pedir("feed", quien="dueno", fuente="direccion")["feed"]
+        assert f["ok"] is True and f["latido"]["de"] == "mac"
+        visto = {r["id"]: r for r in f["registros"]}[yo]
+        assert C.CAMPOS_TARJETA <= set(visto) and visto["origen"] == "genesis-web" and visto["fuente"] == "direccion"
 
         # Los mismos bytes otra vez: la puerta los para (nonce) y, metidos por una puerta tomada, la Mac también.
         cuerpo = e2["mandado"][0]
@@ -392,9 +406,9 @@ def test_sin_registro_un_aparato_completo_emparejado_escribe_una_vez_y_repetir_n
         mac.vuelta()
         a = acuse(puerta, "dueno", otra)
         assert (a["estado"], motivo(a)) == ("rechazado", "seq-repetido")
-        assert len(mac.local.posts) == 1 and len(mac.director.publicados) == 1
+        assert len(mac.local.posts) == 2 and len(mac.director.publicados) == 1
         mac.vuelta()
-        assert len(mac.local.posts) == 1
+        assert len(mac.local.posts) == 2
     finally:
         mac.limpiar()
 
@@ -422,7 +436,8 @@ def test_registro_sembrado_y_descubierto_viaja_a_la_web_y_lo_firmado_cuadra_en_l
         mac.vuelta()
         assert acuse(puerta, "dueno", e1["resultado"]["id"])["estado"] == "hecho"
 
-        # Firmado antes de descubrir, entregado después: el id ya no es el del chat (no se ejecuta).
+        # Firmado antes de descubrir y entregado después: su id provisional pasa a ser alias del MISMO chat (un solo
+        # esquema, GEN1114INT), así que se ejecuta. Lo mismo con el id viejo de GEN1113 (`hermes-avisos`).
         vieja = web.pedir("firmar", aparato="movil3", entrada=entrada_v1("puente:hermes-avisos", "texto", texto="tarde"),
                           ctx={"cuenta": puerta.cuentas["dueno"], "destino": "mac", "chat": "telegram.hermes-avisos",
                                "chatNombre": "Hermes y avisos", "ahora": time.time() * 1000})["firmada"]
@@ -431,6 +446,11 @@ def test_registro_sembrado_y_descubierto_viaja_a_la_web_y_lo_firmado_cuadra_en_l
         canon = registro_de_la_mac(mac, puerta, descubrir=True)
         r = web.pedir("canon", quien="dueno", claves=claves, fuentes=fuentes)
         assert r["valido"]
+        # Lo que pinta F de cada chat (lista, cabecera, «Información del chat», Conexiones de chat › Telegram).
+        for chat in r["catalogo"]["chats"]:
+            assert {"id", "nombre", "nombreProvisional", "tipo", "fuente", "alias", "medios"} <= set(chat), chat["id"]
+            for m in chat["medios"]:
+                assert {"medio", "nombreEnMedio", "estadoNombre", "huella"} <= set(m)
         n = r["nombres"]
         assert n["puente:hermes-avisos"] == {"nombre": "Hermes de casa", "id": "telegram.hermes_casa_bot", "provisional": False}
         assert n["Hermes y avisos"]["id"] == "telegram.hermes_casa_bot"                     # el alias viejo resuelve
@@ -450,10 +470,30 @@ def test_registro_sembrado_y_descubierto_viaja_a_la_web_y_lo_firmado_cuadra_en_l
         assert e2["chat"] == {"id": "telegram.hermes_casa_bot", "nombre": "Hermes de casa"}
         estado, j = puerta.http("POST", "/v1/genesis/chats/entrada", "dueno", vieja)
         assert estado == 201
+        dueno = puerta.cuentas["dueno"]
+        hermes_real = {"id": "telegram.hermes_casa_bot", "nombre": "Hermes de casa"}
+        otras = {
+            "id-viejo": _firmar(web, "movil3", dueno, {"fuente": "puente:hermes-avisos", "accion": "texto", "texto": "id viejo"},
+                                {"id": "hermes-avisos", "nombre": "Hermes de casa"}),
+            # El alias de OTRO chat (el id provisional del puente B) no nombra al de Hermes.
+            "alias-ajeno": _firmar(web, "movil3", dueno, {"fuente": "puente:hermes-avisos", "accion": "texto", "texto": "ajeno"},
+                                   {"id": "telegram.peticiones", "nombre": "Hermes de casa"}),
+            # El nombre de otro chat con el id bueno.
+            "nombre-ajeno": _firmar(web, "movil3", dueno, {"fuente": "puente:hermes-avisos", "accion": "texto", "texto": "nombre"},
+                                    dict(hermes_real, nombre="Peticiones y encargos")),
+        }
+        ids_otras = {}
+        for k, cuerpo in otras.items():
+            est, jj = puerta.http("POST", "/v1/genesis/chats/entrada", "dueno", cuerpo)
+            assert est == 201, (k, jj)
+            ids_otras[k] = jj["id"]
         mac.vuelta()
         assert acuse(puerta, "dueno", e2["resultado"]["id"])["estado"] == "hecho"
-        assert motivo(acuse(puerta, "dueno", j["id"])) == "chat-distinto"
-        assert [p["texto"] for p in mac.local.posts] == ["Hermes, primera", "Hermes, segunda"]
+        assert acuse(puerta, "dueno", j["id"])["estado"] == "hecho"
+        assert acuse(puerta, "dueno", ids_otras["id-viejo"])["estado"] == "hecho"
+        assert motivo(acuse(puerta, "dueno", ids_otras["alias-ajeno"])) == "chat-distinto"
+        assert motivo(acuse(puerta, "dueno", ids_otras["nombre-ajeno"])) == "nombre-distinto"
+        assert [p["texto"] for p in mac.local.posts] == ["Hermes, primera", "Hermes, segunda", "tarde", "id viejo"]
         # El A1 recibe su chat del canon.json de la Mac (chat-a1.json), nunca del catálogo de la puerta.
         assert A.chat_a1(canon)["id"] == "telegram.peticiones123456-7890_bot"
     finally:
@@ -689,6 +729,13 @@ def test_peticiones_al_a1_firmadas_por_la_web_y_lo_que_el_a1_rechaza(puerta, web
         assert res["byte"] == ("rechazado", "firma-mala")
         cola = bot.leer_json(bot.COLA, [])
         assert [(x["id"], x["texto"]) for x in cola] == [("g-%d" % casos["buena"], "Haz una infografía de la síntesis")]
+        # Lo que contesta el A1 vuelve por `feed` del puente B, leído con el cliente REAL de la web.
+        f = web.pedir("feed", quien="dueno", fuente="puente:peticiones")["feed"]
+        assert f["ok"] is True and f["latido"]["de"] == "a1" and f["registros"]
+        assert all(C.CAMPOS_TARJETA <= set(x) for x in f["registros"])
+        acs = web.pedir("acuses", quien="dueno", ids=[casos["buena"], casos["texto-forzado"]])["acuses"]
+        assert acs[str(casos["buena"])]["estado"] == "hecho"
+        assert acs[str(casos["texto-forzado"])]["detalle"].startswith("[nivel]")
 
         # Caducada: una petición (alto) que el A1 recoge 31 min después.
         r = web.pedir("enviar", aparato="movil6", quien="dueno", catalogoDe="dueno",

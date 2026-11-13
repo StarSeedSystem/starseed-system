@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { Bot, Mic } from "lucide-react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -11,7 +11,10 @@ const OPCIONES = [
     { id: "gobernanza", label: "Gobernanza de la Red" },
 ];
 
-afterEach(cleanup);
+afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+});
 
 describe("MenuListaMovil", () => {
     it("el botón enseña la opción actual con su nombre completo", () => {
@@ -44,5 +47,42 @@ describe("MenuListaMovil", () => {
         fireEvent.click(screen.getByRole("button", { name: /Secciones/ }));
         fireEvent.click(screen.getAllByText("Chat Multiagéntico & Voz").at(-1)!);
         expect(onCambiar).not.toHaveBeenCalled();
+    });
+
+    // GEN1114INT · la hoja («Secciones de Astraura» y las demás que usan este componente) deja libre a la derecha lo
+    // que tapa una orbe o un botón flotante (`position: fixed`, ≤ 160 px). Sin flotantes, no cambia nada.
+    it("sin flotantes, la lista no reserva nada (el resto de usos queda igual)", async () => {
+        render(<MenuListaMovil titulo="Secciones" opciones={OPCIONES} valor="chat" onCambiar={() => {}} />);
+        fireEvent.click(screen.getByRole("button", { name: /Secciones/ }));
+        await act(async () => { await Promise.resolve(); });
+        expect(screen.getByRole("dialog", { name: "Secciones" }).querySelector("ul")!.style.paddingRight).toBe("");
+    });
+
+    it("con la orbe encima, la lista deja libre su carril y la orbe no se toca", async () => {
+        const caja = { left: 300, top: 300, right: 348, bottom: 348 };
+        const orbe = document.createElement("div");
+        orbe.style.position = "fixed";
+        document.body.appendChild(orbe);
+        const rect = (r: typeof caja) => ({ ...r, x: r.left, y: r.top, width: r.right - r.left, height: r.bottom - r.top, toJSON: () => r }) as DOMRect;
+        vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+            return this === orbe ? rect(caja) : rect({ left: 0, top: 100, right: 360, bottom: 640 });
+        });
+        Object.defineProperty(window, "innerWidth", { configurable: true, value: 360 });
+        Object.defineProperty(window, "innerHeight", { configurable: true, value: 640 });
+        (document as unknown as { elementsFromPoint: (x: number, y: number) => Element[] }).elementsFromPoint = (x: number, y: number) =>
+            x >= caja.left && x < caja.right && y >= caja.top && y < caja.bottom ? [orbe, document.body] : [document.body];
+        try {
+            const onCambiar = vi.fn();
+            render(<MenuListaMovil titulo="Secciones" opciones={OPCIONES} valor="chat" onCambiar={onCambiar} />);
+            fireEvent.click(screen.getByRole("button", { name: /Secciones/ }));
+            const lista = screen.getByRole("dialog", { name: "Secciones" }).querySelector("ul")!;
+            await waitFor(() => expect(lista.style.paddingRight).toBe("68px"));
+            expect(orbe.style.cssText).toBe("position: fixed;");
+            fireEvent.click(screen.getByText("Gobernanza de la Red"));
+            expect(onCambiar).toHaveBeenCalledWith("gobernanza");
+        } finally {
+            orbe.remove();
+            delete (document as unknown as { elementsFromPoint?: unknown }).elementsFromPoint;
+        }
     });
 });
