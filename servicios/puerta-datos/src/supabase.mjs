@@ -77,3 +77,45 @@ export function crearCacheMetagenesis(supabase, op = {}) {
     return p;
   };
 }
+
+/**
+ * (GEN1113A) ¿Es DUEÑO de MetaGenesis? Igual que `esMetagenesis` (`rpc/es_metagenesis_dueno` con la
+ * sesión de la cuenta), pero con caché de 60 s para el sí y para el no: quitar a un dueño en
+ * Ajustes › Accesos corta sus órdenes en ≤ 60 s. A diferencia de `esMetagenesis`, un fallo de
+ * Supabase NO se convierte en «no»: LANZA, para que la puerta responda 503 y no deje nada en cola
+ * (architecture/astraura-chats-genesis.md §4.5). Tras un fallo se esperan 5 s antes de volver a
+ * preguntar (sin martillear) y mientras tanto también lanza.
+ */
+export function crearCacheMetagenesisDueno(supabase, op = {}) {
+  const ahora = op.ahora ?? (() => Date.now());
+  const TTL_MS = op.ttlMs ?? 60_000;
+  const PAUSA_FALLO_MS = op.pausaFalloMs ?? 5_000;
+  /** @type {Map<string, {valor: boolean | null, hasta: number}>} */
+  const memo = new Map();
+  /** @type {Map<string, Promise<boolean>>} */
+  const enVuelo = new Map();
+
+  return async function esMetagenesisDueno(cuenta, jwt) {
+    const m = memo.get(cuenta);
+    if (m && m.hasta > ahora()) {
+      if (m.valor === null) throw new Error("rol sin comprobar");
+      return m.valor;
+    }
+    const v = enVuelo.get(cuenta);
+    if (v) return v;
+    const p = (async () => {
+      const r = supabase?.rpc
+        ? await supabase.rpc("es_metagenesis_dueno", { _uid: cuenta }, { jwt, grupo: "es_metagenesis" })
+        : { ok: false };
+      if (!r.ok || typeof r.datos !== "boolean") {
+        memo.set(cuenta, { valor: null, hasta: ahora() + PAUSA_FALLO_MS });
+        throw new Error("rol sin comprobar");
+      }
+      memo.set(cuenta, { valor: r.datos, hasta: ahora() + TTL_MS });
+      if (memo.size > 5000) memo.delete(memo.keys().next().value);
+      return r.datos;
+    })().finally(() => enVuelo.delete(cuenta));
+    enVuelo.set(cuenta, p);
+    return p;
+  };
+}

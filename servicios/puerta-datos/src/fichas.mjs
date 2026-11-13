@@ -7,7 +7,7 @@ import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { readFileSync, renameSync, statSync, writeFileSync, mkdirSync, chmodSync } from "node:fs";
 import { dirname } from "node:path";
 
-export const AMBITOS = Object.freeze(["bus", "latidos", "malla", "astraura", "freno", "metricas", "metagenesis", "admin"]);
+export const AMBITOS = Object.freeze(["bus", "latidos", "malla", "astraura", "freno", "metricas", "metagenesis", "admin", "genesis-mac", "genesis-a1"]);
 const NOMBRE = /^[a-z0-9][a-z0-9-]{1,40}$/;
 
 export function huella(texto) {

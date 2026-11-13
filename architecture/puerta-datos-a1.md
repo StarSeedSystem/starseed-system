@@ -108,6 +108,9 @@ Node ≥ 22.13 sin dependencias (`node:http`, `node:crypto`, `node:sqlite`), un 
 | Sesión de una cuenta (`Authorization: Bearer <jwt de Supabase>`) | **En local** con las claves públicas JWKS del proyecto (ES256), `iss`, `aud=authenticated`, `exp`/`nbf` con 30 s de margen. Nunca `/auth/v1/user`. JWKS en caché 10 min; un `kid` desconocido la relee como mucho una vez por minuto. Sin JWKS: 503 y el cliente vuelve a Supabase. `HS256` y `none` se rechazan siempre. | Sus neuronas, su presencia, leer el bus, MetaGenesis si es miembro |
 | Ficha de máquina (`Bearer pd_…`, 256 bits) | sha256 en `tokens.json`, comparación en tiempo constante; cada ficha con sus **ámbitos** | Backend de Astraura (`malla`, `astraura`), enjambre (`bus`), vigía (`freno`), Genesis (`metricas`), admin |
 | Llave de nodo de MetaGenesis | sha256 registrada por una ficha `admin` (misma llave que usa con las tablas de OPA1011) | Arriendo de líder |
+| Ficha `genesis-mac` (GEN1113A) | como cualquier ficha; **solo** este ámbito abre las rutas de chats de Genesis (ni `admin` las abre) | La Mac: lee las entradas con `destino=mac`, las acusa y escribe el espejo de `direccion`, `puente:hermes-avisos` y `puente:avisos-directores` |
+| Ficha `genesis-a1` (GEN1113A) | ídem | El A1 (`peticiones_puerta.py`): lee y acusa las entradas con `destino=a1` y escribe el espejo de `puente:peticiones`; nada más |
+| Rol de MetaGenesis (GEN1113A) | `rpc/es_metagenesis_dueno` con la sesión de la cuenta, caché 60 s (sí y no); si Supabase no responde **no** es «no»: la puerta responde 503 y no encola nada | Todo lo que pone a un agente a trabajar en los chats de Genesis (architecture/astraura-chats-genesis.md §4.2) |
 
 `es_metagenesis` se pregunta a Supabase **con la sesión de esa misma cuenta**
 (`rpc/es_metagenesis`, la misma RLS) y se guarda 10 min si es sí y 2 min si es no. Los permisos
@@ -133,6 +136,11 @@ para los orígenes del OS (sin cookies), cabeceras de seguridad, registros sin f
 | `PUT /v1/freno` · `GET /v1/freno` | ficha `freno` / cualquiera | el freno de consumo, empujado por la vigía |
 | `GET /v1/cache/{estaciones,versiones}` | cualquiera / sesión | lecturas semipúblicas con TTL 60/300 s y una sola petición en vuelo |
 | `GET /v1/metricas` | ficha `metricas` / miembro | servidas sin Supabase, peticiones a Supabase y ahorro de hoy por grupo |
+| `POST /v1/genesis/chats/espejo` (GEN1113A) | ficha `genesis-mac` / `genesis-a1` (cada una sus fuentes) | `{fuente, registros ≤ 200, latido?}` → `{ok, n, cursor}`; un registro que vuelve (mismo `id`) se mueve al final del cursor; cada escritura es también el latido de la Mac o del A1. Retención: 30 días o 60.000 registros |
+| `GET /v1/genesis/chats/feed?fuente=&desde=&limite=≤500&esperar=≤25` (GEN1113A) | sesión + miembro; `puente:hermes-avisos` y `puente:peticiones` solo dueño | `{registros, cursor, latido: {t, de} \| null}`, con espera larga |
+| `POST /v1/genesis/chats/entrada` (GEN1113A) | sesión; rol de Supabase (nunca del cuerpo) | `201 {id, destino, estado:"en-cola"}` · 400 `forma` · 403 `no-miembro`/`solo-dueno` · 409 nonce repetido · 413 > 16 KB · 429 (30/min, 300/día por cuenta) · 503 rol sin comprobar. Retención 7 días |
+| `GET /v1/genesis/chats/entrada?destino=mac\|a1&desde=&esperar=≤25` (GEN1113A) | ficha del destino | `{entradas}` sin cerrar, con `cuenta`, `rol`, `destino`, `recibido` puestos por la puerta; una orden que cambia algo y nadie recogió en 30 min se marca `caducado` y no se entrega |
+| `POST /v1/genesis/chats/acuse` · `GET /v1/genesis/chats/acuses?ids=≤50` (GEN1113A) | ficha del destino / sesión (solo sus entradas) | estado `entregado → hecho\|rechazado\|caducado\|fallo` con `detalle ≤ 300`; un estado final no cambia. Registro de estas rutas: ruta, código, ms y 8 caracteres de la cuenta, nunca texto |
 
 ## 5. El cliente del OS (`src/lib/datos/puerta-a1*.ts`)
 

@@ -7,6 +7,8 @@ import { createServer } from "node:http";
 import { ErrorValidacion } from "./bus.mjs";
 import { pareceFicha } from "./fichas.mjs";
 import { pareceJwt } from "./jwt.mjs";
+import { crearChatsGenesis } from "./chats-genesis.mjs"; // GEN1113A
+import { crearCacheMetagenesisDueno } from "./supabase.mjs"; // GEN1113A
 
 const CUERPO_MAX = 64 * 1024;
 const CABECERAS_BASE = {
@@ -315,6 +317,33 @@ export function crearManejador(c) {
       if (req.method === "OPTIONS") {
         res.writeHead(204, { ...CABECERAS_BASE, ...cors });
         res.end();
+        return;
+      }
+      // GEN1113A · chats de Genesis (architecture/astraura-chats-genesis.md §7.1). Rutas propias porque
+      // responden 201/409/503 y llevan `codigo` en el error; misma identidad, límite por identidad,
+      // JSON y tope de cuerpo que el resto. El registro: ruta, código, ms y 8 caracteres de la cuenta.
+      if (url.pathname.startsWith("/v1/genesis/chats/")) {
+        if (!c.chatsGenesis && c.db) {
+          c.chatsGenesis = crearChatsGenesis({
+            db: c.db,
+            esMetagenesis: c.esMetagenesis,
+            esMetagenesisDueno: c.esMetagenesisDueno ?? (c.esMetagenesisDueno = crearCacheMetagenesisDueno(c.supabase, { ahora })),
+            ahora,
+          });
+        }
+        if (!c.chatsGenesis) throw new ErrorHttp(404, "chats de Genesis sin configurar");
+        if (req.method !== "GET" && !String(req.headers["content-type"] || "").toLowerCase().includes("application/json")) {
+          throw new ErrorHttp(415, "solo JSON");
+        }
+        const idG = await identidad(req);
+        const claveG = idG.tipo === "cuenta" ? `c:${idG.cuenta}` : idG.tipo === "ficha" ? `f:${idG.nombre}` : `ip:${String(req.headers["x-forwarded-for"] || req.socket.remoteAddress || "?").split(",")[0].trim()}`;
+        if (!permitir(claveG, idG.tipo === "ficha" ? 600 : idG.tipo === "cuenta" ? 120 : 60)) throw new ErrorHttp(429, "demasiadas peticiones; vuelve en un minuto");
+        const cuerpoG = req.method === "GET" ? {} : await leerCuerpo(req);
+        const acG = new AbortController();
+        res.on("close", () => acG.abort());
+        const r = await c.chatsGenesis.atender({ metodo: req.method, ruta: url.pathname, id: idG, cuerpo: cuerpoG, q: url.searchParams, senal: acG.signal });
+        responder(r.estado, r.cuerpo);
+        registrar({ ruta, codigo: r.estado, ms: ahora() - inicio, ...(idG.tipo === "cuenta" ? { cuenta8: idG.cuenta.slice(0, 8) } : {}) });
         return;
       }
       const encontrada = rutas.find(([m, p]) => m === req.method && p.test(url.pathname));
