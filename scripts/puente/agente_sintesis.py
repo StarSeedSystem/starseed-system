@@ -496,9 +496,10 @@ def _respaldo(raiz, estado, ahora, redactar=None, subir_drive=None, seco=False, 
             "mensaje": "Respaldo: la flota redactó la síntesis en un paso (%s Drive)." % ("con" if doc else "sin")}
 
 
-def _entregar(raiz, estado, ahora, enviar, jev, seco, redactar=None, subir_drive=None):
+def _entregar(raiz, estado, ahora, enviar, jev, seco, redactar=None, subir_drive=None,
+              asegurar_fuente=None, drive_doc_id=None):
     """Fase 3: a las 07:54 sin texto, respaldo (la flota redacta en un paso); luego puntúa,
-    guarda markdown, envía a Telegram."""
+    guarda markdown, envía a Telegram y añade la fuente a NotebookLM."""
     fecha = _fecha_cdmx(ahora)
     ruta_md = os.path.join(raiz, REL_SINTESIS, f"{fecha}.md")
     if not os.path.exists(ruta_md):
@@ -516,18 +517,33 @@ def _entregar(raiz, estado, ahora, enviar, jev, seco, redactar=None, subir_drive
     puntuacion = _puntuar({"texto": texto[:6000]}, jev)
     estado["puntuacion"] = puntuacion
     resumen = _resumen_1500_3000(texto)
+
+    # Línea extra para el mensaje completo de Telegram
+    LINEA_NB = "\n\nPídeme en este chat infografía, audio, vídeo o presentación de esta síntesis"
+    texto_con_nb = texto + LINEA_NB
+
     r1 = enviar(resumen)
-    r2 = enviar(texto)
+    r2 = enviar(texto_con_nb)
     if r1.get("ok") and r2.get("ok"):
         estado["entregada"] = True
         estado["sintesis_path"] = ruta_md
+
+        # Añadir como fuente al cuaderno de NotebookLM (no bloquea si falla)
+        nb_ok = False
+        if asegurar_fuente and drive_doc_id:
+            try:
+                asegurar_fuente(drive_doc_id, f"Síntesis diaria {fecha}")
+                nb_ok = True
+            except Exception:
+                pass
+
         return {"ok": True, "accion": "entregada", "resumen": resumen, "puntuacion": puntuacion,
-                "telegram": {"resumen": r1, "completa": r2}}
+                "telegram": {"resumen": r1, "completa": r2}, "notebooklm_fuente": nb_ok}
     return {"ok": False, "accion": "error_envio", "resumen": r1, "completa": r2}
 
 
 def ciclo(raiz, ahora=None, encargar=None, jev=None, enviar=None, forzar=False, seco=False, home=None,
-          redactar=None, subir_drive=None):
+          redactar=None, subir_drive=None, asegurar_fuente=None, drive_doc_id=None):
     """Un ciclo: decide fase, ejecuta y guarda estado. Todo inyectable; `seco` no escribe."""
     momento = _como_fecha(ahora)
     fecha = _fecha_cdmx(momento)
@@ -549,7 +565,8 @@ def ciclo(raiz, ahora=None, encargar=None, jev=None, enviar=None, forzar=False, 
     else:  # entregar
         if _debe_entregar(estado, momento):
             res = _entregar(raiz, estado, momento, enviar or SG.enviar, jev, seco,
-                            redactar=redactar, subir_drive=subir_drive)
+                            redactar=redactar, subir_drive=subir_drive,
+                            asegurar_fuente=asegurar_fuente, drive_doc_id=drive_doc_id)
         else:
             res = {"accion": "ya_entregada", "mensaje": "Síntesis ya entregada hoy."}
     if not seco:

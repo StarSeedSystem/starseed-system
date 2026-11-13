@@ -122,7 +122,9 @@ class TestCiclo(unittest.TestCase):
         self.assertEqual(r["resultado"]["accion"], "entregada")
         self.assertEqual(len(enviados), 2)
         self.assertTrue(len(enviados[0]) >= A.RESUMEN_MIN and len(enviados[0]) <= A.RESUMEN_MAX)
-        self.assertEqual(enviados[1], texto)
+        # El texto completo ahora incluye la línea de NotebookLM al final
+        self.assertTrue(enviados[1].endswith("Pídeme en este chat infografía, audio, vídeo o presentación de esta síntesis"))
+        self.assertTrue(enviados[1].startswith(texto))
         estado = A.cargar_estado(self.raiz)
         self.assertTrue(estado["entregada"])
         self.assertEqual(estado["sintesis_path"], ruta)
@@ -403,6 +405,76 @@ class TestPuntuacionJev(unittest.TestCase):
         res = A._puntuar({"texto": "x"}, jev=False)
         self.assertEqual(res["respuesta"], "medio")
         self.assertEqual(res["medio"], "regla")
+
+
+class TestNotebookLMSource(unittest.TestCase):
+    """PET1112F: tras entregar la síntesis, añadirla como fuente al cuaderno de NotebookLM
+    y añadir línea al mensaje de Telegram."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.tmp = self._tmp.name
+        self.raiz = os.path.join(self.tmp, "repo")
+        os.makedirs(self.raiz)
+        self.home = os.path.join(self.tmp, "home")
+        os.makedirs(self.home, exist_ok=True)
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def test_entregar_añade_fuente_notebooklm_y_linea_telegram(self):
+        """Tras entregar, se llama a asegurar_fuente y se añade la línea al texto completo."""
+        os.makedirs(os.path.join(self.raiz, A.REL_SINTESIS), exist_ok=True)
+        ruta = os.path.join(self.raiz, A.REL_SINTESIS, f"{FECHA}.md")
+        texto = "Síntesis completa con fuentes y fechas. " * 100
+        with open(ruta, "w", encoding="utf-8") as f:
+            f.write(texto)
+
+        enviados = []
+        nb_calls = []
+
+        def enviar_falso(texto, **kw):
+            enviados.append(texto)
+            return {"ok": True, "trozos": 1}
+
+        def asegurar_fuente_falso(fid, titulo):
+            nb_calls.append(("asegurar_fuente", fid, titulo))
+            return "source-123"
+
+        r = A.ciclo(self.raiz, AHORA_CDMX_07, encargar=False, jev=False,
+                    enviar=enviar_falso, home=self.home, seco=False,
+                    asegurar_fuente=asegurar_fuente_falso,
+                    drive_doc_id="doc-abc-123")
+        self.assertTrue(r["ok"])
+        self.assertEqual(r["resultado"]["accion"], "entregada")
+        self.assertEqual(len(enviados), 2)
+        # El resumen no lleva la línea extra
+        self.assertNotIn("Pídeme en este chat", enviados[0])
+        # El texto completo sí la lleva al final
+        self.assertTrue(enviados[1].endswith("Pídeme en este chat infografía, audio, vídeo o presentación de esta síntesis"))
+        # Se llamó a asegurar_fuente con el doc_id
+        self.assertEqual(len(nb_calls), 1)
+        self.assertEqual(nb_calls[0][1], "doc-abc-123")
+
+    def test_entregar_fallo_notebooklm_no_bloquea(self):
+        """Si falla añadir la fuente, la entrega sigue adelante."""
+        os.makedirs(os.path.join(self.raiz, A.REL_SINTESIS), exist_ok=True)
+        ruta = os.path.join(self.raiz, A.REL_SINTESIS, f"{FECHA}.md")
+        with open(ruta, "w", encoding="utf-8") as f:
+            f.write("Síntesis de prueba.")
+
+        def enviar_falso(texto, **kw):
+            return {"ok": True, "trozos": 1}
+
+        def asegurar_fuente_falso(fid, titulo):
+            raise RuntimeError("NotebookLM caído")
+
+        r = A.ciclo(self.raiz, AHORA_CDMX_07, encargar=False, jev=False,
+                    enviar=enviar_falso, home=self.home, seco=False,
+                    asegurar_fuente=asegurar_fuente_falso,
+                    drive_doc_id="doc-xyz")
+        self.assertTrue(r["ok"])
+        self.assertEqual(r["resultado"]["accion"], "entregada")
 
 
 if __name__ == "__main__":
