@@ -32,7 +32,8 @@ describe("HiloDireccion", () => {
 
     it("«En vivo» solo con un latido de 90 s o menos", async () => {
         await montar({ latidoS: 30 });
-        expect(screen.getByTestId("cabecera-espejo")).toHaveTextContent("En vivo desde la Mac · copia de hace 30 s");
+        // GEN1114INT: el latido se pinta con el reloj real; con la Mac cargada el montaje tarda segundos (vimos 34 s).
+        expect(screen.getByTestId("cabecera-espejo")).toHaveTextContent(/En vivo desde la Mac · copia de hace (3\d|4\d) s/);
         cleanup();
         await montar({ latidoS: 120 });
         expect(screen.getByTestId("cabecera-espejo")).toHaveTextContent(/La Mac no responde desde las \d{2}:\d{2} \(hace 2 min\)\. Ves la última copia\. Lo que escribas espera en la puerta del A1; las órdenes caducan a los 30 min/);

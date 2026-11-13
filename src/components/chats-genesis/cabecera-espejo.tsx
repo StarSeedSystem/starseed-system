@@ -380,6 +380,36 @@ export function CabeceraEspejo(props: CabeceraEspejoProps) {
     );
 }
 
+// ── GEN1114INT · aviso del reloj del aparato (contrato §3.6, hallazgo 16) ────
+
+/** Desde cuántos minutos de diferencia se avisa (la puerta solo sirve de aviso: no es de confianza). */
+export const DESFASE_AVISA_MIN = 2;
+
+/** La frase del aviso, o null. `ms` = hora del aparato − cabecera `Date` de la puerta (positivo: adelantado). */
+export function textoDesfaseReloj(ms: number | null): string | null {
+    if (typeof ms !== "number" || !Number.isFinite(ms)) return null;
+    const min = Math.round(Math.abs(ms) / 60_000);
+    if (min < DESFASE_AVISA_MIN) return null;
+    return ms > 0
+        ? `La hora de este aparato va ${min} min adelantada respecto a la puerta: corrígela o lo que escribas se rechazará.`
+        : `La hora de este aparato va ${min} min atrasada respecto a la puerta: corrígela o lo que escribas puede caducar.`;
+}
+
+/**
+ * Se pinta encima del cuadro de texto cuando el reloj del aparato difiere de la cabecera `Date` de la
+ * última respuesta de la puerta. Solo aviso: quien decide la hora es la Mac.
+ */
+export function AvisoReloj({ desfaseMs }: { desfaseMs: number | null }) {
+    const texto = textoDesfaseReloj(desfaseMs);
+    if (!texto) return null;
+    return (
+        <p data-testid="aviso-reloj" className="flex w-full items-start gap-1.5 rounded-lg border border-amber-400/30 bg-amber-500/10 px-2.5 py-1.5 text-left text-[11.5px] leading-snug text-amber-100">
+            <TimerOff className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+            <span className="min-w-0 break-words">{texto}</span>
+        </p>
+    );
+}
+
 // ── GEN1114F · el nombre del chat encima del hilo ────────────────────────────
 
 export const TEXTO_PROVISIONAL = "nombre provisional: la Mac aún no ha publicado el nombre real";

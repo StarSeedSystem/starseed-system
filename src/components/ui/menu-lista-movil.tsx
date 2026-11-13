@@ -19,6 +19,9 @@ import { createPortal } from "react-dom";
 import { Check, ChevronDown, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+// GEN1114INT: la misma reserva a la derecha que GEN1114F puso en las hojas de Genesis, para que las orbes y los
+// botones flotantes (que se arrastran y van por encima) no tapen las filas de esta hoja («Secciones de Astraura»).
+import { useReservaFlotantes } from "@/components/chats-genesis/reserva-flotantes";
 
 export interface OpcionMenuLista {
     id: string;
@@ -48,6 +51,7 @@ export function MenuListaMovil({ opciones, valor, onCambiar, titulo, className, 
     const [abierto, setAbierto] = useState(false);
     const idTitulo = useId();
     const listaRef = useRef<HTMLUListElement>(null);
+    const reserva = useReservaFlotantes(listaRef, abierto);
     const actual = opciones.find((o) => o.id === valor) ?? opciones[0];
     const Icono = actual?.icon;
 
@@ -90,7 +94,11 @@ export function MenuListaMovil({ opciones, valor, onCambiar, titulo, className, 
                                   <X className="size-4" />
                               </button>
                           </div>
-                          <ul ref={listaRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-2">
+                          <ul
+                              ref={listaRef}
+                              className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-2"
+                              style={reserva > 0 ? { paddingRight: reserva } : undefined}
+                          >
                               {opciones.map((o) => {
                                   const Ic = o.icon;
                                   const activa = o.id === actual.id;

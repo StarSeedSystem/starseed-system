@@ -45,10 +45,11 @@ import {
     type CanalId,
     type MensajeDirector,
 } from "@/lib/mando/chat-director-tipos";
-import type { ClienteChatsGenesis } from "@/lib/chats-genesis/puerta-chats";
+import { desfaseRelojMs, type ClienteChatsGenesis } from "@/lib/chats-genesis/puerta-chats";
 import { cn } from "@/lib/utils";
 
 import {
+    AvisoReloj,
     CabeceraChat,
     CabeceraEspejo,
     momentoTexto,
@@ -434,6 +435,8 @@ function CompositorDireccion({ esDueno, soloTexto, catalogo, onEnviar, aviso }: 
     return (
         <div data-testid="compositor-genesis" className="flex flex-col gap-2 rounded-2xl border border-white/10 bg-white/[0.03] p-2 backdrop-blur-sm">
             {aviso ? <p role="alert" data-testid="aviso-envio" className="rounded-lg border border-rose-400/30 bg-rose-500/10 px-2.5 py-1.5 text-[11.5px] text-rose-100">{aviso}</p> : null}
+            {/* GEN1114INT · hallazgo 16: el reloj de este aparato contra la cabecera «Date» de la puerta (solo aviso). */}
+            <AvisoReloj desfaseMs={desfaseRelojMs()} />
             <LineaVaA texto={vaA} />
             <textarea
                 ref={areaRef}

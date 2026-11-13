@@ -314,6 +314,25 @@ describe("lo que se envía y lo que vuelve (§3.4, §3.9)", () => {
     });
 });
 
+describe("GEN1114INT · aviso del reloj del aparato (§3.6, hallazgo 16)", () => {
+    it("la frase sale solo con 2 min o más, y dice si va adelantado o atrasado", async () => {
+        const { textoDesfaseReloj } = await import("../cabecera-espejo");
+        expect(textoDesfaseReloj(null)).toBeNull();
+        expect(textoDesfaseReloj(60_000)).toBeNull();
+        expect(textoDesfaseReloj(Number.NaN)).toBeNull();
+        expect(textoDesfaseReloj(3 * 60_000)).toMatch(/va 3 min adelantada/);
+        expect(textoDesfaseReloj(-8 * 60_000)).toMatch(/va 8 min atrasada/);
+    });
+
+    it("el compositor de la dirección lo enseña cuando la puerta dio una hora muy distinta", async () => {
+        const { AvisoReloj } = await import("../cabecera-espejo");
+        const { rerender } = render(<AvisoReloj desfaseMs={30_000} />);
+        expect(screen.queryByTestId("aviso-reloj")).toBeNull();
+        rerender(<AvisoReloj desfaseMs={5 * 60_000} />);
+        expect(screen.getByTestId("aviso-reloj")).toHaveTextContent("La hora de este aparato va 5 min adelantada respecto a la puerta");
+    });
+});
+
 describe("guardia de nombre", () => {
     it("ningún nombre viejo del producto en el texto ni los comentarios de los archivos de GEN1114F", () => {
         const raiz = path.join(__dirname, "..", "..", "..");

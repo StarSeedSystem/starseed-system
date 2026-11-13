@@ -22,12 +22,12 @@ import { DESTINO_DE_FUENTE } from "@/lib/chats-genesis/alias-gen1113";
 import { chatDeFuente, chatParaFirmar, nombreDeChat, type CatalogoCanon } from "@/lib/chats-genesis/canon";
 import { riesgoDeEntrada, type AparatoLocal } from "@/lib/chats-genesis/firma-aparato";
 import type { ClienteChatsGenesis } from "@/lib/chats-genesis/puerta-chats";
-import { TEXTOS_SIN_RED } from "@/lib/chats-genesis/puerta-chats";
+import { TEXTOS_SIN_RED, desfaseRelojMs } from "@/lib/chats-genesis/puerta-chats";
 import type { FuenteEspejo, PuenteTelegram } from "@/lib/chats-genesis/tipos";
 import { nombreDeAutor } from "@/lib/mando/chat-director-feed";
 import { cn } from "@/lib/utils";
 
-import { CabeceraChat, CabeceraEspejo, useAhora, useEnvios, useFeedEspejo, type ChatVisto, type EntradaEnvio, type RegistroEspejo } from "./cabecera-espejo";
+import { AvisoReloj, CabeceraChat, CabeceraEspejo, useAhora, useEnvios, useFeedEspejo, type ChatVisto, type EntradaEnvio, type RegistroEspejo } from "./cabecera-espejo";
 import { EmparejarAparato } from "./emparejar-aparato";
 import { BotonBajar, Hoja, TarjetaEnvio, horaMensaje, llegoPorGenesis, useTecladoVisible } from "./hilo-direccion";
 import { InfoChat } from "./info-chat";
@@ -294,6 +294,8 @@ function CompositorPuenteTexto({ puente, onEnviar }: {
     const ofrecidas = ordenesOfrecidas(puente, "texto");
     return (
         <div data-testid="compositor-puente" data-nivel="texto" className="flex flex-col gap-2 rounded-2xl border border-white/10 bg-white/[0.03] p-2 backdrop-blur-sm">
+            {/* GEN1114INT · hallazgo 16: aviso si el reloj del aparato difiere del de la puerta. */}
+            <AvisoReloj desfaseMs={desfaseRelojMs()} />
             {aviso ? <p role="alert" data-testid="aviso-envio" className="rounded-lg border border-rose-400/30 bg-rose-500/10 px-2.5 py-1.5 text-[11.5px] text-rose-100">{aviso}</p> : null}
             <p data-testid="aviso-nivel" className="px-1 text-[11.5px] leading-snug text-white/60">{TEXTO_NIVEL_TEXTO}</p>
             <div role="group" aria-label="Órdenes de lectura" className="flex flex-wrap gap-1.5">
@@ -346,6 +348,7 @@ function CompositorPuenteCompleto({ puente, chat, onEnviar }: {
 
     return (
         <div data-testid="compositor-puente" className="flex flex-col gap-2 rounded-2xl border border-white/10 bg-white/[0.03] p-2 backdrop-blur-sm">
+            <AvisoReloj desfaseMs={desfaseRelojMs()} />   {/* GEN1114INT · hallazgo 16 */}
             {aviso ? <p role="alert" data-testid="aviso-envio" className="rounded-lg border border-rose-400/30 bg-rose-500/10 px-2.5 py-1.5 text-[11.5px] text-rose-100">{aviso}</p> : null}
             <p className="px-1 text-[11px] leading-snug text-white/45">{PISTA[puente]}</p>
             {vaA ? (
