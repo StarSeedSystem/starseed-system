@@ -362,5 +362,12 @@ def main() -> None:
     escuchar()
 
 
+# GEN1113F · peticiones también por la puerta de datos (sin Telegram). Solo si está la ficha; si no, nada cambia.
+if os.environ.get("STARSEED_PUERTA_FICHA_GENESIS_A1") or ENV.get("STARSEED_PUERTA_FICHA_GENESIS_A1"):
+    import sys
+    import peticiones_puerta
+    peticiones_puerta.enganchar(sys.modules[__name__])
+
+
 if __name__ == "__main__":
     main()
