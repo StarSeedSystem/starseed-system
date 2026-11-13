@@ -7063,3 +7063,19 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `CTD1113Gb` — otra cosa: reparación desde la nube: trabajo a medias que no pasó las puertas: se continúa desde la rama
 - `ALC1113B` — otra cosa
 - `ALC1113C` — otra cosa
+
+## 2026-11-13 15:47 · auto-1113-151648
+
+**Lo que se pidió.** Fichas de contacto · notas y datos (MetaGenesis)
+
+**Resultado.** 2 de 5 integradas. 3 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 3 tareas se fueron por lo mismo — otra cosa (DR1113-1, DR1113-2, ALC1113D). Es 60 % de la ola.
+- openrouter/cohere/north-mini-code:free no integró ninguna de sus 2 tareas.
+- nvidia/nvidia/nemotron-3-ultra-550b-a55b integró 2 tareas sin fallar una.
+
+**Lo que quedó fuera, una por una:**
+- `DR1113-1` — otra cosa: degenerado: src/lib/protomolecula/__tests__/orbe-bus.test.ts: encogió de 210 a 0 líneas (más de la mitad)
+- `DR1113-2` — otra cosa: director: reintento gratuito 1/8
+- `ALC1113D` — otra cosa
