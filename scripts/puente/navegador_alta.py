@@ -13,17 +13,23 @@ CLI `estado`:
 CLI `vigilar`:
   - Si una sesión pasa a caducada avisa una vez por Telegram y no reintenta
 
+CLI `notebooklm`:
+  - Si la sesión google-alex está viva, extrae sus cookies de Google del perfil
+    y las importa al CLI default con `notebooklm auth import-cookies`
+  - Comprueba con `notebooklm auth check` y avisa por sintesis_telegram
+  - Si google-alex no está viva, lanza `alta google-alex` y repite
+  - El texto RENOVAR debe decir "MetaGenesis › Apps Linux"
+
 Todo inyectable; pruebas sin red. Máximo 120 líneas por archivo.
 """
 import os
 import sys
 import time
 import json
+import subprocess
 from datetime import datetime
 
-from typing import Any, Dict, Optional
-
-from typing import Dict, Optional
+from typing import Any, Dict, Optional, List
 
 import navegador_reglas as NR
 import navegador_cliente as NC
@@ -82,6 +88,50 @@ def _obtener_telegram() -> Any:
     """Obtiene el cliente Telegram (inyectable)."""
     from scripts.puente import sintesis_telegram as tel
     return tel
+
+
+def _extraer_cookies_google(sesion: str) -> List[Dict[str, Any]]:
+    """Extrae las cookies de Google del perfil de la sesión (inyectable)."""
+    try:
+        cliente = _obtener_cliente()
+        if hasattr(cliente, 'extraer_cookies'):
+            return cliente.extraer_cookies(sesion, "google.com")
+        return []
+    except Exception:
+        return []
+
+
+def _importar_cookies_notebooklm(cookies: List[Dict[str, Any]]) -> bool:
+    """Importa cookies al perfil default del CLI de NotebookLM (inyectable)."""
+    try:
+        if not cookies:
+            return False
+        import tempfile
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+            json.dump(cookies, f)
+            temp_path = f.name
+        try:
+            resultado = subprocess.run(
+                ["notebooklm", "auth", "import-cookies", temp_path],
+                capture_output=True, text=True, timeout=30
+            )
+            return resultado.returncode == 0
+        finally:
+            os.unlink(temp_path)
+    except Exception:
+        return False
+
+
+def _comprobar_notebooklm() -> Dict[str, Any]:
+    """Comprueba el estado de autenticación de NotebookLM (inyectable)."""
+    try:
+        resultado = subprocess.run(
+            ["notebooklm", "auth", "check"],
+            capture_output=True, text=True, timeout=30
+        )
+        return {"ok": resultado.returncode == 0, "salida": resultado.stdout.strip()}
+    except Exception as e:
+        return {"ok": False, "salida": str(e)}
 
 
 def _obtener_urls_perfil(sesion: str) -> Dict[str, str]:
@@ -202,6 +252,45 @@ def vigilar() -> Dict[str, Any]:
     return resultado
 
 
+def notebooklm() -> Dict[str, Any]:
+    """CLI `notebooklm`: renueva la sesión de NotebookLM desde google-alex."""
+    telegram = _obtener_telegram()
+    
+    # Verificar si google-alex está viva
+    estado_google = NR.marcar_estado("google-alex", "viva", datetime.utcnow())
+    google_viva = estado_google["sesiones"]["google-alex"]["estado"] == "viva"
+    
+    if not google_viva:
+        # Lanzar alta google-alex y repetir
+        telegram.enviar("La sesión google-alex no está viva. Iniciando alta...")
+        resultado_alta = alta("google-alex")
+        if not resultado_alta.get("ok"):
+            return {"ok": False, "motivo": f"falló alta google-alex: {resultado_alta.get('motivo')}"}
+        # Esperar a que esté viva
+        if not _esperar_hasta_30_minutos("google-alex"):
+            return {"ok": False, "motivo": "tiempo de espera excedido tras alta google-alex"}
+    
+    # Extraer cookies de Google del perfil
+    cookies = _extraer_cookies_google("google-alex")
+    if not cookies:
+        return {"ok": False, "motivo": "no se pudieron extraer cookies de google-alex"}
+    
+    # Importar cookies al CLI de NotebookLM
+    if not _importar_cookies_notebooklm(cookies):
+        return {"ok": False, "motivo": "falló importar cookies a notebooklm"}
+    
+    # Comprobar estado
+    check = _comprobar_notebooklm()
+    if not check.get("ok"):
+        return {"ok": False, "motivo": f"notebooklm auth check falló: {check.get('salida')}"}
+    
+    # Avisar por Telegram
+    mensaje = "NotebookLM renovado correctamente desde MetaGenesis › Apps Linux"
+    telegram.enviar(mensaje)
+    
+    return {"ok": True, "mensaje": mensaje, "check": check.get("salida")}
+
+
 def main(argv) -> int:
     """CLI principal."""
     if len(argv) < 2:
@@ -210,6 +299,7 @@ def main(argv) -> int:
         print("  alta <sesion>     Enciende Selkies y Chromium para una sesión")
         print("  estado           Verifica el estado de todas las sesiones")
         print("  vigilar          Avisa si una sesión está viva")
+        print("  notebooklm       Renueva la sesión de NotebookLM desde google-alex")
         return 1
     
     comando = argv[1]
@@ -228,6 +318,11 @@ def main(argv) -> int:
         resultado = vigilar()
         print(json.dumps(resultado, ensure_ascii=False))
         return 0
+    
+    elif comando == "notebooklm":
+        resultado = notebooklm()
+        print(json.dumps(resultado, ensure_ascii=False))
+        return 0 if resultado.get("ok") else 1
     
     else:
         print(f"Comando desconocido: {comando}")

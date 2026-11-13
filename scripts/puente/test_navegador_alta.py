@@ -29,6 +29,9 @@ class Base(unittest.TestCase):
             "_abrir_pagina_inicio_sesion": registra("pagina"),
             "_obtener_cliente": registra("cliente", object()),
             "_esperar_hasta_30_minutos": lambda sesion: self.espera,
+            "_extraer_cookies_google": registra("extraer_cookies", [{"name": "test", "value": "cookie"}]),
+            "_importar_cookies_notebooklm": registra("importar_cookies", True),
+            "_comprobar_notebooklm": registra("comprobar_notebooklm", {"ok": True, "salida": "OK"}),
         }
         for objetivo, valor in dobles.items():
             parche = patch.object(N, objetivo, valor)
@@ -115,6 +118,60 @@ class TestCli(Base):
             self.assertEqual(N.main(["n", "estado"]), 0)
             self.assertEqual(N.main(["n", "vigilar"]), 0)
         self.assertEqual(N.main(["n", "desconocido"]), 1)
+
+
+class TestNotebookLM(Base):
+    def test_renueva_desde_google_alex_viva(self):
+        with patch.object(NR, "marcar_estado", self.marcar()):
+            r = N.notebooklm()
+        self.assertTrue(r["ok"])
+        self.assertIn("MetaGenesis › Apps Linux", r["mensaje"])
+        self.assertEqual(self.llamadas[0], ("extraer_cookies", "google-alex"))
+        self.assertEqual(self.llamadas[1], ("importar_cookies", [{"name": "test", "value": "cookie"}]))
+        self.assertEqual(self.llamadas[2], ("comprobar_notebooklm",))
+        self.assertEqual(len(self.telegram), 1)
+        self.assertIn("MetaGenesis › Apps Linux", self.telegram[0])
+
+    def test_lanza_alta_si_google_alex_no_viva(self):
+        self.espera = True
+        with patch.object(NR, "marcar_estado", self.marcar({"google-alex"})):
+            with patch.object(N, "alta", return_value={"ok": True, "sesion": "google-alex"}) as alta_falsa:
+                with patch.object(N, "_esperar_hasta_30_minutos", return_value=True):
+                    r = N.notebooklm()
+        self.assertTrue(r["ok"])
+        alta_falsa.assert_called_once_with("google-alex")
+
+    def test_falla_si_alta_google_alex_falla(self):
+        with patch.object(NR, "marcar_estado", self.marcar({"google-alex"})):
+            with patch.object(N, "alta", return_value={"ok": False, "motivo": "sin docker"}):
+                r = N.notebooklm()
+        self.assertFalse(r["ok"])
+        self.assertIn("falló alta google-alex", r["motivo"])
+
+    def test_falla_si_no_hay_cookies(self):
+        with patch.object(NR, "marcar_estado", self.marcar()):
+            with patch.object(N, "_extraer_cookies_google", return_value=[]):
+                r = N.notebooklm()
+        self.assertFalse(r["ok"])
+        self.assertIn("no se pudieron extraer cookies", r["motivo"])
+
+    def test_falla_si_importar_cookies_falla(self):
+        with patch.object(NR, "marcar_estado", self.marcar()):
+            with patch.object(N, "_importar_cookies_notebooklm", return_value=False):
+                r = N.notebooklm()
+        self.assertFalse(r["ok"])
+        self.assertIn("falló importar cookies", r["motivo"])
+
+    def test_falla_si_check_falla(self):
+        with patch.object(NR, "marcar_estado", self.marcar()):
+            with patch.object(N, "_comprobar_notebooklm", return_value={"ok": False, "salida": "no autenticado"}):
+                r = N.notebooklm()
+        self.assertFalse(r["ok"])
+        self.assertIn("notebooklm auth check falló", r["motivo"])
+
+    def test_cli_notebooklm(self):
+        with patch.object(NR, "marcar_estado", self.marcar()):
+            self.assertEqual(N.main(["n", "notebooklm"]), 0)
 
 if __name__ == "__main__":
     unittest.main()
