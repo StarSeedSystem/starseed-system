@@ -15,7 +15,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CloudOff, Loader2, Lock, Radio, TimerOff } from "lucide-react";
 
-import { estadoEspejo, type ClienteChatsGenesis } from "@/lib/chats-genesis/puerta-chats";
+import { AvisoSesion } from "@/components/auth/aviso-sesion";
+import { estadoEspejo, TEXTO_SIN_SESION, type ClienteChatsGenesis } from "@/lib/chats-genesis/puerta-chats";
 import { fusionarFeed } from "@/lib/mando/chat-director-feed";
 import { cn } from "@/lib/utils";
 
@@ -171,7 +172,7 @@ const ACUSES_VALIDOS = new Set<EstadoEnvio>(["entregado", "hecho", "rechazado", 
 export function motivoNoEnviado(r: { estado: number; codigo?: string; error: string }): string {
     if (r.estado === 403 && r.codigo === "solo-dueno") return "Esta orden solo la puede dar un dueño de MetaGenesis";
     if (r.estado === 403) return "Tu cuenta no tiene acceso a MetaGenesis";
-    if (r.estado === 401) return "Inicia sesión para ver los chats de Genesis";
+    if (r.estado === 401) return TEXTO_SIN_SESION;
     if (r.estado === 409) return "Ese envío ya estaba en la puerta; no se mandó otra vez";
     if (r.estado === 429) return "Demasiados envíos seguidos; espera un minuto y vuelve a intentarlo";
     if (r.estado === 503) return "No se pudo comprobar tu permiso; no se envió nada";
@@ -270,7 +271,7 @@ type Tono = "vivo" | "viejo" | "caido" | "neutro";
 export function lineaCabecera(p: Omit<CabeceraEspejoProps, "onReintentar">): { tono: Tono; texto: string } {
     const nombre = p.origen === "a1" ? "el A1" : "la Mac";
     const Nombre = p.origen === "a1" ? "El A1" : "La Mac";
-    if (p.fallo?.estado === 401) return { tono: "neutro", texto: "Inicia sesión para ver los chats de Genesis" };
+    if (p.fallo?.estado === 401) return { tono: "neutro", texto: TEXTO_SIN_SESION };
     if (p.fallo?.estado === 403) {
         return { tono: "neutro", texto: p.queEs === "puente" ? "Este puente solo lo puede leer un dueño de MetaGenesis" : "Tu cuenta no tiene acceso a MetaGenesis" };
     }
@@ -305,7 +306,15 @@ const ESTILO: Record<Tono, string> = {
 /** Siempre visible encima del hilo: de dónde viene lo que se ve y si está vivo. */
 export function CabeceraEspejo(props: CabeceraEspejoProps) {
     const { tono, texto } = lineaCabecera(props);
-    const Icono = tono === "vivo" ? Radio : tono === "caido" ? CloudOff : props.fallo?.estado === 401 || props.fallo?.estado === 403 ? Lock : props.cargado ? TimerOff : Loader2;
+    // Sin sesión: el aviso común, con «Iniciar sesión» y la guía (GUI1021N), no una frase suelta.
+    if (props.fallo?.estado === 401) {
+        return (
+            <div data-testid="cabecera-espejo" data-tono={tono} className="shrink-0">
+                <AvisoSesion compacto texto={texto} />
+            </div>
+        );
+    }
+    const Icono = tono === "vivo" ? Radio : tono === "caido" ? CloudOff : props.fallo?.estado === 403 ? Lock : props.cargado ? TimerOff : Loader2;
     return (
         <div
             role="status"
@@ -316,7 +325,7 @@ export function CabeceraEspejo(props: CabeceraEspejoProps) {
         >
             <Icono className={cn("mt-0.5 size-3.5 shrink-0", tono === "vivo" && "motion-safe:animate-pulse", Icono === Loader2 && "motion-safe:animate-spin")} aria-hidden />
             <span className="min-w-0 flex-1 break-words">{texto}</span>
-            {props.onReintentar && (tono === "caido" || props.fallo?.estado === 401) ? (
+            {props.onReintentar && tono === "caido" ? (
                 <button
                     type="button"
                     onClick={props.onReintentar}

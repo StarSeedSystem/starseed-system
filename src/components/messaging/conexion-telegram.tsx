@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { AvisoSesion } from "@/components/auth/aviso-sesion";
 import { toast } from "sonner";
 import { createClient } from "@/utils/supabase/client";
 import { TelegramSpacesPanel } from "@/components/exocortex/telegram-spaces-panel";
@@ -191,7 +192,7 @@ function ChatsSincronizados({ accountId, prefs, onGuardar }: { accountId: string
     <section aria-labelledby="tg-sinc-titulo">
       <h3 id="tg-sinc-titulo" className="mb-2 text-[11px] uppercase tracking-widest text-cyan-400/60">Dónde se ven los chats de Telegram</h3>
       {!accountId ? (
-        <p className="rounded-xl border border-white/10 bg-white/5 p-3 text-[11px] text-white/60">Inicia sesión para elegir dónde se ven tus chats de Telegram.</p>
+        <AvisoSesion compacto texto="Inicia sesión para elegir dónde se ven tus chats de Telegram." />
       ) : chats === null || !prefs ? (
         <p className="flex items-center gap-2 text-[11px] text-white/50"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Buscando chats de Telegram…</p>
       ) : chats.length === 0 ? (

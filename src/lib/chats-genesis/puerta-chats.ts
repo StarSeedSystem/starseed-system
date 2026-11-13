@@ -89,9 +89,12 @@ function entero(x: unknown, min: number, max: number): number | undefined {
     return Math.min(max, Math.max(min, Math.floor(x)));
 }
 
+/** Lo que se dice sin sesión (401). En la interfaz va dentro de `AvisoSesion`, con la guía (GUI1021N). */
+export const TEXTO_SIN_SESION = "Inicia sesión para ver los chats de Genesis";
+
 const MENSAJES: Record<number, string> = {
     400: "La puerta no aceptó la forma del mensaje",
-    401: "Inicia sesión para ver los chats de Genesis",
+    401: TEXTO_SIN_SESION,
     403: "Tu cuenta no tiene acceso a MetaGenesis",
     409: "Ese mensaje ya había llegado a la puerta",
     429: "Demasiados mensajes seguidos: espera un minuto",
