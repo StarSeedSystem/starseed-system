@@ -814,9 +814,27 @@ def veredictos_de(
     if clave in ("listas", "bloqueadas"):
         orq = p_dict.get("orquestador", [])
         vig = p_dict.get("vigilante", [])
+
+        def _es_detalle_sin_trabajo() -> bool:
+            """PURA: determina si hay trabajo ejecutable a partir del detalle."""
+            detalle = hechos.get("detalle")
+            if not isinstance(detalle, dict):
+                return False
+            if clave == "listas":
+                return not bool(detalle.get("listas_ejecutables", False))
+            elif clave == "bloqueadas":
+                return not bool(detalle.get("bloqueadas_ejecutables", False))
+            return False
+
         if orq:
             veredictos.append(
                 veredicto_proceso("Orquestador", "vivo", f"Ejecutándose (PIDs: {orq})")
+            )
+        elif _es_detalle_sin_trabajo():
+            veredictos.append(
+                veredicto_proceso(
+                    "Orquestador", "vivo", "En reposo: no hay trabajo ejecutable; arranca solo cuando llega una cola"
+                )
             )
         else:
             veredictos.append(
@@ -824,40 +842,6 @@ def veredictos_de(
                     "Orquestador", "muerto", "No hay proceso de orquestador activo"
                 )
             )
-        if vig:
-            veredictos.append(
-                veredicto_proceso("Vigilante", "vivo", f"Ejecutándose (PIDs: {vig})")
-            )
-        else:
-            veredictos.append(
-                veredicto_proceso(
-                    "Vigilante", "muerto", "No hay proceso de vigilante activo"
-                )
-            )
-        else:
-            # Con orquestador muerto, mirar detalle para "no trabajo ejecutable": "vivo"
-            detalle = hechos.get("detalle")
-            hay_trabajo = False
-            if isinstance(detalle, dict):
-                # Para el medidor "listas", se mira el número de listas ejecutables (que está en detalle["listas_ejecutables"])
-                # Para el medidor "bloqueadas", se mira el número de bloqueadas ejecutables (que está en detalle["bloqueadas_ejecutables"])
-                if clave == "listas":
-                    hay_trabajo = bool(detalle.get("listas_ejecutables", False))
-                elif clave == "bloqueadas":
-                    hay_trabajo = bool(detalle.get("bloqueadas_ejecutables", False))
-            # Si hay trabajo ejecutable, orquestador muerto; si no, "vivo" con mensaje de reposo
-            if hay_trabajo:
-                veredictos.append(
-                    veredicto_proceso(
-                        "Orquestador", "muerto", "No hay proceso de orquestador activo"
-                    )
-                )
-            else:
-                veredictos.append(
-                    veredicto_proceso(
-                        "Orquestador", "vivo", "En reposo: no hay trabajo ejecutable; arranca solo cuando llega una cola"
-                    )
-                )
         if vig:
             veredictos.append(
                 veredicto_proceso("Vigilante", "vivo", f"Ejecutándose (PIDs: {vig})")

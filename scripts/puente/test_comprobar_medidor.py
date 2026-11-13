@@ -401,6 +401,64 @@ class LaComprobacionDeAgentesEsHonrada(unittest.TestCase):
         self.assertEqual(vs[0]["estado"], "desconocido")
         self.assertEqual(len(vs), 1)
 
+    def test_sin_orquestador_y_detalle_sin_trabajo(self):
+        """Sin orquestador y detalle sin trabajo ejecutable: orquestador vivo con mensaje de reposo."""
+        procesos = {"orquestador": [], "vigilante": []}
+        hechos = {
+            "detalle": {
+                "resumen": "todos vivos",
+                "listas_ejecutables": False,
+                "bloqueadas_ejecutables": False,
+            }
+        }
+        veredictos, resumen = C.veredictos_de("listas", procesos, hechos)
+        # Orquestador debería ser vivo con mensaje de reposo
+        orq_ver = next(v for v in veredictos if v["proceso"] == "Orquestador")
+        self.assertEqual(orq_ver["estado"], "vivo")
+        self.assertEqual(orq_ver["detalle"], "En reposo: no hay trabajo ejecutable; arranca solo cuando llega una cola")
+        self.assertIn("2/3 vivos", resumen)
+
+    def test_sin_orquestador_con_listas_ejecutables(self):
+        """Sin orquestador pero con listas ejecutables: orquestador muerto (como hoy)."""
+        procesos = {"orquestador": [], "vigilante": []}
+        hechos = {
+            "detalle": {
+                "resumen": "1 lista activa",
+                "listas_ejecutables": True,
+                "bloqueadas_ejecutables": False,
+            }
+        }
+        veredictos, resumen = C.veredictos_de("listas", procesos, hechos)
+        # Orquestador debería ser muerto
+        orq_ver = next(v for v in veredictos if v["proceso"] == "Orquestador")
+        self.assertEqual(orq_ver["estado"], "muerto")
+        self.assertIn("muerto(s)", resumen)
+
+    def test_con_orquestador(self):
+        """Con orquestador activo: orquestador vivo con sus PIDs (como hoy)."""
+        procesos = {"orquestador": [1234], "vigilante": []}
+        hechos = {
+            "detalle": {
+                "resumen": "3 listos",
+                "listas_ejecutables": True,
+                "bloqueadas_ejecutables": False,
+            }
+        }
+        veredictos, resumen = C.veredictos_de("listas", procesos, hechos)
+        # Orquestador debería ser vivo con sus PIDs
+        orq_ver = next(v for v in veredictos if v["proceso"] == "Orquestador")
+        self.assertEqual(orq_ver["estado"], "vivo")
+        self.assertIn("1234", orq_ver["detalle"])
+
+    def test_sin_detalle(self):
+        """Sin detalle: orquestador muerto (como hoy)."""
+        procesos = {"orquestador": [], "vigilante": []}
+        hechos = {}
+        veredictos, resumen = C.veredictos_de("listas", procesos, hechos)
+        # Orquestador debería ser muerto
+        orq_ver = next(v for v in veredictos if v["proceso"] == "Orquestador")
+        self.assertEqual(orq_ver["estado"], "muerto")
+
     def test_leer_fases_de_los_latidos(self):
         import json
         import tempfile
