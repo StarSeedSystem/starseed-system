@@ -30,6 +30,7 @@ import { abrirCanalLlamada, type ConexionCanal } from "@/lib/llamadas/senalizaci
 import { SesionVozDatos, type AudioVoz, type FabricaCodecs, type RelojVoz, type TransporteVoz } from "@/lib/llamadas/voz-datos/sesion";
 import { decidirAccionMedio, ESPERA_ICE_MS, LIMITE_CONECTANDO_MS, MOTIVO_SIN_AUDIO, nivelCalidadVoz, TEXTO_CONTESTADA_CONECTANDO, TEXTO_VIDEO_BLE, textoCalidadVoz, textoMedioVoz } from "@/lib/llamadas/voz-datos/decision";
 import { anotarLlamada } from "@/lib/llamadas/voz-datos/diagnostico";
+import { RelojEstable } from "@/lib/llamadas/reloj-estable"; // LLA1113A
 import { leerControl } from "@/lib/llamadas/voz-datos/paquete";
 // (LLA1110D) Un carril estable por flujo (voz, vídeo, pantalla, señal) en vez de un único medio que saltaba.
 import { decidirReintentoIce, esCarrilBle, esperaReintentoIce, etiquetaCarril, LimiteRegistro, SelectorCarriles, SILENCIO_WEBRTC_MS, textoCarriles, soyDirector, type CambioCarril, type Carril, type Flujo, type MuestraCarril } from "@/lib/llamadas/carriles";
@@ -687,16 +688,61 @@ export class MotorLlamada {
             this.set({ seleccion: { ...this.e.seleccion, camaraId: id } });
             return null;
         }
-        const r = await obtenerPista("video", id);
+        const neurona = this.opc.vozDatos?.neurona ?? null;
+        // LLA1113A: cada cambio con la cámara encendida, al registro (en la prueba 40 la tableta pidió la cámara tres veces sin
+        // que constara por qué).
+        anotarLlamada("camara", neurona, `cambiar con-camara=si misma=${id === (this.idDispositivo(this.pistaCamara) ?? this.e.seleccion.camaraId) ? "si" : "no"}`);
+        let r = await obtenerPista("video", id);
+        let elegida = id;
+        let errorVuelta: string | null = null;
+        // LLA1113A · Prueba 40, tableta: «intento pedida … deviceId:exact fallo error=NotReadableError» tres veces, con su cámara
+        // abierta: Android (como WebKit, ver `encenderCamara`) no abre una segunda cámara con la primera en marcha. Se suelta la
+        // de ahora y se abre la pedida EN SERIE; si tampoco abre, vuelve la de antes (la llamada no se queda sin imagen).
+        if (!r.pista && r.ocupada && this.pistaCamara && !this.cerrado) {
+            const viejaId = this.idDispositivo(this.pistaCamara) ?? this.e.seleccion.camaraId;
+            anotarLlamada("camara", neurona, "cambiar en-serie motivo=ocupada (se suelta la de ahora y se abre la pedida)");
+            try {
+                this.pistaCamara.stop();
+            } catch {
+                /* noop */
+            }
+            r = await obtenerPista("video", id);
+            if (!r.pista && viejaId && !this.cerrado) {
+                errorVuelta = r.error;
+                const v = await obtenerPista("video", viejaId);
+                anotarLlamada("camara", neurona, `cambiar en-serie no-abre vuelve-la-de-antes=${v.pista ? "si" : "no"}`);
+                if (v.pista) {
+                    r = v;
+                    elegida = viejaId;
+                }
+            }
+        }
         // (LLA1111A) Si no abre, sigue la elegida de antes y su imagen: antes se apuntaba y recordaba ANTES de abrir, y la
         // que fallaba quedaba como seleccionada y como la de por defecto de las llamadas siguientes.
-        if (!r.pista) return r.error;
+        if (!r.pista) {
+            // LLA1113A: la de antes ya se soltó y tampoco volvió: la cámara queda apagada de verdad (no una pista parada «encendida»).
+            if (this.pistaCamara && this.pistaCamara.readyState === "ended") {
+                const p = this.pistaCamara;
+                this.pistaCamara = null;
+                this.camaraOn = false;
+                for (const par of this.pares.values()) this.ponerEnEmisor(par, "video", null);
+                try {
+                    this.local?.removeTrack(p);
+                } catch {
+                    /* noop */
+                }
+                this.publicarMeta();
+                this.emitir();
+                this.alCambiarVideoLocal();
+            }
+            return r.error;
+        }
         if (this.cerrado) {
             r.pista.stop();
             return null;
         }
-        this.set({ seleccion: { ...this.e.seleccion, camaraId: id } });
-        this.recordarDispositivo("camara", id, this.e.dispositivos.camaras);
+        this.set({ seleccion: { ...this.e.seleccion, camaraId: elegida } });
+        if (elegida === id) this.recordarDispositivo("camara", id, this.e.dispositivos.camaras);
         const vieja = this.pistaCamara;
         this.pistaCamara = r.pista;
         if (!this.pantallaOn) {
@@ -716,7 +762,7 @@ export class MotorLlamada {
         this.emitir();
         // VID1110A: el vídeo ligero lee de la pista vieja (ya parada): sin esto, tras cambiar de cámara seguía en negro.
         this.alCambiarVideoLocal();
-        return null;
+        return errorVuelta; // LLA1113A: si volvió la de antes, se dice por qué no se pasó a la pedida
     }
 
     cambiarAltavoz(id: string) {
@@ -1395,6 +1441,11 @@ export class MotorLlamada {
 
     private alCambiarIce(par: Par, estado: string) {
         if (this.pares.get(par.id) !== par) return;
+        // LLA1113A: qué fue de cada reintento de ICE (prueba 40: con el Wi-Fi de la tableta de vuelta, seis reintentos en 90 s
+        // sin rastro de cómo acabó ninguno).
+        if (par.reinicios > 0 && (estado === "connected" || estado === "completed" || estado === "failed" || estado === "disconnected")) {
+            anotarLlamada("medio=webrtc", this.opc.vozDatos?.neurona ?? null, `par=${par.id} ice=${estado} tras-reintentos=${par.reinicios}`);
+        }
         switch (reaccionIce(estado, par.reinicios)) {
             case "conectado":
                 par.conexion = "conectado";
@@ -1529,16 +1580,18 @@ export class MotorLlamada {
 
     /* ───────────────────────────── Voz por enlace de datos (LLA1108E) ───────────────────────────── */
 
+    /**
+     * LLA1113A: sin reloj inyectado, el de la llamada (`reloj-estable.ts`): las vueltas de 20 ms de la voz y del vídeo siguen
+     * con un Worker cuando la página alinea sus temporizadores a 1 s (ventana oculta o tapada, prueba 40). Uno por motor.
+     */
+    private relojPropio: RelojEstable | null = null;
     private relojVoz(): RelojVoz {
-        return (
-            this.opc.vozDatos?.reloj ?? {
-                ahora: () => Date.now(),
-                cada: (fn, ms) => {
-                    const t = setInterval(fn, ms);
-                    return () => clearInterval(t);
-                },
-            }
-        );
+        if (this.opc.vozDatos?.reloj) return this.opc.vozDatos.reloj;
+        if (!this.relojPropio) {
+            const neurona = this.opc.vozDatos?.neurona ?? null;
+            this.relojPropio = new RelojEstable({ anotar: (d) => anotarLlamada("medio=enlace-datos", neurona, d) });
+        }
+        return this.relojPropio;
     }
 
     private estadoDatosPar(id: string): "sin-enlace" | "disponible" | "activo" {
@@ -2652,6 +2705,8 @@ export class MotorLlamada {
         for (const id of Array.from(this.vozDatos.keys())) this.pararVozDatos(id, "colgada");
         for (const id of Array.from(this.pares.keys())) this.cerrarPar(id);
         for (const id of Array.from(this.analizadores.keys())) this.desconectarAnalizador(id);
+        this.relojPropio?.detener(); // LLA1113A
+        this.relojPropio = null;
         for (const t of [this.pistaAudio, this.pistaCamara, this.pistaPantalla]) {
             try {
                 t?.stop();

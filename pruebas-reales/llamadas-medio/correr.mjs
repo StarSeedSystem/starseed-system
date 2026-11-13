@@ -28,7 +28,8 @@ const srv = http.createServer((q, r) => {
 });
 await new Promise((ok) => srv.listen(0, "127.0.0.1", ok));
 const url = `http://127.0.0.1:${srv.address().port}/`;
-const nav = await pw.chromium.launch({ args: ["--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream", "--autoplay-policy=no-user-gesture-required"] });
+// LLA1113A: `BANCO_CANAL=chrome` usa el Chrome instalado (en un Mac sin los navegadores de Playwright).
+const nav = await pw.chromium.launch({ ...(process.env.BANCO_CANAL ? { channel: process.env.BANCO_CANAL } : {}), args: ["--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream", "--autoplay-policy=no-user-gesture-required"] });
 const ctx = await nav.newContext({ permissions: ["camera", "microphone"] });
 const out = {};
 const espera = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -481,6 +482,10 @@ const esc = {
   // LLA1112A · (A) el carril calibrado con el lado B como la tableta de la prueba 39: escribe más despacio y a ráfagas
   // (paradas en las que ni escribe ni entrega lo que le llega). Micros abiertos y cámaras encendidas.
   "ble-tableta": () => casoBle("ble-tableta", [{ t: 0, kbps: 160 }], { plazo: 400, real: true, tableta: true }),
+  // LLA1113A · `ble-real` con los temporizadores de la página LENTOS (alineados a 1 s, como WebKit con la ventana de la Mac
+  // oculta o tapada) en dos tramos de 30 s, como en las dos llamadas limpias de la prueba 40 (10–35 s seguidos). Pasa con lo de
+  // `ble-real` y además: ninguna pausa del vídeo y la voz nunca al escalón 5, con el carril a 160 kb/s todo el rato.
+  "ble-lento": () => casoBle("ble-lento", [{ t: 0, kbps: 160 }], { plazo: 400, real: true, lento: [[15, 45], [70, 100]] }),
   // (VOZ1111J) Solo voz, los dos micros abiertos (Opus real), por un carril como el Bluetooth cada vez más estrecho.
   // `-cif`: con el cifrado del enlace (CIF1108A) en el aire, como entre la Mac y la tableta (ver `bytesAire`).
   "voz-40": () => casoVoz("voz-40", [{ t: 0, kbps: 40 }]),
@@ -702,6 +707,8 @@ async function casoBle(nombre, tramos, extra = {}) {
   let k = 1;
   let ultimoMicro = 0;
   let mudo = false;
+  let lentoOn = false;
+  const lentoMarcas = [];
   const tramosMs = [];
   while (Date.now() - inicio < dur * 1000) {
     const trans = (Date.now() - inicio) / (dur * 1000);
@@ -712,6 +719,19 @@ async function casoBle(nombre, tramos, extra = {}) {
       }, tramos[k].kbps);
       tramosMs.push({ kbps: tramos[k].kbps, en: ahora });
       k++;
+    }
+    // LLA1113A: tramos con los temporizadores de la página lentos (s desde el inicio de la medida).
+    if (extra.lento) {
+      const s = (Date.now() - inicio) / 1000;
+      const on = extra.lento.some(([a, b]) => s >= a && s < b);
+      if (on !== lentoOn) {
+        lentoOn = on;
+        const en = await p.evaluate((v) => {
+          window.banco.lentos.activo = v;
+          return performance.now();
+        }, on);
+        lentoMarcas.push({ on, en });
+      }
     }
     if (extra.microCadaS && Date.now() - ultimoMicro >= extra.microCadaS * 1000) {
       ultimoMicro = Date.now();
@@ -747,6 +767,10 @@ async function casoBle(nombre, tramos, extra = {}) {
       out.rx = b.lineas.filter((l) => l.t >= t0 && /voz-datos rx paq=/.test(l.detalle)).map((l) => `${Math.round((l.t - t0) / 1000)}s ${l.neurona} ${l.detalle}`);
       out.txOtro = b.lineas.filter((l) => l.t >= t0 && /voz-datos tx n=/.test(l.detalle)).map((l) => `${Math.round((l.t - t0) / 1000)}s ${l.neurona} ${l.detalle.replace(/ enlace=.*/, "")}`);
       out.paradasB = { ...b.paradaB };
+      // LLA1113A: pausas del vídeo y la voz al escalón 5 (6 kb/s) durante la medida, con su línea (lo del aparato en la prueba 40).
+      out.pausas = b.lineas.filter((l) => l.t >= t0 && /video-datos pausa motivo=/.test(l.detalle)).map((l) => `${Math.round((l.t - t0) / 1000)}s ${l.neurona} ${l.detalle.slice(0, 150)}`);
+      out.vozAl5 = b.lineas.filter((l) => l.t >= t0 && /voz-datos nivel \d→5 /.test(l.detalle)).map((l) => `${Math.round((l.t - t0) / 1000)}s ${l.neurona} ${l.detalle.slice(0, 150)}`);
+      out.reloj = b.lineas.filter((l) => /reloj /.test(l.detalle)).slice(0, 12).map((l) => `${Math.round((l.t - t0) / 1000)}s ${l.neurona ?? "-"} ${l.detalle.slice(0, 150)}`);
       // Por tramos de capacidad (para la caída) y por estado del micro.
       const cortes = [t0, ...tramosMs.map((x) => x.en), t1];
       out.tramos = cortes.slice(0, -1).map((d, i) => ({ desde: Math.round(d - t0), hasta: Math.round(cortes[i + 1] - t0), ...b.resumenTramo(d, cortes[i + 1]) }));
@@ -777,7 +801,11 @@ async function casoBle(nombre, tramos, extra = {}) {
     },
     { t0, t1, tramosMs, marcas },
   );
-  await p.evaluate(() => window.banco.pararReal());
+  r.lento = lentoMarcas.map((m) => `${Math.round((m.en - t0) / 1000)}s ${m.on ? "lentos" : "normales"}`);
+  await p.evaluate(() => {
+    window.banco.lentos.activo = false;
+    window.banco.pararReal();
+  });
   await p.close();
   r.veredicto = juzgar(nombre, r, tramosMs.length ? tramosMs.map((x) => Math.round((x.en - t0) / 1000)) : []);
   return r;
@@ -826,11 +854,16 @@ function juzgar(nombre, r, cambiosS) {
   }
   const fluye = (lado) => lado.ventanas5s.length > 0 && lado.ventanas5s.filter((f) => f >= UMBRAL.fpsMin).length / lado.ventanas5s.length >= UMBRAL.ventanasOk;
   if (nombre === "ble-tableta") juzgarTableta(r, fallos);
-  if (nombre === "ble-real" || nombre === "ble-real-mudo" || nombre === "ble-tableta") {
+  if (nombre === "ble-lento") {
+    // LLA1113A: con el carril a 160 kb/s, ni pausa por «suelo»/«prueba-fallida» ni la voz a 6 kb/s por unos temporizadores lentos.
+    for (const l of r.pausas ?? []) fallos.push(`pausa del vídeo: ${l}`);
+    for (const l of r.vozAl5 ?? []) fallos.push(`voz al escalón 5: ${l}`);
+  }
+  if (nombre === "ble-real" || nombre === "ble-real-mudo" || nombre === "ble-tableta" || nombre === "ble-lento") {
     // LLA1111Q: los dos sentidos ≥ 3 fps sostenidos y, con micros abiertos, la voz sin huecos audibles y en un escalón bueno.
     if (!fluye(r.total.enA)) fallos.push(`vídeo en A: ${r.total.enA.fps} fps, ventanas ${JSON.stringify(r.total.enA.ventanas5s)}`);
     if (!fluye(r.total.enB)) fallos.push(`vídeo en B: ${r.total.enB.fps} fps, ventanas ${JSON.stringify(r.total.enB.ventanas5s)}`);
-    if (nombre === "ble-real" || nombre === "ble-tableta") {
+    if (nombre === "ble-real" || nombre === "ble-tableta" || nombre === "ble-lento") {
       for (const q of ["A", "B"]) {
         const o = r.oido?.[q];
         if (!o || o.huecosPorMin > 1 || o.huecoMaxMs > 200) fallos.push(`voz en ${q}: ${o?.huecos} huecos (${o?.huecosPorMin}/min), el mayor ${o?.huecoMaxMs} ms`);
