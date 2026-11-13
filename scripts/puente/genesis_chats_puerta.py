@@ -38,6 +38,9 @@ if CARPETA not in sys.path:
     sys.path.insert(0, CARPETA)
 
 import genesis_chats_logica as L  # noqa: E402
+# GEN1114B · solo se ejecuta lo que firmó un aparato emparejado (contrato GEN1114 §3.5.2).
+import genesis_firma_logica as F  # noqa: E402
+# /GEN1114B
 
 HOME = os.path.expanduser("~")
 BASE = os.environ.get("STARSEED_GENESIS_CHATS_DIR") or os.path.join(HOME, ".starseed", "genesis-chats")
@@ -159,7 +162,13 @@ class PuenteGenesis:
     `ahora`, `stat`, `modulos` (puente, telegram, director_chat, cliente) y la carpeta `base`."""
 
     def __init__(self, url, ficha, base=BASE, raiz=RAIZ, mando=MANDO, http=None, ahora=time.time,
-                 stat=os.stat, modulos=None, salida=None):
+                 stat=os.stat, modulos=None, salida=None, ruta_altas=None, dueno_altas=0, llevar=None):
+        # GEN1114B: `ruta_altas`/`dueno_altas` (la lista de root y su dueño) y `llevar` (copiar la lista al
+        # A1) solo se cambian en las pruebas, por argumento: no hay variable ni archivo que los cambie.
+        self.ruta_altas = ruta_altas or F.RUTA_ALTAS
+        self.dueno_altas = dueno_altas
+        self.llevar = llevar
+        # /GEN1114B
         self.url, self.ficha = (url or "").rstrip("/"), ficha or ""
         self.base, self.mando = base, mando.rstrip("/")
         self.rutas = rutas_feed(raiz)
@@ -219,9 +228,9 @@ class PuenteGenesis:
 
 
     # ── entradas ──
-    def _registrar(self, e, resultado, motivo):
+    def _registrar(self, e, resultado, motivo, firma=None):
         anadir_linea(self._r("registro.jsonl"),
-                     L.linea_registro(e, resultado, motivo, L.iso_utc(self.ahora())))
+                     L.linea_registro(e, resultado, motivo, L.iso_utc(self.ahora()), firma=firma))
 
     def _vistos(self):
         return L.podar_vistos(leer_json(self._r("vistos.json"), {}), self.ahora())
@@ -230,31 +239,121 @@ class PuenteGenesis:
         vistos[clave] = {"t": self.ahora(), "id": e.get("id"), "estado": estado}
         escribir_json(self._r("vistos.json"), vistos)
 
-    def procesar(self, crudo):
-        """(estado_del_acuse, detalle). Ejecuta como mucho UNA vez por nonce: antes de ejecutar se anota
-        «en-curso»; si el proceso muere a medias, la repetición acusa «fallo» y no vuelve a ejecutar."""
-        e = L.normalizar_entrada(crudo, self.mod["telegram"].parsear_orden)
-        cuentas, _problema = leer_cuentas(self._r("cuentas.json"))
-        vistos = self._vistos()
-        ok, motivo = L.validar_entrada(e, cuentas, self.ahora(), vistos)
-        clave = L.clave_nonce(e) if isinstance(e, dict) else None
-        if motivo == L.REPETIDO:
-            previo = vistos.get(clave) or {}
-            if previo.get("id") == e.get("id"):
-                if previo.get("estado") == "en-curso":
-                    return "fallo", "se interrumpió al ejecutarse; comprueba en Genesis antes de repetirla"
-                return previo.get("estado") or "rechazado", "ya atendida"
-            self._registrar(e, "rechazado", motivo)
+    # GEN1114B · entradas firmadas (contrato GEN1114 §3.5.2). Todo pasa ANTES por la firma: sin una firma
+    # válida de un aparato de la lista de root (y no retirado) no se ejecuta ni se publica nada, para ningún
+    # rol, exista o no cuentas.json. De la fila de la puerta solo se usan id, rol y recibido (que solo
+    # pueden bajar el rol o adelantar la caducidad); todo lo demás sale de la carga firmada.
+    def _firma_datos(self):
+        import genesis_aparatos as A
+        altas, _problema = A.leer_altas(self.ruta_altas, self.dueno_altas)
+        retirados = A.leer_retirados(self._r("aparatos-retirados.json"))
+        canon = A.leer_canon(self._r("canon.json"))
+        return altas, retirados, canon
+
+    def _anotar_firma(self, vistos, carga, sobre, estado):
+        F.anotar(vistos, carga, self.ahora())
+        for clave in (F.clave_seq(carga), F.clave_nonce(carga)):
+            vistos[clave].update(id=sobre.get("id"), estado=estado)
+        escribir_json(self._r("vistos.json"), vistos)
+
+    @staticmethod
+    def _e_registro(sobre, carga):
+        """Lo que va al registro: de la carga si la firma es buena; si no, solo id, cuenta (8) y rol."""
+        if isinstance(carga, dict) and isinstance(carga.get("entrada"), dict):
+            return dict(carga["entrada"], id=sobre.get("id"), cuenta=carga.get("cuenta"), rol=sobre.get("rol"))
+        return {"id": sobre.get("id"), "cuenta": sobre.get("cuenta"), "rol": sobre.get("rol")}
+
+    def _llevar_ahora(self):
+        import genesis_aparatos as A
+        llevar = self.llevar or A.llevar_a1
+        try:
+            return llevar(base=self.base, ruta_altas=self.ruta_altas, ahora=self.ahora)
+        except Exception as error:  # noqa: BLE001 — llevar no debe parar el servicio
+            A.marcar_llevar(self.base, True, self.ahora())
+            return False, "no se pudo copiar (%s): queda pendiente" % type(error).__name__
+
+    def llevar_si_toca(self):
+        """Tras una retirada (o un emparejamiento cuya copia falló), reintenta llevar la lista al A1 cada 5 min."""
+        import genesis_aparatos as A
+        return A.llevar_si_toca(self.base, self.ahora, llevar=lambda **kw: self._llevar_ahora())
+
+    def _retirar(self, sobre, carga, vistos, firma, altas, retirados):
+        """`revocarme` / `revocar-aparato` (§3.4, §3.7): solo quitan poder. No pasan por validar_entrada."""
+        import genesis_aparatos as A
+        e = self._e_registro(sobre, carga)
+        objetivo, motivo = F.objetivo_de_retirada(carga, altas)
+        if objetivo and carga["entrada"].get("accion") == "revocar-aparato":
+            cuentas, _ = leer_cuentas(self._r("cuentas.json"))
+            if L.rol_efectivo({"cuenta": carga["cuenta"], "rol": sobre.get("rol")}, cuentas) != "dueño":
+                objetivo, motivo = None, L.SOLO_DUENO
+        if not objetivo:
+            self._anotar_firma(vistos, carga, sobre, "rechazado")
+            self._registrar(e, "rechazado", motivo, firma)
             return "rechazado", motivo
+        self._anotar_firma(vistos, carga, sobre, "en-curso")
+        filas = {f["huella"]: f for f in F.aparatos_validos(altas)["aparatos"]}
+        if F.retiro_de(objetivo, retirados):
+            detalle = "ese aparato ya estaba retirado"
+        else:
+            ahora = self.ahora()
+            A.anadir_retirado(self._r("aparatos-retirados.json"), objetivo, "aparato:%s" % carga["aparato"][:8], ahora)
+            quitado, desde = filas.get(objetivo) or {}, filas.get(carga["aparato"]) or {}
+            A.registrar(self._r("aparatos.log"), carga["entrada"]["accion"], ahora, objetivo,
+                        quitado.get("cuenta"), quitado.get("nombre"))
+            self._puerta("POST", "/v1/genesis/aparatos/resultado", {"huella": objetivo, "estado": "revocado"})
+            try:
+                m = self.mod["director_chat"].publicar(L.aviso_retirada(quitado.get("nombre"), desde.get("nombre")),
+                                                       "genesis-chats", rol="director", tipo="aviso", canal="mando")
+                self._marcar_origen(m)
+            except Exception as error:  # noqa: BLE001 — el aviso en el hilo no deshace la retirada
+                self._log("retirada: no se pudo publicar el aviso en el hilo (%s)" % type(error).__name__)
+            A.marcar_llevar(self.base, True, ahora)
+            ok, _texto = self._llevar_ahora()
+            detalle = ("Retirado en la Mac; en el A1 desde las %s" % A._ahora_local(self.ahora())) if ok else \
+                "Retirado en la Mac; aún no en el A1: reintentando"
+        self._anotar_firma(vistos, carga, sobre, "hecho")
+        self._registrar(e, "hecho", "ok", firma)
+        return "hecho", detalle
+
+    def procesar(self, crudo):
+        """(estado_del_acuse, detalle). Ejecuta como mucho UNA vez por carga firmada: antes de ejecutar se
+        anotan `aparato:seq` y `cuenta:nonce` «en-curso»; si el proceso muere a medias, la repetición acusa
+        «fallo» y no vuelve a ejecutar. (GEN1114B) Primero la firma; después, las reglas de GEN1113."""
+        import genesis_aparatos as A
+        sobre = crudo if isinstance(crudo, dict) else {}
+        altas, retirados, canon = self._firma_datos()
+        vistos = F.podar_vistos(leer_json(self._r("vistos.json"), {}), self.ahora())
+        ok, motivo, carga = F.comprobar_entrada_firmada(sobre, altas, retirados, canon, vistos, self.ahora(), "mac")
+        firma = {"aparato": sobre.get("aparato"), "firma": "ok" if ok else motivo,
+                 "seq": carga.get("seq") if isinstance(carga, dict) else None}
+        if not ok:
+            if motivo in ("seq-repetido", "nonce-repetido"):
+                clave = F.clave_seq(carga) if motivo == "seq-repetido" else F.clave_nonce(carga)
+                previo = vistos.get(clave) or {}
+                if previo.get("id") == sobre.get("id") and previo.get("estado"):
+                    if previo["estado"] == "en-curso":
+                        return "fallo", "se interrumpió al ejecutarse; comprueba en Genesis antes de repetirla"
+                    return previo["estado"], "ya atendida"
+            retiro = F.retiro_de(sobre.get("aparato"), retirados) if motivo == "aparato-revocado" else None
+            resultado = "caducado" if motivo == "caducada" else "rechazado"
+            if carga is not None and motivo not in ("seq-repetido", "nonce-repetido"):
+                self._anotar_firma(vistos, carga, sobre, resultado)
+            self._registrar(self._e_registro(sobre, carga), resultado, motivo, firma)
+            return resultado, F.texto_de_motivo(motivo, A.fecha_retiro(retiro))
+        if F.es_retirada(carga):
+            return self._retirar(sobre, carga, vistos, firma, altas, retirados)
+        e = L.normalizar_entrada(F.entrada_para_gen1113(sobre, carga), self.mod["telegram"].parsear_orden)
+        cuentas, _problema = leer_cuentas(self._r("cuentas.json"))
+        ok, motivo = L.validar_entrada(e, cuentas, self.ahora(), vistos)
         if not ok:
             resultado = L.resultado_de_motivo(motivo)
-            if motivo != L.FORMA:
-                self._anotar_visto(vistos, clave, e, resultado)
-            self._registrar(e, resultado, motivo)
+            self._anotar_firma(vistos, carga, sobre, resultado)
+            self._registrar(e, resultado, motivo, firma)
             return resultado, motivo
         e = dict(e, rol=L.rol_efectivo(e, cuentas))
         plan = L.plan_de_entrada(e)
-        self._anotar_visto(vistos, clave, e, "en-curso")
+        self._anotar_firma(vistos, carga, sobre, "en-curso")
+        # /GEN1114B (lo que sigue es el `procesar` de GEN1113, con `firma` en el registro)
         # (GEN1113INT) Acuse intermedio «entregado» (§5.2): la pestaña deja de decir «esperando a la Mac»
         # mientras la Mac ya la está ejecutando (un modelo de API tarda hasta 90 s). Si no llega, da igual:
         # el acuse final se manda después y es el que cuenta.
@@ -263,8 +362,8 @@ class PuenteGenesis:
             resultado, detalle, motivo = self.ejecutar(plan, e)
         except Exception as error:  # noqa: BLE001 — lo que falle se acusa, nunca se calla
             resultado, detalle, motivo = "fallo", "error al ejecutar (%s)" % type(error).__name__, "error al ejecutar"
-        self._anotar_visto(vistos, clave, e, resultado)
-        self._registrar(e, resultado, motivo)
+        self._anotar_firma(vistos, carga, sobre, resultado)     # GEN1114B
+        self._registrar(e, resultado, motivo, firma)            # GEN1114B
         return resultado, L.limpiar_detalle(detalle)
 
 
@@ -384,6 +483,13 @@ class PuenteGenesis:
             self._guardar_estado()
             self._log("entrada %s → %s" % (ident, resultado))
         self._guardar_estado()
+        # GEN1114B · si una retirada (o un emparejamiento) no llegó al A1, se reintenta cada 5 min.
+        try:
+            if self.llevar_si_toca():
+                self._log("lista de aparatos: intento de llevarla al A1")
+        except Exception as error:  # noqa: BLE001
+            self._log("lista de aparatos: error al llevarla (%s)" % type(error).__name__)
+        # /GEN1114B
         return True
 
     # ── espejo ──
@@ -592,7 +698,8 @@ def _hace(ahora, t):
     return "hace %d s" % s if s < 120 else ("hace %d min" % (s // 60) if s < 7200 else "hace %d h" % (s // 3600))
 
 
-def estado_texto(base=BASE, raiz=RAIZ, env_archivo=None, entorno=None, ahora=None, leer_env=None, plist=PLIST):
+def estado_texto(base=BASE, raiz=RAIZ, env_archivo=None, entorno=None, ahora=None, leer_env=None, plist=PLIST,
+                 ruta_altas=None, dueno_altas=0):
     """Qué ve el puente, en frases. Nunca imprime la URL, la ficha ni una cuenta entera (8 caracteres)."""
     ahora = time.time() if ahora is None else ahora
     url, ficha = leer_config(env_archivo, entorno, leer_env)
@@ -606,6 +713,12 @@ def estado_texto(base=BASE, raiz=RAIZ, env_archivo=None, entorno=None, ahora=Non
         corto = lambda xs: ", ".join("%s…" % c[:8] for c in xs) or "ninguno"
         lineas.append("· Lista de cuentas (600): dueños %s · desarrolladores %s"
                       % (corto(cuentas["duenos"]), corto(cuentas["desarrolladores"])))
+    # GEN1114B
+    import genesis_aparatos as A
+    altas, prob_altas = A.leer_altas(ruta_altas or F.RUTA_ALTAS, dueno_altas)
+    lineas.append("· Firma (GEN1114B): solo se ejecuta lo firmado por un aparato emparejado · lista de aparatos: %s"
+                  % (prob_altas + " → no se ejecuta nada" if prob_altas else "%d aparato(s)" % len(altas["aparatos"])))
+    # /GEN1114B
     lineas.append("· Servicio launchd: %s" % ("plist instalado" if os.path.exists(plist) else "sin instalar"))
     est = leer_json(os.path.join(base, "estado.json"), {})
     est = est if isinstance(est, dict) else {}

@@ -502,13 +502,38 @@ def lotes(registros, tam=200, max_bytes=MAX_LOTE_BYTES):
 
 # ── registro sin contenido (§4.5) ────────────────────────────────────────────
 
-def linea_registro(e, resultado, motivo, t):
-    """Una línea de `registro.jsonl`: nunca texto ni argumentos (solo nombres de una lista cerrada)."""
+# GEN1114B · retiradas de aparatos pedidas con una entrada firmada (contrato GEN1114 §3.4 y §3.7). No pasan
+# por `validar_entrada`: las atiende genesis_chats_puerta.py con genesis_firma_logica.objetivo_de_retirada.
+ACCIONES_RETIRADA = ("revocarme", "revocar-aparato")
+
+
+def aviso_retirada(nombre_retirado, nombre_desde):
+    """La línea que se publica en el hilo tras una retirada (§3.5, paso 9). Los nombres son los de la lista
+    de altas (los vio Alex al emparejar), ya limpios y cortos."""
+    return "Se retiró el aparato «%s» desde «%s»." % (_txt(nombre_retirado)[:60] or "sin nombre",
+                                                        _txt(nombre_desde)[:60] or "sin nombre")
+
+
+def _firma_registro(firma):
+    """(GEN1114B) Los campos de la firma para el registro: `aparato8`, `firma` (ok o motivo fijo) y `seq`."""
+    firma = firma if isinstance(firma, dict) else {}
+    aparato = _txt(firma.get("aparato"))
+    aparato8 = aparato[:8] if re.match(r"^[0-9a-f]{64}$", aparato) else None
+    motivo = firma.get("firma") if isinstance(firma.get("firma"), str) and \
+        re.match(r"^[a-z-]{2,20}$", firma.get("firma")) else None
+    seq = firma.get("seq") if isinstance(firma.get("seq"), int) and not isinstance(firma.get("seq"), bool) else None
+    return {"aparato8": aparato8, "firma": motivo, "seq": seq}
+# /GEN1114B
+
+
+def linea_registro(e, resultado, motivo, t, firma=None):
+    """Una línea de `registro.jsonl`: nunca texto ni argumentos (solo nombres de una lista cerrada).
+    (GEN1114B) `firma` = {aparato, firma, seq}: se anotan `aparato8`, `firma` y `seq`, nunca la carga."""
     e = e if isinstance(e, dict) else {}
     orden = e.get("orden") if isinstance(e.get("orden"), dict) else None
     nombre = orden.get("nombre") if orden else None
-    acciones = {"decir", "responder", "reenviar", "orden", "texto"}
-    return {
+    acciones = {"decir", "responder", "reenviar", "orden", "texto"} | set(ACCIONES_RETIRADA)   # GEN1114B
+    fila = {
         "t": t,
         "id": e.get("id") if isinstance(e.get("id"), int) and not isinstance(e.get("id"), bool) else None,
         "cuenta8": cuenta8(e.get("cuenta")),
@@ -519,3 +544,6 @@ def linea_registro(e, resultado, motivo, t):
         "resultado": resultado if resultado in ("hecho", "rechazado", "caducado", "fallo") else "fallo",
         "motivo": limpiar_detalle(motivo)[:200],
     }
+    if firma is not None:            # GEN1114B
+        fila.update(_firma_registro(firma))
+    return fila
