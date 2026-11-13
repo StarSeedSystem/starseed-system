@@ -534,6 +534,10 @@ Reglas del área:
   otra función exportada rompe la comprobación de tipos de Next (`.next/types`, TS2344). Las
   funciones auxiliares van en `src/lib/…`.
 
+## 🤖 Pedir cosas a MetaGenesis por Telegram
+
+El chat **@StarSeed_Design_bot** («Síntesis de producción StarSeed») atiende a Alex desde el **A1 (Oracle, líder de dirección)** sin necesidad de la Mac. El bot procesa peticiones con FreeLLMAPI local (modelos gratuitos con nombre, nunca `auto` ni Claude) y genera en NotebookLM (infografía, audio tipo podcast, vídeo, presentación, mapa mental, informe, cuestionario, tarjetas, tabla) usando la última síntesis diaria de Drive o el cuaderno de producción. Comandos: `/estado`, `/ayuda`, `/encargos`, `/pausa`, `/sigue`, `/cancela`. La sesión de NotebookLM es **solo del A1** (único dueño); se renueva cada 20 min con `auth refresh` y, si cae, `navegador_alta.py notebooklm` usa la sesión `google-alex` del navegador propio para importar cookies al CLI. Texto de renovación: «MetaGenesis › Apps Linux». Todo queda en el A1: claves en `~/.starseed/env`, cola durable en `~/.starseed/peticiones/cola.json`, preferencias en `~/.starseed/peticiones/preferencias.json`.
+
 ## 📚 Fuentes externas de APIs, herramientas y patrones (regla permanente · 2026-09-04)
 
 Antes de inventar un endpoint, un conector o un patrón de agente, **se mira si ya existe**. Seis

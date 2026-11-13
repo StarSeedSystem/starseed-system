@@ -103,3 +103,14 @@ Takeout (cada 2 meses), exportación manual de Instagram y CLI de NotebookLM en 
 quedan como respaldo. Seguridad: solo lectura, dominios permitidos por sesión, sin puertos hacia
 fuera, perfiles 0700, cerrojo y `STARSEED_NAVEGADOR=0` / `STARSEED_NAVEGADOR_INSTAGRAM=0` para apagar.
 Documentación en `architecture/navegador-propio-metagenesis.md`.
+
+## Peticiones por Telegram (PET1112)
+
+El bot **@StarSeed_Design_bot** («Síntesis de producción StarSeed») atiende a Alex desde el A1 sin la Mac.
+Escucha por long polling, guarda peticiones en `~/.starseed/peticiones/cola.json`, usa FreeLLMAPI local
+(modelos gratuitos con nombre) y NotebookLM (infografía, audio, vídeo, presentación, mapa mental, informe,
+cuestionario, tarjetas, tabla) con la última síntesis o el cuaderno de producción. Comandos: `/estado`,
+`/ayuda`, `/encargos`, `/pausa`, `/sigue`, `/cancela`. La sesión de NotebookLM es solo del A1 (único dueño);
+se renueva cada 20 min con `auth refresh`; si cae, `navegador_alta.py notebooklm` usa la sesión `google-alex`
+del navegador propio para importar cookies al CLI. Claves en `~/.starseed/env`, preferencias en
+`~/.starseed/peticiones/preferencias.json`. Detalles en `architecture/peticiones-telegram-a1.md`.

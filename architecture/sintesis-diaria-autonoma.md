@@ -108,6 +108,16 @@ El director llama al agente cada 15 minutos; el agente decide con su estado en q
   @starseed_puente_bot («Puente de Mando StarSeed», `TELEGRAM_BOT_TOKEN`). SDP1111P hace que la síntesis salga por él,
   con la cabecera «Síntesis de Producción StarSeed», hasta que exista `TELEGRAM_SINTESIS_BOT_TOKEN`.
 
+### 3.6 Peticiones de Alex por el chat de la síntesis
+
+El bot @StarSeed_Design_bot atiende peticiones de Alex en el chat «Síntesis de producción StarSeed» y las ejecuta desde el A1 (Oracle, líder de dirección), sin necesidad de la Mac:
+
+- **Qué hace el bot:** escucha por *long polling* (getUpdates), guarda cada petición en `~/.starseed/peticiones/cola.json`, acusa recibo y la procesa con FreeLLMAPI local (modelos con nombre, nunca `auto` ni Claude). Comandos: `/estado` (muestra sesión NotebookLM, cola y uptime), `/ayuda` (lista comandos), `/encargos` (lista y control de encargos largos), `/pausa`, `/sigue`, `/cancela`.
+- **NotebookLM:** genera infografía, audio tipo podcast, vídeo, presentación, mapa mental, informe, cuestionario, tarjetas y tabla. La fuente es la última «Síntesis diaria AAAA-MM-DD» de Drive, un Doc enlazado o el cuaderno de producción. Lanza todo a la vez, espera, descarga y envía al chat.
+- **Renovación de NotebookLM:** cada 20 minutos hace `auth refresh`. Si la sesión cae, la petición espera hasta 24 h y reintenta 3 veces. Si `auth refresh` falla, `navegador_alta.py` con orden `notebooklm` usa la sesión `google-alex` del navegador propio (si está viva) para extraer cookies de Google e importarlas al CLI (`notebooklm auth import-cookies`), y avisa del resultado por Telegram. Texto de renovación: «MetaGenesis › Apps Linux».
+- **Encargos de varias horas:** el bot distingue *encargo*, *ajuste*, *preferencia*, *notebooklm* y *respuesta*. Un encargo se planifica por frentes, investiga con NotebookLM (`source add-research --mode deep`), produce informes, documentos, infografías, presentaciones, mapas, tablas y vídeo; guarda cada entregable en su carpeta de Drive (cuenta `alex-docs`), lleva un panel en Drive y manda avances. Ajustes en marcha se aplican a lo que falta. Preferencias en `~/.starseed/peticiones/preferencias.json`.
+- **Solo el chat de Alex manda:** el bot nunca publica, ni escribe a terceros, ni toca cuentas, ni hace push. Todo con modelos gratuitos con nombre.
+
 ### 3.4 Herramientas que usa cada agente
 
 - **Roles:** `contexto_agente.py` con un rol nuevo, `sintesis-produccion`, más los que ya existen:

@@ -113,6 +113,10 @@ Google Doc dentro de la carpeta de Drive **«Encargos para MetaGenesis»**
 (`1lZaGcZ8COkaunilTxYLj-SWuFkGTwmrF`). El líder de dirección revisa la carpeta cada 10 minutos
 y encola lo válido, con o sin la Mac encendida.
 
+### Pedir cosas a MetaGenesis por Telegram
+
+El chat **@StarSeed_Design_bot** («Síntesis de producción StarSeed») atiende a Alex desde el **A1 (Oracle, líder de dirección)** sin la Mac. Procesa peticiones con FreeLLMAPI local (modelos gratuitos con nombre, nunca `auto` ni Claude) y genera en NotebookLM (infografía, audio tipo podcast, vídeo, presentación, mapa mental, informe, cuestionario, tarjetas, tabla) usando la última síntesis diaria de Drive o el cuaderno de producción. Comandos: `/estado`, `/ayuda`, `/encargos`, `/pausa`, `/sigue`, `/cancela`. La sesión de NotebookLM es **solo del A1** (único dueño); se renueva cada 20 min con `auth refresh` y, si cae, `navegador_alta.py notebooklm` usa la sesión `google-alex` del navegador propio para importar cookies al CLI. Todo en el A1: claves en `~/.starseed/env`, cola durable en `~/.starseed/peticiones/cola.json`, preferencias en `~/.starseed/peticiones/preferencias.json`.
+
 El Doc lleva:
 
 - **Título:** `<qué> · contrato y cola <OLA> (léelo, director)`.
