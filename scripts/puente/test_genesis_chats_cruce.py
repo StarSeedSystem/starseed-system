@@ -13,6 +13,12 @@ mentira, SQLite en una carpeta temporal). La recorren:
   · el A1: `peticiones_puerta.Puente` de GEN1113F, con `Puerta` real y un bot de mentira.
 Sin red (solo 127.0.0.1) y sin tocar la carpeta personal: todo vive en carpetas temporales.
 Contrato: architecture/astraura-chats-genesis.md §4, §5.2, §6 y §7.
+
+GEN1114INT · desde GEN1114 la puerta solo admite entradas FIRMADAS (v:2) y la Mac y el A1 solo ejecutan lo que
+firmó un aparato emparejado. Aquí cada cuenta tiene un aparato de prueba «completo» (clave P-256 de Python, firma
+r‖s como WebCrypto) dado de alta en una lista temporal; las entradas van al chat de cada fuente con el id y el
+nombre que valen sin registro canónico (el esquema común de GEN1114INT). La prueba con el código REAL de la web
+(WebCrypto de Node) es test_genesis_firma_web_cruce.py.
 """
 import json
 import os
@@ -34,6 +40,7 @@ if CARPETA not in sys.path:
     sys.path.insert(0, CARPETA)
 
 import director_chat  # noqa: E402
+import genesis_firma_logica as F  # noqa: E402  (GEN1114INT)
 import genesis_chats_logica as L  # noqa: E402
 import genesis_chats_puerta as G  # noqa: E402
 import peticiones_puerta as PP  # noqa: E402
@@ -61,6 +68,16 @@ class PuertaViva:
             raise RuntimeError("el arnés no arrancó: %s" % self.proc.stderr.read()[-800:])
         datos = json.loads(linea)
         self.base, self.fichas, self.sesiones, self.cuentas = datos["base"], datos["fichas"], datos["sesiones"], datos["cuentas"]
+        # GEN1114INT: la base de la puerta (para simular una puerta tomada) y un aparato «completo» por cuenta.
+        self.sqlite = datos.get("sqlite")
+        from test_genesis_firma_logica import Aparato
+        self.aparatos = {n: Aparato(cuenta=c, nivel="completo", nombre="aparato de %s" % n) for n, c in self.cuentas.items()}
+
+    def abrir_a1(self, abierta=True):
+        """GEN1114INT: abre o cierra la escritura a `destino: "a1"` (PUERTA_GENESIS_A1_ESCRITURA, fase 1b)."""
+        self.proc.stdin.write(json.dumps({"a1": bool(abierta)}) + "\n")
+        self.proc.stdin.flush()
+        assert json.loads(self.proc.stdout.readline())["ok"] is True
 
     def avanzar(self, ms):
         self.proc.stdin.write(json.dumps({"avanzar": ms}) + "\n")
@@ -94,10 +111,20 @@ class PuertaViva:
             return e.code, json.loads(e.read().decode("utf-8") or "null")
 
     def enviar(self, quien, **entrada):
-        """Una EntradaChat como la arma `crearClienteChatsGenesis().enviar` (v, nonce de 128 bits, t)."""
+        """Una EntradaChat como la arma `crearClienteChatsGenesis().enviar` (v, nonce de 128 bits, t), FIRMADA
+        (GEN1114INT) por el aparato de esa cuenta: EntradaFirmada v2 con la carga de §3.4."""
         cuerpo = {"v": 1, "nonce": secrets.token_urlsafe(16), "t": L.iso_utc(time.time())}
         cuerpo.update(entrada)
-        return self.http("POST", "/v1/genesis/chats/entrada", quien, cuerpo)
+        fijo = F.ALIAS_GEN1113.get(cuerpo.get("fuente"), F.ALIAS_GEN1113["direccion"])
+        ahora = time.time()
+        alto = F.riesgo_de_entrada(cuerpo) == "alto"
+        ap = self.aparatos[quien]
+        carga = ap.carga(cuerpo, chat=(fijo["chat"], fijo["nombres"][-1]),
+                         destino="a1" if cuerpo.get("fuente") == "puente:peticiones" else "mac",
+                         t=ahora, caduca=ahora + (F.LIMITE_CAMBIA_S if alto else F.LIMITE_MENSAJE_S))
+        s = ap.sobre(carga)
+        return self.http("POST", "/v1/genesis/chats/entrada", quien,
+                         {"v": 2, "carga": s["carga"], "firma": s["firma"], "aparato": s["aparato"]})
 
     def acuses(self, quien, *ids):
         estado, j = self.http("GET", "/v1/genesis/chats/acuses?ids=" + ",".join(str(i) for i in ids), quien)
@@ -183,6 +210,13 @@ class Mac:
                                    modulos={"puente": self.puente, "telegram": tg, "director_chat": self.director,
                                             "cliente": CLIENTE},
                                    salida=self.log.append)
+        # GEN1114INT: la lista de altas (de este usuario en la prueba; de root en la Mac) con un aparato por cuenta.
+        ruta = os.path.join(self.dir, "StarSeed", "genesis-aparatos.json")
+        os.makedirs(os.path.dirname(ruta), mode=0o755)
+        G.escribir_json(ruta, {"v": 1, "aparatos": [a.fila() for a in puerta.aparatos.values()]})
+        os.chmod(ruta, 0o644)
+        self.svc.ruta_altas, self.svc.dueno_altas = ruta, os.getuid()
+        self.svc.llevar = lambda **kw: (True, "prueba")
         if lista:
             G.escribir_cuentas(os.path.join(self.base, "cuentas.json"), [puerta.cuentas["dueno"]], [puerta.cuentas["dev"]])
 
@@ -335,7 +369,8 @@ def test_una_orden_que_la_mac_recoge_pasados_30_min_caduca_sin_ejecutarse(puerta
         m.vuelta()
         assert m.puente.ordenes == []
         a = puerta.acuses("dueno", j["id"])[j["id"]]
-        assert (a["estado"], a["detalle"]) == ("caducado", L.CADUCADA)
+        # GEN1114INT: la caducidad la pone ahora la firma (§3.5 paso 5), con su detalle «[caducada] …».
+        assert a["estado"] == "caducado" and a["detalle"].startswith("[caducada]")
     finally:
         m.limpiar()
 
@@ -439,6 +474,21 @@ class BotFalso:
     def log(self, *partes):
         self.lineas.append(" ".join(str(p) for p in partes))
 
+    # GEN1114INT · lo que GEN1114D usa del módulo del bot (en peticiones_telegram.py, leídos de esta carpeta).
+    def leer_privado(self, ruta, defecto=None):
+        try:
+            st = os.stat(ruta)
+        except OSError:
+            return defecto
+        return defecto if st.st_uid != os.getuid() or st.st_mode & 0o077 else self.leer_json(ruta, defecto)
+
+    def chat_a1(self):
+        d = self.leer_privado(os.path.join(self.DIR, "chat-a1.json"))
+        return {"id": d["id"], "nombre": d["nombre"], "alias": d.get("alias") or []} if isinstance(d, dict) else None
+
+    def texto_ayuda(self):
+        return self.AYUDA
+
 
 @pytest.fixture
 def a1(puerta):
@@ -448,8 +498,15 @@ def a1(puerta):
     with open(ruta, "w", encoding="utf-8") as f:
         json.dump({"duenos": [puerta.cuentas["dueno"]]}, f)
     os.chmod(ruta, 0o600)
+    # GEN1114INT: la lista de aparatos que lleva la Mac (600); sin chat-a1.json vale el id provisional común.
+    ruta = os.path.join(carpeta, "aparatos.json")
+    with open(ruta, "w", encoding="utf-8") as f:
+        json.dump({"v": 1, "aparatos": [a.fila() for a in puerta.aparatos.values()]}, f)
+    os.chmod(ruta, 0o600)
+    puerta.abrir_a1(True)
     p = PP.Puente(bot, CLIENTE.Puerta(url=puerta.base, ficha=puerta.fichas["a1"]), dormir=lambda s: None)
     yield p, bot
+    puerta.abrir_a1(False)
     shutil.rmtree(carpeta, ignore_errors=True)
 
 
@@ -499,7 +556,8 @@ def test_la_puerta_no_entrega_una_orden_que_nadie_recogio_en_30_min(puerta, mac)
     _drenar(puerta)
     estado, j = puerta.enviar("dueno", fuente="puente:hermes-avisos", accion="orden",
                               orden={"nombre": "rechazar", "args": ["T9"]})
-    texto = puerta.enviar("dueno", fuente="puente:hermes-avisos", accion="texto", texto="esto no caduca")
+    # GEN1114INT: un texto a Hermes ya es «alto» (caduca a los 30 min); lo que no caduca es una nota al hilo.
+    texto = puerta.enviar("dueno", fuente="direccion", accion="decir", texto="esto no caduca", canales=["mando"])
     assert estado == 201 and texto[0] == 201
     puerta.avanzar(31 * 60 * 1000)
     mac.vuelta()

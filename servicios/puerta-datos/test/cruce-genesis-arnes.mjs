@@ -39,6 +39,7 @@ const miembros = new Set([CUENTAS.dueno, CUENTAS.dueno2, CUENTAS.dev]);
 
 let desfase = 0;
 const ahora = () => Date.now() + desfase;
+let a1Abierta = process.env.PUERTA_GENESIS_A1_ESCRITURA === "1"; // GEN1114INT
 
 const k = clavesEc("kid-cruce");
 const dir = mkdtempSync(join(tmpdir(), "puerta-cruce-"));
@@ -70,17 +71,22 @@ const servidor = crearServidor({
   esMetagenesis: crearCacheMetagenesis(supabase),
   estadoCaddy: () => ({ ok: true }),
   registrar: () => {},
+  // GEN1114INT: escribir a `destino: "a1"` (fase 1b) se abre y se cierra con la orden {"a1": true|false}.
+  genesisA1Escritura: () => a1Abierta,
 });
 await new Promise((r) => servidor.listen(0, "127.0.0.1", r));
 
 const sesiones = Object.fromEntries(Object.entries(CUENTAS).map(([n, sub]) => [n, sesion(k, { sub })]));
-process.stdout.write(JSON.stringify({ base: `http://127.0.0.1:${servidor.address().port}`, fichas, sesiones, cuentas: CUENTAS }) + "\n");
+// GEN1114INT: `sqlite` = la base de la puerta, para que las pruebas cruzadas simulen una puerta tomada
+// escribiendo filas que la puerta honrada rechazaría (contrato GEN1114 §7.8).
+process.stdout.write(JSON.stringify({ base: `http://127.0.0.1:${servidor.address().port}`, fichas, sesiones, cuentas: CUENTAS, sqlite: join(dir, "puerta.db") }) + "\n");
 
 const rl = createInterface({ input: process.stdin });
 rl.on("line", (linea) => {
   try {
     const o = JSON.parse(linea);
     if (typeof o.avanzar === "number") desfase += o.avanzar;
+    if (typeof o.a1 === "boolean") a1Abierta = o.a1; // GEN1114INT
     process.stdout.write(JSON.stringify({ ok: true, desfase }) + "\n");
   } catch {
     process.stdout.write(JSON.stringify({ ok: false }) + "\n");

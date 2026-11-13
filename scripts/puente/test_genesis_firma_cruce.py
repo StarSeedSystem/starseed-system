@@ -49,7 +49,7 @@ def puerta():
 def _mac(puerta, aparatos):
     m = C.Mac(puerta)
     ruta = os.path.join(m.dir, "StarSeed", "genesis-aparatos.json")
-    os.makedirs(os.path.dirname(ruta), mode=0o755)
+    os.makedirs(os.path.dirname(ruta), mode=0o755, exist_ok=True)   # (GEN1114INT: Mac ya la crea)
     G.escribir_json(ruta, {"v": 1, "aparatos": [a.fila() for a in aparatos]})
     os.chmod(ruta, 0o644)
     G.escribir_json(os.path.join(m.base, "canon.json"), CANON)
