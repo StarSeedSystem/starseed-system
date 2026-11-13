@@ -83,6 +83,32 @@ describe("lectura de procesos_direccion.py", () => {
     });
 });
 
+describe("lectura en disco: la ruta pide la medida al mismo script", () => {
+    it("lee una ficha real con `procesos_direccion.py estado --json` y nunca lanza", async () => {
+        const { mkdtempSync, writeFileSync } = await import("node:fs");
+        const { tmpdir } = await import("node:os");
+        const { leerProcesosDireccion } = await import("../procesos-direccion-disco");
+        const carpeta = mkdtempSync(path.join(tmpdir(), "direccion-vitest-"));
+        writeFileSync(
+            path.join(carpeta, "ABC1.json"),
+            JSON.stringify({ id: "ABC1", titulo: "Prueba", modelo: "claude-opus-5-5", desde: new Date().toISOString(), latido: new Date().toISOString() }),
+        );
+        const previa = { p: process.env.STARSEED_DIRECCION_PROCESOS, t: process.env.STARSEED_DIRECCION_TRABAJO };
+        process.env.STARSEED_DIRECCION_PROCESOS = carpeta;
+        process.env.STARSEED_DIRECCION_TRABAJO = carpeta;
+        try {
+            const l = await leerProcesosDireccion(path.resolve(PUENTE, "../.."));
+            expect(l?.procesos.map((p) => [p.id, p.estado, p.senal])).toEqual([["ABC1", "activo", "latido"]]);
+            expect(await leerProcesosDireccion(carpeta)).toBeNull();
+        } finally {
+            if (previa.p === undefined) delete process.env.STARSEED_DIRECCION_PROCESOS;
+            else process.env.STARSEED_DIRECCION_PROCESOS = previa.p;
+            if (previa.t === undefined) delete process.env.STARSEED_DIRECCION_TRABAJO;
+            else process.env.STARSEED_DIRECCION_TRABAJO = previa.t;
+        }
+    });
+});
+
 describe("vista de la dirección", () => {
     it("separa activos, en silencio (con su hora) y terminados", () => {
         const v = vistaDireccion(LECTURA, AHORA);
