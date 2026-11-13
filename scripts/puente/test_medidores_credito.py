@@ -120,6 +120,63 @@ class PruebasRecolector(unittest.TestCase):
                                                       leer_fake, guardar_fake, ruta))
             self.assertEqual(len(datos["lecturas"]), 1)
 
+    # SUP1113B (13-11): con la ventana de 5 h sin usar, la CLI no da la hora de reinicio de la sesión y el
+    # puente lanzaba «porcentaje fuera de rango: sesion» (58 veces en dos días); con eso morían los demás medidores.
+    PREVIO = "2026-10-06T17:50:00-06:00"  # la ventana anterior ya terminó (AHORA = 18:05)
+
+    def _puente(self, med, previo=PREVIO):
+        datos = {"lecturas": [{"t": "2026-10-06T15:00:00-06:00", "fuente": "terminal", "sesion_pct": 30,
+                               "sesion_reinicio": previo, "semana_pct": 41,
+                               "semana_reinicio": "2026-10-10T04:00:00-06:00"}]}
+        def leer_fake():
+            return {"lecturas": list(datos["lecturas"])}
+        def guardar_fake(nuevos, ruta):
+            datos["lecturas"] = nuevos["lecturas"]
+        with tempfile.TemporaryDirectory() as tmp:
+            ok = mc.puente_limites_claude(med, AHORA, leer_fake, guardar_fake, os.path.join(tmp, "l.json"))
+        return ok, datos["lecturas"]
+
+    def test_puente_sesion_sin_empezar_apunta_0_con_el_reinicio_anterior(self):
+        med = med_bueno()
+        med["ventanas"][0] = {"id": "sesion", "etiqueta": "Sesión (5 h)", "usado_pct": 0, "reinicia": None}
+        ok, lecturas = self._puente(med)
+        self.assertTrue(ok)
+        lec = lecturas[-1]
+        self.assertEqual((lec["sesion_pct"], lec["sesion_reinicio"], lec["semana_pct"]), (0, self.PREVIO, 41))
+        # Sin la línea de la sesión y sin ninguna «Current …» por entender, igual.
+        med2 = med_bueno()
+        del med2["ventanas"][0]
+        ok2, lecturas2 = self._puente(med2)
+        self.assertTrue(ok2)
+        self.assertEqual((lecturas2[-1]["sesion_pct"], lecturas2[-1]["sesion_reinicio"]), (0, self.PREVIO))
+
+    def test_puente_sin_prueba_de_sesion_terminada_no_inventa_ni_lanza(self):
+        sin_reinicio = med_bueno()
+        sin_reinicio["ventanas"][0] = {"id": "sesion", "etiqueta": "Sesión (5 h)", "usado_pct": 0, "reinicia": None}
+        # La ventana anterior aún no ha terminado: no se sabe qué pasa, no se apunta.
+        ok, lecturas = self._puente(sin_reinicio, previo="2026-10-06T20:00:00-06:00")
+        self.assertFalse(ok)
+        self.assertEqual(len(lecturas), 1)
+        # Con uso pero sin hora (formato raro), o sin sesión y con líneas sin entender: tampoco.
+        con_uso = med_bueno()
+        con_uso["ventanas"][0] = {"id": "sesion", "etiqueta": "Sesión (5 h)", "usado_pct": 7, "reinicia": None}
+        self.assertFalse(self._puente(con_uso)[0])
+        dudosa = med_bueno()
+        del dudosa["ventanas"][0]
+        dudosa["extras"] = {"lineas_sin_entender": 1}
+        self.assertFalse(self._puente(dudosa)[0])
+
+    def test_puente_seguro_no_tumba_la_pasada(self):
+        import contextlib
+        import io
+        def explota(med, ahora):
+            raise ValueError("porcentaje fuera de rango: sesion")
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            self.assertFalse(mc.puente_seguro(med_bueno(), AHORA, explota))
+        self.assertEqual(err.getvalue().strip(),
+                         "límites de Claude sin apuntar: ValueError: porcentaje fuera de rango: sesion")
+
 
 class PruebasSalud(unittest.TestCase):
     def _salud(self, tmp, codex_pct, previa=None):

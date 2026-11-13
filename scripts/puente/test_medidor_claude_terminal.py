@@ -94,6 +94,25 @@ Current what: 99% used · resets Oct 6 at 6:10pm (America/Mexico_City)
         self.assertTrue(r["ok"])
         self.assertEqual(r["extras"].get("lineas_sin_entender"), 1)
 
+    def test_sesion_sin_empezar_llega_sin_hora_de_reinicio(self):
+        # SUP1113B (13-11): con la ventana de 5 h sin usar, la línea de la sesión no trae «· resets …».
+        texto = """You are currently using your subscription to power your Claude Code usage
+
+Current session: 0% used
+Current week (all models): 65% used · resets Nov 14 at 3:59am (America/Mexico_City)
+Current week (Fable): 10% used · resets Nov 14 at 4am (America/Mexico_City)
+"""
+        ahora = datetime(2026, 11, 13, 9, 0, tzinfo=ZoneInfo("America/Mexico_City"))
+        r = M.interpretar(texto, ahora)
+        self.assertTrue(r["ok"])
+        self.assertEqual({v["id"] for v in r["ventanas"]}, {"sesion", "semana", "semana-fable"})
+        ses = next(v for v in r["ventanas"] if v["id"] == "sesion")
+        self.assertEqual((ses["usado_pct"], ses["reinicia"], ses["etiqueta"]), (0, None, "Sesión (5 h)"))
+        self.assertNotIn("lineas_sin_entender", r["extras"])
+        # Otra ventana sin hora de reinicio sigue siendo una línea sin entender (solo la sesión empieza con el uso).
+        r2 = M.interpretar(texto.replace("65% used · resets Nov 14 at 3:59am (America/Mexico_City)", "65% used"), ahora)
+        self.assertEqual(r2["extras"].get("lineas_sin_entender"), 1)
+
 class TestLeer(unittest.TestCase):
     def test_entorno_sin_clave_api(self):
         llamadas = {}

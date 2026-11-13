@@ -12,6 +12,7 @@ import fcntl
 import json
 import os
 import shutil
+import sys
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 
@@ -241,6 +242,14 @@ def _ventana(med: dict, vid: str) -> dict | None:
     return None
 
 
+def _sesion_sin_empezar(med: dict, sesion: dict | None) -> bool:
+    """¿La ventana de 5 h está sin empezar? (SUP1113B) La CLI la da al 0 % y sin hora de reinicio, o no
+    da la línea de la sesión sin dejar ninguna línea «Current …» por entender. Si hay duda, no."""
+    if sesion is not None:
+        return sesion.get("usado_pct") == 0 and not sesion.get("reinicia")
+    return not (med.get("extras") or {}).get("lineas_sin_entender")
+
+
 def puente_limites_claude(med: dict, ahora: datetime, leer_datos=limites_claude.leer,
                           guardar_datos=None, ruta=None) -> bool:
     """Añade una lectura a limites-claude.json si cambió algo o pasaron > 30 min (§4.1)."""
@@ -250,17 +259,27 @@ def puente_limites_claude(med: dict, ahora: datetime, leer_datos=limites_claude.
     lecturas = datos.get("lecturas", [])
     ultima = lecturas[-1] if lecturas else None
     sesion, semana = _ventana(med, "sesion"), _ventana(med, "semana")
-    if ultima:
-        t_ult = _fecha(ultima.get("t"))
-        if (t_ult and (ahora.astimezone() - t_ult).total_seconds() < 30 * 60
-                and ultima.get("sesion_pct") == (sesion or {}).get("usado_pct")
-                and ultima.get("semana_pct") == (semana or {}).get("usado_pct")):
-            return False
     lectura = {"t": med.get("leido") or _iso(ahora), "fuente": "terminal"}
     for v, clave in ((sesion, "sesion"), (semana, "semana")):
         if v:
             lectura[clave + "_pct"] = v.get("usado_pct")
             lectura[clave + "_reinicio"] = v.get("reinicia")
+    if semana and not lectura.get("sesion_reinicio"):
+        # SUP1113B (13-11): con la ventana de 5 h sin usar, `claude -p /usage` no trae la hora de reinicio
+        # de la sesión, y anadir_lectura la rechazaba («porcentaje fuera de rango: sesion»): 58 veces en dos
+        # días, de madrugada, y con eso morían los demás medidores. Si la ventana anterior ya terminó, la
+        # sesión está al 0 % y su último reinicio es el de la lectura anterior: se apunta así, sin inventar.
+        previo = (ultima or {}).get("sesion_reinicio")
+        fin = _fecha(previo)
+        if not (_sesion_sin_empezar(med, sesion) and fin and fin <= ahora.astimezone()):
+            return False
+        lectura["sesion_pct"], lectura["sesion_reinicio"] = 0, previo
+    if ultima:
+        t_ult = _fecha(ultima.get("t"))
+        if (t_ult and (ahora.astimezone() - t_ult).total_seconds() < 30 * 60
+                and ultima.get("sesion_pct") == lectura.get("sesion_pct")
+                and ultima.get("semana_pct") == lectura.get("semana_pct")):
+            return False
     for w in med.get("ventanas", []):
         if isinstance(w, dict) and str(w.get("id", "")).startswith("semana-"):
             lectura["modelo_nombre"] = str(w["id"][len("semana-"):]).capitalize()
@@ -276,6 +295,16 @@ def puente_limites_claude(med: dict, ahora: datetime, leer_datos=limites_claude.
     else:
         guardar(nuevos, destino)
     return True
+
+
+def puente_seguro(med: dict, ahora: datetime, puente=None) -> bool:
+    """El puente a los límites nunca tumba la pasada (SUP1113B): si falla, lo dice en una línea y los
+    demás medidores, la salud de Codex y el archivo de salida se guardan igual."""
+    try:
+        return (puente or puente_limites_claude)(med, ahora)
+    except Exception as e:  # noqa: BLE001 — cualquier fallo del puente se queda en el puente
+        print(f"límites de Claude sin apuntar: {type(e).__name__}: {e}", file=sys.stderr)
+        return False
 
 
 def alimentar_salud(medidores: dict, ruta_salud: str = ARCHIVO_SALUD,
@@ -384,7 +413,7 @@ def main(argv=None) -> int:
         doc = fusionar_solo(previo, doc, solo)
     if "claude" in doc["medidores"]:
         doc["medidores"]["claude"] = fusionar_statusline(doc["medidores"]["claude"])
-        puente_limites_claude(doc["medidores"]["claude"], ahora)
+        puente_seguro(doc["medidores"]["claude"], ahora)
     alimentar_salud(doc["medidores"] if solo is None else
                     {k: v for k, v in doc["medidores"].items() if k in solo},
                     ARCHIVO_SALUD, ARCHIVO_CERROJO, ahora)

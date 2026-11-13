@@ -13,6 +13,8 @@ from zoneinfo import ZoneInfo
 import motores_director
 
 _LINE_RE = re.compile(r"Current (?P<ventana>.+?): (?P<pct>\d+)% used · resets (?P<mes>\w+) (?P<dia>\d+) at (?P<hora>\d{1,2}(?::\d{2})?(?:am|pm)) \((?P<zona>[^)]+)\)")
+# SUP1113B (13-11): con la ventana de 5 h sin empezar, la línea de la sesión puede llegar sin «· resets …».
+_SESION_SIN_REINICIO_RE = re.compile(r"^Current session: (?P<pct>\d+)% used\s*$")
 _MONTHS = {"jan":1,"feb":2,"mar":3,"apr":4,"may":5,"jun":6,"jul":7,"aug":8,"sep":9,"oct":10,"nov":11,"dec":12}
 
 def _parse_hour(s:str)->tuple[int,int]:
@@ -42,7 +44,9 @@ def interpretar(texto:str,ahora:datetime)->dict:
     for linea in texto.splitlines():
         m=_LINE_RE.search(linea)
         if not m:
-            if linea.strip().startswith("Current"):lineas+=1
+            ms=_SESION_SIN_REINICIO_RE.search(linea.strip())
+            if ms:ventanas.append({"id":"sesion","etiqueta":"Sesión (5 h)","usado_pct":int(ms.group("pct")),"reinicia":None})
+            elif linea.strip().startswith("Current"):lineas+=1
             continue
         vd=m.group("ventana").strip();pct=int(m.group("pct"))
         mes=_MONTHS.get(m.group("mes").lower()[:3]);dia=int(m.group("dia"))
