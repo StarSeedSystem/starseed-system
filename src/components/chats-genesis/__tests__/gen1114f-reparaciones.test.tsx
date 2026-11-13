@@ -71,15 +71,19 @@ describe("1 · ninguna pestaña de Chat depende de deslizar de lado", () => {
 // ── 2 · cabecera en pantallas pequeñas ───────────────────────────────────────
 
 describe("2 · la cabecera deja sitio y no salta", () => {
-    it("la tira de presencia no se pinta bajo lg en la sección Chat (llegaba tarde y empujaba todo)", () => {
-        expect(PAGINA).toMatch(/data-testid="presencia-agente" className=\{cn\("empty:hidden", esSeccionChat && "max-lg:hidden"\)\}>\s*<Astraura158PresenceBar \/>/);
+    // AST1113A (13-11, Alex: «deja los otros … pero que sean los datos reales»): la tira vuelve a pintarse en la
+    // sección Chat en todos los tamaños, con su sitio RESERVADO para no empujar la página al llegar. Lo cubre a
+    // fondo `src/app/__tests__/agent-presencia-ast1113a.test.ts`; aquí solo que ya no se esconde.
+    it("la tira de presencia tiene su sitio reservado y no salta (ya no se esconde bajo lg en Chat)", () => {
+        expect(PAGINA).toMatch(/data-testid="presencia-agente" className="shrink-0 min-h-9 sm:min-h-8 w-full max-w-full">\s*<Astraura158PresenceBar \/>/);
+        expect(PAGINA).not.toMatch(/esSeccionChat && "max-lg:hidden"/);
     });
 
-    it("título y botones en una fila en móvil; el chip del proveedor en la suya", () => {
+    it("título y botones en una fila en móvil; sin chips de proveedor ni de agentes (AST1113A)", () => {
         const cab = PAGINA.slice(PAGINA.indexOf('data-testid="cabecera-agente"'), PAGINA.indexOf('data-testid="presencia-agente"'));
         expect(cab).toMatch(/max-sm:contents/);
-        expect(cab).toMatch(/max-sm:order-last max-sm:basis-full/);
         expect(cab).toMatch(/text-base sm:text-2xl/);
+        expect(cab).not.toMatch(/data-testid="chip-proveedor"|agents\.length\} agentes/);
     });
 
     it("las pestañas de Chat caben a 360×640 sin desplazar la página (24rem, no 30rem) y menos huecos", () => {
@@ -173,13 +177,16 @@ describe("4 · «Sin conversación activa» y el chip del proveedor", () => {
         expect(vacio).toContain("Sin conversación activa");
     });
 
-    it("el chip del proveedor es un botón que se despliega entero (y lo dice)", () => {
-        const chip = PAGINA.slice(PAGINA.indexOf('data-testid="chip-proveedor"'), PAGINA.indexOf("</Badge>", PAGINA.indexOf('data-testid="chip-proveedor"')));
-        expect(chip).toMatch(/aria-expanded=\{chipProveedorAbierto\}/);
-        expect(chip).toMatch(/onClick=\{\(\) => setChipProveedorAbierto\(\(v\) => !v\)\}/);
+    // AST1113A: el chip se mudó de la cabecera de /agent al propio chat (`ChatSurface`) y conserva lo de GEN1114F.
+    it("el chip del motor (proveedor · modelo) está junto al chat y se despliega entero (y lo dice)", () => {
+        const i = SUPERFICIE.indexOf('data-testid="chip-motor-chat"');
+        const chip = SUPERFICIE.slice(i, SUPERFICIE.indexOf("</span>\n          </span>", i));
+        expect(chip).toMatch(/aria-expanded=\{chipMotorAbierto\}/);
+        expect(chip).toMatch(/onClick=\{\(\) => setChipMotorAbierto\(\(v\) => !v\)\}/);
         expect(chip).toMatch(/Toca para verlo entero/);
-        expect(chip).toMatch(/chipProveedorAbierto \? "min-w-0 break-words \[overflow-wrap:anywhere\]" : "truncate"/);
+        expect(chip).toMatch(/chipMotorAbierto \? "min-w-0 break-words \[overflow-wrap:anywhere\]" : "truncate"/);
         expect(chip).toMatch(/title=\{`\$\{activeProviderConfig\.label\} · \$\{activeProviderConfig\.defaultModel\}`\}/);
+        expect(PAGINA).not.toContain('data-testid="chip-proveedor"');
     });
 });
 

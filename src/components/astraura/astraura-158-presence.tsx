@@ -2,410 +2,363 @@
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════
- * Astraura158Presence — presencia AMBIENTE de Astraura 1.58 en el resto del OS
- * (Ola 5 · Adenda 157; SOP `architecture/astraura-158-ola5-orquestacion.md` §5)
+ * Presencia de Astraura en el resto del OS: la tira «N procesos activos · M agentes vivos · K aprobaciones
+ * pendientes» de `/agent` y el punto con el total sobre la orbe.
  * ---------------------------------------------------------------------------
- * Dos piezas MÍNIMAS y discretas (NO son notificaciones, no se superponen a
- * nada, sin toasts, sin `notifyFromApp`):
+ * (AST1113A · 2026-11-13) Antes estas cifras se contaban aquí, a partir de lo que el backend de Astraura 1.58
+ * declaraba de sí mismo (el total de agentes activos de su enjambre, procesos «running», claves que «sonaban» a
+ * aprobación), y salían SOLO si ese backend respondía, con 5 s de retraso: la tira llegaba tarde y empujaba la
+ * página. Al lado, la cabecera decía «2 agentes» (una lista de demostración). Dos cifras de agentes distintas en
+ * la misma pantalla. Alex: «que sean los datos reales».
  *
- *   · `Astraura158PresenceBar` — tira compacta para el Exocórtex:
- *     «N procesos activos · M agentes vivos · K aprobaciones pendientes»,
- *     con puntos de estado y enlaces a Orquestación / Imaginación /
- *     Notificaciones, más un botón directo al agente en curso (si lo hay).
- *   · `Astraura158PresenceDot` — versión mínima (un punto + número) para la
- *     orbe: tooltip accesible con el mismo resumen y clic que abre la
- *     Orquestación.
- *
- * DATOS: ambas leen el feed vivo (`useAstraura158Feed`, ya montado en
- * `app-globals.tsx`) — de ahí toman el TARGET (local/nube) ya descubierto y,
- * en la tira, el contador `unread` real para la insignia de Notificaciones —
- * más un sondeo propio LIGERO (un singleton de módulo, una sola llamada de
- * red para toda la app sin importar cuántas tiras/puntos estén montados a la
- * vez) a `fetchAstraura158Processes` / `fetchAstraura158Swarm` cada
- * `ASTRAURA_158_FEED_MS` (30 s), pausado con `document.hidden`. Si el feed no
- * conoce un backend vivo, este sondeo no llama a nada (cero ruido); si ambas
- * llamadas fallan, se limpia el estado y ambos componentes no pintan nada.
- *
- * HONESTIDAD: «K aprobaciones pendientes» se deriva escaneando las claves
- * numéricas de cada proceso (`Astraura158ProcessSummary` y su `.counters`)
- * que "suenan" a pendiente/aprobación (`/pend|aprob|approv/i`) — el puente
- * `/api/starseed/processes` no fija un nombre de campo único para esto y este
- * módulo nunca inventa un número: si el backend no expone ninguna clave así,
- * el resultado es un 0 honesto, no un dato inventado.
+ * Ahora las tres cifras son las de los medidores de MetaGenesis y aquí no se cuenta nada (ver
+ * `src/lib/mando/presencia-real.ts`, que dice de qué pastilla sale cada una):
+ *   · procesos activos        ← «En curso» (`/api/mando/medidores?clave=en-curso`, su `cuenta`);
+ *   · agentes vivos           ← «Agentes»  (`/api/mando/medidores?clave=agentes`, su `cuenta`);
+ *   · aprobaciones pendientes ← fichas de visto bueno (`/api/mando/aprobaciones`).
+ * Un sondeo por pestaña (singleton de módulo, ref-contado), al montar y cada 30 s, en pausa con la pestaña
+ * oculta. La tira SIEMPRE ocupa su sitio (una línea de alto fijo): mientras mide dice «Midiendo…», y si no puede
+ * leer las cifras (web publicada, cuenta sin acceso, sin red) lo dice en vez de pintar un número. Una cifra que
+ * no es de ahora lleva su edad.
  * ═══════════════════════════════════════════════════════════════════════════
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Bell, Bot, Wand2, Workflow } from "lucide-react";
+import { Bell, ChevronDown, Clock, Wand2, Workflow } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAstraura158Feed } from "@/lib/astraura/astraura-158-feed";
 import {
-  fetchAstraura158Processes,
-  fetchAstraura158Swarm,
-  type Astraura158ProcessSummary,
-  type Astraura158SwarmAgent,
-  type Astraura158SwarmStatus,
-  type Astraura158Target,
-} from "@/lib/astraura/astraura-158-client";
-import { ASTRAURA_158_FEED_MS, getAstraura158FeedState, useAstraura158Feed } from "@/lib/astraura/astraura-158-feed";
-import { openAstraura158Window } from "@/components/astraura/window/astraura-158-window-bus";
+    CIFRA_VACIA,
+    cifraDeAprobaciones,
+    cifraDeMedidor,
+    motivoSinCifra,
+    ORIGEN,
+    PAUSA_SIN_ACCESO_MS,
+    SONDEO_PRESENCIA_MS,
+    totalDePresencia,
+    vistaPresencia,
+    type EstadoPresencia,
+    type Lectura,
+    type RespuestaAprobaciones,
+    type RespuestaMedidor,
+    type VistaPresencia,
+} from "@/lib/mando/presencia-real";
 
-/* ─────────────────── deep-links del Studio 1.58 (SOP §5) ─────────────────── */
+/* ─────────────────── enlaces del Studio 1.58 (SOP §5) ─────────────────── */
 
 const ORQUESTACION_HREF = "/agent?tab=astraura-158&sub=orquestacion";
-// (Adenda 178) La barra de procesos activos lleva a la SECCIÓN PRINCIPAL de
-// Imaginación Intuitiva (página propia `/imaginacion`, Ola 6), no a la sub-pestaña.
+// (Adenda 178) Imaginación Intuitiva tiene página propia.
 const IMAGINACION_HREF = "/imaginacion";
 const NOTIFICACIONES_HREF = "/agent?tab=astraura-158&sub=notificaciones";
+/** Donde viven los medidores de los que salen las cifras. */
+const PULSO_HREF = "/metagenesis";
 
-/* ═══════════════════ sondeo propio, ligero (singleton de módulo) ═══════════════════
- * Mismo patrón que `astraura-158-feed.ts`: estado de módulo + evento custom +
- * hook de lectura. Ref-contado (`presenceSubscribers`) para que el temporizador
- * viva mientras HAYA al menos una tira/punto montado en cualquier pantalla, y
- * se detenga limpio cuando el último se desmonta.
- */
+/* ═══════════════════ sondeo de los medidores (singleton de módulo) ═══════════════════ */
 
-interface Astraura158PresenceState {
-  /** true = el último sondeo obtuvo al menos un dato real (procesos o enjambre). */
-  ok: boolean;
-  target: Astraura158Target | null;
-  processes: Astraura158ProcessSummary[];
-  swarm: Astraura158SwarmStatus | null;
-}
+const EVENTO = "starseed:presencia-real";
+const TOPE_LECTURA_MS = 12_000;
 
-const PRESENCE_POLL_EVENT = "starseed:astraura158-presence-poll";
-const EMPTY_PRESENCE: Astraura158PresenceState = { ok: false, target: null, processes: [], swarm: null };
-const presenceState: Astraura158PresenceState = { ...EMPTY_PRESENCE };
+let estado: EstadoPresencia | null = null;
+let temporizador = 0;
+let enMarcha = false;
+let leyendo = false;
+let suscriptores = 0;
+let ultimaLectura = 0;
+/** Las tres lecturas fallaron por algo que no se arregla solo (404, 401, 403): se relee cada 5 min, no cada 30 s. */
+let sinAcceso = false;
+let quitarVisibilidad: (() => void) | null = null;
 
-let presenceTimer = 0;
-let presenceRunning = false;
-let presenceTicking = false;
-let presenceSubscribers = 0;
-let presenceLastAt = 0;
-let presenceVisCleanup: (() => void) | null = null;
-
-function emitPresence(): void {
-  try {
-    window.dispatchEvent(new CustomEvent<Astraura158PresenceState>(PRESENCE_POLL_EVENT, { detail: { ...presenceState } }));
-  } catch { /* la presencia nunca rompe la pantalla que la monta */ }
-}
-
-function clearPresence(): void {
-  presenceState.ok = false;
-  presenceState.target = null;
-  presenceState.processes = [];
-  presenceState.swarm = null;
-}
-
-async function presenceTick(): Promise<void> {
-  if (presenceTicking || typeof window === "undefined") return;
-  // Reutiliza el TARGET que el feed vivo ya descubrió — cero lógica de
-  // descubrimiento local/nube duplicada aquí (es la fuente de verdad única).
-  const target = getAstraura158FeedState().target;
-  presenceLastAt = Date.now();
-  if (!target) {
-    if (presenceState.ok) { clearPresence(); emitPresence(); }
-    return;
-  }
-  presenceTicking = true;
-  try {
-    const [p, s] = await Promise.all([fetchAstraura158Processes(target), fetchAstraura158Swarm(target)]);
-    if (!p.ok && !s.ok) {
-      clearPresence();
-    } else {
-      presenceState.ok = true;
-      presenceState.target = target;
-      if (p.ok) presenceState.processes = p.data;
-      if (s.ok) presenceState.swarm = s.data;
+async function leer<T>(url: string): Promise<Lectura<T>> {
+    const ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
+    const reloj = ctrl ? setTimeout(() => ctrl.abort(), TOPE_LECTURA_MS) : null;
+    try {
+        const r = await fetch(url, { cache: "no-store", signal: ctrl?.signal });
+        if (!r.ok) return { ok: false, estado: r.status, leidoMs: Date.now() };
+        const cuerpo = (await r.json().catch(() => null)) as T | null;
+        // Un 200 que no es JSON (p. ej. la página de la web publicada) no es una cifra.
+        if (cuerpo === null || typeof cuerpo !== "object") return { ok: false, estado: 404, leidoMs: Date.now() };
+        return { ok: true, cuerpo, leidoMs: Date.now() };
+    } catch {
+        return { ok: false, estado: null, leidoMs: Date.now() };
+    } finally {
+        if (reloj) clearTimeout(reloj);
     }
-    emitPresence();
-  } finally {
-    presenceTicking = false;
-  }
 }
 
-/** Arranca el sondeo (singleton, idempotente). Devuelve stop(). */
-function startPresencePoll(): () => void {
-  if (typeof window === "undefined") return () => {};
-  if (presenceRunning) return stopPresencePoll;
-  presenceRunning = true;
-  const loop = () => { if (!document.hidden) void presenceTick(); };
-  // Pequeño margen tras el montaje (deja que el feed vivo descubra el backend
-  // primero) y luego cada ASTRAURA_158_FEED_MS, igual que el feed.
-  presenceTimer = window.setTimeout(() => {
-    loop();
-    presenceTimer = window.setInterval(loop, ASTRAURA_158_FEED_MS) as unknown as number;
-  }, 5_000) as unknown as number;
-  const onVisible = () => { if (!document.hidden && Date.now() - presenceLastAt > ASTRAURA_158_FEED_MS) void presenceTick(); };
-  document.addEventListener("visibilitychange", onVisible);
-  presenceVisCleanup = () => document.removeEventListener("visibilitychange", onVisible);
-  return stopPresencePoll;
+function emitir(): void {
+    try {
+        window.dispatchEvent(new CustomEvent(EVENTO));
+    } catch {
+        /* la presencia nunca rompe la pantalla que la monta */
+    }
 }
 
-function stopPresencePoll(): void {
-  if (presenceTimer) { window.clearTimeout(presenceTimer); window.clearInterval(presenceTimer); presenceTimer = 0; }
-  presenceVisCleanup?.();
-  presenceVisCleanup = null;
-  presenceRunning = false;
+async function medir(): Promise<void> {
+    if (leyendo || typeof window === "undefined") return;
+    leyendo = true;
+    ultimaLectura = Date.now();
+    try {
+        const [enCurso, agentes, aprobaciones] = await Promise.all([
+            leer<RespuestaMedidor>("/api/mando/medidores?clave=en-curso"),
+            leer<RespuestaMedidor>("/api/mando/medidores?clave=agentes"),
+            leer<RespuestaAprobaciones>("/api/mando/aprobaciones"),
+        ]);
+        sinAcceso = [enCurso, agentes, aprobaciones].every((l) => !l.ok && motivoSinCifra(l.estado).definitivo);
+        const previo = estado;
+        estado = {
+            procesos: cifraDeMedidor(enCurso, previo?.procesos ?? CIFRA_VACIA),
+            agentes: cifraDeMedidor(agentes, previo?.agentes ?? CIFRA_VACIA),
+            aprobaciones: cifraDeAprobaciones(aprobaciones, previo?.aprobaciones ?? CIFRA_VACIA),
+        };
+        emitir();
+    } finally {
+        leyendo = false;
+    }
 }
 
-function getPresenceSnapshot(): Astraura158PresenceState {
-  return { ...presenceState, processes: [...presenceState.processes] };
-}
-
-/** Hook interno compartido: arranca el singleton (ref-contado) y se suscribe. */
-function useAstraura158Presence(): Astraura158PresenceState {
-  const [snap, setSnap] = useState<Astraura158PresenceState>(() => getPresenceSnapshot());
-  useEffect(() => {
-    presenceSubscribers += 1;
-    const stop = startPresencePoll();
-    const onPoll = (e: Event) => {
-      const detail = (e as CustomEvent<Astraura158PresenceState>).detail;
-      setSnap(detail ? { ...detail } : getPresenceSnapshot());
+function arrancar(): void {
+    if (typeof window === "undefined" || enMarcha) return;
+    enMarcha = true;
+    // Sin el retraso de 5 s de antes: la primera lectura sale al montar.
+    void medir();
+    temporizador = window.setInterval(() => {
+        if (document.hidden) return;
+        if (sinAcceso && Date.now() - ultimaLectura < PAUSA_SIN_ACCESO_MS) return;
+        void medir();
+    }, SONDEO_PRESENCIA_MS);
+    const alVolver = () => {
+        if (!document.hidden && Date.now() - ultimaLectura > (sinAcceso ? PAUSA_SIN_ACCESO_MS : SONDEO_PRESENCIA_MS)) void medir();
     };
-    window.addEventListener(PRESENCE_POLL_EVENT, onPoll);
-    setSnap(getPresenceSnapshot()); // por si otro consumidor ya había sondeado antes de este montaje
-    return () => {
-      window.removeEventListener(PRESENCE_POLL_EVENT, onPoll);
-      presenceSubscribers = Math.max(0, presenceSubscribers - 1);
-      if (presenceSubscribers === 0) stop();
-    };
-  }, []);
-  return snap;
+    document.addEventListener("visibilitychange", alVolver);
+    quitarVisibilidad = () => document.removeEventListener("visibilitychange", alVolver);
 }
 
-/* ═══════════════════ heurísticas honestas (nunca inventan un dato) ═══════════════════ */
-
-/** ¿Este proceso resumido está activo? Mismo criterio que la pestaña «Resumen». */
-function isProcessActive(p: Astraura158ProcessSummary): boolean {
-  if (typeof p.running === "boolean") return p.running;
-  if (typeof p.enabled === "boolean") return p.enabled;
-  return /active|running|online|on|enabled|ok|dreaming|busy/i.test(String(p.status ?? ""));
+function parar(): void {
+    if (temporizador) window.clearInterval(temporizador);
+    temporizador = 0;
+    quitarVisibilidad?.();
+    quitarVisibilidad = null;
+    enMarcha = false;
 }
 
-/** ¿Este agente del enjambre está trabajando ahora? Mismo criterio que Orquestación. */
-function isAgentWorking(a: Astraura158SwarmAgent): boolean {
-  return /running|active|busy|trabajando|working|ejecut/i.test(String(a.status ?? ""));
+/** Hook compartido por la tira y el punto: una sola lectura para toda la pestaña. */
+function usePresenciaReal(): VistaPresencia {
+    const [, setTic] = useState(0);
+    useEffect(() => {
+        suscriptores += 1;
+        arrancar();
+        const alMedir = () => setTic((n) => n + 1);
+        window.addEventListener(EVENTO, alMedir);
+        alMedir(); // por si otro consumidor ya había leído antes de este montaje
+        // La edad («hace N min») avanza aunque no llegue nada nuevo.
+        const reloj = window.setInterval(alMedir, SONDEO_PRESENCIA_MS);
+        return () => {
+            window.removeEventListener(EVENTO, alMedir);
+            window.clearInterval(reloj);
+            suscriptores = Math.max(0, suscriptores - 1);
+            if (suscriptores === 0) parar();
+        };
+    }, []);
+    return vistaPresencia(estado, Date.now());
 }
 
-/** Suma valores numéricos de claves que "suenan" a pendiente/aprobación. */
-function sumPendingLike(obj: Record<string, unknown> | null | undefined): number {
-  if (!obj || typeof obj !== "object") return 0;
-  let total = 0;
-  for (const [k, v] of Object.entries(obj)) {
-    if (!/pend|aprob|approv/i.test(k)) continue;
-    const n = Number(v);
-    if (Number.isFinite(n)) total += n;
-  }
-  return total;
+/** Solo para las pruebas: olvida lo leído y para el sondeo. */
+export function __reiniciarPresenciaParaPruebas(): void {
+    if (typeof window !== "undefined") parar();
+    estado = null;
+    leyendo = false;
+    suscriptores = 0;
+    ultimaLectura = 0;
+    sinAcceso = false;
 }
 
-interface Astraura158PresenceCounts {
-  processesActive: number;
-  agentsLive: number;
-  pendingApprovals: number;
-  workingAgent: Astraura158SwarmAgent | null;
-}
+/* ═══════════════════ piezas visuales (Crystal Liquid Glass) ═══════════════════ */
 
-function deriveCounts(state: Astraura158PresenceState): Astraura158PresenceCounts {
-  const processesActive = state.processes.filter(isProcessActive).length;
+type Tono = "emerald" | "cyan" | "amber";
 
-  let pendingApprovals = 0;
-  for (const p of state.processes) {
-    pendingApprovals += sumPendingLike(p as unknown as Record<string, unknown>);
-    if (p.counters) pendingApprovals += sumPendingLike(p.counters);
-  }
-
-  const swarm = state.swarm;
-  const agents = swarm?.agents ?? [];
-  let workingAgent: Astraura158SwarmAgent | null = agents.find(isAgentWorking) ?? null;
-
-  let agentsLive: number;
-  if (swarm && typeof swarm.total_active_agents === "number" && Number.isFinite(swarm.total_active_agents)) {
-    agentsLive = Math.max(0, Math.round(swarm.total_active_agents));
-  } else if (agents.length) {
-    agentsLive = agents.filter(isAgentWorking).length;
-  } else {
-    const ids = new Set<string>();
-    for (const t of swarm?.active_tasks ?? []) {
-      if (t.status === "running" && t.agent_id) ids.add(t.agent_id);
-    }
-    agentsLive = ids.size;
-  }
-
-  // Sin agente "vivo" explícito en la lista del enjambre: si hay una tarea en
-  // curso con agente asociado, sintetiza un agente mínimo desde la tarea
-  // (mismo `id` que usa la ventana universal para abrirlo).
-  if (!workingAgent) {
-    const task = (swarm?.active_tasks ?? []).find((t) => t.status === "running" && !!t.agent_id);
-    if (task && task.agent_id) {
-      workingAgent = { id: task.agent_id, name: task.agent_name ?? task.agent_id, status: "running" };
-    }
-  }
-
-  return { processesActive, agentsLive, pendingApprovals, workingAgent };
-}
-
-function summaryText(c: Astraura158PresenceCounts, unread?: number): string {
-  const base = `${c.processesActive} proceso(s) activo(s) · ${c.agentsLive} agente(s) vivo(s) · ${c.pendingApprovals} aprobación(es) pendiente(s)`;
-  return unread && unread > 0 ? `${base} · ${unread} notificación(es) sin leer` : base;
-}
-
-/* ═══════════════════ piezas visuales compartidas (Crystal Liquid Glass) ═══════════════════ */
-
-type PresenceTone = "emerald" | "cyan" | "amber";
-
-const TONE_DOT: Record<PresenceTone | "muted", string> = {
-  emerald: "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.7)]",
-  cyan: "bg-cyan-400 shadow-[0_0_6px_rgba(34,211,238,0.7)]",
-  amber: "bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.7)]",
-  muted: "bg-white/25",
+const TONO_PUNTO: Record<Tono | "apagado", string> = {
+    emerald: "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.7)]",
+    cyan: "bg-cyan-400 shadow-[0_0_6px_rgba(34,211,238,0.7)]",
+    amber: "bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.7)]",
+    apagado: "bg-white/25",
 };
 
-const TONE_BADGE: Record<PresenceTone, string> = {
-  emerald: "border-emerald-300/50 bg-emerald-500/90 text-emerald-950",
-  cyan: "border-cyan-300/50 bg-cyan-500/90 text-cyan-950",
-  amber: "border-amber-300/50 bg-amber-500/95 text-amber-950",
+const TONO_INSIGNIA: Record<Tono, string> = {
+    emerald: "border-emerald-300/50 bg-emerald-500/90 text-emerald-950",
+    cyan: "border-cyan-300/50 bg-cyan-500/90 text-cyan-950",
+    amber: "border-amber-300/50 bg-amber-500/95 text-amber-950",
 };
 
-const PILL_LINK =
-  "inline-flex shrink-0 items-center justify-center gap-1 rounded-md border border-white/10 bg-white/[0.04] px-2 py-1 text-[11px] text-white/80 transition-colors duration-200 hover:border-cyan-400/40 hover:text-cyan-100 cursor-pointer max-sm:min-h-9 max-sm:min-w-9";
+const BOTON =
+    "inline-flex shrink-0 items-center justify-center gap-1 rounded-md border border-white/10 bg-white/[0.04] px-2 h-7 text-[11px] text-white/80 transition-colors duration-200 hover:border-cyan-400/40 hover:text-cyan-100 cursor-pointer max-sm:h-8 max-sm:w-8 max-sm:px-0";
 
-function PresenceStatusDot({ tone, active }: { tone: PresenceTone; active: boolean }) {
-  return <span aria-hidden className={cn("inline-block h-1.5 w-1.5 shrink-0 rounded-full", active ? TONE_DOT[tone] : TONE_DOT.muted)} />;
+function Punto({ tono, encendido }: { tono: Tono; encendido: boolean }) {
+    return <span aria-hidden className={cn("max-sm:hidden inline-block h-1.5 w-1.5 shrink-0 rounded-full", encendido ? TONO_PUNTO[tono] : TONO_PUNTO.apagado)} />;
 }
 
-/* ═══════════════════════════════ Astraura158PresenceBar ═══════════════════════════════ */
+function Cifra({ valor }: { valor: number | null }) {
+    return <span className="font-medium tabular-nums text-white/85">{valor === null ? "—" : valor}</span>;
+}
+
+const NOMBRE_LARGO = { procesos: "procesos activos", agentes: "agentes vivos", aprobaciones: "aprobaciones pendientes" } as const;
+
+/* ═══════════════════════════════ La tira ═══════════════════════════════ */
 
 /**
- * Tira compacta y discreta para el Exocórtex — NO es una notificación, no se
- * superpone a nada (fluye en el documento como una línea más bajo la
- * cabecera). No pinta nada si el backend 1.58 no responde.
+ * Una línea de alto fijo bajo la cabecera de `/agent` (no es una notificación). Siempre ocupa su sitio, así que
+ * no empuja la página al llegar. Tocar las cifras despliega de dónde sale cada una y lo que falta.
  */
 export function Astraura158PresenceBar({ className }: { className?: string }) {
-  const feed = useAstraura158Feed();
-  const presence = useAstraura158Presence();
-  const counts = useMemo(() => deriveCounts(presence), [presence]);
+    const feed = useAstraura158Feed();
+    const v = usePresenciaReal();
+    const [abierta, setAbierta] = useState(false);
+    const { procesos, agentes, aprobaciones } = v.figuras;
+    const cargando = v.estado === "cargando";
+    const sinCifras = v.estado === "sin-cifras";
+    const hayAlgoQueMirar = (!!v.faltaLargo && !sinCifras) || v.avisos.length > 0;
 
-  if (!presence.ok) return null; // cero ruido: sin backend vivo, no hay tira
+    return (
+        <div data-testid="tira-presencia" data-estado={v.estado} className={cn("w-full max-w-full", className)}>
+            <div className="flex h-9 sm:h-8 w-full max-w-full items-center gap-2 overflow-hidden rounded-lg border border-white/10 bg-white/[0.025] px-2 sm:px-3 text-[11px] text-white/70 backdrop-blur-md">
+                <button
+                    type="button"
+                    data-testid="cifras-presencia"
+                    aria-expanded={abierta}
+                    aria-label={`${v.resumen} ${abierta ? "Toca para recoger el detalle." : "Toca para ver de dónde sale cada cifra."}`}
+                    title={v.resumen}
+                    onClick={() => setAbierta((a) => !a)}
+                    className="flex h-full min-w-0 flex-1 items-center gap-x-2 sm:gap-x-3 overflow-hidden whitespace-nowrap text-left cursor-pointer rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40"
+                >
+                    {cargando ? (
+                        <span aria-hidden className="truncate text-white/50">{v.resumen}</span>
+                    ) : sinCifras ? (
+                        <span aria-hidden className="truncate text-amber-200/80">
+                            Sin cifras reales<span className="max-sm:hidden"> de procesos, agentes ni aprobaciones</span> · {v.faltaCorto}
+                        </span>
+                    ) : (
+                        <span aria-hidden className="flex min-w-0 items-center gap-x-2 sm:gap-x-3 truncate">
+                            <span className="inline-flex items-center gap-1.5">
+                                <Punto tono="emerald" encendido={(procesos.valor ?? 0) > 0} />
+                                <Cifra valor={procesos.valor} /> procesos<span className="max-sm:hidden"> activos</span>
+                            </span>
+                            <span className="text-white/25">·</span>
+                            <span className="inline-flex items-center gap-1.5">
+                                <Punto tono="cyan" encendido={(agentes.valor ?? 0) > 0} />
+                                <Cifra valor={agentes.valor} /> agentes<span className="max-sm:hidden"> vivos</span>
+                            </span>
+                            <span className="text-white/25">·</span>
+                            <span className="inline-flex items-center gap-1.5">
+                                <Punto tono="amber" encendido={(aprobaciones.valor ?? 0) > 0} />
+                                <Cifra valor={aprobaciones.valor} /> <span className="sm:hidden">por aprobar</span>
+                                <span className="max-sm:hidden">aprobaciones pendientes</span>
+                            </span>
+                        </span>
+                    )}
+                    {v.edad && (
+                        <span aria-hidden data-testid="edad-presencia" className="inline-flex shrink-0 items-center gap-1 rounded bg-white/[0.06] px-1.5 text-white/55">
+                            <Clock className="h-3 w-3" />
+                            {v.edad.replace(/^hace /, "")}
+                        </span>
+                    )}
+                    {hayAlgoQueMirar && <span aria-hidden className="shrink-0 font-semibold text-amber-300">!</span>}
+                    <ChevronDown aria-hidden className={cn("h-3 w-3 shrink-0 text-white/40 transition-transform", abierta && "rotate-180")} />
+                </button>
 
-  const { processesActive, agentsLive, pendingApprovals, workingAgent } = counts;
-  const summary = summaryText(counts, feed.unread);
+                <div className="flex shrink-0 items-center gap-1 sm:gap-1.5">
+                    <Link href={ORQUESTACION_HREF} aria-label="Abrir el centro de Orquestación de Astraura 1.58" className={BOTON}>
+                        <Workflow className="h-3.5 w-3.5 sm:h-3 sm:w-3" aria-hidden /> <span className="max-sm:hidden">Orquestación</span>
+                    </Link>
+                    <Link href={IMAGINACION_HREF} aria-label="Abrir Imaginación de Astraura 1.58" className={BOTON}>
+                        <Wand2 className="h-3.5 w-3.5 sm:h-3 sm:w-3" aria-hidden /> <span className="max-sm:hidden">Imaginación</span>
+                    </Link>
+                    <Link
+                        href={NOTIFICACIONES_HREF}
+                        aria-label={feed.unread > 0 ? `Abrir Notificaciones de Astraura 1.58, ${feed.unread} sin leer` : "Abrir Notificaciones de Astraura 1.58"}
+                        className={cn(BOTON, "relative")}
+                    >
+                        <Bell className="h-3.5 w-3.5 sm:h-3 sm:w-3" aria-hidden /> <span className="max-md:hidden">Notificaciones</span>
+                        {feed.unread > 0 && (
+                            <span aria-hidden className="ml-0.5 rounded-full bg-rose-500/90 px-1.5 text-[10px] font-semibold text-white max-sm:absolute max-sm:-right-1 max-sm:-top-1 max-sm:ml-0 max-sm:px-1">
+                                {feed.unread > 99 ? "99+" : feed.unread}
+                            </span>
+                        )}
+                    </Link>
+                </div>
+            </div>
 
-  return (
-    <div
-      className={cn(
-        "flex w-full max-w-full flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg border border-white/10 bg-white/[0.025] px-3 py-1.5 text-[11px] text-white/70 backdrop-blur-md",
-        className,
-      )}
-    >
-      <div role="status" className="flex flex-wrap items-center gap-x-3 gap-y-1.5" aria-label={`Presencia Astraura 1.58: ${summary}.`}>
-        <span aria-hidden className="inline-flex items-center gap-1.5">
-          <PresenceStatusDot tone="emerald" active={processesActive > 0} />
-          <span className="font-medium text-white/85">{processesActive}</span> procesos<span className="hidden sm:inline"> activos</span>
-        </span>
-        <span aria-hidden className="text-white/25">·</span>
-        <span aria-hidden className="inline-flex items-center gap-1.5">
-          <PresenceStatusDot tone="cyan" active={agentsLive > 0} />
-          <span className="font-medium text-white/85">{agentsLive}</span> agentes<span className="hidden sm:inline"> vivos</span>
-        </span>
-        <span aria-hidden className="text-white/25">·</span>
-        <span aria-hidden className="inline-flex items-center gap-1.5">
-          <PresenceStatusDot tone="amber" active={pendingApprovals > 0} />
-          <span className="font-medium text-white/85">{pendingApprovals}</span> <span className="sm:hidden">por aprobar</span><span className="hidden sm:inline">aprobaciones pendientes</span>
-        </span>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-1.5 sm:ml-auto">
-        <Link href={ORQUESTACION_HREF} aria-label="Abrir el centro de Orquestación de Astraura 1.58" className={PILL_LINK}>
-          <Workflow className="h-3.5 w-3.5 sm:h-3 sm:w-3" aria-hidden /> <span className="hidden sm:inline">Orquestación</span>
-        </Link>
-        <Link href={IMAGINACION_HREF} aria-label="Abrir Imaginación de Astraura 1.58" className={PILL_LINK}>
-          <Wand2 className="h-3.5 w-3.5 sm:h-3 sm:w-3" aria-hidden /> <span className="hidden sm:inline">Imaginación</span>
-        </Link>
-        <Link
-          href={NOTIFICACIONES_HREF}
-          aria-label={feed.unread > 0 ? `Abrir Notificaciones de Astraura 1.58, ${feed.unread} sin leer` : "Abrir Notificaciones de Astraura 1.58"}
-          className={PILL_LINK}
-        >
-          <Bell className="h-3.5 w-3.5 sm:h-3 sm:w-3" aria-hidden /> <span className="hidden sm:inline">Notificaciones</span>
-          {feed.unread > 0 && (
-            <span aria-hidden className="ml-0.5 rounded-full bg-rose-500/90 px-1.5 text-[10px] font-semibold text-white">
-              {feed.unread > 99 ? "99+" : feed.unread}
-            </span>
-          )}
-        </Link>
-        {workingAgent && (
-          <button
-            type="button"
-            onClick={() => openAstraura158Window({ kind: "agente", id: workingAgent.id, target: presence.target ?? undefined })}
-            aria-label={`Abrir la ventana del agente ${workingAgent.name}, en curso ahora mismo`}
-            className={PILL_LINK}
-          >
-            <Bot className="h-3.5 w-3.5 sm:h-3 sm:w-3" aria-hidden /> <span className="max-w-[7rem] sm:max-w-[9rem] truncate">{workingAgent.name}</span>
-          </button>
-        )}
-      </div>
-    </div>
-  );
+            {abierta && (
+                <div data-testid="detalle-presencia" className="mt-1 rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-[11px] leading-relaxed text-white/70 backdrop-blur-md">
+                    <ul className="space-y-0.5">
+                        {(["procesos", "agentes", "aprobaciones"] as const).map((c) => (
+                            <li key={c}>
+                                <span className="font-medium text-white/85">{v.figuras[c].valor ?? "—"}</span> {NOMBRE_LARGO[c]} · de {ORIGEN[c]}
+                                {v.figuras[c].edad ? ` · medido ${v.figuras[c].edad}` : v.figuras[c].valor !== null ? " · en vivo" : " · sin leer"}
+                            </li>
+                        ))}
+                    </ul>
+                    {v.faltaLargo && <p className="mt-1 text-amber-200/90">{v.faltaLargo}</p>}
+                    {v.avisos.map((a) => (
+                        <p key={a} className="mt-1 text-amber-200/80">{a}</p>
+                    ))}
+                    <p className="mt-1">
+                        <Link href={PULSO_HREF} className="text-cyan-300 underline-offset-2 hover:underline">Abrir el pulso de MetaGenesis</Link>
+                    </p>
+                </div>
+            )}
+        </div>
+    );
 }
 
-/* ═══════════════════════════════ Astraura158PresenceDot ═══════════════════════════════ */
+/* ═══════════════════════════════ El punto de la orbe ═══════════════════════════════ */
 
 /**
- * Versión mínima (un punto + número) para la orbe de Aurora: tooltip
- * accesible con el resumen completo y clic que abre la Orquestación. Se
- * incrusta como HERMANO del núcleo visual de `AuroraOrb` (no descendiente
- * suyo, que va `aria-hidden`) para conservar su propio nombre accesible y
- * foco de teclado.
- *
- * En el widget flotante, `AuroraOrb` vive DENTRO de un `<button>` real (el
- * propio orbe, arrastrable) — anidar aquí OTRO `<button>` sería HTML
- * inválido. Por eso usa `role="button"` sobre un `<span>` con manejo de
- * teclado propio, y detiene la propagación de sus punteros/clics para no
- * disparar el arrastre ni el menú Trinity del orbe que lo envuelve.
+ * Un punto con el total de las tres cifras sobre la orbe. Va como HERMANO del núcleo visual de `AuroraOrb` y,
+ * como esa orbe vive dentro de un `<button>`, usa `role="button"` sobre un `<span>` y detiene sus punteros para
+ * no disparar el arrastre ni el menú de la orbe. Sin las tres cifras no pinta nada: una suma a medias mentiría.
  */
 export function Astraura158PresenceDot({ className }: { className?: string }) {
-  const feed = useAstraura158Feed();
-  const presence = useAstraura158Presence();
-  const router = useRouter();
-  const counts = useMemo(() => deriveCounts(presence), [presence]);
+    const v = usePresenciaReal();
+    const router = useRouter();
+    const total = useMemo(() => totalDePresencia(v), [v]);
 
-  const activate = useCallback((e: { stopPropagation: () => void; preventDefault?: () => void }) => {
-    e.stopPropagation();
-    router.push(ORQUESTACION_HREF);
-  }, [router]);
+    const activar = useCallback(
+        (e: { stopPropagation: () => void }) => {
+            e.stopPropagation();
+            router.push(ORQUESTACION_HREF);
+        },
+        [router],
+    );
 
-  if (!presence.ok) return null; // cero ruido: sin backend vivo, no hay punto
+    if (total === null) return null;
 
-  const { processesActive, agentsLive, pendingApprovals } = counts;
-  const total = processesActive + agentsLive + pendingApprovals;
-  const tone: PresenceTone = pendingApprovals > 0 ? "amber" : agentsLive > 0 ? "cyan" : "emerald";
-  const label = `Astraura 1.58: ${summaryText(counts, feed.unread)}. Toca para abrir Orquestación.`;
+    const tono: Tono = (v.figuras.aprobaciones.valor ?? 0) > 0 ? "amber" : (v.figuras.agentes.valor ?? 0) > 0 ? "cyan" : "emerald";
+    const etiqueta = `Astraura: ${v.resumen} Toca para abrir Orquestación.`;
 
-  return (
-    <span
-      role="button"
-      tabIndex={0}
-      title={label}
-      aria-label={label}
-      onClick={activate}
-      onPointerDown={(e) => e.stopPropagation()}
-      onPointerUp={(e) => e.stopPropagation()}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
-          e.preventDefault();
-          activate(e);
-        }
-      }}
-      className={cn(
-        "absolute -top-1 -left-1 z-[2] grid h-4 w-4 select-none place-items-center rounded-full border text-[9px] font-semibold leading-none shadow-[0_0_8px_rgba(0,0,0,0.35)] cursor-pointer",
-        TONE_BADGE[tone],
-        className,
-      )}
-    >
-      {total > 9 ? "9+" : total}
-    </span>
-  );
+    return (
+        <span
+            role="button"
+            tabIndex={0}
+            title={etiqueta}
+            aria-label={etiqueta}
+            onClick={activar}
+            onPointerDown={(e) => e.stopPropagation()}
+            onPointerUp={(e) => e.stopPropagation()}
+            onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
+                    e.preventDefault();
+                    activar(e);
+                }
+            }}
+            className={cn(
+                "absolute -top-1 -left-1 z-[2] grid h-4 w-4 select-none place-items-center rounded-full border text-[9px] font-semibold leading-none shadow-[0_0_8px_rgba(0,0,0,0.35)] cursor-pointer",
+                TONO_INSIGNIA[tono],
+                v.edad && "opacity-70",
+                className,
+            )}
+        >
+            {total > 9 ? "9+" : total}
+        </span>
+    );
 }

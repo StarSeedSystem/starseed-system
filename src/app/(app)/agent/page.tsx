@@ -145,9 +145,8 @@ import nextDynamic from "next/dynamic";
 import { SensesPanel } from "@/components/hermes/senses-panel";
 import { McpPanel } from "@/components/hermes/mcp-panel";
 import { QuickOptionsGrid } from "@/components/hermes/quick-options-grid";
-// Presencia Astraura 1.58 (Ola 5 · Adenda 157, SOP §5): tira discreta bajo la
-// cabecera del Exocórtex — «N procesos activos · M agentes vivos · K
-// aprobaciones pendientes» — solo cuando el backend 1.58 responde.
+// Tira de presencia bajo la cabecera: «N procesos activos · M agentes vivos · K aprobaciones pendientes».
+// (AST1113A) Sus cifras salen de los medidores de MetaGenesis, ya no del backend 1.58.
 import { Astraura158PresenceBar } from "@/components/astraura/astraura-158-presence";
 // Ola 6 · Adenda 158: anfitrión que monta una pestaña del Studio 1.58 como
 // sección de primer nivel del menú (resuelve destino, manifiesto y recarga).
@@ -988,8 +987,6 @@ function AgentPageInner() {
   const esSeccionChat = currentSection.id === "chat";
   const panelSeccionRef = useRef<HTMLDivElement>(null);
   const reservaFlotantes = useReservaFlotantes(panelSeccionRef, esSeccionChat);
-  // El chip del proveedor se corta en móvil: tocarlo lo despliega entero.
-  const [chipProveedorAbierto, setChipProveedorAbierto] = useState(false);
 
   // Al elegir una sección, saltamos a su primer ítem (mantiene el panel a la vista).
   const selectSection = useCallback((sectionId: string) => {
@@ -1066,7 +1063,6 @@ function AgentPageInner() {
     () => configs.find(c => c.enabled && c.id === activeProviderId) ?? configs.find(c => c.enabled),
     [configs, activeProviderId]
   );
-  const activeProviderInfo = activeProviderConfig ? PROVIDERS[activeProviderConfig.id].info : null;
 
   // Personalidad activa (nombre VISIBLE en el Nexus) — misma resolución por
   // contexto que el pipeline de Astraura (chat > sección > global). Solo lectura:
@@ -1347,47 +1343,17 @@ function AgentPageInner() {
       // en vez de aplastar el chat a 0 px (Alex: «no se ve el chat ni el cuadro de texto»).
       className="flex flex-col h-[100dvh] gap-2.5 sm:gap-4 p-3 sm:p-4 md:p-5 pl-[max(0.75rem,env(safe-area-inset-left))] pr-[max(0.75rem,env(safe-area-inset-right))] max-w-[1600px] mx-auto w-full box-border overflow-x-hidden overflow-y-auto lg:overflow-hidden">
 
-      {/* GEN1114F · móvil: título y los dos botones en UNA fila; el chip del proveedor en la suya, a
-          todo el ancho y desplegable (antes se cortaba «Astraura 1.58-bit · astraur…» sin forma de leerlo). */}
+      {/* GEN1114F · móvil: título y los dos botones en UNA fila. (AST1113A: sin chips de proveedor ni de agentes.) */}
       <div data-testid="cabecera-agente" className="flex items-center justify-between flex-wrap gap-x-3 gap-y-2 sm:gap-3 w-full max-w-full box-border">
         <h1 className="text-base sm:text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-purple-400 flex items-center gap-2 sm:gap-3 min-w-0 max-sm:flex-1">
           <BrainCircuit className="w-5 h-5 sm:w-8 sm:h-8 text-primary shrink-0" />
           <span className="truncate">Astraura IA y Orquestación</span>
         </h1>
         <div className="flex items-center gap-2 flex-wrap min-w-0 max-w-full max-sm:contents">
-          {activeProviderConfig ? (
-            <button
-              type="button"
-              data-testid="chip-proveedor"
-              aria-expanded={chipProveedorAbierto}
-              aria-label={`Proveedor activo: ${activeProviderConfig.label} · ${activeProviderConfig.defaultModel}. ${chipProveedorAbierto ? "Toca para recogerlo" : "Toca para verlo entero"}`}
-              title={`${activeProviderConfig.label} · ${activeProviderConfig.defaultModel}`}
-              onClick={() => setChipProveedorAbierto((v) => !v)}
-              className="min-w-0 max-w-full cursor-pointer rounded-full text-left max-sm:order-last max-sm:basis-full sm:max-w-[60vw] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40"
-            >
-              <Badge
-                variant="outline"
-                className={cn(
-                  "gap-1 max-w-full",
-                  chipProveedorAbierto ? "whitespace-normal" : "truncate",
-                  activeProviderInfo?.local
-                    ? "border-emerald-500/50 text-emerald-400 bg-emerald-500/10"
-                    : "border-blue-500/50 text-blue-400 bg-blue-500/10",
-                )}
-              >
-                {activeProviderInfo?.local ? <Cpu className="h-3 w-3 shrink-0" /> : <Cloud className="h-3 w-3 shrink-0" />}
-                <span className={chipProveedorAbierto ? "min-w-0 break-words [overflow-wrap:anywhere]" : "truncate"}>{activeProviderConfig.label} · {activeProviderConfig.defaultModel}</span>
-              </Badge>
-            </button>
-          ) : (
-            <Link href="/settings" className="max-sm:order-last max-sm:basis-full">
-              <Badge variant="outline" className="border-amber-500/50 text-amber-400 bg-amber-500/10 cursor-pointer hover:bg-amber-500/20">
-                Configura un proveedor de IA →
-              </Badge>
-            </Link>
-          )}
-          {/* En móvil el recuento de agentes ya lo dice la barra de presencia: aquí haría saltar de línea a «Configurar IA». */}
-          <Badge variant="outline" className="hidden sm:inline-flex border-blue-500/50 text-blue-400 bg-blue-500/10">{agents.length} agentes</Badge>
+          {/* AST1113A: aquí había dos chips, «<proveedor> · <modelo>» y «N agentes». El segundo contaba la lista de
+              demostración de esta página (siempre 2) y contradecía a la tira de presencia; el primero repetía lo
+              que corresponde al chat: el motor y el modelo van ahora junto al chat (`chip-motor-chat` en
+              `ChatSurface`). Las cifras de agentes están solo en la tira, y salen de los medidores. */}
           {/* Centro de Configuración de Aurora y Astraura (Adenda 67 · P1). Si el
               perfil aún no está configurado, además se abre solo al entrar aquí. */}
           <Button
@@ -1418,12 +1384,12 @@ function AgentPageInner() {
         </div>
       </div>
 
-      {/* Presencia Astraura 1.58 (Ola 5 · Adenda 157, SOP §5): línea discreta
-          bajo la cabecera de la sección — no es una notificación, no se
-          superpone a nada, y no pinta nada si el backend 1.58 no responde. */}
-      {/* GEN1114F: en móvil y tableta, dentro de la sección Chat, la tira de presencia no se pinta: llegaba
-          tarde y empujaba la página justo cuando se iba a tocar algo. En el resto de secciones sigue igual. */}
-      <div data-testid="presencia-agente" className={cn("empty:hidden", esSeccionChat && "max-lg:hidden")}>
+      {/* AST1113A · tira de presencia: «N procesos activos · M agentes vivos · K aprobaciones pendientes», con
+          las cifras de los medidores de MetaGenesis («En curso», «Agentes» y las fichas de visto bueno). Se
+          pinta en todas las secciones y tamaños (Alex: «deja los otros… pero que sean los datos reales»): su
+          sitio está reservado (una línea de 36 px en móvil, 32 px desde sm) y la tira siempre ocupa ese alto
+          —midiendo, con cifras o diciendo qué falta—, así que ya no empuja la página al llegar. */}
+      <div data-testid="presencia-agente" className="shrink-0 min-h-9 sm:min-h-8 w-full max-w-full">
         <Astraura158PresenceBar />
       </div>
 

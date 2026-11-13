@@ -33,7 +33,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   Bot, Send, Square, Lock, Plus, Sparkles, LayoutDashboard, Maximize2, Menu, X,
-  PanelLeftClose, PanelLeftOpen, ArrowLeft, SlidersHorizontal,
+  PanelLeftClose, PanelLeftOpen, ArrowLeft, SlidersHorizontal, Cpu, Cloud,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -298,6 +298,8 @@ export function ChatSurface({ variant = "embedded", className, initialConvId }: 
 
   const [streamText, setStreamText] = useState("");
   const [inputValue, setInputValue] = useState("");
+  // AST1113A: el chip «motor · modelo» se corta en móvil; tocarlo lo despliega entero.
+  const [chipMotorAbierto, setChipMotorAbierto] = useState(false);
   // (2026-09-26 · móvil) Texto guía corto en pantallas chicas: el largo no cabía en una línea.
   const [pantallaChica, setPantallaChica] = useState(false);
   useEffect(() => {
@@ -951,6 +953,43 @@ export function ChatSurface({ variant = "embedded", className, initialConvId }: 
       <VoiceProcessingIndicator variant="float" />
       {/* (2026-09-26 · móvil) Una sola fila: botones de 36 px y sin saltos de línea. */}
       <div className="absolute top-2 right-2 left-2 sm:top-3 sm:right-3 sm:left-auto z-10 flex flex-nowrap sm:flex-wrap items-center justify-end gap-1.5 sm:gap-2 max-w-[calc(100%-1rem)] sm:max-w-[calc(100%-1.5rem)] max-sm:[&>button]:size-9 max-sm:[&>a]:size-9">
+        {/* AST1113A: el motor y el modelo con los que habla ESTE chat, junto al chat (antes era un chip en la
+            cabecera de /agent, lejos de la conversación). Es el proveedor que se usará en el próximo envío; lo
+            que respondió de verdad cada mensaje lo dice su línea de proceso. */}
+        {activeProviderConfig ? (
+          <span
+            role="button"
+            tabIndex={0}
+            data-testid="chip-motor-chat"
+            aria-expanded={chipMotorAbierto}
+            aria-label={`Motor de este chat: ${activeProviderConfig.label} · modelo ${activeProviderConfig.defaultModel}. ${chipMotorAbierto ? "Toca para recogerlo" : "Toca para verlo entero"}`}
+            title={`${activeProviderConfig.label} · ${activeProviderConfig.defaultModel}`}
+            onClick={() => setChipMotorAbierto((v) => !v)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setChipMotorAbierto((v) => !v); }
+            }}
+            className={cn(
+              "mr-auto inline-flex min-w-0 items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-medium backdrop-blur cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40",
+              chipMotorAbierto ? "whitespace-normal" : "whitespace-nowrap",
+              PROVIDERS[activeProviderConfig.id]?.info.local
+                ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-300"
+                : "border-blue-500/50 bg-blue-500/10 text-blue-300",
+            )}
+          >
+            {PROVIDERS[activeProviderConfig.id]?.info.local ? <Cpu className="h-3 w-3 shrink-0" /> : <Cloud className="h-3 w-3 shrink-0" />}
+            <span className={chipMotorAbierto ? "min-w-0 break-words [overflow-wrap:anywhere]" : "truncate"}>
+              {activeProviderConfig.label} · {activeProviderConfig.defaultModel}
+            </span>
+          </span>
+        ) : (
+          <Link
+            href="/settings"
+            data-testid="chip-motor-chat"
+            className="mr-auto inline-flex min-w-0 items-center rounded-full border border-amber-500/50 bg-amber-500/10 px-2.5 py-1 text-[11px] text-amber-300 hover:bg-amber-500/20 max-sm:!size-auto"
+          >
+            <span className="truncate">Configura un proveedor de IA →</span>
+          </Link>
+        )}
         {fullscreen ? (
           <>
             {/* Volver al estudio */}
