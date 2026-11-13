@@ -7089,3 +7089,17 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 **Lo que quedó fuera, una por una:**
 - `DR1113-2` — los tipos no compilan: 5 errores tsc (rama ola/DR1113-2 conservada)
 - `DR1113-1` — otra cosa: degenerado: src/lib/protomolecula/__tests__/orbe-bus.test.ts: encogió de 210 a 0 líneas (más de la mitad)
+
+## 2026-11-13 16:27 · auto-1113-155629
+
+**Lo que se pidió.** ideas nuevas
+
+**Resultado.** 0 de 2 integradas. 2 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — los tipos no compilan (DR1113-1, DR1113-2). Es 100 % de la ola.
+- openrouter/cohere/north-mini-code:free no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `DR1113-1` — los tipos no compilan: 2 errores tsc (rama ola/DR1113-1 conservada)
+- `DR1113-2` — los tipos no compilan: revisor: tarea:tsc: vuelve con el contexto de hoy y el error exacto
