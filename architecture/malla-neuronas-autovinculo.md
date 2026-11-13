@@ -202,14 +202,15 @@ cuentas.
   NAT simétrico en ambos lados puede no conseguir conectar — el peer queda `failed` con motivo "La
   conexión ICE falló (posible NAT simétrico sin TURN)" en vez de fingir éxito.
   Se contempla como paso siguiente.
-- **Estadísticas por tipo de candidato** (host/srflx/relay): no implementado.
+- **Estadísticas por tipo de candidato** (host/srflx/relay): ✅ Hecho (`c5f908dc`, `src/lib/network/estadisticas-ice.ts` y `src/lib/network/estadisticas-enlace.ts` con tests en `__tests__/estadisticas-ice.test.ts` y `__tests__/estadisticas-enlace.test.ts`).
 - **Vínculo entre cuentas distintas**: **ya entregado en la Ola 370** (2026-09-26/27) — el botón
   «Solicitar vínculo» dejó de estar deshabilitado; usa exactamente el `syncId` de faro que este
   documento dejó preparado. Fuente de verdad completa (modelo de datos, secreto de par por
   ECDH+HKDF, señalización HMAC-firmada, API para otras capas, modelo de amenazas):
   `architecture/vinculos-entre-cuentas.md`. Ver también §10 de este documento.
-- **`use-estado-capas.ts`**: no se tocó (fuera de los archivos permitidos en esta ola). El hook
-  `usePeersMalla()` queda listo para que el equipo de IA lo consuma.
+- **`use-estado-capas.ts`**: ✅ Hecho (`8e9094fd` / Ola 370, `src/lib/astraura/use-estado-capas.ts:22,190`) — ahora importa y usa `usePeersMalla()` para sumar neuronas propias vinculadas por P2P y otras cuentas detectadas por faro al contador `vecinosMesh` de la capa mesh.
+
+Revisado el 2026-11-13 contra main (`9e489e8`): 3 hechos, 0 a medias, 1 pendiente (TURN).
 
 ## 9. Tests
 

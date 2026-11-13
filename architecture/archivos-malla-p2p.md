@@ -284,15 +284,15 @@ Tests: `archivos-malla-anuncio.test.ts` (motor real, dos neuronas), `archivo-anu
 
 - **Camino binario real** (§3): documentado como extensión futura si el ahorro de ancho de banda
   llega a justificar tocar el núcleo compartido de `webrtc-mesh.ts`.
-- **Vínculo entre cuentas distintas**: el adaptador (§1) está listo, pero el módulo de vínculos
-  consentidos en sí es de otra área/worktree — no se integró aquí.
+- **Vínculo entre cuentas distintas**: el adaptador (§1) está listo en comentarios, pero el
+  módulo de vínculos consentidos (`os_mesh_vinculos`, Ola 370) no se importa/usa desde aquí — (a medias: `CanalArchivos` preparado en `src/lib/network/archivos-malla.ts:90-96`; falta cablear `enviarAPar`/`onMensajeDePar` de `vinculos-entre-cuentas.ts`).
 - **Verificación con dos dispositivos reales**: todo lo de arriba se probó con un par de motores
   conectados por un canal en memoria (`crearParEnMemoria` en las pruebas) — nunca con dos
   dispositivos físicos por WebRTC de verdad (latencia real, ICE/TURN, velocidad real de OPFS en
   un móvil de gama baja con un archivo de varios cientos de MB).
-- **Progreso del remitente durante un corte**: el remitente marca `error` en cuanto un `enviar()`
-  falla, pero no reintenta solo — el reintento (mismo `idTransferencia`) es responsabilidad de
-  quien orquesta (hoy, el botón «Reintentar» de la UI).
+- **Progreso del remitente durante un corte**: ✅ Hecho (`7e22e4d6` CTR1104L, `src/lib/network/archivos-malla.ts` política `PoliticaReintento` + test `__tests__/archivos-malla-reintento.test.ts`) — reintento automático con backoff exponencial, tope de intentos y reanudación desde el último trozo confirmado (mismo `idTransferencia`).
+
+Revisado el 2026-11-13 contra main (`9e489e8`): 1 hecho (reintento automático), 1 a medias (vínculo entre cuentas: adaptador listo, sin cablear), 2 pendientes (camino binario, verificación dispositivos reales).
 
 ## 12. Tests
 
