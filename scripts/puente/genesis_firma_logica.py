@@ -345,6 +345,26 @@ def _nombres_de(chat):
     return nombres
 
 
+def _ids_fijos(fuente):
+    """(GEN1114INT) Los ids que valen para una fuente sin canon.json: el canónico y sus alias con forma de id
+    (`hermes-avisos`, `direccion`, `mando`). Los alias resuelven siempre al mismo chat (§2.3)."""
+    fijo = ALIAS_GEN1113[fuente]
+    return {fijo["chat"]} | {n for n in fijo["nombres"] if RE_ID_CHAT.match(n)}
+
+
+def _es_id_de(chat_id, chat, chats):
+    """(GEN1114INT) ¿`chat_id` nombra a `chat`? Su id, o un alias suyo con forma de id que ningún otro chat use como
+    id o alias. Así una entrada firmada con el id provisional (`telegram.<clave>`) antes de descubrir el puente, o
+    con el id viejo de GEN1113 (`hermes-avisos`), sigue nombrando al MISMO chat después; nunca a otro."""
+    if chat.get("id") == chat_id:
+        return True
+    alias = chat.get("alias") if isinstance(chat.get("alias"), list) else []
+    if chat_id not in alias or not RE_ID_CHAT.match(chat_id):
+        return False
+    otros = [c for c in chats if c is not chat and (c.get("id") == chat_id or chat_id in (c.get("alias") or []))]
+    return not otros
+
+
 def chat_cuadra(carga, canon):
     """None si `carga.chat` y `carga.chatNombre` cuadran con `carga.entrada.fuente`; si no, "chat-distinto"
     o "nombre-distinto".
@@ -352,8 +372,9 @@ def chat_cuadra(carga, canon):
     La relación fuente → chat es FIJA (no la da ningún catálogo): `direccion` → `genesis`, o
     `genesis.canal.<c>` con `c` en `entrada.canales`; un puente → el ÚNICO chat de `canon` cuyo campo
     `fuente` es esa fuente y cuyos `alias` la incluyen (si hay dos, o el alias está en otro chat, no
-    cuadra). El nombre visto debe ser el `nombre` de ese chat o uno de sus `alias`, tras quitar controles
-    y marcas bidi. Sin `canon` solo valen los ids y nombres de `ALIAS_GEN1113`."""
+    cuadra). El id firmado debe ser el de ese chat o un alias suyo con forma de id (GEN1114INT: un solo
+    esquema antes y después de descubrir). El nombre visto debe ser el `nombre` de ese chat o uno de sus
+    `alias`, tras quitar controles y marcas bidi. Sin `canon` solo valen los ids y nombres de `ALIAS_GEN1113`."""
     if not isinstance(carga, dict) or not isinstance(carga.get("entrada"), dict):
         return "chat-distinto"
     entrada = carga["entrada"]
@@ -363,6 +384,13 @@ def chat_cuadra(carga, canon):
         return "nombre-distinto"
     chats = _chats_de(canon)
     if fuente == "direccion":
+        # (GEN1114INT) Un alias de la dirección con forma de id (`direccion`, `mando`) nombra a `genesis`.
+        if chats is None and chat_id in _ids_fijos("direccion"):
+            chat_id = "genesis"
+        elif chats is not None and not chat_id.startswith("genesis.canal."):
+            propios = [c for c in chats if c.get("id") == "genesis"]
+            if len(propios) == 1 and _es_id_de(chat_id, propios[0], chats):
+                chat_id = "genesis"
         canales = entrada.get("canales") if isinstance(entrada.get("canales"), list) else []
         if chat_id != "genesis" and not (chat_id.startswith("genesis.canal.") and
                                          chat_id[len("genesis.canal."):] in canales and
@@ -388,14 +416,14 @@ def chat_cuadra(carga, canon):
         return "chat-distinto"
     if chats is None:
         fijo = ALIAS_GEN1113[fuente]
-        if chat_id != fijo["chat"]:
+        if chat_id not in _ids_fijos(fuente):
             return "chat-distinto"
         return None if visto in fijo["nombres"] else "nombre-distinto"
     candidatos = [c for c in chats if c.get("fuente") == fuente and fuente in (c.get("alias") or [])]
     con_alias = [c for c in chats if isinstance(c.get("alias"), list) and fuente in c["alias"]]
-    if len(candidatos) != 1 or len(con_alias) != 1 or candidatos[0].get("id") != chat_id:
+    if len(candidatos) != 1 or len(con_alias) != 1 or not _es_id_de(chat_id, candidatos[0], chats):
         return "chat-distinto"
-    if len([c for c in chats if c.get("id") == chat_id]) != 1:
+    if len([c for c in chats if c.get("id") == candidatos[0].get("id")]) != 1:
         return "chat-distinto"
     return None if visto in _nombres_de(candidatos[0]) else "nombre-distinto"
 

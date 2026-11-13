@@ -404,6 +404,25 @@ class Chat(unittest.TestCase):
         self.assertEqual(F.chat_cuadra(self.carga(hilo, ("telegram.ejemplo_a_bot", "Bot A de ejemplo")), CANON),
                          "chat-distinto")
 
+    def test_un_alias_con_forma_de_id_nombra_al_mismo_chat_y_nunca_a_otro(self):
+        """GEN1114INT · antes y después de descubrir: el id provisional queda como alias del chat descubierto."""
+        canon = copy.deepcopy(CANON)
+        canon["chats"][2]["alias"].append("telegram.hermes-avisos")         # lo que deja C al congelar el id real
+        canon["chats"][3]["alias"].append("telegram.peticiones")
+        for ident in ("telegram.ejemplo_a_bot", "telegram.hermes-avisos", "hermes-avisos"):
+            self.assertIsNone(F.chat_cuadra(self.carga(texto_a_hermes(), (ident, "Hermes y avisos")), canon), ident)
+        for ident in ("telegram.peticiones", "peticiones", "telegram.ejemplo_b_bot", "Hermes y avisos"):
+            self.assertEqual(F.chat_cuadra(self.carga(texto_a_hermes(), (ident, "Hermes y avisos")), canon),
+                             "chat-distinto", ident)
+        # Un alias que dos chats comparten no nombra a ninguno.
+        canon["chats"][4]["alias"].append("telegram.hermes-avisos")
+        self.assertEqual(F.chat_cuadra(self.carga(texto_a_hermes(), ("telegram.hermes-avisos", "Hermes y avisos")),
+                                       canon), "chat-distinto")
+        # La dirección: `direccion` y `mando` (alias de `genesis`) nombran a `genesis`; un canal, solo su id.
+        self.assertIsNone(F.chat_cuadra(self.carga(decir_al_hilo(), ("direccion", "GENESIS · StarSeed OS")), CANON))
+        hilo = dict(decir_al_hilo(), canales=["hermes"])
+        self.assertEqual(F.chat_cuadra(self.carga(hilo, ("hermes-avisos", "Hermes")), CANON), "chat-distinto")
+
     def test_marcas_bidi_y_controles_se_quitan_antes_de_comparar(self):
         visto = "Bot A‮ de ejemplo‏"
         self.assertIsNone(F.chat_cuadra(self.carga(texto_a_hermes(), (CHAT_A[0], visto)), CANON))
@@ -418,11 +437,15 @@ class Chat(unittest.TestCase):
         self.assertEqual(F.chat_cuadra(self.carga(texto_a_hermes(), CHAT_A), canon), "chat-distinto")
 
     def test_sin_canon_solo_valen_los_alias_fijos(self):
-        # GEN1114INT: un solo esquema de ids (el provisional de C, `telegram.<clave>`), no la clave suelta.
+        # GEN1114INT: un solo esquema de ids (el provisional de C, `telegram.<clave>`); los ids viejos de GEN1113
+        # (`hermes-avisos`) son alias del mismo chat. El id o el alias de OTRO puente no vale.
         self.assertIsNone(F.chat_cuadra(self.carga(texto_a_hermes(), ("telegram.hermes-avisos", "Hermes y avisos")), None))
-        self.assertEqual(F.chat_cuadra(self.carga(texto_a_hermes(), ("hermes-avisos", "Hermes y avisos")), None),
-                         "chat-distinto")
+        self.assertIsNone(F.chat_cuadra(self.carga(texto_a_hermes(), ("hermes-avisos", "Hermes y avisos")), None))
+        for ajeno in ("telegram.peticiones", "peticiones", "telegram.avisos-directores", "genesis"):
+            self.assertEqual(F.chat_cuadra(self.carga(texto_a_hermes(), (ajeno, "Hermes y avisos")), None),
+                             "chat-distinto", ajeno)
         self.assertEqual(F.chat_cuadra(self.carga(texto_a_hermes(), CHAT_A), None), "chat-distinto")
+        self.assertIsNone(F.chat_cuadra(self.carga(decir_al_hilo(), ("direccion", "GENESIS · StarSeed OS")), None))
         self.assertEqual(F.chat_cuadra(self.carga(texto_a_hermes(), ("telegram.hermes-avisos", "Peticiones y encargos")),
                                        None), "nombre-distinto")
         # Un hilo con un solo canal, sin canon: el nombre que pinta la web (CANALES) es el que vale.

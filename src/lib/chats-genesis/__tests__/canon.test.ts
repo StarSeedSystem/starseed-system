@@ -103,8 +103,9 @@ describe("chatDeFuente · la relación fija fuente → chat", () => {
         const v = catalogoValido(c)!;
         expect(v).not.toBeNull();
         expect(chatDeFuente(v, "puente:hermes-avisos")).toBeNull();
-        expect(nombreDeChat(v, "puente:hermes-avisos")).toEqual({ nombre: "Hermes y avisos", id: null, provisional: true });
-        expect(chatParaFirmar(v, "puente:hermes-avisos")).toBeNull();
+        // GEN1114INT: el id provisional del esquema común (la Mac decide con su canon.json si cuadra).
+        expect(nombreDeChat(v, "puente:hermes-avisos")).toEqual({ nombre: "Hermes y avisos", id: "telegram.hermes-avisos", provisional: true });
+        expect(chatParaFirmar(v, "puente:hermes-avisos")).toEqual({ id: "telegram.hermes-avisos", nombre: "Hermes y avisos", provisional: true });
     });
 
     it("un puente con un id que no es telegram.* o la dirección con otro id: null", () => {
@@ -127,9 +128,9 @@ describe("nombreDeChat · la única función que da nombre", () => {
     });
 
     it("sin catálogo: la etiqueta de GEN1113, provisional", () => {
-        expect(nombreDeChat(null, "puente:hermes-avisos")).toEqual({ nombre: "Hermes y avisos", id: null, provisional: true });
-        expect(nombreDeChat(null, "peticiones")).toEqual({ nombre: "Peticiones y encargos", id: null, provisional: true });
-        expect(nombreDeChat(null, "avisos-directores")).toEqual({ nombre: "Avisos de los directores", id: null, provisional: true });
+        expect(nombreDeChat(null, "puente:hermes-avisos")).toEqual({ nombre: "Hermes y avisos", id: "telegram.hermes-avisos", provisional: true });
+        expect(nombreDeChat(null, "peticiones")).toEqual({ nombre: "Peticiones y encargos", id: "telegram.peticiones", provisional: true });
+        expect(nombreDeChat(null, "avisos-directores")).toEqual({ nombre: "Avisos de los directores", id: "telegram.avisos-directores", provisional: true });
         expect(nombreDeChat(null, "direccion")).toEqual({ nombre: "GENESIS · StarSeed OS", id: "genesis", provisional: true });
         expect(nombreDeChat(null, "genesis.canal.director-presidente")).toEqual({ nombre: "Director presidente", id: "genesis.canal.director-presidente", provisional: true });
         expect(nombreDeChat(null, "desconocido")).toEqual({ nombre: "desconocido", id: null, provisional: true });
@@ -158,7 +159,9 @@ describe("chatParaFirmar", () => {
         expect(chatParaFirmar(cat, "direccion", "mando")).toEqual({ id: "genesis", nombre: "GENESIS · StarSeed OS", provisional: false });
         expect(chatParaFirmar(null, "direccion")).toEqual({ id: "genesis", nombre: "GENESIS · StarSeed OS", provisional: true });
         expect(chatParaFirmar(null, "direccion", "chatgpt")).toEqual({ id: "genesis.canal.chatgpt", nombre: "ChatGPT (Codex)", provisional: true });
-        expect(chatParaFirmar(null, "puente:hermes-avisos")).toBeNull();
+        // GEN1114INT · un solo esquema: sin catálogo, el id provisional `telegram.<clave>` y la etiqueta que se ve.
+        expect(chatParaFirmar(null, "puente:hermes-avisos")).toEqual({ id: "telegram.hermes-avisos", nombre: "Hermes y avisos", provisional: true });
+        expect(chatParaFirmar(null, "puente:peticiones")).toEqual({ id: "telegram.peticiones", nombre: "Peticiones y encargos", provisional: true });
     });
 });
 

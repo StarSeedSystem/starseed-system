@@ -202,9 +202,9 @@ describe("PestanaGenesis", () => {
             await montar({ ancho: 1440 });
             fireEvent.click(await screen.findByText("Hermes y avisos"));
             expect(await screen.findByTestId("hilo-puente")).toBeInTheDocument();
-            // GEN1114F: sin catálogo no hay id real del puente, así que no se ofrece escribir y se dice por qué.
-            expect(screen.getByTestId("sin-chat-firmable")).toBeInTheDocument();
-            expect(screen.queryByTestId("compositor-puente")).toBeNull();
+            // GEN1114INT · un solo esquema: sin catálogo se escribe con el id provisional y el nombre que se ve.
+            expect(screen.queryByTestId("sin-chat-firmable")).toBeNull();
+            expect(screen.getByTestId("marca-provisional")).toBeInTheDocument();
         });
     });
 });

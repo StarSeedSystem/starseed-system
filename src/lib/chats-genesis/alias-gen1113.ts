@@ -35,6 +35,16 @@ export const PREFIJO_CANAL = "genesis.canal.";
 /** Prefijo de los puentes de Telegram (el resto lo da `@usuario` del bot al descubrirlo en la Mac). */
 export const PREFIJO_TELEGRAM = "telegram.";
 
+/**
+ * GEN1114INT · un solo esquema de ids en la Mac (B, C), el A1 (D) y la web (E, F): el id de un chat mientras la
+ * Mac no ha publicado su catálogo. La dirección es `genesis`; un puente, `telegram.<clave de GEN1113>`, el mismo
+ * que siembra el registro de la Mac antes de descubrir el bot (al descubrirlo, este id pasa a alias del chat y la
+ * Mac lo sigue aceptando como id de ESE chat).
+ */
+export function idProvisionalDeFuente(f: FuenteEspejo): string {
+    return f === "direccion" ? ID_DIRECCION : `${PREFIJO_TELEGRAM}${f.slice("puente:".length)}`;
+}
+
 /** Todos los nombres con que GEN1113 llamó a cada fuente: van al `alias[]` del chat (§2.3). */
 export const ALIAS_DE_FUENTE: Readonly<Record<FuenteEspejo, readonly string[]>> = Object.freeze({
     direccion: Object.freeze(["direccion", "mando"]),
