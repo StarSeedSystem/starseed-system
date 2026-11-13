@@ -48,10 +48,12 @@ newModelIds` detectan omisiones sin inflar en la primera ejecución.
 ## Pendiente / próximos pasos
 - Aplicar la estrategia/selección directamente a la config real de voz (`voice-config.ts`) y LLM
   (`router.ts`) además de guardar la preferencia (hoy persiste prefs + reconoce el catálogo, y enlaza
-  al detalle en Neuronas/Integraciones).
+  al detalle en Neuronas/Integraciones). (a medias: `markUpdatesSeen({autoUpdate,strategy})` guarda en `starseed.astraura.startup.v1` y `saveModelPreferences` guarda orden/modo en `starseed.astraura.model-preferences.v1`/`neuron-model-prefs.v1`, pero `router.ts` lee de `starseed.astraura.intelligence.v1` y `voice-config.ts` de `starseed.aurora.voice.v1` — no hay cableado que aplique la estrategia a esas configs reales).
 - Instalación de modelos locales desde el propio modal (roadmap item #3: descarga en segundo plano +
-  notificaciones + gating por instalación del OS).
-- Auto-actualización efectiva (cuando `autoUpdate` está ON) aplicando el nuevo top sin intervención.
+  notificaciones + gating por instalación del OS). (pendiente: `InstallModelModal` existe en `src/components/aurora/install-model-modal.tsx` pero no está integrado en `StartupUpdatesModal` ni en `AstrauraOmniVoiceConfig`).
+- Auto-actualización efectiva (cuando `autoUpdate` está ON) aplicando el nuevo top sin intervención. (a medias: `src/lib/astraura/auto-actualizar-modelos.ts::queAplicar` existe y decide qué aplicar, pero no se invoca automáticamente cuando `autoUpdate=true`; falta cableado en `startup-updates-modal.tsx` o en el arranque).
+
+Revisado el 2026-11-13 contra main (`9339e03`): 0 hechos, 2 a medias, 1 pendiente.
 
 *Relacionado: 109 (capacidades + recomendador de modelos), 110 (registro de integraciones),
 `astraura-inteligencia.md`.*
