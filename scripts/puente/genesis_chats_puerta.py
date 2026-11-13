@@ -246,12 +246,7 @@ class PuenteGenesis:
     def _firma_datos(self):
         import genesis_aparatos as A
         altas, _problema = A.leer_altas(self.ruta_altas, self.dueno_altas)
-        # GEN1114INT: también las retiradas del registro de solo añadir (al lado de la lista de root). Si existe y
-        # no se puede leer, no vale ningún aparato: mejor no ejecutar nada que resucitar uno retirado.
-        sistema = A.ruta_retirados_sistema(self.ruta_altas)
-        if A.leer_retirados_sistema(sistema)[1]:
-            altas = {"v": 1, "aparatos": []}
-        retirados = A.leer_retirados(self._r("aparatos-retirados.json"), sistema)
+        retirados = A.leer_retirados(self._r("aparatos-retirados.json"))
         canon = A.leer_canon(self._r("canon.json"))
         return altas, retirados, canon
 
@@ -301,8 +296,7 @@ class PuenteGenesis:
             detalle = "ese aparato ya estaba retirado"
         else:
             ahora = self.ahora()
-            A.anadir_retirado(self._r("aparatos-retirados.json"), objetivo, "aparato:%s" % carga["aparato"][:8], ahora,
-                              A.ruta_retirados_sistema(self.ruta_altas))          # GEN1114INT
+            A.anadir_retirado(self._r("aparatos-retirados.json"), objetivo, "aparato:%s" % carga["aparato"][:8], ahora)
             quitado, desde = filas.get(objetivo) or {}, filas.get(carga["aparato"]) or {}
             A.registrar(self._r("aparatos.log"), carga["entrada"]["accion"], ahora, objetivo,
                         quitado.get("cuenta"), quitado.get("nombre"))

@@ -153,72 +153,6 @@ class Base(unittest.TestCase):
         return A.leer_log(A.rutas(self.base)["log"])
 
 
-class RetiradasDeSoloAnadir(Base):
-    """GEN1114INT · el registro de retiradas de solo añadir (riesgo residual de B: vaciar el archivo de Alex)."""
-
-    def test_el_alta_lo_crea_con_el_mismo_sudo_de_alex_y_la_marca_sappnd(self):
-        a = Aparato()
-        p = PuertaFalsa([solicitud(a)])
-        self.assertEqual(self.emparejar(p, F.codigo_de(a.huella, a.cuenta), ""), 0)
-        sistema = A.ruta_retirados_sistema(self.ruta_altas)
-        llamada = [c["args"] for c in self.ej.de(A.SUDO) if sistema in c["args"]]
-        self.assertEqual(len(llamada), 1)
-        self.assertEqual(llamada[0][3:], [A.INSTALL, "-o", str(os.getuid()), "-g", str(os.getgid()), "-m", "600",
-                                          "-f", "sappnd", "/dev/null", sistema])
-        self.assertEqual(self.ej.llamadas[-1]["args"], [A.SUDO, "-k"])
-        # Un segundo alta no lo vuelve a crear.
-        b = Aparato(nombre="otro")
-        self.ej.llamadas.clear()
-        self.assertEqual(self.emparejar(PuertaFalsa([solicitud(b, ident=2)]), F.codigo_de(b.huella, b.cuenta), ""), 0)
-        self.assertEqual([c for c in self.ej.llamadas if sistema in c["args"]], [])
-
-    def test_vaciar_el_archivo_de_alex_no_devuelve_un_aparato_retirado(self):
-        a = Aparato()
-        self.poner_altas(a)
-        sistema = A.ruta_retirados_sistema(self.ruta_altas)
-        open(sistema, "w").close()
-        retirados = A.rutas(self.base)["retirados"]
-        A.anadir_retirado(retirados, a.huella, "mac", T0, sistema)
-        with open(sistema, encoding="utf-8") as f:
-            self.assertEqual([json.loads(x)["huella"] for x in f.read().splitlines()], [a.huella])
-        G.escribir_json(retirados, {"v": 1, "retirados": []})                 # un programa vacía el de Alex
-        self.assertIsNotNone(F.retiro_de(a.huella, A.leer_retirados(retirados, sistema)))
-        with open(sistema, "a", encoding="utf-8") as f:                       # basura añadida: se ignora
-            f.write("no es json\n{\"huella\": \"x\"}\n")
-        self.assertEqual(len(A.leer_retirados(retirados, sistema)["retirados"]), 1)
-        # Repetir la retirada no duplica la línea.
-        A.anadir_retirado(retirados, a.huella, "mac", T0 + 1, sistema)
-        with open(sistema, encoding="utf-8") as f:
-            self.assertEqual(sum(1 for x in f.read().splitlines() if a.huella in x), 1)
-
-    def test_si_existe_y_no_se_puede_leer_no_vale_ningun_aparato(self):
-        a = Aparato()
-        self.poner_altas(a)
-        sistema = A.ruta_retirados_sistema(self.ruta_altas)
-        open(sistema, "w").close()
-        os.chmod(sistema, 0)
-        try:
-            if os.access(sistema, os.R_OK):
-                self.skipTest("corriendo como root: el modo 000 no impide leer")
-            self.assertEqual(A.leer_retirados_sistema(sistema), ([], "ilegible"))
-            svc = G.PuenteGenesis("", "", base=self.base, ruta_altas=self.ruta_altas, dueno_altas=YO, http=lambda *a, **k: (0, None),
-                                  modulos={"puente": None, "telegram": None, "director_chat": None, "cliente": None})
-            altas, _retirados, _canon = svc._firma_datos()
-            self.assertEqual(altas["aparatos"], [])
-            self.assertIn("no se puede leer", A.estado_retirados_sistema(sistema))
-        finally:
-            os.chmod(sistema, 0o600)
-
-    def test_estado_dice_si_falta_la_marca_de_solo_anadir(self):
-        sistema = os.path.join(self.dir, "no-existe.jsonl")
-        self.assertIn("aún no existe", A.estado_retirados_sistema(sistema))
-        open(sistema, "w").close()
-        sin = types.SimpleNamespace(st_flags=0)
-        con = types.SimpleNamespace(st_flags=stat.SF_APPEND)
-        self.assertIn("sin la marca", A.estado_retirados_sistema(sistema, lstat=lambda r: sin))
-        self.assertEqual(A.estado_retirados_sistema(sistema, lstat=lambda r: con), "bien (solo añadir)")
-
-
 class Emparejar(Base):
     def test_sin_terminal_o_por_ssh_se_niega_sin_tocar_nada(self):
         a = Aparato()
@@ -478,6 +412,13 @@ class EstadoYEscritorio(Base):
         self.assertIn(a.huella[:8], texto)
         for prohibido in (a.huella, DUENO, ALIAS, "123"):
             self.assertNotIn(prohibido, texto)
+        # GEN1114INT · decisión de Alex: el de MetaGenesis sigue encendido; se avisa y se dice por qué, sin bloquear.
+        self.ej.launchctl = "PID\tStatus\tLabel\n456\t0\tcom.starseed.tunel-metagenesis\n"
+        texto = A.estado_texto(base=self.base, ruta_altas=self.ruta_altas, dueno_altas=YO, ahora=T0, ejecutar=self.ej,
+                               entorno={A.VAR_A1: ALIAS}, env_archivo=os.path.join(self.dir, "x"))
+        self.assertIn("la firma no lo cubre", texto)
+        self.assertIn("sigue encendido por decisión de Alex", texto)
+        self.assertNotIn("456", texto)
         self.ej.launchctl = "PID\tStatus\tLabel\n"
         texto = A.estado_texto(base=self.base, ruta_altas=self.ruta_altas, dueno_altas=0, ahora=T0, ejecutar=self.ej,
                                entorno={}, env_archivo=os.path.join(self.dir, "x"))
