@@ -628,13 +628,15 @@ C … a cualquier distancia, cualquier neurona puede funcionar como nodo … en 
 
 | Pieza | Qué hace | Relevo de A a C |
 |---|---|---|
-| `transporte-universal.ts` · `crearEnviador` | Elige un carril directo (`elegirEnlaces`) y espera su acuse; si no, relé del servidor o LoRa | **No**: sin carril directo, `«Ningún enlace abierto llega a ese destino»` |
-| `rele-archivo.ts` · salto de archivo (MPT1108B) | B pasa trozos sellados de A a C, solo por la malla WebRTC de la cuenta | Solo archivos, solo carril «cuenta» (que necesita internet para señalizarse), sin anuncio de quién llega a quién (A intenta por cada neurona de la cuenta a ciegas), y C contesta por `canalNulo`: no puede aceptar ni pedir huecos de vuelta |
+| `transporte-universal.ts` · `crearEnviador` | Elige un carril directo (`elegirEnlaces`) y espera su acuse; si no, relé del servidor o LoRa | **No**: sin carril directo, `«Ningún enlace abierto llega a ese destino»` ✅ Hecho (`0a60195`, `src/lib/malla/transporte-universal.ts:196-253`, `src/lib/malla/relevo/real.ts:282-341`) |
+| `rele-archivo.ts` · salto de archivo (MPT1108B) | B pasa trozos sellados de A a C, solo por la malla WebRTC de la cuenta | Solo archivos, solo carril «cuenta» (que necesita internet para señalizarse), sin anuncio de quién llega a quién (A intenta por cada neurona de la cuenta a ciegas), y C contesta por `canalNulo`: no puede aceptar ni pedir huecos de vuelta ✅ Hecho (`0a60195`, `src/lib/malla/relevo/real.ts:310-341` `canalArchivoPorRelevo`) |
 | `rele-bidireccional.ts` / `rele-propio.ts` (PTA1108C) | Relé del servidor de StarSeed o servidor propio, de dos vías | Necesita internet o un servidor |
 | `puerta/tabla.ts` (PTA1108A/1110B) | Anuncios con saltos (`via`, `ttl`, `MAX_SALTOS = 3`, caducidad de 90 s) y ámbitos de confianza | Solo para salir a internet o a una capa; no lleva mensajes entre neuronas |
-| `canal-sellado.ts` + `cifrado-archivo.ts` | Archivo sellado de punta a punta, independiente del camino | Sí sirve tal cual por un relevo |
-| Mensajes `tu.msg` | Cifrado por carril (CIF1108A: TCP y Bluetooth; WebRTC DTLS) | **Un relevo los vería en claro**: hacía falta sello de punta a punta |
-| Capas de conciencia (ámbitos) | `puerta/politica.ts` · `Ambito`: `mias` > `grupo` > `otras` > `publica`, con topes por ámbito y una cadena que nunca ensancha la confianza (`ambitoEfectivo`) | Es el modelo que usa este contrato |
+| `canal-sellado.ts` + `cifrado-archivo.ts` | Archivo sellado de punta a punta, independiente del camino | Sí sirve tal cual por un relevo ✅ Hecho (`0a60195`, `src/lib/malla/canal-sellado.ts`, `src/lib/malla/cifrado-archivo.ts`) |
+| Mensajes `tu.msg` | Cifrado por carril (CIF1108A: TCP y Bluetooth; WebRTC DTLS) | **Un relevo los vería en claro**: hacía falta sello de punta a punta ✅ Hecho (`0a60195`, `src/lib/malla/relevo/sobre.ts:164-186` `sellarMensaje`/`abrirMensaje`) |
+| Capas de conciencia (ámbitos) | `puerta/politica.ts` · `Ambito`: `mias` > `grupo` > `otras` > `publica`, con topes por ámbito y una cadena que nunca ensancha la confianza (`ambitoEfectivo`) | Es el modelo que usa este contrato ✅ Hecho (`0a60195`, `src/lib/malla/puerta/politica.ts`) |
+
+Revisado el 2026-11-13 contra main (`0a60195`): 4 hechos, 0 a medias, 3 pendientes (F2, F3 y servidor propio).
 
 ### 14.1 · Alcance: qué sabe cada neurona y cuánto vale
 

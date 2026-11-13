@@ -119,7 +119,9 @@ psql "$SUPABASE_DB_URL" -c "
 
 ## Pendiente (fuera de este encargo)
 
-- BZN1108B: tarea de entrega (corre en el líder, usa `hermes send`).
-- BZN1108C: lectura del parte por Claude nube (SQL ya documentado arriba).
-- Integración en la consola `/mando` (pestaña MetaGenesis → sección Buzón).
-- Programar la síntesis diaria en la NUBE (Alex: conector MCP + cron de la nube).
+- BZN1108B: tarea de entrega (corre en el líder, usa `hermes send`). ✅ Hecho (`0a60195`, `scripts/puente/buzon_telegram.py`)
+- BZN1108C: lectura del parte por Claude nube (SQL ya documentado arriba). (SQL documentado; lo ejecuta Claude nube directamente)
+- Integración en la consola `/mando` (pestaña MetaGenesis → sección Buzón). (pendiente: no hay sección Buzón en `src/components/metagenesis/metagenesis-autonoma.tsx`)
+- Programar la síntesis diaria en la NUBE (Alex: conector MCP + cron de la nube). (fuera del repo: requiere configuración de Alex en la nube)
+
+Revisado el 2026-11-13 contra main (`0a60195`): 1 hecho, 1 a medias, 2 pendientes.
