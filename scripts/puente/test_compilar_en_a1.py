@@ -839,6 +839,29 @@ class MontonALaMedida(unittest.TestCase):
         self.assertIn("grep -m1", C.orden_cola_log())  # la línea `heap=` está al principio del registro
 
 
+class HeapCompilarA1(unittest.TestCase):
+    """SUP1112I: el heap por defecto de la build en el A1 es 5120 (como el guardián), no 4096."""
+
+    def test_guion_compilar_usa_5120_por_defecto(self):
+        g = C.guion_compilar(raiz="/n")
+        self.assertIn("--max-old-space-size=5120", g)
+        self.assertNotIn("--max-old-space-size=4096", g)
+
+    def test_orden_compilar_usa_5120_por_defecto(self):
+        o = C.orden_compilar(raiz="/n")
+        self.assertIn("--max-old-space-size=5120", o)
+        self.assertNotIn("--max-old-space-size=4096", o)
+
+    def test_orden_compilar_respeta_heap_pasado(self):
+        o = C.orden_compilar(raiz="/n", heap=3000)
+        self.assertIn("--max-old-space-size=3000", o)
+        self.assertNotIn("--max-old-space-size=5120", o)
+        self.assertNotIn("--max-old-space-size=4096", o)
+
+    def test_constante_heap_compilar_a1(self):
+        self.assertEqual(C.HEAP_COMPILAR_A1, 5120)
+
+
 if __name__ == "__main__":
     unittest.main()
 
