@@ -7039,3 +7039,27 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 
 **Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
 - nvidia/nvidia/nemotron-3-ultra-550b-a55b integró 2 tareas sin fallar una.
+
+## 2026-11-13 15:15 · auto-1113-120832
+
+**Lo que se pidió.** pendiente / qué falta / próximos pasos
+
+**Resultado.** 5 de 17 integradas. 12 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 10 tareas se fueron por lo mismo — otra cosa (CTD1113G, CTD1113E, CTD1113A, CTD1113F, PET1112Dc, CTD1113Eb). Es 59 % de la ola.
+- sin modelo anotado no integró ninguna de sus 6 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `ALC1113A` — la revisión lo rechazó: rechazada automáticamente por aprobador (sin revisión humana); rama ola/ALC1113A conservada
+- `CTD1113G` — otra cosa: continúa como CTD1113Gb desde la rama nube/a1-20261113-194101-CTD1113G (traer_nube)
+- `CTD1113E` — otra cosa: continúa como CTD1113Eb desde la rama nube/a1-20261113-194101 (traer_nube)
+- `CTD1113A` — otra cosa: continúa como CTD1113Ab desde la rama nube/a1-20261113-194101 (traer_nube)
+- `CTD1113F` — otra cosa: continúa como CTD1113Fb desde la rama nube/a1-20261113-194101-CTD1113F (traer_nube)
+- `PET1112Dc` — otra cosa: movida a agentes-ia desde Genesis
+- `CTD1113Ab` — conflicto al integrar: degenerado: architecture/sincronizacion-neuronas.md: marcas de conflicto de git
+- `CTD1113Eb` — otra cosa: intento 1
+- `CTD1113Fb` — otra cosa: reparación desde la nube: trabajo a medias que no pasó las puertas: se continúa desde la rama
+- `CTD1113Gb` — otra cosa: reparación desde la nube: trabajo a medias que no pasó las puertas: se continúa desde la rama
+- `ALC1113B` — otra cosa
+- `ALC1113C` — otra cosa
