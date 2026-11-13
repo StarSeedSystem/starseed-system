@@ -4,6 +4,7 @@ tarea sin dirección, validación de borradores, forzado de importancia/estado, 
 con prefijo `cola-suenos-` y carta ausente. Puras: sin red, sin orquestador."""
 import json
 import os
+import re
 import sys
 import tempfile
 import unittest
@@ -255,3 +256,123 @@ class TestCiclo(unittest.TestCase):
         self.assertTrue(r3["seco"])
         with open(os.path.join(self.raiz, A.REL_ESTADO), encoding="utf-8") as f:
             self.assertEqual(json.load(f)["ciclos"], 1)
+
+
+def ficha_github(**extra):
+    f = {"obj_id": "gh-org-repo", "nombre_publico": "org/repo",
+         "que_hacen": "Un sistema operativo social federado con control local.",
+         "canal_oficial": {"medio": "github_discussions", "valor": "https://github.com/org/repo/discussions",
+                           "fuente_url": "https://github.com/org/repo", "categoria": "ideas"},
+         "fuentes": [{"url": "https://github.com/org/repo", "metodo": "github-api"}],
+         "idioma": "es", "tono": "tecnico", "area_starseed": "descentralización", "fuente": "github"}
+    f.update(extra)
+    return f
+
+
+class TestBorradoresGithub(unittest.TestCase):
+    def test_borrador_completo_con_reglas_de_36(self):
+        b = P.borrador_github(ficha_github(), AHORA, 1)
+        self.assertIsNotNone(b)
+        self.assertTrue(b["id"].startswith("algh-"))
+        self.assertEqual(b["estado"], "esperando-aprobacion")
+        self.assertEqual(b["destinatario"], "org/repo")
+        self.assertEqual(b["canal"]["medio"], "github_discussion")
+        self.assertEqual(b["canal"]["repo"], "org/repo")
+        self.assertEqual(b["canal"]["categoria"], "ideas")
+        self.assertEqual(b["idioma"], "es")
+        self.assertIn("org/repo", b["texto"])
+        self.assertIn(P.REPO_STARSEED, b["texto"])
+        self.assertIn("Semilla", b["texto"])
+        self.assertIn("Mente Digital", b["texto"])
+        self.assertIn("Fundación StarSeed", b["texto"])
+        self.assertNotIn("Maggasukha", b["texto"])
+        self.assertNotIn("hola@", b["texto"])
+        self.assertLessEqual(len(re.findall(r"\S+", b["texto"])), P.MAX_PALABRAS_BORRADOR)
+        self.assertTrue(b["motivo"])
+
+    def test_sin_canal_publicado_no_hay_borrador(self):
+        self.assertIsNone(P.canal_publicado(ficha_github(canal_oficial={})))
+        self.assertIsNone(P.canal_publicado({}))
+        self.assertEqual(P.borradores_github([ficha_github(canal_oficial={})], AHORA), [])
+
+    def test_nunca_issues_ni_pr(self):
+        issues = ficha_github(canal_oficial={"medio": "github_discussions",
+                                             "valor": "https://github.com/org/repo/issues",
+                                             "fuente_url": "https://github.com/org/repo"})
+        pr = ficha_github(canal_oficial={"medio": "pr", "valor": "https://github.com/org/repo/pulls/3",
+                                         "fuente_url": "https://github.com/org/repo"})
+        self.assertIsNone(P.canal_publicado(issues))
+        self.assertIsNone(P.canal_publicado(pr))
+
+    def test_rechaza_correo_sacado_de_un_commit(self):
+        de_commit = ficha_github(canal_oficial={"medio": "email", "valor": "autor@proyecto.dev",
+                                                "fuente_url": "https://github.com/org/repo/commit/abc123"})
+        self.assertIsNone(P.canal_publicado(de_commit))
+        publicado = ficha_github(canal_oficial={"medio": "email", "valor": "contacto@proyecto.dev",
+                                                "fuente_url": "https://github.com/org/repo#readme"})
+        self.assertEqual(P.canal_publicado(publicado)["medio"], "email")
+
+    def test_chat_no_publico_va_como_asistido(self):
+        matrix = ficha_github(canal_oficial={"medio": "matrix", "valor": "#sala:matrix.org",
+                                             "fuente_url": "https://github.com/org/repo#readme"})
+        canal = P.canal_publicado(matrix)
+        self.assertEqual(canal["medio"], "asistido")
+        self.assertEqual(canal["lugar"], "#sala:matrix.org")
+
+    def test_tope_de_5_borradores_al_dia_y_dedup(self):
+        fichas = [ficha_github(obj_id="gh-org-repo-%d" % i, nombre_publico="org/repo%d" % i) for i in range(8)]
+        self.assertEqual(len(P.borradores_github(fichas, AHORA)), 5)
+        ya = [{"destinatario": "org/repo0"}, {"destinatario": "org/repo1"}]
+        ids = [b["destinatario"] for b in P.borradores_github(fichas, AHORA, ya=ya)]
+        self.assertNotIn("org/repo0", ids)
+        self.assertEqual(len(ids), 5)
+        self.assertEqual(P.borradores_github(fichas, AHORA, tope=0), [])
+        self.assertEqual(P.borradores_github([ficha_github(fuente="drive")], AHORA), [])
+
+    def test_texto_de_221_palabras_se_rechaza(self):
+        self.assertIsNone(P.valida_texto_borrador("palabra " * 221))
+        self.assertIsNone(P.valida_texto_borrador("Hola.\n\nBien: hola@evila.example\n\nFundación StarSeed."))
+        self.assertIsNone(P.valida_texto_borrador("texto sin nada de StarSeed"))
+
+
+class TestBorradoresDelDia(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.raiz = os.path.join(self._tmp.name, "repo")
+        os.makedirs(self.raiz)
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def test_escribe_tope_y_no_duplica(self):
+        os.makedirs(os.path.join(self.raiz, "memory", "alcance"))
+        with open(os.path.join(self.raiz, "memory", "alcance", "carta-starseed.md"), "w", encoding="utf-8") as f:
+            f.write("Somos StarSeed.")
+        ruta = os.path.join(self.raiz, "starseed_memory_root", "alcance", "github")
+        os.makedirs(ruta)
+        with open(os.path.join(ruta, FECHA + ".json"), "w", encoding="utf-8") as f:
+            json.dump([ficha_github(), ficha_github(obj_id="gh-org-otro", nombre_publico="org/otro")], f)
+        r1 = A.borradores_del_dia(self.raiz, AHORA)
+        self.assertEqual(r1["nuevos"], 2)
+        rel = os.path.join(self.raiz, "starseed_memory_root", "alcance", "borradores", "borradores-%s.json" % FECHA)
+        with open(rel, encoding="utf-8") as f:
+            self.assertEqual(len(json.load(f)), 2)
+        r2 = A.borradores_del_dia(self.raiz, AHORA)
+        self.assertEqual((r2["pendientes"], r2["nuevos"]), (2, 0))
+        with open(rel, encoding="utf-8") as f:
+            self.assertEqual(len(json.load(f)), 2)
+
+    def test_sin_carta_no_genera_borradores(self):
+        r = A.borradores_del_dia(self.raiz, AHORA, fichas=[ficha_github()])
+        self.assertEqual((r["nuevos"], r["motivo"]), (0, "falta_carta"))
+
+    def test_con_carta_genera_desde_fichas_inyectadas(self):
+        os.makedirs(os.path.join(self.raiz, "memory", "alcance"))
+        with open(os.path.join(self.raiz, "memory", "alcance", "carta-starseed.md"), "w", encoding="utf-8") as f:
+            f.write("Somos StarSeed.")
+        r = A.borradores_del_dia(self.raiz, AHORA, fichas=[ficha_github()])
+        self.assertEqual(r["nuevos"], 1)
+        self.assertTrue(r["borradores"][0].startswith("algh-"))
+
+    def test_parser_acepta_orden_borradores(self):
+        self.assertEqual(A.parser().parse_args(["borradores"]).orden, "borradores")
