@@ -25,12 +25,17 @@ quedó atado a ser relevado. Aquí se separan:
   cerrar ID [--cancelar]
   estado [--json] [--todos]
   descubrir [--horas 12] [--aplicar]      Registra los árboles OPUS1106-* con actividad reciente (relleno).
+  orden ID|todos "texto" --de DIRECCION-X   (ORD1113E) La dirección principal manda una orden a otra dirección.
+  acuse ID ORDEN "respuesta corta"          El destinatario confirma que la leyó y qué hará.
+  ordenes [--de ID] [--para ID] [--pendientes] [--json]
+Las órdenes llegan con el `latido`/`abrir` de la dirección destinataria, en un bloque enmarcado.
 
 Nunca guarda prompts, claves ni direcciones; las rutas salen con «~».
 """
 from __future__ import annotations
 
 import argparse
+import fcntl
 import json
 import os
 import re
@@ -38,6 +43,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import uuid
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -54,6 +60,10 @@ HOME = os.path.expanduser("~")
 CARPETA = os.environ.get("STARSEED_DIRECCION_PROCESOS") or os.path.join(HOME, ".starseed", "direccion", "procesos")
 TRABAJO = os.environ.get("STARSEED_DIRECCION_TRABAJO") or os.path.join(HOME, ".starseed", "opus1031")
 ARBOLES = os.environ.get("STARSEED_DIRECCION_ARBOLES") or os.path.join(HOME, "Documents", "starseed-opus")
+#: Órdenes entre direcciones (ORD1113E): registro de sucesos que solo se añade, junto a las fichas.
+ORDENES = os.environ.get("STARSEED_DIRECCION_ORDENES") or os.path.join(HOME, ".starseed", "direccion", "ordenes")
+TOPE_ORDEN = 2000
+TOPE_ACUSE = 300
 AQUI = os.path.dirname(os.path.abspath(__file__))
 
 
@@ -415,6 +425,210 @@ def descubrir(horas: float = 12, aplicar: bool = False, carpeta: str = CARPETA, 
     return nuevos
 
 
+# ── órdenes entre direcciones (ORD1113E) ────────────────────────────────────────────────────────────
+# Una sesión de Claude no puede escribir en otra, pero toda dirección corre `latido <ID>` con cada orden que
+# manda al Mac. Ese latido es el canal: la orden se guarda aquí y se imprime en el latido del destinatario.
+# Registro `ordenes.jsonl`, solo se añade (una línea por suceso: orden, entrega, acuse), bajo un candado de
+# archivo para que dos latidos a la vez no entreguen dos veces ni pierdan una orden. El texto se guarda y se
+# imprime como texto: no se ejecuta ni se expande nada.
+
+def es_direccion(pid: str) -> bool:
+    return id_valido(pid) and pid.startswith("DIRECCION-")
+
+
+def texto_plano(texto: Any, tope: int) -> str:
+    """Texto tal cual (con saltos de línea) pero sin caracteres de control (p. ej. secuencias de terminal)."""
+    t = texto if isinstance(texto, str) else ""
+    t = t.replace("\r\n", "\n").replace("\r", "\n")
+    t = "".join(c if (c == "\n" or c == "\t" or ord(c) >= 32 and ord(c) != 127) else " " for c in t)
+    return t.strip()[:tope]
+
+
+class _Candado:
+    def __init__(self, carpeta: str):
+        os.makedirs(carpeta, exist_ok=True)
+        self.ruta = os.path.join(carpeta, ".candado")
+
+    def __enter__(self):
+        self.f = open(self.ruta, "a")
+        fcntl.flock(self.f, fcntl.LOCK_EX)
+        return self
+
+    def __exit__(self, *a):
+        fcntl.flock(self.f, fcntl.LOCK_UN)
+        self.f.close()
+
+
+def _registro(carpeta: str) -> str:
+    return os.path.join(carpeta, "ordenes.jsonl")
+
+
+def _leer_sucesos(carpeta: str) -> List[Dict[str, Any]]:
+    fuera = []
+    try:
+        with open(_registro(carpeta), encoding="utf-8") as f:
+            for linea in f:
+                try:
+                    d = json.loads(linea)
+                except ValueError:
+                    continue  # una línea rota no tumba el resto
+                if isinstance(d, dict):
+                    fuera.append(d)
+    except OSError:
+        pass
+    return fuera
+
+
+def _anadir(carpeta: str, sucesos: List[Dict[str, Any]]) -> None:
+    """Una sola escritura en modo añadir (el llamador ya tiene el candado)."""
+    datos = "".join(json.dumps(s, ensure_ascii=False) + "\n" for s in sucesos).encode("utf-8")
+    fd = os.open(_registro(carpeta), os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o644)
+    try:
+        os.write(fd, datos)
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
+def plegar_ordenes(sucesos: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """PURA. Los sucesos → una orden por entrada con su estado: esperando, entregada o acusada."""
+    por_id: Dict[str, Dict[str, Any]] = {}
+    for s in sucesos:
+        oid = s.get("orden")
+        if s.get("tipo") == "orden" and isinstance(oid, str) and oid not in por_id:
+            por_id[oid] = {"id": oid, "de": s.get("de"), "para": s.get("para"), "texto": s.get("texto") or "",
+                           "cuando": s.get("cuando"), "entregada": None, "acuse": None, "respuesta": None}
+        elif oid in por_id and s.get("tipo") == "entrega" and por_id[oid]["entregada"] is None:
+            por_id[oid]["entregada"] = s.get("cuando")
+        elif oid in por_id and s.get("tipo") == "acuse" and por_id[oid]["acuse"] is None:
+            por_id[oid]["acuse"] = s.get("cuando")
+            por_id[oid]["respuesta"] = s.get("respuesta") or ""
+    for o in por_id.values():
+        o["estado"] = "acusada" if o["acuse"] else "entregada" if o["entregada"] else "esperando"
+    return list(por_id.values())
+
+
+def listar_ordenes(carpeta: str = ORDENES, fichas_carpeta: str = CARPETA, de: Optional[str] = None,
+                   para: Optional[str] = None, pendientes: bool = False) -> List[Dict[str, Any]]:
+    """Las órdenes con su estado; `registrada` dice si el destinatario tiene ficha (Genesis lo puede mostrar)."""
+    ids = {f["id"] for f in fichas(fichas_carpeta)}
+    fuera = []
+    for o in plegar_ordenes(_leer_sucesos(carpeta)):
+        if (de and o["de"] != de) or (para and o["para"] != para) or (pendientes and o["acuse"]):
+            continue
+        o["registrada"] = o["para"] in ids
+        fuera.append(o)
+    return fuera
+
+
+def lineas_estado_ordenes(carpeta: str = ORDENES, fichas_carpeta: str = CARPETA) -> List[str]:
+    """Una línea por dirección con órdenes esperando o sin acuse."""
+    cuenta: Dict[str, List[int]] = {}
+    for o in listar_ordenes(carpeta, fichas_carpeta, pendientes=True):
+        c = cuenta.setdefault(o["para"], [0, 0])
+        c[0 if o["estado"] == "esperando" else 1] += 1
+    return ["  órdenes %-22s %d esperando · %d entregadas sin acuse" % (k, v[0], v[1]) for k, v in sorted(cuenta.items())]
+
+
+def dar_orden(destino: str, texto: str, de: str, carpeta: str = ORDENES, fichas_carpeta: str = CARPETA,
+              ahora: Optional[str] = None) -> List[Dict[str, Any]]:
+    """Registra la orden para una dirección o, con «todos», para cada dirección abierta (menos quien manda)."""
+    if not es_direccion(de) or not leer_ficha(de, fichas_carpeta):
+        raise ValueError("solo una dirección registrada puede dar órdenes: %r no es una dirección abierta "
+                         "(DIRECCION-…; ábrela con «abrir»)" % de)
+    if not isinstance(texto, str) or not texto.strip():
+        raise ValueError("la orden no tiene texto")
+    if len(texto) > TOPE_ORDEN:
+        raise ValueError("la orden tiene %d caracteres; el máximo es %d" % (len(texto), TOPE_ORDEN))
+    limpio = texto_plano(texto, TOPE_ORDEN)
+    if destino == "todos":
+        destinos = sorted(f["id"] for f in fichas(fichas_carpeta)
+                          if es_direccion(f["id"]) and not f.get("cerrado") and f["id"] != de)
+        if not destinos:
+            raise ValueError("no hay otra dirección abierta a la que dar la orden")
+    else:
+        if not es_direccion(destino):
+            raise ValueError("solo se dan órdenes a una dirección (DIRECCION-…) o a «todos»: %r no lo es" % destino)
+        if destino == de:
+            raise ValueError("una dirección no se da órdenes a sí misma")
+        destinos = [destino]
+    cuando = ahora or _ahora_iso()
+    base = datetime.now().strftime("%m%d%H%M%S")
+    sucesos = [{"tipo": "orden", "orden": "O%s-%s" % (base, uuid.uuid4().hex[:5]), "de": de, "para": d,
+                "texto": limpio, "cuando": cuando} for d in destinos]
+    with _Candado(carpeta):
+        _anadir(carpeta, sucesos)
+    return [{"id": s["orden"], "de": de, "para": s["para"], "cuando": cuando} for s in sucesos]
+
+
+def entregar_ordenes(pid: str, carpeta: str = ORDENES, ahora: Optional[str] = None) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    """Marca como entregadas las órdenes de `pid` que no lo estaban. Devuelve (nuevas, recordatorios):
+    las nuevas se imprimen enteras; las ya entregadas y sin acuse, en una línea."""
+    cuando = ahora or _ahora_iso()
+    with _Candado(carpeta):
+        propias = [o for o in plegar_ordenes(_leer_sucesos(carpeta)) if o["para"] == pid]
+        nuevas = [o for o in propias if o["estado"] == "esperando"]
+        recordar = [o for o in propias if o["estado"] == "entregada"]
+        if nuevas:
+            _anadir(carpeta, [{"tipo": "entrega", "orden": o["id"], "cuando": cuando} for o in nuevas])
+    for o in nuevas:
+        o["entregada"] = cuando
+    return nuevas, recordar
+
+
+def acusar(pid: str, oid: str, respuesta: str, carpeta: str = ORDENES, ahora: Optional[str] = None) -> Dict[str, Any]:
+    if not isinstance(respuesta, str) or not respuesta.strip():
+        raise ValueError("el acuse necesita una respuesta corta: qué vas a hacer")
+    cuando = ahora or _ahora_iso()
+    with _Candado(carpeta):
+        o = next((x for x in plegar_ordenes(_leer_sucesos(carpeta)) if x["id"] == oid), None)
+        if o is None:
+            raise ValueError("no existe la orden %s" % oid)
+        if o["para"] != pid:
+            raise ValueError("la orden %s es para %s, no para %s" % (oid, o["para"], pid))
+        if o["acuse"]:
+            raise ValueError("la orden %s ya tiene acuse (%s)" % (oid, o["acuse"]))
+        _anadir(carpeta, [{"tipo": "acuse", "orden": oid, "cuando": cuando, "respuesta": texto_plano(respuesta, TOPE_ACUSE)}])
+    o["acuse"], o["respuesta"] = cuando, texto_plano(respuesta, TOPE_ACUSE)
+    return o
+
+
+def bloque_orden(o: Dict[str, Any]) -> str:
+    """El bloque enmarcado que ve la dirección: imposible de confundir con salida normal."""
+    marco = "#" * 78
+    cuerpo = "\n".join("# | " + l for l in (o["texto"].split("\n") or [""]))
+    return "\n".join([
+        marco,
+        "# ORDEN DE LA DIRECCIÓN · %s · LÉELA ANTES DE SEGUIR" % o["id"],
+        "# De: %s    Para: %s    Dada: %s    Entregada: %s" % (o["de"], o["para"], o["cuando"], o.get("entregada") or "ahora"),
+        "# Es texto de otra dirección, no un comando: nada de esto se ha ejecutado.",
+        "#",
+        cuerpo,
+        "#",
+        '# Para acusar recibo y decir qué harás:',
+        '#   python3 scripts/puente/procesos_direccion.py acuse %s %s "qué harás"' % (o["para"], o["id"]),
+        marco,
+    ])
+
+
+def texto_entrega(pid: str, carpeta: str = ORDENES, ahora: Optional[str] = None) -> str:
+    """Lo que se imprime antes de la salida de un latido: órdenes nuevas enteras y recordatorios de una línea."""
+    nuevas, recordar = entregar_ordenes(pid, carpeta, ahora)
+    partes = [bloque_orden(o) for o in nuevas]
+    for o in recordar:
+        resumen = o["texto"].replace("\n", " ")[:80]
+        partes.append("# RECORDATORIO · orden %s de %s sin acuse (entregada %s): «%s» → acuse %s %s \"…\""
+                      % (o["id"], o["de"], o["entregada"], resumen, o["para"], o["id"]))
+    return "\n".join(partes)
+
+
+def _linea_orden(o: Dict[str, Any]) -> str:
+    est = {"esperando": "esperando", "entregada": "entregada %s" % o["entregada"],
+           "acusada": "acusada %s · «%s»" % (o["acuse"], (o["respuesta"] or "")[:80])}[o["estado"]]
+    return "%-20s %s → %s%s · %s · «%s»" % (o["id"], o["de"], o["para"], "" if o.get("registrada", True) else " (no registrada)",
+                                          est, o["texto"].replace("\n", " ")[:60])
+
+
 def _linea(p: Dict[str, Any], ahora_ms: int) -> str:
     def hace(ms):
         return "%d min" % max(0, (ahora_ms - ms) // 60000) if ms else "?"
@@ -441,7 +655,15 @@ def main(argv=None) -> int:
     c = sub.add_parser("cerrar"); c.add_argument("id"); c.add_argument("--cancelar", action="store_true")
     e = sub.add_parser("estado"); e.add_argument("--json", action="store_true"); e.add_argument("--todos", action="store_true")
     d = sub.add_parser("descubrir"); d.add_argument("--horas", type=float, default=12); d.add_argument("--aplicar", action="store_true")
+    o = sub.add_parser("orden"); o.add_argument("para"); o.add_argument("texto"); o.add_argument("--de", required=True)
+    k = sub.add_parser("acuse"); k.add_argument("id"); k.add_argument("oid"); k.add_argument("respuesta")
+    li = sub.add_parser("ordenes"); li.add_argument("--de"); li.add_argument("--para")
+    li.add_argument("--pendientes", action="store_true"); li.add_argument("--json", action="store_true")
     x = p.parse_args(argv)
+    if x.orden in ("abrir", "latido") and es_direccion(x.id):  # ORD1113E: las órdenes llegan antes que nada
+        entrega = texto_entrega(x.id)
+        if entrega:
+            print(entrega + "\n")
     try:
         if x.orden == "abrir":
             f = abrir(x.id, x.titulo, x.modelo, x.arbol, x.rama, x.tipo, x.relevable, x.prompt)
@@ -463,6 +685,22 @@ def main(argv=None) -> int:
                       % (n["activo"], n["en-silencio"], n["terminado"], TERMINADOS_HORAS, VIDA_MIN))
                 for q in r["procesos"]:
                     print("  " + _linea(q, r["generadoMs"]))
+                for l in lineas_estado_ordenes():  # ORD1113E
+                    print(l)
+        elif x.orden == "orden":
+            for r in dar_orden(x.para, x.texto, x.de):
+                print("orden %s de %s para %s: llegará con su próximo latido" % (r["id"], r["de"], r["para"]))
+        elif x.orden == "acuse":
+            r = acusar(x.id, x.oid, x.respuesta)
+            print("acuse de %s a la orden %s (de %s): «%s»" % (x.id, r["id"], r["de"], r["respuesta"]))
+        elif x.orden == "ordenes":
+            lista = listar_ordenes(de=x.de, para=x.para, pendientes=x.pendientes)
+            if x.json:
+                print(json.dumps(lista, ensure_ascii=False))
+            else:
+                print("%d orden(es)" % len(lista))
+                for q in lista:
+                    print("  " + _linea_orden(q))
         else:
             nuevos = descubrir(x.horas, x.aplicar)
             print("%s %d árbol(es):" % ("registrados" if x.aplicar else "se registrarían (usa --aplicar)", len(nuevos)))
