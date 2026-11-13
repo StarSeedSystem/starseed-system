@@ -1,0 +1,27 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "incremental": false
+  },
+  "include": [
+    "next-env.d.ts",
+    "src/lib/chats-genesis/**/*.ts",
+    "src/components/chats-genesis/**/*.ts",
+    "src/components/chats-genesis/**/*.tsx",
+    "src/app/(app)/agent/page.tsx",
+    "src/components/agent/chat-surface.tsx",
+    "src/components/exocortex/telegram-spaces-panel.tsx",
+    "src/components/messaging/chat-connections-panel.tsx",
+    "src/components/messaging/conexion-telegram.tsx",
+    "src/components/messaging/conexiones-genesis.tsx",
+    "src/components/messaging/__tests__/gen1114f-conexiones.test.tsx",
+    "src/components/messaging/__tests__/chat-connections-panel-1113e.test.tsx",
+    "src/components/agent/chat-neural-sidebar.tsx",
+    "src/components/agent/__tests__/chat-neural-sidebar-1113e.test.tsx",
+    "src/app/__tests__/agent-chats-genesis-1113e.test.ts",
+    "src/components/ui/menu-lista-movil.tsx",
+    "src/components/funciones/funciones-index.tsx",
+    "src/lib/__tests__/nombre-genesis.test.ts"
+  ]
+}
