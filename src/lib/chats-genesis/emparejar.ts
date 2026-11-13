@@ -27,6 +27,8 @@ export const RUTA_APARATOS = "/v1/genesis/aparatos";
 export const TIEMPO_APARATOS_MS = 10_000;
 /** Cada cuánto pregunta el aparato mientras espera a la Mac (§3.3, paso 4). */
 export const CONSULTA_CADA_MS = 5_000;
+/** GEN1114INT · la puerta del A1 todavía no tiene las rutas de emparejar (404). */
+export const TEXTO_PUERTA_VIEJA = "La puerta de datos del A1 aún no tiene la versión que empareja aparatos. Inténtalo cuando se haya actualizado.";
 export const MAX_SPKI_BYTES = 200;
 
 export type Plataforma = "navegador" | "app-nativa";
@@ -105,6 +107,9 @@ export function crearClienteAparatos(op: OpcionesClienteAparatos = {}): ClienteA
             if (Number.isInteger(solicitud) && solicitud > 0 && caduca) return { ok: true as const, solicitud, caduca };
             return { ok: false as const, estado: r.estado, codigo: "sin-id", error: "La puerta contestó sin el número de la solicitud" };
         }
+        // GEN1114INT · mientras la puerta del A1 siga en la versión anterior, estas rutas no existen (404).
+        // Se dice tal cual, sin botones muertos: lo que falta es desplegar la puerta, no nada del aparato.
+        if (r.estado === 404) return { ok: false as const, estado: 404, codigo: "puerta-vieja", error: TEXTO_PUERTA_VIEJA };
         const t = directa.textoError(r.cuerpo, r.estado);
         const error = (t.codigo && POR_CODIGO[t.codigo]) || t.error;
         return t.codigo ? { ok: false as const, estado: r.estado, codigo: t.codigo, error } : { ok: false as const, estado: r.estado, error };

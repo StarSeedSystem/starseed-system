@@ -370,6 +370,9 @@ export function crearClienteCanon(op: OpcionesClienteCanon = {}): { leer(senal?:
             guardarCopia(almacen, catalogo, ahora());
             return { ok: true, catalogo };
         }
+        // GEN1114INT · con la puerta del A1 todavía en la versión anterior, esta ruta no existe (404): es lo
+        // mismo que «no hay catálogo» (se ven los nombres provisionales), no un fallo que haya que contar.
+        if (r.estado === 404) return { ok: true, catalogo: copia() };
         return { ok: false, estado: r.estado, error: directa.textoError(r.cuerpo, r.estado).error, copia: copia() };
     }
 

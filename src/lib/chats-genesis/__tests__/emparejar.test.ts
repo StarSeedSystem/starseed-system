@@ -2,7 +2,7 @@
  * GEN1114E · la mitad del aparato al emparejar (contrato GEN1114 §3.3 y §8.1).
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { consultarEmparejamiento, crearClienteAparatos, pedirEmparejar, plataformaActual, type ClienteAparatos } from "../emparejar";
+import { TEXTO_PUERTA_VIEJA, consultarEmparejamiento, crearClienteAparatos, pedirEmparejar, plataformaActual, type ClienteAparatos } from "../emparejar";
 import { _reiniciarFirmaAparato, actualizarEstadoAparato, aparatoLocal, configurarFirmaAparato, crearClaveAparato } from "../firma-aparato";
 import { crearIdbFalso, crearMarcaFalsa, crearRespaldo } from "./idb-falso";
 import type { FetchLike } from "../puerta-chats";
@@ -71,6 +71,23 @@ function clienteFalso(estado: { estado: string; t: string | null; nivel?: "texto
         estado: vi.fn(async () => estado),
     };
 }
+
+describe("GEN1114INT · la puerta del A1 todavía sin esta versión (404)", () => {
+    it("solicitar lo dice tal cual, sin botones muertos", async () => {
+        const { spki } = await crearClaveAparato("iPhone de Alex", CUENTA);
+        const fetch = vi.fn<FetchLike>(async () => respuesta(404, { error: "ruta desconocida", codigo: "ruta" }));
+        const r = await cliente(fetch).solicitar({ spki, nombre: "iPhone de Alex", plataforma: "navegador" });
+        expect(r).toMatchObject({ ok: false, estado: 404, codigo: "puerta-vieja" });
+        expect((r as { error: string }).error).toBe(TEXTO_PUERTA_VIEJA);
+    });
+
+    it("el catálogo se lee como «no hay catálogo» (nombres provisionales), no como un fallo", async () => {
+        const { crearClienteCanon } = await import("../canon");
+        const fetch = vi.fn<FetchLike>(async () => respuesta(404, { error: "ruta desconocida", codigo: "ruta" }));
+        const r = await crearClienteCanon({ puerta, fetch, url: async () => "https://puerta.prueba", sesion: async () => "jwt", almacen: null }).leer();
+        expect(r).toEqual({ ok: true, catalogo: null });
+    });
+});
 
 describe("pedirEmparejar y consultarEmparejamiento", () => {
     it("crea la clave, pide y queda pendiente; repetirlo reutiliza la misma clave", async () => {
