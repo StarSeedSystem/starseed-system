@@ -33,10 +33,12 @@ export interface VinculoChat {
     titulo?: string; // ≤ 120; si falta, el del origen
     creado: string;
     actualizado: string; // ISO
+    // GEN1114E · id del chat canónico (contrato GEN1114 §2.6) cuando la fuente es la dirección o un puente.
+    chat?: string;
 }
 
 export interface PrefsChatsGenesis {
-    v: 1;
+    v: 1 | 2; // GEN1114E · la v2 es la que se escribe; una v1 se lee siempre (§2.6)
     vinculos: VinculoChat[]; // ≤ 500
     conexiones: {
         genesis?: { activo: boolean; memoria: boolean };
@@ -62,7 +64,7 @@ export const CLAVE_LOCAL = "starseed.chats-genesis.v1";
 
 /** Lo que vale una cuenta sin nada guardado. Objeto nuevo en cada llamada. */
 export function prefsVacias(): PrefsChatsGenesis {
-    return { v: 1, vinculos: [], conexiones: {} };
+    return { v: 2, vinculos: [], conexiones: {} }; // GEN1114E · v2 (§2.6)
 }
 
 // ── §7.1 · lo que viaja por la puerta del A1 ─────────────────────────────────────────────────
@@ -74,7 +76,8 @@ export const FUENTES_ESPEJO: readonly FuenteEspejo[] = ["direccion", "puente:her
 export type FuenteEntrada = "direccion" | "puente:hermes-avisos" | "puente:peticiones";
 export const FUENTES_ENTRADA: readonly FuenteEntrada[] = ["direccion", "puente:hermes-avisos", "puente:peticiones"];
 
-export type AccionEntrada = "decir" | "responder" | "reenviar" | "orden" | "texto";
+export type AccionEntrada = "decir" | "responder" | "reenviar" | "orden" | "texto"
+    | "revocarme" | "revocar-aparato"; // GEN1114E · retiradas de aparato (contrato GEN1114 §3.4)
 export const ACCIONES_ENTRADA: readonly AccionEntrada[] = ["decir", "responder", "reenviar", "orden", "texto"];
 
 export type EstadoAcuse = "entregado" | "hecho" | "rechazado" | "caducado" | "fallo";
@@ -98,6 +101,7 @@ export interface EntradaChat {
     respondeA?: string;
     reenviar?: string; // ^md-\d{10,16}-[0-9a-f]{4}$
     orden?: { nombre: string; args: string[] }; // nombre ∈ §4.4 de su fuente; ≤ 10 args de ≤ 120
+    huella?: string; // GEN1114E · solo en `revocar-aparato`: la huella (64 hex) del aparato que se retira
 }
 
 /** Lo que entrega la puerta al destino: lo de arriba + lo que solo pone la puerta. */
@@ -130,3 +134,42 @@ export const LIMITE_TEXTO_ENTRADA = 8000;
 export const RE_NONCE = /^[A-Za-z0-9_-]{22,32}$/;
 export const RE_MODELO = /^[a-z0-9._/:-]{3,120}$/;
 export const RE_ID_MENSAJE = /^md-\d{10,16}-[0-9a-f]{4}$/;
+
+// ── GEN1114E · entradas firmadas por el aparato (contrato GEN1114 §3.4) ───────────────────────
+
+/** Las dos acciones de retirada: siempre con `fuente: "direccion"`, `destino: "mac"` y `chat: "genesis"`. */
+export const ACCIONES_RETIRADA = ["revocarme", "revocar-aparato"] as const;
+/** Todas las acciones que admite una entrada v2 (las de GEN1113 más las de retirada). */
+export const ACCIONES_ENTRADA_FIRMADA: readonly AccionEntrada[] = [...ACCIONES_ENTRADA, ...ACCIONES_RETIRADA];
+
+/** Lo que se envía a la puerta. `carga` son los bytes firmados: nadie los vuelve a serializar. */
+export interface EntradaFirmada {
+    v: 2;
+    carga: string; // base64url sin relleno de los bytes UTF-8 del JSON de CargaFirmada; ≤ 32 KB decodificada
+    firma: string; // base64url de r‖s (64 bytes) → 86 caracteres
+    aparato: string; // huella, ^[0-9a-f]{64}$
+}
+
+export interface CargaFirmada {
+    aud: "starseed.genesis.chats.v1";
+    cuenta: string;
+    aparato: string;
+    seq: number; // único por aparato (no hace falta que llegue en orden)
+    t: string;
+    caduca: string;
+    destino: "mac" | "a1";
+    chat: string; // id canónico
+    chatNombre: string; // el nombre que la persona VIO en la cabecera al escribir (1..80)
+    entrada: EntradaChat; // entera, con su nonce y con entrada.v === 1
+}
+
+export const AUD_FIRMA = "starseed.genesis.chats.v1" as const;
+export const RE_HUELLA = /^[0-9a-f]{64}$/;
+export const RE_ID_CHAT = /^[a-z0-9][a-z0-9._-]{1,62}$/;
+export const MAX_NOMBRE_CHAT = 80;
+/** Tope de la carga decodificada (§3.4) y del cuerpo v2 (§3.5). */
+export const MAX_CARGA_BYTES = 32 * 1024;
+export const MAX_CUERPO_V2_BYTES = 48 * 1024;
+/** Plazos de §3.6: lo `alto` caduca a los 30 min; lo `bajo`, a los 7 días. */
+export const LIMITE_ALTO_S = 1800;
+export const LIMITE_BAJO_S = 7 * 86400;

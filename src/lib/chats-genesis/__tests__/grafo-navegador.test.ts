@@ -9,7 +9,8 @@ import { builtinModules } from "node:module";
 import path from "node:path";
 
 const SRC = path.join(__dirname, "..", "..", "..");
-const RAICES = ["tipos.ts", "puerta-chats.ts", "vinculos.ts", "estado-espejo.ts"].map((f) => path.join(SRC, "lib", "chats-genesis", f));
+// GEN1114E · más la firma, el emparejar, el catálogo y los alias de GEN1113
+const RAICES = ["tipos.ts", "puerta-chats.ts", "vinculos.ts", "estado-espejo.ts", "firma-aparato.ts", "emparejar.ts", "canon.ts", "alias-gen1113.ts"].map((f) => path.join(SRC, "lib", "chats-genesis", f));
 const DE_NODE = new Set(builtinModules.flatMap((m) => [m, m.split("/")[0]]));
 const IMPORTS = /(?:import|export)\s[^;]*?from\s*["']([^"']+)["']|import\(\s*["']([^"']+)["']\s*\)|require\(\s*["']([^"']+)["']\s*\)/g;
 

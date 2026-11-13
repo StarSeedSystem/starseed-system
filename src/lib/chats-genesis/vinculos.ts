@@ -32,6 +32,10 @@ import {
     type PuenteTelegram,
     type VinculoChat,
 } from "./tipos";
+// GEN1114E · la migración v1 → v2 pone el id del chat canónico (contrato GEN1114 §2.6)
+import { RE_ID_CHAT } from "./tipos";
+import { chatDeFuente, leerCopiaCanon, type CatalogoCanon } from "./canon";
+import { ID_DIRECCION, PREFIJO_TELEGRAM } from "./alias-gen1113";
 
 /** Lo que la migración no entendió: se guarda tal cual, con el motivo y dónde estaba. */
 export interface Descarte {
@@ -43,7 +47,7 @@ export interface Descarte {
 
 const EPOCA = "1970-01-01T00:00:00.000Z";
 const RE_ID_ORIGEN = /^[^\s\u0000-\u001f]{1,200}$/;
-const CLAVES_VINCULO = new Set(["v", "id", "fuente", "nivel", "entidad", "en", "titulo", "creado", "actualizado"]);
+const CLAVES_VINCULO = new Set(["v", "id", "fuente", "nivel", "entidad", "en", "titulo", "creado", "actualizado", "chat"]); // GEN1114E · + chat
 const CLAVES_PREFS = new Set(["v", "vinculos", "conexiones"]);
 
 function esObjeto(x: unknown): x is Record<string, unknown> {
@@ -106,7 +110,7 @@ export function idDeVinculo(f: FuenteChat): string {
 // ── migración (pura) ─────────────────────────────────────────────────────────────────────────
 
 /** Un vínculo guardado → vínculo limpio, o null (y el original en `fuera`). Lo que sobra, también a `fuera`. */
-function migrarVinculo(x: unknown, fuera: Descarte[]): VinculoChat | null {
+function migrarVinculo(x: unknown, fuera: Descarte[], cat: CatalogoCanon | null = null): VinculoChat | null { // GEN1114E · + cat
     if (!esObjeto(x) || x.v !== 1) {
         fuera.push({ motivo: "vínculo sin forma o de otra versión", valor: x });
         return null;
@@ -143,7 +147,23 @@ function migrarVinculo(x: unknown, fuera: Descarte[]): VinculoChat | null {
     const v: VinculoChat = { v: 1, id, fuente, nivel, en, creado, actualizado };
     if (nivel === "poligenesis") v.entidad = x.entidad as string;
     if (titulo !== undefined) v.titulo = titulo;
+    // GEN1114E · el id del chat canónico (§2.6): fijo para la dirección; para un puente, el guardado
+    // si tiene forma de puente o, si no, el del catálogo (relación fija de §3.4). El `id` del vínculo
+    // NO cambia. Un `chat` que no cuadra no se tira: va a descartado.
+    const chat = chatDeVinculo(fuente, x.chat, cat);
+    if (chat) v.chat = chat;
+    if (x.chat !== undefined && x.chat !== chat) sobra("chat", "id de chat canónico que no cuadra con la fuente");
     return v;
+}
+
+/** GEN1114E · el id canónico de un vínculo de la dirección o de un puente (o undefined). */
+function chatDeVinculo(fuente: FuenteChat, guardado: unknown, cat: CatalogoCanon | null): string | undefined {
+    if (fuente.tipo === "direccion") return ID_DIRECCION;
+    if (fuente.tipo !== "puente") return undefined;
+    const delCatalogo = chatDeFuente(cat, `puente:${fuente.puente}`)?.id;
+    if (delCatalogo) return delCatalogo;
+    if (typeof guardado === "string" && RE_ID_CHAT.test(guardado) && guardado.startsWith(PREFIJO_TELEGRAM)) return guardado;
+    return undefined;
 }
 
 function migrarConexiones(x: unknown, fuera: Descarte[]): PrefsChatsGenesis["conexiones"] {
@@ -188,16 +208,16 @@ function migrarConexiones(x: unknown, fuera: Descarte[]): PrefsChatsGenesis["con
  *  · repetidos (mismo id): queda el más reciente; si hay más de 500, los 500 más recientes.
  * Pasar el resultado otra vez por aquí lo deja igual y sin descartes.
  */
-export function migrarPrefsChatsGenesis(crudo: unknown): { prefs: PrefsChatsGenesis; descartado: unknown[] } {
+export function migrarPrefsChatsGenesis(crudo: unknown, catalogo: CatalogoCanon | null = null): { prefs: PrefsChatsGenesis; descartado: unknown[] } { // GEN1114E · + catálogo opcional
     try {
         if (crudo === undefined || crudo === null) return { prefs: prefsVacias(), descartado: [] };
         if (!esObjeto(crudo)) return { prefs: prefsVacias(), descartado: [{ motivo: "no es un objeto", valor: crudo } satisfies Descarte] };
         const descartado: Descarte[] = [];
-        const futura = typeof crudo.v === "number" && crudo.v > 1;
+        const futura = typeof crudo.v === "number" && crudo.v > 2; // GEN1114E · la v2 ya es de esta app
         if (futura) descartado.push({ motivo: `versión ${crudo.v}, posterior a esta app`, valor: crudo });
         // De una versión futura ya está guardado el original entero: los detalles no se repiten.
         const fuera: Descarte[] = futura ? [] : descartado;
-        if (!futura && crudo.v !== undefined && crudo.v !== 1) fuera.push({ motivo: "versión no válida", valor: crudo.v, campo: "v" });
+        if (!futura && crudo.v !== undefined && crudo.v !== 1 && crudo.v !== 2) fuera.push({ motivo: "versión no válida", valor: crudo.v, campo: "v" });
         for (const k of Object.keys(crudo)) if (!CLAVES_PREFS.has(k)) fuera.push({ motivo: "campo desconocido", valor: crudo[k], campo: k });
 
         const lista: unknown[] = Array.isArray(crudo.vinculos) ? crudo.vinculos : [];
@@ -205,7 +225,7 @@ export function migrarPrefsChatsGenesis(crudo: unknown): { prefs: PrefsChatsGene
 
         const porId = new Map<string, VinculoChat>();
         for (const x of lista) {
-            const v = migrarVinculo(x, fuera);
+            const v = migrarVinculo(x, fuera, catalogo);
             if (!v) continue;
             const previo = porId.get(v.id);
             if (!previo) porId.set(v.id, v);
@@ -224,7 +244,7 @@ export function migrarPrefsChatsGenesis(crudo: unknown): { prefs: PrefsChatsGene
             vinculos = vinculos.filter((v) => quedan.has(v.id));
         }
         const conexiones = migrarConexiones(crudo.conexiones, fuera);
-        return { prefs: { v: 1, vinculos, conexiones }, descartado };
+        return { prefs: { v: 2, vinculos, conexiones }, descartado }; // GEN1114E · siempre sale v2
     } catch {
         return { prefs: prefsVacias(), descartado: [{ motivo: "no se pudo leer", valor: crudo } satisfies Descarte] };
     }
@@ -253,6 +273,8 @@ export function vincular(
     const previo = p.vinculos.find((x) => x.id === id);
     if (!previo && p.vinculos.length >= MAX_VINCULOS) throw new RangeError("ya hay 500 vínculos: quita alguno antes");
     const nuevo: VinculoChat = { v: 1, id, fuente, nivel: v.nivel, en, creado: previo?.creado ?? ahora, actualizado: ahora };
+    if (previo?.chat) nuevo.chat = previo.chat; // GEN1114E · no se pierde el id canónico al rehacer
+    else if (fuente.tipo === "direccion") nuevo.chat = ID_DIRECCION;
     if (v.nivel === "poligenesis") nuevo.entidad = v.entidad as string;
     const titulo = v.titulo !== undefined ? v.titulo.trim().slice(0, MAX_TITULO) : previo?.titulo;
     if (titulo) nuevo.titulo = titulo;
@@ -331,6 +353,14 @@ export interface OpcionesAdaptador {
     ahora?: () => number;
     /** Aviso a otras pestañas y aparatos tras marcar una conversación. */
     avisar?: (convId: string) => void;
+    /** GEN1114E · catálogo para poner el id canónico a los puentes; por defecto, la copia del aparato. */
+    catalogo?: CatalogoCanon | null;
+}
+
+/** GEN1114E · el catálogo que usa la migración: el pasado o la copia guardada en el aparato. */
+function catalogoDe(op: OpcionesAdaptador | undefined, almacen: AlmacenLocal | null): CatalogoCanon | null {
+    if (op?.catalogo !== undefined) return op.catalogo;
+    return leerCopiaCanon(almacen)?.catalogo ?? null;
 }
 
 function almacenNavegador(): AlmacenLocal | null {
@@ -365,7 +395,7 @@ function errorTexto(e: unknown): string {
 export function leerCopiaLocalChatsGenesis(almacen: AlmacenLocal | null = almacenNavegador()): PrefsChatsGenesis {
     try {
         const crudo = almacen?.getItem(CLAVE_LOCAL);
-        return migrarPrefsChatsGenesis(crudo ? (JSON.parse(crudo) as { prefs?: unknown }).prefs : undefined).prefs;
+        return migrarPrefsChatsGenesis(crudo ? (JSON.parse(crudo) as { prefs?: unknown }).prefs : undefined, catalogoDe(undefined, almacen)).prefs; // GEN1114E
     } catch {
         return prefsVacias();
     }
@@ -377,6 +407,20 @@ function guardarCopiaLocal(almacen: AlmacenLocal | null, prefs: PrefsChatsGenesi
     } catch {
         /* almacén lleno o bloqueado: la verdad sigue en la cuenta */
     }
+}
+
+/**
+ * GEN1114E · ¿Hay que escribir la v2 tras leer? Solo si lo guardado tenía algo (vínculos o
+ * conexiones) y era v1, o si la migración puso el id canónico a algún vínculo que no lo tenía.
+ * (No se compara el JSON entero: `jsonb` reordena las claves y se escribiría en cada lectura.)
+ */
+export function hayQueSubirV2(guardado: unknown, prefs: PrefsChatsGenesis): boolean {
+    if (!esObjeto(guardado)) return false;
+    const conAlgo = prefs.vinculos.length > 0 || Object.keys(prefs.conexiones).length > 0;
+    if (!conAlgo) return false;
+    if (guardado.v !== 2) return true;
+    const antes = Array.isArray(guardado.vinculos) ? guardado.vinculos.filter((v) => esObjeto(v) && typeof v.chat === "string").length : 0;
+    return prefs.vinculos.filter((v) => v.chat).length > antes;
 }
 
 /**
@@ -405,13 +449,16 @@ export async function leerPrefsChatsGenesis(op?: OpcionesAdaptador): Promise<Pre
             .maybeSingle();
         if (error) throw error;
         const fila = (esObjeto(data) ? data : {}) as { prefs?: unknown; descartado?: unknown };
-        const { prefs, descartado } = migrarPrefsChatsGenesis(fila.prefs);
+        const { prefs, descartado } = migrarPrefsChatsGenesis(fila.prefs, catalogoDe(op, almacen)); // GEN1114E
         if (descartado.length > 0) {
             const previos = Array.isArray(fila.descartado) ? fila.descartado : fila.descartado == null ? [] : [fila.descartado];
             const lista = [...previos, { t: new Date(ahora()).toISOString(), de: CLAVE_PREFS, valores: descartado }].slice(-MAX_DESCARTADO);
             descartePendiente = lista;
             const r = await mergeDe(op, { [CLAVE_PREFS]: prefs, [CLAVE_PREFS_DESCARTADO]: lista }).catch(() => ({ ok: false }));
             if (r.ok) descartePendiente = null;
+        } else if (hayQueSubirV2(fila.prefs, prefs)) {
+            // GEN1114E · v1 → v2 (§5.3): se escribe solo cuando hay algo que guardar, en un parche.
+            await mergeDe(op, { [CLAVE_PREFS]: prefs }).catch(() => ({ ok: false }));
         }
         guardarCopiaLocal(almacen, prefs, ahora());
         return prefs;
@@ -428,7 +475,7 @@ export async function leerPrefsChatsGenesis(op?: OpcionesAdaptador): Promise<Pre
 export async function guardarPrefsChatsGenesis(p: PrefsChatsGenesis, op?: OpcionesAdaptador): Promise<void> {
     const almacen = op?.almacen !== undefined ? op.almacen : almacenNavegador();
     const ahora = op?.ahora ?? (() => Date.now());
-    const { prefs } = migrarPrefsChatsGenesis(p);
+    const { prefs } = migrarPrefsChatsGenesis(p, catalogoDe(op, almacen)); // GEN1114E
     guardarCopiaLocal(almacen, prefs, ahora());
     const parche: Record<string, unknown> = { [CLAVE_PREFS]: prefs };
     const pendiente = descartePendiente;

@@ -10,19 +10,30 @@
  *    `{ok:false, estado:0, error:"abortado"}` sin lanzar y sin dejar temporizadores vivos.
  *  · No hay respaldo por Supabase ni por el túnel (decisión D4): si la puerta no está, se dice.
  * `acuses` va por `puertaA1().operar` (GET sin cola), como pide el contrato.
+ *
+ * GEN1114E (contrato GEN1114 §3.4 y §8.4): `enviar` firma con la clave del aparato y manda una
+ * `EntradaFirmada` (v2). Sin aparato emparejado, sin el chat que se ve, con otra cuenta o con algo
+ * `alto` desde un aparato de nivel «texto», no sale nada a la red. Un reintento tras un fallo de red
+ * reenvía LA MISMA entrada firmada (mismo `seq` y nonce), nunca una nueva.
  */
 
 import { puertaA1, type PuertaA1 } from "@/lib/datos/puerta-a1";
 import { leerUrlGuardada, urlPuertaValida, type AlmacenPuerta } from "@/lib/datos/puerta-a1-tipos";
 import { estadoEspejo } from "./estado-espejo";
 import {
-    ACCIONES_ENTRADA,
+    ACCIONES_ENTRADA_FIRMADA,
     FUENTES_ENTRADA,
     FUENTES_ESPEJO,
     LIMITE_TEXTO_ENTRADA,
+    RE_HUELLA,
+    destinoDeFuente,
     type EntradaChat,
+    type EntradaFirmada,
     type RegistroEspejo,
 } from "./tipos";
+// GEN1114E · la firma del aparato
+import { ErrorFirma, aparatoLocal, claveAparatoPerdida, cuentaDeSesion, firmarEntrada, riesgoDeEntrada } from "./firma-aparato";
+import { ALIAS_GEN1113, ID_DIRECCION } from "./alias-gen1113";
 
 export { estadoEspejo };
 
@@ -34,9 +45,17 @@ export type RespuestaFeed =
 
 export type RespuestaEnviar = { ok: true; id: number } | { ok: false; estado: number; codigo?: string; error: string };
 
+/** GEN1114E · el chat que la persona ve en la cabecera del hilo: su id canónico y su nombre, tal cual. */
+export interface ChatVisto {
+    id: string;
+    nombre: string;
+}
+
 export interface ClienteChatsGenesis {
     feed(f: { fuente: string; desde?: number; esperar?: number; limite?: number }, senal?: AbortSignal): Promise<RespuestaFeed>;
-    enviar(e: Omit<EntradaChat, "v" | "nonce" | "t">): Promise<RespuestaEnviar>;
+    // GEN1114E · segundo argumento opcional en el tipo (los componentes de GEN1113 siguen compilando)
+    // pero necesario para escribir: sin él → {ok:false, estado:0, codigo:"sin-chat"} sin red.
+    enviar(e: Omit<EntradaChat, "v" | "nonce" | "t">, chat?: ChatVisto): Promise<RespuestaEnviar>;
     acuses(ids: number[]): Promise<Record<number, { estado: string; detalle?: string; t: string }>>;
 }
 
@@ -59,6 +78,11 @@ export interface OpcionesClienteChats {
     sesion?: () => Promise<string | null>;
     /** Generador del nonce (pruebas). Por defecto, 16 bytes de `crypto.getRandomValues`. */
     nonce?: () => string;
+    /**
+     * GEN1114E · ¿Hay una acción de la persona en curso (un toque o una tecla)? Por defecto,
+     * `navigator.userActivation.isActive` donde exista (si no existe, se da por buena).
+     */
+    gesto?: () => boolean;
 }
 
 /** 128 bits aleatorios en base64url (22 caracteres). Sin generador seguro, lanza: nunca `Math.random`. */
@@ -109,16 +133,52 @@ const POR_CODIGO: Record<string, string> = {
     "rol-sin-comprobar": MENSAJES[503],
     limite: MENSAJES[429],
     "nonce-repetido": MENSAJES[409],
-    grande: "El mensaje pasa de 16 KB",
+    grande: "El mensaje pasa del tamaño máximo (48 KB firmado)", // GEN1114E · v2 admite 48 KB (§3.5)
+    // GEN1114E · códigos nuevos de la puerta (contrato GEN1114 §8.1)
+    "sin-firma": "Este aparato no está emparejado para escribir",
+    "firma-cuenta": "La firma es de otra cuenta que la de tu sesión: no se envió nada",
+    "destino-cerrado": "Escribir a Peticiones llega cuando el A1 tenga la versión nueva",
+    "solicitud-limite": "Ya hay 3 solicitudes pendientes para tu cuenta: espera a que caduquen o confírmalas en la Mac",
 };
+
+/** GEN1114E · lo que `enviar` dice sin llamar a la red (contrato GEN1114 §3.9 y §8.4). */
+export const TEXTOS_SIN_RED: Readonly<Record<string, string>> = Object.freeze({
+    "sin-emparejar": "Este aparato puede leer, pero aún no escribir. Para escribir, emparéjalo en tu Mac.",
+    "clave-perdida": "La clave de este aparato ya no está (se borraron los datos del sitio). Empareja de nuevo.",
+    revocado: "Este aparato fue retirado en la Mac. Para volver a escribir, emparéjalo de nuevo.",
+    "sin-chat": "No se sabe en qué chat escribes: no se envió nada",
+    "otra-cuenta": "Este aparato se emparejó con otra cuenta",
+    nivel: "Desde este aparato solo puedes escribir texto en el hilo y pedir el estado. Para hablar con Hermes, aprobar tareas o pedir trabajo, emparéjalo como completo en la Mac.",
+    "sin-gesto": "Solo se envía al pulsar enviar: no se firmó nada",
+});
 
 type Pedido = { estado: number; cuerpo: unknown } | { motivo: "abortado" | "tiempo" | "red" };
 
-export function crearClienteChatsGenesis(op: OpcionesClienteChats = {}): ClienteChatsGenesis {
+// ── GEN1114E · petición directa a la puerta, compartida con canon.ts y emparejar.ts ──────────
+
+export interface OpcionesPuertaDirecta {
+    puerta?: PuertaA1;
+    fetch?: FetchLike;
+    ahora?: () => number;
+    url?: () => Promise<string | null>;
+    sesion?: () => Promise<string | null>;
+}
+
+/** Diferencia entre la hora de este aparato y la cabecera `Date` de la última respuesta (ms; positivo = adelantado). */
+let ultimoDesfaseMs: number | null = null;
+/** GEN1114E · solo aviso (§3.6): la puerta no es de confianza para la hora. */
+export function desfaseRelojMs(): number | null {
+    return ultimoDesfaseMs;
+}
+
+/**
+ * La URL de la puerta, la sesión y una petición con tiempo máximo y aborto, sin cola ni reintentos.
+ * La usan el cliente de chats, el del catálogo y el de emparejar.
+ */
+export function crearPuertaDirecta(op: OpcionesPuertaDirecta = {}) {
     const puerta = op.puerta ?? puertaA1();
     const pedirFetch: FetchLike = op.fetch ?? ((i, init) => fetch(i, init));
     const ahora = op.ahora ?? (() => Date.now());
-    const nonce = op.nonce ?? nonceSeguro;
 
     async function urlBase(): Promise<string | null> {
         if (op.url) return urlPuertaValida(await op.url());
@@ -167,6 +227,12 @@ export function crearClienteChatsGenesis(op: OpcionesClienteChats = {}): Cliente
         try {
             const leer = (async () => {
                 const r = await pedirFetch(url, { ...init, signal: ctrl.signal, cache: "no-store", credentials: "omit" });
+                try {
+                    const fecha = Date.parse(r.headers?.get?.("date") ?? "");
+                    if (Number.isFinite(fecha)) ultimoDesfaseMs = ahora() - fecha;
+                } catch {
+                    /* sin cabecera Date */
+                }
                 let cuerpo: unknown = null;
                 try {
                     cuerpo = await r.json();
@@ -191,6 +257,27 @@ export function crearClienteChatsGenesis(op: OpcionesClienteChats = {}): Cliente
         const error = (codigo && POR_CODIGO[codigo]) || delServidor || MENSAJES[estado] || `La puerta respondió ${estado}`;
         return codigo ? { error, codigo } : { error };
     }
+
+    return { puerta, ahora, urlBase, sesion, destino, pedir, textoError };
+}
+
+/** GEN1114E · ¿hay una acción de la persona en curso? Donde el navegador no lo sabe decir, sí. */
+function gestoDelNavegador(): boolean {
+    try {
+        const ua = (globalThis as { navigator?: { userActivation?: { isActive?: boolean } } }).navigator?.userActivation;
+        return ua && typeof ua.isActive === "boolean" ? ua.isActive : true;
+    } catch {
+        return true;
+    }
+}
+
+export function crearClienteChatsGenesis(op: OpcionesClienteChats = {}): ClienteChatsGenesis {
+    const directa = crearPuertaDirecta(op); // GEN1114E · la misma lógica de antes, compartida
+    const { puerta, ahora, destino, pedir, textoError } = directa;
+    const nonce = op.nonce ?? nonceSeguro;
+    const gesto = op.gesto ?? gestoDelNavegador;
+    /** GEN1114E · entradas firmadas que no llegaron a la puerta (fallo de red): un reintento reenvía la misma. */
+    const sinConfirmar = new Map<string, { firmada: EntradaFirmada; caduca: number }>();
 
     async function feed(f: { fuente: string; desde?: number; esperar?: number; limite?: number }, senal?: AbortSignal): Promise<RespuestaFeed> {
         if (senal?.aborted) return { ok: false, estado: 0, error: "abortado" };
@@ -230,27 +317,71 @@ export function crearClienteChatsGenesis(op: OpcionesClienteChats = {}): Cliente
         return { ok: false, estado, error };
     }
 
-    async function enviar(e: Omit<EntradaChat, "v" | "nonce" | "t">): Promise<RespuestaEnviar> {
+    // ── GEN1114E · enviar firmado ─────────────────────────────────────────────────────────────
+    async function enviar(e: Omit<EntradaChat, "v" | "nonce" | "t">, chat?: ChatVisto): Promise<RespuestaEnviar> {
+        const sinRed = (codigo: string, error?: string): RespuestaEnviar => ({ ok: false, estado: 0, codigo, error: error ?? TEXTOS_SIN_RED[codigo] ?? codigo });
+        // Lo primero, antes de esperar nada: solo se firma dentro de una acción de la persona.
+        if (!gesto()) return sinRed("sin-gesto");
         const forma = (error: string): RespuestaEnviar => ({ ok: false, estado: 400, codigo: "forma", error });
         if (!esObjeto(e) || !(FUENTES_ENTRADA as readonly string[]).includes(e.fuente)) return forma("Ese chat no admite mensajes");
-        if (!(ACCIONES_ENTRADA as readonly string[]).includes(e.accion)) return forma("Acción no válida");
-        if (e.texto !== undefined && (typeof e.texto !== "string" || e.texto.length > LIMITE_TEXTO_ENTRADA)) {
+        if (!(ACCIONES_ENTRADA_FIRMADA as readonly string[]).includes(e.accion)) return forma("Acción no válida");
+        // GEN1114E · el largo se cuenta en caracteres como Python (puntos de código), igual que la puerta.
+        if (e.texto !== undefined && (typeof e.texto !== "string" || [...e.texto].length > LIMITE_TEXTO_ENTRADA)) {
             return forma(`El texto pasa de ${LIMITE_TEXTO_ENTRADA} caracteres`);
         }
-        let n: string;
-        try {
-            n = nonce();
-        } catch (x) {
-            return { ok: false, estado: 0, error: x instanceof Error ? x.message : "Sin generador seguro" };
-        }
+        const retirada = e.accion === "revocarme" || e.accion === "revocar-aparato";
+        if (retirada) {
+            if (e.fuente !== "direccion") return forma("Las retiradas van siempre por la dirección");
+            if (e.accion === "revocar-aparato" && (typeof e.huella !== "string" || !RE_HUELLA.test(e.huella))) return forma("Falta la huella del aparato que se retira");
+        } else if (e.huella !== undefined) return forma("Campo «huella» fuera de una retirada");
+        // Las retiradas van siempre al chat de la dirección (§3.4): si no se pasa, se usa el fijo.
+        const visto: ChatVisto | undefined = chat ?? (retirada ? { id: ID_DIRECCION, nombre: ALIAS_GEN1113.direccion.etiqueta } : undefined);
+        if (!visto || typeof visto.id !== "string" || typeof visto.nombre !== "string" || !visto.id || !visto.nombre.trim()) return sinRed("sin-chat");
+
+        // El aparato: sin clave emparejada no sale nada (y una clave perdida se dice, no se rehace).
+        const aparato = await aparatoLocal();
+        if (!aparato) return sinRed((await claveAparatoPerdida()) ? "clave-perdida" : "sin-emparejar");
+        if (aparato.estado === "revocado") return sinRed("revocado");
+        if (aparato.estado !== "emparejado") return sinRed("sin-emparejar");
+        // La cuenta sale de la sesión propia (sin verificar: es la nuestra) ANTES de buscar la puerta.
+        const jwt = await directa.sesion();
+        if (!jwt) return { ok: false, estado: 401, error: MENSAJES[401] };
+        const cuenta = cuentaDeSesion(jwt);
+        if (!cuenta || cuenta.toLowerCase() !== aparato.cuenta.toLowerCase()) return sinRed("otra-cuenta");
+        if (riesgoDeEntrada(e) === "alto" && aparato.nivel !== "completo") return sinRed("nivel");
+
         // Solo los campos del contrato: `cuenta` y `rol` los pone la puerta, nunca el cuerpo.
-        const cuerpo: EntradaChat = { v: 1, nonce: n, t: new Date(ahora()).toISOString(), fuente: e.fuente, accion: e.accion };
-        if (e.texto !== undefined) cuerpo.texto = e.texto;
-        if (e.modelo !== undefined) cuerpo.modelo = e.modelo;
-        if (e.canales !== undefined) cuerpo.canales = e.canales;
-        if (e.respondeA !== undefined) cuerpo.respondeA = e.respondeA;
-        if (e.reenviar !== undefined) cuerpo.reenviar = e.reenviar;
-        if (e.orden !== undefined) cuerpo.orden = e.orden;
+        const limpia: Omit<EntradaChat, "v" | "nonce" | "t"> = { fuente: e.fuente, accion: e.accion };
+        if (e.texto !== undefined) limpia.texto = e.texto;
+        if (e.modelo !== undefined) limpia.modelo = e.modelo;
+        if (e.canales !== undefined) limpia.canales = e.canales;
+        if (e.respondeA !== undefined) limpia.respondeA = e.respondeA;
+        if (e.reenviar !== undefined) limpia.reenviar = e.reenviar;
+        if (e.orden !== undefined) limpia.orden = e.orden;
+        if (e.huella !== undefined) limpia.huella = e.huella;
+
+        const llave = JSON.stringify([aparato.huella, cuenta.toLowerCase(), visto.id, visto.nombre, limpia]);
+        const ya = sinConfirmar.get(llave);
+        let firmada: EntradaFirmada;
+        if (ya && ya.caduca > ahora()) firmada = ya.firmada;
+        else {
+            sinConfirmar.delete(llave);
+            let n: string;
+            try {
+                n = nonce();
+            } catch (x) {
+                return { ok: false, estado: 0, error: x instanceof Error ? x.message : "Sin generador seguro" };
+            }
+            const t = ahora();
+            const cuerpo: EntradaChat = { v: 1, nonce: n, t: new Date(t).toISOString(), ...limpia };
+            try {
+                firmada = await firmarEntrada(cuerpo, { cuenta, destino: destinoDeFuente(e.fuente), chat: visto.id, chatNombre: visto.nombre, ahora: t });
+            } catch (x) {
+                const codigo = x instanceof ErrorFirma ? x.codigo : "firma";
+                return sinRed(codigo, TEXTOS_SIN_RED[codigo] ?? (x instanceof Error ? x.message : "No se pudo firmar"));
+            }
+            sinConfirmar.set(llave, { firmada, caduca: t + (riesgoDeEntrada(e) === "alto" ? 1800_000 : 7 * 86_400_000) });
+        }
 
         const d = await destino();
         if ("error" in d) return { ok: false, estado: d.estado, error: d.error };
@@ -260,7 +391,7 @@ export function crearClienteChatsGenesis(op: OpcionesClienteChats = {}): Cliente
             {
                 method: "POST",
                 headers: { accept: "application/json", "content-type": "application/json", authorization: `Bearer ${d.jwt}` },
-                body: JSON.stringify(cuerpo),
+                body: JSON.stringify(firmada),
             },
             TIEMPO_ENVIAR_MS,
         );
@@ -270,6 +401,8 @@ export function crearClienteChatsGenesis(op: OpcionesClienteChats = {}): Cliente
                 : "No se envió: la puerta de datos del A1 no responde";
             return { ok: false, estado: 0, error };
         }
+        // La puerta contestó: esa entrada firmada ya no se reutiliza (salió bien o la puerta la rechazó).
+        sinConfirmar.delete(llave);
         if (r.estado >= 200 && r.estado < 300) {
             const id = esObjeto(r.cuerpo) ? Number(r.cuerpo.id) : NaN;
             if (Number.isInteger(id) && id > 0) return { ok: true, id };
