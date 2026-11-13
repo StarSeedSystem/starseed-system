@@ -16,6 +16,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { KeyRound, Loader2, MonitorSmartphone, RotateCcw, ShieldAlert, ShieldCheck } from "lucide-react";
 
+import { AvisoSesion } from "@/components/auth/aviso-sesion";
 import { CONSULTA_CADA_MS, consultarEmparejamiento, crearClienteAparatos, pedirEmparejar, type ClienteAparatos } from "@/lib/chats-genesis/emparejar";
 import { MAX_NOMBRE_APARATO, aparatoLocal, claveAparatoPerdida, cuentaDeSesion, soporteFirma, type AparatoLocal } from "@/lib/chats-genesis/firma-aparato";
 import { cn } from "@/lib/utils";
@@ -76,6 +77,8 @@ export function EmparejarAparato({ clienteAparatos, alCambiar }: EmparejarAparat
     const [nombre, setNombre] = useState("");
     const [pidiendo, setPidiendo] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    // Sin sesión al pulsar «Emparejar»: el aviso común de sesión (con «Iniciar sesión» y la guía, GUI1021N), no una frase suelta.
+    const [pideSesion, setPideSesion] = useState(false);
     const [ahora, setAhora] = useState(() => Date.now());
     const alCambiarRef = useRef(alCambiar);
     alCambiarRef.current = alCambiar;
@@ -132,8 +135,9 @@ export function EmparejarAparato({ clienteAparatos, alCambiar }: EmparejarAparat
 
     const emparejar = async () => {
         const limpio = nombre.trim();
+        setPideSesion(false);
         if (!limpio) { setError("Pon un nombre para reconocer este aparato en la Mac (p. ej. «iPhone de Alex»)"); return; }
-        if (!cuenta) { setError("Inicia sesión para emparejar este aparato"); return; }
+        if (!cuenta) { setError(null); setPideSesion(true); return; }
         setPidiendo(true);
         setError(null);
         const r = await pedirEmparejar(cliente.current!, { nombre: limpio.slice(0, MAX_NOMBRE_APARATO), cuenta }).catch((e: unknown) => ({
@@ -178,7 +182,7 @@ export function EmparejarAparato({ clienteAparatos, alCambiar }: EmparejarAparat
             </button>
         </form>
     );
-    const fallo = error ? <p role="alert" data-testid="error-emparejar" className="rounded-lg border border-rose-400/30 bg-rose-500/10 px-2.5 py-1.5 text-[12px] text-rose-100">{error}</p> : null;
+    const fallo = pideSesion ? <AvisoSesion compacto texto="Inicia sesión para emparejar este aparato" /> : error ? <p role="alert" data-testid="error-emparejar" className="rounded-lg border border-rose-400/30 bg-rose-500/10 px-2.5 py-1.5 text-[12px] text-rose-100">{error}</p> : null;
 
     if (fase.tipo === "perdida") {
         const cuando = fase.vistoPorUltima ? momentoTexto(Date.parse(fase.vistoPorUltima), Date.now()) : null;

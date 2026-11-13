@@ -18,6 +18,7 @@ const sim = vi.hoisted(() => ({
     aparato: null as AparatoLocal | null,
     perdida: null as null | { huella: string; nombre: string; estado: string; vistoPorUltima: string | null },
     soporte: { ok: true } as { ok: true } | { ok: false; motivo: string },
+    sinSesion: false,
     pedir: vi.fn(),
     consultar: vi.fn(),
 }));
@@ -26,7 +27,9 @@ vi.mock("@/utils/supabase/client", () => ({
     createClient: () => ({
         auth: {
             // JWT de mentira con sub = la cuenta 1 de los vectores de §3.3 (sin firma: nadie lo verifica aquí).
-            getSession: async () => ({ data: { session: { access_token: `e30.${btoa(JSON.stringify({ sub: "00000000-0000-4000-8000-000000000001" })).replace(/=+$/, "")}.x` } } }),
+            getSession: async () => (sim.sinSesion
+                ? { data: { session: null } }
+                : { data: { session: { access_token: `e30.${btoa(JSON.stringify({ sub: "00000000-0000-4000-8000-000000000001" })).replace(/=+$/, "")}.x` } } }),
         },
     }),
 }));
@@ -68,6 +71,7 @@ beforeEach(() => {
     sim.aparato = null;
     sim.perdida = null;
     sim.soporte = { ok: true };
+    sim.sinSesion = false;
     sim.pedir.mockReset();
     sim.consultar.mockReset();
 });
@@ -195,6 +199,20 @@ describe("emparejar (§3.3, §3.8, §3.9)", () => {
         await screen.findByTestId("tarjeta-pendiente");
         expect(sim.pedir).toHaveBeenCalledWith(expect.anything(), { nombre: "iPhone de Alex", cuenta: "00000000-0000-4000-8000-000000000001" });
         expect(alCambiar).toHaveBeenCalledWith(expect.objectContaining({ estado: "pendiente" }));
+    });
+
+    it("sin sesión, pulsar «Emparejar» enseña el aviso común de sesión con la guía (GUI1021N) y no pide nada a la puerta", async () => {
+        sim.sinSesion = true;
+        sim.aparato = { ...APARATO_COMPLETO, estado: "sin-emparejar" };
+        render(<EmparejarAparato />);
+        fireEvent.change(await screen.findByLabelText("Nombre de este aparato"), { target: { value: "iPhone de Alex" } });
+        fireEvent.click(screen.getByRole("button", { name: /Emparejar este aparato/ }));
+        const aviso = await screen.findByTestId("aviso-sesion");
+        expect(aviso).toHaveTextContent("Inicia sesión para emparejar este aparato");
+        expect(within(aviso).getByRole("link", { name: /Iniciar sesión/ })).toHaveAttribute("href", "/bienvenida");
+        expect(within(aviso).getByRole("button", { name: /Conoce StarSeed/ })).toBeInTheDocument();
+        expect(screen.queryByTestId("error-emparejar")).toBeNull();
+        expect(sim.pedir).not.toHaveBeenCalled();
     });
 
     it("una solicitud caducada, un aparato retirado, la clave perdida y un navegador sin soporte lo dicen", async () => {
