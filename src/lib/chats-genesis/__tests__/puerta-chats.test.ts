@@ -1,11 +1,15 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { crearClienteChatsGenesis, type FetchLike } from "../puerta-chats";
 import { crearPuertaA1, type PuertaA1 } from "@/lib/datos/puerta-a1";
 import { CLAVE_COLA, leerCola, type AlmacenPuerta } from "@/lib/datos/puerta-a1-tipos";
 import { RE_NONCE, type EntradaChat } from "../tipos";
+import { _reiniciarFirmaAparato, actualizarEstadoAparato, configurarFirmaAparato, crearClaveAparato, deB64url } from "../firma-aparato";
+import { crearIdbFalso, crearMarcaFalsa, crearRespaldo } from "./idb-falso";
 
 const BASE = "https://puerta.prueba";
-const JWT = "jwt-de-prueba";
+// GEN1114E · un JWT con `sub` (la cuenta sale de la sesión propia, sin verificar)
+const CUENTA = "00000000-0000-4000-8000-000000000001";
+const JWT = `e30.${Buffer.from(JSON.stringify({ sub: CUENTA })).toString("base64url")}.firma`;
 
 function almacen(): AlmacenPuerta & { datos: Map<string, string> } {
     const datos = new Map<string, string>();
@@ -29,33 +33,52 @@ function cliente(fetch: FetchLike, extra: Partial<Parameters<typeof crearCliente
 }
 
 const decir: Omit<EntradaChat, "v" | "nonce" | "t"> = { fuente: "direccion", accion: "decir", texto: "Prueba GEN1113 desde el móvil", modelo: "director-presidente/auto", canales: ["director-presidente"] };
+// GEN1114E · lo que ve la cabecera del hilo (el id y el nombre que se firman)
+const CHAT = { id: "genesis.canal.director-presidente", nombre: "Director presidente" };
 
 afterEach(() => {
     vi.useRealTimers();
 });
 
+// GEN1114E · un aparato emparejado de nivel «completo» (las pruebas de la firma están en enviar-firmado.test.ts)
+beforeEach(async () => {
+    _reiniciarFirmaAparato();
+    configurarFirmaAparato({ indexedDB: crearIdbFalso(crearRespaldo()), subtle: globalThis.crypto.subtle, marca: crearMarcaFalsa(), seguro: true });
+    await crearClaveAparato("Prueba", CUENTA);
+    await actualizarEstadoAparato({ estado: "emparejado", nivel: "completo" });
+});
+
+/** La entrada que va dentro de la carga firmada del cuerpo. */
+function entradaDe(cuerpo: string): EntradaChat {
+    const f = JSON.parse(cuerpo) as { carga: string };
+    return (JSON.parse(new TextDecoder().decode(deB64url(f.carga))) as { entrada: EntradaChat }).entrada;
+}
+
 describe("enviar · directo a la puerta, nunca a la cola local", () => {
-    it("manda una entrada v1 con nonce de 128 bits, sesión y sin cookies; devuelve el id", async () => {
+    it("manda una entrada FIRMADA (v2) con la entrada v1 dentro, nonce de 128 bits, sesión y sin cookies; devuelve el id", async () => {
         const fetch = vi.fn<FetchLike>(async () => respuesta(201, { id: 42, destino: "mac", estado: "en-cola" }));
         const { c } = cliente(fetch);
-        expect(await c.enviar({ ...decir, cuenta: "otra", rol: "dueño" } as typeof decir)).toEqual({ ok: true, id: 42 });
+        expect(await c.enviar({ ...decir, cuenta: "otra", rol: "dueño" } as typeof decir, CHAT)).toEqual({ ok: true, id: 42 });
         expect(fetch).toHaveBeenCalledTimes(1);
         const [url, init] = fetch.mock.calls[0];
         expect(url).toBe(`${BASE}/v1/genesis/chats/entrada`);
         expect(init).toMatchObject({ method: "POST", credentials: "omit", cache: "no-store" });
         expect((init!.headers as Record<string, string>).authorization).toBe(`Bearer ${JWT}`);
         const cuerpo = JSON.parse(String(init!.body));
-        expect(cuerpo).toMatchObject({ v: 1, t: "2026-11-13T10:00:00.000Z", ...decir });
-        expect(cuerpo.nonce).toMatch(RE_NONCE);
-        expect(cuerpo).not.toHaveProperty("cuenta");
-        expect(cuerpo).not.toHaveProperty("rol");
+        expect(Object.keys(cuerpo).sort()).toEqual(["aparato", "carga", "firma", "v"]);
+        expect(cuerpo.v).toBe(2);
+        const e = entradaDe(String(init!.body));
+        expect(e).toMatchObject({ v: 1, t: "2026-11-13T10:00:00.000Z", ...decir });
+        expect(e.nonce).toMatch(RE_NONCE);
+        expect(e).not.toHaveProperty("cuenta");
+        expect(e).not.toHaveProperty("rol");
     });
 
     it("cada envío lleva un nonce distinto", async () => {
         const nonces = new Set<string>();
-        const fetch = vi.fn<FetchLike>(async (_u, init) => (nonces.add(JSON.parse(String(init!.body)).nonce), respuesta(201, { id: 1 })));
+        const fetch = vi.fn<FetchLike>(async (_u, init) => (nonces.add(entradaDe(String(init!.body)).nonce), respuesta(201, { id: 1 })));
         const { c } = cliente(fetch);
-        for (let i = 0; i < 20; i++) await c.enviar(decir);
+        for (let i = 0; i < 20; i++) await c.enviar({ ...decir, texto: `n${i}` }, CHAT);
         expect(nonces.size).toBe(20);
     });
 
@@ -74,7 +97,7 @@ describe("enviar · directo a la puerta, nunca a la cola local", () => {
             const puerta = crearPuertaA1({ fetch, almacen: a, url: BASE, sesion: async () => JWT });
             const operar = vi.spyOn(puerta, "operar");
             const c = crearClienteChatsGenesis({ puerta, fetch, url: async () => BASE, sesion: async () => JWT });
-            const r = await c.enviar(decir);
+            const r = await c.enviar(decir, CHAT);
             expect(r.ok).toBe(false);
             expect(fetch).toHaveBeenCalledTimes(1);
             expect(operar).not.toHaveBeenCalled();
@@ -85,7 +108,7 @@ describe("enviar · directo a la puerta, nunca a la cola local", () => {
 
     it("403 solo-dueno: el motivo para la interfaz, que deja el borrador", async () => {
         const { c } = cliente(async () => respuesta(403, { error: "solo un dueño", codigo: "solo-dueno" }));
-        expect(await c.enviar({ fuente: "puente:hermes-avisos", accion: "orden", orden: { nombre: "aprobar", args: ["T1"] } })).toEqual({
+        expect(await c.enviar({ fuente: "puente:hermes-avisos", accion: "orden", orden: { nombre: "aprobar", args: ["T1"] } }, { id: "telegram.ejemplo_a_bot", nombre: "Bot A de ejemplo" })).toEqual({
             ok: false,
             estado: 403,
             codigo: "solo-dueno",
@@ -95,22 +118,30 @@ describe("enviar · directo a la puerta, nunca a la cola local", () => {
 
     it("sin sesión, con la puerta apagada en el aparato o con una forma imposible, no sale ninguna petición", async () => {
         const fetch = vi.fn<FetchLike>(async () => respuesta(201, { id: 1 }));
-        expect(await cliente(fetch, { sesion: async () => null }).c.enviar(decir)).toMatchObject({ ok: false, estado: 401 });
+        expect(await cliente(fetch, { sesion: async () => null }).c.enviar(decir, CHAT)).toMatchObject({ ok: false, estado: 401 });
         const apagada = crearClienteChatsGenesis({ puerta: puertaFalsa("apagada").puerta, fetch, url: async () => BASE, sesion: async () => JWT });
-        expect(await apagada.enviar(decir)).toMatchObject({ ok: false, estado: 0 });
-        expect(await cliente(fetch, { url: async () => null }).c.enviar(decir)).toMatchObject({ ok: false, estado: 0 });
+        expect(await apagada.enviar(decir, CHAT)).toMatchObject({ ok: false, estado: 0 });
+        expect(await cliente(fetch, { url: async () => null }).c.enviar(decir, CHAT)).toMatchObject({ ok: false, estado: 0 });
         const { c } = cliente(fetch);
-        expect(await c.enviar({ fuente: "puente:avisos-directores", accion: "texto", texto: "hola" } as unknown as typeof decir)).toMatchObject({ ok: false, estado: 400 });
-        expect(await c.enviar({ ...decir, texto: "x".repeat(8001) })).toMatchObject({ ok: false, estado: 400 });
-        expect(await c.enviar({ ...decir, accion: "borrar" } as unknown as typeof decir)).toMatchObject({ ok: false, estado: 400 });
+        expect(await c.enviar({ fuente: "puente:avisos-directores", accion: "texto", texto: "hola" } as unknown as typeof decir, CHAT)).toMatchObject({ ok: false, estado: 400 });
+        expect(await c.enviar({ ...decir, texto: "x".repeat(8001) }, CHAT)).toMatchObject({ ok: false, estado: 400 });
+        expect(await c.enviar({ ...decir, accion: "borrar" } as unknown as typeof decir, CHAT)).toMatchObject({ ok: false, estado: 400 });
         expect(fetch).not.toHaveBeenCalled();
     });
 
     it("una puerta que no contesta corta a los 15 s, con ok:false y sin reintentar", async () => {
-        vi.useFakeTimers();
+        // GEN1114E · la firma usa IndexedDB (de mentira, con setTimeout): se avanza hasta que sale la petición.
         const fetch = vi.fn<FetchLike>(() => new Promise<Response>(() => {}));
-        const { c } = cliente(fetch);
-        const p = c.enviar(decir);
+        const otro = cliente(fetch).c;
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+        const p = otro.enviar(decir, CHAT);
+        for (let i = 0; i < 5000 && fetch.mock.calls.length === 0; i++) {
+            // 1 ms: un setTimeout(0) creado durante un avance cuenta como 1 ms en los relojes de mentira.
+            await vi.advanceTimersByTimeAsync(1);
+            await new Promise((r) => setImmediate(r)); // WebCrypto contesta fuera de los temporizadores
+        }
+        expect(await Promise.race([p, Promise.resolve("sigue")])).toBe("sigue");
+        expect(fetch).toHaveBeenCalledTimes(1);
         await vi.advanceTimersByTimeAsync(15_000);
         expect(await p).toMatchObject({ ok: false, estado: 0 });
         expect(fetch).toHaveBeenCalledTimes(1);
@@ -236,8 +267,8 @@ describe("los códigos de la puerta (GEN1113A) se traducen para la interfaz", ()
         const feed = cliente(async () => respuesta(403, { error: "solo miembros de MetaGenesis", codigo: "no-miembro" })).c;
         expect(await feed.feed({ fuente: "direccion" })).toEqual({ ok: false, estado: 403, error: "Tu cuenta no tiene acceso a MetaGenesis" });
         const rol = cliente(async () => respuesta(503, { error: "x", codigo: "rol-sin-comprobar" })).c;
-        expect(await rol.enviar(decir)).toEqual({ ok: false, estado: 503, codigo: "rol-sin-comprobar", error: "No se pudo comprobar tu permiso; no se envió nada" });
+        expect(await rol.enviar(decir, CHAT)).toEqual({ ok: false, estado: 503, codigo: "rol-sin-comprobar", error: "No se pudo comprobar tu permiso; no se envió nada" });
         const otro = cliente(async () => respuesta(418, { error: "texto del servidor", codigo: "nuevo" })).c;
-        expect(await otro.enviar(decir)).toEqual({ ok: false, estado: 418, codigo: "nuevo", error: "texto del servidor" });
+        expect(await otro.enviar(decir, CHAT)).toEqual({ ok: false, estado: 418, codigo: "nuevo", error: "texto del servidor" });
     });
 });

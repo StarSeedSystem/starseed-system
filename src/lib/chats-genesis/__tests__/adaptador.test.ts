@@ -74,9 +74,10 @@ describe("marcarConversacionGenesis · lee y fusiona meta, nunca la sustituye", 
     });
 });
 
+// GEN1114E · lo guardado ya en v2 (con el id canónico de la dirección): nada que migrar.
 const buenas: PrefsChatsGenesis = {
-    v: 1,
-    vinculos: [{ v: 1, id: "direccion", fuente: { tipo: "direccion" }, nivel: "metagenesis", en: ["chats", "genesis"], creado: "2026-11-13T09:00:00.000Z", actualizado: "2026-11-13T09:00:00.000Z" }],
+    v: 2,
+    vinculos: [{ v: 1, id: "direccion", fuente: { tipo: "direccion" }, nivel: "metagenesis", en: ["chats", "genesis"], creado: "2026-11-13T09:00:00.000Z", actualizado: "2026-11-13T09:00:00.000Z", chat: "genesis" }],
     conexiones: { metagenesis: { activo: true } },
 };
 
@@ -133,5 +134,67 @@ describe("leerPrefsChatsGenesis / guardarPrefsChatsGenesis", () => {
         await expect(guardarPrefsChatsGenesis(buenas, { merge, almacen: a, ahora })).rejects.toThrow(/RLS/);
         expect(merge.mock.calls[0][0]).toEqual({ chatsGenesis: buenas });
         expect(leerCopiaLocalChatsGenesis(a)).toEqual(buenas);
+    });
+});
+
+// GEN1114E · v1 → v2 al leer (contrato GEN1114 §2.6 y §5.3)
+describe("leerPrefsChatsGenesis · v1 → v2 sin perder nada", () => {
+    const T = "2026-11-13T09:00:00.000Z";
+    const v1 = {
+        v: 1,
+        vinculos: [
+            { v: 1, id: "direccion", fuente: { tipo: "direccion" }, nivel: "metagenesis", en: ["chats", "genesis"], creado: T, actualizado: T },
+            { v: 1, id: "puente:hermes-avisos", fuente: { tipo: "puente", puente: "hermes-avisos" }, nivel: "metagenesis", en: ["chats"], titulo: "Mi Hermes", creado: T, actualizado: T },
+            { v: 1, id: "astraura:c1", fuente: { tipo: "astraura", convId: "c1" }, nivel: "genesis", en: ["genesis"], creado: T, actualizado: T },
+        ],
+        conexiones: { metagenesis: { activo: true } },
+    };
+    const catalogo = {
+        v: 2, version: 1, t: T, chats: [
+            { v: 2, id: "genesis", nombre: "GENESIS · StarSeed OS", nombreProvisional: false, tipo: "direccion", fuente: "direccion", alias: ["direccion", "mando"], medios: [], version: 1, actualizado: T },
+            { v: 2, id: "telegram.ejemplo_a_bot", nombre: "Bot A de ejemplo", nombreProvisional: false, tipo: "puente-telegram", fuente: "puente:hermes-avisos", alias: ["puente:hermes-avisos", "hermes-avisos", "Hermes y avisos"], medios: [], version: 1, actualizado: T },
+        ],
+    };
+
+    it("escribe la v2 en un parche de su clave: mismos ids, títulos y bandejas, con el id canónico; los descartes no crecen", async () => {
+        const a = almacen();
+        a.setItem("starseed.chats-genesis.canon.v1", JSON.stringify({ catalogo, en: 1 }));
+        const { cliente } = supabase({ user_settings: { data: { prefs: v1, descartado: null }, error: null } });
+        const merge = vi.fn(async (_p: Record<string, unknown>) => ({ ok: true }));
+        const p = await leerPrefsChatsGenesis({ cliente, uid, merge, almacen: a, ahora });
+        expect(p.v).toBe(2);
+        expect(p.vinculos.map((v) => v.id)).toEqual(["direccion", "puente:hermes-avisos", "astraura:c1"]);
+        expect(p.vinculos.map((v) => v.chat)).toEqual(["genesis", "telegram.ejemplo_a_bot", undefined]);
+        expect(p.vinculos[1].titulo).toBe("Mi Hermes");
+        expect(p.vinculos[1].en).toEqual(["chats"]);
+        expect(merge).toHaveBeenCalledTimes(1);
+        expect(Object.keys(merge.mock.calls[0][0])).toEqual(["chatsGenesis"]);
+        expect(merge.mock.calls[0][0].chatsGenesis).toEqual(p);
+        // Releer lo escrito no vuelve a escribir.
+        const otra = supabase({ user_settings: { data: { prefs: JSON.parse(JSON.stringify(p)), descartado: null }, error: null } });
+        const merge2 = vi.fn(async (_p: Record<string, unknown>) => ({ ok: true }));
+        expect(await leerPrefsChatsGenesis({ cliente: otra.cliente, uid, merge: merge2, almacen: a, ahora })).toEqual(p);
+        expect(merge2).not.toHaveBeenCalled();
+    });
+
+    it("sin catálogo, el puente queda sin id canónico (se pondrá cuando llegue) y se sigue leyendo", async () => {
+        const { cliente } = supabase({ user_settings: { data: { prefs: v1, descartado: null }, error: null } });
+        const merge = vi.fn(async (_p: Record<string, unknown>) => ({ ok: true }));
+        const p = await leerPrefsChatsGenesis({ cliente, uid, merge, almacen: almacen(), ahora });
+        expect(p.vinculos.map((v) => v.chat)).toEqual(["genesis", undefined, undefined]);
+        expect(merge).toHaveBeenCalledTimes(1);
+        // Cuando llega el catálogo, se completa en otra escritura.
+        const otra = supabase({ user_settings: { data: { prefs: JSON.parse(JSON.stringify(p)), descartado: null }, error: null } });
+        const merge2 = vi.fn(async (_p: Record<string, unknown>) => ({ ok: true }));
+        const p2 = await leerPrefsChatsGenesis({ cliente: otra.cliente, uid, merge: merge2, almacen: almacen(), ahora, catalogo: catalogo as never });
+        expect(p2.vinculos[1].chat).toBe("telegram.ejemplo_a_bot");
+        expect(merge2).toHaveBeenCalledTimes(1);
+    });
+
+    it("una cuenta vacía no escribe nada", async () => {
+        const { cliente } = supabase({ user_settings: { data: { prefs: { v: 1, vinculos: [], conexiones: {} }, descartado: null }, error: null } });
+        const merge = vi.fn(async (_p: Record<string, unknown>) => ({ ok: true }));
+        await leerPrefsChatsGenesis({ cliente, uid, merge, almacen: almacen(), ahora });
+        expect(merge).not.toHaveBeenCalled();
     });
 });

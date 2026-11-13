@@ -25,13 +25,13 @@ describe("migrarPrefsChatsGenesis · pura, nunca null, nada se pierde", () => {
         for (const crudo of [undefined, null]) {
             const r = migrarPrefsChatsGenesis(crudo);
             expect(r).not.toBeNull();
-            expect(r.prefs).toEqual({ v: 1, vinculos: [], conexiones: {} });
+            expect(r.prefs).toEqual({ v: 2, vinculos: [], conexiones: {} }); // GEN1114E · sale v2
             expect(r.descartado).toEqual([]);
         }
     });
 
     it("{} → vacías y sin descartes", () => {
-        expect(migrarPrefsChatsGenesis({})).toEqual({ prefs: { v: 1, vinculos: [], conexiones: {} }, descartado: [] });
+        expect(migrarPrefsChatsGenesis({})).toEqual({ prefs: { v: 2, vinculos: [], conexiones: {} }, descartado: [] });
     });
 
     it("lo que no es un objeto se conserva entero en descartado", () => {
@@ -50,7 +50,7 @@ describe("migrarPrefsChatsGenesis · pura, nunca null, nada se pierde", () => {
         };
         const r = migrarPrefsChatsGenesis(crudo);
         expect(r.descartado).toEqual([]);
-        expect(r.prefs).toEqual(crudo);
+        expect(r.prefs).toEqual({ ...crudo, v: 2 }); // GEN1114E · lo mismo, en v2
         expect(migrarPrefsChatsGenesis(JSON.parse(JSON.stringify(r.prefs)))).toEqual({ prefs: r.prefs, descartado: [] });
     });
 
@@ -84,7 +84,7 @@ describe("migrarPrefsChatsGenesis · versión rota", () => {
     const d = r.descartado as Descarte[];
 
     it("quedan los vínculos que se entienden, limpios", () => {
-        expect(r.prefs.v).toBe(1);
+        expect(r.prefs.v).toBe(2);
         const ids = r.prefs.vinculos.map((v) => v.id);
         expect(ids).toEqual(["astraura:bueno", "astraura:con-extra", "astraura:titulo-largo", "astraura:repetido", "astraura:fecha-mala"]);
         const extra = r.prefs.vinculos[1];
@@ -110,8 +110,9 @@ describe("migrarPrefsChatsGenesis · versión rota", () => {
 });
 
 describe("migrarPrefsChatsGenesis · versión futura", () => {
+    // GEN1114E · la v2 ya es de esta app: la futura es la v3.
     const futura = {
-        v: 2,
+        v: 3,
         vinculos: [vinculo("sigue-v1"), { ...vinculo("ya-v2"), v: 2, bot: { personalidad: "x" } }],
         conexiones: { metagenesis: { activo: false } },
         compartidos: [{ servidor: "s1" }],
@@ -140,7 +141,41 @@ describe("migrarPrefsChatsGenesis · límites", () => {
     it("un objeto con propiedades que lanzan no rompe nada", () => {
         const trampa = Object.defineProperty({}, "vinculos", { enumerable: true, get: () => { throw new Error("boom"); } });
         const r = migrarPrefsChatsGenesis(trampa);
-        expect(r.prefs).toEqual({ v: 1, vinculos: [], conexiones: {} });
+        expect(r.prefs).toEqual({ v: 2, vinculos: [], conexiones: {} });
         expect(r.descartado).toHaveLength(1);
+    });
+});
+
+// GEN1114E · v1 → v2 (contrato GEN1114 §2.6)
+describe("migrarPrefsChatsGenesis · v2 con el id del chat canónico", () => {
+    const T = ISO;
+    const dir = { v: 1, id: "direccion", fuente: { tipo: "direccion" }, nivel: "metagenesis", en: ["chats", "genesis"], creado: T, actualizado: T, titulo: "Lo llamé yo" };
+    const pA = { v: 1, id: "puente:hermes-avisos", fuente: { tipo: "puente", puente: "hermes-avisos" }, nivel: "metagenesis", en: ["chats"], creado: T, actualizado: T };
+    const cat = {
+        v: 2 as const, version: 1, t: T, chats: [
+            { v: 2 as const, id: "telegram.ejemplo_a_bot", nombre: "Bot A de ejemplo", nombreProvisional: false, tipo: "puente-telegram" as const, fuente: "puente:hermes-avisos" as const, alias: ["puente:hermes-avisos"], medios: [], version: 1, actualizado: T },
+        ],
+    };
+
+    it("la dirección gana chat:genesis; un puente, el de la relación fija del catálogo; ids y títulos iguales", () => {
+        const r = migrarPrefsChatsGenesis({ v: 1, vinculos: [dir, pA], conexiones: {} }, cat);
+        expect(r.descartado).toEqual([]);
+        expect(r.prefs.v).toBe(2);
+        expect(r.prefs.vinculos).toEqual([{ ...dir, chat: "genesis" }, { ...pA, chat: "telegram.ejemplo_a_bot" }]);
+        // Idempotente, también sin catálogo (el id guardado de un puente se conserva).
+        expect(migrarPrefsChatsGenesis(JSON.parse(JSON.stringify(r.prefs)))).toEqual({ prefs: r.prefs, descartado: [] });
+    });
+
+    it("una v2 se lee como propia; un `chat` que no cuadra va a descartado (no se tira)", () => {
+        const r = migrarPrefsChatsGenesis({ v: 2, vinculos: [{ ...dir, chat: "otro" }, { ...pA, chat: "genesis" }, { ...vinculo("c9"), chat: "genesis" }], conexiones: {} });
+        expect(r.prefs.vinculos.map((v) => v.chat)).toEqual(["genesis", undefined, undefined]);
+        const t = JSON.stringify(r.descartado);
+        expect((r.descartado as Descarte[]).filter((d) => d.campo === "chat")).toHaveLength(3);
+        expect(t).toContain('"otro"');
+    });
+
+    it("una v1 escrita por un aparato viejo sobre una v2 se vuelve a migrar igual", () => {
+        const viejo = { v: 1, vinculos: [dir], conexiones: { metagenesis: { activo: true } } };
+        expect(migrarPrefsChatsGenesis(viejo).prefs).toEqual({ v: 2, vinculos: [{ ...dir, chat: "genesis" }], conexiones: { metagenesis: { activo: true } } });
     });
 });
