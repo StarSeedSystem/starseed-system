@@ -163,3 +163,70 @@ ambos lados.
 ### 7.4 Lo que no hace
 No toca el script de la puerta (es del supervisor y vive fuera del repo); no escribe en `~/.starseed/produccion/`
 más que `puerta-estado.json` y solo desde el script de la puerta; no cuenta como agente nada que no tenga latido.
+
+## 8. Procesos de la dirección: ver sin relevar (MED1113A · 2026-11-13)
+
+**Alex (2026-11-12, noche):** «en metagenesis no aparecen todos los procesos y agentes activos en los medidores
+aparecen en 0 cuando hay varios procesos activos». Unos quince agentes de Claude de la dirección trabajaron horas,
+cada uno en `~/Documents/starseed-opus/OPUS1106-<ID>`, y corrieron puertas de integración; «Agentes», «En curso» y
+«Ola activa» decían 0.
+
+### 8.1 Por qué daba 0 (el fallo de diseño)
+El carril de Claude (§7) era la única vía para que Genesis viera un agente de la dirección, y el carril **releva**:
+con el latido de más de 45 min, `relevo_carril_claude.py revisar` entrega lo abierto al enjambre gratuito. Ese relevo
+rehízo dos veces trabajo terminado (y dejó commits que hubo que quitar), así que la dirección dejó de anotar a sus
+agentes y desaparecieron de los medidores. **Ver y relevar iban atados.** Las otras vías tampoco servían: los latidos
+externos (`latido_externo.py`) son declarados (`hasta`) y nadie los escribía; los latidos del enjambre, las nubes,
+Cloudroom y el A1 no ven un agente de Claude en su árbol.
+
+### 8.2 El contrato
+- **Ficha**: `~/.starseed/direccion/procesos/<ID>.json` (una por proceso, escrita de forma atómica): `id`, `titulo`,
+  `modelo`, `tipo` (`agente` · `puerta` · `servicio`), `arbol`, `rama`, `desde`, `latido`, `fase`, `cerrado`,
+  `cierre` (`hecho` · `cancelado`), `relevable`. Nunca un prompt, una clave ni una dirección.
+- **Vida medida, no declarada** (`scripts/puente/procesos_direccion.py`): la señal más reciente entre su `latido`, su
+  apertura, `logs/HEAD` del gitdir de su árbol (commits, rebases), los archivos cambiados o nuevos de su árbol
+  (`git --no-optional-locks status`, sin tocar el índice: el `index` NO cuenta, cualquier `git status` ajeno lo
+  reescribe) y su carpeta de trabajo (`~/.starseed/opus1031/<ID>-informe.md`, `~/.starseed/opus1031/<id>/`).
+  - **activo**: alguna señal en los últimos **30 min** (`VIDA_MIN` en Python = `VIDA_DIRECCION_MIN` en TypeScript; una
+    prueba de vitest compara los dos);
+  - **en silencio desde <hora>**: abierto y sin señal; no cuenta como activo y no desaparece: se nombra con su hora;
+  - **terminado**: su marcador `~/.starseed/opus1031/<ID>.listo` o `cerrar`; se enseña 12 h como «terminado hace poco».
+- **Relevo solo si se pide**: `abrir … --relevable --prompt ARCHIVO` es lo único que anota el proceso en el carril de
+  Claude (y entonces su `latido` mantiene vivo el carril y `cerrar` lo cierra allí). Sin esa marca, ningún proceso de
+  la dirección llega al enjambre. Un despliegue o un arreglo del motor de llamadas no se abre nunca así.
+- **Puertas de integración**: salen solas de `puerta-estado.json` (§7.2) y se pintan dentro de «Procesos de la
+  dirección» mientras corren; cuentan una vez (como la puerta de §7).
+
+### 8.3 Órdenes (una línea)
+```
+python3 scripts/puente/procesos_direccion.py abrir <ID> "<título>" --modelo claude-opus-5-5   # al lanzar (árbol y rama se deducen de OPUS1106-<ID>)
+python3 scripts/puente/procesos_direccion.py latido <ID> [--fase "esperando la puerta"]        # opcional: el árbol ya late solo
+python3 scripts/puente/procesos_direccion.py cerrar <ID> [--cancelar]                          # o `touch ~/.starseed/opus1031/<ID>.listo`
+python3 scripts/puente/procesos_direccion.py estado [--json] [--todos]
+python3 scripts/puente/procesos_direccion.py descubrir --horas 12 [--aplicar]                  # relleno: árboles OPUS1106-* con señal
+```
+
+### 8.4 Una sola fuente para pastilla, ventana y comprobación
+- `GET /api/mando/medidores` llama a `procesos_direccion.py estado --json` en cada reunión (`procesos-direccion-disco.ts`),
+  lo pasa por la lista blanca (`leerEstadoDireccion`) y lo devuelve en `enMarcha.direccion` (siempre presente:
+  `null` = el script no contestó, y se dice; ausente = lectura antigua u otra neurona).
+- Los **activos** de tipo `agente` entran en los latidos con `donde: "direccion"` (`agentesDeDireccion`): salen en
+  «Agentes» (estado «trabajando», con la fuente y la edad de su señal, su árbol y su rama) y en «En curso». Los «en
+  silencio» van en el aviso de «Agentes» con su hora. Un proceso también anotado en el carril o con latido externo
+  cuenta una vez.
+- `DetalleMedidor.cuenta` (solo «Agentes» y «En curso») es **la cifra de la pastilla** (`cifraDePastilla`), la de la
+  ventana («N en total» / «N en marcha») y la que coteja «Comprobar ahora» (`comprobar_medidor.agentes_que_dice`).
+  «En curso» ya no suma a la pastilla las rancias ni los sueños sin agente: siguen en la ventana con su porqué.
+- «Comprobar ahora» (`comprobar_medidor.py`) coteja las filas de la dirección con `procesos_direccion.estado()` medido
+  en ese momento: si sobra o falta uno, «NO COINCIDEN» con sus ids. Con el medidor en 0 y agentes medidos, también.
+- «Qué corre ahora» (`EnMarchaAhora`) abre con «Procesos de la dirección»: activos (id, título, modelo, árbol, rama,
+  desde cuándo y la señal), la puerta en marcha, los en silencio y los terminados hace poco; `vivos` los suma.
+- «Ola activa» vacía ya no sugiere que nada trabaja: nombra los agentes de la dirección fuera de las olas.
+
+### 8.5 Lo que todavía no se mide
+- Si un agente de Claude escribe o espera en este instante: su sesión vive en la app de Claude y no deja proceso
+  atribuible en la Mac; se mide su rastro en disco, no su pensamiento.
+- Los tokens de la dirección («Tokens» no tiene contador para ellos).
+- Otras neuronas: `espejo_puerta.py · resumen_medidores` aún no copia `en_marcha.direccion` (lista blanca de Python
+  por ampliar); `sanearEnMarcha` ya lo acepta.
+- La pestaña Director, la Oficina y el panel de procesos que leen `/api/mando/estado` siguen sin ver a la dirección.

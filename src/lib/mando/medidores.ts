@@ -21,6 +21,7 @@ import { estadoLimitesClaude, resumenLimitesClaude } from "./limites-claude";
 import { DONDE_CLAUDE_NUBE, TEXTO_CLAUDE_NUBE } from "./agentes-claude-nube";
 // MED1111E
 import { DONDE_CARRIL_CLAUDE, TEXTO_CARRIL_CLAUDE, vistaCarril } from "./carril-claude";
+import { DONDE_DIRECCION, TEXTO_DIRECCION, VIDA_DIRECCION_MIN, vistaDireccion } from "./procesos-direccion"; // MED1113A
 import type { EnMarcha } from "./en-marcha";
 import { DONDE_CLOUDROOM, TEXTO_CLOUDROOM } from "./agentes-cloudroom";
 import { DONDE_ORACLE, TEXTO_ORACLE } from "./agentes-oracle";
@@ -218,6 +219,19 @@ export interface DetalleMedidor {
     imaginacion?: ResumenImaginacionMedidor;
     /** (2026-11-05, VER1105D) Tono de la pastilla: normal · aviso · peligro. */
     tono?: "normal" | "aviso" | "peligro";
+    /**
+     * (MED1113A) La cifra de la pastilla, calculada aquí y no contada en el navegador: pastilla, ventana
+     * («N en total», «N en marcha») y «Comprobar ahora» leen este mismo número. Solo en «Agentes» y «En curso».
+     */
+    cuenta?: number;
+}
+
+/**
+ * (MED1113A) La cifra de la pastilla de un medidor: su `cuenta` si la trae (Agentes, En curso) y, si no, sus
+ * filas. PURA. La usan la pastilla y las pruebas que comprueban que pastilla, ventana y comprobación coinciden.
+ */
+export function cifraDePastilla(detalle: Pick<DetalleMedidor, "cuenta" | "filas">): number {
+    return typeof detalle.cuenta === "number" && Number.isFinite(detalle.cuenta) ? detalle.cuenta : detalle.filas.length;
 }
 
 /** La pastilla «Imaginación» y lo que necesita su panel, calculado en un solo sitio (puro). */
@@ -892,6 +906,8 @@ export function dondeLegible(donde: string | undefined): string {
             return "Sesión de Claude Code en la nube (crédito de sesiones)";
         case DONDE_CARRIL_CLAUDE: // MED1111E
             return "Carril del director de Claude (sus agentes en la sesión de Claude Code)";
+        case DONDE_DIRECCION: // MED1113A
+            return "Proceso de la dirección (agente de Claude en su propio árbol de la Mac)";
         case DONDE_CLOUDROOM:
             return "Hilo de la nube de Cloudroom";
         default:
@@ -912,6 +928,8 @@ export function dondeCorto(donde: string | undefined): string {
             return "Claude en la nube";
         case DONDE_CARRIL_CLAUDE: // MED1111E
             return "carril de Claude";
+        case DONDE_DIRECCION: // MED1113A
+            return "dirección";
         case DONDE_CLOUDROOM:
             return "Cloudroom";
         case "nube-cowork":
@@ -1432,6 +1450,10 @@ export interface DatosMedidores {
         parado?: string;
         /** (CRM1024K) Veces que MetaGenesis reanudó el hilo (mismo hilo: no gasta otro del cupo). */
         reanudaciones?: number;
+        /** (MED1113A) Proceso de la dirección: de dónde salió su última señal medida, su árbol (con «~») y su rama. */
+        senal?: string;
+        arbol?: string;
+        rama?: string;
     }[];
     /**
      * Inventario de contenedores en la nube, tal como lo escribe
@@ -2513,6 +2535,12 @@ export function detalleDeMedidor(
                             ? ` · su tanda: ${tanda.slice(0, 6).join(", ")}${tanda.length > 6 ? ` y ${tanda.length - 6} más` : ""} · qué tarea lleva cada trabajador lo dice su rama al entregar`
                             : " · su cola no está en esta neurona (una de la bandeja de MetaGenesis)") +
                         ` · su estado llega con el ciclo del nodo (cada 30 min; último hace ${Math.round((l.latidoHaceS ?? 0) / 60)} min)`;
+                } else if (l.donde === DONDE_DIRECCION) {
+                    // MED1113A: un agente de la dirección con señal MEDIDA en los últimos minutos (su árbol, su
+                    // carpeta de trabajo o su latido). No se sabe si en este momento escribe o espera una prueba:
+                    // se dice «trabajando» y de dónde salió la señal, nunca «escribiendo» a ciegas.
+                    estado = "trabajando";
+                    porque = `${TEXTO_DIRECCION} · ${l.senal ?? "señal"} hace ${Math.round((l.quietoSegundos ?? 0) / 60)} min${l.fase && l.fase !== "trabajando" ? ` · ${l.fase}` : ""}${l.arbol ? ` · ${l.arbol}` : ""}${l.rama ? ` · rama ${l.rama}` : ""} · no se entrega al enjambre`;
                 } else if (l.donde === DONDE_CARRIL_CLAUDE) {
                     // MED1111E: una tarea `en_curso` del registro del carril de Claude con el latido del carril
                     // reciente (con el latido viejo no llega aquí: `agentesDeCarrilClaude` no la cuenta).
@@ -2590,9 +2618,18 @@ export function detalleDeMedidor(
                 carrilSinLatido.estado === "sin-latido" && carrilSinLatido.sinLatido.length
                     ? `Carril de Claude: ${carrilSinLatido.texto}. Sin latido: ${carrilSinLatido.sinLatido.map((t) => t.id).join(", ")}.`
                     : undefined;
+            // MED1113A: los de la dirección en silencio tampoco cuentan, pero se nombran con su hora.
+            const direccion = vistaDireccion(d.enMarcha?.direccion, ahora ?? Date.now());
+            const avisoDireccion = direccion.enSilencio.length
+                ? `Dirección: ${direccion.enSilencio.length} en silencio (sin señal en ${VIDA_DIRECCION_MIN} min, no cuentan): ${direccion.enSilencio.map((p) => `${p.id} ${p.linea}`).join(" · ")}.`
+                : d.enMarcha?.direccion === null
+                  ? "Dirección: no se pudo medir sus procesos ahora (procesos_direccion.py no contestó): esta cifra no los incluye."
+                  : undefined;
+            const aviso = [avisoCarril, avisoDireccion].filter(Boolean).join(" ") || undefined;
             const cuenta = (e: string) => filas.filter((f) => f.estado === e).length;
             const partes = [
                 [cuenta("escribiendo"), "escribiendo"],
+                [cuenta("trabajando"), "de la dirección"], // MED1113A
                 [cuenta("corrigiendo"), "corrigiendo"],
                 [cuenta("sin escribir"), "sin escribir"],
                 [cuenta("comprobando"), "comprobando"],
@@ -2619,7 +2656,8 @@ export function detalleDeMedidor(
                               fantasmas.length ? ` · ${fantasmas.length} latido(s) viejo(s) descartado(s): ${fantasmas.map((f) => f.id).join(", ")}` : ""
                           }`,
                 filas,
-                ...(avisoCarril ? { aviso: avisoCarril } : {}),
+                cuenta: filas.length, // MED1113A: la cifra de la pastilla y la que coteja «Comprobar ahora»
+                ...(aviso ? { aviso } : {}),
                 porcentajeMedio: mediaDeAvance(filas),
                 acciones: [...accionesDeCapacidad(d, ahora), IR_A("Ver la ramificación", "procesos")],
                 vacio: fantasmas.length
@@ -2686,7 +2724,10 @@ export function detalleDeMedidor(
             // Así que aquí se agrupa por tarea y se dice cuántos agentes lleva cada una.
             const filas: FilaMedidor[] = agruparPorTarea(d.latidos).map(({ latido: l, agentes }) => {
                 const avance = avanceDe(l.fase, estadoDe(l.tarea));
-                const quienEs = `${l.proveedor ?? l.modelo.split("/")[0]} · ${l.modelo.split("/").slice(-1)[0]} en ${l.donde}`;
+                const quienEs =
+                    l.donde === DONDE_DIRECCION
+                        ? `${l.modelo} · dirección${l.arbol ? ` · ${l.arbol}` : ""}` // MED1113A
+                        : `${l.proveedor ?? l.modelo.split("/")[0]} · ${l.modelo.split("/").slice(-1)[0]} en ${l.donde}`;
                 const ola = olaDeTarea(d, l.tarea);
                 const quien = agentes > 1 ? `${agentes} agentes · ${quienEs}` : quienEs;
                 return {
@@ -2697,7 +2738,13 @@ export function detalleDeMedidor(
                     etapa: avance.etapa,
                     quien: ola ? `${ola} · ${quien}` : quien,
                     desde: `${l.minutos} min`,
-                    porque: l.minutos > 45 ? "lleva mucho sin cambiar de fase" : undefined,
+                    // MED1113A: un agente de la dirección no tiene fases del orquestador: su señal ya se midió.
+                    porque:
+                        l.donde === DONDE_DIRECCION
+                            ? `${TEXTO_DIRECCION} · ${l.senal ?? "señal"} hace ${Math.round((l.quietoSegundos ?? 0) / 60)} min`
+                            : l.minutos > 45
+                              ? "lleva mucho sin cambiar de fase"
+                              : undefined,
                     ficha: fichaDeTarea(
                         l.tarea,
                         d.progreso[l.tarea],
@@ -2760,6 +2807,9 @@ export function detalleDeMedidor(
                               ranciasTrabajo.length ? ` · ${ranciasTrabajo.length} rancias` : ""
                           }${suenosSueltos.length ? ` · ${suenosSueltos.length} sueño(s) sin agente` : ""}`,
                 filas: todas,
+                // MED1113A: la pastilla cuenta lo que ALGUIEN hace ahora; las rancias y los sueños sin agente van en
+                // la ventana con su porqué, pero no son «en curso» (antes la pastilla los sumaba y el resumen no).
+                cuenta: filas.length,
                 porcentajeMedio: medio,
                 acciones: [...accionesDeCapacidad(d, ahora), IR_A("Ver la ramificación", "procesos")],
                 vacio: "Ninguna tarea en curso ahora mismo.",
@@ -3309,7 +3359,13 @@ export function detalleDeMedidor(
                 filas,
                 porcentajeMedio: tareas ? Math.round((integradas / tareas) * 100) : undefined,
                 acciones: [IR_A("Ver olas e informes", "olas")],
-                vacio: "Ninguna ola en marcha: ni la Mac ni la nube tienen agentes sobre una cola.",
+                // MED1113A: «ninguna ola» no es «nada trabaja»: los agentes de la dirección no van en una ola del enjambre.
+                vacio: (() => {
+                    const n = vistaDireccion(d.enMarcha?.direccion, ahora ?? Date.now()).activos.length;
+                    return `Ninguna ola del enjambre en marcha: ni la Mac ni la nube tienen agentes sobre una cola.${
+                        n ? ` La dirección tiene ${n} ${n === 1 ? "agente activo" : "agentes activos"} fuera de las olas (ver «Agentes»).` : ""
+                    }`;
+                })(),
             };
         }
     }

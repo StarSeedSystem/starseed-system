@@ -29,6 +29,9 @@ import { agentesDeClaudeNube } from "@/lib/mando/agentes-claude-nube";
 import { agentesDeCarrilClaude } from "@/lib/mando/carril-claude";
 import { type EnMarcha, publicacionParaEnviar } from "@/lib/mando/en-marcha";
 import { leerCarrilDeDisco, leerPuertaDeDisco } from "@/lib/mando/en-marcha-disco";
+// MED1113A · los procesos de la dirección (agentes de Claude en sus árboles), medidos y sin relevo
+import { agentesDeDireccion } from "@/lib/mando/procesos-direccion";
+import { leerProcesosDireccion } from "@/lib/mando/procesos-direccion-disco";
 import { agentesDeCloudroom } from "@/lib/mando/agentes-cloudroom";
 import { agentesDelA1, colaDelA1, DONDE_ORACLE } from "@/lib/mando/agentes-oracle";
 import {
@@ -113,7 +116,7 @@ async function leerAutopublicacion(): Promise<DatosMedidores["autopublicacion"]>
 
 // MED1111E · El carril de Claude y la puerta de integración ───────────────────────────────────────
 async function leerEnMarcha(): Promise<EnMarcha | null> {
-    const [carril, puerta, publicacion, pruebas, rondaLeida] = await Promise.all([
+    const [carril, puerta, publicacion, pruebas, rondaLeida, direccion] = await Promise.all([
         leerCarrilDeDisco(RAÍZ),
         leerPuertaDeDisco(
             path.join(os.homedir(), ".starseed", "produccion", "puerta-estado.json"),
@@ -123,9 +126,11 @@ async function leerEnMarcha(): Promise<EnMarcha | null> {
         // PRB1111V · la versión de prueba en marcha (o fallida sin sustituir), solo con rastro en GitHub.
         pruebaParaEnMarcha().catch(() => null),
         Promise.resolve().then(() => leerRondaArchivo()).catch(() => null), // RON1112C · la ronda de aparatos
+        leerProcesosDireccion(RAÍZ), // MED1113A · null si el script no contesta: la vista lo dice
     ]);
     const ronda = rondaParaEnviar(rondaLeida, Date.now()); // RON1112C: sólo si está en vigor a esta hora
-    return carril || puerta || publicacion || pruebas || ronda ? { generadoMs: Date.now(), carril, puerta, publicacion, ...(pruebas ? { pruebas } : {}), ...(ronda ? { ronda } : {}) } : null;
+    // MED1113A: `direccion` viaja SIEMPRE (también null): «no se pudo medir» y «no hay nada» no son lo mismo.
+    return { generadoMs: Date.now(), carril, puerta, publicacion, ...(pruebas ? { pruebas } : {}), ...(ronda ? { ronda } : {}), direccion };
 }
 
 /** (2026-11-05, VER1105D) Estado del director de lanzamientos (Centro de Versiones).
@@ -906,6 +911,14 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
     const enMarcha = await midiendo("enMarcha", leerEnMarcha());
     const agentesCarril = agentesDeCarrilClaude(enMarcha?.carril);
     for (const a of agentesCarril) if (!titulos[a.tarea]) titulos[a.tarea] = a.titulo;
+    // MED1113A · Los agentes de la dirección con señal medida reciente (los «en silencio» no cuentan; se nombran aparte).
+    const agentesDireccion = agentesDeDireccion(enMarcha?.direccion);
+    for (const a of agentesDireccion) titulos[a.tarea] = a.titulo;
+    // Un proceso de la dirección también anotado en el carril (relevable) o con latido externo es UN agente:
+    // manda la medida de la dirección y el otro rastro no se cuenta dos veces.
+    const idsDireccion = new Set(agentesDireccion.map((a) => a.tarea));
+    const sinDobleDireccion = <T extends { tarea: string; cola?: string; donde?: string }>(l: T) =>
+        !idsDireccion.has(l.tarea) || !(String(l.cola ?? "").startsWith("externo-") || l.donde === "carril-claude");
 
     // Si tardó más de 5 s, se dice QUÉ fuente lo hizo (las tres más lentas): así el log
     // de Genesis explica las esperas en vez de solo registrar «heap out of memory».
@@ -925,10 +938,11 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
         // Los de la nube se SUMAN a los de la Mac: el medidor de agentes tiene que contar
         // toda la capacidad viva, no solo la de esta máquina.
         latidos: [
-            ...latidosDeAqui,
+            ...latidosDeAqui.filter(sinDobleDireccion),
             ...agentesNube,
             ...(await leerSesionesClaudeNube(progreso)),
-            ...agentesCarril, // MED1111E
+            ...agentesCarril.filter(sinDobleDireccion), // MED1111E
+            ...agentesDireccion, // MED1113A
             ...(await leerHilosCloudroom(progreso)),
             ...agentesA1,
         ],

@@ -296,6 +296,8 @@ def medir_hechos(medidor: str) -> Dict[str, Any]:
             hechos["agentes_nube"] = remedir_nube()
         if clave in ("agentes", "en-curso", "ola-activa"):
             hechos["fases"] = leer_fases_latidos()
+        if clave in ("agentes", "en-curso"):
+            hechos["direccion"] = medir_direccion()
         if clave == "tokens":
             try:
                 ruta = Path("starseed_memory_root/mando/tokens-por-segundo.json")
@@ -317,6 +319,17 @@ def medir_hechos(medidor: str) -> Dict[str, Any]:
         except (OSError, ValueError):
             hechos["vigia"] = []
     return hechos
+
+
+def medir_direccion() -> Optional[List[str]]:
+    """(MED1113A) Los agentes de la dirección ACTIVOS ahora, medidos con la misma regla que lee Genesis
+    (`procesos_direccion.estado`: señal en su árbol, su carpeta de trabajo o su latido). None si falla."""
+    try:
+        import procesos_direccion
+        return sorted(p["id"] for p in procesos_direccion.estado()["procesos"]
+                      if p["estado"] == "activo" and p["tipo"] == "agente")
+    except Exception:
+        return None
 
 
 def leer_detalle(clave: str) -> Optional[Dict[str, Any]]:
@@ -446,6 +459,11 @@ def filas_del_medidor(clave: str, detalle: Optional[Dict[str, Any]],
         if clase == "escribiendo" and tarea and _clase_de_fase(fases.get(tarea, "")) not in (None, "escribiendo"):
             clase = _clase_de_fase(fases[tarea]) or clase
         donde = donde_de_fila(f)
+        if donde == "direccion":
+            # (MED1113A) Un agente de la dirección no tiene `opencode run` en la Mac ni run en GitHub: se coteja
+            # aparte, con la medida de `procesos_direccion.py`.
+            clase = "direccion"
+            tarea = tarea or fid.split("·")[0].strip() or None
         for campo in (f.get("titulo"), f.get("quien")):
             if donde:
                 break
@@ -476,7 +494,7 @@ def _es_nube(donde: Optional[str]) -> bool:
 #: filas del A1 y de las sesiones de Claude en la nube se tomaban por agentes de la Mac sin proceso y
 #: «Comprobar» decía «Agente opencode: muerto» con la Mac sana.
 _TROZOS_DONDE = (("claude en la nube", "claude-nube"), ("a1 de oracle", "oracle"),
-                 ("github actions", "nube-gh"), ("mac", "mac"))
+                 ("github actions", "nube-gh"), ("dirección", "direccion"), ("mac", "mac"))
 #: Los sitios que cuenta `agentes_nube` (los runs de GitHub Actions): solo esos se cotejan con GitHub.
 DONDE_GITHUB = ("nube-gh", "nube", "github")
 #: Una sesión de Claude en la nube que lleva más de esto «escribiendo» ya no escribe: terminó, se
@@ -513,7 +531,7 @@ def analizar_agentes(clave: str, detalle: Optional[Dict[str, Any]], hechos: Dict
     nube = hechos.get("agentes_nube")
     filas = filas_del_medidor(clave, detalle, hechos.get("fases"))
     cuenta = {c: sum(f["n"] for f in filas if f["clase"] == c)
-              for c in ("escribiendo", "esperando", "comprobando", "aprobacion", "sonando", "fuera")}
+              for c in ("escribiendo", "esperando", "comprobando", "aprobacion", "sonando", "fuera", "direccion")}
 
     escribiendo = [f for f in filas if f["clase"] == "escribiendo"]
     en_nube = [f for f in escribiendo if _es_nube(f["donde"])]
@@ -561,6 +579,7 @@ def analizar_agentes(clave: str, detalle: Optional[Dict[str, Any]], hechos: Dict
         "codex_escribiendo": any(f["codex"] for f in escribiendo),
         "escribiendo_mac": sum(f["n"] for f in candidatas),
         "viejas_nube": viejas_nube,
+        "direccion": sorted({f["tarea"] or f["id"] for f in filas if f["clase"] == "direccion"}),
     }
 
 
@@ -634,6 +653,9 @@ def _numero(patron: str, texto: str) -> Optional[int]:
 def agentes_que_dice(clave: str, detalle: Dict[str, Any]) -> Optional[int]:
     """PURA: cuántos agentes dice el medidor, leído de su propia frase o de sus filas."""
     resumen = str(detalle.get("resumen") or "")
+    # (MED1113A) La cifra que pinta la pastilla viene calculada en el medidor: es la que se coteja.
+    if clave == "agentes" and isinstance(detalle.get("cuenta"), int):
+        return int(detalle["cuenta"])
     # (2026-10-08) «ningún agente escribiendo» / «ninguna tarea en curso» es un 0 dicho con
     # palabras: sin esto, con la Mac parada y el medidor en 0 la comprobación decía «dice —» y
     # «NO COINCIDEN» (None != 0).
@@ -671,12 +693,16 @@ def cotejar_agentes(clave: str, detalle: Dict[str, Any], hechos: Dict[str, Any])
         if nube is None:
             return [veredicto_proceso("Agentes medidos", "desconocido",
                                       "no pude volver a preguntar a GitHub por la nube")]
-        medidos = mac + nube
+        # (MED1113A) Y los agentes de la dirección medidos ahora: con el medidor en 0 y quince trabajando en
+        # sus árboles, «0 = 0 en la Mac + 0 en la nube» daba por buena una pastilla que mentía.
+        direccion = len(hechos.get("direccion") or [])
+        medidos = mac + nube + direccion
         estado = "vivo" if dice == medidos else "colgado"
         return [veredicto_proceso(
             "Agentes medidos", estado,
-            "el medidor dice %s; medido ahora: %d en la Mac + %d en la nube = %d%s"
-            % (dice if dice is not None else "—", mac, nube, medidos,
+            "el medidor dice %s; medido ahora: %d en la Mac + %d en la nube%s = %d%s"
+            % (dice if dice is not None else "—", mac, nube,
+               " + %d de la dirección" % direccion if direccion else "", medidos,
                "" if estado == "vivo" else " · NO COINCIDEN"))]
     partes = ["%s escribiendo con proceso vivo" % _n_agentes(a["con_proceso"]),
               "%d esperando modelo (sin proceso, normal)" % a["esperando"],
@@ -692,6 +718,17 @@ def cotejar_agentes(clave: str, detalle: Dict[str, Any], hechos: Dict[str, Any])
     if a["huerfanos"]:
         partes.append("procesos sin fila en el medidor: %s" % ", ".join(a["huerfanos"]))
     estado = "vivo"
+    # (MED1113A) Los agentes de la dirección: lo que el medidor enseña frente a lo que se mide ahora.
+    medidos = hechos.get("direccion")
+    if a["direccion"] or medidos:
+        partes.append("%d de la dirección (señal medida en su árbol o latido)" % len(a["direccion"]))
+        if medidos is not None and set(a["direccion"]) != set(medidos):
+            estado = "colgado"
+            sobran = sorted(set(a["direccion"]) - set(medidos))
+            faltan = sorted(set(medidos) - set(a["direccion"]))
+            partes.append("NO COINCIDEN con procesos_direccion.py%s%s" % (
+                ": el medidor da activos sin señal medida a %s" % ", ".join(sobran) if sobran else "",
+                "%s activos medidos que el medidor no enseña: %s" % ("; " if sobran else ": ", ", ".join(faltan)) if faltan else ""))
     if a["sin_proceso"]:
         estado = "colgado"
         partes.append("NO COINCIDEN: el medidor da por escribiendo, y no tienen proceso en la Mac, a %s"

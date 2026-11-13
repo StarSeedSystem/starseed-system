@@ -9,6 +9,10 @@
  * fuentes dejan (`carril-claude.ts`, `puerta-integracion.ts`) y se dice sin adornos: viva solo con
  * rastro reciente, «sin señal» si no, y con nada en marcha, lo último que terminó y cuándo.
  *
+ * (2026-11-13, MED1113A) Arriba del todo, «Procesos de la dirección»: los agentes de Claude que lanza la
+ * dirección (cada uno en su árbol) y la puerta de integración que corre ahora, con su vida MEDIDA
+ * (`procesos-direccion.ts`): activos, en silencio desde una hora, y lo recién terminado.
+ *
  * Sin `datos`, se lee solo de `/api/mando/medidores?clave=agentes` (la misma ruta de los medidores, que ya
  * trae `enMarcha`). En el teléfono todo envuelve: nada se recorta ni se corta con puntos suspensivos.
  */
@@ -16,6 +20,7 @@ import { useEffect, useState } from "react";
 
 import { duracionCorta } from "@/lib/mando/carril-claude";
 import { vistaEnMarcha, type EnMarcha } from "@/lib/mando/en-marcha";
+import { horaCorta, type FilaDireccion } from "@/lib/mando/procesos-direccion";
 import { textoPruebas } from "@/lib/mando/puerta-integracion";
 
 type Tono = "vivo" | "aviso" | "rojo" | "verde" | "quieto";
@@ -56,9 +61,36 @@ function Fila({ id, titulo, detalle }: { id: string; titulo: string; detalle?: s
     );
 }
 
+/** (MED1113A) Una fila de proceso de la dirección: id, modelo, dónde, desde cuándo y su estado medido. */
+function FilaProceso({ p }: { p: FilaDireccion }) {
+    const desde = p.desdeMs ? `desde las ${horaCorta(p.desdeMs)}${p.minutosEnMarcha !== null && p.ahora !== "terminado" && p.ahora !== "cancelado" ? ` (${duracionCorta(p.minutosEnMarcha)})` : ""}` : "sin hora de inicio";
+    return (
+        <li className="rounded-md border border-white/5 bg-white/[0.03] px-2.5 py-2" data-testid={`direccion-${p.id}`} data-estado={p.ahora}>
+            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                <span className="font-mono text-[12px] font-semibold text-white/90">{p.id}</span>
+                <span className="text-[11px] text-white/50">
+                    {p.modelo} · {p.donde}
+                    {p.rama ? ` · ${p.rama}` : ""} · {desde}
+                </span>
+            </div>
+            <p className="mt-0.5 break-words text-[12px] leading-snug text-white/75">{p.titulo}</p>
+            <p className={`mt-0.5 break-words text-[11px] ${p.ahora === "activo" ? "text-emerald-200/80" : p.ahora === "en-silencio" ? "text-amber-200/90" : "text-white/45"}`}>{p.linea}</p>
+        </li>
+    );
+}
+
 export function EnMarchaAhoraVista({ datos, ahora }: { datos: EnMarcha | null | undefined; ahora: number }) {
     const v = vistaEnMarcha(datos, ahora);
-    const { carril, puerta, publicacion, prueba, ronda } = v;
+    const { direccion, carril, puerta, publicacion, prueba, ronda } = v;
+    const puertaCorre = puerta.estado === "corriendo" || puerta.estado === "sin-senal";
+    const tonoDireccion: Tono = direccion.activos.length || puerta.estado === "corriendo" ? "vivo" : direccion.enSilencio.length || puerta.estado === "sin-senal" ? "aviso" : "quieto";
+    const nActivos = direccion.activos.length + (puerta.estado === "corriendo" ? 1 : 0);
+    const etiquetaDireccion =
+        direccion.estado === "sin-datos" && !puertaCorre
+            ? "sin medida"
+            : nActivos || direccion.enSilencio.length
+              ? [nActivos ? `${nActivos} ${nActivos === 1 ? "activo" : "activos"}` : "", direccion.enSilencio.length ? `${direccion.enSilencio.length} en silencio` : ""].filter(Boolean).join(" · ")
+              : "nada abierto";
     const tonoCarril: Tono = carril.estado === "vivo" ? "vivo" : carril.estado === "sin-latido" ? "aviso" : "quieto";
     const etiquetaCarril =
         carril.estado === "vivo"
@@ -81,7 +113,53 @@ export function EnMarchaAhoraVista({ datos, ahora }: { datos: EnMarcha | null | 
             </p>
 
             <div className="mt-3 space-y-2.5">
-                <Bloque n={1} id="carril" titulo="Carril del director de Claude" tono={tonoCarril} etiqueta={etiquetaCarril}>
+                <Bloque n={1} id="direccion" titulo="Procesos de la dirección" tono={tonoDireccion} etiqueta={etiquetaDireccion}>
+                    <p className="break-words" data-testid="en-marcha-direccion-texto">
+                        {direccion.texto}
+                    </p>
+                    {direccion.activos.length || puertaCorre ? (
+                        <ul className="space-y-1.5" data-testid="en-marcha-direccion-activos">
+                            {direccion.activos.map((p) => (
+                                <FilaProceso key={p.id} p={p} />
+                            ))}
+                            {puertaCorre ? (
+                                <li className="rounded-md border border-white/5 bg-white/[0.03] px-2.5 py-2" data-testid="direccion-puerta" data-estado={puerta.estado}>
+                                    <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                                        <span className="font-mono text-[12px] font-semibold text-white/90">puerta {puerta.nombre}</span>
+                                        <span className="text-[11px] text-white/50">
+                                            puerta de integración · repo principal{puerta.minutosTotales !== null ? ` · lleva ${duracionCorta(puerta.minutosTotales)}` : ""}
+                                        </span>
+                                    </div>
+                                    <p className="mt-0.5 break-words text-[12px] leading-snug text-white/75">{puerta.texto}</p>
+                                </li>
+                            ) : null}
+                        </ul>
+                    ) : null}
+                    {direccion.enSilencio.length ? (
+                        <div data-testid="en-marcha-direccion-silencio">
+                            <p className="text-[11px] font-medium uppercase tracking-wide text-white/40">En silencio ({direccion.enSilencio.length}) · no cuentan como activos</p>
+                            <ul className="mt-1 space-y-1.5">
+                                {direccion.enSilencio.map((p) => (
+                                    <FilaProceso key={p.id} p={p} />
+                                ))}
+                            </ul>
+                        </div>
+                    ) : null}
+                    {direccion.terminados.length ? (
+                        <div data-testid="en-marcha-direccion-terminados">
+                            <p className="text-[11px] font-medium uppercase tracking-wide text-white/40">Terminados hace poco ({direccion.terminados.length})</p>
+                            <ul className="mt-1 space-y-1">
+                                {direccion.terminados.slice(0, 8).map((p) => (
+                                    <li key={p.id} className="break-words text-[12px] text-white/60">
+                                        <span className="font-mono text-white/80">{p.id}</span> · {p.linea} · {p.titulo}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    ) : null}
+                </Bloque>
+
+                <Bloque n={2} id="carril" titulo="Carril del director de Claude" tono={tonoCarril} etiqueta={etiquetaCarril}>
                     <p className="break-words" data-testid="en-marcha-carril-texto">
                         {carril.texto}
                     </p>
@@ -113,7 +191,7 @@ export function EnMarchaAhoraVista({ datos, ahora }: { datos: EnMarcha | null | 
                     ) : null}
                 </Bloque>
 
-                <Bloque n={2} id="puerta" titulo="Puerta de integración" tono={tonoPuerta} etiqueta={etiquetaPuerta}>
+                <Bloque n={3} id="puerta" titulo="Puerta de integración" tono={tonoPuerta} etiqueta={etiquetaPuerta}>
                     <p className="break-words" data-testid="en-marcha-puerta-texto">
                         {puerta.texto}
                     </p>
@@ -138,7 +216,7 @@ export function EnMarchaAhoraVista({ datos, ahora }: { datos: EnMarcha | null | 
                     ) : null}
                 </Bloque>
 
-                <Bloque n={3} id="publicacion" titulo="Publicación" tono={tonoPub} etiqueta={etiquetaPub}>
+                <Bloque n={4} id="publicacion" titulo="Publicación" tono={tonoPub} etiqueta={etiquetaPub}>
                     <p className="break-words" data-testid="en-marcha-publicacion-texto">
                         {publicacion.texto}
                     </p>
@@ -147,7 +225,7 @@ export function EnMarchaAhoraVista({ datos, ahora }: { datos: EnMarcha | null | 
                 {prueba ? (
                     // PRB1111V · el build de prueba en marcha (o fallido hasta que otro lo sustituya), solo con rastro.
                     <Bloque
-                        n={4}
+                        n={5}
                         id="prueba"
                         titulo="Versión de prueba"
                         tono={prueba.estado === "fallo" ? "rojo" : prueba.estado === "esperando-main" ? "aviso" : "vivo"}
@@ -170,7 +248,7 @@ export function EnMarchaAhoraVista({ datos, ahora }: { datos: EnMarcha | null | 
 
                 {ronda ? (
                     // RON1112C · la ronda de aparatos: no es un proceso, es una orden de calma para la Mac mientras se prueba con los aparatos.
-                    <Bloque n={5} id="ronda" titulo="Ronda de aparatos" tono="aviso" etiqueta="en vigor">
+                    <Bloque n={6} id="ronda" titulo="Ronda de aparatos" tono="aviso" etiqueta="en vigor">
                         <p className="break-words" data-testid="en-marcha-ronda-texto">
                             {ronda.texto}
                         </p>

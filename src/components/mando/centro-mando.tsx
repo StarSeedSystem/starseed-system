@@ -37,7 +37,7 @@ import { PanelIdes, PastillaIdes } from "@/components/mando/medidor-ides";
 import { VerificarProcesos } from "@/components/mando/verificar-procesos";
 import { MedidorConsumo } from "@/components/mando/medidor-consumo";
 import type { AccionMedidor, ClaveMedidor, DetalleMedidor, FilaMedidor, ResumenImaginacionMedidor } from "@/lib/mando/medidores";
-import { ESPERA_A_OTRA, cargaDePublicacion, falloDePublicacion, nombreDeAmbito } from "@/lib/mando/medidores";
+import { ESPERA_A_OTRA, cargaDePublicacion, cifraDePastilla, falloDePublicacion, nombreDeAmbito } from "@/lib/mando/medidores";
 import { ambitoDeLaUrl, type AmbitoPropuesta } from "@/lib/mando/imaginacion-tipos";
 import { PanelProcesos } from "@/components/mando/panel-procesos";
 import { PanelSuenos } from "@/components/mando/panel-suenos";
@@ -1115,7 +1115,8 @@ export function CentroMando() {
             if (resAgentes.status === "fulfilled" && resAgentes.value.ok) {
                 const dataAgentes = (await resAgentes.value.json()) as { detalle?: DetalleMedidor };
                 if (dataAgentes.detalle?.filas) {
-                    agentes = dataAgentes.detalle.filas.length;
+                    // MED1113A: la cifra viene calculada en el medidor (`cuenta`): pastilla, ventana y comprobación, un número.
+                    agentes = cifraDePastilla(dataAgentes.detalle);
                     agentesResumen = dataAgentes.detalle.resumen ?? null;
                 }
             }
@@ -1129,7 +1130,8 @@ export function CentroMando() {
                     // nube no laten ahí. Medido en ese momento: 15 agentes escribiendo en dos
                     // medios y la pastilla en 0. Este medidor ya lo sabía —«15 en marcha»—,
                     // así que la pastilla se lee de él, como ya se hacía con «Agentes».
-                    enCurso = dataEnCurso.detalle.filas.length;
+                    // MED1113A: sin las rancias ni los sueños sin agente, que la ventana nombra aparte.
+                    enCurso = cifraDePastilla(dataEnCurso.detalle);
                     enCursoResumen = dataEnCurso.detalle.resumen ?? null;
                 }
             }
