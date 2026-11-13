@@ -230,3 +230,14 @@ describe("acuses · por el adaptador (GET, sin cola)", () => {
         expect(await c.acuses([1])).toEqual({});
     });
 });
+
+describe("los códigos de la puerta (GEN1113A) se traducen para la interfaz", () => {
+    it("no-miembro, rol-sin-comprobar y nonce-repetido", async () => {
+        const feed = cliente(async () => respuesta(403, { error: "solo miembros de MetaGenesis", codigo: "no-miembro" })).c;
+        expect(await feed.feed({ fuente: "direccion" })).toEqual({ ok: false, estado: 403, error: "Tu cuenta no tiene acceso a MetaGenesis" });
+        const rol = cliente(async () => respuesta(503, { error: "x", codigo: "rol-sin-comprobar" })).c;
+        expect(await rol.enviar(decir)).toEqual({ ok: false, estado: 503, codigo: "rol-sin-comprobar", error: "No se pudo comprobar tu permiso; no se envió nada" });
+        const otro = cliente(async () => respuesta(418, { error: "texto del servidor", codigo: "nuevo" })).c;
+        expect(await otro.enviar(decir)).toEqual({ ok: false, estado: 418, codigo: "nuevo", error: "texto del servidor" });
+    });
+});

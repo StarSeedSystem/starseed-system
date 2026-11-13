@@ -98,6 +98,16 @@ const MENSAJES: Record<number, string> = {
     503: "No se pudo comprobar tu permiso; no se envió nada",
 };
 const SOLO_DUENO = "Esta orden solo la puede dar un dueño de MetaGenesis";
+/** Los `codigo` estables de la puerta (GEN1113A) traducidos para la interfaz (§4.5). */
+const POR_CODIGO: Record<string, string> = {
+    "sin-sesion": MENSAJES[401],
+    "no-miembro": MENSAJES[403],
+    "solo-dueno": SOLO_DUENO,
+    "rol-sin-comprobar": MENSAJES[503],
+    limite: MENSAJES[429],
+    "nonce-repetido": MENSAJES[409],
+    grande: "El mensaje pasa de 16 KB",
+};
 
 type Pedido = { estado: number; cuerpo: unknown } | { motivo: "abortado" | "tiempo" | "red" };
 
@@ -175,7 +185,7 @@ export function crearClienteChatsGenesis(op: OpcionesClienteChats = {}): Cliente
         const c = esObjeto(cuerpo) ? cuerpo : {};
         const codigo = typeof c.codigo === "string" ? c.codigo.slice(0, 40) : undefined;
         const delServidor = typeof c.error === "string" && c.error.trim() ? c.error.slice(0, 300) : undefined;
-        const error = codigo === "solo-dueno" ? SOLO_DUENO : delServidor ?? MENSAJES[estado] ?? `La puerta respondió ${estado}`;
+        const error = (codigo && POR_CODIGO[codigo]) || delServidor || MENSAJES[estado] || `La puerta respondió ${estado}`;
         return codigo ? { error, codigo } : { error };
     }
 
