@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Chats de Genesis en Astraura (GEN1113B, 2026-11-13): espejo del chat de dirección hacia la puerta de
+     datos del A1 y entradas desde allí (la Mac solo sale; nadie entra). python3 de Homebrew directo: tiene
+     el permiso de disco, así que no hace falta lanzador-tcc.py. La URL y la ficha las lee el propio guion de
+     ~/.starseed/env (PUERTA_DATOS_URL, STARSEED_PUERTA_FICHA_GENESIS_MAC): nunca van en este archivo.
+     Contrato: architecture/astraura-chats-genesis.md §5.2. NO se carga hasta que Alex lo apruebe. -->
+<plist version="1.0"><dict>
+  <key>Label</key><string>com.starseed.genesis-chats</string>
+  <key>ProgramArguments</key><array>
+    <string>/opt/homebrew/bin/python3</string>
+    <string>-u</string>
+    <string>/Users/alex/Documents/starseed-os-main/scripts/puente/genesis_chats_puerta.py</string>
+  </array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>ThrottleInterval</key><integer>30</integer>
+  <key>ExitTimeOut</key><integer>40</integer>
+  <key>Nice</key><integer>5</integer>
+  <key>EnvironmentVariables</key><dict>
+    <key>PATH</key><string>/Users/alex/.local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>STARSEED_ROOT</key><string>/Users/alex/Documents/starseed-os-main</string>
+    <key>PYTHONUNBUFFERED</key><string>1</string>
+  </dict>
+  <key>StandardOutPath</key><string>/tmp/starseed-genesis-chats.log</string>
+  <key>StandardErrorPath</key><string>/tmp/starseed-genesis-chats.log</string>
+  <key>WorkingDirectory</key><string>/Users/alex/Documents/starseed-os-main</string>
+</dict></plist>

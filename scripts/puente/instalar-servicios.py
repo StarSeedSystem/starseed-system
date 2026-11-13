@@ -236,6 +236,22 @@ SERVICIOS = {
     ),
 }
 
+# GEN1113B (2026-11-13) Chats de Genesis en Astraura: espejo del chat de dirección hacia la puerta de datos del A1
+# y las entradas escritas desde la web (architecture/astraura-chats-genesis.md §5.2). Solo se instala si se nombra
+# (STARSEED_SOLO=genesis-chats) o si la ficha de la Mac ya está en ~/.starseed/env: lo enciende la dirección cuando
+# Alex lo aprueba, nunca una reinstalación general. python3 directo (tiene el permiso de disco).
+def _ficha_genesis_mac():
+    try:
+        with open(os.path.join(HOME, ".starseed", "env"), encoding="utf-8") as f:
+            return any(l.strip().removeprefix("export ").strip().startswith("STARSEED_PUERTA_FICHA_GENESIS_MAC=") for l in f)
+    except OSError:
+        return False
+
+
+if "genesis-chats" in {n.strip() for n in os.environ.get("STARSEED_SOLO", "").split(",")} or _ficha_genesis_mac():
+    SERVICIOS["genesis-chats"] = ([PY3, "-u", P("genesis_chats_puerta.py")], "/tmp/starseed-genesis-chats.log", True)
+# /GEN1113B
+
 PLANTILLA = """<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
