@@ -502,7 +502,12 @@ túnel también (decisión D5; fuera de la fase 1).
      - La lista la escribe **solo** Alex en la Mac, con `python3 scripts/puente/genesis_chats_puerta.py cuentas --dueno <uuid>`.
      - Sin la lista, **no se ejecuta nada**: la entrada queda `rechazada` con el motivo «falta la lista de cuentas en la Mac».
      - Un dueño de la puerta que no está en la lista local es solo lector.
-     - Con esto, ni una puerta comprometida ni una fila de Supabase cambiada bastan para mover la Mac.
+     - Con esto, una fila de Supabase cambiada no basta para mover la Mac.
+     - **Límite conocido (GEN1113INT).** Una puerta **comprometida** sí basta: la cuenta y el rol los pone la
+       puerta y nada viene firmado desde el aparato, así que puede presentar entradas a nombre de un dueño que
+       está en la lista. La lista local solo protege de una fila de Supabase cambiada y de un dueño que Alex no
+       puso. Arreglo previsto (fuera de la fase 1): que cada aparato firme sus entradas con una clave propia no
+       exportable que Alex da de alta en la Mac, y que la Mac verifique esa firma (§13).
    - **Lo demás.** Después revisa de nuevo la lista blanca, la caducidad (§4.5) y el nonce, que se guarda 7 días en
      `vistos.json`.
 3. **El A1, para el puente B.** `peticiones_puerta.py` hace las mismas comprobaciones con su propia lista,
@@ -513,7 +518,7 @@ túnel también (decisión D5; fuera de la fase 1).
 | Puente | Órdenes | Cómo se ejecutan |
 |---|---|---|
 | A | `estado`, `olas [n]`, `cola`, `puertas`, `agentes`, `ayuda` (lectura); `aprobar <ids>`, `rechazar <ids>`, `soltar <ids>`, `reasignar <id> <modelo>`, `decir <texto>`, `a <agente> <texto>`; texto suelto = **mensaje a Hermes** | lectura: `GET http://127.0.0.1:9002/api/mando/estado` (petición local, como `telegram-puente.py`); órdenes: **las mismas funciones** `puente.orden` / `puente.decir` (`scripts/puente/puente.py:392`, `:128`), con `quien="genesis-web-<8 primeros de la cuenta>"`; el análisis es `parsear_orden` de `telegram-puente.py` importado (no copiado); texto suelto → `POST /api/mando/director-chat {accion:"decir", modelo:"hermes/predeterminado", canales:["hermes"]}` |
-| B | `estado`, `ayuda`, `encargos`, `pausa`, `sigue`, `cancela`; texto suelto = petición o encargo | en el A1, las mismas funciones del bucle de `peticiones_telegram.py` (`por_reglas`, la cola durable), con el origen marcado `genesis` |
+| B | `estado`, `ayuda`, `encargos`, `pausa`, `sigue`, `cancela`; texto suelto = petición o encargo. **Hoy (GEN1113INT) el bot del A1 solo tiene `estado` y `ayuda`**: las otras cuatro pasan la puerta pero el A1 las acusa `rechazado` («esa orden aún no existe en el bot del A1») y la pestaña no las ofrece (las nombra como «aún no disponibles»); el texto suelto es una petición (los encargos de varias horas no están conectados) | en el A1, las mismas funciones del bucle de `peticiones_telegram.py` (`por_reglas`, la cola durable), con el origen marcado `genesis` |
 | C | ninguna (solo lectura) | — |
 | Dirección | `decir`, `responder`, `reenviar` del contrato del chat de dirección | `POST http://127.0.0.1:9002/api/mando/director-chat` en local: **la misma ruta** que el compositor de `/genesis`, así que hereda canales, cartero, presidente y entregas sin reescribirlos |
 
@@ -745,7 +750,7 @@ cada ficha en el espejo:
 
 ```ts
 /** Lo que guarda el espejo: un MensajeDirector ya tachado (mismos campos que chat-director-tipos.ts) + su fuente. */
-interface RegistroEspejo extends MensajeDirector { fuente: string; cursor?: number; entregas?: Record<string, { estado: string; detalle?: string }> }
+interface RegistroEspejo extends MensajeDirector { fuente: string; cursor?: number; entregas?: Record<string, { estado: string; detalle?: string }>; origen?: "genesis-web" }
 
 interface EntradaChat {
     v: 1;
@@ -758,6 +763,8 @@ interface EntradaChat {
     canales?: CanalId[];                             // ⊂ CANALES ; solo en dirección
     respondeA?: string; reenviar?: string;           // ^md-\d{10,16}-[0-9a-f]{4}$
     orden?: { nombre: string; args: string[] };      // nombre ∈ §4.4 de su fuente; ≤ 10 args de ≤ 120
+    // (GEN1113INT) `decir` lleva args: [] y su texto en `texto`; `a` lleva args: [<agente>] y su texto en `texto`;
+    // las demás órdenes no llevan `texto`. `responder` no lleva texto; `reenviar` necesita ≥ 1 canal.
 }
 /** Lo que entrega la puerta al destino: lo de arriba + lo que solo pone la puerta. */
 interface EntradaRecibida extends EntradaChat { id: number; cuenta: string; rol: "dueño" | "desarrollador"; destino: "mac" | "a1"; recibido: string }
@@ -1091,7 +1098,10 @@ prueba con fichas de mentira. El despliegue en el A1 lo hace la dirección, no e
 
 ## 12. Lo que no se pudo determinar (y cómo se resuelve)
 
-- **El tercer chat (D1).** Hay tres bots, pero el código no dice cuál es el «tercer chat» de Alex. Lo confirma él.
+> Ver también §13: lo que el código hace de verdad tras la integración (GEN1113INT).
+
+- **El tercer chat (D1).** Hay tres bots, pero el código no dice cuál es el «tercer chat» de Alex. **Resuelto:** Alex confirmó
+  que los tres chats son los bots A, B y C (D1 se queda).
 - **La lista de usuarios de Hermes.** No se leyó la configuración del gateway de Hermes (regla: no leer sus almacenes). La
   autorización de Telegram para hablar con Hermes queda sin verificar aquí.
 - **`messaging_channels`.** Su migración de creación no está en el repo, así que no se sabe si `scope` tiene CHECK (por eso D3).
@@ -1104,3 +1114,60 @@ prueba con fichas de mentira. El despliegue en el A1 lo hace la dirección, no e
   `tunel-metagenesis`.
 - **Lo que queda a medias de IND1029H.** `director_chat.recoger_puerta` existe y no lo llama nadie. GEN1113B no lo usa: la
   entrada nueva va por `/v1/genesis/chats/entrada`.
+
+---
+
+## 13. Lo que hace el código tras la integración (GEN1113INT · 2026-11-13)
+
+Los seis paquetes (A puerta, B Mac, C biblioteca, D pestaña, E página, F A1) se fundieron en `opus1106/GEN1113INT`. Donde el
+código y las secciones de arriba no coincidían, se arregló el lado equivocado; esto es lo que vale ahora.
+
+**Forma de las entradas (§7.1).**
+- `/decir` y `/a` llevan el texto libre en `texto` (≤ 8.000), no en `orden.args` (≤ 120 cada uno): `decir` con `args: []`,
+  `a` con `args: [<agente>]` (`^[A-Za-z0-9_.-]{1,40}$`). Las demás órdenes no llevan `texto` (400).
+- `responder` no exige texto (la ruta local lo arma con el mensaje original). `reenviar` exige al menos un canal.
+- Un desarrollador solo puede `decir` sin `modelo` y con `canales` ausente o `["mando"]`. En la Mac eso se publica en el hilo
+  con `director_chat.publicar` (plan `chat-hilo`), **sin** pasar por la ruta local, que siempre despierta a un motor.
+- Cuerpo > 16 KB → 413 `grande`. Todos los errores llevan `{error, codigo}` (`forma`, `sin-sesion`, `no-miembro`,
+  `solo-dueno`, `nonce-repetido`, `limite`, `rol-sin-comprobar`, `grande`).
+
+**Espejo (§5.2).**
+- La puerta guarda el registro entero menos `fuente` y `cursor` (así llega `origen: "genesis-web"`, la marca «vía Genesis en
+  Astraura»). Un registro que vuelve con el mismo `id` **reemplaza** al anterior y pasa al final del cursor; la pestaña también
+  reemplaza por `id`, así que se ve un solo mensaje con su entrega al día.
+- `feed` sin `desde` devuelve los **últimos** `limite` registros (lo usa Conexiones de chat con `limite=1`).
+- La Mac y el A1 trocean los lotes por número (≤ 200) **y por tamaño** (≤ 56 KB de JSON; la puerta corta en 64 KB) y recortan
+  un registro a ≤ 40 KB (la puerta corta en 48 KB) marcándolo «recortado en la copia». Un lote que la puerta rechaza con 400/413
+  se salta y se cuenta, en vez de parar el espejo.
+- Si la Mac marca un mensaje como escrito desde la web después de haberlo subido (la ruta local publica antes de contestar), lo
+  vuelve a subir una vez con la marca y sus entregas.
+
+**Acuses.** La Mac y el A1 mandan `entregado` al recoger una entrada válida y el acuse final después de ejecutar y anotar. La
+pestaña pasa de «En la puerta del A1 · esperando a la Mac» a «La Mac lo recogió · en marcha» y luego al estado final.
+
+**Puente B.** El bot del A1 solo tiene `/estado` y `/ayuda` (§4.4). La pestaña solo ofrece esas dos y nombra las otras cuatro
+como «aún no disponibles»; si se escriben, no se envían y se dice por qué. El aviso «Retiro de la cola tras 24 h» de una
+petición hecha desde Genesis va al espejo, sin el texto de la petición, y no a Telegram (D6). La lista del A1
+(`~/.starseed/peticiones/cuentas.json`) también exige permisos 600 y ser del usuario del servicio.
+
+**La Mac por dentro.** `puente.orden` toma el «quién» de `STARSEED_IDE`; esa variable (y `sys.stdout`) se cambian solo bajo un
+cerrojo del proceso que también toma el hilo del espejo mientras ejecuta código de otros guiones, así que nada se filtra de un
+hilo a otro.
+
+**Interfaz.** La primera escritura de `conexiones.metagenesis` la hace solo la pestaña con `conMetaGenesisInicial` (C);
+Conexiones de chat muestra el interruptor con ese mismo ayudante. Si la cuenta no guarda, la pestaña lo dice
+(«No se pudo guardar en tu cuenta…») y Conexiones de chat lo dice con un aviso y vuelve atrás.
+
+**Fichas.** Ya existe una ficha llamada `genesis-mac` (ámbitos `metricas,metagenesis,latidos`): las nuevas se llaman
+`genesis-chats-mac` (ámbito `genesis-mac`) y `genesis-chats-a1` (ámbito `genesis-a1`) para no sustituirla.
+
+**Seguridad: límites que siguen abiertos.**
+- **Puerta comprometida** (§4.3): puede hablar en nombre de un dueño de la lista, y con ello aprobar, soltar o reasignar tareas
+  y escribir a Hermes, que tiene herramientas en la Mac. Arreglo previsto: entradas firmadas por el aparato (WebCrypto, clave
+  no exportable) y claves públicas dadas de alta por Alex en la Mac y en el A1; la Mac y el A1 rechazan lo que no venga firmado.
+- **Ficha de máquina robada** (`genesis-chats-mac` o `genesis-chats-a1`): puede leer las entradas pendientes de su destino
+  (texto de Alex, ≤ 7 días), consumirlas y acusarlas con cualquier estado, y escribir registros falsos en el espejo de sus
+  fuentes. No puede crear entradas ni llegar a la Mac. Se corta revocando la ficha en la puerta.
+- **Texto de un desarrollador en el hilo**: no despierta a nadie, pero queda en el historial que leen los modelos y los IDE por
+  el MCP del director. Debe tratarse como texto no fiable (autor `genesis-web-…`, rol `agente`).
+- La puerta ve en claro las sesiones de quienes la usan (ya era así antes de este encargo).

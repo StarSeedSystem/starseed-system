@@ -8,11 +8,14 @@ red, reloj ni entorno: todo llega por argumento y sale como dato. El servicio qu
 Reglas que se comprueban (y por qué):
 - Sin la lista local de cuentas (`~/.starseed/genesis-chats/cuentas.json`) no se ejecuta nada (D8).
 - El rol que vale es el MENOR entre el de la puerta y el de la lista local: un dueño en la puerta que no
-  está en la lista local es solo lector; ni una puerta comprometida ni una fila de Supabase bastan.
+  está en la lista local es solo lector, y una fila de Supabase cambiada no basta. (GEN1113INT) Una puerta
+  COMPROMETIDA sí basta: la cuenta y el rol los pone la puerta y nada viene firmado desde el aparato, así
+  que puede presentar entradas a nombre de un dueño de la lista. Ver el contrato, §4.3, «Límite conocido».
 - Solo el dueño pone a trabajar a un agente o da órdenes (D5); el desarrollador escribe al hilo `mando`.
 - Las órdenes que cambian algo caducan a los 30 min de recibirse (D7); los mensajes no.
 - El registro nunca lleva texto ni argumentos de texto.
 """
+import json
 import re
 import time
 from datetime import datetime, timezone
@@ -154,18 +157,31 @@ def normalizar_entrada(e, parsear=None):
     return e
 
 
-def _args_orden(nombre, args):
-    """Argumentos ya validados de una orden del puente A, o None si no valen."""
+def _args_orden(nombre, args, texto=None):
+    """Argumentos ya validados de una orden del puente A, o None si no valen.
+
+    (GEN1113INT) El texto libre de `decir` y `a` llega en `texto` (≤ 8000) desde la web: `decir` con
+    `args: []` y `a` con `args: [<agente>]`, que es lo que valida la puerta. Lo escrito como «/decir …»
+    en un texto suelto (analizado con `parsear_orden`) sigue llegando en `args` y también vale."""
     if not isinstance(args, list) or len(args) > MAX_ARGS or not all(isinstance(a, str) for a in args):
         return None
     if nombre in ("decir", "a"):
+        if isinstance(texto, str) and texto.strip():
+            libre = texto.strip()
+            if nombre == "a":
+                if len(args) != 1 or not RE_AGENTE.match(args[0]):
+                    return None
+                return [args[0], libre] if len(libre) <= MAX_TEXTO else None
+            return [libre] if not args and len(libre) <= MAX_TEXTO else None
         if nombre == "a":
             if len(args) < 2 or not RE_AGENTE.match(args[0]):
                 return None
-            texto = " ".join(args[1:]).strip()
-            return [args[0], texto] if 0 < len(texto) <= MAX_TEXTO else None
-        texto = " ".join(args).strip()
-        return [texto] if 0 < len(texto) <= MAX_TEXTO else None
+            libre = " ".join(args[1:]).strip()
+            return [args[0], libre] if 0 < len(libre) <= MAX_TEXTO else None
+        libre = " ".join(args).strip()
+        return [libre] if 0 < len(libre) <= MAX_TEXTO else None
+    if texto is not None:
+        return None   # solo `decir` y `a` llevan texto
     if any(len(a) > MAX_ARG for a in args):
         return None
     if nombre in ("aprobar", "rechazar", "soltar"):
@@ -276,7 +292,7 @@ def validar_entrada(e, cuentas, ahora, vistos):
         else:
             orden = e.get("orden")
             nombre = orden.get("nombre") if isinstance(orden, dict) else None
-            if nombre not in ORDENES_A or _args_orden(nombre, orden.get("args", [])) is None:
+            if nombre not in ORDENES_A or _args_orden(nombre, orden.get("args", []), e.get("texto")) is None:
                 return False, NO_PERMITIDA
     if cambia(dict(e, rol=rol)) and ahora - epoch_de(e.get("recibido")) > CADUCIDAD_S:
         return False, CADUCADA
@@ -325,7 +341,7 @@ def plan_de_entrada(e):
                            "modelo": MODELO_HERMES, "canales": ["hermes"]}}
     orden = e.get("orden") or {}
     nombre = orden.get("nombre")
-    args = _args_orden(nombre, orden.get("args", []))
+    args = _args_orden(nombre, orden.get("args", []), e.get("texto"))
     if nombre in LECTURA_A:
         return {"tipo": "http-local", "metodo": "GET", "ruta": RUTA_ESTADO, "orden": nombre, "args": args}
     if nombre in ("aprobar", "rechazar", "soltar"):
@@ -439,8 +455,49 @@ def tachar_registro(r, tachar):
     return r
 
 
-def lotes(registros, tam=200):
-    return [registros[i:i + tam] for i in range(0, len(registros), tam)]
+#: (GEN1113INT) La puerta corta todo cuerpo en 64 KB y cada registro del espejo en 48 KB (se miden en
+#: bytes de JSON). Con margen: lotes de ≤ 56 KB y registros de ≤ 40 KB.
+MAX_LOTE_BYTES = 56 * 1024
+MAX_REGISTRO_BYTES = 40 * 1024
+RECORTADO = " … [recortado en la copia; completo en /genesis de la Mac]"
+
+
+def bytes_json(x):
+    return len(json.dumps(x, ensure_ascii=False).encode("utf-8"))
+
+
+def recortar_registro(r, maximo=MAX_REGISTRO_BYTES):
+    """Copia de `r` que cabe en `maximo` bytes de JSON: se acorta `texto` (y, si no basta, se quitan
+    los detalles de las entregas). Un registro que no cabe en la puerta pararía el espejo entero."""
+    if not isinstance(r, dict) or bytes_json(r) <= maximo:
+        return r
+    r = dict(r)
+    texto = _txt(r.get("texto"))
+    while texto and bytes_json(r) > maximo:
+        texto = texto[: max(0, int(len(texto) * 0.7) - 1)]
+        r["texto"] = texto + RECORTADO
+    if bytes_json(r) > maximo and isinstance(r.get("entregas"), dict):
+        r["entregas"] = {c: {"estado": _txt((v or {}).get("estado"))} for c, v in r["entregas"].items()}
+    for k in ("eleccion", "uso"):
+        if bytes_json(r) > maximo:
+            r.pop(k, None)
+    return r
+
+
+def lotes(registros, tam=200, max_bytes=MAX_LOTE_BYTES):
+    """Lotes de ≤ `tam` registros y ≤ `max_bytes` de JSON (la puerta rechaza un cuerpo de más de 64 KB)."""
+    salida, actual, peso = [], [], 0
+    for r in registros:
+        r = recortar_registro(r)
+        b = bytes_json(r) + 2
+        if actual and (len(actual) >= tam or peso + b > max_bytes):
+            salida.append(actual)
+            actual, peso = [], 0
+        actual.append(r)
+        peso += b
+    if actual:
+        salida.append(actual)
+    return salida
 
 
 # ── registro sin contenido (§4.5) ────────────────────────────────────────────

@@ -61,6 +61,7 @@ export function PestanaGenesis({ cliente }: PestanaGenesisProps) {
     const [prefsLeidas, setPrefsLeidas] = useState(false);
     const [elegida, setElegida] = useState<string | null>(leerSeleccion);
     const primeraEscritura = useRef(false);
+    const [avisoPrefs, setAvisoPrefs] = useState<string | null>(null);
 
     useEffect(() => {
         let vivo = true;
@@ -92,7 +93,12 @@ export function PestanaGenesis({ cliente }: PestanaGenesisProps) {
         primeraEscritura.current = true;
         const nuevas = conMetaGenesisInicial(prefs);
         setPrefs(nuevas);
-        void guardarPrefsChatsGenesis(nuevas).catch(() => { /* queda en la copia local; se reintenta al volver a abrir */ });
+        // GEN1113INT: `guardarPrefsChatsGenesis` lanza si la cuenta no guardó: se dice (queda en la copia
+        // local de este aparato y se vuelve a intentar la próxima vez que se abra la pestaña).
+        void guardarPrefsChatsGenesis(nuevas).then(
+            () => setAvisoPrefs(null),
+            () => setAvisoPrefs("No se pudo guardar en tu cuenta la conexión a MetaGenesis; queda en este aparato y se reintenta al volver a abrir Genesis."),
+        );
     }, [prefsLeidas, acceso, prefs]);
 
     const entradas = useMemo(() => entradasDeLista(acceso, entidades, prefs.vinculos), [acceso, entidades, prefs.vinculos]);
@@ -114,7 +120,10 @@ export function PestanaGenesis({ cliente }: PestanaGenesisProps) {
                 onElegir={elegir}
                 onReintentarAcceso={() => setVueltaAcceso((v) => v + 1)}
             />
-            <div className="flex min-h-0 min-w-0 flex-1 flex-col rounded-xl border border-white/10 bg-background/50 p-2 shadow-sm sm:p-3">
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 rounded-xl border border-white/10 bg-background/50 p-2 shadow-sm sm:p-3">
+                {avisoPrefs ? (
+                    <p role="status" data-testid="aviso-prefs" className="shrink-0 rounded-lg border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-[12px] leading-snug text-amber-100">{avisoPrefs}</p>
+                ) : null}
                 <Panel valor={valor} cliente={puerta} acceso={acceso} comprobando={comprobando} prefs={prefs} entidades={entidades} onElegir={elegir} />
             </div>
         </div>

@@ -10,6 +10,7 @@ comprueba la Mac (lista local de cuentas, forma, caducidad, nonce), las mete en 
 Sin la variable no se engancha nada. No toca el offset de Telegram. Solo biblioteca estándar.
 """
 import datetime
+import json
 import os
 import re
 import threading
@@ -25,7 +26,12 @@ ORIGEN = "genesis"
 CADUCA_S = 30 * 60            # §4.5: una orden que cambia algo caduca a los 30 min
 VISTOS_S = 7 * 24 * 3600      # §4.3: el nonce se guarda 7 días
 MAX_TEXTO = 8000
-MAX_REGISTRO = 19000          # el espejo admite 20000 por mensaje
+# (GEN1113INT) La puerta corta el cuerpo en 64 KB y cada registro en 48 KB, medidos en bytes de JSON: un
+# trozo de 19.000 caracteres con acentos o emojis pasaba de 48 KB y un lote de varios, de 64 KB, y el espejo
+# se quedaba atascado para siempre (con el latido dentro). Trozos de 8.000 caracteres (≤ 32 KB aun con
+# caracteres de 4 bytes) y lotes de ≤ 56 KB.
+MAX_REGISTRO = 8000
+MAX_LOTE_BYTES = 56 * 1024
 ESPERAS_S = (2, 5, 15, 60)    # §5.2
 LATIDO_S = 30
 NONCE = re.compile(r"^[A-Za-z0-9_-]{22,32}$")
@@ -67,7 +73,16 @@ class Puente:
         return v
 
     def _duenos(self):
-        d = self.mod.leer_json(self._ruta("cuentas.json"), None)
+        # (GEN1113INT) Como en la Mac: la lista solo vale si es de este usuario y nadie más puede leerla
+        # ni escribirla (600). Una lista que otro pudo tocar no autoriza nada.
+        ruta = self._ruta("cuentas.json")
+        try:
+            st = os.stat(ruta)
+        except OSError:
+            return None
+        if st.st_uid != os.getuid() or st.st_mode & 0o077:
+            return None
+        d = self.mod.leer_json(ruta, None)
         if not isinstance(d, dict) or not isinstance(d.get("duenos"), list):
             return None
         return {x for x in d["duenos"] if isinstance(x, str)}
@@ -75,6 +90,7 @@ class Puente:
     # ── hacia la puerta ──
     def _post(self, ruta, cuerpo):
         estado, _ = self.puerta._pedir("POST", ruta, cuerpo)
+        self.ultimo_estado = estado
         return bool(estado and 200 <= estado < 300)
 
     def acusar(self, ident, estado, detalle=""):
@@ -102,12 +118,24 @@ class Puente:
 
     def vaciar(self, latido=False):
         with self.cerrojo:
-            lote = self.salida[:200]
+            lote, peso = [], 0
+            for r in self.salida[:200]:
+                b = len(json.dumps(r, ensure_ascii=False).encode("utf-8")) + 2
+                if lote and peso + b > MAX_LOTE_BYTES:
+                    break
+                lote.append(r)
+                peso += b
             if not lote and not latido:
                 return
+            self.ultimo_estado = None
             if self._post("/v1/genesis/chats/espejo", {"fuente": FUENTE, "registros": lote, "latido": True}):
                 del self.salida[:len(lote)]
                 self.ultimo_latido = self.ahora()
+            elif self.ultimo_estado in (400, 413) and lote:
+                # (GEN1113INT) La puerta no lo aceptará nunca así: se descarta y se dice, sin atascar lo demás.
+                self.mod.log("puerta de datos: el espejo rechazó %d respuesta(s) (%s); se descartan"
+                             % (len(lote), self.ultimo_estado))
+                del self.salida[:len(lote)]
 
     # ── una entrada ──
     def procesar(self, e):
@@ -120,7 +148,7 @@ class Puente:
             return "rechazado", "forma no válida", None
         duenos = self._duenos()
         if duenos is None:
-            return "rechazado", "falta la lista de cuentas en el A1", None
+            return "rechazado", "falta la lista de cuentas en el A1 (o no tiene permisos 600)", None
         if e["rol"] != "dueño" or e["cuenta"] not in duenos:
             return "rechazado", "cuenta no autorizada en el A1", None
         nombre, texto = self._leer_orden(e)
@@ -239,8 +267,23 @@ def enganchar(mod, puerta=None):
     ctx = threading.local()
     decir0, atender0, enviar0, main0 = mod.decir, mod.atender, mod.enviar_resultado, mod.main
 
+    actualizar0 = getattr(mod, "actualizar", None)
+
     def decir(texto):
+        if getattr(ctx, "retiro_genesis", False):
+            # (GEN1113INT) «Retiro de la cola tras 24 h…» de una petición hecha desde Genesis: lo manda
+            # `trabajar()` fuera de `atender`, justo después de marcarla «caducada». Va al espejo, no a
+            # Telegram (D6), y sin el texto de la petición.
+            ctx.retiro_genesis = False
+            p.subir_espejo("Retirada de la cola tras 24 h: una petición hecha desde Genesis no se pudo hacer.")
+            return
         p.subir_espejo(texto) if getattr(ctx, "genesis", False) else decir0(texto)
+
+    def actualizar(pid, **cambios):
+        if actualizar0 is not None:
+            actualizar0(pid, **cambios)
+        if cambios.get("estado") == "caducada" and isinstance(pid, str) and pid.startswith("g-"):
+            ctx.retiro_genesis = True
 
     def atender(pet):
         ctx.genesis = pet.get("origen") == ORIGEN
@@ -260,4 +303,6 @@ def enganchar(mod, puerta=None):
         main0()
 
     mod.decir, mod.atender, mod.enviar_resultado, mod.main = decir, atender, enviar_resultado, main
+    if actualizar0 is not None:
+        mod.actualizar = actualizar
     return p

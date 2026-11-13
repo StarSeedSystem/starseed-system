@@ -49,6 +49,9 @@ ESPERAS_S = (2, 5, 15, 60)
 LATIDO_S = 30
 ESPERA_LARGA_S = 25
 PLIST = os.path.join(HOME, "Library", "LaunchAgents", "com.starseed.genesis-chats.plist")
+#: (GEN1113INT) Lo que cambia estado de TODO el proceso (os.environ["STARSEED_IDE"], sys.stdout) se hace
+#: bajo este cerrojo, y cada vuelta del espejo también lo toma: así nada de un hilo se filtra al otro.
+CERROJO_PROCESO = threading.RLock()
 ARCHIVOS_FEED = (
     ("chat", ("mando", "director", "chat.jsonl")),
     ("canal", ("mando", "canal.jsonl")),
@@ -172,6 +175,7 @@ class PuenteGenesis:
         self.enviados = OrderedDict()      # id → firma de sus entregas (últimos 400)
         self.cache = OrderedDict()         # id → registro tachado sin entregas (últimos 400)
         self.origen_web = OrderedDict()    # ids del chat creados desde Genesis en Astraura
+        self.origen_resubir = set()        # (GEN1113INT) ids marcados después de subirlos sin la marca
         self.pendientes_espejo = []        # (fuente, registro) que no se pudieron subir aún
         self.ultimo_hermes = {}
 
@@ -191,7 +195,8 @@ class PuenteGenesis:
 
     def _log(self, texto):
         """El registro del servicio: solo recuentos y estados, tachado (nunca URL, ficha ni texto)."""
-        self.salida("[genesis-chats] %s" % self.mod["cliente"].tachar(texto))
+        with CERROJO_PROCESO:   # (GEN1113INT) nunca a un stdout cambiado por otro hilo
+            self.salida("[genesis-chats] %s" % self.mod["cliente"].tachar(texto))
 
     # ── HTTP ──
     def _puerta(self, metodo, ruta, cuerpo=None, timeout=10):
@@ -250,6 +255,10 @@ class PuenteGenesis:
         e = dict(e, rol=L.rol_efectivo(e, cuentas))
         plan = L.plan_de_entrada(e)
         self._anotar_visto(vistos, clave, e, "en-curso")
+        # (GEN1113INT) Acuse intermedio «entregado» (§5.2): la pestaña deja de decir «esperando a la Mac»
+        # mientras la Mac ya la está ejecutando (un modelo de API tarda hasta 90 s). Si no llega, da igual:
+        # el acuse final se manda después y es el que cuenta.
+        self.acusar(e["id"], "entregado", None)
         try:
             resultado, detalle, motivo = self.ejecutar(plan, e)
         except Exception as error:  # noqa: BLE001 — lo que falle se acusa, nunca se calla
@@ -264,23 +273,27 @@ class PuenteGenesis:
         tipo = plan.get("tipo")
         if tipo == "puente-orden":
             p = self.mod["puente"]
-            anterior = os.environ.get("STARSEED_IDE")
             # `puente.orden` no recibe `quien`: lo toma de STARSEED_IDE (puente.py:394), y así lo anuncia
             # en canal.jsonl y lo escribe en control-<cola>.json. Se pone solo durante la llamada.
-            os.environ["STARSEED_IDE"] = plan["quien"]
-            try:
-                with contextlib.redirect_stdout(io.StringIO()):
-                    rc = p.orden(plan["accion"], list(plan["ids"]), plan.get("extra"))
-            finally:
-                if anterior is None:
-                    os.environ.pop("STARSEED_IDE", None)
-                else:
-                    os.environ["STARSEED_IDE"] = anterior
+            # (GEN1113INT) El entorno y sys.stdout son de TODO el proceso y el espejo corre en otro hilo:
+            # la llamada va bajo CERROJO_PROCESO, el mismo que toma cada vuelta del espejo, así que ningún
+            # otro hilo de este servicio corre mientras STARSEED_IDE y stdout están cambiados.
+            with CERROJO_PROCESO:
+                anterior = os.environ.get("STARSEED_IDE")
+                os.environ["STARSEED_IDE"] = plan["quien"]
+                try:
+                    with contextlib.redirect_stdout(io.StringIO()):
+                        rc = p.orden(plan["accion"], list(plan["ids"]), plan.get("extra"))
+                finally:
+                    if anterior is None:
+                        os.environ.pop("STARSEED_IDE", None)
+                    else:
+                        os.environ["STARSEED_IDE"] = anterior
             if rc in (None, 0):
                 return "hecho", "orden «%s» escrita; el vigilante la recoge en menos de 20 s" % plan["accion"], "ok"
             return "fallo", "la orden no se escribió (sin cola viva o la tarea ya no espera decisión)", "orden no escrita"
         if tipo == "puente-decir":
-            with contextlib.redirect_stdout(io.StringIO()):
+            with CERROJO_PROCESO, contextlib.redirect_stdout(io.StringIO()):
                 self.mod["puente"].decir(plan["texto"], quien=plan["quien"], tipo="mensaje")
             return "hecho", "dicho en el canal común", "ok"
         if tipo == "chat-hilo":
@@ -313,10 +326,17 @@ class PuenteGenesis:
         return "fallo", "plan desconocido", "plan desconocido"
 
     def _marcar_origen(self, mensaje):
+        """Marca un id del chat como escrito desde Genesis en Astraura («vía Genesis en Astraura»).
+
+        (GEN1113INT) La ruta local publica el mensaje ANTES de contestar (con un modelo de API, hasta 90 s
+        antes), así que el espejo puede haberlo subido ya sin la marca: entonces se apunta para subirlo
+        otra vez con ella (la puerta reemplaza por id y la pestaña también)."""
         if isinstance(mensaje, dict) and isinstance(mensaje.get("id"), str):
-            self.origen_web[mensaje["id"]] = True
-            while len(self.origen_web) > 400:
-                self.origen_web.popitem(last=False)
+            with self.cerrojo_pend:
+                self.origen_web[mensaje["id"]] = True
+                while len(self.origen_web) > 400:
+                    self.origen_web.popitem(last=False)
+                self.origen_resubir.add(mensaje["id"])
 
     def _responder_puente(self, e, texto):
         """La respuesta a una lectura del puente A va al hilo de ese puente en el espejo."""
@@ -377,11 +397,19 @@ class PuenteGenesis:
         return firma
 
     def _subir(self, fuente, registros, latido=False):
+        # (GEN1113INT) Lotes por número Y por tamaño (la puerta corta el cuerpo en 64 KB y el registro en
+        # 48 KB): sin esto, un informe largo dejaba el espejo parado para siempre con 413/400.
         for lote in (L.lotes(registros) or [[]]):
             cuerpo = {"fuente": fuente, "registros": lote}
             if latido:
                 cuerpo["latido"] = True
             codigo, _ = self._puerta("POST", "/v1/genesis/chats/espejo", cuerpo, timeout=20)
+            if codigo in (400, 413):
+                # La puerta no aceptará NUNCA este lote tal cual: se salta (y se dice) en vez de parar el espejo.
+                self._log("espejo: la puerta rechazó un lote de %d de %s (%s); se salta" % (len(lote), fuente, codigo))
+                esp = self.estado.setdefault("espejo", {})
+                esp["saltados"] = esp.get("saltados", 0) + len(lote)
+                continue
             if not (200 <= (codigo or 0) < 300):
                 self._log("espejo: la puerta no aceptó un lote de %s (%s)" % (fuente, codigo or "sin red"))
                 return False
@@ -397,6 +425,36 @@ class PuenteGenesis:
         return mapa
 
 
+    def _resubir_con_origen(self):
+        """(GEN1113INT) Sube otra vez, con `origen: "genesis-web"` y sus entregas, los mensajes que se
+        marcaron como escritos desde Genesis después de haberlos subido sin la marca."""
+        with self.cerrojo_pend:
+            ids = [i for i in self.origen_resubir if i in self.enviados and i in self.cache]
+            self.origen_resubir.difference_update(ids)
+            self.origen_resubir.intersection_update(set(self.origen_web))
+        if not ids:
+            return True
+        tachar = self.mod["director_chat"].tachar
+        registros = []
+        for ident in ids:
+            if self.cache[ident].get("origen") == "genesis-web":
+                continue
+            try:
+                entregas = json.loads(self.enviados[ident])
+            except ValueError:
+                entregas = {}
+            r = dict(self.cache[ident], origen="genesis-web", fuente="direccion")
+            if entregas:
+                r["entregas"] = L.tachar_registro(entregas, tachar)
+            registros.append(r)
+        if registros and not self._subir("direccion", registros):
+            with self.cerrojo_pend:
+                self.origen_resubir.update(ids)
+            return False
+        for r in registros:
+            self.cache[r["id"]] = dict(self.cache[r["id"]], origen="genesis-web")
+        return True
+
     def tick_espejo(self):
         """Una vuelta del espejo: «sin-cambios», «subido» o «fallo». Lee Genesis local SOLO si cambió
         el mtime de alguno de los cuatro archivos (o hay respuestas del puente A esperando)."""
@@ -409,6 +467,8 @@ class PuenteGenesis:
                 with self.cerrojo_pend:
                     self.pendientes_espejo.append((fuente, r))
                 ok = False
+        if not self._resubir_con_origen():
+            ok = False
         firma = self._firma_archivos()
         if firma == esp.get("mtimes"):
             return self._latir(esp, "sin-cambios" if ok else "fallo")
@@ -420,8 +480,30 @@ class PuenteGenesis:
         if codigo != 200 or not isinstance(datos, dict):
             self._log("espejo: Genesis local no respondió (%s)" % (codigo or "sin red"))
             return "fallo"
-        por_fuente, nuevos, maximo = {}, [], desde or 0
         entregas, detalles = datos.get("entregas"), datos.get("detalles")
+        # (GEN1113INT) `_importa` y compañía son código de otros guiones (pueden leer el entorno o
+        # escribir en stdout): corren bajo el mismo cerrojo que `puente.orden` en el hilo de entradas.
+        with CERROJO_PROCESO:
+            por_fuente, nuevos, maximo, cambiados = self._clasificar(datos, desde, entregas, detalles)
+        for fuente in L.FUENTES:
+            if por_fuente.get(fuente) and not self._subir(fuente, por_fuente[fuente]):
+                return "fallo"   # ni mtimes ni cursor avanzan: la próxima vuelta lo intenta otra vez
+        for ident in nuevos:
+            self.enviados[ident] = json.dumps(self._entregas_de(ident, entregas, detalles), sort_keys=True)
+        self.enviados.update(cambiados)
+        for od in (self.enviados, self.cache):
+            while len(od) > 400:
+                od.popitem(last=False)
+        n = sum(len(v) for v in por_fuente.values())
+        esp.update(mtimes=firma, desde_epoch=maximo or desde, lecturas=esp.get("lecturas", 0) + 1)
+        if n:
+            esp.update(ultimo_envio=self.ahora(), subidos=esp.get("subidos", 0) + n)
+        self._guardar_estado()
+        return self._latir(esp, "subido" if ok else "fallo")
+
+    def _clasificar(self, datos, desde, entregas, detalles):
+        """(por_fuente, nuevos, maximo, cambiados) de una lectura del feed local, sin red."""
+        por_fuente, nuevos, maximo = {}, [], desde or 0
         importa = getattr(self.mod["telegram"], "_importa", None)
         for m in datos.get("mensajes") or []:
             if not isinstance(m, dict) or not isinstance(m.get("id"), str):
@@ -458,21 +540,7 @@ class PuenteGenesis:
                                                   self.mod["director_chat"].tachar)
                 por_fuente.setdefault("direccion", []).append(r)
                 cambiados[ident] = actual
-        for fuente in L.FUENTES:
-            if por_fuente.get(fuente) and not self._subir(fuente, por_fuente[fuente]):
-                return "fallo"   # ni mtimes ni cursor avanzan: la próxima vuelta lo intenta otra vez
-        for ident in nuevos:
-            self.enviados[ident] = json.dumps(self._entregas_de(ident, entregas, detalles), sort_keys=True)
-        self.enviados.update(cambiados)
-        for od in (self.enviados, self.cache):
-            while len(od) > 400:
-                od.popitem(last=False)
-        n = sum(len(v) for v in por_fuente.values())
-        esp.update(mtimes=firma, desde_epoch=maximo or desde, lecturas=esp.get("lecturas", 0) + 1)
-        if n:
-            esp.update(ultimo_envio=self.ahora(), subidos=esp.get("subidos", 0) + n)
-        self._guardar_estado()
-        return self._latir(esp, "subido" if ok else "fallo")
+        return por_fuente, nuevos, maximo, cambiados
 
     def _latir(self, esp, resultado):
         if self.ahora() - (esp.get("ultimo_latido") or 0) >= LATIDO_S:

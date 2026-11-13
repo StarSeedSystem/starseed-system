@@ -80,7 +80,12 @@ function textoOpcional(v, nombre, max) {
   return v;
 }
 
-function validarOrden(fuente, o) {
+// GEN1113INT: el texto libre de `decir` y `a` viaja en `texto` (≤ 8000), no en `args` (≤ 120 cada
+// uno): `decir` lleva `args: []` y `a` lleva `args: [<agente>]`. Las demás órdenes no llevan `texto`.
+const CON_TEXTO = new Set(["decir", "a"]);
+const RE_AGENTE = /^[A-Za-z0-9_.-]{1,40}$/;
+
+function validarOrden(fuente, o, texto) {
   if (!o || typeof o !== "object" || Array.isArray(o)) throw forma("falta «orden»");
   const nombre = String(o.nombre ?? "");
   if (!ORDENES[fuente]?.includes(nombre)) throw forma("orden no permitida");
@@ -92,8 +97,11 @@ function validarOrden(fuente, o) {
   if (["aprobar", "rechazar", "soltar"].includes(nombre) && !ids(args)) throw forma("ids de la orden no válidos");
   if (nombre === "reasignar" && !(args.length === 2 && RE.idOrden.test(args[0]) && RE.modelo.test(args[1]))) throw forma("uso: reasignar <id> <modelo>");
   if (nombre === "olas" && !(args.length === 0 || (args.length === 1 && RE.numero.test(args[0])))) throw forma("uso: olas [n]");
-  if (nombre === "decir" && args.length < 1) throw forma("uso: decir <texto>");
-  if (nombre === "a" && args.length < 2) throw forma("uso: a <agente> <texto>");
+  const conTexto = typeof texto === "string" && texto.trim() !== "";
+  if (CON_TEXTO.has(nombre) && !conTexto) throw forma(nombre === "a" ? "uso: a <agente> <texto>" : "uso: decir <texto>");
+  if (!CON_TEXTO.has(nombre) && texto != null) throw forma("esta orden no lleva «texto»");
+  if (nombre === "decir" && args.length !== 0) throw forma("uso: decir <texto> (el texto va en «texto»)");
+  if (nombre === "a" && !(args.length === 1 && RE_AGENTE.test(args[0]))) throw forma("uso: a <agente> <texto> (el texto va en «texto»)");
   return { nombre, args: [...args] };
 }
 
@@ -133,12 +141,14 @@ export function validarEntrada(c) {
     if (!e.texto || !e.texto.trim()) throw forma("falta «texto»");
   };
   if (c.accion === "decir" || c.accion === "texto") conTexto();
-  if (c.accion === "responder") {
-    conTexto();
-    if (!e.respondeA) throw forma("falta «respondeA»");
+  // GEN1113INT: «responder» pide a un modelo que conteste a un mensaje: la ruta local de la Mac
+  // no usa texto (lo arma con el original), así que aquí no se exige.
+  if (c.accion === "responder" && !e.respondeA) throw forma("falta «respondeA»");
+  if (c.accion === "reenviar") {
+    if (!e.reenviar) throw forma("falta «reenviar»");
+    if (!e.canales?.length) throw forma("«reenviar» necesita al menos un canal");
   }
-  if (c.accion === "reenviar" && !e.reenviar) throw forma("falta «reenviar»");
-  if (c.accion === "orden") e.orden = validarOrden(c.fuente, c.orden);
+  if (c.accion === "orden") e.orden = validarOrden(c.fuente, c.orden, e.texto);
   return e;
 }
 

@@ -46,15 +46,22 @@ export const ORDENES: Record<Exclude<PuenteTelegram, "avisos-directores">, Orden
         { nombre: "decir", uso: "/decir <texto>", ayuda: "Publica en el canal común de los directores" },
         { nombre: "a", uso: "/a <agente> <texto>", ayuda: "Escribe a un agente concreto" },
     ],
+    // GEN1113INT: solo lo que el bot del A1 sabe hacer hoy (peticiones_puerta.py › IMPLEMENTADAS).
     peticiones: [
         { nombre: "estado", uso: "/estado", ayuda: "Cómo va el servicio de peticiones del A1" },
         { nombre: "ayuda", uso: "/ayuda", ayuda: "Las órdenes de este puente" },
-        { nombre: "encargos", uso: "/encargos", ayuda: "Los encargos en marcha" },
-        { nombre: "pausa", uso: "/pausa", ayuda: "Pausa los encargos", cambia: true },
-        { nombre: "sigue", uso: "/sigue", ayuda: "Reanuda los encargos", cambia: true },
-        { nombre: "cancela", uso: "/cancela [id]", ayuda: "Cancela un encargo", cambia: true },
     ],
 };
+
+/**
+ * Órdenes del contrato (§4.4, fila B) que el bot del A1 aún no tiene: no se ofrecen ni se envían, y se
+ * dice por qué. Cuando el bot las tenga, pasan a `ORDENES.peticiones` (y a IMPLEMENTADAS en el A1).
+ */
+export const AUN_NO_DISPONIBLES: Partial<Record<Exclude<PuenteTelegram, "avisos-directores">, string[]>> = {
+    peticiones: ["encargos", "pausa", "sigue", "cancela"],
+};
+
+export const TEXTO_AUN_NO = "Aún no disponibles: el bot de peticiones del A1 todavía no tiene estas órdenes.";
 
 const RE_ID = /^[A-Za-z0-9_.-]{2,40}$/;
 const RE_MODELO = /^[a-z0-9._/:-]{3,120}$/;
@@ -68,6 +75,9 @@ export function analizarEscrito(texto: string, puente: Exclude<PuenteTelegram, "
     const [cabeza = "", ...resto] = limpio.split(/\s+/);
     const nombre = cabeza.slice(1).split("@")[0]!.toLowerCase();
     const orden = ORDENES[puente].find((o) => o.nombre === nombre);
+    if (!orden && AUN_NO_DISPONIBLES[puente]?.includes(nombre)) {
+        return { ok: false, motivo: `/${nombre} aún no está disponible: el bot del A1 todavía no la tiene. Ahora mismo funcionan /estado y /ayuda, y el texto suelto como petición` };
+    }
     if (!orden) return { ok: false, motivo: `Orden no permitida en este puente: /${nombre}. Toca «Órdenes» para ver las que hay` };
     const sinCabeza = limpio.slice(cabeza.length).trim();
     if (nombre === "decir") {
@@ -123,7 +133,7 @@ export interface HiloPuenteProps {
 
 const PISTA: Record<PuenteTelegram, string> = {
     "hermes-avisos": "Texto suelto: un mensaje a Hermes en su sesión de dirección (no la de Telegram).",
-    peticiones: "Texto suelto: una petición o un encargo para el A1. La respuesta llega aquí, no a Telegram.",
+    peticiones: "Texto suelto: una petición para el A1 (NotebookLM o una respuesta escrita). La respuesta llega aquí, no a Telegram. Los encargos de varias horas aún no están conectados.",
     "avisos-directores": "Canal de avisos: solo lectura. Lo que algunos scripts mandan solo a Telegram aún no llega aquí.",
 };
 
@@ -263,6 +273,12 @@ function CompositorPuente({ puente, onEnviar }: {
                         </li>
                     ))}
                 </ul>
+                {AUN_NO_DISPONIBLES[puente]?.length ? (
+                    <div data-testid="ordenes-aun-no" className="mx-1 mt-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 text-[12px] leading-snug text-white/55">
+                        <p>{TEXTO_AUN_NO}</p>
+                        <p className="mt-1 break-words text-white/40">{AUN_NO_DISPONIBLES[puente]!.map((n) => `/${n}`).join(" · ")}</p>
+                    </div>
+                ) : null}
             </Hoja>
         </div>
     );

@@ -22,6 +22,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { PrefsChatsGenesis } from "@/lib/chats-genesis/tipos";
+import { conMetaGenesisInicial } from "@/lib/chats-genesis/vinculos";
 import { misEntidades, type EntidadGestionable } from "@/lib/genesis/entidades";
 
 export type FocoGenesis = "genesis" | "poligenesis" | "metagenesis";
@@ -202,7 +203,7 @@ export function ConexionesGenesis({ foco, prefs, acceso, onGuardar }: Conexiones
             titulo="Agentes de MetaGenesis"
             icono={Orbit}
             acento="border-violet-500/30 bg-violet-950/15"
-            activo={mg?.activo ?? true}
+            activo={conMetaGenesisInicial(prefs).conexiones.metagenesis?.activo === true}
             enfocada={foco === "metagenesis"}
             deshabilitado={guardando}
             onActivo={(v) => void guardar({ metagenesis: { activo: v } })}
@@ -217,11 +218,11 @@ export function ConexionesGenesis({ foco, prefs, acceso, onGuardar }: Conexiones
             </p>
             <p className="rounded-md border border-violet-500/20 bg-black/20 px-3 py-2 text-[11px] leading-relaxed text-violet-100/85">
               {acceso.dueno
-                ? "Como dueño puedes leer y escribir en la dirección, poner a trabajar a los directores y dar las órdenes de los puentes."
+                ? "Como dueño puedes leer y escribir en la dirección, poner a trabajar a los directores y dar las órdenes de los puentes. La Mac y el A1 lo vuelven a comprobar contra su propia lista de cuentas."
                 : "Como desarrollador puedes leer la dirección y escribir en su hilo; poner a trabajar a un agente y las órdenes de los puentes son solo para dueños."}
             </p>
             {mg === undefined && (
-              <p className="text-[10px] text-violet-300/60">Activo por defecto mientras no lo cambies.</p>
+              <p className="text-[10px] text-violet-300/60">Se activa solo la primera vez que abres la pestaña Genesis; puedes apagarlo aquí.</p>
             )}
             <Enlace href="/agent?tab=chats-genesis">Abrir en Genesis</Enlace>
           </Tarjeta>
