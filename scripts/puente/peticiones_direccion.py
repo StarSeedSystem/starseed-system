@@ -41,6 +41,240 @@ T_ENTREGABLE_2D3D = "mg_entregable_2d3d"
 MAX_TEXTO_BUS = 600
 MAX_DATOS_BUS = 3000
 
+# 9 formatos de NotebookLM (todos obligatorios si se piden "todos los formatos")
+FORMATOS_NOTEBOOKLM = (
+    "informe",
+    "audio",
+    "video",
+    "infografia",
+    "presentacion",
+    "mapa_mental",
+    "cuestionario",
+    "tarjetas",
+    "tabla_datos",
+)
+
+# Palabras clave que indican una regla permanente
+PALABRAS_REGLA_PERMANENTE = (
+    "recuerda",
+    "cada día",
+    "cada dia",
+    "siempre",
+    "para cada",
+    "a partir de ahora",
+)
+
+
+# ── Validación de planes (reglas §3.2) ────────────────────────────────────────
+
+def validar_plan_entregables(plan: Dict[str, Any], texto_original: str) -> Tuple[bool, List[str]]:
+    """PURA. Valida el plan según las reglas de §3.2.
+    
+    Reglas:
+    1. Todo entregable con archivo debe tener enviar=True (se ignora enviar=False del modelo - no es error)
+    2. Si el texto pide "todos los formatos", validar que estén los 9 formatos de NotebookLM
+    3. Detectar reglas permanentes ("recuerda / cada día / siempre / para cada...")
+    
+    Devuelve: (es_valido, lista_de_errores_solo_fallas_reales)
+    """
+    errores = []
+    texto_lower = texto_original.lower()
+    
+    # Regla 2: Si pide "todos los formatos", exigir los 9 formatos
+    pide_todos = any(frase in texto_lower for frase in (
+        "todos los formatos",
+        "todo los formatos",
+        "todas los formatos",
+        "todos formatos",
+        "todas las formatos",
+    ))
+    
+    if pide_todos:
+        formatos_en_plan = set()
+        for frente in plan.get("frentes", []):
+            for e in frente.get("entregables", []):
+                tipo = e.get("tipo", "").lower()
+                if tipo in FORMATOS_NOTEBOOKLM:
+                    formatos_en_plan.add(tipo)
+        
+        faltantes = set(FORMATOS_NOTEBOOKLM) - formatos_en_plan
+        if faltantes:
+            errores.append(
+                f"Faltan {len(faltantes)} formatos de NotebookLM requeridos por 'todos los formatos': "
+                f"{', '.join(sorted(faltantes))}"
+            )
+    
+    return len(errores) == 0, errores
+
+
+def forzar_enviar_true_en_plan(plan: Dict[str, Any]) -> Dict[str, Any]:
+    """PURA. Aplica la regla §3.2(1): fuerza enviar=True en todos los entregables con archivo/formato NotebookLM.
+    
+    Modifica el plan in-place y lo devuelve. El plan del modelo NO puede desactivar el envío.
+    """
+    for frente in plan.get("frentes", []):
+        for entregable in frente.get("entregables", []):
+            if entregable.get("archivo") or entregable.get("tipo") in FORMATOS_NOTEBOOKLM:
+                entregable["enviar"] = True
+    return plan
+
+
+def detectar_regla_permanente(texto: str) -> Optional[str]:
+    """PURA. Detecta si el texto contiene una regla permanente (§3.2(3)).
+    
+    Busca: "recuerda / cada día / siempre / para cada / a partir de ahora"
+    Devuelve la frase detectada o None.
+    """
+    texto_lower = texto.lower()
+    for frase in PALABRAS_REGLA_PERMANENTE:
+        if frase in texto_lower:
+            return frase
+    return None
+
+
+def extraer_regla_y_encargo(texto: str) -> Tuple[str, Optional[str]]:
+    """PURA. Separa el encargo de la regla permanente si ambas están en el mensaje.
+    
+    Devuelve: (texto_encargo, frase_regla_detectada)
+    """
+    frase = detectar_regla_permanente(texto)
+    if not frase:
+        return texto, None
+    
+    # La regla suele ir al final: "haz X y recuerda cada día Y"
+    # Intentar separar en la frase detectada
+    idx = texto.lower().find(frase)
+    if idx > 0:
+        encargo = texto[:idx].strip(" ,.;:yY")
+        regla = texto[idx:].strip()
+        return encargo, regla
+    return texto, frase
+
+
+# ── Persistencia de preferencias y rutinas ───────────────────────────────────
+
+def _ruta_preferencias(raiz: Optional[str] = None):
+    from pathlib import Path
+    base = Path(raiz) if raiz else Path(os.environ.get("STARSEED_ROOT",
+        str(Path.home() / "Documents" / "starseed-os-main")))
+    return base / "starseed_memory_root" / "mando" / "preferencias.json"
+
+
+def _ruta_rutinas(raiz: Optional[str] = None):
+    from pathlib import Path
+    base = Path(raiz) if raiz else Path(os.environ.get("STARSEED_ROOT",
+        str(Path.home() / "Documents" / "starseed-os-main")))
+    return base / "starseed_memory_root" / "mando" / "rutinas.json"
+
+
+def _leer_json(ruta, default):
+    try:
+        with open(ruta, encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return default
+
+
+def _escribir_json_atomico(ruta, datos: Dict[str, Any]) -> bool:
+    import fcntl
+    import tempfile
+    try:
+        ruta.parent.mkdir(parents=True, exist_ok=True)
+        with tempfile.NamedTemporaryFile(
+            "w", dir=ruta.parent, prefix=ruta.name + ".", suffix=".tmp",
+            delete=False, encoding="utf-8"
+        ) as tmp:
+            json.dump(datos, tmp, ensure_ascii=False, indent=2)
+            tmp.flush()
+            os.fsync(tmp.fileno())
+            tmp_name = tmp.name
+        os.replace(tmp_name, ruta)
+        return True
+    except Exception:
+        return False
+
+
+def guardar_preferencia(clave: str, valor: Any, raiz: Optional[str] = None) -> bool:
+    """Guarda una preferencia en preferencias.json."""
+    ruta = _ruta_preferencias(raiz)
+    prefs = _leer_json(ruta, {})
+    prefs[clave] = valor
+    prefs["_actualizado"] = time.time()
+    return _escribir_json_atomico(ruta, prefs)
+
+
+def guardar_rutina(
+    id_rutina: str,
+    disparador: Dict[str, Any],
+    accion: Dict[str, Any],
+    descripcion: str,
+    raiz: Optional[str] = None
+) -> bool:
+    """Registra una rutina en rutinas.json con su disparador y acción."""
+    ruta = _ruta_rutinas(raiz)
+    rutinas = _leer_json(ruta, {})
+    rutinas[id_rutina] = {
+        "descripcion": descripcion,
+        "disparador": disparador,
+        "accion": accion,
+        "creada": time.time(),
+        "activa": True,
+    }
+    return _escribir_json_atomico(ruta, rutinas)
+
+
+def procesar_regla_permanente(
+    texto_original: str,
+    encargo_id: str,
+    raiz: Optional[str] = None
+) -> Tuple[bool, str]:
+    """Procesa una regla permanente detectada en el mensaje (§3.2(3)).
+    
+    Hace dos cosas:
+    1. Guarda la regla en preferencias.json
+    2. Si es una rutina (tiene disparador periódico), la registra en rutinas.json
+    
+    Devuelve: (exito, mensaje_confirmacion)
+    """
+    frase = detectar_regla_permanente(texto_original)
+    if not frase:
+        return False, "No se detectó regla permanente"
+    
+    # Extraer la parte de la regla
+    _, regla_texto = extraer_regla_y_encargo(texto_original)
+    if not regla_texto:
+        regla_texto = frase
+    
+    # Guardar en preferencias
+    clave_pref = f"regla_{encargo_id}_{int(time.time())}"
+    ok_pref = guardar_preferencia(clave_pref, {
+        "texto_original": texto_original,
+        "frase_detectada": frase,
+        "regla": regla_texto,
+        "encargo_id": encargo_id,
+        "ts": time.time(),
+    }, raiz)
+    
+    # Detectar si es rutina (disparador periódico)
+    es_rutina = any(p in texto_original.lower() for p in (
+        "cada día", "cada dia", "diario", "diaria", "cada mañana", "cada noche"
+    ))
+    
+    mensaje = f"Regla permanente guardada en preferencias ({clave_pref})."
+    
+    if es_rutina:
+        id_rutina = f"rutina_{encargo_id}_{int(time.time())}"
+        # Disparador genérico: diario a hora por defecto (ajustable)
+        disparador = {"tipo": "cron", "expresion": "0 6 * * *"}  # 6 AM diario
+        accion = {"tipo": "ejecutar_encargo", "encargo_id": encargo_id, "regla": regla_texto}
+        ok_rutina = guardar_rutina(id_rutina, disparador, accion, regla_texto, raiz)
+        if ok_rutina:
+            mensaje += f" Rutina registrada en rutinas.json ({id_rutina})."
+        else:
+            mensaje += " Error guardando rutina."
+    
+    return ok_pref, mensaje
+
 
 # ── Utilidades puras ──────────────────────────────────────────────────────────
 
@@ -450,8 +684,11 @@ def crear_cliente_bus_desde_env(rutas_env: Optional[List[str]] = None) -> Option
 # Exportar lo público
 __all__ = [
     "T_AVISO", "T_PLAN_DIR", "T_AVANCE_DIR", "T_ENTREGABLE_2D3D",
+    "FORMATOS_NOTEBOOKLM", "PALABRAS_REGLA_PERMANENTE",
     "tachar", "construir_aviso_encargo", "construir_aviso_avance", "construir_aviso_entregable_2d3d",
     "filtrar_plan_mejorado", "es_entregable_2d3d",
+    "validar_plan_entregables", "forzar_enviar_true_en_plan", "detectar_regla_permanente", "extraer_regla_y_encargo",
+    "guardar_preferencia", "guardar_rutina", "procesar_regla_permanente",
     "RestBus", "publicar_aviso_encargo", "publicar_avance_direccion",
     "publicar_entregable_2d3d", "publicar_plan_direccion",
     "enviar_a_chat_director", "enviar_avance_chat_director", "enviar_entregable_2d3d_chat_director",

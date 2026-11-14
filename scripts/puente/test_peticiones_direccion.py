@@ -12,8 +12,11 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 from peticiones_direccion import (
     T_AVISO, T_PLAN_DIR, T_AVANCE_DIR, T_ENTREGABLE_2D3D,
+    FORMATOS_NOTEBOOKLM, PALABRAS_REGLA_PERMANENTE,
     tachar, construir_aviso_encargo, construir_aviso_avance, construir_aviso_entregable_2d3d,
     filtrar_plan_mejorado, es_entregable_2d3d,
+    validar_plan_entregables, forzar_enviar_true_en_plan, detectar_regla_permanente, extraer_regla_y_encargo,
+    guardar_preferencia, guardar_rutina, procesar_regla_permanente,
     RestBus, publicar_aviso_encargo, publicar_avance_direccion,
     publicar_entregable_2d3d, publicar_plan_direccion,
     enviar_a_chat_director, enviar_avance_chat_director, enviar_entregable_2d3d_chat_director,
@@ -569,6 +572,185 @@ def test_crear_cliente_bus_desde_env_con_variables():
         assert bus is not None
         assert bus.url == "https://test.supabase.co"
         assert bus._clave == "anon-key-test"
+
+
+# ── Tests de validación de planes (§3.2) ────────────────────────────────────
+
+def test_forzar_enviar_true_en_plan():
+    """forzar_enviar_true_en_plan fuerza enviar=True en entregables con archivo/formato NB (§3.2.1)."""
+    plan = {
+        "frentes": [{
+            "id": "F1",
+            "entregables": [
+                {"tipo": "informe", "titulo": "Informe 1", "enviar": False},
+                {"tipo": "video", "titulo": "Video 1", "enviar": False},
+                {"tipo": "documento", "titulo": "Doc 1", "enviar": True},
+                {"tipo": "otro", "titulo": "Otro 1", "enviar": False},  # sin archivo, no formato NB
+            ]
+        }]
+    }
+    plan_modificado = forzar_enviar_true_en_plan(plan)
+    
+    assert plan_modificado["frentes"][0]["entregables"][0]["enviar"] is True
+    assert plan_modificado["frentes"][0]["entregables"][1]["enviar"] is True
+    assert plan_modificado["frentes"][0]["entregables"][2]["enviar"] is True
+    # "otro" no es formato NotebookLM y no tiene archivo -> no se toca
+    assert plan_modificado["frentes"][0]["entregables"][3]["enviar"] is False
+
+
+def test_validar_plan_entregables_forzar_enviar_true_sin_exigir_todos():
+    """validar_plan_entregables pasa si no pide 'todos los formatos' (§3.2.1 no es error)."""
+    plan = {
+        "frentes": [{
+            "id": "F1",
+            "entregables": [
+                {"tipo": "informe", "titulo": "Informe 1", "enviar": False},
+                {"tipo": "video", "titulo": "Video 1", "enviar": False},
+            ]
+        }]
+    }
+    texto = "Genera un informe y un video"
+    valido, errores = validar_plan_entregables(plan, texto)
+    assert valido is True
+    assert len(errores) == 0
+
+
+def test_validar_plan_entregables_todos_formatos_exige_9():
+    """Si pide 'todos los formatos', exige los 9 formatos de NotebookLM (§3.2.2)."""
+    plan = {
+        "frentes": [{
+            "id": "F1",
+            "entregables": [
+                {"tipo": "informe", "titulo": "Informe"},
+                {"tipo": "audio", "titulo": "Audio"},
+                {"tipo": "video", "titulo": "Video"},
+            ]
+        }]
+    }
+    texto = "Haz todos los formatos"
+    valido, errores = validar_plan_entregables(plan, texto)
+    assert valido is False
+    assert len(errores) == 1
+    assert "faltan" in errores[0].lower() or "faltantes" in errores[0].lower()
+    # Debe mencionar 6 formatos faltantes
+    assert "6" in errores[0]
+
+
+def test_validar_plan_entregables_todos_formatos_completo():
+    """Si están los 9 formatos, validación pasa."""
+    plan = {
+        "frentes": [{
+            "id": "F1",
+            "entregables": [
+                {"tipo": f, "titulo": f} for f in FORMATOS_NOTEBOOKLM
+            ]
+        }]
+    }
+    texto = "Todos los formatos por favor"
+    valido, errores = validar_plan_entregables(plan, texto)
+    assert valido is True
+    assert len(errores) == 0
+
+
+def test_validar_plan_entregables_sin_pedir_todos_no_exige_9():
+    """Si no pide 'todos los formatos', no exige los 9."""
+    plan = {
+        "frentes": [{
+            "id": "F1",
+            "entregables": [{"tipo": "informe", "titulo": "Solo informe"}]
+        }]
+    }
+    texto = "Solo haz un informe"
+    valido, errores = validar_plan_entregables(plan, texto)
+    assert valido is True
+    assert len(errores) == 0
+
+
+def test_detectar_regla_permanente():
+    """detectar_regla_permanente encuentra las frases clave."""
+    assert detectar_regla_permanente("Recuerda cada día hacer esto") == "recuerda"
+    assert detectar_regla_permanente("Para cada síntesis genera todo") == "para cada"
+    assert detectar_regla_permanente("Siempre envía los archivos") == "siempre"
+    assert detectar_regla_permanente("A partir de ahora hazlo así") == "a partir de ahora"
+    assert detectar_regla_permanente("Cada día a las 6") == "cada día"
+    assert detectar_regla_permanente("Haz un informe") is None
+
+
+def test_extraer_regla_y_encargo():
+    """extraer_regla_y_encargo separa el encargo de la regla."""
+    encargo, regla = extraer_regla_y_encargo("Haz la síntesis y recuerda cada día enviarla")
+    assert "haz la síntesis" in encargo.lower()
+    assert "recuerda cada día enviarla" in regla.lower()
+    
+    encargo2, regla2 = extraer_regla_y_encargo("Solo un encargo simple")
+    assert encargo2 == "Solo un encargo simple"
+    assert regla2 is None
+
+
+def test_guardar_preferencia():
+    """guardar_preferencia escribe en preferencias.json."""
+    with tempfile.TemporaryDirectory() as tmp:
+        ok = guardar_preferencia("test_clave", {"valor": 123}, raiz=tmp)
+        assert ok is True
+        
+        ruta = Path(tmp) / "starseed_memory_root" / "mando" / "preferencias.json"
+        assert ruta.exists()
+        datos = json.loads(ruta.read_text(encoding="utf-8"))
+        assert datos["test_clave"]["valor"] == 123
+        assert "_actualizado" in datos
+
+
+def test_guardar_rutina():
+    """guardar_rutina registra rutina en rutinas.json con disparador y acción."""
+    with tempfile.TemporaryDirectory() as tmp:
+        disparador = {"tipo": "cron", "expresion": "0 6 * * *"}
+        accion = {"tipo": "ejecutar", "encargo_id": "ENC-123"}
+        ok = guardar_rutina("rutina_test", disparador, accion, "Descripción test", raiz=tmp)
+        assert ok is True
+        
+        ruta = Path(tmp) / "starseed_memory_root" / "mando" / "rutinas.json"
+        assert ruta.exists()
+        datos = json.loads(ruta.read_text(encoding="utf-8"))
+        assert "rutina_test" in datos
+        assert datos["rutina_test"]["descripcion"] == "Descripción test"
+        assert datos["rutina_test"]["disparador"] == disparador
+        assert datos["rutina_test"]["accion"] == accion
+        assert datos["rutina_test"]["activa"] is True
+
+
+def test_procesar_regla_permanente_guarda_preferencia_y_rutina():
+    """procesar_regla_permanente guarda en preferencias y, si es rutina, en rutinas.json (§3.2.3)."""
+    with tempfile.TemporaryDirectory() as tmp:
+        texto = "Genera la síntesis diaria y recuerda cada día hacer todos los formatos"
+        encargo_id = "ENC-1113-2137"
+        
+        ok, mensaje = procesar_regla_permanente(texto, encargo_id, raiz=tmp)
+        
+        assert ok is True
+        assert "preferencias" in mensaje.lower()
+        assert "rutina" in mensaje.lower()
+        
+        # Verificar preferencias.json
+        pref_ruta = Path(tmp) / "starseed_memory_root" / "mando" / "preferencias.json"
+        prefs = json.loads(pref_ruta.read_text(encoding="utf-8"))
+        assert any(k.startswith("regla_ENC-1113-2137_") for k in prefs.keys())
+        
+        # Verificar rutinas.json
+        rut_ruta = Path(tmp) / "starseed_memory_root" / "mando" / "rutinas.json"
+        rutinas = json.loads(rut_ruta.read_text(encoding="utf-8"))
+        assert any(k.startswith("rutina_ENC-1113-2137_") for k in rutinas.keys())
+
+
+def test_procesar_regla_permanente_sin_frase_no_hace_nada():
+    """Si no hay frase de regla permanente, no guarda nada."""
+    with tempfile.TemporaryDirectory() as tmp:
+        texto = "Solo un encargo normal sin regla"
+        encargo_id = "ENC-TEST"
+        
+        ok, mensaje = procesar_regla_permanente(texto, encargo_id, raiz=tmp)
+        
+        assert ok is False
+        assert "no se detectó" in mensaje.lower()
 
 
 # ── Main ────────────────────────────────────────────────────────────────────
