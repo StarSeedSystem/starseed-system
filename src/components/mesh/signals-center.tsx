@@ -21,6 +21,8 @@ import {
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { usePrompt } from "@/components/ui/confirm-dialog";
+import { PestanaMapa } from "./mapa-senales/geo/pestana-mapa"; // MAP1114B
+import { Map as MapIcon } from "lucide-react"; // MAP1114B
 import { MapaSenales } from "./mapa-senales/mapa-senales";
 import { DetectedSignalsPanel } from "./detected-signals-panel";
 import { PanelInferencia } from "./panel-inferencia";
@@ -110,7 +112,7 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
 
   // Señales unifica TODO en pestañas (Adenda 101): «Antenas y señales» + «Red
   // Mesh» (la página Red Mesh integrada como pestaña, sin duplicar ajustes).
-  const [tab, setTab] = useState<"antenas" | "redmesh" | "router">("antenas");
+  const [tab, setTab] = useState<"antenas" | "redmesh" | "router" | "mapa">("antenas"); // MAP1114B: + "mapa"
 
   // Arranca la malla en cualquier superficie donde aparezca Señales (página,
   // barra superior, Centro de Control) — antes lo hacía la pestaña «Internet».
@@ -336,6 +338,7 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
           ["antenas", "Antenas y señales", Antenna],
           ["redmesh", "Red Mesh", RadioTower],
           ["router", "Router", Router],
+          ["mapa", "Mapa", MapIcon], // MAP1114B
         ] as const).map(([k, label, Ic]) => (
           <button
             key={k}
@@ -590,6 +593,9 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
       {tab === "redmesh" && <RedMeshCenter embedded showMap={!compact} showPrivacy={false} hideHeader />}
 
       {tab === "router" && <RouterCenter />}
+
+      {/* MAP1114B — pestaña «Mapa»: mis neuronas y las de mi cuenta sobre un mapa (fase 1). */}
+      {tab === "mapa" && <PestanaMapa compacto={compact || undefined} />}
     </div>
   );
 }

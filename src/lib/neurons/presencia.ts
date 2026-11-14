@@ -32,6 +32,7 @@ import { CLAVE_FUSIONES, EVENTO_FUSIONES } from "@/lib/neurons/fusion-alias";
 import type { VersionesPorCapa } from "@/lib/actualizaciones/capas";
 import { firmaVersiones } from "@/lib/actualizaciones/versiones-capa";
 import type { InfoPublicaNeurona } from "@/lib/neurons/info-publica";
+import type { AnuncioPosicion } from "@/lib/senales/geo/modelo-geo";
 
 export const CLAVE_CANAL_NEURONAS = "starseed.neuronas.canal.v1";
 const MIN_REENVIO_MS = 15_000;
@@ -62,6 +63,14 @@ export interface PresenciaMedio {
    * Opcional: las webs anteriores no lo mandan y el panel dice «versión desconocida».
    */
   d?: InfoPublicaNeurona;
+  /**
+   * (MAP1114B) Posición que ESTA neurona decidió compartir con las de su cuenta. Solo está si el dueño lo
+   * activó para el ámbito «cuenta» (apagado de fábrica); con nivel «zona» no lleva el punto, solo la celda
+   * de ≈1 km (`senales/geo/modelo-geo.ts`). Retrocompatible: sin `g`, la posición es desconocida.
+   */
+  g?: AnuncioPosicion;
+  /** (MAP1114B) Capas de conciencia que esta neurona anuncia (`capa:local`, `capa:mesh`…). */
+  c?: string[];
 }
 
 export interface EstadoPresencia {
@@ -154,6 +163,19 @@ async function anuncio(): Promise<PresenciaMedio | null> {
     } catch {
       d = undefined;
     }
+    // (MAP1114B) Posición para el ámbito «cuenta»: solo si el dueño la activó (por defecto no sale nada).
+    let g: AnuncioPosicion | undefined;
+    try {
+      g = (await import("@/lib/senales/geo/almacen-posicion")).anuncioParaMiCuenta() ?? undefined;
+    } catch {
+      g = undefined;
+    }
+    let c: string[] | undefined;
+    try {
+      c = (await import("@/lib/malla/anuncio-capas")).misCapasAnunciadas();
+    } catch {
+      c = undefined;
+    }
     let plataforma: string | undefined;
     try {
       const ua = navigator.userAgent || "";
@@ -174,6 +196,8 @@ async function anuncio(): Promise<PresenciaMedio | null> {
       s,
       ...(v && Object.keys(v).length ? { v } : {}),
       ...(d ? { d } : {}),
+      ...(g ? { g } : {}),
+      ...(c ? { c } : {}),
     };
   } catch {
     return null;
@@ -184,7 +208,7 @@ async function enviar(forzar = false): Promise<void> {
   if (!canal) return;
   const a = await anuncio();
   if (!a || !canal) return;
-  const firma = `${a.n}|${a.visible ? 1 : 0}|${firmaSenales(a.s)}|${a.v ? firmaVersiones(a.v) : ""}|${a.d ? JSON.stringify(a.d) : ""}`;
+  const firma = `${a.n}|${a.visible ? 1 : 0}|${firmaSenales(a.s)}|${a.v ? firmaVersiones(a.v) : ""}|${a.d ? JSON.stringify(a.d) : ""}|${a.g ? JSON.stringify(a.g) : ""}|${a.c ? a.c.join(",") : ""}`;
   const ahora = Date.now();
   if (!forzar && firma === ultimaFirma) return;
   if (!forzar && ahora - ultimoEnvio < MIN_REENVIO_MS) {
@@ -345,7 +369,10 @@ export function iniciarPresenciaNeuronas(): () => void {
     limpiezas.push(() => clearInterval(revision));
     const alAdoptar = () => void enviar(true);
     window.addEventListener("starseed:neurona-adoptada", alAdoptar);
+    // (MAP1114B) Cambiar quién ve mi posición se anuncia (o se retira) al instante.
+    window.addEventListener("starseed:mapa-posicion", alAdoptar);
     limpiezas.push(() => window.removeEventListener("starseed:neurona-adoptada", alAdoptar));
+    limpiezas.push(() => window.removeEventListener("starseed:mapa-posicion", alAdoptar));
   })();
 
   return () => {
