@@ -531,6 +531,7 @@ class SanadorSesiones:
             return {"ok": False, "motivo": f"sesión {nombre} sin recetas de reparación"}
 
         recetas_nombres = [f"receta{i+1}" for i in range(len(recetas))]
+        todas_red = True
 
         for i, receta in enumerate(recetas):
             t0 = time.time()
@@ -552,13 +553,17 @@ class SanadorSesiones:
                 if check.get("ok"):
                     return {"ok": True, "detalle": resultado.get("detalle", f"reparada por receta{i+1}")}
                 # Si no queda viva, continuar con siguiente receta
+                todas_red = False
                 continue
 
-            # Si es fallo de red, no escalar y esperar (en producción habría retry)
+            # Una caída de red no es una sesión rota: ni se escala ni se avisa.
             if resultado.get("es_red"):
                 continue
+            todas_red = False
 
-        # Todas fallaron → escalado
+        if todas_red:
+            return {"ok": False, "motivo": "red: se espera al próximo ciclo", "es_red": True}
+        # Todas fallaron por algo que no es red → escalado
         return self._escalado(nombre, "todas las recetas fallaron", recetas_nombres, enviar_fn)
 
     def _log_intento(self, sesion: str, receta: str, resultado: dict[str, Any], duracion: float):
@@ -648,6 +653,12 @@ def _crear_sanador_defecto() -> SanadorSesiones:
     s = SanadorSesiones()
     for nombre, config in REGISTRO.items():
         s.registrar(nombre, config["comprobacion"], config["recetas"])
+    try:  # SES1113F: el resto del registro vive en su módulo, con E/S inyectable.
+        sys.path.insert(0, str(Path(__file__).parent))
+        import sanador_recetas
+        sanador_recetas.cargar_en(s)
+    except Exception:
+        pass
     return s
 
 
