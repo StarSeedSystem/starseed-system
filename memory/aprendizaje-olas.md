@@ -7103,3 +7103,14 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 **Lo que quedó fuera, una por una:**
 - `DR1113-1` — los tipos no compilan: 2 errores tsc (rama ola/DR1113-1 conservada)
 - `DR1113-2` — los tipos no compilan: revisor: tarea:tsc: vuelve con el contexto de hoy y el error exacto
+
+## 2026-11-13 21:29 · auto-1113-191020
+
+**Lo que se pidió.** Authentication (expired|error)|Run 'notebooklm login'
+
+**Resultado.** 11 de 14 integradas. 3 tareas se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `SES1113A-d1` — pruebas en rojo: FAILED scripts/puente/test_peticiones_productor.py::test_sesion_caducada_se_propaga_y_espera
+- `DR1113-3` — no escribió nada
+- `SES1113A` — otra cosa: revisor: dividida en SES1113A-d1, SES1113A-d2 (tarea:otro con 6 archivos: se divide en 2 partes encadenadas)
