@@ -518,10 +518,11 @@ def test_main_inicializa_y_arranca_hilos(tmp_path):
                 pass
         cola = leer_json(mod.COLA, [])
         assert cola[0]["estado"] == "reintentar"
-        assert len(hilos) == 2
+        assert len(hilos) == 3
         targets = [t.__name__ for t, _ in hilos]
         assert "trabajar" in targets
         assert "mantener_sesion" in targets
+        assert "_tarea_multiformato_periodica" in targets
         assert mock_hay.set.called
     finally:
         mod.COLA = original_cola

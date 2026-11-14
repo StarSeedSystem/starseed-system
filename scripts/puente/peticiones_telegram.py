@@ -57,9 +57,11 @@ MODELOS = ["gemini-flash", "qwen3.8-max", "gemini-3.5-flash", "glm-5.3-flash", "
 REINTENTO_S = 300
 VIDA_S = 24 * 3600
 REFRESCO_S = 20 * 60
+MULTIFORMATO_INTERVALO_S = 15 * 60
 
 bloqueo = threading.Lock()
 hay_trabajo = threading.Event()
+_puente_instancia = None
 
 
 def leer_env(ruta: str = os.path.join(CASA, ".starseed", "env")) -> dict[str, str]:
@@ -128,6 +130,36 @@ def decir(texto: str) -> None:
         r = tg("sendMessage", {"chat_id": CHAT, "text": texto[i:i + 3900], "disable_web_page_preview": "true"})
         if not r.get("ok"):
             log("sendMessage falló:", r.get("description"))
+
+
+def subir(ruta: str, nombre: str) -> str:
+    """Sube notificación al espejo de Genesis (para sintesis_multiformato)."""
+    global _puente_instancia
+    if _puente_instancia is not None:
+        try:
+            _puente_instancia.subir_espejo(f"Archivo listo: {nombre}")
+            return "espejo-ok"
+        except Exception as e:
+            log("subir_espejo falló:", e)
+    ficha = os.environ.get("STARSEED_PUERTA_FICHA_GENESIS_A1") or ENV.get("STARSEED_PUERTA_FICHA_GENESIS_A1", "")
+    url_base = os.environ.get("PUERTA_DATOS_URL", "")
+    if ficha and url_base:
+        try:
+            import urllib.request
+            import urllib.parse
+            data = json.dumps({"fuente": "puente:peticiones", "registros": [{
+                "id": f"multiformato-{int(time.time()*1000)}",
+                "t": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                "de": "peticiones-a1", "rol": "sistema", "tipo": "respuesta", "canal": "mando",
+                "texto": f"Archivo listo: {nombre}"
+            }], "latido": False}).encode()
+            req = urllib.request.Request(f"{url_base}/v1/genesis/chats/espejo", data,
+                                         {"Authorization": f"Bearer {ficha}", "Content-Type": "application/json"})
+            urllib.request.urlopen(req, timeout=10)
+            return "espejo-ok"
+        except Exception as e:
+            log("subir directo a espejo falló:", e)
+    return "espejo-sin-puente"
 
 
 def llm(mensajes: list[dict[str, str]], max_tokens: int = 1500) -> tuple[str, str]:
@@ -305,6 +337,148 @@ def mantener_sesion() -> None:
                 hay_trabajo.set()
             avisado = False
         time.sleep(REFRESCO_S)
+
+
+def _multiformato_enviar_indice(indice: dict[str, Any]) -> None:
+    """Envía el índice final al chat de Telegram y al espejo de Genesis."""
+    lineas = [f"✅ Síntesis multiformato completada: {indice.get('fecha', '?')}"]
+    lineas.append(f"📓 Cuaderno: {indice.get('cuaderno', '?')}")
+    lineas.append("")
+    for f in indice.get("formatos", []):
+        estado = "✅" if f.get("estado") == "ok" else "❌"
+        lineas.append(f"  {estado} {f.get('tipo', '?')}: {f.get('nombre', '?')} (Drive: {f.get('drive_id', '?')[:8]}...)")
+    if indice.get("fallidos"):
+        lineas.append("")
+        lineas.append("⚠️ Fallidos:")
+        for fall in indice["fallidos"]:
+            lineas.append(f"  ❌ {fall.get('tipo', '?')}: {fall.get('error', '?')[:100]}")
+    texto = "\n".join(lineas)
+    decir(texto)
+    global _puente_instancia
+    if _puente_instancia is not None:
+        try:
+            _puente_instancia.subir_espejo(texto)
+        except Exception:
+            pass
+
+
+def _procesar_multiformato_con_degradacion(fecha: str) -> dict[str, Any]:
+    """Procesa la síntesis multiformato con degradación SES1113A si NotebookLM está caído."""
+    from peticiones_notebooklm import sesion_viva
+    from sintesis_multiformato import procesar_sintesis_diaria, FORMATOS
+    
+    if not sesion_viva():
+        log("NotebookLM caído: aplicando degradación SES1113A")
+        decir("⚠️ NotebookLM no disponible. Generando formatos de texto con modelos gratuitos; audio/vídeo/infografía en cola.")
+        return _procesar_multiformato_texto_solo(fecha)
+    
+    return procesar_sintesis_diaria(fecha=fecha)
+
+
+def _procesar_multiformato_texto_solo(fecha: str) -> dict[str, Any]:
+    """Degradación SES1113A: genera solo formatos de texto con modelos gratuitos."""
+    from peticiones_notebooklm import (
+        ultima_sintesis, asegurar_fuente, drive, token_google, nombre_drive, TIPOS
+    )
+    from peticiones_reglas import TIPOS as TIPOS_REGLAS
+    
+    fid_sintesis, titulo_sintesis = ultima_sintesis()
+    carpeta_id = os.environ.get("STARSEED_CARPETA_SINTESIS_FECHA", "1PenzAWw1VWpSAMXa7ms2VRrEhJ5uFbmI")
+    
+    formatos_texto = ["report", "slide-deck", "mind-map", "quiz", "flashcards", "data-table"]
+    formatos_nativos = ["audio", "video", "infographic"]
+    
+    indice: dict[str, Any] = {"fecha": fecha, "cuaderno": f"Síntesis {fecha} (degradado)", "formatos": [], "fallidos": []}
+    
+    for tipo in formatos_texto:
+        try:
+            from peticiones_notebooklm import TIPOS as TIPOS_NB
+            nombre_archivo = f"{tipo}-{fecha}{TIPOS_NB[tipo][1]}"
+            contenido = _generar_con_llm(tipo, titulo_sintesis)
+            import tempfile
+            with tempfile.NamedTemporaryFile(mode="w", suffix=TIPOS_NB[tipo][1], delete=False, encoding="utf-8") as tmp:
+                tmp.write(contenido)
+                ruta = tmp.name
+            tok = token_google("alex-docs")
+            drive_id = _subir_a_drive_directo(ruta, nombre_archivo, carpeta_id, tok)
+            indice["formatos"].append({"tipo": tipo, "drive_id": drive_id, "nombre": nombre_archivo, "estado": "ok (degradado)"})
+            os.unlink(ruta)
+        except Exception as e:
+            log(f"Formato texto {tipo} falló:", e)
+            indice["formatos"].append({"tipo": tipo, "drive_id": "", "nombre": "", "estado": "fallido", "error": str(e)})
+    
+    for tipo in formatos_nativos:
+        indice["formatos"].append({"tipo": tipo, "drive_id": "", "nombre": "", "estado": "en_cola", "error": "NotebookLM caído"})
+    
+    from sintesis_multiformato import marcar_procesado
+    marcar_procesado(fecha)
+    indice["estado"] = "completado_degradado"
+    return indice
+
+
+def _generar_con_llm(tipo: str, titulo: str) -> str:
+    """Genera contenido de formato de texto usando modelo gratuito."""
+    prompts = {
+        "report": f"Escribe un informe detallado en español de «{titulo}»: resumen completo, notas, observaciones, avances, resultados, recomendaciones para próximos pasos, integración de cada desarrollo e investigación.",
+        "slide-deck": f"Escribe una presentación en español de «{titulo}» con diapositivas para: resumen, avances por área, recomendaciones, próximos pasos.",
+        "mind-map": f"Escribe un mapa mental en español de «{titulo}» estructurando áreas, desarrollos, investigaciones y recomendaciones.",
+        "quiz": f"Escribe un cuestionario en español sobre «{titulo}» para validar comprensión de los puntos clave.",
+        "flashcards": f"Escribe tarjetas de estudio en español con los conceptos clave de «{titulo}».",
+        "data-table": f"Escribe una tabla CSV con los elementos accionables de «{titulo}»: área, acción, responsable, prioridad, estado.",
+    }
+    prompt = prompts.get(tipo, f"Escribe en español lo esencial de «{titulo}».")
+    texto, _ = llm([{"role": "user", "content": prompt}], 3000)
+    return f"# {tipo.upper()} - {titulo}\n\n*Generado sin NotebookLM (degradación SES1113A)*\n\n{texto}"
+
+
+def _subir_a_drive_directo(ruta: str, nombre: str, carpeta_id: str, tok: str) -> str:
+    import uuid
+    import urllib.request
+    frontera = uuid.uuid4().hex
+    with open(ruta, "rb") as f:
+        contenido = f.read()
+    metadata = json.dumps({"name": nombre, "parents": [carpeta_id]}).encode()
+    partes = [
+        (f'--{frontera}\r\nContent-Disposition: form-data; name="metadata"\r\nContent-Type: application/json\r\n\r\n').encode() + metadata + b'\r\n',
+        (f'--{frontera}\r\nContent-Disposition: form-data; name="file"; filename="{nombre}"\r\nContent-Type: application/octet-stream\r\n\r\n').encode() + contenido + b'\r\n',
+        (f'--{frontera}--\r\n').encode(),
+    ]
+    url = "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart"
+    req = urllib.request.Request(url, b"".join(partes), {"Authorization": f"Bearer {tok}", "Content-Type": f"multipart/related; boundary={frontera}"})
+    resp = json.loads(urllib.request.urlopen(req, timeout=60).read().decode())
+    return resp.get("id", "")
+
+
+def _revisar_y_procesar_sintesis_diaria() -> None:
+    """Revisa si hay nueva síntesis diaria y la procesa."""
+    from peticiones_notebooklm import ultima_sintesis
+    from sintesis_multiformato import ya_procesado
+    
+    try:
+        fid, nombre = ultima_sintesis()
+        import re
+        m = re.match(r".*?(\d{4}-\d{2}-\d{2})", nombre)
+        if not m:
+            return
+        fecha = m.group(1)
+        if ya_procesado(fecha):
+            return
+        log(f"Nueva síntesis diaria detectada: {fecha} ({nombre})")
+        decir(f"🔄 Nueva síntesis diaria detectada: {fecha}. Iniciando procesamiento multiformato...")
+        indice = _procesar_multiformato_con_degradacion(fecha)
+        _multiformato_enviar_indice(indice)
+    except Exception as e:
+        log("Error revisando síntesis diaria:", e)
+
+
+def _tarea_multiformato_periodica() -> None:
+    """Tarea periódica que revisa síntesis diarias."""
+    while True:
+        time.sleep(MULTIFORMATO_INTERVALO_S)
+        try:
+            _revisar_y_procesar_sintesis_diaria()
+        except Exception as e:
+            log("Error en tarea multiformato periódica:", e)
 
 
 # GEN1114D · /estado y /ayuda empiezan con «Este chat: <nombre> · id <id>», leído de chat-a1.json (lo lleva la Mac
@@ -852,6 +1026,7 @@ def main() -> None:
     log("escuchando @StarSeed_Design_bot")
     threading.Thread(target=trabajar, daemon=True).start()
     threading.Thread(target=mantener_sesion, daemon=True).start()
+    threading.Thread(target=_tarea_multiformato_periodica, daemon=True).start()
     hay_trabajo.set()
     escuchar()
 
@@ -860,6 +1035,14 @@ def main() -> None:
 if os.environ.get("STARSEED_PUERTA_FICHA_GENESIS_A1") or ENV.get("STARSEED_PUERTA_FICHA_GENESIS_A1"):
     import sys
     import peticiones_puerta
+    original_puente_init = peticiones_puerta.Puente.__init__
+    
+    def puente_init_con_registro(self, mod, puerta, ahora=time.time, dormir=time.sleep):
+        global _puente_instancia
+        original_puente_init(self, mod, puerta, ahora, dormir)
+        _puente_instancia = self
+    
+    peticiones_puerta.Puente.__init__ = puente_init_con_registro
     peticiones_puerta.enganchar(sys.modules[__name__])
 
 
