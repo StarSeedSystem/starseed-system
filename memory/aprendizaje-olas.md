@@ -7152,3 +7152,18 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 
 **Lo que quedó fuera, una por una:**
 - `RDM1113D-d1` — otra cosa: excepción: 'utf-8' codec can't decode byte 0xd4 in position 4: invalid continuation byte
+
+## 2026-11-14 00:10 · auto-1113-234408
+
+**Lo que se pidió.** Autorreparación de sesiones
+
+**Resultado.** 1 de 4 integradas. 3 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 3 tareas se fueron por lo mismo — otra cosa (SES1113D, SES1113G, RDM1113D-d1). Es 75 % de la ola.
+- sin modelo anotado no integró ninguna de sus 3 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `SES1113D` — otra cosa
+- `SES1113G` — otra cosa
+- `RDM1113D-d1` — otra cosa: excepción: 'utf-8' codec can't decode byte 0xd4 in position 4: invalid continuation byte
