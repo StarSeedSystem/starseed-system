@@ -1,0 +1,36 @@
+{
+ "ola": "nube-20261114",
+ "tareas": [
+  {
+   "ola": "RDM1113",
+   "titulo": "Capturas reales del OS para la portada (parte 1 de 2)",
+   "archivos": [
+    "scripts/readme/capturas.mjs"
+   ],
+   "depende": [],
+   "revisor": {
+    "origen": "RDM1113D",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:otro)"
+   },
+   "segundos": 0,
+   "t": "2026-11-14 03:45:49",
+   "rama": "ola/RDM1113D-d1b",
+   "sha": "59f75f3fa2de305624e50004a3dbdb11902178dc",
+   "intentos_auto": 8,
+   "reintentos_medio": 0,
+   "corregido": "2026-11-14 03:46:44",
+   "medio": "nube",
+   "modelo_siguiente": null,
+   "adelantar": "2026-11-14 01:32:40",
+   "modelos_fallidos": [
+    "codex/gpt-5.6-sol",
+    "google/gemini-3.6-flash"
+   ],
+   "revisado_por": "revisor-bloqueadas",
+   "id": "RDM1113D-d1c",
+   "prompt": "Lee architecture/readme-portada-1113.md. §3.4. capturas.mjs, con el Playwright ya instalado: de https://starseed-os.vercel.app, 3 o 4 pantallas públicas representativas (inicio, gobernanza o propuestas, Astraura, la Biblioteca o el lienzo, según lo que exista de verdad) en temas noche y nieve, a 1440×900 ×2, recortadas y en WebP de menos de 300 KB. Sin datos personales; si una pantalla necesita sesión, usa la cuenta de demostración de las pruebas o se omite. Guarda también capturas.json con lo que muestra cada una (para los textos alternativos).\n\n## PARTE 1 DE 2 (la dirección dividió RDM1113D: falla por sí misma (tarea:otro))\nEn esta parte tocas SOLO: scripts/readme/capturas.mjs. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.\n\n## REPARACIÓN\nCorrige cada punto de esta objeción literal y añade una prueba para cada uno:\ndirector: escalada agotada tras 8 intentos (libre×8): requiere una persona\n\nCorrige cada punto y añade pruebas que demuestren la reparación.",
+   "modelo": "codex/gpt-5.6-sol"
+  }
+ ]
+}
