@@ -244,8 +244,18 @@ export function RegisterSW() {
       window.addEventListener("load", onLoad, { once: true });
     }
 
+    // (ACT1114H) En la app de escritorio la página sale de SU servidor local: /version.json es la copia local y no dice
+    // nada de lo publicado. La parte nativa mira la web publicada, baja y verifica la capa nueva, y aquí se pide el
+    // relevo en cuanto está lista y es momento seguro (misma regla que arriba: nunca en llamada ni escribiendo).
+    let paraRelevoNativo: () => void = () => {};
+    void import("@/lib/nativa/relevo-capa-cliente").then((m) => {
+      if (cancelled) return;
+      paraRelevoNativo = m.iniciarRelevoNativo();
+    }).catch(() => { /* sin módulo: como antes */ });
+
     return () => {
       cancelled = true;
+      paraRelevoNativo();
       window.removeEventListener("load", onLoad);
       if (buildIv) clearInterval(buildIv);
       if (esperaT) clearTimeout(esperaT);

@@ -38,6 +38,14 @@ export interface EstadoServidorLocal {
   capas_fase?: string | null;
   /** Lo último que pasó con las capas (p. ej. una vuelta atrás). */
   capas_aviso?: string | null;
+  /** (ACT1114H) Build de la web que sirve el Node: «<compilación>/<sha>». */
+  web_corre?: string | null;
+  /** (ACT1114H) Build de la web PUBLICADA (su /version.json, no la copia local); null si no se pudo leer. */
+  web_publicada?: string | null;
+  /** (ACT1114H) Build de la web de la capa nueva ya verificada. */
+  web_nueva?: string | null;
+  /** (ACT1114H) "al-dia" | "capa-lista" | "sin-capa" | "sin-datos" */
+  relevo?: string | null;
 }
 
 export type TonoServidor = "ok" | "info" | "aviso" | "error" | "neutro";
@@ -83,6 +91,10 @@ export function interpretarEstadoServidor(raw: unknown): EstadoServidorLocal | n
     capa_nueva_version: texto1(r.capa_nueva_version),
     capas_fase: texto1(r.capas_fase),
     capas_aviso: texto1(r.capas_aviso),
+    web_corre: texto1(r.web_corre),
+    web_publicada: texto1(r.web_publicada),
+    web_nueva: texto1(r.web_nueva),
+    relevo: texto1(r.relevo),
   };
 }
 

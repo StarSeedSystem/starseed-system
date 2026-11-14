@@ -67,6 +67,14 @@ pub struct EstadoServidorLocal {
     pub capas_fase: Option<String>,
     /// Lo último que pasó con las capas (p. ej. una vuelta atrás), en una frase.
     pub capas_aviso: Option<String>,
+    /// (ACT1114H) Build de la web que sirve el Node, «<compilación>/<sha>» (None si el paquete no la dice).
+    pub web_corre: Option<String>,
+    /// (ACT1114H) Build de la web PUBLICADA, leída de su `/version.json` (no de la copia local); None si no se pudo leer.
+    pub web_publicada: Option<String>,
+    /// (ACT1114H) Build de la web de la capa nueva ya verificada, si la hay.
+    pub web_nueva: Option<String>,
+    /// (ACT1114H) "al-dia" | "capa-lista" | "sin-capa" | "sin-datos"
+    pub relevo: Option<String>,
 }
 
 struct Proceso {
@@ -120,6 +128,10 @@ pub fn servidor_local_estado() -> EstadoServidorLocal {
     e.capa_nueva_version = p.nueva_version;
     e.capas_fase = p.fase;
     e.capas_aviso = p.aviso;
+    e.web_corre = p.web_corre;
+    e.web_publicada = p.web_publicada;
+    e.web_nueva = p.web_nueva;
+    e.relevo = p.relevo;
     e
 }
 
@@ -143,6 +155,7 @@ pub fn servidor_local_actualizar(webview: tauri::Webview) -> Result<String, Stri
     if interno().reinicio_pedido.swap(true, Ordering::SeqCst) {
         return Ok("Ya se está actualizando.".into());
     }
+    crate::servidor_capas::al_pedir_relevo(); // ACT1114H: «relevo pedido: web=<antes> -> web=<después>»
     let _ = std::thread::Builder::new().name("servidor-local-relevo".into()).spawn(detener_proceso);
     Ok("Reiniciando el servidor local con la capa nueva: la página se recargará sola.".into())
 }
@@ -216,6 +229,7 @@ fn arrancar(app: AppHandle) {
                 &format!("[servidor-local] capa {b}{}", if eleccion.a_prueba() { " (a prueba)" } else { "" }),
             );
         }
+        crate::servidor_capas::registrar_sirve(); // ACT1114H: qué build de la web sirve este arranque
         let espera = if eleccion.a_prueba() { c::ESPERA_SALUD_MS } else { l::ESPERA_LISTO_MS };
         let rescatar = !std::mem::replace(&mut rescate_hecho, true);
         match lanzar_y_esperar(&app, &rutas, registro.as_ref(), puerto_previo, espera, rescatar) {
