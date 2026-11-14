@@ -7279,3 +7279,29 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 **Lo que se pidió.** Falta <sesion>
 
 **Resultado.** 1 de 1 integradas.
+
+## 2026-11-14 11:43 · auto-1114-110401
+
+**Lo que se pidió.** StarSeed OS
+
+**Resultado.** 1 de 13 integradas. 12 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 10 tareas se fueron por lo mismo — otra cosa (RDM1113D-d2, RDM1113A, SIN11141, SIN11142, SIN11143, SIN11144). Es 77 % de la ola.
+- sin modelo anotado no integró ninguna de sus 3 tareas.
+- groq/openai/gpt-oss-120b no integró ninguna de sus 3 tareas.
+- nim/nvidia/nemotron-3-ultra-550b-a55b no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RDM1113D-d2` — otra cosa: dependencia no integrada: RDM1113D-d1b (sustituida)
+- `RDM1113A` — otra cosa: excepción: 'utf-8' codec can't decode byte 0xd4 in position 22: invalid continuation byte
+- `SIN11141` — otra cosa: 0 propuesta(s) · starseed_memory_root/imaginacion/agentes/sintesis-2026-11-14-contactos.json
+- `SIN11142` — otra cosa: 0 propuesta(s) · starseed_memory_root/imaginacion/agentes/sintesis-2026-11-14-noticias.json
+- `SIN11143` — otra cosa: 5 propuesta(s) · starseed_memory_root/imaginacion/agentes/sintesis-2026-11-14-referencias.json
+- `SIN11144` — otra cosa: 4 propuesta(s) · starseed_memory_root/imaginacion/agentes/sintesis-2026-11-14-actividad.json
+- `SIN11145` — otra cosa: 2 propuesta(s) · starseed_memory_root/imaginacion/agentes/sintesis-2026-11-14-ideas.json
+- `SIN11146` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/sintesis-2026-11-14-guiones.json
+- `SIN11147` — otra cosa: 0 propuesta(s) · starseed_memory_root/imaginacion/agentes/sintesis-2026-11-14-youtube.json
+- `RDM1113Cs` — la revisión lo rechazó: no toco NINGUNO de los 1 archivos que declaraba (rama ola/RDM1113Cs conservada)
+- `SES1113I` — los tipos no compilan: revisor: dividida en SES1113I-d1, SES1113I-d2 (tarea:tsc con 4 archivos: se divide en 2 partes encadenadas)
+- `SES1113I-d2` — otra cosa
