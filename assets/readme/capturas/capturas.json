@@ -1,62 +1,66 @@
-{
-  "base": "https://starseed-os.vercel.app",
-  "pantallas": [
-    {
-      "id": "inicio-noche",
-      "pantalla": "inicio",
-      "archivo": "inicio-noche.webp",
-      "peso_bytes": 102598,
-      "texto_alternativo": "Portada pública de StarSeed OS con su símbolo y los accesos principales."
-    },
-    {
-      "id": "inicio-nieve",
-      "pantalla": "inicio",
-      "archivo": "inicio-nieve.webp",
-      "peso_bytes": 218956,
-      "texto_alternativo": "Portada pública de StarSeed OS con su símbolo y los accesos principales."
-    },
-    {
-      "id": "gobernanza-noche",
-      "pantalla": "gobernanza",
-      "archivo": "gobernanza-noche.webp",
-      "peso_bytes": 165798,
-      "texto_alternativo": "Gobernanza de la red: democracia directa, propuestas y voto delegado."
-    },
-    {
-      "id": "gobernanza-nieve",
-      "pantalla": "gobernanza",
-      "archivo": "gobernanza-nieve.webp",
-      "peso_bytes": 165780,
-      "texto_alternativo": "Gobernanza de la red: democracia directa, propuestas y voto delegado."
-    },
-    {
-      "id": "astraura-noche",
-      "pantalla": "astraura",
-      "archivo": "astraura-noche.webp",
-      "peso_bytes": 151654,
-      "texto_alternativo": "Estudio de Astraura, la inteligencia soberana 1.58-bit del sistema."
-    },
-    {
-      "id": "astraura-nieve",
-      "pantalla": "astraura",
-      "archivo": "astraura-nieve.webp",
-      "peso_bytes": 138964,
-      "texto_alternativo": "Estudio de Astraura, la inteligencia soberana 1.58-bit del sistema."
-    },
-    {
-      "id": "biblioteca-noche",
-      "pantalla": "biblioteca",
-      "archivo": "biblioteca-noche.webp",
-      "peso_bytes": 144776,
-      "texto_alternativo": "Biblioteca universal del OS, con sus recursos e instalables."
-    },
-    {
-      "id": "biblioteca-nieve",
-      "pantalla": "biblioteca",
-      "archivo": "biblioteca-nieve.webp",
-      "peso_bytes": 19976,
-      "texto_alternativo": "Biblioteca universal del OS, con sus recursos e instalables."
-    }
-  ],
-  "omitidas": []
-}
+[
+  {
+    "pagina": "inicio",
+    "descripcion": "Página de inicio de StarSeed OS con hero y acceso a la app",
+    "capturas": [
+      {
+        "tema": "noche",
+        "archivo": "inicio-noche.webp",
+        "tamanoKB": 100.2
+      },
+      {
+        "tema": "nieve",
+        "archivo": "inicio-nieve.webp",
+        "tamanoKB": 213.8
+      }
+    ]
+  },
+  {
+    "pagina": "instalar",
+    "descripcion": "Página de instalación con opciones de descarga por plataforma",
+    "capturas": [
+      {
+        "tema": "noche",
+        "archivo": "instalar-noche.webp",
+        "tamanoKB": 110.1
+      },
+      {
+        "tema": "nieve",
+        "archivo": "instalar-nieve.webp",
+        "tamanoKB": 110.6
+      }
+    ]
+  },
+  {
+    "pagina": "dashboard",
+    "descripcion": "Panel principal de la aplicación con información astrológica, meteorológica y calendario",
+    "capturas": [
+      {
+        "tema": "noche",
+        "archivo": "dashboard-noche.webp",
+        "tamanoKB": 33
+      },
+      {
+        "tema": "nieve",
+        "archivo": "dashboard-nieve.webp",
+        "tamanoKB": 75.8
+      }
+    ]
+  },
+  {
+    "pagina": "lienzo",
+    "descripcion": "Lienzo universal para conectar archivos, apps, widgets y ventanas",
+    "capturas": [
+      {
+        "tema": "noche",
+        "archivo": "lienzo-noche.webp",
+        "tamanoKB": 80.3
+      },
+      {
+        "tema": "nieve",
+        "archivo": "lienzo-nieve.webp",
+        "tamanoKB": 81.5
+      }
+    ]
+  }
+]
