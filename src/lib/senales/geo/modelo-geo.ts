@@ -1,149 +1,92 @@
 /**
- * modelo-geo — la posición de una neurona y QUIÉN puede verla (MAP1114B).
+ * modelo-geo — la posición de una neurona, EXACTA (MAP1114C).
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * Regla dura (Alex, 14-11), aplicada AQUÍ y no solo en la interfaz:
- *   · la posición exacta y en vivo de un aparato personal es PRIVADA por defecto: la ve su dueño y
- *     quien él autorice;
- *   · la capa pública solo muestra una zona aproximada de ≈1 km, salvo que el dueño publique el
- *     punto exacto (opción aparte, por neurona);
- *   · un nodo fijo público muestra su punto solo si su operador lo publica.
- *
- * El punto crudo (`PosicionCruda`) vive en el aparato. Lo único que sale de él es un `AnuncioPosicion`,
- * y la ÚNICA función que lo fabrica es `anuncioParaAmbito`, que mira la preferencia del dueño para ese
- * ámbito. Con la preferencia por defecto no sale nada. Un anuncio de zona NO contiene el punto.
+ * Corrección de Alex (14-11-2026, tarde): lo que el mapa enseña es exacto. No hay celdas de ≈1 km, ni
+ * redondeo, ni «zona»: una neurona o está en su punto o su posición es «desconocida» (con el motivo).
+ * Esta fase solo cubre las neuronas de la propia cuenta. Las de otras personas son una fase posterior y
+ * NO tienen aquí ningún valor por defecto.
  *
  * Puro: sin React, sin red, sin `node:*`.
  */
 
-import { coordenadaValida, zonaAproximada, type ZonaAprox } from "./zona";
+export function coordenadaValida(lat: unknown, lon: unknown): lat is number {
+  return typeof lat === "number" && typeof lon === "number" && Number.isFinite(lat) && Number.isFinite(lon) && Math.abs(lat) <= 90 && Math.abs(lon) <= 180;
+}
 
-export type FuentePosicion = "gps" | "manual" | "lora";
-
-/** Lo que el aparato sabe de su sitio. NO sale del aparato por sí solo. */
+/** Lo que el aparato midió de su sitio (nunca se redondea). */
 export interface PosicionCruda {
   lat: number;
   lon: number;
-  precisionM?: number | null;
+  /** Precisión en metros que informa el propio aparato; null si no la informa. */
+  precisionM: number | null;
   /** Hora de la medida (epoch ms). */
   t: number;
-  fuente: FuentePosicion;
-}
-
-export type NivelPosicion = "no" | "zona" | "exacta";
-
-/** Preferencia del dueño, por neurona (cada aparato guarda la suya). */
-export interface PreferenciaPosicion {
-  /** Qué ven mis otras neuronas (la cuenta). */
-  cuenta: NivelPosicion;
-  /** Qué ve el radar/capa pública. «exacta» es una decisión aparte de «zona». */
-  publica: NivelPosicion;
-  /** Ámbitos concretos que el dueño autorizó (grupo, página…), con su nivel. */
-  autorizados: Readonly<Record<string, "zona" | "exacta">>;
-}
-
-/** Privacidad primero: por defecto no sale ninguna posición del aparato. */
-export const PREFERENCIA_POSICION_DEFECTO: PreferenciaPosicion = { cuenta: "no", publica: "no", autorizados: {} };
-
-/** Quién mira. `dueno` = el propio aparato (o su dueño en su pantalla). */
-export type Ambito =
-  | { tipo: "dueno" }
-  | { tipo: "cuenta" }
-  | { tipo: "autorizado"; id: string }
-  | { tipo: "publico" };
-
-/** Lo que viaja: o el punto (con permiso explícito) o la zona. */
-export type AnuncioPosicion =
-  | { k: "exacta"; lat: number; lon: number; precisionM?: number; t: number }
-  | { k: "zona"; zona: ZonaAprox; t: number };
-
-export interface OpcionesAnuncio {
-  /** Nodo fijo (no una neurona móvil). */
-  fijo?: boolean;
-  /** Un nodo fijo público solo da su punto si su operador lo publica. */
-  operadorPublicaPunto?: boolean;
-}
-
-/** Nivel que la preferencia concede a un ámbito (el dueño siempre se ve a sí mismo). */
-export function nivelParaAmbito(pref: PreferenciaPosicion, ambito: Ambito): NivelPosicion {
-  switch (ambito.tipo) {
-    case "dueno":
-      return "exacta";
-    case "cuenta":
-      return pref.cuenta;
-    case "autorizado":
-      return pref.autorizados[ambito.id] ?? "no";
-    case "publico":
-      return pref.publica;
-  }
 }
 
 /**
- * La ÚNICA puerta por la que una posición sale del aparato. `null` = no sale nada.
- * Con nivel «zona» el resultado no contiene la coordenada original.
+ * Lo que una neurona anuncia a las de su cuenta: el punto tal cual lo midió.
+ * Viaja por el canal privado de posición (`canal-posicion.ts`); sin él, la posición es desconocida.
  */
-export function anuncioParaAmbito(
-  cruda: PosicionCruda | null | undefined,
-  pref: PreferenciaPosicion,
-  ambito: Ambito,
-  opciones: OpcionesAnuncio = {},
-): AnuncioPosicion | null {
-  if (!cruda || !coordenadaValida(cruda.lat, cruda.lon) || !Number.isFinite(cruda.t)) return null;
-  let nivel = nivelParaAmbito(pref, ambito);
-  if (ambito.tipo === "publico" && opciones.fijo) nivel = opciones.operadorPublicaPunto ? "exacta" : "no";
-  if (nivel === "no") return null;
-  if (nivel === "exacta") {
-    const p = cruda.precisionM;
-    return { k: "exacta", lat: cruda.lat, lon: cruda.lon, ...(typeof p === "number" && Number.isFinite(p) && p >= 0 ? { precisionM: Math.round(p) } : {}), t: cruda.t };
-  }
-  const zona = zonaAproximada(cruda.lat, cruda.lon);
-  return zona ? { k: "zona", zona, t: cruda.t } : null;
+export interface AnuncioPosicion {
+  lat: number;
+  lon: number;
+  precisionM?: number;
+  t: number;
 }
 
-/** Lee un anuncio llegado de fuera (presencia, federación) sin fiarse de su forma. */
+/**
+ * (MAP1114D) La posición exacta NUNCA viaja por el canal de presencia de la cuenta (`neur:<token>`, público en el
+ * servidor). Viaja solo por el canal PRIVADO de posición (`canal-posicion.ts`, tema `pos:<uid>`), y solo si esta
+ * neurona consiguió unirse a él; si la unión se rechaza, no sale nada por ningún otro canal.
+ */
+export const MOTIVO_CANAL_SIN_UNIR = "el canal privado de posición de tu cuenta no está unido";
+
+/** Lee un anuncio llegado de fuera (presencia) sin fiarse de su forma. */
 export function leerAnuncio(x: unknown): AnuncioPosicion | null {
   if (!x || typeof x !== "object") return null;
   const o = x as Record<string, unknown>;
   if (typeof o.t !== "number" || !Number.isFinite(o.t)) return null;
-  if (o.k === "exacta") {
-    if (!coordenadaValida(o.lat, o.lon)) return null;
-    const p = o.precisionM;
-    return { k: "exacta", lat: o.lat as number, lon: o.lon as number, ...(typeof p === "number" && Number.isFinite(p) && p >= 0 ? { precisionM: p } : {}), t: o.t };
-  }
-  if (o.k === "zona" && o.zona && typeof o.zona === "object") {
-    const z = o.zona as Record<string, unknown>;
-    if (!coordenadaValida(z.lat, z.lon) || typeof z.celda !== "string" || !z.celda.startsWith("z1:")) return null;
-    // Se vuelve a calcular la celda desde lo que dice el anuncio y se exige que sea la misma: lo que se
-    // pinta es siempre el CENTRO de una celda de la rejilla, nunca una coordenada que traiga el anuncio.
-    const z2 = zonaAproximada(z.lat as number, z.lon as number);
-    if (!z2 || z2.celda !== z.celda) return null;
-    const centro = { ...z2, lat: Math.round(((z2.latMin + z2.latMax) / 2) * 1e6) / 1e6, lon: Math.round(((z2.lonMin + z2.lonMax) / 2) * 1e6) / 1e6 };
-    return { k: "zona", zona: centro, t: o.t };
-  }
-  return null;
+  if (!coordenadaValida(o.lat, o.lon)) return null;
+  const p = o.precisionM;
+  return { lat: o.lat as number, lon: o.lon as number, ...(typeof p === "number" && Number.isFinite(p) && p >= 0 ? { precisionM: p } : {}), t: o.t };
+}
+
+/** Lo que fabrica un aparato para anunciar: el mismo punto, sin tocarlo. `null` = no sale nada. */
+export function anuncioDesdeCruda(c: PosicionCruda | null | undefined): AnuncioPosicion | null {
+  if (!c || !coordenadaValida(c.lat, c.lon) || !Number.isFinite(c.t)) return null;
+  return { lat: c.lat, lon: c.lon, ...(typeof c.precisionM === "number" && Number.isFinite(c.precisionM) && c.precisionM >= 0 ? { precisionM: c.precisionM } : {}), t: c.t };
 }
 
 /** Lo que la vista dibuja de una neurona: nunca un punto inventado. */
 export type PosicionVista =
   | { tipo: "exacta"; lat: number; lon: number; precisionM?: number; t: number }
-  | { tipo: "zona"; zona: ZonaAprox; t: number }
   | { tipo: "desconocida"; motivo: string };
 
 export function posicionVistaDeAnuncio(a: AnuncioPosicion | null, motivo: string): PosicionVista {
   if (!a) return { tipo: "desconocida", motivo };
-  return a.k === "exacta"
-    ? { tipo: "exacta", lat: a.lat, lon: a.lon, ...(a.precisionM !== undefined ? { precisionM: a.precisionM } : {}), t: a.t }
-    : { tipo: "zona", zona: a.zona, t: a.t };
+  return { tipo: "exacta", lat: a.lat, lon: a.lon, ...(a.precisionM !== undefined ? { precisionM: a.precisionM } : {}), t: a.t };
 }
 
-/** Coordenadas con las que se coloca una marca (centro de la zona o el punto). `null` si se desconoce. */
 export function coordenadasDeVista(p: PosicionVista): { lat: number; lon: number } | null {
-  if (p.tipo === "exacta") return { lat: p.lat, lon: p.lon };
-  if (p.tipo === "zona") return { lat: p.zona.lat, lon: p.zona.lon };
-  return null;
+  return p.tipo === "exacta" ? { lat: p.lat, lon: p.lon } : null;
 }
 
-export const FRASE_NIVEL: Record<NivelPosicion, string> = {
-  no: "no se comparte",
-  zona: "solo una zona aproximada de ≈1 km",
-  exacta: "el punto exacto",
-};
+/** Una posición medida hace más que esto ya no es «en vivo»: se enseña como última conocida, con su hora. */
+export const POSICION_VIVA_MS = 3 * 60_000;
+
+export function posicionEsViva(t: number, ahora: number): boolean {
+  return Number.isFinite(t) && Number.isFinite(ahora) && ahora - t <= POSICION_VIVA_MS;
+}
+
+/** «hace 2 h 5 min» / «hace 40 s». Vacío si la hora no es válida. */
+export function haceCuanto(t: number | null | undefined, ahora: number): string {
+  if (typeof t !== "number" || !Number.isFinite(t) || !Number.isFinite(ahora)) return "";
+  const s = Math.max(0, Math.round((ahora - t) / 1000));
+  if (s < 60) return `hace ${s} s`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `hace ${m} min`;
+  const h = Math.floor(m / 60);
+  const rm = m % 60;
+  if (h < 48) return rm ? `hace ${h} h ${rm} min` : `hace ${h} h`;
+  return `hace ${Math.floor(h / 24)} d`;
+}
