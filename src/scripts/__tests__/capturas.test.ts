@@ -8,10 +8,10 @@ const CAPTURAS_DIR = join(__dirname, '..', '..', '..', 'assets', 'readme', 'capt
 const SCRIPT_PATH = join(__dirname, '..', 'capturas.mjs');
 
 describe('capturas.mjs', () => {
-  let originalConsoleLog;
-  let originalConsoleError;
-  let logs = [];
-  let errors = [];
+  let originalConsoleLog: (...args: unknown[]) => void;
+  let originalConsoleError: (...args: unknown[]) => void;
+  let logs: string[] = [];
+  let errors: string[] = [];
 
   beforeEach(() => {
     logs = [];
@@ -119,7 +119,7 @@ describe('capturas.json existing', () => {
       expect(page).toHaveProperty('capturas');
       expect(Array.isArray(page.capturas)).toBe(true);
       
-      const temas = page.capturas.map(c => c.tema);
+      const temas = page.capturas.map((c: { tema: string }) => c.tema);
       expect(temas).toContain('noche');
       expect(temas).toContain('nieve');
       

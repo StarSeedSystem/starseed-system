@@ -6,12 +6,12 @@
       {
         "tema": "noche",
         "archivo": "inicio-noche.webp",
-        "tamanoKB": 19.4
+        "tamanoKB": 0
       },
       {
         "tema": "nieve",
         "archivo": "inicio-nieve.webp",
-        "tamanoKB": 37.8
+        "tamanoKB": 0
       }
     ]
   },
@@ -22,12 +22,12 @@
       {
         "tema": "noche",
         "archivo": "instalar-noche.webp",
-        "tamanoKB": 110.1
+        "tamanoKB": 0
       },
       {
         "tema": "nieve",
         "archivo": "instalar-nieve.webp",
-        "tamanoKB": 110.6
+        "tamanoKB": 0
       }
     ]
   },
@@ -38,12 +38,12 @@
       {
         "tema": "noche",
         "archivo": "dashboard-noche.webp",
-        "tamanoKB": 33
+        "tamanoKB": 0
       },
       {
         "tema": "nieve",
         "archivo": "dashboard-nieve.webp",
-        "tamanoKB": 75.8
+        "tamanoKB": 0
       }
     ]
   },
@@ -54,12 +54,12 @@
       {
         "tema": "noche",
         "archivo": "lienzo-noche.webp",
-        "tamanoKB": 80.3
+        "tamanoKB": 0
       },
       {
         "tema": "nieve",
         "archivo": "lienzo-nieve.webp",
-        "tamanoKB": 81.5
+        "tamanoKB": 0
       }
     ]
   }
