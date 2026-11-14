@@ -1,0 +1,12 @@
+[Unit]
+Description=StarSeed · Sanador de sesiones cada 15 min (SES1113C)
+# Requiere: scripts/puente/sanador_sesiones.py, sanador_nodos.py, sanador_recetas.py
+
+[Timer]
+# Cada 15 minutos, alineado a la hora (00, 15, 30, 45)
+OnCalendar=*:0/15
+Persistent=true
+Unit=starseed-sanador.service
+
+[Install]
+WantedBy=timers.target

@@ -55,6 +55,10 @@ ESTADO = os.path.join(DIR, "estado.json")
 COLA = os.path.join(DIR, "cola.json")
 SALIDAS = NB_SALIDAS
 
+# Rutas del sanador de sesiones (SES1113C)
+RAIZ_REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+SALUD_ESTADO = os.path.join(RAIZ_REPO, "starseed_memory_root", "salud", "estado.json")
+
 MODELOS = ["gemini-flash", "qwen3.8-max", "gemini-3.5-flash", "glm-5.3-flash", "qwen3.6-plus"]
 REINTENTO_S = 300
 VIDA_S = 24 * 3600
@@ -779,8 +783,31 @@ def linea_chat() -> str:
 _texto_estado_gen1113 = texto_estado
 
 
-def texto_estado(cola: list[Any], notebooklm: dict[str, Any]) -> str:  # noqa: F811 · la de peticiones_reglas + la línea
-    return linea_chat() + "\n" + _texto_estado_gen1113(cola, notebooklm)
+def _leer_salud_sesiones() -> dict[str, Any]:
+    """Lee el estado agregado de sesiones desde salud/estado.json."""
+    return leer_json(SALUD_ESTADO, {})
+
+
+def _formato_salud_sesiones(salud: dict[str, Any]) -> str:
+    """Formatea la salud de sesiones para /estado."""
+    if not salud:
+        return "• Salud de sesiones: sin datos"
+    total = salud.get("total", 0)
+    vivas = salud.get("vivas", 0)
+    caidas = salud.get("caidas", 0)
+    lineas = [f"• Salud de sesiones: {vivas}/{total} vivas · {caidas} caídas"]
+    for nombre, det in salud.get("detalle", {}).items():
+        if det.get("estado") == "viva":
+            lineas.append(f"   ✓ {nombre}: {det.get('detalle', 'ok')}")
+        else:
+            lineas.append(f"   ✗ {nombre}: {det.get('motivo', 'caída')[:80]}")
+    return "\n".join(lineas)
+
+
+def texto_estado(cola: list[Any], notebooklm: dict[str, Any]) -> str:  # noqa: F811
+    base = linea_chat() + "\n" + _texto_estado_gen1113(cola, notebooklm)
+    salud = _leer_salud_sesiones()
+    return base + "\n" + _formato_salud_sesiones(salud)
 
 
 def texto_ayuda() -> str:
@@ -798,6 +825,10 @@ def recibir(upd: dict[str, Any]) -> None:
         return
     if texto.startswith("/estado"):
         decir(texto_estado(leer_json(COLA, []), leer_json(ESTADO, {}).get("notebooklm", {})))
+        return
+    if texto.startswith("/renovar "):
+        _, sesion = texto.split(" ", 1)
+        _comando_renovar(sesion.strip())
         return
     if texto.startswith(("/start", "/ayuda", "/help")):
         decir(texto_ayuda())   # GEN1114D
@@ -1282,6 +1313,49 @@ def _comando_sent(pid: str) -> None:
         return
 
     decir("Enviado asistido: %s" % registro.get("texto", "")[:100])
+
+
+def _comando_renovar(sesion: str) -> None:
+    """Lanza reparar() del sanador y, si hace falta mano, navegar_alta.py alta google-alex."""
+    if not sesion:
+        decir("Uso: /renovar <sesion>")
+        return
+    try:
+        import sys
+        sys.path.insert(0, os.path.dirname(__file__))
+        import sanador_sesiones as SS
+    except ImportError:
+        decir("Sanador de sesiones no disponible.")
+        return
+
+    sanador = SS._crear_sanador_defecto()
+    decir(f"🔧 Reparando sesión «{sesion}»...")
+    resultado = sanador.reparar(sesion)
+
+    if resultado.get("ok"):
+        decir(f"✅ Sesión «{sesion}» reparada: {resultado.get('detalle', 'ok')}")
+        return
+
+    # Si falló y no es por red, sugerir autoservicio
+    if resultado.get("es_red"):
+        decir(f"⏳ Sesión «{sesion}» caída por red. Se reintentará en el próximo ciclo.")
+        return
+
+    # Escalado: sugerir navegador_alta para google-alex o Mac
+    if sesion == "notebooklm":
+        decir(
+            f"⚠️ No se pudo reparar «{sesion}» automáticamente.\n"
+            f"Intentado: {', '.join(resultado.get('recetas', [])) or 'recetas del sanador'}\n"
+            f"Próximo paso: ejecuta en la Mac o desde el bot:\n"
+            f"  python3 -m scripts.puente.navegador_alta alta google-alex\n"
+            f"  (abre MetaGenesis › Apps Linux e inicia sesión en Google)"
+        )
+    else:
+        decir(
+            f"⚠️ No se pudo reparar «{sesion}» automáticamente.\n"
+            f"Intentado: {', '.join(resultado.get('recetas', [])) or 'recetas del sanador'}\n"
+            f"Revisa los logs en starseed_memory_root/salud/sesiones.jsonl"
+        )
 
 
 def main() -> None:

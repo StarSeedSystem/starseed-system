@@ -1,0 +1,19 @@
+[Unit]
+Description=StarSeed · Sanador de sesiones: comprobación y reparación automática (SES1113C)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=starseed
+Group=starseed
+WorkingDirectory=/home/starseed/starseed-system
+Environment=STARSEED_ROOT=/home/starseed/starseed-system PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/python3 /home/starseed/starseed-system/scripts/puente/sanador_sesiones.py comprobar
+TimeoutStartSec=300
+MemoryMax=500M
+Nice=10
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
