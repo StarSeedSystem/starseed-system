@@ -1,0 +1,21 @@
+{
+ "ola": "nube-20261113",
+ "tareas": [
+  {
+   "id": "ALC1113Gt",
+   "ola": "ALC1113",
+   "titulo": "Síntesis diaria · GitHub, alcance y promoción · lo que faltó: scripts/puente/test_agente_sintesis.py",
+   "archivos": [
+    "scripts/puente/test_agente_sintesis.py"
+   ],
+   "depende": [],
+   "prompt": "SEGUIMIENTO de ALC1113G, que ya está integrada (sha 98e0f65e7cfe). Las cuatro puertas pasaron en verde y la revisión no puso pegas, pero el agente no llegó a tocar estos archivos: scripts/puente/test_agente_sintesis.py.\n\nTu encargo es SOLO esos archivos. No rehagas lo que ya está: léelo primero y engánchate a lo que hay. Tarea original: Síntesis diaria · GitHub, alcance y promoción\n\n--- encargo original, como contexto ---\nLee architecture/alcance-github-1113.md §1 y architecture/sintesis-diaria-autonoma.md. Añade tres secciones a la síntesis diaria. (1) «GitHub y comunidad técnica»: de 5 a 10 proyectos del día con enlace, qué hacen, qué aprender o implementar en StarSeed OS (de alcance_recomendaciones) y las propuestas para la Librería. (2) «Alcance: contactos y mensajes para aprobar»: los borradores pendientes con id, destinatario, canal y motivo, y cómo aprobarlos (/alcance). (3) «Promoción y canales»: recomendaciones para el repo (README, CONTRIBUTING, good first issues, Discussions, topics, roadmap, vista previa social); para cada canal y página de StarSeed (YouTube, Instagram Sociedad StarSeed, Telegram, web); sitios nuevos donde presentar el sistema según su contexto (foros, subreddits, fediverso, Nostr, Matrix, Discord, Show HN, dev.to, Product Hunt, academia, comunidades locales y ecoaldeas) respetando sus normas; y próximos pasos con piezas y mensajes audiovisuales para público general y especializado, con posts y contenido comercial y social en todos los formatos. Rotación diaria por áreas del OS. Todo como recomendación; nada se publica. Pruebas sin red.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/43538663041`)\nUn agente de la nube ya avanzó esta tarea (conflicto al traerla sobre el main de hoy: ec>\", then run\nhint: \"git cherry-pick --continue\".\nhint: You can instead skip this commit with \"git cherry-pick --skip\".\nhint: To abort and get back to the state before \"git cherry-pick\",\nhint: run \"git cherry-pick --abort\".\nhint: Disable this message with \"git config set advice.mergeConflict false\"). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/43538663041:refs/remotes/origin/nube/43538663041\"` y `git cherry-pick --no-commit d22a6d82c6c8`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: scripts/puente/agente_sintesis.py, scripts/puente/test_agente_sintesis.py.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/43538663041",
+   "dependencias_ya_en_main": [
+    "ALC1113C",
+    "ALC1113D"
+   ]
+  }
+ ]
+}
