@@ -1,6 +1,6 @@
 # Genesis · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-14 11:43:03 desde Genesis vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-14 11:51:54 desde Genesis vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -16,25 +16,16 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | Agentes escribiendo | **0** |
 | En esta ola | integradas 0 · en curso 0 · esperando aprobación 0 · pendientes 15 |
 | Últimas 4 olas | en curso 0 · pendientes 100 · integradas 0 |
-| HEAD | `c2958fa84 chore(memoria): aprendizaje de la ola auto-1114-110401` |
-| Sin publicar | 3 commits |
+| HEAD | `b69c968e5 chore(memoria): aprendizaje de la ola auto-1114-114331` |
+| Sin publicar | 8 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-1114-110401.json`, hace 11s)
+## Quién escribe ahora (latido de `cola-auto-1114-114331.json`, hace 14s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `RDM1113A` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 2 min | 121 s | 963046 |
-| `SES1113I-d1` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 2 min | 135 s | 143835 |
-| `RDM1113Cs` | hecho | openrouter/cohere/north-mini-code: | 14 min | 822 s | 271581 |
-| `SIN11147` | hecho | groq/openai/gpt-oss-120b | 19 min | 1130 s | 373 |
-| `SIN11146` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 19 min | 1132 s | 509 |
-| `SIN11145` | hecho | groq/openai/gpt-oss-120b | 19 min | 1158 s | 371 |
-| `SIN11144` | hecho | nim/minimaxai/minimax-m3.1-flash | 19 min | 1166 s | 786 |
-| `SES1113I` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 21 min | 1246 s | 254627 |
-| `SIN11143` | hecho | explabs/deepseek-v4.1-flash | 22 min | 1339 s | 380 |
-| `SIN11142` | hecho | groq/openai/gpt-oss-120b | 23 min | 1392 s | 374 |
-| `SIN11141` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 23 min | 1396 s | 612 |
+| `SES1113I-d2` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 3 min | 166 s | 20260 |
+| `RDM1113A` | hecho | openrouter/thinkingmachines/inklin | 5 min | 321 s | 1146742 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
