@@ -1,6 +1,6 @@
 # Genesis · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-13 21:29:09 desde Genesis vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-13 23:29:35 desde Genesis vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -16,28 +16,25 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | Agentes escribiendo | **0** |
 | En esta ola | integradas 0 · en curso 0 · esperando aprobación 0 · pendientes 15 |
 | Últimas 4 olas | en curso 0 · pendientes 100 · integradas 0 |
-| HEAD | `9b37acb7f chore(memoria): aprendizaje de la ola auto-1113-191020` |
-| Sin publicar | 5 commits |
+| HEAD | `9593a33df chore(memoria): aprendizaje de la ola auto-1113-212942` |
+| Sin publicar | 8 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-1113-191020.json`, hace 14s)
+## Quién escribe ahora (latido de `cola-auto-1113-212942.json`, hace 15s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `SES1113A-d1` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 2 min | 129 s | 194778 |
-| `DR1113-3` | hecho | openrouter/google/gemma-4-31b-it:f | 3 min | 156 s | 163621 |
-| `ALC1113Gu` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 7 min | 403 s | 126111 |
-| `SES1113A` | hecho | openrouter/cohere/north-mini-code: | 28 min | 1687 s | 322454 |
-| `PSF1113B` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 32 min | 1923 s | 205262 |
-| `PSF1113A` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 41 min | 2477 s | 171421 |
-| `SES1113B` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 51 min | 3084 s | 124900 |
-| `HGF1113D` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 68 min | 4060 s | 63883 |
-| `ALC1113H` | hecho | openrouter/cohere/north-mini-code: | 80 min | 4796 s | 37686 |
-| `HGF1113Bb` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 88 min | 5289 s | 432169 |
-| `HGF1113C` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 89 min | 5331 s | 145409 |
-| `HGF1113G` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 104 min | 6214 s | 105930 |
-| `ALC1113F` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 114 min | 6852 s | 121159 |
-| `HGF1113Bbs` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 125 min | 7521 s | 170263 |
+| `RDM1113D-d1` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 2 min | 149 s | 190751 |
+| `RDM1113Cs` | hecho | openrouter/cohere/north-mini-code: | 4 min | 216 s | 142184 |
+| `SES1113A-d1` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 11 min | 657 s | 700488 |
+| `RDM1113C` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 42 min | 2531 s | 60482 |
+| `RDM1113D` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 55 min | 3307 s | 383108 |
+| `DR1113-3` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 65 min | 3892 s | 287329 |
+| `RDM1113B` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 68 min | 4064 s | 99196 |
+| `ENT-agentes-referencias-diseno-agentes-re-cc36bb-v1` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 73 min | 4374 s | 1021 |
+| `ENT-agentes-referencias-diseno-agentes-re-b04091-v1` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 74 min | 4434 s | 606 |
+| `ENT-agentes-referencias-diseno-agentes-re-da54f5-v1` | hecho | nim/minimaxai/minimax-m3.1-flash | 75 min | 4514 s | 494 |
+| `RDM1113A` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 79 min | 4767 s | 339227 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
