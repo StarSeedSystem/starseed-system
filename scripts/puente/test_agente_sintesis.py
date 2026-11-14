@@ -615,5 +615,161 @@ class TestHiggsfieldPropuestas(unittest.TestCase):
         self.assertEqual(propuestas, [])
 
 
+class TestSeccionesAlcance1113(unittest.TestCase):
+    """ALC1113G: las tres secciones nuevas de la síntesis diaria («GitHub y comunidad
+    técnica», «Alcance: contactos y mensajes para aprobar» y «Promoción y canales»).
+    Puras y sin red: solo leen starseed_memory_root/alcance/ del worktree; nada se publica."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.raiz = self._tmp.name
+
+    @staticmethod
+    def _ficha(nombre="acme/proyecto", area="red-descentralizada", obj_id=None):
+        return {"obj_id": obj_id or "gh-" + nombre, "nombre_publico": nombre, "fuente": "github",
+                "que_hacen": "Sincroniza datos locales sin servidor.",
+                "area_starseed": area, "licencia": "MIT",
+                "fuentes": [{"url": "https://github.com/%s" % nombre}]}
+
+    @staticmethod
+    def _rec(obj_id="gh-acme/proyecto", **extra):
+        rec = {"_ficha_obj_id": obj_id, "que_adoptar": "Su patrón de sincronización sin servidor",
+               "por_que": "Encaja con local-first", "esfuerzo": "M", "riesgo": "bajo",
+               "licencia_compatible": True, "area_sistema": "local-first"}
+        rec.update(extra)
+        return rec
+
+    @staticmethod
+    def _borrador(n=1, estado="esperando-aprobacion"):
+        return {"id": "algh-20261111-%02d" % n, "estado": estado,
+                "destinatario": "org%d/proyecto%d" % (n, n),
+                "canal": {"medio": "github_discussion"},
+                "motivo": "Afinidad en red-descentralizada: sincroniza datos locales"}
+
+    def _escribir(self, relativo, datos):
+        ruta = os.path.join(self.raiz, relativo)
+        os.makedirs(os.path.dirname(ruta), exist_ok=True)
+        with open(ruta, "w", encoding="utf-8") as f:
+            json.dump(datos, f)
+
+    def test_carga_fichas_github_lista_y_dict(self):
+        rel = "starseed_memory_root/alcance/github/%s.json" % FECHA
+        self._escribir(rel, [self._ficha()])
+        self.assertEqual([f["nombre_publico"] for f in A._cargar_fichas_github_dia(self.raiz, FECHA)],
+                         ["acme/proyecto"])
+        self._escribir(rel, {"fichas": [self._ficha("b/proyecto")]})
+        self.assertEqual([f["nombre_publico"] for f in A._cargar_fichas_github_dia(self.raiz, FECHA)],
+                         ["b/proyecto"])
+
+    def test_carga_borradores_solo_pendientes(self):
+        self._escribir("starseed_memory_root/alcance/borradores/borradores-%s.json" % FECHA,
+                       [self._borrador(1), self._borrador(2, estado="aprobado")])
+        pendientes = A._cargar_borradores_alcance(self.raiz, FECHA)
+        self.assertEqual([b["id"] for b in pendientes], ["algh-20261111-01"])
+
+    def test_carga_recomendaciones_paquetes(self):
+        self._escribir("starseed_memory_root/alcance/propuestas/propuesta-%s.json" % FECHA,
+                       {"paquetes": [self._rec()]})
+        recs = A._cargar_recomendaciones_dia(self.raiz, FECHA)
+        self.assertEqual(recs[0]["area_sistema"], "local-first")
+
+    def test_carga_vacia_sin_archivos(self):
+        self.assertEqual(A._cargar_fichas_github_dia(self.raiz, FECHA), [])
+        self.assertEqual(A._cargar_borradores_alcance(self.raiz, FECHA), [])
+        self.assertEqual(A._cargar_recomendaciones_dia(self.raiz, FECHA), [])
+
+    def test_seccion_github_con_enlace_que_hacen_y_que_adoptar(self):
+        self._escribir("starseed_memory_root/alcance/github/%s.json" % FECHA,
+                       [self._ficha("org3/proyecto3")])
+        self._escribir("starseed_memory_root/alcance/propuestas/propuesta-%s.json" % FECHA,
+                       {"paquetes": [self._rec("gh-org3/proyecto3")]})
+        texto = A._seccion_github_comunidad_tecnica(self.raiz, FECHA)
+        self.assertIn("## GitHub y comunidad técnica", texto)
+        self.assertIn("### org3/proyecto3", texto)
+        self.assertIn("https://github.com/org3/proyecto3", texto)
+        self.assertIn("**Qué hacen:** Sincroniza datos locales sin servidor.", texto)
+        self.assertIn("**Qué adoptar/implementar:** Su patrón de sincronización sin servidor", texto)
+        self.assertIn("**Área StarSeed:** red-descentralizada", texto)
+
+    def test_seccion_github_a_tope_diez(self):
+        self._escribir("starseed_memory_root/alcance/github/%s.json" % FECHA,
+                       [self._ficha("o%d/p%d" % (i, i)) for i in range(12)])
+        texto = A._seccion_github_comunidad_tecnica(self.raiz, FECHA)
+        self.assertEqual(texto.count("- **Enlace:**"), 10)
+        self.assertIn("o9/p9", texto)
+        self.assertNotIn("o10/p10", texto)
+
+    def test_seccion_github_sin_fichas_lo_dice(self):
+        texto = A._seccion_github_comunidad_tecnica(self.raiz, FECHA)
+        self.assertIn("Sin proyectos analizados hoy", texto)
+
+    def test_seccion_github_propuestas_para_la_libreria(self):
+        self._escribir("starseed_memory_root/alcance/github/%s.json" % FECHA, [self._ficha()])
+        self._escribir("starseed_memory_root/alcance/propuestas/propuesta-%s.json" % FECHA,
+                       {"paquetes": [self._rec()]})
+        texto = A._seccion_github_comunidad_tecnica(self.raiz, FECHA)
+        self.assertIn("Propuestas para la Librería", texto)
+        self.assertIn("Su patrón de sincronización sin servidor", texto)
+        self.assertIn("esperando-aprobación", texto)
+
+    def test_seccion_alcance_pendientes_con_destinatario_canal_y_motivo(self):
+        self._escribir("starseed_memory_root/alcance/borradores/borradores-%s.json" % FECHA,
+                       [self._borrador(1), self._borrador(2)])
+        texto = A._seccion_alcance_contactos(self.raiz, FECHA)
+        self.assertIn("## Alcance: contactos y mensajes para aprobar", texto)
+        self.assertIn("algh-20261111-01", texto)
+        self.assertIn("org1/proyecto1", texto)
+        self.assertIn("github_discussion", texto)
+        self.assertIn("Afinidad en red-descentralizada", texto)
+        self.assertIn("/alcance", texto)
+        self.assertIn("/aprobar <id>", texto)
+        self.assertIn("Acciones de Alex", texto)
+
+    def test_seccion_alcance_solo_pendientes(self):
+        self._escribir("starseed_memory_root/alcance/borradores/borradores-%s.json" % FECHA,
+                       [self._borrador(1, estado="aprobado")])
+        texto = A._seccion_alcance_contactos(self.raiz, FECHA)
+        self.assertIn("Sin borradores pendientes", texto)
+        self.assertNotIn("algh-20261111-01", texto)
+
+    def test_seccion_alcance_con_canal_de_texto(self):
+        borrador = self._borrador(1)
+        borrador["canal"] = "correo"
+        self._escribir("starseed_memory_root/alcance/borradores/borradores-%s.json" % FECHA,
+                       [borrador])
+        texto = A._seccion_alcance_contactos(self.raiz, FECHA)
+        self.assertIn("| correo |", texto)
+
+    def test_seccion_promocion_repo_canales_y_sitios(self):
+        texto = A._seccion_promocion_canales(self.raiz, FECHA)
+        self.assertIn("## Promoción y canales", texto)
+        minusculas = texto.lower()
+        for palabra in ("readme", "contributing", "good first issues", "discussions", "topics",
+                        "roadmap", "vista previa social", "youtube", "instagram", "telegram",
+                        "show hn", "dev.to", "product hunt", "academia", "ecoaldeas"):
+            self.assertIn(palabra, minusculas)
+        self.assertIn("Público general", texto)
+        self.assertIn("Público especializado", texto)
+        self.assertIn("Todos los formatos", texto)
+
+    def test_seccion_promocion_rota_por_dia(self):
+        hoy = A._seccion_promocion_canales(self.raiz, FECHA)  # día 315 % 7 = 0
+        manana = A._seccion_promocion_canales(self.raiz, "2026-11-12")  # día 316 % 7 = 1
+        self.assertIn("Rotación diaria: **fediverso**", hoy)
+        self.assertIn("Rotación diaria: **nostr**", manana)
+        self.assertNotEqual(hoy, manana)
+
+    def test_prompt_respaldo_pide_las_tres_secciones_y_la_aprobacion(self):
+        prompt = A._prompt_respaldo(ctx_base(), FECHA)
+        for seccion in ("GitHub y comunidad técnica",
+                        "Alcance: contactos y mensajes para aprobar",
+                        "Promoción y canales"):
+            self.assertIn(seccion, prompt)
+        self.assertIn("/alcance", prompt)
+        self.assertIn("nada se publica", prompt)
+        self.assertLessEqual(len(prompt), A.TOPE_PROMPT)
+
+
 if __name__ == "__main__":
     unittest.main()
