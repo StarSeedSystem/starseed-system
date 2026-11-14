@@ -65,8 +65,10 @@ export function CodigoGrande({ codigo, pequeno = false }: { codigo: string; pequ
     );
 }
 
-function horaCorta(ms: number): string {
-    return momentoTexto(ms, Date.now()).replace(/^las /, "");
+/** «a las 14:05» hoy y «el 13-11 a las 23:40» otro día (SUP1114A: antes salía «a las el 13-11 a las 23:40»). */
+function aLas(ms: number): string {
+    const t = momentoTexto(ms, Date.now());
+    return t.startsWith("el ") ? t : `a ${t}`;
 }
 
 export function EmparejarAparato({ clienteAparatos, alCambiar }: EmparejarAparatoProps) {
@@ -221,7 +223,7 @@ export function EmparejarAparato({ clienteAparatos, alCambiar }: EmparejarAparat
     if (pendiente && caducada) {
         return (
             <Marco tono="aviso" icono={RotateCcw} testid="tarjeta-caducada">
-                <p className="text-[13px] leading-snug">La solicitud caducó a las {horaCorta(caducaMs)} sin confirmarse en la Mac. Pide otra.</p>
+                <p className="text-[13px] leading-snug">La solicitud caducó {aLas(caducaMs)} sin confirmarse en la Mac. Pide otra.</p>
                 {formulario("Pedir otra")}
                 {fallo}
             </Marco>
@@ -240,7 +242,7 @@ export function EmparejarAparato({ clienteAparatos, alCambiar }: EmparejarAparat
                 </p>
                 <p role="status" data-testid="espera-emparejar" className="flex items-center gap-1.5 text-[12px] text-white/55">
                     <Loader2 className="size-3.5 shrink-0 motion-safe:animate-spin" aria-hidden />
-                    {Number.isFinite(desdeMs) ? `Esperando desde las ${horaCorta(desdeMs)} (caduca a las ${horaCorta(caducaMs)}).` : "Esperando a la Mac."}
+                    {Number.isFinite(desdeMs) ? `Esperando desde ${momentoTexto(desdeMs, Date.now())} (caduca ${aLas(caducaMs)}).` : "Esperando a la Mac."}
                 </p>
             </Marco>
         );

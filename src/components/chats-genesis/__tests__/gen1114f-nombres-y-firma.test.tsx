@@ -175,6 +175,10 @@ describe("emparejar (§3.3, §3.8, §3.9)", () => {
     });
 
     it("el estado pendiente muestra el código en tres grupos, la cuenta y las horas de espera y caducidad", async () => {
+        // SUP1114A: hora fija a mediodía (UTC, como vitest.config): con el reloj de verdad, entre las 00:00 y las 00:30
+        // UTC estas horas caían en el día anterior y la prueba salía roja (CI del 14-11 a las 00:18 UTC).
+        vi.useFakeTimers({ toFake: ["Date"] });
+        vi.setSystemTime(new Date("2026-11-14T12:00:00Z"));
         const desde = new Date(Date.now() - 2 * 60_000);
         sim.aparato = { ...APARATO_COMPLETO, estado: "pendiente", nivel: "texto", desde: desde.toISOString() };
         sim.consultar.mockResolvedValue(sim.aparato);
@@ -216,7 +220,33 @@ describe("emparejar (§3.3, §3.8, §3.9)", () => {
         expect(sim.pedir).not.toHaveBeenCalled();
     });
 
+    it("cerca de medianoche, una hora de otro día lleva su fecha y la frase sigue bien escrita (SUP1114A)", async () => {
+        // Antes: «Esperando desde las el 13-11 a las 23:55» y «La solicitud caducó a las el 13-11 a las 23:55».
+        vi.useFakeTimers({ toFake: ["Date"] });
+        vi.setSystemTime(new Date("2026-11-14T00:05:00Z"));
+        sim.aparato = { ...APARATO_COMPLETO, estado: "pendiente", nivel: "texto", desde: haceMin(10) };
+        sim.consultar.mockResolvedValue(sim.aparato);
+        render(<EmparejarAparato />);
+        await screen.findByTestId("tarjeta-pendiente");
+        expect(screen.getByTestId("espera-emparejar")).toHaveTextContent("Esperando desde el 13-11 a las 23:55 (caduca a las 00:10).");
+        cleanup();
+        sim.consultar.mockReset();
+        sim.aparato = { ...APARATO_COMPLETO, estado: "pendiente", desde: haceMin(25) };
+        render(<EmparejarAparato />);
+        expect(await screen.findByTestId("tarjeta-caducada")).toHaveTextContent("La solicitud caducó el 13-11 a las 23:55 sin confirmarse en la Mac. Pide otra.");
+        cleanup();
+        sim.aparato = { ...APARATO_COMPLETO, estado: "revocado", desde: haceMin(30) };
+        render(<EmparejarAparato />);
+        const retirado = await screen.findByTestId("tarjeta-retirado");
+        expect(retirado).toHaveTextContent("Este aparato fue retirado en la Mac el 13-11 a las 23:35. Para volver a escribir, emparéjalo de nuevo.");
+        expect(retirado.textContent).not.toContain("las el ");
+    });
+
     it("una solicitud caducada, un aparato retirado, la clave perdida y un navegador sin soporte lo dicen", async () => {
+        // SUP1114A: hora fija a mediodía (UTC, como vitest.config): con el reloj de verdad, entre las 00:00 y las 00:30
+        // UTC estas horas caían en el día anterior y la prueba salía roja (CI del 14-11 a las 00:18 UTC).
+        vi.useFakeTimers({ toFake: ["Date"] });
+        vi.setSystemTime(new Date("2026-11-14T12:00:00Z"));
         sim.aparato = { ...APARATO_COMPLETO, estado: "pendiente", desde: new Date(Date.now() - 20 * 60_000).toISOString() };
         render(<EmparejarAparato />);
         expect(await screen.findByTestId("tarjeta-caducada")).toHaveTextContent(/La solicitud caducó a las \d{2}:\d{2} sin confirmarse en la Mac\. Pide otra\./);
