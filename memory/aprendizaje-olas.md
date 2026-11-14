@@ -7114,3 +7114,24 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `SES1113A-d1` — pruebas en rojo: FAILED scripts/puente/test_peticiones_productor.py::test_sesion_caducada_se_propaga_y_espera
 - `DR1113-3` — no escribió nada
 - `SES1113A` — otra cosa: revisor: dividida en SES1113A-d1, SES1113A-d2 (tarea:otro con 6 archivos: se divide en 2 partes encadenadas)
+
+## 2026-11-13 23:29 · auto-1113-212942
+
+**Lo que se pidió.** Authentication (expired|error)|Run 'notebooklm login'
+
+**Resultado.** 4 de 11 integradas. 7 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 5 tareas se fueron por lo mismo — otra cosa (RDM1113D, ENT-agentes-referencias-diseno-agentes-re-cc36bb-v1, ENT-agentes-referencias-diseno-agentes-re-b04091-v1, ENT-agentes-referencias-diseno-agentes-re-da54f5-v1, RDM1113D-d1). Es 45 % de la ola.
+- 2 tareas se fueron por lo mismo — la revisión lo rechazó (RDM1113A, RDM1113Cs). Es 18 % de la ola.
+- sin modelo anotado no integró ninguna de sus 2 tareas.
+- nim/nvidia/nemotron-3-ultra-550b-a55b no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RDM1113D` — otra cosa: revisor: dividida en RDM1113D-d1, RDM1113D-d2 (tarea:otro con 2 archivos: se divide en 2 partes encadenadas)
+- `ENT-agentes-referencias-diseno-agentes-re-cc36bb-v1` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/entregable-agentes-referencias-diseno-agentes-referencias-diseno-cc36bb-v1.json
+- `ENT-agentes-referencias-diseno-agentes-re-b04091-v1` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/entregable-agentes-referencias-diseno-agentes-referencias-diseno-b04091-v1.json
+- `RDM1113A` — la revisión lo rechazó: no toco NINGUNO de los 6 archivos que declaraba (rama ola/RDM1113A conservada)
+- `ENT-agentes-referencias-diseno-agentes-re-da54f5-v1` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/entregable-agentes-referencias-diseno-agentes-referencias-diseno-da54f5-v1.json
+- `RDM1113D-d1` — otra cosa: excepción: 'utf-8' codec can't decode byte 0xd4 in position 4: invalid continuation byte
+- `RDM1113Cs` — la revisión lo rechazó: no toco NINGUNO de los 1 archivos que declaraba (rama ola/RDM1113Cs conservada)
