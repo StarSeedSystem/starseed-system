@@ -1,0 +1,17 @@
+{
+ "ola": "nube-20261114",
+ "tareas": [
+  {
+   "id": "RDM1113Cs",
+   "titulo": "Recursos SVG de la portada (héroe claro/oscuro, cabeceras, pilares, cómo funciona) · lo que faltó: assets/readme/secciones",
+   "archivos": [
+    "assets/readme/secciones"
+   ],
+   "depende": [],
+   "prompt": "SEGUIMIENTO de RDM1113C, que ya está integrada (sha 748693de5d77). Las cuatro puertas pasaron en verde y la revisión no puso pegas, pero el agente no llegó a tocar estos archivos: assets/readme/secciones.\n\nTu encargo es SOLO esos archivos. No rehagas lo que ya está: léelo primero y engánchate a lo que hay. Tarea original: Recursos SVG de la portada (héroe claro/oscuro, cabeceras, pilares, cómo funciona)\n\n--- encargo original, como contexto ---\nLee architecture/readme-portada-1113.md. §3.1, §3.2 y §3.4, siguiendo vendor/habilidades/beautify-github-readme (references/project-native-hero.md y svg-production.md) y las guías 01–08 del sistema de diseño. Héroe nativo del proyecto, no una plantilla: el símbolo original incrustado desde public/starseed-symbol-square.png (en base64 o referencia relativa; nunca dibujado ni generado), «StarSeed OS», el lema de una línea y una banda de cristal líquido con los colores de tokens.json (noche en oscuro, nieve en claro), en 1280×400. Cabeceras de sección numeradas, 3 iconos de pilares y un diagrama de capas «cómo funciona» (la red y los nodos, la mente digital con Astraura y la malla, y las apps: OS, Nexus y Café). SVG seguro para GitHub: sin scripts, sin foreignObject, sin fuentes externas, con role=img y <title>, y menos de 150 KB. test_recursos.py valida esas reglas y que los colores pertenecen a tokens.json.",
+   "ola": "RDM1113",
+   "depende_de": [],
+   "origen": "seguimiento de alcance parcial"
+  }
+ ]
+}
