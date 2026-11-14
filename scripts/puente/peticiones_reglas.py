@@ -103,16 +103,18 @@ def validar_plan(plan: dict[str, Any]) -> tuple[bool, str]:
 
 
 def texto_estado(cola: list[dict[str, Any]], nb_estado: dict[str, Any]) -> str:
-    """Genera el texto del comando /estado."""
+    """Texto de /estado; explica en silencio las peticiones que esperan sesión."""
     activas = [p for p in cola if p.get("estado") in ("nueva", "en_curso", "reintentar", "esperando_sesion")]
+    esperando = [p for p in cola if p.get("estado") == "esperando_sesion"]
     hechas = len([p for p in cola if p.get("estado") == "hecha"])
     viva = "viva" if nb_estado.get("viva") else "caducada o sin comprobar"
-    comprobada = nb_estado.get("comprobada", "—")
     lineas = [
         "Estado de MetaGenesis (A1):",
-        f"• NotebookLM: {viva} (comprobada {comprobada})",
+        f"• NotebookLM: {viva} (comprobada {nb_estado.get('comprobada', '—')})",
         f"• Peticiones en curso: {len(activas)} · hechas: {hechas}",
     ]
+    if esperando:
+        lineas.append(f"• {len(esperando)} esperan en silencio a que NotebookLM vuelva: se reanudan solas.")
     for p in activas[:5]:
         lineas.append(f"   – {p['estado']} · {p['texto'][:70]}")
     return "\n".join(lineas)

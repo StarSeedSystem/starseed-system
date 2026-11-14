@@ -5,10 +5,13 @@ import json
 import os
 import sys
 import tempfile
+import threading
 import time
 import urllib.error
 import urllib.request
 from unittest.mock import Mock, patch, MagicMock
+
+import pytest
 
 sys.path.insert(0, os.path.dirname(__file__))
 
@@ -994,3 +997,246 @@ def test_recibir_procesa_regla_permanente_y_continua(tmp_path, monkeypatch):
     cola = mod.leer_json(mod.COLA, [])
     assert len(cola) == 1
     assert cola[0]["texto"] == "Recuerda cada día: genera todos los formatos"
+
+
+# ── SES1113A · cerrojo entre procesos, caducidad real y avisos ──────────────
+
+def _cli_falso(returncode=0, stdout="", stderr="", fallo=None):
+    """Devuelve un sustituto de subprocess.run para ejercitar nb() sin red."""
+    def run(*args, **kwargs):
+        if fallo is not None:
+            raise fallo
+        return Mock(returncode=returncode, stdout=stdout, stderr=stderr)
+    return run
+
+
+def test_cerrojo_serializa_dos_llamadas_simultaneas_al_cli(tmp_path, monkeypatch):
+    """Dos llamadas simultáneas al CLI de NotebookLM no se solapan (flock entre procesos)."""
+    import peticiones_notebooklm as nbmod
+
+    monkeypatch.setattr(nbmod, "LOCK_PATH", str(tmp_path / "perfil" / ".starseed-cli.lock"))
+    activos = []
+    candado = threading.Lock()
+
+    def run(*args, **kwargs):
+        with candado:
+            activos.append(1)
+            solapadas = len(activos)
+        time.sleep(0.08)
+        with candado:
+            activos.pop()
+        assert solapadas == 1
+        return Mock(returncode=0, stdout="ok", stderr="")
+
+    monkeypatch.setattr(nbmod.subprocess, "run", run)
+    errores = []
+
+    def llamar():
+        try:
+            nbmod.nb(["list", "--json"], 30)
+        except Exception as e:  # pragma: no cover - solo diagnóstico
+            errores.append(e)
+
+    hilos = [threading.Thread(target=llamar) for _ in range(2)]
+    for h in hilos:
+        h.start()
+    for h in hilos:
+        h.join()
+
+    assert errores == []
+    assert activos == []
+
+
+def test_rc_cero_con_authentication_no_es_caducidad(tmp_path, monkeypatch):
+    """rc 0 con «Authentication» en el texto no es caducidad: nb() devuelve la tupla."""
+    import peticiones_notebooklm as nbmod
+
+    monkeypatch.setattr(nbmod, "LOCK_PATH", str(tmp_path / "lock"))
+    monkeypatch.setattr(nbmod.subprocess, "run",
+                        _cli_falso(0, "Authentication is valid\n", ""))
+    assert nbmod.nb(["auth", "check"], 30) == (0, "Authentication is valid\n", "")
+
+
+def test_rc_no_cero_con_login_es_caducidad(tmp_path, monkeypatch):
+    """rc != 0 con «Run 'notebooklm login'» sí es caducidad."""
+    import peticiones_notebooklm as nbmod
+
+    monkeypatch.setattr(nbmod, "LOCK_PATH", str(tmp_path / "lock"))
+    monkeypatch.setattr(nbmod.subprocess, "run",
+                        _cli_falso(1, "", "Authentication expired. Run 'notebooklm login'"))
+    with pytest.raises(nbmod.SesionCaducada):
+        nbmod.nb(["list", "--json"], 30)
+
+
+def test_error_de_red_es_transitorio_no_caducidad(tmp_path, monkeypatch):
+    """Un URLError (red caída) es transitorio: ni caducidad ni aviso."""
+    import peticiones_notebooklm as nbmod
+
+    monkeypatch.setattr(nbmod, "LOCK_PATH", str(tmp_path / "lock"))
+    monkeypatch.setattr(nbmod.subprocess, "run",
+                        _cli_falso(fallo=urllib.error.URLError("sin red")))
+    with pytest.raises(nbmod.SesionTransitoria) as exc:
+        nbmod.nb(["list", "--json"], 30)
+    assert not isinstance(exc.value, nbmod.SesionCaducada)
+
+
+def test_tiempo_agotado_es_transitorio_no_caducidad(tmp_path, monkeypatch):
+    """Un tiempo agotado del CLI (el 124) es transitorio, no caducidad."""
+    import subprocess
+
+    import peticiones_notebooklm as nbmod
+
+    monkeypatch.setattr(nbmod, "LOCK_PATH", str(tmp_path / "lock"))
+    monkeypatch.setattr(nbmod.subprocess, "run",
+                        _cli_falso(fallo=subprocess.TimeoutExpired("notebooklm", 30)))
+    with pytest.raises(nbmod.SesionTransitoria):
+        nbmod.nb(["list", "--json"], 30)
+
+
+def _correr_keepalive(tmp_path, monkeypatch, nb_resultados):
+    """Ejecuta mantener_sesion hasta `len(nb_resultados)` vueltas y corta el bucle."""
+    monkeypatch.setattr(mod, "CASA", str(tmp_path))
+    monkeypatch.setattr(mod, "DIR", str(tmp_path))
+    monkeypatch.setattr(mod, "ESTADO", str(tmp_path / "estado.json"))
+    llamadas = []
+
+    def nb_falso(args, timeout=600, bloquear=True):
+        llamadas.append((args, bloquear))
+        resultado = nb_resultados[len(llamadas) - 1]
+        if isinstance(resultado, Exception):
+            raise resultado
+        return resultado
+
+    monkeypatch.setattr(mod, "nb", nb_falso)
+    avisos = []
+    monkeypatch.setattr(mod, "decir", avisos.append)
+    esperas = []
+
+    def dormir(segundos):
+        esperas.append(segundos)
+        if len(esperas) >= len(nb_resultados):
+            raise KeyboardInterrupt("fin de la prueba")
+
+    monkeypatch.setattr(time, "sleep", dormir)
+    try:
+        mod.mantener_sesion()
+    except KeyboardInterrupt:
+        pass
+    return llamadas, avisos, esperas
+
+
+def test_uno_o_dos_fallos_de_autenticacion_no_avisan(tmp_path, monkeypatch):
+    """1 o 2 fallos de autenticación seguidos no avisan ni llaman al sanador."""
+    sanador = MagicMock()
+    with patch.dict("sys.modules", {"sanador_sesiones": sanador}):
+        llamadas, avisos, esperas = _correr_keepalive(
+            tmp_path, monkeypatch, [mod.SesionCaducada("expired"), mod.SesionCaducada("expired")]
+        )
+    assert len(llamadas) == 2
+    assert avisos == []
+    assert not sanador.reparar.called
+    estado = mod.leer_json(str(tmp_path / "estado.json"), {})
+    assert estado["notebooklm"]["fallos_consecutivos"] == 2
+    assert esperas == [mod.REFRESCO_S, mod.REFRESCO_S]
+
+
+def test_tres_fallos_seguidos_llaman_al_sanador_sin_avisar(tmp_path, monkeypatch):
+    """Tras 3 fallos seguidos se declara caducada y se llama al sanador, sin escribir a Alex."""
+    sanador = MagicMock()
+    sanador.reparar = MagicMock(return_value="auth refresh")
+    with patch.dict("sys.modules", {"sanador_sesiones": sanador}):
+        llamadas, avisos, _ = _correr_keepalive(
+            tmp_path, monkeypatch,
+            [mod.SesionCaducada("expired")] * 3,
+        )
+    assert len(llamadas) == 3
+    sanador.reparar.assert_called_once_with("notebooklm")
+    assert avisos == []
+
+
+def test_error_transitorio_no_cuenta_como_fallo_ni_avisa(tmp_path, monkeypatch):
+    """Un error de red en el keepalive no incrementa fallos ni avisa."""
+    sanador = MagicMock()
+    with patch.dict("sys.modules", {"sanador_sesiones": sanador}):
+        _, avisos, _ = _correr_keepalive(
+            tmp_path, monkeypatch, [mod.SesionTransitoria("sin red")]
+        )
+    assert avisos == []
+    assert not sanador.reparar.called
+    estado = mod.leer_json(str(tmp_path / "estado.json"), {})
+    assert estado["notebooklm"]["transitorio"] is True
+    assert estado["notebooklm"].get("fallos_consecutivos", 0) == 0
+
+
+def _crear_storage_state(tmp_path):
+    ruta = tmp_path / ".notebooklm" / "profiles" / "default" / "storage_state.json"
+    ruta.parent.mkdir(parents=True, exist_ok=True)
+    ruta.write_text('{"cookies": []}', encoding="utf-8")
+    return ruta.parent
+
+
+def test_refresco_verificado_guarda_solo_tres_copias_buenas(tmp_path, monkeypatch):
+    """Cada refresco verificado copia storage_state y se conservan las 3 más recientes."""
+    perfil = _crear_storage_state(tmp_path)
+    _correr_keepalive(tmp_path, monkeypatch, [(0, "ok", "")] * 4)
+    buenas = sorted(p.name for p in perfil.glob("storage_state.buena-*.json"))
+    assert buenas == ["storage_state.buena-2.json", "storage_state.buena-3.json",
+                      "storage_state.buena-4.json"]
+
+
+def test_al_volver_avisa_una_sola_linea_con_la_receta(tmp_path, monkeypatch):
+    """Tras 3 fallos y la reparación, al volver se avisa una sola línea con la receta."""
+    _crear_storage_state(tmp_path)
+    sanador = MagicMock()
+    sanador.reparar = MagicMock(return_value="restaurar storage_state.buena-3")
+    with patch.dict("sys.modules", {"sanador_sesiones": sanador}):
+        _, avisos, _ = _correr_keepalive(
+            tmp_path, monkeypatch,
+            [mod.SesionCaducada("expired")] * 3 + [(0, "ok", "")],
+        )
+    assert len(avisos) == 1
+    assert avisos[0].startswith("NotebookLM vuelve a estar viva ✓")
+    assert "restaurar storage_state.buena-3" in avisos[0]
+
+
+def test_estado_explica_que_las_peticiones_esperan_en_silencio(tmp_path, monkeypatch):
+    """«/estado» explica por qué esperan las peticiones, sin avisar una por una."""
+    monkeypatch.setattr(mod, "DIR", str(tmp_path))
+    cola = [{"id": 7, "estado": "esperando_sesion", "texto": "infografía de la síntesis"}]
+    texto = mod.texto_estado(cola, {"viva": False, "comprobada": "2026-11-14T02:00"})
+    assert "esperan en silencio" in texto
+    assert "se reanudan solas" in texto
+
+
+def test_atender_caducidad_espera_en_silencio(tmp_path, monkeypatch):
+    """atender() con SesionCaducada no manda aviso por petición: queda esperando_sesion."""
+    monkeypatch.setattr(mod, "COLA", str(tmp_path / "cola.json"))
+    monkeypatch.setattr(mod, "ESTADO", str(tmp_path / "estado.json"))
+    monkeypatch.setattr(mod, "DIR", str(tmp_path))
+    monkeypatch.setattr(mod, "SALIDAS", str(tmp_path / "salidas"))
+    p = {"id": 11, "texto": "infografía de la síntesis", "recibida": time.time(),
+         "estado": "nueva", "intentos": 0,
+         "plan": {"tipo": "notebooklm", "fuente": "ultima_sintesis", "drive_id": "",
+                  "artefactos": [{"tipo": "infographic", "indicaciones": ""}], "resumen": ""}}
+    mod.escribir_json(mod.COLA, [p])
+    monkeypatch.setattr(mod, "interpretar", lambda texto: p["plan"])
+
+    def falla(peticion, plan):
+        raise mod.SesionCaducada("expired")
+
+    monkeypatch.setattr(mod, "hacer_notebooklm", falla)
+    avisos = []
+    monkeypatch.setattr(mod, "decir", avisos.append)
+
+    mod.atender(p)
+
+    assert avisos == []
+    cola = mod.leer_json(mod.COLA, [])
+    assert cola[0]["estado"] == "esperando_sesion"
+
+
+def test_renovar_no_manda_a_claude():
+    """Ningún paso de renovación menciona a Claude."""
+    from peticiones_reglas import RENOVAR
+
+    assert "claude" not in RENOVAR.lower()

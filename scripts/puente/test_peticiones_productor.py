@@ -6,6 +6,9 @@ import os
 import sys
 sys.path.insert(0, os.path.dirname(__file__))
 
+import pytest
+
+import peticiones_productor as prod
 from peticiones_productor import (
     ejecutar_encargo,
     crear_cuaderno,
@@ -635,6 +638,110 @@ def test_enviar_entregable_error_no_rompe_encargo():
     assert any("envío a chat falló" in a for a in frente["avisos"])
     # Pero el entregable sí se produjo
     assert enlace is not None
+
+
+
+# ── SES1113A · caducidad real y modo degradado sin NotebookLM ───────────────
+
+class _FakeNb:
+    """Cliente mínimo: devuelve o lanza lo que se le pida, sin red."""
+
+    def __init__(self, respuesta):
+        self.respuesta = respuesta
+
+    def create(self, nombre, json_output=True):
+        if isinstance(self.respuesta, Exception):
+            raise self.respuesta
+        return self.respuesta
+
+
+def test_rc_cero_con_authentication_no_es_caducidad():
+    """rc 0 con «Authentication» en el texto no es caducidad (puede ser informativo)."""
+    nb = _FakeNb((0, "Authentication is valid", ""))
+    assert prod._llamar_nb(nb, "create", "cuaderno") == (0, "Authentication is valid", "")
+
+
+def test_rc_no_cero_con_login_es_caducidad():
+    """rc != 0 con «Run 'notebooklm login'» sí es caducidad."""
+    nb = _FakeNb((1, "", "Authentication expired. Run 'notebooklm login'"))
+    with pytest.raises(SesionCaducada):
+        prod._llamar_nb(nb, "create", "cuaderno")
+
+
+def test_error_generico_no_es_caducidad():
+    """rc != 0 sin firma de autenticación (timeout, 124, red) no se toma por caducidad."""
+    nb = _FakeNb((124, "", "timeout agotado"))
+    assert prod._llamar_nb(nb, "create", "cuaderno") == (124, "", "timeout agotado")
+
+
+def test_modo_degradado_texto_usa_llm_y_marca(monkeypatch):
+    """Con NotebookLM caído, un entregable de texto sale con llm() y marcado para rehacer."""
+    drive = MockDrive()
+    enc = crear_encargo_ejemplo()
+    frente = enc["frentes"][1]
+    frente["carpeta"] = "folder_1"
+    frente["cuaderno"] = "nb_1"
+    e = {"tipo": "report", "titulo": "Informe caído", "prompt": "Escribe el informe", "enviar": False}
+    monkeypatch.setattr(prod, "llm", lambda mensajes, max_tokens=3000: ("Contenido de respaldo", "modelo-gratis"))
+
+    enlace = prod.producir_entregable(e, frente, enc, "nb_1", MockNotebookLM(), drive, modo_degradado=True)
+
+    assert enlace.startswith("https://docs.google.com/document/d/")
+    contenido = list(drive.documentos.values())[0]["contenido"]
+    assert "sin NotebookLM" in contenido
+    assert "se rehará al volver" in contenido
+    assert "Contenido de respaldo" in contenido
+
+
+def test_modo_degradado_nativo_espera_en_cola():
+    """Con NotebookLM caído, los entregables nativos no se fuerzan: esperan."""
+    drive = MockDrive()
+    enc = crear_encargo_ejemplo()
+    frente = enc["frentes"][0]
+    frente["carpeta"] = "folder_1"
+    frente["cuaderno"] = "nb_1"
+    e = {"tipo": "audio", "titulo": "Audio caído", "prompt": "Haz el audio", "enviar": True}
+
+    with pytest.raises(ProductorError):
+        prod.producir_entregable(e, frente, enc, "nb_1", MockNotebookLM(), drive, modo_degradado=True)
+    assert drive.archivos == {}
+
+
+def test_encargo_con_nativo_sigue_sin_notebooklm_y_lo_deja_en_cola():
+    """Si NotebookLM caduca, el encargo no se para: el nativo queda en cola para el regreso."""
+    nb = MockNotebookLM()
+    nb.debe_fallar[("generate",)] = (1, "", "Authentication expired. Run 'notebooklm login'")
+    drive = MockDrive()
+    frente = {"id": "F1", "nombre": "Producción", "destino": "produccion", "estado": "pendiente",
+              "investigacion": [], "fuentes_drive": [], "carpeta": "folder_1", "cuaderno": "nb_1",
+              "entregables": [{"tipo": "audio", "titulo": "Audio", "prompt": "Hazlo", "enviar": True}]}
+    enc = {"id": "ENC-X", "titulo": "T", "texto": "t", "estado": "activo", "notas": [], "frentes": [frente]}
+
+    ejecutar_encargo(enc, nb, drive)
+
+    e = frente["entregables"][0]
+    assert e.get("en_cola") is True
+    assert "en cola" in e.get("fallo", "")
+
+
+def test_encargo_con_texto_se_hace_degradado_y_se_rehara(monkeypatch):
+    """Si NotebookLM caduca, el entregable de texto se hace con llm() y queda marcado."""
+    nb = MockNotebookLM()
+    nb.debe_fallar[("generate",)] = (1, "", "Authentication expired. Run 'notebooklm login'")
+    monkeypatch.setattr(prod, "llm", lambda mensajes, max_tokens=3000: ("Texto de respaldo", "modelo-gratis"))
+    drive = MockDrive()
+    frente = {"id": "F1", "nombre": "Desarrollo", "destino": "produccion", "estado": "pendiente",
+              "investigacion": [], "fuentes_drive": [], "carpeta": "folder_1", "cuaderno": "nb_1",
+              "entregables": [{"tipo": "report", "titulo": "Informe", "prompt": "Escribe", "enviar": False}]}
+    enc = {"id": "ENC-Y", "titulo": "T2", "texto": "t", "estado": "activo", "notas": [], "frentes": [frente]}
+
+    ejecutar_encargo(enc, nb, drive)
+
+    e = frente["entregables"][0]
+    assert e.get("enlace", "").startswith("https://docs.google.com/document/d/")
+    entregable = next(d for d in drive.documentos.values() if "Informe" in d["nombre"])
+    assert "se rehará al volver" in entregable["contenido"]
+
 
 
 if __name__ == "__main__":
