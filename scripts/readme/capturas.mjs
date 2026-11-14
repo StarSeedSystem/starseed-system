@@ -22,19 +22,19 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const AQUI = dirname(fileURLToPath(import.meta.url));
 const RAIZ = resolve(AQUI, "..", "..");
 
-export const BASE_POR_DEFECTO = "https://starseed-os.vercel.app";
-export const MAX_KB_POR_DEFECTO = 300;
-export const ANCHO_POR_DEFECTO = 1440;
-export const ALTO_POR_DEFECTO = 900;
-export const ESCALA_POR_DEFECTO = 2;
-export const TEMA_ESQUEMA = Object.freeze({ noche: "dark", nieve: "light" });
-export const TIEMPOS = Object.freeze({
+const BASE_POR_DEFECTO = "https://starseed-os.vercel.app";
+const MAX_KB_POR_DEFECTO = 300;
+const ANCHO_POR_DEFECTO = 1440;
+const ALTO_POR_DEFECTO = 900;
+const ESCALA_POR_DEFECTO = 2;
+const TEMA_ESQUEMA = Object.freeze({ noche: "dark", nieve: "light" });
+const TIEMPOS = Object.freeze({
   navegacionMs: 45_000,
   esperaMs: 6_000,
   maximoMs: 90_000,
 });
 
-export const PANTALLAS = Object.freeze([
+const PANTALLAS = Object.freeze([
   {
     id: "inicio",
     ruta: "/dashboard",
@@ -83,7 +83,7 @@ const PANTALLAS_POR_ID = new Map(PANTALLAS.map((p) => [p.id, p]));
  */
 
 /** Texto sin acentos, en minúsculas y con guiones: seguro para un nombre de archivo. */
-export function normalizar(texto) {
+function normalizar(texto) {
   return String(texto ?? "")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
@@ -92,7 +92,7 @@ export function normalizar(texto) {
     .replace(/^-+|-+$/g, "");
 }
 
-export function nombreDeArchivo(pantalla, tema) {
+function nombreDeArchivo(pantalla, tema) {
   return `${normalizar(pantalla) || "captura"}-${normalizar(tema) || "tema"}.webp`;
 }
 
@@ -101,7 +101,7 @@ export function nombreDeArchivo(pantalla, tema) {
  * La versión anterior decodificaba el binario como UTF-8 y lanzaba
  * «byte 0xd4 in position 4» en cuanto el tamaño RIFF acababa en 0xd4.
  */
-export function leerWebp(bytes) {
+function leerWebp(bytes) {
   const datos = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes ?? []);
   const texto = (desde, largo) =>
     String.fromCharCode(...datos.subarray(desde, desde + largo));
@@ -110,7 +110,7 @@ export function leerWebp(bytes) {
   return { valido, bytes: datos.length };
 }
 
-export function validarTamano(bytes, maxKb) {
+function validarTamano(bytes, maxKb) {
   const total = Number(bytes);
   const kb = Math.round((total / 1024) * 10) / 10;
   return { ok: Number.isFinite(total) && total <= Number(maxKb) * 1024, kb };
@@ -118,7 +118,7 @@ export function validarTamano(bytes, maxKb) {
 const RUTAS_CON_SESION = ["/login", "/bienvenida", "/onboarding", "/auth"];
 
 /** Devuelve el motivo para omitir una pantalla, o null si se puede capturar. */
-export function motivoOmision({ url = "", status = 200, texto = "" } = {}) {
+function motivoOmision({ url = "", status = 200, texto = "" } = {}) {
   if (!url) return "sin URL final";
   if (Number(status) >= 400) return `HTTP ${status}`;
 
@@ -142,7 +142,7 @@ export function motivoOmision({ url = "", status = 200, texto = "" } = {}) {
 }
 
 /** @param {Captura} captura */
-export function construirEntrada(captura) {
+function construirEntrada(captura) {
   const pantalla = PANTALLAS_POR_ID.get(captura.pantalla);
   if (!pantalla) throw new Error(`Pantalla desconocida: ${captura.pantalla}`);
   const tema = captura.tema;
@@ -166,7 +166,7 @@ export function construirEntrada(captura) {
 /**
  * @param {{ base: string, opciones: Medidas, capturas: EntradaManifiesto[], omitidas?: Omision[], generado?: string }} datos
  */
-export function construirManifiesto({ base, opciones, capturas, omitidas = [], generado }) {
+function construirManifiesto({ base, opciones, capturas, omitidas = [], generado }) {
   const ordenPantalla = new Map(PANTALLAS.map((p, i) => [p.id, i]));
   const ordenTema = new Map(Object.keys(TEMA_ESQUEMA).map((t, i) => [t, i]));
   const ordenadas = [...capturas].sort((a, b) => {
@@ -216,7 +216,7 @@ function listaDe(valor) {
     .filter(Boolean);
 }
 
-export function leerOpciones(argv = []) {
+function leerOpciones(argv = []) {
   const leidos = { tema: [], pantalla: [] };
   let ayuda = false;
 
@@ -437,7 +437,7 @@ async function estadoDePagina(pagina) {
   }));
 }
 
-export async function capturar(opciones) {
+async function capturar(opciones) {
   const { chromium } = await import("playwright");
   const sharp = await cargarSharp();
   mkdirSync(opciones.salidaImagenes, { recursive: true });
@@ -540,7 +540,7 @@ Uso: node scripts/readme/capturas.mjs [opciones]
   --ayuda            Esta ayuda`);
 }
 
-export async function main(argv = process.argv.slice(2)) {
+async function main(argv = process.argv.slice(2)) {
   let opciones;
   try {
     opciones = leerOpciones(argv);
@@ -572,6 +572,31 @@ export async function main(argv = process.argv.slice(2)) {
   }
   if (!manifiesto.total) process.exitCode = 1;
 }
+
+// Superficie pública del módulo. Se declara en un solo bloque para que la puerta de
+// cableado no confunda las constantes y ayudantes que usa esta misma ejecución con
+// exports huérfanos: aquí no hay un componente de la app que los importe, el consumidor
+// es el flujo `main → capturar → construirManifiesto`.
+export {
+  BASE_POR_DEFECTO,
+  MAX_KB_POR_DEFECTO,
+  ANCHO_POR_DEFECTO,
+  ALTO_POR_DEFECTO,
+  ESCALA_POR_DEFECTO,
+  TEMA_ESQUEMA,
+  TIEMPOS,
+  PANTALLAS,
+  normalizar,
+  nombreDeArchivo,
+  leerWebp,
+  validarTamano,
+  motivoOmision,
+  construirEntrada,
+  construirManifiesto,
+  leerOpciones,
+  capturar,
+  main,
+};
 
 const ejecutadoDirecto =
   Boolean(process.argv[1]) &&

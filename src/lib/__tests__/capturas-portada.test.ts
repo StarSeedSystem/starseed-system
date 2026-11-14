@@ -9,6 +9,8 @@
  * Ejecutar con:
  *   npx vitest run src/lib/__tests__/capturas-portada.test.ts
  */
+import { spawnSync } from "node:child_process";
+import { resolve } from "node:path";
 import { describe, it, expect } from "vitest";
 import {
   MAX_KB_POR_DEFECTO,
@@ -52,6 +54,22 @@ describe("leerWebp · el 0xd4 de la reparación", () => {
     const info = leerWebp(webp);
     expect(info.valido).toBe(true);
     expect(info.bytes).toBe(16);
+  });
+
+  it("lee también el 0xe4 en la posición 5, la segunda vez que reventó", () => {
+    const webp = cabeceraWebp(0x0000_e401);
+    expect(webp[4]).toBe(0x01);
+    expect(webp[5]).toBe(0xe4);
+
+    expect(() => new TextDecoder("utf-8", { fatal: true }).decode(webp)).toThrow();
+
+    expect(leerWebp(webp)).toEqual({ valido: true, bytes: 16 });
+  });
+
+  it("acepta un Buffer de Node sin pasarlo por texto", () => {
+    const webp = Buffer.from(cabeceraWebp());
+    expect(leerWebp(webp).valido).toBe(true);
+    expect(leerWebp(webp).bytes).toBe(webp.length);
   });
 
   it("rechaza lo que no es WebP sin lanzar", () => {
@@ -198,6 +216,28 @@ describe("construirEntrada · lo que va a capturas.json", () => {
   it("no arrastra ningún búfer binario al JSON", () => {
     const entrada = construirEntrada(CAPTURA_OK);
     expect(JSON.stringify(entrada)).not.toContain("buffer");
+  });
+});
+
+describe("main · el flujo de la orden usa leerOpciones", () => {
+  const ruta = resolve(process.cwd(), "scripts/readme/capturas.mjs");
+
+  it("--ayuda enseña los valores de §3.4 sin tocar Playwright", () => {
+    const salida = spawnSync(process.execPath, [ruta, "--ayuda"], { encoding: "utf8" });
+    expect(salida.status).toBe(0);
+    expect(salida.stdout).toContain("https://starseed-os.vercel.app");
+    expect(salida.stdout).toContain("1440");
+    expect(salida.stdout).toContain("300");
+  });
+
+  it("una pantalla desconocida termina con el código 2 y su motivo", () => {
+    const salida = spawnSync(
+      process.execPath,
+      [ruta, "--pantalla", "no-existe"],
+      { encoding: "utf8" },
+    );
+    expect(salida.status).toBe(2);
+    expect(salida.stderr).toContain("Pantalla desconocida");
   });
 });
 
