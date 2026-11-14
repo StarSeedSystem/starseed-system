@@ -95,6 +95,17 @@ class Puras(unittest.TestCase):
         self.assertEqual(R.cadena_viva("RSC1006Qd", p), [])
         self.assertEqual(R.cadena_viva("", p), [])
 
+
+    def test_cadena_viva_no_cuenta_la_otra_parte_de_la_division_sup1114b(self):
+        # SUP1114B (14-11): RDM1113D-d2 es la otra mitad de la división, no la sucesora de RDM1113D-d1c.
+        p = {"RDM1113D": {"estado": "sustituida"}, "RDM1113D-d1": {"estado": "sustituida"},
+             "RDM1113D-d1b": {"estado": "sustituida"}, "RDM1113D-d1c": {"estado": "integrada"},
+             "RDM1113D-d2": {"estado": "bloqueada"}}
+        self.assertEqual(R.cadena_viva("RDM1113D-d1c", p), [])
+        p["RDM1113D-d1d"] = {"estado": "pendiente"}
+        self.assertEqual(R.cadena_viva("RDM1113D-d1c", p), ["RDM1113D-d1d"])
+        # desde la raíz, las dos mitades siguen siendo su cadena
+        self.assertEqual(R.cadena_viva("RDM1113D", p), ["RDM1113D-d1d", "RDM1113D-d2"])
     def test_profundidad_rescate(self):
         self.assertEqual(R.profundidad_rescate("OPT1004C"), 0)
         self.assertEqual(R.profundidad_rescate("RTOPT1004C"), 1)

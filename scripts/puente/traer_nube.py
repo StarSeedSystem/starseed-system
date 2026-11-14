@@ -295,8 +295,11 @@ def posteriores_en_cadena(tid, progreso, nuevo=None):
 
 
 def hermanas_de_division(a, b):
-    """PURA (1106): ¿`a` y `b` son partes distintas de la misma división (X-d1 y X-d2, X-d2b)? No se suceden."""
-    ma, mb = re.match(r"^(.+)-d(\d+)$", str(a or "")), re.match(r"^(.+)-d(\d+)", str(b or ""))
+    """PURA (1106): ¿`a` y `b` son partes distintas de la misma división (X-d1 y X-d2, X-d2b)? No se suceden.
+    (SUP1114B) `a` también puede llevar ya su letra de reintento: X-d1c y X-d2 siguen siendo hermanas. Sin eso,
+    el 14-11 traer_nube archivó RDM1113D-d1c («la cadena sigue viva en RDM1113D-d2») mientras RDM1113D-d2
+    esperaba justo a d1c: su trabajo no llegó a main y la cadena se quedó rota en la raíz."""
+    ma, mb = re.match(r"^(.+)-d(\d+)[b-z]*$", str(a or "")), re.match(r"^(.+)-d(\d+)", str(b or ""))
     return bool(ma and mb and ma.group(1) == mb.group(1) and ma.group(2) != mb.group(2))
 
 

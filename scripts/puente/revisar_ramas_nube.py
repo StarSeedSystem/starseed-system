@@ -159,6 +159,8 @@ def cadena_viva(tid, progreso):
     for k, v in (progreso or {}).items():
         if k != base and T.base_de(k) != base:
             continue
+        if T.hermanas_de_division(tid, k):  # (SUP1114B) la otra parte de una división no lleva este trabajo
+            continue
         estado = v.get("estado") if isinstance(v, dict) else v
         if estado not in CERRADOS:
             vivos.append(k)

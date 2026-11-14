@@ -408,6 +408,28 @@ class SucesoraViva(unittest.TestCase):
         self.assertTrue(T.hermanas_de_division("X1-d1", "X1-d2b"))
         self.assertFalse(T.hermanas_de_division("X1-d1", "X1-d1b"))
 
+    def test_hermanas_de_division_con_letra_de_reintento_sup1114b(self):
+        # SUP1114B (14-11): RDM1113D se dividió en d1 y d2 (d2 depende de d1); d1 siguió como d1b y d1c, y la nube
+        # integró d1c. traer_nube la archivó («la cadena sigue viva en RDM1113D-d2») porque no veía hermanas a
+        # d1c y d2, y d2 se quedó esperando a d1c para siempre.
+        self.assertTrue(T.hermanas_de_division("X1-d1c", "X1-d2"))
+        self.assertTrue(T.hermanas_de_division("X1-d2b", "X1-d1"))
+        self.assertTrue(T.hermanas_de_division("X1-d1c", "X1-d2b"))
+        self.assertFalse(T.hermanas_de_division("X1-d1c", "X1-d1d"))
+        self.assertFalse(T.hermanas_de_division("X1b", "X1-d2"))
+        progreso = {
+            "RDM1113D": {"estado": "sustituida", "nota": "revisor: dividida en RDM1113D-d1, RDM1113D-d2 (tarea:otro)"},
+            "RDM1113D-d1": {"estado": "sustituida", "nota": "revisor: la cadena ya sigue por su sucesora RDM1113D-d1b"},
+            "RDM1113D-d1b": {"estado": "sustituida", "nota": "revisor: la integró su sucesora RDM1113D-d1c"},
+            "RDM1113D-d1c": {"estado": "integrada",
+                             "nota": "la nube la integró en su rama nube/43582511509 (1a6c476a3 · revisión ok)"},
+            "RDM1113D-d2": {"estado": "bloqueada", "nota": "dependencia no integrada: RDM1113D-d1b (sustituida)"},
+        }
+        self.assertIsNone(T.sucesora_viva("RDM1113D-d1c", progreso))
+        # una sucesora de verdad de la misma parte sí cuenta
+        con_d1d = dict(progreso, **{"RDM1113D-d1d": {"estado": "pendiente"}})
+        self.assertEqual(T.sucesora_viva("RDM1113D-d1c", con_d1d), "RDM1113D-d1d")
+
     def test_sucesora_de_una_parte_si_cuenta(self):
         progreso = {"X1-d1": {"estado": "rechazada", "nota": ""}, "X1-d1b": {"estado": "pendiente"},
                     "X1-d2": {"estado": "pendiente"}}
