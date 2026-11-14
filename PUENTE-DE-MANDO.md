@@ -1,6 +1,6 @@
 # Genesis · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-13 16:27:20 desde Genesis vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-13 21:29:09 desde Genesis vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -16,16 +16,28 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | Agentes escribiendo | **0** |
 | En esta ola | integradas 0 · en curso 0 · esperando aprobación 0 · pendientes 15 |
 | Últimas 4 olas | en curso 0 · pendientes 100 · integradas 0 |
-| HEAD | `193311ce4 chore(memoria): aprendizaje de la ola auto-1113-155629` |
-| Sin publicar | 1 commits |
+| HEAD | `9b37acb7f chore(memoria): aprendizaje de la ola auto-1113-191020` |
+| Sin publicar | 5 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-1113-155629.json`, hace 11s)
+## Quién escribe ahora (latido de `cola-auto-1113-191020.json`, hace 14s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `DR1113-1` | hecho | openrouter/cohere/north-mini-code: | 2 min | 111 s | 537222 |
-| `DR1113-2` | hecho | openrouter/cohere/north-mini-code: | 2 min | 149 s | 236370 |
+| `SES1113A-d1` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 2 min | 129 s | 194778 |
+| `DR1113-3` | hecho | openrouter/google/gemma-4-31b-it:f | 3 min | 156 s | 163621 |
+| `ALC1113Gu` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 7 min | 403 s | 126111 |
+| `SES1113A` | hecho | openrouter/cohere/north-mini-code: | 28 min | 1687 s | 322454 |
+| `PSF1113B` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 32 min | 1923 s | 205262 |
+| `PSF1113A` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 41 min | 2477 s | 171421 |
+| `SES1113B` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 51 min | 3084 s | 124900 |
+| `HGF1113D` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 68 min | 4060 s | 63883 |
+| `ALC1113H` | hecho | openrouter/cohere/north-mini-code: | 80 min | 4796 s | 37686 |
+| `HGF1113Bb` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 88 min | 5289 s | 432169 |
+| `HGF1113C` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 89 min | 5331 s | 145409 |
+| `HGF1113G` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 104 min | 6214 s | 105930 |
+| `ALC1113F` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 114 min | 6852 s | 121159 |
+| `HGF1113Bbs` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 125 min | 7521 s | 170263 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
@@ -133,6 +145,13 @@ contexto, escribe con herramientas), NIM `nemotron-3-super-120b` y `z-ai/glm-5.3
 fichaje diario, y los gratuitos con herramientas de OpenRouter que el renovador trae del catálogo
 cada 30 min (`modelos_extra`, siempre `:free`). Hermes dirige con `gemini-3.6-flash`.
 
+**Higgsfield (solo con aprobación, pago):** conector MCP `https://mcp.higgsfield.ai/mcp` (Claude)
+y CLI `@higgsfield/cli` (nodos) vía cuenta Fundación `fundacionstarseed`; **nada se ejecuta sin
+aprobación de Maggasukha**; cada propuesta lleva proyecto, pieza, modelo, comando exacto, tomas y
+créditos estimados; presupuesto por proyecto con aviso al 80 % y parada al 100 %; ejecuta solo
+`higgsfield_aprobado.py`; marca: símbolo no-IA, colores de tokens, nada sin su palabra; gasto en
+`starseed_memory_root/produccion/higgsfield/gasto.jsonl` (privado).
+
 ### Jev: decisiones por $0,00002, no texto
 
 `python3 scripts/puente/veredictos.py` juzga las bloqueadas (reglas deterministas primero, Jev en
@@ -158,11 +177,7 @@ funcionando en `localhost`.
 
 ## Síntesis diaria autónoma (SDP1111)
 
-La síntesis de producción audiovisual ya no depende de la tarea programada de Claude. Funciona
-desde MetaGenesis con sus directores, agentes de Imaginación, Jev, Laya y la flota gratuita.
-El agente `scripts/puente/agente_sintesis.py` (cableado en `director_autodesarrollo.py`) ejecuta
-tres fases diarias: recolectar y encargar análisis (00:30 CDMX), redactar y revisar (06:30), y
-verificar/entregar (07:54 objetivo). La entrega va al chat propio de Telegram
+La síntesis de producción audiovisual ya no depende de la tarea programada de Claude. Funciona desde MetaGenesis con sus directores, agentes de Imaginación, Jev, Laya y la flota gratuita. El agente `scripts/puente/agente_sintesis.py` (cableado en `director_autodesarrollo.py`) ejecuta tres fases diarias: recolectar y encargar análisis (00:30 CDMX), redactar y revisar (06:30), y verificar/entregar (07:54 objetivo). La entrega va al chat propio de Telegram
 (@StarSeed_Design_bot, chat_id 8670436815) y, si Drive está vinculado, crea un Doc en la carpeta
 `1PenzAWw1VWpSAMXa7ms2VRrEhJ5uFbmI`. El parte diario para que Claude nube tenga contexto se genera
 con `parte_diario_metagenesis.py` vía timer oneshot diario a las 07:30 en el A1 (líder de
@@ -185,8 +200,12 @@ Documentación en `architecture/navegador-propio-metagenesis.md`.
 El bot **@StarSeed_Design_bot** («Síntesis de producción StarSeed») atiende a Alex desde el A1 sin la Mac.
 Escucha por long polling, guarda peticiones en `~/.starseed/peticiones/cola.json`, usa FreeLLMAPI local
 (modelos gratuitos con nombre) y NotebookLM (infografía, audio, vídeo, presentación, mapa mental, informe,
-cuestionario, tarjetas, tabla) con la última síntesis o el cuaderno de producción. Comandos: `/estado`,
+questionario, tarjetas, tabla) con la última síntesis o el cuaderno de producción. Comandos: `/estado`,
 `/ayuda`, `/encargos`, `/pausa`, `/sigue`, `/cancela`. La sesión de NotebookLM es solo del A1 (único dueño);
 se renueva cada 20 min con `auth refresh`; si cae, `navegador_alta.py notebooklm` usa la sesión `google-alex`
 del navegador propio para importar cookies al CLI. Claves en `~/.starseed/env`, preferencias en
 `~/.starseed/peticiones/preferencias.json`. Detalles en `architecture/peticiones-telegram-a1.md`.
+
+## Alcance por GitHub (ALC1113)
+
+GitHub es una fuente nueva de contactos técnicos. El agente de alcance (`scripts/puente/alcance_github.py`) extrae perfiles, organizaciones, grupos y desarrolladores de proyectos/repos relacionados con StarSeed. El agente de lista (`scripts/puente/alcance_lista.py`) fusiona estos contactos con la lista de Maggasukha y el sistema de fichas existente (`starseed_memory_root/alcance/`). Las fichas candidatas tienen `fuente: "github"` y están en estado `esperando-aprobacion`. La aprobación es exacta: texto, destinatario y canal deben coincidir. Los envíos respetan las reglas de la plataforma de cada sitio. GitHub entra como parte del alcance técnico regular en el director de desarrollo autónomo y su recomendación forma parte de la síntesis diaria.
