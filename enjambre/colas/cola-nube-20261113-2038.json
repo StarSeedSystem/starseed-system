@@ -1,0 +1,33 @@
+{
+ "ola": "nube-20261113",
+ "tareas": [
+  {
+   "id": "SES1113E",
+   "titulo": "Directores: incidentes de salud → olas de reparación automáticas",
+   "archivos": [
+    "scripts/puente/salud_directores.py",
+    "scripts/puente/test_salud_directores.py"
+   ],
+   "depende": [],
+   "prompt": "Lee architecture/autorreparacion-sesiones-1113.md. §3.6. salud_directores.py, que llama el líder tras cada `sanador_sesiones.py comprobar`. Si una sesión falla todas las recetas dos veces seguidas, o aparece una firma de error nueva (hash del mensaje normalizado), crea starseed_memory_root/olas/cola-auto-salud-<fecha>.json con una tarea de diagnóstico y parche: los registros recortados y sin secretos, los archivos implicados y las pruebas que deben pasar. Sin duplicados: una tarea abierta por firma. Añade al parte diario y al Mando (panel «Salud de sesiones», integrado con la estética de su área) las caídas, las recetas que funcionaron y el tiempo sin servicio. Una línea de salud en la síntesis diaria. Claude no figura como paso necesario en ninguna ruta. Pruebas sin red.",
+   "ola": "SES1113",
+   "dependencias_ya_en_main": [
+    "SES1113B"
+   ]
+  },
+  {
+   "id": "SES1113F",
+   "titulo": "Sanador · OAuth de Google, Higgsfield, FreeLLMAPI/NIM y Telegram",
+   "archivos": [
+    "scripts/puente/sanador_recetas.py",
+    "scripts/puente/test_sanador_recetas.py"
+   ],
+   "depende": [],
+   "prompt": "Lee architecture/autorreparacion-sesiones-1113.md. Recetas del resto del registro (§3.2) en un módulo aparte que sanador_sesiones carga. google-oauth alex y alex-docs: refrescar con refresh_token; con la app OAuth «en prueba» los tokens caducan a los 7 días, así que hay que avisar 3 días antes con los pasos exactos para publicarla (lo hace Maggasukha en Google Cloud; SDP1111U). higgsfield: `higgsfield account` en el A1 y en la Mac; si cae, solo aviso con el paso en la Mac (`higgsfield auth login`). freellmapi y NIM: ping de un modelo; si cae, marcar el proveedor caído en el enrutador de llm() durante 30 min y reiniciar starseed-freellmapi una sola vez. telegram: getMe; con la red caída, no avisar. Nada de secretos en los registros. Pruebas sin red.",
+   "ola": "SES1113",
+   "dependencias_ya_en_main": [
+    "SES1113B"
+   ]
+  }
+ ]
+}
