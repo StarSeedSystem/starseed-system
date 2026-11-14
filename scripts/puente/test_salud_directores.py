@@ -13,7 +13,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import salud_directores as SD
 
 
-def caida(token="sk-abcdef0123456789abcdef"):
+def caida(token="sk-abcdefgh0123456789abcd"):
     return {"ok": False, "motivo": "auth caducada: Authentication expired (token %s)" % token}
 
 
@@ -123,12 +123,12 @@ class SaludDirectoresTest(unittest.TestCase):
 
     def test_tarea_con_registros_recortados_y_sin_secretos(self):
         registros = [
-            "receta1 ok=False motivo=auth caducada: token sk-abcdef0123456789abcdef duracion=1.2s",
+            "receta1 ok=False motivo=auth caducada: token sk-abcdefgh0123456789abcd duracion=1.2s",
             "x" * 500,
         ]
         r = self._sd().evaluar("notebooklm", caida(), reparacion_mal(), registros=registros)
         t = self._tareas_cola()[0]
-        self.assertNotIn("sk-abcdef0123456789", t["prompt"])
+        self.assertNotIn("sk-abcdefgh0123456789", t["prompt"])
         self.assertIn("[REDACTADO]", t["prompt"])
         self.assertLess(len(t["prompt"]), 2400)
         self.assertIn("test_sanador_sesiones", t["prompt"])
