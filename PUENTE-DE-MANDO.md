@@ -1,6 +1,6 @@
 # Genesis · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-14 00:10:40 desde Genesis vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-14 01:12:02 desde Genesis vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -16,16 +16,16 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | Agentes escribiendo | **0** |
 | En esta ola | integradas 0 · en curso 0 · esperando aprobación 0 · pendientes 15 |
 | Últimas 4 olas | en curso 0 · pendientes 100 · integradas 0 |
-| HEAD | `685750db9 chore(memoria): aprendizaje de la ola auto-1113-234408` |
-| Sin publicar | 12 commits |
+| HEAD | `3f57c6782 chore(memoria): aprendizaje de la ola auto-1114-005225` |
+| Sin publicar | 7 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-1113-234408.json`, hace 14s)
+## Quién escribe ahora (latido de `cola-auto-1114-005225.json`, hace 13s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `RDM1113D-d1` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 2 min | 135 s | 407470 |
-| `SES1113C` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 2 min | 143 s | 186374 |
+| `RDM1113D-d1` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 2 min | 128 s | 470629 |
+| `SES1113G` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 12 min | 712 s | 33376 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
@@ -193,6 +193,10 @@ questionario, tarjetas, tabla) con la última síntesis o el cuaderno de producc
 se renueva cada 20 min con `auth refresh`; si cae, `navegador_alta.py notebooklm` usa la sesión `google-alex`
 del navegador propio para importar cookies al CLI. Claves en `~/.starseed/env`, preferencias en
 `~/.starseed/peticiones/preferencias.json`. Detalles en `architecture/peticiones-telegram-a1.md`.
+
+## Autorreparación de sesiones (SES1113)
+
+Sanador en `scripts/puente/sanador_sesiones.py`: corre cada 15 min en el A1 y a demanda. Comprueba y repara sesiones (NotebookLM, google-oauth, Higgsfield, FreeLLMAPI/NIM, Telegram) con recetas ordenadas; **Claude nunca es un paso necesario**; la caída de un proveedor se rodea por la ruta gratuita. Regla de despliegue: tests del repo cubren los arreglos antes de sustituir herramienta en servicio.
 
 ## Alcance por GitHub (ALC1113)
 
