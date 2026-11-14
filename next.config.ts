@@ -1,5 +1,6 @@
 import type { NextConfig } from 'next';
 import path from 'path';
+import { readFileSync } from 'fs';
 
 // (APP1107A, 2026-11-07) Build para el servidor local de la app nativa de escritorio: solo con
 // STARSEED_APP_NATIVA=1 (el job `servidor-local-next` de native-build.yml). La app trae este build
@@ -7,6 +8,15 @@ import path from 'path';
 // nativo por plataforma) y la caché de ISR vive en memoria. En Vercel, CI y la Mac no cambia nada.
 // Contrato: architecture/apps-autonomas-sin-internet.md.
 const APP_NATIVA = process.env.STARSEED_APP_NATIVA === '1';
+// ACT1113F: la build que se compila queda dentro del código del cliente (id y sha de public/version.json,
+// que `prebuild` escribe antes de `next build`): así la página sabe con qué código arrancó.
+let BUILD_ID_CLIENTE = '';
+let BUILD_SHA_CLIENTE = '';
+try {
+  const v = JSON.parse(readFileSync(path.join(__dirname, 'public', 'version.json'), 'utf-8'));
+  BUILD_ID_CLIENTE = typeof v.build === 'string' ? v.build : '';
+  BUILD_SHA_CLIENTE = typeof v.sha === 'string' ? v.sha : '';
+} catch { /* sin version.json (desarrollo): la página dice «desconocida» */ }
 
 const nextConfig: NextConfig = {
   // (2026-10-07) El Puente de Mando se llama Genesis: su página es /genesis. La URL vieja
@@ -31,6 +41,7 @@ const nextConfig: NextConfig = {
   // servidor sigue sirviendo el `.next` viejo, intacto, hasta que se cambian de sitio con
   // el servidor parado: cinco segundos de reinicio en vez de cinco minutos de error.
   distDir: process.env.STARSEED_DIST || '.next',
+  env: { NEXT_PUBLIC_BUILD_ID: BUILD_ID_CLIENTE, NEXT_PUBLIC_BUILD_SHA: BUILD_SHA_CLIENTE },
   output: 'standalone',
   outputFileTracingRoot: path.join(__dirname),
   // Lo que NUNCA debe viajar dentro de una función de Vercel (límite: 250 MB sin comprimir).

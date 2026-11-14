@@ -505,5 +505,51 @@ class Disco(unittest.TestCase):
             self.assertEqual(b["llamadas"], [])
 
 
+class BuildDeLaWeb(unittest.TestCase):
+    """ACT1113F: la build de la web que corre cada aparato, en el aparato y en cada llamada."""
+
+    def _log(self, mac_web, tab_web):
+        def web(t, tag, msg):
+            return "2026-11-13T17:59:%02dZ web%s 2026-11-13T17:59:%02dZ · web · llamada · b1 · neurona n1 · %s" % (t, tag, t, msg)
+        return "\n".join([
+            web(1, "", "inicio paso=timbre ok web=%s" % mac_web),
+            web(2, " (Maggaboard)", ("inicio paso=timbre ok web=%s" % tab_web) if tab_web else "inicio paso=timbre ok"),
+            web(3, "", "senal-enviada senal offer"),
+            web(9, "", "senal-enviada colgar"),
+            web(10, "", "fin por=colgar contestada=si dur-s=8 web=%s" % mac_web),
+            web(10, " (Maggaboard)", ("fin por=colgar contestada=si web=%s" % tab_web) if tab_web else "fin por=colgar contestada=si"),
+        ]) + "\n"
+
+    def test_web_de_lee_build_y_sha(self):
+        self.assertEqual(B.web_de("fin por=colgar web=mwfli3jt-ctfbyg/fbbcb6794a"), "mwfli3jt-ctfbyg/fbbcb6794a")
+        self.assertEqual(B.web_de("inicio paso=x web=desconocida"), "desconocida")
+        self.assertIsNone(B.web_de("sin build aqui"))
+        self.assertIsNone(B.web_de("webx=abc123"))
+
+    def test_cada_aparato_guarda_la_ultima_build_y_cuando(self):
+        b = B.construir(self._log("mwfli3jt-ctfbyg/fbbcb6794a", "aaaa1111-bbbb22/0123456789"), MAC37, {"pruebas": {}}, 0)
+        por = {a["id"]: a for a in b["aparatos"]}
+        self.assertEqual(por["mac"]["web"], "mwfli3jt-ctfbyg/fbbcb6794a")
+        self.assertEqual(por["mac"]["web_visto"], "2026-11-13T17:59:10Z")
+        tab = [a for i, a in por.items() if i != "mac"][0]
+        self.assertEqual(tab["web"], "aaaa1111-bbbb22/0123456789")
+
+    def test_lados_con_builds_distintas_lo_dice_como_nota_no_como_fallo(self):
+        b = B.construir(self._log("mwfli3jt-ctfbyg/fbbcb6794a", "aaaa1111-bbbb22/0123456789"), MAC37, {"pruebas": {}}, 0)
+        ll = b["llamadas"][0]
+        self.assertEqual(len(ll["web_por_lado"]), 2)
+        self.assertEqual(len(ll["notas"]), 1)
+        self.assertIn("informativo, no es un fallo", ll["notas"][0])
+        self.assertEqual(b["problemas_total"], 0)
+
+    def test_mismas_builds_o_un_lado_sin_dato_no_dan_nota(self):
+        igual = B.construir(self._log("mwfli3jt-ctfbyg/fbbcb6794a", "mwfli3jt-ctfbyg/fbbcb6794a"), MAC37, {"pruebas": {}}, 0)
+        self.assertEqual(igual["llamadas"][0]["notas"], [])
+        sin = B.construir(self._log("mwfli3jt-ctfbyg/fbbcb6794a", None), MAC37, {"pruebas": {}}, 0)
+        self.assertEqual(sin["llamadas"][0]["notas"], [])
+        tab = [a for a in sin["aparatos"] if a["id"] != "mac"][0]
+        self.assertIsNone(tab["web"])
+
+
 if __name__ == "__main__":
     unittest.main()

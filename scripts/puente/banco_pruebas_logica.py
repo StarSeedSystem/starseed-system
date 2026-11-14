@@ -28,6 +28,7 @@ _LINEA = re.compile(r"^(?P<t>\d{4}-\d\d-\d\dT[\d:.]+Z) (?P<canal>web|ble)(?: \((
 _WEB = re.compile(r"^(?P<ti>\d{4}-\d\d-\d\dT[\d:.]+Z) · (?:web · )?(?P<tipo>[a-z-]+) · (?:(?P<enl>b\d+) · neurona (?P<n>\S+) · )?(?P<msg>.*)$")
 _BLE = re.compile(r"^(?P<ev>[a-z0-9-]+)(?: enlace=(?P<enl>b\d+))?(?: neurona=\S+)?(?: · (?P<msg>.*))?$")
 _KV = re.compile(r"([A-Za-zñ][\w/-]*)=([^\s]+)")
+_WEB_BUILD = re.compile(r"(?:^|\s)web=([\w-]{3,64}(?:/[0-9a-f]{7,40})?)(?:\s|$)")  # ACT1113F: build de la web que corre el aparato
 _UUID = re.compile(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
 _RUTA = re.compile(r"(?:/Users|/home|/private|/var|/Library|~)/[^\s\"']+")
 _CLAVE = re.compile(r"(sk-[A-Za-z0-9_\-]{8,}|gh[pousr]_[A-Za-z0-9]{8,}|Bearer\s+\S+|eyJ[\w\-]+\.[\w\-]+\.[\w\-]+)")
@@ -346,6 +347,31 @@ def _crudas(ls):
     return elegidas
 
 
+def web_de(msg):
+    """ACT1113F: la build de la web que dice una línea («web=mwfli3jt-ctfbyg/fbbcb6794a»), o None."""
+    m = _WEB_BUILD.search(msg or "")
+    return m.group(1) if m else None
+
+
+def web_por_lado(grupo):
+    """ACT1113F: {aparato: build} con la ÚLTIMA que dijo cada lado dentro de la llamada (sus líneas «inicio» y «fin»)."""
+    out = {}
+    for l in grupo:
+        w = web_de(l["msg"])
+        if w:
+            out[l["aparato"]] = w
+    return out
+
+
+def notas_de_build(web):
+    """ACT1113F: nota informativa (no un fallo) cuando los dos lados de una llamada corrían builds distintas."""
+    distintas = sorted(set(web.values()))
+    if len(web) >= 2 and len(distintas) > 1:
+        return ["Los dos lados corrían builds distintas de la web (%s): informativo, no es un fallo." %
+                ", ".join("%s=%s" % (a, w) for a, w in sorted(web.items()))]
+    return []
+
+
 def construir_llamada(grupo, lineas_ble, prob=None):
     idl = "llamada-" + datetime.fromtimestamp(grupo[0]["t"], timezone.utc).strftime("%Y%m%dT%H%M%S")
     t0, t1 = grupo[0]["t"], grupo[-1]["t"]
@@ -370,7 +396,7 @@ def construir_llamada(grupo, lineas_ble, prob=None):
             "con": otros[0] if otros else None, "terminada": any(_es_colgar(l) for l in grupo),
             "medios": medios, "enlaces": enlaces,
             "kbps_rapido": {"min": _redondea(min(kb)), "max": _redondea(max(kb)), "muestras": len(kb)} if kb else None,
-            "lados": lados}
+            "lados": lados, "web_por_lado": web_por_lado(grupo), "notas": notas_de_build(web_por_lado(grupo))}
 
 
 # ── sugerencias ─────────────────────────────────────────────────────────────────────────────────────────────────
@@ -669,16 +695,23 @@ def aparatos_vistos(lineas, mac):
         if l and l["nombre"]:
             a = vistos.setdefault(l["aparato"], {"nombre": l["nombre"], "visto": l["t"]})
             a["visto"] = max(a["visto"], l["t"])
+    web_ult = {}
+    for l in lineas:
+        w = web_de(l["msg"]) if l else None
+        if w and (l["aparato"] not in web_ult or l["t"] >= web_ult[l["aparato"]][1]):
+            web_ult[l["aparato"]] = (w, l["t"])
     ult_mac = max([l["t"] for l in lineas if l and l["aparato"] == "mac"] or [0]) or None
     lista = [{"id": "mac", "nombre": "Esta Mac", "esta": True, "version": mac.get("version"),
               "version_de": "app-instalada" if mac.get("version") else None, "app_abierta": mac.get("app_abierta"),
               "ultimo_arranque": mac.get("ultimo_arranque"), "errores_arranque": mac.get("errores_arranque") or [],
               "visto": _a_iso(ult_mac), "version_desde": mac.get("version_desde"),
-              "version_desde_fuente": mac.get("version_desde_fuente")}]
+              "version_desde_fuente": mac.get("version_desde_fuente"),
+              "web": (web_ult.get("mac") or (None, None))[0], "web_visto": _a_iso((web_ult.get("mac") or (None, None))[1])}]
     for a, d in sorted(vistos.items()):
         lista.append({"id": a, "nombre": "Tablet (%s)" % d["nombre"], "esta": False, "version": None, "version_de": None,
                       "app_abierta": None, "ultimo_arranque": None, "errores_arranque": [], "visto": _a_iso(d["visto"]),
-                      "version_desde": None, "version_desde_fuente": None})
+                      "version_desde": None, "version_desde_fuente": None,
+                      "web": (web_ult.get(a) or (None, None))[0], "web_visto": _a_iso((web_ult.get(a) or (None, None))[1])})
     return lista
 
 

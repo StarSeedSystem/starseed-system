@@ -9,6 +9,8 @@
  * Nunca lanza y nunca escribe contenido de la llamada (ni SDP ni audio): solo el tipo, el sentido y el medio.
  */
 
+import { etiquetaBuild } from "@/lib/pwa/build-corriendo";
+
 export type HitoLlamada = "senal-enviada" | "senal-recibida" | "contestada" | "medio=webrtc" | "medio=enlace-datos" | "medio=video-datos" | "escalada-wifi" | "camara" | "fallo" | "reintento" | "carril" | "negociacion" | "inicio" | "directa" | "fin"; // LLA1112A · LLA1113C: «fin», cómo acabó la llamada en este lado: «directa», la llamada directa por un enlace local (`malla/llamada-directa.ts`)
 
 export type SumideroDiagnostico = (linea: { hito: HitoLlamada; neurona: string | null; detalle: string }) => void;
@@ -21,7 +23,10 @@ export function fijarSumideroDiagnostico(f: SumideroDiagnostico | null): void {
 }
 
 export function anotarLlamada(hito: HitoLlamada, neurona: string | null, detalle = ""): void {
-  const limpio = String(detalle ?? "").replace(/[\u0000-\u001f\u007f]+/g, " ").slice(0, 200);
+  // ACT1113F: la primera línea de una llamada («inicio») y la última («fin») acaban con la build de la web que corre
+  // este aparato (`web=<build>/<sha>`); el resto del texto no cambia y la marca no se corta con el recorte.
+  const marca = hito === "inicio" || hito === "fin" ? ` web=${etiquetaBuild()}` : "";
+  const limpio = (String(detalle ?? "").replace(/[\u0000-\u001f\u007f]+/g, " ").slice(0, 200) + marca).trim();
   try {
     sumidero?.({ hito, neurona, detalle: limpio });
   } catch {

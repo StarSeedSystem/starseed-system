@@ -18,6 +18,7 @@
  */
 
 import { familiaSistema, normalizarGpu } from "./huella";
+import { buildCorriendo, etiquetaBuild } from "@/lib/pwa/build-corriendo";
 
 /** Medios (espejo de `Medio` de `lib/actualizaciones/version-por-medio.ts`, sin importarlo: módulo puro). */
 export type MedioAparato = "web" | "pwa" | "escritorio" | "android" | "ios";
@@ -46,6 +47,8 @@ export interface AparatoRegistro {
   huella?: string;
   /** Versión del binario nativo (semver). */
   version?: string;
+  /** ACT1113F: build y sha de la WEB que corre en este aparato («mwfli3jt-ctfbyg/fbbcb6794a»); no es la versión del binario. */
+  web?: string;
   /** Último medio que escribió la fila. */
   ultimoMedio?: MedioAparato;
   /** Cuándo (ISO). */
@@ -98,6 +101,8 @@ export function sanearAparato(x: unknown): AparatoRegistro | null {
   const version = texto(o.version, 40);
   if (version && /^\d+\.\d+\.\d+([-+][0-9A-Za-z.-]+)?$/.test(version.replace(/^v/i, ""))) out.version = version.replace(/^v/i, "");
   if (MEDIOS.includes(o.ultimoMedio as MedioAparato)) out.ultimoMedio = o.ultimoMedio as MedioAparato;
+  const web = texto(o.web, 60);
+  if (web && /^[\w-]{3,64}(\/[0-9a-f]{7,40})?$/i.test(web)) out.web = web;
   const visto = texto(o.visto, 40);
   if (visto && Number.isFinite(Date.parse(visto))) out.visto = visto;
   return Object.keys(out).length > 1 ? out : null;
@@ -188,6 +193,7 @@ export function aparatoDesde(p: {
     v: 1,
     so: i?.plataforma || p.plataforma || undefined,
     ultimoMedio: p.medio ?? undefined,
+    web: buildCorriendo().build ? etiquetaBuild() : undefined,
     visto: new Date(p.ahora).toISOString(),
   };
   if (i) {
@@ -217,9 +223,9 @@ export function combinarAparato(remoto: unknown, local: unknown): AparatoRegistr
   if (!l) return r;
   if (!r) return l;
   if (esAparatoRico(l)) {
-    return { ...l, so: l.so ?? r.so, ultimoMedio: l.ultimoMedio ?? r.ultimoMedio, visto: l.visto ?? r.visto };
+    return { ...l, so: l.so ?? r.so, ultimoMedio: l.ultimoMedio ?? r.ultimoMedio, visto: l.visto ?? r.visto, web: l.web ?? r.web };
   }
-  return { ...r, so: r.so ?? l.so, ultimoMedio: l.ultimoMedio ?? r.ultimoMedio, visto: l.visto ?? r.visto };
+  return { ...r, so: r.so ?? l.so, ultimoMedio: l.ultimoMedio ?? r.ultimoMedio, visto: l.visto ?? r.visto, web: l.web ?? r.web };
 }
 
 export type ParecidoAparato = "mismo" | "distinto" | "sin-datos";

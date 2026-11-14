@@ -122,7 +122,7 @@ export function montarSW(op: { servidor: Servidor; host?: string; conexion?: Rec
   const codigoSW = readFileSync(join(raiz, "public", "sw-v8.js"), "utf-8");
   const codigoLogica = readFileSync(join(raiz, "public", "sw-logica.js"), "utf-8");
   const origen = op.host ? `https://${op.host}` : ORIGEN;
-  const estado = { red: true, llamadas: [] as Llamada[], mensajes: [] as unknown[], enfocada: 0, abiertas: [] as string[] };
+  const estado = { red: true, llamadas: [] as Llamada[], mensajes: [] as unknown[], enfocada: 0, abiertas: [] as string[], saltos: 0 };
 
   const fetchFalso = async (entrada: RequestInfo | URL, init: RequestInit = {}): Promise<Response> => {
     const url = typeof entrada === "string" ? new URL(entrada, origen).href : urlDe(entrada);
@@ -157,7 +157,10 @@ export function montarSW(op: { servidor: Servidor; host?: string; conexion?: Rec
     location: new URL(`${origen}/sw-v8.js`),
     navigator: navegador,
     addEventListener: (t: string, f: (e: unknown) => void) => oyentes.set(t, [...(oyentes.get(t) ?? []), f]),
-    skipWaiting: async () => undefined,
+    skipWaiting: async () => {
+      estado.saltos += 1; // ACT1113F: cuántas veces pidió la página «activa ya el SW en espera»
+      return undefined;
+    },
     clients: {
       claim: async () => undefined,
       matchAll: async () => [...clientes],

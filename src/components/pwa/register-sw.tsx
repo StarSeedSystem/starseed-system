@@ -3,6 +3,8 @@
 import { useEffect } from "react";
 
 import { puedeRecargarSuave, suscribirseAvisoVersion } from "@/lib/pwa/aviso-version";
+import { buildCorriendo } from "@/lib/pwa/build-corriendo";
+import { decidirCambioBuild, MIRAR_CADA_MS, REINTENTO_ESPERA_MS, TOPE_RECARGAS_SESION } from "@/lib/pwa/decision-build";
 import { EVENTO_PRECARGA, estadoDeMensaje, pedirAlmacenPersistente, pedirPrecarga } from "@/lib/pwa/precarga-cliente";
 
 /** (SW1107A) Primera pasada de precarga: cuando el arranque ya terminó, para no competir con él. */
@@ -125,12 +127,21 @@ export function RegisterSW() {
     // PWA ABIERTA recibe CADA despliegue sin depender de bumps manuales del SW.
     // Además del sondeo de 5 min, el director de producción avisa por ntfy
     // (puerta 7): el aviso NO se cree, solo dispara aquí la misma comprobación.
+    // (ACT1113F) El ancla es la build con la que ARRANCÓ ESTE CÓDIGO (`buildCorriendo`, metida al compilar), no la
+    // primera lectura de /version.json: si la página salió de una copia vieja y el servidor ya dice otra, la
+    // primera lectura anclaba a la NUEVA y nunca se detectaba la diferencia (la app corría la build vieja toda la
+    // sesión). Sin id en el código (desarrollo), se ancla a la primera lectura como antes.
     let checkBuild: () => Promise<void> = async () => {};
     let buildIv: ReturnType<typeof setInterval> | null = null;
+    let esperaT: ReturnType<typeof setTimeout> | null = null;
+    const propia = buildCorriendo().build;
     try {
-      let initial: string | null = null;
+      let initial: string | null = propia;
+      if (propia) { try { (window as unknown as { STARSEED_BUILD_INICIAL?: string }).STARSEED_BUILD_INICIAL = propia; } catch { /* */ } }
+      const recargasHechas = () => { try { return parseInt(sessionStorage.getItem("ss:swreloads") || "0", 10) || 0; } catch { return 0; } };
       checkBuild = async () => {
         if (cancelled || document.visibilityState !== "visible") return;
+        if (esperaT) { clearTimeout(esperaT); esperaT = null; }
         try {
           const res = await fetch("/version.json", { cache: "no-store" });
           if (!res.ok) return;
@@ -138,33 +149,47 @@ export function RegisterSW() {
           if (!v) return;
           if (initial === null) {
             initial = v;
-            // (2026-10-10) El panel de Actualizaciones compara con el build con el que arrancó la pestaña.
             try { (window as unknown as { STARSEED_BUILD_INICIAL?: string }).STARSEED_BUILD_INICIAL = v; } catch { /* */ }
             return;
-          } // primera lectura: ancla
-          if (v === initial) return;
-          // Si la persona está escribiendo o hay algo sin guardar, no recargamos:
-          // avisamos al banner «Nueva versión» y ella decide cuándo aplicar.
-          if (!puedeRecargarSuave()) {
+          } // sin id propio: primera lectura = ancla
+          let enLlamada = false;
+          try { enLlamada = (await (await import("@/lib/actualizaciones/momento-navegador")).medirMomento()).enLlamada; } catch { /* */ }
+          const d = decidirCambioBuild({
+            corriendo: initial, publicada: v, enLlamada, escribiendo: !puedeRecargarSuave(),
+            enLinea: typeof navigator === "undefined" || navigator.onLine !== false,
+            recargasEstaSesion: recargasHechas(), topeRecargas: TOPE_RECARGAS_SESION,
+          });
+          if (d === "al-dia" || d === "tope") return;
+          if (d !== "aplicar") {
+            // No es el momento: se avisa al banner y se reintenta pronto; cambia en el primer momento seguro.
             try { window.dispatchEvent(new Event("starseed:update-ready")); } catch { /* */ }
+            if (d !== "esperar-red") esperaT = setTimeout(() => { void checkBuild(); }, REINTENTO_ESPERA_MS);
             return;
           }
-          // (2026-10-10) Actualizaciones por capas: la política de la capa «interfaz» de esta
-          // neurona (por defecto automática, como antes) y el momento (llamada, directo, batería)
-          // deciden si se recarga sola o se avisa. Carga perezosa: no pesa en el arranque.
+          // (2026-10-10) La política de la capa «interfaz» de esta neurona puede dejarlo en aviso.
           try {
             const { decidirCapaLocal } = await import("@/lib/actualizaciones/decision-local");
             if ((await decidirCapaLocal("interfaz")).decision !== "aplicar") {
               try { window.dispatchEvent(new Event("starseed:update-ready")); } catch { /* */ }
+              esperaT = setTimeout(() => { void checkBuild(); }, REINTENTO_ESPERA_MS);
               return;
             }
           } catch { /* sin módulo: comportamiento de siempre */ }
+          // Todo o nada: se pide al SW nuevo que tome el control (su `controllerchange` recarga una vez) y, si no
+          // hay ninguno esperando, se recarga: la navegación es red-primero, así que HTML y trozos son de la misma build.
+          try {
+            const reg = await navigator.serviceWorker.getRegistration();
+            await reg?.update();
+            if (reg?.waiting) { reg.waiting.postMessage("SKIP_WAITING"); setTimeout(applyUpdate, 4000); return; }
+          } catch { /* */ }
           applyUpdate();
         } catch { /* */ }
       };
-      void checkBuild(); // fija el build inicial al arrancar
-      buildIv = setInterval(() => { void checkBuild(); }, 5 * 60 * 1000);
+      void checkBuild(); // al arrancar
+      buildIv = setInterval(() => { void checkBuild(); }, MIRAR_CADA_MS);
     } catch { /* */ }
+    const alVolver = () => { if (document.visibilityState === "visible") void checkBuild(); };
+    try { document.addEventListener("visibilitychange", alVolver); window.addEventListener("online", alVolver); } catch { /* */ }
 
     // Aviso en tiempo real por ntfy (tema fijo; sin confiar en su contenido).
     let cierraAviso: () => void = () => {};
@@ -223,6 +248,8 @@ export function RegisterSW() {
       cancelled = true;
       window.removeEventListener("load", onLoad);
       if (buildIv) clearInterval(buildIv);
+      if (esperaT) clearTimeout(esperaT);
+      try { document.removeEventListener("visibilitychange", alVolver); window.removeEventListener("online", alVolver); } catch { /* */ }
       if (precargaT0) clearTimeout(precargaT0);
       if (precargaIv) clearInterval(precargaIv);
       if (precargaOnline) clearTimeout(precargaOnline);
