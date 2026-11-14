@@ -7343,3 +7343,19 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 **Lo que quedó fuera, una por una:**
 - `RDM1113As` — la revisión lo rechazó: no toco NINGUNO de los 4 archivos que declaraba (rama ola/RDM1113As conservada)
 - `RDM1113D-d2` — la revisión lo rechazó: no toco NINGUNO de los 1 archivos que declaraba (rama ola/RDM1113D-d2 conservada)
+
+## 2026-11-14 14:10 · auto-1114-132345
+
+**Lo que se pidió.** Whole README
+
+**Resultado.** 2 de 6 integradas. 4 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 3 tareas se fueron por lo mismo — otra cosa (IRD11141, IRD11142, IRD11143). Es 50 % de la ola.
+- groq/openai/gpt-oss-120b no integró ninguna de sus 3 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RDM1113D-d2` — la revisión lo rechazó: no toco NINGUNO de los 1 archivos que declaraba (rama ola/RDM1113D-d2 conservada)
+- `IRD11141` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/referencias-diseno-2026-11-14-1.json
+- `IRD11142` — otra cosa: 2 propuesta(s) · starseed_memory_root/imaginacion/agentes/referencias-diseno-2026-11-14-2.json
+- `IRD11143` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/referencias-diseno-2026-11-14-3.json
