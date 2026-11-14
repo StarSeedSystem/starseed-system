@@ -272,6 +272,7 @@ repositorio).
 | **LLM7.io** (itsfree.ai) | `https://api.llm7.io/v1` | `LLM7_API_KEY` (opcional) | **sin clave**: `gpt-oss` (20B) y `minimax-m2.7` (verificados 2026-09-05, revisión real en 14 s); con token: 44 modelos (deepseek-v4-flash, glm-5.3-flash…). Sus etiquetas «claude/gpt-6» son reventa: no se usan | 10 req/min sin clave (40 con token) | revisor de respaldo, siempre disponible |
 | **FreeTheAi** | `https://api.freetheai.xyz/v1` | `FREETHEAI_API_KEY` | 60+ modelos (gpt-oss-120b…); clave por su Discord (`/signup` y `/checkin` diario; la crea Alex, nunca un agente) | 10-35 req/min, 250/día | revisor de reserva (solo con clave) |
 | **Pasarela declarada por entorno** | `STARSEED_PASARELA_<NOMBRE>_URL` | `STARSEED_PASARELA_<NOMBRE>_KEY` (+ `_MODELOS`, `_RPM`) | cualquier enrutador OpenAI-compatible: **freellmapi** en local (`http://127.0.0.1:3001/v1`, 29 proveedores gratis tras un bearer, ~40 MB RSS), NavyAI, pasarela propia… | el que declare `_RPM` (10 si falta) | revisor; entra sin tocar código en el orquestador y en el catálogo de Genesis |
+| **Higgsfield** (pago, créditos limitados) | `https://mcp.higgsfield.ai/mcp` (Claude) · `@higgsfield/cli` (nodos) | `HIGGSFIELD_API_KEY` (cuenta Fundación) | modelos de vídeo/imagen/audio Cinema Studio | aprobado por Maggasukha, presupuesto por proyecto | **solo con aprobación**: vía `higgsfield_aprobado.py`; nunca tareas rutinarias ni respaldo automático |
 
 ### Catálogos de proveedores gratuitos (2026-09-05)
 

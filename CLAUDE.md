@@ -456,6 +456,10 @@ En esta flota, **AIHubMix** (`AIHUBMIX_API_KEY`, 412 modelos con 54 gratuitos) e
 principal**, y **UTIM** (`@emend-ai/utim` v2.3.19) actúa como **segundo agente de código** para
 multiplicar agentes en paralelo; la tabla completa de proveedores y cupos está en
 `memory/orquestacion-economica.md` (sección «Flota de proveedores»).
+**Higgsfield (solo con aprobación):** conector MCP `https://mcp.higgsfield.ai/mcp` en Claude y
+CLI `@higgsfield/cli` en los nodos (cuenta Fundación `fundacionstarseed`); cada ejecución pasa por
+`higgsfield_aprobado.py` con aprobación de Maggasukha, presupuesto por proyecto (aviso al 80 %,
+parada al 100 %); marca: símbolo nunca generado por IA, colores de tokens, nada sin su palabra.
 Proveedores comunitarios con clave solo en el servidor: `/api/ai/openrouter`
 (`OPENROUTER_SHARED_KEY`) y `/api/ai/nvidia` (`NVIDIA_SHARED_KEY`, NVIDIA NIM · 82 modelos).
 Hermes tiene `providers.nvidia` (`NVIDIA_API_KEY` en `~/.hermes/.env`). Claves: nunca en el repo

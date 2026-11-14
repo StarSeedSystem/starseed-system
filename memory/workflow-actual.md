@@ -57,6 +57,13 @@ contexto, escribe con herramientas), NIM `nemotron-3-super-120b` y `z-ai/glm-5.3
 fichaje diario, y los gratuitos con herramientas de OpenRouter que el renovador trae del catálogo
 cada 30 min (`modelos_extra`, siempre `:free`). Hermes dirige con `gemini-3.6-flash`.
 
+**Higgsfield (solo con aprobación, pago):** conector MCP `https://mcp.higgsfield.ai/mcp` (Claude)
+y CLI `@higgsfield/cli` (nodos) vía cuenta Fundación `fundacionstarseed`; **nada se ejecuta sin
+aprobación de Maggasukha**; cada propuesta lleva proyecto, pieza, modelo, comando exacto, tomas y
+créditos estimados; presupuesto por proyecto con aviso al 80 % y parada al 100 %; ejecuta solo
+`higgsfield_aprobado.py`; marca: símbolo no-IA, colores de tokens, nada sin su palabra; gasto en
+`starseed_memory_root/produccion/higgsfield/gasto.jsonl` (privado).
+
 ### Jev: decisiones por $0,00002, no texto
 
 `python3 scripts/puente/veredictos.py` juzga las bloqueadas (reglas deterministas primero, Jev en

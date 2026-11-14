@@ -154,6 +154,11 @@ de siempre. Detalles y reglas de validación: `architecture/encargos-chats-metag
   que queda, $0,00002 por decisión, techo 0,05 $/día); un subagente solo para las de
   confianza < 0,7. En OpenRouter **solo ids `:free`**: hay 10 $ de crédito de Alex y un id de
   pago los gastaría sin que nadie lo pidiera. `python3 scripts/puente/jev.py` enseña gasto y saldo.
+- **Higgsfield (solo con aprobación):** conector MCP `https://mcp.higgsfield.ai/mcp` en Claude y
+  CLI `@higgsfield/cli` en los nodos (cuenta Fundación `fundacionstarseed`); cada ejecución pasa
+  por `higgsfield_aprobado.py` con aprobación de Maggasukha, presupuesto por proyecto (aviso al
+  80 %, parada al 100 %); marca: símbolo nunca generado por IA, colores de tokens, nada sin su
+  palabra.
 - Tests con `import { describe, it, expect } from "vitest"` — en este repo `globals` está en
   `false`. Prohibido `vi.mock` de módulos de Node y prohibido importar un `route.ts` desde un test.
 - Sin `any`. Textos de UI y comentarios en español con acentos. `cursor-pointer` en lo clicable.
