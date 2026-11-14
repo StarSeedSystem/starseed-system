@@ -26,6 +26,7 @@ import type { CalidadVoz } from "./decision";
 // VOZ1111J: la voz sigue al enlace (escalera, medida del carril, informe del otro, reserva para el vídeo).
 import { bytesPaqueteNivel, ControlNivelVoz, ESCALON_CEDE_VIDEO, kbpsCabenVoz, kbpsTextoNivel, nivelInicial, NIVELES_OPUS, NIVELES_SIMPLES, type FormatoVoz, type NivelVoz } from "./niveles";
 import { fijarReservaVoz } from "./reserva";
+import { acordar, anuncioPropio, lineaCapacidades, type AcuerdoCapacidades } from "@/lib/llamadas/capacidades"; // LLA1114B
 import { MedidorEnlace, muestraDeTransporte, PARADA_MAX_MS, PARADA_MIN_MS, textoEnlace, type EscrituraCarril, type ResumenEnlace } from "@/lib/llamadas/video-datos/reparto";
 
 /** LLA1112A: tope de la cola de salida de la voz cuando el enlace se para (el máximo del búfer del otro, `maxMs` del jitter). */
@@ -220,6 +221,9 @@ export class SesionVozDatos {
   private ultimoRxEn = 0;
   private finTexto: string | null = null;
   private holaRecibido = false;
+  /** LLA1114B: lo acordado con el anuncio del otro (null hasta su saludo) y la clave del último anuncio anotado. */
+  private acuerdo: AcuerdoCapacidades | null = null;
+  private anuncioOtroVisto: string | null = null;
   private holasEnviadas = 0;
   /** (LLA1108H) Último aviso «me llega un códec que no sé decodificar» (ms), para no repetirlo en cada paquete. */
   private ultimoAvisoSinDecodificador = -1e9;
@@ -304,6 +308,11 @@ export class SesionVozDatos {
     if (this.sinVozRx) return AVISO_SIN_VOZ_RX;
     if (this.bajoSueloTx() && !this.mudo) return AVISO_SIN_VOZ_TX;
     return null;
+  }
+
+  /** LLA1114B · Lo acordado con el otro (null: aún no llegó su saludo). */
+  acuerdoCapacidades(): AcuerdoCapacidades | null {
+    return this.acuerdo;
   }
 
   estado(): EstadoVozDatos {
@@ -477,7 +486,8 @@ export class SesionVozDatos {
 
   private saludar(): void {
     this.holasEnviadas++;
-    this.mandarControl({ k: "hola", codecs: this.soportados, ...(this.d.comoAnterior ? {} : { fmt: [...FORMATOS_VOZ] }) });
+    // LLA1114B: con el anuncio de capacidades y la build (`capacidades.ts`); `comoAnterior` habla como un aparato anterior.
+    this.mandarControl({ k: "hola", codecs: this.soportados, ...(this.d.comoAnterior ? {} : { fmt: [...FORMATOS_VOZ], ...anuncioPropio() }) });
   }
 
   /**
@@ -902,6 +912,16 @@ export class SesionVozDatos {
       if (primero) {
         this.saludar();
         this.d.anotar?.(`voz-datos hola codec=${this.codecTx}`);
+      }
+      // LLA1114B: lo que anuncia el otro y lo acordado, una línea por sesión (y otra si su anuncio cambia).
+      if (!this.d.comoAnterior) {
+        const clave = `${c.cap ? c.cap.join(",") : "-"}|${c.web ?? "?"}`;
+        if (clave !== this.anuncioOtroVisto) {
+          this.anuncioOtroVisto = clave;
+          const mio = anuncioPropio();
+          this.acuerdo = acordar(c.cap ?? null, c.web ?? null, mio.cap, mio.web ?? null);
+          this.d.anotar?.(`voz-datos ${lineaCapacidades(this.acuerdo)}`);
+        }
       }
       this.avisar();
     } else if (c.k === "ping") {

@@ -11,7 +11,7 @@
 
 import { etiquetaBuild } from "@/lib/pwa/build-corriendo";
 
-export type HitoLlamada = "senal-enviada" | "senal-recibida" | "contestada" | "medio=webrtc" | "medio=enlace-datos" | "medio=video-datos" | "escalada-wifi" | "camara" | "fallo" | "reintento" | "carril" | "negociacion" | "inicio" | "directa" | "fin"; // LLA1112A · LLA1113C: «fin», cómo acabó la llamada en este lado: «directa», la llamada directa por un enlace local (`malla/llamada-directa.ts`)
+export type HitoLlamada = "senal-enviada" | "senal-recibida" | "contestada" | "medio=webrtc" | "medio=enlace-datos" | "medio=video-datos" | "escalada-wifi" | "camara" | "fallo" | "reintento" | "carril" | "negociacion" | "inicio" | "directa" | "fin" | "banco"; // LLA1114B: «banco», líneas del banco automático (contrato ronda-automatica-llamadas §6) · LLA1112A · LLA1113C: «fin», cómo acabó la llamada en este lado: «directa», la llamada directa por un enlace local (`malla/llamada-directa.ts`)
 
 export type SumideroDiagnostico = (linea: { hito: HitoLlamada; neurona: string | null; detalle: string }) => void;
 

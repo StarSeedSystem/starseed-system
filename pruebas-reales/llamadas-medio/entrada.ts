@@ -9,6 +9,10 @@
  */
 import { MotorLlamada } from "@/lib/llamadas/motor";
 import { fijarSumideroDiagnostico } from "@/lib/llamadas/voz-datos/diagnostico";
+// LLA1114B · versiones mezcladas: el lado B con el motor de OTRO árbol (`construir.mjs <A> <salida> <B>`). Sin tercer árbol
+// `@b/` es este mismo (el mismo módulo, nada cambia).
+import { MotorLlamada as MotorLlamadaB } from "@b/lib/llamadas/motor";
+import { fijarSumideroDiagnostico as fijarSumideroDiagnosticoB } from "@b/lib/llamadas/voz-datos/diagnostico";
 import { fabricaCodecsSimples, type AudioVoz, type TransporteVoz } from "@/lib/llamadas/voz-datos/sesion";
 import type { ConexionCanal } from "@/lib/llamadas/senalizacion";
 import type { MetaPresencia, SenalLlamada } from "@/lib/llamadas/tipos";
@@ -30,6 +34,9 @@ type Linea = { t: number; hito: string; neurona: string | null; detalle: string 
 const lineas: Linea[] = [];
 const t0 = performance.now();
 fijarSumideroDiagnostico((l) => lineas.push({ t: Math.round(performance.now() - t0), ...l }));
+// LLA1114B: el árbol de B tiene su propio registro de hitos; sus líneas van a la misma lista (marcadas «lado=B» si es otro).
+const mezclado = (MotorLlamadaB as unknown) !== (MotorLlamada as unknown);
+if (mezclado) fijarSumideroDiagnosticoB((l) => lineas.push({ t: Math.round(performance.now() - t0), ...l }));
 
 /*
  * LLA1113A · Temporizadores LENTOS de la página (prueba 40, Mac sin nadie delante): WebKit alinea los temporizadores de una
@@ -749,7 +756,8 @@ async function llamada(o: { conDatos: boolean; video?: boolean; videoFalso?: boo
   const [ca, cb] = bucleSenal(sesionId);
   const [ta, tb] = o.ble ? enlaceBle() : enlaceDatos();
   const hacer = (quien: "A" | "B", canal: () => ConexionCanal, tr: TransporteVoz) => {
-    const m = new MotorLlamada({
+    const Motor = (quien === "B" ? MotorLlamadaB : MotorLlamada) as typeof MotorLlamada; // LLA1114B
+    const m = new Motor({
       sesionId,
       // LLA1112A (C): dos aparatos de la misma cuenta se presentan con el mismo nombre («Yo» sin servidor).
       yo: { base: quien === "A" ? "a-mac" : "b-tableta", uid: o.mismaCuenta ? "cuenta" : quien, nombre: o.mismaCuenta ? "Yo" : quien, avatar: null, invitado: false },
@@ -927,6 +935,7 @@ function estadoNeg() {
   // LLA1112A: el lado B de la tableta (prueba 39) y sus paradas.
   ladoTableta39: LADO_TABLETA_39,
   ladoTableta41: LADO_TABLETA_41, // LLA1113C
+  mezclado, // LLA1114B: ¿el lado B corre otro árbol?
   paradaB,
   medida,
   pintadas,

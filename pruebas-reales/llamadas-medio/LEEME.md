@@ -19,6 +19,14 @@ node correr.mjs salida todos 300 > resultados.json # o: aleteo, ip-aparece, choq
 ```
 
 Para comparar con otro árbol (p. ej. main): `node construir.mjs /ruta/al/otro/repo salida-viejo/banco.js`.
+**Versiones mezcladas (LLA1114B):** `node construir.mjs ../.. salida-mezcla/banco.js /ruta/al/otro/arbol` — el lado A corre
+este árbol y el lado B (la tableta en los casos `ble-tableta*`) el otro (`@b/…` en `entrada.ts`; cada árbol con su propio
+registro de hitos). Al revés: `node construir.mjs /ruta/al/otro/arbol salida-mezcla/banco.js ../..`. El otro árbol se saca
+de git (`git archive <sha> src/lib | tar -x -C <carpeta>`). Medido (13-11 / 14-11, `ble-tableta-41`, 120 s): el vídeo de B
+depende SOLO del código de B — B en `9e489e8d^` da 0 fps con A nuevo o viejo; B nuevo, 0,2 fps con A nuevo o viejo; A→B ≈ 6 fps
+en los cuatro. Ojo: en la página única los dos lados de un mismo árbol comparten el estado de módulo (p. ej. la reserva de
+la voz, `voz-datos/reserva.ts`, que con dos sesiones no reserva nada) y los de árboles distintos no; la prueba de
+`pruebas-reales/compat-versiones/` carga cada lado aparte siempre.
 Necesita `esbuild` y `playwright` (globales o en `/opt/npm-tools`). No toca el Mac ni la red.
 
 ## Escenarios

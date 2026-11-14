@@ -21,6 +21,7 @@
 
 import { recibirArchivo } from "@/lib/malla/recepcion-sellada";
 import { esTextoVoz } from "@/lib/llamadas/voz-datos/paquete";
+import { etiquetaBuild } from "@/lib/pwa/build-corriendo"; // LLA1114B
 import { datosHolaArchivoYa, registrarHolaArchivo } from "@/lib/malla/archivo-seguro-real";
 import { datosHolaLanas, refrescarLanasSiViejas, registrarLanasVecina } from "@/lib/malla/lanas-propias"; // MTZ1109A
 import {
@@ -792,7 +793,10 @@ export function crearRedBle(deps: DepsBle): RedBle {
     const ts = deps.ahora();
     ultimoHola[enlace] = ts;
     const cta = await pruebaPara(yo.neurona, para, ts);
-    registro.anotar("hola", para, `saludo firmado ${resp ? "(respuesta)" : "(primero)"}; prueba de cuenta ${cta ? "incluida" : "no disponible"}`, enlace);
+    // LLA1114B: la build de la web que corre ESTE aparato al final de la línea (`web=<compilación>/<sha>`, como en las líneas de
+    // llamada de ACT1113F). Solo el texto del registro: el saludo que viaja no cambia y quien lee la línea por su principio sigue igual.
+    const sello = ` web=${etiquetaBuild()}`;
+    registro.anotar("hola", para, `saludo firmado ${resp ? "(respuesta)" : "(primero)"}; prueba de cuenta ${cta ? "incluida" : "no disponible"}${sello}`, enlace);
     // `webrtc: false`: por Bluetooth no se señaliza WebRTC (sin red IP no conectaría).
     let certificado: CertificadoNeurona | null = null;
     try {

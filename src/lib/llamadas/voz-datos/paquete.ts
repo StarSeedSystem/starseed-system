@@ -15,6 +15,7 @@
  * pérdida). Un aparato anterior (0.5.1-prueba.36) ignora `voz.b` y `fmt`: con él se sigue hablando `voz.p`.
  */
 import { esCodecVoz, type CodecVoz } from "./codec";
+import { sanearCapacidades, sanearWeb } from "@/lib/llamadas/capacidades"; // LLA1114B
 
 export const PREFIJO_VOZ = '{"t":"voz.';
 export const MAX_TRAMAS_PAQUETE = 8;
@@ -50,6 +51,9 @@ export interface ControlVoz {
   m?: string;
   /** (VOZ1111J) hola: formatos de paquete que entiendo además de `voz.p` («b1»). Un aparato anterior no lo manda. */
   fmt?: string[];
+  /** LLA1114B · hola: capacidades de este código (`capacidades.ts`) y build que corre. Un aparato anterior no lo manda y lo ignora. */
+  cap?: string[];
+  web?: string;
   /** (VOZ1111J) rep: lo que me llega de ti en la última ventana: % perdido, % tarde (tras su turno), kb/s de texto. */
   perd?: number;
   tarde?: number;
@@ -157,6 +161,13 @@ export function leerControl(texto: string): ControlVoz | null {
     if (typeof o.m === "string") c.m = o.m.slice(0, 120);
     // VOZ1111J
     if (Array.isArray(o.fmt)) c.fmt = o.fmt.filter((x): x is string => typeof x === "string" && /^[a-z0-9]{1,8}$/.test(x)).slice(0, 4);
+    // LLA1114B: el anuncio de capacidades y la build (solo en el saludo).
+    if (o.k === "hola") {
+      const cap = sanearCapacidades(o.cap);
+      if (cap) c.cap = cap;
+      const web = sanearWeb(o.web);
+      if (web) c.web = web;
+    }
     const pct = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? Math.max(0, Math.min(100, Math.round(v * 10) / 10)) : undefined);
     if (o.k === "rep") {
       const perd = pct(o.perd);

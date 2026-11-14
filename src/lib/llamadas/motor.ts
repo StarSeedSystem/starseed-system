@@ -116,6 +116,12 @@ export interface OpcionesMotor {
     bot?: OpcionesBotLlamada;
     intervaloStatsMs?: number;
     intervaloNivelMs?: number;
+    /**
+     * LLA1114B · Solo para el banco (contrato `architecture/ronda-automatica-llamadas.md` §6, fase 1). `sinIp`: cada
+     * RTCPeerConnection se crea con `iceTransportPolicy: "relay"` y `iceServers: []` (no sale ningún candidato: como un
+     * aparato sin ruta IP). Nada más cambia. Sin esta opción, todo como siempre.
+     */
+    banco?: { sinIp?: boolean };
 }
 
 /** (LLA1108E) Lo que el motor necesita para llevar la voz por un enlace de datos (todo inyectable). */
@@ -1296,7 +1302,8 @@ export class MotorLlamada {
         if (this.cerrado || typeof RTCPeerConnection !== "function") return null;
         let pc: RTCPeerConnection;
         try {
-            pc = new RTCPeerConnection({ iceServers: this.iceServers });
+            // LLA1114B: el banco sin IP (ver `OpcionesMotor.banco`).
+            pc = new RTCPeerConnection(this.opc.banco?.sinIp ? { iceServers: [], iceTransportPolicy: "relay" } : { iceServers: this.iceServers });
         } catch {
             return null;
         }
