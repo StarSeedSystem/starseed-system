@@ -1,25 +1,56 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="800" height="80" viewBox="0 0 800 80" role="img" aria-labelledby="title-sec08 desc-sec08">
   <title id="title-sec08">Sección 8 — Hoja de ruta</title>
-  <desc id="desc-sec08">Cabecera de sección numerada para Hoja de ruta</desc>
+  <desc id="desc-sec08">Cabecera de sección numerada para Hoja de ruta: Semilla, Fruto, Cosecha, Estados reales</desc>
   <defs>
+    <linearGradient id="sec-bg-08" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#0A0F1D"/>
+      <stop offset="100%" stop-color="#141B2E"/>
+    </linearGradient>
     <linearGradient id="sec-gradient-08" x1="0%" y1="0%" x2="100%" y2="0%">
       <stop offset="0%" stop-color="#FFBF00"/>
-      <stop offset="100%" stop-color="#F5B91A"/>
+      <stop offset="50%" stop-color="#F5B91A"/>
+      <stop offset="100%" stop-color="#D4AF37"/>
     </linearGradient>
-    <filter id="sec-glow" x="-50%" y="-50%" width="200%" height="200%">
-      <feGaussianBlur stdDeviation="3" result="blur"/>
+    <linearGradient id="crystal-band-08" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#FFBF00" stop-opacity="0.3"/>
+      <stop offset="25%" stop-color="#F5B91A" stop-opacity="0.3"/>
+      <stop offset="50%" stop-color="#D4AF37" stop-opacity="0.3"/>
+      <stop offset="75%" stop-color="#DC143C" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#CD77F8" stop-opacity="0.3"/>
+    </linearGradient>
+    <filter id="sec-glow-08" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="4" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="crystal-glow-08" x="-100%" y="-100%" width="300%" height="300%">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feComposite in="blur" in2="SourceAlpha" operator="in" result="glow"/>
+      <feMerge>
+        <feMergeNode in="glow"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="text-glow-08" x="-100%" y="-100%" width="300%" height="300%">
+      <feGaussianBlur stdDeviation="2" result="blur"/>
       <feMerge>
         <feMergeNode in="blur"/>
         <feMergeNode in="SourceGraphic"/>
       </feMerge>
     </filter>
   </defs>
-  <rect width="800" height="80" fill="#0A0F1D"/>
-  <g transform="translate(40, 15)">
-    <circle cx="25" cy="25" r="25" fill="url(#sec-gradient-08)" filter="url(#sec-glow)"/>
-    <text x="25" y="31" font-family="'Rajdhani', 'Inter', system-ui, sans-serif" font-size="20" font-weight="700" fill="#0A0F1D" text-anchor="middle">08</text>
-    <text x="70" y="45" font-family="'Rajdhani', 'Inter', system-ui, sans-serif" font-size="28" font-weight="700" fill="#F8F9FA">Hoja de ruta</text>
-    <text x="70" y="62" font-family="'Inter', system-ui, sans-serif" font-size="13" fill="#AEB6C8">Semilla · Fruto · Cosecha · Estados reales</text>
+  <rect width="800" height="80" fill="url(#sec-bg-08)"/>
+  <g opacity="0.06" aria-hidden="true">
+    <circle cx="150" cy="40" r="120" fill="#FFBF00" filter="url(#sec-glow-08)"/>
+    <circle cx="650" cy="40" r="100" fill="#F5B91A" filter="url(#sec-glow-08)"/>
   </g>
-  <line x1="40" y1="70" x2="760" y2="70" stroke="url(#sec-gradient-08)" stroke-width="1" opacity="0.5"/>
+  <g transform="translate(30, 12)">
+    <circle cx="25" cy="25" r="25" fill="url(#sec-gradient-08)" filter="url(#sec-glow-08)"/>
+    <text x="25" y="31" font-family="'Rajdhani', 'Inter', system-ui, sans-serif" font-size="20" font-weight="700" fill="#0A0F1D" text-anchor="middle" filter="url(#text-glow-08)">08</text>
+    <text x="70" y="42" font-family="'Rajdhani', 'Inter', system-ui, sans-serif" font-size="26" font-weight="700" fill="#F8F9FA" filter="url(#text-glow-08)">Hoja de ruta</text>
+    <text x="70" y="58" font-family="'Inter', system-ui, sans-serif" font-size="12" fill="#AEB6C8">Semilla · Fruto · Cosecha · Estados reales</text>
+  </g>
+  <rect x="30" y="62" width="740" height="4" rx="2" fill="url(#crystal-band-08)" filter="url(#crystal-glow-08)" opacity="0.8"/>
 </svg>
