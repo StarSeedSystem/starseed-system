@@ -27,7 +27,7 @@ Do not begin with architecture, contributor instructions, a command, or a long t
 - Put the shortest working install path before advanced configuration.
 - Keep limitations visible when they affect user choice.
 - Prefer one example that succeeds end-to-end over many disconnected snippets.
-- Use “we” or direct language when it reduces distance, but do not fake community size.
+- Use "we" or direct language when it reduces distance, but do not fake community size.
 
 ## Visual-to-text division
 

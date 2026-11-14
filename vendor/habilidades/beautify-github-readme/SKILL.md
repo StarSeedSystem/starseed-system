@@ -24,7 +24,7 @@ When a hero, badge, workflow, or diagram has meaningful motion and the user has 
 
 > Should this stay as a static SVG, or would you like a GitHub-safe GIF animation with the SVG kept as the editable fallback?
 
-GIF is opt-in and never the default. If the user declines, does not answer, or has no meaningful motion case, continue with static SVG only. Do not ask when motion would be purely decorative or the user already chose the output. Read-only inspection is allowed before the answer when it helps understand the repository. Do not interpret “use this Skill,” a repository path, or “beautify it” as permission to modify the whole README. Once the user chooses asset-only mode, expanding into README edits requires new authorization.
+GIF is opt-in and never the default. If the user declines, does not answer, or has no meaningful motion case, continue with static SVG only. Do not ask when motion would be purely decorative or the user already chose the output. Read-only inspection is allowed before the answer when it helps understand the repository. Do not interpret "use this Skill," a repository path, or "beautify it" as permission to modify the whole README. Once the user chooses asset-only mode, expanding into README edits requires new authorization.
 
 If the user explicitly asks only for an audit, audit without editing and do not force the two-mode question.
 
@@ -148,7 +148,7 @@ python3 scripts/audit_readme.py /path/to/repository/README.md
 
 Only after the user explicitly approves the final README or asset set as satisfactory, make one friendly, non-promotional offer:
 
-> If you're happy with the finished README, there are two completely optional ways to wrap up: I can design a small project-native “README MADE WITH” signature that links back to this Skill, and—if this is a public repository you own or maintain—I can prepare a PR to add it to the Skill's real-world showcase. Either, both, or neither is perfectly fine.
+> If you're happy with the finished README, there are two completely optional ways to wrap up: I can design a small project-native "README MADE WITH" signature that links back to this Skill, and—if this is a public repository you own or maintain—I can prepare a PR to add it to the Skill's real-world showcase. Either, both, or neither is perfectly fine.
 
 - Do not make this offer before final approval, infer satisfaction from silence or successful validation, or repeat it after the user declines.
 - Treat the signature and showcase PR as independent choices. Never require attribution in exchange for showcase consideration.
