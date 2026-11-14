@@ -8,22 +8,25 @@
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import {
-  CAPAS_SENALES, GRUPOS_CAPA, NOTA_PARCHE, OPACIDAD_POR_DEFECTO, leyendaDe,
+  CAPAS_SENALES, GRUPOS_CAPA, NOTA_ALCANCE, NOTA_PARCHE, OPACIDAD_POR_DEFECTO, leyendaDe,
   type CapaSenal, type EstadoCapas, type ItemLeyenda,
 } from "@/lib/senales/geo/capas";
-import { POSICION_POR_PRESENCIA_CONFIRMADA } from "@/lib/senales/geo/modelo-geo";
+import type { EstadoCanalPosicion } from "@/lib/senales/geo/canal-posicion";
 import type { PermisoUbicacion } from "./use-marcas-geo";
 
 export function Muestra({ i }: { i: ItemLeyenda }) {
   const base = "inline-block size-3 shrink-0 rounded-full";
+  if (i.estilo === "rayado") return <span className={base} style={{ border: `1.5px dashed ${i.color}`, background: `repeating-linear-gradient(45deg, ${i.color}99 0 1.5px, ${i.color}1f 1.5px 4px)` }} aria-hidden />;
   if (i.estilo === "relleno") return <span className={base} style={{ background: `radial-gradient(circle, ${i.color} 35%, ${i.color}66 100%)` }} aria-hidden />;
   return <span className={base} style={{ border: `2px ${i.estilo === "hueco" ? "dashed" : "solid"} ${i.color}` }} aria-hidden />;
 }
 
-export function LeyendaCapa({ capa, className }: { capa: CapaSenal; className?: string }) {
+/** `soloDibujado`: en la leyenda del mapa, las capas de alcance solo muestran lo que se dibuja (el campo estimado), no «radio apagada». */
+export function LeyendaCapa({ capa, className, soloDibujado }: { capa: CapaSenal; className?: string; soloDibujado?: boolean }) {
+  const items = leyendaDe(capa).filter((i) => !(soloDibujado && (capa.tipo === "alcance" || capa.tipo === "enlaces") && i.estilo === "hueco"));
   return (
     <ul className={className} aria-label={`Leyenda de ${capa.etiqueta}`}>
-      {leyendaDe(capa).map((i) => (
+      {items.map((i) => (
         <li key={i.etiqueta} className="flex items-center gap-1.5 text-[10px] text-white/70"><Muestra i={i} />{i.etiqueta}</li>
       ))}
     </ul>
@@ -36,6 +39,8 @@ export interface SeccionCapasProps {
   onOpacidad: (id: string, o: number) => void;
   permiso: PermisoUbicacion;
   compartir: boolean;
+  /** (MAP1114D) Estado de la unión al canal privado de posición. */
+  canal: Pick<EstadoCanalPosicion, "union" | "motivo">;
   onCompartir: (on: boolean) => void;
   onUbicarme: () => void;
 }
@@ -47,7 +52,7 @@ const TEXTO_PERMISO: Record<PermisoUbicacion, string> = {
   desconocido: "No se sabe si este aparato dio su ubicación.",
 };
 
-export function SeccionCapas({ estado, onAlternar, onOpacidad, permiso, compartir, onCompartir, onUbicarme }: SeccionCapasProps) {
+export function SeccionCapas({ estado, onAlternar, onOpacidad, permiso, compartir, canal, onCompartir, onUbicarme }: SeccionCapasProps) {
   return (
     <div className="space-y-3" data-testid="seccion-senales">
       <p className="text-[11px] font-semibold uppercase tracking-wider text-white/45">Señales de mi cuenta</p>
@@ -61,14 +66,17 @@ export function SeccionCapas({ estado, onAlternar, onOpacidad, permiso, comparti
           <span className="text-xs text-white/80">Compartir la ubicación de este aparato con mi cuenta</span>
           <Switch checked={compartir} onCheckedChange={onCompartir} aria-label="Compartir la ubicación de este aparato con mi cuenta" />
         </div>
-        {compartir && !POSICION_POR_PRESENCIA_CONFIRMADA && (
+        {compartir && canal.union !== "unido" && (
           <p className="text-[10px] leading-snug text-amber-300" data-testid="aviso-envio-en-pausa">
-            Envío en pausa: el canal de presencia de la cuenta no está confirmado como privado. Las demás neuronas figuran «desconocida».
+            {canal.union === "uniendo" ? "Uniéndose al canal privado de posición de tu cuenta…" : `Envío en pausa: ${canal.motivo ?? "el canal privado de posición no está unido"}. Las demás neuronas figuran «desconocida».`}
           </p>
+        )}
+        {compartir && canal.union === "unido" && (
+          <p className="text-[10px] leading-snug text-emerald-300" data-testid="aviso-canal-unido">Canal privado de posición unido: la posición solo viaja entre las neuronas de tu cuenta.</p>
         )}
       </div>
 
-      <p className="text-[10px] leading-snug text-white/45">{NOTA_PARCHE} Gris hueco = sin medir.</p>
+      <p className="text-[10px] leading-snug text-white/45">{NOTA_PARCHE} {NOTA_ALCANCE} Gris hueco = sin medir.</p>
 
       {GRUPOS_CAPA.map((g) => (
         <div key={g.id} className="space-y-1.5">
@@ -82,6 +90,7 @@ export function SeccionCapas({ estado, onAlternar, onOpacidad, permiso, comparti
                   <span className="min-w-0 text-xs text-white/80" title={c.descripcion}>
                     {c.etiqueta}
                     {c.estado === "sin-fuente" && <span className="ml-1.5 rounded-full border border-amber-400/40 px-1.5 py-px text-[9px] text-amber-200">sin fuente</span>}
+                    {c.estado === "estimado" && <span className="ml-1.5 rounded-full border border-sky-400/40 px-1.5 py-px text-[9px] text-sky-200">alcance estimado</span>}
                     {c.estado === "parcial" && <span className="ml-1.5 rounded-full border border-white/20 px-1.5 py-px text-[9px] text-white/55">parcial</span>}
                   </span>
                   <Switch checked={on} onCheckedChange={(v) => onAlternar(c.id, v)} aria-label={`Capa ${c.etiqueta}`} />

@@ -19,9 +19,10 @@ import type { PresenciaMedio } from "@/lib/neurons/presencia";
 import type { SenalesMedio } from "@/lib/neurons/senales-medio";
 import { normalizarCapaConciencia, ORDEN_CONCIENCIA, type CapaConcienciaId } from "./capas";
 import {
-  leerAnuncio, MOTIVO_ENVIO_EN_PAUSA, posicionVistaDeAnuncio, anuncioDesdeCruda,
-  type PosicionCruda, type PosicionVista,
+  MOTIVO_CANAL_SIN_UNIR, posicionVistaDeAnuncio, anuncioDesdeCruda,
+  type AnuncioPosicion, type PosicionCruda, type PosicionVista,
 } from "./modelo-geo";
+import { calidadDeEnlace, textoEnlace, type EnlaceMedido } from "./enlaces-medidos";
 
 export type KindAntenaMarca = AntennaKind | "wifi";
 
@@ -38,6 +39,8 @@ export interface AntenaMarca {
   fuente: string;
   /** Por qué no hay calidad (cuando `calidad` es null). */
   nota?: string;
+  /** ¿La radio de este medio está encendida según lo que la app puede leer? null = no se sabe. (MAP1114D) */
+  encendida?: boolean | null;
 }
 
 export interface CalidadMarca {
@@ -96,6 +99,12 @@ export interface EntradaMarcas {
   medios: readonly PresenciaMedio[];
   yo: EntradaYoGeo;
   ahora: number;
+  /** (MAP1114D) Posiciones llegadas por el canal PRIVADO de posición, por neurona. */
+  posiciones?: Readonly<Record<string, AnuncioPosicion>>;
+  /** (MAP1114D) Estado de la unión al canal privado: lo que se dice de las neuronas sin posición. */
+  canal?: { unido: boolean; motivo: string | null };
+  /** (MAP1114D) Enlaces con medida real entre este aparato y las demás neuronas. */
+  enlaces?: readonly EnlaceMedido[];
 }
 
 const MOTIVO_SIN_PERMISO = "este aparato aún no conoce su ubicación (no se dio permiso o no hay GPS)";
@@ -109,7 +118,7 @@ export function calidadInternet(s: SenalesMedio | null | undefined): number | nu
   return typeof s.internet.mbps === "number" && s.internet.mbps > 0 ? Math.max(0, Math.min(1, s.internet.mbps / 20)) : null;
 }
 
-export function antenasDeSenales(s: SenalesMedio | null | undefined, t: number | null, rtt: number | null = null): AntenaMarca[] {
+export function antenasDeSenales(s: SenalesMedio | null | undefined, t: number | null, rtt: number | null = null, enlaces: readonly EnlaceMedido[] = []): AntenaMarca[] {
   const desconocida = (kind: KindAntenaMarca, etiqueta: string, fuente: string): AntenaMarca => ({ kind, etiqueta, valor: "desconocido", medida: false, calidad: null, t: null, fuente });
   if (!s || t === null) {
     return [
@@ -130,16 +139,26 @@ export function antenasDeSenales(s: SenalesMedio | null | undefined, t: number |
   const wifi = s.internet.tipo === "wifi";
   const qInternet = calidadInternet(s);
   const qLocal = rtt !== null ? qualityFromRtt(rtt) : null;
+  // (MAP1114D) Medida real de los enlaces directos hacia esta neurona: Bluetooth y Wi-Fi dejan de ser «sin fuente».
+  const masMedido = (medio: EnlaceMedido["medio"]) => enlaces.filter((e) => e.medio === medio && calidadDeEnlace(e) !== null).sort((a, b) => b.t - a.t)[0];
+  const eBle = masMedido("ble");
+  const eWifi = masMedido("wifi");
+  const medidaBle = eBle ? { calidad: calidadDeEnlace(eBle), t: eBle.t, texto: textoEnlace(eBle) } : null;
+  const medidaWifi = eWifi ? { calidad: calidadDeEnlace(eWifi), t: eWifi.t, texto: textoEnlace(eWifi) } : null;
   return [
     { kind: "ip", etiqueta: "Internet", valor: internet, medida: true, calidad: qInternet, t, fuente: "API de red del navegador (navigator.onLine / connection)", ...(qInternet === null ? { nota: "el navegador no dio velocidad de bajada" } : {}) },
-    wifi
-      ? { kind: "wifi", etiqueta: "Wi-Fi", valor: "conectado por Wi-Fi", medida: true, calidad: null, t, fuente: "tipo de conexión que informa el sistema", nota: "el nivel de la señal Wi-Fi no se puede medir desde la app" }
-      : desconocida("wifi", "Wi-Fi", "el sistema no dice si la conexión es Wi-Fi"),
+    medidaWifi
+      ? { kind: "wifi", etiqueta: "Wi-Fi", valor: `${wifi ? "conectado por Wi-Fi · " : ""}enlace directo ${medidaWifi.texto}`, medida: true, calidad: medidaWifi.calidad, t: medidaWifi.t, fuente: "enlace de red local abierto con este aparato (ida y vuelta y capacidad medidas)", encendida: wifi ? true : null }
+      : wifi
+      ? { kind: "wifi", etiqueta: "Wi-Fi", valor: "conectado por Wi-Fi", medida: true, calidad: null, t, fuente: "tipo de conexión que informa el sistema", nota: "el nivel de la señal Wi-Fi no se puede medir desde la app", encendida: true }
+      : { ...desconocida("wifi", "Wi-Fi", "el sistema no dice si la conexión es Wi-Fi"), encendida: null },
     { kind: "account", etiqueta: "Red local / malla", valor: malla + (rtt !== null ? ` · enlace con este aparato ${Math.round(rtt)} ms` : ""), medida: true, calidad: qLocal, t, fuente: "pares WebRTC abiertos ahora; latencia medida desde este aparato", ...(qLocal === null ? { nota: "sin canal P2P abierto con este aparato: no hay latencia" } : {}) },
-    bt === null
-      ? desconocida("ble", "Bluetooth", "este medio no puede consultarlo")
-      : { kind: "ble", etiqueta: "Bluetooth", valor: bt, medida: true, calidad: null, t, fuente: "Web Bluetooth (getAvailability)", nota: "solo se sabe si hay adaptador; la calidad de la señal no se mide" },
-    { kind: "lora", etiqueta: "LoRa", valor: lora, medida: true, calidad: null, t, fuente: "radio Meshtastic de ese medio" },
+    medidaBle
+      ? { kind: "ble", etiqueta: "Bluetooth", valor: `${bt ? bt + " · " : ""}enlace directo ${medidaBle.texto}`, medida: true, calidad: medidaBle.calidad, t: medidaBle.t, fuente: "enlace Bluetooth abierto con este aparato (ida y vuelta y capacidad medidas)", encendida: s.bluetooth.disponible === true ? true : null }
+      : bt === null
+      ? { ...desconocida("ble", "Bluetooth", "este medio no puede consultarlo"), encendida: null }
+      : { kind: "ble", etiqueta: "Bluetooth", valor: bt, medida: true, calidad: null, t, fuente: "Web Bluetooth (getAvailability)", nota: "solo se sabe si hay adaptador; sin enlace directo abierto no hay calidad medida", encendida: s.bluetooth.disponible === true },
+    { kind: "lora", etiqueta: "LoRa", valor: lora, medida: true, calidad: null, t, fuente: "radio Meshtastic de ese medio", encendida: s.lora.estado !== "sin-radio" },
     { kind: "serial", etiqueta: "Serie / USB", valor: s.serie.disponible ? `${s.serie.puertos} ${s.serie.puertos === 1 ? "puerto" : "puertos"} autorizados` : "no disponible en este medio", medida: true, calidad: null, t, fuente: "Web Serial (getPorts)" },
   ];
 }
@@ -186,9 +205,13 @@ export function construirMarcas(e: EntradaMarcas): MarcaGeo[] {
     const nombre = (esYo ? e.yo.nombre : "") || fila?.nombre || "Neurona sin nombre";
     const plataforma = fila?.plataforma || (esYo ? e.yo.plataforma : undefined) || ultimo?.plataforma;
 
+    const anunciada = e.posiciones?.[neuronaId] ?? null;
+    const motivoAjena = e.canal && !e.canal.unido
+      ? `${MOTIVO_CANAL_SIN_UNIR}${e.canal.motivo ? `: ${e.canal.motivo}` : ""}`
+      : ultimo || fila?.online ? "esa neurona no anuncia su posición por el canal privado de tu cuenta" : MOTIVO_NO_CONECTADA;
     const posicion: PosicionVista = esYo
       ? posicionVistaDeAnuncio(anuncioDesdeCruda(e.yo.posicion), MOTIVO_SIN_PERMISO)
-      : posicionVistaDeAnuncio(leerAnuncio(ultimo?.g), ultimo ? MOTIVO_ENVIO_EN_PAUSA : MOTIVO_NO_CONECTADA);
+      : posicionVistaDeAnuncio(anunciada, motivoAjena);
 
     const enlaceEstado: EstadoEnlace | "propio" = esYo ? "propio" : fila?.enlace.estado ?? "sin-vinculo";
     const lat = !esYo && fila?.enlace.estado === "conectado" && typeof fila.enlace.latenciaMs === "number" ? fila.enlace.latenciaMs : null;
@@ -213,7 +236,7 @@ export function construirMarcas(e: EntradaMarcas): MarcaGeo[] {
       posicion,
       calidad,
       enlace: { estado: enlaceEstado, latenciaMs: lat, t: lat !== null ? e.ahora : null },
-      antenas: antenasDeSenales(senales, tSenales, lat),
+      antenas: antenasDeSenales(senales, tSenales, lat, esYo ? [] : (e.enlaces ?? []).filter((x) => x.neurona === neuronaId)),
       capas: {
         lista: capasLista,
         t: capasLista ? (esYo ? e.ahora : ultimo?.t ?? null) : null,

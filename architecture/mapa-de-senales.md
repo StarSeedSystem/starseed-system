@@ -177,6 +177,29 @@ Fuente: la orden MAP1114C de la dirección principal, que traslada la correcció
 - **Zona pública aproximada de ~1 km: RETIRADA** (también «ubicación privada por defecto» y «punto exacto opcional por neurona», que dependían de ella). `zona.ts` y sus pruebas se eliminaron.
 - **Neuronas de otras personas sin su permiso: PREGUNTA ABIERTA PARA ALEX.** Hoy no existe y no se construye; si se quiere, hace falta que Alex decida con qué consentimiento y por qué canal.
 
-### Posición por la presencia de la cuenta: en pausa (decisión de implementación)
+### Posición por la presencia de la cuenta: SUSTITUIDO por el §12
 
-Cada aparato vigila su posición con el mecanismo del Hub y solo la anunciaría por el canal de presencia (`neur:<token>`, `src/lib/neurons/presencia.ts`) si se confirmara que ÚNICAMENTE la misma cuenta puede suscribirse. Leído el código, **no está confirmado**: el canal se crea sin `private: true` y no hay política en `realtime.messages` para ese tema (solo la de `supabase/migrations/20260928130000_l1-llamadas.sql`); lo protege solo el secreto del token. Por eso `POSICION_POR_PRESENCIA_CONFIRMADA = false` (`src/lib/senales/geo/modelo-geo.ts`): no se envía nada, las demás neuronas salen «desconocida» con su motivo, y este aparato se ve a sí mismo con su punto exacto. Se mantiene el interruptor «Compartir la ubicación de este aparato con mi cuenta» (activo de fábrica). Para levantar la pausa hace falta un canal privado con política o enviar la posición por el canal P2P de la ficha; es decisión de Alex y toca áreas fuera de esta ola.
+(La pausa de MAP1114C —`POSICION_POR_PRESENCIA_CONFIRMADA = false`— ya no existe: la constante, el campo `g` del anuncio de presencia y `anuncioParaMiCuenta` se retiraron. Ver §12.)
+
+---
+
+## 12. Dos decisiones de Alex del 14-11-2026 (MAP1114D)
+
+### 12.1 Canal privado para la posición exacta
+Alex dijo que sí a un canal privado **nuevo** solo para la posición. Se hizo así:
+- **Tema `pos:<uid>`**, Realtime con `private: true` (`src/lib/senales/geo/canal-posicion.ts`). El canal de presencia `neur:<token>` (`src/lib/neurons/presencia.ts`) **no cambia de tema ni de comportamiento**: lo usan webs ya publicadas. La posición **nunca** viaja por él (lo vigila `presencia-posicion-exacta.test.ts`).
+- **Políticas** (`supabase/migrations/20261114180000_senales_posicion_privada.sql`, **sin aplicar**: la aplica la dirección): dos políticas permisivas en `realtime.messages`, `senales_posicion_recibir` (SELECT) y `senales_posicion_enviar` (INSERT), solo para el rol `authenticated`, solo `broadcast` y `presence`, y solo cuando `realtime.topic() = 'pos:' || auth.uid()::text`. El rol `anon` no recibe ninguna. Deshacer: `DROP POLICY IF EXISTS senales_posicion_recibir ON realtime.messages;` y lo mismo con `senales_posicion_enviar`.
+- **La posición se envía y se muestra solo si el canal quedó unido.** Si la unión se rechaza (migración sin aplicar, sin sesión, sin red) no sale nada por ningún otro canal; el panel de capas dice el motivo y cada neurona ajena figura «desconocida» con ese motivo. Se reintenta cada 60 s (`REINTENTO_CANAL_MS`), así que al aplicar la migración el canal se une solo.
+- La lógica de las políticas está duplicada en `temaPermitido()` y una prueba compara el SQL con ella.
+
+### 12.2 Cobertura como campos de alcance estimado
+- **Tabla de alcances** en un solo archivo, `src/lib/senales/geo/alcances.ts`, con la fuente de cada número: Bluetooth 30 m, Wi-Fi 50 m, LoRa 2 km. **Son estimaciones de referencia, no medidas.**
+- **Una capa por medio** en el grupo «Cobertura (alcance estimado)» del panel (interruptor, opacidad y leyenda; mismo mecanismo que el radar). Cada neurona con posición en vivo y la radio de ese medio encendida pinta un campo de ese radio centrado en su punto exacto; los campos del mismo medio se mezclan donde se solapan. «Radio encendida» es lo que la app puede leer: Bluetooth = adaptador disponible; Wi-Fi = el sistema dice que la conexión es Wi-Fi; LoRa = radio Meshtastic con estado distinto de «sin radio».
+- **Lo estimado se dibuja distinto de lo medido:** campo claro, rayado y con borde discontinuo, y la leyenda dice «alcance estimado». Nunca usa el relleno ni el trazo de lo medido (lo prueba `cobertura-alcances.test.ts`). Una posición antigua no pinta campo.
+- **Lo medido va encima:** (a) líneas entre este aparato y otra neurona con ida y vuelta o capacidad medidas, coloreadas por calidad, con la hora de la lectura al tocarlas (capa «Enlaces medidos»); si dos medios unen a las mismas neuronas, el segundo se apila más fino; (b) el color del punto de cada neurona es su calidad de internet medida (gris si no se conoce).
+- **Fuentes reales de Bluetooth y Wi-Fi:** los enlaces abiertos que lista el transporte (`enlacesDisponibles()`, vía `fuentes-vivas.ts`): `rttMs` y `capacidadKbps` (la del Bluetooth es la medida del enlace). Se leen cada 5 s. Las capas «Bluetooth» y «Wi-Fi» por neurona se colorean solo si hay un enlace abierto con medida.
+- **Sin fuente todavía:** nivel de señal (RSSI) de Bluetooth y de Wi-Fi por aparato; enlaces entre dos neuronas ajenas a este aparato; el ofrecimiento de cómputo, almacenamiento e internet compartido (ajuste local que no se anuncia); las líneas `l2cap-kbps` del motor de llamadas **no se leen directamente** (`src/lib/llamadas/**` no se toca): solo llegan las cifras que el transporte ya expone.
+- Capas de capacidad (conciencia, modelos de Astraura, RAM): color donde la neurona lo anuncia; gris y hueco donde no.
+
+### 12.3 Teléfono
+Etiqueta de una marca que cambia de lado al acercarse al borde; atribución de Leaflet ajustada (varias líneas, sin cortarse); panel de capas con menos alto para no pisar la atribución; leyenda del mapa plegable en pantalla pequeña.

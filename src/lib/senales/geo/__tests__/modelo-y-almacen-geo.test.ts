@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from "vitest";
 import {
-  anuncioDesdeCruda, coordenadaValida, coordenadasDeVista, haceCuanto, leerAnuncio, POSICION_POR_PRESENCIA_CONFIRMADA,
+  anuncioDesdeCruda, coordenadaValida, coordenadasDeVista, haceCuanto, leerAnuncio,
   posicionEsViva, posicionVistaDeAnuncio, POSICION_VIVA_MS,
 } from "../modelo-geo";
 import {
-  anuncioParaMiCuenta, fijarCompartirPosicion, guardarPosicionCruda, leerCompartirPosicion, leerPosicionCruda, olvidarPosicionCruda,
+  fijarCompartirPosicion, guardarPosicionCruda, leerCompartirPosicion, leerPosicionCruda, olvidarPosicionCruda,
 } from "../almacen-posicion";
 
 const ZOCALO = { lat: 19.4326, lon: -99.1332 };
@@ -56,10 +56,6 @@ describe("modelo-geo: posición exacta, sin redondeo ni zona", () => {
     expect(haceCuanto(0, (2 * 60 + 5) * 60_000)).toBe("hace 2 h 5 min");
     expect(haceCuanto(null, 1)).toBe("");
   });
-
-  it("el envío por presencia está en pausa mientras el canal no esté confirmado como privado", () => {
-    expect(POSICION_POR_PRESENCIA_CONFIRMADA).toBe(false);
-  });
 });
 
 describe("almacen-posicion", () => {
@@ -78,11 +74,5 @@ describe("almacen-posicion", () => {
     expect(leerPosicionCruda()).toBeNull();
     olvidarPosicionCruda();
     expect(leerPosicionCruda()).toBeNull();
-  });
-
-  it("no anuncia nada a la cuenta mientras el envío esté en pausa (aunque haya posición y interruptor)", () => {
-    guardarPosicionCruda({ ...ZOCALO, precisionM: 5, t: 1 });
-    expect(leerCompartirPosicion()).toBe(true);
-    expect(anuncioParaMiCuenta()).toBeNull();
   });
 });

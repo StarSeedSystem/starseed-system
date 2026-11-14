@@ -60,7 +60,7 @@ export function PestanaMapa({ compacto }: { compacto?: boolean }) {
 }
 
 export interface VistaMapaProps {
-  datos: Pick<MarcasGeo, "marcas" | "presenciaConectada" | "ahora" | "permiso" | "compartir" | "fijarCompartir" | "alMiPosicion" | "errorUbicacion" | "alErrorUbicacion" | "desde">;
+  datos: Pick<MarcasGeo, "marcas" | "presenciaConectada" | "ahora" | "permiso" | "compartir" | "fijarCompartir" | "alMiPosicion" | "errorUbicacion" | "alErrorUbicacion" | "desde" | "canal" | "enlaces">;
   enLinea: boolean;
   sinRedDesde?: number | null;
   compacto?: boolean;
@@ -84,22 +84,22 @@ export function VistaMapa({ datos, enLinea, sinRedDesde, compacto }: VistaMapaPr
     vigilarPosicion: permiso === "concedido",
     ocultarPuntoPropio: true,
     // El panel queda a la izquierda de la columna de botones del mapa (no se solapa con acercar/alejar).
-    clasePanelCapas: "mr-12 w-[calc(100vw-5.5rem)] sm:w-80 max-h-[calc(100svh-16.5rem)] min-h-[14rem]",
+    clasePanelCapas: "mr-12 w-[calc(100vw-5.5rem)] sm:w-80 max-h-[calc(100svh-18.5rem)] min-h-[14rem]",
     onMiPosicion: datos.alMiPosicion,
     onErrorUbicacion: datos.alErrorUbicacion,
     seccionCapas: (ctx) => (
-      <SeccionCapas estado={capas} onAlternar={alternar} onOpacidad={opacidad} permiso={permiso} compartir={datos.compartir} onCompartir={datos.fijarCompartir} onUbicarme={ctx.ubicarme} />
+      <SeccionCapas estado={capas} onAlternar={alternar} onOpacidad={opacidad} permiso={permiso} compartir={datos.compartir} canal={datos.canal} onCompartir={datos.fijarCompartir} onUbicarme={ctx.ubicarme} />
     ),
     superposicion: (ctx) => (
       <MarcasEnMapa
-        ctx={ctx} marcas={marcas} ahora={ahora} estado={capas} seleccion={sel} onElegir={setSel} compacto={estrecho}
+        ctx={ctx} marcas={marcas} ahora={ahora} estado={capas} seleccion={sel} onElegir={setSel} compacto={estrecho} enlaces={datos.enlaces}
         aviso={<Avisos enLinea={enLinea} sinRedDesde={sinRedDesde ?? null} presenciaConectada={presenciaConectada} errorUbicacion={datos.errorUbicacion} />}
         vacio={colocadas.length === 0 ? <EstadoVacio yo={yo} permiso={permiso} desde={datos.desde} total={marcas.length} onUbicarme={ctx.ubicarme} /> : null}
       >
         {marcaSel && <FichaGeo marca={marcaSel} ahora={ahora} compacto={estrecho} onCerrar={() => setSel(null)} />}
       </MarcasEnMapa>
     ),
-  }), [permiso, datos.alMiPosicion, datos.alErrorUbicacion, datos.compartir, datos.fijarCompartir, datos.errorUbicacion, datos.desde, capas, alternar, opacidad, marcas, ahora, sel, estrecho, enLinea, sinRedDesde, presenciaConectada, colocadas.length, yo, marcaSel]);
+  }), [permiso, datos.alMiPosicion, datos.alErrorUbicacion, datos.compartir, datos.canal, datos.enlaces, datos.fijarCompartir, datos.errorUbicacion, datos.desde, capas, alternar, opacidad, marcas, ahora, sel, estrecho, enLinea, sinRedDesde, presenciaConectada, colocadas.length, yo, marcaSel]);
 
   return (
     <section aria-label="Mapa de señales" data-testid="pestana-mapa">

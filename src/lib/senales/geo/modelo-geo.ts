@@ -25,7 +25,7 @@ export interface PosicionCruda {
 
 /**
  * Lo que una neurona anuncia a las de su cuenta: el punto tal cual lo midió.
- * Opcional en la presencia (`PresenciaMedio.g`); retrocompatible: sin él, la posición es desconocida.
+ * Viaja por el canal privado de posición (`canal-posicion.ts`); sin él, la posición es desconocida.
  */
 export interface AnuncioPosicion {
   lat: number;
@@ -35,15 +35,11 @@ export interface AnuncioPosicion {
 }
 
 /**
- * ¿Se puede mandar la posición exacta por el canal de presencia de la cuenta?
- * Respuesta de MAP1114C tras leer el código: NO está confirmado. El canal (`neur:<token>`, `lib/neurons/presencia.ts`)
- * es un canal Realtime PÚBLICO de Supabase (sin `private: true` ni política en `realtime.messages`): solo lo protege
- * que el token es secreto. Hasta que Alex decida cómo protegerlo (canal privado con política, o enviar por el canal
- * P2P de la ficha), este aparato NO envía su posición y las demás neuronas figuran «desconocida» con este motivo.
+ * (MAP1114D) La posición exacta NUNCA viaja por el canal de presencia de la cuenta (`neur:<token>`, público en el
+ * servidor). Viaja solo por el canal PRIVADO de posición (`canal-posicion.ts`, tema `pos:<uid>`), y solo si esta
+ * neurona consiguió unirse a él; si la unión se rechaza, no sale nada por ningún otro canal.
  */
-export const POSICION_POR_PRESENCIA_CONFIRMADA: boolean = false;
-
-export const MOTIVO_ENVIO_EN_PAUSA = "no anuncia su posición: el canal de presencia de la cuenta no está confirmado como privado y el envío está en pausa";
+export const MOTIVO_CANAL_SIN_UNIR = "el canal privado de posición de tu cuenta no está unido";
 
 /** Lee un anuncio llegado de fuera (presencia) sin fiarse de su forma. */
 export function leerAnuncio(x: unknown): AnuncioPosicion | null {

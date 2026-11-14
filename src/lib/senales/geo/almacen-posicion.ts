@@ -2,14 +2,14 @@
  * almacen-posicion — dónde guarda ESTE aparato su última posición medida y su interruptor (MAP1114C).
  * ═══════════════════════════════════════════════════════════════════════════════════════════════
  * La posición viene de la vigilancia (`watchPosition`) que ya hace `MapView`; aquí solo se guarda la última
- * en este navegador (`localStorage`, por aparato) para anunciarla a la cuenta cuando se pueda
- * (`POSICION_POR_PRESENCIA_CONFIRMADA`). Un solo interruptor por aparato: «Compartir la ubicación de este
+ * en este navegador (`localStorage`, por aparato) para anunciarla a la cuenta por el canal privado de posición
+ * (`canal-posicion.ts`). Un solo interruptor por aparato: «Compartir la ubicación de este
  * aparato con mi cuenta», activado de fábrica (solo tiene efecto si el aparato ya dio su ubicación).
  * Nunca lanza.
  */
 
 import { safeGet, safeSet, safeRemove } from "@/lib/safe-storage";
-import { anuncioDesdeCruda, coordenadaValida, POSICION_POR_PRESENCIA_CONFIRMADA, type AnuncioPosicion, type PosicionCruda } from "./modelo-geo";
+import { coordenadaValida, type PosicionCruda } from "./modelo-geo";
 
 export const CLAVE_POSICION = "starseed.mapa.posicion.v2";
 export const CLAVE_COMPARTIR_POSICION = "starseed.mapa.posicion.compartir.v1";
@@ -57,13 +57,4 @@ export function guardarPosicionCruda(p: PosicionCruda): void {
 export function olvidarPosicionCruda(): void {
   safeRemove(CLAVE_POSICION);
   avisar();
-}
-
-/**
- * Lo que este aparato dice de su posición a las neuronas de su cuenta. `null` mientras el envío por la presencia
- * esté en pausa, el interruptor esté apagado o no haya posición medida.
- */
-export function anuncioParaMiCuenta(): AnuncioPosicion | null {
-  if (!POSICION_POR_PRESENCIA_CONFIRMADA || !leerCompartirPosicion()) return null;
-  return anuncioDesdeCruda(leerPosicionCruda());
 }

@@ -22,7 +22,7 @@ describe("capas: una sola tabla para leyenda y pintura", () => {
   it("todas las capas tienen fuente declarada y un tramo «sin medir» gris y hueco", () => {
     expect(CAPAS_SENALES.length).toBeGreaterThanOrEqual(12);
     for (const c of CAPAS_SENALES) {
-      expect(["real", "parcial", "sin-fuente"]).toContain(c.estado);
+      expect(["real", "parcial", "sin-fuente", "estimado"]).toContain(c.estado);
       expect(c.fuente.length).toBeGreaterThan(5);
       const d = c.tramos.find((t) => t.id === "desconocido");
       expect(d?.estilo).toBe("hueco");
@@ -42,8 +42,8 @@ describe("capas: una sola tabla para leyenda y pintura", () => {
       const { tramo } = pintarMarca(c, m);
       expect(tramo.id).toBe("desconocido");
     }
-    expect(CAPA_POR_ID["senal-bluetooth"].estado).toBe("sin-fuente");
-    expect(CAPA_POR_ID["senal-wifi"].estado).toBe("sin-fuente");
+    // Bluetooth y Wi-Fi ya tienen fuente real (enlaces medidos); lo que sigue sin fuente es la oferta de recursos.
+    expect(CAPAS_SENALES.filter((x) => x.estado === "sin-fuente").map((x) => x.id)).toEqual(["oferta-computo", "oferta-almacenamiento", "oferta-internet"]);
   });
 
   it("internet 10 Mb/s: calidad media, con color", () => {
@@ -57,7 +57,7 @@ describe("capas: una sola tabla para leyenda y pintura", () => {
   });
 
   it("estado guardado: ids raros fuera, opacidad acotada, internet activa de inicio", () => {
-    expect(estadoCapasInicial().activas).toEqual(["senal-internet"]);
+    expect(estadoCapasInicial().activas).toEqual(["senal-internet", "cobertura-ble", "cobertura-wifi", "enlaces-medidos"]);
     const s = sanearEstadoCapas({ activas: ["senal-wifi", "nope", "senal-wifi", 3], opacidad: { "senal-wifi": 5, nope: 1, "senal-internet": 0 } });
     expect(s.activas).toEqual(["senal-wifi"]);
     expect(s.opacidad).toEqual({ "senal-wifi": 1, "senal-internet": 0.1 });

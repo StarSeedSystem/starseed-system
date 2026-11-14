@@ -21,6 +21,7 @@ export interface Parche {
 
 export function parchesDeCapa(capa: CapaSenal, marcas: readonly MarcaGeo[], ahora: number): Parche[] {
   const out: Parche[] = [];
+  if ((capa.tipo ?? "parche") !== "parche") return out; // los campos de alcance y los enlaces se pintan aparte (`cobertura.ts`)
   for (const m of marcas) {
     const c = coordenadasDeVista(m.posicion);
     if (!c || m.posicion.tipo !== "exacta") continue;

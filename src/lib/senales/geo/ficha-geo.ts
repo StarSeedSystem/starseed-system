@@ -42,7 +42,7 @@ function seccionPosicion(m: MarcaGeo, ahora: number): SeccionFicha {
     datos: [{
       etiqueta: viva ? "Posición exacta" : "Última posición conocida (ya no es en vivo)",
       valor: coords,
-      fuente: m.esYo ? "ubicación de este aparato, con tu permiso" : "la propia neurona, que la anuncia a tu cuenta",
+      fuente: m.esYo ? "ubicación de este aparato, con tu permiso" : "la propia neurona, por el canal privado de posición de tu cuenta",
       estado: "medido", nota: notas.join(" · "),
     }],
   };

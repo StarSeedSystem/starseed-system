@@ -13,6 +13,7 @@
 
 import { qualityFromRtt } from "@/ai/astraura/mesh/signals";
 import type { MarcaGeo } from "./marcas";
+import { ALCANCES, MEDIOS_ALCANCE, ROTULO_ALCANCE, type MedioAlcance } from "./alcances";
 
 export type CapaConcienciaId = "local" | "mesh" | "nube" | "colectiva";
 
@@ -32,8 +33,11 @@ export function normalizarCapaConciencia(c: string): CapaConcienciaId | null {
 
 export const COLOR_DESCONOCIDO = "#94a3b8";
 
-/** relleno = parche de color · hueco = sin dato (gris, anillo discontinuo) · anillo = valor conocido «no» (anillo fino). */
-export type EstiloTramo = "relleno" | "hueco" | "anillo";
+/**
+ * relleno = parche de color (medido) · hueco = sin dato (gris, anillo discontinuo) · anillo = valor conocido «no»
+ * (anillo fino) · rayado = campo de alcance ESTIMADO (claro y rayado: nunca se confunde con lo medido).
+ */
+export type EstiloTramo = "relleno" | "hueco" | "anillo" | "rayado";
 
 export interface Tramo {
   id: string;
@@ -42,17 +46,25 @@ export interface Tramo {
   estilo: EstiloTramo;
 }
 
-export type GrupoCapa = "senal" | "oferta" | "conciencia" | "hardware";
+export type GrupoCapa = "cobertura" | "medido" | "senal" | "oferta" | "conciencia" | "hardware";
 
 export const GRUPOS_CAPA: readonly { id: GrupoCapa; titulo: string }[] = [
-  { id: "senal", titulo: "Señal por medio" },
+  { id: "cobertura", titulo: "Cobertura (alcance estimado)" },
+  { id: "medido", titulo: "Enlaces medidos" },
+  { id: "senal", titulo: "Señal medida por medio" },
   { id: "oferta", titulo: "Capacidades que ofrece" },
   { id: "conciencia", titulo: "Capas de conciencia" },
   { id: "hardware", titulo: "Hardware" },
 ];
 
-/** real = hay dato medido hoy · parcial = solo para parte de las neuronas · sin-fuente = hoy nada lo mide ni lo anuncia. */
-export type EstadoFuente = "real" | "parcial" | "sin-fuente";
+/**
+ * real = hay dato medido hoy · parcial = solo para parte de las neuronas · sin-fuente = hoy nada lo mide ni lo anuncia ·
+ * estimado = no es una medida: es una cifra típica de referencia (alcance).
+ */
+export type EstadoFuente = "real" | "parcial" | "sin-fuente" | "estimado";
+
+/** parche = punto medido · alcance = campo estimado de un medio · enlaces = líneas medidas entre neuronas. */
+export type TipoCapa = "parche" | "alcance" | "enlaces";
 
 /** Lo que una capa dice de UNA marca. `tramo` apunta a `Tramo.id`. */
 export interface ValorCapa {
@@ -74,6 +86,10 @@ export interface CapaSenal {
   fuente: string;
   tramos: readonly Tramo[];
   valor: (m: MarcaGeo) => ValorCapa;
+  /** Cómo se pinta; por defecto un parche. */
+  tipo?: TipoCapa;
+  /** Solo en capas de alcance: el medio. */
+  medio?: MedioAlcance;
 }
 
 const DESC: Tramo = { id: "desconocido", etiqueta: "Sin medir", color: COLOR_DESCONOCIDO, estilo: "hueco" };
@@ -95,6 +111,37 @@ const SIN_OFERTA = "El ofrecimiento de recursos (Prestar recursos, Puerta de int
 
 function antena(m: MarcaGeo, kind: string) {
   return m.antenas.find((a) => a.kind === kind);
+}
+
+/** Valor de una capa de calidad por medio: coloreado solo si esa antena trae una calidad REALMENTE medida. */
+function valorDeAntena(m: MarcaGeo, kind: string, sinCalidad: string): ValorCapa {
+  const a = antena(m, kind);
+  if (!a?.medida) return desconocido();
+  if (a.calidad === null) return { tramo: "desconocido", texto: `${a.valor}; ${sinCalidad}`, t: a.t, medida: false };
+  return { tramo: tramoDeCalidad(a.calidad), texto: a.valor, t: a.t, medida: true };
+}
+
+const COLOR_CAMPO: Record<MedioAlcance, string> = Object.fromEntries(MEDIOS_ALCANCE.map((k) => [k, ALCANCES[k].color])) as Record<MedioAlcance, string>;
+
+function capaAlcance(medio: MedioAlcance): CapaSenal {
+  const a = ALCANCES[medio];
+  const km = a.metros >= 1000 ? `${a.metros / 1000} km` : `${a.metros} m`;
+  return {
+    id: `cobertura-${medio}`, grupo: "cobertura", tipo: "alcance", medio,
+    etiqueta: a.etiqueta,
+    descripcion: `Alcance estimado de ${a.etiqueta} (≈${km}) alrededor de cada neurona con esa radio encendida`,
+    estado: "estimado",
+    fuente: `Alcance estimado ≈${km} (no medido). ${a.fuente} Radio encendida: ${a.encendida}.`,
+    tramos: [
+      { id: "estimado", etiqueta: `${ROTULO_ALCANCE[0].toUpperCase()}${ROTULO_ALCANCE.slice(1)} ≈${km}`, color: COLOR_CAMPO[medio], estilo: "rayado" },
+      { ...DESC, etiqueta: "Radio apagada o desconocida" },
+    ],
+    valor: (m) => {
+      const an = m.antenas.find((x) => x.kind === (medio === "ble" ? "ble" : medio));
+      if (an?.encendida === true) return { tramo: "estimado", texto: `${ROTULO_ALCANCE} ≈${km}`, t: null, medida: false };
+      return desconocido(an?.encendida === false ? "radio apagada o sin adaptador" : "desconocido");
+    },
+  };
 }
 
 const COLOR_CAPA_CONCIENCIA: Record<CapaConcienciaId, string> = { local: "#10b981", mesh: "#0ea5e9", nube: "#a855f7", colectiva: "#ec4899" };
@@ -124,26 +171,36 @@ function capaConciencia(id: CapaConcienciaId): CapaSenal {
 export const CLASES_RAM = ["≤4 GB", "8 GB", "16 GB", ">16 GB"] as const;
 const COLOR_RAM: Record<string, string> = { "≤4 GB": "#38bdf8", "8 GB": "#6366f1", "16 GB": "#a855f7", ">16 GB": "#ec4899" };
 
+export const CAPA_ENLACES: CapaSenal = {
+  id: "enlaces-medidos", grupo: "medido", tipo: "enlaces",
+  etiqueta: "Enlaces medidos", descripcion: "Líneas entre neuronas con calidad medida (ida y vuelta o capacidad)",
+  estado: "parcial",
+  fuente: "Enlaces directos abiertos entre este aparato y otra neurona (Bluetooth, red local, Wi-Fi Directo) con ida y vuelta o capacidad medidas; la hora es la de la lectura. Los enlaces que no pasan por este aparato no se miden aquí.",
+  tramos: [
+    { id: "mala", etiqueta: "Mala", color: "#ef4444", estilo: "relleno" },
+    { id: "regular", etiqueta: "Regular", color: "#facc15", estilo: "relleno" },
+    { id: "buena", etiqueta: "Buena", color: "#22c55e", estilo: "relleno" },
+    DESC,
+  ],
+  valor: () => desconocido("las líneas no son un valor por neurona"),
+};
+
 export const CAPAS_SENALES: readonly CapaSenal[] = [
+  ...MEDIOS_ALCANCE.map(capaAlcance),
+  CAPA_ENLACES,
   {
-    id: "senal-bluetooth", grupo: "senal", etiqueta: "Bluetooth", descripcion: "Calidad de la señal Bluetooth de cada aparato",
-    estado: "sin-fuente",
-    fuente: "Sin fuente: una neurona solo anuncia si tiene adaptador Bluetooth (Web Bluetooth); ningún aparato mide la calidad de su señal.",
-    tramos: [DESC],
-    valor: (m) => {
-      const a = antena(m, "ble");
-      return a?.medida ? { tramo: "desconocido", texto: `${a.valor}; calidad sin medir`, t: a.t, medida: false } : desconocido();
-    },
+    id: "senal-bluetooth", grupo: "senal", etiqueta: "Bluetooth", descripcion: "Calidad medida del enlace Bluetooth directo con cada aparato",
+    estado: "parcial",
+    fuente: "Ida y vuelta y capacidad (kbit/s) de los enlaces Bluetooth abiertos entre este aparato y cada neurona, tal como los lista el transporte. Sin enlace abierto no hay medida (gris). Fuera de eso nada mide la señal Bluetooth: no hay nivel de señal (RSSI) por aparato.",
+    tramos: TRAMOS_CALIDAD,
+    valor: (m) => valorDeAntena(m, "ble", "calidad sin medir"),
   },
   {
-    id: "senal-wifi", grupo: "senal", etiqueta: "Wi-Fi", descripcion: "Calidad de la señal Wi-Fi de cada aparato",
-    estado: "sin-fuente",
-    fuente: "Sin fuente: la app no puede leer el nivel de la Wi-Fi; solo se sabe si el sistema dice que la conexión es Wi-Fi.",
-    tramos: [DESC],
-    valor: (m) => {
-      const a = antena(m, "wifi");
-      return a?.medida ? { tramo: "desconocido", texto: `${a.valor}; nivel sin medir`, t: a.t, medida: false } : desconocido();
-    },
+    id: "senal-wifi", grupo: "senal", etiqueta: "Wi-Fi", descripcion: "Calidad medida del enlace directo por red local con cada aparato",
+    estado: "parcial",
+    fuente: "Ida y vuelta y capacidad de los enlaces de red local (incluido Wi-Fi Directo) abiertos entre este aparato y cada neurona. Sin enlace abierto no hay medida (gris). La app no puede leer el nivel de la señal Wi-Fi.",
+    tramos: TRAMOS_CALIDAD,
+    valor: (m) => valorDeAntena(m, "wifi", "nivel sin medir"),
   },
   {
     id: "senal-local", grupo: "senal", etiqueta: "Red local (P2P)", descripcion: "Calidad del enlace P2P medida desde este aparato",
@@ -229,6 +286,7 @@ export function leyendaDe(capa: CapaSenal): ItemLeyenda[] {
 }
 
 export const NOTA_PARCHE = "El color marca el punto donde se midió; su tamaño no es un alcance de cobertura.";
+export const NOTA_ALCANCE = "Los campos rayados son alcance estimado (cifra típica del medio), no una medida. Lo medido va en trazo sólido.";
 
 // ── Estado guardado de las capas (por persona, en este navegador) ─────────────────────────────
 
@@ -242,7 +300,7 @@ export const CLAVE_CAPAS_SENALES = "starseed.senales.mapa.capas.v1";
 export const CLAVE_VISTA_SENALES = "starseed.senales.mapa.view.v1";
 
 export function estadoCapasInicial(): EstadoCapas {
-  return { activas: ["senal-internet"], opacidad: {} };
+  return { activas: ["senal-internet", "cobertura-ble", "cobertura-wifi", "enlaces-medidos"], opacidad: {} };
 }
 
 /** Lee lo guardado sin fiarse de su forma: ids desconocidos fuera, opacidad acotada a 0.1..1. */
