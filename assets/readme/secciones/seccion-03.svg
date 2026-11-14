@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="80" viewBox="0 0 800 80" role="img" aria-labelledby="title-sec03 desc-sec03">
+  <title id="title-sec03">Sección 3 — Cómo funciona</title>
+  <desc id="desc-sec03">Cabecera de sección numerada para Cómo funciona</desc>
+  <defs>
+    <linearGradient id="sec-gradient-03" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#FFBF00"/>
+      <stop offset="100%" stop-color="#D4AF37"/>
+    </linearGradient>
+    <filter id="sec-glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <rect width="800" height="80" fill="#0A0F1D"/>
+  <g transform="translate(40, 15)">
+    <circle cx="25" cy="25" r="25" fill="url(#sec-gradient-03)" filter="url(#sec-glow)"/>
+    <text x="25" y="31" font-family="'Rajdhani', 'Inter', system-ui, sans-serif" font-size="20" font-weight="700" fill="#0A0F1D" text-anchor="middle">03</text>
+    <text x="70" y="45" font-family="'Rajdhani', 'Inter', system-ui, sans-serif" font-size="28" font-weight="700" fill="#F8F9FA">Cómo funciona</text>
+    <text x="70" y="62" font-family="'Inter', system-ui, sans-serif" font-size="13" fill="#AEB6C8">Red · Mente digital · Apps</text>
+  </g>
+  <line x1="40" y1="70" x2="760" y2="70" stroke="url(#sec-gradient-03)" stroke-width="1" opacity="0.5"/>
+</svg>

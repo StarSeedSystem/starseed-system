@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200" role="img" aria-labelledby="title-pilar-procomun desc-pilar-procomun">
+  <title id="title-pilar-procomun">Pilar: Procomún y Código Abierto</title>
+  <desc id="desc-pilar-procomun">Icono que representa el procomún y código abierto: semilla de la vida floreciendo con orbe Astraura y malla neural</desc>
+  <defs>
+    <linearGradient id="pilar-procomun-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFBF00"/>
+      <stop offset="50%" stop-color="#D4AF37"/>
+      <stop offset="100%" stop-color="#F5B91A"/>
+    </linearGradient>
+    <linearGradient id="pilar-procomun-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0A0F1D"/>
+      <stop offset="100%" stop-color="#141B2E"/>
+    </linearGradient>
+    <filter id="pilar-glow-procomun" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="4" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <radialGradient id="astraura-orb" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#00F0FF" stop-opacity="1"/>
+      <stop offset="70%" stop-color="#007FFF" stop-opacity="0.6"/>
+      <stop offset="100%" stop-color="#0057B0" stop-opacity="0.2"/>
+    </radialGradient>
+  </defs>
+  <circle cx="100" cy="100" r="96" fill="url(#pilar-procomun-bg)" stroke="url(#pilar-procomun-gradient)" stroke-width="2" filter="url(#pilar-glow-procomun)"/>
+  <g fill="none" stroke="url(#pilar-procomun-gradient)" stroke-width="1.5" stroke-linecap="round">
+    <circle cx="100" cy="100" r="42" opacity="0.3"/>
+    <g transform="translate(100,100)">
+      <circle cx="0" cy="-42" r="20" opacity="0.4"/>
+      <circle cx="36.4" cy="-21" r="20" opacity="0.4"/>
+      <circle cx="36.4" cy="21" r="20" opacity="0.4"/>
+      <circle cx="0" cy="42" r="20" opacity="0.4"/>
+      <circle cx="-36.4" cy="21" r="20" opacity="0.4"/>
+      <circle cx="-36.4" cy="-21" r="20" opacity="0.4"/>
+      <circle cx="0" cy="0" r="20" opacity="0.5"/>
+    </g>
+    <circle cx="100" cy="100" r="18" fill="url(#astraura-orb)" filter="url(#pilar-glow-procomun)"/>
+    <g stroke="#00F0FF" stroke-width="1.2" opacity="0.7">
+      <line x1="100" y1="60" x2="100" y2="82"/>
+      <line x1="100" y1="140" x2="100" y2="118"/>
+      <line x1="60" y1="100" x2="82" y2="100"/>
+      <line x1="140" y1="100" x2="118" y2="100"/>
+      <line x1="72" y1="72" x2="86" y2="86"/>
+      <line x1="128" y1="72" x2="114" y2="86"/>
+      <line x1="72" y1="128" x2="86" y2="114"/>
+      <line x1="128" y1="128" x2="114" y2="114"/>
+    </g>
+    <g stroke="#FFBF00" stroke-width="1" opacity="0.5" stroke-dasharray="4,4">
+      <circle cx="100" cy="100" r="55"/>
+      <circle cx="100" cy="100" r="70"/>
+    </g>
+  </g>
+  <text x="100" y="175" font-family="'Rajdhani', 'Inter', system-ui, sans-serif" font-size="14" font-weight="600" fill="#F8F9FA" text-anchor="middle" letter-spacing="0.02em">PROCOMÚN Y CÓDIGO ABIERTO</text>
+</svg>

@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200" role="img" aria-labelledby="title-pilar-tecnologia desc-pilar-tecnologia">
+  <title id="title-pilar-tecnologia">Pilar: Tecnología Colectiva</title>
+  <desc id="desc-pilar-tecnologia">Icono que representa la tecnología colectiva: red mesh de nodos interconectados con geometría de Metatrón</desc>
+  <defs>
+    <linearGradient id="pilar-tecnologia-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#10B981"/>
+      <stop offset="100%" stop-color="#39FF14"/>
+    </linearGradient>
+    <linearGradient id="pilar-tecnologia-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0A0F1D"/>
+      <stop offset="100%" stop-color="#141B2E"/>
+    </linearGradient>
+    <filter id="pilar-glow-tech" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <circle cx="100" cy="100" r="96" fill="url(#pilar-tecnologia-bg)" stroke="url(#pilar-tecnologia-gradient)" stroke-width="2" filter="url(#pilar-glow-tech)"/>
+  <g fill="none" stroke="url(#pilar-tecnologia-gradient)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <polygon points="100,25 143,62 143,138 100,175 57,138 57,62" opacity="0.3"/>
+    <polygon points="100,45 128,70 128,130 100,155 72,130 72,70" opacity="0.5"/>
+    <circle cx="100" cy="100" r="35" opacity="0.4"/>
+    <g stroke-width="1.5" opacity="0.7">
+      <line x1="100" y1="25" x2="100" y2="65"/>
+      <line x1="100" y1="175" x2="100" y2="135"/>
+      <line x1="42" y1="78" x2="68" y2="88"/>
+      <line x1="158" y1="78" x2="132" y2="88"/>
+      <line x1="42" y1="122" x2="68" y2="112"/>
+      <line x1="158" y1="122" x2="132" y2="112"/>
+    </g>
+    <circle cx="100" cy="25" r="5" fill="url(#pilar-tecnologia-gradient)"/>
+    <circle cx="100" cy="175" r="5" fill="url(#pilar-tecnologia-gradient)"/>
+    <circle cx="42" cy="78" r="5" fill="url(#pilar-tecnologia-gradient)"/>
+    <circle cx="158" cy="78" r="5" fill="url(#pilar-tecnologia-gradient)"/>
+    <circle cx="42" cy="122" r="5" fill="url(#pilar-tecnologia-gradient)"/>
+    <circle cx="158" cy="122" r="5" fill="url(#pilar-tecnologia-gradient)"/>
+    <circle cx="100" cy="100" r="8" fill="url(#pilar-tecnologia-gradient)" filter="url(#pilar-glow-tech)"/>
+    <circle cx="72" cy="70" r="3.5" fill="#00F0FF" opacity="0.8"/>
+    <circle cx="128" cy="70" r="3.5" fill="#00F0FF" opacity="0.8"/>
+    <circle cx="72" cy="130" r="3.5" fill="#00F0FF" opacity="0.8"/>
+    <circle cx="128" cy="130" r="3.5" fill="#00F0FF" opacity="0.8"/>
+  </g>
+  <text x="100" y="175" font-family="'Rajdhani', 'Inter', system-ui, sans-serif" font-size="14" font-weight="600" fill="#F8F9FA" text-anchor="middle" letter-spacing="0.02em">TECNOLOGÍA COLECTIVA</text>
+</svg>

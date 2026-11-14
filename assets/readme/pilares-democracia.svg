@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200" role="img" aria-labelledby="title-pilar-democracia desc-pilar-democracia">
+  <title id="title-pilar-democracia">Pilar: Democracia Directa</title>
+  <desc id="desc-pilar-democracia">Icono que representa la democracia directa: personas participando en decisiones colectivas mediante vesica piscis</desc>
+  <defs>
+    <linearGradient id="pilar-democracia-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#007FFF"/>
+      <stop offset="100%" stop-color="#00F0FF"/>
+    </linearGradient>
+    <linearGradient id="pilar-democracia-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0A0F1D"/>
+      <stop offset="100%" stop-color="#141B2E"/>
+    </linearGradient>
+    <filter id="pilar-glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <circle cx="100" cy="100" r="96" fill="url(#pilar-democracia-bg)" stroke="url(#pilar-democracia-gradient)" stroke-width="2" filter="url(#pilar-glow)"/>
+  <g fill="none" stroke="url(#pilar-democracia-gradient)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+    <ellipse cx="75" cy="100" rx="35" ry="45" opacity="0.6"/>
+    <ellipse cx="125" cy="100" rx="35" ry="45" opacity="0.6"/>
+    <path d="M 75 100 Q 100 70 125 100" stroke-width="3" fill="url(#pilar-democracia-gradient)" opacity="0.3"/>
+    <circle cx="75" cy="100" r="8" fill="url(#pilar-democracia-gradient)"/>
+    <circle cx="125" cy="100" r="8" fill="url(#pilar-democracia-gradient)"/>
+    <path d="M 75 60 L 75 50" stroke="#F8F9FA" stroke-width="1.5" opacity="0.8"/>
+    <path d="M 125 60 L 125 50" stroke="#F8F9FA" stroke-width="1.5" opacity="0.8"/>
+    <circle cx="75" cy="45" r="3" fill="#F8F9FA" opacity="0.8"/>
+    <circle cx="125" cy="45" r="3" fill="#F8F9FA" opacity="0.8"/>
+    <path d="M 75 140 Q 100 160 125 140" stroke="#10B981" stroke-width="2.5" fill="none" opacity="0.8"/>
+    <path d="M 60 100 L 50 100" stroke="#FFBF00" stroke-width="1.5" opacity="0.8"/>
+    <path d="M 150 100 L 160 100" stroke="#FFBF00" stroke-width="1.5" opacity="0.8"/>
+    <circle cx="45" cy="100" r="2.5" fill="#FFBF00" opacity="0.8"/>
+    <circle cx="165" cy="100" r="2.5" fill="#FFBF00" opacity="0.8"/>
+  </g>
+  <text x="100" y="175" font-family="'Rajdhani', 'Inter', system-ui, sans-serif" font-size="14" font-weight="600" fill="#F8F9FA" text-anchor="middle" letter-spacing="0.02em">DEMOCRACIA DIRECTA</text>
+</svg>

@@ -1,0 +1,171 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="720" viewBox="0 0 800 720" role="img" aria-labelledby="title-como-funciona desc-como-funciona">
+  <title id="title-como-funciona">Cómo funciona StarSeed OS — Diagrama de capas</title>
+  <desc id="desc-como-funciona">Diagrama de tres capas: 1) Red y nodos (mesh LoRa, Wi-Fi, Syncthing), 2) Mente digital (Astraura 1.58-bit, exocórtex, malla neural), 3) Apps (StarSeed OS, Nexus, Café)</desc>
+  <defs>
+    <linearGradient id="bg-como" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#0A0F1D"/>
+      <stop offset="100%" stop-color="#001F3F"/>
+    </linearGradient>
+    <linearGradient id="layer-red-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#007FFF"/>
+      <stop offset="50%" stop-color="#00F0FF"/>
+      <stop offset="100%" stop-color="#10B981"/>
+    </linearGradient>
+    <linearGradient id="layer-mente-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#10B981"/>
+      <stop offset="50%" stop-color="#FFBF00"/>
+      <stop offset="100%" stop-color="#DC143C"/>
+    </linearGradient>
+    <linearGradient id="layer-apps-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#FFBF00"/>
+      <stop offset="50%" stop-color="#DC143C"/>
+      <stop offset="100%" stop-color="#F5B91A"/>
+    </linearGradient>
+    <linearGradient id="card-bg" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#141B2E"/>
+      <stop offset="100%" stop-color="#0A0F1D"/>
+    </linearGradient>
+    <filter id="layer-glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="card-glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="4" result="blur"/>
+      <feComposite in="blur" in2="SourceAlpha" operator="in" result="glow"/>
+      <feMerge>
+        <feMergeNode in="glow"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="text-glow" x="-100%" y="-100%" width="300%" height="300%">
+      <feGaussianBlur stdDeviation="2" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <marker id="arrow-head" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="url(#layer-red-gradient)"/>
+    </marker>
+    <marker id="arrow-head-2" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="url(#layer-mente-gradient)"/>
+    </marker>
+    <marker id="arrow-head-3" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="url(#layer-apps-gradient)"/>
+    </marker>
+  </defs>
+  <rect width="800" height="720" fill="url(#bg-como)"/>
+  <g opacity="0.04" aria-hidden="true">
+    <circle cx="200" cy="100" r="150" fill="#007FFF" filter="url(#layer-glow)"/>
+    <circle cx="600" cy="620" r="180" fill="#10B981" filter="url(#layer-glow)"/>
+    <path d="M 100 360 Q 400 200 700 360 Q 400 520 100 360" stroke="url(#layer-mente-gradient)" stroke-width="2" fill="none" opacity="0.3"/>
+  </g>
+  <g transform="translate(40, 30)">
+    <rect x="0" y="0" width="720" height="180" rx="16" fill="url(#card-bg)" stroke="url(#layer-red-gradient)" stroke-width="1.5" filter="url(#card-glow)"/>
+    <text x="360" y="35" font-family="'Rajdhani', 'Inter', system-ui, sans-serif" font-size="22" font-weight="700" fill="#F8F9FA" text-anchor="middle" filter="url(#text-glow)">CAPA 1 — LA RED Y LOS NODOS</text>
+    <text x="360" y="58" font-family="'Inter', system-ui, sans-serif" font-size="13" fill="#AEB6C8" text-anchor="middle">Infraestructura física descentralizada · Federación de topologías · Transporte adaptativo</text>
+    <g transform="translate(30, 75)">
+      <rect x="0" y="0" width="200" height="90" rx="10" fill="#0A0F1D" stroke="#007FFF" stroke-width="1" opacity="0.8"/>
+      <text x="100" y="22" font-family="'Rajdhani', 'Inter', system-ui, sans-serif" font-size="14" font-weight="600" fill="#00F0FF" text-anchor="middle">Mesh LoRa</text>
+      <text x="100" y="45" font-family="'Inter', system-ui, sans-serif" font-size="11" fill="#AEB6C8" text-anchor="middle">Meshtastic · Duty cycle</text>
+      <text x="100" y="62" font-family="'Inter', system-ui, sans-serif" font-size="11" fill="#AEB6C8" text-anchor="middle">P2P pasivo · Cola P0–P3</text>
+      <circle cx="100" cy="80" r="4" fill="#00F0FF" opacity="0.6"/>
+    </g>
+    <g transform="translate(260, 75)">
+      <rect x="0" y="0" width="200" height="90" rx="10" fill="#0A0F1D" stroke="#00F0FF" stroke-width="1" opacity="0.8"/>
+      <text x="100" y="22" font-family="'Rajdhani', 'Inter', system-ui, sans-serif" font-size="14" font-weight="600" fill="#10B981" text-anchor="middle">Wi-Fi / TCP</text>
+      <text x="100" y="45" font-family="'Inter', system-ui, sans-serif" font-size="11" fill="#AEB6C8" text-anchor="middle">Daemon · Serial · BLE</text>
+      <text x="100" y="62" font-family="'Inter', system-ui, sans-serif" font-size="11" fill="#AEB6C8" text-anchor="middle">connectWifiNode · Simulador</text>
+      <circle cx="100" cy="80" r="4" fill="#10B981" opacity="0.6"/>
+    </g>
+    <g transform="translate(490, 75)">
+      <rect x="0" y="0" width="200" height="90" rx="10" fill="#0A0F1D" stroke="#10B981" stroke-width="1" opacity="0.8"/>
+      <text x="100" y="22" font-family="'Rajdhani', 'Inter', system-ui, sans-serif" font-size="14" font-weight="600" fill="#39FF14" text-anchor="middle">Syncthing / P2P</text>
+      <text x="100" y="45" font-family="'Inter', system-ui, sans-serif" font-size="11" fill="#AEB6C8" text-anchor="middle">Cifrado extremo a extremo</text>
+      <text x="100" y="62" font-family="'Inter', system-ui, sans-serif" font-size="11" fill="#AEB6C8" text-anchor="middle">Archivos · Cerebros · Memoria</text>
+      <circle cx="100" cy="80" r="4" fill="#39FF14" opacity="0.6"/>
+    </g>
+  </g>
+  <path d="M 400 220 L 400 250" stroke="url(#layer-red-gradient)" stroke-width="2" marker-end="url(#arrow-head)" fill="none" opacity="0.7"/>
+  <path d="M 400 250 Q 380 270 400 290" stroke="url(#layer-mente-gradient)" stroke-width="2" marker-end="url(#arrow-head-2)" fill="none" opacity="0.7"/>
+  <g transform="translate(40, 260)">
+    <rect x="0" y="0" width="720" height="200" rx="16" fill="url(#card-bg)" stroke="url(#layer-mente-gradient)" stroke-width="1.5" filter="url(#card-glow)"/>
+    <text x="360" y="35" font-family="'Rajdhani', 'Inter', system-ui, sans-serif" font-size="22" font-weight="700" fill="#F8F9FA" text-anchor="middle" filter="url(#text-glow)">CAPA 2 — LA MENTE DIGITAL</text>
+    <text x="360" y="58" font-family="'Inter', system-ui, sans-serif" font-size="13" fill="#AEB6C8" text-anchor="middle">Inteligencia soberana 1.58-bit · Exocórtex personal · Malla neural auto-vinculante</text>
+    <g transform="translate(30, 75)">
+      <rect x="0" y="0" width="200" height="110" rx="10" fill="#0A0F1D" stroke="#10B981" stroke-width="1" opacity="0.8"/>
+      <circle cx="100" cy="30" r="18" fill="url(#astraura-orb)" filter="url(#layer-glow)"/>
+      <text x="100" y="60" font-family="'Rajdhani', 'Inter', system-ui, sans-serif" font-size="13" font-weight="600" fill="#00F0FF" text-anchor="middle">Astraura 1.58-bit</text>
+      <text x="100" y="80" font-family="'Inter', system-ui, sans-serif" font-size="10" fill="#AEB6C8" text-anchor="middle">Motor ternario · Needle 3</text>
+      <text x="100" y="95" font-family="'Inter', system-ui, sans-serif" font-size="10" fill="#AEB6C8" text-anchor="middle">Router económico · Jev</text>
+      <text x="100" y="110" font-family="'Inter', system-ui, sans-serif" font-size="10" fill="#AEB6C8" text-anchor="middle">22–127 MB · 0,12 s</text>
+    </g>
+    <g transform="translate(260, 75)">
+      <rect x="0" y="0" width="200" height="110" rx="10" fill="#0A0F1D" stroke="#FFBF00" stroke-width="1" opacity="0.8"/>
+      <ellipse cx="100" cy="30" rx="22" ry="16" fill="none" stroke="#FFBF00" stroke-width="2" opacity="0.6"/>
+      <ellipse cx="100" cy="30" rx="14" ry="10" fill="url(#astraura-orb)" opacity="0.4"/>
+      <text x="100" y="60" font-family="'Rajdhani', 'Inter', system-ui, sans-serif" font-size="13" font-weight="600" fill="#FFBF00" text-anchor="middle">Exocórtex</text>
+      <text x="100" y="80" font-family="'Inter', system-ui, sans-serif" font-size="10" fill="#AEB6C8" text-anchor="middle">Propiedad del usuario</text>
+      <text x="100" y="95" font-family="'Inter', system-ui, sans-serif" font-size="10" fill="#AEB6C8" text-anchor="middle">Lealtad al usuario</text>
+      <text x="100" y="110" font-family="'Inter', system-ui, sans-serif" font-size="10" fill="#AEB6C8" text-anchor="middle">Privacidad ↔ Transparencia</text>
+    </g>
+    <g transform="translate(490, 75)">
+      <rect x="0" y="0" width="200" height="110" rx="10" fill="#0A0F1D" stroke="#DC143C" stroke-width="1" opacity="0.8"/>
+      <g fill="none" stroke="#DC143C" stroke-width="1.5" opacity="0.7">
+        <circle cx="100" cy="30" r="20"/>
+        <circle cx="70" cy="30" r="6"/>
+        <circle cx="130" cy="30" r="6"/>
+        <circle cx="100" cy="6" r="6"/>
+        <circle cx="100" cy="54" r="6"/>
+        <line x1="100" y1="30" x2="70" y2="30"/>
+        <line x1="100" y1="30" x2="130" y2="30"/>
+        <line x1="100" y1="30" x2="100" y2="6"/>
+        <line x1="100" y1="30" x2="100" y2="54"/>
+        <line x1="70" y1="30" x2="100" y2="6"/>
+        <line x1="130" y1="30" x2="100" y2="6"/>
+        <line x1="70" y1="30" x2="100" y2="54"/>
+        <line x1="130" y1="30" x2="100" y2="54"/>
+      </g>
+      <text x="100" y="60" font-family="'Rajdhani', 'Inter', system-ui, sans-serif" font-size="13" font-weight="600" fill="#DC143C" text-anchor="middle">Malla Neural</text>
+      <text x="100" y="80" font-family="'Inter', system-ui, sans-serif" font-size="10" fill="#AEB6C8" text-anchor="middle">Auto-vínculo WebRTC</text>
+      <text x="100" y="95" font-family="'Inter', system-ui, sans-serif" font-size="10" fill="#AEB6C8" text-anchor="middle">≥2 neuronas online</text>
+      <text x="100" y="110" font-family="'Inter', system-ui, sans-serif" font-size="10" fill="#AEB6C8" text-anchor="middle">Faros · Relay · Federación</text>
+    </g>
+  </g>
+  <path d="M 400 470 L 400 500" stroke="url(#layer-mente-gradient)" stroke-width="2" marker-end="url(#arrow-head-2)" fill="none" opacity="0.7"/>
+  <path d="M 400 500 Q 380 520 400 540" stroke="url(#layer-apps-gradient)" stroke-width="2" marker-end="url(#arrow-head-3)" fill="none" opacity="0.7"/>
+  <g transform="translate(40, 490)">
+    <rect x="0" y="0" width="720" height="190" rx="16" fill="url(#card-bg)" stroke="url(#layer-apps-gradient)" stroke-width="1.5" filter="url(#card-glow)"/>
+    <text x="360" y="35" font-family="'Rajdhani', 'Inter', system-ui, sans-serif" font-size="22" font-weight="700" fill="#F8F9FA" text-anchor="middle" filter="url(#text-glow)">CAPA 3 — LAS APPS DEL ECOSISTEMA</text>
+    <text x="360" y="58" font-family="'Inter', system-ui, sans-serif" font-size="13" fill="#AEB6C8" text-anchor="middle">Tres aplicaciones nativas · Instalables · PWA · Código abierto absoluto</text>
+    <g transform="translate(30, 75)">
+      <rect x="0" y="0" width="200" height="100" rx="10" fill="#0A0F1D" stroke="#007FFF" stroke-width="1.5" opacity="0.9"/>
+      <circle cx="100" cy="30" r="18" fill="#007FFF" opacity="0.3"/>
+      <path d="M 100 20 L 100 40 M 90 30 L 110 30" stroke="#007FFF" stroke-width="3" stroke-linecap="round"/>
+      <text x="100" y="68" font-family="'Rajdhani', 'Inter', system-ui, sans-serif" font-size="15" font-weight="700" fill="#00F0FF" text-anchor="middle">StarSeed OS</text>
+      <text x="100" y="88" font-family="'Inter', system-ui, sans-serif" font-size="10" fill="#AEB6C8" text-anchor="middle">SOSD · Trinity · Genesis</text>
+    </g>
+    <g transform="translate(260, 75)">
+      <rect x="0" y="0" width="200" height="100" rx="10" fill="#0A0F1D" stroke="#FFBF00" stroke-width="1.5" opacity="0.9"/>
+      <ellipse cx="100" cy="30" rx="20" ry="14" fill="none" stroke="#FFBF00" stroke-width="2"/>
+      <path d="M 85 30 Q 100 18 115 30" stroke="#FFBF00" stroke-width="2" fill="none"/>
+      <circle cx="100" cy="30" r="5" fill="#FFBF00"/>
+      <text x="100" y="68" font-family="'Rajdhani', 'Inter', system-ui, sans-serif" font-size="15" font-weight="700" fill="#FFBF00" text-anchor="middle">StarSeed Nexus</text>
+      <text x="100" y="88" font-family="'Inter', system-ui, sans-serif" font-size="10" fill="#AEB6C8" text-anchor="middle">Portal · Biblioteca · Hub</text>
+    </g>
+    <g transform="translate(490, 75)">
+      <rect x="0" y="0" width="200" height="100" rx="10" fill="#0A0F1D" stroke="#F5B91A" stroke-width="1.5" opacity="0.9"/>
+      <path d="M 85 45 Q 100 20 115 45 Q 100 35 85 45" fill="#F5B91A" opacity="0.3"/>
+      <path d="M 100 25 L 100 45" stroke="#F5B91A" stroke-width="2" stroke-linecap="round"/>
+      <path d="M 90 45 L 110 45" stroke="#F5B91A" stroke-width="2" stroke-linecap="round"/>
+      <text x="100" y="68" font-family="'Rajdhani', 'Inter', system-ui, sans-serif" font-size="15" font-weight="700" fill="#F5B91A" text-anchor="middle">StarSeed Café</text>
+      <text x="100" y="88" font-family="'Inter', system-ui, sans-serif" font-size="10" fill="#AEB6C8" text-anchor="middle">Economía · Menú · Comunidad</text>
+    </g>
+  </g>
+  <g transform="translate(40, 690)">
+    <text x="360" y="0" font-family="'Inter', system-ui, sans-serif" font-size="11" fill="#46506A" text-anchor="middle">Flujo: Física (Cuerpo) → Red (Sistema Nervioso) → Mente Digital → Apps (Expresión) · φ = 1.618 · tokens.json · Sin scripts · Seguro en GitHub</text>
+  </g>
+</svg>

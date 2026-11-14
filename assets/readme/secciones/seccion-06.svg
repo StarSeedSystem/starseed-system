@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="80" viewBox="0 0 800 80" role="img" aria-labelledby="title-sec06 desc-sec06">
+  <title id="title-sec06">Sección 6 — Principios</title>
+  <desc id="desc-sec06">Cabecera de sección numerada para Principios</desc>
+  <defs>
+    <linearGradient id="sec-gradient-06" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#007FFF"/>
+      <stop offset="100%" stop-color="#CD77F8"/>
+    </linearGradient>
+    <filter id="sec-glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <rect width="800" height="80" fill="#0A0F1D"/>
+  <g transform="translate(40, 15)">
+    <circle cx="25" cy="25" r="25" fill="url(#sec-gradient-06)" filter="url(#sec-glow)"/>
+    <text x="25" y="31" font-family="'Rajdhani', 'Inter', system-ui, sans-serif" font-size="20" font-weight="700" fill="#0A0F1D" text-anchor="middle">06</text>
+    <text x="70" y="45" font-family="'Rajdhani', 'Inter', system-ui, sans-serif" font-size="28" font-weight="700" fill="#F8F9FA">Principios</text>
+    <text x="70" y="62" font-family="'Inter', system-ui, sans-serif" font-size="13" fill="#AEB6C8">Ontocracia · Ciberdelia · Transhumanismo Comunista</text>
+  </g>
+  <line x1="40" y1="70" x2="760" y2="70" stroke="url(#sec-gradient-06)" stroke-width="1" opacity="0.5"/>
+</svg>
