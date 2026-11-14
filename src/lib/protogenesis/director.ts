@@ -94,3 +94,16 @@ export async function planificarEncargo(
 
   return intentar(0);
 }
+
+export async function formulateNextIntelligentTask(
+  encargo: Encargo,
+  atomos: AtomoInfo[],
+  llamar: (prompt: string) => Promise<string>,
+  ctx: {
+    existeAtomo: (id: string) => "si" | "solo-enlace" | "no";
+    hayConversion: (de: string, a: string) => boolean;
+    formatoDe: (entrada: string) => string | null;
+  }
+): Promise<{ ok: true; plan: Plan; avisos: string[] } | { ok: false; motivo: string }> {
+  return planificarEncargo(encargo, atomos, llamar, ctx);
+}
