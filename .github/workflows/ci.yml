@@ -55,6 +55,18 @@ jobs:
         run: npm test
       - name: Tests del núcleo mesh/cripto
         run: npx --yes tsx scripts/test-mesh-core.ts
+      # LLA1114B ── «código nuevo contra el último publicado» (pruebas-reales/compat-versiones/LEEME.md) ──────────
+      # Llamadas entre neuronas con builds distintas: el árbol de este commit contra el último publicado y contra la pareja
+      # fija 9e489e8d^, en los dos sentidos. Corre siempre (≈ 20 s, sin navegador). El checkout es superficial: se traen
+      # los commits que hacen falta (main, el sha publicado si responde y la pareja fija 9b3bed477a…, padre de 9e489e8d).
+      - name: Compatibilidad entre versiones de llamadas (LLA1114B)
+        run: |
+          git fetch --no-tags --depth=1 origin +refs/heads/main:refs/remotes/origin/main || true
+          git fetch --no-tags --depth=1 origin 9b3bed477a16e25cd0336f284d200c4722ace5d0 || true
+          SHA=$(curl -fsS --max-time 8 https://starseed-os.vercel.app/version.json | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const j=JSON.parse(s);if(/^[0-9a-f]{7,40}$/.test(j.sha))process.stdout.write(j.sha)}catch{}})' || true)
+          if [ -n "$SHA" ]; then git fetch --no-tags --depth=1 origin "$SHA" || true; fi
+          node pruebas-reales/compat-versiones/correr.mjs
+      # ── fin LLA1114B ──
       - name: Build de producción (next build)
         # (2026-10-08) NO `npm run build`: el script de package.json fija NODE_OPTIONS=4096 en la
         # propia orden y pisaba el 8192 de aquí abajo, así que el build seguía muriendo por memoria

@@ -626,3 +626,25 @@ describe("MotorLlamada", () => {
         expect(conns().every((c) => c.suelta)).toBe(true);
     });
 });
+
+// ═══ LLA1114B · opción del banco `banco.sinIp` (contrato ronda-automatica-llamadas §6, fase 1) ═══
+describe("LLA1114B · banco sin IP", () => {
+    it("con `banco: { sinIp: true }` cada RTCPeerConnection nace con relay y sin servidores; sin ella, como siempre", async () => {
+        const ice = [{ urls: "stun:stun.ejemplo.invalid:3478" }];
+        const a = new MotorLlamada({ sesionId: "s-banco", yo: yo("a"), iceServers: ice, banco: { sinIp: true }, intervaloNivelMs: 60_000, intervaloStatsMs: 60_000 });
+        const b = new MotorLlamada({ sesionId: "s-banco", yo: yo("b"), iceServers: ice, intervaloNivelMs: 60_000, intervaloStatsMs: 60_000 });
+        await a.prepararMedios({ audio: true, video: false });
+        await b.prepararMedios({ audio: true, video: false });
+        a.entrar();
+        const deA = pcs.length;
+        b.entrar();
+        await esperar();
+        expect(pcs.length).toBe(2);
+        const configs = pcs.map((pc) => pc.config);
+        expect(configs).toContainEqual({ iceServers: [], iceTransportPolicy: "relay" });
+        expect(configs).toContainEqual({ iceServers: ice });
+        expect(deA).toBeLessThanOrEqual(1);
+        a.colgar();
+        b.colgar();
+    });
+});

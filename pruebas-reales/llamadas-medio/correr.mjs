@@ -41,6 +41,8 @@ async function pagina() {
   p.on("crash", () => console.error("· la página se cayó (crash del renderizador)"));
   await p.goto(url);
   await p.waitForFunction(() => window.banco?.listo);
+  // LLA1114B: que se vea si el lado B corre otro árbol (`construir.mjs <A> <salida> <B>`).
+  if (await p.evaluate(() => !!window.banco?.mezclado)) console.error("· versiones mezcladas: el lado B (la tableta) corre otro árbol");
   return p;
 }
 const resumen = (p) =>
