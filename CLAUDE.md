@@ -197,6 +197,11 @@ Más detalles en `STARSEED_ANALISIS_COMPLETO.md` y en `memory/design-tokens.md`.
 5. **Antes de cualquier deploy**, verifica `DESPLIEGUE.md` y que el repo git esté sincronizado con `StarSeedSystem/starseed-system`.
 6. **Tono y diseño:** sigue `design-system/starseed-system/MASTER.md`. No usar emojis como iconos (usar Lucide/Heroicons). Cursor pointer en todo lo clicable. Transiciones 150-300ms.
 
+## Alcance por GitHub
+
+- Nada se envía sin que Maggasukha apruebe ese mensaje, a ese destinatario y por ese medio.
+- Nunca correos de commits ni issues no pedidos; datos privados fuera del repo público.
+
 ---
 
 ## 9. Glosario rápido

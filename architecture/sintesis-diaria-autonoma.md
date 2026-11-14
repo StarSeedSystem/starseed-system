@@ -538,9 +538,20 @@ lee la cola como lista de tareas. SDP1111M va aparte: ver «Estado», arriba.
 ]
 ```
 
+## 7. GitHub y alcance técnico (ALC1113)
+
+Esta ola (ALC1113) añade GitHub como fuente nueva de contactos técnicos y promueve la interacción con la comunidad técnica:
+
+- **Fuentes:** GitHub (público), con rotación diaria por áreas: sistemas operativos, descentralización, redes sociales, IA, democracia, redes mesh, comunicaciones, etc.
+- **Fichas:** cada ficha candidata tiene `fuente: "github"`, `canal_oficial` publicado por el proyecto (Discussions abiertas, Matrix/Discord/Zulip, correo de contacto) y datos básicos (nombre, descripción, temas, organización/mantenedor público, estrellas, push, canales de contacto).
+- **Aprobación:** exacta y previa. Nada se envía sin Maggasukha aprobando ese mensaje, a ese destinatario y por ese canal. El hash, destinatario, canal y hora se guardan en `starseed_memory_root/alcance/aprobaciones.jsonl`.
+- **Simulacro por defecto:** `ALCANCE_ENVIO=0` (por defecto). Solo los borradores aprobados se programan para envío; el envío asistido se marca como "enviado" cuando el bot responde `/enviado <id>`.
+
+El alcance genera hasta 15 proyectos nuevos al día, hasta 5 contactos nuevos y hasta 5 mensajes (un por contacto, salvo seguimiento aprobado).
+
 ## 8. Cómo se sabe que funciona
 
-1. `python3 scripts/puente/sintesis_telegram.py prueba` deja una línea en el chat «Síntesis de producción StarSeed».
+1. `python3 scripts/puente/sintesis_telegram.py prueba` deja una línea en el chat "Síntesis de producción StarSeed".
 2. `python3 scripts/puente/agente_sintesis.py ciclo --seco --json` muestra las tres fases y las tareas que
    encolaría.
 3. Al día siguiente de integrar SDP1111L, la síntesis llega al chat con la Mac apagada y la tarea de Claude en pausa.

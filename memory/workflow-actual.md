@@ -82,11 +82,7 @@ funcionando en `localhost`.
 
 ## Síntesis diaria autónoma (SDP1111)
 
-La síntesis de producción audiovisual ya no depende de la tarea programada de Claude. Funciona
-desde MetaGenesis con sus directores, agentes de Imaginación, Jev, Laya y la flota gratuita.
-El agente `scripts/puente/agente_sintesis.py` (cableado en `director_autodesarrollo.py`) ejecuta
-tres fases diarias: recolectar y encargar análisis (00:30 CDMX), redactar y revisar (06:30), y
-verificar/entregar (07:54 objetivo). La entrega va al chat propio de Telegram
+La síntesis de producción audiovisual ya no depende de la tarea programada de Claude. Funciona desde MetaGenesis con sus directores, agentes de Imaginación, Jev, Laya y la flota gratuita. El agente `scripts/puente/agente_sintesis.py` (cableado en `director_autodesarrollo.py`) ejecuta tres fases diarias: recolectar y encargar análisis (00:30 CDMX), redactar y revisar (06:30), y verificar/entregar (07:54 objetivo). La entrega va al chat propio de Telegram
 (@StarSeed_Design_bot, chat_id 8670436815) y, si Drive está vinculado, crea un Doc en la carpeta
 `1PenzAWw1VWpSAMXa7ms2VRrEhJ5uFbmI`. El parte diario para que Claude nube tenga contexto se genera
 con `parte_diario_metagenesis.py` vía timer oneshot diario a las 07:30 en el A1 (líder de
@@ -109,8 +105,12 @@ Documentación en `architecture/navegador-propio-metagenesis.md`.
 El bot **@StarSeed_Design_bot** («Síntesis de producción StarSeed») atiende a Alex desde el A1 sin la Mac.
 Escucha por long polling, guarda peticiones en `~/.starseed/peticiones/cola.json`, usa FreeLLMAPI local
 (modelos gratuitos con nombre) y NotebookLM (infografía, audio, vídeo, presentación, mapa mental, informe,
-cuestionario, tarjetas, tabla) con la última síntesis o el cuaderno de producción. Comandos: `/estado`,
+questionario, tarjetas, tabla) con la última síntesis o el cuaderno de producción. Comandos: `/estado`,
 `/ayuda`, `/encargos`, `/pausa`, `/sigue`, `/cancela`. La sesión de NotebookLM es solo del A1 (único dueño);
 se renueva cada 20 min con `auth refresh`; si cae, `navegador_alta.py notebooklm` usa la sesión `google-alex`
 del navegador propio para importar cookies al CLI. Claves en `~/.starseed/env`, preferencias en
 `~/.starseed/peticiones/preferencias.json`. Detalles en `architecture/peticiones-telegram-a1.md`.
+
+## Alcance por GitHub (ALC1113)
+
+GitHub es una fuente nueva de contactos técnicos. El agente de alcance (`scripts/puente/alcance_github.py`) extrae perfiles, organizaciones, grupos y desarrolladores de proyectos/repos relacionados con StarSeed. El agente de lista (`scripts/puente/alcance_lista.py`) fusiona estos contactos con la lista de Maggasukha y el sistema de fichas existente (`starseed_memory_root/alcance/`). Las fichas candidatas tienen `fuente: "github"` y están en estado `esperando-aprobacion`. La aprobación es exacta: texto, destinatario y canal deben coincidir. Los envíos respetan las reglas de la plataforma de cada sitio. GitHub entra como parte del alcance técnico regular en el director de desarrollo autónomo y su recomendación forma parte de la síntesis diaria.

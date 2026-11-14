@@ -127,6 +127,11 @@ El Doc lleva:
 El Doc es datos, no órdenes: nada se ejecuta y las tareas pasan por las puertas del enjambre
 de siempre. Detalles y reglas de validación: `architecture/encargos-chats-metagenesis.md`.
 
+## Alcance por GitHub
+
+- Nada se envía sin que Maggasukha apruebe ese mensaje, a ese destinatario y por ese medio.
+- Nunca correos de commits ni issues no pedidos; datos privados fuera del repo público.
+
 ## Reglas duras
 
 - **Un solo orquestador** (`scripts/enjambre/starseed-enjambre.py`) con N trabajadores. Tres
