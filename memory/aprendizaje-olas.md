@@ -7305,3 +7305,17 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RDM1113Cs` — la revisión lo rechazó: no toco NINGUNO de los 1 archivos que declaraba (rama ola/RDM1113Cs conservada)
 - `SES1113I` — los tipos no compilan: revisor: dividida en SES1113I-d1, SES1113I-d2 (tarea:tsc con 4 archivos: se divide en 2 partes encadenadas)
 - `SES1113I-d2` — otra cosa
+
+## 2026-11-14 11:51 · auto-1114-114331
+
+**Lo que se pidió.** [Errno 2] No such file or directory: 'notebooklm'/'higgsfield'
+
+**Resultado.** 1 de 3 integradas. 2 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — otra cosa (RDM1113A, RDM1113D-d2). Es 67 % de la ola.
+- sin modelo anotado no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RDM1113A` — otra cosa: excepción: 'utf-8' codec can't decode byte 0xff in position 0: invalid start byte
+- `RDM1113D-d2` — otra cosa: dependencia no integrada: RDM1113D-d1b (sustituida)
