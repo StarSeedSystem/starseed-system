@@ -7319,3 +7319,15 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 **Lo que quedó fuera, una por una:**
 - `RDM1113A` — otra cosa: excepción: 'utf-8' codec can't decode byte 0xff in position 0: invalid start byte
 - `RDM1113D-d2` — otra cosa: dependencia no integrada: RDM1113D-d1b (sustituida)
+
+## 2026-11-14 11:57 · auto-1114-115247
+
+**Resultado.** 0 de 2 integradas. 2 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — otra cosa (RDM1113A, RDM1113D-d2). Es 100 % de la ola.
+- sin modelo anotado no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RDM1113A` — otra cosa: excepción: 'utf-8' codec can't decode byte 0xff in position 0: invalid start byte
+- `RDM1113D-d2` — otra cosa: revisor: sus dependencias ya están en main: vuelve a la cola (tanda viva cola-auto-1114-115247.json)
