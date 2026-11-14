@@ -64,9 +64,10 @@ export interface PresenciaMedio {
    */
   d?: InfoPublicaNeurona;
   /**
-   * (MAP1114B) Posición que ESTA neurona decidió compartir con las de su cuenta. Solo está si el dueño lo
-   * activó para el ámbito «cuenta» (apagado de fábrica); con nivel «zona» no lleva el punto, solo la celda
-   * de ≈1 km (`senales/geo/modelo-geo.ts`). Retrocompatible: sin `g`, la posición es desconocida.
+   * (MAP1114C) Posición EXACTA de esta neurona, tal como la midió (sin redondeo ni zona). Solo viaja si el
+   * interruptor «Compartir la ubicación de este aparato con mi cuenta» está activo Y el envío por este canal está
+   * confirmado (`POSICION_POR_PRESENCIA_CONFIRMADA` en `senales/geo/modelo-geo.ts`: hoy NO lo está, porque este
+   * canal es público en el servidor y solo lo protege el token). Retrocompatible: sin `g`, la posición es desconocida.
    */
   g?: AnuncioPosicion;
   /** (MAP1114B) Capas de conciencia que esta neurona anuncia (`capa:local`, `capa:mesh`…). */
@@ -163,7 +164,7 @@ async function anuncio(): Promise<PresenciaMedio | null> {
     } catch {
       d = undefined;
     }
-    // (MAP1114B) Posición para el ámbito «cuenta»: solo si el dueño la activó (por defecto no sale nada).
+    // (MAP1114C) Posición exacta para la cuenta: nada sale mientras el canal no esté confirmado como privado.
     let g: AnuncioPosicion | undefined;
     try {
       g = (await import("@/lib/senales/geo/almacen-posicion")).anuncioParaMiCuenta() ?? undefined;

@@ -160,3 +160,23 @@ Fuente: órdenes O1114043351 y O1114043802 de la dirección principal al carril 
 - **Zona pública aproximada de ~1 km.**
 - **Punto exacto: opcional, por neurona.**
 - **Un aparato personal solo es nodo público dentro de un contenedor aislado**; el internet público compartido por las capas de conciencia de la malla ya estaba aprobado.
+
+---
+
+## 11. Corrección de Alex (14-11-2026, tarde)
+
+Fuente: la orden MAP1114C de la dirección principal, que traslada la corrección de Alex tras rechazar la versión MAP1114B (un mapa aparte, con una zona de ~1 km y «privado por defecto»). **Este apartado manda sobre el texto anterior de este documento (§2, §3, §4, §7, §8, §9 y §10) en todo lo que lo contradiga.**
+
+1. **El mapa es EL mapa del Hub.** La pestaña «Mapa» de Señales usa `MapView` (`src/components/map/map-view.tsx`: Leaflet 1.9.4 por CDN, capas base, radar de lluvia y GIBS con opacidad, panel de capas, «Mi ubicación» con `watchPosition`) mediante una propiedad de extensión opcional (`MapViewExtension`, `src/components/map/map-view-extension.ts`). Señales añade sus secciones, marcas y superposiciones; guarda su vista bajo otra clave (`starseed.senales.mapa.view.v1`); al abrirse centra en la ubicación del aparato. Sin la propiedad, el Hub queda igual (prueba: `src/components/map/__tests__/map-view-sin-extension.test.tsx`).
+2. **Precisión exacta, sin redondeo, zona ni aproximación.** La fase 1 cubre solo las neuronas de la propia cuenta de la persona. No se construye nada para neuronas de otras personas, no se inventa ningún valor por defecto para ellas y no queda ninguna opción «público» ni «zona».
+3. **Las señales son capas de color** con leyenda, deslizador de opacidad e interruptor cada una, en el panel de capas: calidad de señal por medio (Bluetooth, Wi-Fi, red local, internet), capacidades ofrecidas (cómputo, almacenamiento, internet compartido, modelos de Astraura), capas de conciencia y capacidades de hardware. Los parches se dibujan con la API base de Leaflet (sin plugins ni dependencias). **Un parche marca DÓNDE se midió un valor, no un radio de cobertura**, y la leyenda lo dice. Lo desconocido es gris y hueco. Leyenda y pintura salen de la misma tabla (`CAPAS_SENALES`, `src/lib/senales/geo/capas.ts`).
+4. **Ficha al tocar una marca:** aparato, sistema, versión, antenas con su calidad medida y la hora de la medida, capas de conciencia y lo que ofrece. Solo valores medidos; el resto, «desconocido».
+
+### Estado de lo anterior
+
+- **Zona pública aproximada de ~1 km: RETIRADA** (también «ubicación privada por defecto» y «punto exacto opcional por neurona», que dependían de ella). `zona.ts` y sus pruebas se eliminaron.
+- **Neuronas de otras personas sin su permiso: PREGUNTA ABIERTA PARA ALEX.** Hoy no existe y no se construye; si se quiere, hace falta que Alex decida con qué consentimiento y por qué canal.
+
+### Posición por la presencia de la cuenta: en pausa (decisión de implementación)
+
+Cada aparato vigila su posición con el mecanismo del Hub y solo la anunciaría por el canal de presencia (`neur:<token>`, `src/lib/neurons/presencia.ts`) si se confirmara que ÚNICAMENTE la misma cuenta puede suscribirse. Leído el código, **no está confirmado**: el canal se crea sin `private: true` y no hay política en `realtime.messages` para ese tema (solo la de `supabase/migrations/20260928130000_l1-llamadas.sql`); lo protege solo el secreto del token. Por eso `POSICION_POR_PRESENCIA_CONFIRMADA = false` (`src/lib/senales/geo/modelo-geo.ts`): no se envía nada, las demás neuronas salen «desconocida» con su motivo, y este aparato se ve a sí mismo con su punto exacto. Se mantiene el interruptor «Compartir la ubicación de este aparato con mi cuenta» (activo de fábrica). Para levantar la pausa hace falta un canal privado con política o enviar la posición por el canal P2P de la ficha; es decisión de Alex y toca áreas fuera de esta ola.

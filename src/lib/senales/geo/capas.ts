@@ -1,60 +1,20 @@
 /**
- * capas — las capas conmutables del Mapa, su escala de color y su leyenda (MAP1114B).
- * La leyenda y el pintado salen de las MISMAS tablas: no pueden discrepar.
- * Solo se pinta lo medido; sin dato = gris / contorno hueco.
+ * capas — las capas de color del Mapa de Señales, su escala y su leyenda (MAP1114C).
+ * ═══════════════════════════════════════════════════════════════════════════════════
+ * Como el radar de lluvia del mapa del Hub: un parche de color, una leyenda, un deslizador de opacidad y un
+ * interruptor. La leyenda y el pintado salen de la MISMA tabla (`CAPAS_SENALES`): no pueden discrepar.
+ *
+ * «Basta de ilusiones»: cada capa declara de dónde sale su dato (`estado`/`fuente`). Una capa sin fuente en el
+ * código de hoy lo dice y pinta TODO como «sin medir» (gris, hueco): nunca un número inventado. Un parche
+ * marca DÓNDE se midió el valor (el punto exacto de la neurona); su tamaño en pantalla es fijo y NO es un
+ * alcance de cobertura (no lo tenemos medido).
  * Puro: sin React, sin red, sin `node:*`.
  */
 
-import { ANTENNA_COLOR, ANTENNA_LABEL, type AntennaKind } from "@/ai/astraura/mesh/signals";
-
-export type CapaId = "senal" | "conciencia" | "antenas" | "capacidades" | "publico";
-
-export interface CapaDef {
-  id: CapaId;
-  etiqueta: string;
-  descripcion: string;
-  /** Fase del contrato en que se completa; las de fase 2 aún no se activan. */
-  fase: 1 | 2;
-}
-
-export const CAPAS_MAPA: readonly CapaDef[] = [
-  { id: "senal", etiqueta: "Señal", descripcion: "Calidad medida del enlace con cada neurona", fase: 1 },
-  { id: "conciencia", etiqueta: "Capas de conciencia", descripcion: "Qué capas de Astraura anuncia cada neurona", fase: 1 },
-  { id: "antenas", etiqueta: "Antenas y medios", descripcion: "Qué antenas y medios tiene cada neurona", fase: 1 },
-  { id: "capacidades", etiqueta: "Capacidades", descripcion: "Qué ofrece cada punto", fase: 2 },
-  { id: "publico", etiqueta: "Público / privado", descripcion: "Qué es público y qué es de tu cuenta", fase: 2 },
-];
-
-export const CAPA_POR_DEFECTO: CapaId = "senal";
-
-export function capaDisponible(id: CapaId): boolean {
-  return CAPAS_MAPA.find((c) => c.id === id)?.fase === 1;
-}
-
-export const COLOR_DESCONOCIDO = "#64748b";
-
-/** Calidad 0..1 → rojo (mala) → ámbar → verde (buena). `null` = sin métrica = gris. */
-export function colorCalidad(q: number | null | undefined): string {
-  if (typeof q !== "number" || !Number.isFinite(q)) return COLOR_DESCONOCIDO;
-  if (q < 0.34) return "#f87171";
-  if (q < 0.67) return "#fbbf24";
-  return "#34d399";
-}
-
-export const TRAMOS_CALIDAD: readonly { etiqueta: string; color: string }[] = [
-  { etiqueta: "Mala", color: "#f87171" },
-  { etiqueta: "Regular", color: "#fbbf24" },
-  { etiqueta: "Buena", color: "#34d399" },
-];
+import { qualityFromRtt } from "@/ai/astraura/mesh/signals";
+import type { MarcaGeo } from "./marcas";
 
 export type CapaConcienciaId = "local" | "mesh" | "nube" | "colectiva";
-
-export const COLOR_CONCIENCIA: Record<CapaConcienciaId, string> = {
-  local: "#34d399",
-  mesh: "#38bdf8",
-  nube: "#a78bfa",
-  colectiva: "#f472b6",
-};
 
 export const ETIQUETA_CONCIENCIA: Record<CapaConcienciaId, string> = {
   local: "Local",
@@ -65,36 +25,237 @@ export const ETIQUETA_CONCIENCIA: Record<CapaConcienciaId, string> = {
 
 export const ORDEN_CONCIENCIA: readonly CapaConcienciaId[] = ["local", "mesh", "nube", "colectiva"];
 
-/** Antenas que el Mapa distingue en la fase 1, con los mismos colores y nombres del radar. */
-export const ANTENAS_MAPA: readonly AntennaKind[] = ["ip", "account", "lora", "ble", "serial"];
+export function normalizarCapaConciencia(c: string): CapaConcienciaId | null {
+  const id = c.startsWith("capa:") ? c.slice(5) : c;
+  return id === "local" || id === "mesh" || id === "nube" || id === "colectiva" ? id : null;
+}
+
+export const COLOR_DESCONOCIDO = "#94a3b8";
+
+/** relleno = parche de color · hueco = sin dato (gris, anillo discontinuo) · anillo = valor conocido «no» (anillo fino). */
+export type EstiloTramo = "relleno" | "hueco" | "anillo";
+
+export interface Tramo {
+  id: string;
+  etiqueta: string;
+  color: string;
+  estilo: EstiloTramo;
+}
+
+export type GrupoCapa = "senal" | "oferta" | "conciencia" | "hardware";
+
+export const GRUPOS_CAPA: readonly { id: GrupoCapa; titulo: string }[] = [
+  { id: "senal", titulo: "Señal por medio" },
+  { id: "oferta", titulo: "Capacidades que ofrece" },
+  { id: "conciencia", titulo: "Capas de conciencia" },
+  { id: "hardware", titulo: "Hardware" },
+];
+
+/** real = hay dato medido hoy · parcial = solo para parte de las neuronas · sin-fuente = hoy nada lo mide ni lo anuncia. */
+export type EstadoFuente = "real" | "parcial" | "sin-fuente";
+
+/** Lo que una capa dice de UNA marca. `tramo` apunta a `Tramo.id`. */
+export interface ValorCapa {
+  tramo: string;
+  /** Texto legible del valor («≈12 Mb/s», «sí», «desconocido»). */
+  texto: string;
+  /** Hora de la medida (epoch ms) o null. */
+  t: number | null;
+  medida: boolean;
+}
+
+export interface CapaSenal {
+  id: string;
+  grupo: GrupoCapa;
+  etiqueta: string;
+  descripcion: string;
+  estado: EstadoFuente;
+  /** De dónde sale el dato en el código de hoy (o por qué no hay). */
+  fuente: string;
+  tramos: readonly Tramo[];
+  valor: (m: MarcaGeo) => ValorCapa;
+}
+
+const DESC: Tramo = { id: "desconocido", etiqueta: "Sin medir", color: COLOR_DESCONOCIDO, estilo: "hueco" };
+const desconocido = (texto = "desconocido"): ValorCapa => ({ tramo: "desconocido", texto, t: null, medida: false });
+
+export const TRAMOS_CALIDAD: readonly Tramo[] = [
+  { id: "mala", etiqueta: "Mala", color: "#ef4444", estilo: "relleno" },
+  { id: "regular", etiqueta: "Regular", color: "#facc15", estilo: "relleno" },
+  { id: "buena", etiqueta: "Buena", color: "#22c55e", estilo: "relleno" },
+  DESC,
+];
+
+export function tramoDeCalidad(q: number | null | undefined): string {
+  if (typeof q !== "number" || !Number.isFinite(q)) return "desconocido";
+  return q < 0.34 ? "mala" : q < 0.67 ? "regular" : "buena";
+}
+
+const SIN_OFERTA = "El ofrecimiento de recursos (Prestar recursos, Puerta de internet) es un ajuste local de cada aparato y todavía no se anuncia a la cuenta.";
+
+function antena(m: MarcaGeo, kind: string) {
+  return m.antenas.find((a) => a.kind === kind);
+}
+
+const COLOR_CAPA_CONCIENCIA: Record<CapaConcienciaId, string> = { local: "#10b981", mesh: "#0ea5e9", nube: "#a855f7", colectiva: "#ec4899" };
+
+function capaConciencia(id: CapaConcienciaId): CapaSenal {
+  const color = COLOR_CAPA_CONCIENCIA[id];
+  return {
+    id: `conciencia-${id}`,
+    grupo: "conciencia",
+    etiqueta: `Capa ${ETIQUETA_CONCIENCIA[id].toLowerCase()}`,
+    descripcion: `Neuronas que tienen encendida la capa de conciencia «${ETIQUETA_CONCIENCIA[id]}»`,
+    estado: "real",
+    fuente: "capas que cada neurona anuncia en la presencia de la cuenta (`c`); la de este aparato, de sus propios ajustes",
+    tramos: [
+      { id: "si", etiqueta: "Encendida", color, estilo: "relleno" },
+      { id: "no", etiqueta: "Apagada", color: "#94a3b8", estilo: "anillo" },
+      { ...DESC, etiqueta: "Sin anunciar" },
+    ],
+    valor: (m) => {
+      if (!m.capas.lista) return desconocido();
+      const on = m.capas.lista.includes(id);
+      return { tramo: on ? "si" : "no", texto: on ? "encendida" : "apagada", t: m.capas.t, medida: true };
+    },
+  };
+}
+
+export const CLASES_RAM = ["≤4 GB", "8 GB", "16 GB", ">16 GB"] as const;
+const COLOR_RAM: Record<string, string> = { "≤4 GB": "#38bdf8", "8 GB": "#6366f1", "16 GB": "#a855f7", ">16 GB": "#ec4899" };
+
+export const CAPAS_SENALES: readonly CapaSenal[] = [
+  {
+    id: "senal-bluetooth", grupo: "senal", etiqueta: "Bluetooth", descripcion: "Calidad de la señal Bluetooth de cada aparato",
+    estado: "sin-fuente",
+    fuente: "Sin fuente: una neurona solo anuncia si tiene adaptador Bluetooth (Web Bluetooth); ningún aparato mide la calidad de su señal.",
+    tramos: [DESC],
+    valor: (m) => {
+      const a = antena(m, "ble");
+      return a?.medida ? { tramo: "desconocido", texto: `${a.valor}; calidad sin medir`, t: a.t, medida: false } : desconocido();
+    },
+  },
+  {
+    id: "senal-wifi", grupo: "senal", etiqueta: "Wi-Fi", descripcion: "Calidad de la señal Wi-Fi de cada aparato",
+    estado: "sin-fuente",
+    fuente: "Sin fuente: la app no puede leer el nivel de la Wi-Fi; solo se sabe si el sistema dice que la conexión es Wi-Fi.",
+    tramos: [DESC],
+    valor: (m) => {
+      const a = antena(m, "wifi");
+      return a?.medida ? { tramo: "desconocido", texto: `${a.valor}; nivel sin medir`, t: a.t, medida: false } : desconocido();
+    },
+  },
+  {
+    id: "senal-local", grupo: "senal", etiqueta: "Red local (P2P)", descripcion: "Calidad del enlace P2P medida desde este aparato",
+    estado: "parcial",
+    fuente: "Latencia (RTT) del canal P2P abierto, medida desde ESTE aparato hacia cada neurona; este aparato y las neuronas sin canal abierto salen sin medir.",
+    tramos: TRAMOS_CALIDAD,
+    valor: (m) => {
+      if (m.calidad.valor === null || m.enlace.latenciaMs === null) return desconocido();
+      return { tramo: tramoDeCalidad(qualityFromRtt(m.enlace.latenciaMs)), texto: `${Math.round(m.enlace.latenciaMs)} ms`, t: m.calidad.t, medida: true };
+    },
+  },
+  {
+    id: "senal-internet", grupo: "senal", etiqueta: "Internet", descripcion: "Calidad de la conexión a internet de cada aparato",
+    estado: "real",
+    fuente: "Velocidad de bajada que estima el navegador (Network Information API) que cada neurona anuncia en la presencia; sin ella, sin medir. Sin conexión = mala.",
+    tramos: TRAMOS_CALIDAD,
+    valor: (m) => {
+      const a = antena(m, "ip");
+      if (!a?.medida) return desconocido();
+      const q = a.calidad;
+      return q === null ? { tramo: "desconocido", texto: `${a.valor}; calidad sin medir`, t: a.t, medida: false } : { tramo: tramoDeCalidad(q), texto: a.valor, t: a.t, medida: true };
+    },
+  },
+  ...(["computo", "almacenamiento", "internet"] as const).map((k): CapaSenal => ({
+    id: `oferta-${k}`, grupo: "oferta",
+    etiqueta: k === "computo" ? "Cómputo" : k === "almacenamiento" ? "Almacenamiento" : "Internet compartido",
+    descripcion: k === "computo" ? "Aparatos que ofrecen cómputo" : k === "almacenamiento" ? "Aparatos que ofrecen almacenamiento" : "Aparatos que comparten su internet",
+    estado: "sin-fuente",
+    fuente: `Sin fuente: ${SIN_OFERTA}`,
+    tramos: [DESC],
+    valor: () => desconocido("desconocido: aún no se anuncia"),
+  })),
+  {
+    id: "oferta-modelos", grupo: "oferta", etiqueta: "Modelos de Astraura", descripcion: "Aparatos que pueden servir modelos de Astraura a la malla",
+    estado: "parcial",
+    fuente: "Ficha que cada neurona manda por su canal P2P (`sirveAstraura`); solo las que tienen canal abierto con este aparato.",
+    tramos: [
+      { id: "si", etiqueta: "Sirve modelos", color: "#8b5cf6", estilo: "relleno" },
+      { id: "no", etiqueta: "No sirve", color: "#94a3b8", estilo: "anillo" },
+      DESC,
+    ],
+    valor: (m) => {
+      const h = m.hardware;
+      if (h.sirveAstraura === null) return desconocido();
+      return { tramo: h.sirveAstraura ? "si" : "no", texto: h.sirveAstraura ? `sirve Astraura${h.fuentesServibles ? ` · ${h.fuentesServibles} fuentes` : ""}` : "no sirve Astraura", t: h.t, medida: true };
+    },
+  },
+  ...ORDEN_CONCIENCIA.map(capaConciencia),
+  {
+    id: "hw-ram", grupo: "hardware", etiqueta: "Memoria (RAM)", descripcion: "Clase de memoria que anuncia cada aparato",
+    estado: "parcial",
+    fuente: "Ficha P2P de cada neurona (`ramClase`, de navigator.deviceMemory); la de este aparato, de su propia ficha.",
+    tramos: [...CLASES_RAM.map((c): Tramo => ({ id: c, etiqueta: c, color: COLOR_RAM[c], estilo: "relleno" })), DESC],
+    valor: (m) => {
+      const h = m.hardware;
+      if (!h.ramClase || h.ramClase === "desconocida") return desconocido();
+      return { tramo: h.ramClase, texto: h.ramClase, t: h.t, medida: true };
+    },
+  },
+];
+
+export const CAPA_POR_ID: Readonly<Record<string, CapaSenal>> = Object.fromEntries(CAPAS_SENALES.map((c) => [c.id, c]));
+
+export function tramoDe(capa: CapaSenal, id: string): Tramo {
+  return capa.tramos.find((t) => t.id === id) ?? DESC;
+}
+
+/** Lo que se pinta de una marca en una capa: el tramo y su valor. */
+export function pintarMarca(capa: CapaSenal, m: MarcaGeo): { tramo: Tramo; valor: ValorCapa } {
+  const valor = capa.valor(m);
+  return { tramo: tramoDe(capa, valor.tramo), valor };
+}
 
 export interface ItemLeyenda {
   etiqueta: string;
   color: string;
-  /** Contorno hueco = sin dato. */
-  hueco?: boolean;
+  estilo: EstiloTramo;
 }
 
-export function leyendaDe(capa: CapaId): ItemLeyenda[] {
-  switch (capa) {
-    case "senal":
-      return [...TRAMOS_CALIDAD, { etiqueta: "Sin medir", color: COLOR_DESCONOCIDO, hueco: true }];
-    case "conciencia":
-      return [
-        ...ORDEN_CONCIENCIA.map((c) => ({ etiqueta: ETIQUETA_CONCIENCIA[c], color: COLOR_CONCIENCIA[c] })),
-        { etiqueta: "Sin anunciar", color: COLOR_DESCONOCIDO, hueco: true },
-      ];
-    case "antenas":
-      return [
-        ...ANTENAS_MAPA.map((a) => ({ etiqueta: ANTENNA_LABEL[a], color: ANTENNA_COLOR[a] })),
-        { etiqueta: "Sin medir", color: COLOR_DESCONOCIDO, hueco: true },
-      ];
-    default:
-      return [];
+/** La leyenda sale de los mismos tramos que el pintado. */
+export function leyendaDe(capa: CapaSenal): ItemLeyenda[] {
+  return capa.tramos.map((t) => ({ etiqueta: t.etiqueta, color: t.color, estilo: t.estilo }));
+}
+
+export const NOTA_PARCHE = "El color marca el punto donde se midió; su tamaño no es un alcance de cobertura.";
+
+// ── Estado guardado de las capas (por persona, en este navegador) ─────────────────────────────
+
+export interface EstadoCapas {
+  activas: string[];
+  opacidad: Record<string, number>;
+}
+
+export const OPACIDAD_POR_DEFECTO = 0.8;
+export const CLAVE_CAPAS_SENALES = "starseed.senales.mapa.capas.v1";
+export const CLAVE_VISTA_SENALES = "starseed.senales.mapa.view.v1";
+
+export function estadoCapasInicial(): EstadoCapas {
+  return { activas: ["senal-internet"], opacidad: {} };
+}
+
+/** Lee lo guardado sin fiarse de su forma: ids desconocidos fuera, opacidad acotada a 0.1..1. */
+export function sanearEstadoCapas(x: unknown): EstadoCapas {
+  const base = estadoCapasInicial();
+  if (!x || typeof x !== "object") return base;
+  const o = x as Record<string, unknown>;
+  const activas = Array.isArray(o.activas) ? o.activas.filter((i): i is string => typeof i === "string" && i in CAPA_POR_ID) : base.activas;
+  const opacidad: Record<string, number> = {};
+  if (o.opacidad && typeof o.opacidad === "object") {
+    for (const [k, v] of Object.entries(o.opacidad as Record<string, unknown>)) {
+      if (k in CAPA_POR_ID && typeof v === "number" && Number.isFinite(v)) opacidad[k] = Math.max(0.1, Math.min(1, v));
+    }
   }
-}
-
-export function normalizarCapaConciencia(c: string): CapaConcienciaId | null {
-  const id = c.startsWith("capa:") ? c.slice(5) : c;
-  return id === "local" || id === "mesh" || id === "nube" || id === "colectiva" ? id : null;
+  return { activas: Array.from(new Set(activas)), opacidad };
 }

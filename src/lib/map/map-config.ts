@@ -55,10 +55,10 @@ function isClient(): boolean {
 }
 
 /** Lee el estado persistido del mapa (merge defensivo sobre los defaults). */
-export function loadMapView(): MapViewState {
+export function loadMapView(key: string = MAP_VIEW_KEY): MapViewState {
     if (!isClient()) return { ...DEFAULT_MAP_VIEW };
     try {
-        const raw = localStorage.getItem(MAP_VIEW_KEY);
+        const raw = localStorage.getItem(key);
         if (!raw) return { ...DEFAULT_MAP_VIEW };
         const parsed = JSON.parse(raw) as Partial<MapViewState>;
         return {
@@ -74,10 +74,10 @@ export function loadMapView(): MapViewState {
 }
 
 /** Persiste el estado del mapa. Nunca lanza. */
-export function saveMapView(view: MapViewState): void {
+export function saveMapView(view: MapViewState, key: string = MAP_VIEW_KEY): void {
     if (!isClient()) return;
     try {
-        localStorage.setItem(MAP_VIEW_KEY, JSON.stringify(view));
+        localStorage.setItem(key, JSON.stringify(view));
     } catch {
         /* cuota llena / privado: el mapa sigue funcionando sin persistir */
     }

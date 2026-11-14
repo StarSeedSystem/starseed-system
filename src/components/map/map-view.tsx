@@ -45,6 +45,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { loadLeaflet, type LeafletNS } from "@/lib/map/leaflet-loader";
+import type { MapViewExtension, MapExtensionCtx } from "@/components/map/map-view-extension";
 import {
     BASE_LAYERS,
     BASE_LAYER_BY_ID,
@@ -185,7 +186,7 @@ interface MyIdentity {
     anonymous: boolean;
 }
 
-export function MapView({ className }: { className?: string }) {
+export function MapView({ className, extension }: { className?: string; extension?: MapViewExtension }) {
     const router = useRouter();
     const { toast } = useToast();
 
@@ -205,9 +206,14 @@ export function MapView({ className }: { className?: string }) {
     const geoWatchRef = useRef<number | null>(null);
     const lastShareSentRef = useRef(0);
     const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    /** (MAP1114C) La extensión vigente, para los handlers de Leaflet (sin closures viejos). */
+    const extRef = useRef<MapViewExtension | undefined>(extension);
+    extRef.current = extension;
+    const extVigilar = !!extension?.vigilarPosicion;
+    const centrarPendienteRef = useRef(false);
 
     // ── Estado ──
-    const initialView = useMemo<MapViewState>(() => loadMapView(), []);
+    const initialView = useMemo<MapViewState>(() => loadMapView(extension?.viewKey), []); // eslint-disable-line react-hooks/exhaustive-deps
     const [ready, setReady] = useState(false);
     const [loadError, setLoadError] = useState<string | null>(null);
     const [baseId, setBaseId] = useState(initialView.base);
@@ -281,7 +287,7 @@ export function MapView({ className }: { className?: string }) {
                 overlaysOn: s.overlaysOn,
                 overlayOpacity: s.overlayOpacity,
                 dataLayers: s.dataLayers,
-            });
+            }, extRef.current?.viewKey);
         } catch { /* noop */ }
     }, []);
 
@@ -331,7 +337,9 @@ export function MapView({ className }: { className?: string }) {
                 // Deep-link ?lat=&lng=&zoom= (p. ej. desde el adjunto "Ver en el
                 // Mapa" de una propuesta territorial).
                 let { lat, lng, zoom } = initialView;
-                try {
+                // (MAP1114C) Con extensión no hay deep-link: `Number(null)` es 0 y mandaría el mapa al punto 0,0 (zoom 0);
+                // la extensión usa su propia vista guardada o la ubicación del aparato. Sin extensión, todo como antes.
+                if (!extRef.current) try {
                     const q = new URLSearchParams(window.location.search);
                     const qlat = Number(q.get("lat"));
                     const qlng = Number(q.get("lng"));
@@ -773,6 +781,8 @@ export function MapView({ className }: { className?: string }) {
     const applyMyPosition = useCallback((lat: number, lng: number, accuracy?: number) => {
         const L = lRef.current, map = mapRef.current;
         if (!L || !map) return;
+        extRef.current?.onMiPosicion?.({ lat, lng, accuracy: typeof accuracy === "number" && Number.isFinite(accuracy) ? accuracy : null, t: Date.now() });
+        if (extRef.current?.ocultarPuntoPropio) return;
         try {
             if (!myLocRef.current) {
                 const marker = L.marker([lat, lng], {
@@ -803,7 +813,7 @@ export function MapView({ className }: { className?: string }) {
     }, []);
 
     useEffect(() => {
-        const shouldWatch = following || shareCfg.mode !== "off";
+        const shouldWatch = following || shareCfg.mode !== "off" || extVigilar;
         if (typeof navigator === "undefined" || !navigator.geolocation) return;
         if (!shouldWatch) {
             if (geoWatchRef.current != null) {
@@ -818,7 +828,10 @@ export function MapView({ className }: { className?: string }) {
                 (pos) => {
                     const { latitude, longitude, accuracy } = pos.coords;
                     applyMyPosition(latitude, longitude, accuracy);
-                    if (following && mapRef.current) {
+                    if (centrarPendienteRef.current && mapRef.current) {
+                        centrarPendienteRef.current = false;
+                        try { mapRef.current.setView([latitude, longitude], extRef.current?.zoomAlCentrar ?? 18); } catch { /* noop */ }
+                    } else if (following && mapRef.current) {
                         try { mapRef.current.setView([latitude, longitude]); } catch { /* noop */ }
                     }
                     // Emite con throttle si el modo lo permite (nunca anónimos).
@@ -831,11 +844,14 @@ export function MapView({ className }: { className?: string }) {
                     }
                 },
                 () => {
-                    toast({
-                        title: "Sin acceso al GPS",
-                        description: "Concede permiso de ubicación al navegador para usar esta función.",
-                        variant: "destructive",
-                    });
+                    if (extRef.current?.onErrorUbicacion) extRef.current.onErrorUbicacion("el navegador negó la ubicación o no pudo darla");
+                    else {
+                        toast({
+                            title: "Sin acceso al GPS",
+                            description: "Concede permiso de ubicación al navegador para usar esta función.",
+                            variant: "destructive",
+                        });
+                    }
                     setFollowing(false);
                 },
                 { enableHighAccuracy: true, maximumAge: 10_000, timeout: 20_000 },
@@ -847,7 +863,7 @@ export function MapView({ className }: { className?: string }) {
                 geoWatchRef.current = null;
             }
         };
-    }, [following, shareCfg.mode, me, applyMyPosition, toast]);
+    }, [following, shareCfg.mode, extVigilar, me, applyMyPosition, toast]);
 
     // "Mi ubicación": centra y activa seguimiento.
     const locateMe = useCallback(() => {
@@ -863,6 +879,10 @@ export function MapView({ className }: { className?: string }) {
                 setFollowing(true);
             },
             () => {
+                if (extRef.current?.onErrorUbicacion) {
+                    extRef.current.onErrorUbicacion("no diste permiso de ubicación o el aparato no pudo darla");
+                    return;
+                }
                 toast({
                     title: "Sin acceso al GPS",
                     description: "Concede permiso de ubicación al navegador.",
@@ -872,6 +892,29 @@ export function MapView({ className }: { className?: string }) {
             { enableHighAccuracy: true, timeout: 15_000 },
         );
     }, [applyMyPosition, toast]);
+
+    // (MAP1114C) Extensión: al abrir, centra en mi ubicación SOLO si el permiso ya estaba concedido. Usa la misma
+    // vigilancia (`watchPosition`) del Hub: la primera medida centra y acerca; las siguientes siguen el punto.
+    useEffect(() => {
+        const ext = extRef.current;
+        if (!ready || !ext?.centrarEnMiUbicacion) return;
+        if (typeof navigator === "undefined" || !navigator.geolocation) return;
+        let alive = true;
+        void (async () => {
+            try {
+                const st = await navigator.permissions?.query({ name: "geolocation" as PermissionName });
+                if (!alive || st?.state !== "granted") return;
+                centrarPendienteRef.current = true;
+                setFollowing(true);
+            } catch { /* sin API de permisos: no se centra solo */ }
+        })();
+        return () => { alive = false; };
+    }, [ready]);
+
+    const extCtx = useMemo<MapExtensionCtx | null>(() => {
+        if (!ready || !lRef.current || !mapRef.current) return null;
+        return { L: lRef.current, map: mapRef.current, ubicarme: locateMe, abrirCapas: () => { setLayersOpen(true); setShareOpen(false); }, dejarDeSeguir: () => setFollowing(false) };
+    }, [ready, locateMe]);
 
     // ── Buscador de lugares (Nominatim, debounce 600 ms — uso educado) ──
     useEffect(() => {
@@ -1208,7 +1251,8 @@ export function MapView({ className }: { className?: string }) {
 
                 {/* Panel de capas */}
                 {layersOpen && (
-                    <div className={cn(glassPanel, "w-[min(320px,calc(100vw-2rem))] max-h-[70vh] overflow-y-auto p-4 space-y-4")}>
+                    <div className={cn(glassPanel, "w-[min(320px,calc(100vw-2rem))] max-h-[70vh] overflow-y-auto p-4 space-y-4", extension?.clasePanelCapas)}>
+                        {extCtx && extension?.seccionCapas?.(extCtx)}
                         <div>
                             <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-white/45">Capa base</p>
                             <div className="grid grid-cols-2 gap-2">
@@ -1590,6 +1634,9 @@ export function MapView({ className }: { className?: string }) {
                     </div>
                 </div>
             )}
+
+            {/* (MAP1114C) Superposiciones de la extensión (leyendas, ficha). Sin extensión no hay nada. */}
+            {extCtx && extension?.superposicion?.(extCtx)}
 
             {/* ── Crédito soberano (además de la atribución obligatoria de Leaflet) ── */}
             <div className="absolute bottom-8 left-3 z-10 hidden sm:block">
