@@ -671,6 +671,53 @@ def test_peticion_higgsfield_proyecto_sistema_diseno(tmp_path, monkeypatch):
     assert "sistema-diseno" in texto
 
 
+def test_comando_higgsfield_aprobar_llama_drive(tmp_path, monkeypatch):
+    """/higgsfield aprobar llama a la función de subida a Drive cuando la ejecución es exitosa."""
+    propuestas = [
+        {"id": "test-drive", "proyecto": "demo", "pieza": "intro", "modelo": "seedance-2.0",
+         "comando": ["higgsfield", "generate", "seedance_2_0"], "tomas": 1, "creditos_estimados": 10.0,
+         "motivo": "test"},
+    ]
+    drive_calls = []
+    def mock_subir(propuesta, resultado):
+        drive_calls.append((propuesta, resultado))
+    monkeypatch.setattr(mod, "_subir_resultado_higgsfield_a_drive", mock_subir)
+    respuestas = _recibir_higgsfield(tmp_path, monkeypatch, "/higgsfield aprobar test-drive", propuestas=propuestas)
+    # Verificar que se llamó a la función de Drive
+    assert len(drive_calls) == 1
+    assert drive_calls[0][0]["id"] == "test-drive"
+    assert drive_calls[0][1].get("ok") is True
+    # Verificar respuestas: aprobada + completada
+    assert any("Aprobada" in r for r in respuestas)
+    assert any("completada" in r for r in respuestas)
+
+
+def test_comando_higgsfield_aprobar_no_llama_drive_si_falla(tmp_path, monkeypatch):
+    """/higgsfield aprobar NO llama a Drive si la ejecución falla."""
+    propuestas = [
+        {"id": "test-drive-fail", "proyecto": "demo", "pieza": "intro", "modelo": "seedance-2.0",
+         "comando": ["higgsfield", "generate", "seedance_2_0"], "tomas": 1, "creditos_estimados": 10.0,
+         "motivo": "test"},
+    ]
+    drive_calls = []
+    def mock_subir(propuesta, resultado):
+        drive_calls.append((propuesta, resultado))
+    # Mock ejecutar para que falle
+    import higgsfield_aprobado as hfa_mod
+    original_ejecutar = hfa_mod.ejecutar
+    def mock_ejecutar(*args, **kwargs):
+        return {"ok": False, "motivo": "error de prueba", "creditos": 0, "aviso": "", "reintentado": False}
+    monkeypatch.setattr(hfa_mod, "ejecutar", mock_ejecutar)
+    try:
+        respuestas = _recibir_higgsfield(tmp_path, monkeypatch, "/higgsfield aprobar test-drive-fail", propuestas=propuestas)
+    finally:
+        monkeypatch.setattr(hfa_mod, "ejecutar", original_ejecutar)
+    # Verificar que NO se llamó a Drive
+    assert len(drive_calls) == 0
+    # Verificar respuesta de error
+    assert any("falló" in r for r in respuestas)
+
+
 if __name__ == "__main__":
     import pytest
     pytest.main([__file__, "-v"])

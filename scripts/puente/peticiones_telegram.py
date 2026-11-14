@@ -403,7 +403,7 @@ def recibir(upd: dict[str, Any]) -> None:
         return
     if texto.startswith("/higgsfield aprobar "):
         pid = texto.split(" ", 2)[2]
-        _comando_higgsfield_aprobar(pid)
+        _comando_higgsfield_aprobar(pid, subir_a_drive=_subir_resultado_higgsfield_a_drive)
         return
     if texto.startswith("/higgsfield rechazar "):
         pid = texto.split(" ", 2)[2]
@@ -508,6 +508,41 @@ def _hfa_guardar_limite(proyecto: str, creditos: float):
         json.dump(limites, f, ensure_ascii=False, indent=1)
 
 
+def _subir_resultado_higgsfield_a_drive(propuesta: dict, resultado: dict) -> None:
+    """Sube el resultado de una ejecución de Higgsfield a Drive (carpeta del proyecto, cuenta alex-docs)."""
+    from peticiones_notebooklm import token_google
+    import urllib.request
+    import json as _json
+    import uuid
+    import tempfile
+    import os
+    proyecto = propuesta.get("proyecto", "sin-proyecto")
+    pid = propuesta.get("id", "sin-id")
+    nombre_archivo = f"higgsfield-{pid}-{propuesta.get('pieza', 'pieza')}.json"
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False, encoding="utf-8") as tmp:
+        _json.dump({"propuesta": propuesta, "resultado": resultado}, tmp, ensure_ascii=False, indent=1)
+        tmp_path = tmp.name
+    try:
+        tok = token_google("alex-docs")
+        url = "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart"
+        frontera = uuid.uuid4().hex
+        with open(tmp_path, "rb") as f:
+            contenido = f.read()
+        metadata = _json.dumps({"name": nombre_archivo, "parents": [proyecto]}).encode()
+        partes = [
+            (f'--{frontera}\r\nContent-Disposition: form-data; name="metadata"\r\nContent-Type: application/json\r\n\r\n').encode() + metadata + b'\r\n',
+            (f'--{frontera}\r\nContent-Disposition: form-data; name="file"; filename="{nombre_archivo}"\r\nContent-Type: application/json\r\n\r\n').encode() + contenido + b'\r\n',
+            (f'--{frontera}--\r\n').encode(),
+        ]
+        req = urllib.request.Request(url, b"".join(partes), {"Authorization": f"Bearer {tok}", "Content-Type": f"multipart/related; boundary={frontera}"})
+        urllib.request.urlopen(req, timeout=60)
+    finally:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+
+
 def _comando_higgsfield_listar() -> None:
     """Lista propuestas pendientes con créditos, presupuesto y gasto."""
     propuestas = _hfa_propuestas()
@@ -537,7 +572,7 @@ def _comando_higgsfield_listar() -> None:
     decir("\n".join(lineas))
 
 
-def _comando_higgsfield_aprobar(pid: str) -> None:
+def _comando_higgsfield_aprobar(pid: str, *, subir_a_drive=None) -> None:
     """Aprueba una propuesta y la ejecuta."""
     propuestas = _hfa_propuestas()
     propuesta = next((p for p in propuestas if str(p.get("id")) == pid), None)
@@ -561,7 +596,11 @@ def _comando_higgsfield_aprobar(pid: str) -> None:
     else:
         msg = f"✗ {pid} falló: {resultado.get('motivo', 'desconocido')}"
     decir(msg)
-    # TODO: enviar a Drive (carpeta del proyecto, cuenta alex-docs)
+    if subir_a_drive is not None and resultado.get("ok"):
+        try:
+            subir_a_drive(propuesta, resultado)
+        except Exception as e:
+            log("Drive upload failed:", e)
 
 
 def _comando_higgsfield_rechazar(pid: str) -> None:
