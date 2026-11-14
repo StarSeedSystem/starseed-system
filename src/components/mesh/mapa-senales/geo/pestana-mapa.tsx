@@ -132,7 +132,7 @@ function EstadoVacio({ yo, permiso, desde, total, onUbicarme }: { yo?: MarcaGeo;
       <MapPinOff className="mx-auto mb-1.5 h-5 w-5 text-white/55" />
       <p className="text-[13px] font-medium text-white/90">Ninguna neurona de tu cuenta tiene posición conocida</p>
       <p className="mt-1 text-[11px] leading-snug text-white/60">
-        Este aparato: {motivo}. {total > 1 ? `Las otras ${total - 1} neuronas de tu cuenta no anuncian posición.` : "No hay otras neuronas de tu cuenta conectadas."} Esta vista empezó a las {horaDe(desde)} y desde entonces no recibió ninguna posición.
+        {motivo.charAt(0).toUpperCase() + motivo.slice(1)}. {total > 1 ? `Las otras ${total - 1} neuronas de tu cuenta no anuncian posición.` : "No hay otras neuronas de tu cuenta conectadas."} Esta vista empezó a las {horaDe(desde)} y desde entonces no recibió ninguna posición.
       </p>
       {permiso !== "denegado" && (
         <button type="button" onClick={onUbicarme} className="mt-2 inline-flex min-h-10 cursor-pointer items-center rounded-lg border border-emerald-400/30 bg-emerald-500/10 px-3 text-[12px] text-emerald-100 hover:bg-emerald-500/20">Usar mi ubicación</button>
