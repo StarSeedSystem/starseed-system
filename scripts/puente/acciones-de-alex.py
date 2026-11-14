@@ -44,6 +44,15 @@ _spec = importlib.util.spec_from_file_location(
 _pas = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_pas)
 
+# Higgsfield (HGF1113B): leer propuestas pendientes para acciones-de-alex
+try:
+    _spec_hfa = importlib.util.spec_from_file_location(
+        "higgsfield_aprobado", os.path.join(os.path.dirname(os.path.abspath(__file__)), "higgsfield_aprobado.py"))
+    _hfa = importlib.util.module_from_spec(_spec_hfa)
+    _spec_hfa.loader.exec_module(_hfa)
+except Exception:
+    _hfa = None
+
 #: Los nombres que el workflow de la nube lee. Solo NOMBRES, jamás un valor.
 #:
 #: (2026-09-21) Esta lista estaba ESCRITA DOS VECES —aquí y en `nube-gh.py`— y las dos
@@ -425,6 +434,33 @@ def construir_acciones(pasarelas, secretos_repo, catalogo=None, entorno=None, a1
                                       else "Claude no teclea claves de terceros; el guion las pide sin que se vean"),
             "detalle": "http %s · modelo %s" % (p.get("http"), p.get("modelo")),
         })
+
+    # Higgsfield (HGF1113B): propuestas pendientes de aprobación
+    if _hfa is not None:
+        try:
+            propuestas = _hfa._leer(_hfa.DIR, "propuestas.json", [])
+            if isinstance(propuestas, dict):
+                propuestas = propuestas.get("propuestas") or []
+            aprobaciones = _hfa._leer(_hfa.DIR, "aprobaciones.json", {})
+            for p in propuestas:
+                pid = str(p.get("id") or "")
+                if pid and pid not in aprobaciones:
+                    proyecto = str(p.get("proyecto") or "")
+                    pieza = str(p.get("pieza") or "")
+                    modelo = str(p.get("modelo") or "")
+                    est = float(p.get("creditos_estimados") or 0)
+                    acciones.append({
+                        "id": "higgsfield-%s" % pid,
+                        "titulo": "Aprobar Higgsfield: %s / %s (%s)" % (proyecto, pieza, modelo),
+                        "por_que": "Propuesta de Higgsfield pendiente de aprobación (est. %.1f créditos)" % est,
+                        "urgencia": "media",
+                        "comando": PREFIJO + "python3 -c \"import sys; sys.path.insert(0, '%s/scripts/puente'); import peticiones_telegram as m; m._comando_higgsfield_aprobar('%s')\" 2>/dev/null || echo 'ejecutar desde el bot'" % (RAIZ, pid),
+                        "enlace": "",
+                        "por_que_no_lo_hago_yo": "solo Alex puede aprobar gastos de Higgsfield",
+                        "detalle": "id: %s | proyecto: %s | pieza: %s | modelo: %s | est. %.1f créditos | /higgsfield aprobar %s" % (pid, proyecto, pieza, modelo, est, pid),
+                    })
+        except Exception:
+            pass
 
     orden = {"alta": 0, "media": 1, "baja": 2}
     acciones.sort(key=lambda a: (orden.get(a["urgencia"], 9), a["id"]))

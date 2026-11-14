@@ -532,6 +532,145 @@ def test_main_inicializa_y_arranca_hilos(tmp_path):
         mod.CHAT = original_chat
 
 
+# Higgsfield (HGF1113B) tests
+
+def _hfa_base_test(tmp_path):
+    return str(tmp_path / "higgsfield")
+
+
+def _hfa_setup(tmp_path, monkeypatch, propuestas=None, aprobaciones=None, gastos=None, limites=None):
+    base = _hfa_base_test(tmp_path)
+    os.makedirs(base, exist_ok=True)
+    with open(os.path.join(base, "propuestas.json"), "w", encoding="utf-8") as f:
+        json.dump({"propuestas": propuestas or []}, f)
+    with open(os.path.join(base, "aprobaciones.json"), "w", encoding="utf-8") as f:
+        json.dump(aprobaciones or {}, f)
+    with open(os.path.join(base, "gasto.jsonl"), "w", encoding="utf-8") as f:
+        for g in (gastos or []):
+            f.write(json.dumps(g) + "\n")
+    with open(os.path.join(base, "presupuestos.json"), "w", encoding="utf-8") as f:
+        json.dump(limites or {}, f)
+    monkeypatch.setattr(mod, "hfa", __import__("higgsfield_aprobado"))
+    monkeypatch.setattr(mod.hfa, "DIR", base)
+
+
+def _recibir_higgsfield(tmp_path, monkeypatch, texto, propuestas=None, aprobaciones=None, gastos=None, limites=None):
+    for k, v in (("CHAT", "123456"), ("TOKEN", "fake"), ("DIR", str(tmp_path)),
+                 ("COLA", str(tmp_path / "cola.json")), ("ESTADO", str(tmp_path / "estado.json"))):
+        monkeypatch.setattr(mod, k, v)
+    respuestas = []
+    monkeypatch.setattr(mod, "decir", respuestas.append)
+    _hfa_setup(tmp_path, monkeypatch, propuestas, aprobaciones, gastos, limites)
+    recibir({"update_id": 999, "message": {"chat": {"id": "123456"}, "text": texto}})
+    return respuestas
+
+
+def test_higgsfield_listar_vacio(tmp_path, monkeypatch):
+    """/higgsfield sin propuestas dice que no hay pendientes."""
+    respuestas = _recibir_higgsfield(tmp_path, monkeypatch, "/higgsfield")
+    assert "No hay propuestas" in respuestas[0]
+
+
+def test_higgsfield_listar_con_propuestas(tmp_path, monkeypatch):
+    """/higgsfield muestra propuestas con créditos, presupuesto y gasto."""
+    propuestas = [
+        {"id": "abc123", "proyecto": "demo", "pieza": "intro", "modelo": "seedance-2.0",
+         "comando": ["higgsfield", "generate", "seedance_2_0"], "tomas": 1, "creditos_estimados": 10.0,
+         "motivo": "test"},
+        {"id": "def456", "proyecto": "sistema-diseno", "pieza": "hero", "modelo": "veo-3",
+         "comando": ["higgsfield", "generate", "veo_3"], "tomas": 1, "creditos_estimados": 25.0,
+         "motivo": "test2"},
+    ]
+    respuestas = _recibir_higgsfield(tmp_path, monkeypatch, "/higgsfield", propuestas=propuestas)
+    texto = respuestas[0]
+    assert "abc123" in texto
+    assert "def456" in texto
+    assert "demo" in texto
+    assert "sistema-diseno" in texto
+    assert "10.0" in texto or "10" in texto
+    assert "25.0" in texto or "25" in texto
+
+
+def test_higgsfield_aprobar_ejecuta(tmp_path, monkeypatch):
+    """/higgsfield aprobar <id> aprueba y ejecuta la propuesta."""
+    propuestas = [
+        {"id": "test123", "proyecto": "demo", "pieza": "intro", "modelo": "seedance-2.0",
+         "comando": ["higgsfield", "generate", "seedance_2_0"], "tomas": 1, "creditos_estimados": 10.0,
+         "motivo": "test"},
+    ]
+    respuestas = _recibir_higgsfield(tmp_path, monkeypatch, "/higgsfield aprobar test123", propuestas=propuestas)
+    # Debe responder con aprobada y ejecutada
+    assert any("Aprobada" in r for r in respuestas)
+    assert any("completada" in r or "falló" in r for r in respuestas)
+
+
+def test_higgsfield_aprobar_no_existe(tmp_path, monkeypatch):
+    """/higgsfield aprobar con id inexistente da error."""
+    respuestas = _recibir_higgsfield(tmp_path, monkeypatch, "/higgsfield aprobar noexiste")
+    assert any("no encontrada" in r for r in respuestas)
+
+
+def test_higgsfield_rechazar(tmp_path, monkeypatch):
+    """/higgsfield rechazar <id> rechaza la propuesta."""
+    propuestas = [
+        {"id": "test456", "proyecto": "demo", "pieza": "intro", "modelo": "seedance-2.0",
+         "comando": ["higgsfield", "generate", "seedance_2_0"], "tomas": 1, "creditos_estimados": 10.0,
+         "motivo": "test"},
+    ]
+    respuestas = _recibir_higgsfield(tmp_path, monkeypatch, "/higgsfield rechazar test456", propuestas=propuestas)
+    assert any("Rechazada" in r for r in respuestas)
+
+
+def test_higgsfield_presupuesto(tmp_path, monkeypatch):
+    """/higgsfield presupuesto <proyecto> <créditos> establece el límite."""
+    respuestas = _recibir_higgsfield(tmp_path, monkeypatch, "/higgsfield presupuesto demo 100")
+    assert any("Presupuesto de demo establecido a 100" in r for r in respuestas)
+    # Verificar que se guardó
+    base = _hfa_base_test(tmp_path)
+    with open(os.path.join(base, "presupuestos.json"), encoding="utf-8") as f:
+        limites = json.load(f)
+    assert limites.get("proyectos", {}).get("demo", {}).get("creditos") == 100.0
+
+
+def test_higgsfield_presupuesto_uso_incorrecto(tmp_path, monkeypatch):
+    """/higgsfield presupuesto sin argumentos da ayuda."""
+    respuestas = _recibir_higgsfield(tmp_path, monkeypatch, "/higgsfield presupuesto")
+    assert any("Uso:" in r for r in respuestas)
+
+
+def test_peticion_higgsfield_crea_propuesta(tmp_path, monkeypatch):
+    """Mensaje pidiendo video de Higgsfield crea propuesta y pide aprobación."""
+    respuestas = _recibir_higgsfield(tmp_path, monkeypatch, "genera un video con seedance de 5 segundos")
+    assert len(respuestas) == 1
+    texto = respuestas[0]
+    assert "Nueva propuesta" in texto
+    assert "id:" in texto
+    assert "proyecto:" in texto
+    assert "créditos estimados" in texto
+    assert "/higgsfield aprobar" in texto
+    assert "/higgsfield rechazar" in texto
+    # Verificar que se guardó en propuestas.json
+    base = _hfa_base_test(tmp_path)
+    with open(os.path.join(base, "propuestas.json"), encoding="utf-8") as f:
+        datos = json.load(f)
+    assert len(datos.get("propuestas", [])) == 1
+    assert datos["propuestas"][0]["modelo"] == "seedance-2.0"
+
+
+def test_peticion_higgsfield_veo_crea_propuesta(tmp_path, monkeypatch):
+    """Mensaje pidiendo Veo crea propuesta con modelo veo-3."""
+    respuestas = _recibir_higgsfield(tmp_path, monkeypatch, "haz un clip con veo 3")
+    texto = respuestas[0]
+    assert "veo-3" in texto
+
+
+def test_peticion_higgsfield_proyecto_sistema_diseno(tmp_path, monkeypatch):
+    """Mensaje sobre sistema de diseño asigna proyecto correcto."""
+    respuestas = _recibir_higgsfield(tmp_path, monkeypatch, "video para el sistema de diseño")
+    texto = respuestas[0]
+    assert "sistema-diseno" in texto
+
+
 if __name__ == "__main__":
     import pytest
     pytest.main([__file__, "-v"])

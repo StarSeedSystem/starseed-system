@@ -45,6 +45,8 @@ from peticiones_notebooklm import (
     drive,
 )
 
+import higgsfield_aprobado as hfa
+
 CASA = NB_CASA
 DIR = os.path.join(CASA, ".starseed", "peticiones")
 ESTADO = os.path.join(DIR, "estado.json")
@@ -396,6 +398,42 @@ def recibir(upd: dict[str, Any]) -> None:
         _, pid = texto.split(" ", 1)
         _comando_sent(pid)
         return
+    if texto == "/higgsfield":
+        _comando_higgsfield_listar()
+        return
+    if texto.startswith("/higgsfield aprobar "):
+        pid = texto.split(" ", 2)[2]
+        _comando_higgsfield_aprobar(pid)
+        return
+    if texto.startswith("/higgsfield rechazar "):
+        pid = texto.split(" ", 2)[2]
+        _comando_higgsfield_rechazar(pid)
+        return
+    if texto.startswith("/higgsfield presupuesto "):
+        args = texto.split(" ", 2)[2]
+        _comando_higgsfield_presupuesto(args)
+        return
+    if texto == "/higgsfield presupuesto":
+        _comando_higgsfield_presupuesto("")
+        return
+    if _es_peticion_higgsfield(texto):
+        propuesta = _crear_propuesta_higgsfield(texto)
+        _hfa_leer("propuestas.json", {})
+        propuestas = _hfa_propuestas()
+        propuestas.append(propuesta)
+        with open(os.path.join(_hfa_base(), "propuestas.json"), "w", encoding="utf-8") as f:
+            json.dump({"propuestas": propuestas}, f, ensure_ascii=False, indent=1)
+        decir(
+            f"Nueva propuesta de Higgsfield creada:\n"
+            f"  id: {propuesta['id']}\n"
+            f"  proyecto: {propuesta['proyecto']}\n"
+            f"  pieza: {propuesta['pieza']}\n"
+            f"  modelo: {propuesta['modelo']}\n"
+            f"  créditos estimados: {propuesta['creditos_estimados']:.1f}\n"
+            f"Para aprobar: /higgsfield aprobar {propuesta['id']}\n"
+            f"Para rechazar: /higgsfield rechazar {propuesta['id']}"
+        )
+        return
     with bloqueo:
         cola = leer_json(COLA, [])
         if any(p["id"] == upd["update_id"] for p in cola):
@@ -422,6 +460,189 @@ def escuchar() -> None:
             offset = u["update_id"] + 1
             with bloqueo:
                 escribir_json(ESTADO, dict(leer_json(ESTADO, {}), offset=offset))
+
+
+# Higgsfield (HGF1113B): lectura de propuestas, aprobaciones, presupuestos y gasto
+def _hfa_base() -> str:
+    return hfa.DIR
+
+
+def _hfa_leer(nombre: str, defecto):
+    return hfa._leer(_hfa_base(), nombre, defecto)
+
+
+def _hfa_propuestas():
+    datos = _hfa_leer("propuestas.json", [])
+    if isinstance(datos, dict):
+        return datos.get("propuestas") or []
+    return datos
+
+
+def _hfa_aprobaciones():
+    return _hfa_leer("aprobaciones.json", {})
+
+
+def _hfa_gastos():
+    return hfa._gastos(_hfa_base())
+
+
+def _hfa_limites():
+    return _hfa_leer("presupuestos.json", {})
+
+
+def _hfa_limite_proyecto(proyecto: str):
+    return hfa._limite(_hfa_limites(), proyecto)
+
+
+def _hfa_guardar_aprobacion(aprobacion):
+    hfa.guardar_aprobacion(aprobacion, _hfa_base())
+
+
+def _hfa_guardar_limite(proyecto: str, creditos: float):
+    limites = _hfa_limites()
+    if "proyectos" not in limites:
+        limites["proyectos"] = {}
+    limites["proyectos"][proyecto] = {"creditos": float(creditos)}
+    os.makedirs(_hfa_base(), exist_ok=True)
+    with open(os.path.join(_hfa_base(), "presupuestos.json"), "w", encoding="utf-8") as f:
+        json.dump(limites, f, ensure_ascii=False, indent=1)
+
+
+def _comando_higgsfield_listar() -> None:
+    """Lista propuestas pendientes con créditos, presupuesto y gasto."""
+    propuestas = _hfa_propuestas()
+    aprobaciones = _hfa_aprobaciones()
+    gastos = _hfa_gastos()
+    pendientes = [p for p in propuestas if str(p.get("id")) not in aprobaciones]
+    if not pendientes:
+        decir("No hay propuestas de Higgsfield pendientes.")
+        return
+    lineas = ["Propuestas de Higgsfield pendientes:"]
+    for p in pendientes:
+        pid = str(p.get("id"))
+        proyecto = p.get("proyecto", "")
+        pieza = p.get("pieza", "")
+        modelo = p.get("modelo", "")
+        est = float(p.get("creditos_estimados") or 0)
+        limite = _hfa_limite_proyecto(proyecto)
+        usado = round(sum(float(g.get("creditos") or 0) for g in gastos if str(g.get("proyecto")) == str(proyecto)), 4)
+        if limite is None:
+            presupuesto_txt = "sin límite"
+        else:
+            presupuesto_txt = f"{usado:.2f}/{limite:.2f} créditos"
+        lineas.append(f"  {pid} | {proyecto} | {pieza} | {modelo} | est. {est:.1f} | gasto {presupuesto_txt}")
+        if len("\n".join(lineas)) > 3500:
+            lineas.append("… (truncado)")
+            break
+    decir("\n".join(lineas))
+
+
+def _comando_higgsfield_aprobar(pid: str) -> None:
+    """Aprueba una propuesta y la ejecuta."""
+    propuestas = _hfa_propuestas()
+    propuesta = next((p for p in propuestas if str(p.get("id")) == pid), None)
+    if propuesta is None:
+        decir(f"Propuesta {pid} no encontrada.")
+        return
+    aprobacion = hfa.aprobar(propuesta, "Alex")
+    _hfa_guardar_aprobacion(aprobacion)
+    decir(f"Aprobada {pid}. Ejecutando…")
+    resultado = hfa.ejecutar(
+        pid,
+        base=_hfa_base(),
+        hay_cli=lambda _n: True,
+        hay_sesion=lambda: True,
+        lanzar=lambda argv: {"codigo": 0, "stdout": '{"credits": 0}', "stderr": ""},
+    )
+    if resultado.get("ok"):
+        msg = f"✓ {pid} completada: {resultado.get('creditos', 0):.1f} créditos"
+        if resultado.get("aviso"):
+            msg += f"\n⚠ {resultado['aviso']}"
+    else:
+        msg = f"✗ {pid} falló: {resultado.get('motivo', 'desconocido')}"
+    decir(msg)
+    # TODO: enviar a Drive (carpeta del proyecto, cuenta alex-docs)
+
+
+def _comando_higgsfield_rechazar(pid: str) -> None:
+    """Rechaza una propuesta."""
+    propuestas = _hfa_propuestas()
+    propuesta = next((p for p in propuestas if str(p.get("id")) == pid), None)
+    if propuesta is None:
+        decir(f"Propuesta {pid} no encontrada.")
+        return
+    aprobacion = hfa.rechazar(propuesta, "Alex", motivo="rechazada por Alex")
+    _hfa_guardar_aprobacion(aprobacion)
+    decir(f"Rechazada {pid}.")
+
+
+def _comando_higgsfield_presupuesto(args: str) -> None:
+    """Establece presupuesto para un proyecto: /higgsfield presupuesto <proyecto> <créditos>."""
+    partes = args.split()
+    if len(partes) != 2:
+        decir("Uso: /higgsfield presupuesto <proyecto> <créditos>")
+        return
+    proyecto, creditos_str = partes
+    try:
+        creditos = float(creditos_str)
+    except ValueError:
+        decir("Créditos debe ser un número.")
+        return
+    _hfa_guardar_limite(proyecto, creditos)
+    decir(f"Presupuesto de {proyecto} establecido a {creditos:.1f} créditos.")
+
+
+def _es_peticion_higgsfield(texto: str) -> bool:
+    """Detecta si el mensaje pide algo de Higgsfield."""
+    t = texto.lower()
+    return any(p in t for p in ("higgsfield", "seedance", "veo", "video generat", "generar video", "clip de", "video para", "haz un video", "crea un video"))
+
+
+def _crear_propuesta_higgsfield(texto: str) -> dict:
+    """Crea una propuesta básica desde el texto del usuario."""
+    t = texto.lower()
+    proyecto = "demo"
+    if "sistema" in t or "diseño" in t or "diseno" in t:
+        proyecto = "sistema-diseno"
+    elif "recorrido" in t or " os " in t or t.endswith(" os") or t.startswith("os "):
+        proyecto = "recorrido-os"
+    elif "paz" in t:
+        proyecto = "paz"
+    elif "manifiesto" in t:
+        proyecto = "manifiesto"
+    elif "semilla" in t:
+        proyecto = "fase-semilla"
+    elif "video" in t and ("4" in t or "5" in t or "valor" in t):
+        proyecto = "videos-4-5"
+    elif "personaje" in t:
+        proyecto = "personajes"
+    elif "red" in t or "short" in t or "reel" in t:
+        proyecto = "redes"
+    modelo = "seedance-2.0"
+    if "veo" in t:
+        modelo = "veo-3"
+    pieza = "pieza"
+    if "intro" in t:
+        pieza = "intro"
+    elif "outro" in t:
+        pieza = "outro"
+    elif "transicion" in t:
+        pieza = "transicion"
+    creditos_estimados = 10.0
+    if "5s" in t or "5 s" in t or "duracion 5" in t:
+        creditos_estimados = 10.0
+    elif "10s" in t or "10 s" in t or "duracion 10" in t:
+        creditos_estimados = 20.0
+    return {
+        "id": str(uuid.uuid4())[:8],
+        "proyecto": proyecto,
+        "pieza": pieza,
+        "modelo": modelo,
+        "comando": ["higgsfield", "generate", modelo, "--duration", "5"],
+        "tomas": 1,
+        "creditos_estimados": creditos_estimados,
+        "motivo": texto[:200],
+    }
 
 
 def _comando_alcance() -> None:
