@@ -46,6 +46,19 @@
     <circle cx="150" cy="40" r="120" fill="#DC143C" filter="url(#sec-glow-09)"/>
     <circle cx="650" cy="40" r="100" fill="#39FF14" filter="url(#sec-glow-09)"/>
   </g>
+  <g aria-hidden="true" transform="translate(700 40)" fill="none">
+    <circle r="24" stroke="#39FF14" stroke-opacity="0.18"/>
+    <g stroke="#39FF14" stroke-width="1.1" opacity="0.6">
+      <path d="M 0 0 L 0 -18 M 0 0 L 15.6 -9 M 0 0 L 15.6 9 M 0 0 L 0 18 M 0 0 L -15.6 9 M 0 0 L -15.6 -9"/>
+    </g>
+    <circle cy="-18" r="2" fill="#39FF14" stroke="none"/>
+    <circle cx="15.6" cy="-9" r="2" fill="#39FF14" stroke="none"/>
+    <circle cx="15.6" cy="9" r="2" fill="#39FF14" stroke="none"/>
+    <circle cy="18" r="2" fill="#39FF14" stroke="none"/>
+    <circle cx="-15.6" cy="9" r="2" fill="#39FF14" stroke="none"/>
+    <circle cx="-15.6" cy="-9" r="2" fill="#39FF14" stroke="none"/>
+    <circle r="3.2" fill="#DC143C" stroke="none"/>
+  </g>
   <g transform="translate(30, 12)">
     <circle cx="25" cy="25" r="25" fill="url(#sec-gradient-09)" filter="url(#sec-glow-09)"/>
     <text x="25" y="31" font-family="'Rajdhani', 'Inter', system-ui, sans-serif" font-size="20" font-weight="700" fill="#0A0F1D" text-anchor="middle" filter="url(#text-glow-09)">09</text>
