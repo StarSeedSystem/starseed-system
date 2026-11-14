@@ -1,0 +1,13 @@
+{
+ "ola": "nube-20261113",
+ "tareas": [
+  {
+   "id": "IMG-diaria-des-simular-formulate_next_intell",
+   "titulo": "Des-simular `formulate_next_intelligent_task` del Director",
+   "area": "imaginacion",
+   "archivos": [],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Des-simular `formulate_next_intelligent_task` del Director. (hoy `random.choice` de blueprints) → formular con motor real o `starseed-sub`. Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  }
+ ]
+}
