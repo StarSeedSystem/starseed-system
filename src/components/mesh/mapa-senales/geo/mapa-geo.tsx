@@ -52,7 +52,15 @@ function Ajustar({ puntos }: { puntos: [number, number][] }) {
 }
 
 /** Teselas del mapa (decisión 2 del contrato: proveedor por confirmar; un solo sitio donde cambiarlo). */
-export const URL_TESELAS = "https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png";
+export const PROVEEDOR_TESELAS = {
+  url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+  /** Uso razonable de las teselas de OSM: zoom acotado y sin precarga masiva. */
+  maxZoom: 18,
+  /** Las teselas de OSM son claras: se oscurecen solo en su panel (marcas y superposiciones no se tocan). */
+  filtroOscuro: "invert(1) hue-rotate(180deg) brightness(0.95) contrast(0.9) saturate(0.6)",
+} as const;
+export const URL_TESELAS = PROVEEDOR_TESELAS.url;
 
 export interface MapaGeoProps {
   marcas: readonly MarcaGeo[];
@@ -72,10 +80,15 @@ export default function MapaGeo({ marcas, capa, seleccion, onElegir, onSinTesela
   const yo = colocadas.find((x) => x.m.esYo);
   let fallos = 0;
   return (
-    <MapContainer center={puntos[0] ?? [20, 0]} zoom={puntos.length ? 12 : 2} scrollWheelZoom className="h-full w-full bg-[#070d19]" attributionControl>
+    <>
+    <style>{`.mapa-geo-teselas{filter:${PROVEEDOR_TESELAS.filtroOscuro}}`}</style>
+    <MapContainer center={puntos[0] ?? [20, 0]} zoom={puntos.length ? 12 : 2} maxZoom={PROVEEDOR_TESELAS.maxZoom} scrollWheelZoom className="h-full w-full bg-[#070d19]" attributionControl>
       <TileLayer
-        url={URL_TESELAS}
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
+        url={PROVEEDOR_TESELAS.url}
+        attribution={PROVEEDOR_TESELAS.attribution}
+        maxZoom={PROVEEDOR_TESELAS.maxZoom}
+        keepBuffer={1}
+        className="mapa-geo-teselas"
         eventHandlers={{ tileerror: () => { fallos += 1; if (fallos >= 4) onSinTeselas(); }, tileload: () => { fallos = 0; } }}
       />
       <Ajustar puntos={puntos} />
@@ -97,5 +110,6 @@ export default function MapaGeo({ marcas, capa, seleccion, onElegir, onSinTesela
         );
       })}
     </MapContainer>
+    </>
   );
 }
