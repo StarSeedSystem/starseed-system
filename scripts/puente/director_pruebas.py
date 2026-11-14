@@ -12,6 +12,7 @@ Genesis o la orden `pedir`— y, sin que nadie lo pida, sigue hasta el final la 
   python3 scripts/puente/director_pruebas.py pedir app-abrir --quien alex
   python3 scripts/puente/director_pruebas.py pedir ronda-iniciar --nota "llamadas con la tableta" [--minutos 30] --quien alex
   python3 scripts/puente/director_pruebas.py pedir ronda-terminar --quien alex
+  python3 scripts/puente/director_pruebas.py pedir banco-serie --esc ble-video-2min --rep 10 --quien claude   (BAN1114C)
   python3 scripts/puente/director_pruebas.py pasada [--json]     una pasada (la que corre el servicio)
   python3 scripts/puente/director_pruebas.py --bucle             el servicio de launchd: una pasada por minuto
   python3 scripts/puente/director_pruebas.py estado | pausar "motivo" | reanudar
@@ -245,6 +246,11 @@ class Medios:
 
     def pasada_ronda(self):
         return R.pasada(self.mundo_ronda())
+
+    # BAN1114C: la serie de llamadas automáticas corre en su propio proceso (banco_llamadas.py); aquí solo se lanza
+    def lanzar_serie_banco(self, esc, rep, quien):
+        import banco_llamadas
+        return banco_llamadas.lanzar_desacoplado(self.dir, esc, rep, quien)
 
     # chat y comprobaciones
     def chat(self, texto, canales, tipo, tarea=None):
@@ -482,6 +488,10 @@ def _atender(m, est, nombre, pet, ahora):
     if a in D.ACCIONES_RONDA:
         # RON1112C: instantáneo, sin red. Iniciar con una ronda activa la renueva (nunca pasa de 90 min desde que empezó).
         return R.aplicar(m.mundo_ronda(), a, pet["quien"], pet["nota"], pet["minutos"], pet["id"])
+    if a == "banco-serie":
+        # BAN1114C: lanza el programa de la serie aparte y vuelve al instante; nunca arranca una por su cuenta
+        ok, texto = m.lanzar_serie_banco(pet["esc"], pet["rep"], pet["quien"])
+        return ("hecha" if ok else "rechazada"), texto
     if a == "app-abrir":
         if m.app_abierta():
             return "hecha", ("la app ya estaba abierta, no la toco. Pedirle desde fuera que busque una actualización no es posible: "
@@ -673,6 +683,8 @@ def main(argv=None):
     p.add_argument("--plataforma")
     p.add_argument("--nota")
     p.add_argument("--minutos", type=int)
+    p.add_argument("--esc")        # BAN1114C: banco-serie
+    p.add_argument("--rep", type=int)   # BAN1114C: banco-serie
     s = sub.add_parser("pasada")
     s.add_argument("--json", action="store_true")
     sub.add_parser("estado")
@@ -684,7 +696,7 @@ def main(argv=None):
     if a.orden == "pedir":
         try:
             pid = escribir_peticion(m.dir, a.accion, a.quien, m.ahora(), sha=a.sha, numero=a.numero, prueba=a.prueba,
-                                    comprobacion=a.comprobacion, plataforma=a.plataforma, nota=a.nota, minutos=a.minutos)
+                                    comprobacion=a.comprobacion, plataforma=a.plataforma, nota=a.nota, minutos=a.minutos, esc=a.esc, rep=a.rep)
         except ValueError as e:
             print("error: %s" % e, file=sys.stderr)
             return 2

@@ -347,3 +347,61 @@ confirmar). Prueba el lado real de la Mac de c1; el de la tableta sigue siendo m
 2. **El sustituto no es el caso real**: el corte lógico y el «sin IP» con el Wi-Fi encendido pueden pasar donde el aparato
    falla (ha ocurrido toda la semana con el simulador). Por eso la etiqueta «simulado» y la regla de §2.
 3. **La Mac de 8 GB**: con el enjambre en marcha la calma se da poco; si se relajan los umbrales vuelven los falsos fallos.
+
+---
+
+## §9 Gramática de las marcas (BAN1114C)
+
+Lado Python de la fase 1 construido (`scripts/puente/banco_llamadas.py`, `banco_llamadas_logica.py`, pruebas `test_banco_llamadas*.py`).
+Lo que sigue es lo que el lado de la app (TypeScript y Rust) tiene que escribir en `enlaces.log`, **a través de `anotarLlamada`**
+(hito `"banco"`), y lo que el lado Python lee. Una sola función lo lee: `banco_llamadas_logica.parse_marca` (cubierta por
+`test_banco_llamadas.py`, clase `Marcas`). Una marca mal formada **no es marca** y se descarta; nada se interpreta a medias.
+
+### §9.1 El formato de línea (medido en la Mac, `enlaces.log` del 13-11)
+
+`anotarLlamada(hito, neurona, detalle)` produce el mensaje que va tras el último « · ». Dos formas reales, según haya enlace de llamada:
+
+```
+# con enlace (llamada en curso): <hora de escritura> web <hora interna> · llamada · b3 · neurona <uuid> · <mensaje>
+2026-11-14T03:00:09.001Z web 2026-11-14T03:00:08.000Z · llamada · b3 · neurona aaaa0002-0000-4000-8000-000000000003 · banco inicio esc=ble-video-2min serie=s20261114-0300 n=1 medio=sin-ip-desde-inicio tipo=video
+# sin enlace (la app sola): <hora de escritura> web <hora interna> · llamada · <mensaje>
+2026-11-14T03:00:01.000Z web 2026-11-14T03:00:00.000Z · llamada · banco sondeo orden=ninguna
+# la tableta (su registro llega a la Mac por el espejo Bluetooth, ≥ 8 s tarde): web (Maggaboard) <hora interna> · web · llamada · b1 · neurona <uuid de la Mac> · <mensaje>
+2026-11-14T03:00:22.000Z web (Maggaboard) 2026-11-14T03:00:13.000Z · web · llamada · b1 · neurona aaaa0000-0000-4000-8000-000000000001 · banco contesta esc=ble-video-2min serie=s20261114-0300 n=1 camara=si
+```
+
+Reglas: el mensaje empieza por `banco <evento>`; luego `clave=valor` separados por UN espacio, sin espacios dentro del valor; los ids
+(`esc`, `serie`) son `[a-z0-9-]{3,40}`; `n` entero de 1 a 999. Lo que importa para el orden y la vida es la **hora interna** de la línea.
+Cada marca la escribe quien la hizo (aparato `mac` = sin nombre entre paréntesis; la tableta lleva `(NombreDeLaTableta)`).
+Las marcas `inicio`, `contesta`, `fin` y `rechaza` van con el enlace de la llamada si lo hay; `armada`, `apagada`, `sondeo` y `calma`, sin él.
+El agrupador del banco (`banco_pruebas_logica.construir_llamada`) añade `escenario`, `serie` y `n` a la llamada que lleve una marca
+`inicio|contesta|fin|rechaza` (con `esc=`, `serie=`, `n=` en ese orden, justo tras el evento o tras otras claves).
+
+### §9.2 La tabla
+
+| Marca (mensaje) | Quién la escribe y cuándo | Campos | Qué hace con ella el lado Python |
+|---|---|---|---|
+| `banco armada con=<uuid> hasta=<ISO UTC> restantes=<k>` | app de la Mac, al armarse (tras el «Sí» del diálogo nativo) | `con` = neurona COMPLETA de la tableta elegida (a ella irá `orden.para`); `hasta` = `2026-11-14T07:00:00Z`; `restantes` = llamadas que quedan | la más reciente entre `armada` y `apagada` dice si está armada; vence a la hora de `hasta`; de ahí sale `para` |
+| `banco apagada motivo=<palabra>` | app de la Mac, al desarmarse (apagar, vencer, gastar llamadas, cerrar, alguien contestó a mano) | `motivo` sin espacios | deja de estar armada: la serie no empieza (o para) |
+| `banco sondeo orden=ninguna` | app de la Mac, como mucho una vez por minuto mientras sondea sin orden | `orden=ninguna` | prueba de vida |
+| `banco inicio esc=<id> serie=<id> n=<k> medio=<medio> tipo=<video\|audio>` | app de la Mac, al tomar la orden y justo antes de llamar (paso 8) | los de la orden | **toma de la orden**: el runner borra `orden.json`; abre la ventana de la llamada (2 s antes) |
+| `banco contesta esc=<id> serie=<id> n=<k> camara=<si\|no>` | tableta (paso 10), al contestar | `camara` | sin esta marca de la tableta la llamada NO vale («no se sabe que contestó») |
+| `banco fin esc=<id> serie=<id> n=<k> cuelga=<mac\|tableta> dur_s=<n>` | app de la Mac, al colgar (paso 13) | `cuelga` quien colgó; `dur_s` lo que la app midió | cierra la ventana (8 s después); `cuelga` debe ser el del guion (`mac`) y `dur_s` ≥ 120 |
+| `banco calma serie=<id> n=<k> fase=<inicio\|fin> carga1=<x> presion=<n> libre=<n>% swap=<n>% swapouts_min=<n>` | app de la Mac, al empezar y al acabar la llamada, copiando `calma.json` (`?` si no hay dato) (§5, última viñeta) | lecturas | solo prueba de vida; el juicio usa sus propias lecturas |
+| `banco rechaza esc=<id> serie=<id> n=<k> motivo=<m>` | quien rechaza la orden: la app de la Mac al recibir el acuse negativo, o la tableta | `motivo` ∈ {`modo-apagado`, `falta-permiso`, `otra-llamada`, `orden-caducada`} | la serie PARA con ese motivo («la tableta tiene otra llamada en curso», «falta el permiso de cámara o micrófono en la tableta», «el modo banco está apagado en la tableta», «la orden llegó caducada») |
+
+`apagada` y `calma` son añadidos de BAN1114C (el contrato fijaba `armada`, `sondeo`, `inicio`, `contesta`, `fin`, `calma` y los rechazos).
+Una orden que se ignora sin avisar acaba igual: sin `inicio` en 90 s la serie termina «sin veredicto» diciendo que la app no la tomó.
+
+### §9.3 Lo que decide el lado Python con ellas
+
+- **App «lista»** (nada empieza si no): la marca más reciente de la Mac entre `armada`, `sondeo`, `inicio`, `fin` y `calma` tiene ≤ 90 s,
+  y la más reciente entre `armada`/`apagada` es `armada` y no ha pasado su `hasta`. Si no: «la app de la Mac no está en modo banco o no
+  sondea desde las HH:MM». (Se admiten `inicio`/`fin`/`calma` como vida porque mientras hay llamada la app no sondea.)
+- **Orden**: `orden.json` v1 tal cual §1.2, `para` = `con` de la última `banco armada`. La app debe tratar `(serie, n)` como clave
+  única: el runner la borra al ver `banco inicio`, pero puede haberla leído dos veces antes.
+- **Llamada válida** (§3): marcas `inicio` y `fin` de la Mac y `contesta` de la tableta con ese `serie` y `n`; al menos una línea
+  `video-datos rx` y una `voz-datos rx` de la tableta después de la mitad entre `inicio` y `fin`; calma durante la llamada.
+- **Dónde está el resultado**: `~/.starseed/produccion/banco-llamadas/banco-llamadas.json` (series, llamadas con su juicio, números y
+  calma) y `python3 scripts/puente/banco_llamadas.py estado [--json]`. Pedir: `python3 scripts/puente/director_pruebas.py pedir
+  banco-serie --esc ble-video-2min --rep 10 --quien claude`. Todo veredicto lleva `medio_real:false` y «simulado».
