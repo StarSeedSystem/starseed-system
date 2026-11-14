@@ -323,3 +323,13 @@ P2P directo o por la capa de conciencia, con el mismo canal y el mismo gobierno 
 
 *Contrato CRN1114. No incluye código: solo este documento. La revisión de seguridad (§1) manda sobre las fases (§8):
 ninguna se construye si su fila de §1 no queda en «se construye».*
+
+---
+
+## §10 Decisiones de Alex del 14-11-2026 (anotadas al integrar · DOC1114Z)
+
+Fuente: órdenes O1114043351 y O1114043802 de la dirección principal al carril PRUEBAS (14-11, 04:33 y 04:38), que dicen que Alex las aprobó en vivo. Mandan sobre cualquier valor por defecto o recomendación escritos más arriba en este documento.
+
+- **Un aparato personal solo es nodo público dentro de un contenedor aislado.**
+- **Regla pétrea: el voto de una comunidad nunca anula el permiso del dueño de un aparato personal.**
+- **El internet público compartido por las capas de conciencia de la malla ya estaba aprobado**: no es una decisión abierta.
