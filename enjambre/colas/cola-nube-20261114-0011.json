@@ -1,0 +1,36 @@
+{
+ "ola": "nube-20261114",
+ "tareas": [
+  {
+   "ola": "RDM1113",
+   "id": "RDM1113D-d1",
+   "titulo": "Capturas reales del OS para la portada (parte 1 de 2)",
+   "archivos": [
+    "scripts/readme/capturas.mjs"
+   ],
+   "depende": [],
+   "prompt": "Lee architecture/readme-portada-1113.md. §3.4. capturas.mjs, con el Playwright ya instalado: de https://starseed-os.vercel.app, 3 o 4 pantallas públicas representativas (inicio, gobernanza o propuestas, Astraura, la Biblioteca o el lienzo, según lo que exista de verdad) en temas noche y nieve, a 1440×900 ×2, recortadas y en WebP de menos de 300 KB. Sin datos personales; si una pantalla necesita sesión, usa la cuenta de demostración de las pruebas o se omite. Guarda también capturas.json con lo que muestra cada una (para los textos alternativos).\n\n## PARTE 1 DE 2 (la dirección dividió RDM1113D: falla por sí misma (tarea:otro))\nEn esta parte tocas SOLO: scripts/readme/capturas.mjs. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "RDM1113D",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:otro)"
+   }
+  },
+  {
+   "id": "SES1113D",
+   "titulo": "Token maestro de NotebookLM (con aprobación)",
+   "archivos": [
+    "scripts/puente/sanador_token.py",
+    "scripts/puente/test_sanador_token.py",
+    "deploy/oracle/nodo/notebooklm-headless.sh"
+   ],
+   "depende": [],
+   "prompt": "Lee architecture/autorreparacion-sesiones-1113.md. §3.5. (1) notebooklm-headless.sh instala notebooklm-py[headless]==0.8.6 en el venv del A1 (/home/starseed/.starseed/venvs/notebooklm) y en la Mac, sin cambiar de versión. (2) sanador_token.py `arrancar notebooklm`: sale sin hacer nada si salud/aprobaciones.json no tiene notebooklm_master_token=true. Con aprobación, en la Mac ejecuta `notebooklm login --master-token --account alexbordongarrigos@gmail.com --browser chrome` en un perfil dedicado (el inicio de sesión lo hace Maggasukha; ningún agente toca contraseñas), copia al A1 solo los archivos del perfil (token maestro + android_id + storage_state) por el canal de claves con 600 y dueño starseed, y verifica en el A1 con `auth refresh --verify`. Nunca imprime ni registra el token; nunca va al repo, a Drive, a Supabase ni a Telegram. (3) Con token, la receta 2 del sanador queda activa. Pruebas sin red, con CLIs falsos, que comprueben que sin aprobación no se ejecuta nada y que ningún registro contiene el token.",
+   "ola": "SES1113",
+   "dependencias_ya_en_main": [
+    "SES1113B",
+    "SES1113C"
+   ]
+  }
+ ]
+}
