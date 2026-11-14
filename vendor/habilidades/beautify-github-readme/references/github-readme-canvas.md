@@ -72,7 +72,7 @@ Use lowercase hyphenated names. Remove discarded variants before publishing unle
 
 ## Accessibility and trust
 
-- Write alt text that communicates the purpose, not merely "banner".
+- Write alt text that communicates the purpose, not merely “banner”.
 - Do not hide install commands or critical instructions inside images.
 - Use real outputs and clearly label conceptual visuals.
 - Check that text remains readable on both GitHub light and dark page backgrounds; the safest full-width SVG supplies its own background.

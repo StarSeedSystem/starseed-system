@@ -46,7 +46,7 @@ def audit_svg(path: Path) -> list[str]:
 
 def main() -> int:
     if len(sys.argv) != 2:
-        print("usage: audit_readme.py /path/to/repository/README.md", file=sys.stderr)
+        print("usage: audit_readme.py /path/to/README.md", file=sys.stderr)
         return 2
 
     readme = Path(sys.argv[1]).expanduser().resolve()
