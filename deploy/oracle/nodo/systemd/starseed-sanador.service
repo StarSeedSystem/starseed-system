@@ -2,6 +2,8 @@
 Description=StarSeed · Sanador de sesiones: comprobación y reparación automática (SES1113C)
 After=network-online.target
 Wants=network-online.target
+# requiere: /home/starseed/starseed-system/scripts/puente/sanador_sesiones.py
+# requiere: /home/starseed/starseed-system/scripts/puente/sanador_recetas.py
 
 [Service]
 Type=oneshot

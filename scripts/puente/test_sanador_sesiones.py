@@ -509,6 +509,63 @@ class SanadorSesionesTest(unittest.TestCase):
         self.assertEqual(estado["total"], 2)
         self.assertEqual(estado["vivas"], 2)
 
+    def test_regresion_systemd_execstart_red_no_escala(self):
+        """Regresión: ExecStart con fallo de red no escala, sale 0 y escribe estado.json."""
+        import re
+        service_path = Path(__file__).parent.parent.parent / "deploy" / "oracle" / "nodo" / "systemd" / "starseed-sanador.service"
+        
+        self.assertTrue(service_path.exists())
+        content = service_path.read_text(encoding="utf-8")
+        match = re.search(r'ExecStart=(.+)', content)
+        self.assertIsNotNone(match)
+        
+        exec_start = match.group(1).strip()
+        self.assertIn("sanador_sesiones.py", exec_start)
+        self.assertIn("comprobar", exec_start)
+        
+        # Extraer argumentos después del script
+        parts = exec_start.split()
+        script_idx = next(i for i, p in enumerate(parts) if "sanador_sesiones.py" in p)
+        args = parts[script_idx + 1:]
+        self.assertEqual(args, ["comprobar"])
+        
+        # Sanador con una sesión que falla por red
+        s = SS.SanadorSesiones(estado_file=self.estado_file, log_file=self.log_file)
+        escalados = []
+        
+        def enviar_falso(texto):
+            escalados.append(texto)
+            return {"ok": True}
+        s.enviar_fn = enviar_falso
+        
+        def comprobacion_red():
+            raise TimeoutError("Connection timed out")
+        
+        def receta_red():
+            raise ConnectionError("Network unreachable")
+        
+        s.registrar("notebooklm", comprobacion_red, [receta_red])
+        s.registrar("telegram", lambda: {"ok": True, "detalle": "ok"}, [])
+        
+        from io import StringIO
+        salida = StringIO()
+        # Ejecutar con los mismos args que ExecStart
+        code = SS.main(args, salida=salida, sanador=s)
+        
+        # Debe salir con 0 (red no es error interno)
+        self.assertEqual(code, 0)
+        # No debe haber escalado por fallo de red
+        self.assertEqual(len(escalados), 0)
+        # Debe escribir estado.json
+        self.assertTrue(self.estado_file.exists())
+        
+        estado = json.loads(self.estado_file.read_text(encoding="utf-8"))
+        self.assertEqual(estado["total"], 2)
+        self.assertEqual(estado["vivas"], 1)  # telegram viva
+        self.assertEqual(estado["caidas"], 1)  # notebooklm caída (red)
+        self.assertIn("notebooklm", estado["detalle"])
+        self.assertIn("telegram", estado["detalle"])
+
 
 if __name__ == "__main__":
     unittest.main()
