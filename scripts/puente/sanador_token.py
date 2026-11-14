@@ -96,8 +96,9 @@ def comando_login(binario: str, perfil: str = PERFIL) -> list[str]:
 
 
 def comando_verificar(venv: str = VENV_A1) -> str:
-    """PURA. La orden que corre en el A1: el perfil de destino es `default`."""
-    return "%s/bin/notebooklm auth refresh --verify" % venv
+    """PURA. La orden que corre en el A1: el perfil de destino es `default`.
+    Se ejecuta como usuario starseed (sudo -u starseed -H) para que use su HOME y perfil."""
+    return "sudo -u starseed -H %s/bin/notebooklm auth refresh --verify" % venv
 
 
 def _restringir(dir_perfil: Path) -> list[Path]:

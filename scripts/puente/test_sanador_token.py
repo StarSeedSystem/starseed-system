@@ -269,9 +269,15 @@ class SanadorTokenTest(unittest.TestCase):
             self.assertEqual(miembro.gname, "starseed")
 
     def test_comando_verificar_usa_el_venv_del_a1(self):
-        """PURA: la verificación corre con el CLI del venv del A1."""
+        """PURA: la verificación corre con el CLI del venv del A1, envuelta en sudo -u starseed -H."""
         self.assertEqual(ST.comando_verificar(),
-                         "/home/starseed/.starseed/venvs/notebooklm/bin/notebooklm auth refresh --verify")
+                         "sudo -u starseed -H /home/starseed/.starseed/venvs/notebooklm/bin/notebooklm auth refresh --verify")
+
+    def test_comando_verificar_corre_como_usuario_starseed(self):
+        """PURA: la verificación se envuelve con sudo -u starseed -H para correr como starseed."""
+        cmd = ST.comando_verificar()
+        self.assertTrue(cmd.startswith("sudo -u starseed -H "))
+        self.assertIn("/home/starseed/.starseed/venvs/notebooklm/bin/notebooklm auth refresh --verify", cmd)
 
 
 if __name__ == "__main__":
