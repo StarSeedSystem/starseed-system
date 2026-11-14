@@ -12,7 +12,7 @@ Group=starseed
 WorkingDirectory=/home/starseed/starseed-system
 Environment=STARSEED_ROOT=/home/starseed/starseed-system PYTHONUNBUFFERED=1
 Environment=HOME=/home/starseed
-Environment=PATH=/home/starseed/.local/bin:/home/starseed/.npm-global/bin:/home/starseed/.starseed/venvs/notebooklm/bin:/usr/local/bin:/usr/bin:/bin
+Environment=PATH=/home/starseed/.local/bin:/home/starseed/bin:/home/starseed/.npm-global/bin:/home/starseed/.starseed/venvs/notebooklm/bin:/usr/local/bin:/usr/bin:/bin
 Environment=NOTEBOOKLM_BIN=/home/starseed/.starseed/venvs/notebooklm/bin/notebooklm
 Environment=HIGGSFIELD_BIN=/home/starseed/.npm-global/bin/higgsfield
 ExecStart=/usr/bin/python3 /home/starseed/starseed-system/scripts/puente/sanador_sesiones.py comprobar
