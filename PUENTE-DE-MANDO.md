@@ -1,6 +1,6 @@
 # Genesis · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-13 23:38:48 desde Genesis vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-13 23:42:59 desde Genesis vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -16,16 +16,15 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | Agentes escribiendo | **0** |
 | En esta ola | integradas 0 · en curso 0 · esperando aprobación 0 · pendientes 15 |
 | Últimas 4 olas | en curso 0 · pendientes 100 · integradas 0 |
-| HEAD | `7758e79aa chore(memoria): aprendizaje de la ola auto-1113-233038` |
-| Sin publicar | 10 commits |
+| HEAD | `0ca6ac63d chore(memoria): aprendizaje de la ola auto-1113-233950` |
+| Sin publicar | 12 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-1113-233038.json`, hace 14s)
+## Quién escribe ahora (latido de `cola-auto-1113-233950.json`, hace 18s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `RDM1113D-d1` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 2 min | 147 s | 221306 |
-| `RDM1113Cs` | hecho | openrouter/cohere/north-mini-code: | 4 min | 261 s | 210212 |
+| `RDM1113D-d1` | hecho | openrouter/thinkingmachines/inklin | 2 min | 134 s | 251882 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
