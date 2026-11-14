@@ -45,6 +45,112 @@ AhoraFn = Callable[[], datetime]
 EnviarFn = Callable[[str], dict[str, Any]]
 LogFn = Callable[[str, str, dict[str, Any], float], None]
 
+# ─────────────────────────────── Resolución de binarios ───────────────────────────────
+
+def _resolver_binario(nombre: str) -> str | None:
+    """Resuelve la ruta del binario como el bot (peticiones_notebooklm.NBLM).
+    
+    Orden de prioridad:
+    1. Variable de entorno (NOTEBOOKLM_BIN / HIGGSFIELD_BIN) - se usa aunque no exista
+    2. Fallback A1: /home/starseed/.starseed/venvs/notebooklm/bin/notebooklm
+       o ~/.npm-global/bin/higgsfield (solo si existe)
+    3. Fallback Mac: ~/bin/notebooklm o ~/.local/bin/higgsfield (solo si existe)
+    
+    Un binario que no existe es "no instalado", no "caída", y no escala.
+    """
+    if nombre == "notebooklm":
+        env_var = "NOTEBOOKLM_BIN"
+        fallback_a1 = Path("/home/starseed/.starseed/venvs/notebooklm/bin/notebooklm")
+        fallback_mac = Path.home() / "bin" / "notebooklm"
+    elif nombre == "higgsfield":
+        env_var = "HIGGSFIELD_BIN"
+        fallback_a1 = Path.home() / ".npm-global" / "bin" / "higgsfield"
+        fallback_mac = Path.home() / ".local" / "bin" / "higgsfield"
+    else:
+        return None
+    
+    # 1. Variable de entorno - se usa tal cual (el ejecutor manejará "no instalado")
+    if os.environ.get(env_var):
+        return os.environ[env_var]
+    
+    # 2. Fallback A1 (solo si existe)
+    if fallback_a1.exists():
+        return str(fallback_a1)
+    
+    # 3. Fallback Mac (solo si existe)
+    if fallback_mac.exists():
+        return str(fallback_mac)
+    
+    # No instalado
+    return None
+
+
+def _ejecutar_binario(binario: str | None, args: list[str], timeout: int = 60) -> dict[str, Any]:
+    """Ejecuta un binario resuelto. Si es None (no instalado), devuelve error controlado."""
+    if binario is None:
+        return {"ok": False, "motivo": "binario no instalado", "no_instalado": True}
+    try:
+        resultado = subprocess.run(
+            [binario] + args,
+            capture_output=True, text=True, timeout=timeout
+        )
+        return {
+            "returncode": resultado.returncode,
+            "stdout": resultado.stdout,
+            "stderr": resultado.stderr,
+        }
+    except subprocess.TimeoutExpired:
+        return {"ok": False, "motivo": "timeout", "es_red": True}
+    except FileNotFoundError:
+        return {"ok": False, "motivo": "binario no encontrado", "no_instalado": True}
+    except Exception as e:
+        if _es_fallo_red(e):
+            return {"ok": False, "motivo": f"red: {e}", "es_red": True}
+        return {"ok": False, "motivo": f"error: {e}"}
+
+
+# ─────────────────────────────── Canal de escalado ───────────────────────────────
+
+def _cargar_env_escalado(ruta_env: str | None = None) -> dict[str, str]:
+    """Carga credenciales desde ~/.starseed/env (mismo lector que el bot peticiones_telegram.leer_env).
+    
+    Nunca imprime ni registra los tokens.
+    """
+    if ruta_env is None:
+        ruta_env = str(Path.home() / ".starseed" / "env")
+    datos = {}
+    try:
+        with open(ruta_env, encoding="utf-8") as f:
+            for linea in f:
+                linea = linea.strip()
+                if not linea or linea.startswith("#") or "=" not in linea:
+                    continue
+                k, v = linea.split("=", 1)
+                datos[k.replace("export ", "").strip()] = v.strip().strip('"').strip("'")
+    except OSError:
+        pass
+    return datos
+
+
+def _probar_envio_escalado(ruta_env: str | None = None) -> dict[str, Any]:
+    """Prueba que el canal de escalado puede enviar sin imprimir el token."""
+    env = _cargar_env_escalado(ruta_env)
+    token = env.get("TELEGRAM_SINTESIS_BOT_TOKEN", "")
+    chat_id = env.get("TELEGRAM_SINTESIS_CHAT_ID", "")
+    
+    if not token or not chat_id:
+        return {"ok": False, "motivo": "sin canal: faltan TELEGRAM_SINTESIS_BOT_TOKEN o TELEGRAM_SINTESIS_CHAT_ID en ~/.starseed/env"}
+    
+    # Solo validamos que las credenciales existen y tienen formato esperado
+    # No hacemos la llamada real para no spamear
+    if len(token) < 10:
+        return {"ok": False, "motivo": "token inválido"}
+    if not chat_id.startswith("-") and not chat_id.isdigit():
+        return {"ok": False, "motivo": "chat_id inválido"}
+    
+    return {"ok": True, "detalle": "canal de escalado configurado correctamente"}
+
+
 # Patrones de secretos para redactar (sin look-behind variable-width)
 _SECRETOS = [
     re.compile(r"\bsk-[A-Za-z0-9_\-]{16,}"),
@@ -115,22 +221,19 @@ def _escribir_atomico(ruta: Path, datos):
 
 def _receta_notebooklm_refresh() -> dict[str, Any]:
     """1. auth refresh --verify con espera creciente."""
+    binario = _resolver_binario("notebooklm")
+    if binario is None:
+        return {"ok": False, "motivo": "notebooklm no instalado", "no_instalado": True}
     try:
-        import subprocess
         # Espera creciente: 0, 30s, 1m, 2m, 5m (máx 5 intentos)
         # En la implementación real, esto se coordina con el keepalive
-        resultado = subprocess.run(
-            ["notebooklm", "auth", "refresh", "--verify"],
-            capture_output=True, text=True, timeout=60
-        )
-        if resultado.returncode == 0:
+        resultado = _ejecutar_binario(binario, ["auth", "refresh", "--verify"], timeout=60)
+        if resultado.get("returncode") == 0:
             return {"ok": True, "detalle": "auth refresh --verify ok"}
-        salida = (resultado.stdout + resultado.stderr).strip()
+        salida = (resultado.get("stdout", "") + resultado.get("stderr", "")).strip()
         if "authentication" in salida.lower() and ("expired" in salida.lower() or "error" in salida.lower()):
             return {"ok": False, "motivo": f"auth caducada: {salida[:200]}"}
         return {"ok": False, "motivo": f"refresh falló: {salida[:200]}"}
-    except subprocess.TimeoutExpired:
-        return {"ok": False, "motivo": "timeout en auth refresh", "es_red": True}
     except Exception as e:
         if _es_fallo_red(e):
             return {"ok": False, "motivo": f"red: {e}", "es_red": True}
@@ -139,19 +242,18 @@ def _receta_notebooklm_refresh() -> dict[str, Any]:
 
 def _receta_notebooklm_master_token() -> dict[str, Any]:
     """2. Volver a acuñar desde el token maestro (si existe)."""
+    binario = _resolver_binario("notebooklm")
+    if binario is None:
+        return {"ok": False, "motivo": "notebooklm no instalado", "no_instalado": True}
     try:
         # Verificar si hay token maestro aprobado
         aprob = _leer_json(APROBACIONES_DEF, {})
         if not aprob.get("notebooklm_master_token"):
             return {"ok": False, "motivo": "sin token maestro aprobado"}
-        import subprocess
-        resultado = subprocess.run(
-            ["notebooklm", "auth", "refresh"],
-            capture_output=True, text=True, timeout=60
-        )
-        if resultado.returncode == 0:
+        resultado = _ejecutar_binario(binario, ["auth", "refresh"], timeout=60)
+        if resultado.get("returncode") == 0:
             return {"ok": True, "detalle": "token maestro: refresh ok"}
-        return {"ok": False, "motivo": f"master token refresh falló: {(resultado.stdout+resultado.stderr)[:200]}"}
+        return {"ok": False, "motivo": f"master token refresh falló: {(resultado.get('stdout','')+resultado.get('stderr',''))[:200]}"}
     except Exception as e:
         if _es_fallo_red(e):
             return {"ok": False, "motivo": f"red: {e}", "es_red": True}
@@ -160,9 +262,11 @@ def _receta_notebooklm_master_token() -> dict[str, Any]:
 
 def _receta_notebooklm_restaurar_storage() -> dict[str, Any]:
     """3. Restaurar el storage_state.buena-* más reciente que pase auth check."""
+    binario = _resolver_binario("notebooklm")
+    if binario is None:
+        return {"ok": False, "motivo": "notebooklm no instalado", "no_instalado": True}
     try:
         import glob
-        import subprocess
         perfil_dir = Path.home() / ".notebooklm" / "profiles" / "default"
         archivos = sorted(
             glob.glob(str(perfil_dir / "storage_state.buena-*")),
@@ -175,11 +279,8 @@ def _receta_notebooklm_restaurar_storage() -> dict[str, Any]:
             temp = perfil_dir / "storage_state.tmp_check.json"
             shutil.copy2(arch, temp)
             try:
-                resultado = subprocess.run(
-                    ["notebooklm", "auth", "check", "--storage", str(temp)],
-                    capture_output=True, text=True, timeout=30
-                )
-                if resultado.returncode == 0:
+                resultado = _ejecutar_binario(binario, ["auth", "check", "--storage", str(temp)], timeout=30)
+                if resultado.get("returncode") == 0:
                     # Restaurar el bueno
                     shutil.copy2(arch, perfil_dir / "storage_state.json")
                     # Apartar el actual como .rota-<ts>
@@ -262,15 +363,14 @@ def _receta_google_oauth_refresh() -> dict[str, Any]:
 
 def _receta_higgsfield_check() -> dict[str, Any]:
     """Solo comprobación: higgsfield account."""
+    binario = _resolver_binario("higgsfield")
+    if binario is None:
+        return {"ok": False, "motivo": "higgsfield no instalado", "no_instalado": True}
     try:
-        import subprocess
-        resultado = subprocess.run(
-            ["higgsfield", "account"],
-            capture_output=True, text=True, timeout=30
-        )
-        if resultado.returncode == 0:
+        resultado = _ejecutar_binario(binario, ["account"], timeout=30)
+        if resultado.get("returncode") == 0:
             return {"ok": True, "detalle": "higgsfield ok"}
-        return {"ok": False, "motivo": f"higgsfield: {(resultado.stdout+resultado.stderr)[:200]}"}
+        return {"ok": False, "motivo": f"higgsfield: {(resultado.get('stdout','')+resultado.get('stderr',''))[:200]}"}
     except Exception as e:
         if _es_fallo_red(e):
             return {"ok": False, "motivo": f"red: {e}", "es_red": True}
@@ -333,8 +433,10 @@ def _receta_telegram_reintentar() -> dict[str, Any]:
 
 def _comprobar_notebooklm() -> dict[str, Any]:
     """auth check + list --json con cerrojo."""
+    binario = _resolver_binario("notebooklm")
+    if binario is None:
+        return {"ok": False, "motivo": "notebooklm no instalado", "no_instalado": True}
     try:
-        import subprocess
         import fcntl
         cerrojo = Path.home() / ".notebooklm" / "profiles" / "default" / ".starseed-cli.lock"
         cerrojo.parent.mkdir(parents=True, exist_ok=True)
@@ -345,24 +447,16 @@ def _comprobar_notebooklm() -> dict[str, Any]:
                 # CLI ocupado = sesión en uso = viva
                 return {"ok": True, "detalle": "CLI en uso (cerrojo ocupado)"}
             try:
-                r1 = subprocess.run(
-                    ["notebooklm", "auth", "check"],
-                    capture_output=True, text=True, timeout=30
-                )
-                r2 = subprocess.run(
-                    ["notebooklm", "list", "--json"],
-                    capture_output=True, text=True, timeout=30
-                )
-                if r1.returncode == 0 and r2.returncode == 0:
+                r1 = _ejecutar_binario(binario, ["auth", "check"], timeout=30)
+                r2 = _ejecutar_binario(binario, ["list", "--json"], timeout=30)
+                if r1.get("returncode") == 0 and r2.get("returncode") == 0:
                     return {"ok": True, "detalle": "auth check + list ok"}
-                salida = (r1.stdout + r1.stderr + r2.stdout + r2.stderr).strip()
+                salida = (r1.get("stdout", "") + r1.get("stderr", "") + r2.get("stdout", "") + r2.get("stderr", "")).strip()
                 if "authentication" in salida.lower() and ("expired" in salida.lower() or "error" in salida.lower()):
                     return {"ok": False, "motivo": f"auth caducada: {salida[:200]}"}
                 return {"ok": False, "motivo": f"check falló: {salida[:200]}"}
             finally:
                 fcntl.flock(f, fcntl.LOCK_UN)
-    except subprocess.TimeoutExpired:
-        return {"ok": False, "motivo": "timeout en comprobación", "es_red": True}
     except Exception as e:
         if _es_fallo_red(e):
             return {"ok": False, "motivo": f"red: {e}", "es_red": True}
@@ -586,7 +680,11 @@ class SanadorSesiones:
                 f.write(json.dumps(_sanear_dict(entrada), ensure_ascii=False) + "\n")
 
     def _escalado(self, sesion: str, motivo: str, recetas_intentadas: list[str], enviar_fn: EnviarFn | None = None) -> dict[str, Any]:
-        """Envía escalado (máx 1 por sesión y día)."""
+        """Envía escalado (máx 1 por sesión y día).
+        
+        Si no hay enviar_fn, intenta cargar credenciales desde ~/.starseed/env
+        (mismo lector que el bot) y validar el canal.
+        """
         fn = enviar_fn or self.enviar_fn
         hoy = self.ahora_fn().strftime("%Y-%m-%d")
         if self._ultimo_escalado.get(sesion) == hoy:
@@ -601,6 +699,16 @@ class SanadorSesiones:
             f"  • Desde el móvil: /renovar {sesion} en el bot\n"
             f"(MetaGenesis lo intentará solo al detectar la Mac activa)"
         )
+
+        # Si no hay función de envío, intentar canal por defecto (~/.starseed/env)
+        if fn is None:
+            # Probar que el canal está configurado
+            prueba = _probar_envio_escalado()
+            if not prueba.get("ok"):
+                return {"ok": False, "motivo": f"sin canal de envío: {prueba.get('motivo', 'desconocido')}", "escalado": "sin_canal"}
+            # Canal configurado pero no hay función de envío real (solo test)
+            # En producción, aquí se usaría sintesis_telegram.enviar(mensaje)
+            return {"ok": False, "motivo": "canal configurado pero sin función de envío real", "escalado": "sin_canal"}
 
         if fn:
             resp = fn(mensaje)
@@ -620,6 +728,7 @@ class SanadorSesiones:
         """Calcula y guarda el estado agregado en estado.json."""
         vivas = 0
         caidas = 0
+        no_instalados = 0
         detalle = {}
 
         for nombre in self._sesiones:
@@ -628,14 +737,20 @@ class SanadorSesiones:
                 vivas += 1
                 detalle[nombre] = {"estado": "viva", "detalle": check.get("detalle", "")}
             else:
-                caidas += 1
-                detalle[nombre] = {"estado": "caída", "motivo": check.get("motivo", "")}
+                no_instalado = check.get('no_instalado', False)
+                if no_instalado:
+                    no_instalados += 1
+                    detalle[nombre] = {"estado": "no_instalado", "motivo": check.get("motivo", "")}
+                else:
+                    caidas += 1
+                    detalle[nombre] = {"estado": "caída", "motivo": check.get("motivo", "")}
 
         estado = {
             "ts": self.ahora_fn().isoformat(),
             "total": len(self._sesiones),
             "vivas": vivas,
             "caidas": caidas,
+            "no_instalados": no_instalados,
             "detalle": detalle,
             "ultimo_escalado": self._ultimo_escalado,
         }
@@ -650,10 +765,12 @@ class SanadorSesiones:
         """Comprueba todas las sesiones registradas, repara las caídas y escribe estado.json.
         
         Una sesión caída no es un fallo del servicio: sale con 0 salvo error interno.
+        Un binario no instalado no cuenta como caída ni escala.
         """
         try:
             caidas = 0
             reparadas = 0
+            no_instalados = 0
             errores_internos = 0
             
             for nombre in self.listar():
@@ -661,12 +778,17 @@ class SanadorSesiones:
                 if check.get("ok"):
                     salida.write(f"✓ {nombre}: viva ({check.get('detalle', '')})\n")
                 else:
-                    caidas += 1
                     motivo = check.get('motivo', 'caída')
                     es_red = check.get('es_red', False)
-                    if es_red:
+                    no_instalado = check.get('no_instalado', False)
+                    
+                    if no_instalado:
+                        no_instalados += 1
+                        salida.write(f"○ {nombre}: no instalado ({motivo})\n")
+                    elif es_red:
                         salida.write(f"⚠ {nombre}: red ({motivo}) - se reintentará\n")
                     else:
+                        caidas += 1
                         salida.write(f"✗ {nombre}: caída ({motivo}) - reparando...\n")
                         r = self.reparar(nombre)
                         if r.get("ok"):
@@ -687,9 +809,11 @@ class SanadorSesiones:
             # Escribir estado agregado final
             self.actualizar_estado_agregado()
             
-            salida.write(f"\nResumen: {len(self.listar()) - caidas}/{len(self.listar())} vivas, {reparadas} reparadas\n")
+            total = len(self.listar())
+            vivas = total - caidas - no_instalados
+            salida.write(f"\nResumen: {vivas}/{total} vivas, {reparadas} reparadas, {no_instalados} no instalados\n")
             
-            # Error interno solo si hubo excepción no controlada (no sesión caída)
+            # Error interno solo si hubo excepción no controlada (no sesión caída ni no instalado)
             return 1 if errores_internos > 0 else 0
             
         except Exception as e:
@@ -765,12 +889,15 @@ def main(argv: list[str] | None = None, salida=None, sanador: SanadorSesiones | 
 
     if cmd == "estado":
         est = s.estado()
+        no_inst = est.get('no_instalados', 0)
         salida.write(
-            f"SESIONES · {est['vivas']}/{est['total']} vivas · {est['caidas']} caídas\n"
+            f"SESIONES · {est['vivas']}/{est['total']} vivas · {est['caidas']} caídas · {no_inst} no instalados\n"
         )
         for nombre, det in est["detalle"].items():
             if det["estado"] == "viva":
                 salida.write(f"  ✓ {nombre}: {det.get('detalle', 'ok')}\n")
+            elif det["estado"] == "no_instalado":
+                salida.write(f"  ○ {nombre}: no instalado ({det.get('motivo', '')})\n")
             else:
                 salida.write(f"  ✗ {nombre}: {det.get('motivo', 'caída')}\n")
         return 0

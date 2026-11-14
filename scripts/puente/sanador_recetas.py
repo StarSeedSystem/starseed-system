@@ -38,6 +38,39 @@ Ejecutar = Callable[[list[str], int], tuple[int, str]]
 Ping = Callable[[str], dict[str, Any]]
 
 
+def _resolver_higgsfield_binario() -> str | None:
+    """Resuelve la ruta del binario higgsfield (igual que en sanador_sesiones)."""
+    # 1. Variable de entorno
+    if os.environ.get("HIGGSFIELD_BIN"):
+        return os.environ["HIGGSFIELD_BIN"]
+    # 2. Fallback A1
+    fallback_a1 = Path.home() / ".npm-global" / "bin" / "higgsfield"
+    if fallback_a1.exists():
+        return str(fallback_a1)
+    # 3. Fallback Mac
+    fallback_mac = Path.home() / ".local" / "bin" / "higgsfield"
+    if fallback_mac.exists():
+        return str(fallback_mac)
+    # No instalado
+    return None
+
+
+def _ejecutar_binario_higgsfield(args: list[str], timeout: int = 30) -> tuple[int, str]:
+    """Ejecuta higgsfield con binario resuelto."""
+    binario = _resolver_higgsfield_binario()
+    if binario is None:
+        return 1, "higgsfield no instalado"
+    try:
+        r = subprocess.run([binario] + args, capture_output=True, text=True, timeout=timeout)
+        return r.returncode, (r.stdout or "") + (r.stderr or "")
+    except subprocess.TimeoutExpired:
+        return 124, "timeout"
+    except FileNotFoundError:
+        return 1, "binario no encontrado"
+    except Exception as e:
+        return 1, str(e)
+
+
 def _es_red(texto: Any) -> bool:
     """Distingue una caída de red de un fallo de autenticación."""
     t = str(texto).lower()
@@ -215,11 +248,15 @@ def receta_google_oauth(alias: str, renovar: Callable[[str], dict[str, Any]],
     return {"ok": True, "detalle": "refresh ok"}
 
 
-def comprobar_higgsfield(ejecutar: Ejecutar = _ejecutar) -> dict[str, Any]:
-    rc, salida = ejecutar(["higgsfield", "account"], 30)
+def comprobar_higgsfield(ejecutar: Ejecutar = _ejecutar_binario_higgsfield) -> dict[str, Any]:
+    rc, salida = ejecutar(["account"], 30)
     if rc == 0:
         return {"ok": True, "detalle": "higgsfield ok"}
-    return {"ok": False, "motivo": f"higgsfield: {salida.strip()[:160]} · {PASO_HIGGSFIELD}"}
+    no_instalado = "no instalado" in salida or "no encontrado" in salida
+    motivo = f"higgsfield: {salida.strip()[:160]} · {PASO_HIGGSFIELD}"
+    if no_instalado:
+        return {"ok": False, "motivo": motivo, "no_instalado": True}
+    return {"ok": False, "motivo": motivo}
 
 
 def receta_higgsfield_aviso(avisar: Callable[[str], Any] | None) -> dict[str, Any]:

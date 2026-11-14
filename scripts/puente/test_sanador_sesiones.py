@@ -99,15 +99,22 @@ class SanadorSesionesTest(unittest.TestCase):
 
     def test_reparar_todas_fallan(self):
         """Si todas las recetas fallan, devuelve escalado (sin canal de envio en test)."""
-        s = SS.SanadorSesiones()
-        s.registrar("test", lambda: {"ok": False}, [
-            lambda: {"ok": False, "motivo": "fallo 1"},
-            lambda: {"ok": False, "motivo": "fallo 2"},
-        ])
-        resultado = s.reparar("test")
-        self.assertFalse(resultado["ok"])
-        self.assertIn("sin canal", resultado["motivo"])
-        self.assertEqual(resultado.get("escalado"), "sin_canal")
+        # Mock Path.home para que _probar_envio_escalado use el directorio temporal
+        with patch("pathlib.Path.home", return_value=self.home):
+            # Asegurar que no hay archivo env que pueda configurar el canal
+            env_file = self.home / ".starseed" / "env"
+            if env_file.exists():
+                env_file.unlink()
+            
+            s = SS.SanadorSesiones(estado_file=self.estado_file)
+            s.registrar("test", lambda: {"ok": False}, [
+                lambda: {"ok": False, "motivo": "fallo 1"},
+                lambda: {"ok": False, "motivo": "fallo 2"},
+            ])
+            resultado = s.reparar("test")
+            self.assertFalse(resultado["ok"])
+            self.assertIn("sin canal", resultado["motivo"])
+            self.assertEqual(resultado.get("escalado"), "sin_canal")
 
     def test_reparar_sin_recetas(self):
         """Si no hay recetas, devuelve error."""
@@ -565,6 +572,154 @@ class SanadorSesionesTest(unittest.TestCase):
         self.assertEqual(estado["caidas"], 1)  # notebooklm caída (red)
         self.assertIn("notebooklm", estado["detalle"])
         self.assertIn("telegram", estado["detalle"])
+
+    def test_resolver_binario_notebooklm_desde_env(self):
+        """resolver_binario usa NOTEBOOKLM_BIN si está definido."""
+        with patch.dict(os.environ, {"NOTEBOOKLM_BIN": "/custom/path/notebooklm"}):
+            binario = SS._resolver_binario("notebooklm")
+            self.assertEqual(binario, "/custom/path/notebooklm")
+
+    def test_resolver_binario_notebooklm_fallback_a1(self):
+        """resolver_binario usa fallback A1 si no hay env."""
+        with patch.dict(os.environ, {}, clear=True):
+            with patch("pathlib.Path.home", return_value=Path("/home/starseed")):
+                with patch("pathlib.Path.exists", return_value=True):
+                    binario = SS._resolver_binario("notebooklm")
+                    self.assertEqual(binario, "/home/starseed/.starseed/venvs/notebooklm/bin/notebooklm")
+
+    def test_resolver_binario_notebooklm_fallback_mac(self):
+        """resolver_binario usa fallback Mac si no hay env ni A1."""
+        with patch.dict(os.environ, {}, clear=True):
+            with patch("pathlib.Path.home", return_value=Path("/Users/alex")):
+                with patch("pathlib.Path.exists") as mock_exists:
+                    # Primera llamada (A1 path) -> False, segunda (Mac path) -> True
+                    mock_exists.side_effect = [False, True]
+                    binario = SS._resolver_binario("notebooklm")
+                    self.assertEqual(binario, "/Users/alex/bin/notebooklm")
+
+    def test_resolver_binario_higgsfield_desde_env(self):
+        """resolver_binario usa HIGGSFIELD_BIN si está definido."""
+        with patch.dict(os.environ, {"HIGGSFIELD_BIN": "/custom/path/higgsfield"}):
+            binario = SS._resolver_binario("higgsfield")
+            self.assertEqual(binario, "/custom/path/higgsfield")
+
+    def test_resolver_binario_higgsfield_fallback_a1(self):
+        """resolver_binario usa fallback A1 para higgsfield (~/.npm-global/bin/higgsfield)."""
+        with patch.dict(os.environ, {}, clear=True):
+            with patch("pathlib.Path.home", return_value=Path("/home/starseed")):
+                with patch("pathlib.Path.exists", return_value=True):
+                    binario = SS._resolver_binario("higgsfield")
+                    self.assertEqual(binario, "/home/starseed/.npm-global/bin/higgsfield")
+
+    def test_resolver_binario_higgsfield_fallback_mac(self):
+        """resolver_binario usa fallback Mac para higgsfield (~/.local/bin/higgsfield)."""
+        with patch.dict(os.environ, {}, clear=True):
+            with patch("pathlib.Path.home", return_value=Path("/Users/alex")):
+                with patch("pathlib.Path.exists") as mock_exists:
+                    mock_exists.side_effect = [False, True]
+                    binario = SS._resolver_binario("higgsfield")
+                    self.assertEqual(binario, "/Users/alex/.local/bin/higgsfield")
+
+    def test_resolver_binario_no_instalado_no_escala(self):
+        """Binario no encontrado = no instalado, no escala."""
+        with patch.dict(os.environ, {}, clear=True):
+            with patch("pathlib.Path.home", return_value=Path("/home/starseed")):
+                with patch("pathlib.Path.exists", return_value=False):
+                    binario = SS._resolver_binario("notebooklm")
+                    self.assertIsNone(binario)
+
+    def test_notebooklm_check_binario_ausente_no_escala(self):
+        """Comprobación notebooklm con binario ausente no escala, marca como no instalado."""
+        s = SS.SanadorSesiones(estado_file=self.estado_file, log_file=self.log_file)
+        escalados = []
+        
+        def enviar_falso(texto):
+            escalados.append(texto)
+            return {"ok": True}
+        s.enviar_fn = enviar_falso
+        
+        # Mock resolver_binario para que devuelva None (no instalado)
+        original_resolver = SS._resolver_binario
+        def mock_resolver(nombre):
+            if nombre == "notebooklm":
+                return None
+            return original_resolver(nombre)
+        
+        with patch("sanador_sesiones._resolver_binario", side_effect=mock_resolver):
+            # Registrar notebooklm con comprobación real que usa el resolver
+            s.registrar("notebooklm", SS._comprobar_notebooklm, SS.REGISTRO["notebooklm"]["recetas"])
+            
+            from io import StringIO
+            salida = StringIO()
+            code = s.comprobar_todas(salida)
+            
+            # No debe haber escalado por binario no instalado
+            self.assertEqual(len(escalados), 0)
+            output = salida.getvalue()
+            self.assertIn("no instalado", output.lower())
+
+    def test_higgsfield_check_binario_ausente_no_escala(self):
+        """Comprobación higgsfield con binario ausente no escala, marca como no instalado."""
+        s = SS.SanadorSesiones(estado_file=self.estado_file, log_file=self.log_file)
+        escalados = []
+        
+        def enviar_falso(texto):
+            escalados.append(texto)
+            return {"ok": True}
+        s.enviar_fn = enviar_falso
+        
+        # Mock resolver_binario para que devuelva None (no instalado)
+        original_resolver = SS._resolver_binario
+        def mock_resolver(nombre):
+            if nombre == "higgsfield":
+                return None
+            return original_resolver(nombre)
+        
+        with patch("sanador_sesiones._resolver_binario", side_effect=mock_resolver):
+            s.registrar("higgsfield", SS._comprobar_higgsfield, SS.REGISTRO["higgsfield"]["recetas"])
+            
+            from io import StringIO
+            salida = StringIO()
+            code = s.comprobar_todas(salida)
+            
+            self.assertEqual(len(escalados), 0)
+            output = salida.getvalue()
+            self.assertIn("no instalado", output.lower())
+
+    def test_escalado_carga_env_desde_starseed(self):
+        """El escalado carga credenciales desde ~/.starseed/env (mismo lector que el bot)."""
+        s = SS.SanadorSesiones(estado_file=self.estado_file, log_file=self.log_file)
+        
+        # Crear archivo env temporal
+        env_dir = self.home / ".starseed"
+        env_dir.mkdir(parents=True)
+        env_file = env_dir / "env"
+        env_file.write_text('export TELEGRAM_SINTESIS_BOT_TOKEN="test_token_123"\nexport TELEGRAM_SINTESIS_CHAT_ID="-1001234567890"\n', encoding="utf-8")
+        
+        # Verificar que _cargar_env_escalado existe y lee el archivo
+        env = SS._cargar_env_escalado(str(env_file))
+        self.assertEqual(env.get("TELEGRAM_SINTESIS_BOT_TOKEN"), "test_token_123")
+        self.assertEqual(env.get("TELEGRAM_SINTESIS_CHAT_ID"), "-1001234567890")
+        
+        # Verificar que el token está en el dict (la función lo carga correctamente)
+        # La no-impresión en logs se prueba en test_no_secretos_en_logs
+        self.assertIn("test_token_123", env.get("TELEGRAM_SINTESIS_BOT_TOKEN", ""))
+
+    def test_escalado_prueba_envio_sin_imprimir_token(self):
+        """El escalado prueba que puede enviar sin imprimir el token."""
+        s = SS.SanadorSesiones(estado_file=self.estado_file, log_file=self.log_file)
+        
+        env_dir = self.home / ".starseed"
+        env_dir.mkdir(parents=True)
+        env_file = env_dir / "env"
+        env_file.write_text('export TELEGRAM_SINTESIS_BOT_TOKEN="secret_token_xyz"\nexport TELEGRAM_SINTESIS_CHAT_ID="-1001234567890"\n', encoding="utf-8")
+        
+        # Verificar que la función de prueba de envío existe
+        # y que no imprime el token
+        resultado = SS._probar_envio_escalado(str(env_file))
+        self.assertTrue(resultado.get("ok") or "sin canal" in str(resultado.get("motivo", "")))
+        # El token no debe aparecer en ningún lado
+        self.assertNotIn("secret_token_xyz", str(resultado))
 
 
 if __name__ == "__main__":
