@@ -1,0 +1,25 @@
+{
+ "ola": "nube-20261113",
+ "tareas": [
+  {
+   "ola": "SES1113",
+   "id": "SES1113A-d2",
+   "titulo": "NotebookLM del bot · cerrojo, caducidad real y sin avisos falsos (URGENTE) (parte 2 de 2)",
+   "archivos": [
+    "scripts/puente/peticiones_reglas.py",
+    "scripts/puente/test_peticiones_telegram.py",
+    "scripts/puente/test_peticiones_productor.py"
+   ],
+   "depende": [],
+   "prompt": "Lee architecture/autorreparacion-sesiones-1113.md. Aplica §3.3. (1) Cerrojo entre procesos con fcntl.flock sobre ~/.notebooklm/profiles/default/.starseed-cli.lock para TODA llamada al CLI de NotebookLM (peticiones, productor, keepalive); el keepalive no espera (ocupado = viva). (2) nb() solo lanza SesionCaducada si returncode != 0 Y el texto casa con «Authentication (expired|error)|Run 'notebooklm login'»; el 124, URLError/httpx y la red caída son transitorios (excepción SesionTransitoria, reintento, sin aviso). (3) mantener_sesion: `auth refresh --verify` cada 20 min; tras cada refresco verificado copia storage_state.json a storage_state.buena-<n>.json (se guardan 3); declara caducada solo tras 3 fallos de autenticación seguidos; entonces llama a sanador_sesiones.reparar('notebooklm') si el módulo existe (import opcional) y NO escribe a Maggasukha; al volver, una sola línea «NotebookLM vuelve a estar viva ✓ (reparada por <receta>)». (4) atender(): sin mensaje de caducidad por petición; esperan en silencio y /estado lo explica. (5) Con NotebookLM caído, el productor hace los entregables de texto (informe, documento, guion, tabla, resumen, plan) con llm() y los guarda en Drive marcados «hecho sin NotebookLM · se rehará al volver»; los nativos esperan. (6) RENOVAR no menciona a Claude en ningún texto. Pruebas de regresión sin red: dos llamadas simultáneas no se solapan; rc 0 con «Authentication» no es caducidad; un URLError no avisa; 1 o 2 fallos no avisan y 3 llaman al sanador; ningún texto del bot contiene «Claude» como paso para renovar.\n\n## PARTE 2 DE 2 (la dirección dividió SES1113A: falla por sí misma (tarea:otro))\nEn esta parte tocas SOLO: scripts/puente/peticiones_reglas.py, scripts/puente/test_peticiones_telegram.py, scripts/puente/test_peticiones_productor.py. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "SES1113A",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:otro)"
+   },
+   "dependencias_ya_en_main": [
+    "SES1113A-d1"
+   ]
+  }
+ ]
+}
