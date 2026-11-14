@@ -149,3 +149,14 @@ datos y llama a su API. No se duplica aquí el modelo de nodo.
 2. **Teselas del mapa**: CartoCDN oscuro (ya en uso) exige atribución; teselas offline solo para zonas guardadas. ¿Se mantiene CartoCDN o se prefiere un proveedor propio/gratuito?
 3. **Registro geográfico de nodos fijos**: ¿tabla nueva o montar la geo sobre `os_mesh_topology`/`os_pages`? Se decide con el modelo de nodo de CRN1114.
 4. **Cadencia casi en tiempo real**: reutilizar el push de topología (45 s) + presencia Realtime, o abrir un canal más rápido solo para el Mapa.
+
+---
+
+## 10. Decisiones de Alex del 14-11-2026 (anotadas al integrar · DOC1114Z)
+
+Fuente: órdenes O1114043351 y O1114043802 de la dirección principal al carril PRUEBAS (14-11, 04:33 y 04:38), que dicen que Alex las aprobó en vivo. Mandan sobre cualquier valor por defecto o recomendación escritos más arriba en este documento.
+
+- **Ubicación privada por defecto.**
+- **Zona pública aproximada de ~1 km.**
+- **Punto exacto: opcional, por neurona.**
+- **Un aparato personal solo es nodo público dentro de un contenedor aislado**; el internet público compartido por las capas de conciencia de la malla ya estaba aprobado.
