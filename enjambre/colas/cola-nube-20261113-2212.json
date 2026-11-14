@@ -1,0 +1,29 @@
+{
+ "ola": "nube-20261113",
+ "tareas": [
+  {
+   "id": "IMG-diaria-publicar-el-vector-visual-de-la-o",
+   "titulo": "Publicar el vector visual de la orbe por cláusula",
+   "area": "imaginacion",
+   "archivos": [],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Publicar el vector visual de la orbe por cláusula. (`turbulence`, `spikiness`, `symmetry`, `hueShift`, `breath`) en el canal `params` del bus de la orbe (tarea pendiente en `tasks`). Permite sincronía visual multi-ventana sin estado compartido. Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  },
+  {
+   "id": "IMG-diaria-unificar-los-3-motores-de-permiso",
+   "titulo": "Unificar los 3 motores de permisos",
+   "area": "imaginacion",
+   "archivos": [],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Unificar los 3 motores de permisos. (`lib/senses`, `request-permission`, `universalDeviceBridge`) en uno solo — reduce superficie de bugs y duplicación. Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  },
+  {
+   "id": "IMG-diaria-des-simular-formulate_next_intell",
+   "titulo": "Des-simular `formulate_next_intelligent_task` del Director",
+   "area": "imaginacion",
+   "archivos": [],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Des-simular `formulate_next_intelligent_task` del Director. (hoy `random.choice` de blueprints) → formular con motor real o `starseed-sub`. Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  }
+ ]
+}
