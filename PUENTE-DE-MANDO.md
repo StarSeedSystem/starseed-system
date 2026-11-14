@@ -1,6 +1,6 @@
 # Genesis · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-14 13:23:10 desde Genesis vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-14 14:10:04 desde Genesis vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -16,17 +16,20 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | Agentes escribiendo | **0** |
 | En esta ola | integradas 0 · en curso 0 · esperando aprobación 0 · pendientes 15 |
 | Últimas 4 olas | en curso 0 · pendientes 100 · integradas 0 |
-| HEAD | `45f4124e6 chore(memoria): aprendizaje de la ola auto-1114-122220` |
-| Sin publicar | 1 commits |
+| HEAD | `20da1dac3 chore(memoria): aprendizaje de la ola auto-1114-132345` |
+| Sin publicar | 3 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-1114-122220.json`, hace 11s)
+## Quién escribe ahora (latido de `cola-auto-1114-132345.json`, hace 15s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `RDM1113D-d2` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 2 min | 136 s | 291810 |
-| `RDM1113As` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 18 min | 1100 s | 223817 |
-| `RDM1113A` | hecho | openrouter/thinkingmachines/inklin | 50 min | 3019 s | 1833575 |
+| `RDM1113F` | hecho | freellmapi/auto | 2 min | 116 s | 206899 |
+| `IRD11142` | hecho | groq/openai/gpt-oss-120b | 6 min | 352 s | 758 |
+| `IRD11143` | hecho | groq/openai/gpt-oss-120b | 7 min | 424 s | 532 |
+| `IRD11141` | hecho | groq/openai/gpt-oss-120b | 7 min | 424 s | 430 |
+| `RDM1113D-d2` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 21 min | 1235 s | 417336 |
+| `RDM1113E` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 37 min | 2205 s | 50414 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
