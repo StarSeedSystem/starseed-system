@@ -54,29 +54,27 @@ Cada proyecto tiene 4 carpetas: 01 Referencias, 02 Pruebas, 03 Aprobados y 04 Fi
 
 | Clave | Proyecto | project_id |
 |---|---|---|
-| sistema-diseno | StarSeed · Sistema de diseño y marca | b229e2b5-9ec1-4a73-9ba2-917a0968d11b (Cinema; CLI b9c64503… archivado) |
-| recorrido-os | StarSeed OS · Recorrido real | bdabaeff-723a-473a-932d-1582b0a15130 (Cinema; CLI 0a164695… archivado) |
-| paz | Una solución para la paz | c7cc3bfb-9e4a-4c2e-acdf-d96e5603bdec |
-| manifiesto | Manifiesto · La Revolución del Diseño | c2cd4e9f-92a5-477a-a873-6a57d4e703ed |
-| fase-semilla | Fase Semilla · Centro social piloto | 51a10c6a-1a19-405f-a930-41e7e3b20a25 |
-| videos-4-5 | Vídeos 4 y 5 · Valor, IA y sobreproducción | ddb86707-1f80-49d2-9a0b-d3f42d17eceb |
-| personajes | Personajes icono de StarSeed | 7405688e-8491-4c88-be9c-cc3422cea04c |
-| redes | Redes · shorts, reels y carruseles | ac48b50d-5877-4430-9ceb-45571dd08c8a |
+| sistema-diseno | StarSeed · Sistema de diseño y marca | b229e2b5-9ec1-4a73-9ba2-917a0968d11b |
+| recorrido-os | StarSeed OS · Recorrido real | bdabaeff-723a-473a-932d-1582b0a15130 |
+| paz | Una solución para la paz | 7ac134dd-a569-457f-baba-96ac3170df8c |
+| manifiesto | Manifiesto · La Revolución del Diseño | 02077b8d-a1bb-49c1-a1c7-1084824974b0 |
+| fase-semilla | Fase Semilla · Centro social piloto | e00787fb-5235-4308-a68e-f57a6332da43 |
+| videos-4-5 | Vídeos 4 y 5 · Valor, IA y sobreproducción | 11b5e372-0f16-46c7-90a5-c06dd2dbe090 |
+| personajes | Personajes icono de StarSeed | c3abc17f-91d6-4c42-b3d4-5846cb13dbe6 |
+| redes | Redes · shorts, reels y carruseles | 44d3e382-8a05-498e-8d10-c68d7fa3765c |
 
 Mapa con las carpetas: `~/.starseed/produccion/higgsfield/proyectos.json` en el A1.
 
-**Visibilidad en la web (2026-11-13, 23:30 UTC):**
-- La web de Higgsfield solo lista los proyectos de Cinema Studio (`surface: cinematic_studio`). Los demás aparecen
-  en `higgsfield.ai/es/generate` › Proyectos.
-- Los creados con el CLI (`surface: cli`) existen, pero no se ven.
-- La pestaña Proyectos del perfil público solo enseña lo publicado, que requiere aprobación.
-- El CLI 1.2.2 no puede elegir la superficie. Por eso los proyectos nuevos los crea **el conector de Claude** como
-  Cinema Studio, y `cine.py` (A1) les pone metadatos y carpetas y archiva el CLI anterior.
-- Los 6 que aún están en CLI se pasan cuando baje el límite de creación de Higgsfield (429).
-- **HGF1113E no crea proyectos con el CLI.** Si una producción nueva necesita proyecto:
-  - deja una petición «crear proyecto Cinema» en el buzón para Claude;
-  - o usa la API con la sesión del CLI, si demuestra con una prueba que acepta `surface: cinematic_studio`.
-  - Archivar es reversible; borrar nunca.
+**Visibilidad en la web (2026-11-13):**
+- Los 8 proyectos son de Cinema Studio (`surface: cinematic_studio`), los únicos que lista la web.
+- Los CLI vacíos se borraron con la aprobación de Maggasukha, tras guardar un respaldo en
+  `~/.starseed/produccion/higgsfield/respaldo-proyectos-cli-2026-11-13.jsonl` (Mac).
+- **Tope del plan gratuito:** 10 proyectos contando los archivados; pasado el tope responde 429. Quedan 2 huecos.
+- El CLI 1.2.2 no elige la superficie, así que los proyectos nuevos los crea **el conector de Claude** y `cine.py`
+  (HF_BIN y HF_MAPA configurables) les pone metadatos y carpetas.
+- **HGF1113E no crea proyectos con el CLI ni borra.**
+  - Si una producción nueva necesita proyecto, deja una petición «crear proyecto Cinema» en el buzón para Claude.
+  - Si no hay hueco, la petición propone qué proyecto vacío borrar, y eso requiere aprobación.
 
 **Guardia en el A1 y en la Mac:**
 - la gestión de proyectos pasa (list, get, create, update; carpetas y archivos salvo borrar);
