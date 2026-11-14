@@ -46,6 +46,19 @@
     <circle cx="150" cy="40" r="120" fill="#CD77F8" filter="url(#sec-glow-05)"/>
     <circle cx="650" cy="40" r="100" fill="#25D1F4" filter="url(#sec-glow-05)"/>
   </g>
+  <g aria-hidden="true" transform="translate(724 36)" fill="none">
+    <circle r="23" stroke="#CD77F8" stroke-opacity="0.16"/>
+    <g stroke="#25D1F4" stroke-width="1.1" opacity="0.7">
+      <circle r="8" cx="0" cy="0"/>
+      <circle r="8" cx="0" cy="-8"/>
+      <circle r="8" cx="6.93" cy="-4"/>
+      <circle r="8" cx="6.93" cy="4"/>
+      <circle r="8" cx="0" cy="8"/>
+      <circle r="8" cx="-6.93" cy="4"/>
+      <circle r="8" cx="-6.93" cy="-4"/>
+    </g>
+    <circle r="2.6" fill="#F471F4" stroke="none"/>
+  </g>
   <g transform="translate(30, 12)">
     <circle cx="25" cy="25" r="25" fill="url(#sec-gradient-05)" filter="url(#sec-glow-05)"/>
     <text x="25" y="31" font-family="'Rajdhani', 'Inter', system-ui, sans-serif" font-size="20" font-weight="700" fill="#0A0F1D" text-anchor="middle" filter="url(#text-glow-05)">05</text>

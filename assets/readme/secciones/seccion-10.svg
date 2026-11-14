@@ -46,6 +46,13 @@
     <circle cx="150" cy="40" r="120" fill="#00F0FF" filter="url(#sec-glow-10)"/>
     <circle cx="650" cy="40" r="100" fill="#F5B91A" filter="url(#sec-glow-10)"/>
   </g>
+  <g aria-hidden="true" transform="translate(724 36)" fill="none">
+    <circle r="23" stroke="#00F0FF" stroke-opacity="0.16"/>
+    <circle cx="-7" r="12" stroke="#D4AF37" stroke-width="1.4" opacity="0.8"/>
+    <circle cx="7" r="12" stroke="#007FFF" stroke-width="1.4" opacity="0.8"/>
+    <path d="M 0 -8.6 A 12 12 0 0 0 0 8.6 A 12 12 0 0 0 0 -8.6" stroke="#F8F9FA" stroke-width="1" opacity="0.5"/>
+    <circle r="2.2" fill="#F5B91A" stroke="none"/>
+  </g>
   <g transform="translate(30, 12)">
     <circle cx="25" cy="25" r="25" fill="url(#sec-gradient-10)" filter="url(#sec-glow-10)"/>
     <text x="25" y="31" font-family="'Rajdhani', 'Inter', system-ui, sans-serif" font-size="20" font-weight="700" fill="#0A0F1D" text-anchor="middle" filter="url(#text-glow-10)">10</text>

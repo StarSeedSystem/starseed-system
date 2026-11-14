@@ -46,6 +46,14 @@
     <circle cx="150" cy="40" r="120" fill="#DC143C" filter="url(#sec-glow-04)"/>
     <circle cx="650" cy="40" r="100" fill="#F5B91A" filter="url(#sec-glow-04)"/>
   </g>
+  <g aria-hidden="true" transform="translate(724 36)" fill="none" stroke-linecap="round">
+    <circle r="23" stroke="#F5B91A" stroke-opacity="0.16"/>
+    <path d="M -10 12 Q -10 -4 4 -10 Q 12 -12 14 -2" stroke="#F5B91A" stroke-width="1.6" opacity="0.8"/>
+    <path d="M 14 -2 L 8 -3 M 14 -2 L 12 4" stroke="#F5B91A" stroke-width="1.6" opacity="0.8"/>
+    <path d="M 4 -4 Q -2 -12 6 -16" stroke="#CD77F8" stroke-width="1.4" opacity="0.7"/>
+    <circle cx="-10" cy="12" r="2.4" fill="#DC143C" stroke="none"/>
+    <circle cx="14" cy="-2" r="1.8" fill="#CD77F8" stroke="none"/>
+  </g>
   <g transform="translate(30, 12)">
     <circle cx="25" cy="25" r="25" fill="url(#sec-gradient-04)" filter="url(#sec-glow-04)"/>
     <text x="25" y="31" font-family="'Rajdhani', 'Inter', system-ui, sans-serif" font-size="20" font-weight="700" fill="#0A0F1D" text-anchor="middle" filter="url(#text-glow-04)">04</text>
