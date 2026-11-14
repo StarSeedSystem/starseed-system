@@ -1,0 +1,69 @@
+{
+  "ola": "Ola RDM1113 · Librería · beautify-github-readme y brag (pedido de Maggasukha del 2026-11-13)",
+  "fecha": "2026-11-14",
+  "principio": "Copia a vendor/habilidades/<nombre> las habilidades de github.com/oil-oil/beautify-github-readme (skills/beautify-github-readme con sus references) y de github.com/latent-spaces/brag (skills/brag y skills/brag-slim con sus references, música y efectos con licencia), fijadas a un commit y con su LICENSE (MIT; comprobada con la API de GitHub el mismo día). Cópias a .agent/skills/. Ficha de cada una en config/repos-libreria-1113.json con el formato de config/repos-libreria-1104.json: licencia verificada, commit, uso nativo y reglas. No se ejecuta nada de terceros en esta tarea.",
+  "fusionadas": {},
+  "duplicadas": {},
+  "decisiones": [
+    "beautify-github-readme entra como habilidad de diseño de README para la portada del repo oficial (github.com/StarSeedSystem/starseed-system) y repos satélite, y para auditoría de READMEs de la Librería. No se ejecuta en esta ola: solo se instala en la Librería.",
+    "brag entra como habilidad de producción audiovisual de MetaGenesis para vídeo de cada release estable, funciones nuevas, shorts y reels (Matriz: Mente Digital). Economía: por defecto /brag --full (HyperFrames, render local, modelos gratuitos o bajo coste); /brag-slim solo con aprobación de Maggasukha (arranca Opus). Marca: símbolo original compuesto en postproducción, colores de tokens, música CC BY 4.0 de ende.app citada en créditos. Nada se publica sin aprobación de Maggasukha; se entregan brag.mp4 y textos como borrador en Drive › Videos › Proyectos en desarrollo y por el chat de producción. Disparador: al publicarse release estable, el estudio propone vídeo brag de la versión (borrador para aprobar)."
+  ],
+  "licencias_verificadas": {
+    "diseno-readme": "2026-11-14: oil-oil/beautify-github-readme, licencia MIT (API de GitHub y LICENSE del repo); commit e2a8e3898d1ab84c9ea75df68e1ff916b370cbac del 2026-11-14; sin releases etiquetadas; 1.2k estrellas (2026-11-14).",
+    "audiovisual": "2026-11-14: latent-spaces/brag, licencia MIT (API de GitHub y LICENSE del repo); commit 669ab9286aa28b6c3ee30e75f181ee74319d012a del 2026-11-14; sin releases etiquetadas; incluye música CC BY 4.0 de ende.app (happy-beats-business-moves-vol-1/9/10/11/12) y efectos de sonido propios; 2.1k estrellas (2026-11-14)."
+  },
+  "paquetes": [
+    {
+      "id": "lib-beautify-readme",
+      "repo": "oil-oil/beautify-github-readme",
+      "nombre": "Beautify GitHub README",
+      "titulo": "Rediseña portadas de GitHub: héroe, cabeceras, diagramas, badges, motion graphics y showcase nativo del proyecto",
+      "kind": "tool",
+      "icono": "FileText",
+      "grupo": "diseno",
+      "canal": "commits",
+      "licencia": "MIT",
+      "version_actual": "e2a8e38",
+      "fecha_version": "2026-11-14",
+      "estado": "activo",
+      "actividad": "Commit e2a8e38 del 2026-11-14; 1.2k estrellas; sin releases etiquetadas; desarrollo activo en main.",
+      "area": ["diseno", "readme", "github", "portada", "auditoria", "metagenesis", "libreria", "astraura", "protomolecula", "publicaciones"],
+      "efecto": "HERRAMIENTA-AGENTE",
+      "preinstalar": "siempre",
+      "claude": "skill",
+      "gratis": true,
+      "gratis_motivo": "Habilidad MIT; usa modelos gratuitos del OS para generación de assets; HyperFrames opcional para GIF.",
+      "corre_aqui": true,
+      "que_es": "Habilidad para rediseñar la página principal de un repositorio de GitHub (README mode) o crear assets visuales sueltos (Asset-only mode): héroe SVG/PNG/WebP, cabeceras de sección, diagramas de arquitectura/flujo, badges, motion graphics (GIF opcional con SVG fallback), y showcase modules. Extrae la historia del proyecto, define un sistema visual nativo (paleta, tipografía, forma, motivo, composición) y produce assets listos para GitHub (sin scripts, foreignObject, fuentes remotas). Incluye auditoría automática (scripts/audit_readme.py) y render de GIF (scripts/render_motion_gif.py). Referencias: visual-direction.md, project-native-hero.md, github-readme-canvas.md, svg-production.md, hybrid-svg-production.md, motion-production.md, content-architecture.md, showcase-contribution.md.",
+      "nota": "En StarSeed OS la usa MetaGenesis para la portada del repo oficial y satélites, y para auditar READMEs de la Librería. Dos modos: README mode (reestructura historia y sistema visual) y Asset-only mode (solo assets pedidos, sin tocar README). Por defecto SVG puro; hybrid composition (SVG + ImageGen) solo si el usuario lo pide. GIF opt-in, nunca por defecto. Atribución opcional y solo tras aprobación explícita.",
+      "aviso": "Solo guarda el enlace y los archivos en vendor/habilidades/beautify-github-readme y .agent/skills/beautify-github-readme. Para Claude Code: instalar como skill local. No ejecuta nada de terceros en la tarea de instalación.",
+      "requisitos": {"ram_gb": null, "vram_gb": null, "gpu": "no", "docker": "no", "arquitecturas": ["arm64", "amd64"], "so": ["macos", "windows", "linux"], "fuente": "README y SKILL.md del repo (2026-11-14)"}
+    },
+    {
+      "id": "lib-brag",
+      "repo": "latent-spaces/brag",
+      "nombre": "brag",
+      "titulo": "Convierte el proyecto en un vídeo de lanzamiento de 15–25 s con música, movimiento y textos para compartir (HyperFrames)",
+      "kind": "tool",
+      "icono": "Video",
+      "grupo": "audiovisual",
+      "canal": "commits",
+      "licencia": "MIT",
+      "version_actual": "669ab92",
+      "fecha_version": "2026-11-14",
+      "estado": "activo",
+      "actividad": "Commit 669ab92 del 2026-11-14; 2.1k estrellas; sin releases etiquetadas; incluye 4 tracks musicales CC BY 4.0 (ende.app) y 200+ efectos de sonido OGG/WAV.",
+      "area": ["audiovisual", "video", "lanzamiento", "marketing", "metagenesis", "matriz-mente-digital", "shorts", "reels", "hyperframes"],
+      "efecto": "HERRAMIENTA-AGENTE",
+      "preinstalar": "siempre",
+      "claude": "skill",
+      "gratis": true,
+      "gratis_motivo": "Habilidad MIT; /brag --full usa HyperFrames con modelos gratuitos/baratos; /brag-slim (Opus) solo con aprobación; música CC BY 4.0 incluida; SFX propios.",
+      "corre_aqui": true,
+      "que_es": "Habilidad /brag que lee el código del proyecto y produce un vídeo de lanzamiento pulido (15–25 s) usando HyperFrames. Flujo: inspecciona el proyecto → planifica storyboard (brag-plan.md) → compone en HyperFrames (composition/) → valida (npx hyperframes check) → renderiza brag.mp4 + poster brag.jpg + share-copy.txt. Incluye /brag-slim (modelo único, sin HyperFrames) para Opus 5.5. Tono configurable (default, polished, yc-parody, chaotic, deadpan, cinematic, app-store o freeform). Música: 4 tracks CC BY 4.0 de ende.app (happy-beats-business-moves vol 1, 9, 10, 11, 12) con cues JSON/MD; SFX: 200+ efectos OGG/WAV (cartas, dados, chips, clicks, footsteps, impacts, switches, etc.). Referencias: step-1-inspect.md, step-2-plan.md, step-3-compose.md, step-4-deliver.md, audio.md, tones.md.",
+      "nota": "En StarSeed OS es habilidad de MetaGenesis para producción audiovisual (Matriz: Mente Digital). Economía: por defecto /brag --full (HyperFrames, render local, modelos gratuitos/bajo coste); /brag-slim arranca Opus, así que solo con aprobación de Maggasukha. Marca: símbolo original compuesto en postproducción; colores de tokens; música CC BY 4.0 citada en créditos. Nada se publica sin aprobación: se entregan brag.mp4 y textos como borrador en Drive › Videos › Proyectos en desarrollo y chat de producción. Disparador: al publicarse release estable, el estudio propone vídeo brag (borrador para aprobar).",
+      "aviso": "Solo guarda el enlace y los archivos en vendor/habilidades/brag, vendor/habilidades/brag-slim, .agent/skills/brag, .agent/skills/brag-slim. Para Claude Code: instalar como skill local. Requiere HyperFrames para /brag --full (npx hyperframes). No ejecuta nada de terceros en la tarea de instalación.",
+      "requisitos": {"ram_gb": 4, "vram_gb": null, "gpu": "opcional", "docker": "no", "arquitecturas": ["arm64", "amd64"], "so": ["macos", "windows", "linux"], "fuente": "README, SKILL.md y assets del repo (2026-11-14); HyperFrames para --full"}
+    }
+  ]
+}
