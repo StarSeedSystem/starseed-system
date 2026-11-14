@@ -307,6 +307,12 @@ export class MotorLlamada {
     private presentes: MetaPresencia[] = [];
     private conPlaza = new Set<string>();
     private readonly vistos = new Set<string>();
+    /** LLA1114G · Espera a que vuelva la presencia del otro antes de dar la llamada por perdida. */
+    /** LLA1114G · Hora (reloj del motor) del último aviso de cambio de red. */
+    private ultimaSenalRedMs: number | null = null;
+    private graciaPresencia: ReturnType<typeof setTimeout> | null = null;
+    /** LLA1114G · Última vez que llegó una señal de otra persona (prueba de que sigue ahí). */
+    private ultimaSenalAjena = 0;
     private unido = 0;
     private inicio: number | null = null;
     private contestada = false;
@@ -1213,8 +1219,15 @@ export class MotorLlamada {
         this.revisarCompania();
     }
 
-    private revisarCompania() {
+    /**
+     * LLA1114G · `causa`: qué lo provoca. Un «colgar» de un participante conocido cierra al momento; una presencia que se
+     * queda vacía NO prueba que nadie colgara (prueba 42: con el Wi-Fi de la tableta de vuelta las dos puntas escribieron
+     * «La otra persona ha colgado.» y nadie había colgado): se espera `GRACIA_PRESENCIA_MS` a que vuelva y, si no vuelve,
+     * se acaba diciendo lo que se sabe («se perdió el contacto»), con su origen en el registro.
+     */
+    private revisarCompania(causa?: { origen: string; via: string }) {
         if (this.presentes.length > 0) {
+            this.cancelarGraciaPresencia();
             if (this.inicio === null) this.inicio = Date.now();
             if (!this.contestada) anotarLlamada("contestada", this.opc.vozDatos?.neurona ?? null, `presentes=${this.presentes.length}`);
             this.contestada = true;
@@ -1223,15 +1236,46 @@ export class MotorLlamada {
             return;
         }
         if (this.contestada && this.opc.colgarAlQuedarSolo) {
-            this.colgar("La otra persona ha colgado.");
+            if (causa) {
+                this.cancelarGraciaPresencia();
+                this.colgar("La otra persona ha colgado.", causa.origen, causa.via);
+                return;
+            }
+            this.empezarGraciaPresencia();
             return;
         }
         if (this.e.fase === "en-curso") this.set({ fase: "esperando" });
         else this.emitir();
     }
 
+    /** LLA1114G · La presencia del otro se vació sin «colgar»: se espera a que vuelva antes de dar la llamada por perdida. */
+    private empezarGraciaPresencia() {
+        if (this.cerrado || this.graciaPresencia) return;
+        const desde = Date.now();
+        anotarLlamada("presencia", this.opc.vozDatos?.neurona ?? null, `vacia-sin-colgar espera-ms=${GRACIA_PRESENCIA_MS} canales=${this.canales.length}`);
+        if (this.e.fase === "en-curso") this.set({ fase: "esperando", aviso: AVISO_RECONEXION });
+        this.graciaPresencia = setTimeout(() => {
+            this.graciaPresencia = null;
+            if (this.cerrado || this.presentes.length > 0) return;
+            // Una señal suya llegada durante la espera prueba que sigue ahí: se vuelve a esperar.
+            if (this.ultimaSenalAjena > desde) {
+                this.empezarGraciaPresencia();
+                return;
+            }
+            this.colgar("Se perdió el contacto con la otra persona.", "presencia-perdida", `${this.canales.length}-canales`);
+        }, GRACIA_PRESENCIA_MS);
+    }
+
+    private cancelarGraciaPresencia() {
+        if (!this.graciaPresencia) return;
+        clearTimeout(this.graciaPresencia);
+        this.graciaPresencia = null;
+        if (this.e.aviso === AVISO_RECONEXION) this.set({ aviso: null });
+    }
+
     private alRecibirSenal(s: SenalLlamada, c?: CanalMotor) {
         if (this.cerrado || s.de === this.miId) return;
+        this.ultimaSenalAjena = Date.now(); // LLA1114G
         if (c && this.canales.includes(c)) this.rutaPar.set(s.de, c);
         if (s.tipo === "mudanza") {
             void this.revisarCanal(false);
@@ -1274,11 +1318,18 @@ export class MotorLlamada {
             return;
         }
         if (s.tipo === "colgar") {
-            this.vistos.add(s.de);
+            // LLA1114G · Solo cuelga quien está en ESTA llamada: un «colgar» de quien nunca estuvo (rezagado de otra llamada,
+            // reintento tardío) se anota y se ignora. La sesión ya la acota el canal (tema o `s` del enlace directo).
+            const conocido = this.vistos.has(s.de) || this.pares.has(s.de) || this.presentes.some((p) => p.id === s.de);
+            const via = c ? (c.directo ? "directo" : "servidor") : "?";
+            if (!conocido) {
+                anotarLlamada("colgar-ignorado", this.opc.vozDatos?.neurona ?? null, `de=${s.de} via=${via} motivo=no-es-de-esta-llamada`);
+                return;
+            }
             this.cerrarPar(s.de);
             const antes = this.presentes.length;
             this.presentes = this.presentes.filter((p) => p.id !== s.de);
-            if (this.presentes.length !== antes) this.revisarCompania();
+            if (this.presentes.length !== antes || this.presentes.length === 0) this.revisarCompania({ origen: `par:${s.de}`, via });
             return;
         }
         if (s.tipo === "rechazo") {
@@ -2144,6 +2195,8 @@ export class MotorLlamada {
                 conexion: par.conexion,
                 intentos: this.reintentosIce.get(id) ?? 0,
                 ultimoIntento: this.ultimoReintentoIce.get(id) ?? -Infinity,
+                vigilaRed: senalesDisponibles().length > 0, // LLA1114G
+                senalRedDesde: this.ultimaSenalRedMs,
             });
             if (d.reintentar) {
                 this.ultimoReintentoIce.set(id, ahora);
@@ -2368,6 +2421,7 @@ export class MotorLlamada {
     private alSenalRed(sr: SenalRed) {
         if (this.cerrado) return;
         this.sospechaRedHasta = Date.now() + 3_000;
+        this.ultimaSenalRedMs = this.relojVoz().ahora(); // LLA1114G (el mismo reloj que `ultimoReintentoIce`)
         this.ultimaSenalRed = `${sr.tipo}@${Date.now()}`;
         anotarLlamada("carril", this.opc.vozDatos?.neurona ?? null, `senal-red ${sr.tipo} ${sr.detalle} pares=${this.pares.size}`);
         for (const [id, par] of this.pares) {
@@ -2732,7 +2786,7 @@ export class MotorLlamada {
     /* ───────────────────────────── Salir ───────────────────────────── */
 
     /** Cuelga: avisa a los demás, cierra todo y libera micro/cámara. */
-    colgar(motivo = "Has salido de la llamada."): ResumenLlamada {
+    colgar(motivo = "Has salido de la llamada.", origen = "local", via = "-"): ResumenLlamada {
         if (this.cerrado) return this.resumen();
         this.resumenFinal = {
             duracionMs: this.inicio ? Date.now() - this.inicio : 0,
@@ -2741,7 +2795,7 @@ export class MotorLlamada {
         };
         const resumen = this.resumenFinal;
         // LLA1113C: el fin de la llamada, siempre en el registro (en la prueba 41 una llamada acabó sin dejar ninguna línea).
-        anotarLlamada("fin", this.opc.vozDatos?.neurona ?? null, `por=colgar motivo="${motivo.replace(/"/g, "'").slice(0, 60)}" contestada=${this.contestada ? "si" : "no"} dur-s=${Math.round(resumen.duracionMs / 1000)} canales=${this.canales.length}`);
+        anotarLlamada("fin", this.opc.vozDatos?.neurona ?? null, `por=colgar motivo="${motivo.replace(/"/g, "'").slice(0, 60)}" contestada=${this.contestada ? "si" : "no"} dur-s=${Math.round(resumen.duracionMs / 1000)} canales=${this.canales.length} origen=${origen} via=${via}`);
         this.enviar({ tipo: "colgar", de: this.miId });
         this.limpiar();
         this.set({ fase: "terminada", motivoFin: motivo });
@@ -2766,7 +2820,7 @@ export class MotorLlamada {
 
     private terminar(fase: "llena" | "error", motivo: string) {
         if (this.cerrado) return;
-        anotarLlamada("fin", this.opc.vozDatos?.neurona ?? null, `por=${fase} motivo="${motivo.replace(/"/g, "'").slice(0, 60)}" contestada=${this.contestada ? "si" : "no"}`); // LLA1113C
+        anotarLlamada("fin", this.opc.vozDatos?.neurona ?? null, `por=${fase} motivo="${motivo.replace(/"/g, "'").slice(0, 60)}" contestada=${this.contestada ? "si" : "no"} origen=sistema via=-`); // LLA1113C
         this.resumenFinal = { duracionMs: 0, contestada: this.contestada, otrosDentro: this.presentes.length };
         this.limpiar();
         this.set({ fase, motivoFin: motivo });
@@ -2774,6 +2828,8 @@ export class MotorLlamada {
 
     private limpiar() {
         this.cerrado = true;
+        if (this.graciaPresencia) clearTimeout(this.graciaPresencia); // LLA1114G
+        this.graciaPresencia = null;
         try {
             this.bajaSenalesRed?.();
         } catch {
@@ -2827,6 +2883,8 @@ export class MotorLlamada {
     }
 }
 
+/** LLA1114G · Cuánto se espera a que vuelva la presencia del otro antes de acabar una llamada 1:1 (la caducidad de la presencia directa es 30 s). */
+export const GRACIA_PRESENCIA_MS = 25_000;
 const AVISO_RECONEXION = "Reconectando con el servidor de la llamada…";
 const AVISO_ENLACE_CAIDO = "El enlace directo con el otro aparato se ha caído. Esperando a que vuelva…";
 const MENSAJE_SIN_SERVIDOR = "No se pudo conectar con el servidor de la llamada. Revisa tu conexión y vuelve a intentarlo.";

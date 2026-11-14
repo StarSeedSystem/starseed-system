@@ -103,11 +103,18 @@ export interface EntradaReintentoIce {
   /** Intentos ya hechos con esta fuente sin conectar. */
   intentos: number;
   ultimoIntento: number;
+  /**
+   * LLA1114G · ¿El sistema avisa de los cambios de red en este aparato? Con aviso, un reintento por temporizador necesita
+   * una prueba nueva de ruta (el aviso o una ruta que reaparece); sin aviso, manda la escala de espera de siempre.
+   */
+  vigilaRed?: boolean;
+  /** LLA1114G · Cuándo llegó el último aviso de cambio de red (ms), o null si no ha llegado ninguno. */
+  senalRedDesde?: number | null;
 }
 
 export type DecisionReintentoIce =
-  | { reintentar: true; n: number; motivo: "ruta-nueva" | "vence" }
-  | { reintentar: false; motivo: "conectado" | "sin-ruta" | "sin-trafico" | "tope" | "espera" | "rebote" };
+  | { reintentar: true; n: number; motivo: "ruta-nueva" | "vence" | "senal-red" }
+  | { reintentar: false; motivo: "conectado" | "sin-ruta" | "sin-trafico" | "tope" | "espera" | "rebote" | "espera-senal" };
 
 /**
  * LLA1112A · ¿Se reintenta ICE ahora? Pura. Solo con una ruta IP que lleva tráfico (o de la que no se sabe, el
@@ -122,9 +129,25 @@ export function decidirReintentoIce(e: EntradaReintentoIce): DecisionReintentoIc
   const n = nueva ? 0 : e.intentos;
   if (n >= TOPE_REINTENTOS_ICE_RUTA) return { reintentar: false, motivo: "tope" };
   if (e.ahora - e.ultimoIntento < 1500) return { reintentar: false, motivo: "rebote" };
-  if (nueva) return { reintentar: true, n: 1, motivo: "ruta-nueva" };
+  if (nueva) {
+    // LLA1114G · Un cambio de FUENTE sin que la ruta llegue a desaparecer (local → nativo → local…) no es una ruta nueva
+    // si hace poco que un intento no conectó: prueba 42, 22:25:03 y 22:25:13, con la tableta sin Wi-Fi.
+    const soloFuente = e.antes !== false;
+    const aviso = typeof e.senalRedDesde === "number" && e.senalRedDesde > e.ultimoIntento;
+    if (e.vigilaRed && soloFuente && !aviso && e.intentos > 0 && e.ahora - e.ultimoIntento < 30_000) return { reintentar: false, motivo: "espera-senal" };
+    return { reintentar: true, n: 1, motivo: "ruta-nueva" };
+  }
   const caida = e.conexion === "fallida" || e.conexion === "reconectando";
-  if (caida && e.ahora - e.ultimoIntento >= esperaReintentoIce(n)) return { reintentar: true, n: n + 1, motivo: "vence" };
+  if (!caida) return { reintentar: false, motivo: "espera" };
+  // LLA1114G · Prueba 42: con la tableta sin Wi-Fi la Mac reintentó cuatro veces en 16 s por «rutas» que el registro daba por
+  // vivas (un rtt de antes de la caída). Un intento que no conectó es la mejor prueba de que esa ruta no lleva nada: el
+  // siguiente espera a una prueba NUEVA (aviso de cambio de red, o la ruta que desaparece y vuelve: `nueva`), no a un reloj.
+  if (e.vigilaRed) {
+    const aviso = typeof e.senalRedDesde === "number" && e.senalRedDesde > e.ultimoIntento;
+    if (aviso) return { reintentar: true, n: n + 1, motivo: "senal-red" };
+    return { reintentar: false, motivo: "espera-senal" };
+  }
+  if (e.ahora - e.ultimoIntento >= esperaReintentoIce(n)) return { reintentar: true, n: n + 1, motivo: "vence" };
   return { reintentar: false, motivo: "espera" };
 }
 
