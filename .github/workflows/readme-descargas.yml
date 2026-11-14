@@ -1,0 +1,97 @@
+name: Actualizar bloque de descargas en README
+
+on:
+  release:
+    types: [published, edited]
+  workflow_dispatch:
+  schedule:
+    - cron: '0 3 * * *'  # Diario a las 03:00 UTC
+
+permissions:
+  contents: read
+
+jobs:
+  update-downloads:
+    name: Generar y actualizar tabla de descargas
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # Necesario para commit si hay cambios
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('scripts/readme/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          # No hay dependencias externas, solo stdlib
+
+      - name: Descargar releases de GitHub
+        id: fetch-releases
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 -c "
+import urllib.request, json, os, sys
+url = 'https://api.github.com/repos/StarSeedSystem/starseed-system/releases?per_page=100'
+headers = {'Accept': 'application/vnd.github+json', 'Authorization': f'Bearer {os.environ[\"GITHUB_TOKEN\"]}'}
+req = urllib.request.Request(url, headers=headers)
+try:
+    with urllib.request.urlopen(req, timeout=30) as r:
+        data = json.load(r)
+    with open('releases.json', 'w', encoding='utf-8') as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+    print(f'Obtenidas {len(data)} releases')
+except Exception as e:
+    print(f'Error: {e}', file=sys.stderr)
+    sys.exit(1)
+"
+
+      - name: Ejecutar script de descargas
+        id: run-script
+        run: |
+          python3 scripts/readme/descargas.py \
+            --fixture releases.json \
+            --readme-es README.md \
+            --readme-en README.en.md
+
+      - name: Verificar si hay cambios
+        id: check-changes
+        run: |
+          if git diff --quiet README.md README.en.md; then
+            echo "changed=false" >> $GITHUB_OUTPUT
+            echo "No hay cambios en los bloques de descargas"
+          else
+            echo "changed=true" >> $GITHUB_OUTPUT
+            echo "Hay cambios en los bloques de descargas"
+            git diff README.md README.en.md
+          fi
+
+      - name: Commit y push si hay cambios
+        if: steps.check-changes.outputs.changed == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add README.md README.en.md
+          git commit -m "chore(readme): actualizar bloque de descargas automáticamente [skip ci]"
+          git push
+        # NOTA: El push real requiere la aprobación de Maggasukha.
+        # Este workflow solo prepara el commit; el push efectivo se hace
+        # manualmente tras su validación. Ver CLAUDE.md § reglas duras.

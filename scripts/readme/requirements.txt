@@ -1,0 +1,2 @@
+# Solo stdlib de Python 3.12+
+# No hay dependencias externas

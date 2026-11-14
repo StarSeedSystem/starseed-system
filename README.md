@@ -27,6 +27,7 @@ Funciona en el navegador, se instala como app en el móvil y existe como aplicac
 
 ## Descargas
 
+<!-- DESCARGAS:INICIO -->
 Versión actual: **v0.2.0** (build `2026.09.24`, canal alfa). Para no quedarte con un enlace viejo, usa siempre **[la última versión](https://github.com/StarSeedSystem/starseed-system/releases/latest)**. La página [/instalar](https://starseed-os.vercel.app/instalar) detecta tu dispositivo y te recomienda el archivo adecuado.
 
 | Sistema | Archivo | Tamaño | Cómo instalar |
@@ -49,6 +50,7 @@ Versión actual: **v0.2.0** (build `2026.09.24`, canal alfa). Para no quedarte c
 **Actualizaciones automáticas.** Las apps nativas (Tauri 2) buscan una versión nueva al arrancar y cada 6 horas, y solo instalan paquetes con firma verificada. La interfaz se sirve desde la web, así que las mejoras de contenido llegan sin reinstalar.
 
 En la misma release están los instaladores de **StarSeed Nexus** y **StarSeed Café** (mismos formatos, con su nombre en el archivo).
+<!-- DESCARGAS:FIN -->
 
 ## Funciones principales
 
