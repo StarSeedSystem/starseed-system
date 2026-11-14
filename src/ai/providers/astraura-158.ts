@@ -56,6 +56,7 @@ import type {
   ProviderInfo,
 } from "./types";
 import { ASTRAURA_158_WS_READY_TIMEOUT_MS, getAstraura158Ws, type Astraura158Ws } from "./astraura-158-ws";
+import { registrarMuestraLatencia } from "./latencia-transporte";
 import { preferenciaCapasGuardada } from "@/lib/astraura/capas-conciencia";
 import { paginaEsLocal } from "@/lib/astraura/destino-local";
 import { plegarHistorial, type Turno } from "@/lib/astraura/contexto/pliegue";
@@ -927,6 +928,35 @@ async function chat(
   const systemPrompt = note ? [built.system_prompt, note].filter(Boolean).join("\n\n") : built.system_prompt;
   const mode = mentions.personas.length ? preferences.multi_personality_mode : undefined;
 
+  // ═══════ DR1114-1 · Medición de latencia percibida (Dream 2026-11-14) ═══════
+  // El Dream pidió medir en uso real si el WS mejora la latencia antes de
+  // migrar nada. Aquí se cronometra el turno que empieza: `tPrimerToken`
+  // toma la marca del PRIMER token que llega al consumidor (time-to-first
+  // token, la latencia percibida), y al cerrar cada vía (WS comprometido o
+  // reserva SSE) se anota la muestra. Sin consumidor en vivo no hay latencia
+  // percibida que medir: no se anota nada. La anotación es local
+  // (`latencia-transporte.ts`) y NUNCA rompe el turno.
+  const t0Turno = Date.now();
+  let tPrimerToken = 0;
+  const onChunkMedido = options.onChunk
+    ? (delta: string) => {
+        if (!tPrimerToken) tPrimerToken = Date.now();
+        options.onChunk?.(delta);
+      }
+    : undefined;
+  const anotar = (transporte: "ws" | "sse"): void => {
+    if (!onChunkMedido) return;
+    try {
+      registrarMuestraLatencia({
+        t: Date.now(),
+        transporte,
+        ttftMs: tPrimerToken ? tPrimerToken - t0Turno : null,
+        ms: Date.now() - t0Turno,
+      });
+    } catch { /* la medición nunca rompe el turno */ }
+  };
+  const optionsMedidas: ChatOptions = onChunkMedido ? { ...options, onChunk: onChunkMedido } : options;
+
   // ═══════ Adenda 164 · WS con reserva a SSE ═══════
   // `attemptAstraura158WsTurn` decide TODO antes de que este `chat()` sepa
   // nada: si devuelve un resultado, el turno YA se entregó por WS y el
@@ -934,8 +964,11 @@ async function chat(
   // respuestas— en el comentario grande junto a esa función). Si devuelve
   // `null`, no emitió NADA al consumidor y seguimos por la reserva SSE, que
   // es exactamente la que ya existía antes de esta adenda — sin reescribir.
-  const wsResponse = await attemptAstraura158WsTurn(base, { prompt: built.prompt, systemPrompt, preferences }, persona, mode, options);
-  if (wsResponse) return wsResponse;
+  const wsResponse = await attemptAstraura158WsTurn(base, { prompt: built.prompt, systemPrompt, preferences }, persona, mode, optionsMedidas);
+  if (wsResponse) {
+    anotar("ws");
+    return wsResponse;
+  }
 
   // ── Reserva SSE (idéntica a la de antes de la Adenda 164) ──
   // 1) Puente nuevo (mensajes estructurados; el backend transcribe). 404/405 ⇒ backend antiguo.
@@ -997,7 +1030,7 @@ async function chat(
     // Respuesta no-stream (p.ej. proxy que tamponó): {response|full_text|text}
     const json = (await res.json().catch(() => null)) as Record<string, unknown> | null;
     const text = String(json?.response ?? json?.full_text ?? json?.text ?? "");
-    if (text && options.onChunk) options.onChunk(text);
+    if (text && options.onChunk) onChunkMedido?.(text);
     const raw: Astraura158Raw & { json?: Record<string, unknown> } = {
       astraura158: collectAstraura158FromJson(json),
       persona,
@@ -1008,9 +1041,10 @@ async function chat(
       ...(via ? { via } : {}),
       ...(json ? { json } : {}),
     };
+    anotar("sse");
     return { text, raw };
   }
-  const out = await readAstraura158Sse(res, options.onChunk);
+  const out = await readAstraura158Sse(res, onChunkMedido);
   const raw: Astraura158Raw = {
     astraura158: out.collected,
     persona,
@@ -1020,6 +1054,7 @@ async function chat(
     personalities_involved: out.involved,
     ...(mode ? { mode } : {}),
   };
+  anotar("sse");
   return { text: out.text, raw };
 }
 
