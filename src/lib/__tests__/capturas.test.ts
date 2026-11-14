@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
+import sharp from "sharp";
 import {
-  CALIDADES_WEBP,
-  PANTALLAS,
   PESO_MAXIMO_BYTES,
+  PANTALLAS,
   TEMAS,
+  CALIDADES_WEBP,
   capturarConReintentos,
+  capturarUna,
   capturasJson,
+  aWebp,
   esPublica,
   nombreArchivo,
   planDeCapturas,
@@ -100,5 +103,98 @@ describe("manifest capturas.json, con omisiones declaradas y sin datos personale
 describe("nombre de archivo, determinista y sin caracteres raros", () => {
   it("compone tema y pantalla normalizados", () => {
     expect(nombreArchivo("inicio", "noche")).toBe("inicio-noche.webp");
+  });
+});
+
+describe("reparación: la captura produce un WebP real, no una omisión silenciosa", () => {
+  // La escalada se agotó porque page.screenshot no admite type:"webp": todas las
+  // entradas acababan «omitida: error» y el guion no entregaba nada. Ahora captura
+  // PNG y convierte con sharp; estas pruebas fijan que la conversión existe y funciona.
+  const pngDePrueba = () =>
+    sharp({
+      create: { width: 320, height: 200, channels: 3, background: "#2e1065" },
+    })
+      .png()
+      .toBuffer();
+
+  it("aWebp convierte el PNG en un WebP válido (cabecera RIFF/WEBP)", async () => {
+    const webp = await aWebp(await pngDePrueba(), CALIDADES_WEBP[0]);
+    const cabecera = webp.subarray(0, 12).toString("latin1");
+    expect(cabecera.startsWith("RIFF")).toBe(true);
+    expect(cabecera.includes("WEBP")).toBe(true);
+  });
+
+  it("el WebP de la captura cabe por debajo del límite de 300 KB", async () => {
+    const png = await sharp({
+      create: { width: 1440, height: 900, channels: 3, background: "#0d0518" },
+    })
+      .png()
+      .toBuffer();
+    const webp = await aWebp(png, CALIDADES_WEBP[0]);
+    expect(webp.length).toBeLessThanOrEqual(PESO_MAXIMO_BYTES);
+  });
+
+  it("la navegación no espera «networkidle»: las páginas vivas mantienen tráfico y colgaban la escalada", async () => {
+    const esperasGoto: Array<Record<string, unknown>> = [];
+    const page = {
+      goto: async (_ruta: string, opciones: Record<string, unknown>) => {
+        esperasGoto.push(opciones);
+        return { status: () => 200 };
+      },
+      url: () => "https://starseed-os.vercel.app/",
+      waitForTimeout: async () => {},
+      screenshot: async () => pngDePrueba(),
+    } as unknown as Parameters<typeof capturarUna>[0];
+    const resultado = await capturarUna(page, planDeCapturas()[0], PESO_MAXIMO_BYTES);
+    expect(resultado.ok).toBe(true);
+    expect(esperasGoto).toHaveLength(1);
+    expect(esperasGoto[0].waitUntil).toBe("load");
+  });
+
+  it("capturarUna captura y devuelve ok con el peso real, pidiendo a la página solo PNG", async () => {
+    const formatosPedidos: string[] = [];
+    const page = {
+      goto: async () => ({ status: () => 200 }),
+      url: () => "https://starseed-os.vercel.app/",
+      waitForTimeout: async () => {},
+      screenshot: async (opciones: { type: string }) => {
+        formatosPedidos.push(opciones.type);
+        return pngDePrueba();
+      },
+    } as unknown as Parameters<typeof capturarUna>[0];
+    const resultado = await capturarUna(page, planDeCapturas()[0], PESO_MAXIMO_BYTES);
+    expect(formatosPedidos).toEqual(["png"]);
+    expect(resultado.ok).toBe(true);
+    if (!resultado.ok) return;
+    expect(resultado.bytes).toBeLessThanOrEqual(PESO_MAXIMO_BYTES);
+    expect(resultado.archivo).toBe(planDeCapturas()[0].archivo);
+  });
+
+  it("si la página muere, capturarUna declara la omisión y termina, sin lanzar ni reintentar a ciegas", async () => {
+    const page = {
+      goto: async () => {
+        throw new Error("net::ERR_CONNECTION_REFUSED");
+      },
+    } as unknown as Parameters<typeof capturarUna>[0];
+    const resultado = await capturarUna(page, planDeCapturas()[1], PESO_MAXIMO_BYTES);
+    expect(resultado.ok).toBe(false);
+    if (resultado.ok) return;
+    expect(resultado.motivo).toContain("error");
+    expect(resultado.motivo).toContain("CONNECTION_REFUSED");
+  });
+
+  it("si la página redirige a /login, se omite sola con su motivo, sin persona", async () => {
+    const page = {
+      goto: async () => ({ status: () => 200 }),
+      url: () => "https://starseed-os.vercel.app/login",
+      waitForTimeout: async () => {},
+      screenshot: async () => {
+        throw new Error("no debía capturar una pantalla de sesión");
+      },
+    } as unknown as Parameters<typeof capturarUna>[0];
+    const resultado = await capturarUna(page, planDeCapturas()[0], PESO_MAXIMO_BYTES);
+    expect(resultado.ok).toBe(false);
+    if (resultado.ok) return;
+    expect(resultado.motivo).toContain("sesión");
   });
 });

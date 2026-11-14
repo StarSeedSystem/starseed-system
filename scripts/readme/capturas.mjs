@@ -92,6 +92,13 @@ export function siguienteCalidad(indice) {
   return CALIDADES_WEBP[indice] ?? null;
 }
 
+// PNG de Playwright → WebP de la calidad pedida (sharp ya viene con Next).
+// Devuelve el buffer: es el que se escribe en assets/readme/capturas si cabe.
+export async function aWebp(png, calidad) {
+  const { default: sharp } = await import("sharp");
+  return sharp(png).webp({ quality: calidad }).toBuffer();
+}
+
 export async function capturarConReintentos(conversion, pesoMaximo) {
   for (let i = 0; i < CALIDADES_WEBP.length; i += 1) {
     const calidad = siguienteCalidad(i);
@@ -132,8 +139,10 @@ export function capturasJson(resultados) {
 // Devuelve el registro del resultado (con el buffer aparte, que solo sirve en memoria).
 export async function capturarUna(page, entrada, pesoMaximo) {
   try {
+    // «networkidle» no se asienta en las páginas vivas (latidos y websockets mantienen
+    // tráfico para siempre): se espera a «load» y un asentamiento finito de 4 s.
     const respuesta = await page.goto(`${BASE_URL_POR_DEFECTO}${entrada.ruta}`, {
-      waitUntil: "networkidle",
+      waitUntil: "load",
       timeout: 60_000,
     });
     if (page.url().includes("/login")) {
@@ -142,10 +151,13 @@ export async function capturarUna(page, entrada, pesoMaximo) {
     if (respuesta && respuesta.status() >= 400) {
       return { id: entrada.id, ok: false, archivo: entrada.archivo, motivo: `la página respondió ${respuesta.status()}` };
     }
-    await page.waitForTimeout(2_000);
+    await page.waitForTimeout(4_000);
+    // Playwright solo captura png|jpeg: el WebP sale de convertir el PNG con sharp,
+    // reintentando con la secuencia finita de calidades (una sola captura, N conversiones).
+    const png = await page.screenshot({ type: "png" });
     let ultimoBuffer;
     const conversion = async (calidad) => {
-      ultimoBuffer = await page.screenshot({ type: "webp", quality: calidad });
+      ultimoBuffer = await aWebp(png, calidad);
       return ultimoBuffer.length;
     };
     const intento = await capturarConReintentos(conversion, pesoMaximo);
