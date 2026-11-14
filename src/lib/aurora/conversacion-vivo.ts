@@ -20,6 +20,7 @@ import { eventoDeLinea, type TurnoConversacion } from "@/lib/astraura/conversaci
 import { createStreamingVoice } from "@/lib/aurora/streaming-voice";
 import { vozDePersona, vozRT } from "@/lib/aurora/voz-rt";
 import { normalizar, registrarDicho, repeticionEnTexto } from "@/lib/aurora/anti-bucle-voz";
+import { emitirVectorPorClausula } from "@/lib/aurora/vector-por-clausula";
 
 const MULETILLA_TRAS_MS = 1200;
 const HISTORIAL_TURNOS = 12;
@@ -85,6 +86,7 @@ export async function turnoEnVivo(opts: {
             }
             alHablar();
             voz.encolar(clausula, { voz: vozId });
+            emitirVectorPorClausula(clausula);
         },
         initialPersonaId: opts.persona.id,
     });
