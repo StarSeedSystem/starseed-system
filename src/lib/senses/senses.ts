@@ -33,6 +33,7 @@ import {
   consultarPermiso,
   entornoPermisos,
   pedirPermiso,
+  solicitarPantalla,
   type PermisoDispositivo,
 } from "@/lib/aurora/senses/request-permission";
 import {
@@ -427,14 +428,17 @@ export async function requestSense(senseId: string): Promise<SenseTestResult> {
 
   try {
     if (sense.permission === "getDisplayMedia") {
-      const md = navigator.mediaDevices as MediaDevices & {
-        getDisplayMedia?: (c?: unknown) => Promise<MediaStream>;
-      };
-      if (!md?.getDisplayMedia)
-        return { ok: false, state: "unsupported", error: "getDisplayMedia no disponible" };
-      const stream = await md.getDisplayMedia({ video: true });
-      stopStream(stream);
-      return { ok: true, state: "granted" };
+      // La pantalla también va por el motor único (`solicitarPantalla`), igual
+      // que las llamadas: ningún sentido habla con `mediaDevices` a pelo.
+      try {
+        stopStream(await solicitarPantalla({ video: true }));
+        return { ok: true, state: "granted" };
+      } catch (e) {
+        if (e instanceof Error && e.name === "NoMediaDevices") {
+          return { ok: false, state: "unsupported", error: "getDisplayMedia no disponible" };
+        }
+        throw e;
+      }
     }
     if (sense.permission === "clipboard") {
       const clip = navigator.clipboard as Clipboard & {

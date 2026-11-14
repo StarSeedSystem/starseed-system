@@ -73,4 +73,11 @@ describe("un solo motor de permisos (guarda)", () => {
     expect(codigo).not.toMatch(/\.getUserMedia\s*\(/);
     expect(codigo).not.toMatch(/\.getDisplayMedia\s*\(/);
   });
+
+  it("el catálogo de sentidos tampoco abre medios por su cuenta", () => {
+    const fuente = readFileSync(path.resolve(__dirname, "../../../senses/senses.ts"), "utf8");
+    const codigo = fuente.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+    expect(codigo).not.toMatch(/\.getUserMedia\s*\(/);
+    expect(codigo).not.toMatch(/\.getDisplayMedia\s*\(/);
+  });
 });
