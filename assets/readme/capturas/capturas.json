@@ -1,66 +1,66 @@
 [
   {
-    "pagina": "inicio",
-    "descripcion": "Página de inicio de StarSeed OS con hero y acceso a la app",
-    "capturas": [
-      {
-        "tema": "noche",
-        "archivo": "inicio-noche.webp",
-        "tamanoKB": 19.4
-      },
-      {
-        "tema": "nieve",
-        "archivo": "inicio-nieve.webp",
-        "tamanoKB": 37.8
-      }
-    ]
+    "archivo": "inicio-noche.webp",
+    "pantalla": "Inicio",
+    "tema": "noche",
+    "descripcion": "Panel principal Inicio: clima actual en Cuernavaca, astronomía (Sol en Escorpio, Luna en Capricornio), hora dorada, y accesos rápidos a 8 áreas temáticas",
+    "resolucion": "2880x1800",
+    "peso_kb": 102.6
   },
   {
-    "pagina": "instalar",
-    "descripcion": "Página de instalación con opciones de descarga por plataforma",
-    "capturas": [
-      {
-        "tema": "noche",
-        "archivo": "instalar-noche.webp",
-        "tamanoKB": 110.1
-      },
-      {
-        "tema": "nieve",
-        "archivo": "instalar-nieve.webp",
-        "tamanoKB": 110.6
-      }
-    ]
+    "archivo": "inicio-nieve.webp",
+    "pantalla": "Inicio",
+    "tema": "nieve",
+    "descripcion": "Panel principal Inicio (tema nieve): clima, astronomía y navegación a 8 áreas con fondo claro",
+    "resolucion": "2880x1800",
+    "peso_kb": 96
   },
   {
-    "pagina": "dashboard",
-    "descripcion": "Panel principal de la aplicación con información astrológica, meteorológica y calendario",
-    "capturas": [
-      {
-        "tema": "noche",
-        "archivo": "dashboard-noche.webp",
-        "tamanoKB": 33
-      },
-      {
-        "tema": "nieve",
-        "archivo": "dashboard-nieve.webp",
-        "tamanoKB": 75.8
-      }
-    ]
+    "archivo": "politica-noche.webp",
+    "pantalla": "Política",
+    "tema": "noche",
+    "descripcion": "Sección Política: gobernanza y propuestas ciudadanas, lista de iniciativas con estado y votación",
+    "resolucion": "2880x1800",
+    "peso_kb": 88.9
   },
   {
-    "pagina": "lienzo",
-    "descripcion": "Lienzo universal para conectar archivos, apps, widgets y ventanas",
-    "capturas": [
-      {
-        "tema": "noche",
-        "archivo": "lienzo-noche.webp",
-        "tamanoKB": 80.3
-      },
-      {
-        "tema": "nieve",
-        "archivo": "lienzo-nieve.webp",
-        "tamanoKB": 81.5
-      }
-    ]
+    "archivo": "politica-nieve.webp",
+    "pantalla": "Política",
+    "tema": "nieve",
+    "descripcion": "Sección Política (tema nieve): propuestas y gobernanza con fondo claro",
+    "resolucion": "2880x1800",
+    "peso_kb": 92.7
+  },
+  {
+    "archivo": "educacion-noche.webp",
+    "pantalla": "Educación",
+    "tema": "noche",
+    "descripcion": "Sección Educación: Astraura 1.58, recursos educativos y módulos de aprendizaje",
+    "resolucion": "2880x1800",
+    "peso_kb": 101.6
+  },
+  {
+    "archivo": "educacion-nieve.webp",
+    "pantalla": "Educación",
+    "tema": "nieve",
+    "descripcion": "Sección Educación (tema nieve): Astraura y recursos educativos con fondo claro",
+    "resolucion": "2880x1800",
+    "peso_kb": 97.6
+  },
+  {
+    "archivo": "cultura-noche.webp",
+    "pantalla": "Cultura",
+    "tema": "noche",
+    "descripcion": "Sección Cultura: Biblioteca, lienzo cultural, medios y archivos creativos",
+    "resolucion": "2880x1800",
+    "peso_kb": 106.5
+  },
+  {
+    "archivo": "cultura-nieve.webp",
+    "pantalla": "Cultura",
+    "tema": "nieve",
+    "descripcion": "Sección Cultura (tema nieve): Biblioteca y lienzo con fondo claro",
+    "resolucion": "2880x1800",
+    "peso_kb": 105.8
   }
 ]
