@@ -2810,6 +2810,7 @@ def sh(cmd, cwd=ROOT, timeout=120, env=None, log=None):
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
+                errors="replace",  # SUP1114C: un binario (git show de un MP3) no tumba la tarea
                 env=e,
                 start_new_session=True,
             )
