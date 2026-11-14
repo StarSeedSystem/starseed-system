@@ -5,56 +5,56 @@
       "id": "inicio-noche",
       "pantalla": "inicio",
       "archivo": "inicio-noche.webp",
-      "peso_bytes": 211744,
+      "peso_bytes": 40858,
       "texto_alternativo": "Portada pública de StarSeed OS con su símbolo y los accesos principales."
     },
     {
       "id": "inicio-nieve",
       "pantalla": "inicio",
       "archivo": "inicio-nieve.webp",
-      "peso_bytes": 198512,
+      "peso_bytes": 197060,
       "texto_alternativo": "Portada pública de StarSeed OS con su símbolo y los accesos principales."
     },
     {
       "id": "gobernanza-noche",
       "pantalla": "gobernanza",
       "archivo": "gobernanza-noche.webp",
-      "peso_bytes": 158870,
+      "peso_bytes": 158128,
       "texto_alternativo": "Gobernanza de la red: democracia directa, propuestas y voto delegado."
     },
     {
       "id": "gobernanza-nieve",
       "pantalla": "gobernanza",
       "archivo": "gobernanza-nieve.webp",
-      "peso_bytes": 158690,
+      "peso_bytes": 166546,
       "texto_alternativo": "Gobernanza de la red: democracia directa, propuestas y voto delegado."
     },
     {
       "id": "astraura-noche",
       "pantalla": "astraura",
       "archivo": "astraura-noche.webp",
-      "peso_bytes": 149878,
+      "peso_bytes": 151628,
       "texto_alternativo": "Estudio de Astraura, la inteligencia soberana 1.58-bit del sistema."
     },
     {
       "id": "astraura-nieve",
       "pantalla": "astraura",
       "archivo": "astraura-nieve.webp",
-      "peso_bytes": 149908,
+      "peso_bytes": 151594,
       "texto_alternativo": "Estudio de Astraura, la inteligencia soberana 1.58-bit del sistema."
     },
     {
       "id": "biblioteca-noche",
       "pantalla": "biblioteca",
       "archivo": "biblioteca-noche.webp",
-      "peso_bytes": 142278,
+      "peso_bytes": 19976,
       "texto_alternativo": "Biblioteca universal del OS, con sus recursos e instalables."
     },
     {
       "id": "biblioteca-nieve",
       "pantalla": "biblioteca",
       "archivo": "biblioteca-nieve.webp",
-      "peso_bytes": 142596,
+      "peso_bytes": 19976,
       "texto_alternativo": "Biblioteca universal del OS, con sus recursos e instalables."
     }
   ],
