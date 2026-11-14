@@ -37,6 +37,8 @@ import sintesis_fuentes as SF
 import sintesis_tareas as ST
 import sintesis_telegram as SG
 import suenos as S
+import alcance_recomendaciones as AR
+import agente_alcance as AA
 
 def _navegador_estado(raiz: str) -> dict:
     """Estado del navegador propio: sesiones vivas y última comprobación."""
@@ -70,6 +72,14 @@ TOPE_INFORME = 1500  # texto a tope de cada informe nuevo
 TOPE_RESUMEN = 4000  # el resumen de actividad, si es dict grande, sale a tope
 TOPE_SALIDA = 2500   # cada salida de análisis del día dentro del encargo de respaldo
 CARPETA_DOC = "1PenzAWw1VWpSAMXa7ms2VRrEhJ5uFbmI"  # «Síntesis diarias» de Drive (alex-docs)
+
+# ALC1113G: secciones nuevas para la síntesis
+SECCIONES_RESPALDO = ("Portada y rotación", "Noticias con fuente y fecha", "Actividad de Alex",
+                      "Referencias de diseño", "Ideas de vídeo y redes", "Guiones y storyboard",
+                      "YouTube", "Mañana (la rotación del día siguiente)",
+                      "GitHub y comunidad técnica", "Alcance: contactos y mensajes para aprobar",
+                      "Promoción y canales")
+CIFRAS_RESPALDO = (3000, 9000)
 
 FECHA_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})\.md$")
 
@@ -356,6 +366,268 @@ def _resumen_1500_3000(texto):
     return texto[:RESUMEN_MAX]
 
 
+# ─── ALC1113G: Generación de las tres secciones nuevas ──────────────────────
+
+def _cargar_recomendaciones_dia(raiz, fecha):
+    """Carga las recomendaciones de alcance_recomendaciones del día (propuesta-<fecha>.json)."""
+    try:
+        ruta = os.path.join(raiz, "starseed_memory_root", "alcance", "propuestas", f"propuesta-{fecha}.json")
+        with open(ruta, encoding="utf-8") as f:
+            data = json.load(f)
+        return data.get("paquetes", []) if isinstance(data, dict) else []
+    except (OSError, ValueError):
+        return []
+
+
+def _cargar_borradores_alcance(raiz, fecha):
+    """Carga los borradores de alcance pendientes de aprobación del día (borradores-<fecha>.json)."""
+    try:
+        ruta = os.path.join(raiz, "starseed_memory_root", "alcance", "borradores", f"borradores-{fecha}.json")
+        with open(ruta, encoding="utf-8") as f:
+            data = json.load(f)
+        lista = data if isinstance(data, list) else (data.get("borradores") or [])
+        return [b for b in lista if isinstance(b, dict) and b.get("estado") == "esperando-aprobacion"]
+    except (OSError, ValueError):
+        return []
+
+
+def _cargar_fichas_github_dia(raiz, fecha):
+    """Carga las fichas de GitHub del día (alcance/github/<fecha>.json)."""
+    try:
+        ruta = os.path.join(raiz, "starseed_memory_root", "alcance", "github", f"{fecha}.json")
+        with open(ruta, encoding="utf-8") as f:
+            data = json.load(f)
+        lista = data if isinstance(data, list) else (data.get("fichas") or [])
+        return [f for f in lista if isinstance(f, dict)]
+    except (OSError, ValueError):
+        return []
+
+
+def _seccion_github_comunidad_tecnica(raiz, fecha, max_proyectos=10):
+    """Genera la sección 'GitHub y comunidad técnica': 5-10 proyectos del día con enlace, qué hacen,
+    qué aprender/implementar en StarSeed OS (de alcance_recomendaciones) y propuestas para la Librería."""
+    fichas = _cargar_fichas_github_dia(raiz, fecha)
+    recomendaciones = _cargar_recomendaciones_dia(raiz, fecha)
+    
+    # Mapear recomendaciones por obj_id de ficha
+    rec_por_ficha = {}
+    for r in recomendaciones:
+        obj_id = r.get("_ficha_obj_id") or r.get("obj_id")
+        if obj_id:
+            rec_por_ficha[obj_id] = r
+    
+    lineas = ["## GitHub y comunidad técnica", ""]
+    count = 0
+    for ficha in fichas:
+        if count >= max_proyectos:
+            break
+        nombre = ficha.get("nombre_publico", "")
+        que_hacen = ficha.get("que_hacen", "")
+        enlace = f"https://github.com/{nombre}" if nombre and "/" in nombre else ""
+        area = ficha.get("area_starseed", "")
+        obj_id = ficha.get("obj_id", "")
+        
+        rec = rec_por_ficha.get(obj_id, {})
+        que_adoptar = rec.get("que_adoptar", "")
+        por_que = rec.get("por_que", "")
+        esfuerzo = rec.get("esfuerzo", "")
+        riesgo = rec.get("riesgo", "")
+        licencia_compatible = rec.get("licencia_compatible", False)
+        
+        lineas.append(f"### {nombre}")
+        if enlace:
+            lineas.append(f"- **Enlace:** {enlace}")
+        lineas.append(f"- **Qué hacen:** {que_hacen[:300]}")
+        if area:
+            lineas.append(f"- **Área StarSeed:** {area}")
+        if que_adoptar:
+            lineas.append(f"- **Qué adoptar/implementar:** {que_adoptar}")
+        if por_que:
+            lineas.append(f"- **Por qué:** {por_que}")
+        if esfuerzo:
+            lineas.append(f"- **Esfuerzo:** {esfuerzo} (S=pequeño, M=medio, L=grande)")
+        if riesgo:
+            lineas.append(f"- **Riesgo:** {riesgo}")
+        if licencia_compatible is not None:
+            lineas.append(f"- **Licencia compatible:** {'Sí' if licencia_compatible else 'No'}")
+        lineas.append("")
+        count += 1
+    
+    if count == 0:
+        lineas.append("_Sin proyectos analizados hoy._")
+        lineas.append("")
+    
+    # Propuestas para la Librería
+    if recomendaciones:
+        lineas.append("### Propuestas para la Librería (en esperando-aprobación)")
+        lineas.append("")
+        for r in recomendaciones[:5]:
+            lineas.append(f"- **{r.get('que_adoptar', 'Sin título')}** ({r.get('area_sistema', 'otro')}) — "
+                         f"Esfuerzo: {r.get('esfuerzo', '?')}, Riesgo: {r.get('riesgo', '?')}, "
+                         f"Licencia compatible: {'Sí' if r.get('licencia_compatible') else 'No'}")
+        lineas.append("")
+    
+    return "\n".join(lineas)
+
+
+def _seccion_alcance_contactos(raiz, fecha):
+    """Genera la sección 'Alcance: contactos y mensajes para aprobar': borradores pendientes
+    con id, destinatario, canal y motivo, y cómo aprobarlos (/alcance)."""
+    borradores = _cargar_borradores_alcance(raiz, fecha)
+    
+    lineas = ["## Alcance: contactos y mensajes para aprobar", ""]
+    
+    if not borradores:
+        lineas.append("_Sin borradores pendientes de aprobación hoy._")
+        lineas.append("")
+        return "\n".join(lineas)
+    
+    lineas.append(f"Hay **{len(borradores)} borrador(es) pendientes** de aprobación (estado: `esperando-aprobacion`).")
+    lineas.append("Para aprobarlos, usa el bot de Telegram @StarSeed_Design_bot con comando `/alcance` o")
+    lineas.append("la sección **Acciones de Alex** en Genesis (`/genesis?pestana=acciones`).")
+    lineas.append("")
+    lineas.append("| ID | Destinatario | Canal | Motivo |")
+    lineas.append("|----|--------------|-------|--------|")
+    
+    for b in borradores:
+        bid = b.get("id", "")
+        dest = b.get("destinatario", "")
+        canal_obj = b.get("canal", {})
+        canal = canal_obj.get("medio", "desconocido") if isinstance(canal_obj, dict) else str(canal_obj)
+        motivo = b.get("motivo", "")[:100]
+        lineas.append(f"| {bid} | {dest} | {canal} | {motivo} |")
+    
+    lineas.append("")
+    lineas.append("**Cómo aprobar:**")
+    lineas.append("- En Telegram: `/alcance` → lista pendientes → `/aprobar <id>` o `/editar <id> <nuevo texto>` o `/rechazar <id>`")
+    lineas.append("- En Genesis: sección **Acciones de Alex** → ve el borrador completo → botón **Aprobar**")
+    lineas.append("- La aprobación guarda el hash del texto, destinatario, canal y hora; cualquier cambio invalida la aprobación.")
+    lineas.append("")
+    
+    return "\n".join(lineas)
+
+
+def _seccion_promocion_canales(raiz, fecha):
+    """Genera la sección 'Promoción y canales': recomendaciones para el repo, canales de StarSeed,
+    sitios nuevos para presentar el sistema, y próximos pasos con piezas audiovisuales. Rotación diaria."""
+    from datetime import date
+    hoy = date.fromisoformat(fecha)
+    dia_año = hoy.timetuple().tm_yday
+    
+    # Rotación diaria de áreas (7 áreas, rotan cada día)
+    areas_rotacion = [
+        "fediverso",
+        "nostr", 
+        "matrix",
+        "red-mesh",
+        "gobernanza",
+        "ia-local",
+        "solarpunk-regenerativa"
+    ]
+    area_hoy = areas_rotacion[dia_año % len(areas_rotacion)]
+    
+    lineas = ["## Promoción y canales", ""]
+    lineas.append(f"### Rotación diaria: **{area_hoy}**")
+    lineas.append("")
+    
+    # 1. Recomendaciones para el repo
+    lineas.append("### Repositorio GitHub (StarSeedSystem/starseed-system)")
+    lineas.append("- **README:** Añadir badge de versión, badges de estado (build, tests, licencia), sección 'Cómo contribuir' enlazando a CONTRIBUTING.md")
+    lineas.append("- **CONTRIBUTING.md:** Crear con guía de primeros pasos, flujo de PR, estilo de código, tests, y cómo proponer features (issues + 'good first issue')")
+    lineas.append("- **Good first issues:** Etiquetar 3-5 issues existentes como 'good first issue' y 'help wanted' por área rotativa")
+    lineas.append("- **Discussions:** Activar categorías: 'Ideas', 'Preguntas', 'Show and tell', 'Anuncios'; fijar post de bienvenida")
+    lineas.append("- **Topics:** Añadir topics relevantes: `decentralized-social`, `operating-system`, `p2p`, `mesh-network`, `local-first`, `democracy`, `cooperatives`, `solarpunk`")
+    lineas.append("- **Roadmap:** Añadir `ROADMAP.md` con fases Semilla/Fruto/Cosecha y hitos técnicos; enlazar desde README")
+    lineas.append("- **Vista previa social:** Configurar `og:image`, `twitter:card`, `description` en `next.config.ts` y metadata de la app")
+    lineas.append("")
+    
+    # 2. Canales propios de StarSeed
+    lineas.append("### Canales y páginas de StarSeed")
+    lineas.append("- **YouTube (Sociedad StarSeed):** Publicar 1 short semanal rotando áreas (esta semana: {area}); "
+                 "añadir capítulo 'Cómo funciona StarSeed OS' con timestamps; playlist 'Fases del OS'".format(area=area_hoy))
+    lineas.append("- **Instagram (Sociedad StarSeed):** 3 posts/semana: 1 carrusel educativo (fase actual), 1 reels técnico (demo), "
+                 "1 cita/filosofía (Tríada); stories con encuestas sobre gobernanza")
+    lineas.append("- **Telegram (@StarSeed_Design_bot y canal):** Anunciar síntesis diaria en canal público; "
+                 "botones de reacción en posts; encuesta semanal '¿Qué área explorar?'")
+    lineas.append("- **Web (starseed-os.vercel.app):** Landing con hero animado (Trinity), demo interactivo del dock, "
+                 "sección 'Únete a una Sangha' con mapa; métricas de adopción en /genesis")
+    lineas.append("")
+    
+    # 3. Sitios nuevos según contexto (rotación por área)
+    lineas.append(f"### Sitios nuevos para presentar el sistema (área: {area_hoy})")
+    sitios_por_area = {
+        "fediverso": [
+            "Mastodon/Instance admin forums: publicar en #fediverse #activitypub con demo de federación",
+            "Fediverse.to / Fedidb: añadir instancia StarSeed cuando haya servidor propio",
+            "SocialHub / Fediverse.party: listar como proyecto de OS social descentralizado"
+        ],
+        "nostr": [
+            "Nostr.dev / NIPs repo: proponer NIP para 'Social OS' con OS como relay",
+            "Damus / Amethyst / Coracle: pedir review de integración Nostr en el OS",
+            "Nostr band / plebdevs: anuncio en comunidades de desarrolladores Nostr"
+        ],
+        "matrix": [
+            "Matrix.org / Element.io: propuesta de widget StarSeed en Element X",
+            "Matrix rooms: #decentralized-web:matrix.org, #p2p:matrix.org — demo de salas sincronizadas",
+            "MSC (Matrix Spec Changes): proponer MSC para 'Social OS capabilities'"
+        ],
+        "red-mesh": [
+            "Meshtastic forum / Discord: caso de uso 'OS en malla LoRa', demo con Astraura mesh",
+            "Reticulum / Yggdrasil / Briar dev chats: integración de transporte mesh en OS",
+            "LoRaWAN / The Things Network: gateway comunitario para Sanghas"
+        ],
+        "gobernanza": [
+            "Decidim / Consul / Loomio / Polis: importar propuestas de gobernanza como módulos OS",
+            "Participedia / Civic Tech Field Guide: ficha de StarSeed OS como herramienta democrática",
+            "GovTech / Open Government Partnership: caso de estudio de soberanía digital"
+        ],
+        "ia-local": [
+            "LocalAI / Ollama / llama.cpp / GPT4All: plugin StarSeed para modelos locales",
+            "Hugging Face Spaces: demo interactiva de Exocórtex (IA personal) en el OS",
+            "AI Safety / Alignment forums: arquitectura de IA propiedad del usuario (no del sistema)"
+        ],
+        "solarpunk-regenerativa": [
+            "Solarpunk Subreddit / Discord / Mastodon: 'OS para ecoaldeas y comunidades regenerativas'",
+            "GEN (Global Ecovillage Network) / RIVE: piloto en 3 ecoaldeas con mesh + OS",
+            "Permacomputing / Low-tech Magazine: alineación con computación frugal y soberana"
+        ],
+    }
+    
+    for sitio in sitios_por_area.get(area_hoy, []):
+        lineas.append(f"- {sitio}")
+    
+    # Sitios transversales
+    lineas.append("- **Show HN (Hacker News):** Submit cuando haya demo pública completa (título: 'Show HN: StarSeed OS – a decentralized social operating system')")
+    lineas.append("- **dev.to:** Artículo técnico 'Building a decentralized social OS with Next.js, Supabase, and P2P mesh'")
+    lineas.append("- **Product Hunt:** Launch cuando haya onboarding público (categoría: Developer Tools / Social)")
+    lineas.append("- **Academia / Investigadores:** Paper en arXiv 'StarSeed: A Sovereign Social Operating System'; contacto con grupos de CSCW, HCI, P2P")
+    lineas.append("- **Comunidades locales / Ecoaldeas:** Talleres presenciales 'Tu soberanía digital en 2 horas' con kit mesh + OS")
+    lineas.append("")
+    
+    # 4. Próximos pasos con piezas audiovisuales
+    lineas.append("### Próximos pasos y piezas audiovisuales")
+    lineas.append("**Público general:**")
+    lineas.append("- Video 1 (2 min): '¿Qué es StarSeed OS?' — animación Trinity + demo dock + 'Tu vida digital te pertenece'")
+    lineas.append("- Video 2 (5 min): 'Cómo unirte a una Sangha' — mesh, gobernanza, economía ecológica; testimonios reales")
+    lineas.append("- Infografía: 'Las 3 fases (Semilla → Fruto → Cosecha)' para redes sociales")
+    lineas.append("- Podcast (15 min): Entrevista a Alex sobre visión, con clips para Reels/Shorts")
+    lineas.append("")
+    lineas.append("**Público especializado (devs, investigadores, activistas):**")
+    lineas.append("- Tech deep-dive (10 min): Arquitectura SOSD, Exocórtex, Mesh, Federation, Trinity UI")
+    lineas.append("- Live coding (30 min): 'Crea tu primer agente en StarSeed OS' — plugin, tool-calling, memoria")
+    lineas.append("- Paper + slides: 'Decentralized Social OS: Architecture & Governance' para conferencias (FOSDEM, LibrePlanet, CCC)")
+    lineas.append("- Workshop materials: Repo `starseed-workshop` con ejercicios guiados (mesh chat, votación, agente IA)")
+    lineas.append("")
+    lineas.append("**Formatos y distribución:**")
+    lineas.append("- **Posts:** 1 hilo Twitter/X + Mastodon + Bluesky + Nostr por pieza (adaptado a cada plataforma)")
+    lineas.append("- **Comercial:** Newsletter 'StarSeed Weekly' (solo opt-in), caso de estudio para empresas/coops que quieran OS propio")
+    lineas.append("- **Social:** Testimonios de usuarios, 'Día en la vida de una Sangha', métricas de adopción abiertas")
+    lineas.append("- **Todos los formatos:** Video (MP4/WebM), Audio (MP3), Infografía (PNG/SVG), Slides (PDF/PPTX), Artículo (MD/HTML)")
+    lineas.append("")
+    
+    return "\n".join(lineas)
+
+
 SECCIONES_RESPALDO = ("Portada y rotación", "Noticias con fuente y fecha", "Actividad de Alex",
                       "Referencias de diseño", "Ideas de vídeo y redes", "Guiones y storyboard",
                       "YouTube", "Mañana (la rotación del día siguiente)")
@@ -370,9 +642,16 @@ def _prompt_respaldo(ctx, fecha, salidas=()):
               "Regla: %s" % ST.REGLA,
               "Secciones: %s" % "; ".join(SECCIONES_RESPALDO),
               "Rotación del día: %s" % json.dumps((ctx or {}).get("rotacion") or {}, ensure_ascii=False),
-              "", "Contexto:", json.dumps(ctx or {}, ensure_ascii=False, separators=(",", ":"))]
+              "", "Contexto:", json.dumps(ctx or {}, ensure_ascii=False, separators=(",", ":")),
+              "",
+              "Instrucciones para las secciones nuevas (ALC1113G):",
+              "1. 'GitHub y comunidad técnica': 5-10 proyectos analizados hoy (de alcance/github/<fecha>.json) con enlace, qué hacen, qué aprender/implementar en StarSeed OS (de alcance_recomendaciones) y propuestas para la Librería (propuesta-<fecha>.json).",
+              "2. 'Alcance: contactos y mensajes para aprobar': borradores pendientes (borradores-<fecha>.json) con id, destinatario, canal, motivo y cómo aprobar (/alcance en Telegram o Acciones de Alex en Genesis).",
+              "3. 'Promoción y canales': recomendaciones repo (README, CONTRIBUTING, good first issues, Discussions, topics, roadmap, vista previa social); canales StarSeed (YouTube, Instagram, Telegram, web); sitios nuevos según rotación diaria (fediverso, Nostr, Matrix, mesh, gobernanza, IA local, solarpunk); próximos pasos con piezas audiovisuales para público general y especializado, posts y contenido comercial/social en todos los formatos.",
+              "Rotación diaria por áreas del OS. Todo como RECOMENDACIÓN; nada se publica automáticamente.",
+              ""]
     if salidas:
-        partes += ["", "Salidas de análisis del día:", json.dumps(salidas, ensure_ascii=False, separators=(",", ":"))]
+        partes += ["Salidas de análisis del día:", json.dumps(salidas, ensure_ascii=False, separators=(",", ":"))]
     partes += ["", "Devuelve SOLO el texto de la síntesis en Markdown, sin texto alrededor."]
     return "\n".join(partes)[:TOPE_PROMPT]
 
