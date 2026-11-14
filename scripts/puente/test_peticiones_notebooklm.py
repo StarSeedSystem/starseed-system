@@ -1,16 +1,20 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Tests para peticiones_notebooklm.py — sin red, con CLI inyectable."""
+"""Tests para peticiones_notebooklm.py — sin red, con CLI inyectable.
+Incluye tests de regresión SES1113A: cerrojo, detección de caducidad, errores transitorios."""
 import json
 import os
 import sys
 import subprocess
+import threading
+import time
 from unittest.mock import Mock, patch, MagicMock
 
 sys.path.insert(0, os.path.dirname(__file__))
 
 from peticiones_notebooklm import (
     SesionCaducada,
+    SesionTransitoria,
     TIPOS,
     CUADERNO,
     nb,
@@ -24,6 +28,8 @@ from peticiones_notebooklm import (
     nombre_drive,
     token_google,
     drive,
+    _cerrojo_notebooklm,
+    LOCK_PATH,
 )
 
 
@@ -86,17 +92,19 @@ def test_nb_sesion_caducada_lanza_excepcion(monkeypatch):
         pass
 
 
-def test_nb_timeout_devuelve_124(monkeypatch):
-    """nb devuelve código 124 en timeout."""
+def test_nb_timeout_lanza_sesion_transitoria(monkeypatch):
+    """nb lanza SesionTransitoria en timeout (SES1113A: errores transitorios no son caducidad)."""
     import peticiones_notebooklm as mod
 
     def mock_run(*args, **kwargs):
         raise subprocess.TimeoutExpired("cmd", 600)
 
     monkeypatch.setattr(subprocess, "run", mock_run)
-    rc, out, err = mod.nb(["list", "--json"])
-    assert rc == 124
-    assert "tiempo agotado" in err
+    try:
+        mod.nb(["list", "--json"])
+        assert False, "Debería haber lanzado SesionTransitoria"
+    except SesionTransitoria as e:
+        assert "timeout" in str(e).lower()
 
 
 def test_sesion_viva_true(monkeypatch):
@@ -397,6 +405,166 @@ def test_drive_usa_token_y_llama_api(monkeypatch):
     monkeypatch.setattr(mod, "_respuesta_http", mock_respuesta_http)
     resultado = mod.drive("files", {"q": "test"})
     assert resultado == {"files": []}
+
+
+# ===== Tests de regresión SES1113A =====
+
+def test_cerrojo_bloquea_entre_hilos():
+    """Dos hilos intentando obtener el cerrojo: el segundo espera al primero."""
+    resultados = []
+    
+    def worker(wait_time, results_list):
+        with _cerrojo_notebooklm(bloquear=True) as obtenido:
+            results_list.append(("obtenido", obtenido))
+            time.sleep(wait_time)
+            results_list.append(("liberado", time.time()))
+    
+    t1 = threading.Thread(target=worker, args=(0.2, resultados))
+    t2 = threading.Thread(target=worker, args=(0.1, resultados))
+    
+    inicio = time.time()
+    t1.start()
+    time.sleep(0.05)  # Dar tiempo a t1 para tomar el cerrojo
+    t2.start()
+    t1.join()
+    t2.join()
+    fin = time.time()
+    
+    # t1 obtiene, espera 0.2s, libera; t2 espera, obtiene, espera 0.1s, libera
+    # Total debería ser ~0.3s
+    assert fin - inicio >= 0.25, f"Cerrojo no bloqueó correctamente: {fin - inicio:.2f}s"
+    assert resultados[0] == ("obtenido", True)
+    assert resultados[2] == ("obtenido", True)
+
+
+def test_cerrojo_keepalive_no_espera():
+    """Keepalive (bloquear=False) retorna False si el cerrojo está ocupado."""
+    with _cerrojo_notebooklm(bloquear=True) as obtenido:
+        assert obtenido is True
+        # Keepalive intenta obtener sin bloquear
+        with _cerrojo_notebooklm(bloquear=False) as obtenido2:
+            assert obtenido2 is False  # Ocupado por el primer contexto
+
+
+def test_nb_sesion_caducada_solo_rc_no_cero_y_texto_auth(monkeypatch):
+    """SesionCaducada solo si rc != 0 Y texto coincide con auth expired/error."""
+    import peticiones_notebooklm as mod
+    
+    # Caso 1: rc=0 con texto de auth -> NO es caducidad
+    def mock_run_rc0(*args, **kwargs):
+        return MockCompletedProcess(0, "Authentication is valid", "")
+    
+    monkeypatch.setattr(subprocess, "run", mock_run_rc0)
+    rc, out, err = mod.nb(["auth", "check"], timeout=10)
+    assert rc == 0
+    assert "Authentication is valid" in out
+    
+    # Caso 2: rc=1 con "Authentication expired" -> SÍ es caducidad
+    def mock_run_rc1_auth(*args, **kwargs):
+        return MockCompletedProcess(1, "", "Authentication expired: session ended")
+    
+    monkeypatch.setattr(subprocess, "run", mock_run_rc1_auth)
+    try:
+        mod.nb(["list", "--json"], timeout=10)
+        assert False, "Debería haber lanzado SesionCaducada"
+    except SesionCaducada as e:
+        assert "Authentication expired" in str(e)
+    
+    # Caso 3: rc=1 con "Run 'notebooklm login'" -> SÍ es caducidad
+    def mock_run_rc1_login(*args, **kwargs):
+        return MockCompletedProcess(1, "", "Run 'notebooklm login' to authenticate")
+    
+    monkeypatch.setattr(subprocess, "run", mock_run_rc1_login)
+    try:
+        mod.nb(["list", "--json"], timeout=10)
+        assert False, "Debería haber lanzado SesionCaducada"
+    except SesionCaducada as e:
+        assert "Run 'notebooklm login'" in str(e)
+    
+    # Caso 4: rc=1 con error genérico (sin texto de auth) -> NO es caducidad
+    def mock_run_rc1_generico(*args, **kwargs):
+        return MockCompletedProcess(1, "", "Error: source not found")
+    
+    monkeypatch.setattr(subprocess, "run", mock_run_rc1_generico)
+    rc, out, err = mod.nb(["source", "list", "-n", "test", "--json"], timeout=10)
+    assert rc == 1
+    assert "source not found" in err
+
+
+def test_nb_errores_transitorios_lanzan_sesion_transitoria(monkeypatch):
+    """Timeout (124), URLError, errores de red -> SesionTransitoria."""
+    import peticiones_notebooklm as mod
+    
+    # Timeout
+    def mock_run_timeout(*args, **kwargs):
+        raise subprocess.TimeoutExpired("notebooklm", 600)
+    
+    monkeypatch.setattr(subprocess, "run", mock_run_timeout)
+    try:
+        mod.nb(["generate", "report", "-n", "test", "--json"], timeout=600)
+        assert False, "Debería haber lanzado SesionTransitoria"
+    except SesionTransitoria as e:
+        assert "timeout" in str(e).lower()
+    
+    # URLError / error de red
+    import urllib.error
+    def mock_run_urlerror(*args, **kwargs):
+        raise urllib.error.URLError("Network unreachable")
+    
+    monkeypatch.setattr(subprocess, "run", mock_run_urlerror)
+    try:
+        mod.nb(["list", "--json"], timeout=10)
+        assert False, "Debería haber lanzado SesionTransitoria"
+    except SesionTransitoria as e:
+        assert "red" in str(e).lower() or "network" in str(e).lower()
+
+
+def test_sesion_viva_retorna_true_en_error_transitorio(monkeypatch):
+    """sesion_viva() retorna True para SesionTransitoria (sesión está viva)."""
+    import peticiones_notebooklm as mod
+    
+    def mock_nb_transitorio(*args, **kwargs):
+        raise SesionTransitoria("timeout")
+    
+    monkeypatch.setattr(mod, "nb", mock_nb_transitorio)
+    assert mod.sesion_viva() is True
+
+
+def test_sesion_viva_retorna_false_en_sesion_caducada(monkeypatch):
+    """sesion_viva() retorna False para SesionCaducada."""
+    import peticiones_notebooklm as mod
+    
+    def mock_nb_caducada(*args, **kwargs):
+        raise SesionCaducada("Authentication expired")
+    
+    monkeypatch.setattr(mod, "nb", mock_nb_caducada)
+    assert mod.sesion_viva() is False
+
+
+def test_no_mencion_claude_en_textos():
+    """Ningún texto del módulo menciona 'Claude' como paso para renovar."""
+    import peticiones_notebooklm as mod
+    import inspect
+    
+    source = inspect.getsource(mod)
+    # Verificar que no hay referencias a pedir a Claude
+    assert "pídeselo a claude" not in source.lower()
+    assert "pídeselo a claude" not in source.lower()
+    assert "pídele a claude" not in source.lower()
+    
+    # Verificar también en peticiones_reglas
+    import peticiones_reglas as reglas
+    source_reglas = inspect.getsource(reglas)
+    assert "pídeselo a claude" not in source_reglas.lower()
+    assert "pídeselo a claude" not in source_reglas.lower()
+    assert "pídele a claude" not in source_reglas.lower()
+
+
+def test_lock_path_correcto():
+    """LOCK_PATH apunta a ~/.notebooklm/profiles/default/.starseed-cli.lock"""
+    home = os.path.expanduser("~")
+    expected = os.path.join(home, ".notebooklm", "profiles", "default", ".starseed-cli.lock")
+    assert LOCK_PATH == expected
 
 
 if __name__ == "__main__":

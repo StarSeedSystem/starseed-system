@@ -48,9 +48,10 @@ AYUDA = (
 )
 
 RENOVAR = (
-    "Para renovarla hace falta iniciar sesión una vez con alexbordongarrigos: pídeselo a Claude en el chat "
-    "del proyecto (abre la ventana en la Mac y la sesión pasa al A1). Cuando el enjambre integre PET1112E, se "
-    "renovará desde MetaGenesis › Apps Linux, sin la Mac."
+    "La sesión se renueva automáticamente: MetaGenesis intenta refrescar (auth refresh --verify), "
+    "restaurar storage_state.buena-*, y si falla 3 veces llama al sanador (recetas: token maestro, "
+    "navegador propio, Mac si está viva). Si todo falla: /renovar notebooklm desde el móvil "
+    "(MetaGenesis › Apps Linux) o la Mac detecta actividad y abre la ventana de login."
 )
 
 

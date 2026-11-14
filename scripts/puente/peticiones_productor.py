@@ -3,9 +3,69 @@
 """Productor de encargos de varias horas: ejecuta frentes con NotebookLM y Drive inyectables."""
 import json
 import os
+import re
 import traceback
+import urllib.error
+import urllib.parse
+import urllib.request
 from typing import Any, Callable, Optional
 from peticiones_encargos import validar_plan, texto_panel, ENTREGABLES_VALIDOS, DESTINOS
+
+# Tipos de entregables de texto (se generan con llm() en modo degradado)
+ENTREGABLES_TEXTO = {"documento", "informe", "report", "slide-deck", "mind-map", "quiz", "flashcards", "data-table"}
+# Tipos nativos (requieren NotebookLM, esperan en cola)
+ENTREGABLES_NATIVOS = {"infographic", "audio", "video"}
+
+MODELOS = ["gemini-flash", "qwen3.8-max", "gemini-3.5-flash", "glm-5.3-flash", "qwen3.6-plus"]
+
+
+def _respuesta_http(abrir):
+    try:
+        with abrir() as r:
+            return json.load(r)
+    except urllib.error.HTTPError as e:
+        try:
+            return json.load(e)
+        except Exception:
+            return {"ok": False, "description": "HTTP %s" % e.code}
+    except Exception as e:
+        return {"ok": False, "description": type(e).__name__}
+
+
+def llm(mensajes: list[dict[str, str]], max_tokens: int = 3000) -> tuple[str, str]:
+    """Llama a modelos gratuitos vía FreeLLMAPI. Evita modelos Claude."""
+    from peticiones_telegram import ENV
+    clave = ENV.get("FREELLMAPI_KEY", "")
+    for modelo in MODELOS:
+        cuerpo = json.dumps({"model": modelo, "messages": mensajes, "max_tokens": max_tokens, "temperature": 0.2}).encode()
+        req = urllib.request.Request(ENV.get("STARSEED_LLM_URL", "http://127.0.0.1:3001/v1/chat/completions"), cuerpo,
+                                     {"Authorization": "Bearer " + clave, "Content-Type": "application/json"})
+        d = _respuesta_http(lambda: urllib.request.urlopen(req, timeout=150))
+        usado = str(d.get("model") or modelo)
+        texto = ((d.get("choices") or [{}])[0].get("message") or {}).get("content") or ""
+        if "claude" in usado.lower():
+            continue
+        if texto.strip():
+            return texto.strip(), usado
+    return "", ""
+
+
+def _generar_entregable_texto(tipo: str, titulo: str, instrucciones: str) -> str:
+    """Genera contenido de entregable de texto usando modelo gratuito (modo degradado SES1113A)."""
+    prompts = {
+        "documento": f"Escribe un documento completo en español: {instrucciones}",
+        "informe": f"Escribe un informe detallado en español: {instrucciones}",
+        "report": f"Escribe un informe detallado en español: {instrucciones}",
+        "slide-deck": f"Escribe una presentación en español con diapositivas: {instrucciones}",
+        "mind-map": f"Escribe un mapa mental en español estructurado: {instrucciones}",
+        "quiz": f"Escribe un cuestionario en español: {instrucciones}",
+        "flashcards": f"Escribe tarjetas de estudio en español: {instrucciones}",
+        "data-table": f"Escribe una tabla CSV en español: {instrucciones}",
+    }
+    prompt = prompts.get(tipo, f"Escribe en español lo esencial: {instrucciones}")
+    texto, _ = llm([{"role": "user", "content": prompt}], 3000)
+    marca = "*Generado sin NotebookLM (degradación SES1113A) · se rehará al volver*"
+    return f"# {tipo.upper()} - {titulo}\n\n{marca}\n\n{texto}"
 
 
 class ProductorError(Exception):
@@ -14,7 +74,12 @@ class ProductorError(Exception):
 
 
 class SesionCaducada(Exception):
-    """Sesión de NotebookLM caducada."""
+    """Sesión de NotebookLM caducada (autenticación expirada)."""
+    pass
+
+
+class SesionTransitoria(Exception):
+    """Error transitorio de red/timeout - no es caducidad, se reintenta sin avisar."""
     pass
 
 
@@ -24,11 +89,20 @@ TIPOS_SYNC = {"mind-map", "quiz", "flashcards"}  # síncronos (no necesitan wait
 
 
 def _llamar_nb(nb: Any, metodo: str, *args, **kwargs) -> tuple[int, str, str]:
-    """Llama a un método del cliente NotebookLM inyectado, detectando sesión caducada."""
+    """Llama a un método del cliente NotebookLM inyectado, detectando sesión caducada.
+    
+    Solo lanza SesionCaducada si returncode != 0 Y el texto indica auth expirado/error.
+    Errores transitorios (timeout, red, CLI ocupado) lanzan SesionTransitoria.
+    """
     fn = getattr(nb, metodo)
     rc, out, err = fn(*args, **kwargs)
-    if rc != 0 and ("Authentication" in err or "Run 'notebooklm login'" in err or "expired" in err.lower()):
+    todo = (out or "") + (err or "")
+    # Solo es caducidad si rc != 0 Y el texto dice "Authentication expired/error" o "Run 'notebooklm login'"
+    if rc != 0 and re.search(r"Authentication (expired|error)|Run 'notebooklm login'", todo):
         raise SesionCaducada(err[-300:])
+    # rc == 0 con texto de auth NO es caducidad
+    # rc != 0 sin texto de auth = error genérico, no caducidad (deja que el llamador decida)
+    # Nota: el cliente inyectado (nb) debe lanzar SesionTransitoria para timeouts/errores de red
     return rc, out, err
 
 
@@ -102,14 +176,26 @@ def producir_entregable(
     nb: Any,
     drive: Any,
     enviar_entregable: Optional[Callable[[str, str, str, str], None]] = None,
+    modo_degradado: bool = False,
 ) -> str:
     """Produce un entregable según su tipo. Devuelve el enlace de Drive.
     
     Si enviar_entregable se proporciona y e['enviar'] es True, se llama con
     (tipo, ruta_local, titulo, enlace_drive) antes de borrar el archivo temporal.
+    
+    Si modo_degradado=True y el tipo es de texto, genera con llm() y marca
+    «hecho sin NotebookLM · se rehará al volver». Los nativos lanzan error.
     """
     titulo = f"{e['titulo']} · {enc['id']}"
     tipo = e["tipo"]
+
+    # Modo degradado: NotebookLM caído
+    if modo_degradado:
+        if tipo in ENTREGABLES_TEXTO:
+            return _producir_entregable_texto_degradado(e, frente, enc, drive, titulo, tipo)
+        else:
+            # Nativos: infographic, audio, video - esperan en cola
+            raise ProductorError(f"{tipo}: NotebookLM caído, entregable nativo en cola")
 
     if tipo == "documento":
         # Usa ask (síncrono, respuesta directa) - crea un Doc en Drive, no hay archivo local
@@ -192,6 +278,38 @@ def producir_entregable(
         return enlace
 
 
+def _producir_entregable_texto_degradado(
+    e: dict[str, Any],
+    frente: dict[str, Any],
+    enc: dict[str, Any],
+    drive: Any,
+    titulo: str,
+    tipo: str,
+) -> str:
+    """Genera entregable de texto con llm() y lo guarda en Drive marcado como degradado."""
+    import tempfile
+    instrucciones = _instrucciones(enc, e)
+    contenido = _generar_entregable_texto(tipo, e['titulo'], instrucciones)
+    
+    # Guardar en archivo temporal y subir a Drive
+    ext = _extension(tipo) if tipo != "documento" else ".md"
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=ext, encoding="utf-8") as tmp:
+        tmp.write(contenido)
+        tmp_path = tmp.name
+    
+    try:
+        if tipo in ("documento", "informe", "report"):
+            with open(tmp_path, encoding="utf-8") as f:
+                doc_contenido = f.read()
+            doc_id, enlace = drive.doc(titulo, doc_contenido, frente["carpeta"])
+        else:
+            fid, enlace = drive.archivo(tmp_path, frente["carpeta"], titulo + ext)
+        return enlace
+    finally:
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+
+
 def _extension(tipo: str) -> str:
     ext_map = {
         "infographic": ".png",
@@ -267,22 +385,71 @@ def ejecutar_encargo(
 
         actualizar_panel(enc, drive)
 
-        # Crear/reutilizar cuaderno
-        cid = crear_cuaderno(frente, enc, nb)
+        # Crear/reutilizar cuaderno (con manejo de sesión)
+        try:
+            cid = crear_cuaderno(frente, enc, nb)
+        except SesionTransitoria:
+            import time
+            time.sleep(5)
+            cid = crear_cuaderno(frente, enc, nb)
+        except SesionCaducada:
+            # Si falla la creación del cuaderno, no podemos continuar con este frente
+            # Marcar todos los entregables como en cola / fallo
+            for e in frente["entregables"]:
+                if e["tipo"] in ENTREGABLES_TEXTO:
+                    e["fallo"] = "Sesión caducada al crear cuaderno: se generará en modo degradado en siguiente vuelta"
+                else:
+                    e["en_cola"] = True
+                    e["fallo"] = "Sesión caducada: entregable nativo en cola"
+            actualizar_panel(enc, drive)
+            continue
 
-        # Investigar
-        investigar_frente(frente, enc, cid, nb)
+        # Investigar (con manejo de sesión)
+        try:
+            investigar_frente(frente, enc, cid, nb)
+        except SesionTransitoria:
+            import time
+            time.sleep(5)
+            investigar_frente(frente, enc, cid, nb)
+        except SesionCaducada:
+            # Investigación fallida por sesión, continuar con entregables en modo degradado
+            pass
 
         # Producir entregables
+        modo_degradado = False
         for e in frente["entregables"]:
             if e.get("enlace"):
                 continue
             try:
-                enlace = producir_entregable(e, frente, enc, cid, nb, drive, enviar_entregable)
+                enlace = producir_entregable(e, frente, enc, cid, nb, drive, enviar_entregable, modo_degradado=modo_degradado)
                 e["enlace"] = enlace
                 e.pop("fallo", None)
+            except SesionTransitoria:
+                # Error transitorio: reintento silencioso del mismo entregable
+                # Pequeña espera y reintento
+                import time
+                time.sleep(5)
+                try:
+                    enlace = producir_entregable(e, frente, enc, cid, nb, drive, enviar_entregable, modo_degradado=modo_degradado)
+                    e["enlace"] = enlace
+                    e.pop("fallo", None)
+                except Exception as ex2:
+                    e["fallo"] = f"transitorio: {str(ex2)[:150]}"
             except SesionCaducada:
-                raise
+                # Sesión caducada: activar modo degradado para entregables de texto
+                # Los nativos se marcan como en_cola
+                modo_degradado = True
+                if e["tipo"] in ENTREGABLES_TEXTO:
+                    try:
+                        enlace = producir_entregable(e, frente, enc, cid, nb, drive, enviar_entregable, modo_degradado=True)
+                        e["enlace"] = enlace
+                        e.pop("fallo", None)
+                    except Exception as ex3:
+                        e["fallo"] = f"degradado: {str(ex3)[:150]}"
+                else:
+                    # Nativo: infographic, audio, video - marcar como en cola
+                    e["en_cola"] = True
+                    e["fallo"] = "NotebookLM caído: entregable nativo en cola (se rehará al volver)"
             except Exception as ex:
                 e["fallo"] = str(ex)[:200]
                 # No romper el bucle; continuar con siguiente entregable

@@ -28,6 +28,7 @@ from peticiones_reglas import (
 from peticiones_encargos import por_reglas_permanente
 from peticiones_notebooklm import (
     SesionCaducada,
+    SesionTransitoria,
     CUADERNO,
     NBLM,
     CASA as NB_CASA,
@@ -422,11 +423,11 @@ def atender(p: dict[str, Any]) -> None:
             responder(p)
         actualizar(p["id"], estado="hecha", terminada=time.time())
     except SesionCaducada:
+        # Sin mensaje de caducidad por petición: esperan en silencio y /estado lo explica
         actualizar(p["id"], estado="esperando_sesion")
-        if not p.get("avisada_sesion"):
-            actualizar(p["id"], avisada_sesion=True)
-            decir("La sesión de NotebookLM del A1 caducó. Tu petición queda en cola y se hará sola en cuanto vuelva "
-                  "(hasta 24 h). " + RENOVAR)
+    except SesionTransitoria:
+        # Error transitorio: reintento silencioso
+        actualizar(p["id"], estado="reintentar")
     except Exception as e:
         log("falló", p["id"], traceback.format_exc()[-1500:])
         n = p.get("intentos", 0) + 1
@@ -498,24 +499,104 @@ def trabajar() -> None:
 
 
 def mantener_sesion() -> None:
-    avisado = False
+    """Keepalive de NotebookLM: auth refresh --verify cada 20 min.
+    
+    - Tras cada refresco verificado, copia storage_state.json a storage_state.buena-<n>.json (guarda 3).
+    - Declara caducada tras 3 fallos de autenticación seguidos.
+    - Entonces llama a sanador_sesiones.reparar('notebooklm') si existe (import opcional).
+    - NO escribe a Maggasukha.
+    - Al volver, una sola línea: "NotebookLM vuelve a estar viva ✓ (reparada por <receta>)".
+    - Errores transitorios (red, timeout, CLI ocupado) no cuentan como fallos ni avisan.
+    """
+    import shutil
+    import glob
+    
+    storage_state = os.path.join(CASA, ".notebooklm", "profiles", "default", "storage_state.json")
+    buenas_dir = os.path.join(CASA, ".notebooklm", "profiles", "default")
+    
+    fallos_consecutivos = 0
+    sesion_declarada_caducada = False
+    receta_usada = None
+    
     while True:
         try:
-            rc, out, err = nb(["auth", "refresh"], 180)
+            # Usar --verify para confirmar que la sesión sigue válida
+            rc, out, err = nb(["auth", "refresh", "--verify"], 180, bloquear=False)
             ok = rc == 0
+            
+            if ok:
+                # Refresco verificado exitoso - copiar storage_state como backup bueno
+                if os.path.exists(storage_state):
+                    # Encontrar el siguiente número para storage_state.buena-<n>
+                    existentes = sorted(glob.glob(os.path.join(buenas_dir, "storage_state.buena-*.json")))
+                    nums = []
+                    for f in existentes:
+                        try:
+                            n = int(os.path.basename(f).split("buena-")[1].split(".json")[0])
+                            nums.append(n)
+                        except (IndexError, ValueError):
+                            pass
+                    siguiente = max(nums) + 1 if nums else 1
+                    # Mantener solo los 3 más recientes
+                    if len(existentes) >= 3:
+                        for f in existentes[:-2]:
+                            try:
+                                os.unlink(f)
+                            except OSError:
+                                pass
+                    destino = os.path.join(buenas_dir, f"storage_state.buena-{siguiente}.json")
+                    shutil.copy2(storage_state, destino)
+                
+                fallos_consecutivos = 0
+                marca = {"viva": True, "comprobada": datetime.datetime.now().isoformat(timespec="minutes")}
+                
+                # Si estaba declarada caducada y ahora vuelve, avisar una sola vez
+                if sesion_declarada_caducada:
+                    receta = receta_usada or "refresh"
+                    decir(f"NotebookLM vuelve a estar viva ✓ (reparada por {receta})")
+                    sesion_declarada_caducada = False
+                    receta_usada = None
+                    hay_trabajo.set()
+                    
+            else:
+                fallos_consecutivos += 1
+                marca = {"viva": False, "comprobada": datetime.datetime.now().isoformat(timespec="minutes"),
+                         "fallos_consecutivos": fallos_consecutivos}
+                
+                # Solo tras 3 fallos consecutivos de autenticación declarar caducada
+                if fallos_consecutivos >= 3 and not sesion_declarada_caducada:
+                    sesion_declarada_caducada = True
+                    # Llamar al sanador si existe (import opcional)
+                    try:
+                        from sanador_sesiones import reparar
+                        receta_usada = reparar("notebooklm")
+                    except ImportError:
+                        receta_usada = "sanador no disponible"
+                    # NO escribir a Maggasukha - el sanador decide si escala
+                    
+        except SesionTransitoria:
+            # Error transitorio (red, timeout, CLI ocupado) - no cuenta como fallo, no avisa
+            marca = {"viva": True, "comprobada": datetime.datetime.now().isoformat(timespec="minutes"),
+                     "transitorio": True}
+            # No incrementar fallos_consecutivos
+            
         except SesionCaducada:
-            ok = False
-        marca = {"viva": ok, "comprobada": datetime.datetime.now().isoformat(timespec="minutes")}
+            # Caducidad real detectada por nb()
+            fallos_consecutivos += 1
+            marca = {"viva": False, "comprobada": datetime.datetime.now().isoformat(timespec="minutes"),
+                     "fallos_consecutivos": fallos_consecutivos, "caducada": True}
+            
+            if fallos_consecutivos >= 3 and not sesion_declarada_caducada:
+                sesion_declarada_caducada = True
+                try:
+                    from sanador_sesiones import reparar
+                    receta_usada = reparar("notebooklm")
+                except ImportError:
+                    receta_usada = "sanador no disponible"
+        
         with bloqueo:
             escribir_json(ESTADO, dict(leer_json(ESTADO, {}), notebooklm=marca))
-        if not ok and not avisado:
-            decir("Aviso de MetaGenesis: la sesión de NotebookLM del A1 caducó. Las peticiones esperan en cola. "
-                  + RENOVAR)
-            avisado = True
-        if ok:
-            if avisado:
-                hay_trabajo.set()
-            avisado = False
+        
         time.sleep(REFRESCO_S)
 
 

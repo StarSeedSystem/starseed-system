@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """Módulo NotebookLM: Drive, lanzar/esperar/descargar artefactos, CLI inyectable."""
+import fcntl
 import json
 import os
 import re
@@ -8,6 +9,7 @@ import subprocess
 import urllib.error
 import urllib.parse
 import urllib.request
+from contextlib import contextmanager
 from typing import Any
 
 from peticiones_reglas import TIPOS, INDICACIONES
@@ -19,9 +21,45 @@ CARPETA_SINTESIS = os.environ.get("STARSEED_CARPETA_SINTESIS", "1PenzAWw1VWpSAMX
 SALIDAS = os.path.join(CASA, ".starseed", "peticiones", "salidas")
 ENLACE_CUADERNO = "https://notebooklm.google.com/notebook/" + CUADERNO
 
+LOCK_PATH = os.path.join(CASA, ".notebooklm", "profiles", "default", ".starseed-cli.lock")
+
 
 class SesionCaducada(Exception):
+    """Sesión de NotebookLM caducada (autenticación expirada)."""
     pass
+
+
+class SesionTransitoria(Exception):
+    """Error transitorio de red/timeout - no es caducidad, se reintenta sin avisar."""
+    pass
+
+
+@contextmanager
+def _cerrojo_notebooklm(bloquear: bool = True):
+    """Cerrojo entre procesos para el CLI de NotebookLM usando fcntl.flock.
+    
+    Args:
+        bloquear: Si True, bloquea hasta obtener el cerrojo. Si False (keepalive),
+                  retorna False inmediatamente si está ocupado.
+    """
+    os.makedirs(os.path.dirname(LOCK_PATH), exist_ok=True)
+    fd = os.open(LOCK_PATH, os.O_CREAT | os.O_RDWR, 0o600)
+    try:
+        if bloquear:
+            fcntl.flock(fd, fcntl.LOCK_EX)
+            yield True
+        else:
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                yield True
+            except BlockingIOError:
+                yield False
+    finally:
+        try:
+            fcntl.flock(fd, fcntl.LOCK_UN)
+        except Exception:
+            pass
+        os.close(fd)
 
 
 def leer_json(ruta: str, defecto: Any) -> Any:
@@ -92,15 +130,32 @@ def nombre_drive(fid: str) -> str:
     return d["name"]
 
 
-def nb(args: list[str], timeout: int = 600) -> tuple[int, str, str]:
-    entorno = dict(os.environ, HOME=CASA, NOTEBOOKLM_HL="es")
-    try:
-        p = subprocess.run([NBLM] + args, capture_output=True, text=True, timeout=timeout, env=entorno, cwd=CASA)
-    except subprocess.TimeoutExpired:
-        return 124, "", "tiempo agotado"
+def nb(args: list[str], timeout: int = 600, bloquear: bool = True) -> tuple[int, str, str]:
+    """Ejecuta el CLI de NotebookLM con cerrojo entre procesos.
+    
+    Args:
+        args: Argumentos para el CLI
+        timeout: Timeout en segundos
+        bloquear: Si True (default), espera el cerrojo. Si False (keepalive),
+                  lanza SesionTransitoria si el CLI está ocupado.
+    """
+    with _cerrojo_notebooklm(bloquear=bloquear) as obtenido:
+        if not obtenido:
+            raise SesionTransitoria("CLI ocupado (keepalive no espera)")
+        entorno = dict(os.environ, HOME=CASA, NOTEBOOKLM_HL="es")
+        try:
+            p = subprocess.run([NBLM] + args, capture_output=True, text=True, timeout=timeout, env=entorno, cwd=CASA)
+        except subprocess.TimeoutExpired:
+            raise SesionTransitoria("timeout")
+        except (urllib.error.URLError, OSError) as e:
+            raise SesionTransitoria(f"error de red: {e}")
+    
     todo = (p.stdout or "") + (p.stderr or "")
-    if re.search(r"Authentication (expired|error)|Run 'notebooklm login'", todo):
+    # Solo es caducidad si returncode != 0 Y el texto indica auth expirado/error
+    if p.returncode != 0 and re.search(r"Authentication (expired|error)|Run 'notebooklm login'", todo):
         raise SesionCaducada(todo[-300:])
+    # returncode 0 con texto de auth NO es caducidad (puede ser mensaje informativo)
+    # returncode != 0 sin texto de auth = error genérico, no caducidad
     return p.returncode, p.stdout or "", p.stderr or ""
 
 
@@ -123,6 +178,9 @@ def sesion_viva() -> bool:
         return rc == 0
     except SesionCaducada:
         return False
+    except SesionTransitoria:
+        # Error transitorio (red, timeout, CLI ocupado) = sesión está viva
+        return True
 
 
 def asegurar_fuente(fid: str, titulo: str) -> str:
