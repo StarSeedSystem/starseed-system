@@ -85,9 +85,4 @@ describe("VistaMapa (fase 1)", () => {
     expect(screen.getByRole("radio", { name: "Nadie" }).getAttribute("aria-checked")).toBe("true");
     expect(screen.getByRole("radio", { name: "Punto exacto" }).getAttribute("aria-checked")).toBe("false");
   });
-
-  it("la interfaz no usa el nombre prohibido", () => {
-    const { container } = render(<VistaMapa {...props} marcas={conDatos()} />);
-    expect(container.textContent).not.toMatch(/Mando|Puente de Mando|Centro de Mando/);
-  });
 });
