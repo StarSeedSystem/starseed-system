@@ -127,18 +127,18 @@ Mac ni Claude».
 "prompt": "Lee architecture/peticiones-telegram-a1.md §1 (último punto) y architecture/sintesis-diaria-autonoma.md. El 2026-11-12 agente_sintesis encoló a las 06:24 SIN11121–SIN11127 en starseed_memory_root/olas/cola-suenos-sintesis.json (821 KB). Ningún director las tomó: no aparecen en progreso.json, y produccion-audiovisual/estado.json sigue en fase 'entregar' con sintesis_path null. Causa ya diagnosticada: el plan del líder salta las colas cola-suenos-* (nodo_metagenesis_logica.py, ~línea 1347), que solo corre el flujo de los sueños. Corrígelo en agente_sintesis: que encole en una cola normal (p. ej. cola-sintesis-<fecha>.json) que el líder sí reparte, con prompts dentro de los topes de los directores; no cambies la regla de los sueños. Añade un respaldo: si a la hora de entregar (07:54 de America/Mexico_City) no hay texto, la síntesis se redacta directamente con la flota gratuita en un solo paso (como la prueba del 2026-11-11), se guarda, se sube a Drive y se envía. Un día nunca queda sin síntesis. Pruebas sin red: cola sin tomar en la entrega lleva al respaldo y produce una entrega."
 },
 {
-"id": "PET1112E",
-"ola": "PET1112",
-"titulo": "NotebookLM del A1 · renovar sin la Mac",
-"archivos": [
-"scripts/puente/navegador_alta.py",
-"scripts/puente/test_navegador_alta.py"
-],
-"depende": [
-"PET1112A"
-],
-"prompt": "Lee architecture/peticiones-telegram-a1.md y architecture/navegador-propio-metagenesis.md §4. Cuando la sesión del CLI de NotebookLM del A1 caduca (lo detecta peticiones_telegram con `auth refresh`), hoy hace falta la Mac. Añade a navegador_alta.py una orden `notebooklm`: si la sesión google-alex del navegador propio está viva, extrae sus cookies de Google del perfil (sin imprimirlas) y las importa al perfil default del CLI con `notebooklm auth import-cookies`. Después comprueba con `notebooklm auth check` y avisa por sintesis_telegram del resultado. Si google-alex no está viva, lanza el `alta google-alex` existente y repite. Ningún paso teclea ni lee contraseñas. Con todo inyectable y pruebas sin red. Al terminar, el texto RENOVAR de peticiones_telegram debe decir «MetaGenesis › Apps Linux»."
-},
+    "id": "PET1112E",
+    "ola": "PET1112",
+    "titulo": "NotebookLM del A1 · renovar sin la Mac  ← SUSTITUIDA POR SES1113",
+    "archivos": [
+      "scripts/puente/navegador_alta.py",
+      "scripts/puente/test_navegador_alta.py"
+    ],
+    "depende": [
+      "PET1112A"
+    ],
+    "prompt": "Lee architecture/peticiones-telegram-a1.md y architecture/navegador-propio-metagenesis.md §4. Cuando la sesión del CLI de NotebookLM del A1 caduca (lo detecta peticiones_telegram con `auth refresh`), hoy hace falta la Mac. Añade a navegador_alta.py una orden `notebooklm`: si la sesión google-alex del navegador propio está viva, extrae sus cookies de Google del perfil (sin imprimirlas) y las importa al perfil default del CLI con `notebooklm auth import-cookies`. Después comprueba con `notebooklm auth check` y avisa por sintesis_telegram del resultado. Si google-alex no está viva, lanza el `alta google-alex` existente y repite. Ningún paso teclea ni lee contraseñas. Con todo inyectable y pruebas sin red. Al terminar, el texto RENOVAR de peticiones_telegram debe decir «MetaGenesis › Apps Linux». **SUSTITUIDA POR SES1113**: el sanador de sesiones (`scripts/puente/sanador_sesiones.py`) cubre la renovación de NotebookLM con recetas ordenadas (auth refresh → token maestro → storage_state.buena-* → navegador_alta.py → Mac → escalado autoservicio), sin depender de Claude. La tarea PET1112E queda archivada; su funcionalidad se integra en la ola SES1113."
+  },
 {
 "id": "PET1112F",
 "ola": "PET1112",

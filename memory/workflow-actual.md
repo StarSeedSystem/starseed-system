@@ -118,6 +118,10 @@ se renueva cada 20 min con `auth refresh`; si cae, `navegador_alta.py notebooklm
 del navegador propio para importar cookies al CLI. Claves en `~/.starseed/env`, preferencias en
 `~/.starseed/peticiones/preferencias.json`. Detalles en `architecture/peticiones-telegram-a1.md`.
 
+## Autorreparación de sesiones (SES1113)
+
+Sanador en `scripts/puente/sanador_sesiones.py`: corre cada 15 min en el A1 y a demanda. Comprueba y repara sesiones (NotebookLM, google-oauth, Higgsfield, FreeLLMAPI/NIM, Telegram) con recetas ordenadas; **Claude nunca es un paso necesario**; la caída de un proveedor se rodea por la ruta gratuita. Regla de despliegue: tests del repo cubren los arreglos antes de sustituir herramienta en servicio.
+
 ## Alcance por GitHub (ALC1113)
 
 GitHub es una fuente nueva de contactos técnicos. El agente de alcance (`scripts/puente/alcance_github.py`) extrae perfiles, organizaciones, grupos y desarrolladores de proyectos/repos relacionados con StarSeed. El agente de lista (`scripts/puente/alcance_lista.py`) fusiona estos contactos con la lista de Maggasukha y el sistema de fichas existente (`starseed_memory_root/alcance/`). Las fichas candidatas tienen `fuente: "github"` y están en estado `esperando-aprobacion`. La aprobación es exacta: texto, destinatario y canal deben coincidir. Los envíos respetan las reglas de la plataforma de cada sitio. GitHub entra como parte del alcance técnico regular en el director de desarrollo autónomo y su recomendación forma parte de la síntesis diaria.

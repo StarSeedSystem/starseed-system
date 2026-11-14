@@ -407,6 +407,10 @@ descripción de lo que tendría que hacer. Y antes de pedírselo, comprobar si s
 aquí: si se puede, se hace. Varias acciones suyas se reducen a una sola (un guion que las agrupe)
 antes que repartirle deberes. Lo único que se le reserva de verdad es lo que mueve CREDENCIALES
 suyas a un tercero o cambia la configuración de sus cuentas.
+
+## Autorreparación de sesiones (SES1113)
+
+**Sanador de sesiones** (`scripts/puente/sanador_sesiones.py`): corre cada 15 min en el líder (A1) y a demanda. Lleva registro de sesiones con comprobaciones y recetas ordenadas: `auth refresh --verify`, token maestro, `storage_state.buena-*`, `navegador_alta.py`, pedir a la Mac, escalado autoservicio. **Claude nunca es un paso necesario**: ninguna receta manda a pedir a Claude; el sanador decide y escala solo. Si un proveedor cae, el trabajo sigue por la ruta gratuita. Regla de despliegue (§3.6): antes de sustituir una herramienta en servicio, las pruebas del repo deben cubrir los arreglos de la herramienta sustituida (cerrojo, 3 fallos, distinguir red de auth, aviso de vuelta).
 **Regla permanente de capacidad**
 (Alex, 2026-09-20): usar siempre la mayor capacidad simultánea disponible — antes de dar por bueno
 un número de agentes hay que SONDEAR todos los medios (`scripts/puente/medios_disponibles.py`) y

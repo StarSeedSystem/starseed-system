@@ -146,6 +146,8 @@ Las candidatas las lista `python3 scripts/puente/alta-capacidad.py` (ola 1021A,
 - 12/12 y 14/14 pruebas, tsc limpio.
 - Commits `72b74dbfe` y `afac01877`.
 
+**Autorreparación de sesiones (SES1113):** la caída de un proveedor se rodea por la ruta gratuita y no bloquea. El sanador (`scripts/puente/sanador_sesiones.py`) corre cada 15 min en el líder (A1) y a demanda, con recetas ordenadas por sesión (NotebookLM, google-oauth, Higgsfield, FreeLLMAPI/NIM, Telegram). **Claude nunca es un paso necesario**: el sanador decide y escala solo; a Maggasukha solo se le pide el inicio de sesión de Google una vez al día como mucho, con paso autoservicio. Regla de despliegue (§3.6): antes de sustituir una herramienta en servicio, las pruebas del repo deben cubrir los arreglos de la herramienta sustituida (cerrojo, 3 fallos, distinguir red de auth, aviso de vuelta).
+
 **Regla de cuotas:** la cuota de Claude se renueva por **ventana de 5 horas** y por **semana**; la
 de ChatGPT/Codex por ventana de horas y semana también; las gratuitas por día o por minuto (§5).
 Nunca se gasta la ventana entera de un proveedor caro: si Claude va por encima del 80 % de la

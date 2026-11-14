@@ -183,6 +183,10 @@ de siempre. Detalles y reglas de validación: `architecture/encargos-chats-metag
 3. `llama-server` de BitNet puede quedarse al 99 % de CPU y 1 GB de RAM y dejar la Mac sin memoria
    para el enjambre. Compruébalo antes de culpar al build.
 
+## Autorreparación de sesiones (SES1113)
+
+**Sanador de sesiones** (`scripts/puente/sanador_sesiones.py`): corre cada 15 min en el líder (A1) y a demanda. Comprueba sesiones (NotebookLM, google-oauth, Higgsfield, FreeLLMAPI/NIM, Telegram) y aplica recetas ordenadas: `auth refresh --verify`, token maestro, `storage_state.buena-*`, `navegador_alta.py`, pedir a la Mac, escalado autoservicio. **Claude nunca es un paso necesario**: ninguna receta manda a pedir a Claude; el sanador decide y escala solo. Si un proveedor cae, el trabajo sigue por la ruta gratuita. Regla de despliegue (§3.6): antes de sustituir una herramienta en servicio, las pruebas del repo deben cubrir los arreglos de la herramienta sustituida (cerrojo, 3 fallos, distinguir red de auth, aviso de vuelta).
+
 ## Dónde está cada cosa
 
 | | |
