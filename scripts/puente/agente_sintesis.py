@@ -83,6 +83,14 @@ CIFRAS_RESPALDO = (3000, 9000)
 
 FECHA_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})\.md$")
 
+HGF_DIR = "starseed_memory_root/produccion/higgsfield"
+HGF_PROYECTOS_OFICIALES = (
+    "sistema-diseno", "recorrido-os", "paz", "manifiesto",
+    "fase-semilla", "videos-4-5", "personajes", "redes"
+)
+HGF_MAX_PROPUESTAS_DIA = 2
+HGF_MODELO_POR_DEFECTO = "seedance-2.0"
+
 
 def _como_fecha(ahora=None):
     if ahora is None:
@@ -249,6 +257,149 @@ def _a_topes(tareas, tope=TOPE_PROMPT):
         if len(texto) > tope:
             t["prompt"] = texto[:max(0, tope - len(cierre))] + cierre
     return tareas
+
+
+def _generar_id_higgsfield(fecha: str, n: int) -> str:
+    return "HGF%s%03d" % (fecha.replace("-", ""), n)
+
+
+def _leer_propuestas_higgsfield(raiz: str) -> list:
+    ruta = os.path.join(raiz, HGF_DIR, "propuestas.json")
+    try:
+        with open(ruta, encoding="utf-8") as f:
+            datos = json.load(f)
+        return datos if isinstance(datos, list) else datos.get("propuestas", [])
+    except (OSError, ValueError):
+        return []
+
+
+def _guardar_propuestas_higgsfield(raiz: str, propuestas: list):
+    ruta = os.path.join(raiz, HGF_DIR, "propuestas.json")
+    os.makedirs(os.path.dirname(ruta), exist_ok=True)
+    tmp = f"{ruta}.{os.getpid()}.tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(propuestas, f, ensure_ascii=False, indent=1)
+        f.write("\n")
+    os.replace(tmp, ruta)
+
+
+def _generar_propuestas_higgsfield(raiz: str, fecha: str, ahora=None) -> list:
+    """Genera hasta 2 propuestas de Higgsfield para proyectos oficiales.
+    Las propuestas se registran como pendientes en propuestas.json.
+    Solo genera para la fecha de hoy en CDMX (inyectable via `ahora` para tests)."""
+    import higgsfield_aprobado as ha
+
+    hoy = _fecha_cdmx(ahora) if ahora else _fecha_cdmx(None)
+    if fecha != hoy:
+        return []
+
+    existentes = _leer_propuestas_higgsfield(raiz)
+    ids_existentes = {str(p.get("id")) for p in existentes}
+
+    plantillas = [
+        {
+            "proyecto": "sistema-diseno",
+            "pieza": "referencia de marca animada",
+            "modelo": "seedance-2.0",
+            "comando": ["higgsfield", "generate", "seedance_2_0", "--duration", "5", "--prompt", "Brand reference animation with golden ratio geometry"],
+            "tomas": 1,
+            "creditos_estimados": 12,
+            "motivo": "Actualizar referencias visuales del sistema de diseño con geometría áurea",
+        },
+        {
+            "proyecto": "recorrido-os",
+            "pieza": "walkthrough de Nexus",
+            "modelo": "seedance-2.0",
+            "comando": ["higgsfield", "generate", "seedance_2_0", "--duration", "10", "--prompt", "StarSeed OS Nexus walkthrough crystal liquid interface"],
+            "tomas": 2,
+            "creditos_estimados": 18,
+            "motivo": "Recorrido real de la interfaz principal del OS",
+        },
+        {
+            "proyecto": "manifiesto",
+            "pieza": "intro del manifiesto",
+            "modelo": "seedance-2.0",
+            "comando": ["higgsfield", "generate", "seedance_2_0", "--duration", "8", "--prompt", "Manifesto opening sequence typography and motion"],
+            "tomas": 1,
+            "creditos_estimados": 15,
+            "motivo": "Apertura tipográfica para el manifiesto de la revolución del diseño",
+        },
+        {
+            "proyecto": "fase-semilla",
+            "pieza": "centro social piloto",
+            "modelo": "seedance-2.0",
+            "comando": ["higgsfield", "generate", "seedance_2_0", "--duration", "5", "--prompt", "Seed phase pilot social center organic architecture"],
+            "tomas": 1,
+            "creditos_estimados": 10,
+            "motivo": "Visualización de la fase semilla del centro social piloto",
+        },
+        {
+            "proyecto": "videos-4-5",
+            "pieza": "valor e IA",
+            "modelo": "seedance-2.0",
+            "comando": ["higgsfield", "generate", "seedance_2_0", "--duration", "10", "--prompt", "Value and AI overproduction visual metaphor"],
+            "tomas": 2,
+            "creditos_estimados": 20,
+            "motivo": "Metáfora visual para vídeos 4 y 5 sobre valor e IA",
+        },
+        {
+            "proyecto": "personajes",
+            "pieza": "iconos de personaje",
+            "modelo": "seedance-2.0",
+            "comando": ["higgsfield", "generate", "seedance_2_0", "--duration", "5", "--prompt", "StarSeed character icons animated reveal"],
+            "tomas": 3,
+            "creditos_estimados": 15,
+            "motivo": "Revelación animada de los personajes icono de StarSeed",
+        },
+        {
+            "proyecto": "redes",
+            "pieza": "shorts y reels",
+            "modelo": "seedance-2.0",
+            "comando": ["higgsfield", "generate", "seedance_2_0", "--duration", "5", "--prompt", "Vertical short format for social networks"],
+            "tomas": 4,
+            "creditos_estimados": 16,
+            "motivo": "Formato vertical para shorts, reels y carruseles",
+        },
+    ]
+
+    n = 1
+    nuevas = []
+    for plantilla in plantillas:
+        if len(nuevas) >= HGF_MAX_PROPUESTAS_DIA:
+            break
+        pid = _generar_id_higgsfield(fecha, n)
+        if pid in ids_existentes:
+            n += 1
+            continue
+        propuesta = dict(plantilla)
+        propuesta["id"] = pid
+        propuesta["estado"] = "pendiente"
+        propuesta["fecha"] = fecha
+        nuevas.append(propuesta)
+        n += 1
+
+    if nuevas:
+        todas = existentes + nuevas
+        _guardar_propuestas_higgsfield(raiz, todas)
+    return nuevas
+
+
+def _seccion_higgsfield(propuestas: list) -> str:
+    """Genera la sección markdown 'Producción con Higgsfield' para la síntesis."""
+    if not propuestas:
+        return ""
+    lineas = ["", "## Producción con Higgsfield", ""]
+    for p in propuestas:
+        lineas.append("### %s · %s" % (p["proyecto"], p["pieza"]))
+        lineas.append("")
+        lineas.append("- **Modelo:** %s" % p["modelo"])
+        lineas.append("- **Tomas:** %d" % p["tomas"])
+        lineas.append("- **Créditos estimados:** %d" % p["creditos_estimados"])
+        lineas.append("- **Motivo:** %s" % p["motivo"])
+        lineas.append("- **Estado:** REQUIERE APROBACIÓN")
+        lineas.append("- **Comando para aprobar:** `/higgsfield aprobar %s`" % p["id"])
+        lineas.append("")
+    return "\n".join(lineas)
 
 
 def encargar_por_flota(raiz, tareas, ahora=None, vivos=None, apto=None, libre=None, fundir=None):
@@ -748,7 +899,8 @@ def _subir_doc(fecha, texto, pedir=None):
 def _respaldo(raiz, estado, ahora, redactar=None, subir_drive=None, seco=False, salidas=None):
     """Respaldo de la entrega (PET1112D): si a las 07:54 de CDMX no hay texto, la flota gratuita
     redacta la síntesis en UN paso, se guarda, se sube a Drive y sale (el envío lo hace _entregar).
-    Un día nunca queda sin síntesis. `redactar` y `subir_drive` son inyectables (pruebas sin red)."""
+    Un día nunca queda sin síntesis. `redactar` y `subir_drive` son inyectables (pruebas sin red).
+    Incluye la sección 'Producción con Higgsfield' con propuestas del día."""
     fecha = _fecha_cdmx(ahora)
     if seco:
         return {"accion": "seco", "mensaje": "(seco) el respaldo no redacta ni envía", "respaldo": True}
@@ -764,6 +916,12 @@ def _respaldo(raiz, estado, ahora, redactar=None, subir_drive=None, seco=False, 
     if lineas and lineas[-1].strip().startswith("```"):
         lineas = lineas[:-1]
     texto = "\n".join(lineas).strip()
+
+    # Generar y registrar propuestas de Higgsfield para hoy
+    propuestas_hgf = _generar_propuestas_higgsfield(raiz, fecha, ahora)
+    if propuestas_hgf:
+        texto += _seccion_higgsfield(propuestas_hgf)
+
     ruta_md = os.path.join(raiz, REL_SINTESIS, "%s.md" % fecha)
     _escribir_texto(ruta_md, texto)
     estado["respaldo"] = True

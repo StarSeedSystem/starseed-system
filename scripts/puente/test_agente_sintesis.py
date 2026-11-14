@@ -528,5 +528,89 @@ class TestNotebookLMSource(unittest.TestCase):
         self.assertEqual(nb_calls[0][1], "drive-doc-789")
 
 
+class TestHiggsfieldPropuestas(unittest.TestCase):
+    """HGF1113C: la síntesis diaria incluye sección «Producción con Higgsfield» con
+    hasta 2 propuestas al día para proyectos oficiales, registradas como pendientes,
+    marcadas REQUIERE APROBACIÓN y con comando /higgsfield aprobar <id>."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.tmp = self._tmp.name
+        self.raiz = os.path.join(self.tmp, "repo")
+        self.home = os.path.join(self.tmp, "home")
+        os.makedirs(self.raiz)
+        os.makedirs(self.home, exist_ok=True)
+        # Usar una fecha "hoy" para los tests
+        self.hoy = datetime.now(timezone.utc).date().isoformat()
+        self.ahora_hoy = datetime.now(timezone.utc)
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def test_generar_propuestas_higgsfield_max_dos_por_dia(self):
+        """Genera como mucho 2 propuestas para proyectos oficiales."""
+        import higgsfield_aprobado as ha
+
+        propuestas = A._generar_propuestas_higgsfield(self.raiz, self.hoy, ahora=self.ahora_hoy)
+        self.assertLessEqual(len(propuestas), 2)
+        for p in propuestas:
+            self.assertIn("id", p)
+            self.assertIn("proyecto", p)
+            self.assertIn("pieza", p)
+            self.assertIn("modelo", p)
+            self.assertIn("comando", p)
+            self.assertIn("tomas", p)
+            self.assertIn("creditos_estimados", p)
+            self.assertIn("motivo", p)
+            self.assertEqual(p.get("estado"), "pendiente")
+
+    def test_propuestas_registradas_en_higgsfield_aprobado(self):
+        """Las propuestas se guardan en propuestas.json para higgsfield_aprobado."""
+        propuestas = A._generar_propuestas_higgsfield(self.raiz, self.hoy, ahora=self.ahora_hoy)
+        ruta_propuestas = os.path.join(self.raiz, "starseed_memory_root", "produccion", "higgsfield", "propuestas.json")
+        self.assertTrue(os.path.exists(ruta_propuestas))
+        with open(ruta_propuestas, encoding="utf-8") as f:
+            datos = json.load(f)
+        guardadas = datos if isinstance(datos, list) else datos.get("propuestas", [])
+        ids_guardados = {str(p["id"]) for p in guardadas}
+        for p in propuestas:
+            self.assertIn(str(p["id"]), ids_guardados)
+
+    def test_seccion_sintesis_incluye_propuestas_higgsfield(self):
+        """La síntesis markdown incluye la sección con propuestas y comando de aprobación."""
+        propuestas = A._generar_propuestas_higgsfield(self.raiz, self.hoy, ahora=self.ahora_hoy)
+        seccion = A._seccion_higgsfield(propuestas)
+        self.assertIn("Producción con Higgsfield", seccion)
+        self.assertIn("REQUIERE APROBACIÓN", seccion)
+        for p in propuestas:
+            self.assertIn(p["id"], seccion)
+            self.assertIn("/higgsfield aprobar %s" % p["id"], seccion)
+            self.assertIn(p["proyecto"], seccion)
+            self.assertIn(p["pieza"], seccion)
+            self.assertIn(str(p["creditos_estimados"]), seccion)
+
+    def test_sin_propuestas_no_añade_seccion(self):
+        """Si no hay propuestas, no se añade la sección."""
+        seccion = A._seccion_higgsfield([])
+        self.assertEqual(seccion, "")
+
+    def test_proyectos_oficiales_validos(self):
+        """Las propuestas usan solo proyectos oficiales de la lista."""
+        import higgsfield_aprobado as ha
+        propuestas = A._generar_propuestas_higgsfield(self.raiz, self.hoy, ahora=self.ahora_hoy)
+        oficiales = {
+            "sistema-diseno", "recorrido-os", "paz", "manifiesto",
+            "fase-semilla", "videos-4-5", "personajes", "redes"
+        }
+        for p in propuestas:
+            self.assertIn(p["proyecto"], oficiales)
+
+    def test_fecha_distinta_no_genera_propuestas(self):
+        """Si la fecha no es hoy, no genera propuestas."""
+        ayer = (datetime.now(timezone.utc) - timedelta(days=1)).date().isoformat()
+        propuestas = A._generar_propuestas_higgsfield(self.raiz, ayer, ahora=self.ahora_hoy)
+        self.assertEqual(propuestas, [])
+
+
 if __name__ == "__main__":
     unittest.main()
