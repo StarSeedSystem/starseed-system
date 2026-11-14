@@ -25,6 +25,7 @@ from peticiones_reglas import (
     validar_plan,
     texto_estado,
 )
+from peticiones_encargos import por_reglas_permanente
 from peticiones_notebooklm import (
     SesionCaducada,
     CUADERNO,
@@ -58,6 +59,10 @@ REINTENTO_S = 300
 VIDA_S = 24 * 3600
 REFRESCO_S = 20 * 60
 MULTIFORMATO_INTERVALO_S = 15 * 60
+
+# Archivos para reglas permanentes y rutinas (PSF1113B)
+PREFERENCIAS = os.path.join(DIR, "preferencias.json")
+RUTINAS = os.path.join(DIR, "rutinas.json")
 
 bloqueo = threading.Lock()
 hay_trabajo = threading.Event()
@@ -104,6 +109,181 @@ def escribir_json(ruta: str, datos: Any) -> None:
     with open(tmp, "w") as f:
         json.dump(datos, f, ensure_ascii=False, indent=1)
     os.replace(tmp, ruta)
+
+
+# --- Preferencias y rutinas permanentes (PSF1113B) ---
+
+def _leer_preferencias() -> dict[str, Any]:
+    """Lee las preferencias permanentes desde preferencias.json."""
+    return leer_json(PREFERENCIAS, {})
+
+
+def _guardar_preferencia(clave: str, valor: str) -> None:
+    """Guarda una preferencia permanente."""
+    prefs = _leer_preferencias()
+    prefs[clave] = valor
+    escribir_json(PREFERENCIAS, prefs)
+
+
+def _leer_rutinas() -> list[dict[str, Any]]:
+    """Lee las rutinas desde rutinas.json."""
+    return leer_json(RUTINAS, [])
+
+
+def _guardar_rutina(rutina: dict[str, Any]) -> None:
+    """Guarda una rutina en rutinas.json."""
+    rutinas = _leer_rutinas()
+    # Evitar duplicados por nombre
+    rutinas = [r for r in rutinas if r.get("nombre") != rutina.get("nombre")]
+    rutinas.append(rutina)
+    escribir_json(RUTINAS, rutinas)
+
+
+def _es_rutina(texto: str) -> bool:
+    """Detecta si el texto describe una rutina (acción repetitiva con disparador)."""
+    t = texto.lower()
+    # Palabras que indican rutina: "cada día", "diario", "siempre que", "cuando", "al terminar"
+    return bool(re.search(r"cada d[ií]a|diario|siempre que|cuando|al terminar|despu[eé]s de", t))
+
+
+def _extraer_regla_permanente(texto: str) -> dict[str, Any] | None:
+    """Extrae la información de una regla permanente del texto.
+    
+    Devuelve dict con: tipo ('preferencia' o 'rutina'), clave, valor, 
+    disparador (para rutinas), accion (para rutinas), texto_original.
+    """
+    t = texto.lower()
+    
+    # Detectar si es una rutina
+    if _es_rutina(texto):
+        # Intentar extraer disparador y acción
+        # Patrones simples: "cada día X" -> disparador="cada día", accion="X"
+        # "cuando X, haz Y" -> disparador="cuando X", accion="Y"
+        disparador = ""
+        accion = ""
+        
+        if "cada d" in t or "diario" in t:
+            disparador = "cada día"
+            # La acción es lo que sigue después de "cada día" o "diario"
+            for pat in [r"cada d[ií]a\s*[,:]?\s*(.+)", r"diario\s*[,:]?\s*(.+)"]:
+                m = re.search(pat, t)
+                if m:
+                    accion = m.group(1).strip()
+                    break
+        elif "siempre que" in t:
+            disparador = "siempre que"
+            m = re.search(r"siempre que\s+(.+?)\s*(?:haz|har[aé]|ejecuta|genera|env[ií]a)\s+(.+)", t)
+            if m:
+                accion = m.group(2).strip()
+            else:
+                accion = texto  # fallback
+        elif "cuando" in t:
+            disparador = "cuando"
+            m = re.search(r"cuando\s+(.+?)\s*(?:haz|har[aé]|ejecuta|genera|env[ií]a)\s+(.+)", t)
+            if m:
+                accion = m.group(2).strip()
+            else:
+                accion = texto
+        elif "al terminar" in t or "despu[eé]s de" in t:
+            disparador = "al terminar"
+            m = re.search(r"(?:al terminar|despu[eé]s de)\s+(.+?)\s*(?:haz|har[aé]|ejecuta|genera|env[ií]a)\s+(.+)", t)
+            if m:
+                accion = m.group(2).strip()
+            else:
+                accion = texto
+        
+        if not accion:
+            accion = texto
+        
+        return {
+            "tipo": "rutina",
+            "nombre": f"rutina_{len(_leer_rutinas()) + 1}",
+            "disparador": disparador,
+            "accion": accion,
+            "texto_original": texto,
+            "creada": time.time(),
+        }
+    
+    # Es una preferencia simple
+    # Extraer clave-valor: "recuerda que X" -> clave="recuerda", valor="X"
+    # "mi nombre es X" -> clave="nombre", valor="X"
+    # "llámame X" -> clave="nombre", valor="X"
+    # "siempre X" -> clave="siempre", valor="X"
+    # "a partir de ahora X" -> clave="a_partir_de_ahora", valor="X"
+    
+    clave = "preferencia"
+    valor = texto
+    
+    if "mi nombre es" in t:
+        clave = "nombre"
+        m = re.search(r"mi nombre es\s+(.+)", t)
+        if m:
+            valor = m.group(1).strip()
+    elif re.search(r"ll[aá]mame", t):
+        clave = "nombre"
+        m = re.search(r"ll[aá]mame\s+(.+)", t)
+        if m:
+            valor = m.group(1).strip()
+    elif re.search(r"recu[eé]rd", t):
+        clave = "recordatorio"
+        m = re.search(r"recu[eé]rd[a-z]*\s*[,:]?\s*(.+)", t)
+        if m:
+            valor = m.group(1).strip()
+    elif "siempre" in t:
+        clave = "siempre"
+        m = re.search(r"siempre\s+(.+)", t)
+        if m:
+            valor = m.group(1).strip()
+    elif "a partir de ahora" in t:
+        clave = "a_partir_de_ahora"
+        m = re.search(r"a partir de ahora\s*[,:]?\s*(.+)", t)
+        if m:
+            valor = m.group(1).strip()
+    
+    return {
+        "tipo": "preferencia",
+        "clave": clave,
+        "valor": valor,
+        "texto_original": texto,
+        "creada": time.time(),
+    }
+
+
+def _procesar_regla_permanente(texto: str) -> tuple[str, bool]:
+    """Procesa una regla permanente: guarda en preferencias/rutinas y devuelve mensaje de confirmación.
+    
+    Devuelve (mensaje_confirmacion, es_rutina).
+    """
+    regla = _extraer_regla_permanente(texto)
+    if not regla:
+        return "", False
+    
+    if regla["tipo"] == "rutina":
+        _guardar_rutina(regla)
+        msg = (
+            f"✅ Rutina registrada:\n"
+            f"  Nombre: {regla['nombre']}\n"
+            f"  Disparador: {regla['disparador']}\n"
+            f"  Acción: {regla['accion'][:100]}"
+        )
+        return msg, True
+    else:
+        _guardar_preferencia(regla["clave"], regla["valor"])
+        msg = f"✅ Preferencia guardada: {regla['clave']} = {regla['valor'][:100]}"
+        return msg, False
+
+
+def _responder_con_regla_permanente(texto: str) -> None:
+    """Procesa el mensaje como regla permanente y también como petición normal si aplica."""
+    # Primero procesar la regla permanente
+    msg_confirmacion, es_rutina = _procesar_regla_permanente(texto)
+    if msg_confirmacion:
+        decir(msg_confirmacion)
+    
+    # Luego procesar como petición normal (encargo o notebooklm)
+    # Esto permite que "recuerda cada día: genera todos los formatos" 
+    # tanto guarde la rutina COMO ejecute la generación hoy
+    # La lógica normal de recibir() seguirá ejecutándose
 
 
 def _respuesta_http(abrir):
@@ -608,6 +788,13 @@ def recibir(upd: dict[str, Any]) -> None:
             f"Para rechazar: /higgsfield rechazar {propuesta['id']}"
         )
         return
+    
+    # PSF1113B: Detectar y procesar reglas permanentes (recuerda/cada día/siempre/para cada/a partir de ahora)
+    # Si es una regla permanente, guardarla y confirmar, PERO seguir procesando como petición normal
+    if por_reglas_permanente(texto) == "regla_permanente":
+        _responder_con_regla_permanente(texto)
+        # NO return: continuar para procesar también como encargo/petición normal
+    
     with bloqueo:
         cola = leer_json(COLA, [])
         if any(p["id"] == upd["update_id"] for p in cola):

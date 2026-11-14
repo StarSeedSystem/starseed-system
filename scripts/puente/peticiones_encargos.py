@@ -25,6 +25,8 @@ DESTINOS: dict[str, str] = {
 def validar_plan(plan: dict[str, Any]) -> list[dict[str, Any]]:
     """Normaliza un plan de encargo: ≤ 10 frentes, ≤ 3 investigaciones y ≤ 8 entregables por frente.
     Devuelve lista de frentes normalizados. Lanza ValueError si no hay frentes válidos.
+    Por defecto, todos los entregables tienen enviar=True (el modelo no puede desactivarlo;
+    solo Maggasukha puede pedir explícitamente no enviar).
     """
     frentes: list[dict[str, Any]] = []
     for i, f in enumerate((plan.get("frentes") or [])[:10], 1):
@@ -35,7 +37,7 @@ def validar_plan(plan: dict[str, Any]) -> list[dict[str, Any]]:
                     "tipo": e["tipo"],
                     "titulo": str(e["titulo"])[:150],
                     "prompt": str(e.get("prompt") or e["titulo"])[:6000],
-                    "enviar": bool(e.get("enviar")),
+                    "enviar": True,  # Por defecto siempre enviar; el modelo no puede poner False
                 })
         if not entregables:
             continue
@@ -51,6 +53,45 @@ def validar_plan(plan: dict[str, Any]) -> list[dict[str, Any]]:
     if not frentes:
         raise ValueError("el plan no tiene frentes con entregables válidos")
     return frentes
+
+
+# 9 formatos de NotebookLM según §3.1 de architecture/sintesis-multiformato-1113.md
+FORMATOS_NOTEBOOKLM: tuple[str, ...] = (
+    "informe", "audio", "video", "infographic", "slide-deck", "mind-map", "quiz", "flashcards", "data-table",
+)
+
+
+def validar_todos_los_formatos(plan: dict[str, Any], texto_original: str) -> tuple[bool, str]:
+    """Valida que el plan incluya los 9 formatos de NotebookLM si el texto pide 'todos los formatos'.
+    
+    Devuelve (ok, mensaje_error). Si el texto no pide todos los formatos, devuelve (True, "").
+    """
+    t = texto_original.lower()
+    if not re.search(r"todos los formatos", t):
+        return True, ""
+    
+    tipos_presentes = set()
+    for f in plan.get("frentes", []):
+        for e in f.get("entregables", []):
+            if e.get("tipo") in FORMATOS_NOTEBOOKLM:
+                tipos_presentes.add(e["tipo"])
+    
+    faltantes = [f for f in FORMATOS_NOTEBOOKLM if f not in tipos_presentes]
+    if faltantes:
+        return False, f"Faltan formatos obligatorios: {', '.join(faltantes)}"
+    return True, ""
+
+
+def por_reglas_permanente(texto: str) -> str:
+    """Clasifica si el texto establece una regla permanente.
+    
+    Palabras clave: 'recuerda', 'cada día', 'siempre', 'para cada', 'a partir de ahora'.
+    Devuelve 'regla_permanente' o 'otro'.
+    """
+    t = texto.lower()
+    if re.search(r"recu[eé]rd[a-z]*|cada d[ií]a|siempre|para cada|a partir de ahora", t):
+        return "regla_permanente"
+    return "otro"
 
 
 def texto_panel(enc: dict[str, Any]) -> str:
@@ -149,8 +190,8 @@ def planificar_base(texto: str) -> list[dict[str, Any]]:
             "investigacion": [texto[:1200]],
             "fuentes_drive": [],
             "entregables": [
-                {"tipo": "informe", "titulo": "Informe de investigación", "prompt": texto, "enviar": False},
-                {"tipo": "mind-map", "titulo": "Mapa de la investigación", "prompt": texto, "enviar": False},
+                {"tipo": "informe", "titulo": "Informe de investigación", "prompt": texto, "enviar": True},
+                {"tipo": "mind-map", "titulo": "Mapa de la investigación", "prompt": texto, "enviar": True},
             ],
             "estado": "pendiente",
         },
@@ -161,7 +202,7 @@ def planificar_base(texto: str) -> list[dict[str, Any]]:
             "investigacion": [],
             "fuentes_drive": [],
             "entregables": [
-                {"tipo": "informe", "titulo": "Desarrollo del encargo", "prompt": texto, "enviar": False},
+                {"tipo": "informe", "titulo": "Desarrollo del encargo", "prompt": texto, "enviar": True},
             ],
             "estado": "pendiente",
         },
@@ -172,8 +213,25 @@ def planificar_base(texto: str) -> list[dict[str, Any]]:
             "investigacion": [],
             "fuentes_drive": [],
             "entregables": [
-                {"tipo": "informe", "titulo": "Próximos pasos y listas de tareas", "prompt": "Próximos pasos y listas de tareas por tipo de contenido para: " + texto, "enviar": False},
+                {"tipo": "informe", "titulo": "Próximos pasos y listas de tareas", "prompt": "Próximos pasos y listas de tareas por tipo de contenido para: " + texto, "enviar": True},
             ],
             "estado": "pendiente",
         },
     ]
+
+
+__all__ = [
+    "ENTREGABLES_VALIDOS",
+    "DESTINOS",
+    "FORMATOS_NOTEBOOKLM",
+    "validar_plan",
+    "validar_todos_los_formatos",
+    "texto_panel",
+    "fusionar_encargo_guardado",
+    "por_reglas_encargo",
+    "por_reglas_ajuste",
+    "por_reglas_preferencia",
+    "por_reglas_permanente",
+    "planificar_base",
+    "REGLA_MARCA",
+]

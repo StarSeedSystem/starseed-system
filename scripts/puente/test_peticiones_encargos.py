@@ -15,6 +15,8 @@ from peticiones_encargos import (
     por_reglas_encargo,
     por_reglas_ajuste,
     por_reglas_preferencia,
+    por_reglas_permanente,
+    validar_todos_los_formatos,
     planificar_base,
 )
 
@@ -277,6 +279,120 @@ def test_planificar_base_devuelve_plan_minimo():
         for e in f["entregables"]:
             assert e["tipo"] in ENTREGABLES_VALIDOS
             assert e["titulo"]
+
+
+# --- Tests para PSF1113B: encargos con envío por defecto, todos los formatos, reglas permanentes ---
+
+def test_validar_plan_enviar_por_defecto_true():
+    """Por defecto, todos los entregables tienen enviar=True (el modelo no puede desactivarlo)."""
+    plan = {
+        "frentes": [{
+            "nombre": "Test",
+            "entregables": [
+                {"tipo": "informe", "titulo": "Informe 1", "prompt": "p", "enviar": False},
+                {"tipo": "audio", "titulo": "Audio 1", "prompt": "p"},  # sin enviar
+                {"tipo": "video", "titulo": "Video 1", "prompt": "p", "enviar": False},
+            ],
+        }]
+    }
+    frentes = validar_plan(plan)
+    for e in frentes[0]["entregables"]:
+        assert e["enviar"] is True, f"Entregable {e['tipo']} debe tener enviar=True por defecto"
+
+
+def test_validar_plan_enviar_false_solo_si_maggasukha_pide_no_enviar():
+    """enviar=False solo se respeta si el texto original de Maggasukha dice explícitamente 'no envíes'."""
+    # Este test verifica la lógica en el validador; la detección de "no envíes" se hace en la capa superior
+    plan = {
+        "frentes": [{
+            "nombre": "Test",
+            "entregables": [
+                {"tipo": "informe", "titulo": "Informe 1", "prompt": "p", "enviar": False},
+            ],
+        }]
+    }
+    frentes = validar_plan(plan)
+    # El validador normaliza a True por defecto
+    assert frentes[0]["entregables"][0]["enviar"] is True
+
+
+def test_validar_todos_los_formatos_requiere_9_formatos():
+    """validar_todos_los_formatos rechaza planes que no tengan los 9 formatos de NotebookLM."""
+    # Plan con solo 3 formatos
+    plan_incompleto = {
+        "frentes": [{
+            "nombre": "Test",
+            "entregables": [
+                {"tipo": "informe", "titulo": "Informe", "prompt": "p"},
+                {"tipo": "audio", "titulo": "Audio", "prompt": "p"},
+                {"tipo": "video", "titulo": "Video", "prompt": "p"},
+            ],
+        }]
+    }
+    ok, msg = validar_todos_los_formatos(plan_incompleto, texto_original="todos los formatos")
+    assert ok is False
+    assert "faltan" in msg.lower() or "falta" in msg.lower()
+
+
+def test_validar_todos_los_formatos_acepta_plan_completo():
+    """validar_todos_los_formatos acepta plan con los 9 formatos."""
+    plan_completo = {
+        "frentes": [{
+            "nombre": "Test",
+            "entregables": [
+                {"tipo": "informe", "titulo": "Informe", "prompt": "p"},
+                {"tipo": "audio", "titulo": "Audio", "prompt": "p"},
+                {"tipo": "video", "titulo": "Video", "prompt": "p"},
+                {"tipo": "infographic", "titulo": "Infografía", "prompt": "p"},
+                {"tipo": "slide-deck", "titulo": "Presentación", "prompt": "p"},
+                {"tipo": "mind-map", "titulo": "Mapa mental", "prompt": "p"},
+                {"tipo": "quiz", "titulo": "Cuestionario", "prompt": "p"},
+                {"tipo": "flashcards", "titulo": "Tarjetas", "prompt": "p"},
+                {"tipo": "data-table", "titulo": "Tabla de datos", "prompt": "p"},
+            ],
+        }]
+    }
+    ok, msg = validar_todos_los_formatos(plan_completo, texto_original="todos los formatos")
+    assert ok is True
+    assert msg == ""
+
+
+def test_validar_todos_los_formatos_sin_palabra_clave_no_valida():
+    """Si el texto no pide 'todos los formatos', no se valida la completitud."""
+    plan_incompleto = {
+        "frentes": [{
+            "nombre": "Test",
+            "entregables": [
+                {"tipo": "informe", "titulo": "Informe", "prompt": "p"},
+            ],
+        }]
+    }
+    ok, msg = validar_todos_los_formatos(plan_incompleto, texto_original="solo un informe")
+    assert ok is True  # No valida porque no pidió todos los formatos
+
+
+def test_por_reglas_permanente_detecta_recuerda():
+    """Mensajes con 'recuerda', 'cada día', 'siempre', 'para cada', 'a partir de ahora' → regla permanente."""
+    for msg in [
+        "Recuerda cada día: genera todos los formatos al terminar la síntesis",
+        "Siempre envía los archivos al chat",
+        "Para cada síntesis diaria, haz la infografía",
+        "A partir de ahora, genera audio tipo podcast",
+        "Cada día procesa la síntesis completa",
+    ]:
+        tipo = por_reglas_permanente(msg)
+        assert tipo == "regla_permanente", f"Fallo con: {msg}"
+
+
+def test_por_reglas_permanente_no_detecta_sin_palabras_clave():
+    """Mensajes sin palabras clave de regla permanente → 'otro'."""
+    for msg in [
+        "Genera una infografía de la síntesis",
+        "Haz un audio de esto",
+        "Quiero el vídeo de hoy",
+    ]:
+        tipo = por_reglas_permanente(msg)
+        assert tipo == "otro", f"Fallo con: {msg}"
 
 
 if __name__ == "__main__":

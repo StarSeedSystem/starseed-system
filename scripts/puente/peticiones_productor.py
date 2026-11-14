@@ -101,13 +101,18 @@ def producir_entregable(
     cuaderno_id: str,
     nb: Any,
     drive: Any,
+    enviar_entregable: Optional[Callable[[str, str, str, str], None]] = None,
 ) -> str:
-    """Produce un entregable según su tipo. Devuelve el enlace de Drive."""
+    """Produce un entregable según su tipo. Devuelve el enlace de Drive.
+    
+    Si enviar_entregable se proporciona y e['enviar'] es True, se llama con
+    (tipo, ruta_local, titulo, enlace_drive) antes de borrar el archivo temporal.
+    """
     titulo = f"{e['titulo']} · {enc['id']}"
     tipo = e["tipo"]
 
     if tipo == "documento":
-        # Usa ask (síncrono, respuesta directa)
+        # Usa ask (síncrono, respuesta directa) - crea un Doc en Drive, no hay archivo local
         rc, out, err = _llamar_nb(nb, "ask", cuaderno_id, _instrucciones(enc, e), json_output=True)
         if rc != 0:
             raise ProductorError(f"NotebookLM no respondió: {err[-200:]}")
@@ -116,6 +121,7 @@ def producir_entregable(
         if not respuesta:
             raise ProductorError("respuesta vacía de ask")
         doc_id, enlace = drive.doc(titulo, f"# {e['titulo']}\n\n{respuesta}", frente["carpeta"])
+        # Documentos no se envían como archivo (son Google Docs)
         return enlace
 
     if tipo == "informe":
@@ -145,6 +151,13 @@ def producir_entregable(
             _llamar_nb(nb, "download", tipo_generate, cuaderno_id, tarea_id, tmp_path, force=True)
             if not os.path.exists(tmp_path) or os.path.getsize(tmp_path) == 0:
                 raise ProductorError(f"descarga vacía de {tipo_generate}")
+            # Enviar archivo al chat si corresponde (antes de subir a Drive y borrar)
+            if enviar_entregable and e.get("enviar", True):
+                try:
+                    enviar_entregable(tipo, tmp_path, e['titulo'], "")
+                except Exception as ex:
+                    # No fallar el encargo por error de envío
+                    frente.setdefault("avisos", []).append(f"envío a chat falló: {ex}")
             if tipo_generate == "report":
                 with open(tmp_path, encoding="utf-8") as f:
                     contenido = f.read()
@@ -168,6 +181,11 @@ def producir_entregable(
                 json.dump(d, tmp, ensure_ascii=False, indent=1)
                 tmp_path = tmp.name
             try:
+                if enviar_entregable and e.get("enviar", True):
+                    try:
+                        enviar_entregable(tipo, tmp_path, e['titulo'], "")
+                    except Exception as ex:
+                        frente.setdefault("avisos", []).append(f"envío a chat falló: {ex}")
                 fid, enlace = drive.archivo(tmp_path, frente["carpeta"], titulo + ".json")
             finally:
                 os.unlink(tmp_path)
@@ -205,6 +223,7 @@ def ejecutar_encargo(
     nb: Any,
     drive: Any,
     enviar_avance: Optional[Callable[[str], None]] = None,
+    enviar_entregable: Optional[Callable[[str, str, str, str], None]] = None,
 ) -> None:
     """Ejecuta un encargo completo: recorre frentes, investiga, produce entregables, actualiza panel.
     
@@ -213,7 +232,9 @@ def ejecutar_encargo(
         nb: Cliente NotebookLM inyectado (métodos: create, source_add_drive, source_wait, 
             source_add_research, generate, artifact_wait, download, ask).
         drive: Cliente Drive inyectado (métodos: carpeta, doc, archivo).
-        enviar_avance: Callback opcional para enviar avances (recibe texto).
+        enviar_avance: Callback opcional para enviar avances de texto (recibe texto).
+        enviar_entregable: Callback opcional para enviar archivos al chat.
+            Recibe (tipo, ruta_local, titulo, enlace_drive).
     """
     if not enc.get("anunciado"):
         actualizar_panel(enc, drive)
@@ -257,7 +278,7 @@ def ejecutar_encargo(
             if e.get("enlace"):
                 continue
             try:
-                enlace = producir_entregable(e, frente, enc, cid, nb, drive)
+                enlace = producir_entregable(e, frente, enc, cid, nb, drive, enviar_entregable)
                 e["enlace"] = enlace
                 e.pop("fallo", None)
             except SesionCaducada:

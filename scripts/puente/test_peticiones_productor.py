@@ -512,6 +512,131 @@ def test_sesion_caducada_se_propaga_y_espera():
         assert False, f"Debería ser SesionCaducada, fue {type(e).__name__}: {e}"
 
 
+# --- Tests para PSF1113B: envío de entregables al chat ---
+
+def test_producir_entregable_llama_enviar_entregable_si_enviar_true():
+    """producir_entregable llama a enviar_entregable cuando e['enviar'] es True."""
+    nb = MockNotebookLM()
+    drive = MockDrive()
+    enc = crear_encargo_ejemplo()
+    frente = enc["frentes"][0]
+    frente["carpeta"] = "folder_1"
+    frente["cuaderno"] = "nb_1"
+    e = {"tipo": "infographic", "titulo": "Infografía test", "prompt": "Haz infografía", "enviar": True}
+    frente["entregables"].append(e)
+    
+    enviados = []
+    def mock_enviar(tipo, ruta, titulo, enlace_drive):
+        enviados.append((tipo, ruta, titulo, enlace_drive))
+        # Verificar que el archivo existe en el momento de la llamada
+        assert os.path.exists(ruta), f"Archivo temporal no existe: {ruta}"
+    
+    enlace = producir_entregable(e, frente, enc, "nb_1", nb, drive, enviar_entregable=mock_enviar)
+    
+    assert len(enviados) == 1
+    assert enviados[0][0] == "infographic"
+    assert enviados[0][2] == "Infografía test"
+
+
+def test_producir_entregable_no_llama_enviar_si_enviar_false():
+    """producir_entregable NO llama a enviar_entregable cuando e['enviar'] es False."""
+    nb = MockNotebookLM()
+    drive = MockDrive()
+    enc = crear_encargo_ejemplo()
+    frente = enc["frentes"][0]
+    frente["carpeta"] = "folder_1"
+    frente["cuaderno"] = "nb_1"
+    e = {"tipo": "infographic", "titulo": "Infografía test", "prompt": "Haz infografía", "enviar": False}
+    frente["entregables"].append(e)
+    
+    enviados = []
+    def mock_enviar(tipo, ruta, titulo, enlace_drive):
+        enviados.append((tipo, ruta, titulo, enlace_drive))
+    
+    enlace = producir_entregable(e, frente, enc, "nb_1", nb, drive, enviar_entregable=mock_enviar)
+    
+    assert len(enviados) == 0
+
+
+def test_producir_entregable_documento_no_llama_enviar():
+    """Entregables tipo 'documento' no llaman a enviar_entregable (son Google Docs, no archivos)."""
+    nb = MockNotebookLM()
+    drive = MockDrive()
+    enc = crear_encargo_ejemplo()
+    frente = enc["frentes"][1]
+    frente["carpeta"] = "folder_1"
+    frente["cuaderno"] = "nb_1"
+    e = frente["entregables"][0]  # documento
+    e["enviar"] = True
+    
+    enviados = []
+    def mock_enviar(tipo, ruta, titulo, enlace_drive):
+        enviados.append((tipo, ruta, titulo, enlace_drive))
+    
+    enlace = producir_entregable(e, frente, enc, "nb_1", nb, drive, enviar_entregable=mock_enviar)
+    
+    assert len(enviados) == 0
+
+
+def test_ejecutar_encargo_pasa_enviar_entregable_a_producir():
+    """ejecutar_encargo pasa el callback enviar_entregable a producir_entregable."""
+    nb = MockNotebookLM()
+    drive = MockDrive()
+    enc = crear_encargo_ejemplo()
+    
+    # Configurar F1 - activar enviar=True en los entregables
+    enc["frentes"][0]["estado"] = "pendiente"
+    enc["frentes"][0]["entregables"][0]["enlace"] = None
+    enc["frentes"][0]["entregables"][0]["fallo"] = None
+    enc["frentes"][0]["entregables"][0]["enviar"] = True
+    enc["frentes"][0]["entregables"][1]["enlace"] = None
+    enc["frentes"][0]["entregables"][1]["fallo"] = None
+    enc["frentes"][0]["entregables"][1]["enviar"] = True
+    enc["frentes"][1]["estado"] = "pendiente"
+    enc["frentes"][1]["entregables"][0]["enviar"] = True
+    enc["frentes"][1]["entregables"][1]["enviar"] = True
+    enc["frentes"][2]["estado"] = "pendiente"
+    enc["frentes"][2]["entregables"][0]["enviar"] = True
+    
+    enviados = []
+    def mock_enviar(tipo, ruta, titulo, enlace_drive):
+        enviados.append((tipo, titulo))
+    
+    try:
+        ejecutar_encargo(enc, nb, drive, enviar_entregable=mock_enviar)
+    except Exception:
+        pass
+    
+    # Verificar que se llamó para los entregables con enviar=True
+    assert len(enviados) > 0
+    tipos_enviados = [t[0] for t in enviados]
+    assert "infographic" in tipos_enviados or "audio" in tipos_enviados or "video" in tipos_enviados or "mind-map" in tipos_enviados
+
+
+def test_enviar_entregable_error_no_rompe_encargo():
+    """Error en enviar_entregable no rompe el encargo, solo guarda aviso."""
+    nb = MockNotebookLM()
+    drive = MockDrive()
+    enc = crear_encargo_ejemplo()
+    frente = enc["frentes"][0]
+    frente["carpeta"] = "folder_1"
+    frente["cuaderno"] = "nb_1"
+    e = {"tipo": "infographic", "titulo": "Infografía test", "prompt": "Haz infografía", "enviar": True}
+    frente["entregables"].append(e)
+    
+    def mock_enviar_falla(tipo, ruta, titulo, enlace_drive):
+        raise Exception("Error de red")
+    
+    # No debe lanzar excepción
+    enlace = producir_entregable(e, frente, enc, "nb_1", nb, drive, enviar_entregable=mock_enviar_falla)
+    
+    # Debe haber guardado el aviso
+    assert "avisos" in frente
+    assert any("envío a chat falló" in a for a in frente["avisos"])
+    # Pero el entregable sí se produjo
+    assert enlace is not None
+
+
 if __name__ == "__main__":
     import json
     fallos = 0

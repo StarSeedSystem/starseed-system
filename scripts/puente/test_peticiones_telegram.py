@@ -783,3 +783,214 @@ def test_sin_ficha_importar_el_bot_no_carga_la_puerta_ni_las_firmas(tmp_path):
     r = subprocess.run([sys.executable, "-c", codigo], cwd=os.path.dirname(os.path.abspath(__file__)), env=env,
                        capture_output=True, text=True, timeout=30)
     assert r.returncode == 0 and r.stdout.strip() == "[]", r.stderr[-300:]
+
+
+# --- Tests para PSF1113B: reglas permanentes ---
+
+def test_por_reglas_permanente_detecta_palabras_clave(tmp_path, monkeypatch):
+    """por_reglas_permanente detecta 'recuerda', 'cada día', 'siempre', 'para cada', 'a partir de ahora'."""
+    # Configurar paths temporales
+    for k, v in (("DIR", str(tmp_path)), ("PREFERENCIAS", str(tmp_path / "preferencias.json")),
+                 ("RUTINAS", str(tmp_path / "rutinas.json"))):
+        monkeypatch.setattr(mod, k, v)
+    
+    for msg in [
+        "Recuerda cada día: genera todos los formatos al terminar la síntesis",
+        "Siempre envía los archivos al chat",
+        "Para cada síntesis diaria, haz la infografía",
+        "A partir de ahora, genera audio tipo podcast",
+        "Cada día procesa la síntesis completa",
+    ]:
+        tipo = mod.por_reglas_permanente(msg)
+        assert tipo == "regla_permanente", f"Fallo con: {msg}"
+
+
+def test_por_reglas_permanente_no_detecta_sin_palabras_clave(tmp_path, monkeypatch):
+    """Mensajes sin palabras clave de regla permanente → 'otro'."""
+    for k, v in (("DIR", str(tmp_path)), ("PREFERENCIAS", str(tmp_path / "preferencias.json")),
+                 ("RUTINAS", str(tmp_path / "rutinas.json"))):
+        monkeypatch.setattr(mod, k, v)
+    
+    for msg in [
+        "Genera una infografía de la síntesis",
+        "Haz un audio de esto",
+        "Quiero el vídeo de hoy",
+    ]:
+        tipo = mod.por_reglas_permanente(msg)
+        assert tipo == "otro", f"Fallo con: {msg}"
+
+
+def test_guardar_y_leer_preferencia(tmp_path, monkeypatch):
+    """_guardar_preferencia y _leer_preferencias funcionan correctamente."""
+    for k, v in (("DIR", str(tmp_path)), ("PREFERENCIAS", str(tmp_path / "preferencias.json")),
+                 ("RUTINAS", str(tmp_path / "rutinas.json"))):
+        monkeypatch.setattr(mod, k, v)
+    
+    mod._guardar_preferencia("nombre", "Maggasukha")
+    mod._guardar_preferencia("tono", "formal")
+    
+    prefs = mod._leer_preferencias()
+    assert prefs["nombre"] == "Maggasukha"
+    assert prefs["tono"] == "formal"
+
+
+def test_guardar_y_leer_rutina(tmp_path, monkeypatch):
+    """_guardar_rutina y _leer_rutinas funcionan correctamente."""
+    for k, v in (("DIR", str(tmp_path)), ("PREFERENCIAS", str(tmp_path / "preferencias.json")),
+                 ("RUTINAS", str(tmp_path / "rutinas.json"))):
+        monkeypatch.setattr(mod, k, v)
+    
+    rutina = {
+        "nombre": "sintesis_diaria",
+        "disparador": "cada día",
+        "accion": "genera todos los formatos",
+        "texto_original": "Recuerda cada día: genera todos los formatos",
+        "creada": time.time(),
+    }
+    mod._guardar_rutina(rutina)
+    
+    rutinas = mod._leer_rutinas()
+    assert len(rutinas) == 1
+    assert rutinas[0]["nombre"] == "sintesis_diaria"
+    assert rutinas[0]["disparador"] == "cada día"
+    assert rutinas[0]["accion"] == "genera todos los formatos"
+
+
+def test_guardar_rutina_evita_duplicados(tmp_path, monkeypatch):
+    """_guardar_rutina evita duplicados por nombre."""
+    for k, v in (("DIR", str(tmp_path)), ("PREFERENCIAS", str(tmp_path / "preferencias.json")),
+                 ("RUTINAS", str(tmp_path / "rutinas.json"))):
+        monkeypatch.setattr(mod, k, v)
+    
+    rutina = {"nombre": "test", "disparador": "cada día", "accion": "accion 1", "texto_original": "t1", "creada": time.time()}
+    mod._guardar_rutina(rutina)
+    rutina2 = {"nombre": "test", "disparador": "siempre", "accion": "accion 2", "texto_original": "t2", "creada": time.time()}
+    mod._guardar_rutina(rutina2)
+    
+    rutinas = mod._leer_rutinas()
+    assert len(rutinas) == 1
+    assert rutinas[0]["accion"] == "accion 2"  # La segunda sobrescribe
+
+
+def test_es_rutina_detecta_palabras_clave(tmp_path, monkeypatch):
+    """_es_rutina detecta correctamente las rutinas."""
+    for k, v in (("DIR", str(tmp_path)), ("PREFERENCIAS", str(tmp_path / "preferencias.json")),
+                 ("RUTINAS", str(tmp_path / "rutinas.json"))):
+        monkeypatch.setattr(mod, k, v)
+    
+    assert mod._es_rutina("Cada día genera la infografía")
+    assert mod._es_rutina("Diario haz el audio")
+    assert mod._es_rutina("Siempre que termine la síntesis, envía los archivos")
+    assert mod._es_rutina("Cuando acabe, genera el vídeo")
+    assert mod._es_rutina("Al terminar la síntesis, procesa todo")
+    assert mod._es_rutina("Después de la síntesis, haz el resumen")
+    
+    assert not mod._es_rutina("Genera una infografía ahora")
+    assert not mod._es_rutina("Haz un audio de esto")
+
+
+def test_extraer_regla_permanente_preferencia_simple(tmp_path, monkeypatch):
+    """_extraer_regla_permanente extrae preferencias simples correctamente."""
+    for k, v in (("DIR", str(tmp_path)), ("PREFERENCIAS", str(tmp_path / "preferencias.json")),
+                 ("RUTINAS", str(tmp_path / "rutinas.json"))):
+        monkeypatch.setattr(mod, k, v)
+    
+    # "mi nombre es X" - el valor se extrae en minúsculas por el regex
+    regla = mod._extraer_regla_permanente("Mi nombre es Maggasukha")
+    assert regla["tipo"] == "preferencia"
+    assert regla["clave"] == "nombre"
+    assert regla["valor"] == "maggasukha"
+    
+    # "llámame X"
+    regla = mod._extraer_regla_permanente("Llámame Alex")
+    assert regla["clave"] == "nombre"
+    assert regla["valor"] == "alex"
+    
+    # "recuerda que X"
+    regla = mod._extraer_regla_permanente("Recuerda que me gusta el café")
+    assert regla["clave"] == "recordatorio"
+    assert "café" in regla["valor"]
+    
+    # "siempre X"
+    regla = mod._extraer_regla_permanente("Siempre usa tono formal")
+    assert regla["clave"] == "siempre"
+    assert "tono formal" in regla["valor"]
+    
+    # "a partir de ahora X"
+    regla = mod._extraer_regla_permanente("A partir de ahora genera todo en PDF")
+    assert regla["clave"] == "a_partir_de_ahora"
+    assert "pdf" in regla["valor"].lower()
+
+
+def test_extraer_regla_permanente_rutina(tmp_path, monkeypatch):
+    """_extraer_regla_permanente extrae rutinas correctamente."""
+    for k, v in (("DIR", str(tmp_path)), ("PREFERENCIAS", str(tmp_path / "preferencias.json")),
+                 ("RUTINAS", str(tmp_path / "rutinas.json"))):
+        monkeypatch.setattr(mod, k, v)
+    
+    # "cada día X"
+    regla = mod._extraer_regla_permanente("Cada día genera la infografía de la síntesis")
+    assert regla["tipo"] == "rutina"
+    assert regla["disparador"] == "cada día"
+    assert "infografía" in regla["accion"]
+    
+    # "cuando X, haz Y"
+    regla = mod._extraer_regla_permanente("Cuando termine la síntesis, haz el audio")
+    assert regla["tipo"] == "rutina"
+    assert regla["disparador"] == "cuando"
+    assert "audio" in regla["accion"]
+    
+    # "al terminar X, haz Y"
+    regla = mod._extraer_regla_permanente("Al terminar la síntesis, genera el vídeo")
+    assert regla["tipo"] == "rutina"
+    assert regla["disparador"] == "al terminar"
+    assert "vídeo" in regla["accion"]
+
+
+def test_procesar_regla_permanente_guarda_y_confirma(tmp_path, monkeypatch):
+    """_procesar_regla_permanente guarda la regla y devuelve mensaje de confirmación."""
+    for k, v in (("DIR", str(tmp_path)), ("PREFERENCIAS", str(tmp_path / "preferencias.json")),
+                 ("RUTINAS", str(tmp_path / "rutinas.json"))):
+        monkeypatch.setattr(mod, k, v)
+    
+    # Preferencia
+    msg, es_rutina = mod._procesar_regla_permanente("Mi nombre es Maggasukha")
+    assert not es_rutina
+    assert "Preferencia guardada" in msg
+    assert "nombre" in msg
+    assert "maggasukha" in msg.lower()
+    
+    # Rutina
+    msg, es_rutina = mod._procesar_regla_permanente("Cada día genera la infografía")
+    assert es_rutina
+    assert "Rutina registrada" in msg
+    assert "cada día" in msg
+    assert "infografía" in msg
+
+
+def test_recibir_procesa_regla_permanente_y_continua(tmp_path, monkeypatch):
+    """recibir procesa regla permanente y continúa con procesamiento normal."""
+    for k, v in (("CHAT", "123456"), ("TOKEN", "fake"), ("DIR", str(tmp_path)),
+                 ("COLA", str(tmp_path / "cola.json")), ("ESTADO", str(tmp_path / "estado.json")),
+                 ("PREFERENCIAS", str(tmp_path / "preferencias.json")),
+                 ("RUTINAS", str(tmp_path / "rutinas.json")),
+                 ("SALIDAS", str(tmp_path / "salidas"))):
+        monkeypatch.setattr(mod, k, v)
+    
+    respuestas = []
+    monkeypatch.setattr(mod, "decir", respuestas.append)
+    
+    # Mock para que no intente procesar como encargo real
+    monkeypatch.setattr(mod, "por_reglas", lambda x: {"tipo": "respuesta", "fuente": "cuaderno", "drive_id": "", "artefactos": [], "resumen": ""})
+    monkeypatch.setattr(mod, "llm", lambda *a, **k: ("", ""))
+    
+    # Enviar mensaje con regla permanente
+    recibir({"update_id": 1, "message": {"chat": {"id": "123456"}, "text": "Recuerda cada día: genera todos los formatos"}})
+    
+    # Debe haber respondido con confirmación de regla
+    assert any("Rutina registrada" in r or "Preferencia guardada" in r for r in respuestas)
+    
+    # Y debe haber añadido a la cola (procesamiento normal)
+    cola = mod.leer_json(mod.COLA, [])
+    assert len(cola) == 1
+    assert cola[0]["texto"] == "Recuerda cada día: genera todos los formatos"
