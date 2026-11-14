@@ -1,10 +1,18 @@
 "use client";
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { VoiceOssPanel } from "@/components/settings/aurora/voice-oss-panel";
 import { AppearanceProvider } from "@/context/appearance-context";
+
+// FIX1114A — el panel monta `NeuronVoiceChoice`, que sondea el motor local con un `fetch` real
+// (127.0.0.1:4444, plazo de 2,5 s). Si resolvía tras acabar el archivo, caía como «Unhandled
+// Errors» y ponía en rojo una tanda verde. Aquí el sondeo se simula: sin red y sin nada pendiente.
+vi.mock("@/lib/aurora/tts-oss/neuron-voice-constants", async (orig) => {
+  const m = await orig<typeof import("@/lib/aurora/tts-oss/neuron-voice-constants")>();
+  return { ...m, probeLocalDaemon: () => Promise.resolve(false) };
+});
 
 const renderWithProviders = (ui: React.ReactElement) => render(<AppearanceProvider>{ui}</AppearanceProvider>);
 
@@ -39,6 +47,7 @@ describe("VoiceOssPanel — Oído en la nube", () => {
   });
 
   afterEach(() => {
+    cleanup(); // FIX1114A: desmonta el árbol antes de devolver `localStorage`.
     global.localStorage = originalLocalStorage;
     vi.useRealTimers();
     vi.resetAllMocks();
