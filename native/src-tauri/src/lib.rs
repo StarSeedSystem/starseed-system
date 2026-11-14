@@ -135,6 +135,9 @@ mod migracion_origen_logica;
 mod servidor_capas;
 #[cfg(desktop)]
 mod servidor_capas_logica;
+// ACT1114H: relevo de capa en la misma sesión (lógica pura).
+#[cfg(any(test, desktop))]
+mod servidor_relevo_logica;
 mod sha256;
 // `ventana_remota` (APM1017P, rehecho en APR1019A) está de vuelta con las API
 // reales: xcap 0.9 (`Window::all()`, `app_name()`, `capture_image()`), image

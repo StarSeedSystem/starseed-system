@@ -25,6 +25,7 @@
 
 use crate::servidor_capas_logica as c;
 use crate::servidor_local_logica as l;
+use crate::servidor_relevo_logica as r; // ACT1114H
 use crate::sha256::{hex, sha256_archivo, Sha256};
 use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet};
@@ -45,6 +46,23 @@ pub struct Publico {
     pub nueva: Option<String>,
     pub nueva_version: Option<String>,
     pub aviso: Option<String>,
+    // ── ACT1114H · qué web corre, cuál está publicada y qué dice el relevo (todo `web=<compilación>/<sha>`) ──
+    /// Build de la web que sirve el Node ahora.
+    pub web_corre: Option<String>,
+    /// Build de la web PUBLICADA (`/version.json` de la web publicada, no la copia local); None si no se pudo leer.
+    pub web_publicada: Option<String>,
+    /// Build de la web de la capa nueva ya verificada.
+    pub web_nueva: Option<String>,
+    /// "al-dia" | "capa-lista" | "sin-capa" | "sin-datos"
+    pub relevo: Option<String>,
+}
+
+/// (ACT1114H) Las tres builds que se comparan.
+#[derive(Clone, Default)]
+struct Webs {
+    corre: r::WebId,
+    publicada: Option<r::WebId>,
+    nueva: Option<r::WebId>,
 }
 
 struct Interno {
@@ -57,6 +75,14 @@ struct Interno {
     en_uso: Mutex<Option<String>>,
     registro: Mutex<Option<File>>,
     vigia: AtomicBool,
+    /// (ACT1114H) Builds de la web: la que corre, la publicada y la de la capa lista.
+    webs: Mutex<Webs>,
+    /// (ACT1114H) Build que corría cuando se pidió un relevo (para escribir «antes → ahora» o el fallo).
+    relevo_desde: Mutex<Option<r::WebId>>,
+    /// (ACT1114H) Último aviso de relevo escrito, para no repetirlo en cada mirada.
+    ultimo_aviso: Mutex<Option<String>>,
+    /// (ACT1114H) Última vez que se miró el canal (ms).
+    ultima_busqueda: Mutex<u64>,
 }
 
 fn interno() -> &'static Interno {
@@ -70,6 +96,10 @@ fn interno() -> &'static Interno {
         en_uso: Mutex::new(None),
         registro: Mutex::new(None),
         vigia: AtomicBool::new(false),
+        webs: Mutex::new(Webs::default()),
+        relevo_desde: Mutex::new(None),
+        ultimo_aviso: Mutex::new(None),
+        ultima_busqueda: Mutex::new(0),
     })
 }
 
@@ -96,6 +126,88 @@ pub fn publico() -> Publico {
 /// ¿Hay una capa nueva verificada esperando?
 pub fn hay_pendiente() -> bool {
     publico().nueva.is_some()
+}
+
+// ─────────────── ACT1114H · la web que corre, la publicada y el relevo en la misma sesión ───────────────
+
+/// La build de la web que lleva una carpeta de servidor (instalador o capa): su `public/version.json`.
+/// Sin ese archivo (paquetes viejos), la build queda «desconocida»: nunca se inventa.
+fn web_de_dir(dir: &Path) -> r::WebId {
+    fs::read_to_string(dir.join("public").join("version.json")).ok().and_then(|t| r::de_version_json(&t)).unwrap_or_default()
+}
+
+/// Escribe en `Publico` lo que se sabe (para la pastilla y para la web, que decide si es momento de relevar).
+fn refrescar_publico() {
+    let w = leer(&interno().webs);
+    let rel = r::clasificar(&w.corre, w.publicada.as_ref(), w.nueva.as_ref());
+    con_publico(|p| {
+        p.web_corre = w.corre.conocida().then(|| w.corre.etiqueta());
+        p.web_publicada = w.publicada.as_ref().map(r::WebId::etiqueta);
+        p.web_nueva = w.nueva.as_ref().map(r::WebId::etiqueta);
+        p.relevo = Some(rel.texto().into());
+    });
+}
+
+/// Una línea de relevo que no se repite seguida (la mirada es cada 5 min).
+fn registrar_una_vez(linea: &str) {
+    let nuevo = interno().ultimo_aviso.lock().map(|mut u| r::nuevo_mensaje(&mut u, linea)).unwrap_or(true);
+    if nuevo {
+        registrar(linea);
+    }
+}
+
+/// Se llama desde `elegir`: qué carpeta sirve el Node en este arranque. Devuelve su build de web.
+pub fn servida(dir: &Path) -> r::WebId {
+    let web = web_de_dir(dir);
+    if let Ok(mut w) = interno().webs.lock() {
+        w.corre = web.clone();
+    }
+    refrescar_publico();
+    web
+}
+
+/// Una línea en el registro con la build de web que sirve este arranque (con o sin capa): `sirve web=<compilación>/<sha>`.
+pub fn registrar_sirve() {
+    let w = leer(&interno().webs);
+    registrar(&r::linea_sirve(&w.corre, w.publicada.as_ref()));
+}
+
+/// «Actualizar ahora» (a mano o por la web al ser momento seguro): deja escrito qué build se deja y cuál entra.
+pub fn al_pedir_relevo() {
+    let w = leer(&interno().webs);
+    let destino = w.nueva.clone().unwrap_or_default();
+    registrar(&r::linea_relevo_pedido(&w.corre, &destino, w.publicada.as_ref()));
+    poner(&interno().relevo_desde, Some(w.corre));
+}
+
+/// Lee `/version.json` de la web PUBLICADA y dice si hay que mirar el canal ya. Nunca lanza.
+fn mirar_publicada(ahora: u64) -> bool {
+    let url = format!("{}/version.json", l::WEB_PUBLICADA);
+    let leida = bajar_bytes(&url, r::TOPE_VERSION_JSON)
+        .and_then(|b| r::de_version_json(&String::from_utf8_lossy(&b)).ok_or_else(|| "respuesta sin build reconocible".to_string()));
+    let corre = leer(&interno().webs).corre;
+    match leida {
+        Ok(p) => {
+            if let Ok(mut w) = interno().webs.lock() {
+                w.publicada = Some(p);
+            }
+        }
+        Err(e) => {
+            if let Ok(mut w) = interno().webs.lock() {
+                w.publicada = None;
+            }
+            registrar_una_vez(&r::linea_publicada_ilegible(&corre, &e));
+        }
+    }
+    refrescar_publico();
+    let w = leer(&interno().webs);
+    let rel = r::clasificar(&w.corre, w.publicada.as_ref(), w.nueva.as_ref());
+    if rel == r::Relevo::SinCapa {
+        if let Some(p) = &w.publicada {
+            registrar_una_vez(&r::linea_sin_capa(&w.corre, p));
+        }
+    }
+    r::buscar_ya(&rel, ahora, leer(&interno().ultima_busqueda))
 }
 
 fn ahora_ms() -> u64 {
@@ -387,7 +499,10 @@ pub fn preparar(app: &AppHandle, instalador: &l::RutasPaquete, registro: Option<
 
 /// Qué servir en este arranque, con sus rutas (el Node siempre es el del instalador).
 pub fn elegir(instalador: &l::RutasPaquete) -> (c::Eleccion, l::RutasPaquete) {
-    let instalador_solo = || (c::Eleccion::Instalador, instalador.clone());
+    let instalador_solo = || {
+        servida(&instalador.dir); // ACT1114H
+        (c::Eleccion::Instalador, instalador.clone())
+    };
     let (Some(dir), Some(ctx), Some(clave)) = (leer(&interno().dir), leer(&interno().ctx), leer(&interno().clave)) else {
         return instalador_solo();
     };
@@ -413,9 +528,18 @@ pub fn elegir(instalador: &l::RutasPaquete) -> (c::Eleccion, l::RutasPaquete) {
         p.nueva = pendiente_valida.as_ref().map(|r| r.build_id.clone());
         p.nueva_version = pendiente_valida.as_ref().map(version_corta);
     });
+    // (ACT1114H) La web de la capa pendiente y la de lo que va a servir este arranque.
+    let web_pendiente = pendiente_valida.as_ref().map(|x| web_de_dir(&dir.join(&x.build_id))).filter(r::WebId::conocida);
+    if let Ok(mut w) = interno().webs.lock() {
+        w.nueva = web_pendiente;
+    }
     match &eleccion {
-        c::Eleccion::Instalador => (eleccion, instalador.clone()),
+        c::Eleccion::Instalador => {
+            servida(&instalador.dir);
+            (eleccion, instalador.clone())
+        }
         c::Eleccion::Capa { build, .. } => {
+            servida(&dir.join(build));
             let rutas = l::rutas_con_dir(instalador.node.clone(), dir.join(build));
             (eleccion, rutas)
         }
@@ -437,6 +561,15 @@ pub fn tras_lista(el: &c::Eleccion) {
     if el.a_prueba() {
         if let Some(e) = cambiar_estado(|e| c::tras_lista(e, el)) {
             registrar(&format!("capa {} activa (anterior: {:?})", el.build().unwrap_or("?"), e.anterior));
+            // (ACT1114H) Si venía de un relevo pedido: la build de antes y la de ahora, en el registro.
+            let antes = interno().relevo_desde.lock().ok().and_then(|mut g| g.take());
+            let w = leer(&interno().webs);
+            if let Some(antes) = antes {
+                registrar(&r::linea_relevo_hecho(&antes, &w.corre, w.publicada.as_ref()));
+            } else {
+                registrar(&r::linea_sirve(&w.corre, w.publicada.as_ref()));
+            }
+            refrescar_publico();
             con_publico(|p| {
                 p.aviso = None;
                 if p.nueva.as_deref() == el.build() {
@@ -455,6 +588,12 @@ pub fn tras_fallo(el: &c::Eleccion, motivo: &str) {
     let Some(build) = el.build() else { return };
     if let Some(e) = cambiar_estado(|e| c::tras_fallo(e, el, motivo)) {
         registrar(e.aviso.as_deref().unwrap_or("capa mala"));
+        // (ACT1114H) Un relevo pedido que no se pudo aplicar: sigue lo de antes y se dice por qué.
+        let antes = interno().relevo_desde.lock().ok().and_then(|mut g| g.take());
+        if let Some(antes) = antes {
+            let destino = leer(&interno().webs).corre.etiqueta();
+            registrar(&r::linea_relevo_fallido(&antes, &destino, motivo));
+        }
         poner(&interno().en_uso, None);
         if let Some(dir) = leer(&interno().dir) {
             if c::build_id_seguro(build) && fs::remove_dir_all(dir.join(build)).is_err() {
@@ -709,6 +848,12 @@ fn buscar() -> Result<(), String> {
         p.nueva = Some(b.clone());
         p.nueva_version = Some(version.clone());
     });
+    // (ACT1114H) La web que trae esa capa (su public/version.json, ya verificado por SHA contra el manifiesto firmado).
+    let web_nueva = web_de_dir(&dir.join(&b));
+    if let Ok(mut w) = interno().webs.lock() {
+        w.nueva = web_nueva.conocida().then_some(web_nueva);
+    }
+    refrescar_publico();
     limpiar(&dir);
     Ok(())
 }
@@ -723,14 +868,29 @@ pub fn iniciar_vigia(app: &AppHandle) {
     }
     let _ = app;
     let _ = std::thread::Builder::new().name("servidor-capas".into()).spawn(move || {
-        let mut espera = primera_mirada_ms();
+        // (ACT1114H) Dos relojes: el del canal (primera mirada y luego cada 6 h) y el de la web PUBLICADA (cada 5 min,
+        // como ACT1113F). Si la publicada no es lo que corre y no hay capa lista, se mira el canal ya, sin esperar 6 h.
+        let mut prox_capas = ahora_ms() + primera_mirada_ms();
+        let mut prox_web = ahora_ms() + r::MIRAR_WEB_PRIMERA_MS;
         loop {
-            if !dormir(espera) {
+            if !dormir(1000) {
                 return;
             }
+            let ahora = ahora_ms();
             // (En depuración, con un canal propio en 127.0.0.1, no hace falta internet.)
             let canal_local = permitir_local() && url_canal().starts_with("http://127.0.0.1:");
-            espera = if !canal_local && !crate::servidor_local::hay_internet() {
+            let mut ya = false;
+            if ahora >= prox_web {
+                prox_web = ahora + r::MIRAR_WEB_MS;
+                if !canal_local && crate::servidor_local::hay_internet() {
+                    ya = mirar_publicada(ahora);
+                }
+            }
+            if !ya && ahora < prox_capas {
+                continue;
+            }
+            poner(&interno().ultima_busqueda, ahora);
+            let espera = if !canal_local && !crate::servidor_local::hay_internet() {
                 con_publico(|p| {
                     if p.fase.as_deref() != Some("lista") {
                         p.fase = Some("sin-red".into());
@@ -742,6 +902,17 @@ pub fn iniciar_vigia(app: &AppHandle) {
                     Ok(()) => c::CADA_MS,
                     Err(e) => {
                         registrar(&format!("no se pudo actualizar la capa: {e}"));
+                        // (ACT1114H) Si la publicada no se puede aplicar, queda dicho una vez con su motivo.
+                        let w = leer(&interno().webs);
+                        if let Some(p) = &w.publicada {
+                            if !r::misma(p, &w.corre) {
+                                registrar_una_vez(&format!(
+                                    "la web publicada web={} NO se pudo traer: sigue web={}: {e}",
+                                    p.etiqueta(),
+                                    w.corre.etiqueta()
+                                ));
+                            }
+                        }
                         con_publico(|p| {
                             p.fase = Some("error".into());
                             p.aviso = Some(format!("No se pudo traer la capa nueva del servidor: {e}"));
@@ -750,6 +921,8 @@ pub fn iniciar_vigia(app: &AppHandle) {
                     }
                 }
             };
+            prox_capas = ahora_ms() + espera;
+            refrescar_publico();
         }
     });
 }
