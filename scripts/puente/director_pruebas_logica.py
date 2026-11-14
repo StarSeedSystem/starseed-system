@@ -13,6 +13,10 @@ import lanzamientos_logica as LL
 ACCIONES = ("compilar", "cancelar", "reintentar", "republicar", "pedir-arreglo", "app-abrir",
             "ronda-iniciar", "ronda-terminar")      # RON1112C: la «ronda de aparatos» (ronda.py)
 ACCIONES_RONDA = ("ronda-iniciar", "ronda-terminar")
+# BAN1114C: «banco-serie» lanza la serie de llamadas automáticas (banco_llamadas.py; architecture/ronda-automatica-llamadas.md §1.2)
+ACCIONES = ACCIONES + ("banco-serie",)
+ESCENARIOS_BANCO = ("ble-video-2min",)       # fase 1: solo c2 y c3 (el resto de escenarios del contrato llega en las fases 2 y 3)
+REP_BANCO_MAX = 10
 PLATAFORMAS = ("mac", "windows", "linux", "android", "tablet", "telefono")
 QUIENES_CONOCIDOS = ("alex", "claude", "hermes", "genesis", "director")
 ESPERA_MAX_S = 4 * 3600          # «cuando el commit X esté publicado»: hasta 4 h, como el lanzador de a mano
@@ -119,6 +123,16 @@ def validar_peticion(crudo, nombre_archivo=None, ahora=None):
             return None, "la ronda necesita un motivo (en «nota»: qué se va a probar)"
         if len(mot) > 200:
             return None, "el motivo de la ronda pasa de 200 caracteres (tiene %d)" % len(mot)
+    # BAN1114C: `esc` (escenario) y `rep` (repeticiones, 1 a 10) solo valen para «banco-serie», y ahí son obligatorios
+    if accion == "banco-serie":
+        if crudo.get("esc") not in ESCENARIOS_BANCO:
+            return None, "«esc» no válido (%s)" % ", ".join(ESCENARIOS_BANCO)
+        rp = _entero(crudo.get("rep"), 1, REP_BANCO_MAX)
+        if rp is None:
+            return None, "«rep» no válido (entero de 1 a %d)" % REP_BANCO_MAX
+        p["esc"], p["rep"] = crudo["esc"], rp
+    elif crudo.get("esc") is not None or crudo.get("rep") is not None:
+        return None, "«esc» y «rep» solo valen para banco-serie"
     nota = crudo.get("nota")
     if nota is not None:
         if not isinstance(nota, str):

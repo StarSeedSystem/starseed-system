@@ -391,12 +391,27 @@ def construir_llamada(grupo, lineas_ble, prob=None):
     lados = {a: metricas_lado(ls, t0, t1, prob, "%s/%s" % (idl, a), t_v0) for a, ls in por_aparato.items()}
     lados.setdefault("mac", None)
     otros = [a for a in por_aparato if a != "mac"]
-    return {"id": "llamada-" + datetime.fromtimestamp(t0, timezone.utc).strftime("%Y%m%dT%H%M%S"),
+    ll = {"id": "llamada-" + datetime.fromtimestamp(t0, timezone.utc).strftime("%Y%m%dT%H%M%S"),
             "desde": _a_iso(t0), "hasta": _a_iso(t1), "duracion_s": int(round(t1 - t0)),
             "con": otros[0] if otros else None, "terminada": any(_es_colgar(l) for l in grupo),
             "medios": medios, "enlaces": enlaces,
             "kbps_rapido": {"min": _redondea(min(kb)), "max": _redondea(max(kb)), "muestras": len(kb)} if kb else None,
             "lados": lados, "web_por_lado": web_por_lado(grupo), "notas": notas_de_build(web_por_lado(grupo))}
+    ll.update(_marca_de_banco(grupo))   # BAN1114C: `escenario`, `serie`, `n` solo si el grupo lleva una marca del banco de llamadas
+    return ll
+
+
+# BAN1114C · marcas «banco inicio|contesta|fin|rechaza esc=… serie=… n=…» de la serie automática (architecture/ronda-automatica-llamadas.md §9)
+_MARCA_BANCO = re.compile(r"^banco (?:inicio|contesta|fin|rechaza) .*?\besc=([a-z0-9-]{3,40}) serie=([a-z0-9-]{3,40}) n=(\d{1,3})(?:\s|$)")
+
+
+def _marca_de_banco(grupo):
+    """{escenario, serie, n} de la primera marca del banco en el grupo; {} si no hay (la llamada es de una persona)."""
+    for l in grupo:
+        m = _MARCA_BANCO.match(l["msg"]) if l["tipo"] == "llamada" else None
+        if m:
+            return {"escenario": m.group(1), "serie": m.group(2), "n": int(m.group(3))}
+    return {}
 
 
 # ── sugerencias ─────────────────────────────────────────────────────────────────────────────────────────────────
