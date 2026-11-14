@@ -7135,3 +7135,13 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `ENT-agentes-referencias-diseno-agentes-re-da54f5-v1` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/entregable-agentes-referencias-diseno-agentes-referencias-diseno-da54f5-v1.json
 - `RDM1113D-d1` — otra cosa: excepción: 'utf-8' codec can't decode byte 0xd4 in position 4: invalid continuation byte
 - `RDM1113Cs` — la revisión lo rechazó: no toco NINGUNO de los 1 archivos que declaraba (rama ola/RDM1113Cs conservada)
+
+## 2026-11-13 23:38 · auto-1113-233038
+
+**Lo que se pidió.** StarSeed OS
+
+**Resultado.** 0 de 2 integradas. 2 tareas se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `RDM1113D-d1` — otra cosa: excepción: 'utf-8' codec can't decode byte 0xd4 in position 4: invalid continuation byte
+- `RDM1113Cs` — la revisión lo rechazó: no toco NINGUNO de los 1 archivos que declaraba (rama ola/RDM1113Cs conservada)
