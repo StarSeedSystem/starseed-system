@@ -1,6 +1,6 @@
 // Corre los escenarios del banco en Chromium (Playwright, cámara y micro falsos).
 //   node correr.mjs [salida] [escenario] [segundos]
-// escenarios: aleteo · ip-aparece · choque · video · segunda · corte-ip · sin-servidor · voz-video · paso-ip · paso-ip-silencioso · timbre-cola · video-sube · wifi-directo · ble-160 · ble-80 · ble-40 · ble-caida · ble-micro · voz-40 · voz-24 · voz-16 · voz-caida · voz-suelo · voz-40-cif · voz-24-cif · voz-16-cif · vozvideo-80 · vozvideo-40 · ble-real · ble-real-mudo · ble-tableta · ble-tableta-41 · wifi-cae · ruta-fantasma · todos
+// escenarios: aleteo · ip-aparece · choque · video · segunda · corte-ip · sin-servidor · voz-video · paso-ip · paso-ip-silencioso · timbre-cola · video-sube · wifi-directo · ble-160 · ble-80 · ble-40 · ble-caida · ble-micro · voz-40 · voz-24 · voz-16 · voz-caida · voz-suelo · voz-40-cif · voz-24-cif · voz-16-cif · vozvideo-80 · vozvideo-40 · ble-real · ble-real-mudo · ble-tableta · ble-tableta-41 · ble-tableta-41-mudo · wifi-cae · ruta-fantasma · todos
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
@@ -490,6 +490,9 @@ const esc = {
   // el carril (`cabe=21–63 enlace=160k+84…154ms/139`). Pasa con lo de `ble-tableta` y, además, el vídeo de B (pintado en A)
   // ≥ 1 fps en el 25 % de las ventanas desde los 20 s, ninguna pausa de B de más de 60 s y la voz no peor (ver `juzgarTableta41`).
   "ble-tableta-41": () => casoBle("ble-tableta-41", [{ t: 0, kbps: 160 }], { plazo: 400, real: true, tableta: 41 }),
+  // LLA1114F: la tableta de la prueba 41 con los DOS micros mudos (c4 de la ronda: sin escenario hasta ahora). Correr con 30 s.
+  // Con la voz en silencio el carril es casi todo del vídeo: pasa si los dos sentidos dan ≥ 3 fps sostenidos (`fluye`).
+  "ble-tableta-41-mudo": () => casoBle("ble-tableta-41-mudo", [{ t: 0, kbps: 160 }], { plazo: 400, real: true, tableta: 41, mudos: true }),
   // LLA1113A · `ble-real` con los temporizadores de la página LENTOS (alineados a 1 s, como WebKit con la ventana de la Mac
   // oculta o tapada) en dos tramos de 30 s, como en las dos llamadas limpias de la prueba 40 (10–35 s seguidos). Pasa con lo de
   // `ble-real` y además: ninguna pausa del vídeo y la voz nunca al escalón 5, con el carril a 160 kb/s todo el rato.
@@ -885,6 +888,13 @@ function juzgarTableta41(r, fallos) {
 
 function juzgar(nombre, r, cambiosS) {
   const fallos = [];
+  if (nombre === "ble-tableta-41-mudo") {
+    // LLA1114F: solo el vídeo, los dos sentidos (la voz está muda).
+    const fluyeM = (lado) => lado.ventanas5s.length > 0 && lado.ventanas5s.filter((f) => f >= UMBRAL.fpsMin).length / lado.ventanas5s.length >= UMBRAL.ventanasOk;
+    if (!fluyeM(r.total.enA)) fallos.push(`vídeo en A: ${r.total.enA.fps} fps, ventanas ${JSON.stringify(r.total.enA.ventanas5s)}`);
+    if (!fluyeM(r.total.enB)) fallos.push(`vídeo en B: ${r.total.enB.fps} fps, ventanas ${JSON.stringify(r.total.enB.ventanas5s)}`);
+    return { pasa: fallos.length === 0, fallos };
+  }
   if (nombre === "ble-tableta-41") {
     juzgarTableta41(r, fallos); // LLA1113C: solo lo suyo (ver arriba)
     return { pasa: fallos.length === 0, fallos };
