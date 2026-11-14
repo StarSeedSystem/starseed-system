@@ -646,6 +646,56 @@ class SanadorSesiones:
         """Devuelve el estado agregado (calculado al momento)."""
         return self.actualizar_estado_agregado()
 
+    def comprobar_todas(self, salida) -> int:
+        """Comprueba todas las sesiones registradas, repara las caídas y escribe estado.json.
+        
+        Una sesión caída no es un fallo del servicio: sale con 0 salvo error interno.
+        """
+        try:
+            caidas = 0
+            reparadas = 0
+            errores_internos = 0
+            
+            for nombre in self.listar():
+                check = self.comprobar(nombre)
+                if check.get("ok"):
+                    salida.write(f"✓ {nombre}: viva ({check.get('detalle', '')})\n")
+                else:
+                    caidas += 1
+                    motivo = check.get('motivo', 'caída')
+                    es_red = check.get('es_red', False)
+                    if es_red:
+                        salida.write(f"⚠ {nombre}: red ({motivo}) - se reintentará\n")
+                    else:
+                        salida.write(f"✗ {nombre}: caída ({motivo}) - reparando...\n")
+                        r = self.reparar(nombre)
+                        if r.get("ok"):
+                            reparadas += 1
+                            salida.write(f"  → ✓ {nombre} reparada: {r.get('detalle', '')}\n")
+                        elif r.get("es_red"):
+                            salida.write(f"  → ⚠ {nombre}: red, se espera\n")
+                        elif r.get("escalado") == "enviado":
+                            salida.write(f"  → ✗ {nombre} no reparada, escalado enviado\n")
+                        elif r.get("escalado") == "ya_enviado":
+                            salida.write(f"  → ✗ {nombre} no reparada, escalado ya enviado hoy\n")
+                        elif r.get("escalado") == "sin_canal":
+                            salida.write(f"  → ✗ {nombre} no reparada, sin canal de envío\n")
+                        else:
+                            salida.write(f"  → ✗ {nombre} no reparada: {r.get('motivo', '')}\n")
+                            errores_internos += 1
+            
+            # Escribir estado agregado final
+            self.actualizar_estado_agregado()
+            
+            salida.write(f"\nResumen: {len(self.listar()) - caidas}/{len(self.listar())} vivas, {reparadas} reparadas\n")
+            
+            # Error interno solo si hubo excepción no controlada (no sesión caída)
+            return 1 if errores_internos > 0 else 0
+            
+        except Exception as e:
+            salida.write(f"Error interno en comprobar_todas: {e}\n")
+            return 1
+
 
 # ─────────────────────────────── CLI ───────────────────────────────
 
@@ -675,7 +725,7 @@ def main(argv: list[str] | None = None, salida=None, sanador: SanadorSesiones | 
         salida.write(
             "Uso: python3 sanador_sesiones.py <comando> [args]\n"
             "Comandos:\n"
-            "  comprobar <sesion>   Comprueba una sesión\n"
+            "  comprobar [sesion]   Comprueba una sesión; sin args: todas + repara + escribe estado.json\n"
             "  reparar <sesion>     Repara una sesión probando recetas\n"
             "  estado               Muestra estado agregado de todas las sesiones\n"
             "  listar               Lista sesiones registradas\n"
@@ -691,8 +741,8 @@ def main(argv: list[str] | None = None, salida=None, sanador: SanadorSesiones | 
 
     if cmd == "comprobar":
         if len(argv) < 2:
-            salida.write("Falta <sesion>\n")
-            return 2
+            # Sin argumentos: comprobar TODAS las sesiones, reparar las caídas, escribir estado.json
+            return s.comprobar_todas(salida)
         r = s.comprobar(argv[1])
         if r.get("ok"):
             salida.write(f"✓ {argv[1]}: viva ({r.get('detalle', '')})\n")

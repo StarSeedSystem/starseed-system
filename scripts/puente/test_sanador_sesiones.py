@@ -379,6 +379,136 @@ class SanadorSesionesTest(unittest.TestCase):
         self.assertNotIn("xyz", log_text)
         self.assertIn("[REDACTADO]", log_text)
 
+    def test_cli_comprobar_sin_args_llama_comprobar_todas(self):
+        """CLI comprobar sin args llama a comprobar_todas y sale con 0."""
+        s = SS.SanadorSesiones(estado_file=self.estado_file)
+        
+        # Stateful mocks para simular reparación exitosa
+        sesion2_state = {"checked": False}
+        def sesion2_check():
+            if sesion2_state["checked"]:
+                return {"ok": True, "detalle": "viva tras reparar"}
+            sesion2_state["checked"] = True
+            return {"ok": False, "motivo": "caida"}
+        
+        s.registrar("sesion1", lambda: {"ok": True, "detalle": "viva"}, [])
+        s.registrar("sesion2", sesion2_check, [
+            lambda: {"ok": True, "detalle": "reparada"}
+        ])
+        s.registrar("sesion3", lambda: {"ok": False, "motivo": "red", "es_red": True}, [])
+
+        salida = MagicMock()
+        code = SS.main(["comprobar"], salida=salida, sanador=s)
+        
+        self.assertEqual(code, 0)
+        escritos = [call[0][0] for call in salida.write.call_args_list]
+        full_output = "".join(escritos)
+        self.assertIn("sesion1", full_output)
+        self.assertIn("sesion2", full_output)
+        self.assertIn("sesion3", full_output)
+        self.assertIn("reparada", full_output)
+        self.assertIn("red", full_output)
+        
+        # Verifica que estado.json se escribió
+        self.assertTrue(self.estado_file.exists())
+        estado = json.loads(self.estado_file.read_text(encoding="utf-8"))
+        self.assertEqual(estado["total"], 3)
+        self.assertEqual(estado["vivas"], 2)  # sesion1 viva, sesion2 reparada; sesion3 red = caída
+        self.assertEqual(estado["caidas"], 1)  # sesion3 (red)
+
+    def test_comprobar_todas_red_no_escala(self):
+        """comprobar_todas: una sesión con fallo de red no escala, solo espera."""
+        s = SS.SanadorSesiones(estado_file=self.estado_file, log_file=self.log_file)
+        escalados = []
+        
+        def enviar_falso(texto):
+            escalados.append(texto)
+            return {"ok": True}
+        
+        # Sesión con fallo de red en comprobación
+        def comprobacion_red():
+            raise TimeoutError("Connection timed out")
+        
+        def receta_red():
+            raise ConnectionError("Network unreachable")
+        
+        s.registrar("test_red", comprobacion_red, [receta_red])
+        s.enviar_fn = enviar_falso
+        
+        from io import StringIO
+        salida = StringIO()
+        code = s.comprobar_todas(salida)
+        
+        self.assertEqual(code, 0)  # No es error interno
+        self.assertEqual(len(escalados), 0)  # No escala por red
+        output = salida.getvalue()
+        self.assertIn("red", output.lower())
+
+    def test_comprobar_todas_escribe_estado_json(self):
+        """comprobar_todas escribe salud/estado.json con el agregado final."""
+        s = SS.SanadorSesiones(estado_file=self.estado_file, log_file=self.log_file)
+        s.registrar("a", lambda: {"ok": True}, [])
+        
+        b_state = {"checked": False}
+        def b_check():
+            if b_state["checked"]:
+                return {"ok": True, "detalle": "viva tras reparar"}
+            b_state["checked"] = True
+            return {"ok": False, "motivo": "caida"}
+        
+        s.registrar("b", b_check, [
+            lambda: {"ok": True, "detalle": "reparada"}
+        ])
+        
+        from io import StringIO
+        salida = StringIO()
+        code = s.comprobar_todas(salida)
+        
+        self.assertEqual(code, 0)
+        self.assertTrue(self.estado_file.exists())
+        
+        estado = json.loads(self.estado_file.read_text(encoding="utf-8"))
+        self.assertEqual(estado["total"], 2)
+        self.assertEqual(estado["vivas"], 2)
+        self.assertEqual(estado["caidas"], 0)
+        self.assertIn("a", estado["detalle"])
+        self.assertIn("b", estado["detalle"])
+
+    def test_regresion_systemd_execstart(self):
+        """Regresión: la línea ExecStart del service ejecuta main() con args correctos."""
+        import re
+        service_path = Path(__file__).parent.parent.parent / "deploy" / "oracle" / "nodo" / "systemd" / "starseed-sanador.service"
+        
+        self.assertTrue(service_path.exists(), f"Service file not found: {service_path}")
+        
+        content = service_path.read_text(encoding="utf-8")
+        # Extraer ExecStart
+        match = re.search(r'ExecStart=(.+)', content)
+        self.assertIsNotNone(match, "ExecStart no encontrado en service")
+        
+        exec_start = match.group(1).strip()
+        # Debe ser: /usr/bin/python3 .../sanador_sesiones.py comprobar
+        self.assertIn("sanador_sesiones.py", exec_start)
+        self.assertIn("comprobar", exec_start)
+        self.assertNotIn("comprobar ", exec_start.replace("comprobar", ""))  # Sin args extra
+        
+        # Simular la llamada con CLIs falsos (mock de subprocess)
+        s = SS.SanadorSesiones(estado_file=self.estado_file, log_file=self.log_file)
+        s.registrar("notebooklm", lambda: {"ok": True, "detalle": "ok"}, [])
+        s.registrar("telegram", lambda: {"ok": True, "detalle": "ok"}, [])
+        
+        from io import StringIO
+        salida = StringIO()
+        # Llamar main como lo haría systemd: python3 sanador_sesiones.py comprobar
+        code = SS.main(["comprobar"], salida=salida, sanador=s)
+        
+        self.assertEqual(code, 0)
+        self.assertTrue(self.estado_file.exists())
+        
+        estado = json.loads(self.estado_file.read_text(encoding="utf-8"))
+        self.assertEqual(estado["total"], 2)
+        self.assertEqual(estado["vivas"], 2)
+
 
 if __name__ == "__main__":
     unittest.main()
