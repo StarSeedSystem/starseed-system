@@ -393,16 +393,8 @@ def ejecutar_encargo(
             time.sleep(5)
             cid = crear_cuaderno(frente, enc, nb)
         except SesionCaducada:
-            # Si falla la creación del cuaderno, no podemos continuar con este frente
-            # Marcar todos los entregables como en cola / fallo
-            for e in frente["entregables"]:
-                if e["tipo"] in ENTREGABLES_TEXTO:
-                    e["fallo"] = "Sesión caducada al crear cuaderno: se generará en modo degradado en siguiente vuelta"
-                else:
-                    e["en_cola"] = True
-                    e["fallo"] = "Sesión caducada: entregable nativo en cola"
-            actualizar_panel(enc, drive)
-            continue
+            # Sesión caducada al crear cuaderno: propagar para que el bucle exterior espere
+            raise
 
         # Investigar (con manejo de sesión)
         try:

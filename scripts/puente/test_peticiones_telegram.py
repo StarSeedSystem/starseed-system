@@ -388,9 +388,9 @@ def test_mantener_sesion_refresca_cada_20min(tmp_path):
     mod.DIR = str(tmp_path)
     try:
         llamadas_nb = []
-        def mock_nb(args, timeout=180):
+        def mock_nb(args, timeout=180, bloquear=True):
             llamadas_nb.append(args)
-            if args == ["auth", "refresh"]:
+            if args == ["auth", "refresh", "--verify"]:
                 return 0, "", ""
             return 1, "", "error"
         def mock_sleep(secs):
@@ -401,7 +401,7 @@ def test_mantener_sesion_refresca_cada_20min(tmp_path):
                 mantener_sesion()
             except KeyboardInterrupt:
                 pass
-        assert any(a == ["auth", "refresh"] for a in llamadas_nb)
+        assert any(a == ["auth", "refresh", "--verify"] for a in llamadas_nb)
         estado = leer_json(mod.ESTADO, {})
         assert "notebooklm" in estado
         assert estado["notebooklm"]["viva"] is True

@@ -424,7 +424,7 @@ def atender(p: dict[str, Any]) -> None:
         actualizar(p["id"], estado="hecha", terminada=time.time())
     except SesionCaducada:
         # Sin mensaje de caducidad por petición: esperan en silencio y /estado lo explica
-        actualizar(p["id"], estado="esperando_sesion")
+        actualizar(p["id"], estado="esperando_sesion", avisada_sesion=True)
     except SesionTransitoria:
         # Error transitorio: reintento silencioso
         actualizar(p["id"], estado="reintentar")
