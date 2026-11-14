@@ -7331,3 +7331,15 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 **Lo que quedó fuera, una por una:**
 - `RDM1113A` — otra cosa: excepción: 'utf-8' codec can't decode byte 0xff in position 0: invalid start byte
 - `RDM1113D-d2` — otra cosa: revisor: sus dependencias ya están en main: vuelve a la cola (tanda viva cola-auto-1114-115247.json)
+
+## 2026-11-14 13:23 · auto-1114-122220
+
+**Resultado.** 1 de 3 integradas. 2 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — la revisión lo rechazó (RDM1113As, RDM1113D-d2). Es 67 % de la ola.
+- nvidia/nvidia/nemotron-3-ultra-550b-a55b no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RDM1113As` — la revisión lo rechazó: no toco NINGUNO de los 4 archivos que declaraba (rama ola/RDM1113As conservada)
+- `RDM1113D-d2` — la revisión lo rechazó: no toco NINGUNO de los 1 archivos que declaraba (rama ola/RDM1113D-d2 conservada)
