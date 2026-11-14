@@ -528,5 +528,179 @@ class TestNotebookLMSource(unittest.TestCase):
         self.assertEqual(nb_calls[0][1], "drive-doc-789")
 
 
+class TestSeccionesAlcance1113(unittest.TestCase):
+    """ALC1113G: tres secciones nuevas en la síntesis diaria — «GitHub y comunidad técnica»,
+    «Alcance: contactos y mensajes para aprobar» y «Promoción y canales». Puro y sin red:
+    nada se publica y todo espera la aprobación de una persona."""
+
+    def setUp(self):
+        self.fichas = [self._ficha("org%d/proyecto%d" % (i, i)) for i in range(1, 8)]
+
+    @staticmethod
+    def _ficha(nombre="acme/proyecto", area="red-descentralizada"):
+        return {"obj_id": "gh-" + nombre, "nombre_publico": nombre, "fuente": "github",
+                "que_hacen": "Sincroniza datos locales sin servidor.",
+                "area_starseed": area, "licencia": "MIT",
+                "fuentes": [{"url": "https://github.com/%s" % nombre}]}
+
+    @staticmethod
+    def _rec(nombre="acme/proyecto"):
+        return {"_ficha_nombre": nombre, "area_sistema": "local-first",
+                "que_adoptar": "Su patrón de sincronización sin servidor"}
+
+    @staticmethod
+    def _borrador(n=1, estado="esperando-aprobacion"):
+        return {"id": "algh-20261111-%02d" % n, "estado": estado,
+                "destinatario": "org%d/proyecto%d" % (n, n), "canal": "github_discussion",
+                "motivo": "Afinidad en red-descentralizada: sincroniza datos locales"}
+
+    def test_seccion_github_enlace_que_hacer_y_aprender(self):
+        texto = A.seccion_github(self.fichas, recomendaciones=[self._rec("org3/proyecto3")])
+        self.assertIn("## GitHub y comunidad técnica", texto)
+        self.assertEqual(texto.count("\n- "), 7)
+        self.assertIn("(https://github.com/org3/proyecto3)", texto)
+        self.assertIn("Qué aprender o implementar en StarSeed OS (local-first): "
+                      "Su patrón de sincronización sin servidor", texto)
+        self.assertIn("Sincroniza datos locales sin servidor", texto)
+
+    def test_seccion_github_a_tope_diez(self):
+        fichas = [self._ficha("o%d/p%d" % (i, i)) for i in range(12)]
+        texto = A.seccion_github(fichas)
+        self.assertEqual(texto.count("\n- "), 10)
+        self.assertNotIn("o10/p10", texto)
+
+    def test_seccion_github_vacia_sin_fichas(self):
+        self.assertEqual(A.seccion_github([]), "")
+
+    def test_seccion_github_propuestas_para_la_libreria(self):
+        texto = A.seccion_github(self.fichas[:5], propuestas=[{"id": "lib-proyecto1"}])
+        self.assertIn("Propuestas para la Librería", texto)
+        self.assertIn("lib-proyecto1", texto)
+        self.assertIn("nada se instala solo", texto)
+
+    def test_seccion_alcance_pendientes_con_como_aprobar(self):
+        texto = A.seccion_alcance([self._borrador(1), self._borrador(2)])
+        self.assertIn("## Alcance: contactos y mensajes para aprobar", texto)
+        self.assertIn("algh-20261111-01 → org1/proyecto1, por github_discussion", texto)
+        self.assertIn("Motivo: Afinidad en red-descentralizada", texto)
+        self.assertIn("/alcance", texto)
+        self.assertIn("nada se envía solo", texto)
+
+    def test_seccion_alcance_solo_pendientes_y_a_tope_cinco(self):
+        borradores = [self._borrador(1, estado="aprobado")] + [self._borrador(n) for n in range(2, 9)]
+        texto = A.seccion_alcance(borradores)
+        self.assertEqual(texto.count("\n- "), 5)
+        self.assertNotIn("algh-20261111-01", texto)
+
+    def test_seccion_alcance_vacia_sin_pendientes(self):
+        self.assertEqual(A.seccion_alcance([]), "")
+        self.assertEqual(A.seccion_alcance([self._borrador(1, estado="aprobado")]), "")
+
+    def test_seccion_promocion_repo_canales_sitios_y_nada_publica(self):
+        texto = A.seccion_promocion(FECHA)
+        for palabra in ("README", "CONTRIBUTING", "good first issues", "Discussions", "topics",
+                        "roadmap", "vista previa social", "YouTube", "Instagram Sociedad StarSeed",
+                        "Telegram", "Show HN", "dev.to", "Product Hunt", "ecoaldeas",
+                        "recomendaciones", "nada se publica ni se envía sin la aprobación"):
+            self.assertIn(palabra, texto)
+
+    def test_seccion_promocion_rota_por_dia(self):
+        # Día del año 315 (2026-11-11) % 4 = 3; el 316 (2026-11-12) toca «README y CONTRIBUTING».
+        hoy = A.seccion_promocion(FECHA)
+        manana = A.seccion_promocion("2026-11-12")
+        self.assertIn("hoy destacado: roadmap y vista previa social", hoy)
+        self.assertIn("hoy destacado: README y CONTRIBUTING", manana)
+        self.assertNotEqual(hoy, manana)
+
+
+    def test_secciones_alcance_github_juntas(self):
+        texto = A.secciones_alcance_github(fichas=self.fichas, recomendaciones=[self._rec()],
+                                           propuestas=[{"id": "lib-proyecto1"}],
+                                           borradores=[self._borrador(1)], fecha=FECHA)
+        self.assertIn("## GitHub y comunidad técnica", texto)
+        self.assertIn("## Alcance: contactos y mensajes para aprobar", texto)
+        self.assertIn("## Promoción y canales", texto)
+
+    def test_secciones_alcance_github_solo_promocion_sin_datos(self):
+        texto = A.secciones_alcance_github(fecha=FECHA)
+        self.assertIn("## Promoción y canales", texto)
+        self.assertNotIn("## GitHub y comunidad técnica", texto)
+        self.assertNotIn("## Alcance: contactos y mensajes para aprobar", texto)
+
+    def test_datos_alcance_del_dia_lee_fichas_borradores_y_propuesta(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        raiz = os.path.join(self._tmp.name, "repo")
+        for ruta, datos in ((os.path.join(raiz, A.REL_ALCANCE_GITHUB, "%s.json" % FECHA),
+                             [{"nombre_publico": "a/b"}]),
+                            (os.path.join(raiz, A.REL_ALCANCE_BORRADORES, "borradores-%s.json" % FECHA),
+                             [self._borrador(1)]),
+                            (os.path.join(raiz, A.REL_ALCANCE_PROPUESTAS, "propuesta-%s.json" % FECHA),
+                             {"paquetes": [{"id": "lib-b"}]})):
+            os.makedirs(os.path.dirname(ruta), exist_ok=True)
+            with open(ruta, "w", encoding="utf-8") as f:
+                json.dump(datos, f)
+        d = A._datos_alcance_del_dia(raiz, FECHA)
+        self.assertEqual([f["nombre_publico"] for f in d["fichas"]], ["a/b"])
+        self.assertEqual([b["id"] for b in d["borradores"]], ["algh-20261111-01"])
+        self.assertEqual([p["id"] for p in d["propuestas"]], ["lib-b"])
+
+    def test_datos_alcance_del_dia_vacio_sin_archivos(self):
+        d = A._datos_alcance_del_dia("/tmp/que-no-existe-1113", FECHA)
+        self.assertEqual(d, {"fichas": [], "borradores": [], "propuestas": []})
+
+    def test_prompt_respaldo_lleva_datos_de_alcance(self):
+        ctx = ctx_base()
+        prompt = A._prompt_respaldo(ctx, FECHA, alcance_texto="## Alcance: contactos y mensajes para aprobar")
+        self.assertIn("Datos de alcance del día", prompt)
+        self.assertIn("## Alcance: contactos y mensajes para aprobar", prompt)
+        self.assertLessEqual(len(prompt), A.TOPE_PROMPT)
+
+    def test_respaldo_incluye_las_tres_secciones_con_datos_del_dia(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        raiz = os.path.join(self._tmp.name, "repo")
+        github = os.path.join(raiz, A.REL_ALCANCE_GITHUB)
+        os.makedirs(github)
+        os.makedirs(os.path.join(raiz, A.REL_ALCANCE_BORRADORES))
+        with open(os.path.join(github, "%s.json" % FECHA), "w", encoding="utf-8") as f:
+            json.dump([self._ficha()], f)
+        with open(os.path.join(raiz, A.REL_ALCANCE_BORRADORES, "borradores-%s.json" % FECHA), "w", encoding="utf-8") as f:
+            json.dump([self._borrador(1)], f)
+        estado = A.estado_vacio()
+        prompts = []
+
+        def redactar(prompt):
+            prompts.append(prompt)
+            return "Síntesis con alcance aprobable. " * 30
+
+        r = A._respaldo(raiz, estado, AHORA_CDMX_07, redactar=redactar, seco=False)
+        self.assertTrue(r["ok"])
+        prompt = prompts[0]
+        self.assertIn("## GitHub y comunidad técnica", prompt)
+        self.assertIn("https://github.com/acme/proyecto", prompt)
+        self.assertIn("## Alcance: contactos y mensajes para aprobar", prompt)
+        self.assertIn("algh-20261111-01", prompt)
+        self.assertIn("## Promoción y canales", prompt)
+        for seccion in A.SECCIONES_GITHUB_1113:
+            self.assertIn(seccion, A.SECCIONES_RESPALDO)
+
+    def test_respaldo_sin_datos_de_alcance_no_inventa_proyectos(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        raiz = os.path.join(self._tmp.name, "repo")
+        estado = A.estado_vacio()
+
+        def redactar(prompt):
+            prompts.append(prompt)
+            return "Síntesis sin alcance. " * 30
+
+        prompts = []
+        r = A._respaldo(raiz, estado, AHORA_CDMX_07, redactar=redactar, seco=False)
+        self.assertTrue(r["ok"])
+        self.assertNotIn("## GitHub y comunidad técnica", prompts[0])
+        self.assertNotIn("algh-", prompts[0])
+
+
 if __name__ == "__main__":
     unittest.main()

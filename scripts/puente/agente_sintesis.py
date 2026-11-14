@@ -18,6 +18,10 @@ encargo va ahora por la vía de la flota que SÍ funciona (`encargar_por_flota` 
 tareas salen dentro del tope de la flota (16000 del analista libre) y, si a las 07:54 no
 hay texto, la flota gratuita redacta la síntesis en UN paso, se guarda, se sube a Drive
 (carpeta «Síntesis diarias», alias alex-docs) y se envía: un día nunca queda sin síntesis.
+
+ALC1113G (2026-11-14): tres secciones nuevas — «GitHub y comunidad técnica» (proyectos del día,
+qué aprender y propuestas para la Librería), «Alcance: contactos y mensajes para aprobar»
+(borradores pendientes y /alcance) y «Promoción y canales»; datos de starseed_memory_root/alcance/.
 """
 from __future__ import annotations
 import argparse
@@ -358,11 +362,131 @@ def _resumen_1500_3000(texto):
 
 SECCIONES_RESPALDO = ("Portada y rotación", "Noticias con fuente y fecha", "Actividad de Alex",
                       "Referencias de diseño", "Ideas de vídeo y redes", "Guiones y storyboard",
-                      "YouTube", "Mañana (la rotación del día siguiente)")
+                      "YouTube", "GitHub y comunidad técnica", "Alcance: contactos y mensajes para aprobar",
+                      "Promoción y canales", "Mañana (la rotación del día siguiente)")
 CIFRAS_RESPALDO = (3000, 9000)
 
+# ALC1113G (§1 de architecture/alcance-github-1113.md): las tres secciones nuevas de la
+# síntesis diaria. Datos del alcance en starseed_memory_root/alcance/ (privado); todo como
+# recomendación: nada se publica ni se envía sin la aprobación de una persona.
+REL_ALCANCE_GITHUB = "starseed_memory_root/alcance/github"
+REL_ALCANCE_BORRADORES = "starseed_memory_root/alcance/borradores"
+REL_ALCANCE_PROPUESTAS = "starseed_memory_root/alcance/propuestas"
+SECCIONES_GITHUB_1113 = ("GitHub y comunidad técnica", "Alcance: contactos y mensajes para aprobar",
+                         "Promoción y canales")
+TOPE_PROYECTOS_GITHUB = 10
+TOPE_BORRADORES_SECCION = 5
+AREAS_PROMOCION = ("README y CONTRIBUTING", "good first issues", "Discussions y topics",
+                   "roadmap y vista previa social")
+CANALES_STARSEED = ("YouTube", "Instagram Sociedad StarSeed", "Telegram", "web")
+SITIOS_NUEVOS = ("foros", "subreddits", "fediverso", "Nostr", "Matrix", "Discord", "Show HN",
+                 "dev.to", "Product Hunt", "academia", "comunidades locales y ecoaldeas")
 
-def _prompt_respaldo(ctx, fecha, salidas=()):
+
+def _limpio(texto, tope):
+    return " ".join(str(texto or "").split())[:max(0, tope)]
+
+
+def _enlace_de(ficha):
+    """El primer enlace https publicado de la ficha; «sin enlace publicado» si no tiene."""
+    for f in (ficha or {}).get("fuentes") or []:
+        url = str((f if isinstance(f, dict) else {}).get("url") or "")
+        if url.startswith("https://"):
+            return url
+    nombre = str((ficha or {}).get("nombre_publico") or "")
+    return "https://github.com/%s" % nombre if "/" in nombre else "sin enlace publicado"
+
+
+def seccion_github(fichas, recomendaciones=(), propuestas=()):
+    """Sección (1) «GitHub y comunidad técnica»: hasta 10 proyectos del día con enlace, qué
+    hacen, qué aprender o implementar en StarSeed OS (de las recomendaciones) y las
+    propuestas para la Librería. Pura; «» sin fichas del día."""
+    lista = [f for f in fichas or [] if isinstance(f, dict)][:TOPE_PROYECTOS_GITHUB]
+    if not lista:
+        return ""
+    recs = {str(r.get("_ficha_nombre") or ""): r for r in recomendaciones or [] if isinstance(r, dict)}
+    lineas = ["## GitHub y comunidad técnica"]
+    for f in lista:
+        nombre = _limpio(f.get("nombre_publico") or f.get("obj_id"), 160) or "proyecto"
+        rec = recs.get(nombre) or {}
+        area = _limpio(rec.get("area_sistema") or f.get("area_starseed"), 60)
+        aprender = _limpio(rec.get("que_adoptar") or f.get("que_hacen"), 220)
+        lineas.append("- %s (%s) — %s. Qué aprender o implementar en StarSeed OS%s: %s" % (
+            nombre, _enlace_de(f), _limpio(f.get("que_hacen"), 200),
+            " (%s)" % area if area else "", aprender))
+    ids = [str((p.get("id") or p.get("obj_id")) if isinstance(p, dict) else p)
+           for p in propuestas or []]
+    if any(ids):
+        lineas.append("Propuestas para la Librería (solo en espera de aprobación; nada se instala solo): %s."
+                      % ", ".join(i for i in ids if i))
+    return "\n".join(lineas)
+
+
+def seccion_alcance(borradores=()):
+    """Sección (2) «Alcance: contactos y mensajes para aprobar»: los borradores pendientes
+    (id, destinatario, canal y motivo) y cómo aprobarlos (/alcance). Pura; «» sin pendientes."""
+    pendientes = [b for b in borradores or [] if isinstance(b, dict)
+                  and str(b.get("estado") or "") == "esperando-aprobacion"][:TOPE_BORRADORES_SECCION]
+    if not pendientes:
+        return ""
+    lineas = ["## Alcance: contactos y mensajes para aprobar"]
+    for b in pendientes:
+        lineas.append("- %s → %s, por %s. Motivo: %s" % (
+            b.get("id"), b.get("destinatario"), b.get("canal"), _limpio(b.get("motivo"), 220)))
+    lineas.append("Cómo aprobarlos: en persona, con /alcance en el bot (o en acciones-de-alex de Genesis); "
+                  "cada mensaje, destinatario y canal se aprueba uno a uno y nada se envía solo.")
+    return "\n".join(lineas)
+
+
+def seccion_promocion(fecha=None):
+    """Sección (3) «Promoción y canales»: recomendaciones para el repo, para cada canal y
+    página de StarSeed, sitios nuevos según su contexto y próximos pasos; rotación diaria
+    de lo destacado. Todo como recomendación: nada se publica sin aprobación."""
+    try:
+        dia = datetime.strptime(str(fecha or ""), "%Y-%m-%d").timetuple().tm_yday
+    except ValueError:
+        dia = 0
+    destacado = AREAS_PROMOCION[dia % len(AREAS_PROMOCION)]
+    lineas = ["## Promoción y canales",
+              "Repo (hoy destacado: %s): README y CONTRIBUTING, good first issues, Discussions, topics, "
+              "roadmap y vista previa social." % destacado,
+              "Canales y páginas de StarSeed: %s." % ", ".join(CANALES_STARSEED),
+              "Sitios nuevos según su contexto, respetando sus normas: %s." % ", ".join(SITIOS_NUEVOS),
+              "Próximos pasos: piezas y mensajes audiovisuales para público general y especializado; "
+              "posts y contenido comercial y social en todos los formatos.",
+              "Todo son recomendaciones: nada se publica ni se envía sin la aprobación de una persona."]
+    return "\n".join(lineas)
+
+
+def secciones_alcance_github(fichas=(), recomendaciones=(), propuestas=(), borradores=(), fecha=None):
+    """Las tres secciones nuevas (ALC1113G) juntas, como texto Markdown; las que no tienen
+    datos se quedan fuera. Pura y sin red."""
+    partes = [seccion_github(fichas, recomendaciones, propuestas), seccion_alcance(borradores),
+              seccion_promocion(fecha)]
+    return "\n\n".join(p for p in partes if p)
+
+
+def _datos_alcance_del_dia(raiz, fecha, leer=None):
+    """Las fichas, los borradores y la propuesta de alcance del día, para las secciones nuevas."""
+    def leer_json(ruta):
+        try:
+            with open(ruta, encoding="utf-8") as f:
+                return json.load(f)
+        except (OSError, ValueError):
+            return None
+    leer = leer or leer_json
+    fichas = leer(os.path.join(raiz, REL_ALCANCE_GITHUB, "%s.json" % fecha))
+    borradores = leer(os.path.join(raiz, REL_ALCANCE_BORRADORES, "borradores-%s.json" % fecha))
+    if isinstance(borradores, dict):
+        borradores = borradores.get("borradores") or []
+    propuesta = leer(os.path.join(raiz, REL_ALCANCE_PROPUESTAS, "propuesta-%s.json" % fecha))
+    paquetes = (propuesta or {}).get("paquetes") or [] if isinstance(propuesta, dict) else []
+    return {"fichas": fichas if isinstance(fichas, list) else [],
+            "borradores": borradores if isinstance(borradores, list) else [],
+            "propuestas": paquetes if isinstance(paquetes, list) else []}
+
+
+def _prompt_respaldo(ctx, fecha, salidas=(), alcance_texto=None):
     """El encargo de UNA sola llamada (la prueba del 2026-11-11): la flota gratuita redacta
     la síntesis entera con las secciones del protocolo. Pura; cabe en el tope de la flota."""
     partes = ["Redacta la síntesis diaria de producción audiovisual de StarSeed del %s en Markdown "
@@ -373,6 +497,9 @@ def _prompt_respaldo(ctx, fecha, salidas=()):
               "", "Contexto:", json.dumps(ctx or {}, ensure_ascii=False, separators=(",", ":"))]
     if salidas:
         partes += ["", "Salidas de análisis del día:", json.dumps(salidas, ensure_ascii=False, separators=(",", ":"))]
+    if alcance_texto:
+        partes += ["", "Datos de alcance del día (alimenta las secciones «%s», «%s» y «%s», tal cual y como "
+                  "recomendación; nada se publica):" % SECCIONES_GITHUB_1113, str(alcance_texto)[:TOPE_SALIDA]]
     partes += ["", "Devuelve SOLO el texto de la síntesis en Markdown, sin texto alrededor."]
     return "\n".join(partes)[:TOPE_PROMPT]
 
@@ -466,7 +593,7 @@ def _subir_doc(fecha, texto, pedir=None):
         return None
 
 
-def _respaldo(raiz, estado, ahora, redactar=None, subir_drive=None, seco=False, salidas=None):
+def _respaldo(raiz, estado, ahora, redactar=None, subir_drive=None, seco=False, salidas=None, leer=None):
     """Respaldo de la entrega (PET1112D): si a las 07:54 de CDMX no hay texto, la flota gratuita
     redacta la síntesis en UN paso, se guarda, se sube a Drive y sale (el envío lo hace _entregar).
     Un día nunca queda sin síntesis. `redactar` y `subir_drive` son inyectables (pruebas sin red)."""
@@ -475,7 +602,11 @@ def _respaldo(raiz, estado, ahora, redactar=None, subir_drive=None, seco=False, 
         return {"accion": "seco", "mensaje": "(seco) el respaldo no redacta ni envía", "respaldo": True}
     ctx = _encoger_contexto(SF.contexto(raiz, hoy=fecha, ahora=ahora.timestamp()))
     salidas = _salidas_del_dia(raiz, fecha) if salidas is None else salidas
-    texto = (redactar or _redactar_flota)(_prompt_respaldo(ctx, fecha, salidas=salidas))
+    try:
+        alcance_texto = secciones_alcance_github(fecha=fecha, **_datos_alcance_del_dia(raiz, fecha, leer=leer))
+    except Exception:
+        alcance_texto = None
+    texto = (redactar or _redactar_flota)(_prompt_respaldo(ctx, fecha, salidas=salidas, alcance_texto=alcance_texto))
     if not texto or len(str(texto).strip()) < 400:
         return {"ok": False, "accion": "sin_sintesis",
                 "mensaje": "La flota no devolvió texto; el día queda sin síntesis (se reintenta al siguiente ciclo)."}
