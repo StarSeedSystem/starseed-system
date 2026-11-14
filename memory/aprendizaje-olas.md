@@ -7359,3 +7359,18 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `IRD11141` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/referencias-diseno-2026-11-14-1.json
 - `IRD11142` — otra cosa: 2 propuesta(s) · starseed_memory_root/imaginacion/agentes/referencias-diseno-2026-11-14-2.json
 - `IRD11143` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/referencias-diseno-2026-11-14-3.json
+
+## 2026-11-14 15:26 · auto-1114-151428
+
+**Lo que se pidió.** Master token ✓ present
+
+**Resultado.** 1 de 5 integradas. 4 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 4 tareas se fueron por lo mismo — otra cosa (ENT-agentes-referencias-diseno-agentes-re-cbdd51-v1, ENT-agentes-referencias-diseno-agentes-re-05e13f-v1, ENT-agentes-referencias-diseno-agentes-re-f53831-v1, ENT-agentes-referencias-diseno-agentes-re-6a8d83-v1). Es 80 % de la ola.
+
+**Lo que quedó fuera, una por una:**
+- `ENT-agentes-referencias-diseno-agentes-re-cbdd51-v1` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/entregable-agentes-referencias-diseno-agentes-referencias-diseno-cbdd51-v1.json
+- `ENT-agentes-referencias-diseno-agentes-re-05e13f-v1` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/entregable-agentes-referencias-diseno-agentes-referencias-diseno-05e13f-v1.json
+- `ENT-agentes-referencias-diseno-agentes-re-f53831-v1` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/entregable-agentes-referencias-diseno-agentes-referencias-diseno-f53831-v1.json
+- `ENT-agentes-referencias-diseno-agentes-re-6a8d83-v1` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/entregable-agentes-referencias-diseno-agentes-referencias-diseno-6a8d83-v1.json
