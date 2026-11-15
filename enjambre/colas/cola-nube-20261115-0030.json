@@ -1,0 +1,17 @@
+{
+ "ola": "nube-20261115",
+ "tareas": [
+  {
+   "id": "REP1114A",
+   "ola": "REP1114",
+   "titulo": "Quitar los bloqueos por bandera y usar el cliente OAuth del OS antes que el del entorno",
+   "archivos": [
+    "scripts/puente/cuentas_google.py",
+    "scripts/puente/sintesis_telegram.py",
+    "scripts/puente/agente_sintesis.py"
+   ],
+   "depende": [],
+   "prompt": "Arregla DOS cosas measured (con pruebas de por medio). NO toques conftest.py: el de main ya activa la guardia de red de scripts/puente/guardia_pruebas.py.\n\n1) QUITA los bloqueos por bandera STARSEED_PRUEBAS=1 que se añadieron en la rama ola/SIN1114Ac-d2b (queda conservada): en cuentas_google.token(), en sintesis_telegram.enviar() y en agente_sintesis._subir_doc(). Con esos bloqueos, 9 pruebas de scripts/puente/test_sintesis_conexiones.py que usan peticiones simuladas fallan (miden: {'ok': False, 'motivo': 'enviar bloqueado en pruebas (STARSEED_PRUEBAS=1)'} != {'ok': True, ...}). La red ya está cortada en la capa de red (guardia_pruebas.py parchea urllib.request.urlopen, http.client.HTTPSConnection.connect y socket.create_connection), así que una petición simulada debe seguir funcionando y una petición real debe seguir fallando. NO cambies el comportamiento de red: quita solo los cortes por bandera.\n\n2) En cuentas_google.alta(), cuando recibe env_local, prueba PRIMERO el cliente OAuth del OS (.env.local: NEXT_PUBLIC_GOOGLE_CLIENT_ID y GOOGLE_OAUTH_CLIENT_SECRET) con la redirección fija REDIRECCION_OS (http://127.0.0.1:8765/), y solo si no está, cae a cliente_id_secret(rutas). Hoy el orden es el revés y el propio docstring de `alta` dice lo contrario («antes de pedir un cliente nuevo, `alta` prueba el cliente OAuth que el OS ya tiene ... con redirección fija»). Consecuencia medida: en esta Mac el proceso tiene GOOGLE_ACTIVIDAD_CLIENT_ID y GOOGLE_ACTIVIDAD_CLIENT_SECRET en el entorno, así que cliente_id_secret(rutas) devuelve algo y la redirección fija nunca se usa: la prueba scripts/puente/test_sintesis_conexiones.py::TestClienteOsDelRepo::test_alta_usa_el_cliente_del_os_con_redireccion_fija falla con assert 'http://127.0.0.1:49952/' == 'http://127.0.0.1:8765/'. Con las variables del entorno quitadas pasa; es un fallo de la máquina, no del código.\n\nMáximo 3 archivos, ≤120 líneas por archivo; sin `any`; no cambies la firma pública de las funciones ni sus valores de retorno (solo el orden con el que se eligen las credenciales). Puertas: la puerta del enjambre corre `python3 -m unittest discover -s scripts/puente -p 'test_*.py' -q` y hoy falla; TIENE que quedar en verde, con las variables reales del entorno presentes (no las quites para que pase). La prueba de la redirección fija y las 9 de Telegram/fichas/avisos tienen que volver a pasar. La fuga a Drive real sigue cortada: sigue SIN aparecer ningún Google Doc nuevo (hoy 0 desde las 20:00)."
+  }
+ ]
+}
