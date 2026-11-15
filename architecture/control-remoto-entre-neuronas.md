@@ -350,3 +350,80 @@ Fuente: órdenes O1114043351 y O1114043802 de la dirección principal al carril 
   **termina la sesión** (indicador desaparecido, §2.4).
 - **Ver la pantalla del otro aparato no está construido todavía.**
 - Windows, Linux e iOS niegan la sesión (`sin-indicador-nativo`): les falta el borde, el atajo o la pausa local.
+
+---
+
+## §12 Fases 2 y 3 tal como se construyen para Mac → Android (2026-11-15 · PAN1115J, AND1115K, VEN1115L)
+
+Primer destino: la Mac manda, la tableta Android es la controlada, misma cuenta. Lo que sigue son enunciados de lo que
+se construye; ninguno promete más que §2.3, §2.4 y §3, y lo que aquí no está, no se hace.
+
+**Las dos fuentes de pantalla (las elige el aparato controlado, no quien manda).**
+- **Capturas por accesibilidad.** Pocos cuadros por segundo. La persona enciende **una vez** el servicio de
+  accesibilidad (en Android, antes «permitir ajustes restringidos») y el interruptor **«Ver la pantalla sin preguntar en
+  cada sesión»**; con los dos encendidos no se pregunta nada por sesión. Sin esa persona delante, ninguno se enciende
+  desde otro aparato.
+- **Proyección de pantalla.** Fluida. Android **pregunta en cada sesión** y no se puede saltar; si la persona no está
+  delante para contestar, no hay pantalla por esta vía.
+- Si no hay ninguna de las dos, `pantalla-iniciar` se cumple y dice **qué falta** (`servicio-accesibilidad`,
+  `ajustes-restringidos`, `consentimiento-pantalla`, `escribir-ajustes`); quien manda lo enseña con esas palabras y la
+  persona lo arregla **en el aparato**. Los cuadros no se guardan ni se anotan.
+
+**Cómo viajan.** La orden `pantalla-iniciar` (nivel `ver`) pide la fuente a lo nativo; el aparato pinta los cuadros en un
+lienzo y los manda como **pista de vídeo** de una conexión P2P que se negocia por el canal de control: la oferta y los
+candidatos de quien manda entran como órdenes `pantalla-senal`, la contestación (con los candidatos del aparato
+dentro) vuelve en la respuesta. Reutiliza la configuración ICE de las llamadas, sin tocar su motor. El siguiente cuadro
+se pide cuando el anterior ya se pintó: nunca hay cola de cuadros. La entrada firmada sale por un **canal de datos de
+la misma conexión** si está abierto y, si no, por el canal de control. Con la conexión caída o sin ella, la sesión
+sigue siendo de órdenes (fase 1).
+
+**Órdenes nuevas (vocabulario cerrado; el sobre y la firma no cambian).**
+`ver`: `pantalla-iniciar`, `pantalla-parar`, `pantalla-senal`, `leer-aparato`.
+`controlar`: `gesto` (hasta 10 dedos, hasta 64 puntos por dedo, `x`/`y` de 0 a 1 de la pantalla tal como la enseñan los
+cuadros, `dt` en ms, `sigue` mantiene los dedos puestos), `tecla` (`atras`, `inicio`, `recientes`, `notificaciones`,
+`ajustes-rapidos`, `bloquear`, `captura`, `volumen-subir`, `volumen-bajar`, `silencio`, `menu-energia`), `volumen`
+(`multimedia`, `llamada`, `timbre`, `alarma`; 0 a 1), `brillo` (0 a 1), `texto` (hasta 512 caracteres, sin controles
+salvo salto de línea y tabulación). Un argumento fuera de rango, de más o con otra forma se rechaza como `argumentos`.
+Como la orden firmada entera no pasa de 4 KB, quien manda **parte un gesto grande en varias órdenes** (todas «siguen»
+menos la última) y **funde** los gestos que esperan turno (nunca quita un dedo).
+
+**Entrada.** Tope de **60 órdenes de entrada por segundo** por aparato (cuenta aparte del tope de las órdenes de app).
+La página del aparato controlado **no ejecuta** la entrada: comprueba lo de siempre (forma, firma, sesión, nivel, tope) y
+entrega la orden, con su sobre intacto, a `control_entrada`, que la vuelve a comprobar en lo nativo (aparato aceptado,
+regla G, pausa local). Fuera de una sesión de `controlar` esa entrega no se hace nunca.
+
+**Regla G, también en lo nativo.** La entrada se rechaza (`regla-g`) mientras la ventana en primer plano sea un diálogo
+de permisos o de consentimiento, el instalador de paquetes, los ajustes de accesibilidad, de administración del
+dispositivo o de acceso especial, o las pantallas de permisos de control de esta app; y el texto se rechaza en un campo
+de contraseña. El panel de ajustes rápidos, la cortina de notificaciones y los ajustes ordinarios **sí** se pueden
+manejar.
+
+**Toque local.** Un toque de la persona en el aparato pausa la entrada remota (`pausa-local`) hasta que pasan **3 s sin
+tocar**; quien manda ve el estado `pausa-local`. Si Android no da una señal fiable de ese toque, el aparato lo dice con
+palabras y **no lo finge**.
+
+**Comprobación nativa del que manda.** Antes de actuar, lo nativo comprueba que cada orden de entrada viene de un aparato
+**aceptado**. Aceptarlo para entrada se confirma en un **diálogo nativo que enseña su código de aparato**, y la clave
+pública aceptada se guarda en lo nativo. Esto cumple lo que §11 exigía antes de dar más poder que la página.
+
+**Qué permite cada nivel en Android.**
+- `ver`: ver la pantalla (por la fuente que la persona haya habilitado), leer volumen, brillo, batería, red y estado de
+  la pantalla del aparato, y las órdenes de fase 1 que son de `ver`. Ningún toque, tecla ni cambio.
+- `controlar`: lo de `ver` y, además, toques y gestos multitáctiles, las teclas de la lista, volumen, brillo y texto,
+  con regla G, pausa local y tope. Exige el servicio de accesibilidad encendido por la persona; sin él no hay toque.
+- `modificar` y `administrar`: **no existen todavía** y se siguen rechazando.
+
+**Qué se para y cuándo.** Pantalla, conexión y entrada paran juntas cuando la sesión se cierra, caduca (1 h) o pasa
+2 min sin actividad, cuando el indicador desaparece, cuando la persona toca **Terminar** o apaga el interruptor, o cuando
+la conexión cae. Con la sesión abierta, quien manda lee el estado del aparato cada 5 s, lo que cuenta como actividad.
+
+**Lo que se queda fuera.**
+- **macOS e iOS como aparatos controlados** (§3): iOS nunca recibe clics; macOS necesita su propia ronda (Grabación de
+  pantalla, Accesibilidad y Monitorización de entrada, que solo concede la persona).
+- El nivel **`modificar`** (archivos, ajustes, procesos, instalar) y **`administrar`**.
+- Audio en vivo, portapapeles y transferencia de archivos.
+- Un destino que no sea Android, y pantalla o control entre cuentas distintas.
+
+**Lo que solo se ve en los aparatos.** Cuántos cuadros por segundo da cada fuente de verdad, si la conexión sale por
+Wi-Fi o por un relé, si Android avisa del toque local, qué ventanas cuenta la regla G como diálogo de permisos en cada
+versión de Android y cómo se siente la latencia del multitáctil: ninguna prueba en un contenedor lo demuestra.

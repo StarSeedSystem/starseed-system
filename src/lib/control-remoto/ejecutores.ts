@@ -12,6 +12,11 @@ import type { Args } from "./niveles";
 /** Evento que la banda (montada en el layout, con el enrutador de Next) atiende para abrir una ruta. */
 export const EVENTO_ABRIR_RUTA = "starseed:control-abrir-ruta";
 
+const ORDENES_PANTALLA = new Set(["pantalla-iniciar", "pantalla-parar", "pantalla-senal", "leer-aparato", "gesto", "tecla", "volumen", "brillo", "texto"]);
+function esOrdenDePantalla(nombre: string): boolean {
+    return ORDENES_PANTALLA.has(nombre);
+}
+
 /** ¿Hay una simulación de corte IP en curso? (solo para el estado y el registro; nunca cuenta como real) */
 let corteIpSimulado = false;
 
@@ -33,7 +38,16 @@ function motorActivo(e: Awaited<ReturnType<typeof llamadas>>): MotorMinimo | nul
 }
 
 /** Ejecuta una acción de la lista cerrada. `cuentaPropia` sirve para contestar solo timbres de la misma cuenta. */
-export async function ejecutarEnApp(nombre: string, args: Args, ctx: { cuentaPropia: string | null }): Promise<unknown> {
+export async function ejecutarEnApp(
+    nombre: string,
+    args: Args,
+    ctx: { cuentaPropia: string | null; sobre?: unknown; sesion?: { token: string; nivel: string } },
+): Promise<unknown> {
+    // PAN1115J: pantalla y entrada las lleva `pantalla-origen` (la página no ejecuta la entrada: la entrega a Rust/Kotlin).
+    if (esOrdenDePantalla(nombre)) {
+        const { origenGlobal } = await import("./pantalla-origen");
+        return origenGlobal().ejecutar(nombre, args, ctx);
+    }
     switch (nombre) {
         case "leer-estado":
             return leerEstadoApp();

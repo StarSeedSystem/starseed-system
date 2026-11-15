@@ -70,7 +70,88 @@ export interface DefAccion {
     simulacion?: boolean;
     /** No necesita sesión abierta (solo abrir una). */
     sinSesion?: boolean;
+    /** (PAN1115J) Orden de entrada (toque, tecla, volumen, brillo, texto): va al lado nativo con su sobre intacto y tiene su propio tope. */
+    entrada?: boolean;
     que: string;
+}
+
+// ── PAN1115J · pantalla y entrada (contrato §12) ─────────────────────────────────────────────
+
+export const MAX_DEDOS = 10;
+export const MAX_PUNTOS_DEDO = 64;
+export const MAX_TEXTO = 512;
+export const MAX_SDP = 3400;
+export const MAX_CANDIDATOS = 8;
+export const MAX_CANDIDATO = 400;
+export const MAX_DT_MS = 10_000;
+/** Teclas del sistema que se pueden mandar (lista cerrada). */
+export const TECLAS: readonly string[] = ["atras", "inicio", "recientes", "notificaciones", "ajustes-rapidos", "bloquear", "captura", "volumen-subir", "volumen-bajar", "silencio", "menu-energia"];
+export const FLUJOS_VOLUMEN: readonly string[] = ["multimedia", "llamada", "timbre", "alarma"];
+
+function entero(x: unknown, min: number, max: number): x is number {
+    return typeof x === "number" && Number.isInteger(x) && x >= min && x <= max;
+}
+function unidad(x: unknown): x is number {
+    return typeof x === "number" && Number.isFinite(x) && x >= 0 && x <= 1;
+}
+const redondear = (x: number): number => Math.round(x * 10_000) / 10_000;
+
+function validarPantallaIniciar(a: Args): Args | null {
+    if (!soloClaves(a, ["lado", "calidad"])) return null;
+    const r: Args = {};
+    if (a.lado !== undefined) {
+        if (!entero(a.lado, 240, 2048)) return null;
+        r.lado = a.lado;
+    }
+    if (a.calidad !== undefined) {
+        if (!entero(a.calidad, 10, 95)) return null;
+        r.calidad = a.calidad;
+    }
+    return r;
+}
+
+function validarSenal(a: Args): Args | null {
+    if (!soloClaves(a, ["oferta", "candidatos"])) return null;
+    const r: Args = {};
+    if (a.oferta !== undefined) {
+        if (typeof a.oferta !== "string" || a.oferta.length < 10 || a.oferta.length > MAX_SDP || !a.oferta.startsWith("v=0")) return null;
+        r.oferta = a.oferta;
+    }
+    if (a.candidatos !== undefined) {
+        if (!Array.isArray(a.candidatos) || a.candidatos.length < 1 || a.candidatos.length > MAX_CANDIDATOS) return null;
+        for (const c of a.candidatos) if (typeof c !== "string" || c.length > MAX_CANDIDATO || !/^(candidate:[\x21-\x7e ]+)?$/.test(c)) return null;
+        r.candidatos = a.candidatos;
+    }
+    return r.oferta === undefined && r.candidatos === undefined ? null : r;
+}
+
+function validarGesto(a: Args): Args | null {
+    if (!soloClaves(a, ["dedos", "sigue"]) || typeof a.sigue !== "boolean") return null;
+    if (!Array.isArray(a.dedos) || a.dedos.length < 1 || a.dedos.length > MAX_DEDOS) return null;
+    const ids = new Set<number>();
+    const dedos: { id: number; puntos: [number, number, number][] }[] = [];
+    for (const d of a.dedos) {
+        if (!d || typeof d !== "object" || Array.isArray(d)) return null;
+        const o = d as Args;
+        if (!soloClaves(o, ["id", "puntos"]) || !entero(o.id, 0, MAX_DEDOS - 1) || ids.has(o.id)) return null;
+        ids.add(o.id);
+        if (!Array.isArray(o.puntos) || o.puntos.length < 1 || o.puntos.length > MAX_PUNTOS_DEDO) return null;
+        const puntos: [number, number, number][] = [];
+        for (const p of o.puntos) {
+            if (!Array.isArray(p) || p.length !== 3 || !unidad(p[0]) || !unidad(p[1]) || !entero(p[2], 0, MAX_DT_MS)) return null;
+            puntos.push([redondear(p[0]), redondear(p[1]), p[2]]);
+        }
+        dedos.push({ id: o.id, puntos });
+    }
+    return { dedos, sigue: a.sigue };
+}
+
+function validarTexto(a: Args): Args | null {
+    if (!soloClaves(a, ["texto"]) || typeof a.texto !== "string") return null;
+    const n = [...a.texto].length;
+    // Sin caracteres de control salvo salto de línea y tabulación (nada que se parezca a una orden).
+    if (n < 1 || n > MAX_TEXTO || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(a.texto)) return null;
+    return { texto: a.texto };
 }
 
 export const ACCIONES: Readonly<Record<string, DefAccion>> = {
@@ -112,6 +193,26 @@ export const ACCIONES: Readonly<Record<string, DefAccion>> = {
         validar: sinArgs,
         que: "SIMULACIÓN: la llamada se comporta como si no hubiera ruta IP (fuerza voz y vídeo al Bluetooth); nunca cuenta como la prueba real",
     },
+    // PAN1115J · pantalla y entrada (contrato §12). Los de entrada los ejecuta el lado nativo (`control_entrada`).
+    "pantalla-iniciar": { nivel: "ver", validar: validarPantallaIniciar, que: "empieza a mandar la pantalla de este aparato (la fuente la elige la persona en él)" },
+    "pantalla-parar": { nivel: "ver", validar: sinArgs, que: "deja de mandar la pantalla" },
+    "pantalla-senal": { nivel: "ver", validar: validarSenal, que: "negocia la conexión de vídeo (oferta y candidatos); la respuesta lleva la contestación" },
+    "leer-aparato": { nivel: "ver", validar: sinArgs, que: "volumen, brillo, batería, red y pantalla del aparato" },
+    gesto: { nivel: "controlar", entrada: true, validar: validarGesto, que: "toque, deslizamiento o multitáctil (hasta 10 dedos)" },
+    tecla: {
+        nivel: "controlar",
+        entrada: true,
+        validar: (a) => (soloClaves(a, ["cual"]) && typeof a.cual === "string" && TECLAS.includes(a.cual) ? { cual: a.cual } : null),
+        que: "una tecla del sistema (atrás, inicio, recientes, volumen…)",
+    },
+    volumen: {
+        nivel: "controlar",
+        entrada: true,
+        validar: (a) => (soloClaves(a, ["flujo", "nivel"]) && typeof a.flujo === "string" && FLUJOS_VOLUMEN.includes(a.flujo) && unidad(a.nivel) ? { flujo: a.flujo, nivel: redondear(a.nivel) } : null),
+        que: "pone un volumen del aparato (0 a 1)",
+    },
+    brillo: { nivel: "controlar", entrada: true, validar: (a) => (soloClaves(a, ["nivel"]) && unidad(a.nivel) ? { nivel: redondear(a.nivel) } : null), que: "pone el brillo del aparato (0 a 1)" },
+    texto: { nivel: "controlar", entrada: true, validar: validarTexto, que: "escribe un texto (hasta 512 caracteres) en el campo con foco" },
     "simular-vuelve-ip": { nivel: "controlar", simulacion: true, validar: sinArgs, que: "SIMULACIÓN: deshace «simular-corte-ip»" },
 };
 
