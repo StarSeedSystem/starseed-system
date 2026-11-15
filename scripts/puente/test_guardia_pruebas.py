@@ -107,6 +107,7 @@ class TestGuardiaMantienePruebasSinRed(unittest.TestCase):
                         redactar=redactar_falso, subir_drive=subir_falso,
                         home=raiz, seco=False)
             self.assertTrue(r["ok"])
+            self.assertEqual(r["resultado"]["accion"], "sin_sintesis")
         finally:
             tmp.cleanup()
 

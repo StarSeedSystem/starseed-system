@@ -187,10 +187,21 @@ class TestCiclo(unittest.TestCase):
             llamadas.append(args)
             raise AssertionError("la entrega no debe salir a la red")
 
-        with patch("urllib.request.urlopen", red_falsa), patch("socket.create_connection", red_falsa):
+        import urllib.request
+        import socket
+        original_urlopen = urllib.request.urlopen
+        original_socket_create = socket.create_connection
+        urllib.request.urlopen = red_falsa
+        socket.create_connection = red_falsa
+
+        try:
             r = A.ciclo(self.raiz, AHORA_CDMX_07, encargar=False, jev=False,
                         enviar=lambda t, **kw: {"ok": True, "trozos": 1},
                         home=self.home, seco=False, subir_drive=lambda f, t: "doc-falso")
+        finally:
+            urllib.request.urlopen = original_urlopen
+            socket.create_connection = original_socket_create
+
         self.assertTrue(r["ok"])
         self.assertEqual(r["resultado"]["accion"], "entregada")
         self.assertEqual(llamadas, [])
