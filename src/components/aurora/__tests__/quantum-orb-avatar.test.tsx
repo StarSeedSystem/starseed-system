@@ -175,4 +175,75 @@ describe("QuantumOrbAvatar — auto-publica vector visual en bus params", () => 
 
     unsub();
   });
+
+  it("reacciona a params del bus y actualiza su vector visual (merge bus + local)", async () => {
+    const received: Partial<QuantumOrbParams>[] = [];
+    const unsub = onQuantumOrbParams((p) => received.push(p));
+
+    render(<QuantumOrbAvatar personaId="aurora" size={36} state="idle" />);
+
+    await waitFor(() => expect(received.length).toBeGreaterThan(0));
+    const initialParams = received[0];
+    unsub();
+
+    // Emitir params desde el bus (simula backend 1.58b)
+    quantumOrbBus.emit("params", { turbulence: 0.8, symmetry: 0.9 });
+
+    // El componente debería haber fusionado los params del bus con los locales
+    // Verificamos que no re-emite los params del bus (prevención de bucle)
+    const receivedAfterBus: Partial<QuantumOrbParams>[] = [];
+    const unsub2 = onQuantumOrbParams((p) => receivedAfterBus.push(p));
+
+    // Esperar un tick para que el efecto del bus procese
+    await waitFor(() => {}, { timeout: 100 });
+
+    // No debería haber nueva emisión porque los params vinieron del bus
+    expect(receivedAfterBus.length).toBe(0);
+    unsub2();
+  });
+
+  it("no re-emite params idénticos (deduplicación)", async () => {
+    const received: Partial<QuantumOrbParams>[] = [];
+    const unsub = onQuantumOrbParams((p) => received.push(p));
+
+    render(<QuantumOrbAvatar personaId="aurora" size={36} state="idle" />);
+
+    await waitFor(() => expect(received.length).toBeGreaterThan(0));
+    const initialCount = received.length;
+    unsub();
+
+    // Forzar re-render sin cambiar props (misma personaId, state, params)
+    const { rerender } = render(<QuantumOrbAvatar personaId="aurora" size={36} state="idle" />);
+    rerender(<QuantumOrbAvatar personaId="aurora" size={36} state="idle" />);
+
+    await waitFor(() => {}, { timeout: 100 });
+
+    // No debería haber nueva emisión porque los params son idénticos
+    const receivedAfterRerender: Partial<QuantumOrbParams>[] = [];
+    const unsub2 = onQuantumOrbParams((p) => receivedAfterRerender.push(p));
+    await waitFor(() => {}, { timeout: 100 });
+    expect(receivedAfterRerender.length).toBe(0);
+    unsub2();
+  });
+
+  it("emite cuando cambian los params locales (personaId/state/props)", async () => {
+    const received: Partial<QuantumOrbParams>[] = [];
+    const unsub = onQuantumOrbParams((p) => received.push(p));
+
+    const { rerender } = render(<QuantumOrbAvatar personaId="aurora" size={36} state="idle" />);
+
+    await waitFor(() => expect(received.length).toBeGreaterThan(0));
+    const initialParams = { ...received[0] };
+    unsub();
+
+    // Cambiar state → debería emitir nuevo vector
+    const receivedAfterChange: Partial<QuantumOrbParams>[] = [];
+    const unsub2 = onQuantumOrbParams((p) => receivedAfterChange.push(p));
+
+    rerender(<QuantumOrbAvatar personaId="aurora" size={36} state="thinking" />);
+
+    await waitFor(() => expect(receivedAfterChange.length).toBeGreaterThan(0));
+    expect(receivedAfterChange[0]).not.toEqual(initialParams);
+    unsub2();
+  });
 });

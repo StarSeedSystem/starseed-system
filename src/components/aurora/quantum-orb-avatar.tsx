@@ -25,7 +25,7 @@
  * instancias o el backend 1.58b puedan reaccionar/sincronizarse.
  */
 
-import { useEffect, useRef, useMemo } from "react";
+import { useEffect, useRef, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import {
   resolveQuantumOrbTheme,
@@ -39,7 +39,7 @@ import {
   type QuantumOrbRenderer,
   type QuantumOrbState,
 } from "./quantum-orb";
-import { emitQuantumOrbParams } from "@/lib/aurora/quantum-orb-bus";
+import { emitQuantumOrbParams, onQuantumOrbParams } from "@/lib/aurora/quantum-orb-bus";
 
 export interface QuantumOrbAvatarProps {
   personaId?: string;
@@ -132,12 +132,59 @@ export function QuantumOrbAvatar({
     [personaId, state, params]
   );
 
-  // Estado vivo leído dentro del rAF (no recrea el bucle en cada re-render).
-  const liveRef = useRef({ personaId, state, params: effectiveParams });
-  liveRef.current = { personaId, state, params: effectiveParams };
+  // Rastrea el último vector emitido para evitar re-emisiones idénticas (previene bucles).
+  const lastEmittedRef = useRef<QuantumOrbParams | null>(null);
+  // Bandera para saber si el último cambio vino del bus (evita re-emitir params del bus).
+  const busOriginRef = useRef(false);
+  // Guardia de montaje: no emitir en el primer render para evitar race condition con params del bus.
+  const mountedRef = useRef(false);
 
-  // Publica los parámetros en el bus `params` cuando cambian (onda 1.58b).
+  // Comparación profunda de params (solo claves relevantes).
+  function paramsEqual(a: QuantumOrbParams, b: QuantumOrbParams): boolean {
+    return (
+      a.turbulence === b.turbulence &&
+      a.spikiness === b.spikiness &&
+      a.symmetry === b.symmetry &&
+      a.hueShift === b.hueShift &&
+      a.breath === b.breath
+    );
+  }
+
+  // Merge: params del bus (prioridad visual) + params locales (para emitir).
+  const [busParams, setBusParams] = useState<Partial<QuantumOrbParams>>({});
+  const mergedParams = useMemo(() => mergeQuantumOrbParams(effectiveParams, busParams), [effectiveParams, busParams]);
+
+  // Estado vivo leído dentro del rAF (no recrea el bucle en cada re-render).
+  const liveRef = useRef({ personaId, state, params: mergedParams });
+  liveRef.current = { personaId, state, params: mergedParams };
+
+  // Suscripción al bus `params`: actualiza estado visual y marca origen-bus para no re-emitir.
   useEffect(() => {
+    const unsub = onQuantumOrbParams((p) => {
+      busOriginRef.current = true; // Marcar que el siguiente cambio viene del bus.
+      setBusParams(p);
+    });
+    return unsub;
+  }, []);
+
+  // Emisión inicial en montaje (tras tener listo el listener del bus).
+  useEffect(() => {
+    lastEmittedRef.current = effectiveParams;
+    emitQuantumOrbParams(effectiveParams);
+  }, []);
+
+  // Publica los parámetros en el bus `params` solo si cambiaron localmente (onda 1.58b).
+  useEffect(() => {
+    // Si el cambio vino del bus, no re-emitir: cortar posible bucle.
+    if (busOriginRef.current) {
+      busOriginRef.current = false;
+      return;
+    }
+    // Evitar emitir el mismo vector dos veces seguidas.
+    if (lastEmittedRef.current && paramsEqual(lastEmittedRef.current, effectiveParams)) {
+      return;
+    }
+    lastEmittedRef.current = effectiveParams;
     emitQuantumOrbParams(effectiveParams);
   }, [effectiveParams]);
 
