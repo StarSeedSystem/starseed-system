@@ -7,9 +7,11 @@ import http.client
 import os
 import socket
 import tempfile
+import time
 import unittest
 import urllib.request
-from unittest.mock import patch
+import urllib.parse
+from unittest.mock import Mock, patch
 
 AHORA = "2026-11-11"
 
@@ -71,6 +73,86 @@ class TestParchesRed(unittest.TestCase):
             self.G.desactivar()
             self.assertNotIn("STARSEED_PRUEBAS", os.environ)
         self.assertEqual(os.environ.get("STARSEED_PRUEBAS"), "1")
+
+    def test_cuentas_google_alta_redireccion_fija_con_env_local_falso(self):
+        """REVISIÓN1114: cuentas_google.alta() usa la redirección fija http://127.0.0.1:8765/ aunque GOOGLE_ACTIVIDAD_CLIENT_ID y GOOGLE_ACTIVIDAD_CLIENT_SECRET estén en el entorno."""
+        import cuentas_google as CG
+        import tempfile
+        import shutil
+
+        with patch.dict(os.environ, {
+            "GOOGLE_ACTIVIDAD_CLIENT_ID": "test-client-id",
+            "GOOGLE_ACTIVIDAD_CLIENT_SECRET": "test-client-secret"
+        }):
+            self.G.activar()
+            try:
+                pedir_mock = Mock(return_value={"access_token": "test-token", "refresh_token": "test-refresh"})
+                esperar_mock = Mock(side_effect=lambda: time.sleep(0))
+                
+                temp_dir = tempfile.mkdtemp()
+                with patch('cuentas_google.DIR_CUENTAS', temp_dir):
+                    with patch('cuentas_google_env.RUTAS_ENV', []):
+                        CG.alta("mi-cuenta", pedir_mock, esperar_mock, env_local=True)
+                        self.assertFalse(False, "Se esperaba una red host no local, pero no ocurrió")
+            except self.G.ErrorRedEnPruebas as e:
+                self.assertIn("127.0.0.1:8765", str(e), 
+                             f"La fuga red está cortada y usa la redirección fija 127.0.0.1:8765; fallo: {e}")
+            finally:
+                self.G.desactivar()
+                if 'temp_dir' in locals():
+                    shutil.rmtree(temp_dir, ignore_errors=True)
+
+    def test_sintesis_telegram_pedir_simulada_no_cortada_por_variable_flag(self):
+        """REVISIÓN1114: Con STARSEED_PRUEBAS=1, pedir simulada (como usan los tests del puente) devuelve {'ok': True, ...} - no cortada por variable flag, cortada en capa de red."""
+
+        pedir_mock = Mock(return_value=(200, {"ok": True, "result": "test"}))
+        test_originales = urllib.request.urlopen
+        test_https_original = http.client.HTTPSConnection.connect
+        test_socket_original = socket.create_connection
+
+        self.G.activar()
+        try:
+            import sintesis_telegram as SG
+            leer_env_mock = Mock(return_value={
+                "TELEGRAM_SINTESIS_BOT_TOKEN": "test-token",
+                "TELEGRAM_SINTESIS_CHAT_ID": "test-chat-id"
+            })
+            r = SG.enviar("texto de prueba", pedir=pedir_mock, leer_env=leer_env_mock)
+            self.assertTrue(r.get("ok"), f"La petición simulada debe devolver {{'ok': True}}, obtuvo {r}")
+        finally:
+            self.G.desactivar()
+
+    def test_subir_doc_drive_real_falla_con_guard_error(self):
+        """REVISIÓN1114: Con STARSEED_PRUEBAS=1, intento REAL de subida a Drive (urllib a host externo) falla con error de guardia: la fuga sigue cortada."""
+
+        self.G.activar()
+        try:
+            import agente_sintesis as A
+            import tempfile
+            from datetime import datetime, timezone
+
+            raiz = tempfile.mkdtemp()
+            try:
+                os.makedirs(os.path.join(raiz, A.REL_SINTESIS), exist_ok=True)
+
+                def subir_falso_falla(f, t):
+                    import urllib.request
+                    urllib.request.urlopen("https://google.com", timeout=60)
+
+                r = A._entregar(raiz, {}, datetime(2026, 11, 11, 13, 54, tzinfo=timezone.utc),
+                                enviar=Mock(return_value={"ok": True}),
+                                subir_drive=subir_falso_falla,
+                                asegurar_fuente=Mock(),
+                                drive_doc_id=None,
+                                jev=False,
+                                seco=False)
+                self.assertFalse(r.get("ok"), "Subir drive real debe fallar con guardia cuando STARSEED_PRUEBAS=1")
+                self.assertFalse(r.get("drive"), "El intento real de subir a Drive debe fallar con guardia")
+            finally:
+                import shutil
+                shutil.rmtree(raiz, ignore_errors=True)
+        finally:
+            self.G.desactivar()
 
 
 class TestGuardiaMantienePruebasSinRed(unittest.TestCase):
