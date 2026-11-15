@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ALCANCES, MEDIOS_ALCANCE, metrosPorPixel, radioEnPixeles } from "../alcances";
+import { ALCANCES, MEDIOS_ALCANCE, ROTULO_ALCANCE, metrosPorPixel, radioEnPixeles } from "../alcances";
 import { CAPAS_SENALES, CAPA_ENLACES, CAPA_POR_ID, COLOR_DESCONOCIDO, pintarMarca } from "../capas";
 import { camposDeCapa, lineasDeEnlaces } from "../cobertura";
 import { calidadDeEnlace, enlacesMedidosDe, medioDeEnlace, mismosEnlaces } from "../enlaces-medidos";
@@ -60,6 +60,12 @@ describe("capas de cobertura: estimado, nunca medido", () => {
         else expect(t.estilo).not.toBe("rayado");
       }
     }
+  });
+  it("BLE1115C: el Bluetooth se estima en 10 m (uso interior típico), no en 30, y sigue rotulado como estimado", () => {
+    expect(ALCANCES.ble.metros).toBe(10);
+    expect(ALCANCES.ble.fuente).toMatch(/10 m/);
+    expect(ALCANCES.ble.fuente).not.toMatch(/se toma 30 m/);
+    expect(ROTULO_ALCANCE).toBe("alcance estimado");
   });
   it("un campo por neurona con la radio encendida y posición en vivo, con el radio de la tabla", () => {
     const m = marcas();

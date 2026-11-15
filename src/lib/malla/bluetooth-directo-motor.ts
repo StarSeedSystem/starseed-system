@@ -95,7 +95,6 @@ import {
   type VerificadorCertificado,
 } from "./sesion-cifrada";
 import {
-  acotarBytes,
   colapsarRepetidas,
   crearRegistroEnlaces,
   lineasPosteriores,
@@ -109,9 +108,11 @@ import {
   CLAVE_CANAL_RAPIDO_BLE,
   ESPERA_ESPEJO_REGISTRO_BLE_MS,
   MAX_LINEAS_ESPEJO_BLE,
+  RE_LINEA_DE_LLAMADA_BLE,
   T_ESPEJO_REGISTRO_BLE,
   leerEspejoRegistro,
   recortarEspejoRegistro,
+  repartirEspejoConLlamada,
   sincronizarCanalRapido,
   textoEspejoRegistro,
 } from "./canal-rapido-ajuste"; // BLE1109B
@@ -941,7 +942,9 @@ export function crearRedBle(deps: DepsBle): RedBle {
       const crudas = deps.registroPropio ? await deps.registroPropio(continuo ? 200 : MAX_LINEAS_ESPEJO_BLE) : registro.exportar().split("\n");
       const nuevas = lineasPosteriores(crudas.filter((x) => typeof x === "string" && x.trim().length > 0), marcaEspejo[neurona]?.ts ?? null, marcaEspejo[neurona]?.vistas);
       if (!nuevas.length) return;
-      const lineas = acotarBytes(recortarEspejoRegistro(colapsarRepetidas(nuevas)), MAX_BYTES_ESPEJO_BLE);
+      // BLE1115C: el resumen y las muestras de una llamada tienen su propio tope; el resto, el de siempre.
+      const esDeLlamada = (x: string) => RE_LINEA_DE_LLAMADA_BLE.test(x.slice(0, 160));
+      const lineas = repartirEspejoConLlamada(colapsarRepetidas(nuevas.filter((x) => !esDeLlamada(x))), nuevas.filter(esDeLlamada), MAX_BYTES_ESPEJO_BLE);
       if (!lineas.length || !abierto(enlace) || caido(enlace)) return;
       const ultimaMarca = marcaDeLinea(nuevas[nuevas.length - 1]);
       if (ultimaMarca) marcaEspejo[neurona] = { ts: ultimaMarca, vistas: new Set(nuevas.filter((x) => marcaDeLinea(x) === ultimaMarca)) };

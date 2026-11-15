@@ -471,6 +471,8 @@ struct EnlaceVivo {
     desmarcador: Desmarcador,
     /// (BLE1114R) Lo último que midió la radio en una ventana (ver `al_medidas_radio`); None hasta la primera.
     vivas: Option<MedidasVivas>,
+    /// (BLE1115C) Las muestras de 5 s de este enlace, guardadas hasta que quede quieto o se caiga.
+    diario: crate::ble_muestras::Diario,
 }
 
 /// (BLE1114R) Una ventana medida del canal rápido: lo que la web puede leer en `EnlaceBle` y lo que dice la línea `ble-enlace`.
@@ -669,7 +671,8 @@ fn anotar(e: &mut Estado, tipo: &str, enlace: Option<&str>, neurona: Option<&str
         tipo: tipo.to_string(),
         enlace: enlace.map(String::from),
         neurona: neurona.map(|n| linea_limpia(n, 80)),
-        detalle: linea_limpia(detalle, 300),
+        // BLE1115C: el resumen y las muestras compactas de una llamada (`ble_muestras`) son más largos.
+        detalle: linea_limpia(detalle, if tipo == crate::ble_muestras::TIPO_RESUMEN || tipo == crate::ble_muestras::TIPO_MUESTRAS { 480 } else { 300 }),
     };
     e.siguiente_reg += 1;
     if e.por_volcar.len() < 500 {
@@ -867,6 +870,7 @@ pub fn al_conectar(plataforma: &str, rol: &str, direccion: Option<&str>, paquete
             carril: Carril::nuevo(rol == "central"),
             desmarcador: Desmarcador::nuevo(),
             vivas: None,
+            diario: Default::default(),
         });
         let (id, neurona) = e.enlaces.last().map(|l| (l.id.clone(), l.neurona.clone())).unwrap_or_default();
         let fallos = direccion.map(|d| e.vecindario.fallos_de(d)).unwrap_or(0);
@@ -954,9 +958,70 @@ pub fn al_medidas_radio(plataforma: &str, ventana_ms: u64, escrituras: u64, byte
             prioridad.as_deref().map(|p| format!(" prioridad={p}")).unwrap_or_default()
         );
         let (id, neurona) = (l.id.clone(), l.neurona.clone());
+        // BLE1115C: la muestra se guarda aparte; el registro (y su espejo) puede perder la línea, el resumen de la llamada no.
+        l.diario.con_radio = true;
+        l.diario.empujar(
+            crate::ble_muestras::Muestra {
+                t_ms: ahora,
+                escrituras_s: v.escrituras_s,
+                bytes_escritura: v.bytes_escritura,
+                ms_puente: Some(v.ms_puente),
+                ms_socket: Some(v.ms_socket),
+                ms_acuse: v.ms_acuse,
+            },
+            phy.clone(),
+        );
         l.vivas = Some(v);
         anotar(e, "ble-enlace", Some(&id), neurona.as_deref(), &detalle);
     });
+}
+
+/// (BLE1115C) Sin radio que mida (central de macOS: CoreBluetooth no da escrituras, tiempos ni intervalo), una ventana de ≥ 5 s
+/// con tráfico sale del núcleo: mensajes y bytes enviados y media de acuses. Es lo que SE SABE; el resto va «-».
+fn muestrear_nucleo(l: &mut EnlaceVivo, ahora: u64) {
+    if l.diario.con_radio {
+        return;
+    }
+    let m = l.nucleo.medidas.clone();
+    if l.diario.previo_t_ms == 0 {
+        l.diario.previo_t_ms = ahora;
+        l.diario.previo_bytes = m.bytes_enviados;
+        l.diario.previo_mensajes = m.mensajes_enviados;
+        return;
+    }
+    let dt = ahora.saturating_sub(l.diario.previo_t_ms);
+    if dt < 5_000 {
+        return;
+    }
+    let (db, dm) = (m.bytes_enviados.saturating_sub(l.diario.previo_bytes), m.mensajes_enviados.saturating_sub(l.diario.previo_mensajes));
+    l.diario.previo_t_ms = ahora;
+    l.diario.previo_bytes = m.bytes_enviados;
+    l.diario.previo_mensajes = m.mensajes_enviados;
+    if dm == 0 {
+        return;
+    }
+    let acuse = l.nucleo.tomar_acuses().map(|(a, _)| a);
+    l.diario.empujar(
+        crate::ble_muestras::Muestra {
+            t_ms: ahora,
+            escrituras_s: ((dm as f64 * 1000.0 / dt as f64) * 10.0).round() / 10.0,
+            bytes_escritura: db / dm,
+            ms_puente: None,
+            ms_socket: None,
+            ms_acuse: acuse,
+        },
+        None,
+    );
+}
+
+/// (BLE1115C) Vacía el diario del enlace al registro: las muestras compactas y, al final, el resumen de la llamada.
+fn escribir_llamada(e: &mut Estado, l: &mut EnlaceVivo) {
+    let Some(inf) = l.diario.tomar() else { return };
+    let fuente = if l.diario.con_radio { "radio" } else { "nucleo(mensajes)" };
+    let mtu = l.nucleo.paquete() + 3;
+    for (tipo, detalle) in crate::ble_muestras::lineas_de_llamada(&inf, mtu, l.rol, None, fuente) {
+        anotar(e, tipo, Some(&l.id), l.neurona.as_deref(), &detalle);
+    }
 }
 
 pub fn al_desconectar(plataforma: &str, motivo: &str) {
@@ -981,6 +1046,8 @@ pub fn al_desconectar(plataforma: &str, motivo: &str) {
                 ),
             );
         }
+        // BLE1115C: lo medido y aún no resumido sale ahora, antes de la línea de cierre.
+        escribir_llamada(e, &mut l);
         let vida = ahora.saturating_sub(l.desde_ms);
         let m = l.nucleo.medidas.clone();
         let pendientes = l.nucleo.pendientes();
@@ -1372,6 +1439,13 @@ fn tic(ahora: u64, releer_cuenta: bool) -> Acciones {
         }
         for i in 0..e.enlaces.len() {
             e.enlaces[i].nucleo.tic(ahora);
+            // BLE1115C: sin radio que mida (macOS) el núcleo muestrea por su cuenta; y un enlace quieto resume lo guardado.
+            muestrear_nucleo(&mut e.enlaces[i], ahora);
+            if e.enlaces[i].diario.quieto(ahora) {
+                let mut l = e.enlaces.remove(i);
+                escribir_llamada(e, &mut l);
+                e.enlaces.insert(i, l);
+            }
             // (BLE1108C) Lo que el enlace nota de la radio (atascos) va al registro con el id del enlace.
             for (tipo, detalle) in e.enlaces[i].nucleo.avisos() {
                 let (id, neurona) = (e.enlaces[i].id.clone(), e.enlaces[i].neurona.clone());
@@ -2056,6 +2130,65 @@ mod pruebas {
         let l2 = ble_registro().into_iter().rev().find(|x| x.tipo == "ble-enlace" && x.enlace.as_deref() == Some(enl.as_str())).unwrap();
         assert!(l2.detalle.contains("ms-acuse=- phy=- "), "{}", l2.detalle);
         al_desconectar(p, "fin de la prueba de medidas");
+    }
+
+    // ─────────── BLE1115C: las medidas sobreviven a la llamada ───────────
+
+    #[test]
+    fn el_resumen_de_la_llamada_sale_cuando_el_enlace_queda_quieto_o_se_cae() {
+        let _g = con_ajuste(true);
+        let p = "p:AA:BB:CC:DD:EE:15";
+        al_conectar(p, "periferico", None, 512);
+        let enl = id_de_enlace(p);
+        for i in 0..3u64 {
+            al_medidas_radio(p, 5000, 20 + i, 2_800 * (20 + i), 4_000, 10_000, Some("2M".into()), None);
+        }
+        let de_enlace = |tipo: &str| -> Vec<RegistroBle> { ble_registro().into_iter().filter(|x| x.tipo == tipo && x.enlace.as_deref() == Some(enl.as_str())).collect() };
+        assert!(de_enlace("ble-enlace-llamada").is_empty(), "con la llamada en marcha no se resume");
+        // Quieto: pasado el plazo, el tic escribe las muestras y, al final, el resumen; y el diario queda vacío.
+        let _ = tic(ahora_ms() + crate::ble_muestras::QUIETO_MS + 1, false);
+        let muestras = de_enlace("ble-enlace-muestras");
+        let resumen = de_enlace("ble-enlace-llamada");
+        assert_eq!(muestras.len(), 1);
+        assert_eq!(resumen.len(), 1);
+        assert!(muestras[0].detalle.starts_with("t0=") && muestras[0].detalle.contains(" paso=5 m=4/2800/-;4.2/2800/-;4.4/2800/-"), "{}", muestras[0].detalle);
+        assert!(muestras[0].seq < resumen[0].seq, "el resumen va después de las muestras");
+        for clave in ["n=3 ", "dur-s=5 ", "escrituras/s=4/4.2/4.4", "bytes/escritura=2800", "ms-acuse=-", "ms-puente=0.2", "ms-socket=0.5", "intervalo=-", "phy=2M", "mtu=515", "rol=periferico", "perdidas=0", "fuente=radio"] {
+            assert!(resumen[0].detalle.contains(clave), "falta «{clave}» en «{}»", resumen[0].detalle);
+        }
+        let _ = tic(ahora_ms() + 60_000, false);
+        assert_eq!(de_enlace("ble-enlace-llamada").len(), 1, "no se resume dos veces lo mismo");
+        // Una caída con muestras sin resumir las resume antes de la línea de cierre.
+        al_medidas_radio(p, 5000, 10, 1_000, 100, 100, None, None);
+        al_desconectar(p, "fin de la prueba de resumen");
+        let r = ble_registro();
+        let i_res = r.iter().rposition(|x| x.tipo == "ble-enlace-llamada" && x.enlace.as_deref() == Some(enl.as_str())).unwrap();
+        let i_cierre = r.iter().rposition(|x| x.tipo == "enlace-cerrado" && x.enlace.as_deref() == Some(enl.as_str())).unwrap();
+        assert!(r[i_res].detalle.starts_with("n=1 ") && i_res < i_cierre, "{}", r[i_res].detalle);
+    }
+
+    #[test]
+    fn el_central_sin_radio_que_mida_resume_desde_el_nucleo_y_lo_dice() {
+        let _g = con_ajuste(true);
+        let p = "c:AA:BB:CC:DD:EE:16";
+        al_conectar(p, "central", Some("AA:BB:CC:DD:EE:16"), 182);
+        let enl = id_de_enlace(p);
+        let t0 = ahora_ms();
+        let _ = tic(t0, false); // arranca el reloj de la ventana
+        con_estado(|e| {
+            let l = e.enlaces.iter_mut().find(|l| l.plataforma == p).unwrap();
+            l.nucleo.medidas.bytes_enviados = 50_000;
+            l.nucleo.medidas.mensajes_enviados = 100;
+            l.nucleo.medidas.acuse_suma_ms = 300;
+            l.nucleo.medidas.acuse_n = 3;
+        });
+        let _ = tic(t0 + 5_000, false);
+        let _ = tic(t0 + 5_000 + crate::ble_muestras::QUIETO_MS + 1, false);
+        let r = ble_registro().into_iter().rev().find(|x| x.tipo == "ble-enlace-llamada" && x.enlace.as_deref() == Some(enl.as_str())).expect("resumen del central");
+        for clave in ["n=1 ", "escrituras/s=20/20/20", "bytes/escritura=500", "ms-acuse=100/100/100/100", "ms-puente=- ms-socket=-", "intervalo=-", "phy=-", "mtu=185", "rol=central", "fuente=nucleo(mensajes)"] {
+            assert!(r.detalle.contains(clave), "falta «{clave}» en «{}»", r.detalle);
+        }
+        al_desconectar(p, "fin de la prueba del central");
     }
 
     // ─────────── BLE1109A: carril rápido (L2CAP) ───────────
