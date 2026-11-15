@@ -230,9 +230,14 @@ SERVICIOS = {
     # las áreas de config/vigia-areas.json. python3 absoluto + lanzador-tcc.py como los
     # demás; el guion comprueba el estado antes de repetir la pasada (§6).
     "vigia-modelos": (
-        LANZ + ["--", PY3, "-u", "-c", GUION_VIGIA],
+        [PY3, P("vigia_modelos.py")],
         "/tmp/starseed-vigia-modelos.log",
-        False,
+        True,
+    ),
+    "explorador-imagenes": (
+        [PY3, P("imagenes/explorador_modelos.py")],
+        "/tmp/starseed-explorador-imagenes.log",
+        True,
     ),
 }
 
@@ -421,7 +426,7 @@ def instalar_cada(etiqueta, orden, log, cada_s, tipo):
 # y el propio guion se niega a repetir si la última tiene menos de 20 h. Las claves `Hour` y
 # `Minute` son hora local de la Mac, como el resto de StartCalendarInterval de launchd.
 # nombre -> {"Hour": h, "Minute": m}
-CALENDARIO = {"vigia-modelos": {"Hour": 4, "Minute": 10}}
+CALENDARIO = {"vigia-modelos": {"Hour": 4, "Minute": 10}, "explorador-imagenes": {"Hour": 3, "Minute": 0}}
 
 PLANTILLA_CALENDARIO = """<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
