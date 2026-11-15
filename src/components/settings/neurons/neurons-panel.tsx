@@ -38,6 +38,7 @@ import { NeuronVoiceChoice } from "@/components/settings/aurora/neuron-voice-cho
 // (VER1107B) «Esta neurona» (versión, medio, sistema, aparato, servidor local y actualizaciones) y la
 // versión que anuncia cada neurona por la presencia, con «Pedir actualización».
 import { EstaNeurona } from "@/components/settings/neurons/esta-neurona";
+import { AparatoEnNeurona } from "@/components/settings/neurons/aparato-en-neurona";
 import { VersionNeurona } from "@/components/neurons/version-neurona";
 import { EstadoServidorLocal } from "@/components/nativa/estado-servidor-local";
 import { PrecargaSinInternet } from "./precarga-sin-internet";
@@ -206,6 +207,7 @@ export function NeuronsPanel() {
       {/* (VER1107B) Esta neurona: lo que sabe de sí misma y sus actualizaciones. El estado del servidor
           local (APP1107T6) vive ahora dentro de esta tarjeta. */}
       <EstaNeurona />
+      <AparatoEnNeurona />
 
       {/* (WFD1108A) Medios: el enlace Wi-Fi directo entre neuronas (Automático / Preguntar / Nunca). Solo app nativa. */}
       <AjusteEnlaceWifi />
