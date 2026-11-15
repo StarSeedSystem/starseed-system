@@ -8,6 +8,7 @@ import {
   canalPruebasDesdeApi,
   elegirPublicada,
   esVersionDePrueba,
+  siguePruebas,
   etiquetaCanal,
   sanearApkPruebas,
   sanearCanalPruebas,
@@ -176,5 +177,44 @@ describe("comprobarActualizacion · canal de pruebas", () => {
     instalada.version = "0.5.1-prueba.24";
     const r = await comprobarActualizacion({ forzar: true });
     expect(r?.decision.tipo).toBe("nada");
+  });
+});
+
+
+// (CAN1115A) Una app oficial entra al canal de pruebas solo si su dueño lo activó, en ese aparato (Android).
+describe("CAN1115A · optar por el canal de pruebas", () => {
+  it("una app oficial que nunca activó el interruptor no ve una versión de prueba, por ningún camino", () => {
+    for (const medio of ["android", "escritorio"]) {
+      for (const opta of [undefined, false]) {
+        const e = elegirPublicada({ medio, instalada: "0.5.0", oficial, pruebas, optaPruebas: opta });
+        expect(e).toMatchObject({ version: "0.5.0", canal: "oficial" });
+        expect(e.apk).not.toBe(APK);
+      }
+    }
+    expect(siguePruebas("android", "0.5.0")).toBe(false);
+    expect(siguePruebas("android", "0.5.0", false)).toBe(false);
+  });
+
+  it("con el interruptor, Android oficial ve la de pruebas si es más nueva (y su APK)", () => {
+    expect(elegirPublicada({ medio: "android", instalada: "0.5.0", oficial, pruebas, optaPruebas: true })).toMatchObject({
+      version: "0.5.1-prueba.24",
+      canal: "pruebas",
+      apk: APK,
+    });
+  });
+
+  it("…y la oficial más nueva gana a la de pruebas", () => {
+    const of = { version: "0.5.1", fecha: "2026-12-01", notas: "x", apk: "https://x/o.apk" };
+    expect(elegirPublicada({ medio: "android", instalada: "0.5.0", oficial: of, pruebas, optaPruebas: true })).toMatchObject({ version: "0.5.1", canal: "oficial" });
+  });
+
+  it("en escritorio el interruptor no cambia nada (el updater lo decide Rust)", () => {
+    expect(elegirPublicada({ medio: "escritorio", instalada: "0.5.0", oficial, pruebas, optaPruebas: true })).toMatchObject({ version: "0.5.0", canal: "oficial" });
+  });
+
+  it("apagarlo vuelve a lo oficial", () => {
+    const base = { medio: "android", instalada: "0.5.0", oficial, pruebas };
+    expect(elegirPublicada({ ...base, optaPruebas: true }).canal).toBe("pruebas");
+    expect(elegirPublicada({ ...base, optaPruebas: false }).canal).toBe("oficial");
   });
 });

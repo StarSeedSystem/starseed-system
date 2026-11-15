@@ -27,12 +27,14 @@ import { Progress } from "@/components/ui/progress";
 import { Switch } from "@/components/ui/switch";
 import { canalDe, etiquetaCanal } from "@/lib/actualizaciones/canal-pruebas";
 import { etiquetaFase, leerEstadoVivo, ocupado, pedirActualizar, suscribirEstadoVivo, type EstadoVivo } from "@/lib/actualizaciones/estado-vivo";
+import { guardarOptaPruebas, leerOptaPruebas, medioPuedeOptarPruebas } from "@/lib/actualizaciones/optar-pruebas"; // CAN1115A
 import { guardarAutomatica, leerAutomatica } from "@/lib/actualizaciones/planificador-auto";
 import { EVENTO_COMPROBACION, haceCuanto, leerUltimaComprobacion, type UltimaComprobacion } from "@/lib/actualizaciones/ultima-comprobacion";
 import { leerInstalada, type Instalada } from "@/lib/actualizaciones/version-por-medio";
 import { NOMBRE_MEDIO } from "@/lib/neurons/info-publica";
 import { EVENTO_BUSCAR_ACTUALIZACION } from "@/lib/neurons/pedir-actualizacion";
 import { OS_VERSION } from "@/lib/version/os-release";
+import { useConfirm } from "@/components/ui/confirm-dialog"; // CAN1115A
 import { BloqueInterfazWeb, EVENTO_BUSCAR_WEB } from "./bloque-interfaz-web"; // AND1114L
 
 /** El ancla de la sección en /cuenta (también la usa el buscador de Ajustes y los enlaces). */
@@ -57,6 +59,27 @@ export function filasVersion(inst: Instalada | null): Array<{ etiqueta: string; 
   return filas;
 }
 
+/** (CAN1115A) Lo que se pregunta antes de activar «Recibir versiones de prueba». Dice lo que es, sin adornos. */
+export const CONFIRMAR_PRUEBAS = {
+  title: "¿Recibir versiones de prueba en este aparato?",
+  description:
+    "Una versión de prueba es una versión que aún no está aprobada: puede fallar. Se instala encima de la oficial. " +
+    "En Android, la primera vez te pedirá iniciar sesión de nuevo (tus datos locales se traen una vez). " +
+    "Una vez instalada una versión de prueba, esa app sigue el canal de pruebas aunque apagues este interruptor. " +
+    "Solo se ofrecen instaladores publicados en los Releases de StarSeed, y nunca se instala nada sin que lo aceptes.",
+  confirmText: "Sí, recibir pruebas",
+  cancelText: "Ahora no",
+} as const;
+
+/** (CAN1115A) Qué enseña la sección sobre el canal de pruebas en ESTE aparato. Pura. */
+export function bloquePruebas(inst: Pick<Instalada, "medio" | "version" | "fuente"> | null): "interruptor" | "ya-pruebas" | "sin-escritorio" | null {
+  if (!inst || (inst.medio !== "android" && inst.medio !== "escritorio")) return null;
+  const nativa = inst.fuente && inst.fuente !== "version.json" ? inst.version : null;
+  if (nativa && canalDe(nativa) === "pruebas") return "ya-pruebas";
+  if (medioPuedeOptarPruebas(inst.medio)) return "interruptor";
+  return "sin-escritorio";
+}
+
 /** La acción principal según el estado y el medio. Pura. */
 export function accionPrincipal(
   estado: Pick<EstadoVivo, "fase" | "error">,
@@ -75,6 +98,8 @@ export function SeccionVersion() {
   const [ultima, setUltima] = useState<UltimaComprobacion | null>(null);
   const [auto, setAuto] = useState(true);
   const [, setReloj] = useState(0);
+  const [pruebas, setPruebas] = useState(false); // CAN1115A
+  const confirmar = useConfirm();
 
   useEffect(() => {
     let vivo = true;
@@ -83,6 +108,7 @@ export function SeccionVersion() {
       .catch(() => undefined);
     setUltima(leerUltimaComprobacion());
     setAuto(leerAutomatica());
+    setPruebas(leerOptaPruebas());
     const alComprobar = (e: Event) => setUltima((e as CustomEvent<UltimaComprobacion>).detail ?? leerUltimaComprobacion());
     window.addEventListener(EVENTO_COMPROBACION, alComprobar);
     const reloj = setInterval(() => setReloj((n) => n + 1), 60_000);
@@ -108,6 +134,15 @@ export function SeccionVersion() {
     setAuto(v);
     guardarAutomatica(v);
   };
+
+  const cambiarPruebas = async (v: boolean) => {
+    // Encender pide confirmar; apagar, no. Si se dice que no, el interruptor no se mueve.
+    if (v && !(await confirmar({ ...CONFIRMAR_PRUEBAS }))) return;
+    guardarOptaPruebas(v);
+    setPruebas(leerOptaPruebas());
+    if (v) window.dispatchEvent(new CustomEvent(EVENTO_BUSCAR_ACTUALIZACION));
+  };
+  const bloque = bloquePruebas(inst);
 
   const sinRed = estado.fase === "error" && estado.error?.esperarRed;
 
@@ -179,6 +214,28 @@ export function SeccionVersion() {
             </label>
             <Switch id="busqueda-automatica" checked={auto} onCheckedChange={cambiarAuto} aria-label="Buscar actualizaciones automáticamente" />
           </div>
+
+          {bloque === "interruptor" && (
+            <div className="flex items-center justify-between gap-3 border-t border-white/10 pt-3">
+              <label htmlFor="recibir-pruebas" className="min-w-0 text-sm">
+                Recibir versiones de prueba en este aparato
+                <span className="block text-xs text-muted-foreground">
+                  Apagado por defecto. Solo vale en este aparato. Una versión de prueba que ya instalaste sigue el canal de pruebas aunque lo apagues.
+                </span>
+              </label>
+              <Switch id="recibir-pruebas" checked={pruebas} onCheckedChange={(v) => void cambiarPruebas(v)} aria-label="Recibir versiones de prueba en este aparato" />
+            </div>
+          )}
+          {bloque === "ya-pruebas" && (
+            <p className="border-t border-white/10 pt-3 text-xs text-muted-foreground">
+              Esta app es una versión de prueba: sigue el canal de pruebas (y la oficial cuando sea más nueva).
+            </p>
+          )}
+          {bloque === "sin-escritorio" && (
+            <p className="border-t border-white/10 pt-3 text-xs text-muted-foreground">
+              Las versiones de prueba en escritorio no se pueden activar desde aquí: esta app trae fijado en su código el sitio donde busca actualizaciones. Solo llegan instalando una versión de prueba a mano.
+            </p>
+          )}
         </>
       ) : (
         inst && (

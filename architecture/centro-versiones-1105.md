@@ -227,6 +227,19 @@ todas decían **0.5.0** (la misma que la publicada), así que «Actualizar» no 
   (`elegirPublicada`). Una app de pruebas siempre mira también el oficial: cuando salga la 0.5.1 oficial
   la instala encima (0.5.1-prueba.N < 0.5.1) y vuelve sola al canal oficial.
 
+### 9.1b Una app oficial entra al canal de pruebas si su dueño lo activa (CAN1115A · 14-11-2026, decidido por Alex)
+
+Sustituye «una app oficial nunca ve el canal de pruebas» por: **una app oficial ve el canal de pruebas solo cuando su
+dueño lo activó, en ese aparato**. El interruptor «Recibir versiones de prueba en este aparato» (Ajustes › Versión y
+actualizaciones, solo en las apps nativas) viene apagado, se guarda en el propio aparato
+(`src/lib/actualizaciones/optar-pruebas.ts`) y no viaja con la cuenta ni lo fija otra neurona. Encenderlo pide
+confirmación (puede fallar; se instala encima de la oficial; en Android la primera vez pide iniciar sesión de nuevo);
+apagarlo no. Encendido, `elegirPublicada` trata a esa app como a una de pruebas (gana la mayor por semver entre la
+oficial y la de pruebas); apagado, nada cambia. **Solo Android**: el actualizador de escritorio fija sus endpoints en
+Rust según la versión instalada y la web no puede cambiarlos; ahí la interfaz lo dice. Una app que ya es de pruebas
+sigue el canal de pruebas, con el interruptor como esté. No hay fuente de descarga nueva (solo APK de los Releases
+con el sha256 del manifiesto).
+
 ### 9.2 Versiones y versionCode
 
 - Versión de una prueba: **`<oficial + 1 parche>-prueba.<n.º de ejecución>`** (con `tauri.conf.json` en
