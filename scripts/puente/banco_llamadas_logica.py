@@ -23,19 +23,28 @@ ESCENARIOS = {
     "corte-ip-vuelve": {"tipo": "video", "medio": "auto", "dur_s": 150, "rep": 3, "cuelga": "tableta", "contesta": "tableta",
                         "guion": [{"t_s": 25, "quien": "ambos", "accion": "corte-ip"}, {"t_s": 85, "quien": "ambos", "accion": "vuelve-ip"},
                                   {"t_s": 115, "quien": "tableta", "accion": "colgar"}],
-                        "comprobaciones": ("c1",), "simulado": True, "evidencia_datos": True, "regla": "corte-ip-vuelve"},
+                        "comprobaciones": ("c1",), "simulado": True, "evidencia_datos": True, "regla": "corte-ip-vuelve", "modo": "funcional"},
     # c10: llama LA TABLETA (orden `llamar`) y contesta la Mac por su propio actor; cuelga la Mac a los 30 s.
     "tableta-llama": {"tipo": "video", "medio": "auto", "dur_s": 60, "rep": 5, "cuelga": "mac", "contesta": "mac", "llama": "tableta",
                       "guion": [{"t_s": 30, "quien": "mac", "accion": "colgar"}],
-                      "comprobaciones": ("c10",), "simulado": True, "evidencia_datos": False, "regla": "tableta-llama"},
+                      "comprobaciones": ("c10",), "simulado": True, "evidencia_datos": False, "regla": "tableta-llama", "modo": "funcional"},
     # c4 y c14 (c8 no: pide «forzar carril», que no está en el vocabulario cerrado de órdenes). Mudo ambos de 20 a 50 s;
     # cámara de la Mac fuera de 60 a 75 s; cuelga la Mac a los 95 s.
     "mudo-camara": {"tipo": "video", "medio": "auto", "dur_s": 130, "rep": 3, "cuelga": "mac", "contesta": "tableta",
                     "guion": [{"t_s": 20, "quien": "ambos", "accion": "mudo"}, {"t_s": 50, "quien": "ambos", "accion": "micro"},
                               {"t_s": 60, "quien": "mac", "accion": "camara-off"}, {"t_s": 75, "quien": "mac", "accion": "camara-on"},
                               {"t_s": 95, "quien": "mac", "accion": "colgar"}],
-                    "comprobaciones": ("c4", "c14"), "simulado": True, "evidencia_datos": False, "regla": "mudo-camara"},
+                    "comprobaciones": ("c4", "c14"), "simulado": True, "evidencia_datos": False, "regla": "mudo-camara", "modo": "funcional"},
 }
+# CAL1115I: «de medida» (sin clave `modo`, p. ej. ble-video-2min) espera calma y la exige durante la llamada; «funcional» juzga
+# función (no colgó sola, reconectó, obedeció la orden), empieza sin esperar calma y apunta las lecturas de la Mac de cada llamada.
+SIN_CALMA = "funcional, sin calma"
+
+
+def es_funcional(esc):
+    return ESCENARIOS.get(esc, {}).get("modo") == "funcional"
+
+
 CONECTA_S = 20      # c10: el WebRTC debe conectar como mucho 20 s después de contestar (el contrato no fija otro; ESPERA_CONTESTA_MS)
 REP_MAX = 10
 EVENTOS = ("armada", "apagada", "sondeo", "inicio", "contesta", "fin", "calma", "rechaza")
@@ -394,13 +403,19 @@ def juzgar_llamada(esc, serie, n, lineas, ble, lecturas, u):
         inv.append("falta la marca «banco fin» de la Mac")
     if not cont:
         inv.append("falta la marca «banco contesta» %s (no se sabe que contestó)" % ("de la Mac" if quien_contesta == "mac" else "de la tableta"))
-    # calma durante la llamada
+    # calma durante la llamada (CAL1115I: solo las de medida; las funcionales apuntan la carga y no se invalidan por ella)
+    funcional = es_funcional(esc)
+    carga = []
     for lec in lecturas or []:
         ok, fallos, _ = evaluar_calma(lec, u, "durante")
         if not ok:
-            inv.append("la Mac no estuvo en calma durante la llamada: %s" % "; ".join(fallos))
+            carga = fallos
             break
-    if not lecturas:
+    if funcional:
+        res["modo"], res["no_concluyente"], res["carga_alta"] = "funcional", False, carga
+    elif carga:
+        inv.append("la Mac no estuvo en calma durante la llamada: %s" % "; ".join(carga))
+    if not lecturas and not funcional:
         inv.append("no hubo ninguna lectura de calma durante la llamada")
     if not grupo or not ini or not fin:
         return res
@@ -440,7 +455,7 @@ def juzgar_llamada(esc, serie, n, lineas, ble, lecturas, u):
         for fl in comp.values():
             f.extend(fl)
         res["cumple"] = not f
-        return res
+        return _sin_concluir_por_carga(res)
     if ll["duracion_s"] < e["dur_s"]:
         f.append("duró %d s (se piden %d)" % (ll["duracion_s"], e["dur_s"]))
     dur_app = _num(fin[0]["campos"].get("dur_s"))
@@ -475,6 +490,17 @@ def juzgar_llamada(esc, serie, n, lineas, ble, lecturas, u):
     res["c3"]["cumple"] = not c3
     return res
 
+
+
+def _sin_concluir_por_carga(res):
+    """CAL1115I: una llamada funcional que falla con la Mac por encima de los umbrales no cuenta como «falla»: es
+    «no concluyente por carga» (no válida, con el motivo y las lecturas)."""
+    if res.get("modo") == "funcional" and res["cumple"] is False and res.get("carga_alta"):
+        res["no_concluyente"] = True
+        res["valida"], res["cumple"] = False, None
+        res["motivos_invalida"].append("no concluyente por carga: la Mac estuvo sobre los umbrales (%s) y la llamada falló (%s)"
+                                       % ("; ".join(res["carga_alta"]), "; ".join(res["fallos"])))
+    return res
 
 
 # ── las reglas de las fases 2 y 3 (BAN1115D) ───────────────────────────────────────────────────────────────────
@@ -606,4 +632,9 @@ def veredicto_serie(juicios, rep, clave="cumple", comprobacion="c2", incompleta_
         if out["incompleta"]:
             partes.append(out["incompleta"])
         out.update(veredicto="sin-veredicto", sugerencia="sin veredicto (simulado): " + "; ".join(partes))
+    if out.get("sugerencia") and any(j.get("modo") == "funcional" for j in juicios):
+        nc = sum(1 for j in juicios if j.get("no_concluyente"))
+        extra = "; %d llamada(s) no concluyente(s) por carga de la Mac" % nc if nc else ""
+        out["modo"] = "funcional"
+        out["sugerencia"] = out["sugerencia"].replace("(simulado)", "(%s, simulado)" % SIN_CALMA, 1) + extra
     return out

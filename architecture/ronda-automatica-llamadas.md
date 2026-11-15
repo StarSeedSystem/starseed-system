@@ -267,6 +267,16 @@ falta (memoria libre, swap, disco). Umbrales (con variables de entorno para camb
   una línea `llamada · banco calma carga1=… presion=… libre=…% swap=…% swapouts_min=…` al empezar y al acabar. Así
   «llamada mala» y «medida mala» se distinguen en el mismo sitio.
 
+- **Escenarios de medida y funcionales (CAL1115I · 2026-11-15).** El 15-11 una serie esperó 12 min una calma que no llegó
+  (carga 6,9, swap al 93 %, presión 2): el servidor local de modelos y el enjambre gratis corren todo el día y nadie los
+  para. Desde hoy hay dos clases. **De medida** (`ble-video-2min`: números de voz y vídeo): la regla de calma de arriba,
+  sin cambios. **Funcionales** (`corte-ip-vuelve`, `tableta-llama`, `mudo-camara`: juzgan función, no números):
+  **empiezan sin esperar calma**, apuntan la lectura de la Mac al empezar (`calma.json`, fase `sin-calma`) y las de cada
+  llamada (`banco-llamadas.json`), y su veredicto dice «funcional, sin calma» para que nadie lea calidad de ellos. Si una
+  llamada funcional falla con la Mac por encima de los umbrales, no cuenta como «falla»: queda «no concluyente por carga»
+  (no válida, con las lecturas), y con menos de 2 fallos sin carga no se sugiere «falla». `banco_llamadas.py estado`
+  dice, mientras una serie de medida espera, qué lectura la frena, cuántas buenas seguidas lleva y cuánto espera como máximo.
+
 ---
 
 ## §6 Fases

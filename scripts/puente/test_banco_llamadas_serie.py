@@ -467,3 +467,33 @@ class Director(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CalmaPorModo(Base):
+    """CAL1115I: las funcionales no esperan calma; `estado` dice qué espera la de medida y cuánto más."""
+
+    def test_funcional_empieza_sin_esperar_y_apunta_la_lectura(self):
+        m = self.m()
+        m.lectura = lambda t: lec(t, presion=2, carga1=6.9, swap_pct=93.0)
+        s = BLL.Serie(m, "tableta-llama", 1, "claude", u=U, decir=lambda x: None)
+        t0 = m.t
+        self.assertEqual(s.esperar_calma(7200.0), (True, None))
+        self.assertEqual(m.t, t0)                                   # no durmió
+        c = m.leer_json(BLL.CALMA)
+        self.assertEqual((c["fase"], c["ok"]), ("sin-calma", False))
+        self.assertTrue(any("presión de memoria 2" in f for f in c["fallos"]))
+
+    def test_de_medida_sigue_esperando_y_estado_dice_que_espera_y_cuanto(self):
+        m = self.m()
+        m.lectura = lambda t: lec(t, presion=2, carga1=6.9)
+        vistos = []
+        m.al_dormir = lambda mm: vistos.append(BLL.texto_estado(mm.leer_json(BLL.SERIES)))
+        u = L.Umbrales(env={"STARSEED_BANCO_ESPERA_CALMA_S": "300"}, nucleos=8)
+        s = BLL.Serie(m, ESC, 1, "claude", u=u, decir=lambda x: None)
+        s.correr()
+        txt = vistos[2]
+        self.assertIn("Esperando calma de la Mac desde", txt)
+        self.assertIn("presión de memoria 2", txt)
+        self.assertIn("0 de 3 lecturas buenas seguidas", txt)
+        self.assertIn("como mucho", txt)
+        self.assertNotIn("Esperando calma", BLL.texto_estado(m.leer_json(BLL.SERIES)))   # al acabar ya no

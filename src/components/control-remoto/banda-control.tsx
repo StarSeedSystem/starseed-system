@@ -41,10 +41,39 @@ function hhmm(t: number): string {
     return new Date(t).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
-const TEXTO_FALTA: Record<CosaQueFalta, { falta: string; boton: string }> = {
-    interruptor: { falta: "Falta tu «Sí» en el diálogo de Android para dejar que otras neuronas controlen este aparato.", boton: "Activar el permiso en este aparato" },
-    notificaciones: { falta: "Las notificaciones de StarSeed están sin permitir: sin ellas no hay aviso fijo con «Terminar».", boton: "Permitir notificaciones" },
-    superposicion: { falta: "«Mostrar sobre otras apps» está sin permitir: sin él no hay borde rojo ni pastilla «Terminar».", boton: "Abrir Ajustes de «Mostrar sobre otras apps»" },
+/** (CAL1115I) La plataforma de ESTE aparato, para que lo que falta se diga con las palabras de su sistema. */
+export function plataformaLocal(ua?: string): "Android" | "macOS" | "otra" {
+    const t = ua ?? (typeof navigator !== "undefined" ? navigator.userAgent || "" : "");
+    if (/android/i.test(t)) return "Android";
+    if (/mac os x|macintosh/i.test(t) && !/iphone|ipod|ipad/i.test(t)) return "macOS";
+    return "otra";
+}
+
+/** (CAL1115I) Lo que falta, con la plataforma donde se enseña: el diálogo de Android solo se nombra en Android. */
+export function textoFalta(c: CosaQueFalta, plataforma: string): { falta: string; boton: string } {
+    if (c === "interruptor") {
+        const donde = plataforma === "Android" ? "el diálogo de Android" : plataforma === "macOS" ? "el aviso de macOS" : "el aviso del sistema";
+        return { falta: `Falta tu «Sí» en ${donde} para dejar que otras neuronas controlen este aparato.`, boton: "Activar el permiso en este aparato" };
+    }
+    if (c === "notificaciones") {
+        return { falta: "Las notificaciones de StarSeed están sin permitir: sin ellas no hay aviso fijo con «Terminar».", boton: "Permitir notificaciones" };
+    }
+    const android = plataforma === "Android";
+    return {
+        falta: android
+            ? "«Mostrar sobre otras apps» está sin permitir: sin él no hay borde rojo ni pastilla «Terminar»."
+            : "El permiso para dibujar sobre otras ventanas está sin dar: sin él no hay borde rojo ni pastilla «Terminar».",
+        boton: android ? "Abrir Ajustes de «Mostrar sobre otras apps»" : "Abrir los ajustes de este permiso",
+    };
+}
+
+/** (CAL1115I) Quién controla a quién, en palabras, para los tres sitios del panel. */
+export const quienOpera = {
+    esteAparatoPide: (otro: string, codigo: string | null) =>
+        `Vas a operar ${otro} desde este aparato; en ${otro} tienen que aceptar el código ${codigo ?? "de este aparato"}.`,
+    otroPide: (otro: string) => `${otro} quiere operar ESTE aparato; si aceptas, podrá llamar, contestar, colgar… desde allí.`,
+    puedeOperarEste: (otro: string) => `Puede operar este aparato: ${otro}`,
+    esteAparatoPuede: (otro: string) => `Este aparato puede operar: ${otro}`,
 };
 
 function esCosa(x: string): x is CosaQueFalta {
@@ -60,8 +89,9 @@ function haceCuanto(ms: number): string {
  * (IND1115F) Lo que falta en ESTE aparato para enseñar el indicador, con un botón por cada cosa, y por qué se negó la
  * última sesión. Solo dice lo que Rust sabe (y desde cuándo): si no falta nada y nada se negó, no sale.
  */
-export function FaltasIndicador({ estado, onPedir }: { estado: EstadoIndicador | null; onPedir: (que: CosaQueFalta) => void }) {
+export function FaltasIndicador({ estado, onPedir, plataforma }: { estado: EstadoIndicador | null; onPedir: (que: CosaQueFalta) => void; plataforma?: string }) {
     if (!estado) return null;
+    const plat = plataforma ?? plataformaLocal();
     const conocidas = estado.falta.filter(esCosa);
     const otras = estado.falta.filter((x) => !esCosa(x));
     const r = estado.ultimoRechazo;
@@ -71,9 +101,9 @@ export function FaltasIndicador({ estado, onPedir }: { estado: EstadoIndicador |
             {(conocidas.length > 0 || otras.length > 0) && <p className="font-medium text-amber-200">Para que otra neurona pueda controlar este aparato falta:</p>}
             {conocidas.map((c) => (
                 <div key={c} className="flex flex-wrap items-center gap-2" data-testid={`falta-${c}`}>
-                    <span className="min-w-0 flex-1">• {TEXTO_FALTA[c].falta}</span>
+                    <span className="min-w-0 flex-1">• {textoFalta(c, plat).falta}</span>
                     <button onClick={() => onPedir(c)} className="min-h-9 cursor-pointer rounded-md bg-amber-500/80 px-2 py-1 font-medium text-black hover:bg-amber-400">
-                        {TEXTO_FALTA[c].boton}
+                        {textoFalta(c, plat).boton}
                     </button>
                 </div>
             ))}
@@ -217,6 +247,11 @@ export function ControlEntreNeuronasPanel() {
         })();
     }, [n]);
 
+    const nombreDe = useCallback(
+        (id: string) => neuronas.find((x) => x.id.toLowerCase() === id.toLowerCase())?.nombre ?? "esa neurona",
+        [neuronas],
+    );
+
     const cambiar = useCallback(async (f: (p: PermisoControl) => PermisoControl) => {
         const c = await import("@/lib/control-remoto/canal");
         const nuevo = f(c.leerPermisoLocal());
@@ -254,12 +289,12 @@ export function ControlEntreNeuronasPanel() {
         if (r.ok) setTimeout(() => void import("@/lib/banco-llamadas/app").then((b) => b.informarBanco(destino.trim())), 6000); // mira si ya te aceptó
         setAviso(
             r.ok
-                ? `Pedido enviado. En esa neurona, acepta el aparato con el código ${miCodigo ?? "de este aparato"}.`
+                ? `Pedido enviado. ${quienOpera.esteAparatoPide(nombreDe(destino.trim()), miCodigo)}`
                 : r.motivo === "sin-aparato"
                   ? "Este aparato no tiene clave propia: créala en Chats de Genesis (emparejar)."
                   : `No se pudo pedir: ${r.motivo}.`,
         );
-    }, [destino, miCodigo]);
+    }, [destino, miCodigo, nombreDe]);
 
     const armar = useCallback(async () => {
         const b = await import("@/lib/banco-llamadas/app");
@@ -304,7 +339,7 @@ export function ControlEntreNeuronasPanel() {
             {permiso.pendientes.map((x) => (
                 <div key={x.huella} className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-400/30 p-2 text-[12px] text-white/80">
                     <span className="flex-1">
-                        {x.nombre} pide controlar este aparato · código {codigos[x.huella] ?? "…"} (compáralo con el que enseña ese aparato)
+                        {quienOpera.otroPide(x.nombre)} Código {codigos[x.huella] ?? "…"} (compáralo con el que enseña ese aparato)
                     </span>
                     <button onClick={() => void aceptar(x.huella)} className="cursor-pointer rounded-md bg-emerald-600/70 px-2 py-1 hover:bg-emerald-600">
                         Aceptar
@@ -317,13 +352,18 @@ export function ControlEntreNeuronasPanel() {
             {permiso.controladores.map((x) => (
                 <div key={x.huella} className="flex flex-wrap items-center gap-2 rounded-lg border border-white/10 p-2 text-[12px] text-white/70">
                     <span className="flex-1">
-                        Aceptado: {x.nombre} · código {codigos[x.huella] ?? "…"} · desde {x.desde.slice(0, 10)}
+                        {quienOpera.puedeOperarEste(x.nombre)} · código {codigos[x.huella] ?? "…"} · desde {x.desde.slice(0, 10)}
                     </span>
                     <button onClick={() => void quitar(x.huella)} className="cursor-pointer rounded-md bg-white/10 px-2 py-1 hover:bg-white/20">
                         Quitar
                     </button>
                 </div>
             ))}
+            {informe?.sesion?.estado === "aceptada" && informe.objetivo && (
+                <p className="text-[12px] text-emerald-300/80" data-testid="este-aparato-puede">
+                    {quienOpera.esteAparatoPuede(nombreDe(informe.objetivo))}
+                </p>
+            )}
             {neuronas.length > 0 && (
                 <div className="flex flex-wrap gap-2 border-t border-white/10 pt-3" role="listbox" aria-label="Neuronas de tu cuenta" data-testid="neuronas-elegir">
                     {neuronas.map((x) => (
@@ -348,6 +388,11 @@ export function ControlEntreNeuronasPanel() {
                         </li>
                     ))}
                 </ul>
+            )}
+            {RE_UUID.test(destino.trim()) && (
+                <p className="text-[12px] text-sky-200" data-testid="este-aparato-pide">
+                    {quienOpera.esteAparatoPide(nombreDe(destino.trim()), miCodigo)}
+                </p>
             )}
             <div className="flex flex-wrap items-center gap-2 border-t border-white/10 pt-3">
                 <input

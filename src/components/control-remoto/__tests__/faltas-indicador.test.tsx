@@ -46,3 +46,47 @@ describe("IND1115F · lo que falta para el indicador, en el panel del aparato co
         expect(screen.queryAllByRole("button")).toHaveLength(0);
     });
 });
+
+// ── CAL1115I · quién controla a quién y las palabras de cada plataforma ─────────────────────────────────────────
+import { plataformaLocal, quienOpera, textoFalta } from "../banda-control";
+
+describe("CAL1115I · lo que falta se dice con las palabras de la plataforma donde se enseña", () => {
+    it("en Android nombra el diálogo de Android; en la Mac, no", () => {
+        expect(textoFalta("interruptor", "Android").falta).toBe("Falta tu «Sí» en el diálogo de Android para dejar que otras neuronas controlen este aparato.");
+        const mac = textoFalta("interruptor", "macOS").falta;
+        expect(mac).toBe("Falta tu «Sí» en el aviso de macOS para dejar que otras neuronas controlen este aparato.");
+        expect(mac).not.toContain("Android");
+        expect(textoFalta("interruptor", "otra").falta).not.toContain("Android");
+    });
+
+    it("«Mostrar sobre otras apps» solo sale en Android", () => {
+        expect(textoFalta("superposicion", "Android").falta).toContain("«Mostrar sobre otras apps»");
+        expect(textoFalta("superposicion", "macOS").falta).not.toContain("otras apps");
+        expect(textoFalta("superposicion", "macOS").boton).not.toContain("otras apps");
+    });
+
+    it("el componente usa la plataforma que se le da", () => {
+        render(<FaltasIndicador estado={{ ...base, falta: ["interruptor"] }} onPedir={() => undefined} plataforma="macOS" />);
+        expect(screen.getByTestId("falta-interruptor")).toHaveTextContent("aviso de macOS");
+        expect(screen.getByTestId("falta-interruptor")).not.toHaveTextContent("Android");
+    });
+
+    it("la plataforma se lee del agente de usuario", () => {
+        expect(plataformaLocal("Mozilla/5.0 (Linux; Android 14; SM-X)")).toBe("Android");
+        expect(plataformaLocal("Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0)")).toBe("macOS");
+        expect(plataformaLocal("Mozilla/5.0 (Windows NT 10.0)")).toBe("otra");
+    });
+});
+
+describe("CAL1115I · las frases de quién opera a quién", () => {
+    it("este aparato pide", () => {
+        expect(quienOpera.esteAparatoPide("Maggaboard", "A1B2")).toBe("Vas a operar Maggaboard desde este aparato; en Maggaboard tienen que aceptar el código A1B2.");
+    });
+    it("otro aparato pide", () => {
+        expect(quienOpera.otroPide("Maggaboard")).toBe("Maggaboard quiere operar ESTE aparato; si aceptas, podrá llamar, contestar, colgar… desde allí.");
+    });
+    it("lista de aceptados, en los dos sentidos", () => {
+        expect(quienOpera.puedeOperarEste("Maggaboard")).toBe("Puede operar este aparato: Maggaboard");
+        expect(quienOpera.esteAparatoPuede("Maggaboard")).toBe("Este aparato puede operar: Maggaboard");
+    });
+});

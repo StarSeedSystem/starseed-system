@@ -200,3 +200,56 @@ class PasoQueFalta(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# ── CAL1115I: escenarios de medida y funcionales ───────────────────────────────────────────────────────────────
+BUSY = [T.lec(T0 + 30 * i, carga1=6.9, presion=2, libre_pct=21.0, swap_pct=93.0, swapouts_min=51312.0) for i in range(5)]
+
+
+class Funcionales(unittest.TestCase):
+    def test_cuales_son_funcionales_y_cuales_de_medida(self):
+        self.assertEqual(sorted(e for e in L.ESCENARIOS if L.es_funcional(e)), ["corte-ip-vuelve", "mudo-camara", "tableta-llama"])
+        self.assertFalse(L.es_funcional("ble-video-2min"))
+
+    def test_funcional_con_la_mac_cargada_y_llamada_buena_es_valida_y_guarda_las_lecturas(self):
+        j = juzga("corte-ip-vuelve", c1(), lecturas=BUSY)
+        self.assertEqual((j["valida"], j["cumple"], j["no_concluyente"]), (True, True, False))
+        self.assertEqual(j["modo"], "funcional")
+        self.assertIn("carga 1 min 6,9 > 6,0", j["carga_alta"])
+        self.assertEqual(j["calma"]["lecturas"], 5)                 # las lecturas de la Mac quedan con la llamada
+        self.assertEqual((j["calma"]["carga1"]["max"], j["calma"]["presion"]["max"], j["calma"]["swap_pct"]["max"]), (6.9, 2, 93.0))
+
+    def test_funcional_que_falla_con_la_mac_cargada_es_no_concluyente_por_carga(self):
+        j = juzga("corte-ip-vuelve", c1(sin_webrtc=True), lecturas=BUSY)
+        self.assertEqual((j["valida"], j["cumple"], j["no_concluyente"]), (False, None, True))
+        self.assertIn("no concluyente por carga", j["motivos_invalida"][0])
+        self.assertIn("WebRTC no se reconectó", j["motivos_invalida"][0])
+
+    def test_funcional_que_falla_con_la_mac_en_calma_sigue_fallando(self):
+        j = juzga("corte-ip-vuelve", c1(sin_webrtc=True))
+        self.assertEqual((j["valida"], j["cumple"], j["no_concluyente"]), (True, False, False))
+
+    def test_la_de_medida_con_la_mac_cargada_sigue_invalida_como_antes(self):
+        j = L.juzgar_llamada("ble-video-2min", T.SERIE, 1, [], [], BUSY, U)
+        self.assertFalse(j["valida"])
+        self.assertTrue(any("no estuvo en calma durante la llamada" in m for m in j["motivos_invalida"]))
+        self.assertNotIn("modo", j)
+
+    def test_veredicto_funcional_dice_sin_calma_y_no_concluyente(self):
+        buenas = [juzga("corte-ip-vuelve", c1(), lecturas=BUSY) for _ in range(3)]
+        v = L.veredicto_serie(buenas, 3, "c1", "c1")
+        self.assertEqual(v["veredicto"], "bien")
+        self.assertIn("funcional, sin calma", v["sugerencia"])
+        dudosas = [juzga("corte-ip-vuelve", c1(sin_webrtc=True), lecturas=BUSY) for _ in range(3)]
+        v = L.veredicto_serie(dudosas, 3, "c1", "c1")
+        self.assertEqual(v["veredicto"], "sin-veredicto")
+        self.assertNotIn("falla", v["sugerencia"].split("(")[0])
+        self.assertIn("funcional, sin calma", v["sugerencia"])
+        self.assertIn("3 llamada(s) no concluyente(s) por carga", v["sugerencia"])
+
+    def test_veredicto_de_medida_no_lleva_la_etiqueta(self):
+        j = L.juzgar_llamada("ble-video-2min", T.SERIE, 1, [], [], BUENAS_, U)
+        self.assertNotIn("sin calma", L.veredicto_serie([j], 1)["sugerencia"])
+
+
+BUENAS_ = T.BUENAS

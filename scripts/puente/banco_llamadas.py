@@ -222,22 +222,38 @@ class Serie(object):
     # calma
     def esperar_calma(self, limite_s, fase="espera"):
         """Espera hasta tener `lecturas` buenas seguidas en `ventana_s`. → (ok, motivo si no)."""
-        t0 = self.m.ahora()
-        hist, ultimo = [], "todavía no hay lecturas"
-        while True:
+        if L.es_funcional(self.esc):
+            # CAL1115I: escenario funcional: no espera calma; apunta la lectura de la Mac y sigue («funcional, sin calma»)
             lec = self.m.medir()
             ok, fallos, notas = L.evaluar_calma(lec, self.u, "inicio")
-            hist.append({"t": lec["t"], "ok": ok, "fallos": fallos})
-            hist = hist[-20:]
-            listo, motivo = L.calma_para_empezar(hist, self.u)
-            self.escribir_calma(lec, fase, ok, fallos, notas)
-            if not ok:
-                ultimo = "; ".join(fallos)
-            if listo:
-                return True, None
-            if self.m.ahora() - t0 >= limite_s:
-                return False, "la Mac no estuvo en calma en %s: %s" % (R.minutos_texto(limite_s), ultimo)
-            self.m.dormir(self.u.cada_s)
+            self.escribir_calma(lec, "sin-calma", ok, fallos, notas)
+            self.decir("%s: empiezo sin esperar calma%s" % (L.SIN_CALMA, "" if ok else " (la Mac está sobre los umbrales: %s)" % "; ".join(fallos)))
+            return True, None
+        t0 = self.m.ahora()
+        hist, ultimo = [], "todavía no hay lecturas"
+        try:
+            while True:
+                lec = self.m.medir()
+                ok, fallos, notas = L.evaluar_calma(lec, self.u, "inicio")
+                hist.append({"t": lec["t"], "ok": ok, "fallos": fallos})
+                hist = hist[-20:]
+                listo, motivo = L.calma_para_empezar(hist, self.u)
+                self.escribir_calma(lec, fase, ok, fallos, notas)
+                if not ok:
+                    ultimo = "; ".join(fallos)
+                if listo:
+                    return True, None
+                if self.m.ahora() - t0 >= limite_s:
+                    return False, "la Mac no estuvo en calma en %s: %s" % (R.minutos_texto(limite_s), ultimo)
+                # CAL1115I: lo que espera y cuánto le queda como máximo, para `estado`
+                self.est["espera"] = {"desde": BL._a_iso(t0), "t": BL._a_iso(self.m.ahora()), "limite_s": limite_s,
+                                      "quedan_s": max(0.0, limite_s - (self.m.ahora() - t0)),
+                                      "motivo": ultimo if not ok else (motivo or ""), "buenas_seguidas": sum(1 for _ in L._racha(hist)),
+                                      "se_piden": self.u.lecturas}
+                self.guardar()
+                self.m.dormir(self.u.cada_s)
+        finally:
+            self.est["espera"] = None
 
     # ronda
     def tomar_ronda(self):
@@ -360,7 +376,7 @@ class Serie(object):
         if not ap["armada"] or not ap["viva"]:
             return self.terminar("sin veredicto: " + self.paso_que_falta(ap))
         para = self.para_arg or ap["con"]
-        ok, motivo = self.esperar_calma(self.u.espera_calma_s)
+        ok, motivo = self.esperar_calma(self.u.espera_calma_s)       # CAL1115I: las funcionales no esperan (ver esperar_calma)
         if not ok:
             return self.terminar("sin veredicto: " + motivo)
         ap = self.estado_app()
@@ -445,6 +461,11 @@ def texto_estado(datos):
     s = series[0]
     v = s.get("veredicto") or {}
     sal = ["Serie %s · %d × %s · %s%s" % (s["serie"], s["rep"], s["esc"], s["estado"], (" · " + s["motivo_fin"]) if s.get("motivo_fin") else "")]
+    w = s.get("espera")
+    if w and s.get("estado") == "en-curso":      # CAL1115I: qué espera y cuánto más
+        sal.append("  Esperando calma de la Mac desde %s: %s · %d de %d lecturas buenas seguidas · como mucho %s más" % (
+            w.get("desde"), w.get("motivo") or "aún sin lecturas buenas suficientes", w.get("buenas_seguidas", 0), w.get("se_piden", 0),
+            R.minutos_texto(w.get("quedan_s") or 0)))
     for c in sorted(v):
         if v.get(c):
             sal.append("  %s: %s" % (c, v[c]["sugerencia"]))
