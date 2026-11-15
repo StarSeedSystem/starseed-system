@@ -15,7 +15,8 @@ import { aceptarTimbre, rechazarTimbre } from "@/lib/llamadas/acciones";
 import { DURACION_TIMBRE_MS } from "@/lib/llamadas/adjunto";
 import { TEXTO_TIPO } from "@/lib/llamadas/formato";
 import { quitarTimbre, type TimbreEntrante } from "@/lib/llamadas/store";
-import { crearTono, vibrar } from "@/lib/llamadas/sonido";
+import { vibrar } from "@/lib/llamadas/sonido";
+import { pedirSonido } from "@/lib/llamadas/timbre-sonido";
 import { usePresentesLlamada } from "@/lib/llamadas/use-presencia";
 import { uidDeClave } from "@/lib/llamadas/presencia";
 import { AvatarLlamada } from "./avatar-llamada";
@@ -59,11 +60,12 @@ export function TimbreLlamada({ timbre, miUid }: { timbre: TimbreEntrante; miUid
     // Tono y vibración (no en chats silenciados).
     useEffect(() => {
         if (timbre.silenciado || !decision.sonidoWeb) return;
-        const tono = crearTono("entrante");
-        tono.iniciar();
+        // TIM1115B: un solo sonido por aparato (`timbre-sonido.ts`): contestar, rechazar o acabar cualquier llamada lo corta
+        // y caduca solo aunque el «colgar» no llegue.
+        const dejar = pedirSonido(timbre.sesionId, timbre.llegada);
         vibrar([220, 140, 220, 900, 220, 140, 220]);
-        return () => tono.parar();
-    }, [timbre.silenciado, decision.sonidoWeb]);
+        return dejar;
+    }, [timbre.silenciado, decision.sonidoWeb, timbre.sesionId, timbre.llegada]);
 
     // A los 45 s: llamada perdida.
     useEffect(() => {

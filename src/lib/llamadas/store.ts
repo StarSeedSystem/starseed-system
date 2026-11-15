@@ -9,6 +9,7 @@ import { useSyncExternalStore } from "react";
 import type { TipoLlamada } from "@/lib/mensajeria/formato-tipos";
 import type { MotorLlamada } from "@/lib/llamadas/motor";
 import type { AdjuntoLlamadaRegistro, EstadoLlamada } from "@/lib/llamadas/tipos";
+import { silenciarTodos } from "./timbre-sonido";
 
 export interface LlamadaActiva {
     sesionId: string;
@@ -82,12 +83,15 @@ export function suscribirLlamadas(cb: () => void): () => void {
 }
 
 export function ponerActiva(a: LlamadaActiva) {
+    // TIM1115B: contestar una llamada corta TODO sonido de timbre del aparato (antes solo se quitaba la tarjeta de esa sesión).
+    silenciarTodos("contestada");
     cambiar({ activa: a, timbres: estado.timbres.filter((t) => t.sesionId !== a.sesionId) });
 }
 
 export function quitarActiva(a?: Pick<LlamadaActiva, "motor">) {
     // Se compara el motor: minimizar crea un objeto nuevo de la misma llamada.
     if (a && estado.activa?.motor !== a.motor) return;
+    silenciarTodos("llamada-acabada"); // TIM1115B
     cambiar({ activa: null });
 }
 
@@ -96,7 +100,28 @@ export function minimizarLlamada(v: boolean) {
     cambiar({ activa: { ...estado.activa, minimizada: v } });
 }
 
+/**
+ * TIM1115B · Sesiones cuyo «colgar» llegó (o que ya se atendieron): un timbre de esa sesión que llega DESPUÉS (un reenvío
+ * tardío) no suena. Solo por sesión: un «colgar» tardío de una llamada vieja nunca toca una más nueva.
+ */
+const COLGADAS = new Set<string>();
+const MAX_COLGADAS = 64;
+
+export function sesionColgada(sesionId: string): boolean {
+    return COLGADAS.has(sesionId);
+}
+
+/** TIM1115B · Quien llamó colgó: la tarjeta se retira (y su sonido con ella). Devuelve si había timbre. */
+export function colgarTimbre(sesionId: string): boolean {
+    COLGADAS.add(sesionId);
+    if (COLGADAS.size > MAX_COLGADAS) COLGADAS.delete(COLGADAS.values().next().value as string);
+    const habia = estado.timbres.some((t) => t.sesionId === sesionId);
+    quitarTimbre(sesionId);
+    return habia;
+}
+
 export function agregarTimbre(t: TimbreEntrante) {
+    if (COLGADAS.has(t.sesionId)) return;
     if (estado.timbres.some((x) => x.sesionId === t.sesionId)) return;
     if (estado.activa?.sesionId === t.sesionId) return;
     // Como mucho tres a la vista: el más antiguo cede.
@@ -121,6 +146,7 @@ export function registrarHost(): () => void {
 
 /** Solo pruebas. */
 export function __reiniciarLlamadas() {
+    COLGADAS.clear();
     estado = INICIAL;
 }
 

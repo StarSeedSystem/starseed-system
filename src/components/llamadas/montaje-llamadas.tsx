@@ -59,6 +59,23 @@ export function MontajeLlamadas() {
 
     useEffect(() => registrarHost(), []);
 
+    // TIM1115B: el «colgar» de quien llamó retira el timbre que aún suena aquí (un timbre sin contestar no tiene canal propio).
+    useEffect(() => {
+        let vivo = true;
+        let baja: (() => void) | null = null;
+        void import("@/lib/llamadas/timbre-colgar")
+            .then((m) => m.vigilarColgarDeTimbresReal())
+            .then((b) => {
+                if (vivo) baja = b;
+                else b();
+            })
+            .catch(() => undefined);
+        return () => {
+            vivo = false;
+            baja?.();
+        };
+    }, []);
+
     // Quién soy (y si cambia la sesión).
     useEffect(() => {
         let vivo = true;

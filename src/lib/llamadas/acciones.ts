@@ -21,6 +21,7 @@ import { motivoSinLlamadas, obtenerMedios, pararStream, soportaLlamadas } from "
 import { avisarFalloMedios } from "@/lib/llamadas/aviso-medios";
 import type { AjustesMedios } from "@/lib/llamadas/permiso-medios";
 import { clavePestana, miIdentidad, type Identidad } from "@/lib/llamadas/identidad";
+import { silenciarTodos } from "@/lib/llamadas/timbre-sonido";
 import { crearAdjuntoLlamada, ESPERA_RESPUESTA_MS } from "@/lib/llamadas/adjunto";
 import { TEXTO_TIPO } from "@/lib/llamadas/formato";
 import { clasificarErrorSesion, MENSAJE_SESION } from "@/lib/llamadas/errores";
@@ -777,6 +778,7 @@ export async function reintentarLlamadaSinChat(): Promise<{ ok: boolean; motivo?
 
 /** Rechaza un timbre y se lo dice a quien llama (en un 1:1, su llamada se cierra sola). */
 export async function rechazarTimbre(t: TimbreEntrante): Promise<void> {
+    silenciarTodos("rechazada"); // TIM1115B
     quitarTimbre(t.sesionId);
     if (t.malla) {
         // (GRP1107A) La respuesta vuelve por el enlace por el que llegó la invitación.

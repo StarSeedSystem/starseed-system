@@ -11,7 +11,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { avisarFalloMedios } from "@/lib/llamadas/aviso-medios";
-import { crearTono, vibrar } from "@/lib/llamadas/sonido";
+import { vibrar } from "@/lib/llamadas/sonido";
+import { pedirSonido } from "@/lib/llamadas/timbre-sonido";
 import { useDecisionTimbre } from "@/lib/llamadas/nativa/use-decision-timbre";
 import { BotonesIgnorarSilenciar } from "@/components/llamadas/menu-silenciar";
 import { EntradaSilenciada } from "@/components/llamadas/entrada-silenciada";
@@ -72,11 +73,10 @@ export function LlamadaDirectaFlotante() {
   const sonando = dueno && ll.fase === "entrante" && decision.sonidoWeb;
   useEffect(() => {
     if (!sonando) return;
-    const tono = crearTono("entrante");
-    tono.iniciar();
+    const dejar = pedirSonido(`directa:${ll.id ?? ""}`); // TIM1115B: un solo sonido por aparato
     vibrar([220, 140, 220, 900, 220, 140, 220]);
-    return () => tono.parar();
-  }, [sonando]);
+    return dejar;
+  }, [sonando, ll.id]);
   // La superficie sigue montada con la llamada en reposo: así el resumen de la que acaba (duración y medio) no desaparece solo.
   if (!dueno) return null;
   if (ll.fase === "entrante" && decision.entradaSilenciada) {

@@ -30,6 +30,8 @@ const CADUCIDAD_MS = 30_000;
 const PULSO_ESTADO_MS = 2_000;
 /** Reintentos de una señal que no salió por ningún enlace (el siguiente espera 1, 2 y 4 s). */
 const REINTENTOS = 3;
+/** TIM1115B · Cuánto se sigue intentando entregar un «colgar»: lo que espera quien llama (50 s) más 10 s de margen. */
+export const CADUCIDAD_COLGAR_MS = 60_000;
 
 type MensajeCanal =
     | { t: "llc.pres"; s: string; dn: string; meta: MetaPresencia }
@@ -91,8 +93,13 @@ export function abrirCanalLlamadaPorTransporte(neurona: string, sesionId: string
      * la tableta siguió dentro, sin oír nada, hasta que la presencia de la Mac caducó (30 s) y se empezó la segunda.
      */
     const mandar = (msg: MensajeCanal, reintentos = REINTENTOS, trasCerrar = false) => {
+        // TIM1115B · «colgar» se entrega COMO el timbre: se reintenta por todos los enlaces hasta que alguien lo acuse o caduque la
+        // llamada (lo que espera quien llama + margen). Prueba 43: `fallo señal colgar sin enlace tras 4 intentos` (9 s) y el
+        // timbre de la tableta no se enteró nunca.
+        const esColgar = msg.t === "llc.senal" && msg.senal.tipo === "colgar";
+        const limite = esColgar ? ahora() + CADUCIDAD_COLGAR_MS : 0;
         void (async () => {
-            for (let intento = 0; intento <= reintentos && (!cerrado || trasCerrar); intento++) {
+            for (let intento = 0; esColgar ? ahora() < limite : intento <= reintentos && (!cerrado || trasCerrar); intento++) {
                 let r: { ok: boolean; via?: string } = { ok: false };
                 try { r = await deps.enviar(neurona, msg); } catch { /* sin enlace */ }
                 if (r.ok) {
@@ -102,11 +109,14 @@ export function abrirCanalLlamadaPorTransporte(neurona: string, sesionId: string
                         anotarLlamada("senal-enviada", neurona, `presencia via=${r.via ?? "?"}`);
                     }
                     if (msg.t === "llc.senal") anotarLlamada("senal-enviada", neurona, `${msg.senal.tipo}${msg.senal.tipo === "senal" ? (msg.senal.desc ? ` ${msg.senal.desc.type}` : msg.senal.ice ? " ice" : "") : ""} via=${r.via ?? "?"}${intento > 0 ? ` intento=${intento + 1}` : ""}`);
+                    if (esColgar) anotarLlamada("colgar", neurona, `entregado via=${r.via ?? "?"} intentos=${intento + 1}`);
                     return;
                 }
-                if (intento < reintentos) await esperar(1000 * 2 ** intento);
+                if (esColgar) await esperar(Math.min(1000 * 2 ** Math.min(intento, 2), 3000));
+                else if (intento < reintentos) await esperar(1000 * 2 ** intento);
             }
-            if ((!cerrado || trasCerrar) && msg.t === "llc.senal") anotarLlamada("fallo", neurona, `señal ${msg.senal.tipo} sin enlace tras ${reintentos + 1} intentos`);
+            if (esColgar) anotarLlamada("colgar", neurona, `caducado tras=${CADUCIDAD_COLGAR_MS}ms (el aviso no salió por ningún enlace)`);
+            else if ((!cerrado || trasCerrar) && msg.t === "llc.senal") anotarLlamada("fallo", neurona, `señal ${msg.senal.tipo} sin enlace tras ${reintentos + 1} intentos`);
         })();
     };
 
