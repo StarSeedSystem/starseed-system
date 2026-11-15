@@ -116,7 +116,7 @@ describe("negociación y estados", () => {
         expect(enviadas[2].args).toEqual({ oferta: "v=0\r\noferta" });
         expect(peer.remota).toEqual({ type: "answer", sdp: "v=0\r\nrespuesta" });
         expect(peer.transceptores).toEqual([["video", { direction: "recvonly" }]]); // el vídeo es la m-line 0
-        expect(destino.instantanea()).toMatchObject({ estado: "conectando", nivel: "controlar", pantalla: { ancho: 800, alto: 1280, giro: 90 }, capacidades: { gestos: true, maxDedos: 10, teclas: ["atras", "inicio"] } });
+        expect(destino.instantanea()).toMatchObject({ estado: "conectando", nivel: "controlar", pantalla: { ancho: 800, alto: 1280, giro: 0 }, capacidades: { gestos: true, maxDedos: 10, teclas: ["atras", "inicio"] } });
         peer.conectar();
         expect(destino.instantanea().estado).toBe("en-vivo");
         expect(avisos).toContain("en-vivo");
@@ -256,25 +256,40 @@ describe("límite de 60 por segundo", () => {
 });
 
 describe("fusión de gestos", () => {
-    it("los gestos que esperan turno se juntan: cada dedo conserva sus puntos y no se pierde ninguno", async () => {
+    it("los gestos que esperan turno se juntan si llevan los mismos dedos: cada dedo conserva sus puntos", async () => {
         await enVivo();
         let suelta!: () => void;
         firmando = new Promise<void>((r) => (suelta = r));
         destino.enviar({ tipo: "tecla", cual: "atras" }); // ocupa el envío mientras firma
         await vi.advanceTimersByTimeAsync(0);
         destino.enviar({ tipo: "gesto", dedos: [{ id: 0, puntos: [pt(0.1)] }, { id: 1, puntos: [pt(0.9)] }], sigue: true });
-        destino.enviar({ tipo: "gesto", dedos: [{ id: 0, puntos: [pt(0.2)] }], sigue: true });
-        destino.enviar({ tipo: "gesto", dedos: [{ id: 0, puntos: [pt(0.3)] }, { id: 2, puntos: [pt(0.5)] }], sigue: true });
+        destino.enviar({ tipo: "gesto", dedos: [{ id: 1, puntos: [pt(0.8)] }, { id: 0, puntos: [pt(0.2)] }], sigue: true });
+        destino.enviar({ tipo: "gesto", dedos: [{ id: 0, puntos: [pt(0.3)] }, { id: 1, puntos: [pt(0.7)] }], sigue: true });
         expect(destino.enCola()).toBe(1);
         firmando = null;
         suelta();
         await vi.advanceTimersByTimeAsync(100);
         const g = peer.canal.enviados.map((e) => e.obj.carga).find((c) => c.startsWith("gesto:"))!;
         const args = JSON.parse(g.slice(6)) as { dedos: { id: number; puntos: number[][] }[]; sigue: boolean };
-        expect(args.dedos.map((d) => d.id)).toEqual([0, 1, 2]);
+        expect(args.dedos.map((d) => d.id)).toEqual([0, 1]);
         expect(args.dedos[0].puntos.map((p) => p[0])).toEqual([0.1, 0.2, 0.3]);
-        expect(args.dedos[1].puntos).toHaveLength(1);
-        expect(args.dedos[2].puntos).toHaveLength(1);
+        expect(args.dedos[1].puntos.map((p) => p[0])).toEqual([0.9, 0.8, 0.7]);
+    });
+    it("UNI1115M · un gesto que no nombra un dedo (lo levanta) no se funde con el anterior", async () => {
+        await enVivo();
+        firmando = new Promise<void>(() => undefined);
+        destino.enviar({ tipo: "tecla", cual: "atras" });
+        await vi.advanceTimersByTimeAsync(0);
+        destino.enviar({ tipo: "gesto", dedos: [{ id: 0, puntos: [pt(0.1)] }, { id: 1, puntos: [pt(0.9)] }], sigue: true });
+        destino.enviar({ tipo: "gesto", dedos: [{ id: 1, puntos: [pt(0.8)] }], sigue: true });
+        expect(destino.enCola()).toBe(2);
+    });
+    it("UNI1115M · partirGesto nombra todos los dedos en cada trozo (un dedo sin puntos repite el último, dt 0)", () => {
+        const muchos: [number, number, number][] = Array.from({ length: 60 }, (_, i) => [0.5, i / 100, 8]);
+        const trozos = partirGesto({ tipo: "gesto", dedos: [{ id: 0, puntos: muchos }, { id: 1, puntos: [[0.2, 0.2, 0]] }], sigue: true }, 400);
+        expect(trozos.length).toBeGreaterThan(1);
+        for (const t of trozos) expect(t.dedos.map((d) => d.id)).toEqual([0, 1]);
+        expect(trozos[trozos.length - 1].dedos[1].puntos).toEqual([[0.2, 0.2, 0]]);
     });
     it("un gesto que terminó (sigue:false) no se funde con el siguiente", () => {
         const a = gesto([pt(0.1)], false);
@@ -448,5 +463,17 @@ describe("cierres", () => {
         guion["pantalla-senal"] = () => no("sin-pantalla");
         await destino.iniciar();
         expect(destino.instantanea()).toMatchObject({ estado: "cerrada", motivo: "negociacion" });
+    });
+});
+
+describe("UNI1115M · costura e: los cuadros llegan derechos", () => {
+    it("el giro de lo nativo no gira la ventana (siempre 0) y una tableta que se gira cambia la proporción, no el giro", async () => {
+        const g = guion as unknown as Record<string, () => unknown>;
+        await enVivo();
+        expect(destino.instantanea().pantalla?.giro).toBe(0);
+        expect(destino.instantanea().pantalla).toMatchObject({ ancho: 800, alto: 1280 });
+        g["leer-aparato"] = () => ok({ aparato: { pantalla: { ancho: 1280, alto: 800, giro: 90, encendida: true, bloqueada: false } } });
+        await vi.advanceTimersByTimeAsync(5200);
+        expect(destino.instantanea().pantalla).toEqual({ ancho: 1280, alto: 800, giro: 0 });
     });
 });

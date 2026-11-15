@@ -106,17 +106,30 @@ describe("VEN1115L · pantalla táctil, varios dedos", () => {
         expect(w.enviados[0].dedos).toHaveLength(2);
     });
 
-    it("al levantar un dedo habiendo otro, el gesto se cierra y el otro se repone", () => {
+    it("UNI1115M · al levantar un dedo habiendo otro, el otro sigue abajo y el levantado ya no se nombra", () => {
         m.g.abajo("a", 0.1, 0.1);
         m.g.abajo("b", 0.9, 0.9);
         m.g.levantar("a", 0.1, 0.1);
-        expect(m.enviados).toHaveLength(1);
-        expect(m.enviados[0].sigue).toBe(false);
+        // 1.º el último punto de los dos (sigue), 2.º ya sin «a»: lo nativo lo suelta al instante; «b» no se re-apoya
+        expect(m.enviados).toHaveLength(2);
+        expect(m.enviados[0].sigue).toBe(true);
         expect(m.enviados[0].dedos.map((d) => d.id)).toEqual([0, 1]);
-        expect(m.g.hayDedos()).toBe(true);
-        m.avanza(20);
-        m.fotograma();
         expect(m.enviados[1]).toEqual({ tipo: "gesto", sigue: true, dedos: [{ id: 1, puntos: [[0.9, 0.9, 0]] }] });
+        expect(m.g.hayDedos()).toBe(true);
+        m.g.levantar("b", 0.9, 0.9);
+        expect(m.enviados.at(-1)).toEqual({ tipo: "gesto", sigue: false, dedos: [{ id: 1, puntos: [[0.9, 0.9, 0]] }] });
+    });
+    it("UNI1115M · cada gesto que sigue nombra todos los dedos apoyados (el que no se movió repite su punto)", () => {
+        m.g.abajo("a", 0.1, 0.1);
+        m.g.abajo("b", 0.9, 0.9);
+        m.fotograma();
+        m.avanza(20);
+        m.g.mover("a", 0.2, 0.2);
+        m.fotograma();
+        const u = m.enviados.at(-1)!;
+        expect(u.sigue).toBe(true);
+        expect(u.dedos.map((d) => d.id)).toEqual([0, 1]);
+        expect(u.dedos[1].puntos).toEqual([[0.9, 0.9, 0]]);
     });
 });
 

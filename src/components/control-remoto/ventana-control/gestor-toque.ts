@@ -3,8 +3,9 @@
  * `gesto` (puntos por dedo, `sigue:true` mientras haya dedos apoyados, uno final con `sigue:false`).
  * Los puntos se juntan por fotograma (como mucho ~60 órdenes por segundo, contrato §2.4).
  *
- * Decisión: cuando un dedo se levanta habiendo otros apoyados, el gesto se cierra con `sigue:false` (el formato solo
- * dice «sigue» para todos) y los demás dedos se reponen en el aparato con su siguiente punto como un apoyo nuevo.
+ * UNI1115M · costura f: cuando un dedo se levanta habiendo otros apoyados, se manda su último punto y a continuación
+ * un `gesto` con `sigue:true` que NO nombra el dedo levantado: lo nativo lo suelta al instante y los demás siguen abajo.
+ * Por eso cada `gesto` con `sigue:true` nombra TODOS los dedos apoyados (el que no se movió repite su punto, dt 0).
  */
 import type { EntradaControl } from "./tipos";
 
@@ -176,7 +177,7 @@ export class GestorToque {
             if (f.pend.length) {
                 dedos.push({ id: f.id, puntos: f.pend });
                 f.pend = [];
-            } else if (!sigue) {
+            } else {
                 dedos.push({ id: f.id, puntos: [[f.x, f.y, 0]] });
             }
         }
@@ -186,13 +187,14 @@ export class GestorToque {
         return true;
     }
 
-    /** Cierra el gesto (`sigue:false`) levantando las claves dadas; los dedos que quedan se reponen como apoyo nuevo. */
+    /** Levanta las claves dadas: si quedan otros dedos apoyados siguen abajo (`sigue:true` sin el levantado); si no, `sigue:false`. */
     private cerrar(claves: string[]): void {
         const quita = claves.filter((k) => this.dedos.has(k));
         if (!quita.length) return;
         this.cancelarFotograma?.();
         this.cancelarFotograma = null;
-        this.vaciar(false);
+        const quedan = this.dedos.size > quita.length;
+        this.vaciar(quedan);
         for (const k of quita) this.dedos.delete(k);
         if (this.grupoRueda && !this.dedos.has(CLAVE_RUEDA) && !this.dedos.has(CLAVE_PELLIZCO[0])) {
             this.grupoRueda = null;
@@ -200,6 +202,6 @@ export class GestorToque {
             this.cancelarSilencio = null;
         }
         for (const f of this.dedos.values()) f.pend = [[f.x, f.y, 0]];
-        if (this.dedos.size) this.programar();
+        if (this.dedos.size) this.vaciar(true); // el dedo levantado ya no va: lo nativo lo suelta ahora, no al siguiente movimiento
     }
 }

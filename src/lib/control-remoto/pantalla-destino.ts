@@ -96,6 +96,7 @@ export function adelgazar(puntos: [number, number, number][], max = MAX_PUNTOS_D
 
 /** Junta dos gestos seguidos: los puntos de cada dedo se suman (nunca se quita un dedo) y `sigue` es el del último. */
 export function fundirGestos(a: Gesto, b: Gesto): Gesto {
+    // UNI1115M · costura f: `enviar` solo funde gestos con los mismos dedos (si cambian, el levantado se perdería).
     const por = new Map<number, [number, number, number][]>();
     for (const d of a.dedos) por.set(d.id, [...d.puntos]);
     for (const d of b.dedos) por.set(d.id, [...(por.get(d.id) ?? []), ...d.puntos]);
@@ -106,15 +107,26 @@ export function fundirGestos(a: Gesto, b: Gesto): Gesto {
     return { tipo: "gesto", dedos, sigue: b.sigue };
 }
 
+export function mismosDedos(a: Gesto, b: Gesto): boolean {
+    return a.dedos.length === b.dedos.length && a.dedos.every((d) => b.dedos.some((e) => e.id === d.id));
+}
+
 /** Parte un gesto grande en varios que caben en una orden firmada (todos «siguen» menos el último). */
 export function partirGesto(g: Gesto, maxBytes = MAX_ARGS_GESTO_BYTES): Gesto[] {
     const tam = (x: Gesto) => JSON.stringify({ dedos: x.dedos, sigue: x.sigue }).length;
     if (tam(g) <= maxBytes) return [g];
     const mayor = Math.max(...g.dedos.map((d) => d.puntos.length));
     let k = mayor;
+    // UNI1115M · costura f: todos los dedos van en cada trozo (el que ya no tiene puntos repite el último con dt 0),
+    // porque un dedo que un trozo no nombra se levanta.
     const trozo = (j: number, kk: number): Gesto => ({
         tipo: "gesto",
-        dedos: g.dedos.map((d) => ({ id: d.id, puntos: d.puntos.slice(j * kk, (j + 1) * kk) })).filter((d) => d.puntos.length > 0),
+        dedos: g.dedos.map((d) => {
+            const trz = d.puntos.slice(j * kk, (j + 1) * kk);
+            if (trz.length) return { id: d.id, puntos: trz };
+            const u = d.puntos[d.puntos.length - 1];
+            return { id: d.id, puntos: [[u[0], u[1], 0] as [number, number, number]] };
+        }),
         sigue: true,
     });
     while (k > 1 && tam(trozo(0, k)) > maxBytes) k -= 1;
@@ -274,9 +286,10 @@ export class PantallaDestino {
             this.cada(REFRESCO_APARATO_MS, () => void this.leerAparato());
             return;
         }
-        const g = Number(res.giro);
+        // UNI1115M · costura e: los cuadros llegan YA derechos (como los ve la persona en la tableta). El `giro` de lo
+        // nativo es solo informativo: la ventana no gira nada, así la imagen sale derecha y el toque cae donde se hizo.
         this.poner({
-            pantalla: { ancho: Number(res.ancho) || 0, alto: Number(res.alto) || 0, giro: g === 90 || g === 180 || g === 270 ? g : 0 },
+            pantalla: { ancho: Number(res.ancho) || 0, alto: Number(res.alto) || 0, giro: 0 },
             capacidades: capacidadesDeNativo(res.capacidades, nivel),
         });
         try {
@@ -363,7 +376,17 @@ export class PantallaDestino {
         const r = await this.orden("leer-aparato", {}, "ver");
         if (this.cerrada || !r.ok) return;
         const a = (r.resultado as { aparato?: Record<string, unknown> } | undefined)?.aparato;
-        if (a && typeof a === "object") this.poner({ aparato: a as AparatoVentana });
+        if (a && typeof a === "object") {
+            this.poner({ aparato: a as AparatoVentana });
+            // UNI1115M · costura e: si la tableta se giró, los cuadros siguen llegando derechos pero con otra proporción: la ventana la sigue.
+            const p = (a as { pantalla?: { ancho?: unknown; alto?: unknown } }).pantalla;
+            const w = Number(p?.ancho);
+            const h = Number(p?.alto);
+            const ahora = this.snap.pantalla;
+            if (w > 0 && h > 0 && ahora && ahora.ancho > 0 && ahora.alto > 0 && Math.abs(w / h - ahora.ancho / ahora.alto) > 0.02 * (ahora.ancho / ahora.alto)) {
+                this.poner({ pantalla: { ancho: Math.round(w), alto: Math.round(h), giro: 0 } });
+            }
+        }
     }
 
     private async medir(): Promise<void> {
@@ -419,7 +442,7 @@ export class PantallaDestino {
         // Los dedos que esta ventana no admite se quitan, no la orden entera.
         if (e.tipo === "gesto" && c.maxDedos > 0 && e.dedos.length > c.maxDedos) e.dedos = e.dedos.slice(0, c.maxDedos);
         const ult = this.cola[this.cola.length - 1];
-        if (e.tipo === "gesto" && ult?.tipo === "gesto" && ult.sigue) this.cola[this.cola.length - 1] = fundirGestos(ult, e);
+        if (e.tipo === "gesto" && ult?.tipo === "gesto" && ult.sigue && mismosDedos(ult, e)) this.cola[this.cola.length - 1] = fundirGestos(ult, e);
         else if (e.tipo === "volumen" && ult?.tipo === "volumen" && ult.flujo === e.flujo) this.cola[this.cola.length - 1] = e;
         else if (e.tipo === "brillo" && ult?.tipo === "brillo") this.cola[this.cola.length - 1] = e;
         else {

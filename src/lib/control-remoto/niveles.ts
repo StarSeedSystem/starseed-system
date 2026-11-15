@@ -104,7 +104,7 @@ function validarPantallaIniciar(a: Args): Args | null {
         r.lado = a.lado;
     }
     if (a.calidad !== undefined) {
-        if (!entero(a.calidad, 10, 95)) return null;
+        if (!entero(a.calidad, 1, 100)) return null; // UNI1115M · costura b: entero 1..100 en la web y en lo nativo
         r.calidad = a.calidad;
     }
     return r;

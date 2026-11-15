@@ -25,7 +25,7 @@ pub const MAX_CARGA_ORDEN: usize = 4096;
 pub const LIMITE_POR_SEGUNDO: usize = 60;
 pub const MAX_TEXTO: usize = 512;
 pub const MAX_DEDOS: usize = 10;
-pub const MAX_PUNTOS: usize = 200;
+pub const MAX_PUNTOS: usize = 64; // UNI1115M: el mismo tope que el vocabulario de la web (contrato §2.4)
 /// `GestureDescription.getMaxGestureDuration()` es 60 s.
 pub const MAX_GESTO_MS: u64 = 60_000;
 /// Un toque local mantiene el control en pausa hasta que pasan 3 s sin otro (seam, regla 5).
@@ -489,10 +489,9 @@ pub fn escalar(ancho: u32, alto: u32, lado_max: u32) -> (u32, u32) {
     (par(ancho), par(alto))
 }
 
-/// `calidad` puede llegar como fracción (0..1) o como porcentaje (1..100). Sale JPEG 20..=95.
-pub fn calidad_jpeg(calidad: f64) -> u8 {
-    let q = if !calidad.is_finite() { 60.0 } else if calidad <= 1.0 { calidad * 100.0 } else { calidad };
-    q.round().clamp(20.0, 95.0) as u8
+/// UNI1115M · costura b: `calidad` es un entero 1..100 en la web y aquí (sin fracciones). Sale JPEG 20..=95.
+pub fn calidad_jpeg(calidad: u32) -> u8 {
+    calidad.clamp(1, 100).clamp(20, 95) as u8
 }
 
 pub const CABECERA_CUADRO: usize = 12;
@@ -523,6 +522,31 @@ pub fn cuadro_si_nuevo(bytes: &[u8], desde: u32) -> Option<&[u8]> {
 
 #[cfg(test)]
 mod pruebas {
+    /// UNI1115M · costura a (lado Rust): la tabla de la web (`src/lib/control-remoto/nativo-comandos.ts`) y las firmas
+    /// de los comandos de aquí dicen lo mismo. Si uno de los dos lados cambia un nombre, esta prueba falla.
+    #[test]
+    fn los_argumentos_de_los_comandos_son_los_de_la_tabla_de_la_web() {
+        let tabla = include_str!("../../../src/lib/control-remoto/nativo-comandos.ts");
+        let fuentes = [include_str!("control_entrada.rs"), include_str!("control_pantalla.rs")].join("\n");
+        let mut vistos = 0;
+        for linea in tabla.lines() {
+            let l = linea.trim();
+            let Some((nombre, resto)) = l.split_once(": [") else { continue };
+            if !nombre.starts_with("control_") {
+                continue;
+            }
+            let esperados: Vec<&str> = resto.trim_end_matches("],").split(',').map(|a| a.trim().trim_matches('"')).filter(|a| !a.is_empty()).collect();
+            let i = fuentes.find(&format!("pub fn {nombre}(")).unwrap_or_else(|| panic!("{nombre} no existe en Rust"));
+            let firma = &fuentes[i..i + fuentes[i..].find(") ->").unwrap()];
+            let reales: Vec<&str> = firma[firma.find('(').unwrap() + 1..].split(',').map(|a| a.split(':').next().unwrap().trim()).filter(|a| !a.is_empty() && *a != "app" && *a != "webview").collect();
+            assert_eq!(reales, esperados, "argumentos de {nombre}");
+            let atributo = &fuentes[i.saturating_sub(120)..i];
+            assert_eq!(atributo.contains("rename_all = \"snake_case\""), esperados.iter().any(|a| a.contains('_')), "rename_all de {nombre}");
+            vistos += 1;
+        }
+        assert_eq!(vistos, 9, "la tabla tiene los 9 comandos del seam 1 y los extras del panel");
+    }
+
     use super::*;
 
     // Hechos con Node (WebCrypto ECDSA P-256 / SHA-256, `firmarOrdenControl` byte a byte): ver encargos/AND1115K.
@@ -705,10 +729,10 @@ mod pruebas {
         assert_eq!(escalar(800, 600, 1280), (800, 600), "no se amplía");
         assert_eq!(escalar(0, 5, 1280), (0, 0));
         assert_eq!(escalar(2960, 1848, 99_999).0, 2048);
-        assert_eq!(calidad_jpeg(0.6), 60);
-        assert_eq!(calidad_jpeg(75.0), 75);
-        assert_eq!(calidad_jpeg(1.0), 95);
-        assert_eq!(calidad_jpeg(f64::NAN), 60);
+        assert_eq!(calidad_jpeg(60), 60);
+        assert_eq!(calidad_jpeg(75), 75);
+        assert_eq!(calidad_jpeg(100), 95);
+        assert_eq!(calidad_jpeg(0), 20);
         let mut f = cabecera_cuadro(7, 1280, 798, 90).to_vec();
         f.extend_from_slice(&[0xFF, 0xD8, 0xFF, 0xD9]);
         assert_eq!(cuadro_si_nuevo(&f, 6).map(<[u8]>::len), Some(16));

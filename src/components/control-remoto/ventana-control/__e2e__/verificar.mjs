@@ -12,7 +12,7 @@ mkdirSync(salida, { recursive: true });
 const bin = (n) => path.join(raiz, "node_modules/.bin", n);
 execFileSync(bin("esbuild"), [path.join(aqui, "arnes.tsx"), "--bundle", "--outfile=" + path.join(salida, "arnes.js"), "--jsx=automatic", "--define:process.env.NODE_ENV=\"production\"", "--tsconfig=" + path.join(raiz, "tsconfig.json")], { stdio: "inherit", cwd: raiz });
 writeFileSync(path.join(salida, "in.css"), "@tailwind base;@tailwind components;@tailwind utilities;");
-execFileSync(bin("tailwindcss"), ["-i", path.join(salida, "in.css"), "-o", path.join(salida, "arnes.css"), "--content", path.join(aqui, "../*.tsx")], { stdio: "inherit", cwd: raiz });
+execFileSync(bin("tailwindcss"), ["-i", path.join(salida, "in.css"), "-o", path.join(salida, "arnes.css"), "--content", path.join(aqui, "../*.tsx") + "," + path.join(aqui, "../../*.tsx")], { stdio: "inherit", cwd: raiz });
 writeFileSync(path.join(salida, "index.html"), '<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="arnes.css"><div id="raiz"></div><script src="arnes.js"></script>');
 
 const { chromium } = createRequire(path.join(raiz, "package.json"))("playwright");
@@ -64,6 +64,21 @@ await pag.waitForTimeout(500);
 const im = await pag.locator('[data-testid="ventana-control-imagen"]').boundingBox();
 ok(im.width > im.height, `pagina giro 90: la imagen se ve apaisada (${Math.round(im.width)}x${Math.round(im.height)})`);
 await pag.screenshot({ path: path.join(salida, "pagina-giro90-1280.png") });
+// UNI1115M · el panel con una app nativa falsa: lo que falta, el interruptor y quién está aceptado, a los dos anchos
+for (const [ancho, alto] of [[1280, 800], [360, 800]]) {
+    const p = await nav.newPage({ viewport: { width: ancho, height: alto } });
+    const errores = [];
+    p.on("pageerror", (e) => errores.push(String(e)));
+    await p.goto(`file://${salida}/index.html?vista=panel`);
+    await p.waitForSelector('[data-testid="pantalla-entrada-aparato"]', { timeout: 8000 });
+    ok((await p.locator('[data-testid^="falta-ajuste-"]').count()) === 3, `panel ${ancho}: un botón por cada cosa que falta (3) y el interruptor aparte`);
+    ok(await p.getByRole("switch", { name: /Ver la pantalla sin preguntar/ }).isVisible(), `panel ${ancho}: el interruptor «Ver la pantalla sin preguntar en cada sesión» se ve`);
+    ok((await p.locator('[data-testid="aceptados-entrada"]').textContent()).includes("Mac de Alex (código 123-456)"), `panel ${ancho}: dice quién está aceptado`);
+    ok(await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), `panel ${ancho}: sin desplazamiento horizontal`);
+    await p.screenshot({ path: path.join(salida, `panel-${ancho}.png`), fullPage: true });
+    ok(errores.length === 0, `panel ${ancho}: sin errores de página ${errores.join("|")}`);
+    await p.close();
+}
 await nav.close();
 console.log(fallos.length ? `FALLOS: ${fallos.length}` : "TODO OK");
 process.exit(fallos.length ? 1 : 0);

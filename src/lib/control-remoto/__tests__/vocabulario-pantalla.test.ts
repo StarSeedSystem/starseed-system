@@ -89,7 +89,10 @@ describe("tecla, volumen, brillo, texto, pantalla", () => {
     it("pantalla-iniciar: lado y calidad opcionales y acotados", () => {
         expect(v("pantalla-iniciar", {})).toEqual({});
         expect(v("pantalla-iniciar", { lado: 1280, calidad: 60 })).toEqual({ lado: 1280, calidad: 60 });
-        for (const a of [{ lado: 100 }, { lado: 4000 }, { lado: 1280.5 }, { calidad: 5 }, { calidad: 100 }, { otra: 1 }]) expect(v("pantalla-iniciar", a)).toBeNull();
+        // UNI1115M · costura b: calidad es un entero 1..100 (los dos extremos valen)
+        expect(v("pantalla-iniciar", { calidad: 1 })).toEqual({ calidad: 1 });
+        expect(v("pantalla-iniciar", { calidad: 100 })).toEqual({ calidad: 100 });
+        for (const a of [{ lado: 100 }, { lado: 4000 }, { lado: 1280.5 }, { calidad: 0 }, { calidad: 101 }, { calidad: 60.5 }, { calidad: 0.6 }, { otra: 1 }]) expect(v("pantalla-iniciar", a)).toBeNull();
     });
     it("pantalla-parar y leer-aparato no llevan argumentos", () => {
         expect(v("pantalla-parar", {})).toEqual({});

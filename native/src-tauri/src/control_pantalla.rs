@@ -33,21 +33,21 @@ fn activa() -> MutexGuard<'static, Option<Activa>> {
     A.get_or_init(|| Mutex::new(None)).lock().unwrap_or_else(|e| e.into_inner())
 }
 
-/// Seam 1. `lado_max` (lado mayor del cuadro, 160..2048) y `calidad` (0..1 o 1..100) → JPEG.
+/// Seam 1. `lado_max` (lado mayor del cuadro, 160..2048) y `calidad` (entero 1..100, UNI1115M) → JPEG.
 /// La página llama con los nombres en snake_case, tal como están en el seam.
 #[tauri::command(async, rename_all = "snake_case")]
-pub fn control_pantalla_iniciar(app: tauri::AppHandle, webview: tauri::Webview, sesion: String, lado_max: Option<u32>, calidad: Option<f64>) -> Result<Value, String> {
+pub fn control_pantalla_iniciar(app: tauri::AppHandle, webview: tauri::Webview, sesion: String, lado_max: Option<u32>, calidad: Option<u32>) -> Result<Value, String> {
     crate::control_neuronas::pagina_ok(&app, &webview)?;
-    Ok(iniciar(&app, &sesion, lado_max.unwrap_or(1280), calidad.unwrap_or(0.6)))
+    Ok(iniciar(&app, &sesion, lado_max.unwrap_or(1280), calidad.unwrap_or(60)))
 }
 
 #[cfg(not(target_os = "android"))]
-fn iniciar(_app: &tauri::AppHandle, _sesion: &str, _lado: u32, _calidad: f64) -> Value {
+fn iniciar(_app: &tauri::AppHandle, _sesion: &str, _lado: u32, _calidad: u32) -> Value {
     crate::control_entrada::sin_soporte()
 }
 
 #[cfg(target_os = "android")]
-fn iniciar(app: &tauri::AppHandle, sesion: &str, lado: u32, calidad: f64) -> Value {
+fn iniciar(app: &tauri::AppHandle, sesion: &str, lado: u32, calidad: u32) -> Value {
     use crate::control_entrada::es;
     use crate::control_neuronas::{puerta_sesion, ModoPuerta};
     if puerta_sesion(app, sesion, ModoPuerta::Actividad).is_err() {

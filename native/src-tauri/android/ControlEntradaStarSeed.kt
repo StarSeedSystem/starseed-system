@@ -543,7 +543,7 @@ class ServicioControlEntrada : AccessibilityService() {
                 x = (q.getDouble(0).toFloat() * w).coerceIn(0f, w)
                 y = (q.getDouble(1).toFloat() * h).coerceIn(0f, h)
                 if (k == 0 && prev == null) p.moveTo(x, y) else p.lineTo(x, y)
-                if (k > 0) dur += q.optLong(2, 0)
+                if (k > 0 || prev != null) dur += q.optLong(2, 0) // UNI1115M · dt = ms desde el punto anterior de ESE dedo (el primero de un dedo nuevo, 0)
             }
             if (prev != null && dur == 0L) dur = 1
             if (prev == null && pts.length() == 1) dur = 50 // un toque
@@ -553,7 +553,7 @@ class ServicioControlEntrada : AccessibilityService() {
             if (sigue) { nuevos[id] = s; ultimoPunto[id] = floatArrayOf(x, y) } else ultimoPunto.remove(id)
             if (dur > duracionMax) duracionMax = dur
         }
-        if (!sigue) ultimoPunto.keys.retainAll(nuevos.keys)
+        ultimoPunto.keys.retainAll(nuevos.keys) // UNI1115M · un dedo que esta orden no nombra ya se soltó (costura f)
         despachando = true
         ControlEntradaNativo.gestoPropioHasta = System.currentTimeMillis() + duracionMax + 500 // el toque que se oye es nuestro
         val ok = try {
