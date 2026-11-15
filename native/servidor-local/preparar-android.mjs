@@ -44,7 +44,7 @@ const SRC_TAURI = path.join(RAIZ_REPO, "native", "src-tauri");
 
 /** Lo que el envoltorio necesita a su lado (lo mismo que copia preparar.mjs; una prueba lo vigila). */
 export const ARCHIVOS_ENVOLTORIO = ["starseed-arranque.cjs", "migracion-origen.js", "guarda.cjs", "puerta.cjs"];
-export const KOTLIN = ["ServidorLocal.kt", "ServidorLocalLogica.kt"];
+export const KOTLIN = ["ServidorLocal.kt", "ServidorLocalLogica.kt", "CapasAndroid.kt"]; // AND1114L: CapasAndroid.kt (capas)
 export const PAQUETE_KOTLIN = "app/starseed/nativa";
 export const DIR_ASSETS = "servidor-local";
 export const RED_LOCAL = "starseed_red_local";
@@ -341,7 +341,7 @@ export async function prepararAndroid(a) {
     }
     fs.writeFileSync(
       path.join(dirServidor, "starseed-servidor.json"),
-      JSON.stringify({ version, commit, buildId, node: `nodejs-mobile ${nm.version} (Node ${nm.node})`, plataforma: "android", imagenes: sinSharp ? "sin-optimizar" : "sharp", creado: new Date().toISOString() }, null, 2) + "\n",
+      JSON.stringify({ version, commit, buildId, node: `nodejs-mobile ${nm.version} (Node ${nm.node})`, plataforma: "android", creadoMs: Date.now(), imagenes: sinSharp ? "sin-optimizar" : "sharp", creado: new Date().toISOString() }, null, 2) + "\n",
     );
     const tam = medir(dirServidor);
     const zipServidor = path.join(trabajo, "servidor.zip");

@@ -16,6 +16,8 @@ import { esAppNativa, puenteNativo } from "./puente";
 
 export const COMANDO_ESTADO_SERVIDOR = "servidor_local_estado";
 export const COMANDO_ACTUALIZAR_SERVIDOR = "servidor_local_actualizar";
+/** (AND1114L) «Buscar ahora» la web nueva: despierta al vigía de las capas sin esperar a su reloj. */
+export const COMANDO_BUSCAR_SERVIDOR = "servidor_local_buscar";
 
 /** Lo que devuelve el comando (los campos opcionales pueden faltar o venir null). */
 export interface EstadoServidorLocal {
@@ -46,6 +48,18 @@ export interface EstadoServidorLocal {
   web_nueva?: string | null;
   /** (ACT1114H) "al-dia" | "capa-lista" | "sin-capa" | "sin-datos" */
   relevo?: string | null;
+  /** (AND1114L) Cuándo se miró por última vez la web publicada (ms Unix); null = aún no. */
+  ultima_mirada_ms?: number | null;
+  /** (AND1114L) Las últimas líneas `[capas]` del registro del aparato, para mandarlas al Mac. */
+  capas_lineas?: LineaCapas[];
+  /** (AND1114L) "escritorio" | "android". */
+  plataforma?: string | null;
+}
+
+export interface LineaCapas {
+  n: number;
+  t: number;
+  texto: string;
 }
 
 export type TonoServidor = "ok" | "info" | "aviso" | "error" | "neutro";
@@ -69,6 +83,18 @@ const build1 = (v: unknown): string | null => {
 };
 /** Los primeros 8 caracteres de un build (como `corto` en Rust). */
 export const buildCorto = (b: string): string => b.slice(0, 8);
+
+/** (AND1114L) Las líneas `[capas]` bien formadas (máx. 60, texto recortado). */
+function lineasCapas(v: unknown): LineaCapas[] {
+  if (!Array.isArray(v)) return [];
+  const out: LineaCapas[] = [];
+  for (const x of v.slice(-60)) {
+    if (!x || typeof x !== "object") continue;
+    const o = x as Record<string, unknown>;
+    if (typeof o.n === "number" && typeof o.t === "number" && typeof o.texto === "string" && o.texto) out.push({ n: o.n, t: o.t, texto: o.texto.slice(0, 400) });
+  }
+  return out;
+}
 
 /** Valida la respuesta del comando; null si no es un estado reconocible. */
 export function interpretarEstadoServidor(raw: unknown): EstadoServidorLocal | null {
@@ -95,6 +121,9 @@ export function interpretarEstadoServidor(raw: unknown): EstadoServidorLocal | n
     web_publicada: texto1(r.web_publicada),
     web_nueva: texto1(r.web_nueva),
     relevo: texto1(r.relevo),
+    ultima_mirada_ms: typeof r.ultima_mirada_ms === "number" && Number.isFinite(r.ultima_mirada_ms) && r.ultima_mirada_ms > 0 ? r.ultima_mirada_ms : null,
+    capas_lineas: lineasCapas(r.capas_lineas),
+    plataforma: texto1(r.plataforma),
   };
 }
 
@@ -185,5 +214,17 @@ export async function consultarEstadoServidor(deps: DepsEstadoServidor = DEPS_RE
     return r.ok ? interpretarEstadoServidor(r.valor) : null;
   } catch {
     return null;
+  }
+}
+
+/** (AND1114L) «Buscar ahora» la web nueva en la app nativa (escritorio y Android). Nunca lanza. */
+export async function pedirBuscarServidor(deps: DepsEstadoServidor = DEPS_REALES): Promise<{ ok: boolean; mensaje: string }> {
+  try {
+    if (!deps.nativa()) return { ok: false, mensaje: "Solo en la app nativa de StarSeed OS." };
+    const r = await deps.llamar(COMANDO_BUSCAR_SERVIDOR);
+    if (r.ok) return { ok: true, mensaje: typeof r.valor === "string" && r.valor ? r.valor : "Buscando la web nueva…" };
+    return { ok: false, mensaje: r.motivo || "No se pudo buscar la web nueva." };
+  } catch (x) {
+    return { ok: false, mensaje: x instanceof Error ? x.message : String(x) };
   }
 }

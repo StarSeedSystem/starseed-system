@@ -75,6 +75,12 @@ pub struct EstadoServidorLocal {
     pub web_nueva: Option<String>,
     /// (ACT1114H) "al-dia" | "capa-lista" | "sin-capa" | "sin-datos"
     pub relevo: Option<String>,
+    /// (AND1114L) Cuándo se miró por última vez la web publicada (ms Unix); None = aún no.
+    pub ultima_mirada_ms: Option<u64>,
+    /// (AND1114L) Las últimas líneas `[capas]` ({n, t, texto}): la web las manda al Mac con el resto de líneas del aparato.
+    pub capas_lineas: Vec<serde_json::Value>,
+    /// (AND1114L) "escritorio" | "android".
+    pub plataforma: Option<String>,
 }
 
 struct Proceso {
@@ -132,6 +138,9 @@ pub fn servidor_local_estado() -> EstadoServidorLocal {
     e.web_publicada = p.web_publicada;
     e.web_nueva = p.web_nueva;
     e.relevo = p.relevo;
+    e.ultima_mirada_ms = p.ultima_mirada_ms; // AND1114L
+    e.capas_lineas = crate::servidor_capas::lineas_recientes().into_iter().map(|x| serde_json::json!({ "n": x.n, "t": x.t, "texto": x.texto })).collect();
+    e.plataforma = Some("escritorio".into());
     e
 }
 
@@ -158,6 +167,19 @@ pub fn servidor_local_actualizar(webview: tauri::Webview) -> Result<String, Stri
     crate::servidor_capas::al_pedir_relevo(); // ACT1114H: «relevo pedido: web=<antes> -> web=<después>»
     let _ = std::thread::Builder::new().name("servidor-local-relevo".into()).spawn(detener_proceso);
     Ok("Reiniciando el servidor local con la capa nueva: la página se recargará sola.".into())
+}
+
+/// (AND1114L) «Buscar ahora» la web nueva: el vigía mira ya la web publicada y el canal.
+#[tauri::command]
+pub fn servidor_local_buscar(webview: tauri::Webview) -> Result<String, String> {
+    let e = servidor_local_estado();
+    let puerto = e.puerto.filter(|_| e.fase == "local").ok_or("El servidor local no está sirviendo ahora.")?;
+    let url = webview.url().map_err(|x| x.to_string())?;
+    if webview.label() != "main" || !l::es_url_local(url.as_str(), puerto) {
+        return Err("Solo la app, desde su servidor local, puede pedirlo.".into());
+    }
+    crate::servidor_capas::pedir_busqueda();
+    Ok("Buscando la web nueva…".into())
 }
 
 /// ¿Se está cerrando la app? (lo mira el vigía de las capas).

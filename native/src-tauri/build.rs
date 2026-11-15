@@ -156,6 +156,7 @@ const COMANDOS_APP: &[&str] = &[
     "acceso_equipo_revocar",
     "servidor_local_estado",
     "servidor_local_actualizar",
+    "servidor_local_buscar", // AND1114L
     "migracion_origen_exportar",
     "migracion_origen_estado",
     "migracion_origen_datos",

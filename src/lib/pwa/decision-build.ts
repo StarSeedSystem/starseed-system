@@ -12,7 +12,10 @@ export type DecisionBuild =
   | "tope" // ya se recargó el máximo de veces en la ventana: no se insiste (se recupera solo, ver `recargasEnVentana`)
   // (ACT1114J) La página sale de una copia propia (servidor local de la app, p. ej. dentro de la APK): su /version.json
   // es la copia, recargar devuelve la MISMA build. Solo un relevo nativo o una APK nueva la cambian: aquí no se recarga.
-  | "local-sin-relevo";
+  | "local-sin-relevo"
+  // (AND1114L) La página sale de una copia propia Y la app nativa dice que releva capas (escritorio y Android): el cambio lo hace
+  // el relevo nativo (`relevo-capa.ts`, con esta misma regla de «momento seguro»); aquí no se recarga ni se espera nada.
+  | "relevo-nativo";
 
 export interface EntradaDecisionBuild {
   corriendo: string | null;
@@ -24,13 +27,15 @@ export interface EntradaDecisionBuild {
   topeRecargas: number;
   /** (ACT1114J) true si la página se sirve desde 127.0.0.1/localhost: recargar no trae otra build. */
   origenLocal?: boolean;
+  /** (AND1114L) true si la app nativa que sirve la copia local dijo que releva capas (`servidor_local_estado.relevo` presente). */
+  relevoNativo?: boolean;
 }
 
 export const TOPE_RECARGAS_SESION = 2;
 
 export function decidirCambioBuild(e: EntradaDecisionBuild): DecisionBuild {
   if (!e.corriendo || !e.publicada || e.corriendo === e.publicada) return "al-dia";
-  if (e.origenLocal) return "local-sin-relevo";
+  if (e.origenLocal) return e.relevoNativo ? "relevo-nativo" : "local-sin-relevo";
   if (!e.enLinea) return "esperar-red";
   if (e.recargasEstaSesion >= e.topeRecargas) return "tope";
   if (e.enLlamada) return "esperar-llamada";
