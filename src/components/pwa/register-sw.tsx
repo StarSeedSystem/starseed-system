@@ -4,7 +4,10 @@ import { useEffect } from "react";
 
 import { puedeRecargarSuave, suscribirseAvisoVersion } from "@/lib/pwa/aviso-version";
 import { buildCorriendo } from "@/lib/pwa/build-corriendo";
-import { decidirCambioBuild, MIRAR_CADA_MS, REINTENTO_ESPERA_MS, TOPE_RECARGAS_SESION } from "@/lib/pwa/decision-build";
+import {
+  anotarRecarga, decidirCambioBuild, esOrigenLocal, lineaVersionWeb, MIRAR_CADA_MS, recargasHechasEnVentana, REINTENTO_ESPERA_MS,
+  TOPE_RECARGAS_SESION, urlVersionPublicada,
+} from "@/lib/pwa/decision-build";
 import { EVENTO_PRECARGA, estadoDeMensaje, pedirAlmacenPersistente, pedirPrecarga } from "@/lib/pwa/precarga-cliente";
 
 /** (SW1107A) Primera pasada de precarga: cuando el arranque ya terminó, para no competir con él. */
@@ -71,12 +74,11 @@ export function RegisterSW() {
     const applyUpdate = () => {
       if (reloaded) return;
       reloaded = true;
+      // (ACT1114J) Tope con ventana: máx. TOPE_RECARGAS_SESION recargas cada 10 min. Antes era un contador por sesión que
+      // en una app abierta días quedaba en «tope» para siempre; ahora se levanta solo al envejecer la marca más antigua.
       try {
-        const k = "ss:swreloads";
-        const n = parseInt(sessionStorage.getItem(k) || "0", 10);
-        if (n >= 2) return; // ya recargamos 2 veces esta sesión: no insistir
-        sessionStorage.setItem(k, String(n + 1));
-      } catch { /* */ }
+        if (!anotarRecarga(sessionStorage)) return;
+      } catch { /* sin almacén: se sigue */ }
       try { window.location.reload(); } catch { /* */ }
     };
     // Expuesto para que Ajustes / el banner puedan aplicar la actualización.
@@ -138,16 +140,26 @@ export function RegisterSW() {
     try {
       let initial: string | null = propia;
       if (propia) { try { (window as unknown as { STARSEED_BUILD_INICIAL?: string }).STARSEED_BUILD_INICIAL = propia; } catch { /* */ } }
-      const recargasHechas = () => { try { return parseInt(sessionStorage.getItem("ss:swreloads") || "0", 10) || 0; } catch { return 0; } };
+      const recargasHechas = () => { try { return recargasHechasEnVentana(sessionStorage); } catch { return 0; } };
+      // (ACT1114J) Una línea por comprobación que decide, por el mismo registro de enlaces que llega al Mac (enlaces.log).
+      const anotar = (publicada: string | null, decision: Parameters<typeof lineaVersionWeb>[2], origen: "local" | "publicado") => {
+        void import("@/lib/llamadas/voz-datos/diagnostico").then((m) => m.anotarLlamada("web-version", null, lineaVersionWeb(initial, publicada, decision, origen))).catch(() => { /* */ });
+      };
       checkBuild = async () => {
         if (cancelled || document.visibilityState !== "visible") return;
         if (esperaT) { clearTimeout(esperaT); esperaT = null; }
         try {
-          const res = await fetch("/version.json", { cache: "no-store" });
-          if (!res.ok) return;
-          const v = (await res.json())?.build as string | undefined;
-          if (!v) return;
+          // (ACT1114J) En una copia local (servidor propio de la app) /version.json es ELLA MISMA: se lee la publicada.
+          const local = esOrigenLocal(window.location.hostname);
+          const origen = local ? "local" : "publicado";
+          let v: string | undefined;
+          try {
+            const res = await fetch(urlVersionPublicada(window.location.hostname), { cache: "no-store" });
+            if (res.ok) v = (await res.json())?.build as string | undefined;
+          } catch { /* sin red o sin permiso: se anota abajo */ }
+          if (!v) { anotar(null, "sin-dato", origen); return; }
           if (initial === null) {
+            anotar(v, "sin-id", origen);
             initial = v;
             try { (window as unknown as { STARSEED_BUILD_INICIAL?: string }).STARSEED_BUILD_INICIAL = v; } catch { /* */ }
             return;
@@ -157,9 +169,11 @@ export function RegisterSW() {
           const d = decidirCambioBuild({
             corriendo: initial, publicada: v, enLlamada, escribiendo: !puedeRecargarSuave(),
             enLinea: typeof navigator === "undefined" || navigator.onLine !== false,
-            recargasEstaSesion: recargasHechas(), topeRecargas: TOPE_RECARGAS_SESION,
+            recargasEstaSesion: recargasHechas(), topeRecargas: TOPE_RECARGAS_SESION, origenLocal: local,
           });
+          anotar(v, d, origen);
           if (d === "al-dia" || d === "tope") return;
+          if (d === "local-sin-relevo") return; // copia local: recargar no cambia nada; queda dicho en el registro
           if (d !== "aplicar") {
             // No es el momento: se avisa al banner y se reintenta pronto; cambia en el primer momento seguro.
             try { window.dispatchEvent(new Event("starseed:update-ready")); } catch { /* */ }
