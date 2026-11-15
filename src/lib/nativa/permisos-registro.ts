@@ -23,6 +23,8 @@ export type IdPermiso =
   | "microfono"
   | "camara"
   | "ubicacion-wifi"
+  // UBI1114K
+  | "ubicacion"
   | "cercanos"
   | "llamadas"
   | "instalar"
@@ -67,6 +69,7 @@ export type AccionPermiso = "pedir" | "abrir-ajustes" | "por-uso" | "nada" | "ma
 
 export type IdFuncion =
   | "malla-radios"
+  | "mapa-senales"
   | "llamadas"
   | "avisos"
   | "actualizacion-sola"
@@ -122,6 +125,7 @@ export type EstadoFuncion = "existe" | "a-medias" | "falta";
 /** Lo que cada función es HOY en el código (medido el 2026-11-11; contrato §3). */
 export const FUNCIONES: Record<IdFuncion, { titulo: string; estado: EstadoFuncion; fase: number }> = {
   "malla-radios": { titulo: "Antenas de la malla (Bluetooth, red local, Wi-Fi directo)", estado: "existe", fase: 1 },
+  "mapa-senales": { titulo: "Mapa de Señales con la posición de este aparato", estado: "existe", fase: 1 },
   llamadas: { titulo: "Llamadas de voz y vídeo", estado: "existe", fase: 1 },
   avisos: { titulo: "Avisos de mensajes y llamadas", estado: "existe", fase: 1 },
   "actualizacion-sola": { titulo: "Actualizarse sola", estado: "existe", fase: 1 },
@@ -161,6 +165,15 @@ const BASE: Record<IdPermiso, Base> = {
     porQue: "El sistema la pide para dejar ver el nombre de las redes Wi-Fi (red directa con tu Android). StarSeed no usa ni guarda tu ubicación.",
     desde: 1,
     funciones: ["malla-radios"],
+  },
+  // UBI1114K · la posición del aparato para el mapa de Señales y «Usar mi ubicación» (ubicacion.rs). Es el MISMO permiso
+  // del sistema que «Ubicación (nombres de Wi-Fi)» en macOS y Windows: allí se muestran los dos con su motivo.
+  ubicacion: {
+    grupo: "malla",
+    titulo: "Ubicación (mapa)",
+    porQue: "Para situar este aparato en el mapa de Señales y en «Usar mi ubicación». Solo se pide cuando tú lo pides; la posición exacta solo la ven tus otras neuronas.",
+    desde: 1,
+    funciones: ["mapa-senales"],
   },
   cercanos: {
     grupo: "malla",
@@ -311,6 +324,7 @@ const MACOS: [IdPermiso, Especifico][] = [
   ["bluetooth", { como: "aviso", lectura: "si", fase: 1 }],
   ["red-local", { como: "aviso", lectura: "parcial", fase: 1, nota: "macOS no deja leer este permiso: se deduce de si la malla local responde." }],
   ["ubicacion-wifi", { como: "aviso", lectura: "si", fase: 1, opcional: true }],
+  ["ubicacion", { como: "aviso", lectura: "si", fase: 1, opcional: true, nota: "Es el mismo permiso «Localización» de macOS que el de los nombres de Wi-Fi: el aviso sale una sola vez. Si lo negaste, se cambia en Ajustes del Sistema › Privacidad y seguridad › Localización." }],
   ["notificaciones", { como: "aviso", lectura: "parcial", fase: 1 }],
   ["microfono", { como: "aviso", lectura: "si", fase: 1 }],
   ["camara", { como: "aviso", lectura: "si", fase: 1 }],
@@ -336,6 +350,7 @@ const MACOS: [IdPermiso, Especifico][] = [
 
 const ANDROID: [IdPermiso, Especifico][] = [
   ["cercanos", { como: "aviso", lectura: "si", fase: 1 }],
+  ["ubicacion", { como: "aviso", lectura: "si", fase: 1, opcional: true, nota: "Android 12+ deja dar solo la ubicación aproximada; el mapa lo dice. Si la negaste, se cambia en Ajustes › Aplicaciones › StarSeed › Permisos › Ubicación." }],
   ["nfc", { como: "declaracion", lectura: "si", fase: 6 }],
   ["notificaciones", { como: "aviso", lectura: "si", fase: 1 }],
   ["microfono", { como: "aviso", lectura: "si", fase: 1 }],
@@ -376,6 +391,7 @@ const WINDOWS: [IdPermiso, Especifico][] = [
     "ubicacion-wifi",
     { como: "por-uso", lectura: "no", fase: 1, opcional: true, nota: "Desde Windows 11 24H2 ver el nombre de las redes Wi-Fi pide «Ubicación» para apps de escritorio." },
   ],
+  ["ubicacion", { como: "por-uso", lectura: "no", fase: 1, opcional: true, nota: "En Windows el mapa usa la ubicación del navegador; si no la da, Configuración › Privacidad y seguridad › Ubicación." }],
   ["notificaciones", { como: "nada", lectura: "no", fase: 1, nota: "Activadas por defecto; se apagan en Configuración › Notificaciones." }],
   ["microfono", { como: "por-uso", lectura: "no", fase: 1, nota: "Permitido salvo que hayas apagado «Permitir que las apps de escritorio accedan al micrófono»." }],
   ["camara", { como: "por-uso", lectura: "no", fase: 1, nota: "Permitida salvo que hayas apagado «Permitir que las apps de escritorio accedan a la cámara»." }],

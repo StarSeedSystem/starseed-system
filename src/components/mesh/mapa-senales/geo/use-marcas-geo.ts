@@ -16,6 +16,7 @@ import {
 } from "@/lib/senales/geo/almacen-posicion";
 import type { PosicionCruda } from "@/lib/senales/geo/modelo-geo";
 import { ESTADO_INICIAL, type CanalPosicion, type EstadoCanalPosicion } from "@/lib/senales/geo/canal-posicion";
+import { observarPermisoUbicacion } from "@/lib/senales/geo/fuente-posicion";
 import { mismosEnlaces, type EnlaceMedido } from "@/lib/senales/geo/enlaces-medidos";
 import { abrirCanalPosicionReal, leerEnlacesMedidosReales } from "@/lib/senales/geo/fuentes-vivas";
 import type { MiPosicion } from "@/components/map/map-view-extension";
@@ -49,20 +50,8 @@ const PUBLICAR_CADA_MS = 4_000;
 
 export function usePermisoUbicacion(): PermisoUbicacion {
   const [p, setP] = useState<PermisoUbicacion>("desconocido");
-  useEffect(() => {
-    let vivo = true;
-    let st: PermissionStatus | null = null;
-    const leer = () => { if (vivo && st) setP(st.state === "granted" ? "concedido" : st.state === "denied" ? "denegado" : "por-pedir"); };
-    void (async () => {
-      try {
-        st = (await navigator.permissions?.query({ name: "geolocation" as PermissionName })) ?? null;
-        if (!st) return;
-        leer();
-        st.addEventListener("change", leer);
-      } catch { /* sin API de permisos: desconocido */ }
-    })();
-    return () => { vivo = false; try { st?.removeEventListener("change", leer); } catch { /* */ } };
-  }, []);
+  // (UBI1114K) En la app nativa lo dice el sistema (`ubicacion_estado`); en un navegador, `navigator.permissions`.
+  useEffect(() => observarPermisoUbicacion(setP), []);
   return p;
 }
 

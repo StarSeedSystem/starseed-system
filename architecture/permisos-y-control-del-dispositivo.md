@@ -70,6 +70,7 @@ de la fase 4).
 |---|---|---|---|---|---|
 | Bluetooth | Bluetooth | aviso (al arrancar CoreBluetooth; texto `NSBluetoothAlwaysUsageDescription`) | `…security?Privacy_Bluetooth` | sí: `+[CBManager authorization]` | normal |
 | Red local | Red local (macOS 15+) | aviso (al primer envío multicast/local; `NSLocalNetworkUsageDescription`) | `…security?Privacy_LocalNetwork` **(¿?** ancla nueva de macOS 15) | **no** hay API: se deduce de si la malla local responde | normal |
+| Ubicación (mapa) — `ubicacion` (UBI1114K) | Localización (el MISMO permiso que la fila de arriba) | aviso, solo cuando la persona pulsa «Usar mi ubicación» (`ubicacion_ahora`) | `…security?Privacy_LocationServices` | sí: `+[CLLocationManager authorizationStatus]` | decir los DOS usos (Wi-Fi y mapa); contrato `architecture/ubicacion-nativa.md` |
 | Ubicación (nombres de Wi-Fi) | Localización | aviso (`requestWhenInUseAuthorization`) | `…security?Privacy_LocationServices` | sí: `+[CLLocationManager authorizationStatus]` | normal; decir que no se usa la ubicación |
 | Notificaciones | Notificaciones | aviso (plugin de notificaciones) | `x-apple.systempreferences:com.apple.preference.notifications` | parcial: `isPermissionGranted` del plugin (no distingue «negado» de «sin preguntar») | normal |
 | Micrófono / Cámara | Micrófono / Cámara | aviso (WebKit con los textos de Info.plist) | `…security?Privacy_Microphone` / `Privacy_Camera` | sí: `+[AVCaptureDevice authorizationStatusForMediaType:]` | normal |
@@ -88,6 +89,7 @@ de la fase 4).
 | Permiso | Nombre en el sistema | Cómo | Pantalla (intent) | Leer | Tienda (Play) |
 |---|---|---|---|---|---|
 | Dispositivos cercanos | `BLUETOOTH_SCAN/CONNECT/ADVERTISE` (12+), `NEARBY_WIFI_DEVICES` (13+); ubicación hasta 12 | aviso | ficha de la app | sí | normal con `neverForLocation` |
+| Ubicación (mapa) — `ubicacion` (UBI1114K) | `ACCESS_FINE_LOCATION` / `ACCESS_COARSE_LOCATION` (aproximada o exacta, Android 12+) | aviso, solo con `pedir` (`ubicacion_ahora`) | ficha de la app | sí (`servicio.json › ubicacion`) | sensible: declarar uso en primer plano; nunca `ACCESS_BACKGROUND_LOCATION` |
 | NFC | `NFC` | declaración (normal, sin pregunta) | — | sí (`NfcAdapter.isEnabled`) | normal |
 | UWB | `UWB_RANGING` (12+) | aviso | — | sí | normal. No hay función que lo use aún |
 | Notificaciones | `POST_NOTIFICATIONS` (13+) | aviso | `ACTION_APP_NOTIFICATION_SETTINGS` | sí | normal |
@@ -119,6 +121,7 @@ más de lo que se usa.
 | Bluetooth, NFC, Wi-Fi Direct | nada (las apps de escritorio no piden consentimiento; las API WinRT sí miran «Radios») | `ms-settings:bluetooth` | sí | — |
 | Red local | por uso: **el Firewall de Windows pregunta** la primera vez que la neurona escucha fuera de 127.0.0.1 | — | no | elegir «Redes privadas» |
 | Ubicación (nombres de Wi-Fi) | por uso: desde **Windows 11 24H2** las API WLAN piden «Ubicación» también a apps de escritorio | `ms-settings:privacy-location` | no | — |
+| Ubicación (mapa) — `ubicacion` (UBI1114K) | por uso: el mapa usa la ubicación del navegador (no hay vía nativa en Windows) | `ms-settings:privacy-location` | no | — |
 | Micrófono / Cámara | por uso: permitidos salvo que la persona apague «Permitir que las apps de escritorio…» | `ms-settings:privacy-microphone` / `privacy-webcam` | no (solo intentándolo) | — |
 | Notificaciones | nada (activadas por defecto) | `ms-settings:notifications` | no | — |
 | Pantalla | nada: cualquier app de escritorio captura (Graphics Capture enseña un borde amarillo) | — | — | — |

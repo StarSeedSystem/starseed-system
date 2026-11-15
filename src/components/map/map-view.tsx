@@ -68,6 +68,7 @@ import {
     type RainViewerData,
     type PlaceHit,
 } from "@/lib/map/map-config";
+import { fuenteGeolocalizacion, motivoParaAviso, observarPermisoUbicacion, type ErrorPosicion } from "@/lib/senales/geo/fuente-posicion";
 import {
     fetchGeoPosts,
     fetchGeoEvents,
@@ -396,8 +397,8 @@ export function MapView({ className, extension }: { className?: string; extensio
             drawerRef.current = null;
             try { presenceRef.current?.stop(); } catch { /* noop */ }
             presenceRef.current = null;
-            if (geoWatchRef.current != null && typeof navigator !== "undefined") {
-                try { navigator.geolocation.clearWatch(geoWatchRef.current); } catch { /* noop */ }
+            if (geoWatchRef.current != null) {
+                try { fuenteGeolocalizacion()?.clearWatch(geoWatchRef.current); } catch { /* noop */ }
                 geoWatchRef.current = null;
             }
             if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
@@ -778,10 +779,10 @@ export function MapView({ className, extension }: { className?: string; extensio
     }, [ready, peers]);
 
     // ── GPS: watch cuando comparto o sigo mi posición ──
-    const applyMyPosition = useCallback((lat: number, lng: number, accuracy?: number) => {
+    const applyMyPosition = useCallback((lat: number, lng: number, accuracy?: number | null, medidaT?: number) => {
         const L = lRef.current, map = mapRef.current;
         if (!L || !map) return;
-        extRef.current?.onMiPosicion?.({ lat, lng, accuracy: typeof accuracy === "number" && Number.isFinite(accuracy) ? accuracy : null, t: Date.now() });
+        extRef.current?.onMiPosicion?.({ lat, lng, accuracy: typeof accuracy === "number" && Number.isFinite(accuracy) ? accuracy : null, t: typeof medidaT === "number" && Number.isFinite(medidaT) ? medidaT : Date.now() });
         if (extRef.current?.ocultarPuntoPropio) return;
         try {
             if (!myLocRef.current) {
@@ -814,20 +815,21 @@ export function MapView({ className, extension }: { className?: string; extensio
 
     useEffect(() => {
         const shouldWatch = following || shareCfg.mode !== "off" || extVigilar;
-        if (typeof navigator === "undefined" || !navigator.geolocation) return;
+        const geo = fuenteGeolocalizacion();
+        if (!geo) return;
         if (!shouldWatch) {
             if (geoWatchRef.current != null) {
-                try { navigator.geolocation.clearWatch(geoWatchRef.current); } catch { /* noop */ }
+                try { geo.clearWatch(geoWatchRef.current); } catch { /* noop */ }
                 geoWatchRef.current = null;
             }
             return;
         }
         if (geoWatchRef.current != null) return; // ya vigilando
         try {
-            geoWatchRef.current = navigator.geolocation.watchPosition(
+            geoWatchRef.current = geo.watchPosition(
                 (pos) => {
                     const { latitude, longitude, accuracy } = pos.coords;
-                    applyMyPosition(latitude, longitude, accuracy);
+                    applyMyPosition(latitude, longitude, accuracy, pos.timestamp);
                     if (centrarPendienteRef.current && mapRef.current) {
                         centrarPendienteRef.current = false;
                         try { mapRef.current.setView([latitude, longitude], extRef.current?.zoomAlCentrar ?? 18); } catch { /* noop */ }
@@ -843,12 +845,12 @@ export function MapView({ className, extension }: { className?: string; extensio
                         }
                     }
                 },
-                () => {
-                    if (extRef.current?.onErrorUbicacion) extRef.current.onErrorUbicacion("el navegador negó la ubicación o no pudo darla");
+                (e: ErrorPosicion) => {
+                    if (extRef.current?.onErrorUbicacion) extRef.current.onErrorUbicacion(motivoParaAviso(e));
                     else {
                         toast({
                             title: "Sin acceso al GPS",
-                            description: "Concede permiso de ubicación al navegador para usar esta función.",
+                            description: e.message,
                             variant: "destructive",
                         });
                     }
@@ -859,7 +861,7 @@ export function MapView({ className, extension }: { className?: string; extensio
         } catch { /* noop */ }
         return () => {
             if (geoWatchRef.current != null) {
-                try { navigator.geolocation.clearWatch(geoWatchRef.current); } catch { /* noop */ }
+                try { geo.clearWatch(geoWatchRef.current); } catch { /* noop */ }
                 geoWatchRef.current = null;
             }
         };
@@ -867,25 +869,27 @@ export function MapView({ className, extension }: { className?: string; extensio
 
     // "Mi ubicación": centra y activa seguimiento.
     const locateMe = useCallback(() => {
-        if (typeof navigator === "undefined" || !navigator.geolocation) {
+        const geo = fuenteGeolocalizacion();
+        if (!geo) {
             toast({ title: "GPS no disponible", description: "Este navegador no expone geolocalización.", variant: "destructive" });
             return;
         }
-        navigator.geolocation.getCurrentPosition(
+        // Aquí, y solo aquí, puede salir el aviso de ubicación del propio sistema: la persona acaba de pulsar el botón.
+        geo.getCurrentPosition(
             (pos) => {
                 const { latitude, longitude, accuracy } = pos.coords;
-                applyMyPosition(latitude, longitude, accuracy);
+                applyMyPosition(latitude, longitude, accuracy, pos.timestamp);
                 try { mapRef.current?.setView([latitude, longitude], Math.max(mapRef.current.getZoom(), 15)); } catch { /* noop */ }
                 setFollowing(true);
             },
-            () => {
+            (e: ErrorPosicion) => {
                 if (extRef.current?.onErrorUbicacion) {
-                    extRef.current.onErrorUbicacion("no diste permiso de ubicación o el aparato no pudo darla");
+                    extRef.current.onErrorUbicacion(motivoParaAviso(e));
                     return;
                 }
                 toast({
                     title: "Sin acceso al GPS",
-                    description: "Concede permiso de ubicación al navegador.",
+                    description: e.message,
                     variant: "destructive",
                 });
             },
@@ -898,17 +902,16 @@ export function MapView({ className, extension }: { className?: string; extensio
     useEffect(() => {
         const ext = extRef.current;
         if (!ready || !ext?.centrarEnMiUbicacion) return;
-        if (typeof navigator === "undefined" || !navigator.geolocation) return;
-        let alive = true;
-        void (async () => {
-            try {
-                const st = await navigator.permissions?.query({ name: "geolocation" as PermissionName });
-                if (!alive || st?.state !== "granted") return;
-                centrarPendienteRef.current = true;
-                setFollowing(true);
-            } catch { /* sin API de permisos: no se centra solo */ }
-        })();
-        return () => { alive = false; };
+        if (!fuenteGeolocalizacion()) return;
+        let hecho = false;
+        // Nunca pregunta: solo se centra si el permiso YA estaba concedido (en la app nativa lo dice el sistema).
+        const baja = observarPermisoUbicacion((p) => {
+            if (hecho || p !== "concedido") return;
+            hecho = true;
+            centrarPendienteRef.current = true;
+            setFollowing(true);
+        });
+        return baja;
     }, [ready]);
 
     const extCtx = useMemo<MapExtensionCtx | null>(() => {

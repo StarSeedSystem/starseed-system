@@ -50,7 +50,8 @@
     "publisher": "StarSeedSystem",
     "macOS": {
       "minimumSystemVersion": "10.15",
-      "hardenedRuntime": false
+      "hardenedRuntime": false,
+      "entitlements": "Entitlements.plist"
     },
     "windows": {
       "nsis": {

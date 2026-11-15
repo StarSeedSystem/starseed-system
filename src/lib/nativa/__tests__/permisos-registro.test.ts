@@ -137,6 +137,10 @@ describe("contrato con la app nativa", () => {
       rs,
       readFileSync(join(process.cwd(), "src/lib/nativa/permisos-inicio-ejecutor.ts"), "utf8"),
       readFileSync(join(process.cwd(), "native/src-tauri/android/ArranqueStarSeed.kt"), "utf8"),
+      // (UBI1114K) La ubicación nativa solo PIDE (aviso del sistema) y lee: nada la concede.
+      readFileSync(join(process.cwd(), "native/src-tauri/src/ubicacion.rs"), "utf8"),
+      readFileSync(join(process.cwd(), "native/src-tauri/src/ubicacion_macos.rs"), "utf8"),
+      readFileSync(join(process.cwd(), "native/src-tauri/android/UbicacionStarSeed.kt"), "utf8"),
     ].join("\n");
     // Se quitan los comentarios que explican la regla antes de buscar.
     const codigo = fuentes.replace(/\/\/.*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, "");
