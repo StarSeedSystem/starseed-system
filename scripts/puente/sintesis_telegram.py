@@ -174,8 +174,6 @@ def enviar(texto, boton_url=None, pedir=None, leer_env=None, fecha=None, cuentas
     `cuentas`: filas de cuentas_google.estado(); si alguna no está viva, avisa UNA vez al día
     al mismo chat con la orden exacta para rehacer el alta y la síntesis sigue con lo demás.
     """
-    if os.environ.get("STARSEED_PRUEBAS") == "1":
-        return {"ok": False, "motivo": "red bloqueada en pruebas (STARSEED_PRUEBAS=1)"}
     lector = leer_env or _leer_env
     resultado = _enviar_con(lector(), texto, boton_url, pedir, fecha)
     avisos = avisos_pendientes(cuentas, fecha, ruta_avisos) if cuentas is not None else []
