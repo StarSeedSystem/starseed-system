@@ -1,6 +1,6 @@
 # Genesis · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-14 14:10:04 desde Genesis vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-14 15:26:28 desde Genesis vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -16,20 +16,19 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | Agentes escribiendo | **0** |
 | En esta ola | integradas 0 · en curso 0 · esperando aprobación 0 · pendientes 15 |
 | Últimas 4 olas | en curso 0 · pendientes 100 · integradas 0 |
-| HEAD | `20da1dac3 chore(memoria): aprendizaje de la ola auto-1114-132345` |
-| Sin publicar | 3 commits |
+| HEAD | `8b0711b57 chore(memoria): aprendizaje de la ola auto-1114-151428` |
+| Sin publicar | 4 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-1114-132345.json`, hace 15s)
+## Quién escribe ahora (latido de `cola-auto-1114-151428.json`, hace 16s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `RDM1113F` | hecho | freellmapi/auto | 2 min | 116 s | 206899 |
-| `IRD11142` | hecho | groq/openai/gpt-oss-120b | 6 min | 352 s | 758 |
-| `IRD11143` | hecho | groq/openai/gpt-oss-120b | 7 min | 424 s | 532 |
-| `IRD11141` | hecho | groq/openai/gpt-oss-120b | 7 min | 424 s | 430 |
-| `RDM1113D-d2` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 21 min | 1235 s | 417336 |
-| `RDM1113E` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 37 min | 2205 s | 50414 |
+| `ENT-agentes-referencias-diseno-agentes-re-f53831-v1` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 3 min | 152 s | 935 |
+| `SES1113J` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 4 min | 251 s | 53184 |
+| `ENT-agentes-referencias-diseno-agentes-re-cbdd51-v1` | hecho | nim/minimaxai/minimax-m3.1-flash | 4 min | 259 s | 493 |
+| `ENT-agentes-referencias-diseno-agentes-re-05e13f-v1` | hecho | explabs/deepseek-v4.1-flash | 5 min | 292 s | 488 |
+| `ENT-agentes-referencias-diseno-agentes-re-6a8d83-v1` | hecho | groq/openai/gpt-oss-120b | 5 min | 326 s | 587 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
