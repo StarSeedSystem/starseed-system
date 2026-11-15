@@ -73,7 +73,8 @@ def clasificar_sucio(lineas):
     return curacion_logica.clasificar_lineas(lineas, PROPIAS)
 
 
-def clasificar_puertas(progreso, ahora, declarados_por_id=None, tope_min=6):
+def clasificar_puertas(progreso, ahora, declarados_por_id=None, tope_min=6,
+                       ya_integradas=None):
     """Reparte las puertas paradas en (rechazar, aprobar_con_seguimiento).
 
     El tope es corto (6 min) a propósito: una revisión bloqueante es un
@@ -105,14 +106,25 @@ def clasificar_puertas(progreso, ahora, declarados_por_id=None, tope_min=6):
     `architecture/bloqueadas-reparacion.md` §4). Casi todo lo rechazado podía
     ser útil con cambios coherentes; rechazar es la excepción, no la regla.
 
+    (2026-11-15, DR1115-1) `ya_integradas` es el conjunto de tareas cuyo código
+    YA está en main (lo comprueba `tarea_ya_integrada`, con git). Una tarea así
+    no se repara ni se escala NUNCA: su objeción ya la resolvió una sucesora y
+    volver a arrastrarla creaba una cadena infinita de esperas y contrajes
+    sobre un trabajo que ya estaba dentro. DR1115-1 estuvo tres intentos
+    «bloqueante» DESPUÉS de estar ya integrada como DR1115-1b (82a726ca7).
+
     Devuelve ([(id, motivo)], [(id, motivo, faltan)], [(id, objecion)]).
     """
     declarados_por_id = declarados_por_id or {}
+    ya_integradas = set(ya_integradas or ())
     a_rechazar, a_aprobar, bloqueantes = [], [], []
     for tid, e in sorted((progreso or {}).items()):
         if not isinstance(e, dict) or e.get("estado") != "esperando_aprobacion":
             continue
         if _minutos(e.get("t"), ahora) < tope_min:
+            continue
+        if tid in ya_integradas:
+            # Su código ya está en main: la objeción la resolvió otra cosa.
             continue
         if e.get("revisor") == "bloqueante":
             objecion = str(e.get("objecion") or e.get("motivo") or "")
@@ -469,6 +481,57 @@ def reparar_eslabones_rotos(raiz=None, ahora=None, enviar=None, progreso=None, t
 def puertas_a_rechazar(progreso, ahora, tope_min=6):
     """Solo las que hay que tirar. Ver `clasificar_puertas`."""
     return clasificar_puertas(progreso, ahora, None, tope_min)[0]
+
+
+# --------------------------------------------------- ya está en main
+
+
+def _git(args, cwd, timeout=30):
+    """Ejecuta git y devuelve (rc, salida). Nunca lanza."""
+    try:
+        p = subprocess.run(
+            ["git"] + list(args), cwd=cwd, capture_output=True, text=True, timeout=timeout
+        )
+        return p.returncode, (p.stdout or "") + (p.stderr or "")
+    except Exception:
+        return 1, ""
+
+
+def tarea_ya_integrada(tid, raiz=None, progreso=None):
+    """¿El código de esta tarea ya está dentro de main?
+
+    (2026-11-15, DR1115-1) Una tarea bloqueante cuya objeción ya resolvió una
+    sucesora NO debe volver a la cola de reparación: DR1115-1 siguió tres
+    intentos «bloqueante» con su código ya dentro de main como DR1115-1b.
+
+    Se mira el sha de la tarea en `progreso.json` y, si la rama `ola/<tid>`
+    existe, su propio HEAD: si cualquiera de los dos es ancestro de main, la
+    tarea está integrada. Si no hay sha ni rama, no se sabe: se dice que no
+    (así sigue el comportamiento de siempre).
+    """
+    raiz = raiz or RAIZ
+    progreso = progreso if progreso is not None else {}
+    e = progreso.get(tid) or {}
+    candidatos = []
+    sha = str(e.get("sha") or "").strip()
+    if len(sha) >= 7 and all(c in "0123456789abcdef" for c in sha.lower()):
+        candidatos.append(sha)
+    rama = "ola/%s" % tid
+    rc, out = _git(["rev-parse", "--verify", "--quiet", rama], cwd=raiz)
+    if rc == 0 and out.strip():
+        candidatos.append(out.strip().splitlines()[0].strip())
+    if not candidatos:
+        return False
+    for c in candidatos:
+        rc, _ = _git(["merge-base", "--is-ancestor", c, "main"], cwd=raiz)
+        if rc == 0:
+            return True
+    return False
+
+
+def tareas_ya_integradas(tids, raiz=None, progreso=None):
+    """Subconjunto de `tids` cuyo código ya está en main."""
+    return {t for t in (tids or ()) if tarea_ya_integrada(t, raiz=raiz, progreso=progreso)}
 
 
 # --------------------------------------------------- reparación de bloqueadas
@@ -1126,7 +1189,20 @@ def desatascar(raiz, vivo, n_agentes, progreso, ahora=None, ruta_estado=None):
     # reloj del atasco se había reiniciado con un commit mío.)
     tareas_conocidas = _tareas_de_las_colas()
     declarados = {i: list(t.get("archivos") or []) for i, t in tareas_conocidas.items()}
-    puertas, parciales, bloqueantes = clasificar_puertas(progreso, ahora, declarados)
+    # (2026-11-15, DR1115-1) Las tareas cuyo código ya está en main no se reparan
+    # ni se escalan: su objeción la resolvió ya una sucesora.
+    ya_dentro = tareas_ya_integradas(
+        [t for t, e in (progreso or {}).items()
+         if isinstance(e, dict) and e.get("estado") == "esperando_aprobacion"],
+        raiz=raiz, progreso=progreso,
+    )
+    if ya_dentro:
+        frases.append(
+            "ya en main, no se repara: %s" % ", ".join(sorted(ya_dentro)[:8])
+        )
+    puertas, parciales, bloqueantes = clasificar_puertas(
+        progreso, ahora, declarados, ya_integradas=ya_dentro
+    )
     if bloqueantes:
         frases += reparar_bloqueantes(bloqueantes, raiz=raiz, ahora=ahora)
     frases += reparar_aprobaciones_pendientes(raiz=raiz, ahora=ahora, progreso=progreso,

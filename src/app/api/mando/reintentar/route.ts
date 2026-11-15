@@ -93,6 +93,40 @@ async function marcarAdelantadas(dir: string, ids: string[]): Promise<void> {
     await ejecutar("python3", ["-c", programa, path.join(dir, "progreso.json"), lock, JSON.stringify(ids)]);
 }
 
+/**
+ * (2026-11-15, DR1115-1) Cierra la original cuando nace su sucesora.
+ *
+ * Antes la original quedaba viva («esperando_aprobacion», revisión bloqueante)
+ * y el orquestador la volvía a coger: su código entraba en main por la sucesora
+ * y, aun así, la original seguía esperando su visto bueno, así que el
+ * desatascador la reparaba y la escalaba una y otra vez. DR1115-1 llegó a tres
+ * intentos con el trabajo ya dentro de main como DR1115-1b (82a726ca7).
+ *
+ * «sustituida» es irreversible para el orquestador (`PROGRESO_IRREVERSIBLE`),
+ * así que la original no vuelve a la tanda.
+ */
+async function marcarSustituidas(
+    dir: string,
+    pares: Array<{ original: string; sucesora: string }>,
+): Promise<void> {
+    if (!pares.length) return;
+    const programa = [
+        "import fcntl,json,os,sys,time", "p,l,u=sys.argv[1:4]", "os.makedirs(os.path.dirname(l),exist_ok=True)",
+        "f=open(l,'a+')", "fcntl.flock(f,fcntl.LOCK_EX)",
+        "try:\n d=json.load(open(p)) if os.path.exists(p) else {}\nexcept Exception:\n d={}",
+        "for par in json.loads(u):",
+        " o=par['original']; s=par['sucesora']",
+        " e=d.get(o) if isinstance(d.get(o),dict) else {}",
+        " if e.get('estado') in ('commit','integrada','sustituida','rechazada'): continue",
+        " e.update({'estado':'sustituida','sustituida_por':s,'t':time.strftime('%Y-%m-%d %H:%M:%S')})",
+        " d[o]=e",
+        "t=p+'.tmp-'+str(os.getpid());json.dump(d,open(t,'w'),ensure_ascii=False,indent=1);os.replace(t,p)",
+        "fcntl.flock(f,fcntl.LOCK_UN);f.close()",
+    ].join("\n");
+    const lock = path.join(homedir(), ".starseed", "cerrojos", "progreso.lock");
+    await ejecutar("python3", ["-c", programa, path.join(dir, "progreso.json"), lock, JSON.stringify(pares)]);
+}
+
 export async function POST(peticion: Request): Promise<Response> {
     try {
         const veto = await guardianMando(peticion);
@@ -134,6 +168,10 @@ export async function POST(peticion: Request): Promise<Response> {
             const ordenada = ponerPrimera(lista(await json(ruta)), resultado.reencoladas);
             await atomico(ruta, ordenada);
             await marcarAdelantadas(dir, resultado.reencoladas.map((t) => t.id));
+            // (2026-11-15, DR1115-1) Cerrar las originales que ya tienen sucesora en main.
+            await marcarSustituidas(dir, resultado.resultados
+                .filter((r) => r.accion === "reintentada" && r.sucesor)
+                .map((r) => ({ original: r.id, sucesora: r.sucesor! })));
             for (const r of resultado.resultados) {
                 if (r.sucesor) r.posicion = ordenada.findIndex((t) => t.id === r.sucesor) + 1;
             }

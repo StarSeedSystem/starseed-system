@@ -9551,6 +9551,13 @@ def ejecutar(t, intento=1):
         modelo=modelo_ok,
         segundos=int(time.time() - t0),
         nota=nota,
+        # (2026-11-15, DR1115-1) Al integrar se cierra la puerta: `revisor` y
+        # `motivo_vb` son de la puerta que se acaba de pasar. Dejarlos puestos
+        # dejaba a la tarea con «bloqueante» DESPUÉS de estar en main, y el
+        # desatascador la volvía a arrastrar una y otra vez (DR1115-1 llegó a
+        # tres intentos de reparación sobre un código ya integrado).
+        revisor="respondio" if bloqueante else ("ok" if rev else "sin_revisor"),
+        motivo_vb="",
     )
     evento("commit", tid, "%s integrado en main (%s)" % (sha.strip(), nota))
 

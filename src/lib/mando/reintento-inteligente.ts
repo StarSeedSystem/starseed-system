@@ -203,8 +203,17 @@ export function reencolar(
     const siguiente = String.fromCharCode(97 + intentos);
     const promptBase = String(tarea.prompt ?? "").split(/\n+## REPARACIÓN\b/)[0]?.trimEnd() ?? "";
     const modeloElegido = elegirModelo(String(tarea.modelo ?? ""), candidatos, intentos);
-    const { id: _id, prompt: _prompt, estado: _estado, nota: _nota, motivo: _motivo, modelo: _modelo, ...resto } = tarea;
-    void [_id, _prompt, _estado, _nota, _motivo, _modelo];
+    // (2026-11-15, DR1115-1) La sucesora NO hereda el veredicto de la original.
+    // `revisor`/`motivo_vb` venían en `...resto` y la sucesora nacía ya marcada
+    // «bloqueante»: cuando el orquestador integraba su código, la tarea quedaba
+    // con la objeción de la original y el desatascador la volvía a arrastrar una
+    // y otra vez (DR1115-1 llegó a tres intentos de reparación con el código ya
+    // dentro de main). La objeción viaja en el prompt, con su «## REPARACIÓN».
+    const {
+        id: _id, prompt: _prompt, estado: _estado, nota: _nota, motivo: _motivo,
+        modelo: _modelo, revisor: _revisor, motivo_vb: _motivo_vb, ...resto
+    } = tarea;
+    void [_id, _prompt, _estado, _nota, _motivo, _modelo, _revisor, _motivo_vb];
     return {
         ...resto,
         id: `${base}${siguiente}`,
