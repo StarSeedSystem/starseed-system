@@ -407,12 +407,29 @@ class TestRespaldo(unittest.TestCase):
         self.assertEqual(r["resultado"]["accion"], "esperando_redaccion")
 
     def test_redactar_flota_sin_clave_no_llama_a_nada(self):
-        self.assertIsNone(A._redactar_flota("p", clave=None))
+        # (2026-11-14 · SIN1114Ab) La guarda de conftest.py corta la red en TODAS las
+        # pruebas. Este caso comprueba el camino «sin clave» (que ni siquiera intenta la
+        # red), así que la guarda se apaga un momento: si no, `_redactar_flota` lanzaría
+        # antes de llegar al «sin clave» que se quiere comprobar.
+        import guardia_pruebas
+        guardia_pruebas.desactivar()
+        try:
+            self.assertIsNone(A._redactar_flota("p", clave=None))
+        finally:
+            guardia_pruebas.activar()
 
     def test_subir_doc_sin_token_devuelve_none(self):
+        # (2026-11-14 · SIN1114Ab) Igual que el de arriba: aquí se quiere comprobar que
+        # `_subir_doc` devuelve None cuando no hay token. Con la guarda puesta lanzaría
+        # «Subida a Drive bloqueada» y no se llegaría al caso que se quiere probar.
+        import guardia_pruebas
         import cuentas_google as CG
-        with patch.object(CG, 'token', return_value=None):
-            self.assertIsNone(A._subir_doc(FECHA, "texto", pedir=lambda u, c: None))
+        guardia_pruebas.desactivar()
+        try:
+            with patch.object(CG, 'token', return_value=None):
+                self.assertIsNone(A._subir_doc(FECHA, "texto", pedir=lambda u, c: None))
+        finally:
+            guardia_pruebas.activar()
 
 
 class TestPuntuacionJev(unittest.TestCase):
