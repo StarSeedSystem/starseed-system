@@ -7452,3 +7452,30 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `SIN1114Ac-d2b` — otra cosa: revisor: dividida en SIN1114Ac-d2b-d1, SIN1114Ac-d2b-d2, SIN1114Ac-d2b-d3 (tarea:otro con 3 archivos: se divide en 3 partes encadenadas)
 - `DR1115-1` — la revisión lo rechazó: sustituida por DR1115-1b: su codigo esta en main como 82a726ca7 (revision ok, bloqueante:false). La objecion del revisor (falta filtro expli
 - `SIN1114Ac-d2b-d3` — pruebas en rojo: FAILED scripts/puente/test_sintesis_conexiones.py::TestFichasAuthorizedUser::test_token_renueva_con_las_credenciales_de_
+
+## 2026-11-15 06:17 · auto-1115-033430
+
+**Lo que se pidió.** antes de pedir un cliente nuevo, `alta` prueba el cliente OAuth que el OS ya tiene ... con redirección fija
+
+**Resultado.** 5 de 18 integradas. 13 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 8 tareas se fueron por lo mismo — otra cosa (SIN1114Ac-d3s, SIN11151, SIN11152, SIN11153, SIN11154, SIN11155). Es 44 % de la ola.
+- 4 tareas se fueron por lo mismo — la revisión lo rechazó (REP1114A-d2, SIN1114Ac-d2b-d3b, REP1114Css, SIN1114Ac-d3s-d1). Es 22 % de la ola.
+- nim/nvidia/nemotron-3-ultra-550b-a55b no integró ninguna de sus 4 tareas.
+- groq/openai/gpt-oss-120b no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `REP1114A-d2` — la revisión lo rechazó: no toco NINGUNO de los 1 archivos que declaraba (rama ola/REP1114A-d2 conservada)
+- `SIN1114Ac-d2b-d3b` — la revisión lo rechazó: no toco NINGUNO de los 1 archivos que declaraba (rama ola/SIN1114Ac-d2b-d3b conservada)
+- `SIN1114Ac-d3s` — otra cosa: revisor: dividida en SIN1114Ac-d3s-d1, SIN1114Ac-d3s-d2 (tarea:pruebas con 2 archivos: se divide en 2 partes encadenadas)
+- `REP1114Css` — la revisión lo rechazó: no toco NINGUNO de los 1 archivos que declaraba (rama ola/REP1114Css conservada)
+- `SIN1114Ac-d3s-d1` — la revisión lo rechazó: no toco NINGUNO de los 1 archivos que declaraba (rama ola/SIN1114Ac-d3s-d1 conservada)
+- `SIN1114Ac-d3s-d2` — no escribió nada
+- `SIN11151` — otra cosa: 3 propuesta(s) · starseed_memory_root/imaginacion/agentes/sintesis-2026-11-15-contactos.json
+- `SIN11152` — otra cosa: 4 propuesta(s) · starseed_memory_root/imaginacion/agentes/sintesis-2026-11-15-noticias.json
+- `SIN11153` — otra cosa: 5 propuesta(s) · starseed_memory_root/imaginacion/agentes/sintesis-2026-11-15-referencias.json
+- `SIN11154` — otra cosa: 5 propuesta(s) · starseed_memory_root/imaginacion/agentes/sintesis-2026-11-15-actividad.json
+- `SIN11155` — otra cosa: 5 propuesta(s) · starseed_memory_root/imaginacion/agentes/sintesis-2026-11-15-ideas.json
+- `SIN11156` — otra cosa: 3 propuesta(s) · starseed_memory_root/imaginacion/agentes/sintesis-2026-11-15-guiones.json
+- `SIN11157` — otra cosa: 0 propuesta(s) · starseed_memory_root/imaginacion/agentes/sintesis-2026-11-15-youtube.json
