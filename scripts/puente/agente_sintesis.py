@@ -847,8 +847,11 @@ def _clave_flota(nombres=("FREELLMAPI_KEY", "STARSEED_FLOTA_API_KEY")):
 def _redactar_flota(prompt, clave=None, base=None, modelo=None, abrir=None):
     """La flota gratuita en un solo paso (la prueba del 2026-11-11): FreeLLMAPI local
     (127.0.0.1:3001), modelo CON nombre (nunca «auto»). None si falta clave o no contesta."""
-    clave = clave if clave is not None else _clave_flota()
-    if not clave or not str(prompt).strip():
+    if not prompt:
+        return None
+    if clave is None:
+        clave = _clave_flota()
+    if not clave:
         return None
     base = (base or os.environ.get("STARSEED_FLOTA_BASE_URL") or "http://127.0.0.1:3001/v1").rstrip("/")
     modelo = modelo or os.environ.get("STARSEED_SINTESIS_MODELO") or "groq/llama-3.3-70b-instruct"
@@ -866,8 +869,6 @@ def _redactar_flota(prompt, clave=None, base=None, modelo=None, abrir=None):
 
 def _pedir_https(url, cuerpo):
     """POST JSON, la firma `pedir` de cuentas_google.token (renovar el access_token)."""
-    if os.environ.get("STARSEED_PRUEBAS") == "1":
-        raise RuntimeError("red bloqueada en pruebas (STARSEED_PRUEBAS=1)")
     peticion = urllib.request.Request(url, json.dumps(cuerpo).encode("utf-8"), {"Content-Type": "application/json"})
     with urllib.request.urlopen(peticion, timeout=60) as r:
         return json.load(r)
