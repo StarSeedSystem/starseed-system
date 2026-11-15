@@ -33,6 +33,7 @@ import ronda as R  # noqa: E402
 
 CARPETA = "banco-llamadas"
 ORDEN, CALMA, SERIES, LOCK = "orden.json", "calma.json", "banco-llamadas.json", "serie.lock"
+CANCELAR = "cancelar.json"       # BAN1115O: «banco-cancelar» (director_pruebas) deja aquí quién cancela; la serie lo ve y acaba limpia
 APP = "app.json"                  # BAN1115D: lo que la app de la Mac sabe de sí misma (la escribe la ruta /api/banco-llamadas)
 QUIEN = "banco-llamadas"
 SONDEO_S = 5.0                    # cada cuánto mira las marcas mientras espera
@@ -42,6 +43,14 @@ LOGS = os.environ.get("STARSEED_BANCO_LOGS") or os.path.expanduser("~/Library/Lo
 
 def carpeta():
     return os.environ.get("STARSEED_PRODUCCION_DIR") or os.path.expanduser("~/.starseed/produccion")
+
+
+class Cancelada(Exception):
+    """BAN1115O: alguien pidió cancelar la serie (`director_pruebas.py pedir banco-cancelar`)."""
+
+    def __init__(self, quien):
+        Exception.__init__(self, quien)
+        self.quien = quien
 
 
 class Config(object):
@@ -73,7 +82,24 @@ class Mundo(object):
         return time.time()
 
     def dormir(self, s):
-        time.sleep(s)
+        # BAN1115O: en trozos de 1 s, para que «cancelar» se note enseguida y no al acabar una espera de minutos
+        fin = time.time() + s
+        while True:
+            resto = fin - time.time()
+            if resto <= 0:
+                return
+            time.sleep(min(1.0, resto))
+            q = self.cancelada()
+            if q:
+                raise Cancelada(q)
+
+    def cancelada(self):
+        """BAN1115O: quién pidió cancelar la serie en curso, o None."""
+        d = self.leer_json(CANCELAR)
+        if not isinstance(d, dict):
+            return None
+        q = d.get("quien")
+        return q if isinstance(q, str) and q else None
 
     def ruta(self, *p):
         return os.path.join(self.dir, CARPETA, *p)
@@ -173,6 +199,16 @@ class Serie(object):
         self.n_actual = 0
 
     # persistencia
+    def dormir(self, s):
+        """BAN1115O: dormir y, antes y después, mirar si alguien pidió cancelar (los trozos de 1 s los parte `Mundo.dormir`)."""
+        q = self.m.cancelada()
+        if q:
+            raise Cancelada(q)
+        self.m.dormir(s)
+        q = self.m.cancelada()
+        if q:
+            raise Cancelada(q)
+
     def guardar(self):
         d = self.m.leer_json(SERIES)
         previas = [s for s in (d or {}).get("series", []) if isinstance(s, dict) and s.get("serie") != self.id]
@@ -208,7 +244,7 @@ class Serie(object):
             return
         self.est["estado"], self.est["motivo_fin"], self.est["hasta"] = estado, motivo, BL._a_iso(self.m.ahora())
         k = len([j for j in self.juicios if j["valida"] is not None])
-        incompleta = k if (estado == "abortada" and k < self.rep and self.juicios) else None
+        incompleta = k if (estado in ("abortada", "cancelada") and k < self.rep and self.juicios) else None
         if "regla" in L.ESCENARIOS[self.esc]:       # BAN1115D: una sugerencia por comprobación del escenario
             ver = {c: L.veredicto_serie(self.juicios, self.rep, c, c, incompleta) for c in L.ESCENARIOS[self.esc]["comprobaciones"]}
             self.est["veredicto"] = ver
@@ -251,7 +287,7 @@ class Serie(object):
                                       "motivo": ultimo if not ok else (motivo or ""), "buenas_seguidas": sum(1 for _ in L._racha(hist)),
                                       "se_piden": self.u.lecturas}
                 self.guardar()
-                self.m.dormir(self.u.cada_s)
+                self.dormir(self.u.cada_s)
         finally:
             self.est["espera"] = None
 
@@ -272,7 +308,7 @@ class Serie(object):
                     self.tengo_ronda = True
                     return True, None
                 return False, "otra ronda tomó el cerrojo (%s); no empiezo" % v["ronda"].get("quien")
-            self.m.dormir(SONDEO_S)
+            self.dormir(SONDEO_S)
         return False, "el director no tomó la petición de ronda en %d s (¿parado o con otra cola?)" % self.cfg.peticion_espera_s
 
     def asegurar_ronda(self):
@@ -284,7 +320,7 @@ class Serie(object):
             self.m.pedir("ronda-iniciar", "serie de llamadas automaticas %s" % self.id, self.cfg.ronda_min)
             t0 = self.m.ahora()
             while self.m.ahora() - t0 <= self.cfg.peticion_espera_s:
-                self.m.dormir(SONDEO_S)
+                self.dormir(SONDEO_S)
                 v2 = self.m.ronda_vista()
                 if v2["activa"] and v2["quedan_s"] > v["quedan_s"] + 60:
                     v = v2
@@ -317,7 +353,7 @@ class Serie(object):
                 if self.m.ahora() - t_orden > self.cfg.inicio_timeout_s:
                     return ("la orden %d no fue tomada por la app: no hubo «banco inicio» en %d s (la app no la sondeó, la rechazó sin "
                             "avisar o no está armada)" % (n, self.cfg.inicio_timeout_s))
-                self.m.dormir(SONDEO_S)
+                self.dormir(SONDEO_S)
         finally:
             self.m.borrar(ORDEN)             # tomada o no, la orden no se queda: la app no debe volver a leerla
         # durante la llamada: calma cada `cada_s` y espera de «banco fin»
@@ -337,14 +373,14 @@ class Serie(object):
                    for mk in L.marcas_de_lineas(lineas)):
                 visto_fin = True
                 break
-            self.m.dormir(SONDEO_S)
+            self.dormir(SONDEO_S)
         # evidencia de la tableta (paso 14): hasta que esté completa o `evidencia_s`
         t_ev = self.m.ahora()
         while visto_fin and self.m.ahora() - t_ev <= self.cfg.evidencia_s:
             lineas = self.parsear()
             if L.evidencia_completa(lineas, self.id, n, self.esc)[0]:
                 break
-            self.m.dormir(SONDEO_S)
+            self.dormir(SONDEO_S)
         lineas = self.parsear()
         ble = [l for l in lineas if l["canal"] == "ble"]
         j = L.juzgar_llamada(self.esc, self.id, n, lineas, ble, lecturas, self.u)
@@ -360,6 +396,8 @@ class Serie(object):
     def correr(self):
         try:
             self._correr()
+        except Cancelada as c:       # BAN1115O: cancelada a propósito: acaba limpia (la orden se borra y la ronda se suelta en `limpiar`)
+            self.terminar("cancelada por %s" % c.quien, "cancelada")
         except SystemExit:
             self.terminar("interrumpida (se paró el programa de la serie)")
             raise
@@ -387,7 +425,7 @@ class Serie(object):
             return self.terminar("sin veredicto: " + motivo)
         for n in range(1, self.rep + 1):
             if n > 1:
-                self.m.dormir(self.cfg.pausa_s)
+                self.dormir(self.cfg.pausa_s)
             ok, motivo = self.asegurar_ronda()
             if ok and n > 1:
                 ok, motivo = self.esperar_calma(min(self.u.espera_calma_s, max(0.0, self.m.ronda_vista()["quedan_s"] - self.cfg.ciclo_s)))
@@ -408,6 +446,7 @@ class Serie(object):
         """Pase lo que pase: la orden se borra y la ronda, si la pedimos, se suelta (por el director)."""
         try:
             self.m.borrar(ORDEN)
+            self.m.borrar(CANCELAR)          # BAN1115O: lo creó el director para esta serie; ya se atendió
         except Exception:  # noqa: BLE001
             pass
         if self.solicitada:
@@ -439,6 +478,23 @@ def serie_viva(dir_estado=None):
         f.close()
 
 
+def cancelar(dir_estado, quien):
+    """BAN1115O: pide cancelar la serie en marcha. → (ok, texto). No mata nada: la serie lo ve en su próximo paso (como mucho 1 s
+    de espera después), borra su orden, suelta la ronda de aparatos que tomó y deja «cancelada por <quien>»."""
+    if not serie_viva(dir_estado):
+        return False, "no hay ninguna serie de llamadas en marcha: no hay nada que cancelar"
+    d = os.path.join(dir_estado, CARPETA)
+    ruta = os.path.join(d, CANCELAR)
+    tmp = "%s.tmp-%d" % (ruta, os.getpid())
+    try:
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump({"quien": quien, "t": time.time()}, f)
+        os.replace(tmp, ruta)
+    except OSError as ex:
+        return False, "no pude dejar la petición de cancelar (%s)" % type(ex).__name__
+    return True, "cancelación pedida por %s: la serie acaba en unos segundos, suelta la ronda y lo dice en «estado»" % quien
+
+
 def lanzar_desacoplado(dir_estado, esc, rep, quien):
     """Lanza la serie en un proceso aparte (sesión nueva) y vuelve al instante. → (ok, texto). Lo usa el director."""
     if esc not in L.ESCENARIOS:
@@ -466,6 +522,8 @@ def texto_estado(datos):
         sal.append("  Esperando calma de la Mac desde %s: %s · %d de %d lecturas buenas seguidas · como mucho %s más" % (
             w.get("desde"), w.get("motivo") or "aún sin lecturas buenas suficientes", w.get("buenas_seguidas", 0), w.get("se_piden", 0),
             R.minutos_texto(w.get("quedan_s") or 0)))
+    if s.get("estado") == "en-curso":        # BAN1115O: cómo pararla, esté esperando o llamando
+        sal.append("  Para cancelarla: python3 scripts/puente/director_pruebas.py pedir banco-cancelar --quien <quien>")
     for c in sorted(v):
         if v.get(c):
             sal.append("  %s: %s" % (c, v[c]["sugerencia"]))
@@ -521,6 +579,7 @@ def main(argv=None):
                     x.update(estado="abortada", motivo_fin="el proceso de la serie murió sin cerrarla", hasta=BL._a_iso(m.ahora()))
             m.escribir_json(SERIES, d)
         m.borrar(ORDEN)
+        m.borrar(CANCELAR)        # BAN1115O: una petición de una serie anterior no vale para esta
 
         def _term(signo, marco):
             raise SystemExit(143)

@@ -14,7 +14,7 @@ ACCIONES = ("compilar", "cancelar", "reintentar", "republicar", "pedir-arreglo",
             "ronda-iniciar", "ronda-terminar")      # RON1112C: la «ronda de aparatos» (ronda.py)
 ACCIONES_RONDA = ("ronda-iniciar", "ronda-terminar")
 # BAN1114C: «banco-serie» lanza la serie de llamadas automáticas (banco_llamadas.py; architecture/ronda-automatica-llamadas.md §1.2)
-ACCIONES = ACCIONES + ("banco-serie",)
+ACCIONES = ACCIONES + ("banco-serie", "banco-cancelar")      # BAN1115O: «banco-cancelar» para la serie en curso
 ESCENARIOS_BANCO = ("ble-video-2min", "corte-ip-vuelve", "tableta-llama", "mudo-camara")       # BAN1115D: fases 2 y 3 (banco_llamadas_logica.ESCENARIOS)       # fase 1: solo c2 y c3 (el resto de escenarios del contrato llega en las fases 2 y 3)
 REP_BANCO_MAX = 10
 PLATAFORMAS = ("mac", "windows", "linux", "android", "tablet", "telefono")

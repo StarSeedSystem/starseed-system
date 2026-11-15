@@ -64,6 +64,12 @@ const RUTA_PUERTA = "/__starseed/puerta/";
 const ARCHIVO_MIGRACION_JS = "migracion-origen.js";
 /** Rutas que solo viven en la Mac de desarrollo: nunca se sirven desde la app (APP1107B · T8). */
 const RUTAS_SOLO_MAC = ["/api/mando"];
+/**
+ * BAN1115O: rutas de /api que atienden a ESTA app y nunca van a la web publicada, haya o no internet. El banco de llamadas
+ * lee `orden.json` y escribe `app.json` en la carpeta de la Mac: en Vercel la ruta contesta «no disponible» y rechaza el
+ * informe, así que la app nunca recibió una orden. (Antes se creía que el servidor de la app no tenía la ruta: la tiene.)
+ */
+const RUTAS_SIEMPRE_LOCAL = ["/api/banco-llamadas"];
 const NOMBRE = "starseed-os-local";
 /**
  * (CAP1107A · T1) Protocolo entre la app (Rust) y este envoltorio: entorno STARSEED_*, pase por la
@@ -172,6 +178,7 @@ function destino(url, cfg, red, ahora, porMalla) {
   if (esSoloMac(ruta)) return "solo-mac";
   if (!ruta.startsWith("/api/")) return "local";
   if (!cfg.apiRemota) return "local";
+  if (RUTAS_SIEMPRE_LOCAL.some((p) => ruta === p)) return "local"; // BAN1115O
   if (cfg.localSiempre.some((p) => ruta === p || ruta.startsWith(p.endsWith("/") ? p : p + "/"))) return "local";
   // (PTA1108B) Sin salida propia pero con una puerta de la malla: /api/* sigue yendo a la web publicada, por el túnel.
   if (red.sinConexionHasta > ahora && !porMalla) return "local";
@@ -866,7 +873,7 @@ async function principal() {
 module.exports = {
   leerConfig, fdValido, protegerSalidaEnProceso, rutaDe, rutaNormalizada, esSoloMac, destino, paginaMigracion, esErrorDeRed, estadoRed, cabecerasLimpias, cabecerasHaciaWeb,
   adaptarCookie, cabecerasDeVuelta, cuerpoSalud, RUTA_SALUD, RUTA_RED, RUTA_MIGRACION, RUTA_MIGRACION_JS, RUTA_PUERTA,
-  RUTAS_SOLO_MAC, NOMBRE, LIMITE_CUERPO, protegerServidoresInternos, leerPaseDeEntrada, PROTOCOLO,
+  RUTAS_SOLO_MAC, RUTAS_SIEMPRE_LOCAL, NOMBRE, LIMITE_CUERPO, protegerServidoresInternos, leerPaseDeEntrada, PROTOCOLO,
 };
 
 if (require.main === module) {

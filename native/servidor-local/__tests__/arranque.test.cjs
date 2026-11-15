@@ -429,3 +429,11 @@ test("sale con código 3 si el puerto ya está ocupado", { timeout: 15_000 }, as
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("BAN1115O: el canal del banco de llamadas se atiende en local con internet (antes iba a Vercel y la app nunca recibía la orden)", () => {
+  const red = { sinConexionHasta: 0, ultimaRespuesta: 0 };
+  assert.equal(A.destino("/api/banco-llamadas", cfgBase, red, 1), "local");
+  assert.equal(A.destino("/api/banco-llamadas?x=1", cfgBase, red, 1), "local");
+  assert.equal(A.destino("/api/banco-llamadas/otra", cfgBase, red, 1), "web"); // solo la ruta exacta
+  assert.equal(A.destino("/api/banco-llamadasx", cfgBase, red, 1), "web");
+});

@@ -216,6 +216,9 @@ pub fn entorno_hijo(puerto: u16, firma: &str, web: &str) -> Vec<(&'static str, S
         ("HOSTNAME", HOST.to_string()),
         ("NODE_ENV", "production".to_string()),
         ("NEXT_TELEMETRY_DISABLED", "1".to_string()),
+        // BAN1115O: el canal del banco de llamadas se atiende en la propia app aunque haya internet (el envoltorio ya lo
+        // sabe por defecto; esto cubre un envoltorio más viejo en una capa instalada). Solo la ruta exacta.
+        ("STARSEED_API_SOLO_LOCAL", "/api/banco-llamadas".to_string()),
     ]
 }
 
@@ -496,6 +499,7 @@ mod pruebas {
         assert_eq!(v("STARSEED_PUERTO").as_deref(), Some("47610"));
         assert_eq!(v("STARSEED_FIRMA").as_deref(), Some("abc"));
         assert_eq!(v("NODE_ENV").as_deref(), Some("production"));
+        assert_eq!(v("STARSEED_API_SOLO_LOCAL").as_deref(), Some("/api/banco-llamadas")); // BAN1115O
         for (k, _) in &e {
             assert!(!k.contains("KEY") && !k.contains("SECRET") && !k.contains("TOKEN"), "{k}");
             // (SEG1107A) El pase de la ventana va por la entrada estándar, nunca en el entorno.
