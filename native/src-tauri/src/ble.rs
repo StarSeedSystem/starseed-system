@@ -333,7 +333,7 @@ pub enum EventoRadio {
 }
 
 /// Los hitos que la radio puede anotar (lista cerrada: el texto libre va en el detalle).
-pub const NOTAS_RADIO: [&str; 17] = [
+pub const NOTAS_RADIO: [&str; 19] = [
     // BLE1110A: cambios de MTU (anterior → nuevo), anuncio que ya estaba activo (código 3) y conexión soltada para renegociar el MTU.
     "mtu-cambio",
     "anuncio-ya-activo",
@@ -352,6 +352,8 @@ pub const NOTAS_RADIO: [&str; 17] = [
     "prioridad-cambio", // BLE1114R: prioridad de conexión alta con tráfico, balanceada sin él (solo como central)
     "phy-cambio", // BLE1114R: el PHY que dio el sistema (1M / 2M)
     "contador-enlaces", // MLL1111C: conexiones y desconexiones REALES por minuto (y los avisos repetidos aparte)
+    "control-pantalla", // AND1115K: una línea al empezar y otra al acabar cada captura de pantalla remota
+    "control-entrada", // AND1115K: una línea al acabar la sesión con las órdenes de entrada y las rechazadas
     "control-indicador", // IND1115F: cada intento de poner el indicador del control entre neuronas (control_neuronas.rs)
 ];
 

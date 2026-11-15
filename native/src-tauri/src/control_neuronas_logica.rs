@@ -155,6 +155,15 @@ impl Control {
         Ok(s)
     }
 
+    /// (AND1115K) Solo MIRA: ¿hay sesión y es este el token? No renueva la actividad ni mira la pausa.
+    pub fn valida(&self, token: &str) -> Result<&Sesion, Rechazo> {
+        let s = self.sesion.as_ref().ok_or(Rechazo::SinSesion)?;
+        if !crate::sha256::iguales_ct(s.token.as_bytes(), token.as_bytes()) {
+            return Err(Rechazo::Token);
+        }
+        Ok(s)
+    }
+
     /// Cierra la sesión si pasó la hora o 2 min sin órdenes. Devuelve la sesión cerrada.
     pub fn caducar(&mut self, ahora: u64) -> Option<Sesion> {
         let vencida = self
