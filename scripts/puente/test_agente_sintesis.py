@@ -118,7 +118,8 @@ class TestCiclo(unittest.TestCase):
             return {"ok": True, "trozos": 1}
 
         r = A.ciclo(self.raiz, AHORA_CDMX_07, encargar=False, jev=False,
-                    enviar=enviar_falso, home=self.home, seco=False)
+                    enviar=enviar_falso, home=self.home, seco=False,
+                    subir_drive=lambda f, t: None)
         self.assertTrue(r["ok"])
         self.assertEqual(r["resultado"]["accion"], "entregada")
         self.assertEqual(len(enviados), 2)
@@ -139,11 +140,13 @@ class TestCiclo(unittest.TestCase):
             return {"ok": True, "trozos": 1}
         # Primera entrega
         r1 = A.ciclo(self.raiz, AHORA_CDMX_07, encargar=False, jev=False,
-                     enviar=enviar_falso, home=self.home, seco=False)
+                     enviar=enviar_falso, home=self.home, seco=False,
+                     subir_drive=lambda f, t: None)
         self.assertTrue(r1["ok"])
         # Segunda entrega en mismo día (forzar para saltar la puerta de 15 min)
         r2 = A.ciclo(self.raiz, AHORA_CDMX_07, encargar=False, jev=False,
-                     enviar=enviar_falso, home=self.home, seco=False, forzar=True)
+                     enviar=enviar_falso, home=self.home, seco=False, forzar=True,
+                     subir_drive=lambda f, t: None)
         self.assertEqual(r2["resultado"]["accion"], "ya_entregada")
 
     def test_puerta_cada_15_min(self):
