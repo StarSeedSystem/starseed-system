@@ -14,9 +14,11 @@
      `~/herramientas/peticiones-telegram/peticiones_telegram.py`. Desde que el servicio corre el bot del repo, nadie lo
      ejecuta: `estado.json` del bot sigue en `sintesis: 2026-11-13`.
 2. **Las pruebas del enjambre escriben en el Drive real.**
-   - `test_agente_sintesis.py` llama a `A.ciclo(...)` sin `subir_drive` en
-     `test_entregar_añade_fuente_notebooklm_y_linea_telegram` y en `test_entregar_fallo_notebooklm_no_bloquea`, así
-     que se usa el `_subir_doc` real con los tokens de `~/.starseed/cuentas`.
+   - `test_agente_sintesis.py` llama a `ciclo` o `entregar` sin `subir_drive` en
+     `test_entregar_con_sintesis_envia_resumen_y_completa` (línea 120) y en `test_solo_una_entrega_al_dia` (línea 141),
+     así que se usa el `_subir_doc` real con los tokens de `~/.starseed/cuentas`.
+   - Esas dos son las culpables: lo comprobó Claude el 2026-11-15 con la red cortada. La primera versión de este
+     contrato nombraba otras dos, por error, y SIN1114A no cortó la fuga; la sustituye SIN1114Ab.
    - Cada vez que una puerta corre esas pruebas aparecen **dos Google Docs vacíos llamados «Síntesis diaria
      2026-11-11»** en Drive › Síntesis diarias. Hay decenas desde el 2026-11-14 a las 19:34 UTC: pares a las 19:34,
      20:21, 21:17, 21:18, 22:03, 23:19, 00:37 y 01:24.
