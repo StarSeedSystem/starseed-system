@@ -38,3 +38,8 @@ import tempfile as _tempfile  # noqa: E402
 
 os.environ["STARSEED_POTENCIAR_RUTA"] = os.path.join(_tempfile.mkdtemp(prefix="potenciar-pruebas-"), "potenciar.json")
 os.environ.pop("STARSEED_POTENCIAR", None)
+
+# Guardia de red: bloquea llamadas a Drive, Telegram, NotebookLM durante pruebas
+# Se activa cuando STARSEED_PRUEBAS=1 (lo hace este módulo al importarse)
+import guardia_pruebas as _guardia_pruebas
+_guardia_pruebas.activar()
