@@ -152,7 +152,13 @@ export function QuantumOrbAvatar({
 
   // Merge: params del bus (prioridad visual) + params locales (para emitir).
   const [busParams, setBusParams] = useState<Partial<QuantumOrbParams>>({});
-  const mergedParams = useMemo(() => mergeQuantumOrbParams(effectiveParams, busParams), [effectiveParams, busParams]);
+  const mergedParams = useMemo(() => ({
+    turbulence: busParams.turbulence ?? effectiveParams.turbulence,
+    spikiness: busParams.spikiness ?? effectiveParams.spikiness,
+    symmetry: busParams.symmetry ?? effectiveParams.symmetry,
+    hueShift: busParams.hueShift ?? effectiveParams.hueShift,
+    breath: busParams.breath ?? effectiveParams.breath,
+  }), [effectiveParams, busParams]);
 
   // Estado vivo leído dentro del rAF (no recrea el bucle en cada re-render).
   const liveRef = useRef({ personaId, state, params: mergedParams });
