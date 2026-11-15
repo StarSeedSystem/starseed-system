@@ -16,7 +16,13 @@ import os
 import sys
 
 ES_PYTEST = "PYTEST_CURRENT_TEST" in os.environ
-ES_UNITYTEST = "unittest/__main__.py" in sys.argv[0]
+# SUP1115A: `python -m unittest` cambia sys.argv[0] a «python3 -m unittest» (unittest/__main__.py)
+# antes de importar nada, así que mirar solo sys.argv[0] no lo detectaba nunca: se mira el
+# módulo principal y, de respaldo, las dos formas de sys.argv[0].
+_PRINCIPAL = (getattr(sys.modules.get("__main__"), "__file__", None) or "").replace(os.sep, "/")
+ES_UNITYTEST = (_PRINCIPAL.endswith("unittest/__main__.py")
+                or sys.argv[0].endswith("-m unittest")
+                or "unittest/__main__.py" in sys.argv[0])
 
 if ES_PYTEST or ES_UNITYTEST:
     from scripts.puente import guardia_pruebas as G
