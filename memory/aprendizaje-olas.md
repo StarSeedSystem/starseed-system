@@ -7432,3 +7432,12 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `SA111442` — otra cosa: 9 hallazgos · starseed_memory_root/dream/profundo/2026-11-14/creacion--coherencia-triada.md
 - `SA111443` — otra cosa: 8 hallazgos · starseed_memory_root/dream/profundo/2026-11-14/biblioteca--arquitectura-deuda.md
 - `SIN1114C` — otra cosa: huérfana: ninguna cola fuente la define ya (estaba pendiente)
+
+## 2026-11-15 00:17 · auto-1114-235205
+
+**Lo que se pidió.** Síntesis diaria 2026-11-11
+
+**Resultado.** 0 de 1 integradas. 1 tarea se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `SIN1114Ac-d2b` — pruebas en rojo: FAILED scripts/puente/test_sintesis_conexiones.py::TestRelevoBotPuente::test_relevo_con_cabecera_y_fecha
