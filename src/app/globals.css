@@ -3945,6 +3945,13 @@ html.ss-gesto [data-ventana-escritorio] {
   overflow-y: auto;
   align-items: safe center;
 }
+/* PER1115A — la capa hecha a mano SIEMPRE recibe sus toques: un diálogo Radix modal deja `pointer-events:none` en <body>
+   y, sin esto, la capa lo heredaba y los toques caían en lo que hubiera debajo. Vale también para cualquier
+   `role="dialog"` hecho a mano (los de Radix llevan `data-state` y ya reciben lo suyo). */
+.ss-capa-modal,
+[role="dialog"]:not([data-state]) {
+  pointer-events: auto;
+}
 /* Pie de acciones que queda visible al pie de la zona que desplaza. */
 .ss-dialogo-pie {
   position: sticky;

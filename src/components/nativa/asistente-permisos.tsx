@@ -10,10 +10,20 @@
  * cuando una actualización AÑADE permisos (solo los nuevos y solo si no están ya concedidos); se reabre desde los
  * ajustes de la neurona (evento `starseed:permisos-inicio-abrir`). Lee el estado REAL de cada permiso al abrir, al
  * volver a la ventana (la persona regresa de Ajustes del Sistema) y mientras espera: así nota una concesión sin
- * reiniciar nada. También aplica, una vez por versión, los defectos de antenas encendidas (`aplicarDefectosAntenas`).
+ * reiniciar nada.
+ *
+ * ORDEN DE LAS VENTANAS DE PRIMER ARRANQUE (PER1115A, 2026-11-15) — una sola recibe los toques cada vez:
+ *   1. las ventanas de la persona (acceso/crear cuenta y «Esta neurona», diálogos Radix de `PrimerArranque`: sin ellas
+ *      no hay cuenta ni neurona y se terminan en 360 px),
+ *   2. después, esta lista de permisos.
+ * Esta ventana está hecha a mano y un diálogo Radix modal deja `pointer-events:none` en <body>: si se pintara encima, los
+ * toques caerían en el diálogo de debajo (y lo cerrarían). Por eso espera a que el primer plano quede libre y, mientras
+ * se ve, se marca con `data-ss-primer-plano` para que las demás esperen a que termine. No se pierde ninguna: solo se turnan.
+ * También aplica, una vez por versión, los defectos de antenas encendidas (`aplicarDefectosAntenas`).
  */
 
-import { useCallback, useEffect, useReducer, useRef } from "react";
+import { useCallback, useEffect, useReducer, useRef, useState } from "react";
+import { alLiberarsePrimerPlano } from "@/lib/ui/fullscreen-modal";
 import { esAppNativa, puenteNativo } from "@/lib/nativa/puente";
 import {
   ASISTENTE_OCULTO,
@@ -103,6 +113,15 @@ export function AsistentePermisos() {
   const enCurso = useRef(false);
   const plataforma = useRef<{ plat: string; sesion: string | null } | null>(null);
   const visible = estado.fase !== "oculto";
+  // Turno: la lista solo se pinta cuando el primer plano está libre (ver el orden arriba).
+  const [turno, setTurno] = useState(false);
+  useEffect(() => {
+    if (!visible) {
+      setTurno(false);
+      return;
+    }
+    return alLiberarsePrimerPlano(() => setTurno(true), { intervaloMs: 600 });
+  }, [visible]);
 
   /** Lee el estado real y la plataforma (un solo sitio). */
   const leer = useCallback(async () => {
@@ -197,7 +216,7 @@ export function AsistentePermisos() {
     enviar({ t: "cerrar" });
   };
 
-  if (estado.fase === "oculto" || !estado.sistema) return null;
+  if (estado.fase === "oculto" || !estado.sistema || !turno) return null;
   return (
     <ListaPermisos
       estado={estado}

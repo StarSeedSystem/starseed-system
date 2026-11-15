@@ -63,6 +63,9 @@ export function ListaPermisos({ estado, onEmpezar, onOmitir, onOmitirTodo, onPed
       aria-modal="true"
       aria-label="Permisos de tu neurona"
       data-testid="asistente-permisos"
+      data-ss-primer-plano="1"
+      // (PER1115A) Un pulso aquí es de ESTA ventana: no llega al «pulsar fuera» de un diálogo Radix que hubiera debajo.
+      onPointerDown={(e) => e.stopPropagation()}
       className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/60 backdrop-blur-sm ss-capa-modal"
     >
       <div className="flex w-[min(36rem,94vw)] flex-col ss-ventana-limite !overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-b from-white/[0.07] to-black/70 p-4 sm:p-5 text-white shadow-2xl backdrop-blur-xl">

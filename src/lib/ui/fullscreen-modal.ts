@@ -86,6 +86,8 @@ export function primerPlanoOcupado(): boolean {
   try {
     if (document.body.dataset.ssModal === "1") return true; // wizard/diálogos
     if (document.body.dataset.ssGuia === "1") return true;  // guía del sistema
+    // (PER1115A) Ventanas hechas a mano (no Radix) que ya ocupan el primer plano: la lista de permisos.
+    if (document.querySelector("[data-ss-primer-plano]")) return true;
   } catch { /* defensivo */ }
   return false;
 }
