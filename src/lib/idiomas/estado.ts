@@ -11,6 +11,7 @@
 import { CLAVE_TRADUCCION, guardar as guardarPrefs, leer as leerPrefs } from "@/lib/traduccion/preferencias";
 import { aIdiomaElegible, IDIOMA_FUENTE } from "./idiomas";
 
+/** Local por diseño: no está en SYNCED_KEYS (no sube a la cuenta) y no es secreto ni sesión, así que migra como «normal» (sin NEVER_SYNCED). */
 export const CLAVE_IDIOMA_NEURONA = "starseed.idioma.neurona.v1";
 export const PERFIL_CUENTA = "_cuenta";
 export const EVENTO_IDIOMA = "starseed:idioma";

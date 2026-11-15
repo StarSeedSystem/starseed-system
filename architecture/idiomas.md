@@ -16,7 +16,7 @@ Petición de Alex del 15-11: un modo multiidioma para todo StarSeed OS, elegido 
 8. **Revisado o automático**: `revisado:true` solo cuando una persona lo comprobó; si no, `automático`. El selector lo dice siempre («Catálogo revisado» / «Traducción automática, sin revisar» / «Aún sin catálogo: se verá en español»). `ESTADO_CATALOGO` (idiomas.ts) debe coincidir con el JSON: lo comprueba una prueba.
 
 ## 3. La elección
-- Esta neurona: `starseed.idioma.neurona.v1` (localStorage, nunca sincronizada: `NEVER_SYNCED_KEYS`).
+- Esta neurona: `starseed.idioma.neurona.v1` (localStorage, local: fuera de `SYNCED_KEYS`; no es secreto ni sesión, migra como normal).
 - La cuenta: `starseed.traduccion.v1`, perfil `_cuenta`, campo `idioma`: valor por defecto de los aparatos siguientes. Rige: neurona › cuenta › español.
 - Sugerencia (`estado.ts`): `window.__STARSEED_IDIOMAS_NATIVOS__` (lo que informe el lado nativo, lista de códigos; **aún no hay comando nativo que la rellene**) y `navigator.languages`. Se ofrece primero en el selector («Sugerido para este aparato»); NUNCA se aplica sola ni pisa una elección hecha.
 
