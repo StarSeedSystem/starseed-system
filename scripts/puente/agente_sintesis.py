@@ -866,8 +866,6 @@ def _redactar_flota(prompt, clave=None, base=None, modelo=None, abrir=None):
 
 def _pedir_https(url, cuerpo):
     """POST JSON, la firma `pedir` de cuentas_google.token (renovar el access_token)."""
-    if os.environ.get("STARSEED_PRUEBAS") == "1":
-        raise RuntimeError("red bloqueada en pruebas (STARSEED_PRUEBAS=1)")
     peticion = urllib.request.Request(url, json.dumps(cuerpo).encode("utf-8"), {"Content-Type": "application/json"})
     with urllib.request.urlopen(peticion, timeout=60) as r:
         return json.load(r)
