@@ -125,3 +125,17 @@ Sanador en `scripts/puente/sanador_sesiones.py`: corre cada 15 min en el A1 y a 
 ## Alcance por GitHub (ALC1113)
 
 GitHub es una fuente nueva de contactos técnicos. El agente de alcance (`scripts/puente/alcance_github.py`) extrae perfiles, organizaciones, grupos y desarrolladores de proyectos/repos relacionados con StarSeed. El agente de lista (`scripts/puente/alcance_lista.py`) fusiona estos contactos con la lista de Maggasukha y el sistema de fichas existente (`starseed_memory_root/alcance/`). Las fichas candidatas tienen `fuente: "github"` y están en estado `esperando-aprobacion`. La aprobación es exacta: texto, destinatario y canal deben coincidir. Los envíos respetan las reglas de la plataforma de cada sitio. GitHub entra como parte del alcance técnico regular en el director de desarrollo autónomo y su recomendación forma parte de la síntesis diaria.
+
+## Fallo y arreglo de la síntesis diaria (SIN1114)
+
+El 2026-11-14 no hubo síntesis: el agente nativo quedó en `entregar` sin texto, el respaldo de
+las 08:30 del A1 dejó de correrse al pasar el bot al módulo del repo, los tests de
+`test_agente_sintesis.py` escribían Docs vacíos en el Drive real y el multiformato eligió uno
+de esos Docs como «última síntesis». La del día se completó por la vía puntual del A1
+(`sintesis_hoy.py 2026-11-14`: investigación profunda, informe con el protocolo completo,
+resumen por Telegram y los 9 formatos de NotebookLM en Drive › Síntesis diarias › «Síntesis
+diaria 2026-11-14 · formatos»); su registro queda en
+`starseed_memory_root/produccion-audiovisual/sintesis/2026-11-14.md`. Diagnóstico y arreglo
+permanente (`STARSEED_PRUEBAS=1`, síntesis por fecha del título con mínimo de 4.000 caracteres,
+respaldo diario en el bot del repo, registros y limpieza sin borrar) en
+`architecture/sintesis-diaria-arreglo-1114.md`.
