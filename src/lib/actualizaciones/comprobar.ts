@@ -16,6 +16,7 @@ import type { VersionPublicada } from "@/lib/version/versiones-publicadas";
 import { canalDe, elegirPublicada, siguePruebas, type Canal, type CanalPruebas } from "./canal-pruebas";
 import { leerOptaPruebas } from "./optar-pruebas";
 import { describirError } from "./errores";
+import { anotarIntento, type PasoActualizacion } from "./registro-intento";
 import { leerPublicadas, type OpcionesPublicadas, type ResultadoPublicadas } from "./leer-publicadas";
 
 function enLinea(): boolean {
@@ -56,14 +57,19 @@ export async function comprobarActualizacion(opciones: OpcionesComprobar = {}): 
   const { medio, version } = await leerInstalada();
   if (!MEDIOS_CON_VENTANA.includes(medio)) return null;
   const instalada = esVersionSemver(version) ? limpiarVersion(version) : null;
+  // (ACT1115H) Cada salida de la búsqueda deja su línea en el registro del aparato.
+  const anotar = (canalLinea: Canal, ofrecida: string | null, resultado: string, motivo: string, paso: PasoActualizacion = "buscar") =>
+    anotarIntento({ canal: canalLinea, instalada, ofrecida, paso, resultado, motivo });
   const sin = (decision: DecisionAviso, publicada: string | null = null): ResultadoComprobar => ({ medio, instalada, publicada, decision, fecha: "", notas: "" });
   if (!instalada) {
     guardarUltimaComprobacion({ resultado: "desconocida", instalada: null, publicada: null, texto: "Esta app no dice su versión: no se compara nada." });
+    anotarIntento({ canal: "oficial", instalada: null, ofrecida: null, paso: "buscar", resultado: "desconocida", motivo: "la app no dice su versión" });
     return sin({ tipo: "nada", motivo: "No se sabe la versión instalada de esta app." });
   }
   // (CAN1115A) Una app oficial entra al canal de pruebas solo si su dueño lo activó en este aparato (Android).
   const optaPruebas = opciones.optaPruebas ?? leerOptaPruebas();
   const enPruebas = siguePruebas(medio, instalada, optaPruebas);
+  const canalApp: Canal = enPruebas ? "pruebas" : "oficial";
   let ultima: VersionPublicada | undefined;
   let pruebas: CanalPruebas | null = null;
   let errorPruebas: string | null = null;
@@ -78,6 +84,7 @@ export async function comprobarActualizacion(opciones: OpcionesComprobar = {}): 
   if (!ultima && !(pruebas && enPruebas)) {
     const motivo = describirError(leidas.ok ? "sin conexión con la lista de versiones" : leidas.motivo, { enLinea: enLinea() }).texto;
     guardarUltimaComprobacion({ resultado: "error", instalada, publicada: null, texto: motivo });
+    anotar(canalApp, null, "error", `no se leyó lo publicado: ${leidas.ok ? "sin lista" : leidas.motivo} · ${motivo}`);
     return sin({ tipo: "nada", motivo });
   }
   // (ACT1108B) Una app de pruebas con el canal de pruebas ILEGIBLE (GitHub caído) no puede decir «al día»: la
@@ -85,6 +92,7 @@ export async function comprobarActualizacion(opciones: OpcionesComprobar = {}): 
   if (enPruebas && !pruebas && errorPruebas) {
     const motivo = describirError(errorPruebas, { enLinea: enLinea() }).texto;
     guardarUltimaComprobacion({ resultado: "error", instalada, publicada: null, texto: motivo });
+    anotar(canalApp, null, "error", `el canal de pruebas no se pudo leer: ${errorPruebas} · ${motivo}`);
     return sin({ tipo: "nada", motivo });
   }
   // (ACT1108A) La versión que cuenta para ESTA app: la oficial o, en una app de pruebas, la mayor
@@ -113,6 +121,7 @@ export async function comprobarActualizacion(opciones: OpcionesComprobar = {}): 
       publicada,
       texto: nueva ? `La ${publicada} ya se te enseñó; la tienes en la Librería.` : `Al día: tienes la ${instalada}.`,
     });
+    anotar(canalApp, publicada, nueva ? "ya-vista" : "al-dia", nueva ? `la ${publicada} ya se enseñó en la ventana (marcada como vista)` : `lo más nuevo publicado en ${elegida.canal} es ${publicada ?? "nada"}, no mayor que ${instalada}`);
     return sin(nueva ? { tipo: "nada", motivo: `La ${publicada} ya se te enseñó.` } : { tipo: "nada", motivo: `Al día: tienes la ${instalada}.` }, publicada);
   }
 
@@ -137,10 +146,12 @@ export async function comprobarActualizacion(opciones: OpcionesComprobar = {}): 
     // (ACT1108B) Si el actualizador de la app falló, se dice en español claro (no «Could not fetch a valid release JSON…»).
     const texto = updater?.estado === "error" ? describirError(updater.motivo, { enLinea: enLinea() }).texto : decision.motivo;
     guardarUltimaComprobacion({ resultado: "error", instalada, publicada, texto });
+    anotar(canalApp, publicada, updater?.estado === "error" ? "error" : "sin-oferta", `${decision.motivo}${updater?.estado === "error" ? ` · actualizador: ${updater.motivo}` : ""}`);
     return sin(updater?.estado === "error" ? { tipo: "nada", motivo: texto } : decision, publicada);
   }
   if (decision.tipo === "preparando") {
     guardarUltimaComprobacion({ resultado: "preparando", instalada, publicada, texto: decision.texto });
+    anotar(canalApp, publicada, "preparando", medio === "android" ? `la ${publicada} está publicada pero no trae instalador (apk) para este medio` : `la ${publicada} está publicada pero el actualizador de la app no la ofrece todavía`);
     return sin(decision, publicada);
   }
   const deLaLista = decision.version === publicada;
@@ -148,6 +159,7 @@ export async function comprobarActualizacion(opciones: OpcionesComprobar = {}): 
   const canalOfrecido: Canal = deLaLista ? canal : canalDe(decision.version);
   const etiqueta = canalOfrecido === "pruebas" ? `${decision.version} (canal de pruebas)` : decision.version;
   guardarUltimaComprobacion({ resultado: "nueva", instalada, publicada: decision.version, texto: `StarSeed OS ${etiqueta} está lista para instalar.` });
+  anotar(canalApp, decision.version, "ofrecida", `lista para instalar (origen ${decision.origen})`);
   return {
     medio,
     instalada,
