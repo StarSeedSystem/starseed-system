@@ -7479,3 +7479,26 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `SIN11155` — otra cosa: 5 propuesta(s) · starseed_memory_root/imaginacion/agentes/sintesis-2026-11-15-ideas.json
 - `SIN11156` — otra cosa: 3 propuesta(s) · starseed_memory_root/imaginacion/agentes/sintesis-2026-11-15-guiones.json
 - `SIN11157` — otra cosa: 0 propuesta(s) · starseed_memory_root/imaginacion/agentes/sintesis-2026-11-15-youtube.json
+
+## 2026-11-15 06:39 · auto-1115-061742
+
+**Lo que se pidió.** Síntesis diaria 2026-11-11
+
+**Resultado.** 0 de 10 integradas. 10 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 8 tareas se fueron por lo mismo — otra cosa (SIN1114Ac-d2b-d3b, SIN11151, SIN11152, SIN11153, SIN11154, SIN11155). Es 80 % de la ola.
+- nim/nvidia/nemotron-3-ultra-550b-a55b no integró ninguna de sus 4 tareas.
+- groq/openai/gpt-oss-120b no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `SIN1114Ac-d2b-d3b` — otra cosa: huérfana: ninguna cola fuente la define ya (estaba pendiente)
+- `REP1114Css` — la revisión lo rechazó: no toco NINGUNO de los 1 archivos que declaraba (rama ola/REP1114Css conservada)
+- `SIN1114Ac-d3s-d2` — no escribió nada
+- `SIN11151` — otra cosa: 3 propuesta(s) · starseed_memory_root/imaginacion/agentes/sintesis-2026-11-15-contactos.json (ya estaba)
+- `SIN11152` — otra cosa: 4 propuesta(s) · starseed_memory_root/imaginacion/agentes/sintesis-2026-11-15-noticias.json (ya estaba)
+- `SIN11153` — otra cosa: 5 propuesta(s) · starseed_memory_root/imaginacion/agentes/sintesis-2026-11-15-referencias.json (ya estaba)
+- `SIN11154` — otra cosa: 5 propuesta(s) · starseed_memory_root/imaginacion/agentes/sintesis-2026-11-15-actividad.json (ya estaba)
+- `SIN11155` — otra cosa: 5 propuesta(s) · starseed_memory_root/imaginacion/agentes/sintesis-2026-11-15-ideas.json (ya estaba)
+- `SIN11156` — otra cosa: 3 propuesta(s) · starseed_memory_root/imaginacion/agentes/sintesis-2026-11-15-guiones.json (ya estaba)
+- `SIN11157` — otra cosa: 0 propuesta(s) · starseed_memory_root/imaginacion/agentes/sintesis-2026-11-15-youtube.json (ya estaba)
