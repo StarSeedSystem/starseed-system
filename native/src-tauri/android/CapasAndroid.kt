@@ -39,7 +39,7 @@ object CapasAndroid {
         val dir = File(ctx.noBackupFilesDir, CARPETA)
         dir.mkdirs()
         val app = ctx.applicationContext
-        val o = object : FileObserver(dir, CLOSE_WRITE or MOVED_TO) {
+        val o = object : FileObserver(dir, FileObserver.CLOSE_WRITE or FileObserver.MOVED_TO) {
             override fun onEvent(event: Int, path: String?) {
                 if (path == null) return
                 if (path.startsWith(PET) && path.endsWith(".json")) trabajo.execute { atender(dir, File(dir, path)) }
