@@ -1,0 +1,73 @@
+/**
+ * UNI1115M · las palabras del panel y de la ventana de control: cada motivo de rechazo de `control_entrada`, lo que
+ * falta en el aparato controlado y cada estado de la ventana, en español llano. Una función por cosa; nada de códigos
+ * en la cara de la persona (el código crudo se añade solo al final, para quien lo busque en el registro).
+ */
+
+/** `control_entrada` (seam 1) y los motivos de la puerta de la web que la persona puede ver. */
+export const PALABRAS_MOTIVO: Readonly<Record<string, string>> = {
+    firma: "La orden no venía firmada por un aparato de confianza; este aparato no la ejecutó.",
+    "no-autorizado": "Este aparato no aceptó a quien manda para operar su entrada. Acéptalo en este aparato con su código.",
+    sesion: "No hay una sesión de control abierta; ábrela de nuevo.",
+    "regla-g": "Por seguridad, esta pantalla (permisos, instalador o ajustes de accesibilidad) solo se toca en el aparato mismo.",
+    "pausa-local": "Alguien está tocando la pantalla del aparato: el control espera unos segundos.",
+    limite: "Demasiadas órdenes seguidas; el aparato espera un momento.",
+    "sin-servicio": "El servicio de accesibilidad de StarSeed no está encendido en el aparato: la persona debe encenderlo allí.",
+    "sin-soporte": "Este aparato todavía no puede hacer esto (solo las tabletas Android se controlan por ahora).",
+    "sin-consentimiento": "Falta que la persona active, en el aparato, «Ver la pantalla sin preguntar en cada sesión».",
+    "sin-indicador-nativo": "El aparato no pudo enseñar su aviso de control (borde rojo y «Terminar»): sin aviso no hay control.",
+    "permiso-apagado": "El control está apagado en el aparato; solo su dueño puede encenderlo.",
+    "otra-cuenta": "Ese aparato es de otra cuenta: solo se controlan los de la misma cuenta.",
+    "otro-destino": "La orden iba a otro aparato.",
+    "sesion-caducada": "La sesión terminó por inactividad (2 minutos). Ábrela de nuevo.",
+    "sin-sesion": "El aparato no abrió la sesión.",
+    "parada-nativa": "La persona terminó el control desde el aviso del aparato.",
+    "a-mano": "La persona usó el aparato con la mano y el control se detuvo.",
+    "terminado-por-el-dueno": "La persona terminó el control desde el aparato.",
+    "apagado-por-el-dueno": "La persona apagó el control en el aparato.",
+    nivel: "Esa orden pide un nivel de control que la sesión no tiene.",
+    caducada: "La orden llegó tarde y no se ejecutó.",
+    repetida: "Esa orden ya se había recibido.",
+    argumentos: "La orden venía mal formada.",
+    "sin-oferta": "El aparato no empezó a mandar su pantalla a tiempo.",
+    negociacion: "No se pudo preparar la conexión de vídeo.",
+    "sin-conexion": "La conexión de vídeo no llegó a establecerse.",
+    "conexion-perdida": "Se perdió la conexión de vídeo.",
+    "cuadro-fallo": "El aparato dejó de dar imágenes de su pantalla.",
+    "sin-cuadros": "El aparato no está dando imágenes nuevas.",
+    "sin-pantalla": "El aparato no está mandando su pantalla.",
+    desmontada: "La ventana se cerró.",
+    "cerrada-por-la-persona": "Cerraste la ventana de control.",
+    "sin-neurona": "No hay ninguna neurona elegida.",
+};
+
+export function palabrasMotivo(motivo: string | undefined | null): string | undefined {
+    if (!motivo) return undefined;
+    return PALABRAS_MOTIVO[motivo] ?? PALABRAS_FALTA[motivo] ?? `Motivo: ${motivo.slice(0, 40)}`;
+}
+
+/** Lo que `control_capacidades().falta` puede decir, y el botón de cada cosa (`control_abrir_ajuste`). */
+export const PALABRAS_FALTA: Readonly<Record<string, string>> = {
+    "servicio-accesibilidad": "El servicio de accesibilidad de StarSeed está apagado. Sin él no se puede ver ni tocar la pantalla desde otra neurona.",
+    "ajustes-restringidos": "Android bloquea el servicio de una app instalada fuera de la tienda hasta que permitas «ajustes restringidos» para StarSeed.",
+    "consentimiento-pantalla": "Falta el interruptor «Ver la pantalla sin preguntar en cada sesión»: sin él, Android no deja mandar la pantalla.",
+    "escribir-ajustes": "Falta el permiso «Modificar ajustes del sistema»: sin él no se puede cambiar el brillo desde otra neurona.",
+};
+
+export const BOTON_FALTA: Readonly<Record<string, string>> = {
+    "servicio-accesibilidad": "Abrir Accesibilidad",
+    "ajustes-restringidos": "Abrir la información de la app",
+    "consentimiento-pantalla": "Activar «Ver la pantalla sin preguntar»",
+    "escribir-ajustes": "Abrir «Modificar ajustes del sistema»",
+};
+
+/** Los estados de la ventana (seam 3), con el nombre de la neurona. */
+export function palabrasEstado(estado: "conectando" | "en-vivo" | "pausa-local" | "sin-pantalla" | "cerrada", nombre: string): string {
+    switch (estado) {
+        case "conectando": return `Conectando con ${nombre}…`;
+        case "en-vivo": return `Controlando ${nombre} en directo.`;
+        case "pausa-local": return `${nombre}: alguien toca su pantalla; el control espera.`;
+        case "sin-pantalla": return `${nombre} no enseña su pantalla ahora.`;
+        default: return `La ventana de ${nombre} está cerrada.`;
+    }
+}

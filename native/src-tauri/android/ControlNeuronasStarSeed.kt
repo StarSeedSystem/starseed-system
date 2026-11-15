@@ -47,6 +47,7 @@ class ArranqueControlNeuronas : ContentProvider() {
     override fun onCreate(): Boolean {
         val app = context?.applicationContext ?: return true
         ControlNeuronasNativo.iniciar(app)
+        ControlEntradaNativo.iniciar(app) // AND1115K
         return true
     }
 
@@ -151,6 +152,7 @@ object ControlNeuronasNativo : Application.ActivityLifecycleCallbacks {
                 "apagar" -> {
                     escribirAtomico(File(dir, INTERRUPTOR), JSONObject().put("encendido", false).put("t_ms", System.currentTimeMillis()).toString())
                     if (mostrando) ServicioControlNeuronas.quitar(app)
+                    ControlEntradaNativo.alApagar() // AND1115K
                     escribirEstado()
                 }
             }
@@ -170,6 +172,7 @@ object ControlNeuronasNativo : Application.ActivityLifecycleCallbacks {
     private fun guardarInterruptor(si: Boolean) {
         val o = JSONObject().put("encendido", si).put("t_ms", System.currentTimeMillis())
         if (!si) o.put("no_ms", System.currentTimeMillis())
+        if (!si) ControlEntradaNativo.alApagar() // AND1115K: apagar vacía la lista de controladores aceptados
         escribirAtomico(File(dir, INTERRUPTOR), o.toString())
     }
 
@@ -226,7 +229,7 @@ object ControlNeuronasNativo : Application.ActivityLifecycleCallbacks {
                 escribirEstado()
             }
             .setCancelable(true)
-            .show()
+            .show().also { ControlEntradaNativo.vigilarDialogo(it) } // AND1115K: regla G protege este diálogo
     }
 
     /** IND1115F: el botón «Activar» del panel: si ya está encendido, pide lo que falte; si no, el diálogo nativo. */
@@ -515,7 +518,8 @@ class ServicioControlNeuronas : Service() {
         fila.addView(t); fila.addView(reanudarB); fila.addView(terminarB)
         // Un toque en cualquier otro sitio de la pantalla llega aquí como ACTION_OUTSIDE: pausa al instante.
         fila.setOnTouchListener { _, ev ->
-            if (ev.actionMasked == MotionEvent.ACTION_OUTSIDE) { pausaLocal(); true } else false
+            // AND1115K: el toque de un gesto remoto nuestro no es «local»; uno de la persona sí (y marca los 3 s de pausa).
+            if (ev.actionMasked == MotionEvent.ACTION_OUTSIDE) { if (!ControlEntradaNativo.esGestoPropio()) { ControlEntradaNativo.toqueLocal(); pausaLocal() }; true } else false
         }
         val pPastilla = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT, tipo,
@@ -554,6 +558,7 @@ class ServicioControlNeuronas : Service() {
 
     private fun reanudar() {
         if (!ControlNeuronasNativo.mostrando || !ControlNeuronasNativo.pausada) return
+        if (ControlEntradaNativo.esGestoPropio()) return // AND1115K: un gesto remoto nunca reanuda el control
         ControlNeuronasNativo.pausada = false
         ControlNeuronasNativo.desdeMs = System.currentTimeMillis() // el gesto de reanudar no vuelve a pausar
         ControlNeuronasNativo.escribirEstado()
@@ -569,6 +574,7 @@ class ServicioControlNeuronas : Service() {
     /** Rust lo pidió (sesión cerrada allí): quita todo sin apuntar «terminada». */
     private fun cerrar() {
         principal.removeCallbacks(latido)
+        ServicioControlEntrada.instancia?.parar() // AND1115K: sin indicador no hay dedos abajo ni captura
         if (ControlNeuronasNativo.mostrando) {
             ControlNeuronasNativo.mostrando = false
             ControlNeuronasNativo.sesion = null

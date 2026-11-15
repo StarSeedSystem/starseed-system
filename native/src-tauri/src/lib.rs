@@ -173,10 +173,15 @@ mod control_neuronas; // ORD1114Q
 mod control_neuronas_logica; // ORD1114Q
 // ORD1114T: el borde de cada plataforma del indicador (Android por archivos con Kotlin; macOS AppKit/Carbon).
 mod control_neuronas_android; // ORD1114T
+mod control_entrada_logica; // AND1115K
+mod control_entrada; // AND1115K
+mod control_pantalla; // AND1115K
 #[cfg(target_os = "macos")]
 mod control_neuronas_macos; // ORD1114T
 #[cfg(test)]
 mod control_neuronas_parche; // ORD1114T (lo usa build.rs; aquí solo sus pruebas)
+#[cfg(test)]
+mod control_entrada_parche; // AND1115K (lo usa build.rs; aquí solo sus pruebas)
 #[cfg(test)]
 mod android_parche;
 #[cfg(test)]
@@ -920,6 +925,16 @@ pub fn run() {
                 control_neuronas::control_neuronas_parar,
                 control_neuronas::control_neuronas_estado,
                 control_neuronas::control_neuronas_preparar, // ORD1114T
+                // AND1115K: pantalla y entrada de la tableta (en escritorio contestan «sin-soporte»)
+                control_entrada::control_entrada,
+                control_entrada::control_capacidades,
+                control_entrada::control_abrir_ajuste,
+                control_entrada::control_estado_aparato,
+                control_entrada::control_entrada_aceptar,
+                control_entrada::control_entrada_aceptados,
+                control_pantalla::control_pantalla_iniciar,
+                control_pantalla::control_pantalla_cuadro,
+                control_pantalla::control_pantalla_parar,
                 // (PTA1108B) Proxy de la puerta de internet: webview (macOS 14+, Android) y descargas de Rust.
                 puerta_proxy::puerta_proxy_local,
                 puerta_proxy::puerta_proxy_estado,

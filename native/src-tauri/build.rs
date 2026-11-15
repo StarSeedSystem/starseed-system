@@ -29,6 +29,8 @@ mod ubicacion_parche;
 // ORD1114T: el indicador nativo del control entre neuronas en Android (permisos, servicio y Kotlin).
 #[path = "src/control_neuronas_parche.rs"]
 mod control_neuronas_parche;
+#[path = "src/control_entrada_parche.rs"]
+mod control_entrada_parche; // AND1115K
 
 /// Comandos propios de la app (los de `generate_handler!` de src/lib.rs). Desde tauri 2.11.1 una
 /// página de un origen REMOTO (la web publicada, y también el servidor local http://127.0.0.1:47610…)
@@ -152,6 +154,16 @@ const COMANDOS_APP: &[&str] = &[
     "control_neuronas_parar",
     "control_neuronas_estado",
     "control_neuronas_preparar", // ORD1114T: en Android pide a Kotlin el diálogo nativo del interruptor
+    // AND1115K: pantalla y entrada de la tableta (seam 1 de la fase 2-3)
+    "control_entrada",
+    "control_capacidades",
+    "control_abrir_ajuste",
+    "control_estado_aparato",
+    "control_entrada_aceptar",
+    "control_entrada_aceptados",
+    "control_pantalla_iniciar",
+    "control_pantalla_cuadro",
+    "control_pantalla_parar",
     // (PTA1108B) Proxy de la puerta de internet para el webview y las descargas de Rust.
     "puerta_proxy_local",
     "puerta_proxy_estado",
@@ -201,6 +213,7 @@ fn main() {
     proxy_puerta_android(); // (PTA1108B)
     ubicacion_android(); // (UBI1114K) ANTES que el Bluetooth: su bloque declara la ubicación fina sin tope de versión.
     control_neuronas_android(); // ORD1114T
+    control_entrada_android(); // AND1115K
     // (BLE1108A) Siempre el último: su bloque del manifiesto va detrás de los otros (mismo orden, mismo archivo).
     bluetooth_android();
     tauri_build::try_build(
@@ -554,5 +567,35 @@ fn control_neuronas_android() {
             }
         }
         Err(e) => panic!("[starseed] No se pudo inyectar el indicador de control en Android: {e}. Para compilar sin él: STARSEED_SIN_CONTROL_ANDROID=1"),
+    }
+}
+
+// AND1115K: la entrada y la pantalla remotas de la tableta (servicio de accesibilidad apagado hasta que la persona lo active).
+fn control_entrada_android() {
+    println!("cargo:rerun-if-changed=src/control_entrada_parche.rs");
+    println!("cargo:rerun-if-changed=android/ControlEntradaStarSeed.kt");
+    println!("cargo:rerun-if-env-changed=STARSEED_SIN_CONTROL_ENTRADA");
+    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() != Ok("android") {
+        return;
+    }
+    let paquete = std::env::var("TAURI_ANDROID_PACKAGE_UNESCAPED").or_else(|_| std::env::var("WRY_ANDROID_PACKAGE")).unwrap_or_default();
+    let apagado = control_entrada_parche::apagado(std::env::var("STARSEED_SIN_CONTROL_ENTRADA").ok().as_deref());
+    if apagado || !control_entrada_parche::aplica(&paquete) {
+        if apagado {
+            println!("cargo:warning=[starseed] STARSEED_SIN_CONTROL_ENTRADA: el APK sale SIN entrada ni pantalla remotas.");
+        }
+        return;
+    }
+    let Some(proyecto) = std::env::var_os("TAURI_ANDROID_PROJECT_PATH").map(std::path::PathBuf::from) else {
+        println!("cargo:warning=[starseed] Sin TAURI_ANDROID_PROJECT_PATH: el APK sale SIN entrada ni pantalla remotas.");
+        return;
+    };
+    match control_entrada_parche::aplicar(&proyecto) {
+        Ok(cambiados) => {
+            for c in cambiados {
+                println!("cargo:warning=[starseed] Control entre neuronas (entrada): escrito {}", c.display());
+            }
+        }
+        Err(e) => panic!("[starseed] No se pudo inyectar la entrada remota en Android: {e}. Para compilar sin ella: STARSEED_SIN_CONTROL_ENTRADA=1"),
     }
 }

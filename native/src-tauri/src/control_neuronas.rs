@@ -676,6 +676,7 @@ fn quitar_indicador(app: &AppHandle) {
 
 #[cfg(target_os = "android")]
 fn quitar_indicador(app: &AppHandle) {
+    crate::control_entrada::al_cerrar(app); // AND1115K: líneas de fin de sesión y parada de pantalla/entrada
     if let Some(id) = sesion_indicador().take() {
         let _ = crate::control_neuronas_android::es::pedir(app, "quitar", &id, "");
     }
@@ -709,4 +710,69 @@ fn anotar(app: &AppHandle, evento: &str, detalle: &str) {
     if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&ruta) {
         let _ = writeln!(f, "{linea}");
     }
+}
+
+// ─────────────────────────── AND1115K: la puerta de la entrada y la pantalla ───────────────────────────
+// Lo que `control_entrada.rs` y `control_pantalla.rs` piden a la sesión de aquí (que es privada de este módulo).
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ModoPuerta {
+    /// Solo mira (¿sesión viva con indicador a la vista?): no renueva la inactividad.
+    Lectura,
+    /// Cuenta como actividad, también en pausa local (la pantalla se sigue viendo).
+    Actividad,
+    /// Una orden de entrada: cuenta como actividad y se rechaza con `pausa-local` si hay pausa.
+    Orden,
+}
+
+/// La página de StarSeed OS, ventana principal.
+pub(crate) fn pagina_ok(app: &AppHandle, webview: &tauri::Webview) -> Result<(), String> {
+    exigir_pagina(app, webview)
+}
+
+/// Mira la sesión `token` con lo último que dijo Kotlin. Devuelve su nivel («ver»/«controlar») o el motivo.
+pub(crate) fn puerta_sesion(app: &AppHandle, token: &str, modo: ModoPuerta) -> Result<String, &'static str> {
+    sondear_plataforma(app);
+    let visible = indicador_visible(app);
+    let r = {
+        let mut c = control();
+        if !visible && c.activa().is_some() {
+            Err("sin-indicador")
+        } else {
+            match modo {
+                ModoPuerta::Lectura => c.valida(token).map(|s| s.nivel.clone()).map_err(|_| "sesion"),
+                ModoPuerta::Actividad => match c.orden(token, "pantalla", mono_ms(), visible) {
+                    Ok(s) => Ok(s.nivel.clone()),
+                    Err(l::Rechazo::Pausada) => c.valida(token).map(|s| s.nivel.clone()).map_err(|_| "sesion"),
+                    Err(_) => Err("sesion"),
+                },
+                ModoPuerta::Orden => match c.orden(token, "entrada", mono_ms(), visible) {
+                    Ok(s) => Ok(s.nivel.clone()),
+                    Err(l::Rechazo::Pausada) => Err("pausa-local"),
+                    Err(_) => Err("sesion"),
+                },
+            }
+        }
+    };
+    if r == Err("sin-indicador") {
+        parar(app, "sin-indicador");
+        return Err("sesion");
+    }
+    if control().activa().is_none() {
+        quitar_indicador(app);
+    }
+    r
+}
+
+/// Una línea en el registro encadenado (nombre del evento y detalle corto: nunca contenido).
+pub(crate) fn anotar_k(app: &AppHandle, evento: &str, detalle: &str) {
+    anotar(app, evento, detalle);
+}
+
+pub(crate) fn mono_k() -> u64 {
+    mono_ms()
+}
+
+pub(crate) fn pared_k() -> u64 {
+    pared_ms()
 }

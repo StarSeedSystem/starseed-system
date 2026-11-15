@@ -1,0 +1,137 @@
+//! (AND1115K) Control entre mis neuronas, fases 2–3 · la PANTALLA de la tableta hacia quien la controla.
+//! Fuente «accesibilidad»: capturas del servicio de accesibilidad (`AccessibilityService.takeScreenshot`, API 30+).
+//! Contrato: seam 1 (`control_pantalla_iniciar`, `_cuadro`, `_parar`).
+//!
+//! · Solo dentro de una sesión abierta con el indicador a la vista, y solo si la persona encendió, EN la tableta,
+//!   «Ver la pantalla sin preguntar en cada sesión» (diálogo nativo de Kotlin, apagado por defecto).
+//! · Kotlin deja cada cuadro ya hecho (`cabecera de 12 bytes + JPEG`) en `cuadro.bin` con un solo archivo que se
+//!   reemplaza de forma atómica: Rust lo lee y lo devuelve si es más nuevo que `desde`. Un cuadro nunca se guarda
+//!   ni se anota (el registro solo lleva fuente, tamaño y fps al empezar y al acabar).
+//! · Android limita `takeScreenshot` a una captura cada ~333 ms: como mucho ~3 cuadros por segundo.
+//! · En escritorio todo contesta `{ ok:false, motivo:"sin-soporte" }`. La proyección (MediaProjection) NO está
+//!   hecha: `fuente:"proyeccion"` no existe todavía y `control_capacidades` dice `proyeccion:false`.
+
+#![allow(dead_code)] // AND1115K: parte de esto solo se usa en Android
+
+#[cfg(target_os = "android")]
+use crate::control_entrada_logica as l;
+#[cfg(target_os = "android")]
+use serde_json::json;
+use serde_json::Value;
+use std::sync::{Mutex, MutexGuard, OnceLock};
+
+#[allow(dead_code)]
+struct Activa {
+    fuente: String,
+    ancho: u64,
+    alto: u64,
+    desde: std::time::Instant,
+}
+
+fn activa() -> MutexGuard<'static, Option<Activa>> {
+    static A: OnceLock<Mutex<Option<Activa>>> = OnceLock::new();
+    A.get_or_init(|| Mutex::new(None)).lock().unwrap_or_else(|e| e.into_inner())
+}
+
+/// Seam 1. `lado_max` (lado mayor del cuadro, 160..2048) y `calidad` (entero 1..100, UNI1115M) → JPEG.
+/// La página llama con los nombres en snake_case, tal como están en el seam.
+#[tauri::command(async, rename_all = "snake_case")]
+pub fn control_pantalla_iniciar(app: tauri::AppHandle, webview: tauri::Webview, sesion: String, lado_max: Option<u32>, calidad: Option<u32>) -> Result<Value, String> {
+    crate::control_neuronas::pagina_ok(&app, &webview)?;
+    Ok(iniciar(&app, &sesion, lado_max.unwrap_or(1280), calidad.unwrap_or(60)))
+}
+
+#[cfg(not(target_os = "android"))]
+fn iniciar(_app: &tauri::AppHandle, _sesion: &str, _lado: u32, _calidad: u32) -> Value {
+    crate::control_entrada::sin_soporte()
+}
+
+#[cfg(target_os = "android")]
+fn iniciar(app: &tauri::AppHandle, sesion: &str, lado: u32, calidad: u32) -> Value {
+    use crate::control_entrada::es;
+    use crate::control_neuronas::{puerta_sesion, ModoPuerta};
+    if puerta_sesion(app, sesion, ModoPuerta::Actividad).is_err() {
+        return json!({ "ok": false, "motivo": "sesion" });
+    }
+    let p = json!({ "tipo": "pantalla-iniciar", "lado_max": lado.clamp(l::LADO_MIN, l::LADO_MAX), "calidad": l::calidad_jpeg(calidad) });
+    let Some(r) = es::llamar(app, p, crate::control_entrada::ESPERA_MS) else {
+        return json!({ "ok": false, "motivo": "sin-servicio", "falta": ["servicio-accesibilidad"] });
+    };
+    if r.get("ok").and_then(|x| x.as_bool()) != Some(true) {
+        let mut o = json!({ "ok": false, "motivo": r.get("motivo").and_then(|m| m.as_str()).filter(|m| matches!(*m, "sin-consentimiento" | "sin-servicio" | "sesion")).unwrap_or("sin-servicio") });
+        if let Some(f) = r.get("falta") {
+            o["falta"] = f.clone();
+        }
+        return o;
+    }
+    let (ancho, alto, giro) = (r["ancho"].as_u64().unwrap_or(0), r["alto"].as_u64().unwrap_or(0), r["giro"].as_u64().unwrap_or(0));
+    *activa() = Some(Activa { fuente: "accesibilidad".into(), ancho, alto, desde: std::time::Instant::now() });
+    crate::ble::nota(None, "control-pantalla", &format!("inicio fuente=accesibilidad ancho={ancho} alto={alto} fps=-"));
+    crate::control_neuronas::anotar_k(app, "pantalla-iniciada", &format!("fuente=accesibilidad ancho={ancho} alto={alto}"));
+    json!({ "ok": true, "fuente": "accesibilidad", "ancho": ancho, "alto": alto, "giro": giro })
+}
+
+/// Seam 1: el cuadro más nuevo que `desde` (cabecera de 12 bytes + JPEG) o cero bytes.
+#[tauri::command(async)]
+pub fn control_pantalla_cuadro(app: tauri::AppHandle, webview: tauri::Webview, sesion: String, desde: Option<u32>) -> Result<tauri::ipc::Response, String> {
+    crate::control_neuronas::pagina_ok(&app, &webview)?;
+    Ok(tauri::ipc::Response::new(cuadro(&app, &sesion, desde.unwrap_or(0))))
+}
+
+#[cfg(not(target_os = "android"))]
+fn cuadro(_app: &tauri::AppHandle, _sesion: &str, _desde: u32) -> Vec<u8> {
+    Vec::new()
+}
+
+#[cfg(target_os = "android")]
+fn cuadro(app: &tauri::AppHandle, sesion: &str, desde: u32) -> Vec<u8> {
+    use crate::control_neuronas::{puerta_sesion, ModoPuerta};
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static ULTIMA_ACTIVIDAD: AtomicU64 = AtomicU64::new(0);
+    if activa().is_none() {
+        return Vec::new();
+    }
+    // Ver la pantalla cuenta como actividad (como mucho una vez cada 10 s): una sesión mirada no caduca a los 2 min.
+    let ahora = crate::control_neuronas::mono_k();
+    let modo = if ahora.saturating_sub(ULTIMA_ACTIVIDAD.load(Ordering::Relaxed)) >= 10_000 { ModoPuerta::Actividad } else { ModoPuerta::Lectura };
+    if puerta_sesion(app, sesion, modo).is_err() {
+        return Vec::new();
+    }
+    if modo == ModoPuerta::Actividad {
+        ULTIMA_ACTIVIDAD.store(ahora, Ordering::Relaxed);
+    }
+    match crate::control_entrada::es::leer_bytes(app, crate::control_entrada::CUADRO) {
+        Some(b) => l::cuadro_si_nuevo(&b, desde).map(<[u8]>::to_vec).unwrap_or_default(),
+        None => Vec::new(),
+    }
+}
+
+/// Seam 1: parar la pantalla (siempre se puede; no necesita sesión viva).
+#[tauri::command(async)]
+pub fn control_pantalla_parar(app: tauri::AppHandle, webview: tauri::Webview, sesion: String) -> Result<Value, String> {
+    crate::control_neuronas::pagina_ok(&app, &webview)?;
+    let _ = sesion;
+    #[cfg(target_os = "android")]
+    {
+        parar_interno(&app);
+        Ok(json!({ "ok": true }))
+    }
+    #[cfg(not(target_os = "android"))]
+    Ok(crate::control_entrada::sin_soporte())
+}
+
+/// Para la captura de Kotlin y deja la línea de fin (con los fps medidos). Sin pantalla activa, no hace nada.
+pub(crate) fn parar_interno(app: &tauri::AppHandle) {
+    let Some(a) = activa().take() else { return };
+    #[cfg(target_os = "android")]
+    {
+        let frames = crate::control_entrada::es::leer_bytes(app, crate::control_entrada::CUADRO).filter(|b| b.len() >= 4).map(|b| u32::from_le_bytes([b[0], b[1], b[2], b[3]])).unwrap_or(0);
+        let seg = a.desde.elapsed().as_secs_f64().max(0.001);
+        let _ = crate::control_entrada::es::enviar(app, json!({ "tipo": "pantalla-parar" }));
+        let linea = format!("fin fuente={} ancho={} alto={} fps={:.1}", a.fuente, a.ancho, a.alto, f64::from(frames) / seg);
+        crate::ble::nota(None, "control-pantalla", &linea);
+        crate::control_neuronas::anotar_k(app, "pantalla-parada", &linea);
+    }
+    #[cfg(not(target_os = "android"))]
+    let _ = (app, a);
+}

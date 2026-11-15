@@ -350,3 +350,136 @@ Fuente: órdenes O1114043351 y O1114043802 de la dirección principal al carril 
   **termina la sesión** (indicador desaparecido, §2.4).
 - **Ver la pantalla del otro aparato no está construido todavía.**
 - Windows, Linux e iOS niegan la sesión (`sin-indicador-nativo`): les falta el borde, el atajo o la pausa local.
+
+---
+
+## §12 Fases 2 y 3 tal como se construyen para Mac → Android (2026-11-15 · PAN1115J, AND1115K, VEN1115L)
+
+Primer destino: la Mac manda, la tableta Android es la controlada, misma cuenta. Lo que sigue son enunciados de lo que
+se construye; ninguno promete más que §2.3, §2.4 y §3, y lo que aquí no está, no se hace.
+
+**Las dos fuentes de pantalla (las elige el aparato controlado, no quien manda).**
+- **Capturas por accesibilidad.** Pocos cuadros por segundo. La persona enciende **una vez** el servicio de
+  accesibilidad (en Android, antes «permitir ajustes restringidos») y el interruptor **«Ver la pantalla sin preguntar en
+  cada sesión»**; con los dos encendidos no se pregunta nada por sesión. Sin esa persona delante, ninguno se enciende
+  desde otro aparato.
+- **Proyección de pantalla.** Fluida. Android **pregunta en cada sesión** y no se puede saltar; si la persona no está
+  delante para contestar, no hay pantalla por esta vía.
+- Si no hay ninguna de las dos, `pantalla-iniciar` se cumple y dice **qué falta** (`servicio-accesibilidad`,
+  `ajustes-restringidos`, `consentimiento-pantalla`, `escribir-ajustes`); quien manda lo enseña con esas palabras y la
+  persona lo arregla **en el aparato**. Los cuadros no se guardan ni se anotan.
+
+**Cómo viajan.** La orden `pantalla-iniciar` (nivel `ver`) pide la fuente a lo nativo; el aparato pinta los cuadros en un
+lienzo y los manda como **pista de vídeo** de una conexión P2P que se negocia por el canal de control: la oferta y los
+candidatos de quien manda entran como órdenes `pantalla-senal`, la contestación (con los candidatos del aparato
+dentro) vuelve en la respuesta. Reutiliza la configuración ICE de las llamadas, sin tocar su motor. El siguiente cuadro
+se pide cuando el anterior ya se pintó: nunca hay cola de cuadros. La entrada firmada sale por un **canal de datos de
+la misma conexión** si está abierto y, si no, por el canal de control. Con la conexión caída o sin ella, la sesión
+sigue siendo de órdenes (fase 1).
+
+**Órdenes nuevas (vocabulario cerrado; el sobre y la firma no cambian).**
+`ver`: `pantalla-iniciar`, `pantalla-parar`, `pantalla-senal`, `leer-aparato`.
+`controlar`: `gesto` (hasta 10 dedos, hasta 64 puntos por dedo, `x`/`y` de 0 a 1 de la pantalla tal como la enseñan los
+cuadros, `dt` en ms, `sigue` mantiene los dedos puestos), `tecla` (`atras`, `inicio`, `recientes`, `notificaciones`,
+`ajustes-rapidos`, `bloquear`, `captura`, `volumen-subir`, `volumen-bajar`, `silencio`, `menu-energia`), `volumen`
+(`multimedia`, `llamada`, `timbre`, `alarma`; 0 a 1), `brillo` (0 a 1), `texto` (hasta 512 caracteres, sin controles
+salvo salto de línea y tabulación). Un argumento fuera de rango, de más o con otra forma se rechaza como `argumentos`.
+Como la orden firmada entera no pasa de 4 KB, quien manda **parte un gesto grande en varias órdenes** (todas «siguen»
+menos la última, y todas nombran **todos** los dedos) y **funde** los gestos que esperan turno solo si llevan los mismos dedos.
+
+**Entrada.** Tope de **60 órdenes de entrada por segundo** por aparato (cuenta aparte del tope de las órdenes de app).
+La página del aparato controlado **no ejecuta** la entrada: comprueba lo de siempre (forma, firma, sesión, nivel, tope) y
+entrega la orden, con su sobre intacto, a `control_entrada`, que la vuelve a comprobar en lo nativo (aparato aceptado,
+regla G, pausa local). Fuera de una sesión de `controlar` esa entrega no se hace nunca.
+
+**Regla G, también en lo nativo.** La entrada se rechaza (`regla-g`) mientras la ventana en primer plano sea un diálogo
+de permisos o de consentimiento, el instalador de paquetes, los ajustes de accesibilidad, de administración del
+dispositivo o de acceso especial, o las pantallas de permisos de control de esta app; y el texto se rechaza en un campo
+de contraseña. El panel de ajustes rápidos, la cortina de notificaciones y los ajustes ordinarios **sí** se pueden
+manejar.
+
+**Toque local.** Un toque de la persona en el aparato pausa la entrada remota (`pausa-local`) hasta que pasan **3 s sin
+tocar**; quien manda ve el estado `pausa-local`. Si Android no da una señal fiable de ese toque, el aparato lo dice con
+palabras y **no lo finge**.
+
+**Comprobación nativa del que manda.** Antes de actuar, lo nativo comprueba que cada orden de entrada viene de un aparato
+**aceptado**. Aceptarlo para entrada se confirma en un **diálogo nativo que enseña su código de aparato**, y la clave
+pública aceptada se guarda en lo nativo. Esto cumple lo que §11 exigía antes de dar más poder que la página.
+
+**Qué permite cada nivel en Android.**
+- `ver`: ver la pantalla (por la fuente que la persona haya habilitado), leer volumen, brillo, batería, red y estado de
+  la pantalla del aparato, y las órdenes de fase 1 que son de `ver`. Ningún toque, tecla ni cambio.
+- `controlar`: lo de `ver` y, además, toques y gestos multitáctiles, las teclas de la lista, volumen, brillo y texto,
+  con regla G, pausa local y tope. Exige el servicio de accesibilidad encendido por la persona; sin él no hay toque.
+- `modificar` y `administrar`: **no existen todavía** y se siguen rechazando.
+
+**Qué se para y cuándo.** Pantalla, conexión y entrada paran juntas cuando la sesión se cierra, caduca (1 h) o pasa
+2 min sin actividad, cuando el indicador desaparece, cuando la persona toca **Terminar** o apaga el interruptor, o cuando
+la conexión cae. Con la sesión abierta, quien manda lee el estado del aparato cada 5 s, lo que cuenta como actividad.
+
+**Lo que se queda fuera.**
+- **macOS e iOS como aparatos controlados** (§3): iOS nunca recibe clics; macOS necesita su propia ronda (Grabación de
+  pantalla, Accesibilidad y Monitorización de entrada, que solo concede la persona).
+- El nivel **`modificar`** (archivos, ajustes, procesos, instalar) y **`administrar`**.
+- Audio en vivo, portapapeles y transferencia de archivos.
+- Un destino que no sea Android, y pantalla o control entre cuentas distintas.
+
+### §12.1 Costuras decididas al unir las tres partes (2026-11-15 · UNI1115M)
+
+**a. Comandos de Tauri: lo que la web manda y lo que Rust espera.** Tauri 2 pasa los argumentos en camelCase salvo que el
+comando diga `rename_all = "snake_case"`; por eso solo `control_pantalla_iniciar` lo dice (lleva `lado_max`). La tabla
+vive en `src/lib/control-remoto/nativo-comandos.ts`; `nativo-comandos.test.ts` (web, lee las firmas de Rust) y la prueba
+`los_argumentos_de_los_comandos_son_los_de_la_tabla_de_la_web` (Rust, lee la tabla) fallan si un lado se desvía.
+
+| Comando | Argumentos (web = Rust) | Devuelve |
+|---|---|---|
+| `control_capacidades` | — | `{ pantalla, entrada, falta }` (seam 1) |
+| `control_abrir_ajuste` | `cual` | `{ ok }` · abre Ajustes o el diálogo nativo; lo hace la persona |
+| `control_pantalla_iniciar` | `sesion`, `lado_max`, `calidad` | `{ ok, fuente, ancho, alto, giro }` o `{ ok:false, motivo, falta? }` |
+| `control_pantalla_cuadro` | `sesion`, `desde` | bytes: cabecera de 12 bytes + JPEG, o cero bytes |
+| `control_pantalla_parar` | `sesion` | `{ ok }` |
+| `control_estado_aparato` | — | volumen, brillo, batería, red, pantalla |
+| `control_entrada` | `sesion`, `sobre` | `{ ok }` o `{ ok:false, motivo }` |
+| `control_entrada_aceptar` | `spki`, `cuenta`, `nombre` | `{ ok, pendiente, codigo }`; solo PIDE el diálogo |
+| `control_entrada_aceptados` | — | `{ ok, controladores:[{ huella(8), nombre, codigo }] }` |
+
+**b. `calidad`** es un **entero de 1 a 100** en el vocabulario de la web, en la llamada y en Rust (`u32`); no hay
+fracciones. Lo nativo la acota a JPEG 20..95. `lado` (web) / `lado_max` (nativo): entero, 240..2048 en la web, 160..2048 en Rust.
+
+**c. `sesion`** es **siempre el token de la sesión nativa** de la fase 1 (el que Rust da en `control_neuronas_abrir` y
+`abrir-sesion` devuelve a quien manda); la página lo usa tal cual en `control_pantalla_*` y `control_entrada`, y la carga
+firmada lo lleva en `carga.sesion`, que Rust compara con el mismo token.
+
+**d. La carga de un `gesto`** viaja dentro del sobre firmado en **`carga.accion.args`** (`{ dedos, sigue }`), igual que
+las demás órdenes. Cada punto es `[x, y, dt_ms]`: `x`,`y` de 0 a 1 del cuadro tal como se ve y **`dt_ms` = milisegundos
+desde el punto anterior de ESE dedo** (en el primer punto de un dedo nuevo, 0; en el primero de una orden que continúa a
+un dedo, desde su último punto de la orden anterior). La ventana, el vocabulario de la web, Rust y Kotlin usan esta misma
+definición; Kotlin suma los `dt_ms` para la duración del trazo. Topes iguales en las dos orillas: 10 dedos, 64 puntos por dedo.
+
+**e. Giro.** Los cuadros llegan **ya derechos**, como los ve la persona en la tableta (Android entrega la captura con la
+orientación actual y `x`,`y` se multiplican por el ancho y alto de esa pantalla). El `giro` de la cabecera y el de
+`pantalla-iniciar` son solo informativos: la web **siempre** le da `giro: 0` a la ventana, que no gira la imagen, y el
+toque cae donde se hizo en las cuatro orientaciones del aparato. La ventana sigue sabiendo girar (`giro` 90/180/270) por si
+un día un origen manda cuadros sin enderezar.
+
+**f. Levantar un dedo con otros apoyados.** Un `gesto` con `sigue:true` **nombra todos los dedos que siguen abajo**; un
+dedo que falta en él **se levanta al instante** (lo nativo lo suelta donde estaba, en el mismo gesto en que los otros
+continúan). La ventana manda primero el último punto de todos, luego un `gesto` sin el dedo levantado, y la cola de quien
+manda no funde gestos de dedos distintos ni quita dedos al partir uno grande.
+
+**g. Aceptar a quien manda para la entrada.** Cuando la persona pulsa **Aceptar** en el panel de ESTE aparato y el nivel
+es `controlar`, la página llama a `control_entrada_aceptar`; lo nativo enseña su diálogo con el **código del aparato** y
+solo el «Sí» de la persona lo acepta (no hay otro camino: `control_entrada` rechaza `no-autorizado` mientras tanto). El
+panel enseña quién está aceptado (`control_entrada_aceptados`) y la lista nativa se vacía al apagar el interruptor.
+
+**Panel y ventana.** En el aparato controlado el panel dice lo que `control_capacidades().falta` pide, con un botón por
+cosa (`control_abrir_ajuste`), el interruptor «Ver la pantalla sin preguntar en cada sesión» (su diálogo nativo) y si la
+pantalla o la entrada se usan ahora. En quien manda, junto a cada neurona que ya aceptó hay «Abrir ventana de control»
+(flotante, montada una vez en la cáscara de la app: sigue al cambiar de sección) y «Abrir en una pestaña»
+(`/control-remoto?neurona=<id>&nombre=<nombre>`, parámetros de consulta para la interfaz estática de las apps nativas);
+«Pedir controlarla desde aquí» abre la ventana sola cuando esa neurona acepta. Las frases de cada motivo de rechazo y de
+cada estado están en `src/lib/control-remoto/palabras.ts`.
+
+**Lo que solo se ve en los aparatos.** Cuántos cuadros por segundo da cada fuente de verdad, si la conexión sale por
+Wi-Fi o por un relé, si Android avisa del toque local, qué ventanas cuenta la regla G como diálogo de permisos en cada
+versión de Android y cómo se siente la latencia del multitáctil: ninguna prueba en un contenedor lo demuestra.

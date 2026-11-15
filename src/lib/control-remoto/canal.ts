@@ -130,16 +130,20 @@ export async function iniciarCanalControl(): Promise<void> {
         neuronaPropia: () => yo,
         leerPermiso: leerPermisoLocal,
         guardarPermiso: guardarPermisoLocal,
-        ejecutar: async (nombre, args) => {
+        ejecutar: async (nombre, args, _carga, sobre, sesion) => {
             const { ejecutarEnApp } = await import("./ejecutores");
-            return ejecutarEnApp(nombre, args, { cuentaPropia: cuentaCache });
+            return ejecutarEnApp(nombre, args, { cuentaPropia: cuentaCache, sobre, sesion });
         },
         anotar,
         azarHex: () => azarHex(16),
-        alCambiar: avisarCambio,
+        alCambiar: () => {
+            avisarCambio();
+            void import("./pantalla-origen").then((m) => m.revisarOrigen()).catch(() => undefined); // PAN1115J: sesión cerrada → la pantalla para
+        },
         nativo,
         abrirSobre: decryptEnvelopeFor,
     });
+    void import("./pantalla-origen").then((m) => m.registrarPuerta(puerta)).catch(() => undefined); // PAN1115J
     // ORD1114Q: la parada de Rust (indicador, caducidad) cierra también la sesión de la página.
     quitarParada = await alPararNativo((motivo) => puerta?.paradaNativa(motivo));
     // ORD1114Q: si la persona contesta o cuelga a mano durante una sesión, se para y quien manda lo sabe.
@@ -187,6 +191,7 @@ export function pararCanalControl(): void {
     quitarVigia?.();
     quitarVigia = null;
     puerta = null;
+    void import("./pantalla-origen").then((m) => m.registrarPuerta(null)).catch(() => undefined); // PAN1115J
 }
 
 // ── lado que manda ───────────────────────────────────────────────────────────────────────────
@@ -197,6 +202,47 @@ export interface OpcionesOrden {
     esperaMs?: number;
 }
 
+/** (PAN1115J) Firma una orden con la clave de este aparato y devuelve el sobre `{ v, carga, firma }` (sin sellar ni mandar). */
+export async function firmarSobre(cuenta: string, para: string, nombre: string, args: Args, o: OpcionesOrden, n: string): Promise<{ v: 1; carga: string; firma: string }> {
+    const { firmarOrdenControl } = await import("@/lib/chats-genesis/firma-aparato");
+    const ahora = Date.now();
+    const firmada = await firmarOrdenControl(
+        (b) => ({
+            aud: AUD_CONTROL,
+            v: 1,
+            de: b.de,
+            cuenta: b.cuenta,
+            para,
+            nivel: o.nivel ?? "controlar",
+            sesion: o.sesion ?? null,
+            seq: b.seq,
+            nonce: n,
+            t: new Date(ahora).toISOString(),
+            caduca: new Date(ahora + VIDA_ORDEN_MS).toISOString(),
+            accion: { nombre, args },
+        }),
+        { cuenta },
+    );
+    return { v: 1 as const, carga: firmada.carga, firma: firmada.firma };
+}
+
+/** (PAN1115J) Nonce nuevo para una orden. */
+export function nonceNuevo(): string {
+    return nonce();
+}
+
+/** (PAN1115J) Firma una orden para mandarla por un canal de datos ya cifrado (la conexión de vídeo). Nunca lanza: null si no se pudo. */
+export async function firmarParaCanalDirecto(para: string, nombre: string, args: Args, o: OpcionesOrden): Promise<{ sobre: { v: 1; carga: string; firma: string }; nonce: string } | null> {
+    try {
+        const cuenta = cuentaCache ?? (await refrescarCuenta());
+        if (!cuenta) return null;
+        const n = nonce();
+        return { sobre: await firmarSobre(cuenta, para, nombre, args, o, n), nonce: n };
+    } catch {
+        return null;
+    }
+}
+
 /** Firma y manda una orden a otra neurona de la cuenta; devuelve su respuesta. Nunca lanza. */
 export async function mandarOrden(para: string, nombre: string, args: Args = {}, o: OpcionesOrden = {}): Promise<RespuestaOrden> {
     const n = nonce();
@@ -204,26 +250,7 @@ export async function mandarOrden(para: string, nombre: string, args: Args = {},
         if (!puerta) await iniciarCanalControl(); // necesitamos el oyente para recibir la respuesta
         const cuenta = cuentaCache ?? (await refrescarCuenta());
         if (!cuenta) return { tipo: "respuesta", nonce: n, ok: false, motivo: "sin-cuenta" };
-        const { firmarOrdenControl } = await import("@/lib/chats-genesis/firma-aparato");
-        const ahora = Date.now();
-        const firmada = await firmarOrdenControl(
-            (b) => ({
-                aud: AUD_CONTROL,
-                v: 1,
-                de: b.de,
-                cuenta: b.cuenta,
-                para,
-                nivel: o.nivel ?? "controlar",
-                sesion: o.sesion ?? null,
-                seq: b.seq,
-                nonce: n,
-                t: new Date(ahora).toISOString(),
-                caduca: new Date(ahora + VIDA_ORDEN_MS).toISOString(),
-                accion: { nombre, args },
-            }),
-            { cuenta },
-        );
-        const sobre = { v: 1 as const, carga: firmada.carga, firma: firmada.firma };
+        const sobre = await firmarSobre(cuenta, para, nombre, args, o, n);
         // ORD1114Q: sellada para la pública de cifrado del destino; sin ella no sale nada (nunca en claro).
         const [{ destinatariosReales }, { encryptEnvelopeFor }] = await Promise.all([import("@/lib/malla/archivo-seguro-real"), import("@/ai/astraura/mesh/recipient-crypto")]);
         const pub = (await destinatariosReales([para]))[0]?.pub ?? null;

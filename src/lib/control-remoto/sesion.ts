@@ -41,6 +41,8 @@ export const SESION_MAX_MS = 60 * 60_000;
 export const SESION_INACTIVA_MS = 2 * 60_000;
 export const TOPE_SEGUNDO = 5;
 export const TOPE_MINUTO = 60;
+/** (PAN1115J) Órdenes de entrada (toque, tecla…): hasta 60 por segundo, sin tope por minuto (§2.4). */
+export const TOPE_ENTRADA_SEGUNDO = 60;
 export const MAX_CONTROLADORES = 4;
 export const MAX_PENDIENTES = 5;
 
@@ -82,7 +84,7 @@ export interface DepsPuerta {
     leerPermiso: () => PermisoControl;
     guardarPermiso: (p: PermisoControl) => void;
     /** Ejecuta una acción YA validada. Devuelve el resultado o lanza con un motivo corto. */
-    ejecutar: (nombre: string, args: Args, carga: CargaOrden) => Promise<unknown>;
+    ejecutar: (nombre: string, args: Args, carga: CargaOrden, sobre?: unknown, sesion?: { token: string; nivel: Nivel }) => Promise<unknown>;
     anotar: (linea: string) => void;
     /** 16 bytes de azar en hex (el token de la sesión). */
     azarHex: () => string;
@@ -102,6 +104,7 @@ export class PuertaControl {
     private nonces: string[] = [];
     private noncesSet = new Set<string>();
     private marcas = new Map<string, number[]>();
+    private marcasEntrada = new Map<string, number[]>(); // PAN1115J
     /** (ORD1114Q) Una persona contestó o colgó a mano: la orden siguiente lo sabe («a-mano»). */
     private aMano: string | null = null;
 
@@ -166,8 +169,19 @@ export class PuertaControl {
         return { tipo: "respuesta", nonce, ok, motivo, ...(cuerpo !== undefined ? { resultado: cuerpo } : {}) };
     }
 
-    private tope(huella: string): boolean {
+    private tope(huella: string, entrada = false): boolean {
         const t = this.d.ahora();
+        if (entrada) {
+            // PAN1115J: la entrada tiene su propia cuenta: no gasta el tope de las órdenes de app ni se cuenta por minuto.
+            const l = (this.marcasEntrada.get(huella) ?? []).filter((x) => t - x < 1000);
+            if (l.length >= TOPE_ENTRADA_SEGUNDO) {
+                this.marcasEntrada.set(huella, l);
+                return false;
+            }
+            l.push(t);
+            this.marcasEntrada.set(huella, l);
+            return true;
+        }
         const lista = (this.marcas.get(huella) ?? []).filter((x) => t - x < 60_000);
         const enSegundo = lista.filter((x) => t - x < 1000).length;
         if (enSegundo >= TOPE_SEGUNDO || lista.length >= TOPE_MINUTO) {
@@ -235,7 +249,7 @@ export class PuertaControl {
         if (c.seq <= previo || this.noncesSet.has(c.nonce)) return this.respuesta(c.nonce, false, "repetida", nombre, c.de, c.nivel);
         this.ultimoSeq.set(c.de, c.seq);
         this.recordarNonce(c.nonce);
-        if (!this.tope(c.de)) return this.respuesta(c.nonce, false, "limite", nombre, c.de, c.nivel);
+        if (!this.tope(c.de, definicion(nombre)?.entrada === true)) return this.respuesta(c.nonce, false, "limite", nombre, c.de, c.nivel);
 
         const def = definicion(nombre);
         if (!def) return this.respuesta(c.nonce, false, "accion-desconocida", nombre, c.de, c.nivel);
@@ -291,7 +305,7 @@ export class PuertaControl {
             return this.respuesta(c.nonce, false, visto.motivo === "sin-indicador-nativo" ? "sin-indicador-nativo" : "parada-nativa", nombre, c.de, s.nivel);
         }
         try {
-            const r = await this.d.ejecutar(nombre, args, c);
+            const r = await this.d.ejecutar(nombre, args, c, sobre, { token: s.token, nivel: s.nivel });
             return this.respuesta(c.nonce, true, "ok", nombre, c.de, s.nivel, r);
         } catch (e) {
             const m = e instanceof Error && /^[a-z-]{1,32}$/.test(e.message) ? e.message : "fallo";

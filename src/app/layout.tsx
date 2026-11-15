@@ -49,6 +49,7 @@ import { SoloFueraDeConsola, SoloFueraDeMinima } from "@/components/layout/solo-
 // animación solo en el compositor; adaptativa a reduced-motion / saveData / poca RAM.
 import { IndicadorCargaGlobal } from "@/components/layout/indicador-carga-global";
 import { BandaControl } from "@/components/control-remoto/banda-control"; // ORD1114P
+import { AnfitrionControl } from "@/components/control-remoto/anfitrion-control"; // UNI1115M
 // Paleta de comandos global (Cmd/Ctrl+K): buscar y saltar a cualquier app o
 // página del OS + acciones rápidas. Hermana de {children} (no lo envuelve,
 // igual que el resto de la chrome global) para estar disponible en TODAS las
@@ -382,6 +383,8 @@ export default function RootLayout({
                         <IndicadorCargaGlobal />
                         {/* ORD1114P · banda de «Control entre mis neuronas» y del modo banco */}
                         <BandaControl />
+                        {/* UNI1115M · host de las ventanas de control remoto: montado una vez, sobrevive a los cambios de sección */}
+                        <AnfitrionControl />
 
                         <SoloFueraDeMinima><OmniDock /></SoloFueraDeMinima>
                         {/* Detección automática de entorno: medios + cuentas de este

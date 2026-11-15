@@ -183,3 +183,82 @@ export async function estadoIndicadorNativo(): Promise<EstadoIndicador | null> {
 /** (IND1115F) Lo que se puede pedir con un botón: abre YA el diálogo o la pantalla de Ajustes de esa cosa. */
 export type CosaQueFalta = "interruptor" | "notificaciones" | "superposicion";
 export const COSAS_QUE_FALTAN: readonly CosaQueFalta[] = ["interruptor", "notificaciones", "superposicion"];
+
+// ── UNI1115M · pantalla y entrada: lo que el panel de ESTE aparato pide a lo nativo (seam 1) ─────────────────────
+
+/** Lo que dice `control_capacidades` (null fuera de la app nativa o si el aparato no lo soporta). */
+export interface CapacidadesNativas {
+    pantalla: { accesibilidad: boolean; proyeccion: boolean; sinPreguntar: boolean };
+    entrada: { gestos: boolean; maxDedos: number; teclas: string[]; volumen: boolean; brillo: boolean; texto: boolean };
+    falta: string[];
+}
+
+export const AJUSTES_QUE_FALTAN = ["servicio-accesibilidad", "ajustes-restringidos", "consentimiento-pantalla", "escribir-ajustes"] as const;
+export type AjusteQueFalta = (typeof AJUSTES_QUE_FALTAN)[number];
+
+export async function capacidadesNativas(): Promise<CapacidadesNativas | null> {
+    const inv = invocador();
+    if (!inv) return null;
+    try {
+        const r = (await inv("control_capacidades")) as { ok?: boolean; pantalla?: Record<string, unknown>; entrada?: Record<string, unknown>; falta?: unknown } | null;
+        if (!r || r.ok === false || !r.pantalla || !r.entrada) return null;
+        const e = r.entrada;
+        return {
+            pantalla: { accesibilidad: r.pantalla.accesibilidad === true, proyeccion: r.pantalla.proyeccion === true, sinPreguntar: r.pantalla.sin_preguntar === true },
+            entrada: {
+                gestos: e.gestos === true,
+                maxDedos: Number.isFinite(Number(e.max_dedos)) ? Math.max(0, Math.min(10, Math.floor(Number(e.max_dedos)))) : 0,
+                teclas: Array.isArray(e.teclas) ? e.teclas.filter((t): t is string => typeof t === "string").slice(0, 16) : [],
+                volumen: e.volumen === true,
+                brillo: e.brillo === true,
+                texto: e.texto === true,
+            },
+            falta: textos(r.falta),
+        };
+    } catch {
+        return null;
+    }
+}
+
+/** Abre YA la pantalla de Ajustes (o el diálogo nativo) donde la PERSONA arregla una cosa que falta. No concede nada. */
+export async function abrirAjusteNativo(cual: AjusteQueFalta): Promise<{ ok: boolean; motivo?: string }> {
+    const inv = invocador();
+    if (!inv) return { ok: false, motivo: "sin-soporte" };
+    try {
+        const r = (await inv("control_abrir_ajuste", { cual })) as { ok?: boolean; motivo?: string } | null;
+        return { ok: r?.ok === true, motivo: typeof r?.motivo === "string" ? r.motivo : undefined };
+    } catch {
+        return { ok: false, motivo: "nativo-fallo" };
+    }
+}
+
+/**
+ * Pide el diálogo NATIVO que enseña el código del controlador. No acepta nada: lo acepta la persona con el «Sí»
+ * de ese diálogo. Sin app nativa, o fuera de Android, devuelve «sin-soporte».
+ */
+export async function aceptarControladorNativo(spki: string, cuenta: string, nombre: string): Promise<{ ok: boolean; pendiente?: boolean; codigo?: string; motivo?: string }> {
+    const inv = invocador();
+    if (!inv) return { ok: false, motivo: "sin-soporte" };
+    try {
+        const r = (await inv("control_entrada_aceptar", { spki, cuenta, nombre })) as { ok?: boolean; pendiente?: boolean; codigo?: string; motivo?: string } | null;
+        return { ok: r?.ok === true, pendiente: r?.pendiente === true, codigo: typeof r?.codigo === "string" ? r.codigo : undefined, motivo: typeof r?.motivo === "string" ? r.motivo : undefined };
+    } catch {
+        return { ok: false, motivo: "nativo-fallo" };
+    }
+}
+
+/** Los controladores que la persona aceptó EN este aparato para la entrada (solo huella corta, nombre y código). */
+export async function controladoresAceptadosNativos(): Promise<{ huella: string; nombre: string; codigo: string }[] | null> {
+    const inv = invocador();
+    if (!inv) return null;
+    try {
+        const r = (await inv("control_entrada_aceptados")) as { ok?: boolean; controladores?: unknown } | null;
+        if (!r || r.ok === false || !Array.isArray(r.controladores)) return null;
+        return r.controladores
+            .filter((c): c is Record<string, unknown> => !!c && typeof c === "object")
+            .map((c) => ({ huella: String(c.huella ?? "").slice(0, 8), nombre: String(c.nombre ?? "").slice(0, 40), codigo: String(c.codigo ?? "").slice(0, 12) }))
+            .slice(0, 16);
+    } catch {
+        return null;
+    }
+}

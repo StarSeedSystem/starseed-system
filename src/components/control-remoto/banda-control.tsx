@@ -13,12 +13,29 @@
  * (Rust/Kotlin) pendiente. Nada aquí pide ni concede permisos del sistema.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { PermisoControl, SesionActiva } from "@/lib/control-remoto/sesion";
 import type { EstadoApp } from "@/lib/banco-llamadas/actor";
 import { pasosQueFaltan } from "@/lib/banco-llamadas/pasos";
-import { COSAS_QUE_FALTAN, estadoIndicadorNativo, prepararIndicadorNativo, type CosaQueFalta, type EstadoIndicador } from "@/lib/control-remoto/nativo";
+import {
+    COSAS_QUE_FALTAN,
+    abrirAjusteNativo,
+    aceptarControladorNativo,
+    capacidadesNativas,
+    controladoresAceptadosNativos,
+    estadoIndicadorNativo,
+    prepararIndicadorNativo,
+    type AjusteQueFalta,
+    type CapacidadesNativas,
+    type CosaQueFalta,
+    type EstadoIndicador,
+} from "@/lib/control-remoto/nativo";
+import { BOTON_FALTA, PALABRAS_FALTA, palabrasMotivo } from "@/lib/control-remoto/palabras";
+
+// UNI1115M: el anfitrión (ventana, sesión, vídeo) se carga solo al abrir una ventana; el panel no lo arrastra.
+const abrirVentanaControl = (neurona: string, nombre: string) => void import("./anfitrion-control").then((m) => m.abrirVentanaControl(neurona, nombre));
+const abrirPaginaControl = (neurona: string, nombre: string) => void import("./anfitrion-control").then((m) => m.abrirPaginaControl(neurona, nombre));
 
 const RE_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -121,6 +138,60 @@ export function FaltasIndicador({ estado, onPedir, plataforma }: { estado: Estad
     );
 }
 
+
+/**
+ * (UNI1115M) Pantalla y entrada en ESTE aparato (tableta Android): lo que falta para que otra neurona la vea y la toque,
+ * con un botón por cada cosa (`control_abrir_ajuste`: abre la pantalla de Ajustes o el diálogo nativo; lo hace la
+ * PERSONA), el interruptor «Ver la pantalla sin preguntar en cada sesión», quién está aceptado para tocar y si la
+ * pantalla o la entrada se usan ahora mismo. Sin app nativa o sin soporte no sale. Nada aquí concede nada.
+ */
+export function PantallaYEntradaEsteAparato({ caps, aceptados, pantallaEnUso, entradaEnUso, onAjuste }: {
+    caps: CapacidadesNativas | null;
+    aceptados: { huella: string; nombre: string; codigo: string }[] | null;
+    pantallaEnUso: boolean;
+    entradaEnUso: boolean;
+    onAjuste: (cual: AjusteQueFalta) => void;
+}) {
+    if (!caps) return null;
+    const faltas = caps.falta.filter((f): f is AjusteQueFalta => f in PALABRAS_FALTA && f !== "consentimiento-pantalla");
+    const otras = caps.falta.filter((f) => !(f in PALABRAS_FALTA));
+    return (
+        <div className="space-y-2 rounded-lg border border-sky-400/30 bg-sky-400/[0.05] p-3 text-[12px] text-white/80" data-testid="pantalla-entrada-aparato">
+            <p className="font-medium text-sky-200">Ver y tocar este aparato desde otra neurona</p>
+            {faltas.map((f) => (
+                <div key={f} className="flex flex-wrap items-center gap-2" data-testid={`falta-ajuste-${f}`}>
+                    <span className="min-w-[14rem] flex-1">• {PALABRAS_FALTA[f]}</span>
+                    <button onClick={() => onAjuste(f)} className="min-h-9 cursor-pointer rounded-md bg-sky-500/80 px-2 py-1 font-medium text-black hover:bg-sky-400">
+                        {BOTON_FALTA[f]}
+                    </button>
+                </div>
+            ))}
+            {otras.map((f) => (
+                <p key={f}>• {palabrasMotivo(f)}</p>
+            ))}
+            <div className="flex flex-wrap items-center gap-2">
+                <button
+                    role="switch"
+                    aria-checked={caps.pantalla.sinPreguntar}
+                    onClick={() => onAjuste("consentimiento-pantalla")}
+                    className={`min-h-9 cursor-pointer rounded-lg border px-3 py-1.5 font-medium transition-colors ${caps.pantalla.sinPreguntar ? "border-sky-400 bg-sky-400/20 text-white" : "border-white/20 bg-white/5 text-white/70 hover:bg-white/10"}`}
+                >
+                    Ver la pantalla sin preguntar en cada sesión: {caps.pantalla.sinPreguntar ? "sí" : "no"}
+                </button>
+                <span className="min-w-[14rem] flex-1 text-white/55">Se cambia en un diálogo de este aparato: solo tú puedes decir «Sí».</span>
+            </div>
+            <p data-testid="uso-pantalla-entrada" className={pantallaEnUso || entradaEnUso ? "text-[#ff6b81]" : "text-white/55"}>
+                Ahora mismo: {pantallaEnUso ? "otra neurona está viendo la pantalla" : "nadie ve la pantalla"} · {entradaEnUso ? "otra neurona puede tocarla" : "nadie la toca"}.
+            </p>
+            <p className="text-white/70" data-testid="aceptados-entrada">
+                {aceptados && aceptados.length > 0
+                    ? `Aceptadas para tocar este aparato: ${aceptados.map((a) => `${a.nombre} (código ${a.codigo})`).join(", ")}.`
+                    : "Ninguna neurona está aceptada para tocar este aparato. Al aceptar una de arriba, este aparato te enseñará su código en un diálogo."}
+            </p>
+        </div>
+    );
+}
+
 export function BandaControl() {
     const router = useRouter();
     const n = useCambios();
@@ -195,6 +266,57 @@ export function ControlEntreNeuronasPanel() {
     const [neuronas, setNeuronas] = useState<Array<{ id: string; nombre: string; plataforma: string; online: boolean }>>([]);
     const [informe, setInforme] = useState<EstadoApp | null>(null);
     const [indicador, setIndicador] = useState<EstadoIndicador | null>(null);
+    // UNI1115M: pantalla y entrada de ESTE aparato (solo la app nativa de Android responde) y la espera de «Pedir controlarla»
+    const [capsNat, setCapsNat] = useState<CapacidadesNativas | null>(null);
+    const [aceptadosNat, setAceptadosNat] = useState<{ huella: string; nombre: string; codigo: string }[] | null>(null);
+    const [uso, setUso] = useState({ pantalla: false, entrada: false });
+    const [esperando, setEsperando] = useState<string | null>(null);
+    const leerPantallaEntrada = useCallback(() => {
+        void capacidadesNativas().then(setCapsNat);
+        void controladoresAceptadosNativos().then(setAceptadosNat);
+        void (async () => {
+            const c = await import("@/lib/control-remoto/canal");
+            const o = await import("@/lib/control-remoto/pantalla-origen");
+            const ses = c.puertaControl()?.sesionActiva() ?? null;
+            setUso({ pantalla: o.origenGlobal().enMarcha(), entrada: ses?.nivel === "controlar" });
+        })().catch(() => undefined);
+    }, []);
+    const pedirAjuste = useCallback(
+        async (cual: AjusteQueFalta) => {
+            const r = await abrirAjusteNativo(cual);
+            if (!r.ok && r.motivo) setAviso(palabrasMotivo(r.motivo) ?? `No se pudo abrir: ${r.motivo}`);
+            // La persona contesta en Ajustes o en el diálogo: se vuelve a leer mientras tanto y al volver.
+            for (const ms of [1500, 5000, 12000]) setTimeout(leerPantallaEntrada, ms);
+        },
+        [leerPantallaEntrada],
+    );
+    // «Pedir controlarla desde aquí» que termina en una sesión abierta: la ventana de control se abre sola.
+    const reloj = useRef<ReturnType<typeof setInterval> | null>(null);
+    useEffect(() => {
+        if (!esperando) return;
+        const objetivo = esperando;
+        const t0 = Date.now();
+        reloj.current = setInterval(() => {
+            void import("@/lib/banco-llamadas/app").then((b) => {
+                b.informarBanco(objetivo);
+                const i = b.ultimoInforme();
+                if (i?.sesion?.estado === "aceptada" && i.objetivo?.toLowerCase() === objetivo.toLowerCase()) {
+                    abrirVentanaControl(objetivo, nombreRef.current(objetivo));
+                    setEsperando(null);
+                } else if (i?.sesion?.estado === "rechazada" && i.objetivo?.toLowerCase() === objetivo.toLowerCase()) {
+                    setAviso(`${nombreRef.current(objetivo)} no te aceptó${i.sesion.motivo ? `: ${palabrasMotivo(i.sesion.motivo) ?? i.sesion.motivo}` : "."}`);
+                    setEsperando(null);
+                } else if (Date.now() - t0 > 5 * 60_000) {
+                    setAviso(`${nombreRef.current(objetivo)} no contestó en 5 minutos. Cuando acepte, pulsa «Abrir ventana de control».`);
+                    setEsperando(null);
+                }
+            });
+        }, 6000);
+        return () => {
+            if (reloj.current) clearInterval(reloj.current);
+            reloj.current = null;
+        };
+    }, [esperando]);
 
     // IND1115F: lo que Rust sabe del indicador de este aparato (nada fuera de la app nativa).
     const leerIndicador = useCallback(() => void estadoIndicadorNativo().then(setIndicador), []);
@@ -244,13 +366,17 @@ export function ControlEntreNeuronasPanel() {
             setCodigos(cs);
             const b = await import("@/lib/banco-llamadas/app");
             setBanco(b.estadoBanco());
+            leerPantallaEntrada(); // UNI1115M: después de lo de arriba, no a la vez (dos importaciones dinámicas de canal a la vez)
         })();
-    }, [n]);
+    }, [n, leerPantallaEntrada]);
 
     const nombreDe = useCallback(
         (id: string) => neuronas.find((x) => x.id.toLowerCase() === id.toLowerCase())?.nombre ?? "esa neurona",
         [neuronas],
     );
+
+    const nombreRef = useRef(nombreDe);
+    nombreRef.current = nombreDe;
 
     const cambiar = useCallback(async (f: (p: PermisoControl) => PermisoControl) => {
         const c = await import("@/lib/control-remoto/canal");
@@ -262,9 +388,20 @@ export function ControlEntreNeuronasPanel() {
     const aceptar = useCallback(
         async (huella: string) => {
             const s = await import("@/lib/control-remoto/sesion");
+            const c = await import("@/lib/control-remoto/canal");
+            const antes = c.leerPermisoLocal();
+            const quien = antes.pendientes.find((x) => x.huella === huella);
             await cambiar((p) => s.aceptarPendiente(p, huella));
+            // UNI1115M · costura g: para tocar este aparato (nivel «controlar») lo NATIVO enseña su diálogo con el código y solo
+            // el «Sí» de la persona acepta; la página solo lo pide. Sin ese «Sí», las órdenes de entrada se rechazan.
+            if (quien && antes.nivel === "controlar") {
+                const r = await aceptarControladorNativo(quien.spki, quien.cuenta, quien.nombre);
+                if (r.ok) setAviso(`Mira este aparato: te enseña el código ${r.codigo ?? ""} de ${quien.nombre}. Si coincide con el que ves allí, di «Sí» para dejarle tocar la pantalla.`);
+                else if (r.motivo && r.motivo !== "sin-soporte") setAviso(`Quedó aceptada para ver, pero no para tocar: ${palabrasMotivo(r.motivo) ?? r.motivo}`);
+                for (const ms of [1500, 6000, 15000]) setTimeout(leerPantallaEntrada, ms);
+            }
         },
-        [cambiar],
+        [cambiar, leerPantallaEntrada],
     );
     const quitar = useCallback(
         async (huella: string) => {
@@ -286,7 +423,10 @@ export function ControlEntreNeuronasPanel() {
         }
         const c = await import("@/lib/control-remoto/canal");
         const r = await c.presentarmeA(destino.trim().toLowerCase(), typeof navigator !== "undefined" ? (navigator.platform || "Neurona") : "Neurona");
-        if (r.ok) setTimeout(() => void import("@/lib/banco-llamadas/app").then((b) => b.informarBanco(destino.trim())), 6000); // mira si ya te aceptó
+        if (r.ok) {
+            setTimeout(() => void import("@/lib/banco-llamadas/app").then((b) => b.informarBanco(destino.trim())), 6000); // mira si ya te aceptó
+            setEsperando(destino.trim().toLowerCase()); // UNI1115M: cuando acepte, la ventana de control se abre sola
+        }
         setAviso(
             r.ok
                 ? `Pedido enviado. ${quienOpera.esteAparatoPide(nombreDe(destino.trim()), miCodigo)}`
@@ -335,6 +475,7 @@ export function ControlEntreNeuronasPanel() {
                 </select>
             </label>
             <FaltasIndicador estado={indicador} onPedir={(q) => void pedirFalta(q)} />
+            <PantallaYEntradaEsteAparato caps={capsNat} aceptados={aceptadosNat} pantallaEnUso={uso.pantalla} entradaEnUso={uso.entrada} onAjuste={(c) => void pedirAjuste(c)} />
             <p className="text-[12px] text-white/50">Código de este aparato: {miCodigo ?? "sin clave propia (créala en Chats de Genesis)"}</p>
             {permiso.pendientes.map((x) => (
                 <div key={x.huella} className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-400/30 p-2 text-[12px] text-white/80">
@@ -360,8 +501,26 @@ export function ControlEntreNeuronasPanel() {
                 </div>
             ))}
             {informe?.sesion?.estado === "aceptada" && informe.objetivo && (
-                <p className="text-[12px] text-emerald-300/80" data-testid="este-aparato-puede">
-                    {quienOpera.esteAparatoPuede(nombreDe(informe.objetivo))}
+                <div className="flex flex-wrap items-center gap-2" data-testid="este-aparato-puede">
+                    <p className="min-w-0 flex-1 text-[12px] text-emerald-300/80">{quienOpera.esteAparatoPuede(nombreDe(informe.objetivo))}</p>
+                    {/* UNI1115M: la ventana de control de esa neurona, flotante (sigue al cambiar de sección) o en una pestaña propia */}
+                    <button
+                        onClick={() => informe.objetivo && abrirVentanaControl(informe.objetivo, nombreDe(informe.objetivo))}
+                        className="min-h-9 cursor-pointer rounded-md bg-emerald-600/70 px-2 py-1 text-[12px] hover:bg-emerald-600"
+                    >
+                        Abrir ventana de control
+                    </button>
+                    <button
+                        onClick={() => informe.objetivo && abrirPaginaControl(informe.objetivo, nombreDe(informe.objetivo))}
+                        className="min-h-9 cursor-pointer rounded-md bg-white/10 px-2 py-1 text-[12px] text-white/80 hover:bg-white/20"
+                    >
+                        Abrir en una pestaña
+                    </button>
+                </div>
+            )}
+            {esperando && (
+                <p className="text-[12px] text-sky-200" data-testid="esperando-aceptacion">
+                    Esperando a que {nombreDe(esperando)} te acepte (compara el código {miCodigo ?? "de este aparato"}). Cuando lo haga, la ventana de control se abrirá sola.
                 </p>
             )}
             {neuronas.length > 0 && (
