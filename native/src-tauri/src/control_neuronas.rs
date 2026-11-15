@@ -39,6 +39,9 @@ const ID_BANDEJA: &str = "starseed-control-neuronas";
 const MENU_TERMINAR: &str = "ss-control-terminar";
 #[cfg(desktop)]
 #[allow(dead_code)]
+const MENU_QUITAR: &str = "ss-control-quitar-permiso"; // ORD1114V
+#[cfg(desktop)]
+#[allow(dead_code)]
 const MENU_REANUDAR: &str = "ss-control-reanudar"; // ORD1114T
 
 /// (ORD1114T) El AppHandle para quien no lo recibe (el atajo global de Carbon).
@@ -99,11 +102,17 @@ pub struct EstadoControl {
     pub falta: Vec<String>,
     /// (ORD1114T) Primera línea rota del registro encadenado (None si está íntegro o no existe).
     pub registro_roto_en: Option<usize>,
+    /// (ORD1114V) El interruptor nativo «dejar que me controlen» de este aparato.
+    pub interruptor: bool,
 }
 
 fn estado(app: &AppHandle) -> EstadoControl {
     let posible = indicador_posible(app);
-    let falta = if posible { Vec::new() } else { falta_indicador(app) };
+    let int_encendido = interruptor(app).encendido;
+    let mut falta = if posible { Vec::new() } else { falta_indicador(app) };
+    if !int_encendido && !falta.iter().any(|f| f == "interruptor") {
+        falta.push("interruptor".into());
+    }
     let roto = ruta_registro(app).and_then(|r| std::fs::read_to_string(r).ok()).and_then(|t| l::verificar_registro(&t).err());
     let c = control();
     let s = c.activa();
@@ -112,6 +121,7 @@ fn estado(app: &AppHandle) -> EstadoControl {
         pausada: c.pausada(),
         falta,
         registro_roto_en: roto,
+        interruptor: int_encendido,
         activa: s.is_some(),
         de: s.map(|s| s.de.chars().take(8).collect()),
         nombre: s.map(|s| s.nombre.clone()),
@@ -142,14 +152,16 @@ pub fn control_neuronas_abrir(app: AppHandle, webview: tauri::Webview, de: Strin
     if let Some(n) = ruta_registro(&app).and_then(|r| std::fs::read_to_string(r).ok()).and_then(|t| l::verificar_registro(&t).err()) {
         anotar(&app, "registro-roto", &format!("primera-linea-rota={n}"));
     }
+    // ORD1114V: primero el interruptor NATIVO de este aparato (§1 caso A punto 1); la página no lo puede encender.
+    let int = interruptor(&app);
     let posible = indicador_posible(&app);
-    if !posible {
+    if !posible && cfg!(target_os = "android") {
         // ORD1114T: en Android se PIDE a Kotlin el diálogo nativo (la persona decide allí; nada se enciende solo).
         pedir_preparar(&app);
     }
-    let visible = posible && poner_indicador(&app, &l::nombre_limpio(&nombre)).is_ok();
+    let visible = int.encendido && posible && poner_indicador(&app, &l::nombre_limpio(&nombre)).is_ok();
     let token = token_nuevo();
-    let r = control().abrir(&token, &de, &nombre, &nivel, mono_ms(), visible).map(|s| (s.de.chars().take(8).collect::<String>(), s.nivel.clone()));
+    let r = control().abrir_con_interruptor(&int, &token, &de, &nombre, &nivel, mono_ms(), visible).map(|s| (s.de.chars().take(8).collect::<String>(), s.nivel.clone()));
     match r {
         Ok((de8, nivel)) => {
             anotar(&app, "sesion-abierta", &format!("de={de8} nivel={nivel}"));
@@ -203,6 +215,10 @@ pub fn control_neuronas_anotar(app: AppHandle, webview: tauri::Webview, nombre: 
 pub fn control_neuronas_parar(app: AppHandle, motivo: String) -> EstadoControl {
     let m: String = motivo.chars().filter(|c| c.is_ascii_alphanumeric() || *c == '-').take(30).collect();
     parar(&app, if m.is_empty() { "pagina" } else { &m });
+    // ORD1114V: quitar el permiso en la página apaga también el interruptor nativo (apagar no pide nada).
+    if l::motivo_apaga(&m) {
+        apagar_interruptor(&app, &m);
+    }
     estado(&app)
 }
 
@@ -211,13 +227,93 @@ pub fn control_neuronas_estado(app: AppHandle) -> EstadoControl {
     estado(&app)
 }
 
-/// (ORD1114T) La persona enciende «dejar que me controlen» en ESTE aparato: en Android, Kotlin enseña su
-/// diálogo nativo y, con su «Sí», pide los permisos con los diálogos del sistema. En el resto, nada que pedir.
+/// (ORD1114T/ORD1114V) La persona enciende «dejar que me controlen» en ESTE aparato. La página solo PIDE el
+/// diálogo; el interruptor lo enciende el «Sí» de un diálogo NATIVO que la página no puede pulsar:
+/// escritorio, `tauri-plugin-dialog` como «Acceso al equipo» (acceso_equipo.rs); Android, el de Kotlin, que
+/// después pide los permisos con los diálogos del sistema.
+#[cfg(desktop)]
+#[tauri::command]
+pub async fn control_neuronas_preparar(app: AppHandle, webview: tauri::Webview) -> Result<EstadoControl, String> {
+    exigir_pagina(&app, &webview)?;
+    static PREGUNTANDO: AtomicBool = AtomicBool::new(false);
+    let mut i = interruptor(&app);
+    // Sin indicador posible (Windows/Linux) encenderlo no daría control: no se pregunta.
+    if !i.encendido && indicador_posible(&app) && !PREGUNTANDO.swap(true, Ordering::SeqCst) {
+        let texto = "¿Dejar que tus otras neuronas de la misma cuenta controlen este aparato?\n\n\
+            Solo las que aceptes una a una. Mientras alguna lo controle verás un borde rojo, «● Controlada por …» en \
+            la barra de menús y podrás terminar con ⌃⌥⌘. o desde ese menú; tocar el teclado o el ratón lo pausa. Cada \
+            orden queda en el registro de este aparato. Puedes quitarlo cuando quieras."
+            .to_string();
+        let si = crate::acceso_equipo::dialogo(&app, "Control entre tus neuronas", texto, "Sí, dejar", "No").await;
+        PREGUNTANDO.store(false, Ordering::SeqCst);
+        if i.encender(si, pared_ms()) && guardar_interruptor(&app, &i) {
+            anotar(&app, "interruptor-encendido", "la-persona-en-el-dialogo-nativo");
+        } else if !si {
+            anotar(&app, "interruptor-no", "la-persona-dijo-no-en-el-dialogo-nativo");
+        }
+    }
+    Ok(estado(&app))
+}
+
+#[cfg(not(desktop))]
 #[tauri::command]
 pub fn control_neuronas_preparar(app: AppHandle, webview: tauri::Webview) -> Result<EstadoControl, String> {
     exigir_pagina(&app, &webview)?;
     pedir_preparar(&app);
     Ok(estado(&app))
+}
+
+// ─────────────────────────── Interruptor nativo (ORD1114V) ───────────────────────────
+
+#[cfg(desktop)]
+fn ruta_interruptor(app: &AppHandle) -> Option<PathBuf> {
+    app.path().app_config_dir().ok().map(|d| d.join(l::ARCHIVO_INTERRUPTOR))
+}
+
+/// Escritorio: archivo que solo escribe Rust (la página no tiene escritura de archivos, SEG1111U).
+#[cfg(desktop)]
+fn interruptor(app: &AppHandle) -> l::Interruptor {
+    l::Interruptor::leer(ruta_interruptor(app).and_then(|r| std::fs::read_to_string(r).ok()).as_deref())
+}
+
+/// Android: lo guarda Kotlin, y solo con el «Sí» de su diálogo nativo.
+#[cfg(target_os = "android")]
+fn interruptor(app: &AppHandle) -> l::Interruptor {
+    let e = crate::control_neuronas_android::es::estado(app);
+    l::Interruptor { encendido: e.is_some_and(|e| e.encendido), desde_ms: 0 }
+}
+
+#[cfg(not(any(desktop, target_os = "android")))]
+fn interruptor(_app: &AppHandle) -> l::Interruptor {
+    l::Interruptor::default()
+}
+
+#[cfg(desktop)]
+fn guardar_interruptor(app: &AppHandle, i: &l::Interruptor) -> bool {
+    let Some(r) = ruta_interruptor(app) else { return false };
+    if let Some(d) = r.parent() {
+        let _ = std::fs::create_dir_all(d);
+    }
+    let tmp = r.with_extension("json.tmp");
+    std::fs::write(&tmp, i.texto()).is_ok() && std::fs::rename(&tmp, &r).is_ok()
+}
+
+/// Apaga el interruptor nativo al instante, sin diálogo, y cierra la sesión que hubiera.
+pub(crate) fn apagar_interruptor(app: &AppHandle, motivo: &str) {
+    parar(app, motivo);
+    #[cfg(desktop)]
+    {
+        let mut i = interruptor(app);
+        if i.apagar() || ruta_interruptor(app).is_some_and(|r| r.exists()) {
+            let _ = guardar_interruptor(app, &i);
+            anotar(app, "interruptor-apagado", motivo);
+        }
+    }
+    #[cfg(target_os = "android")]
+    {
+        let _ = crate::control_neuronas_android::es::pedir(app, "apagar", "", "");
+        anotar(app, "interruptor-apagado", motivo);
+    }
 }
 
 /// (ORD1114T) Pausa local (macOS: tecla/ratón; Android: toque fuera de la pastilla). Devuelve si pausó.
@@ -423,7 +519,8 @@ fn poner_bandeja(app: &AppHandle, nombre: &str) -> tauri::Result<()> {
         let sep = PredefinedMenuItem::separator(app)?;
         let reanudar_i = MenuItem::with_id(app, MENU_REANUDAR, "Reanudar el control", true, None::<&str>)?;
         let terminar = MenuItem::with_id(app, MENU_TERMINAR, "Terminar el control ahora", true, None::<&str>)?;
-        let menu = Menu::with_items(app, &[&info, &nota, &atajo, &sep, &reanudar_i, &terminar])?;
+        let quitar = MenuItem::with_id(app, MENU_QUITAR, "Terminar y quitar el permiso", true, None::<&str>)?; // ORD1114V
+        let menu = Menu::with_items(app, &[&info, &nota, &atajo, &sep, &reanudar_i, &terminar, &quitar])?;
         let mut b = TrayIconBuilder::with_id(ID_BANDEJA)
             .menu(&menu)
             .tooltip("Otra neurona de tu cuenta controla esta (StarSeed OS)")
@@ -433,6 +530,7 @@ fn poner_bandeja(app: &AppHandle, nombre: &str) -> tauri::Result<()> {
             .on_menu_event(|app, ev| match ev.id().as_ref() {
                 MENU_TERMINAR => parar(app, "la-persona-desde-el-indicador"),
                 MENU_REANUDAR => reanudar(app, "la-persona-desde-el-indicador"),
+                MENU_QUITAR => apagar_interruptor(app, "la-persona-quito-el-permiso"),
                 _ => {}
             });
         if let Some(icono) = app.default_window_icon() {

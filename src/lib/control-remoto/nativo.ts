@@ -123,3 +123,10 @@ export async function prepararIndicadorNativo(): Promise<{ indicadorPosible: boo
         return null;
     }
 }
+
+/** (ORD1114V) Apaga el interruptor nativo de este aparato (Rust no pide nada para apagar). Nunca lanza. */
+export async function apagarInterruptorNativo(): Promise<void> {
+    const inv = invocador();
+    if (!inv) return;
+    await inv("control_neuronas_parar", { motivo: "apagado-por-el-dueno" }).catch(() => undefined);
+}

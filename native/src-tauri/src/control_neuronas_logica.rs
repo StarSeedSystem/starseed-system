@@ -30,6 +30,8 @@ pub enum Rechazo {
     Token,
     /// Datos con forma rara (huella, nivel, nombre de orden).
     Forma,
+    /// (ORD1114V) El interruptor NATIVO «dejar que me controlen» de este aparato está apagado.
+    InterruptorApagado,
     /// (ORD1114T) Una tecla, un toque o un movimiento LOCAL pausó el control (§2.4); lo reanuda la persona
     /// desde el indicador nativo, nunca la página ni quien manda.
     Pausada,
@@ -44,6 +46,7 @@ impl Rechazo {
             Rechazo::Token => "parada-nativa",
             Rechazo::Forma => "forma",
             Rechazo::Pausada => "pausa-local",
+            Rechazo::InterruptorApagado => "interruptor-nativo-apagado",
         }
     }
 }
@@ -118,6 +121,16 @@ impl Control {
         }
         self.sesion = Some(Sesion { token: token.into(), de: de.into(), nombre: nombre_limpio(nombre), nivel: nivel.into(), inicio_ms: ahora, ultima_ms: ahora, pausada_ms: None, reanudada_ms: ahora });
         Ok(self.sesion.as_ref().expect("recién puesta"))
+    }
+
+    /// (ORD1114V) Abrir pasa ANTES por el interruptor nativo de este aparato (contrato §1 caso A punto 1): lo
+    /// que diga la página no basta.
+    #[allow(clippy::too_many_arguments)]
+    pub fn abrir_con_interruptor(&mut self, interruptor: &Interruptor, token: &str, de: &str, nombre: &str, nivel: &str, ahora: u64, indicador: bool) -> Result<&Sesion, Rechazo> {
+        if !interruptor.encendido {
+            return Err(Rechazo::InterruptorApagado);
+        }
+        self.abrir(token, de, nombre, nivel, ahora, indicador)
     }
 
     /// Antes de ejecutar CADA orden: hay sesión viva, el token es el suyo y el indicador sigue a la vista.
@@ -203,6 +216,54 @@ impl Control {
         }
         s
     }
+}
+
+// ─────────────────────────── Interruptor nativo (ORD1114V) ───────────────────────────
+
+/// Archivo del interruptor en la carpeta de configuración de la app (escritorio). Lo escribe SOLO Rust.
+pub const ARCHIVO_INTERRUPTOR: &str = "control-neuronas-interruptor.json";
+/// Motivos de parada que, además, APAGAN el interruptor (la persona quitó el permiso). Apagar nunca pide nada.
+pub const MOTIVOS_QUE_APAGAN: [&str; 4] = ["revocado", "terminado-por-el-dueno", "apagado-por-el-dueno", "la-persona-quito-el-permiso"];
+
+/// «Dejar que mis otras neuronas controlen esta»: apagado de fábrica, por aparato, guardado por el lado nativo.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Interruptor {
+    pub encendido: bool,
+    pub desde_ms: u64,
+}
+
+impl Interruptor {
+    /// Sin archivo, roto o con otra forma: apagado.
+    pub fn leer(texto: Option<&str>) -> Self {
+        let v = texto.and_then(|t| serde_json::from_str::<serde_json::Value>(t).ok());
+        let encendido = v.as_ref().and_then(|v| v.get("encendido")).and_then(|x| x.as_bool()).unwrap_or(false);
+        let desde_ms = v.as_ref().and_then(|v| v.get("desde_ms")).and_then(|x| x.as_u64()).unwrap_or(0);
+        Interruptor { encendido, desde_ms: if encendido { desde_ms } else { 0 } }
+    }
+
+    pub fn texto(&self) -> String {
+        serde_json::json!({ "v": 1, "encendido": self.encendido, "desde_ms": self.desde_ms }).to_string()
+    }
+
+    /// Solo enciende con el «Sí» del diálogo nativo. Devuelve si cambió.
+    pub fn encender(&mut self, dialogo_dijo_si: bool, ahora: u64) -> bool {
+        if !dialogo_dijo_si || self.encendido {
+            return false;
+        }
+        *self = Interruptor { encendido: true, desde_ms: ahora };
+        true
+    }
+
+    /// Apagar no pide nada y vale siempre. Devuelve si cambió.
+    pub fn apagar(&mut self) -> bool {
+        let estaba = self.encendido;
+        *self = Interruptor::default();
+        estaba
+    }
+}
+
+pub fn motivo_apaga(motivo: &str) -> bool {
+    MOTIVOS_QUE_APAGAN.contains(&motivo)
 }
 
 // ─────────────────────────── Registro encadenado ───────────────────────────
@@ -347,5 +408,44 @@ mod pruebas {
         // En pausa también caduca por inactividad: pausar no alarga la sesión.
         assert_eq!(c.orden(TOK, "colgar", 30_500 + SESION_INACTIVA_MS + 1, true).unwrap_err(), Rechazo::SinSesion);
         assert_eq!(Rechazo::Pausada.codigo(), "pausa-local");
+    }
+
+    // ─────────── ORD1114V ───────────
+
+    #[test]
+    fn interruptor_nativo_apagado_niega_aunque_la_pagina_tenga_el_permiso_encendido() {
+        // La «página» dice que el permiso está encendido y el controlador aceptado: no cuenta.
+        struct Pagina {
+            permiso_encendido: bool,
+        }
+        let pagina = Pagina { permiso_encendido: true };
+        assert!(pagina.permiso_encendido);
+        let mut c = Control::default();
+        let apagado = Interruptor::leer(None);
+        let e = c.abrir_con_interruptor(&apagado, TOK, DE, "Mac", "controlar", 0, true).unwrap_err();
+        assert_eq!(e, Rechazo::InterruptorApagado);
+        assert_eq!(e.codigo(), "interruptor-nativo-apagado");
+        assert!(c.activa().is_none());
+        let mut i = apagado;
+        assert!(i.encender(true, 5));
+        assert!(c.abrir_con_interruptor(&i, TOK, DE, "Mac", "controlar", 6, true).is_ok());
+    }
+
+    #[test]
+    fn el_interruptor_no_se_enciende_sin_el_si_del_dialogo_y_apagar_no_pide_nada() {
+        let mut i = Interruptor::default();
+        assert!(!i.encender(false, 1), "sin «Sí» no se enciende");
+        assert!(!i.encendido);
+        // Un archivo raro o escrito a medias se lee apagado; solo `encender(true)` lo enciende.
+        assert!(!Interruptor::leer(Some("{roto")).encendido);
+        assert!(!Interruptor::leer(Some("{\"encendido\":\"si\"}")).encendido);
+        assert!(i.encender(true, 7));
+        assert_eq!(Interruptor::leer(Some(&i.texto())), i, "persiste");
+        assert!(i.apagar(), "apagar sin diálogo");
+        assert!(!Interruptor::leer(Some(&i.texto())).encendido);
+        for m in ["revocado", "terminado-por-el-dueno", "apagado-por-el-dueno", "la-persona-quito-el-permiso"] {
+            assert!(motivo_apaga(m), "{m}");
+        }
+        assert!(!motivo_apaga("cerrar-sesion") && !motivo_apaga("a-mano") && !motivo_apaga("pagina"));
     }
 }

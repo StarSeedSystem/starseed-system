@@ -128,6 +128,13 @@ object ControlNeuronasNativo : Application.ActivityLifecycleCallbacks {
                 "preparar" -> preparar()
                 "mostrar" -> if (ses.length >= 16) ServicioControlNeuronas.mostrar(app, ses, p.optString("nombre", "otra neurona").take(40))
                 "quitar" -> if (ses == sesion) ServicioControlNeuronas.quitar(app)
+                // ORD1114V: la persona quitó el permiso en la página: se apaga al instante, sin diálogo (apagar
+                // nunca pide nada; encender solo con el «Sí» del diálogo nativo de abajo).
+                "apagar" -> {
+                    escribirAtomico(File(dir, INTERRUPTOR), JSONObject().put("encendido", false).put("t_ms", System.currentTimeMillis()).toString())
+                    if (mostrando) ServicioControlNeuronas.quitar(app)
+                    escribirEstado()
+                }
             }
         }
     }

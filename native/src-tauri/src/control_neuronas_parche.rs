@@ -230,7 +230,7 @@ mod pruebas {
         for campo in ["\"encendido\"", "\"notificaciones\"", "\"superposicion\"", "\"mostrando\"", "\"sesion\"", "\"pausada\"", "\"terminada\"", "\"falta\"", "\"t_ms\""] {
             assert!(KOTLIN.contains(campo), "Kotlin no escribe {campo}");
         }
-        for accion in ["\"preparar\"", "\"mostrar\"", "\"quitar\""] {
+        for accion in ["\"preparar\"", "\"mostrar\"", "\"quitar\"", "\"apagar\""] {
             assert!(KOTLIN.contains(accion), "Kotlin no atiende {accion}");
         }
         // El latido de Kotlin cabe con holgura en lo que Rust espera.
@@ -258,5 +258,9 @@ mod pruebas {
         let si = KOTLIN.find("setPositiveButton(\"Sí, dejar\")").unwrap();
         let pedir = KOTLIN.find("private fun pedirPermisosQueFaltan").unwrap();
         assert!(KOTLIN[si..].contains("pedirPermisosQueFaltan()") && pedir > 0);
+        // ORD1114V: el interruptor solo se ENCIENDE en el «Sí» del diálogo nativo; ninguna petición de Rust lo enciende.
+        assert_eq!(KOTLIN.matches("guardarInterruptor(true)").count(), 1);
+        assert!(KOTLIN[si..].find("guardarInterruptor(true)").unwrap() < 200);
+        assert!(!KOTLIN.contains("put(\"encendido\", true)"));
     }
 }

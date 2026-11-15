@@ -333,3 +333,20 @@ Fuente: órdenes O1114043351 y O1114043802 de la dirección principal al carril 
 - **Un aparato personal solo es nodo público dentro de un contenedor aislado.**
 - **Regla pétrea: el voto de una comunidad nunca anula el permiso del dueño de un aparato personal.**
 - **El internet público compartido por las capas de conciencia de la malla ya estaba aprobado**: no es una decisión abierta.
+
+## §11 Lo que la fase 1 es de verdad, tal como está construida (2026-11-15 · ORD1114P/Q/T/V)
+
+- **Firma en la página, todo lo demás nativo.** La firma ECDSA por aparato de cada orden (con `seq`, nonce y
+  caducidad) la verifica la **página** del aparato controlado. La sesión, el indicador, la parada, el interruptor
+  «dejar que me controlen» y el registro encadenado son **nativos** (Rust; en Android el indicador e interruptor,
+  Kotlin). Eso basta para la fase 1, que no da a quien manda más poder que el que ya tiene la página (órdenes de
+  app). **Antes de cualquier fase que dé más poder que la página (fase 3: clics y teclado del sistema), la
+  verificación de la firma tiene que pasar al lado nativo.**
+- **Interruptor nativo.** Apagado de fábrica y por aparato; solo lo enciende el «Sí» de un diálogo nativo
+  (macOS: el de `tauri-plugin-dialog`, como «Acceso al equipo»; Android: el de Kotlin); la página solo puede
+  pedir el diálogo. Apagarlo (página, «Terminar y quitar el permiso», menú de la barra) es inmediato y sin
+  diálogo. Con él apagado, Rust niega la sesión con `interruptor-nativo-apagado` y lo anota.
+- **Android 14 y posteriores** dejan a la persona descartar la notificación en curso del control: descartarla
+  **termina la sesión** (indicador desaparecido, §2.4).
+- **Ver la pantalla del otro aparato no está construido todavía.**
+- Windows, Linux e iOS niegan la sesión (`sin-indicador-nativo`): les falta el borde, el atajo o la pausa local.

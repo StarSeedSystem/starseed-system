@@ -45,6 +45,8 @@ export function guardarPermisoLocal(p: PermisoControl): void {
         /* sin almacenamiento */
     }
     if (p.encendido && !antes) void import("./nativo").then((m) => m.prepararIndicadorNativo());
+    // ORD1114V: al APAGARLO, el interruptor nativo se apaga al instante (sin diálogo); encenderlo solo lo pide.
+    if (!p.encendido && antes) void import("./nativo").then((m) => m.apagarInterruptorNativo());
     try {
         window.localStorage.setItem(CLAVE_PERMISO, JSON.stringify(p));
     } catch {
