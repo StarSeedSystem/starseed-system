@@ -1,0 +1,1 @@
+export default function Image({ src, alt, ...r }: { src: string | { src: string }; alt: string } & Record<string, unknown>) { return <img src={typeof src === "string" ? src : src.src} alt={alt} {...(r as object)} />; }

@@ -73,6 +73,9 @@ import { OnboardingGate } from "@/components/onboarding/onboarding-gate";
 import { StartupUpdatesModal } from "@/components/astraura/startup-updates-modal";
 import VentanaPerfilInicial from "@/components/onboarding/ventana-perfil-inicial";
 import { PrimerArranque } from "@/components/onboarding/primer-arranque";
+import { CapaIdioma } from "@/components/idiomas/capa-idioma"; // IDI1115N
+import { guionArranque, CSS_PENDIENTE } from "@/lib/idiomas/arranque"; // IDI1115N
+import { CON_CATALOGO, IDIOMAS } from "@/lib/idiomas/idiomas"; // IDI1115N
 import { CursorFxHost } from "@/components/desktop/cursor-fx";
 import { MausbotHostCliente } from "@/components/mausbot/mausbot-host-cliente";
 import { PerfController, PerfHeavyOnly, PerfStaticBackdrop } from "@/components/perf/perf-gate";
@@ -282,6 +285,11 @@ export default function RootLayout({
       className={cn("dark", fontInter.variable, fontRoboto.variable, fontOutfit.variable, fontHeadline.variable, fontCode.variable)}
       suppressHydrationWarning
     >
+      {/* IDI1115N: lang/dir y velo mínimo antes del primer pintado (contrato architecture/idiomas.md §6) */}
+      <head>
+        <style dangerouslySetInnerHTML={{ __html: CSS_PENDIENTE }} />
+        <script dangerouslySetInnerHTML={{ __html: guionArranque(CON_CATALOGO, IDIOMAS.filter((i) => i.dir === "rtl").map((i) => i.codigo)) }} />
+      </head>
       <body
         suppressHydrationWarning
         className="min-h-screen bg-background font-body antialiased"
@@ -452,6 +460,7 @@ export default function RootLayout({
                             los ajustes de esa neurona. Raíz y no (app): la app nativa
                             abre /escritorios, que vive en (main). */}
                         <SoloFueraDeConsola><SoloFueraDeMinima><PrimerArranque /></SoloFueraDeMinima></SoloFueraDeConsola>
+                        <CapaIdioma />{/* IDI1115N */}
                         {/* (Adenda 193) Ventana «Sistemas de Astraura en esta
                             neurona»: GLOBAL, como el gate y la guía. Vivía solo
                             en (app) y el rito termina en /escritorios —grupo

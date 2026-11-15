@@ -47,6 +47,7 @@ import { AjusteCompatibilidadNeuronas } from "./compatibilidad-neuronas"; // MTZ
 import { AjustePuertaInternet } from "./ajuste-puerta-internet";
 import { AjusteEnviosArchivos } from "./ajuste-envios-archivos"; // PTA1108C
 import { AjusteCifradoRedLocal } from "./ajuste-cifrado-red-local";
+import { AjusteIdioma } from "./ajuste-idioma"; // IDI1115N
 
 /* ── Icono por tipo de dispositivo ── */
 const KIND_ICONS: Record<NeuronKind, typeof Monitor> = {
@@ -177,6 +178,7 @@ export function NeuronsPanel() {
 
   return (
     <div className="space-y-6">
+      <AjusteIdioma />{/* IDI1115N */}
       {/* ── Hero ── */}
       <Card className="bg-gradient-to-br from-[#39FF14]/10 via-background/40 to-primary/10 border-[#39FF14]/20">
         <CardHeader>

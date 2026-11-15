@@ -78,6 +78,7 @@ import { AuthForm, type OrigenEntrada, type PestanaAcceso } from "@/components/a
 import { DemoPaso } from "@/components/onboarding/demo-paso";
 import { BarraCapitulos, IndiceGuia, PuntosPaso, RazonesCuenta, TarjetasPaso } from "@/components/onboarding/guia-completa-ui";
 import { IconoStarSeed } from "@/components/onboarding/icono-starseed";
+import { SelectorIdioma } from "@/components/idiomas/selector-idioma"; // IDI1115N
 
 /* ───────────────────────────────────── Datos ───────────────────────────────────── */
 
@@ -252,6 +253,7 @@ export function ContenidoAcceso({
     return (
         <div className="relative z-10 flex w-full flex-col gap-3" data-paso={paso.id} data-capitulo-actual={paso.capitulo}>
             <header className="flex flex-col items-center gap-0.5 text-center">
+                <SelectorIdioma className="mb-2 text-left" />{/* IDI1115N */}
                 <div className="inline-flex items-center gap-2.5" data-testid="marca-starseed">
                     <IconoStarSeed size={36} />
                     <span
