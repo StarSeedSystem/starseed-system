@@ -33,6 +33,7 @@ import { leerInstalada, type Instalada } from "@/lib/actualizaciones/version-por
 import { NOMBRE_MEDIO } from "@/lib/neurons/info-publica";
 import { EVENTO_BUSCAR_ACTUALIZACION } from "@/lib/neurons/pedir-actualizacion";
 import { OS_VERSION } from "@/lib/version/os-release";
+import { BloqueInterfazWeb, EVENTO_BUSCAR_WEB } from "./bloque-interfaz-web"; // AND1114L
 
 /** El ancla de la sección en /cuenta (también la usa el buscador de Ajustes y los enlaces). */
 export const ANCLA_VERSION = "version-actualizaciones";
@@ -100,6 +101,7 @@ export function SeccionVersion() {
   const pulsar = () => {
     if (accion.tipo === "actualizar") pedirActualizar({ origen: "ajustes" });
     else window.dispatchEvent(new CustomEvent(EVENTO_BUSCAR_ACTUALIZACION));
+    window.dispatchEvent(new Event(EVENTO_BUSCAR_WEB)); // AND1114L: «Buscar ahora» mira la app Y la interfaz web
   };
 
   const cambiarAuto = (v: boolean) => {
@@ -157,7 +159,7 @@ export function SeccionVersion() {
               {accion.texto}
             </Button>
             {accion.tipo === "actualizar" && (
-              <Button variant="outline" size="sm" className="cursor-pointer" onClick={() => window.dispatchEvent(new CustomEvent(EVENTO_BUSCAR_ACTUALIZACION))} disabled={trabajando}>
+              <Button variant="outline" size="sm" className="cursor-pointer" onClick={() => { window.dispatchEvent(new CustomEvent(EVENTO_BUSCAR_ACTUALIZACION)); window.dispatchEvent(new Event(EVENTO_BUSCAR_WEB)); }} disabled={trabajando}>
                 Buscar ahora
               </Button>
             )}
@@ -185,6 +187,8 @@ export function SeccionVersion() {
           </p>
         )
       )}
+
+      {inst && <BloqueInterfazWeb />}
 
       {ultima && (
         <p className="text-xs text-muted-foreground">

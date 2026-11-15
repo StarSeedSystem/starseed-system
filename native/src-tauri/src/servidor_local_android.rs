@@ -26,6 +26,8 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 use crate::pista_neurona;
+use crate::servidor_capas; // AND1114L
+use crate::servidor_capas_logica as cl; // AND1114L
 use crate::servidor_local_android_logica as la;
 use crate::servidor_local_logica as l;
 use std::ffi::{c_char, c_int, c_void, CStr, CString};
@@ -80,6 +82,8 @@ struct Global {
     /// Node y en la URL de entrada.
     pase: String,
     registro: Mutex<Option<File>>,
+    /// (AND1114L) Ya se pidió el relevo de proceso: no se repite.
+    reinicio_pedido: AtomicBool,
 }
 
 fn g() -> &'static Global {
@@ -93,6 +97,7 @@ fn g() -> &'static Global {
         node_codigo: Mutex::new(None),
         pase: l::pase_nuevo(),
         registro: Mutex::new(None),
+        reinicio_pedido: AtomicBool::new(false),
     })
 }
 
@@ -183,10 +188,17 @@ fn servidor(app: AppHandle) {
         std::thread::sleep(Duration::from_millis(250));
     };
     abrir_registro(&paquete);
+    // (AND1114L) Capas: qué carpeta sirve este arranque (capa a prueba → activa → anterior → la de la APK).
+    let (paquete, eleccion) = aplicar_capas(&app, &paquete);
+    servidor_capas::registrar_sirve();
     fijar(Fase::Preparando("Arrancando el servidor local…".into()));
     match arrancar_node(&app, &paquete) {
         Ok((puerto, firma)) => {
             registrar(&format!("listo en {}", l::origen_local(puerto)));
+            if let (Some(el), la::TrasArranque::Promover) = (&eleccion, la::tras_arranque(true, eleccion.as_ref().and_then(|e| e.build()).is_some())) {
+                servidor_capas::tras_lista(el); // AND1114L: la capa a prueba pasa a activa (la anterior queda de respaldo)
+            }
+            servidor_capas::iniciar_vigia(&app); // AND1114L: mira la web publicada y el canal; baja y verifica la capa nueva
             // (NOT1108A) El registro del origen: el principal (la primera vez) y este uso.
             if crate::origen_local::tras_servir(&app, puerto) {
                 registrar(&format!("AVISO: el puerto principal estaba ocupado; esta vez sirve {} (otro origen)", l::origen_local(puerto)));
@@ -196,9 +208,138 @@ fn servidor(app: AppHandle) {
         }
         Err(m) => {
             registrar(&format!("no arrancó: {m}"));
+            // (AND1114L) Una capa que no arranca se marca mala y se borra; Node no arranca dos veces en un proceso, así que
+            // se pide un proceso nuevo, que elegirá la anterior (o la de la APK). Entretanto, esta vez, la web publicada.
+            if let (Some(el), la::TrasArranque::MarcarMalaYProcesoNuevo) = (&eleccion, la::tras_arranque(false, eleccion.as_ref().and_then(|e| e.build()).is_some())) {
+                servidor_capas::tras_fallo(el, &m);
+                pedir_proceso_nuevo("la capa no arrancó: se vuelve a la anterior");
+            }
             fijar(Fase::Respaldo(m));
         }
     }
+}
+
+/// (AND1114L) La carpeta de capas de esta APK: `noBackupFilesDir/servidor-capas`, hermana de `servidor-local/` (Kotlin
+/// borra las carpetas ajenas de `servidor-local/` al extraer una APK nueva; las capas y la anterior deben sobrevivirla).
+fn carpeta_capas(p: &la::EstadoPaquete) -> Option<std::path::PathBuf> {
+    la::carpeta_capas(p, cl::DIR_CAPAS)
+}
+
+/// (AND1114L) Elige qué servir (capas) y devuelve el paquete con esa carpeta. Sin capas utilizables: el de la APK, igual que antes.
+fn aplicar_capas(app: &AppHandle, p: &la::EstadoPaquete) -> (la::EstadoPaquete, Option<cl::Eleccion>) {
+    let (Some(dir), Some(capas)) = (p.dir.clone(), carpeta_capas(p)) else { return (p.clone(), None) };
+    let instalador = l::rutas_con_dir(std::path::PathBuf::new(), dir);
+    let reg = g().registro.lock().ok().and_then(|r| r.as_ref().and_then(|f| f.try_clone().ok()));
+    servidor_capas::preparar_android(app, capas.clone(), &instalador, reg);
+    crate::capas_http_android::limpiar_restos(&crate::capas_http_android::carpeta_puente(&capas));
+    let (el, rutas) = servidor_capas::elegir(&instalador);
+    let mut q = p.clone();
+    q.dir = Some(rutas.dir);
+    (q, Some(el))
+}
+
+/// (AND1114L) Pide a Kotlin un proceso nuevo (cierra este y abre la app otra vez). Si no pudiera, la app sigue y la capa
+/// elegida se usa la próxima vez que se abra: queda dicho en el registro.
+fn pedir_proceso_nuevo(motivo: &str) {
+    match servidor_capas::dir_puente().ok_or_else(|| "sin carpeta del puente".to_string()).and_then(|d| crate::capas_http_android::pedir_reinicio(&d, motivo)) {
+        Ok(()) => registrar(&format!("proceso nuevo pedido: {motivo}")),
+        Err(e) => registrar(&format!("no se pudo pedir el proceso nuevo ({e}): se usará al abrir la app otra vez")),
+    }
+}
+
+/// (AND1114L) ¿Hay internet? Igual que en escritorio: la web publicada contesta en 443.
+pub(crate) fn hay_internet() -> bool {
+    use std::net::ToSocketAddrs;
+    let host = l::WEB_PUBLICADA.trim_start_matches("https://");
+    let Ok(direcciones) = (host, 443u16).to_socket_addrs() else { return false };
+    direcciones.take(2).any(|d| TcpStream::connect_timeout(&d, Duration::from_secs(3)).is_ok())
+}
+
+// ───────────────────────────── Comandos (la web de la app) ─────────────────────────────
+
+/// Lo mismo que `servidor_local_estado` de escritorio (mismos nombres de campo: los lee `estado-servidor-local.ts`).
+#[tauri::command]
+pub fn servidor_local_estado() -> serde_json::Value {
+    let c = servidor_capas::publico();
+    let (fase_txt, puerto) = match fase() {
+        Fase::Local(p) => ("local", Some(p)),
+        Fase::Preparando(_) => ("arrancando", None),
+        Fase::Respaldo(_) => ("web-publicada", None),
+    };
+    let motivo = match fase() {
+        Fase::Preparando(m) | Fase::Respaldo(m) => Some(m),
+        Fase::Local(_) => None,
+    };
+    let manifiesto: serde_json::Value = servidor_capas::dir_servida()
+        .and_then(|d| std::fs::read_to_string(d.join(l::MANIFIESTO)).ok())
+        .and_then(|t| serde_json::from_str(&t).ok())
+        .unwrap_or(serde_json::Value::Null);
+    let campo = |k: &str| manifiesto.get(k).and_then(|x| x.as_str()).map(str::to_string);
+    let lineas: Vec<serde_json::Value> = servidor_capas::lineas_recientes()
+        .into_iter()
+        .map(|x| serde_json::json!({ "n": x.n, "t": x.t, "texto": x.texto }))
+        .collect();
+    serde_json::json!({
+        "fase": fase_txt,
+        "puerto": puerto,
+        "origen": puerto.map(l::origen_local),
+        "motivo": motivo,
+        "reinicios": 0,
+        "version_paquete": campo("version"),
+        "commit_paquete": campo("commit"),
+        "registro": serde_json::Value::Null,
+        "capa": servidor_capas::en_uso(),
+        "capa_nueva": c.nueva,
+        "capa_nueva_version": c.nueva_version,
+        "capas_fase": c.fase,
+        "capas_aviso": c.aviso,
+        "web_corre": c.web_corre,
+        "web_publicada": c.web_publicada,
+        "web_nueva": c.web_nueva,
+        "relevo": c.relevo,
+        "ultima_mirada_ms": c.ultima_mirada_ms,
+        "capas_lineas": lineas,
+        "plataforma": "android",
+    })
+}
+
+/// (AND1114L) «Buscar ahora» la web nueva: el vigía mira ya la web publicada y el canal.
+#[tauri::command]
+pub fn servidor_local_buscar(webview: tauri::Webview) -> Result<String, String> {
+    let Fase::Local(puerto) = fase() else { return Err("El servidor local no está sirviendo ahora.".into()) };
+    let url = webview.url().map_err(|x| x.to_string())?;
+    if webview.label() != "main" || !l::es_url_local(url.as_str(), puerto) {
+        return Err("Solo la app, desde su servidor local, puede pedirlo.".into());
+    }
+    servidor_capas::pedir_busqueda();
+    Ok("Buscando la web nueva…".into())
+}
+
+/// «Actualizar ahora»: carga la capa nueva ya verificada en un PROCESO nuevo (Node arranca una sola vez por proceso), mismo
+/// puerto y mismo origen. Solo la ventana principal, desde el servidor local, y solo si hay una capa lista. QUIÉN decide
+/// que es momento seguro (ni llamada, ni texto sin enviar) es la web (`relevo-capa.ts`), igual que en escritorio.
+#[tauri::command]
+pub fn servidor_local_actualizar(webview: tauri::Webview) -> Result<String, String> {
+    let Fase::Local(puerto) = fase() else { return Err("El servidor local no está sirviendo ahora.".into()) };
+    if webview.label() != "main" {
+        return Err("Esta ventana no puede hacer esto.".into());
+    }
+    let url = webview.url().map_err(|x| x.to_string())?;
+    if !l::es_url_local(url.as_str(), puerto) {
+        return Err("Solo la app, desde su servidor local, puede pedirlo.".into());
+    }
+    if !servidor_capas::hay_pendiente() {
+        return Err("No hay ninguna capa nueva lista.".into());
+    }
+    if g().reinicio_pedido.swap(true, Ordering::SeqCst) {
+        return Ok("Ya se está actualizando.".into());
+    }
+    servidor_capas::al_pedir_relevo(); // «relevo pedido: web=<antes> -> web=<después>»
+    let _ = std::thread::Builder::new().name("servidor-local-relevo".into()).spawn(|| {
+        std::thread::sleep(Duration::from_millis(1200)); // deja volver la respuesta a la página
+        pedir_proceso_nuevo("relevo de capa");
+    });
+    Ok("La app se reabre un momento con la web nueva.".into())
 }
 
 fn abrir_registro(e: &la::EstadoPaquete) {

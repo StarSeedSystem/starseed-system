@@ -78,6 +78,12 @@ thiserror = "2"
 # (0.5.0 < 0.5.1-prueba.23 < 0.5.1). Ya estaba en el árbol (tauri-utils): no baja ni compila nada nuevo.
 semver = "1"
 
+# (AND1114L) Capas del servidor local TAMBIÉN en Android (la APK con servidor local las verifica igual): estas tres crates
+# son Rust puro y ya estaban en el árbol de escritorio; solo cambian de sección (no baja ni compila nada que no estuviera).
+minisign-verify = "0.3"
+flate2 = "1"
+base64 = "0.22"
+
 # ─── Plugins SOLO ESCRITORIO (no compilan / no aplican en Android · iOS) ───
 # Patrón oficial de la doc de Tauri 2: van bajo un target cfg que excluye móvil,
 # y en el código se registran dentro de #[cfg(desktop)] (ver src/lib.rs).
@@ -104,17 +110,14 @@ xcap = { version = "=0.9.8", features = ["image", "wgc"] }
 image = "0.25"
 # Codifica la captura como PNG en base64 (API 0.22 de engines:
 # `base64::engine::general_purpose::STANDARD.encode`).
-base64 = "0.22"
 # Entrada remota: teclado y ratón con enigo 0.6. Sin features keyboard/mouse;
 # los traits `Keyboard` y `Mouse` están disponibles por defecto.
 enigo = "0.6"
 # ─── Capas del servidor local (CAP1107A · T1, 2026-11-07) ───
 # Verificar el manifiesto de cada capa con la MISMA clave minisign del updater. Es la crate que
 # tauri-plugin-updater ya usa para lo mismo (0.3, sin dependencias): no baja ni compila nada nuevo.
-minisign-verify = "0.3"
 # Descomprimir el .tar.gz de la capa (el tar lo lee servidor_capas_logica.rs, estricto). Ya está en
 # el árbol por `png` (image/xcap) y tauri-plugin-updater: no baja ni compila nada nuevo.
-flate2 = "1"
 
 # (2026-10-19) tauri-plugin-deep-link 2.6.2 construye `ini::ParseOption` con 2 campos y rust-ini
 # 0.21.3 añadió dos más: en Linux (el CI) no compila. Se fija 0.21.1 hasta que deep-link lo arregle.

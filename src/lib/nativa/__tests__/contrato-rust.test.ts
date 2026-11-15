@@ -86,7 +86,7 @@ describe("contrato web ↔ app nativa", () => {
     // La migración NO se concede a la ventana principal en la web publicada ni a nadie más.
     for (const p of [...permisos(def), ...permisos(escr)]) expect(p).not.toMatch(/^allow-migracion-origen/);
     // (CAP1107A) «Actualizar ahora» tampoco: solo el servidor local (servidor-capas.json).
-    for (const p of [...permisos(def), ...permisos(escr), ...migracion]) expect(p).not.toBe("allow-servidor-local-actualizar");
+    for (const p of [...permisos(def), ...permisos(escr), ...migracion]) expect(p).not.toMatch(/^allow-servidor-local-(actualizar|buscar)$/);
   });
 
   it("(CAP1107A · T1) capas del servidor: Rust, envoltorio, capa.mjs, capability y web dicen lo mismo", () => {
@@ -119,7 +119,21 @@ describe("contrato web ↔ app nativa", () => {
     expect(conf.app.security.capabilities).toContain(cap.identifier);
     expect(cap.windows).toEqual(["main"]);
     expect(cap.local).toBe(false);
-    expect(cap.permissions).toEqual(["allow-servidor-local-actualizar"]);
+    expect(cap.permissions).toEqual(["allow-servidor-local-actualizar", "allow-servidor-local-buscar"]); // AND1114L: + buscar
+    // (AND1114L) Android: lo mismo, solo en la APK, solo la ventana principal y solo el servidor local.
+    const capAnd = JSON.parse(raiz("native/src-tauri/capabilities/servidor-capas-android.json"));
+    expect(conf.app.security.capabilities).toContain(capAnd.identifier);
+    expect(capAnd.platforms).toEqual(["android"]);
+    expect(capAnd.windows).toEqual(["main"]);
+    expect(capAnd.local).toBe(false);
+    expect(capAnd.remote.urls).toEqual(cap.remote.urls);
+    expect(capAnd.permissions).toEqual(["allow-servidor-local-estado", "allow-servidor-local-actualizar", "allow-servidor-local-buscar"]);
+    const lib = rust("lib.rs");
+    const bloqueAnd = lib.match(/cfg\(all\(target_os = "android", starseed_servidor_android\)\)\]\s*registrar_comandos!\(builder \[([\s\S]*?)\]\);/)![1];
+    for (const c of ["servidor_local_estado", "servidor_local_actualizar", "servidor_local_buscar"]) expect(bloqueAnd, c).toContain(c);
+    // El estado de Android lleva los mismos campos que lee la web (los de escritorio ya los comprueba la primera línea de este test).
+    const rsAnd = rust("servidor_local_android.rs");
+    for (const campo of camposTs(ts("estado-servidor-local.ts"), "EstadoServidorLocal")) expect(rsAnd, campo).toContain(`"${campo}"`);
     expect(cap.remote.urls).toHaveLength(10);
     for (const u of cap.remote.urls) expect(u).toMatch(/^http:\/\/127\.0\.0\.1:476[01]\d$/);
     // La firma se verifica con la clave del updater (la misma que firma el CI).

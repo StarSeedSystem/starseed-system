@@ -13,6 +13,49 @@ import { decidirRelevoNativo, MIRAR_RELEVO_CADA_MS } from "./relevo-capa";
 
 const yaPedidas = new Set<string>();
 
+// ── (AND1114L) Las líneas `[capas]` del aparato viajan al Mac por el mismo camino que sus otras líneas (anotarLlamada → enlaces.log) ──
+const CLAVE_ENVIADAS = "ss:capas-lineas-enviadas";
+const enviadas = new Set<string>();
+let enviadasCargadas = false;
+
+function cargarEnviadas() {
+  if (enviadasCargadas) return;
+  enviadasCargadas = true;
+  try {
+    const v = JSON.parse(sessionStorage.getItem(CLAVE_ENVIADAS) || "[]");
+    if (Array.isArray(v)) for (const k of v) if (typeof k === "string") enviadas.add(k);
+  } catch {
+    /* sin almacén: se manda lo que haya (el Mac tolera repetidas) */
+  }
+}
+
+/** Las líneas aún no mandadas, con su clave (`t:n`: el número se reinicia en cada proceso, la hora no). PURA salvo `enviadas`. */
+export function lineasPorEnviar(lineas: readonly { n: number; t: number; texto: string }[] | undefined, ya: ReadonlySet<string>): Array<{ clave: string; texto: string }> {
+  return (lineas ?? []).map((l) => ({ clave: `${l.t}:${l.n}`, texto: l.texto })).filter((l) => !ya.has(l.clave));
+}
+
+export async function mandarLineasCapas(e: Awaited<ReturnType<typeof consultarEstadoServidor>>): Promise<number> {
+  try {
+    cargarEnviadas();
+    const nuevas = lineasPorEnviar(e?.capas_lineas, enviadas);
+    if (!nuevas.length) return 0;
+    const { anotarLlamada } = await import("@/lib/llamadas/voz-datos/diagnostico");
+    for (const l of nuevas) {
+      // Mismo hito que `web-version comprobada…` (ACT1114J): el Mac ya lo recoge. El texto lleva `[capas]` como en servidor-local.log.
+      anotarLlamada("web-version", null, `[capas] ${l.texto}`);
+      enviadas.add(l.clave);
+    }
+    try {
+      sessionStorage.setItem(CLAVE_ENVIADAS, JSON.stringify([...enviadas].slice(-120)));
+    } catch {
+      /* */
+    }
+    return nuevas.length;
+  } catch {
+    return 0;
+  }
+}
+
 async function medir() {
   let enLlamada = false;
   try {
@@ -33,6 +76,7 @@ export async function mirarRelevoNativo(): Promise<"nada" | "aplicar" | "esperar
   try {
     if (!esAppNativa()) return "nada";
     const e = await consultarEstadoServidor();
+    void mandarLineasCapas(e); // AND1114L
     const primera = decidirRelevoNativo(e, { ...(await medir()), yaPedidas });
     if (primera.accion !== "aplicar" || !primera.clave) return primera.accion;
     // Se vuelve a medir justo antes de pedirlo: una llamada que sonó mientras tanto lo para.

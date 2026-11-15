@@ -131,13 +131,17 @@ mod migracion_origen;
 #[cfg(desktop)]
 mod migracion_origen_logica;
 // (CAP1107A · T1) Capas del servidor local: lo nuevo de la web llega sin reinstalar la app.
-#[cfg(desktop)]
+// AND1114L: también en la APK con servidor local (la descarga la hace Kotlin: capas_http_android.rs).
+#[cfg(any(desktop, all(target_os = "android", starseed_servidor_android)))]
 mod servidor_capas;
-#[cfg(desktop)]
+#[cfg(any(desktop, all(target_os = "android", starseed_servidor_android)))]
 mod servidor_capas_logica;
 // ACT1114H: relevo de capa en la misma sesión (lógica pura).
-#[cfg(any(test, desktop))]
+#[cfg(any(test, desktop, all(target_os = "android", starseed_servidor_android)))]
 mod servidor_relevo_logica;
+// AND1114L: puente de archivos con Kotlin para bajar capas y relevar el proceso en Android.
+#[cfg(any(test, all(target_os = "android", starseed_servidor_android)))]
+mod capas_http_android;
 mod sha256;
 // `ventana_remota` (APM1017P, rehecho en APR1019A) está de vuelta con las API
 // reales: xcap 0.9 (`Window::all()`, `app_name()`, `capture_image()`), image
@@ -908,6 +912,7 @@ pub fn run() {
         prestamo_ventana::prestamo_ventana_estado, // SEG1111T
         servidor_local::servidor_local_estado,
         servidor_local::servidor_local_actualizar,
+        servidor_local::servidor_local_buscar, // AND1114L
         migracion_origen::migracion_origen_exportar,
         migracion_origen::migracion_origen_estado,
         migracion_origen::migracion_origen_datos,
@@ -916,8 +921,15 @@ pub fn run() {
         ollama_instalador::ollama_instalador_cancelar, // MOD1110B
         ollama_instalador::ollama_instalador_abrir, // MOD1110B
     ]);
-    #[cfg(not(desktop))]
+    #[cfg(all(not(desktop), not(all(target_os = "android", starseed_servidor_android))))]
     registrar_comandos!(builder []);
+    // AND1114L: la APK con servidor local atiende el estado y el relevo de capa como escritorio.
+    #[cfg(all(target_os = "android", starseed_servidor_android))]
+    registrar_comandos!(builder [
+        servidor_local_android::servidor_local_estado,
+        servidor_local_android::servidor_local_actualizar,
+        servidor_local_android::servidor_local_buscar,
+    ]);
 
     builder
         .build(tauri::generate_context!())

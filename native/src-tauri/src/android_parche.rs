@@ -246,6 +246,7 @@ pub fn servidor_local_preparado(proyecto: &Path) -> Result<(), String> {
     for rel in [
         "java/app/starseed/nativa/ServidorLocal.kt",
         "java/app/starseed/nativa/ServidorLocalLogica.kt",
+        "java/app/starseed/nativa/CapasAndroid.kt", // AND1114L
         "assets/servidor-local/paquete.properties",
         "assets/servidor-local/servidor.zip",
         "res/xml/starseed_red_local.xml",
@@ -426,6 +427,7 @@ mod pruebas {
         for rel in [
             "java/app/starseed/nativa/ServidorLocal.kt",
             "java/app/starseed/nativa/ServidorLocalLogica.kt",
+            "java/app/starseed/nativa/CapasAndroid.kt", // AND1114L
             "assets/servidor-local/paquete.properties",
             "assets/servidor-local/servidor.zip",
             "res/xml/starseed_red_local.xml",

@@ -1034,6 +1034,17 @@ relanzada con `Capa2` en el mismo puerto, página recargada y el aviso en la pas
 
 Siguiente paso posible: bajar solo lo cambiado (el manifiesto ya trae el SHA-256 de cada archivo).
 
+### 10.x Capas también en la APK (AND1114L)
+
+La APK con servidor local relevaba nada: la tablet corría la web con la que se compiló la APK. Ahora usa el MISMO código de capas que escritorio (`servidor_capas.rs`: canal, firma minisign, SHA-256 del archivo y de cada archivo, capa a prueba → activa → anterior, vuelta atrás sola) con tres diferencias:
+
+- **Descarga**: Android no trae `curl` ni cliente HTTPS en Rust. La baja Kotlin (`CapasAndroid.kt`, HttpURLConnection, solo https, reanuda con Range) y Rust sigue verificando todo; hablan con archivos `pet-<id>.json` / `res-<id>.json` en `noBackupFilesDir/servidor-capas-puente/` (`capas_http_android.rs`).
+- **Dónde viven**: `noBackupFilesDir/servidor-capas/`, HERMANA de `servidor-local/` (Kotlin borra las carpetas ajenas de `servidor-local/` al extraer una APK nueva; las capas y la anterior sobreviven a una APK nueva y a una reinstalación por encima). El origen no cambia: `127.0.0.1` con el puerto principal del disco (`origen_local.rs`), así que claves de la neurona, emparejado y sesiones siguen ahí.
+- **El relevo reabre el proceso**: Node arranca una sola vez por proceso, así que «Actualizar ahora» (`servidor_local_actualizar`, que la web pide solo en momento seguro: sin llamada ni texto sin enviar) escribe `reiniciar.json`; Kotlin cierra el proceso y lo reabre (alarma + `killProcess`); el proceso nuevo elige la capa. Si la capa nueva no arranca: se marca mala, se borra y se pide otro proceso, que elige la anterior (o la de la APK); entretanto la web publicada. «De dónde venía» se guarda en `servidor-capas-puente/relevo-desde.txt` para escribir `relevo hecho: web=A -> web=B`.
+- La comprobación «mayor de Node» no aplica en Android (nodejs-mobile es Node 24 y la capa se compila para el de escritorio; es JavaScript sin complementos nativos): siguen la app mínima, el protocolo, la firma y la prueba de salud.
+
+La web lee `servidor_local_estado` (también en Android) para el bloque «Interfaz web» de Ajustes › Versión y actualizaciones, y manda las líneas `[capas]` al Mac por el mismo camino que sus otras líneas (`enlaces.log`). Una tablet con la prueba .42 (sin esto) solo lo recibe con una APK nueva instalada una vez; después las webs llegan solas.
+
 ## 11. Riesgos para el próximo lanzamiento nativo
 
 1. **Primer `next build` en `native-build.yml`.** Es el mismo de `ci.yml` (que pasa), con `STARSEED_APP_NATIVA=1`;

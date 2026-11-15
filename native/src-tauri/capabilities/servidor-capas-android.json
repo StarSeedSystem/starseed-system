@@ -1,0 +1,31 @@
+{
+  "$schema": "../gen/schemas/mobile-schema.json",
+  "identifier": "servidor-capas-android",
+  "description": "AND1114L: estado y «Actualizar ahora» de las capas del servidor local DENTRO de la APK (servidor_local_estado y servidor_local_actualizar de servidor_local_android.rs). Igual que servidor-capas.json y desktop.json en escritorio: solo la ventana «main» y solo desde los diez orígenes del servidor local http://127.0.0.1:47610…47619; la web publicada no puede pedirlo y Rust comprueba además que la ventana está en el servidor local EN ESTE MOMENTO. Quien decide que es momento seguro (ni llamada, ni texto sin enviar) es la web.",
+  "windows": [
+    "main"
+  ],
+  "platforms": [
+    "android"
+  ],
+  "local": false,
+  "remote": {
+    "urls": [
+      "http://127.0.0.1:47610",
+      "http://127.0.0.1:47611",
+      "http://127.0.0.1:47612",
+      "http://127.0.0.1:47613",
+      "http://127.0.0.1:47614",
+      "http://127.0.0.1:47615",
+      "http://127.0.0.1:47616",
+      "http://127.0.0.1:47617",
+      "http://127.0.0.1:47618",
+      "http://127.0.0.1:47619"
+    ]
+  },
+  "permissions": [
+    "allow-servidor-local-estado",
+    "allow-servidor-local-actualizar",
+    "allow-servidor-local-buscar"
+  ]
+}

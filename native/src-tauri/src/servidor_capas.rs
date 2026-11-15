@@ -35,7 +35,9 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
+#[cfg(desktop)]
+use tauri::Manager;
 
 /// Lo que la pastilla enseña de las capas (va dentro de `servidor_local_estado`).
 #[derive(Clone, Debug, Default)]
@@ -55,6 +57,19 @@ pub struct Publico {
     pub web_nueva: Option<String>,
     /// "al-dia" | "capa-lista" | "sin-capa" | "sin-datos"
     pub relevo: Option<String>,
+    /// (AND1114L) Cuándo se miró por última vez la web publicada / el canal (ms Unix); None = aún no.
+    pub ultima_mirada_ms: Option<u64>,
+}
+
+/// (AND1114L) Las últimas líneas `[capas]` escritas, con su número de orden: la web las manda al Mac por el mismo
+/// camino que el resto de líneas del aparato (enlaces.log). Anillo de `ANILLO_LINEAS`.
+pub const ANILLO_LINEAS: usize = 40;
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct LineaCapas {
+    pub n: u64,
+    pub t: u64,
+    pub texto: String,
 }
 
 /// (ACT1114H) Las tres builds que se comparan.
@@ -83,6 +98,10 @@ struct Interno {
     ultimo_aviso: Mutex<Option<String>>,
     /// (ACT1114H) Última vez que se miró el canal (ms).
     ultima_busqueda: Mutex<u64>,
+    /// (AND1114L) Carpeta que sirve el Node en este arranque (para decir versión y commit).
+    servido: Mutex<Option<PathBuf>>,
+    /// (AND1114L) Anillo de las últimas líneas del registro de capas.
+    lineas: Mutex<(u64, std::collections::VecDeque<LineaCapas>)>,
 }
 
 fn interno() -> &'static Interno {
@@ -100,6 +119,8 @@ fn interno() -> &'static Interno {
         relevo_desde: Mutex::new(None),
         ultimo_aviso: Mutex::new(None),
         ultima_busqueda: Mutex::new(0),
+        servido: Mutex::new(None),
+        lineas: Mutex::new((0, std::collections::VecDeque::new())),
     })
 }
 
@@ -158,6 +179,7 @@ fn registrar_una_vez(linea: &str) {
 
 /// Se llama desde `elegir`: qué carpeta sirve el Node en este arranque. Devuelve su build de web.
 pub fn servida(dir: &Path) -> r::WebId {
+    poner(&interno().servido, Some(dir.to_path_buf())); // AND1114L
     let web = web_de_dir(dir);
     if let Ok(mut w) = interno().webs.lock() {
         w.corre = web.clone();
@@ -177,7 +199,66 @@ pub fn al_pedir_relevo() {
     let w = leer(&interno().webs);
     let destino = w.nueva.clone().unwrap_or_default();
     registrar(&r::linea_relevo_pedido(&w.corre, &destino, w.publicada.as_ref()));
+    guardar_relevo_desde(&w.corre); // AND1114L
     poner(&interno().relevo_desde, Some(w.corre));
+}
+
+// ─────────────── AND1114L · Android: el relevo reinicia el PROCESO, así que «de dónde venía» se guarda en disco ───────────────
+
+#[cfg(not(desktop))]
+fn archivo_relevo() -> Option<PathBuf> {
+    leer(&interno().dir).map(|d| crate::capas_http_android::carpeta_puente(&d).join("relevo-desde.txt"))
+}
+
+#[cfg(not(desktop))]
+fn guardar_relevo_desde(w: &r::WebId) {
+    if let Some(f) = archivo_relevo() {
+        if let Some(p) = f.parent() {
+            let _ = fs::create_dir_all(p);
+        }
+        let _ = fs::write(f, w.etiqueta());
+    }
+}
+#[cfg(desktop)]
+fn guardar_relevo_desde(_w: &r::WebId) {}
+
+/// Al arrancar el proceso nuevo: si el anterior pidió un relevo, la build de la que venía (una sola vez).
+#[cfg(not(desktop))]
+fn cargar_relevo_desde() {
+    let Some(f) = archivo_relevo() else { return };
+    if let Ok(t) = fs::read_to_string(&f) {
+        let (b, sha) = t.trim().split_once('/').map(|(b, s)| (b, Some(s))).unwrap_or((t.trim(), None));
+        let id = r::WebId::de_campos(Some(b).filter(|x| *x != "?"), sha);
+        if id.conocida() {
+            poner(&interno().relevo_desde, Some(id));
+        }
+        let _ = fs::remove_file(f);
+    }
+}
+#[cfg(desktop)]
+fn cargar_relevo_desde() {}
+
+/// (AND1114L) «Buscar ahora» (el botón de Ajustes): el vigía mira la web publicada y el canal en su próximo paso (≤ 1 s).
+static BUSCAR_YA: AtomicBool = AtomicBool::new(false);
+
+pub fn pedir_busqueda() {
+    BUSCAR_YA.store(true, Ordering::SeqCst);
+}
+
+/// (AND1114L) La capa que sirve ahora (None = la del instalador/APK).
+pub fn en_uso() -> Option<String> {
+    leer(&interno().en_uso)
+}
+
+/// (AND1114L) La carpeta del puente de archivos con Kotlin (Android).
+#[cfg(not(desktop))]
+pub fn dir_puente() -> Option<PathBuf> {
+    leer(&interno().dir).map(|d| crate::capas_http_android::carpeta_puente(&d))
+}
+
+/// (AND1114L) La carpeta del servidor que sirve este arranque.
+pub fn dir_servida() -> Option<PathBuf> {
+    leer(&interno().servido)
 }
 
 /// Lee `/version.json` de la web PUBLICADA y dice si hay que mirar el canal ya. Nunca lanza.
@@ -199,6 +280,7 @@ fn mirar_publicada(ahora: u64) -> bool {
             registrar_una_vez(&r::linea_publicada_ilegible(&corre, &e));
         }
     }
+    con_publico(|p| p.ultima_mirada_ms = Some(ahora)); // AND1114L
     refrescar_publico();
     let w = leer(&interno().webs);
     let rel = r::clasificar(&w.corre, w.publicada.as_ref(), w.nueva.as_ref());
@@ -210,11 +292,46 @@ fn mirar_publicada(ahora: u64) -> bool {
     r::buscar_ya(&rel, ahora, leer(&interno().ultima_busqueda))
 }
 
+/// (AND1114L) Qué plataforma pregunta: en escritorio, su servidor local; en Android, el de la APK.
+#[cfg(desktop)]
+fn hay_internet() -> bool {
+    crate::servidor_local::hay_internet()
+}
+#[cfg(desktop)]
+fn apagando() -> bool {
+    crate::servidor_local::apagando()
+}
+#[cfg(not(desktop))]
+fn hay_internet() -> bool {
+    crate::servidor_local_android::hay_internet()
+}
+#[cfg(not(desktop))]
+fn apagando() -> bool {
+    false // En Android el proceso lo mata el sistema (o el relevo): no hay «cierre ordenado» que esperar.
+}
+
 fn ahora_ms() -> u64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0)
 }
 
+/// (AND1114L) Las líneas `[capas]` recientes (las más nuevas al final).
+pub fn lineas_recientes() -> Vec<LineaCapas> {
+    interno().lineas.lock().map(|g| g.1.iter().cloned().collect()).unwrap_or_default()
+}
+
+fn guardar_en_anillo(t: u64, linea: &str) {
+    if let Ok(mut g) = interno().lineas.lock() {
+        g.0 += 1;
+        let n = g.0;
+        g.1.push_back(LineaCapas { n, t, texto: linea.chars().take(400).collect() });
+        while g.1.len() > ANILLO_LINEAS {
+            g.1.pop_front();
+        }
+    }
+}
+
 fn registrar(linea: &str) {
+    guardar_en_anillo(ahora_ms(), linea);
     if let Ok(g) = interno().registro.lock() {
         if let Some(mut f) = g.as_ref() {
             let _ = writeln!(f, "{} [capas] {linea}", ahora_ms());
@@ -454,22 +571,37 @@ fn contexto(app: &AppHandle, instalador: &l::RutasPaquete) -> c::Contexto {
     let m = fs::read(&instalador.manifiesto).ok().and_then(|b| serde_json::from_slice::<Value>(&b).ok()).unwrap_or(Value::Null);
     c::Contexto {
         version_app: app.package_info().version.to_string(),
-        node_mayor: texto(&m, "node").and_then(|n| c::mayor_de(&n)),
+        // (AND1114L) En Android el Node es el de nodejs-mobile (24) y las capas las compila el CI para el Node de escritorio
+        // (22): la capa es JavaScript sin complementos nativos para Android, así que la comprobación de «mayor» no aplica
+        // (lo que sí aplica sigue igual: app mínima, protocolo, firma, SHA-256 y la prueba de salud con vuelta atrás).
+        node_mayor: if cfg!(desktop) { texto(&m, "node").and_then(|n| c::mayor_de(&n)) } else { None },
         instalador_build: texto(&m, "buildId").or_else(|| {
             fs::read_to_string(instalador.dir.join(".next").join("BUILD_ID")).ok().map(|s| s.trim().to_string())
         }),
-        instalador_creado_ms: num(&m, "creadoMs").unwrap_or(0),
+        instalador_creado_ms: num(&m, "creadoMs").or_else(|| num(&m, "creado_ms")).unwrap_or(0),
     }
 }
 
 /// Se llama al arrancar el servidor local (antes del primer `elegir`).
+#[cfg(desktop)]
 pub fn preparar(app: &AppHandle, instalador: &l::RutasPaquete, registro: Option<File>) {
     poner(&interno().registro, registro);
     let Ok(base) = app.path().app_data_dir() else {
         registrar("sin carpeta de datos de la app: no hay capas");
         return;
     };
-    let dir = base.join(c::DIR_CAPAS);
+    preparar_en(app, base.join(c::DIR_CAPAS), instalador);
+}
+
+/// (AND1114L) Lo mismo con la carpeta de las capas elegida por quien llama (Android: `noBackupFilesDir/servidor-capas`,
+/// fuera de `servidor-local/`, cuyas carpetas ajenas borra Kotlin al extraer una APK nueva: las capas deben sobrevivirla).
+#[cfg(not(desktop))]
+pub fn preparar_android(app: &AppHandle, capas: PathBuf, instalador: &l::RutasPaquete, registro: Option<File>) {
+    poner(&interno().registro, registro);
+    preparar_en(app, capas, instalador);
+}
+
+fn preparar_en(app: &AppHandle, dir: PathBuf, instalador: &l::RutasPaquete) {
     let ctx = contexto(app, instalador);
     registrar(&format!(
         "app {} · Node {:?} · instalador {} ({})",
@@ -488,6 +620,7 @@ pub fn preparar(app: &AppHandle, instalador: &l::RutasPaquete, registro: Option<
     }
     poner(&interno().dir, Some(dir.clone()));
     poner(&interno().ctx, Some(ctx));
+    cargar_relevo_desde(); // AND1114L
     let clave = clave_publica(app);
     if clave.is_none() {
         registrar("sin clave pública del updater: las capas no se pueden verificar y no se usan");
@@ -634,6 +767,7 @@ fn limpiar(dir: &Path) {
 
 // ───────────────────────────── Descarga ─────────────────────────────
 
+#[cfg(desktop)]
 fn curl(url: &str) -> std::process::Command {
     let mut cmd = crate::disco::orden("curl");
     cmd.args(["-L", "--fail", "--silent", "--show-error", "--retry", "3", "--connect-timeout", "20"]);
@@ -646,11 +780,13 @@ fn curl(url: &str) -> std::process::Command {
     cmd
 }
 
+#[cfg(desktop)]
 fn salida_curl(o: &std::process::Output) -> String {
     let e = String::from_utf8_lossy(&o.stderr);
     format!("curl terminó con {} ({})", o.status, e.trim().chars().take(200).collect::<String>())
 }
 
+#[cfg(desktop)]
 fn bajar_bytes(url: &str, tope: u64) -> Result<Vec<u8>, String> {
     let o = curl(url)
         .args(["--max-filesize", &tope.to_string(), "--max-time", "120"])
@@ -666,6 +802,7 @@ fn bajar_bytes(url: &str, tope: u64) -> Result<Vec<u8>, String> {
     Ok(o.stdout)
 }
 
+#[cfg(desktop)]
 fn bajar_archivo(url: &str, destino: &Path, tope: u64) -> Result<(), String> {
     let o = curl(url)
         .args(["-C", "-", "--max-filesize", &tope.to_string(), "-o"])
@@ -678,6 +815,35 @@ fn bajar_archivo(url: &str, destino: &Path, tope: u64) -> Result<(), String> {
     } else {
         Err(format!("{} · se reanudará en el siguiente intento", salida_curl(&o)))
     }
+}
+
+// (AND1114L) Android: la descarga la hace Kotlin (capas_http_android.rs); aquí solo se pide y se lee lo bajado.
+#[cfg(not(desktop))]
+fn puente_dir() -> Result<PathBuf, String> {
+    leer(&interno().dir).map(|d| crate::capas_http_android::carpeta_puente(&d)).ok_or_else(|| "sin carpeta de capas".to_string())
+}
+
+#[cfg(not(desktop))]
+fn bajar_bytes(url: &str, tope: u64) -> Result<Vec<u8>, String> {
+    use crate::capas_http_android as h;
+    let puente = puente_dir()?;
+    let tmp = puente.join(format!("bytes-{}.tmp", ahora_ms()));
+    let _ = fs::create_dir_all(&puente);
+    let r = h::bajar(&puente, url, &tmp, tope, false, h::ESPERA_PEQUENA, h::PASO_ESPERA).and_then(|_| fs::read(&tmp).map_err(|e| e.to_string()));
+    let _ = fs::remove_file(&tmp);
+    let v = r?;
+    if v.len() as u64 > tope {
+        return Err("respuesta demasiado grande".into());
+    }
+    Ok(v)
+}
+
+#[cfg(not(desktop))]
+fn bajar_archivo(url: &str, destino: &Path, tope: u64) -> Result<(), String> {
+    use crate::capas_http_android as h;
+    h::bajar(&puente_dir()?, url, destino, tope, true, h::ESPERA_GRANDE, h::PASO_ESPERA)
+        .map(|_| ())
+        .map_err(|e| format!("{e} · se reanudará en el siguiente intento"))
 }
 
 /// Escribe y calcula el SHA-256 a la vez.
@@ -880,17 +1046,24 @@ pub fn iniciar_vigia(app: &AppHandle) {
             // (En depuración, con un canal propio en 127.0.0.1, no hace falta internet.)
             let canal_local = permitir_local() && url_canal().starts_with("http://127.0.0.1:");
             let mut ya = false;
+            let forzada = BUSCAR_YA.swap(false, Ordering::SeqCst); // AND1114L
+            if forzada {
+                prox_web = ahora;
+            }
             if ahora >= prox_web {
                 prox_web = ahora + r::MIRAR_WEB_MS;
-                if !canal_local && crate::servidor_local::hay_internet() {
+                if !canal_local && hay_internet() {
                     ya = mirar_publicada(ahora);
                 }
+            }
+            if forzada {
+                ya = true;
             }
             if !ya && ahora < prox_capas {
                 continue;
             }
             poner(&interno().ultima_busqueda, ahora);
-            let espera = if !canal_local && !crate::servidor_local::hay_internet() {
+            let espera = if !canal_local && !hay_internet() {
                 con_publico(|p| {
                     if p.fase.as_deref() != Some("lista") {
                         p.fase = Some("sin-red".into());
@@ -931,14 +1104,14 @@ pub fn iniciar_vigia(app: &AppHandle) {
 fn dormir(ms: u64) -> bool {
     let mut quedan = ms;
     while quedan > 0 {
-        if crate::servidor_local::apagando() {
+        if apagando() {
             return false;
         }
         let paso = quedan.min(1000);
         std::thread::sleep(Duration::from_millis(paso));
         quedan -= paso;
     }
-    !crate::servidor_local::apagando()
+    !apagando()
 }
 
 // ───────────────────────────────── Pruebas ─────────────────────────────────

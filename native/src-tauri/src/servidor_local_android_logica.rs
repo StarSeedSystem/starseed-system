@@ -225,6 +225,58 @@ pub fn es_pagina_arranque(url: &str) -> bool {
 
 // ───────────────────────────────── Pruebas ─────────────────────────────────
 
+// ───────────────────────────── AND1114L · capas en la APK ─────────────────────────────
+
+/// La carpeta de las capas: `noBackupFilesDir/servidor-capas`, HERMANA de `servidor-local/` (donde está el registro). Kotlin borra
+/// las carpetas ajenas de `servidor-local/` al extraer una APK nueva: las capas (y la anterior, el respaldo) deben sobrevivirla.
+pub fn carpeta_capas(p: &EstadoPaquete, nombre: &str) -> Option<PathBuf> {
+    Some(p.registro.as_ref()?.parent()?.parent()?.join(nombre))
+}
+
+/// Qué hacer cuando el arranque de Node termina (bien o mal). Node arranca UNA vez por proceso: una capa mala no se puede
+/// sustituir en caliente, se marca mala y se pide un proceso nuevo (que elegirá la anterior o la de la APK).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TrasArranque {
+    /// Todo bien: la capa a prueba pasa a activa y se sigue.
+    Promover,
+    /// Todo bien con la de la APK: nada que anotar.
+    Seguir,
+    /// Falló una capa: marcarla mala, volver a la anterior en un proceso nuevo; esta vez, la web publicada.
+    MarcarMalaYProcesoNuevo,
+    /// Falló la de la APK: la web publicada, como siempre.
+    Respaldo,
+}
+
+pub fn tras_arranque(ok: bool, sirve_capa: bool) -> TrasArranque {
+    match (ok, sirve_capa) {
+        (true, true) => TrasArranque::Promover,
+        (true, false) => TrasArranque::Seguir,
+        (false, true) => TrasArranque::MarcarMalaYProcesoNuevo,
+        (false, false) => TrasArranque::Respaldo,
+    }
+}
+
+#[cfg(test)]
+mod pruebas_capas {
+    use super::*;
+
+    #[test]
+    fn las_capas_viven_junto_a_servidor_local_no_dentro() {
+        let p = EstadoPaquete { registro: Some(PathBuf::from("/data/data/app/no_backup/servidor-local/servidor-local.log")), ..Default::default() };
+        assert_eq!(carpeta_capas(&p, "servidor-capas"), Some(PathBuf::from("/data/data/app/no_backup/servidor-capas")));
+        assert_eq!(carpeta_capas(&EstadoPaquete::default(), "servidor-capas"), None);
+    }
+
+    #[test]
+    fn capa_nueva_buena_se_promueve_y_capa_mala_vuelve_atras_en_proceso_nuevo() {
+        assert_eq!(tras_arranque(true, true), TrasArranque::Promover);
+        assert_eq!(tras_arranque(true, false), TrasArranque::Seguir);
+        assert_eq!(tras_arranque(false, true), TrasArranque::MarcarMalaYProcesoNuevo);
+        // Sin capa (la APK sola) no hay a qué volver: web publicada, como antes de las capas.
+        assert_eq!(tras_arranque(false, false), TrasArranque::Respaldo);
+    }
+}
+
 #[cfg(test)]
 mod pruebas {
     use super::*;

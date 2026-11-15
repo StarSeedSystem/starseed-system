@@ -46,6 +46,7 @@ function grupoPlataformas(p: string[] | undefined): string {
   if (s === "android,iOS,linux,macOS,windows") return "todas";
   if (s === "linux,macOS,windows") return "escritorio";
   if (s === "android,linux,macOS,windows") return "escritorio+Android";
+  if (s === "android") return "Android"; // AND1114L
   return `?(${s})`;
 }
 
@@ -82,7 +83,8 @@ describe("inventario de lo que llega a un origen remoto (§4.8.1)", () => {
     for (const [permiso, donde] of concedido) {
       const fila = tabla.get(permiso);
       expect(fila, `«${permiso}» se concede a un origen remoto y no está en el inventario del contrato (§4.8.1)`).toBeDefined();
-      expect([...donde], permiso).toEqual([fila!.donde]);
+      // (AND1114L) Un permiso puede concederse en dos sitios (escritorio y Android); la tabla los separa con « ∕ ».
+      expect([...donde].sort(), permiso).toEqual(fila!.donde.split(" ∕ ").sort());
     }
   });
 

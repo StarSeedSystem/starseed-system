@@ -79,6 +79,11 @@ object ServidorLocal {
 
     private fun trabajar(ctx: Context) {
         try {
+            CapasAndroid.iniciar(ctx) // AND1114L: bajar capas y relevar el proceso
+        } catch (t: Throwable) {
+            // Sin esto no hay capas nuevas, pero la app arranca igual con lo que tiene.
+        }
+        try {
             System.loadLibrary(LIBRERIA)
         } catch (t: Throwable) {
             return

@@ -166,14 +166,19 @@ export function RegisterSW() {
           } // sin id propio: primera lectura = ancla
           let enLlamada = false;
           try { enLlamada = (await (await import("@/lib/actualizaciones/momento-navegador")).medirMomento()).enLlamada; } catch { /* */ }
+          // (AND1114L) ¿La app nativa que sirve esta copia releva capas? (lo dice ella: el campo `relevo` solo existe si lo hace)
+          let relevoNativo = false;
+          if (local) {
+            try { relevoNativo = (await (await import("@/lib/nativa/estado-servidor-local")).consultarEstadoServidor())?.relevo != null; } catch { /* sin app: no releva */ }
+          }
           const d = decidirCambioBuild({
             corriendo: initial, publicada: v, enLlamada, escribiendo: !puedeRecargarSuave(),
             enLinea: typeof navigator === "undefined" || navigator.onLine !== false,
-            recargasEstaSesion: recargasHechas(), topeRecargas: TOPE_RECARGAS_SESION, origenLocal: local,
+            recargasEstaSesion: recargasHechas(), topeRecargas: TOPE_RECARGAS_SESION, origenLocal: local, relevoNativo,
           });
           anotar(v, d, origen);
           if (d === "al-dia" || d === "tope") return;
-          if (d === "local-sin-relevo") return; // copia local: recargar no cambia nada; queda dicho en el registro
+          if (d === "local-sin-relevo" || d === "relevo-nativo") return; // copia local: recargar no cambia nada; el relevo nativo (si lo hay) lo hace él, y queda dicho en el registro
           if (d !== "aplicar") {
             // No es el momento: se avisa al banner y se reintenta pronto; cambia en el primer momento seguro.
             try { window.dispatchEvent(new Event("starseed:update-ready")); } catch { /* */ }
