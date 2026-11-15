@@ -6,7 +6,8 @@
  * Una app instalada está en el canal de pruebas si su versión lleva «-prueba.» (0.5.1-prueba.23). Esa
  * app mira la prerelease fija `canal-pruebas` (latest-prueba.json / latest-prueba-android.json) Y lo
  * oficial, y se queda con lo más nuevo por semver: 0.5.0 < 0.5.1-prueba.23 < 0.5.1. Una app oficial
- * nunca ve el canal de pruebas. Lo mismo decide Rust (canal_actualizacion_logica.rs).
+ * nunca ve el canal de pruebas, SALVO (CAN1115A, 14-11-2026) que su dueño lo active en ese aparato
+ * (Android; optar-pruebas.ts). Lo mismo decide Rust (canal_actualizacion_logica.rs).
  * ════════════════════════════════════════════════════════════════════════════
  */
 
@@ -107,6 +108,13 @@ export interface EntradaElegir {
   instalada: string;
   oficial: { version: string; fecha: string; notas: string; apk: string | null } | null;
   pruebas: CanalPruebas | null;
+  /** (CAN1115A) El dueño activó «Recibir versiones de prueba» en este aparato. Solo cuenta en Android. */
+  optaPruebas?: boolean;
+}
+
+/** ¿Sigue el canal de pruebas esta app? Por su versión o, en Android, porque su dueño lo activó. Pura. */
+export function siguePruebas(medio: string, instalada: string | null | undefined, optaPruebas?: boolean): boolean {
+  return esVersionDePrueba(instalada) || (optaPruebas === true && medio === "android");
 }
 
 /**
@@ -117,7 +125,7 @@ export function elegirPublicada(e: EntradaElegir): Elegida {
   const oficial: Elegida = e.oficial
     ? { version: e.oficial.version.replace(/^v/i, ""), canal: "oficial", fecha: e.oficial.fecha, notas: e.oficial.notas, apk: e.oficial.apk }
     : { version: null, canal: "oficial", fecha: "", notas: "", apk: null };
-  if (!esVersionDePrueba(e.instalada) || !e.pruebas) return oficial;
+  if (!siguePruebas(e.medio, e.instalada, e.optaPruebas) || !e.pruebas) return oficial;
   const p = e.pruebas;
   const deAndroid = e.medio === "android";
   const vP = deAndroid ? (p.android?.version ?? null) : p.version;

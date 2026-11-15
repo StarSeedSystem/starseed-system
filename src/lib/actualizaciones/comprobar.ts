@@ -13,7 +13,8 @@ import { decidirActualizacionAndroid } from "@/lib/nativa/actualizador-android";
 import { buscarActualizacionNativa } from "@/lib/nativa/info-neurona";
 import { esVersionMasNueva, esVersionSemver } from "@/lib/version/os-release";
 import type { VersionPublicada } from "@/lib/version/versiones-publicadas";
-import { canalDe, elegirPublicada, type Canal, type CanalPruebas } from "./canal-pruebas";
+import { canalDe, elegirPublicada, siguePruebas, type Canal, type CanalPruebas } from "./canal-pruebas";
+import { leerOptaPruebas } from "./optar-pruebas";
 import { describirError } from "./errores";
 import { leerPublicadas, type OpcionesPublicadas, type ResultadoPublicadas } from "./leer-publicadas";
 
@@ -46,6 +47,8 @@ export interface OpcionesComprobar {
   aviso?: (texto: string) => void;
   /** (ACT1108B) Para probar: sustituye la lectura de lo publicado. */
   leer?: (o: OpcionesPublicadas) => Promise<ResultadoPublicadas>;
+  /** (CAN1115A) Para probar: sustituye la lectura del interruptor «Recibir versiones de prueba» de este aparato. */
+  optaPruebas?: boolean;
 }
 
 /** null si este medio no tiene ventana propia (web, PWA, iOS: se actualizan solos). */
@@ -58,6 +61,9 @@ export async function comprobarActualizacion(opciones: OpcionesComprobar = {}): 
     guardarUltimaComprobacion({ resultado: "desconocida", instalada: null, publicada: null, texto: "Esta app no dice su versión: no se compara nada." });
     return sin({ tipo: "nada", motivo: "No se sabe la versión instalada de esta app." });
   }
+  // (CAN1115A) Una app oficial entra al canal de pruebas solo si su dueño lo activó en este aparato (Android).
+  const optaPruebas = opciones.optaPruebas ?? leerOptaPruebas();
+  const enPruebas = siguePruebas(medio, instalada, optaPruebas);
   let ultima: VersionPublicada | undefined;
   let pruebas: CanalPruebas | null = null;
   let errorPruebas: string | null = null;
@@ -69,14 +75,14 @@ export async function comprobarActualizacion(opciones: OpcionesComprobar = {}): 
     pruebas = leidas.datos.canalPruebas;
     errorPruebas = leidas.datos.canalPruebasError;
   }
-  if (!ultima && !(pruebas && canalDe(instalada) === "pruebas")) {
+  if (!ultima && !(pruebas && enPruebas)) {
     const motivo = describirError(leidas.ok ? "sin conexión con la lista de versiones" : leidas.motivo, { enLinea: enLinea() }).texto;
     guardarUltimaComprobacion({ resultado: "error", instalada, publicada: null, texto: motivo });
     return sin({ tipo: "nada", motivo });
   }
   // (ACT1108B) Una app de pruebas con el canal de pruebas ILEGIBLE (GitHub caído) no puede decir «al día»: la
   // versión nueva podía estar justo ahí. Se dice la verdad y se ofrece reintentar.
-  if (canalDe(instalada) === "pruebas" && !pruebas && errorPruebas) {
+  if (enPruebas && !pruebas && errorPruebas) {
     const motivo = describirError(errorPruebas, { enLinea: enLinea() }).texto;
     guardarUltimaComprobacion({ resultado: "error", instalada, publicada: null, texto: motivo });
     return sin({ tipo: "nada", motivo });
@@ -94,6 +100,7 @@ export async function comprobarActualizacion(opciones: OpcionesComprobar = {}): 
     instalada,
     oficial: ultima ? { version: ultima.version, fecha: ultima.fecha, notas: ultima.notas, apk: apkOficial } : null,
     pruebas,
+    optaPruebas,
   });
   const canal: Canal = elegida.canal;
   const publicada = limpiarVersion(elegida.version) || null;
