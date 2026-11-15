@@ -22,6 +22,8 @@ class TestParchesRed(unittest.TestCase):
     def setUpClass(cls):
         import guardia_pruebas as G
         cls.G = G
+        # Instala la guardia de sesión (como hace pytest con conftest) para que STARSEED_PRUEBAS=1 persista
+        G.instalar_sesion()
         cls._originales = G._capturar() if hasattr(G, '_capturar') else None
 
     def setUp(self):

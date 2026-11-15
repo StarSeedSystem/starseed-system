@@ -111,7 +111,7 @@ class TestCiclo(unittest.TestCase):
         self.assertEqual(r["resultado"]["accion"], "seco")
         self.assertFalse(os.path.exists(os.path.join(self.raiz, A.REL_SINTESIS)))
 
-def test_entregar_con_sintesis_envia_resumen_y_completa(self):
+    def test_entregar_con_sintesis_envia_resumen_y_completa(self):
         # Crea síntesis en disco
         os.makedirs(os.path.join(self.raiz, A.REL_SINTESIS), exist_ok=True)
         texto = "Síntesis completa con fuentes y fechas. " * 100
@@ -150,8 +150,7 @@ def test_entregar_con_sintesis_envia_resumen_y_completa(self):
         self.assertTrue(estado["entregada"])
         self.assertEqual(estado["sintesis_path"], ruta)
 
-
-def test_solo_una_entrega_al_dia(self):
+    def test_solo_una_entrega_al_dia(self):
         os.makedirs(os.path.join(self.raiz, A.REL_SINTESIS), exist_ok=True)
         ruta = os.path.join(self.raiz, A.REL_SINTESIS, f"{FECHA}.md")
         with open(ruta, "w", encoding="utf-8") as f:
@@ -180,7 +179,6 @@ def test_solo_una_entrega_al_dia(self):
             # Restaura los métodos originales
             urllib.request.urlopen = original_urlopen
             socket.create_connection = original_socket_create
-
 
     def test_puerta_cada_15_min(self):
         r1 = A.ciclo(self.raiz, AHORA_CDMX_00, encargar=False, jev=False, home=self.home, seco=False)
@@ -612,8 +610,15 @@ class TestHiggsfieldPropuestas(unittest.TestCase):
         self.home = os.path.join(self.tmp, "home")
         os.makedirs(self.raiz)
         os.makedirs(self.home, exist_ok=True)
+        # Higgsfield no genera propuestas si STARSEED_PRUEBAS=1; lo quitamos para estos tests
+        self._starpruebas = os.environ.get("STARSEED_PRUEBAS")
+        os.environ.pop("STARSEED_PRUEBAS", None)
 
     def tearDown(self):
+        if self._starpruebas is not None:
+            os.environ["STARSEED_PRUEBAS"] = self._starpruebas
+        else:
+            os.environ.pop("STARSEED_PRUEBAS", None)
         self._tmp.cleanup()
 
     def test_generar_propuestas_higgsfield_max_dos_por_dia(self):
