@@ -14,6 +14,8 @@
 
 export const INICIO_AUTO_MS = 20_000;
 export const CADA_MS = 6 * 60 * 60 * 1000;
+/** (ACT1115H) Una app del canal de pruebas recibe una versión cada ~3 h: cada 6 h llegaba hasta 6 h tarde (y con la app abierta, a veces nunca a tiempo). Cada 45 min; los manifiestos son dos archivos pequeños y el servidor los cachea 10 min. */
+export const CADA_PRUEBAS_MS = 45 * 60 * 1000;
 export const CLAVE_AUTOMATICA = "starseed.actualizacion.automatica.v1";
 export const EVENTO_AUTOMATICA = "starseed:actualizacion-automatica";
 
@@ -46,6 +48,8 @@ export interface EntradaEspera {
   ultimaEn: number | null;
   /** ¿Es la primera programación tras arrancar? */
   alArrancar: boolean;
+  /** (ACT1115H) Intervalo de este aparato (por defecto, 6 h; en el canal de pruebas, 45 min). */
+  cadaMs?: number;
 }
 
 /**
@@ -53,11 +57,12 @@ export interface EntradaEspera {
  * menos de 3 h (entonces, lo que falte hasta las 6 h, nunca menos de 20 s). Después: 6 h. Pura.
  */
 export function esperaHastaProxima(e: EntradaEspera): number {
-  if (!e.alArrancar) return CADA_MS;
+  const cada = e.cadaMs ?? CADA_MS;
+  if (!e.alArrancar) return cada;
   if (e.ultimaEn === null || e.ultimaEn > e.ahora) return INICIO_AUTO_MS;
   const desde = e.ahora - e.ultimaEn;
-  if (desde >= CADA_MS / 2) return INICIO_AUTO_MS;
-  return Math.max(INICIO_AUTO_MS, CADA_MS - desde);
+  if (desde >= cada / 2) return INICIO_AUTO_MS;
+  return Math.max(INICIO_AUTO_MS, cada - desde);
 }
 
 /** ¿Hay que buscar en cuanto vuelva la red? (la última búsqueda falló por falta de conexión). Pura. */
@@ -77,6 +82,8 @@ export interface OpcionesPlanificador {
   activa: () => boolean;
   ultimaEn: () => number | null;
   ahora?: () => number;
+  /** (ACT1115H) Intervalo entre búsquedas; se mira en cada vuelta (por defecto, 6 h). */
+  cadaMs?: () => number;
   temporizadores?: Temporizadores;
   /** Solo para pruebas: la espera de la primera búsqueda (por defecto, la de `esperaHastaProxima`). */
   inicioMs?: number;
@@ -94,7 +101,7 @@ export function crearPlanificador(o: OpcionesPlanificador): { parar: () => void;
   let parado = false;
   const programar = (alArrancar: boolean): number => {
     if (id !== null) t.clear(id);
-    const espera = alArrancar && o.inicioMs !== undefined ? o.inicioMs : esperaHastaProxima({ ahora: ahora(), ultimaEn: o.ultimaEn(), alArrancar });
+    const espera = alArrancar && o.inicioMs !== undefined ? o.inicioMs : esperaHastaProxima({ ahora: ahora(), ultimaEn: o.ultimaEn(), alArrancar, cadaMs: o.cadaMs?.() });
     id = t.set(() => {
       if (parado) return;
       if (o.activa()) void Promise.resolve(o.buscar()).catch(() => undefined);

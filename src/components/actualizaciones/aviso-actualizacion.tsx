@@ -46,7 +46,7 @@ import { comprobarActualizacion, type OpcionesComprobar } from "@/lib/actualizac
 import { guardarUltimaComprobacion, leerUltimaComprobacion } from "@/lib/actualizaciones/ultima-comprobacion";
 import { describirError } from "@/lib/actualizaciones/errores";
 import { EVENTO_ACTUALIZAR_VERSION, leerEstadoVivo, publicarEstadoVivo } from "@/lib/actualizaciones/estado-vivo";
-import { buscarAlVolverLaRed, crearPlanificador, EVENTO_AUTOMATICA, leerAutomatica } from "@/lib/actualizaciones/planificador-auto";
+import { buscarAlVolverLaRed, CADA_MS, CADA_PRUEBAS_MS, crearPlanificador, EVENTO_AUTOMATICA, leerAutomatica } from "@/lib/actualizaciones/planificador-auto";
 import { actualizarEscritorio, reiniciarParaActualizar } from "@/lib/nativa/actualizador";
 import { actualizarApkEnApp, instalarApkDescargado, leerEstadoApk, porcentajeApk, textoEstadoApk } from "@/lib/nativa/actualizador-apk";
 import { canalDe, etiquetaCanal, type Canal } from "@/lib/actualizaciones/canal-pruebas";
@@ -54,6 +54,7 @@ import { EVENTO_BUSCAR_ACTUALIZACION, type DetalleBuscar } from "@/lib/neurons/p
 import { anunciarVersionPublicada } from "@/lib/notifications/update-notifications";
 import { porcentajeDescarga, textoEstadoActualizacion } from "@/lib/pwa/actualizacion-nativa-logica";
 import { esVersionMasNueva, esVersionSemver } from "@/lib/version/os-release";
+import { anotarIntento, type PasoActualizacion } from "@/lib/actualizaciones/registro-intento";
 
 export { limpiarVersion, MEDIOS_CON_VENTANA };
 
@@ -227,9 +228,15 @@ export function AvisoActualizacion({ inicioMs }: { /** Solo pruebas: la espera d
     // (ACT1108B) Búsqueda automática: ~20 s tras arrancar y cada 6 h, si el interruptor de Ajustes está activo
     // (por defecto sí). Al volver la red, si la última falló por no haberla, se busca enseguida.
     const plan = crearPlanificador({
-      buscar: () => comprobar(),
+      // (ACT1115H) Tras la búsqueda se reprograma: la primera vez aún no se sabía de qué canal es esta app.
+      buscar: async () => {
+        await comprobar();
+        plan.reprogramar(false);
+      },
       activa: leerAutomatica,
       ultimaEn: () => leerUltimaComprobacion()?.en ?? null,
+      // (ACT1115H) Las apps del canal de pruebas buscan cada 45 min (antes 6 h: se quedaban atrás).
+      cadaMs: () => (canalDe(leerUltimaComprobacion()?.instalada) === "pruebas" ? CADA_PRUEBAS_MS : CADA_MS),
       inicioMs,
     });
     const alCambiarInterruptor = () => {
@@ -288,6 +295,10 @@ export function AvisoActualizacion({ inicioMs }: { /** Solo pruebas: la espera d
     window.location.assign("/library");
   };
 
+  // (ACT1115H) Cada paso de «Actualizar ahora» deja su línea en el registro del aparato.
+  const anotar = (paso: PasoActualizacion, resultado: string, motivo: string) =>
+    anotarIntento({ canal: aviso.canal === "pruebas" ? "pruebas" : "oficial", instalada: aviso.instalada, ofrecida: aviso.version, paso, resultado, motivo });
+
   const actualizar = async () => {
     if (estado === "al-dia") {
       cerrar();
@@ -311,6 +322,7 @@ export function AvisoActualizacion({ inicioMs }: { /** Solo pruebas: la espera d
       if (estado === "instalador") {
         // El APK ya está verificado: se vuelve a abrir el instalador de Android.
         const r = await instalarApkDescargado();
+        anotar("instalar", r.ok ? "ok" : "error", r.ok ? "se abrió el instalador de Android" : r.motivo);
         setMensaje(r.ok ? "Android te pide confirmar: pulsa «Instalar». Tus datos se quedan donde están." : r.motivo);
         return;
       }
@@ -326,10 +338,12 @@ export function AvisoActualizacion({ inicioMs }: { /** Solo pruebas: la espera d
         },
       });
       if (r.estado === "sin-actualizador") {
+        anotar("descargar", "sin-actualizador", "esta app no trae el actualizador interno: se abre el .apk del enlace");
         abrirApk(); // APK anterior a ACT1108A: el .apk de siempre
         return;
       }
       if (r.estado === "error") {
+        anotar("descargar", "error", r.motivo);
         const d = describirError(r.motivo);
         const t = `${d.texto}${aviso.apk ? " Puedes descargar el .apk a mano." : ""}`;
         setEstado(aviso.apk ? "sin-apk-interno" : "error");
@@ -338,6 +352,7 @@ export function AvisoActualizacion({ inicioMs }: { /** Solo pruebas: la espera d
         return;
       }
       const f = r.final;
+      anotar(f.fase === "error" ? "verificar" : f.fase === "al-dia" || f.fase === "instalada" ? "buscar" : "instalar", f.fase === "error" ? "error" : f.fase, f.fase === "error" ? String(f.mensaje ?? "sin detalle") : textoEstadoApk(f));
       if (f.fase === "al-dia" && aviso.apk && aviso.canal !== "pruebas") {
         abrirApk(); // el canal oficial aún no publica el manifiesto del APK: el .apk del Release
         return;
@@ -348,7 +363,8 @@ export function AvisoActualizacion({ inicioMs }: { /** Solo pruebas: la espera d
         setEstado(aviso.apk ? "sin-apk-interno" : "error");
         publicarEstadoVivo({ fase: "error", mensaje: textoFinal, error: describirError(f.mensaje ?? "") });
       } else if (f.fase === "al-dia" || f.fase === "instalada") {
-        marcarVista(aviso.version);
+        // (ACT1115H) En el canal de pruebas, «al día» tras ofrecerse una versión es un desacuerdo, no «ya vista»: se sigue buscando.
+        if (aviso.canal !== "pruebas" || f.fase === "instalada") marcarVista(aviso.version);
         pendiente.current = null;
         setEstado("al-dia");
         publicarEstadoVivo({ fase: "al-dia", mensaje: textoFinal });
@@ -375,6 +391,7 @@ export function AvisoActualizacion({ inicioMs }: { /** Solo pruebas: la espera d
       publicarEstadoVivo({ fase: "descargando", mensaje: texto || "Descargando…", progreso: porcentajeDescarga(e), version: aviso.version });
     });
     if (!r.ok) {
+      anotar("descargar", "error", r.motivo);
       // (ACT1108B) «Could not fetch a valid release JSON from the remote» → «GitHub no respondió (504)…», con «Reintentar».
       const d = describirError(r.motivo);
       setEstado("error");
@@ -383,12 +400,16 @@ export function AvisoActualizacion({ inicioMs }: { /** Solo pruebas: la espera d
       return;
     }
     if (r.valor.listaParaReiniciar) {
+      anotar("instalar", "lista", "descargada, verificada e instalada: falta reiniciar");
       setEstado("lista");
       setMensaje("Lista. Reinicia para usarla: tus datos y ajustes se quedan donde están.");
       publicarEstadoVivo({ fase: "lista", mensaje: "Lista. Reinicia para usarla: tus datos y ajustes se quedan donde están.", version: aviso.version });
     } else {
-      // El updater de esta app no tiene nada más nuevo: esa versión queda vista y se dice lo que hay.
-      marcarVista(aviso.version);
+      // El updater de esta app no tiene nada más nuevo. (ACT1115H) En el canal de pruebas NO se marca como vista:
+      // la lista decía que había una y el actualizador no la ofrece (aún se prepara o su manifiesto va por detrás):
+      // se vuelve a mirar en la próxima búsqueda en vez de esconderla.
+      anotar("buscar", "sin-oferta", `la lista publica la ${aviso.version} pero el actualizador de la app no ofrece nada más nuevo que la ${aviso.instalada}`);
+      if (aviso.canal !== "pruebas") marcarVista(aviso.version);
       const texto = textoAlDia(aviso.instalada, aviso.version);
       guardarUltimaComprobacion({ resultado: "al-dia", instalada: aviso.instalada, publicada: aviso.version, texto });
       setEstado("al-dia");
