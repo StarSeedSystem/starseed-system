@@ -459,7 +459,8 @@ class TestNotebookLMSource(unittest.TestCase):
         r = A.ciclo(self.raiz, AHORA_CDMX_07, encargar=False, jev=False,
                     enviar=enviar_falso, home=self.home, seco=False,
                     asegurar_fuente=asegurar_fuente_falso,
-                    drive_doc_id="doc-abc-123")
+                    drive_doc_id="doc-abc-123",
+                    subir_drive=lambda f, t: None)
         self.assertTrue(r["ok"])
         self.assertEqual(r["resultado"]["accion"], "entregada")
         self.assertEqual(len(enviados), 2)
@@ -487,7 +488,8 @@ class TestNotebookLMSource(unittest.TestCase):
         r = A.ciclo(self.raiz, AHORA_CDMX_07, encargar=False, jev=False,
                     enviar=enviar_falso, home=self.home, seco=False,
                     asegurar_fuente=asegurar_fuente_falso,
-                    drive_doc_id="doc-xyz")
+                    drive_doc_id="doc-xyz",
+                    subir_drive=lambda f, t: None)
         self.assertTrue(r["ok"])
         self.assertEqual(r["resultado"]["accion"], "entregada")
 

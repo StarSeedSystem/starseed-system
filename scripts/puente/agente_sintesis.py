@@ -846,7 +846,10 @@ def _clave_flota(nombres=("FREELLMAPI_KEY", "STARSEED_FLOTA_API_KEY")):
 
 def _redactar_flota(prompt, clave=None, base=None, modelo=None, abrir=None):
     """La flota gratuita en un solo paso (la prueba del 2026-11-11): FreeLLMAPI local
-    (127.0.0.1:3001), modelo CON nombre (nunca «auto»). None si falta clave o no contesta."""
+    (127.0.0.1:3001), modelo CON nombre (nunca «auto»). None si falta clave o no contesta.
+    Con STARSEED_PRUEBAS=1 lanza ErrorRedEnPruebas."""
+    if os.environ.get("STARSEED_PRUEBAS") == "1":
+        raise RuntimeError("Redacción con flota bloqueada en pruebas (STARSEED_PRUEBAS=1)")
     clave = clave if clave is not None else _clave_flota()
     if not clave or not str(prompt).strip():
         return None
@@ -873,7 +876,10 @@ def _pedir_https(url, cuerpo):
 
 def _subir_doc(fecha, texto, pedir=None):
     """Sube el markdown como Doc de Google con el alias «alex-docs» (solo drive.file) en la
-    carpeta «Síntesis diarias». Devuelve el id del Doc, o None: su fallo no bloquea la entrega."""
+    carpeta «Síntesis diarias». Devuelve el id del Doc, o None: su fallo no bloquea la entrega.
+    Con STARSEED_PRUEBAS=1 lanza ErrorRedEnPruebas."""
+    if os.environ.get("STARSEED_PRUEBAS") == "1":
+        raise RuntimeError("Subida a Drive bloqueada en pruebas (STARSEED_PRUEBAS=1)")
     try:
         import cuentas_google as CG
         acceso = CG.token("alex-docs", pedir or _pedir_https)

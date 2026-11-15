@@ -167,13 +167,21 @@ def _enviar_con(env, texto, boton_url, pedir, fecha=None):
     return {"ok": True, "trozos": len(trozos), "chat_id": chat_id}
 
 
+class ErrorRedEnPruebas(RuntimeError):
+    """Se lanza cuando STARSEED_PRUEBAS=1 y se intenta enviar por Telegram."""
+    pass
+
+
 def enviar(texto, boton_url=None, pedir=None, leer_env=None, fecha=None, cuentas=None,
            ruta_avisos=RUTA_AVISOS):
     """Envía el texto al chat de las síntesis. Devuelve {ok, motivo|trozos}.
 
     `cuentas`: filas de cuentas_google.estado(); si alguna no está viva, avisa UNA vez al día
     al mismo chat con la orden exacta para rehacer el alta y la síntesis sigue con lo demás.
+    Con STARSEED_PRUEBAS=1 lanza ErrorRedEnPruebas.
     """
+    if os.environ.get("STARSEED_PRUEBAS") == "1":
+        raise ErrorRedEnPruebas("Envío de Telegram bloqueado en pruebas (STARSEED_PRUEBAS=1)")
     lector = leer_env or _leer_env
     resultado = _enviar_con(lector(), texto, boton_url, pedir, fecha)
     avisos = avisos_pendientes(cuentas, fecha, ruta_avisos) if cuentas is not None else []
