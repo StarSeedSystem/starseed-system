@@ -7374,3 +7374,61 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `ENT-agentes-referencias-diseno-agentes-re-05e13f-v1` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/entregable-agentes-referencias-diseno-agentes-referencias-diseno-05e13f-v1.json
 - `ENT-agentes-referencias-diseno-agentes-re-f53831-v1` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/entregable-agentes-referencias-diseno-agentes-referencias-diseno-f53831-v1.json
 - `ENT-agentes-referencias-diseno-agentes-re-6a8d83-v1` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/entregable-agentes-referencias-diseno-agentes-referencias-diseno-6a8d83-v1.json
+
+## 2026-11-14 23:49 · auto-1114-223648
+
+**Lo que se pidió.** Síntesis diaria 2026-11-11
+
+**Resultado.** 2 de 47 integradas. 45 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 44 tareas se fueron por lo mismo — otra cosa (SIN1114Ac-d2b, SA111444, SA111445, SA111446, SA111447, SA111448). Es 94 % de la ola.
+- nim/minimaxai/minimax-m3.1-flash no integró ninguna de sus 4 tareas.
+- groq/qwen/qwen3.8-27b no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `SIN1114Ac-d2b` — otra cosa
+- `SA111444` — otra cosa: 10 hallazgos · starseed_memory_root/dream/profundo/2026-11-14/biblioteca--ux-accesibilidad-diseno.md
+- `SA111445` — otra cosa: 9 hallazgos · starseed_memory_root/dream/profundo/2026-11-14/biblioteca--rendimiento-consumo.md
+- `SA111446` — otra cosa: 9 hallazgos · starseed_memory_root/dream/profundo/2026-11-14/biblioteca--seguridad-privacidad.md
+- `SA111447` — otra cosa: 10 hallazgos · starseed_memory_root/dream/profundo/2026-11-14/biblioteca--pruebas-fiabilidad.md
+- `SA111448` — otra cosa: 9 hallazgos · starseed_memory_root/dream/profundo/2026-11-14/biblioteca--coherencia-triada.md
+- `SA111449` — otra cosa: 10 hallazgos · starseed_memory_root/dream/profundo/2026-11-14/conexiones--arquitectura-deuda.md
+- `SA111450` — otra cosa: 7 hallazgos · starseed_memory_root/dream/profundo/2026-11-14/conexiones--ux-accesibilidad-diseno.md
+- `SA111451` — otra cosa: 9 hallazgos · starseed_memory_root/dream/profundo/2026-11-14/conexiones--rendimiento-consumo.md
+- `SA111452` — otra cosa: 7 hallazgos · starseed_memory_root/dream/profundo/2026-11-14/conexiones--seguridad-privacidad.md
+- `SA111453` — otra cosa: 9 hallazgos · starseed_memory_root/dream/profundo/2026-11-14/conexiones--pruebas-fiabilidad.md
+- `SA111454` — otra cosa: 10 hallazgos · starseed_memory_root/dream/profundo/2026-11-14/conexiones--coherencia-triada.md
+- `SA111461` — otra cosa: 10 hallazgos · starseed_memory_root/dream/profundo/2026-11-14/memoria--arquitectura-deuda.md
+- `SA111462` — otra cosa: 10 hallazgos · starseed_memory_root/dream/profundo/2026-11-14/memoria--ux-accesibilidad-diseno.md
+- `SA111463` — otra cosa: 10 hallazgos · starseed_memory_root/dream/profundo/2026-11-14/memoria--rendimiento-consumo.md
+- `SA111464` — otra cosa: 9 hallazgos · starseed_memory_root/dream/profundo/2026-11-14/memoria--seguridad-privacidad.md
+- `SA111465` — otra cosa: 10 hallazgos · starseed_memory_root/dream/profundo/2026-11-14/memoria--pruebas-fiabilidad.md
+- `SA111466` — otra cosa: 7 hallazgos · starseed_memory_root/dream/profundo/2026-11-14/memoria--coherencia-triada.md
+- `SA111467` — otra cosa: 6 hallazgos · starseed_memory_root/dream/profundo/2026-11-14/mando--arquitectura-deuda.md
+- `SA111468` — otra cosa: 10 hallazgos · starseed_memory_root/dream/profundo/2026-11-14/mando--ux-accesibilidad-diseno.md
+- `SA111469` — otra cosa: 9 hallazgos · starseed_memory_root/dream/profundo/2026-11-14/mando--rendimiento-consumo.md
+- `SA111470` — otra cosa: 9 hallazgos · starseed_memory_root/dream/profundo/2026-11-14/mando--seguridad-privacidad.md
+- `SA111471` — otra cosa: 10 hallazgos · starseed_memory_root/dream/profundo/2026-11-14/mando--pruebas-fiabilidad.md
+- `SA111472` — otra cosa: 10 hallazgos · starseed_memory_root/dream/profundo/2026-11-14/mando--coherencia-triada.md
+- `SA111473` — otra cosa: 9 hallazgos · starseed_memory_root/dream/profundo/2026-11-14/dashboards--arquitectura-deuda.md
+- `SA111474` — otra cosa: 5 hallazgos · starseed_memory_root/dream/profundo/2026-11-14/dashboards--ux-accesibilidad-diseno.md
+- `SA111475` — otra cosa: 10 hallazgos · starseed_memory_root/dream/profundo/2026-11-14/dashboards--rendimiento-consumo.md
+- `SA111476` — otra cosa: 8 hallazgos · starseed_memory_root/dream/profundo/2026-11-14/dashboards--seguridad-privacidad.md
+- `SA111477` — otra cosa: 9 hallazgos · starseed_memory_root/dream/profundo/2026-11-14/dashboards--pruebas-fiabilidad.md
+- `SA111478` — otra cosa: 10 hallazgos · starseed_memory_root/dream/profundo/2026-11-14/dashboards--coherencia-triada.md
+- `SA111479` — otra cosa: 10 hallazgos · starseed_memory_root/dream/profundo/2026-11-14/gobernanza--arquitectura-deuda.md
+- `SA111480` — otra cosa: 8 hallazgos · starseed_memory_root/dream/profundo/2026-11-14/gobernanza--ux-accesibilidad-diseno.md
+- `SA111481` — otra cosa: 6 hallazgos · starseed_memory_root/dream/profundo/2026-11-14/gobernanza--rendimiento-consumo.md
+- `SA111482` — otra cosa: 10 hallazgos · starseed_memory_root/dream/profundo/2026-11-14/gobernanza--seguridad-privacidad.md
+- `SA111483` — otra cosa: 10 hallazgos · starseed_memory_root/dream/profundo/2026-11-14/gobernanza--pruebas-fiabilidad.md
+- `SA111484` — otra cosa: 8 hallazgos · starseed_memory_root/dream/profundo/2026-11-14/gobernanza--coherencia-triada.md
+- `SIN1114Ac-d2` — pruebas en rojo: vitest falla (rama conservada)
+- `ENT-agentes-reimaginada-profunda-validar-874691-v2` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/entregable-agentes-reimaginada-profunda-validar-interfaz-del-ser-874691-v2.json
+- `RIM-agentes-reimaginada-profunda-cachear-0f93d0-v3` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/reimaginada-agentes-reimaginada-profunda-cachear-isemailavailable-0f93d0-v2.json
+- `RIM-agentes-reimaginada-profunda-mejorar-b4d704-v3` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/reimaginada-agentes-reimaginada-profunda-mejorar-respuesta-de-err-b4d704-v2.json
+- `RIM-agentes-reimaginada-profunda-unificar-8211ae-v3` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/reimaginada-agentes-reimaginada-profunda-unificar-radios-con-radi-8211ae-v2.json
+- `SA111441` — otra cosa: 10 hallazgos · starseed_memory_root/dream/profundo/2026-11-14/creacion--pruebas-fiabilidad.md
+- `SA111442` — otra cosa: 9 hallazgos · starseed_memory_root/dream/profundo/2026-11-14/creacion--coherencia-triada.md
+- `SA111443` — otra cosa: 8 hallazgos · starseed_memory_root/dream/profundo/2026-11-14/biblioteca--arquitectura-deuda.md
+- `SIN1114C` — otra cosa: huérfana: ninguna cola fuente la define ya (estaba pendiente)
