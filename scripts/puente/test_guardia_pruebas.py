@@ -108,20 +108,32 @@ class TestCicloSinRed(unittest.TestCase):
             f.write("Síntesis de prueba con fuentes y fechas. " * 50)
 
         enviados = []
+        fuentes_aseguradas = []
 
         def enviar_falso(texto, **kw):
             enviados.append(texto)
             return {"ok": True, "trozos": 1}
 
+        def asegurar_fuente_falso(fid, titulo):
+            # (2026-11-14) El revisor de SIN1114A señaló que un mock que solo
+            # devuelve None no demuestra que NotebookLM NO se invoque: si la
+            # garantía se rompe, el mock la escondería. Aquí se registra la
+            # llamada para poder afirmar que no se hizo ninguna.
+            fuentes_aseguradas.append((fid, titulo))
+            return None
+
         r = A.ciclo(
             self.raiz, ahora, encargar=False, jev=False,
             enviar=enviar_falso, home=self.home, seco=False,
             subir_drive=lambda f, t: None,  # Inyectado: no sube a Drive real
-            asegurar_fuente=lambda fid, titulo: None,  # Inyectado: no llama a NotebookLM
+            asegurar_fuente=asegurar_fuente_falso,  # Inyectado: no llama a NotebookLM
         )
         self.assertTrue(r["ok"])
         self.assertEqual(r["resultado"]["accion"], "entregada")
         self.assertEqual(len(enviados), 2)
+        # La sintesis de prueba ya esta en disco: no hay que fabricar ninguna fuente.
+        self.assertEqual(fuentes_aseguradas, [],
+                         "No se debe invocar NotebookLM cuando la sintesis ya existe")
 
 
 if __name__ == "__main__":
