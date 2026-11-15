@@ -13,6 +13,7 @@ Genesis o la orden `pedir`— y, sin que nadie lo pida, sigue hasta el final la 
   python3 scripts/puente/director_pruebas.py pedir ronda-iniciar --nota "llamadas con la tableta" [--minutos 30] --quien alex
   python3 scripts/puente/director_pruebas.py pedir ronda-terminar --quien alex
   python3 scripts/puente/director_pruebas.py pedir banco-serie --esc ble-video-2min --rep 10 --quien claude   (BAN1114C)
+  python3 scripts/puente/director_pruebas.py pedir banco-cancelar --quien alex   (BAN1115O: acaba limpia la serie en curso)
   python3 scripts/puente/director_pruebas.py pasada [--json]     una pasada (la que corre el servicio)
   python3 scripts/puente/director_pruebas.py --bucle             el servicio de launchd: una pasada por minuto
   python3 scripts/puente/director_pruebas.py estado | pausar "motivo" | reanudar
@@ -251,6 +252,10 @@ class Medios:
     def lanzar_serie_banco(self, esc, rep, quien):
         import banco_llamadas
         return banco_llamadas.lanzar_desacoplado(self.dir, esc, rep, quien)
+
+    def cancelar_serie_banco(self, quien):      # BAN1115O
+        import banco_llamadas
+        return banco_llamadas.cancelar(self.dir, quien)
 
     # chat y comprobaciones
     def chat(self, texto, canales, tipo, tarea=None):
@@ -491,6 +496,10 @@ def _atender(m, est, nombre, pet, ahora):
     if a == "banco-serie":
         # BAN1114C: lanza el programa de la serie aparte y vuelve al instante; nunca arranca una por su cuenta
         ok, texto = m.lanzar_serie_banco(pet["esc"], pet["rep"], pet["quien"])
+        return ("hecha" if ok else "rechazada"), texto
+    if a == "banco-cancelar":
+        # BAN1115O: no mata el proceso: le deja el aviso a la serie, que acaba limpia y lo dice en «estado»
+        ok, texto = m.cancelar_serie_banco(pet["quien"])
         return ("hecha" if ok else "rechazada"), texto
     if a == "app-abrir":
         if m.app_abierta():

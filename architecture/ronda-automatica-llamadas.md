@@ -419,3 +419,28 @@ Una orden que se ignora sin avisar acaba igual: sin `inicio` en 90 s la serie te
 ### §9.4 Fases 2 y 3 en el banco: escenarios y armado sin teclear (BAN1115D · 2026-11-15)
 
 Escenarios nuevos en `banco_llamadas_logica.ESCENARIOS`, todos `medio_real:false` y «simulado»: `corte-ip-vuelve` (c1: la Mac llama con vídeo; a los 25 s corte lógico de IP en las dos puntas, a los 85 s vuelve, a los 115 s **cuelga la tableta** por orden; cumple si no hay `fin por=` antes de colgar ni «La llamada falló», llegó `voz-datos rx` o `video-datos rx` entre las líneas `banco simulacion corte-ip` y `vuelve-ip`, y hay un `ice=connected` posterior), `tableta-llama` (c10: orden con el campo opcional `llama:"tableta"`; la tableta recibe `llamar` hacia la neurona de la Mac y esta contesta con su propio actor, que escribe `banco contesta`; cumple si `ice=connected` llega en ≤ 20 s tras contestar —cifra que este contrato no fijaba— y `ice candidatos` muestra enviados y recibidos) y `mudo-camara` (c4 y c14; **c8 queda fuera**: pide «forzar carril», que no está en el vocabulario cerrado). No hay órdenes nuevas. La app publica lo que sabe de sí (clave propia, tableta elegida, si la aceptó, armada hasta cuándo) por `POST /api/banco-llamadas` (solo en la máquina; forma estricta, la hora la pone el servidor) a `banco-llamadas/app.json`; Python lo lee para decir el primer paso que falta (clave → aceptación → armado) en vez de la frase genérica. En «Control entre mis neuronas», las neuronas de la cuenta se eligen de una lista (nombre, plataforma, conectada o no) y el panel enseña esos mismos pasos en orden.
+
+### §9.5 Qué servidor atiende `/api/banco-llamadas` en cada app, y cancelar una serie (BAN1115O · 2026-11-15)
+
+**La causa de que la Mac nunca recibiera una orden (corregida).** El servidor de la app de escritorio SÍ trae la ruta (`src/app/api/banco-llamadas/route.ts`
+va en el build de Next que lleva la app), pero el envoltorio `native/servidor-local/starseed-arranque.cjs` manda **todo `/api/*` a la web publicada cuando hay
+internet** (`destino()`, «la app hace lo de siempre»). En Vercel la ruta contesta `{disponible:false}` al GET (la Mac leía «orden=ninguna») y 404 al POST
+(`app.json` jamás se escribió). Nunca falló nada a la vista porque la ruta solo se había probado contra un Next local. Arreglo: `RUTAS_SIEMPRE_LOCAL`
+(`/api/banco-llamadas`, ruta exacta) en el envoltorio, y Rust lo repite en el entorno del Node (`STARSEED_API_SOLO_LOCAL`, por si una capa instalada trae un envoltorio más viejo).
+
+| Dónde corre la app | Quién atiende `/api/banco-llamadas` | Qué responde |
+|---|---|---|
+| Mac nativa (envoltorio + Next local, 127.0.0.1:47610…) | el Next local, siempre (con o sin internet) | lee `orden.json`/`calma.json`/`app.json` y escribe `app.json` de `~/.starseed/produccion/banco-llamadas/` |
+| Windows/Linux nativa | el Next local, pero la ruta solo sirve en macOS | `{disponible:false}` |
+| Android (Node dentro de la app) | idem | `{disponible:false}` |
+| Web publicada (Vercel), tableta en navegador, otra máquina | Vercel / el servidor que sea | `{disponible:false}` (nunca es «esta máquina») |
+
+La ruta solo sirve si la petición es del bucle local y, en POST, con el origen de la propia página; si la carpeta `banco-llamadas` no existe no sirve ni escribe nada
+(la crea el director, nunca la app); lee y escribe solo `orden.json`, `calma.json` y `app.json`, de 64 kB como mucho. La guarda del envoltorio (`guarda.cjs`) exige además la cookie del pase de la ventana.
+La prueba que lo habría cazado: `native/servidor-local/__tests__/arranque.test.cjs` («el canal del banco de llamadas se atiende en local con internet») y `src/app/api/banco-llamadas/__tests__/route.test.ts`.
+
+**Ventana en otro escritorio.** El sondeo es un temporizador de la página; el sistema lo frena si la ventana no está a la vista. Hacerlo despertar desde Rust no se ha podido
+comprobar sin la Mac (no se desarrolla ahí), así que no se ha construido. Lo que sí hace `estado`: si la app estaba armada y dejó de sondear, dice que puede ser que la ventana no esté a la vista (sospecha, no dato).
+
+**Cancelar.** `python3 scripts/puente/director_pruebas.py pedir banco-cancelar --quien <quien>`: el director deja `cancelar.json` en la carpeta del banco (solo si hay una serie viva);
+la serie lo ve en su siguiente paso (a lo más 1 s dentro de una espera), borra su orden, suelta la ronda de aparatos que ella tomó y queda «cancelada por <quien>». `estado` enseña cómo cancelar mientras la serie corre o espera calma.

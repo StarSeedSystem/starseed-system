@@ -17,6 +17,33 @@ import { sanearInforme } from "@/lib/banco-llamadas/informe";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+/** BAN1115O: solo en macOS (la app de la Mac es quien recibe órdenes); en otro sistema la ruta responde «no disponible». */
+function enMac(): boolean {
+    return process.platform === "darwin" || process.env.STARSEED_BANCO_SIN_SO === "1"; // la variable solo la usan las pruebas
+}
+
+/** BAN1115O: la carpeta la crea el director de pruebas, nunca la app: si no existe, no se sirve ni se escribe nada. */
+async function carpetaDelBanco(): Promise<string | null> {
+    const base = process.env.STARSEED_PRODUCCION_DIR || path.join(os.homedir(), ".starseed", "produccion");
+    const dir = path.join(base, "banco-llamadas");
+    try {
+        return (await fs.stat(dir)).isDirectory() ? dir : null;
+    } catch {
+        return null;
+    }
+}
+
+/** BAN1115O: si la petición trae `Origin`, es el de la propia página (mismo host); una web ajena no escribe aquí. */
+function origenPropio(req: Request): boolean {
+    const o = req.headers.get("origin");
+    if (!o) return true;
+    try {
+        return new URL(o).host === (req.headers.get("host") ?? new URL(req.url).host);
+    } catch {
+        return false;
+    }
+}
+
 async function leerJson(ruta: string): Promise<unknown> {
     try {
         const t = await fs.readFile(ruta, "utf8");
@@ -30,14 +57,14 @@ export async function GET(req: Request) {
     if (!mandoHabilitado(req) || !esPeticionDeEstaMaquina(req)) {
         return Response.json({ disponible: false }, { headers: { "cache-control": "no-store" } });
     }
-    const base = process.env.STARSEED_PRODUCCION_DIR || path.join(os.homedir(), ".starseed", "produccion");
-    const dir = path.join(base, "banco-llamadas");
+    const dir = enMac() ? await carpetaDelBanco() : null;
+    if (!dir) return Response.json({ disponible: false }, { headers: { "cache-control": "no-store" } });
     const [orden, calma, app] = await Promise.all([leerJson(path.join(dir, "orden.json")), leerJson(path.join(dir, "calma.json")), leerJson(path.join(dir, "app.json"))]);
     return Response.json({ disponible: true, orden, calma, app }, { headers: { "cache-control": "no-store" } });
 }
 
 export async function POST(req: Request) {
-    if (!mandoHabilitado(req) || !esPeticionDeEstaMaquina(req)) return Response.json({ ok: false }, { status: 404, headers: { "cache-control": "no-store" } });
+    if (!mandoHabilitado(req) || !esPeticionDeEstaMaquina(req) || !enMac() || !origenPropio(req)) return Response.json({ ok: false }, { status: 404, headers: { "cache-control": "no-store" } });
     let cuerpo: unknown = null;
     try {
         const t = await req.text();
@@ -47,10 +74,9 @@ export async function POST(req: Request) {
     }
     const informe = sanearInforme(cuerpo, Date.now());
     if (!informe) return Response.json({ ok: false }, { status: 400, headers: { "cache-control": "no-store" } });
-    const base = process.env.STARSEED_PRODUCCION_DIR || path.join(os.homedir(), ".starseed", "produccion");
-    const dir = path.join(base, "banco-llamadas");
+    const dir = await carpetaDelBanco();
+    if (!dir) return Response.json({ ok: false, motivo: "sin-carpeta" }, { status: 404, headers: { "cache-control": "no-store" } });
     try {
-        await fs.mkdir(dir, { recursive: true });
         const tmp = path.join(dir, `app.json.tmp-${process.pid}`);
         await fs.writeFile(tmp, JSON.stringify(informe), "utf8");
         await fs.rename(tmp, path.join(dir, "app.json"));

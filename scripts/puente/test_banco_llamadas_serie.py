@@ -194,7 +194,7 @@ class Series(Base):
         m.t += 400                       # la última marca (armada) tiene 430 s
         m.rm.t = m.t
         _, est = serie(m, 3)
-        self.assertRegex(est["motivo_fin"], r"no sondea desde las \d\d:\d\d$")
+        self.assertRegex(est["motivo_fin"], r"no sondea desde las \d\d:\d\d \(.*ventana de la Mac no esté a la vista.*\)$")
 
     def test_si_la_mac_no_se_calma_espera_el_limite_y_dice_que_lectura_fallo(self):
         m = self.m()
@@ -413,7 +413,7 @@ class Director(unittest.TestCase):
 
     def test_banco_serie_es_una_accion_nueva_y_no_cambia_las_demas(self):
         self.assertEqual(D.ACCIONES[:8], ("compilar", "cancelar", "reintentar", "republicar", "pedir-arreglo", "app-abrir", "ronda-iniciar", "ronda-terminar"))
-        self.assertEqual(D.ACCIONES[8:], ("banco-serie",))
+        self.assertEqual(D.ACCIONES[8:], ("banco-serie", "banco-cancelar"))
 
     def test_pedir_lanza_la_serie_aparte_y_la_peticion_queda_hecha(self):
         self.pedir(esc=ESC, rep=10)

@@ -126,7 +126,10 @@ def estado_app(marcas, ahora, viva_s=90):
         motivo = ("la app de la Mac no está en modo banco o no sondea desde las %s" % _hhmm(ult)) if ult else \
                  "la app de la Mac no está en modo banco o no sondea: no hay ninguna marca «banco» suya en el registro"
     elif not viva:
-        motivo = "la app de la Mac no está en modo banco o no sondea desde las %s" % _hhmm(ult)
+        # BAN1115O: estaba armada y dejó de sondear: lo más probable es que la ventana no esté a la vista (otro escritorio o minimizada:
+        # el sistema frena los temporizadores de una página oculta). Es una sospecha, no un dato: se dice como tal.
+        motivo = ("la app de la Mac no está en modo banco o no sondea desde las %s (si estaba armada, puede ser que la ventana de la Mac "
+                  "no esté a la vista —otro escritorio o minimizada—: ponla delante)" % _hhmm(ult))
     else:
         motivo = None
     return {"armada": armada, "viva": viva, "con": con, "hasta": hasta, "ultima_t": ult, "motivo": motivo}
