@@ -103,6 +103,17 @@ export interface EnlaceBleNativo {
   bytes_enviados: number;
   bytes_recibidos: number;
   abierto_hace_ms: number;
+  /**
+   * (BLE1114R) Última ventana (~5 s) medida por la radio nativa, para quien planifique (p. ej. el reparto de vídeo): escrituras por
+   * segundo, bytes por escritura, ms medios de acuse (primer paquete → acuse), ms en el socket y PHY («1M»/«2M»). Null sin medir
+   * o si la plataforma no lo da (hoy solo Android); solo valen si `medidas_hace_ms` es reciente. Una app anterior no los manda.
+   */
+  escrituras_s?: number | null;
+  bytes_escritura?: number | null;
+  ms_acuse?: number | null;
+  ms_socket?: number | null;
+  phy?: string | null;
+  medidas_hace_ms?: number | null;
 }
 
 export interface EstadoBleNativo {
@@ -212,6 +223,12 @@ export function leerEstadoBle(x: unknown): EstadoBleNativo | null {
       bytes_enviados: num(e.bytes_enviados),
       bytes_recibidos: num(e.bytes_recibidos),
       abierto_hace_ms: num(e.abierto_hace_ms),
+      escrituras_s: numONull(e.escrituras_s),
+      bytes_escritura: numONull(e.bytes_escritura),
+      ms_acuse: numONull(e.ms_acuse),
+      ms_socket: numONull(e.ms_socket),
+      phy: txtONull(e.phy),
+      medidas_hace_ms: numONull(e.medidas_hace_ms),
     }));
   return {
     disponible: o.disponible,

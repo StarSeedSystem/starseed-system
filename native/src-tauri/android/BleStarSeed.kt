@@ -51,6 +51,7 @@ import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
 
 /**
  * Puente con el núcleo Rust (src/ble_android.rs). Rust decide (anuncio, tramas, acuses, a quién
@@ -134,6 +135,12 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
     private const val LECTURA_FLUJO = 8192
     private const val ESCRITURA_FLUJO = 8192
     private const val PLAZO_ESCRITURA_FLUJO_MS = 8_000L
+    // BLE1114R: medidas del canal cada 5 s, y prioridad de conexión alta solo mientras hay tráfico de verdad (una llamada).
+    private const val VENTANA_MEDIDAS_MS = 5_000L
+    private const val UMBRAL_OCUPADO_BYTES = 6_000L // ~10 kbit/s en la ventana: más que los latidos, menos que una voz
+    private const val SOLTAR_PRIORIDAD_MS = 20_000L
+    private const val REINTENTO_PHY_MS = 20_000L
+    private const val MAX_INTENTOS_PHY = 4
 
     /** (BLE1109A) Un canal L2CAP abierto: dos hilos (lee y escribe) y una señal para despertar al que escribe. */
     private class Canal(val enlace: String, val socket: BluetoothSocket, val psm: Int) {
@@ -142,12 +149,21 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
         /** (BLE1110A) Último byte leído del canal: una escritura lenta con el otro lado hablando no es un atasco. */
         @Volatile var ultimaLecturaMs = SystemClock.elapsedRealtime()
         val senal = ArrayBlockingQueue<Boolean>(1)
+        // BLE1114R: lo que mide el hilo que escribe en la ventana en curso (se vacía cada 5 s en `medirVentana`).
+        val escrituras = AtomicLong()
+        val bytes = AtomicLong()
+        val puenteUs = AtomicLong() // tiempo en `PuenteBle.siguienteRapido` (cruce Kotlin → Rust y de vuelta)
+        val socketUs = AtomicLong() // tiempo dentro de `OutputStream.write` (control de flujo del canal incluido)
+        @Volatile var medidaDesdeMs = SystemClock.elapsedRealtime()
     }
 
     private class Cliente(val direccion: String, val gatt: BluetoothGatt) {
         var entrada: BluetoothGattCharacteristic? = null
         var paquete = PAQUETE_MIN
         var listo = false
+        // BLE1114R: prioridad de conexión que se pidió ("alta" al conectar; "balanceada" tras 20 s sin tráfico) y el último tráfico.
+        var prioridad = "alta"
+        var ultimoOcupadoMs = SystemClock.elapsedRealtime()
         var ocupadoDesde = 0L
         var pendiente: ByteArray? = null
         var reintentosSub = 0
@@ -185,6 +201,12 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
     // (BLE1110A) Gemelo de `ble_autocura.rs`: última cura, último tráfico (cualquier sentido, GATT o L2CAP) y una evaluación pendiente.
     private var ultimaCuraMs = -1L
     @Volatile private var ultimoTraficoMs = -1L
+    // BLE1114R: PHY que dice el sistema por enlace, intentos de pedir 2M, bytes escritos por GATT en la ventana y el reloj de medidas.
+    private val phys = ConcurrentHashMap<String, String>()
+    private val phyIntentos = HashMap<String, Int>()
+    private val phyUltimoMs = HashMap<String, Long>()
+    private val bytesGatt = AtomicLong()
+    private var medidorActivo = false
     private var evaluacionPendiente = false
     // (BLE1110A) MTU recordado por central (sobrevive a recrear el servidor GATT: la conexión ACL sigue con su MTU) y cuándo se soltó uno.
     private val paqueteRecordado = HashMap<String, Int>()
@@ -588,6 +610,17 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
             }
         }
 
+        // BLE1114R: el PHY que dio el sistema (para la línea `ble-enlace`).
+        override fun onPhyUpdate(device: BluetoothDevice?, txPhy: Int, rxPhy: Int, status: Int) {
+            val d = device ?: return
+            principal.post { anotarPhy("p:" + d.address, txPhy, rxPhy, status) }
+        }
+
+        override fun onPhyRead(device: BluetoothDevice?, txPhy: Int, rxPhy: Int, status: Int) {
+            val d = device ?: return
+            principal.post { anotarPhy("p:" + d.address, txPhy, rxPhy, status) }
+        }
+
         override fun onMtuChanged(device: BluetoothDevice?, mtu: Int) {
             val d = device ?: return
             principal.post {
@@ -953,6 +986,9 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
                         c.gatt.requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_HIGH)
                     } catch (e: Exception) {
                     }
+                    c.prioridad = "alta" // BLE1114R: alta para conectar; `medirVentana` la suelta tras 20 s sin tráfico y la repone si lo hay
+                    c.ultimoOcupadoMs = SystemClock.elapsedRealtime()
+                    iniciarMedidor()
                     pedirPhy2M { if (clientes[k]?.listo == true) c.gatt.setPreferredPhy(BluetoothDevice.PHY_LE_2M_MASK, BluetoothDevice.PHY_LE_2M_MASK, BluetoothDevice.PHY_OPTION_NO_PREFERRED) }
                     // Primero el MTU (hasta 517: paquetes de 512 B); los servicios, cuando conteste.
                     if (!c.gatt.requestMtu(MTU_PEDIDO)) c.gatt.discoverServices()
@@ -960,6 +996,15 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
                     cerrarCliente(k, "desconectado (estado $status)")
                 }
             }
+        }
+
+        // BLE1114R: el PHY que dio el sistema (para la línea `ble-enlace`).
+        override fun onPhyUpdate(gatt: BluetoothGatt?, txPhy: Int, rxPhy: Int, status: Int) {
+            principal.post { clientePor(gatt)?.let { anotarPhy(it.first, txPhy, rxPhy, status) } }
+        }
+
+        override fun onPhyRead(gatt: BluetoothGatt?, txPhy: Int, rxPhy: Int, status: Int) {
+            principal.post { clientePor(gatt)?.let { anotarPhy(it.first, txPhy, rxPhy, status) } }
         }
 
         override fun onMtuChanged(gatt: BluetoothGatt?, mtu: Int, status: Int) {
@@ -1117,7 +1162,13 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
             ""
         }
 
-    private fun escribir(g: BluetoothGatt, e: BluetoothGattCharacteristic, b: ByteArray): Boolean =
+    private fun escribir(g: BluetoothGatt, e: BluetoothGattCharacteristic, b: ByteArray): Boolean {
+        val ok = escribirSinContar(g, e, b)
+        if (ok) bytesGatt.addAndGet(b.size.toLong()) // BLE1114R
+        return ok
+    }
+
+    private fun escribirSinContar(g: BluetoothGatt, e: BluetoothGattCharacteristic, b: ByteArray): Boolean =
         try {
             if (Build.VERSION.SDK_INT >= 33) {
                 g.writeCharacteristic(e, b, BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE) == BluetoothStatusCodes.SUCCESS
@@ -1374,6 +1425,90 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
         }
     }
 
+    // ───────────── BLE1114R: medidas del canal y prioridad de conexión según el tráfico ─────────────
+
+    private fun iniciarMedidor() {
+        if (medidorActivo) return
+        medidorActivo = true
+        principal.postDelayed({ medirVentana() }, VENTANA_MEDIDAS_MS)
+    }
+
+    /**
+     * Cada 5 s (solo mientras hay un canal L2CAP o un enlace como central): manda a Rust lo medido en la ventana (escrituras, bytes,
+     * tiempo en el cruce a Rust y en el socket, PHY, prioridad) para la línea `ble-enlace`, repone la prioridad ALTA si hay
+     * tráfico de verdad (una llamada) y la suelta tras 20 s sin él, y vuelve a pedir el PHY 2M si el sistema no lo dio.
+     * Android NO da a una app el intervalo de conexión: no se reporta. Como periférico (el otro conectó) no existe
+     * `requestConnectionPriority`: el intervalo lo manda el central (el Mac); esa línea lo dirá con `rol=periferico`.
+     */
+    private fun medirVentana() {
+        val ahora = SystemClock.elapsedRealtime()
+        var ocupado = bytesGatt.getAndSet(0) >= UMBRAL_OCUPADO_BYTES
+        for (c in canales.values.toList()) {
+            val ventana = ahora - c.medidaDesdeMs
+            c.medidaDesdeMs = ahora
+            val w = c.escrituras.getAndSet(0)
+            val b = c.bytes.getAndSet(0)
+            val pu = c.puenteUs.getAndSet(0)
+            val so = c.socketUs.getAndSet(0)
+            if (b >= UMBRAL_OCUPADO_BYTES) ocupado = true
+            val k = c.enlace
+            if (b >= UMBRAL_OCUPADO_BYTES) reponerPhy(k, ahora)
+            if (w > 0 && ventana > 0) {
+                val j = JSONObject().put("e", "medidas-radio").put("enlace", k).put("ventana_ms", ventana).put("escrituras", w).put("bytes", b)
+                    .put("puente_us", pu).put("socket_us", so).put("phy", phys[k] ?: "?")
+                clientes[k]?.let { j.put("prioridad", it.prioridad) }
+                evento(j)
+            }
+        }
+        for ((k, c) in clientes.entries.toList()) {
+            if (!c.listo) continue
+            if (ocupado) {
+                c.ultimoOcupadoMs = ahora
+                if (c.prioridad != "alta") pedirPrioridad(c, BluetoothGatt.CONNECTION_PRIORITY_HIGH, "alta", k)
+            } else if (c.prioridad == "alta" && ahora - c.ultimoOcupadoMs >= SOLTAR_PRIORIDAD_MS) {
+                pedirPrioridad(c, BluetoothGatt.CONNECTION_PRIORITY_BALANCED, "balanceada", k)
+            }
+        }
+        if (clientes.isEmpty() && canales.isEmpty()) medidorActivo = false else principal.postDelayed({ medirVentana() }, VENTANA_MEDIDAS_MS)
+    }
+
+    private fun pedirPrioridad(c: Cliente, valor: Int, nombre: String, k: String) {
+        try {
+            if (c.gatt.requestConnectionPriority(valor)) {
+                c.prioridad = nombre
+                nota("prioridad-cambio", k, "prioridad de conexión → $nombre")
+            }
+        } catch (e: Exception) {
+        }
+    }
+
+    /** Con tráfico y sin 2M: lo pide otra vez (como mucho 4 veces, una cada 20 s) y lee el PHY actual para la línea. */
+    private fun reponerPhy(k: String, ahora: Long) {
+        if (!canalRapido || Build.VERSION.SDK_INT < 26 || phys[k] == "2M") return
+        if ((phyIntentos[k] ?: 0) >= MAX_INTENTOS_PHY || ahora - (phyUltimoMs[k] ?: -REINTENTO_PHY_MS) < REINTENTO_PHY_MS) return
+        phyIntentos[k] = (phyIntentos[k] ?: 0) + 1
+        phyUltimoMs[k] = ahora
+        try {
+            if (k.startsWith("c:")) {
+                val g = clientes[k]?.takeIf { it.listo }?.gatt ?: return
+                g.setPreferredPhy(BluetoothDevice.PHY_LE_2M_MASK, BluetoothDevice.PHY_LE_2M_MASK, BluetoothDevice.PHY_OPTION_NO_PREFERRED)
+                g.readPhy()
+            } else {
+                val d = centrales[k]?.device ?: return
+                servidor?.setPreferredPhy(d, BluetoothDevice.PHY_LE_2M_MASK, BluetoothDevice.PHY_LE_2M_MASK, BluetoothDevice.PHY_OPTION_NO_PREFERRED)
+                servidor?.readPhy(d)
+            }
+        } catch (e: Exception) {
+        }
+    }
+
+    private fun anotarPhy(k: String, tx: Int, rx: Int, status: Int) {
+        if (status != BluetoothGatt.GATT_SUCCESS) return
+        // 1 = 1M, 2 = 2M, 3 = coded (los valores de `BluetoothDevice.PHY_LE_*`).
+        phys[k] = if (tx == 2 && rx == 2) "2M" else if (tx == 1 && rx == 1) "1M" else if (tx == 3 || rx == 3) "coded" else "?"
+        nota("phy-cambio", k, "phy=${phys[k]} (tx $tx, rx $rx)")
+    }
+
     // ───────────────────────────── Carril rápido: canal L2CAP (BLE1109A) ─────────────────────────────
     // Android 10+ (API 29). Periférico: `listenUsingInsecureL2capChannel` y su PSM en la característica PSM; central: lee el
     // PSM del otro y Rust ordena `l2cap` para conectar. Sin cifrar por el aire (va cifrado por encima, CIF1108A). La E/S
@@ -1559,12 +1694,14 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
             try {
                 val sal = socket.outputStream
                 while (!canal.cerrado.get()) {
+                    val t0 = System.nanoTime() // BLE1114R
                     val hex = try {
                         PuenteBle.siguienteRapido(k, ESCRITURA_FLUJO)
                     } catch (t: Throwable) {
                         ""
                     }
                     val b = if (hex.isEmpty()) null else deHex(hex)
+                    val t1 = System.nanoTime()
                     if (b == null) {
                         // Nada que escribir: espera el aviso de Rust (o 500 ms por si se escapó alguno).
                         canal.senal.poll(500, TimeUnit.MILLISECONDS)
@@ -1573,6 +1710,11 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
                     canal.escribiendoDesde = SystemClock.elapsedRealtime()
                     sal.write(b)
                     canal.escribiendoDesde = 0L
+                    // BLE1114R: una escritura = una llamada a `write`; cruce y socket medidos aparte (ver `medirVentana`).
+                    canal.puenteUs.addAndGet((t1 - t0) / 1000)
+                    canal.socketUs.addAndGet((System.nanoTime() - t1) / 1000)
+                    canal.bytes.addAndGet(b.size.toLong())
+                    canal.escrituras.incrementAndGet()
                     marcarTrafico()
                 }
             } catch (e: Exception) {
@@ -1588,6 +1730,7 @@ object MotorBle : Application.ActivityLifecycleCallbacks {
         }
         // Rust ya sabe que hay canal: que empiece a sacar por él.
         canal.senal.offer(true)
+        iniciarMedidor() // BLE1114R
     }
 
     /** Un solo cierre por canal (el primero que llega manda el motivo); cuenta a Rust y suelta el mapa. */

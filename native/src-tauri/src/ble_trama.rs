@@ -465,6 +465,10 @@ pub struct Medidas {
     pub mensajes_enviados: u64,
     pub mensajes_recibidos: u64,
     pub reintentos: u64,
+    /// (BLE1114R) Suma y cuenta de los tiempos de acuse (primer paquete → acuse) desde la última vez que se informó: la media
+    /// de la ventana de 5 s de la línea `ble-enlace`. Se vacían con `tomar_acuses`.
+    pub acuse_suma_ms: u64,
+    pub acuse_n: u64,
 }
 
 struct Vuelo {
@@ -583,6 +587,14 @@ impl Enlace {
                 v.rapido = rapido;
             }
         }
+    }
+
+    /// (BLE1114R) Media (ms) de los acuses desde la última llamada y cuántos fueron; vacía la ventana.
+    pub fn tomar_acuses(&mut self) -> Option<(u64, u64)> {
+        let (suma, n) = (self.medidas.acuse_suma_ms, self.medidas.acuse_n);
+        self.medidas.acuse_suma_ms = 0;
+        self.medidas.acuse_n = 0;
+        (n > 0).then(|| (suma / n, n))
     }
 
     /// (BLE1109B) ¿Hay un mensaje enviado esperando su acuse?
@@ -749,6 +761,8 @@ impl Enlace {
                     let desde = v.primero_ms.unwrap_or(v.encolado_ms);
                     let rtt = ahora.saturating_sub(desde).max(1);
                     self.medidas.rtt_ms = Some(rtt);
+                    self.medidas.acuse_suma_ms += rtt; // BLE1114R
+                    self.medidas.acuse_n += 1;
                     if v.trama.len() >= 2048 {
                         let kbps = ((v.trama.len() as u64 * 8) / rtt) as u32;
                         self.medidas.kbps = Some(kbps);
@@ -1231,6 +1245,10 @@ mod pruebas {
         assert_eq!(b.medidas.mensajes_recibidos, 2);
         assert_eq!(b.medidas.bytes_recibidos as usize, grande.len() + 20 + 2 * CABECERA_TRAMA);
         assert!(a.medidas.rtt_ms.is_some());
+        // BLE1114R: los acuses de la ventana dan su media y la ventana se vacía al tomarla.
+        let (media, n) = a.tomar_acuses().expect("hubo acuses");
+        assert_eq!(n, 2);
+        assert!(media >= 1 && a.tomar_acuses().is_none(), "vacía tras tomarla");
     }
 
     #[test]

@@ -241,6 +241,15 @@ pub struct EnlaceBle {
     pub bytes_enviados: u64,
     pub bytes_recibidos: u64,
     pub abierto_hace_ms: u64,
+    /// (BLE1114R) Última ventana (~5 s) medida por la radio: escrituras por segundo, bytes por escritura, ms de acuse
+    /// (media primer paquete → acuse), ms en el socket y PHY. Null sin medir o si la plataforma no lo reporta; solo vale
+    /// si `medidas_hace_ms` es reciente. El planificador de vídeo puede leerlos sin tocar sus reglas.
+    pub escrituras_s: Option<f64>,
+    pub bytes_escritura: Option<u64>,
+    pub ms_acuse: Option<u64>,
+    pub ms_socket: Option<f64>,
+    pub phy: Option<String>,
+    pub medidas_hace_ms: Option<u64>,
 }
 
 #[derive(Serialize, Clone, Debug)]
@@ -318,10 +327,13 @@ pub enum EventoRadio {
     L2capAbierto { enlace: String, psm: Option<u16> },
     /// (BLE1109A) El canal L2CAP se cerró o no abrió; el enlace GATT sigue.
     L2capCerrado { enlace: String, motivo: String },
+    /// (BLE1114R) Lo medido por la radio en los últimos ~5 s: escrituras al canal rápido, bytes, tiempo en el cruce
+    /// Kotlin→Rust y en el socket (µs, sumas), PHY y prioridad de conexión. Solo Android lo manda hoy.
+    Medidas { enlace: String, ventana_ms: u64, escrituras: u64, bytes: u64, puente_us: u64, socket_us: u64, phy: Option<String>, prioridad: Option<String> },
 }
 
 /// Los hitos que la radio puede anotar (lista cerrada: el texto libre va en el detalle).
-pub const NOTAS_RADIO: [&str; 14] = [
+pub const NOTAS_RADIO: [&str; 16] = [
     // BLE1110A: cambios de MTU (anterior → nuevo), anuncio que ya estaba activo (código 3) y conexión soltada para renegociar el MTU.
     "mtu-cambio",
     "anuncio-ya-activo",
@@ -337,6 +349,8 @@ pub const NOTAS_RADIO: [&str; 14] = [
     "conexion-vencida",
     "redescubriendo",
     "l2cap-servidor", // BLE1109B: el socket L2CAP del periférico Android (creado en su propio hilo)
+    "prioridad-cambio", // BLE1114R: prioridad de conexión alta con tráfico, balanceada sin él (solo como central)
+    "phy-cambio", // BLE1114R: el PHY que dio el sistema (1M / 2M)
     "contador-enlaces", // MLL1111C: conexiones y desconexiones REALES por minuto (y los avisos repetidos aparte)
 ];
 
@@ -405,6 +419,18 @@ pub fn leer_evento(json: &str) -> Option<EventoRadio> {
             let enlace = texto_de(&v, "enlace", 80).filter(|p| plataforma_valida(p))?;
             Some(EventoRadio::L2capCerrado { enlace, motivo: texto_de(&v, "motivo", 200).unwrap_or_else(|| "el canal L2CAP se cerró".into()) })
         }
+        // BLE1114R
+        "medidas-radio" => {
+            let enlace = texto_de(&v, "enlace", 80).filter(|p| plataforma_valida(p))?;
+            let n = |k: &str| v.get(k).and_then(|x| x.as_u64()).unwrap_or(0);
+            let ventana_ms = n("ventana_ms");
+            if ventana_ms == 0 {
+                return None;
+            }
+            let phy = texto_de(&v, "phy", 12).filter(|p| ["1M", "2M", "coded", "?"].contains(&p.as_str()));
+            let prioridad = texto_de(&v, "prioridad", 12).filter(|p| ["alta", "balanceada", "baja"].contains(&p.as_str()));
+            Some(EventoRadio::Medidas { enlace, ventana_ms, escrituras: n("escrituras"), bytes: n("bytes"), puente_us: n("puente_us"), socket_us: n("socket_us"), phy, prioridad })
+        }
         _ => None,
     }
 }
@@ -421,6 +447,9 @@ pub fn aplicar_evento(ev: EventoRadio) {
         EventoRadio::Psm { enlace, psm } => al_psm(&enlace, psm),
         EventoRadio::L2capAbierto { enlace, psm } => al_l2cap_abierto(&enlace, psm),
         EventoRadio::L2capCerrado { enlace, motivo } => al_l2cap_cerrado(&enlace, &motivo),
+        EventoRadio::Medidas { enlace, ventana_ms, escrituras, bytes, puente_us, socket_us, phy, prioridad } => {
+            al_medidas_radio(&enlace, ventana_ms, escrituras, bytes, puente_us, socket_us, phy, prioridad)
+        }
     }
 }
 
@@ -440,6 +469,20 @@ struct EnlaceVivo {
     /// (BLE1109A) Carril rápido (canal L2CAP) de este enlace y el desmarcador de su flujo.
     carril: Carril,
     desmarcador: Desmarcador,
+    /// (BLE1114R) Lo último que midió la radio en una ventana (ver `al_medidas_radio`); None hasta la primera.
+    vivas: Option<MedidasVivas>,
+}
+
+/// (BLE1114R) Una ventana medida del canal rápido: lo que la web puede leer en `EnlaceBle` y lo que dice la línea `ble-enlace`.
+#[derive(Clone, Debug, PartialEq)]
+struct MedidasVivas {
+    escrituras_s: f64,
+    bytes_escritura: u64,
+    ms_puente: f64,
+    ms_socket: f64,
+    ms_acuse: Option<u64>,
+    phy: Option<String>,
+    en_ms: u64,
 }
 
 /// Lo que se sabe de la cuenta (de la configuración de antenas): clave de faro, esta neurona y las demás.
@@ -823,6 +866,7 @@ pub fn al_conectar(plataforma: &str, rol: &str, direccion: Option<&str>, paquete
             dato_salido: false,
             carril: Carril::nuevo(rol == "central"),
             desmarcador: Desmarcador::nuevo(),
+            vivas: None,
         });
         let (id, neurona) = e.enlaces.last().map(|l| (l.id.clone(), l.neurona.clone())).unwrap_or_default();
         let fallos = direccion.map(|d| e.vecindario.fallos_de(d)).unwrap_or(0);
@@ -873,6 +917,45 @@ pub fn al_mtu(plataforma: &str, paquete: usize) {
         if let Some((id, neurona)) = nota {
             anotar(e, "mtu", Some(&id), neurona.as_deref(), &format!("paquete={paquete}"));
         }
+    });
+}
+
+/// (BLE1114R) Una ventana medida por la radio (Android, cada ~5 s con tráfico). Se une con lo que solo sabe el núcleo (media de
+/// acuses, MTU, rol) y queda en el registro como `ble-enlace`, la línea con la que se ve dónde se van los 100-160 ms de cada
+/// escritura. No lleva `intervalo`: Android no lo da a una app. Sin escrituras en la ventana no se anota nada.
+#[allow(clippy::too_many_arguments)]
+pub fn al_medidas_radio(plataforma: &str, ventana_ms: u64, escrituras: u64, bytes: u64, puente_us: u64, socket_us: u64, phy: Option<String>, prioridad: Option<String>) {
+    if escrituras == 0 {
+        return;
+    }
+    let ahora = ahora_ms();
+    con_estado(|e| {
+        let Some(l) = e.enlaces.iter_mut().find(|l| l.plataforma == plataforma) else { return };
+        let acuse = l.nucleo.tomar_acuses();
+        let v = MedidasVivas {
+            escrituras_s: ((escrituras as f64 * 1000.0 / ventana_ms as f64) * 10.0).round() / 10.0,
+            bytes_escritura: bytes / escrituras,
+            ms_puente: ((puente_us as f64 / escrituras as f64) / 100.0).round() / 10.0,
+            ms_socket: ((socket_us as f64 / escrituras as f64) / 100.0).round() / 10.0,
+            ms_acuse: acuse.map(|(m, _)| m),
+            phy: phy.clone(),
+            en_ms: ahora,
+        };
+        let detalle = format!(
+            "escrituras/s={} bytes/escritura={} ms-puente={} ms-socket={} ms-acuse={} phy={} mtu={} rol={}{}",
+            v.escrituras_s,
+            v.bytes_escritura,
+            v.ms_puente,
+            v.ms_socket,
+            v.ms_acuse.map(|m| m.to_string()).unwrap_or_else(|| "-".into()),
+            phy.as_deref().unwrap_or("-"),
+            l.nucleo.paquete() + 3,
+            l.rol,
+            prioridad.as_deref().map(|p| format!(" prioridad={p}")).unwrap_or_default()
+        );
+        let (id, neurona) = (l.id.clone(), l.neurona.clone());
+        l.vivas = Some(v);
+        anotar(e, "ble-enlace", Some(&id), neurona.as_deref(), &detalle);
     });
 }
 
@@ -1466,6 +1549,12 @@ fn foto(e: &Estado, ahora: u64) -> EstadoBle {
                 bytes_enviados: m.bytes_enviados,
                 bytes_recibidos: m.bytes_recibidos,
                 abierto_hace_ms: ahora.saturating_sub(l.desde_ms),
+                escrituras_s: l.vivas.as_ref().map(|v| v.escrituras_s),
+                bytes_escritura: l.vivas.as_ref().map(|v| v.bytes_escritura),
+                ms_acuse: l.vivas.as_ref().and_then(|v| v.ms_acuse),
+                ms_socket: l.vivas.as_ref().map(|v| v.ms_socket),
+                phy: l.vivas.as_ref().and_then(|v| v.phy.clone()),
+                medidas_hace_ms: l.vivas.as_ref().map(|v| ahora.saturating_sub(v.en_ms)),
             }
         })
         .collect();
@@ -1926,6 +2015,47 @@ mod pruebas {
         assert!(std::fs::read_to_string(&ruta).unwrap().lines().all(|l| l == linea));
         assert!(anexar_rotando(&ruta, &[], 1_000).is_ok());
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    // ─────────── BLE1114R: la línea `ble-enlace` y las medidas del canal ───────────
+
+    #[test]
+    fn las_medidas_de_la_radio_se_leen_y_dejan_la_linea_ble_enlace() {
+        assert_eq!(
+            leer_evento(r#"{"e":"medidas-radio","enlace":"p:BB:14","ventana_ms":5000,"escrituras":30,"bytes":150000,"puente_us":6000,"socket_us":90000,"phy":"2M","prioridad":"alta"}"#),
+            Some(EventoRadio::Medidas { enlace: "p:BB:14".into(), ventana_ms: 5000, escrituras: 30, bytes: 150000, puente_us: 6000, socket_us: 90000, phy: Some("2M".into()), prioridad: Some("alta".into()) })
+        );
+        assert_eq!(leer_evento(r#"{"e":"medidas-radio","enlace":"p:BB:14","ventana_ms":0,"escrituras":3}"#), None, "sin ventana no hay división");
+        assert_eq!(leer_evento(r#"{"e":"medidas-radio","enlace":"mal id","ventana_ms":5000}"#), None);
+        let Some(EventoRadio::Medidas { phy, prioridad, .. }) = leer_evento(r#"{"e":"medidas-radio","enlace":"p:BB:14","ventana_ms":5000,"escrituras":1,"phy":"raro","prioridad":"x"}"#) else { panic!("se lee") };
+        assert_eq!((phy, prioridad), (None, None), "lo que no es del vocabulario se descarta");
+        let _g = con_ajuste(true);
+        let p = "p:AA:BB:CC:DD:EE:14";
+        al_conectar(p, "periferico", None, 512);
+        let enl = id_de_enlace(p);
+        // Un acuse medido entra en la media de la ventana: 120 ms y 100 ms → 110.
+        con_estado(|e| {
+            let l = e.enlaces.iter_mut().find(|l| l.plataforma == p).unwrap();
+            l.nucleo.medidas.acuse_suma_ms = 220;
+            l.nucleo.medidas.acuse_n = 2;
+        });
+        // Sin escrituras en la ventana no se anota nada ni se inventa una medida.
+        al_medidas_radio(p, 5000, 0, 0, 0, 0, None, None);
+        assert!(estado_enlace(&enl).escrituras_s.is_none());
+        al_medidas_radio(p, 5000, 30, 150_000, 6_000, 90_000, Some("2M".into()), Some("alta".into()));
+        let e = estado_enlace(&enl);
+        assert_eq!((e.escrituras_s, e.bytes_escritura, e.ms_acuse, e.ms_socket, e.phy.as_deref()), (Some(6.0), Some(5000), Some(110), Some(3.0), Some("2M")));
+        assert!(e.medidas_hace_ms.is_some_and(|m| m < 5_000));
+        let l = ble_registro().into_iter().rev().find(|x| x.tipo == "ble-enlace" && x.enlace.as_deref() == Some(enl.as_str())).expect("la línea");
+        for clave in ["escrituras/s=6", "bytes/escritura=5000", "ms-puente=0.2", "ms-socket=3", "ms-acuse=110", "phy=2M", "mtu=515", "rol=periferico", "prioridad=alta"] {
+            assert!(l.detalle.contains(clave), "falta «{clave}» en «{}»", l.detalle);
+        }
+        assert!(!l.detalle.contains("intervalo"), "Android no da el intervalo: no se inventa");
+        // La ventana se vació: otra sin acuses dice «-», no repite la media vieja.
+        al_medidas_radio(p, 5000, 10, 1000, 100, 100, None, None);
+        let l2 = ble_registro().into_iter().rev().find(|x| x.tipo == "ble-enlace" && x.enlace.as_deref() == Some(enl.as_str())).unwrap();
+        assert!(l2.detalle.contains("ms-acuse=- phy=- "), "{}", l2.detalle);
+        al_desconectar(p, "fin de la prueba de medidas");
     }
 
     // ─────────── BLE1109A: carril rápido (L2CAP) ───────────
