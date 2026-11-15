@@ -2,17 +2,24 @@
 """Pruebas del agente de síntesis (SDP1111D): tres fases, zona CDMX, cola con
 prefijo `cola-suenos-`, puntuación con Jev, entrega a Telegram, escritura
 atómica, una entrega al día, cerrojo. Puras: sin red, sin orquestador."""
+import http.client
 import json
 import os
+import socket
 import sys
 import tempfile
 import unittest
+import urllib.request
 from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
 DIRECTORIO = os.path.dirname(os.path.abspath(__file__))
 if DIRECTORIO not in sys.path:
     sys.path.insert(0, DIRECTORIO)
+
+# SIN1114: también al correr este archivo con unittest fuera de pytest, las pruebas nunca
+# habilitan los envíos ni las subidas reales.
+os.environ["STARSEED_PRUEBAS"] = "1"
 
 import agente_sintesis as A
 import sintesis_fuentes as SF
@@ -119,7 +126,7 @@ class TestCiclo(unittest.TestCase):
 
         r = A.ciclo(self.raiz, AHORA_CDMX_07, encargar=False, jev=False,
                     enviar=enviar_falso, home=self.home, seco=False,
-                    subir_drive=lambda f, t: None)
+                    subir_drive=lambda f, t: "doc-falso")
         self.assertTrue(r["ok"])
         self.assertEqual(r["resultado"]["accion"], "entregada")
         self.assertEqual(len(enviados), 2)
@@ -141,12 +148,12 @@ class TestCiclo(unittest.TestCase):
         # Primera entrega
         r1 = A.ciclo(self.raiz, AHORA_CDMX_07, encargar=False, jev=False,
                      enviar=enviar_falso, home=self.home, seco=False,
-                     subir_drive=lambda f, t: None)
+                     subir_drive=lambda f, t: "doc-falso")
         self.assertTrue(r1["ok"])
         # Segunda entrega en mismo día (forzar para saltar la puerta de 15 min)
         r2 = A.ciclo(self.raiz, AHORA_CDMX_07, encargar=False, jev=False,
                      enviar=enviar_falso, home=self.home, seco=False, forzar=True,
-                     subir_drive=lambda f, t: None)
+                     subir_drive=lambda f, t: "doc-falso")
         self.assertEqual(r2["resultado"]["accion"], "ya_entregada")
 
     def test_puerta_cada_15_min(self):
@@ -167,6 +174,26 @@ class TestCiclo(unittest.TestCase):
         r = A.ciclo(self.raiz, AHORA_CDMX_00, encargar=False, jev=False,
                     home=self.home, seco=True, forzar=True)
         self.assertTrue(r["toca"])
+
+    def test_entregar_con_sintesis_no_toca_la_red(self):
+        """SIN1114: con `subir_drive` inyectado, la entrega no abre urlopen ni sockets."""
+        os.makedirs(os.path.join(self.raiz, A.REL_SINTESIS), exist_ok=True)
+        ruta = os.path.join(self.raiz, A.REL_SINTESIS, f"{FECHA}.md")
+        with open(ruta, "w", encoding="utf-8") as f:
+            f.write("Síntesis completa con fuentes y fechas. " * 100)
+        llamadas = []
+
+        def red_falsa(*args, **kwargs):
+            llamadas.append(args)
+            raise AssertionError("la entrega no debe salir a la red")
+
+        with patch("urllib.request.urlopen", red_falsa), patch("socket.create_connection", red_falsa):
+            r = A.ciclo(self.raiz, AHORA_CDMX_07, encargar=False, jev=False,
+                        enviar=lambda t, **kw: {"ok": True, "trozos": 1},
+                        home=self.home, seco=False, subir_drive=lambda f, t: "doc-falso")
+        self.assertTrue(r["ok"])
+        self.assertEqual(r["resultado"]["accion"], "entregada")
+        self.assertEqual(llamadas, [])
 
 
 class TestPlan(unittest.TestCase):
@@ -772,6 +799,57 @@ class TestSeccionesAlcance1113(unittest.TestCase):
         self.assertIn("/alcance", prompt)
         self.assertIn("nada se publica", prompt)
         self.assertLessEqual(len(prompt), A.TOPE_PROMPT)
+
+
+class TestGuardiaDeRed(unittest.TestCase):
+    """SIN1114: la guardia corta urlopen, HTTPS y sockets externos, respeta localhost y no
+    apaga la variable STARSEED_PRUEBAS que fijó la sesión de pytest."""
+
+    def setUp(self):
+        import guardia_pruebas as G
+        self.G = G
+        self._previas = (urllib.request.urlopen, http.client.HTTPSConnection.connect,
+                         socket.create_connection)
+        G.activar()
+
+    def tearDown(self):
+        self.G.desactivar()
+        (urllib.request.urlopen, http.client.HTTPSConnection.connect,
+         socket.create_connection) = self._previas
+
+    def test_urlopen_externo_falla(self):
+        with self.assertRaises(self.G.ErrorRedEnPruebas):
+            urllib.request.urlopen("https://example.com/sin1114")
+
+    def test_https_connect_externo_falla(self):
+        conexion = http.client.HTTPSConnection("example.com")
+        with self.assertRaises(self.G.ErrorRedEnPruebas):
+            conexion.connect()
+
+    def test_socket_create_externo_falla(self):
+        with self.assertRaises(self.G.ErrorRedEnPruebas):
+            socket.create_connection(("example.com", 443))
+
+    def test_localhost_y_file_no_los_bloquea(self):
+        self.assertTrue(self.G._es_local("127.0.0.1"))
+        self.assertTrue(self.G._es_local("localhost"))
+        self.assertFalse(self.G._es_local("example.com"))
+        self.assertTrue(self.G._url_permitida("file:///tmp/sin1114"))
+        self.assertFalse(self.G._url_permitida("https://example.com/sin1114"))
+
+    def test_desactivar_conserva_la_variable_de_sesion(self):
+        self.G.desactivar()
+        self.assertEqual(os.environ.get("STARSEED_PRUEBAS"), "1")
+
+    def test_activar_desactivar_restaura_el_entorno_previo(self):
+        self.G.desactivar()
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("STARSEED_PRUEBAS", None)
+            self.G.activar()
+            self.assertEqual(os.environ.get("STARSEED_PRUEBAS"), "1")
+            self.G.desactivar()
+            self.assertNotIn("STARSEED_PRUEBAS", os.environ)
+        self.assertEqual(os.environ.get("STARSEED_PRUEBAS"), "1")
 
 
 if __name__ == "__main__":
