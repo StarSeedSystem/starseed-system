@@ -121,4 +121,32 @@ describe("cola del timbre (MLL1111C)", () => {
     expect(textoBuscandoVia("Maggaboard")).toBe("Buscando una vía hasta Maggaboard…");
     expect(textoBuscandoVia(null)).toBe("Buscando una vía hasta el otro aparato…");
   });
+
+  it("ICE1114S · «enviado» sin acuse no cuenta como entregado: se reintenta y acaba confirmado al llegar el acuse", async () => {
+    const r = reloj();
+    const estados: (boolean | "enviado")[] = ["enviado", "enviado", true];
+    let n = 0;
+    const res = await timbreConCola({ avisar: async () => estados[n++] ?? true, ahora: r.ahora, esperar: r.esperar });
+    expect(res.ok).toBe(true);
+    expect(res.confirmado).toBe(true);
+    expect(res.intentos).toBe(3);
+  });
+
+  it("ICE1114S · si nadie lo acusa en la ventana, el timbre salió pero queda dicho: ok sin confirmar", async () => {
+    const r = reloj();
+    const lineas: string[] = [];
+    const res = await timbreConCola({ avisar: async () => "enviado", ahora: r.ahora, esperar: r.esperar, anotar: (d) => lineas.push(d) });
+    expect(res.ok).toBe(true);
+    expect(res.confirmado).toBe(false);
+    expect(res.motivo).toBe("sin-acuse");
+    expect(res.intentos).toBeGreaterThan(3);
+    expect(lineas.some((l) => /sin-acuse/.test(l))).toBe(true);
+  });
+
+  it("ICE1114S · si ningún intento salió, sigue siendo un fallo con plazo (nada de «llamando…»)", async () => {
+    const r = reloj();
+    const res = await timbreConCola({ avisar: async () => false, ahora: r.ahora, esperar: r.esperar });
+    expect(res.ok).toBe(false);
+    expect(res.confirmado).toBe(false);
+  });
 });

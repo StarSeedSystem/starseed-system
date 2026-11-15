@@ -30,7 +30,7 @@ import { obtenerIceServidores, type FuenteIce } from "@/lib/llamadas/ice";
 import { temaLlamada } from "@/lib/llamadas/temas";
 import { enlacesLocalesVivos, suscribirEnlacesLocales } from "@/lib/malla/registro-enlaces-locales";
 // (MLL1111C) El timbre nunca se rinde en silencio: cola de 30 s que se repite en cuanto liga cualquier vía.
-import { textoBuscandoVia, timbreConCola, VENTANA_TIMBRE_MS } from "@/lib/malla/cola-timbre";
+import { textoBuscandoVia, textoSinAcuse, timbreConCola, VENTANA_TIMBRE_MS } from "@/lib/malla/cola-timbre";
 import { abrirCanalLlamadaPorEnlace } from "@/lib/llamadas/canal-enlace-local";
 import { canalesParaLlamada } from "@/lib/llamadas/canales-directos";
 import { iceParaCanal, tipoCanalDirecto } from "@/lib/llamadas/decision-ice";
@@ -432,12 +432,12 @@ export async function empezarLlamadaSinChat(o: {
     /** Otras cuentas que pueden entrar (vacío = solo tu cuenta). */
     invitados: string[];
     pistaPantalla?: MediaStreamTrack | null;
-    avisar: (sesionId: string) => Promise<boolean>;
+    avisar: (sesionId: string) => Promise<boolean | "enviado">;
     /** (LLA1108E) Neurona a la que se llama: con ella, la señalización y la voz pueden ir por Bluetooth u otro enlace sin IP. */
     neurona?: string | null;
     /** (LLA1110D) No hay internet (o el plan ya lo sabe): la llamada va por el enlace directo con un id local, sin el servidor. */
     sinServidor?: boolean;
-}): Promise<{ ok: boolean; sesionId?: string; motivo?: string; ajustes?: AjustesMedios | null }> {
+}): Promise<{ ok: boolean; sesionId?: string; motivo?: string; ajustes?: AjustesMedios | null; confirmado?: boolean }> {
     ultimaSinChat = { ...o, pistaPantalla: null };
     const soltarPantalla = () => {
         try {
@@ -609,7 +609,9 @@ export async function empezarLlamadaSinChat(o: {
         return { ok: false, motivo };
     }
     abrirVentana();
-    return { ok: true, sesionId };
+    // ICE1114S: el timbre salió pero nadie lo acusó en la ventana: la ventana lo dice en vez de seguir con «llamando…».
+    if (!timbre.confirmado && !motor.cerrada) motor.avisar(textoSinAcuse(o.titulo));
+    return { ok: true, sesionId, confirmado: timbre.confirmado };
 }
 
 /**

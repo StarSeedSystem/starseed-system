@@ -206,6 +206,24 @@ const MAX_CANALES = 3;
 /** Cada enlace directo trae como mucho a una persona: con 7 enlaces ya estamos los 8. */
 const MAX_DIRECTOS = MAX_PARTICIPANTES - 1;
 
+/** ICE1114S · Veces que un candidato aparcado se repasa (tras cada descripción remota) antes de darlo por perdido. */
+const MAX_REPASOS_ICE = 4;
+const INTENTOS_ICE = new WeakMap<RTCIceCandidateInit, number>();
+
+/** ICE1114S · Los `a=ice-ufrag` de una descripción (uno por sección), o null si no se pueden leer. */
+function ufragsDeSdp(sdp: string | undefined): Set<string> | null {
+    if (!sdp) return null;
+    const r = new Set<string>();
+    for (const m of sdp.matchAll(/^a=ice-ufrag:(\S+)/gm)) r.add(m[1]);
+    return r.size ? r : null;
+}
+
+/** ICE1114S · La generación de ICE de un candidato: `usernameFragment` o el campo `ufrag` de su línea. */
+function ufragDeCandidato(c: RTCIceCandidateInit): string | null {
+    if (typeof c.usernameFragment === "string" && c.usernameFragment) return c.usernameFragment;
+    return / ufrag (\S+)/.exec(c.candidate ?? "")?.[1] ?? null;
+}
+
 interface Par {
     id: string;
     pc: RTCPeerConnection;
@@ -215,6 +233,8 @@ interface Par {
     aplicandoRespuesta: boolean;
     icePendiente: RTCIceCandidateInit[];
     iceSaliente: RTCIceCandidateInit[];
+    /** ICE1114S · Cuenta de candidatos para el registro (enviados, recibidos, descartados, por tipo). */
+    iceCuenta: { enviados: number; recibidos: number; descartados: number; tipos: Record<string, number> };
     temporizadorIce: ReturnType<typeof setTimeout> | null;
     temporizadorDesconexion: ReturnType<typeof setTimeout> | null;
     stream: MediaStream | null;
@@ -1367,6 +1387,7 @@ export class MotorLlamada {
             aplicandoRespuesta: false,
             icePendiente: [],
             iceSaliente: [],
+            iceCuenta: { enviados: 0, recibidos: 0, descartados: 0, tipos: {} },
             temporizadorIce: null,
             temporizadorDesconexion: null,
             stream: null,
@@ -1383,7 +1404,10 @@ export class MotorLlamada {
         this.pares.set(id, par);
 
         pc.onicecandidate = (ev) => {
-            if (!ev.candidate) return;
+            if (!ev.candidate) {
+                this.anotarCandidatos(par, "fin-recogida");
+                return;
+            }
             const c = typeof ev.candidate.toJSON === "function" ? ev.candidate.toJSON() : (ev.candidate as unknown as RTCIceCandidateInit);
             this.encolarIce(par, c);
         };
@@ -1415,9 +1439,13 @@ export class MotorLlamada {
             if (this.pares.get(id) !== par) return;
             this.anotarNegociacion(par, `estado=${pc.signalingState}`);
         };
-        pc.oniceconnectionstatechange = () => this.alCambiarIce(par, pc.iceConnectionState);
+        pc.oniceconnectionstatechange = () => {
+            this.anotarCandidatos(par, `ice=${pc.iceConnectionState}`); // ICE1114S
+            this.alCambiarIce(par, pc.iceConnectionState);
+        };
         pc.onconnectionstatechange = () => {
             const cs = pc.connectionState;
+            if (cs === "connected" || cs === "failed") this.anotarCandidatos(par, `conexion=${cs}`); // ICE1114S
             if (cs === "connected" || cs === "failed") this.alCambiarIce(par, cs);
         };
 
@@ -1485,24 +1513,66 @@ export class MotorLlamada {
         }
     }
 
-    private async aplicarIce(par: Par, c: RTCIceCandidateInit) {
+    /**
+     * ICE1114S · Un candidato solo vale para la generación de ICE (usernameFragment) de la descripción remota ACTUAL.
+     * Antes, con una descripción remota ya puesta (la de la primera negociación), un candidato de la oferta SIGUIENTE
+     * (reinicio de ICE) que llegaba por otro canal antes que su oferta se pasaba a `addIceCandidate`, el navegador lo
+     * rechazaba por no coincidir y aquí se tiraba en silencio: justo la generación que el reintento perseguía quedaba
+     * sin candidatos del otro lado y ICE nunca conectaba (prueba 42: tableta llamando, cuatro reinicios, ningún `connected`).
+     * Ahora se aparca hasta que llegue la descripción que lo estrena y se reintenta tras cada descripción remota.
+     */
+    private async aplicarIce(par: Par, c: RTCIceCandidateInit, esReintento = false) {
+        if (!esReintento) {
+            par.iceCuenta.recibidos += 1;
+            const t = / typ (\w+)/.exec(c.candidate ?? "")?.[1] ?? "?";
+            par.iceCuenta.tipos[`rx-${t}`] = (par.iceCuenta.tipos[`rx-${t}`] ?? 0) + 1;
+        }
+        const aparcar = (motivo: string) => {
+            const n = (INTENTOS_ICE.get(c) ?? 0) + 1;
+            INTENTOS_ICE.set(c, n);
+            if (n > MAX_REPASOS_ICE || par.icePendiente.length >= 200) {
+                par.iceCuenta.descartados += 1;
+                return;
+            }
+            par.icePendiente.push(c);
+            void motivo;
+        };
         if (!par.pc.remoteDescription) {
-            if (par.icePendiente.length < 200) par.icePendiente.push(c);
+            aparcar("sin-descripcion");
+            return;
+        }
+        const ufrag = ufragDeCandidato(c);
+        const vigentes = ufragsDeSdp(par.pc.remoteDescription.sdp);
+        if (ufrag && vigentes && !vigentes.has(ufrag)) {
+            aparcar("generacion-futura");
             return;
         }
         try {
             await par.pc.addIceCandidate(c);
         } catch {
-            /* candidato de una oferta ignorada o duplicado: se descarta */
+            // Rechazado (de una oferta ignorada o repetido): se repasa tras la siguiente descripción y, pasados unos repasos, se cuenta como descartado.
+            aparcar("rechazado");
         }
     }
 
     private async vaciarIcePendiente(par: Par) {
         const lista = par.icePendiente.splice(0);
-        for (const c of lista) await this.aplicarIce(par, c);
+        for (const c of lista) await this.aplicarIce(par, c, true);
+    }
+
+    /** ICE1114S · `ice candidatos enviados=… recibidos=… en-espera=… descartados=… tipos=…` y por qué se anota ahora. */
+    private anotarCandidatos(par: Par, motivo: string) {
+        const k = par.iceCuenta;
+        const tipos = Object.entries(k.tipos)
+            .map(([t, n]) => `${t}:${n}`)
+            .join(",");
+        anotarLlamada("medio=webrtc", this.opc.vozDatos?.neurona ?? null, `par=${par.id} ice candidatos enviados=${k.enviados} recibidos=${k.recibidos} en-espera=${par.icePendiente.length} descartados=${k.descartados} tipos=${tipos || "-"} ${motivo}`);
     }
 
     private encolarIce(par: Par, c: RTCIceCandidateInit) {
+        par.iceCuenta.enviados += 1;
+        const t = / typ (\w+)/.exec(c.candidate ?? "")?.[1] ?? "?";
+        par.iceCuenta.tipos[`tx-${t}`] = (par.iceCuenta.tipos[`tx-${t}`] ?? 0) + 1;
         par.iceSaliente.push(c);
         if (par.temporizadorIce) return;
         par.temporizadorIce = setTimeout(() => {

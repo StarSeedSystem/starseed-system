@@ -19,8 +19,11 @@ export function esperaTimbre(n: number): number {
 }
 
 export interface OpcionesColaTimbre {
-  /** Entrega el aviso por la mejor vía viva ahora. true: entregado. */
-  avisar: () => Promise<boolean>;
+  /**
+   * Entrega el aviso por la mejor vía viva ahora. true: entregado Y acusado por el otro lado. «enviado»: salió pero sin acuse
+   * (ICE1114S: antes contaba como entregado; la prueba 42 llamó a la Mac por Bluetooth y nunca sonó). false: no salió.
+   */
+  avisar: () => Promise<boolean | "enviado">;
   /** Se entera de que ligó una vía (Bluetooth, red local, internet…). Devuelve la baja. */
   alVia?: (cb: (via: string) => void) => () => void;
   /** Línea para el registro del enlace (sin el prefijo «inicio paso=timbre»). */
@@ -40,6 +43,8 @@ export interface ResultadoTimbre {
   ms: number;
   /** «primer-intento» · «via-nueva:<via>» · «reintento» · «plazo» · «cancelada». */
   motivo: string;
+  /** ICE1114S · El otro lado acusó recibo. false con `ok`: salió pero nadie lo acusó en la ventana (puede que no suene). */
+  confirmado: boolean;
 }
 
 /** Espera `ms` o hasta que alguien llame a `despertar`, lo que llegue antes. */
@@ -70,6 +75,7 @@ export async function timbreConCola(o: OpcionesColaTimbre): Promise<ResultadoTim
   };
   const t0 = ahora();
   let intentos = 0;
+  let salioSinAcuse = false;
   let viaNueva: string | null = null;
   let despertador: (() => void) | null = null;
   const baja = o.alVia?.((via) => {
@@ -80,7 +86,12 @@ export async function timbreConCola(o: OpcionesColaTimbre): Promise<ResultadoTim
   const intentar = async (): Promise<boolean> => {
     intentos += 1;
     try {
-      return await o.avisar();
+      const r = await o.avisar();
+      if (r === "enviado") {
+        salioSinAcuse = true;
+        return false; // ICE1114S: sin acuse no está entregado: se reintenta por todas las vías hasta que lo acusen
+      }
+      return r;
     } catch {
       return false;
     }
@@ -90,18 +101,20 @@ export async function timbreConCola(o: OpcionesColaTimbre): Promise<ResultadoTim
     for (;;) {
       if (o.cancelada?.()) {
         anotar(`cancelada intentos=${intentos} tras=${ahora() - t0}ms`);
-        return { ok: false, intentos, ms: ahora() - t0, motivo: "cancelada" };
+        return { ok: false, intentos, ms: ahora() - t0, motivo: "cancelada", confirmado: false };
       }
       const ok = await intentar();
       const ms = ahora() - t0;
       if (ok) {
         if (intentos > 1) anotar(`ok intento=${intentos} tras=${ms}ms motivo=${motivo}`);
-        return { ok: true, intentos, ms, motivo };
+        return { ok: true, intentos, ms, motivo, confirmado: true };
       }
       const queda = ventana - ms;
       if (queda <= 0) {
-        anotar(`agotada intentos=${intentos} tras=${ms}ms ventana=${ventana}ms`);
-        return { ok: false, intentos, ms, motivo: "plazo" };
+        anotar(`agotada intentos=${intentos} tras=${ms}ms ventana=${ventana}ms${salioSinAcuse ? " sin-acuse" : ""}`);
+        // Salió por alguna vía pero nadie acusó recibo: la llamada sigue (un par antiguo puede no acusar) y la ventana lo dice.
+        if (salioSinAcuse) return { ok: true, intentos, ms, motivo: "sin-acuse", confirmado: false };
+        return { ok: false, intentos, ms, motivo: "plazo", confirmado: false };
       }
       if (!buscando) {
         buscando = true;
@@ -110,7 +123,7 @@ export async function timbreConCola(o: OpcionesColaTimbre): Promise<ResultadoTim
         } catch {
           /* noop */
         }
-        anotar(`en-cola intento=1 sin-via ventana=${ventana}ms`);
+        anotar(`en-cola intento=1 ${salioSinAcuse ? "sin-acuse" : "sin-via"} ventana=${ventana}ms`);
       } else {
         anotar(`reintento-fallido intento=${intentos} tras=${ms}ms motivo=${motivo}`);
       }
@@ -143,4 +156,10 @@ export async function timbreConCola(o: OpcionesColaTimbre): Promise<ResultadoTim
 export function textoBuscandoVia(nombre: string | null | undefined): string {
   const n = (nombre ?? "").trim();
   return `Buscando una vía hasta ${n || "el otro aparato"}…`;
+}
+
+/** ICE1114S · Lo que dice la ventana de quien llama cuando el timbre salió pero nadie lo acusó. */
+export function textoSinAcuse(nombre: string | null | undefined): string {
+  const n = (nombre ?? "").trim();
+  return `No se pudo confirmar que la llamada suene en ${n || "el otro aparato"}.`;
 }

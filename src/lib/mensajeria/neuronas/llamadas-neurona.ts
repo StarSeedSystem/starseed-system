@@ -17,7 +17,7 @@
  * a `pedirPantalla()` antes de cualquier espera y pasa la promesa.
  */
 
-import { anunciarEnChatMalla, cambiarMensajeMalla, enviarANeurona, guardarMensajeMalla, hayInternetYSesion, mensajeMalla } from "./buzon";
+import { anunciarEnChatMalla, cambiarMensajeMalla, enviarANeurona, guardarMensajeMalla, hayInternetYSesion, mensajeMalla, reenviarMensajeNeurona } from "./buzon";
 import type { CuerpoNeurona, MensajeMalla } from "./bandeja";
 import type { ConversacionNeurona } from "./agrupar";
 import {
@@ -270,8 +270,13 @@ export async function llamarANeurona(o: {
             // (LLA1110D) Sin internet: id local y solo el enlace directo.
             sinServidor: sinServidor || !red.internet,
             avisar: async (sesion) => {
-                aviso = await enviarANeurona({ clave: conv.clave, destino: conv.destino, texto: "", llamada: { ...llamada, sesion }, urgente: true });
-                return aviso.estado === "enviado" || aviso.estado === "confirmado";
+                // ICE1114S · Solo «confirmado» (acuse del otro lado) cuenta como entregado; «enviado» se reintenta, con el MISMO
+                // mensaje (mismo id: quien ya lo tiene vuelve a acusar y no vuelve a sonar) por la mejor vía de cada momento.
+                aviso = aviso && aviso.estado !== "fallido"
+                    ? await reenviarMensajeNeurona(aviso)
+                    : await enviarANeurona({ clave: conv.clave, destino: conv.destino, texto: "", llamada: { ...llamada, sesion }, urgente: true });
+                if (aviso.estado === "confirmado") return true;
+                return aviso.estado === "enviado" ? "enviado" : false;
             },
         });
         const m = aviso as MensajeMalla | null;
@@ -280,7 +285,8 @@ export async function llamarANeurona(o: {
             return { ok: false, motivo: m?.aviso ?? r.motivo, plan, ajustes: m?.aviso ? null : (r.ajustes ?? null) };
         }
         if (m && r.sesionId) {
-            cambiarMensajeMalla(m.clave, m.id, { registroLlamada: { fase: "sonando" } });
+            // ICE1114S: «sonando» solo con acuse del otro lado; sin él, la burbuja no afirma que suene.
+            if (r.confirmado !== false) cambiarMensajeMalla(m.clave, m.id, { registroLlamada: { fase: "sonando" } });
             void vigilarSistema(m.clave, m.id, r.sesionId);
         }
         return { ok: true, plan: planEfectivo };
@@ -365,12 +371,25 @@ export async function llamarEnChatMalla(o: {
  * suena con la tarjeta global de llamadas entrantes (Aceptar / Solo voz / Rechazar), aunque el
  * chat no esté abierto. La persona decide: nada se contesta solo.
  */
+/** ICE1114S · Llamadas ya timbradas aquí (el timbre se reenvía hasta que lo acusan): un duplicado nunca abre otra entrante. */
+const SESIONES_TIMBRADAS = new Set<string>();
+const MAX_SESIONES_TIMBRADAS = 64;
+
+export function __olvidarSesionesTimbradas(): void {
+    SESIONES_TIMBRADAS.clear();
+}
+
 export async function timbreDeNeurona(o: { clave: string; cuerpo: CuerpoNeurona }): Promise<void> {
     const ll = o.cuerpo.ll;
     if (!ll || ll.via !== "sistema-llamadas" || !ll.sesion) return;
     try {
         const store = await import("@/lib/llamadas/store");
-        if (store.leerLlamadas().timbres.some((t) => t.sesionId === ll.sesion)) return;
+        const estadoLl = store.leerLlamadas();
+        if (estadoLl.timbres.some((t) => t.sesionId === ll.sesion)) return;
+        // Ya contestada, rechazada o cortada: un reenvío tardío del mismo timbre no suena otra vez.
+        if (SESIONES_TIMBRADAS.has(ll.sesion) || estadoLl.activa?.sesionId === ll.sesion) return;
+        SESIONES_TIMBRADAS.add(ll.sesion);
+        if (SESIONES_TIMBRADAS.size > MAX_SESIONES_TIMBRADAS) SESIONES_TIMBRADAS.delete(SESIONES_TIMBRADAS.values().next().value as string);
         cambiarMensajeMalla(o.clave, o.cuerpo.mid, { registroLlamada: { fase: "sonando" } });
         store.agregarTimbre({
             sesionId: ll.sesion,
