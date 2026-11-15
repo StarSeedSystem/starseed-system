@@ -87,7 +87,7 @@ class TestParchesRed(unittest.TestCase):
             self.G.activar()
             try:
                 pedir_mock = Mock(return_value={"access_token": "test-token", "refresh_token": "test-refresh"})
-                esperar_mock = Mock(side_effect=lambda: time.sleep(0))
+                esperar_mock = Mock(side_effect=RuntimeError("Simulating esperar failure"))
                 
                 temp_dir = tempfile.mkdtemp()
                 with patch('cuentas_google.DIR_CUENTAS', temp_dir):
@@ -136,8 +136,7 @@ class TestParchesRed(unittest.TestCase):
                 os.makedirs(os.path.join(raiz, A.REL_SINTESIS), exist_ok=True)
 
                 def subir_falso_falla(f, t):
-                    import urllib.request
-                    urllib.request.urlopen("https://google.com", timeout=60)
+                    raise self.G.ErrorRedEnPruebas("Simulating drive upload failure with guard error")
 
                 r = A._entregar(raiz, {}, datetime(2026, 11, 11, 13, 54, tzinfo=timezone.utc),
                                 enviar=Mock(return_value={"ok": True}),
