@@ -324,7 +324,7 @@ const MACOS: [IdPermiso, Especifico][] = [
   ["bluetooth", { como: "aviso", lectura: "si", fase: 1 }],
   ["red-local", { como: "aviso", lectura: "parcial", fase: 1, nota: "macOS no deja leer este permiso: se deduce de si la malla local responde." }],
   ["ubicacion-wifi", { como: "aviso", lectura: "si", fase: 1, opcional: true }],
-  ["ubicacion", { como: "aviso", lectura: "si", fase: 1, opcional: true, nota: "Es el mismo permiso «Localización» de macOS que el de los nombres de Wi-Fi: el aviso sale una sola vez. Si lo negaste, se cambia en Ajustes del Sistema › Privacidad y seguridad › Localización." }],
+  ["ubicacion", { como: "por-uso", lectura: "si", fase: 1, opcional: true, nota: "El aviso sale al pulsar «Usar mi ubicación», no al instalar. Es el mismo permiso «Localización» de macOS que el de los nombres de Wi-Fi: el aviso sale una sola vez. Si lo negaste, se cambia en Ajustes del Sistema › Privacidad y seguridad › Localización." }],
   ["notificaciones", { como: "aviso", lectura: "parcial", fase: 1 }],
   ["microfono", { como: "aviso", lectura: "si", fase: 1 }],
   ["camara", { como: "aviso", lectura: "si", fase: 1 }],
@@ -350,7 +350,7 @@ const MACOS: [IdPermiso, Especifico][] = [
 
 const ANDROID: [IdPermiso, Especifico][] = [
   ["cercanos", { como: "aviso", lectura: "si", fase: 1 }],
-  ["ubicacion", { como: "aviso", lectura: "si", fase: 1, opcional: true, nota: "Android 12+ deja dar solo la ubicación aproximada; el mapa lo dice. Si la negaste, se cambia en Ajustes › Aplicaciones › StarSeed › Permisos › Ubicación." }],
+  ["ubicacion", { como: "por-uso", lectura: "si", fase: 1, opcional: true, nota: "El aviso sale al pulsar «Usar mi ubicación», no al instalar. Android 12+ deja dar solo la ubicación aproximada; el mapa lo dice. Si la negaste, se cambia en Ajustes › Aplicaciones › StarSeed › Permisos › Ubicación." }],
   ["nfc", { como: "declaracion", lectura: "si", fase: 6 }],
   ["notificaciones", { como: "aviso", lectura: "si", fase: 1 }],
   ["microfono", { como: "aviso", lectura: "si", fase: 1 }],

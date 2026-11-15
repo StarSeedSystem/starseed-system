@@ -37,7 +37,7 @@ Nada se redondea; `t_ms` es la hora de la **medida**. Códigos: `denegado`, `res
 
 - macOS: `Info.plist` (texto honesto de los DOS usos: nombres de Wi-Fi y mapa) y `Entitlements.plist` (`personal-information.location`, audio, cámara, Bluetooth), enlazado desde `tauri.conf.json › bundle.macOS.entitlements`. Con el hardened runtime apagado macOS no exige los derechos; quedan declarados para el día que se encienda. Un derecho no concede nada: lo da la persona en el aviso.
 - Android: `ACCESS_FINE_LOCATION` y `ACCESS_COARSE_LOCATION` (siempre los dos, sin tope de versión; `build.rs` aplica este parche **antes** que el del Bluetooth, que entonces no repite la fina) y la función de GPS como opcional. Nunca `ACCESS_BACKGROUND_LOCATION`. Interruptor de emergencia: `STARSEED_SIN_UBICACION_ANDROID=1`.
-- Lista de permisos de la neurona (`permisos-registro.ts`, `permisos_sistema.rs`): id `ubicacion` («Ubicación (mapa)»). macOS: aviso, se lee (`CLLocationManager`, el mismo permiso que `ubicacion-wifi`). Android: aviso, se lee (`servicio.json › ubicacion`). Windows: por uso, sin lectura.
+- Lista de permisos de la neurona (`permisos-registro.ts`, `permisos_sistema.rs`): id `ubicacion` («Ubicación (mapa)»). macOS: por uso (el aviso sale al pulsar «Usar mi ubicación»; no entra en el asistente de inicio), se lee (`CLLocationManager`, el mismo permiso que `ubicacion-wifi`). Android: por uso (igual; Rust no tiene `permiso:ubicacion`: lo pide `ubicacion_ahora`), se lee (`servicio.json › ubicacion`). Windows: por uso, sin lectura.
 
 ## 4. La app nunca se concede nada
 
