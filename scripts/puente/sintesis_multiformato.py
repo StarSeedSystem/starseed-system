@@ -148,6 +148,14 @@ def _reintentar_formato(
     return None
 
 
+import re
+
+def _extraer_fecha_del_titulo(nombre: str) -> str | None:
+    """Extrae la fecha AAAA-MM-DD del título 'Síntesis diaria AAAA-MM-DD...'."""
+    m = re.search(r"S[ií]ntesis diaria (\d{4}-\d{2}-\d{2})", nombre)
+    return m.group(1) if m else None
+
+
 def procesar_sintesis_diaria(
     *,
     fecha: str | None = None,
@@ -166,19 +174,23 @@ def procesar_sintesis_diaria(
     """Procesa la síntesis diaria de una fecha: genera todos los formatos y los entrega.
 
     Args:
-        fecha: Fecha en formato AAAA-MM-DD. Si es None, usa la fecha de hoy.
+        fecha: Fecha en formato AAAA-MM-DD. Si es None, obtiene la síntesis más reciente válida.
         Las funciones con sufijo _fn son inyectables para testing.
 
     Returns:
         Dict con el índice de resultados: {fecha, cuaderno, formatos: [{tipo, drive_id, enlace, estado}], fallidos}
     """
+    if fecha is not None and ya_procesado(fecha):
+        return {"fecha": fecha, "estado": "ya_procesado", "formatos": []}
+
+    fid_sintesis, titulo_sintesis = ultima_sintesis_fn(fecha)
+    
     if fecha is None:
-        fecha = datetime.date.today().isoformat()
+        fecha = _extraer_fecha_del_titulo(titulo_sintesis) or datetime.date.today().isoformat()
 
     if ya_procesado(fecha):
         return {"fecha": fecha, "estado": "ya_procesado", "formatos": []}
 
-    fid_sintesis, titulo_sintesis = ultima_sintesis_fn(fecha)
     sid = asegurar_fuente_fn(fid_sintesis, _notebook_titulo(fecha))
 
     carpeta_id = os.environ.get("STARSEED_CARPETA_SINTESIS_FECHA", "1PenzAWw1VWpSAMXa7ms2VRrEhJ5uFbmI")
