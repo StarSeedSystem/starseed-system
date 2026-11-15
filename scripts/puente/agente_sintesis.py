@@ -846,9 +846,10 @@ def _clave_flota(nombres=("FREELLMAPI_KEY", "STARSEED_FLOTA_API_KEY")):
 
 def _redactar_flota(prompt, clave=None, base=None, modelo=None, abrir=None):
     """La flota gratuita en un solo paso (la prueba del 2026-11-11): FreeLLMAPI local
-    (127.0.0.1:3001), modelo CON nombre (nunca «auto»). None si falta clave o no contesta."""
-    clave = clave if clave is not None else _clave_flota()
-    if not clave or not str(prompt).strip():
+    (127.0.0.1:3001), modelo CON nombre (nunca «auto»). None si falta clave o no contesta.
+    Con `clave=None` devuelve None sin construir ni abrir NINGUNA petición: quien llama
+    resuelve la clave antes (p. ej. _clave_flota())."""
+    if clave is None or not str(prompt).strip():
         return None
     base = (base or os.environ.get("STARSEED_FLOTA_BASE_URL") or "http://127.0.0.1:3001/v1").rstrip("/")
     modelo = modelo or os.environ.get("STARSEED_SINTESIS_MODELO") or "groq/llama-3.3-70b-instruct"
@@ -906,7 +907,8 @@ def _respaldo(raiz, estado, ahora, redactar=None, subir_drive=None, seco=False, 
         return {"accion": "seco", "mensaje": "(seco) el respaldo no redacta ni envía", "respaldo": True}
     ctx = _encoger_contexto(SF.contexto(raiz, hoy=fecha, ahora=ahora.timestamp()))
     salidas = _salidas_del_dia(raiz, fecha) if salidas is None else salidas
-    texto = (redactar or _redactar_flota)(_prompt_respaldo(ctx, fecha, salidas=salidas))
+    redactor = redactar or (lambda pedido: _redactar_flota(pedido, clave=_clave_flota()))
+    texto = redactor(_prompt_respaldo(ctx, fecha, salidas=salidas))
     if not texto or len(str(texto).strip()) < 400:
         return {"ok": False, "accion": "sin_sintesis",
                 "mensaje": "La flota no devolvió texto; el día queda sin síntesis (se reintenta al siguiente ciclo)."}
