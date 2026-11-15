@@ -97,10 +97,15 @@ def alta(alias, pedir, esperar, abrir=webbrowser.open,
         if previa.get("refresh_token") and previa.get("client_id") and previa.get("client_secret"):
             return {"ok": True, "alias": alias, "correo": previa.get("correo"),
                     "motivo": "alta ya existente (authorized_user); no se pide otra"}
-    cid, secreto, redireccion = cliente_id_secret(rutas)[0], cliente_id_secret(rutas)[1], None
-    if (not cid or not secreto) and env_local:
+    cid, secreto, redireccion = None, None, None
+    if env_local:
+        # Primero el cliente OAuth del OS (.env.local) con redirección fija; solo si falta,
+        # se cae a GOOGLE_ACTIVIDAD_* o al client_secret_*.json de Descargas.
         cid, secreto = cliente_os(env_local)
-        redireccion = REDIRECCION_OS
+        if cid and secreto:
+            redireccion = REDIRECCION_OS
+    if not cid or not secreto:
+        cid, secreto = cliente_id_secret(rutas)
     if not cid or not secreto:
         importar(None, descargas, rutas, dir_cuentas)
         cid, secreto = cliente_id_secret(rutas)
