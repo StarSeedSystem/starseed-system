@@ -30,11 +30,9 @@ def _mock_ultima_sintesis_con_basura():
     """Mock que simula el caso real: muchos Docs vacíos '2026-11-11' y uno real '2026-11-14'."""
     mock = MagicMock()
     def _fn(fecha=None):
-        if fecha == "2026-11-14":
-            return ("fid-real-14", "Síntesis diaria 2026-11-14")
         if fecha == "2026-11-11":
             raise RuntimeError("no hay síntesis válida para la fecha 2026-11-11")
-        # Sin fecha: devuelve el más reciente por título (el 14, no el 11 vacío)
+        # Para cualquier otra fecha (incluyendo hoy 2026-11-15 o 2026-11-14): devuelve el más reciente válido
         return ("fid-real-14", "Síntesis diaria 2026-11-14")
     mock.side_effect = _fn
     return mock
