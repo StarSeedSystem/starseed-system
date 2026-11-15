@@ -259,7 +259,8 @@ const nextConfig: NextConfig = {
       { source: '/sw-logica.js', headers: noCache },
       { source: '/precarga.json', headers: noCache },
       { source: '/manifest.webmanifest', headers: noCache },
-      { source: '/version.json', headers: noCache },
+      // ACT1114J: la app con servidor local (APK/escritorio) lee de aquí la build publicada desde 127.0.0.1: solo lectura, sin credenciales.
+      { source: '/version.json', headers: [...noCache, { key: 'Access-Control-Allow-Origin', value: '*' }] },
     ];
   },
   // sqlite3 y sqlite-vec son módulos nativos: se cargan fuera del bundle en el servidor
