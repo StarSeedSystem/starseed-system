@@ -1,0 +1,20 @@
+{
+ "ola": "nube-20261114",
+ "tareas": [
+  {
+   "id": "SIN1114-1794718054",
+   "ola": "SIN1114",
+   "titulo": "Síntesis de producción StarSeed 2026-11-14",
+   "archivos": [],
+   "depende": [],
+   "prompt": "Síntesis diaria completada por el A1 y enviada al bot",
+   "origen": "telegram_a1",
+   "timestamp": "2026-11-14T22:47:34.492834",
+   "hechos": [
+    "síntesis_generada",
+    "enviada_telegram"
+   ],
+   "aprobado": false
+  }
+ ]
+}
