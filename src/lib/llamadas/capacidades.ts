@@ -57,6 +57,13 @@ export const CAPACIDADES: readonly Capacidad[] = [
     coopera: false,
     que: "anuncia sus capacidades y su build en el saludo de la voz por datos",
   },
+  // ORD1114P
+  {
+    id: "ordenes-neuronas",
+    desde: "ORD1114P",
+    coopera: false,
+    que: "escucha órdenes firmadas de otra neurona de la cuenta (canal «control-neuronas»), solo si su dueño encendió aquí «Control entre mis neuronas»; un aparato sin ella no contesta y la llamada no cambia",
+  },
 ];
 
 /** Las que anuncia este código. */

@@ -5,6 +5,7 @@ import { inventarioPorMedio, Plataforma } from '../../lib/malla/cristal/permisos
 import { resumenTransportes, ResumenTransportes, EstadoTransporte } from '../../lib/malla/estado-transportes';
 // (BLE1108A) Bluetooth directo de la app nativa (solo se pinta allí).
 import BluetoothDirectoPanel from './bluetooth-directo-panel';
+import { ControlEntreNeuronasPanel } from '../control-remoto/banda-control'; // ORD1114P
 // (PER1108A) Reabrir el asistente de permisos del primer arranque (solo en la app nativa).
 import { esAppNativa } from '../../lib/nativa/puente';
 import { EVENTO_ABRIR_ASISTENTE } from '../../lib/nativa/permisos-inicio';
@@ -132,6 +133,8 @@ export default function PermisosAntenas() {
         </div>
       )}
       <BluetoothDirectoPanel />
+      {/* ORD1114P · el permiso «Control entre mis neuronas» de este aparato (apagado de fábrica) */}
+      <ControlEntreNeuronasPanel />
       
       <div className="space-y-2 mb-6 rounded-xl border border-white/10 bg-white/[0.03] p-4">
         <h3 className="text-sm font-medium text-white/70 mb-3">Resumen de transportes</h3>

@@ -643,3 +643,30 @@ export async function olvidarAparato(): Promise<void> {
         borrarMarca();
     }
 }
+
+// ── ORD1114P · firmar una orden de «Control entre mis neuronas» con la clave de este aparato ──
+// Bloque añadido (contrato control-remoto-entre-neuronas §2.1). Reserva el MISMO `seq` monótono que las
+// entradas de chat y firma `JSON.stringify(carga)`; la carga lleva su propio `aud`
+// («starseed.control-neuronas.v1»), así que una firma de chat nunca vale como orden ni al revés.
+// No decide nada: quien acepta o no es la puerta del aparato controlado (`control-remoto/sesion.ts`).
+export async function firmarOrdenControl(
+    construir: (base: { cuenta: string; de: string; seq: number }) => Record<string, unknown>,
+    ctx: { cuenta: string },
+): Promise<{ v: 1; carga: string; firma: string; spki: string }> {
+    const subtle = entorno().subtle;
+    if (!subtle) throw new ErrorFirma("sin-webcrypto", "Este navegador no tiene WebCrypto");
+    const reg = registroValido((await leerTodo()).registro);
+    if (!reg) throw new ErrorFirma(leerMarca() ? "clave-perdida" : "sin-aparato", "Este aparato no tiene clave: créala en Chats de Genesis");
+    if (typeof ctx.cuenta !== "string" || ctx.cuenta.trim().toLowerCase() !== reg.cuenta.trim().toLowerCase()) {
+        throw new ErrorFirma("otra-cuenta", "Este aparato se emparejó con otra cuenta");
+    }
+    const seq = await reservarSeq(reg.huella);
+    const carga = construir({ cuenta: reg.cuenta, de: reg.huella, seq });
+    if (carga.aud !== "starseed.control-neuronas.v1" || carga.de !== reg.huella || carga.seq !== seq) throw new ErrorFirma("forma", "La orden no tiene la forma del control entre neuronas");
+    const bytes = new TextEncoder().encode(JSON.stringify(carga));
+    if (bytes.length > 4096) throw new ErrorFirma("grande", "La orden firmada pasa de 4 KB");
+    const firma = new Uint8Array(await subtle.sign({ name: "ECDSA", hash: "SHA-256" }, reg.privada, bytes));
+    if (firma.length !== 64) throw new ErrorFirma("firma", "La firma no salió con la forma r‖s");
+    return { v: 1, carga: b64url(bytes), firma: b64url(firma), spki: reg.spki };
+}
+// ── fin ORD1114P ──
