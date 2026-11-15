@@ -79,6 +79,13 @@ TOPE_PRUEBAS = "las pruebas del puente pasaron del tope"
 PETICION = os.path.join(CARPETA, "autopublicar-peticion.json")
 #: (PUB1029G) Las colas de tareas que lee el enjambre: ahí se escribe la cola del CI en rojo.
 RAIZ_OLAS = os.path.join(RAIZ, "starseed_memory_root", "olas")
+#: (PUB1115P) La puerta de integración (~/.starseed/opus1031/aplicar-<nombre>.py) une las ramas en `main` local
+#: ANTES de probar y, si sale en rojo, lo deshace. Su estado: nombre, paso, resultado. Un archivo sin tocar más de
+#: PUERTA_VIGENCIA_S es de una puerta caída y no frena la publicación para siempre.
+PUERTA_ESTADO = os.path.join(CARPETA, "puerta-estado.json")
+PUERTA_VIGENCIA_S = 30 * 60
+PUERTA_PASOS_FINALES = ("terminado", "terminada", "finalizado", "finalizada", "fin", "hecho", "hecha", "listo",
+                        "lista", "cerrada", "cerrado", "done", "finished", "end")
 
 
 # ── puro ──────────────────────────────────────────────────────────────────────
@@ -270,6 +277,21 @@ def vetar(est, sha, motivo, ahora, url=None, evidencia=None):
     return con_fase(est, "bloqueado", motivo, ahora, sha=sha, vetados=vetados, historial=hist, url=url, **mas)
 
 
+def puerta_en_marcha(datos, edad_s):
+    """PURA. (PUB1115P) ¿Hay una puerta de integración trabajando sobre `main`? -> (bloquea, mensaje, ignorada).
+    Bloquea si su paso no es final y el archivo se tocó hace menos de PUERTA_VIGENCIA_S; uno más viejo es de una
+    puerta caída: no bloquea y `ignorada` lo dice. Sin archivo o sin paso: no hay puerta."""
+    if not isinstance(datos, dict) or not str(datos.get("paso") or "").strip():
+        return False, "", ""
+    nombre, paso = str(datos.get("nombre") or "?"), str(datos.get("paso")).strip()
+    if paso.lower() in PUERTA_PASOS_FINALES:
+        return False, "", ""
+    if edad_s is None or edad_s > PUERTA_VIGENCIA_S:
+        return False, "", ("ignoro el estado de la puerta de integración %s (paso %s): lleva más de %d min sin "
+                           "actualizarse" % (nombre, paso, PUERTA_VIGENCIA_S // 60))
+    return True, "hay una puerta de integración en marcha: %s, paso %s" % (nombre, paso), ""
+
+
 def arbol_limpio(raiz, sha, git, destino):
     """Un árbol de trabajo LIMPIO de `sha` en `destino` (`git worktree add --detach`), con el
     `node_modules` de la Mac enlazado. → ruta o None. (OPA1011b, 2026-10-10) Las pruebas del puente
@@ -417,6 +439,13 @@ class Medios(object):
         # El botón «Pausar» de la tarjeta Producción también frena la autopublicación.
         pausada = (_leer(os.path.expanduser("~/.starseed/produccion-pausada.json"), {}) or {}).get("pausada") is True
         return encendido(_leer(INTERRUPTOR, {})) and not pausada
+
+    def puerta_estado(self):
+        """(PUB1115P) (datos, edad en s) del estado de la puerta de integración; (None, None) si no hay."""
+        try:
+            return _leer(PUERTA_ESTADO, None), time.time() - os.path.getmtime(PUERTA_ESTADO)
+        except OSError:
+            return None, None
 
     def vetos_externos(self):
         """Vetos de Genesis o de otros directores (`~/.starseed/produccion/vetos.json`, por sha)."""
@@ -734,6 +763,15 @@ def _nuevo_lote(m, est, ahora):
     pendientes = int(n) if rc == 0 and n.isdigit() else 0
     if pendientes == 0:
         return con_fase(est, "al-dia", "Producción al día con main.", ahora, pendientes=0)
+    # (PUB1115P) Con una puerta de integración probando, `main` local lleva una unión TEMPORAL (la puerta une y luego
+    # prueba; si sale en rojo, la deshace). Ese head no se juzga, no se sube y no se prueba.
+    datos_puerta, edad_puerta = m.puerta_estado() if hasattr(m, "puerta_estado") else (None, None)
+    bloquea, mensaje, ignorada = puerta_en_marcha(datos_puerta, edad_puerta)
+    if bloquea:
+        return con_fase(est, "esperando", mensaje + ".", ahora, pendientes=pendientes)
+    if ignorada and est.get("puerta_ignorada") != ignorada:
+        m.avisar("Autopublicación: %s." % ignorada, tipo="aviso")
+    est["puerta_ignorada"] = ignorada
     # (2026-10-12) origin/main tiene que ser antecesor de main ANTES de gastar Jev, pruebas y CI:
     # si no, el CI pasaba, el push (solo avance rápido) se negaba con «rehago el lote» y la pasada
     # siguiente repetía todo. Así estuvo producción 47 h (10→12-10) tras perder main dos commits
@@ -838,6 +876,10 @@ def _nuevo_lote(m, est, ahora):
         return vetar(est, head, "pruebas del puente en rojo", ahora, evidencia=detalle)
 
     # 3. CI en GitHub Actions sobre ese commit
+    # (PUB1115P) Las puertas locales duran hasta media hora: si `main` ya no es este commit (la puerta lo deshizo o
+    # llegó otro), no se sube ni se prueba en el CI; la pasada siguiente rehace el lote desde la cabeza actual.
+    if not _main_contiene(m, head):
+        return con_fase(est, "al-dia", MENSAJE_CANDIDATO_PERDIDO, ahora, sha=None, pendientes=pendientes)
     rc, _, err = m.git(["push", "--force", "origin", "%s:refs/heads/%s" % (head, RAMA_CANDIDATO)], timeout=300)
     if rc != 0:
         m.avisar("Autopublicación: no pude subir el candidato (%s): %s" % (head[:8], err[-300:]), tipo="aviso")
@@ -904,8 +946,22 @@ def _ci_rojo_a_cola(m, log, ahora, url, sha):
              "enjambre arregle las pruebas." % (sha[:8], nuevas, nombre_cola), tipo="aviso")
 
 
+MENSAJE_CANDIDATO_PERDIDO = "el candidato ya no está en main (la puerta lo deshizo): rehago el lote."
+
+
+def _main_contiene(m, sha):
+    """(PUB1115P) ¿`main` local sigue conteniendo `sha`? Solo lo que `main` contiene puede subirse o promoverse."""
+    return m.git(["merge-base", "--is-ancestor", sha, "HEAD"])[0] == 0
+
+
 def _seguir_ci(m, est, ahora):
     sha = est.get("sha")
+    # (PUB1115P) El 15-11 (17:20) la autopublicación subió y probó la unión temporal de la puerta `1115e`; la puerta
+    # salió en rojo y deshizo `main`, y un CI en verde habría empujado ese sha a origin/main (solo se miraba que
+    # origin/main fuera su antecesor). Ni se sigue ni se empuja un candidato que `main` ya no contiene, en ninguna espera.
+    if sha and not _main_contiene(m, sha):
+        m.avisar("Autopublicación: %s %s" % (sha[:8], MENSAJE_CANDIDATO_PERDIDO), tipo="aviso")
+        return con_fase(est, "al-dia", MENSAJE_CANDIDATO_PERDIDO, ahora, sha=None)
     datos = m.gh("repos/%s/actions/workflows/ci.yml/runs?head_sha=%s&per_page=5" % (REPO, sha)) or {}
     estado, url, run_id = estado_ci(datos.get("workflow_runs"), sha)
     # (RON1112C) Dos relojes distintos, cada uno con su mensaje: cuánto tarda GitHub en crear el run (desde que se

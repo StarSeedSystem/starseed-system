@@ -355,6 +355,16 @@ Lo que hay ahora, más simple y comprobado:
   los deterministas (análisis, pruebas, CI, Vercel, humo) no se tocan. Cada pasada del servicio corre
   en un proceso nuevo: los cambios del repo valen sin reiniciarlo.
 
+- **15-11 (PUB1115P): la autopublicación no publica lo que la puerta de integración deshizo.** La puerta une las
+  ramas en `main` local y después prueba; si sale en rojo, deshace la unión. El 15-11 (17:20) una pasada tomó esa
+  unión temporal (`279570cf`) como cabeza, la subió a `produccion/candidato` y habría empujado ese sha con el CI en
+  verde. Ahora: (1) un candidato que `main` local ya no contiene se abandona en cualquier espera del CI y antes de
+  subirlo, sin empujar nada («el candidato ya no está en main (la puerta lo deshizo): rehago el lote») y la pasada
+  siguiente rehace desde la cabeza actual; (2) no arranca lote mientras `~/.starseed/produccion/puerta-estado.json`
+  tenga un paso sin terminar y se haya tocado hace menos de 30 min («hay una puerta de integración en marcha:
+  <nombre>, paso <paso>»); un archivo más viejo es de una puerta caída, se ignora y se dice; (3) una puerta en rojo
+  no deja nada que publicar de su unión: la cabeza vuelve a la base y el lote parte de ahí.
+
 ## Genesis local: la build del A1 y el montón (REC1113A, 2026-11-12)
 
 La página de :9002 se sirve con `next start` desde `.next`; la rehace el servicio `com.starseed.reconstruir`
