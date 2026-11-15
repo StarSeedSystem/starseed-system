@@ -32,7 +32,10 @@ import {
     type EstadoIndicador,
 } from "@/lib/control-remoto/nativo";
 import { BOTON_FALTA, PALABRAS_FALTA, palabrasMotivo } from "@/lib/control-remoto/palabras";
-import { abrirPaginaControl, abrirVentanaControl } from "./anfitrion-control"; // UNI1115M
+
+// UNI1115M: el anfitrión (ventana, sesión, vídeo) se carga solo al abrir una ventana; el panel no lo arrastra.
+const abrirVentanaControl = (neurona: string, nombre: string) => void import("./anfitrion-control").then((m) => m.abrirVentanaControl(neurona, nombre));
+const abrirPaginaControl = (neurona: string, nombre: string) => void import("./anfitrion-control").then((m) => m.abrirPaginaControl(neurona, nombre));
 
 const RE_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -278,9 +281,6 @@ export function ControlEntreNeuronasPanel() {
             setUso({ pantalla: o.origenGlobal().enMarcha(), entrada: ses?.nivel === "controlar" });
         })().catch(() => undefined);
     }, []);
-    useEffect(() => {
-        leerPantallaEntrada();
-    }, [n, leerPantallaEntrada]);
     const pedirAjuste = useCallback(
         async (cual: AjusteQueFalta) => {
             const r = await abrirAjusteNativo(cual);
@@ -366,8 +366,9 @@ export function ControlEntreNeuronasPanel() {
             setCodigos(cs);
             const b = await import("@/lib/banco-llamadas/app");
             setBanco(b.estadoBanco());
+            leerPantallaEntrada(); // UNI1115M: después de lo de arriba, no a la vez (dos importaciones dinámicas de canal a la vez)
         })();
-    }, [n]);
+    }, [n, leerPantallaEntrada]);
 
     const nombreDe = useCallback(
         (id: string) => neuronas.find((x) => x.id.toLowerCase() === id.toLowerCase())?.nombre ?? "esa neurona",

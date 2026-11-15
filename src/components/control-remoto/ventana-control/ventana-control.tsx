@@ -317,7 +317,7 @@ function FilaEstado({ p }: { p: PropsVentanaControl }) {
     );
 }
 
-function Mandos({ p }: { p: PropsVentanaControl }) {
+function Controles({ p }: { p: PropsVentanaControl }) {
     const c = p.capacidades;
     const [texto, setTexto] = useState("");
     const teclas = TECLAS.filter((t) => c.teclas.includes(t.cual));
@@ -531,7 +531,7 @@ export function VentanaControl(props: PropsVentanaControl) {
                     </div>
                     {nivel === "controlar" && (
                         <div className="max-h-[45%] shrink-0 overflow-y-auto border-t border-white/10 md:max-h-none md:w-80 md:border-l md:border-t-0">
-                            <Mandos p={props} />
+                            <Controles p={props} />
                         </div>
                     )}
                 </div>
@@ -584,7 +584,7 @@ export function VentanaControl(props: PropsVentanaControl) {
                 {chip}
                 {nivel === "controlar" && (
                     <button type="button" onClick={() => setMandosAbiertos((v) => !v)} aria-pressed={mandosAbiertos} className="min-h-10 cursor-pointer rounded-lg px-2 text-[12px] text-white/80 hover:bg-white/10">
-                        Mandos
+                        Controles
                     </button>
                 )}
                 <button type="button" onClick={() => setMinimizada(true)} aria-label={`Reducir el control de ${nombre} a una pastilla`} className="min-h-10 min-w-10 cursor-pointer rounded-lg text-white/80 hover:bg-white/10">
@@ -598,7 +598,7 @@ export function VentanaControl(props: PropsVentanaControl) {
             <FilaEstado p={props} />
             {nivel === "controlar" && mandosAbiertos && (
                 <div className="min-h-0 shrink overflow-y-auto border-t border-white/10">
-                    <Mandos p={props} />
+                    <Controles p={props} />
                 </div>
             )}
             <div

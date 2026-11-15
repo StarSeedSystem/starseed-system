@@ -46,7 +46,7 @@ for (const [ancho, alto] of [[1280, 800], [360, 800]]) {
         const m = reg.match(/\[0\.2\d*,0\.2\d*,0\]/);
         ok(!!m, `${modo} ${ancho}: el primer punto es ~(0.25, 0.25)`);
         const mandos = await pag.getByRole("button", { name: "Inicio" }).count();
-        if (modo === "flotante") await pag.getByRole("button", { name: "Mandos" }).click();
+        if (modo === "flotante") await pag.getByRole("button", { name: "Controles" }).click();
         await pag.getByRole("button", { name: "Inicio" }).click();
         const reg2 = await pag.locator('[data-testid="registro-enviado"]').textContent();
         ok(reg2.includes('"cual":"inicio"'), `${modo} ${ancho}: el botón Inicio envía su tecla (mandos antes: ${mandos})`);
