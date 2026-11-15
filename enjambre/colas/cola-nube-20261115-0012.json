@@ -1,0 +1,28 @@
+{
+ "ola": "nube-20261115",
+ "tareas": [
+  {
+   "id": "DIS1114A",
+   "ola": "DIS1114",
+   "titulo": "Componente React «KineticTitle»: titular cinético con física de resortes",
+   "archivos": [
+    "src/components/kinetic/KineticTitle.tsx",
+    "src/components/kinetic/__tests__/kinetic-title.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee architecture/diseno-motion-1114.md §DIS1114A y memory/principles.md. Componente React nuevo que compone una secuencia de titular cinética al estilo Swiss kinetic type: una sola pista visual, al ritmo. Física de resortes con framer-motion (ya está en package.json: ^12.29.2, NO añadas dependencias) usando stiffness, damping y mass; solo transform y opacity, nunca dimensiones. Props: titulo: string, variante?: 'sobria'|'expresiva'|'experimental' (por defecto 'sobria'), ritmo?: number (ms entre tramos, por defecto 90), className?: string. Los cuatro colores Trinity (zenith #007FFF, horizonte #10B981, lógica #FFBF00, raíz #DC143C) NO se mezclan en un mismo elemento: uno por tramo en la variante expresiva. Sin hex sueltos en el TSX: usa tokens/clases del proyecto. Escala φ 1.25 en móvil y espaciado Fibonacci; titulares >=28px; sin sombras múltiples; sin animar dimensiones. La línea de horizonte aparece UNA sola vez en el DOM. Respeta prefers-reduced-motion: sin movimiento y texto legible. Máximo 3 archivos, ≤120 líneas por archivo; sin `any`; textos de UI en español con acentos; cursor-pointer en lo clicable. La prueba va en src/components/kinetic/__tests__/kinetic-title.test.tsx (jsdom, vitest con describe/it/expect importados de 'vitest') y cubre: renderiza los tramos; la variante expresiva muestra las cuatro clases de color sin mezclarlas; con prefers-reduced-motion no hay animación; la línea de horizonte sale una sola vez. Puertas: tsc --noEmit y npx vitest run src/components/kinetic en verde."
+  },
+  {
+   "id": "DIS1114B",
+   "ola": "DIS1114",
+   "titulo": "Transición Risograph para anuncios: dos tintas con registro desalineado",
+   "archivos": [
+    "src/lib/video/editorial-paper/tokens.ts",
+    "src/lib/video/editorial-paper/transitions.ts",
+    "src/lib/video/editorial-paper/__tests__/transitions.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee architecture/diseno-motion-1114.md §DIS1114B y memory/principles.md. Crea el módulo src/lib/video/editorial-paper/ con dos archivos y su prueba. tokens.ts: tokens zenith, horizonte, logica, anchor y neutro con su valor y su cobertura, más el gradiente radial de acento al 15%. Aquí viven los hex, una sola vez. transitions.ts: función pura que devuelve la transición Risograph: dos tintas (azul eléctrico y verde esmeralda), desplazamiento off-register (no nulo y que no cruza el centro), grano de dos tintas y duración 0.8s; con la bandera useRisographTransition=false devuelve la transición anterior sin cambios. NO cables el compositor (src/components/creation/lienzo-composer.tsx): eso es otra tarea. Máximo 3 archivos, ≤120 líneas por archivo; sin `any`. La prueba src/lib/video/editorial-paper/__tests__/transitions.test.ts (vitest, describe/it/expect importados de 'vitest') cubre: duración 0.8s y dos tintas con la bandera activa; el desplazamiento es off-register y no se anula en el centro; con la bandera inactiva es la transición anterior; los tokens traen los cuatro colores Trinity y el neutro con cobertura. Puertas: tsc --noEmit y npx vitest run src/lib/video en verde."
+  }
+ ]
+}
