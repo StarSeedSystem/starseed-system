@@ -39,6 +39,19 @@
   Síntesis diarias › «Síntesis diaria 2026-11-14 · formatos».
 - La fecha se reservó antes en `multiformato.json` para que el vigilante del bot no la procese a la vez.
 
+### 3.1 Registro de la entrega (2026-11-14 22:42 UTC)
+
+- La síntesis diaria del 2026-11-14 quedó **completada por el A1 y enviada al bot**
+  (@StarSeed_Design_bot, chat «Síntesis de producción StarSeed»): hechos «síntesis_generada» y
+  «enviada_telegram», con origen `telegram_a1`.
+- El registro lo dejó `registrar_chat_sintesis()`
+  (`scripts/puente/peticiones_sintesis_respaldo.py`), que anota cada entrega en la cola de la
+  ola SIN1114 para que el enjambre la vea; en este worktree la copia de la cola está en
+  `enjambre/colas/cola-nube-20261114-2242.json` (tarea `SIN1114-1794717722`).
+- Es el registro de la síntesis puntual de la §3, anterior al diagnóstico de la §2 (01:40 UTC
+  del 2026-11-15): el fallo diagnosticado es del **agente nativo** (`agente_sintesis`) y del
+  respaldo perdido de la herramienta provisional, no de esta entrega puntual del A1.
+
 ## 4. Arreglo permanente
 
 ### 4.1 Las pruebas nunca tocan servicios reales (URGENTE)
