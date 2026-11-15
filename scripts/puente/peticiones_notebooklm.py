@@ -114,13 +114,71 @@ def drive(ruta: str, params: dict[str, str]) -> dict[str, Any]:
     return _respuesta_http(lambda: urllib.request.urlopen(req, timeout=30))
 
 
-def ultima_sintesis() -> tuple[str, str]:
+def _exportar_texto_drive(fid: str) -> str:
+    """Exporta el contenido de un Google Doc como texto plano."""
+    tok = token_google()
+    url = "https://www.googleapis.com/drive/v3/files/%s/export?mimeType=text/plain" % fid
+    req = urllib.request.Request(url, headers={"Authorization": "Bearer " + tok})
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            return r.read().decode("utf-8", errors="ignore")
+    except Exception:
+        return ""
+
+
+def _extraer_fecha_titulo(nombre: str) -> str | None:
+    """Extrae la fecha AAAA-MM-DD del título 'Síntesis diaria AAAA-MM-DD...'."""
+    m = re.search(r"S[ií]ntesis diaria (\d{4}-\d{2}-\d{2})", nombre)
+    return m.group(1) if m else None
+
+
+def ultima_sintesis(fecha: str | None = None) -> tuple[str, str]:
+    """Busca la síntesis diaria más reciente por fecha del título.
+    
+    Args:
+        fecha: Si se proporciona, busca la síntesis de esa fecha exacta (AAAA-MM-DD).
+               Si es None, retorna la más reciente válida.
+    
+    Returns:
+        Tupla (file_id, nombre) del documento encontrado.
+    
+    Raises:
+        RuntimeError: Si no hay síntesis válida para la fecha pedida o en general.
+    """
     q = ("'%s' in parents and trashed=false and mimeType='application/vnd.google-apps.document'" % CARPETA_SINTESIS)
-    d = drive("files", {"q": q, "orderBy": "createdTime desc", "pageSize": "30", "fields": "files(id,name)"})
+    d = drive("files", {"q": q, "pageSize": "50", "fields": "files(id,name,createdTime)"})
+    
+    candidatos: list[tuple[str, str, str]] = []  # (fecha_titulo, file_id, nombre)
+    
     for a in d.get("files") or []:
-        if re.match(r"^S[ií]ntesis diaria \d{4}-\d{2}-\d{2}", a.get("name", "")):
-            return a["id"], a["name"]
-    raise RuntimeError("no encontré ninguna «Síntesis diaria AAAA-MM-DD» en la carpeta de Drive")
+        nombre = a.get("name", "")
+        fid = a.get("id", "")
+        fecha_titulo = _extraer_fecha_titulo(nombre)
+        if not fecha_titulo:
+            continue
+        if "prueba" in nombre.lower():
+            continue
+        # Exportar texto y verificar longitud
+        texto = _exportar_texto_drive(fid)
+        if len(texto) < 4000:
+            continue
+        candidatos.append((fecha_titulo, fid, nombre))
+    
+    if not candidatos:
+        raise RuntimeError("no encontré ninguna «Síntesis diaria AAAA-MM-DD» válida en la carpeta de Drive")
+    
+    # Ordenar por fecha del título descendente
+    candidatos.sort(key=lambda x: x[0], reverse=True)
+    
+    if fecha is not None:
+        for f_titulo, fid, nombre in candidatos:
+            if f_titulo == fecha:
+                return fid, nombre
+        raise RuntimeError("no hay síntesis válida para la fecha %s" % fecha)
+    
+    # Sin fecha: retornar la más reciente por título
+    _, fid, nombre = candidatos[0]
+    return fid, nombre
 
 
 def nombre_drive(fid: str) -> str:

@@ -305,20 +305,23 @@ def test_enviar_resultado_audio_convierte_mp3(monkeypatch, tmp_path):
 
 
 def test_ultima_sintesis_busca_en_carpeta(monkeypatch):
-    """ultima_sintesis busca en la carpeta de Drive y retorna la más reciente (primera en createdTime desc)."""
+    """ultima_sintesis busca en la carpeta de Drive y retorna la más reciente por fecha del título."""
     import peticiones_notebooklm as mod
-
+    
     def mock_drive(ruta, params):
         if ruta == "files":
-            # API devuelve createdTime desc: la más reciente primero
             return {"files": [
                 {"id": "doc-2", "name": "Síntesis diaria 2026-11-11"},
                 {"id": "doc-1", "name": "Síntesis diaria 2026-11-10"},
                 {"id": "doc-3", "name": "Otro documento"},
             ]}
         return {}
-
+    
+    def mock_export_text(fid):
+        return "x" * 5000
+    
     monkeypatch.setattr(mod, "drive", mock_drive)
+    monkeypatch.setattr(mod, "_exportar_texto_drive", mock_export_text)
     fid, nombre = mod.ultima_sintesis()
     assert fid == "doc-2"
     assert nombre == "Síntesis diaria 2026-11-11"
@@ -327,16 +330,20 @@ def test_ultima_sintesis_busca_en_carpeta(monkeypatch):
 def test_ultima_sintesis_error_si_no_hay(monkeypatch):
     """ultima_sintesis lanza error si no encuentra ninguna."""
     import peticiones_notebooklm as mod
-
+    
     def mock_drive(ruta, params):
         return {"files": [{"id": "doc-1", "name": "Otro"}]}
-
+    
+    def mock_export_text(fid):
+        return "x" * 5000
+    
     monkeypatch.setattr(mod, "drive", mock_drive)
+    monkeypatch.setattr(mod, "_exportar_texto_drive", mock_export_text)
     try:
         mod.ultima_sintesis()
         assert False, "Debería haber lanzado RuntimeError"
     except RuntimeError as e:
-        assert "no encontré" in str(e)
+        assert "no encontré" in str(e) or "válid" in str(e).lower()
 
 
 def test_nombre_drive_retorna_nombre(monkeypatch):
@@ -558,6 +565,155 @@ def test_no_mencion_claude_en_textos():
     assert "pídeselo a claude" not in source_reglas.lower()
     assert "pídeselo a claude" not in source_reglas.lower()
     assert "pídele a claude" not in source_reglas.lower()
+
+
+# ===== Tests para SIN1114B: ultima_sintesis con filtrado por fecha del título =====
+
+def test_ultima_sintesis_sin_fecha_retorna_mas_reciente_por_titulo(monkeypatch):
+    """ultima_sintesis() sin fecha retorna la más reciente por fecha en el título (no createdTime)."""
+    import peticiones_notebooklm as mod
+    
+    def mock_drive(ruta, params):
+        if ruta == "files":
+            # createdTime desc pone el del 11 primero, pero el título del 14 es más reciente
+            return {"files": [
+                {"id": "doc-11", "name": "Síntesis diaria 2026-11-11", "createdTime": "2026-11-14T10:00:00Z"},
+                {"id": "doc-14", "name": "Síntesis diaria 2026-11-14", "createdTime": "2026-11-13T10:00:00Z"},
+                {"id": "doc-10", "name": "Síntesis diaria 2026-11-10", "createdTime": "2026-11-12T10:00:00Z"},
+            ]}
+        return {}
+    
+    def mock_export_text(fid):
+        # Todos tienen más de 4000 chars
+        return "x" * 5000
+    
+    monkeypatch.setattr(mod, "drive", mock_drive)
+    monkeypatch.setattr(mod, "_exportar_texto_drive", mock_export_text)
+    
+    fid, nombre = mod.ultima_sintesis()
+    assert fid == "doc-14"
+    assert nombre == "Síntesis diaria 2026-11-14"
+
+
+def test_ultima_sintesis_con_fecha_retorna_esa_fecha(monkeypatch):
+    """ultima_sintesis(fecha='2026-11-11') retorna el doc de esa fecha aunque haya otros más recientes."""
+    import peticiones_notebooklm as mod
+    
+    def mock_drive(ruta, params):
+        if ruta == "files":
+            return {"files": [
+                {"id": "doc-14", "name": "Síntesis diaria 2026-11-14", "createdTime": "2026-11-14T10:00:00Z"},
+                {"id": "doc-11", "name": "Síntesis diaria 2026-11-11", "createdTime": "2026-11-13T10:00:00Z"},
+                {"id": "doc-10", "name": "Síntesis diaria 2026-11-10", "createdTime": "2026-11-12T10:00:00Z"},
+            ]}
+        return {}
+    
+    def mock_export_text(fid):
+        return "x" * 5000
+    
+    monkeypatch.setattr(mod, "drive", mock_drive)
+    monkeypatch.setattr(mod, "_exportar_texto_drive", mock_export_text)
+    
+    fid, nombre = mod.ultima_sintesis(fecha="2026-11-11")
+    assert fid == "doc-11"
+    assert nombre == "Síntesis diaria 2026-11-11"
+
+
+def test_ultima_sintesis_descarta_titulos_con_prueba(monkeypatch):
+    """ultima_sintesis descarta docs cuyo título contiene 'prueba' (case-insensitive)."""
+    import peticiones_notebooklm as mod
+    
+    def mock_drive(ruta, params):
+        if ruta == "files":
+            return {"files": [
+                {"id": "doc-prueba", "name": "Síntesis diaria 2026-11-14 prueba", "createdTime": "2026-11-14T10:00:00Z"},
+                {"id": "doc-real", "name": "Síntesis diaria 2026-11-14", "createdTime": "2026-11-13T10:00:00Z"},
+            ]}
+        return {}
+    
+    def mock_export_text(fid):
+        return "x" * 5000
+    
+    monkeypatch.setattr(mod, "drive", mock_drive)
+    monkeypatch.setattr(mod, "_exportar_texto_drive", mock_export_text)
+    
+    fid, nombre = mod.ultima_sintesis()
+    assert fid == "doc-real"
+    assert "prueba" not in nombre.lower()
+
+
+def test_ultima_sintesis_descarta_texto_corto_menos_4000(monkeypatch):
+    """ultima_sintesis descarta docs cuyo texto exportado tiene menos de 4000 caracteres."""
+    import peticiones_notebooklm as mod
+    
+    def mock_drive(ruta, params):
+        if ruta == "files":
+            return {"files": [
+                {"id": "doc-corto", "name": "Síntesis diaria 2026-11-14", "createdTime": "2026-11-14T10:00:00Z"},
+                {"id": "doc-largo", "name": "Síntesis diaria 2026-11-13", "createdTime": "2026-11-13T10:00:00Z"},
+            ]}
+        return {}
+    
+    def mock_export_text(fid):
+        if fid == "doc-corto":
+            return "x" * 1000  # Menos de 4000
+        return "x" * 5000
+    
+    monkeypatch.setattr(mod, "drive", mock_drive)
+    monkeypatch.setattr(mod, "_exportar_texto_drive", mock_export_text)
+    
+    fid, nombre = mod.ultima_sintesis()
+    assert fid == "doc-largo"
+    assert nombre == "Síntesis diaria 2026-11-13"
+
+
+def test_ultima_sintesis_con_fecha_inexistente_lanza_error(monkeypatch):
+    """ultima_sintesis(fecha='2026-11-09') lanza error si no hay doc válido para esa fecha."""
+    import peticiones_notebooklm as mod
+    
+    def mock_drive(ruta, params):
+        if ruta == "files":
+            return {"files": [
+                {"id": "doc-14", "name": "Síntesis diaria 2026-11-14", "createdTime": "2026-11-14T10:00:00Z"},
+            ]}
+        return {}
+    
+    def mock_export_text(fid):
+        return "x" * 5000
+    
+    monkeypatch.setattr(mod, "drive", mock_drive)
+    monkeypatch.setattr(mod, "_exportar_texto_drive", mock_export_text)
+    
+    try:
+        mod.ultima_sintesis(fecha="2026-11-09")
+        assert False, "Debería haber lanzado RuntimeError"
+    except RuntimeError as e:
+        assert "2026-11-09" in str(e)
+
+
+def test_ultima_sintesis_sin_docs_validos_lanza_error(monkeypatch):
+    """ultima_sintesis() lanza error si no hay ningún doc válido (todos vacíos o prueba)."""
+    import peticiones_notebooklm as mod
+    
+    def mock_drive(ruta, params):
+        if ruta == "files":
+            return {"files": [
+                {"id": "doc-vacio", "name": "Síntesis diaria 2026-11-14", "createdTime": "2026-11-14T10:00:00Z"},
+                {"id": "doc-prueba", "name": "Síntesis diaria 2026-11-13 prueba", "createdTime": "2026-11-13T10:00:00Z"},
+            ]}
+        return {}
+    
+    def mock_export_text(fid):
+        return "x" * 100  # Muy corto
+    
+    monkeypatch.setattr(mod, "drive", mock_drive)
+    monkeypatch.setattr(mod, "_exportar_texto_drive", mock_export_text)
+    
+    try:
+        mod.ultima_sintesis()
+        assert False, "Debería haber lanzado RuntimeError"
+    except RuntimeError as e:
+        assert "no encontré" in str(e) or "válid" in str(e).lower()
 
 
 def test_lock_path_correcto():

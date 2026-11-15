@@ -178,7 +178,7 @@ def procesar_sintesis_diaria(
     if ya_procesado(fecha):
         return {"fecha": fecha, "estado": "ya_procesado", "formatos": []}
 
-    fid_sintesis, titulo_sintesis = ultima_sintesis_fn()
+    fid_sintesis, titulo_sintesis = ultima_sintesis_fn(fecha)
     sid = asegurar_fuente_fn(fid_sintesis, _notebook_titulo(fecha))
 
     carpeta_id = os.environ.get("STARSEED_CARPETA_SINTESIS_FECHA", "1PenzAWw1VWpSAMXa7ms2VRrEhJ5uFbmI")
