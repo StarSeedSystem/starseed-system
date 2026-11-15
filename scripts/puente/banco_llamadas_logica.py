@@ -16,8 +16,27 @@ ESCENARIOS = {
     # c2 y c3: vídeo de 2 min solo por Bluetooth, cuelga la Mac. «sin-ip-desde-inicio» es un sustituto del medio (§2).
     "ble-video-2min": {"tipo": "video", "medio": "sin-ip-desde-inicio", "dur_s": 120, "rep": 10,
                        "guion": [{"t_s": 120, "quien": "mac", "accion": "colgar"}], "cuelga": "mac",
-                       "comprobaciones": ("c2", "c3"), "simulado": True},
+                       "comprobaciones": ("c2", "c3"), "simulado": True, "evidencia_datos": True},
+    # BAN1115D · fase 2 y 3 del contrato (§3 y §6). Con «regla» el juicio es la función de `REGLAS`, no el de c2.
+    # c1 (simulado): la Mac llama con vídeo por IP, la tableta contesta por orden; a los 25 s se corta la IP lógica de las dos
+    # puntas, a los 85 s vuelve, y a los 115 s CUELGA LA TABLETA por orden.
+    "corte-ip-vuelve": {"tipo": "video", "medio": "auto", "dur_s": 150, "rep": 3, "cuelga": "tableta", "contesta": "tableta",
+                        "guion": [{"t_s": 25, "quien": "ambos", "accion": "corte-ip"}, {"t_s": 85, "quien": "ambos", "accion": "vuelve-ip"},
+                                  {"t_s": 115, "quien": "tableta", "accion": "colgar"}],
+                        "comprobaciones": ("c1",), "simulado": True, "evidencia_datos": True, "regla": "corte-ip-vuelve"},
+    # c10: llama LA TABLETA (orden `llamar`) y contesta la Mac por su propio actor; cuelga la Mac a los 30 s.
+    "tableta-llama": {"tipo": "video", "medio": "auto", "dur_s": 60, "rep": 5, "cuelga": "mac", "contesta": "mac", "llama": "tableta",
+                      "guion": [{"t_s": 30, "quien": "mac", "accion": "colgar"}],
+                      "comprobaciones": ("c10",), "simulado": True, "evidencia_datos": False, "regla": "tableta-llama"},
+    # c4 y c14 (c8 no: pide «forzar carril», que no está en el vocabulario cerrado de órdenes). Mudo ambos de 20 a 50 s;
+    # cámara de la Mac fuera de 60 a 75 s; cuelga la Mac a los 95 s.
+    "mudo-camara": {"tipo": "video", "medio": "auto", "dur_s": 130, "rep": 3, "cuelga": "mac", "contesta": "tableta",
+                    "guion": [{"t_s": 20, "quien": "ambos", "accion": "mudo"}, {"t_s": 50, "quien": "ambos", "accion": "micro"},
+                              {"t_s": 60, "quien": "mac", "accion": "camara-off"}, {"t_s": 75, "quien": "mac", "accion": "camara-on"},
+                              {"t_s": 95, "quien": "mac", "accion": "colgar"}],
+                    "comprobaciones": ("c4", "c14"), "simulado": True, "evidencia_datos": False, "regla": "mudo-camara"},
 }
+CONECTA_S = 20      # c10: el WebRTC debe conectar como mucho 20 s después de contestar (el contrato no fija otro; ESPERA_CONTESTA_MS)
 REP_MAX = 10
 EVENTOS = ("armada", "apagada", "sondeo", "inicio", "contesta", "fin", "calma", "rechaza")
 EVENTOS_DE_LLAMADA = ("inicio", "contesta", "fin", "rechaza")      # llevan esc, serie y n
@@ -104,6 +123,35 @@ def estado_app(marcas, ahora, viva_s=90):
     return {"armada": armada, "viva": viva, "con": con, "hasta": hasta, "ultima_t": ult, "motivo": motivo}
 
 
+APP_VIEJA_S = 150     # un informe de la app más viejo que esto ya no dice nada (sondea al menos cada minuto)
+
+
+def paso_que_falta(app, ahora, ap=None):
+    """PURA (BAN1115D). `app` = el `app.json` que escribe la ruta con lo que la app informa:
+    {t, llave, objetivo, codigo, sesion:{estado,motivo}, armada:{con,hasta}}. Dice el PRIMER paso que falta, en el orden
+    del panel: clave de este aparato → la tableta aceptó a esta Mac → modo banco armado. None si no falta ninguno.
+    Sin informe reciente no inventa: devuelve la frase genérica de `estado_app` (o un aviso de que no hay informe)."""
+    generica = (ap or {}).get("motivo") if ap else None
+    if not isinstance(app, dict) or not isinstance(app.get("t"), (int, float)) or ahora - app["t"] > APP_VIEJA_S:
+        return generica or "la app de la Mac no ha informado de su estado (cerrada, sin sondear o sin esta versión)"
+    if app.get("llave") is False:
+        return "este aparato (la Mac) no tiene clave propia: créala en Chats de Genesis (emparejar) y vuelve a Señales › permisos de antenas"
+    s = app.get("sesion") or {}
+    if app.get("objetivo") and s.get("estado") not in (None, "aceptada"):
+        cod = app.get("codigo")
+        return ("la tableta (%s) todavía no ha aceptado a esta Mac (%s): en la tableta, en Control entre mis neuronas, acepta el aparato%s"
+                % (str(app["objetivo"])[:8], s.get("motivo") or s.get("estado"), (" con el código " + cod) if cod else ""))
+    arm = app.get("armada")
+    if not arm:
+        return "el modo banco no está armado: en Señales › permisos de antenas › Control entre mis neuronas, elige la tableta y pulsa «Modo banco»"
+    hasta = arm.get("hasta")
+    if isinstance(hasta, (int, float)) and hasta / 1000.0 <= ahora:
+        return "el modo banco venció a las %s: vuelve a armarlo" % _hhmm(hasta / 1000.0)
+    if not app.get("objetivo"):
+        return None if (ap or {}).get("viva", True) else generica
+    return generica
+
+
 def _hhmm(epoch):
     import time
     return time.strftime("%H:%M", time.localtime(epoch)) if epoch is not None else "?"
@@ -118,8 +166,11 @@ def id_serie(ahora):
 def construir_orden(esc, serie, n, de_n, para, ahora, caduca_s):
     """PURA. La orden `orden.json` v1 con lista cerrada de acciones; sin texto libre."""
     e = ESCENARIOS[esc]
-    return {"v": 1, "serie": serie, "n": n, "de_n": de_n, "escenario": esc, "para": para, "tipo": e["tipo"], "medio": e["medio"],
-            "guion": [dict(g) for g in e["guion"]], "dur_s": e["dur_s"], "creada": BL._a_iso(ahora), "caduca": BL._a_iso(ahora + caduca_s)}
+    o = {"v": 1, "serie": serie, "n": n, "de_n": de_n, "escenario": esc, "para": para, "tipo": e["tipo"], "medio": e["medio"],
+         "guion": [dict(g) for g in e["guion"]], "dur_s": e["dur_s"], "creada": BL._a_iso(ahora), "caduca": BL._a_iso(ahora + caduca_s)}
+    if e.get("llama") == "tableta":     # BAN1115D: orden al revés (c10); campo opcional, el resto de la orden no cambia
+        o["llama"] = "tableta"
+    return o
 
 
 # ── calma (§5) ──────────────────────────────────────────────────────────────────────────────────────────────────
@@ -303,13 +354,17 @@ def _evidencia_tableta(grupo, t_mitad):
     return (any("video-datos rx" in l["msg"] for l in tab), any("voz-datos rx" in l["msg"] for l in tab))
 
 
-def evidencia_completa(lineas, serie, n):
+def evidencia_completa(lineas, serie, n, esc=None):
     """PURA. ¿Ya llegaron las líneas de la tableta que el juicio necesita? → (bool, qué falta). La espera del paso 14."""
     grupo, mias = ventana_de_llamada(lineas, serie, n)
     ini = [x for x in mias.get("inicio", []) if x["aparato"] == "mac"]
     fin = [x for x in mias.get("fin", []) if x["aparato"] == "mac"]
     if not ini or not fin:
         return False, "falta la marca de inicio o de fin de la Mac"
+    if esc in ESCENARIOS and not ESCENARIOS[esc].get("evidencia_datos", True):      # BAN1115D: basta con que la tableta haya escrito
+        if any(l["aparato"] != "mac" and l["t"] >= fin[0]["t"] - 2 for l in grupo):
+            return True, None
+        return False, "faltan líneas de la tableta posteriores al final"
     v, z = _evidencia_tableta(grupo, (ini[0]["t"] + fin[0]["t"]) / 2.0)
     falta = [n_ for n_, ok in (("video-datos rx", v), ("voz-datos rx", z)) if not ok]
     return (not falta), ("faltan líneas de la tableta: %s" % ", ".join(falta)) if falta else None
@@ -329,7 +384,8 @@ def juzgar_llamada(esc, serie, n, lineas, ble, lecturas, u):
     grupo, mias = ventana_de_llamada(lineas, serie, n)
     ini = [x for x in mias.get("inicio", []) if x["aparato"] == "mac"]
     fin = [x for x in mias.get("fin", []) if x["aparato"] == "mac"]
-    cont = [x for x in mias.get("contesta", []) if x["aparato"] != "mac"]
+    quien_contesta = e.get("contesta", "tableta")      # BAN1115D: en c10 contesta la Mac
+    cont = [x for x in mias.get("contesta", []) if (x["aparato"] == "mac") == (quien_contesta == "mac")]
     for mk in mias.get("rechaza", []):
         inv.append("la tableta rechazó la orden: %s" % MOTIVOS_RECHAZO[mk["motivo"]])
     if not ini:
@@ -337,7 +393,7 @@ def juzgar_llamada(esc, serie, n, lineas, ble, lecturas, u):
     if not fin:
         inv.append("falta la marca «banco fin» de la Mac")
     if not cont:
-        inv.append("falta la marca «banco contesta» de la tableta (no se sabe que contestó)")
+        inv.append("falta la marca «banco contesta» %s (no se sabe que contestó)" % ("de la Mac" if quien_contesta == "mac" else "de la tableta"))
     # calma durante la llamada
     for lec in lecturas or []:
         ok, fallos, _ = evaluar_calma(lec, u, "durante")
@@ -358,7 +414,7 @@ def juzgar_llamada(esc, serie, n, lineas, ble, lecturas, u):
         inv.append("el registro no trae ninguna línea de la tableta")
     else:
         v, z = _evidencia_tableta(grupo, (ini[0]["t"] + fin[0]["t"]) / 2.0)
-        if not (v and z):
+        if e.get("evidencia_datos", True) and not (v and z):
             inv.append("evidencia de la tableta incompleta: faltan líneas %s después de la mitad de la llamada" % (
                 " y ".join(n_ for n_, ok in (("video-datos rx", v), ("voz-datos rx", z)) if not ok)))
     res["cuelga"] = fin[0]["campos"]["cuelga"]
@@ -372,12 +428,19 @@ def juzgar_llamada(esc, serie, n, lineas, ble, lecturas, u):
     # los números que faltan en cualquier lado: sin dato no se juzga a favor ni en contra
     for a, nums in sorted(res["numeros"].items()):
         for k in ("fps_recibidos_med", "negros", "inventado_pct_max", "perdida_pct_max"):
-            if nums is None or nums[k] is None:
+            if "regla" not in e and (nums is None or nums[k] is None):
                 inv.append("falta el dato «%s» del lado %s" % (k, a))
     if inv:
         return res
     res["valida"] = True
     f = res["fallos"]
+    if "regla" in e:                          # BAN1115D: escenarios de las fases 2 y 3
+        comp = REGLAS[e["regla"]](e, grupo, ll, ini[0], fin[0], cont[0])
+        res["comp"] = {c: {"cumple": not fl, "fallos": fl} for c, fl in comp.items()}
+        for fl in comp.values():
+            f.extend(fl)
+        res["cumple"] = not f
+        return res
     if ll["duracion_s"] < e["dur_s"]:
         f.append("duró %d s (se piden %d)" % (ll["duracion_s"], e["dur_s"]))
     dur_app = _num(fin[0]["campos"].get("dur_s"))
@@ -413,6 +476,95 @@ def juzgar_llamada(esc, serie, n, lineas, ble, lecturas, u):
     return res
 
 
+
+# ── las reglas de las fases 2 y 3 (BAN1115D) ───────────────────────────────────────────────────────────────────
+# Cada una recibe (escenario, líneas del grupo, llamada de banco_pruebas_logica, marca inicio, marca fin, marca contesta)
+# y devuelve {comprobación: [fallos]}. Todo lo que se corta o se simula está en las líneas `banco simulacion … medio_real=no`
+# que escribe el ejecutor de la app: nada de lo «lógico» se presenta como real.
+_RE_ICE = re.compile(r"ice candidatos enviados=(\d+) recibidos=(\d+)")
+
+
+def _t_primera(grupo, texto, desde=None):
+    for l in grupo:
+        if texto in l["msg"] and (desde is None or l["t"] >= desde):
+            return l["t"]
+    return None
+
+
+def _regla_corte_ip_vuelve(e, grupo, ll, ini, fin, cont):
+    f = []
+    t_c = _t_primera(grupo, "banco simulacion corte-ip")
+    t_v = _t_primera(grupo, "banco simulacion vuelve-ip", t_c)
+    if t_c is None:
+        f.append("el corte lógico de IP no quedó anotado (la orden «simular-corte-ip» no se ejecutó)")
+    if t_v is None:
+        f.append("la vuelta de la IP lógica no quedó anotada (la orden «simular-vuelve-ip» no se ejecutó)")
+    # la llamada no terminó sola: ninguna línea `fin por=` antes de colgar la tableta, ni «La llamada falló»
+    solas = [l for l in grupo if l["msg"].startswith("fin por=") and l["t"] < fin["t"] - 5]
+    if solas:
+        f.append("la llamada terminó sola antes de que colgara la tableta: %s" % BL.limpiar(solas[0]["msg"], 90))
+    if any("La llamada falló" in l["msg"] for l in grupo):
+        f.append("apareció «La llamada falló»")
+    if t_c is not None:
+        hasta = t_v if t_v is not None else fin["t"]
+        rx = [l for l in grupo if t_c <= l["t"] <= hasta and ("voz-datos rx" in l["msg"] or "video-datos rx" in l["msg"])]
+        if not rx:
+            f.append("durante el corte no llegó voz ni vídeo por el enlace de datos")
+    if t_v is not None and not any(l["t"] >= t_v and l["msg"].startswith("medio=webrtc") and "ice=connected" in l["msg"] for l in grupo):
+        f.append("WebRTC no se reconectó después de volver la IP (ninguna línea «ice=connected» posterior)")
+    if fin["campos"].get("cuelga") != "tableta":
+        f.append("colgó %s y el guion dice que cuelga la tableta" % fin["campos"].get("cuelga"))
+    dur = _num(fin["campos"].get("dur_s"))
+    if dur is not None and dur < 100:
+        f.append("la app dice que duró %d s (se piden unos 115)" % dur)
+    return {"c1": f}
+
+
+def _regla_tableta_llama(e, grupo, ll, ini, fin, cont):
+    f = []
+    t_ok = [l["t"] for l in grupo if l["msg"].startswith("medio=webrtc") and "ice=connected" in l["msg"] and l["t"] >= cont["t"] - 2]
+    if not t_ok:
+        f.append("WebRTC no llegó a conectar")
+    elif t_ok[0] - cont["t"] > CONECTA_S:
+        f.append("WebRTC conectó %d s después de contestar la Mac (se piden %d o menos)" % (t_ok[0] - cont["t"], CONECTA_S))
+    cand = [tuple(int(x) for x in m.groups()) for m in (_RE_ICE.search(l["msg"]) for l in grupo) if m]
+    if not cand or max(c[0] for c in cand) < 1:
+        f.append("«ice candidatos» no muestra candidatos enviados")
+    if not cand or max(c[1] for c in cand) < 1:
+        f.append("«ice candidatos» no muestra candidatos recibidos (solo una dirección)")
+    if fin["campos"].get("cuelga") != "mac":
+        f.append("colgó %s y el guion dice que cuelga la Mac" % fin["campos"].get("cuelga"))
+    return {"c10": f}
+
+
+def _regla_mudo_camara(e, grupo, ll, ini, fin, cont):
+    # c4: con el micro mudo (líneas `voz-datos tx … mudo`) al menos 25 s y ninguna pausa de vídeo dentro del tramo.
+    f4, f14 = [], []
+    ctx = BL.contexto_llamada(grupo)
+    mudo_s = sum(h - d - 5 for d, h in ctx["mudo_tramos"])
+    if mudo_s < 25:
+        f4.append("el micrófono estuvo mudo %d s según el registro (se piden 25 o más)" % max(0, mudo_s))
+    for a, s in sorted(ll["lados"].items()):
+        for p in ((s or {}).get("video") or {}).get("pausas", []):
+            t = BL._a_epoch(p.get("t") or "")
+            if t is not None and any(d <= t <= h for d, h in ctx["mudo_tramos"]):
+                f4.append("%s: el vídeo se pausó (%s) con el micrófono mudo" % (a, p.get("motivo") or "sin motivo"))
+    # c14: la cámara de la Mac se vuelve a abrir (línea `camara encendida`) tras apagarla, y el otro lado vuelve a recibir vídeo.
+    # De la línea de cierre no hay un texto fijado en el motor: se comprueba la reapertura, que es lo que lo sustenta.
+    abre = [l for l in grupo if l["aparato"] == "mac" and l["msg"].startswith("camara encendida") and l["t"] >= ini["t"] + 60]
+    if not abre:
+        f14.append("la cámara de la Mac no se volvió a encender (ninguna línea «camara encendida» tras apagarla)")
+    else:
+        if not any(l["aparato"] != "mac" and "video" in l["msg"] and " rx" in l["msg"] and abre[0]["t"] <= l["t"] <= abre[0]["t"] + 5 + 5
+                   for l in grupo):
+            f14.append("el otro lado no volvió a recibir vídeo en los 5 s siguientes a encenderse la cámara")
+    if fin["campos"].get("cuelga") != "mac":
+        f4.append("colgó %s y el guion dice que cuelga la Mac" % fin["campos"].get("cuelga"))
+    return {"c4": f4, "c14": f14}
+
+
+REGLAS = {"corte-ip-vuelve": _regla_corte_ip_vuelve, "tableta-llama": _regla_tableta_llama, "mudo-camara": _regla_mudo_camara}
+
 # ── el veredicto de una serie (§3.3) ────────────────────────────────────────────────────────────────────────────
 
 def veredicto_serie(juicios, rep, clave="cumple", comprobacion="c2", incompleta_k=None):
@@ -421,7 +573,11 @@ def veredicto_serie(juicios, rep, clave="cumple", comprobacion="c2", incompleta_
     «falla» sugerido: 2 o más válidas no cumplen. «sin veredicto» en lo demás. Siempre «simulado», nunca marca.
     `clave` = 'cumple' (c2) o 'c3'."""
     def cumple(j):
-        return j["cumple"] if clave == "cumple" else j["c3"]["cumple"]
+        if clave == "cumple":
+            return j["cumple"]
+        if clave == "c3":
+            return j["c3"]["cumple"]
+        return ((j.get("comp") or {}).get(clave) or {}).get("cumple")      # BAN1115D: c1, c10, c4, c14
     validas = [j for j in juicios if j["valida"]]
     malas = [j for j in validas if cumple(j) is False]
     buenas = [j for j in validas if cumple(j) is True]
@@ -435,7 +591,7 @@ def veredicto_serie(juicios, rep, clave="cumple", comprobacion="c2", incompleta_
         out["incompleta"] = "serie incompleta: %d de %d" % (incompleta_k, rep)
     if len(malas) >= 2:
         p = malas[0]
-        fallo = (p["fallos"] if clave == "cumple" else p["c3"]["fallos"])[0]
+        fallo = (p["fallos"] if clave == "cumple" else p["c3"]["fallos"] if clave == "c3" else p["comp"][clave]["fallos"])[0]
         out.update(veredicto="falla", sugerencia="falla (simulado): %d de %d llamadas válidas no cumplen; la primera, %s (%s): %s"
                    % (len(malas), len(validas), p["id"] or "n=%d" % p["n"], p["esc"], fallo))
     elif len(validas) >= minimo and len(malas) <= permitidas and incompleta_k is None:

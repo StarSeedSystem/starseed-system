@@ -76,12 +76,12 @@ describe("actor del banco (lado app de la Mac)", () => {
     });
 
     it("una orden hace la llamada entera sin nadie: inicio, contestar (con reintento), simulación marcada, colgar, fin", async () => {
-        const m = mundo({ orden: orden(), tableta: (nombre, i) => (nombre === "contestar" && i === 2 ? { ok: false, motivo: "sin-timbre" } : {}) });
+        const m = mundo({ orden: orden(), tableta: (nombre, i) => (nombre === "contestar" && i === 3 ? { ok: false, motivo: "sin-timbre" } : {}) });
         const a = new ActorBanco(m.deps);
         a.armar(TABLETA);
         expect(await a.vuelta()).toBe("hecha");
         expect(m.local).toEqual(["llamar", "simular-corte-ip", "colgar"]);
-        expect(m.remotas).toEqual(["leer-estado", "contestar", "contestar", "simular-corte-ip"]);
+        expect(m.remotas).toEqual(["leer-estado", "leer-estado", "contestar", "contestar", "simular-corte-ip"]);
         const ev = m.marcas.map((x) => x.split(" ")[1]);
         expect(ev).toEqual(["armada", "inicio", "calma", "fin", "calma"]);
         expect(m.marcas[1]).toBe("banco inicio esc=ble-video-2min serie=s20261114-0300 n=1 medio=sin-ip-desde-inicio tipo=video");

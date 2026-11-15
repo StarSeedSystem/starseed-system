@@ -177,6 +177,18 @@ class Series(Base):
         self.assertEqual(m.ordenes_vistas, [])
         self.assertLimpio(m)
 
+    def test_con_el_informe_de_la_app_dice_el_paso_que_falta(self):      # BAN1115D
+        m = self.m(armada=False)
+        m.escribir_json(BLL.APP, {"t": m.t - 5, "llave": False, "objetivo": None, "sesion": None, "armada": None})
+        _, est = serie(m, 10)
+        self.assertIn("no tiene clave propia", est["motivo_fin"])
+        m = self.m(armada=False)
+        m.escribir_json(BLL.APP, {"t": m.t - 5, "llave": True, "objetivo": NEU_TAB, "codigo": "ABCD", "sesion": {"estado": "rechazada", "motivo": "no-aceptada"}, "armada": None})
+        self.assertIn("no ha aceptado", serie(m, 10)[1]["motivo_fin"])
+        m = self.m(armada=False)
+        m.escribir_json(BLL.APP, {"t": m.t - 5, "llave": True, "objetivo": None, "sesion": None, "armada": None})
+        self.assertIn("no está armado", serie(m, 10)[1]["motivo_fin"])
+
     def test_app_que_dejo_de_sondear_dice_desde_que_hora(self):
         m = self.m()
         m.t += 400                       # la última marca (armada) tiene 430 s

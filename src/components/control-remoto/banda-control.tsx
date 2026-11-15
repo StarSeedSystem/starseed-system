@@ -16,6 +16,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { PermisoControl, SesionActiva } from "@/lib/control-remoto/sesion";
+import type { EstadoApp } from "@/lib/banco-llamadas/actor";
+import { pasosQueFaltan } from "@/lib/banco-llamadas/pasos";
 
 const RE_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -108,6 +110,30 @@ export function ControlEntreNeuronasPanel() {
     const [destino, setDestino] = useState("");
     const [aviso, setAviso] = useState<string | null>(null);
     const [banco, setBanco] = useState<{ con: string; hasta: number; restantes: number } | null>(null);
+    // BAN1115D: las neuronas de la cuenta (para elegir sin teclear el id) y lo que la app informa de sí misma
+    const [neuronas, setNeuronas] = useState<Array<{ id: string; nombre: string; plataforma: string; online: boolean }>>([]);
+    const [informe, setInforme] = useState<EstadoApp | null>(null);
+
+    useEffect(() => {
+        void (async () => {
+            try {
+                const nn = await import("@/lib/neurons/neurons");
+                const yo = nn.thisDeviceId();
+                const lista = await nn.listNeurons();
+                setNeuronas(
+                    lista
+                        .filter((x) => x.id !== yo && !x.isThisDevice)
+                        .map((x) => ({ id: x.id, nombre: x.name, plataforma: x.capabilities?.platform || x.kind, online: !!x.online })),
+                );
+            } catch {
+                setNeuronas([]); // sin lista: queda el campo del id
+            }
+        })();
+    }, [n]);
+
+    useEffect(() => {
+        void import("@/lib/banco-llamadas/app").then((b) => setInforme(b.ultimoInforme()));
+    }, [n]);
 
     useEffect(() => {
         void (async () => {
@@ -147,6 +173,11 @@ export function ControlEntreNeuronasPanel() {
         [cambiar],
     );
 
+    const elegir = useCallback(async (id: string) => {
+        setDestino(id);
+        if (RE_UUID.test(id)) void import("@/lib/banco-llamadas/app").then((b) => b.informarBanco(id)); // solo mira si ya te aceptó
+    }, []);
+
     const ofrecer = useCallback(async () => {
         if (!RE_UUID.test(destino.trim())) {
             setAviso("Escribe el id completo de la neurona (lo ves en Mensajes › Neuronas).");
@@ -154,6 +185,7 @@ export function ControlEntreNeuronasPanel() {
         }
         const c = await import("@/lib/control-remoto/canal");
         const r = await c.presentarmeA(destino.trim().toLowerCase(), typeof navigator !== "undefined" ? (navigator.platform || "Neurona") : "Neurona");
+        if (r.ok) setTimeout(() => void import("@/lib/banco-llamadas/app").then((b) => b.informarBanco(destino.trim())), 6000); // mira si ya te aceptó
         setAviso(
             r.ok
                 ? `Pedido enviado. En esa neurona, acepta el aparato con el código ${miCodigo ?? "de este aparato"}.`
@@ -225,11 +257,36 @@ export function ControlEntreNeuronasPanel() {
                     </button>
                 </div>
             ))}
+            {neuronas.length > 0 && (
+                <div className="flex flex-wrap gap-2 border-t border-white/10 pt-3" role="listbox" aria-label="Neuronas de tu cuenta" data-testid="neuronas-elegir">
+                    {neuronas.map((x) => (
+                        <button
+                            key={x.id}
+                            role="option"
+                            aria-selected={destino.trim().toLowerCase() === x.id.toLowerCase()}
+                            onClick={() => void elegir(x.id)}
+                            className={`min-h-9 cursor-pointer rounded-lg border px-3 py-1.5 text-left text-[12px] transition-colors ${destino.trim().toLowerCase() === x.id.toLowerCase() ? "border-[#FFBF00] bg-[#FFBF00]/15 text-white" : "border-white/15 bg-white/5 text-white/75 hover:bg-white/10"}`}
+                        >
+                            <span className="font-medium">{x.nombre}</span> · {x.plataforma} · <span className={x.online ? "text-emerald-300" : "text-white/40"}>{x.online ? "conectada" : "sin conexión"}</span>
+                        </button>
+                    ))}
+                </div>
+            )}
+            {(destino.trim() !== "" || banco) && (
+                <ul className="space-y-1 text-[12px]" data-testid="pasos-banco">
+                    {pasosQueFaltan({ informe, destino: destino.trim(), codigo: miCodigo }).map((p) => (
+                        <li key={p.clave} className={p.hecho ? "text-emerald-300/80" : "text-amber-200"}>
+                            {p.hecho ? "✓ " : "• "}
+                            {p.texto}
+                        </li>
+                    ))}
+                </ul>
+            )}
             <div className="flex flex-wrap items-center gap-2 border-t border-white/10 pt-3">
                 <input
                     value={destino}
-                    onChange={(e) => setDestino(e.target.value)}
-                    placeholder="id de la otra neurona"
+                    onChange={(e) => void elegir(e.target.value)}
+                    placeholder="o escribe el id de la otra neurona"
                     className="min-w-0 flex-1 rounded-md border border-white/20 bg-black/40 px-2 py-1 text-[12px] text-white"
                 />
                 <button onClick={() => void ofrecer()} className="cursor-pointer rounded-md bg-white/10 px-2 py-1 text-[12px] text-white/80 hover:bg-white/20">
