@@ -31,6 +31,7 @@ export interface PermissionEngine {
   grant(id: PermissionId): Promise<ResultadoPermisoOS>;
   revoke(id: PermissionId): Promise<void>;
   list(): PermissionState[];
+  listWithState(): Promise<PermissionState[]>;
   subscribe(id: PermissionId, cb: (state: EstadoPermiso) => void): () => void;
 }
 
@@ -150,6 +151,7 @@ export function createPermissionEngine(): PermissionEngine {
         if (id === "notificaciones" && "Notification" in window) {
         }
         if (id === "almacenamiento" && navigator.storage?.persist) {
+          await navigator.storage.persist();
         }
       }
       const list = this.list();
