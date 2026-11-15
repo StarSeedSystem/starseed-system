@@ -1,6 +1,6 @@
 # Genesis · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-15 02:09:21 desde Genesis vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-15 06:17:33 desde Genesis vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -16,21 +16,32 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | Agentes escribiendo | **0** |
 | En esta ola | integradas 0 · en curso 0 · esperando aprobación 0 · pendientes 24 |
 | Últimas 4 olas | en curso 0 · pendientes 85 · integradas 0 |
-| HEAD | `1891b7fb2 chore(memoria): aprendizaje de la ola auto-1115-001856` |
-| Sin publicar | 10 commits |
+| HEAD | `2b66e8178 chore(memoria): aprendizaje de la ola auto-1115-033430` |
+| Sin publicar | 1 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-1115-001856.json`, hace 17s)
+## Quién escribe ahora (latido de `cola-auto-1115-033430.json`, hace 13s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `SIN1114Ac-d2b-d3` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 3 min | 155 s | 101435 |
-| `DR1115-1b` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 13 min | 771 s | 88415 |
-| `SIN1114Ac-d2b-d2` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 13 min | 799 s | 330568 |
-| `DR1115-1` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 61 min | 3680 s | 51896 |
-| `SIN1114Ac-d2b-d1` | hecho | openrouter/cohere/north-mini-code: | 71 min | 4242 s | 119512 |
-| `DR1115-2` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 78 min | 4674 s | 51448 |
-| `SIN1114Ac-d2b` | hecho | codex/gpt-5.6-sol | 82 min | 4929 s | 370404 |
+| `SIN1114Ac-d3s-d2` | hecho | freellmapi/auto | 2 min | 117 s | 163229 |
+| `SIN11154` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 7 min | 409 s | 1015 |
+| `SIN11151` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 7 min | 432 s | 506 |
+| `SIN11153` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 7 min | 438 s | 497 |
+| `SIN11152` | hecho | explabs/deepseek-v4.1-flash | 7 min | 440 s | 374 |
+| `SIN11157` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 8 min | 456 s | 489 |
+| `SIN11155` | hecho | groq/openai/gpt-oss-120b | 8 min | 469 s | 470 |
+| `SIN11156` | hecho | groq/openai/gpt-oss-120b | 8 min | 471 s | 369 |
+| `REP1114Css` | hecho | openrouter/cohere/north-mini-code: | 12 min | 737 s | 562881 |
+| `SIN1114Ac-d3s-d1` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 24 min | 1456 s | 183846 |
+| `SIN1114Ac-d3s` | hecho | codex/gpt-5.6-sol | 46 min | 2735 s | 582815 |
+| `REP1114Cs` | hecho | openrouter/cohere/north-mini-code: | 83 min | 5002 s | 111769 |
+| `REP1114C` | hecho | openrouter/cohere/north-mini-code: | 102 min | 6104 s | 75906 |
+| `REP1114B` | hecho | openrouter/cohere/north-mini-code: | 104 min | 6242 s | 93815 |
+| `SIN1114Ac-d3` | hecho | openrouter/cohere/north-mini-code: | 119 min | 7125 s | 95488 |
+| `REP1114A-d3` | hecho | freellmapi/auto | 121 min | 7245 s | 212215 |
+| `REP1114A-d2` | hecho | freellmapi/auto | 138 min | 8273 s | 457075 |
+| `SIN1114Ac-d2b-d3b` | hecho | nim/kimi-k3 | 143 min | 8584 s | 327665 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
