@@ -53,6 +53,14 @@ mod ble_linux;
 mod ble_trama;
 // (PTA1108B) El webview, las descargas de Rust y el proxy de la puerta de internet de la malla (contrato §5.3 c).
 mod puerta_proxy;
+// (UBI1114K) La posición del aparato por la vía nativa: CoreLocation en macOS, LocationManager en Android.
+#[cfg_attr(not(any(target_os = "macos", target_os = "android")), allow(dead_code))]
+mod ubicacion;
+// Las dos plataformas usan cada una su mitad (macOS: CoreLocation; Android: archivos con Kotlin).
+#[allow(dead_code)]
+mod ubicacion_logica;
+#[cfg(target_os = "macos")]
+mod ubicacion_macos;
 mod puerta_proxy_logica;
 // (PER1108A) Permisos del primer arranque (Android) y pantalla completa de la ventana (escritorio).
 mod permisos_inicio;
@@ -174,6 +182,9 @@ mod llamada_nativa_parche;
 // (PTA1108B) Lo usa build.rs (proveedor, ProxyPuertaStarSeed.kt y androidx.webkit en el proyecto Android); aquí solo sus pruebas.
 #[cfg(test)]
 mod puerta_proxy_parche;
+// (UBI1114K) Lo usa build.rs (permisos de ubicación, proveedor y UbicacionStarSeed.kt en el proyecto Android); aquí solo sus pruebas.
+#[cfg(test)]
+mod ubicacion_parche;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Actualización automática INTELIGENTE del shell nativo (SOLO escritorio).
@@ -894,6 +905,12 @@ pub fn run() {
                 // (PTA1108B) Proxy de la puerta de internet: webview (macOS 14+, Android) y descargas de Rust.
                 puerta_proxy::puerta_proxy_local,
                 puerta_proxy::puerta_proxy_estado,
+                // (UBI1114K) Ubicación del aparato (CoreLocation / LocationManager). Solo con la persona pidiéndolo.
+                ubicacion::ubicacion_estado,
+                ubicacion::ubicacion_ahora,
+                ubicacion::ubicacion_vigilar,
+                ubicacion::ubicacion_parar,
+                ubicacion::ubicacion_ultima,
                 $($solo_desktop,)*
             ]);
         };

@@ -44,12 +44,14 @@ pub fn panel(plataforma: &str, id: &str) -> Option<&'static str> {
         ("macos", "microfono") => "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone",
         ("macos", "camara") => "x-apple.systempreferences:com.apple.preference.security?Privacy_Camera",
         ("macos", "ubicacion-wifi") => "x-apple.systempreferences:com.apple.preference.security?Privacy_LocationServices",
+        ("macos", "ubicacion") => "x-apple.systempreferences:com.apple.preference.security?Privacy_LocationServices", // UBI1114K
         ("macos", "red-local") => "x-apple.systempreferences:com.apple.preference.security?Privacy_LocalNetwork",
         ("macos", "notificaciones") => "x-apple.systempreferences:com.apple.preference.notifications",
         ("macos", "arranque") => "x-apple.systempreferences:com.apple.LoginItems-Settings.extension",
         ("windows", "microfono") => "ms-settings:privacy-microphone",
         ("windows", "camara") => "ms-settings:privacy-webcam",
         ("windows", "ubicacion-wifi") => "ms-settings:privacy-location",
+        ("windows", "ubicacion") => "ms-settings:privacy-location", // UBI1114K
         ("windows", "notificaciones") => "ms-settings:notifications",
         ("windows", "arranque") => "ms-settings:startupapps",
         ("windows", "bluetooth") => "ms-settings:bluetooth",
@@ -346,6 +348,8 @@ mod macos {
         }
         if let Some(n) = clase_entero(c"CLLocationManager", sel!(authorizationStatus), None) {
             m.insert("ubicacion-wifi".into(), estado_de_autorizacion(n).into());
+            // (UBI1114K) El mismo permiso del sistema: «Localización» sirve a los nombres de Wi-Fi y al mapa.
+            m.insert("ubicacion".into(), estado_de_autorizacion(n).into());
         }
         // Red local, notificaciones, automatización y acceso total al disco: macOS no da una lectura
         // pública (o la de notificaciones la da el plugin en la web). No se escribe nada: «desconocido».
