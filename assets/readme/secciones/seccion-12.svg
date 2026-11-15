@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="80" viewBox="0 0 800 80" role="img" aria-labelledby="title-seccion-12 desc-seccion-12">
+  <title id="title-seccion-12">Sección 12: Hoja de ruta</title>
+  <desc id="desc-seccion-12">Encabezado de la sección 12: hoja de ruta y planificación de desarrollo</desc>
+  <rect width="800" height="80" fill="#0A0F1D"/>
+  <text x="40" y="52" font-family="'Rajdhani', 'Inter', system-ui, sans-serif" font-size="28" font-weight="700" fill="#F8F9FA">12</text>
+  <text x="100" y="52" font-family="'Rajdhani', 'Inter', system-ui, sans-serif" font-size="28" font-weight="700" fill="#F8F9FA">Hoja de ruta</text>
+</svg>

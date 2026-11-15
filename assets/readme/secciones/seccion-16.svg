@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="80" viewBox="0 0 800 80" role="img" aria-labelledby="title-seccion-16 desc-seccion-16">
+  <title id="title-seccion-16">Sección 16: English summary</title>
+  <desc id="desc-seccion-16">Encabezado de la sección 16: resumen en inglés del proyecto</desc>
+  <rect width="800" height="80" fill="#0A0F1D"/>
+  <text x="40" y="52" font-family="'Rajdhani', 'Inter', system-ui, sans-serif" font-size="28" font-weight="700" fill="#F8F9FA">16</text>
+  <text x="100" y="52" font-family="'Rajdhani', 'Inter', system-ui, sans-serif" font-size="28" font-weight="700" fill="#F8F9FA">English summary</text>
+</svg>
