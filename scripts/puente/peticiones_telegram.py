@@ -715,23 +715,42 @@ def _subir_a_drive_directo(ruta: str, nombre: str, carpeta_id: str, tok: str) ->
 
 
 def _revisar_y_procesar_sintesis_diaria() -> None:
-    """Revisa si hay nueva síntesis diaria y la procesa."""
+    """Revisa si hay nueva síntesis diaria de hoy o ayer (hora México) y la procesa.
+    
+    Solo procesa la síntesis de hoy o de ayer en hora de México y nunca anuncia una fecha más vieja.
+    """
     from peticiones_notebooklm import ultima_sintesis
     from sintesis_multiformato import ya_procesado
+    import datetime
     
     try:
+        # Obtener fecha actual en zona horaria de México (UTC-6)
+        mexico_tz = datetime.timezone(datetime.timedelta(hours=-6))
+        hoy_mexico = datetime.datetime.now(mexico_tz).date()
+        ayer_mexico = hoy_mexico - datetime.timedelta(days=1)
+        fechas_permitidas = {hoy_mexico.isoformat(), ayer_mexico.isoformat()}
+        
         fid, nombre = ultima_sintesis()
         import re
         m = re.match(r".*?(\d{4}-\d{2}-\d{2})", nombre)
         if not m:
             return
         fecha = m.group(1)
+        
+        # Solo procesar si la fecha es hoy o ayer en hora de México
+        if fecha not in fechas_permitidas:
+            log(f"Síntesis {fecha} fuera de rango (hoy/ayer México: {fechas_permitidas}), no se procesa")
+            return
+            
         if ya_procesado(fecha):
             return
         log(f"Nueva síntesis diaria detectada: {fecha} ({nombre})")
         decir(f"🔄 Nueva síntesis diaria detectada: {fecha}. Iniciando procesamiento multiformato...")
         indice = _procesar_multiformato_con_degradacion(fecha)
         _multiformato_enviar_indice(indice)
+    except RuntimeError as e:
+        # Sin síntesis válida para hoy/ayer - no es error, solo no hay nada que procesar
+        log(f"Sin síntesis válida para hoy/ayer México: {e}")
     except Exception as e:
         log("Error revisando síntesis diaria:", e)
 
