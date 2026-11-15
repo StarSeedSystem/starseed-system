@@ -23,6 +23,12 @@ _CARPETA = os.path.dirname(os.path.abspath(__file__))
 if _CARPETA not in sys.path:
     sys.path.insert(0, _CARPETA)
 
+# SIN1114: ninguna prueba del puente sale a la red. Se instala ANTES de importar cualquier módulo,
+# para que lo que se importe ya vea la guardia, y fija STARSEED_PRUEBAS=1 para toda la sesión: las
+# pruebas de la guardia lo restauran con monkeypatch y nunca lo quitan. Solo pasa localhost.
+import guardia_pruebas as _guardia_pruebas  # noqa: E402
+_guardia_pruebas.instalar_sesion()
+
 # TMP1113B: cada corrida es dueña de UNA raíz temporal (`raiz_pruebas.py`) y la quita al salir (pase, falle o se
 # interrumpa). Va ANTES de cualquier `mkdtemp` de este archivo para que todo caiga dentro.
 import raiz_pruebas as _raiz_pruebas  # noqa: E402
@@ -38,8 +44,3 @@ import tempfile as _tempfile  # noqa: E402
 
 os.environ["STARSEED_POTENCIAR_RUTA"] = os.path.join(_tempfile.mkdtemp(prefix="potenciar-pruebas-"), "potenciar.json")
 os.environ.pop("STARSEED_POTENCIAR", None)
-
-# Guardia de red: bloquea llamadas a Drive, Telegram, NotebookLM durante pruebas
-# Se activa cuando STARSEED_PRUEBAS=1 (lo hace este módulo al importarse)
-import guardia_pruebas as _guardia_pruebas
-_guardia_pruebas.activar()

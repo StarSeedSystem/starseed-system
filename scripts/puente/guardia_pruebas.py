@@ -1,99 +1,119 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+"""Guardia de red para pruebas: nada sale de localhost (SIN1114).
 
-"""Guardia de red para pruebas: bloquea cualquier llamada de red externa durante las pruebas.
-
-Uso:
-    import guardia_pruebas
-    guardia_pruebas.activar()  # Pone STARSEED_PRUEBAS=1 y bloquea red externa
-
-    # ... pruebas ...
-
-    guardia_pruebas.desactivar()  # Restaura estado original (opcional)
+`activar()` —o `instalar_sesion()` desde conftest— pone `STARSEED_PRUEBAS=1` y sustituye
+`urllib.request.urlopen`, `HTTPSConnection.connect` y `socket.create_connection` por versiones que
+lanzan `ErrorRedEnPruebas` fuera de localhost. `desactivar()` restaura lo que hubiera debajo (la
+guardia de sesión sigue viva) y solo quita la variable si la puso esta activación.
 """
-
+import atexit
+import http.client
 import os
 import socket
 import urllib.request
+from urllib.parse import urlparse
 
-_guardia_activa = False
-_original_urlopen = None
-_original_create_connection = None
-_original_starseed_pruebas = None
+_ESQUEMAS_RED = ("http", "https", "ftp", "ftps", "ws", "wss")
+_LOCALES = ("localhost", "127.0.0.1", "::1", "[::1]", "0.0.0.0")
+_estado = {"activa": False, "originales": None, "pruebas_previas": None}
+_sesion = {}
 
 
 class ErrorRedEnPruebas(RuntimeError):
-    """Se lanza cuando una prueba intenta hacer una llamada de red externa."""
-    pass
+    """Llamada de red no local durante las pruebas."""
 
 
-def _es_local(host: str) -> bool:
-    """True si el host es localhost o equivalente."""
-    if not host:
+def _es_local(host) -> bool:
+    if host is None:
         return False
-    host_lower = host.lower()
-    return host_lower in ("localhost", "127.0.0.1", "[::1]", "::1")
+    if isinstance(host, bytes):
+        host = host.decode("ascii", "ignore")
+    host = str(host).strip().lower()
+    return host in _LOCALES or host.startswith("127.")
 
 
-def _urlopen_bloqueada(url, *args, **kwargs):
-    """Versión de urlopen que bloquea hosts no locales."""
-    global _original_urlopen, _original_create_connection
-    if _original_urlopen is None or _original_create_connection is None:
-        raise RuntimeError("Guardia de pruebas no activada: llama a guardia_pruebas.activar() primero")
-    try:
-        from urllib.parse import urlparse
-        parsed = urlparse(str(url))
-        host = parsed.hostname or ""
+def _url_permitida(url) -> bool:
+    """Pasan localhost y los esquemas que no son de red (file:, data:)."""
+    partes = urlparse(str(getattr(url, "full_url", url)))
+    return partes.scheme not in _ESQUEMAS_RED or _es_local(partes.hostname)
+
+
+def _bloqueos(originales):
+    def urlopen(url, *args, **kwargs):
+        if not _url_permitida(url):
+            raise ErrorRedEnPruebas("Llamada de red externa bloqueada en pruebas: %s" % url)
+        return originales["urlopen"](url, *args, **kwargs)
+
+    def https_connect(self, *args, **kwargs):
+        host = getattr(self, "host", None)
         if not _es_local(host):
-            raise ErrorRedEnPruebas(f"Llamada de red externa bloqueada en pruebas: {url}")
-    except ErrorRedEnPruebas:
-        raise
-    except Exception:
-        raise ErrorRedEnPruebas(f"URL no válida en pruebas: {url}")
-    return _original_urlopen(url, *args, **kwargs)
+            raise ErrorRedEnPruebas("Conexión HTTPS externa bloqueada en pruebas: %s" % (host or "?"))
+        return originales["https_connect"](self, *args, **kwargs)
+
+    def create_connection(address, *args, **kwargs):
+        host = address[0] if isinstance(address, (tuple, list)) and address else address
+        if not _es_local(host):
+            raise ErrorRedEnPruebas("Conexión de red externa bloqueada en pruebas: %s" % (address,))
+        return originales["create_connection"](address, *args, **kwargs)
+
+    return {"urlopen": urlopen, "https_connect": https_connect,
+            "create_connection": create_connection}
 
 
-def _create_connection_bloqueada(address, *args, **kwargs):
-    """Versión de create_connection que bloquea hosts no locales."""
-    global _original_urlopen, _original_create_connection
-    if _original_urlopen is None or _original_create_connection is None:
-        raise RuntimeError("Guardia de pruebas no activada: llama a guardia_pruebas.activar() primero")
-    host = address[0] if address else ""
-    if not _es_local(host):
-        raise ErrorRedEnPruebas(f"Conexión de red externa bloqueada en pruebas: {address}")
-    return _original_create_connection(address, *args, **kwargs)
+def _capturar():
+    return {"urlopen": urllib.request.urlopen,
+            "https_connect": http.client.HTTPSConnection.connect,
+            "create_connection": socket.create_connection}
+
+
+def _aplicar(originales):
+    bloqueos = _bloqueos(originales)
+    urllib.request.urlopen = bloqueos["urlopen"]
+    http.client.HTTPSConnection.connect = bloqueos["https_connect"]
+    socket.create_connection = bloqueos["create_connection"]
+
+
+def _restaurar(originales):
+    if originales:
+        urllib.request.urlopen = originales["urlopen"]
+        http.client.HTTPSConnection.connect = originales["https_connect"]
+        socket.create_connection = originales["create_connection"]
+
+
+def instalar_sesion():
+    """Instala la guardia para la sesión de pytest (idempotente) y fija STARSEED_PRUEBAS=1."""
+    if not _sesion.get("originales"):
+        os.environ["STARSEED_PRUEBAS"] = "1"
+        _sesion["originales"] = _capturar()
+        _aplicar(_sesion["originales"])
+        atexit.register(_restaurar, _sesion["originales"])
+    return _sesion["originales"]
 
 
 def activar():
-    """Activa la guardia: pone STARSEED_PRUEBAS=1 y bloquea urllib/socket externos."""
-    global _guardia_activa, _original_urlopen, _original_create_connection, _original_starseed_pruebas
-    if _guardia_activa:
+    """Activa la guardia de forma anidada: guarda lo que hubiera y restaura eso al desactivar."""
+    if _estado["activa"]:
         return
-    _original_starseed_pruebas = os.environ.get("STARSEED_PRUEBAS")
+    _estado["pruebas_previas"] = os.environ.get("STARSEED_PRUEBAS")
     os.environ["STARSEED_PRUEBAS"] = "1"
-    _original_urlopen = urllib.request.urlopen
-    _original_create_connection = socket.create_connection
-    urllib.request.urlopen = _urlopen_bloqueada
-    socket.create_connection = _create_connection_bloqueada
-    _guardia_activa = True
+    _estado["originales"] = _capturar()
+    _aplicar(_estado["originales"])
+    _estado["activa"] = True
 
 
 def desactivar():
-    """Desactiva la guardia: restaura STARSEED_PRUEBAS y urllib/socket originales."""
-    global _guardia_activa
-    if not _guardia_activa:
+    """Restaura funciones y variable previas; nunca apaga la guardia de sesión."""
+    if not _estado["activa"]:
         return
-    if _original_starseed_pruebas is None:
+    _restaurar(_estado["originales"])
+    previo = _estado["pruebas_previas"]
+    if previo is None:
         os.environ.pop("STARSEED_PRUEBAS", None)
     else:
-        os.environ["STARSEED_PRUEBAS"] = _original_starseed_pruebas
-    if _original_urlopen is not None:
-        urllib.request.urlopen = _original_urlopen
-    if _original_create_connection is not None:
-        socket.create_connection = _original_create_connection
-    _guardia_activa = False
+        os.environ["STARSEED_PRUEBAS"] = previo
+    _estado.update(activa=False, originales=None, pruebas_previas=None)
 
 
 def esta_activa() -> bool:
-    """True si la guardia está activa."""
-    return _guardia_activa
+    return _estado["activa"] or bool(_sesion.get("originales"))
