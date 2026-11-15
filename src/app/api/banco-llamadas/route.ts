@@ -12,6 +12,7 @@ import os from "node:os";
 import path from "node:path";
 import { mandoHabilitado } from "@/lib/mando/guardian";
 import { esPeticionDeEstaMaquina } from "@/lib/seguridad/misma-maquina";
+import { sanearInforme } from "@/lib/banco-llamadas/informe";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -31,6 +32,30 @@ export async function GET(req: Request) {
     }
     const base = process.env.STARSEED_PRODUCCION_DIR || path.join(os.homedir(), ".starseed", "produccion");
     const dir = path.join(base, "banco-llamadas");
-    const [orden, calma] = await Promise.all([leerJson(path.join(dir, "orden.json")), leerJson(path.join(dir, "calma.json"))]);
-    return Response.json({ disponible: true, orden, calma }, { headers: { "cache-control": "no-store" } });
+    const [orden, calma, app] = await Promise.all([leerJson(path.join(dir, "orden.json")), leerJson(path.join(dir, "calma.json")), leerJson(path.join(dir, "app.json"))]);
+    return Response.json({ disponible: true, orden, calma, app }, { headers: { "cache-control": "no-store" } });
+}
+
+export async function POST(req: Request) {
+    if (!mandoHabilitado(req) || !esPeticionDeEstaMaquina(req)) return Response.json({ ok: false }, { status: 404, headers: { "cache-control": "no-store" } });
+    let cuerpo: unknown = null;
+    try {
+        const t = await req.text();
+        cuerpo = t.length > 4_000 ? null : JSON.parse(t);
+    } catch {
+        cuerpo = null;
+    }
+    const informe = sanearInforme(cuerpo, Date.now());
+    if (!informe) return Response.json({ ok: false }, { status: 400, headers: { "cache-control": "no-store" } });
+    const base = process.env.STARSEED_PRODUCCION_DIR || path.join(os.homedir(), ".starseed", "produccion");
+    const dir = path.join(base, "banco-llamadas");
+    try {
+        await fs.mkdir(dir, { recursive: true });
+        const tmp = path.join(dir, `app.json.tmp-${process.pid}`);
+        await fs.writeFile(tmp, JSON.stringify(informe), "utf8");
+        await fs.rename(tmp, path.join(dir, "app.json"));
+    } catch {
+        return Response.json({ ok: false }, { status: 500, headers: { "cache-control": "no-store" } });
+    }
+    return Response.json({ ok: true }, { headers: { "cache-control": "no-store" } });
 }

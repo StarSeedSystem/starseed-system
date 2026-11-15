@@ -33,6 +33,7 @@ import ronda as R  # noqa: E402
 
 CARPETA = "banco-llamadas"
 ORDEN, CALMA, SERIES, LOCK = "orden.json", "calma.json", "banco-llamadas.json", "serie.lock"
+APP = "app.json"                  # BAN1115D: lo que la app de la Mac sabe de sí misma (la escribe la ruta /api/banco-llamadas)
 QUIEN = "banco-llamadas"
 SONDEO_S = 5.0                    # cada cuánto mira las marcas mientras espera
 MAX_SERIES = 10
@@ -196,6 +197,11 @@ class Serie(object):
     def estado_app(self, lineas=None):
         return L.estado_app(L.marcas_de_lineas(lineas if lineas is not None else self.parsear()), self.m.ahora(), self.cfg.viva_s)
 
+    def paso_que_falta(self, ap):
+        """BAN1115D: en vez de la frase genérica, lo que la app dice que le falta (`app.json`, que escribe la ruta
+        `/api/banco-llamadas` con lo que la app le informa). Sin informe reciente, la frase de siempre."""
+        return L.paso_que_falta(self.m.leer_json(APP), self.m.ahora(), ap)
+
     # fin
     def terminar(self, motivo, estado="abortada"):
         if self.est["estado"] != "en-curso":
@@ -203,6 +209,11 @@ class Serie(object):
         self.est["estado"], self.est["motivo_fin"], self.est["hasta"] = estado, motivo, BL._a_iso(self.m.ahora())
         k = len([j for j in self.juicios if j["valida"] is not None])
         incompleta = k if (estado == "abortada" and k < self.rep and self.juicios) else None
+        if "regla" in L.ESCENARIOS[self.esc]:       # BAN1115D: una sugerencia por comprobación del escenario
+            ver = {c: L.veredicto_serie(self.juicios, self.rep, c, c, incompleta) for c in L.ESCENARIOS[self.esc]["comprobaciones"]}
+            self.est["veredicto"] = ver
+            self.decir("fin: %s · %s" % (motivo, " · ".join("%s: %s" % (c, v["sugerencia"]) for c, v in ver.items())))
+            return
         c2 = L.veredicto_serie(self.juicios, self.rep, "cumple", "c2", incompleta)
         c3 = L.veredicto_serie(self.juicios, self.rep, "c3", "c3", incompleta)
         self.est["veredicto"] = {"c2": c2, "c3": c3}
@@ -315,7 +326,7 @@ class Serie(object):
         t_ev = self.m.ahora()
         while visto_fin and self.m.ahora() - t_ev <= self.cfg.evidencia_s:
             lineas = self.parsear()
-            if L.evidencia_completa(lineas, self.id, n)[0]:
+            if L.evidencia_completa(lineas, self.id, n, self.esc)[0]:
                 break
             self.m.dormir(SONDEO_S)
         lineas = self.parsear()
@@ -347,7 +358,7 @@ class Serie(object):
         self.guardar()
         ap = self.estado_app()
         if not ap["armada"] or not ap["viva"]:
-            return self.terminar("sin veredicto: " + ap["motivo"])
+            return self.terminar("sin veredicto: " + self.paso_que_falta(ap))
         para = self.para_arg or ap["con"]
         ok, motivo = self.esperar_calma(self.u.espera_calma_s)
         if not ok:
@@ -434,12 +445,19 @@ def texto_estado(datos):
     s = series[0]
     v = s.get("veredicto") or {}
     sal = ["Serie %s · %d × %s · %s%s" % (s["serie"], s["rep"], s["esc"], s["estado"], (" · " + s["motivo_fin"]) if s.get("motivo_fin") else "")]
-    for c in ("c2", "c3"):
+    for c in sorted(v):
         if v.get(c):
             sal.append("  %s: %s" % (c, v[c]["sugerencia"]))
     for j in s.get("llamadas", []):
         sal.append("  llamada %s: %s" % (j["n"], ("válida, %s" % ("cumple" if j["cumple"] else "no cumple (%s)" % "; ".join(j["fallos"])))
                                           if j["valida"] else "no válida (%s)" % "; ".join(j["motivos_invalida"])))
+        nums = {a: x for a, x in (j.get("numeros") or {}).items() if x}      # BAN1115D: los números de cada llamada
+        if nums:
+            sal.append("      números: " + " · ".join("%s fps=%s negros=%s inventado=%s%% perdida=%s%% mudo=%ss" % (
+                a, x.get("fps_recibidos_med"), x.get("negros"), x.get("inventado_pct_max"), x.get("perdida_pct_max"), x.get("mudo_s"))
+                for a, x in sorted(nums.items())))
+        for c, x in sorted((j.get("comp") or {}).items()):
+            sal.append("      %s: %s" % (c, "cumple" if x["cumple"] else "no cumple (%s)" % "; ".join(x["fallos"])))
     sal.append("Todo es «simulado» (medio_real=false): el banco sugiere; no marca ninguna comprobación.")
     return "\n".join(sal)
 
@@ -460,6 +478,9 @@ def main(argv=None):
     if a.orden == "estado":
         d = m.leer_json(SERIES)
         print(json.dumps(d, ensure_ascii=False, indent=2) if a.json else texto_estado(d))
+        if not a.json:
+            falta = L.paso_que_falta(m.leer_json(APP), m.ahora(), None)       # BAN1115D
+            print("App de la Mac: " + (falta or "lista (clave propia, tableta aceptada y modo banco armado)"))
         return 0
     if not 1 <= a.rep <= L.REP_MAX:
         print("error: --rep va de 1 a %d" % L.REP_MAX, file=sys.stderr)
