@@ -167,6 +167,9 @@ mod prestamo_ventana_logica; // SEG1111T
 mod acceso_equipo; // SEG1111U
 #[cfg(any(desktop, test))]
 mod acceso_equipo_logica; // SEG1111U
+// ORD1114Q: control entre mis neuronas, lado nativo (sesión, indicador, parada y registro encadenado).
+mod control_neuronas; // ORD1114Q
+mod control_neuronas_logica; // ORD1114Q
 #[cfg(test)]
 mod android_parche;
 #[cfg(test)]
@@ -774,6 +777,7 @@ pub fn run() {
             avisos_mensajes::iniciar(app.handle());
             // (PTA1108B) Estado del proxy de la puerta de internet (la página lo fija con `puerta_proxy_local`).
             puerta_proxy::iniciar(app.handle());
+            control_neuronas::iniciar(app.handle()); // ORD1114Q: vigía de la sesión de control
             // (MIC1108A) Linux: WebKitGTK trae MediaStream y WebRTC apagados; sin ellos no hay llamadas.
             #[cfg(target_os = "linux")]
             permisos_medios::encender_medios_linux(app.handle());
@@ -902,6 +906,12 @@ pub fn run() {
                 llamada_nativa::llamada_nativa_recientes,
                 llamada_entrante::llamada_silencios_sincronizar,
                 llamada_entrante::llamada_timbre_firmar,
+                // ORD1114Q: control entre mis neuronas (en Android/iOS niega la sesión: sin indicador nativo)
+                control_neuronas::control_neuronas_abrir,
+                control_neuronas::control_neuronas_orden,
+                control_neuronas::control_neuronas_anotar,
+                control_neuronas::control_neuronas_parar,
+                control_neuronas::control_neuronas_estado,
                 // (PTA1108B) Proxy de la puerta de internet: webview (macOS 14+, Android) y descargas de Rust.
                 puerta_proxy::puerta_proxy_local,
                 puerta_proxy::puerta_proxy_estado,

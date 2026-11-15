@@ -131,6 +131,7 @@ export class ActorBanco {
     private ultimoSondeo = 0;
     private hechas = new Set<string>();
     private enMarcha = false;
+    private interrumpida = false; // ORD1114Q
 
     constructor(private readonly d: DepsActor) {}
 
@@ -145,6 +146,17 @@ export class ActorBanco {
         this.armado = { con: con.toLowerCase(), hasta: this.d.ahora() + h * 3_600_000, restantes: Math.max(1, Math.min(200, Math.floor(llamadas))) };
         this.d.marcar(`armada con=${this.armado.con} hasta=${isoSinMs(this.armado.hasta)} restantes=${this.armado.restantes}`, null);
         return true;
+    }
+
+    /**
+     * (ORD1114Q) Una persona contestó o colgó a mano (en la Mac o, dicho por su puerta, en la tableta): la serie
+     * se para, lo dice y NO toca la llamada de esa persona.
+     */
+    intervencion(que: string, donde: "mac" | "tableta"): void {
+        if (!this.armado) return;
+        this.interrumpida = true;
+        this.d.marcar(`a-mano que=${/^[a-z-]{1,24}$/.test(que) ? que : "?"} donde=${donde}`, null);
+        this.apagar("a-mano");
     }
 
     apagar(motivo: string): void {
@@ -179,6 +191,7 @@ export class ActorBanco {
             return "caducada";
         }
         this.enMarcha = true;
+        this.interrumpida = false;
         try {
             return await this.llamada(orden, k, r?.calma);
         } finally {
@@ -197,12 +210,25 @@ export class ActorBanco {
 
     private async llamada(o: OrdenBanco, k: string, calma: unknown): Promise<string> {
         const tab = this.d.tableta(o.para);
+        // ORD1114Q: la tableta dice «a-mano» (alguien contestó/colgó allí) → la serie para y lo dice.
+        const aMano = (r: RespuestaOrden | null): boolean => {
+            if (r && !r.ok && r.motivo === "a-mano") {
+                const que = (r.resultado as { que?: unknown } | undefined)?.que;
+                this.intervencion(typeof que === "string" ? que : "a-mano", "tableta");
+            }
+            return this.interrumpida;
+        };
+        const finPersona = (desde: number) => {
+            this.d.marcar(`fin ${k} cuelga=persona dur_s=${Math.round((this.d.ahora() - desde) / 1000)}`, o.para);
+            return "a-mano";
+        };
         const rechaza = (m: string) => {
             this.d.marcar(`rechaza ${k} motivo=${motivoBanco(m)}`, o.para);
             return `rechazada:${m}`;
         };
         // La tableta lista: sesión abierta y sin otra llamada (lee su estado: nivel «ver»).
         const est = await tab.orden("leer-estado");
+        if (aMano(est)) return "a-mano";
         if (!est.ok) return rechaza(est.motivo);
         if ((est.resultado as { llamada?: unknown } | undefined)?.llamada) return rechaza("otra-llamada");
 
@@ -219,6 +245,7 @@ export class ActorBanco {
         let contesto: RespuestaOrden | null = null;
         while (this.d.ahora() - t0 < ESPERA_CONTESTA_MS) {
             contesto = await tab.orden("contestar", { camara: o.tipo === "video", banco: { esc: o.escenario, serie: o.serie, n: o.n } });
+            if (aMano(contesto)) return finPersona(t0);
             if (contesto.ok || contesto.motivo !== "sin-timbre") break;
             await this.d.dormir(2000);
         }
@@ -238,9 +265,12 @@ export class ActorBanco {
         for (const p of pasos) {
             const espera = tc + p.t_s * 1000 - this.d.ahora();
             if (espera > 0) await this.d.dormir(espera);
+            if (this.interrumpida) return finPersona(tc);
             const { nombre, args } = ordenDePaso(p.accion);
             if (p.quien === "mac" || p.quien === "ambos") await this.d.local(nombre, args).catch(() => undefined);
-            if (p.quien === "tableta" || p.quien === "ambos") await tab.orden(nombre, args);
+            if (p.quien === "tableta" || p.quien === "ambos") {
+                if (aMano(await tab.orden(nombre, args))) return finPersona(tc);
+            }
             if (p.accion === "colgar") {
                 cuelga = p.quien === "tableta" ? "tableta" : "mac";
                 break;
@@ -249,6 +279,7 @@ export class ActorBanco {
         if (!cuelga) {
             const espera = tc + o.dur_s * 1000 - this.d.ahora();
             if (espera > 0) await this.d.dormir(espera);
+            if (this.interrumpida) return finPersona(tc);
             await this.d.local("colgar", {}).catch(() => undefined);
             cuelga = "mac";
         }

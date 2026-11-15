@@ -43,6 +43,7 @@ export async function ejecutarEnApp(nombre: string, args: Args, ctx: { cuentaPro
             const { conversacionDeNeurona } = await import("@/lib/mensajeria/neuronas/agrupar");
             const { llamarANeurona } = await import("@/lib/mensajeria/neuronas/llamadas-neurona");
             const conversacion = conversacionDeNeurona({ id: String(args.neurona), name: "Neurona" });
+            (await import("@/lib/banco-llamadas/a-mano")).vigiaMano.esperar("llamar", Date.now()); // ORD1114Q
             const r = await llamarANeurona({ conversacion, tipo: args.tipo === "audio" ? "audio" : "video" } as Parameters<typeof llamarANeurona>[0]);
             return r;
         }
@@ -54,6 +55,7 @@ export async function ejecutarEnApp(nombre: string, args: Args, ctx: { cuentaPro
             if (!t) throw new Error("sin-timbre");
             if (await mediosNegados(args.camara === true)) throw new Error("falta-permiso");
             const { aceptarTimbre } = await import("@/lib/llamadas/acciones");
+            (await import("@/lib/banco-llamadas/a-mano")).vigiaMano.esperar("contestar", Date.now()); // ORD1114Q
             await aceptarTimbre(t, { camara: args.camara === true });
             const b = args.banco as { esc: string; serie: string; n: number } | undefined;
             if (b) {
@@ -66,6 +68,7 @@ export async function ejecutarEnApp(nombre: string, args: Args, ctx: { cuentaPro
             const e = await llamadas();
             if (!e.activa) throw new Error("sin-llamada");
             const { colgarLlamada } = await import("@/lib/llamadas/acciones");
+            (await import("@/lib/banco-llamadas/a-mano")).vigiaMano.esperar("colgar", Date.now()); // ORD1114Q
             colgarLlamada("orden");
             return { colgada: true };
         }

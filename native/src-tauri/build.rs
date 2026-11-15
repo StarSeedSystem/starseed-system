@@ -142,6 +142,12 @@ const COMANDOS_APP: &[&str] = &[
     "llamada_nativa_recientes",
     "llamada_silencios_sincronizar",
     "llamada_timbre_firmar",
+    // ORD1114Q: control entre mis neuronas (sesión, orden, anotar, parar y estado; lado nativo).
+    "control_neuronas_abrir",
+    "control_neuronas_orden",
+    "control_neuronas_anotar",
+    "control_neuronas_parar",
+    "control_neuronas_estado",
     // (PTA1108B) Proxy de la puerta de internet para el webview y las descargas de Rust.
     "puerta_proxy_local",
     "puerta_proxy_estado",

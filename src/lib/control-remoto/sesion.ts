@@ -20,11 +20,22 @@
  * Cada orden, aceptada o no, deja una línea `orden <acción> de=<8> nivel=<n> resultado=<…>`.
  * Revocar (un toque) cierra la sesión y APAGA el permiso: lo siguiente es «permiso-apagado».
  *
+ * ORD1114Q (§1 D y H, §2.2, §2.4):
+ *  · Lo que llega por el canal se abre con `recibirSellado`: un cuerpo en claro («sin-sellar») o un sello
+ *    roto («sellado-roto») se rechazan sin ejecutar nada.
+ *  · La sesión es la del lado NATIVO (`nativo.ts`): sin indicador nativo posible, «sin-indicador-nativo»;
+ *    abrir pide a Rust el token (Rust pone el indicador); antes de ejecutar CADA orden Rust da el visto
+ *    bueno y la anota; si Rust ya paró (indicador, caducidad), «parada-nativa» y la sesión se cierra aquí.
+ *  · Si la persona contesta o cuelga a mano durante una sesión (`intervencionLocal`), la sesión se para
+ *    en Rust y la orden siguiente recibe «a-mano» (el banco de llamadas para su serie y lo dice).
+ *
  * Pura salvo lo inyectado (reloj, WebCrypto, almacén, ejecutor, registro, azar). Nunca lanza hacia fuera.
  */
 
 import { leerOrden, verificarFirma, huellaDeSpki, DESFASE_MAX_MS, VIDA_ORDEN_MS, type CargaOrden, type RespuestaOrden } from "./orden";
 import { capacidadesDeNivel, definicion, nivelMinimo, rangoNivel, NIVELES_CONCEDIBLES_FASE1, type Args, type Nivel } from "./niveles";
+import type { PuenteNativoControl } from "./nativo"; // ORD1114Q
+import { abrirOrden, type AbrirSobre } from "./sellado"; // ORD1114Q
 
 export const SESION_MAX_MS = 60 * 60_000;
 export const SESION_INACTIVA_MS = 2 * 60_000;
@@ -77,6 +88,10 @@ export interface DepsPuerta {
     azarHex: () => string;
     /** Avisa a la interfaz (banda) de que cambió la sesión o el permiso. */
     alCambiar?: () => void;
+    /** (ORD1114Q) El lado nativo: sesión, indicador, parada y registro encadenado. */
+    nativo: PuenteNativoControl;
+    /** (ORD1114Q) Cómo abrir un sobre v:3 con la privada de cifrado de ESTA neurona. */
+    abrirSobre?: AbrirSobre;
 }
 
 const MAX_NONCES = 2000;
@@ -87,6 +102,8 @@ export class PuertaControl {
     private nonces: string[] = [];
     private noncesSet = new Set<string>();
     private marcas = new Map<string, number[]>();
+    /** (ORD1114Q) Una persona contestó o colgó a mano: la orden siguiente lo sabe («a-mano»). */
+    private aMano: string | null = null;
 
     constructor(private readonly d: DepsPuerta) {}
 
@@ -99,10 +116,32 @@ export class PuertaControl {
     revocar(motivo = "revocado"): void {
         const s = this.sesion;
         this.sesion = null;
+        void this.d.nativo.parar(motivo).catch(() => undefined); // ORD1114Q
         const p = this.d.leerPermiso();
         this.d.guardarPermiso({ ...p, encendido: false });
         this.d.anotar(`orden revocar de=${s ? s.de.slice(0, 8) : "-"} nivel=- resultado=${motivo}`);
         this.d.alCambiar?.();
+    }
+
+    /** (ORD1114Q) Rust paró la sesión (indicador, caducidad): aquí también se cierra. */
+    paradaNativa(motivo: string): void {
+        const s = this.sesion;
+        if (!s) return;
+        this.sesion = null;
+        this.d.anotar(`orden cerrar-sesion de=${s.de.slice(0, 8)} nivel=${s.nivel} resultado=parada-nativa:${/^[a-z-]{1,40}$/.test(motivo) ? motivo : "parada"}`);
+        this.d.alCambiar?.();
+    }
+
+    /** (ORD1114Q) La persona contestó/colgó a mano en ESTE aparato: se para la sesión y se avisa a quien manda. */
+    intervencionLocal(que: string): void {
+        const s = this.sesion;
+        this.aMano = /^[a-z-]{1,24}$/.test(que) ? que : "a-mano";
+        if (s) {
+            this.sesion = null;
+            void this.d.nativo.parar("a-mano").catch(() => undefined);
+            this.d.anotar(`orden cerrar-sesion de=${s.de.slice(0, 8)} nivel=${s.nivel} resultado=a-mano:${this.aMano}`);
+            this.d.alCambiar?.();
+        }
     }
 
     private caducarSesion(): void {
@@ -120,6 +159,7 @@ export class PuertaControl {
         const marca = nombre && /^[a-z-]{1,24}$/.test(nombre) ? nombre : "?";
         const sim = definicion(nombre)?.simulacion ? " SIMULACION" : "";
         this.d.anotar(`orden ${marca} de=${de ? de.slice(0, 8) : "-"} nivel=${nivel} resultado=${ok ? "ok" : `rechazo:${motivo}`}${sim}`);
+        if (!ok) this.d.nativo.anotar(marca, de, `rechazo:${motivo}`); // ORD1114Q: también en el registro encadenado
         return { tipo: "respuesta", nonce, ok, motivo, ...(resultado !== undefined ? { resultado } : {}) };
     }
 
@@ -142,7 +182,18 @@ export class PuertaControl {
         if (this.nonces.length > MAX_NONCES) this.noncesSet.delete(this.nonces.shift() as string);
     }
 
-    /** Recibe una orden firmada (lo que llegó por el canal) y devuelve la respuesta. Nunca lanza. */
+    /**
+     * (ORD1114Q) Lo que llegó por el canal: SOLO una orden sellada para esta neurona. Devuelve la respuesta y
+     * la clave de un solo uso para sellarla (null si no se pudo abrir: entonces no se contesta). Nunca lanza.
+     */
+    async recibirSellado(msg: unknown): Promise<{ respuesta: RespuestaOrden; kr: Uint8Array | null; orden: unknown }> {
+        const abrir = this.d.abrirSobre;
+        const a = abrir ? await abrirOrden(msg, abrir) : ({ ok: false, motivo: "sellado-roto" } as const);
+        if (!a.ok) return { respuesta: this.respuesta("", false, a.motivo, "", "", "-"), kr: null, orden: null };
+        return { respuesta: await this.recibir(a.orden), kr: a.kr, orden: a.orden };
+    }
+
+    /** Recibe una orden firmada (ya abierta del sello) y devuelve la respuesta. Nunca lanza. */
     async recibir(sobre: unknown): Promise<RespuestaOrden> {
         try {
             return await this.recibirSinGuarda(sobre);
@@ -162,6 +213,8 @@ export class PuertaControl {
         if (nombre === "presentarse") return this.presentarse(o);
 
         if (!permiso.encendido) return this.respuesta(c.nonce, false, "permiso-apagado", nombre, c.de, c.nivel);
+        // ORD1114Q: sin indicador nativo posible no hay control (§2.4).
+        if (!this.d.nativo.disponible()) return this.respuesta(c.nonce, false, "sin-indicador-nativo", nombre, c.de, c.nivel);
         const cuenta = this.d.cuentaPropia();
         if (!cuenta || c.cuenta.trim().toLowerCase() !== cuenta.trim().toLowerCase()) return this.respuesta(c.nonce, false, "otra-cuenta", nombre, c.de, c.nivel);
         const ctl = permiso.controladores.find((x) => x.huella === c.de);
@@ -191,11 +244,21 @@ export class PuertaControl {
             return this.respuesta(c.nonce, false, "nivel", nombre, c.de, c.nivel);
         }
 
+        // ORD1114Q: una intervención a mano se dice UNA vez a quien manda (su serie para), y luego nada más.
+        if (this.aMano) {
+            const que = this.aMano;
+            this.aMano = null;
+            return this.respuesta(c.nonce, false, "a-mano", nombre, c.de, c.nivel, { que });
+        }
+
         if (nombre === "abrir-sesion") {
             this.caducarSesion();
             if (this.sesion && this.sesion.de !== c.de) return this.respuesta(c.nonce, false, "otra-sesion", nombre, c.de, c.nivel);
             const nivel = nivelMinimo(c.nivel, concedido);
-            this.sesion = { token: this.d.azarHex(), de: c.de, nombre: ctl.nombre, nivel, inicio: ahora, ultima: ahora };
+            // ORD1114Q: la sesión la abre Rust (pone el indicador o se niega) y su token es el de Rust.
+            const n = await this.d.nativo.abrir(c.de, ctl.nombre, nivel);
+            if (!n.ok || !n.token) return this.respuesta(c.nonce, false, n.motivo ?? "sin-indicador-nativo", nombre, c.de, c.nivel);
+            this.sesion = { token: n.token, de: c.de, nombre: ctl.nombre, nivel, inicio: ahora, ultima: ahora };
             this.d.alCambiar?.();
             return this.respuesta(c.nonce, true, "ok", nombre, c.de, nivel, {
                 sesion: this.sesion.token,
@@ -213,8 +276,16 @@ export class PuertaControl {
 
         if (nombre === "cerrar-sesion") {
             this.sesion = null;
+            await this.d.nativo.parar("cerrar-sesion").catch(() => undefined); // ORD1114Q
             this.d.alCambiar?.();
             return this.respuesta(c.nonce, true, "ok", nombre, c.de, s.nivel);
+        }
+        // ORD1114Q: Rust da el visto bueno y la anota; si paró (indicador, caducidad), aquí también se cierra.
+        const visto = await this.d.nativo.orden(s.token, nombre);
+        if (!visto.ok) {
+            if (this.sesion === s) this.sesion = null;
+            this.d.alCambiar?.();
+            return this.respuesta(c.nonce, false, visto.motivo === "sin-indicador-nativo" ? "sin-indicador-nativo" : "parada-nativa", nombre, c.de, s.nivel);
         }
         try {
             const r = await this.d.ejecutar(nombre, args, c);

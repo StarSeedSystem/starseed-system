@@ -8,13 +8,18 @@
  * aparato con una build sin este canal no tiene oyente: la orden se queda sin respuesta («sin-respuesta»)
  * y nada más cambia en él.
  *
- * Lo que este archivo NO hace (y dice el informe): no sella el cuerpo extremo a extremo (`CanalSellado`)
- * ni pone el indicador, la parada y el registro encadenado en Rust/Kotlin: eso es trabajo nativo.
+ * ORD1114Q: el cuerpo viaja SELLADO de punta a punta (`sellado.ts`, la capa de `CanalSellado`): la orden
+ * dentro de un sobre v:3 para la pública de cifrado de la neurona destino y la respuesta con la clave de un
+ * solo uso que trajo la orden. Sin clave del destino no se manda nada (nunca en claro). `enviarMensaje` elige
+ * el mejor enlace vivo (P2P directo primero); el relé solo ve cuerpos sellados. La sesión, el indicador, la
+ * parada y el registro encadenado son del lado nativo (`nativo.ts`).
  */
 
 import { CANAL_CONTROL, AUD_CONTROL, VIDA_ORDEN_MS, esRespuesta, leerOrden, type RespuestaOrden } from "./orden";
 import { PuertaControl, sanearPermiso, type PermisoControl } from "./sesion";
 import type { Args, Nivel } from "./niveles";
+import { abrirRespuesta, esRespuestaSellada, sellarOrden, sellarRespuesta } from "./sellado"; // ORD1114Q
+import { alPararNativo, puenteNativoControl } from "./nativo"; // ORD1114Q
 
 export const CLAVE_PERMISO = "starseed.control-neuronas.v1";
 export const ESPERA_RESPUESTA_MS = 15_000;
@@ -91,7 +96,10 @@ function anotar(linea: string): void {
 
 let puerta: PuertaControl | null = null;
 let quitarOyente: (() => void) | null = null;
-const esperando = new Map<string, (r: RespuestaOrden) => void>();
+let quitarParada: (() => void) | null = null; // ORD1114Q
+let quitarVigia: (() => void) | null = null; // ORD1114Q
+/** nonce → (clave de respuesta, quién la espera). Solo se acepta la respuesta sellada con esa clave. */
+const esperando = new Map<string, { kr: Uint8Array; resolver: (r: RespuestaOrden) => void }>();
 
 /** La puerta de este aparato (para la banda: sesión activa y revocar). */
 export function puertaControl(): PuertaControl | null {
@@ -103,6 +111,8 @@ export async function iniciarCanalControl(): Promise<void> {
     if (puerta || typeof window === "undefined" || !globalThis.crypto?.subtle) return;
     await refrescarCuenta();
     const yo = await neuronaPropia();
+    const nativo = await puenteNativoControl(); // ORD1114Q
+    const { decryptEnvelopeFor } = await import("@/ai/astraura/mesh/recipient-crypto");
     puerta = new PuertaControl({
         subtle: crypto.subtle,
         ahora: () => Date.now(),
@@ -117,26 +127,44 @@ export async function iniciarCanalControl(): Promise<void> {
         anotar,
         azarHex: () => azarHex(16),
         alCambiar: avisarCambio,
+        nativo,
+        abrirSobre: decryptEnvelopeFor,
     });
+    // ORD1114Q: la parada de Rust (indicador, caducidad) cierra también la sesión de la página.
+    quitarParada = await alPararNativo((motivo) => puerta?.paradaNativa(motivo));
+    // ORD1114Q: si la persona contesta o cuelga a mano durante una sesión, se para y quien manda lo sabe.
+    if (nativo.disponible()) {
+        const { vigilarLlamadas } = await import("@/lib/banco-llamadas/a-mano");
+        quitarVigia = vigilarLlamadas((que) => {
+            if (puerta?.sesionActiva()) puerta.intervencionLocal(que);
+        });
+    }
     const t = await import("@/lib/malla/transporte-universal");
     quitarOyente = t.alRecibirMensaje(CANAL_CONTROL, (m) => {
         const cuerpo = m.cuerpo;
-        if (esRespuesta(cuerpo)) {
-            esperando.get(cuerpo.nonce)?.(cuerpo);
-            esperando.delete(cuerpo.nonce);
+        if (esRespuestaSellada(cuerpo)) {
+            const e = esperando.get(cuerpo.n);
+            if (!e) return;
+            void abrirRespuesta(cuerpo, e.kr, cuerpo.n).then((r) => {
+                if (!r) return; // manipulada o de otra clave: se ignora (la espera acaba en «sin-respuesta»)
+                esperando.delete(cuerpo.n);
+                e.resolver(r);
+            });
             return;
         }
+        if (esRespuesta(cuerpo)) return; // ORD1114Q: una respuesta en claro ya no vale (la pudo escribir un relé)
         void (async () => {
-            const o = leerOrden(cuerpo);
-            const r = await puerta!.recibir(cuerpo);
-            if (!o) return; // sin forma no se sabe a quién contestar
+            const { respuesta: r, kr, orden } = await puerta!.recibirSellado(cuerpo);
+            const o = leerOrden(orden);
+            if (!o || !kr) return; // en claro, sello roto o sin forma: no se contesta (ya quedó en el registro)
             // Se contesta a la neurona fijada por el dueño (o a la que se presenta): nunca a quien diga el sobre.
             const p = leerPermisoLocal();
             const ctl = [...p.controladores, ...p.pendientes].find((x) => x.huella === o.carga.de);
             const a = o.carga.accion.args;
             const destino = ctl?.neurona ?? (o.carga.accion.nombre === "presentarse" && typeof a.neurona === "string" ? a.neurona : null);
             if (!destino) return;
-            await t.enviarMensaje({ neuronDeviceId: destino }, CANAL_CONTROL, r).catch(() => undefined);
+            const sellada = await sellarRespuesta(r, kr);
+            if (sellada) await t.enviarMensaje({ neuronDeviceId: destino }, CANAL_CONTROL, sellada).catch(() => undefined);
         })();
     });
 }
@@ -144,6 +172,10 @@ export async function iniciarCanalControl(): Promise<void> {
 export function pararCanalControl(): void {
     quitarOyente?.();
     quitarOyente = null;
+    quitarParada?.();
+    quitarParada = null;
+    quitarVigia?.();
+    quitarVigia = null;
     puerta = null;
 }
 
@@ -182,14 +214,19 @@ export async function mandarOrden(para: string, nombre: string, args: Args = {},
             { cuenta },
         );
         const sobre = { v: 1 as const, carga: firmada.carga, firma: firmada.firma };
+        // ORD1114Q: sellada para la pública de cifrado del destino; sin ella no sale nada (nunca en claro).
+        const [{ destinatariosReales }, { encryptEnvelopeFor }] = await Promise.all([import("@/lib/malla/archivo-seguro-real"), import("@/ai/astraura/mesh/recipient-crypto")]);
+        const pub = (await destinatariosReales([para]))[0]?.pub ?? null;
+        const sellado = await sellarOrden(sobre, pub, encryptEnvelopeFor);
+        if (!sellado) return { tipo: "respuesta", nonce: n, ok: false, motivo: "sin-clave-cifrado" };
         const respuesta = new Promise<RespuestaOrden>((resolver) => {
-            esperando.set(n, resolver);
+            esperando.set(n, { kr: sellado.kr, resolver });
             setTimeout(() => {
                 if (esperando.delete(n)) resolver({ tipo: "respuesta", nonce: n, ok: false, motivo: "sin-respuesta" });
             }, o.esperaMs ?? ESPERA_RESPUESTA_MS);
         });
         const t = await import("@/lib/malla/transporte-universal");
-        const env = await t.enviarMensaje({ neuronDeviceId: para }, CANAL_CONTROL, sobre);
+        const env = await t.enviarMensaje({ neuronDeviceId: para }, CANAL_CONTROL, sellado.mensaje);
         if (!env.ok) {
             esperando.delete(n);
             return { tipo: "respuesta", nonce: n, ok: false, motivo: "sin-enlace" };

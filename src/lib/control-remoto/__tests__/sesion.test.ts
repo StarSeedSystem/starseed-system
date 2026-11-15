@@ -78,6 +78,14 @@ async function nuevaPuerta(cuentaPropia = CUENTA) {
         },
         anotar: (l) => lineas.push(l),
         azarHex: () => (++n).toString(16).padStart(32, "0"),
+        // ORD1114Q: lado nativo falso con indicador (la sesión y su token salen de «Rust»).
+        nativo: {
+            disponible: () => true,
+            abrir: async () => ({ ok: true, token: (++n).toString(16).padStart(32, "0") }),
+            orden: async () => ({ ok: true }),
+            anotar: () => undefined,
+            parar: async () => undefined,
+        },
     });
 }
 

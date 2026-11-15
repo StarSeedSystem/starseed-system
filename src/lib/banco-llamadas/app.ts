@@ -7,6 +7,7 @@ import { EVENTO_CAMBIO, SesionHacia } from "@/lib/control-remoto/canal";
 
 let actor: ActorBanco | null = null;
 let reloj: ReturnType<typeof setInterval> | null = null;
+let dejarDeVigilar: (() => void) | null = null; // ORD1114Q
 const sesiones = new Map<string, SesionHacia>();
 
 function avisar(): void {
@@ -54,6 +55,16 @@ export function estadoBanco() {
 export function armarBanco(tableta: string, horas?: number, llamadas?: number): boolean {
     if (!actor) actor = crear();
     const ok = actor.armar(tableta, horas, llamadas);
+    // ORD1114Q: si alguien contesta o cuelga a mano EN LA MAC durante la serie, la serie para y lo dice.
+    if (ok && !dejarDeVigilar) {
+        void import("./a-mano").then((m) => {
+            if (dejarDeVigilar || !actor?.estado()) return;
+            dejarDeVigilar = m.vigilarLlamadas((que) => {
+                actor?.intervencion(que, "mac");
+                apagarBanco("a-mano");
+            });
+        });
+    }
     if (ok && !reloj) {
         reloj = setInterval(() => {
             void actor?.vuelta().then((r) => {
@@ -67,6 +78,8 @@ export function armarBanco(tableta: string, horas?: number, llamadas?: number): 
 
 export function apagarBanco(motivo = "apagar"): void {
     actor?.apagar(motivo);
+    dejarDeVigilar?.(); // ORD1114Q
+    dejarDeVigilar = null;
     if (reloj) clearInterval(reloj);
     reloj = null;
     for (const s of sesiones.values()) void s.cerrar().catch(() => undefined);
