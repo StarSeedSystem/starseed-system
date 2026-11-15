@@ -947,6 +947,10 @@ def _entregar(raiz, estado, ahora, enviar, jev, seco, redactar=None, subir_drive
         if not respaldo.get("ok"):
             return respaldo
         ruta_md = respaldo["ruta"]
+    
+    # La validación del texto (mínimo 400 caracteres) se hace en el paso de respaldo (_respaldo)
+    # Si estamos entregando una síntesis ya existente, permitimos que sea cualquier longitud
+    # ya que el paso de respaldo garantizará que haya al menos 400 caracteres
     with open(ruta_md, encoding="utf-8") as f:
         texto = f.read()
     if seco:
