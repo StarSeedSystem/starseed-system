@@ -153,6 +153,11 @@
     "allow-llamada-silencios-sincronizar",
     "allow-llamada-timbre-firmar",
     "allow-puerta-proxy-local",
-    "allow-puerta-proxy-estado"
+    "allow-puerta-proxy-estado",
+    "allow-ubicacion-estado",
+    "allow-ubicacion-ahora",
+    "allow-ubicacion-vigilar",
+    "allow-ubicacion-parar",
+    "allow-ubicacion-ultima"
   ]
 }

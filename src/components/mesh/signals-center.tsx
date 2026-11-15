@@ -12,6 +12,7 @@
  * de verdad o es solo informativa (Wi-Fi/celular/telefonía). SSR-safe.
  */
 
+import { fuenteGeolocalizacion, motivoParaAviso } from "@/lib/senales/geo/fuente-posicion";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
@@ -280,13 +281,15 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
         toast.success("Conectando la malla…");
       } else if (sig.kind === "gps") {
         await new Promise<void>((resolve) => {
-          navigator.geolocation.getCurrentPosition(
+          const geo = fuenteGeolocalizacion();
+          if (!geo) { toast.error("Este aparato no expone la ubicación"); resolve(); return; }
+          geo.getCurrentPosition(
             (pos) => {
               const ok = setNeuronPosition(pos.coords.latitude, pos.coords.longitude);
               toast.success(ok ? "Ubicación fijada en esta neurona" : "Ubicación obtenida (conecta un radio para situarla en el radar)");
               resolve();
             },
-            () => { toast.error("No se pudo obtener la ubicación"); resolve(); },
+            (e) => { toast.error(`No se pudo obtener la ubicación: ${motivoParaAviso(e)}`); resolve(); },
             { enableHighAccuracy: true, timeout: 8000 },
           );
         });

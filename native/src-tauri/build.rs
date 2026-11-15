@@ -23,6 +23,9 @@ mod llamada_nativa_parche;
 // (PTA1108B) El proxy de la puerta de internet en Android: proveedor, ProxyPuertaStarSeed.kt y androidx.webkit.
 #[path = "src/puerta_proxy_parche.rs"]
 mod puerta_proxy_parche;
+// (UBI1114K) La ubicación del aparato en Android: permisos, proveedor y UbicacionStarSeed.kt.
+#[path = "src/ubicacion_parche.rs"]
+mod ubicacion_parche;
 
 /// Comandos propios de la app (los de `generate_handler!` de src/lib.rs). Desde tauri 2.11.1 una
 /// página de un origen REMOTO (la web publicada, y también el servidor local http://127.0.0.1:47610…)
@@ -142,6 +145,12 @@ const COMANDOS_APP: &[&str] = &[
     // (PTA1108B) Proxy de la puerta de internet para el webview y las descargas de Rust.
     "puerta_proxy_local",
     "puerta_proxy_estado",
+    // (UBI1114K) Ubicación del aparato: estado, una medida, vigilar, parar y lo último medido.
+    "ubicacion_estado",
+    "ubicacion_ahora",
+    "ubicacion_vigilar",
+    "ubicacion_parar",
+    "ubicacion_ultima",
     // Solo escritorio (su permiso existe en todas, pero solo se registran en escritorio).
     "ventanas_prestables",
     "capturar_ventana",
@@ -180,6 +189,7 @@ fn main() {
     enlace_wifi_android(); // (WFD1108A)
     llamadas_nativas_android(); // (LLA1108D)
     proxy_puerta_android(); // (PTA1108B)
+    ubicacion_android(); // (UBI1114K) ANTES que el Bluetooth: su bloque declara la ubicación fina sin tope de versión.
     // (BLE1108A) Siempre el último: su bloque del manifiesto va detrás de los otros (mismo orden, mismo archivo).
     bluetooth_android();
     tauri_build::try_build(
@@ -469,5 +479,37 @@ fn proxy_puerta_android() {
         }
         // Falla en alto: un APK que dice llevar el navegador por la malla y no trae ni la dependencia sería una ilusión.
         Err(e) => panic!("[starseed] No se pudo inyectar el proxy de la puerta en Android: {e}. Para compilar sin él: STARSEED_SIN_PROXY_PUERTA=1"),
+    }
+}
+
+/// (UBI1114K) Permisos de ubicación, proveedor y UbicacionStarSeed.kt en el proyecto Android. Solo StarSeed OS.
+fn ubicacion_android() {
+    println!("cargo:rerun-if-changed=src/ubicacion_parche.rs");
+    println!("cargo:rerun-if-env-changed=STARSEED_SIN_UBICACION_ANDROID");
+    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() != Ok("android") {
+        return;
+    }
+    let paquete = std::env::var("TAURI_ANDROID_PACKAGE_UNESCAPED")
+        .or_else(|_| std::env::var("WRY_ANDROID_PACKAGE"))
+        .unwrap_or_default();
+    let apagado = ubicacion_parche::apagado(std::env::var("STARSEED_SIN_UBICACION_ANDROID").ok().as_deref());
+    if apagado || !ubicacion_parche::aplica(&paquete) {
+        if apagado {
+            println!("cargo:warning=[starseed] STARSEED_SIN_UBICACION_ANDROID: el APK sale SIN ubicación nativa.");
+        }
+        return;
+    }
+    let Some(proyecto) = std::env::var_os("TAURI_ANDROID_PROJECT_PATH").map(std::path::PathBuf::from) else {
+        println!("cargo:warning=[starseed] Sin TAURI_ANDROID_PROJECT_PATH: el APK sale SIN ubicación nativa.");
+        return;
+    };
+    match ubicacion_parche::aplicar(&proyecto) {
+        Ok(cambiados) => {
+            for c in cambiados {
+                println!("cargo:warning=[starseed] Ubicación: escrito {}", c.display());
+            }
+        }
+        // Falla en alto: un APK que dice llevar ubicación nativa y no la lleva sería una ilusión.
+        Err(e) => panic!("[starseed] No se pudo inyectar la ubicación en Android: {e}. Para compilar sin ella: STARSEED_SIN_UBICACION_ANDROID=1"),
     }
 }
