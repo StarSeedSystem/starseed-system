@@ -104,6 +104,33 @@ pub struct EstadoControl {
     pub registro_roto_en: Option<usize>,
     /// (ORD1114V) El interruptor nativo «dejar que me controlen» de este aparato.
     pub interruptor: bool,
+    /// (IND1115F) El último «sin-indicador-nativo» de este aparato con lo que faltaba y en qué paso quedó.
+    pub ultimo_rechazo: Option<UltimoRechazo>,
+}
+
+/// (IND1115F) Por qué la última sesión se negó por falta de indicador (para el panel del aparato controlado).
+#[derive(Serialize, Clone, Debug, PartialEq)]
+pub struct UltimoRechazo {
+    pub hace_ms: u64,
+    pub falta: Vec<String>,
+    pub paso: String,
+    pub error: String,
+    pub tras_ms: u64,
+}
+
+static ULTIMO_RECHAZO: Mutex<Option<(u64, UltimoRechazo)>> = Mutex::new(None);
+
+#[allow(dead_code)] // IND1115F: lo usa el borde Android
+fn guardar_rechazo(falta: Vec<String>, paso: &str, error: &str, tras_ms: u64) {
+    let r = UltimoRechazo { hace_ms: 0, falta, paso: paso.into(), error: error.into(), tras_ms };
+    *ULTIMO_RECHAZO.lock().unwrap_or_else(|e| e.into_inner()) = Some((mono_ms(), r));
+}
+
+fn ultimo_rechazo() -> Option<UltimoRechazo> {
+    ULTIMO_RECHAZO.lock().unwrap_or_else(|e| e.into_inner()).clone().map(|(t, mut r)| {
+        r.hace_ms = mono_ms().saturating_sub(t);
+        r
+    })
 }
 
 fn estado(app: &AppHandle) -> EstadoControl {
@@ -122,6 +149,7 @@ fn estado(app: &AppHandle) -> EstadoControl {
         falta,
         registro_roto_en: roto,
         interruptor: int_encendido,
+        ultimo_rechazo: ultimo_rechazo(),
         activa: s.is_some(),
         de: s.map(|s| s.de.chars().take(8).collect()),
         nombre: s.map(|s| s.nombre.clone()),
@@ -145,7 +173,11 @@ fn exigir_pagina(app: &AppHandle, webview: &tauri::Webview) -> Result<(), String
 
 /// Abre la sesión de control (la pide la página al aceptar «abrir-sesion»). Pone el indicador ANTES de
 /// abrirla; si no puede, no hay sesión. Devuelve el token que la página pondrá en cada orden.
-#[tauri::command]
+/// IND1115F: en Android el comando es `async` (corre en el grupo de hilos de Tauri, no en el hilo que atiende la
+/// página) porque espera hasta 4 s el latido de Kotlin; un comando síncrono bloquearía ese hilo todo ese tiempo.
+/// El rechazo por falta de indicador lleva el detalle tras el código: «sin-indicador-nativo falta=… paso=… tras=…».
+#[cfg_attr(target_os = "android", tauri::command(async))]
+#[cfg_attr(not(target_os = "android"), tauri::command)]
 pub fn control_neuronas_abrir(app: AppHandle, webview: tauri::Webview, de: String, nombre: String, nivel: String) -> Result<String, String> {
     exigir_pagina(&app, &webview)?;
     // ORD1114T: una cadena rota se DETECTA y queda dicha en la propia cadena (y en el estado); no se tapa.
@@ -159,11 +191,26 @@ pub fn control_neuronas_abrir(app: AppHandle, webview: tauri::Webview, de: Strin
         // ORD1114T: en Android se PIDE a Kotlin el diálogo nativo (la persona decide allí; nada se enciende solo).
         pedir_preparar(&app);
     }
-    let visible = int.encendido && posible && poner_indicador(&app, &l::nombre_limpio(&nombre)).is_ok();
+    // IND1115F: con el detalle de por qué no (solo Android lo tiene; en el resto queda vacío).
+    let mut detalle = String::new();
+    let visible = int.encendido
+        && if posible {
+            match poner_indicador(&app, &l::nombre_limpio(&nombre)) {
+                Ok(()) => true,
+                Err(d) => {
+                    detalle = d;
+                    false
+                }
+            }
+        } else {
+            detalle = detalle_sin_permisos(&app);
+            false
+        };
     let token = token_nuevo();
     let r = control().abrir_con_interruptor(&int, &token, &de, &nombre, &nivel, mono_ms(), visible).map(|s| (s.de.chars().take(8).collect::<String>(), s.nivel.clone()));
     match r {
         Ok((de8, nivel)) => {
+            *ULTIMO_RECHAZO.lock().unwrap_or_else(|e| e.into_inner()) = None; // IND1115F: ya no hay nada que explicar
             anotar(&app, "sesion-abierta", &format!("de={de8} nivel={nivel}"));
             Ok(token)
         }
@@ -171,8 +218,13 @@ pub fn control_neuronas_abrir(app: AppHandle, webview: tauri::Webview, de: Strin
             if control().activa().is_none() {
                 quitar_indicador(&app);
             }
-            anotar(&app, "sesion-rechazada", &format!("de={} motivo={}", de.chars().take(8).collect::<String>(), e.codigo()));
-            Err(e.codigo().into())
+            let sin_indicador = e.codigo() == "sin-indicador-nativo" && !detalle.is_empty();
+            anotar(
+                &app,
+                "sesion-rechazada",
+                &format!("de={} motivo={}{}", de.chars().take(8).collect::<String>(), e.codigo(), if sin_indicador { format!(" {detalle}") } else { String::new() }),
+            );
+            Err(if sin_indicador { format!("{} {detalle}", e.codigo()) } else { e.codigo().into() })
         }
     }
 }
@@ -233,8 +285,9 @@ pub fn control_neuronas_estado(app: AppHandle) -> EstadoControl {
 /// después pide los permisos con los diálogos del sistema.
 #[cfg(desktop)]
 #[tauri::command]
-pub async fn control_neuronas_preparar(app: AppHandle, webview: tauri::Webview) -> Result<EstadoControl, String> {
+pub async fn control_neuronas_preparar(app: AppHandle, webview: tauri::Webview, que: Option<String>) -> Result<EstadoControl, String> {
     exigir_pagina(&app, &webview)?;
+    let _ = que; // IND1115F: el botón por cada cosa que falta solo existe en Android
     static PREGUNTANDO: AtomicBool = AtomicBool::new(false);
     let mut i = interruptor(&app);
     // Sin indicador posible (Windows/Linux) encenderlo no daría control: no se pregunta.
@@ -257,9 +310,14 @@ pub async fn control_neuronas_preparar(app: AppHandle, webview: tauri::Webview) 
 
 #[cfg(not(desktop))]
 #[tauri::command]
-pub fn control_neuronas_preparar(app: AppHandle, webview: tauri::Webview) -> Result<EstadoControl, String> {
+pub fn control_neuronas_preparar(app: AppHandle, webview: tauri::Webview, que: Option<String>) -> Result<EstadoControl, String> {
     exigir_pagina(&app, &webview)?;
-    pedir_preparar(&app);
+    // IND1115F: `que` = interruptor | notificaciones | superposicion: un botón del panel abre YA ese diálogo o esa
+    // pantalla de Ajustes (sin esperar a la pausa de 10 min del aviso automático). Sin `que`, como antes.
+    match que.as_deref() {
+        Some(q) if crate::control_neuronas_android::PEDIDOS.contains(&q) => pedir_cosa(&app, q),
+        _ => pedir_preparar(&app),
+    }
     Ok(estado(&app))
 }
 
@@ -485,6 +543,40 @@ fn pedir_preparar(app: &AppHandle) {
 #[cfg(not(target_os = "android"))]
 fn pedir_preparar(_app: &AppHandle) {}
 
+/// (IND1115F) Una cosa concreta de las que faltan, desde su botón: Kotlin abre el diálogo o la pantalla de Ajustes.
+#[cfg(target_os = "android")]
+fn pedir_cosa(app: &AppHandle, que: &str) {
+    let _ = crate::control_neuronas_android::es::pedir(app, &format!("pedir-{que}"), "", "");
+    anotar(app, "pedido-desde-el-panel", que);
+}
+
+#[cfg(not(target_os = "android"))]
+#[allow(dead_code)]
+fn pedir_cosa(_app: &AppHandle, _que: &str) {}
+
+/// (IND1115F) Sin los permisos no se intenta nada: se dice cuáles faltan (y queda para el panel y el registro).
+#[cfg(target_os = "android")]
+fn detalle_sin_permisos(app: &AppHandle) -> String {
+    use crate::control_neuronas_android as a;
+    let e = a::es::estado(app);
+    let r = a::espera_sin_permisos(e.as_ref());
+    guardar_rechazo(r.falta.clone(), &r.paso, "", 0);
+    diagnostico(&r, "permisos");
+    a::detalle_rechazo(&r)
+}
+
+#[cfg(not(target_os = "android"))]
+fn detalle_sin_permisos(_app: &AppHandle) -> String {
+    String::new()
+}
+
+/// (IND1115F) La línea nativa de cada intento, en el mismo registro que se espeja a la otra neurona.
+#[cfg(target_os = "android")]
+fn diagnostico(r: &crate::control_neuronas_android::Espera, pedir: &str) {
+    let hilo = std::thread::current().name().unwrap_or("sin-nombre").to_string();
+    crate::ble::nota(None, "control-indicador", &crate::control_neuronas_android::linea_diagnostico(pedir, &hilo, r));
+}
+
 #[cfg(desktop)]
 #[allow(dead_code)] // ORD1114T: lo usan macOS y Android, no Windows/Linux
 fn marcar_pausa_indicador(app: &AppHandle, pausada: bool) {
@@ -550,17 +642,21 @@ fn poner_indicador(app: &AppHandle, nombre: &str) -> Result<(), String> {
     *sesion_indicador() = Some(id.clone());
     if !a::es::pedir(app, "mostrar", &id, nombre) {
         *sesion_indicador() = None;
-        return Err("sin-indicador-nativo".into());
+        let r = a::Espera { paso: "peticion-no-escrita".into(), falta: a::es::estado(app).map(|e| e.falta).unwrap_or_default(), ..Default::default() };
+        guardar_rechazo(r.falta.clone(), &r.paso, "", 0);
+        diagnostico(&r, "mostrar");
+        return Err(a::detalle_rechazo(&r));
     }
-    // Kotlin confirma con su latido: hasta 4 s (arrancar el servicio y poner la superposición).
-    for _ in 0..40 {
-        std::thread::sleep(std::time::Duration::from_millis(100));
-        if a::visible(a::es::estado(app).as_ref(), &id, pared_ms()) {
-            return Ok(());
-        }
+    // Kotlin confirma con su latido: hasta 4 s (arrancar el servicio y poner la superposición), y antes si dice
+    // que no pudo. Aquí se duerme el hilo de este comando; Kotlin trabaja en el suyo (IND1115F).
+    let r = a::esperar(&id, 4_000, 100, || a::es::estado(app), |ms| std::thread::sleep(std::time::Duration::from_millis(ms)), pared_ms);
+    diagnostico(&r, "mostrar");
+    if r.visible {
+        return Ok(());
     }
+    guardar_rechazo(r.falta.clone(), &r.paso, &r.error, r.tras_ms);
     quitar_indicador(app);
-    Err("sin-indicador-nativo".into())
+    Err(a::detalle_rechazo(&r))
 }
 
 #[cfg(not(any(target_os = "macos", target_os = "android")))]

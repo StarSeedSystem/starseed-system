@@ -18,6 +18,8 @@ export interface RespuestaNativa {
     ok: boolean;
     token?: string;
     motivo?: string;
+    /** (IND1115F) Con «sin-indicador-nativo»: lo que falta y el paso en que quedó (`falta`, `paso`, `error`, `tras`, `motivo`). */
+    detalle?: Record<string, string>;
 }
 
 export interface PuenteNativoControl {
@@ -47,9 +49,23 @@ function invocador(): Invocar | null {
     return typeof t?.core?.invoke === "function" ? t.core.invoke : null;
 }
 
-function motivoDe(e: unknown): string {
+const RE_ERROR_NATIVO = /^([a-z-]{1,32})((?: [a-z]{1,12}=[a-z0-9:_.,-]{0,80}){0,6})$/;
+
+/** (IND1115F) «sin-indicador-nativo falta=a,b paso=x tras=40» → el código y sus pares `clave=valor`. */
+export function partirErrorNativo(e: unknown): { motivo: string; detalle?: Record<string, string> } {
     const m = typeof e === "string" ? e : e instanceof Error ? e.message : "";
-    return /^[a-z-]{1,32}$/.test(m) ? m : "nativo-fallo";
+    const r = RE_ERROR_NATIVO.exec(m);
+    if (!r) return { motivo: "nativo-fallo" };
+    const detalle: Record<string, string> = {};
+    for (const par of r[2].trim().split(" ")) {
+        const i = par.indexOf("=");
+        if (i > 0) detalle[par.slice(0, i)] = par.slice(i + 1);
+    }
+    return Object.keys(detalle).length ? { motivo: r[1], detalle } : { motivo: r[1] };
+}
+
+function motivoDe(e: unknown): string {
+    return partirErrorNativo(e).motivo;
 }
 
 /** Puente real (Tauri). `indicadorPosible` lo dice Rust al arrancar (`control_neuronas_estado`). */
@@ -64,7 +80,7 @@ export function crearPuenteTauri(_indicadorPosible?: boolean): PuenteNativoContr
                 const token = await inv("control_neuronas_abrir", { de, nombre, nivel });
                 return typeof token === "string" ? { ok: true, token } : { ok: false, motivo: "nativo-fallo" };
             } catch (e) {
-                return { ok: false, motivo: motivoDe(e) };
+                return { ok: false, ...partirErrorNativo(e) };
             }
         },
         orden: async (token, nombre) => {
@@ -112,11 +128,11 @@ export async function alPararNativo(cb: (motivo: string) => void): Promise<() =>
  * diálogo nativo (y, con su «Sí», los permisos con los diálogos del sistema); en el resto no hace nada.
  * Nunca enciende nada por sí mismo. Nunca lanza.
  */
-export async function prepararIndicadorNativo(): Promise<{ indicadorPosible: boolean; falta: string[] } | null> {
+export async function prepararIndicadorNativo(que?: string): Promise<{ indicadorPosible: boolean; falta: string[] } | null> {
     const inv = invocador();
     if (!inv) return null;
     try {
-        const e = (await inv("control_neuronas_preparar")) as { indicador_posible?: boolean; falta?: unknown } | null;
+        const e = (await inv("control_neuronas_preparar", que ? { que } : undefined)) as { indicador_posible?: boolean; falta?: unknown } | null;
         const falta = Array.isArray(e?.falta) ? e.falta.filter((x): x is string => typeof x === "string") : [];
         return { indicadorPosible: e?.indicador_posible === true, falta };
     } catch {
@@ -130,3 +146,40 @@ export async function apagarInterruptorNativo(): Promise<void> {
     if (!inv) return;
     await inv("control_neuronas_parar", { motivo: "apagado-por-el-dueno" }).catch(() => undefined);
 }
+
+/** (IND1115F) Lo que falta para el indicador de ESTE aparato y por qué se negó la última sesión (null fuera de la app). */
+export interface EstadoIndicador {
+    indicadorPosible: boolean;
+    falta: string[];
+    ultimoRechazo: { haceMs: number; falta: string[]; paso: string; error: string; trasMs: number } | null;
+}
+
+function textos(x: unknown): string[] {
+    return Array.isArray(x) ? x.filter((v): v is string => typeof v === "string").slice(0, 8) : [];
+}
+
+export async function estadoIndicadorNativo(): Promise<EstadoIndicador | null> {
+    const inv = invocador();
+    if (!inv) return null;
+    try {
+        const e = (await inv("control_neuronas_estado")) as {
+            indicador_posible?: boolean;
+            falta?: unknown;
+            ultimo_rechazo?: { hace_ms?: number; falta?: unknown; paso?: string; error?: string; tras_ms?: number } | null;
+        } | null;
+        const r = e?.ultimo_rechazo;
+        return {
+            indicadorPosible: e?.indicador_posible === true,
+            falta: textos(e?.falta),
+            ultimoRechazo: r
+                ? { haceMs: Number(r.hace_ms) || 0, falta: textos(r.falta), paso: String(r.paso ?? "").slice(0, 40), error: String(r.error ?? "").slice(0, 80), trasMs: Number(r.tras_ms) || 0 }
+                : null,
+        };
+    } catch {
+        return null;
+    }
+}
+
+/** (IND1115F) Lo que se puede pedir con un botón: abre YA el diálogo o la pantalla de Ajustes de esa cosa. */
+export type CosaQueFalta = "interruptor" | "notificaciones" | "superposicion";
+export const COSAS_QUE_FALTAN: readonly CosaQueFalta[] = ["interruptor", "notificaciones", "superposicion"];

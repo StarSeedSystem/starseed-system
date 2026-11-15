@@ -11,6 +11,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.ComponentName
 import android.content.ContentProvider
 import android.content.ContentValues
 import android.content.Context
@@ -97,6 +98,11 @@ object ControlNeuronasNativo : Application.ActivityLifecycleCallbacks {
     @Volatile var pausada = false
     @Volatile var desdeMs = 0L
     private var terminada: JSONObject? = null
+    // IND1115F: en qué paso quedó el último intento de «mostrar» y por qué (Rust lo lee para decir QUÉ falló).
+    @Volatile var intento: String = ""
+    @Volatile var paso: String = ""
+    @Volatile var error: String = ""
+    @Volatile var hilo: String = ""
     private var ultimaPregunta = 0L
     private var pendienteSuperposicion = false
 
@@ -126,7 +132,19 @@ object ControlNeuronasNativo : Application.ActivityLifecycleCallbacks {
             val ses = p.optString("sesion", "")
             when (p.optString("accion")) {
                 "preparar" -> preparar()
-                "mostrar" -> if (ses.length >= 16) ServicioControlNeuronas.mostrar(app, ses, p.optString("nombre", "otra neurona").take(40))
+                "mostrar" -> if (ses.length >= 16) {
+                    // IND1115F: se apunta ANTES de arrancar nada, para que Rust vea que la petición llegó y en qué hilo.
+                    intento = ses
+                    paso = "peticion"
+                    error = ""
+                    hilo = if (Looper.myLooper() === Looper.getMainLooper()) "main" else Thread.currentThread().name
+                    escribirEstado()
+                    ServicioControlNeuronas.mostrar(app, ses, p.optString("nombre", "otra neurona").take(40))
+                }
+                // IND1115F: un botón del panel pide YA esa cosa (sin la pausa de 10 min del aviso automático).
+                "pedir-interruptor" -> pedirInterruptorYa()
+                "pedir-notificaciones" -> pedirNotificacionesYa()
+                "pedir-superposicion" -> actividad?.get()?.let { abrirSuperposicionSiFalta(it) }
                 "quitar" -> if (ses == sesion) ServicioControlNeuronas.quitar(app)
                 // ORD1114V: la persona quitó el permiso en la página: se apaga al instante, sin diálogo (apagar
                 // nunca pide nada; encender solo con el «Sí» del diálogo nativo de abajo).
@@ -187,6 +205,10 @@ object ControlNeuronasNativo : Application.ActivityLifecycleCallbacks {
         if (ahora - ultimaPregunta < PREGUNTA_CADA_MS || ahora - respuestaNo() < TRAS_UN_NO_MS) return
         val a = actividad?.get() ?: return
         ultimaPregunta = ahora
+        dialogoInterruptor(a)
+    }
+
+    private fun dialogoInterruptor(a: Activity) {
         AlertDialog.Builder(a)
             .setTitle("¿Dejar que tus otras neuronas controlen esta tableta?")
             .setMessage(
@@ -205,6 +227,34 @@ object ControlNeuronasNativo : Application.ActivityLifecycleCallbacks {
             }
             .setCancelable(true)
             .show()
+    }
+
+    /** IND1115F: el botón «Activar» del panel: si ya está encendido, pide lo que falte; si no, el diálogo nativo. */
+    private fun pedirInterruptorYa() {
+        val a = actividad?.get() ?: return
+        if (encendido()) pedirPermisosQueFaltan() else dialogoInterruptor(a)
+    }
+
+    /**
+     * IND1115F: el botón de notificaciones del panel. Primera vez: el diálogo del sistema (13+). Si ya se pidió (Android
+     * no vuelve a enseñar el diálogo tras dos «No») o el permiso está dado pero el canal o la app están bloqueados:
+     * la pantalla de Ajustes de notificaciones de la app.
+     */
+    private fun pedirNotificacionesYa() {
+        val a = actividad?.get() ?: return
+        val marca = File(dir, "notificaciones-pedidas")
+        if (Build.VERSION.SDK_INT >= 33 && a.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED && !marca.exists()) {
+            try { marca.writeText("1") } catch (_: Exception) {}
+            a.requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), PIDE_NOTIFICACIONES)
+            return
+        }
+        if (Build.VERSION.SDK_INT < 26) return
+        try {
+            val i = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                .putExtra(Settings.EXTRA_APP_PACKAGE, a.packageName)
+                .putExtra(Settings.EXTRA_CHANNEL_ID, ServicioControlNeuronas.CANAL)
+            a.startActivity(i)
+        } catch (_: Exception) { /* sin pantalla de Ajustes: queda en «falta» */ }
     }
 
     private fun pedirPermisosQueFaltan() {
@@ -250,6 +300,10 @@ object ControlNeuronasNativo : Application.ActivityLifecycleCallbacks {
             .put("pausada", pausada)
             .put("terminada", terminada ?: JSONObject.NULL)
             .put("falta", falta())
+            .put("intento", intento)
+            .put("paso", paso)
+            .put("error", error)
+            .put("hilo", hilo)
         escribirAtomico(File(dir, ESTADO), o.toString())
     }
 
@@ -293,12 +347,20 @@ class ServicioControlNeuronas : Service() {
 
         fun mostrar(ctx: Context, sesion: String, nombre: String) {
             val i = Intent(ctx, ServicioControlNeuronas::class.java).setAction(MOSTRAR).putExtra("sesion", sesion).putExtra("nombre", nombre)
+            ControlNeuronasNativo.paso = "arranque-servicio"
             try {
-                if (Build.VERSION.SDK_INT >= 26) ctx.startForegroundService(i) else ctx.startService(i)
-            } catch (_: Exception) {
+                val c: ComponentName? = if (Build.VERSION.SDK_INT >= 26) ctx.startForegroundService(i) else ctx.startService(i)
+                if (c == null) {
+                    // Android no encontró el servicio: no está declarado en el manifiesto (el parche no lo añadió).
+                    ControlNeuronasNativo.sesion = sesion
+                    ControlNeuronasNativo.error = "arranque:servicio-no-declarado"
+                    ControlNeuronasNativo.terminar("no-se-pudo-mostrar")
+                }
+            } catch (e: Exception) {
                 // Android no deja arrancar el servicio (p. ej. en segundo plano sin «Mostrar sobre otras apps"):
-                // sin indicador no hay control; Rust no ve latido y niega la sesión.
+                // sin indicador no hay control; Rust ve el error y niega la sesión.
                 ControlNeuronasNativo.sesion = sesion
+                ControlNeuronasNativo.error = "arranque:" + e.javaClass.simpleName
                 ControlNeuronasNativo.terminar("no-se-pudo-mostrar")
             }
         }
@@ -339,16 +401,26 @@ class ServicioControlNeuronas : Service() {
         ControlNeuronasNativo.sesion = sesion
         ControlNeuronasNativo.nombre = nombre
         ControlNeuronasNativo.pausada = false
+        ControlNeuronasNativo.paso = "servicio-recibido"
+        var donde = "aviso"
         val ok = try {
             crearCanal()
             val aviso = aviso()
+            donde = "primer-plano"
             if (Build.VERSION.SDK_INT >= 34) startForeground(ID, aviso, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE) else startForeground(ID, aviso)
+            ControlNeuronasNativo.paso = "primer-plano"
+            donde = "superposicion"
             ponerSuperposicion()
-        } catch (_: Exception) { false }
+        } catch (e: Exception) {
+            ControlNeuronasNativo.error = donde + ":" + e.javaClass.simpleName
+            false
+        }
         if (!ok) {
+            if (ControlNeuronasNativo.error.isEmpty()) ControlNeuronasNativo.error = "superposicion:sin-vista"
             terminar("no-se-pudo-mostrar")
             return
         }
+        ControlNeuronasNativo.paso = "mostrando"
         ControlNeuronasNativo.desdeMs = System.currentTimeMillis()
         ControlNeuronasNativo.mostrando = true
         principal.removeCallbacks(latido)
@@ -401,8 +473,15 @@ class ServicioControlNeuronas : Service() {
 
     /** Borde a toda pantalla (no toca nada) + pastilla con «Terminar». false si Android no deja dibujar. */
     private fun ponerSuperposicion(): Boolean {
-        if (Build.VERSION.SDK_INT < 26 || !Settings.canDrawOverlays(this)) return false
-        val wm = getSystemService(WindowManager::class.java) ?: return false
+        if (Build.VERSION.SDK_INT < 26 || !Settings.canDrawOverlays(this)) {
+            ControlNeuronasNativo.error = "superposicion:sin-permiso"
+            return false
+        }
+        val wm = getSystemService(WindowManager::class.java)
+        if (wm == null) {
+            ControlNeuronasNativo.error = "superposicion:sin-wm"
+            return false
+        }
         quitarSuperposicion()
         val tipo = WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
         val marco = FrameLayout(this).apply {
@@ -451,7 +530,11 @@ class ServicioControlNeuronas : Service() {
         textoPastilla = t
         botonReanudar = reanudarB
         refrescarAviso()
-        return borde?.isAttachedToWindow != false && pastilla != null
+        // IND1115F: ANTES se devolvía `borde?.isAttachedToWindow != false`. Justo después de `addView` la vista aún no
+        // está «unida a la ventana» (eso ocurre en el primer recorrido del ViewRootImpl, un fotograma después), así que
+        // daba false SIEMPRE y la sesión se negaba aunque la superposición ya estuviera puesta. Si `addView` no lanzó,
+        // está puesta (una excepción sube a `mostrar`, que la apunta en `error`).
+        return borde != null && pastilla != null
     }
 
     private fun quitarSuperposicion() {

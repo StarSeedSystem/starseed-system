@@ -58,6 +58,16 @@ pub struct EstadoKotlin {
     pub terminada: Option<Terminada>,
     /// Lo que falta para poder enseñar el indicador, en palabras cortas («interruptor», «notificaciones», …).
     pub falta: Vec<String>,
+    /// (IND1115F) Sesión del indicador cuya petición «mostrar» atendió Kotlin por última vez: así Rust no confunde
+    /// el paso o el error de un intento anterior con los de este.
+    pub intento: String,
+    /// (IND1115F) Último paso de Kotlin en ese intento: peticion → arranque-servicio → servicio-recibido → aviso →
+    /// primer-plano → superposicion → mostrando.
+    pub paso: String,
+    /// (IND1115F) Por qué se quedó en ese paso («primer-plano:securityexception», «superposicion:sin-permiso», …).
+    pub error: String,
+    /// (IND1115F) Hilo en el que Kotlin atendió la petición («main» si es el principal de Android).
+    pub hilo: String,
 }
 
 pub fn leer(texto: &str) -> Option<EstadoKotlin> {
@@ -123,6 +133,113 @@ pub fn sincronizar(c: &mut Control, e: Option<&EstadoKotlin>, sesion: &str, ahor
         _ => Cambio::Nada,
     }
 }
+
+/// (IND1115F) Lo que se supo al esperar el indicador de un intento.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct Espera {
+    pub visible: bool,
+    pub tras_ms: u64,
+    pub sin_estado: bool,
+    pub falta: Vec<String>,
+    pub paso: String,
+    pub error: String,
+    pub hilo_kotlin: String,
+    /// Kotlin terminó el intento con este motivo (lista cerrada de `MOTIVOS`).
+    pub terminada: Option<String>,
+}
+
+/// (IND1115F) Espera el latido del indicador de `sesion` sin tocar el reloj ni el disco (se les pasan: así se
+/// prueba con falsos). Termina en cuanto el indicador está a la vista, Kotlin dice que no pudo, o se agota `max_ms`.
+/// `dormir` NO debe ser el hilo que Kotlin necesita: ver `control_neuronas_abrir` (comando asíncrono en Android).
+pub fn esperar<L, D, A>(sesion: &str, max_ms: u64, cada_ms: u64, mut leer: L, mut dormir: D, mut ahora_pared: A) -> Espera
+where
+    L: FnMut() -> Option<EstadoKotlin>,
+    D: FnMut(u64),
+    A: FnMut() -> u64,
+{
+    let mut transcurrido = 0u64;
+    loop {
+        let e = leer();
+        let mio = e.as_ref().filter(|e| e.intento == sesion);
+        let resumen = |visible: bool| Espera {
+            visible,
+            tras_ms: transcurrido,
+            sin_estado: e.is_none(),
+            falta: e.as_ref().map(|e| e.falta.clone()).unwrap_or_default(),
+            paso: mio.map(|e| e.paso.clone()).filter(|p| !p.is_empty()).unwrap_or_else(|| "kotlin-no-atendio".into()),
+            error: mio.map(|e| e.error.clone()).unwrap_or_default(),
+            hilo_kotlin: mio.map(|e| e.hilo.clone()).unwrap_or_default(),
+            terminada: terminada_para(e.as_ref(), sesion).map(String::from),
+        };
+        if visible(e.as_ref(), sesion, ahora_pared()) {
+            return resumen(true);
+        }
+        if terminada_para(e.as_ref(), sesion).is_some() || mio.is_some_and(|e| !e.error.is_empty()) || transcurrido >= max_ms {
+            return resumen(false);
+        }
+        dormir(cada_ms);
+        transcurrido += cada_ms;
+    }
+}
+
+/// Texto corto y seguro (minúsculas, sin espacios) para registro y respuesta.
+pub fn limpio(s: &str, max: usize) -> String {
+    s.chars().map(|c| c.to_ascii_lowercase()).map(|c| if c.is_ascii_alphanumeric() || matches!(c, '-' | ':' | '_' | '.') { c } else { '-' }).take(max).collect()
+}
+
+fn lista(v: &[String]) -> String {
+    v.iter().map(|x| limpio(x, 24)).collect::<Vec<_>>().join(",")
+}
+
+/// (IND1115F) El detalle del rechazo: lo que se añade a «sin-indicador-nativo» (palabras sueltas `clave=valor`).
+pub fn detalle_rechazo(e: &Espera) -> String {
+    let mut d = format!("falta={} paso={}", lista(&e.falta), limpio(&e.paso, 24));
+    if !e.error.is_empty() {
+        d.push_str(&format!(" error={}", limpio(&e.error, 60)));
+    }
+    if let Some(m) = &e.terminada {
+        d.push_str(&format!(" motivo={}", limpio(m, 40)));
+    }
+    d.push_str(&format!(" tras={}", e.tras_ms));
+    d
+}
+
+/// (IND1115F) La línea nativa de cada intento: `control-indicador pedir=… hilo=… visible=si|no tras=…ms falta=[…] servicio=…`.
+pub fn linea_diagnostico(pedir: &str, hilo_rust: &str, e: &Espera) -> String {
+    let falta = e.falta.iter().map(|x| limpio(x, 24)).collect::<Vec<_>>().join(",");
+    let mut l = format!(
+        "pedir={} hilo={} visible={} tras={}ms falta=[{}] servicio={}",
+        limpio(pedir, 16),
+        limpio(hilo_rust, 32),
+        if e.visible { "si" } else { "no" },
+        e.tras_ms,
+        falta,
+        limpio(&e.paso, 24)
+    );
+    if !e.error.is_empty() {
+        l.push_str(&format!(" error={}", limpio(&e.error, 60)));
+    }
+    if !e.hilo_kotlin.is_empty() {
+        l.push_str(&format!(" kotlin={}", limpio(&e.hilo_kotlin, 24)));
+    }
+    if e.sin_estado {
+        l.push_str(" estado=ausente");
+    }
+    l
+}
+
+/// Lo que falta, para el rechazo cuando ni siquiera se intentó (permisos): sin esperar nada.
+pub fn espera_sin_permisos(e: Option<&EstadoKotlin>) -> Espera {
+    let falta = match e {
+        Some(e) if !e.falta.is_empty() => e.falta.clone(),
+        Some(_) => vec!["indicador".into()],
+        None => vec!["sin-parte-android".into()],
+    };
+    Espera { visible: false, tras_ms: 0, sin_estado: e.is_none(), falta, paso: "permisos".into(), ..Default::default() }
+}
+
+/// Lo que la página puede pedir a Kotlin con un botón (lista cerrada).
+pub const PEDIDOS: [&str; 3] = ["interruptor", "notificaciones", "superposicion"];
 
 /// Una petición para Kotlin (JSON de una línea). `nombre` ya limpio (≤ 40, sin controles).
 pub fn peticion(id: u64, accion: &str, sesion: &str, nombre: &str) -> String {
@@ -252,5 +369,116 @@ mod pruebas {
         let v: serde_json::Value = serde_json::from_str(&p).unwrap();
         assert_eq!(v["accion"], "mostrar");
         assert!(!p.contains('\n'));
+    }
+
+    // ───────── IND1115F: la espera con falsos ─────────
+
+    fn intento(o: serde_json::Value) -> EstadoKotlin {
+        let mut base = serde_json::json!({ "intento": "S1", "paso": "primer-plano", "error": "", "hilo": "main", "mostrando": false, "sesion": null });
+        for (k, v) in o.as_object().unwrap() {
+            base[k] = v.clone();
+        }
+        kotlin(base)
+    }
+
+    /// Reloj y disco falsos: cada `dormir` avanza el reloj; `guion` da el estado que se lee en cada vuelta.
+    fn correr(sesion: &str, max: u64, mut guion: impl FnMut(u64) -> Option<EstadoKotlin>) -> (Espera, u64) {
+        let reloj = std::cell::Cell::new(1_000_000u64);
+        let dormido = std::cell::Cell::new(0u64);
+        let r = esperar(
+            sesion,
+            max,
+            100,
+            || guion(reloj.get() - 1_000_000),
+            |ms| {
+                reloj.set(reloj.get() + ms);
+                dormido.set(dormido.get() + ms);
+            },
+            || reloj.get(),
+        );
+        (r, dormido.get())
+    }
+
+    #[test]
+    fn la_espera_vuelve_en_cuanto_kotlin_enseña_el_indicador() {
+        let (r, dormido) = correr("S1", 4_000, |t| Some(if t >= 300 { kotlin(serde_json::json!({ "t_ms": 1_000_300, "intento": "S1", "paso": "mostrando" })) } else { intento(serde_json::json!({})) }));
+        assert!(r.visible);
+        assert_eq!(r.tras_ms, 300);
+        assert_eq!(dormido, 300, "no espera de más");
+    }
+
+    #[test]
+    fn la_espera_no_se_agota_si_kotlin_ya_dijo_que_no_pudo_y_dice_por_que() {
+        let (r, dormido) = correr("S1", 4_000, |t| Some(if t >= 200 { intento(serde_json::json!({ "error": "primer-plano:SecurityException" })) } else { intento(serde_json::json!({ "paso": "peticion" })) }));
+        assert!(!r.visible);
+        assert_eq!(dormido, 200, "vuelve en cuanto Kotlin dice el error, no a los 4 s");
+        assert_eq!(r.error, "primer-plano:SecurityException");
+        let d = detalle_rechazo(&r);
+        assert!(d.contains("paso=primer-plano") && d.contains("error=primer-plano:securityexception") && d.contains("tras=200"), "{d}");
+    }
+
+    #[test]
+    fn la_espera_distingue_que_kotlin_no_atendio_la_peticion_o_que_no_hay_estado() {
+        // El estado es de OTRO intento: Kotlin no ha tocado esta petición (su hilo principal no corre).
+        let (r, dormido) = correr("S2", 1_000, |_| Some(intento(serde_json::json!({ "intento": "S1", "error": "viejo" }))));
+        assert_eq!((dormido, r.paso.as_str(), r.error.as_str()), (1_000, "kotlin-no-atendio", ""), "el error de un intento anterior no cuenta");
+        let (r, _) = correr("S2", 300, |_| None);
+        assert!(r.sin_estado && r.falta.is_empty());
+        assert!(linea_diagnostico("mostrar", "t", &r).contains("estado=ausente"));
+    }
+
+    #[test]
+    fn la_espera_termina_cuando_kotlin_apunta_terminada_y_el_indicador_no_se_da_por_visible() {
+        let (r, _) = correr("S1", 4_000, |_| Some(intento(serde_json::json!({ "error": "", "terminada": { "sesion": "S1", "motivo": "no-se-pudo-mostrar", "t_ms": 1 } }))));
+        assert!(!r.visible);
+        assert_eq!(r.terminada.as_deref(), Some("no-se-pudo-mostrar"));
+        assert!(detalle_rechazo(&r).contains("motivo=no-se-pudo-mostrar"));
+    }
+
+    #[test]
+    fn el_hilo_que_espera_no_es_el_que_kotlin_necesita() {
+        // `esperar` solo duerme con la función que se le pasa: si Kotlin necesitara el hilo que duerme, nunca
+        // contestaría. Con un hilo aparte que escribe el estado a los 250 ms, la espera lo ve y vuelve visible.
+        let compartido = std::sync::Arc::new(std::sync::Mutex::new(None::<EstadoKotlin>));
+        let escritor = compartido.clone();
+        let hilo_kotlin = std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_millis(250));
+            let ahora = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as u64;
+            *escritor.lock().unwrap() = Some(kotlin(serde_json::json!({ "t_ms": ahora, "intento": "S1", "paso": "mostrando" })));
+        });
+        let r = esperar(
+            "S1",
+            4_000,
+            20,
+            || compartido.lock().unwrap().clone(),
+            |ms| std::thread::sleep(std::time::Duration::from_millis(ms)),
+            || std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as u64,
+        );
+        hilo_kotlin.join().unwrap();
+        assert!(r.visible && r.tras_ms < 2_000);
+    }
+
+    #[test]
+    fn sin_permisos_no_se_espera_y_el_detalle_dice_que_falta() {
+        let e = kotlin(serde_json::json!({ "notificaciones": false, "superposicion": false, "falta": ["notificaciones", "superposicion"] }));
+        let r = espera_sin_permisos(Some(&e));
+        assert_eq!((r.tras_ms, r.paso.as_str()), (0, "permisos"));
+        assert_eq!(detalle_rechazo(&r), "falta=notificaciones,superposicion paso=permisos tras=0");
+        assert_eq!(espera_sin_permisos(None).falta, vec!["sin-parte-android".to_string()]);
+        assert_eq!(espera_sin_permisos(Some(&kotlin(serde_json::json!({})))).falta, vec!["indicador".to_string()]);
+    }
+
+    #[test]
+    fn la_linea_de_diagnostico_lleva_todo_y_nada_de_control() {
+        let e = Espera { visible: false, tras_ms: 4_000, falta: vec!["superposicion".into()], paso: "primer-plano".into(), error: "superposicion:SinVista\n".into(), hilo_kotlin: "main".into(), ..Default::default() };
+        let l = linea_diagnostico("mostrar", "tokio-rt-worker", &e);
+        assert_eq!(l, "pedir=mostrar hilo=tokio-rt-worker visible=no tras=4000ms falta=[superposicion] servicio=primer-plano error=superposicion:sinvista- kotlin=main");
+        assert!(!l.contains('\n'));
+    }
+
+    #[test]
+    fn el_estado_viejo_de_kotlin_sin_los_campos_nuevos_se_sigue_leyendo() {
+        let e = leer(r#"{"v":1,"t_ms":5,"encendido":true,"notificaciones":true,"superposicion":true,"falta":[]}"#).unwrap();
+        assert!(posible(Some(&e)) && e.intento.is_empty() && e.paso.is_empty());
     }
 }

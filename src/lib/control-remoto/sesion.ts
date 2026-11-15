@@ -155,12 +155,15 @@ export class PuertaControl {
         }
     }
 
-    private respuesta(nonce: string, ok: boolean, motivo: string, nombre: string, de: string, nivel: string, resultado?: unknown): RespuestaOrden {
+    private respuesta(nonce: string, ok: boolean, motivo: string, nombre: string, de: string, nivel: string, resultado?: unknown, detalle?: Record<string, string>): RespuestaOrden {
         const marca = nombre && /^[a-z-]{1,24}$/.test(nombre) ? nombre : "?";
         const sim = definicion(nombre)?.simulacion ? " SIMULACION" : "";
-        this.d.anotar(`orden ${marca} de=${de ? de.slice(0, 8) : "-"} nivel=${nivel} resultado=${ok ? "ok" : `rechazo:${motivo}`}${sim}`);
+        // IND1115F: «sin-indicador-nativo» dice QUÉ falta (para este registro y para quien manda), nunca solo el código.
+        const extra = !ok && detalle ? Object.entries(detalle).map(([k, v]) => ` ${k}=${v}`).join("") : "";
+        this.d.anotar(`orden ${marca} de=${de ? de.slice(0, 8) : "-"} nivel=${nivel} resultado=${ok ? "ok" : `rechazo:${motivo}`}${extra}${sim}`);
         if (!ok) this.d.nativo.anotar(marca, de, `rechazo:${motivo}`); // ORD1114Q: también en el registro encadenado
-        return { tipo: "respuesta", nonce, ok, motivo, ...(resultado !== undefined ? { resultado } : {}) };
+        const cuerpo = resultado !== undefined ? resultado : !ok && detalle ? { detalle } : undefined;
+        return { tipo: "respuesta", nonce, ok, motivo, ...(cuerpo !== undefined ? { resultado: cuerpo } : {}) };
     }
 
     private tope(huella: string): boolean {
@@ -257,7 +260,7 @@ export class PuertaControl {
             const nivel = nivelMinimo(c.nivel, concedido);
             // ORD1114Q: la sesión la abre Rust (pone el indicador o se niega) y su token es el de Rust.
             const n = await this.d.nativo.abrir(c.de, ctl.nombre, nivel);
-            if (!n.ok || !n.token) return this.respuesta(c.nonce, false, n.motivo ?? "sin-indicador-nativo", nombre, c.de, c.nivel);
+            if (!n.ok || !n.token) return this.respuesta(c.nonce, false, n.motivo ?? "sin-indicador-nativo", nombre, c.de, c.nivel, undefined, n.detalle);
             this.sesion = { token: n.token, de: c.de, nombre: ctl.nombre, nivel, inicio: ahora, ultima: ahora };
             this.d.alCambiar?.();
             return this.respuesta(c.nonce, true, "ok", nombre, c.de, nivel, {

@@ -58,7 +58,7 @@ let ejecutadas: string[];
 let puerta: PuertaControl;
 let mac: Aparato;
 
-async function nuevaPuerta(cuentaPropia = CUENTA) {
+async function nuevaPuerta(cuentaPropia = CUENTA, nativoPropio: Record<string, unknown> = {}) {
     lineas = [];
     ejecutadas = [];
     let n = 0;
@@ -85,7 +85,8 @@ async function nuevaPuerta(cuentaPropia = CUENTA) {
             orden: async () => ({ ok: true }),
             anotar: () => undefined,
             parar: async () => undefined,
-        },
+            ...nativoPropio,
+        } as never,
     });
 }
 
@@ -261,5 +262,32 @@ describe("puerta de control entre neuronas", () => {
         await puerta.recibir(await firmar(mac, "simular-corte-ip", {}, { sesion }));
         expect(lineas.at(-1)).toMatch(/simular-corte-ip .*resultado=ok SIMULACION$/);
         expect(definicion("simular-corte-ip")?.simulacion).toBe(true);
+    });
+});
+
+
+describe("IND1115F · el rechazo por falta de indicador dice qué falta", () => {
+    it("la respuesta, la línea de registro y quien manda ven la lista y el paso; sigue sin haber sesión", async () => {
+        await nuevaPuerta(CUENTA, {
+            abrir: async () => ({ ok: false, motivo: "sin-indicador-nativo", detalle: { falta: "superposicion", paso: "primer-plano", error: "superposicion:sin-permiso", tras: "412" } }),
+        });
+        await emparejar();
+        const r = await puerta.recibir(await firmar(mac, "abrir-sesion"));
+        expect(r.ok).toBe(false);
+        expect(r.motivo).toBe("sin-indicador-nativo");
+        expect((r.resultado as { detalle: Record<string, string> }).detalle).toEqual({ falta: "superposicion", paso: "primer-plano", error: "superposicion:sin-permiso", tras: "412" });
+        const linea = lineas.find((l) => l.includes("resultado=rechazo:sin-indicador-nativo")) ?? "";
+        expect(linea).toContain("falta=superposicion");
+        expect(linea).toContain("paso=primer-plano");
+        expect(puerta.sesionActiva()).toBeNull();
+    });
+
+    it("sin detalle (escritorio, navegador) todo queda como antes", async () => {
+        await nuevaPuerta(CUENTA, { abrir: async () => ({ ok: false, motivo: "sin-indicador-nativo" }) });
+        await emparejar();
+        const r = await puerta.recibir(await firmar(mac, "abrir-sesion"));
+        expect(r).toMatchObject({ ok: false, motivo: "sin-indicador-nativo" });
+        expect(r.resultado).toBeUndefined();
+        expect(lineas.some((l) => l.endsWith("resultado=rechazo:sin-indicador-nativo"))).toBe(true);
     });
 });

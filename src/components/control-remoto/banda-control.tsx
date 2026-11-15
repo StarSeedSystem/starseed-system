@@ -18,6 +18,7 @@ import { useRouter } from "next/navigation";
 import type { PermisoControl, SesionActiva } from "@/lib/control-remoto/sesion";
 import type { EstadoApp } from "@/lib/banco-llamadas/actor";
 import { pasosQueFaltan } from "@/lib/banco-llamadas/pasos";
+import { COSAS_QUE_FALTAN, estadoIndicadorNativo, prepararIndicadorNativo, type CosaQueFalta, type EstadoIndicador } from "@/lib/control-remoto/nativo";
 
 const RE_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -38,6 +39,56 @@ function useCambios(): number {
 
 function hhmm(t: number): string {
     return new Date(t).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+const TEXTO_FALTA: Record<CosaQueFalta, { falta: string; boton: string }> = {
+    interruptor: { falta: "Falta tu «Sí» en el diálogo de Android para dejar que otras neuronas controlen este aparato.", boton: "Activar el permiso en este aparato" },
+    notificaciones: { falta: "Las notificaciones de StarSeed están sin permitir: sin ellas no hay aviso fijo con «Terminar».", boton: "Permitir notificaciones" },
+    superposicion: { falta: "«Mostrar sobre otras apps» está sin permitir: sin él no hay borde rojo ni pastilla «Terminar».", boton: "Abrir Ajustes de «Mostrar sobre otras apps»" },
+};
+
+function esCosa(x: string): x is CosaQueFalta {
+    return (COSAS_QUE_FALTAN as readonly string[]).includes(x);
+}
+
+function haceCuanto(ms: number): string {
+    const s = Math.round(ms / 1000);
+    return s < 90 ? `hace ${s} s` : `hace ${Math.round(s / 60)} min`;
+}
+
+/**
+ * (IND1115F) Lo que falta en ESTE aparato para enseñar el indicador, con un botón por cada cosa, y por qué se negó la
+ * última sesión. Solo dice lo que Rust sabe (y desde cuándo): si no falta nada y nada se negó, no sale.
+ */
+export function FaltasIndicador({ estado, onPedir }: { estado: EstadoIndicador | null; onPedir: (que: CosaQueFalta) => void }) {
+    if (!estado) return null;
+    const conocidas = estado.falta.filter(esCosa);
+    const otras = estado.falta.filter((x) => !esCosa(x));
+    const r = estado.ultimoRechazo;
+    if (!conocidas.length && !otras.length && !r) return null;
+    return (
+        <div className="space-y-2 rounded-lg border border-amber-400/30 bg-amber-400/[0.05] p-3 text-[12px] text-white/80" data-testid="faltas-indicador">
+            {(conocidas.length > 0 || otras.length > 0) && <p className="font-medium text-amber-200">Para que otra neurona pueda controlar este aparato falta:</p>}
+            {conocidas.map((c) => (
+                <div key={c} className="flex flex-wrap items-center gap-2" data-testid={`falta-${c}`}>
+                    <span className="min-w-0 flex-1">• {TEXTO_FALTA[c].falta}</span>
+                    <button onClick={() => onPedir(c)} className="min-h-9 cursor-pointer rounded-md bg-amber-500/80 px-2 py-1 font-medium text-black hover:bg-amber-400">
+                        {TEXTO_FALTA[c].boton}
+                    </button>
+                </div>
+            ))}
+            {otras.map((x) => (
+                <p key={x}>• {x}</p>
+            ))}
+            {r && (
+                <p className="text-white/55" data-testid="ultimo-rechazo">
+                    Última sesión negada {haceCuanto(r.haceMs)} por falta de indicador · paso: {r.paso || "-"}
+                    {r.error ? ` · ${r.error}` : ""}
+                    {r.falta.length ? ` · faltaba: ${r.falta.join(", ")}` : ""}
+                </p>
+            )}
+        </div>
+    );
 }
 
 export function BandaControl() {
@@ -113,6 +164,21 @@ export function ControlEntreNeuronasPanel() {
     // BAN1115D: las neuronas de la cuenta (para elegir sin teclear el id) y lo que la app informa de sí misma
     const [neuronas, setNeuronas] = useState<Array<{ id: string; nombre: string; plataforma: string; online: boolean }>>([]);
     const [informe, setInforme] = useState<EstadoApp | null>(null);
+    const [indicador, setIndicador] = useState<EstadoIndicador | null>(null);
+
+    // IND1115F: lo que Rust sabe del indicador de este aparato (nada fuera de la app nativa).
+    const leerIndicador = useCallback(() => void estadoIndicadorNativo().then(setIndicador), []);
+    useEffect(() => {
+        leerIndicador();
+    }, [n, leerIndicador]);
+    const pedirFalta = useCallback(
+        async (que: CosaQueFalta) => {
+            await prepararIndicadorNativo(que);
+            // La persona contesta en el diálogo del sistema o en Ajustes: se vuelve a leer mientras tanto y al volver.
+            for (const ms of [1500, 5000, 12000]) setTimeout(leerIndicador, ms);
+        },
+        [leerIndicador],
+    );
 
     useEffect(() => {
         void (async () => {
@@ -233,6 +299,7 @@ export function ControlEntreNeuronasPanel() {
                     <option value="controlar">controlar (órdenes de la app)</option>
                 </select>
             </label>
+            <FaltasIndicador estado={indicador} onPedir={(q) => void pedirFalta(q)} />
             <p className="text-[12px] text-white/50">Código de este aparato: {miCodigo ?? "sin clave propia (créala en Chats de Genesis)"}</p>
             {permiso.pendientes.map((x) => (
                 <div key={x.huella} className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-400/30 p-2 text-[12px] text-white/80">
