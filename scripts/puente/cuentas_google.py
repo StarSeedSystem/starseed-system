@@ -138,6 +138,8 @@ def alta(alias, pedir, esperar, abrir=webbrowser.open,
 def token(alias, pedir, dir_cuentas=DIR_CUENTAS, rutas=RUTAS_ENV):
     """Token de acceso renovado: devuelve el vivo, o lo renueva con el de refresco (sin enseñarlo).
     Las fichas authorized_user renuevan con SUS client_id/client_secret y su token_uri."""
+    if os.environ.get("STARSEED_PRUEBAS") == "1":
+        return None
     destino = os.path.join(dir_cuentas, alias + ".json")
     if not os.path.exists(destino):
         return None

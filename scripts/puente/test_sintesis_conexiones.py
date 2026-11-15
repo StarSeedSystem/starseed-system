@@ -57,6 +57,10 @@ PUENTE = {"TELEGRAM_BOT_TOKEN": "tok-puente", "TELEGRAM_CHAT_ID": "111"}
 class TestRelevoBotPuente:
     """Sin TELEGRAM_SINTESIS_BOT_TOKEN, la síntesis sale por el bot ya conectado."""
 
+    @pytest.fixture(autouse=True)
+    def desactivar_starpruebas(self, monkeypatch):
+        monkeypatch.delenv("STARSEED_PRUEBAS", raising=False)
+
     def test_relevo_con_cabecera_y_fecha(self):
         env = dict(PUENTE, TELEGRAM_SINTESIS_CHAT_ID="8670436815")
         registro = []
@@ -98,7 +102,11 @@ VIVA = {"alias": "fundacion", "vivo": True}
 
 
 class TestAvisoCaducidad:
-    """Si el token de una cuenta deja de renovarse, un aviso al día con la orden exacta."""
+    """Si el token de una cuenta dejó de renovarse, un aviso al día con la orden exacta."""
+
+    @pytest.fixture(autouse=True)
+    def desactivar_starpruebas(self, monkeypatch):
+        monkeypatch.delenv("STARSEED_PRUEBAS", raising=False)
 
     def test_texto_aviso_lleva_la_orden_exacta_y_sin_secretos(self):
         texto = S.texto_aviso(MUERTA)
@@ -138,6 +146,10 @@ class TestAvisoCaducidad:
 
 class TestFichasAuthorizedUser:
     """Las fichas que dejó alta-cuentas-google.py se aceptan tal cual; no se pide un alta nueva."""
+
+    @pytest.fixture(autouse=True)
+    def desactivar_starpruebas(self, monkeypatch):
+        monkeypatch.delenv("STARSEED_PRUEBAS", raising=False)
 
     def test_token_renueva_con_las_credenciales_de_la_propia_ficha(self, tmp_path):
         dir_cuentas = str(tmp_path / "cuentas")
@@ -182,6 +194,38 @@ class TestFichasAuthorizedUser:
         r = C.alta("alex", romper, romper, abrir=romper, dir_cuentas=dir_cuentas,
                    descargas=str(tmp_path), rutas=[str(tmp_path / "x")])
         assert r["ok"] is True and "alta ya existente" in r["motivo"] and r["correo"]
+
+
+class TestRechazoConStarpruebas:
+    """VER1114: las funciones clave rechazan con STARSEED_PRUEBAS=1."""
+
+    def test_token_recha_con_starpruebas(self):
+        """token() debe devolver None cuando STARSEED_PRUEBAS=1."""
+        import cuentas_google as CG
+        original = os.environ.get("STARSEED_PRUEBAS")
+        os.environ["STARSEED_PRUEBAS"] = "1"
+        try:
+            assert CG.token("alex", romper) is None
+        finally:
+            if original is None:
+                os.environ.pop("STARSEED_PRUEBAS", None)
+            else:
+                os.environ["STARSEED_PRUEBAS"] = original
+
+    def test_enviar_recha_con_starpruebas(self, tmp_path):
+        """enviar() debe devolver ok:False cuando STARSEED_PRUEBAS=1."""
+        original = os.environ.get("STARSEED_PRUEBAS")
+        os.environ["STARSEED_PRUEBAS"] = "1"
+        try:
+            registro = []
+            r = S.enviar("hola", pedir=pedir_telegram(registro), leer_env=lambda: dict(PUENTE), fecha=FECHA)
+            assert r == {"ok": False, "motivo": "red bloqueada en pruebas (STARSEED_PRUEBAS=1)"}
+            assert registro == []
+        finally:
+            if original is None:
+                os.environ.pop("STARSEED_PRUEBAS", None)
+            else:
+                os.environ["STARSEED_PRUEBAS"] = original
 
 
 class TestClienteOsDelRepo:

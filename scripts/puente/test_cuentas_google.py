@@ -92,7 +92,8 @@ def test_alta_flujo_completo_guarda_el_refresco_con_0600(tmp_path):
     assert json.load(open(os.path.join(dir_cuentas, "alex.json"), encoding="utf-8"))["refresh_token"] == "ref-nuevo"
     assert permiso(os.path.join(dir_cuentas, "alex.json")) == "0o600"
 
-def test_token_renueva_con_el_refresco_y_guarda_la_nueva_caducidad(tmp_path):
+def test_token_renueva_con_el_refresco_y_guarda_la_nueva_caducidad(tmp_path, monkeypatch):
+    monkeypatch.delenv("STARSEED_PRUEBAS", raising=False)
     rutas, dir_cuentas, _ = entorno_tmp(tmp_path)
     sembrar_cuentas(dir_cuentas, rutas)
     pedidos = []
@@ -105,7 +106,8 @@ def test_token_renueva_con_el_refresco_y_guarda_la_nueva_caducidad(tmp_path):
     ficha = json.load(open(os.path.join(dir_cuentas, "alex.json"), encoding="utf-8"))
     assert ficha["access_token"] == "acc-nuevo" and ficha["caduca"] > time.time()
 
-def test_token_vivo_no_llama_a_la_red_y_sin_ficha_da_none(tmp_path):
+def test_token_vivo_no_llama_a_la_red_y_sin_ficha_da_none(tmp_path, monkeypatch):
+    monkeypatch.delenv("STARSEED_PRUEBAS", raising=False)
     rutas, dir_cuentas, _ = entorno_tmp(tmp_path)
     sembrar_cuentas(dir_cuentas, rutas, caduca=time.time() + 9999)
     assert C.token("alex", romper, dir_cuentas=dir_cuentas, rutas=rutas) == "viejo"
