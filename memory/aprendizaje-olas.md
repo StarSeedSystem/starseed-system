@@ -7441,3 +7441,14 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 
 **Lo que quedó fuera, una por una:**
 - `SIN1114Ac-d2b` — pruebas en rojo: FAILED scripts/puente/test_sintesis_conexiones.py::TestRelevoBotPuente::test_relevo_con_cabecera_y_fecha
+
+## 2026-11-15 02:09 · auto-1115-001856
+
+**Lo que se pidió.** ideas nuevas
+
+**Resultado.** 4 de 7 integradas. 3 tareas se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `SIN1114Ac-d2b` — otra cosa: revisor: dividida en SIN1114Ac-d2b-d1, SIN1114Ac-d2b-d2, SIN1114Ac-d2b-d3 (tarea:otro con 3 archivos: se divide en 3 partes encadenadas)
+- `DR1115-1` — la revisión lo rechazó: sustituida por DR1115-1b: su codigo esta en main como 82a726ca7 (revision ok, bloqueante:false). La objecion del revisor (falta filtro expli
+- `SIN1114Ac-d2b-d3` — pruebas en rojo: FAILED scripts/puente/test_sintesis_conexiones.py::TestFichasAuthorizedUser::test_token_renueva_con_las_credenciales_de_
