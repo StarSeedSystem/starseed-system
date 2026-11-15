@@ -1,6 +1,6 @@
 # Genesis · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-14 23:49:32 desde Genesis vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-15 00:17:21 desde Genesis vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -16,59 +16,15 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | Agentes escribiendo | **0** |
 | En esta ola | integradas 0 · en curso 0 · esperando aprobación 0 · pendientes 24 |
 | Últimas 4 olas | en curso 0 · pendientes 85 · integradas 0 |
-| HEAD | `ccf6a7eb9 chore(memoria): aprendizaje de la ola auto-1114-223648` |
-| Sin publicar | 5 commits |
+| HEAD | `3e68c6a8a chore(memoria): aprendizaje de la ola auto-1114-235205` |
+| Sin publicar | 4 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-1114-223648.json`, hace 14s)
+## Quién escribe ahora (latido de `cola-auto-1114-235205.json`, hace 20s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `IMG-diaria-des-simular-formulate_next_intell` | hecho | openrouter/cohere/north-mini-code: | 2 min | 135 s | 38701 |
-| `SIN1114Ad` | hecho | freellmapi/auto | 3 min | 154 s | 179806 |
-| `SA111474` | hecho | nim/minimaxai/minimax-m3.1-flash | 6 min | 366 s | 1711 |
-| `SA111483` | hecho | nim/minimaxai/minimax-m3.1-flash | 6 min | 367 s | 712 |
-| `SIN1114Ac-d2` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 7 min | 446 s | 199130 |
-| `SA111484` | hecho | explabs/gpt-6-luna | 14 min | 823 s | 795 |
-| `SA111482` | hecho | explabs/deepseek-v4.1-flash | 14 min | 829 s | 579 |
-| `SA111480` | hecho | freellmapi/auto | 15 min | 922 s | 280 |
-| `SA111475` | hecho | freellmapi/auto | 16 min | 938 s | 614 |
-| `SA111479` | hecho | groq/openai/gpt-oss-120b | 16 min | 983 s | 550 |
-| `SA111477` | hecho | groq/openai/gpt-oss-20b | 16 min | 984 s | 801 |
-| `SA111481` | hecho | freellmapi/auto | 16 min | 989 s | 371 |
-| `SA111472` | hecho | groq/openai/gpt-oss-20b | 17 min | 1040 s | 878 |
-| `SA111473` | hecho | explabs/deepseek-v4.1-flash | 23 min | 1380 s | 583 |
-| `SA111476` | hecho | explabs/gpt-6-luna | 24 min | 1441 s | 656 |
-| `SA111478` | hecho | explabs/gpt-6-luna | 24 min | 1452 s | 544 |
-| `SA111471` | hecho | nim/minimaxai/minimax-m3.1-flash | 27 min | 1627 s | 368 |
-| `SA111470` | hecho | nim/minimaxai/minimax-m3.1-flash | 29 min | 1766 s | 483 |
-| `SA111469` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 31 min | 1863 s | 455 |
-| `SA111468` | hecho | groq/openai/gpt-oss-120b | 32 min | 1948 s | 276 |
-| `SA111465` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 34 min | 2012 s | 553 |
-| `SA111466` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 34 min | 2046 s | 659 |
-| `SA111467` | hecho | nim/minimaxai/minimax-m3.1-flash | 34 min | 2051 s | 486 |
-| `SA111464` | hecho | nim/minimaxai/minimax-m3.1-flash | 34 min | 2051 s | 826 |
-| `SA111463` | hecho | groq/openai/gpt-oss-20b | 34 min | 2067 s | 807 |
-| `SA111454` | hecho | groq/openai/gpt-oss-20b | 34 min | 2068 s | 496 |
-| `SA111461` | hecho | explabs/gpt-6-luna | 35 min | 2092 s | 543 |
-| `SA111462` | hecho | explabs/gpt-6-luna | 35 min | 2111 s | 434 |
-| `SA111453` | hecho | freellmapi/auto | 43 min | 2607 s | 275 |
-| `SA111451` | hecho | nim/minimaxai/minimax-m3.1-flash | 44 min | 2658 s | 276 |
-| `SA111452` | hecho | freellmapi/auto | 45 min | 2671 s | 277 |
-| `SA111448` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 45 min | 2714 s | 566 |
-| `SA111450` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 45 min | 2716 s | 625 |
-| `SA111446` | hecho | explabs/gpt-6-luna | 45 min | 2720 s | 602 |
-| `SA111445` | hecho | groq/openai/gpt-oss-20b | 45 min | 2728 s | 751 |
-| `SA111447` | hecho | groq/qwen/qwen3.8-27b | 45 min | 2730 s | 540 |
-| `SA111449` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 46 min | 2739 s | 555 |
-| `SA111444` | hecho | groq/openai/gpt-oss-120b | 46 min | 2760 s | 502 |
-| `SA111443` | hecho | nim/minimaxai/minimax-m3.1-flash | 46 min | 2784 s | 867 |
-| `SA111442` | hecho | explabs/gpt-6-luna | 56 min | 3386 s | 624 |
-| `SA111441` | hecho | groq/qwen/qwen3.8-27b | 57 min | 3407 s | 1113 |
-| `RIM-agentes-reimaginada-profunda-unificar-8211ae-v3` | hecho | freellmapi/auto | 60 min | 3601 s | 501 |
-| `RIM-agentes-reimaginada-profunda-mejorar-b4d704-v3` | hecho | explabs/deepseek-v4.1-flash | 60 min | 3606 s | 406 |
-| `RIM-agentes-reimaginada-profunda-cachear-0f93d0-v3` | hecho | groq/openai/gpt-oss-120b | 61 min | 3653 s | 505 |
-| `ENT-agentes-reimaginada-profunda-validar-874691-v2` | hecho | nim/minimaxai/minimax-m3.1-flash | 61 min | 3660 s | 489 |
+| `SIN1114Ac-d2b` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 3 min | 169 s | 188218 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
