@@ -14,7 +14,7 @@ import os
 import re
 import time
 
-from vigilante_logica import id_en_asuntos, sucesora_integrada
+from vigilante_logica import es_registro, id_en_asuntos, sucesora_integrada
 
 #: (2026-10-03) Antes se clavaba «llm7/minimax-m2.7» a TODA tarea de la nube: llm7 está
 #: caído desde el 09-09 y la tarea gastaba su primer intento (6+ min, medido en el run
@@ -637,6 +637,7 @@ def numero_ola(texto):
 MOTIVOS_FUERA = (
     ("ola-actual", "son de la ola que corre en la Mac"),
     ("estado", "no están pendientes ni fallidas"),
+    ("registro", "son avisos de algo ya hecho, no trabajo"),
     ("en-main", "ya están en main"),
     ("grande", "piden más de %d archivos y se quedan en la Mac, donde hay revisor" % MAX_ARCHIVOS_NUBE),
     ("espera", "esperan a otra tarea"),
@@ -674,6 +675,8 @@ def motivo_fuera(tarea, progreso, asuntos_main, n_ola_actual, envios=None,
     estado = entrada.get("estado") if isinstance(entrada, dict) else None
     if estado not in ESTADOS_REPARTIBLES:
         return "estado"
+    if es_registro(tarea):
+        return "registro"
     if id_en_asuntos(tid, asuntos_main):
         return "en-main"
     if _n_archivos(tarea) > max_archivos:

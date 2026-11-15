@@ -98,6 +98,17 @@ def es_cola_de_codigo(nombre):
     return es_cola_fuente(nombre) and not nombre.startswith(PREFIJO_SUENOS)
 
 
+def es_registro(tarea):
+    """PURA. Un aviso de algo YA hecho no es trabajo.
+
+    (2026-11-15, SIN1114-1794718054) El bot del A1 deja en la cola de la ola un registro de
+    la síntesis diaria ya enviada, con `hechos` ([síntesis_generada, enviada_telegram]) y
+    sin archivos. Al no estar en `progreso`, el reparto lo tomó por una tarea pendiente y la
+    nube abrió un job para nada. Lo que trae `hechos` se lee, no se ejecuta.
+    """
+    return isinstance(tarea, dict) and bool(tarea.get("hechos"))
+
+
 def ultima_salida(lineas, tope=200):
     """Del registro del orquestador saca (codigo_exit, motivo) de la ÚLTIMA línea
     `__EXIT__=N`. El motivo es la última línea no vacía anterior. Si no hay
@@ -271,6 +282,8 @@ def seleccionar_pendientes(colas, progreso, asuntos_git, ahora=None):
             if tid in vistas:
                 continue
             vistas.add(tid)
+            if es_registro(tarea):
+                continue
             estado = progreso.get(tid, {})
             actual = estado.get("estado") if isinstance(estado, dict) else ""
             if actual in ESTADOS_NO_AUTOMATICOS or id_en_asuntos(tid, asuntos_git):
