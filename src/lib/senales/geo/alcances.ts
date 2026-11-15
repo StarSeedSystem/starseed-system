@@ -26,8 +26,8 @@ export const ROTULO_ALCANCE = "alcance estimado";
 
 export const ALCANCES: Readonly<Record<MedioAlcance, AlcanceMedio>> = {
   ble: {
-    medio: "ble", etiqueta: "Bluetooth", metros: 30, color: "#3b82f6",
-    fuente: "Bluetooth SIG, «Bluetooth Range»: BLE llega a ≈100 m en campo abierto y el uso típico entre aparatos es de 10 a 30 m; se toma 30 m (referencia de especificación, no medida).",
+    medio: "ble", etiqueta: "Bluetooth", metros: 10, color: "#3b82f6",
+    fuente: "Bluetooth SIG, «Bluetooth Range»: BLE llega a ≈100 m en campo abierto, pero dentro de un edificio el alcance típico entre aparatos es de unos 10 m (paredes, cuerpos, otros aparatos); se toma 10 m (referencia de uso interior, no medida; BLE1115C: antes 30 m).",
     encendida: "el aparato anuncia que tiene adaptador Bluetooth disponible (Web Bluetooth)",
   },
   wifi: {

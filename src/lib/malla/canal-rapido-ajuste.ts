@@ -106,12 +106,16 @@ const MAX_TEXTO_ESPEJO = 9_000;
 
 export const T_ESPEJO_REGISTRO_BLE = "nl.reg";
 
+/** (BLE1115C) El resumen de una llamada y sus muestras compactas (`ble_muestras.rs`) son más largos que una línea normal. */
+export const RE_LINEA_DE_LLAMADA_BLE = /\bnativa · ble-enlace-(?:llamada|muestras)\b/;
+export const MAX_LARGO_LINEA_LLAMADA_BLE = 480;
+
 function lineaLimpia(s: unknown): string {
-  return String(s ?? "")
+  const t = String(s ?? "")
     // eslint-disable-next-line no-control-regex
     .replace(/[\u0000-\u001f\u007f]+/g, " ")
-    .trim()
-    .slice(0, MAX_LARGO_LINEA_ESPEJO_BLE);
+    .trim();
+  return t.slice(0, RE_LINEA_DE_LLAMADA_BLE.test(t.slice(0, 160)) ? MAX_LARGO_LINEA_LLAMADA_BLE : MAX_LARGO_LINEA_ESPEJO_BLE);
 }
 
 /** Las últimas líneas del registro propio, limpias y dentro del tope. Puro. */
@@ -120,6 +124,24 @@ export function recortarEspejoRegistro(lineas: readonly unknown[], max = MAX_LIN
   let total = l.reduce((s, x) => s + x.length + 1, 0);
   while (l.length > 1 && total > MAX_TEXTO_ESPEJO) total -= (l.shift() as string).length + 1;
   return l;
+}
+
+/**
+ * (BLE1115C) Parte las líneas nuevas en las normales y las de una llamada (resumen y muestras de `ble_muestras.rs`): las normales
+ * siguen con su tope de bytes y de líneas, y las de la llamada tienen el suyo, aparte, para que un resumen no lo empujen fuera
+ * veinte líneas de otra cosa (el 15-11 la medida de una llamada de 2 min no llegó entera). Se queda con lo más nuevo de cada
+ * clase (las muestras van antes que el resumen: el resumen es lo último que cae). Puro.
+ */
+export const MAX_BYTES_LLAMADA_ESPEJO_BLE = 4_200;
+export function repartirEspejoConLlamada(normales: readonly string[], deLlamada: readonly string[], maxBytesNormales: number): string[] {
+  const topar = (l: string[], max: number) => {
+    let total = l.reduce((s, x) => s + x.length + 1, 0);
+    while (l.length > 1 && total > max) total -= (l.shift() as string).length + 1;
+    return l;
+  };
+  const n = topar(recortarEspejoRegistro(normales), maxBytesNormales);
+  const c = topar(recortarEspejoRegistro(deLlamada), MAX_BYTES_LLAMADA_ESPEJO_BLE);
+  return [...n, ...c];
 }
 
 /** El mensaje que lleva el espejo. */

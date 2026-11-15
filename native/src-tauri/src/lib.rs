@@ -50,6 +50,7 @@ mod ble_macos;
 mod ble_linux_logica;
 #[cfg(target_os = "linux")]
 mod ble_linux;
+mod ble_muestras; // BLE1115C
 mod ble_trama;
 // (PTA1108B) El webview, las descargas de Rust y el proxy de la puerta de internet de la malla (contrato §5.3 c).
 mod puerta_proxy;
