@@ -111,7 +111,7 @@ class TestCiclo(unittest.TestCase):
         self.assertEqual(r["resultado"]["accion"], "seco")
         self.assertFalse(os.path.exists(os.path.join(self.raiz, A.REL_SINTESIS)))
 
-    def test_entregar_con_sintesis_envia_resumen_y_completa(self):
+def test_entregar_con_sintesis_envia_resumen_y_completa(self):
         # Crea síntesis en disco
         os.makedirs(os.path.join(self.raiz, A.REL_SINTESIS), exist_ok=True)
         texto = "Síntesis completa con fuentes y fechas. " * 100
@@ -124,9 +124,21 @@ class TestCiclo(unittest.TestCase):
             enviados.append(texto)
             return {"ok": True, "trozos": 1}
 
-        r = A.ciclo(self.raiz, AHORA_CDMX_07, encargar=False, jev=False,
-                    enviar=enviar_falso, home=self.home, seco=False,
-                    subir_drive=lambda f, t: "doc-falso")
+        # Sustituye urllib.request.urlopen y socket.create_connection por funciones que lanzan ErrorRedEnPruebas
+        original_urlopen = urllib.request.urlopen
+        original_socket_create = socket.create_connection
+        urllib.request.urlopen = lambda *args, **kwargs: (_ for _ in ()).throw(self.G.ErrorRedEnPruebas("urlopen bloqueado en pruebas"))
+        socket.create_connection = lambda *args, **kwargs: (_ for _ in ()).throw(self.G.ErrorRedEnPruebas("socket bloqueado en pruebas"))
+
+        try:
+            r = A.ciclo(self.raiz, AHORA_CDMX_07, encargar=False, jev=False,
+                            enviar=enviar_falso, home=self.home, seco=False,
+                            subir_drive=lambda f, t: "doc-falso")
+        finally:
+            # Restaura los métodos originales
+            urllib.request.urlopen = original_urlopen
+            socket.create_connection = original_socket_create
+
         self.assertTrue(r["ok"])
         self.assertEqual(r["resultado"]["accion"], "entregada")
         self.assertEqual(len(enviados), 2)
@@ -138,23 +150,37 @@ class TestCiclo(unittest.TestCase):
         self.assertTrue(estado["entregada"])
         self.assertEqual(estado["sintesis_path"], ruta)
 
-    def test_solo_una_entrega_al_dia(self):
+
+def test_solo_una_entrega_al_dia(self):
         os.makedirs(os.path.join(self.raiz, A.REL_SINTESIS), exist_ok=True)
         ruta = os.path.join(self.raiz, A.REL_SINTESIS, f"{FECHA}.md")
         with open(ruta, "w", encoding="utf-8") as f:
             f.write("Síntesis de prueba.")
         def enviar_falso(texto, **kw):
             return {"ok": True, "trozos": 1}
-        # Primera entrega
-        r1 = A.ciclo(self.raiz, AHORA_CDMX_07, encargar=False, jev=False,
-                     enviar=enviar_falso, home=self.home, seco=False,
-                     subir_drive=lambda f, t: "doc-falso")
-        self.assertTrue(r1["ok"])
-        # Segunda entrega en mismo día (forzar para saltar la puerta de 15 min)
-        r2 = A.ciclo(self.raiz, AHORA_CDMX_07, encargar=False, jev=False,
-                     enviar=enviar_falso, home=self.home, seco=False, forzar=True,
-                     subir_drive=lambda f, t: "doc-falso")
-        self.assertEqual(r2["resultado"]["accion"], "ya_entregada")
+
+        # Sustituye urllib.request.urlopen y socket.create_connection por funciones que lanzan ErrorRedEnPruebas
+        original_urlopen = urllib.request.urlopen
+        original_socket_create = socket.create_connection
+        urllib.request.urlopen = lambda *args, **kwargs: (_ for _ in ()).throw(self.G.ErrorRedEnPruebas("urlopen bloqueado en pruebas"))
+        socket.create_connection = lambda *args, **kwargs: (_ for _ in ()).throw(self.G.ErrorRedEnPruebas("socket bloqueado en pruebas"))
+
+        try:
+            # Primera entrega
+            r1 = A.ciclo(self.raiz, AHORA_CDMX_07, encargar=False, jev=False,
+                            enviar=enviar_falso, home=self.home, seco=False,
+                            subir_drive=lambda f, t: "doc-falso")
+            self.assertTrue(r1["ok"])
+            # Segunda entrega en mismo día (forzar para saltar la puerta de 15 min)
+            r2 = A.ciclo(self.raiz, AHORA_CDMX_07, encargar=False, jev=False,
+                            enviar=enviar_falso, home=self.home, seco=False, forzar=True,
+                            subir_drive=lambda f, t: "doc-falso")
+            self.assertEqual(r2["resultado"]["accion"], "ya_entregada")
+        finally:
+            # Restaura los métodos originales
+            urllib.request.urlopen = original_urlopen
+            socket.create_connection = original_socket_create
+
 
     def test_puerta_cada_15_min(self):
         r1 = A.ciclo(self.raiz, AHORA_CDMX_00, encargar=False, jev=False, home=self.home, seco=False)
