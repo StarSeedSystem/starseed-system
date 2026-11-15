@@ -51,6 +51,8 @@ class Falso(object):
         if c == "log":
             return 0, "Ola X · tarea\nOla Y · otra", ""
         if c == "merge-base":
+            if args[-1] == "HEAD":  # PUB1115P: «¿main local contiene este sha?»
+                return (0 if self.o.get("contiene", True) else 1), "", ""
             return (0 if self.o["ancestro"] else 1), "", ""
         if c == "cherry":
             return 0, self.o.get("cherry", ""), ""
@@ -89,6 +91,9 @@ class Falso(object):
         if isinstance(j, dict):
             return j
         return {"respuesta": "no", "confianza": 0.97} if j else {"respuesta": "sí", "confianza": 0.9}
+
+    def puerta_estado(self):
+        return self.o.get("puerta"), self.o.get("puerta_edad")
 
     def peticion(self):
         p, self.o["peticion"] = self.o.get("peticion"), None
@@ -758,6 +763,83 @@ class TopeDeLasPruebas(unittest.TestCase):
             return type("R", (), {"returncode": 1, "stdout": "1 failed", "stderr": ""})()
         self.assertEqual(A.correr_pruebas((("x", ["x"]),), "/tmp", {}, tope_s=600, correr=correr),
                          (False, "1 failed"))
+
+
+class PuertaDeIntegracion(unittest.TestCase):
+    """(PUB1115P) La puerta une en main local, prueba y, en rojo, lo deshace: nada de esa unión se publica."""
+
+    def test_secuencia_del_15_11_no_publica_lo_deshecho(self):
+        enmarcha = {"nombre": "1115e", "paso": "pruebas", "resultado": None}
+        m = Falso(puerta=enmarcha, puerta_edad=60)
+        # 1. con la puerta probando, el lote no arranca: ni Jev, ni pruebas, ni candidato.
+        e = A.pasada(m, {}, T0)
+        self.assertEqual(e["fase"], "esperando")
+        self.assertIn("hay una puerta de integración en marcha: 1115e, paso pruebas", e["detalle"])
+        self.assertEqual(m.pushes, [])
+        # 2. aun así un candidato ya subido (la pasada vio la unión antes de que la puerta arrancase):
+        #    la puerta sale en rojo y deshace main -> el CI verde NO empuja nada.
+        m = Falso(runs=[run("completed", "success")], contiene=False)
+        e = A.pasada(m, {"fase": "ci", "sha": SHA, "desde": T0}, T0 + 900)
+        self.assertEqual(e["fase"], "al-dia")
+        self.assertIsNone(e["sha"])
+        self.assertIn("el candidato ya no está en main (la puerta lo deshizo): rehago el lote", e["detalle"])
+        self.assertEqual(m.pushes, [])
+        # 3. la pasada siguiente parte de la cabeza actual (la base que restauró la puerta roja).
+        m.o["contiene"] = True
+        m.o["pendientes"] = 0
+        self.assertEqual(A.pasada(m, e, T0 + 1200)["fase"], "al-dia")
+        self.assertEqual(m.pushes, [])
+        m.o["pendientes"] = 2
+        e = A.pasada(m, e, T0 + 1500)
+        self.assertEqual(e["fase"], "ci")
+        self.assertEqual(m.pushes[-1][-1], "%s:refs/heads/produccion/candidato" % SHA)
+
+    def test_candidato_perdido_en_cada_espera_no_empuja(self):
+        for run_ in (run("in_progress", None), run("completed", "success"), run("completed", "failure")):
+            m = Falso(runs=[run_], contiene=False)
+            e = A.pasada(m, {"fase": "ci", "sha": SHA, "desde": T0}, T0 + A.CI_TOPE_S + 5)
+            self.assertEqual((e["fase"], e["sha"]), ("al-dia", None))
+            self.assertEqual(m.pushes, [])
+        # el CI que no cierra pero cuyos jobs acabaron en verde (segundo sitio de push) tampoco empuja
+        m = Falso(runs=[run("in_progress", None)], contiene=False)
+        m.gh = lambda ruta: ({"jobs": [{"status": "completed", "conclusion": "success"}]} if "/jobs" in ruta
+                             else {"workflow_runs": [run("in_progress", None)]})
+        e = A.pasada(m, {"fase": "ci", "sha": SHA, "desde": T0}, T0 + A.CI_TOPE_S + 5)
+        self.assertEqual(e["fase"], "al-dia")
+        self.assertEqual(m.pushes, [])
+
+    def test_main_cambia_mientras_se_prueba_no_sube_el_candidato(self):
+        m = Falso(contiene=False)
+        e = A.pasada(m, {}, T0)
+        self.assertEqual((e["fase"], e["sha"]), ("al-dia", None))
+        self.assertIn("el candidato ya no está en main", e["detalle"])
+        self.assertEqual(m.pushes, [])
+
+    def test_archivo_viejo_de_puerta_caida_no_frena_y_se_dice(self):
+        viejo = {"nombre": "1115e", "paso": "pruebas"}
+        m = Falso(puerta=viejo, puerta_edad=A.PUERTA_VIGENCIA_S + 1)
+        e = A.pasada(m, {}, T0)
+        self.assertEqual(e["fase"], "ci")
+        self.assertTrue(any("ignoro el estado de la puerta de integración 1115e" in a for a in m.avisos))
+
+    def test_puerta_terminada_o_sin_archivo_no_frena(self):
+        for puerta in ({"nombre": "1115e", "paso": "terminado", "resultado": "ROJO (vitest): deshecho a ef6f544f3d"}, None):
+            m = Falso(puerta=puerta, puerta_edad=10 if puerta else None)
+            self.assertEqual(A.pasada(m, {}, T0)["fase"], "ci")
+            self.assertFalse(any("ignoro" in a for a in m.avisos))
+
+    def test_camino_verde_normal_intacto(self):
+        m = Falso(puerta={"nombre": "1115d", "paso": "terminado"}, puerta_edad=5)
+        e = A.pasada(m, {}, T0)
+        m.o["runs"] = [run("completed", "success")]
+        e = A.pasada(m, e, T0 + 900)
+        self.assertEqual(e["fase"], "verificando")
+        self.assertEqual(m.pushes[-1], ["push", "origin", "%s:main" % SHA])
+
+    def test_puro(self):
+        self.assertEqual(A.puerta_en_marcha(None, None), (False, "", ""))
+        self.assertEqual(A.puerta_en_marcha({"nombre": "x"}, 5), (False, "", ""))
+        self.assertTrue(A.puerta_en_marcha({"nombre": "x", "paso": "unir"}, 5)[0])
 
 
 if __name__ == "__main__":
