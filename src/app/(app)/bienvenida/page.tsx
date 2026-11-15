@@ -25,6 +25,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 import OnboardingWizard from "@/components/onboarding/onboarding-wizard";
 import { PaginaAcceso } from "@/components/auth/ventana-acceso";
+import { KineticTitle } from "@/components/kinetic/KineticTitle";
 import { etapaActual, iniciarRito, navegarSuave } from "@/lib/onboarding/director-rito";
 
 type Estado = "comprobando" | "sin-cuenta" | "con-cuenta" | "lista";
@@ -184,7 +185,14 @@ export default function BienvenidaPage() {
   return (
     <main className="min-h-screen px-4 py-8 md:px-8">
       <div className="max-w-4xl mx-auto">
-        <h1 className="text-2xl font-bold text-amber-50">Bienvenida · Guía de StarSeed con Astraura</h1>
+        <h1 className="sr-only">Bienvenida · Guía de StarSeed con Astraura</h1>
+        <div aria-hidden="true">
+          <KineticTitle
+            titulo="Guía de StarSeed con Astraura"
+            variante="expresiva"
+            className="mb-4"
+          />
+        </div>
         <p className="text-sm text-white/50 mt-1 mb-6">
           Repasa cómo vincular, conectar, crear, publicar y usar cada área de la red. Crea tu identidad (@handle),
           tu dirección StarSeed y tu recuperación, o empieza con la voz de Aurora.
