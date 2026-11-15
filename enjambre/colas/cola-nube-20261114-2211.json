@@ -1,0 +1,49 @@
+{
+ "ola": "nube-20261114",
+ "tareas": [
+  {
+   "id": "IMG-diaria-websocket-vs-sse",
+   "titulo": "WebSocket vs SSE",
+   "area": "imaginacion",
+   "archivos": [],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: WebSocket vs SSE. : medir latencia percibida real (`tasks`: \"Comprobar en uso real si el WebSocket mejora la latencia…\") — si gana, migrar `sendAuroraTurn` y notificaciones especiales. Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  },
+  {
+   "id": "SIN1114D",
+   "ola": "SIN1114",
+   "titulo": "Mover (sin borrar) los Docs basura de las pruebas",
+   "archivos": [
+    "scripts/puente/limpiar_sintesis_basura.py",
+    "scripts/puente/test_limpiar_sintesis_basura.py"
+   ],
+   "depende": [],
+   "prompt": "Lee architecture/sintesis-diaria-arreglo-1114.md §4.4. limpiar_sintesis_basura.py, en seco por defecto y con --aplicar para mover: en la carpeta Síntesis diarias (1PenzAWw1VWpSAMXa7ms2VRrEhJ5uFbmI), los Google Docs llamados «Síntesis diaria 2026-11-11», creados después del 2026-11-12 y con menos de 2000 caracteres de texto exportado, se MUEVEN a la subcarpeta «_pruebas (para borrar)» (créala si no existe) con la cuenta alex-docs. Nunca borra ni manda a la papelera, y nunca toca un Doc con 4000 caracteres o más. Informa del número movido y avisa en el Mando. Pruebas con un falso de Drive.",
+   "revisor_quitadas": [
+    "SIN1114A"
+   ]
+  },
+  {
+   "ola": "SIN1114",
+   "segundos": 1135,
+   "t": "2026-11-14 21:13:11",
+   "rama": "ola/SIN1114Ab",
+   "sha": "44d36a6ac4d6f5fdab41ce04c33d3fd3f4fcdf4e",
+   "modelo": "codex/gpt-5.6-sol",
+   "id": "SIN1114Ac-d1",
+   "titulo": "URGENTE · Cortar de verdad la fuga a Drive de las pruebas (las culpables reales) (parte 1 de 3)",
+   "archivos": [
+    "scripts/puente/test_agente_sintesis.py",
+    "scripts/puente/conftest.py",
+    "scripts/puente/guardia_pruebas.py"
+   ],
+   "depende": [],
+   "prompt": "Lee architecture/sintesis-diaria-arreglo-1114.md §4.1. Verificado por Claude el 2026-11-15 a las 02:49 UTC: la rama ola/SIN1114A (66 pruebas en verde) SIGUE creando 2 Google Docs reales «Síntesis diaria 2026-11-11» por corrida. El contrato nombraba mal las pruebas. Con la red cortada, las que suben a Drive son test_entregar_con_sintesis_envia_resumen_y_completa (línea 120) y test_solo_una_entrega_al_dia (línea 141) de test_agente_sintesis.py: llaman a ciclo/entregar sin subir_drive y _subir_doc usa los tokens reales. Además STARSEED_PRUEBAS no está puesto mientras corren, porque desactivar() en test_guardia_pruebas lo quita del entorno global. Arreglo, partiendo de la rama ola/SIN1114A (incorpora también lo que pidió su revisor): (1) inyecta subir_drive=lambda f, t: 'doc-falso' en esas dos pruebas (y asegurar_fuente falso si hace falta). (2) scripts/puente/conftest.py (pytest, alcance de sesión): pone STARSEED_PRUEBAS=1 y sustituye urllib.request.urlopen, http.client.HTTPSConnection.connect y socket.create_connection por funciones que lanzan ErrorRedEnPruebas para todo lo que no sea localhost; las pruebas de la guardia restauran el estado anterior con monkeypatch y nunca quitan la variable del entorno de sesión. (3) _subir_doc, cuentas_google.token y sintesis_telegram.enviar se niegan con STARSEED_PRUEBAS=1 (ya en la rama). (4) Prueba de humo: corre test_agente_sintesis.py completo con un urlopen falso que cuente las llamadas y exige 0. Comprueba con el método de /tmp/rastrear_red.py en la Mac (urlopen y socket parcheados antes de pytest.main) que no queda ninguna llamada de red en test_agente_sintesis.py, test_sintesis_multiformato.py ni test_peticiones_*.py. Sustituye a SIN1114A.\n\n## REPARACIÓN\nRepara las pruebas que fallaron y conserva las que ya pasan:\n/Users/alex/Documents/starseed-wt/SIN1114Ab/scripts/puente/test_director_suenos.py:151: ResourceWarning: unclosed file <_io.TextIOWrapper name='/var/folders/n7/32t0h2194vjdrh2ptl2n657w0000gn/T/ssp-817-cd28/suenos-dir-k86kr08e/profundo/2026-09-29/voz--arquitectura-deuda.json' mode='w' encoding='UTF-8'>\n/Users/alex/Documents/starseed-wt/SIN1114Ab/scripts/puente/test_director_suenos.py:293: ResourceWarning: unclosed file <_io.TextIOWrapper name='/var/folders/n7/32t0h2194vjdrh2ptl2n657w0000gn/T/ssp-817-cd28/hermes-vu9fg963/args' mode='r' encoding='UTF-8'>\nerror: PROMPT.md pesaria 3532 bytes (tope 2048). Recorta: junta dos firmas en una (el tope son 9, no el minimo de texto); quita comportamientos; quedate con rol y cobertura.\nerror: sin imagen de referencia: el prompt nunca va sin ella\n/Users/alex/Documents/starseed-wt/SIN1114Ab/scripts/puente/test_diseno_adn_a_design_md.py:81: ResourceWarning: unclosed file <_io.TextIOWrapper name='/Users/alex/Documents/starseed-wt/SIN1114Ab/memory/diseno/adn/cafe/PROMPT.md' mode='r' encoding='utf-8'>\nusage: python3.14 -m unittest [-h] (--slug SLUG | --todos) [--raiz RAIZ]\npython3.14 -m unittest: error: one of the arguments --slug --todos is required\n/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/lib/python3.14/tempfile.py:484: ResourceWarning: Implicitly cleaning up <HTTPError 401: 'Unauthorized'>\n/Users/alex/Documents/starseed-wt/SIN1114Ab/scripts/puente/test_guardia_pruebas.py:134: ResourceWarning: unclosed <ssl.SSLSocket fd=7, family=2, type=1, proto=0, laddr=('192.168.0.15', 52016), raddr=('149.154.166.110', 443)>\n/Users/alex/Documents/starseed-wt/SIN1114Ab/scripts/puente/test_guardia_pruebas.py:141: ResourceWarning: unclosed <socket.socket fd=7, family=2, type=1, proto=6, laddr=('192.168.0.15', 52019), raddr=('149.154.166.110', 443)>\n/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/lib/python3.14/tempfile.py:484: ResourceWarning: Implicitly cleaning up <HTTPError 404: 'Not Found'>\n/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/lib/python3.14/tempfile.py:484: ResourceWarning: Implicitly cleaning up <HTTPError 503: 'Service Unavailable'>\n/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/lib/python3.14/unittest/case.py:615: ResourceWarning: unclosed file <_io.TextIOWrapper name=11 encoding='UTF-8'>\n/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/lib/python3.14/unittest/case.py:615: ResourceWarning: unclosed file <_io.TextIOWrapper name=8 encoding='UTF-8'>\n/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/lib/python3.14/unittest/case.py:615: ResourceWarning: unclosed file <_io.TextIOWrapper name=9 encoding='UTF-8'>\n/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/lib/python3.14/tempfile.py:484: ResourceWarning: Implicitly cleaning up <HTTPError 401: 'Unauthorized'>\n/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/lib/python3.14/tempfile.py:484: ResourceWarning: Implicitly cleaning up <HTTPError 403: 'Forbidden'>\n/Users/alex/Documents/starseed-wt/SIN1114Ab/scripts/puente/test_ronda.py:351: ResourceWarning: unclosed file <_io.TextIOWrapper name='/var/folders/n7/32t0h2194vjdrh2ptl2n657w0000gn/T/ssp-817-cd28/tmpxwip5t3t/salida.txt' mode='r' encoding='UTF-8'>\nConnectionResetError: [Errno 54] Connection reset by peer\nError al intentar generar catálogo: Error al ejecutar\nError al procesar opción opcion1: Error de conexión\nERROR: test_urlopen_externo_falla (test_guardia_pruebas.TestParchesRed.test_urlopen_externo_falla)\nurlopen a host externo debe fallar con ErrorRedEnPruebas.\n  File \"/Users/alex/Documents/starseed-wt/SIN1114Ab/scripts/puente/test_guardia_pruebas.py\", line 127, in test_urlopen_externo_falla\n  File \"/Users/alex/Documents/starseed-wt/SIN1114Ab/scripts/puente/test_guardia_pruebas.py\", line 85, in _llamar_urlopen\n    response = self.parent.error(\n  File \"/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/lib/python3.14/urllib/request.py\", line 531, in error\n  File \"/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/lib/python3.14/urllib/request.py\", line 611, in http_error_default\n    raise HTTPError(req.full_url, code, msg, hdrs, fp)\nurllib.error.HTTPError: HTTP Error 404: Not Found\nFAIL: test_https_connect_externo_falla (test_guardia_pruebas.TestParchesRed.test_https_connect_externo_falla)\n  File \"/Users/alex/Documents/starseed-wt/SIN1114Ab/scripts/puente/test_guardia_pruebas.py\", line 133, in test_https_connect_externo_falla\n    with self.assertRaises(RuntimeError) as cm:\nAssertionError: RuntimeError not raised\nFAIL: test_socket_create_externo_falla (test_guardia_pruebas.TestParchesRed.test_socket_create_externo_falla)\n  File \"/Users/alex/Documents/starseed-wt/SIN1114Ab/scripts/puente/test_guardia_pruebas.py\", line 140, in test_socket_create_externo_falla\n    with self.assertRaises(RuntimeError) as cm:\nAssertionError: RuntimeError not raised\nRan 5941 tests in 263.605s\nFAILED (failures=2, errors=1, skipped=4, expected failures=4)\n\nCorrige cada punto y añade pruebas que demuestren la reparación.\n\n## PARTE 1 DE 3 (la dirección dividió SIN1114Ac: falla por sí misma (tarea:pruebas))\nEn esta parte tocas SOLO: scripts/puente/test_agente_sintesis.py, scripts/puente/conftest.py, scripts/puente/guardia_pruebas.py. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "SIN1114Ac",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:pruebas)"
+   }
+  }
+ ]
+}
