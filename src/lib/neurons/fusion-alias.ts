@@ -43,7 +43,7 @@ export interface RespaldoFusion {
 export interface RegistroFusiones {
   v: 1;
   /** id absorbido → id que se queda. */
-  alias: Record<string, { a: string; ts: number }>;
+  alias: Record<string, { a: string; ts: number; /** NEU1115G: id de sync del origen que hizo la fusión. */ por?: string }>;
   respaldos: RespaldoFusion[];
 }
 

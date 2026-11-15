@@ -32,7 +32,7 @@ import {
   resolverAliasEsteMedio,
   type NeuronCapabilities,
 } from "@/lib/neurons/neurons";
-import { esIdNeuronaValido } from "@/lib/network/identidad-dispositivo";
+import { esIdNeuronaValido, neuronDeviceSyncId } from "@/lib/network/identidad-dispositivo";
 import {
   CLAVE_FUSIONES,
   MARCA_FUSIONADA,
@@ -309,7 +309,7 @@ export async function fusionarNeuronas(
     // 4 · alias + respaldo (antes de borrar: si el borrado falla, el alias igualmente evita duplicados).
     const ts = Date.now();
     const reg = leerFusiones();
-    for (const a of absorbidas) reg.alias[a] = { a: principalId, ts };
+    for (const a of absorbidas) reg.alias[a] = { a: principalId, ts, por: neuronDeviceSyncId() };
     const respaldo: RespaldoFusion = { ts, principal: principalId, absorbidas, filas: deAbsorbidas, movidas: recortarMovidas(movidas) };
     reg.respaldos.push(respaldo);
     escribirFusiones(reg);

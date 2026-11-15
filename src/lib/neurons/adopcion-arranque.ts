@@ -9,7 +9,8 @@
  * «Usar su configuración», sin preguntar) y no nace ninguna fila. Si no está claro, no se hace nada y
  * decide la persona en la ventana «Esta neurona».
  *
- * Pruebas fuertes, en orden:
+ * (NEU1115G) Solo la pista de la migración adopta en silencio, y solo si esa fila sigue viva. Lo demás
+ * (huella, equipo) se sugiere, nunca se adopta. Texto histórico de las pruebas, en orden:
  *   1. la pista de la migración (el id que esta app usaba en el origen anterior: escritorio con
  *      `migracion-origen.js`, Android con `pista_neurona`), si esa fila no es de otro aparato;
  *   2. la misma huella del aparato (`capabilities.aparato.huella`, la escribe la app nativa) en UNA
@@ -52,6 +53,8 @@ export type MotivoAdopcion =
   | "mismo-equipo"
   | "ambigua"
   | "pista-de-otro-aparato"
+  | "pista-absorbida"
+  | "requiere-eleccion"
   | "sin-pruebas";
 
 export interface DecisionAdopcionArranque {
@@ -102,9 +105,14 @@ export function decidirAdopcionArranque(e: EntradaAdopcionArranque): DecisionAdo
     const vigentes = filas.filter((f) => f.id !== e.yoId && !fusionadaEn(f.capabilities) && vigenteDe(f.id, e.alias, porId) === f.id);
     const yo = e.aparato;
 
-    // 1 · La pista de la migración.
+    // 1 · La pista de la migración: el id que ESTE aparato usaba en el origen anterior. Es su propia
+    // identidad, no la de otro: solo se recupera si esa fila sigue viva y es de este aparato.
+    // (NEU1115G) Si esa fila fue absorbida por otra neurona (marca `fusionada` o alias), NO se sigue la
+    // cadena: acabaría en la neurona de OTRO aparato (caso real del 15-11: el móvil adoptó la de la
+    // tableta). Se queda sin adoptar y la persona elige en la ventana, viendo los aparatos de cada una.
     if (e.idAnterior) {
       const destino = vigenteDe(e.idAnterior, e.alias, porId);
+      if (destino !== e.idAnterior) return nada("pista-absorbida", [destino]);
       const fila = vigentes.find((f) => f.id === destino);
       if (fila && destino !== e.yoId) {
         if (compararAparatos(yo, leerAparato(fila.capabilities)).parecido === "distinto") return nada("pista-de-otro-aparato", [destino]);
@@ -112,28 +120,23 @@ export function decidirAdopcionArranque(e: EntradaAdopcionArranque): DecisionAdo
       }
     }
 
-    // 2 · La misma huella del aparato en UNA sola neurona vigente.
-    if (yo?.huella) {
-      const iguales = vigentes.filter((f) => leerAparato(f.capabilities)?.huella === yo.huella).map((f) => f.id);
-      if (iguales.length === 1) return { adoptar: iguales[0], motivo: "misma-huella", candidatas: iguales };
-      if (iguales.length > 1) return nada("ambigua", iguales);
-    }
-
-    // 3 · El mismo equipo y sistema en UNA sola neurona vigente que no esté en línea ahora.
+    // 2 y 3 · (NEU1115G) Una huella o un equipo que se parecen YA NO bastan para adoptar en silencio: un
+    // aparato nunca entra en una neurona sin que la persona lo elija. Se devuelven las candidatas (para
+    // preseleccionar la sugerencia en la ventana) y no se adopta nada.
+    const candidatas = new Set<string>();
+    if (yo?.huella) for (const f of vigentes) if (leerAparato(f.capabilities)?.huella === yo.huella) candidatas.add(f.id);
     const equipo = normalizarEquipo(yo?.equipo);
     const so = familiaSistema(yo?.so);
     if (yo?.equipo && equipo && so !== "desconocido") {
-      const iguales = vigentes.filter((f) => {
+      for (const f of vigentes) {
         const ap = leerAparato(f.capabilities);
-        if (!ap?.equipo || normalizarEquipo(ap.equipo) !== equipo) return false;
-        if (ap.so && ap.so !== so) return false;
-        if (ap.huella && yo.huella && ap.huella !== yo.huella) return false;
-        return true;
-      });
-      const libres = iguales.filter((f) => !enLinea(f, e.ahora)).map((f) => f.id);
-      if (iguales.length === 1 && libres.length === 1) return { adoptar: libres[0], motivo: "mismo-equipo", candidatas: libres };
-      if (iguales.length > 0) return nada("ambigua", iguales.map((f) => f.id));
+        if (!ap?.equipo || normalizarEquipo(ap.equipo) !== equipo) continue;
+        if (ap.so && ap.so !== so) continue;
+        if (ap.huella && yo.huella && ap.huella !== yo.huella) continue;
+        candidatas.add(f.id);
+      }
     }
+    if (candidatas.size) return nada("requiere-eleccion", [...candidatas]);
     return nada("sin-pruebas");
   } catch {
     return nada("sin-pruebas");

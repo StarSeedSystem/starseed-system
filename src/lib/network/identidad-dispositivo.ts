@@ -81,6 +81,11 @@ export function neuronDeviceIdActual(): string {
   return leerOCrear(LS_NEURON);
 }
 
+/** (NEU1115G) Id de sync de ESTE origen (`starseed.device.id`): el «id de aparato» propio y estable. */
+export function neuronDeviceSyncId(): string {
+  return leerOCrear(LS_SYNC);
+}
+
 /**
  * identidadDispositivo — mapa único de las tres identidades de ESTE dispositivo.
  * NUNCA lanza; SSR-safe (ids vacíos en el servidor). Idempotente: no crea nada

@@ -199,11 +199,12 @@ describe("una neurona por aparato (2026-10-09)", () => {
     expect(db.fichasCompletas).toBe(2); // ficha con capacidades, no una fila fantasma
   });
 
-  test("si esta neurona fue fusionada en otra, el medio adopta la principal antes de latir", async () => {
+  test("si esta neurona fue fusionada en otra POR ESTE ORIGEN, el medio adopta la principal antes de latir (NEU1115G)", async () => {
     localStorage.setItem("starseed.neuron.device-id", "neurona-vieja-0001");
+    localStorage.setItem("starseed.device.id", "sync-de-este-origen-1");
     localStorage.setItem(
       "starseed.neuronas.fusiones.v1",
-      JSON.stringify({ v: 1, alias: { "neurona-vieja-0001": { a: "neurona-principal-02", ts: 1 } }, respaldos: [] }),
+      JSON.stringify({ v: 1, alias: { "neurona-vieja-0001": { a: "neurona-principal-02", ts: 1, por: "sync-de-este-origen-1" } }, respaldos: [] }),
     );
     const n = await neuronas();
     const yo = await n.ensureThisNeuron();

@@ -56,9 +56,10 @@ import { LISTA_REGISTRO_CON_PUERTA_MS, fundirVivas, latirNeuronaPorPuerta, vivas
 // (G3D1011D · contrato avatares-3d §11) Reparto del taller 3D entre neuronas: la publicación de
 // capacidades y la traducción del hierro medido viven en el adaptador puro `reparto-taller`.
 import { capacidadesParaRegistro, hierroDeCapacidades, type CapacidadesTaller } from "@/lib/avatares/adaptadores/reparto-taller";
-import { adoptarNeurona } from "@/lib/network/identidad-dispositivo";
+import { adoptarNeurona, neuronDeviceSyncId } from "@/lib/network/identidad-dispositivo";
 // (NEU1108A) Identidad del aparato en la fila y adopción en silencio antes de crearla.
-import { combinarAparato, esAparatoRico, type AparatoRegistro } from "@/lib/neurons/aparato-registro";
+import { entradaViva, fusionarAparatos, lapida, leerMapaAparatos, type MapaAparatos } from "@/lib/neurons/aparatos-de-neurona";
+import { combinarAparato, compararAparatos, esAparatoRico, leerAparato, type AparatoRegistro } from "@/lib/neurons/aparato-registro";
 import { aparatoDeEsteMedio, traerPistaNativa } from "@/lib/neurons/aparato-este-medio";
 import { decidirAdopcionArranque } from "@/lib/neurons/adopcion-arranque";
 
@@ -161,6 +162,8 @@ export interface NeuronCapabilities {
    * modelo, huella (hash), versión nativa y el último medio que escribió. Sin migración (jsonb).
    */
   aparato?: AparatoRegistro;
+  /** (NEU1115G) Los aparatos de esta neurona, uno por id de aparato (`aparatos-de-neurona.ts`). Sin migración (jsonb). */
+  aparatos?: MapaAparatos;
 }
 
 /** Permisos de la neurona. PREDETERMINADO: todo true (máxima interconexión). */
@@ -467,6 +470,93 @@ export function setNeuronName(deviceId: string, name: string): void {
   void upsertRemote({ id: deviceId, name: name.trim() });
 }
 
+/* ── (NEU1115G) Aparatos de la neurona: nombre propio y cambio de neurona ───────────────────────── */
+
+const CLAVE_NOMBRE_APARATO = "starseed.neuron.aparato-nombre.v1";
+
+/** El nombre que la persona le puso a ESTE aparato (vacío si no le puso ninguno). */
+export function nombreEsteAparato(): string {
+  try {
+    return (window.localStorage.getItem(CLAVE_NOMBRE_APARATO) ?? "").trim().slice(0, 60);
+  } catch {
+    return "";
+  }
+}
+
+/** Escribe MI entrada (nombre, medio, sistema, equipo) en la fila de la neurona `idNeurona`. Nunca lanza. */
+async function escribirMiEntrada(idNeurona: string, modo: "viva" | "lapida"): Promise<boolean> {
+  try {
+    const sync = neuronDeviceSyncId();
+    const owner = await getOwner();
+    if (!sync || !owner || !idNeurona) return false;
+    const supabase = createClient();
+    const actual = await supabase.from("neuron_devices").select("capabilities").eq("id", idNeurona).maybeSingle();
+    if (falloDe(actual as { error?: unknown; status?: number })) return false;
+    const fila = (actual as { data?: { capabilities?: Record<string, unknown> } | null }).data;
+    if (!fila) return false;
+    const previo = leerMapaAparatos(fila.capabilities)[sync];
+    const ap = neuronaLocal?.capabilities.aparato;
+    const entrada = modo === "lapida" ? lapida(previo, Date.now()) : entradaViva({ nombre: nombreEsteAparato() || undefined, medio: ap?.medio, so: ap?.so, equipo: ap?.equipo }, Date.now());
+    const aparatos: MapaAparatos = fusionarAparatos(fila.capabilities?.aparatos, { [sync]: entrada });
+    const res = await supabase.from("neuron_devices").update({ capabilities: { ...fila.capabilities, aparatos } }).eq("id", idNeurona);
+    const fallo = falloDe(res as { error?: unknown; status?: number });
+    if (!fallo) invalidarListaNeuronas();
+    return !fallo;
+  } catch {
+    return false;
+  }
+}
+
+/** Renombra ESTE aparato (no la neurona): se guarda aquí y en su entrada de la fila. */
+export async function renombrarEsteAparato(nombre: string): Promise<boolean> {
+  const limpio = nombre.replace(/\s+/g, " ").trim().slice(0, 60);
+  try {
+    if (limpio) window.localStorage.setItem(CLAVE_NOMBRE_APARATO, limpio);
+    else window.localStorage.removeItem(CLAVE_NOMBRE_APARATO);
+  } catch { /* sin almacenamiento */ }
+  neuronaLocal = null;
+  return escribirMiEntrada(resolverAliasEsteMedio() || thisDeviceId(), "viva");
+}
+
+/**
+ * ESTE aparato pasa a otra neurona: una existente (`destino`, que la persona eligió) o una nueva
+ * (`destino` null; `nombreNueva` opcional). Deja una lápida en la fila que deja. NO borra nada: ni la
+ * fila vieja, ni claves, historial o ajustes locales, ni la clave del aparato para el control entre
+ * neuronas (`firma-aparato.ts`, ligada al aparato y no a la neurona). Nunca lanza.
+ */
+export async function cambiarNeuronaDeEsteAparato(destino: string | null, nombreNueva?: string): Promise<{ ok: boolean; anterior: string; nueva: string }> {
+  const anterior = resolverAliasEsteMedio() || thisDeviceId();
+  const nueva = destino && destino !== anterior ? destino : destino ? anterior : uuid();
+  try {
+    if (!anterior || !nueva) return { ok: false, anterior, nueva: anterior };
+    if (nueva === anterior) return { ok: true, anterior, nueva };
+    const r = adoptarNeurona(nueva);
+    if (!r.ok) return { ok: false, anterior, nueva: anterior };
+    if (!destino && nombreNueva?.trim()) {
+      const prefs = readPrefs();
+      prefs.names[nueva] = nombreNueva.trim();
+      writePrefs(prefs);
+    }
+    // Lápida en la fila que deja (antes de soltar la ficha local: usa el aparato ya medido).
+    await escribirMiEntrada(anterior, "lapida");
+    neuronaLocal = null;
+    cacheLista = null;
+    identidadRevisada = null;
+    try {
+      (await import("@/lib/onboarding/primer-arranque")).marcarNeuronaConfigurada(nueva);
+    } catch { /* sin onboarding */ }
+    try {
+      window.dispatchEvent(new CustomEvent("starseed:neurona-adoptada", { detail: { anterior, adoptada: nueva, motivo: destino ? "eleccion" : "nueva" } }));
+      window.dispatchEvent(new CustomEvent(NEURON_EVENT));
+    } catch { /* sin window */ }
+    // La fila nueva nace (o se actualiza) con el siguiente latido, con mi entrada viva.
+    void ensureThisNeuron();
+    return { ok: true, anterior, nueva };
+  } catch {
+    return { ok: false, anterior, nueva: anterior };
+  }
+}
+
 const TIPOS_NEURONA: readonly NeuronKind[] = ["desktop", "laptop", "mobile", "tablet", "server", "other"];
 
 /** (NEU1107B) El icono guardado, solo si es un tipo conocido. Pura. */
@@ -536,12 +626,15 @@ export function combinarCapacidades(
 ): NeuronCapabilities {
   const base: Record<string, unknown> = remotas && typeof remotas === "object" ? { ...remotas } : {};
   for (const [k, v] of Object.entries(locales)) {
-    if (k === "medios" || k === "aparato" || k === "fusionada") continue;
+    if (k === "medios" || k === "aparato" || k === "aparatos" || k === "fusionada") continue;
     if (v === undefined || v === null || v === "") continue;
     base[k] = v;
   }
   const aparato = combinarAparato(remotas?.aparato, locales.aparato ?? null);
   if (aparato) base.aparato = aparato;
+  // (NEU1115G) Cada aparato escribe SOLO su entrada; se funden por id (gana la más nueva, lápidas incluidas).
+  const aparatos = fusionarAparatos(remotas?.aparatos, locales.aparatos ?? null);
+  if (Object.keys(aparatos).length) base.aparatos = aparatos;
   const medios = fusionarMedios(
     (remotas?.medios as Record<string, RegistroMedio> | undefined) ?? null,
     locales.medios ?? {},
@@ -678,6 +771,18 @@ async function construirNeuronaLocal(id: string): Promise<Neuron> {
     const aparato = await aparatoDeEsteMedio(capabilities);
     if (aparato) capabilities.aparato = aparato;
   } catch { /* sin bloque del aparato */ }
+  // (NEU1115G) Mi entrada en la lista de aparatos de esta neurona: id propio estable + nombre editable.
+  try {
+    const sync = neuronDeviceSyncId();
+    if (sync) {
+      capabilities.aparatos = {
+        [sync]: entradaViva(
+          { nombre: nombreEsteAparato() || undefined, medio: capabilities.aparato?.medio, so: capabilities.aparato?.so ?? capabilities.platform, equipo: capabilities.aparato?.equipo },
+          Date.now(),
+        ),
+      };
+    }
+  } catch { /* sin lista de aparatos */ }
   const prefs = readPrefs();
   const name = prefs.names[id] || defaultName(capabilities, kind);
   const perms = permissionsFor(id);
@@ -752,12 +857,31 @@ async function latirUnaVez(idInicial: string): Promise<{ fallo: FalloConsulta | 
  * Si el id de neurona de ESTE medio fue fusionado con otro (registro sincronizado de la cuenta),
  * lo adopta ya y devuelve el id vigente; si no, devuelve el actual. Nunca lanza.
  */
+function aliasEsDeEsteAparato(actual: string, vigente: string): boolean {
+  try {
+    const hecho = leerFusiones().alias[actual];
+    const sync = neuronDeviceSyncId();
+    if (hecho?.por && sync && hecho.por === sync) return true;
+    const filas = (cacheLista ?? ultimaListaBuena)?.filas as Array<{ id?: string; capabilities?: unknown }> | undefined;
+    const destino = filas?.find((f) => f.id === vigente);
+    const yo = neuronaLocal?.capabilities.aparato ?? null;
+    if (!destino || !yo) return false;
+    return compararAparatos(yo, leerAparato(destino.capabilities)).parecido === "mismo";
+  } catch {
+    return false;
+  }
+}
+
 export function resolverAliasEsteMedio(): string {
   try {
     const actual = thisDeviceId();
     if (!actual) return "";
     const vigente = neuronaVigente(actual);
     if (vigente && vigente !== actual) {
+      // (NEU1115G) Un alias sincronizado NO mueve a este aparato a otra neurona por sí solo: solo si la
+      // fusión la hizo este mismo origen, o si la fila destino es de este mismo aparato. Si no, un móvil
+      // acababa en la neurona de la tableta porque otro aparato había fusionado su id antiguo.
+      if (!aliasEsDeEsteAparato(actual, vigente)) return actual;
       const r = adoptarNeurona(vigente);
       if (r.ok) {
         neuronaLocal = null;
@@ -1146,7 +1270,7 @@ export async function listNeurons(opts?: { fresco?: boolean }): Promise<Neuron[]
       const destino = propia ? fusionadaEn((propia as { capabilities?: unknown }).capabilities) : null;
       if (destino && destino !== meId && neuronaVigente(meId) === meId) {
         const reg = leerFusiones();
-        reg.alias[meId] = { a: destino, ts: Date.now() };
+        reg.alias[meId] = { a: destino, ts: Date.now(), por: neuronDeviceSyncId() };
         escribirFusiones(reg);
         resolverAliasEsteMedio();
       }

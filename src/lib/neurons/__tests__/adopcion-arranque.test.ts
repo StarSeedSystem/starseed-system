@@ -24,10 +24,10 @@ describe("decidirAdopcionArranque", () => {
     expect(d).toEqual({ adoptar: BOARD.id, motivo: "pista-migracion", candidatas: [BOARD.id] });
   });
 
-  it("sin pista, con la huella que guardó la app en la fila: la misma huella en una sola neurona", () => {
+  it("sin pista, con la misma huella en una sola neurona: se sugiere, no se adopta (NEU1115G)", () => {
     const board = conAparato(BOARD, { v: 1, so: "android", equipo: "Samsung SM-X205", huella: HUELLA });
     const droid = conAparato(DROID, { v: 1, so: "android", equipo: "Samsung SM-A536B", huella: "ffffffff00000000" });
-    expect(decidirAdopcionArranque({ yoId: NUEVA, aparato: YO, filas: [board, droid, MAC], ahora: AHORA })).toMatchObject({ adoptar: board.id, motivo: "misma-huella" });
+    expect(decidirAdopcionArranque({ yoId: NUEVA, aparato: YO, filas: [board, droid, MAC], ahora: AHORA })).toMatchObject({ adoptar: null, motivo: "requiere-eleccion", candidatas: [board.id] });
   });
 
   it("como estaba la cuenta el 08-11 (ninguna fila con el aparato) y sin pista: no se adopta nada, decide la ventana", () => {
@@ -42,24 +42,37 @@ describe("decidirAdopcionArranque", () => {
     });
   });
 
-  it("una pista a una fila absorbida lleva a la que se quedó (alias o marca `fusionada`)", () => {
-    const vieja: FilaArranque = { id: "viejo-0001", capabilities: { platform: "Android", fusionada: { en: BOARD.id, ts: 1 } } };
-    expect(decidirAdopcionArranque({ yoId: NUEVA, aparato: YO, filas: [vieja, BOARD], idAnterior: vieja.id, ahora: AHORA }).adoptar).toBe(BOARD.id);
-    expect(decidirAdopcionArranque({ yoId: NUEVA, aparato: YO, filas: [BOARD], idAnterior: "otro-viejo", alias: { "otro-viejo": { a: BOARD.id } }, ahora: AHORA }).adoptar).toBe(BOARD.id);
+  it("NEU1115G · una pista a una fila absorbida NO lleva a la neurona de otro aparato (caso del móvil del 15-11)", () => {
+    // El móvil usaba 659d…; esa fila quedó absorbida por la de la tableta. Antes el móvil adoptaba la de la tableta.
+    const movilAbsorbido: FilaArranque = { ...DROID, capabilities: { platform: "Android", fusionada: { en: BOARD.id, ts: 1 } } };
+    const d = decidirAdopcionArranque({ yoId: NUEVA, aparato: YO, filas: [movilAbsorbido, BOARD], idAnterior: movilAbsorbido.id, ahora: AHORA });
+    expect(d.adoptar).toBeNull();
+    expect(d.motivo).toBe("pista-absorbida");
+    const porAlias = decidirAdopcionArranque({ yoId: NUEVA, aparato: YO, filas: [BOARD], idAnterior: DROID.id, alias: { [DROID.id]: { a: BOARD.id } }, ahora: AHORA });
+    expect(porAlias.adoptar).toBeNull();
+  });
+
+  it("NEU1115G · un segundo aparato de la cuenta nunca acaba en la neurona de otro sin elegirlo (ninguna señal adopta, salvo su propia pista viva)", () => {
+    const board = conAparato(BOARD, { v: 1, so: "android", equipo: "Samsung SM-X205", huella: HUELLA });
+    const mismoEquipoSinHuella = conAparato(DROID, { v: 1, so: "android", equipo: "Samsung SM-X205" });
+    for (const filas of [[board], [mismoEquipoSinHuella], [board, DROID, MAC]]) {
+      const d = decidirAdopcionArranque({ yoId: NUEVA, aparato: YO, filas, ahora: AHORA });
+      expect(d.adoptar).toBeNull();
+    }
+    // Su propia pista a su propia fila viva sí: es su identidad, no la de otro.
+    expect(decidirAdopcionArranque({ yoId: NUEVA, aparato: YO, filas: [DROID], idAnterior: DROID.id, ahora: AHORA }).adoptar).toBe(DROID.id);
   });
 
   it("ambigua (la misma huella en dos neuronas vigentes): no se toca nada", () => {
     const a = conAparato(BOARD, { v: 1, so: "android", huella: HUELLA });
     const b = conAparato(DROID, { v: 1, so: "android", huella: HUELLA });
-    expect(decidirAdopcionArranque({ yoId: NUEVA, aparato: YO, filas: [a, b], ahora: AHORA })).toMatchObject({ adoptar: null, motivo: "ambigua" });
+    expect(decidirAdopcionArranque({ yoId: NUEVA, aparato: YO, filas: [a, b], ahora: AHORA })).toMatchObject({ adoptar: null, motivo: "requiere-eleccion" });
   });
 
-  it("el mismo equipo sin huella: solo si es una sola neurona y no está en línea ahora", () => {
+  it("el mismo equipo sin huella: se sugiere (candidata), nunca se adopta", () => {
     const yo: AparatoRegistro = { v: 1, so: "macos", equipo: "MaggaBook" };
     const macSinHuella = conAparato({ ...MAC, last_seen_at: "2026-11-07T10:00:00Z" }, { v: 1, so: "macos", equipo: "MaggaBook.local" });
-    expect(decidirAdopcionArranque({ yoId: NUEVA, aparato: yo, filas: [macSinHuella], ahora: AHORA })).toMatchObject({ adoptar: MAC.id, motivo: "mismo-equipo" });
-    const enLinea = { ...macSinHuella, last_seen_at: "2026-11-08T01:15:00Z" };
-    expect(decidirAdopcionArranque({ yoId: NUEVA, aparato: yo, filas: [enLinea], ahora: AHORA })).toMatchObject({ adoptar: null, motivo: "ambigua" });
+    expect(decidirAdopcionArranque({ yoId: NUEVA, aparato: yo, filas: [macSinHuella], ahora: AHORA })).toMatchObject({ adoptar: null, motivo: "requiere-eleccion", candidatas: [MAC.id] });
   });
 
   it("este medio ya tiene su fila: nada que adoptar; datos raros: nunca lanza", () => {

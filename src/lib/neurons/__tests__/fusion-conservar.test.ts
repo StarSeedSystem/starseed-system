@@ -77,7 +77,7 @@ describe("fusión que conserva las filas", () => {
     expect(marcada[MARCA_FUSIONADA]).toEqual({ en: PRINCIPAL, ts: r.respaldo, por: "bienvenida" });
     // Alias y respaldo (con la fila tal como estaba, sin marca) en el registro que viaja con la cuenta.
     const reg = leerFusiones();
-    expect(reg.alias[ABSORBIDA]).toEqual({ a: PRINCIPAL, ts: r.respaldo });
+    expect(reg.alias[ABSORBIDA]).toMatchObject({ a: PRINCIPAL, ts: r.respaldo, por: expect.any(String) });
     expect(reg.respaldos.at(-1)?.filas).toEqual([filaAbsorbida]);
     // Los ajustes del id absorbido pasan al que se queda.
     const prefs = JSON.parse(window.localStorage.getItem("starseed.neurons.prefs.v1") ?? "{}");
