@@ -170,6 +170,12 @@ mod acceso_equipo_logica; // SEG1111U
 // ORD1114Q: control entre mis neuronas, lado nativo (sesión, indicador, parada y registro encadenado).
 mod control_neuronas; // ORD1114Q
 mod control_neuronas_logica; // ORD1114Q
+// ORD1114T: el borde de cada plataforma del indicador (Android por archivos con Kotlin; macOS AppKit/Carbon).
+mod control_neuronas_android; // ORD1114T
+#[cfg(target_os = "macos")]
+mod control_neuronas_macos; // ORD1114T
+#[cfg(test)]
+mod control_neuronas_parche; // ORD1114T (lo usa build.rs; aquí solo sus pruebas)
 #[cfg(test)]
 mod android_parche;
 #[cfg(test)]
@@ -912,6 +918,7 @@ pub fn run() {
                 control_neuronas::control_neuronas_anotar,
                 control_neuronas::control_neuronas_parar,
                 control_neuronas::control_neuronas_estado,
+                control_neuronas::control_neuronas_preparar, // ORD1114T
                 // (PTA1108B) Proxy de la puerta de internet: webview (macOS 14+, Android) y descargas de Rust.
                 puerta_proxy::puerta_proxy_local,
                 puerta_proxy::puerta_proxy_estado,

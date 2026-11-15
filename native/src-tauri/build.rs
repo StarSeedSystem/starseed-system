@@ -26,6 +26,9 @@ mod puerta_proxy_parche;
 // (UBI1114K) La ubicación del aparato en Android: permisos, proveedor y UbicacionStarSeed.kt.
 #[path = "src/ubicacion_parche.rs"]
 mod ubicacion_parche;
+// ORD1114T: el indicador nativo del control entre neuronas en Android (permisos, servicio y Kotlin).
+#[path = "src/control_neuronas_parche.rs"]
+mod control_neuronas_parche;
 
 /// Comandos propios de la app (los de `generate_handler!` de src/lib.rs). Desde tauri 2.11.1 una
 /// página de un origen REMOTO (la web publicada, y también el servidor local http://127.0.0.1:47610…)
@@ -148,6 +151,7 @@ const COMANDOS_APP: &[&str] = &[
     "control_neuronas_anotar",
     "control_neuronas_parar",
     "control_neuronas_estado",
+    "control_neuronas_preparar", // ORD1114T: en Android pide a Kotlin el diálogo nativo del interruptor
     // (PTA1108B) Proxy de la puerta de internet para el webview y las descargas de Rust.
     "puerta_proxy_local",
     "puerta_proxy_estado",
@@ -196,6 +200,7 @@ fn main() {
     llamadas_nativas_android(); // (LLA1108D)
     proxy_puerta_android(); // (PTA1108B)
     ubicacion_android(); // (UBI1114K) ANTES que el Bluetooth: su bloque declara la ubicación fina sin tope de versión.
+    control_neuronas_android(); // ORD1114T
     // (BLE1108A) Siempre el último: su bloque del manifiesto va detrás de los otros (mismo orden, mismo archivo).
     bluetooth_android();
     tauri_build::try_build(
@@ -517,5 +522,37 @@ fn ubicacion_android() {
         }
         // Falla en alto: un APK que dice llevar ubicación nativa y no la lleva sería una ilusión.
         Err(e) => panic!("[starseed] No se pudo inyectar la ubicación en Android: {e}. Para compilar sin ella: STARSEED_SIN_UBICACION_ANDROID=1"),
+    }
+}
+
+// ORD1114T: indicador nativo del control entre neuronas en Android (notificación en curso + superposición).
+fn control_neuronas_android() {
+    println!("cargo:rerun-if-changed=src/control_neuronas_parche.rs");
+    println!("cargo:rerun-if-changed=android/ControlNeuronasStarSeed.kt");
+    println!("cargo:rerun-if-env-changed=STARSEED_SIN_CONTROL_ANDROID");
+    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() != Ok("android") {
+        return;
+    }
+    let paquete = std::env::var("TAURI_ANDROID_PACKAGE_UNESCAPED")
+        .or_else(|_| std::env::var("WRY_ANDROID_PACKAGE"))
+        .unwrap_or_default();
+    let apagado = control_neuronas_parche::apagado(std::env::var("STARSEED_SIN_CONTROL_ANDROID").ok().as_deref());
+    if apagado || !control_neuronas_parche::aplica(&paquete) {
+        if apagado {
+            println!("cargo:warning=[starseed] STARSEED_SIN_CONTROL_ANDROID: el APK sale SIN indicador de control (el control se niega).");
+        }
+        return;
+    }
+    let Some(proyecto) = std::env::var_os("TAURI_ANDROID_PROJECT_PATH").map(std::path::PathBuf::from) else {
+        println!("cargo:warning=[starseed] Sin TAURI_ANDROID_PROJECT_PATH: el APK sale SIN indicador de control (el control se niega).");
+        return;
+    };
+    match control_neuronas_parche::aplicar(&proyecto) {
+        Ok(cambiados) => {
+            for c in cambiados {
+                println!("cargo:warning=[starseed] Control entre neuronas: escrito {}", c.display());
+            }
+        }
+        Err(e) => panic!("[starseed] No se pudo inyectar el indicador de control en Android: {e}. Para compilar sin él: STARSEED_SIN_CONTROL_ANDROID=1"),
     }
 }

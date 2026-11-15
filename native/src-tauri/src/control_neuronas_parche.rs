@@ -1,0 +1,262 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// control_neuronas_parche — el indicador nativo del control entre neuronas en el proyecto Android que genera
+// Tauri (ORD1114T, 2026-11-15). Contrato: architecture/control-remoto-entre-neuronas.md §2.4.
+// ---------------------------------------------------------------------------
+// Como ubicacion_parche.rs, en su propio bloque. build.rs lo aplica tras los demás y antes del Bluetooth. Escribe:
+//   · permisos, EXACTAMENTE los que el indicador usa: `SYSTEM_ALERT_WINDOW` (superposición: borde y pastilla),
+//     `FOREGROUND_SERVICE_SPECIAL_USE` (el servicio de la notificación en curso, Android 14+), y, si ningún otro
+//     parche los declara ya, `POST_NOTIFICATIONS` y `FOREGROUND_SERVICE`. Se PIDEN solo cuando la persona dice
+//     «Sí» en el diálogo nativo de Kotlin (notificaciones: diálogo del sistema; superposición: su pantalla de
+//     Ajustes, que Android no ofrece como diálogo). Nada de accesibilidad: la fase 1 no inyecta toques;
+//   · el servicio `ServicioControlNeuronas` (tipo `specialUse`, con la propiedad que lo justifica) y el
+//     proveedor `ArranqueControlNeuronas` (queda a la escucha de Rust; no pide nada solo);
+//   · `ControlNeuronasStarSeed.kt`.
+// Solo std (lo usa build.rs con `#[path]`). Idempotente. Solo StarSeed OS.
+// Interruptor de emergencia: STARSEED_SIN_CONTROL_ANDROID=1 (el APK sale sin indicador: el control se niega).
+// ═══════════════════════════════════════════════════════════════════════════
+
+#![allow(dead_code)]
+
+use std::path::{Path, PathBuf};
+
+pub const PAQUETE_OS: &str = "app.starseed.os";
+
+const PERMISOS_INICIO: &str = "<!-- STARSEED-CONTROL-NEURONAS:PERMISOS:INICIO (no editar: lo escribe native/src-tauri/build.rs · ORD1114T) -->";
+const PERMISOS_FIN: &str = "<!-- STARSEED-CONTROL-NEURONAS:PERMISOS:FIN -->";
+const COMPONENTES_INICIO: &str = "<!-- STARSEED-CONTROL-NEURONAS:COMPONENTES:INICIO (no editar: lo escribe native/src-tauri/build.rs · ORD1114T) -->";
+const COMPONENTES_FIN: &str = "<!-- STARSEED-CONTROL-NEURONAS:COMPONENTES:FIN -->";
+
+/// Siempre (nadie más los declara).
+pub const PERMISOS_PROPIOS: [(&str, &str); 2] = [
+    ("android.permission.SYSTEM_ALERT_WINDOW", "Borde rojo y pastilla «Terminar» sobre otras apps mientras otra neurona controla esta (§2.4)."),
+    ("android.permission.FOREGROUND_SERVICE_SPECIAL_USE", "Servicio de la notificación en curso del control entre neuronas (Android 14+)."),
+];
+/// Solo si ningún otro parche los declaró ya (el de las antenas lo hace).
+pub const PERMISOS_COMPARTIDOS: [(&str, &str); 2] = [
+    ("android.permission.POST_NOTIFICATIONS", "Notificación en curso con «Terminar» mientras otra neurona controla esta."),
+    ("android.permission.FOREGROUND_SERVICE", "Servicio en primer plano de la notificación del control."),
+];
+
+pub const COMPONENTES: [&str; 2] = ["app.starseed.nativa.ArranqueControlNeuronas", "app.starseed.nativa.ServicioControlNeuronas"];
+
+pub const KOTLIN: &str = include_str!("../android/ControlNeuronasStarSeed.kt");
+
+pub fn apagado(valor: Option<&str>) -> bool {
+    match valor.map(|v| v.trim().to_lowercase()) {
+        Some(v) => !(v.is_empty() || v == "0" || v == "false"),
+        None => false,
+    }
+}
+
+fn quitar_bloque(texto: &str, inicio: &str, fin: &str) -> String {
+    let (Some(a), Some(b)) = (texto.find(inicio), texto.find(fin)) else { return texto.to_string() };
+    if b < a {
+        return texto.to_string();
+    }
+    let desde = texto[..a].rfind('\n').map(|i| i + 1).unwrap_or(a);
+    let mut hasta = b + fin.len();
+    if texto[hasta..].starts_with('\n') {
+        hasta += 1;
+    }
+    format!("{}{}", &texto[..desde], &texto[hasta..])
+}
+
+fn ya_declarado(manifiesto: &str, nombre: &str) -> bool {
+    manifiesto.contains(&format!("\"{nombre}\""))
+}
+
+pub fn bloque_permisos(manifiesto_sin_bloque: &str) -> String {
+    let mut s = format!("    {PERMISOS_INICIO}\n");
+    for (p, porque) in PERMISOS_PROPIOS {
+        s.push_str(&format!("    <!-- {porque} -->\n    <uses-permission android:name=\"{p}\" />\n"));
+    }
+    for (p, porque) in PERMISOS_COMPARTIDOS {
+        if !ya_declarado(manifiesto_sin_bloque, p) {
+            s.push_str(&format!("    <!-- {porque} -->\n    <uses-permission android:name=\"{p}\" />\n"));
+        }
+    }
+    s.push_str(&format!("    {PERMISOS_FIN}\n"));
+    s
+}
+
+pub fn bloque_componentes() -> String {
+    format!(
+        "        {COMPONENTES_INICIO}
+        <provider
+            android:name=\"app.starseed.nativa.ArranqueControlNeuronas\"
+            android:authorities=\"${{applicationId}}.starseed-control-neuronas\"
+            android:exported=\"false\"
+            android:initOrder=\"55\" />
+        <service
+            android:name=\"app.starseed.nativa.ServicioControlNeuronas\"
+            android:exported=\"false\"
+            android:foregroundServiceType=\"specialUse\">
+            <property
+                android:name=\"android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE\"
+                android:value=\"Aviso fijo y botón Terminar mientras otro aparato de la misma cuenta, con permiso dado en este, manda órdenes a la app\" />
+        </service>
+        {COMPONENTES_FIN}
+"
+    )
+}
+
+pub fn parchear_manifiesto(texto: &str) -> Result<String, String> {
+    let limpio = quitar_bloque(&quitar_bloque(texto, PERMISOS_INICIO, PERMISOS_FIN), COMPONENTES_INICIO, COMPONENTES_FIN);
+    let app = limpio
+        .find("<application")
+        .ok_or("El AndroidManifest.xml no tiene <application>: ¿cambió la plantilla de Tauri?")?;
+    let linea_app = limpio[..app].rfind('\n').map(|i| i + 1).unwrap_or(app);
+    let cierre = limpio
+        .rfind("</application>")
+        .ok_or("El AndroidManifest.xml no tiene </application>: ¿cambió la plantilla de Tauri?")?;
+    if cierre < app {
+        return Err("El AndroidManifest.xml tiene </application> antes de <application>.".into());
+    }
+    let linea_cierre = limpio[..cierre].rfind('\n').map(|i| i + 1).unwrap_or(cierre);
+    Ok(format!(
+        "{}{}{}{}{}",
+        &limpio[..linea_app],
+        bloque_permisos(&limpio),
+        &limpio[linea_app..linea_cierre],
+        bloque_componentes(),
+        &limpio[linea_cierre..]
+    ))
+}
+
+pub fn aplica(paquete: &str) -> bool {
+    paquete.replace('`', "") == PAQUETE_OS
+}
+
+fn escribir_si_cambia(ruta: &Path, contenido: &str) -> Result<bool, String> {
+    if std::fs::read_to_string(ruta).map(|t| t == contenido).unwrap_or(false) {
+        return Ok(false);
+    }
+    if let Some(dir) = ruta.parent() {
+        std::fs::create_dir_all(dir).map_err(|e| format!("No se pudo crear {}: {e}", dir.display()))?;
+    }
+    let tmp = ruta.with_extension("starseed-tmp");
+    std::fs::write(&tmp, contenido).map_err(|e| format!("No se pudo escribir {}: {e}", tmp.display()))?;
+    std::fs::rename(&tmp, ruta).map_err(|e| format!("No se pudo colocar {}: {e}", ruta.display()))?;
+    Ok(true)
+}
+
+/// Aplica todo al proyecto Android. Devuelve los archivos que cambiaron.
+pub fn aplicar(proyecto: &Path) -> Result<Vec<PathBuf>, String> {
+    let mut cambiados = Vec::new();
+    let principal = proyecto.join("app/src/main");
+    let manifiesto = principal.join("AndroidManifest.xml");
+    let texto = std::fs::read_to_string(&manifiesto)
+        .map_err(|e| format!("No se pudo leer {}: {e} (¿falta `cargo tauri android init`?)", manifiesto.display()))?;
+    if escribir_si_cambia(&manifiesto, &parchear_manifiesto(&texto)?)? {
+        cambiados.push(manifiesto);
+    }
+    let kotlin = principal.join("java/app/starseed/nativa/ControlNeuronasStarSeed.kt");
+    if escribir_si_cambia(&kotlin, KOTLIN)? {
+        cambiados.push(kotlin);
+    }
+    Ok(cambiados)
+}
+
+#[cfg(test)]
+mod pruebas {
+    use super::*;
+    use crate::control_neuronas_android as rs;
+
+    const PLANTILLA: &str = r#"<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <application
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name">
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+        </activity>
+    </application>
+</manifest>
+"#;
+
+    #[test]
+    fn declara_solo_lo_que_usa_y_en_su_sitio() {
+        let m = parchear_manifiesto(PLANTILLA).unwrap();
+        let p = m.find(PERMISOS_INICIO).unwrap();
+        let a = m.find("<application").unwrap();
+        let c = m.find(COMPONENTES_INICIO).unwrap();
+        assert!(p < a && a < c && c < m.rfind("</application>").unwrap());
+        for x in ["SYSTEM_ALERT_WINDOW", "FOREGROUND_SERVICE_SPECIAL_USE", "POST_NOTIFICATIONS", "\"android.permission.FOREGROUND_SERVICE\""] {
+            assert!(m.contains(x), "{x}");
+        }
+        // Nada que la fase 1 no use: ni accesibilidad, ni captura, ni ajustes del sistema.
+        for x in ["BIND_ACCESSIBILITY_SERVICE", "FOREGROUND_SERVICE_MEDIA_PROJECTION", "WRITE_SETTINGS", "MANAGE_EXTERNAL_STORAGE"] {
+            assert!(!m.contains(x), "{x}");
+        }
+        assert!(m.contains("android:foregroundServiceType=\"specialUse\"") && m.contains("PROPERTY_SPECIAL_USE_FGS_SUBTYPE"));
+        assert!(m.contains("android:exported=\"false\""));
+    }
+
+    #[test]
+    fn idempotente_y_sin_duplicar_lo_que_otro_declara() {
+        let una = parchear_manifiesto(PLANTILLA).unwrap();
+        assert_eq!(parchear_manifiesto(&una).unwrap(), una);
+        let con_antenas = PLANTILLA.replace(
+            "<uses-permission android:name=\"android.permission.INTERNET\" />",
+            "<uses-permission android:name=\"android.permission.INTERNET\" />\n    <uses-permission android:name=\"android.permission.POST_NOTIFICATIONS\" />\n    <uses-permission android:name=\"android.permission.FOREGROUND_SERVICE\" />",
+        );
+        let m = parchear_manifiesto(&con_antenas).unwrap();
+        assert_eq!(m.matches("\"android.permission.POST_NOTIFICATIONS\"").count(), 1);
+        assert_eq!(m.matches("\"android.permission.FOREGROUND_SERVICE\"").count(), 1);
+        assert_eq!(parchear_manifiesto(&m).unwrap(), m);
+    }
+
+    #[test]
+    fn falla_en_alto_e_interruptor() {
+        assert!(parchear_manifiesto("<manifest></manifest>").is_err());
+        assert!(!apagado(None) && apagado(Some("1")) && !apagado(Some("0")));
+        assert!(aplica("app.starseed.os") && !aplica("app.starseed.nexus"));
+    }
+
+    #[test]
+    fn kotlin_y_rust_dicen_lo_mismo() {
+        assert!(KOTLIN.contains("package app.starseed.nativa"));
+        assert!(KOTLIN.contains("class ArranqueControlNeuronas : ContentProvider()"));
+        assert!(KOTLIN.contains("class ServicioControlNeuronas : Service()"));
+        assert!(KOTLIN.contains(&format!("const val CARPETA = \"{}\"", rs::CARPETA)));
+        assert!(KOTLIN.contains(&format!("const val ESTADO = \"{}\"", rs::ESTADO)));
+        assert!(KOTLIN.contains(&format!("const val PREFIJO_PETICION = \"{}\"", rs::PREFIJO_PETICION)));
+        for m in rs::MOTIVOS {
+            assert!(KOTLIN.contains(&format!("\"{m}\"")), "Kotlin no escribe «{m}»");
+        }
+        for campo in ["\"encendido\"", "\"notificaciones\"", "\"superposicion\"", "\"mostrando\"", "\"sesion\"", "\"pausada\"", "\"terminada\"", "\"falta\"", "\"t_ms\""] {
+            assert!(KOTLIN.contains(campo), "Kotlin no escribe {campo}");
+        }
+        for accion in ["\"preparar\"", "\"mostrar\"", "\"quitar\""] {
+            assert!(KOTLIN.contains(accion), "Kotlin no atiende {accion}");
+        }
+        // El latido de Kotlin cabe con holgura en lo que Rust espera.
+        assert!(KOTLIN.contains("const val LATIDO_MS = 2_000L") && rs::LATIDO_MAX_MS >= 3 * 2_000);
+    }
+
+    #[test]
+    fn la_notificacion_termina_sin_la_pagina_y_descartarla_termina() {
+        assert!(KOTLIN.contains("setOngoing(true)"));
+        assert!(KOTLIN.contains("setDeleteIntent(pi(DESCARTADA"));
+        assert!(KOTLIN.contains("TERMINAR -> terminar(\"la-persona-desde-la-notificacion\")"));
+        assert!(KOTLIN.contains("PendingIntent.getService"), "lo atiende el servicio nativo, no la página");
+        assert!(KOTLIN.contains("FLAG_WATCH_OUTSIDE_TOUCH") && KOTLIN.contains("ACTION_OUTSIDE"), "toque local → pausa");
+        assert!(KOTLIN.contains("pBorde.alpha = 0.8f"), "los toques atraviesan el borde (Android 12+)");
+    }
+
+    #[test]
+    fn la_app_nunca_se_concede_nada() {
+        for x in ["grantRuntimePermission", "pm grant", "appops", "TCC.db", "tccutil"] {
+            assert!(!KOTLIN.contains(x), "{x}");
+        }
+        // Los permisos se PIDEN con lo del sistema y solo tras el «Sí» del diálogo nativo.
+        assert!(KOTLIN.contains("requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS)"));
+        assert!(KOTLIN.contains("Settings.ACTION_MANAGE_OVERLAY_PERMISSION"));
+        let si = KOTLIN.find("setPositiveButton(\"Sí, dejar\")").unwrap();
+        let pedir = KOTLIN.find("private fun pedirPermisosQueFaltan").unwrap();
+        assert!(KOTLIN[si..].contains("pedirPermisosQueFaltan()") && pedir > 0);
+    }
+}

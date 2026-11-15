@@ -63,6 +63,7 @@
     "allow-control-neuronas-anotar",
     "allow-control-neuronas-parar",
     "allow-control-neuronas-estado",
+    "allow-control-neuronas-preparar",
     "notification:allow-notify",
     "notification:allow-request-permission",
     "notification:allow-is-permission-granted",

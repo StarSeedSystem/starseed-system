@@ -8,7 +8,12 @@
  *   · la llamada termina con el motivo del botón «Colgar» de la ventana (`colgarLlamada()` sin motivo →
  *     «Has salido de la llamada.») sin un `colgar` esperado → «colgo». El guion cuelga con motivo «orden»,
  *     y un cuelgue del OTRO lado trae otro motivo: ninguno de los dos se toma por una persona.
- * Un rechazo a mano no se distingue hoy de que quien llama corte: no se detecta (lo dice el informe).
+ *   · (ORD1114T) una persona RECHAZA el timbre: la llamada de quien llama recibe la señal «rechazo» del otro
+ *     lado (`motor.estado().rechazos`, el motor cierra con «… no puede atender ahora.») → «rechazo». El guion
+ *     no rechaza nunca (su vocabulario no lo tiene), así que un rechazo siempre es de una persona. Se ve en el
+ *     aparato que LLAMA: en una serie los dos aparatos son de la serie, así que si rechazan en la tableta lo ve
+ *     la Mac (y al revés, la puerta de la tableta lo dice como «a-mano» en la respuesta de la orden siguiente).
+ *     Que quien llama corte o que el timbre caduque no traen «rechazo»: no se toman por una persona.
  *
  * Puro: el estado de llamadas y el reloj entran por argumento. `vigilarLlamadas` lo monta sobre el store.
  */
@@ -17,7 +22,9 @@ export const MOTIVO_BOTON_COLGAR = "Has salido de la llamada.";
 export const VENTANA_ESPERA_MS = 8_000;
 
 export type AccionGuion = "contestar" | "llamar" | "colgar";
-export type Intervencion = "contesto" | "llamo" | "colgo";
+export type Intervencion = "contesto" | "llamo" | "colgo" | "rechazo";
+/** (ORD1114T) Fin con el que el motor cierra una llamada 1:1 rechazada («<nombre> no puede atender ahora.»). */
+export const FIN_RECHAZO = / no puede atender ahora\.$/;
 
 export interface FotoLlamadas {
     /** Id de la llamada activa (o null). */
@@ -27,11 +34,14 @@ export interface FotoLlamadas {
     motivoFin: string | null;
     /** Ids de los timbres que suenan. */
     timbres: string[];
+    /** (ORD1114T) Rechazos que recibió la llamada activa (señal «rechazo» del otro lado). 0 si no se sabe. */
+    rechazos?: number;
 }
 
 export class VigiaMano {
     private esperadas: Array<{ a: AccionGuion; t: number }> = [];
     private previa: FotoLlamadas | null = null;
+    private rechazadas = new Set<string>(); // ORD1114T: un rechazo se cuenta una vez por llamada
 
     /** El guion va a hacer `a` ahora mismo. */
     esperar(a: AccionGuion, ahora: number): void {
@@ -51,6 +61,16 @@ export class VigiaMano {
         const p = this.previa;
         this.previa = { ...f, timbres: [...f.timbres] };
         if (!p) return null;
+        // ORD1114T: rechazo a mano del timbre en el otro aparato (llega como señal a esta llamada).
+        const rechazoNuevo =
+            !!f.activa &&
+            f.activa === p.activa &&
+            ((f.rechazos ?? 0) > (p.rechazos ?? 0) || (f.fase === "terminada" && p.fase !== "terminada" && FIN_RECHAZO.test(f.motivoFin ?? "")));
+        if (rechazoNuevo && f.activa && !this.rechazadas.has(f.activa)) {
+            this.rechazadas.add(f.activa);
+            if (this.rechazadas.size > 32) this.rechazadas.delete(this.rechazadas.values().next().value as string);
+            return "rechazo";
+        }
         if (f.activa && f.activa !== p.activa && f.fase !== "terminada") {
             if (this.consumir(["contestar", "llamar"], ahora)) return null;
             return p.timbres.includes(f.activa) ? "contesto" : "llamo";
@@ -72,12 +92,13 @@ export async function fotoLlamadas(): Promise<FotoLlamadas> {
     const { leerLlamadas } = await import("@/lib/llamadas/store");
     const e = leerLlamadas();
     const a = e.activa as { sesionId?: string; motor?: { estado?: () => { fase?: string; motivoFin?: string | null } } } | null;
-    const est = a?.motor?.estado?.() ?? null;
+    const est = (a?.motor?.estado?.() ?? null) as { fase?: string; motivoFin?: string | null; rechazos?: unknown[] } | null;
     return {
         activa: a?.sesionId ?? null,
         fase: est?.fase ?? null,
         motivoFin: est?.motivoFin ?? null,
         timbres: e.timbres.map((t) => t.sesionId),
+        rechazos: Array.isArray(est?.rechazos) ? est.rechazos.length : 0, // ORD1114T
     };
 }
 

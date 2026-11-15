@@ -7,8 +7,11 @@
  * Rust la anota. Si la persona pulsa «Terminar el control ahora» en el indicador, Rust cierra la sesión
  * aunque esta página esté colgada: la orden siguiente ya no tiene sesión.
  *
- * Fuera de la app nativa (navegador) o donde Rust no puede enseñar el indicador (hoy Android/iOS) no hay
- * puente disponible y la puerta lo rechaza todo con «sin-indicador-nativo»: sin indicador no hay control.
+ * Fuera de la app nativa (navegador) no hay puente y la puerta lo rechaza todo con «sin-indicador-nativo».
+ * (ORD1114T) Dentro de la app el puente siempre llama a Rust, que es quien decide: macOS y Android enseñan
+ * el indicador completo de §2.4 (en Android, Kotlin); Windows, Linux e iOS se niegan. Así, en Android, la
+ * primera petición de sesión (o encender el permiso aquí) hace que Kotlin enseñe su diálogo NATIVO del
+ * interruptor y, con su «Sí», pida los permisos del sistema; la siguiente sesión ya entra.
  */
 
 export interface RespuestaNativa {
@@ -50,9 +53,10 @@ function motivoDe(e: unknown): string {
 }
 
 /** Puente real (Tauri). `indicadorPosible` lo dice Rust al arrancar (`control_neuronas_estado`). */
-export function crearPuenteTauri(indicadorPosible: boolean): PuenteNativoControl {
+export function crearPuenteTauri(_indicadorPosible?: boolean): PuenteNativoControl {
+    // ORD1114T: Rust decide en cada «abrir» (el indicador puede pasar a posible tras el diálogo nativo).
     const inv = invocador();
-    if (!inv || !indicadorPosible) return SIN_NATIVO;
+    if (!inv) return SIN_NATIVO;
     return {
         disponible: () => true,
         abrir: async (de, nombre, nivel) => {
@@ -100,5 +104,22 @@ export async function alPararNativo(cb: (motivo: string) => void): Promise<() =>
         return await t.event.listen("control-neuronas:parada", (e) => cb(typeof e.payload?.motivo === "string" ? e.payload.motivo : "parada"));
     } catch {
         return () => undefined;
+    }
+}
+
+/**
+ * (ORD1114T) La persona encendió «dejar que me controlen» en ESTE aparato. En Android, Rust pide a Kotlin su
+ * diálogo nativo (y, con su «Sí», los permisos con los diálogos del sistema); en el resto no hace nada.
+ * Nunca enciende nada por sí mismo. Nunca lanza.
+ */
+export async function prepararIndicadorNativo(): Promise<{ indicadorPosible: boolean; falta: string[] } | null> {
+    const inv = invocador();
+    if (!inv) return null;
+    try {
+        const e = (await inv("control_neuronas_preparar")) as { indicador_posible?: boolean; falta?: unknown } | null;
+        const falta = Array.isArray(e?.falta) ? e.falta.filter((x): x is string => typeof x === "string") : [];
+        return { indicadorPosible: e?.indicador_posible === true, falta };
+    } catch {
+        return null;
     }
 }

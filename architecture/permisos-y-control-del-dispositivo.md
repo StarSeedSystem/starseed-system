@@ -114,6 +114,14 @@ superposición, No molestar, modificar ajustes y todos los archivos están **sol
 (`panel:<id>` en Kotlin) pero **sin declarar ni pedir** hasta la fase que los usa (§6): declararlos antes sería pedir
 más de lo que se usa.
 
+**(ORD1114T · 2026-11-15) Control entre mis neuronas en Android:** la superposición (`SYSTEM_ALERT_WINDOW`) y
+`FOREGROUND_SERVICE_SPECIAL_USE` ya se DECLARAN porque el indicador del control los usa (borde rojo + pastilla
+«Terminar», y la notificación en curso del servicio). Se PIDEN solo tras el «Sí» del diálogo nativo
+«¿Dejar que tus otras neuronas controlen esta tableta?»: notificaciones con el diálogo del sistema (13+) y la
+superposición en su pantalla de Ajustes (Android no tiene diálogo para ella). Sin cualquiera de los tres, el
+control se niega con «sin-indicador-nativo». Android 14+ deja descartar notificaciones en curso: descartarla
+TERMINA la sesión. Código: `android/ControlNeuronasStarSeed.kt`, `src/control_neuronas_android.rs`.
+
 ### §2.3 Windows 10/11 (apps de escritorio sin empaquetar)
 
 | Permiso | Cómo | Pantalla | Leer | Nota |
@@ -446,10 +454,10 @@ aquí, si una fila no está concedida o si los orígenes o plataformas de una fi
 | `allow-migracion-origen-estado` `allow-migracion-origen-datos` `allow-migracion-origen-confirmar` | Importar lo que la app guardaba en el origen publicado (página de migración del servidor local) | local · escritorio | `native/servidor-local/migracion-origen.js` | solo-app |
 | `allow-migracion-origen-exportar` | Exportar lo guardado en el origen publicado (ventana oculta de la migración) | OS·migración · escritorio | `native/servidor-local/migracion-origen.js` | solo-app |
 | `allow-rescate-origen-exportar` `allow-rescate-origen-estado` `allow-rescate-origen-datos` `allow-rescate-origen-confirmar` | Rescate de datos entre puertos del servidor local (páginas servidas por Rust durante el rescate) | local · escritorio+Android | `native/servidor-local/rescate-origen.js` | solo-app |
-| `allow-control-neuronas-abrir` `allow-control-neuronas-orden` `allow-control-neuronas-anotar` `allow-control-neuronas-parar` `allow-control-neuronas-estado` | (ORD1114Q) Control entre mis neuronas, lado nativo: abrir la sesión solo con indicador nativo (escritorio: icono «● Controlada por …» con «Terminar el control ahora» atendido en Rust; Android/iOS: se niega), autorizar y anotar cada orden en el registro encadenado, parar y leer el estado. No ejecuta nada por sí mismo | OS+local · todas | `control-remoto/nativo.ts` | solo-app |
+| `allow-control-neuronas-abrir` `allow-control-neuronas-orden` `allow-control-neuronas-anotar` `allow-control-neuronas-parar` `allow-control-neuronas-estado` `allow-control-neuronas-preparar` | (ORD1114Q/ORD1114T) Control entre mis neuronas, lado nativo: abrir la sesión solo con indicador nativo completo (macOS: icono «● Controlada por …» con «Terminar el control ahora», borde rojo siempre encima, atajo ⌃⌥⌘. y pausa por entrada local, todo en Rust; Android: notificación en curso del servicio en primer plano con «Terminar» + superposición, en Kotlin; Windows/Linux/iOS: se niega). `preparar` solo pide a Kotlin el diálogo NATIVO del interruptor (no enciende nada), autorizar y anotar cada orden en el registro encadenado, parar y leer el estado. No ejecuta nada por sí mismo | OS+local · todas | `control-remoto/nativo.ts` | solo-app |
 <!-- inventario:fin -->
 
-**En números:** **162 permisos** llegan hoy a un origen remoto (115 de comandos propios, 47 de plugins): **50 inofensivos**, **96 solo-app** y **16 con concesión** de la persona en el aparato. Antes de este cambio eran 13 orígenes (con Nexus y Café) y, además, `shell:allow-execute/spawn/kill/stdin-write`, la lectura en `**`, la escritura en `$HOME/**`, `core:tray`/`core:menu` y `fs:default`.
+**En números:** **168 permisos** llegan hoy a un origen remoto (121 de comandos propios, 47 de plugins): **50 inofensivos**, **102 solo-app** y **16 con concesión** de la persona en el aparato. Antes de este cambio eran 13 orígenes (con Nexus y Café) y, además, `shell:allow-execute/spawn/kill/stdin-write`, la lectura en `**`, la escritura en `$HOME/**`, `core:tray`/`core:menu` y `fs:default`.
 
 #### §4.8.2 Lo que queda expuesto después de este cambio
 

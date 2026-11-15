@@ -37,6 +37,14 @@ export function leerPermisoLocal(): PermisoControl {
 }
 
 export function guardarPermisoLocal(p: PermisoControl): void {
+    // ORD1114T: al ENCENDERLO, el lado nativo pide lo suyo (Android: diálogo nativo y permisos del sistema).
+    let antes = false;
+    try {
+        antes = (JSON.parse(window.localStorage.getItem(CLAVE_PERMISO) ?? "null") as { encendido?: boolean } | null)?.encendido === true;
+    } catch {
+        /* sin almacenamiento */
+    }
+    if (p.encendido && !antes) void import("./nativo").then((m) => m.prepararIndicadorNativo());
     try {
         window.localStorage.setItem(CLAVE_PERMISO, JSON.stringify(p));
     } catch {

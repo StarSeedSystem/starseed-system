@@ -306,3 +306,36 @@ describe("ronda §4 regla 5 · una persona toma el mando", () => {
         expect(a.estado()).toBeNull();
     });
 });
+
+// ORD1114T · el rechazo a mano de un timbre durante una serie también para la serie.
+describe("ronda §4 regla 5 · rechazo a mano (ORD1114T)", () => {
+    const foto = (o: Partial<FotoLlamadas> = {}): FotoLlamadas => ({ activa: null, fase: null, motivoFin: null, timbres: [], rechazos: 0, ...o });
+
+    it("la llamada que suena en el otro aparato recibe «rechazo»: es una persona, y se cuenta una vez", () => {
+        const v = new VigiaMano();
+        v.esperar("llamar", 0);
+        v.observar(foto(), 0);
+        expect(v.observar(foto({ activa: "s1", fase: "llamando" }), 100)).toBeNull(); // llamada del guion
+        expect(v.observar(foto({ activa: "s1", fase: "llamando", rechazos: 1 }), 200)).toBe("rechazo");
+        expect(v.observar(foto({ activa: "s1", fase: "terminada", motivoFin: "Tableta no puede atender ahora.", rechazos: 1 }), 300)).toBeNull();
+    });
+
+    it("solo el fin «no puede atender ahora» (sin ver la señal) también cuenta; que el otro corte, no", () => {
+        const v = new VigiaMano();
+        v.observar(foto({ activa: "s2", fase: "llamando" }), 0);
+        expect(v.observar(foto({ activa: "s2", fase: "terminada", motivoFin: "Tableta no puede atender ahora." }), 100)).toBe("rechazo");
+        v.observar(foto({ activa: "s3", fase: "llamando" }), 200);
+        expect(v.observar(foto({ activa: "s3", fase: "terminada", motivoFin: "La otra persona colgó." }), 300)).toBeNull();
+        v.observar(foto({ timbres: ["s4"] }), 400);
+        expect(v.observar(foto(), 500)).toBeNull(); // el timbre se fue (caducó o cortó quien llama)
+    });
+
+    it("en la tableta: un rechazo para la sesión en «Rust» y la Mac recibe «a-mano» con que=rechazo", async () => {
+        const token = await emparejarYAbrir();
+        puerta.intervencionLocal("rechazo");
+        expect(nativo.paradas).toContain("a-mano");
+        const r = await puerta.recibirSellado((await sellada("colgar", { sesion: token })).mensaje);
+        expect(r.respuesta.motivo).toBe("a-mano");
+        expect((r.respuesta.resultado as { que?: string } | undefined)?.que).toBe("rechazo");
+    });
+});

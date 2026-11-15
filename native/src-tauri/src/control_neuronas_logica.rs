@@ -14,6 +14,9 @@ pub const INICIO_CADENA: &str = "inicio";
 pub const SESION_MAX_MS: u64 = 60 * 60_000;
 pub const SESION_INACTIVA_MS: u64 = 2 * 60_000;
 const MAX_DETALLE: usize = 160;
+#[allow(dead_code)]
+/// (ORD1114T) Margen tras abrir o reanudar en el que lo local no pausa (el propio clic de «Reanudar»).
+pub const GRACIA_LOCAL_MS: u64 = 1_500;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Rechazo {
@@ -27,6 +30,9 @@ pub enum Rechazo {
     Token,
     /// Datos con forma rara (huella, nivel, nombre de orden).
     Forma,
+    /// (ORD1114T) Una tecla, un toque o un movimiento LOCAL pausó el control (§2.4); lo reanuda la persona
+    /// desde el indicador nativo, nunca la página ni quien manda.
+    Pausada,
 }
 
 impl Rechazo {
@@ -37,6 +43,7 @@ impl Rechazo {
             Rechazo::SinSesion => "parada-nativa",
             Rechazo::Token => "parada-nativa",
             Rechazo::Forma => "forma",
+            Rechazo::Pausada => "pausa-local",
         }
     }
 }
@@ -50,6 +57,10 @@ pub struct Sesion {
     pub nivel: String,
     pub inicio_ms: u64,
     pub ultima_ms: u64,
+    /// (ORD1114T) En pausa por una acción local desde esta hora (None = no pausada).
+    pub pausada_ms: Option<u64>,
+    /// (ORD1114T) Última vez que la persona la reanudó (o que se abrió): lo local anterior no pausa.
+    pub reanudada_ms: u64,
 }
 
 #[derive(Debug, Default)]
@@ -101,8 +112,11 @@ impl Control {
             if s.de != de {
                 return Err(Rechazo::OtraSesion);
             }
+            if s.pausada_ms.is_some() {
+                return Err(Rechazo::Pausada); // ORD1114T: renovar no quita la pausa local
+            }
         }
-        self.sesion = Some(Sesion { token: token.into(), de: de.into(), nombre: nombre_limpio(nombre), nivel: nivel.into(), inicio_ms: ahora, ultima_ms: ahora });
+        self.sesion = Some(Sesion { token: token.into(), de: de.into(), nombre: nombre_limpio(nombre), nivel: nivel.into(), inicio_ms: ahora, ultima_ms: ahora, pausada_ms: None, reanudada_ms: ahora });
         Ok(self.sesion.as_ref().expect("recién puesta"))
     }
 
@@ -121,6 +135,9 @@ impl Control {
         if !crate::sha256::iguales_ct(s.token.as_bytes(), token.as_bytes()) {
             return Err(Rechazo::Token);
         }
+        if s.pausada_ms.is_some() {
+            return Err(Rechazo::Pausada); // ORD1114T
+        }
         s.ultima_ms = ahora;
         Ok(s)
     }
@@ -136,6 +153,46 @@ impl Control {
         } else {
             None
         }
+    }
+
+    /// (ORD1114T) Lo local pausa al instante. `entrada_ms` = hora de la última entrada local (tecla, ratón,
+    /// toque). Solo cuenta si es POSTERIOR a abrir o reanudar más `GRACIA_LOCAL_MS` (el clic de «Reanudar» no
+    /// vuelve a pausar). Devuelve true si acaba de pausar.
+    #[allow(dead_code)]
+    pub fn entrada_local(&mut self, entrada_ms: u64) -> bool {
+        let Some(s) = self.sesion.as_mut() else { return false };
+        if s.pausada_ms.is_some() || entrada_ms <= s.reanudada_ms.saturating_add(GRACIA_LOCAL_MS) {
+            return false;
+        }
+        s.pausada_ms = Some(entrada_ms);
+        true
+    }
+
+    /// (ORD1114T) Pausa sin más (Android: Kotlin ya aplicó la gracia al toque local).
+    #[allow(dead_code)]
+    pub fn pausar(&mut self, ahora: u64) -> bool {
+        let Some(s) = self.sesion.as_mut() else { return false };
+        if s.pausada_ms.is_some() {
+            return false;
+        }
+        s.pausada_ms = Some(ahora);
+        true
+    }
+
+    /// (ORD1114T) Solo desde el indicador nativo (menú de la barra, notificación de Android).
+    #[allow(dead_code)]
+    pub fn reanudar(&mut self, ahora: u64) -> bool {
+        let Some(s) = self.sesion.as_mut() else { return false };
+        if s.pausada_ms.take().is_none() {
+            return false;
+        }
+        s.reanudada_ms = ahora;
+        s.ultima_ms = ahora;
+        true
+    }
+
+    pub fn pausada(&self) -> bool {
+        self.sesion.as_ref().is_some_and(|s| s.pausada_ms.is_some())
     }
 
     /// Para: no necesita a la página para nada. Devuelve la sesión que había.
@@ -270,5 +327,25 @@ mod pruebas {
         assert_eq!(verificar_registro(&sin_segunda), Err(2));
         let cambiada = texto.replacen("leer-estado", "colgar", 1);
         assert_eq!(verificar_registro(&cambiada), Err(1));
+    }
+
+    // ─────────── ORD1114T ───────────
+
+    #[test]
+    fn lo_local_pausa_al_instante_y_solo_el_indicador_reanuda() {
+        let mut c = Control::default();
+        c.abrir(TOK, DE, "Mac", "controlar", 10_000, true).unwrap();
+        assert!(!c.entrada_local(10_500), "lo de antes de abrir (y el gesto de abrir) no pausa");
+        assert!(c.entrada_local(20_000));
+        assert_eq!(c.orden(TOK, "colgar", 20_001, true).unwrap_err(), Rechazo::Pausada);
+        assert!(c.activa().is_some(), "pausa no es parada");
+        assert!(c.reanudar(30_000));
+        assert!(!c.entrada_local(30_400), "el clic de «Reanudar» no vuelve a pausar");
+        assert!(c.orden(TOK, "colgar", 30_500, true).is_ok());
+        assert!(c.entrada_local(40_000));
+        assert_eq!(c.abrir(TOK, DE, "Mac", "controlar", 40_001, true).unwrap_err(), Rechazo::Pausada, "quien manda no se quita la pausa reabriendo");
+        // En pausa también caduca por inactividad: pausar no alarga la sesión.
+        assert_eq!(c.orden(TOK, "colgar", 30_500 + SESION_INACTIVA_MS + 1, true).unwrap_err(), Rechazo::SinSesion);
+        assert_eq!(Rechazo::Pausada.codigo(), "pausa-local");
     }
 }
