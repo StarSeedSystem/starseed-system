@@ -287,8 +287,6 @@ def _generar_propuestas_higgsfield(raiz: str, fecha: str, ahora=None) -> list:
     """Genera hasta 2 propuestas de Higgsfield para proyectos oficiales.
     Las propuestas se registran como pendientes en propuestas.json.
     Solo genera para la fecha de hoy en CDMX (inyectable via `ahora` para tests)."""
-    if os.environ.get("STARSEED_PRUEBAS") == "1":
-        return []
     import higgsfield_aprobado as ha
 
     hoy = _fecha_cdmx(ahora) if ahora else _fecha_cdmx(None)
@@ -849,8 +847,6 @@ def _clave_flota(nombres=("FREELLMAPI_KEY", "STARSEED_FLOTA_API_KEY")):
 def _redactar_flota(prompt, clave=None, base=None, modelo=None, abrir=None):
     """La flota gratuita en un solo paso (la prueba del 2026-11-11): FreeLLMAPI local
     (127.0.0.1:3001), modelo CON nombre (nunca «auto»). None si falta clave o no contesta."""
-    if os.environ.get("STARSEED_PRUEBAS") == "1":
-        return None
     clave = clave if clave is not None else _clave_flota()
     if not clave or not str(prompt).strip():
         return None
@@ -880,8 +876,6 @@ def _pedir_https(url, cuerpo):
 def _subir_doc(fecha, texto, pedir=None):
     """Sube el markdown como Doc de Google con el alias «alex-docs» (solo drive.file) en la
     carpeta «Síntesis diarias». Devuelve el id del Doc, o None: su fallo no bloquea la entrega."""
-    if os.environ.get("STARSEED_PRUEBAS") == "1":
-        return None
     try:
         import cuentas_google as CG
         acceso = CG.token("alex-docs", pedir or _pedir_https)

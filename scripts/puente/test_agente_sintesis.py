@@ -610,15 +610,8 @@ class TestHiggsfieldPropuestas(unittest.TestCase):
         self.home = os.path.join(self.tmp, "home")
         os.makedirs(self.raiz)
         os.makedirs(self.home, exist_ok=True)
-        # Higgsfield no genera propuestas si STARSEED_PRUEBAS=1; lo quitamos para estos tests
-        self._starpruebas = os.environ.get("STARSEED_PRUEBAS")
-        os.environ.pop("STARSEED_PRUEBAS", None)
 
     def tearDown(self):
-        if self._starpruebas is not None:
-            os.environ["STARSEED_PRUEBAS"] = self._starpruebas
-        else:
-            os.environ.pop("STARSEED_PRUEBAS", None)
         self._tmp.cleanup()
 
     def test_generar_propuestas_higgsfield_max_dos_por_dia(self):
