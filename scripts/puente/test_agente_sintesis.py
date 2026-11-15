@@ -879,7 +879,6 @@ class TestGuardiaDeRed(unittest.TestCase):
     def test_activar_desactivar_restaura_el_entorno_previo(self):
         self.G.desactivar()
         with patch.dict(os.environ, {}, clear=False):
-            os.environ.pop("STARSEED_PRUEBAS", None)
             self.G.activar()
             self.assertEqual(os.environ.get("STARSEED_PRUEBAS"), "1")
             self.G.desactivar()

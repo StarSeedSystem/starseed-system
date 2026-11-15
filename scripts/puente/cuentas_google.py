@@ -97,13 +97,11 @@ def alta(alias, pedir, esperar, abrir=webbrowser.open,
         if previa.get("refresh_token") and previa.get("client_id") and previa.get("client_secret"):
             return {"ok": True, "alias": alias, "correo": previa.get("correo"),
                     "motivo": "alta ya existente (authorized_user); no se pide otra"}
-    if env_local:
-        cid, secreto = cliente_os(env_local)
-        redireccion = REDIRECCION_OS if cid and secreto else None
-    else:
-        cid, secreto, redireccion = None, None, None
+    # Primero prueba el cliente OAuth del OS con redirección fija
+    cid, secreto = cliente_os(env_local) if env_local else (None, None)
+    redireccion = REDIRECCION_OS if cid and secreto else None
     if not cid or not secreto:
-        cid, secreto = cliente_id_secret(rutas)[0], cliente_id_secret(rutas)[1]
+        cid, secreto = cliente_id_secret(rutas)
     if not cid or not secreto:
         importar(None, descargas, rutas, dir_cuentas)
         cid, secreto = cliente_id_secret(rutas)
@@ -146,9 +144,9 @@ def token(alias, pedir, dir_cuentas=DIR_CUENTAS, rutas=RUTAS_ENV):
         return None
     if ficha.get("caduca", 0) > time.time() + 60:
         return ficha.get("access_token")
-    cid, secreto = cliente_id_secret(rutas)
-    cid = ficha.get("client_id") or cid
-    secreto = ficha.get("client_secret") or secreto
+    cid, secreto = ficha.get("client_id"), ficha.get("client_secret")
+    if not cid or not secreto:
+        cid, secreto = cliente_id_secret(rutas)
     if not cid or not secreto:
         return None
     respuesta = pedir(ficha.get("token_uri") or TOKEN_URL,
