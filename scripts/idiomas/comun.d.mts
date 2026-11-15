@@ -1,0 +1,12 @@
+export const RAIZ: string;
+export const DIR: string;
+export function leerJson(f: string): any;
+export function cargarFuente(): { version: number; archivos: number; total: number; porArea: Record<string, number>; archivosLista: string[]; claves: Record<string, number[]> };
+export function cargarUnidades(): Record<string, { titulo: string; prefijos: string[] }>;
+export function sinTraducir(): Set<string>;
+export function rutaCatalogo(codigo: string): string;
+export function cargarCatalogo(codigo: string): { codigo: string; revisado: boolean; entradas: Record<string, string> };
+export function textosDeUnidad(fuente: ReturnType<typeof cargarFuente>, unidades: ReturnType<typeof cargarUnidades>, nombre: string): string[];
+export function rechazo(fuente: string, traduccion: string): string | null;
+export function coberturaDe(fuente: ReturnType<typeof cargarFuente>, unidades: ReturnType<typeof cargarUnidades>, catalogo: { entradas: Record<string, string> }, nombre: string): { total: number; presentes: number; ausentes: string[]; invalidas: string[]; caducas: string[]; conjunto: Set<string> };
+export function idiomasConCatalogo(): string[];

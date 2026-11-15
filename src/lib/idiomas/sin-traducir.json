@@ -1,0 +1,21 @@
+{
+  "motivo": "Textos que no se traducen: direcciones de ejemplo, la marca, el nombre propio de cada idioma, mensajes de desarrollo.",
+  "textos": [
+    "@star.seed",
+    "nombre@starseed.net",
+    "tu-correo@gmail.com",
+    "tu-nombre@star.seed",
+    "StarSeed",
+    "Español",
+    "guia-completa: falta el tema «{0}»",
+    "(.apk)",
+    "; id",
+    "MiB",
+    "Tauri",
+    "getVersion: app anterior",
+    "info_neurona",
+    "plugin:app|version",
+    "Online",
+    "Offline"
+  ]
+}

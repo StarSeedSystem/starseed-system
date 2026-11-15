@@ -1,0 +1,38 @@
+{
+  "acceso": {
+    "titulo": "Ventana de acceso",
+    "prefijos": [
+      "components/auth/",
+      "components/onboarding/guia-completa-ui",
+      "components/onboarding/demo-paso",
+      "components/onboarding/icono-starseed",
+      "components/idiomas/",
+      "lib/onboarding/guia-completa.ts",
+      "lib/onboarding/guia-temas-red.ts",
+      "lib/onboarding/guia-temas-sistema.ts"
+    ]
+  },
+  "shell": {
+    "titulo": "Escritorio, dock, menús y avisos",
+    "prefijos": [
+      "components/layout/",
+      "components/desktop/",
+      "components/notifications/",
+      "components/ui/toaster",
+      "components/ui/confirm-dialog"
+    ]
+  },
+  "ajustes": {
+    "titulo": "Ajustes",
+    "prefijos": [
+      "components/settings/"
+    ]
+  },
+  "ajustes-neuronas": {
+    "titulo": "Ajustes › Neuronas",
+    "prefijos": [
+      "components/settings/neurons/",
+      "components/idiomas/"
+    ]
+  }
+}

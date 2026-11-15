@@ -285,6 +285,7 @@ export const SYNCED_PREFIX_EXCLUDE = [
 
 /** Claves que JAMÁS se suben (ni por clave exacta ni por prefijo dinámico). */
 export const NEVER_SYNCED_KEYS = [
+    "starseed.idioma.neurona.v1",       // (IDI1115N) idioma elegido en ESTA neurona; el valor de la cuenta viaja en starseed.traduccion.v1
     // ── Secretos puros ──────────────────────────────────────────────────────
     "starseed.ai.providers",            // proveedores IA del usuario (claves cifradas en el dispositivo)
     "starseed.ai.active",               // proveedor activo (apunta a una clave local)
