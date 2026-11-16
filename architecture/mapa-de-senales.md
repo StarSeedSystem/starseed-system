@@ -203,3 +203,34 @@ Alex dijo que sí a un canal privado **nuevo** solo para la posición. Se hizo a
 
 ### 12.3 Teléfono
 Etiqueta de una marca que cambia de lado al acercarse al borde; atribución de Leaflet ajustada (varias líneas, sin cortarse); panel de capas con menos alto para no pisar la atribución; leyenda del mapa plegable en pantalla pequeña.
+
+---
+
+## 13. Red completa, espectrómetro e internet compartido (Alex, 2026-11-16)
+
+### 13.1 Causa real de la visibilidad limitada previa
+El mapa solo enseñaba la información de la neurona visitante por cuatro factores técnicos:
+1. Faro público limitado: exponía únicamente foto y aparato (`radar-publico.ts:87-105`).
+2. RLS en topología: la tabla `os_mesh_topology` era legible exclusivamente por su dueño (`20260727120000_mesh_topology_federation.sql:39-42`).
+3. Filtro local: el hook `useMapaVivo` solo leía `misDispositivos` (`use-mapa-vivo.ts:85`).
+4. Canal exclusivo: la posición geográfica viajaba únicamente por el canal privado de tiempo real `pos:<uid>`.
+
+### 13.2 Tabla public.os_senales_publicas
+Publicación global de espectro con frescura de 15 min y RLS por capa ('publica'|'comunidad'|'privada'). La migración SQL la escribe el enjambre y la aplica la dirección con la aprobación de Alex (aquí no se escribe SQL). La columna `zona` de ≤5 caracteres protege la privacidad desenfocando la ubicación.
+- **Esquema:** columnas `id, owner_id, device_id, capa ('publica'|'comunidad'|'privada'), comunidad, medio, banda, frecuencia_khz, ancho_khz, fuerza_dbm, calidad, origen ('medida'|'declarada'|'estimada'), zona (≤5 caracteres), ficha, medido_en, publicada_en`.
+- **Restricción de unicidad:** único por `(owner_id, device_id, medio, banda, frecuencia)`.
+
+### 13.3 Modelo único del espectrómetro y adaptadores por medio
+Modelo unificado para procesar lecturas con filtro por frecuencia, ancho, capa, medio y origen ('medida'|'declarada'|'estimada'). Adaptadores por medio con lo que cada plataforma SÍ y NO da hoy:
+- **Wi-Fi:** solo la conexión, el navegador no escanea.
+- **Bluetooth:** anuncios ya leídos.
+- **LoRa:** radio conectada y región.
+- **Celular:** nada llega a la app hoy.
+- **SDR:** solo con hardware, hay ranura.
+
+### 13.4 Internet compartido por la malla
+Gestión centralizada solo dentro de `puertas-internet.ts` y `oferta.ts`: interruptor por aparato apagado por defecto, tope de apertura, topes y reserva. El automático nunca enciende lo no encendido.
+
+### 13.5 Lo que sigue y no está hecho
+- Escaneo nativo de Wi-Fi y de celda por plataforma.
+- Receptor SDR real.
