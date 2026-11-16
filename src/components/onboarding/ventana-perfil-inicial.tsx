@@ -26,14 +26,11 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-import { createClient } from "@/utils/supabase/client";
 import { uploadEntityMedia } from "@/lib/os-social";
 import { FotoConMarco, EditorMarco } from "@/components/profile/foto-con-marco";
 import { EditorAvatar3D, Avatar3DVisor, type Avatar3D } from "@/components/profile/avatar-3d";
 import { type Marco, MARCO_POR_DEFECTO } from "@/lib/profile/marco-foto";
-import {
-  claimProfile, saveProfileOptional, isValidHandle, sincronizarPerfilPublico,
-} from "@/lib/onboarding/onboarding";
+import { guardarPerfilInicial, leerPerfilInicial } from "@/lib/onboarding/perfil-inicial";
 import { marcarRitoActivo } from "@/lib/ui/rito-activo";
 import { IconoStarSeed } from "@/components/onboarding/icono-starseed";
 import { esMiTurno, terminarEtapa, suscribirRito, navegarSuave } from "@/lib/onboarding/director-rito";
@@ -105,29 +102,22 @@ export function VentanaPerfilInicial({ onCerrar }: { onCerrar?: () => void }) {
   }, [abierta]);
 
   // Carga lo que ya haya: el handle que se eligió (o el que puso el alta).
+  // (Adenda 194 · cliente duplicado) La ventana NO abre su propio cliente de
+  // Supabase: lo pide a la capa de datos, que es quien lo tiene.
   useEffect(() => {
     if (!abierta) return;
     let vivo = true;
     (async () => {
       try {
-        const sb = createClient();
-        const { data: u } = await sb.auth.getUser();
-        const uid = u?.user?.id;
-        if (!uid) return;
-        const { data } = await sb
-          .from("profiles")
-          .select("handle,display_name,bio,avatar_url,cover_url,avatar_marco,avatar_3d")
-          .eq("user_id", uid)
-          .maybeSingle();
-        if (!vivo || !data) return;
-        const p = data as { handle?: string; display_name?: string; bio?: string; avatar_url?: string; cover_url?: string; avatar_marco?: Marco | null; avatar_3d?: Avatar3D | null };
-        if (p.avatar_marco) setMarco({ ...MARCO_POR_DEFECTO, ...p.avatar_marco });
-        if (p.avatar_3d?.url) setAvatar3d(p.avatar_3d);
-        setNombre(p.display_name || "");
-        setHandle(p.handle || "");
-        setBio(p.bio || "");
-        setAvatar(p.avatar_url || "");
-        setPortada(p.cover_url || "");
+        const p = await leerPerfilInicial();
+        if (!vivo || !p) return;
+        if (p.marco) setMarco({ ...MARCO_POR_DEFECTO, ...p.marco });
+        if (p.avatar3d?.url) setAvatar3d(p.avatar3d);
+        setNombre(p.nombre);
+        setHandle(p.handle);
+        setBio(p.bio);
+        setAvatar(p.avatar);
+        setPortada(p.portada);
       } catch { /* se edita igual desde cero */ }
       finally { if (vivo) setCargando(false); }
     })();
@@ -162,39 +152,22 @@ export function VentanaPerfilInicial({ onCerrar }: { onCerrar?: () => void }) {
   const terminar = useCallback(async () => {
     setGuardando(true);
     try {
-      const h = handle.trim().toLowerCase();
-      if (h && !isValidHandle(h)) {
-        toast.error("El @handle no es válido (3-20 caracteres: a-z, 0-9, _).");
-        return;
-      }
-      if (h && nombre.trim()) {
-        const r = await conTope(claimProfile({ fullName: nombre.trim(), handle: h }));
-        if (r && !r.ok) { toast.error(r.error || "No se pudo guardar el nombre."); return; }
-      }
-      await conTope(saveProfileOptional({
-        avatar_url: avatar || undefined,
-        cover_url: portada || undefined,
-        bio: bio || undefined,
-        avatar_marco: marco as unknown as Record<string, unknown>,
-        avatar_3d: avatar3d?.url ? (avatar3d as unknown as Record<string, unknown>) : null,
-      }));
-      await conTope((async () => {
-        const sb = createClient();
-        const { data: u } = await sb.auth.getUser();
-        if (u?.user?.id) {
-          await sincronizarPerfilPublico(u.user.id, {
-            handle: h || undefined,
-            display_name: nombre.trim() || undefined,
-            avatar_url: avatar || undefined,
-            cover_url: portada || undefined,
-            bio: bio || undefined,
-            avatar_marco: marco as unknown as Record<string, unknown>,
-            avatar_3d: avatar3d?.url ? (avatar3d as unknown as Record<string, unknown>) : null,
-          });
-        }
-        return true;
-      })());
-
+      // (Adenda 194 · cliente duplicado) Un solo guardado, en la capa de
+      // datos: la identidad se reclama, los campos opcionales se escriben y el
+      // perfil público se espeja allí. Aquí no se abre ningún cliente.
+      const r = await conTope(
+        guardarPerfilInicial({
+          nombre: nombre.trim(),
+          handle: handle.trim().toLowerCase(),
+          bio: bio.trim(),
+          avatar,
+          portada,
+          marco,
+          avatar3d,
+        }),
+        12000,
+      );
+      if (r && !r.ok) { toast.error(r.error || "No se pudo guardar tu perfil."); return; }
       // (Ola 381 · INI6) Antes de cerrar, el paso de arranque (pantalla inicial y bloqueo).
       setPaso("arranque");
     } finally {
@@ -203,7 +176,7 @@ export function VentanaPerfilInicial({ onCerrar }: { onCerrar?: () => void }) {
     // (Adenda 219) `marco` y `avatar3d` en las dependencias: sin ellas el
     // callback guardaba el marco POR DEFECTO y ningún avatar 3D (clausura
     // vieja) — visto en vivo: la estrella elegida llegaba a la base como círculo.
-  }, [handle, nombre, avatar, portada, bio, marco, avatar3d, conTope]);
+  }, [nombre, handle, bio, avatar, portada, marco, avatar3d, conTope]);
 
   const cerrarRito = useCallback(() => {
     setAbierta(false);
