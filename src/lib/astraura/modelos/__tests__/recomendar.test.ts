@@ -32,9 +32,9 @@ describe("semilla del catálogo", () => {
       expect(m.id).not.toMatch(/abliterat|uncensor|huihui/i);
       expect(m.fuentes.length).toBeGreaterThan(0);
       expect(m.fuentes.every((f) => /^https:\/\/(ollama\.com|epoch\.ai)\//.test(f))).toBe(true);
-      expect(m.comprobado).toBe("2026-11-10");
+      expect(m.comprobado).toBe("2026-11-16");
       expect(recomendable(m)).toBe(true);
-      if (m.puntuacion) expect(m.puntuacion.comprobado).toBe("2026-11-10");
+      if (m.puntuacion) expect(m.puntuacion.comprobado).toBe("2026-11-16");
     }
   });
   it("rechaza una clase desconocida, y una «abliterated» sin su rastro (publicador, base, fuente viva)", () => {

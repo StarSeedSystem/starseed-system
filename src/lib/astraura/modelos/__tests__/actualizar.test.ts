@@ -123,7 +123,7 @@ describe("cuándo revisar y qué avisar", () => {
     const r = await revisarFuentes(cat, "2026-12-01", async () => { throw new Error("sin red"); });
     expect(r.revisado).toBe(false);
     expect(r.catalogo).toBe(cat);
-    expect(r.catalogo.revisado).toBe("2026-11-10");
+    expect(r.catalogo.revisado).toBe("2026-11-16");
   });
   it("revisa por fuentes, nunca pide una URL fuera de la lista y detecta la mejora para la neurona", async () => {
     const pedidas: string[] = [];

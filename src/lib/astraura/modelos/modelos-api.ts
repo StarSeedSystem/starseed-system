@@ -2,6 +2,8 @@
 // Librería de modelos con fuente y fecha de verificación.
 // Módulo puro: sin red, sin disco, sin procesos lanzados.
 
+import { FECHA_SEMILLA } from "./catalogo-datos";
+
 export type EstadoModeloApi = "vigente" | "obsoleto";
 
 export interface ModeloApi {
@@ -39,7 +41,7 @@ const ABLITERATION_MODELS: ModeloApi[] = [
       "https://docs.abliteration.ai/models.md",
       "https://abliteration.ai/pricing",
     ],
-    comprobado: "2026-11-16",
+    comprobado: FECHA_SEMILLA,
   },
   {
     proveedor: "abliteration.ai",
@@ -58,7 +60,7 @@ const ABLITERATION_MODELS: ModeloApi[] = [
       "https://docs.abliteration.ai/models.md",
       "https://abliteration.ai/pricing",
     ],
-    comprobado: "2026-11-16",
+    comprobado: FECHA_SEMILLA,
   },
   {
     proveedor: "abliteration.ai",
@@ -77,7 +79,7 @@ const ABLITERATION_MODELS: ModeloApi[] = [
       "https://docs.abliteration.ai/models.md",
       "https://abliteration.ai/pricing",
     ],
-    comprobado: "2026-11-16",
+    comprobado: FECHA_SEMILLA,
   },
   {
     proveedor: "abliteration.ai",
@@ -96,7 +98,7 @@ const ABLITERATION_MODELS: ModeloApi[] = [
       "https://docs.abliteration.ai/models.md",
       "https://abliteration.ai/pricing",
     ],
-    comprobado: "2026-11-16",
+    comprobado: FECHA_SEMILLA,
   },
 ];
 
