@@ -271,7 +271,7 @@ function Pantalla({ p, activo, gestor }: { p: PropsVentanaControl; activo: boole
                     />
             </div>
             {mensaje && (
-                <div role="status" aria-live="polite" data-testid="ventana-control-mensaje" className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/55 p-4 text-center text-sm text-white">
+                <div aria-live="polite" data-testid="ventana-control-mensaje" className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/55 p-4 text-center text-sm text-white">
                     <span className="max-w-[90%] rounded-lg bg-[#0b0f1a]/90 px-3 py-2">{mensaje}</span>
                 </div>
             )}
@@ -518,7 +518,7 @@ export function VentanaControl(props: PropsVentanaControl) {
         <SelectorFuente
             pedida={props.fuentePedida ?? "auto"}
             real={props.fuenteReal ?? null}
-            aviso={props.avisoFuente}
+            aviso={props.avisoFuente ?? null}
             onCambiar={props.alCambiarFuente}
         />
     );
