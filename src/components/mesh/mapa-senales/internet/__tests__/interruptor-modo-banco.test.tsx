@@ -46,11 +46,30 @@ describe("InterruptorModoBanco", () => {
   });
 
   it("cambia de estado al pulsar Espacio y llama a onCambiar(true)", () => {
-    renderInterruptor({ activo: false });
-    const labelEl = screen.getByText(/Modo banco/i).closest("label")!;
-    fireEvent.click(labelEl);
+    let activo = false;
+    const onCambiar = vi.fn((nuevo: boolean) => {
+      activo = nuevo;
+    });
+    const { rerender } = render(
+      <InterruptorModoBanco
+        activo={activo}
+        onCambiar={onCambiar}
+        textos={textosBase}
+        restanteHoyMb={null}
+      />
+    );
     const switchEl = screen.getByRole("switch", { name: /Modo banco/i });
-    expect(switchEl).toBeChecked();
+    fireEvent.click(switchEl);
+    expect(onCambiar).toHaveBeenCalledWith(true);
+    rerender(
+      <InterruptorModoBanco
+        activo={activo}
+        onCambiar={onCambiar}
+        textos={textosBase}
+        restanteHoyMb={null}
+      />
+    );
+    expect(screen.getByRole("switch", { name: /Modo banco/i })).toBeChecked();
   });
 
   it("llama a onCambiar con el nuevo estado al hacer clic", () => {
@@ -85,7 +104,7 @@ describe("InterruptorModoBanco", () => {
 
   it("el label contenedor tiene clases para objetivo táctil de al menos 44px", () => {
     renderInterruptor();
-    const labelEl = screen.getByLabelText(/Modo banco/i);
+    const labelEl = screen.getByText(/Modo banco/i).closest("label")!;
     // py-2 (8px * 2 = 16px) + switch h-6 (24px) = 40px, pero con gap y border llega a 44px+
     // Verificamos que el label tiene padding vertical y el switch tiene altura mínima
     expect(labelEl).toHaveClass("py-2");

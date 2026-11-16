@@ -21,6 +21,10 @@ import { setNeuronName, thisDeviceId } from "@/lib/neurons/neurons";
 import type { CentroNeurona } from "@/lib/senales/centro";
 import { describirRadarPublico } from "@/lib/senales/radar-publico";
 import { FotoPerfil } from "./foto-perfil";
+import { InterruptorModoBanco } from "./internet/interruptor-modo-banco";
+import { TextosInternet } from "@/lib/malla/internet/tipos";
+import { getAjustesBanco, setAjustesBanco, AJUSTES_BANCO_EVENT, calcularRestanteHoyMb } from "@/lib/malla/internet/ajustes-banco";
+import type { AjustesBanco } from "@/lib/malla/internet/tipos";
 
 /** La privacidad de la malla de ESTE dispositivo, viva (se vuelve a leer al cambiar desde cualquier panel). */
 export function useMeshPrivacidad(): { privacidad: MeshPrivacySettings; internetPublico: boolean } {
@@ -40,6 +44,26 @@ export function useMeshPrivacidad(): { privacidad: MeshPrivacySettings; internet
     };
   }, []);
   return { privacidad, internetPublico };
+}
+
+/** Los ajustes del modo banco de ESTE dispositivo, vivos (se vuelven a leer al cambiar desde cualquier panel). */
+export function useAjustesBanco(): { ajustes: AjustesBanco; restanteHoyMb: number | null } {
+  const [ajustes, setAjustes] = useState<AjustesBanco>(() => getAjustesBanco());
+  const [restanteHoyMb, setRestanteHoyMb] = useState<number | null>(() => {
+    const a = getAjustesBanco();
+    return calcularRestanteHoyMb(a, 0);
+  });
+  useEffect(() => {
+    const leer = () => {
+      const a = getAjustesBanco();
+      setAjustes(a);
+      setRestanteHoyMb(calcularRestanteHoyMb(a, 0));
+    };
+    leer();
+    window.addEventListener(AJUSTES_BANCO_EVENT, leer);
+    return () => window.removeEventListener(AJUSTES_BANCO_EVENT, leer);
+  }, []);
+  return { ajustes, restanteHoyMb };
 }
 
 const COLOR_EMISION = { publica: "border-emerald-400/35 bg-emerald-500/10 text-emerald-200", anonima: "border-sky-400/35 bg-sky-500/10 text-sky-200", "no-emite": "border-white/15 bg-white/5 text-white/55" } as const;
@@ -115,6 +139,7 @@ export function AjustesNeurona({ centro, neuronaId, verPublicos, onVerPublicos, 
   onNombre: (nombre: string) => void;
 }) {
   const { privacidad: p, internetPublico } = useMeshPrivacidad();
+  const { ajustes: banco, restanteHoyMb } = useAjustesBanco();
   const [nombre, setNombre] = useState(centro.sinNombre ? "" : centro.nombreNeurona);
   useEffect(() => { setNombre(centro.sinNombre ? "" : centro.nombreNeurona); }, [centro.nombreNeurona, centro.sinNombre]);
   const limpio = nombre.trim().slice(0, 40);
@@ -134,6 +159,13 @@ export function AjustesNeurona({ centro, neuronaId, verPublicos, onVerPublicos, 
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "No se pudo guardar el nombre");
     }
+  };
+
+  const textosBanco = {
+    bancoTitulo: TextosInternet.bancoTitulo,
+    bancoAyuda: TextosInternet.bancoAyuda,
+    quedaHoy: TextosInternet.quedaHoy,
+    agotadoHoy: TextosInternet.agotadoHoy,
   };
 
   return (
@@ -194,6 +226,21 @@ export function AjustesNeurona({ centro, neuronaId, verPublicos, onVerPublicos, 
           <Fila icono={<MapPin className="h-3.5 w-3.5" />} titulo="Compartir mi posición GPS" nota="Apagado por defecto: la ubicación es sensible." activo={p.sharePosition} onCambio={(v) => actualizar({ sharePosition: v })} deshabilitado={!publico} />
           <Fila icono={p.visibility === "account" ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />} titulo="Visible para mis otras neuronas" nota="Apagado, esta neurona no publica nada (ni a tu cuenta ni al radar)." activo={p.visibility === "account"} onCambio={(v) => actualizar({ visibility: v ? "account" : "private" })} />
         </div>
+      </div>
+
+      <div>
+        <p className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold text-white/85">
+          <Globe2 className="h-3.5 w-3.5 text-sky-300" aria-hidden /> Compartir internet
+        </p>
+        <InterruptorModoBanco
+          activo={banco.activo}
+          onCambiar={(activo) => {
+            const next = { ...banco, activo };
+            setAjustesBanco(next);
+          }}
+          textos={textosBanco}
+          restanteHoyMb={restanteHoyMb}
+        />
       </div>
 
       <div className="rounded-xl border border-white/10 bg-white/[0.025] px-2.5 py-2" aria-label="Así te ven las demás cuentas">
