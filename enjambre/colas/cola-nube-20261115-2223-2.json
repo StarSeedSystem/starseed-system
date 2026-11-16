@@ -1,0 +1,85 @@
+{
+ "ola": "nube-20261115",
+ "tareas": [
+  {
+   "id": "JL3",
+   "ola": "JLA1116A",
+   "titulo": "Desenlace de una decisión: qué cuenta como verdad",
+   "archivos": [
+    "scripts/puente/jev_desenlaces.py",
+    "scripts/puente/test_jev_desenlaces.py"
+   ],
+   "depende": [],
+   "prompt": "Contrato: architecture/jev-entrena-laya.md (si aún no está en el repo, rige este texto). Lee AGENTS.md. §3. Módulo puro: `desenlace_de(fila)` -> `{\"verdad\": True|False|None, \"fuente\": str}` a partir de una fila ya leída (dict) de: veredicto de bloqueada con su resultado posterior, tarea integrada o revertida en el progreso, aprobación sola con su sha integrado o revertido, publicación con su despliegue verde o rojo, corrección explícita de Alex (`corregida_por: alex`). Regla: la opinión de Jev NUNCA es desenlace; sin dato -> `verdad: None`. `etiqueta_de(exp, desenlace)` -> «verdad» | «debil» (solo opinión de Jev) | «sin_dato». No leas disco: las filas llegan por argumento. PRUEBAS: una por fuente, opinión de Jev sola -> débil, fila vacía -> sin_dato.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` (Python: sin red ni `~/.starseed`, rutas y lectores se inyectan) salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado."
+  },
+  {
+   "id": "JL5",
+   "ola": "JLA1116A",
+   "titulo": "Registro de decisiones de Laya: del resultado de /api/astraura/decidir a un caso",
+   "archivos": [
+    "src/lib/astraura/laya/registro-decision.ts",
+    "src/lib/astraura/laya/__tests__/registro-decision.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: architecture/jev-entrena-laya.md (si aún no está en el repo, rige este texto). Lee AGENTS.md. §2 (el registro nunca se alimenta: `anotar` de `aprendizaje-laya.ts:45` no tiene llamador). Función pura `casoDeDecision(entrada)` que convierte lo que devuelve `src/app/api/astraura/decidir/route.ts` (punto, ámbito, `answer_confidence`, dónde corrió, ms, si escaló) en un `CasoLaya` con `resultado` «aceptada»|«escalada» y `privado` según el punto (`privacidad: \"solo-propias\"` en `puntos-decision.ts`). `registrar(registro, entrada)` usa `anotar`. Sin disco ni reloj (`ts` inyectado). PRUEBAS: punto privado guarda huella, escalado marcado, punto desconocido -> null.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` (Python: sin red ni `~/.starseed`, rutas y lectores se inyectan) salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado."
+  },
+  {
+   "id": "JL6",
+   "ola": "JLA1116A",
+   "titulo": "Vecinos más cercanos de la libreta por ámbito",
+   "archivos": [
+    "src/lib/astraura/laya/libreta-vecinos.ts",
+    "src/lib/astraura/laya/__tests__/libreta-vecinos.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: architecture/jev-entrena-laya.md (si aún no está en el repo, rige este texto). Lee AGENTS.md. §3 y §4. Módulo puro y barato (sin modelo, cabe en una tableta): `huellaPalabras(texto)` (bolsa de palabras normalizada a un vector disperso de ≤256 posiciones por hash), `similitud(a,b)` (coseno), `vecinos(libreta, estado, k, ambito)` que solo mira ejemplos de ESE ámbito y con desenlace conocido, y `votar(vecinos)` -> `{respuesta, apoyo}` o null si hay menos de 5 vecinos o el apoyo es < 0,6. Tipos: `EjemploLibreta {punto, ambito, estado, respuesta, desenlaceOk: boolean|null}`. PRUEBAS: un ámbito no ve ejemplos de otro, sin desenlace no vota, desempate estable, menos de 5 -> null.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` (Python: sin red ni `~/.starseed`, rutas y lectores se inyectan) salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado."
+  },
+  {
+   "id": "JL7",
+   "ola": "JLA1116A",
+   "titulo": "Calibración de la confianza de Laya por punto y ámbito",
+   "archivos": [
+    "src/lib/astraura/laya/calibracion-laya.ts",
+    "src/lib/astraura/laya/__tests__/calibracion-laya.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: architecture/jev-entrena-laya.md (si aún no está en el repo, rige este texto). Lee AGENTS.md. §3.2. Puro. Con casos (`CasoLaya` de `aprendizaje-laya.ts`) y su desenlace correcto/incorrecto, `calibrar(casos, punto, ambito)`: 10 cajas de confianza, tasa de acierto por caja, exige ≥ `MIN_CASOS_UMBRAL` (30) y devuelve `{cajas, umbralSugerido, n}` o `{n, motivo: \"faltan casos\"}`; `confianzaCalibrada(cal, p)` interpola y nunca sube la confianza por encima de la tasa observada. PRUEBAS: datos sintéticos con Laya sobreconfiada (dice 0,9 y acierta 0,6) baja la confianza; menos de 30 casos -> motivo; cajas vacías no rompen.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` (Python: sin red ni `~/.starseed`, rutas y lectores se inyectan) salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado."
+  },
+  {
+   "id": "IMA19",
+   "ola": "TRA1116-IDIOMAS",
+   "titulo": "Reemplazar la selección editable por su traducción (input, textarea y contenteditable)",
+   "archivos": [
+    "src/components/traduccion/reemplazar-seleccion.ts",
+    "src/components/traduccion/__tests__/reemplazar-seleccion.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contrato A3. Pura y probada en jsdom: `capturarSeleccionEditable(doc: Document): ObjetivoEditable | null` (si el foco está en `input` de texto, `textarea` o elemento `contenteditable` con texto seleccionado; guarda elemento, inicio, fin y texto; NUNCA en `input type=password`), `reemplazar(objetivo, nuevoTexto): boolean` (en input/textarea con `setRangeText` y evento `input` para que React/formularios lo vean; en contenteditable con `Range.deleteContents`+`insertNode`; devuelve false si el elemento ya no está en el documento o el texto cambió desde la captura) y `deshacerUltimo(): boolean` (guarda el texto anterior de UNA sustitución). No usa red.\nPRUEBAS: textarea con selección, input, contenteditable, password rechazado, elemento retirado → false, deshacer.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado."
+  },
+  {
+   "id": "MRA4",
+   "ola": "MAP1116B",
+   "titulo": "Espectro: reglas de compatibilidad (qué se puede enlazar con cada señal y qué falta)",
+   "archivos": [
+    "src/lib/senales/espectro/compatibilidad.ts",
+    "src/lib/senales/espectro/__tests__/compatibilidad.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Con `SenalEspectro` y `bandas.ts`, escribe `compatibilidad.ts`: `compatiblesDe(senal, equipo: { radios: Medio[]; regionLora?: string; sdr?: boolean }): Compatibilidad[]`. Reglas (todas con `motivo` en palabras): una señal Wi-Fi/Bluetooth/LoRa/celular solo es enlazable si ESTE equipo tiene esa radio (`equipo.radios`); LoRa solo con la MISMA región/preset (frecuencia en la banda de su región: `bandaDeFrecuencia`); una señal de la malla de StarSeed es compatible con «neurona» si ambas hablan algún transporte común; una estación pública/privada (`os_estaciones`) es compatible con «estacion» (verla) siempre que la capa lo permita; sin radio o sin región → `posible:false` con el porqué («este aparato no tiene Bluetooth que el sistema deje usar»). NUNCA devuelve `posible:true` por suposición: sin dato suficiente, `posible:false` y motivo «sin datos para saberlo». Compatibilidad con un SDR solo si `equipo.sdr`. PRIVACIDAD Y HONESTIDAD (decisiones de Alex del 14-11, `architecture/mapa-de-senales.md` §2 y §12; valen para esta tarea): la posición exacta de un aparato personal viaja SOLO por el canal privado `pos:<uid>` entre las neuronas de su propia cuenta (`src/lib/senales/geo/canal-posicion.ts`); en las capas pública y de comunidad una neurona enseña únicamente lo que su dueño eligió publicar, y nunca una posición exacta (como mucho una zona gruesa); una capa de toda la red se construye con lo que cada dueño publica, JAMÁS con una neurona informando de la posición de sus vecinas; el alcance dibujado como campo es «estimado» y lo medido se marca aparte (`NOTA_ALCANCE` de `geo/capas.ts`). Nada se inventa: si una plataforma no da un dato, el mapa lo dice («sin fuente: <motivo>») y no pinta un número. Un valor lleva siempre su fuente (`medida`, `declarada` o `estimada`) y la hora de la lectura.\nPRUEBAS: tabla de ≥12 casos (radio presente/ausente, región igual/distinta, sin dato, estación privada ajena = no posible). COMPRUEBA: `NODE_ENV=test npx vitest run src/lib/senales/espectro/__tests__/compatibilidad.test.ts` verde y tsc acotado.\n\nREGLAS DE LA CASA (valen aunque no las repita la tarea): toca SOLO los archivos de la lista `archivos`; ≤3 archivos y ≤120 líneas por archivo (si no cabe, para y di qué falta: no lo estires ni lo resumas); sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible (la interfaz dice Genesis); sin red real en las pruebas; ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves. El asunto de tu commit empieza por `MRA4:` y dice qué comprobaste y qué NO pudiste comprobar.",
+   "dependencias_ya_en_main": [
+    "MRA2",
+    "MRA3"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1115-190053.json": [
+   "IMA19",
+   "JL7",
+   "JL3",
+   "JL5",
+   "JL6",
+   "MRA4"
+  ]
+ }
+}
