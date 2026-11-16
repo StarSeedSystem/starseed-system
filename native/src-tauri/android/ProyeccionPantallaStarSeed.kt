@@ -184,7 +184,7 @@ class ServicioProyeccionPantalla : Service() {
             // Android 14+: primero el servicio en primer plano con su tipo, DESPUÉS la proyección.
             if (Build.VERSION.SDK_INT >= 29) startForeground(ID, notificacion(), ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION) else startForeground(ID, notificacion())
             val mpm = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-            val p = mpm.getMediaProjection(codigo, datos)
+            val p = mpm.getMediaProjection(codigo, datos) ?: throw IllegalStateException("el sistema no dio la proyección")
             // Android 14+: la devolución de llamada va ANTES de crear la pantalla virtual; onStop = «Dejar de compartir» del chip de Android.
             p.registerCallback(object : MediaProjection.Callback() { override fun onStop() { principal.post { detener() } } }, principal)
             proy = p
