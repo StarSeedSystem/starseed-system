@@ -16,7 +16,7 @@ export async function medirLatenciaCanal(canal: "websocket" | "sse"): Promise<nu
                     resolve(Date.now() - t0);
                 }
             });
-            emitChange("latencia:ping", { pingId });
+            emitChange("latencia:ping", { data: { pingId } });
             setTimeout(() => { unsub(); resolve(-1); }, 5000);
         });
     }
