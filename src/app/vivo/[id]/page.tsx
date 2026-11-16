@@ -39,6 +39,7 @@ import {
     usePresentesSesion,
 } from "@/lib/mensajeria/sesiones-vivas";
 import { fetchProfilesByIds } from "@/lib/social/os-profiles";
+import { MarcaDirecto } from "@/components/vivo-entidad/marca-directo";
 import { entradaVivo } from "@/components/messages/vivo/catalogo-vivo";
 import { tituloDeSesion } from "@/components/messages/vivo/acciones-vivo";
 import {
@@ -325,9 +326,7 @@ function TarjetaEntrada({ sesion, porEnlace, conCuenta }: { sesion: SesionViva; 
                 <div className="flex flex-wrap gap-1.5">
                     <ChipVivo color={color} icono={infoPermiso.icono}>{infoPermiso.etiqueta}</ChipVivo>
                     <ChipVivo color="#FFFFFF" icono={infoModo.icono} titulo={infoModo.ayuda}>{infoModo.etiqueta}</ChipVivo>
-                    {presentes !== null && presentes > 0 && (
-                        <ChipVivo color="#10B981">{presentes === 1 ? "1 persona dentro" : `${presentes} personas dentro`}</ChipVivo>
-                    )}
+                    <MarcaDirecto directo={vigente} personas={presentes} compacto />
                 </div>
 
                 {entrada?.descripcion && <p className="text-[14px] leading-relaxed text-white/70">{entrada.descripcion}</p>}
