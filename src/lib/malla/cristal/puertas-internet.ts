@@ -1,11 +1,16 @@
 // Puertas a internet opcionales
 import type { ClaseDato } from './tipos';
+import { MB, contadoresVacios, sumarBytes, usadoHoyMb, diaLocal } from '../internet/contadores';
+import type { Contadores, Audiencia } from '../internet/contadores';
 
 export const TIPOS_PUERTA = ['movil-4g','movil-5g','wifi-externa','usb-telefono','cable','satelite'] as const;
 export type TipoPuerta = typeof TIPOS_PUERTA[number];
 
 export const COMPARTIR = ['nadie','mi-cuenta','vinculos','grupo','publico'] as const;
 export type Compartir = typeof COMPARTIR[number];
+
+export { MB, contadoresVacios, sumarBytes, usadoHoyMb, diaLocal };
+export type { Contadores, Audiencia };
 
 export interface PuertaInternet {
   id: string;
@@ -21,6 +26,7 @@ export interface PuertaInternet {
   reservaDuenoPct?: number;
   compartir: Compartir;
   grupos?: string[];
+  contadores?: Contadores;
 }
 
 export interface Solicitante {
@@ -29,12 +35,55 @@ export interface Solicitante {
   grupos: string[];
 }
 
-// Funciones puras
-export function restanteParaOtrosMb(p: PuertaInternet): number | null {
-  return !p.medida || !p.topeMensualMb ? null : Math.max(0, p.topeMensualMb - (p.usadoMesMb ?? 0) - (p.topeMensualMb * (p.reservaDuenoPct ?? 20)) / 100);
+function audienciaDeCompartir(c: Compartir): Audiencia {
+  switch (c) {
+    case 'mi-cuenta': return 'mi-cuenta';
+    case 'vinculos':
+    case 'grupo': return 'entidad';
+    case 'publico': return 'publico';
+    default: return 'entidad';
+  }
 }
 
-export function puedeUsar(p: PuertaInternet, s: Solicitante): {ok: boolean; motivo: string} {
+export function conContadores(p: PuertaInternet, ahora: number, desfaseMin: number): PuertaInternet {
+  if (p.contadores) return p;
+  return { ...p, contadores: contadoresVacios(ahora, desfaseMin) };
+}
+
+export function sumarBytesPuerta(
+  p: PuertaInternet,
+  compartir: Compartir,
+  bytes: number,
+  ahora: number,
+  desfaseMin: number
+): PuertaInternet {
+  const aud = audienciaDeCompartir(compartir);
+  const base = conContadores(p, ahora, desfaseMin);
+  const contadores = sumarBytes(base.contadores!, aud, bytes, ahora, desfaseMin);
+  const usadoMesMb = (base.usadoMesMb ?? 0) + (bytes > 0 && Number.isFinite(bytes) ? bytes : 0);
+  return { ...base, contadores, usadoMesMb };
+}
+
+export function restanteParaOtrosMb(p: PuertaInternet, contadores?: Contadores, ahora?: number, desfaseMin?: number): number | null {
+  const restanteMensual = !p.medida || !p.topeMensualMb ? null : Math.max(0, p.topeMensualMb - (p.usadoMesMb ?? 0) - (p.topeMensualMb * (p.reservaDuenoPct ?? 20)) / 100);
+  if (contadores && ahora !== undefined && desfaseMin !== undefined) {
+    const usadosHoyOtrosMb = usadoHoyMb(contadores, 'otros', ahora, desfaseMin);
+    if (p.topeMensualMb !== undefined) {
+      const topeDiarioMb = Math.floor(p.topeMensualMb / 30);
+      const restanteDiario = Math.max(0, topeDiarioMb - usadosHoyOtrosMb);
+      return restanteMensual !== null ? Math.min(restanteMensual, restanteDiario) : restanteDiario;
+    }
+  }
+  return restanteMensual;
+}
+
+export function puedeUsar(
+  p: PuertaInternet,
+  s: Solicitante,
+  contadores?: Contadores,
+  ahora?: number,
+  desfaseMin?: number
+): {ok: boolean; motivo: string} {
   switch (p.compartir) {
     case 'nadie': return {ok: false, motivo: 'Puerta configurada para no compartir'};
     case 'mi-cuenta':
@@ -54,11 +103,16 @@ export function puedeUsar(p: PuertaInternet, s: Solicitante): {ok: boolean; moti
     if (!p.medida || !p.topeMensualMb) return {ok: true, motivo: 'Dueño sin límite de datos'};
     const usado = p.usadoMesMb ?? 0;
     if (usado >= p.topeMensualMb) return {ok: false, motivo: 'Dueño ha superado su tope mensual'};
+    if (contadores && ahora !== undefined && desfaseMin !== undefined) {
+      const usadosHoyDuenoMb = usadoHoyMb(contadores, 'mi-cuenta', ahora, desfaseMin);
+      const topeDiarioMb = Math.floor(p.topeMensualMb / 30);
+      if (usadosHoyDuenoMb >= topeDiarioMb) return {ok: false, motivo: 'Dueño ha superado su tope diario'};
+    }
     return {ok: true, motivo: 'Dueño dentro de su tope'};
   }
 
-  // Para otros, verificar según restante para otros
-  const restante = restanteParaOtrosMb(p);
+  // Para otros, verificar según restante para otros (mensual y diario)
+  const restante = restanteParaOtrosMb(p, contadores, ahora, desfaseMin);
   if (restante === null) return {ok: false, motivo: 'Puerta no medida o sin tope definido'};
   if (restante <= 0) return {ok: false, motivo: 'No queda datos disponibles para compartir'};
 

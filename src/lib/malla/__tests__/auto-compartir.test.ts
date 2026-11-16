@@ -36,6 +36,7 @@ const estadoBase = {
 };
 
 const ahora = Date.now();
+const desfaseMin = 0;
 
 describe('sugerirComparticion', () => {
   it('interruptor apagado (compartir=nadie) → nunca ofrece', () => {
@@ -45,6 +46,7 @@ describe('sugerirComparticion', () => {
       preferencias: preferenciasBase,
       estado: estadoBase,
       ahora,
+      desfaseMin,
     });
     expect(decisiones).toHaveLength(1);
     expect(decisiones[0]).toMatchObject({
@@ -62,6 +64,7 @@ describe('sugerirComparticion', () => {
       preferencias: preferenciasBase,
       estado: estadoBase,
       ahora,
+      desfaseMin,
     });
     expect(decisiones[0].accion).toBe('retirar');
     expect(decisiones[0].motivo).toContain('Interruptor de compartir apagado');
@@ -75,6 +78,7 @@ describe('sugerirComparticion', () => {
       preferencias: preferenciasBase,
       estado,
       ahora,
+      desfaseMin,
     });
     expect(decisiones[0].accion).toBe('retirar');
     expect(decisiones[0].motivo).toContain('solo Wi-Fi');
@@ -88,6 +92,7 @@ describe('sugerirComparticion', () => {
       preferencias: preferenciasBase,
       estado,
       ahora,
+      desfaseMin,
     });
     expect(decisiones[0].accion).toBe('ofrecer');
   });
@@ -100,6 +105,7 @@ describe('sugerirComparticion', () => {
       preferencias: preferenciasBase,
       estado,
       ahora,
+      desfaseMin,
     });
     expect(decisiones[0].accion).toBe('retirar');
     expect(decisiones[0].motivo).toContain('Batería al 20%');
@@ -113,6 +119,7 @@ describe('sugerirComparticion', () => {
       preferencias: preferenciasBase,
       estado,
       ahora,
+      desfaseMin,
     });
     expect(decisiones[0].accion).toBe('ofrecer');
   });
@@ -125,6 +132,7 @@ describe('sugerirComparticion', () => {
       preferencias: preferenciasBase,
       estado,
       ahora,
+      desfaseMin,
     });
     expect(decisiones[0].accion).toBe('ofrecer');
   });
@@ -137,6 +145,7 @@ describe('sugerirComparticion', () => {
       preferencias,
       estado: estadoBase,
       ahora,
+      desfaseMin,
     });
     expect(decisiones[0].con).toBe('vinculos');
     expect(decisiones[0].accion).toBe('ofrecer');
@@ -150,6 +159,7 @@ describe('sugerirComparticion', () => {
       preferencias,
       estado: estadoBase,
       ahora,
+      desfaseMin,
     });
     expect(decisiones[0].con).toBe('vinculos');
     expect(decisiones[0].accion).toBe('ofrecer');
@@ -163,6 +173,7 @@ describe('sugerirComparticion', () => {
       preferencias,
       estado: estadoBase,
       ahora,
+      desfaseMin,
     });
     expect(decisiones[0].con).toBe('mi-cuenta');
     expect(decisiones[0].accion).toBe('ofrecer');
@@ -176,6 +187,7 @@ describe('sugerirComparticion', () => {
       preferencias,
       estado: estadoBase,
       ahora,
+      desfaseMin,
     });
     expect(decisiones[0].accion).toBe('retirar');
     expect(decisiones[0].motivo).toContain('supera tope');
@@ -189,6 +201,7 @@ describe('sugerirComparticion', () => {
       preferencias,
       estado: estadoBase,
       ahora,
+      desfaseMin,
     });
     expect(decisiones[0].accion).toBe('ofrecer');
   });
@@ -201,6 +214,7 @@ describe('sugerirComparticion', () => {
       preferencias,
       estado: estadoBase,
       ahora,
+      desfaseMin,
     });
     expect(decisiones[0].accion).toBe('retirar');
     expect(decisiones[0].motivo).toContain('medidos');
@@ -214,6 +228,7 @@ describe('sugerirComparticion', () => {
       preferencias,
       estado: estadoBase,
       ahora,
+      desfaseMin,
     });
     expect(decisiones[0].accion).toBe('ofrecer');
   });
@@ -232,6 +247,7 @@ describe('sugerirComparticion', () => {
       preferencias,
       estado: estadoBase,
       ahora,
+      desfaseMin,
     });
     expect(decisiones[0].accion).toBe('retirar');
     expect(decisiones[0].motivo).toContain('Tope mensual');
@@ -251,6 +267,7 @@ describe('sugerirComparticion', () => {
       preferencias,
       estado: estadoBase,
       ahora,
+      desfaseMin,
     });
     expect(decisiones[0].accion).toBe('ofrecer');
   });
@@ -270,6 +287,7 @@ describe('sugerirComparticion', () => {
       preferencias,
       estado,
       ahora,
+      desfaseMin,
     });
     expect(decisiones[0].accion).toBe('retirar');
     expect(decisiones[0].motivo).toContain('Uso actual');
@@ -282,6 +300,7 @@ describe('sugerirComparticion', () => {
       preferencias: preferenciasBase,
       estado: estadoBase,
       ahora,
+      desfaseMin,
     });
     expect(decisiones[0].accion).toBe('ofrecer');
     expect(decisiones[0].motivo).toContain('Cumple todas las condiciones');
@@ -299,6 +318,7 @@ describe('sugerirComparticion', () => {
       preferencias,
       estado: estadoBase,
       ahora,
+      desfaseMin,
     });
     expect(decisiones).toHaveLength(3);
     expect(decisiones.find(d => d.puertaId === 'puerta-wifi')?.accion).toBe('ofrecer');
@@ -314,6 +334,7 @@ describe('sugerirComparticion', () => {
       preferencias,
       estado: estadoBase,
       ahora,
+      desfaseMin,
     });
     expect(decisiones[0].accion).toBe('ofrecer');
   });
@@ -333,6 +354,7 @@ describe('sugerirComparticion', () => {
       preferencias,
       estado: estadoBase,
       ahora,
+      desfaseMin,
     });
     expect(decisiones[0].accion).toBe('ofrecer');
   });
@@ -352,6 +374,7 @@ describe('sugerirComparticion', () => {
       preferencias,
       estado: estadoBase,
       ahora,
+      desfaseMin,
     });
     expect(decisiones[0].accion).toBe('retirar');
     expect(decisiones[0].motivo).toContain('Tope mensual');

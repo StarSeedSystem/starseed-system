@@ -1,5 +1,5 @@
 // Reglas puras de compartir internet por la malla de forma automática
-import { PuertaInternet, Compartir } from './cristal/puertas-internet';
+import { PuertaInternet, Compartir, Contadores, puedeUsar, usadoHoyMb, restanteParaOtrosMb } from './cristal/puertas-internet';
 
 export interface PreferenciasRedCompartida {
   /** Máximo nivel de compartir que el dueño permite (nunca se sube por encima). */
@@ -12,6 +12,10 @@ export interface PreferenciasRedCompartida {
   permitirMedida: boolean;
   /** Reserva mínima de batería para compartir (%), salvo si está cargando. */
   reservaBateriaMinPct: number;
+  /** Modo banco: racionar por día (opcional). */
+  bancoActivo?: boolean;
+  /** Tope diario en MB para otras cuentas (modo banco). */
+  bancoDiarioMb?: number;
 }
 
 export interface EstadoDispositivo {
@@ -34,8 +38,10 @@ export function sugerirComparticion(entrada: {
   preferencias: PreferenciasRedCompartida;
   estado: EstadoDispositivo;
   ahora: number;
+  desfaseMin: number;
+  contadores?: Map<string, Contadores>;
 }): { decisiones: DecisionComparticion[] } {
-  const { puertas, preferencias, estado, ahora } = entrada;
+  const { puertas, preferencias, estado, ahora, desfaseMin, contadores } = entrada;
   const decisiones: DecisionComparticion[] = [];
 
   for (const puerta of puertas) {
@@ -131,9 +137,6 @@ export function sugerirComparticion(entrada: {
 
     // 8. Uso actual en conexión medida supera tope → retira
     if (estado.medida && preferencias.permitirMedida) {
-      // Si el estado indica que esta conexión específica tiene tope y se supera
-      // (estado.usoMb ya refleja el uso en la conexión medida actual)
-      // No hay tope específico en estado, así que solo verificamos si hay datos
       if (estado.usoMb > 0 && puerta.topeMensualMb !== undefined) {
         const reserva = puerta.reservaDuenoPct ?? 20;
         const disponible = Math.max(
@@ -152,7 +155,39 @@ export function sugerirComparticion(entrada: {
       }
     }
 
-    // 9. Todo permitido → ofrece
+    // 9. Modo banco: tope diario para otras cuentas (entidad + público)
+    if (preferencias.bancoActivo && preferencias.bancoDiarioMb !== undefined && contadores) {
+      const c = contadores.get(puerta.id);
+      if (c) {
+        const otrosHoyMb = usadoHoyMb(c, 'otros', ahora, desfaseMin);
+        if (otrosHoyMb >= preferencias.bancoDiarioMb) {
+          decisiones.push({
+            puertaId: puerta.id,
+            con: conEfectivo,
+            accion: 'retirar',
+            motivo: `Tope diario de modo banco superado (${otrosHoyMb} MB usados de ${preferencias.bancoDiarioMb} MB)`,
+          });
+          continue;
+        }
+      }
+    }
+
+    // 10. Verificación final de límites (mensual + diario) para otros
+    const cFinal = contadores?.get(puerta.id);
+    if (conEfectivo !== 'mi-cuenta' && cFinal) {
+      const restante = restanteParaOtrosMb(puerta, cFinal, ahora, desfaseMin);
+      if (restante === null || restante <= 0) {
+        decisiones.push({
+          puertaId: puerta.id,
+          con: conEfectivo,
+          accion: 'retirar',
+          motivo: 'No queda datos disponibles para compartir (límite mensual o diario)',
+        });
+        continue;
+      }
+    }
+
+    // 11. Todo permitido → ofrece
     decisiones.push({
       puertaId: puerta.id,
       con: conEfectivo,
