@@ -12,8 +12,15 @@
  */
 if (typeof document !== "undefined") {
   // @ts-ignore
-const { configure } = await import("@testing-library/react");
+  const { configure } = await import("@testing-library/react");
   configure({ asyncUtilTimeout: 5000 });
+
+  // @testing-library/jest-dom para matchers como toBeInTheDocument, toHaveFocus, etc.
+  // Como globals: false, necesitamos hacer expect disponible globalmente ANTES de importar jest-dom
+  const { expect: vitestExpect } = await import("vitest");
+  // @ts-ignore
+  globalThis.expect = vitestExpect;
+  await import("@testing-library/jest-dom");
 
   // FIX1114A — desmonta lo montado al terminar cada prueba.
   // QUÉ: con `globals: false` Testing Library no registra su `cleanup` solo, así que un árbol
