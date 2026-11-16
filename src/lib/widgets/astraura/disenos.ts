@@ -1,5 +1,6 @@
 import type { ClaseTamano } from "@/lib/widgets/forma/tamanos";
 import type { ReactNode } from "react";
+import type { EstadoAsistente } from "@/lib/widgets/astraura/estado-forma";
 
 export type Diseno = "minimo" | "conversacion" | "acciones" | "voz";
 export type EleccionDiseno = Diseno | "auto";
@@ -86,5 +87,3 @@ export interface PropsDiseno {
     onAbrirChat: () => void;
     onSugerencia: (t: string) => void;
 }
-
-export type EstadoAsistente = "calma" | "escuchando" | "hablando" | "pensando";
