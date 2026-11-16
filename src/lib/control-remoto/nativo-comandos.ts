@@ -8,7 +8,7 @@
 export const COMANDOS_NATIVOS: Readonly<Record<string, readonly string[]>> = {
     control_capacidades: [],
     control_abrir_ajuste: ["cual"],
-    control_pantalla_iniciar: ["sesion", "lado_max", "calidad"],
+    control_pantalla_iniciar: ["sesion", "lado_max", "calidad", "fuente"],
     control_pantalla_cuadro: ["sesion", "desde"],
     control_pantalla_parar: ["sesion"],
     control_estado_aparato: [],

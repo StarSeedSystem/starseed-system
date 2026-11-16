@@ -42,7 +42,7 @@ describe("costura a · comandos nativos: web y Rust dicen lo mismo", () => {
             for (const u of usos) expect([...u].sort()).toEqual([...args].sort().filter((a) => u.includes(a)));
             for (const u of usos) {
                 // los argumentos opcionales en Rust (Option) pueden faltar; los demás tienen que estar
-                const opcionales = new Set(["lado_max", "calidad", "desde"]);
+                const opcionales = new Set(["lado_max", "calidad", "desde", "fuente"]);
                 for (const a of args) if (!opcionales.has(a)) expect(u, `${nombre} manda ${a}`).toContain(a);
             }
         });

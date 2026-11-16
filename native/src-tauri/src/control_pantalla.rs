@@ -8,8 +8,10 @@
 //!   reemplaza de forma atómica: Rust lo lee y lo devuelve si es más nuevo que `desde`. Un cuadro nunca se guarda
 //!   ni se anota (el registro solo lleva fuente, tamaño y fps al empezar y al acabar).
 //! · Android limita `takeScreenshot` a una captura cada ~333 ms: como mucho ~3 cuadros por segundo.
-//! · En escritorio todo contesta `{ ok:false, motivo:"sin-soporte" }`. La proyección (MediaProjection) NO está
-//!   hecha: `fuente:"proyeccion"` no existe todavía y `control_capacidades` dice `proyeccion:false`.
+//! · PENC2: `fuente` opcional («auto» por defecto, «proyeccion» o «accesibilidad»). La proyección (MediaProjection) es
+//!   fluida pero Android pregunta en CADA sesión: `control_capacidades` solo dice `proyeccion:true` con el «Sí» de la sesión.
+//!   Se anota la fuente REAL que contestó Kotlin, no la pedida.
+//! · En escritorio todo contesta `{ ok:false, motivo:"sin-soporte" }`.
 
 #![allow(dead_code)] // AND1115K: parte de esto solo se usa en Android
 
@@ -36,24 +38,48 @@ fn activa() -> MutexGuard<'static, Option<Activa>> {
 /// Seam 1. `lado_max` (lado mayor del cuadro, 160..2048) y `calidad` (entero 1..100, UNI1115M) → JPEG.
 /// La página llama con los nombres en snake_case, tal como están en el seam.
 #[tauri::command(async, rename_all = "snake_case")]
-pub fn control_pantalla_iniciar(app: tauri::AppHandle, webview: tauri::Webview, sesion: String, lado_max: Option<u32>, calidad: Option<u32>) -> Result<Value, String> {
+pub fn control_pantalla_iniciar(app: tauri::AppHandle, webview: tauri::Webview, sesion: String, lado_max: Option<u32>, calidad: Option<u32>, fuente: Option<String>) -> Result<Value, String> {
     crate::control_neuronas::pagina_ok(&app, &webview)?;
-    Ok(iniciar(&app, &sesion, lado_max.unwrap_or(1280), calidad.unwrap_or(60)))
+    Ok(iniciar(&app, &sesion, lado_max.unwrap_or(1280), calidad.unwrap_or(60), fuente.as_deref().unwrap_or("auto")))
+}
+
+/// (PENC2) La fuente que Kotlin dice haber usado; una respuesta sin `fuente` (Kotlin anterior) es accesibilidad.
+pub fn fuente_real(r: &Value) -> &'static str {
+    if r.get("fuente").and_then(|f| f.as_str()) == Some("proyeccion") { "proyeccion" } else { "accesibilidad" }
 }
 
 #[cfg(not(target_os = "android"))]
-fn iniciar(_app: &tauri::AppHandle, _sesion: &str, _lado: u32, _calidad: u32) -> Value {
+fn iniciar(_app: &tauri::AppHandle, _sesion: &str, _lado: u32, _calidad: u32, _fuente: &str) -> Value {
     crate::control_entrada::sin_soporte()
 }
 
 #[cfg(target_os = "android")]
-fn iniciar(app: &tauri::AppHandle, sesion: &str, lado: u32, calidad: u32) -> Value {
+fn iniciar(app: &tauri::AppHandle, sesion: &str, lado: u32, calidad: u32, preferida: &str) -> Value {
     use crate::control_entrada::es;
     use crate::control_neuronas::{puerta_sesion, ModoPuerta};
     if puerta_sesion(app, sesion, ModoPuerta::Actividad).is_err() {
         return json!({ "ok": false, "motivo": "sesion" });
     }
-    let p = json!({ "tipo": "pantalla-iniciar", "lado_max": lado.clamp(l::LADO_MIN, l::LADO_MAX), "calidad": l::calidad_jpeg(calidad) });
+    // PENC2: qué hay de verdad en el aparato (lo mide Kotlin) → qué fuente se puede usar, o qué falta y lo arregla la persona allí.
+    let k = es::llamar(app, json!({ "tipo": "capacidades" }), crate::control_entrada::ESPERA_MS);
+    let b = |c: &str| k.as_ref().and_then(|k| k.get(c)).and_then(|x| x.as_bool()).unwrap_or(false);
+    let (proyeccion_ok, accesibilidad_ok) = (b("proyeccion"), b("servicio") && b("captura") && b("sin_preguntar"));
+    let lado = lado.clamp(l::LADO_MIN, l::LADO_MAX);
+    let calidad = l::calidad_jpeg(calidad);
+    let fuente = match l::fuente_de_pantalla(preferida, proyeccion_ok, accesibilidad_ok) {
+        Ok(f) => f,
+        Err(falta) => {
+            if falta.contains(&"consentimiento-proyeccion") {
+                // Pide a la persona, en el aparato, el «Sí» de ESTA sesión (diálogo propio y luego el de Android). No se contesta nada por ella.
+                let _ = es::llamar(app, json!({ "tipo": "pantalla-iniciar", "fuente": "proyeccion", "lado_max": lado, "calidad": calidad }), crate::control_entrada::ESPERA_MS);
+            }
+            let reales: Vec<String> = crate::control_entrada::capacidades_json(k.as_ref())["falta"].as_array().map(|a| a.iter().filter_map(|x| x.as_str().map(String::from)).collect()).unwrap_or_default();
+            let falta = l::falta_afinada(&falta, &reales);
+            let motivo = if falta.iter().any(|f| matches!(*f, "servicio-accesibilidad" | "ajustes-restringidos")) && !falta.contains(&"consentimiento-proyeccion") { "sin-servicio" } else { "sin-consentimiento" };
+            return json!({ "ok": false, "motivo": motivo, "falta": falta });
+        }
+    };
+    let p = json!({ "tipo": "pantalla-iniciar", "fuente": fuente, "lado_max": lado, "calidad": calidad });
     let Some(r) = es::llamar(app, p, crate::control_entrada::ESPERA_MS) else {
         return json!({ "ok": false, "motivo": "sin-servicio", "falta": ["servicio-accesibilidad"] });
     };
@@ -65,10 +91,11 @@ fn iniciar(app: &tauri::AppHandle, sesion: &str, lado: u32, calidad: u32) -> Val
         return o;
     }
     let (ancho, alto, giro) = (r["ancho"].as_u64().unwrap_or(0), r["alto"].as_u64().unwrap_or(0), r["giro"].as_u64().unwrap_or(0));
-    *activa() = Some(Activa { fuente: "accesibilidad".into(), ancho, alto, desde: std::time::Instant::now() });
-    crate::ble::nota(None, "control-pantalla", &format!("inicio fuente=accesibilidad ancho={ancho} alto={alto} fps=-"));
-    crate::control_neuronas::anotar_k(app, "pantalla-iniciada", &format!("fuente=accesibilidad ancho={ancho} alto={alto}"));
-    json!({ "ok": true, "fuente": "accesibilidad", "ancho": ancho, "alto": alto, "giro": giro })
+    let real = fuente_real(&r); // la que Kotlin usó, no la pedida
+    *activa() = Some(Activa { fuente: real.into(), ancho, alto, desde: std::time::Instant::now() });
+    crate::ble::nota(None, "control-pantalla", &format!("inicio fuente={real} ancho={ancho} alto={alto} fps=-"));
+    crate::control_neuronas::anotar_k(app, "pantalla-iniciada", &format!("fuente={real} ancho={ancho} alto={alto}"));
+    json!({ "ok": true, "fuente": real, "ancho": ancho, "alto": alto, "giro": giro })
 }
 
 /// Seam 1: el cuadro más nuevo que `desde` (cabecera de 12 bytes + JPEG) o cero bytes.
@@ -134,4 +161,18 @@ pub(crate) fn parar_interno(app: &tauri::AppHandle) {
     }
     #[cfg(not(target_os = "android"))]
     let _ = (app, a);
+}
+
+#[cfg(test)]
+mod pruebas {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn la_fuente_que_se_anota_es_la_que_contesta_kotlin() {
+        assert_eq!(fuente_real(&json!({ "ok": true, "fuente": "proyeccion", "ancho": 1280 })), "proyeccion");
+        assert_eq!(fuente_real(&json!({ "ok": true, "fuente": "accesibilidad" })), "accesibilidad");
+        assert_eq!(fuente_real(&json!({ "ok": true })), "accesibilidad", "un Kotlin anterior no dice fuente");
+        assert_eq!(fuente_real(&json!({ "ok": true, "fuente": "<script>" })), "accesibilidad");
+    }
 }

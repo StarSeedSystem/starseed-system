@@ -46,7 +46,7 @@ pub const TECLAS: [&str; 11] = [
 ];
 pub const FLUJOS: [&str; 4] = ["multimedia", "llamada", "timbre", "alarma"];
 /// Lo que la página puede pedir que se abra para arreglar una cosa que falta (lista cerrada).
-pub const AJUSTES: [&str; 4] = ["servicio-accesibilidad", "ajustes-restringidos", "consentimiento-pantalla", "escribir-ajustes"];
+pub const AJUSTES: [&str; 5] = ["servicio-accesibilidad", "ajustes-restringidos", "consentimiento-pantalla", "escribir-ajustes", "consentimiento-proyeccion"]; // PENC2: la quinta abre el diálogo de la proyección
 
 /// Los únicos `motivo` que devuelve `control_entrada` (seam 1).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -518,6 +518,63 @@ pub fn cuadro_si_nuevo(bytes: &[u8], desde: u32) -> Option<&[u8]> {
         return None;
     }
     Some(bytes)
+}
+
+// PENC2: de dónde sale la pantalla. Lo elige el aparato controlado según lo que la persona haya dado; nunca se enciende nada aquí.
+/// `preferida`: «auto» (proyección si está concedida en ESTA sesión, si no accesibilidad), «proyeccion» o «accesibilidad».
+/// Si no hay ninguna posible, devuelve lo que FALTA con las palabras del contrato (las que la persona arregla en el aparato).
+pub fn fuente_de_pantalla(preferida: &str, proyeccion_ok: bool, accesibilidad_ok: bool) -> Result<&'static str, Vec<&'static str>> {
+    const ACC: [&str; 2] = ["servicio-accesibilidad", "consentimiento-pantalla"];
+    let preferida = if matches!(preferida, "proyeccion" | "accesibilidad") { preferida } else { "auto" };
+    match (preferida, proyeccion_ok, accesibilidad_ok) {
+        ("proyeccion", true, _) | ("auto", true, _) => Ok("proyeccion"),
+        ("accesibilidad", _, true) | ("auto", false, true) => Ok("accesibilidad"),
+        ("proyeccion", false, _) => Err(vec!["consentimiento-proyeccion"]),
+        ("accesibilidad", _, false) => Err(ACC.to_vec()),
+        _ => Err(vec![ACC[0], ACC[1], "consentimiento-proyeccion"]), // auto sin nada (o una preferencia desconocida: se trata como auto)
+    }
+}
+
+/// Afina la lista genérica con lo que `control_capacidades` dice que falta de verdad: conserva lo que de verdad falta,
+/// añade «ajustes-restringidos» si Android lo impone, y si nada coincide deja la genérica (nunca una lista vacía).
+pub fn falta_afinada(generica: &[&'static str], reales: &[String]) -> Vec<&'static str> {
+    let mut v: Vec<&'static str> = generica.iter().copied().filter(|g| *g == "consentimiento-proyeccion" || reales.iter().any(|r| r == g)).collect();
+    if v.contains(&"servicio-accesibilidad") && reales.iter().any(|r| r == "ajustes-restringidos") {
+        v.insert(0, "ajustes-restringidos");
+    }
+    if v.is_empty() { generica.to_vec() } else { v }
+}
+
+#[cfg(test)]
+mod fuente_pruebas {
+    use super::*;
+
+    #[test]
+    fn las_ocho_combinaciones_de_fuente_de_pantalla() {
+        let casos: [(&str, bool, bool, Result<&str, Vec<&str>>); 8] = [
+            ("auto", true, true, Ok("proyeccion")),
+            ("auto", true, false, Ok("proyeccion")),
+            ("auto", false, true, Ok("accesibilidad")),
+            ("auto", false, false, Err(vec!["servicio-accesibilidad", "consentimiento-pantalla", "consentimiento-proyeccion"])),
+            ("proyeccion", true, false, Ok("proyeccion")),
+            ("proyeccion", false, true, Err(vec!["consentimiento-proyeccion"])),
+            ("accesibilidad", true, true, Ok("accesibilidad")),
+            ("accesibilidad", true, false, Err(vec!["servicio-accesibilidad", "consentimiento-pantalla"])),
+        ];
+        for (p, pr, ac, esperado) in casos {
+            assert_eq!(fuente_de_pantalla(p, pr, ac), esperado, "{p} {pr} {ac}");
+        }
+        assert_eq!(fuente_de_pantalla("rara", false, true), Ok("accesibilidad"), "lo desconocido es auto");
+    }
+
+    #[test]
+    fn la_lista_de_lo_que_falta_se_afina_sin_quedar_vacia() {
+        let g = ["servicio-accesibilidad", "consentimiento-pantalla", "consentimiento-proyeccion"];
+        let reales = vec!["ajustes-restringidos".to_string(), "servicio-accesibilidad".to_string()];
+        assert_eq!(falta_afinada(&g, &reales), ["ajustes-restringidos", "servicio-accesibilidad", "consentimiento-proyeccion"]);
+        assert_eq!(falta_afinada(&["consentimiento-proyeccion"], &[]), ["consentimiento-proyeccion"]);
+        assert_eq!(falta_afinada(&["servicio-accesibilidad"], &[]), ["servicio-accesibilidad"]);
+    }
 }
 
 #[cfg(test)]
