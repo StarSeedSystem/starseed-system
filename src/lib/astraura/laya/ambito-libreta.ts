@@ -34,9 +34,12 @@ export function puedeSalir(
   ejemplo: EjemploLibreta,
   eleccion?: "sal" | "no-sal" | "explicito"
 ): boolean {
-  if (ejemplo.esPrivado) return false;
   if (ambito === "fabrica") return false;
-  if (ambito === "personal") return eleccion === "explicito";
+  if (ejemplo.esPrivado) {
+    if (ambito === "personal" && eleccion === "explicito") return true;
+    return false;
+  }
+  if (ambito === "personal") return false;
   if (ambito === "pagina" || ambito === "grupo") return Boolean(ejemplo.entidad?.aprobado);
   if (ambito === "colectivo") return true;
   return false;
