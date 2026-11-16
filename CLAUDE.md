@@ -477,6 +477,8 @@ remoto** en `os_freno` al 100 % hasta las 00:00 UTC, y alarma de **bucles** (rut
 ruta > 800/h). `scripts/puente/limites_supabase.py` pone los topes del servidor (PostgREST `max_rows`
 1000, límites de Auth y Realtime). Se verifica en el medidor **«Consumo y créditos»** de Genesis.
 
+**Laya y la libreta** (2026-11-16): Laya es el codificador de terceros que reside en `native/laya/` (detalles: `architecture/laya-y-habilidades.md`). Actualmente, ningún proceso realiza su entrenamiento. El camino de aprendizaje se define mediante la libreta de ejemplos con desenlace (`architecture/jev-entrena-laya.md`). Las decisiones reservadas que ni Jev ni Laya toman por su cuenta se encuentran registradas en `scripts/puente/jev_reservadas.py`.
+
 ## 🌐 Navegador de los agentes: extensiones de Claude y de ChatGPT en el Chrome de la fundación (2026-09-08)
 
 En el Chrome de la Mac, con la sesión de **fundacionstarseed@gmail.com**, están instaladas y
