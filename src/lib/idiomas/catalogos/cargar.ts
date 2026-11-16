@@ -1,8 +1,10 @@
 /**
- * IDI1115N · Carga el catálogo de un idioma desde el paquete (import dinámico: un trozo por idioma,
- * sin red en tiempo de pintado, también en las apps nativas con interfaz estática).
+ * IDI1115N · Carga el catálogo de un idioma: primero cargadores integrados (en, pt, fr),
+ * luego paquetes instalados vía IMA11 (leerPaquete). Un paquete que falla al cargar devuelve null.
+ * Sin red en tiempo de pintado; también en apps nativas con interfaz estática.
  */
 import { crearCatalogo, type Catalogo, type DatosCatalogo } from "../catalogo";
+import { crearAlmacenPaquetes, type AlmacenPaquetes } from "../paquete/almacen";
 
 const CARGADORES: Record<string, () => Promise<{ default: DatosCatalogo }>> = {
     en: () => import("./en.json") as Promise<{ default: DatosCatalogo }>,
@@ -11,14 +13,45 @@ const CARGADORES: Record<string, () => Promise<{ default: DatosCatalogo }>> = {
 };
 
 const memoria = new Map<string, Catalogo>();
-export async function cargarCatalogo(codigo: string): Promise<Catalogo | null> {
+let almacen: AlmacenPaquetes = crearAlmacenPaquetes();
+
+export function _reiniciarAlmacen(a?: AlmacenPaquetes): void {
+    almacen = a ?? crearAlmacenPaquetes();
+}
+
+export async function cargarCatalogo(
+    codigo: string,
+    opciones?: { preferirPaquete?: boolean }
+): Promise<Catalogo | null> {
     const hecho = memoria.get(codigo);
     if (hecho) return hecho;
+
     const cargador = CARGADORES[codigo];
-    if (!cargador) return null;
-    try {
-        const cat = crearCatalogo((await cargador()).default);
-        memoria.set(codigo, cat);
-        return cat;
-    } catch { return null; }
+    if (cargador && !opciones?.preferirPaquete) {
+        try {
+            const cat = crearCatalogo((await cargador()).default);
+            memoria.set(codigo, cat);
+            return cat;
+        } catch { return null; }
+    }
+
+    const paquete = almacen.leerPaquete(codigo);
+    if (paquete) {
+        try {
+            const datos: DatosCatalogo = {
+                codigo: paquete.codigo,
+                revisado: paquete.revisado.estado === "revisado",
+                entradas: paquete.entradas,
+            };
+            const cat = crearCatalogo(datos);
+            memoria.set(codigo, cat);
+            return cat;
+        } catch { return null; }
+    }
+
+    return null;
+}
+
+export function _limpiarCache(): void {
+    memoria.clear();
 }
