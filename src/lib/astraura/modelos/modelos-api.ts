@@ -112,3 +112,7 @@ export function modeloApiValido(m: ModeloApi): boolean {
     m.precioSalidaUsd >= 0
   );
 }
+
+export function modelosValidos(m: ModeloApi[]): ModeloApi[] {
+  return m.filter(modeloApiValido);
+}
