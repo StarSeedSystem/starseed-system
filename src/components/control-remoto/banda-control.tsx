@@ -17,6 +17,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { PermisoControl, SesionActiva } from "@/lib/control-remoto/sesion";
 import type { EstadoApp } from "@/lib/banco-llamadas/actor";
+import { ENLACES_CONTROL, textoEnlace } from "@/lib/nativa/permisos-enlaces";
 import { pasosQueFaltan } from "@/lib/banco-llamadas/pasos";
 import {
     COSAS_QUE_FALTAN,
@@ -161,7 +162,11 @@ export function PantallaYEntradaEsteAparato({ caps, aceptados, pantallaEnUso, en
             <p className="font-medium text-sky-200">Ver y tocar este aparato desde otra neurona</p>
             {faltas.map((f) => (
                 <div key={f} className="flex flex-wrap items-center gap-2" data-testid={`falta-ajuste-${f}`}>
-                    <span className="min-w-[14rem] flex-1">• {PALABRAS_FALTA[f]}</span>
+                    <span className="min-w-[14rem] flex-1">
+                        • {PALABRAS_FALTA[f]}
+                        {/* (FAC1116) Qué pantalla se abre y qué pulsar allí, en las palabras de Android. */}
+                        <span className="block text-white/55" data-testid={`pasos-${f}`}>{textoEnlace(ENLACES_CONTROL[f as keyof typeof ENLACES_CONTROL])}</span>
+                    </span>
                     <button onClick={() => onAjuste(f)} className="min-h-9 cursor-pointer rounded-md bg-sky-500/80 px-2 py-1 font-medium text-black hover:bg-sky-400">
                         {BOTON_FALTA[f]}
                     </button>

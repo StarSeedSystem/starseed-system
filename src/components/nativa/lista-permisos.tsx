@@ -12,6 +12,7 @@
 
 import { Check, CircleAlert, CircleDashed, Clock, Loader2, Minus, ShieldCheck, X } from "lucide-react";
 import { ORDEN_GRUPOS, TITULO_GRUPO, textoEstado, type AccionPermiso } from "@/lib/nativa/permisos-registro";
+import { enlaceDe, textoEnlace } from "@/lib/nativa/permisos-enlaces";
 import { accionEn, permisoActual, textoResultado, type DefPermiso, type EstadoAsistente } from "@/lib/nativa/permisos-inicio";
 
 const NOMBRE_SISTEMA: Record<string, string> = {
@@ -104,7 +105,10 @@ export function ListaPermisos({ estado, onEmpezar, onOmitir, onOmitirTodo, onPed
                     const esActual = actual?.id === d.id;
                     const espera = estado.esperando === d.id;
                     const r = estado.resultados[d.id];
-                    const puedeBoton = estado.fase === "resumen" && (a === "pedir" || a === "abrir-ajustes");
+                    // (FAC1116) Qué pantalla se abre y qué pulsar allí; donde el sistema no deja abrir nada, se dice y no hay botón.
+                    const enlace = a === "abrir-ajustes" || a === "pedir" ? enlaceDe(estado.sistema, d.id) : null;
+                    const sinEnlace = a === "abrir-ajustes" && enlace?.nivel === "sin-enlace";
+                    const puedeBoton = estado.fase === "resumen" && (a === "pedir" || a === "abrir-ajustes") && !sinEnlace;
                     return (
                       <li
                         key={d.id}
@@ -122,6 +126,11 @@ export function ListaPermisos({ estado, onEmpezar, onOmitir, onOmitirTodo, onPed
                           </span>
                           <span className="block leading-relaxed text-white/55">{d.porQue}</span>
                           {d.nota && <span className="block text-[11px] leading-relaxed text-white/40">{d.nota}</span>}
+                          {enlace && a !== "listo" && (a === "abrir-ajustes" || enlace.nivel === "aviso" || enlace.nivel === "sin-enlace") && (
+                            <span className="block text-[11px] leading-relaxed text-sky-200/80" data-testid={`enlace-${d.id}`} data-nivel={enlace.nivel}>
+                              {textoEnlace(enlace)}
+                            </span>
+                          )}
                           <span className={`block ${colorEstado(a)}`} data-testid={`estado-${d.id}`}>
                             {textoEstado(d, estado.estados[d.id], a)}
                             {r && a !== "listo" && r !== "concedido" ? ` · ${textoResultado(r)}` : ""}

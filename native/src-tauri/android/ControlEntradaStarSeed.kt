@@ -318,7 +318,18 @@ object ControlEntradaNativo {
         val a = actividad?.get()
         val ctx: Context = a ?: app
         val i = when (cual) {
-            "servicio-accesibilidad" -> Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+            "servicio-accesibilidad" -> {
+                // (FAC1116) Primero la ficha del propio servicio (si el aparato la tiene); si no, la lista de Accesibilidad.
+                val ficha = Intent("android.settings.ACCESSIBILITY_DETAILS_SETTINGS")
+                    .putExtra("android.intent.extra.COMPONENT_NAME", app.packageName + "/app.starseed.nativa.ServicioControlEntrada")
+                if (a == null) ficha.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                try {
+                    ctx.startActivity(ficha)
+                    return JSONObject().put("ok", true).put("ficha", true)
+                } catch (_: Exception) {
+                    Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                }
+            }
             "ajustes-restringidos" -> Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + app.packageName))
             "escribir-ajustes" -> Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS, Uri.parse("package:" + app.packageName))
             "consentimiento-pantalla" -> {

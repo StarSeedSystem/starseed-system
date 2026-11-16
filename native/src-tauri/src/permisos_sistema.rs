@@ -46,6 +46,7 @@ pub fn panel(plataforma: &str, id: &str) -> Option<&'static str> {
         ("macos", "ubicacion-wifi") => "x-apple.systempreferences:com.apple.preference.security?Privacy_LocationServices",
         ("macos", "ubicacion") => "x-apple.systempreferences:com.apple.preference.security?Privacy_LocationServices", // UBI1114K
         ("macos", "red-local") => "x-apple.systempreferences:com.apple.preference.security?Privacy_LocalNetwork",
+        ("macos", "carpetas") => "x-apple.systempreferences:com.apple.preference.security?Privacy_FilesAndFolders", // FAC1116
         ("macos", "notificaciones") => "x-apple.systempreferences:com.apple.preference.notifications",
         ("macos", "arranque") => "x-apple.systempreferences:com.apple.LoginItems-Settings.extension",
         ("windows", "microfono") => "ms-settings:privacy-microphone",
@@ -61,8 +62,11 @@ pub fn panel(plataforma: &str, id: &str) -> Option<&'static str> {
 }
 
 /// Pantallas de Android que Kotlin sabe abrir con `panel:<id>` (ArranqueStarSeed.kt › abrirPanel).
-pub const PANELES_ANDROID: [&str; 8] =
-    ["accesibilidad", "superposicion", "no-molestar", "escribir-ajustes", "todos-archivos", "notificaciones", "bateria", "app"];
+pub const PANELES_ANDROID: [&str; 11] = [
+    "accesibilidad", "superposicion", "no-molestar", "escribir-ajustes", "todos-archivos", "notificaciones", "bateria", "app",
+    // FAC1116: «instalar» y «llamadas» tienen su pantalla propia; «ajustes-restringidos» es la ficha de la app (el ajuste vive en su menú ⋮).
+    "instalar", "llamadas", "ajustes-restringidos",
+];
 
 /// La acción que se escribe en `peticion.json` para abrir una pantalla de Android. Pura.
 pub fn accion_panel_android(id: &str) -> Option<String> {
@@ -154,10 +158,11 @@ fn comunes(m: &mut BTreeMap<String, String>) {
 }
 
 fn paneles_de(plataforma: &str) -> Vec<String> {
-    const IDS: [&str; 20] = [
+    const IDS: [&str; 23] = [
         "accesibilidad", "pantalla", "monitor-entrada", "automatizacion", "disco-completo", "bluetooth", "microfono",
         "camara", "ubicacion-wifi", "red-local", "notificaciones", "arranque", "superposicion", "no-molestar",
         "escribir-ajustes", "todos-archivos", "bateria", "app", "instalar", "ubicacion",
+        "carpetas", "llamadas", "ajustes-restringidos",
     ];
     IDS.iter().filter(|id| panel(plataforma, id).is_some()).map(|s| s.to_string()).collect()
 }
@@ -427,6 +432,32 @@ mod pruebas {
         assert_eq!(accion_panel_android("bateria").as_deref(), Some("bateria"));
         assert_eq!(accion_panel_android("panel:x; rm"), None);
         assert_eq!(accion_panel_android("SUPERPOSICION"), None);
+    }
+
+    // FAC1116: las pantallas nuevas y lo que NO se promete.
+    #[test]
+    fn enlaces_directos_de_fac1116() {
+        assert!(panel("macos", "carpetas").unwrap().ends_with("Privacy_FilesAndFolders"));
+        for id in ["instalar", "llamadas", "ajustes-restringidos", "app", "accesibilidad"] {
+            assert_eq!(accion_panel_android(id), Some(format!("panel:{id}")), "{id}");
+        }
+        // Nada que se abra con una dirección que acabe fuera de Ajustes: solo estos esquemas.
+        for so in ["macos", "windows"] {
+            for id in ["accesibilidad", "pantalla", "microfono", "camara", "bluetooth", "notificaciones", "arranque", "ubicacion", "carpetas", "red-local"] {
+                if let Some(d) = panel(so, id) {
+                    assert!(d.starts_with("x-apple.systempreferences:") || d.starts_with("ms-settings:"), "{so}/{id}: {d}");
+                }
+            }
+        }
+        // Windows no tiene pantalla para lo que no pide, ni Linux para nada: la web lo dice en vez de abrir otra.
+        assert_eq!(panel("windows", "pantalla"), None);
+        assert_eq!(panel("windows", "red-local"), None);
+        for id in ["accesibilidad", "pantalla", "microfono", "notificaciones"] {
+            assert_eq!(panel("linux", id), None);
+        }
+        // La lista que se manda a la web contiene los ids nuevos en Android y no en Linux.
+        assert!(paneles_de("android").contains(&"ajustes-restringidos".to_string()));
+        assert!(paneles_de("linux").is_empty());
     }
 
     #[test]

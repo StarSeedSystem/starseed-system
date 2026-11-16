@@ -15,6 +15,9 @@ quien pide `src/lib/nativa/permisos-inicio-ejecutor.ts` · ventana `src/componen
 `PuenteNativo.kt`) · entrada desde los ajustes: Señales › «Permisos de antenas» › **Permisos de esta neurona**
 (`src/components/malla/permisos-antenas.tsx`).
 
+**(FAC1116 · 2026-11-16) Enlaces directos:** la pantalla más honda que cada sistema deja abrir para CADA permiso, y qué pulsar
+allí, está en `architecture/permisos-enlaces-directos.md` (tabla en `src/lib/nativa/permisos-enlaces.ts`).
+
 ---
 
 ## §1 La regla que no se negocia: «automático» no es «autoconcedido»

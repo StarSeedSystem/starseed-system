@@ -51,4 +51,24 @@ describe("ListaPermisos (PER1111S)", () => {
     pintar(e);
     expect(screen.getByTestId("boton-pedir-actual").textContent).toBe("Abrir Ajustes: Grabación de pantalla y audio del sistema");
   });
+
+  // FAC1116: qué pantalla se abre y qué pulsar, o la verdad de que no hay enlace.
+  it("denegado: dice la pantalla exacta y qué pulsar allí (macOS directo, Android por la ficha)", () => {
+    const m = abrirAsistente("macos", GUARDADO_VACIO, true, { camara: "denegado" });
+    pintar(m);
+    const t = screen.getByTestId("enlace-camara");
+    expect(t.getAttribute("data-nivel")).toBe("directo");
+    expect(t.textContent).toMatch(/Privacidad y seguridad › Cámara.*Activa el interruptor de StarSeed OS/);
+    cleanup();
+    const a = abrirAsistente("android", GUARDADO_VACIO, true, { microfono: "denegado" });
+    pintar(a);
+    const u = screen.getByTestId("enlace-microfono");
+    expect(u.getAttribute("data-nivel")).toBe("ficha");
+    expect(u.textContent).toMatch(/Android no tiene una pantalla propia.*«Permisos» › «Micrófono»/);
+  });
+
+  it("lo ya concedido no enseña pasos", () => {
+    pintar(abrirAsistente("macos", GUARDADO_VACIO, true, { camara: "concedido" }));
+    expect(screen.queryByTestId("enlace-camara")).toBeNull();
+  });
 });

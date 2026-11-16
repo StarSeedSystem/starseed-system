@@ -136,12 +136,29 @@ object Vigia : Application.ActivityLifecycleCallbacks {
         val paquete = Uri.parse("package:" + a.packageName)
         val sdk = android.os.Build.VERSION.SDK_INT
         val intento: Intent? = when (id) {
-            "accesibilidad" -> Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+            "accesibilidad" -> {
+                // (FAC1116) Intento de la ficha del propio servicio (Android 14+ en algunos fabricantes); si el aparato no la
+                // tiene, la lista de Accesibilidad de siempre. La persona activa el servicio en ambos casos.
+                val ficha = Intent("android.settings.ACCESSIBILITY_DETAILS_SETTINGS")
+                    .putExtra("android.intent.extra.COMPONENT_NAME", a.packageName + "/app.starseed.nativa.ServicioControlEntrada")
+                try {
+                    a.startActivity(ficha)
+                    return
+                } catch (e: Exception) {
+                    Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                }
+            }
+            // (FAC1116) «Permitir ajustes restringidos» NO tiene pantalla propia: vive en el menú ⋮ de la ficha de la app.
+            "ajustes-restringidos" -> Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + a.packageName))
+            "instalar" -> if (sdk >= 26) Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, paquete) else null
+            "llamadas" -> if (sdk >= 34) Intent("android.settings.MANAGE_APP_USE_FULL_SCREEN_INTENT", paquete) else null
             "superposicion" -> if (sdk >= 23) Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, paquete) else null
             "no-molestar" -> if (sdk >= 23) Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS) else null
             "escribir-ajustes" -> if (sdk >= 23) Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS, paquete) else null
             "todos-archivos" -> if (sdk >= 30) Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, paquete) else null
             "notificaciones" -> if (sdk >= 26) Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, a.packageName) else null
+            // Micrófono, cámara, ubicación y dispositivos cercanos: la ficha de la app (Permisos). Android no deja ir más hondo.
+            "app" -> Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, paquete)
             "bateria" -> { pedirBateria(a); return }
             else -> null
         }
