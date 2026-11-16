@@ -16,6 +16,19 @@ export const ORIGENES_POR_DEFECTO = Object.freeze([
   "http://tauri.localhost",
   "https://tauri.localhost",
   "capacitor://localhost",
+  // Causa: «Emparejar este aparato» en Genesis decía que la puerta de datos del A1
+  // no respondía porque el origen de la app nativa de prueba no estaba aquí. Son
+  // diez puertos cerrados (47610-47619): ni comodines, ni otros puertos, ni localhost.
+  "http://127.0.0.1:47610",
+  "http://127.0.0.1:47611",
+  "http://127.0.0.1:47612",
+  "http://127.0.0.1:47613",
+  "http://127.0.0.1:47614",
+  "http://127.0.0.1:47615",
+  "http://127.0.0.1:47616",
+  "http://127.0.0.1:47617",
+  "http://127.0.0.1:47618",
+  "http://127.0.0.1:47619",
 ]);
 
 function entero(valor, defecto, min, max) {
