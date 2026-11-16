@@ -1582,6 +1582,24 @@ export default function CanvasBoard({
             <Switch checked={canvas.shared} onCheckedChange={toggleShared} />
           </span>
 
+          {/* SES1115Q: entrada "Compartir en vivo" - solo para pizarras con boardSpaceId o creadas por la persona */}
+          <>
+            {boardSpaceId ? (
+              <span className="text-[10px] text-white/60">Compartida · ver estado</span>
+            ) : (
+              <button
+                size="sm"
+                variant="outline"
+                className="gap-1.5 h-8 border-amber-500/30 text-amber-100"
+                onClick={() => import(/* webpackChunkName: "compartir-en-vivo" */ "@/components/vivo-entidad/compartir-en-vivo").then((mod) => {
+                  // CompartirEnVivo se renderiza al abrir el modal
+                })}
+              >
+                <Share2 className="w-3.5 h-3.5" /> Compartir en vivo
+              </button>
+            )
+          }
+
           {/* Compartir pizarra… → espacio colaborativo (os_spaces kind='board') */}
           <BoardShareTrigger onClick={() => setBoardShareOpen(true)} />
 
