@@ -1,4 +1,4 @@
-import { type MotorTraduccion } from "./motor";
+import type { MotorTraduccion } from "../traduccion/motor";
 
 export interface InstaladorMotorLocal {
     instalado(origen: string, destino: string): Promise<boolean>;
@@ -28,8 +28,8 @@ export function motorPaqueteLocal(deps: {
     return {
         id: "paquete-local",
         alcance: deps.alcance ?? "aparato",
-        disponible: async (origen, destino) => deps.instalado(origen, destino),
-        traducir: async (textos, origen, destino) => {
+        disponible: async (origen: string, destino: string) => deps.instalado(origen, destino),
+        traducir: async (textos: string[], origen: string, destino: string) => {
             if (textos.length === 0) return [];
             if (textos.length > 8) throw new Error("Lotes máximo de 8 textos");
             const modeloId = `${origen}-${destino}`;
