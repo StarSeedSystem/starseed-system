@@ -74,32 +74,6 @@ export function confianzaCalibrada(cal: CalibracionLaya, p: number): number {
     return caja.tasa;
   }
 
-  // Caja vacía: interpolamos desde las cajas vecinas no vacías más cercanas
-  let tasaIzq: number | null = null;
-  for (let i = indiceCaja - 1; i >= 0; i--) {
-    if (cal.cajas[i].total > 0) {
-      tasaIzq = cal.cajas[i].tasa;
-      break;
-    }
-  }
-  let tasaDer: number | null = null;
-  for (let i = indiceCaja + 1; i < 10; i++) {
-    if (cal.cajas[i].total > 0) {
-      tasaDer = cal.cajas[i].tasa;
-      break;
-    }
-  }
-
-  if (tasaIzq !== null && tasaDer !== null) {
-    // Interpolación lineal ponderada por distancia al centro de las cajas
-    const centroIzq = (indiceCaja - 1) * 0.1 + 0.05;
-    const centroDer = (indiceCaja + 1) * 0.1 + 0.05;
-    const centroActual = indiceCaja * 0.1 + 0.05;
-    const pesoDer = (centroActual - centroIzq) / (centroDer - centroIzq);
-    const interpolada = tasaIzq + pesoDer * (tasaDer - tasaIzq);
-    return Math.max(0, Math.min(1, interpolada));
-  }
-  if (tasaIzq !== null) return tasaIzq;
-  if (tasaDer !== null) return tasaDer;
+  // Caja vacía (total=0): devolvemos 0, no interpolamos
   return 0;
 }
