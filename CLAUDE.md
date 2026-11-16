@@ -476,6 +476,10 @@ de Supabase NO tiene límite de gasto diario, así que lo ponemos nosotros. `scr
 remoto** en `os_freno` al 100 % hasta las 00:00 UTC, y alarma de **bucles** (ruta > 1.500/h o agente +
 ruta > 800/h). `scripts/puente/limites_supabase.py` pone los topes del servidor (PostgREST `max_rows`
 1000, límites de Auth y Realtime). Se verifica en el medidor **«Consumo y créditos»** de Genesis.
+**Laya** (2026-10, `native/laya/`, `architecture/laya-y-habilidades.md`): codificador de terceros
+integrado en el OS; hoy **nada la entrena**. La libreta de ejemplos con desenlace como camino está en
+`architecture/jev-entrena-laya.md` (contrato de esta tarea). Las decisiones que **Jev y Laya nunca
+toman solos** se listan en `scripts/puente/jev_reservadas.py` (veto humano obligatorio).
 
 ## 🌐 Navegador de los agentes: extensiones de Claude y de ChatGPT en el Chrome de la fundación (2026-09-08)
 
