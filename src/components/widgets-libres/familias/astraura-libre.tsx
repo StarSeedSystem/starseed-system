@@ -12,65 +12,37 @@
  */
 import * as React from "react";
 import Link from "next/link";
-import { MessageCircle, Mic, MicOff, Send, Sparkles } from "lucide-react";
+import { MessageCircle, Mic, MicOff, Send, Sparkles, AlertCircle } from "lucide-react";
 import { WidgetLibre } from "@/components/widgets-libres/widget-libre";
 import { readAuroraChatEntries, AURORA_CHATLOG_CHANGE_EVENT, AURORA_CHATLOG_KEY, type AuroraChatLogEntry } from "@/lib/aurora/aurora-chat-log";
 import { AURORA_EXOCORTEX_OPEN_EVENT } from "@/lib/aurora/aurora-orb-bus";
-import { getAuroraBridge, openAurora } from "@/lib/aurora/open-aurora";
+import { openAurora } from "@/lib/aurora/open-aurora";
 import { Rotulo, disenoDe, recortarPalabras } from "./comun";
 import { PilaAjustable, Prescindible } from "@/components/dashboard/kit/pila-ajustable";
 import { Accion, escalaTipo, esTactil, haceCuanto, useClaseForzada, useDispositivo, useEnPantalla } from "./inicio-piezas";
+import { useEstadoAstraura } from "./use-estado-astraura";
+import { type EstadoAsistente, textoDeEstado } from "@/lib/widgets/astraura/estado-forma";
 
 const VIOLETA = "#7c5cff";
 const TURQUESA = "#23d5ab";
 const SUGERENCIAS = ["Resúmeme mi día", "¿Qué hay nuevo en la red?", "Ayúdame a ordenar mis tareas de hoy"];
 
-type EstadoVoz = "calma" | "escuchando" | "hablando" | "pensando";
-const TEXTO_VOZ: Record<EstadoVoz, string> = { calma: "En calma", escuchando: "Escuchando…", hablando: "Hablando", pensando: "Pensando…" };
-
 function abrirChat() {
     try { window.dispatchEvent(new CustomEvent(AURORA_EXOCORTEX_OPEN_EVENT)); } catch { /* defensivo */ }
 }
 
-/** El estado de voz de la Aurora global (si su puente existe), por suscripción; sin red. */
-function useVozAurora(visible: boolean): { estado: EstadoVoz; voz: boolean; escuchar: () => void; callar: () => void } {
-    const [estado, setEstado] = React.useState<EstadoVoz>("calma");
-    const [voz, setVoz] = React.useState(false);
-    React.useEffect(() => {
-        if (!visible) return;
-        let quitar: (() => void) | undefined, espera: number | undefined, vivo = true;
-        const leer = () => {
-            const s = getAuroraBridge()?.getState?.();
-            if (!s || !vivo) return;
-            setVoz(!!s.supported && !!s.enabled);
-            setEstado(s.speaking ? "hablando" : s.listening ? "escuchando" : s.actionStatus && /pens|procesa|think/i.test(s.actionStatus) ? "pensando" : "calma");
-        };
-        const conectar = () => {
-            const puente = getAuroraBridge();
-            if (puente?.subscribe) { leer(); quitar = puente.subscribe(leer); return; }
-            espera = window.setTimeout(conectar, 5000); // la Aurora global monta después: se busca cada 5 s, en local
-        };
-        conectar();
-        return () => { vivo = false; quitar?.(); window.clearTimeout(espera); };
-    }, [visible]);
-    return {
-        estado, voz,
-        escuchar: () => { try { getAuroraBridge()?.start?.(); } catch { /* sin voz */ } },
-        callar: () => { try { getAuroraBridge()?.stop?.(); } catch { /* sin voz */ } },
-    };
-}
-
-/** El orbe: líquido violeta→turquesa que respira; escuchando, un anillo turquesa; hablando, ondas. */
-function Orbe({ tam, estado, onClick }: { tam: number; estado: EstadoVoz; onClick: () => void }) {
+/** El orbe: líquido violeta→turquesa que respira; escuchando, un anillo turquesa; hablando, ondas; error, alerta. */
+function Orbe({ tam, estado, onClick }: { tam: number; estado: EstadoAsistente; onClick: () => void }) {
     return (
-        <button type="button" onClick={onClick} aria-label={`Abrir el chat de Astraura (${TEXTO_VOZ[estado].toLowerCase().replace("…", "")})`}
-            className={`${estado === "hablando" ? "ss-latir" : "ss-respirar"} ss-redondo relative shrink-0 cursor-pointer rounded-full outline-none focus-visible:ring-2 focus-visible:ring-violet-300 focus-visible:ring-offset-4 focus-visible:ring-offset-transparent`}
+        <button type="button" onClick={onClick} aria-label={`Abrir el chat de Astraura (${textoDeEstado(estado).toLowerCase().replace("…", "")})`}
+            className={`${estado === "hablando" ? "ss-latir" : estado === "error" ? "ss-error" : "ss-respirar"} ss-redondo relative shrink-0 cursor-pointer rounded-full outline-none focus-visible:ring-2 focus-visible:ring-violet-300 focus-visible:ring-offset-4 focus-visible:ring-offset-transparent`}
             style={{ width: tam, height: tam }}>
             <span aria-hidden className="absolute inset-[-22%] rounded-full" style={{ background: `radial-gradient(closest-side, ${VIOLETA}4d, transparent)` }} />
             {estado === "hablando" && [0, 1].map((i) => (
                 <span key={i} aria-hidden className="ss-latir absolute inset-[-8%] rounded-full" style={{ boxShadow: `0 0 0 1.5px ${TURQUESA}66`, animationDelay: `${i * 0.6}s`, ["--ss-dur" as string]: "1.6s" }} />
             ))}
             {estado === "escuchando" && <span aria-hidden className="ss-respirar absolute inset-[-6%] rounded-full" style={{ boxShadow: `0 0 0 2px ${TURQUESA}, 0 0 18px ${TURQUESA}88`, ["--ss-dur" as string]: "1.4s" }} />}
+            {estado === "error" && <span aria-hidden className="absolute inset-0 flex items-center justify-center"><AlertCircle className="size-1/2 text-amber-300" /></span>}
             <span aria-hidden className="ss-girar absolute inset-0" style={{ ["--ss-dur" as string]: estado === "pensando" ? "4s" : "14s", borderRadius: "42% 58% 55% 45% / 48% 42% 58% 52%", background: `conic-gradient(from 0deg, ${VIOLETA}, ${TURQUESA}, #007FFF, #b388ff, ${VIOLETA})`, filter: "blur(2px)" }} />
             <span aria-hidden className="ss-contragirar absolute inset-[10%]" style={{ ["--ss-dur" as string]: "9s", borderRadius: "55% 45% 40% 60% / 45% 55% 45% 55%", background: "radial-gradient(circle at 35% 30%, #ffffffcc, #b9a5ff55 35%, transparent 70%)" }} />
         </button>
@@ -125,7 +97,6 @@ function Preguntar({ tactil, sugerencias, compacto }: { tactil: boolean; sugeren
 export function AstrauraLibre() {
     const [entradas, setEntradas] = React.useState<AuroraChatLogEntry[] | null>(null);
     const [ref, visible] = useEnPantalla<HTMLDivElement>();
-    const { estado, voz, escuchar, callar } = useVozAurora(visible);
     const dispositivo = useDispositivo();
     const forzada = useClaseForzada();
     const k = escalaTipo(dispositivo), tactil = esTactil(dispositivo);
@@ -139,9 +110,7 @@ export function AstrauraLibre() {
     }, []);
     const ultima = entradas ? [...entradas].reverse().find((e) => e.role === "aurora") : undefined;
     const hilo = (entradas ?? []).slice(-6);
-    const [ahora, setAhora] = React.useState(0);
-    React.useEffect(() => setAhora(Date.now()), [entradas]);
-    const vivaAhora = estado !== "calma" ? estado : ultima && ahora - ultima.ts < 60_000 ? "hablando" : "calma";
+    const { estado, voz, escuchar, callar } = useEstadoAstraura(visible, ultima?.ts ?? null);
 
     // El mensaje se acorta por palabras (además del line-clamp) con el texto entero en el title:
     // un fallo largo de «probé 8 fuentes…» ya no deja líneas ocultas bajo las sugerencias.
@@ -163,7 +132,7 @@ export function AstrauraLibre() {
                     const item = (
                         <li key={`${e.ts}-${i}`} className={`min-w-0 text-[12.5px] leading-snug ${e.role === "user" ? "text-white/60" : "text-white/90"}`}>
                             <p className="line-clamp-2" title={e.text}>{recortarPalabras(e.role === "user" ? `Tú: ${e.text}` : e.text, 110)}</p>
-                            {e.role === "aurora" && i === vista.length - 1 && <span className="text-[10.5px] text-violet-200/70">{haceCuanto(e.ts, ahora || Date.now())}</span>}
+                            {e.role === "aurora" && i === vista.length - 1 && <span className="text-[10.5px] text-violet-200/70">{haceCuanto(e.ts, Date.now())}</span>}
                         </li>
                     );
                     // Si no cabe, se retiran primero las sugerencias (nivel 1) y luego los turnos más viejos.
@@ -181,12 +150,12 @@ export function AstrauraLibre() {
                     const { base: b, horizontal } = disenoDe(clase);
                     const lado = Math.min(ancho, alto);
 
-                    if (b === "micro") return <div className="flex h-full items-center justify-center" data-diseno="micro"><Orbe tam={lado * 0.62} estado={vivaAhora} onClick={abrirChat} /></div>;
+                    if (b === "micro") return <div className="flex h-full items-center justify-center" data-diseno="micro"><Orbe tam={lado * 0.62} estado={estado} onClick={abrirChat} /></div>;
 
                     if (b === "s") {
                         return (
                             <div className="flex h-full flex-col items-center justify-center gap-2 px-2 text-center" data-diseno="s">
-                                <Orbe tam={lado * 0.42} estado={vivaAhora} onClick={abrirChat} />
+                                <Orbe tam={lado * 0.42} estado={estado} onClick={abrirChat} />
                                 {frase("line-clamp-2 text-[12.5px] leading-snug text-white/90", 90)}
                             </div>
                         );
@@ -195,7 +164,7 @@ export function AstrauraLibre() {
                     if (clase === "panoramico" && horizontal) {
                         return (
                             <div className="flex h-full w-full items-center gap-4 px-3" data-diseno="panoramico">
-                                <Orbe tam={Math.min(alto * 0.72, 110)} estado={vivaAhora} onClick={abrirChat} />
+                                <Orbe tam={Math.min(alto * 0.72, 110)} estado={estado} onClick={abrirChat} />
                                 <div className="min-w-0 flex-1">{frase("line-clamp-2 text-[13px] leading-snug text-white/90", 110)}</div>
                                 <div className="w-[40%] min-w-[200px] max-w-[340px]"><Preguntar tactil={tactil} compacto /></div>
                             </div>
@@ -205,8 +174,8 @@ export function AstrauraLibre() {
                     if (clase === "torre") {
                         return (
                             <div className="flex h-full w-full flex-col items-center gap-3 px-3 py-3" data-diseno="torre">
-                                <Orbe tam={Math.min(ancho * 0.55, 120)} estado={vivaAhora} onClick={abrirChat} />
-                                <Rotulo color="#c4b5fd">{TEXTO_VOZ[vivaAhora]}</Rotulo>
+                                <Orbe tam={Math.min(ancho * 0.55, 120)} estado={estado} onClick={abrirChat} />
+                                <Rotulo color="#c4b5fd">{textoDeEstado(estado)}</Rotulo>
                                 <PilaAjustable niveles={8} className="min-h-0 w-full flex-1">
                                     <div className="mt-auto">{hiloNodo(Math.max(1, Math.floor((alto - 260) / 90)))}</div>
                                 </PilaAjustable>
@@ -220,7 +189,7 @@ export function AstrauraLibre() {
                         if (apaisado) {
                             return (
                                 <div className="flex h-full w-full items-center gap-4 px-3" data-diseno="m-fila">
-                                    <Orbe tam={Math.min(alto * 0.5, 120) * k} estado={vivaAhora} onClick={abrirChat} />
+                                    <Orbe tam={Math.min(alto * 0.5, 120) * k} estado={estado} onClick={abrirChat} />
                                     <div className="flex min-w-0 flex-1 flex-col gap-2">
                                         {frase("line-clamp-3 text-[13px] leading-snug text-white/90")}
                                         <Preguntar tactil={tactil} compacto />
@@ -231,7 +200,7 @@ export function AstrauraLibre() {
                         return (
                             <PilaAjustable niveles={1} className="items-center px-3 text-center" data-diseno="m">
                                 <div className="my-auto flex w-full min-w-0 flex-col items-center gap-2">
-                                    <Prescindible nivel={1}><Orbe tam={Math.min(lado * 0.34, 110) * k} estado={vivaAhora} onClick={abrirChat} /></Prescindible>
+                                    <Prescindible nivel={1}><Orbe tam={Math.min(lado * 0.34, 110) * k} estado={estado} onClick={abrirChat} /></Prescindible>
                                     {frase("line-clamp-3 text-[13px] leading-snug text-white/90", 140)}
                                     <Preguntar tactil={tactil} compacto />
                                 </div>
@@ -244,8 +213,8 @@ export function AstrauraLibre() {
                     return (
                         <div className={`flex h-full w-full gap-5 px-4 py-3 ${apaisado || b === "xl" ? "flex-row items-center" : "flex-col items-center justify-center"}`} data-diseno={`${b}-hilo`}>
                             <div className="flex shrink-0 flex-col items-center gap-2">
-                                <Orbe tam={tamOrbe} estado={vivaAhora} onClick={abrirChat} />
-                                <Rotulo color="#c4b5fd">{TEXTO_VOZ[vivaAhora]}</Rotulo>
+                                <Orbe tam={tamOrbe} estado={estado} onClick={abrirChat} />
+                                <Rotulo color="#c4b5fd">{textoDeEstado(estado)}</Rotulo>
                                 <div className="flex flex-wrap justify-center gap-1.5">
                                     {botonVoz}
                                     <Accion icono={MessageCircle} color={VIOLETA} grande={tactil} onClick={abrirChat} aria-label="Abrir el chat de Astraura">Chat</Accion>
