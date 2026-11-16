@@ -25,7 +25,9 @@ describe("calibrar", () => {
     expect("cajas" in res).toBe(true);
     expect("umbralSugerido" in res).toBe(true);
     expect(res.n).toBe(30);
-    expect(res.cajas).toHaveLength(10);
+    if ("cajas" in res) {
+      expect(res.cajas).toHaveLength(10);
+    }
   });
 
   it("cada caja tiene rango, total, aciertos y tasa", () => {
