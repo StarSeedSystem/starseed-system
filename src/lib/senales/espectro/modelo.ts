@@ -9,3 +9,4 @@ export * from "./tipos";
 export * from "./validadores";
 export * from "./utilidades";
 export * from "./bandas";
+export * from "./leer-senales";
