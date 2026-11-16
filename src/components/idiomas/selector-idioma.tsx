@@ -11,6 +11,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Check, Globe } from "lucide-react";
 import { CON_CATALOGO, ESTADO_CATALOGO, IDIOMAS, porCodigo, type Idioma } from "@/lib/idiomas/idiomas";
+import { listaMundial } from "@/lib/idiomas/lista-mundial";
 import { EVENTO_IDIOMA, elegirIdioma, idiomaEfectivo, sugerirIdioma } from "@/lib/idiomas/estado";
 
 const sinTildes = (t: string): string => t.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
@@ -63,13 +64,16 @@ export function SelectorIdioma({ className = "", alElegir, abiertoAlInicio = fal
     }, []);
     useEffect(() => { if (abierto) caja.current?.focus(); }, [abierto]);
 
+    const codigosElegibles = IDIOMAS.map((i) => i.codigo);
+    const listaCompleta = useMemo(() => listaMundial({ idiomaActual: actual }).filter((i) => codigosElegibles.includes(i.codigo)), [actual]);
+
     const visibles = useMemo(() => {
         const q = sinTildes(filtro.trim());
-        const coincide = (i: Idioma): boolean => !q || sinTildes(i.nombre).includes(q) || i.codigo.includes(q) || sinTildes(i.rotulo).includes(q);
-        const primero = IDIOMAS.find((i) => i.codigo === sugerido && i.codigo !== "es");
-        const resto = IDIOMAS.filter((i) => i !== primero);
+        const coincide = (i: { nombreActual: string; codigo: string }): boolean => !q || sinTildes(i.nombreActual).includes(q) || i.codigo.includes(q);
+        const primero = listaCompleta.find((i) => i.codigo === sugerido && i.codigo !== "es");
+        const resto = listaCompleta.filter((i) => i !== primero);
         return { sugerido: primero && coincide(primero) ? primero : null, resto: resto.filter(coincide) };
-    }, [filtro, sugerido]);
+    }, [filtro, sugerido, listaCompleta]);
 
     const elegir = (i: Idioma): void => {
         if (!elegirIdioma(i.codigo)) { setAviso("error"); return; }
@@ -89,23 +93,23 @@ export function SelectorIdioma({ className = "", alElegir, abiertoAlInicio = fal
     };
 
     const idiomaActual = porCodigo(actual);
-    const fila = (i: Idioma, n: number, destacado = false) => (
+    const fila = (i: { codigo: string; nombreActual: string; dir: "ltr" | "rtl" }, n: number, destacado = false) => (
         <li
             key={`${destacado ? "s" : "o"}-${i.codigo}`}
             role="option"
             aria-selected={i.codigo === actual}
             tabIndex={-1}
             data-codigo={i.codigo}
-            onClick={() => elegir(i)}
+            onClick={() => elegir(porCodigo(i.codigo)!)}
             onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") { e.preventDefault(); elegir(i); }
+                if (e.key === "Enter" || e.key === " ") { e.preventDefault(); elegir(porCodigo(i.codigo)!); }
                 else if (e.key === "ArrowDown") { e.preventDefault(); mover(n, 1); }
                 else if (e.key === "ArrowUp") { e.preventDefault(); mover(n, -1); }
             }}
             className="flex min-h-[44px] cursor-pointer items-center justify-between gap-3 rounded-lg px-3 py-1.5 outline-none hover:bg-white/10 focus-visible:bg-white/10 focus-visible:ring-2 focus-visible:ring-cyan-300"
         >
             <span className="flex min-w-0 flex-col">
-                <span translate="no" data-no-traducir="" lang={i.codigo} dir={i.dir} className="truncate text-sm font-medium">{i.nombre}</span>
+                <span translate="no" data-no-traducir="" lang={i.codigo} dir={i.dir} className="truncate text-sm font-medium">{i.nombreActual}</span>
                 <Etiqueta codigo={i.codigo} />
             </span>
             {i.codigo === actual && <Check className="h-4 w-4 shrink-0 text-emerald-300" aria-hidden />}
@@ -155,7 +159,7 @@ export function SelectorIdioma({ className = "", alElegir, abiertoAlInicio = fal
                 </div>
             )}
             <p className="mt-1.5 px-1 text-[11px] text-white/60" aria-live="polite" data-testid="estado-idioma">
-                {aviso === "error" ? "No se pudo guardar el idioma en este aparato." : aviso ? <>Aún no hay catálogo de <span translate="no" data-no-traducir="">{porCodigo(aviso)?.nombre}</span>: el sistema se ve en español.</> : (idiomaActual ? <><span translate="no" data-no-traducir="" lang={idiomaActual.codigo}>{idiomaActual.nombre}</span> · <Etiqueta codigo={actual} /></> : null)}
+                {aviso === "error" ? "No se pudo guardar el idioma en este aparato." : aviso ? <>Aún no hay catálogo de <span translate="no" data-no-traducir="">{porCodigo(aviso)?.nombre}</span>: el sistema se ve en español.</> : (idiomaActual ? <><span translate="no" data-no-traducir="" lang={idiomaActual.codigo}>{listaCompleta.find(i => i.codigo === actual)?.nombreActual ?? idiomaActual.nombre}</span> · <Etiqueta codigo={actual} /></> : null)}
             </p>
         </div>
     );

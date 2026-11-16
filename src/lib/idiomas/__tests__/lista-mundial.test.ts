@@ -22,7 +22,7 @@ class MockDisplayNames {
 class MockCollator {
   constructor(public locale: string, public options?: { sensitivity?: string }) {}
   compare(a: string, b: string): number {
-    return a.localeCompare(b, this.locale, { sensitivity: this.options?.sensitivity ?? "base" });
+    return a.localeCompare(b, this.locale, { sensitivity: this.options?.sensitivity as "base" ?? "base" });
   }
 }
 
