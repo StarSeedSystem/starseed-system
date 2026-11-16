@@ -16,6 +16,8 @@ RESERVADAS_ESPERADAS = (
     "funciona-verificacion",
     "informe-veraz",
     "cambiar-umbrales-propios",
+    "entrenar-laya",
+    "afinar-adaptador",
 )
 
 

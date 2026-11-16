@@ -348,7 +348,8 @@ class LaPuertaDeAdmision(Base):
             finally:
                 os.killpg(p.pid, 9)
                 p.wait()
-        self.assertIn("ronda de aparatos", open(salida).read())
+        with open(salida) as f:
+            self.assertIn("ronda de aparatos", f.read())
         self.assertFalse(os.path.exists(marca))
         datos, _, _ = R.terminar(datos, "alex", time.time())
         w.escribir_json(R.ARCHIVO, datos)
