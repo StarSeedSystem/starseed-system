@@ -26,6 +26,7 @@ import {
     controladoresAceptadosNativos,
     estadoIndicadorNativo,
     prepararIndicadorNativo,
+    quitarControladorNativo,
     type AjusteQueFalta,
     type CapacidadesNativas,
     type CosaQueFalta,
@@ -406,9 +407,19 @@ export function ControlEntreNeuronasPanel() {
     const quitar = useCallback(
         async (huella: string) => {
             const s = await import("@/lib/control-remoto/sesion");
+            const c = await import("@/lib/control-remoto/canal");
+            const nivel = c.leerPermisoLocal().nivel;
             await cambiar((p) => s.quitarControlador(p, huella));
+            // PENB4: la lista aceptada para TOCAR la escribe solo Kotlin; aquí se le pide quitarlo (mismo criterio que `aceptar`:
+            // nivel «controlar», o ya figura en la lista nativa, que solo trae el comienzo de la huella).
+            const nat = await controladoresAceptadosNativos();
+            if (nivel !== "controlar" && !nat?.some((a) => a.huella !== "" && huella.startsWith(a.huella))) return;
+            const r = await quitarControladorNativo(huella);
+            if (r.ok) setAviso("Quitado");
+            else if (r.motivo !== "sin-soporte") setAviso(`Se quitó aquí, pero este aparato aún lo tiene aceptado para tocar: ${palabrasMotivo(r.motivo) ?? "sin respuesta"}`);
+            leerPantallaEntrada();
         },
-        [cambiar],
+        [cambiar, leerPantallaEntrada],
     );
 
     const elegir = useCallback(async (id: string) => {
