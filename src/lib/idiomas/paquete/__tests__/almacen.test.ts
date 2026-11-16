@@ -93,14 +93,14 @@ describe("almacen de paquetes de idioma", () => {
       }
       const r = almacen.guardarPaquete(paqueteValido("extra"));
       expect(r.ok).toBe(false);
-      expect(r.motivo).toContain("12");
+      if (!r.ok) expect(r.motivo).toContain("12");
     });
 
     it("respeta limite de 6 MB totales", () => {
       const grande = paqueteValido("grande", { clave: "x".repeat(7 * 1024 * 1024) });
       const r = almacen.guardarPaquete(grande);
       expect(r.ok).toBe(false);
-      expect(r.motivo).toContain("6 MB");
+      if (!r.ok) expect(r.motivo).toContain("6 MB");
     });
   });
 
