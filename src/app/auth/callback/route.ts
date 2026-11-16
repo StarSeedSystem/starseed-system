@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
 import { siguienteSeguro } from "@/lib/auth/siguiente-seguro";
+import { buildErrorRedirect, buildSuccessRedirect } from "@/lib/auth/callback-url";
 
 // ── Callback de autenticación (Adenda 63) ───────────────────────────────────
 // Destino de `emailRedirectTo` (confirmación de correo) y de cualquier flujo
@@ -19,10 +20,11 @@ export async function GET(request: Request) {
         try {
             const supabase = await createClient();
             const { error } = await supabase.auth.exchangeCodeForSession(code);
-            if (!error) return NextResponse.redirect(`${origin}${next}`);
-        } catch {
-            // caída controlada al login con aviso
+            if (!error) return NextResponse.redirect(buildSuccessRedirect(origin, next));
+        } catch (e) {
+            console.error("Error intercambiando código por sesión", e);
+            return NextResponse.redirect(buildErrorRedirect(origin));
         }
     }
-    return NextResponse.redirect(`${origin}/login?error=auth-callback`);
+    return NextResponse.redirect(buildErrorRedirect(origin));
 }
