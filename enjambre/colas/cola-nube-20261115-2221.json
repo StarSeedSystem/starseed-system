@@ -1,0 +1,100 @@
+{
+ "ola": "nube-20261115",
+ "tareas": [
+  {
+   "id": "HAL07",
+   "ola": "HAL1116A",
+   "titulo": "Prueba: el idioma elegido sobrevive a una recarga y se aplica antes del primer pintado",
+   "archivos": [
+    "src/lib/idiomas/__tests__/recarga.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Lee `src/lib/idiomas/estado.ts` (`elegirIdioma`, `idiomaEfectivo`, `CLAVE_IDIOMA_NEURONA`), `arranque.ts` (`guionArranque`, `CSS_PENDIENTE`), `capa.ts` (`iniciarCapa`, `fijarDocumento`) y el bloque «sin parpadeo» de `__tests__/capa.test.tsx:86-115` para NO duplicarlo: esa prueba escribe `localStorage` a mano; esta recorre la ruta real. Prueba (jsdom): (1) `elegirIdioma(\"en\")` con el almacén real de jsdom devuelve true; (2) «recargar»: un `document.documentElement` limpio (quita `lang`, `dir`, `data-idioma-pendiente`) y se ejecuta `new Function(guionArranque([\"en\"], []))()`: el atributo `lang` pasa a `en` y existe `data-idioma-pendiente` SÍNCRONAMENTE, antes de que corra cualquier efecto de React ni microtarea (comprueba en la misma línea); (3) `idiomaEfectivo()` sigue diciendo `en`; (4) tras `iniciarCapa(document.body, document, \"en\", catalogo)` con un catálogo mínimo, `data-idioma-pendiente` desaparece y el texto «Guardar» pasa a «Save»; (5) con un idioma sin catálogo en la lista, el guion no toca nada y `lang` sigue en `es`; (6) la elección se guardó en la neurona Y como valor de la cuenta (`PERFIL_CUENTA`), de modo que otra neurona de la cuenta arranca con ese idioma si no eligió el suyo.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado."
+  },
+  {
+   "id": "SVF1Z1",
+   "ola": "SES1116B",
+   "titulo": "Contrato §2: nota fechada con los nombres «puentes» y «canales» y su colisión",
+   "archivos": [
+    "architecture/sesiones-en-vivo-entidades-y-transmisiones.md"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Documentación. Abre `architecture/sesiones-en-vivo-entidades-y-transmisiones.md` (si NO existe en tu árbol, termina sin crearlo y di «falta el contrato SES1115Q»). En su §2 («El modelo: seis nombres») añade AL FINAL de la sección, sin cambiar nada de lo que ya hay, un bloque «Nota 2026-11-15 · nombres propuestos por Alex» (≤25 líneas):\n· Alex propuso el 15-11 llamar **«puentes»** a lo que lleva capacidad a través de los nodos (la `capacidad` del modelo: correr, llevar, guardar) y **«canales»** a las neuronas que emiten y usan por cualquier capa de señal de la malla, pública o privada (lo que el contrato llama canal/estación).\n· La COLISIÓN, en palabras: la app ya usa «puentes» para los puentes de chat (Telegram: «Puentes de Telegram», `src/components/chats-genesis`) y «Puente de Mando» (nombre interno que la interfaz nunca muestra: se dice Genesis); además «puente de voz», «puente de Tauri», «puente de Aurora». Y «canal» ya se usa en «canal de control» (control entre neuronas, CRN), «canal de datos» y «canal de pruebas».\n· Redacción PROPUESTA que mantiene todo claro, sin renombrar nada existente: en la interfaz y en el contrato, la palabra suelta nunca se usa: siempre «puente de capacidad» (el nuevo) frente a «puente de chat» (Telegram y otros), y «canal en vivo» (el nuevo) frente a «canal de control». «Puente de Mando» sigue siendo solo un nombre interno de código y carpetas. En el código los identificadores nuevos llevan el complemento (`puenteCapacidad`, `canalEnVivo`).\n· Marca que la decisión final es de Alex y que NO se ha renombrado nada.\nExcepción a la regla de nombres: este es un documento de arquitectura, no texto de interfaz, y SÍ puede citar «Puente de Mando» como nombre interno. COMPRUEBA: `git diff --stat` solo toca ese archivo y solo añade líneas; la guardia de nombres de la interfaz no aplica a este archivo pero no escribas «Mando» en texto visible.\n\nREGLAS DE LA CASA (valen aunque no las repita la tarea): toca SOLO los archivos de la lista `archivos`; ≤3 archivos y ≤120 líneas por archivo (si no cabe, para y di qué falta: no lo estires ni lo resumas); sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible (la interfaz dice Genesis); sin red real en las pruebas; ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves. El asunto de tu commit empieza por `SVF1Z1:` y dice qué comprobaste y qué NO pudiste comprobar."
+  },
+  {
+   "id": "TU5",
+   "ola": "TRA1116-APP-F1",
+   "titulo": "Descargar un paquete de modelo con progreso, cancelación y comprobación de hash",
+   "archivos": [
+    "src/lib/traductor/descargar.ts",
+    "src/lib/traductor/__tests__/descargar.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. `descargarPaquete(modelo, deps: { fetch, digest, almacen, indice, senal?: AbortSignal, alProgreso?: (hecho:number,total:number)=>void, conexionMedida?: boolean, confirmarMedida?: ()=>Promise<boolean> }): Promise<{ok:true} | {ok:false, motivo:string}>`: NO descarga nunca algo con `verificado:false` salvo que `deps.permitirNoVerificado` sea true (la interfaz lo muestra como «sin verificar»); si la conexión es medida pide confirmación con el tamaño; lee el cuerpo por trozos para el progreso; si el hash del modelo está definido y no coincide, borra lo descargado y devuelve el motivo; si falta espacio (`puedeGuardar`) no empieza; cancelar deja el índice como estaba. Los archivos de un modelo (`modelo.archivos`, varios) se descargan todos o ninguno. Sin red real: `fetch` inyectado. PRUEBAS: éxito con progreso, hash malo, cancelación, sin espacio, conexión medida rechazada, no verificado sin permiso.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "revisor_quitadas": [
+    "TU4"
+   ],
+   "dependencias_ya_en_main": [
+    "TU2"
+   ]
+  },
+  {
+   "id": "TU6",
+   "ola": "TRA1116-APP-F1",
+   "titulo": "Quitar paquetes y ver el espacio usado",
+   "archivos": [
+    "src/lib/traductor/gestion-paquetes.ts",
+    "src/lib/traductor/__tests__/gestion-paquetes.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. `quitarPaquete(id, deps)`: borra los binarios del almacén y la entrada del índice (en ese orden; si el borrado del binario falla, deja la entrada y devuelve el motivo); `quitarTodos(deps)`; `resumenEspacio(deps)` → `{usado, tope, porPar[], persistente}`. PRUEBAS: quitar uno, quitar todos, fallo a medias coherente.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "revisor_quitadas": [
+    "TU4"
+   ],
+   "dependencias_ya_en_main": [
+    "TU3"
+   ]
+  },
+  {
+   "id": "TU7",
+   "ola": "TRA1116-APP-F1",
+   "titulo": "Motor local: Marian/OPUS-MT por transformers.js (ONNX, WASM) como MotorTraduccion",
+   "archivos": [
+    "src/lib/traductor/motor-local.ts",
+    "src/lib/traductor/__tests__/motor-local.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Lee `src/lib/traduccion/motor.ts:6-12,45-62` (la interfaz `MotorTraduccion` y cómo `motorNavegador` entra) y `src/lib/aurora/stt-oss/oss-stt.ts:150-200` (cómo se importa transformers.js por URL de CDN con `webpackIgnore`, versión fijada, solo bajo petición). Escribe `motorPaqueteLocal(deps: { instalado(origen,destino): Promise<boolean>; cargarPipeline(modelo): Promise<(textos:string[])=>Promise<string[]>>; alcance?: \"aparato\" }): MotorTraduccion` con `id:\"paquete-local\"` y `alcance:\"aparato\"` (nunca sale del aparato; por eso pasa el modo privado). `disponible` = paquete instalado (o ruta de dos pasos instalada); `traducir` por lotes de ≤8 textos, un par cargado a la vez en memoria (descarga el anterior al cambiar de par para no pasar de ~1 GB), y devuelve la misma cantidad de textos. Y `cargarPipelineTransformers(urlModulo: string, almacenModelos)` real: `import(/* webpackIgnore: true */ url)` DINÁMICO, `env.allowRemoteModels=false` (usa solo lo descargado), versión de la librería como constante; si no se puede importar lanza un error claro («No se pudo cargar el motor local»), y NO se ejecuta nada al importar el archivo. PRUEBAS con `cargarPipeline` falso: disponible solo si instalado; lotes; cambio de par descarga el anterior; error de carga se propaga con su mensaje; `alcance` es `aparato`.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "revisor_quitadas": [
+    "TU4"
+   ],
+   "dependencias_ya_en_main": [
+    "TU2"
+   ]
+  },
+  {
+   "id": "TU13",
+   "ola": "TRA1116-APP-F1",
+   "titulo": "Escucha: envoltorio del reconocimiento de voz con aviso del proveedor",
+   "archivos": [
+    "src/lib/traductor/voz-escucha.ts",
+    "src/lib/traductor/__tests__/voz-escucha.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Lee cómo se usa `SpeechRecognition` en `src/components/aurora/aurora-provider.tsx` (solo para copiar el patrón de entorno) y `src/lib/aurora/stt-oss/opt-in.ts` (el respaldo abierto). `crearEscucha(entorno: { SpeechRecognition?: ...; ossStt?: ... })` con `disponible(): {ok, motivo?, audioSaleDelAparato: boolean}` (true con el reconocimiento del navegador; false con el respaldo local abierto si está activado), `iniciar(idioma, {alResultado(texto, final), alError(msg)})`, `detener()`. Sin reconocimiento → `{ok:false, motivo:\"Este aparato no ofrece reconocimiento de voz\"}`. Mapea errores (`not-allowed`, `no-speech`, `network`, `language-not-supported`) a mensajes en español. PRUEBAS con un reconocedor falso: resultados parciales y final, error de permiso, idioma no soportado.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "TU1"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1115-190053.json": [
+   "TU13",
+   "SVF1Z1",
+   "HAL07",
+   "TU5",
+   "TU6",
+   "TU7"
+  ]
+ }
+}
