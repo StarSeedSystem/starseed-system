@@ -16,6 +16,10 @@ export const ORIGENES_POR_DEFECTO = Object.freeze([
   "http://tauri.localhost",
   "https://tauri.localhost",
   "capacitor://localhost",
+  // MAP1116B: «Emparejar este aparato» en Genesis decía «la puerta de datos del A1 no responde»
+  // porque la app nativa de prueba llama desde http://127.0.0.1:47610 … 47619. Lista cerrada y
+  // concreta: ni comodines, ni expresiones regulares, ni «cualquier puerto»; ni un puerto más.
+  ...Array.from({ length: 10 }, (_, i) => `http://127.0.0.1:${47610 + i}`),
 ]);
 
 function entero(valor, defecto, min, max) {
