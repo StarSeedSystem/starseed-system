@@ -620,6 +620,26 @@ PIDEN_PAGO = {}
 HORAS_PAGO = int(os.environ.get("STARSEED_HORAS_PAGO", "6"))
 
 
+# ── funciones de prioridad de tarea (PRI01) ──────────────────────────────────
+# Dos funciones PURAS para ordenar tareas por urgencia, sin interrumpir las que ya corren.
+
+
+def prioridad_de_tarea(t):
+    """PURA: devuelve float(t["prioridad"]) si existe y es número; 100.0 si t.get("urgente")
+    es verdadero o si el título empieza por «URGENTE»; si no, 0.0. Nunca lanza."""
+    if "prioridad" in t and isinstance(t["prioridad"], (int, float)):
+        return float(t["prioridad"])
+    if t.get("urgente") is True or str(t.get("titulo", "") or "").startswith("URGENTE"):
+        return 100.0
+    return 0.0
+
+
+def ordenar_pendientes(tareas):
+    """PURA: devuelve las mismas tareas ordenadas por prioridad de mayor a menor y, a
+    igualdad, EN EL ORDEN EN QUE VENÍAN (orden estable). No quita ni añade ninguna."""
+    return sorted(tareas, key=lambda t: prioridad_de_tarea(t), reverse=True)
+
+
 # ── apartado por cuelgues repetidos (2026-10-04, Ola 1004C) ─────────────────
 # gemini-3.6-flash se colgó 45 veces en dos días sin escribir ni una: cada cuelgue
 # costaba ~300 s y la siguiente tarea lo volvía a elegir, porque MUERTOS vive solo en
@@ -10241,7 +10261,12 @@ def main():
 
         # GUA1113A: con poco disco no arranca ninguna tarea nueva (se reanuda sola al liberarse).
         _disco_retiene = disco_retiene_arranques()
-        for tid, t in ([] if _disco_retiene else list(pendientes.items())):
+        # Ordenar pendientes por prioridad (PRI01): tareas urgentes empiezan antes,
+        # pero sin interrumpir las que ya están en curso.
+        pendientes_ordenados = ordenar_pendientes(list(pendientes.values()))
+        pendientes_por_id = {t["id"]: t for t in pendientes_ordenados}
+        for tid in ([] if _disco_retiene else list(pendientes_por_id.keys())):
+            t = pendientes_por_id[tid]
             if tid in SOLTADAS:
                 pendientes.pop(tid)
                 hechas.add(tid)
