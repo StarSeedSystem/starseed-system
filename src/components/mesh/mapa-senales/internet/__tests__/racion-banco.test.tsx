@@ -89,7 +89,7 @@ describe("RacionBanco", () => {
       const ventanas: VentanaBanco[] = [
         { desde: "2024-01-01", hasta: "2024-12-31", horaDesde: "08:00", horaHasta: "20:00", limiteMb: 100 },
       ];
-      const bancoInicial = { ...bancoPorDefecto(), modo: "programado", ventanas };
+      const bancoInicial: AjustesBanco = { ...bancoPorDefecto(), modo: "programado", ventanas };
       renderRacion({ banco: bancoInicial, onCambiar });
       fireEvent.click(screen.getByRole("tab", { name: /Ración diaria/i }));
       fireEvent.click(screen.getByRole("tab", { name: /Programación/i }));
