@@ -28,12 +28,12 @@ class Clave(unittest.TestCase):
         d = tempfile.mkdtemp()
         ruta = os.path.join(d, "env")
         with open(ruta, "w") as f:
-            f.write("ABLITERATION_API_KEY=sk-archivo-456\n")
+            f.write("ABLITERATION_API_KEY=sk-prueba-falsa-1\n")
         antes = A.ARCHIVOS_DE_CLAVES
         A.ARCHIVOS_DE_CLAVES = (ruta,)
         try:
             os.environ.pop("ABLITERATION_API_KEY", None)
-            self.assertEqual(A.clave(), "sk-archivo-456")
+            self.assertEqual(A.clave(), "sk-prueba-falsa-1")
         finally:
             A.ARCHIVOS_DE_CLAVES = antes
 
