@@ -12,7 +12,7 @@ describe('registrarNegativa', () => {
   it('devuelve objeto con timestamp y clave de conexión', () => {
     const ahora = 1_700_000_000_000;
     const clave = 'cellular|4g|false';
-    const r = registrarNegativa(ahora, clave);
+    const r = registrarNegativa(ahora, clave)!;
     expect(r.en).toBe(ahora);
     expect(r.conexion).toBe(clave);
   });
