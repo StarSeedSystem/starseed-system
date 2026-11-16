@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
 import { siguienteSeguro } from "@/lib/auth/siguiente-seguro";
+import { manejarCatchCallback } from "@/lib/auth/manejar-catch-callback";
 
 // ── Callback de autenticación (Adenda 63) ───────────────────────────────────
 // Destino de `emailRedirectTo` (confirmación de correo) y de cualquier flujo
@@ -20,8 +21,9 @@ export async function GET(request: Request) {
             const supabase = await createClient();
             const { error } = await supabase.auth.exchangeCodeForSession(code);
             if (!error) return NextResponse.redirect(`${origin}${next}`);
-        } catch {
-            // caída controlada al login con aviso
+            return NextResponse.redirect(`${origin}/login?error=auth-callback`);
+        } catch (error) {
+            return manejarCatchCallback(error, origin, next);
         }
     }
     return NextResponse.redirect(`${origin}/login?error=auth-callback`);
