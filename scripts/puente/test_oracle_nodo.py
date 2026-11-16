@@ -259,6 +259,12 @@ class MainVivo(unittest.TestCase):
         for pago in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "DEEPSEEK_API_KEY", "SUPABASE_SERVICE_ROLE_KEY"):
             self.assertNotIn(pago, N.CLAVES_A1)
 
+    def test_abliteration_clave_de_pago_aprobada_viaja_y_otras_no(self):
+        """CLV1116A: abliteration.ai viaja al A1 (aprobado por Alex 16-11); las demás de pago, no."""
+        self.assertIn("ABLITERATION_API_KEY", N.CLAVES_A1)
+        for pago in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "DEEPSEEK_API_KEY"):
+            self.assertNotIn(pago, N.CLAVES_A1)
+
 
 class MedidorEnElCiclo(unittest.TestCase):
     """El riesgo de reclamación que ve Alex no puede quedarse con una lectura de hace horas."""

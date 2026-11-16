@@ -129,14 +129,17 @@ REINTENTO_MAIN_S = 30 * 60
 
 #: Las claves que viajan al A1: las MISMAS que la nube de GitHub (`nube-gh.py secretos`), todas de
 #: proveedores con modelos gratuitos, más las públicas del bus (la clave anónima de Supabase es la
-#: que lleva el navegador). Nada de pago (ANTHROPIC, OPENAI, DEEPSEEK…) y nada que apunte a
-#: 127.0.0.1 de esta máquina que allí no exista (apinex, el groq local); FreeLLMAPI sí: desde el
-#: 2026-10-13 el A1 tiene el suyo en 127.0.0.1:3001 (`a1_freellmapi.py`).
+#: que lleva el navegador). Nada de pago (ANTHROPIC, OPENAI, DEEPSEEK…) salvo `ABLITERATION_API_KEY`,
+#: aprobada por Alex el 16-11, y nada que apunte a 127.0.0.1 de esta máquina que allí no exista
+#: (apinex, el groq local); FreeLLMAPI sí: desde el 2026-10-13 el A1 tiene el suyo en
+#: 127.0.0.1:3001 (`a1_freellmapi.py`).
 CLAVES_A1 = (
     "GEMINI_API_KEY", "GOOGLE_GENERATIVE_AI_API_KEY", "NVIDIA_API_KEY", "OPENROUTER_API_KEY",
     "XKIRO_API_KEY", "AIHUBMIX_API_KEY", "TOKENROUTER_API_KEY", "GROQ_API_KEY",
     "STARSEED_PASARELA_GROQ_KEY", "STARSEED_PASARELA_GROQ_URL", "STARSEED_PASARELA_GROQ_MODELOS",
     "STARSEED_PASARELA_GROQ_RPM", "STARSEED_PASARELA_GROQ_SOLO_REVISOR",
+    # (2026-11-16, aprobado por Alex) abliteration.ai: ÚNICA clave de pago que viaja al A1; solo se usa con el tope del día (MQA1–MQA3).
+    "ABLITERATION_API_KEY",
     "NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_ANON_KEY",
     # El nodo de MetaGenesis (OPA1011) firma y comprueba con ella las órdenes del bus: sin ella el
     # A1 late pero no atiende órdenes ni puede dirigir cuando la Mac calla. No es una credencial de
