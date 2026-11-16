@@ -1,4 +1,4 @@
-// Semilla del catálogo comparativo (MOD1110A · comprobada el 2026-11-10).
+// Semilla del catálogo comparativo (MOD1110A · comprobada el 2026-11-10; MQC1 · 2026-11-16: tallas pequeñas sin filtros).
 // SOLO builds normales de los editores. Cada cifra sale de dos fuentes vivas, leídas ese día:
 //   · Ollama: https://ollama.com/library/<familia>/tags  (tamaño de descarga, contexto, entrada texto/imagen)
 //             https://ollama.com/library/<familia>       (insignias tools / vision / thinking)
@@ -10,7 +10,7 @@
 
 import type { CatalogoModelos, ModeloLocal, Puntuacion, PuntoFrontera } from "./tipos";
 
-export const FECHA_SEMILLA = "2026-11-10";
+export const FECHA_SEMILLA = "2026-11-16";
 const OLLAMA = "https://ollama.com/library/";
 const EPOCH = "https://epoch.ai/data/eci_scores.csv";
 
@@ -94,10 +94,10 @@ export const MODELOS_SEMILLA: ModeloLocal[] = [
   m({ id: "deepseek-r1:70b", familia: "DeepSeek-R1 (destilado sobre Llama 70B)", editor: "DeepSeek", descargaGb: 43, contextoK: 128, vision: false, herramientas: true, razonamiento: true, licencia: "MIT (según la página de Ollama)" }),
 ];
 
-// ── «Variantes sin filtros» (MOD1110B · comprobadas el 2026-11-10) ───────────────────────────────────────────
+// ── «Variantes sin filtros» (MOD1110B · comprobadas el 2026-11-10; MQC1 · 2026-11-16: tallas 2B y 0.8B) ─────────────────
 // Clase APARTE y opcional. Son builds de la comunidad a los que un tercero (huihui_ai) les quitó los rechazos
-// (técnica «abliteration»); NO son del editor del modelo. Cada entrada se contrastó el 2026-11-10 con la página viva
-// de Ollama: que la etiqueta existe en https://ollama.com/huihui_ai/<familia>/tags (tamaño de descarga y contexto,
+// (técnica «abliteration»); NO son del editor del modelo. Cada entrada se contrastó el 2026-11-10 (y 2B/9b el 2026-11-16)
+// con la página viva de Ollama: que la etiqueta existe en https://ollama.com/huihui_ai/<familia>/tags (tamaño de descarga y contexto,
 // que Ollama redondea a 2 cifras por encima de 10 GB) y las insignias de https://ollama.com/huihui_ai/<familia>
 // (tools / vision / thinking). NADIE midió estas variantes: `puntuacion` es SIEMPRE null («sin medir») y la de su
 // modelo base se enseña aparte, rotulada como de la base (`baseId`). Una que pierde herramientas lo dice (la base
@@ -118,6 +118,7 @@ interface Sf {
   contextoK: number;
   vision: boolean;
   herramientas: boolean;
+  licencia?: string | null;
   nota?: string;
 }
 
@@ -136,7 +137,7 @@ function sf(b: Sf): ModeloLocal {
     herramientas: b.herramientas,
     vision: b.vision,
     razonamiento: true,
-    licencia: null,
+    licencia: b.licencia ?? null,
     puntuacion: null,
     estado: "comprobado",
     comprobado: FECHA_SEMILLA,
@@ -152,7 +153,16 @@ const SF_G = { familia: "Gemma 4 sin filtros", editor: "Google · variante huihu
 
 export const MODELOS_SIN_FILTROS_SEMILLA: ModeloLocal[] = [
   sf({ ...SF_Q, id: "huihui_ai/qwen3.5-abliterated:4B", baseId: "qwen3.5:4b", descargaGb: 3.3 }),
-  sf({ ...SF_Q, id: "huihui_ai/qwen3.5-abliterated:9b", baseId: "qwen3.5:9b", descargaGb: 6.6 }),
+  sf({ ...SF_Q, id: "huihui_ai/qwen3.5-abliterated:2B", baseId: "qwen3.5:2b", descargaGb: 1.9 }),
+  // 0.8B NO se añade: qwen3.5:0.8b no existe en MODELOS_SEMILLA (no hay base verificada).
+  sf({
+    ...SF_Q,
+    id: "huihui_ai/qwen3.5-abliterated:9b",
+    baseId: "qwen3.5:9b",
+    descargaGb: 6.6,
+    licencia: "Apache 2.0 (ficha de Ollama, 2026-11-16)",
+    nota: "La base qwen3.5:9b figura aquí como RESTRINGIDA y debe revisarse: la ficha de Qwen en Hugging Face dice Apache-2.0. Variante sin filtros de la comunidad: nadie midió su calidad (la puntuación que se enseña es la de su base).",
+  }),
   sf({ ...SF_Q, id: "huihui_ai/qwen3.5-abliterated:27b", baseId: "qwen3.5:27b", descargaGb: 17 }),
   sf({ ...SF_G, id: "huihui_ai/gemma-4-abliterated:12b", baseId: "gemma4:12b", contextoK: 128, descargaGb: 7.6 }),
   sf({ ...SF_G, id: "huihui_ai/gemma-4-abliterated:26b", baseId: "gemma4:26b", contextoK: 256, descargaGb: 18 }),
