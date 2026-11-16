@@ -88,3 +88,5 @@ describe("abliterationProvider", () => {
     expect(res.text).toBe("Hola mundo");
     expect(res.usage).toEqual({ inputTokens: 5, outputTokens: 2 });
   });
+});
+
