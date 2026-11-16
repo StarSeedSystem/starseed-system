@@ -59,4 +59,16 @@ describe("InterruptorModoMesh", () => {
     fireEvent.click(radio);
     expect(onCambiar).toHaveBeenCalledWith({ habilitado: true, topeMb: 1024 });
   });
+
+  it("muestra el rótulo de la audiencia", () => {
+    render(
+      <InterruptorModoMesh
+        audiencia="entidad"
+        valor={{ habilitado: false, topeMb: 0 }}
+        onCambiar={() => {}}
+        textos={mockTextos}
+      />
+    );
+    expect(screen.getByText(/Entidad/)).toBeDefined();
+  });
 });

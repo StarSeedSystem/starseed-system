@@ -26,6 +26,7 @@ import type { PreferenciasMapa } from "@/lib/senales/preferencias-mapa";
 import type { ClaseEnlace } from "@/lib/senales/tipos-vivo";
 import { SignalDetailCard } from "../signal-detail";
 import { AjustesNeurona, TarjetaCentro, useMeshPrivacidad } from "./ajustes-centro";
+import { InterruptorModoMesh } from "./internet/interruptor-modo-mesh";
 import { ControlesVista3D, FiltrosCuenta, FiltrosFamilia } from "./barra-mapa";
 import { BarraResumen } from "./barra-resumen";
 import { LeyendaMapa } from "./leyenda-mapa";
@@ -71,6 +72,7 @@ export function ContenidoMapa({ vista, prefs, onPrefs, reducido, compacto, onOpe
   const { privacidad, internetPublico } = useMeshPrivacidad();
   const [nombreLocal, setNombreLocal] = useState<string | null>(null);
   const [editando, setEditando] = useState(false);
+  const [ajustesMesh, setAjustesMesh] = useState({ habilitado: false, topeMb: 0 });
   const fuentesAntenas = useAntenasPropias();
   const [seleccionId, setSeleccionId] = useState<string | null>(null);
   const [apuntadaId, setApuntadaId] = useState<string | null>(null);
@@ -318,13 +320,33 @@ export function ContenidoMapa({ vista, prefs, onPrefs, reducido, compacto, onOpe
         {/* Lista ⇄ ficha */}
         <aside ref={lateral} className="min-h-0 space-y-2 lg:h-[480px] lg:overflow-y-auto lg:pr-1" aria-label="Señales y ficha">
           {editando && (
-            <AjustesNeurona
-              centro={centro}
-              neuronaId={yo.neuronaId}
-              verPublicos={prefs.verPublicos}
-              onVerPublicos={(verPublicos) => onPrefs({ verPublicos })}
-              onNombre={setNombreLocal}
-            />
+            <div className="space-y-2.5">
+              <AjustesNeurona
+                centro={centro}
+                neuronaId={yo.neuronaId}
+                verPublicos={prefs.verPublicos}
+                onVerPublicos={(verPublicos) => onPrefs({ verPublicos })}
+                onNombre={setNombreLocal}
+              />
+              <div className="rounded-2xl border border-white/10 bg-black/30 p-3">
+                <InterruptorModoMesh
+                  audiencia="cuenta"
+                  valor={ajustesMesh}
+                  onCambiar={setAjustesMesh}
+                  textos={{
+                    meshTitulo: "Modo Mesh",
+                    meshAyuda: "Compartir internet por la malla",
+                    meshSinLimite: "Sin límite",
+                    meshConLimite: (mb) => `Límite: ${mb} MB`,
+                    audMiCuenta: "Mi Cuenta",
+                    audEntidad: "Entidad",
+                    audPublico: "Público",
+                    mb: "MB",
+                    gb: "GB",
+                  }}
+                />
+              </div>
+            </div>
           )}
           {seleccionId === "yo" ? (
             <FichaPanel ficha={fichaDeYo(yo, oidasTotal, centro)} color="#38bdf8" onCerrar={cerrar} onVolver={cerrar} textoVolver="Todas las señales" />

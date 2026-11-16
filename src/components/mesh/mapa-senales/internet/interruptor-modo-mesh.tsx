@@ -1,25 +1,3 @@
-import React from "react";
-
-export type Audiencia = "cuenta" | "entidad" | "publico";
-
-export interface AjustesAudiencia {
-  habilitado: boolean;
-  topeMb: number;
-}
-
-export interface TextosInternet {
-  meshTitulo: string;
-  meshAyuda: string;
-  meshSinLimite: string;
-  meshConLimite: (mb: number) => string;
-  audMiCuenta: string;
-  audEntidad: string;
-  audPublico: string;
-  mb: string;
-  gb: string;
-}
-
-import React from "react";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
