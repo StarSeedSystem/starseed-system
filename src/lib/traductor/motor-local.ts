@@ -60,6 +60,8 @@ export function motorPaqueteLocal(deps: DepsMotorLocal): MotorTraduccion {
         alcance,
         disponible: async (origen, destino) => deps.instalado(origen, destino),
         traducir: async (textos, origen, destino) => {
+            const estaInstalado = await deps.instalado(origen, destino);
+            if (!estaInstalado) throw new Error("No se pudo cargar el motor local");
             const pipeline = await asegurarPipeline(origen, destino);
             const resultados: string[] = [];
             for (let i = 0; i < textos.length; i += MAX_LOTE) {
