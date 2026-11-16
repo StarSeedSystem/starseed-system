@@ -49,6 +49,9 @@ SI = ("si", "sí", "s", "yes", "y", "1", "true", "verdadero")
 JEV = None
 EXP = None
 
+#: Módulo de reservas sustituible en pruebas
+JEV_RESERVADAS = None
+
 _SECRETOS = [
     re.compile(r"\bsk-[A-Za-z0-9_\-]{16,}"),
     re.compile(r"\bgsk_[A-Za-z0-9]{16,}"),
@@ -84,6 +87,20 @@ def _exp():
         except Exception:
             EXP = False
     return EXP or None
+
+
+def jev_reservadas_disponible():
+    """JLA1116A: verifica si Jev tiene el módulo de reservas cargado."""
+    if JEV_RESERVADAS is not None:
+        return JEV_RESERVADAS
+    j = _jev()
+    if j is None or j is False:
+        return None
+    try:
+        import jev_reservadas as jr
+        return jr
+    except Exception:
+        return None
 
 
 def apagado():
@@ -311,9 +328,10 @@ def _anotar(capa, tipo_exp, estado, pregunta, salida, confianza, ms, opciones, d
 def consultar(tipo, estado, pregunta, opciones=None, niveles=None, quien=None, regla=None,
               dominio="", anotar=True, espera_turno=None):
     """UNA decisión tipada. Devuelve {tipo, respuesta, p, probs, confianza, medio, ms, quien,
-    regla, experiencia[, valor]}. Nunca lanza por Jev: sin él, responde la regla. Con
+    regla, experiencia[, valor], reservada}. Nunca lanza por Jev: sin él, responde la regla. Con
     `espera_turno` (s), si otra pregunta ocupa a Jev más de eso, responde la regla sin anotar
-    experiencia (`ocupado: True`)."""
+    experiencia (`ocupado: True`). JLA1116A: si dominio está reservado, Jev solo puede vetar
+    un "sí" de la regla a "no"; nunca lo contrario."""
     if tipo not in TIPOS:
         raise ValueError("tipo desconocido: %s (si-no | elegir | puntuar)" % tipo)
     if tipo == "elegir" and len(_opciones(opciones)) < 2:
@@ -322,6 +340,9 @@ def consultar(tipo, estado, pregunta, opciones=None, niveles=None, quien=None, r
         raise ValueError("puntuar necesita al menos dos niveles")
     quien = _quien(quien)
     estado = recortar_estado(estado if isinstance(estado, dict) else {"estado": estado})
+    # JLA1116A: respetar dominios reservados - veto humano solo, no convierte no en si
+    jr = jev_reservadas_disponible()
+    dominio_reservado = jr is not None and jr.exige_humano(dominio)
     t0 = time.time()
     r = None
     ocupado = False
@@ -338,11 +359,15 @@ def consultar(tipo, estado, pregunta, opciones=None, niveles=None, quien=None, r
             r = None
     ans = interpretar(tipo, (r or {}).get("q"), opciones, niveles) if isinstance(r, dict) else None
     medio = _medio(r) if ans else "regla"
+    reservada = dominio_reservado
     if ans is None:
         ans = respaldo(tipo, regla, opciones, niveles)
+    elif dominio_reservado and tipo == "si-no" and ans["respuesta"] == "sí" and ans.get("p", 0) >= 0.8:
+        ans = respaldo(tipo, regla, opciones, niveles)
+        medio = "regla"
     ms = round((time.time() - t0) * 1000, 1)
     fuera = dict(ans, tipo=tipo, pregunta=sanear(str(pregunta))[:300], medio=medio, ms=ms, quien=quien,
-                 regla=(str(regla) if regla not in (None, "") else None), experiencia=None)
+                 regla=(str(regla) if regla not in (None, "") else None), experiencia=None, reservada=reservada)
     if ocupado:
         fuera["ocupado"] = True
     if anotar and not ocupado:
