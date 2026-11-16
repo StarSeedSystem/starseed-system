@@ -73,6 +73,7 @@ mod canal_actualizacion_logica;
 mod canal_actualizacion_red;
 // (NOT1108A) Avisos del sistema de los mensajes nuevos (escritorio y Android) y su respaldo nativo.
 mod avisos_mensajes;
+mod banco_latido; // PENA1
 mod carpetas;
 mod disco;
 // (WFD1108A) Enlace Wi-Fi directo entre neuronas, sin router (architecture/wifi-directo.md).
@@ -936,6 +937,7 @@ pub fn run() {
                 control_pantalla::control_pantalla_iniciar,
                 control_pantalla::control_pantalla_cuadro,
                 control_pantalla::control_pantalla_parar,
+                banco_latido::banco_latido_activar, // PENA1
                 // (PTA1108B) Proxy de la puerta de internet: webview (macOS 14+, Android) y descargas de Rust.
                 puerta_proxy::puerta_proxy_local,
                 puerta_proxy::puerta_proxy_estado,
