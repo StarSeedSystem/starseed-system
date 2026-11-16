@@ -1,0 +1,34 @@
+{
+ "ola": "nube-20261116",
+ "tareas": [
+  {
+   "id": "INT03",
+   "ola": "INT1116A",
+   "titulo": "Cupo del modo banco: ración diaria y franjas por fecha, hora y límite",
+   "archivos": [
+    "src/lib/malla/internet/cupo-banco.ts",
+    "src/lib/malla/internet/__tests__/cupo-banco.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contrato: architecture/malla-cristalina-sio2.md §8.2 (contrato; si aún no está en el repo, rige este texto). Lee primero lo que ya existe: `src/lib/malla/cristal/puertas-internet.ts` (`PuertaInternet`, `COMPARTIR`, `puedeUsar`, `restanteParaOtrosMb`, `elegirPuerta`) y, si ya aterrizaron, `src/lib/malla/auto-compartir.ts` y `src/lib/malla/preferencias-red-compartida.ts` (reglas MRI1b/MRI2). Si no existen, NO los crees: declara el tipo mínimo que necesites en tu archivo y dilo en un comentario. Todo lo tuyo es ADITIVO: no cambies el comportamiento de lo anterior. Escribe primero las pruebas. `cupoBanco(ajustes: AjustesBanco, usadoHoyMb: number, ahora: number, desfaseMin: number): { aplica: boolean; permitido: boolean; restanteMb: number; motivo: string }`. Si `activo` es falso: `aplica:false`, `permitido:true`, `restanteMb: Infinity`, motivo «modo banco apagado». Modo `diario`: `restanteMb = max(0, diarioMb − usadoHoyMb)`; `permitido = restanteMb > 0`. Modo `programado`: se busca la primera ventana cuya fecha local de hoy está entre `desde` y `hasta` (ambas incluidas) Y cuya hora local está entre `horaDesde` y `horaHasta` (si `horaDesde > horaHasta` la franja cruza la medianoche: 22:00-06:00 vale de 22:00 a 23:59 y de 00:00 a 06:00); el límite de esa ventana es `limiteMb`, y `restanteMb = max(0, limiteMb − usadoHoyMb)`; si NINGUNA ventana está vigente: `permitido:false`, motivo «fuera de las franjas del modo banco» (el banco ahorra: fuera de franja no se comparte). Entradas inválidas (negativos, NaN, fecha mal escrita) → `permitido:false` con motivo claro, nunca lanza. Todo cálculo de fecha y hora es LOCAL usando `desfaseMin`, sin `Date` del entorno.\nPRUEBAS en tabla (≥14): diario con y sin saldo; agotado exacto; franja nocturna cruzando medianoche en sus dos lados; fuera de franja; fecha fuera de rango; dos ventanas (la primera vigente manda); desfase horario; apagado; entradas inválidas.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "INT01",
+    "INT02"
+   ]
+  },
+  {
+   "id": "INT07",
+   "ola": "INT1116A",
+   "titulo": "Guardar y leer los contadores de bytes en el aparato",
+   "archivos": [
+    "src/lib/malla/internet/almacen-contadores.ts",
+    "src/lib/malla/internet/__tests__/almacen-contadores.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contrato: architecture/malla-cristalina-sio2.md §8.2 (contrato; si aún no está en el repo, rige este texto). Escribe primero las pruebas. Almacén local inyectado, clave `starseed.malla.internet.contadores.v1`. `leerContadores(almacen, ahora, desfaseMin): Contadores` (si falta o está roto: `contadoresVacios`; si el día guardado ya pasó, lo reinicia con `sumarBytes(…, 0, …)` sin tocar el mes); `registrarBytes(almacen, audiencia, bytes, ahora, desfaseMin): Contadores` (lee, suma con `sumarBytes` de INT02, guarda y devuelve; atrapa errores del almacén y devuelve igualmente lo calculado). Los contadores NO salen del aparato: el módulo no importa nada de red ni de sincronización y lo dice en un comentario de cabecera.\nPRUEBAS: vacío; suma persiste entre dos lecturas; cambio de día reinicia día pero no mes; JSON roto; almacén que lanza no rompe.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "INT02"
+   ]
+  }
+ ]
+}
