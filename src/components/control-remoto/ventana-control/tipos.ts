@@ -27,7 +27,7 @@ export interface PropsVentanaControl {
     alCerrar: () => void;
     fuentePedida?: FuentePedida;
     fuenteReal?: "accesibilidad" | "proyeccion" | null;
-    avisoFuente?: string | null;
+    avisoFuente?: string | null | undefined;
     alCambiarFuente?: (f: FuentePedida) => void;
 }
 

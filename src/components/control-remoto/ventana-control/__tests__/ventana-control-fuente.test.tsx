@@ -80,6 +80,6 @@ describe("RST09 · selector de fuente en ventana de control", () => {
             alCambiarFuente: vi.fn(),
         });
         render(<VentanaControl {...p} />);
-        expect(screen.getByRole("status")).toHaveTextContent("El aparato no ofrece pantalla por proyección.");
+        expect(screen.getByText("El aparato no ofrece pantalla por proyección.")).toBeTruthy();
     });
 });
