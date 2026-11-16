@@ -24,3 +24,6 @@ export interface PropsVentanaControl {
 }
 
 export type Giro = 0 | 90 | 180 | 270;
+
+export type FuentePedida = "automatica" | "proyeccion";
+
