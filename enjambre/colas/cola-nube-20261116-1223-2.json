@@ -1,0 +1,84 @@
+{
+ "ola": "nube-20261116",
+ "tareas": [
+  {
+   "id": "JL10b",
+   "ola": "JLA1116A",
+   "titulo": "Laya para el planificador: rellenar respuestasLaya del router",
+   "archivos": [
+    "src/lib/astraura/laya/preguntar-plan.ts",
+    "src/lib/astraura/laya/__tests__/preguntar-plan.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: architecture/jev-entrena-laya.md (si aún no está en el repo, rige este texto). Lee AGENTS.md. §2 (nadie rellena `respuestasLaya` del router, `src/ai/astraura/router.ts:987`). Puro con dependencias inyectadas: `respuestasParaPlan(textoTarea, deps)` llama a `preguntarALaya` (`cliente-laya.ts:76`) con el punto `plan.dificultad` y devuelve `RespuestasLaya` (`router-laya.ts`) o null si Laya no llegó a tiempo; nunca espera más que el plazo del medio. PRUEBAS con `fetch` y reloj falsos: respuesta a tiempo, plazo vencido -> null, error de red -> null, respuesta mal formada -> null.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` (Python: sin red ni `~/.starseed`, rutas y lectores se inyectan) salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/43798115047`)\nUn agente de la nube ya avanzó esta tarea (no pasa en GitHub (run 43820415679) falla «pruebas TS»: 6-11-16T07:09:30.0727787Z \u001b[2m      Tests \u001b[22m \u001b[1m\u001b[31m1 failed\u001b[39m\u001b[22m\u001b[2m | \u001b[22m\u001b[1m\u001b[32m4370 passed\u001b[39m\u001b[22m\u001b[2m | \u001b[22m\u001b[33m2 skipped\u001b[39m\u001b[90m (4373)\u001b[39m\n2026-11-16T07:09:30.0756922Z \u001b[2m   Start at \u001b[22m 07:02:17\n2026-11-16T07:09:30.0817851Z \u001b[2m   Duration \u001b[22m 432.70s\u001b[2m (transform 25.97s, setup 28.21s, collect 228.86s, tests 284.77s, environment 125.86s, prepare 34.41s)\u001b[22m\n2026-11-16T07:09:30.0856512Z \n2026-11-16T07:09:30.0881160Z \n2026-11-16T07:09:30.0922619Z ##[error]AssertionError: expected \"spy\" to be called 1 times, but got 0 times\n ❯ src/lib/banco-llamadas/__tests__/app-latido.test.ts:112:24\n\n\n2026-11-16T07:09:30.4679660Z ##[error]Process completed with exit code 1.). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/43798115047:refs/remotes/origin/nube/43798115047\"` y `git cherry-pick --no-commit 4c77ab6b5872 5f8d63923541 e05485cf0217 28ede95af76e`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/ai/astraura/router.ts, src/components/aurora/setup/aurora-setup-center.tsx, src/components/onboarding/aurora-guide.tsx, src/hooks/__tests__/use-timeout-interaction.test.ts, src/hooks/use-timeout-interaction.ts, src/lib/astraura/laya/__tests__/preguntar-plan.test.ts, src/lib/astraura/laya/preguntar-plan.ts, src/lib/mando/areas.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/43798115047"
+  },
+  {
+   "id": "MRF2",
+   "ola": "MAP1116B",
+   "titulo": "Preferencias del mapa: recordar el filtro de señales por neurona",
+   "archivos": [
+    "src/lib/senales/preferencias-mapa.ts",
+    "src/lib/senales/__tests__/preferencias-filtro.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. En `src/lib/senales/preferencias-mapa.ts` (`PreferenciasMapa` línea 17, `sanearPreferencias` 44, `leer…`/`guardar…` 64-74) añade, solo añadiendo, el campo `filtroEspectro: FiltroEspectro` con su valor por defecto `FILTRO_VACIO` y su saneado (cualquier forma rara vuelve al vacío; números finitos; listas con valores válidos). Local a la neurona (como el resto de esa clave). Lectura/escritura con try/catch como las demás. PRUEBAS: crudo roto → vacío; ida y vuelta; las preferencias viejas sin el campo siguen leyéndose. COMPRUEBA: `NODE_ENV=test npx vitest run src/lib/senales` verde y tsc acotado.\n\nREGLAS DE LA CASA (valen aunque no las repita la tarea): toca SOLO los archivos de la lista `archivos`; ≤3 archivos y ≤120 líneas por archivo (si no cabe, para y di qué falta: no lo estires ni lo resumas); sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible (la interfaz dice Genesis); sin red real en las pruebas; ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves. El asunto de tu commit empieza por `MRF2:` y dice qué comprobaste y qué NO pudiste comprobar.",
+   "dependencias_ya_en_main": [
+    "MRF1"
+   ]
+  },
+  {
+   "id": "MRI2b",
+   "ola": "MAP1116B",
+   "titulo": "Preferencias de red compartida por aparato: interruptor, tope de «con quién», topes y modo automático",
+   "archivos": [
+    "src/lib/malla/preferencias-red-compartida.ts",
+    "src/lib/malla/__tests__/preferencias-red-compartida.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Local a la neurona (localStorage, try/catch, como `src/lib/senales/preferencias-mapa.ts`). Importa `PreferenciasRedCompartida` de `./auto-compartir` y escribe `PREFERENCIAS_POR_DEFECTO` (TODO apagado: interruptor por aparato apagado, `maximoCon: \"nadie\"`, `soloWifi: true`, `kbpsSubidaMax: 1024`, `reservaBateriaPct: 30`, `automatico: false`, `compartirMedidas: false`), `sanearPreferenciasRed(crudo)` (cualquier forma rara vuelve al valor seguro, números acotados, `maximoCon` solo uno de `COMPARTIR`), `leerPreferenciasRed()` y `guardarPreferenciasRed()`. Un cambio que sube el nivel de apertura (nadie → público) devuelve `{aviso: true}` para que la interfaz pida confirmación. PRUEBAS: por defecto todo apagado; saneado de basura; subir el nivel avisa y bajarlo no; ida y vuelta. COMPRUEBA: `NODE_ENV=test npx vitest run src/lib/malla/__tests__/preferencias-red-compartida.test.ts` verde y tsc acotado.\n\nREGLAS DE LA CASA (valen aunque no las repita la tarea): toca SOLO los archivos de la lista `archivos`; ≤3 archivos y ≤120 líneas por archivo (si no cabe, para y di qué falta: no lo estires ni lo resumas); sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible (la interfaz dice Genesis); sin red real en las pruebas; ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves. El asunto de tu commit empieza por `MRI2b:` y dice qué comprobaste y qué NO pudiste comprobar.",
+   "dependencias_ya_en_main": [
+    "MRI1b"
+   ]
+  },
+  {
+   "id": "SVF1C4",
+   "ola": "SES1116B",
+   "titulo": "Hoja «Compartir en vivo»: tres decisiones y un resultado",
+   "archivos": [
+    "src/components/vivo-entidad/compartir-en-vivo.tsx",
+    "src/components/vivo-entidad/__tests__/compartir-en-vivo.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contrato: architecture/sesiones-en-vivo-entidades-y-transmisiones.md §8 flujo 1. Componente `CompartirEnVivo({abierta, alCerrar, titulo, tipo, paginasMias, crear})` donde `crear` es `compartirEnVivo` de `src/lib/vivo-entidad/estacion-de-sesion.ts` ya con sus `deps` (la hoja NO hace red). Máximo tres decisiones, el valor por defecto siempre sirve: «¿Con quién?» [Mis neuronas] [Una página o grupo ▾ (lista de `paginasMias`)] [Cualquiera con enlace]; «¿Pueden editar o solo mirar?» [Editar] [Mirar]; botón [Compartir]. Por defecto: Mis neuronas + Editar. Resultado: «Compartida. N persona(s) dentro.» y botón **Copiar enlace** (portapapeles con try/catch y aviso si no se puede). Errores en palabras de persona (incluido «Las sesiones en vivo aún no están activadas en este servidor»). Accesible: foco al abrir, Esc cierra, botones de ≥44 px, funciona a 360 px de ancho.\nPRUEBAS: por defecto manda mis-neuronas+editar; elegir «Cualquiera con enlace» fuerza el aviso de que cualquiera con el enlace podrá mirar; un `crear` que falla enseña el motivo y no «Compartida»; el botón Copiar enlace usa el enlace devuelto. COMPRUEBA: `NODE_ENV=test npx vitest run src/components/vivo-entidad/__tests__/compartir-en-vivo.test.tsx` verde y tsc acotado.\n\nREGLAS DE LA CASA (valen aunque no las repita la tarea): toca SOLO los archivos de la lista `archivos`; ≤3 archivos y ≤120 líneas por archivo (si no cabe, para y di qué falta: no lo estires ni lo resumas); sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible (la interfaz dice Genesis); sin red real en las pruebas; ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves. El asunto de tu commit empieza por `SVF1C4:` y dice qué comprobaste y qué NO pudiste comprobar.",
+   "dependencias_ya_en_main": [
+    "SVF1C2"
+   ]
+  },
+  {
+   "id": "MQA6",
+   "ola": "MOD1116",
+   "titulo": "Astraura: registrar el proveedor «abliteration» en el índice de proveedores",
+   "archivos": [
+    "src/ai/providers/types.ts",
+    "src/ai/providers/index.ts",
+    "src/ai/providers/__tests__/abliteration-registro.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Añade `\"abliteration\"` a la unión `ProviderId` de `src/ai/providers/types.ts` (línea 15) y registra `abliterationProvider` en `src/ai/providers/index.ts` junto a `groqProvider` (importación, tabla de proveedores y lista de orden ≈ líneas 12, 36 y 56), de modo que NO quede entre los primeros de la lista de orden por defecto (ni en «gratis primero»): al final y sin selección automática. Quita el `as` y el comentario `// MQA6` de `abliteration.ts` si existen (no es uno de tus archivos: déjalo y di en la prueba qué debe quitar quien lo revise). PRUEBA: el proveedor está registrado, su `info.requiresKey` es true y ocupa la última posición de la lista de orden; los demás ids siguen en su sitio.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni pytest, ni tsc, ni git, ni node, ni npm, ni curl): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj, entorno y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves (solo NOMBRES de variables, nunca valores; nunca una IP, un OCID ni un token); nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado. En Python: las pruebas son `unittest` con carpetas temporales y falsos, como las vecinas `scripts/puente/test_*.py`, y no tocan el `~/.starseed` real.",
+   "dependencias_ya_en_main": [
+    "MQA5"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1116-105020.json": [
+   "MRF2",
+   "MRI2b",
+   "SVF1C4",
+   "JL10b",
+   "MQA6"
+  ]
+ }
+}
