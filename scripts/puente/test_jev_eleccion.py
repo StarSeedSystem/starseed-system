@@ -114,5 +114,45 @@ class TestActivoPorEntorno(unittest.TestCase):
         self.assertFalse(activo_por_entorno({}))
 
 
+class TestAplicacionArriendo(unittest.TestCase):
+    """Lógica de aplicar medio_final sobre un arriendo (HAL1116A)."""
+
+    def _simular_aplicar(self, arriendo, medio_jev, sanos, cola_actual, activo):
+        """Simula la lógica de aplicar medio_final sobre un arriendo."""
+        if not activo:
+            return arriendo.copy()
+        sanos_libres = [mid for mid, m in sanos.items() if m.get("libres", 0) > 0]
+        cola_de = {mid: m.get("cola", "") for mid, m in sanos.items()}
+        medio_f, motivo = medio_final(
+            arriendo["medio"], medio_jev, sanos_libres, cola_de, cola_actual, activo
+        )
+        result = arriendo.copy()
+        result["medio"], result["motivo"] = medio_f, motivo
+        return result
+
+    def test_apagado_deja_arriendo_igual(self):
+        arriendo = {"medio": "nvidia/kimi", "motivo": "plan"}
+        sanos = {"nvidia/kimi": {"libres": 1, "cola": "cola-a"},
+                 "xkiro/qwen": {"libres": 2, "cola": "cola-a"}}
+        result = self._simular_aplicar(arriendo, "xkiro/qwen", sanos, "cola-a", False)
+        self.assertEqual(result["medio"], "nvidia/kimi")
+        self.assertEqual(result["motivo"], "plan")
+
+    def test_activo_valido_cambia_medio_y_motivo(self):
+        arriendo = {"medio": "nvidia/kimi", "motivo": "plan"}
+        sanos = {"nvidia/kimi": {"libres": 1, "cola": "cola-a"},
+                 "xkiro/qwen": {"libres": 2, "cola": "cola-a"}}
+        result = self._simular_aplicar(arriendo, "xkiro/qwen", sanos, "cola-a", True)
+        self.assertEqual(result["medio"], "xkiro/qwen")
+        self.assertEqual(result["motivo"], "Jev")
+
+    def test_elegir_medio_que_lanza_no_cambia_nada(self):
+        arriendo = {"medio": "nvidia/kimi", "motivo": "plan"}
+        sanos = {"nvidia/kimi": {"libres": 1, "cola": "cola-a"}}
+        result = self._simular_aplicar(arriendo, "xkiro/qwen", sanos, "cola-a", True)
+        self.assertEqual(result["medio"], "nvidia/kimi")
+        self.assertIn("Jev eligió xkiro/qwen", result["motivo"])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
