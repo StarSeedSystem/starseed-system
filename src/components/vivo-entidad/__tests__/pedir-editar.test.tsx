@@ -4,7 +4,7 @@
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { PedirEditar, type ResultadoPedir } from "../pedir-editar";
+import { PedirEditar, pedirEdicionDeSpaces, type ResultadoPedir } from "../pedir-editar";
 import { AppearanceProvider } from "@/context/appearance-context";
 import type { RangoSesion } from "@/lib/vivo-entidad/traduccion-roles";
 
@@ -85,5 +85,23 @@ describe("PedirEditar (SES1116B)", () => {
         );
         fireEvent.click(screen.getByTestId("boton-pedir-editar"));
         expect(await screen.findByTestId("estado-peticion").then((n) => n.textContent)).toBe("Sesión cerrada");
+    });
+});
+
+describe("pedirEdicionDeSpaces — integración con requestSpaceAccess (sin red)", () => {
+    it("mapea la respuesta de spaces: ok → pedida, alreadyMember → ya puedes editar, fallo → error", async () => {
+        const pedida = pedirEdicionDeSpaces("espacio-1", async () => ({ ok: true }));
+        expect(await pedida()).toEqual({ estado: "pedida" });
+        const socio = pedirEdicionDeSpaces("espacio-1", async () => ({ ok: true, alreadyMember: true }));
+        expect(await socio()).toEqual({ estado: "puede-editar" });
+        const fallo = pedirEdicionDeSpaces("espacio-1", async () => ({ ok: false }));
+        expect(await fallo()).toEqual({ estado: "error", motivo: "No se pudo enviar la petición" });
+    });
+
+    it("un pedirAcceso que rechaza enseña el motivo tal cual", async () => {
+        const pedir = pedirEdicionDeSpaces("espacio-1", async () => {
+            throw new Error("Sin conexión");
+        });
+        expect(await pedir()).toEqual({ estado: "error", motivo: "Sin conexión" });
     });
 });
