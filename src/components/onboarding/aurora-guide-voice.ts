@@ -41,6 +41,103 @@ export function auroraBridge(): AuroraBridgeLite | null {
   }
 }
 
+// ── LECTURA DE LA VOZ, CLASIFICADA (sin catch silencioso) ────────────────────
+// (IMG · «catch silencioso en auroraTranscript») Antes, `auroraTranscript()`
+// envolvía la lectura del puente en un `catch` mudo que devolvía "": un motor
+// caído era INDISTINGUIBLE de «Aurora todavía no ha hablado», y la guía seguía
+// con el badge «Escuchando» mintiendo. Ahora la lectura se CLASIFICA y el aviso
+// sale de verdad: la persona sabe que la voz no está y sigue con los botones.
+
+/** El estado que publica el puente (solo lo que la guía necesita). */
+export type EstadoVozCrudo =
+  | {
+      enabled?: boolean;
+      speaking?: boolean;
+      listening?: boolean;
+      transcript?: string;
+      interim?: string;
+    }
+  | null
+  | undefined;
+
+/** Lo mínimo del puente para poder leer la voz. */
+export type PuenteVozLite = { getState?: () => EstadoVozCrudo };
+
+/** La lectura de la voz: dice si Aurora escucha, si no está o si falló. */
+export type LecturaVoz = {
+  estado: "ok" | "sin-puente" | "fallo";
+  /** Lo que se ha oído ("" si nada). */
+  texto: string;
+  /** ¿El puente dice que está escuchando? */
+  escuchando: boolean;
+  /** Por qué no es una lectura normal (vacío cuando `estado` es "ok"). */
+  motivo?: string;
+};
+
+/** El texto oído: lo dicho + lo provisional, sin espacios de sobra. */
+export function componerTranscript(
+  transcript: string | undefined,
+  interim: string | undefined,
+): string {
+  return [transcript ?? "", interim ?? ""]
+    .map((t) => t.trim())
+    .filter((t) => t.length > 0)
+    .join(" ");
+}
+
+/** El motivo de un fallo, en una frase corta (sin volcar la pila a la cara). */
+function motivoDeError(e: unknown): string {
+  if (e instanceof Error && e.message) return e.message.slice(0, 140);
+  if (typeof e === "string" && e.trim()) return e.trim().slice(0, 140);
+  return "Aurora no ha respondido.";
+}
+
+/**
+ * Lee el estado de la voz SIN TRAGARSE los fallos: si el puente revienta, la
+ * lectura lo dice («fallo») en vez de devolver un vacío indistinguible del
+ * silencio. Nunca lanza.
+ *
+ * · "ok" → el puente respondió (aunque todavía no haya hablado).
+ * · "sin-puente" → no hay Aurora en este aparato: no hay voz, pero no es un fallo.
+ * · "fallo" → el puente existe y ha petado: el motivo viaja en `motivo`.
+ */
+export function leerEstadoVoz(puente: PuenteVozLite | null | undefined): LecturaVoz {
+  if (!puente) {
+    return {
+      estado: "sin-puente",
+      texto: "",
+      escuchando: false,
+      motivo: "Aurora no está disponible en este aparato.",
+    };
+  }
+  const leer = puente.getState;
+  // Un puente sin lector no es un fallo: no hay nada que avisar.
+  if (typeof leer !== "function") return { estado: "ok", texto: "", escuchando: false };
+  try {
+    const s = leer();
+    if (!s) return { estado: "ok", texto: "", escuchando: false };
+    return {
+      estado: "ok",
+      texto: componerTranscript(s.transcript, s.interim),
+      escuchando: s.listening === true,
+    };
+  } catch (e) {
+    return { estado: "fallo", texto: "", escuchando: false, motivo: motivoDeError(e) };
+  }
+}
+
+/**
+ * El aviso honesto que ve la persona (null cuando todo va bien). Siempre dice
+ * que la guía sigue en texto: nadie se queda esperando a una voz que no llega.
+ */
+export function textoAvisoVoz(lectura: LecturaVoz): string | null {
+  if (lectura.estado === "ok") return null;
+  if (lectura.estado === "sin-puente") {
+    return "Aurora no está disponible ahora mismo en este aparato: la guía sigue en texto. Avanza con los botones.";
+  }
+  return `Aurora no ha respondido: ${lectura.motivo ?? "su motor está caído"}. La guía sigue en texto: avanza con los botones.`;
+}
+
 /** ¿Está el puente listo para hablar? */
 export function auroraCanSpeak(): boolean {
   try {
@@ -116,14 +213,13 @@ export function auroraEnsureListening(): void {
   }
 }
 
-/** Lee el transcript actual de la escucha de voz (o "" si no hay puente). */
+/**
+ * Lee el transcript actual de la escucha de voz (o "" si no hay puente o si el
+ * motor falla). El fallo ya NO se traga en silencio: la lectura va clasificada
+ * (`leerEstadoVoz`) y quien la use puede decirlo en voz alta.
+ */
 export function auroraTranscript(): string {
-  try {
-    const s = auroraBridge()?.getState?.();
-    return (s?.transcript ?? "") + " " + (s?.interim ?? "");
-  } catch {
-    return "";
-  }
+  return leerEstadoVoz(auroraBridge()).texto;
 }
 
 /** ¿Aurora está actualmente encendida (enabled) según su estado? */
