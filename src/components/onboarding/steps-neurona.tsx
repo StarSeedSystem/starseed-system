@@ -30,6 +30,7 @@ import { hayDireccionPublica, AVISO_SIN_DOMINIO } from "@/lib/mail/direccion-pub
 import { estadoCorreo, type EstadoCorreo } from "@/lib/mail/estado-correo";
 import { detectar, recomendar, MODELOS, CONCIENCIAS, type HW } from "@/lib/onboarding/neuron-recommend";
 import AgentRecommendation from "./agent-recommendation";
+import { ErrorMessage, InlineError } from "@/components/ui/error-message";
 
 const selectCls =
   "w-full rounded-lg border border-white/15 bg-black/30 p-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-cyan-400/50";
@@ -196,7 +197,13 @@ export function StepCerebros() {
             <option value="local">Solo local en esta neurona — máxima soberanía, sin réplica remota</option>
           </select>
         </label>
-        {nota && <p className="text-xs text-amber-300/90">{nota}</p>}
+        {nota && (
+          <InlineError
+            message={nota}
+            severity={nota.includes("No pude") ? "error" : "warning"}
+            fieldId="cerebros-nota"
+          />
+        )}
       </div>
     </div>
   );
@@ -554,7 +561,13 @@ export function CorreosVinculados({
           </div>
         );
       })()}
-      {nota && <p className="text-[11px] text-cyan-200/80">{nota}</p>}
+      {nota && (
+          <InlineError
+            message={nota}
+            severity={nota.includes("No se pudo") || nota.includes("No pude") ? "error" : "warning"}
+            fieldId="correos-nota"
+          />
+        )}
     </div>
   );
 }
