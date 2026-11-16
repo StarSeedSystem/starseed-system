@@ -16,10 +16,11 @@ export interface AlmacenModelos {
 export interface DepsMotorLocal {
     instalado: (origen: string, destino: string) => Promise<boolean>;
     cargarPipeline: (modeloId: string) => Promise<PipelineCargado>;
+    almacenModelos?: AlmacenModelos;
     alcance?: AlcanceMotor;
 }
 
-async function cargarPipelineTransformers(
+export async function cargarPipelineTransformers(
     urlModulo: string,
     _almacenModelos: AlmacenModelos,
 ): Promise<PipelineCargado> {
