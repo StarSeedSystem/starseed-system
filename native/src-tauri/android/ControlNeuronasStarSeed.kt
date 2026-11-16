@@ -599,6 +599,7 @@ class ServicioControlNeuronas : Service() {
     override fun onDestroy() {
         // Si Android mata el servicio con la sesión viva, el indicador ya no está: termina.
         if (ControlNeuronasNativo.mostrando) ControlNeuronasNativo.terminar("no-se-pudo-mostrar")
+        ControlNeuronasNativo.pausarLocal = null // UNI1116B: no retener el servicio que se va
         quitarSuperposicion()
         principal.removeCallbacks(latido)
         super.onDestroy()
