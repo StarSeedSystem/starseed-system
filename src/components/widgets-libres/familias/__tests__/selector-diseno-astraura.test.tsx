@@ -1,4 +1,5 @@
 import '@testing-library/jest-dom/vitest'
+import { describe, test, beforeEach, vi, expect } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { SelectorDisenoAstraura } from '../selector-diseno-astraura'
 

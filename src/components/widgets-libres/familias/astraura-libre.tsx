@@ -20,7 +20,8 @@ import { AURORA_EXOCORTEX_OPEN_EVENT } from "@/lib/aurora/aurora-orb-bus";
 import { getAuroraBridge, openAurora } from "@/lib/aurora/open-aurora";
 import { Rotulo, disenoDe, recortarPalabras } from "./comun";
 import { PilaAjustable, Prescindible } from "@/components/dashboard/kit/pila-ajustable";
-import { Accion, escalaTipo, esTactil, haceCuanto, useClaseForzada, useDispositivo, useEnPantalla } from "./inicio-piezas";
+import { Accion, escalaTipo, esTactil, haceCuanto, useClaseForzada, useDispositivo, useEnPantalla } from "./inicio-piezas"
+import { SelectorDisenoAstraura } from "./selector-diseno-astraura";
 import type { DashboardWidget } from "@/components/dashboard/dashboard-types";
 
 const VIOLETA = "#7c5cff";
@@ -253,6 +254,7 @@ export function AstrauraLibre({ widget, onUpdateSettings }: { widget?: Dashboard
                                 <div className="flex flex-wrap justify-center gap-1.5">
                                     {botonVoz}
                                     <Accion icono={MessageCircle} color={VIOLETA} grande={tactil} onClick={abrirChat} aria-label="Abrir el chat de Astraura">Chat</Accion>
+                                             <SelectorDisenoAstraura valor={diseno} onCambiar={elegir} degradado={false} />
                                 </div>
                             </div>
                             <PilaAjustable niveles={8} className="min-w-0 flex-1 self-stretch">
