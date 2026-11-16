@@ -244,7 +244,7 @@ describe("AnuncioEstado", () => {
         const statusRegion = screen.queryByRole("status", { hidden: true });
         if (estado !== "calma") {
           expect(statusRegion).not.toBeNull();
-          expect(statusRegion.textContent).toContain("Astraura");
+          expect(statusRegion!.textContent).toContain("Astraura");
         } else {
           expect(statusRegion).toBeNull();
         }
