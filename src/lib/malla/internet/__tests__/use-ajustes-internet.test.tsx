@@ -24,7 +24,7 @@ describe("useAjustesInternet", () => {
   describe("valores iniciales", () => {
     it("devuelve AJUSTES_APAGADOS al montar cuando no hay datos en localStorage", () => {
       const { result } = renderHook(() =>
-        useAjustesInternet({ ahora: ahoraBase, desfaseMin: desfaseBase })
+        useAjustesInternet({ ahora: () => ahoraBase, desfaseMin: desfaseBase })
       );
       expect(result.current.ajustes).toEqual(AJUSTES_APAGADOS);
       expect(result.current.contadores).toBeDefined();
@@ -33,19 +33,19 @@ describe("useAjustesInternet", () => {
 
     it("el primer render del servidor y del cliente es el MISMO (AJUSTES_APAGADOS)", () => {
       const { result, unmount } = renderHook(() =>
-        useAjustesInternet({ ahora: ahoraBase, desfaseMin: desfaseBase })
+        useAjustesInternet({ ahora: () => ahoraBase, desfaseMin: desfaseBase })
       );
       expect(result.current.ajustes).toEqual(AJUSTES_APAGADOS);
       unmount();
       const { result: result2 } = renderHook(() =>
-        useAjustesInternet({ ahora: ahoraBase, desfaseMin: desfaseBase })
+        useAjustesInternet({ ahora: () => ahoraBase, desfaseMin: desfaseBase })
       );
       expect(result2.current.ajustes).toEqual(AJUSTES_APAGADOS);
     });
 
     it("inicializa contadores con valores vacíos usando contadoresVacios", () => {
       const { result } = renderHook(() =>
-        useAjustesInternet({ ahora: ahoraBase, desfaseMin: desfaseBase })
+        useAjustesInternet({ ahora: () => ahoraBase, desfaseMin: desfaseBase })
       );
       expect(result.current.contadores.bytesDia["mi-cuenta"]).toBe(0);
       expect(result.current.contadores.bytesMes["mi-cuenta"]).toBe(0);
@@ -55,7 +55,7 @@ describe("useAjustesInternet", () => {
   describe("cambiar", () => {
     it("guarda ajustes parciales y re-renderiza", () => {
       const { result } = renderHook(() =>
-        useAjustesInternet({ ahora: ahoraBase, desfaseMin: desfaseBase })
+        useAjustesInternet({ ahora: () => ahoraBase, desfaseMin: desfaseBase })
       );
 
       act(() => {
@@ -68,7 +68,7 @@ describe("useAjustesInternet", () => {
 
     it("no toca campos que no se especifican (merge parcial)", () => {
       const { result } = renderHook(() =>
-        useAjustesInternet({ ahora: ahoraBase, desfaseMin: desfaseBase })
+        useAjustesInternet({ ahora: () => ahoraBase, desfaseMin: desfaseBase })
       );
 
       const originalCompartir = result.current.ajustes.compartirConOtros;
@@ -82,7 +82,7 @@ describe("useAjustesInternet", () => {
 
     it("guarda en localStorage y persiste entre renders", () => {
       const { result } = renderHook(() =>
-        useAjustesInternet({ ahora: ahoraBase, desfaseMin: desfaseBase })
+        useAjustesInternet({ ahora: () => ahoraBase, desfaseMin: desfaseBase })
       );
 
       act(() => {
@@ -98,7 +98,7 @@ describe("useAjustesInternet", () => {
   describe("evento storage", () => {
     it("actualiza ajustes al recibir evento storage de otra pestaña", () => {
       const { result } = renderHook(() =>
-        useAjustesInternet({ ahora: ahoraBase, desfaseMin: desfaseBase })
+        useAjustesInternet({ ahora: () => ahoraBase, desfaseMin: desfaseBase })
       );
 
       expect(result.current.ajustes.banco.activo).toBe(false);
@@ -128,7 +128,7 @@ describe("useAjustesInternet", () => {
 
     it("ignora evento storage de otra clave", () => {
       const { result } = renderHook(() =>
-        useAjustesInternet({ ahora: ahoraBase, desfaseMin: desfaseBase })
+        useAjustesInternet({ ahora: () => ahoraBase, desfaseMin: desfaseBase })
       );
 
       const valoresIniciales = result.current.ajustes;
@@ -143,7 +143,7 @@ describe("useAjustesInternet", () => {
 
     it("ignora evento storage con clave null (localStorage.clear)", () => {
       const { result } = renderHook(() =>
-        useAjustesInternet({ ahora: ahoraBase, desfaseMin: desfaseBase })
+        useAjustesInternet({ ahora: () => ahoraBase, desfaseMin: desfaseBase })
       );
 
       act(() => {
@@ -162,7 +162,7 @@ describe("useAjustesInternet", () => {
     it("limpia suscriptores al unmount", () => {
       let llamadas = 0;
       const { result, unmount } = renderHook(() =>
-        useAjustesInternet({ ahora: ahoraBase, desfaseMin: desfaseBase })
+        useAjustesInternet({ ahora: () => ahoraBase, desfaseMin: desfaseBase })
       );
 
       const listener = vi.fn(() => { llamadas++; });
@@ -194,7 +194,7 @@ describe("useAjustesInternet", () => {
   describe("cambiar no enciende compartirConOtros", () => {
     it("cambiar a true en compartirConOtros lo hace", () => {
       const { result } = renderHook(() =>
-        useAjustesInternet({ ahora: ahoraBase, desfaseMin: desfaseBase })
+        useAjustesInternet({ ahora: () => ahoraBase, desfaseMin: desfaseBase })
       );
 
       act(() => {
@@ -206,7 +206,7 @@ describe("useAjustesInternet", () => {
 
     it("cambiar a false lo apaga", () => {
       const { result } = renderHook(() =>
-        useAjustesInternet({ ahora: ahoraBase, desfaseMin: desfaseBase })
+        useAjustesInternet({ ahora: () => ahoraBase, desfaseMin: desfaseBase })
       );
 
       act(() => {
@@ -221,7 +221,7 @@ describe("useAjustesInternet", () => {
   describe("restanteHoyMb", () => {
     it("devuelve null cuando el banco está inactivo", () => {
       const { result } = renderHook(() =>
-        useAjustesInternet({ ahora: ahoraBase, desfaseMin: desfaseBase })
+        useAjustesInternet({ ahora: () => ahoraBase, desfaseMin: desfaseBase })
       );
 
       expect(result.current.restanteHoyMb).toBeNull();
@@ -229,7 +229,7 @@ describe("useAjustesInternet", () => {
 
     it("devuelve el restante cuando el banco está activo", () => {
       const { result } = renderHook(() =>
-        useAjustesInternet({ ahora: ahoraBase, desfaseMin: desfaseBase })
+        useAjustesInternet({ ahora: () => ahoraBase, desfaseMin: desfaseBase })
       );
 
       act(() => {
@@ -243,7 +243,7 @@ describe("useAjustesInternet", () => {
 
     it("actualiza restanteHoyMb al cambiar el banco", () => {
       const { result } = renderHook(() =>
-        useAjustesInternet({ ahora: ahoraBase, desfaseMin: desfaseBase })
+        useAjustesInternet({ ahora: () => ahoraBase, desfaseMin: desfaseBase })
       );
 
       act(() => {
@@ -269,7 +269,7 @@ describe("useAjustesInternet", () => {
       const almacen = crearAlmacen({});
       const { result } = renderHook(() =>
         useAjustesInternet({
-          ahora: ahoraBase,
+          ahora: () => ahoraBase,
           desfaseMin: desfaseBase,
           almacen,
         })
@@ -282,7 +282,7 @@ describe("useAjustesInternet", () => {
       const ahoraEspecifico = 1600000000000;
       const { result } = renderHook(() =>
         useAjustesInternet({
-          ahora: ahoraEspecifico,
+          ahora: () => ahoraEspecifico,
           desfaseMin: 120,
         })
       );
@@ -293,7 +293,7 @@ describe("useAjustesInternet", () => {
     it("usa almacen predeterminado si no se proporciona", () => {
       const { result } = renderHook(() =>
         useAjustesInternet({
-          ahora: ahoraBase,
+          ahora: () => ahoraBase,
           desfaseMin: desfaseBase,
         })
       );
