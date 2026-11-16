@@ -6,6 +6,7 @@ import {
     esNeuronaNueva,
     esRutaPropia,
     MARGEN_ARRANQUE_MS,
+    recuperacionTrasFallo,
     resumenSincronizado,
     type EntradaPrimerArranque,
     type EstadoNeurona,
@@ -137,6 +138,29 @@ describe("decidirPrimerArranque · «Esta neurona» en la app nativa (NEU1107B)"
         expect(decidirPrimerArranque(cuenta({ bienvenida: "pendiente", tienePerfil: false }))).toEqual({ tipo: "nada", motivo: "cuenta-nueva" });
         expect(decidirPrimerArranque(cuenta({ bienvenida: "pendiente", esConsola: true, ruta: "/genesis" })).tipo).toBe("nada");
         expect(decidirPrimerArranque(cuenta({ bienvenida: "pendiente", ritoEnCurso: true }))).toEqual({ tipo: "nada", motivo: "rito" });
+    });
+});
+
+describe("recuperacionTrasFallo · el fallo al reunir datos no es silencioso ni deshace lo sabido", () => {
+    it("conserva la sesión ya resuelta: nunca la regresa a «comprobando»", () => {
+        expect(recuperacionTrasFallo("cuenta", true).sesion).toBe("cuenta");
+        expect(recuperacionTrasFallo("sin-sesion", true).sesion).toBe("sin-sesion");
+        expect(recuperacionTrasFallo("invitado", true).sesion).toBe("invitado");
+    });
+
+    it("con la sesión aún sin resolver rearma un reintento, una sola vez", () => {
+        expect(recuperacionTrasFallo("comprobando", false)).toEqual({ sesion: "comprobando", reintentar: true });
+        expect(recuperacionTrasFallo("comprobando", true)).toEqual({ sesion: "comprobando", reintentar: false });
+    });
+
+    it("con la cuenta resuelta pero los datos a medias también toca reintentar una vez", () => {
+        expect(recuperacionTrasFallo("cuenta", false)).toEqual({ sesion: "cuenta", reintentar: true });
+        expect(recuperacionTrasFallo("cuenta", true)).toEqual({ sesion: "cuenta", reintentar: false });
+    });
+
+    it("una sesión cerrada (sin sesión, invitado) no rearma nada: no hay bucle", () => {
+        expect(recuperacionTrasFallo("sin-sesion", false)).toEqual({ sesion: "sin-sesion", reintentar: false });
+        expect(recuperacionTrasFallo("invitado", false)).toEqual({ sesion: "invitado", reintentar: false });
     });
 });
 

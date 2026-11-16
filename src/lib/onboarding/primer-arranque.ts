@@ -135,6 +135,29 @@ export function creadaDesde(createdAt: string | null | undefined, arranqueMs: nu
     return Number.isFinite(t) && t >= arranqueMs - margenMs;
 }
 
+/* ─────────────────────── Qué hacer si falla la reunión de datos ─────────────────────── */
+
+export interface RecuperacionFalloEvaluar {
+    /** Sesión que queda tras el fallo: la ya resuelta se conserva. */
+    sesion: EstadoSesion;
+    /** Toca reintentar, una sola vez, cuando la cuenta vuelva a ser fiable. */
+    reintentar: boolean;
+}
+
+/**
+ * El catch de `evaluar` (componente) reunía la sesión, el perfil y la neurona y, ante
+ * cualquier fallo, volvía a «comprobando» en silencio: deshacía lo ya sabido y dejaba
+ * el arranque esperando sin rastro. Esta decisión pura lo evita:
+ *   · la sesión resuelta se conserva (lo sabido no se deshace);
+ *   · si aún falta saber algo (sesión sin resolver o cuenta a medias), se rearma UN
+ *     reintento — el llamador solo lo hace si no lo hizo ya, así que nunca hay bucle;
+ *   · una sesión cerrada (sin sesión, invitado) no rearma nada.
+ */
+export function recuperacionTrasFallo(sesionActual: EstadoSesion, yaReintentado: boolean): RecuperacionFalloEvaluar {
+    const faltaSaber = sesionActual === "comprobando" || sesionActual === "cuenta";
+    return { sesion: sesionActual, reintentar: faltaSaber && !yaReintentado };
+}
+
 /* ─────────────────────────── Qué llegó ya de la cuenta ─────────────────────────── */
 
 export interface ConteoSincronizado {
