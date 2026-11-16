@@ -74,10 +74,11 @@ function validarAjustes(guardados: unknown, defectos: AjustesInternet): AjustesI
   const obj = guardados as Record<string, unknown>;
   if (obj.version !== 1) return defectos;
 
+  const porAudienciaRaw = obj.porAudiencia as Record<Audiencia, unknown> | undefined;
   const porAudiencia: Record<Audiencia, AjustesAudiencia> = {
-    'mi-cuenta': validarAudiencia(obj.porAudiencia?.['mi-cuenta'], defectos.porAudiencia['mi-cuenta']),
-    entidad: validarAudiencia(obj.porAudiencia?.['entidad'], defectos.porAudiencia.entidad),
-    publico: validarAudiencia(obj.porAudiencia?.['publico'], defectos.porAudiencia.publico),
+    'mi-cuenta': validarAudiencia(porAudienciaRaw?.['mi-cuenta'], defectos.porAudiencia['mi-cuenta']),
+    entidad: validarAudiencia(porAudienciaRaw?.entidad, defectos.porAudiencia.entidad),
+    publico: validarAudiencia(porAudienciaRaw?.publico, defectos.porAudiencia.publico),
   };
 
   return {
