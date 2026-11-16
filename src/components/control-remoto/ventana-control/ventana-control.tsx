@@ -11,8 +11,9 @@ import type { Giro, PropsVentanaControl } from "./tipos";
 import { ajustar, deltaACuadro, puntoEnPantalla, tamanoGirado, type Caja } from "./geometria";
 import { GestorToque } from "./gestor-toque";
 import { trocear } from "./texto";
+import { SelectorFuente } from "./selector-fuente";
 
-export type { EntradaControl, PropsVentanaControl } from "./tipos";
+export type { EntradaControl, PropsVentanaControl, FuentePedida } from "./tipos";
 
 const BARRA_PX = 40;
 const FILA_PX = 36;
@@ -513,15 +514,26 @@ export function VentanaControl(props: PropsVentanaControl) {
         </button>
     );
 
+    const selector = props.alCambiarFuente && (
+        <SelectorFuente
+            pedida={props.fuentePedida ?? "auto"}
+            real={props.fuenteReal ?? null}
+            aviso={props.avisoFuente}
+            onCambiar={props.alCambiarFuente}
+        />
+    );
+
     const base = "flex flex-col overflow-hidden border border-white/10 bg-[#0b0f1a]/95 text-white shadow-2xl backdrop-blur-xl";
 
     if (modo === "pagina") {
+        const mostrarSelector = props.alCambiarFuente && (mandosAbiertos || nivel === "ver");
         return (
             <section role="region" aria-label={`Control de ${nombre}`} tabIndex={-1} onKeyDown={alTeclear} className={`${base} h-full w-full min-h-0 outline-none`} data-testid="ventana-control" data-ventana-control data-modo="pagina">
                 <header className="flex h-10 shrink-0 items-center gap-2 border-b border-white/10 px-3">
                     <h2 className="min-w-0 flex-1 truncate text-sm font-semibold">{nombre}</h2>
                     {nota}
                     {chip}
+                    {nivel === "ver" && mostrarSelector && selector}
                     {botonCerrar}
                 </header>
                 <div className="flex min-h-0 flex-1 flex-col md:flex-row">
@@ -532,6 +544,7 @@ export function VentanaControl(props: PropsVentanaControl) {
                     {nivel === "controlar" && (
                         <div className="max-h-[45%] shrink-0 overflow-y-auto border-t border-white/10 md:max-h-none md:w-80 md:border-l md:border-t-0">
                             <Controles p={props} />
+                            {mandosAbiertos && mostrarSelector && selector}
                         </div>
                     )}
                 </div>
@@ -552,11 +565,13 @@ export function VentanaControl(props: PropsVentanaControl) {
                     {nombre}
                 </button>
                 {chip}
+                {props.alCambiarFuente && selector}
                 {botonCerrar}
             </div>
         );
     }
 
+    const mostrarSelector = props.alCambiarFuente && (mandosAbiertos || nivel === "ver");
     return (
         <div
             role="dialog"
@@ -582,6 +597,7 @@ export function VentanaControl(props: PropsVentanaControl) {
                 <h2 className="min-w-0 flex-1 truncate pl-1 text-[13px] font-semibold">{nombre}</h2>
                 {nota}
                 {chip}
+                {nivel === "ver" && mostrarSelector && selector}
                 {nivel === "controlar" && (
                     <button type="button" onClick={() => setMandosAbiertos((v) => !v)} aria-pressed={mandosAbiertos} className="min-h-10 cursor-pointer rounded-lg px-2 text-[12px] text-white/80 hover:bg-white/10">
                         Controles
@@ -599,6 +615,7 @@ export function VentanaControl(props: PropsVentanaControl) {
             {nivel === "controlar" && mandosAbiertos && (
                 <div className="min-h-0 shrink overflow-y-auto border-t border-white/10">
                     <Controles p={props} />
+                    {mostrarSelector && selector}
                 </div>
             )}
             <div

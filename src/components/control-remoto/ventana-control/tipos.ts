@@ -1,5 +1,9 @@
 /** VEN1115L · tipos de la ventana de control (costura 3 del trabajo «control entre neuronas, fases 2–3»). */
 
+import type { FuentePedida } from "@/lib/control-remoto/fuente-pantalla";
+
+export { type FuentePedida };
+
 export type EntradaControl =
     | { tipo: "gesto"; dedos: { id: number; puntos: [number, number, number][] }[]; sigue: boolean }
     | { tipo: "tecla"; cual: string }
@@ -21,6 +25,10 @@ export interface PropsVentanaControl {
     fps?: number;
     alEnviar: (e: EntradaControl) => void;
     alCerrar: () => void;
+    fuentePedida?: FuentePedida;
+    fuenteReal?: "accesibilidad" | "proyeccion" | null;
+    avisoFuente?: string | null;
+    alCambiarFuente?: (f: FuentePedida) => void;
 }
 
 export type Giro = 0 | 90 | 180 | 270;
