@@ -7,8 +7,8 @@
  * (127.0.0.1:4500 a través de `/api/voz/salud`), el nivel de voz detectado y
  * la preferencia del usuario, y permite probar la neurona con una frase.
  *
- * Si el demonio está apagado, enseña el comando exacto para levantarlo
- * (el usuario lo ejecuta en su terminal; el OS nunca lo arranca solo).
+ * Si el demonio está apagado, indica que debe iniciarse el daemon local.
+ * (El usuario lo ejecuta en su terminal; el OS nunca lo arranca solo).
  */
 
 import { useCallback, useEffect, useState } from "react";
@@ -70,12 +70,6 @@ const OPCIONES_PREFERENCIA: { valor: PreferenciaNivel; etiqueta: string }[] = [
     { valor: "ligera", etiqueta: "Ligera" },
     { valor: "minima", etiqueta: "Mínima" },
 ];
-
-const COMANDO_DAEMON =
-    "~/.starseed/astraura-voice/omnivoice.cpp/build/tts-server " +
-    "--model omnivoice-base-Q8_0.gguf " +
-    "--codec omnivoice-tokenizer-Q8_0.gguf " +
-    "--host 127.0.0.1 --port 4500 --lang Spanish";
 
 export function PanelMotorVoz() {
     const [capacidades, setCapacidades] = useState<Capacidades | null>(null);
@@ -395,23 +389,7 @@ export function PanelMotorVoz() {
                         </div>
                     )}
 
-                    {/* Comando para levantar el demonio cuando está apagado */}
-                    {salud?.estado === "apagado" && (
-                        <div className="space-y-2 rounded-lg border border-amber-500/40 bg-amber-500/5 p-3">
-                            <p className="text-sm">
-                                El demonio está apagado. Para tener los niveles Estudio y Alta,
-                                ejecútalo en la terminal de esta neurona:
-                            </p>
-                            <pre className="overflow-x-auto rounded-md bg-muted p-3 text-xs">
-                                <code>{COMANDO_DAEMON}</code>
-                            </pre>
-                            <p className="text-xs text-muted-foreground">
-                                Variante más ligera (nivel Alta): sustituye los modelos por
-                                omnivoice-base-Q4_K_M.gguf y omnivoice-tokenizer-Q4_K_M.gguf.
-                            </p>
-                        </div>
-                    )}
-                </CardContent>
+                    </CardContent>
             </Card>
 
             {/* Los cuatro niveles del motor único */}
