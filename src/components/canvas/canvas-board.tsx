@@ -46,6 +46,16 @@ import { cn } from "@/lib/utils";
 import { claveDeHerramienta, claveDeMolecula, atributosClave } from "@/lib/variaciones/claves-protomolecula";
 import { leerBloque } from "@/lib/protomolecula/bloque-protomolecula";
 import { usePrompt } from "@/components/ui/confirm-dialog";
+
+// SES1115Q
+const CompartirEnVivo = dynamic(() => import("@/components/vivo-entidad/compartir-en-vivo"), {
+  ssr: false,
+  loading: () => null,
+});
+const MarcaDirecto = dynamic(() => import("@/components/vivo-entidad/marca-directo").then((m) => ({ default: m.MarcaDirecto })), {
+  ssr: false,
+  loading: () => null,
+});
 import {
   Plus,
   Save,
@@ -358,6 +368,7 @@ export default function CanvasBoard({
   const [showAdd, setShowAdd] = useState(false);
   const [showSwitcher, setShowSwitcher] = useState(false);
   const [showSharedBoards, setShowSharedBoards] = useState(false); // "Pizarras compartidas conmigo"
+  const [showCompartirVivo, setShowCompartirVivo] = useState(false); // SES1115Q: Dialog «Compartir en vivo»
   const [boardShareOpen, setBoardShareOpen] = useState(false); // Dialog «Compartir pizarra…»
   const [renaming, setRenaming] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
@@ -1202,7 +1213,10 @@ export default function CanvasBoard({
               />
             ) : (
               <button onClick={startRename} className="group flex items-center gap-1.5 min-w-0 text-left">
-                <span className="text-sm font-semibold text-amber-50 truncate max-w-[12rem]">{canvas.title}</span>
+<span className="text-sm font-semibold text-amber-50 truncate max-w-[12rem]">
+            {canvas.title}
+            {boardSpaceId && <MarcaDirecto directo={true} personas={null} compacto />}
+          </span>
                 <Pencil className="w-3.5 h-3.5 text-white/30 group-hover:text-cyan-300 shrink-0" />
               </button>
             )}
@@ -1582,8 +1596,31 @@ export default function CanvasBoard({
             <Switch checked={canvas.shared} onCheckedChange={toggleShared} />
           </span>
 
-          {/* Compartir pizarra… → espacio colaborativo (os_spaces kind='board') */}
-          <BoardShareTrigger onClick={() => setBoardShareOpen(true)} />
+{/* Compartir pizarra… → espacio colaborativo (os_spaces kind='board') */}
+           <BoardShareTrigger onClick={() => setBoardShareOpen(true)} />
+
+           {/* SES1115Q: Compartir en vivo */}
+           {boardSpaceId ? (
+             <button
+               size="sm"
+               variant="outline"
+               className="gap-1.5 h-8 border-amber-500/30 text-amber-100 cursor-pointer"
+               onClick={() => setShowCompartirVivo(true)}
+               title="Compartir en vivo"
+             >
+               <Share2 className="w-3.5 h-3.5" /> Compartir en vivo
+             </button>
+           ) : (
+             <button
+               size="sm"
+               variant="outline"
+               className="gap-1.5 h-8 border-amber-500/30 text-amber-100 cursor-pointer"
+               onClick={() => setShowCompartirVivo(true)}
+               title="Compartir en vivo desde esta pizarra"
+             >
+               <Share2 className="w-3.5 h-3.5" /> Compartir en vivo
+             </button>
+           )}
 
           <Button size="sm" className="gap-1.5 h-8 bg-amber-600 hover:bg-amber-500 text-white" onClick={publishNowGated}>
             <Send className="w-3.5 h-3.5" /> Publicar
@@ -1868,6 +1905,24 @@ export default function CanvasBoard({
 
       {/* Dialog · Compartir pizarra (espacio colaborativo os_spaces kind='board') */}
       <BoardShareDialog canvas={canvas} open={boardShareOpen} onClose={() => setBoardShareOpen(false)} />
+
+      {/* Dialog · Compartir en vivo (SES1115Q) */}
+      <Dialog
+        open={showCompartirVivo}
+        onOpenChange={(o) => !o && setShowCompartirVivo(false)}
+        className="max-w-md"
+      >
+        <MarcaDirecto directo={boardSpaceId ? true : null} personas={null} compacto />
+        <CompartirEnVivo
+          open={showCompartirVivo}
+          onOpenChange={(open) => setShowCompartirVivo(open)}
+          canvasId={canvas.id}
+          canvasTitle={canvas.title}
+          blocks={canvas.blocks}
+          edges={getEdges(canvas)}
+          espacioId={boardSpaceId}
+        />
+      </Dialog>
 
       {/* Dialog · Publicar lienzo (compositor universal prerellenado) */}
       <Dialog open={publishCanvasOpen} onOpenChange={setPublishCanvasOpen}>
