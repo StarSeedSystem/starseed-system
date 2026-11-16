@@ -1185,6 +1185,27 @@ def buscar(aplicar=False, sondear_medios=True, mac=True, origen="boton", ahora=N
         # (CAP1025B) Las nuevas frente a lo que ya llevan los jobs vivos, no frente a todos ellos.
         tope = tope_runs_nube(len(nube["clases"].get("elegibles") or []) + min(REABRIR_POR_PASADA, len(reabribles)),
                               escritores_nube, vivos=vivos)
+        # (HAL1116A) Freno por mismo motivo: si varias tareas acabaron por el mismo motivo,
+        # no lanzamos jobs nuevos y mostramos la frase que indica el motivo.
+        try:
+            from freno_mismo_motivo import frenar_por_mismo_motivo
+            progreso = _leer_json(os.path.join(LATIDOS, "progreso.json"), {})
+            entradas = [
+                {"estado": v.get("estado"), "nota": v.get("nota"), "fin": v.get("fin", 0)}
+                for v in progreso.values() if isinstance(v, dict) and "estado" in v and "nota" in v
+            ]
+            frenar, motivo = frenar_por_mismo_motivo(entradas)
+            if frenar:
+                tope = (0, motivo)
+            else:
+                # si no frena, aseguramos que tope sea tupla válida para abajo
+                if isinstance(tope, int):
+                    tope = (tope, "")
+        except Exception as e:
+            # Si falla, no frenamos; añadimos línea de aviso y mantenemos tope original.
+            lineas.append("freno por mismo motivo error: %s" % type(e).__name__)
+            if isinstance(tope, int):
+                tope = (tope, "")
         plan = plan_nube(
             nube["clases"].get("elegibles"), agotadas, vivos, nube["pausa"],
             reaperturas, ahora, listas_mac=len(estado_mac.get("listas") or []),

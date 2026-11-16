@@ -6,6 +6,7 @@ import sys
 import tempfile
 import time
 import unittest
+from unittest.mock import patch
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import buscar_capacidad as B  # noqa: E402
@@ -604,6 +605,39 @@ class ClaudeEnLaNube(unittest.TestCase):
         sumadas, texto = B.lanzar_claude_nube("listo", True, correr, lambda: 0, lambda: 0)
         self.assertEqual(sumadas, 0)
         self.assertIn("TimeoutError", texto)
+
+
+class FrenoMismoMotivoEnBuscar(unittest.TestCase):
+    """Integración del freno por mismo motivo en la función buscar."""
+
+    def test_con_motivo_repetido_no_lanza_runs(self):
+        """Con 7 de 10 tareas acabadas sin_cambios por mismo motivo, buscar no lanza runs nuevos."""
+        progreso_mock = {
+            "T%d" % i: {"estado": "sin_cambios", "nota": "sin_cambios", "fin": 1_791_000_000.0 - i * 3600}
+            for i in range(10)
+        }
+        with patch.object(B, "_leer_json", return_value=progreso_mock):
+            resultado = B.buscar(
+                aplicar=False, sondear_medios=False, mac=False, origen="test", ahora=1_791_000_000.0,
+            )
+            self.assertIn("se frena", resultado["resumen"])
+            self.assertEqual(resultado["sumados"], 0)
+
+    def test_con_motivos_distintos_sigue_normal(self):
+        """Con motivos distintos, el comportamiento es el normal (lanzar runs)."""
+        progreso_mock = {}
+        for i in range(10):
+            progreso_mock["T%d" % i] = {
+                "estado": "fallo_tsc",
+                "nota": "fallo tsc %d" % i,
+                "fin": 1_791_000_000.0 - i * 3600,
+            }
+        with patch.object(B, "_leer_json", return_value=progreso_mock):
+            resultado = B.buscar(
+                aplicar=False, sondear_medios=False, mac=False, origen="test", ahora=1_791_000_000.0,
+            )
+            self.assertNotIn("se frena", resultado["resumen"])
+            self.assertGreater(resultado["sumados"], 0)
 
 
 if __name__ == "__main__":
