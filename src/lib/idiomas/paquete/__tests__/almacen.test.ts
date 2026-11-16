@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import {
   crearAlmacenPaquetes,
   CLAVE_ALMACEN,
@@ -10,12 +10,6 @@ import {
 } from "../almacen";
 import type { PaqueteIdioma } from "../formato";
 
-const windowMock = {
-  addEventListener: vi.fn(),
-  removeEventListener: vi.fn(),
-  dispatchEvent: vi.fn(),
-};
-
 function crearAlmacenFalso(): AlmacenInterno {
   const datos = new Map<string, string>();
   return {
@@ -25,10 +19,12 @@ function crearAlmacenFalso(): AlmacenInterno {
   };
 }
 
-beforeEach(() => {
-  vi.stubGlobal("window", windowMock);
-  vi.clearAllMocks();
-});
+function mockWindow(): { dispatchEvent: (e: Event) => boolean } {
+  const eventos: Event[] = [];
+  return {
+    dispatchEvent: (e: Event) => { eventos.push(e); return true; },
+  };
+}
 
 function paqueteValido(codigo: string, entradas: Record<string, string> = { hola: "hola" }): PaqueteIdioma {
   return {
@@ -50,10 +46,12 @@ function paqueteValido(codigo: string, entradas: Record<string, string> = { hola
 describe("almacen de paquetes de idioma", () => {
   let almacen: AlmacenPaquetes;
   let almacenFalso: AlmacenInterno;
+  let windowMock: { dispatchEvent: (e: Event) => boolean };
 
   beforeEach(() => {
     almacenFalso = crearAlmacenFalso();
     almacen = crearAlmacenPaquetes(almacenFalso);
+    windowMock = mockWindow();
   });
 
   describe("listarPaquetes", () => {
@@ -141,7 +139,7 @@ describe("almacen de paquetes de idioma", () => {
     it("dispara evento al quitar", () => {
       const p = paqueteValido("es-ES");
       almacen.guardarPaquete(p);
-      vi.clearAllMocks();
+      windowMock.dispatchEvent.mockClear();
       almacen.quitarPaquete("es-ES");
       expect(windowMock.dispatchEvent).toHaveBeenCalledTimes(1);
       expect((windowMock.dispatchEvent.mock.calls[0][0] as CustomEvent).type).toBe(EVENTO_CAMBIO);
@@ -186,14 +184,15 @@ describe("almacen de paquetes de idioma", () => {
       expect(a.leerPaquete("es")).toBeNull();
     });
 
-    it("no rompe si almacen lanza al escribir", () => {
+    it("no confirma guardado si almacen lanza al escribir", () => {
       const almacenQueFalla: AlmacenInterno = {
         getItem: () => "[]",
         setItem: () => { throw new Error("Fallo escritura"); },
         removeItem: () => {},
       };
       const a = crearAlmacenPaquetes(almacenQueFalla);
-      expect(a.guardarPaquete(paqueteValido("es"))).toEqual({ ok: true });
+      expect(a.guardarPaquete(paqueteValido("es"))).toEqual({ ok: false, motivo: "No se pudo guardar" });
+      expect(a.leerPaquete("es")).toBeNull();
     });
   });
 
