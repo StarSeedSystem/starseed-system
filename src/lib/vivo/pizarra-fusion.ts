@@ -8,6 +8,8 @@
  *
  * Comparte estructura: si `b` no aporta nada devuelve LA MISMA referencia `a`.
  */
+import type { CanvasBlock } from "@/lib/canvas/canvas";
+import type { CanvasEdge } from "@/lib/canvas/workcenters";
 import { FORMATO_PIZARRA, type DocPizarra, type RegistroBase } from "./pizarra";
 
 function clave(v: unknown): string {
@@ -56,4 +58,52 @@ export function fusionarPizarras(a: DocPizarra, b: DocPizarra): DocPizarra {
 /** ¿Las dos pizarras dicen lo mismo? (ninguna aporta nada a la otra). */
 export function pizarrasIguales(a: DocPizarra, b: DocPizarra): boolean {
     return a === b || (fusionarPizarras(a, b) === a && fusionarPizarras(b, a) === b);
+}
+
+function igual(a: unknown, b: unknown): boolean {
+    if (a === b) return true;
+    try {
+        return JSON.stringify(a) === JSON.stringify(b);
+    } catch {
+        return false;
+    }
+}
+
+function aplicarMapa<T extends { id: string }>(
+    previos: Record<string, RegistroBase<T>>,
+    siguientes: readonly T[],
+    c: { t: number; a: string },
+): Record<string, RegistroBase<T>> {
+    let salida = previos;
+    const tocar = (): Record<string, RegistroBase<T>> => {
+        if (salida === previos) salida = { ...previos };
+        return salida;
+    };
+    const vistos = new Set<string>();
+    for (const v of siguientes) {
+        if (!v.id || vistos.has(v.id)) continue;
+        vistos.add(v.id);
+        const r = previos[v.id];
+        if (r && r.x !== true && igual(r.v, v)) continue;
+        tocar()[v.id] = { id: v.id, v, t: c.t, a: c.a };
+    }
+    for (const [id, r] of Object.entries(previos)) if (!vistos.has(id) && r.x !== true) tocar()[id] = { id, v: r.v, t: c.t, a: c.a, x: true };
+    return salida;
+}
+
+/** Traduce «el lienzo ahora es esta lista» a registros: solo sella lo que cambió y lapida lo que falta. */
+export function aplicarLienzo(d: DocPizarra, blocks: readonly CanvasBlock[], edges: readonly CanvasEdge[], c: { t: number; a: string }): DocPizarra {
+    const bloques = aplicarMapa(d.bloques, blocks, c);
+    const aristas = aplicarMapa(d.aristas, edges, c);
+    if (bloques === d.bloques && aristas === d.aristas) return d;
+    return { formato: FORMATO_PIZARRA, bloques, aristas };
+}
+
+/** Lienzo visible (solo registros vivos) a partir del doc por registro. */
+export function lienzoDePizarra(d: DocPizarra): { blocks: CanvasBlock[]; edges: CanvasEdge[] } {
+    const blocks: CanvasBlock[] = [];
+    const edges: CanvasEdge[] = [];
+    for (const r of Object.values(d.bloques)) if (r.x !== true) blocks.push(r.v);
+    for (const r of Object.values(d.aristas)) if (r.x !== true) edges.push(r.v);
+    return { blocks, edges };
 }

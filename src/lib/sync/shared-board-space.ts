@@ -1,96 +1,115 @@
 "use client";
 
 /*
- * shared-board-space — modo COLABORATIVO de una pizarra compartida
- * (os_spaces kind='board', SOP §11). Distinto de shared-desktop-space.ts
- * (que posee una clave de localStorage global) porque CanvasBoard mantiene
- * su propio estado de React (`canvas`) en vez de leer directamente de
- * localStorage — así que aquí el hook devuelve el doc inicial + un setter
- * con debounce, y el propio componente decide cuándo aplicarlo a su estado.
- *
- * Uso en canvas-board.tsx:
- *   const boardSpace = useSharedBoardSpace(boardSpaceId);
- *   // al recibir boardSpace.remoteDoc (cambios de otro colaborador), fusionar
- *   // en el estado local `canvas` (blocks/edges); al mutar localmente,
- *   // boardSpace.pushDoc({blocks, edges}) con debounce interno.
+ * shared-board-space — pizarra COMPARTIDA (os_spaces kind='board', SOP §11) sincronizada por
+ * REGISTRO con reloj, autor y lápida (`@/lib/vivo/pizarra` + `pizarra-fusion`): dos ediciones
+ * distintas se conservan en vez de pisarse. El doc viejo `{blocks, edges}` se migra al leerlo.
+ * Guardado compare-and-swap por `rev`; cambios locales por `pushDoc`, ajenos por `remoteDoc`.
  */
-
-import { useCallback, useEffect, useRef, useState } from "react";
-import { getSpace, updateSpaceDoc, subscribeSpace, acceptSpaceInvite, type Space } from "@/lib/spaces/spaces";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { acceptSpaceInvite, getSpace, subscribeSpace, type Space } from "@/lib/spaces/spaces";
 import type { CanvasBlock } from "@/lib/canvas/canvas";
 import type { CanvasEdge } from "@/lib/canvas/workcenters";
-
-export interface BoardSpaceDoc {
-    blocks: CanvasBlock[];
-    edges: CanvasEdge[];
-}
-
+import { docPizarra, maxTiempoPizarra, normalizarPizarra, pizarraVacia, podarPizarra, type DocPizarra } from "@/lib/vivo/pizarra";
+import { aplicarLienzo, fusionarPizarras, lienzoDePizarra, pizarrasIguales } from "@/lib/vivo/pizarra-fusion";
+import { guardarEspacioCAS, miUid } from "@/lib/vivo/tabla/espacio";
+import { autorCorto } from "@/lib/vivo/tabla/modelo";
+export interface BoardSpaceDoc { blocks: CanvasBlock[]; edges: CanvasEdge[]; }
 export interface UseSharedBoardSpace {
     space: Space | null;
     loading: boolean;
-    /** Doc inicial (o el último recibido de OTRO colaborador) — null si no hay espacio o aún carga. */
+    /** Lienzo ya fusionado (solo registros vivos) — null si no hay espacio o aún carga. */
     remoteDoc: BoardSpaceDoc | null;
-    /** Empuja el doc actual del lienzo a la nube (debounce interno). No-op sin espacio abierto. */
+    /** Empuja el lienzo local; solo se sellan los bloques/aristas que cambiaron. */
     pushDoc: (doc: BoardSpaceDoc) => void;
 }
-
-function normalizeBoardDoc(raw: unknown): BoardSpaceDoc {
-    const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
-    return {
-        blocks: Array.isArray(r.blocks) ? (r.blocks as CanvasBlock[]) : [],
-        edges: Array.isArray(r.edges) ? (r.edges as CanvasEdge[]) : [],
-    };
-}
-
-/**
- * Hook de montaje único (por lienzo): si `spaceId` es no-nulo, entra en modo
- * colaborativo. Si es null, no-op total (comportamiento normal del lienzo
- * personal, sin ningún cambio).
- */
+const aDoc = (raw: unknown): DocPizarra => podarPizarra(normalizarPizarra(raw), Date.now());
 export function useSharedBoardSpace(spaceId: string | null, debounceMs = 900): UseSharedBoardSpace {
     const [space, setSpace] = useState<Space | null>(null);
-    const [remoteDoc, setRemoteDoc] = useState<BoardSpaceDoc | null>(null);
+    const [doc, setDoc] = useState<DocPizarra | null>(null);
     const [loading, setLoading] = useState(!!spaceId);
-    const pushTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const docRef = useRef(pizarraVacia());
+    const revRef = useRef(0);
+    const reloj = useRef(0);
+    const autor = useRef("anonimo");
+    const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    const guardar = useCallback(async () => {
+        if (!spaceId) return;
+        let enviado = docRef.current;
+        let rev = revRef.current;
+        for (let i = 0; i < 4; i += 1) {
+            const r = await guardarEspacioCAS(spaceId, docPizarra(enviado), rev);
+            if (r.ok) return void (revRef.current = Math.max(rev, r.espacio.rev));
+            if (r.motivo !== "conflicto") return;
+            const sp = await getSpace(spaceId);
+            if (!sp) return;
+            rev = revRef.current = sp.rev;
+            const remoto = aDoc(sp.doc);
+            enviado = podarPizarra(fusionarPizarras(remoto, enviado), Date.now());
+            docRef.current = podarPizarra(fusionarPizarras(docRef.current, remoto), Date.now());
+            reloj.current = Math.max(reloj.current, maxTiempoPizarra(remoto));
+            setDoc(docRef.current);
+        }
+    }, [spaceId]);
+
+    const programar = useCallback(() => {
+        if (timer.current) clearTimeout(timer.current);
+        timer.current = setTimeout(() => void guardar(), debounceMs);
+    }, [guardar, debounceMs]);
 
     useEffect(() => {
         if (!spaceId) {
             setSpace(null);
-            setRemoteDoc(null);
+            setDoc(null);
             setLoading(false);
             return;
         }
-        let alive = true;
+        let vivo = true;
         setLoading(true);
-        void acceptSpaceInvite(spaceId); // best-effort: invited→member al abrir
+        void miUid().then((u) => void (vivo && (autor.current = autorCorto(u))));
+        void acceptSpaceInvite(spaceId);
         void getSpace(spaceId).then((sp) => {
-            if (!alive) return;
+            if (!vivo) return;
             setSpace(sp);
-            setRemoteDoc(sp ? normalizeBoardDoc(sp.doc) : null);
+            if (sp) {
+                revRef.current = sp.rev;
+                docRef.current = aDoc(sp.doc);
+                reloj.current = maxTiempoPizarra(docRef.current);
+                setDoc(docRef.current);
+            }
             setLoading(false);
         });
         const unsub = subscribeSpace(spaceId, (sp) => {
-            if (!alive) return;
+            if (!vivo || sp.rev <= revRef.current) return;
+            revRef.current = sp.rev;
+            const remoto = aDoc(sp.doc);
+            const fusion = podarPizarra(fusionarPizarras(docRef.current, remoto), Date.now());
+            const aporta = !pizarrasIguales(fusion, remoto);
+            docRef.current = fusion;
+            reloj.current = Math.max(reloj.current, maxTiempoPizarra(remoto));
+            setDoc(fusion);
             setSpace(sp);
-            setRemoteDoc(normalizeBoardDoc(sp.doc));
+            if (aporta) programar();
         });
         return () => {
-            alive = false;
+            vivo = false;
             unsub();
-            if (pushTimer.current) clearTimeout(pushTimer.current);
+            if (timer.current) clearTimeout(timer.current);
         };
-    }, [spaceId]);
-
+    }, [spaceId, programar]);
     const pushDoc = useCallback(
-        (doc: BoardSpaceDoc) => {
+        (entrante: BoardSpaceDoc) => {
             if (!spaceId) return;
-            if (pushTimer.current) clearTimeout(pushTimer.current);
-            pushTimer.current = setTimeout(() => {
-                void updateSpaceDoc(spaceId, doc as unknown as Record<string, unknown>);
-            }, debounceMs);
+            const t = Math.max(Date.now(), reloj.current + 1);
+            reloj.current = t;
+            const siguiente = aplicarLienzo(docRef.current, entrante.blocks, entrante.edges, { t, a: autor.current });
+            if (siguiente === docRef.current) return;
+            docRef.current = podarPizarra(siguiente, t);
+            programar();
         },
-        [spaceId, debounceMs],
+        [spaceId, programar],
     );
-
+    const remoteDoc = useMemo(() => (doc ? lienzoDePizarra(doc) : null), [doc]);
     return { space, loading, remoteDoc, pushDoc };
 }

@@ -538,13 +538,11 @@ export default function CanvasBoard({
   // Modo pizarra COMPARTIDA: el guardado va al espacio (os_spaces.doc), NUNCA
   // a la tabla `canvases` personal (el lienzo personal original queda intacto).
   const scheduleSave = useCallback((next: Canvas) => {
+    // La pizarra compartida se empuja en el efecto de cambios (por registro);
+    // aquí solo se guarda el lienzo personal.
+    if (boardSpaceId) return;
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(async () => {
-      if (boardSpaceId) {
-        boardSpace.pushDoc({ blocks: next.blocks, edges: getEdges(next) });
-        setSavedAt(new Date().toLocaleTimeString());
-        return;
-      }
       if (!next.title) return;
       const persisted = await saveCanvasWithEdges(next);
       if (persisted) {
@@ -759,6 +757,16 @@ export default function CanvasBoard({
 
   // ---- conexiones (aristas) -----------------------------------------------
   const edges = useMemo(() => getEdges(canvas), [canvas]);
+
+  // Pizarra compartida: empuja el lienzo local en cuanto cambia. `pushDoc`
+  // sella solo los registros que cambiaron y lapida los que faltan, así que
+  // reenviar un doc que vino de fuera no pisa nada (es idempotente).
+  useEffect(() => {
+    if (!boardSpaceId || !canvas.shared) return;
+    boardSpace.pushDoc({ blocks: canvas.blocks, edges });
+    setSavedAt(new Date().toLocaleTimeString());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [boardSpaceId, canvas.shared, canvas.blocks, edges]);
 
   // Click sobre un bloque en modo conectar: primer click marca origen, segundo
   // crea la arista.
