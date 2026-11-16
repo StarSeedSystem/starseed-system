@@ -145,8 +145,59 @@ function extraerIdiomaDePeticion(peticion: string): string | null {
 
     // "traducir a <idioma>" / "traducir al <idioma>"
     const matchTraducir = lower.match(/\btraducir (?:a|al)\s+([\p{L}]+)/u);
-    if (matchTraducir && esCodigoValido(matchTraducir[1])) {
-        return matchTraducir[1];
+    if (matchTraducir) {
+        const mapaTraducir: Record<string, string> = {
+            "ingles": "en",
+            "inglés": "en",
+            "español": "es",
+            "espanol": "es",
+            "portugues": "pt",
+            "portugués": "pt",
+            "frances": "fr",
+            "francés": "fr",
+            "aleman": "de",
+            "alemán": "de",
+            "italiano": "it",
+            "neerlandes": "nl",
+            "neerlandés": "nl",
+            "catalan": "ca",
+            "catalán": "ca",
+            "gallego": "gl",
+            "euskera": "eu",
+            "ruso": "ru",
+            "ucraniano": "uk",
+            "polaco": "pl",
+            "turco": "tr",
+            "arabe": "ar",
+            "árabe": "ar",
+            "hebreo": "he",
+            "persa": "fa",
+            "urdu": "ur",
+            "hindi": "hi",
+            "bengali": "bn",
+            "bengalí": "bn",
+            "chino": "zh",
+            "japones": "ja",
+            "japonés": "ja",
+            "coreano": "ko",
+            "tailandes": "th",
+            "tailandés": "th",
+            "vietnamita": "vi",
+            "indonesio": "id",
+            "suajili": "sw",
+            "griego": "el",
+            "sueco": "sv",
+            "checo": "cs",
+            "rumano": "ro",
+            "hungaro": "hu",
+            "húngaro": "hu",
+            "finlandes": "fi",
+            "finlandés": "fi",
+            "danes": "da",
+            "danés": "da",
+            "noruego": "nb",
+        };
+        return mapaTraducir[matchTraducir[1]] ?? null;
     }
 
     return null;
