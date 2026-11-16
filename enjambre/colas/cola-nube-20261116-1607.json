@@ -1,0 +1,37 @@
+{
+ "ola": "nube-20261116",
+ "tareas": [
+  {
+   "id": "PRI01",
+   "ola": "PRI1116A",
+   "titulo": "URGENTE · Fábrica: las tareas que desbloquean la compilación empiezan antes (prioridad por tarea, sin interrumpir lo que está en curso)",
+   "archivos": [
+    "scripts/enjambre/starseed-enjambre.py",
+    "scripts/enjambre/test_prioridad_cola.py"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. PETICIÓN DE ALEX (16-11): «los arreglos para la compilación que falta deberían ser prioridad en la lista de tareas (sin interrumpir los procesos actuales); los directores deben decidir priorizar lo más relevante, en este caso la compilación para las pruebas». HECHO: el arreglo de una línea que desbloqueaba el APK (KOT01) esperó horas detrás de tareas menos urgentes.\n\nHoy las ÓRDENES del lanzador ya llevan prioridad en `scripts/enjambre/starseed-enjambre.py` (busca `prioridad=float(orden.get(\"prioridad\") or 0)`), pero las TAREAS de una cola no. Haz lo mínimo (≤60 líneas en ese archivo, en bloques aditivos `# PRI01`):\n1) Función PURA `prioridad_de_tarea(t)`: devuelve `float(t[\"prioridad\"])` si existe y es número; 100.0 si `t.get(\"urgente\")` es verdadero o si el título empieza por «URGENTE»; si no, 0.0. Nunca lanza.\n2) Función PURA `ordenar_pendientes(tareas)`: devuelve las mismas tareas ordenadas por prioridad de mayor a menor y, a igualdad, EN EL ORDEN EN QUE VENÍAN (orden estable). No quita ni añade ninguna.\n3) Úsala en el punto donde el orquestador elige, entre las tareas PENDIENTES con sus dependencias cumplidas, cuál empieza a continuación. NO toques las tareas que ya están en curso: nada se interrumpe, se cancela ni se reordena una vez empezado. Si ese punto no está en este archivo o no puedes localizarlo con certeza, NO lo adivines: deja las dos funciones y sus pruebas, y dilo en un comentario `# PRI01: falta enganchar en …` junto a ellas.\n4) Si el validador de colas de este archivo rechaza claves desconocidas, acepta `prioridad` (número) y `urgente` (booleano) como opcionales.\n\nPruebas en `scripts/enjambre/test_prioridad_cola.py` (pytest, como sus vecinas): sin prioridades el orden no cambia; una tarea con `prioridad` 50 pasa delante de las de 0; `urgente: true` y un título que empieza por «URGENTE» valen 100; a igualdad se conserva el orden de llegada; valores raros (`None`, texto, lista) valen 0 y no lanzan; la lista devuelta tiene los mismos elementos.\nAsunto del commit: `PRI1116A · PRI01: las tareas urgentes de una cola empiezan antes (sin interrumpir las que están en curso)`.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado."
+  },
+  {
+   "id": "MRE3",
+   "ola": "MAP1116B",
+   "titulo": "Espectrómetro: adaptador de LoRa y de los enlaces propios de la malla",
+   "archivos": [
+    "src/lib/senales/espectro/adaptadores/lora-malla.ts",
+    "src/lib/senales/espectro/adaptadores/__tests__/lora-malla.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Adaptador puro. LoRa: `SenalesMedio.lora` (`estado`, `transporte`, `nodos`) y `mesh.region` (`src/components/mesh/mapa-senales/use-mapa-vivo.ts:104-110`, `yo.radio`): con radio conectada y región conocida → una señal LoRa con banda y frecuencia de la REGIÓN según `bandas.ts` (origen `declarada`: lo que la radio está configurada a usar, no una medida de aire) y ancho del preset si lo informa; SNR/RSSI reales de cada nodo oído (`DetectedSignal.quality`, `qualityFromSnr/Rssi`) → señales `medida`; sin radio → `sinFuente` («no hay radio LoRa conectada»). Malla: los enlaces de la malla propia (`src/lib/senales/enlaces.ts`, `EnlaceMapa`) como señales medio `malla` con `rttMs`/`capacidadKbps` medidos y sin frecuencia (la malla no tiene una: se dice). PRUEBAS: sin radio; con radio y región EU; nodos con SNR; enlaces de malla sin frecuencia ni banda inventadas. COMPRUEBA: `NODE_ENV=test npx vitest run src/lib/senales/espectro/adaptadores/__tests__/lora-malla.test.ts` verde y tsc acotado.\n\nREGLAS DE LA CASA (valen aunque no las repita la tarea): toca SOLO los archivos de la lista `archivos`; ≤3 archivos y ≤120 líneas por archivo (si no cabe, para y di qué falta: no lo estires ni lo resumas); sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible (la interfaz dice Genesis); sin red real en las pruebas; ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves. El asunto de tu commit empieza por `MRE3:` y dice qué comprobaste y qué NO pudiste comprobar.",
+   "dependencias_ya_en_main": [
+    "MRA2",
+    "MRA3"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1116-105020.json": [
+   "MRE3",
+   "PRI01"
+  ]
+ }
+}
