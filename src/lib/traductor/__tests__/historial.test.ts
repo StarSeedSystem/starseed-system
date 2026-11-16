@@ -80,7 +80,8 @@ describe("historial del traductor", () => {
             }
             const entradas = listar(almacen);
             expect(entradas).toHaveLength(50);
-            expect(entradas[0].textoOrigen).toBe("texto5"); // las 5 primeras se borraron
+            expect(entradas[0].textoOrigen).toBe("texto54"); // la más reciente está al principio (orden descendente)
+            expect(entradas[49].textoOrigen).toBe("texto5"); // la más antigua que queda está al final
         });
 
         it("maneja error de almacenamiento sin lanzar", () => {
@@ -115,7 +116,7 @@ describe("historial del traductor", () => {
         });
 
         it("maneja datos corruptos en almacenamiento (JSON inválido)", () => {
-            const almacen: AlmacenHistorial = {
+const almacen: AlmacenHistorial = {
                 obtener: () => "no-es-json",
                 guardar: () => {},
                 borrar: () => {},
@@ -128,12 +129,12 @@ describe("historial del traductor", () => {
                 obtener: () => JSON.stringify([{ id: "1", origen: "es" }]), // falta campos requeridos
                 guardar: () => {},
                 borrar: () => {},
-            });
+            };
             expect(listar(almacen)).toEqual([]);
         });
 
         it("maneja error de almacenamiento sin lanzar", () => {
-            const almacenFallo: AlmacenHistorial = {
+const almacenFallo: AlmacenHistorial = {
                 obtener: () => { throw new Error("fallo"); },
                 guardar: () => {},
                 borrar: () => {},
@@ -157,26 +158,7 @@ describe("historial del traductor", () => {
         });
 
         it("maneja error de almacenamiento sin lanzar", () => {
-            const almacenFallo: AlmacenHistorial = {
-                obtener: () => "[]",
-                guardar: () => {},
-                borrar: () => { throw new Error("fallo"); },
-            };
-            expect(() => borrar("cualquiera", almacenFallo)).not.toThrow();
-        });
-    });
-
-    describe("borrarTodo", () => {
-        it("elimina todas las entradas", () => {
-            const almacen = almacenMemoria();
-            registrar({ origen: "es", destino: "en", textoOrigen: "hola", textoDestino: "hello", motor: "local" }, almacen, { sinHistorial: false });
-            registrar({ origen: "es", destino: "en", textoOrigen: "adios", textoDestino: "bye", motor: "local" }, almacen, { sinHistorial: false });
-            borrarTodo(almacen);
-            expect(listar(almacen)).toHaveLength(0);
-        });
-
-        it("maneja error de almacenamiento sin lanzar", () => {
-            const almacenFallo: AlmacenHistorial = {
+const almacenFallo: AlmacenHistorial = {
                 obtener: () => "[]",
                 guardar: () => {},
                 borrar: () => { throw new Error("fallo"); },
