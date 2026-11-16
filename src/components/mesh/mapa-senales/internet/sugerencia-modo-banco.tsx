@@ -9,10 +9,10 @@ type Props = {
   visible: boolean;
   onActivar: () => void;
   onAhoraNo: () => void;
-  textos: Pick<
-    TextosInternet,
+textos: Pick<
+    typeof TextosInternet,
     "sugerirTitulo" | "sugerirCuerpo" | "sugerirActivar" | "sugerirAhoraNo"
-  >;
+>;
 };
 
 export function SugerenciaModoBanco({

@@ -22,6 +22,7 @@ import type { CentroNeurona } from "@/lib/senales/centro";
 import { describirRadarPublico } from "@/lib/senales/radar-publico";
 import { FotoPerfil } from "./foto-perfil";
 import { InterruptorModoBanco } from "./internet/interruptor-modo-banco";
+import { SugerenciaModoBanco } from "./internet/sugerencia-modo-banco";
 import { TextosInternet } from "@/lib/malla/internet/tipos";
 import { getAjustesBanco, setAjustesBanco, AJUSTES_BANCO_EVENT, calcularRestanteHoyMb } from "@/lib/malla/internet/ajustes-banco";
 import type { AjustesBanco } from "@/lib/malla/internet/tipos";
@@ -141,6 +142,7 @@ export function AjustesNeurona({ centro, neuronaId, verPublicos, onVerPublicos, 
   const { privacidad: p, internetPublico } = useMeshPrivacidad();
   const { ajustes: banco, restanteHoyMb } = useAjustesBanco();
   const [nombre, setNombre] = useState(centro.sinNombre ? "" : centro.nombreNeurona);
+  const [ultimaNegativa, setUltimaNegativa] = useState<number | null>(null);
   useEffect(() => { setNombre(centro.sinNombre ? "" : centro.nombreNeurona); }, [centro.nombreNeurona, centro.sinNombre]);
   const limpio = nombre.trim().slice(0, 40);
   const cambia = limpio.length > 0 && limpio !== (centro.sinNombre ? "" : centro.nombreNeurona);
@@ -166,6 +168,13 @@ export function AjustesNeurona({ centro, neuronaId, verPublicos, onVerPublicos, 
     bancoAyuda: TextosInternet.bancoAyuda,
     quedaHoy: TextosInternet.quedaHoy,
     agotadoHoy: TextosInternet.agotadoHoy,
+  };
+
+  const textosSugerencia = {
+    sugerirTitulo: TextosInternet.sugerirTitulo,
+    sugerirCuerpo: TextosInternet.sugerirCuerpo,
+    sugerirActivar: TextosInternet.sugerirActivar,
+    sugerirAhoraNo: TextosInternet.sugerirAhoraNo,
   };
 
   return (
@@ -240,6 +249,12 @@ export function AjustesNeurona({ centro, neuronaId, verPublicos, onVerPublicos, 
           }}
           textos={textosBanco}
           restanteHoyMb={restanteHoyMb}
+        />
+        <SugerenciaModoBanco
+          visible={!banco.activo && (ultimaNegativa == null || Date.now() - ultimaNegativa >= 24 * 60 * 60 * 1000)}
+          onActivar={() => setAjustesBanco({ ...banco, activo: true })}
+          onAhoraNo={() => setUltimaNegativa(Date.now())}
+          textos={textosSugerencia}
         />
       </div>
 
