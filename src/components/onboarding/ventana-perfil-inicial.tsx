@@ -34,6 +34,9 @@ import { type Marco, MARCO_POR_DEFECTO } from "@/lib/profile/marco-foto";
 import {
   claimProfile, saveProfileOptional, isValidHandle, sincronizarPerfilPublico,
 } from "@/lib/onboarding/onboarding";
+import {
+  evaluarCargaPerfil, type FilaPerfilCarga,
+} from "@/lib/onboarding/carga-perfil-inicial";
 import { marcarRitoActivo } from "@/lib/ui/rito-activo";
 import { IconoStarSeed } from "@/components/onboarding/icono-starseed";
 import { esMiTurno, terminarEtapa, suscribirRito, navegarSuave } from "@/lib/onboarding/director-rito";
@@ -58,6 +61,10 @@ export function VentanaPerfilInicial({ onCerrar }: { onCerrar?: () => void }) {
     pathname === "/bienvenida" || pathname === "/login" || (pathname ?? "").startsWith("/profile/");
   const [abierta, setAbierta] = useState(false);
   const [cargando, setCargando] = useState(true);
+  // (Ola 2026-11-16) Aviso de la carga: si el perfil NO se pudo leer, la
+  // persona lo ve. Antes el `catch` se lo tragaba y el formulario salía vacío
+  // sin explicación (¿no tengo perfil o me falló la lectura?).
+  const [avisoCarga, setAvisoCarga] = useState<string | null>(null);
   const [nombre, setNombre] = useState("");
   const [handle, setHandle] = useState("");
   const [bio, setBio] = useState("");
@@ -104,35 +111,61 @@ export function VentanaPerfilInicial({ onCerrar }: { onCerrar?: () => void }) {
     return () => marcarRitoActivo("perfil-inicial", false);
   }, [abierta]);
 
-  // Carga lo que ya haya: el handle que se eligió (o el que puso el alta).
-  useEffect(() => {
-    if (!abierta) return;
-    let vivo = true;
-    (async () => {
-      try {
-        const sb = createClient();
-        const { data: u } = await sb.auth.getUser();
-        const uid = u?.user?.id;
-        if (!uid) return;
-        const { data } = await sb
+  /**
+   * (Ola 2026-11-16) Carga lo que ya haya: el handle que se eligió (o el que
+   * puso el alta). El fallo NO se traga: se avisa en la ventana y el log deja
+   * rastro, pero el formulario sigue editable — el rito nunca se bloquea.
+   */
+  const cargarPerfil = useCallback(async (vivo: () => boolean) => {
+    setCargando(true);
+    setAvisoCarga(null);
+    try {
+      const sb = createClient();
+      const { data: u } = await sb.auth.getUser();
+      const uid = u?.user?.id ?? null;
+      let fila: FilaPerfilCarga | null = null;
+      let error: unknown = null;
+      if (uid) {
+        const r = await sb
           .from("profiles")
           .select("handle,display_name,bio,avatar_url,cover_url,avatar_marco,avatar_3d")
           .eq("user_id", uid)
           .maybeSingle();
-        if (!vivo || !data) return;
-        const p = data as { handle?: string; display_name?: string; bio?: string; avatar_url?: string; cover_url?: string; avatar_marco?: Marco | null; avatar_3d?: Avatar3D | null };
-        if (p.avatar_marco) setMarco({ ...MARCO_POR_DEFECTO, ...p.avatar_marco });
-        if (p.avatar_3d?.url) setAvatar3d(p.avatar_3d);
-        setNombre(p.display_name || "");
-        setHandle(p.handle || "");
-        setBio(p.bio || "");
-        setAvatar(p.avatar_url || "");
-        setPortada(p.cover_url || "");
-      } catch { /* se edita igual desde cero */ }
-      finally { if (vivo) setCargando(false); }
-    })();
+        fila = (r.data ?? null) as FilaPerfilCarga | null;
+        error = r.error ?? null;
+      }
+      const res = evaluarCargaPerfil({ sesion: Boolean(uid), fila, error });
+      if (res.rastro) console.warn(res.rastro);
+      if (!vivo()) return;
+      setAvisoCarga(res.aviso);
+      const p = res.fila;
+      if (res.estado !== "cargado" || !p) return;
+      const marco = p.avatar_marco as Marco | null;
+      if (marco) setMarco({ ...MARCO_POR_DEFECTO, ...marco });
+      const av3d = p.avatar_3d as Avatar3D | null;
+      if (av3d?.url) setAvatar3d(av3d);
+      setNombre(p.display_name || "");
+      setHandle(p.handle || "");
+      setBio(p.bio || "");
+      setAvatar(p.avatar_url || "");
+      setPortada(p.cover_url || "");
+    } catch (e) {
+      // (Ola 2026-11-16) Ya no es un `catch` mudo: la excepción se cuenta y se
+      // dice. El formulario queda editable para que nadie se quede atrapado.
+      const res = evaluarCargaPerfil({ sesion: true, fila: null, error: e });
+      if (res.rastro) console.warn(res.rastro);
+      if (vivo()) setAvisoCarga(res.aviso);
+    } finally {
+      if (vivo()) setCargando(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!abierta) return;
+    let vivo = true;
+    void cargarPerfil(() => vivo);
     return () => { vivo = false; };
-  }, [abierta]);
+  }, [abierta, cargarPerfil]);
 
   const subir = useCallback(async (file: File, kind: "avatar" | "cover") => {
     setSubiendo(kind);
@@ -261,6 +294,20 @@ export function VentanaPerfilInicial({ onCerrar }: { onCerrar?: () => void }) {
           />
         ) : (
           <div className="space-y-4">
+            {/* (Ola 2026-11-16) La carga no pudo leerse: se dice y se puede
+                reintentar a mano (un clic, un intento: nunca un bucle). */}
+            {avisoCarga && (
+              <div className="flex flex-wrap items-center gap-2 rounded-xl border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+                <span role="status">{avisoCarga}</span>
+                <button
+                  type="button"
+                  onClick={() => void cargarPerfil(() => true)}
+                  className="cursor-pointer rounded-full border border-amber-300/40 px-2 py-0.5 text-[11px] transition-colors hover:bg-amber-400/20"
+                >
+                  Reintentar la carga
+                </button>
+              </div>
+            )}
             {/* Portada + avatar, como se verán */}
             <div className="relative">
               <button
