@@ -69,7 +69,7 @@ export function PanelCristal({ titulo, subtitulo, alCerrar, etiquetaCerrar = "Ce
           type="button"
           onClick={alCerrar}
           aria-label={etiquetaCerrar}
-          className="inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full border border-white/15 bg-white/8 text-white/80 transition duration-150 hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#007FFF]"
+          className="inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full border border-white/15 bg-white/8 text-white/80 transition duration-150 hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#007FFF] focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         >
           <X className="size-5" aria-hidden="true" />
         </button>

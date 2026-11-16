@@ -122,6 +122,18 @@ describe("PanelCristal", () => {
     const contenido = screen.getByRole("dialog").querySelector(".overflow-y-auto");
     expect(contenido).not.toBeNull();
   });
+
+  it("el botón de cerrar tiene foco visible accesible para teclado", () => {
+    render(
+      <PanelCristal titulo="Aurora" subtitulo="Bot de IA" alCerrar={() => undefined}>
+        <p>contenido</p>
+      </PanelCristal>,
+    );
+    const cerrar = screen.getByRole("button", { name: "Cerrar la ficha" });
+    expect(cerrar.className).toMatch(/focus-visible:ring-2/);
+    expect(cerrar.className).toMatch(/focus-visible:ring-offset-2/);
+    expect(cerrar.className).not.toMatch(/focus-visible:ring-0/);
+  });
 });
 
 describe("fuenteDeAgente", () => {
