@@ -152,6 +152,7 @@ import { BotonCerrar } from "@/components/ui/boton-cerrar";
 import { usePerfilDispositivo } from "@/hooks/use-perfil-dispositivo";
 import { useNivelMovimiento } from "@/hooks/use-nivel-movimiento";
 import { useDeslizarPasos } from "@/hooks/use-deslizar-pasos";
+import { useTimeoutInteraction } from "@/hooks/use-timeout-interaction";
 import { useDireccionPaso } from "@/components/movimiento/paso-animado";
 import { transicionPaso, variantesPaso, type Direccion } from "@/lib/movimiento/transiciones";
 
@@ -160,6 +161,9 @@ const GUIDE_MODE_KEY = "starseed.guide.mode.v1";
 export const OPEN_GUIDE_EVENT = "starseed:open-guide";
 const AURORA_EXOCORTEX_OPEN_EVENT = "starseed:open-aurora-exocortex";
 const AURORA_SUGGEST_EVENT = "aurora:suggest";
+
+/** Timeout de la guía: 30 segundos sin interacción cierra automáticamente. */
+const GUIDE_TIMEOUT_MS = 30_000;
 
 /** Modo de la guía: elegido por el usuario en la pantalla inicial. */
 type GuideMode = "voice" | "silent";
@@ -556,6 +560,14 @@ export function AuroraGuide() {
     // Cortesía: al cerrar, calla cualquier narración en curso.
     try { auroraStopSpeaking(); } catch { /* */ }
   }, [markSeen]);
+
+  // Temporizador que se reinicia al detectar interacción del usuario.
+  // No cierra automáticamente si el usuario está interactuando.
+  useTimeoutInteraction({
+    timeoutMs: GUIDE_TIMEOUT_MS,
+    onTimeout: close,
+    enabled: inTour,
+  });
 
   const goPrev = useCallback(() => setIndex((i) => Math.max(0, i - 1)), []);
   const goNext = useCallback(() => setIndex((i) => Math.min(STEPS.length - 1, i + 1)), []);
