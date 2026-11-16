@@ -17,6 +17,7 @@
 import { ACCIONES, MAX_DEDOS, MAX_PUNTOS_DEDO, definicion, type Args } from "./niveles";
 import { MAX_PARTES, Reensamblador, leerParte, trocear, type ParteSenal } from "./senal-partes";
 import { esRespuesta, type RespuestaOrden } from "./orden";
+import { veredictoFuente, rotuloFuente, type FuenteReal } from "./fuente-pantalla";
 
 export type EntradaControl =
     | { tipo: "gesto"; dedos: { id: number; puntos: [number, number, number][] }[]; sigue: boolean }
@@ -56,6 +57,14 @@ export interface InstantaneaPantalla {
     aparato: AparatoVentana | null;
     latenciaMs?: number;
     fps?: number;
+    /** Fuente real de pantalla que contesta el aparato. */
+    fuenteReal?: "accesibilidad" | "proyeccion" | null;
+    /** Fuente que se pidió (\"auto\" | \"proyeccion\"). */
+    fuentePedida?: "auto" | "proyeccion";
+    /** Aviso si la fuente pedida no coincide con la real. */
+    avisoFuente?: string | null;
+    /** Rótulo legible de la fuente real. */
+    rotuloFuente?: string;
 }
 
 export const MAX_ENTRADA_POR_SEGUNDO = 60;
@@ -268,7 +277,7 @@ export class PantallaDestino {
 
     // ── abrir ────────────────────────────────────────────────────────────────────────────────
 
-    async iniciar(): Promise<void> {
+    async iniciar(fuentePedida: "auto" | "proyeccion" = "auto"): Promise<void> {
         if (this.cerrada || this.token) return;
         let r = await this.d.mandar("abrir-sesion", {}, { nivel: "controlar" });
         if (!r.ok && r.motivo === "nivel") r = await this.d.mandar("abrir-sesion", {}, { nivel: "ver" });
@@ -279,7 +288,7 @@ export class PantallaDestino {
         const nivel = abierta.nivel === "controlar" ? "controlar" : "ver";
         this.poner({ nivel });
 
-        const p = await this.orden("pantalla-iniciar", {}, "ver");
+        const p = await this.orden("pantalla-iniciar", { fuente: fuentePedida }, "ver");
         if (this.cerrada) return;
         if (!p.ok) return this.cerrar(p.motivo, false);
         const res = (p.resultado ?? {}) as Record<string, unknown>;
@@ -292,9 +301,16 @@ export class PantallaDestino {
         }
         // UNI1115M · costura e: los cuadros llegan YA derechos (como los ve la persona en la tableta). El `giro` de lo
         // nativo es solo informativo: la ventana no gira nada, así la imagen sale derecha y el toque cae donde se hizo.
+        const fuenteReal = (res.fuente === "proyeccion" || res.fuente === "accesibilidad") ? res.fuente : null;
+        const veredicto = veredictoFuente(fuentePedida, fuenteReal as FuenteReal | null);
+        const rotulo = rotuloFuente(fuenteReal as FuenteReal | null);
         this.poner({
             pantalla: { ancho: Number(res.ancho) || 0, alto: Number(res.alto) || 0, giro: 0 },
             capacidades: capacidadesDeNativo(res.capacidades, nivel),
+            fuenteReal,
+            fuentePedida,
+            avisoFuente: veredicto.aviso,
+            rotuloFuente: rotulo,
         });
         try {
             await this.negociar();

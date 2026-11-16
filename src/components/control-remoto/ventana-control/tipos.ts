@@ -19,6 +19,14 @@ export interface PropsVentanaControl {
     aparato: { volumen?: Record<string, number>; brillo?: number; bateria?: number; cargando?: boolean; red?: { wifi: boolean; datos: boolean; bluetooth: boolean } } | null;
     latenciaMs?: number;
     fps?: number;
+    /** Fuente real de pantalla que contesta el aparato. */
+    fuenteReal?: "accesibilidad" | "proyeccion" | null;
+    /** Fuente que se pidió (\"auto\" | \"proyeccion\"). */
+    fuentePedida?: "auto" | "proyeccion";
+    /** Aviso si la fuente pedida no coincide con la real. */
+    avisoFuente?: string | null;
+    /** Rótulo legible de la fuente real. */
+    rotuloFuente?: string;
     alEnviar: (e: EntradaControl) => void;
     alCerrar: () => void;
 }

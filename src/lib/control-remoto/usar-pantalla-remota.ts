@@ -18,6 +18,10 @@ const VACIA: InstantaneaPantalla = {
     nivel: "ver",
     capacidades: { gestos: false, maxDedos: 0, teclas: [], volumen: false, brillo: false, texto: false },
     aparato: null,
+    fuenteReal: null,
+    fuentePedida: "auto",
+    avisoFuente: null,
+    rotuloFuente: "Pantalla: aún sin fuente",
 };
 
 export interface PantallaRemota extends InstantaneaPantalla {
@@ -26,7 +30,7 @@ export interface PantallaRemota extends InstantaneaPantalla {
     reintentar: () => void;
 }
 
-export function usarPantallaRemota(neurona: string | null): PantallaRemota {
+export function usarPantallaRemota(neurona: string | null, fuentePedida: "auto" | "proyeccion" = "auto"): PantallaRemota {
     const [intento, setIntento] = useState(0);
     const [obj, setObj] = useState<PantallaDestino | null>(null);
 
@@ -37,11 +41,11 @@ export function usarPantallaRemota(neurona: string | null): PantallaRemota {
         }
         const p = crearPantallaDestino(neurona);
         setObj(p);
-        void p.iniciar();
+        void p.iniciar(fuentePedida);
         return () => {
             void p.cerrar("desmontada", true);
         };
-    }, [neurona, intento]);
+    }, [neurona, intento, fuentePedida]);
 
     const suscribir = useCallback((cb: () => void) => (obj ? obj.suscribir(cb) : () => undefined), [obj]);
     const snap = useSyncExternalStore(

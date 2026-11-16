@@ -17,6 +17,7 @@
 import type { Args } from "./niveles";
 import type { RespuestaOrden } from "./orden";
 import { Reensamblador, leerParte, trocear, type ParteSenal } from "./senal-partes";
+import { FUENTE_DEFECTO } from "./fuente-pantalla";
 
 export const LADO_MAX_DEFECTO = 1280;
 export const CALIDAD_DEFECTO = 60;
@@ -135,7 +136,6 @@ function esObjeto(x: unknown): x is Record<string, unknown> {
 }
 
 const RE_MOTIVO = /^[a-z-]{1,32}$/;
-const FUENTE_DEFECTO = "auto";
 
 export class OrigenPantalla {
     private activa: Activa | null = null;
@@ -186,12 +186,12 @@ export class OrigenPantalla {
         if (!inv) throw new Error("sin-soporte");
         await this.parar("reinicio");
         // PENC3: la fuente la elige el aparato controlado («auto»: proyección si la persona la concedió en esta sesión, si no
-        // accesibilidad); quien manda no puede pedir otra. Más abajo se recoge la REAL que contesta el aparato.
+        // accesibilidad); quien manda puede pedir «proyeccion» explícitamente; se valida en la puerta y se pasa a lo nativo.
         const r = await inv("control_pantalla_iniciar", {
             sesion: s.token,
             lado_max: typeof args.lado === "number" ? args.lado : LADO_MAX_DEFECTO,
             calidad: typeof args.calidad === "number" ? args.calidad : CALIDAD_DEFECTO,
-            fuente: FUENTE_DEFECTO,
+            fuente: typeof args.fuente === "string" ? args.fuente : FUENTE_DEFECTO,
         }).catch(() => null);
         if (!esObjeto(r) || r.ok !== true) {
             // La orden se cumplió; lo nativo dijo que no puede y por qué (lo que falta lo arregla la persona EN el aparato).

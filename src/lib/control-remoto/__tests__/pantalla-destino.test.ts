@@ -487,3 +487,49 @@ describe("UNI1115M · costura e: los cuadros llegan derechos", () => {
         expect(destino.instantanea().pantalla).toEqual({ ancho: 1280, alto: 800, giro: 0 });
     });
 });
+
+describe("fuente de pantalla: petición explícita y veredicto", () => {
+    it("iniciar con fuente=\"proyeccion\" la pasa al nativo y refleja veredicto y rótulo", async () => {
+        const g = guion as unknown as Record<string, () => unknown>;
+        g["pantalla-iniciar"] = () => ok({ ok: true, fuente: "accesibilidad", ancho: 800, alto: 1280, giro: 90, capacidades: CAPS });
+        await destino.iniciar("proyeccion");
+        expect(enviadas.find((e) => e.nombre === "pantalla-iniciar")?.args?.fuente).toBe("proyeccion");
+        const snap = destino.instantanea();
+        expect(snap.fuenteReal).toBe("accesibilidad");
+        expect(snap.fuentePedida).toBe("proyeccion");
+        expect(snap.avisoFuente).toBe("Pediste la pantalla fluida, pero este aparato la está mandando por accesibilidad (menos fluida). Hace falta la proyección de pantalla en ese aparato.");
+        expect(snap.rotuloFuente).toBe("Pantalla por accesibilidad");
+    });
+
+    it("iniciar con fuente=\"auto\" (defecto) y nativo responde proyeccion → cumplida sin aviso", async () => {
+        const g = guion as unknown as Record<string, () => unknown>;
+        g["pantalla-iniciar"] = () => ok({ ok: true, fuente: "proyeccion", ancho: 1280, alto: 798, giro: 90, capacidades: CAPS });
+        await destino.iniciar();
+        expect(enviadas.find((e) => e.nombre === "pantalla-iniciar")?.args?.fuente).toBe("auto");
+        const snap = destino.instantanea();
+        expect(snap.fuenteReal).toBe("proyeccion");
+        expect(snap.fuentePedida).toBe("auto");
+        expect(snap.avisoFuente).toBeNull();
+        expect(snap.rotuloFuente).toBe("Pantalla fluida (proyección)");
+    });
+
+    it("iniciar con fuente=\"proyeccion\" y nativo responde proyeccion → cumplida sin aviso", async () => {
+        const g = guion as unknown as Record<string, () => unknown>;
+        g["pantalla-iniciar"] = () => ok({ ok: true, fuente: "proyeccion", ancho: 1280, alto: 798, giro: 90, capacidades: CAPS });
+        await destino.iniciar("proyeccion");
+        const snap = destino.instantanea();
+        expect(snap.fuenteReal).toBe("proyeccion");
+        expect(snap.fuentePedida).toBe("proyeccion");
+        expect(snap.avisoFuente).toBeNull();
+        expect(snap.rotuloFuente).toBe("Pantalla fluida (proyección)");
+    });
+
+    it("iniciar con fuente=\"auto\" y nativo responde accesibilidad → cumplida sin aviso", async () => {
+        await destino.iniciar();
+        const snap = destino.instantanea();
+        expect(snap.fuenteReal).toBe("accesibilidad");
+        expect(snap.fuentePedida).toBe("auto");
+        expect(snap.avisoFuente).toBeNull();
+        expect(snap.rotuloFuente).toBe("Pantalla por accesibilidad");
+    });
+});

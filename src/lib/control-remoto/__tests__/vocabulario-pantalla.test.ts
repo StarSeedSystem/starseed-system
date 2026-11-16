@@ -86,12 +86,18 @@ describe("tecla, volumen, brillo, texto, pantalla", () => {
         expect(v("texto", { texto: "😀".repeat(512) })).not.toBeNull(); // 512 caracteres, no 512 unidades
         for (const a of [{ texto: "a".repeat(513) }, { texto: "" }, { texto: "a\u0000b" }, { texto: "a\u001bb" }, { texto: 5 }, {}, { texto: "a", x: 1 }]) expect(v("texto", a)).toBeNull();
     });
-    it("pantalla-iniciar: lado y calidad opcionales y acotados", () => {
-        expect(v("pantalla-iniciar", {})).toEqual({});
-        expect(v("pantalla-iniciar", { lado: 1280, calidad: 60 })).toEqual({ lado: 1280, calidad: 60 });
+    it("pantalla-iniciar: lado, calidad y fuente opcionales y acotados", () => {
+        expect(v("pantalla-iniciar", {})).toEqual({ fuente: "auto" });
+        expect(v("pantalla-iniciar", { lado: 1280, calidad: 60 })).toEqual({ lado: 1280, calidad: 60, fuente: "auto" });
+        expect(v("pantalla-iniciar", { fuente: "proyeccion" })).toEqual({ fuente: "proyeccion" });
+        expect(v("pantalla-iniciar", { lado: 1280, calidad: 60, fuente: "proyeccion" })).toEqual({ lado: 1280, calidad: 60, fuente: "proyeccion" });
         // UNI1115M · costura b: calidad es un entero 1..100 (los dos extremos valen)
-        expect(v("pantalla-iniciar", { calidad: 1 })).toEqual({ calidad: 1 });
-        expect(v("pantalla-iniciar", { calidad: 100 })).toEqual({ calidad: 100 });
+        expect(v("pantalla-iniciar", { calidad: 1 })).toEqual({ calidad: 1, fuente: "auto" });
+        expect(v("pantalla-iniciar", { calidad: 100 })).toEqual({ calidad: 100, fuente: "auto" });
+        // fuente: valores inválidos caen a "auto"
+        expect(v("pantalla-iniciar", { fuente: "accesibilidad" })).toEqual({ fuente: "auto" });
+        expect(v("pantalla-iniciar", { fuente: "otra" })).toEqual({ fuente: "auto" });
+        expect(v("pantalla-iniciar", { fuente: 123 })).toEqual({ fuente: "auto" });
         for (const a of [{ lado: 100 }, { lado: 4000 }, { lado: 1280.5 }, { calidad: 0 }, { calidad: 101 }, { calidad: 60.5 }, { calidad: 0.6 }, { otra: 1 }]) expect(v("pantalla-iniciar", a)).toBeNull();
     });
     it("pantalla-parar y leer-aparato no llevan argumentos", () => {
