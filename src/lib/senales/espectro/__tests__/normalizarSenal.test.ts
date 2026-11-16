@@ -101,9 +101,9 @@ describe("normalizarSenal", () => {
   it("filtra compatibles inválidos y recorta los válidos", () => {
     const compatibles: Compatibilidad[] = [
       { con: "bluetooth", que: "emparejamiento", posible: true, motivo: "m".repeat(200) },
-      { con: "infrarrojo", que: "x", posible: true, motivo: "x" },
+      { con: "infrarrojo", que: "x", posible: true, motivo: "x" } as Compatibilidad,
       { con: "lora", que: "y".repeat(100), posible: false, motivo: "no" },
-      { con: "invalido", que: "falta-con", posible: true, motivo: "x" },
+      { con: "invalido", que: "falta-con", posible: true, motivo: "x" } as Compatibilidad,
     ];
     const out = normalizarSenal({ ...senalBase(), compatibles });
     expect(out).not.toBeNull();
