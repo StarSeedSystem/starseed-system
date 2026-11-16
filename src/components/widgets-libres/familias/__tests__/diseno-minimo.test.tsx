@@ -22,24 +22,19 @@ const estados: ("calma" | "escuchando" | "pensando" | "hablando")[] = [
 describe("DisenoMinimo", () => {
   const tam = 120;
   const propsBase = {
-    estado: "calma",
+    estado: "calma" as const,
     tam,
-    ultima: null,
-    hilo: [],
+    ultima: null as { texto: string; ts: number } | null,
+    hilo: [] as { rol: "user" | "aurora"; texto: string; ts: number }[],
     ahora: Date.now(),
     tactil: false,
     voz: false,
-    preguntar: "¿Cómo estás?",
-    botonVoz: null,
-    sugerencias: [],
+    preguntar: "¿Cómo estás?" as React.ReactNode,
+    botonVoz: null as React.ReactNode,
+    sugerencias: [] as string[],
     onAbrirChat: () => {},
-    onSugerencia: () => {},
+    onSugerencia: (_t: string) => {},
   };
-
-  beforeEach(() => {
-    propsBase.estado = "calma";
-    propsBase.preguntar = "¿Cómo estás?";
-  });
 
   it("renderiza con props de ejemplo", () => {
     const { container } = render(
@@ -77,9 +72,9 @@ describe("DisenoMinimo", () => {
 
   it("no tiene desbordes a 180 px de ancho", () => {
     const { container } = render(
-      <DisenoMinimo {...propsBase} style={{ width: "180px" }} />
+      <div style={{ width: "180px" }}><DisenoMinimo {...propsBase} /></div>
     );
-    const elemento = container.firstElementChild;
+    const elemento = container.firstElementChild?.firstElementChild;
     if (elemento) {
       expect(elemento.scrollWidth).toBeLessThanOrEqual(elemento.clientWidth);
     }
@@ -87,9 +82,9 @@ describe("DisenoMinimo", () => {
 
   it("no tiene desbordes a 360 px de ancho", () => {
     const { container } = render(
-      <DisenoMinimo {...propsBase} style={{ width: "360px" }} />
+      <div style={{ width: "360px" }}><DisenoMinimo {...propsBase} /></div>
     );
-    const elemento = container.firstElementChild;
+    const elemento = container.firstElementChild?.firstElementChild;
     if (elemento) {
       expect(elemento.scrollWidth).toBeLessThanOrEqual(elemento.clientWidth);
     }
@@ -100,9 +95,7 @@ describe("DisenoMinimo", () => {
       <DisenoMinimo {...propsBase} />
     );
     const root = container.firstElementChild;
-    const style = root?.getComputedStyle
-      ? root.getComputedStyle(root)
-      : {};
+    const style: Partial<CSSStyleDeclaration> = root instanceof Element ? window.getComputedStyle(root) : {};
     const colorFondo = style.backgroundColor || "";
     expect(colorFondo).not.toContain("rgb(255, 255, 255)");
   });
