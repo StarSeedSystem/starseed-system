@@ -25,8 +25,9 @@ const NOMBRE_VIEJO = /[Pp]uente\s+de\s+[Mm]ando|Centro de Mando|(?<![\p{L}\p{N}_
 function recorrer(dir: string, salida: string[] = []): string[] {
     for (const nombre of readdirSync(dir)) {
         const ruta = path.join(dir, nombre);
-        if (statSync(ruta).isDirectory()) recorrer(ruta, salida);
-        else if (/\.(tsx?|css|json|md)$/.test(nombre)) salida.push(ruta);
+        if (statSync(ruta).isDirectory()) {
+            if (nombre !== "__tests__") recorrer(ruta, salida);
+        } else if (/\.(tsx?|css|json|md)$/.test(nombre)) salida.push(ruta);
     }
     return salida;
 }

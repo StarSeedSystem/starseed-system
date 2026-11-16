@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { PALETAS, type IdForma, FIBONACCI } from "@/lib/protomolecula/orbe4d/coreografia";
+
+type FibonacciNumber = typeof FIBONACCI[number];
 import {
   type EstadoAsistente,
   formaDeEstado,
@@ -73,11 +75,11 @@ describe("estado-forma: mapeo de estado del asistente → forma, paleta, ritmo y
     });
 
     it("todos los valores de giroS y respiraS son números de Fibonacci (o 0)", () => {
-      const fibSet = new Set(FIBONACCI);
+      const fibSet = new Set<FibonacciNumber>(FIBONACCI);
       for (const e of ESTADOS) {
         const r = ritmoDeEstado(e);
-        if (r.giroS > 0) expect(fibSet.has(r.giroS)).toBe(true);
-        expect(fibSet.has(r.respiraS)).toBe(true);
+        if (r.giroS > 0) expect(fibSet.has(r.giroS as FibonacciNumber)).toBe(true);
+        expect(fibSet.has(r.respiraS as FibonacciNumber)).toBe(true);
       }
     });
   });
