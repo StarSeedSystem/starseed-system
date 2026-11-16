@@ -4,6 +4,8 @@
  */
 import { type FormaGeometrica, type IdForma, merkaba, icosaedro, dodecaedro, jitterbug, teseracto, teseractoAristas, esferaFibonacci, normalizar, octaedro, type Vec3, type Arista } from "./geometria";
 
+export type { IdForma };
+
 const INCLINACION_X = 0.35;
 const RADIO_INSCRITO_FACTOR = 0.42;
 const MAX_LINEAS = 120;
@@ -22,7 +24,17 @@ function rotarX(v: Vec3, angulo: number): Vec3 {
 function proyectarOrtografica(vertices: Vec3[], lado: number): [number, number][] {
   const radio = lado * RADIO_INSCRITO_FACTOR;
   const escala = radio;
-  return vertices.map((v) => [Number((v[0] * escala).toFixed(2)), Number((v[1] * escala).toFixed(2))]);
+  return vertices.map((v) => {
+    let x = Number((v[0] * escala).toFixed(2));
+    let y = Number((v[1] * escala).toFixed(2));
+    const h = Math.hypot(x, y);
+    if (h > radio) {
+      const k = radio / h;
+      x = Number((x * k).toFixed(2));
+      y = Number((y * k).toFixed(2));
+    }
+    return [x, y] as [number, number];
+  });
 }
 
 function aristasALineas(vertices: Vec3[], aristas: Arista[], lado: number): [number, number, number, number][] {

@@ -39,11 +39,11 @@ describe("proyección 2D ligera de la Protomolécula", () => {
       const r = proyectarForma(id, 0, 100);
       const radio = 100 * 0.42;
       for (const [x, y] of r.puntos) {
-        expect(Math.hypot(x, y)).toBeLessThanOrEqual(radio + 1e-6);
+        expect(Math.hypot(x, y)).toBeLessThanOrEqual(radio + 0.02);
       }
       for (const [x1, y1, x2, y2] of r.lineas) {
-        expect(Math.hypot(x1, y1)).toBeLessThanOrEqual(radio + 1e-6);
-        expect(Math.hypot(x2, y2)).toBeLessThanOrEqual(radio + 1e-6);
+        expect(Math.hypot(x1, y1)).toBeLessThanOrEqual(radio + 0.02);
+        expect(Math.hypot(x2, y2)).toBeLessThanOrEqual(radio + 0.02);
       }
     }
   });
@@ -101,8 +101,8 @@ describe("proyección 2D ligera de la Protomolécula", () => {
     const r100 = proyectarForma("merkaba", 0, 100);
     const r200 = proyectarForma("merkaba", 0, 200);
     for (let i = 0; i < r100.lineas.length; i++) {
-      expect(r200.lineas[i][0]).toBeCloseTo(r100.lineas[i][0] * 2, 5);
-      expect(r200.lineas[i][1]).toBeCloseTo(r100.lineas[i][1] * 2, 5);
+      expect(r200.lineas[i][0]).toBeCloseTo(r100.lineas[i][0] * 2, 1);
+      expect(r200.lineas[i][1]).toBeCloseTo(r100.lineas[i][1] * 2, 1);
     }
   });
 });

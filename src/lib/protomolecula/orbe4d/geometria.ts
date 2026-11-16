@@ -19,6 +19,7 @@ export type Vec3 = [number, number, number];
 export type Vec4 = [number, number, number, number];
 export type Arista = [number, number];
 export type Cara = [number, number, number];
+export type IdForma = "merkaba" | "icosaedro" | "dodecaedro" | "jitterbug" | "teseracto" | "semilla" | "matriz" | "modelo";
 
 export interface FormaGeometrica {
   vertices: Vec3[];
