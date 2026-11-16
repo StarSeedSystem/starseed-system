@@ -67,7 +67,7 @@ export function RacionBanco({ banco, onCambiar, textos, extra }: Props) {
       if (Number.isNaN(n)) return;
       ventana.limiteMb = unidad === "gb" ? Math.round(n * 1000) : Math.round(n);
     } else {
-      (ventana as Record<string, string>)[campo] = valor;
+      (ventana as unknown as Record<string, string>)[campo] = valor;
     }
     nuevasVentanas[indice] = ventana;
     onCambiar({ ...banco, ventanas: nuevasVentanas });
