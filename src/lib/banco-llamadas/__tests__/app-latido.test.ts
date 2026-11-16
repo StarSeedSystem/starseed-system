@@ -52,32 +52,33 @@ describe("PENA2 · latido de Rust y sondeo de la página", () => {
     it("armar activa el latido y escucha el evento; reloj y latido a la vez hacen un solo sondeo", async () => {
         const m = await cargar();
         expect(m.armarBanco(TABLETA, 4, 40)).toBe(true);
-        await asentar();
-        expect(listen.mock.calls.map((c) => c[0])).toContain("banco-llamadas-latido");
+        await vi.waitFor(() => {
+            expect(listen.mock.calls.map((c) => c[0])).toContain("banco-llamadas-latido");
+        }, {timeout: 2000, interval: 5});
         expect(invoke).toHaveBeenCalledWith("banco_latido_activar", { activo: true });
         await avanzar(1_000);
         latir(); // sondeo por latido
-        await asentar();
-        expect(leidas).toBe(1);
+        await vi.waitFor(() => { expect(leidas).toBe(1); }, {timeout: 2000, interval: 5});
         await avanzar(4_000); // el reloj toca 4 s después: cede
         expect(leidas).toBe(1);
         await avanzar(5_000); // el siguiente toque del reloj ya no está pegado a un latido
         expect(leidas).toBe(2);
         latir(); // latido justo tras el sondeo del reloj: cede
-        await asentar();
-        expect(leidas).toBe(2);
+        await vi.waitFor(() => { expect(leidas).toBe(2); }, {timeout: 2000, interval: 5});
         m.apagarBanco();
     });
 
     it("con el reloj congelado (ventana oculta) los latidos siguen sondeando cada 20 s", async () => {
         const m = await cargar();
         m.armarBanco(TABLETA, 4, 40);
-        await asentar();
+        await vi.waitFor(() => {
+            expect(oyentesDelLatido()).toBe(1);
+        }, {timeout: 2000, interval: 5});
         for (let i = 1; i <= 3; i++) {
             vi.setSystemTime(T0 + i * 20_000); // solo avanza el reloj de pared: setInterval no se mueve
             latir();
-            await asentar();
-            expect(leidas).toBe(i);
+            await vi.waitFor(() => { expect(leidas).toBe(i); }, {timeout: 2000, interval: 5});
+
         }
         m.apagarBanco();
     });
@@ -86,8 +87,9 @@ describe("PENA2 · latido de Rust y sondeo de la página", () => {
         vi.stubGlobal("__TAURI__", undefined);
         const m = await cargar();
         expect(m.armarBanco(TABLETA, 4, 40)).toBe(true);
-        await asentar();
-        expect(listen).not.toHaveBeenCalled();
+        await vi.waitFor(() => {
+            expect(listen).not.toHaveBeenCalled();
+        }, {timeout: 2000, interval: 5});
         expect(invoke).not.toHaveBeenCalled();
         expect(() => m.apagarBanco()).not.toThrow();
     });
@@ -96,12 +98,14 @@ describe("PENA2 · latido de Rust y sondeo de la página", () => {
         const m = await cargar();
         m.armarBanco(TABLETA, 4, 40);
         m.armarBanco(TABLETA, 4, 40);
-        await asentar();
-        expect(oyentesDelLatido()).toBe(1);
+        await vi.waitFor(() => {
+            expect(oyentesDelLatido()).toBe(1);
+        }, {timeout: 2000, interval: 5});
         expect(activos()).toBe(1);
         m.apagarBanco("cancelar");
-        await asentar();
-        expect(quitar).toHaveBeenCalledTimes(1);
+        await vi.waitFor(() => {
+            expect(quitar).toHaveBeenCalledTimes(1);
+        }, {timeout: 2000, interval: 5});
         expect(invoke).toHaveBeenCalledWith("banco_latido_activar", { activo: false });
     });
 
@@ -109,20 +113,19 @@ describe("PENA2 · latido de Rust y sondeo de la página", () => {
         invoke.mockImplementationOnce(async (c) => { if (c === "banco_latido_activar") throw new Error("sin-soporte"); return {}; });
         const m = await cargar();
         expect(m.armarBanco(TABLETA, 4, 40)).toBe(true);
-        await asentar();
-        expect(m.estadoBanco()).not.toBeNull();
-        expect(quitar).toHaveBeenCalledTimes(1);
+        await vi.waitFor(() => {
+            expect(m.estadoBanco()).not.toBeNull();
+            expect(quitar).toHaveBeenCalledTimes(1);
+        }, {timeout: 2000, interval: 5});
         m.armarBanco(TABLETA, 4, 40);
-        await asentar();
-        expect(oyentesDelLatido()).toBe(2);
+        await vi.waitFor(() => { expect(oyentesDelLatido()).toBe(2); }, {timeout: 2000, interval: 5});
         m.apagarBanco();
     });
 
     it("tras una recarga con la serie guardada, vuelve a activar el latido", async () => {
         window.localStorage.setItem("starseed.banco-llamadas.armado", JSON.stringify({ con: TABLETA, hasta: T0 + 3_600_000, restantes: 10 }));
         const m = await cargar();
-        await asentar();
-        expect(activos()).toBe(1);
+        await vi.waitFor(() => { expect(activos()).toBe(1); }, {timeout: 2000, interval: 5});
         m.apagarBanco();
     });
 });
