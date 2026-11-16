@@ -73,7 +73,7 @@ describe("IndicePaquetes", () => {
         const almacen = crearAlmacenFalso();
         const indice = new IndicePaquetes(almacen);
         // Simular dato corrupto directamente en el almacén
-        almacen.datos.set("starseed:traductor-paquetes", JSON.stringify([{ par: "es-en" }]));
+        almacen.datos!.set("starseed:traductor-paquetes", JSON.stringify([{ par: "es-en" }]));
         expect(indice.estaInstalado("es", "en")).toBe(false);
     });
 
@@ -106,9 +106,9 @@ describe("IndicePaquetes", () => {
         const indice = new IndicePaquetes(almacen);
         indice.registrar({ ...entradaValida, id: "pkg-1", bytes: 1000 });
         // Corromper directamente en el almacén
-        const corrupto = JSON.parse(almacen.datos.get("starseed:traductor-paquetes")!);
+        const corrupto = JSON.parse(almacen.datos!.get("starseed:traductor-paquetes")!);
         corrupto.push({ id: "pkg-2", par: "en-fr", bytes: "no-numero", hash: "x", version: "1", instaladoEn: Date.now() });
-        almacen.datos.set("starseed:traductor-paquetes", JSON.stringify(corrupto));
+        almacen.datos!.set("starseed:traductor-paquetes", JSON.stringify(corrupto));
         expect(indice.espacioUsado()).toBe(1000);
     });
 
