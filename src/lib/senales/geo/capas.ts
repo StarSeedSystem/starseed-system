@@ -46,7 +46,7 @@ export interface Tramo {
   estilo: EstiloTramo;
 }
 
-export type GrupoCapa = "cobertura" | "medido" | "senal" | "oferta" | "conciencia" | "hardware";
+export type GrupoCapa = "cobertura" | "medido" | "senal" | "oferta" | "conciencia" | "hardware" | "red";
 
 export const GRUPOS_CAPA: readonly { id: GrupoCapa; titulo: string }[] = [
   { id: "cobertura", titulo: "Cobertura (alcance estimado)" },
@@ -55,6 +55,7 @@ export const GRUPOS_CAPA: readonly { id: GrupoCapa; titulo: string }[] = [
   { id: "oferta", titulo: "Capacidades que ofrece" },
   { id: "conciencia", titulo: "Capas de conciencia" },
   { id: "hardware", titulo: "Hardware" },
+  { id: "red", titulo: "Red completa (lo que cada dueño publica)" },
 ];
 
 /**
@@ -258,6 +259,77 @@ export const CAPAS_SENALES: readonly CapaSenal[] = [
       const h = m.hardware;
       if (!h.ramClase || h.ramClase === "desconocida") return desconocido();
       return { tramo: h.ramClase, texto: h.ramClase, t: h.t, medida: true };
+    },
+  },
+
+  // —— Grupo "red": Red completa (lo que cada dueño publica) ———————————————————————————————
+  {
+    id: "red-publica",
+    grupo: "red",
+    etiqueta: "Red pública",
+    descripcion: "Señales que sus dueños publican en la capa pública del espectrómetro (zona aproximada, nunca punto exacto)",
+    estado: "parcial",
+    fuente: "espectro/leer-senales.ts (capa 'publica') · espectro/publicacion.ts (publicar en capa pública)",
+    tramos: [
+      { id: "medida", etiqueta: "Medida · publicado por su dueño · zona aproximada", color: "#10b981", estilo: "relleno" },
+      { id: "declarada", etiqueta: "Declarada · publicado por su dueño · zona aproximada", color: "#10b981", estilo: "anillo" },
+      { id: "estimada", etiqueta: "Estimada · publicado por su dueño · zona aproximada", color: "#10b981", estilo: "rayado" },
+      { ...DESC, etiqueta: "Sin publicar en capa pública" },
+    ],
+    valor: (m) => {
+      // Las señales de la capa pública vienen de leer-senales.ts; aquí la marca no las trae aún.
+      return desconocido("desconocido");
+    },
+  },
+  {
+    id: "red-comunidad",
+    grupo: "red",
+    etiqueta: "Red de comunidad",
+    descripcion: "Señales compartidas dentro de una comunidad (página/grupo) por sus miembros",
+    estado: "parcial",
+    fuente: "espectro/leer-senales.ts (capa 'comunidad') · espectro/publicacion.ts (publicar en capa comunidad)",
+    tramos: [
+      { id: "medida", etiqueta: "Medida · publicado por su dueño · zona aproximada", color: "#0ea5e9", estilo: "relleno" },
+      { id: "declarada", etiqueta: "Declarada · publicado por su dueño · zona aproximada", color: "#0ea5e9", estilo: "anillo" },
+      { id: "estimada", etiqueta: "Estimada · publicado por su dueño · zona aproximada", color: "#0ea5e9", estilo: "rayado" },
+      { ...DESC, etiqueta: "Sin publicar en capa comunidad" },
+    ],
+    valor: (m) => {
+      return desconocido("desconocido");
+    },
+  },
+  {
+    id: "red-privada",
+    grupo: "red",
+    etiqueta: "Red privada (lo propio de mi cuenta)",
+    descripcion: "Señales de las neuronas de esta cuenta, compartidas solo por el canal privado de posición",
+    estado: "parcial",
+    fuente: "espectro/leer-senales.ts (capa 'privada') · espectro/publicacion.ts (publicar en capa privada) · geo/canal-posicion.ts (canal pos:<uid>)",
+    tramos: [
+      { id: "medida", etiqueta: "Medida · publicado por su dueño · zona aproximada", color: "#a855f7", estilo: "relleno" },
+      { id: "declarada", etiqueta: "Declarada · publicado por su dueño · zona aproximada", color: "#a855f7", estilo: "anillo" },
+      { id: "estimada", etiqueta: "Estimada · publicado por su dueño · zona aproximada", color: "#a855f7", estilo: "rayado" },
+      { ...DESC, etiqueta: "Sin canal privado de posición" },
+    ],
+    valor: (m) => {
+      return desconocido("desconocido");
+    },
+  },
+  {
+    id: "red-externa",
+    grupo: "red",
+    etiqueta: "Red externa (fuera de StarSeed)",
+    descripcion: "Redes IP, estaciones de radio y otras señales detectadas fuera de StarSeed OS",
+    estado: "sin-fuente",
+    fuente: "espectro/leer-senales.ts (capa 'externa') · espectro/publicacion.ts (importar de fuentes externas) — hoy nada alimenta esta capa",
+    tramos: [
+      { id: "medida", etiqueta: "Medida · publicado por su dueño · zona aproximada", color: "#f59e0b", estilo: "relleno" },
+      { id: "declarada", etiqueta: "Declarada · publicado por su dueño · zona aproximada", color: "#f59e0b", estilo: "anillo" },
+      { id: "estimada", etiqueta: "Estimada · publicado por su dueño · zona aproximada", color: "#f59e0b", estilo: "rayado" },
+      { ...DESC, etiqueta: "Sin fuente externa" },
+    ],
+    valor: (m) => {
+      return desconocido("desconocido");
     },
   },
 ];
