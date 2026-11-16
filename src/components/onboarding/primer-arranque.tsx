@@ -58,6 +58,7 @@ import { cuandoCuentaFiable, esperarPullInicial } from "@/lib/sync/realtime-sync
 import { ritoActivo } from "@/lib/ui/rito-activo";
 import { explorarSinCuenta } from "@/lib/onboarding/explorar-sin-cuenta";
 import { hayPuertaVisible, usePuertaVisible } from "@/lib/onboarding/puerta-visible";
+import { rastroPrimerArranque } from "@/lib/onboarding/rastro-primer-arranque";
 import {
     CLAVE_AVISO_WEB,
     CLAVE_INTRO_SALTADA,
@@ -92,7 +93,9 @@ const BienvenidaNeurona = lazy(() => import("@/components/neurons/bienvenida-neu
 function inicioDelArranque(): number {
     try {
         if (typeof performance !== "undefined" && Number.isFinite(performance.timeOrigin)) return performance.timeOrigin;
-    } catch { /* */ }
+    } catch (e) {
+        console.warn(rastroPrimerArranque("leer el instante de arranque", e));
+    }
     return Date.now();
 }
 
@@ -107,7 +110,8 @@ function tieneNombreOAjustes(id: string): boolean {
         const crudo = window.localStorage.getItem(NEURON_PREFS_KEY);
         const p = crudo ? (JSON.parse(crudo) as { names?: Record<string, string>; settings?: Record<string, unknown> }) : null;
         return Boolean(p?.names?.[id]?.trim() || p?.settings?.[id]);
-    } catch {
+    } catch (e) {
+        console.warn(rastroPrimerArranque("leer las preferencias de la neurona", e));
         return false;
     }
 }
@@ -218,7 +222,8 @@ export function PrimerArranque({ esperaMs = 700 }: PrimerArranqueProps) {
             try {
                 const { data: prof } = await sb.from("profiles").select("handle").eq("user_id", user.id).maybeSingle();
                 perfil = Boolean((prof as { handle?: string } | null)?.handle);
-            } catch {
+            } catch (e) {
+                console.warn(rastroPrimerArranque("leer el perfil de la cuenta", e));
                 perfil = false; // sin datos, no se abre nada encima de nadie
             }
             const id = thisDeviceId();
@@ -240,7 +245,8 @@ export function PrimerArranque({ esperaMs = 700 }: PrimerArranqueProps) {
                     tieneNombreOAjustes: tieneNombreOAjustes(id),
                 };
                 setNombreNeurona(f?.name ?? "");
-            } catch {
+            } catch (e) {
+                console.warn(rastroPrimerArranque("leer la fila de la neurona en la cuenta", e));
                 estado = { configuradaAqui: neuronaConfiguradaAqui(id), enCuenta: true, creadaEnEsteArranque: false, tieneNombreOAjustes: tieneNombreOAjustes(id) };
             }
             setTienePerfil(perfil);
@@ -258,15 +264,17 @@ export function PrimerArranque({ esperaMs = 700 }: PrimerArranqueProps) {
                         const d = m.decidirConDatos(datos);
                         setDatosBienvenida(d.mostrar ? datos : null);
                         setBienvenida(d.mostrar ? "pendiente" : "no");
-                    } catch {
+                    } catch (e) {
+                        console.warn(rastroPrimerArranque("reunir los datos de «Esta neurona»", e));
                         setBienvenida("no");
                     }
                 }
             } else {
                 setBienvenida("no");
             }
-        } catch {
-            setSesion("comprobando"); // fallo raro: mejor no abrir nada
+        } catch (e) {
+            console.warn(rastroPrimerArranque("evaluar el arranque", e));
+            setSesion("comprobando"); // fallo raro: mejor no abrir nada, pero el rastro queda
         }
     }, [leerMarcas]);
 
@@ -280,7 +288,9 @@ export function PrimerArranque({ esperaMs = 700 }: PrimerArranqueProps) {
                 void evaluar();
             });
             quitarAuth = () => sub.subscription.unsubscribe();
-        } catch { /* sin suscripción: basta la comprobación inicial */ }
+        } catch (e) {
+            console.warn(rastroPrimerArranque("suscribirse a los cambios de sesión", e)); /* sin suscripción: basta la comprobación inicial */
+        }
         const quitarRito = suscribirRito((etapa) => setRitoEnCurso(etapa !== null));
         return () => {
             quitarAuth?.();
