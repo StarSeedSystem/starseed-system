@@ -1,0 +1,81 @@
+{
+ "ola": "nube-20261116",
+ "tareas": [
+  {
+   "id": "LAT01",
+   "ola": "LAT1116A",
+   "titulo": "Prueba del latido del modo de pruebas: esperar a la condición y no a 20 ms fijos",
+   "archivos": [
+    "src/lib/banco-llamadas/__tests__/app-latido.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. La prueba `src/lib/banco-llamadas/__tests__/app-latido.test.ts` falló UNA vez con la máquina cargada (puerta 1116c, 16-11) y pasó a solas: su ayudante `asentar` espera 20 ms de reloj REAL (`new Promise((r) => setTimeout(r, 20))`) a que terminen la importación dinámica y los efectos, y con carga 20 ms no bastan. Cambia SOLO ese archivo de prueba (≤60 líneas): sustituye la espera fija por una espera a la CONDICIÓN que cada caso comprueba, con `vi.waitFor(() => { expect(...) }, { timeout: 2000, interval: 5 })` (o un bucle equivalente que ceda con `await Promise.resolve()` y un límite de 2 s), de modo que con la máquina libre tarde lo mismo que hoy y con carga espere lo necesario. No cambies lo que se comprueba, ni el módulo probado (`src/lib/banco-llamadas/app.ts`), ni los relojes falsos (`vi.useFakeTimers({ toFake: [\"Date\", \"setInterval\", \"clearInterval\"] })` se queda como está: `setTimeout` sigue siendo real). Los seis casos siguen existiendo con el mismo nombre. Asunto del commit: `LAT1116A · LAT01: la prueba del latido espera a la condición y no a 20 ms fijos`.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado."
+  },
+  {
+   "id": "RST01",
+   "ola": "RST1116A",
+   "titulo": "Menú ⋯ de la pizarra: «Compartir en vivo» y la marca de directo",
+   "archivos": [
+    "src/components/canvas/canvas-board.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contrato: architecture/sesiones-en-vivo-entidades-y-transmisiones.md §8 flujo 1 («pestaña → menú ⋯ → Compartir en vivo»). En `src/components/canvas/canvas-board.tsx` busca el menú de acciones de la pizarra y añade, en UN bloque aditivo `// SES1115Q`, la entrada «Compartir en vivo» que abre `CompartirEnVivo` (`src/components/vivo-entidad/compartir-en-vivo.tsx`) y, junto al título, `MarcaDirecto`. Solo para pizarras con `boardSpaceId` o creadas por la persona; no cambies nada más (≤40 líneas). No cargues el componente hasta que se abra (import dinámico). Si la pizarra ya está compartida, la entrada dice «Compartida · ver estado».\n\nANTES DE EMPEZAR («lee primero lo que aterrizó»): comprueba en `git log --oneline main` (usa `git log --oneline main | grep` con cada asunto) que están en `main` los commits con estos asuntos: «FUE1116 · SVF1A5f», «SVF1C3», «SVF1C4». Los de la cola fuerte llevan el asunto `FUE1116 · <id>: …` y los de la cola libre de sesiones en vivo el id como primera palabra (p. ej. `SVF1C3: …`). Lee los archivos que dejaron antes de tocar nada. SI FALTA ALGUNO: NO escribas, NO modifiques y NO confirmes ningún archivo; termina sin cambios y di en una línea cuál falta (la tarea se reabrirá sola cuando esté).\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado."
+  },
+  {
+   "id": "RST02",
+   "ola": "RST1116A",
+   "titulo": "Prueba: un observador no puede editar (de punta a punta en el modelo)",
+   "archivos": [
+    "src/lib/vivo-entidad/__tests__/observador-no-edita.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contrato: architecture/sesiones-en-vivo-entidades-y-transmisiones.md §10 (P1-D) y la acción del dueño n.º 4 («quitar el rol editor: deja de poder escribir»). Prueba de integración PURA (sin red): recorre la tabla de `traduccion-roles.ts` y `permisos.ts` (en `src/lib/vivo-entidad/`) y el motor `crearMotorPizarra` (`src/lib/vivo/pizarra-motor.ts`) con un servidor falso: (1) un observador (rango 1) obtiene rango de sesión `ver`, `puedeEditarSesion` false, y su motor, con `puedeEditar` derivado de ese rango, NO cambia el servidor y queda en «sin-permiso»; (2) un colaborador (rango 2) sí escribe; (3) al bajarle el rol de colaborador a observador a mitad de sesión, su siguiente escritura se rechaza y la anterior sigue guardada; (4) un rol inventado nunca escribe. Usa los nombres reales que dejaron las tareas anteriores (léelos).\n\nANTES DE EMPEZAR («lee primero lo que aterrizó»): comprueba en `git log --oneline main` (usa `git log --oneline main | grep` con cada asunto) que están en `main` los commits con estos asuntos: «FUE1116 · SVF1A4f», «SVF1C1», «SVF1B2b». Los de la cola fuerte llevan el asunto `FUE1116 · <id>: …` y los de la cola libre de sesiones en vivo el id como primera palabra (p. ej. `SVF1C3: …`). Lee los archivos que dejaron antes de tocar nada. SI FALTA ALGUNO: NO escribas, NO modifiques y NO confirmes ningún archivo; termina sin cambios y di en una línea cuál falta (la tarea se reabrirá sola cuando esté).\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado."
+  },
+  {
+   "id": "RST04",
+   "ola": "RST1116A",
+   "titulo": "Fuente de pantalla pedida: regla pura (automática o fluida) y lo que se le dice a la persona",
+   "archivos": [
+    "src/lib/control-remoto/fuente-pantalla.ts",
+    "src/lib/control-remoto/__tests__/fuente-pantalla.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. CONTEXTO COMPROBADO: hoy la persona no puede pedir la pantalla fluida (proyección): `pantalla-iniciar` solo admite `lado` y `calidad` (`niveles.ts:102-114`), `PantallaDestino.iniciar` manda `orden(\"pantalla-iniciar\", {})` sin nada (`pantalla-destino.ts:282`), `pantalla-origen.ts:186-198` llama a `control_pantalla_iniciar` sin fuente y deduce `fuente` del resultado (`accesibilidad` o `proyeccion`), `nativo-comandos.ts:11` solo deja pasar `sesion`, `lado_max` y `calidad`, y LO NATIVO (`native/src-tauri/src/control_pantalla.rs:12`, `:68`) todavía NO tiene la fuente `proyeccion` (`control_capacidades` dice `proyeccion:false`): hoy siempre contesta «accesibilidad». Por eso lo que se pide es una PETICIÓN explícita y lo que se enseña es la fuente REAL que contestó el aparato: nunca se dice «fluida» si no lo es. Esta tarea no toca Rust. Escribe primero las pruebas. `FuentePedida = \"auto\" | \"proyeccion\"`; `FUENTE_DEFECTO = \"auto\"`; `fuentePedidaValida(x: unknown): FuentePedida` (lo desconocido → `auto`); `FuenteReal = \"accesibilidad\" | \"proyeccion\"`; `veredictoFuente(pedida: FuentePedida, real: FuenteReal | null): { cumplida: boolean; aviso: string | null }`: `auto` siempre cumplida sin aviso; `proyeccion` pedida y `real === \"proyeccion\"` → cumplida; pedida y `real === \"accesibilidad\"` → NO cumplida, aviso «Pediste la pantalla fluida, pero este aparato la está mandando por accesibilidad (menos fluida). Hace falta la proyección de pantalla en ese aparato.»; `real` null (aún sin pantalla) → sin aviso. `rotuloFuente(real: FuenteReal | null): string`: «Pantalla fluida (proyección)» / «Pantalla por accesibilidad» / «Pantalla: aún sin fuente». PRUEBAS en tabla con los 2×3 casos y la validación.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado."
+  },
+  {
+   "id": "MQA1",
+   "ola": "MOD1116",
+   "titulo": "Créditos de abliteration.ai: saldo y gasto del día (módulo puro)",
+   "archivos": [
+    "scripts/puente/abliteration_creditos.py",
+    "scripts/puente/test_abliteration_creditos.py"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contexto (MOD1116, análisis `MOD1116-analisis.md`): proveedor de modelos «abliteration.ai», API compatible con OpenAI, `POST https://api.abliteration.ai/v1/chat/completions`, clave en la variable `ABLITERATION_API_KEY`, modelo `abliterated-model` (256K de contexto, texto e imagen, herramientas; $1 entrada / $0,10 entrada en caché / $3 salida por millón de tokens, verificado el 2026-11-16 en https://abliteration.ai/pricing y https://docs.abliteration.ai/models.md). Se paga con un saldo en dólares (NO hay créditos diarios documentados); el saldo se lee con `GET https://api.abliteration.ai/v1/credits` → `{\"data\": {\"total_credits\": n, \"total_usage\": n}}` en USD. Escribe un módulo PURO `abliteration_creditos.py` (sin red, sin disco, sin reloj propio: todo inyectado) con: `saldo_usd(respuesta)` (respuesta ya decodificada de `/v1/credits`; devuelve `total_credits - total_usage` redondeado a 6 decimales, o None si falta algún campo, no es número o el saldo sale negativo); `registrar(estado, saldo, ahora_iso)` → estado nuevo (dict: `dia` AAAA-MM-DD en UTC, `saldo_inicio_dia`, `saldo_ultimo`, `leido` ISO; al cambiar de día `saldo_inicio_dia` pasa a ser el último saldo conocido; si el saldo SUBE (recarga) el gasto del día no se vuelve negativo); `gasto_del_dia(estado)` (≥0); `permitido(estado, ahora_iso, tope_dia_usd, margen_min_usd=0.5, frescura_s=21600)` → `(bool, motivo)` con motivos «sin lectura», «lectura vieja (más de 6 h)», «saldo bajo el margen», «tope del día alcanzado», «ok». PRUEBAS: saldo normal, campos que faltan, cambio de día, recarga a mitad de día, cada motivo de `permitido`, y que ninguna función lea el entorno ni la red.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni pytest, ni tsc, ni git, ni node, ni npm, ni curl): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj, entorno y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves (solo NOMBRES de variables, nunca valores; nunca una IP, un OCID ni un token); nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado. En Python: las pruebas son `unittest` con carpetas temporales y falsos, como las vecinas `scripts/puente/test_*.py`, y no tocan el `~/.starseed` real."
+  },
+  {
+   "id": "TU13",
+   "ola": "TRA1116-APP-F1",
+   "titulo": "Escucha: envoltorio del reconocimiento de voz con aviso del proveedor",
+   "archivos": [
+    "src/lib/traductor/voz-escucha.ts",
+    "src/lib/traductor/__tests__/voz-escucha.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Lee cómo se usa `SpeechRecognition` en `src/components/aurora/aurora-provider.tsx` (solo para copiar el patrón de entorno) y `src/lib/aurora/stt-oss/opt-in.ts` (el respaldo abierto). `crearEscucha(entorno: { SpeechRecognition?: ...; ossStt?: ... })` con `disponible(): {ok, motivo?, audioSaleDelAparato: boolean}` (true con el reconocimiento del navegador; false con el respaldo local abierto si está activado), `iniciar(idioma, {alResultado(texto, final), alError(msg)})`, `detener()`. Sin reconocimiento → `{ok:false, motivo:\"Este aparato no ofrece reconocimiento de voz\"}`. Mapea errores (`not-allowed`, `no-speech`, `network`, `language-not-supported`) a mensajes en español. PRUEBAS con un reconocedor falso: resultados parciales y final, error de permiso, idioma no soportado.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "TU1"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1115-224354.json": [
+   "TU13",
+   "RST04",
+   "MQA1",
+   "RST01",
+   "RST02",
+   "LAT01"
+  ]
+ }
+}
