@@ -33,6 +33,7 @@ import { EditorAvatar3D, Avatar3DVisor, type Avatar3D } from "@/components/profi
 import { type Marco, MARCO_POR_DEFECTO } from "@/lib/profile/marco-foto";
 import {
   claimProfile, saveProfileOptional, isValidHandle, sincronizarPerfilPublico,
+  diagnosticoCargaPerfil,
 } from "@/lib/onboarding/onboarding";
 import { marcarRitoActivo } from "@/lib/ui/rito-activo";
 import { IconoStarSeed } from "@/components/onboarding/icono-starseed";
@@ -114,11 +115,14 @@ export function VentanaPerfilInicial({ onCerrar }: { onCerrar?: () => void }) {
         const { data: u } = await sb.auth.getUser();
         const uid = u?.user?.id;
         if (!uid) return;
-        const { data } = await sb
+        const { data, error } = await sb
           .from("profiles")
           .select("handle,display_name,bio,avatar_url,cover_url,avatar_marco,avatar_3d")
           .eq("user_id", uid)
           .maybeSingle();
+        // (IMG) Un fallo de la CONSULTA antes caía aquí sin rastro (data nula
+        // y punto): mismo silencio que el catch. Ahora deja diagnóstico en consola.
+        if (error) console.warn(diagnosticoCargaPerfil(error));
         if (!vivo || !data) return;
         const p = data as { handle?: string; display_name?: string; bio?: string; avatar_url?: string; cover_url?: string; avatar_marco?: Marco | null; avatar_3d?: Avatar3D | null };
         if (p.avatar_marco) setMarco({ ...MARCO_POR_DEFECTO, ...p.avatar_marco });
@@ -128,7 +132,12 @@ export function VentanaPerfilInicial({ onCerrar }: { onCerrar?: () => void }) {
         setBio(p.bio || "");
         setAvatar(p.avatar_url || "");
         setPortada(p.cover_url || "");
-      } catch { /* se edita igual desde cero */ }
+      } catch (e) {
+        // (IMG) Antes: catch silencioso. El formulario salía vacío sin saber
+        // por qué. El `finally` de abajo igualmente habilita la edición desde
+        // cero — el usuario nunca se queda cargando en bucle.
+        console.warn(diagnosticoCargaPerfil(e));
+      }
       finally { if (vivo) setCargando(false); }
     })();
     return () => { vivo = false; };

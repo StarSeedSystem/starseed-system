@@ -20,6 +20,18 @@ export function clasificarErrorServicio(error: unknown): "red" | "indisponible" 
   return "red";
 }
 
+/**
+ * (IMG) Diagnóstico del catch de la CARGA del perfil en la ventana del rito:
+ * un fallo ahí antes era silencioso y nadie supo por qué salía el formulario
+ * vacío. Ahora deja rastro en consola (nunca silencioso) y el usuario edita
+ * igual desde cero — sin bucle.
+ */
+export function diagnosticoCargaPerfil(error: unknown): string {
+  return clasificarErrorServicio(error) === "red"
+    ? "[onboarding] no se pudo conectar al cargar el perfil (red): se edita igual desde cero"
+    : "[onboarding] indisponibilidad al cargar el perfil: se edita igual desde cero";
+}
+
 /** Texto legible según la clasificación del error. */
 export function textoErrorServicio(error: unknown): string {
   const tipo = clasificarErrorServicio(error);
