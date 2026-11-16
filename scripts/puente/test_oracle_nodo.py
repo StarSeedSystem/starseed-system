@@ -256,7 +256,15 @@ class MainVivo(unittest.TestCase):
 
     def test_el_secreto_del_bus_viaja_y_nada_de_pago(self):
         self.assertIn("STARSEED_LANZADOR_SECRETO", N.CLAVES_A1)
+        self.assertIn("ABLITERATION_API_KEY", N.CLAVES_A1)
         for pago in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "DEEPSEEK_API_KEY", "SUPABASE_SERVICE_ROLE_KEY"):
+            self.assertNotIn(pago, N.CLAVES_A1)
+
+    def test_abliteration_clave_de_pago_aprobada_viaja_y_otras_no(self):
+        """CLV1116A: ABLITERATION_API_KEY viaja al A1 (aprobada por Alex 16-11);
+        ANTHROPIC, OPENAI, DEEPSEEK siguen SIN viajar."""
+        self.assertIn("ABLITERATION_API_KEY", N.CLAVES_A1)
+        for pago in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "DEEPSEEK_API_KEY"):
             self.assertNotIn(pago, N.CLAVES_A1)
 
 
