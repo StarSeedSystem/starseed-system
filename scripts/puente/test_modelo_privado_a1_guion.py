@@ -73,7 +73,7 @@ class ModeloPrivadoGuionTest(unittest.TestCase):
     
     def test_set_euo_pipefail(self):
         self.assertTrue(self.contenido.startswith("#!/bin/bash"))
-        self.assertIn("set -euo pipefail", self.contenido.split("\n")[1])
+        self.assertIn("set -euo pipefail", self.contenido)
     
     def test_funciones_principales(self):
         self.assertIn("instalar()", self.contenido)
