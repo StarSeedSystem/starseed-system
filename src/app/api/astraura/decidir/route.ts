@@ -1,3 +1,5 @@
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import path from "node:path";
 import { NextResponse } from "next/server";
 import {
   decidirConNeedle,
@@ -21,7 +23,33 @@ import {
 import { bloqueHabilidad } from "@/ai/astraura/habilidades/elegir-habilidad";
 import { esConsultaDePato, decidirConNeedlePato } from "@/lib/astraura/needle-pato";
 import { consensuar, UMBRAL_CONSENSO, type VeredictoConsenso } from "@/lib/astraura/laya/consenso";
+import { entradasDeRuta, normalizarRegistro, registrarCasos, type AlmacenRegistro } from "@/lib/astraura/laya/registro-ruta";
 import { type Astraura158Target } from "@/lib/astraura/astraura-158-client";
+import { raizDelProyecto } from "@/lib/mando/raiz";
+
+export const runtime = "nodejs";
+
+/** Dónde vive el registro de Laya: `starseed_memory_root` no se versiona (es de la neurona). */
+const rutaRegistro = (): string =>
+  path.join(raizDelProyecto(), "starseed_memory_root", "aprendizaje", "laya", "registro.json");
+
+/**
+ * El registro en disco. Si el disco no está (despliegue en la nube) o no hay permiso, la
+ * lectura sale vacía y la escritura falla: la ruta responde igual y el registro no se alimenta.
+ */
+const almacenRegistro: AlmacenRegistro = {
+  leer: async () => {
+    try {
+      return normalizarRegistro(JSON.parse(await readFile(rutaRegistro(), "utf-8")) as unknown);
+    } catch {
+      return [];
+    }
+  },
+  escribir: async (registro) => {
+    await mkdir(path.dirname(rutaRegistro()), { recursive: true });
+    await writeFile(rutaRegistro(), JSON.stringify(registro), "utf-8");
+  },
+};
 
 export async function POST(req: Request) {
   try {
@@ -32,6 +60,8 @@ export async function POST(req: Request) {
       /** Capa que responderá al turno: define el tamaño del bloque de habilidad
        *  (tarjeta · resumen · completa); por defecto «reflejo», la capa que pregunta. */
       capa?: string;
+      /** Ámbito donde se decide (cuenta, página o grupo); por defecto, el personal. */
+      ambito?: string;
     };
     if (!body.consulta || !Array.isArray(body.herramientas)) {
       return NextResponse.json(
@@ -145,9 +175,35 @@ export async function POST(req: Request) {
       }
     }
 
+    // El registro de aprendizaje de Laya (JLA1116A §2 y §8): hasta ahora NADA lo alimentaba —
+    // `anotar` no tenía llamador fuera de las pruebas y el panel recibía un registro vacío.
+    // Cada capa de Laya que respondió deja un caso; lo privado se guarda SOLO como huella (§5).
+    // El «dónde» es el medio con el que la ruta pregunta a Laya («a1», `decision-hibrida.ts`):
+    // el cliente no dice qué servidor local respondió, así que no se inventa otro nombre.
+    let aprendizaje = { casos: 0, guardado: false };
+    try {
+      const calHabilidad = habRes?.answer_confidence;
+      const confianzaHabilidad = typeof calHabilidad === "number" ? calHabilidad : null;
+      const resultado = await registrarCasos(almacenRegistro, entradasDeRuta({
+        ambito: body.ambito,
+        accion: plan.accion,
+        laya: layaRes ? { confianza: layaRes.confianza, ms: msLaya ?? 0 } : null,
+        habilidad: confianzaHabilidad === null
+          ? null
+          : { confianza: confianzaHabilidad, ms: msHabilidad ?? 0 },
+        estado: body.consulta,
+        donde: "a1",
+        ts: Date.now(),
+      }));
+      aprendizaje = { casos: resultado.registro.length, guardado: resultado.guardados > 0 };
+    } catch {
+      // Sin disco (o sin permiso) el registro no se alimenta; la decisión se responde igual.
+    }
+
     return NextResponse.json({
       ok: true,
       plan,
+      aprendizaje,
       consenso: consenso
         ? { decision: consenso.decision, quien: consenso.quien, accion: consenso.accion, motivo: consenso.motivo }
         : null,
