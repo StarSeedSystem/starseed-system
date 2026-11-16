@@ -9,6 +9,7 @@
  */
 import { auroraTransport } from "@/lib/aurora/open-aurora";
 import { decirRT, vozRT } from "@/lib/aurora/voz-rt";
+import { resetearEstado, cuandoTermine } from "@/lib/traductor/voz-habla";
 
 export type ContextoVozUnica = "conversacion" | "aviso" | "ventana" | "guia" | "rito" | "lectura" | "mando" | "llamada";
 /** Empezó a sonar / terminó (o lo cortaron): para la orbe y el medio-dúplex de quien llama. */
@@ -88,18 +89,28 @@ export function crearPuertaVoz(m: MotoresVoz) {
 }
 /** Los motores de verdad: los mismos que usan hoy `engine.speak`, `engine.interrupt` y `callarRito`. */
 function motoresReales(): MotoresVoz {
+    resetearEstado();
     const synth = () => (typeof window !== "undefined" ? window.speechSynthesis : undefined);
     const router = () => import("@/lib/aurora/tts-oss/speak-router");
     return {
         rt: { disponible: () => vozRT().disponible(), hablando: () => vozRT().hablando(), detener: () => vozRT().detener(),
-            decir: (t, persona, a) => decirRT(t, persona, { onInicio: a.alEmpezar, onFin: a.alTerminar }) },
-        cadena: async (t, _c, a) => (await router()).speakWithConfiguredEngine(t, { onStart: a.alEmpezar, onEnd: a.alTerminar }),
+            decir: (t, persona, a) => {
+                cuandoTermine(() => { a.alTerminar?.(); });
+                return decirRT(t, persona, { onInicio: a.alEmpezar, onFin: () => a.alTerminar?.() });
+            } },
+        cadena: async (t, _c, a) => {
+            const routerMod = await router();
+            cuandoTermine(() => { a.alTerminar?.(); });
+            return routerMod.speakWithConfiguredEngine(t, { onStart: a.alEmpezar, onEnd: () => a.alTerminar?.() });
+        },
         suelo: async (t, a) => {
             const s = synth(), u = s ? new SpeechSynthesisUtterance(t) : null;
             if (!s || !u) return false;
             u.voice = (await import("@/lib/aurora/tts-oss/browser-voices")).getBestBrowserVoice(); // la mejor, elegida sola
             u.lang = u.voice?.lang || "es-ES";
-            u.onstart = () => a.alEmpezar?.(), u.onend = u.onerror = () => a.alTerminar?.();
+            u.onstart = () => a.alEmpezar?.();
+            cuandoTermine(() => { a.alTerminar?.(); });
+            u.onend = u.onerror = () => a.alTerminar?.();
             s.speak(u);
             return true;
         },
