@@ -1,0 +1,74 @@
+{
+ "ola": "nube-20261115",
+ "tareas": [
+  {
+   "id": "IMG-agentes-reimaginada-profunda-corregir-bo",
+   "titulo": "Corregir foco visible del botón de cierre: localizar componente vigente, auditar y aplicar patrón focus-visible",
+   "area": "imaginacion",
+   "archivos": [],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Corregir foco visible del botón de cierre: localizar componente vigente, auditar y aplicar patrón focus-visible. ## Reimaginada: foco visible en botón de cierre\n\n**Intención conservada:** que el botón de cierre no quede sin indicador de foco visible para teclado/lectores, sin depender de una cita que ya no existe.\n\n**Cambio clave:** la v1 citaba `src/components/voces/tomas-voz.tsx:320`; esa ruta no se conserva porque no pudo verificarse en el código actual. En su lugar, la propuesta arranca con localización y verificación, y solo después propone parche.\n\n**Acción propuesta:**\n1. Buscar en el repo vigente el botón de cierre y su estilo de foco (por texto accesible, `aria-label`, `close`, `cerrar`, `focus- Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  },
+  {
+   "id": "IMG-profunda-eliminar-exposicion-de-comando_",
+   "titulo": "Eliminar exposición de COMANDO_DAEMON",
+   "area": "imaginacion",
+   "archivos": [
+    "src/components/voces/panel-motor.tsx"
+   ],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Eliminar exposición de COMANDO_DAEMON. Eliminar exposición de COMANDO_DAEMON Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  },
+  {
+   "id": "IMG-profunda-catch-silencioso-en-primer-arra",
+   "titulo": "Catch silencioso en primer-arranque",
+   "area": "imaginacion",
+   "archivos": [
+    "src/components/onboarding/primer-arranque.tsx"
+   ],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Catch silencioso en primer-arranque. Catch silencioso en primer-arranque Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  },
+  {
+   "id": "IMG-profunda-catch-vacio-en-exchangecodefors",
+   "titulo": "Catch vacío en exchangeCodeForSession",
+   "area": "imaginacion",
+   "archivos": [
+    "src/app/auth/callback/route.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Catch vacío en exchangeCodeForSession. Catch vacío en exchangeCodeForSession Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  },
+  {
+   "id": "IMG-profunda-eliminar-cliente-supabase-dupli",
+   "titulo": "Eliminar cliente Supabase duplicado",
+   "area": "imaginacion",
+   "archivos": [
+    "src/components/onboarding/ventana-perfil-inicial.tsx"
+   ],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Eliminar cliente Supabase duplicado. Eliminar cliente Supabase duplicado Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  },
+  {
+   "id": "IMA18",
+   "ola": "TRA1116-IDIOMAS",
+   "titulo": "Leer en voz alta el texto seleccionado, en su idioma, o decir que no hay voz",
+   "archivos": [
+    "src/lib/idiomas/leer-en-voz.ts",
+    "src/lib/idiomas/__tests__/leer-en-voz.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. `leerEnVoz(texto: string, idioma: string|null, entorno: { synth?: SpeechSynthesis; Utter?: typeof SpeechSynthesisUtterance }): { ok: boolean; voz?: string; motivo?: string }`: sin `speechSynthesis` → `{ok:false, motivo:\"Este aparato no tiene síntesis de voz\"}`; elige la voz de `getVoices()` cuyo `lang` coincide con el idioma (exacto, luego por prefijo de 2 letras); si no hay voz de ese idioma → `{ok:false, motivo:\"No hay una voz instalada para <idioma> en este aparato\"}` y NO habla con otra voz (no se finge); recorta a 2.000 caracteres; cancela la lectura anterior; `detener()`. Detección de idioma si `idioma` es null: devuelve motivo «Elige el idioma» (la detección vive en la app del Traductor). PRUEBAS con un `synth` falso: voz exacta, por prefijo, sin voz, sin síntesis, recorte.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1115-190053.json": [
+   "IMA18",
+   "IMG-profunda-catch-silencioso-en-primer-arra",
+   "IMG-profunda-catch-vacio-en-exchangecodefors",
+   "IMG-profunda-eliminar-cliente-supabase-dupli",
+   "IMG-profunda-eliminar-exposicion-de-comando_",
+   "IMG-agentes-reimaginada-profunda-corregir-bo"
+  ]
+ }
+}
