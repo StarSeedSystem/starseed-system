@@ -64,7 +64,7 @@ describe("observador no edita y transiciones de rol en vivo (RST1116A)", () => {
             ...d,
             bloques: {
                 ...d.bloques,
-                "b1": { id: "b1", v: { id: "b1", tipo: "nota", x: 0, y: 0, texto: "hola" }, t: c.t, a: c.a }
+                "b1": { id: "b1", v: { id: "b1", kind: "text", x: 0, y: 0, w: 5, h: 5, data: { texto: "hola" } }, t: c.t, a: c.a }
             },
         }));
 
@@ -118,7 +118,7 @@ describe("observador no edita y transiciones de rol en vivo (RST1116A)", () => {
             ...d,
             bloques: {
                 ...d.bloques,
-                "b2": { id: "b2", v: { id: "b2", tipo: "nota", x: 10, y: 10, texto: "colab" }, t: c.t, a: c.a }
+                "b2": { id: "b2", v: { id: "b2", kind: "text", x: 10, y: 10, w: 5, h: 5, data: { texto: "colab" } }, t: c.t, a: c.a }
             },
         }));
 
@@ -176,7 +176,7 @@ describe("observador no edita y transiciones de rol en vivo (RST1116A)", () => {
             ...d,
             bloques: {
                 ...d.bloques,
-                "b-primera": { id: "b-primera", v: { id: "b-primera", tipo: "nota", x: 0, y: 0, texto: "guardada" }, t: c.t, a: c.a }
+                "b-primera": { id: "b-primera", v: { id: "b-primera", kind: "text", x: 0, y: 0, w: 5, h: 5, data: { texto: "guardada" } }, t: c.t, a: c.a }
             },
         }));
         expect(apl1).toBe(true);
