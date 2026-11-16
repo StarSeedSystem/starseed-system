@@ -1,7 +1,7 @@
 import { EstadoConexion, FuenteLimitada } from './tipos';
 
 type EntradaClasificacion = {
-  declarada: boolean | null;
+  declarada?: boolean | null;
   nativaMedida?: boolean | null;
   tipo?: string;
   saveData?: boolean;
