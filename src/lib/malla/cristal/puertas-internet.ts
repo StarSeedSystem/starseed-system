@@ -1,5 +1,6 @@
 // Puertas a internet opcionales
 import type { ClaseDato } from './tipos';
+import { ajustesPorDefecto, audienciaDe } from '../internet/defectos-audiencia';
 
 export const TIPOS_PUERTA = ['movil-4g','movil-5g','wifi-externa','usb-telefono','cable','satelite'] as const;
 export type TipoPuerta = typeof TIPOS_PUERTA[number];
@@ -34,7 +35,17 @@ export function restanteParaOtrosMb(p: PuertaInternet): number | null {
   return !p.medida || !p.topeMensualMb ? null : Math.max(0, p.topeMensualMb - (p.usadoMesMb ?? 0) - (p.topeMensualMb * (p.reservaDuenoPct ?? 20)) / 100);
 }
 
-export function puedeUsar(p: PuertaInternet, s: Solicitante): {ok: boolean; motivo: string} {
+export function puedeUsar(p: PuertaInternet, s: Solicitante, par?: { cuentaId: string | null; entidades: string[] }, yo?: { cuentaId: string | null; entidades: string[] }): {ok: boolean; motivo: string} {
+  if (par !== undefined && yo !== undefined) {
+    const audiencia = audienciaDe(par, yo);
+    const ajustes = ajustesPorDefecto();
+    const porAudiencia = ajustes.porAudiencia[audiencia];
+
+    if (!porAudiencia.mesh) {
+      return {ok: false, motivo: `Compartir malla desactivado para audiencia ${audiencia}`};
+    }
+  }
+
   switch (p.compartir) {
     case 'nadie': return {ok: false, motivo: 'Puerta configurada para no compartir'};
     case 'mi-cuenta':
