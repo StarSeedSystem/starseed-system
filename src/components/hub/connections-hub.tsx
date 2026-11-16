@@ -975,7 +975,7 @@ export function ConnectionsHub() {
                         className="h-11 rounded-xl border-white/12 bg-background/40 pl-10 backdrop-blur"
                     />
                     {query && (
-                        <button type="button" onClick={() => setQuery("")} aria-label="Limpiar búsqueda" className="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer text-muted-foreground hover:text-foreground">
+                        <button type="button" onClick={() => setQuery("")} aria-label="Limpiar búsqueda" className="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/80">
                             <X className="h-4 w-4" />
                         </button>
                     )}

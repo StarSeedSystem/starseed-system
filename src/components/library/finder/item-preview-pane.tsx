@@ -39,7 +39,7 @@ export function ItemPreviewPane({ item, accent, onOpen, onClose, resolvedTarget,
                     <p className="truncate text-sm font-semibold">{item.title}</p>
                     <p className="text-[11px] text-muted-foreground">{meta.label}</p>
                 </div>
-                <button type="button" onClick={onClose} className="cursor-pointer rounded-md p-1 text-muted-foreground hover:bg-white/10 hover:text-white" aria-label="Cerrar vista previa">
+                <button type="button" onClick={onClose} className="cursor-pointer rounded-md p-1 text-muted-foreground hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/80" aria-label="Cerrar vista previa">
                     <X className="h-3.5 w-3.5" />
                 </button>
             </div>

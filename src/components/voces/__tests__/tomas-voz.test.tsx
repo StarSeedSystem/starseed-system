@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-
+import { render, screen } from "@testing-library/react";
+import { fireEvent, waitFor, act } from "@testing-library/react";
+import { TomasVoz } from "@/components/voces/tomas-voz";
 import { mensajeErrorMedia, mensajeErrorReproduccion } from "@/components/voces/tomas-voz";
 
 describe("mensajeErrorReproduccion", () => {

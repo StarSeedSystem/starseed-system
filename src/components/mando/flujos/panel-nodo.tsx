@@ -110,7 +110,7 @@ export function PanelNodo({ nodo, variables, onCambiar, onEliminar, onCerrar }: 
             aria-label={`Parámetros del nodo ${nodo.id}`}>
             <header className="flex items-center justify-between">
                 <strong className="text-sm">{nodo.id}</strong>
-                <button type="button" aria-label="Cerrar panel" className="cursor-pointer rounded border border-white/15 px-2 py-0.5 text-xs"
+                <button type="button" aria-label="Cerrar panel" className="cursor-pointer rounded border border-white/15 px-2 py-0.5 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/80"
                     onClick={onCerrar}>×</button>
             </header>
 

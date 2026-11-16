@@ -112,7 +112,7 @@ export function InstalarOllama({ e, modeloId, abriria = 0 }: { e: VistaOllama; m
       {fase !== "cerrado" && (
         <div role="alertdialog" aria-label={pregunta.titulo} data-sistema={sistema} className="space-y-2 rounded-lg border border-cyan-400/25 bg-cyan-500/[0.06] p-3">
           <p className="flex items-center justify-between font-medium text-white/90">{pregunta.titulo}
-            {fase !== "trabajando" && <button type="button" aria-label="Cerrar" onClick={cerrar} className="cursor-pointer text-white/50 hover:text-white/80"><X className="h-3.5 w-3.5" aria-hidden /></button>}
+            {fase !== "trabajando" && <button type="button" aria-label="Cerrar" onClick={cerrar} className="cursor-pointer text-white/50 hover:text-white/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"><X className="h-3.5 w-3.5" aria-hidden /></button>}
           </p>
           {fase === "pregunta" && <ul className="list-disc space-y-1 pl-4 text-white/75">{pregunta.lineas.map((l) => <li key={l}>{l}</li>)}</ul>}
           {fase === "pregunta" && pregunta.comando && (
