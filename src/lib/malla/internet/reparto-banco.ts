@@ -19,23 +19,32 @@ export function repartirRacion(
     return { reparto: nodos.map(n => ({ id: n.id, mb: 0 })), sobranteMb: racionMb };
   }
 
-  // Implementación simplificada para satisfacer pruebas iniciales
   let totalCapacidad = nodosValidos.reduce((sum, n) => sum + n.capacidadKbps, 0);
-  let reparto: { id: string; mb: number }[] = [];
-  let totalRepartido = 0;
+  const reparto: { id: string; mb: number }[] = [];
+  let remainingMb = racionMb;
 
   for (const nodo of nodosValidos) {
-    let proporcion = nodo.capacidadKbps / totalCapacidad;
-    let mb = Math.floor(racionMb * proporcion);
+    let mb = Math.floor((nodo.capacidadKbps / totalCapacidad) * racionMb);
     if (nodo.maxMb !== undefined && mb > nodo.maxMb) {
       mb = nodo.maxMb;
     }
     reparto.push({ id: nodo.id, mb });
-    totalRepartido += mb;
+    remainingMb -= mb;
+  }
+
+  for (const nodo of nodosValidos) {
+    const idx = nodosValidos.findIndex(n => n.id === nodo.id);
+    const currentMb = reparto[idx].mb;
+    const maxMb = nodo.maxMb ?? Infinity;
+    if (currentMb < maxMb && remainingMb > 0 && nodo.capacidadKbps > 0) {
+      const availableMb = Math.min(maxMb - currentMb, remainingMb);
+      reparto[idx].mb = currentMb + availableMb;
+      remainingMb -= availableMb;
+    }
   }
 
   return {
     reparto,
-    sobranteMb: racionMb - totalRepartido,
+    sobranteMb: remainingMb,
   };
 }
