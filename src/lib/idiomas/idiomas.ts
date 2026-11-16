@@ -67,6 +67,23 @@ export const ESTADO_CATALOGO: Readonly<Record<string, "revisado" | "automatico">
 export const porCodigo = (codigo: string): Idioma | undefined => IDIOMAS.find((i) => i.codigo === codigo);
 export const direccionDe = (codigo: string): "ltr" | "rtl" => porCodigo(codigo)?.dir ?? (esRtl(codigo) ? "rtl" : "ltr");
 
+const INTEGRADOS = new Set(["en", "pt", "fr"]);
+
+export function idiomasConCatalogo(
+    paquetes: { codigo: string }[] = []
+): string[] {
+    const codigos = new Set<string>(INTEGRADOS);
+    for (const p of paquetes) {
+        const base = p.codigo.split("-")[0];
+        if (IDIOMAS.some((i) => i.codigo === base) && INTEGRADOS.has(base)) {
+            codigos.add(base);
+        } else if (IDIOMAS.some((i) => i.codigo === base)) {
+            codigos.add(base);
+        }
+    }
+    return Array.from(codigos).sort();
+}
+
 /** «pt-BR» → «pt»; «zh-TW» → «zh-hant»; «no»/«nn» → «nb»; null si no hay idioma elegible que lo cubra. */
 export function aIdiomaElegible(valor: unknown): string | null {
     if (typeof valor !== "string") return null;
