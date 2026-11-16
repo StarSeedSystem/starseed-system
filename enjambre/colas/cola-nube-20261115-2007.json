@@ -1,0 +1,33 @@
+{
+ "ola": "nube-20261115",
+ "tareas": [
+  {
+   "id": "SVF1C2",
+   "ola": "SES1116B",
+   "titulo": "Compartir en vivo: pase y estación de espectadores para una pizarra o dashboard",
+   "archivos": [
+    "src/lib/vivo-entidad/estacion-de-sesion.ts",
+    "src/lib/vivo-entidad/__tests__/estacion-de-sesion.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contrato: architecture/sesiones-en-vivo-entidades-y-transmisiones.md §8 flujo 1, §10 (P1-C) y §1.4. Lee antes `src/lib/mensajeria/sesiones-vivas.ts` (tabla `os_sesiones_vivas`, `generarTokenPublico`, `esUuid`, `MENSAJE_SIN_DESPLEGAR`, `esFaltaDeEsquema`), `src/components/messages/vivo/acciones-vivo.ts` (`compartirVivo`) y `src/lib/estaciones/{datos,crear-sesion}.ts` (cómo es una fila de `os_estaciones`: `tipo` ya admite pizarra y dashboard, `fuente` «starseed»). REUTILÍZALOS; no dupliques su lógica. Escribe `estacion-de-sesion.ts`: (a) `filaEstacionDeSesion({sesionId, tipo: \"pizarra\"|\"dashboard\", titulo, token, propietario, entidadRef?})` → la fila de estación para ESPECTADORES con enlace `/vivo/<sesionId>?t=<token>` (valida UUID y token; rechaza lo demás con un motivo); (b) `compartirEnVivo(deps, opciones: {con: \"mis-neuronas\"|\"entidad\"|\"enlace\"; acceso: \"editar\"|\"mirar\"; entidadRef?})` con `deps` INYECTADAS (`crearPase`, `crearEstacion`) que crea el pase y, si `acceso === \"mirar\"` o `con === \"enlace\"`, la estación; por defecto «mis-neuronas» + «editar»; devuelve `{ok:true, enlace, personas}` o `{ok:false, motivo}` en palabras, y si falta el esquema devuelve `MENSAJE_SIN_DESPLEGAR` (nunca finge éxito); (c) `contarEspectadores(presencias)` = personas únicas con rango `ver` (usa `traduccion-roles`), sin contar editores.\nPRUEBAS con deps falsas: el enlace tiene la forma exacta; un espectador cuenta y `puedeEditarSesion` de su rango es false; el valor por defecto es mis-neuronas+editar; esquema ausente → motivo honesto y ninguna estación creada. COMPRUEBA: `NODE_ENV=test npx vitest run src/lib/vivo-entidad/__tests__/estacion-de-sesion.test.ts` verde y tsc acotado.\n\nREGLAS DE LA CASA (valen aunque no las repita la tarea): toca SOLO los archivos de la lista `archivos`; ≤3 archivos y ≤120 líneas por archivo (si no cabe, para y di qué falta: no lo estires ni lo resumas); sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible (la interfaz dice Genesis); sin red real en las pruebas; ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves. El asunto de tu commit empieza por `SVF1C2:` y dice qué comprobaste y qué NO pudiste comprobar.",
+   "dependencias_ya_en_main": [
+    "SVF1C1"
+   ]
+  },
+  {
+   "id": "SVF1C5",
+   "ola": "SES1116B",
+   "titulo": "«Pedir editar» para quien solo mira",
+   "archivos": [
+    "src/components/vivo-entidad/pedir-editar.tsx",
+    "src/components/vivo-entidad/__tests__/pedir-editar.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contrato: architecture/sesiones-en-vivo-entidades-y-transmisiones.md §3.4 y §10 (P1-C). Componente `PedirEditar({rango, pedir})`: solo se ve si el rango es `ver` o `comentar` (`rangoDeSesion` de `src/lib/vivo-entidad/traduccion-roles.ts`); botón «Pedir editar» que llama a `pedir()` (inyectada; en la integración será `requestSpaceAccess` de `src/lib/spaces/spaces.ts`); estados en palabras: «Pedida: quien gestiona la verá», «Ya puedes editar» (si el rango pasa a `editar`), y el error tal cual si falla. No se puede pedir dos veces seguidas. Con rango `editar` o superior no se renderiza nada. PRUEBAS: los cuatro estados; doble clic = una sola petición; un `pedir` que rechaza muestra el motivo. COMPRUEBA: `NODE_ENV=test npx vitest run src/components/vivo-entidad/__tests__/pedir-editar.test.tsx` verde y tsc acotado.\n\nREGLAS DE LA CASA (valen aunque no las repita la tarea): toca SOLO los archivos de la lista `archivos`; ≤3 archivos y ≤120 líneas por archivo (si no cabe, para y di qué falta: no lo estires ni lo resumas); sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible (la interfaz dice Genesis); sin red real en las pruebas; ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves. El asunto de tu commit empieza por `SVF1C5:` y dice qué comprobaste y qué NO pudiste comprobar.",
+   "dependencias_ya_en_main": [
+    "SVF1C1"
+   ]
+  }
+ ]
+}
