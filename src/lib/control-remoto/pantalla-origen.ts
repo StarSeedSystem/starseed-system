@@ -16,6 +16,7 @@
 
 import type { Args } from "./niveles";
 import type { RespuestaOrden } from "./orden";
+import { Reensamblador, leerParte, trocear, type ParteSenal } from "./senal-partes";
 
 export const LADO_MAX_DEFECTO = 1280;
 export const CALIDAD_DEFECTO = 60;
@@ -125,6 +126,8 @@ interface Activa {
     fuente: string;
     cuadros: number;
     cola: Promise<void>;
+    reens: Reensamblador; // SEN1116A: partes de la oferta; se tira con la sesión
+    respuestas: Map<string, ParteSenal[]>;
 }
 
 function esObjeto(x: unknown): x is Record<string, unknown> {
@@ -205,6 +208,8 @@ export class OrigenPantalla {
             fuente,
             cuadros: 0,
             cola: Promise.resolve(),
+            reens: new Reensamblador(this.d.ahora),
+            respuestas: new Map(),
         };
         this.activa = a;
         void this.bucle(a);
@@ -282,27 +287,12 @@ export class OrigenPantalla {
 
     private async senal(s: SesionViva, args: Args): Promise<unknown> {
         const a = this.activa;
-        if (!a || a.parado || a.token !== s.token || a.de !== s.de) throw new Error("sin-pantalla");
-        if (typeof args.oferta === "string") {
-            if (a.peer) throw new Error("ya-negociada");
-            const ice = await this.d.iceServers().catch(() => [] as RTCIceServer[]);
-            const peer = this.d.crearPeer(ice);
-            a.peer = peer;
-            peer.ondatachannel = (e) => this.alAbrirseCanal(a, peer, e.channel);
-            peer.onconnectionstatechange = () => {
-                if (peer.connectionState === "failed" || peer.connectionState === "closed") void this.parar("conexion-perdida");
-            };
-            await peer.setRemoteDescription({ type: "offer", sdp: args.oferta });
-            peer.addTrack(a.pintor.pista(), a.pintor.flujo());
-            const resp = await peer.createAnswer();
-            await peer.setLocalDescription(resp);
-            await this.esperarRecogida(peer);
-            const sdp = peer.localDescription?.sdp ?? resp.sdp;
-            if (typeof sdp !== "string") throw new Error("sin-respuesta");
-            return { respuesta: sdp };
-        }
+        if (!a || a.parado || a.token !== s.token || a.de !== s.de) throw this.falloSenal("oferta", "sin-pantalla");
+        // SEN1116A: la oferta llega en partes; la respuesta se pide por partes. Cada fallo deja su línea en el registro.
+        if (typeof args.pide === "number") return this.darParteRespuesta(a, args);
+        if (typeof args.neg === "string") return this.recibirParteOferta(a, args);
         const peer = a.peer;
-        if (!peer) throw new Error("sin-oferta");
+        if (!peer) throw this.falloSenal("candidatos", "sin-oferta");
         const lista = Array.isArray(args.candidatos) ? (args.candidatos as string[]) : [];
         let n = 0;
         for (const c of lista) {
@@ -313,6 +303,62 @@ export class OrigenPantalla {
             );
         }
         return { candidatos: n };
+    }
+
+    private falloSenal(paso: string, motivo: string): Error {
+        this.d.anotar(`control-senal paso=${paso} lado=aparato resultado=rechazo motivo=${motivo}`);
+        return new Error(motivo);
+    }
+
+    private async recibirParteOferta(a: Activa, args: Args): Promise<unknown> {
+        const p = leerParte(args);
+        if (!p || p.tipo !== "oferta") throw this.falloSenal("oferta", "argumentos");
+        let texto: string | null;
+        try {
+            texto = await a.reens.meter(p);
+        } catch (e) {
+            throw this.falloSenal("oferta", e instanceof Error ? e.message : "fallo");
+        }
+        if (texto === null) return { recibida: p.i, de: p.n };
+        if (a.peer) throw this.falloSenal("oferta", "ya-negociada");
+        this.d.anotar(`control-senal paso=oferta lado=aparato resultado=ok partes=${p.n} largo=${p.total}`);
+        let respuesta: string;
+        try {
+            const ice = await this.d.iceServers().catch(() => [] as RTCIceServer[]);
+            const peer = this.d.crearPeer(ice);
+            a.peer = peer;
+            peer.ondatachannel = (e) => this.alAbrirseCanal(a, peer, e.channel);
+            peer.onconnectionstatechange = () => {
+                if (peer.connectionState === "failed" || peer.connectionState === "closed") void this.parar("conexion-perdida");
+            };
+            await peer.setRemoteDescription({ type: "offer", sdp: texto });
+            peer.addTrack(a.pintor.pista(), a.pintor.flujo());
+            const resp = await peer.createAnswer();
+            await peer.setLocalDescription(resp);
+            await this.esperarRecogida(peer);
+            const sdp = peer.localDescription?.sdp ?? resp.sdp;
+            if (typeof sdp !== "string") throw new Error("sin-respuesta");
+            respuesta = sdp;
+        } catch (e) {
+            throw this.falloSenal("respuesta", e instanceof Error && e.message === "sin-respuesta" ? "sin-respuesta" : "conexion-rechazada");
+        }
+        let partes: ParteSenal[];
+        try {
+            partes = await trocear(respuesta, "respuesta", p.neg);
+        } catch (e) {
+            throw this.falloSenal("respuesta", e instanceof Error ? e.message : "fallo");
+        }
+        a.respuestas.set(p.neg, partes);
+        this.d.anotar(`control-senal paso=respuesta lado=aparato resultado=ok partes=${partes.length} largo=${respuesta.length}`);
+        return { lista: true, n: partes.length, total: respuesta.length, sha: partes[0].sha };
+    }
+
+    private darParteRespuesta(a: Activa, args: Args): unknown {
+        const partes = a.respuestas.get(String(args.neg));
+        const i = Number(args.pide);
+        if (!partes || !partes[i]) throw this.falloSenal("respuesta", "sin-respuesta");
+        const { i: _i, ...resto } = partes[i];
+        return { ...resto, i };
     }
 
     private async esperarRecogida(peer: PeerLike): Promise<void> {
@@ -409,6 +455,8 @@ export class OrigenPantalla {
         }
         try {
             a.pintor.liberar();
+            a.reens.limpiar();
+            a.respuestas.clear();
         } catch {
             /* nada */
         }
@@ -486,6 +534,7 @@ export function origenGlobal(): OrigenPantalla {
         esperar: (ms) => new Promise((r) => setTimeout(r, ms)),
         ahora: () => Date.now(),
         anotar: (l) => {
+            void import("@/lib/llamadas/voz-datos/diagnostico").then((m) => m.anotarLlamada("banco", null, l)).catch(() => undefined);
             try {
                 console.info(`[control-neuronas] ${l}`);
             } catch {

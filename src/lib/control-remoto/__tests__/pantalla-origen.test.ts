@@ -6,6 +6,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { OrigenPantalla, abytes, leerCabeceraCuadro, type CanalLike, type DepsOrigen, type PeerLike, type Pintor, type SesionViva } from "../pantalla-origen";
 import type { RespuestaOrden } from "../orden";
+import { trocear } from "../senal-partes";
 
 function cuadro(numero: number, ancho = 800, alto = 1280, giro = 0, cero = 0, jpeg = 20): Uint8Array {
     const b = new Uint8Array(12 + jpeg);
@@ -132,6 +133,15 @@ beforeEach(() => {
     montar();
 });
 
+async function oferta(sdp: string, c = ctx("ver")): Promise<{ respuesta: string }> {
+    const ps = await trocear(sdp, "oferta");
+    let fin: unknown;
+    for (const p of ps) fin = await origen.ejecutar("pantalla-senal", { ...p }, c);
+    const f = fin as { n: number };
+    let texto = "";
+    for (let i = 0; i < f.n; i++) texto += ((await origen.ejecutar("pantalla-senal", { neg: ps[0].neg, pide: i }, c)) as { datos: string }).datos;
+    return { respuesta: texto };
+}
 const n = (cmd: string) => llamadas.filter((l) => l.cmd === cmd);
 
 describe("cabecera del cuadro", () => {
@@ -232,7 +242,7 @@ describe("negociación por el canal de control", () => {
     }
     it("la oferta se contesta con la respuesta, la pista del lienzo va en la conexión y los candidatos entran", async () => {
         await conPantalla();
-        const r = (await origen.ejecutar("pantalla-senal", { oferta: "v=0\r\noferta" }, ctx("ver"))) as { respuesta: string };
+        const r = (await oferta("v=0\r\noferta", ctx("ver"))) as { respuesta: string };
         expect(peer.remota).toEqual({ type: "offer", sdp: "v=0\r\noferta" });
         expect(peer.pistas).toEqual([{ pista: true }]);
         expect(r.respuesta).toBe("v=0\r\nrespuesta");
@@ -244,21 +254,21 @@ describe("negociación por el canal de control", () => {
     it("si la recogida de candidatos se alarga, contesta igual al pasar la espera", async () => {
         peer.iceGatheringState = "gathering";
         await conPantalla();
-        const r = (await origen.ejecutar("pantalla-senal", { oferta: "v=0\r\noferta" }, ctx("ver"))) as { respuesta: string };
+        const r = (await oferta("v=0\r\noferta", ctx("ver"))) as { respuesta: string };
         expect(r.respuesta).toBeTruthy();
         await origen.parar("fin");
     });
     it("sin pantalla iniciada no se negocia; una segunda oferta se rechaza; candidatos sin oferta también", async () => {
-        await expect(origen.ejecutar("pantalla-senal", { oferta: "v=0\r\no" }, ctx("ver"))).rejects.toThrow("sin-pantalla");
+        await expect(oferta("v=0\r\nofert", ctx("ver"))).rejects.toThrow("sin-pantalla");
         await conPantalla();
         await expect(origen.ejecutar("pantalla-senal", { candidatos: ["candidate:1"] }, ctx("ver"))).rejects.toThrow("sin-oferta");
-        await origen.ejecutar("pantalla-senal", { oferta: "v=0\r\no" }, ctx("ver"));
-        await expect(origen.ejecutar("pantalla-senal", { oferta: "v=0\r\no" }, ctx("ver"))).rejects.toThrow("ya-negociada");
+        await oferta("v=0\r\nofert", ctx("ver"));
+        await expect(oferta("v=0\r\nofert", ctx("ver"))).rejects.toThrow("ya-negociada");
         await origen.parar("fin");
     });
     it("el canal de datos lleva las órdenes firmadas a la MISMA puerta, una a una y en orden, y devuelve su respuesta", async () => {
         await conPantalla();
-        await origen.ejecutar("pantalla-senal", { oferta: "v=0\r\no" }, ctx("ver"));
+        await oferta("v=0\r\nofert", ctx("ver"));
         const canal = new CanalFalso();
         peer.ondatachannel!({ channel: canal });
         canal.onmessage!({ data: JSON.stringify({ v: 1, n: "uno" }) });
@@ -329,7 +339,7 @@ describe("leer-aparato", () => {
 describe("todo se para cuando debe", () => {
     async function enMarcha() {
         await origen.ejecutar("pantalla-iniciar", {}, ctx());
-        await origen.ejecutar("pantalla-senal", { oferta: "v=0\r\no" }, ctx());
+        await oferta("v=0\r\nofert", ctx());
         const canal = new CanalFalso();
         peer.ondatachannel!({ channel: canal });
         expect(origen.enMarcha()).toBe(true);

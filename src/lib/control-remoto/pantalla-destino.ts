@@ -15,6 +15,7 @@
  */
 
 import { ACCIONES, MAX_DEDOS, MAX_PUNTOS_DEDO, definicion, type Args } from "./niveles";
+import { MAX_PARTES, Reensamblador, leerParte, trocear, type ParteSenal } from "./senal-partes";
 import { esRespuesta, type RespuestaOrden } from "./orden";
 
 export type EntradaControl =
@@ -201,6 +202,8 @@ export interface DepsDestino {
     crearPeer: (iceServers: RTCIceServer[]) => PeerDestinoLike;
     flujoDe: (pista: unknown) => MediaStream | null;
     ahora: () => number;
+    /** Línea para el registro de llamadas que la app ya espeja (`control-senal paso=… lado=… resultado=… motivo=…`). */
+    anotar?: (linea: string) => void;
 }
 
 const FATALES = new Set(["sin-sesion", "sesion-caducada", "parada-nativa", "a-mano", "sin-indicador-nativo", "permiso-apagado", "no-autorizado", "otra-cuenta", "otro-destino", "sin-puerta"]);
@@ -219,6 +222,7 @@ export class PantallaDestino {
     private intervalos = new Set<ReturnType<typeof setInterval>>();
     private candidatos: string[] = [];
     private remotoListo = false;
+    private fallo: string | null = null; // SEN1116A: motivo de señalización con paso y lado
     private cerrada = false;
     private ultimosCuadros = { n: 0, t: 0 };
     private sinCuadros = 0;
@@ -294,8 +298,11 @@ export class PantallaDestino {
         });
         try {
             await this.negociar();
-        } catch {
-            if (!this.cerrada) await this.cerrar("negociacion", true);
+        } catch (e) {
+            // El motivo lleva el paso y el lado («senal-oferta-aparato-argumentos»); la ventana lo dice en palabras.
+            const m = e instanceof Error && /^senal-/.test(e.message) ? e.message : "negociacion";
+            if (m === "negociacion") this.anotar("control-senal paso=conexion lado=controlador resultado=error motivo=negociacion");
+            if (!this.cerrada) await this.cerrar(m, true);
             return;
         }
         if (this.cerrada) return;
@@ -335,19 +342,71 @@ export class PantallaDestino {
         const oferta = await peer.createOffer();
         await peer.setLocalDescription(oferta);
         const sdp = peer.localDescription?.sdp ?? oferta.sdp;
-        if (typeof sdp !== "string") throw new Error("oferta");
-        const r = await this.orden("pantalla-senal", { oferta: sdp }, "ver");
-        const respuesta = (r.resultado as { respuesta?: unknown } | undefined)?.respuesta;
-        if (!r.ok || typeof respuesta !== "string") throw new Error(r.motivo || "respuesta");
-        await peer.setRemoteDescription({ type: "answer", sdp: respuesta });
+        if (typeof sdp !== "string") throw this.falloSenal("oferta", "controlador", "sin-oferta");
+        // SEN1116A: la oferta (4–6 KB) y la respuesta viajan en partes numeradas dentro del tope de la orden firmada.
+        let partes: ParteSenal[];
+        try {
+            partes = await trocear(sdp, "oferta");
+        } catch (e) {
+            throw this.falloSenal("oferta", "controlador", e instanceof Error ? e.message : "fallo");
+        }
+        let fin: unknown;
+        for (const p of partes) {
+            const r = await this.orden("pantalla-senal", { ...p }, "ver");
+            if (!r.ok) throw this.falloSenal("oferta", "aparato", r.motivo || "sin-respuesta", `parte ${p.i + 1} de ${p.n}`);
+            fin = r.resultado;
+        }
+        const f = fin as { lista?: boolean; n?: number; total?: number; sha?: string } | undefined;
+        if (!f?.lista || typeof f.n !== "number" || f.n < 1 || f.n > MAX_PARTES) throw this.falloSenal("respuesta", "aparato", "respuesta-invalida");
+        this.anotar(`control-senal paso=oferta lado=controlador resultado=ok partes=${partes.length} largo=${sdp.length}`);
+        const neg = partes[0].neg;
+        const piezas: ParteSenal[] = [];
+        const reens = new Reensamblador();
+        let respuesta: string | null = null;
+        for (let i = 0; i < f.n; i++) {
+            const r = await this.orden("pantalla-senal", { neg, pide: i }, "ver");
+            if (!r.ok) throw this.falloSenal("respuesta", "aparato", r.motivo || "sin-respuesta", `parte ${i + 1} de ${f.n}`);
+            const q = leerParte({ ...(r.resultado as Record<string, unknown>) });
+            if (!q || q.tipo !== "respuesta" || q.neg !== neg) throw this.falloSenal("respuesta", "controlador", "respuesta-invalida");
+            piezas.push(q);
+        }
+        try {
+            for (const q of piezas) respuesta = await reens.meter(q);
+        } catch (e) {
+            throw this.falloSenal("respuesta", "controlador", e instanceof Error ? e.message : "fallo");
+        }
+        if (respuesta === null) throw this.falloSenal("respuesta", "controlador", "respuesta-incompleta");
+        try {
+            await peer.setRemoteDescription({ type: "answer", sdp: respuesta });
+        } catch {
+            throw this.falloSenal("respuesta", "controlador", "respuesta-rechazada");
+        }
+        this.anotar(`control-senal paso=respuesta lado=controlador resultado=ok partes=${f.n} largo=${respuesta.length}`);
         this.remotoListo = true;
         await this.soltarCandidatos();
+    }
+
+    private anotar(l: string): void {
+        try {
+            this.d.anotar?.(l);
+        } catch {
+            /* el registro no puede romper el control */
+        }
+    }
+
+    /** Deja la línea del registro y el motivo en palabras para la ventana; devuelve el error para lanzarlo. */
+    private falloSenal(paso: string, lado: "controlador" | "aparato", motivo: string, donde = ""): Error {
+        const m = /^[a-z-]{1,32}$/.test(motivo) ? motivo : "fallo";
+        this.anotar(`control-senal paso=${paso} lado=${lado} resultado=rechazo motivo=${m}${donde ? ` donde=${donde.replace(/ /g, "_")}` : ""}`);
+        this.fallo = `senal-${paso}-${lado}-${m}`;
+        return new Error(this.fallo);
     }
 
     private async soltarCandidatos(): Promise<void> {
         while (this.candidatos.length && !this.cerrada) {
             const lote = this.candidatos.splice(0, 8);
-            await this.orden("pantalla-senal", { candidatos: lote }, "ver");
+            const r = await this.orden("pantalla-senal", { candidatos: lote }, "ver");
+            if (!r.ok) this.anotar(`control-senal paso=candidatos lado=aparato resultado=rechazo motivo=${/^[a-z-]{1,32}$/.test(r.motivo) ? r.motivo : "fallo"}`);
         }
     }
 
@@ -593,6 +652,14 @@ export function depsReales(neurona: string): DepsDestino {
         crearPeer: (iceServers) => new RTCPeerConnection({ iceServers }) as unknown as PeerDestinoLike,
         flujoDe: (pista) => (typeof MediaStream === "function" ? new MediaStream([pista as MediaStreamTrack]) : null),
         ahora: () => Date.now(),
+        anotar: (l) => {
+            void import("@/lib/llamadas/voz-datos/diagnostico").then((m) => m.anotarLlamada("banco", null, l)).catch(() => undefined);
+            try {
+                console.info(`[control-neuronas] ${l}`);
+            } catch {
+                /* nada */
+            }
+        },
     };
 }
 

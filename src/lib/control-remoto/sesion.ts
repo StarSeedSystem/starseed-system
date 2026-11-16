@@ -249,7 +249,7 @@ export class PuertaControl {
         if (c.seq <= previo || this.noncesSet.has(c.nonce)) return this.respuesta(c.nonce, false, "repetida", nombre, c.de, c.nivel);
         this.ultimoSeq.set(c.de, c.seq);
         this.recordarNonce(c.nonce);
-        if (!this.tope(c.de, definicion(nombre)?.entrada === true)) return this.respuesta(c.nonce, false, "limite", nombre, c.de, c.nivel);
+        if (!this.tope(c.de, definicion(nombre)?.entrada === true || definicion(nombre)?.senal === true)) return this.respuesta(c.nonce, false, "limite", nombre, c.de, c.nivel);
 
         const def = definicion(nombre);
         if (!def) return this.respuesta(c.nonce, false, "accion-desconocida", nombre, c.de, c.nivel);

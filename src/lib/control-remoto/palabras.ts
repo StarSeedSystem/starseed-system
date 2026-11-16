@@ -41,8 +41,28 @@ export const PALABRAS_MOTIVO: Readonly<Record<string, string>> = {
     "sin-neurona": "No hay ninguna neurona elegida.",
 };
 
+const PASOS_SENAL: Record<string, string> = { oferta: "enviar la oferta de vídeo", respuesta: "recibir la respuesta de vídeo", candidatos: "intercambiar las rutas de red", conexion: "abrir la conexión" };
+const LADOS_SENAL: Record<string, string> = { controlador: "en este aparato (el que manda)", aparato: "en el aparato controlado" };
+const CAUSAS_SENAL: Record<string, string> = {
+    "demasiado-grande": "la oferta o la respuesta de vídeo era demasiado grande",
+    "resumen-no-casa": "las partes no casaban entre sí (llegaron alteradas)",
+    "partes-incoherentes": "las partes pertenecían a distintas negociaciones",
+    "parte-repetida-distinta": "una parte llegó repetida con otro contenido",
+    "demasiadas-negociaciones": "había demasiadas negociaciones a medias",
+    "respuesta-invalida": "la respuesta no tenía la forma esperada",
+    "respuesta-incompleta": "faltaron partes de la respuesta",
+    "respuesta-rechazada": "la conexión de vídeo rechazó la respuesta",
+    "conexion-rechazada": "la conexión de vídeo rechazó la oferta",
+    "ya-negociada": "ya había una conexión de vídeo en marcha",
+};
+
 export function palabrasMotivo(motivo: string | undefined | null): string | undefined {
     if (!motivo) return undefined;
+    const m = /^senal-(oferta|respuesta|candidatos|conexion)-(controlador|aparato)-([a-z-]{1,32})$/.exec(motivo);
+    if (m) {
+        const causa = CAUSAS_SENAL[m[3]] ?? PALABRAS_MOTIVO[m[3]] ?? `motivo «${m[3]}»`;
+        return `No se pudo preparar la conexión de vídeo. Falló el paso «${PASOS_SENAL[m[1]]}» ${LADOS_SENAL[m[2]]}: ${causa}.`;
+    }
     return PALABRAS_MOTIVO[motivo] ?? PALABRAS_FALTA[motivo] ?? `Motivo: ${motivo.slice(0, 40)}`;
 }
 

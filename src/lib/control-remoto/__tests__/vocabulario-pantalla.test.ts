@@ -100,19 +100,33 @@ describe("tecla, volumen, brillo, texto, pantalla", () => {
         expect(v("pantalla-parar", { x: 1 })).toBeNull();
         expect(v("leer-aparato", { x: 1 })).toBeNull();
     });
-    it("pantalla-senal: una oferta o candidatos, con tope de tamaño", () => {
-        expect(v("pantalla-senal", { oferta: "v=0\r\no=- 1 1 IN IP4 0.0.0.0\r\n" })).not.toBeNull();
+    it("pantalla-senal: partes de oferta o respuesta, petición de parte y candidatos, con topes", () => {
+        const base = { neg: "abcdef0123", tipo: "oferta", i: 0, n: 1, total: 11, sha: "0123456789abcdef", datos: "v=0\r\noferta" };
+        expect(v("pantalla-senal", base)).not.toBeNull();
+        expect(v("pantalla-senal", { neg: "abcdef0123", pide: 3 })).not.toBeNull();
         expect(v("pantalla-senal", { candidatos: ["candidate:1 1 udp 2 1.2.3.4 5 typ host"] })).not.toBeNull();
         const malos: Record<string, unknown>[] = [
             {},
-            { oferta: "hola" },
-            { oferta: "v=0" + "x".repeat(3500) },
+            { oferta: "v=0\r\no=- 1 1 IN IP4 0.0.0.0\r\n" }, // el formato antiguo, sin partes, ya no existe
+            { ...base, datos: "x".repeat(1801), total: 1801 },
+            { ...base, i: 1 },
+            { ...base, n: 13 },
+            { ...base, total: 16_001 },
+            { ...base, total: 5000 },
+            { ...base, datos: "v=0" }, // largo distinto al total
+            { ...base, neg: "A" },
+            { ...base, sha: "zz" },
+            { ...base, tipo: "otra" },
+            { ...base, datos: "\u0001abcdefghij" },
+            { ...base, extra: 1 },
+            { neg: "abcdef0123", pide: 12 },
+            { neg: "abcdef0123", pide: -1 },
             { candidatos: [] },
             { candidatos: Array.from({ length: 9 }, () => "candidate:1") },
             { candidatos: ["x".repeat(401)] },
             { candidatos: ["<script>"] },
             { candidatos: [3] },
-            { oferta: "v=0\r\no=- 1 1", otra: 1 },
+            { candidatos: ["candidate:1"], neg: "abcdef0123" },
         ];
         for (const a of malos) expect(v("pantalla-senal", a)).toBeNull();
     });

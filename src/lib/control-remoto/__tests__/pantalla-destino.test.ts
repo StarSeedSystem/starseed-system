@@ -6,6 +6,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PantallaDestino, adelgazar, capacidadesDeNativo, fundirGestos, partirGesto, type CanalDestinoLike, type DepsDestino, type EntradaControl, type PeerDestinoLike } from "../pantalla-destino";
 import type { RespuestaOrden } from "../orden";
+import { trocear } from "../senal-partes";
 
 type Gesto = Extract<EntradaControl, { tipo: "gesto" }>;
 const pt = (x: number, dt = 5): [number, number, number] => [x, 0.5, dt];
@@ -54,6 +55,8 @@ let guion: Record<string, (args: Record<string, unknown>) => RespuestaOrden>;
 let firmadas: number;
 let firmando: Promise<void> | null;
 let destino: PantallaDestino;
+let respPartes: Record<string, unknown>[] = [];
+let lineas: string[] = [];
 const ok = (resultado?: unknown): RespuestaOrden => ({ tipo: "respuesta", nonce: "n", ok: true, motivo: "ok", resultado });
 const no = (motivo: string): RespuestaOrden => ({ tipo: "respuesta", nonce: "n", ok: false, motivo });
 
@@ -70,6 +73,7 @@ function montar() {
         },
         iceServers: async () => [],
         crearPeer: () => peer,
+        anotar: (l) => lineas.push(l),
         flujoDe: (p) => ({ pista: p }) as unknown as MediaStream,
         ahora: () => Date.now(),
     };
@@ -78,17 +82,23 @@ function montar() {
 
 const CAPS = { entrada: { gestos: true, max_dedos: 10, teclas: ["atras", "inicio"], volumen: true, brillo: true, texto: true } };
 
-beforeEach(() => {
+beforeEach(async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-11-15T10:00:00Z"));
     peer = new PeerFalso(() => Date.now());
+    lineas = [];
+    respPartes = (await trocear("v=0\r\nrespuesta", "respuesta", "negociacion1")).map((p) => ({ ...p }));
     enviadas = [];
     firmadas = 0;
     firmando = null;
     guion = {
         "abrir-sesion": () => ok({ sesion: TOKEN, nivel: "controlar" }),
         "pantalla-iniciar": () => ok({ ok: true, fuente: "accesibilidad", ancho: 800, alto: 1280, giro: 90, capacidades: CAPS }),
-        "pantalla-senal": (a) => (a.oferta ? ok({ respuesta: "v=0\r\nrespuesta" }) : ok({ candidatos: 1 })),
+        "pantalla-senal": (a) => {
+            if (typeof a.pide === "number") return ok({ ...respPartes[a.pide], neg: a.neg, i: a.pide });
+            if (typeof a.neg === "string") return (a.i as number) === (a.n as number) - 1 ? ok({ lista: true, n: respPartes.length, total: 20, sha: "0".repeat(16) }) : ok({ recibida: a.i });
+            return ok({ candidatos: 1 });
+        },
         "leer-aparato": () => ok({ aparato: { brillo: 0.4, bateria: 0.9 } }),
     };
     montar();
@@ -113,7 +123,7 @@ describe("negociación y estados", () => {
         expect(nombres().slice(0, 3)).toEqual(["abrir-sesion", "pantalla-iniciar", "pantalla-senal"]);
         expect(enviadas[0]).toMatchObject({ nivel: "controlar" });
         expect(enviadas[1]).toMatchObject({ nivel: "ver", sesion: TOKEN });
-        expect(enviadas[2].args).toEqual({ oferta: "v=0\r\noferta" });
+        expect(enviadas[2].args).toMatchObject({ tipo: "oferta", i: 0, n: 1, total: 11, datos: "v=0\r\noferta" });
         expect(peer.remota).toEqual({ type: "answer", sdp: "v=0\r\nrespuesta" });
         expect(peer.transceptores).toEqual([["video", { direction: "recvonly" }]]); // el vídeo es la m-line 0
         expect(destino.instantanea()).toMatchObject({ estado: "conectando", nivel: "controlar", pantalla: { ancho: 800, alto: 1280, giro: 0 }, capacidades: { gestos: true, maxDedos: 10, teclas: ["atras", "inicio"] } });
@@ -462,7 +472,7 @@ describe("cierres", () => {
     it("si la negociación falla se cierra, no se queda «conectando» para siempre", async () => {
         guion["pantalla-senal"] = () => no("sin-pantalla");
         await destino.iniciar();
-        expect(destino.instantanea()).toMatchObject({ estado: "cerrada", motivo: "negociacion" });
+        expect(destino.instantanea()).toMatchObject({ estado: "cerrada", motivo: "senal-oferta-aparato-sin-pantalla" });
     });
 });
 

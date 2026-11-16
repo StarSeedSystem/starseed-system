@@ -8,6 +8,8 @@
  * se adivina.
  */
 
+import { RE_NEG, MAX_PARTES, leerParte } from "./senal-partes";
+
 export type Nivel = "ver" | "controlar" | "modificar" | "administrar";
 export const NIVELES: readonly Nivel[] = ["ver", "controlar", "modificar", "administrar"];
 
@@ -72,6 +74,8 @@ export interface DefAccion {
     sinSesion?: boolean;
     /** (PAN1115J) Orden de entrada (toque, tecla, volumen, brillo, texto): va al lado nativo con su sobre intacto y tiene su propio tope. */
     entrada?: boolean;
+    /** (SEN1116A) Señalización de vídeo: varias órdenes seguidas; cuenta en el tope de entrada (60/s), no en el de órdenes de app. */
+    senal?: boolean;
     que: string;
 }
 
@@ -80,7 +84,6 @@ export interface DefAccion {
 export const MAX_DEDOS = 10;
 export const MAX_PUNTOS_DEDO = 64;
 export const MAX_TEXTO = 512;
-export const MAX_SDP = 3400;
 export const MAX_CANDIDATOS = 8;
 export const MAX_CANDIDATO = 400;
 export const MAX_DT_MS = 10_000;
@@ -111,18 +114,18 @@ function validarPantallaIniciar(a: Args): Args | null {
 }
 
 function validarSenal(a: Args): Args | null {
-    if (!soloClaves(a, ["oferta", "candidatos"])) return null;
-    const r: Args = {};
-    if (a.oferta !== undefined) {
-        if (typeof a.oferta !== "string" || a.oferta.length < 10 || a.oferta.length > MAX_SDP || !a.oferta.startsWith("v=0")) return null;
-        r.oferta = a.oferta;
-    }
+    // SEN1116A: oferta y respuesta viajan en partes numeradas (`senal-partes.ts`); los candidatos, sueltos y cortos.
     if (a.candidatos !== undefined) {
-        if (!Array.isArray(a.candidatos) || a.candidatos.length < 1 || a.candidatos.length > MAX_CANDIDATOS) return null;
+        if (!soloClaves(a, ["candidatos"]) || !Array.isArray(a.candidatos) || a.candidatos.length < 1 || a.candidatos.length > MAX_CANDIDATOS) return null;
         for (const c of a.candidatos) if (typeof c !== "string" || c.length > MAX_CANDIDATO || !/^(candidate:[\x21-\x7e ]+)?$/.test(c)) return null;
-        r.candidatos = a.candidatos;
+        return { candidatos: a.candidatos };
     }
-    return r.oferta === undefined && r.candidatos === undefined ? null : r;
+    // Pedir la parte `i` de la respuesta del aparato.
+    if (a.pide !== undefined) {
+        if (!soloClaves(a, ["neg", "pide"]) || typeof a.neg !== "string" || !RE_NEG.test(a.neg) || !entero(a.pide, 0, MAX_PARTES - 1)) return null;
+        return { neg: a.neg, pide: a.pide };
+    }
+    return leerParte(a) as Args | null;
 }
 
 function validarGesto(a: Args): Args | null {
@@ -196,7 +199,7 @@ export const ACCIONES: Readonly<Record<string, DefAccion>> = {
     // PAN1115J · pantalla y entrada (contrato §12). Los de entrada los ejecuta el lado nativo (`control_entrada`).
     "pantalla-iniciar": { nivel: "ver", validar: validarPantallaIniciar, que: "empieza a mandar la pantalla de este aparato (la fuente la elige la persona en él)" },
     "pantalla-parar": { nivel: "ver", validar: sinArgs, que: "deja de mandar la pantalla" },
-    "pantalla-senal": { nivel: "ver", validar: validarSenal, que: "negocia la conexión de vídeo (oferta y candidatos); la respuesta lleva la contestación" },
+    "pantalla-senal": { nivel: "ver", senal: true, validar: validarSenal, que: "negocia la conexión de vídeo (oferta y candidatos); la respuesta lleva la contestación" },
     "leer-aparato": { nivel: "ver", validar: sinArgs, que: "volumen, brillo, batería, red y pantalla del aparato" },
     gesto: { nivel: "controlar", entrada: true, validar: validarGesto, que: "toque, deslizamiento o multitáctil (hasta 10 dedos)" },
     tecla: {
