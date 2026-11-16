@@ -43,6 +43,7 @@ export function textoErrorServicio(error: unknown): string {
  */
 
 import { createClient } from "@/utils/supabase/client";
+import { camposPerfilPublico, perfilDesdeFila, type PerfilInicial } from "@/lib/onboarding/perfil-inicial";
 
 // ── identidad del usuario autenticado ──────────────────────────────────
 async function uid(): Promise<string | null> {
@@ -251,23 +252,55 @@ export async function saveProfileOptional(optional: {
  */
 export async function sincronizarPerfilPublico(
   owner: string,
-  campos: {
-    handle?: string; display_name?: string; avatar_url?: string; cover_url?: string; bio?: string;
-    avatar_marco?: Record<string, unknown> | null; avatar_3d?: Record<string, unknown> | null;
-  },
+  campos: Record<string, unknown>,
 ): Promise<void> {
   try {
     const sb = createClient();
-    const patch: Record<string, unknown> = { user_id: owner, is_default: true, kind: "sovereign" };
-    if (campos.avatar_marco !== undefined) patch.avatar_marco = campos.avatar_marco;
-    if (campos.avatar_3d !== undefined) patch.avatar_3d = campos.avatar_3d;
-    if (campos.handle) { patch.handle = campos.handle; patch.username = campos.handle; }
-    if (campos.display_name) patch.display_name = campos.display_name;
-    if (campos.avatar_url) patch.avatar_url = campos.avatar_url;
-    if (campos.cover_url) patch.cover_url = campos.cover_url;
-    if (campos.bio) patch.bio = campos.bio;
+    // (Ola 381 · IMG) La regla de QUÉ va al perfil público vive en el módulo
+    // puro `perfil-inicial`: aquí solo se le da el `owner` y se guarda.
+    const patch: Record<string, unknown> = {
+      user_id: owner,
+      is_default: true,
+      kind: "sovereign",
+      ...camposPerfilPublico(campos),
+    };
     await sb.from("os_profiles").upsert(patch, { onConflict: "user_id" });
   } catch { /* el perfil privado ya está guardado; esto es el espejo público */ }
+}
+
+/**
+ * (Ola 381 · IMG) El perfil de la cuenta, tal como lo pinta la ventana del
+ * rito. Lee `profiles` con el cliente singleton: la ventana ya no abre el
+ * suyo. Sin fila (o sin sesión) devuelve null y la ventana se edita desde cero.
+ */
+export async function getPerfilPropio(): Promise<PerfilInicial | null> {
+  try {
+    const owner = await uid();
+    if (!owner) return null;
+    const sb = createClient();
+    const { data } = await sb
+      .from("profiles")
+      .select("handle,display_name,bio,avatar_url,cover_url,avatar_marco,avatar_3d")
+      .eq("user_id", owner)
+      .maybeSingle();
+    if (!data) return null;
+    return perfilDesdeFila(data as Record<string, unknown>);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * (Ola 381 · IMG) Espejo del perfil PÚBLICO para la cuenta actual: quien llama
+ * no necesita saber el `owner` — lo resuelve la capa de datos. Sin sesión no
+ * hace nada (el rito no se queda colgado esperando una cuenta que no hay).
+ */
+export async function sincronizarPerfilPublicoPropio(
+  campos: Record<string, unknown>,
+): Promise<void> {
+  const owner = await uid();
+  if (!owner) return;
+  await sincronizarPerfilPublico(owner, campos);
 }
 
 /**

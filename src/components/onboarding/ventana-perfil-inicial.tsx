@@ -26,13 +26,12 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-import { createClient } from "@/utils/supabase/client";
 import { uploadEntityMedia } from "@/lib/os-social";
 import { FotoConMarco, EditorMarco } from "@/components/profile/foto-con-marco";
 import { EditorAvatar3D, Avatar3DVisor, type Avatar3D } from "@/components/profile/avatar-3d";
 import { type Marco, MARCO_POR_DEFECTO } from "@/lib/profile/marco-foto";
 import {
-  claimProfile, saveProfileOptional, isValidHandle, sincronizarPerfilPublico,
+  claimProfile, saveProfileOptional, isValidHandle, getPerfilPropio, sincronizarPerfilPublicoPropio,
 } from "@/lib/onboarding/onboarding";
 import { marcarRitoActivo } from "@/lib/ui/rito-activo";
 import { IconoStarSeed } from "@/components/onboarding/icono-starseed";
@@ -105,29 +104,24 @@ export function VentanaPerfilInicial({ onCerrar }: { onCerrar?: () => void }) {
   }, [abierta]);
 
   // Carga lo que ya haya: el handle que se eligió (o el que puso el alta).
+  // (Ola 381 · IMG) Lo pide la CAPA DE DATOS: la ventana no abre su propio
+  // cliente Supabase (el singleton es de la capa de datos).
   useEffect(() => {
     if (!abierta) return;
     let vivo = true;
     (async () => {
       try {
-        const sb = createClient();
-        const { data: u } = await sb.auth.getUser();
-        const uid = u?.user?.id;
-        if (!uid) return;
-        const { data } = await sb
-          .from("profiles")
-          .select("handle,display_name,bio,avatar_url,cover_url,avatar_marco,avatar_3d")
-          .eq("user_id", uid)
-          .maybeSingle();
-        if (!vivo || !data) return;
-        const p = data as { handle?: string; display_name?: string; bio?: string; avatar_url?: string; cover_url?: string; avatar_marco?: Marco | null; avatar_3d?: Avatar3D | null };
-        if (p.avatar_marco) setMarco({ ...MARCO_POR_DEFECTO, ...p.avatar_marco });
-        if (p.avatar_3d?.url) setAvatar3d(p.avatar_3d);
-        setNombre(p.display_name || "");
-        setHandle(p.handle || "");
-        setBio(p.bio || "");
-        setAvatar(p.avatar_url || "");
-        setPortada(p.cover_url || "");
+        const p = await getPerfilPropio();
+        if (!vivo || !p) return;
+        const marcoGuardado = p.avatar_marco as unknown as Marco | null | undefined;
+        const avatar3dGuardado = p.avatar_3d as unknown as Avatar3D | null | undefined;
+        if (marcoGuardado) setMarco({ ...MARCO_POR_DEFECTO, ...marcoGuardado });
+        if (avatar3dGuardado?.url) setAvatar3d(avatar3dGuardado);
+        setNombre(p.display_name);
+        setHandle(p.handle);
+        setBio(p.bio);
+        setAvatar(p.avatar_url);
+        setPortada(p.cover_url);
       } catch { /* se edita igual desde cero */ }
       finally { if (vivo) setCargando(false); }
     })();
@@ -178,22 +172,17 @@ export function VentanaPerfilInicial({ onCerrar }: { onCerrar?: () => void }) {
         avatar_marco: marco as unknown as Record<string, unknown>,
         avatar_3d: avatar3d?.url ? (avatar3d as unknown as Record<string, unknown>) : null,
       }));
-      await conTope((async () => {
-        const sb = createClient();
-        const { data: u } = await sb.auth.getUser();
-        if (u?.user?.id) {
-          await sincronizarPerfilPublico(u.user.id, {
-            handle: h || undefined,
-            display_name: nombre.trim() || undefined,
-            avatar_url: avatar || undefined,
-            cover_url: portada || undefined,
-            bio: bio || undefined,
-            avatar_marco: marco as unknown as Record<string, unknown>,
-            avatar_3d: avatar3d?.url ? (avatar3d as unknown as Record<string, unknown>) : null,
-          });
-        }
-        return true;
-      })());
+      // (Ola 381 · IMG) El espejo del perfil PÚBLICO también lo hace la capa
+      // de datos (que resuelve la cuenta): aquí no hay cliente Supabase.
+      await conTope(sincronizarPerfilPublicoPropio({
+        handle: h || undefined,
+        display_name: nombre.trim() || undefined,
+        avatar_url: avatar || undefined,
+        cover_url: portada || undefined,
+        bio: bio || undefined,
+        avatar_marco: marco as unknown as Record<string, unknown>,
+        avatar_3d: avatar3d?.url ? (avatar3d as unknown as Record<string, unknown>) : null,
+      }));
 
       // (Ola 381 · INI6) Antes de cerrar, el paso de arranque (pantalla inicial y bloqueo).
       setPaso("arranque");
