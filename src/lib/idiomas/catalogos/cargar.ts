@@ -11,7 +11,7 @@ const CARGADORES: Record<string, () => Promise<{ default: DatosCatalogo }>> = {
 };
 
 const memoria = new Map<string, Catalogo>();
-export async function cargarCatalogo(codigo: string): Promise<Catalogo | null> {
+export async function cargarCatalogo(codigo: string, preferirPaquete = false): Promise<Catalogo | null> {
     const hecho = memoria.get(codigo);
     if (hecho) return hecho;
     const cargador = CARGADORES[codigo];
