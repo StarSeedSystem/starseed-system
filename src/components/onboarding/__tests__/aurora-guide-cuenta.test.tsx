@@ -41,8 +41,12 @@ function cuenta(ids: Record<string, { estado: "visto" | "hecho" | "luego"; ts: n
 }
 
 async function cuentaListaYPasa(ms = 1500): Promise<void> {
+    // Primero se deja correr la decisión (monta la espera por interacción) y
+    // después el reloj: el plazo se arma en un efecto, no dentro del callback.
     await act(async () => {
         ctl.listos.forEach((f) => f());
+    });
+    await act(async () => {
         await vi.advanceTimersByTimeAsync(ms);
     });
 }
