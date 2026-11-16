@@ -129,8 +129,8 @@ REINTENTO_MAIN_S = 30 * 60
 
 #: Las claves que viajan al A1: las MISMAS que la nube de GitHub (`nube-gh.py secretos`), todas de
 #: proveedores con modelos gratuitos, más las públicas del bus (la clave anónima de Supabase es la
-#: que lleva el navegador). Nada de pago (ANTHROPIC, OPENAI, DEEPSEEK…) y nada que apunte a
-#: 127.0.0.1 de esta máquina que allí no exista (apinex, el groq local); FreeLLMAPI sí: desde el
+#: que lleva el navegador. Nada de pago (ANTHROPIC, OPENAI, DEEPSEEK…) salvo `ABLITERATION_API_KEY`,
+#: aprobada por Alex el 16-11; 127.0.0.1 de esta máquina que allí no exista (apinex, el groq local); FreeLLMAPI sí: desde el
 #: 2026-10-13 el A1 tiene el suyo en 127.0.0.1:3001 (`a1_freellmapi.py`).
 CLAVES_A1 = (
     "GEMINI_API_KEY", "GOOGLE_GENERATIVE_AI_API_KEY", "NVIDIA_API_KEY", "OPENROUTER_API_KEY",
@@ -156,6 +156,8 @@ CLAVES_A1 = (
     # (2026-10-20) Mistral (modo Free de Studio, sin tarjeta) y Cerebras (si algún día existe la
     # clave): los dos están en el mapa del lanzador del A1 (`a1_freellmapi.py`) pero no viajaban.
     "MISTRAL_API_KEY", "CEREBRAS_API_KEY",
+    # (2026-11-16, aprobado por Alex) abliteration.ai: ÚNICA clave de pago que viaja al A1; solo se usa con el tope del día (MQA1–MQA3).
+    "ABLITERATION_API_KEY",
     # (SDP1111O) Síntesis de producción (bot propio de Telegram) y cliente OAuth de la actividad
     # de Google de Alex (solo lectura). Solo NOMBRES: los valores los guarda Alex en env.
     "TELEGRAM_SINTESIS_BOT_TOKEN", "TELEGRAM_SINTESIS_CHAT_ID",
