@@ -7207,8 +7207,17 @@ def reservar_tarea(tarea):
             try:
                 sanos = normalizar_medios(aptos, instante, LATIDO_MEDIO_MAX_S, COLGADO_S)
                 orden = ordenar_medios(tarea, sanos, datos["historial"])
-                _, motivo = _jev_enrutado.elegir_medio(tarea, orden, datos["historial"], jev=None)
-                arriendo["motivo"] = motivo
+                medio_jev, motivo = _jev_enrutado.elegir_medio(tarea, orden, datos["historial"], jev=None)
+                if _jev_enrutado.activo_por_entorno(os.environ):
+                    sanos_libres = [m_id for m_id, m in sanos.items() if m.get("estado") in ESTADOS_UTILIZABLES and m.get("libres", 0) > 0]
+                    cola_de = {m_id: (m.get("cola") or cola_actual) for m_id, m in sanos.items()}
+                    medio_final, motivo_final = _jev_enrutado.medio_final(
+                        arriendo["medio"], medio_jev, sanos_libres, cola_de, cola_actual, True
+                    )
+                    arriendo["medio"] = medio_final
+                    arriendo["motivo"] = motivo_final
+                else:
+                    arriendo["motivo"] = motivo
             except Exception:  # el porqué es informativo: nunca frena el reparto
                 pass
         return arriendo

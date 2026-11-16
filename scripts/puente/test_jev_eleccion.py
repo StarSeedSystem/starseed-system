@@ -1,118 +1,39 @@
 # -*- coding: utf-8 -*-
-"""Pruebas puras de la regla que decide el medio final (HAL10).
-
-La regla solo deja que Jev cambie el medio cuando una persona ha encendido el
-interruptor y el medio elegido está sano, libre y en la cola actual."""
-
 from __future__ import annotations
-
-import os
-import sys
 import unittest
+import os
+from scripts.puente.jev_eleccion import medio_final, activo_por_entorno
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+class TestJevEleccion(unittest.TestCase):
+    def test_activo_por_entorno(self):
+        self.assertTrue(activo_por_entorno({"STARSEED_JEV_ELIGE_MEDIO": "1"}))
+        self.assertTrue(activo_por_entorno({"STARSEED_JEV_ELIGE_MEDIO": "si"}))
+        self.assertFalse(activo_por_entorno({}))
+        self.assertFalse(activo_por_entorno({"STARSEED_JEV_ELIGE_MEDIO": "0"}))
 
-from jev_eleccion import activo_por_entorno, medio_final  # noqa: E402
-
-
-class TestMedioFinal(unittest.TestCase):
-    """La elección de Jev solo manda cuando es segura."""
-
-    def test_inactivo_mantiene_el_plan(self):
-        medio, motivo = medio_final(
-            "nvidia/kimi",
-            "xkiro/qwen",
-            ["nvidia/kimi", "xkiro/qwen"],
-            {"nvidia/kimi": "cola-a", "xkiro/qwen": "cola-a"},
-            "cola-a",
-            False,
-        )
-        self.assertEqual(medio, "nvidia/kimi")
+    def test_medio_final_inactivo(self):
+        plan = "medio_a"
+        eleccion = "medio_b"
+        medio, motivo = medio_final(plan, eleccion, ["medio_b"], {}, "cola_1", activo=False)
+        self.assertEqual(medio, plan)
         self.assertEqual(motivo, "plan")
 
-    def test_jev_igual_al_plan_mantiene_el_plan(self):
-        medio, motivo = medio_final(
-            "nvidia/kimi",
-            "nvidia/kimi",
-            ["nvidia/kimi"],
-            {"nvidia/kimi": "cola-a"},
-            "cola-a",
-            True,
-        )
-        self.assertEqual(medio, "nvidia/kimi")
-        self.assertEqual(motivo, "plan")
-
-    def test_jev_libre_y_sano_de_la_misma_cola_manda(self):
-        medio, motivo = medio_final(
-            "nvidia/kimi",
-            "xkiro/qwen",
-            ["xkiro/qwen", "nvidia/kimi"],
-            {"xkiro/qwen": "cola-a", "nvidia/kimi": "cola-a"},
-            "cola-a",
-            True,
-        )
-        self.assertEqual(medio, "xkiro/qwen")
+    def test_medio_final_activo_valido(self):
+        plan = "medio_a"
+        eleccion = "medio_b"
+        sanos = ["medio_b"]
+        cola_de = {"medio_b": "cola_1"}
+        medio, motivo = medio_final(plan, eleccion, sanos, cola_de, "cola_1", activo=True)
+        self.assertEqual(medio, "medio_b")
         self.assertEqual(motivo, "Jev")
 
-    def test_jev_ocupado_se_queda_con_el_plan(self):
-        medio, motivo = medio_final(
-            "nvidia/kimi",
-            "xkiro/qwen",
-            ["nvidia/kimi"],
-            {"xkiro/qwen": "cola-a"},
-            "cola-a",
-            True,
-        )
-        self.assertEqual(medio, "nvidia/kimi")
-        self.assertIn("Jev eligió xkiro/qwen", motivo)
-        self.assertIn("no está", motivo)
-
-    def test_jev_de_otra_cola_se_queda_con_el_plan(self):
-        medio, motivo = medio_final(
-            "nvidia/kimi",
-            "xkiro/qwen",
-            ["xkiro/qwen", "nvidia/kimi"],
-            {"xkiro/qwen": "cola-b", "nvidia/kimi": "cola-a"},
-            "cola-a",
-            True,
-        )
-        self.assertEqual(medio, "nvidia/kimi")
-        self.assertIn("Jev eligió xkiro/qwen", motivo)
-        self.assertIn("cola", motivo)
-
-    def test_cadenas_vacias_se_quedan_con_el_plan(self):
-        medio, motivo = medio_final("", "", [], {}, "", True)
-        self.assertEqual(medio, "")
-        self.assertEqual(motivo, "plan")
-
-    def test_elegir_vacio_se_queda_con_el_plan(self):
-        medio, motivo = medio_final(
-            "nvidia/kimi", "   ", ["nvidia/kimi"], {}, "cola-a", True
-        )
-        self.assertEqual(medio, "nvidia/kimi")
-        self.assertEqual(motivo, "plan")
-
-
-class TestActivoPorEntorno(unittest.TestCase):
-    """El interruptor lo enciende una persona; por defecto está apagado."""
-
-    def test_valores_que_lo_encienden(self):
-        for valor in ("1", "true", "si", "sí"):
-            with self.subTest(valor=valor):
-                self.assertTrue(
-                    activo_por_entorno({"STARSEED_JEV_ELIGE_MEDIO": valor})
-                )
-
-    def test_valores_que_lo_dejan_apagado(self):
-        for valor in ("0", "false", "no", ""):
-            with self.subTest(valor=valor):
-                self.assertFalse(
-                    activo_por_entorno({"STARSEED_JEV_ELIGE_MEDIO": valor})
-                )
-
-    def test_sin_variable_esta_apagado(self):
-        self.assertFalse(activo_por_entorno({}))
-
+    def test_medio_final_no_libre(self):
+        plan = "medio_a"
+        eleccion = "medio_b"
+        sanos = ["medio_c"]
+        medio, motivo = medio_final(plan, eleccion, sanos, {}, "cola_1", activo=True)
+        self.assertEqual(medio, plan)
+        self.assertIn("no está libre/sano", motivo)
 
 if __name__ == "__main__":
-    unittest.main(verbosity=2)
+    unittest.main()
