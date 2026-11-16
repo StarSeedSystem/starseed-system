@@ -34,6 +34,9 @@ import { type Marco, MARCO_POR_DEFECTO } from "@/lib/profile/marco-foto";
 import {
   claimProfile, saveProfileOptional, isValidHandle, sincronizarPerfilPublico,
 } from "@/lib/onboarding/onboarding";
+// (IMG) Carga blindada: fila → formulario con valores seguros y tope de
+// tiempo, para que el spinner nunca quede eterno (nunca usuario en bucle).
+import { perfilFormDesdeFila, conTopeDe, type FilaPerfil } from "@/lib/onboarding/perfil-form";
 import { marcarRitoActivo } from "@/lib/ui/rito-activo";
 import { IconoStarSeed } from "@/components/onboarding/icono-starseed";
 import { esMiTurno, terminarEtapa, suscribirRito, navegarSuave } from "@/lib/onboarding/director-rito";
@@ -105,29 +108,38 @@ export function VentanaPerfilInicial({ onCerrar }: { onCerrar?: () => void }) {
   }, [abierta]);
 
   // Carga lo que ya haya: el handle que se eligió (o el que puso el alta).
+  // (IMG) BLINDADA: toda la consulta corre con TOPE DE TIEMPO (6 s) dentro de
+  // `conTopeDe`, que además traga el fallo — el catch silencioso de abajo ya
+  // existía, pero sin tope una consulta colgada dejaba «Cargando tu perfil…»
+  // para siempre y al usuario atrapado en el rito. Ahora, pase lo que pase
+  // (fallo, fila ausente o tope vencido), `cargando` es false y el formulario
+  // se edita igual desde cero.
   useEffect(() => {
     if (!abierta) return;
     let vivo = true;
     (async () => {
       try {
-        const sb = createClient();
-        const { data: u } = await sb.auth.getUser();
-        const uid = u?.user?.id;
-        if (!uid) return;
-        const { data } = await sb
-          .from("profiles")
-          .select("handle,display_name,bio,avatar_url,cover_url,avatar_marco,avatar_3d")
-          .eq("user_id", uid)
-          .maybeSingle();
-        if (!vivo || !data) return;
-        const p = data as { handle?: string; display_name?: string; bio?: string; avatar_url?: string; cover_url?: string; avatar_marco?: Marco | null; avatar_3d?: Avatar3D | null };
-        if (p.avatar_marco) setMarco({ ...MARCO_POR_DEFECTO, ...p.avatar_marco });
-        if (p.avatar_3d?.url) setAvatar3d(p.avatar_3d);
-        setNombre(p.display_name || "");
-        setHandle(p.handle || "");
-        setBio(p.bio || "");
-        setAvatar(p.avatar_url || "");
-        setPortada(p.cover_url || "");
+        const fila = await conTopeDe((async (): Promise<FilaPerfil | null> => {
+          const sb = createClient();
+          const { data: u } = await sb.auth.getUser();
+          const uid = u?.user?.id;
+          if (!uid) return null;
+          const { data } = await sb
+            .from("profiles")
+            .select("handle,display_name,bio,avatar_url,cover_url,avatar_marco,avatar_3d")
+            .eq("user_id", uid)
+            .maybeSingle();
+          return (data as FilaPerfil) ?? null;
+        })());
+        if (!vivo) return;
+        const e = perfilFormDesdeFila(fila);
+        setNombre(e.nombre);
+        setHandle(e.handle);
+        setBio(e.bio);
+        setAvatar(e.avatar);
+        setPortada(e.portada);
+        setMarco(e.marco);
+        setAvatar3d(e.avatar3d);
       } catch { /* se edita igual desde cero */ }
       finally { if (vivo) setCargando(false); }
     })();
@@ -156,9 +168,6 @@ export function VentanaPerfilInicial({ onCerrar }: { onCerrar?: () => void }) {
    * nada. Pase lo que pase, siempre se navega: el usuario nunca se queda
    * atrapado en esta ventana.
    */
-  const conTope = useCallback(<T,>(p: Promise<T>, ms = 6000): Promise<T | null> =>
-    Promise.race([p.catch(() => null), new Promise<null>((r) => setTimeout(() => r(null), ms))]), []);
-
   const terminar = useCallback(async () => {
     setGuardando(true);
     try {
@@ -168,17 +177,17 @@ export function VentanaPerfilInicial({ onCerrar }: { onCerrar?: () => void }) {
         return;
       }
       if (h && nombre.trim()) {
-        const r = await conTope(claimProfile({ fullName: nombre.trim(), handle: h }));
+        const r = await conTopeDe(claimProfile({ fullName: nombre.trim(), handle: h }));
         if (r && !r.ok) { toast.error(r.error || "No se pudo guardar el nombre."); return; }
       }
-      await conTope(saveProfileOptional({
+      await conTopeDe(saveProfileOptional({
         avatar_url: avatar || undefined,
         cover_url: portada || undefined,
         bio: bio || undefined,
         avatar_marco: marco as unknown as Record<string, unknown>,
         avatar_3d: avatar3d?.url ? (avatar3d as unknown as Record<string, unknown>) : null,
       }));
-      await conTope((async () => {
+      await conTopeDe((async () => {
         const sb = createClient();
         const { data: u } = await sb.auth.getUser();
         if (u?.user?.id) {
@@ -203,7 +212,7 @@ export function VentanaPerfilInicial({ onCerrar }: { onCerrar?: () => void }) {
     // (Adenda 219) `marco` y `avatar3d` en las dependencias: sin ellas el
     // callback guardaba el marco POR DEFECTO y ningún avatar 3D (clausura
     // vieja) — visto en vivo: la estrella elegida llegaba a la base como círculo.
-  }, [handle, nombre, avatar, portada, bio, marco, avatar3d, conTope]);
+  }, [handle, nombre, avatar, portada, bio, marco, avatar3d]);
 
   const cerrarRito = useCallback(() => {
     setAbierta(false);
