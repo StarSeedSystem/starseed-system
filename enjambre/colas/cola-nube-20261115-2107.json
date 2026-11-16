@@ -1,0 +1,75 @@
+{
+ "ola": "nube-20261115",
+ "tareas": [
+  {
+   "id": "IMG-profunda-eliminar-exposicion-de-comando_",
+   "titulo": "Eliminar exposición de COMANDO_DAEMON",
+   "area": "imaginacion",
+   "archivos": [
+    "src/components/voces/panel-motor.tsx"
+   ],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Eliminar exposición de COMANDO_DAEMON. Eliminar exposición de COMANDO_DAEMON Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  },
+  {
+   "id": "IMG-profunda-catch-silencioso-en-primer-arra",
+   "titulo": "Catch silencioso en primer-arranque",
+   "area": "imaginacion",
+   "archivos": [
+    "src/components/onboarding/primer-arranque.tsx"
+   ],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Catch silencioso en primer-arranque. Catch silencioso en primer-arranque Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  },
+  {
+   "id": "IMG-profunda-catch-vacio-en-exchangecodefors",
+   "titulo": "Catch vacío en exchangeCodeForSession",
+   "area": "imaginacion",
+   "archivos": [
+    "src/app/auth/callback/route.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Catch vacío en exchangeCodeForSession. Catch vacío en exchangeCodeForSession Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  },
+  {
+   "id": "IMG-profunda-eliminar-cliente-supabase-dupli",
+   "titulo": "Eliminar cliente Supabase duplicado",
+   "area": "imaginacion",
+   "archivos": [
+    "src/components/onboarding/ventana-perfil-inicial.tsx"
+   ],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Eliminar cliente Supabase duplicado. Eliminar cliente Supabase duplicado Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  },
+  {
+   "id": "IMG-profunda-catch-silencioso-en-auroratrans",
+   "titulo": "Catch silencioso en auroraTranscript",
+   "area": "imaginacion",
+   "archivos": [
+    "src/components/onboarding/aurora-guide.tsx"
+   ],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Catch silencioso en auroraTranscript. Catch silencioso en auroraTranscript Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  },
+  {
+   "id": "IMG-profunda-catch-silencioso-en-carga-de-pe",
+   "titulo": "Catch silencioso en carga de perfil",
+   "area": "imaginacion",
+   "archivos": [
+    "src/components/onboarding/ventana-perfil-inicial.tsx"
+   ],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Catch silencioso en carga de perfil. Catch silencioso en carga de perfil Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1115-190053.json": [
+   "IMG-profunda-catch-silencioso-en-carga-de-pe",
+   "IMG-profunda-catch-silencioso-en-auroratrans",
+   "IMG-profunda-catch-silencioso-en-primer-arra",
+   "IMG-profunda-catch-vacio-en-exchangecodefors",
+   "IMG-profunda-eliminar-cliente-supabase-dupli",
+   "IMG-profunda-eliminar-exposicion-de-comando_"
+  ]
+ }
+}
