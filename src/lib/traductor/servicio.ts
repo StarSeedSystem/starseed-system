@@ -72,9 +72,9 @@ export function crearServicioTraductor(deps: DependenciasServicioTraductor) {
                 const aviso = [avisoDeteccion, avisoLongitud].filter(Boolean).join(" ") || undefined;
 
                 const resultadoFinal: ResultadoTraductor = {
-                    texto: resultado.texto,
+                    texto: resultado,
                     origenDetectado,
-                    motor: motor.id,
+                    motor: motor.id as IdMotor,
                     local: !saleDelAparato,
                     ms,
                     aviso,
@@ -85,8 +85,8 @@ export function crearServicioTraductor(deps: DependenciasServicioTraductor) {
                         origen: origenDetectado,
                         destino: par.destino,
                         textoOrigen: textoProcesado,
-                        textoDestino: resultado.texto,
-                        motor: motor.id,
+                        textoDestino: resultado,
+                        motor: motor.id as IdMotor,
                     },
                     almacenHistorial,
                     opcionesHistorial
@@ -95,7 +95,7 @@ export function crearServicioTraductor(deps: DependenciasServicioTraductor) {
                 return resultadoFinal;
             } catch (e) {
                 const mensaje = e instanceof Error ? e.message : String(e);
-                ultimoError = { mensaje, motor: motor.id };
+                ultimoError = { mensaje, motor: motor.id as IdMotor };
             }
         }
 
