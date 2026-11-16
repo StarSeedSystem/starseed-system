@@ -35,6 +35,9 @@ describe("HiloDireccion", () => {
         // GEN1114INT: el latido se pinta con el reloj real; con la Mac cargada el montaje tarda segundos (vimos 34 s).
         expect(screen.getByTestId("cabecera-espejo")).toHaveTextContent(/En vivo desde la Mac · copia de hace (3\d|4\d) s/);
         cleanup();
+        // REL1115R: hora fija a mediodía; con el reloj real, entre las 00:00 y las 00:02 el latido caía en el día anterior.
+        vi.useFakeTimers({ toFake: ["Date"] });
+        vi.setSystemTime(new Date("2026-11-14T12:00:00Z"));
         await montar({ latidoS: 120 });
         expect(screen.getByTestId("cabecera-espejo")).toHaveTextContent(/La Mac no responde desde las \d{2}:\d{2} \(hace 2 min\)\. Ves la última copia\. Lo que escribas espera en la puerta del A1; las órdenes caducan a los 30 min/);
     });

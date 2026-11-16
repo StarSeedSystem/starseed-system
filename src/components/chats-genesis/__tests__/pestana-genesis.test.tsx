@@ -65,6 +65,7 @@ describe("PestanaGenesis", () => {
     afterEach(() => {
         cleanup();
         window.localStorage.clear();
+        vi.useRealTimers();
     });
 
     it("un dueño ve el grupo MetaGenesis con Dirección y los tres puentes, y las seis vistas", async () => {
@@ -131,9 +132,22 @@ describe("PestanaGenesis", () => {
     });
 
     it("con el latido viejo, la cabecera dice que la Mac no responde y desde cuándo", async () => {
+        // REL1115R: hora fija a mediodía; con el reloj real, entre las 00:00 y las 00:10 el latido de hace 10 min caía en el día anterior.
+        vi.useFakeTimers({ toFake: ["Date"] });
+        vi.setSystemTime(new Date("2026-11-14T12:00:00Z"));
         await montar({ ancho: 1440, latidoS: 600 });
         const cabecera = await screen.findByTestId("cabecera-espejo");
         await waitFor(() => expect(cabecera).toHaveTextContent(/La Mac no responde desde las \d{2}:\d{2} \(hace 10 min\)/));
+        expect(cabecera).not.toHaveTextContent(/En vivo/);
+    });
+
+    it("con el latido viejo y pasada la medianoche, la cabecera pone el día del último latido", async () => {
+        // REL1115R: 00:05 -> el latido de hace 10 min es del día anterior (misma regla de fecha que usa el componente).
+        vi.useFakeTimers({ toFake: ["Date"] });
+        vi.setSystemTime(new Date("2026-11-16T00:05:00Z"));
+        await montar({ ancho: 1440, latidoS: 600 });
+        const cabecera = await screen.findByTestId("cabecera-espejo");
+        await waitFor(() => expect(cabecera).toHaveTextContent(/La Mac no responde desde el 15-11 a las 23:55 \(hace 10 min\)/));
         expect(cabecera).not.toHaveTextContent(/En vivo/);
     });
 
