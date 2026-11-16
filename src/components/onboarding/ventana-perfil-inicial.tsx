@@ -128,7 +128,9 @@ export function VentanaPerfilInicial({ onCerrar }: { onCerrar?: () => void }) {
         setBio(p.bio || "");
         setAvatar(p.avatar_url || "");
         setPortada(p.cover_url || "");
-      } catch { /* se edita igual desde cero */ }
+      } catch (e) {
+        console.error("[ventana-perfil] Error al cargar datos:", e);
+      }
       finally { if (vivo) setCargando(false); }
     })();
     return () => { vivo = false; };
