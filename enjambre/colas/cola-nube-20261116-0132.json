@@ -1,0 +1,100 @@
+{
+ "ola": "nube-20261116",
+ "tareas": [
+  {
+   "id": "ASW03",
+   "ola": "ASW1116A",
+   "titulo": "Forma ligera de la Protomolécula en SVG: cambia de forma con el estado, respeta movimiento reducido y dispositivos modestos",
+   "archivos": [
+    "src/components/protomolecula/protomolecula-ligera.tsx",
+    "src/components/protomolecula/__tests__/protomolecula-ligera.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. LO QUE YA EXISTE (léelo antes): el widget del dashboard cuyo texto de estado es «En calma» es `AstrauraLibre` en `src/components/widgets-libres/familias/astraura-libre.tsx` (268 líneas; `TEXTO_VOZ` :31, `useVozAurora` :38 lee el puente `getAuroraBridge()` de `src/lib/aurora/open-aurora.ts` con `speaking`, `listening`, `actionStatus`; el `Orbe` de :65 es el círculo de colores violeta/turquesa; `Preguntar` :90; el diseño por tamaño :170-262 con `disenoDe(clase)` de `familias/comun.tsx:23`). Se monta desde `src/components/widgets-libres/registro-libre.tsx:38` (`case \"AURORA_LAST\"`, hoy sin recibir el widget ni `onUpdateSettings`, a diferencia del reloj). La Protomolécula: la orbe 4D completa es `src/components/protomolecula/orbe-protomolecula.tsx` (475 líneas, three.js a demanda, arrastrable y flotante: NO sirve para meterla en un widget); su lógica pura está en `src/lib/protomolecula/orbe4d/` (`coreografia.ts`: `IdForma` semilla/merkaba/jitterbug/teseracto/dodecaedro/matriz/icosaedro, `PALETAS` por registro con `astraura`, `ESTILOS`, `FICHAS`, tiempos de Fibonacci; `geometria.ts`: `merkaba()`, `icosaedro()`, `dodecaedro()`, `jitterbug()`, `teseractoVertices()`, `PHI`). Ya hay una versión ligera en SVG: `src/components/layout/trinity/horizon/vista-previa-orbe.tsx` (flor de la vida y merkaba, solo `transform`/`opacity`, quieta con `motion-safe`), pero NO depende del estado del asistente. El presupuesto de render del dispositivo es `src/lib/widgets/forma/nivel-dispositivo.ts` (`useNivelRender`, `nivelRender`: ligero/normal/pleno). La identidad: colores SOLO de `PALETAS` (marca Trinity Liquid Crystal, `adn-y-tokens.md` §2 y §6), nunca hexadecimales inventados. Escribe primero las pruebas. Este es el «si la orbe 4D pesa demasiado, aquí se hace la forma ligera». `ProtomoleculaLigera({ estado, tam, animada, etiqueta, className }: { estado: EstadoAsistente; tam: number; animada?: boolean; etiqueta?: string; className?: string })` (usa `estado-forma.ts` de ASW01 y `proyeccion-ligera.ts` de ASW02). Dibuja UN `<svg viewBox=\"-50 -50 100 100\">` con: un halo (círculo con degradado radial de `paletaDeEstado(estado)`, φ veces la forma), las líneas y puntos de `proyectarForma` con trazo fino de colores de la paleta (luz clara `brillo` en los puntos), y `aria-hidden` (la información la da el texto, no el dibujo). VIVA solo si `animada !== false` Y `useNivelRender()` (`nivel-dispositivo.ts`) no es `ligero` Y no hay `prefers-reduced-motion`: entonces la forma gira con CSS (`transform: rotate`, periodo `ritmoDeEstado().giroS`) y respira con `opacity`/`scale` (periodo `respiraS`), nada más (sin recalcular la geometría en cada cuadro: se calcula una vez por `estado`). QUIETA en los demás casos: la misma forma con `giro` fijo, sin ninguna animación. El cambio de estado hace un fundido cruzado de 0,6 s (`opacity`) entre la forma anterior y la nueva, solo si está viva; quieta cambia al instante. `data-estado`, `data-forma` y `data-viva=\"true|false\"` para las pruebas. Primer render igual en servidor y cliente (el nivel del dispositivo se lee en un efecto; el primer render es QUIETO).\nPRUEBAS: cada estado pinta una forma distinta (`data-forma`); con `useNivelRender` simulado en `ligero` o con `matchMedia` de movimiento reducido `data-viva=\"false\"` y ningún elemento tiene animación CSS; en `pleno` y sin reducción, `data-viva=\"true\"`; cambiar de `calma` a `pensando` conserva un solo `<svg>` y cambia `data-forma`; `aria-hidden` presente; primer render quieto.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "ASW01",
+    "ASW02"
+   ]
+  },
+  {
+   "id": "INT04",
+   "ola": "INT1116A",
+   "titulo": "Reparto equilibrado de la ración entre nodos según su capacidad",
+   "archivos": [
+    "src/lib/malla/internet/reparto-banco.ts",
+    "src/lib/malla/internet/__tests__/reparto-banco.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contrato: architecture/malla-cristalina-sio2.md §8.2 (contrato; si aún no está en el repo, rige este texto). Escribe primero las pruebas. `repartirRacion(racionMb: number, nodos: { id: string; capacidadKbps: number; conectado: boolean; maxMb?: number }[]): { reparto: { id: string; mb: number }[]; sobranteMb: number }`. Solo cuentan los nodos `conectado` con `capacidadKbps > 0`. El reparto es PROPORCIONAL a la capacidad; ningún nodo recibe más de su `maxMb` (si lo trae): el exceso se reparte entre los demás, también proporcionalmente, hasta que no sobre o todos estén al tope (`sobranteMb` es lo que no cupo). Redondeo a 1 MB con el método del mayor resto y desempate por `id` (determinista: misma entrada, misma salida; la suma exacta de `reparto` + `sobranteMb` es `racionMb`). Sin nodos válidos o ración ≤ 0: reparto vacío y `sobranteMb` = ración (o 0). No muta la entrada.\nPRUEBAS: dos nodos 1:3; un nodo con tope; todos al tope; nodo desconectado ignorado; suma exacta; determinismo con ids empatados; ración cero.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "INT01"
+   ]
+  },
+  {
+   "id": "INT11",
+   "ola": "INT1116A",
+   "titulo": "Interruptor «Modo mesh» con su límite (sin límite o con tope)",
+   "archivos": [
+    "src/components/mesh/mapa-senales/internet/interruptor-modo-mesh.tsx",
+    "src/components/mesh/mapa-senales/internet/__tests__/interruptor-modo-mesh.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contrato: architecture/malla-cristalina-sio2.md §8.2 (contrato; si aún no está en el repo, rige este texto). «Modo banco de llamadas» es otra función (pasa a «modo de pruebas de llamadas»): no la toques ni la menciones. Escribe primero las pruebas. Componente `InterruptorModoMesh({ audiencia, valor, onCambiar, textos }: { audiencia: Audiencia; valor: AjustesAudiencia; onCambiar: (v: AjustesAudiencia) => void; textos: Pick<TextosInternet, \"meshTitulo\" | \"meshAyuda\" | \"meshSinLimite\" | \"meshConLimite\" | \"audMiCuenta\" | \"audEntidad\" | \"audPublico\" | \"mb\" | \"gb\"> })`: un `Switch` «modo mesh» para esa audiencia (el rótulo de la audiencia sale de `textos.aud…`) y debajo, si está encendido, un grupo de dos opciones (`role=\"radiogroup\"`): «sin límite» y «con tope» (un número con MB/GB que guarda en MB); la opción activa se resume con `meshSinLimite` o `meshConLimite(mb)`. Apagar el interruptor conserva el tope escrito. Mismo estilo, tamaño táctil y teclado que `ajustes-centro.tsx`. Nada de textos dentro del componente.\nPRUEBAS: encender y apagar; pasar de sin límite a con tope y vuelta; el tope se conserva al apagar; flechas cambian de opción; cada audiencia muestra su rótulo.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "INT01"
+   ]
+  },
+  {
+   "id": "INT14",
+   "ola": "INT1116A",
+   "titulo": "Leer lo que el aparato sabe de su conexión (navegador y marca nativa opcional)",
+   "archivos": [
+    "src/lib/malla/internet/lector-conexion.ts",
+    "src/lib/malla/internet/__tests__/lector-conexion.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contrato: architecture/malla-cristalina-sio2.md §8.2 (contrato; si aún no está en el repo, rige este texto). Lee `src/ai/astraura/mesh/connectivity.ts` (`NetworkInformationLike`, `netInfo`) y NO lo dupliques: reutiliza su tipo si lo exporta. Escribe primero las pruebas. `leerConexion(entorno: { navigator?: { connection?: NetworkInformationLike } | null; nativa?: { medida?: () => boolean | null } | null }): { tipo?: string; saveData?: boolean; effectiveType?: string; nativaMedida: boolean | null }`. `nativa.medida` es la marca de red de pago del lado nativo (Android `isActiveNetworkMetered`): HOY NO EXISTE en el puente, así que la entrada es opcional y si falta, `nativaMedida` es null; deja un comentario «falta en el puente nativo: ver §8.2 del contrato». Nunca lanza; ante `connection` ausente (Safari, Firefox) devuelve solo `nativaMedida`. Añade `suscribirConexion(entorno, alCambiar): () => void` que escucha `change` de `navigator.connection` y devuelve la baja (no hace nada si no hay `connection`).\nPRUEBAS: con y sin `connection`; marca nativa true/false/ausente/que lanza; suscribir y dar de baja.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "INT01"
+   ]
+  },
+  {
+   "id": "INT15",
+   "ola": "INT1116A",
+   "titulo": "Regla de la sugerencia: cuándo ofrecer el modo banco y cuándo callar",
+   "archivos": [
+    "src/lib/malla/internet/sugerencia-banco.ts",
+    "src/lib/malla/internet/__tests__/sugerencia-banco.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contrato: architecture/malla-cristalina-sio2.md §8.2 (contrato; si aún no está en el repo, rige este texto). Escribe primero las pruebas. `debeSugerir(entrada: { estado: EstadoConexion; fuente: FuenteLimitada; bancoActivo: boolean; compartirConOtros: boolean; negativa: { en: number; conexion: string } | null; ahora: number; clave: string }): { sugerir: boolean; motivo: string }` (`clave` identifica la conexión actual, p. ej. `tipo|effectiveType|saveData`). Sugiere SOLO si: la conexión es `limitada`, el banco NO está activo y la persona no dijo «Ahora no» hace menos de 24 h con la MISMA `clave` (si la conexión cambió, la negativa ya no vale). Si `compartirConOtros` es falso se sugiere igual (el banco es la forma segura de encenderlo después), pero el motivo lo dice. NUNCA devuelve una acción de encender: solo contesta si se ofrece. Añade `registrarNegativa(ahora, clave): { en: number; conexion: string }` y `NEGATIVA_HORAS = 24`.\nPRUEBAS en tabla: limitada y sin banco → sugiere; banco ya activo → no; no limitada o desconocida → no; negativa de hace 1 h misma clave → no; negativa de hace 25 h → sí; negativa con otra clave → sí; fuente declarada también sugiere.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "INT01"
+   ]
+  },
+  {
+   "id": "INT18",
+   "ola": "INT1116A",
+   "titulo": "Valores por defecto por audiencia y a qué audiencia pertenece cada par",
+   "archivos": [
+    "src/lib/malla/internet/defectos-audiencia.ts",
+    "src/lib/malla/internet/__tests__/defectos-audiencia.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contrato: architecture/malla-cristalina-sio2.md §8.2 (contrato; si aún no está en el repo, rige este texto) (tabla «Valores por defecto según a quién se comparte»). Escribe primero las pruebas. `ajustesPorDefecto(): AjustesInternet` = `{ version:1, compartirConOtros:false, banco:{ activo:false, modo:\"diario\", diarioMb:1024, ventanas:[] }, porAudiencia:{ \"mi-cuenta\":{ mesh:true, limiteMeshMb:null }, entidad:{ mesh:false, limiteMeshMb:null }, publico:{ mesh:false, limiteMeshMb:null } }, declaraLimitada:null, compartirMedidas:false }` (cuenta propia: mesh encendido y SIN límite; entidad y público: apagados hasta que el dueño encienda `compartirConOtros` Y su fila). `audienciaDe(par: { cuentaId: string | null; entidades: string[] }, yo: { cuentaId: string | null; entidades: string[] }): Audiencia`: `mi-cuenta` si ambos tienen la misma `cuentaId` no nula; `entidad` si comparten al menos una entidad; si no, `publico`; datos ausentes → `publico` (lo más restrictivo para él). Solo datos y reglas puras.\nPRUEBAS: los valores exactos de cada audiencia; misma cuenta; misma entidad pero otra cuenta; desconocidos son público; `cuentaId` null en ambos NO cuenta como misma cuenta; `ajustesPorDefecto()` devuelve un objeto NUEVO cada vez (no compartido).\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "INT01"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1115-224354.json": [
+   "ASW03",
+   "INT11",
+   "INT15",
+   "INT14",
+   "INT18",
+   "INT04"
+  ]
+ }
+}
