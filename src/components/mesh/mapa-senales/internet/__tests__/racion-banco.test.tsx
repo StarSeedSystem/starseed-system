@@ -4,18 +4,18 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { RacionBanco } from "../racion-banco";
 import type { AjustesBanco, VentanaBanco } from "@/lib/malla/internet/tipos";
 
-const textosBase = {
-  racionDiaria: "Ración diaria",
-  programacion: "Programación",
-  mb: "MB",
-  gb: "GB",
-  bancoTitulo: "Modo banco",
+const textosBase: Pick<typeof TEXTOS_EXTRA_INTERNET, "racionDiaria" | "programacion" | "mb" | "gb" | "bancoTitulo"> = {
+  racionDiaria: TEXTOS_EXTRA_INTERNET.racionDiaria,
+  programacion: TEXTOS_EXTRA_INTERNET.programacion,
+  mb: TEXTOS_EXTRA_INTERNET.mb,
+  gb: TEXTOS_EXTRA_INTERNET.gb,
+  bancoTitulo: TEXTOS_EXTRA_INTERNET.bancoTitulo,
 };
 
-const extraBase = {
-  desde: "Desde",
-  hasta: "Hasta",
-  limite: "Límite",
+const extraBase: typeof TEXTOS_EXTRA_INTERNET.extra = {
+  desde: TEXTOS_EXTRA_INTERNET.extra.desde,
+  hasta: TEXTOS_EXTRA_INTERNET.extra.hasta,
+  limite: TEXTOS_EXTRA_INTERNET.extra.limite,
 };
 
 function bancoPorDefecto(): AjustesBanco {
