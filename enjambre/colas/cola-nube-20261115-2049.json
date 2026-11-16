@@ -1,0 +1,82 @@
+{
+ "ola": "nube-20261115",
+ "tareas": [
+  {
+   "id": "IMG-profunda-catch-silencioso-en-auroratrans",
+   "titulo": "Catch silencioso en auroraTranscript",
+   "area": "imaginacion",
+   "archivos": [
+    "src/components/onboarding/aurora-guide.tsx"
+   ],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Catch silencioso en auroraTranscript. Catch silencioso en auroraTranscript Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  },
+  {
+   "id": "IMG-profunda-catch-silencioso-en-carga-de-pe",
+   "titulo": "Catch silencioso en carga de perfil",
+   "area": "imaginacion",
+   "archivos": [
+    "src/components/onboarding/ventana-perfil-inicial.tsx"
+   ],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Catch silencioso en carga de perfil. Catch silencioso en carga de perfil Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  },
+  {
+   "id": "IMA18",
+   "ola": "TRA1116-IDIOMAS",
+   "titulo": "Leer en voz alta el texto seleccionado, en su idioma, o decir que no hay voz",
+   "archivos": [
+    "src/lib/idiomas/leer-en-voz.ts",
+    "src/lib/idiomas/__tests__/leer-en-voz.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. `leerEnVoz(texto: string, idioma: string|null, entorno: { synth?: SpeechSynthesis; Utter?: typeof SpeechSynthesisUtterance }): { ok: boolean; voz?: string; motivo?: string }`: sin `speechSynthesis` → `{ok:false, motivo:\"Este aparato no tiene síntesis de voz\"}`; elige la voz de `getVoices()` cuyo `lang` coincide con el idioma (exacto, luego por prefijo de 2 letras); si no hay voz de ese idioma → `{ok:false, motivo:\"No hay una voz instalada para <idioma> en este aparato\"}` y NO habla con otra voz (no se finge); recorta a 2.000 caracteres; cancela la lectura anterior; `detener()`. Detección de idioma si `idioma` es null: devuelve motivo «Elige el idioma» (la detección vive en la app del Traductor). PRUEBAS con un `synth` falso: voz exacta, por prefijo, sin voz, sin síntesis, recorte.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado."
+  },
+  {
+   "id": "IMA19",
+   "ola": "TRA1116-IDIOMAS",
+   "titulo": "Reemplazar la selección editable por su traducción (input, textarea y contenteditable)",
+   "archivos": [
+    "src/components/traduccion/reemplazar-seleccion.ts",
+    "src/components/traduccion/__tests__/reemplazar-seleccion.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contrato A3. Pura y probada en jsdom: `capturarSeleccionEditable(doc: Document): ObjetivoEditable | null` (si el foco está en `input` de texto, `textarea` o elemento `contenteditable` con texto seleccionado; guarda elemento, inicio, fin y texto; NUNCA en `input type=password`), `reemplazar(objetivo, nuevoTexto): boolean` (en input/textarea con `setRangeText` y evento `input` para que React/formularios lo vean; en contenteditable con `Range.deleteContents`+`insertNode`; devuelve false si el elemento ya no está en el documento o el texto cambió desde la captura) y `deshacerUltimo(): boolean` (guarda el texto anterior de UNA sustitución). No usa red.\nPRUEBAS: textarea con selección, input, contenteditable, password rechazado, elemento retirado → false, deshacer.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado."
+  },
+  {
+   "id": "MRI5",
+   "ola": "MAP1116B",
+   "titulo": "Espectro: canales y estaciones públicas y privadas como señales (lo que su dueño publicó)",
+   "archivos": [
+    "src/lib/senales/espectro/adaptadores/estaciones.ts",
+    "src/lib/senales/espectro/adaptadores/__tests__/estaciones.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Adaptador puro de estaciones/canales: convierte las filas de `os_estaciones` que el usuario YA puede leer (`src/lib/estaciones/datos.ts`: `listarEstaciones`, respeta su RLS; no añadas lecturas) en `SenalEspectro` de medio `estacion`: capa `publica` si la estación es pública del directorio, `privada` si es del propio dueño o de su grupo, `origen:\"declarada\"` (la estación declara su tipo y su frecuencia/banda si la tiene: Omnifrecuencias; si no, sin frecuencia), `fuente:\"estación publicada por su dueño\"`, `vinculo:{tipo:\"estacion\", id}`. Las privadas ajenas no llegan (la RLS no las da) y si llegasen se descartan. Sin sesión o error → `sinFuente`. PRUEBAS: pública ajena sí; privada propia sí con capa privada; privada ajena descartada; sin frecuencia → sin número inventado. COMPRUEBA: `NODE_ENV=test npx vitest run src/lib/senales/espectro/adaptadores/__tests__/estaciones.test.ts` verde y tsc acotado.\n\nREGLAS DE LA CASA (valen aunque no las repita la tarea): toca SOLO los archivos de la lista `archivos`; ≤3 archivos y ≤120 líneas por archivo (si no cabe, para y di qué falta: no lo estires ni lo resumas); sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible (la interfaz dice Genesis); sin red real en las pruebas; ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves. El asunto de tu commit empieza por `MRI5:` y dice qué comprobaste y qué NO pudiste comprobar.",
+   "dependencias_ya_en_main": [
+    "MRA2"
+   ]
+  },
+  {
+   "id": "MRP1b",
+   "ola": "MAP1116B",
+   "titulo": "Puerta de datos del A1: aceptar el origen de las apps nativas de prueba (127.0.0.1, puertos 47610 a 47619, nada más ancho)",
+   "archivos": [
+    "servicios/puerta-datos/src/config.mjs",
+    "servicios/puerta-datos/test/config-origenes.test.mjs"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Qué falla (verificado): «Emparejar este aparato» en los chats de Genesis dice «la puerta de datos del A1 no responde» porque el origen de la app nativa de prueba (`http://127.0.0.1:47610` … `http://127.0.0.1:47619`) no está en `ORIGENES_POR_DEFECTO` (`servicios/puerta-datos/src/config.mjs:10-19`), y `cargarConfig` (~línea 56) solo suma esos más los extra del entorno. Alex aprobó cambiar esa puerta. Cambio: añade a `ORIGENES_POR_DEFECTO` EXACTAMENTE diez orígenes, `http://127.0.0.1:47610` … `http://127.0.0.1:47619`, generados sin comodines ni expresiones regulares (lista cerrada, `Object.freeze`), con un comentario que cita la causa. NADA más ancho: ni `localhost`, ni otros puertos, ni esquemas `https`, ni `*`, ni «cualquier puerto». PRUEBAS nuevas (`test/config-origenes.test.mjs`, como las de `test/servidor.test.mjs`, con `node --test`): los diez están; `http://127.0.0.1:47609`, `:47620`, `http://localhost:47610`, `https://127.0.0.1:47610`, `http://127.0.0.1:47610.evil.com` y `http://evil.com` NO están; los orígenes por defecto de antes siguen; y una petición con cada origen nuevo recibe la cabecera CORS del servidor y una con uno no listado no (busca en `servidor.test.mjs` cómo se prueba el CORS). COMPRUEBA: `cd servicios/puerta-datos && node --test test/config-origenes.test.mjs test/servidor.test.mjs` verde. DESPLEGAR esto al A1 NO es de esta tarea: lo hace la dirección; dilo en el commit.\n\nREGLAS DE LA CASA (valen aunque no las repita la tarea): toca SOLO los archivos de la lista `archivos`; ≤3 archivos y ≤120 líneas por archivo (si no cabe, para y di qué falta: no lo estires ni lo resumas); sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible (la interfaz dice Genesis); sin red real en las pruebas; ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves. El asunto de tu commit empieza por `MRP1b:` y dice qué comprobaste y qué NO pudiste comprobar."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1115-190053.json": [
+   "IMA19",
+   "IMA18",
+   "MRI5",
+   "IMG-profunda-catch-silencioso-en-carga-de-pe",
+   "IMG-profunda-catch-silencioso-en-auroratrans",
+   "MRP1b"
+  ]
+ }
+}
