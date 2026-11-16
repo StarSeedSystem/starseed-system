@@ -54,7 +54,7 @@ describe('decidirCompartir', () => {
       expect(resultado).toEqual({
         permitido: true,
         hastaMb: null,
-        motivo: expect.stringContaining('mi-cuenta'),
+        motivo: 'sin límite',
       });
     });
 
@@ -81,11 +81,11 @@ describe('decidirCompartir', () => {
       expect(resultado).toEqual({
         permitido: true,
         hastaMb: 500,
-        motivo: expect.stringContaining('mi-cuenta'),
+        motivo: 'límite: 500 MB',
       });
     });
 
-    it('cuenta propia con banco activo → aplica cupo del banco', () => {
+    it('cuenta propia con banco activo → límite del banco no se aplica a mi-cuenta', () => {
       const ajustes: AjustesInternet = {
         ...ajustesBase,
         compartirConOtros: false,
@@ -108,8 +108,8 @@ describe('decidirCompartir', () => {
       });
 
       expect(resultado.permitido).toBe(true);
-      expect(resultado.hastaMb).toBe(200);
-      expect(resultado.motivo).toContain('banco');
+      expect(resultado.hastaMb).toBeNull();
+      expect(resultado.motivo).toContain('sin límite');
     });
   });
 
@@ -620,9 +620,11 @@ describe('decidirCompartir', () => {
         desfaseMin,
       });
 
-      expect(resultado.permitido).toBe(true);
-      expect(resultado.hastaMb).toBe(200);
-      expect(resultado.motivo).toContain('limite audiencia');
+      expect(resultado).toEqual({
+        permitido: true,
+        hastaMb: 200,
+        motivo: 'límite: 200 MB',
+      });
     });
 
     it('banco.activo true, bytesDia.otros definido → usadoHoyMb calcula correctamente', () => {
@@ -659,7 +661,7 @@ describe('decidirCompartir', () => {
       expect(resultado.motivo).toContain('banco');
     });
 
-    it('mi-cuenta con banco activo → usadoHoyMb de "otros" aplica a mi-cuenta', () => {
+    it('mi-cuenta con banco activo → límite del banco no se aplica a mi-cuenta', () => {
       const ajustes: AjustesInternet = {
         ...ajustesBase,
         compartirConOtros: false,
@@ -684,11 +686,9 @@ describe('decidirCompartir', () => {
         desfaseMin,
       });
 
-      // Para mi-cuenta: limiteMeshMb=null, banco activo
-      // usadoHoyMb('otros') = 50 + 50 = 100 MB
-      // Banco: 300 - 100 = 200 MB
       expect(resultado.permitido).toBe(true);
-      expect(resultado.hastaMb).toBe(200);
+      expect(resultado.hastaMb).toBeNull();
+      expect(resultado.motivo).toContain('sin límite');
     });
 
     it('minimoNoNull devuelve null cuando todos los valores son null', () => {
@@ -698,14 +698,14 @@ describe('decidirCompartir', () => {
         banco: { activo: false, modo: 'diario', diarioMb: 0, ventanas: [] },
         porAudiencia: {
           ...ajustesBase.porAudiencia,
-          publico: { mesh: true, limiteMeshMb: null },
+          'mi-cuenta': { mesh: true, limiteMeshMb: null },
         },
       };
-      // Puerta sin medida ni tope → restanteParaOtrosMb = null
+      // Puerta sin medida ni tope → mi-cuenta como dueño puede usar sin límite
       const puerta = crearPuerta({ medida: false, topeMensualMb: undefined });
 
       const resultado = decidirCompartir({
-        audiencia: 'publico',
+        audiencia: 'mi-cuenta',
         ajustes,
         contadores: contadoresBase,
         puerta,
