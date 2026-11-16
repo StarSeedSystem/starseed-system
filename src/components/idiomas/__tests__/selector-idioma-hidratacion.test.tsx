@@ -73,6 +73,7 @@ describe("SelectorIdioma · hidratación sin mismatch", () => {
         expect(htmlServidor).toContain("Elegir idioma");
         expect(htmlServidor).toContain('data-testid="rotulo-idioma"');
 
+        contenedor!.innerHTML = htmlServidor;
         act(() => {
             raizHidratacion = hydrateRoot(contenedor!, <SelectorIdioma />);
         });
@@ -95,6 +96,7 @@ describe("SelectorIdioma · hidratación sin mismatch", () => {
     it("sin localStorage, el idioma efectivo sigue siendo español en el primer render", () => {
         localStorage.clear();
         const htmlServidor = renderToString(<SelectorIdioma />);
+        contenedor!.innerHTML = htmlServidor;
         act(() => {
             raizHidratacion = hydrateRoot(contenedor!, <SelectorIdioma />);
         });

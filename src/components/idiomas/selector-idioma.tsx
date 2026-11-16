@@ -51,7 +51,7 @@ export function SelectorIdioma({ className = "", alElegir, abiertoAlInicio = fal
     const [filtro, setFiltro] = useState("");
     const [actual, setActual] = useState("es");
     const [aviso, setAviso] = useState("");
-    const sugerido = useMemo(() => sugerirIdioma(), []);
+    const [sugerido, setSugerido] = useState<string>("");
     const boton = useRef<HTMLButtonElement>(null);
     const caja = useRef<HTMLInputElement>(null);
     const lista = useRef<HTMLUListElement>(null);
@@ -63,6 +63,10 @@ export function SelectorIdioma({ className = "", alElegir, abiertoAlInicio = fal
         return () => window.removeEventListener(EVENTO_IDIOMA, leer);
     }, []);
     useEffect(() => { if (abierto) caja.current?.focus(); }, [abierto]);
+
+    useEffect(() => {
+        setSugerido(sugerirIdioma());
+    }, []);
 
     const codigosElegibles = IDIOMAS.map((i) => i.codigo);
     const listaCompleta = useMemo(() => listaMundial({ idiomaActual: actual }).filter((i) => codigosElegibles.includes(i.codigo)), [actual]);
