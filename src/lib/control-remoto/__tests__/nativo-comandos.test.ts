@@ -61,6 +61,24 @@ describe("costura a · comandos nativos: web y Rust dicen lo mismo", () => {
     });
 });
 
+describe("comandos nativos fuera de la tabla del control (UNI1116B)", () => {
+    // `banco_latido_activar` (PENA1) no es de `control_*`: la tabla de arriba es del seam del control y su prueba lee solo
+    // control_entrada.rs y control_pantalla.rs. No se queda sin vigilar: se comprueba aquí que lib.rs, build.rs, la capability
+    // y el inventario §4.8.1 lo nombran, y que lo que la web invoca existe en Rust.
+    const FUERA = ["banco_latido_activar"];
+    for (const c of FUERA) {
+        it(`${c}: Rust, build.rs, capability, inventario y web`, () => {
+            const permiso = `allow-${c.replace(/_/g, "-")}`;
+            expect(leer("native/src-tauri/src/lib.rs"), "lib.rs").toContain(c);
+            expect(leer("native/src-tauri/build.rs"), "build.rs").toContain(`"${c}"`);
+            expect(leer("native/src-tauri/capabilities/default.json"), "capability").toContain(`"${permiso}"`);
+            expect(leer("architecture/permisos-y-control-del-dispositivo.md"), "inventario §4.8.1").toContain(`\`${permiso}\``);
+            expect(leer("native/src-tauri/src/banco_latido.rs"), "Rust").toMatch(new RegExp(`pub fn ${c}\\(app: tauri::AppHandle, webview: tauri::Webview, activo: bool\\)`));
+            expect(leer("src/lib/banco-llamadas/app.ts"), "web").toContain(`"${c}", { activo:`);
+        });
+    }
+});
+
 describe("costuras b y d · la web y los vectores de Rust hablan igual", () => {
     it("el gesto firmado de los vectores de Rust pasa el vocabulario de la web (args en accion.args, dt_ms en el 3.er número)", async () => {
         const { ACCIONES } = await import("../niveles");

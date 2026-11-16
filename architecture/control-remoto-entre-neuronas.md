@@ -437,13 +437,14 @@ vive en `src/lib/control-remoto/nativo-comandos.ts`; `nativo-comandos.test.ts` (
 |---|---|---|
 | `control_capacidades` | — | `{ pantalla, entrada, falta }` (seam 1) |
 | `control_abrir_ajuste` | `cual` | `{ ok }` · abre Ajustes o el diálogo nativo; lo hace la persona |
-| `control_pantalla_iniciar` | `sesion`, `lado_max`, `calidad` | `{ ok, fuente, ancho, alto, giro }` o `{ ok:false, motivo, falta? }` |
+| `control_pantalla_iniciar` | `sesion`, `lado_max`, `calidad`, `fuente` | `{ ok, fuente, ancho, alto, giro }` o `{ ok:false, motivo, falta? }` |
 | `control_pantalla_cuadro` | `sesion`, `desde` | bytes: cabecera de 12 bytes + JPEG, o cero bytes |
 | `control_pantalla_parar` | `sesion` | `{ ok }` |
 | `control_estado_aparato` | — | volumen, brillo, batería, red, pantalla |
 | `control_entrada` | `sesion`, `sobre` | `{ ok }` o `{ ok:false, motivo }` |
 | `control_entrada_aceptar` | `spki`, `cuenta`, `nombre` | `{ ok, pendiente, codigo }`; solo PIDE el diálogo |
 | `control_entrada_aceptados` | — | `{ ok, controladores:[{ huella(8), nombre, codigo }] }` |
+| `control_entrada_quitar` | `huella` (completa) | `{ ok, quitados }` o `{ ok:false, motivo }` · solo resta de la lista aceptada (PENB2) |
 
 **b. `calidad`** es un **entero de 1 a 100** en el vocabulario de la web, en la llamada y en Rust (`u32`); no hay
 fracciones. Lo nativo la acota a JPEG 20..95. `lado` (web) / `lado_max` (nativo): entero, 240..2048 en la web, 160..2048 en Rust.

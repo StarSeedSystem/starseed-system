@@ -7,8 +7,10 @@ const T0 = Date.parse("2026-11-16T10:00:00Z");
 let latir: () => void = () => undefined;
 const quitar = vi.fn();
 const invoke = vi.fn(async (_c: string, _a?: Record<string, unknown>): Promise<unknown> => ({ ok: true }));
-const listen = vi.fn(async (_e: string, f: () => void) => {
-    latir = f;
+const listen = vi.fn(async (e: string, f: () => void) => {
+    // UNI1116B: solo el evento del latido; el canal de control escucha además «control-neuronas:parada» (a veces tarde, con
+    // la máquina cargada) y, sin este filtro, su oyente pisaba a `latir` y recibía una llamada sin evento.
+    if (e === "banco-llamadas-latido") latir = f;
     return quitar;
 });
 let leidas = 0;
@@ -49,7 +51,7 @@ describe("PENA2 · latido de Rust y sondeo de la página", () => {
         const m = await cargar();
         expect(m.armarBanco(TABLETA, 4, 40)).toBe(true);
         await asentar();
-        expect(listen.mock.calls[0][0]).toBe("banco-llamadas-latido");
+        expect(listen.mock.calls.map((c) => c[0])).toContain("banco-llamadas-latido");
         expect(invoke).toHaveBeenCalledWith("banco_latido_activar", { activo: true });
         await avanzar(1_000);
         latir(); // sondeo por latido
