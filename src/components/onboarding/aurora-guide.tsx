@@ -152,6 +152,7 @@ import { BotonCerrar } from "@/components/ui/boton-cerrar";
 import { usePerfilDispositivo } from "@/hooks/use-perfil-dispositivo";
 import { useNivelMovimiento } from "@/hooks/use-nivel-movimiento";
 import { useDeslizarPasos } from "@/hooks/use-deslizar-pasos";
+import { useTimeoutInteraction } from "@/hooks/use-timeout-interaction";
 import { useDireccionPaso } from "@/components/movimiento/paso-animado";
 import { transicionPaso, variantesPaso, type Direccion } from "@/lib/movimiento/transiciones";
 
@@ -373,6 +374,11 @@ export function AuroraGuide() {
 
   const [mounted, setMounted] = useState(false);
   const [open, setOpen] = useState(false);
+  // (IMG-agentes) Aperturas AUTOMÁTICAS pendientes. La guía ya no se abre de golpe
+  // con un temporizador fijo: marca que toca abrir y el temporizador de CALMA
+  // (`useTimeoutInteraction`) espera a que el usuario deje de navegar.
+  const [autoAbrirPrimera, setAutoAbrirPrimera] = useState(false);
+  const [autoAbrirRito, setAutoAbrirRito] = useState(false);
   // Aviso único de novedades para quien ya vio una versión anterior de la guía (`guia-vista.ts`).
   const [novedades, setNovedades] = useState<readonly string[] | null>(null);
   const [index, setIndex] = useState(0);
@@ -442,7 +448,6 @@ export function AuroraGuide() {
     // viaja con la cuenta). Sin esa espera, un medio recién abierto no sabía nada y abría la guía
     // «por primera vez» en cada medio. Si la cuenta no responde, no se abre sola (se puede
     // abrir a demanda), y en cuanto responda se decide.
-    let temporizador: ReturnType<typeof setTimeout> | undefined;
     const decidir = () => {
       // Una marca local antigua se respeta y se copia a la cuenta para los demás medios.
       const seen = copiarGuiaLocalACuenta();
@@ -457,14 +462,14 @@ export function AuroraGuide() {
       let introDone = false;
       try { introDone = window.localStorage.getItem("starseed.aurora.intro.v1") === "1"; } catch { /* */ }
       if (!seen && introDone) {
-        // Primera visita (tras el intro): arranca sola tras un instante.
-        temporizador = setTimeout(() => setOpen(true), 900);
+        // Primera visita (tras el intro): toca abrir, pero la guía espera a que el
+        // usuario deje de navegar (useTimeoutInteraction) para no interrumpirle.
+        setAutoAbrirPrimera(true);
       }
     };
     const cancelarEspera = cuandoCuentaFiable(decidir, 4000);
     return () => {
       cancelarEspera();
-      if (temporizador) clearTimeout(temporizador);
     };
   }, []);
 
@@ -484,6 +489,18 @@ export function AuroraGuide() {
     setMuted(false);
     setOpen(true);
   }, []);
+
+  // (IMG-agentes) La guía NO interrumpe: cada apertura AUTOMÁTICA espera a que el
+  // usuario deje de interactuar (scroll, clic, tecla, toque o ratón) — el mismo
+  // temporizador de calma para el primer arranque y para el turno del rito.
+  useTimeoutInteraction(
+    useCallback(() => { setAutoAbrirPrimera(false); setOpen(true); }, []),
+    { activo: autoAbrirPrimera && !open },
+  );
+  useTimeoutInteraction(
+    useCallback(() => { setAutoAbrirRito(false); openGuide(0); }, [openGuide]),
+    { activo: autoAbrirRito && !open },
+  );
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -509,8 +526,8 @@ export function AuroraGuide() {
   // Cuando `esMiTurno("guia")`:
   //   · si aún no estamos en /escritorios, se navega SUAVE y se re-comprueba al
   //     cambiar la ruta (usePathname);
-  //   · ya en /escritorios, abre la guía una sola vez (ref de etapa atendida)
-  //     tras 900 ms de respiro.
+  //   · ya en /escritorios, pide abrir la guía una sola vez (ref de etapa atendida)
+  //     y el temporizador de CALMA la muestra cuando la persona deja de navegar.
   // (Ola 250 · 2026-09-06) PRIMERO el turno y SOLO se navega desde rutas del
   // propio rito. Antes se comprobaba el pathname ANTES que `esMiTurno`, así que
   // cualquier página que monta la guía navegaba al escritorio aunque no hubiera
@@ -534,12 +551,13 @@ export function AuroraGuide() {
         return;
       }
       etapaGuiaAtendidaRef.current = true;
-      const t = setTimeout(() => openGuide(0), 900);
-      return () => clearTimeout(t);
+      // (IMG-agentes) En vez de un `setTimeout` fijo, se marca que toca abrir y el
+      // temporizador de calma espera a que la persona deje de navegar.
+      setAutoAbrirRito(true);
     };
     atenderGuia();
     return suscribirRito(atenderGuia);
-  }, [pathname, router, openGuide]);
+  }, [pathname, router]);
 
   // Al cerrar, marca visto (no reaparece sola). Reabrible siempre por evento.
   const markSeen = useCallback(() => {
