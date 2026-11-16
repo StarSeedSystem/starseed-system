@@ -20,8 +20,9 @@ export async function GET(request: Request) {
             const supabase = await createClient();
             const { error } = await supabase.auth.exchangeCodeForSession(code);
             if (!error) return NextResponse.redirect(`${origin}${next}`);
-        } catch {
-            // caída controlada al login con aviso
+            console.error("Error al intercambiar el código de autenticación:", error);
+        } catch (error) {
+            console.error("Excepción al intercambiar el código de autenticación:", error);
         }
     }
     return NextResponse.redirect(`${origin}/login?error=auth-callback`);
