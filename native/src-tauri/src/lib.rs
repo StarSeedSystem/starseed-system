@@ -932,6 +932,7 @@ pub fn run() {
                 control_entrada::control_estado_aparato,
                 control_entrada::control_entrada_aceptar,
                 control_entrada::control_entrada_aceptados,
+                control_entrada::control_entrada_quitar, // PENB2
                 control_pantalla::control_pantalla_iniciar,
                 control_pantalla::control_pantalla_cuadro,
                 control_pantalla::control_pantalla_parar,

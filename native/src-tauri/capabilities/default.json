@@ -70,6 +70,7 @@
     "allow-control-estado-aparato",
     "allow-control-entrada-aceptar",
     "allow-control-entrada-aceptados",
+    "allow-control-entrada-quitar",
     "allow-control-pantalla-iniciar",
     "allow-control-pantalla-cuadro",
     "allow-control-pantalla-parar",

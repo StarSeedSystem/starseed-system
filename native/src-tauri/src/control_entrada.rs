@@ -256,6 +256,42 @@ pub fn control_entrada_aceptados(app: tauri::AppHandle, webview: tauri::Webview)
     Ok(sin_soporte())
 }
 
+/// (PENB2) Una huella que se puede mandar a Kotlin para quitar: no vacía, ≤128, sin espacios ni caracteres de control.
+pub fn huella_aceptable(h: &str) -> bool {
+    !h.is_empty() && h.chars().count() <= 128 && !h.chars().any(|c| c.is_whitespace() || c.is_control())
+}
+
+/// (PENB2) Lo que contesta Kotlin a «quitar-controlador» → la forma del comando. Sin respuesta: `sin-servicio`.
+pub fn quitar_de_kotlin(r: Option<&Value>) -> Value {
+    match r {
+        Some(v) if v.get("ok").and_then(|x| x.as_bool()) == Some(true) => {
+            json!({ "ok": true, "quitados": v.get("quitados").and_then(|x| x.as_u64()).unwrap_or(0) })
+        }
+        Some(v) => {
+            let m = v.get("motivo").and_then(|x| x.as_str()).filter(|m| !m.is_empty() && m.len() <= 40 && m.chars().all(|c| c.is_ascii_lowercase() || c == '-'));
+            json!({ "ok": false, "motivo": m.unwrap_or("sin-servicio") })
+        }
+        None => json!({ "ok": false, "motivo": "sin-servicio" }),
+    }
+}
+
+/// (PENB2) Quita un controlador de la lista aceptada. Rust NO toca `aceptados.json`: se lo pide a Kotlin, que es quien
+/// la escribe. `huella` es la completa (la lista que enseña `control_entrada_aceptados` solo da el comienzo).
+#[tauri::command(async)]
+pub fn control_entrada_quitar(app: tauri::AppHandle, webview: tauri::Webview, huella: String) -> Result<Value, String> {
+    crate::control_neuronas::pagina_ok(&app, &webview)?;
+    if !huella_aceptable(&huella) {
+        return Ok(json!({ "ok": false, "motivo": "huella-invalida" }));
+    }
+    #[cfg(target_os = "android")]
+    {
+        let r = es::llamar(&app, json!({ "tipo": "quitar-controlador", "huella": huella }), ESPERA_MS);
+        Ok(quitar_de_kotlin(r.as_ref()))
+    }
+    #[cfg(not(target_os = "android"))]
+    Ok(sin_soporte())
+}
+
 // ─────────────────────────── E/S con Kotlin (solo Android) ───────────────────────────
 
 #[cfg(target_os = "android")]
@@ -351,6 +387,21 @@ mod pruebas {
         assert_eq!(c["entrada"]["brillo"], false);
         assert_eq!(c["pantalla"]["accesibilidad"], false, "sin el interruptor de la persona no hay pantalla");
         assert_eq!(c["falta"], json!(["consentimiento-pantalla", "escribir-ajustes"]));
+    }
+
+    #[test]
+    fn quitar_pide_una_huella_razonable_y_traduce_lo_que_contesta_kotlin() {
+        assert!(huella_aceptable("abcdef0123456789"));
+        assert!(huella_aceptable(&"a".repeat(128)));
+        assert!(!huella_aceptable(""));
+        assert!(!huella_aceptable("ab cd"));
+        assert!(!huella_aceptable("ab\ncd"));
+        assert!(!huella_aceptable(&"a".repeat(129)));
+        assert_eq!(quitar_de_kotlin(Some(&json!({ "ok": true, "quitados": 1 }))), json!({ "ok": true, "quitados": 1 }));
+        assert_eq!(quitar_de_kotlin(Some(&json!({ "ok": true }))), json!({ "ok": true, "quitados": 0 }));
+        assert_eq!(quitar_de_kotlin(Some(&json!({ "ok": false, "motivo": "interruptor-apagado" }))), json!({ "ok": false, "motivo": "interruptor-apagado" }));
+        assert_eq!(quitar_de_kotlin(Some(&json!({ "ok": false, "motivo": "<script>" }))), json!({ "ok": false, "motivo": "sin-servicio" }));
+        assert_eq!(quitar_de_kotlin(None), json!({ "ok": false, "motivo": "sin-servicio" }));
     }
 
     #[test]
