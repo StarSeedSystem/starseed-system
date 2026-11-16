@@ -513,7 +513,7 @@ def lanzar_desacoplado(dir_estado, esc, rep, quien):
 def texto_estado(datos):
     series = (datos or {}).get("series") or []
     if not series:
-        return "Banco de llamadas: ninguna serie hecha todavía."
+        return "Banco de pruebas de llamadas: ninguna serie hecha todavía."
     s = series[0]
     v = s.get("veredicto") or {}
     sal = ["Serie %s · %d × %s · %s%s" % (s["serie"], s["rep"], s["esc"], s["estado"], (" · " + s["motivo_fin"]) if s.get("motivo_fin") else "")]
@@ -537,7 +537,7 @@ def texto_estado(datos):
                 for a, x in sorted(nums.items())))
         for c, x in sorted((j.get("comp") or {}).items()):
             sal.append("      %s: %s" % (c, "cumple" if x["cumple"] else "no cumple (%s)" % "; ".join(x["fallos"])))
-    sal.append("Todo es «simulado» (medio_real=false): el banco sugiere; no marca ninguna comprobación.")
+    sal.append("Todo es «simulado» (medio_real=false): el banco de pruebas de llamadas sugiere; no marca ninguna comprobación.")
     return "\n".join(sal)
 
 
@@ -559,7 +559,7 @@ def main(argv=None):
         print(json.dumps(d, ensure_ascii=False, indent=2) if a.json else texto_estado(d))
         if not a.json:
             falta = L.paso_que_falta(m.leer_json(APP), m.ahora(), None)       # BAN1115D
-            print("App de la Mac: " + (falta or "lista (clave propia, tableta aceptada y modo banco armado)"))
+            print("App de la Mac: " + (falta or "lista (clave propia, tableta aceptada y modo de pruebas de llamadas armado)"))
         return 0
     if not 1 <= a.rep <= L.REP_MAX:
         print("error: --rep va de 1 a %d" % L.REP_MAX, file=sys.stderr)

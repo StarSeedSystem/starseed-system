@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-/** VEN1115L · el modo banco armado sobrevive a una recarga de la interfaz (y se limpia al apagarlo). */
+/** VEN1115L · el modo de pruebas de llamadas armado sobrevive a una recarga de la interfaz (y se limpia al apagarlo). */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const CLAVE = "starseed.banco-llamadas.armado";

@@ -5,7 +5,7 @@
  * control-remoto-entre-neuronas §2.4 y permisos-y-control-del-dispositivo §5).
  *
  * `BandaControl` (montada en el layout): mientras otra neurona opera esta, una banda fija dice quién y
- * con qué nivel; un toque la termina y apaga el permiso. En la Mac enseña además el modo banco armado.
+ * con qué nivel; un toque la termina y apaga el permiso. En la Mac enseña además el modo de pruebas de llamadas armado.
  * `ControlEntreNeuronasPanel` (en Permisos de antenas): el interruptor, apagado de fábrica, el nivel, los
  * aparatos aceptados y los que piden serlo, con su código para compararlo con el del otro aparato.
  *
@@ -241,7 +241,7 @@ export function BandaControl() {
             )}
             {banco && (
                 <div role="status" className="pointer-events-auto flex max-w-[calc(100vw-32px)] flex-wrap items-center gap-3 rounded-xl border-2 border-[#FFBF00] bg-[#1a1404]/95 px-4 py-2 text-sm text-white shadow-lg">
-                    <span className="font-semibold text-[#FFBF00]">Modo banco de llamadas</span>
+                    <span className="font-semibold text-[#FFBF00]">Modo de pruebas de llamadas</span>
                     <span>
                         llama a {banco.con.slice(0, 8)} · hasta las {hhmm(banco.hasta)} · quedan {banco.restantes}
                     </span>
@@ -565,11 +565,11 @@ export function ControlEntreNeuronasPanel() {
                 </button>
                 {banco ? (
                     <button onClick={() => void apagar()} className="cursor-pointer rounded-md bg-[#FFBF00] px-2 py-1 text-[12px] text-black">
-                        Apagar el modo banco
+                        Apagar el modo de pruebas de llamadas
                     </button>
                 ) : (
                     <button onClick={() => void armar()} className="cursor-pointer rounded-md border border-[#FFBF00]/50 px-2 py-1 text-[12px] text-[#FFBF00] hover:bg-[#FFBF00]/10">
-                        Modo banco hacia esa tableta (4 h, 40 llamadas)
+                        Modo de pruebas de llamadas hacia esa tableta (4 h, 40 llamadas)
                     </button>
                 )}
             </div>

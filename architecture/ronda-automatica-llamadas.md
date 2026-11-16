@@ -69,7 +69,7 @@ Base leída: `mac-main` = `12dd86d91`. Hermanos: `architecture/llamadas-telefoni
 | `~/.starseed/produccion/banco-llamadas/orden.json` | disco Mac | la orden en curso (la escribe SOLO `banco_llamadas.py`) |
 | `~/.starseed/produccion/banco-llamadas/calma.json` | disco Mac | la última lectura de calma (cada 30 s mientras hay serie) |
 | `GET /api/banco-llamadas` (`src/app/api/banco-llamadas/route.ts`) | servidor local de la app de la Mac | devuelve `orden.json` + `calma.json`; fuera del servidor local (web publicada, tableta) responde `{disponible:false}` |
-| `src/lib/banco-llamadas/**` | web de las dos apps | el **actor**: modo banco, guion, contestador, marcas en el registro |
+| `src/lib/banco-llamadas/**` | web de las dos apps | el **actor**: modo de pruebas de llamadas, guion, contestador, marcas en el registro |
 | `native/src-tauri/src/banco_llamadas.rs` (+ `_logica.rs`) | Rust, las dos apps | armar/desarmar (diálogo nativo), estado en memoria, firmar y verificar órdenes con la clave de faro |
 
 ### §1.2 Los pasos
@@ -203,8 +203,8 @@ no válida **no cuenta** ni a favor ni en contra y se dice por qué.
 3. El diálogo dice: con qué neurona (nombre y 8 primeros caracteres del id: **una sola**), qué hará («contestar con
    cámara y micrófono las llamadas de prueba de esa neurona»), hasta cuándo (por defecto 4 h, tope 8 h, §7.1) y cuántas
    llamadas como mucho (por defecto 40).
-4. **Se ve todo el rato:** banda fija «Modo banco de llamadas · contesta solo a <neurona> · hasta las HH:MM · Apagar»
-   en la ventana principal; en la Mac además un icono en la barra de menús con «Apagar el modo banco» atendido en Rust
+4. **Se ve todo el rato:** banda fija «Modo de pruebas de llamadas · contesta solo a <neurona> · hasta las HH:MM · Apagar»
+   en la ventana principal; en la Mac además un icono en la barra de menús con «Apagar el modo de pruebas de llamadas» atendido en Rust
    (como el de acceso al equipo). Si la banda no se puede pintar (la web no está), el modo no contesta: el contestador
    está en la web y la web consulta a Rust en cada orden.
 5. **Se apaga solo** al vencer la hora, al gastar las llamadas, al cerrar la app, al pulsar Apagar, y si la persona
@@ -214,7 +214,7 @@ no válida **no cuenta** ni a favor ni en contra y se dice por qué.
    sistema. Si no lo están, contesta a la orden «falta permiso de cámara» y **no abre** la llamada: nunca dispara el
    diálogo del sistema ni abre Ajustes. Cumple §1 de `permisos-y-control-del-dispositivo.md`.
 7. **Nadie lo enciende a distancia:** no hay orden, mensaje ni ruta que lo arme; una orden que llega con el modo apagado
-   se contesta «modo banco apagado en este aparato» y se registra.
+   se contesta «modo de pruebas de llamadas apagado en este aparato» y se registra.
 8. Nada se graba: el banco solo escribe números y marcas en el registro, nunca imagen ni sonido.
 
 ### §4.3 Cómo prueba la Mac que es de la cuenta (con lo que la malla ya tiene)
@@ -230,7 +230,7 @@ no válida **no cuenta** ni a favor ni en contra y se dice por qué.
 Los orígenes remotos de la ventana `main` (la web publicada y los puertos 47610–47619, `capabilities/default.json`) pueden
 llamar a `llamada_timbre_firmar` (`default.json:154`) y podrán llamar a `banco_orden_firmar`. Qué puede hacer esa web:
 - **En un aparato ya armado:** nada nuevo. Esa misma web ya puede abrir cámara y micrófono sin el banco
-  (`permisos_medios.rs:134-140` concede los medios a las páginas de la app) y mandarlos adonde quiera. El modo banco no le
+  (`permisos_medios.rs:134-140` concede los medios a las páginas de la app) y mandarlos adonde quiera. El modo de pruebas de llamadas no le
   da ninguna capacidad que no tuviera.
 - **Desde otra neurona de la cuenta:** firmar órdenes y llamar a un aparato armado → ese aparato contesta con cámara.
   Limitado a: la única neurona elegida en el diálogo, la ventana de horas, el número de llamadas, la banda visible, y el
@@ -398,7 +398,7 @@ El agrupador del banco (`banco_pruebas_logica.construir_llamada`) añade `escena
 | `banco contesta esc=<id> serie=<id> n=<k> camara=<si\|no>` | tableta (paso 10), al contestar | `camara` | sin esta marca de la tableta la llamada NO vale («no se sabe que contestó») |
 | `banco fin esc=<id> serie=<id> n=<k> cuelga=<mac\|tableta> dur_s=<n>` | app de la Mac, al colgar (paso 13) | `cuelga` quien colgó; `dur_s` lo que la app midió | cierra la ventana (8 s después); `cuelga` debe ser el del guion (`mac`) y `dur_s` ≥ 120 |
 | `banco calma serie=<id> n=<k> fase=<inicio\|fin> carga1=<x> presion=<n> libre=<n>% swap=<n>% swapouts_min=<n>` | app de la Mac, al empezar y al acabar la llamada, copiando `calma.json` (`?` si no hay dato) (§5, última viñeta) | lecturas | solo prueba de vida; el juicio usa sus propias lecturas |
-| `banco rechaza esc=<id> serie=<id> n=<k> motivo=<m>` | quien rechaza la orden: la app de la Mac al recibir el acuse negativo, o la tableta | `motivo` ∈ {`modo-apagado`, `falta-permiso`, `otra-llamada`, `orden-caducada`} | la serie PARA con ese motivo («la tableta tiene otra llamada en curso», «falta el permiso de cámara o micrófono en la tableta», «el modo banco está apagado en la tableta», «la orden llegó caducada») |
+| `banco rechaza esc=<id> serie=<id> n=<k> motivo=<m>` | quien rechaza la orden: la app de la Mac al recibir el acuse negativo, o la tableta | `motivo` ∈ {`modo-apagado`, `falta-permiso`, `otra-llamada`, `orden-caducada`} | la serie PARA con ese motivo («la tableta tiene otra llamada en curso», «falta el permiso de cámara o micrófono en la tableta», «el modo de pruebas de llamadas está apagado en la tableta», «la orden llegó caducada») |
 
 `apagada` y `calma` son añadidos de BAN1114C (el contrato fijaba `armada`, `sondeo`, `inicio`, `contesta`, `fin`, `calma` y los rechazos).
 Una orden que se ignora sin avisar acaba igual: sin `inicio` en 90 s la serie termina «sin veredicto» diciendo que la app no la tomó.
@@ -406,7 +406,7 @@ Una orden que se ignora sin avisar acaba igual: sin `inicio` en 90 s la serie te
 ### §9.3 Lo que decide el lado Python con ellas
 
 - **App «lista»** (nada empieza si no): la marca más reciente de la Mac entre `armada`, `sondeo`, `inicio`, `fin` y `calma` tiene ≤ 90 s,
-  y la más reciente entre `armada`/`apagada` es `armada` y no ha pasado su `hasta`. Si no: «la app de la Mac no está en modo banco o no
+  y la más reciente entre `armada`/`apagada` es `armada` y no ha pasado su `hasta`. Si no: «la app de la Mac no está en modo de pruebas de llamadas o no
   sondea desde las HH:MM». (Se admiten `inicio`/`fin`/`calma` como vida porque mientras hay llamada la app no sondea.)
 - **Orden**: `orden.json` v1 tal cual §1.2, `para` = `con` de la última `banco armada`. La app debe tratar `(serie, n)` como clave
   única: el runner la borra al ver `banco inicio`, pero puede haberla leído dos veces antes.

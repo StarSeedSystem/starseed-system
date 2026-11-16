@@ -102,7 +102,7 @@ export const MAX_LARGO_LINEA_ESPEJO_BLE = 240;
 /** Como mucho un espejo por enlace cada tanto (un enlace que se liga y cae no llena el archivo del otro). */
 export const ESPERA_ESPEJO_REGISTRO_BLE_MS = 30_000;
 /** Tope del texto de un espejo (cabe de sobra en los 16 KiB de un mensaje, con el cifrado y la trama). */
-const MAX_TEXTO_ESPEJO = 9_000;
+const MAX_TEXTO_ESPEJO = 9_000; // FBM1116: las marcas de la llamada van aparte (hasta MAX_BYTES_MARCAS_ESPEJO_BLE más)
 
 export const T_ESPEJO_REGISTRO_BLE = "nl.reg";
 
@@ -118,11 +118,50 @@ function lineaLimpia(s: unknown): string {
   return t.slice(0, RE_LINEA_DE_LLAMADA_BLE.test(t.slice(0, 160)) ? MAX_LARGO_LINEA_LLAMADA_BLE : MAX_LARGO_LINEA_ESPEJO_BLE);
 }
 
+/**
+ * (FBM1116) Las marcas de una llamada que el banco de pruebas de llamadas lee del registro del OTRO aparato: las líneas web
+ * `llamada` que empiezan por «banco …» (contesta, orden …, simulacion …, inicio, fin), el «fin por=…», el «contestada» y el
+ * «medio=webrtc … ice=connected». Son pocas y valen más que el resto: el 15-11 las del principio de tres llamadas de 2 min
+ * cayeron del espejo porque el recorte corta por el principio y la llamada metió cientos de líneas. Tienen tope propio. Puro.
+ */
+export const RE_MARCA_DE_LLAMADA_BLE = /^(?:\([^)]{0,80}\) )?\S+ · (?:web · )?llamada\b.* · (?:banco \S|fin por=|contestada\b|medio=webrtc\b[^·]*\bice=connected\b)/;
+export const MAX_LINEAS_MARCAS_ESPEJO_BLE = 24;
+export const MAX_BYTES_MARCAS_ESPEJO_BLE = 3_000;
+
 /** Las últimas líneas del registro propio, limpias y dentro del tope. Puro. */
 export function recortarEspejoRegistro(lineas: readonly unknown[], max = MAX_LINEAS_ESPEJO_BLE): string[] {
-  const l = lineas.map(lineaLimpia).filter((x) => x.length > 0).slice(-Math.max(1, Math.min(max, MAX_LINEAS_ESPEJO_BLE)));
-  let total = l.reduce((s, x) => s + x.length + 1, 0);
-  while (l.length > 1 && total > MAX_TEXTO_ESPEJO) total -= (l.shift() as string).length + 1;
+  const limpias = lineas.map(lineaLimpia).filter((x) => x.length > 0);
+  // FBM1116: las marcas de llamada se cuentan aparte (tope propio); las demás, como siempre, las últimas `max`.
+  const esMarca = limpias.map((x) => RE_MARCA_DE_LLAMADA_BLE.test(x));
+  const tope = Math.max(1, Math.min(max, MAX_LINEAS_ESPEJO_BLE));
+  const quedan = new Set<number>();
+  let n = 0;
+  for (let i = limpias.length - 1; i >= 0 && n < tope; i--) if (!esMarca[i]) (quedan.add(i), n++);
+  let m = 0;
+  let bytesMarcas = 0;
+  for (let i = limpias.length - 1; i >= 0 && m < MAX_LINEAS_MARCAS_ESPEJO_BLE; i--) {
+    if (!esMarca[i]) continue;
+    if (bytesMarcas + limpias[i].length + 1 > MAX_BYTES_MARCAS_ESPEJO_BLE && m > 0) break;
+    quedan.add(i);
+    bytesMarcas += limpias[i].length + 1;
+    m++;
+  }
+  const l: string[] = [];
+  const marca: boolean[] = [];
+  limpias.forEach((x, i) => {
+    if (quedan.has(i)) (l.push(x), marca.push(esMarca[i]));
+  });
+  // El tope de tamaño cuenta solo las normales; las marcas tienen el suyo.
+  let total = l.reduce((s, x, i) => s + (marca[i] ? 0 : x.length + 1), 0);
+  for (let i = 0; i < l.length && l.length > 1 && total > MAX_TEXTO_ESPEJO; ) {
+    if (marca[i]) {
+      i++;
+      continue;
+    }
+    total -= l[i].length + 1;
+    l.splice(i, 1);
+    marca.splice(i, 1);
+  }
   return l;
 }
 
@@ -139,9 +178,13 @@ export function repartirEspejoConLlamada(normales: readonly string[], deLlamada:
     while (l.length > 1 && total > max) total -= (l.shift() as string).length + 1;
     return l;
   };
-  const n = topar(recortarEspejoRegistro(normales), maxBytesNormales);
+  // FBM1116: las marcas de la llamada (banco …, fin, ice=connected) salen del reparto de las normales y tienen su tope.
+  const marcas = normales.filter((x) => RE_MARCA_DE_LLAMADA_BLE.test(x));
+  const resto = normales.filter((x) => !RE_MARCA_DE_LLAMADA_BLE.test(x));
+  const n = topar(recortarEspejoRegistro(resto), maxBytesNormales);
+  const k = topar(recortarEspejoRegistro(marcas), MAX_BYTES_MARCAS_ESPEJO_BLE);
   const c = topar(recortarEspejoRegistro(deLlamada), MAX_BYTES_LLAMADA_ESPEJO_BLE);
-  return [...n, ...c];
+  return [...n, ...k, ...c];
 }
 
 /** El mensaje que lleva el espejo. */

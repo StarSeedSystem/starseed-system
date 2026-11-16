@@ -183,7 +183,7 @@ class PasoQueFalta(unittest.TestCase):
         return d
 
     def test_sin_informe_o_viejo_vale_la_frase_generica(self):
-        g = {"motivo": "la app de la Mac no está en modo banco o no sondea desde las 03:00"}
+        g = {"motivo": "la app de la Mac no está en modo de pruebas de llamadas o no sondea desde las 03:00"}
         self.assertEqual(L.paso_que_falta(None, self.AHORA, g), g["motivo"])
         self.assertIn(g["motivo"], L.paso_que_falta(self.app(t=self.AHORA - 999), self.AHORA, g))
 
@@ -253,3 +253,78 @@ class Funcionales(unittest.TestCase):
 
 
 BUENAS_ = T.BUENAS
+
+
+class FBM1116SinMarcaContesta(unittest.TestCase):
+    """FBM1116: la marca «banco contesta» del aparato controlado no llegó (el espejo calló); se juzga con la evidencia que hay."""
+
+    def _sin(self, t):
+        return "\n".join(x for x in t.splitlines() if "banco contesta" not in x) + "\n"
+
+    def _con_ice_tableta(self, t):
+        return t + T.l_tab(T0 + 14, "medio=webrtc par=PAR2:2 ice=connected tras-reintentos=0") + "\n"
+
+    def test_c1_con_ice_en_las_dos_puntas_y_fin_contestada_cuenta_y_lo_dice(self):
+        j = juzga("corte-ip-vuelve", self._con_ice_tableta(self._sin(c1())))
+        self.assertTrue(j["valida"], j["motivos_invalida"])
+        self.assertTrue(j["cumple"], j["fallos"])
+        self.assertIn("ice=connected", j["evidencia_contesta"])
+        self.assertIn("contestada=si", j["evidencia_contesta"])
+        v = L.veredicto_serie([j, j, j], 3, "c1", "c1")
+        self.assertEqual(v["veredicto"], "bien")
+        self.assertIn("sin la marca «banco contesta» de la tableta", v["sugerencia"])
+
+    def test_sin_ice_de_la_tableta_sigue_sin_valer(self):
+        j = juzga("corte-ip-vuelve", self._sin(c1()))
+        self.assertFalse(j["valida"])
+        self.assertTrue(any("falta la marca «banco contesta» de la tableta" in x for x in j["motivos_invalida"]))
+        self.assertNotIn("evidencia_contesta", j)
+
+    def test_sin_fin_contestada_sigue_sin_valer(self):
+        t = self._con_ice_tableta(self._sin(c1()))
+        t = "\n".join(x.replace("contestada=si", "contestada=no") for x in t.splitlines()) + "\n"
+        self.assertFalse(juzga("corte-ip-vuelve", t)["valida"])
+
+    def test_corte_sin_el_resultado_de_la_tableta_no_da_veredicto_del_corte(self):
+        t = self._con_ice_tableta(c1())
+        t = "\n".join(x for x in t.splitlines() if not ("banco simulacion corte-ip" in x and "(Maggaboard)" in x)) + "\n"
+        j = juzga("corte-ip-vuelve", t)
+        self.assertFalse(j["valida"])
+        self.assertIsNone(j["cumple"])
+        self.assertTrue(any("falta el resultado de «simular-corte-ip» de la tableta" in x for x in j["motivos_invalida"]))
+        v = L.veredicto_serie([j, j, j], 3, "c1", "c1")
+        self.assertEqual(v["veredicto"], "sin-veredicto")
+        self.assertIn("no se puede mostrar que el corte ocurrió", v["sugerencia"])
+
+    def test_c10_sin_la_marca_de_la_mac_con_evidencia_cuenta_sin_medir_el_tiempo(self):
+        t = self._sin(c10(conecta=40))
+        t += T.l_tab(T0 + 14, "medio=webrtc par=PAR2:2 ice=connected tras-reintentos=0") + "\n"
+        t += T.l_mac(T0 + 8 + 30, "fin por=colgar motivo=\"orden\" contestada=si dur-s=30 origen=local via=-") + "\n"
+        j = juzga("tableta-llama", t)
+        self.assertTrue(j["valida"], j["motivos_invalida"])
+        self.assertFalse(any("después de contestar" in x for x in j["fallos"]))
+        self.assertIn("de la Mac", j["evidencia_contesta"])
+
+    def test_mudo_camara_sin_marca_de_la_tableta_con_evidencia(self):
+        j = juzga("mudo-camara", self._con_ice_tableta(self._sin(mc())) + T.l_mac(T0 + 13, "medio=webrtc par=PAR1:1 ice=connected tras-reintentos=0") + "\n" + T.l_mac(T0 + 8 + 100, 'fin por=colgar motivo="orden" contestada=si dur-s=100 origen=local via=-') + "\n")
+        self.assertTrue(j["valida"], j["motivos_invalida"])
+        self.assertIn("evidencia_contesta", j)
+
+
+class FBM1116Nombre(unittest.TestCase):
+    """FBM1116: «modo banco» lo usa el dueño para otra cosa; los textos de esta función dicen «modo de pruebas de llamadas»."""
+
+    def test_los_textos_que_lee_una_persona(self):
+        ahora = T0
+        textos = [L.paso_que_falta({"t": ahora, "llave": True, "objetivo": "a" * 36, "sesion": {"estado": "aceptada"}, "armada": None}, ahora),
+                  L.paso_que_falta({"t": ahora, "llave": True, "objetivo": "a" * 36, "sesion": {"estado": "aceptada"},
+                                    "armada": {"con": "a" * 36, "hasta": (ahora - 5) * 1000}}, ahora),
+                  L.estado_app([], ahora)["motivo"], L.MOTIVOS_RECHAZO["modo-apagado"]]
+        self.assertTrue(all(isinstance(x, str) and x for x in textos))
+        for x in textos:
+            self.assertNotIn("modo banco", x.lower())
+        self.assertIn("modo de pruebas de llamadas", textos[0])
+        self.assertIn("modo de pruebas de llamadas", textos[3])
+        import banco_llamadas as B
+        self.assertNotIn("modo banco", B.texto_estado({"series": []}).lower())
+        self.assertTrue(B.texto_estado({"series": []}).startswith("Banco de pruebas de llamadas"))

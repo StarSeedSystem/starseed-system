@@ -11,6 +11,8 @@ import {
   necesitaMigrarCanalRapido,
   RE_LINEA_DE_LLAMADA_BLE,
   recortarEspejoRegistro,
+  RE_MARCA_DE_LLAMADA_BLE,
+  MAX_LINEAS_MARCAS_ESPEJO_BLE,
   repartirEspejoConLlamada,
   serializarAjusteCanalRapido,
   sincronizarCanalRapido,
@@ -131,5 +133,41 @@ describe("BLE1115C · la medida de una llamada llega entera por el espejo", () =
     expect(r.reduce((s, x) => s + x.length + 1, 0)).toBeLessThanOrEqual(4_200 + 480);
     expect(r.length).toBeLessThan(13);
     expect(JSON.stringify({ t: "nl.reg", l: r }).length).toBeLessThan(9_000);
+  });
+});
+
+describe("FBM1116 · las marcas de una llamada sobreviven al espejo", () => {
+  const web = (seg: number, detalle: string) => `2026-11-15T21:05:${String(seg).padStart(2, "0")}.000Z · web · llamada · b3 · neurona 0f9a7c1e-1111 · ${detalle}`;
+  const contesta = web(1, "banco contesta esc=corte-ip-vuelve serie=s1 n=1 camara=si");
+  const orden = web(2, 'banco orden contestar resultado=ok');
+  const sim = web(3, "banco simulacion corte-ip medio_real=no");
+  const ice = web(4, "medio=webrtc par=PAR2:2 ice=connected tras-reintentos=0");
+  const ruido = (n: number) => Array.from({ length: n }, (_, i) => web(10 + (i % 40), `voz-datos rx n=${i} ${"y".repeat(120)}`));
+
+  it("se reconocen las marcas del banco, el fin, contestada e ice=connected; el ruido no", () => {
+    for (const m of [contesta, orden, sim, ice, web(5, 'fin por=colgar motivo="orden" contestada=si dur-s=116'), web(6, "contestada tipo=video")]) expect(RE_MARCA_DE_LLAMADA_BLE.test(m)).toBe(true);
+    expect(RE_MARCA_DE_LLAMADA_BLE.test(ruido(1)[0])).toBe(false);
+    expect(RE_MARCA_DE_LLAMADA_BLE.test(`2026-11-15T21:05:01.000Z · llamada · neurona x · banco contesta esc=a serie=b n=1 camara=si`)).toBe(true); // forma del archivo nativo
+  });
+
+  it("con 300 líneas de voz detrás, las marcas del principio llegan (antes se perdían)", () => {
+    const nuevas = [contesta, orden, sim, ice, ...ruido(300)];
+    const r = repartirEspejoConLlamada(nuevas, [], 3_500);
+    for (const m of [contesta, orden, sim, ice]) expect(r).toContain(m);
+    expect(r.filter((x) => !RE_MARCA_DE_LLAMADA_BLE.test(x)).reduce((s, x) => s + x.length + 1, 0)).toBeLessThanOrEqual(3_500 + 240);
+    expect(r.join("\n").length).toBeLessThan(10_800);
+  });
+
+  it("el que recibe tampoco las recorta: ida y vuelta con ruido", () => {
+    const l = repartirEspejoConLlamada([contesta, orden, sim, ice, ...ruido(300)], [], 3_500);
+    const vuelta = leerEspejoRegistro(textoEspejoRegistro(l));
+    expect(vuelta).not.toBeNull();
+    for (const m of [contesta, orden, sim, ice]) expect(vuelta).toContain(m);
+  });
+
+  it("las marcas tienen tope propio (no crecen sin límite)", () => {
+    const muchas = Array.from({ length: 100 }, (_, i) => web(i % 60, `banco orden micro resultado=ok i=${i}`));
+    const r = recortarEspejoRegistro(muchas);
+    expect(r.length).toBe(MAX_LINEAS_MARCAS_ESPEJO_BLE);
   });
 });

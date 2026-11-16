@@ -141,7 +141,7 @@ class Marcas(unittest.TestCase):
         self.assertEqual(e["con"], NEU_TAB)
         e = L.estado_app(ms, T0 + 200, 90)                           # el último sondeo es de hace 140 s
         self.assertTrue(e["armada"] and not e["viva"])
-        self.assertRegex(e["motivo"], r"^la app de la Mac no está en modo banco o no sondea desde las \d\d:\d\d( \(.*ventana de la Mac no esté a la vista.*\))?$")
+        self.assertRegex(e["motivo"], r"^la app de la Mac no está en modo de pruebas de llamadas o no sondea desde las \d\d:\d\d( \(.*ventana de la Mac no esté a la vista.*\))?$")
         e = L.estado_app([], T0, 90)
         self.assertFalse(e["armada"] or e["viva"])
         self.assertIn("no hay ninguna marca", e["motivo"])

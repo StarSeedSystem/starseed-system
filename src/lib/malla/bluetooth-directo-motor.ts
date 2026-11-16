@@ -111,6 +111,8 @@ import {
   RE_LINEA_DE_LLAMADA_BLE,
   T_ESPEJO_REGISTRO_BLE,
   leerEspejoRegistro,
+  MAX_LINEAS_MARCAS_ESPEJO_BLE,
+  RE_MARCA_DE_LLAMADA_BLE,
   recortarEspejoRegistro,
   repartirEspejoConLlamada,
   sincronizarCanalRapido,
@@ -1402,7 +1404,11 @@ async function depsReales(): Promise<DepsBle> {
       } catch {
         /* solo lo de la web */
       }
-      return unirRegistros(web, nativos).filter((x) => !x.startsWith("(")).slice(-max);
+      const todas = unirRegistros(web, nativos).filter((x) => !x.startsWith("("));
+      // FBM1116: además de las últimas `max`, las marcas de llamada más viejas (banco …, fin, ice=connected): una llamada larga
+      // mete cientos de líneas y el 15-11 las del principio nunca llegaron al otro aparato.
+      const viejas = todas.slice(0, Math.max(0, todas.length - max)).filter((x) => RE_MARCA_DE_LLAMADA_BLE.test(x)).slice(-MAX_LINEAS_MARCAS_ESPEJO_BLE);
+      return [...viejas, ...todas.slice(-max)];
     },
     anexarRegistro: (lineas) => {
       pendientesLog.push(...lineas);
@@ -1410,7 +1416,10 @@ async function depsReales(): Promise<DepsBle> {
       temporizadorLog = setTimeout(() => {
         temporizadorLog = null;
         // BLE1110A: líneas idénticas seguidas → una con «… (×N)» (las 68 «autocuración» del 09-11 ya no empujan lo útil fuera).
-        const l = colapsarRepetidas(pendientesLog.splice(0, 200)).slice(-60);
+        // FBM1116: las marcas de llamada nunca caen por el tope de 60 (van todas, las demás son las últimas 60).
+        const col = colapsarRepetidas(pendientesLog.splice(0, 200));
+        const ultimas = new Set(col.slice(-60));
+        const l = col.filter((x) => ultimas.has(x) || RE_MARCA_DE_LLAMADA_BLE.test(x));
         if (l.length) void puenteNativo().llamar(COMANDO_REGISTRO_ANEXAR_BLE, { lineas: l }).catch(nada);
       }, 2_000);
     },

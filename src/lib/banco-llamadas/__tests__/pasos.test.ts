@@ -25,7 +25,7 @@ describe("pasosQueFaltan (BAN1115D)", () => {
         expect(claves(p)).toEqual(["aceptada"]);
         expect(p.at(-1)?.texto).toMatch(/WXYZ-12/);
     });
-    it("al final, que el modo banco esté armado hacia ESA tableta y no vencido", () => {
+    it("al final, que el modo de pruebas de llamadas esté armado hacia ESA tableta y no vencido", () => {
         expect(claves(pasosQueFaltan({ informe: inf(), destino: TAB, codigo: null, ahora: AHORA }))).toEqual(["armada"]);
         const otra = "bbbb0002-0000-4000-8000-000000000003";
         expect(claves(pasosQueFaltan({ informe: inf({ armada: { con: otra, hasta: AHORA + 9, restantes: 3 } }), destino: TAB, codigo: null, ahora: AHORA }))).toEqual(["armada"]);

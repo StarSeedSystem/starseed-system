@@ -389,7 +389,7 @@ export default function RootLayout({
                         <ZenithCurtain />
                         <SideCurtains />
                         <IndicadorCargaGlobal />
-                        {/* ORD1114P · banda de «Control entre mis neuronas» y del modo banco */}
+                        {/* ORD1114P · banda de «Control entre mis neuronas» y del modo de pruebas de llamadas */}
                         <BandaControl />
                         {/* UNI1115M · host de las ventanas de control remoto: montado una vez, sobrevive a los cambios de sección */}
                         <AnfitrionControl />

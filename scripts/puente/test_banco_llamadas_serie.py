@@ -171,7 +171,7 @@ class Series(Base):
         m = self.m(armada=False)
         _, est = serie(m, 10)
         self.assertEqual(est["estado"], "abortada")
-        self.assertIn("la app de la Mac no está en modo banco o no sondea", est["motivo_fin"])
+        self.assertIn("la app de la Mac no está en modo de pruebas de llamadas o no sondea", est["motivo_fin"])
         self.assertEqual(est["veredicto"]["c2"]["veredicto"], "sin-veredicto")
         self.assertEqual(m.peticiones, [])
         self.assertEqual(m.ordenes_vistas, [])

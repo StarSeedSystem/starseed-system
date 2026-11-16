@@ -50,7 +50,7 @@ REP_MAX = 10
 EVENTOS = ("armada", "apagada", "sondeo", "inicio", "contesta", "fin", "calma", "rechaza")
 EVENTOS_DE_LLAMADA = ("inicio", "contesta", "fin", "rechaza")      # llevan esc, serie y n
 MOTIVOS_RECHAZO = {
-    "modo-apagado": "el modo banco está apagado en la tableta",
+    "modo-apagado": "el modo de pruebas de llamadas está apagado en la tableta",
     "falta-permiso": "falta el permiso de cámara o micrófono en la tableta",
     "otra-llamada": "la tableta tiene otra llamada en curso",
     "orden-caducada": "la orden llegó caducada",
@@ -123,12 +123,12 @@ def estado_app(marcas, ahora, viva_s=90):
             armada = False
     viva = ult is not None and ahora - ult <= viva_s
     if not armada:
-        motivo = ("la app de la Mac no está en modo banco o no sondea desde las %s" % _hhmm(ult)) if ult else \
-                 "la app de la Mac no está en modo banco o no sondea: no hay ninguna marca «banco» suya en el registro"
+        motivo = ("la app de la Mac no está en modo de pruebas de llamadas o no sondea desde las %s" % _hhmm(ult)) if ult else \
+                 "la app de la Mac no está en modo de pruebas de llamadas o no sondea: no hay ninguna marca «banco» suya en el registro"
     elif not viva:
         # BAN1115O: estaba armada y dejó de sondear: lo más probable es que la ventana no esté a la vista (otro escritorio o minimizada:
         # el sistema frena los temporizadores de una página oculta). Es una sospecha, no un dato: se dice como tal.
-        motivo = ("la app de la Mac no está en modo banco o no sondea desde las %s (si estaba armada, puede ser que la ventana de la Mac "
+        motivo = ("la app de la Mac no está en modo de pruebas de llamadas o no sondea desde las %s (si estaba armada, puede ser que la ventana de la Mac "
                   "no esté a la vista —otro escritorio o minimizada—: ponla delante)" % _hhmm(ult))
     else:
         motivo = None
@@ -141,7 +141,7 @@ APP_VIEJA_S = 150     # un informe de la app más viejo que esto ya no dice nada
 def paso_que_falta(app, ahora, ap=None):
     """PURA (BAN1115D). `app` = el `app.json` que escribe la ruta con lo que la app informa:
     {t, llave, objetivo, codigo, sesion:{estado,motivo}, armada:{con,hasta}}. Dice el PRIMER paso que falta, en el orden
-    del panel: clave de este aparato → la tableta aceptó a esta Mac → modo banco armado. None si no falta ninguno.
+    del panel: clave de este aparato → la tableta aceptó a esta Mac → modo de pruebas de llamadas armado. None si no falta ninguno.
     Sin informe reciente no inventa: devuelve la frase genérica de `estado_app` (o un aviso de que no hay informe)."""
     generica = (ap or {}).get("motivo") if ap else None
     if not isinstance(app, dict) or not isinstance(app.get("t"), (int, float)) or ahora - app["t"] > APP_VIEJA_S:
@@ -155,10 +155,10 @@ def paso_que_falta(app, ahora, ap=None):
                 % (str(app["objetivo"])[:8], s.get("motivo") or s.get("estado"), (" con el código " + cod) if cod else ""))
     arm = app.get("armada")
     if not arm:
-        return "el modo banco no está armado: en Señales › permisos de antenas › Control entre mis neuronas, elige la tableta y pulsa «Modo banco»"
+        return "el modo de pruebas de llamadas no está armado: en Señales › permisos de antenas › Control entre mis neuronas, elige la tableta y pulsa «Modo de pruebas de llamadas hacia esa tableta»"
     hasta = arm.get("hasta")
     if isinstance(hasta, (int, float)) and hasta / 1000.0 <= ahora:
-        return "el modo banco venció a las %s: vuelve a armarlo" % _hhmm(hasta / 1000.0)
+        return "el modo de pruebas de llamadas venció a las %s: vuelve a armarlo" % _hhmm(hasta / 1000.0)
     if not app.get("objetivo"):
         return None if (ap or {}).get("viva", True) else generica
     return generica
@@ -382,6 +382,24 @@ def evidencia_completa(lineas, serie, n, esc=None):
     return (not falta), ("faltan líneas de la tableta: %s" % ", ".join(falta)) if falta else None
 
 
+def _contestada_por_evidencia(grupo, mias, ini, quien_contesta):
+    """PURA (FBM1116). Sin la marca «banco contesta» del aparato que debía contestar: ¿la llamada se contestó de todos modos?
+    Sí si hay `medio=webrtc … ice=connected` de la Mac Y de la otra punta en la ventana de la llamada, y alguna línea
+    `fin por=… contestada=si`. → ([marca sustituta], texto de la evidencia) o ([], None). La marca sustituta lleva `sustituta`
+    y la hora del inicio: no sirve para medir cuánto tardó en conectar."""
+    ok = [l for l in grupo if l["msg"].startswith("medio=webrtc") and "ice=connected" in l["msg"] and "ice=failed" not in l["msg"]]
+    mac, otra = [l for l in ok if l["aparato"] == "mac"], [l for l in ok if l["aparato"] != "mac"]
+    fin = [l for l in grupo if l["msg"].startswith("fin por=") and "contestada=si" in l["msg"]]
+    if not (mac and otra and fin):
+        return [], None
+    quien = "la Mac" if quien_contesta == "mac" else "la tableta"
+    texto = ("sin la marca «banco contesta» de %s se dio por contestada con la evidencia que hay: «ice=connected» en las dos puntas "
+             "(%s y %s) y «fin … contestada=si» a las %s" % (quien, _hhmm(mac[0]["t"]), _hhmm(otra[0]["t"]), _hhmm(fin[0]["t"])))
+    mk = {"evento": "contesta", "esc": ini.get("esc"), "serie": ini.get("serie"), "n": ini.get("n"), "campos": {}, "motivo": None,
+          "t": ini["t"], "aparato": "mac" if quien_contesta == "mac" else "tableta", "sustituta": True}
+    return [mk], texto
+
+
 def juzgar_llamada(esc, serie, n, lineas, ble, lecturas, u):
     """PURA. Juzga la llamada n de una serie con las líneas parseadas del registro (§3 + §5).
     `lecturas` = las lecturas de calma (fase 'durante') tomadas mientras duró.
@@ -404,6 +422,13 @@ def juzgar_llamada(esc, serie, n, lineas, ble, lecturas, u):
         inv.append("falta la marca «banco inicio» de la Mac")
     if not fin:
         inv.append("falta la marca «banco fin» de la Mac")
+    if not cont and ini:
+        # FBM1116: la marca «banco contesta» del aparato controlado puede no haber llegado (el espejo del registro calla con voz o
+        # vídeo en cola). Si las dos puntas dicen `ice=connected` en esta llamada y alguna línea de fin dice `contestada=si`, la
+        # llamada se contestó: se juzga con esa evidencia y el juicio dice cuál usó. Sin ella, sigue sin valer.
+        cont, evid = _contestada_por_evidencia(grupo, mias, ini[0], quien_contesta)
+        if evid:
+            res["evidencia_contesta"] = evid
     if not cont:
         inv.append("falta la marca «banco contesta» %s (no se sabe que contestó)" % ("de la Mac" if quien_contesta == "mac" else "de la tableta"))
     # calma durante la llamada (CAL1115I: solo las de medida; las funcionales apuntan la carga y no se invalidan por ella)
@@ -454,6 +479,11 @@ def juzgar_llamada(esc, serie, n, lineas, ble, lecturas, u):
     f = res["fallos"]
     if "regla" in e:                          # BAN1115D: escenarios de las fases 2 y 3
         comp = REGLAS[e["regla"]](e, grupo, ll, ini[0], fin[0], cont[0])
+        sin_corte = [x for fl in comp.values() for x in fl if x == _SIN_CORTE_TABLETA]
+        if sin_corte:       # FBM1116: un corte que no se puede mostrar no da veredicto (ni a favor ni en contra)
+            res["valida"], res["cumple"] = False, None
+            inv.append(sin_corte[0])
+            return res
         res["comp"] = {c: {"cumple": not fl, "fallos": fl} for c, fl in comp.items()}
         for fl in comp.values():
             f.extend(fl)
@@ -513,17 +543,29 @@ def _sin_concluir_por_carga(res):
 _RE_ICE = re.compile(r"ice candidatos enviados=(\d+) recibidos=(\d+)")
 
 
-def _t_primera(grupo, texto, desde=None):
+def _t_primera(grupo, texto, desde=None, lado=None):
+    """Hora de la primera línea con `texto`; `lado` = 'mac' o 'otro' (la tableta) limita a ese aparato."""
     for l in grupo:
+        if lado == "mac" and l["aparato"] != "mac":
+            continue
+        if lado == "otro" and l["aparato"] == "mac":
+            continue
         if texto in l["msg"] and (desde is None or l["t"] >= desde):
             return l["t"]
     return None
+
+
+_SIN_CORTE_TABLETA = "no se puede mostrar que el corte ocurrió: falta el resultado de «simular-corte-ip» de la tableta (solo hay el de la Mac)"
 
 
 def _regla_corte_ip_vuelve(e, grupo, ll, ini, fin, cont):
     f = []
     t_c = _t_primera(grupo, "banco simulacion corte-ip")
     t_v = _t_primera(grupo, "banco simulacion vuelve-ip", t_c)
+    # FBM1116: el corte vale si la tableta (el aparato controlado) anotó su resultado; con solo la línea de la Mac no se puede
+    # mostrar que ocurrió en las dos puntas: la llamada no vale para c1 y lo dice (no se da por buena ni por mala).
+    if t_c is not None and _t_primera(grupo, "banco simulacion corte-ip", lado="otro") is None:
+        f.append(_SIN_CORTE_TABLETA)
     if t_c is None:
         f.append("el corte lógico de IP no quedó anotado (la orden «simular-corte-ip» no se ejecutó)")
     if t_v is None:
@@ -554,7 +596,7 @@ def _regla_tableta_llama(e, grupo, ll, ini, fin, cont):
     t_ok = [l["t"] for l in grupo if l["msg"].startswith("medio=webrtc") and "ice=connected" in l["msg"] and l["t"] >= cont["t"] - 2]
     if not t_ok:
         f.append("WebRTC no llegó a conectar")
-    elif t_ok[0] - cont["t"] > CONECTA_S:
+    elif not cont.get("sustituta") and t_ok[0] - cont["t"] > CONECTA_S:
         f.append("WebRTC conectó %d s después de contestar la Mac (se piden %d o menos)" % (t_ok[0] - cont["t"], CONECTA_S))
     cand = [tuple(int(x) for x in m.groups()) for m in (_RE_ICE.search(l["msg"]) for l in grupo) if m]
     if not cand or max(c[0] for c in cand) < 1:
@@ -635,6 +677,10 @@ def veredicto_serie(juicios, rep, clave="cumple", comprobacion="c2", incompleta_
         if out["incompleta"]:
             partes.append(out["incompleta"])
         out.update(veredicto="sin-veredicto", sugerencia="sin veredicto (simulado): " + "; ".join(partes))
+    ev = [j for j in juicios if j.get("evidencia_contesta") and j["valida"]]     # FBM1116: qué evidencia sustituyó a la marca que faltaba
+    if ev:
+        out["evidencia_contesta"] = [j["evidencia_contesta"] for j in ev]
+        out["sugerencia"] += "; en %d llamada(s) %s" % (len(ev), ev[0]["evidencia_contesta"])
     if out.get("sugerencia") and any(j.get("modo") == "funcional" for j in juicios):
         nc = sum(1 for j in juicios if j.get("no_concluyente"))
         extra = "; %d llamada(s) no concluyente(s) por carga de la Mac" % nc if nc else ""

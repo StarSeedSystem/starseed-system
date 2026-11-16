@@ -45,14 +45,14 @@ export function pasosQueFaltan(a: { informe: EstadoApp | null; destino: string; 
         return out;
     }
     out.push({ clave: "aceptada", hecho: true, texto: "La tableta ha aceptado este aparato." });
-    // 3 · el modo banco armado
+    // 3 · el modo de pruebas de llamadas armado
     const arm = i.armada;
     if (!arm || arm.con.toLowerCase() !== destino.toLowerCase()) {
-        out.push({ clave: "armada", hecho: false, texto: "El modo banco no está armado hacia esa tableta: pulsa «Modo banco hacia esa tableta»." });
+        out.push({ clave: "armada", hecho: false, texto: "El modo de pruebas de llamadas no está armado hacia esa tableta: pulsa «Modo de pruebas de llamadas hacia esa tableta»." });
     } else if (arm.hasta <= ahora) {
-        out.push({ clave: "armada", hecho: false, texto: "El modo banco venció: vuelve a armarlo." });
+        out.push({ clave: "armada", hecho: false, texto: "El modo de pruebas de llamadas venció: vuelve a armarlo." });
     } else {
-        out.push({ clave: "armada", hecho: true, texto: `Modo banco armado hasta las ${new Date(arm.hasta).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}, quedan ${arm.restantes} llamadas.` });
+        out.push({ clave: "armada", hecho: true, texto: `Modo de pruebas de llamadas armado hasta las ${new Date(arm.hasta).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}, quedan ${arm.restantes} llamadas.` });
     }
     return out;
 }
