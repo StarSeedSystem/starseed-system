@@ -1944,6 +1944,45 @@ def apto_para_tarea(modelo, t):
     return True
 
 
+# PRI01: prioridad de tareas ──────────────────────────────────────────────
+def prioridad_de_tarea(t):
+    """PURA: devuelve la prioridad numérica de una tarea.
+
+    - float(t["prioridad"]) si existe y es número.
+    - 100.0 si t.get("urgente") es True o si el título empieza por "URGENTE".
+    - 0.0 en cualquier otro caso (incluye None, texto, lista, etc.).
+    Nunca lanza.
+    """
+    prio = t.get("prioridad")
+    if isinstance(prio, (int, float)) and not isinstance(prio, bool):
+        return float(prio)
+    if t.get("urgente") is True:
+        return 100.0
+    titulo = t.get("titulo") or t.get("title") or ""
+    if isinstance(titulo, str) and titulo.lstrip().upper().startswith("URGENTE"):
+        return 100.0
+    return 0.0
+
+
+def ordenar_pendientes(tareas):
+    """PURA: devuelve las mismas tareas ordenadas por prioridad (mayor a menor).
+
+    A igualdad de prioridad, conserva el orden de llegada (orden estable).
+    No quita ni añade ninguna tarea. `tareas` puede ser lista o dict {id: tarea}.
+    """
+    if isinstance(tareas, dict):
+        items = list(tareas.items())
+    else:
+        items = [(i, t) for i, t in enumerate(tareas)]
+
+    def clave(item):
+        _, t = item
+        return -prioridad_de_tarea(t)
+
+    # sorted en Python es estable: a igualdad de clave mantiene el orden original
+    return [t for _, t in sorted(items, key=clave)]
+
+
 #: Nota de espera ya anunciada por tarea, para no repetir el aviso cada 20 s.
 ESPERANDO = {}
 
@@ -10241,7 +10280,13 @@ def main():
 
         # GUA1113A: con poco disco no arranca ninguna tarea nueva (se reanuda sola al liberarse).
         _disco_retiene = disco_retiene_arranques()
-        for tid, t in ([] if _disco_retiene else list(pendientes.items())):
+        # PRI01: ordenar pendientes por prioridad (urgentes primero), estable para iguales
+        items_pendientes = (
+            []
+            if _disco_retiene
+            else ordenar_pendientes(list(pendientes.items()))
+        )
+        for tid, t in items_pendientes:
             if tid in SOLTADAS:
                 pendientes.pop(tid)
                 hechas.add(tid)
