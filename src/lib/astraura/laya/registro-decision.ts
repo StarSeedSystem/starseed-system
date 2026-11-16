@@ -1,4 +1,4 @@
-import type { CasoLaya } from "./aprendizaje-laya";
+import type { CasoLaya, RegistroAprendizaje } from "./aprendizaje-laya";
 import { anotar } from "./aprendizaje-laya";
 import { puntoDecision } from "./puntos-decision";
 
