@@ -33,29 +33,22 @@ import {
   Cpu, Brain, ChevronRight, ChevronLeft, SkipForward, Check, ArrowRight, Leaf, Building, Castle, Eye, Wrench, Server,
   ExternalLink,
 } from 'lucide-react';
-
-type AccountKind = 'individual' | 'grupo';
-type CommunityPhase = 'semilla' | 'nodo' | 'fortaleza';
-
-interface OnboardingState {
-  kind?: AccountKind;
-  mode?: 'enter' | 'create';
-  username?: string;
-  password?: string;
-  email?: string;
-  themeId?: string;
-  themeVariant?: string;
-  phase?: CommunityPhase;
-  profile?: { displayName: string; bio: string; avatar?: string; cover?: string };
-}
+import {
+  indiceDePaso,
+  ordenDePasos,
+  pasoAnterior,
+  pasoSiguiente,
+  type CommunityPhase,
+  type OnboardingState,
+  type PasoOnboarding,
+  type PropsPasoKind,
+  type PropsTarjetaTipo,
+} from '@/lib/mando/stepKind';
 
 const STORAGE_KEY = 'starseed.onboarding.state.v1';
 const COMPLETED_KEY = 'starseed.onboarding.completed.v1';
 
-const STEPS = [
-  'kind', 'authMode', 'auth', 'theme', 'walkthrough', 'profile', 'ai-guide', 'phase', 'done',
-] as const;
-type Step = typeof STEPS[number];
+type Step = PasoOnboarding;
 
 const PHASES: { id: CommunityPhase; label: string; tagline: string; icon: any; gradient: string; description: string }[] = [
   {
@@ -119,22 +112,16 @@ export default function OnboardingPage() {
     try { window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch { /* noop */ }
   }, [state]);
 
-  const stepIdx = STEPS.indexOf(step);
-  const totalSteps = state.kind === 'grupo' ? STEPS.length : STEPS.length - 1; // grupo añade fase
+  const stepIdx = indiceDePaso(step, state.kind);
+  const totalSteps = ordenDePasos(state.kind).length;
 
   const next = () => {
-    const order: Step[] = state.kind === 'grupo'
-      ? [...STEPS]
-      : (STEPS.filter((s) => s !== 'phase') as Step[]);
-    const i = order.indexOf(step);
-    if (i >= 0 && i < order.length - 1) setStep(order[i + 1]);
+    const siguiente = pasoSiguiente(step, state.kind);
+    if (siguiente) setStep(siguiente);
   };
   const prev = () => {
-    const order: Step[] = state.kind === 'grupo'
-      ? [...STEPS]
-      : (STEPS.filter((s) => s !== 'phase') as Step[]);
-    const i = order.indexOf(step);
-    if (i > 0) setStep(order[i - 1]);
+    const anterior = pasoAnterior(step, state.kind);
+    if (anterior) setStep(anterior);
   };
 
   const finish = () => {
@@ -200,7 +187,7 @@ export default function OnboardingPage() {
 
 // ── Pasos ────────────────────────────────────────────────────────────
 
-function StepKind({ state, setState, onNext }: any) {
+function StepKind({ state, setState, onNext }: PropsPasoKind) {
   return (
     <div className="space-y-4 text-center">
       <h1 className="text-3xl font-bold font-headline bg-clip-text text-transparent bg-gradient-to-r from-cyan-300 via-purple-300 to-amber-200">
@@ -220,7 +207,7 @@ function StepKind({ state, setState, onNext }: any) {
   );
 }
 
-function KindCard({ icon: Icon, label, desc, selected, onClick }: any) {
+function KindCard({ icon: Icon, label, desc, selected, onClick }: PropsTarjetaTipo) {
   return (
     <button onClick={onClick} className={cn(
       'p-5 rounded-2xl border-2 transition-all text-left hover:scale-[1.02]',
