@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach, beforeAll, afterAll } from "vitest";
 import { renderToString } from "react-dom/server";
-import { hydrateRoot, act } from "react-dom/client";
+import { hydrateRoot } from "react-dom/client";
+import { act } from "react";
 import { cleanup } from "@testing-library/react";
 import { SelectorIdioma } from "../selector-idioma";
 import { IDIOMAS } from "@/lib/idiomas/idiomas";
