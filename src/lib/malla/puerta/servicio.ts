@@ -31,8 +31,19 @@ import { registrarRespaldoFetch } from "@/lib/malla/puerta/fetch-puerta";
 import { activarModoLocal, atenderEntradas, crearAbrirTcpLocal, leerIaLocal, leerSubredesLocales, postLocalPorDefecto, puertaLocalDisponible, respaldoFetchLocal, sondaPropiaNode, type HandleAtencion, type PostLocal } from "@/lib/malla/puerta/puente-local";
 // PTA1108B: el webview, el navegador de la app y las descargas de Rust salen por el proxy local de la puerta.
 import { crearSincroProxy, puenteProxyPorDefecto, textoVia, type PuenteProxy, type SincroProxy } from "@/lib/malla/puerta/proxy-nativo";
+import { RESERVA_BATERIA_PCT, sugerirComparticion } from "@/lib/malla/auto-compartir";
+import type { Compartir } from "@/lib/malla/cristal/puertas-internet";
 
 export const CLAVE_INTERRUPTOR_PUERTA = "starseed.malla.puerta.activo";
+
+/** Nivel máximo de «con quién» que el dueño dejó en sus ajustes (para `auto-compartir`). */
+function nivelMaximoCompartir(aj: AjustesPuerta): Compartir {
+  if (aj.publica.ofrecer) return "publico";
+  if (Object.values(aj.grupos).some((g) => g.compartir !== "nunca")) return "grupo";
+  if (aj.otrasCuentas !== "nunca") return "vinculos";
+  if (aj.misNeuronas) return "mi-cuenta";
+  return "nadie";
+}
 
 export interface PuertaVista {
   id: string;
@@ -362,9 +373,32 @@ export function iniciarPuertaMalla(op: OpcionesServicio = {}): () => void {
           // PTA1110B: también si solo se ofrece a algún grupo o a la capa pública.
           const comparteAlguien = aj.misNeuronas || aj.otrasCuentas !== "nunca" || aj.publica.ofrecer || Object.values(aj.grupos).some((g) => g.compartir !== "nunca");
           if (!nativo) return null;
+          // `auto-compartir` decide si el automático puede ofrecer la puerta de ESTE aparato:
+          // nunca enciende lo que el dueño apagó, ni baja los topes de wifi, batería o datos medidos.
+          const nivel = nivelMaximoCompartir(aj);
+          const decision = sugerirComparticion({
+            puertas: [{ id: yo, neurona: yo, cuenta: miCuenta ?? "", tipo: "wifi-externa", bajadaKbps: 0, subidaKbps: 0, latenciaMs: 0, medida: e.medida, compartir: nivel }],
+            preferencias: {
+              encendido: comparteAlguien,
+              maximo: nivel,
+              soloWifi: false,
+              kbpsSubidaMax: Number.MAX_SAFE_INTEGER,
+              permitirMedidas: aj.datosMoviles.modo === "si",
+              topeDatosMb: aj.datosMoviles.bytesDia / (1024 * 1024),
+              reservaBateriaPct: Math.max(RESERVA_BATERIA_PCT, Math.round(aj.topesMias.bateriaMin * 100)),
+            },
+            estado: {
+              enWifi: !e.medida,
+              cargando: e.cargando,
+              bateriaPct: e.bateria === null ? null : Math.round(e.bateria * 100),
+              medida: e.medida,
+              usoMb: 0,
+            },
+            ahora: Date.now(),
+          }).decisiones[0];
           // PTA1108C: además de internet, las capas privadas que el dueño comparte (aunque esta neurona no tenga internet).
           const detalle = capasAnunciables(aj, capasDetectadas);
-          const capas: CapaSalida[] = e.conInternet && comparteAlguien ? ["internet"] : [];
+          const capas: CapaSalida[] = e.conInternet && decision?.accion === "ofrecer" ? ["internet"] : [];
           if (!capas.length && !detalle.length) return null;
           return crearAnuncioPropio({ id: yo, uid: miCuenta ?? undefined, capas, detalle, latenciaMs: sonda.latenciaMs, estado: e, op: aj.publica.ofrecer, f: transporte.enviarBin ? ["cap", "bin"] : ["cap"], ahora: Date.now() });
         },
