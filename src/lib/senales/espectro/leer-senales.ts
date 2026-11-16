@@ -40,24 +40,26 @@ const CAMPOS_SENAL = `
   compatibles
 `.trim();
 
-function filaASenal(row: Record<string, unknown>): SenalEspectro | null {
+function filaASenal(row: unknown): SenalEspectro | null {
+  if (!row || typeof row !== "object") return null;
+  const r = row as Record<string, unknown>;
   const raw = {
-    id: row.id,
-    medio: row.medio,
-    banda: row.banda,
-    frecuenciaKhz: row.frecuencia_khz,
-    anchoKhz: row.ancho_khz,
-    fuerzaDbm: row.fuerza_dbm,
-    calidad: row.calidad,
-    origen: row.origen,
-    capa: row.capa,
-    fuente: row.fuente,
-    medidoEn: row.medido_en,
-    zona: row.zona,
-    vinculo: row.vinculo_tipo && row.vinculo_id
-      ? { tipo: row.vinculo_tipo, id: row.vinculo_id }
+    id: r.id,
+    medio: r.medio,
+    banda: r.banda,
+    frecuenciaKhz: r.frecuencia_khz,
+    anchoKhz: r.ancho_khz,
+    fuerzaDbm: r.fuerza_dbm,
+    calidad: r.calidad,
+    origen: r.origen,
+    capa: r.capa,
+    fuente: r.fuente,
+    medidoEn: r.medido_en,
+    zona: r.zona,
+    vinculo: r.vinculo_tipo && r.vinculo_id
+      ? { tipo: r.vinculo_tipo, id: r.vinculo_id }
       : undefined,
-    compatibles: row.compatibles ?? [],
+    compatibles: r.compatibles ?? [],
   };
   return normalizarSenal(raw);
 }

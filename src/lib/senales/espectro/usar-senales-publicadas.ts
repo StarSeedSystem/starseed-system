@@ -9,7 +9,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { uidActual } from "@/lib/consumo/usuario";
-import { leerSenalesPublicadas, type ResultadoLectura, type SenalEspectro } from "./leer-senales";
+import { leerSenalesPublicadas, type ResultadoLectura } from "./leer-senales";
+import type { SenalEspectro } from "./modelo";
 
 const REFRESCO_MS = 45_000;
 
