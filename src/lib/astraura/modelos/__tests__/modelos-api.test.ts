@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MODELOS_API, modeloApiValido, type ModeloApi } from "../modelos-api";
+import { MODELOS_API, modelosValidos, modeloApiValido, type ModeloApi } from "../modelos-api";
 
 describe("modelos-api", () => {
   describe("MODELOS_API", () => {
@@ -132,6 +132,27 @@ describe("modelos-api", () => {
         comprobado: "2026-11-16",
       };
       expect(modeloApiValido(m)).toBe(false);
+    });
+  });
+
+  describe("modelosValidos", () => {
+    it("filtra MODELOS_API dejando solo los 3 modelos vigentes", () => {
+      const validos = modelosValidos(MODELOS_API);
+      expect(validos).toHaveLength(3);
+      const ids = validos.map((m) => m.id);
+      expect(ids).toContain("abliterated-model");
+      expect(ids).toContain("abliterated-model-large-flash");
+      expect(ids).toContain("abliterated-model-large-v2");
+      expect(ids).not.toContain("abliterated-model-large");
+    });
+
+    it("descarta el modelo obsoleto de MODELOS_API", () => {
+      const validos = modelosValidos(MODELOS_API);
+      expect(validos.find((m) => m.id === "abliterated-model-large")).toBeUndefined();
+    });
+
+    it("devuelve vacío para una lista vacía", () => {
+      expect(modelosValidos([])).toEqual([]);
     });
   });
 });
