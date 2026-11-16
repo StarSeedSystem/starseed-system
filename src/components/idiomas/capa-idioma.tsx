@@ -12,13 +12,15 @@ import { EVENTO_IDIOMA, CLAVE_IDIOMA_NEURONA, idiomaEfectivo } from "@/lib/idiom
 import { IDIOMA_FUENTE } from "@/lib/idiomas/idiomas";
 import { cuandoEsSeguroTraducir, entornoDelNavegador } from "@/lib/idiomas/hidratacion";
 
-export function CapaIdioma(): null {
+export function CapaIdioma(): JSX.Element | null {
     useEffect(() => {
         let capa: CapaActiva | null = null;
         let vivo = true;
         const aplicar = async (): Promise<void> => {
-            await cuandoEsSeguroTraducir(entornoDelNavegador(window));
-            if (!vivo) return;
+            if (!capa) {
+                await cuandoEsSeguroTraducir(entornoDelNavegador(window));
+                if (!vivo) return;
+            }
             const { codigo } = idiomaEfectivo();
             const cat = codigo === IDIOMA_FUENTE ? null : await cargarCatalogo(codigo);
             if (!vivo) return;
