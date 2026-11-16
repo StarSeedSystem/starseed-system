@@ -1,8 +1,7 @@
 // Puertas a internet opcionales
 import type { ClaseDato } from './tipos';
-import { ajustesPorDefecto, audienciaDe } from '../internet/defectos-audiencia';
 
-export const TIPOS_PUERTA = ['movil-4g','movil-5g','wifi-externa','usb-telefono','cable','satelite'] as const;
+export const TIPOS_PUERTA = ['movil-4g','movil-5g','wifi-externa','usb-telefono','cable','satellite'] as const;
 export type TipoPuerta = typeof TIPOS_PUERTA[number];
 
 export const COMPARTIR = ['nadie','mi-cuenta','vinculos','grupo','publico'] as const;
@@ -35,15 +34,18 @@ export function restanteParaOtrosMb(p: PuertaInternet): number | null {
   return !p.medida || !p.topeMensualMb ? null : Math.max(0, p.topeMensualMb - (p.usadoMesMb ?? 0) - (p.topeMensualMb * (p.reservaDuenoPct ?? 20)) / 100);
 }
 
-export function puedeUsar(p: PuertaInternet, s: Solicitante, par?: { cuentaId: string | null; entidades: string[] }, yo?: { cuentaId: string | null; entidades: string[] }): {ok: boolean; motivo: string} {
-  if (par !== undefined && yo !== undefined) {
-    const audiencia = audienciaDe(par, yo);
-    const ajustes = ajustesPorDefecto();
-    const porAudiencia = ajustes.porAudiencia[audiencia];
+export function puedeUsar(
+  p: PuertaInternet,
+  s: Solicitante,
+  par?: { cuentaId: string | null; entidades: string[] },
+  yo?: { cuentaId: string | null; entidades: string[] }
+): {ok: boolean; motivo: string} {
+  const audiencia = par !== undefined && yo !== undefined
+    ? (s.cuenta === yo.cuentaId ? 'mi-cuenta' : (s.grupos.some(g => yo.entidades.includes(g)) ? 'entidad' : 'publico'))
+    : 'publico';
 
-    if (!porAudiencia.mesh) {
-      return {ok: false, motivo: `Compartir malla desactivado para audiencia ${audiencia}`};
-    }
+  if (audiencia === 'mi-cuenta' && p.compartir !== 'mi-cuenta' && p.compartir !== 'publico') {
+    if (s.cuenta !== p.cuenta) return {ok: false, motivo: 'Solo la cuenta propietaria puede usar esta puerta'};
   }
 
   switch (p.compartir) {
@@ -89,16 +91,46 @@ export function costePuerta(p: PuertaInternet): number {
   return coste;
 }
 
-export function elegirPuerta(e: {
+export interface ElegirPuertaEntrada {
   clase: ClaseDato;
   necesitaInternet: boolean;
   puertas: PuertaInternet[];
   solicitante: Solicitante;
   actual?: string;
-}): {puerta: PuertaInternet | null; motivo: string} {
+  ajustes?: unknown;
+  contadores?: unknown;
+  ahora?: number;
+  desfaseMin?: number;
+}
+
+// Determina la audiencia para decidirCompartir basado en el solicitante y la puerta
+function audienciaParaPuerta(solicitante: Solicitante, puerta: PuertaInternet): import('../internet/tipos').Audiencia {
+  // Si el solicitante es el dueño de la puerta (misma cuenta), es 'mi-cuenta'
+  if (solicitante.cuenta === puerta.cuenta) return 'mi-cuenta';
+  // Para otros, usamos 'publico' (el propietario decide quién es entidad)
+  // En un futuro, se podría pasar más contexto para determinar 'entidad'
+  return 'publico';
+}
+
+export function elegirPuerta(e: ElegirPuertaEntrada): {puerta: PuertaInternet | null; motivo: string} {
   if (!e.necesitaInternet) return {puerta: null, motivo: 'va por la malla P2P: no necesita salir a internet'};
   if (!e.puertas.length) return {puerta: null, motivo: 'No hay puertas disponibles'};
 
+  // Si se proporcionan ajustes, usar decidirCompartir
+  if (e.ajustes && e.contadores && e.ahora !== undefined && e.desfaseMin !== undefined) {
+    return elegirPuertaConAjustes(e as ElegirPuertaEntrada & {
+      ajustes: import('../internet/tipos').AjustesInternet;
+      contadores: import('../internet/contadores').Contadores;
+      ahora: number;
+      desfaseMin: number;
+    });
+  }
+
+  // Comportamiento original sin ajustes
+  return elegirPuertaSinAjustes(e);
+}
+
+function elegirPuertaSinAjustes(e: ElegirPuertaEntrada): {puerta: PuertaInternet | null; motivo: string} {
   const puertasPermitidas = e.puertas.filter(p => puedeUsar(p, e.solicitante).ok);
   if (!puertasPermitidas.length) return {puerta: null, motivo: 'No hay puertas permitidas para el solicitante'};
 
@@ -119,6 +151,65 @@ export function elegirPuerta(e: {
       const costeActual = costePuerta(puertaActual);
       if (costeActual <= mejorCoste * 1.2) {
         return {puerta: puertaActual, motivo: 'Manteniendo puerta actual por histéresis'};
+      }
+    }
+  }
+
+  return {puerta: mejorPuerta, motivo: 'Puerta de menor coste seleccionada'};
+}
+
+function elegirPuertaConAjustes(e: ElegirPuertaEntrada & {
+  ajustes: import('../internet/tipos').AjustesInternet;
+  contadores: import('../internet/contadores').Contadores;
+  ahora: number;
+  desfaseMin: number;
+}): {puerta: PuertaInternet | null; motivo: string} {
+  // Importar de forma perezosa para evitar ciclos
+  const { decidirCompartir } = require('../internet/decision-compartir') as typeof import('../internet/decision-compartir');
+  
+  const puertasPermitidas = e.puertas.filter(p => {
+    const audiencia = audienciaParaPuerta(e.solicitante, p);
+    const resultado = decidirCompartir({
+      audiencia,
+      ajustes: e.ajustes,
+      contadores: e.contadores,
+      puerta: p,
+      ahora: e.ahora,
+      desfaseMin: e.desfaseMin,
+    });
+    return resultado.permitido;
+  });
+  
+  if (!puertasPermitidas.length) return {puerta: null, motivo: 'No hay puertas permitidas para el solicitante'};
+
+  let mejorPuerta = puertasPermitidas[0];
+  let mejorCoste = costePuerta(mejorPuerta);
+
+  for (const puerta of puertasPermitidas.slice(1)) {
+    const coste = costePuerta(puerta);
+    if (coste < mejorCoste) {
+      mejorCoste = coste;
+      mejorPuerta = puerta;
+    }
+  }
+
+  if (e.actual) {
+    const puertaActual = e.puertas.find(p => p.id === e.actual);
+    if (puertaActual) {
+      const audiencia = audienciaParaPuerta(e.solicitante, puertaActual);
+      const resultado = decidirCompartir({
+        audiencia,
+        ajustes: e.ajustes,
+        contadores: e.contadores,
+        puerta: puertaActual,
+        ahora: e.ahora,
+        desfaseMin: e.desfaseMin,
+      });
+      if (resultado.permitido) {
+        const costeActual = costePuerta(puertaActual);
+        if (costeActual <= mejorCoste * 1.2) {
+          return {puerta: puertaActual, motivo: 'Manteniendo puerta actual por histéresis'};
+        }
       }
     }
   }

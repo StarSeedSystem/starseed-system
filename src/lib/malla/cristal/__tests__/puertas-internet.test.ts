@@ -15,7 +15,7 @@ import type { ClaseDato } from '../tipos';
 
 describe('TIPOS_PUERTA y COMPARTIR', () => {
   it('TIPOS_PUERTA tiene los valores esperados', () => {
-    expect(TIPOS_PUERTA).toEqual(['movil-4g', 'movil-5g', 'wifi-externa', 'usb-telefono', 'cable', 'satelite'] as const);
+    expect(TIPOS_PUERTA).toEqual(['movil-4g', 'movil-5g', 'wifi-externa', 'usb-telefono', 'cable', 'satellite'] as const);
   });
 
   it('COMPARTIR tiene los valores esperados', () => {

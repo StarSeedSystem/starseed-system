@@ -4,13 +4,16 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { leerAjustes, guardarAjustes, type AlmacenAjustes } from "./almacen-ajustes";
 import { leerContadores, type AlmacenContadores } from "./almacen-contadores";
 import { contadoresVacios } from "./contadores";
-import type { AjustesInternet, Contadores, DeepPartial, Audiencia } from "./tipos";
+import type { AjustesInternet, DeepPartial, Audiencia } from "./tipos";
+import type { Contadores } from "./contadores";
 import type { PuertaInternet } from "../cristal/puertas-internet";
 import { decidirCompartir } from "./decision-compartir";
 
 const CLAVE_AJUSTES = "starseed.malla.internet.v1";
 
-export { AJUSTES_APAGADOS } from "./almacen-ajustes";
+import { AJUSTES_APAGADOS } from "./almacen-ajustes";
+
+export { AJUSTES_APAGADOS };
 
 export interface OpcionesUseAjustesInternet {
   almacen?: AlmacenAjustes & AlmacenContadores;
