@@ -189,6 +189,69 @@ pastillas en mensajes, llamadas, publicaciones y archivos.
   por cualquier puerta; el resto del tráfico de internet va con el cifrado de cada sitio (se dice).
 - Cola: `starseed_memory_root/olas/cola-titanio-portatil-1013.json` (TIP1013A–F).
 
+### 8.2 Compartir internet por la malla: «modo mesh» y «modo banco» (Alex, 2026-11-16)
+
+Lo que ya existe y se reutiliza: la puerta a internet (`PuertaInternet`, `COMPARTIR`, `puedeUsar`,
+`restanteParaOtrosMb`, `elegirPuerta` en `src/lib/malla/cristal/puertas-internet.ts`) con su tope
+**mensual**, la reserva del 20 % y la histéresis (§8.1); las reglas puras de compartir (MRI1b) y su
+interruptor por aparato, apagado por defecto; las capas de conciencia (§4: `local`, `mesh`, `nube`,
+`colectiva`); y el panel Señales. **No existen** contadores por día, franjas por fecha y hora, ni una
+señal fiable de «conexión de pago» en el lado nativo. Esta sección los añade sin cambiar lo anterior.
+
+**Dos modos, bajo el mismo interruptor del dueño**
+
+- **Modo mesh** («capa de conciencia»): el aparato comparte internet **libremente** por la malla P2P,
+  con o sin límite de datos. Es lo que ya hace la puerta con `mi-cuenta`, `vinculos`, `grupo` o
+  `publico`; el modo solo dice **cuánto**: ilimitado o con tope.
+- **Modo banco** (un `Switch`): **raciona**. La persona fija una cantidad de MB o GB **por día**, o una
+  programación por fecha, franja horaria y límite de datos, para cuando el internet es escaso y hay que
+  repartirlo entre las neuronas por nodos o neuronas P2P, equilibrando capacidades. Con el modo banco
+  encendido manda la ración sobre el modo mesh para **otras cuentas**; las neuronas de la propia cuenta
+  no se racionan salvo que la persona lo pida.
+- El nombre «modo banco» es solo este. La función de pruebas «Modo banco de llamadas» pasa a llamarse
+  «modo de pruebas de llamadas» y no se toca aquí.
+- Ninguno de los dos pasa por encima del dueño: el aparato personal comparte solo lo que su dueño
+  eligió (control-remoto-entre-neuronas §6.4) y ninguna votación lo cambia. Siguen valiendo el tope, la
+  reserva del 20 %, la histéresis y el aviso de operadora (§8.1). Compartir **nunca se enciende solo**.
+
+**Valores por defecto según a quién se comparte**
+
+| Audiencia | Modo | Límite de datos | Quién lo decide |
+|---|---|---|---|
+| Neuronas de mi cuenta | mesh, encendido | sin límite | la persona (puede racionar) |
+| Miembros de una entidad | mesh, **apagado** hasta que la persona lo acepte | el de su ración, si activa banco | la persona; la entidad solo puede pedirlo |
+| Todos (capa pública) | mesh gestionado por la configuración de nodos y las capacidades de las neuronas; apagado en el aparato hasta que su dueño lo encienda | racionado por banco si está activo | el dueño del aparato |
+
+Lo de la fila 1 se aplica entre aparatos de la misma cuenta aunque el interruptor por aparato de
+«otros» siga apagado. Lo de las filas 2 y 3 exige el interruptor del aparato (MRI1b: `maximoCon:
+"nadie"` por defecto). El caso común: quien tiene internet público puede compartirlo por la malla
+pública con cualquier persona de cualquier cuenta, **si lo enciende**.
+
+**Qué es «limitada» y cómo se sabe.** Una conexión es limitada si la persona lo declara o si el aparato
+lo dice. Orden de fuerza: (1) **la declaración de la persona**, siempre manda en ambos sentidos;
+(2) la marca de red de pago del lado nativo (Android `isActiveNetworkMetered`) — **hoy no existe en el
+puente**, se deja la entrada opcional y se pide a dirección añadirla; (3) el navegador:
+`navigator.connection.type === "cellular"`, `saveData === true` o `effectiveType` de `slow-2g`/`2g`
+(solo Chromium, WebView de Android y WebView2; Safari y Firefox no lo traen). Sin ninguna señal la
+respuesta es «**desconocida**», no «libre»: no se asume que sea gratis.
+
+**Nunca gastar internet limitado.** Si la conexión es limitada, el sistema **sugiere** activar el modo
+banco restringido para otras cuentas. Es una sugerencia con dos botones («Activar modo banco» y
+«Ahora no»): no cambia nada hasta que la persona acepta, y tampoco pasa a compartir por su cuenta. «Ahora
+no» se recuerda un tiempo y no vuelve a insistir mientras no cambie la conexión.
+
+**Qué se mide y dónde viven los contadores.** Bytes subidos y bajados que **se deben a compartir**, por
+puerta y por audiencia (cuenta, entidad, público), con el **día local** del aparato como ventana (más el
+mes que ya existe). Los contadores y los ajustes viven **en el aparato** (almacén local de la neurona);
+no suben a ningún servidor ni se comparten salvo que la persona active compartir medidas (apagado por
+defecto). Un reinicio del día pone el contador a cero y nunca borra el del mes.
+
+**Qué muestra la interfaz** (panel Señales › ajustes de la neurona): el interruptor «Modo banco» con su
+ración o programación y lo que queda hoy; el interruptor «Modo mesh» con «sin límite» o su tope; el
+estado de la conexión («limitada», «no limitada», «sin datos») y de dónde sale; y el aviso de
+sugerencia. Todo texto sale de un único módulo de palabras, con teclado completo, objetivos de 44 px y
+lector de pantalla.
+
 ## 9. Lo que ya existe y cómo encaja
 
 | Pieza | Dónde | Papel en la retícula |
