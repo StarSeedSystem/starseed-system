@@ -9,7 +9,7 @@ function crearCaso(p: number, resultado: "aceptada" | "corregida" | "escalada", 
     punto,
     ambito,
     p,
-    donde: "localhost",
+    donde: "mac",
     ms: 100,
     resultado,
     estado: "estado",
@@ -26,7 +26,7 @@ describe("calibrar y confianzaCalibrada", () => {
   });
 
   it("calibra correctamente con 30 casos y todas p=0.9", () => {
-    const casos: RegistroAprendizaje = [];
+    const casos: CasoLaya[] = [];
     for (let i = 0; i < 30; i++) {
       casos.push(crearCaso(0.9, i < 18 ? "aceptada" : "corregida"));
     }
@@ -48,7 +48,7 @@ describe("calibrar y confianzaCalibrada", () => {
   });
 
   it("cajas con casos distribuidos en todos los intervalos", () => {
-    const casos: RegistroAprendizaje = [];
+    const casos: CasoLaya[] = [];
     // 10 casos per bucket, 3 aceptada, 1 corregida
     for (let i = 0; i < 10; i++) {
       const p = i * 0.1;
