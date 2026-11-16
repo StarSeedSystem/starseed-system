@@ -59,9 +59,11 @@ describe("crearServicioTraduccion", () => {
         expect(r.motor).toBe("cerebro");
     });
 
-    it("en modo privado lanza si se le pasan motores públicos/malla", () => {
-        expect(() => crearServicioTraduccion({ privado: true, motores: [motorFalso("publico", "publico")] })).toThrow(/Modo privado: se intentó añadir motor\(es\) de alcance público\/malla: publico/);
-        expect(() => crearServicioTraduccion({ privado: true, motores: [motorFalso("malla", "malla")] })).toThrow(/Modo privado: se intentó añadir motor\(es\) de alcance público\/malla: malla/);
+    it("en modo privado sin motor privado lanza error al traducir", async () => {
+        const servicio = crearServicioTraduccion({ privado: true, motores: [motorFalso("publico", "publico")] });
+        await expect(servicio.traducir(["hola"], "es", "en")).rejects.toThrow(/en modo privado no hay motores de alcance privado disponible/);
+        const servicio2 = crearServicioTraduccion({ privado: true, motores: [motorFalso("malla", "malla")] });
+        await expect(servicio2.traducir(["hola"], "es", "en")).rejects.toThrow(/en modo privado no hay motores de alcance privado disponible/);
     });
 
     it("un motor que falla pasa al siguiente y el resultado dice cuál tradujo", async () => {

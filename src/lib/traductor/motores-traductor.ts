@@ -45,21 +45,15 @@ export function crearServicioTraduccion(opciones: {
 }) {
     const { privado, motores, topeCache } = opciones;
 
-    if (privado) {
-        const publicos = motores.filter((m) => m.alcance === "malla" || m.alcance === "publico");
-        if (publicos.length > 0) {
-            throw new Error(
-                `Modo privado: se intentó añadir motor(es) de alcance público/malla: ${publicos.map((m) => m.id).join(", ")}`
-            );
-        }
-    }
-
     const habilitados = privado
         ? motores.filter((m) => ALCANCES_PRIVADOS.includes(m.alcance))
         : motores;
 
     return {
         traducir: async (textos: string[], origen: string, destino: string) => {
+            if (habilitados.length === 0) {
+                throw new Error(privado ? "en modo privado no hay motores de alcance privado disponibles" : `Ningún traductor disponible para ${origen} → ${destino}`);
+            }
             const modulo = await import("@/lib/traduccion/motor");
             const traductor = modulo.crearTraductor(habilitados, { privado, topeCache });
             return traductor.traducir(textos, origen, destino);
@@ -67,7 +61,7 @@ export function crearServicioTraduccion(opciones: {
     };
 }
 
-export function motoresDeEsteTexto(
+export async function motoresDeEsteTexto(
     motores: MotorTraduccion[],
     par: { origen: string; destino: string },
     privado: boolean
