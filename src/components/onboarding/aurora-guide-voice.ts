@@ -120,8 +120,13 @@ export function auroraEnsureListening(): void {
 export function auroraTranscript(): string {
   try {
     const s = auroraBridge()?.getState?.();
-    return (s?.transcript ?? "") + " " + (s?.interim ?? "");
-  } catch {
+    if (!s) return "";
+    const transcript = s.transcript ?? "";
+    const interim = s.interim ?? "";
+    if (!transcript && !interim) return "";
+    return transcript + (transcript && interim ? " " : "") + interim;
+  } catch (e) {
+    console.warn("[aurora-guide-voice] auroraTranscript falló:", e);
     return "";
   }
 }
