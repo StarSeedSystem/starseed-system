@@ -1,4 +1,5 @@
 export type AmbitoLibreta = "personal" | "pagina" | "grupo" | "colectivo" | "fabrica";
+export type tipoLibreta = AmbitoLibreta;
 
 export interface Ejemplo {
   id: string;
