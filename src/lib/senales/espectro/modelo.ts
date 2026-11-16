@@ -9,3 +9,12 @@ export * from "./tipos";
 export * from "./validadores";
 export * from "./utilidades";
 export * from "./bandas";
+export {
+  FILTRO_VACIO,
+  filtrarConCuenta,
+  filtrarSenales,
+  filtroActivo,
+  resumenFiltro,
+  type FiltroEspectro,
+  type ResultadoFiltro,
+} from "./filtros";
