@@ -15,6 +15,7 @@ import { nvidiaProvider } from "./nvidia";
 import { astraura158Provider } from "./astraura-158";
 import { astraura158MallaProvider } from "./astraura-158-malla";
 import { iaMallaProvider } from "./ia-malla";
+import { abliterationProvider } from "./abliteration";
 
 export const PROVIDERS: Record<ProviderId, Provider> = {
   // Astraura 1.58-bit (Adenda 153): backend soberano propio, PRIMARIO por defecto.
@@ -43,6 +44,9 @@ export const PROVIDERS: Record<ProviderId, Provider> = {
   // NVIDIA NIM (Adenda 219): 80+ modelos abiertos en GPUs de NVIDIA; acceso
   // comunitario por /api/ai/nvidia (clave compartida solo en el servidor).
   nvidia: nvidiaProvider,
+  // Abliteration.ai (MQA6): proveedor de modelos sin filtros, de pago con saldo USD.
+  // Se paga con saldo prepagado (NO créditos diarios). El contenido viaja a un tercero.
+  abliteration: abliterationProvider,
 };
 
 /** Ordered for the picker UI: privacy-first first. */
@@ -60,6 +64,7 @@ export const PROVIDER_ORDER: ProviderId[] = [
   "anthropic",
   "google",
   "openai-compatible",
+  "abliteration",
 ];
 
 export function getProvider(id: ProviderId): Provider {
