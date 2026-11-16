@@ -186,6 +186,41 @@ def env_tsc():
         e["PATH"] = _PATH_NODE
     return e
 
+
+# PRI01 · prioridad de tareas en la cola ──────────────────────────────────────
+def prioridad_de_tarea(t):
+    """PURA: devuelve la prioridad de una tarea como float.
+    - `prioridad` (número) si existe y es número.
+    - 100.0 si `urgente` es verdadero o el título empieza por «URGENTE».
+    - 0.0 en cualquier otro caso. Nunca lanza."""
+    try:
+        p = t.get("prioridad")
+        if isinstance(p, (int, float)) and not isinstance(p, bool):
+            return float(p)
+    except Exception:
+        pass
+    if t.get("urgente") is True:
+        return 100.0
+    titulo = str(t.get("titulo") or "").strip()
+    if titulo.upper().startswith("URGENTE"):
+        return 100.0
+    return 0.0
+
+
+def ordenar_pendientes(tareas):
+    """PURA: devuelve las mismas tareas ordenadas por prioridad (mayor a menor),
+    y a igualdad EN EL ORDEN EN QUE VENÍAN (orden estable). No quita ni añade ninguna."""
+    if not isinstance(tareas, list):
+        return tareas
+    # enumerate para mantener el orden original como desempate estable
+    enumeradas = list(enumerate(tareas))
+    enumeradas.sort(key=lambda par: (-prioridad_de_tarea(par[1]), par[0]))
+    return [t for _, t in enumeradas]
+
+
+# PRI01: falta enganchar en main() donde se elige la siguiente tarea pendiente
+# (el bucle itera `pendientes.items()`; se debe ordenar la vista antes de iterar)
+
 # ESCRITORES: solo NIM (opencode con aihubmix/tokenrouter devuelve «sin cambios» en segundos, sin
 # editar archivos; esos dos se quedan de REVISORES, donde sí funcionan por HTTP directo).
 # ⚠️ Verificados contra GET /v1/models el 2026-09-04: gpt-oss-120b devolvía 410 (fin de vida el
@@ -10241,7 +10276,13 @@ def main():
 
         # GUA1113A: con poco disco no arranca ninguna tarea nueva (se reanuda sola al liberarse).
         _disco_retiene = disco_retiene_arranques()
-        for tid, t in ([] if _disco_retiene else list(pendientes.items())):
+        # PRI01: ordenar pendientes por prioridad (mayor primero), estable por orden de llegada
+        _pendientes_ordenados = (
+            []
+            if _disco_retiene
+            else [(tid, pendientes[tid]) for tid in [t["id"] for t in ordenar_pendientes(list(pendientes.values()))]]
+        )
+        for tid, t in _pendientes_ordenados:
             if tid in SOLTADAS:
                 pendientes.pop(tid)
                 hechas.add(tid)
