@@ -1,0 +1,83 @@
+{
+ "ola": "nube-20261116",
+ "tareas": [
+  {
+   "id": "MQC1",
+   "ola": "MOD1116",
+   "titulo": "Biblioteca de modelos: tallas pequeñas de la familia sin filtros y su licencia",
+   "archivos": [
+    "src/lib/astraura/modelos/catalogo-datos.ts",
+    "src/lib/astraura/modelos/__tests__/sf-pequenas.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Lee `src/lib/astraura/modelos/catalogo-datos.ts` (función `sf`, `SF_Q`, `MODELOS_SIN_FILTROS_SEMILLA`) y `architecture/modelos-recomendados.md` §10. La página de Ollama de la familia (https://ollama.com/huihui_ai/qwen3.5-abliterated, leída el 2026-11-16) lista las etiquetas `0.8B` (1,0 GB), `2B` (1,9 GB), `4B` (3,3 GB), `9b` (6,6 GB), `27b` (17 GB), `35b` (24 GB) y `122B` (81 GB), todas con contexto 256K, texto e imagen, herramientas y razonamiento; la ficha de `9b` dice cuantización Q4_K_M, 9,65 B de parámetros, arquitectura `qwen35` y licencia Apache 2.0. Añade a la semilla `huihui_ai/qwen3.5-abliterated:2B` (`baseId: \"qwen3.5:2b\"`, 1,9 GB) y `huihui_ai/qwen3.5-abliterated:0.8B` SOLO si su `baseId` existe en la semilla (si `qwen3.5:0.8b` no existe, no la añadas y dilo en un comentario). Las cifras de las variantes de 4B y 9b no cambian; sí `licencia` de la 9b: pon «Apache 2.0 (ficha de Ollama, 2026-11-16)» y deja una `nota` que diga que la base `qwen3.5:9b` figura aquí como `RESTRINGIDA` y debe revisarse porque la ficha de Qwen en Hugging Face dice Apache-2.0. `comprobado` de las nuevas: «2026-11-16». PRUEBAS: `modeloValido` acepta las nuevas; «Automático» sigue sin elegir ninguna variante sin filtros (reutiliza la tabla de `variantes.test.ts` o compara con `candidatosPara`).\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni pytest, ni tsc, ni git, ni node, ni npm, ni curl): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj, entorno y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves (solo NOMBRES de variables, nunca valores; nunca una IP, un OCID ni un token); nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado. En Python: las pruebas son `unittest` con carpetas temporales y falsos, como las vecinas `scripts/puente/test_*.py`, y no tocan el `~/.starseed` real."
+  },
+  {
+   "id": "IMA12",
+   "ola": "TRA1116-IDIOMAS",
+   "titulo": "El cargador de catálogos suma los paquetes instalados y CON_CATALOGO se calcula",
+   "archivos": [
+    "src/lib/idiomas/catalogos/cargar.ts",
+    "src/lib/idiomas/idiomas.ts",
+    "src/lib/idiomas/__tests__/cargar-paquetes.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Lee `catalogos/cargar.ts` (cargadores fijos en, pt, fr) y `idiomas.ts:61` (`CON_CATALOGO`, `ESTADO_CATALOGO`). Cambio acotado: `cargarCatalogo(codigo)` primero mira los cargadores integrados y, si no hay, un paquete instalado (`leerPaquete`, IMA11) → `crearCatalogo({codigo, revisado: paquete.revisado.estado===\"revisado\", entradas})`; un paquete que falla al cargar devuelve `null` (la interfaz sigue en español). Un integrado SIEMPRE gana sobre un paquete del mismo código salvo que la persona haya elegido el paquete (parámetro `preferirPaquete`). Añade `idiomasConCatalogo(): string[]` = integrados + paquetes. NO cambies `CON_CATALOGO` ni `ESTADO_CATALOGO` (los comprueba `cobertura.test.ts`): solo añade la función. PRUEBAS: con un paquete instalado `de` se carga un catálogo y `traducir` funciona; un paquete corrupto → null; el integrado gana.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "IMA11-d2",
+    "IMA6"
+   ]
+  },
+  {
+   "id": "RST09",
+   "ola": "RST1116A",
+   "titulo": "Poner el selector en la ventana de control (propiedades nuevas, opcionales)",
+   "archivos": [
+    "src/components/control-remoto/ventana-control/tipos.ts",
+    "src/components/control-remoto/ventana-control/ventana-control.tsx",
+    "src/components/control-remoto/ventana-control/__tests__/ventana-control-fuente.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. CONTEXTO COMPROBADO: hoy la persona no puede pedir la pantalla fluida (proyección): `pantalla-iniciar` solo admite `lado` y `calidad` (`niveles.ts:102-114`), `PantallaDestino.iniciar` manda `orden(\"pantalla-iniciar\", {})` sin nada (`pantalla-destino.ts:282`), `pantalla-origen.ts:186-198` llama a `control_pantalla_iniciar` sin fuente y deduce `fuente` del resultado (`accesibilidad` o `proyeccion`), `nativo-comandos.ts:11` solo deja pasar `sesion`, `lado_max` y `calidad`, y LO NATIVO (`native/src-tauri/src/control_pantalla.rs:12`, `:68`) todavía NO tiene la fuente `proyeccion` (`control_capacidades` dice `proyeccion:false`): hoy siempre contesta «accesibilidad». Por eso lo que se pide es una PETICIÓN explícita y lo que se enseña es la fuente REAL que contestó el aparato: nunca se dice «fluida» si no lo es. Esta tarea no toca Rust. Escribe primero las pruebas. `tipos.ts`: añade a `PropsVentanaControl` (:12) las propiedades OPCIONALES `fuentePedida?: FuentePedida`, `fuenteReal?: \"accesibilidad\" | \"proyeccion\" | null`, `avisoFuente?: string | null` y `alCambiarFuente?: (f: FuentePedida) => void` (opcionales para no romper a quien ya monta la ventana). `ventana-control.tsx` (621 líneas; ≤45 líneas de diferencia): si `alCambiarFuente` existe, monta `SelectorFuente` (RST08) dentro del panel de mandos (el bloque que se abre con `mandosAbiertos`, o en la cabecera si no hay mandos en modo `ver`); si no existe, la ventana queda EXACTAMENTE como hoy. No cambies nada de la pantalla, el puntero ni el teclado. PRUEBAS: sin `alCambiarFuente` no aparece el selector (las pruebas existentes de la ventana no se tocan); con él aparece y elegir «Fluida» llama a `alCambiarFuente(\"proyeccion\")`; el aviso se ve cuando llega.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "RST08"
+   ]
+  },
+  {
+   "id": "MQA6",
+   "ola": "MOD1116",
+   "titulo": "Astraura: registrar el proveedor «abliteration» en el índice de proveedores",
+   "archivos": [
+    "src/ai/providers/types.ts",
+    "src/ai/providers/index.ts",
+    "src/ai/providers/__tests__/abliteration-registro.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Añade `\"abliteration\"` a la unión `ProviderId` de `src/ai/providers/types.ts` (línea 15) y registra `abliterationProvider` en `src/ai/providers/index.ts` junto a `groqProvider` (importación, tabla de proveedores y lista de orden ≈ líneas 12, 36 y 56), de modo que NO quede entre los primeros de la lista de orden por defecto (ni en «gratis primero»): al final y sin selección automática. Quita el `as` y el comentario `// MQA6` de `abliteration.ts` si existen (no es uno de tus archivos: déjalo y di en la prueba qué debe quitar quien lo revise). PRUEBA: el proveedor está registrado, su `info.requiresKey` es true y ocupa la última posición de la lista de orden; los demás ids siguen en su sitio.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni pytest, ni tsc, ni git, ni node, ni npm, ni curl): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj, entorno y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves (solo NOMBRES de variables, nunca valores; nunca una IP, un OCID ni un token); nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado. En Python: las pruebas son `unittest` con carpetas temporales y falsos, como las vecinas `scripts/puente/test_*.py`, y no tocan el `~/.starseed` real.",
+   "dependencias_ya_en_main": [
+    "MQA5"
+   ]
+  },
+  {
+   "id": "IMG-agentes-reimaginada-profunda-corregir-te",
+   "titulo": "Ajustar temporizador de guía para no interrumpir navegación del usuario",
+   "area": "imaginacion",
+   "archivos": [
+    "src/components/onboarding/aurora-guide.tsx",
+    "src/hooks/use-timeout-interaction.ts",
+    "src/lib/mando/areas.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Ajustar temporizador de guía para no interrumpir navegación del usuario. ## Problema\nEl temporizador que muestra la guía de aurora interrumpe la navegación del usuario al expirar, forzando un cambio de pantalla sin su consentimiento. Esto genera fricción y reduce la experiencia fluida.\n\n## Solución propuesta\n- **Reemplazar temporizador fijo por evento de interacción**: En lugar de depender de un timeout automático, el temporizador se reinicia cada vez que el usuario realiza una acción (scroll, click, movimiento del mouse).\n- **Añadir opción explícita de cierre**: Incluir un botón visible para que el usuario decida cuándo terminar la guía.\n- **Persistencia parcial d Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1116-105020.json": [
+   "IMA12",
+   "IMG-agentes-reimaginada-profunda-corregir-te",
+   "MQC1",
+   "MQA6",
+   "RST09"
+  ]
+ }
+}
