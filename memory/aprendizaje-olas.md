@@ -7502,3 +7502,21 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `SIN11155` — otra cosa: 5 propuesta(s) · starseed_memory_root/imaginacion/agentes/sintesis-2026-11-15-ideas.json (ya estaba)
 - `SIN11156` — otra cosa: 3 propuesta(s) · starseed_memory_root/imaginacion/agentes/sintesis-2026-11-15-guiones.json (ya estaba)
 - `SIN11157` — otra cosa: 0 propuesta(s) · starseed_memory_root/imaginacion/agentes/sintesis-2026-11-15-youtube.json (ya estaba)
+
+## 2026-11-16 14:27 · mg-oracle-1116-0757
+
+**Lo que se pidió.** es
+
+**Resultado.** 0 de 6 integradas. 6 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 6 tareas se fueron por lo mismo — no escribió nada (HAL06, JL9, JL6, JL5, IMG-profunda-eliminar-cliente-supabase-dupli, IMG-profunda-catch-vacio-en-exchangecodefors). Es 100 % de la ola.
+- sin modelo anotado no integró ninguna de sus 6 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `HAL06` — no escribió nada
+- `JL9` — no escribió nada
+- `JL6` — no escribió nada
+- `JL5` — no escribió nada
+- `IMG-profunda-eliminar-cliente-supabase-dupli` — no escribió nada
+- `IMG-profunda-catch-vacio-en-exchangecodefors` — no escribió nada
