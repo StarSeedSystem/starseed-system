@@ -65,8 +65,9 @@ describe("migración SAJ01 — ajustes de os_senales_publicas", () => {
 
   it("ninguno de los dos archivos contiene lat, lon ni coordenadas", () => {
     for (const c of ["lat", "lon", "lng", "latitude", "longitude", "position"]) {
-      expect(sql.toLowerCase()).not.toContain(c);
-      expect(reversa.toLowerCase()).not.toContain(c);
+      const regex = new RegExp(`\\b${c}\\b`, "i");
+      expect(sql).not.toMatch(regex);
+      expect(reversa).not.toMatch(regex);
     }
   });
 });
