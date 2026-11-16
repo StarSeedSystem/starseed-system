@@ -1,0 +1,94 @@
+{
+ "ola": "nube-20261116",
+ "tareas": [
+  {
+   "id": "KOT01",
+   "ola": "KOT1116A",
+   "titulo": "URGENTE · Android: la proyección de pantalla no compila (MediaProjection nulo) y bloquea el APK",
+   "archivos": [
+    "native/src-tauri/android/ProyeccionPantallaStarSeed.kt"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. URGENTE: la compilación de Android de la prueba .47 falló (16-11, 07:00 UTC) por UNA sola línea de Kotlin, y sin este arreglo no hay APK:\n`e: ProyeccionPantallaStarSeed.kt:189:14 Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver of type 'MediaProjection?'`.\nEn `native/src-tauri/android/ProyeccionPantallaStarSeed.kt`, dentro del `try` de `onStartCommand`, está:\n`val p = mpm.getMediaProjection(codigo, datos)` y en la línea siguiente con código `p.registerCallback(...)`. `getMediaProjection` devuelve `MediaProjection?`.\n\nARREGLO (≤4 líneas, SOLO ese archivo): haz que `p` no sea nulo. Lee el `catch` de ese mismo `try`: si captura `Exception` o `Throwable` y termina deteniendo el servicio, cambia la línea por `val p = mpm.getMediaProjection(codigo, datos) ?: throw IllegalStateException(\"el sistema no dio la proyección\")`; si no, usa `val p = mpm.getMediaProjection(codigo, datos) ?: run { detener(); return START_NOT_STICKY }`. NO uses `!!`. No cambies nada más: ni el orden (servicio en primer plano ANTES de la proyección; `registerCallback` ANTES de la pantalla virtual), ni otras líneas, ni otros archivos. El compilador solo dio ESE error: no «arregles» otras llamadas. Kotlin no se compila en esta máquina (lo compila el CI de la prueba): revisa a ojo que la línea queda sintácticamente correcta y que `proy = p` sigue valiendo.\n\nAsunto del commit: `KOT1116A · KOT01: la proyección de pantalla compila (MediaProjection nulo tratado; fallaba el APK de la .47)`.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado."
+  },
+  {
+   "id": "JL11",
+   "ola": "JLA1116A",
+   "titulo": "CLAUDE.md: Laya y la libreta, con lo reservado a humanos",
+   "archivos": [
+    "CLAUDE.md"
+   ],
+   "depende": [],
+   "prompt": "Contrato: architecture/jev-entrena-laya.md (si aún no está en el repo, rige este texto). Lee AGENTS.md. Añade UN bloque nuevo al final de la sección «Economía de créditos y orquestación multiagente» (≤ 30 líneas, nada se borra ni se reescribe): qué es Laya (codificador de terceros, `native/laya/`, `architecture/laya-y-habilidades.md`), que hoy nada la entrena, la libreta de ejemplos con desenlace como camino (`architecture/jev-entrena-laya.md`), y la lista de decisiones que Jev y Laya nunca toman solos (`scripts/puente/jev_reservadas.py`). Sin «Mando» en texto visible; español neutro.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` (Python: sin red ni `~/.starseed`, rutas y lectores se inyectan) salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "JL1"
+   ]
+  },
+  {
+   "id": "TU27",
+   "ola": "TRA1116-APP-F1",
+   "titulo": "Cuándo un agente traduce solo: reglas puras",
+   "archivos": [
+    "src/lib/traductor/decidir-traducir.ts",
+    "src/lib/traductor/__tests__/decidir-traducir.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. `decidirTraducir(entrada: { mensajeRecibido: string; idiomaConversacion: string; peticion?: string; destinatarios?: {personaId; idioma}[]; detectado: {codigo, confianza} }): { llamar: boolean; razon: \"idioma-distinto\"|\"peticion\"|\"varias-personas\"|\"ninguna\"; destino?: string }`. Reglas del contrato §6: (a) llama si el mensaje recibido se detecta en un idioma distinto al de la conversación con confianza ≥0,8 (y el texto tiene ≥12 letras); (b) llama si la petición contiene «traduce», «responde en <idioma>», «en inglés»… (lista de patrones en español con los idiomas de la tabla de `src/lib/idiomas/idiomas.ts`); (c) con varias personas en idiomas distintos pide una traducción por idioma; no llama para código, URLs, solo números ni nombres propios. PRUEBAS en tabla ≥15 casos incluidos los negativos.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "TU9"
+   ]
+  },
+  {
+   "id": "HAL11",
+   "ola": "HAL1116A",
+   "titulo": "Conectar la elección de Jev al reparto, apagada por defecto",
+   "archivos": [
+    "scripts/enjambre/starseed-enjambre.py",
+    "scripts/puente/test_jev_eleccion.py"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Lee `starseed-enjambre.py` :7140-7240 (`repartir`, `arriendo`, el bloque «el porqué es informativo» :7206-7214) y `scripts/puente/jev_eleccion.py` (HAL10). Cambio ACOTADO (≤45 líneas en el orquestador; el archivo es enorme: no leas más de lo necesario): conserva el medio que devuelve `elegir_medio` en lugar de descartarlo (`medio_jev, motivo = ...`) y, SOLO si `activo_por_entorno(os.environ)` es verdadero, aplica `medio_final(...)` con los `sanos` ya calculados en ese bloque como `sanos_libres` (los que tienen hueco: usa el mismo criterio de `libres` que `normalizar_medios`) y cambia `arriendo[\"medio\"]` y `arriendo[\"motivo\"]` al resultado, nunca otro campo del arriendo. Apagado (por defecto) el comportamiento es EXACTAMENTE el de antes, incluido el `motivo`. Todo dentro del `try/except` que ya hay: un fallo no frena el reparto. PRUEBAS en `test_jev_eleccion.py` (añade ≤40 líneas): la lógica de aplicar sobre un `arriendo` de ejemplo con `medio_final` simulado: apagado deja el arriendo igual; activo y válido cambia solo `medio` y `motivo`; un `elegir_medio` que lanza no cambia nada.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "HAL10"
+   ]
+  },
+  {
+   "id": "INT04",
+   "ola": "INT1116A",
+   "titulo": "Reparto equilibrado de la ración entre nodos según su capacidad",
+   "archivos": [
+    "src/lib/malla/internet/reparto-banco.ts",
+    "src/lib/malla/internet/__tests__/reparto-banco.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contrato: architecture/malla-cristalina-sio2.md §8.2 (contrato; si aún no está en el repo, rige este texto). Escribe primero las pruebas. `repartirRacion(racionMb: number, nodos: { id: string; capacidadKbps: number; conectado: boolean; maxMb?: number }[]): { reparto: { id: string; mb: number }[]; sobranteMb: number }`. Solo cuentan los nodos `conectado` con `capacidadKbps > 0`. El reparto es PROPORCIONAL a la capacidad; ningún nodo recibe más de su `maxMb` (si lo trae): el exceso se reparte entre los demás, también proporcionalmente, hasta que no sobre o todos estén al tope (`sobranteMb` es lo que no cupo). Redondeo a 1 MB con el método del mayor resto y desempate por `id` (determinista: misma entrada, misma salida; la suma exacta de `reparto` + `sobranteMb` es `racionMb`). Sin nodos válidos o ración ≤ 0: reparto vacío y `sobranteMb` = ración (o 0). No muta la entrada.\nPRUEBAS: dos nodos 1:3; un nodo con tope; todos al tope; nodo desconectado ignorado; suma exacta; determinismo con ids empatados; ración cero.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "INT01"
+   ]
+  },
+  {
+   "id": "INT06",
+   "ola": "INT1116A",
+   "titulo": "Guardar y leer los ajustes de internet compartido en el aparato",
+   "archivos": [
+    "src/lib/malla/internet/almacen-ajustes.ts",
+    "src/lib/malla/internet/__tests__/almacen-ajustes.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contrato: architecture/malla-cristalina-sio2.md §8.2 (contrato; si aún no está en el repo, rige este texto). Lee primero lo que ya existe: `src/lib/malla/cristal/puertas-internet.ts` (`PuertaInternet`, `COMPARTIR`, `puedeUsar`, `restanteParaOtrosMb`, `elegirPuerta`) y, si ya aterrizaron, `src/lib/malla/auto-compartir.ts` y `src/lib/malla/preferencias-red-compartida.ts` (reglas MRI1b/MRI2). Si no existen, NO los crees: declara el tipo mínimo que necesites en tu archivo y dilo en un comentario. Todo lo tuyo es ADITIVO: no cambies el comportamiento de lo anterior. Escribe primero las pruebas. Los ajustes viven SOLO en el aparato (almacén local inyectado `{ getItem, setItem }`, nunca un servidor). Clave `starseed.malla.internet.v1`. `leerAjustes(almacen, defectos: AjustesInternet): AjustesInternet`: si falta, está roto o es de otra versión → devuelve `defectos`; si es válido pero incompleto, lo completa con `defectos` campo a campo; valida cada campo (números ≥ 0 y finitos, horas `HH:MM`, fechas `AAAA-MM-DD`, ≤ 12 ventanas, `modo` solo `diario|programado`) y reemplaza por el defecto el que no valida (nunca lanza ni deja pasar basura). `guardarAjustes(almacen, ajustes): boolean` (false si el almacén falla; atrapa excepciones). `AJUSTES_APAGADOS: AjustesInternet` (todo apagado: `compartirConOtros:false`, banco inactivo `diario` 0 MB, las tres audiencias con `mesh:false`, `declaraLimitada:null`, `compartirMedidas:false`): es el defecto mínimo hasta la tarea de valores por defecto por audiencia.\nPRUEBAS: sin dato; JSON roto; versión distinta; campo inválido sustituido; ida y vuelta; almacén que lanza; ≥13 ventanas recortadas a 12.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "INT01"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1115-224354.json": [
+   "INT06",
+   "HAL11",
+   "JL11",
+   "TU27",
+   "INT04",
+   "KOT01"
+  ]
+ }
+}
