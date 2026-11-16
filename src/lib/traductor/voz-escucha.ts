@@ -43,7 +43,7 @@ interface SpeechRecognitionLike {
   onstart: ((e: Event) => void) | null;
   onerror: ((e: Event) => void) | null;
   onend: ((e: Event) => void) | null;
-  onresult: ((e: SpeechRecognitionEvent) => void) | null;
+  onresult: ((e: { resultIndex: number; results: SpeechRecognitionResult[] }) => void) | null;
   start: () => void;
   stop: () => void;
 }
@@ -65,9 +65,9 @@ export function mapErrorReconocimiento(err: string): ErrorReconocimiento {
   const e = err.toLowerCase();
   if (e === "not-allowed" || e === "service-not-allowed") return "not-allowed";
   if (e === "no-speech") return "no-speech";
-  if (e === "network" || e.includes("fetch")) return "network";
+  if (e === "network" || e.includes("fetch") || e.includes("networkerror") || e.includes("network error")) return "network";
   if (e === "language-not-supported" || e === "language-not-implemented") return "language-not-supported";
-  if (e === "audio-capture") return "audio-capture";
+  if (e === "audio-capture" || e.includes("audio capture") || e.includes("audiodevice") || e.includes("audio capture")) return "audio-capture";
   if (e === "failed") return "failed";
   return "failed";
 }
@@ -107,7 +107,7 @@ export function mensajeError(error: ErrorReconocimiento, idioma: IdiomaReconocim
 }
 
 export function crearEscucha(entorno: {
-  SpeechRecognition?: typeof webkitSpeechRecognition | null;
+  SpeechRecognition?: { new (): SpeechRecognitionLike } | null;
   ossStt?: { estaHabilitado: () => boolean };
 }): EscuchaVoz {
   let reconocimiento: SpeechRecognitionLike | null = null;
@@ -116,7 +116,7 @@ export function crearEscucha(entorno: {
 
   function obtenerSpeechRecognition(): SpeechRecognitionLike | null {
     if (entorno.SpeechRecognition) {
-      return entorno.SpeechRecognition;
+      return new entorno.SpeechRecognition();
     }
     if (typeof window !== "undefined") {
       const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;

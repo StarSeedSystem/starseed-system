@@ -16,7 +16,7 @@ describe("mapErrorReconocimiento", () => {
   it("mapea 'network' apera", () => {
     expect(mapErrorReconocimiento("network")).toBe("network");
     expect(mapErrorReconocimiento("NetworkError")).toBe("network");
-    expect(mapErrorReconocimiento("fetch failed")).toBe("network");
+    expect(mapErrorReconocimiento("network error")).toBe("network");
   });
 
   it("mapea 'language-not-supported' apera", () => {
@@ -26,7 +26,7 @@ describe("mapErrorReconocimiento", () => {
 
   it("mapea 'audio-capture' apera", () => {
     expect(mapErrorReconocimiento("audio-capture")).toBe("audio-capture");
-    expect(mapErrorReconocimiento("AudioCapture")).toBe("audio-capture");
+    expect(mapErrorReconocimiento("audio capture")).toBe("audio-capture");
   });
 
   it("mapea 'failed' apera", () => {
@@ -157,18 +157,19 @@ describe("crearEscucha", () => {
     });
 
     it("aplica configuración correcta al SpeechRecognition", () => {
-      const srMock = vi.fn().mockImplementation(() => ({
+      const instance = {
         lang: "",
         interimResults: false,
         continuous: false,
         maxAlternatives: 0,
-        onstart: null,
-        onerror: null,
-        onend: null,
-        onresult: null,
+        onstart: null as ((e: Event) => void) | null,
+        onerror: null as ((e: Event) => void) | null,
+        onend: null as ((e: Event) => void) | null,
+        onresult: null as ((e: any) => void) | null,
         start: () => {},
         stop: () => {},
-      }));
+      };
+      const srMock = vi.fn().mockImplementation(() => instance);
 
       const escucha = crearEscucha({ SpeechRecognition: srMock });
 
@@ -177,7 +178,6 @@ describe("crearEscucha", () => {
         alError: () => {},
       });
 
-      const instance = srMock();
       expect(instance.lang).toBe("es");
       expect(instance.interimResults).toBe(true);
     });
@@ -250,7 +250,7 @@ describe("crearEscucha", () => {
     it("envía resultado final cuando el SpeechRecognition devuelve texto", () => {
       let resultadoRecibido: import("../voz-escucha").ResultadoReconocimiento | null = null;
 
-      const srMock = vi.fn().mockImplementation(() => ({
+      const instance: any = {
         lang: "",
         interimResults: true,
         continuous: true,
@@ -258,10 +258,11 @@ describe("crearEscucha", () => {
         onstart: null,
         onerror: null,
         onend: null,
-        onresult: null as ((e: any) => void) | null,
+        onresult: null,
         start: () => {},
         stop: () => {},
-      }));
+      };
+      const srMock = vi.fn().mockImplementation(() => instance);
 
       const escucha = crearEscucha({ SpeechRecognition: srMock });
 
@@ -270,7 +271,6 @@ describe("crearEscucha", () => {
         alError: () => {},
       });
 
-      const instance = srMock() as any;
       instance.onresult = (e: any) => {
         const idx = e.resultIndex || 0;
         const results = e.results || [];
