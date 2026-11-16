@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 
 // Mock window.matchMedia for jsdom
@@ -26,6 +26,7 @@ describe("DisenoConversacion", () => {
         { rol: "user" as const, texto: "Hola, ¿cómo estás?", ts: ahora - 120_000 },
         { rol: "aurora" as const, texto: "¡Hola! Estoy bien, gracias por preguntar. ¿En qué te ayudo hoy?", ts: ahora - 60_000 },
         { rol: "user" as const, texto: "Cuéntame algo interesante", ts: ahora - 30_000 },
+        { rol: "aurora" as const, texto: "¡Claro! Aquí tienes algo interesante...", ts: ahora - 120_000 },
     ];
     const hiloVacio: { rol: "user" | "aurora"; texto: string; ts: number }[] = [];
 
@@ -73,11 +74,8 @@ describe("DisenoConversacion", () => {
     });
 
     it("muestra el tiempo relativo en el último turno de Astraura", () => {
-        const { container } = render(
-            <DisenoConversacion {...propsBase} />
-        );
-        const texto = container.textContent || "";
-        expect(texto).toMatch(/hace \d+ (min|h)/);
+        render(<DisenoConversacion {...propsBase} />);
+        expect(screen.getByText(/hace \d+ (min|h)/)).toBeInTheDocument();
     });
 
     it("muestra mensaje vacío cuando no hay hilo", () => {
@@ -96,16 +94,14 @@ describe("DisenoConversacion", () => {
         expect(texto).toContain("¿Cómo estás?");
     });
 
-    it("cada botón llama a su función", () => {
+it("cada botón llama a su función", () => {
         const onAbrirChat = vi.fn();
         const onSugerencia = vi.fn();
-        const { container } = render(
-            <DisenoConversacion {...propsBase} onAbrirChat={onAbrirChat} onSugerencia={onSugerencia} />
-        );
-        const botones = container.querySelectorAll("button");
+        render(<DisenoConversacion {...propsBase} onAbrirChat={onAbrirChat} onSugerencia={onSugerencia} />);
+        const botones = screen.getAllByRole("button");
         expect(botones.length).toBeGreaterThan(0);
         botones.forEach((boton) => {
-            boton.dispatchEvent(new Event("click"));
+            fireEvent.click(boton);
         });
         // onAbrirChat se llama al menos una vez (forma o enlace de chat)
         expect(onAbrirChat).toHaveBeenCalled();
@@ -142,12 +138,9 @@ describe("DisenoConversacion", () => {
     });
 
     it("tiene nombres accesibles en español", () => {
-        const { container } = render(
-            <DisenoConversacion {...propsBase} />
-        );
-        const texto = container.textContent || "";
-        expect(texto).toMatch(/(calma|escuchando|pensando|hablando)/i);
-        expect(texto).toMatch(/hace \d+ (min|h)/);
+        render(<DisenoConversacion {...propsBase} />);
+        expect(screen.getByText(/(calma|escuchando|pensando|hablando)/i)).toBeInTheDocument();
+        expect(screen.getByText(/hace \d+ (min|h)/)).toBeInTheDocument();
     });
 
     it("usa Prescindible para retirar turnos viejos cuando no caben", () => {
