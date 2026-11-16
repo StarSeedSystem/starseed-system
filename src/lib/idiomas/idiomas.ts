@@ -5,6 +5,7 @@
  * Módulo PURO: sin React, sin `node:*` ni red.
  */
 import { esRtl } from "./tabla-iso";
+import { codigosPaquetesInstalados } from "./catalogos/cargar";
 export const IDIOMA_FUENTE = "es";
 
 export interface Idioma {
@@ -60,6 +61,10 @@ export const IDIOMAS: readonly Idioma[] = [
 
 /** Idiomas con catálogo en esta entrega (los demás se pueden elegir; el texto sigue en español). */
 export const CON_CATALOGO: readonly string[] = ["en", "pt", "fr"];
+
+export function idiomasConCatalogo(): string[] {
+    return [...new Set([...CON_CATALOGO, ...codigosPaquetesInstalados()])];
+}
 
 /** Estado de cada catálogo: «revisado» solo cuando una persona lo comprobó; si no, «automatico». Una prueba lo cruza con el JSON. */
 export const ESTADO_CATALOGO: Readonly<Record<string, "revisado" | "automatico">> = { en: "automatico", pt: "automatico", fr: "automatico" };
