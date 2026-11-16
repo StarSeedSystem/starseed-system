@@ -178,22 +178,15 @@ export function VentanaPerfilInicial({ onCerrar }: { onCerrar?: () => void }) {
         avatar_marco: marco as unknown as Record<string, unknown>,
         avatar_3d: avatar3d?.url ? (avatar3d as unknown as Record<string, unknown>) : null,
       }));
-      await conTope((async () => {
-        const sb = createClient();
-        const { data: u } = await sb.auth.getUser();
-        if (u?.user?.id) {
-          await sincronizarPerfilPublico(u.user.id, {
-            handle: h || undefined,
-            display_name: nombre.trim() || undefined,
-            avatar_url: avatar || undefined,
-            cover_url: portada || undefined,
-            bio: bio || undefined,
-            avatar_marco: marco as unknown as Record<string, unknown>,
-            avatar_3d: avatar3d?.url ? (avatar3d as unknown as Record<string, unknown>) : null,
-          });
-        }
-        return true;
-      })());
+      await conTope(sincronizarPerfilPublico({
+        handle: h || undefined,
+        display_name: nombre.trim() || undefined,
+        avatar_url: avatar || undefined,
+        cover_url: portada || undefined,
+        bio: bio || undefined,
+        avatar_marco: marco as unknown as Record<string, unknown>,
+        avatar_3d: avatar3d?.url ? (avatar3d as unknown as Record<string, unknown>) : null,
+      }));
 
       // (Ola 381 · INI6) Antes de cerrar, el paso de arranque (pantalla inicial y bloqueo).
       setPaso("arranque");

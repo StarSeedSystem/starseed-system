@@ -237,7 +237,7 @@ export async function saveProfileOptional(optional: {
     if (error) return { ok: false, error: error.message };
     // (Adenda 194) Espejo en el perfil PÚBLICO: avatar, portada y bio son lo
     // que se ve en /profile, que lee `os_profiles`.
-    await sincronizarPerfilPublico(owner, patch);
+    await sincronizarPerfilPublico({ ...patch, display_name: undefined });
     return { ok: true };
   } catch (e) {
     return { ok: false, error: (e as Error)?.message || "Error al guardar." };
@@ -248,9 +248,9 @@ export async function saveProfileOptional(optional: {
  * (Adenda 194) Espejo en `os_profiles` — el perfil PÚBLICO que sirve
  * /profile/<handle>. Best-effort: si falla, la cuenta ya quedó bien en
  * `profiles` y no se bloquea el rito.
+ * Obtiene el userId del usuario autenticado internamente.
  */
 export async function sincronizarPerfilPublico(
-  owner: string,
   campos: {
     handle?: string; display_name?: string; avatar_url?: string; cover_url?: string; bio?: string;
     avatar_marco?: Record<string, unknown> | null; avatar_3d?: Record<string, unknown> | null;
@@ -258,6 +258,9 @@ export async function sincronizarPerfilPublico(
 ): Promise<void> {
   try {
     const sb = createClient();
+    const { data: u } = await sb.auth.getUser();
+    const owner = u?.user?.id;
+    if (!owner) return;
     const patch: Record<string, unknown> = { user_id: owner, is_default: true, kind: "sovereign" };
     if (campos.avatar_marco !== undefined) patch.avatar_marco = campos.avatar_marco;
     if (campos.avatar_3d !== undefined) patch.avatar_3d = campos.avatar_3d;
@@ -439,7 +442,7 @@ export async function claimProfile(
     // /profile/<handle>. Antes solo se escribía `profiles`, así que toda cuenta
     // nueva aterrizaba en «Perfil no encontrado» con el handle inventado por el
     // trigger. Se sincroniza aquí, con el handle que el usuario SÍ eligió.
-    await sincronizarPerfilPublico(owner, {
+    await sincronizarPerfilPublico({
       handle,
       display_name: fullName,
       avatar_url: (optional as { avatar_url?: string }).avatar_url,
