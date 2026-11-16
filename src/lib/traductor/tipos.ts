@@ -57,7 +57,7 @@ export function paresInversos(par: Record<string, string>): Record<string, strin
 }
 
 /** Código de idioma elegible (reutiliza el patrón de aIdiomaElegible de idiomas.ts). */
-export function esCodigoValido(codigo: string): boolean {
+export function esCodigoValido(codigo: string | null | undefined | object): boolean {
     if (typeof codigo !== "string") return false;
     const v = codigo.trim().toLowerCase().replace(/\s+/g, "-");
     if (!/^[a-z]{2,3}(-[a-z0-9]{2,8})*$/.test(v)) return false;
