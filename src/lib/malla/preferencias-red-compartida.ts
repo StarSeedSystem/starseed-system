@@ -8,6 +8,7 @@ export interface PreferenciasRedCompartida {
   reservaBateriaPct: number;
   automatico: boolean;
   compartirMedidas: boolean;
+  verPublicos?: boolean;
 }
 
 export const PREFERENCIAS_POR_DEFECTO: PreferenciasRedCompartida = {
@@ -18,6 +19,7 @@ export const PREFERENCIAS_POR_DEFECTO: PreferenciasRedCompartida = {
   reservaBateriaPct: 30,
   automatico: false,
   compartirMedidas: false,
+  verPublicos: true,
 };
 
 const CLAVE_STORAGE = "starseed.preferencias.red.compartida";
@@ -59,6 +61,7 @@ export function sanearPreferenciasRed(crudo: unknown): PreferenciasRedCompartida
     reservaBateriaPct,
     automatico,
     compartirMedidas,
+    verPublicos: typeof obj?.verPublicos === "boolean" ? obj.verPublicos : true,
   };
 }
 
