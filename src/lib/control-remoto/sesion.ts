@@ -273,7 +273,7 @@ export class PuertaControl {
             if (this.sesion && this.sesion.de !== c.de) return this.respuesta(c.nonce, false, "otra-sesion", nombre, c.de, c.nivel);
             const nivel = nivelMinimo(c.nivel, concedido);
             // ORD1114Q: la sesión la abre Rust (pone el indicador o se niega) y su token es el de Rust.
-            const n = await this.d.nativo.abrir(c.de, ctl.nombre, nivel);
+            const n = await this.d.nativo.abrir(c.de, ctl.nombre, nivel, sobre); // FSG1116 · A2: lo nativo comprueba la firma
             if (!n.ok || !n.token) return this.respuesta(c.nonce, false, n.motivo ?? "sin-indicador-nativo", nombre, c.de, c.nivel, undefined, n.detalle);
             this.sesion = { token: n.token, de: c.de, nombre: ctl.nombre, nivel, inicio: ahora, ultima: ahora };
             this.d.alCambiar?.();

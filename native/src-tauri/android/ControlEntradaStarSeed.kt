@@ -43,9 +43,13 @@ import android.os.Process
 import android.provider.Settings
 import android.util.DisplayMetrics
 import android.view.Display
+import android.view.InputDevice
+import android.view.MotionEvent
 import android.view.Surface
+import android.view.View
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import android.view.accessibility.AccessibilityWindowInfo
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
@@ -65,26 +69,20 @@ object ControlEntradaNativo {
     /** Un toque local mantiene el control en pausa hasta que pasan 3 s sin otro. */
     const val PAUSA_LOCAL_MS = 3_000L
 
-    // Regla G: las MISMAS listas que control_entrada_logica.rs (una prueba de Rust lo comprueba).
-    val PAQUETES_G = listOf(
-        "com.google.android.permissioncontroller", "com.android.permissioncontroller", "com.samsung.android.permissioncontroller",
-        "com.google.android.packageinstaller", "com.android.packageinstaller", "com.samsung.android.packageinstaller",
-        "com.samsung.android.app.permission",
-    )
-    val PAQUETES_AJUSTES = listOf("com.android.settings", "com.samsung.android.settings")
-    val CLASES_AJUSTES_G = listOf(
-        "accessibility", "deviceadmin", "specialaccess", "drawoverlay", "overlaysettings", "writesettings", "usageaccess",
-        "notificationaccess", "managedeviceadmins", "installedappdetails", "appinfodashboard", "manageappexternalsources",
-        "restrictedsettings", "alldevicesadmin",
-    )
-    val CLASES_SISTEMA_G = listOf("mediaprojectionpermission", "screencapturepermission", "mediaprojectionappselector")
-
-    fun reglaG(paquete: String?, clase: String?): Boolean {
-        val p = (paquete ?: "").lowercase()
-        val c = (clase ?: "").lowercase()
-        return PAQUETES_G.any { p == it } ||
-            (PAQUETES_AJUSTES.any { p == it } && CLASES_AJUSTES_G.any { c.contains(it) }) ||
-            (p == "com.android.systemui" && CLASES_SISTEMA_G.any { c.contains(it) })
+    /**
+     * FSG1116 · A1 · Regla G: la MISMA decisión que `regla_g` de control_entrada_logica.rs (una prueba de Rust compara
+     * las cláusulas), con la lista que build.rs genera desde control_regla_g.txt (`ReglaGLista`). Por PAQUETE y por el
+     * TIPO de ventana que da Android, nunca por nombres de clase ni títulos (idioma, fabricante). Ante la duda, `true`.
+     * `ventanas` = (paquete o null, ¿es de tipo aplicación?) de cada ventana a la vista.
+     */
+    fun reglaG(ventanas: List<Pair<String?, Boolean>>, propio: String, bloqueada: Boolean, congelada: Boolean, contrasena: Boolean): Boolean {
+        if (congelada || bloqueada || contrasena || ventanas.isEmpty()) return true
+        val yo = propio.lowercase()
+        return ventanas.any { (paquete, actividad) ->
+            val p = paquete?.lowercase()
+            if (p == null) actividad // una actividad de quien no se sabe: no se toca
+            else p in ReglaGLista.PROTEGIDOS || (actividad && (p == yo || p in ReglaGLista.SISTEMA))
+        }
     }
 
     private lateinit var app: Context
@@ -94,14 +92,69 @@ object ControlEntradaNativo {
     private var observador: FileObserver? = null
     private var iniciado = false
 
-    /** Diálogos NATIVOS de esta app abiertos ahora: mientras haya uno, la regla G protege la ventana propia. */
-    @Volatile var dialogosPropios = 0
+    /**
+     * FSG1116 · C1: diálogos de consentimiento de este control PEDIDOS y aún sin cerrar (interruptor, aceptar un
+     * controlador, «ver sin preguntar», proyección hasta que Android contesta). Mientras haya uno, NADA remoto entra:
+     * se congela en el instante de pedirlo (antes de enseñarlo) y la cola y el gesto en curso se cortan.
+     */
+    @Volatile var congelados = 0
+    /** Hora (ms de reloj) del último trozo de gesto remoto despachado. */
+    @Volatile var ultimoGestoRemoto = 0L
     /** Hasta cuándo (ms de reloj) el toque que llega es de un gesto NUESTRO y no de la persona. */
     @Volatile var gestoPropioHasta = 0L
     @Volatile var ultimoToqueLocal = 0L
 
     fun esGestoPropio(): Boolean = System.currentTimeMillis() < gestoPropioHasta
     fun toqueLocal() { ultimoToqueLocal = System.currentTimeMillis() }
+    fun congelado(): Boolean = congelados > 0
+    fun congelar() { congelados++; ServicioControlEntrada.instancia?.cortar() }
+    fun descongelar() { congelados = maxOf(0, congelados - 1) }
+
+    /** FSG1116 · C1: un toque de un aparato de entrada FÍSICO (no virtual). Los gestos inyectados no llegan así. */
+    fun toqueFisico(ev: MotionEvent): Boolean {
+        val d = InputDevice.getDevice(ev.deviceId) ?: return false
+        return !d.isVirtual
+    }
+
+    /**
+     * FSG1116 · C1: la guarda del «Sí» de un diálogo de consentimiento. Vale solo si desde que se PIDIÓ no se despachó
+     * ningún gesto remoto, no hay uno en curso y el toque que lo pulsó (si lo hubo) vino de un aparato físico. Un clic
+     * sin toque (TalkBack, teclado físico) vale por lo primero: con la entrada congelada nada remoto puede pulsar.
+     */
+    class Guarda {
+        val desde = System.currentTimeMillis()
+        @Volatile private var toqueVirtual = false
+        fun toque(ev: MotionEvent) { toqueVirtual = !ControlEntradaNativo.toqueFisico(ev) }
+        fun valida(): Boolean = !toqueVirtual && ControlEntradaNativo.ultimoGestoRemoto < desde && !ControlEntradaNativo.esGestoPropio() &&
+            ServicioControlEntrada.instancia?.ocupado() != true
+    }
+
+    /**
+     * FSG1116 · C1: enseña un diálogo de consentimiento con la entrada remota CONGELADA desde ya hasta que se cierre.
+     * `alCerrar` corre al cerrarse (la proyección pasa allí el congelado a la pantalla de Android). Sin pantalla, se
+     * descongela y no se enseña nada.
+     */
+    fun mostrarConsentimiento(b: AlertDialog.Builder, g: Guarda, alCerrar: (() -> Unit)? = null) {
+        congelar()
+        try {
+            val d = b.create()
+            d.setOnDismissListener { descongelar(); alCerrar?.invoke() }
+            d.setOnShowListener {
+                d.findViewById<View>(android.R.id.button1)?.setOnTouchListener { _, ev -> if (ev.actionMasked == MotionEvent.ACTION_DOWN) g.toque(ev); false }
+            }
+            d.show()
+        } catch (e: Throwable) {
+            descongelar()
+            throw e
+        }
+    }
+
+    /** FSG1116 · M2/M3: sin sesión a la vista, en pausa o con la pantalla bloqueada no queda ningún cuadro en disco. */
+    fun puedePublicarCuadro(): Boolean {
+        if (!ControlNeuronasNativo.mostrando || ControlNeuronasNativo.pausada) return false
+        return try { !(app.getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager).isKeyguardLocked } catch (_: Throwable) { false }
+    }
+    fun borrarCuadro() { if (iniciado) File(dir, CUADRO).delete() }
 
     fun iniciar(ctx: Context) {
         if (iniciado) return
@@ -194,13 +247,9 @@ object ControlEntradaNativo {
 
     // ───────────── diálogos nativos (la persona decide; nada se acepta solo) ─────────────
 
-    fun vigilarDialogo(d: AlertDialog) {
-        dialogosPropios++
-        d.setOnDismissListener { dialogosPropios = maxOf(0, dialogosPropios - 1) }
-    }
-
     private fun dialogoAceptar(a: Activity, spki: String, cuenta: String, nombre: String, codigo: String, huella: String) {
-        val d = AlertDialog.Builder(a)
+        val g = Guarda()
+        val b = AlertDialog.Builder(a)
             .setTitle("¿Dejar que «$nombre» toque y escriba en esta tableta?")
             .setMessage(
                 "Código de ese aparato: $codigo\n\nCompáralo con el que enseña ese aparato en StarSeed OS. Si no coincide, di que No.\n\n" +
@@ -208,7 +257,7 @@ object ControlEntradaNativo {
                     "Tocar la pantalla lo pausa. La lista se vacía al apagar «Dejar que tus otras neuronas controlen esta tableta»."
             )
             .setPositiveButton("Sí, aceptar") { _, _ ->
-                if (!ControlNeuronasNativo.encendido()) return@setPositiveButton
+                if (!g.valida() || !ControlNeuronasNativo.encendido()) return@setPositiveButton // FSG1116 · C1
                 val lista = JSONArray()
                 val previos = aceptados()
                 for (i in 0 until previos.length()) {
@@ -220,23 +269,22 @@ object ControlEntradaNativo {
             }
             .setNegativeButton("No", null)
             .setCancelable(true)
-            .show()
-        vigilarDialogo(d)
+        mostrarConsentimiento(b, g)
     }
 
     private fun dialogoPantalla(a: Activity) {
-        val d = AlertDialog.Builder(a)
+        val g = Guarda()
+        val b = AlertDialog.Builder(a)
             .setTitle("¿Ver esta pantalla sin preguntar en cada sesión?")
             .setMessage(
                 "Mientras otra neurona de tu cuenta, que aceptaste aquí, controle esta tableta con el borde rojo a la vista, " +
                     "podrá ver la pantalla sin que Android te lo vuelva a preguntar. Los cuadros no se guardan. " +
                     "Puedes apagarlo cuando quieras (se apaga solo al apagar el control)."
             )
-            .setPositiveButton("Sí, dejar ver") { _, _ -> if (ControlNeuronasNativo.encendido()) guardarSinPreguntar(true) }
+            .setPositiveButton("Sí, dejar ver") { _, _ -> if (g.valida() && ControlNeuronasNativo.encendido()) guardarSinPreguntar(true) } // FSG1116 · C1
             .setNegativeButton("No") { _, _ -> guardarSinPreguntar(false) }
             .setCancelable(true)
-            .show()
-        vigilarDialogo(d)
+        mostrarConsentimiento(b, g)
     }
 
     // ───────────── peticiones de Rust ─────────────
@@ -277,6 +325,7 @@ object ControlEntradaNativo {
                 val a = actividad?.get()
                 if (!ControlNeuronasNativo.encendido()) no("interruptor-apagado")
                 else if (a == null) no("sin-pantalla")
+                else if (congelado()) no("dialogo-abierto") // FSG1116 · B3: un consentimiento a la vez
                 else {
                     dialogoAceptar(a, p.optString("spki"), p.optString("cuenta").take(100), p.optString("nombre", "otra neurona").take(40), p.optString("codigo"), p.optString("huella"))
                     JSONObject().put("ok", true)
@@ -335,6 +384,7 @@ object ControlEntradaNativo {
             "consentimiento-pantalla" -> {
                 if (!ControlNeuronasNativo.encendido()) return no("interruptor-apagado")
                 if (a == null) return no("sin-pantalla")
+                if (congelado()) return no("dialogo-abierto") // FSG1116 · B3
                 dialogoPantalla(a)
                 return JSONObject().put("ok", true).put("dialogo", true)
             }
@@ -448,11 +498,11 @@ class ServicioControlEntrada : AccessibilityService() {
         @Volatile var instancia: ServicioControlEntrada? = null
         private const val SUELTA_TRAS_MS = 5_000L
         private const val INTERVALO_CAPTURA_MS = 350L
+        /** FSG1116 · C1: cada gesto se despacha en trozos de como mucho 200 ms; la regla G se mira antes de CADA uno. */
+        const val TROZO_MS = 200L
     }
 
     private val principal = Handler(Looper.getMainLooper())
-    private var ultimoPaquete: String? = null
-    private var ultimaClase: String? = null
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -460,16 +510,14 @@ class ServicioControlEntrada : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(ev: AccessibilityEvent?) {
-        if (ev == null || ev.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
-        val p = ev.packageName?.toString() ?: return
-        val c = ev.className?.toString() ?: ""
-        // Nuestra superposición (borde y pastilla) no es «la ventana en primer plano».
-        if (p == packageName && !c.endsWith("Activity")) return
-        ultimoPaquete = p
-        ultimaClase = c
+        if (ev == null) return
+        val t = ev.eventType
+        if (t != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED && t != AccessibilityEvent.TYPE_WINDOWS_CHANGED) return
+        // FSG1116 · C1: cambió lo que hay delante. Una cola llenada cuando era válida se tira si ahora hay algo protegido.
+        if ((actual != null || cola.isNotEmpty() || enCurso.isNotEmpty()) && ventanaProtegida()) cortar()
     }
 
-    override fun onInterrupt() { soltarTodo() }
+    override fun onInterrupt() { cortar() }
 
     override fun onUnbind(intent: Intent?): Boolean {
         parar()
@@ -483,24 +531,29 @@ class ServicioControlEntrada : AccessibilityService() {
         super.onDestroy()
     }
 
-    /** Fin de sesión o servicio que se va: suelta los dedos y para la captura. */
+    /** Fin de sesión o servicio que se va: suelta los dedos (también el gesto en curso, FSG1116 · M6) y para la captura. */
     fun parar() {
         capturando = false
-        File(ControlEntradaNativo.carpeta(), ControlEntradaNativo.CUADRO).delete()
-        cola.clear()
-        soltarTodo()
+        ControlEntradaNativo.borrarCuadro()
+        cortar()
     }
 
-    // ───────────── regla G ─────────────
+    // ───────────── regla G (FSG1116: se decide al DESPACHAR, con todas las ventanas a la vista) ─────────────
 
     private fun ventanaProtegida(): Boolean {
-        if (ControlEntradaNativo.dialogosPropios > 0) return true // diálogos nativos de esta app (permisos del control)
-        val raiz = rootInActiveWindow
-        val paquete = raiz?.packageName?.toString() ?: ultimoPaquete ?: return true // sin saber qué hay delante: no se toca
-        val clase = if (paquete == ultimoPaquete) ultimaClase else ""
-        var titulo = ""
-        try { windows?.firstOrNull { it.isActive }?.title?.toString()?.let { titulo = it } } catch (_: Throwable) {}
-        return ControlEntradaNativo.reglaG(paquete, clase) || ControlEntradaNativo.reglaG(paquete, titulo)
+        val bloqueada = try { (getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager).isKeyguardLocked } catch (_: Throwable) { true }
+        val vs = ArrayList<Pair<String?, Boolean>>()
+        try {
+            for (w in windows ?: emptyList<AccessibilityWindowInfo>()) {
+                if (w.type == AccessibilityWindowInfo.TYPE_ACCESSIBILITY_OVERLAY) continue
+                val p = try { w.root?.packageName?.toString() } catch (_: Throwable) { null }
+                vs.add(Pair(p, w.type == AccessibilityWindowInfo.TYPE_APPLICATION))
+            }
+        } catch (_: Throwable) { vs.clear() }
+        if (vs.isEmpty()) rootInActiveWindow?.packageName?.toString()?.let { vs.add(Pair(it, true)) }
+        // M2: con el foco en un campo de contraseña tampoco se toca el teclado en pantalla.
+        val contrasena = try { rootInActiveWindow?.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)?.isPassword == true } catch (_: Throwable) { true }
+        return ControlEntradaNativo.reglaG(vs, packageName, bloqueada, ControlEntradaNativo.congelado(), contrasena)
     }
 
     private fun rechazo(m: String): JSONObject = JSONObject().put("ok", false).put("motivo", m)
@@ -515,6 +568,7 @@ class ServicioControlEntrada : AccessibilityService() {
         return when (nombre) {
             "volumen" -> ControlEntradaNativo.ponerVolumen(args.optString("flujo"), args.optDouble("nivel", 0.0).coerceIn(0.0, 1.0))
             "brillo" -> ControlEntradaNativo.ponerBrillo(args.optDouble("nivel", 0.0).coerceIn(0.0, 1.0))
+            // La regla G se mira aquí (para decirlo pronto) y OTRA VEZ antes de despachar cada trozo (`bombear`).
             "gesto", "tecla", "texto" -> if (ventanaProtegida()) rechazo("regla-g") else when (nombre) {
                 "gesto" -> gesto(args)
                 "tecla" -> tecla(args.optString("cual"))
@@ -553,12 +607,35 @@ class ServicioControlEntrada : AccessibilityService() {
     }
 
     // ───────────── gestos (varios dedos a la vez; `sigue` continúa los trazos con la orden siguiente) ─────────────
+    // FSG1116 · C1: una orden de gesto se despacha en TROZOS de ≤ 200 ms encadenados con `continueStroke`; antes de
+    // cada trozo (el primero y cada continuación) se mira la regla G. Si sale protegida, o se congela, o «Terminar»,
+    // no se despacha nada nuevo: los dedos que sigan abajo se levantan donde están (su flujo táctil es de la ventana
+    // que recibió el DOWN, no de la protegida) y la cola se tira.
+
+    /** Un dedo de la orden: puntos en píxeles con su hora desde el inicio de la orden (ms). */
+    private class Dedo(val id: Int, val xs: FloatArray, val ys: FloatArray, val ts: LongArray, val fin: Long, val sigue: Boolean) {
+        fun en(t: Long): FloatArray {
+            if (t <= ts[0]) return floatArrayOf(xs[0], ys[0])
+            for (i in 1 until ts.size) if (t <= ts[i]) {
+                val k = if (ts[i] == ts[i - 1]) 1f else (t - ts[i - 1]).toFloat() / (ts[i] - ts[i - 1])
+                return floatArrayOf(xs[i - 1] + (xs[i] - xs[i - 1]) * k, ys[i - 1] + (ys[i] - ys[i - 1]) * k)
+            }
+            return floatArrayOf(xs.last(), ys.last())
+        }
+    }
+    private class Orden(val dedos: List<Dedo>, val total: Long)
 
     private val cola = ArrayDeque<JSONObject>()
+    private var actual: Orden? = null
+    private var trozo = 0
     private var despachando = false
+    private var cortarPendiente = false
     private val enCurso = HashMap<Int, GestureDescription.StrokeDescription>()
     private val ultimoPunto = HashMap<Int, FloatArray>()
     private val soltar = Runnable { soltarTodo() }
+
+    /** ¿Hay un gesto remoto en el aire o dedos abajo? (la guarda del «Sí» lo mira). */
+    fun ocupado(): Boolean = despachando || enCurso.isNotEmpty()
 
     private fun gesto(args: JSONObject): JSONObject {
         if (cola.size >= 16) return rechazo("limite")
@@ -567,78 +644,135 @@ class ServicioControlEntrada : AccessibilityService() {
         return JSONObject().put("ok", true)
     }
 
-    private fun bombear() {
-        if (despachando) return
-        if (ControlNeuronasNativo.pausada || !ControlNeuronasNativo.mostrando) { cola.clear(); return } // una pausa local tira lo encolado
-        val args = cola.poll() ?: return
+    /** FSG1116 · C1/M6: tira la cola y el gesto a medias y levanta los dedos que sigan abajo. */
+    fun cortar() {
+        cola.clear()
+        actual = null
+        if (despachando) { cortarPendiente = true; return }
+        soltarTodo()
+    }
+
+    private fun preparar(args: JSONObject): Orden? {
         val m = ControlEntradaNativo.medidas()
         val w = (m[0] - 1).toFloat()
         val h = (m[1] - 1).toFloat()
-        val dedos = args.optJSONArray("dedos") ?: return
+        val dedos = args.optJSONArray("dedos") ?: return null
         val sigue = args.optBoolean("sigue", false)
         val maxMs = if (Build.VERSION.SDK_INT >= 24) GestureDescription.getMaxGestureDuration() else 60_000L
-        val b = GestureDescription.Builder()
-        val ids = HashSet<Int>()
-        for (i in 0 until dedos.length()) ids.add(dedos.getJSONObject(i).optInt("id"))
-        // Los dedos de antes que esta orden no nombra: se sueltan donde estaban.
-        for ((id, s) in enCurso) if (id !in ids) {
-            val p = Path().apply { val u = ultimoPunto[id] ?: floatArrayOf(0f, 0f); moveTo(u[0], u[1]) }
-            b.addStroke(s.continueStroke(p, 0, 1, false))
-        }
-        val nuevos = HashMap<Int, GestureDescription.StrokeDescription>()
-        var duracionMax = 1L
+        val lista = ArrayList<Dedo>()
         for (i in 0 until dedos.length()) {
             val d = dedos.getJSONObject(i)
             val id = d.optInt("id")
             val pts = d.optJSONArray("puntos") ?: continue
             if (pts.length() == 0) continue
-            val prev = enCurso[id]
-            val p = Path()
-            var dur = 0L
-            var x = 0f
-            var y = 0f
-            if (prev != null) { val u = ultimoPunto[id] ?: floatArrayOf(0f, 0f); p.moveTo(u[0], u[1]) }
+            val sigueDeAntes = enCurso.containsKey(id)
+            val xs = ArrayList<Float>(); val ys = ArrayList<Float>(); val ts = ArrayList<Long>()
+            var t = 0L
+            if (sigueDeAntes) { val u = ultimoPunto[id] ?: floatArrayOf(0f, 0f); xs.add(u[0]); ys.add(u[1]); ts.add(0L) }
             for (k in 0 until pts.length()) {
                 val q = pts.getJSONArray(k)
-                x = (q.getDouble(0).toFloat() * w).coerceIn(0f, w)
-                y = (q.getDouble(1).toFloat() * h).coerceIn(0f, h)
-                if (k == 0 && prev == null) p.moveTo(x, y) else p.lineTo(x, y)
-                if (k > 0 || prev != null) dur += q.optLong(2, 0) // UNI1115M · dt = ms desde el punto anterior de ESE dedo (el primero de un dedo nuevo, 0)
+                // UNI1115M · dt = ms desde el punto anterior de ESE dedo (el primero de un dedo nuevo, 0)
+                if (k > 0 || sigueDeAntes) t += q.optLong(2, 0).coerceAtLeast(0)
+                xs.add((q.getDouble(0).toFloat() * w).coerceIn(0f, w))
+                ys.add((q.getDouble(1).toFloat() * h).coerceIn(0f, h))
+                ts.add(t.coerceAtMost(maxMs))
             }
-            if (prev != null && dur == 0L) dur = 1
-            if (prev == null && pts.length() == 1) dur = 50 // un toque
-            dur = dur.coerceIn(1L, maxMs)
-            val s = if (prev != null) prev.continueStroke(p, 0, dur, sigue) else GestureDescription.StrokeDescription(p, 0, dur, sigue)
-            b.addStroke(s)
-            if (sigue) { nuevos[id] = s; ultimoPunto[id] = floatArrayOf(x, y) } else ultimoPunto.remove(id)
-            if (dur > duracionMax) duracionMax = dur
+            var fin = t
+            if (sigueDeAntes && fin == 0L) fin = 1
+            if (!sigueDeAntes && pts.length() == 1) fin = 50 // un toque
+            fin = fin.coerceIn(1L, maxMs)
+            lista.add(Dedo(id, xs.toFloatArray(), ys.toFloatArray(), ts.toLongArray(), fin, sigue))
         }
-        ultimoPunto.keys.retainAll(nuevos.keys) // UNI1115M · un dedo que esta orden no nombra ya se soltó (costura f)
-        despachando = true
-        ControlEntradaNativo.gestoPropioHasta = System.currentTimeMillis() + duracionMax + 500 // el toque que se oye es nuestro
-        val ok = try {
-            dispatchGesture(b.build(), object : GestureResultCallback() {
-                override fun onCompleted(g: GestureDescription?) { terminado(nuevos) }
-                override fun onCancelled(g: GestureDescription?) { terminado(HashMap()) }
-            }, principal)
-        } catch (_: Exception) { false }
-        if (!ok) terminado(HashMap())
+        if (lista.isEmpty()) return null
+        return Orden(lista, lista.maxOf { it.fin })
     }
 
-    private fun terminado(nuevos: HashMap<Int, GestureDescription.StrokeDescription>) {
+    private fun bombear() {
+        if (despachando) return
+        if (ControlNeuronasNativo.pausada || !ControlNeuronasNativo.mostrando) { cortar(); return } // una pausa local tira lo encolado
+        while (actual == null) {
+            val args = cola.poll() ?: return
+            actual = preparar(args)
+            trozo = 0
+        }
+        // C1: la regla G y el congelado se deciden AQUÍ, antes de despachar CADA trozo, no al encolar.
+        if (ventanaProtegida()) { cortar(); return }
+        despacharTrozo(actual!!)
+    }
+
+    private fun despacharTrozo(o: Orden) {
+        val a = trozo * TROZO_MS
+        val b = a + TROZO_MS
+        val g = GestureDescription.Builder()
+        var hay = false
+        // Los dedos de antes que esta orden no nombra: se sueltan donde estaban (en su primer trozo).
+        if (trozo == 0) for ((id, s) in enCurso) if (o.dedos.none { it.id == id }) {
+            val u = ultimoPunto[id] ?: floatArrayOf(0f, 0f)
+            g.addStroke(s.continueStroke(Path().apply { moveTo(u[0], u[1]) }, 0, 1, false)); hay = true
+        }
+        val nuevos = HashMap<Int, GestureDescription.StrokeDescription>()
+        val puntos = HashMap<Int, FloatArray>()
+        var durMax = 1L
+        for (d in o.dedos) {
+            if (!d.sigue && a >= d.fin) continue // ya se levantó en un trozo anterior
+            val hasta = if (d.sigue) minOf(b, o.total) else minOf(b, d.fin)
+            val p = Path()
+            val ini = d.en(a)
+            p.moveTo(ini[0], ini[1])
+            for (i in d.ts.indices) if (d.ts[i] > a && d.ts[i] < hasta) p.lineTo(d.xs[i], d.ys[i])
+            val fin = d.en(hasta)
+            p.lineTo(fin[0], fin[1])
+            val dur = (hasta - a).coerceAtLeast(1L)
+            val continua = d.sigue || hasta < d.fin
+            val prev = enCurso[d.id]
+            val s = if (prev != null) prev.continueStroke(p, 0, dur, continua) else GestureDescription.StrokeDescription(p, 0, dur, continua)
+            g.addStroke(s); hay = true
+            if (continua) { nuevos[d.id] = s; puntos[d.id] = fin }
+            if (dur > durMax) durMax = dur
+        }
+        val ultimo = b >= o.total
+        if (!hay) { terminado(nuevos, puntos, ultimo); return }
+        despachando = true
+        val ahora = System.currentTimeMillis()
+        ControlEntradaNativo.ultimoGestoRemoto = ahora
+        ControlEntradaNativo.gestoPropioHasta = ahora + durMax + 150 // M1: el toque que se oye es nuestro, y no más
+        val ok = try {
+            dispatchGesture(g.build(), object : GestureResultCallback() {
+                override fun onCompleted(x: GestureDescription?) { terminado(nuevos, puntos, ultimo) }
+                // M1: Android cancela un gesto inyectado cuando la persona toca la pantalla: eso es un toque local.
+                override fun onCancelled(x: GestureDescription?) { cancelado() }
+            }, principal)
+        } catch (_: Exception) { false }
+        if (!ok) cancelado()
+    }
+
+    private fun terminado(nuevos: HashMap<Int, GestureDescription.StrokeDescription>, puntos: HashMap<Int, FloatArray>, ultimo: Boolean) {
         despachando = false
-        enCurso.clear()
-        enCurso.putAll(nuevos)
-        ControlEntradaNativo.gestoPropioHasta = System.currentTimeMillis() + 300
+        enCurso.clear(); enCurso.putAll(nuevos)
+        ultimoPunto.clear(); ultimoPunto.putAll(puntos)
+        ControlEntradaNativo.gestoPropioHasta = System.currentTimeMillis() + 150
         principal.removeCallbacks(soltar)
+        if (cortarPendiente) { cortarPendiente = false; cola.clear(); actual = null; soltarTodo(); return }
+        if (ultimo) { actual = null; trozo = 0 } else trozo++
         if (enCurso.isNotEmpty()) principal.postDelayed(soltar, SUELTA_TRAS_MS) // dedos olvidados abajo: se sueltan solos
         bombear()
     }
 
-    /** Levanta los dedos que sigan abajo (sin una orden nueva en 5 s, al terminar la sesión o al irse el servicio). */
+    private fun cancelado() {
+        despachando = false
+        cortarPendiente = false
+        enCurso.clear(); ultimoPunto.clear()
+        cola.clear(); actual = null
+        principal.removeCallbacks(soltar)
+        ControlEntradaNativo.toqueLocal()
+        ControlNeuronasNativo.pausarLocal?.invoke() // FSG1116 · M1
+    }
+
+    /** Levanta los dedos que sigan abajo (sin una orden nueva en 5 s, al cortar, al terminar la sesión o al irse el servicio). */
     private fun soltarTodo() {
         principal.removeCallbacks(soltar)
-        if (enCurso.isEmpty() || despachando) { if (!despachando) { enCurso.clear(); ultimoPunto.clear() }; return }
+        if (despachando) { cortarPendiente = true; return }
+        if (enCurso.isEmpty()) { ultimoPunto.clear(); return }
         val b = GestureDescription.Builder()
         for ((id, s) in enCurso) {
             val u = ultimoPunto[id] ?: floatArrayOf(0f, 0f)
@@ -730,6 +864,8 @@ class ServicioControlEntrada : AccessibilityService() {
 
     /** `cuadro.bin` = 12 bytes (u32 nº, u16 ancho, u16 alto, u16 giro, u16 cero; little endian) + el JPEG. Un archivo, reemplazo atómico. */
     private fun publicar(ancho: Int, alto: Int, jpeg: ByteArray) {
+        // FSG1116 · M3/M2: un cuadro que llega tras parar, en pausa o con la pantalla bloqueada no se escribe (y se borra el que hubiera).
+        if (!capturando || !ControlEntradaNativo.puedePublicarCuadro()) { ControlEntradaNativo.borrarCuadro(); return }
         numero++
         val giro = ControlEntradaNativo.medidas()[2]
         val c = ByteArray(12)
@@ -743,5 +879,6 @@ class ServicioControlEntrada : AccessibilityService() {
             tmp.outputStream().use { it.write(c); it.write(jpeg) }
             tmp.renameTo(File(d, ControlEntradaNativo.CUADRO))
         } catch (_: Exception) {}
+        if (!capturando) ControlEntradaNativo.borrarCuadro() // parar() llegó mientras se escribía
     }
 }

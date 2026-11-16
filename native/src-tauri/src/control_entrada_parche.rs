@@ -64,6 +64,74 @@ pub const XML_TEXTOS: &str = r#"<?xml version="1.0" encoding="utf-8"?>
 </resources>
 "#;
 
+pub const REGLA_G_TXT: &str = include_str!("control_regla_g.txt");
+
+/// FSG1116 · A1: Kotlin lee la regla G de ESTE archivo generado desde `control_regla_g.txt` (la misma lista que Rust).
+pub fn kotlin_regla_g() -> String {
+    // Solo std (build.rs): se lee aquí el mismo archivo que lee control_entrada_logica.rs; la prueba compara las dos lecturas.
+    let (mut p, mut s) = (Vec::new(), Vec::new());
+    for l in REGLA_G_TXT.lines().map(str::trim).filter(|l| !l.is_empty() && !l.starts_with('#')) {
+        match l.split_once(' ') {
+            Some(("protegido", x)) => p.push(x.trim()),
+            Some(("sistema", x)) => s.push(x.trim()),
+            _ => panic!("control_regla_g.txt: línea sin forma «{l}»"),
+        }
+    }
+    let lista = |v: &[&str]| v.iter().map(|x| format!("        \"{x}\",")).collect::<Vec<_>>().join("\n");
+    format!(
+        "package app.starseed.nativa\n\n// FSG1116 · Lo escribe native/src-tauri/build.rs desde src/control_regla_g.txt (la misma lista que lee Rust).\n// No editar aquí: se reescribe en cada compilación.\n\nobject ReglaGLista {{\n    /** Cualquier ventana de estos paquetes a la vista: no se toca nada. */\n    val PROTEGIDOS: Set<String> = setOf(\n{}\n    )\n    /** De estos paquetes, solo sus ventanas de actividad. */\n    val SISTEMA: Set<String> = setOf(\n{}\n    )\n}}\n",
+        lista(&p),
+        lista(&s)
+    )
+}
+
+/// FSG1116 · M4: lo que el control guarda (aceptados, interruptores, cuadro) NO viaja en la copia de seguridad ni
+/// en la transferencia entre aparatos: en otro aparato nadie lo aceptó.
+pub const XML_COPIA: &str = r#"<?xml version="1.0" encoding="utf-8"?>
+<!-- FSG1116: lo escribe native/src-tauri/build.rs. Android 6–11: fuera de la copia lo que guarda el control entre neuronas. -->
+<full-backup-content>
+    <exclude domain="file" path="starseed/control-entrada/" />
+    <exclude domain="file" path="starseed/control-neuronas/" />
+</full-backup-content>
+"#;
+pub const XML_EXTRACCION: &str = r#"<?xml version="1.0" encoding="utf-8"?>
+<!-- FSG1116: lo escribe native/src-tauri/build.rs. Android 12+: ni copia en la nube ni transferencia entre aparatos. -->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="file" path="starseed/control-entrada/" />
+        <exclude domain="file" path="starseed/control-neuronas/" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="file" path="starseed/control-entrada/" />
+        <exclude domain="file" path="starseed/control-neuronas/" />
+    </device-transfer>
+</data-extraction-rules>
+"#;
+const ATRIBUTO_COPIA: &str = "android:fullBackupContent=\"@xml/starseed_control_copia\"";
+const ATRIBUTO_EXTRACCION: &str = "android:dataExtractionRules=\"@xml/starseed_control_extraccion\"";
+
+/// FSG1116 · M4: pone las reglas de copia en `<application …>`. Si la plantilla ya trae OTRAS reglas, falla en alto
+/// (mezclarlas a ciegas podría volver a meter el control en la copia).
+pub fn parchear_copia(texto: &str) -> Result<String, String> {
+    let app = texto.find("<application").ok_or("El AndroidManifest.xml no tiene <application>")?;
+    let fin = app + texto[app..].find('>').ok_or("<application> sin cerrar")?;
+    let etiqueta = &texto[app..fin];
+    let ya_copia = etiqueta.contains(ATRIBUTO_COPIA);
+    let ya_extraccion = etiqueta.contains(ATRIBUTO_EXTRACCION);
+    if (!ya_copia && etiqueta.contains("android:fullBackupContent=")) || (!ya_extraccion && etiqueta.contains("android:dataExtractionRules=")) {
+        return Err("El <application> ya trae reglas de copia propias: añade allí las exclusiones de starseed/control-* (FSG1116 · M4).".into());
+    }
+    let mut extra = String::new();
+    if !ya_copia {
+        extra.push_str(&format!("\n        {ATRIBUTO_COPIA}"));
+    }
+    if !ya_extraccion {
+        extra.push_str(&format!("\n        {ATRIBUTO_EXTRACCION}"));
+    }
+    let tras = app + "<application".len();
+    Ok(format!("{}{}{}", &texto[..tras], extra, &texto[tras..]))
+}
+
 pub fn apagado(valor: Option<&str>) -> bool {
     match valor.map(|v| v.trim().to_lowercase()) {
         Some(v) => !(v.is_empty() || v == "0" || v == "false"),
@@ -169,7 +237,7 @@ pub fn aplicar(proyecto: &Path) -> Result<Vec<PathBuf>, String> {
     let principal = proyecto.join("app/src/main");
     let manifiesto = principal.join("AndroidManifest.xml");
     let texto = std::fs::read_to_string(&manifiesto).map_err(|e| format!("No se pudo leer {}: {e} (¿falta `cargo tauri android init`?)", manifiesto.display()))?;
-    if escribir_si_cambia(&manifiesto, &parchear_manifiesto(&texto)?)? {
+    if escribir_si_cambia(&manifiesto, &parchear_copia(&parchear_manifiesto(&texto)?)?)? {
         cambiados.push(manifiesto);
     }
     for (rel, contenido) in [
@@ -177,11 +245,18 @@ pub fn aplicar(proyecto: &Path) -> Result<Vec<PathBuf>, String> {
         ("res/values/starseed_control_accesibilidad.xml", XML_TEXTOS),
         ("java/app/starseed/nativa/ControlEntradaStarSeed.kt", KOTLIN),
         ("java/app/starseed/nativa/ProyeccionPantallaStarSeed.kt", KOTLIN_PROYECCION), // PENC1
+        ("res/xml/starseed_control_copia.xml", XML_COPIA),             // FSG1116 · M4
+        ("res/xml/starseed_control_extraccion.xml", XML_EXTRACCION),   // FSG1116 · M4
     ] {
         let f = principal.join(rel);
         if escribir_si_cambia(&f, contenido)? {
             cambiados.push(f);
         }
+    }
+    // FSG1116 · A1: la regla G de Kotlin sale de la MISMA lista que la de Rust.
+    let f = principal.join("java/app/starseed/nativa/ReglaGStarSeed.kt");
+    if escribir_si_cambia(&f, &kotlin_regla_g())? {
+        cambiados.push(f);
     }
     Ok(cambiados)
 }
@@ -255,10 +330,14 @@ mod pruebas {
             assert!(KOTLIN.contains(&format!("const val {c} = \"{v}\"")), "{c}");
         }
         assert!(KOTLIN.contains(&format!("const val PAUSA_LOCAL_MS = {}L", l::PAUSA_LOCAL_MS).replace("3000L", "3_000L")));
-        // Regla G: cada elemento de cada lista de Rust está en Kotlin.
-        for x in l::PAQUETES_G.iter().chain(l::PAQUETES_AJUSTES.iter()).chain(l::CLASES_AJUSTES_G.iter()).chain(l::CLASES_SISTEMA_G.iter()) {
-            assert!(KOTLIN.contains(&format!("\"{x}\"")), "regla G: Kotlin no lleva «{x}»");
+        // Regla G (FSG1116): Kotlin NO lleva su propia lista; usa la generada desde la de Rust.
+        let generado = kotlin_regla_g();
+        let (p, s) = l::regla_g_listas();
+        for x in p.iter().chain(s.iter()) {
+            assert!(generado.contains(&format!("\"{x}\",")), "regla G: el Kotlin generado no lleva «{x}»");
+            assert!(!KOTLIN.contains(&format!("\"{x}\"")), "regla G: «{x}» escrito a mano en Kotlin (debe salir de control_regla_g.txt)");
         }
+        assert!(generado.contains("object ReglaGLista") && KOTLIN.contains("ReglaGLista.PROTEGIDOS") && KOTLIN.contains("ReglaGLista.SISTEMA"));
         // Las órdenes y teclas que Rust deja pasar, Kotlin las ejecuta.
         for t in l::TECLAS {
             assert!(KOTLIN.contains(&format!("\"{t}\"")), "tecla {t}");
@@ -319,7 +398,106 @@ mod pruebas {
     #[test]
     fn los_enganches_de_la_fase_1_estan_marcados() {
         let f1 = crate::control_neuronas_parche::KOTLIN;
-        assert_eq!(f1.matches("AND1115K").count(), 7, "los siete enganches aditivos de AND1115K en ControlNeuronasStarSeed.kt");
+        // FSG1116: el séptimo (`vigilarDialogo`) pasó a ser `mostrarConsentimiento` (C1), marcado FSG1116.
+        assert_eq!(f1.matches("AND1115K").count(), 6, "los enganches aditivos de AND1115K en ControlNeuronasStarSeed.kt");
         assert!(f1.contains("ControlEntradaNativo.iniciar(app)") && f1.contains("ControlEntradaNativo.esGestoPropio()"));
+    }
+
+    /// El cuerpo de la lambda del botón positivo `texto` en `k` (hasta el siguiente `.set`).
+    fn positivo<'a>(k: &'a str, texto: &str) -> &'a str {
+        let i = k.find(&format!("setPositiveButton(\"{texto}\")")).unwrap_or_else(|| panic!("sin «{texto}»"));
+        let j = k[i + 10..].find(".set").map(|j| i + 10 + j).unwrap_or(k.len());
+        &k[i..j]
+    }
+
+    #[test]
+    fn c1_la_regla_g_se_decide_al_despachar_cada_trozo_no_al_encolar() {
+        let k = KOTLIN;
+        let b = k.find("private fun bombear()").unwrap();
+        let fin = b + k[b..].find("private fun despacharTrozo").unwrap();
+        let bombear = &k[b..fin];
+        // Antes de CADA trozo (el primero y las continuaciones, que vuelven por `terminado` → `bombear`).
+        assert!(bombear.contains("if (ventanaProtegida()) { cortar(); return }"), "la regla G antes de despachar");
+        assert!(bombear.find("ventanaProtegida()").unwrap() < bombear.find("despacharTrozo(").unwrap());
+        assert!(k.contains("const val TROZO_MS = 200L"));
+        let t = k.find("private fun terminado(").unwrap();
+        assert!(k[t..t + 900].contains("bombear()"), "cada continuación pasa otra vez por la regla G");
+        // Un cambio de lo que hay delante tira la cola y el gesto a medias si ahora hay algo protegido.
+        assert!(k.contains("TYPE_WINDOWS_CHANGED") && k.contains("&& ventanaProtegida()) cortar()"));
+        // Nada de nombres de clase ni títulos (dependen del idioma y del fabricante).
+        for x in ["className", ".title", "ultimaClase", "CLASES_"] {
+            assert!(!k.contains(x), "{x}");
+        }
+        // La misma decisión que `regla_g` de Rust, cláusula a cláusula.
+        assert!(k.contains("if (congelada || bloqueada || contrasena || ventanas.isEmpty()) return true"));
+        assert!(k.contains("if (p == null) actividad"));
+        assert!(k.contains("p in ReglaGLista.PROTEGIDOS || (actividad && (p == yo || p in ReglaGLista.SISTEMA))"));
+        assert!(k.contains("isKeyguardLocked } catch (_: Throwable) { true }") && k.contains("isPassword == true } catch (_: Throwable) { true }"));
+        // «Terminar», la pausa y el servicio que se va cortan también el gesto en curso (M6).
+        let p = k.find("fun parar()").unwrap();
+        assert!(k[p..p + 300].contains("cortar()"));
+        assert!(crate::control_neuronas_parche::KOTLIN.contains("ServicioControlEntrada.instancia?.cortar() // FSG1116"));
+    }
+
+    #[test]
+    fn c1_ningun_consentimiento_se_contesta_con_entrada_remota() {
+        let fase1 = crate::control_neuronas_parche::KOTLIN;
+        for (k, si) in [(KOTLIN, "Sí, aceptar"), (KOTLIN, "Sí, dejar ver"), (KOTLIN_PROYECCION, "Sí, continuar"), (fase1, "Sí, dejar")] {
+            assert!(positivo(k, si).contains("g.valida()"), "el «{si}» mira la guarda");
+        }
+        // Se congela al PEDIR (antes de enseñar) y se suelta al cerrarse; ningún diálogo del control se enseña por otro camino.
+        let m = KOTLIN.find("fun mostrarConsentimiento(").unwrap();
+        let cuerpo = &KOTLIN[m..m + 700];
+        assert!(cuerpo.find("congelar()").unwrap() < cuerpo.find("d.show()").unwrap());
+        assert!(cuerpo.contains("setOnDismissListener { descongelar()"));
+        assert_eq!(KOTLIN.matches(".show()").count(), 1);
+        assert_eq!(KOTLIN_PROYECCION.matches(".show()").count(), 0);
+        assert_eq!(fase1.matches(".show()").count(), 0);
+        assert_eq!(KOTLIN.matches("mostrarConsentimiento(b, g").count(), 2);
+        assert_eq!(KOTLIN_PROYECCION.matches("mostrarConsentimiento(b, g").count(), 1);
+        assert_eq!(fase1.matches("mostrarConsentimiento(b, g").count(), 1);
+        // Congelado = la regla G niega todo; un «Sí» con un gesto remoto despachado desde que se pidió, o con uno en el
+        // aire, o pulsado desde un aparato virtual, no vale.
+        assert!(KOTLIN.contains("ControlEntradaNativo.congelado(), contrasena)"));
+        assert!(KOTLIN.contains("ControlEntradaNativo.ultimoGestoRemoto < desde") && KOTLIN.contains("ocupado() != true") && KOTLIN.contains("!d.isVirtual"));
+        // La proyección sigue congelada mientras la pantalla de Android pregunta, y se suelta pase lo que pase.
+        assert!(KOTLIN_PROYECCION.contains("ControlEntradaNativo.congelar(); congeladaEnSistema = true"));
+        assert!(KOTLIN_PROYECCION.contains("override fun onDestroy() {\n        ProyeccionPantalla.sistemaContesto()"));
+    }
+
+    #[test]
+    fn m1_m2_m3_pausa_y_cuadros() {
+        // M1: Android cancela el gesto inyectado cuando la persona toca: eso pausa. Lo propio se oye 150 ms, no 500.
+        assert!(KOTLIN.contains("override fun onCancelled(x: GestureDescription?) { cancelado() }"));
+        assert!(KOTLIN.contains("ControlNeuronasNativo.pausarLocal?.invoke()") && !KOTLIN.contains("+ 500"));
+        // M2/M3: ningún cuadro tras parar, en pausa o bloqueada; el que se escribía cuando llegó el parar, se borra.
+        for k in [KOTLIN, KOTLIN_PROYECCION] {
+            assert!(k.contains("puedePublicarCuadro()") && k.contains("ControlEntradaNativo.borrarCuadro()"));
+        }
+        assert!(KOTLIN.contains("if (!capturando || !ControlEntradaNativo.puedePublicarCuadro())"));
+        assert!(crate::control_neuronas_parche::KOTLIN.contains("ControlEntradaNativo.borrarCuadro() // FSG1116 · M2"));
+    }
+
+    #[test]
+    fn a1_la_lista_de_kotlin_es_la_de_rust() {
+        let k = kotlin_regla_g();
+        let (p, s) = l::regla_g_listas();
+        let n = |x: &str| k.matches(&format!("\"{x}\",")).count();
+        assert!(p.iter().chain(s.iter()).all(|x| n(x) == 1));
+        assert_eq!(k.matches("\",").count(), p.len() + s.len(), "ni más ni menos que en control_regla_g.txt");
+        assert!(k.starts_with("package app.starseed.nativa"));
+    }
+
+    #[test]
+    fn m4_lo_del_control_no_viaja_en_la_copia() {
+        let m = "<manifest xmlns:android=\"http://schemas.android.com/apk/res/android\">\n    <application\n        android:label=\"x\">\n    </application>\n</manifest>\n";
+        let a = parchear_copia(m).unwrap();
+        assert!(a.contains("android:fullBackupContent=\"@xml/starseed_control_copia\"") && a.contains("android:dataExtractionRules=\"@xml/starseed_control_extraccion\""));
+        assert_eq!(parchear_copia(&a).unwrap(), a, "idempotente");
+        assert!(parchear_copia("<manifest><application android:fullBackupContent=\"@xml/otra\"></application></manifest>").is_err());
+        for x in [XML_COPIA, XML_EXTRACCION] {
+            assert!(x.contains("path=\"starseed/control-entrada/\"") && x.contains("path=\"starseed/control-neuronas/\""));
+        }
+        assert_eq!(XML_EXTRACCION.matches("<exclude").count(), 4, "nube y transferencia entre aparatos");
     }
 }

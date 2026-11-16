@@ -576,6 +576,7 @@ fn control_entrada_android() {
     println!("cargo:rerun-if-changed=src/control_entrada_parche.rs");
     println!("cargo:rerun-if-changed=android/ControlEntradaStarSeed.kt");
     println!("cargo:rerun-if-changed=android/ProyeccionPantallaStarSeed.kt"); // PENC1
+    println!("cargo:rerun-if-changed=src/control_regla_g.txt"); // FSG1116 · la regla G de Kotlin sale de aquí
     println!("cargo:rerun-if-env-changed=STARSEED_SIN_CONTROL_ENTRADA");
     if std::env::var("CARGO_CFG_TARGET_OS").as_deref() != Ok("android") {
         return;

@@ -32,6 +32,17 @@ describe("IND1115F · lo que dice Rust al negar la sesión", () => {
         expect(r.detalle?.error).toBe("superposicion:sin-permiso");
     });
 
+    it("FSG1116 · A2: el puente manda a Rust la orden firmada junto a lo demás", async () => {
+        const vistos: Array<Record<string, unknown> | undefined> = [];
+        tauri(async (_cmd, args) => {
+            vistos.push(args);
+            return "c".repeat(32);
+        });
+        const sobre = { v: 1, carga: "abc", firma: "def" };
+        expect(await crearPuenteTauri().abrir("de", "Mac", "ver", sobre)).toEqual({ ok: true, token: "c".repeat(32) });
+        expect(vistos[0]).toEqual({ de: "de", nombre: "Mac", nivel: "ver", sobre });
+    });
+
     it("lee el estado del indicador con el último rechazo; fuera de la app, null", async () => {
         expect(await estadoIndicadorNativo()).toBeNull();
         tauri(async () => ({ indicador_posible: false, falta: ["notificaciones", 3], ultimo_rechazo: { hace_ms: 5, falta: ["notificaciones"], paso: "permisos", error: "", tras_ms: 0 } }));

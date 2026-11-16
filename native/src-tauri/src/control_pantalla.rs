@@ -60,6 +60,12 @@ fn iniciar(app: &tauri::AppHandle, sesion: &str, lado: u32, calidad: u32, prefer
     if puerta_sesion(app, sesion, ModoPuerta::Actividad).is_err() {
         return json!({ "ok": false, "motivo": "sesion" });
     }
+    // FSG1116 · A2: la pantalla solo para el controlador que abrió la sesión con su orden firmada y SIGUE aceptado aquí.
+    let aceptados = es::leer(app, crate::control_entrada::ACEPTADOS).map(|t| l::leer_aceptados(&t)).unwrap_or_default();
+    match crate::control_neuronas::de_de_sesion(sesion) {
+        Some(de) if aceptados.iter().any(|a| a.huella == de) => {}
+        _ => return json!({ "ok": false, "motivo": "sesion" }),
+    }
     // PENC2: qué hay de verdad en el aparato (lo mide Kotlin) → qué fuente se puede usar, o qué falta y lo arregla la persona allí.
     let k = es::llamar(app, json!({ "tipo": "capacidades" }), crate::control_entrada::ESPERA_MS);
     let b = |c: &str| k.as_ref().and_then(|k| k.get(c)).and_then(|x| x.as_bool()).unwrap_or(false);
@@ -126,6 +132,10 @@ fn cuadro(app: &tauri::AppHandle, sesion: &str, desde: u32) -> Vec<u8> {
     }
     if modo == ModoPuerta::Actividad {
         ULTIMA_ACTIVIDAD.store(ahora, Ordering::Relaxed);
+    }
+    // FSG1116 · M2: en pausa local no sale ningún cuadro (lo que la persona teclea para recuperar el control no se ve).
+    if crate::control_neuronas::sesion_pausada(sesion) {
+        return Vec::new();
     }
     match crate::control_entrada::es::leer_bytes(app, crate::control_entrada::CUADRO) {
         Some(b) => l::cuadro_si_nuevo(&b, desde).map(<[u8]>::to_vec).unwrap_or_default(),

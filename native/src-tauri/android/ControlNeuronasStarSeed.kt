@@ -97,6 +97,8 @@ object ControlNeuronasNativo : Application.ActivityLifecycleCallbacks {
     @Volatile var sesion: String? = null
     @Volatile var nombre: String = ""
     @Volatile var pausada = false
+    /** FSG1116 · M1: lo pone el servicio del indicador; lo llama la entrada cuando Android cancela un gesto por un toque. */
+    @Volatile var pausarLocal: (() -> Unit)? = null
     @Volatile var desdeMs = 0L
     private var terminada: JSONObject? = null
     // IND1115F: en qué paso quedó el último intento de «mostrar» y por qué (Rust lo lee para decir QUÉ falló).
@@ -212,7 +214,9 @@ object ControlNeuronasNativo : Application.ActivityLifecycleCallbacks {
     }
 
     private fun dialogoInterruptor(a: Activity) {
-        AlertDialog.Builder(a)
+        if (ControlEntradaNativo.congelado()) return // FSG1116 · B3: un consentimiento a la vez
+        val g = ControlEntradaNativo.Guarda() // FSG1116 · C1
+        val b = AlertDialog.Builder(a)
             .setTitle("¿Dejar que tus otras neuronas controlen esta tableta?")
             .setMessage(
                 "Solo aparatos de tu cuenta que hayas aceptado. Mientras alguno la controle verás una notificación fija y un borde rojo, " +
@@ -220,6 +224,7 @@ object ControlNeuronasNativo : Application.ActivityLifecycleCallbacks {
                     "Para eso Android te pedirá permitir las notificaciones y «Mostrar sobre otras apps»."
             )
             .setPositiveButton("Sí, dejar") { _, _ ->
+                if (!g.valida()) return@setPositiveButton // FSG1116 · C1: un «Sí» inyectado no enciende nada
                 guardarInterruptor(true)
                 pedirPermisosQueFaltan()
                 escribirEstado()
@@ -229,7 +234,7 @@ object ControlNeuronasNativo : Application.ActivityLifecycleCallbacks {
                 escribirEstado()
             }
             .setCancelable(true)
-            .show().also { ControlEntradaNativo.vigilarDialogo(it) } // AND1115K: regla G protege este diálogo
+        ControlEntradaNativo.mostrarConsentimiento(b, g) // FSG1116 · C1: entrada remota congelada desde ya hasta que se cierre
     }
 
     /** IND1115F: el botón «Activar» del panel: si ya está encendido, pide lo que falte; si no, el diálogo nativo. */
@@ -425,6 +430,7 @@ class ServicioControlNeuronas : Service() {
         }
         ControlNeuronasNativo.paso = "mostrando"
         ControlNeuronasNativo.desdeMs = System.currentTimeMillis()
+        ControlNeuronasNativo.pausarLocal = { principal.post { pausaLocal() } } // FSG1116 · M1
         ControlNeuronasNativo.mostrando = true
         principal.removeCallbacks(latido)
         principal.post(latido)
@@ -552,6 +558,8 @@ class ServicioControlNeuronas : Service() {
         if (!ControlNeuronasNativo.mostrando || ControlNeuronasNativo.pausada) return
         if (System.currentTimeMillis() - ControlNeuronasNativo.desdeMs < ControlNeuronasNativo.GRACIA_MS) return
         ControlNeuronasNativo.pausada = true
+        ServicioControlEntrada.instancia?.cortar() // FSG1116 · M1/M6: la pausa corta también el gesto en curso
+        ControlEntradaNativo.borrarCuadro() // FSG1116 · M2: en pausa no queda ni sale ningún cuadro
         ControlNeuronasNativo.escribirEstado()
         refrescarAviso()
     }

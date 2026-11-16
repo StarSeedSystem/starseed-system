@@ -1,0 +1,49 @@
+# FSG1116 · Regla G: la ÚNICA lista de lo que la entrada remota no toca nunca.
+# La leen Rust (`include_str!` en control_entrada_logica.rs) y Kotlin (build.rs escribe ReglaGStarSeed.kt desde
+# este archivo; `control_entrada_parche::kotlin_regla_g`). Una prueba de Rust comprueba que dicen lo mismo.
+# Se decide por PAQUETE y por el TIPO de ventana que da Android, nunca por nombres de clase ni por títulos
+# (que cambian con el idioma y con el fabricante). Ante la duda, se niega.
+#
+#   protegido <paquete>  cualquier ventana de ese paquete a la vista: la entrada remota se niega (y la cola se tira).
+#   sistema <paquete>    solo sus ventanas de ACTIVIDAD (diálogos a pantalla: proyección, USB, permisos); la cortina
+#                        de notificaciones y los ajustes rápidos son ventanas de sistema y quedan permitidas.
+# Además, en código y no en esta lista (porque no son paquetes fijos): la pantalla de bloqueo (KeyguardManager),
+# un campo de contraseña con el foco, cualquier diálogo de consentimiento de este control pedido y aún abierto, y
+# las ventanas de actividad de la PROPIA app (su panel de control y sus diálogos).
+
+# Permisos de Android (diálogos de permisos y su gestor)
+protegido com.google.android.permissioncontroller
+protegido com.android.permissioncontroller
+protegido com.samsung.android.permissioncontroller
+protegido com.samsung.android.app.permission
+# Instaladores de paquetes
+protegido com.google.android.packageinstaller
+protegido com.android.packageinstaller
+protegido com.samsung.android.packageinstaller
+protegido com.miui.packageinstaller
+# Ajustes, entera, mientras hay sesión: sus pantallas permitidas no se distinguen con fiabilidad de las peligrosas
+protegido com.android.settings
+protegido com.samsung.android.settings
+protegido com.android.settings.intelligence
+protegido com.google.android.settings.intelligence
+protegido com.android.managedprovisioning
+protegido com.miui.securitycenter
+protegido com.coloros.safecenter
+protegido com.oplus.safecenter
+protegido com.huawei.systemmanager
+# Credenciales, cuentas y certificados
+protegido com.android.credentialmanager
+protegido com.google.android.gms
+protegido com.google.android.gsf.login
+protegido com.android.keychain
+protegido com.android.certinstaller
+# Tiendas e instaladores de apps («instalar» es del nivel `modificar`, no de `controlar`)
+protegido com.android.vending
+protegido com.sec.android.app.samsungapps
+protegido com.huawei.appmarket
+protegido com.xiaomi.market
+protegido com.amazon.venezia
+protegido org.fdroid.fdroid
+protegido com.aurora.store
+# Interfaz del sistema: solo sus actividades (consentimiento de captura, USB, etc.)
+sistema com.android.systemui

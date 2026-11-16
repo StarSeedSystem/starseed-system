@@ -263,10 +263,24 @@ fn es_hex(s: &str, n: usize) -> bool {
     s.len() == n && s.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
 }
 
-/// Comprueba el sobre contra los aceptados, la sesión (token y nivel) y el reloj. Devuelve la orden o el
-/// `Motivo` con el que se rechaza (y un detalle corto SOLO para el registro, nunca contenido de la orden).
-/// El orden es: forma → aceptado → firma → sesión/nivel → reloj → repetición → límite. Nada de esto toca Kotlin.
-pub fn verificar_sobre(sobre: &Value, aceptados: &[Aceptado], sesion: &str, nivel_sesion: &str, ahora_ms: i64, vistos: &mut Vistos) -> Result<OrdenEntrada, (Motivo, &'static str)> {
+/// FSG1116 · Una carga ya leída y con la firma comprobada contra un controlador ACEPTADO en este aparato.
+#[derive(Debug, Clone)]
+pub struct Firmada {
+    pub de: String,
+    pub nivel: String,
+    pub sesion: Option<String>,
+    pub seq: u64,
+    pub nonce: String,
+    pub t: i64,
+    pub caduca: i64,
+    pub nombre: String,
+    pub args: Value,
+    pub aceptado: Aceptado,
+}
+
+/// Forma → aceptado → firma. Lo comparten la entrada (`verificar_sobre`) y la apertura de sesión
+/// (`verificar_apertura`), para que las dos digan lo mismo de una misma orden.
+pub fn leer_firmada(sobre: &Value, aceptados: &[Aceptado]) -> Result<Firmada, (Motivo, &'static str)> {
     use Motivo::*;
     let o = sobre.as_object().ok_or((Firma, "sobre-sin-forma"))?;
     if o.get("v").and_then(|x| x.as_u64()) != Some(1) {
@@ -291,8 +305,8 @@ pub fn verificar_sobre(sobre: &Value, aceptados: &[Aceptado], sesion: &str, nive
     let para_ok = co.get("para").and_then(|x| x.as_str()).is_some_and(|s| (1..=100).contains(&s.len()) && s.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-'));
     let nivel = co.get("nivel").and_then(|x| x.as_str()).filter(|n| matches!(*n, "ver" | "controlar")).ok_or((Firma, "nivel"))?;
     let ses_carga = match co.get("sesion") {
-        Some(Value::Null) => None,
-        Some(Value::String(s)) if es_hex(s, 32) => Some(s.as_str()),
+        Some(Value::Null) | None => None,
+        Some(Value::String(s)) if es_hex(s, 32) => Some(s.clone()),
         _ => return Err((Firma, "sesion-forma")),
     };
     let seq = co.get("seq").and_then(|x| x.as_u64()).filter(|s| *s >= 1 && *s < (1u64 << 53)).ok_or((Firma, "seq"))?;
@@ -311,6 +325,80 @@ pub fn verificar_sobre(sobre: &Value, aceptados: &[Aceptado], sesion: &str, nive
     let (clave, _) = clave_de_spki(&acep.spki).ok_or((NoAutorizado, "clave-aceptada-invalida"))?;
     let sig = Signature::from_slice(&firma).map_err(|_| (Firma, "firma-forma"))?;
     clave.verify(&bytes, &sig).map_err(|_| (Firma, "firma-no-casa"))?;
+    Ok(Firmada { de: de.into(), nivel: nivel.into(), sesion: ses_carga, seq, nonce: nonce.into(), t, caduca, nombre: nombre.into(), args: args.clone(), aceptado: acep.clone() })
+}
+
+/// Reloj (±5 min entre las dos puntas) y vida de 2 min.
+fn en_hora(f: &Firmada, ahora_ms: i64) -> Result<(), (Motivo, &'static str)> {
+    if (ahora_ms - f.t).abs() > DESFASE_MAX_MS {
+        return Err((Motivo::Firma, "reloj"));
+    }
+    if ahora_ms > f.caduca + DESFASE_MAX_MS || f.caduca < f.t || f.caduca - f.t > VIDA_ORDEN_MS + 1_000 {
+        return Err((Motivo::Firma, "caducada"));
+    }
+    Ok(())
+}
+
+fn no_repetida(f: &Firmada, vistos: &Vistos) -> Result<(), (Motivo, &'static str)> {
+    if vistos.seq.get(&f.de).is_some_and(|ultimo| f.seq <= *ultimo) || vistos.nonces.iter().any(|n| *n == f.nonce) {
+        return Err((Motivo::Firma, "repetida"));
+    }
+    Ok(())
+}
+
+fn anotar_vista(f: &Firmada, vistos: &mut Vistos) {
+    vistos.seq.insert(f.de.clone(), f.seq);
+    vistos.nonces.push_back(f.nonce.clone());
+    while vistos.nonces.len() > 256 {
+        vistos.nonces.pop_front();
+    }
+}
+
+/// FSG1116 · A2: lo que abre una sesión en el aparato controlado, decidido en lo NATIVO.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Apertura {
+    /// Huella del controlador (la de `aceptados.json`, no la que diga la página).
+    pub de: String,
+    /// El nombre que la PERSONA aceptó en el diálogo nativo: el que enseña el indicador.
+    pub nombre: String,
+    /// El menor entre lo que firmó el controlador y lo que la página concede (la página solo puede bajar).
+    pub nivel: String,
+}
+
+/// FSG1116 · A2: la orden firmada `abrir-sesion` de un controlador ACEPTADO aquí, en hora y no repetida. Sin ella
+/// no hay sesión, ni pantalla, ni cuadros. `nivel_pagina` es lo que la página concede: puede bajar el nivel firmado,
+/// nunca subirlo. `vistos` es propio de las aperturas y NO se olvida al cerrar una sesión (una apertura vieja no
+/// sirve para abrir otra). Los argumentos de `abrir-sesion` van vacíos (`sinArgs` de la web).
+pub fn verificar_apertura(sobre: &Value, aceptados: &[Aceptado], nivel_pagina: &str, ahora_ms: i64, vistos: &mut Vistos) -> Result<Apertura, (Motivo, &'static str)> {
+    let f = leer_firmada(sobre, aceptados)?;
+    if f.nombre != "abrir-sesion" {
+        return Err((Motivo::Firma, "no-es-abrir-sesion"));
+    }
+    if f.sesion.is_some() || f.args.as_object().is_some_and(|a| !a.is_empty()) {
+        return Err((Motivo::Firma, "abrir-sesion-forma"));
+    }
+    en_hora(&f, ahora_ms)?;
+    no_repetida(&f, vistos)?;
+    let nivel = match (f.nivel.as_str(), nivel_pagina) {
+        ("controlar", "controlar") => "controlar",
+        (_, "ver" | "controlar") => "ver",
+        _ => return Err((Motivo::Sesion, "nivel")),
+    };
+    anotar_vista(&f, vistos);
+    let nombre = {
+        let n: String = f.aceptado.nombre.chars().filter(|c| !c.is_control()).take(40).collect();
+        if n.trim().is_empty() { "otra neurona".to_string() } else { n.trim().to_string() }
+    };
+    Ok(Apertura { de: f.de, nombre, nivel: nivel.into() })
+}
+
+/// Comprueba el sobre contra los aceptados, la sesión (token y nivel) y el reloj. Devuelve la orden o el
+/// `Motivo` con el que se rechaza (y un detalle corto SOLO para el registro, nunca contenido de la orden).
+/// El orden es: forma → aceptado → firma → sesión/nivel → reloj → repetición → límite. Nada de esto toca Kotlin.
+pub fn verificar_sobre(sobre: &Value, aceptados: &[Aceptado], sesion: &str, nivel_sesion: &str, ahora_ms: i64, vistos: &mut Vistos) -> Result<OrdenEntrada, (Motivo, &'static str)> {
+    use Motivo::*;
+    let f = leer_firmada(sobre, aceptados)?;
+    let (de, nivel, ses_carga, nombre) = (f.de.as_str(), f.nivel.as_str(), f.sesion.as_deref(), f.nombre.as_str());
 
     // La sesión abierta y su nivel: la carga debe ir atada a ESTA sesión y pedir `controlar`.
     if ses_carga != Some(sesion) {
@@ -320,27 +408,14 @@ pub fn verificar_sobre(sobre: &Value, aceptados: &[Aceptado], sesion: &str, nive
         return Err((Sesion, "nivel"));
     }
 
-    // Reloj (±5 min entre las dos puntas) y vida de 2 min.
-    if (ahora_ms - t).abs() > DESFASE_MAX_MS {
-        return Err((Firma, "reloj"));
-    }
-    if ahora_ms > caduca + DESFASE_MAX_MS || caduca < t || caduca - t > VIDA_ORDEN_MS + 1_000 {
-        return Err((Firma, "caducada"));
-    }
-
-    // Repetición: `seq` estrictamente creciente por aparato y nonce no visto.
-    if vistos.seq.get(de).is_some_and(|ultimo| seq <= *ultimo) || vistos.nonces.iter().any(|n| n == nonce) {
-        return Err((Firma, "repetida"));
-    }
-    let args = normalizar(nombre, args).map_err(|d| (Firma, d))?;
+    en_hora(&f, ahora_ms)?;
+    no_repetida(&f, vistos)?;
+    let args = normalizar(nombre, &f.args).map_err(|d| (Firma, d))?;
     if !vistos.cabe(ahora_ms.max(0) as u64) {
         return Err((Limite, "mas-de-60-por-segundo"));
     }
-    vistos.seq.insert(de.to_string(), seq);
-    vistos.nonces.push_back(nonce.to_string());
-    while vistos.nonces.len() > 256 {
-        vistos.nonces.pop_front();
-    }
+    anotar_vista(&f, vistos);
+    let seq = f.seq;
     Ok(OrdenEntrada { nombre: nombre.to_string(), args, de: de.to_string(), seq })
 }
 
@@ -396,47 +471,44 @@ pub fn normalizar(nombre: &str, args: &Value) -> Result<Value, &'static str> {
     }
 }
 
-// ─────────────────────────── Regla G ───────────────────────────
-// (Kotlin repite estas listas: `control_entrada_parche::kotlin_y_rust_dicen_lo_mismo` lo comprueba.)
+// ─────────────────────────── Regla G (FSG1116: por paquete y tipo de ventana, una sola lista) ───────────────────────────
 
-/// Paquetes cuya ventana en primer plano es siempre un diálogo de permisos o de instalación.
-pub const PAQUETES_G: [&str; 7] = [
-    "com.google.android.permissioncontroller",
-    "com.android.permissioncontroller",
-    "com.samsung.android.permissioncontroller",
-    "com.google.android.packageinstaller",
-    "com.android.packageinstaller",
-    "com.samsung.android.packageinstaller",
-    "com.samsung.android.app.permission",
-];
-/// Paquetes de Ajustes: solo protegen las pantallas de `CLASES_AJUSTES_G`.
-pub const PAQUETES_AJUSTES: [&str; 2] = ["com.android.settings", "com.samsung.android.settings"];
-pub const CLASES_AJUSTES_G: [&str; 14] = [
-    "accessibility",
-    "deviceadmin",
-    "specialaccess",
-    "drawoverlay",
-    "overlaysettings",
-    "writesettings",
-    "usageaccess",
-    "notificationaccess",
-    "managedeviceadmins",
-    "installedappdetails",
-    "appinfodashboard",
-    "manageappexternalsources",
-    "restrictedsettings",
-    "alldevicesadmin",
-];
-/// Diálogos del sistema (SystemUI) de consentimiento de captura.
-pub const CLASES_SISTEMA_G: [&str; 3] = ["mediaprojectionpermission", "screencapturepermission", "mediaprojectionappselector"];
+/// La ÚNICA lista (Rust la lee aquí; build.rs escribe con ella ReglaGStarSeed.kt para Kotlin).
+pub const REGLA_G_TXT: &str = include_str!("control_regla_g.txt");
 
-/// ¿La ventana (paquete + clase de actividad o título) está protegida por la regla G? Mayúsculas no importan.
-pub fn regla_g(paquete: &str, clase: &str) -> bool {
-    let p = paquete.to_lowercase();
-    let c = clase.to_lowercase();
-    PAQUETES_G.iter().any(|x| p == *x)
-        || (PAQUETES_AJUSTES.iter().any(|x| p == *x) && CLASES_AJUSTES_G.iter().any(|x| c.contains(x)))
-        || (p == "com.android.systemui" && CLASES_SISTEMA_G.iter().any(|x| c.contains(x)))
+/// (protegidos, sistema) de `control_regla_g.txt`. Una línea mal formada hace fallar la prueba, no se ignora.
+pub fn regla_g_listas() -> (Vec<&'static str>, Vec<&'static str>) {
+    let (mut p, mut s) = (Vec::new(), Vec::new());
+    for l in REGLA_G_TXT.lines().map(str::trim).filter(|l| !l.is_empty() && !l.starts_with('#')) {
+        match l.split_once(' ') {
+            Some(("protegido", x)) => p.push(x.trim()),
+            Some(("sistema", x)) => s.push(x.trim()),
+            _ => panic!("control_regla_g.txt: línea sin forma «{l}»"),
+        }
+    }
+    (p, s)
+}
+
+/// Una ventana a la vista tal como la da Android (`AccessibilityWindowInfo`): su paquete (None si no se sabe) y si es
+/// de tipo APLICACIÓN (una actividad o un diálogo de actividad; la cortina, los ajustes rápidos, el teclado y las
+/// superposiciones no lo son).
+#[derive(Debug, Clone, Copy)]
+pub struct VentanaG<'a> {
+    pub paquete: Option<&'a str>,
+    pub actividad: bool,
+}
+
+/// Lo que mira la regla G en el instante de DESPACHAR cada trazo (no al encolarlo). Kotlin repite esta función
+/// (`ControlEntradaNativo.reglaG`) con las mismas cláusulas; una prueba lo comprueba. Ante la duda, `true` (se niega).
+pub fn regla_g(ventanas: &[VentanaG], propio: &str, bloqueada: bool, congelada: bool, contrasena: bool) -> bool {
+    if congelada || bloqueada || contrasena || ventanas.is_empty() {
+        return true;
+    }
+    let (protegidos, sistema) = regla_g_listas();
+    ventanas.iter().any(|v| match v.paquete.map(str::to_lowercase) {
+        None => v.actividad, // una actividad de quien no se sabe: no se toca
+        Some(p) => protegidos.iter().any(|x| p == *x) || (v.actividad && (p == propio || sistema.iter().any(|x| p == *x))),
+    })
 }
 
 // ─────────────────────────── Contadores de sesión (una línea al empezar, otra al acabar) ───────────────────────────
@@ -741,30 +813,80 @@ mod pruebas {
     }
 
     #[test]
-    fn regla_g_ventanas_protegidas_y_permitidas() {
-        for (p, c) in [
-            ("com.google.android.permissioncontroller", "com.android.permissioncontroller.permission.ui.GrantPermissionsActivity"),
-            ("com.android.packageinstaller", ""),
-            ("com.android.settings", "com.android.settings.Settings$AccessibilitySettingsActivity"),
-            ("com.android.settings", "com.android.settings.deviceadmin.DeviceAdminAdd"),
-            ("com.android.settings", "com.android.settings.Settings$AppDrawOverlaySettingsActivity"),
-            ("com.android.settings", "com.android.settings.applications.InstalledAppDetails"),
-            ("com.samsung.android.settings", "x.SpecialAccessSettings"),
-            ("com.android.systemui", "com.android.systemui.mediaprojection.permission.MediaProjectionPermissionActivity"),
-        ] {
-            assert!(regla_g(p, c), "{p} {c}");
+    fn regla_g_por_paquete_y_tipo_de_ventana_sin_depender_del_idioma() {
+        let propio = "app.starseed.os";
+        let v = |p: &'static str, actividad: bool| VentanaG { paquete: Some(p), actividad };
+        // Protegido con cualquier clase o título, en cualquier idioma: lo decide el paquete.
+        for p in ["com.android.settings", "com.samsung.android.settings", "com.google.android.permissioncontroller", "com.android.packageinstaller", "com.android.vending", "com.google.android.gms", "com.android.credentialmanager"] {
+            assert!(regla_g(&[v(p, true)], propio, false, false, false), "{p}");
+            assert!(regla_g(&[v("com.example.notas", true), v(p, false)], propio, false, false, false), "{p} en otra ventana a la vista");
         }
-        // Permitido: ajustes rápidos, sombra de notificaciones, ajustes ordinarios, otras apps.
-        for (p, c) in [
-            ("com.android.systemui", "com.android.systemui.qs.QSPanel"),
-            ("com.android.systemui", "NotificationShade"),
-            ("com.android.settings", "com.android.settings.Settings$WifiSettingsActivity"),
-            ("com.android.settings", "com.android.settings.Settings$DisplaySettingsActivity"),
-            ("app.starseed.os", "app.starseed.os.MainActivity"),
-            ("com.example.otra", "Permisos"),
-        ] {
-            assert!(!regla_g(p, c), "{p} {c}");
-        }
+        // La interfaz del sistema: sus actividades (consentimiento de captura, USB) no; la cortina y los ajustes rápidos sí.
+        assert!(regla_g(&[v("com.android.systemui", true)], propio, false, false, false));
+        assert!(!regla_g(&[v("com.android.systemui", false), v("com.example.notas", true)], propio, false, false, false));
+        // La propia app: su panel y sus diálogos no; su superposición (borde y pastilla) no cuenta.
+        assert!(regla_g(&[v(propio, true)], propio, false, false, false));
+        assert!(!regla_g(&[v(propio, false), v("com.example.notas", true)], propio, false, false, false));
+        // Pantalla bloqueada, consentimiento pedido, contraseña con el foco, nada a la vista o actividad sin paquete: no.
+        let ok = [v("com.example.notas", true)];
+        assert!(!regla_g(&ok, propio, false, false, false));
+        assert!(regla_g(&ok, propio, true, false, false));
+        assert!(regla_g(&ok, propio, false, true, false));
+        assert!(regla_g(&ok, propio, false, false, true));
+        assert!(regla_g(&[], propio, false, false, false));
+        assert!(regla_g(&[VentanaG { paquete: None, actividad: true }], propio, false, false, false));
+        assert!(!regla_g(&[VentanaG { paquete: None, actividad: false }, v("com.example.notas", true)], propio, false, false, false));
+        // Mayúsculas no importan; la lista se lee entera y sin líneas raras.
+        assert!(regla_g(&[v("COM.ANDROID.SETTINGS", false)], propio, false, false, false));
+        let (p, s) = regla_g_listas();
+        assert!(p.len() >= 25 && s == vec!["com.android.systemui"]);
+    }
+
+    /// FSG1116 · A2: firmar una `abrir-sesion` con una clave de prueba (P-256) y su SPKI.
+    fn firmado(clave: u8, carga: Value) -> (Value, Aceptado) {
+        use p256::ecdsa::{signature::Signer, SigningKey};
+        let sk = SigningKey::from_bytes(&[clave; 32].into()).unwrap();
+        let punto = sk.verifying_key().to_encoded_point(false);
+        let mut der = CABECERA_SPKI_P256.to_vec();
+        der.extend_from_slice(punto.as_bytes());
+        let b64 = |b: &[u8]| base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(b);
+        let spki = b64(&der);
+        let huella = huella_de_spki(&spki).unwrap();
+        let mut carga = carga;
+        carga["de"] = Value::String(huella.clone());
+        let bytes = serde_json::to_vec(&carga).unwrap();
+        let firma: Signature = sk.sign(&bytes);
+        (json!({ "v": 1, "carga": b64(&bytes), "firma": b64(&firma.to_bytes()) }), Aceptado { spki, huella, nombre: "Mac de Alex".into(), cuenta: "alex@example.com".into() })
+    }
+    fn carga_abrir(seq: u64, nonce: &str, nivel: &str) -> Value {
+        json!({ "aud": AUD_CONTROL, "v": 1, "de": "", "cuenta": "alex@example.com", "para": "neurona-tableta-01", "nivel": nivel, "sesion": null, "seq": seq, "nonce": nonce,
+            "t": "2026-11-15T10:00:00.000Z", "caduca": "2026-11-15T10:02:00.000Z", "accion": { "nombre": "abrir-sesion", "args": {} } })
+    }
+
+    #[test]
+    fn a2_la_sesion_solo_la_abre_una_orden_firmada_de_un_aceptado_y_el_nombre_es_el_nativo() {
+        let (s, a) = firmado(7, carga_abrir(1, "AAAAAAAAAAAAAAAAAAAAAA", "controlar"));
+        let mut v = Vistos::default();
+        // Sin aceptado aquí (lo que la página diga no cuenta): no.
+        assert_eq!(verificar_apertura(&s, &[], "controlar", AHORA, &mut v).unwrap_err().0, Motivo::NoAutorizado);
+        let ap = verificar_apertura(&s, &[a.clone()], "controlar", AHORA, &mut v).unwrap();
+        assert_eq!(ap, Apertura { de: a.huella.clone(), nombre: "Mac de Alex".into(), nivel: "controlar".into() });
+        // La misma apertura otra vez (o con la sesión ya cerrada): no.
+        assert_eq!(verificar_apertura(&s, &[a.clone()], "controlar", AHORA + 10, &mut v).unwrap_err(), (Motivo::Firma, "repetida"));
+        // La página puede bajar el nivel firmado, nunca subirlo.
+        let (s2, a2) = firmado(7, carga_abrir(2, "BBBBBBBBBBBBBBBBBBBBBB", "ver"));
+        assert_eq!(verificar_apertura(&s2, &[a2], "controlar", AHORA, &mut v).unwrap().nivel, "ver");
+        let (s3, a3) = firmado(7, carga_abrir(3, "CCCCCCCCCCCCCCCCCCCCCC", "controlar"));
+        assert_eq!(verificar_apertura(&s3, &[a3.clone()], "ver", AHORA, &mut v).unwrap().nivel, "ver");
+        // Otra orden firmada (un gesto) no abre sesiones; tampoco fuera de hora.
+        assert_eq!(verificar_apertura(&sobre(GESTO), &aceptados(), "controlar", AHORA, &mut v).unwrap_err(), (Motivo::Firma, "no-es-abrir-sesion"));
+        let (s4, a4) = firmado(7, carga_abrir(4, "DDDDDDDDDDDDDDDDDDDDDD", "controlar"));
+        assert_eq!(verificar_apertura(&s4, &[a4], "controlar", AHORA + 10 * 60_000, &mut v).unwrap_err().0, Motivo::Firma);
+        // Firmada por otra clave que dice ser la aceptada: no casa.
+        let (mut s5, _) = firmado(9, carga_abrir(5, "EEEEEEEEEEEEEEEEEEEEEE", "controlar"));
+        let (s5b, _) = firmado(7, carga_abrir(5, "EEEEEEEEEEEEEEEEEEEEEE", "controlar"));
+        s5["carga"] = s5b["carga"].clone();
+        assert_eq!(verificar_apertura(&s5, &[a3], "controlar", AHORA, &mut v).unwrap_err(), (Motivo::Firma, "firma-no-casa"));
     }
 
     #[test]

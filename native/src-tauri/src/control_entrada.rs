@@ -111,6 +111,8 @@ fn entrada(app: &tauri::AppHandle, sesion: &str, sobre: &Value) -> Value {
     let aceptados = es::leer(app, ACEPTADOS).map(|t| l::leer_aceptados(&t)).unwrap_or_default();
     let ahora = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as i64).unwrap_or(0);
     let v = l::verificar_sobre(sobre, &aceptados, sesion, &nivel, ahora, &mut vistos());
+    // FSG1116 · B1: la orden la firma el MISMO controlador que abrió la sesión.
+    let v = v.and_then(|o| if crate::control_neuronas::de_de_sesion(sesion).as_deref() == Some(o.de.as_str()) { Ok(o) } else { Err((l::Motivo::NoAutorizado, "otro-controlador")) });
     let orden = match v {
         Ok(o) => o,
         Err((m, detalle)) => {

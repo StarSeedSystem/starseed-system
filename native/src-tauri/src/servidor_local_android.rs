@@ -101,6 +101,14 @@ fn g() -> &'static Global {
     })
 }
 
+/// FSG1116 · M5: el puerto que ESTA app sirve ahora (None si no sirve). Lo usa la puerta del control.
+pub(crate) fn puerto_sirviendo() -> Option<u16> {
+    match fase() {
+        Fase::Local(p) => Some(p),
+        _ => None,
+    }
+}
+
 fn fase() -> Fase {
     g().fase.lock().map(|f| f.clone()).unwrap_or(Fase::Respaldo("estado interno inaccesible".into()))
 }

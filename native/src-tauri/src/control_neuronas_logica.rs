@@ -96,6 +96,14 @@ pub fn nombre_limpio(s: &str) -> String {
     }
 }
 
+/// FSG1116 · M5: ¿puede esta URL usar los comandos del control? La web publicada (https, ese host exacto) o el
+/// servidor local que la app sirve AHORA en `puerto_local`. Nada más (ni otro puerto de 127.0.0.1, ni http del host).
+#[cfg_attr(not(target_os = "android"), allow(dead_code))]
+pub fn origen_de_control_ok(url: &str, puerto_local: Option<u16>) -> bool {
+    let empieza = |o: &str| url == o || [format!("{o}/"), format!("{o}?"), format!("{o}#")].iter().any(|p| url.starts_with(p.as_str()));
+    empieza("https://starseed-os.vercel.app") || puerto_local.is_some_and(|p| empieza(&format!("http://127.0.0.1:{p}")))
+}
+
 impl Control {
     pub fn activa(&self) -> Option<&Sesion> {
         self.sesion.as_ref()
@@ -456,5 +464,17 @@ mod pruebas {
             assert!(motivo_apaga(m), "{m}");
         }
         assert!(!motivo_apaga("cerrar-sesion") && !motivo_apaga("a-mano") && !motivo_apaga("pagina"));
+    }
+
+    #[test]
+    fn m5_solo_la_web_publicada_o_el_puerto_que_sirve_la_app() {
+        assert!(origen_de_control_ok("https://starseed-os.vercel.app/genesis?x=1", None));
+        assert!(origen_de_control_ok("https://starseed-os.vercel.app", None));
+        assert!(!origen_de_control_ok("https://starseed-os.vercel.app.evil.com/", None));
+        assert!(!origen_de_control_ok("http://starseed-os.vercel.app/", None));
+        assert!(!origen_de_control_ok("http://127.0.0.1:47613/", None), "un puerto de la lista que la app no sirve");
+        assert!(!origen_de_control_ok("http://127.0.0.1:47613/", Some(47610)));
+        assert!(origen_de_control_ok("http://127.0.0.1:47610/escritorios", Some(47610)));
+        assert!(!origen_de_control_ok("http://127.0.0.1:476100/", Some(47610)));
     }
 }

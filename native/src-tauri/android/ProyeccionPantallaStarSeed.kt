@@ -48,6 +48,15 @@ object ProyeccionPantalla {
     /** Token de la sesión de control para la que la persona dijo «Sí». Solo en memoria. */
     @Volatile var consentidaPara: String? = null
     private var preguntaHasta = 0L
+    /** FSG1116 · C1: el «Sí» propio pasó a la pantalla de Android; la entrada sigue congelada hasta que Android conteste. */
+    @Volatile var congeladaEnSistema = false
+
+    /** FSG1116 · C1: la pantalla de consentimiento de Android ya contestó (o no llegó a abrirse): se descongela. */
+    fun sistemaContesto() {
+        if (!congeladaEnSistema) return
+        congeladaEnSistema = false
+        ControlEntradaNativo.descongelar()
+    }
 
     fun concedida(): Boolean = servicio != null && consentidaPara != null && consentidaPara == ControlNeuronasNativo.sesion
 
@@ -63,8 +72,11 @@ object ProyeccionPantalla {
         if (concedida()) return JSONObject().put("ok", true).put("dialogo", false)
         val ahora = System.currentTimeMillis()
         if (ahora < preguntaHasta) return JSONObject().put("ok", true).put("dialogo", false) // ya se preguntó hace poco: no se apila
+        if (ControlEntradaNativo.congelado()) return JSONObject().put("ok", true).put("dialogo", false) // FSG1116 · B3
         preguntaHasta = ahora + 30_000L
-        val d = AlertDialog.Builder(a)
+        val g = ControlEntradaNativo.Guarda() // FSG1116 · C1
+        var alSistema = false
+        val b = AlertDialog.Builder(a)
             .setTitle("¿Compartir la pantalla en esta sesión?")
             .setMessage(
                 "Otra neurona de tu cuenta, que aceptaste aquí, quiere ver esta pantalla con fluidez. Android te va a preguntar ahora " +
@@ -72,12 +84,14 @@ object ProyeccionPantalla {
                     "o con «Dejar de compartir». Los cuadros no se guardan."
             )
             .setPositiveButton("Sí, continuar") { _, _ ->
-                try { a.startActivity(Intent(a, ProyeccionConsentimientoActivity::class.java)) } catch (_: Throwable) { preguntaHasta = 0L }
+                if (!g.valida()) { preguntaHasta = 0L; return@setPositiveButton } // FSG1116 · C1
+                // El congelado sigue hasta que la pantalla de Android conteste (`sistemaContesto`).
+                ControlEntradaNativo.congelar(); congeladaEnSistema = true; alSistema = true
+                try { a.startActivity(Intent(a, ProyeccionConsentimientoActivity::class.java)) } catch (_: Throwable) { preguntaHasta = 0L; sistemaContesto() }
             }
             .setNegativeButton("No") { _, _ -> preguntaHasta = 0L }
             .setCancelable(true)
-            .show()
-        ControlEntradaNativo.vigilarDialogo(d)
+        ControlEntradaNativo.mostrarConsentimiento(b, g) { if (!alSistema) preguntaHasta = 0L }
         return JSONObject().put("ok", true).put("dialogo", true)
     }
 
@@ -102,11 +116,17 @@ class ProyeccionConsentimientoActivity : Activity() {
     override fun onCreate(b: Bundle?) {
         super.onCreate(b)
         // Recreada por el sistema, o sin sesión de control a la vista: no se vuelve a preguntar.
-        if (b != null || !ControlNeuronasNativo.encendido() || !ControlNeuronasNativo.mostrando || ControlNeuronasNativo.sesion == null) { finish(); return }
+        if (b != null || !ControlNeuronasNativo.encendido() || !ControlNeuronasNativo.mostrando || ControlNeuronasNativo.sesion == null) { ProyeccionPantalla.sistemaContesto(); finish(); return }
         try {
             val mpm = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
             startActivityForResult(mpm.createScreenCaptureIntent(), peticion)
-        } catch (_: Throwable) { finish() }
+        } catch (_: Throwable) { ProyeccionPantalla.sistemaContesto(); finish() }
+    }
+
+    // FSG1116 · C1: pase lo que pase (contestó, se canceló, se destruyó), el congelado de la proyección se suelta aquí.
+    override fun onDestroy() {
+        ProyeccionPantalla.sistemaContesto()
+        super.onDestroy()
     }
 
     override fun onActivityResult(codigo: Int, resultado: Int, datos: Intent?) {
@@ -116,6 +136,7 @@ class ProyeccionConsentimientoActivity : Activity() {
             val i = Intent(this, ServicioProyeccionPantalla::class.java).putExtra("codigo", resultado).putExtra("datos", datos).putExtra("sesion", token)
             try { if (Build.VERSION.SDK_INT >= 26) startForegroundService(i) else startService(i) } catch (_: Throwable) { /* sin servicio: sin pantalla */ }
         }
+        ProyeccionPantalla.sistemaContesto() // FSG1116 · C1
         finish()
     }
 }
@@ -237,6 +258,8 @@ class ServicioProyeccionPantalla : Service() {
             return
         }
         if (!ControlNeuronasNativo.mostrando) { principal.post { detener() }; return }
+        // FSG1116 · M2: en pausa (o bloqueada) no se escribe ningún cuadro; el lector suelta el suyo.
+        if (!ControlEntradaNativo.puedePublicarCuadro()) { try { l.acquireLatestImage()?.close() } catch (_: Throwable) {}; ControlEntradaNativo.borrarCuadro(); return }
         val img = (try { l.acquireLatestImage() } catch (_: Throwable) { null }) ?: return
         try {
             ultimo = System.currentTimeMillis()
@@ -281,6 +304,7 @@ class ServicioProyeccionPantalla : Service() {
             tmp.outputStream().use { it.write(c); it.write(jpeg) }
             tmp.renameTo(File(d, ControlEntradaNativo.CUADRO))
         } catch (_: Exception) {}
+        if (!capturando || deteniendo) ControlEntradaNativo.borrarCuadro() // FSG1116 · M3: detener() llegó mientras se escribía
     }
 
     /** Suelta TODO: pantalla virtual, lector, proyección, notificación y el consentimiento de esta sesión. */

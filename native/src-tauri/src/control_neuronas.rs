@@ -166,6 +166,19 @@ fn exigir_pagina(app: &AppHandle, webview: &tauri::Webview) -> Result<(), String
     if !crate::nativa::es_starseed_os(app) || webview.label() != "main" {
         return Err("no-aplica".into());
     }
+    // FSG1116 · M5: en Android los comandos del control solo los da la página de StarSeed OS publicada o el servidor
+    // local que ESTA app sirve en ese momento; otra cosa que escuche en 127.0.0.1:4761x no los tiene.
+    #[cfg(target_os = "android")]
+    {
+        let url = webview.url().map(|u| u.to_string()).unwrap_or_default();
+        #[cfg(starseed_servidor_android)]
+        let puerto = crate::servidor_local_android::puerto_sirviendo();
+        #[cfg(not(starseed_servidor_android))]
+        let puerto: Option<u16> = None;
+        if !l::origen_de_control_ok(&url, puerto) {
+            return Err("no-aplica".into());
+        }
+    }
     Ok(())
 }
 
@@ -178,8 +191,21 @@ fn exigir_pagina(app: &AppHandle, webview: &tauri::Webview) -> Result<(), String
 /// El rechazo por falta de indicador lleva el detalle tras el código: «sin-indicador-nativo falta=… paso=… tras=…».
 #[cfg_attr(target_os = "android", tauri::command(async))]
 #[cfg_attr(not(target_os = "android"), tauri::command)]
-pub fn control_neuronas_abrir(app: AppHandle, webview: tauri::Webview, de: String, nombre: String, nivel: String) -> Result<String, String> {
+pub fn control_neuronas_abrir(app: AppHandle, webview: tauri::Webview, de: String, nombre: String, nivel: String, sobre: Option<serde_json::Value>) -> Result<String, String> {
     exigir_pagina(&app, &webview)?;
+    // FSG1116 · A2: en Android la sesión (y con ella la pantalla y los cuadros) solo la abre la orden firmada
+    // `abrir-sesion` de un controlador que la persona aceptó en el diálogo nativo, comprobada AQUÍ como la entrada.
+    // El `de` y el NOMBRE del indicador salen de `aceptados.json`, nunca de lo que diga la página.
+    #[cfg(target_os = "android")]
+    let (de, nombre, nivel) = match apertura_nativa(&app, sobre.as_ref(), &nivel) {
+        Ok(a) => (a.de, a.nombre, a.nivel),
+        Err(m) => {
+            anotar(&app, "sesion-rechazada", &format!("de=- motivo={m}"));
+            return Err(m.into());
+        }
+    };
+    #[cfg(not(target_os = "android"))]
+    let _ = &sobre; // escritorio: sin entrada ni pantalla nativas (`sin-soporte`); ver contrato §12.3
     // ORD1114T: una cadena rota se DETECTA y queda dicha en la propia cadena (y en el estado); no se tapa.
     if let Some(n) = ruta_registro(&app).and_then(|r| std::fs::read_to_string(r).ok()).and_then(|t| l::verificar_registro(&t).err()) {
         anotar(&app, "registro-roto", &format!("primera-linea-rota={n}"));
@@ -723,6 +749,31 @@ pub(crate) enum ModoPuerta {
     Actividad,
     /// Una orden de entrada: cuenta como actividad y se rechaza con `pausa-local` si hay pausa.
     Orden,
+}
+
+/// FSG1116 · A2: comprueba la `abrir-sesion` firmada contra `aceptados.json` (lo escribe solo Kotlin con el «Sí»
+/// del diálogo nativo). Las aperturas vistas no se olvidan al cerrar una sesión: una vieja no abre otra.
+#[cfg(target_os = "android")]
+fn apertura_nativa(app: &AppHandle, sobre: Option<&serde_json::Value>, nivel_pagina: &str) -> Result<crate::control_entrada_logica::Apertura, &'static str> {
+    use crate::control_entrada_logica as e;
+    static VISTAS: OnceLock<Mutex<e::Vistos>> = OnceLock::new();
+    let sobre = sobre.ok_or("no-autorizado")?;
+    let aceptados = crate::control_entrada::es::leer(app, crate::control_entrada::ACEPTADOS).map(|t| e::leer_aceptados(&t)).unwrap_or_default();
+    let ahora = pared_ms() as i64;
+    let mut v = VISTAS.get_or_init(|| Mutex::new(e::Vistos::default())).lock().unwrap_or_else(|x| x.into_inner());
+    e::verificar_apertura(sobre, &aceptados, nivel_pagina, ahora, &mut v).map_err(|(m, _)| m.codigo())
+}
+
+#[allow(dead_code)] // FSG1116: lo usan la entrada y la pantalla de Android
+/// FSG1116 · B1: la huella del controlador de la sesión `token` (la que comprobó la apertura firmada).
+pub(crate) fn de_de_sesion(token: &str) -> Option<String> {
+    control().valida(token).ok().map(|s| s.de.clone())
+}
+
+#[allow(dead_code)] // FSG1116: lo usa la pantalla de Android
+/// FSG1116 · M2: ¿la sesión `token` está en pausa local? (en pausa no salen cuadros).
+pub(crate) fn sesion_pausada(token: &str) -> bool {
+    control().valida(token).map(|s| s.pausada_ms.is_some()).unwrap_or(true)
 }
 
 /// La página de StarSeed OS, ventana principal.
