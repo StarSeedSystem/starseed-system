@@ -72,7 +72,7 @@ const Q35: [string, number, string] = ["Qwen3.5-35B-A3B", 143.97, "2026-02-24"];
 export const MODELOS_SEMILLA: ModeloLocal[] = [
   m({ ...Q, id: "qwen3.5:2b", descargaGb: 2.7 }),
   m({ ...Q, id: "qwen3.5:4b", descargaGb: 3.3 }),
-  m({ ...Q, id: "qwen3.5:9b", descargaGb: 6.6, eci: Q9, licencia: RESTRINGIDA }),
+  m({ ...Q, id: "qwen3.5:9b", descargaGb: 6.6, eci: Q9, licencia: "Apache 2.0 (ficha de Ollama, 2026-11-16)", nota: "La base qwen3.5:9b figura aquí como RESTRINGIDA y debe revisarse porque la ficha de Qwen en Hugging Face dice Apache-2.0." }),
   m({ ...Q, id: "qwen3.5:27b", descargaGb: 17 }),
   m({ ...Q, id: "qwen3.5:35b-a3b", descargaGb: 22, eci: Q35, licencia: LIBRE }),
   m({ ...Q, id: "qwen3.5:122b", descargaGb: 81 }),
@@ -150,7 +150,9 @@ function sf(b: Sf): ModeloLocal {
 const SF_Q = { familia: "Qwen3.5 sin filtros", editor: "Alibaba (Qwen) · variante huihui_ai", contextoK: 256, vision: true, herramientas: true } as const;
 const SF_G = { familia: "Gemma 4 sin filtros", editor: "Google · variante huihui_ai", vision: true, herramientas: true } as const;
 
+// Nota: huihui_ai/qwen3.5-abliterated:0.8B NO se añade porque qwen3.5:0.8b base no existe en MODELOS_SEMILLA.
 export const MODELOS_SIN_FILTROS_SEMILLA: ModeloLocal[] = [
+  sf({ ...SF_Q, id: "huihui_ai/qwen3.5-abliterated:2B", baseId: "qwen3.5:2b", descargaGb: 1.9 }),
   sf({ ...SF_Q, id: "huihui_ai/qwen3.5-abliterated:4B", baseId: "qwen3.5:4b", descargaGb: 3.3 }),
   sf({ ...SF_Q, id: "huihui_ai/qwen3.5-abliterated:9b", baseId: "qwen3.5:9b", descargaGb: 6.6 }),
   sf({ ...SF_Q, id: "huihui_ai/qwen3.5-abliterated:27b", baseId: "qwen3.5:27b", descargaGb: 17 }),

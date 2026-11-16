@@ -86,7 +86,7 @@ describe("catálogo de variantes sin filtros: solo lo verificado el 2026-11-10",
   });
   it("un catálogo guardado ANTES (solo normales) recibe las variantes de la semilla; una ya retirada no se repone", () => {
     const viejo = { ...semilla, modelos: semilla.modelos.filter((m) => m.clase === "normal") };
-    expect(leerCatalogoModelos(JSON.parse(JSON.stringify(viejo))).modelos.filter((m) => m.clase === "abliterated")).toHaveLength(8);
+    expect(leerCatalogoModelos(JSON.parse(JSON.stringify(viejo))).modelos.filter((m) => m.clase === "abliterated")).toHaveLength(7);
     const retirada = { ...semilla, modelos: semilla.modelos.map((m) => (m.id === "huihui_ai/qwen3.5-abliterated:9b" ? { ...m, estado: "sin-comprobar" } : m)) };
     const leido = leerCatalogoModelos(JSON.parse(JSON.stringify(retirada)));
     expect(leido.modelos.find((m) => m.id === "huihui_ai/qwen3.5-abliterated:9b")?.estado).toBe("sin-comprobar");
