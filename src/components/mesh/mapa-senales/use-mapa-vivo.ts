@@ -20,6 +20,9 @@ import { useEnlacesLocales } from "@/lib/malla/registro-enlaces-locales";
 import { describirMedio, type DescripcionMedio } from "@/lib/neurons/medio";
 import { medirSenales, type SenalesMedio } from "@/lib/neurons/senales-medio";
 import { uidActual } from "@/lib/consumo/usuario";
+import { useSenalesPublicadas } from "@/lib/senales/espectro/usar-senales-publicadas";
+import type { EstadoSenalesPublicadas } from "@/lib/senales/espectro/usar-senales-publicadas";
+
 import { construirVivo } from "@/lib/senales/aparatos";
 import { anonimizarAjenas } from "@/lib/senales/cuentas";
 import { reubicar } from "@/lib/senales/escalas";
@@ -53,6 +56,13 @@ export function useAhora(cadaMs = REFRESCO_MS): number {
 }
 
 export interface MapaVivo {
+  red: {
+    senales: SenalEspectro[];
+    estado: EstadoSenalesPublicadas["estado"];
+    motivo?: string;
+    otrasCuentasPublicando: number;
+  };
+
   detected: DetectedSignalsResult;
   senales: DetectedSignal[];
   vivo: VivoMapa;
@@ -98,6 +108,26 @@ export function useMapaVivo(opciones?: DetectedSignalsOptions & { verPublicos?: 
     () => adaptarBluetooth({ disponible: senalesMedio?.bluetooth.disponible ?? null, detecciones: freshBle }),
     [senalesMedio?.bluetooth.disponible, freshBle],
   );
+
+  const { senales: senalesPublic, estado: estadoPublic, motivo: motivoPublic } = useSenalesPublicadas();
+
+  const otrasCuentasPublicando = useMemo(() => {
+    const set = new Set<string>();
+    if (miUid) {
+      senalesPublic.forEach((s) => {
+        const id = s.vinculo?.id;
+        if (id && id !== miUid) set.add(id);
+      });
+    }
+    return set.size;
+  }, [senalesPublic, miUid]);
+
+  const red = {
+    senales: senalesPublic,
+    estado: estadoPublic,
+    motivo: motivoPublic,
+    otrasCuentasPublicando,
+  };
 
   const vivo = useMemo(
     () => construirVivo(base, { filas, presencia, locales, miMedioId: medio?.id || null, miUid, ahora }),
