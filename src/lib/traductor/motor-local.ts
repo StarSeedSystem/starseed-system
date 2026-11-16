@@ -4,7 +4,7 @@ const TRANSFORMERS_VERSION = "3.2.0";
 const MAX_LOTE = 8;
 
 export interface PipelineCargado {
-    traducir: (textos: string[]) => Promise<string[]>;
+    traducir: (textos: string[]) => string[];
     descargar: () => void;
 }
 
@@ -13,23 +13,24 @@ export interface AlmacenModelos {
     guardarRuta(modeloId: string, ruta: string): void;
 }
 
+export type Instalar = (origen: string, destino: string) => Promise<boolean>;
+export type CargarPipeline = (modeloId: string) => Promise<PipelineCargado>;
+
 export interface DepsMotorLocal {
-    instalado: (origen: string, destino: string) => Promise<boolean>;
-    cargarPipeline: (modeloId: string) => Promise<PipelineCargado>;
+    instalado: Instalar;
+    cargarPipeline: CargarPipeline;
     alcance?: AlcanceMotor;
 }
 
-async function cargarPipelineTransformers(
+export async function cargarPipelineTransformers(
     urlModulo: string,
-    _almacenModelos: AlmacenModelos,
+    almacenModelos: AlmacenModelos,
 ): Promise<PipelineCargado> {
-    let transformers: { pipeline: (tarea: string, modelo: string, opciones?: { device?: string; dtype?: string }) => Promise<PipelineCargado>; env: { allowRemoteModels: boolean } };
-    try {
-        const mod = await import(/* webpackIgnore: true */ urlModulo);
-        transformers = mod;
-    } catch (err) {
-        throw new Error("No se pudo cargar el motor local");
-    }
+    const mod = await import(/* webpackIgnore: true */ urlModulo);
+    const transformers = mod as {
+        pipeline: (tarea: string, modelo: string, opciones?: { device?: string; dtype?: string }) => PipelineCargado;
+        env: { allowRemoteModels: boolean; allowLocalModels?: boolean };
+    };
     transformers.env.allowRemoteModels = false;
     return transformers.pipeline("translation", "modelo-local", { device: "wasm", dtype: "q4" });
 }
@@ -63,7 +64,7 @@ export function motorPaqueteLocal(deps: DepsMotorLocal): MotorTraduccion {
             const resultados: string[] = [];
             for (let i = 0; i < textos.length; i += MAX_LOTE) {
                 const lote = textos.slice(i, i + MAX_LOTE);
-                const traducidos = await pipeline.traducir(lote);
+                const traducidos = pipeline.traducir(lote);
                 resultados.push(...traducidos);
             }
             if (resultados.length !== textos.length) {

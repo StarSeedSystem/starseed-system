@@ -6,7 +6,7 @@ import type { MotorTraduccion } from "@/lib/traduccion/motor";
 function crearPipelineFalso(salida: (t: string) => string): PipelineCargado {
     const descargar = vi.fn();
     return {
-        traducir: async (textos: string[]) => textos.map(salida),
+        traducir: (textos: string[]) => textos.map(salida),
         descargar,
     };
 }
@@ -106,5 +106,11 @@ describe("motorPaqueteLocal", () => {
         const resultado = await motor.traducir(textos, "es", "en");
         expect(resultado).toHaveLength(8);
         expect(resultado[0]).toBe("texto0!");
+    });
+
+    it("traducir falla si no está instalado", async () => {
+        const motor = motorLocalFalso({ instalado: false });
+        expect(await motor.disponible("es", "en")).toBe(false);
+        await expect(motor.traducir(["hola"], "es", "en")).rejects.toThrow("No se pudo cargar el motor local");
     });
 });
