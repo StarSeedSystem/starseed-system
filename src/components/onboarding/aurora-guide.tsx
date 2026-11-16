@@ -29,6 +29,11 @@
  *   · Un botón (Volumen/VolumenX) SIEMPRE visible en la guía pausa/reanuda la
  *     narración por voz manteniendo la conversación/guía en TEXTO.
  *
+ * FALLO DE LA VOZ (honesto, nunca mudo)
+ *   · Si el motor de Aurora no está o se cae, la guía lo DICE: aviso en la tarjeta
+ *     y el badge pone «sin voz» en vez de «Escuchando». El tour sigue en texto y
+ *     los botones nunca se cortan (nadie se queda en bucle esperando una voz).
+ *
  * DINAMISMO POR PASO
  *   · Cada paso muestra automáticamente un EJEMPLO ANIMADO (mini-demostración
  *     framer-motion) de lo que enseña. Las animaciones dentro del paso corren en
@@ -112,9 +117,10 @@ import {
   auroraStopSpeaking,
   auroraSetEnabled,
   auroraEnsureListening,
-  auroraTranscript,
   auroraBridge,
+  leerEstadoVoz,
   parseVoiceCommand,
+  textoAvisoVoz,
 } from "./aurora-guide-voice";
 import {
   getGuideButtonVisible,
@@ -407,6 +413,11 @@ export function AuroraGuide() {
   // Aviso honesto si se pidió modo voz y el puente de Aurora no está (GUI1021J):
   // la guía sigue en TEXTO y se lo dice.
   const [avisoPuente, setAvisoPuente] = useState<string | null>(null);
+  // (IMG · «catch silencioso en auroraTranscript») Aviso honesto de la VOZ: si el
+  // motor de Aurora no está o se ha caído, se lo decimos y la guía sigue en texto.
+  // Nunca un fallo mudo (el badge «Escuchando» mintiendo) ni un bucle: los
+  // botones del tour están siempre.
+  const [avisoVoz, setAvisoVoz] = useState<string | null>(null);
   // Texto y narración adaptados al dispositivo (caen al texto común si no hay variante) y a la sesión
   // (el último paso termina distinto con cuenta).
   const conSesion = haySesion === true ? step?.paso.conSesion : undefined;
@@ -650,17 +661,22 @@ export function AuroraGuide() {
   }, [muted]);
 
   // ── comandos de voz simples: polling defensivo del transcript ──────────────
-  // Solo en modo voz y sin mute. Lee getState().transcript por el puente y, si
-  // detecta "siguiente"/"anterior"/"cerrar", actúa. Defensivo: si no hay puente,
-  // no hace nada (degrada al botón).
+  // Solo en modo voz y sin mute. Lee el estado del puente global y, si detecta
+  // "siguiente"/"anterior"/"cerrar", actúa. Si el motor falla o no está, la
+  // lectura lo DICE (aviso en la tarjeta): degrada al botón, nunca al silencio.
   const lastCmdTsRef = useRef<number>(0);
   const lastTranscriptRef = useRef<string>("");
   useEffect(() => {
     if (!inTour || mode !== "voice" || muted) return;
     if (typeof window === "undefined") return;
     const id = window.setInterval(() => {
-      let tx = "";
-      try { tx = auroraTranscript(); } catch { tx = ""; }
+      // La voz se LEE CLASIFICADA: si el motor falla, la lectura lo dice (antes
+      // el fallo se tragaba en un catch mudo y la guía callaba sin explicación).
+      const lectura = leerEstadoVoz(auroraBridge());
+      const aviso = textoAvisoVoz(lectura);
+      setAvisoVoz((previo) => (previo === aviso ? previo : aviso));
+      if (lectura.estado !== "ok") return;
+      const tx = lectura.texto;
       if (!tx || tx === lastTranscriptRef.current) return;
       lastTranscriptRef.current = tx;
       const cmd = parseVoiceCommand(tx);
@@ -1190,6 +1206,19 @@ export function AuroraGuide() {
                         </p>
                       )}
 
+                      {/* (IMG) La voz ha fallado o no está: se lo decimos de frente y la
+                          guía sigue en TEXTO (avanzar con los botones nunca se corta). */}
+                      {avisoVoz && (
+                        <p
+                          role="status"
+                          data-testid="guia-voz-fallo"
+                          className="mt-3 flex items-start gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-[11.5px] leading-snug text-white/70"
+                        >
+                          <EarOff className="mt-0.5 h-3.5 w-3.5 shrink-0 text-white/50" aria-hidden />
+                          {avisoVoz}
+                        </p>
+                      )}
+
                       {/* ── Retomada: el recorrido sigue por donde se dejó ── */}
                       {reanudadoEn !== null && reanudadoEn === index && (
                         <div
@@ -1375,18 +1404,26 @@ export function AuroraGuide() {
                           >
                             <ChevronLeft className="h-3.5 w-3.5" /> Anterior
                           </button>
-                          {/* Indicador de escucha por voz (solo modo voz activo) */}
+                          {/* Indicador de escucha por voz (solo modo voz activo). Con el motor
+                              caído NO dice «Escuchando»: mentir sería el peor aviso. */}
                           {mode === "voice" && !muted && (
                             <span
-                              className="inline-flex items-center gap-1 rounded-full border border-[#C9A8FF]/25 bg-[#C9A8FF]/10 px-2 py-1 text-[10px] font-medium text-[#C9A8FF]"
-                              title="Puedes decir “siguiente” o “continúa” para avanzar"
+                              className={cn(
+                                "inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[10px] font-medium",
+                                avisoVoz
+                                  ? "border-white/15 bg-white/[0.05] text-white/60"
+                                  : "border-[#C9A8FF]/25 bg-[#C9A8FF]/10 text-[#C9A8FF]",
+                              )}
+                              title={avisoVoz ? "Aurora no está respondiendo: avanza con los botones" : "Puedes decir “siguiente” o “continúa” para avanzar"}
                             >
-                              <motion.span
-                                className="h-1.5 w-1.5 rounded-full bg-[#C9A8FF]"
-                                animate={reduceMotion ? undefined : { opacity: [1, 0.3, 1] }}
-                                transition={reduceMotion ? undefined : { duration: 1.4, repeat: Infinity }}
-                              />
-                              Escuchando
+                              {!avisoVoz && (
+                                <motion.span
+                                  className="h-1.5 w-1.5 rounded-full bg-[#C9A8FF]"
+                                  animate={reduceMotion ? undefined : { opacity: [1, 0.3, 1] }}
+                                  transition={reduceMotion ? undefined : { duration: 1.4, repeat: Infinity }}
+                                />
+                              )}
+                              {avisoVoz ? "sin voz" : "Escuchando"}
                             </span>
                           )}
                         </div>
