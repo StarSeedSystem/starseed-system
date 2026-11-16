@@ -1,0 +1,42 @@
+{
+ "ola": "nube-20261116",
+ "tareas": [
+  {
+   "id": "IMA15",
+   "ola": "TRA1116-IDIOMAS",
+   "titulo": "Editor de paquete en curso: claves pendientes, traducidas y estado",
+   "archivos": [
+    "src/lib/idiomas/paquete/editor.ts",
+    "src/lib/idiomas/paquete/__tests__/editor.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contrato A3 «Añadir al paquete de idioma en edición». Estado puro y su clave local `starseed.idiomas.editor.v1`: `abrirEdicion(codigo, nombre)`, `paqueteEnEdicion()`, `anadirPendiente(textoEspanol)` (normaliza con `normalizarTexto`; ignora vacíos, textos de >500 caracteres y duplicados; tope 2.000), `traducir(clave, valor)`, `pendientes()`, `completadas()`, `cerrarEdicion()`, `publicarBorrador(): PaqueteIdioma|null` (solo entradas traducidas; `revisado.estado` siempre «automatico» porque el OS no puede certificar una revisión humana desde aquí). Almacén inyectable con try/catch.\nPRUEBAS: añadir, duplicar, tope, traducir, publicar solo lo traducido, estado se recupera tras recargar (almacén falso).\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "IMA5",
+    "IMA11-d2"
+   ]
+  },
+  {
+   "id": "IMA12",
+   "ola": "TRA1116-IDIOMAS",
+   "titulo": "El cargador de catálogos suma los paquetes instalados y CON_CATALOGO se calcula",
+   "archivos": [
+    "src/lib/idiomas/catalogos/cargar.ts",
+    "src/lib/idiomas/idiomas.ts",
+    "src/lib/idiomas/__tests__/cargar-paquetes.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Lee `catalogos/cargar.ts` (cargadores fijos en, pt, fr) y `idiomas.ts:61` (`CON_CATALOGO`, `ESTADO_CATALOGO`). Cambio acotado: `cargarCatalogo(codigo)` primero mira los cargadores integrados y, si no hay, un paquete instalado (`leerPaquete`, IMA11) → `crearCatalogo({codigo, revisado: paquete.revisado.estado===\"revisado\", entradas})`; un paquete que falla al cargar devuelve `null` (la interfaz sigue en español). Un integrado SIEMPRE gana sobre un paquete del mismo código salvo que la persona haya elegido el paquete (parámetro `preferirPaquete`). Añade `idiomasConCatalogo(): string[]` = integrados + paquetes. NO cambies `CON_CATALOGO` ni `ESTADO_CATALOGO` (los comprueba `cobertura.test.ts`): solo añade la función. PRUEBAS: con un paquete instalado `de` se carga un catálogo y `traducir` funciona; un paquete corrupto → null; el integrado gana.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "IMA11-d2",
+    "IMA6"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1116-105020.json": [
+   "IMA15",
+   "IMA12"
+  ]
+ }
+}
