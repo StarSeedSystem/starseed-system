@@ -1,0 +1,58 @@
+{
+ "ola": "nube-20261116",
+ "tareas": [
+  {
+   "ola": "JLA1116A",
+   "id": "JL7-d2",
+   "titulo": "Calibración de la confianza de Laya por punto y ámbito (parte 2 de 2)",
+   "archivos": [
+    "src/lib/astraura/laya/__tests__/calibracion-laya.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: architecture/jev-entrena-laya.md (si aún no está en el repo, rige este texto). Lee AGENTS.md. §3.2. Puro. Con casos (`CasoLaya` de `aprendizaje-laya.ts`) y su desenlace correcto/incorrecto, `calibrar(casos, punto, ambito)`: 10 cajas de confianza, tasa de acierto por caja, exige ≥ `MIN_CASOS_UMBRAL` (30) y devuelve `{cajas, umbralSugerido, n}` o `{n, motivo: \"faltan casos\"}`; `confianzaCalibrada(cal, p)` interpola y nunca sube la confianza por encima de la tasa observada. PRUEBAS: datos sintéticos con Laya sobreconfiada (dice 0,9 y acierta 0,6) baja la confianza; menos de 30 casos -> motivo; cajas vacías no rompen.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` (Python: sin red ni `~/.starseed`, rutas y lectores se inyectan) salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.\n\n## PARTE 2 DE 2 (la dirección dividió JL7: falla por sí misma (tarea:otro))\nEn esta parte tocas SOLO: src/lib/astraura/laya/__tests__/calibracion-laya.test.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "JL7",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:otro)"
+   },
+   "dependencias_ya_en_main": [
+    "JL7-d1"
+   ]
+  },
+  {
+   "id": "TU29",
+   "ola": "TRA1116-APP-F1",
+   "titulo": "Habilidad de Astraura «traductor-universal»: sumarla al catálogo de herramientas",
+   "archivos": [
+    "src/lib/astraura/chat-herramientas.ts",
+    "src/lib/astraura/__tests__/herramienta-traductor-catalogo.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Lee `chat-herramientas.ts` entero (`HERRAMIENTA_CONTENIDO_VIVO` y `HERRAMIENTAS_ASTRAURA_VIVO` :154) y `src/ai/astraura/skills.ts:41-70` (`SkillCapability`). Añade `HERRAMIENTA_TRADUCTOR: SkillCapability` con `id:\"traductor-universal\"`, `label:\"Traductor universal\"`, `defaultOn:true`, `packageIds:[\"app-traductor\"]`, y un `systemPrompt` que explique cuándo usarla (§6 del contrato: mensaje en otro idioma, petición de traducir, varias personas) y que si la herramienta falla lo diga sin inventar la traducción; súmala al array exportado. PRUEBAS: el catálogo contiene la herramienta una vez, el id no choca con `SKILL_CAPABILITIES`, y activar/desactivar con `alternarHerramienta` funciona.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "TU26"
+   ]
+  },
+  {
+   "id": "MQB5",
+   "ola": "MOD1116",
+   "titulo": "Medir el modelo privado en las tareas de la fábrica antes de darle más trabajo",
+   "archivos": [
+    "scripts/puente/medida_modelo_privado.py",
+    "scripts/puente/test_medida_modelo_privado.py"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Escribe `medida_modelo_privado.py` (hermano de `scripts/puente/jev_sombra.py`: léelo y copia su disciplina: `nice`, solo con la máquina libre, reanuda, solo métricas, ningún texto). Entrada: una lista de casos cortos tomados de las sesiones de imaginación y de la síntesis (≤1.500 tokens de entrada, ids y huellas, no textos) y los resultados que ya dio la flota gratuita para esos mismos casos. Funciones puras: `resumir(mediciones)` → por modelo (privado, abliteration, flota): casos, tiempo hasta el primer token (mediana, p90), tokens/s, memoria pico del servicio, tasa de rechazos del modelo base (la respuesta contiene una negativa) y acuerdo con la flota; `veredicto(resumen, umbrales=UMBRALES)` con UMBRALES en un solo sitio: «se queda» si completa ≥ 90 % de los casos que la flota NO completó con rechazo y su mediana de tiempo ≤ 600 s; «se descarta» si no; «faltan datos» con < 200 casos. Nada de esto afirma que el modelo sin filtros complete más: lo que el veredicto diga sale de los números. PRUEBAS con mediciones inyectadas: cada veredicto, p90 con pocos datos, y que no se escriba ningún texto de prompt.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni pytest, ni tsc, ni git, ni node, ni npm, ni curl): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj, entorno y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves (solo NOMBRES de variables, nunca valores; nunca una IP, un OCID ni un token); nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado. En Python: las pruebas son `unittest` con carpetas temporales y falsos, como las vecinas `scripts/puente/test_*.py`, y no tocan el `~/.starseed` real.",
+   "dependencias_ya_en_main": [
+    "MQB1"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1116-175509.json": [
+   "TU29",
+   "JL7-d2",
+   "MQB5"
+  ]
+ }
+}
