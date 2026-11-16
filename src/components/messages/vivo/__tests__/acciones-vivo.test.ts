@@ -29,6 +29,9 @@ const espacios = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/spaces/spaces", () => espacios);
 
+const estaciones = vi.hoisted(() => ({ publicarEstacion: vi.fn() }));
+vi.mock("@/lib/estaciones/datos", () => estaciones);
+
 vi.mock("@/utils/supabase/client", () => ({ createClient: () => ({}) }));
 
 import type { SesionViva } from "@/lib/mensajeria/formato-tipos";
@@ -69,7 +72,7 @@ function sesion(extra: Partial<SesionViva> = {}): SesionViva {
 }
 
 beforeEach(() => {
-    for (const f of [...Object.values(sesiones), ...Object.values(dm), ...Object.values(espacios)]) f.mockReset();
+    for (const f of [...Object.values(sesiones), ...Object.values(dm), ...Object.values(espacios), ...Object.values(estaciones)]) f.mockReset();
     dm.listMembers.mockResolvedValue([
         { threadId: HILO, userId: YO, role: "owner", joinedAt: "" },
         { threadId: HILO, userId: OTRA, role: "member", joinedAt: "" },
@@ -77,6 +80,8 @@ beforeEach(() => {
     espacios.inviteToSpace.mockResolvedValue(true);
     espacios.updateSpaceMeta.mockResolvedValue(true);
 });
+
+const TOKEN = "a".repeat(43);
 
 describe("adjunto", () => {
     test("construirAdjuntoVivo arma un AdjuntoVivo válido", () => {
@@ -201,6 +206,46 @@ describe("compartirVivo", () => {
         sesiones.crearSesion.mockResolvedValue({ sesion: sesion(), error: null });
         const r = await compartirVivo({ hiloId: HILO, entrada: CATALOGO_VIVO.pizarra, titulo: "x", modo: "chat", permiso: "editar" });
         expect(r.ok && r.avisos.length).toBe(1);
+    });
+
+    test("pizarra pública a mirar: publica además la estación de espectadores con el enlace con token", async () => {
+        espacios.createSpace.mockResolvedValue({ id: "sp1" });
+        sesiones.crearSesion.mockResolvedValue({ sesion: sesion({ modo: "publico", tokenPublico: TOKEN, permiso: "ver" }), error: null });
+        estaciones.publicarEstacion.mockResolvedValue({ ok: true, estacion: { id: "e1" } });
+        const r = await compartirVivo({ hiloId: HILO, entrada: CATALOGO_VIVO.pizarra, titulo: "x", modo: "publico", permiso: "ver" });
+        expect(r.ok).toBe(true);
+        expect(sesiones.crearSesion).toHaveBeenCalledWith(expect.objectContaining({
+            tipo: "vivo:pizarra",
+            acceso: { modo: "publico", permiso: "ver" },
+        }));
+        expect(estaciones.publicarEstacion).toHaveBeenCalledTimes(1);
+        expect(estaciones.publicarEstacion).toHaveBeenCalledWith(expect.objectContaining({
+            titulo: "x",
+            tipo: "pizarra",
+            fuente: "starseed",
+            enlace: `/vivo/${SID}?t=${TOKEN}`,
+            ambito_tipo: "persona",
+        }));
+        expect(r.ok && r.avisos).toEqual([]);
+        expect(r.ok && r.urlPublica).toBe(`https://os.test/vivo/${SID}?t=${TOKEN}`);
+    });
+
+    test("por defecto (mis neuronas + editar) no hay estación de espectadores", async () => {
+        espacios.createSpace.mockResolvedValue({ id: "sp1" });
+        sesiones.crearSesion.mockResolvedValue({ sesion: sesion(), error: null });
+        const r = await compartirVivo({ hiloId: HILO, entrada: CATALOGO_VIVO.pizarra, titulo: "x", modo: "chat", permiso: "editar" });
+        expect(r.ok).toBe(true);
+        expect(estaciones.publicarEstacion).not.toHaveBeenCalled();
+    });
+
+    test("si la estación falla con la sesión ya abierta, se comparte igual y se avisa", async () => {
+        espacios.createSpace.mockResolvedValue({ id: "sp1" });
+        sesiones.crearSesion.mockResolvedValue({ sesion: sesion({ modo: "publico", tokenPublico: TOKEN, permiso: "ver" }), error: null });
+        estaciones.publicarEstacion.mockResolvedValue({ ok: false, error: "No se pudo publicar la estación." });
+        const r = await compartirVivo({ hiloId: HILO, entrada: CATALOGO_VIVO.pizarra, titulo: "x", modo: "publico", permiso: "ver" });
+        expect(r.ok).toBe(true);
+        expect(r.ok && r.avisos).toEqual(["No se pudo publicar la estación."]);
+        expect(espacios.deleteSpace).not.toHaveBeenCalled();
     });
 });
 

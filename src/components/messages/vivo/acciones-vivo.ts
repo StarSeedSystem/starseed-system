@@ -30,6 +30,8 @@ import {
     tipoVivoDe,
 } from "@/lib/mensajeria/sesiones-vivas";
 import { createClient } from "@/utils/supabase/client";
+import { publicarEstacion } from "@/lib/estaciones/datos";
+import { compartirEnVivo, type TipoSesionVivo } from "@/lib/vivo-entidad/estacion-de-sesion";
 import {
     entradaVivo,
     type EntradaCatalogoVivo,
@@ -111,6 +113,11 @@ async function miembrosDelHilo(hiloId: string | null, excepto: string): Promise<
  * Crea (o reutiliza) el recurso, abre la sesión, da acceso al recurso a quien corresponde y
  * devuelve el adjunto listo para `onEnviar`. Si la sesión no se puede abrir, el recurso recién
  * creado se borra (sin huérfanos).
+ *
+ * En pizarra y dashboard el pase y, si van a mirar o va por enlace, la estación de espectadores
+ * van por `compartirEnVivo` (`vivo-entidad/estacion-de-sesion`, SES1115Q · flujo 1): una sola
+ * lógica para los dos. Si la estación falla con la sesión ya abierta, se comparte igual y se
+ * avisa (no se tumba lo que sí funcionó).
  */
 export async function compartirVivo(input: CompartirVivoInput): Promise<CompartirVivoResultado> {
     const { entrada } = input;
@@ -135,15 +142,66 @@ export async function compartirVivo(input: CompartirVivoInput): Promise<Comparti
     // «invitados» = los del chat MÁS las personas elegidas (la RLS de la sesión siempre deja
     // entrar a los miembros del chat donde se compartió).
     const invitados = [...new Set((input.invitados ?? []).filter(esUuid))];
-    const { sesion, error } = await crearSesion({
-        tipo: `vivo:${entrada.tipo}`,
-        hiloId: input.hiloId,
-        titulo,
-        refId: recurso.refId,
-        ruta: recurso.ruta,
-        acceso: { modo: input.modo, permiso: input.permiso },
-        invitados: input.modo === "invitados" ? invitados : [],
-    });
+
+    const tipoConEstacion: TipoSesionVivo | null =
+        entrada.tipo === "pizarra" || entrada.tipo === "dashboard" ? entrada.tipo : null;
+    let sesion: SesionViva | null = null;
+    let error: string | null = null;
+    let avisoEstacion: string | null = null;
+    if (tipoConEstacion) {
+        const abiertas: SesionViva[] = [];
+        const resultado = await compartirEnVivo(
+            {
+                crearPase: async (pase) => {
+                    const abierta = await crearSesion({
+                        tipo: pase.tipo,
+                        hiloId: pase.hiloId,
+                        titulo: pase.titulo,
+                        refId: recurso.refId,
+                        ruta: recurso.ruta,
+                        acceso: { modo: pase.modo, permiso: pase.permiso },
+                        invitados: pase.modo === "invitados" || input.modo === "invitados" ? pase.invitados : [],
+                    });
+                    if (abierta.sesion) abiertas.push(abierta.sesion);
+                    return {
+                        sesion: abierta.sesion
+                            ? {
+                                id: abierta.sesion.id,
+                                tipo: abierta.sesion.tipo,
+                                tokenPublico: abierta.sesion.tokenPublico,
+                                creador: abierta.sesion.creador,
+                            }
+                            : null,
+                        error: abierta.error,
+                    };
+                },
+                crearEstacion: publicarEstacion,
+            },
+            {
+                con: input.modo === "publico" ? "enlace" : input.modo === "invitados" ? "entidad" : "mis-neuronas",
+                acceso: input.permiso === "ver" ? "mirar" : "editar",
+                tipo: tipoConEstacion,
+                titulo,
+                hiloId: input.hiloId,
+                invitados: input.invitados,
+            },
+        );
+        sesion = abiertas[0] ?? null;
+        if (!resultado.ok) {
+            if (sesion) avisoEstacion = resultado.motivo;
+            else error = resultado.motivo;
+        }
+    } else {
+        ({ sesion, error } = await crearSesion({
+            tipo: `vivo:${entrada.tipo}`,
+            hiloId: input.hiloId,
+            titulo,
+            refId: recurso.refId,
+            ruta: recurso.ruta,
+            acceso: { modo: input.modo, permiso: input.permiso },
+            invitados: input.modo === "invitados" ? invitados : [],
+        }));
+    }
     if (!sesion) {
         if (creado && entrada.deshacerCreacion) {
             try {
@@ -156,6 +214,7 @@ export async function compartirVivo(input: CompartirVivoInput): Promise<Comparti
     }
 
     const avisos: string[] = [];
+    if (avisoEstacion) avisos.push(avisoEstacion);
     // Acceso al recurso: los del chat siempre (la RLS de la sesión ya les deja verla) y, en
     // «invitados», además las personas elegidas.
     if (entrada.concederAcceso) {
@@ -173,14 +232,16 @@ export async function compartirVivo(input: CompartirVivoInput): Promise<Comparti
             }
         }
     }
-    if (input.modo === "publico" && entrada.cambiarPublico) {
+    // El modo EFECTIVO de la sesión (con «mirar» o «enlace» sale público, con su estación):
+    // la lectura del contenido y el enlace copiable siguen a la sesión, no a lo elegido.
+    if (sesion.modo === "publico" && entrada.cambiarPublico) {
         const ok = await entrada.cambiarPublico(recurso.refId, true);
         if (!ok) avisos.push("El enlace público está creado, pero el contenido no quedó abierto a lectura pública.");
     }
 
     const adjunto = construirAdjuntoVivo(sesion);
     if (!adjunto) return { ok: false, error: "La sesión se abrió sin una app que abrir." };
-    const urlPublica = input.modo === "publico" && sesion.tokenPublico
+    const urlPublica = sesion.modo === "publico" && sesion.tokenPublico
         ? construirUrlPublica(origenActual(), sesion, sesion.tokenPublico)
         : null;
     return { ok: true, sesion, adjunto, body: cuerpoMensajeVivo(entrada, titulo), urlPublica, avisos };
