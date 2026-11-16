@@ -1,0 +1,36 @@
+{
+ "ola": "nube-20261116",
+ "tareas": [
+  {
+   "id": "PRI01",
+   "ola": "PRI1116A",
+   "titulo": "URGENTE · Fábrica: las tareas que desbloquean la compilación empiezan antes (prioridad por tarea, sin interrumpir lo que está en curso)",
+   "archivos": [
+    "scripts/enjambre/starseed-enjambre.py",
+    "scripts/enjambre/test_prioridad_cola.py"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. PETICIÓN DE ALEX (16-11): «los arreglos para la compilación que falta deberían ser prioridad en la lista de tareas (sin interrumpir los procesos actuales); los directores deben decidir priorizar lo más relevante, en este caso la compilación para las pruebas». HECHO: el arreglo de una línea que desbloqueaba el APK (KOT01) esperó horas detrás de tareas menos urgentes.\n\nHoy las ÓRDENES del lanzador ya llevan prioridad en `scripts/enjambre/starseed-enjambre.py` (busca `prioridad=float(orden.get(\"prioridad\") or 0)`), pero las TAREAS de una cola no. Haz lo mínimo (≤60 líneas en ese archivo, en bloques aditivos `# PRI01`):\n1) Función PURA `prioridad_de_tarea(t)`: devuelve `float(t[\"prioridad\"])` si existe y es número; 100.0 si `t.get(\"urgente\")` es verdadero o si el título empieza por «URGENTE»; si no, 0.0. Nunca lanza.\n2) Función PURA `ordenar_pendientes(tareas)`: devuelve las mismas tareas ordenadas por prioridad de mayor a menor y, a igualdad, EN EL ORDEN EN QUE VENÍAN (orden estable). No quita ni añade ninguna.\n3) Úsala en el punto donde el orquestador elige, entre las tareas PENDIENTES con sus dependencias cumplidas, cuál empieza a continuación. NO toques las tareas que ya están en curso: nada se interrumpe, se cancela ni se reordena una vez empezado. Si ese punto no está en este archivo o no puedes localizarlo con certeza, NO lo adivines: deja las dos funciones y sus pruebas, y dilo en un comentario `# PRI01: falta enganchar en …` junto a ellas.\n4) Si el validador de colas de este archivo rechaza claves desconocidas, acepta `prioridad` (número) y `urgente` (booleano) como opcionales.\n\nPruebas en `scripts/enjambre/test_prioridad_cola.py` (pytest, como sus vecinas): sin prioridades el orden no cambia; una tarea con `prioridad` 50 pasa delante de las de 0; `urgente: true` y un título que empieza por «URGENTE» valen 100; a igualdad se conserva el orden de llegada; valores raros (`None`, texto, lista) valen 0 y no lanzan; la lista devuelta tiene los mismos elementos.\nAsunto del commit: `PRI1116A · PRI01: las tareas urgentes de una cola empiezan antes (sin interrumpir las que están en curso)`.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado."
+  },
+  {
+   "id": "TU23",
+   "ola": "TRA1116-APP-F1",
+   "titulo": "Widget del Traductor: componente con idiomas fijados y sin historial opcional",
+   "archivos": [
+    "src/components/traductor/widget-traductor.tsx",
+    "src/components/traductor/__tests__/widget-traductor.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Lee `src/components/dashboard/widgets/clock-date-widget.tsx` (forma de un widget) y `src/components/dashboard/kit/widget-config-popover.tsx` (cómo se configura). `WidgetTraductor({ ajustes, onAjustes, servicio })`: caja de texto, par de idiomas con intercambio, resultado y copiar, motor usado; ajustes: idiomas fijados, motor preferido («automático» o «solo en mi aparato»), tamaño de letra (S/M/L), historial corto sí/no. No traduce hasta pulsar el botón. Funciona a 2×2. PRUEBAS: traducir con servicio falso, ajustes se aplican, sin historial no guarda.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "TU12"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1116-170457.json": [
+   "TU23",
+   "PRI01"
+  ]
+ }
+}
