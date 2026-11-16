@@ -1,0 +1,99 @@
+{
+ "ola": "nube-20261116",
+ "tareas": [
+  {
+   "id": "ASW10",
+   "ola": "ASW1116A",
+   "titulo": "Diseño «Conversación»: el último intercambio con quién habló y cuándo",
+   "archivos": [
+    "src/components/widgets-libres/familias/diseno-conversacion.tsx",
+    "src/components/widgets-libres/familias/__tests__/diseno-conversacion.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. LO QUE YA EXISTE (léelo antes): el widget del dashboard cuyo texto de estado es «En calma» es `AstrauraLibre` en `src/components/widgets-libres/familias/astraura-libre.tsx` (268 líneas; `TEXTO_VOZ` :31, `useVozAurora` :38 lee el puente `getAuroraBridge()` de `src/lib/aurora/open-aurora.ts` con `speaking`, `listening`, `actionStatus`; el `Orbe` de :65 es el círculo de colores violeta/turquesa; `Preguntar` :90; el diseño por tamaño :170-262 con `disenoDe(clase)` de `familias/comun.tsx:23`). Se monta desde `src/components/widgets-libres/registro-libre.tsx:38` (`case \"AURORA_LAST\"`, hoy sin recibir el widget ni `onUpdateSettings`, a diferencia del reloj). La Protomolécula: la orbe 4D completa es `src/components/protomolecula/orbe-protomolecula.tsx` (475 líneas, three.js a demanda, arrastrable y flotante: NO sirve para meterla en un widget); su lógica pura está en `src/lib/protomolecula/orbe4d/` (`coreografia.ts`: `IdForma` semilla/merkaba/jitterbug/teseracto/dodecaedro/matriz/icosaedro, `PALETAS` por registro con `astraura`, `ESTILOS`, `FICHAS`, tiempos de Fibonacci; `geometria.ts`: `merkaba()`, `icosaedro()`, `dodecaedro()`, `jitterbug()`, `teseractoVertices()`, `PHI`). Ya hay una versión ligera en SVG: `src/components/layout/trinity/horizon/vista-previa-orbe.tsx` (flor de la vida y merkaba, solo `transform`/`opacity`, quieta con `motion-safe`), pero NO depende del estado del asistente. El presupuesto de render del dispositivo es `src/lib/widgets/forma/nivel-dispositivo.ts` (`useNivelRender`, `nivelRender`: ligero/normal/pleno). La identidad: colores SOLO de `PALETAS` (marca Trinity Liquid Crystal, `adn-y-tokens.md` §2 y §6), nunca hexadecimales inventados. Escribe primero las pruebas. `DisenoConversacion(props: PropsDiseno)`: arriba la forma pequeña (`tam` · 0,6) con el estado en texto; en medio la lista `ol` de `props.hilo` (hasta 3 turnos), cada turno con «Tú» o «Astraura» en letra pequeña, el texto en 2 líneas con `title` completo y `haceCuanto(ts, ahora)` (`inicio-piezas.tsx:219`) en el último de Astraura; vacío: «Aún no habéis hablado. Pregúntale lo que quieras.»; abajo `props.preguntar`. Si no cabe, se retiran primero los turnos más viejos con `Prescindible`/`PilaAjustable` (`@/components/dashboard/kit/pila-ajustable`, como el widget actual). Usa los colores del tema (`text-foreground`, `text-muted-foreground`, variables CSS `hsl(var(--…))`) y no blanco fijo, salvo sobre un fondo que el propio widget pinte oscuro; acento con los colores de `PALETAS.astraura`. Importa `PropsDiseno` de `@/lib/widgets/astraura/disenos` y `AstrauraForma` de `./astraura-forma`. PRUEBAS: renderiza con props de ejemplo y comprueba lo esencial de este diseño (qué SÍ aparece y qué NO: por ejemplo, el mínimo no muestra hilo ni sugerencias); cada botón llama a su función; a 180 px y a 360 px de ancho no hay `scrollWidth` mayor que `clientWidth`; los nombres accesibles están en español.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "ASW04",
+    "ASW06"
+   ]
+  },
+  {
+   "id": "MQA5",
+   "ola": "MOD1116",
+   "titulo": "Astraura: proveedor «abliteration.ai» (clave propia de cada cuenta, apagado por defecto)",
+   "archivos": [
+    "src/ai/providers/abliteration.ts",
+    "src/ai/providers/__tests__/abliteration.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contexto (MOD1116, análisis `MOD1116-analisis.md`): proveedor de modelos «abliteration.ai», API compatible con OpenAI, `POST https://api.abliteration.ai/v1/chat/completions`, clave en la variable `ABLITERATION_API_KEY`, modelo `abliterated-model` (256K de contexto, texto e imagen, herramientas; $1 entrada / $0,10 entrada en caché / $3 salida por millón de tokens, verificado el 2026-11-16 en https://abliteration.ai/pricing y https://docs.abliteration.ai/models.md). Se paga con un saldo en dólares (NO hay créditos diarios documentados); el saldo se lee con `GET https://api.abliteration.ai/v1/credits` → `{\"data\": {\"total_credits\": n, \"total_usage\": n}}` en USD. Lee `src/ai/providers/groq.ts` y `src/ai/providers/types.ts` y escribe `src/ai/providers/abliteration.ts` con el mismo contrato `Provider`: `info = { id: \"abliteration\", label: \"abliteration.ai (sin filtros, de pago)\", description: …(dice que quita los rechazos, que se paga con saldo en dólares y que lo que envías llega a un tercero), requiresKey: true, local: false, defaultBaseUrl: \"https://api.abliteration.ai/v1\", getKeyUrl: \"https://abliteration.ai/console\", defaultModels: [\"abliterated-model\", \"abliterated-model-large-flash\", \"abliterated-model-large-v2\"] }` y `chat` por `POST {base}/chat/completions` con `Authorization: Bearer` (misma lógica de SSE y de telemetría que Groq). El campo `id` de `ProviderId` lo añade la tarea MQA6: aquí, si `types.ts` aún no lo trae, exporta el provider tipado con un `as` mínimo y un comentario `// MQA6`. PRUEBAS con `fetch` simulado: cuerpo enviado, cabecera, error 401 con mensaje sin clave, 429 con `Retry-After` en el mensaje, flujo SSE de dos trozos.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni pytest, ni tsc, ni git, ni node, ni npm, ni curl): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj, entorno y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves (solo NOMBRES de variables, nunca valores; nunca una IP, un OCID ni un token); nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado. En Python: las pruebas son `unittest` con carpetas temporales y falsos, como las vecinas `scripts/puente/test_*.py`, y no tocan el `~/.starseed` real."
+  },
+  {
+   "id": "HAL02",
+   "ola": "HAL1116A",
+   "titulo": "Portugués: textos de app/layout.tsx (enlace de salto y descripciones)",
+   "archivos": [
+    "src/lib/idiomas/catalogos/pt.json",
+    "src/lib/idiomas/__tests__/texto-raiz-pt.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Igual que HAL01 pero para `catalogos/pt.json` (portugués de Brasil, «Saltar para o conteúdo»). Lee `unidades.json` (la unidad `raiz` la creó HAL01; si aún no está, solo escribe las entradas). Añade a `entradas` la traducción de los mismos textos de `app/layout.tsx` que HAL01 (mismas claves en español, mismas marcas intactas; omite lo que `scripts/idiomas/comun.mjs` `rechazo` rechazaría). PRUEBA `texto-raiz-pt.test.ts`: «Saltar al contenido» → «Saltar para o conteúdo» y toda entrada nueva pasa `rechazo`.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "HAL01"
+   ]
+  },
+  {
+   "id": "HAL03",
+   "ola": "HAL1116A",
+   "titulo": "Francés: textos de app/layout.tsx (enlace de salto y descripciones)",
+   "archivos": [
+    "src/lib/idiomas/catalogos/fr.json",
+    "src/lib/idiomas/__tests__/texto-raiz-fr.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Igual que HAL01 pero para `catalogos/fr.json` («Aller au contenu»). Añade a `entradas` la traducción de los mismos textos de `app/layout.tsx` que HAL01 (mismas claves en español, marcas intactas; omite lo que `scripts/idiomas/comun.mjs` `rechazo` rechazaría). PRUEBA `texto-raiz-fr.test.ts`: «Saltar al contenido» → «Aller au contenu» y toda entrada nueva pasa `rechazo`.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "HAL01"
+   ]
+  },
+  {
+   "id": "INT05",
+   "ola": "INT1116A",
+   "titulo": "Decisión de compartir ahora: ración, modo mesh, interruptor del dueño y puerta",
+   "archivos": [
+    "src/lib/malla/internet/decision-compartir.ts",
+    "src/lib/malla/internet/__tests__/decision-compartir.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contrato: architecture/malla-cristalina-sio2.md §8.2 (contrato; si aún no está en el repo, rige este texto). Lee primero lo que ya existe: `src/lib/malla/cristal/puertas-internet.ts` (`PuertaInternet`, `COMPARTIR`, `puedeUsar`, `restanteParaOtrosMb`, `elegirPuerta`) y, si ya aterrizaron, `src/lib/malla/auto-compartir.ts` y `src/lib/malla/preferencias-red-compartida.ts` (reglas MRI1b/MRI2). Si no existen, NO los crees: declara el tipo mínimo que necesites en tu archivo y dilo en un comentario. Todo lo tuyo es ADITIVO: no cambies el comportamiento de lo anterior. Escribe primero las pruebas. `decidirCompartir(entrada: { audiencia: Audiencia; ajustes: AjustesInternet; contadores: Contadores; puerta: PuertaInternet; ahora: number; desfaseMin: number }): { permitido: boolean; hastaMb: number | null; motivo: string }` (`null` = sin límite). Reglas EN ESTE ORDEN: (1) `mi-cuenta`: se comparte según `porAudiencia[\"mi-cuenta\"]` aunque `compartirConOtros` esté apagado, con su `limiteMeshMb` (null = sin límite) y SIN ración del banco salvo que `ajustes.banco.activo`; (2) `entidad` y `publico`: si `compartirConOtros` es falso → `permitido:false`, motivo «el dueño no ha encendido compartir con otros»; (3) si `porAudiencia[audiencia].mesh` es falso → no; (4) la puerta manda: `puedeUsar` y `restanteParaOtrosMb` de la puerta existente fijan el máximo (reserva del 20 % y tope mensual incluidos) — usa esas funciones, no las copies; (5) el modo banco, si está activo, aplica `cupoBanco` (INT03) con `usadoHoyMb(contadores, \"otros\")`; (6) `hastaMb` = mínimo de los límites que apliquen (el de la audiencia, el de la puerta y el del banco) o null si ninguno limita. El motivo dice qué regla decidió. No cambia ajustes ni enciende nada: solo contesta.\nPRUEBAS en tabla (≥14): cuenta propia sin límite con «otros» apagado; entidad con interruptor apagado → no; público con banco agotado → no; público con banco con saldo → mínimo entre banco y puerta; reserva de la puerta; mesh apagado para entidad; sin ninguna regla limitante → `hastaMb:null`.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "INT01",
+    "INT02",
+    "INT03"
+   ]
+  },
+  {
+   "id": "IMA3",
+   "ola": "TRA1116-IDIOMAS",
+   "titulo": "Búsqueda de idiomas por nombre, nombre propio, código o alias, sin acentos y tolerante a una errata",
+   "archivos": [
+    "src/lib/idiomas/busqueda.ts",
+    "src/lib/idiomas/__tests__/busqueda.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. `buscarIdiomas(lista: IdiomaMundial[], consulta: string): IdiomaMundial[]`: normaliza (NFD, sin diacríticos, minúsculas, espacios) consulta y campos; coincide por prefijo y por contenido en `nombrePropio`, `nombreActual`, `codigo` (exacto o prefijo) y `alias`; ordena: código exacto › prefijo de nombre › contiene › una errata (distancia de edición ≤1 si la consulta tiene ≥4 letras); desempata alfabético; consulta vacía devuelve la lista tal cual. Sin dependencias.\nPRUEBAS: «ingles» encuentra English/Inglés; «chino» → zh; «zh» exacto primero; «portugues» sin tilde; «alemn» (errata) → Deutsch; «xx» → vacío; la lista de entrada no se muta.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "IMA2"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1116-053905.json": [
+   "INT05",
+   "ASW10",
+   "IMA3",
+   "MQA5",
+   "HAL02",
+   "HAL03"
+  ]
+ }
+}
