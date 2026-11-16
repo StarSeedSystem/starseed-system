@@ -4,6 +4,7 @@
  * (lo rota el selector, solo como decoración). El español es la lengua fuente.
  * Módulo PURO: sin React, sin `node:*` ni red.
  */
+import { esRtl } from "./tabla-iso";
 export const IDIOMA_FUENTE = "es";
 
 export interface Idioma {
@@ -64,7 +65,7 @@ export const CON_CATALOGO: readonly string[] = ["en", "pt", "fr"];
 export const ESTADO_CATALOGO: Readonly<Record<string, "revisado" | "automatico">> = { en: "automatico", pt: "automatico", fr: "automatico" };
 
 export const porCodigo = (codigo: string): Idioma | undefined => IDIOMAS.find((i) => i.codigo === codigo);
-export const direccionDe = (codigo: string): "ltr" | "rtl" => porCodigo(codigo)?.dir ?? "ltr";
+export const direccionDe = (codigo: string): "ltr" | "rtl" => porCodigo(codigo)?.dir ?? (esRtl(codigo) ? "rtl" : "ltr");
 
 /** «pt-BR» → «pt»; «zh-TW» → «zh-hant»; «no»/«nn» → «nb»; null si no hay idioma elegible que lo cubra. */
 export function aIdiomaElegible(valor: unknown): string | null {
