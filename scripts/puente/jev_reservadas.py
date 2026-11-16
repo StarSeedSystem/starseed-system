@@ -11,6 +11,8 @@ RESERVADAS: tuple[str, ...] = (
     "funciona-verificacion",
     "informe-veraz",
     "cambiar-umbrales-propios",
+    "entrenar-laya",
+    "afinar-adaptador",
 )
 
 _RESERVADAS_NORMALIZADAS = frozenset(RESERVADAS)

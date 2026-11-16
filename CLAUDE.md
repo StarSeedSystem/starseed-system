@@ -408,6 +408,10 @@ aquí: si se puede, se hace. Varias acciones suyas se reducen a una sola (un gui
 antes que repartirle deberes. Lo único que se le reserva de verdad es lo que mueve CREDENCIALES
 suyas a un tercero o cambia la configuración de sus cuentas.
 
+## 💠 Laya y la libreta (Adenda JLA1116A)
+
+**Qué es Laya:** codificador de terceros (`architecture/laya-y-habilidades.md`), se entrena mediante libreta de ejemplos con desenlace real (`architecture/jev-entrena-laya.md`), decisiones que Jev y Laya nunca toman solos (`scripts/puente/jev_reservadas.py`). Sin 'Mando' en texto visible; español neutro.
+
 ## Autorreparación de sesiones (SES1113)
 
 **Sanador de sesiones** (`scripts/puente/sanador_sesiones.py`): corre cada 15 min en el líder (A1) y a demanda. Lleva registro de sesiones con comprobaciones y recetas ordenadas: `auth refresh --verify`, token maestro, `storage_state.buena-*`, `navegador_alta.py`, pedir a la Mac, escalado autoservicio. **Claude nunca es un paso necesario**: ninguna receta manda a pedir a Claude; el sanador decide y escala solo. Si un proveedor cae, el trabajo sigue por la ruta gratuita. Regla de despliegue (§3.6): antes de sustituir una herramienta en servicio, las pruebas del repo deben cubrir los arreglos de la herramienta sustituida (cerrojo, 3 fallos, distinguir red de auth, aviso de vuelta).
