@@ -10,3 +10,8 @@ export * from "./validadores";
 export * from "./utilidades";
 export * from "./bandas";
 export * from "./leer-senales";
+export {
+  MOTIVO_SIN_DATOS,
+  compatiblesDe,
+  type EquipoCompat,
+} from "./compatibilidad";
