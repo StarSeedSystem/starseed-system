@@ -1994,6 +1994,7 @@ try:
     if _rp not in sys.path:
         sys.path.insert(0, _rp)
     import jev_enrutado as _jev_enrutado
+    from jev_eleccion import activo_por_entorno, medio_final as _medio_final
 except Exception:  # sin el módulo, se comporta como antes: usar orden determinista
     class _jev_enrutado(object):  # noqa: N801
         @staticmethod
@@ -2003,6 +2004,10 @@ except Exception:  # sin el módulo, se comporta como antes: usar orden determin
             if len(candidatos) == 1:
                 return candidatos[0], "orden determinista"
             return candidatos[0], "orden determinista"
+    def _medio_final(plan, jev_elegido, sanos_libres, cola_de, cola_actual, activo):
+        return plan, "plan"
+    def activo_por_entorno(e):
+        return False
 
 def dependencias_ok(t):
     """¿Están INTEGRADAS las dependencias duras de esta tarea? (2026-09-07, Ola 261)
@@ -7260,8 +7265,17 @@ def reservar_tarea(tarea):
             try:
                 sanos = normalizar_medios(aptos, instante, LATIDO_MEDIO_MAX_S, COLGADO_S)
                 orden = ordenar_medios(tarea, sanos, datos["historial"])
-                _, motivo = _jev_enrutado.elegir_medio(tarea, orden, datos["historial"], jev=None)
-                arriendo["motivo"] = motivo
+                medio_jev, motivo_jev = _jev_enrutado.elegir_medio(tarea, orden, datos["historial"], jev=None)
+                if activo_por_entorno(os.environ):
+                    sanos_libres = [mid for mid, medio in sanos.items() if medio.get("libres", 0) > 0]
+                    cola_de = {mid: m.get("cola", "") for mid, m in aptos.items()}
+                    medio_f, motivo = _medio_final(
+                        arriendo["medio"], medio_jev, sanos_libres,
+                        cola_de, cola_actual, True
+                    )
+                    arriendo["medio"], arriendo["motivo"] = medio_f, motivo
+                else:
+                    arriendo["motivo"] = motivo_jev
             except Exception:  # el porqué es informativo: nunca frena el reparto
                 pass
         return arriendo
