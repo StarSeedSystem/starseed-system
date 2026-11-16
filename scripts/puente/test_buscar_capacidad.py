@@ -803,3 +803,104 @@ def test_1103_o_reaperturas_sin_intento_desde_ajustes(tmp_path):
     dos = [100_000.0 - 7200, 100_000.0 - 5000]
     assert not B.puede_reabrir_tarea(dos, 100_000.0, "devuelta de la nube: su run terminó", extra=0)
     assert B.puede_reabrir_tarea(dos, 100_000.0, "devuelta de la nube: su run terminó", extra=1)
+
+
+class FrenoPorMismoMotivoEnBuscar(unittest.TestCase):
+    def test_7_de_10_mismo_motivo_frena_no_lanza_nuevos(self):
+        ahora = AHORA + 3600
+        progreso = {}
+        for i in range(10):
+            progreso["T%d" % i] = {"estado": "fallo_tsc", "nota": "fallo tsc", "fin": ahora - i * 3600}
+        progreso["T5"]["nota"] = "otra_cosa"
+        progreso["T6"]["nota"] = "otra_cosa"
+        salida = B.reunir_nube.__wrapped__(ahora) if hasattr(B.reunir_nube, "__wrapped__") else None
+        import unittest.mock as mock
+
+        with mock.patch.object(B, "reunir_nube", return_value={
+            "clases": {"elegibles": [], "agotada": ["T%d" % i for i in range(10)]},
+            "pausa": None, "runs": 3, "error": None, "mac": {}, "dependientes": {}, "capacidad": set(),
+            "notas": {str(t): "fallo tsc" for t in range(10)}, "por_traer": set(),
+            "progreso_terminadas": progreso
+        }), \
+            mock.patch.object(B, "escritores_en_la_nube", returnvalue=["nvidia"]), \
+            mock.patch.object(B, "texto_escritores", returnvalue=("Escritores: nvidia", True)), \
+            mock.patch.object(B, "texto_modelos", returnvalue="Modelos: nvidia"), \
+            mock.patch.object(B, "cloudroom", returnvalue=(0, "Cloudroom: sin cupo", [])), \
+            mock.patch.object(B, "_sondear_escritores", returnvalue=[]), \
+            mock.patch.object(B, "texto_cloudroom", returnvalue="Cloudroom: sin cupo"), \
+            mock.patch.object(B, "estado_mac", {}), \
+            mock.patch.object(B, "asignar_huecos", mock.MagicMock(reunir=lambda: {"listas": [], "tope": 2})), \
+            mock.patch.object(B, "plan_nube", returnvalue={"lanzar": 0, "reabrir": [], "trabajadores": 0, "por_que": "test"}), \
+            mock.patch.object(B, "texto_nube", returnvalue="nube: test"), \
+            mock.patch.object(B, "causas_sin_suma", returnvalue=[]), \
+            mock.patch.object(B, "texto_sin_trabajo", returnvalue="Sin trabajo listo"), \
+            mock.patch.object(B, "_preguntas_vigentes", returnvalue=[]), \
+            mock.patch.object(B, "_avisar", returnvalue=None):
+            r = B.buscar(aplicar=True, sondear_medios=False, mac=False, origen="boton", ahora=ahora)
+        assert r["plan_nube"]["lanzar"] == 0
+        assert "se frena" in r["resumen"]
+        assert "se frena: 8 de las últimas 10 tareas acabaron «fallo_tsc»" in r["resumen"]
+
+    def test_motivos_distintos_no_frena(self):
+        ahora = AHORA + 3600
+        progreso = {}
+        for i in range(7):
+            progreso["T%d" % i] = {"estado": "fallo_tsc", "nota": f"fallo tsc {i}", "fin": ahora - i * 3600}
+        for i in range(3):
+            progreso["T%d" % (i + 7)] = {"estado": "fallo_tests", "nota": f"fallo tests {i}", "fin": ahora - i * 3600}
+        import unittest.mock as mock
+
+        with mock.patch.object(B, "reunir_nube", return_value={
+            "clases": {"elegibles": [], "agotada": list("ABCDEFGABCDEFG")},
+            "pausa": None, "runs": 3, "error": None, "mac": {}, "dependientes": {}, "capacidad": set(),
+            "notas": {}, "por_traer": set(),
+            "progreso_terminadas": progreso
+        }), \
+            mock.patch.object(B, "escritores_en_la_nube", returnvalue=["nvidia"]), \
+            mock.patch.object(B, "texto_escritores", returnvalue=("Escritores: nvidia", True)), \
+            mock.patch.object(B, "texto_modelos", returnvalue="Modelos: nvidia"), \
+            mock.patch.object(B, "cloudroom", returnvalue=(0, "Cloudroom: sin cupo", [])), \
+            mock.patch.object(B, "_sondear_escritores", returnvalue=[]), \
+            mock.patch.object(B, "texto_cloudroom", returnvalue="Cloudroom: sin cupo"), \
+            mock.patch.object(B, "estado_mac", {}), \
+            mock.patch.object(B, "asignar_huecos", mock.MagicMock(reunir=lambda: {"listas": [], "tope": 2})), \
+            mock.patch.object(B, "plan_nube", returnvalue={"lanzar": 1, "reabrir": [], "trabajadores": 1, "por_que": "test"}), \
+            mock.patch.object(B, "texto_nube", returnvalue="nube: test"), \
+            mock.patch.object(B, "causas_sin_suma", returnvalue=[]), \
+            mock.patch.object(B, "texto_sin_trabajo", returnvalue="Sin trabajo listo"), \
+            mock.patch.object(B, "_preguntas_vigentes", returnvalue=[]), \
+            mock.patch.object(B, "_avisar", returnvalue=None):
+            r = B.buscar(aplicar=True, sondear_medios=False, mac=False, origen="boton", ahora=ahora)
+        assert r["plan_nube"]["lanzar"] == 1
+        assert "se frena" not in r["resumen"]
+
+    def test_estados_hechos_no_frenan(self):
+        ahora = AHORA + 3600
+        progreso = {}
+        for i in range(10):
+            progreso["T%d" % i] = {"estado": "commit", "nota": "ok", "fin": ahora - i * 3600}
+        import unittest.mock as mock
+
+        with mock.patch.object(B, "reunir_nube", return_value={
+            "clases": {"elegibles": ["T1"], "agotada": ["T%d" % i for i in range(10)]},
+            "pausa": None, "runs": 0, "error": None, "mac": {}, "dependientes": {}, "capacidad": set(),
+            "notas": {}, "por_traer": set(),
+            "progreso_terminadas": progreso
+        }), \
+            mock.patch.object(B, "escritores_en_la_nube", returnvalue=["nvidia"]), \
+            mock.patch.object(B, "texto_escritores", returnvalue=("Escritores: nvidia", True)), \
+            mock.patch.object(B, "texto_modelos", returnvalue="Modelos: nvidia"), \
+            mock.patch.object(B, "cloudroom", returnvalue=(0, "Cloudroom: sin cupo", [])), \
+            mock.patch.object(B, "_sondear_escritores", returnvalue=[]), \
+            mock.patch.object(B, "texto_cloudroom", returnvalue="Cloudroom: sin cupo"), \
+            mock.patch.object(B, "estado_mac", {}), \
+            mock.patch.object(B, "asignar_huecos", mock.MagicMock(reunir=lambda: {"listas": [], "tope": 2})), \
+            mock.patch.object(B, "plan_nube", returnvalue={"lanzar": 1, "reabrir": [], "trabajadores": 1, "por_que": "test"}), \
+            mock.patch.object(B, "texto_nube", returnvalue="nube: test"), \
+            mock.patch.object(B, "causas_sin_suma", returnvalue=[]), \
+            mock.patch.object(B, "texto_sin_trabajo", returnvalue="Sin trabajo listo"), \
+            mock.patch.object(B, "_preguntas_vigentes", returnvalue=[]), \
+            mock.patch.object(B, "_avisar", returnvalue=None):
+            r = B.buscar(aplicar=True, sondear_medios=False, mac=False, origen="boton", ahora=ahora)
+        assert r["plan_nube"]["lanzar"] == 1
+        assert "se frena" not in r["resumen"]

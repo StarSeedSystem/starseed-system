@@ -913,6 +913,9 @@ def reunir_nube(ahora, estado_mac=None, ceder=True):
         salida["notas"] = {t: str((progreso.get(t) or {}).get("nota") or "")
                            for t in salida["clases"].get("agotada") or [] if isinstance(progreso.get(t), dict)}
         salida["por_traer"] = por_traer_de_la_nube(asuntos)
+        salida["progreso_terminadas"] = {tid: {"estado": v.get("estado"), "nota": str(v.get("nota") or ""),
+                                               "fin": v.get("fin")}
+                                          for tid, v in progreso.items() if isinstance(v, dict) and v.get("fin")}
     except (Exception, SystemExit) as e:  # SystemExit: el reparto aborta así si git falla
         salida["error"] = "%s: %s" % (type(e).__name__, e)
     try:
@@ -1182,15 +1185,30 @@ def buscar(aplicar=False, sondear_medios=True, mac=True, origen="boton", ahora=N
         pot_gh = _potenciado("nube-gh", ahora)
         reabribles = [t for t in agotadas if (puede_reabrir_potenciada(reaperturas.get(t), ahora) if pot_gh
                                               else puede_reabrir_tarea(reaperturas.get(t), ahora, notas.get(t, "")))]
-        # (CAP1025B) Las nuevas frente a lo que ya llevan los jobs vivos, no frente a todos ellos.
-        tope = tope_runs_nube(len(nube["clases"].get("elegibles") or []) + min(REABRIR_POR_PASADA, len(reabribles)),
-                              escritores_nube, vivos=vivos)
-        plan = plan_nube(
-            nube["clases"].get("elegibles"), agotadas, vivos, nube["pausa"],
-            reaperturas, ahora, listas_mac=len(estado_mac.get("listas") or []),
-            tope_mac=int(estado_mac.get("tope") or 0), tope_runs=tope[0], motivo_tope=tope[1], notas=notas,
-            potenciado=pot_gh,
-        )
+# (CAP1025B) Las nuevas frente a lo que ya llevan los jobs vivos, no frente a todos ellos.
+        tope_bruto = tope_runs_nube(len(nube["clases"].get("elegibles") or []) + min(REABRIR_POR_PASADA, len(reabribles)),
+                                    escritores_nube, vivos=vivos)
+        entradas_terminadas = list(nube.get("progreso_terminadas") or {})
+        freno, texto_freno = False, ""
+        if aplicar and entradas_terminadas:
+            try:
+                import freno_mismo_motivo as FM
+                freno, texto_freno = FM.frenar_por_mismo_motivo(entradas_terminadas)
+            except Exception:
+                pass
+        if freno:
+            tope = (vivos, "ya hay %d job(s) en marcha y el tope de runs se mantiene (no se lanzan jobs nuevos); %s"
+                    % (vivos, texto_freno))
+            plan = {"lanzar": 0, "reabrir": [], "trabajadores": 0,
+                    "por_que": "ya hay %d job(s) en marcha, %s" % (vivos, texto_freno)}
+        else:
+            tope = tope_bruto
+            plan = plan_nube(
+                nube["clases"].get("elegibles"), agotadas, vivos, nube["pausa"],
+                reaperturas, ahora, listas_mac=len(estado_mac.get("listas") or []),
+                tope_mac=int(estado_mac.get("tope") or 0), tope_runs=tope[0], motivo_tope=tope[1], notas=notas,
+                potenciado=pot_gh,
+            )
         if not pot_gh:
             _q = pregunta_nube_gh(agotadas, reabribles, reaperturas, ahora, max(0, MAX_RUNS_NUBE - vivos))
             if _q:
@@ -1212,6 +1230,8 @@ def buscar(aplicar=False, sondear_medios=True, mac=True, origen="boton", ahora=N
             hechas.append(lanzados)
         lineas.append(texto_nube(nube["clases"], plan, vivos, lanzados, aplicado=aplicar, mac=nube.get("mac"),
                                  tope=tope, por_traer=por_traer))
+        if freno:
+            lineas.append(texto_freno)
         lineas.append(linea_cr)
 
         # 2b · Sesiones de Claude Code en la nube (crédito propio, no el límite semanal).
