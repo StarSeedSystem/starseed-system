@@ -1768,7 +1768,23 @@ def hay_alguna_clave():
 MERITO_CABEZA = int(os.environ.get("STARSEED_MERITO_CABEZA", "3") or 3)
 #: Proveedores que cobran por token con la tarjeta de Alex: fuera de la rotación salvo
 #: STARSEED_PAGO=1. (codex va por suscripción y cupo, no por token: se queda.)
-PROVEEDORES_DE_PAGO = ("xai", "deepseek", "anthropic", "openai")
+PROVEEDORES_DE_PAGO = ("xai", "deepseek", "anthropic", "openai", "abliteration")
+
+# MOD1116: pasarela abliteration.ai
+def abliteration_permitida(entorno=None, leer_estado=None, ahora=None):
+    """¿Está permitido usar abliteration.ai en este entorno?"""
+    env = entorno or os.environ
+    if env.get("STARSEED_ABLITERATION") != "1":
+        return False
+    # Verificación de créditos (estado en ~/.starseed/abliteration-uso.json)
+    try:
+        ruta_puente = os.path.join(ROOT, "scripts", "puente")
+        if ruta_puente not in sys.path:
+            sys.path.insert(0, ruta_puente)
+        import abliteration_creditos as _ablit_cred
+        return _ablit_cred.permitido(leer_estado, ahora)
+    except Exception:
+        return False
 _ESTADOS_MAL = (
     "sin_cambios",
     "fallo",
@@ -1844,7 +1860,24 @@ def sin_pago(modelos):
     """Quita los proveedores que cobran por token, salvo `STARSEED_PAGO=1`."""
     if os.environ.get("STARSEED_PAGO", "").strip() == "1":
         return list(modelos)
-    return [m for m in modelos if proveedor_de(m) not in PROVEEDORES_DE_PAGO]
+    # Filtrado: quitamos proveedores de pago, pero abliteration usa su propia var
+    resultado = []
+    for m in modelos:
+        prov = proveedor_de(m)
+        if prov not in PROVEEDORES_DE_PAGO:
+            resultado.append(m)
+        elif prov == "abliteration" and abliteration_permitida():
+            # abliteration entra si su permiso está activo (aunque no haya pago)
+            resultado.append(m)
+        # si es abliteration y no tiene permiso: se descarta (no se incluye)
+    return resultado
+
+# MOD1116: ajuste de sin_pago para abliteration
+def sin_pago_abliteration(modelos):
+    """Quita modelos de abliteration si no está permitido, salvo STARSEED_PAGO=1."""
+    if os.environ.get("STARSEED_PAGO", "").strip() == "1":
+        return list(modelos)
+    return [m for m in modelos if proveedor_de(m) != "abliteration" or abliteration_permitida()]
 
 
 def modelos_para(tid):
