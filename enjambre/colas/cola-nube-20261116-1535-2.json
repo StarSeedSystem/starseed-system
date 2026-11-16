@@ -1,0 +1,24 @@
+{
+ "ola": "oracle-20261116",
+ "medio": "oracle",
+ "tareas": [
+  {
+   "ola": "JLA1116A",
+   "id": "JL7-d2",
+   "titulo": "Calibración de la confianza de Laya por punto y ámbito (parte 2 de 2)",
+   "archivos": [
+    "src/lib/astraura/laya/__tests__/calibracion-laya.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: architecture/jev-entrena-laya.md (si aún no está en el repo, rige este texto). Lee AGENTS.md. §3.2. Puro. Con casos (`CasoLaya` de `aprendizaje-laya.ts`) y su desenlace correcto/incorrecto, `calibrar(casos, punto, ambito)`: 10 cajas de confianza, tasa de acierto por caja, exige ≥ `MIN_CASOS_UMBRAL` (30) y devuelve `{cajas, umbralSugerido, n}` o `{n, motivo: \"faltan casos\"}`; `confianzaCalibrada(cal, p)` interpola y nunca sube la confianza por encima de la tasa observada. PRUEBAS: datos sintéticos con Laya sobreconfiada (dice 0,9 y acierta 0,6) baja la confianza; menos de 30 casos -> motivo; cajas vacías no rompen.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` (Python: sin red ni `~/.starseed`, rutas y lectores se inyectan) salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.\n\n## PARTE 2 DE 2 (la dirección dividió JL7: falla por sí misma (tarea:otro))\nEn esta parte tocas SOLO: src/lib/astraura/laya/__tests__/calibracion-laya.test.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "JL7",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:otro)"
+   },
+   "dependencias_ya_en_main": [
+    "JL7-d1"
+   ]
+  }
+ ]
+}
