@@ -77,6 +77,7 @@ import {
     type PasoInicial,
     type PestanaInicial,
 } from "@/lib/onboarding/primer-arranque";
+import { clasificarErrorServicio } from "@/lib/onboarding/onboarding";
 
 import { NeuronSetup } from "./neuron-setup";
 import { TarjetaBienvenida } from "./tarjeta-bienvenida";
@@ -218,7 +219,9 @@ export function PrimerArranque({ esperaMs = 700 }: PrimerArranqueProps) {
             try {
                 const { data: prof } = await sb.from("profiles").select("handle").eq("user_id", user.id).maybeSingle();
                 perfil = Boolean((prof as { handle?: string } | null)?.handle);
-            } catch {
+            } catch (e) {
+                const tipo = clasificarErrorServicio(e);
+                console.warn("[primer-arranque] error al leer perfil:", tipo === "red" ? "red" : "indisponible");
                 perfil = false; // sin datos, no se abre nada encima de nadie
             }
             const id = thisDeviceId();
@@ -240,7 +243,9 @@ export function PrimerArranque({ esperaMs = 700 }: PrimerArranqueProps) {
                     tieneNombreOAjustes: tieneNombreOAjustes(id),
                 };
                 setNombreNeurona(f?.name ?? "");
-            } catch {
+            } catch (e) {
+                const tipo = clasificarErrorServicio(e);
+                console.warn("[primer-arranque] error al leer neuron_devices:", tipo === "red" ? "red" : "indisponible");
                 estado = { configuradaAqui: neuronaConfiguradaAqui(id), enCuenta: true, creadaEnEsteArranque: false, tieneNombreOAjustes: tieneNombreOAjustes(id) };
             }
             setTienePerfil(perfil);
@@ -258,14 +263,18 @@ export function PrimerArranque({ esperaMs = 700 }: PrimerArranqueProps) {
                         const d = m.decidirConDatos(datos);
                         setDatosBienvenida(d.mostrar ? datos : null);
                         setBienvenida(d.mostrar ? "pendiente" : "no");
-                    } catch {
+                    } catch (e) {
+                        const tipo = clasificarErrorServicio(e);
+                        console.warn("[primer-arranque] error al leer datos de bienvenida:", tipo === "red" ? "red" : "indisponible");
                         setBienvenida("no");
                     }
                 }
             } else {
                 setBienvenida("no");
             }
-        } catch {
+        } catch (e) {
+            const tipo = clasificarErrorServicio(e);
+            console.warn("[primer-arranque] error en evaluar:", tipo === "red" ? "red" : "indisponible");
             setSesion("comprobando"); // fallo raro: mejor no abrir nada
         }
     }, [leerMarcas]);
@@ -280,7 +289,10 @@ export function PrimerArranque({ esperaMs = 700 }: PrimerArranqueProps) {
                 void evaluar();
             });
             quitarAuth = () => sub.subscription.unsubscribe();
-        } catch { /* sin suscripción: basta la comprobación inicial */ }
+        } catch (e) {
+            const tipo = clasificarErrorServicio(e);
+            console.warn("[primer-arranque] error en suscripción auth:", tipo === "red" ? "red" : "indisponible");
+        }
         const quitarRito = suscribirRito((etapa) => setRitoEnCurso(etapa !== null));
         return () => {
             quitarAuth?.();
