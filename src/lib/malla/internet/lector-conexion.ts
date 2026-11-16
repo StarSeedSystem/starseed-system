@@ -3,7 +3,7 @@
  * Falta en el puente nativo: ver §8.2 del contrato (Android `isActiveNetworkMetered`).
  */
 
-import type { NetworkInformationLike } from "@/ai/astraura/mesh/connectivity";
+import { NetworkInformationLike } from "@/ai/astraura/mesh/connectivity";
 
 export interface EntornoConexion {
   navigator?: {
@@ -38,6 +38,8 @@ export function leerConexion(entorno: EntornoConexion): ResultadoConexion {
     } catch {
       nativaMedida = null;
     }
+  } else {
+    // falta en el puente nativo: ver §8.2 del contrato
   }
 
   return {

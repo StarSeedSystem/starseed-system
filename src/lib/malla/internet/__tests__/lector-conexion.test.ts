@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { leerConexion, suscribirConexion } from "../lector-conexion";
 
 describe("lector-conexion", () => {

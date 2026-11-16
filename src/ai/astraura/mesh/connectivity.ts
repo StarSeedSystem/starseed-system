@@ -244,7 +244,7 @@ export interface ConnectivityLink {
   meta?: Record<string, unknown>;
 }
 
-interface NetworkInformationLike {
+export interface NetworkInformationLike {
   effectiveType?: string; // "4g" | "3g" | "2g" | "slow-2g"
   downlink?: number; // Mbps estimados
   rtt?: number; // ms
@@ -254,15 +254,7 @@ interface NetworkInformationLike {
   removeEventListener?: (t: string, cb: () => void) => void;
 }
 
-function netInfo(): NetworkInformationLike | null {
-  if (typeof navigator === "undefined") return null;
-  const nav = navigator as Navigator & {
-    connection?: NetworkInformationLike;
-    mozConnection?: NetworkInformationLike;
-    webkitConnection?: NetworkInformationLike;
-  };
-  return nav.connection ?? nav.mozConnection ?? nav.webkitConnection ?? null;
-}
+import { leerConexion, suscribirConexion } from "@/lib/malla/internet/lector-conexion";
 
 const NET_TYPE_LABEL: Record<string, string> = {
   wifi: "Wi-Fi",
@@ -274,19 +266,32 @@ const NET_TYPE_LABEL: Record<string, string> = {
   unknown: "Red (tipo desconocido)",
 };
 
+function netInfo(): NetworkInformationLike | null {
+  if (typeof navigator === "undefined") return null;
+  const nav = navigator as Navigator & {
+    connection?: NetworkInformationLike;
+    mozConnection?: NetworkInformationLike;
+    webkitConnection?: NetworkInformationLike;
+  };
+  return nav.connection ?? nav.mozConnection ?? nav.webkitConnection ?? null;
+}
+
 /** Estado de la RED EXTERNA (Wi-Fi/Ethernet/datos). */
 export function externalLink(): ConnectivityLink {
   if (typeof navigator === "undefined") {
     return { kind: "external", label: "Red externa", availability: "unsupported", detail: "no disponible (servidor)" };
   }
   const online = navigator.onLine !== false;
-  const info = netInfo();
-  const typeLabel = info?.type ? NET_TYPE_LABEL[info.type] ?? info.type : "Red externa";
+  const info = leerConexion({ navigator: { connection: netInfo() ?? undefined } });
+  const typeLabel = info.tipo ? NET_TYPE_LABEL[info.tipo] ?? info.tipo : "Red externa";
   const parts: string[] = [];
-  if (info?.effectiveType) parts.push(info.effectiveType.toUpperCase());
-  if (typeof info?.downlink === "number") parts.push(`~${info.downlink} Mbps`);
-  if (typeof info?.rtt === "number") parts.push(`${info.rtt} ms`);
-  if (info?.saveData) parts.push("ahorro de datos");
+  if (info.effectiveType) parts.push(info.effectiveType.toUpperCase());
+  const raw = netInfo();
+  if (typeof raw?.downlink === "number") parts.push(`~${raw.downlink} Mbps`);
+  if (typeof raw?.rtt === "number") parts.push(`${raw.rtt} ms`);
+  if (info.saveData) parts.push("ahorro de datos");
+  if (info.nativaMedida === true) parts.push("red de pago (nativa)");
+
   const detail = online
     ? parts.length
       ? parts.join(" · ")
@@ -299,11 +304,12 @@ export function externalLink(): ConnectivityLink {
     detail,
     meta: {
       online,
-      effectiveType: info?.effectiveType,
-      downlink: info?.downlink,
-      rtt: info?.rtt,
-      type: info?.type,
-      hasApi: !!info,
+      effectiveType: info.effectiveType,
+      downlink: raw?.downlink,
+      rtt: raw?.rtt,
+      type: info.tipo,
+      hasApi: !!raw,
+      nativaMedida: info.nativaMedida,
     },
   };
 }
@@ -358,15 +364,16 @@ export async function serialLink(): Promise<ConnectivityLink> {
 /** Suscripción a cambios de la red externa (online/offline + Network Info). */
 export function subscribeConnectivity(cb: () => void): () => void {
   if (typeof window === "undefined") return () => {};
-  const info = netInfo();
   window.addEventListener("online", cb);
   window.addEventListener("offline", cb);
   window.addEventListener(CONNECTIVITY_EVENT, cb);
-  info?.addEventListener?.("change", cb);
+
+  const unsub = suscribirConexion({ navigator: { connection: netInfo() ?? undefined } }, cb);
+
   return () => {
     window.removeEventListener("online", cb);
     window.removeEventListener("offline", cb);
     window.removeEventListener(CONNECTIVITY_EVENT, cb);
-    info?.removeEventListener?.("change", cb);
+    unsub();
   };
 }
