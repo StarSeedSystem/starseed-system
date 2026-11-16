@@ -22,6 +22,7 @@ import {
   type EstadoServidorLocal as Estado,
   type TonoServidor,
 } from "@/lib/nativa/estado-servidor-local";
+import { ROTOLOS_ESTADO, paresInversos, esCodigoValido } from "@/lib/traductor/tipos";
 
 const CLASE_TONO: Record<TonoServidor, string> = {
   ok: "border-emerald-400/30 bg-emerald-500/10 text-emerald-200",
