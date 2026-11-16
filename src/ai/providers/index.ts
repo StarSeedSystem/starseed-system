@@ -10,6 +10,7 @@ import { anthropicProvider } from "./anthropic";
 import { googleProvider } from "./google";
 import { deepseekProvider } from "./deepseek";
 import { groqProvider } from "./groq";
+import { abliterationProvider } from "./abliteration";
 import { openrouterProvider } from "./openrouter";
 import { nvidiaProvider } from "./nvidia";
 import { astraura158Provider } from "./astraura-158";
@@ -34,6 +35,7 @@ export const PROVIDERS: Record<ProviderId, Provider> = {
   google: googleProvider,
   deepseek: deepseekProvider,
   groq: groqProvider,
+  abliteration: abliterationProvider,
   // OpenRouter tiene adaptador PROPIO desde la Adenda 67 (P0-2): envía las
   // cabeceras `HTTP-Referer`/`X-Title` que OpenRouter espera de una app web,
   // ignora los keep-alive SSE (": OPENROUTER PROCESSING") y prioriza `:free`.
@@ -54,6 +56,7 @@ export const PROVIDER_ORDER: ProviderId[] = [
   "ollama",
   "deepseek",
   "groq",
+  "abliteration",
   "openrouter",
   "nvidia",
   "openai",
