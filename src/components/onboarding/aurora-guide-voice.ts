@@ -119,9 +119,16 @@ export function auroraEnsureListening(): void {
 /** Lee el transcript actual de la escucha de voz (o "" si no hay puente). */
 export function auroraTranscript(): string {
   try {
-    const s = auroraBridge()?.getState?.();
-    return (s?.transcript ?? "") + " " + (s?.interim ?? "");
-  } catch {
+    const bridge = auroraBridge();
+    if (!bridge) return "";
+    const s = bridge.getState?.();
+    if (!s) return "";
+    const transcript = s.transcript ?? "";
+    const interim = s.interim ?? "";
+    if (!transcript && !interim) return "";
+    return transcript + (interim ? " " + interim : "");
+  } catch (e) {
+    console.warn("[aurora-guide-voice] error leyendo transcript:", (e as Error)?.message ?? e);
     return "";
   }
 }
