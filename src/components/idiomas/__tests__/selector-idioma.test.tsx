@@ -28,7 +28,7 @@ describe("selector de idioma", () => {
         expect(screen.getByText("Sugerido para este aparato")).toBeTruthy();
         const opciones = screen.getAllByRole("option");
         expect(opciones[0].getAttribute("data-codigo")).toBe("pt");
-        expect(opciones.length).toBe(IDIOMAS.length); // el sugerido, y el resto sin repetirlo… más español: ver abajo
+        expect(opciones.length).toBeGreaterThan(IDIOMAS.length); // Ahora incluye idiomas del mundo resueltos por Intl
         const caja = screen.getByRole("searchbox", { name: "Buscar idioma" });
         fireEvent.change(caja, { target: { value: "franc" } });
         const filtrados = screen.getAllByRole("option");

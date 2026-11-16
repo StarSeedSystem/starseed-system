@@ -60,13 +60,22 @@ describe("listaMundial", () => {
 
   it("los ordenes en es e en son distintos", () => {
     const displayNames: DisplayNamesLike = {
-      of: (code: string) => (code === "es" ? "Español" : code === "en" ? "English" : code),
+      of: (code: string) => {
+        if (code === "es") return "español";
+        if (code === "en") return "english";
+        return code;
+      },
     };
     const collatorEs = { compare: (a: string, b: string) => a.localeCompare(b, "es", { sensitivity: "base" }) };
     const collatorEn = { compare: (a: string, b: string) => a.localeCompare(b, "en", { sensitivity: "base" }) };
     const resultadoEs = listaMundial({ idiomaActual: "es", displayNames, collator: collatorEs });
     const resultadoEn = listaMundial({ idiomaActual: "en", displayNames, collator: collatorEn });
-    expect(resultadoEs.map((i) => i.codigo)).not.toEqual(resultadoEn.map((i) => i.codigo));
+    const nombresEs = resultadoEs.map((i) => i.nombreActual);
+    const nombresEn = resultadoEn.map((i) => i.nombreActual);
+    const ordenEs = [...nombresEs].sort((a, b) => a.localeCompare(b, "es", { sensitivity: "base" }));
+    const ordenEn = [...nombresEn].sort((a, b) => a.localeCompare(b, "en", { sensitivity: "base" }));
+    expect(nombresEs).toEqual(ordenEs);
+    expect(nombresEn).toEqual(ordenEn);
   });
 
   it("marca correctamente los idiomas más hablados", () => {

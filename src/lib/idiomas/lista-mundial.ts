@@ -28,8 +28,8 @@ export function listaMundial(entorno: EntornoListaMundial = { idiomaActual: "es"
   const getNombre = (codigo: string, locale: string): string | undefined => {
     try {
       const dn = entorno.displayNames ?? new Intl.DisplayNames([locale], { type: "language" });
-      const res = dn.of(codigo);
-      return esNombreInvalido(res, codigo) ? undefined : res;
+      const res = dn.of(codigo) ?? "";
+      return esNombreInvalido(res, codigo) ? undefined : res || undefined;
     } catch {
       return undefined;
     }

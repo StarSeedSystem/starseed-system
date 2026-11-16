@@ -10,6 +10,7 @@
  */
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Check, Globe } from "lucide-react";
+import { listaMundial, agrupar, type IdiomaMundial } from "@/lib/idiomas/lista-mundial";
 import { CON_CATALOGO, ESTADO_CATALOGO, IDIOMAS, porCodigo, type Idioma } from "@/lib/idiomas/idiomas";
 import { EVENTO_IDIOMA, elegirIdioma, idiomaEfectivo, sugerirIdioma } from "@/lib/idiomas/estado";
 
@@ -50,6 +51,7 @@ export function SelectorIdioma({ className = "", alElegir, abiertoAlInicio = fal
     const [filtro, setFiltro] = useState("");
     const [actual, setActual] = useState("es");
     const [aviso, setAviso] = useState("");
+    const listaIdiomas = useMemo(() => listaMundial({ idiomaActual: actual }), [actual]);
     const sugerido = useMemo(() => sugerirIdioma(), []);
     const boton = useRef<HTMLButtonElement>(null);
     const caja = useRef<HTMLInputElement>(null);
@@ -65,13 +67,13 @@ export function SelectorIdioma({ className = "", alElegir, abiertoAlInicio = fal
 
     const visibles = useMemo(() => {
         const q = sinTildes(filtro.trim());
-        const coincide = (i: Idioma): boolean => !q || sinTildes(i.nombre).includes(q) || i.codigo.includes(q) || sinTildes(i.rotulo).includes(q);
-        const primero = IDIOMAS.find((i) => i.codigo === sugerido && i.codigo !== "es");
-        const resto = IDIOMAS.filter((i) => i !== primero);
+        const coincide = (i: IdiomaMundial): boolean => !q || sinTildes(i.nombreActual).includes(q) || i.codigo.includes(q) || i.alias.some((a) => sinTildes(a).includes(q));
+        const primero = listaIdiomas.find((i) => i.codigo === sugerido && i.codigo !== "es");
+        const resto = listaIdiomas.filter((i) => i !== primero);
         return { sugerido: primero && coincide(primero) ? primero : null, resto: resto.filter(coincide) };
-    }, [filtro, sugerido]);
+    }, [filtro, sugerido, listaIdiomas]);
 
-    const elegir = (i: Idioma): void => {
+    const elegir = (i: IdiomaMundial): void => {
         if (!elegirIdioma(i.codigo)) { setAviso("error"); return; }
         setActual(i.codigo);
         setAviso(estadoDe(i.codigo) === "ninguno" ? i.codigo : "");
@@ -89,7 +91,7 @@ export function SelectorIdioma({ className = "", alElegir, abiertoAlInicio = fal
     };
 
     const idiomaActual = porCodigo(actual);
-    const fila = (i: Idioma, n: number, destacado = false) => (
+    const fila = (i: IdiomaMundial, n: number, destacado = false) => (
         <li
             key={`${destacado ? "s" : "o"}-${i.codigo}`}
             role="option"
@@ -105,7 +107,7 @@ export function SelectorIdioma({ className = "", alElegir, abiertoAlInicio = fal
             className="flex min-h-[44px] cursor-pointer items-center justify-between gap-3 rounded-lg px-3 py-1.5 outline-none hover:bg-white/10 focus-visible:bg-white/10 focus-visible:ring-2 focus-visible:ring-cyan-300"
         >
             <span className="flex min-w-0 flex-col">
-                <span translate="no" data-no-traducir="" lang={i.codigo} dir={i.dir} className="truncate text-sm font-medium">{i.nombre}</span>
+                <span translate="no" data-no-traducir="" lang={i.codigo} dir={i.dir} className="truncate text-sm font-medium">{i.nombreActual}</span>
                 <Etiqueta codigo={i.codigo} />
             </span>
             {i.codigo === actual && <Check className="h-4 w-4 shrink-0 text-emerald-300" aria-hidden />}
