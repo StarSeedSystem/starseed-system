@@ -12,6 +12,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Eye, EyeOff, Globe2, MapPin, Settings2, ShieldCheck, Smartphone, Tag, UserRound } from "lucide-react";
+import { guardarPreferenciasRed, leerPreferenciasRed } from "@/lib/malla/preferencias-red-compartida";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Switch } from "@/components/ui/switch";
@@ -136,6 +137,15 @@ export function AjustesNeurona({ centro, neuronaId, verPublicos, onVerPublicos, 
     }
   };
 
+  const handleVerPublicosChange = (v: boolean) => {
+    const prefs = leerPreferenciasRed();
+    const resultado = guardarPreferenciasRed({ ...prefs, verPublicos: v });
+    onVerPublicos(v);
+    if (resultado.aviso) {
+      toast.info("Ajuste de visibilidad actualizado", { description: "Ahora compartes tus datos con otros usuarios." });
+    }
+  };
+
   return (
     <section aria-label="Ajustes de mi neurona" data-testid="ajustes-neurona" className="space-y-2.5 rounded-2xl border border-white/10 bg-black/30 p-2.5">
       <div>
@@ -215,7 +225,7 @@ export function AjustesNeurona({ centro, neuronaId, verPublicos, onVerPublicos, 
         titulo="Ver los datos públicos de otras cuentas"
         nota="Nombre, foto y tipo de aparato de quien eligió ser «Visible». Apagado, todas se ven anónimas."
         activo={verPublicos}
-        onCambio={onVerPublicos}
+        onCambio={handleVerPublicosChange}
       />
     </section>
   );
