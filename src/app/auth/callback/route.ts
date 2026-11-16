@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
 import { siguienteSeguro } from "@/lib/auth/siguiente-seguro";
+import { resolverCallback } from "@/lib/auth/resultado-callback";
 
 // ── Callback de autenticación (Adenda 63) ───────────────────────────────────
 // Destino de `emailRedirectTo` (confirmación de correo) y de cualquier flujo
@@ -15,14 +16,20 @@ export async function GET(request: Request) {
     // `${origin}${next}` en una redirección a otro sitio).
     const next = siguienteSeguro(searchParams.get("next"), "/escritorios");
 
+    let error: { message?: string } | null = null;
+    let excepcion: unknown = null;
+
     if (code) {
         try {
             const supabase = await createClient();
-            const { error } = await supabase.auth.exchangeCodeForSession(code);
-            if (!error) return NextResponse.redirect(`${origin}${next}`);
-        } catch {
-            // caída controlada al login con aviso
+            ({ error } = await supabase.auth.exchangeCodeForSession(code));
+        } catch (e) {
+            // (2026-11-16) El catch ya no está vacío: se guarda la excepción y `resolverCallback`
+            // decide destino y qué contar (red/cuota), sin filtrar el `code` al log.
+            excepcion = e;
         }
     }
-    return NextResponse.redirect(`${origin}/login?error=auth-callback`);
+    const resultado = resolverCallback({ origen: origin, next, codigo: code, error, excepcion });
+    if (resultado.errorParaLog) console.error(`[auth/callback] ${resultado.errorParaLog}`);
+    return NextResponse.redirect(resultado.destino);
 }
