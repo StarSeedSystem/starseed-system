@@ -47,7 +47,6 @@ let estado: EstadoVoz = {
     alTerminar: null,
 };
 
-<<<<<<< HEAD
 /** Proveedor de voces: en producción usa speechSynthesis; en tests se puede sobrescribir. */
 let proveedorVoces: () => VozDisponible[] = (): VozDisponible[] => {
     if (typeof window !== "undefined" && "speechSynthesis" in window && window.speechSynthesis) {
@@ -82,8 +81,6 @@ function obtenerVoces(): VozDisponible[] {
     return proveedorVoces();
 }
 
-=======
->>>>>>> 5a6ac479e (salvavidas · TU14: trabajo del agente antes de las puertas (tsc / vitest))
 /**
  * Reinicia el estado interno del módulo. Útil para tests: pone el estado
  * en su valor inicial como si fuera una nueva instancia.
@@ -105,32 +102,19 @@ export function resetearEstado(): void {
 function seleccionarVoz(idioma: string): VozDisponible | null {
     if (!idioma) return null;
 
-<<<<<<< HEAD
     const voces = obtenerVoces();
 
     // Buscar coincidencia exacta
     const exacta = voces.find((v) => v.lang === idioma);
-=======
-    // Buscar coincidencia exacta
-    const exacta = VOZES_SIMULADAS.find((v) => v.lang === idioma);
->>>>>>> 5a6ac479e (salvavidas · TU14: trabajo del agente antes de las puertas (tsc / vitest))
     if (exacta) return exacta;
 
     // Buscar por prefijo (ej. "es" → "es-ES", "es-MX")
     const prefijo = idioma.split("-")[0];
-<<<<<<< HEAD
     const porPrefijo = voces.find((v) => v.lang.startsWith(prefijo + "-"));
     if (porPrefijo) return porPrefijo;
 
     // Buscar solo el prefijo sin guion (ej. "es" → "es")
     const porPrefijoSimple = voces.find((v) => v.lang === prefijo);
-=======
-    const porPrefijo = VOZES_SIMULADAS.find((v) => v.lang.startsWith(prefijo + "-"));
-    if (porPrefijo) return porPrefijo;
-
-    // Buscar solo el prefijo sin guion (ej. "es" → "es")
-    const porPrefijoSimple = VOZES_SIMULADAS.find((v) => v.lang === prefijo);
->>>>>>> 5a6ac479e (salvavidas · TU14: trabajo del agente antes de las puertas (tsc / vitest))
     if (porPrefijoSimple) return porPrefijoSimple;
 
     return null;
@@ -142,12 +126,8 @@ function seleccionarVoz(idioma: string): VozDisponible | null {
  */
 export function vocesDe(idioma: string): VozDisponible[] {
     if (!idioma) return [];
-<<<<<<< HEAD
     const voces = obtenerVoces();
     return voces.filter((v) => {
-=======
-    return VOZES_SIMULADAS.filter((v) => {
->>>>>>> 5a6ac479e (salvavidas · TU14: trabajo del agente antes de las puertas (tsc / vitest))
         if (v.lang === idioma) return true;
         const prefijo = idioma.split("-")[0];
         return v.lang.startsWith(prefijo + "-") || v.lang === prefijo;
@@ -180,12 +160,10 @@ export function hablar(texto: string, idioma: string, entorno: string = "navegad
     // Marcar como activa y procesar
     estado.activa = voz;
     estado.cancelado = false;
-    estado.cola = [];
 
     // Simular síntesis de voz (speechSynthesis)
-<<<<<<< HEAD
-    if (typeof window !== "undefined" && "speechSynthesis" in window && window.speechSynthesis) {
-        const synth = window.speechSynthesis;
+    const synth = (typeof window !== "undefined" && window.speechSynthesis) || (typeof global !== "undefined" && global.speechSynthesis);
+    if (synth) {
         const u = new SpeechSynthesisUtterance(texto);
         u.lang = voz.lang;
         const voices = synth.getVoices();
@@ -196,21 +174,14 @@ export function hablar(texto: string, idioma: string, entorno: string = "navegad
 
         // Marcar fin de frase
         const onend = (): void => {
-=======
-    if (typeof window !== "undefined" && "speechSynthesis" in window && (window as any).speechSynthesis) {
-        const synth = (window as any).speechSynthesis;
-        const u = new SpeechSynthesisUtterance(texto);
-        u.lang = voz.lang;
-        ;(u as any).voice = ((synth as any).getVoices() as SpeechSynthesisVoice[]).find((v: SpeechSynthesisVoice) => v.lang === voz.lang || v.name.includes(voz.nombre)) || undefined;
-
-        // Marcar fin de frase
-        const onend = () => {
->>>>>>> 5a6ac479e (salvavidas · TU14: trabajo del agente antes de las puertas (tsc / vitest))
-            synth.cancel();
             estado.activa = null;
             const siguiente = estado.cola.shift();
             if (siguiente) {
-                hablar(siguiente, idioma, entorno);
+                if (estado.cola.length > 0) {
+                    hablar(siguiente, idioma, entorno);
+                } else {
+                    setTimeout(() => hablar(siguiente, idioma, entorno), 50);
+                }
             } else {
                 const cb = estado.alTerminar;
                 estado.alTerminar = null;
@@ -226,7 +197,11 @@ export function hablar(texto: string, idioma: string, entorno: string = "navegad
             estado.activa = null;
             const siguiente = estado.cola.shift();
             if (siguiente) {
-                hablar(siguiente, idioma, entorno);
+                if (estado.cola.length > 0) {
+                    hablar(siguiente, idioma, entorno);
+                } else {
+                    setTimeout(() => hablar(siguiente, idioma, entorno), 50);
+                }
             } else {
                 const cb = estado.alTerminar;
                 estado.alTerminar = null;
@@ -245,13 +220,9 @@ export function hablar(texto: string, idioma: string, entorno: string = "navegad
 export function detener(): void {
     estado.cancelado = true;
     estado.cola = [];
-<<<<<<< HEAD
-    if (typeof window !== "undefined" && window.speechSynthesis) {
-        window.speechSynthesis.cancel();
-=======
-    if (typeof window !== "undefined" && (window as any).speechSynthesis) {
-        (window as any).speechSynthesis.cancel();
->>>>>>> 5a6ac479e (salvavidas · TU14: trabajo del agente antes de las puertas (tsc / vitest))
+    const synth = (typeof window !== "undefined" && window.speechSynthesis) || (typeof global !== "undefined" && global.speechSynthesis);
+    if (synth) {
+        synth.cancel();
     }
     estado.activa = null;
     const cb = estado.alTerminar;
