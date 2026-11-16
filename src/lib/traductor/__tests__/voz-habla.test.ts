@@ -40,9 +40,6 @@ describe("voz-habla: hablar", () => {
 
         // Esperar a que la frase actual termine (fallback setTimeout ~10ms)
         await new Promise((resolve) => setTimeout(resolve, 50));
-
-        // La cola debería haberse procesado
-        const u = (global as any).SpeechSynthesisUtterance?.lastUtt;
     });
 
     it("procesa la cola en orden (FIFO) tras detener y reiniciar estado", async () => {
