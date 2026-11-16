@@ -40,11 +40,11 @@ function depsCon(fetchFalso: typeof fetch, vencer = false, medio: MedioLaya = "a
 } {
   const { reloj, dormidos } = relojFalso(vencer);
   const peticiones: string[] = [];
-  const fetch: typeof fetch = (url, init) => {
+  const fetchConRegistro: typeof fetch = (url: RequestInfo | URL, init?: RequestInit) => {
     peticiones.push(String(init?.body ?? ""));
     return fetchFalso(url, init);
   };
-  const deps: DepsLaya = { ...reloj, fetch };
+  const deps: DepsLaya = { ...reloj, fetch: fetchConRegistro };
   return { deps: { ...deps, medio }, dormidos, peticiones };
 }
 
