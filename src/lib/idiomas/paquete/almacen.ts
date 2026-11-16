@@ -12,7 +12,7 @@ export const EVENTO_CAMBIO = "starseed:idiomas-paquetes" as const;
 export const MAX_PAQUETES = 12;
 export const MAX_BYTES_TOTAL = 6 * 1024 * 1024;
 
-type AlmacenInterno = {
+export type AlmacenInterno = {
   getItem(clave: string): string | null;
   setItem(clave: string, valor: string): void;
   removeItem(clave: string): void;
