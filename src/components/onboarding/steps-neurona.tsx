@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-import { ErrorMessage, InlineError, FieldError } from "@/components/ui/error-message";
+import { ErrorMessage, InlineError, FieldError, ToastError } from "@/components/ui/error-message";
 import { listarCerebros, saveBrain, type Brain } from "@/lib/brains/brains";
 // (Adenda 193) Las carpetas elegidas en Permisos se vinculan SOLAS aquí.
 import { listarCarpetas, suscribirCarpetas, mezclarCarpetasEnServidores, type CarpetaVinculada } from "@/lib/storage/carpetas-vinculadas";
@@ -212,13 +212,12 @@ export function StepCerebros() {
           </select>
         </label>
         {alerta && (
-          <ErrorMessage
+          <ToastError
             message={alerta.mensaje}
             severity={alerta.severidad}
-            context={alerta.contexto}
             title={alerta.severidad === "error" ? "Error" : alerta.severidad === "warning" ? "Aviso" : "Información"}
-            dismissible
-            onDismiss={() => setAlerta(null)}
+            onAction={() => setAlerta(null)}
+            actionLabel="Descartar"
           />
         )}
       </div>
@@ -383,6 +382,7 @@ export function CorreosVinculados({
   // (Adenda 191) El correo externo se pide UNA vez: si ya hay uno vinculado,
   // el alta de otro queda plegada tras un botón discreto.
   const [mostrarAlta, setMostrarAlta] = useState(false);
+  const [errorInline, setErrorInline] = useState<string | null>(null);
 
   const cargar = useCallback(async () => {
     try {
@@ -408,9 +408,10 @@ export function CorreosVinculados({
   const vincular = useCallback(async () => {
     const addr = nuevo.trim().toLowerCase();
     if (!addr.includes("@")) {
-      setAlerta({ mensaje: "Escribe un correo válido.", severidad: "warning", contexto: "validation" });
+      setErrorInline("Escribe un correo válido.");
       return;
     }
+    setErrorInline(null);
     setOcupado(true);
     setAlerta(null);
     try {
@@ -573,25 +574,27 @@ export function CorreosVinculados({
           );
         }
         return (
-          <div className="flex gap-2 pt-1">
-            <Input
-              value={nuevo}
-              onChange={(e) => setNuevo(e.target.value)}
-              placeholder="vincular-otro@correo.com (opcional)"
-              type="email"
-              className="h-8 text-xs"
-            />
-            <Button size="sm" variant="outline" className="h-8 shrink-0 text-xs" onClick={vincular} disabled={ocupado}>
-              {ocupado ? "Vinculando…" : "Vincular"}
-            </Button>
+          <div className="flex flex-col gap-2 pt-1">
+            <div className="flex gap-2">
+              <Input
+                value={nuevo}
+                onChange={(e) => { setNuevo(e.target.value); setErrorInline(null); }}
+                placeholder="vincular-otro@correo.com (opcional)"
+                type="email"
+                className="h-8 text-xs"
+              />
+              <Button size="sm" variant="outline" className="h-8 shrink-0 text-xs" onClick={vincular} disabled={ocupado}>
+                {ocupado ? "Vinculando…" : "Vincular"}
+              </Button>
+            </div>
+            {errorInline && <InlineError message={errorInline} severity="warning" />}
           </div>
         );
       })()}
       {alerta && (
-        <ErrorMessage
+        <ToastError
           message={alerta.mensaje}
           severity={alerta.severidad}
-          context={alerta.contexto}
           title={
             alerta.severidad === "error"
               ? "Error"
@@ -601,8 +604,8 @@ export function CorreosVinculados({
               ? "Éxito"
               : "Información"
           }
-          dismissible
-          onDismiss={() => setAlerta(null)}
+          onAction={() => setAlerta(null)}
+          actionLabel="Descartar"
         />
       )}
     </div>
