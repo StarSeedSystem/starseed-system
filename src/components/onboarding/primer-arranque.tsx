@@ -71,6 +71,7 @@ import {
     neuronaPospuestaEnCuenta,
     ponerMarca,
     posponerNeuronaEnCuenta,
+    recuperacionTrasFallo,
     type EstadoNeurona,
     type EstadoSesion,
     type ModoApp,
@@ -92,7 +93,7 @@ const BienvenidaNeurona = lazy(() => import("@/components/neurons/bienvenida-neu
 function inicioDelArranque(): number {
     try {
         if (typeof performance !== "undefined" && Number.isFinite(performance.timeOrigin)) return performance.timeOrigin;
-    } catch { /* */ }
+    } catch { /* sin performance: la hora actual basta y no hay nada que recuperar */ }
     return Date.now();
 }
 
@@ -176,6 +177,14 @@ export function PrimerArranque({ esperaMs = 700 }: PrimerArranqueProps) {
     /** Espera viva a que la cuenta sea fiable (una sola a la vez). */
     const esperaCuentaRef = useRef<(() => void) | null>(null);
     useEffect(() => () => { esperaCuentaRef.current?.(); }, []);
+    /** Espejo de `sesion` para leerla dentro de `evaluar` sin recrearla (y sin regresarla a ciegas). */
+    const sesionRef = useRef<EstadoSesion>("comprobando");
+    /** El fallo al reunir datos solo rearma un reintento: una vez por evaluación con éxito. */
+    const reintentoFalloRef = useRef(false);
+    const ponerSesion = useCallback((s: EstadoSesion) => {
+        sesionRef.current = s;
+        setSesion(s);
+    }, []);
 
     const leerMarcas = useCallback(() => {
         setMarcas({
@@ -194,16 +203,18 @@ export function PrimerArranque({ esperaMs = 700 }: PrimerArranqueProps) {
             const { data } = await sb.auth.getSession();
             const user = data?.session?.user ?? null;
             if (!user) {
-                setSesion("sin-sesion");
+                reintentoFalloRef.current = false;
+                ponerSesion("sin-sesion");
                 setTienePerfil(null);
                 setNeurona(null);
                 return;
             }
             if ((user as { is_anonymous?: boolean }).is_anonymous || !user.email) {
-                setSesion("invitado");
+                reintentoFalloRef.current = false;
+                ponerSesion("invitado");
                 return;
             }
-            setSesion("cuenta");
+            ponerSesion("cuenta");
             // La cuenta debe estar BAJADA antes de decidir nada sobre esta neurona: en un medio
             // nuevo, lo que la cuenta ya sabe (configurada, «más tarde», nombre, ajustes) aún no
             // está en su localStorage. Si no se puede leer (corte, sin red), no se decide a ciegas:
@@ -265,10 +276,22 @@ export function PrimerArranque({ esperaMs = 700 }: PrimerArranqueProps) {
             } else {
                 setBienvenida("no");
             }
-        } catch {
-            setSesion("comprobando"); // fallo raro: mejor no abrir nada
+            reintentoFalloRef.current = false; // evaluación completa: se vuelve a armar por si un fallo futuro
+        } catch (e) {
+            // (IMG · catch silencioso) Antes tragaba el error sin rastro y DESHACÍA lo ya sabido:
+            // volvía a «comprobando» aunque la sesión ya estuviera resuelta. Ahora deja rastro en
+            // consola (mismo criterio que el rito, Ola 227), conserva lo resuelto y, si falta saber,
+            // rearma UN reintento cuando la cuenta vuelva a ser fiable (nunca un bucle).
+            console.warn("[primer-arranque] no se pudo reunir el arranque:", e);
+            const r = recuperacionTrasFallo(sesionRef.current, reintentoFalloRef.current);
+            ponerSesion(r.sesion);
+            if (r.reintentar) {
+                reintentoFalloRef.current = true;
+                esperaCuentaRef.current?.();
+                esperaCuentaRef.current = cuandoCuentaFiable(() => { void evaluar(); }, 0);
+            }
         }
-    }, [leerMarcas]);
+    }, [leerMarcas, ponerSesion]);
 
     useEffect(() => {
         arranqueRef.current = inicioDelArranque();

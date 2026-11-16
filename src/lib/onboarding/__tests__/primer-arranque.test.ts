@@ -6,6 +6,7 @@ import {
     esNeuronaNueva,
     esRutaPropia,
     MARGEN_ARRANQUE_MS,
+    recuperacionTrasFallo,
     resumenSincronizado,
     type EntradaPrimerArranque,
     type EstadoNeurona,
@@ -137,6 +138,32 @@ describe("decidirPrimerArranque · «Esta neurona» en la app nativa (NEU1107B)"
         expect(decidirPrimerArranque(cuenta({ bienvenida: "pendiente", tienePerfil: false }))).toEqual({ tipo: "nada", motivo: "cuenta-nueva" });
         expect(decidirPrimerArranque(cuenta({ bienvenida: "pendiente", esConsola: true, ruta: "/genesis" })).tipo).toBe("nada");
         expect(decidirPrimerArranque(cuenta({ bienvenida: "pendiente", ritoEnCurso: true }))).toEqual({ tipo: "nada", motivo: "rito" });
+    });
+});
+
+describe("recuperacionTrasFallo · el fallo al reunir datos no es silencioso ni deshace lo sabido", () => {
+    it("conserva la sesión que ya se resolvió, nunca la regresa a «comprobando»", () => {
+        expect(recuperacionTrasFallo("cuenta", false).sesion).toBe("cuenta");
+        expect(recuperacionTrasFallo("sin-sesion", false).sesion).toBe("sin-sesion");
+        expect(recuperacionTrasFallo("invitado", false).sesion).toBe("invitado");
+    });
+
+    it("con la sesión aún sin resolver da derecho a un reintento cuando la cuenta vuelva a ser fiable", () => {
+        expect(recuperacionTrasFallo("comprobando", false)).toEqual({ sesion: "comprobando", reintentar: true });
+    });
+
+    it("con cuenta resuelta pero datos a medias también toca reintentar una vez", () => {
+        expect(recuperacionTrasFallo("cuenta", false)).toEqual({ sesion: "cuenta", reintentar: true });
+    });
+
+    it("nunca más de un reintento: el segundo fallo ya no rearma (sin bucle)", () => {
+        expect(recuperacionTrasFallo("comprobando", true)).toEqual({ sesion: "comprobando", reintentar: false });
+        expect(recuperacionTrasFallo("cuenta", true)).toEqual({ sesion: "cuenta", reintentar: false });
+    });
+
+    it("una sesión conservadora y cerrada (sin sesión, invitado) no rearma nada", () => {
+        expect(recuperacionTrasFallo("sin-sesion", false)).toEqual({ sesion: "sin-sesion", reintentar: false });
+        expect(recuperacionTrasFallo("invitado", false)).toEqual({ sesion: "invitado", reintentar: false });
     });
 });
 

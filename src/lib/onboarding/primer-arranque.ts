@@ -137,6 +137,28 @@ export function creadaDesde(createdAt: string | null | undefined, arranqueMs: nu
 
 /* ─────────────────────────── Qué llegó ya de la cuenta ─────────────────────────── */
 
+/**
+ * Qué queda tras un fallo al reunir los datos del arranque (el catch de `evaluar`
+ * en el componente). Antes era silencioso y además DESHACÍA lo ya sabido: volvía a
+ * «comprobando» aunque la sesión ya estuviera resuelta. Reglas:
+ *   · La sesión resuelta se conserva: lo sabido no se deshace.
+ *   · Con la sesión aún sin resolver, o con la cuenta a medias (perfil/neurona),
+ *     toca UN reintento cuando la cuenta vuelva a ser fiable — el llamador solo
+ *     rearma si aún no reintentó, así que nunca hay un bucle.
+ *   · Una sesión conservadora y cerrada (sin sesión, invitado) no rearma nada.
+ */
+export interface RecuperacionFalloEvaluar {
+    /** Sesión que queda tras el fallo. */
+    sesion: EstadoSesion;
+    /** Toca reintentar (una sola vez) cuando la cuenta vuelva a ser fiable. */
+    reintentar: boolean;
+}
+
+export function recuperacionTrasFallo(sesionActual: EstadoSesion, yaReintento: boolean): RecuperacionFalloEvaluar {
+    const faltaSaber = sesionActual === "comprobando" || sesionActual === "cuenta";
+    return { sesion: sesionActual, reintentar: faltaSaber && !yaReintento };
+}
+
 export interface ConteoSincronizado {
     escritorios: number;
     biblioteca: number;
