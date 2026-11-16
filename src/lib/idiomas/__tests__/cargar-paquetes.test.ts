@@ -134,4 +134,18 @@ describe("cargarCatalogo", () => {
             expect(catalogo).toBeNull();
         });
     });
+
+    describe("paquetes corruptos", () => {
+        it("retorna null si el paquete falta propiedades necesarias", async () => {
+            almacenMock.paquetes.set("de", {
+                formato: "starseed-idioma",
+                version: 1,
+                codigo: "de",
+            } as any);
+            _reiniciarAlmacen(almacenMock as any);
+
+            const catalogo = await cargarCatalogo("de");
+            expect(catalogo).toBeNull();
+        });
+    });
 });
