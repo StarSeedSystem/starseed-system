@@ -10,14 +10,18 @@
  */
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Check, Globe } from "lucide-react";
-import { CON_CATALOGO, ESTADO_CATALOGO, IDIOMAS, porCodigo, type Idioma } from "@/lib/idiomas/idiomas";
+import { idiomasConCatalogo, IDIOMAS, porCodigo, type Idioma } from "@/lib/idiomas/idiomas";
 import { listaMundial } from "@/lib/idiomas/lista-mundial";
 import { EVENTO_IDIOMA, elegirIdioma, idiomaEfectivo, sugerirIdioma } from "@/lib/idiomas/estado";
+import { estadoCatalogo } from "@/lib/idiomas/catalogos/cargar";
 
 const sinTildes = (t: string): string => t.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
 
+const conCatalogoMemo = typeof window !== "undefined" ? idiomasConCatalogo() : [];
+
 export function estadoDe(codigo: string): "revisado" | "automatico" | "ninguno" {
-    return CON_CATALOGO.includes(codigo) ? ESTADO_CATALOGO[codigo] ?? "automatico" : codigo === "es" ? "revisado" : "ninguno";
+    if (!conCatalogoMemo.includes(codigo)) return codigo === "es" ? "revisado" : "ninguno";
+    return estadoCatalogo(codigo);
 }
 
 function Etiqueta({ codigo }: { codigo: string }) {

@@ -55,3 +55,12 @@ export async function cargarCatalogo(
 export function _limpiarCache(): void {
     memoria.clear();
 }
+
+const INTEGRADOS = new Set(["en", "pt", "fr"]);
+
+export function estadoCatalogo(codigo: string): "revisado" | "automatico" | "ninguno" {
+    if (!INTEGRADOS.has(codigo) && !almacen.leerPaquete(codigo)) return "ninguno";
+    const paquete = almacen.leerPaquete(codigo);
+    if (paquete) return paquete.revisado.estado;
+    return "automatico";
+}

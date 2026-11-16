@@ -5,6 +5,8 @@
  * Módulo PURO: sin React, sin `node:*` ni red.
  */
 import { esRtl } from "./tabla-iso";
+import { almacenPaquetes } from "./paquete/almacen";
+
 export const IDIOMA_FUENTE = "es";
 
 export interface Idioma {
@@ -70,10 +72,11 @@ export const direccionDe = (codigo: string): "ltr" | "rtl" => porCodigo(codigo)?
 const INTEGRADOS = new Set(["en", "pt", "fr"]);
 
 export function idiomasConCatalogo(
-    paquetes: { codigo: string }[] = []
+    almacen?: { listarPaquetes(): { codigo: string }[] }
 ): string[] {
+    const a = almacen ?? almacenPaquetes;
     const codigos = new Set<string>(INTEGRADOS);
-    for (const p of paquetes) {
+    for (const p of a.listarPaquetes()) {
         const base = p.codigo.split("-")[0];
         if (IDIOMAS.some((i) => i.codigo === base) && INTEGRADOS.has(base)) {
             codigos.add(base);

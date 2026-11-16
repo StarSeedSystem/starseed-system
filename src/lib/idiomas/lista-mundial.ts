@@ -1,4 +1,4 @@
-import { IDIOMAS, CON_CATALOGO, Idioma } from "./idiomas";
+import { IDIOMAS, idiomasConCatalogo, Idioma } from "./idiomas";
 import { CODIGOS_ISO, MAS_HABLADOS, esRtl, ALIAS } from "./tabla-iso";
 
 export interface IdiomaMundial {
@@ -67,7 +67,7 @@ export function listaMundial(entorno: EntornoListaMundial): IdiomaMundial[] {
     const idManual = IDIOMAS.find((i) => i.codigo === codigo);
     const dir = idManual ? idManual.dir : esRtl(codigo) ? "rtl" : "ltr";
     const masHablado = MAS_HABLADOS.includes(codigo);
-    const conCatalogo = CON_CATALOGO.includes(codigo);
+    const conCatalogo = idiomasConCatalogo().includes(codigo);
 
     const alias: string[] = [];
     for (const [aliasNombre, cods] of Object.entries(ALIAS)) {
