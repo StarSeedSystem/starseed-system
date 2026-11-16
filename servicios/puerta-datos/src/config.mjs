@@ -6,7 +6,10 @@ import { readFileSync } from "node:fs";
 
 export const VERSION = "1.0.0";
 
-/** Orígenes del OS que pueden llamar desde un navegador (sin cookies). */
+// Orígenes del OS que pueden llamar desde un navegador (sin cookies). Los diez puertos
+// 47610–47619 de 127.0.0.1 son el origen de la app nativa de prueba: sin ellos, «Emparejar este
+// aparato» en Genesis decía «la puerta de datos del A1 no responde». Lista cerrada, sin comodines
+// ni expresiones regulares y solo con http en loopback: nada de localhost, otros puertos ni https.
 export const ORIGENES_POR_DEFECTO = Object.freeze([
   "https://starseed-os.vercel.app",
   "http://localhost:9002",
@@ -16,6 +19,16 @@ export const ORIGENES_POR_DEFECTO = Object.freeze([
   "http://tauri.localhost",
   "https://tauri.localhost",
   "capacitor://localhost",
+  "http://127.0.0.1:47610",
+  "http://127.0.0.1:47611",
+  "http://127.0.0.1:47612",
+  "http://127.0.0.1:47613",
+  "http://127.0.0.1:47614",
+  "http://127.0.0.1:47615",
+  "http://127.0.0.1:47616",
+  "http://127.0.0.1:47617",
+  "http://127.0.0.1:47618",
+  "http://127.0.0.1:47619",
 ]);
 
 function entero(valor, defecto, min, max) {
