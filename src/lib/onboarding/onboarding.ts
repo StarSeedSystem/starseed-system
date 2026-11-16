@@ -43,6 +43,7 @@ export function textoErrorServicio(error: unknown): string {
  */
 
 import { createClient } from "@/utils/supabase/client";
+import type { FilaPerfil, PayloadPerfil } from "@/lib/onboarding/perfil-inicial";
 
 // ── identidad del usuario autenticado ──────────────────────────────────
 async function uid(): Promise<string | null> {
@@ -271,9 +272,75 @@ export async function sincronizarPerfilPublico(
 }
 
 /**
+ * (IMG-profunda · 2026-11-16) Lee la fila de `profiles` del usuario actual para
+ * la ventana de perfil inicial. La ventana ya no abre su propio cliente de
+ * Supabase: la capa de datos es la única que habla con la base.
+ */
+export async function leerPerfilPropio(): Promise<FilaPerfil | null> {
+  try {
+    const owner = await uid();
+    if (!owner) return null;
+    const sb = createClient();
+    const { data } = await sb
+      .from("profiles")
+      .select("handle,display_name,bio,avatar_url,cover_url,avatar_marco,avatar_3d")
+      .eq("user_id", owner)
+      .maybeSingle();
+    if (!data) return null;
+    return data as unknown as FilaPerfil;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * (IMG-profunda · 2026-11-16) Guarda el perfil inicial: nombre visible,
+ * @handle y lo opcional (avatar, portada, bio, marco y avatar 3D).
+ *
+ * Antes lo hacía la ventana con SU propio cliente y con un segundo guardado
+ * del perfil público: el mismo dato escrito dos veces, por dos caminos. Aquí
+ * se guarda una vez, en la capa de datos, y el perfil público sale del mismo
+ * sitio que el privado:
+ *  · con nombre Y handle → `claimProfile` (reclama, comprueba que el handle
+ *    no esté tomado y renombra la identidad interna),
+ *  · con solo uno de los dos → se guarda ese dato, en el perfil privado y en
+ *    el público,
+ *  · lo opcional → `saveProfileOptional`, que ya guarda en `profiles` y
+ *    refleja en `os_profiles`.
+ */
+export async function guardarPerfilInicial(datos: {
+  nombre?: string;
+  handle?: string;
+  payload?: PayloadPerfil;
+}): Promise<{ ok: boolean; error?: string }> {
+  const owner = await uid();
+  if (!owner) return { ok: false, error: "Necesitas iniciar sesión." };
+  const h = (datos.handle || "").trim().toLowerCase();
+  const nombre = (datos.nombre || "").trim();
+  try {
+    if (h && nombre) {
+      const r = await claimProfile({ fullName: nombre, handle: h });
+      if (!r.ok) return r;
+    } else if (h || nombre) {
+      // Solo uno de los dos: el que falte no se inventa, se guarda el que hay.
+      const campo = h ? { handle: h } : { display_name: nombre };
+      const sb = createClient();
+      const { error } = await sb.from("profiles").update(campo).eq("user_id", owner);
+      if (error) return { ok: false, error: error.message };
+      await sincronizarPerfilPublico(owner, h ? { handle: h } : { display_name: nombre });
+    }
+    const opcional = await saveProfileOptional(datos.payload ?? {});
+    if (!opcional.ok) return opcional;
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: (e as Error)?.message || "Error al guardar el perfil." };
+  }
+}
+
+/**
  * (Adenda 194) Renombra la identidad interna y su dirección @star.seed al
  * handle REAL elegido. Sin esto quedaba colgado el nombre secundario que el
- * trigger inventaba al crear la cuenta.
+ * trigger inventó al crear la cuenta.
  */
 export async function renombrarIdentidadInterna(owner: string, handle: string): Promise<void> {
   const nueva = `${handle}@${STARSEED_DOMAIN}`;
