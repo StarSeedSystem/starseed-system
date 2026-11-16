@@ -331,7 +331,7 @@ pub fn apk_actualizar(app: AppHandle, instalar: Option<bool>) -> Result<EstadoAp
             return Err("Esta app todavía no tiene canal de APK propio: descarga el .apk desde la Librería.".into());
         }
         let anterior = logica::leer_estado(&dir);
-        if !logica::ocupada(&anterior.fase) {
+        if !logica::ocupada_en(&anterior, ahora_ms()) {
             logica::escribir_peticion(&dir, &logica::peticion_buscar(&manifiestos, instalar.unwrap_or(true), ahora_ms()))?;
         }
         Ok(logica::estado_pedido(anterior, ahora_ms()))
@@ -394,7 +394,7 @@ pub fn iniciar(app: &AppHandle) {
                     let manifiestos = logica::manifiestos_android(sistema(&app), &version);
                     // No pisa una descarga en marcha. Si el APK de esa versión ya está bajado y verificado,
                     // Kotlin no lo vuelve a bajar ni repite la notificación.
-                    if !manifiestos.is_empty() && !logica::ocupada(&logica::leer_estado(&dir).fase) {
+                    if !manifiestos.is_empty() && !logica::ocupada_en(&logica::leer_estado(&dir), ahora_ms()) {
                         let _ = logica::escribir_peticion(&dir, &logica::peticion_buscar(&manifiestos, false, ahora_ms()));
                     }
                 }

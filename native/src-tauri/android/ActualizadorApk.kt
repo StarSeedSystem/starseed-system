@@ -21,6 +21,7 @@ import android.os.Bundle
 import android.os.FileObserver
 import android.os.Handler
 import android.os.Looper
+import android.os.PowerManager
 import android.provider.Settings
 import androidx.core.content.FileProvider
 import org.json.JSONObject
@@ -81,6 +82,8 @@ object ActualizadorApk : Application.ActivityLifecycleCallbacks {
     const val ESTADO = "estado.json"
     const val PUENTE = "puente.json"
     private const val AVISO = "aviso.json"
+    /** (FAC1116) Lo último que pidió Rust (manifiestos e «instalar»): para seguir una descarga que el sistema mató. */
+    private const val ULTIMA = "ultima-peticion.json"
     const val SUFIJO_AUTORIDAD = ".starseed-actualizacion"
     private const val CANAL = "starseed-actualizacion"
     private const val ID_AVISO = 47072
@@ -137,7 +140,21 @@ object ActualizadorApk : Application.ActivityLifecycleCallbacks {
         }
         o.startWatching()
         observador = o
-        if (File(d, PETICION).exists()) trabajo.execute { atender(ctx) }
+        if (File(d, PETICION).exists()) {
+            trabajo.execute { atender(ctx) }
+        } else if (e != null && e.optString("fase") in setOf("buscando", "descargando")) {
+            // (FAC1116) El proceso murió a media descarga (Android lo congela o mata con la pantalla apagada): el estado se
+            // quedó en «descargando» para siempre y el `.parcial` sigue en disco. Se continúa donde estaba.
+            val u = leer(ctx, ULTIMA)
+            val arr = u?.optJSONArray("manifiestos")
+            if (u != null && arr != null) {
+                val lista = mutableListOf<String>()
+                for (i in 0 until arr.length()) lista.add(arr.optString(i))
+                trabajo.execute { buscar(ctx, lista, u.optBoolean("instalar", false)) }
+            } else {
+                estado(ctx, "error", e, "La descarga se interrumpió al cerrarse la app. Pulsa «Actualizar» y sigue donde se quedó.")
+            }
+        }
     }
 
     private fun atender(ctx: Context) {
@@ -154,6 +171,7 @@ object ActualizadorApk : Application.ActivityLifecycleCallbacks {
                 val lista = mutableListOf<String>()
                 val arr = p.optJSONArray("manifiestos")
                 if (arr != null) for (i in 0 until arr.length()) lista.add(arr.optString(i))
+                escribir(ctx, ULTIMA, JSONObject().put("manifiestos", org.json.JSONArray(lista)).put("instalar", p.optBoolean("instalar", false)))
                 buscar(ctx, lista, p.optBoolean("instalar", false))
             }
             "instalar" -> principal.post { instalarListo(ctx) }
@@ -193,11 +211,14 @@ object ActualizadorApk : Application.ActivityLifecycleCallbacks {
         val apk = File(dir(ctx), "StarSeed-${m.codigo}.apk")
         try {
             if (!(apk.isFile && sha256(apk).equals(m.sha256, ignoreCase = true))) {
-                borrarApks(ctx)
-                conRutas(m.apk, { estado(ctx, "descargando", m, it) }) { x, _ -> descargar(ctx, m, x, apk) }
+                borrarApks(ctx, conservar = apk.name + ".parcial")
+                conBloqueo(ctx) {
+                    conRutas(m.apk, { estadoDescarga(ctx, m, parcialDe(apk).let { p -> if (p.isFile) p.length() else 0L }, m.bytes, mensaje = it) }) { x, _ -> descargar(ctx, m, x, apk) }
+                }
             }
             comprobarApk(ctx, apk, m)
         } catch (e: Exception) {
+            // (FAC1116) Se borra el APK entero si falló la verificación; el `.parcial` de una descarga cortada SE CONSERVA.
             apk.delete()
             estado(ctx, "error", m, e.message ?: "No se pudo descargar la versión nueva.")
             return
@@ -219,15 +240,19 @@ object ActualizadorApk : Application.ActivityLifecycleCallbacks {
         return Manifiesto(version, codigo, apk, sha, j.optLong("bytes", -1), j.optString("notas", ""), canal)
     }
 
-    private fun abrir(url: String, accept: String = "application/octet-stream, application/json"): HttpURLConnection {
+    private fun abrir(url: String, accept: String = "application/octet-stream, application/json", desde: Long = 0L): HttpURLConnection {
         val c = URL(url).openConnection() as HttpURLConnection
         c.instanceFollowRedirects = true
-        c.connectTimeout = 20_000
-        c.readTimeout = 60_000
+        c.connectTimeout = 15_000
+        // (FAC1116) 30 s sin ni un byte = «sin datos»: salta SocketTimeoutException y DescargaReanudable reanuda con Range.
+        // Antes eran 60 s y, tras cortarse, la descarga entera empezaba de cero.
+        c.readTimeout = DescargaReanudable.SIN_DATOS_MS.toInt()
         c.setRequestProperty("User-Agent", "StarSeed-OS-Android-Actualizador")
         c.setRequestProperty("Accept", accept)
+        if (desde > 0) c.setRequestProperty("Range", "bytes=$desde-")
         val codigo = c.responseCode
         if (codigo == 404) throw FileNotFoundException(url)
+        if (codigo == 416) return c // lo decide DescargaReanudable (parcial más largo que el archivo)
         if (codigo !in 200..299) throw ErrorHttp(codigo, url)
         // Tras las redirecciones (GitHub manda los archivos a *.githubusercontent.com): solo https y esos sitios.
         val destino = c.url
@@ -309,42 +334,58 @@ object ActualizadorApk : Application.ActivityLifecycleCallbacks {
         }
     }
 
+    private fun parcialDe(destino: File) = File(destino.path + ".parcial")
+
+    /**
+     * (FAC1116) Descarga REANUDABLE: continúa el `.parcial` con `Range`, sobrevive a cortes, a la pantalla apagada y a la app
+     * en segundo plano (si el sistema congela el proceso, al volver se sigue del byte en que se quedó) y nunca descarta lo
+     * ya bajado salvo que el SHA-256 final no case. Reglas en DescargaReanudable.kt.
+     */
     private fun descargar(ctx: Context, m: Manifiesto, url: String, destino: File) {
-        val parcial = File(destino.path + ".parcial")
-        val c = abrir(url)
-        try {
-            val total = c.contentLengthLong.takeIf { it > 0 } ?: m.bytes
-            if (total > MAX_BYTES) throw Exception("El APK es demasiado grande (${total / 1_048_576} MB).")
-            val md = MessageDigest.getInstance("SHA-256")
-            var hecho = 0L
-            var ultimo = 0L
-            c.inputStream.use { ent ->
-                parcial.outputStream().use { sal ->
-                    val buf = ByteArray(64 * 1024)
-                    while (true) {
-                        val n = ent.read(buf)
-                        if (n < 0) break
-                        sal.write(buf, 0, n)
-                        md.update(buf, 0, n)
-                        hecho += n
-                        if (hecho > MAX_BYTES) throw Exception("El APK es más grande de lo permitido.")
-                        val ahora = System.currentTimeMillis()
-                        if (ahora - ultimo > 700) {
-                            ultimo = ahora
-                            estadoDescarga(ctx, m, hecho, total)
-                        }
-                    }
-                }
+        val parcial = parcialDe(destino)
+        val fuente = DescargaReanudable.Fuente { desde ->
+            val c = abrir(url, desde = desde)
+            val codigo = c.responseCode
+            val total = if (codigo == 206) DescargaReanudable.totalDeContentRange(c.getHeaderField("Content-Range")) else c.contentLengthLong.takeIf { it > 0 } ?: 0L
+            DescargaReanudable.Respuesta(codigo, if (codigo == 416) java.io.ByteArrayInputStream(ByteArray(0)) else c.inputStream, total) { c.disconnect() }
+        }
+        var ultimo = 0L
+        DescargaReanudable.bajar(
+            fuente, parcial, m.bytes, MAX_BYTES, { System.currentTimeMillis() }, { Thread.sleep(it) },
+        ) { p ->
+            val ahora = System.currentTimeMillis()
+            // Los avisos de corte se escriben siempre; los bytes, como mucho cada 0,7 s.
+            if (p.aviso != null || ahora - ultimo > 700) {
+                ultimo = ahora
+                estadoDescarga(ctx, m, p.hecho, p.total, p.reanudaciones, p.sinDatosMs, p.aviso)
             }
-            val sha = hex(md.digest())
-            if (!sha.equals(m.sha256, ignoreCase = true)) {
-                parcial.delete()
-                throw Exception("El SHA-256 del APK no casa con el del canal: se borró y no se instala nada.")
-            }
-            if (!parcial.renameTo(destino)) throw Exception("No se pudo colocar el APK descargado.")
-        } finally {
-            c.disconnect()
+        }
+        val sha = sha256(parcial)
+        if (!sha.equals(m.sha256, ignoreCase = true)) {
             parcial.delete()
+            throw Exception("El SHA-256 del APK no casa con el del canal: se borró y no se instala nada.")
+        }
+        if (!parcial.renameTo(destino)) throw Exception("No se pudo colocar el APK descargado.")
+    }
+
+    /** Mantiene la CPU despierta mientras se baja (permiso WAKE_LOCK, normal). Sin él no pasa nada: se reanuda igual. */
+    private fun <T> conBloqueo(ctx: Context, f: () -> T): T {
+        val bl = try {
+            (ctx.getSystemService(Context.POWER_SERVICE) as PowerManager).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "starseed:actualizacion").apply {
+                setReferenceCounted(false)
+                acquire(30 * 60 * 1000L)
+            }
+        } catch (e: Exception) {
+            null
+        }
+        try {
+            return f()
+        } finally {
+            try {
+                if (bl?.isHeld == true) bl.release()
+            } catch (e: Exception) {
+                // ya liberado
+            }
         }
     }
 
@@ -480,8 +521,8 @@ object ActualizadorApk : Application.ActivityLifecycleCallbacks {
             Pair("", 0L)
         }
 
-    private fun borrarApks(ctx: Context) {
-        dir(ctx).listFiles()?.filter { it.name.endsWith(".apk") || it.name.endsWith(".parcial") }?.forEach { it.delete() }
+    private fun borrarApks(ctx: Context, conservar: String? = null) {
+        dir(ctx).listFiles()?.filter { (it.name.endsWith(".apk") || it.name.endsWith(".parcial")) && it.name != conservar }?.forEach { it.delete() }
     }
 
     private fun estado(ctx: Context, fase: String, m: Manifiesto?, mensaje: String) {
@@ -502,7 +543,7 @@ object ActualizadorApk : Application.ActivityLifecycleCallbacks {
         escribir(ctx, ESTADO, j)
     }
 
-    private fun estadoDescarga(ctx: Context, m: Manifiesto, hecho: Long, total: Long) {
+    private fun estadoDescarga(ctx: Context, m: Manifiesto, hecho: Long, total: Long, reanudaciones: Int = 0, sinDatosMs: Long = 0L, mensaje: String? = null) {
         val j = JSONObject()
             .put("fase", "descargando")
             .put("version", m.version)
@@ -511,7 +552,9 @@ object ActualizadorApk : Application.ActivityLifecycleCallbacks {
             .put("notas", m.notas)
             .put("instalada", instalado(ctx).first)
             .put("descargado", hecho)
-            .put("mensaje", "Descargando la ${m.version}…")
+            .put("reanudaciones", reanudaciones)
+            .put("sin_datos_s", sinDatosMs / 1000)
+            .put("mensaje", mensaje ?: "Descargando la ${m.version}…")
             .put("t", System.currentTimeMillis())
         if (total > 0) j.put("total", total)
         escribir(ctx, ESTADO, j)

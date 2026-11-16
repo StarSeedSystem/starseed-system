@@ -161,11 +161,27 @@ pub struct EstadoApk {
     /// Momento del estado (ms desde 1970).
     #[serde(default)]
     pub t: u64,
+    /// (FAC1116) Cuántas veces se ha reanudado la descarga tras un corte.
+    #[serde(default)]
+    pub reanudaciones: Option<u64>,
+    /// (FAC1116) Segundos sin recibir ni un byte cuando se cortó la última vez.
+    #[serde(default)]
+    pub sin_datos_s: Option<u64>,
 }
 
 /// Fases en las que Kotlin sigue trabajando (no se pisa con otra búsqueda).
 pub fn ocupada(fase: &str) -> bool {
     matches!(fase, "buscando" | "descargando")
+}
+
+/// (FAC1116) Kotlin reescribe el estado al menos cada ~45 s mientras trabaja (cada byte, cada corte, cada reanudación).
+/// Más viejo que esto y con fase de trabajo = el proceso murió o lo congeló el sistema: no está «ocupada».
+pub const VIGENCIA_TRABAJO_MS: u64 = 120_000;
+
+/// ¿Sigue Kotlin trabajando de verdad? Una fase de trabajo con un estado viejo es de un proceso que ya no está (antes
+/// quedaba «descargando» para siempre y ninguna búsqueda nueva se pedía: la barra se paraba donde estaba). Pura.
+pub fn ocupada_en(estado: &EstadoApk, ahora_ms: u64) -> bool {
+    ocupada(&estado.fase) && (estado.t == 0 || ahora_ms.saturating_sub(estado.t) <= VIGENCIA_TRABAJO_MS)
 }
 
 /// Lee `estado.json` (por defecto, fase vacía: nunca se buscó).
@@ -201,7 +217,7 @@ pub fn escribir_peticion(dir: &Path, peticion: &serde_json::Value) -> Result<(),
 
 /// Estado que se devuelve justo después de pedir una búsqueda (Kotlin aún no ha escrito el suyo).
 pub fn estado_pedido(anterior: EstadoApk, ahora_ms: u64) -> EstadoApk {
-    if ocupada(&anterior.fase) {
+    if ocupada_en(&anterior, ahora_ms) {
         return anterior;
     }
     EstadoApk { fase: "buscando".into(), mensaje: Some("Buscando la versión nueva…".into()), t: ahora_ms, ..anterior }
@@ -334,7 +350,33 @@ mod pruebas {
         claves.sort();
         assert_eq!(
             claves,
-            vec!["canal", "descargado", "fase", "instalada", "mensaje", "notas", "t", "total", "version", "version_code"]
+            vec!["canal", "descargado", "fase", "instalada", "mensaje", "notas", "reanudaciones", "sin_datos_s", "t", "total", "version", "version_code"]
         );
+    }
+
+    // (FAC1116) Un estado «descargando» de un proceso que murió no puede bloquear las búsquedas nuevas para siempre.
+    #[test]
+    fn un_estado_de_trabajo_viejo_no_esta_ocupado() {
+        let e = |fase: &str, t: u64| EstadoApk { fase: fase.into(), t, descargado: Some(72), total: Some(200), ..Default::default() };
+        let ahora = 10_000_000;
+        assert!(ocupada_en(&e("descargando", ahora - 5_000), ahora), "reciente: Kotlin sigue");
+        assert!(ocupada_en(&e("buscando", ahora - VIGENCIA_TRABAJO_MS), ahora), "justo en el límite");
+        assert!(!ocupada_en(&e("descargando", ahora - VIGENCIA_TRABAJO_MS - 1), ahora), "viejo: el proceso murió");
+        assert!(!ocupada_en(&e("lista", ahora), ahora), "otras fases nunca son «ocupada»");
+        assert!(!ocupada_en(&e("error", ahora), ahora));
+        // Con el estado viejo se pide de nuevo y se conserva lo ya bajado para que la web lo enseñe.
+        let nuevo = estado_pedido(e("descargando", ahora - 600_000), ahora);
+        assert_eq!((nuevo.fase.as_str(), nuevo.t, nuevo.descargado), ("buscando", ahora, Some(72)));
+        // Con el estado vivo no se pisa.
+        let vivo = estado_pedido(e("descargando", ahora - 1_000), ahora);
+        assert_eq!((vivo.fase.as_str(), vivo.t), ("descargando", ahora - 1_000));
+    }
+
+    #[test]
+    fn el_estado_nuevo_se_lee_y_uno_anterior_tambien() {
+        let n: EstadoApk = serde_json::from_str(r#"{"fase":"descargando","descargado":5,"reanudaciones":2,"sin_datos_s":31,"t":7}"#).unwrap();
+        assert_eq!((n.reanudaciones, n.sin_datos_s), (Some(2), Some(31)));
+        let viejo: EstadoApk = serde_json::from_str(r#"{"fase":"descargando","descargado":5,"t":7}"#).unwrap();
+        assert_eq!((viejo.reanudaciones, viejo.sin_datos_s), (None, None));
     }
 }

@@ -37,6 +37,9 @@ export interface EstadoApkNativo {
   mensaje?: string | null;
   canal?: string | null;
   notas?: string | null;
+  /** (FAC1116) Veces que se reanudó la descarga tras un corte, y segundos sin bytes en el último. */
+  reanudaciones?: number | null;
+  sin_datos_s?: number | null;
   t: number;
 }
 
@@ -72,6 +75,8 @@ export function normalizarEstadoApk(x: unknown): EstadoApkNativo | null {
     mensaje: txt(o.mensaje),
     canal: txt(o.canal),
     notas: txt(o.notas),
+    reanudaciones: num(o.reanudaciones),
+    sin_datos_s: num(o.sin_datos_s),
     t: num(o.t) ?? 0,
   };
 }
@@ -92,6 +97,8 @@ export function textoEstadoApk(e: EstadoApkNativo): string {
     case "descargando": {
       if (e.descargado == null && e.mensaje?.trim()) return e.mensaje;
       const p = porcentajeApk(e);
+      // (FAC1116) Con un corte en curso, Kotlin dice «sin datos desde hace 31 s: sigo desde el 36 %».
+      if (e.mensaje?.trim() && (e.sin_datos_s ?? 0) > 0 && e.mensaje.startsWith("Sin datos")) return e.mensaje;
       return `Descargando la versión${v} dentro de la app${p == null ? "…" : ` · ${p} %`}`;
     }
     case "lista":
@@ -140,8 +147,25 @@ export interface OpcionesApk {
   /** Cada cuánto se pregunta el estado y cuánto se espera como mucho. */
   cadaMs?: number;
   limiteMs?: number;
-  /** Sin cambios en el estado durante este tiempo (descarga atascada): se deja de mirar. */
+  /** Kotlin callado (el estado no cambia ni su hora) durante este tiempo: el proceso murió o está congelado. */
   quietoMs?: number;
+  /** Ni un byte nuevo durante este tiempo aunque Kotlin siga vivo reanudando: se deja de mirar (sigue en segundo plano). */
+  sinBytesMs?: number;
+}
+
+/** Megabytes para el registro. Pura. */
+const mb = (n: number) => Math.round(n / 1_048_576);
+
+/**
+ * (FAC1116) El motivo con el que se deja de mirar: bytes, porcentaje y por qué. Es lo que acaba en la línea
+ * `actualizacion … paso=descargar resultado=error motivo=…` (160 caracteres: va corto). Pura.
+ */
+export function motivoSinAvance(e: EstadoApkNativo | null, sinBytesS: number, quien: "kotlin-callado" | "sin-bytes"): string {
+  const p = e ? porcentajeApk(e) : null;
+  const donde = e?.descargado != null && e.total ? `${p ?? 0} % (${mb(e.descargado)} de ${mb(e.total)} MB)` : e?.descargado != null ? `${mb(e.descargado)} MB` : "sin bytes aún";
+  const veces = e?.reanudaciones ? `, ${e.reanudaciones} reanudaciones` : "";
+  const causa = quien === "kotlin-callado" ? "la app no ha dicho nada (¿en segundo plano?)" : "sigue sin llegar nada de GitHub";
+  return `La descarga no avanza: ${donde}, sin bytes desde hace ${Math.round(sinBytesS)} s${veces}; ${causa}. Vuelve a intentarlo: sigue donde se quedó.`;
 }
 
 const dormir = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
@@ -167,6 +191,7 @@ export async function actualizarApkEnApp(o: OpcionesApk = {}): Promise<Resultado
   const cada = o.cadaMs ?? 1000;
   const limite = o.limiteMs ?? 20 * 60_000;
   const quieto = o.quietoMs ?? 120_000;
+  const sinBytes = o.sinBytesMs ?? 8 * 60_000;
   if (!puente.disponible) return { estado: "sin-actualizador", motivo: "Solo en la app de Android de StarSeed OS." };
   const pedido = await puente.llamar<unknown>(COMANDOS_APK.actualizar, { instalar });
   if (!pedido.ok) {
@@ -176,12 +201,26 @@ export async function actualizarApkEnApp(o: OpcionesApk = {}): Promise<Resultado
   }
   let ultimo = normalizarEstadoApk(pedido.valor);
   if (ultimo) o.onEstado?.(ultimo);
-  const inicio = ahora();
-  let cambio = inicio;
+  let inicio = ahora();
+  let cambio = inicio; // último cambio de ESTADO (incluida la hora de Kotlin: «sigo vivo»)
+  let avance = inicio; // último byte nuevo o cambio de fase
   let huella = ultimo ? `${ultimo.fase}|${ultimo.t}|${ultimo.descargado}` : "";
+  let bytesVistos = ultimo?.descargado ?? 0;
+  let faseVista = ultimo?.fase ?? "";
+  let vuelta = inicio;
   // El estado que devolvió el pedido es «buscando» (Rust); se espera a que Kotlin escriba el suyo.
   while (ahora() - inicio < limite) {
     await esperar(cada);
+    // (FAC1116) Si entre dos vueltas pasó mucho más que `cada`, la página estuvo dormida (app en segundo plano, pantalla
+    // apagada): ese tiempo NO es de la descarga, y no puede contar como «sin avance». Se perdona el hueco entero.
+    const t0 = ahora();
+    const hueco = t0 - vuelta - cada;
+    vuelta = t0;
+    if (hueco > Math.max(5 * cada, 15_000)) {
+      cambio += hueco;
+      avance += hueco;
+      inicio += hueco;
+    }
     const r = await puente.llamar<unknown>(COMANDOS_APK.estado);
     const e = r.ok ? normalizarEstadoApk(r.valor) : null;
     if (!e) continue;
@@ -191,14 +230,20 @@ export async function actualizarApkEnApp(o: OpcionesApk = {}): Promise<Resultado
       cambio = ahora();
       ultimo = e;
       o.onEstado?.(e);
+      if (e.fase !== faseVista || (e.descargado ?? 0) > bytesVistos) avance = cambio;
+      faseVista = e.fase;
+      bytesVistos = Math.max(bytesVistos, e.descargado ?? 0);
     }
     if (e.fase === "sin-actualizador") return { estado: "sin-actualizador", motivo: e.mensaje ?? "Sin actualizador interno." };
     if (esFinal(e, instalar)) return { estado: "ok", final: e };
     // Con «lista» y la app a la vista, Kotlin abre el instalador en un instante; si no llega, se para.
-    if (ahora() - cambio > (e.fase === "lista" ? 8_000 : e.fase === "permiso" ? 10 * 60_000 : quieto)) {
-      return e.fase === "lista" || e.fase === "permiso"
-        ? { estado: "ok", final: e }
-        : { estado: "error", motivo: "La descarga no avanza: comprueba la conexión y vuelve a intentarlo.", ultimo: e };
+    if (e.fase === "lista" || e.fase === "permiso") {
+      if (ahora() - cambio > (e.fase === "lista" ? 8_000 : 10 * 60_000)) return { estado: "ok", final: e };
+    } else if (ahora() - cambio > quieto) {
+      return { estado: "error", motivo: motivoSinAvance(e, (ahora() - cambio) / 1000, "kotlin-callado"), ultimo: e };
+    } else if (e.fase === "descargando" && ahora() - avance > sinBytes) {
+      // Kotlin vive y reanuda, pero no llega nada hace rato: se deja de mirar con los números a la vista.
+      return { estado: "error", motivo: motivoSinAvance(e, (ahora() - avance) / 1000, "sin-bytes"), ultimo: e };
     }
   }
   return { estado: "error", motivo: "La actualización tardó demasiado: vuelve a intentarlo más tarde.", ultimo };

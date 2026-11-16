@@ -10,6 +10,7 @@ import {
   COMANDOS_APK,
   esFinal,
   instalarApkDescargado,
+  motivoSinAvance,
   leerEstadoApk,
   normalizarEstadoApk,
   porcentajeApk,
@@ -32,6 +33,8 @@ describe("estado del actualizador interno", () => {
       mensaje: null,
       canal: null,
       notas: null,
+      reanudaciones: null,
+      sin_datos_s: null,
       t: 3,
     });
     expect(normalizarEstadoApk({ fase: "inventada" })).toBeNull();
@@ -159,5 +162,83 @@ describe("contrato con Rust (canal_actualizacion.rs / canal_actualizacion_logica
       expect(build).toContain(`"${c}",`);
       expect(def.permissions).toContain(`allow-${c.replace(/_/g, "-")}`);
     }
+  });
+});
+
+
+// (FAC1116) La regla de «no avanza»: bytes y porcentaje en el motivo, perdón del tiempo con la página dormida,
+// y no rendirse mientras Kotlin reanuda y llegan bytes.
+describe("FAC1116 · regla de descarga atascada", () => {
+  const hora = (saltos: Record<number, number> = {}) => {
+    // Reloj falso donde la vuelta nº N «duerme» además `saltos[N]` ms (página en segundo plano).
+    let t = 0;
+    let n = 0;
+    return { esperar: async (ms: number) => void ((n += 1), (t += ms + (saltos[n] ?? 0))), ahora: () => t };
+  };
+
+  it("el motivo dice bytes, porcentaje, segundos y reanudaciones", () => {
+    const m = motivoSinAvance(e("descargando", { descargado: 75_497_472, total: 209_715_200, reanudaciones: 2 }), 120, "kotlin-callado");
+    expect(m).toMatch(/no avanza: 36 % \(72 de 200 MB\)/);
+    expect(m).toMatch(/sin bytes desde hace 120 s, 2 reanudaciones/);
+    expect(m).toMatch(/en segundo plano/);
+    expect(motivoSinAvance(null, 5, "sin-bytes")).toMatch(/sin bytes aún/);
+  });
+
+  it("Kotlin callado 2 min con la descarga a medias: error con el 36 % en el motivo", async () => {
+    const { puente } = puenteFalso([{ fase: "descargando", descargado: 72, total: 200, t: 2 }]);
+    const r = await actualizarApkEnApp({ puente, ...hora() });
+    expect(r).toMatchObject({ estado: "error", motivo: expect.stringMatching(/36 % .*sin bytes desde hace 12\d s/) });
+  });
+
+  it("la página dormida NO cuenta: un hueco de 10 min entre vueltas no es una descarga atascada", async () => {
+    // La 3.ª vuelta llega 10 min tarde; en ella Kotlin ya escribió un estado nuevo con más bytes.
+    const { puente } = puenteFalso([
+      { fase: "descargando", descargado: 10, total: 100, t: 2 },
+      { fase: "descargando", descargado: 10, total: 100, t: 2 },
+      { fase: "descargando", descargado: 60, total: 100, t: 3 },
+      { fase: "lista", version: "0.5.1-prueba.46", t: 4 },
+      { fase: "instalador", t: 5 },
+    ]);
+    const r = await actualizarApkEnApp({ puente, quietoMs: 120_000, ...hora({ 3: 600_000 }) });
+    expect(r).toMatchObject({ estado: "ok", final: { fase: "instalador" } });
+  });
+
+  it("y si al despertar Kotlin sigue callado, solo cuenta el tiempo despierta", async () => {
+    const { puente } = puenteFalso([{ fase: "descargando", descargado: 10, total: 100, t: 2 }]);
+    let vueltas = 0;
+    const reloj = hora({ 2: 600_000 });
+    const r = await actualizarApkEnApp({
+      puente,
+      quietoMs: 5_000,
+      esperar: async (ms) => {
+        vueltas += 1;
+        await reloj.esperar(ms);
+      },
+      ahora: reloj.ahora,
+    });
+    expect(r.estado).toBe("error");
+    expect(vueltas).toBeGreaterThanOrEqual(5); // sin el perdón, habría saltado en la vuelta 2
+  });
+
+  it("Kotlin reanudando (la hora cambia) pero sin un byte nuevo: se deja de mirar a los sinBytesMs, con los números", async () => {
+    const estados = Array.from({ length: 400 }, (_, i) => ({ fase: "descargando", descargado: 72, total: 200, reanudaciones: 1 + Math.floor(i / 30), sin_datos_s: 31, t: 10 + i }));
+    const { puente } = puenteFalso(estados);
+    const r = await actualizarApkEnApp({ puente, sinBytesMs: 60_000, ...hora() });
+    expect(r).toMatchObject({ estado: "error", motivo: expect.stringMatching(/36 % .*sigue sin llegar nada de GitHub/) });
+  });
+
+  it("una línea lenta que sí avanza no se corta aunque tarde mucho", async () => {
+    const estados = [
+      ...Array.from({ length: 200 }, (_, i) => ({ fase: "descargando", descargado: 1 + i, total: 200, t: 10 + i })),
+      { fase: "instalador", t: 999 },
+    ];
+    const { puente } = puenteFalso(estados);
+    const r = await actualizarApkEnApp({ puente, sinBytesMs: 5_000, ...hora() });
+    expect(r).toMatchObject({ estado: "ok", final: { fase: "instalador" } });
+  });
+
+  it("el texto durante un corte conserva el porcentaje y dice que sigue", () => {
+    const t = textoEstadoApk(e("descargando", { descargado: 72, total: 200, sin_datos_s: 31, mensaje: "Sin datos desde hace 31 s: sigo desde el 36 % (reanudación 1)." }));
+    expect(t).toMatch(/sigo desde el 36 %/);
   });
 });

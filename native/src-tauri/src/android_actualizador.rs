@@ -25,10 +25,12 @@ const COMPONENTES_INICIO: &str = "<!-- STARSEED-ACTUALIZADOR:COMPONENTES:INICIO 
 const COMPONENTES_FIN: &str = "<!-- STARSEED-ACTUALIZADOR:COMPONENTES:FIN -->";
 
 /// Permisos del actualizador: instalar paquetes (pide confirmación siempre), red y la notificación.
-pub const PERMISOS: [&str; 3] = [
+pub const PERMISOS: [&str; 4] = [
     "android.permission.REQUEST_INSTALL_PACKAGES",
     "android.permission.INTERNET",
     "android.permission.POST_NOTIFICATIONS",
+    // (FAC1116) Mantiene la CPU despierta mientras se baja el APK con la pantalla apagada (permiso normal, sin pregunta).
+    "android.permission.WAKE_LOCK",
 ];
 
 /// Autoridad del FileProvider (sufijo; Kotlin usa `packageName + SUFIJO_AUTORIDAD`).
@@ -37,6 +39,8 @@ pub const SUFIJO_AUTORIDAD: &str = ".starseed-actualizacion";
 pub const RECURSO_RUTAS: &str = "starseed_actualizacion";
 
 pub const KOTLIN: &str = include_str!("../android/ActualizadorApk.kt");
+/// (FAC1116) La descarga reanudable (pura, con sus pruebas en `android/pruebas/DescargaReanudablePrueba.kt`).
+pub const KOTLIN_DESCARGA: &str = include_str!("../android/DescargaReanudable.kt");
 
 /// Rutas del FileProvider: SOLO la carpeta del actualizador (nada más de la app sale por content://).
 pub const RUTAS_XML: &str = "<?xml version=\"1.0\" encoding=\"utf-8\"?>
@@ -159,6 +163,10 @@ pub fn aplicar(proyecto: &Path) -> Result<Vec<PathBuf>, String> {
     if escribir_si_cambia(&kotlin, KOTLIN)? {
         cambiados.push(kotlin);
     }
+    let descarga = principal.join("java/app/starseed/nativa/DescargaReanudable.kt");
+    if escribir_si_cambia(&descarga, KOTLIN_DESCARGA)? {
+        cambiados.push(descarga);
+    }
     Ok(cambiados)
 }
 
@@ -280,7 +288,7 @@ mod pruebas {
         assert!(KOTLIN.contains("class ArranqueActualizador : ContentProvider()"));
         assert!(KOTLIN.contains("class ProveedorActualizacion : FileProvider()"));
         // Lo que lee Kotlin del estado son los campos de EstadoApk (Rust los devuelve a la web).
-        for campo in ["fase", "version", "version_code", "instalada", "descargado", "total", "mensaje", "canal", "notas", "t"] {
+        for campo in ["fase", "version", "version_code", "instalada", "descargado", "total", "mensaje", "canal", "notas", "t", "reanudaciones", "sin_datos_s"] {
             assert!(KOTLIN.contains(&format!(".put(\"{campo}\"")), "Kotlin no escribe «{campo}»");
         }
         // Lo que lee del manifiesto del APK (lo escribe native/scripts/canal-pruebas.mjs).
@@ -294,6 +302,10 @@ mod pruebas {
         ] {
             assert!(KOTLIN.contains(lectura), "Kotlin no lee {lectura}");
         }
+        // (FAC1116) La descarga se reanuda con Range, conserva el parcial y tiene su regla de «sin datos».
+        assert!(KOTLIN.contains("Range") && KOTLIN.contains("DescargaReanudable.bajar") && KOTLIN.contains("SIN_DATOS_MS"));
+        assert!(KOTLIN_DESCARGA.contains("object DescargaReanudable") && KOTLIN_DESCARGA.contains("MAX_SIN_AVANCE"));
+        assert!(!KOTLIN.contains("parcial.delete()\n                throw Exception(\"El SHA") || KOTLIN.contains("SHA-256 del APK no casa"));
         // Android siempre pide confirmar: el instalador se abre con ACTION_VIEW y el permiso se pide en Ajustes.
         assert!(KOTLIN.contains("Intent.ACTION_VIEW") && KOTLIN.contains("application/vnd.android.package-archive"));
         assert!(KOTLIN.contains("Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES"));
@@ -307,7 +319,7 @@ mod pruebas {
         std::fs::create_dir_all(dir.join("app/src/main")).unwrap();
         std::fs::write(dir.join("app/src/main/AndroidManifest.xml"), PLANTILLA).unwrap();
         let primera = aplicar(&dir).unwrap();
-        assert_eq!(primera.len(), 3, "manifiesto + rutas + Kotlin");
+        assert_eq!(primera.len(), 4, "manifiesto + rutas + dos Kotlin");
         assert!(dir.join("app/src/main/java/app/starseed/nativa/ActualizadorApk.kt").is_file());
         assert!(dir.join("app/src/main/res/xml/starseed_actualizacion.xml").is_file());
         assert!(aplicar(&dir).unwrap().is_empty(), "la segunda vez no cambia nada");
