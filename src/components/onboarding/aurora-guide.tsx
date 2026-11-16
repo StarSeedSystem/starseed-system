@@ -150,6 +150,7 @@ import { useHaySesion } from "@/hooks/use-hay-sesion";
 import { esRutaConsola } from "@/components/layout/solo-fuera-de-consola";
 import { BotonCerrar } from "@/components/ui/boton-cerrar";
 import { usePerfilDispositivo } from "@/hooks/use-perfil-dispositivo";
+import { useTimeoutInteraction } from "@/hooks/use-timeout-interaction";
 import { useNivelMovimiento } from "@/hooks/use-nivel-movimiento";
 import { useDeslizarPasos } from "@/hooks/use-deslizar-pasos";
 import { useDireccionPaso } from "@/components/movimiento/paso-animado";
@@ -373,6 +374,14 @@ export function AuroraGuide() {
 
   const [mounted, setMounted] = useState(false);
   const [open, setOpen] = useState(false);
+  // Apertura sola SIN interrumpir: no se abre con un plazo fijo, solo cuando la
+  // persona lleva un rato sin navegar (ver `useTimeoutInteraction`). El cierre
+  // explícito sigue siempre a mano (X, Escape, «Saltar» y el fondo).
+  const [aperturaPedida, setAperturaPedida] = useState(false);
+  const [aperturaRitoPedida, setAperturaRitoPedida] = useState(false);
+  // Momento de cada petición, para que la espera no se reinicie al montar el efecto.
+  const aperturaPedidaEnRef = useRef<number | null>(null);
+  const aperturaRitoPedidaEnRef = useRef<number | null>(null);
   // Aviso único de novedades para quien ya vio una versión anterior de la guía (`guia-vista.ts`).
   const [novedades, setNovedades] = useState<readonly string[] | null>(null);
   const [index, setIndex] = useState(0);
@@ -442,7 +451,6 @@ export function AuroraGuide() {
     // viaja con la cuenta). Sin esa espera, un medio recién abierto no sabía nada y abría la guía
     // «por primera vez» en cada medio. Si la cuenta no responde, no se abre sola (se puede
     // abrir a demanda), y en cuanto responda se decide.
-    let temporizador: ReturnType<typeof setTimeout> | undefined;
     const decidir = () => {
       // Una marca local antigua se respeta y se copia a la cuenta para los demás medios.
       const seen = copiarGuiaLocalACuenta();
@@ -457,15 +465,15 @@ export function AuroraGuide() {
       let introDone = false;
       try { introDone = window.localStorage.getItem("starseed.aurora.intro.v1") === "1"; } catch { /* */ }
       if (!seen && introDone) {
-        // Primera visita (tras el intro): arranca sola tras un instante.
-        temporizador = setTimeout(() => setOpen(true), 900);
+        // Primera visita (tras el intro): se PIDE abrir. No se abre con un plazo
+        // fijo: el temporizador de interacción espera a que la persona deje de
+        // navegar para no saltarle encima a mitad de un gesto.
+        aperturaPedidaEnRef.current = Date.now();
+        setAperturaPedida(true);
       }
     };
     const cancelarEspera = cuandoCuentaFiable(decidir, 4000);
-    return () => {
-      cancelarEspera();
-      if (temporizador) clearTimeout(temporizador);
-    };
+    return () => cancelarEspera();
   }, []);
 
   // ── reabrir bajo demanda: evento + helper global ───────────────────────────
@@ -534,12 +542,37 @@ export function AuroraGuide() {
         return;
       }
       etapaGuiaAtendidaRef.current = true;
-      const t = setTimeout(() => openGuide(0), 900);
-      return () => clearTimeout(t);
+      // Se PIDE abrir en el paso 0; el temporizador de interacción espera a que
+      // la persona deje de navegar por el escritorio antes de mostrar la guía.
+      aperturaRitoPedidaEnRef.current = Date.now();
+      setAperturaRitoPedida(true);
     };
     atenderGuia();
     return suscribirRito(atenderGuia);
   }, [pathname, router, openGuide]);
+
+  // Apertura sola SIN interrumpir: la guía no salta a mitad de un gesto (scroll,
+  // clic, tecla, movimiento del puntero); espera a que la persona lleve un rato
+  // sin navegar. Si se interactúa sin parar, abre al llegar al techo. El cierre
+  // explícito sigue siempre a mano (X, Escape, «Saltar» y el fondo).
+  useTimeoutInteraction({
+    activo: aperturaPedida && !open,
+    desde: aperturaPedidaEnRef.current ?? undefined,
+    alCumplir: () => {
+      aperturaPedidaEnRef.current = null;
+      setAperturaPedida(false);
+      setOpen(true);
+    },
+  });
+  useTimeoutInteraction({
+    activo: aperturaRitoPedida && !open,
+    desde: aperturaRitoPedidaEnRef.current ?? undefined,
+    alCumplir: () => {
+      aperturaRitoPedidaEnRef.current = null;
+      setAperturaRitoPedida(false);
+      openGuide(0);
+    },
+  });
 
   // Al cerrar, marca visto (no reaparece sola). Reabrible siempre por evento.
   const markSeen = useCallback(() => {

@@ -56,6 +56,11 @@ import {
 import { cuandoCuentaFiable } from "@/lib/sync/realtime-sync";
 import { AURORA_EXOCORTEX_OPEN_EVENT } from "@/lib/aurora/aurora-orb-bus";
 import {
+  ESPERA_INACTIVIDAD_MS,
+  msParaAbrirGuia,
+  useTimeoutInteraction,
+} from "@/hooks/use-timeout-interaction";
+import {
   DEFAULT_ANSWERS,
   SetupBienvenida,
   applyBienvenida,
@@ -139,6 +144,16 @@ const PUBLIC_PATH = /^\/(login|bienvenida|onboarding|auth)(\/|$)/;
 /** AI Studio: entrar aquí sin configurar abre el centro. */
 const STUDIO_PATH = /^\/(agent|estudio)(\/|$)/;
 
+/** La espera del alta es la inactividad estándar de la guía (no un plazo ciego). */
+const ESPERA_ALTA_MS = msParaAbrirGuia(
+  { pedidoEn: 0, ultimaInteraccion: 0 },
+  0,
+  { esperaInactividadMs: ESPERA_INACTIVIDAD_MS },
+);
+/** Cada gate espera a que la persona deje de navegar; no salta a mitad de un gesto. */
+const ESPERA_POR_GATE = { alta: ESPERA_ALTA_MS, studio: 400, aurora: 600 } as const;
+type GateAuto = keyof typeof ESPERA_POR_GATE;
+
 /** Puente global de Aurora (para el saludo hablado). */
 function auroraSpeak(text: string): void {
   try {
@@ -157,8 +172,11 @@ export function AuroraSetupCenter() {
   const pathname = usePathname();
   /** Ya lo hemos ofrecido en esta sesión: no reaparece al navegar. */
   const offered = useRef(false);
+  /** Gate automático armado: cuál y desde cuándo (la espera respeta la navegación). */
+  const [pedidoAuto, setPedidoAuto] = useState<{ gate: GateAuto; desde: number } | null>(null);
 
   const openAt = useCallback((t?: string) => {
+    setPedidoAuto(null); // abrir a mano cancela cualquier apertura sola pendiente
     if (t && (VALID_TABS as string[]).includes(t)) setTab(t as SetupTab);
     setOpen(true);
   }, []);
@@ -200,11 +218,24 @@ export function AuroraSetupCenter() {
     };
   }, [openAt]);
 
+  // Los gates ya no abren con un plazo ciego: esperan a que la persona lleve un
+  // momento sin navegar (scroll, clic, tecla, puntero) para no saltarle encima.
+  useTimeoutInteraction({
+    activo: pedidoAuto !== null && !open,
+    desde: pedidoAuto?.desde,
+    esperaInactividadMs: pedidoAuto ? ESPERA_POR_GATE[pedidoAuto.gate] : undefined,
+    alCumplir: () => {
+      setPedidoAuto(null);
+      if (!isSetupPending()) return;
+      offered.current = true;
+      setOpen(true);
+    },
+  });
+
   /* ── Gate 1: primera vez (tras el alta de cuenta) ── */
   useEffect(() => {
     if (typeof window === "undefined") return;
     let cancelled = false;
-    let timer: ReturnType<typeof setTimeout> | null = null;
     // Espera a la cuenta ANTES de mirar si está pendiente: un medio nuevo de una cuenta ya
     // configurada no debe ofrecer el centro solo porque su localStorage esté vacío.
     const cancelarCuenta = cuandoCuentaFiable(() => {
@@ -225,11 +256,8 @@ export function AuroraSetupCenter() {
             completed = false;
           }
           if (cancelled || !completed) return; // aún en el asistente de identidad
-          timer = setTimeout(() => {
-            if (cancelled || offered.current || !isSetupPending()) return;
-            offered.current = true;
-            setOpen(true);
-          }, 1200);
+          if (cancelled || offered.current || !isSetupPending()) return;
+          setPedidoAuto({ gate: "alta", desde: Date.now() });
         } catch {
           /* sin sesión / sin red → no mostramos nada */
         }
@@ -238,7 +266,6 @@ export function AuroraSetupCenter() {
     return () => {
       cancelled = true;
       cancelarCuenta();
-      if (timer) clearTimeout(timer);
     };
   }, []);
 
@@ -246,16 +273,15 @@ export function AuroraSetupCenter() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (!STUDIO_PATH.test(pathname ?? "")) return;
-    let t: ReturnType<typeof setTimeout> | null = null;
     const cancelarCuenta = cuandoCuentaFiable(() => {
       copiarSetupLocalACuenta();
       if (offered.current || !isSetupPending()) return;
       offered.current = true;
-      t = setTimeout(() => setOpen(true), 400);
+      setPedidoAuto({ gate: "studio", desde: Date.now() });
     });
     return () => {
       cancelarCuenta();
-      if (t) clearTimeout(t);
+      setPedidoAuto((p) => (p?.gate === "studio" ? null : p));
     };
   }, [pathname]);
 
@@ -268,7 +294,7 @@ export function AuroraSetupCenter() {
         copiarSetupLocalACuenta();
         if (offered.current || !isSetupPending()) return;
         offered.current = true;
-        setTimeout(() => setOpen(true), 600);
+        setPedidoAuto({ gate: "aurora", desde: Date.now() });
       });
       cancelar.add(quitar);
     };
@@ -276,6 +302,7 @@ export function AuroraSetupCenter() {
     return () => {
       window.removeEventListener(AURORA_EXOCORTEX_OPEN_EVENT, onAurora);
       cancelar.forEach((c) => c());
+      setPedidoAuto((p) => (p?.gate === "aurora" ? null : p));
     };
   }, []);
 
