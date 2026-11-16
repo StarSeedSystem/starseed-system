@@ -27,7 +27,7 @@ import sys
 import time
 import json
 import subprocess
-from datetime import datetime
+from datetime import datetime, timezone
 
 from typing import Any, Dict, Optional, List
 
@@ -214,7 +214,7 @@ def estado() -> Dict[str, Any]:
     
     for nombre_sesion, regla in NR.SESIONES.items():
         try:
-            estado_sesion = NR.marcar_estado(nombre_sesion, "viva", datetime.utcnow())
+            estado_sesion = NR.marcar_estado(nombre_sesion, "viva", datetime.now(timezone.utc))
             resultado["sesiones"][nombre_sesion] = {
                 "estado": estado_sesion["sesiones"][nombre_sesion]["estado"],
                 "cuenta": regla["cuenta"],
@@ -237,7 +237,7 @@ def vigilar() -> Dict[str, Any]:
     resultado = {"aviso": False, "sesiones": {}}
     
     for nombre_sesion in NR.SESIONES.keys():
-        estado_sesion = NR.marcar_estado(nombre_sesion, "viva", datetime.utcnow())
+        estado_sesion = NR.marcar_estado(nombre_sesion, "viva", datetime.now(timezone.utc))
         estado_actual = estado_sesion["sesiones"][nombre_sesion]["estado"]
         
         if estado_actual == "viva":
@@ -257,7 +257,7 @@ def notebooklm() -> Dict[str, Any]:
     telegram = _obtener_telegram()
     
     # Verificar si google-alex está viva
-    estado_google = NR.marcar_estado("google-alex", "viva", datetime.utcnow())
+    estado_google = NR.marcar_estado("google-alex", "viva", datetime.now(timezone.utc))
     google_viva = estado_google["sesiones"]["google-alex"]["estado"] == "viva"
     
     if not google_viva:

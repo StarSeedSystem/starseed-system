@@ -104,14 +104,12 @@ def existe_aprobado(hash: str) -> bool:
 
 
 def _encontrar_hash_aprobado(texto: str, destinatario: str, canal: str) -> Optional[str]:
-    """Encuentra el hash aprobado para un texto/destinatario/canal específico."""
-    hash_texto = hashlib.sha256(texto.encode('utf-8')).hexdigest()
+    """Encuentra el hash aprobado para un destinatario/canal específico (independiente del texto)."""
     for registro in _leer_registros():
-        if (registro.get("hash") == hash_texto and
-                registro.get("destinatario") == destinatario and
+        if (registro.get("destinatario") == destinatario and
                 registro.get("canal") == canal and
                 registro.get("estado") == "aprobado"):
-            return hash_texto
+            return registro.get("hash")
     return None
 
 
