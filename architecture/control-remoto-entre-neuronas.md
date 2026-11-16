@@ -296,6 +296,8 @@ P2P directo o por la capa de conciencia, con el mismo canal y el mismo gobierno 
 | **4 · Páginas/grupos/comunidades con peticiones y consenso** | nodos privados (a mano) y públicos (consenso configurable); peticiones, aprobaciones, voto delegado | fase 3; gobernanza de `/network/politics` | `src/lib/nodos/{gobierno,consenso,peticiones,concesion-entidad}.ts` + `__tests__` · migración `supabase/migrations/*_nodos_gobierno.sql` (RLS, políticas) · `src/lib/metagenesis/accesos.ts` como patrón · `src/components/nodos/*` |
 | **5 · Nodos y cerebros remotos y su gobierno** | declarar nodo (proceso/transmisión), cerebro público/privado, acceso con control desde cualquier parte del OS | fase 4; `remoto.ts` (túnel), `metagenesis-autonoma.md` | `src/lib/nodos/declaracion.ts` · `src/lib/cerebros-remotos/{acceso,canal}.ts` · amplía `src/lib/metagenesis/remoto.ts` a todo el OS · `src/components/cerebros/acceso-remoto.tsx` |
 
+**Sesiones en vivo de entidades, canales y estaciones (SES1115Q):** el uso de este canal por páginas, grupos y transmisiones, y por qué las sesiones de documento no viajan por él, está en `architecture/sesiones-en-vivo-entidades-y-transmisiones.md`.
+
 ---
 
 ## §9 Decisiones abiertas para Alex (con recomendación)
