@@ -103,12 +103,17 @@ describe("motorPaqueteLocal", () => {
     });
 
     it("traducir propaga error de carga del pipeline", async () => {
-        const deps = {
+        const motor = motorPaqueteLocal({
             instalado: vi.fn().mockResolvedValue(true),
-            cargarPipeline: vi.fn().mockRejectedValue(new Error("No se pudo cargar el modelo")),
+            cargarPipeline: vi.fn().mockRejectedValue(new Error("No se pudo cargar el modelo")) as (
+                modeloId: string,
+            ) => Promise<(textos: string[]) => Promise<string[]>>,
             alcance: "aparato",
-        };
-        const motor = motorPaqueteLocal(deps);
+        } as {
+            instalado: (origen: string, destino: string) => Promise<boolean>;
+            cargarPipeline: (modeloId: string) => Promise<(textos: string[]) => Promise<string[]>>;
+            alcance: "aparato";
+        });
         const error = await motor.traducir(["texto"], "es", "en").catch((e) => e);
         expect(error).toBeInstanceOf(Error);
         expect((error as Error).message).toBe("No se pudo cargar el modelo");
