@@ -220,12 +220,10 @@ describe("editor de paquetes de idioma", () => {
 
   describe("estado persistente", () => {
     it("recupera estado tras recargar el editor", () => {
-      const almacen2 = crearAlmacenFalso();
-      editor = crearEditor(almacen2);
       editor.abrirEdicion("es-MX", "Mexicano");
       editor.anadirPendiente("hola");
       editor.traducir("hola", "hola");
-      const nuevoEditor = crearEditor(almacen2);
+      const nuevoEditor = crearEditor(almacen);
       expect(nuevoEditor.paqueteEnEdicion()?.codigo).toBe("es-MX");
       expect(nuevoEditor.paqueteEnEdicion()?.nombre).toBe("Mexicano");
     });

@@ -22,7 +22,7 @@ export interface Editor {
 }
 
 export function crearEditor(almacen: AlmacenPaquetes): Editor {
-  let estado: EditorEstado = { abierto: false };
+  let estado: EditorEstado = leerEstado();
   let entradas: Record<string, string> = {};
 
   function leerEstado(): EditorEstado {
@@ -95,7 +95,7 @@ export function crearEditor(almacen: AlmacenPaquetes): Editor {
       const normalizado = normalizarTexto(textoEspanol);
       if (!normalizado) return false;
       if (normalizado.length > 500) return false;
-      if (Object.values(entradas).some((v) => v === normalizado)) return false;
+      if (Object.keys(entradas).some((k) => entradas[k] === normalizado || k === normalizado)) return false;
       if (Object.keys(entradas).length >= 2000) return false;
       entradas[normalizado] = "";
       return true;
