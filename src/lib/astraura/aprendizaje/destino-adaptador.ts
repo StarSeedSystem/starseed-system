@@ -49,6 +49,7 @@ import {
     type ModoAfinado,
 } from "./receta-llamafactory";
 import { rutaRelativaSegura, slugSujeto, type TipoSujeto } from "./soup";
+import { soloPublicoParaAdaptador, type AlcanceEjemplo } from "@/lib/astraura/laya/ambito-libreta";
 
 export type AmbitoAdaptador = "privado" | "colectivo";
 export type FormatoAdaptador = "lora-gguf" | "gguf-fusionado" | "base-nuevo";
@@ -133,8 +134,6 @@ export type PlanAdaptador =
     }
     | { ok: false; errores: string[] };
 
-const SIN_PERSONAL: readonly AlcanceMemoria[] = ["personal", "perfil"];
-
 /** Privado o colectivo: lo decide quién lo ejecuta, y la capa colectiva es colectiva siempre. */
 export function ambitoDeSujeto(s: SujetoAdaptador): AmbitoAdaptador {
     if (s.tipo === "capa" && s.id === "colectiva") return "colectivo";
@@ -215,14 +214,25 @@ export function planificarAdaptador(p: PeticionAdaptador): PlanAdaptador {
     const ambito = ambitoDeSujeto(s);
     const actor = actorEfectivo(s);
 
-    // 1) Nada de memoria personal en un adaptador colectivo: se rechaza, no se filtra en silencio.
+    // 1) Nada de memoria personal en un adaptador colectivo (página, grupo o colectivo): se rechaza,
+    //    no se filtra en silencio. La regla es la de `soloPublicoParaAdaptador` (jev-entrena-laya.md §5):
+    //    un adaptador que otros cargan no puede haber visto ejemplos personales ni de perfil.
     if (ambito === "colectivo") {
-        const personales = p.fuentes.filter((f) => SIN_PERSONAL.includes(f.alcance));
-        if (personales.length > 0) {
+        const alcanceEjemplo = (a: AlcanceMemoria): AlcanceEjemplo =>
+            a === "grupo" ? "de-entidad" : a === "publica" ? "publico" : "personal";
+        const v = soloPublicoParaAdaptador(
+            p.fuentes.map((f) => ({
+                id: f.ruta,
+                alcance: alcanceEjemplo(f.alcance),
+                aprobadoPorEntidad: f.aprobadoPorEntidad,
+            })),
+            "colectivo",
+        );
+        if (!v.ok) {
             return {
                 ok: false,
                 errores: [
-                    `Un adaptador colectivo no puede entrenarse con memoria personal ni de perfil (${personales.map((f) => f.ruta).join(", ")}): quien lo cargue podría recitarla. Sepárala en el corpus o entrena un adaptador privado.`,
+                    `Un adaptador colectivo no puede entrenarse con memoria personal ni de perfil (${v.rechazados.map((r) => r.id).join(", ")}): quien lo cargue podría recitarla. Sepárala en el corpus o entrena un adaptador privado.`,
                 ],
             };
         }

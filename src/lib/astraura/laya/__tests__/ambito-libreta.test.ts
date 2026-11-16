@@ -81,6 +81,8 @@ describe("por defecto todo es «no sale»", () => {
   it("elección de la persona no vale fuera de lo personal; la aprobación de la entidad tampoco", () => {
     for (const ambito of ["pagina", "grupo", "colectivo", "fabrica"] as const) {
       expect(puedeSalir(ambito, ej("personal"), true).sale).toBe(false);
+    }
+    for (const ambito of ["personal", "colectivo", "fabrica"] as const) {
       expect(puedeSalir(ambito, ej("de-entidad", { aprobadoPorEntidad: true })).sale).toBe(false);
     }
   });
