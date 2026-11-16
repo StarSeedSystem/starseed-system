@@ -166,6 +166,26 @@ y `enlace=/vivo/<id>?t=…` (`tipo` ya admite pizarra, dashboard, juego, program
 `espacio`, `doc.anfitrion`, `doc.capacidad`, el pase de entidad (§3), una lista de promesas y la carpeta de cada neurona
 (§7). Todo lo demás es unir.
 
+### Nota 2026-11-15 · nombres propuestos por Alex
+
+Alex propuso el 15-11 llamar **«puentes»** a lo que lleva capacidad a través de los nodos (la `capacidad` del modelo:
+correr, llevar, guardar) y **«canales»** a las neuronas que emiten y usan por cualquier capa de señal de la malla,
+pública o privada (lo que el contrato llama canal/estación).
+
+La **COLISIÓN**, en palabras: la app ya usa «puentes» para los puentes de chat (Telegram: «Puentes de Telegram»,
+`src/components/chats-genesis`) y «Puente de Mando» (nombre interno que la interfaz nunca muestra: se dice Genesis);
+además «puente de voz», «puente de Tauri», «puente de Aurora». Y «canal» ya se usa en «canal de control»
+(control entre neuronas, CRN), «canal de datos» y «canal de pruebas».
+
+Redacción **PROPUESTA** que mantiene todo claro, sin renombrar nada existente: en la interfaz y en el contrato, la
+palabra suelta nunca se usa: siempre «puente de capacidad» (el nuevo) frente a «puente de chat» (Telegram y otros),
+y «canal en vivo» (el nuevo) frente a «canal de control». «Puente de Mando» sigue siendo solo un nombre interno de
+código y carpetas. En el código los identificadores nuevos llevan el complemento (`puenteCapacidad`, `canalEnVivo`).
+
+Marca que la decisión final es de Alex y que **NO se ha renombrado nada**.
+Excepción a la regla de nombres: este es un documento de arquitectura, no texto de interfaz, y SÍ puede citar
+«Puente de Mando» como nombre interno.
+
 ---
 
 ## 3. Permisos
