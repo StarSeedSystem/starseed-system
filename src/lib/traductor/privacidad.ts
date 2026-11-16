@@ -1,4 +1,4 @@
-import type { IdMotor } from "./tipos";
+export type { IdMotor } from "./tipos";
 
 export interface AlmacenAvisos {
     obtener(clave: string): string | null;
