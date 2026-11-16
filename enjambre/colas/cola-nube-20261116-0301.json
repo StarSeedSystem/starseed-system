@@ -1,0 +1,88 @@
+{
+ "ola": "nube-20261116",
+ "tareas": [
+  {
+   "id": "KOT01",
+   "ola": "KOT1116A",
+   "titulo": "URGENTE · Android: la proyección de pantalla no compila (MediaProjection nulo) y bloquea el APK",
+   "archivos": [
+    "native/src-tauri/android/ProyeccionPantallaStarSeed.kt"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. URGENTE: la compilación de Android de la prueba .47 falló (16-11, 07:00 UTC) por UNA sola línea de Kotlin, y sin este arreglo no hay APK:\n`e: ProyeccionPantallaStarSeed.kt:189:14 Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver of type 'MediaProjection?'`.\nEn `native/src-tauri/android/ProyeccionPantallaStarSeed.kt`, dentro del `try` de `onStartCommand`, está:\n`val p = mpm.getMediaProjection(codigo, datos)` y en la línea siguiente con código `p.registerCallback(...)`. `getMediaProjection` devuelve `MediaProjection?`.\n\nARREGLO (≤4 líneas, SOLO ese archivo): haz que `p` no sea nulo. Lee el `catch` de ese mismo `try`: si captura `Exception` o `Throwable` y termina deteniendo el servicio, cambia la línea por `val p = mpm.getMediaProjection(codigo, datos) ?: throw IllegalStateException(\"el sistema no dio la proyección\")`; si no, usa `val p = mpm.getMediaProjection(codigo, datos) ?: run { detener(); return START_NOT_STICKY }`. NO uses `!!`. No cambies nada más: ni el orden (servicio en primer plano ANTES de la proyección; `registerCallback` ANTES de la pantalla virtual), ni otras líneas, ni otros archivos. El compilador solo dio ESE error: no «arregles» otras llamadas. Kotlin no se compila en esta máquina (lo compila el CI de la prueba): revisa a ojo que la línea queda sintácticamente correcta y que `proy = p` sigue valiendo.\n\nAsunto del commit: `KOT1116A · KOT01: la proyección de pantalla compila (MediaProjection nulo tratado; fallaba el APK de la .47)`.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado."
+  },
+  {
+   "id": "JL11",
+   "ola": "JLA1116A",
+   "titulo": "CLAUDE.md: Laya y la libreta, con lo reservado a humanos",
+   "archivos": [
+    "CLAUDE.md"
+   ],
+   "depende": [],
+   "prompt": "Contrato: architecture/jev-entrena-laya.md (si aún no está en el repo, rige este texto). Lee AGENTS.md. Añade UN bloque nuevo al final de la sección «Economía de créditos y orquestación multiagente» (≤ 30 líneas, nada se borra ni se reescribe): qué es Laya (codificador de terceros, `native/laya/`, `architecture/laya-y-habilidades.md`), que hoy nada la entrena, la libreta de ejemplos con desenlace como camino (`architecture/jev-entrena-laya.md`), y la lista de decisiones que Jev y Laya nunca toman solos (`scripts/puente/jev_reservadas.py`). Sin «Mando» en texto visible; español neutro.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` (Python: sin red ni `~/.starseed`, rutas y lectores se inyectan) salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "JL1"
+   ]
+  },
+  {
+   "id": "TU27",
+   "ola": "TRA1116-APP-F1",
+   "titulo": "Cuándo un agente traduce solo: reglas puras",
+   "archivos": [
+    "src/lib/traductor/decidir-traducir.ts",
+    "src/lib/traductor/__tests__/decidir-traducir.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. `decidirTraducir(entrada: { mensajeRecibido: string; idiomaConversacion: string; peticion?: string; destinatarios?: {personaId; idioma}[]; detectado: {codigo, confianza} }): { llamar: boolean; razon: \"idioma-distinto\"|\"peticion\"|\"varias-personas\"|\"ninguna\"; destino?: string }`. Reglas del contrato §6: (a) llama si el mensaje recibido se detecta en un idioma distinto al de la conversación con confianza ≥0,8 (y el texto tiene ≥12 letras); (b) llama si la petición contiene «traduce», «responde en <idioma>», «en inglés»… (lista de patrones en español con los idiomas de la tabla de `src/lib/idiomas/idiomas.ts`); (c) con varias personas en idiomas distintos pide una traducción por idioma; no llama para código, URLs, solo números ni nombres propios. PRUEBAS en tabla ≥15 casos incluidos los negativos.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "TU9"
+   ]
+  },
+  {
+   "id": "CLV01",
+   "ola": "CLV1116A",
+   "titulo": "La clave de abliteration.ai viaja al A1 (lista blanca, aprobado por Alex)",
+   "archivos": [
+    "scripts/puente/oracle_nodo.py",
+    "scripts/puente/test_oracle_nodo.py"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. APROBACIÓN (Alex, 16-11): «sí debes subirlos al A1 y GitHub Actions y todos los contenedores disponibles de MetaGenesis», hablando de la clave de abliteration.ai (`ABLITERATION_API_KEY`). Es un proveedor DE PAGO POR SALDO (plan gratuito: sin crédito mensual incluido, tarifa estándar): la clave viaja, pero nada la usa sin el tope del día de MQA1–MQA3. \n\nEn `scripts/puente/oracle_nodo.py`, en la tupla `CLAVES_A1`, añade una línea nueva `\"ABLITERATION_API_KEY\",` justo ANTES de `\"NEXT_PUBLIC_SUPABASE_URL\"`, con este comentario encima: `# (2026-11-16, aprobado por Alex) abliteration.ai: ÚNICA clave de pago que viaja al A1; solo se usa con el tope del día (MQA1–MQA3).` y, en el comentario que precede a la tupla, donde dice «Nada de pago (ANTHROPIC, OPENAI, DEEPSEEK…)», añade «salvo `ABLITERATION_API_KEY`, aprobada por Alex el 16-11». No cambies nada más de ese archivo (≤8 líneas). En `scripts/puente/test_oracle_nodo.py` añade UNA prueba: `\"ABLITERATION_API_KEY\"` está en `CLAVES_A1` y siguen SIN estar `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` y `DEEPSEEK_API_KEY`; si alguna prueba existente enumera la tupla entera, actualízala con el nombre nuevo. Asunto del commit: `CLV1116A · CLV01: la clave de abliteration.ai viaja al A1 (aprobado por Alex)`.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado."
+  },
+  {
+   "id": "MQA8",
+   "ola": "CLV1116A",
+   "titulo": "abliteration.ai: límites del plan gratuito y lo que la fábrica se permite",
+   "archivos": [
+    "scripts/puente/abliteration_creditos.py",
+    "scripts/puente/test_abliteration_plan.py"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. DATO DE ALEX (16-11), plan gratuito de abliteration.ai, por clave: 60 peticiones por minuto, 1.000.000 de tokens por minuto, 10.000 peticiones al día, 4 peticiones a la vez; sin crédito mensual incluido (se paga por uso a tarifa estándar); modelos estándar; imágenes pequeñas y SIN URL remotas de imagen.\n\nANTES DE EMPEZAR: comprueba con `git log --oneline main | grep` que está en `main` el commit cuyo asunto contiene «MQA1». Si falta: no escribas ni confirmes nada y di en una línea que falta MQA1 (la tarea se reabrirá sola). Si está, lee entero `scripts/puente/abliteration_creditos.py`.\n\nAñade a `scripts/puente/abliteration_creditos.py`, en UN bloque aditivo `# MQA8`, las constantes del plan (`PLAN_RPM = 60`, `PLAN_TPM = 1_000_000`, `PLAN_PETICIONES_DIA = 10_000`, `PLAN_A_LA_VEZ = 4`) y lo que la FÁBRICA se permite, la mitad para dejar sitio a Astraura (`FABRICA_RPM = 30`, `FABRICA_PETICIONES_DIA = 5_000`, `FABRICA_A_LA_VEZ = 2`), y una función PURA `cabe_peticion(hechas_hoy, en_el_ultimo_minuto, en_curso)` que devuelve `(bool, motivo)`: `True` solo si las tres cuentas están por debajo de los tres límites de la fábrica; un dato `None` cuenta como NO y lo dice. Añade `solo_texto(mensajes)` PURA: `False` si algún mensaje lleva una imagen por URL remota (`http://` o `https://` en un campo de imagen), porque el plan no las admite. No cambies lo que ya exista. Pruebas en `scripts/puente/test_abliteration_plan.py` (unittest): justo por debajo y justo en cada límite, `None` en cada dato, y `solo_texto` con texto, con imagen en `data:` (pasa) y con URL remota (no pasa). Asunto del commit: `MOD1116 · MQA8: límites del plan gratuito de abliteration.ai y lo que la fábrica se permite`.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado."
+  },
+  {
+   "id": "ASW05",
+   "ola": "ASW1116A",
+   "titulo": "Hook del estado del asistente con el puente de Aurora (incluye «error»)",
+   "archivos": [
+    "src/components/widgets-libres/familias/use-estado-astraura.ts",
+    "src/components/widgets-libres/familias/__tests__/use-estado-astraura.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. LO QUE YA EXISTE (léelo antes): el widget del dashboard cuyo texto de estado es «En calma» es `AstrauraLibre` en `src/components/widgets-libres/familias/astraura-libre.tsx` (268 líneas; `TEXTO_VOZ` :31, `useVozAurora` :38 lee el puente `getAuroraBridge()` de `src/lib/aurora/open-aurora.ts` con `speaking`, `listening`, `actionStatus`; el `Orbe` de :65 es el círculo de colores violeta/turquesa; `Preguntar` :90; el diseño por tamaño :170-262 con `disenoDe(clase)` de `familias/comun.tsx:23`). Se monta desde `src/components/widgets-libres/registro-libre.tsx:38` (`case \"AURORA_LAST\"`, hoy sin recibir el widget ni `onUpdateSettings`, a diferencia del reloj). La Protomolécula: la orbe 4D completa es `src/components/protomolecula/orbe-protomolecula.tsx` (475 líneas, three.js a demanda, arrastrable y flotante: NO sirve para meterla en un widget); su lógica pura está en `src/lib/protomolecula/orbe4d/` (`coreografia.ts`: `IdForma` semilla/merkaba/jitterbug/teseracto/dodecaedro/matriz/icosaedro, `PALETAS` por registro con `astraura`, `ESTILOS`, `FICHAS`, tiempos de Fibonacci; `geometria.ts`: `merkaba()`, `icosaedro()`, `dodecaedro()`, `jitterbug()`, `teseractoVertices()`, `PHI`). Ya hay una versión ligera en SVG: `src/components/layout/trinity/horizon/vista-previa-orbe.tsx` (flor de la vida y merkaba, solo `transform`/`opacity`, quieta con `motion-safe`), pero NO depende del estado del asistente. El presupuesto de render del dispositivo es `src/lib/widgets/forma/nivel-dispositivo.ts` (`useNivelRender`, `nivelRender`: ligero/normal/pleno). La identidad: colores SOLO de `PALETAS` (marca Trinity Liquid Crystal, `adn-y-tokens.md` §2 y §6), nunca hexadecimales inventados. Escribe primero las pruebas. Lee `useVozAurora` (`astraura-libre.tsx:38-62`) y NO lo toques: este hook es su sucesor con la regla de ASW01. `useEstadoAstraura(visible: boolean, ultimaMs: number | null): { estado: EstadoAsistente; voz: boolean; escuchar: () => void; callar: () => void }`: igual que el actual (suscripción a `getAuroraBridge()`, reintento cada 5 s si el puente aún no existe, nada si no `visible`, todo en local), pero `estado` sale de `derivarEstado(snapshot, ultimaMs, Date.now())` (ASW01) y pasa a `error` si `getState()` lanza o el estado trae `actionStatus` de fallo; vuelve a `calma` en cuanto el puente dice otra cosa. Limpia suscripción y temporizadores al desmontar. PRUEBAS con un puente falso: calma → escuchando → hablando → calma por suscripción; `actionStatus:\"error al procesar\"` → error; `getState` que lanza → error sin romper; con `visible:false` no se suscribe; desmontar da de baja; `escuchar`/`callar` llaman a `start`/`stop` del puente y no fallan si no existen.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "ASW01"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1115-224354.json": [
+   "ASW05",
+   "JL11",
+   "TU27",
+   "KOT01",
+   "CLV01",
+   "MQA8"
+  ]
+ }
+}
