@@ -1,0 +1,109 @@
+{
+ "ola": "nube-20261116",
+ "tareas": [
+  {
+   "ola": "TRA1116-APP-F1",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/43813404750",
+   "id": "TU14b-d1",
+   "titulo": "Hablar: síntesis de voz en el idioma de destino o decir que no hay voz (parte 1 de 2)",
+   "archivos": [
+    "src/lib/traductor/voz-habla.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. `hablar(texto, idioma, entorno)` / `detener()` / `vocesDe(idioma)`: elige la voz cuyo `lang` coincide (exacto, luego prefijo); sin voz de ese idioma devuelve `{ok:false, motivo:\"No hay una voz de <idioma> en este aparato\"}` y NO usa otra voz; cola de frases para la conversación (una a la vez), `alTerminar`. PRUEBAS con un `speechSynthesis` falso: voz exacta, por prefijo, sin voz, cola en orden.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/43813404750`)\nUn agente de la nube ya avanzó esta tarea (no pasa en GitHub (run 43828111790) falla «pruebas TS»: 26-11-16T08:10:11.1531753Z \u001b[2m      Tests \u001b[22m \u001b[1m\u001b[31m1 failed\u001b[39m\u001b[22m\u001b[2m | \u001b[22m\u001b[1m\u001b[32m4353 passed\u001b[39m\u001b[22m\u001b[2m | \u001b[22m\u001b[33m2 skipped\u001b[39m\u001b[90m (4356)\u001b[39m\n2026-11-16T08:10:11.1534857Z \u001b[2m   Start at \u001b[22m 08:05:31\n2026-11-16T08:10:11.1544960Z \u001b[2m   Duration \u001b[22m 279.32s\u001b[2m (transform 18.20s, setup 17.35s, collect 130.58s, tests 214.61s, environment 76.50s, prepare 20.47s)\u001b[22m\n2026-11-16T08:10:11.1545641Z \n2026-11-16T08:10:11.1587213Z \n2026-11-16T08:10:11.1617798Z ##[error]AssertionError: expected \"spy\" to be called 2 times, but got 4 times\n ❯ src/lib/banco-llamadas/__tests__/app-latido.test.ts:115:24\n\n\n2026-11-16T08:10:11.3010155Z ##[error]Process completed with exit code 1.). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/43813404750:refs/remotes/origin/nube/43813404750\"` y `git cherry-pick --no-commit 5a6ac479e518 73f62c756bc4`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/lib/aurora/voz-unica.ts, src/lib/traductor/__tests__/voz-habla.test.ts, src/lib/traductor/voz-habla.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 1 DE 2 (la dirección dividió TU14b: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: src/lib/traductor/voz-habla.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "TU14b",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   },
+   "dependencias_ya_en_main": [
+    "TU1"
+   ]
+  },
+  {
+   "ola": "JLA1116A",
+   "id": "JL7-d1",
+   "titulo": "Calibración de la confianza de Laya por punto y ámbito (parte 1 de 2)",
+   "archivos": [
+    "src/lib/astraura/laya/calibracion-laya.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: architecture/jev-entrena-laya.md (si aún no está en el repo, rige este texto). Lee AGENTS.md. §3.2. Puro. Con casos (`CasoLaya` de `aprendizaje-laya.ts`) y su desenlace correcto/incorrecto, `calibrar(casos, punto, ambito)`: 10 cajas de confianza, tasa de acierto por caja, exige ≥ `MIN_CASOS_UMBRAL` (30) y devuelve `{cajas, umbralSugerido, n}` o `{n, motivo: \"faltan casos\"}`; `confianzaCalibrada(cal, p)` interpola y nunca sube la confianza por encima de la tasa observada. PRUEBAS: datos sintéticos con Laya sobreconfiada (dice 0,9 y acierta 0,6) baja la confianza; menos de 30 casos -> motivo; cajas vacías no rompen.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` (Python: sin red ni `~/.starseed`, rutas y lectores se inyectan) salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.\n\n## PARTE 1 DE 2 (la dirección dividió JL7: falla por sí misma (tarea:otro))\nEn esta parte tocas SOLO: src/lib/astraura/laya/calibracion-laya.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "JL7",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:otro)"
+   }
+  },
+  {
+   "id": "ASW09",
+   "ola": "ASW1116A",
+   "titulo": "Diseño «Mínimo»: la forma, su estado y una línea para preguntar",
+   "archivos": [
+    "src/components/widgets-libres/familias/diseno-minimo.tsx",
+    "src/components/widgets-libres/familias/__tests__/diseno-minimo.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. LO QUE YA EXISTE (léelo antes): el widget del dashboard cuyo texto de estado es «En calma» es `AstrauraLibre` en `src/components/widgets-libres/familias/astraura-libre.tsx` (268 líneas; `TEXTO_VOZ` :31, `useVozAurora` :38 lee el puente `getAuroraBridge()` de `src/lib/aurora/open-aurora.ts` con `speaking`, `listening`, `actionStatus`; el `Orbe` de :65 es el círculo de colores violeta/turquesa; `Preguntar` :90; el diseño por tamaño :170-262 con `disenoDe(clase)` de `familias/comun.tsx:23`). Se monta desde `src/components/widgets-libres/registro-libre.tsx:38` (`case \"AURORA_LAST\"`, hoy sin recibir el widget ni `onUpdateSettings`, a diferencia del reloj). La Protomolécula: la orbe 4D completa es `src/components/protomolecula/orbe-protomolecula.tsx` (475 líneas, three.js a demanda, arrastrable y flotante: NO sirve para meterla en un widget); su lógica pura está en `src/lib/protomolecula/orbe4d/` (`coreografia.ts`: `IdForma` semilla/merkaba/jitterbug/teseracto/dodecaedro/matriz/icosaedro, `PALETAS` por registro con `astraura`, `ESTILOS`, `FICHAS`, tiempos de Fibonacci; `geometria.ts`: `merkaba()`, `icosaedro()`, `dodecaedro()`, `jitterbug()`, `teseractoVertices()`, `PHI`). Ya hay una versión ligera en SVG: `src/components/layout/trinity/horizon/vista-previa-orbe.tsx` (flor de la vida y merkaba, solo `transform`/`opacity`, quieta con `motion-safe`), pero NO depende del estado del asistente. El presupuesto de render del dispositivo es `src/lib/widgets/forma/nivel-dispositivo.ts` (`useNivelRender`, `nivelRender`: ligero/normal/pleno). La identidad: colores SOLO de `PALETAS` (marca Trinity Liquid Crystal, `adn-y-tokens.md` §2 y §6), nunca hexadecimales inventados. Escribe primero las pruebas. `DisenoMinimo(props: PropsDiseno)`: en fila si el ancho lo permite, si no en columna centrada: `AstrauraForma` (ASW04) a `props.tam`, el texto corto `textoDeEstado(estado)` (ASW01) en `Rotulo` (`comun.tsx:30`) y `props.preguntar`. NADA más: ni hilo ni sugerencias ni botón de voz. Sin desbordes a 160 px de ancho (el texto se recorta con `truncate`). Usa los colores del tema (`text-foreground`, `text-muted-foreground`, variables CSS `hsl(var(--…))`) y no blanco fijo, salvo sobre un fondo que el propio widget pinte oscuro; acento con los colores de `PALETAS.astraura`. Importa `PropsDiseno` de `@/lib/widgets/astraura/disenos` y `AstrauraForma` de `./astraura-forma`. PRUEBAS: renderiza con props de ejemplo y comprueba lo esencial de este diseño (qué SÍ aparece y qué NO: por ejemplo, el mínimo no muestra hilo ni sugerencias); cada botón llama a su función; a 180 px y a 360 px de ancho no hay `scrollWidth` mayor que `clientWidth`; los nombres accesibles están en español.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "ASW04",
+    "ASW06"
+   ]
+  },
+  {
+   "id": "ASW11",
+   "ola": "ASW1116A",
+   "titulo": "Diseño «Acciones»: atajos para empezar rápido",
+   "archivos": [
+    "src/components/widgets-libres/familias/diseno-acciones.tsx",
+    "src/components/widgets-libres/familias/__tests__/diseno-acciones.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. LO QUE YA EXISTE (léelo antes): el widget del dashboard cuyo texto de estado es «En calma» es `AstrauraLibre` en `src/components/widgets-libres/familias/astraura-libre.tsx` (268 líneas; `TEXTO_VOZ` :31, `useVozAurora` :38 lee el puente `getAuroraBridge()` de `src/lib/aurora/open-aurora.ts` con `speaking`, `listening`, `actionStatus`; el `Orbe` de :65 es el círculo de colores violeta/turquesa; `Preguntar` :90; el diseño por tamaño :170-262 con `disenoDe(clase)` de `familias/comun.tsx:23`). Se monta desde `src/components/widgets-libres/registro-libre.tsx:38` (`case \"AURORA_LAST\"`, hoy sin recibir el widget ni `onUpdateSettings`, a diferencia del reloj). La Protomolécula: la orbe 4D completa es `src/components/protomolecula/orbe-protomolecula.tsx` (475 líneas, three.js a demanda, arrastrable y flotante: NO sirve para meterla en un widget); su lógica pura está en `src/lib/protomolecula/orbe4d/` (`coreografia.ts`: `IdForma` semilla/merkaba/jitterbug/teseracto/dodecaedro/matriz/icosaedro, `PALETAS` por registro con `astraura`, `ESTILOS`, `FICHAS`, tiempos de Fibonacci; `geometria.ts`: `merkaba()`, `icosaedro()`, `dodecaedro()`, `jitterbug()`, `teseractoVertices()`, `PHI`). Ya hay una versión ligera en SVG: `src/components/layout/trinity/horizon/vista-previa-orbe.tsx` (flor de la vida y merkaba, solo `transform`/`opacity`, quieta con `motion-safe`), pero NO depende del estado del asistente. El presupuesto de render del dispositivo es `src/lib/widgets/forma/nivel-dispositivo.ts` (`useNivelRender`, `nivelRender`: ligero/normal/pleno). La identidad: colores SOLO de `PALETAS` (marca Trinity Liquid Crystal, `adn-y-tokens.md` §2 y §6), nunca hexadecimales inventados. Escribe primero las pruebas. `DisenoAcciones(props: PropsDiseno)`: la forma a `tam`, el estado en texto, y una rejilla de hasta 4 `Accion` (`inicio-piezas.tsx:160`, icono de lucide, diana de 44 px) con `props.sugerencias` (la tarea que lo monta pasa «Resúmeme mi día», «¿Qué hay nuevo en la red?», «Ayúdame a ordenar mis tareas de hoy»; tú no las escribes) más un quinto atajo fijo «Abrir el chat» que llama a `onAbrirChat`; cada sugerencia llama a `onSugerencia(texto)`. Debajo `props.preguntar`. En 2 columnas a partir de 280 px de ancho, 1 columna por debajo. Usa los colores del tema (`text-foreground`, `text-muted-foreground`, variables CSS `hsl(var(--…))`) y no blanco fijo, salvo sobre un fondo que el propio widget pinte oscuro; acento con los colores de `PALETAS.astraura`. Importa `PropsDiseno` de `@/lib/widgets/astraura/disenos` y `AstrauraForma` de `./astraura-forma`. PRUEBAS: renderiza con props de ejemplo y comprueba lo esencial de este diseño (qué SÍ aparece y qué NO: por ejemplo, el mínimo no muestra hilo ni sugerencias); cada botón llama a su función; a 180 px y a 360 px de ancho no hay `scrollWidth` mayor que `clientWidth`; los nombres accesibles están en español.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "ASW04",
+    "ASW06"
+   ]
+  },
+  {
+   "id": "ASW12",
+   "ola": "ASW1116A",
+   "titulo": "Diseño «Voz»: la forma grande y un botón enorme de hablar",
+   "archivos": [
+    "src/components/widgets-libres/familias/diseno-voz.tsx",
+    "src/components/widgets-libres/familias/__tests__/diseno-voz.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. LO QUE YA EXISTE (léelo antes): el widget del dashboard cuyo texto de estado es «En calma» es `AstrauraLibre` en `src/components/widgets-libres/familias/astraura-libre.tsx` (268 líneas; `TEXTO_VOZ` :31, `useVozAurora` :38 lee el puente `getAuroraBridge()` de `src/lib/aurora/open-aurora.ts` con `speaking`, `listening`, `actionStatus`; el `Orbe` de :65 es el círculo de colores violeta/turquesa; `Preguntar` :90; el diseño por tamaño :170-262 con `disenoDe(clase)` de `familias/comun.tsx:23`). Se monta desde `src/components/widgets-libres/registro-libre.tsx:38` (`case \"AURORA_LAST\"`, hoy sin recibir el widget ni `onUpdateSettings`, a diferencia del reloj). La Protomolécula: la orbe 4D completa es `src/components/protomolecula/orbe-protomolecula.tsx` (475 líneas, three.js a demanda, arrastrable y flotante: NO sirve para meterla en un widget); su lógica pura está en `src/lib/protomolecula/orbe4d/` (`coreografia.ts`: `IdForma` semilla/merkaba/jitterbug/teseracto/dodecaedro/matriz/icosaedro, `PALETAS` por registro con `astraura`, `ESTILOS`, `FICHAS`, tiempos de Fibonacci; `geometria.ts`: `merkaba()`, `icosaedro()`, `dodecaedro()`, `jitterbug()`, `teseractoVertices()`, `PHI`). Ya hay una versión ligera en SVG: `src/components/layout/trinity/horizon/vista-previa-orbe.tsx` (flor de la vida y merkaba, solo `transform`/`opacity`, quieta con `motion-safe`), pero NO depende del estado del asistente. El presupuesto de render del dispositivo es `src/lib/widgets/forma/nivel-dispositivo.ts` (`useNivelRender`, `nivelRender`: ligero/normal/pleno). La identidad: colores SOLO de `PALETAS` (marca Trinity Liquid Crystal, `adn-y-tokens.md` §2 y §6), nunca hexadecimales inventados. Escribe primero las pruebas. `DisenoVoz(props: PropsDiseno)`: la forma a `tam` (grande, centrada), el estado en texto GRANDE (`escalaTipo`) y debajo `props.botonVoz` ampliado a ≥ 64 px de alto y todo el ancho posible; si `props.voz` es falso (el aparato no ofrece voz) en su lugar se dice «La voz no está disponible en este aparato» (`role=\"status\"`) y se muestra `props.preguntar`. El último texto de Astraura (`props.ultima`) en una sola línea grande si hay. Pensado para manos ocupadas, tabletas y pantallas lejanas: sin texto menor de 14 px. Usa los colores del tema (`text-foreground`, `text-muted-foreground`, variables CSS `hsl(var(--…))`) y no blanco fijo, salvo sobre un fondo que el propio widget pinte oscuro; acento con los colores de `PALETAS.astraura`. Importa `PropsDiseno` de `@/lib/widgets/astraura/disenos` y `AstrauraForma` de `./astraura-forma`. PRUEBAS: renderiza con props de ejemplo y comprueba lo esencial de este diseño (qué SÍ aparece y qué NO: por ejemplo, el mínimo no muestra hilo ni sugerencias); cada botón llama a su función; a 180 px y a 360 px de ancho no hay `scrollWidth` mayor que `clientWidth`; los nombres accesibles están en español.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "ASW04",
+    "ASW06"
+   ]
+  },
+  {
+   "id": "RST08",
+   "ola": "RST1116A",
+   "titulo": "Control «Pantalla fluida» para la ventana de control: automática o fluida, con lo que de verdad llegó",
+   "archivos": [
+    "src/components/control-remoto/ventana-control/selector-fuente.tsx",
+    "src/components/control-remoto/ventana-control/__tests__/selector-fuente.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. CONTEXTO COMPROBADO: hoy la persona no puede pedir la pantalla fluida (proyección): `pantalla-iniciar` solo admite `lado` y `calidad` (`niveles.ts:102-114`), `PantallaDestino.iniciar` manda `orden(\"pantalla-iniciar\", {})` sin nada (`pantalla-destino.ts:282`), `pantalla-origen.ts:186-198` llama a `control_pantalla_iniciar` sin fuente y deduce `fuente` del resultado (`accesibilidad` o `proyeccion`), `nativo-comandos.ts:11` solo deja pasar `sesion`, `lado_max` y `calidad`, y LO NATIVO (`native/src-tauri/src/control_pantalla.rs:12`, `:68`) todavía NO tiene la fuente `proyeccion` (`control_capacidades` dice `proyeccion:false`): hoy siempre contesta «accesibilidad». Por eso lo que se pide es una PETICIÓN explícita y lo que se enseña es la fuente REAL que contestó el aparato: nunca se dice «fluida» si no lo es. Esta tarea no toca Rust. Escribe primero las pruebas. Mira el estilo de los mandos de `ventana-control.tsx` (barra :510-600, objetivos de 44 px, `aria-label` en español) y `historia.tsx`. `SelectorFuente({ pedida, real, aviso, onCambiar }: { pedida: FuentePedida; real: \"accesibilidad\" | \"proyeccion\" | null; aviso: string | null; onCambiar: (f: FuentePedida) => void })`: un grupo de dos opciones (`role=\"radiogroup\"`): «Automática» y «Fluida (proyección)», con una línea que dice la fuente REAL con `rotuloFuente(real)` (RST04) y, si hay `aviso`, ese texto en `role=\"status\"`. La opción «Fluida» lleva la ayuda «Pide al aparato la pantalla por proyección: más fluida; hace falta que él la ofrezca». Cambiar llama a `onCambiar`. Nada de texto en inglés; sin la palabra «Mando». PRUEBAS: dos opciones y la marcada; elegir llama a `onCambiar` con el valor; muestra «Pantalla por accesibilidad» cuando `real` es accesibilidad aunque `pedida` sea proyección y entonces enseña el aviso; teclado (flechas) cambia de opción; el botón tiene 44 px.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "RST04"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1116-082838.json": [
+   "ASW09",
+   "ASW11",
+   "ASW12",
+   "JL7-d1",
+   "RST08",
+   "TU14b-d1"
+  ]
+ }
+}
