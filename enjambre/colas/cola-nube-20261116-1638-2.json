@@ -1,0 +1,72 @@
+{
+ "ola": "nube-20261116",
+ "tareas": [
+  {
+   "id": "MQB5",
+   "ola": "MOD1116",
+   "titulo": "Medir el modelo privado en las tareas de la fábrica antes de darle más trabajo",
+   "archivos": [
+    "scripts/puente/medida_modelo_privado.py",
+    "scripts/puente/test_medida_modelo_privado.py"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Escribe `medida_modelo_privado.py` (hermano de `scripts/puente/jev_sombra.py`: léelo y copia su disciplina: `nice`, solo con la máquina libre, reanuda, solo métricas, ningún texto). Entrada: una lista de casos cortos tomados de las sesiones de imaginación y de la síntesis (≤1.500 tokens de entrada, ids y huellas, no textos) y los resultados que ya dio la flota gratuita para esos mismos casos. Funciones puras: `resumir(mediciones)` → por modelo (privado, abliteration, flota): casos, tiempo hasta el primer token (mediana, p90), tokens/s, memoria pico del servicio, tasa de rechazos del modelo base (la respuesta contiene una negativa) y acuerdo con la flota; `veredicto(resumen, umbrales=UMBRALES)` con UMBRALES en un solo sitio: «se queda» si completa ≥ 90 % de los casos que la flota NO completó con rechazo y su mediana de tiempo ≤ 600 s; «se descarta» si no; «faltan datos» con < 200 casos. Nada de esto afirma que el modelo sin filtros complete más: lo que el veredicto diga sale de los números. PRUEBAS con mediciones inyectadas: cada veredicto, p90 con pocos datos, y que no se escriba ningún texto de prompt.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni pytest, ni tsc, ni git, ni node, ni npm, ni curl): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj, entorno y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves (solo NOMBRES de variables, nunca valores; nunca una IP, un OCID ni un token); nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado. En Python: las pruebas son `unittest` con carpetas temporales y falsos, como las vecinas `scripts/puente/test_*.py`, y no tocan el `~/.starseed` real.",
+   "dependencias_ya_en_main": [
+    "MQB1"
+   ]
+  },
+  {
+   "id": "MQC3",
+   "ola": "MOD1116",
+   "titulo": "Biblioteca de modelos: ramas por proveedor, de más a menos capaz, según lo que tiene cada neurona",
+   "archivos": [
+    "src/lib/astraura/modelos/ramas-proveedor.ts",
+    "src/lib/astraura/modelos/__tests__/ramas-proveedor.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Lee `recomendar.ts` (`encajar`, `candidatosPara`), `perfil-neurona.ts` y `modelos-api.ts`. Escribe `ramas-proveedor.ts`: `ramasPorProveedor(catalogo, apis, perfil)` → `Rama[]` con una rama por proveedor (Ollama/huihui_ai, capas de Astraura, abliteration.ai…); cada rama lista sus modelos de MÁS a MENOS capaz (por puntuación de la base si existe, si no por tamaño/contexto) y marca `mejorQueCabe` (el más capaz con veredicto «recomendado» o «justo» en esa neurona) y `masLigero` (el más pequeño que cabe) usando `encajar`. Regla tomada de la página de referencia (https://claude.ai/artifact/K67dmXBTL8hnkjBMmoM4Wa, «Find your best model»; comprobada el 2026-11-05 por su autor): una neurona SIN tarjeta gráfica (chip `intel`, `cpu` o equivalente en `PerfilNeurona`) recibe como local el modelo MÁS PEQUEÑO que cabe y, además, una línea «un modelo por API es mejor punto de partida: aquí corre en CPU y es lento»; con memoria por debajo del mínimo de todos, solo la rama de API. Las ramas de API solo se ofrecen si la cuenta permite lo sin filtros (reutiliza `proveedorSinFiltrosPermitido` de `sin-filtros-nube.ts` si existe; si no, recibe un booleano). PRUEBAS con 6 perfiles (móvil de 4 GB, portátil sin GPU de 16 GB, Mac de 8, 32 y 64 GB, servidor ARM de 12 GB sin GPU): el servidor de 12 GB recibe la 4B y no la 9b como `mejorQueCabe` local; orden estable; sin mutar las entradas.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni pytest, ni tsc, ni git, ni node, ni npm, ni curl): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj, entorno y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves (solo NOMBRES de variables, nunca valores; nunca una IP, un OCID ni un token); nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado. En Python: las pruebas son `unittest` con carpetas temporales y falsos, como las vecinas `scripts/puente/test_*.py`, y no tocan el `~/.starseed` real.",
+   "dependencias_ya_en_main": [
+    "MQC2"
+   ]
+  },
+  {
+   "id": "IMA12",
+   "ola": "TRA1116-IDIOMAS",
+   "titulo": "El cargador de catálogos suma los paquetes instalados y CON_CATALOGO se calcula",
+   "archivos": [
+    "src/lib/idiomas/catalogos/cargar.ts",
+    "src/lib/idiomas/idiomas.ts",
+    "src/lib/idiomas/__tests__/cargar-paquetes.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Lee `catalogos/cargar.ts` (cargadores fijos en, pt, fr) y `idiomas.ts:61` (`CON_CATALOGO`, `ESTADO_CATALOGO`). Cambio acotado: `cargarCatalogo(codigo)` primero mira los cargadores integrados y, si no hay, un paquete instalado (`leerPaquete`, IMA11) → `crearCatalogo({codigo, revisado: paquete.revisado.estado===\"revisado\", entradas})`; un paquete que falla al cargar devuelve `null` (la interfaz sigue en español). Un integrado SIEMPRE gana sobre un paquete del mismo código salvo que la persona haya elegido el paquete (parámetro `preferirPaquete`). Añade `idiomasConCatalogo(): string[]` = integrados + paquetes. NO cambies `CON_CATALOGO` ni `ESTADO_CATALOGO` (los comprueba `cobertura.test.ts`): solo añade la función. PRUEBAS: con un paquete instalado `de` se carga un catálogo y `traducir` funciona; un paquete corrupto → null; el integrado gana.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "IMA11-d2",
+    "IMA6"
+   ]
+  },
+  {
+   "id": "MQA6",
+   "ola": "MOD1116",
+   "titulo": "Astraura: registrar el proveedor «abliteration» en el índice de proveedores",
+   "archivos": [
+    "src/ai/providers/types.ts",
+    "src/ai/providers/index.ts",
+    "src/ai/providers/__tests__/abliteration-registro.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Añade `\"abliteration\"` a la unión `ProviderId` de `src/ai/providers/types.ts` (línea 15) y registra `abliterationProvider` en `src/ai/providers/index.ts` junto a `groqProvider` (importación, tabla de proveedores y lista de orden ≈ líneas 12, 36 y 56), de modo que NO quede entre los primeros de la lista de orden por defecto (ni en «gratis primero»): al final y sin selección automática. Quita el `as` y el comentario `// MQA6` de `abliteration.ts` si existen (no es uno de tus archivos: déjalo y di en la prueba qué debe quitar quien lo revise). PRUEBA: el proveedor está registrado, su `info.requiresKey` es true y ocupa la última posición de la lista de orden; los demás ids siguen en su sitio.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni pytest, ni tsc, ni git, ni node, ni npm, ni curl): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj, entorno y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves (solo NOMBRES de variables, nunca valores; nunca una IP, un OCID ni un token); nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado. En Python: las pruebas son `unittest` con carpetas temporales y falsos, como las vecinas `scripts/puente/test_*.py`, y no tocan el `~/.starseed` real.",
+   "dependencias_ya_en_main": [
+    "MQA5"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1116-163546.json": [
+   "MQC3",
+   "IMA12",
+   "MQA6",
+   "MQB5"
+  ]
+ }
+}
