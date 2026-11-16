@@ -9,16 +9,21 @@ type PuenteFalso = {
   error?: boolean;
   supported: boolean;
   enabled: boolean;
-  getState: () => PuenteFalso;
-  subscribe: (cb: () => void) => () => void;
-  start: () => void;
-  stop: () => void;
+  getState: ReturnType<typeof vi.fn<() => PuenteFalso>>;
+  subscribe: ReturnType<typeof vi.fn<(cb: () => void) => () => void>>;
+  start: ReturnType<typeof vi.fn<() => void>>;
+  stop: ReturnType<typeof vi.fn<() => void>>;
   _notificar: () => void;
 };
 
 let notificarActual: (() => void) | null = null;
 
-function crearPuenteFalso(estadoInicial: Partial<PuenteFalso> = {}): PuenteFalso {
+function crearPuenteFalso(estadoInicial: Partial<Omit<PuenteFalso, "getState" | "subscribe" | "start" | "stop" | "_notificar">> = {}): PuenteFalso {
+  const getState = vi.fn<() => PuenteFalso>();
+  const subscribe = vi.fn<(cb: () => void) => () => void>();
+  const start = vi.fn<() => void>();
+  const stop = vi.fn<() => void>();
+
   let estado: PuenteFalso = {
     speaking: false,
     listening: false,
@@ -27,18 +32,20 @@ function crearPuenteFalso(estadoInicial: Partial<PuenteFalso> = {}): PuenteFalso
     supported: true,
     enabled: true,
     ...estadoInicial,
-    getState: vi.fn(),
-    subscribe: vi.fn(),
-    start: vi.fn(),
-    stop: vi.fn(),
+    getState,
+    subscribe,
+    start,
+    stop,
     _notificar: () => { notificarActual?.(); },
   };
-  estado.getState.mockReturnValue(estado);
-  estado.subscribe.mockImplementation((cb) => {
+
+  getState.mockReturnValue(estado);
+  subscribe.mockImplementation((cb) => {
     notificarActual = cb;
     cb();
     return vi.fn();
   });
+
   return estado;
 }
 
