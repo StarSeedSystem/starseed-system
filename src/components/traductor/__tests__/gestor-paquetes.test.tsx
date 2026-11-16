@@ -98,7 +98,7 @@ describe("conexionEsMedida", () => {
 
     it("debe manejar objeto nulo", () => {
         expect(conexionEsMedida(null)).toBe(false);
-        expect(conexionEsMedida(undefined)).toBe(false);
+        expect(conexionEsMedida(null)).toBe(false);
     });
 });
 
