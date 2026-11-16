@@ -52,6 +52,7 @@ vi.mock("@/ai/astraura/mesh", () => ({
     { kind: "nfc", label: "NFC", status: "unsupported", detail: "", controllable: false, actions: [] },
   ],
   subscribeConnectivity: () => () => undefined,
+  getActiveModemPreset: () => "LONG_FAST",
 }));
 vi.mock("@/ai/astraura/mesh/signals", async (orig) => ({
   ...(await orig<typeof import("@/ai/astraura/mesh/signals")>()),

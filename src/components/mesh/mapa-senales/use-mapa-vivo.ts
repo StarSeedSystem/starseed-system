@@ -13,7 +13,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useMeshState } from "@/ai/astraura/mesh";
+import { useMeshState, getActiveModemPreset } from "@/ai/astraura/mesh";
 import { useMallaNeuronasEstado } from "@/lib/network/malla-neuronas";
 import { usePresenciaNeuronas } from "@/lib/neurons/presencia";
 import { useEnlacesLocales } from "@/lib/malla/registro-enlaces-locales";
@@ -24,8 +24,9 @@ import { construirVivo } from "@/lib/senales/aparatos";
 import { anonimizarAjenas } from "@/lib/senales/cuentas";
 import { reubicar } from "@/lib/senales/escalas";
 import type { DetectedSignal } from "@/ai/astraura/mesh/signals";
-import type { EntradaYo, VivoMapa } from "@/lib/senales/tipos-vivo";
+import type { EntradaYo, VivoMapa, EnlaceMapa } from "@/lib/senales/tipos-vivo";
 import { ordenarSenalesPorCalidad, useDetectedSignals, type DetectedSignalsOptions, type DetectedSignalsResult } from "../use-detected-signals";
+import { adaptarLoRa, adaptarMalla, type ResultadoLoRa, type ResultadoMalla } from "@/lib/senales/espectro/adaptadores/lora-malla";
 
 const REFRESCO_MS = 15_000;
 const MEDIDA_MS = 30_000;
@@ -55,6 +56,7 @@ export interface MapaVivo {
   vivo: VivoMapa;
   yo: EntradaYo;
   ahora: number;
+  espectro: { lora: ResultadoLoRa; malla: ResultadoMalla };
 }
 
 export function useMapaVivo(opciones?: DetectedSignalsOptions & { verPublicos?: boolean }): MapaVivo {
@@ -115,5 +117,14 @@ export function useMapaVivo(opciones?: DetectedSignalsOptions & { verPublicos?: 
     };
   }, [filas, medio, senalesMedio, mesh.status, mesh.transport, mesh.nodes, mesh.region, mesh.self?.lat, mesh.self?.lon]);
 
-  return { detected, senales, vivo, yo, ahora };
+  const nodosLoRa = useMemo(() => base.filter((s) => s.antenna === "lora" && !s.simulated), [base]);
+  const enlacesMalla = useMemo(() => Array.from(vivo.enlaces.values()), [vivo.enlaces]);
+  const preset = useMemo(() => getActiveModemPreset(), [mesh.status, mesh.transport, mesh.region]);
+
+  const espectro = useMemo(() => ({
+    lora: adaptarLoRa(senalesMedio?.lora ?? { estado: "sin-radio", nodos: 0 }, yo.radio.region, preset, nodosLoRa, ahora),
+    malla: adaptarMalla(enlacesMalla, ahora),
+  }), [senalesMedio, yo.radio.region, preset, nodosLoRa, enlacesMalla, ahora]);
+
+  return { detected, senales, vivo, yo, ahora, espectro };
 }
