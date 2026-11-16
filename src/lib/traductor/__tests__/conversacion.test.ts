@@ -100,6 +100,7 @@ describe("Máquina de turnos - conversación por voz", () => {
                 inicioMs: 0,
                 texto: "hola",
                 traduccion: "hello",
+                inicioTraduccionMs: 100,
                 inicioHablaMs: 200,
             };
             const evento: EventoConversacion = { tipo: "finDeVoz" };
