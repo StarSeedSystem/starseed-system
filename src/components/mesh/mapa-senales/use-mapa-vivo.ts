@@ -23,9 +23,12 @@ import { uidActual } from "@/lib/consumo/usuario";
 import { construirVivo } from "@/lib/senales/aparatos";
 import { anonimizarAjenas } from "@/lib/senales/cuentas";
 import { reubicar } from "@/lib/senales/escalas";
-import type { DetectedSignal } from "@/ai/astraura/mesh/signals";
+import type { DetectedSignal, BleDetection } from "@/ai/astraura/mesh/signals";
+import { BLE_FRESH_MS } from "@/ai/astraura/mesh/signals";
 import type { EntradaYo, VivoMapa } from "@/lib/senales/tipos-vivo";
 import { ordenarSenalesPorCalidad, useDetectedSignals, type DetectedSignalsOptions, type DetectedSignalsResult } from "../use-detected-signals";
+import { adaptarBluetooth, type EntradaBluetooth } from "@/lib/senales/espectro/adaptadores/bluetooth";
+import type { SenalEspectro, SinFuente } from "@/lib/senales/espectro/modelo";
 
 const REFRESCO_MS = 15_000;
 const MEDIDA_MS = 30_000;
@@ -55,6 +58,7 @@ export interface MapaVivo {
   vivo: VivoMapa;
   yo: EntradaYo;
   ahora: number;
+  senalesEspectroBluetooth: readonly SenalEspectro[] | SinFuente;
 }
 
 export function useMapaVivo(opciones?: DetectedSignalsOptions & { verPublicos?: boolean }): MapaVivo {
@@ -84,6 +88,16 @@ export function useMapaVivo(opciones?: DetectedSignalsOptions & { verPublicos?: 
 
   const filas = malla.misDispositivos;
   const base = detected.signals;
+
+  const freshBle = useMemo<BleDetection[]>(
+    () => detected.ble?.detections?.filter((d) => d.viaPicker || ahora - d.at < BLE_FRESH_MS) ?? [],
+    [detected.ble?.detections, ahora],
+  );
+
+  const senalesEspectroBluetooth = useMemo<readonly SenalEspectro[] | SinFuente>(
+    () => adaptarBluetooth({ disponible: senalesMedio?.bluetooth.disponible ?? null, detecciones: freshBle }),
+    [senalesMedio?.bluetooth.disponible, freshBle],
+  );
 
   const vivo = useMemo(
     () => construirVivo(base, { filas, presencia, locales, miMedioId: medio?.id || null, miUid, ahora }),
@@ -115,5 +129,5 @@ export function useMapaVivo(opciones?: DetectedSignalsOptions & { verPublicos?: 
     };
   }, [filas, medio, senalesMedio, mesh.status, mesh.transport, mesh.nodes, mesh.region, mesh.self?.lat, mesh.self?.lon]);
 
-  return { detected, senales, vivo, yo, ahora };
+  return { detected, senales, vivo, yo, ahora, senalesEspectroBluetooth };
 }
