@@ -175,7 +175,7 @@ describe("Máquina de turnos - conversación por voz", () => {
         it("si se pulsa hablar mientras otro habla, el turno se encola", () => {
             const depsConCola = crearDepsMock({});
 
-            let estado: EstadoConversacion = { fase: "hablando", quien: "A", inicioMs: 0, texto: "hola", traduccion: "hello", inicioHablaMs: 200 };
+            let estado: EstadoConversacion = { fase: "hablando", quien: "A", inicioMs: 0, texto: "hola", traduccion: "hello", inicioTraduccionMs: 100, inicioHablaMs: 200 };
             const evento: EventoConversacion = { tipo: "pulsarHablar", quien: "B" };
             const resultado = procesarEvento(estado, evento, depsConCola);
             expect(resultado.estado.fase).toBe("esperandoTurno");
