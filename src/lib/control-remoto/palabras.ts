@@ -72,6 +72,7 @@ export const PALABRAS_FALTA: Readonly<Record<string, string>> = {
     "ajustes-restringidos": "Android bloquea el servicio de una app instalada fuera de la tienda hasta que permitas «ajustes restringidos» para StarSeed.",
     "consentimiento-pantalla": "Falta el interruptor «Ver la pantalla sin preguntar en cada sesión»: sin él, Android no deja mandar la pantalla.",
     "escribir-ajustes": "Falta el permiso «Modificar ajustes del sistema»: sin él no se puede cambiar el brillo desde otra neurona.",
+    "consentimiento-proyeccion": "Android te preguntará en el aparato si compartes la pantalla; contesta allí.",
 };
 
 export const BOTON_FALTA: Readonly<Record<string, string>> = {
@@ -79,6 +80,7 @@ export const BOTON_FALTA: Readonly<Record<string, string>> = {
     "ajustes-restringidos": "Abrir la información de la app",
     "consentimiento-pantalla": "Activar «Ver la pantalla sin preguntar»",
     "escribir-ajustes": "Abrir «Modificar ajustes del sistema»",
+    "consentimiento-proyeccion": "Compartir la pantalla en esta sesión",
 };
 
 /** Los estados de la ventana (seam 3), con el nombre de la neurona. */

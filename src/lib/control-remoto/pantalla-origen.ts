@@ -135,6 +135,7 @@ function esObjeto(x: unknown): x is Record<string, unknown> {
 }
 
 const RE_MOTIVO = /^[a-z-]{1,32}$/;
+const FUENTE_DEFECTO = "auto";
 
 export class OrigenPantalla {
     private activa: Activa | null = null;
@@ -184,10 +185,13 @@ export class OrigenPantalla {
         const inv = this.d.invocar;
         if (!inv) throw new Error("sin-soporte");
         await this.parar("reinicio");
+        // PENC3: la fuente la elige el aparato controlado («auto»: proyección si la persona la concedió en esta sesión, si no
+        // accesibilidad); quien manda no puede pedir otra. Más abajo se recoge la REAL que contesta el aparato.
         const r = await inv("control_pantalla_iniciar", {
             sesion: s.token,
             lado_max: typeof args.lado === "number" ? args.lado : LADO_MAX_DEFECTO,
             calidad: typeof args.calidad === "number" ? args.calidad : CALIDAD_DEFECTO,
+            fuente: FUENTE_DEFECTO,
         }).catch(() => null);
         if (!esObjeto(r) || r.ok !== true) {
             // La orden se cumplió; lo nativo dijo que no puede y por qué (lo que falta lo arregla la persona EN el aparato).
