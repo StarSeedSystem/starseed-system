@@ -25,6 +25,8 @@ async function cargar() {
     return import("../app");
 }
 const activos = () => invoke.mock.calls.filter((c) => c[1]?.activo === true).length;
+// LAT02: se cuenta solo el oyente del latido; el canal de control registra el suyo cuando quiere.
+const oyentesDelLatido = () => listen.mock.calls.filter((c) => c[0] === "banco-llamadas-latido").length;
 
 beforeEach(() => {
     leidas = 0;
