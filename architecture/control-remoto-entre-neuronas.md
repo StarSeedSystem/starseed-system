@@ -398,7 +398,7 @@ regla G, pausa local). Fuera de una sesión de `controlar` esa entrega no se hac
 de permisos o de consentimiento, el instalador de paquetes, los ajustes de accesibilidad, de administración del
 dispositivo o de acceso especial, o las pantallas de permisos de control de esta app; y el texto se rechaza en un campo
 de contraseña. El panel de ajustes rápidos, la cortina de notificaciones y los ajustes ordinarios **sí** se pueden
-manejar.
+manejar. *(FSG1116, 16-11: los ajustes ordinarios ya **no**; ver §12.2.)*
 
 **Toque local.** Un toque de la persona en el aparato pausa la entrada remota (`pausa-local`) hasta que pasan **3 s sin
 tocar**; quien manda ve el estado `pausa-local`. Si Android no da una señal fiable de ese toque, el aparato lo dice con
@@ -485,3 +485,59 @@ cada estado están en `src/lib/control-remoto/palabras.ts`.
 **Lo que solo se ve en los aparatos.** Cuántos cuadros por segundo da cada fuente de verdad, si la conexión sale por
 Wi-Fi o por un relé, si Android avisa del toque local, qué ventanas cuenta la regla G como diálogo de permisos en cada
 versión de Android y cómo se siente la latencia del multitáctil: ninguna prueba en un contenedor lo demuestra.
+
+### §12.2 Revisión SEG1116 cerrada en lo nativo (2026-11-16 · FSG1116)
+
+**Regla G al despachar (C1).** Cada gesto remoto se despacha en trozos de ≤ 200 ms encadenados con `continueStroke`, y
+la regla G se decide **antes de cada trozo** (el primero y cada continuación), no al encolar. Si delante aparece algo
+protegido, no se despacha nada nuevo: la cola se tira y los dedos que sigan abajo se levantan donde están (su flujo
+táctil es de la ventana que recibió el primer toque). Un cambio de ventana con cola o dedos abajo hace lo mismo.
+
+**Consentimientos que no se contestan desde otro aparato (C1).** El interruptor, aceptar un controlador, «ver sin
+preguntar» y la proyección (también mientras pregunta la pantalla de Android) **congelan** la entrada remota desde el
+instante en que se piden hasta que se cierran: la regla G lo niega todo, la cola y el gesto en curso se cortan, y no se
+enseña un segundo consentimiento mientras haya uno abierto. El «Sí» además se ignora si desde que se pidió se despachó
+un gesto remoto, si hay uno en el aire o si el toque vino de un aparato de entrada virtual. **Garantía:** mientras uno
+de esos diálogos está abierto, este servicio de accesibilidad no inyecta nada. **Límite:** Android no deja a una ventana
+saber con certeza si un toque fue inyectado; la comprobación del aparato virtual es una defensa añadida, sin verificar
+en el aparato. Otro servicio de accesibilidad instalado por la persona queda fuera de este control.
+
+**Qué protege la regla G (A1).** Se decide por **paquete** y por el **tipo de ventana** que da Android, nunca por nombres
+de clase o títulos. La lista es una sola, `native/src-tauri/src/control_regla_g.txt`: Rust la lee y `build.rs` escribe
+con ella la de Kotlin. Protegidos siempre (cualquier ventana suya a la vista): controlador de permisos, instaladores,
+**Ajustes entera** (sus pantallas permitidas no se distinguen con fiabilidad de Accesibilidad, Acceso especial o
+Administradores, que se abren dentro de la misma actividad), servicios de Google (cuentas, Play Protect), gestor de
+credenciales y certificados, Play Store y otras tiendas. De la interfaz del sistema, sus **actividades** (consentimiento
+de captura, USB). De esta app, sus ventanas de **actividad** (su panel de control y sus diálogos): quien manda no maneja
+StarSeed OS en la tableta. Además: pantalla bloqueada, foco en un campo de contraseña (tampoco el teclado en pantalla) o
+nada a la vista. **Sigue permitido:** la cortina de notificaciones y los ajustes rápidos (ventanas de sistema). Es lo que
+el contrato deja; quien manda puede pulsar ahí acciones de notificaciones de otras apps y ver su contenido (también
+códigos de un solo uso), y cambiar interruptores rápidos (Wi-Fi, Bluetooth, modo avión). Tocar un ajuste rápido que
+abre Ajustes queda parado en cuanto Ajustes sale delante. Apps de banca o autenticadores no están en la lista.
+
+**La sesión la abre lo nativo (A2).** En Android, `control_neuronas_abrir` recibe la orden firmada `abrir-sesion` tal como
+llegó y Rust la comprueba igual que la entrada (forma, controlador en `aceptados.json`, firma, hora, no repetida; las
+aperturas vistas no se olvidan al cerrar). El `de` y el **nombre del indicador** salen de esa lista nativa; la página solo
+puede bajar el nivel. La pantalla (`control_pantalla_iniciar`) exige además que ese controlador siga aceptado, y cada
+orden de entrada debe venir del mismo controlador que abrió la sesión. En el escritorio no cambia nada: allí no hay
+pantalla ni entrada nativas.
+
+**Lo que puede y no puede una web comprometida (A3).**
+- *En la tableta (la web que carga la app):* **no** puede abrir una sesión, ver la pantalla, leer cuadros, inyectar
+  nada ni poner otro nombre en el indicador sin una orden firmada de un controlador aceptado en el diálogo nativo; **no**
+  puede contestar ningún consentimiento. **Sí** puede: pedir que salga el diálogo de aceptar (con el nombre y la clave que
+  quiera; la persona compara el código), pedir el de «ver sin preguntar» o el del interruptor, abrir pantallas de Ajustes
+  de la lista cerrada, quitar controladores o apagar el control, y negarse a obedecer. Si guarda una `abrir-sesion`
+  legítima, la puede usar una sola vez durante sus 2 minutos (el indicador sale igual).
+- *En la Mac que manda (la web de `starseed-os.vercel.app`, donde vive la clave de firma no exportable):* **puede**
+  firmar cualquier orden con esa clave mientras corre: abrir sesiones, ver la pantalla y mandar entrada dentro de
+  todo lo anterior (indicador visible, regla G, pausa, topes). Quien controle el despliegue de la web controla, en la
+  práctica, lo que la Mac aceptada puede hacer en la tableta. Arreglo pendiente, fuera de esta revisión: firmar con una
+  clave nativa (Keychain/Keystore) y servir la web de control empaquetada.
+
+**Medio (M1–M6).** «Terminar», la pausa local y el servicio que se va cortan el gesto en curso en ≤ 200 ms (M6). Un gesto
+inyectado que Android cancela porque la persona tocó cuenta como toque local y pausa; lo propio se oye 150 ms (M1). En
+pausa, con la pantalla bloqueada o tras parar no se escribe ni se sirve ningún cuadro y se borra el que hubiera (M2,
+M3); los cuadros siguen pasando por un archivo privado de la app (`cuadro.bin`, reemplazado y borrado), no por memoria.
+Lo que guarda el control no viaja en la copia de seguridad ni en la transferencia entre aparatos (M4). En Android los
+comandos del control solo responden a la web publicada o al puerto que la app sirve en ese momento (M5).
