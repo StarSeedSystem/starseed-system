@@ -110,9 +110,11 @@ def registrar(datos_api: dict, ahora: Optional[float] = None) -> dict:
 def actualizar(
     ahora: Optional[float] = None,
     abrir: Callable[[urllib.request.Request], Any] = urllib.request.urlopen,
-    ruta: str = ESTADO,
+    ruta: Optional[str] = None,
 ) -> dict:
     """Lee créditos, registra y escribe el estado atómicamente."""
+    if ruta is None:
+        ruta = ESTADO
     ahora = time.time() if ahora is None else ahora
     k = clave()
     if not k:
@@ -156,14 +158,14 @@ def main(
     abrir: Callable[[urllib.request.Request], Any] = urllib.request.urlopen,
 ) -> int:
     if len(argv) > 1 and argv[1] == "ver":
-        print(resumen_estado(ESTADO))
+        print(resumen_estado())
         return 0
     if not clave():
         print("sin clave")
         return 0
     r = actualizar(abrir=abrir)
     if r.get("hecho"):
-        print(resumen_estado(ESTADO))
+        print(resumen_estado())
     else:
         print(f"abliteration.ai: {r.get('motivo', 'error')}")
     return 0

@@ -168,20 +168,19 @@ def test_registros_se_guardan_en_disco(tmp_path):
 
 
 def test_idempotencia_de_aprobar(tmp_path):
-    """aprobar es idempotente (registra varias veces)."""
+    """aprobar se puede llamar varias veces con el mismo texto (mismo hash)."""
     with patch('alcance_aprobacion._ruta_registro', lambda: Path(tmp_path / "aprobaciones.jsonl")):
         # Primer registro
         aprobacion1 = aprobar("texto mismo", "destinatario test", "canal test", "quien", "2024-01-01 12:00:00")
         hash_texto = aprobacion1["hash"]
 
-        # Segundo registro con mismo texto (será un nuevo hash, no se invalidará)
+        # Segundo registro con mismo texto (mismo hash, no se invalidará porque aprobar no invalida)
         aprobacion2 = aprobar("texto mismo", "destinatario test", "canal test", "quien2", "2024-01-01 13:00:00")
         hash_texto_nuevo = aprobacion2["hash"]
 
-        # Deben ser diferentes hashes
-        assert hash_texto != hash_texto_nuevo
+        # Mismo texto = mismo hash (determinístico)
+        assert hash_texto == hash_texto_nuevo
         assert existe_aprobado(hash_texto) == True
-        assert existe_aprobado(hash_texto_nuevo) == True
 
 
 if __name__ == "__main__":
