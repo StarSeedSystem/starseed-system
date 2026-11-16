@@ -16,13 +16,13 @@ function parsearFecha(fechaStr: string): Date | null {
 }
 
 function fechaLocalHoy(ahora: Date, desfaseMin: number): Date {
-  const fechaUTC = new Date(ahora.getTime() + desfaseMin * 1000);
+  const fechaUTC = new Date(ahora.getTime() + desfaseMin * 60 * 1000);
   return new Date(Date.UTC(fechaUTC.getUTCFullYear(), fechaUTC.getUTCMonth(), fechaUTC.getUTCDate()));
 }
 
 function horaLocal(ahora: Date, desfaseMin: number): number {
-  const fechaLocal = new Date(ahora.getTime() + desfaseMin * 1000);
-  return fechaLocal.getHours() * 60 + fechaLocal.getMinutes();
+  const fechaAjustada = new Date(ahora.getTime() + desfaseMin * 60 * 1000);
+  return fechaAjustada.getUTCHours() * 60 + fechaAjustada.getUTCMinutes();
 }
 
 function esHoraEnRango(hora: number, desde: string, hasta: string): boolean {
@@ -64,12 +64,25 @@ function ventanaVigente(ajustes: AjustesBanco, ahora: Date, desfaseMin: number):
   return null;
 }
 
+function esFechaValida(d: Date | undefined): boolean {
+  return d instanceof Date && !isNaN(d.getTime());
+}
+
 export function cupoBanco(
   ajustes: AjustesBanco,
   usadoHoyMb: number,
   ahora: Date,
   desfaseMin: number = 0
 ): ResultadoCupoBanco {
+  if (!esFechaValida(ahora)) {
+    return {
+      aplica: true,
+      permitido: false,
+      restanteMb: 0,
+      motivo: "ahora inválido (debe ser una fecha válida)",
+    };
+  }
+
   if (!ajustes.activo) {
     return {
       aplica: false,

@@ -283,7 +283,7 @@ describe("cupoBanco", () => {
           horaDesde: "10:00",
           horaHasta: "12:00",
           limiteMb: 50,
-        }] as VentanaBanco,
+        } as VentanaBanco],
       });
       const resultado = cupoBanco(ajustes, 10, new Date("2026-11-16T11:00:00"));
       expect(resultado.permitido).toBe(false);
