@@ -89,6 +89,7 @@ async function chat(
       const lines = buffer.split("\n");
       buffer = lines.pop() ?? "";
       for (const line of lines) {
+        if (!line.trim()) continue;
         const result = parseSseLine(line, {});
         if (!result || result.done) continue;
         applySseChunk(state, result);

@@ -60,7 +60,7 @@ describe("abliterationProvider", () => {
   it("maneja streaming SSE", async () => {
     const stream = new ReadableStream({
       start(controller) {
-        controller.enqueue(new TextEncoder().encode('data: {"choices":[{"delta":{"content":"Hola "}]}\n\n'));
+        controller.enqueue(new TextEncoder().encode('data: {"choices":[{"delta":{"content":"Hola "}}]}\n\n'));
         controller.enqueue(new TextEncoder().encode('data: {"choices":[{"delta":{"content":"mundo"}}]}\n\n'));
         controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'));
         controller.close();
@@ -72,10 +72,10 @@ describe("abliterationProvider", () => {
       body: stream,
     } as Response);
 
-    const onChunk = vi.fn();
+    const calls: string[] = [];
+    const onChunk = vi.fn((chunk: string) => calls.push(chunk));
     await abliterationProvider.chat(config, [], { model: "m", onChunk });
     
-    expect(onChunk).toHaveBeenCalledWith("Hola ");
-    expect(onChunk).toHaveBeenCalledWith("mundo");
+    expect(calls).toEqual(["Hola ", "mundo"]);
   });
 });
