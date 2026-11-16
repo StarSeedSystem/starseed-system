@@ -1,5 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
+import * as matchers from "@testing-library/jest-dom/matchers";
+expect.extend(matchers);
 import { InterruptorModoBanco } from "../interruptor-modo-banco";
 
 describe("InterruptorModoBanco", () => {
