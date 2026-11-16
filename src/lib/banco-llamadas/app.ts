@@ -19,6 +19,62 @@ function avisar(): void {
     }
 }
 
+// PENA2: con la ventana en otro escritorio macOS frena `setInterval`; Rust emite este latido cada 20 s mientras la serie
+// está armada (`banco_latido_activar`). Fuera de la app nativa no hace nada. Sin el paquete @tauri-apps/api: puente global.
+const EVENTO_LATIDO = "banco-llamadas-latido";
+const SALTO_LATIDO_MS = 5_000;
+type PuenteLatido = { core?: { invoke?: (c: string, a?: Record<string, unknown>) => Promise<unknown> }; event?: { listen?: (e: string, f: () => void) => Promise<() => void> } };
+let latido: { quitar: (() => void) | null } | null = null;
+let ultimoSondeo = { t: 0, por: "reloj" };
+
+function puente(): PuenteLatido | null {
+    return (globalThis as { __TAURI__?: PuenteLatido }).__TAURI__ ?? null;
+}
+
+/** Un paso del sondeo; el latido cede ante cualquier sondeo de hace <5 s y el reloj ante un latido de hace <5 s. */
+function sondear(por: "reloj" | "latido"): void {
+    const t = Date.now();
+    const reciente = t >= ultimoSondeo.t && t - ultimoSondeo.t < SALTO_LATIDO_MS;
+    if (reciente && (por === "latido" || ultimoSondeo.por === "latido")) return;
+    ultimoSondeo = { t, por };
+    void actor?.vuelta().then((r) => {
+        guardar();
+        if (r === "vencida" || r === "hecha" || r.startsWith("rechazada")) avisar();
+        if (!actor?.estado()) quitarLatido();
+    });
+}
+
+function activarLatido(): void {
+    const p = puente();
+    if (latido || typeof p?.event?.listen !== "function" || typeof p.core?.invoke !== "function") return;
+    const mio: { quitar: (() => void) | null } = { quitar: null };
+    latido = mio;
+    void (async () => {
+        try {
+            const quitar = await p.event!.listen!(EVENTO_LATIDO, () => sondear("latido"));
+            if (latido === mio) mio.quitar = quitar;
+            else return quitar(); // se apagó mientras se montaba el oyente
+            await p.core!.invoke!("banco_latido_activar", { activo: true });
+        } catch {
+            /* sin latido la serie sigue con el reloj de la página; al volver a armar se reintenta */
+            if (latido === mio) latido = null;
+            mio.quitar?.();
+        }
+    })();
+}
+
+function quitarLatido(): void {
+    const mio = latido;
+    latido = null;
+    if (!mio) return;
+    try {
+        mio.quitar?.();
+        void puente()?.core?.invoke?.("banco_latido_activar", { activo: false })?.catch(() => undefined);
+    } catch {
+        /* nada que quitar */
+    }
+}
+
 // VEN1115L: lo armado se guarda en el aparato (con su caducidad) para que una recarga de la interfaz no apague la serie.
 export const CLAVE_ARMADO = "starseed.banco-llamadas.armado";
 interface Guardado {
@@ -130,13 +186,9 @@ export function armarBanco(tableta: string, horas?: number, llamadas?: number): 
     }
     guardar();
     if (ok && !reloj) {
-        reloj = setInterval(() => {
-            void actor?.vuelta().then((r) => {
-                guardar();
-                if (r === "vencida" || r === "hecha" || r.startsWith("rechazada")) avisar();
-            });
-        }, SONDEO_MS);
+        reloj = setInterval(() => sondear("reloj"), SONDEO_MS);
     }
+    if (ok) activarLatido(); // PENA2 (también al recuperar la serie tras una recarga: restaurarBanco llama a armarBanco)
     avisar();
     return ok;
 }
@@ -157,6 +209,7 @@ export function apagarBanco(motivo = "apagar"): void {
     dejarDeVigilar = null;
     if (reloj) clearInterval(reloj);
     reloj = null;
+    quitarLatido(); // PENA2
     for (const s of sesiones.values()) void s.cerrar().catch(() => undefined);
     sesiones.clear();
     avisar();
