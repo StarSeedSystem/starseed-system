@@ -13,6 +13,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { MessageCircle, Mic, MicOff, Send, Sparkles } from "lucide-react";
+import { useDisenoAstraura } from "./use-diseno-astraura";
 import { WidgetLibre } from "@/components/widgets-libres/widget-libre";
 import { readAuroraChatEntries, AURORA_CHATLOG_CHANGE_EVENT, AURORA_CHATLOG_KEY, type AuroraChatLogEntry } from "@/lib/aurora/aurora-chat-log";
 import { AURORA_EXOCORTEX_OPEN_EVENT } from "@/lib/aurora/aurora-orb-bus";
@@ -20,6 +21,7 @@ import { getAuroraBridge, openAurora } from "@/lib/aurora/open-aurora";
 import { Rotulo, disenoDe, recortarPalabras } from "./comun";
 import { PilaAjustable, Prescindible } from "@/components/dashboard/kit/pila-ajustable";
 import { Accion, escalaTipo, esTactil, haceCuanto, useClaseForzada, useDispositivo, useEnPantalla } from "./inicio-piezas";
+import type { DashboardWidget } from "@/components/dashboard/dashboard-types";
 
 const VIOLETA = "#7c5cff";
 const TURQUESA = "#23d5ab";
@@ -122,7 +124,7 @@ function Preguntar({ tactil, sugerencias, compacto }: { tactil: boolean; sugeren
     );
 }
 
-export function AstrauraLibre() {
+export function AstrauraLibre({ widget, onUpdateSettings }: { widget?: DashboardWidget; onUpdateSettings?: (patch: Record<string, unknown>) => void }) {
     const [entradas, setEntradas] = React.useState<AuroraChatLogEntry[] | null>(null);
     const [ref, visible] = useEnPantalla<HTMLDivElement>();
     const { estado, voz, escuchar, callar } = useVozAurora(visible);
@@ -143,8 +145,10 @@ export function AstrauraLibre() {
     React.useEffect(() => setAhora(Date.now()), [entradas]);
     const vivaAhora = estado !== "calma" ? estado : ultima && ahora - ultima.ts < 60_000 ? "hablando" : "calma";
 
-    // El mensaje se acorta por palabras (además del line-clamp) con el texto entero en el title:
-    // un fallo largo de «probé 8 fuentes…» ya no deja líneas ocultas bajo las sugerencias.
+    const [diseno, elegir] = useDisenoAstraura(widget, onUpdateSettings);
+
+    // El mensaje se acorto por palabras (ademas del line-clamp) con el texto entero en el title:
+    // un fallo largo de "probe 8 fuentes..." ya no deja líneas ocultas bajo las sugerencias.
     const frase = (clases: string, max = 150) => ultima
         ? <p className={clases} title={ultima.text}>{recortarPalabras(ultima.text, max)}</p>
         : <p className="text-[12.5px] text-white/65">{entradas === null ? "…" : "Aún no habéis hablado."}</p>;

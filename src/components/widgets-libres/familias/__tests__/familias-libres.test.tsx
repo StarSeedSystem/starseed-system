@@ -247,4 +247,13 @@ describe("Astraura libre", () => {
         expect(screen.getByText("Todo en calma en la malla.")).toBeTruthy();
         expect(screen.getByText("Tú: ¿Qué tal?")).toBeTruthy();
     });
+
+    it("recibe widget y onUpdateSettings sin errores", () => {
+        chat = [];
+        const ajustes = vi.fn();
+        const widget = {} as any;
+        const { unmount } = render(<AstrauraLibre widget={widget} onUpdateSettings={ajustes} />);
+        expect(screen.getByText("Aún no habéis hablado.")).toBeTruthy();
+        unmount();
+    });
 });

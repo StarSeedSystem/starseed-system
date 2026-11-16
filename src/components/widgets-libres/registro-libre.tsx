@@ -35,7 +35,7 @@ export function widgetLibre(widget: DashboardWidget, onUpdateSettings?: (patch: 
         case "SYSTEM_STATUS": return <EstadoSistemaLibre />;
         case "MY_EVENTS": return <EventosLibre />;
         case "TASKS_QUICK": return <TareasLibre />;
-        case "AURORA_LAST": return <AstrauraLibre />;
+        case "AURORA_LAST": return <AstrauraLibre widget={widget} onUpdateSettings={onUpdateSettings} />;
         default: return null;
     }
 }
