@@ -10,12 +10,15 @@ import { iniciarCapa, fijarDocumento, type CapaActiva } from "@/lib/idiomas/capa
 import { cargarCatalogo } from "@/lib/idiomas/catalogos/cargar";
 import { EVENTO_IDIOMA, CLAVE_IDIOMA_NEURONA, idiomaEfectivo } from "@/lib/idiomas/estado";
 import { IDIOMA_FUENTE } from "@/lib/idiomas/idiomas";
+import { cuandoEsSeguroTraducir, entornoDelNavegador } from "@/lib/idiomas/hidratacion";
 
 export function CapaIdioma(): null {
     useEffect(() => {
         let capa: CapaActiva | null = null;
         let vivo = true;
         const aplicar = async (): Promise<void> => {
+            await cuandoEsSeguroTraducir(entornoDelNavegador(window));
+            if (!vivo) return;
             const { codigo } = idiomaEfectivo();
             const cat = codigo === IDIOMA_FUENTE ? null : await cargarCatalogo(codigo);
             if (!vivo) return;
