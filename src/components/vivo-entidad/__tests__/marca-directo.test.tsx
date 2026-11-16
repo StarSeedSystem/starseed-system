@@ -28,7 +28,7 @@ describe("MarcaDirecto", () => {
         expect(marca).toHaveAttribute("title", "En directo, 3 personas");
         const punto = marca.querySelector('[data-punto="vivo"]');
         expect(punto).toBeInTheDocument();
-        expect(punto.className).toMatch(/punto/);
+        expect(punto!.className).toMatch(/punto/);
     });
 
     test("directo false sin personas no muestra nada", () => {
@@ -51,7 +51,7 @@ describe("MarcaDirecto", () => {
         expect(marca).toHaveAttribute("title", "Sin datos de directo");
         const punto = marca.querySelector('[data-punto="desconocido"]');
         expect(punto).toBeInTheDocument();
-        expect(punto.className).toMatch(/punto/);
+        expect(punto!.className).toMatch(/punto/);
     });
 
     test("directo null con personas sigue mostrando sin datos", () => {
