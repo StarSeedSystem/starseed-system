@@ -9,6 +9,11 @@ vi.mock("next/link", () => ({ default: ({ href, children, ...r }: any) => <a hre
 const onCambiar = vi.fn();
 const OPCIONES: EleccionDiseno[] = ["auto", "minimo", "conversacion", "acciones", "voz"];
 
+function getRadioByValue(value: EleccionDiseno) {
+    const radios = screen.getAllByRole("radio");
+    return radios.find((r) => (r as HTMLInputElement).value === value) as HTMLInputElement;
+}
+
 beforeEach(() => {
     vi.clearAllMocks();
 });
@@ -42,21 +47,22 @@ describe("SelectorDisenoAstraura", () => {
         fireEvent.click(screen.getByRole("button", { name: /Diseño/i }));
         expect(screen.getByRole("radio", { name: /Automático/i })).toBeInTheDocument();
         for (const d of ["minimo", "conversacion", "acciones", "voz"] as const) {
-            expect(screen.getByRole("radio", { name: new RegExp(DISENOS[d].nombre, "i") })).toBeInTheDocument();
+            expect(getRadioByValue(d)).toBeInTheDocument();
         }
     });
 
     it("la opción correspondiente al valor actual está marcada", () => {
         render(<SelectorDisenoAstraura valor="conversacion" onCambiar={onCambiar} degradado={false} />);
         fireEvent.click(screen.getByRole("button", { name: /Diseño/i }));
-        expect(screen.getByRole("radio", { name: /Conversación/i })).toBeChecked();
-        expect(screen.getByRole("radio", { name: /Automático/i })).not.toBeChecked();
+        expect(getRadioByValue("conversacion")).toBeChecked();
+        expect(getRadioByValue("auto")).not.toBeChecked();
     });
 
     it("elegir una opción llama a onCambiar con el valor y cierra el panel", () => {
         render(<SelectorDisenoAstraura valor="auto" onCambiar={onCambiar} degradado={false} />);
         fireEvent.click(screen.getByRole("button", { name: /Diseño/i }));
-        fireEvent.click(screen.getByRole("radio", { name: /Voz/i }));
+        const radioVoz = getRadioByValue("voz");
+        fireEvent.click(radioVoz);
         expect(onCambiar).toHaveBeenCalledWith("voz");
         expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     });
@@ -86,7 +92,7 @@ describe("SelectorDisenoAstraura", () => {
     it("Enter o Espacio en una opción la elige y cierra", () => {
         render(<SelectorDisenoAstraura valor="auto" onCambiar={onCambiar} degradado={false} />);
         fireEvent.click(screen.getByRole("button", { name: /Diseño/i }));
-        const radioVoz = screen.getByRole("radio", { name: /Voz/i });
+        const radioVoz = getRadioByValue("voz");
         radioVoz.focus();
         fireEvent.keyDown(radioVoz, { key: "Enter" });
         expect(onCambiar).toHaveBeenCalledWith("voz");
@@ -111,7 +117,7 @@ describe("SelectorDisenoAstraura", () => {
         render(<SelectorDisenoAstraura valor="auto" onCambiar={onCambiar} degradado={false} />);
         fireEvent.click(screen.getByRole("button", { name: /Diseño/i }));
         for (const d of ["minimo", "conversacion", "acciones", "voz"] as const) {
-            const radio = screen.getByRole("radio", { name: new RegExp(DISENOS[d].nombre, "i") });
+            const radio = getRadioByValue(d);
             expect(radio).toHaveAttribute("aria-describedby");
             const descId = radio.getAttribute("aria-describedby");
             const desc = screen.getByText(DISENOS[d].sirvePara);
@@ -122,6 +128,6 @@ describe("SelectorDisenoAstraura", () => {
     it("el radiogroup tiene aria-label descriptivo", () => {
         render(<SelectorDisenoAstraura valor="auto" onCambiar={onCambiar} degradado={false} />);
         fireEvent.click(screen.getByRole("button", { name: /Diseño/i }));
-        expect(screen.getByRole("radiogroup")).toHaveAttribute("aria-label", /diseño/i);
+        expect(screen.getByRole("radiogroup")).toHaveAttribute("aria-label", "Diseño del widget");
     });
 });

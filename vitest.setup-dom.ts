@@ -11,8 +11,9 @@
  * nada, así que la lógica pura sigue igual de rápida.
  */
 if (typeof document !== "undefined") {
+  await import("@testing-library/jest-dom/vitest");
   // @ts-ignore
-const { configure } = await import("@testing-library/react");
+  const { configure } = await import("@testing-library/react");
   configure({ asyncUtilTimeout: 5000 });
 
   // FIX1114A — desmonta lo montado al terminar cada prueba.
