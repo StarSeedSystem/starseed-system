@@ -77,11 +77,8 @@ def registrar(estado: Optional[Estado], saldo: float, ahora_iso: str) -> Estado:
         return nuevo
 
     dia_anterior = estado.get("dia")
-    if dia_anterior != fecha:
-        if estado.get("saldo_ultimo") is not None:
-            nuevo["saldo_inicio_dia"] = estado["saldo_ultimo"]
-        else:
-            nuevo["saldo_inicio_dia"] = saldo
+    if dia_anterior == fecha:
+        nuevo["saldo_inicio_dia"] = estado.get("saldo_inicio_dia", saldo)
 
     return nuevo
 
