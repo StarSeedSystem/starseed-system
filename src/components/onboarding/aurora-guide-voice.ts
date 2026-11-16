@@ -116,12 +116,51 @@ export function auroraEnsureListening(): void {
   }
 }
 
+/**
+ * Huella segura de un fallo: su tipo, nunca el mensaje (el texto del error puede
+ * llevar la propia voz de la persona). Pura y estable para comparar avisos.
+ */
+export function huellaDeFallo(error: unknown): string {
+  if (error instanceof Error) return error.name || "Error";
+  if (error === null) return "null";
+  return typeof error;
+}
+
+/**
+ * ¿Toca avisar? Solo cuando cambia el tipo de fallo: el sondeo de la guía va cada
+ * 550 ms y no queremos repetir el mismo aviso en cada vuelta.
+ */
+export function debeAvisarFallo(anterior: string | null, error: unknown): boolean {
+  return huellaDeFallo(error) !== anterior;
+}
+
+/** Último tipo de fallo ya avisado (null = el transcript volvió a leerse bien). */
+let ultimoFalloTranscript: string | null = null;
+
+/** Avisa UNA vez por tipo de fallo, sin mensajes privados: deja de ser un catch mudo. */
+function avisarFalloTranscript(error: unknown): void {
+  const huella = huellaDeFallo(error);
+  if (!debeAvisarFallo(ultimoFalloTranscript, error)) return;
+  ultimoFalloTranscript = huella;
+  try {
+    console.warn(
+      "[guia] no se pudo leer el transcript de Aurora; los comandos de voz no responden",
+      { error: huella },
+    );
+  } catch {
+    /* sin consola: la guía sigue funcionando con los botones */
+  }
+}
+
 /** Lee el transcript actual de la escucha de voz (o "" si no hay puente). */
 export function auroraTranscript(): string {
   try {
     const s = auroraBridge()?.getState?.();
+    // Se recuperó: si vuelve a fallar, el aviso vuelve a salir una vez.
+    ultimoFalloTranscript = null;
     return (s?.transcript ?? "") + " " + (s?.interim ?? "");
-  } catch {
+  } catch (error) {
+    avisarFalloTranscript(error);
     return "";
   }
 }

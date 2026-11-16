@@ -659,8 +659,9 @@ export function AuroraGuide() {
     if (!inTour || mode !== "voice" || muted) return;
     if (typeof window === "undefined") return;
     const id = window.setInterval(() => {
-      let tx = "";
-      try { tx = auroraTranscript(); } catch { tx = ""; }
+      // `auroraTranscript` nunca lanza y avisa (una vez por tipo) si el puente falla:
+      // aquí no hace falta otro catch mudo que oculte el motivo.
+      const tx = auroraTranscript();
       if (!tx || tx === lastTranscriptRef.current) return;
       lastTranscriptRef.current = tx;
       const cmd = parseVoiceCommand(tx);
