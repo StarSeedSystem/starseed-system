@@ -2,6 +2,12 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
 import { siguienteSeguro } from "@/lib/auth/siguiente-seguro";
 
+// ── Función auxiliar: validar que exchangeCodeForSession retorna sesión válida ───
+// Solo success (error:null) + data truthy = sesión real activa.
+function esSesionValida(resultado: { error: any; data: any }): boolean {
+    return !resultado.error && Boolean(resultado.data);
+}
+
 // ── Callback de autenticación (Adenda 63) ───────────────────────────────────
 // Destino de `emailRedirectTo` (confirmación de correo) y de cualquier flujo
 // OAuth/PKCE. Antes NO existía → el enlace de confirmación caía en 404 y el
@@ -18,8 +24,14 @@ export async function GET(request: Request) {
     if (code) {
         try {
             const supabase = await createClient();
-            const { error } = await supabase.auth.exchangeCodeForSession(code);
-            if (!error) return NextResponse.redirect(`${origin}${next}`);
+            const resultado = await supabase.auth.exchangeCodeForSession(code);
+
+            // Añadir catch vacío: aceptar solo si error es null Y data es truthy
+            if (esSesionValida(resultado)) {
+                return NextResponse.redirect(`${origin}${next}`);
+            }
+
+            // error presente O data vacía: caer al login con aviso
         } catch {
             // caída controlada al login con aviso
         }
