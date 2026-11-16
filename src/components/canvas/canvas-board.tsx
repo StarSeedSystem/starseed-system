@@ -138,7 +138,7 @@ import { buildProposalLink } from "@/lib/governance/links";
 // kind='board', distinto del toggle `canvas.shared` existente (referencia simple).
 import { BoardShareDialog, BoardShareTrigger } from "@/components/canvas/board-share-dialog";
 import { useMySpaces, useMyInvites, acceptInvite, declineInvite, createSpace } from "@/lib/spaces/spaces";
-import { useSharedBoardSpace } from "@/lib/sync/shared-board-space";
+import { alinear, useSharedBoardSpace } from "@/lib/sync/shared-board-space";
 import { getBoardEngine, setBoardEngine, type BoardEngine } from "@/lib/canvas/board-engine";
 // Protomolécula como ventana (PM1010F2I): panel + franja de dependencias.
 import { BloquePizarraProtomolecula, herramientaDeMolecula } from "@/components/protomolecula/bloque-pizarra";
@@ -508,14 +508,16 @@ export default function CanvasBoard({
   const boardSpace = useSharedBoardSpace(boardSpaceId);
   useEffect(() => {
     if (!boardSpaceId || !boardSpace.remoteDoc) return;
-    setCanvas((cur) => ({
-      ...cur,
-      id: boardSpaceId, // ancla defensiva: evita que scheduleSave() cree un lienzo personal aparte
-      title: boardSpace.space?.title ?? cur.title,
-      blocks: boardSpace.remoteDoc!.blocks,
-      edges: boardSpace.remoteDoc!.edges,
-      shared: true,
-    } as Canvas));
+    const rd = boardSpace.remoteDoc;
+    setCanvas((cur) => {
+      // SVF1A5f: remoteDoc ya es el lienzo FUSIONADO; si la persona ya tiene lo mismo, no se reemplaza nada.
+      const curEdges = getEdges(cur);
+      const blocks = alinear(cur.blocks, rd.blocks);
+      const edges = alinear(curEdges, rd.edges);
+      const title = boardSpace.space?.title ?? cur.title;
+      if (cur.id === boardSpaceId && blocks === cur.blocks && edges === curEdges && title === cur.title && cur.shared) return cur;
+      return { ...cur, id: boardSpaceId, /* ancla defensiva: scheduleSave() no crea un lienzo personal aparte */ title, blocks, edges, shared: true } as Canvas;
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [boardSpaceId, boardSpace.remoteDoc]);
 
@@ -538,13 +540,13 @@ export default function CanvasBoard({
   // Modo pizarra COMPARTIDA: el guardado va al espacio (os_spaces.doc), NUNCA
   // a la tabla `canvases` personal (el lienzo personal original queda intacto).
   const scheduleSave = useCallback((next: Canvas) => {
+    // SVF1A5f: pizarra compartida → la guarda el motor por registro (compare-and-swap + fusión), sin temporizador propio.
+    if (boardSpaceId) {
+      boardSpace.pushDoc({ blocks: next.blocks, edges: getEdges(next) });
+      return;
+    }
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(async () => {
-      if (boardSpaceId) {
-        boardSpace.pushDoc({ blocks: next.blocks, edges: getEdges(next) });
-        setSavedAt(new Date().toLocaleTimeString());
-        return;
-      }
       if (!next.title) return;
       const persisted = await saveCanvasWithEdges(next);
       if (persisted) {
@@ -558,12 +560,14 @@ export default function CanvasBoard({
 
   // Aplica una mutación al lienzo y agenda el guardado.
   const mutate = useCallback((fn: (c: Canvas) => Canvas) => {
+    if (boardSpaceId && boardSpace.soloLectura) return; // SVF1A5f: sin permiso de edición la pizarra es de solo lectura
     setCanvas((cur) => {
       const next = fn(cur);
       scheduleSave(next);
       return next;
     });
-  }, [scheduleSave]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scheduleSave, boardSpaceId, boardSpace.soloLectura]);
 
   useEffect(() => {
     return () => {
@@ -1644,6 +1648,7 @@ export default function CanvasBoard({
       <div className="flex items-center gap-2 px-1 mb-2 text-[11px] text-white/40">
         <span>{summary}</span>
         {savedAt && <span className="text-emerald-300/50">· guardado {savedAt}</span>}
+        {boardSpaceId && boardSpace.aviso && <span className="text-amber-300/80">· {boardSpace.aviso}</span>}
         {!userId && <span className="text-amber-300/60">· inicia sesión para persistir</span>}
         {connectMode && <span className="text-amber-300/70">· {connectFrom ? "elige destino" : "elige origen"}</span>}
       </div>
