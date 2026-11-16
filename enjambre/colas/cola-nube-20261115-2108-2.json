@@ -1,0 +1,93 @@
+{
+ "ola": "nube-20261115",
+ "tareas": [
+  {
+   "id": "MRE4",
+   "ola": "MAP1116B",
+   "titulo": "Espectrómetro: celular y SDR, con la ranura para una fuente de espectro real cuando haya hardware",
+   "archivos": [
+    "src/lib/senales/espectro/adaptadores/celular-sdr.ts",
+    "src/lib/senales/espectro/adaptadores/__tests__/celular-sdr.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Interfaz `FuenteEspectroReal { nombre: string; disponible(): Promise<boolean>; barrer(desdeKhz: number, hastaKhz: number): Promise<{frecuenciaKhz:number; fuerzaDbm:number}[]> }` y la fuente por defecto `SIN_SDR` (`disponible()` = false). `adaptadorCelular(lectura: {celda?: {banda?: string; frecuenciaKhz?: number; fuerzaDbm?: number}} | null)`: hoy NINGUNA API del OS ni del navegador entrega celda y banda a la app (el repo no las lee; comprueba con `grep -rn \"CellInfo\\|TelephonyManager\" native src`); sin lectura → `sinFuente` («este aparato no entrega la celda ni la banda móvil a la app»); si se inyecta una lectura, conviértela con `bandas.ts`. `adaptadorSdr(fuente, rango)`: solo con `disponible()` verdadero barre y devuelve señales `medida` con fuente «SDR conectado: <nombre>»; sin SDR → `sinFuente` («no hay un receptor SDR conectado»). No añadas dependencias nuevas ni código nativo: solo la ranura. PRIVACIDAD Y HONESTIDAD (decisiones de Alex del 14-11, `architecture/mapa-de-senales.md` §2 y §12; valen para esta tarea): la posición exacta de un aparato personal viaja SOLO por el canal privado `pos:<uid>` entre las neuronas de su propia cuenta (`src/lib/senales/geo/canal-posicion.ts`); en las capas pública y de comunidad una neurona enseña únicamente lo que su dueño eligió publicar, y nunca una posición exacta (como mucho una zona gruesa); una capa de toda la red se construye con lo que cada dueño publica, JAMÁS con una neurona informando de la posición de sus vecinas; el alcance dibujado como campo es «estimado» y lo medido se marca aparte (`NOTA_ALCANCE` de `geo/capas.ts`). Nada se inventa: si una plataforma no da un dato, el mapa lo dice («sin fuente: <motivo>») y no pinta un número. Un valor lleva siempre su fuente (`medida`, `declarada` o `estimada`) y la hora de la lectura.\nPRUEBAS: sin lectura y sin SDR → solo `sinFuente`; con lectura falsa → banda correcta; con SDR falso → señales medidas y la fuente nombrada. COMPRUEBA: `NODE_ENV=test npx vitest run src/lib/senales/espectro/adaptadores/__tests__/celular-sdr.test.ts` verde y tsc acotado.\n\nREGLAS DE LA CASA (valen aunque no las repita la tarea): toca SOLO los archivos de la lista `archivos`; ≤3 archivos y ≤120 líneas por archivo (si no cabe, para y di qué falta: no lo estires ni lo resumas); sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible (la interfaz dice Genesis); sin red real en las pruebas; ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves. El asunto de tu commit empieza por `MRE4:` y dice qué comprobaste y qué NO pudiste comprobar.",
+   "dependencias_ya_en_main": [
+    "MRA2",
+    "MRA3"
+   ]
+  },
+  {
+   "id": "MRI2b",
+   "ola": "MAP1116B",
+   "titulo": "Preferencias de red compartida por aparato: interruptor, tope de «con quién», topes y modo automático",
+   "archivos": [
+    "src/lib/malla/preferencias-red-compartida.ts",
+    "src/lib/malla/__tests__/preferencias-red-compartida.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Local a la neurona (localStorage, try/catch, como `src/lib/senales/preferencias-mapa.ts`). Importa `PreferenciasRedCompartida` de `./auto-compartir` y escribe `PREFERENCIAS_POR_DEFECTO` (TODO apagado: interruptor por aparato apagado, `maximoCon: \"nadie\"`, `soloWifi: true`, `kbpsSubidaMax: 1024`, `reservaBateriaPct: 30`, `automatico: false`, `compartirMedidas: false`), `sanearPreferenciasRed(crudo)` (cualquier forma rara vuelve al valor seguro, números acotados, `maximoCon` solo uno de `COMPARTIR`), `leerPreferenciasRed()` y `guardarPreferenciasRed()`. Un cambio que sube el nivel de apertura (nadie → público) devuelve `{aviso: true}` para que la interfaz pida confirmación. PRUEBAS: por defecto todo apagado; saneado de basura; subir el nivel avisa y bajarlo no; ida y vuelta. COMPRUEBA: `NODE_ENV=test npx vitest run src/lib/malla/__tests__/preferencias-red-compartida.test.ts` verde y tsc acotado.\n\nREGLAS DE LA CASA (valen aunque no las repita la tarea): toca SOLO los archivos de la lista `archivos`; ≤3 archivos y ≤120 líneas por archivo (si no cabe, para y di qué falta: no lo estires ni lo resumas); sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible (la interfaz dice Genesis); sin red real en las pruebas; ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves. El asunto de tu commit empieza por `MRI2b:` y dice qué comprobaste y qué NO pudiste comprobar.",
+   "dependencias_ya_en_main": [
+    "MRI1b"
+   ]
+  },
+  {
+   "id": "MRP1b",
+   "ola": "MAP1116B",
+   "titulo": "Puerta de datos del A1: aceptar el origen de las apps nativas de prueba (127.0.0.1, puertos 47610 a 47619, nada más ancho)",
+   "archivos": [
+    "servicios/puerta-datos/src/config.mjs",
+    "servicios/puerta-datos/test/config-origenes.test.mjs"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Qué falla (verificado): «Emparejar este aparato» en los chats de Genesis dice «la puerta de datos del A1 no responde» porque el origen de la app nativa de prueba (`http://127.0.0.1:47610` … `http://127.0.0.1:47619`) no está en `ORIGENES_POR_DEFECTO` (`servicios/puerta-datos/src/config.mjs:10-19`), y `cargarConfig` (~línea 56) solo suma esos más los extra del entorno. Alex aprobó cambiar esa puerta. Cambio: añade a `ORIGENES_POR_DEFECTO` EXACTAMENTE diez orígenes, `http://127.0.0.1:47610` … `http://127.0.0.1:47619`, generados sin comodines ni expresiones regulares (lista cerrada, `Object.freeze`), con un comentario que cita la causa. NADA más ancho: ni `localhost`, ni otros puertos, ni esquemas `https`, ni `*`, ni «cualquier puerto». PRUEBAS nuevas (`test/config-origenes.test.mjs`, como las de `test/servidor.test.mjs`, con `node --test`): los diez están; `http://127.0.0.1:47609`, `:47620`, `http://localhost:47610`, `https://127.0.0.1:47610`, `http://127.0.0.1:47610.evil.com` y `http://evil.com` NO están; los orígenes por defecto de antes siguen; y una petición con cada origen nuevo recibe la cabecera CORS del servidor y una con uno no listado no (busca en `servidor.test.mjs` cómo se prueba el CORS). COMPRUEBA: `cd servicios/puerta-datos && node --test test/config-origenes.test.mjs test/servidor.test.mjs` verde. DESPLEGAR esto al A1 NO es de esta tarea: lo hace la dirección; dilo en el commit.\n\nREGLAS DE LA CASA (valen aunque no las repita la tarea): toca SOLO los archivos de la lista `archivos`; ≤3 archivos y ≤120 líneas por archivo (si no cabe, para y di qué falta: no lo estires ni lo resumas); sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible (la interfaz dice Genesis); sin red real en las pruebas; ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves. El asunto de tu commit empieza por `MRP1b:` y dice qué comprobaste y qué NO pudiste comprobar."
+  },
+  {
+   "id": "SVF1B2b",
+   "ola": "SES1116B",
+   "titulo": "Espacio de entidad: quién ve cada pestaña y quién puede cambiar su visibilidad",
+   "archivos": [
+    "src/lib/entidad-espacio/permisos.ts",
+    "src/lib/entidad-espacio/__tests__/permisos.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contrato: architecture/sesiones-en-vivo-entidades-y-transmisiones.md §3.1 y §3.2. Es SENSIBLE: un error aquí enseña una pestaña privada a quien no debe. Usa `Pestana`/`Visibilidad` de `./modelo`. Escribe `permisos.ts`: `rangoDeRol(rol: string | null): 0|1|2|3|4` con la MISMA tabla que `access_role_rank` (`supabase/migrations/20260806120000_profile_sharing.sql`: total/owner 4, gestor/admin 3, colaborador/editor 2, observador/viewer 1, resto 0); `puedeVerPestana(p, ctx: {rango: number; roles: string[]; anonimo: boolean}, accesoSesion: \"privada\"|\"entidad\"|\"publica\")` → una pestaña NUNCA es más abierta que su sesión (visibilidad efectiva = la más cerrada de las dos); `publica` la ve un anónimo SOLO si `accesoPublico === \"ver\"`; `entidad` = rango ≥ 1; `roles` = alguno de `ctx.roles` en `p.roles` o rango ≥ 3; `privada` = rango ≥ 3; `puedeGestionarEspacio(rango)` = rango ≥ 3; `cambioDeVisibilidad(rango, de, a)` → `{permitido, aviso}`: exige rango ≥ 3 en ambos sentidos; hacerla MÁS abierta lleva `aviso: true` (hay que decir a la persona lo que se verá); menos abierta, `aviso: false`; un rol no puede subir nada por encima del rango que ya tiene en la entidad.\nPRUEBAS (`permisos.test.ts`, tabla completa): observador ve `entidad` y no `privada`; anónimo ve solo `publica` con `accesoPublico: \"ver\"`; una pestaña `publica` sobre una sesión `privada` NO la ve nadie ajeno; editor (2) no puede cambiar visibilidad; gestor (3) sí, con aviso al abrirla; rol desconocido = 0. COMPRUEBA: `NODE_ENV=test npx vitest run src/lib/entidad-espacio/__tests__/permisos.test.ts` verde y tsc acotado.\n\nREGLAS DE LA CASA (valen aunque no las repita la tarea): toca SOLO los archivos de la lista `archivos`; ≤3 archivos y ≤120 líneas por archivo (si no cabe, para y di qué falta: no lo estires ni lo resumas); sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible (la interfaz dice Genesis); sin red real en las pruebas; ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves. El asunto de tu commit empieza por `SVF1B2b:` y dice qué comprobaste y qué NO pudiste comprobar.",
+   "dependencias_ya_en_main": [
+    "SVF1B1"
+   ]
+  },
+  {
+   "id": "IMG-agentes-reimaginada-profunda-corregir-te",
+   "titulo": "Ajustar temporizador de guía para no interrumpir navegación del usuario",
+   "area": "imaginacion",
+   "archivos": [
+    "src/components/onboarding/aurora-guide.tsx",
+    "src/hooks/use-timeout-interaction.ts",
+    "src/lib/mando/areas.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Ajustar temporizador de guía para no interrumpir navegación del usuario. ## Problema\nEl temporizador que muestra la guía de aurora interrumpe la navegación del usuario al expirar, forzando un cambio de pantalla sin su consentimiento. Esto genera fricción y reduce la experiencia fluida.\n\n## Solución propuesta\n- **Reemplazar temporizador fijo por evento de interacción**: En lugar de depender de un timeout automático, el temporizador se reinicia cada vez que el usuario realiza una acción (scroll, click, movimiento del mouse).\n- **Añadir opción explícita de cierre**: Incluir un botón visible para que el usuario decida cuándo terminar la guía.\n- **Persistencia parcial d Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  },
+  {
+   "id": "IMG-agentes-reimaginada-profunda-corregir-ti",
+   "titulo": "Corregir tipos any en StepKind",
+   "area": "imaginacion",
+   "archivos": [
+    "src/lib/mando/stepKind.ts",
+    "src/lib/mando/stepHandlers.ts",
+    "src/lib/mando/stepUtils.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Corregir tipos any en StepKind. El objetivo es eliminar los `any` en la definición de `StepKind` para mejorar la seguridad de tipos y la mantenibilidad del código. La propuesta incluye:\n\n1. **Revisión de la interfaz**: Reemplazar los campos `any` por tipos concretos o genéricos con restricciones.\n2. **Actualización de los casos de uso**: Ajustar todas las llamadas a `StepKind` para que utilicen los nuevos tipos.\n3. **Pruebas unitarias**: Añadir pruebas que verifiquen la correcta tipificación y que no se produzcan errores de tipo.\n4. **Documentación**: Actualizar la documentación de la API para reflejar los cambios.\n\nEsta tar Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1115-190053.json": [
+   "SVF1B2b",
+   "MRE4",
+   "MRI2b",
+   "IMG-agentes-reimaginada-profunda-corregir-te",
+   "IMG-agentes-reimaginada-profunda-corregir-ti",
+   "MRP1b"
+  ]
+ }
+}
