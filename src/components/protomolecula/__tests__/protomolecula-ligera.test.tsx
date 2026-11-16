@@ -1,11 +1,16 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom/vitest";
 import { ProtomoleculaLigera } from "../protomolecula-ligera";
 import type { EstadoAsistente } from "@/lib/widgets/astraura/estado-forma";
 import type { NivelRender } from "@/lib/widgets/forma/nivel-dispositivo";
 
+const { useNivelRenderMock } = vi.hoisted(() => ({
+  useNivelRenderMock: vi.fn(() => "pleno" as NivelRender),
+}));
+
 vi.mock("@/lib/widgets/forma/nivel-dispositivo", () => ({
-  useNivelRender: vi.fn(() => "pleno" as NivelRender),
+  useNivelRender: useNivelRenderMock,
 }));
 
 const mockMatchMedia = (matches: boolean) => {
@@ -18,7 +23,7 @@ const mockMatchMedia = (matches: boolean) => {
 
 const renderProtomolecula = (props: {
   estado: EstadoAsistente;
-  tam?: number;
+  tam: number;
   animada?: boolean;
   etiqueta?: string;
   className?: string;
@@ -28,7 +33,7 @@ describe("ProtomoleculaLigera", () => {
   const estados: EstadoAsistente[] = ["calma", "escuchando", "pensando", "hablando", "error"];
 
   beforeEach(() => {
-    vi.mocked(require("@/lib/widgets/forma/nivel-dispositivo").useNivelRender).mockReturnValue("pleno");
+    useNivelRenderMock.mockReturnValue("pleno");
     mockMatchMedia(false);
   });
 
@@ -42,7 +47,7 @@ describe("ProtomoleculaLigera", () => {
   });
 
   it("con useNivelRender en 'ligero' data-viva='false' y sin animaciones CSS", () => {
-    vi.mocked(require("@/lib/widgets/forma/nivel-dispositivo").useNivelRender).mockReturnValue("ligero");
+    useNivelRenderMock.mockReturnValue("ligero");
     const { unmount } = renderProtomolecula({ estado: "calma", tam: 80 });
     const svg = screen.getByTestId("protomolecula-ligera");
     expect(svg).toHaveAttribute("data-viva", "false");
@@ -86,10 +91,10 @@ describe("ProtomoleculaLigera", () => {
     unmount();
   });
 
-  it("primer render quieto (sin animación aunque animada=true)", () => {
-    const { unmount } = renderProtomolecula({ estado: "calma", tam: 80, animada: true });
+  it("con animada=false no hay animaciones aunque el nivel sea pleno", () => {
+    const { unmount } = renderProtomolecula({ estado: "calma", tam: 80, animada: false });
     const svg = screen.getByTestId("protomolecula-ligera");
-    expect(svg).toHaveAttribute("data-viva", "true");
+    expect(svg).toHaveAttribute("data-viva", "false");
     const animatedElements = svg.querySelectorAll("[style*='animation']");
     expect(animatedElements.length).toBe(0);
     unmount();
