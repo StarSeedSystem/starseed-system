@@ -10,12 +10,12 @@ import { anthropicProvider } from "./anthropic";
 import { googleProvider } from "./google";
 import { deepseekProvider } from "./deepseek";
 import { groqProvider } from "./groq";
-import { abliterationProvider } from "./abliteration";
 import { openrouterProvider } from "./openrouter";
 import { nvidiaProvider } from "./nvidia";
 import { astraura158Provider } from "./astraura-158";
 import { astraura158MallaProvider } from "./astraura-158-malla";
 import { iaMallaProvider } from "./ia-malla";
+import { abliterationProvider } from "./abliteration";
 
 export const PROVIDERS: Record<ProviderId, Provider> = {
   // Astraura 1.58-bit (Adenda 153): backend soberano propio, PRIMARIO por defecto.
@@ -56,13 +56,13 @@ export const PROVIDER_ORDER: ProviderId[] = [
   "ollama",
   "deepseek",
   "groq",
-  "abliteration",
   "openrouter",
   "nvidia",
   "openai",
   "anthropic",
   "google",
   "openai-compatible",
+  "abliteration",
 ];
 
 export function getProvider(id: ProviderId): Provider {
