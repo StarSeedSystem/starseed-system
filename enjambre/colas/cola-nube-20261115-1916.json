@@ -1,0 +1,60 @@
+{
+ "ola": "nube-20261115",
+ "tareas": [
+  {
+   "id": "PENB1",
+   "ola": "PEN1116",
+   "titulo": "Android: quitar un controlador de la lista aceptada nativa (solo Kotlin escribe esa lista)",
+   "archivos": [
+    "native/src-tauri/android/ControlEntradaStarSeed.kt"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Qué está abierto (verificado): en `src/components/control-remoto/banda-control.tsx` el botón «Quitar» solo quita al controlador del permiso de la PÁGINA (`quitarControlador` de `src/lib/control-remoto/sesion.ts`); el archivo nativo `aceptados.json` (`ControlEntradaNativo.ACEPTADOS`, formato `{\"v\":1,\"controladores\":[…]}`, escrito SOLO por Kotlin con el «Sí» del diálogo, `architecture/control-remoto-entre-neuronas.md` §12.1 g) conserva a ese controlador, y `control_entrada` lo seguirá dando por aceptado. Regla de seguridad que NO se rompe: solo Kotlin escribe esa lista; Rust y la página nunca la escriben.\nEn `native/src-tauri/android/ControlEntradaStarSeed.kt`, junto al caso `\"aceptar-controlador\"` (~línea 248) añade el caso `\"quitar-controlador\"`: recibe `huella` (texto), valida que sea no vacío y ≤128 caracteres sin espacios (si no, `no(\"huella-invalida\")`), lee `aceptados.json`, quita SOLO las entradas cuya `huella` sea igual (comparación exacta), reescribe con el `escribirAtomico` que ya usa el archivo (~líneas 158 y 192) y responde `{ok:true, quitados:n}` (n=0 si no estaba: no es un error; sin archivo = ok con 0). No cierra la sesión activa por sí mismo. Sin el interruptor encendido responde `no(\"interruptor-apagado\")` como los demás. No añadas ningún camino que AÑADA a la lista.\nCOMPRUEBA: si `native/src-tauri/android/pruebas/` admite una prueba de lógica pura para esto (mira `ServidorLocalLogicaPrueba.kt`), extrae la parte pura `sinHuella(json: String, huella: String): Pair<String, Int>` y pruébala allí (quitar una, quitar la que no está, huella igual por prefijo NO quita, JSON roto no se pisa); si no hay forma de ejecutarlo aquí, dilo. NO se puede comprobar en esta nube (no hay aparato): entrega lógica pura con sus pruebas pruebas Kotlin si existen y di en el commit, en una lista, qué debe mirar Alex en su aparato; nada se da por probado.\n\nREGLAS DE LA CASA (valen aunque no las repita la tarea): toca SOLO los archivos de la lista `archivos`; ≤3 archivos y ≤120 líneas por archivo (si no cabe, para y di qué falta: no lo estires ni lo resumas); sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible (la interfaz dice Genesis); sin red real en las pruebas; ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves. El asunto de tu commit empieza por `PENB1:` y dice qué comprobaste y qué NO pudiste comprobar.",
+   "modelo": "codex/gpt-5.6-sol"
+  },
+  {
+   "id": "MRI1",
+   "ola": "MAP1116",
+   "titulo": "Reglas puras de compartir internet por la malla de forma automática (solo dentro de lo que el dueño permite)",
+   "archivos": [
+    "src/lib/malla/auto-compartir.ts",
+    "src/lib/malla/__tests__/auto-compartir.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. SENSIBLE: compartir internet de un aparato solo ocurre si su dueño lo encendió. Lee los contratos y el código ya existentes: `architecture/malla-cristalina-sio2.md` §8 y §8.1 (puertas a internet y con quién se comparten: `nadie` por defecto, `mi-cuenta`, `vinculos`, `grupo`, `publico`), `src/lib/malla/cristal/puertas-internet.ts` (`COMPARTIR`, `puedeUsar`, `restanteParaOtrosMb`, `elegirPuerta`), `salida-internet.ts`, `permisos-antenas.ts`, `src/lib/recursos/oferta.ts` (`presta`: cuenta/grupos/publico) y, si ya está integrado, `architecture/sesiones-en-vivo-entidades-y-transmisiones.md` §4.2 (interruptor por aparato, topes `soloWifi`/`kbpsSubidaMax`, reserva). Escribe `auto-compartir.ts` (pura): `sugerirComparticion(entrada: {puertas: PuertaInternet[]; preferencias: PreferenciasRedCompartida; estado: {enWifi: boolean; cargando: boolean; bateriaPct: number|null; medida: boolean; usoMb: number}; ahora: number}): {decisiones: Array<{puertaId: string; con: Compartir; accion: \"ofrecer\"|\"retirar\"|\"mantener\"; motivo: string}>}`. Reglas: el automático NUNCA enciende lo que el dueño no encendió (interruptor por aparato apagado = `retirar`/`mantener` apagado, siempre); jamás sube el nivel de «con quién» por encima del que el dueño dejó como máximo; respeta topes (`soloWifi`, `kbpsSubidaMax`, tope de datos de una conexión medida, reserva de batería ≥ 30 % salvo cargando) y retira la oferta cuando se cruzan; las puertas con datos medidos ('medida') solo se ofrecen si el dueño lo permitió explícitamente. Cada decisión lleva su motivo en palabras. `PreferenciasRedCompartida` = tipo que define MRI2 (declara aquí solo la interfaz mínima y deja que MRI2 la complete: importa el tipo de `./preferencias-red-compartida` creándolo vacío NO: define el tipo en este archivo y que MRI2 lo importe).\nPRUEBAS (tabla ≥15 casos): interruptor apagado → nunca ofrece; en datos móviles con `soloWifi` → retira; batería baja sin cargar → retira; nivel pedido por encima del máximo → baja al máximo; conexión medida sin permiso → no; todo permitido → ofrece con su motivo. COMPRUEBA: `NODE_ENV=test npx vitest run src/lib/malla/__tests__/auto-compartir.test.ts` verde y tsc acotado.\n\nREGLAS DE LA CASA (valen aunque no las repita la tarea): toca SOLO los archivos de la lista `archivos`; ≤3 archivos y ≤120 líneas por archivo (si no cabe, para y di qué falta: no lo estires ni lo resumas); sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible (la interfaz dice Genesis); sin red real en las pruebas; ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves. El asunto de tu commit empieza por `MRI1:` y dice qué comprobaste y qué NO pudiste comprobar.",
+   "modelo": "codex/gpt-5.6-sol"
+  },
+  {
+   "id": "SVF1C3",
+   "ola": "SES1116",
+   "titulo": "Marca EN VIVO con contador de presencia",
+   "archivos": [
+    "src/components/vivo-entidad/marca-directo.tsx",
+    "src/components/vivo-entidad/__tests__/marca-directo.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contrato: architecture/sesiones-en-vivo-entidades-y-transmisiones.md §8 y §10 (P1-C). Componente pequeño `MarcaDirecto({directo: boolean | null; personas: number | null; compacto?: boolean})`: punto rojo y «EN VIVO · N» cuando `directo` es true; nada visible cuando es false y no hay personas; cuando `directo` es `null` (no se sabe) enseña un punto gris con «sin datos» y NUNCA «en vivo». Con `aria-label` en palabras («En directo, 3 personas») y `title`; respeta `prefers-reduced-motion` (sin parpadeo). Estilo con las clases del repo (mira `src/components/vivo/` para el vocabulario visual). PRUEBAS (estilo de las pruebas de componentes cercanas, p. ej. las de `src/components/vivo`): los cuatro estados; el aria-label; con `null` jamás aparece «EN VIVO». COMPRUEBA: `NODE_ENV=test npx vitest run src/components/vivo-entidad/__tests__/marca-directo.test.tsx` verde y tsc acotado.\n\nREGLAS DE LA CASA (valen aunque no las repita la tarea): toca SOLO los archivos de la lista `archivos`; ≤3 archivos y ≤120 líneas por archivo (si no cabe, para y di qué falta: no lo estires ni lo resumas); sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible (la interfaz dice Genesis); sin red real en las pruebas; ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves. El asunto de tu commit empieza por `SVF1C3:` y dice qué comprobaste y qué NO pudiste comprobar."
+  },
+  {
+   "id": "SVF1A2",
+   "ola": "SES1116",
+   "titulo": "Pizarra viva: modelo por registro con reloj y lápida, y su fusión conmutativa",
+   "archivos": [
+    "src/lib/vivo/pizarra.ts",
+    "src/lib/vivo/pizarra-fusion.ts",
+    "src/lib/vivo/__tests__/pizarra-fusion.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contrato: architecture/sesiones-en-vivo-entidades-y-transmisiones.md §10 fase 1 (P1-A). HOY la pizarra compartida sincroniza el documento ENTERO (`src/lib/sync/shared-board-space.ts`: `{blocks, edges}`, último en escribir gana): dos personas dibujando a la vez se pisan y se pierde trabajo. Aquí defines el modelo por REGISTRO, igual que `src/lib/vivo/dashboard.ts` (lee `WidgetCompartido`, `normalizarDashboard`, `fusionarDashboards`, `podarDashboard`, `maxTiempoDashboard` y el tipo `Ctx` de `./tabla/modelo`; copia su esquema de reloj, autor y lápida, no inventes otro).\n`pizarra.ts`: tipos `RegistroBloque`/`RegistroArista` (id, `v` = el bloque o arista tal cual, `t` reloj, `a` autor, `x?: true` lápida), `DocPizarra {formato: 1, bloques: Record<id, RegistroBloque>, aristas: Record<id, RegistroArista>}`, `pizarraVacia()`, `esDocPizarra(doc)`, `docPizarra(d)` (a Record para guardar), `normalizarPizarra(raw)` que descarta lo roto y MIGRA el formato viejo `{blocks: [...], edges: [...]}` a registros con `t=0`, `a=\"legado\"` sin perder ningún bloque ni arista, `podarPizarra(d, ahora)` (lápidas de más de 30 días fuera), `maxTiempoPizarra(d)`. `pizarra-fusion.ts`: `fusionarPizarras(a, b)`: por cada id gana el registro de mayor `t`; empate → gana la lápida, y si no, el autor menor por orden alfabético (determinista); devuelve `a` MISMA referencia si `b` no aporta nada. Debe ser conmutativa, asociativa e idempotente.\nPRUEBAS (`pizarra-fusion.test.ts`, deterministas, sin azar sin semilla): (1) A edita el bloque 1 y B el bloque 2 a la vez → la fusión conserva LAS DOS ediciones, en cualquier orden; (2) los dos editan el mismo bloque → gana el de mayor `t` en ambos órdenes; (3) borrado (lápida) con `t` mayor que la edición → el bloque no existe; una edición posterior a la lápida lo resucita; (4) propiedades: fusionar(a,b)=fusionar(b,a), fusionar(fusionar(a,b),c)=fusionar(a,fusionar(b,c)), fusionar(a,a)=a, sobre ≥20 conjuntos pequeños con semilla fija; (5) un doc viejo `{blocks, edges}` migra sin perder nada.\nCOMPRUEBA: `NODE_ENV=test npx vitest run src/lib/vivo/__tests__/pizarra-fusion.test.ts` verde y un tsc acotado de tus archivos sin errores. Esta pieza es el corazón de «dos editores convergen»: si algo del reloj te parece ambiguo, elige lo que hace `dashboard.ts` y dilo en el commit.\n\nREGLAS DE LA CASA (valen aunque no las repita la tarea): toca SOLO los archivos de la lista `archivos`; ≤3 archivos y ≤120 líneas por archivo (si no cabe, para y di qué falta: no lo estires ni lo resumas); sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible (la interfaz dice Genesis); sin red real en las pruebas; ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves. El asunto de tu commit empieza por `SVF1A2:` y dice qué comprobaste y qué NO pudiste comprobar.",
+   "modelo": "codex/gpt-5.6-sol"
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1115-190053.json": [
+   "SVF1A2",
+   "SVF1C3",
+   "PENB1",
+   "MRI1"
+  ]
+ }
+}
