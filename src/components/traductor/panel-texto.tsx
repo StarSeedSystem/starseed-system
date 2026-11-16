@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Copy, Volume2, VolumeX, AlertTriangle, Loader2, Mic2, Globe, ArrowUpRight } from "lucide-react";
 import { IDIOMAS, porCodigo } from "@/lib/idiomas/idiomas";
-import type { ResultadoTraductor, ResultadoServicioTraductor, ParIdiomas } from "@/lib/traductor/tipos";
+import type { ResultadoTraductor, ParIdiomas } from "@/lib/traductor/tipos";
+import type { ResultadoServicioTraductor } from "@/lib/traductor/servicio";
 import { resetearEstado as resetearEstadoVoz, vocesDe, hablar } from "@/lib/traductor/voz-habla";
 
 const LIMITE_CARACTERES = 5000;
