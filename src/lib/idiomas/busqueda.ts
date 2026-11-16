@@ -69,9 +69,9 @@ export function buscarIdiomas(lista: IdiomaMundialBusqueda[], consulta: string):
     } else if (nombrePropioNorm.includes(consultaNormalizada) || nombreActualNorm.includes(consultaNormalizada) || aliasNorm.some((a) => a.includes(consultaNormalizada))) {
       coincidencia = 0;
     } else {
-      const distancia = distanciaEdicion(consultaNormalizada, nombrePropioNorm) <= 1 || distanciaEdicion(consultaNormalizada, nombreActualNorm) <= 1;
+      const distancia = distanciaEdicion(consultaNormalizada, nombrePropioNorm) <= 3 || distanciaEdicion(consultaNormalizada, nombreActualNorm) <= 3;
       if (distancia && consultaNormalizada.length >= 4) {
-        coincidencia = -1;
+        coincidencia = 0;
       } else {
         continue;
       }
