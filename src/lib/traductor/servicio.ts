@@ -60,9 +60,10 @@ export function crearServicioTraductor(deps: DependenciasServicioTraductor) {
         let ultimoError: { mensaje: string; motor: IdMotor } | null = null;
 
         for (const { motor, sale } of motoresDisponibles) {
-            const saleDelAparato = AVISOS[motor.id]?.sale_del_aparato ?? false;
-            if (saleDelAparato && avisoPendiente(motor.id, almacenAvisos)) {
-                return { necesitaAviso: motor.id };
+            const id = motor.id as IdMotor;
+            const saleDelAparato = AVISOS[id]?.sale_del_aparato ?? false;
+            if (saleDelAparato && avisoPendiente(id, almacenAvisos)) {
+                return { necesitaAviso: id };
             }
 
             try {
