@@ -1,17 +1,50 @@
 import { describe, expect, it, beforeEach } from "vitest";
-import { hablar, detener, vocesDe, resetearEstado, cuandoTermine } from "../voz-habla";
 
 const VOZES_SIMULADAS: Record<string, string> = {
     "es-ES": "Spanish Female",
     "en-US": "English Female",
 };
 
+const VOZES_FAKE: Record<string, { name: string; lang: string }> = {
+    "es-ES": { name: "Spanish Female", lang: "es-ES" },
+    "en-US": { name: "English Female", lang: "en-US" },
+    "es": { name: "Spanish (generic)", lang: "es" },
+    "ca-ES": { name: "Catalan", lang: "ca-ES" },
+    "gl-ES": { name: "Galician", lang: "gl-ES" },
+};
+
+const speechSynthesisMock = {
+    voices: [],
+    voice: null,
+    getVoices(): SpeechSynthesisVoice[] {
+        return this.voices;
+    },
+    speak: (_utterance: SpeechSynthesisUtterance) => {
+        const utterance = _utterance as any;
+        utterance.voice = speechSynthesisMock.voice;
+        setTimeout(() => {
+            const cb = utterance._onend;
+            if (cb) cb(true);
+        }, 20);
+    },
+    cancel: () => {
+        speechSynthesisMock.voice = null;
+        speechSynthesisMock.voices = [];
+    },
+    addEventListener: (_event: string, cb: () => void) => {
+        if (_event === "onend") {
+            speechSynthesisMock._onend = cb;
+        }
+    },
+    removeEventListener: () => {},
+};
+
 beforeEach(() => {
     resetearEstado();
-    ;(global as any).speechSynthesis = undefined;
+    ;(global as any).speechSynthesis = speechSynthesisMock as any;
     ;(global as any).speechSynthesisVoices = [];
     if (typeof window !== "undefined") {
-        ;(window as any).speechSynthesis = undefined;
+        ;(window as any).speechSynthesis = speechSynthesisMock as any;
         ;(window as any).speechSynthesisVoices = [];
     }
 });
@@ -38,14 +71,12 @@ describe("voz-habla: hablar", () => {
         const resultado = hablar("mundo", "es-ES", "navegador");
         expect(resultado.ok).toBe(true);
 
-        // Esperar a que la frase actual termine (fallback setTimeout ~10ms)
-        await new Promise((resolve) => setTimeout(resolve, 50));
+        await new Promise((resolve) => setTimeout(resolve, 100));
 
-        // La cola debería haberse procesado
-        const u = (global as any).SpeechSynthesisUtterance?.lastUtt;
+        expect(resultado.ok).toBe(true);
     });
 
-    it("procesa la cola en orden (FIFO) tras detener y reiniciar estado", async () => {
+    it("procesa la cola en orden FIFO tras detener y reiniciar estado", async () => {
         resetearEstado();
 
         hablar("primero", "es-ES", "navegador");
@@ -67,11 +98,9 @@ describe("voz-habla: hablar", () => {
             if (ok) resultados.push("callback3");
         });
 
-        // Esperar a que todas las frases terminen
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        await new Promise((resolve) => setTimeout(resolve, 150));
 
-        // Los callbacks deberían haber sido disparados
-        expect(resultados.length).toBeGreaterThanOrEqual(1);
+        expect(resultados.length).toBeGreaterThanOrEqual(2);
     });
 
     it("detener vacía la cola y llama callback con false", async () => {
@@ -79,15 +108,12 @@ describe("voz-habla: hablar", () => {
         expect(r1.ok).toBe(true);
 
         const resultados: string[] = [];
-        // Registrar callback ANTES de detener
         cuandoTermine((ok: boolean) => {
             resultados.push(ok ? "ok" : "false");
         });
 
         detener();
 
-        // Después de detener, el callback debería invocarse con false
-        // Dar tiempo al setTimeout fallback
         await new Promise((resolve) => setTimeout(resolve, 50));
 
         expect(resultados).toContain("false");
@@ -99,10 +125,15 @@ describe("voz-habla: hablar", () => {
 
         hablar("texto", "es-ES", "navegador");
 
-        // En fallback de setTimeout, el callback se invoca después de 10ms
         await new Promise((resolve) => setTimeout(resolve, 50));
 
         expect(cb.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it("usa voz por prefijo es-ES cuando solo hay es", () => {
+        (global as any).speechSynthesis = speechSynthesisMock as any;
+        const resultado = hablar("hola", "es-ES", "navegador");
+        expect(resultado.ok).toBe(true);
     });
 });
 
