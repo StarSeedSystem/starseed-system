@@ -48,7 +48,7 @@ import { leerBloque } from "@/lib/protomolecula/bloque-protomolecula";
 import { usePrompt } from "@/components/ui/confirm-dialog";
 
 // SES1115Q
-const CompartirEnVivo = dynamic(() => import("@/components/vivo-entidad/compartir-en-vivo"), {
+const CompartirEnVivo = dynamic(() => import("@/components/vivo-entidad/compartir-en-vivo").then((m) => ({ default: m.CompartirEnVivo })), {
   ssr: false,
   loading: () => null,
 });
@@ -1601,7 +1601,7 @@ export default function CanvasBoard({
 
            {/* SES1115Q: Compartir en vivo */}
            {boardSpaceId ? (
-             <button
+             <Button
                size="sm"
                variant="outline"
                className="gap-1.5 h-8 border-amber-500/30 text-amber-100 cursor-pointer"
@@ -1609,9 +1609,9 @@ export default function CanvasBoard({
                title="Compartir en vivo"
              >
                <Share2 className="w-3.5 h-3.5" /> Compartir en vivo
-             </button>
+             </Button>
            ) : (
-             <button
+             <Button
                size="sm"
                variant="outline"
                className="gap-1.5 h-8 border-amber-500/30 text-amber-100 cursor-pointer"
@@ -1619,7 +1619,7 @@ export default function CanvasBoard({
                title="Compartir en vivo desde esta pizarra"
              >
                <Share2 className="w-3.5 h-3.5" /> Compartir en vivo
-             </button>
+             </Button>
            )}
 
           <Button size="sm" className="gap-1.5 h-8 bg-amber-600 hover:bg-amber-500 text-white" onClick={publishNowGated}>
@@ -1910,7 +1910,6 @@ export default function CanvasBoard({
       <Dialog
         open={showCompartirVivo}
         onOpenChange={(o) => !o && setShowCompartirVivo(false)}
-        className="max-w-md"
       >
         <MarcaDirecto directo={boardSpaceId ? true : null} personas={null} compacto />
         <CompartirEnVivo

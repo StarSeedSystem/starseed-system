@@ -28,8 +28,8 @@ export interface CompartirEnVivoProps {
 
 export function CompartirEnVivo({ open, onOpenChange, canvasId, canvasTitle, blocks, edges, espacioId, sesionId }: CompartirEnVivoProps) {
   const [loading, setLoading] = useState(false);
-  const [createdEspacioId, setCreatedEspacioId] = useState<string | null>(espacioId);
-  const [createdSesionId, setCreatedSesionId] = useState<string | null>(sesionId);
+  const [createdEspacioId, setCreatedEspacioId] = useState<string | null>(espacioId ?? null);
+  const [createdSesionId, setCreatedSesionId] = useState<string | null>(sesionId ?? null);
   const [url, setUrl] = useState<string | null>(null);
 
   usePresentesSesion(createdSesionId, !!createdSesionId);
@@ -91,8 +91,8 @@ export function CompartirEnVivo({ open, onOpenChange, canvasId, canvasTitle, blo
   };
 
   const handleCerrar = () => {
-    setCreatedEspacioId(espacioId);
-    setCreatedSesionId(sesionId);
+    setCreatedEspacioId(espacioId ?? null);
+    setCreatedSesionId(sesionId ?? null);
     setUrl(null);
     onOpenChange(false);
   };
