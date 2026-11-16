@@ -11,11 +11,12 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Brain as BrainIcon, ArrowDownToLine, Send } from "lucide-react";
+import { Brain as BrainIcon, ArrowDownToLine, Send, AlertCircle, CheckCircle2, Info, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import { ErrorMessage, InlineError, FieldError } from "@/components/ui/error-message";
 import { listarCerebros, saveBrain, type Brain } from "@/lib/brains/brains";
 // (Adenda 193) Las carpetas elegidas en Permisos se vinculan SOLAS aquí.
 import { listarCarpetas, suscribirCarpetas, mezclarCarpetasEnServidores, type CarpetaVinculada } from "@/lib/storage/carpetas-vinculadas";
@@ -79,7 +80,7 @@ export function StepCerebros() {
   const [personalidad, setPersonalidad] = useState(true);
   const [aplicado, setAplicado] = useState(false);
   const [cargando, setCargando] = useState(false);
-  const [nota, setNota] = useState<string | null>(null);
+  const [alerta, setAlerta] = useState<{ mensaje: string; severidad: "error" | "warning" | "info"; contexto?: "network" | "server" } | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -111,7 +112,7 @@ export function StepCerebros() {
 
   const aceptar = useCallback(async () => {
     setCargando(true);
-    setNota(null);
+    setAlerta(null);
     try {
       let creado: string | null = null;
       // (Adenda 193) El cerebro nace ya con las carpetas vinculadas como
@@ -120,12 +121,22 @@ export function StepCerebros() {
         ? (mezclarCarpetasEnServidores([], carpetas) as unknown as Brain["servers"])
         : undefined;
       if (cerebros === null) {
-        setNota("No pude leer tus cerebros ahora (¿sin red o con la pausa de consumo?). No creo otro: inténtalo luego en Cerebros.");
+        setAlerta({
+          mensaje: "No pude leer tus cerebros ahora (¿sin red o con la pausa de consumo?). No creo otro: inténtalo luego en Cerebros.",
+          severidad: "warning",
+          contexto: "network",
+        });
       } else if (cerebros.length === 0) {
         const b = await saveBrain({ name: "Cerebro principal", ...(servidores ? { servers: servidores } : {}) });
         creado = b?.id ?? null;
         if (b) setCerebros([b]);
-        if (!b) setNota("No pude crear el cerebro ahora (¿sin red?). Puedes crearlo luego en Cerebros.");
+        if (!b) {
+          setAlerta({
+            mensaje: "No pude crear el cerebro ahora (¿sin red?). Puedes crearlo luego en Cerebros.",
+            severidad: "error",
+            contexto: "network",
+          });
+        }
       } else if (vincularCarpetas && carpetas.length > 0 && cerebros?.[0]) {
         // Ya tenía cerebro: se le AÑADEN las carpetas sin tocar sus servidores.
         const principal = cerebros[0];
@@ -140,7 +151,11 @@ export function StepCerebros() {
       });
       setAplicado(true);
     } catch {
-      setNota("Guardé tu elección localmente; la sincronizaré cuando haya conexión.");
+      setAlerta({
+        mensaje: "Guardé tu elección localmente; la sincronizaré cuando haya conexión.",
+        severidad: "info",
+        contexto: "network",
+      });
       setAplicado(true);
     } finally {
       setCargando(false);
@@ -196,7 +211,16 @@ export function StepCerebros() {
             <option value="local">Solo local en esta neurona — máxima soberanía, sin réplica remota</option>
           </select>
         </label>
-        {nota && <p className="text-xs text-amber-300/90">{nota}</p>}
+        {alerta && (
+          <ErrorMessage
+            message={alerta.mensaje}
+            severity={alerta.severidad}
+            context={alerta.contexto}
+            title={alerta.severidad === "error" ? "Error" : alerta.severidad === "warning" ? "Aviso" : "Información"}
+            dismissible
+            onDismiss={() => setAlerta(null)}
+          />
+        )}
       </div>
     </div>
   );
@@ -355,7 +379,7 @@ export function CorreosVinculados({
   const [correos, setCorreos] = useState<{ id: string; address: string; kind: string; is_primary: boolean }[] | null>(null);
   const [nuevo, setNuevo] = useState("");
   const [ocupado, setOcupado] = useState(false);
-  const [nota, setNota] = useState<string | null>(null);
+  const [alerta, setAlerta] = useState<{ mensaje: string; severidad: "error" | "warning" | "success" | "info"; contexto?: "network" | "validation" | "server" } | null>(null);
   // (Adenda 191) El correo externo se pide UNA vez: si ya hay uno vinculado,
   // el alta de otro queda plegada tras un botón discreto.
   const [mostrarAlta, setMostrarAlta] = useState(false);
@@ -383,21 +407,27 @@ export function CorreosVinculados({
 
   const vincular = useCallback(async () => {
     const addr = nuevo.trim().toLowerCase();
-    if (!addr.includes("@")) { setNota("Escribe un correo válido."); return; }
+    if (!addr.includes("@")) {
+      setAlerta({ mensaje: "Escribe un correo válido.", severidad: "warning", contexto: "validation" });
+      return;
+    }
     setOcupado(true);
-    setNota(null);
+    setAlerta(null);
     try {
       const { addExternalEmail } = await import("@/lib/mail/starseed-mail");
       const r = await addExternalEmail(addr);
       if (r.ok) {
         setNuevo("");
-        setNota("Correo vinculado a tu cuenta ✓ (la sincronización completa se activa en Correos).");
+        setAlerta({
+          mensaje: "Correo vinculado a tu cuenta ✓ (la sincronización completa se activa en Correos).",
+          severidad: "success",
+        });
         void cargar();
       } else {
-        setNota(r.error || "No se pudo vincular ahora.");
+        setAlerta({ mensaje: r.error || "No se pudo vincular ahora.", severidad: "error", contexto: "server" });
       }
     } catch {
-      setNota("No se pudo vincular ahora (¿sin red?). Inténtalo en Ajustes → Correos.");
+      setAlerta({ mensaje: "No se pudo vincular ahora (¿sin red?). Inténtalo en Ajustes → Correos.", severidad: "error", contexto: "network" });
     } finally {
       setOcupado(false);
     }
@@ -508,7 +538,10 @@ export function CorreosVinculados({
               {c.kind === "created" && (
                 <button
                   type="button"
-                  onClick={() => { void navigator.clipboard?.writeText(c.address); setNota(`${c.address} copiada ✓`); }}
+                  onClick={() => {
+                    void navigator.clipboard?.writeText(c.address);
+                    setAlerta({ mensaje: `${c.address} copiada ✓`, severidad: "success" });
+                  }}
                   className="ml-auto shrink-0 cursor-pointer text-[10px] text-emerald-300 underline-offset-2 hover:underline"
                 >
                   copiar
@@ -554,7 +587,24 @@ export function CorreosVinculados({
           </div>
         );
       })()}
-      {nota && <p className="text-[11px] text-cyan-200/80">{nota}</p>}
+      {alerta && (
+        <ErrorMessage
+          message={alerta.mensaje}
+          severity={alerta.severidad}
+          context={alerta.contexto}
+          title={
+            alerta.severidad === "error"
+              ? "Error"
+              : alerta.severidad === "warning"
+              ? "Aviso"
+              : alerta.severidad === "success"
+              ? "Éxito"
+              : "Información"
+          }
+          dismissible
+          onDismiss={() => setAlerta(null)}
+        />
+      )}
     </div>
   );
 }
