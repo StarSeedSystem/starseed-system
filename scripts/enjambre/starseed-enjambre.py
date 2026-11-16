@@ -1771,18 +1771,44 @@ MERITO_CABEZA = int(os.environ.get("STARSEED_MERITO_CABEZA", "3") or 3)
 PROVEEDORES_DE_PAGO = ("xai", "deepseek", "anthropic", "openai", "abliteration")
 
 # MOD1116: pasarela abliteration.ai
-def abliteration_permitida(entorno=None, leer_estado=None, ahora=None):
-    """¿Está permitido usar abliteration.ai en este entorno?"""
+def abliteration_permitida(entorno=None, leer_estado=None, ahora=None, tope_dia=None):
+    """¿Está permitido usar abliteration.ai en este entorno?
+
+    Requisitos:
+    - STARSEED_ABLITERATION=1
+    - Créditos dentro del margen (saldo >= margen_min)
+    - No alcanzado el tope del día
+    - Estado leído hace <= 6 h (frescura por defecto)
+
+    Parámetros inyectables para testing:
+    - entorno: dict con variables de entorno (por defecto: os.environ)
+    - leer_estado: estado de créditos como dict
+    - ahora: timestamp ISO para comparar frescura
+    - tope_dia: tope máximo de gasto diario en USD (por defecto: 100)
+    """
     env = entorno or os.environ
     if env.get("STARSEED_ABLITERATION") != "1":
         return False
-    # Verificación de créditos (estado en ~/.starseed/abliteration-uso.json)
+    tope = float(tope_dia) if tope_dia is not None else float(env.get("STARSEED_ABLITERATION_TOPE_DIARIO", "100") or 100)
+    margen_min = float(env.get("STARSEED_ABLITERATION_MARGEN_MIN", "0.5") or 0.5)
+    frescura_s = int(env.get("STARSEED_ABLITERATION_FRESCURA_S", "21600") or 21600)
     try:
         ruta_puente = os.path.join(ROOT, "scripts", "puente")
         if ruta_puente not in sys.path:
             sys.path.insert(0, ruta_puente)
         import abliteration_creditos as _ablit_cred
-        return _ablit_cred.permitido(leer_estado, ahora)
+        estado = leer_estado
+        if estado is None:
+            ruta_estado = os.path.expanduser("~/.starseed/abliteration-uso.json")
+            try:
+                with open(ruta_estado, encoding="utf-8") as f:
+                    estado = json.load(f)
+            except Exception:
+                estado = {}
+        if ahora is None:
+            ahora = ahora()
+        ok, _ = _ablit_cred.permitido(estado, ahora, tope, margen_min, frescura_s)
+        return ok
     except Exception:
         return False
 _ESTADOS_MAL = (
@@ -1871,13 +1897,6 @@ def sin_pago(modelos):
             resultado.append(m)
         # si es abliteration y no tiene permiso: se descarta (no se incluye)
     return resultado
-
-# MOD1116: ajuste de sin_pago para abliteration
-def sin_pago_abliteration(modelos):
-    """Quita modelos de abliteration si no está permitido, salvo STARSEED_PAGO=1."""
-    if os.environ.get("STARSEED_PAGO", "").strip() == "1":
-        return list(modelos)
-    return [m for m in modelos if proveedor_de(m) != "abliteration" or abliteration_permitida()]
 
 
 def modelos_para(tid):
@@ -2152,6 +2171,7 @@ CLAVES_POR_PROVEEDOR = {
     "llm7": ["LLM7_API_KEY"],
     "freetheai": ["FREETHEAI_API_KEY"],
     "anthropic": ["ANTHROPIC_API_KEY"],
+    "abliteration": ["ABLITERATION_API_KEY"],
 }
 # En la flota el proveedor de NVIDIA se llama «nim», pero sus variables son NVIDIA_*.
 _ALIAS_CLAVES = {"nim": "nvidia"}
