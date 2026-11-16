@@ -20,6 +20,7 @@ if (typeof document !== "undefined") {
   const { expect: vitestExpect } = await import("vitest");
   // @ts-ignore
   globalThis.expect = vitestExpect;
+  // @ts-ignore
   await import("@testing-library/jest-dom");
 
   // FIX1114A — desmonta lo montado al terminar cada prueba.
