@@ -1,0 +1,61 @@
+{
+ "ola": "nube-20261116",
+ "tareas": [
+  {
+   "id": "MQA2",
+   "ola": "MOD1116",
+   "titulo": "Créditos de abliteration.ai: lectura de la cuenta y estado en disco",
+   "archivos": [
+    "scripts/puente/abliteration.py",
+    "scripts/puente/test_abliteration.py"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contexto (MOD1116, análisis `MOD1116-analisis.md`): proveedor de modelos «abliteration.ai», API compatible con OpenAI, `POST https://api.abliteration.ai/v1/chat/completions`, clave en la variable `ABLITERATION_API_KEY`, modelo `abliterated-model` (256K de contexto, texto e imagen, herramientas; $1 entrada / $0,10 entrada en caché / $3 salida por millón de tokens, verificado el 2026-11-16 en https://abliteration.ai/pricing y https://docs.abliteration.ai/models.md). Se paga con un saldo en dólares (NO hay créditos diarios documentados); el saldo se lee con `GET https://api.abliteration.ai/v1/credits` → `{\"data\": {\"total_credits\": n, \"total_usage\": n}}` en USD. Escribe `scripts/puente/abliteration.py` (como `scripts/puente/explabs_promos.py`, léelo): `clave()` busca `ABLITERATION_API_KEY` en el entorno y luego en `~/.starseed/env` y `~/.hermes/.env` (nunca se imprime ni se guarda en el estado); `leer_creditos(clave, abrir=urllib.request.urlopen, tope_s=20)` hace `GET https://api.abliteration.ai/v1/credits` con `Authorization: Bearer`, y devuelve el JSON o None (nunca lanza; un 401/403/429 devuelve None y deja el motivo en una cadena aparte, sin cuerpo de respuesta); `actualizar(ahora=None, abrir=..., ruta=ESTADO)` lee, aplica `abliteration_creditos.registrar` y escribe de forma atómica `~/.starseed/abliteration-uso.json` con permisos 0600 (solo números y fechas); `main(argv)`: `actualizar` y `ver` (una línea: «abliteration.ai: saldo X USD · gastado hoy Y USD de Z» con Z de `STARSEED_ABLITERATION_DIA_USD`, defecto 0,50). Sin clave: dice «sin clave» y sale con 0. PRUEBAS con carpeta temporal, `abrir` falso y clave inyectada: lectura buena, 401, sin clave, escritura atómica, permisos 0600, y que la clave nunca aparezca en la salida ni en el archivo.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni pytest, ni tsc, ni git, ni node, ni npm, ni curl): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj, entorno y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves (solo NOMBRES de variables, nunca valores; nunca una IP, un OCID ni un token); nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado. En Python: las pruebas son `unittest` con carpetas temporales y falsos, como las vecinas `scripts/puente/test_*.py`, y no tocan el `~/.starseed` real.",
+   "dependencias_ya_en_main": [
+    "MQA1"
+   ]
+  },
+  {
+   "id": "MQA3",
+   "ola": "MOD1116",
+   "titulo": "Orquestador: abliteration.ai solo con permiso explícito y con tope del día",
+   "archivos": [
+    "scripts/enjambre/starseed-enjambre.py",
+    "scripts/enjambre/test_abliteration_flota.py"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contexto (MOD1116, análisis `MOD1116-analisis.md`): proveedor de modelos «abliteration.ai», API compatible con OpenAI, `POST https://api.abliteration.ai/v1/chat/completions`, clave en la variable `ABLITERATION_API_KEY`, modelo `abliterated-model` (256K de contexto, texto e imagen, herramientas; $1 entrada / $0,10 entrada en caché / $3 salida por millón de tokens, verificado el 2026-11-16 en https://abliteration.ai/pricing y https://docs.abliteration.ai/models.md). Se paga con un saldo en dólares (NO hay créditos diarios documentados); el saldo se lee con `GET https://api.abliteration.ai/v1/credits` → `{\"data\": {\"total_credits\": n, \"total_usage\": n}}` en USD. En `scripts/enjambre/starseed-enjambre.py` (bloque aditivo marcado `# MOD1116`, junto a `PROVEEDORES_DE_PAGO` y `sin_pago`, ≈1771-1847) añade `abliteration` a `PROVEEDORES_DE_PAGO` y la función `abliteration_permitida(entorno=None, leer_estado=None, ahora=None)`: True solo si `STARSEED_ABLITERATION=1` Y `abliteration_creditos.permitido(...)` da ok con el estado de `~/.starseed/abliteration-uso.json` (importa el módulo de `scripts/puente` con el mismo mecanismo que usa este archivo para otros módulos del puente; si no se puede importar, False). Cambia `sin_pago` para que un modelo de `abliteration` se conserve solo si `abliteration_permitida()` es True (con `STARSEED_PAGO=1` sigue entrando todo, como hoy). Por defecto NO es escritor de la rotación: la pasarela se declara por entorno (`STARSEED_PASARELA_ABLITERATION_URL=https://api.abliteration.ai/v1`, `_MODELOS=abliterated-model`, `_RPM=20`, `_SOLO_REVISOR=1`), sin tocar más código. PRUEBAS (`test_abliteration_flota.py`, con entorno y estado inyectados): sin la variable no entra; con la variable y saldo bajo el margen no entra; con tope del día alcanzado no entra; con todo bien entra; `STARSEED_PAGO=1` no cambia el comportamiento de los demás proveedores de pago.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni pytest, ni tsc, ni git, ni node, ni npm, ni curl): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj, entorno y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves (solo NOMBRES de variables, nunca valores; nunca una IP, un OCID ni un token); nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado. En Python: las pruebas son `unittest` con carpetas temporales y falsos, como las vecinas `scripts/puente/test_*.py`, y no tocan el `~/.starseed` real.",
+   "dependencias_ya_en_main": [
+    "MQA1"
+   ]
+  },
+  {
+   "id": "MQA4",
+   "ola": "MOD1116",
+   "titulo": "Flota opcional: abliteration.ai y el modelo privado del A1, solo si están vivos y permitidos",
+   "archivos": [
+    "scripts/enjambre/flota_opcional.py",
+    "scripts/enjambre/test_flota_opcional.py"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contexto (MOD1116, análisis `MOD1116-analisis.md`): proveedor de modelos «abliteration.ai», API compatible con OpenAI, `POST https://api.abliteration.ai/v1/chat/completions`, clave en la variable `ABLITERATION_API_KEY`, modelo `abliterated-model` (256K de contexto, texto e imagen, herramientas; $1 entrada / $0,10 entrada en caché / $3 salida por millón de tokens, verificado el 2026-11-16 en https://abliteration.ai/pricing y https://docs.abliteration.ai/models.md). Se paga con un saldo en dólares (NO hay créditos diarios documentados); el saldo se lee con `GET https://api.abliteration.ai/v1/credits` → `{\"data\": {\"total_credits\": n, \"total_usage\": n}}` en USD. Escribe un módulo PURO `flota_opcional.py`: `agregar_opcionales(lista, rol, entorno, estado_abliteration, estado_privado, ahora_iso)` recibe una lista de pares `(proveedor, modelo)` (como `MAP_RAPIDOS` de `scripts/enjambre/analista.py`) y la devuelve con los opcionales AL FINAL, nunca delante. Reglas: rol ∈ {«sueno-mapa», «sueno-reduce», «sueno-contraste», «sintesis», «direccion»}; ningún opcional entra en roles de escritura de código ni de revisión de código (rol «escritor» o «revisor» → la lista sale igual). `(\"abliteration\",\"abliterated-model\")` entra solo si `STARSEED_ABLITERATION=1` y `abliteration_creditos.permitido` da ok. `(\"privado\", etiqueta)` entra solo si `estado_privado.vivo` es True y la lectura es de menos de 10 minutos, y NUNCA en el rol «direccion» (una respuesta a Telegram no puede esperar minutos: medido 2,5 a 5 tokens/s en este A1). Devuelve también el motivo de cada opcional que se quedó fuera (para registrarlo). PRUEBAS: tabla rol × estado; ninguna mutación de la lista de entrada; orden estable.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni pytest, ni tsc, ni git, ni node, ni npm, ni curl): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj, entorno y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves (solo NOMBRES de variables, nunca valores; nunca una IP, un OCID ni un token); nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado. En Python: las pruebas son `unittest` con carpetas temporales y falsos, como las vecinas `scripts/puente/test_*.py`, y no tocan el `~/.starseed` real.",
+   "dependencias_ya_en_main": [
+    "MQA1"
+   ]
+  },
+  {
+   "id": "JL4",
+   "ola": "JLA1116A",
+   "titulo": "Libreta de ejemplos: construir y contar sin textos",
+   "archivos": [
+    "scripts/puente/jev_libreta.py",
+    "scripts/puente/test_jev_libreta.py"
+   ],
+   "depende": [],
+   "prompt": "Contrato: architecture/jev-entrena-laya.md (si aún no está en el repo, rige este texto). Lee AGENTS.md. §3 y §5. Módulo con lectores INYECTADOS (`leer_captura`, `leer_experiencias`, `leer_desenlaces`: funciones que devuelven listas de dicts). `construir(...)` une captura y experiencia por el id enlazado (`jev_captura.py`), pone etiqueta con `jev_desenlaces.etiqueta_de`, EXCLUYE todo dominio privado (Telegram, chats, buzón: lista `DOMINIOS_PRIVADOS`) y deduplica por huella. `resumen(libreta)` -> contadores por estrato (`ESTRATOS_OBJETIVO` de `jev_captura.py`) y por etiqueta, sin ningún texto. `a_jsonl(libreta, solo_verdad=True)` para el afinado: solo etiqueta «verdad» y no privado. PRUEBAS con listas falsas: privados excluidos, débiles fuera del JSONL, contadores, duplicados.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` (Python: sin red ni `~/.starseed`, rutas y lectores se inyectan) salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "JL3"
+   ]
+  }
+ ]
+}
