@@ -1,0 +1,90 @@
+{
+ "ola": "nube-20261115",
+ "tareas": [
+  {
+   "id": "TU14",
+   "ola": "TRA1116-APP-F1",
+   "titulo": "Hablar: síntesis de voz en el idioma de destino o decir que no hay voz",
+   "archivos": [
+    "src/lib/traductor/voz-habla.ts",
+    "src/lib/traductor/__tests__/voz-habla.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. `hablar(texto, idioma, entorno)` / `detener()` / `vocesDe(idioma)`: elige la voz cuyo `lang` coincide (exacto, luego prefijo); sin voz de ese idioma devuelve `{ok:false, motivo:\"No hay una voz de <idioma> en este aparato\"}` y NO usa otra voz; cola de frases para la conversación (una a la vez), `alTerminar`. PRUEBAS con un `speechSynthesis` falso: voz exacta, por prefijo, sin voz, cola en orden.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "TU1"
+   ]
+  },
+  {
+   "id": "TU16",
+   "ola": "TRA1116-APP-F1",
+   "titulo": "Selector de par de idiomas con intercambio y estado sin internet por idioma",
+   "archivos": [
+    "src/components/traductor/selector-par.tsx",
+    "src/components/traductor/__tests__/selector-par.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Componente `SelectorPar({ idiomas: {codigo,nombre}[], par, onCambiar, instalados })`: dos desplegables buscables (reutiliza el patrón de `src/components/idiomas/selector-idioma.tsx`, sin importarlo), «Detectar idioma» como primera opción del origen, botón de intercambiar (deshabilitado con «Detectar»), y junto a cada destino una insignia «Sin internet / Con descarga / Solo con internet» según `estadoDePar` (TU2). La lista llega por props: hoy `IDIOMAS` de `src/lib/idiomas/idiomas.ts`; más adelante la lista mundial. Accesible, 44 px, 360 px. PRUEBAS: intercambio, «Detectar», insignia correcta.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "TU2"
+   ]
+  },
+  {
+   "id": "HAL06",
+   "ola": "HAL1116A",
+   "titulo": "Prueba: el primer render del selector de idioma es el mismo en servidor y cliente",
+   "archivos": [
+    "src/components/idiomas/__tests__/selector-idioma-hidratacion.test.tsx",
+    "src/components/idiomas/selector-idioma.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Escribe primero esta prueba; es la que dice si el rótulo giratorio es o no la causa del error de hidratación #418 de `/login`. Lee `src/components/idiomas/selector-idioma.tsx`. Lo que ya se sabe leyendo: `RotuloGiratorio` empieza en `useState(0)` (primer render = primer idioma de `IDIOMAS`), `actual` empieza en «es», `abierto` en `false`, y `sugerirIdioma()` (que lee `navigator.language`) solo se pinta con el panel abierto; por eso la sospecha del rótulo NO está confirmada. Prueba con `react-dom/server` + `react-dom/client`: (1) fija `navigator.language = \"fr-FR\"` y `localStorage` con una elección `en` (clave `CLAVE_IDIOMA_NEURONA` de `src/lib/idiomas/estado.ts`); (2) `renderToString(<SelectorIdioma />)` en un entorno SIN `window` (o con `typeof window` simulado: usa la forma que ya usen otras pruebas SSR del repo, búscalas con `renderToString`); (3) monta ese HTML en un contenedor, espera `hydrateRoot(...)` dentro de `act` y vigila `console.error`: NINGÚN mensaje puede contener «Hydration», «hydrat» ni «418». (4) Comprueba también que el texto del rótulo en el primer render del cliente es igual al del HTML del servidor, y que un segundo después (`vi.advanceTimersByTime(1000)`) sí cambia. Solo si la prueba FALLARÍA por una diferencia real que veas leyendo el código, arregla `selector-idioma.tsx` con ≤30 líneas (primer render determinista; lo variable entra en un efecto) y di en un comentario de la prueba qué texto difería; si el primer render ya es determinista (lo esperado), NO toques el componente y la prueba queda como protección.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado."
+  },
+  {
+   "id": "HAL08",
+   "ola": "HAL1116A",
+   "titulo": "Freno: no sumar escritores si las últimas tareas acabaron igual de mal por el mismo motivo (regla pura)",
+   "archivos": [
+    "scripts/puente/freno_mismo_motivo.py",
+    "scripts/puente/test_freno_mismo_motivo.py"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Lee `scripts/puente/buscar_capacidad.py` (`sin_intento` :169, `VEREDICTOS_INTENTADA` :165, `tope_runs_nube` :242, el uso de `tope_runs_nube` en `buscar` :1186) y el formato de `progreso.json` que lee `reunir_nube` (:873-925): cada tarea trae `estado` y `nota` (la nota dice, p. ej., «la nube dijo «sin_cambios»»). Escribe primero las pruebas (`unittest`, mismo estilo que `test_buscar_capacidad.py`). `freno_mismo_motivo.py`, PURO: `motivo_de(nota: str) -> str` (normaliza: minúsculas, sin números ni ids de tarea, sin rutas, recorta a 80 caracteres; la parte «la nube dijo «x»» se queda como «x»); `frenar_por_mismo_motivo(entradas: list[dict], ventana: int = 10, minimo: int = 5, umbral: float = 0.6) -> tuple[bool, str]`: toma las `ventana` entradas terminadas MÁS RECIENTES (cada una `{estado, nota, fin}`; ordena por `fin` si lo trae, si no por el orden recibido), ignora las que acabaron bien (`estado` en hecho/integrada/ok); si hay al menos `minimo` terminadas y la fracción que acabó en `sin_cambios`, `fallo`, `fallo_tsc`, `fallo_tests` o `rechazada` por el MISMO motivo normalizado es ≥ `umbral`, devuelve `(True, frase)` con la frase en español que DICE EL MOTIVO y los números: «se frena: 7 de las últimas 10 tareas acabaron «sin_cambios» por «<motivo>»; añadir escritores no lo arregla». Si no, `(False, \"\")`. Nunca lanza con entradas raras.\nPRUEBAS: 7 de 10 iguales → frena y la frase contiene el motivo y «7 de las últimas 10»; 7 de 10 pero con motivos distintos → no; menos de `minimo` terminadas → no; todas bien → no; ordenación por `fin`; nota vacía; entradas raras (None, números).\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado."
+  },
+  {
+   "id": "INT18",
+   "ola": "INT1116A",
+   "titulo": "Valores por defecto por audiencia y a qué audiencia pertenece cada par",
+   "archivos": [
+    "src/lib/malla/internet/defectos-audiencia.ts",
+    "src/lib/malla/internet/__tests__/defectos-audiencia.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contrato: architecture/malla-cristalina-sio2.md §8.2 (contrato; si aún no está en el repo, rige este texto) (tabla «Valores por defecto según a quién se comparte»). Escribe primero las pruebas. `ajustesPorDefecto(): AjustesInternet` = `{ version:1, compartirConOtros:false, banco:{ activo:false, modo:\"diario\", diarioMb:1024, ventanas:[] }, porAudiencia:{ \"mi-cuenta\":{ mesh:true, limiteMeshMb:null }, entidad:{ mesh:false, limiteMeshMb:null }, publico:{ mesh:false, limiteMeshMb:null } }, declaraLimitada:null, compartirMedidas:false }` (cuenta propia: mesh encendido y SIN límite; entidad y público: apagados hasta que el dueño encienda `compartirConOtros` Y su fila). `audienciaDe(par: { cuentaId: string | null; entidades: string[] }, yo: { cuentaId: string | null; entidades: string[] }): Audiencia`: `mi-cuenta` si ambos tienen la misma `cuentaId` no nula; `entidad` si comparten al menos una entidad; si no, `publico`; datos ausentes → `publico` (lo más restrictivo para él). Solo datos y reglas puras.\nPRUEBAS: los valores exactos de cada audiencia; misma cuenta; misma entidad pero otra cuenta; desconocidos son público; `cuentaId` null en ambos NO cuenta como misma cuenta; `ajustesPorDefecto()` devuelve un objeto NUEVO cada vez (no compartido).\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "INT01"
+   ]
+  },
+  {
+   "id": "JL9",
+   "ola": "JLA1116A",
+   "titulo": "Reglas de ámbito de la libreta: quién la lee y qué puede salir",
+   "archivos": [
+    "src/lib/astraura/laya/ambito-libreta.ts",
+    "src/lib/astraura/laya/__tests__/ambito-libreta.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: architecture/jev-entrena-laya.md (si aún no está en el repo, rige este texto). Lee AGENTS.md. §5. Puro. `AmbitoLibreta = \"personal\"|\"pagina\"|\"grupo\"|\"colectivo\"|\"fabrica\"`. `puedeLeer(ambito, quien)`, `puedeSalir(ambito, ejemplo, eleccion)`: lo personal solo sale con elección explícita de la persona; el ámbito de página/grupo solo si la entidad lo aprobó (`aprobadoPorEntidad`); el colectivo solo admite ejemplos públicos; la fábrica nunca sale al repo. `soloPublicoParaAdaptador(ejemplos, ambito)`: un adaptador de página/colectivo no puede haber visto ejemplos personales. PRUEBAS: cada celda de la tabla de §5, y que por defecto todo es «no sale».\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` (Python: sin red ni `~/.starseed`, rutas y lectores se inyectan) salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1115-224354.json": [
+   "TU14",
+   "TU16",
+   "INT18",
+   "HAL08",
+   "HAL06",
+   "JL9"
+  ]
+ }
+}
