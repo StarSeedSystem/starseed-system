@@ -3,6 +3,7 @@
  */
 
 import type { Provider, ProviderId } from "./types";
+import { abliterationProvider } from "./abliteration";
 import { starseedProvider } from "./starseed";
 import { ollamaProvider } from "./ollama";
 import { openaiProvider } from "./openai";
@@ -17,6 +18,8 @@ import { astraura158MallaProvider } from "./astraura-158-malla";
 import { iaMallaProvider } from "./ia-malla";
 
 export const PROVIDERS: Record<ProviderId, Provider> = {
+  // MQA5: Proveedor abliteration.ai
+  abliteration: abliterationProvider,
   // Astraura 1.58-bit (Adenda 153): backend soberano propio, PRIMARIO por defecto.
   "astraura-158": astraura158Provider,
   // Astraura 1.58 por la malla P2P (Ola 367): otra neurona de la cuenta la
@@ -56,10 +59,12 @@ export const PROVIDER_ORDER: ProviderId[] = [
   "groq",
   "openrouter",
   "nvidia",
+  "openrouter",
   "openai",
   "anthropic",
   "google",
   "openai-compatible",
+  "abliteration",
 ];
 
 export function getProvider(id: ProviderId): Provider {
