@@ -1,14 +1,10 @@
-# Jev entrena a Laya: lo que significa de verdad y lo que cabe en el hardware
+# Jev entrena a Laya: la libreta de ejemplos con desenlace
 
-> **Petición de Alex (2026-11-15, noche):** «Asegura que Jev y Laya se estén usando en todos los agentes y trabajos
-> automáticamente, inteligentemente. Jev debe estar entrenando a la versión de Laya local para mejorar su estructura y
-> buscar más independencia local para cada sistema y uso relativo de cada cuenta o página con Astraura de cada agente y
-> bot para su autoaprendizaje, pero ambos se deben usar en MetaGenesis para su desarrollo.»
+> **Contrato JLA1116A (2026-11-16):** Jev y Laya se usan automáticamente e inteligentemente.
+> Jev entrena a Laya local mediante una libreta de ejemplos con desenlace real para
+> mejorar su estructura y buscar más independencia local. Ambos se usan en MetaGenesis.
 
-Informe JLA1116A. Las citas son `archivo:línea` del repo en `origin/main` del 2026-11-16. El uso real en la Mac y en el A1
-solo lo mide la máquina viva: aquí figura como «no medido». La tabla completa de uso está en `JLA1116A-uso.md`.
-
-## 1. Qué es cada uno (comprobado en el código)
+## 1. Qué es cada uno y cómo se integran
 
 - **Jev** es un modelo ajeno de decisiones tipadas (`noul`, `choice`, `score`) con probabilidad, no un modelo propio.
   `scripts/puente/jev.py:798` (`decidir`) lo sirve por una pirámide: BitNet local (`:8790`) → Laya local (`:624`) →
@@ -19,8 +15,7 @@ solo lo mide la máquina viva: aquí figura como «no medido». La tabla complet
 - **Laya** es un codificador de terceros (ModernBERT, 322-421 M de parámetros; `architecture/laya-y-habilidades.md` §1)
   que responde preguntas tipadas sin generar texto. Lo corre `native/laya/servidor-laya.mjs` (127.0.0.1:4470, ~1,6 GB de
   RAM; 2-3 s por petición en el A1, `laya-y-habilidades.md` §2 y §8). No es un modelo que hayamos entrenado nosotros.
-  En la Mac de 8 GB solo se carga con ≥ 2,5 GB libres (`native/laya/README.md`); el 2026-11-10 devolvía 503
-  (`memory/orquestacion-economica.md` §22).
+  En la Mac de 8 GB solo se carga con ≥ 2,5 GB libres (`native/laya/README.md`); el 2026-11-10 devolvía 503.
 - **Los dos comparten contrato** (`POST /v1/systemone`). Eso es lo que hace posible que uno enseñe al otro.
 
 ## 2. Lo que hay hoy para «entrenar» y lo que no (leído, no supuesto)
@@ -28,7 +23,7 @@ solo lo mide la máquina viva: aquí figura como «no medido». La tabla complet
 | Pieza | Estado |
 |---|---|
 | Captura de las decisiones de Jev con su prompt completo | Existe y enciende por defecto (`jev_captura.py`). |
-| Sombra: repetir las decisiones con Needle, Laya y BitNet y medir acuerdo | Existe (`jev_sombra.py:69`), sin veredicto hasta 1.000 llamadas en 5 estratos. Mide si el modelo pequeño **sustituye** a Jev; no entrena a nadie. |
+| Sombra: repetir las decisiones con Needle, Laya y BitNet y medir acuerdo | Existe (`jev_sombra.py:69`), sin veredicto hasta 1.000 llamadas en 5 estratos. Mide si el modelo pequeño sustituye a Jev; no entrena a nadie. |
 | Registro de casos de Laya y recalibrado del umbral | El código existe (`aprendizaje-laya.ts:45,65,90`), pero **nada lo alimenta**: `anotar` no tiene llamador fuera de pruebas y el panel recibe un registro vacío (`inteligencia-section.tsx:339`). |
 | Cuaderno de afinado de Laya | Citado (`laya-y-habilidades.md:106`), **no existe** en el repo. |
 | Fábrica de adaptadores (QVAC, Soup, LlamaFactory) | Módulos puros que preparan configuración (`src/lib/astraura/aprendizaje/`); apuntan a BitNet y bases de Hugging Face, **no a Laya**. No ejecutan nada. |
@@ -120,7 +115,7 @@ Para esas decisiones pueden **vetar y avisar**, nunca aprobar. La lista vive com
    Salida: contadores, nunca textos.
 2. **Calibración y vecinos.** Umbrales por punto y ámbito recalculados; la capa de ejemplos como voto junto a Laya, medida
    en sombra contra el desenlace.
-3. **Adaptador fuera de línea.** Con Alex, una vez al mes como mucho, en GPU gratuita, con evaluación de §6.
+3. **Adaptador fuera de línea.** Con Alex, una vez al mes como máximo, en GPU gratuita, con evaluación de §6.
 4. **Capas por cuenta y página**, con el control de §5 en Ajustes.
 
 Cada fase termina con un número medido, no con un «ya aprende».
