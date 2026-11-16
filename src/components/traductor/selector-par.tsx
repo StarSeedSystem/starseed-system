@@ -11,7 +11,7 @@ export interface Par {
 export type EstadoPar = "sin-internet" | "con-descarga" | "solo-internet";
 
 export interface SelectorParProps {
-    idiomas: { codigo: string; nombre: string }[];
+    idiomas: readonly { codigo: string; nombre: string }[];
     par: Par;
     onCambiar: (par: Par) => void;
     estadoDePar: (codigo: string) => EstadoPar;
