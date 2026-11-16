@@ -1,6 +1,19 @@
 import { describe, expect, it } from "vitest";
 
-import { mensajeErrorMedia, mensajeErrorReproduccion } from "@/components/voces/tomas-voz";
+import {
+    CLASE_FOCO_CIERRE,
+    mensajeErrorMedia,
+    mensajeErrorReproduccion,
+} from "@/components/voces/tomas-voz";
+
+describe("CLASE_FOCO_CIERRE", () => {
+    it("declara un anillo de foco visible solo con teclado, sin contorno por defecto", () => {
+        expect(CLASE_FOCO_CIERRE).toContain("focus-visible:outline-none");
+        expect(CLASE_FOCO_CIERRE).toContain("focus-visible:ring-2");
+        expect(CLASE_FOCO_CIERRE).toContain("focus-visible:ring-ring");
+        expect(CLASE_FOCO_CIERRE).toContain("focus-visible:ring-offset-2");
+    });
+});
 
 describe("mensajeErrorReproduccion", () => {
     it("distingue el autoplay bloqueado de la decodificación y de la red", () => {

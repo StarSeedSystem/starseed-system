@@ -92,6 +92,10 @@ export function mensajeErrorMedia(codigo: number | null | undefined): string {
     }
 }
 
+/** Anillo de foco visible con teclado para el botón de cierre (patrón de `ui/button`). */
+export const CLASE_FOCO_CIERRE =
+    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2";
+
 export function TomasVoz({ timbreId, nombreVoz }: Props) {
     const [tomas, setTomas] = useState<TomaVoz[]>([]);
     const [comparando, setComparando] = useState<string[]>([]);
@@ -317,7 +321,12 @@ function Comparador({ a, b, onCerrar }: { a: TomaVoz; b: TomaVoz; onCerrar: () =
         <div className="rounded-lg border border-primary/40 bg-primary/5 p-3">
             <div className="flex items-center justify-between">
                 <p className="text-sm font-medium">Comparando dos tomas</p>
-                <button type="button" onClick={onCerrar} className="cursor-pointer text-muted-foreground" aria-label="Cerrar comparación">
+                <button
+                    type="button"
+                    onClick={onCerrar}
+                    className={`cursor-pointer rounded-full p-1 -m-1 text-muted-foreground ${CLASE_FOCO_CIERRE}`}
+                    aria-label="Cerrar comparación"
+                >
                     <X className="h-4 w-4" />
                 </button>
             </div>
