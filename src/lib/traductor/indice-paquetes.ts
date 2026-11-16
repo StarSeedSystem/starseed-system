@@ -5,6 +5,8 @@
  * Un valor corrupto se ignora.
  */
 
+import { resumenEspacio } from "./gestion-paquetes";
+
 export interface EntradaPaquete {
     id: string;
     par: string;
@@ -99,6 +101,19 @@ export class IndicePaquetes {
 
     espacioUsado(): number {
         return leerIndice(this.almacen).reduce((acc, e) => acc + e.bytes, 0);
+    }
+
+    resumenEspacioAplicado(tope: number) {
+        const entradas = leerIndice(this.almacen);
+        const estado: Record<string, { id: string; tamano: number; esPersistente: boolean }> = {};
+        const almacen = new Set<string>();
+        for (const e of entradas) {
+            if (typeof e.bytes === "number") {
+                estado[e.id] = { id: e.id, tamano: e.bytes, esPersistente: false };
+                almacen.add(e.id);
+            }
+        }
+        return resumenEspacio({ indice: estado, almacen }, tope);
     }
 
     suscribir(oyente: Oyente): () => void {
