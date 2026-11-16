@@ -9681,8 +9681,36 @@ def ejecutar_seguro(t):
 #   · Sigue habiendo UN orquestador: esto no añade procesos ni hilos.
 #   · Si al releer la cola una tarea ya no está, simplemente no se coge; si
 #     aparece una nueva, entra por su sitio en el orden.
-# El punto: cuando un trabajador queda libre, la siguiente tarea se elige por el
-# orden de la cola VIGENTE, no por la foto del arranque.
+# El punto: cuando un trabajador queda libre, la siguiente tarea se elige por su
+# prioridad y, a igualdad, por el orden de la cola VIGENTE, no por la foto del arranque.
+
+
+# PRI01 · prioridad de las tareas de una cola: manda la más relevante al elegir
+# la siguiente pendiente. Solo afecta a lo que aún no empezó.
+def prioridad_de_tarea(t):
+    """PURA. Prioridad explícita de una tarea; nunca lanza."""
+    if not isinstance(t, dict):
+        return 0.0
+    valor = t.get("prioridad")
+    if isinstance(valor, (int, float)) and not isinstance(valor, bool):
+        try:
+            return float(valor)
+        except (TypeError, ValueError, OverflowError):
+            return 0.0
+    titulo = t.get("titulo")
+    if t.get("urgente") is True or (
+        isinstance(titulo, str) and titulo.lstrip().startswith("URGENTE")
+    ):
+        return 100.0
+    return 0.0
+
+
+def ordenar_pendientes(tareas):
+    """PURA. Ordena por prioridad descendente y conserva el orden de llegada."""
+    return sorted(
+        list(tareas or []),
+        key=lambda tarea: -prioridad_de_tarea(tarea),
+    )
 
 
 RUTA_GOBERNADOR = os.path.expanduser("~/.starseed/gobernador.json")
@@ -10241,7 +10269,13 @@ def main():
 
         # GUA1113A: con poco disco no arranca ninguna tarea nueva (se reanuda sola al liberarse).
         _disco_retiene = disco_retiene_arranques()
-        for tid, t in ([] if _disco_retiene else list(pendientes.items())):
+        # PRI01: entre las pendientes elegibles empieza primero la más prioritaria.
+        # La lista solo contiene pendientes; las tareas ya en curso no se tocan.
+        _pendientes_por_prioridad = (
+            [] if _disco_retiene else ordenar_pendientes(list(pendientes.values()))
+        )
+        for t in _pendientes_por_prioridad:
+            tid = t["id"]
             if tid in SOLTADAS:
                 pendientes.pop(tid)
                 hechas.add(tid)
