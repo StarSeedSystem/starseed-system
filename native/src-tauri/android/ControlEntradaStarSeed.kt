@@ -254,6 +254,22 @@ object ControlEntradaNativo {
                     JSONObject().put("ok", true)
                 }
             }
+            "quitar-controlador" -> {
+                if (!ControlNeuronasNativo.encendido()) no("interruptor-apagado")
+                else {
+                    val huella = p.optString("huella")
+                    if (!ControlEntradaLogica.huellaValida(huella)) no("huella-invalida")
+                    else {
+                        val texto = try { File(dir, ACEPTADOS).readText() } catch (_: Exception) { null }
+                        if (texto == null) JSONObject().put("ok", true).put("quitados", 0) // sin archivo: ok con 0
+                        else {
+                            val (nuevo, n) = ControlEntradaLogica.sinHuella(texto, huella)
+                            if (n > 0) escribirAtomico(File(dir, ACEPTADOS), nuevo)
+                            JSONObject().put("ok", true).put("quitados", n)
+                        }
+                    }
+                }
+            }
             "entrada" -> when {
                 !ControlNeuronasNativo.encendido() || !ControlNeuronasNativo.mostrando || ControlNeuronasNativo.sesion == null -> no("sesion")
                 srv == null -> no("sin-servicio", "servicio-accesibilidad")
