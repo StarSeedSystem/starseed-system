@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { decidirCompartir } from '../decision-compartir';
 import { PuertaInternet, Compartir } from '../../cristal/puertas-internet';
-import { Audiencia, AjustesInternet, Contadores } from '../tipos';
+import { Audiencia, AjustesInternet } from '../tipos';
+import { Contadores } from '../contadores';
 import { ajustesPorDefecto } from '../defectos-audiencia';
 import { contadoresVacios } from '../contadores';
 

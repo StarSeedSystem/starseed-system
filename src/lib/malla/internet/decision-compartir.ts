@@ -1,5 +1,6 @@
 import { PuertaInternet, puedeUsar, restanteParaOtrosMb, Compartir, Solicitante } from '../cristal/puertas-internet';
-import { Audiencia, AjustesInternet, Contadores } from './tipos';
+import { Audiencia, AjustesInternet } from './tipos';
+import { Contadores } from './contadores';
 import { cupoBanco } from './cupo-banco';
 import { usadoHoyMb } from './contadores';
 
