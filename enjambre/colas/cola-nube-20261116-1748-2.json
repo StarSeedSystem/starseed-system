@@ -1,0 +1,21 @@
+{
+ "ola": "oracle-20261116",
+ "medio": "oracle",
+ "tareas": [
+  {
+   "id": "SVF1B3b",
+   "ola": "SES1116B",
+   "titulo": "Espacio de entidad: hook que lee y escribe la clave espacio",
+   "archivos": [
+    "src/lib/entidad-espacio/usar-espacio.ts",
+    "src/lib/entidad-espacio/__tests__/usar-espacio.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contrato: architecture/sesiones-en-vivo-entidades-y-transmisiones.md §10 (P1-B). Hook `usarEspacio(entidad: EntityRef, ctx)` que lee la clave `espacio` con `getEntityStateChecked` y escribe con `setEntityStateChecked` (`src/lib/sync/entity-state.ts`; lee sus firmas y el tipo `EntityRef`), y devuelve `{pestanas (solo las que `puedeVerPestana` deja ver a esta persona), cargando, error, anadir, quitar, cambiarVisibilidad}`; las tres acciones solo funcionan con `puedeGestionarEspacio`, y si no, devuelven un motivo en palabras (no un fallo mudo). El error de red o de esquema se muestra tal cual en `error` («no sé si hay pestañas», nunca «no hay»). Sin sesión: lista vacía y `error` honesto.\nPRUEBAS (`usar-espacio.test.ts`, con `entity-state` simulado como hacen otras pruebas de `src/lib/sync/__tests__`): un observador ve solo lo suyo y no puede añadir; un gestor añade y la escritura llega con la clave `espacio` y el `layout` NO se toca; un fallo de lectura deja `error` y no una lista vacía engañosa. COMPRUEBA: `NODE_ENV=test npx vitest run src/lib/entidad-espacio/__tests__/usar-espacio.test.ts` verde y tsc acotado.\n\nREGLAS DE LA CASA (valen aunque no las repita la tarea): toca SOLO los archivos de la lista `archivos`; ≤3 archivos y ≤120 líneas por archivo (si no cabe, para y di qué falta: no lo estires ni lo resumas); sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible (la interfaz dice Genesis); sin red real en las pruebas; ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves. El asunto de tu commit empieza por `SVF1B3b:` y dice qué comprobaste y qué NO pudiste comprobar.",
+   "dependencias_ya_en_main": [
+    "SVF1B1",
+    "SVF1B2b"
+   ]
+  }
+ ]
+}
