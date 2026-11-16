@@ -3,7 +3,7 @@ import { describe, it, expect } from "vitest";
 
 import { type Estacion } from "@/lib/estaciones/tipos";
 import { estacionesToSenalEspectro, convertirEstacionToSenal, sinFuente } from "../estaciones";
-import type { SenalEspectro } from "../tipos";
+import type { SenalEspectro } from "../../tipos";
 
 describe("Adaptador de estaciones a señales del espectro", () => {
   it("convierte una estación pública a SenalEspectro con capa pública", () => {
