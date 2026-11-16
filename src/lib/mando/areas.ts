@@ -178,6 +178,92 @@ export interface ClaveMemoria {
     proposito: string;
 }
 
+// ── Mensajes de error contextuales (contraste + guía) ────────────────────
+/** Tono visual de un aviso; `ErrorMessage` resuelve contraste, icono y rol. */
+export type TonoAviso = "error" | "aviso" | "exito" | "info";
+
+/** Causas de fallo que un área sabe explicar sin culpar a quien la usa. */
+export type CausaFallo = "red" | "sesion" | "permiso" | "guardado" | "local" | "desconocido";
+
+/** Mensaje listo para pintar: qué pasó, qué hacer y dónde arreglarlo. */
+export interface MensajeAviso {
+    tono: TonoAviso;
+    titulo: string;
+    detalle: string;
+    arreglo: string;
+}
+
+/** Nombre legible del área; si no existe, un genérico que no señala a nadie. */
+function nombreDeArea(areaId: string): string {
+    return AREAS_TRABAJO.find((area) => area.id === areaId)?.nombre ?? "esta sección";
+}
+
+/** Primera ruta interna del área: el sitio exacto donde se arregla el fallo. */
+function destinoDeArea(areaId: string): string {
+    const area = AREAS_TRABAJO.find((a) => a.id === areaId);
+    const ruta = area?.rutas.find((r) => r.href.startsWith("/"));
+    return ruta ? `«${ruta.etiqueta}» (${ruta.href})` : "Ajustes";
+}
+
+/**
+ * Traduce una causa de fallo en un mensaje contextual de alto contraste.
+ * Nunca afirma que un servicio está caído ante un error de red, no culpa al
+ * usuario y siempre dice dónde se arregla. `detalle` permite precisar el caso
+ * concreto sin perder el tono ni la guía común.
+ */
+export function mensajeDeArea(
+    areaId: string,
+    causa: CausaFallo,
+    detalle?: string,
+): MensajeAviso {
+    const nombre = nombreDeArea(areaId);
+    const destino = destinoDeArea(areaId);
+    switch (causa) {
+        case "red":
+            return {
+                tono: "aviso",
+                titulo: `No pudimos conectar con ${nombre}`,
+                detalle: detalle ?? "La conexión no respondió a tiempo; no sabemos si el servicio está caído.",
+                arreglo: `Revisa tu conexión y vuelve a intentarlo desde ${destino}.`,
+            };
+        case "sesion":
+            return {
+                tono: "error",
+                titulo: `Tu sesión no está activa en ${nombre}`,
+                detalle: detalle ?? "Sin sesión no podemos leer ni guardar lo que es tuyo.",
+                arreglo: `Entra en tu cuenta y vuelve a ${destino}; lo que ya hiciste no se pierde.`,
+            };
+        case "permiso":
+            return {
+                tono: "aviso",
+                titulo: `Falta un permiso para continuar en ${nombre}`,
+                detalle: detalle ?? "El navegador no ha concedido el permiso necesario.",
+                arreglo: `Concédelo en el aviso del navegador o desde ${destino}.`,
+            };
+        case "guardado":
+            return {
+                tono: "error",
+                titulo: `No pudimos guardar en ${nombre}`,
+                detalle: detalle ?? "La elección no llegó a tu cuenta, pero sigue en esta pestaña.",
+                arreglo: `Vuelve a ${destino} y pulsa de nuevo; si persiste, inténtalo más tarde.`,
+            };
+        case "local":
+            return {
+                tono: "info",
+                titulo: `Tu elección queda guardada en este dispositivo`,
+                detalle: detalle ?? "Se sincronizará con tu cuenta en cuanto vuelva la conexión.",
+                arreglo: "Puedes seguir con el rito sin repetir nada; no hay bucle ni pérdida.",
+            };
+        default:
+            return {
+                tono: "error",
+                titulo: `Algo no salió bien en ${nombre}`,
+                detalle: detalle ?? "Ocurrió un fallo inesperado; no hemos perdido tu avance.",
+                arreglo: `Reintenta desde ${destino}; si sigue igual, avísanos.`,
+            };
+    }
+}
+
 export const CLAVES_MEMORIA_OS: ClaveMemoria[] = [
     {
         clave: "starseed.dock.items.v2",
