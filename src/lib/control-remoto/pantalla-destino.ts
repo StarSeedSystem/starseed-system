@@ -56,6 +56,8 @@ export interface InstantaneaPantalla {
     aparato: AparatoVentana | null;
     latenciaMs?: number;
     fps?: number;
+    /** Fuente real que está mandando el aparato (la elige la persona EN el aparato). */
+    fuente?: "accesibilidad" | "proyeccion";
 }
 
 export const MAX_ENTRADA_POR_SEGUNDO = 60;
@@ -228,11 +230,14 @@ export class PantallaDestino {
     private sinCuadros = 0;
     private rtt: number | null = null;
     private medidaLatencia: number | null = null;
+    private readonly fuentePedida: "auto" | "proyeccion" | undefined;
 
     constructor(
         readonly neurona: string,
         private readonly d: DepsDestino,
+        opciones?: { fuente?: "auto" | "proyeccion" },
     ) {
+        this.fuentePedida = opciones?.fuente;
         this.snap = { estado: "conectando", desde: d.ahora(), flujo: null, pantalla: null, nivel: "ver", capacidades: SIN_CAPACIDADES, aparato: null };
     }
 
@@ -279,7 +284,8 @@ export class PantallaDestino {
         const nivel = abierta.nivel === "controlar" ? "controlar" : "ver";
         this.poner({ nivel });
 
-        const p = await this.orden("pantalla-iniciar", {}, "ver");
+        const argsIniciar = this.fuentePedida === "proyeccion" ? { fuente: "proyeccion" as const } : {};
+        const p = await this.orden("pantalla-iniciar", argsIniciar, "ver");
         if (this.cerrada) return;
         if (!p.ok) return this.cerrar(p.motivo, false);
         const res = (p.resultado ?? {}) as Record<string, unknown>;
@@ -292,9 +298,11 @@ export class PantallaDestino {
         }
         // UNI1115M · costura e: los cuadros llegan YA derechos (como los ve la persona en la tableta). El `giro` de lo
         // nativo es solo informativo: la ventana no gira nada, así la imagen sale derecha y el toque cae donde se hizo.
+        const fuenteReal = res.fuente === "accesibilidad" || res.fuente === "proyeccion" ? res.fuente : undefined;
         this.poner({
             pantalla: { ancho: Number(res.ancho) || 0, alto: Number(res.alto) || 0, giro: 0 },
             capacidades: capacidadesDeNativo(res.capacidades, nivel),
+            ...(fuenteReal ? { fuente: fuenteReal } : {}),
         });
         try {
             await this.negociar();
@@ -663,8 +671,8 @@ export function depsReales(neurona: string): DepsDestino {
     };
 }
 
-export function crearPantallaDestino(neurona: string, d: DepsDestino = depsReales(neurona)): PantallaDestino {
-    return new PantallaDestino(neurona, d);
+export function crearPantallaDestino(neurona: string, opciones?: { fuente?: "auto" | "proyeccion" }, d: DepsDestino = depsReales(neurona)): PantallaDestino {
+    return new PantallaDestino(neurona, d, opciones);
 }
 
 // Para quien quiera comprobar que el vocabulario de entrada coincide con el de la puerta.

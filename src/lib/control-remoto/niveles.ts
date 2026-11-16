@@ -100,7 +100,7 @@ function unidad(x: unknown): x is number {
 const redondear = (x: number): number => Math.round(x * 10_000) / 10_000;
 
 function validarPantallaIniciar(a: Args): Args | null {
-    if (!soloClaves(a, ["lado", "calidad"])) return null;
+    if (!soloClaves(a, ["lado", "calidad", "fuente"])) return null;
     const r: Args = {};
     if (a.lado !== undefined) {
         if (!entero(a.lado, 240, 2048)) return null;
@@ -109,6 +109,10 @@ function validarPantallaIniciar(a: Args): Args | null {
     if (a.calidad !== undefined) {
         if (!entero(a.calidad, 1, 100)) return null; // UNI1115M · costura b: entero 1..100 en la web y en lo nativo
         r.calidad = a.calidad;
+    }
+    if (a.fuente !== undefined) {
+        if (a.fuente !== "auto" && a.fuente !== "proyeccion") return null;
+        r.fuente = a.fuente;
     }
     return r;
 }
