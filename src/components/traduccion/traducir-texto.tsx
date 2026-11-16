@@ -14,6 +14,7 @@ import { crearClienteLibreTranslate, crearLotes } from "@/lib/traduccion/libretr
 import { leer } from "@/lib/traduccion/preferencias";
 import { trozoDeLineaSSE } from "@/lib/astraura/conversacion-rapida";
 import { establecerPaginaTraducida, registrarEntradaMenuTexto, type ContextoMenuTexto, type EntradaMenuTexto } from "@/components/traduccion/menu-texto";
+import { leerEnVoz, detener, type EntornoVoz } from "@/lib/idiomas/leer-en-voz";
 
 const BASE_LT = process.env.NEXT_PUBLIC_LIBRETRANSLATE || "http://127.0.0.1:5100";
 const TOPE = 4000;
@@ -99,6 +100,7 @@ export function TraducirTexto() {
     const { user } = useAccount();
     const [ventana, setVentana] = useState<Ventana | null>(null);
     const [progreso, setProgreso] = useState<string | null>(null);
+    const [leyendo, setLeyendo] = useState(false);
     const porCopiar = useRef("");
     const destino = () => leer(user?.id ?? "", typeof navigator === "undefined" ? undefined : navigator.language).idioma;
     const motores = () => crearMotores({ protocolo: location.protocol, maquina: location.hostname, translator: (window as { Translator?: unknown }).Translator });
@@ -133,6 +135,30 @@ export function TraducirTexto() {
         setProgreso(null);
     };
     const verOriginal = () => { restaurar(document.body); establecerPaginaTraducida(false); setVentana(null); setProgreso(null); };
+
+    const entornoVoz = typeof window !== "undefined"
+        ? { synth: window.speechSynthesis, Utter: window.SpeechSynthesisUtterance }
+        : { synth: undefined, Utter: undefined };
+
+    const alLeer = () => {
+        if (!ventana || leyendo) return;
+        const r = leerEnVoz(ventana.texto, destino(), entornoVoz);
+        if (r.ok) setLeyendo(true);
+        else aviso(r.motivo ?? "No se pudo leer");
+    };
+
+    const alDetener = () => {
+        detener(entornoVoz);
+        setLeyendo(false);
+    };
+
+    useEffect(() => {
+        if (!ventana && leyendo) {
+            detener(entornoVoz);
+            setLeyendo(false);
+        }
+    }, [ventana, leyendo]);
+
     useEffect(() => {
         const quitar = entradasTraduccion({
             traducirSeleccion: (t) => void traducirUno(t),
@@ -152,6 +178,7 @@ export function TraducirTexto() {
                     {ventana.motor && <p className="text-xs text-white/60">Motor: {nombreMotor(ventana.motor)}</p>}
                     <div className="flex gap-2">
                         <button type="button" onClick={() => { void navigator.clipboard?.writeText(porCopiar.current).catch(() => undefined); }} disabled={!ventana.motor} className={boton}>Copiar</button>
+                        <button type="button" onClick={leyendo ? alDetener : alLeer} className={boton}>{leyendo ? "Detener" : "Leer en voz"}</button>
                         <button type="button" onClick={() => setVentana(null)} className={boton}>Cerrar</button>
                     </div>
                 </div>

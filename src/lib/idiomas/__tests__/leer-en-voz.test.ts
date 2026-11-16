@@ -13,7 +13,7 @@ function crearSynthFalso(voces: SpeechSynthesisVoice[] = []) {
     } as unknown as SpeechSynthesis;
 
     const Utter = vi.fn((texto: string) => ({
-        texto,
+        text: texto,
         lang: "",
         voice: null,
         onend: null as (() => void) | null,
@@ -86,7 +86,7 @@ describe("leerEnVoz", () => {
         const r = leerEnVoz(textoLargo, "es", { synth, Utter });
         expect(r.ok).toBe(true);
         const habla = getHabla();
-        expect(habla?.texto.length).toBe(2000);
+        expect(habla?.text.length).toBe(2000);
     });
 
     it("cancela la lectura anterior antes de iniciar la nueva", () => {
@@ -98,7 +98,7 @@ describe("leerEnVoz", () => {
         leerEnVoz("segunda", "es", { synth, Utter });
         const segunda = getHabla();
         expect(segunda).not.toBeNull();
-        expect(segunda?.texto).toBe("segunda");
+        expect(segunda?.text).toBe("segunda");
     });
 
     it("detener cancela la síntesis", () => {
