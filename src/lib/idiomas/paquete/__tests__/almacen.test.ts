@@ -9,6 +9,7 @@ import {
   type AlmacenInterno,
 } from "../almacen";
 import type { PaqueteIdioma } from "../formato";
+import { CLAVE_IDIOMA_NEURONA } from "../../estado";
 
 const windowMock = {
   addEventListener: vi.fn(),
@@ -47,7 +48,7 @@ function paqueteValido(codigo: string, entradas: Record<string, string> = { hola
   };
 }
 
-describe("almacen de paquetes de idioma", () => {
+describe("almacén de paquetes de idioma", () => {
   let almacen: AlmacenPaquetes;
   let almacenFalso: AlmacenInterno;
 
@@ -57,7 +58,7 @@ describe("almacen de paquetes de idioma", () => {
   });
 
   describe("listarPaquetes", () => {
-    it("devuelve array vacio al inicio", () => {
+    it("devuelve un array vacío al inicio", () => {
       expect(almacen.listarPaquetes()).toEqual([]);
     });
 
@@ -84,9 +85,21 @@ describe("almacen de paquetes de idioma", () => {
       const leido = almacen.leerPaquete("es-ES");
       expect(leido?.entradas.hola).toBe("HOLA");
       expect(leido?.entradas.adios).toBe("adiós");
+      expect(almacen.listarPaquetes()).toHaveLength(1);
     });
 
-    it("respeta limite de 12 paquetes", () => {
+    it("no cambia el idioma elegido de la neurona", () => {
+      const almacenFalso = crearAlmacenFalso();
+      const eleccion = JSON.stringify({ codigo: "es", origen: "persona" });
+      almacenFalso.setItem(CLAVE_IDIOMA_NEURONA, eleccion);
+      const a = crearAlmacenPaquetes(almacenFalso);
+
+      a.guardarPaquete(paqueteValido("fr-FR"));
+
+      expect(almacenFalso.getItem(CLAVE_IDIOMA_NEURONA)).toBe(eleccion);
+    });
+
+    it("respeta el límite de 12 paquetes", () => {
       for (let i = 0; i < MAX_PAQUETES; i++) {
         const r = almacen.guardarPaquete(paqueteValido(`lang-${i}`));
         expect(r.ok).toBe(true);
@@ -96,7 +109,7 @@ describe("almacen de paquetes de idioma", () => {
       if (!r.ok) expect(r.motivo).toContain("12");
     });
 
-    it("respeta limite de 6 MB totales", () => {
+    it("respeta el límite total de 6 MB", () => {
       const grande = paqueteValido("grande", { clave: "x".repeat(7 * 1024 * 1024) });
       const r = almacen.guardarPaquete(grande);
       expect(r.ok).toBe(false);
@@ -153,31 +166,31 @@ describe("almacen de paquetes de idioma", () => {
     });
   });
 
-  describe("valores corruptos y errores de almacen", () => {
-    it("ignora JSON invalido en localStorage", () => {
+  describe("valores corruptos y errores de almacén", () => {
+    it("ignora un JSON inválido en localStorage", () => {
       const almacenConError = crearAlmacenFalso();
       almacenConError.setItem(CLAVE_ALMACEN, "no-es-json");
       const a = crearAlmacenPaquetes(almacenConError);
       expect(a.listarPaquetes()).toEqual([]);
     });
 
-    it("ignora valor que no es array", () => {
+    it("ignora un valor que no es un array", () => {
       const almacenConError = crearAlmacenFalso();
       almacenConError.setItem(CLAVE_ALMACEN, '{"codigo": "es"}');
       const a = crearAlmacenPaquetes(almacenConError);
       expect(a.listarPaquetes()).toEqual([]);
     });
 
-    it("ignora elementos invalidos dentro del array", () => {
+    it("ignora elementos inválidos dentro del array", () => {
       const almacenConError = crearAlmacenFalso();
       almacenConError.setItem(CLAVE_ALMACEN, '[{"codigo": "es"}, null, "texto", 123]');
       const a = crearAlmacenPaquetes(almacenConError);
       expect(a.listarPaquetes()).toHaveLength(1);
     });
 
-    it("no rompe si almacen lanza al leer", () => {
+    it("no rompe si el almacén lanza al leer", () => {
       const almacenQueFalla: AlmacenInterno = {
-        getItem: () => { throw new Error("Fallo lectura"); },
+        getItem: () => { throw new Error("Fallo de lectura"); },
         setItem: () => {},
         removeItem: () => {},
       };
@@ -186,14 +199,26 @@ describe("almacen de paquetes de idioma", () => {
       expect(a.leerPaquete("es")).toBeNull();
     });
 
-    it("no rompe si almacen lanza al escribir", () => {
+    it("no rompe si el almacén lanza al escribir", () => {
       const almacenQueFalla: AlmacenInterno = {
         getItem: () => "[]",
-        setItem: () => { throw new Error("Fallo escritura"); },
+        setItem: () => { throw new Error("Fallo de escritura"); },
         removeItem: () => {},
       };
       const a = crearAlmacenPaquetes(almacenQueFalla);
-      expect(a.guardarPaquete(paqueteValido("es"))).toEqual({ ok: true });
+      expect(() => a.guardarPaquete(paqueteValido("es"))).not.toThrow();
+      expect(a.listarPaquetes()).toEqual([]);
+    });
+
+    it("no rompe si el almacén lanza al quitar", () => {
+      const almacenQueFalla: AlmacenInterno = {
+        getItem: () => JSON.stringify([paqueteValido("es")]),
+        setItem: () => { throw new Error("Fallo de escritura"); },
+        removeItem: () => { throw new Error("Fallo de eliminación"); },
+      };
+      const a = crearAlmacenPaquetes(almacenQueFalla);
+      expect(() => a.quitarPaquete("es")).not.toThrow();
+      expect(a.listarPaquetes()).toHaveLength(1);
     });
   });
 
