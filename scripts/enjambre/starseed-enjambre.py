@@ -1768,7 +1768,7 @@ def hay_alguna_clave():
 MERITO_CABEZA = int(os.environ.get("STARSEED_MERITO_CABEZA", "3") or 3)
 #: Proveedores que cobran por token con la tarjeta de Alex: fuera de la rotación salvo
 #: STARSEED_PAGO=1. (codex va por suscripción y cupo, no por token: se queda.)
-PROVEEDORES_DE_PAGO = ("xai", "deepseek", "anthropic", "openai")
+PROVEEDORES_DE_PAGO = ("xai", "deepseek", "anthropic", "openai", "abliteration")
 _ESTADOS_MAL = (
     "sin_cambios",
     "fallo",
@@ -1840,11 +1840,53 @@ def orden_por_merito(modelos, progreso, tid, cabeza=None):
     return top[i:] + top[:i] + ordenados[n:]
 
 
+_ABLITERATION_ESTADO = None
+
+try:
+    _rp = os.path.join(ROOT, "scripts", "puente")
+    if _rp not in sys.path:
+        sys.path.insert(0, _rp)
+    from abliteration_creditos import permitido as _permitido_abilliteration
+except Exception:
+    _permitido_abilliteration = None
+
+def abliteration_permitida(entorno=None, leer_estado=None, ahora_iso=None):
+    """¿Puede este modelo usar abliteration? (2026-11-16, MOD1116)
+    True si STARSEED_ABLITERATION=1 Y abliteration_creditos.permitido(...) da ok."""
+    if os.environ.get("STARSEED_ABLITERATION", "").strip() != "1":
+        return False
+    if _permitido_abilliteration is None:
+        return False
+    try:
+        if leer_estado:
+            estado = leer_estado()
+        elif _ABLITERATION_ESTADO is not None:
+            estado = _ABLITERATION_ESTADO
+        else:
+            try:
+                with open(os.path.expanduser("~/.starseed/abliteration-uso.json"), encoding="utf-8") as f:
+                    estado = json.load(f)
+            except Exception:
+                estado = {}
+        tope = float(os.environ.get("STARSEED_ABLITERATION_TOPE_USD", "10.0"))
+        ahora = ahora_iso or datetime.datetime.now(datetime.timezone.utc).isoformat()
+        ok, _ = _permitido_abilliteration(estado, ahora, tope)
+        return ok
+    except Exception:
+        return False
+
 def sin_pago(modelos):
     """Quita los proveedores que cobran por token, salvo `STARSEED_PAGO=1`."""
     if os.environ.get("STARSEED_PAGO", "").strip() == "1":
         return list(modelos)
-    return [m for m in modelos if proveedor_de(m) not in PROVEEDORES_DE_PAGO]
+
+    def apto(m):
+        prov = proveedor_de(m)
+        if prov == "abliteration":
+            return abliteration_permitida()
+        return prov not in PROVEEDORES_DE_PAGO
+
+    return [m for m in modelos if apto(m)]
 
 
 def modelos_para(tid):
