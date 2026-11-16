@@ -1,0 +1,35 @@
+{
+ "ola": "nube-20261116",
+ "tareas": [
+  {
+   "id": "HAL01",
+   "ola": "HAL1116A",
+   "titulo": "El «Saltar al contenido» no se traduce: el texto de app/layout.tsx no está en ninguna unidad ni en el inglés",
+   "archivos": [
+    "src/lib/idiomas/unidades.json",
+    "src/lib/idiomas/catalogos/en.json",
+    "src/lib/idiomas/__tests__/texto-raiz-en.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. HALLAZGO COMPROBADO: el texto «Saltar al contenido» (`src/app/layout.tsx:303`, enlace de salto) SÍ está en `catalogos/fuente.json` (clave «Saltar al contenido», archivo `app/layout.tsx`), pero ninguna unidad de `unidades.json` incluye `app/layout.tsx` (acceso: `components/auth/`…, shell: `components/layout/`…) y `catalogos/en.json` no lo trae (484 entradas). La capa de idioma está bien: no hay entrada que aplicar. Lee `scripts/idiomas/comun.mjs` (`rechazo`, `textosDeUnidad`, `coberturaDe`) y la forma de una unidad en `unidades.json`. Cambio: (1) en `unidades.json` añade una unidad `raiz` con título «Documento raíz» y `prefijos: [\"app/layout.tsx\"]`; (2) en `en.json` añade, dentro de `entradas`, la traducción de los 6 textos que `fuente.json` asigna a `app/layout.tsx`: «Saltar al contenido» → «Skip to content», «Democracia directa, creación colectiva e inteligencia propia, abierta y gratuita.», «Sistema operativo social para la regeneración global», «StarSeed OS · sistema operativo social descentralizado» y, si `rechazo` los admite (marcas de producto como «StarSeed» no se traducen: omite lo que `rechazo` rechazaría o lo que quede igual), «StarSeed» y «StarSeed System»; en inglés natural, con las marcas intactas. No añadas `raiz` a `completas.json`. PRUEBA `texto-raiz-en.test.ts`: lee `en.json` y comprueba que `Saltar al contenido` se traduce a «Skip to content», que cada entrada nueva pasa `rechazo(fuente, traduccion) === null` y que la unidad `raiz` existe con ese prefijo.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado."
+  },
+  {
+   "id": "IMG-agentes-reimaginada-profunda-corregir-te",
+   "titulo": "Ajustar temporizador de guía para no interrumpir navegación del usuario",
+   "area": "imaginacion",
+   "archivos": [
+    "src/components/onboarding/aurora-guide.tsx",
+    "src/hooks/use-timeout-interaction.ts",
+    "src/lib/mando/areas.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Ajustar temporizador de guía para no interrumpir navegación del usuario. ## Problema\nEl temporizador que muestra la guía de aurora interrumpe la navegación del usuario al expirar, forzando un cambio de pantalla sin su consentimiento. Esto genera fricción y reduce la experiencia fluida.\n\n## Solución propuesta\n- **Reemplazar temporizador fijo por evento de interacción**: En lugar de depender de un timeout automático, el temporizador se reinicia cada vez que el usuario realiza una acción (scroll, click, movimiento del mouse).\n- **Añadir opción explícita de cierre**: Incluir un botón visible para que el usuario decida cuándo terminar la guía.\n- **Persistencia parcial d Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1116-053905.json": [
+   "HAL01",
+   "IMG-agentes-reimaginada-profunda-corregir-te"
+  ]
+ }
+}
