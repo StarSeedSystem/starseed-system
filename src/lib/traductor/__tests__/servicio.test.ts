@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { MotorTraduccion, AlcanceMotor } from "@/lib/traduccion/motor";
 import { crearServicioTraductor } from "../servicio";
 import { crearAlmacenMemoria } from "../privacidad";
+import type { AlmacenHistorial } from "../historial";
 
 function motorFalso(
     id: MotorTraduccion["id"],
@@ -20,8 +21,17 @@ function motorFalso(
     };
 }
 
+function crearAlmacenHistorialMemoria(): AlmacenHistorial {
+    const mapa = new Map<string, string>();
+    return {
+        obtener: (clave: string) => mapa.get(clave) ?? null,
+        guardar: (clave: string, valor: string) => { mapa.set(clave, valor); },
+        borrar: (clave: string) => { mapa.delete(clave); },
+    };
+}
+
 function crearDeps(motores: MotorTraduccion[], o: { sinHistorial?: boolean; avisosAceptados?: Record<string, boolean> } = {}) {
-    const almacenHistorial = crearAlmacenMemoria();
+    const almacenHistorial = crearAlmacenHistorialMemoria();
     const almacenAvisos = crearAlmacenMemoria();
     if (o.avisosAceptados) {
         for (const [motor, aceptado] of Object.entries(o.avisosAceptados)) {
@@ -172,7 +182,7 @@ describe("crearServicioTraductor", () => {
 
     describe("historial", () => {
         it("guarda en historial cuando no está desactivado", async () => {
-            const almacenHistorial = crearAlmacenMemoria();
+            const almacenHistorial = crearAlmacenHistorialMemoria();
             const almacenAvisos = crearAlmacenMemoria();
             const deps = {
                 motores: [motorFalso("paquete-local", "aparato", { salir: (t) => t + "-traducido" })],
@@ -192,7 +202,7 @@ describe("crearServicioTraductor", () => {
         });
 
         it("no guarda en historial cuando sinHistorial es true", async () => {
-            const almacenHistorial = crearAlmacenMemoria();
+            const almacenHistorial = crearAlmacenHistorialMemoria();
             const almacenAvisos = crearAlmacenMemoria();
             const deps = {
                 motores: [motorFalso("paquete-local", "aparato", { salir: (t) => t + "-traducido" })],
