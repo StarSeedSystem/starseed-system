@@ -34,6 +34,7 @@ import { type Marco, MARCO_POR_DEFECTO } from "@/lib/profile/marco-foto";
 import {
   claimProfile, saveProfileOptional, isValidHandle, sincronizarPerfilPublico,
 } from "@/lib/onboarding/onboarding";
+import { conTope, clasificarCarga } from "@/lib/onboarding/carga-perfil";
 import { marcarRitoActivo } from "@/lib/ui/rito-activo";
 import { IconoStarSeed } from "@/components/onboarding/icono-starseed";
 import { esMiTurno, terminarEtapa, suscribirRito, navegarSuave } from "@/lib/onboarding/director-rito";
@@ -105,31 +106,45 @@ export function VentanaPerfilInicial({ onCerrar }: { onCerrar?: () => void }) {
   }, [abierta]);
 
   // Carga lo que ya haya: el handle que se eligió (o el que puso el alta).
+  // (IMG · catch silencioso) La carga tenía un catch mudo, ignoraba el `error`
+  // de la consulta y NO tenía tope: si colgaba, el usuario se quedaba fijo en
+  // «Cargando tu perfil…» para siempre. Ahora corre con `conTope` y toda
+  // avería deja rastro en consola; pase lo que pase, se edita igual.
   useEffect(() => {
     if (!abierta) return;
     let vivo = true;
     (async () => {
       try {
-        const sb = createClient();
-        const { data: u } = await sb.auth.getUser();
-        const uid = u?.user?.id;
-        if (!uid) return;
-        const { data } = await sb
-          .from("profiles")
-          .select("handle,display_name,bio,avatar_url,cover_url,avatar_marco,avatar_3d")
-          .eq("user_id", uid)
-          .maybeSingle();
-        if (!vivo || !data) return;
-        const p = data as { handle?: string; display_name?: string; bio?: string; avatar_url?: string; cover_url?: string; avatar_marco?: Marco | null; avatar_3d?: Avatar3D | null };
-        if (p.avatar_marco) setMarco({ ...MARCO_POR_DEFECTO, ...p.avatar_marco });
-        if (p.avatar_3d?.url) setAvatar3d(p.avatar_3d);
-        setNombre(p.display_name || "");
-        setHandle(p.handle || "");
-        setBio(p.bio || "");
-        setAvatar(p.avatar_url || "");
-        setPortada(p.cover_url || "");
-      } catch { /* se edita igual desde cero */ }
-      finally { if (vivo) setCargando(false); }
+        const resultado = await conTope((async () => {
+          const sb = createClient();
+          const { data: u } = await sb.auth.getUser();
+          const uid = u?.user?.id;
+          if (!uid) return null;
+          const { data, error } = await sb
+            .from("profiles")
+            .select("handle,display_name,bio,avatar_url,cover_url,avatar_marco,avatar_3d")
+            .eq("user_id", uid)
+            .maybeSingle();
+          return clasificarCarga(data, error ?? null);
+        })());
+        if (!vivo || !resultado) return;
+        if (resultado.estado === "error") {
+          console.warn("[onboarding] no se pudo leer tu perfil:", resultado.motivo);
+          return;
+        }
+        if (resultado.estado === "vacio") return;
+        const p = resultado.perfil;
+        if (p.marco) setMarco({ ...MARCO_POR_DEFECTO, ...(p.marco as Marco) });
+        if (p.avatar3d) setAvatar3d(p.avatar3d as Avatar3D);
+        setNombre(p.nombre);
+        setHandle(p.handle);
+        setBio(p.bio);
+        setAvatar(p.avatar);
+        setPortada(p.portada);
+      } catch (e) {
+        // (IMG) Ya no es silencioso: deja rastro, como el resto del rito.
+        console.warn("[onboarding] carga de perfil interrumpida:", (e as Error)?.message);
+      } finally { if (vivo) setCargando(false); }
     })();
     return () => { vivo = false; };
   }, [abierta]);
@@ -156,9 +171,6 @@ export function VentanaPerfilInicial({ onCerrar }: { onCerrar?: () => void }) {
    * nada. Pase lo que pase, siempre se navega: el usuario nunca se queda
    * atrapado en esta ventana.
    */
-  const conTope = useCallback(<T,>(p: Promise<T>, ms = 6000): Promise<T | null> =>
-    Promise.race([p.catch(() => null), new Promise<null>((r) => setTimeout(() => r(null), ms))]), []);
-
   const terminar = useCallback(async () => {
     setGuardando(true);
     try {
@@ -203,7 +215,7 @@ export function VentanaPerfilInicial({ onCerrar }: { onCerrar?: () => void }) {
     // (Adenda 219) `marco` y `avatar3d` en las dependencias: sin ellas el
     // callback guardaba el marco POR DEFECTO y ningún avatar 3D (clausura
     // vieja) — visto en vivo: la estrella elegida llegaba a la base como círculo.
-  }, [handle, nombre, avatar, portada, bio, marco, avatar3d, conTope]);
+  }, [handle, nombre, avatar, portada, bio, marco, avatar3d]);
 
   const cerrarRito = useCallback(() => {
     setAbierta(false);
