@@ -1,0 +1,104 @@
+{
+ "ola": "nube-20261115",
+ "tareas": [
+  {
+   "id": "MRA4",
+   "ola": "MAP1116B",
+   "titulo": "Espectro: reglas de compatibilidad (qué se puede enlazar con cada señal y qué falta)",
+   "archivos": [
+    "src/lib/senales/espectro/compatibilidad.ts",
+    "src/lib/senales/espectro/__tests__/compatibilidad.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Con `SenalEspectro` y `bandas.ts`, escribe `compatibilidad.ts`: `compatiblesDe(senal, equipo: { radios: Medio[]; regionLora?: string; sdr?: boolean }): Compatibilidad[]`. Reglas (todas con `motivo` en palabras): una señal Wi-Fi/Bluetooth/LoRa/celular solo es enlazable si ESTE equipo tiene esa radio (`equipo.radios`); LoRa solo con la MISMA región/preset (frecuencia en la banda de su región: `bandaDeFrecuencia`); una señal de la malla de StarSeed es compatible con «neurona» si ambas hablan algún transporte común; una estación pública/privada (`os_estaciones`) es compatible con «estacion» (verla) siempre que la capa lo permita; sin radio o sin región → `posible:false` con el porqué («este aparato no tiene Bluetooth que el sistema deje usar»). NUNCA devuelve `posible:true` por suposición: sin dato suficiente, `posible:false` y motivo «sin datos para saberlo». Compatibilidad con un SDR solo si `equipo.sdr`. PRIVACIDAD Y HONESTIDAD (decisiones de Alex del 14-11, `architecture/mapa-de-senales.md` §2 y §12; valen para esta tarea): la posición exacta de un aparato personal viaja SOLO por el canal privado `pos:<uid>` entre las neuronas de su propia cuenta (`src/lib/senales/geo/canal-posicion.ts`); en las capas pública y de comunidad una neurona enseña únicamente lo que su dueño eligió publicar, y nunca una posición exacta (como mucho una zona gruesa); una capa de toda la red se construye con lo que cada dueño publica, JAMÁS con una neurona informando de la posición de sus vecinas; el alcance dibujado como campo es «estimado» y lo medido se marca aparte (`NOTA_ALCANCE` de `geo/capas.ts`). Nada se inventa: si una plataforma no da un dato, el mapa lo dice («sin fuente: <motivo>») y no pinta un número. Un valor lleva siempre su fuente (`medida`, `declarada` o `estimada`) y la hora de la lectura.\nPRUEBAS: tabla de ≥12 casos (radio presente/ausente, región igual/distinta, sin dato, estación privada ajena = no posible). COMPRUEBA: `NODE_ENV=test npx vitest run src/lib/senales/espectro/__tests__/compatibilidad.test.ts` verde y tsc acotado.\n\nREGLAS DE LA CASA (valen aunque no las repita la tarea): toca SOLO los archivos de la lista `archivos`; ≤3 archivos y ≤120 líneas por archivo (si no cabe, para y di qué falta: no lo estires ni lo resumas); sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible (la interfaz dice Genesis); sin red real en las pruebas; ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves. El asunto de tu commit empieza por `MRA4:` y dice qué comprobaste y qué NO pudiste comprobar.",
+   "dependencias_ya_en_main": [
+    "MRA2",
+    "MRA3"
+   ]
+  },
+  {
+   "id": "MRA9",
+   "ola": "MAP1116B",
+   "titulo": "Capas del mapa: grupo «Red completa» (pública, comunidad, privada, externa) con su estado de fuente",
+   "archivos": [
+    "src/lib/senales/geo/capas.ts",
+    "src/lib/senales/geo/__tests__/capas-red.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. En `src/lib/senales/geo/capas.ts` (`GrupoCapa` línea 49, `GRUPOS_CAPA` 51-58, `CAPAS_SENALES` 188+) añade, SOLO añadiendo, el grupo `\"red\"` («Red completa (lo que cada dueño publica)») y cuatro capas con interruptor: `red-publica`, `red-comunidad`, `red-privada` (lo propio de mi cuenta) y `red-externa` (lo detectado fuera de StarSeed: redes IP, estaciones externas). Cada una con `estado` honesto (`parcial` mientras no haya publicadores; `sin-fuente` para la externa si hoy nada la alimenta), `fuente` que cita los módulos (`espectro/leer-senales.ts`, `espectro/publicacion.ts`), tramos por `origen` (medida = relleno, declarada = anillo, estimada = rayado, como `NOTA_ALCANCE`) y `valor()` que devuelve «desconocido» cuando falta la medida. La leyenda dice «publicado por su dueño» y «zona aproximada». Un campo estimado nunca usa el relleno de lo medido. PRIVACIDAD Y HONESTIDAD (decisiones de Alex del 14-11, `architecture/mapa-de-senales.md` §2 y §12; valen para esta tarea): la posición exacta de un aparato personal viaja SOLO por el canal privado `pos:<uid>` entre las neuronas de su propia cuenta (`src/lib/senales/geo/canal-posicion.ts`); en las capas pública y de comunidad una neurona enseña únicamente lo que su dueño eligió publicar, y nunca una posición exacta (como mucho una zona gruesa); una capa de toda la red se construye con lo que cada dueño publica, JAMÁS con una neurona informando de la posición de sus vecinas; el alcance dibujado como campo es «estimado» y lo medido se marca aparte (`NOTA_ALCANCE` de `geo/capas.ts`). Nada se inventa: si una plataforma no da un dato, el mapa lo dice («sin fuente: <motivo>») y no pinta un número. Un valor lleva siempre su fuente (`medida`, `declarada` o `estimada`) y la hora de la lectura.\nPRUEBAS: el grupo existe con las cuatro capas; ninguna capa estimada usa estilo `relleno`; `CAPA_POR_ID` las incluye; las capas existentes no cambian de id ni de orden. COMPRUEBA: `NODE_ENV=test npx vitest run src/lib/senales/geo` verde y tsc acotado.\n\nREGLAS DE LA CASA (valen aunque no las repita la tarea): toca SOLO los archivos de la lista `archivos`; ≤3 archivos y ≤120 líneas por archivo (si no cabe, para y di qué falta: no lo estires ni lo resumas); sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible (la interfaz dice Genesis); sin red real en las pruebas; ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves. El asunto de tu commit empieza por `MRA9:` y dice qué comprobaste y qué NO pudiste comprobar.",
+   "dependencias_ya_en_main": [
+    "MRA2"
+   ]
+  },
+  {
+   "id": "MRF1",
+   "ola": "MAP1116B",
+   "titulo": "Filtros de señales por frecuencia, ancho de banda, capa, medio, origen y compatibilidad",
+   "archivos": [
+    "src/lib/senales/espectro/filtros.ts",
+    "src/lib/senales/espectro/__tests__/filtros.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Función pura `filtrarSenales(senales: SenalEspectro[], f: FiltroEspectro): SenalEspectro[]` y `FiltroEspectro { frecuenciaKhz?: {desde?: number; hasta?: number}; anchoKhz?: {desde?: number; hasta?: number}; capas?: CapaRed[]; medios?: Medio[]; origenes?: OrigenDato[]; soloCompatibles?: boolean; texto?: string }` + `FILTRO_VACIO`, `filtroActivo(f)`, `resumenFiltro(f): string` (en palabras: «2,4 GHz · 20-40 MHz · pública»). Una señal sin frecuencia NO pasa un filtro de frecuencia (no se adivina), pero la función devuelve además cuántas se dejaron fuera por «sin dato» (`{visibles, ocultasSinDato}` en `filtrarConCuenta`). Rangos invertidos se corrigen; textos vacíos no filtran. PRUEBAS: cada criterio por separado y combinados; sin dato no pasa y se cuenta; `FILTRO_VACIO` devuelve todo. COMPRUEBA: `NODE_ENV=test npx vitest run src/lib/senales/espectro/__tests__/filtros.test.ts` verde y tsc acotado.\n\nREGLAS DE LA CASA (valen aunque no las repita la tarea): toca SOLO los archivos de la lista `archivos`; ≤3 archivos y ≤120 líneas por archivo (si no cabe, para y di qué falta: no lo estires ni lo resumas); sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible (la interfaz dice Genesis); sin red real en las pruebas; ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves. El asunto de tu commit empieza por `MRF1:` y dice qué comprobaste y qué NO pudiste comprobar.",
+   "dependencias_ya_en_main": [
+    "MRA2",
+    "MRA3"
+   ]
+  },
+  {
+   "id": "MRE1",
+   "ola": "MAP1116B",
+   "titulo": "Espectrómetro: adaptador de Wi-Fi e internet (lo que el sistema y el navegador sí dicen)",
+   "archivos": [
+    "src/lib/senales/espectro/adaptadores/wifi.ts",
+    "src/lib/senales/espectro/adaptadores/__tests__/wifi.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Escribe `adaptadorWifi(entrada): {senales: SenalEspectro[]; sinFuente: SinFuente[]}` PURO (la lectura se inyecta). Fuentes reales de hoy: `src/lib/senales/../neurons/senales-medio.ts` (`SenalesMedio.internet`: tipo, efectivo, mbps de la Network Information API) y los enlaces abiertos `enlacesDisponibles()` vía `src/lib/senales/geo/fuentes-vivas.ts` (`rttMs`, `capacidadKbps`). Un navegador NO escanea Wi-Fi: sin un escaneo nativo inyectado, devuelve `sinFuente:[{medio:\"wifi\", motivo:\"este aparato no deja escanear redes Wi-Fi desde la app\"}]` y como mucho UNA señal de «tu conexión actual» con `origen:\"medida\"` sin frecuencia (no inventes canal ni banda). Si se inyecta un escaneo nativo (`EscaneoWifi[] {canal?, frecuenciaMhz?, anchoMhz?, rssi?}`), conviértelo con `bandas.ts` y NUNCA incluyas SSID ni BSSID en la señal. PRIVACIDAD Y HONESTIDAD (decisiones de Alex del 14-11, `architecture/mapa-de-senales.md` §2 y §12; valen para esta tarea): la posición exacta de un aparato personal viaja SOLO por el canal privado `pos:<uid>` entre las neuronas de su propia cuenta (`src/lib/senales/geo/canal-posicion.ts`); en las capas pública y de comunidad una neurona enseña únicamente lo que su dueño eligió publicar, y nunca una posición exacta (como mucho una zona gruesa); una capa de toda la red se construye con lo que cada dueño publica, JAMÁS con una neurona informando de la posición de sus vecinas; el alcance dibujado como campo es «estimado» y lo medido se marca aparte (`NOTA_ALCANCE` de `geo/capas.ts`). Nada se inventa: si una plataforma no da un dato, el mapa lo dice («sin fuente: <motivo>») y no pinta un número. Un valor lleva siempre su fuente (`medida`, `declarada` o `estimada`) y la hora de la lectura.\nPRUEBAS: sin escaneo → una señal de conexión y un `sinFuente`; con escaneo falso → señales con banda y frecuencia correctas y sin SSID; nada inventado cuando falta el canal. COMPRUEBA: `NODE_ENV=test npx vitest run src/lib/senales/espectro/adaptadores/__tests__/wifi.test.ts` verde y tsc acotado.\n\nREGLAS DE LA CASA (valen aunque no las repita la tarea): toca SOLO los archivos de la lista `archivos`; ≤3 archivos y ≤120 líneas por archivo (si no cabe, para y di qué falta: no lo estires ni lo resumas); sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible (la interfaz dice Genesis); sin red real en las pruebas; ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves. El asunto de tu commit empieza por `MRE1:` y dice qué comprobaste y qué NO pudiste comprobar.",
+   "dependencias_ya_en_main": [
+    "MRA2",
+    "MRA3"
+   ]
+  },
+  {
+   "id": "MRE2",
+   "ola": "MAP1116B",
+   "titulo": "Espectrómetro: adaptador de Bluetooth y serie",
+   "archivos": [
+    "src/lib/senales/espectro/adaptadores/bluetooth.ts",
+    "src/lib/senales/espectro/adaptadores/__tests__/bluetooth.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Adaptador puro de Bluetooth: fuente real = `SenalesMedio.bluetooth.disponible` y los anuncios BLE ya detectados que entrega `useDetectedSignals` (`src/components/mesh/use-detected-signals.ts`, `AntennaKind` \"ble\"; lee cómo se obtienen `freshBle`), más puertos serie autorizados (`serie`). Cada anuncio BLE → `SenalEspectro` (medio bluetooth, banda «2,4 GHz BLE», frecuencia/ancho solo si el canal de anuncio es conocido; fuerza = RSSI real; nombre del dispositivo NO se copia a la señal pública, solo a la ficha local). `disponible:false`/`null` → `sinFuente` con motivo («Bluetooth no disponible o sin permiso»). Nada de escanear por tu cuenta: solo convierte lo ya leído. PRIVACIDAD Y HONESTIDAD (decisiones de Alex del 14-11, `architecture/mapa-de-senales.md` §2 y §12; valen para esta tarea): la posición exacta de un aparato personal viaja SOLO por el canal privado `pos:<uid>` entre las neuronas de su propia cuenta (`src/lib/senales/geo/canal-posicion.ts`); en las capas pública y de comunidad una neurona enseña únicamente lo que su dueño eligió publicar, y nunca una posición exacta (como mucho una zona gruesa); una capa de toda la red se construye con lo que cada dueño publica, JAMÁS con una neurona informando de la posición de sus vecinas; el alcance dibujado como campo es «estimado» y lo medido se marca aparte (`NOTA_ALCANCE` de `geo/capas.ts`). Nada se inventa: si una plataforma no da un dato, el mapa lo dice («sin fuente: <motivo>») y no pinta un número. Un valor lleva siempre su fuente (`medida`, `declarada` o `estimada`) y la hora de la lectura.\nPRUEBAS: BLE con RSSI → señal con fuerza; sin adaptador → sinFuente; el nombre no aparece en campos publicables. COMPRUEBA: `NODE_ENV=test npx vitest run src/lib/senales/espectro/adaptadores/__tests__/bluetooth.test.ts` verde y tsc acotado.\n\nREGLAS DE LA CASA (valen aunque no las repita la tarea): toca SOLO los archivos de la lista `archivos`; ≤3 archivos y ≤120 líneas por archivo (si no cabe, para y di qué falta: no lo estires ni lo resumas); sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible (la interfaz dice Genesis); sin red real en las pruebas; ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves. El asunto de tu commit empieza por `MRE2:` y dice qué comprobaste y qué NO pudiste comprobar.",
+   "dependencias_ya_en_main": [
+    "MRA2",
+    "MRA3"
+   ]
+  },
+  {
+   "id": "MRE3",
+   "ola": "MAP1116B",
+   "titulo": "Espectrómetro: adaptador de LoRa y de los enlaces propios de la malla",
+   "archivos": [
+    "src/lib/senales/espectro/adaptadores/lora-malla.ts",
+    "src/lib/senales/espectro/adaptadores/__tests__/lora-malla.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Adaptador puro. LoRa: `SenalesMedio.lora` (`estado`, `transporte`, `nodos`) y `mesh.region` (`src/components/mesh/mapa-senales/use-mapa-vivo.ts:104-110`, `yo.radio`): con radio conectada y región conocida → una señal LoRa con banda y frecuencia de la REGIÓN según `bandas.ts` (origen `declarada`: lo que la radio está configurada a usar, no una medida de aire) y ancho del preset si lo informa; SNR/RSSI reales de cada nodo oído (`DetectedSignal.quality`, `qualityFromSnr/Rssi`) → señales `medida`; sin radio → `sinFuente` («no hay radio LoRa conectada»). Malla: los enlaces de la malla propia (`src/lib/senales/enlaces.ts`, `EnlaceMapa`) como señales medio `malla` con `rttMs`/`capacidadKbps` medidos y sin frecuencia (la malla no tiene una: se dice). PRUEBAS: sin radio; con radio y región EU; nodos con SNR; enlaces de malla sin frecuencia ni banda inventadas. COMPRUEBA: `NODE_ENV=test npx vitest run src/lib/senales/espectro/adaptadores/__tests__/lora-malla.test.ts` verde y tsc acotado.\n\nREGLAS DE LA CASA (valen aunque no las repita la tarea): toca SOLO los archivos de la lista `archivos`; ≤3 archivos y ≤120 líneas por archivo (si no cabe, para y di qué falta: no lo estires ni lo resumas); sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible (la interfaz dice Genesis); sin red real en las pruebas; ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves. El asunto de tu commit empieza por `MRE3:` y dice qué comprobaste y qué NO pudiste comprobar.",
+   "dependencias_ya_en_main": [
+    "MRA2",
+    "MRA3"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1115-190053.json": [
+   "MRA9",
+   "MRF1",
+   "MRA4",
+   "MRE1",
+   "MRE2",
+   "MRE3"
+  ]
+ }
+}
