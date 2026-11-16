@@ -247,6 +247,23 @@ export async function aceptarControladorNativo(spki: string, cuenta: string, nom
     }
 }
 
+/**
+ * (PENB3) Pide a Kotlin que QUITE un controlador de la lista aceptada del aparato (la lista solo la escribe Kotlin).
+ * Sin app nativa o fuera de Android: «sin-soporte». Si lo nativo no contesta o rechaza la llamada: «sin-servicio».
+ * La huella viaja entera, sin recortar.
+ */
+export async function quitarControladorNativo(huella: string): Promise<{ ok: boolean; quitados?: number; motivo?: string }> {
+    const inv = invocador();
+    if (!inv) return { ok: false, motivo: "sin-soporte" };
+    try {
+        const r = (await inv("control_entrada_quitar", { huella })) as { ok?: boolean; quitados?: number; motivo?: string } | null;
+        if (r?.ok === true) return { ok: true, quitados: typeof r.quitados === "number" ? r.quitados : 0 };
+        return { ok: false, motivo: typeof r?.motivo === "string" ? r.motivo : "sin-servicio" };
+    } catch {
+        return { ok: false, motivo: "sin-servicio" };
+    }
+}
+
 /** Los controladores que la persona aceptó EN este aparato para la entrada (solo huella corta, nombre y código). */
 export async function controladoresAceptadosNativos(): Promise<{ huella: string; nombre: string; codigo: string }[] | null> {
     const inv = invocador();

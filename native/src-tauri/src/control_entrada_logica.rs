@@ -544,7 +544,7 @@ mod pruebas {
             assert_eq!(atributo.contains("rename_all = \"snake_case\""), esperados.iter().any(|a| a.contains('_')), "rename_all de {nombre}");
             vistos += 1;
         }
-        assert_eq!(vistos, 9, "la tabla tiene los 9 comandos del seam 1 y los extras del panel");
+        assert_eq!(vistos, 10, "la tabla tiene los 9 comandos del seam 1 y los extras del panel, más quitar (PENB3)");
     }
 
     use super::*;

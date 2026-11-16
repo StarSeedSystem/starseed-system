@@ -15,4 +15,5 @@ export const COMANDOS_NATIVOS: Readonly<Record<string, readonly string[]>> = {
     control_entrada: ["sesion", "sobre"],
     control_entrada_aceptar: ["spki", "cuenta", "nombre"],
     control_entrada_aceptados: [],
+    control_entrada_quitar: ["huella"],
 };
