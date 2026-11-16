@@ -175,6 +175,8 @@ jobs:
           MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
           CEREBRAS_API_KEY: ${{ secrets.CEREBRAS_API_KEY }}
           COHERE_API_KEY: ${{ secrets.COHERE_API_KEY }}
+          # (2026-11-16, aprobado por Alex) abliteration.ai, de pago por saldo: sube como secreto; solo se usa con el tope del día (MQA1–MQA3).
+          ABLITERATION_API_KEY: ${{ secrets.ABLITERATION_API_KEY }}
           # (2026-10-21, aprobado por Alex) Groq solo revisa: su tramo gratuito (~8000 tokens/min)
           # no cabe en un prompt de escritura y gpt-oss-20b se colgaba 5-15 min por run sin escribir.
           STARSEED_PASARELA_GROQ_SOLO_REVISOR: "1"

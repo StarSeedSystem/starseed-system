@@ -46,6 +46,8 @@ SECRETOS = (
     # (2026-10-28, DEC1028A) Sin CEREBRAS_API_KEY: Cerebras pide ya una tarjeta verificada (5 USD que caducan
     # en 30 días). No es gratis, así que no se pide ni se sube.
     "MISTRAL_API_KEY", "COHERE_API_KEY",
+    # (2026-11-16, aprobado por Alex) abliteration.ai, de pago por saldo: sube como secreto; solo se usa con el tope del día (MQA1–MQA3).
+    "ABLITERATION_API_KEY",
 )
 
 #: Los dos archivos de entorno de esta maquina. Solo se leen NOMBRES y valores para
