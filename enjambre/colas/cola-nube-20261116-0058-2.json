@@ -1,0 +1,51 @@
+{
+ "ola": "nube-20261116",
+ "tareas": [
+  {
+   "id": "MQB6",
+   "ola": "MOD1116",
+   "titulo": "Modelo privado del A1: no cargarlo sin memoria disponible ni mientras el nodo compila",
+   "archivos": [
+    "scripts/puente/modelo_privado_a1.py",
+    "scripts/puente/test_modelo_privado_a1_guarda.py"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. MEDIDO en el A1 el 16-11 (dirección): el modelo privado (Ollama, `huihui_ai/qwen3.5-abliterated:4B`, tope de 5200 MB) se cargó mientras el nodo compilaba (`next build`, 4,0 GB). Resultado: 132 MB de memoria libre, el intercambio al 97 %, y el modelo escribió a 1,83 tokens por segundo (una frase tardó 4 min 26 s, 1 min 44 s solo de carga; pico del servicio 4,7 GB). No murió nada, pero así no debe usarse.\n\nANTES DE EMPEZAR: comprueba con `git log --oneline main | grep` que está en `main` el commit cuyo asunto contiene «MQB1». Si falta: NO escribas, NO modifiques y NO confirmes nada; termina sin cambios y di en una línea que falta MQB1 (la tarea se reabrirá sola). Si está, lee entero `scripts/puente/modelo_privado_a1.py` antes de tocarlo.\n\nAñade a `scripts/puente/modelo_privado_a1.py`, en UN bloque aditivo marcado `# MQB6`, una función PURA `puede_cargar(mem_disponible_mb, intercambio_libre_mb, compilando)` que devuelve `(bool, motivo)`: solo es `True` si `mem_disponible_mb >= 5200` Y `intercambio_libre_mb >= 1024` Y `compilando` es falso; en cualquier otro caso `False` con el motivo en español y con las cifras («memoria disponible 1024 MB, hacen falta 5200», «el nodo está compilando», «intercambio libre 112 MB, hace falta 1024»); un dato que falta (`None`) cuenta como NO y el motivo lo dice («no se pudo leer la memoria»). Añade también `leer_memoria(texto_meminfo)` PURA, que saca `MemAvailable` y `SwapFree` (en MB, enteros) del texto de `/proc/meminfo` y devuelve `None` en lo que no encuentre, y `esta_compilando(lineas_de_procesos)` PURA, que es verdadera si alguna línea contiene `next build`, `tsc` como orden (no como parte de otra palabra) o `vitest`. Donde el módulo decide hoy si la pasarela del modelo privado se declara o si el modelo se ofrece, exige además `puede_cargar(...)` y, cuando sea `False`, que el estado lo diga con el motivo (lectura del sistema INYECTADA, como el resto del módulo; nada de leer `/proc` ni lanzar procesos dentro de las funciones puras). No cambies los nombres ni el formato que ya existan.\n\nPruebas en `scripts/puente/test_modelo_privado_a1_guarda.py` (unittest, como sus vecinas `scripts/puente/test_*.py`): el caso medido (1024 MB disponibles, 112 de intercambio, compilando) da `False`; 8000/1800/sin compilar da `True`; 5199 da `False` y 5200 da `True`; intercambio 1023 da `False`; compilando solo ya da `False`; `None` en cualquier dato da `False`; `leer_memoria` con un `/proc/meminfo` de ejemplo y con texto vacío; `esta_compilando` con `node /x/node_modules/.bin/next build`, con `tsc --noEmit`, con `python3 atscript.py` (falso) y con lista vacía. Asunto del commit: `MOD1116 · MQB6: el modelo privado del A1 no se carga sin memoria ni mientras el nodo compila`.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado."
+  },
+  {
+   "id": "INT02",
+   "ola": "INT1116A",
+   "titulo": "Contadores de bytes por día y por mes, por audiencia",
+   "archivos": [
+    "src/lib/malla/internet/contadores.ts",
+    "src/lib/malla/internet/__tests__/contadores.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contrato: architecture/malla-cristalina-sio2.md §8.2 (contrato; si aún no está en el repo, rige este texto). Lee primero lo que ya existe: `src/lib/malla/cristal/puertas-internet.ts` (`PuertaInternet`, `COMPARTIR`, `puedeUsar`, `restanteParaOtrosMb`, `elegirPuerta`) y, si ya aterrizaron, `src/lib/malla/auto-compartir.ts` y `src/lib/malla/preferencias-red-compartida.ts` (reglas MRI1b/MRI2). Si no existen, NO los crees: declara el tipo mínimo que necesites en tu archivo y dilo en un comentario. Todo lo tuyo es ADITIVO: no cambies el comportamiento de lo anterior. Escribe primero las pruebas. Módulo puro, reloj inyectado. `Contadores { dia: string; mes: string; bytesDia: Record<Audiencia, number>; bytesMes: Record<Audiencia, number> }` (`dia` = `AAAA-MM-DD` local, `mes` = `AAAA-MM`). Funciones: `contadoresVacios(ahora: number, desfaseMin: number): Contadores`; `diaLocal(ahora, desfaseMin): string` (`desfaseMin` = `-new Date().getTimezoneOffset()` inyectado); `sumarBytes(c, audiencia, bytes, ahora, desfaseMin): Contadores` (devuelve OTRO objeto; si cambió el día o el mes, primero reinicia lo que cambió: el día a cero NUNCA borra el mes y el mes nuevo reinicia también el día; ignora `bytes` negativos, NaN e infinitos); `usadoHoyMb(c, audiencia | \"otros\", ahora, desfaseMin): number` (`otros` = entidad + público; si el día de `c` ya no es hoy, devuelve 0); `MB = 1_000_000` documentado (se usan megabytes decimales).\nPRUEBAS: suma por audiencia; cruce de medianoche con desfase +120 y −300; cambio de mes; `bytes` inválidos ignorados; no muta la entrada; `usadoHoyMb(\"otros\")` suma entidad y público.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "INT01"
+   ]
+  },
+  {
+   "id": "MRI2b",
+   "ola": "MAP1116B",
+   "titulo": "Preferencias de red compartida por aparato: interruptor, tope de «con quién», topes y modo automático",
+   "archivos": [
+    "src/lib/malla/preferencias-red-compartida.ts",
+    "src/lib/malla/__tests__/preferencias-red-compartida.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Local a la neurona (localStorage, try/catch, como `src/lib/senales/preferencias-mapa.ts`). Importa `PreferenciasRedCompartida` de `./auto-compartir` y escribe `PREFERENCIAS_POR_DEFECTO` (TODO apagado: interruptor por aparato apagado, `maximoCon: \"nadie\"`, `soloWifi: true`, `kbpsSubidaMax: 1024`, `reservaBateriaPct: 30`, `automatico: false`, `compartirMedidas: false`), `sanearPreferenciasRed(crudo)` (cualquier forma rara vuelve al valor seguro, números acotados, `maximoCon` solo uno de `COMPARTIR`), `leerPreferenciasRed()` y `guardarPreferenciasRed()`. Un cambio que sube el nivel de apertura (nadie → público) devuelve `{aviso: true}` para que la interfaz pida confirmación. PRUEBAS: por defecto todo apagado; saneado de basura; subir el nivel avisa y bajarlo no; ida y vuelta. COMPRUEBA: `NODE_ENV=test npx vitest run src/lib/malla/__tests__/preferencias-red-compartida.test.ts` verde y tsc acotado.\n\nREGLAS DE LA CASA (valen aunque no las repita la tarea): toca SOLO los archivos de la lista `archivos`; ≤3 archivos y ≤120 líneas por archivo (si no cabe, para y di qué falta: no lo estires ni lo resumas); sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible (la interfaz dice Genesis); sin red real en las pruebas; ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves. El asunto de tu commit empieza por `MRI2b:` y dice qué comprobaste y qué NO pudiste comprobar.",
+   "dependencias_ya_en_main": [
+    "MRI1b"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1115-224354.json": [
+   "MRI2b",
+   "INT02",
+   "MQB6"
+  ]
+ }
+}
