@@ -38,7 +38,7 @@ describe("validarEntradaTraductor", () => {
         const entrada = { texto: "hola" } as EntradaTraductor;
         const resultado = validarEntradaTraductor(entrada);
         expect(resultado.valido).toBe(false);
-        expect(resultado.error).toBe("'destino' es obligatorio");
+        expect(resultado.error).toBe("'destino' es obligatorio y debe ser un código de idioma válido");
     });
 
     it("error si ambos texto y textos están definidos", () => {
