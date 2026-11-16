@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
 import { siguienteSeguro } from "@/lib/auth/siguiente-seguro";
+import { describirFalloCallback } from "@/lib/auth/fallo-callback";
 
 // ── Callback de autenticación (Adenda 63) ───────────────────────────────────
 // Destino de `emailRedirectTo` (confirmación de correo) y de cualquier flujo
@@ -15,14 +16,20 @@ export async function GET(request: Request) {
     // `${origin}${next}` en una redirección a otro sitio).
     const next = siguienteSeguro(searchParams.get("next"), "/escritorios");
 
+    let fallo = describirFalloCallback({ code });
+
     if (code) {
         try {
             const supabase = await createClient();
             const { error } = await supabase.auth.exchangeCodeForSession(code);
             if (!error) return NextResponse.redirect(`${origin}${next}`);
-        } catch {
-            // caída controlada al login con aviso
+            fallo = describirFalloCallback({ code, error });
+        } catch (excepcion) {
+            // Ya no se traga: el motivo va a /login y la causa queda en el registro del servidor.
+            fallo = describirFalloCallback({ code, excepcion });
         }
     }
-    return NextResponse.redirect(`${origin}/login?error=auth-callback`);
+
+    console.error(`[auth/callback] ${fallo.motivo}${fallo.detalle ? `: ${fallo.detalle}` : ""}`);
+    return NextResponse.redirect(`${origin}/login?error=${fallo.motivo}`);
 }
