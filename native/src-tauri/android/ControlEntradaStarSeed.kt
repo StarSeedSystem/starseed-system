@@ -152,6 +152,32 @@ object ControlEntradaNativo {
         JSONObject(File(dir, ACEPTADOS).readText()).optJSONArray("controladores") ?: JSONArray()
     } catch (_: Exception) { JSONArray() }
 
+    /** Huella aceptable: no vacía, de 128 caracteres como máximo y sin espacios ni caracteres de control. */
+    fun huellaValida(h: String): Boolean = h.isNotEmpty() && h.length <= 128 && h.none { it.isWhitespace() || it.isISOControl() }
+
+    /** Pura: quita SOLO las entradas cuya `huella` sea igual (exacta). JSON roto o ilegible: se devuelve igual, con 0 quitados. */
+    fun sinHuella(json: String, huella: String): Pair<String, Int> {
+        val o = try { JSONObject(json) } catch (_: Exception) { return Pair(json, 0) }
+        val previos = o.optJSONArray("controladores") ?: return Pair(json, 0)
+        val lista = JSONArray()
+        var quitados = 0
+        for (i in 0 until previos.length()) {
+            val c = previos.optJSONObject(i)
+            if (c != null && c.optString("huella") == huella) quitados++ else lista.put(previos.opt(i))
+        }
+        if (quitados == 0) return Pair(json, 0)
+        return Pair(o.put("controladores", lista).toString(), quitados)
+    }
+
+    /** Solo Kotlin escribe `aceptados.json`. Sin archivo: 0. Si no se quitó nada, no se reescribe. */
+    private fun quitarControlador(huella: String): Int {
+        val f = File(dir, ACEPTADOS)
+        val texto = try { f.readText() } catch (_: Exception) { return 0 }
+        val (nuevo, n) = sinHuella(texto, huella)
+        if (n > 0) escribirAtomico(f, nuevo)
+        return n
+    }
+
     /** El interruptor de control se apagó (aquí o desde la página): se vacía la lista y se apaga lo de la pantalla. */
     fun alApagar() {
         if (!iniciado) return
@@ -253,6 +279,13 @@ object ControlEntradaNativo {
                     dialogoAceptar(a, p.optString("spki"), p.optString("cuenta").take(100), p.optString("nombre", "otra neurona").take(40), p.optString("codigo"), p.optString("huella"))
                     JSONObject().put("ok", true)
                 }
+            }
+            // PENB1: quitar un controlador de la lista aceptada. Solo QUITA (nunca añade) y no cierra la sesión activa.
+            "quitar-controlador" -> {
+                val h = p.optString("huella")
+                if (!ControlNeuronasNativo.encendido()) no("interruptor-apagado")
+                else if (!huellaValida(h)) no("huella-invalida")
+                else JSONObject().put("ok", true).put("quitados", quitarControlador(h))
             }
             "entrada" -> when {
                 !ControlNeuronasNativo.encendido() || !ControlNeuronasNativo.mostrando || ControlNeuronasNativo.sesion == null -> no("sesion")
