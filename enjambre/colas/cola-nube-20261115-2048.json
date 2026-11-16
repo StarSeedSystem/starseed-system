@@ -1,0 +1,72 @@
+{
+ "ola": "nube-20261115",
+ "tareas": [
+  {
+   "id": "IMG-agentes-reimaginada-profunda-corregir-bo",
+   "titulo": "Corregir foco visible del botón de cierre: localizar componente vigente, auditar y aplicar patrón focus-visible",
+   "area": "imaginacion",
+   "archivos": [],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Corregir foco visible del botón de cierre: localizar componente vigente, auditar y aplicar patrón focus-visible. ## Reimaginada: foco visible en botón de cierre\n\n**Intención conservada:** que el botón de cierre no quede sin indicador de foco visible para teclado/lectores, sin depender de una cita que ya no existe.\n\n**Cambio clave:** la v1 citaba `src/components/voces/tomas-voz.tsx:320`; esa ruta no se conserva porque no pudo verificarse en el código actual. En su lugar, la propuesta arranca con localización y verificación, y solo después propone parche.\n\n**Acción propuesta:**\n1. Buscar en el repo vigente el botón de cierre y su estilo de foco (por texto accesible, `aria-label`, `close`, `cerrar`, `focus- Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  },
+  {
+   "id": "IDBf01",
+   "ola": "IDB1116B",
+   "titulo": "Francés: shell (1/4), 250 textos",
+   "archivos": [
+    "src/lib/idiomas/catalogos/fr.json"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Traduces la interfaz de StarSeed OS del español a francés (fr), área «shell» (el escritorio, el dock, los menús y los avisos), parte 1 de 4. Lee antes `architecture/idiomas.md` §2, §5 y §8. Las traducciones son «automático, sin revisar»: el catálogo queda `revisado: false`, que la interfaz ya enseña («Traducción automática, sin revisar»); NO lo cambies a revisado. El texto escrito por personas nunca se toca: solo traduces textos de interfaz que el guion ya midió. NO edites `src/lib/idiomas/catalogos/fr.json` a mano: lo escribe el guion `rellenar.mjs`, tú solo preparas las traducciones. Archivos de trabajo: SOLO dentro del repo, en `.tmp/` (carpeta que git ya ignora). NUNCA uses `/tmp` ni otra ruta fuera del repo: tu herramienta de lectura la rechaza y la tarea acaba sin cambios. No añadas nada de `.tmp/` a git. Si una herramienta rechaza un permiso, no insistas con otra ruta: termina y di qué comando falló.\nPASOS (desde la raíz del repo, en este orden):\n1. Anota la cobertura de antes: `node scripts/idiomas/cobertura.mjs --areas | awk '/^fr \\(/{p=1;next} /^[a-z][a-z] \\(/{p=0} p' | grep -E '^ +shell ' ` (columna «presentes» del idioma «fr»; es tu P0).\n2. Vuelca los textos (un solo comando, crea `.tmp` si no existe): `mkdir -p .tmp && node --input-type=module -e \"import {cargarFuente,cargarUnidades,cargarCatalogo,textosDeUnidad} from './scripts/idiomas/comun.mjs';import fs from 'node:fs';const f=cargarFuente(),u=cargarUnidades(),c=cargarCatalogo('fr');const t=textosDeUnidad(f,u,'shell').filter(x=>!c.entradas[x]).slice(0,250);fs.writeFileSync('.tmp/IDBf01-textos.json',JSON.stringify(Object.fromEntries(t.map((x,i)=>[String(i+1),x])),null,1));console.log(t.length)\"` — imprime cuántos (≤250); si imprime 0, no hay nada que hacer: termina y dilo.\n3. Lee los textos con `cat .tmp/IDBf01-textos.json` y escribe `.tmp/IDBf01-trad.json` (con tu herramienta de escritura, dentro del repo): un objeto con LAS MISMAS claves «1»…«N» y la traducción de cada texto (JSON válido, nada más). Reglas: conserva EXACTAMENTE `{0}`, `{1}`…, las etiquetas `<b>…</b>` y las marcas StarSeed, Astraura, Genesis, MetaGenesis, PoliGenesis, ProtoGenesis, Protomolécula, Trinity; en `{n, plural, one {…} other {…}}` traduce el contenido de las ramas pero conserva `plural`, `one`, `other`, los `#` y las llaves; mismo tono y longitud parecida (es interfaz: botones cortos, sin explicar de más); tú/usted según el uso natural de francés en software; mantén signos finales y mayúsculas del original. Si un texto NO es lenguaje (código, selector CSS, SVG, URL, número, atajo de teclado, nombre propio o de marca) déjalo IGUAL y apúntalo para el commit.\n4. Convierte (falla si falta alguna clave): `node -e \"const t=require('./.tmp/IDBf01-textos.json'),r=require('./.tmp/IDBf01-trad.json');const k=Object.keys(t);const mal=k.filter(x=>typeof r[x]!=='string'||!r[x].trim());if(mal.length){console.error('faltan',mal);process.exit(1)}require('fs').writeFileSync('.tmp/IDBf01-arr.json',JSON.stringify(k.map(x=>r[x])))\"`\n5. Rellena: `node scripts/idiomas/rellenar.mjs --idioma fr --area shell --motor comando --cmd \"cat .tmp/IDBf01-arr.json\" --limite 250`. Debe terminar con código 0 y «rechazadas 0». Si rechaza alguna (pierde un valor, una etiqueta, una rama de plural o una marca), corrige SOLO esas en `-trad.json` y repite desde el paso 4 (el guion salta lo ya escrito). No sigas hasta tener 0 rechazadas.\n6. Cobertura: `node scripts/idiomas/cobertura.mjs --areas | awk '/^fr \\(/{p=1;next} /^[a-z][a-z] \\(/{p=0} p' | grep -E '^ +shell '` → «presentes» = P0 + lo escrito, «ausentes» baja lo mismo, «inválidas 0». Y `NODE_ENV=test npx vitest run src/lib/idiomas/__tests__/cobertura.test.ts src/lib/idiomas/__tests__/capa.test.tsx` en verde.\n7. Nada pierde valor ni queda igual sin motivo: `node --input-type=module -e \"import {execSync} from 'node:child_process';import fs from 'node:fs';const p='src/lib/idiomas/catalogos/fr.json';const antes=JSON.parse(execSync('git show HEAD:'+p,{maxBuffer:1<<28}).toString()).entradas,ahora=JSON.parse(fs.readFileSync(p,'utf8')).entradas;const perd=Object.keys(antes).filter(k=>ahora[k]!==antes[k]);const nue=Object.keys(ahora).filter(k=>!(k in antes));const ig=nue.filter(k=>ahora[k]===k);console.log('perdidas o cambiadas',perd.length,'nuevas',nue.length,'iguales al original',ig.length);ig.forEach(k=>console.log(' =',k.slice(0,80)));process.exit(perd.length?1:0)\"` — «perdidas o cambiadas» DEBE ser 0 (no toques lo ya traducido, ni lo escrito por personas); cada «igual al original» debe ser algo no lingüístico y queda listado en el cuerpo de tu commit; si es una frase traducible, tradúcela y repite.\n8. `git diff --stat` debe mostrar SOLO `src/lib/idiomas/catalogos/fr.json`. En el commit: cuántas entradas escribiste, cuántas rechazó el guion y corregiste, y la lista de iguales justificadas.\n\nREGLAS DE LA CASA: toca SOLO los archivos de `archivos`; los ÚNICOS archivos de trabajo permitidos van en `.tmp/` dentro del repo (ignorados por git, nunca se comitean). Todo lo demás dentro del repo; jamás `/tmp` ni rutas absolutas. Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves. El asunto de tu commit empieza por `IDBf01:` y dice qué comprobaste y qué NO pudiste comprobar."
+  },
+  {
+   "id": "IMG-profunda-eliminar-exposicion-de-comando_",
+   "titulo": "Eliminar exposición de COMANDO_DAEMON",
+   "area": "imaginacion",
+   "archivos": [
+    "src/components/voces/panel-motor.tsx"
+   ],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Eliminar exposición de COMANDO_DAEMON. Eliminar exposición de COMANDO_DAEMON Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  },
+  {
+   "id": "IMG-profunda-catch-silencioso-en-primer-arra",
+   "titulo": "Catch silencioso en primer-arranque",
+   "area": "imaginacion",
+   "archivos": [
+    "src/components/onboarding/primer-arranque.tsx"
+   ],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Catch silencioso en primer-arranque. Catch silencioso en primer-arranque Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  },
+  {
+   "id": "IMG-profunda-catch-vacio-en-exchangecodefors",
+   "titulo": "Catch vacío en exchangeCodeForSession",
+   "area": "imaginacion",
+   "archivos": [
+    "src/app/auth/callback/route.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Catch vacío en exchangeCodeForSession. Catch vacío en exchangeCodeForSession Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  },
+  {
+   "id": "IMG-profunda-eliminar-cliente-supabase-dupli",
+   "titulo": "Eliminar cliente Supabase duplicado",
+   "area": "imaginacion",
+   "archivos": [
+    "src/components/onboarding/ventana-perfil-inicial.tsx"
+   ],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Eliminar cliente Supabase duplicado. Eliminar cliente Supabase duplicado Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1115-190053.json": [
+   "IMG-agentes-reimaginada-profunda-corregir-bo",
+   "IMG-profunda-catch-silencioso-en-primer-arra",
+   "IMG-profunda-catch-vacio-en-exchangecodefors",
+   "IMG-profunda-eliminar-cliente-supabase-dupli",
+   "IMG-profunda-eliminar-exposicion-de-comando_"
+  ]
+ }
+}
