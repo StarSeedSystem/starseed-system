@@ -16,7 +16,7 @@ function motorFalso(
         disponible: async () => o.disponible ?? true,
         traducir: async (textos, _origen, _destino) => {
             if (o.falla) throw new Error(o.fallaMensaje ?? `${id} falló`);
-            return textos.map((t) => ({ texto: o.salir ? o.salir(t) : t }));
+            return textos.map((t) => (o.salir ? o.salir(t) : t));
         },
     };
 }
