@@ -3,7 +3,7 @@ import {
     motorPaqueteLocal,
     cargarPipelineTransformers,
 } from "../motor-paquete-local";
-import type { MotorTraduccion } from "../traduccion/motor";
+import type { MotorTraduccion } from "../../traduccion/motor";
 
 describe("cargarPipelineTransformers", () => {
     it("levanta error si el módulo no se puede importar", async () => {
