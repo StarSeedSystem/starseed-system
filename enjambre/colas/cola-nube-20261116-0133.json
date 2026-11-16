@@ -1,0 +1,99 @@
+{
+ "ola": "nube-20261116",
+ "tareas": [
+  {
+   "id": "IMA2",
+   "ola": "TRA1116-IDIOMAS",
+   "titulo": "Lista mundial de idiomas con Intl: nombre propio, nombre en el idioma actual, orden alfabético",
+   "archivos": [
+    "src/lib/idiomas/lista-mundial.ts",
+    "src/lib/idiomas/__tests__/lista-mundial.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contrato: architecture/traductor-universal.md (contrato; si aún no está en el repo, rige este texto), A1. `listaMundial(entorno: { idiomaActual: string; displayNames?: typeof Intl.DisplayNames; collator?: ... }): IdiomaMundial[]` con `IdiomaMundial { codigo, nombrePropio, nombreActual, masHablado: boolean, dir: \"ltr\"|\"rtl\", conCatalogo: boolean, alias: string[] }`. Para cada código de `CODIGOS_ISO` (IMA1): nombre propio = `new Intl.DisplayNames([codigo], {type:\"language\"}).of(codigo)`; nombre actual = lo mismo en `idiomaActual`; si el aparato NO sabe nombrar un código (`of` devuelve el propio código, undefined o lanza), se OMITE (no se inventa nombre). Los 36 idiomas de `IDIOMAS` (`idiomas.ts:21`) conservan su `nombre` y `dir` escritos a mano si Intl no los resuelve. Orden alfabético con `Intl.Collator(idiomaActual, {sensitivity:\"base\"})` sobre `nombreActual`; `masHablado` según `MAS_HABLADOS`; `conCatalogo` según `CON_CATALOGO`. `Intl` entra inyectable para las pruebas. Exporta también `agrupar(lista)` → `{ masHablados, todos }` (la lista completa siempre es alfabética).\nPRUEBAS con un `DisplayNames` falso: un código no resuelto se omite; el orden es alfabético en `es` y en `en` (resultados distintos); `masHablado` correcto; dir RTL para `ar`; la lista incluye los 36 actuales.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "IMA1"
+   ]
+  },
+  {
+   "id": "IMA6",
+   "ola": "TRA1116-IDIOMAS",
+   "titulo": "Validar un archivo de idioma al instalar: límites, marcadores, texto sin HTML, sin controles ni direcciones ocultas",
+   "archivos": [
+    "src/lib/idiomas/paquete/validar.ts",
+    "src/lib/idiomas/paquete/__tests__/validar.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. SENSIBLE: un paquete es DATOS ajenos que se pintan en toda la interfaz; esta validación es la barrera. Lee `src/lib/idiomas/formato.ts` (marcadores `{0}`, plurales, `compilarPatron`/`tieneValores`) y `src/lib/traduccion/motor.ts:15-16` (`MARCAS`). `validarPaquete(bruto: unknown, opciones: { digest }): Promise<{ ok:true; paquete: PaqueteIdioma; avisos:string[] } | { ok:false; errores:string[] }>`. Reglas (cada fallo, un mensaje en palabras): tamaño y número de entradas dentro de `LIMITES`; `formato`/`version` exactos; `codigo` BCP-47 `/^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$/`; `dir` ltr|rtl; `hash` coincide con `hashDe`; `autor.nombre` obligatorio ≤80; `revisado.estado` válido, y un paquete que viene de fuera NO puede quedar «revisado»: al validar se baja a «automatico» con aviso; cada entrada: la clave es un texto normalizado, el valor no está vacío, **conserva exactamente los mismos marcadores `{n}` y las mismas ramas de plural que la clave** (si pierde o inventa uno se RECHAZA esa entrada y se lista), **no contiene `<`+letra, `&#`, `javascript:` ni `data:`** (se rechaza: es texto, no HTML), no contiene caracteres de control (U+0000-U+001F salvo `\\n`/`\\t`), ni marcas de dirección ocultas (U+202A-U+202E, U+2066-U+2069, U+200B-U+200F) ni la marca protegida alterada; claves tipo `__proto__`/`constructor`/`prototype` se rechazan; el resultado usa un objeto sin prototipo. Si más del 20 % de las entradas se rechazan, se rechaza el paquete entero. Nunca lanza: todo error de entrada es un `ok:false`.\nPRUEBAS en tabla (≥20 casos): válido; hash roto; marcador perdido; plural roto; HTML; `javascript:`; control; RLO oculto; `__proto__`; demasiado grande; «revisado» ajeno degradado; vacío; no es objeto.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "IMA5"
+   ]
+  },
+  {
+   "id": "IMA7",
+   "ola": "TRA1116-IDIOMAS",
+   "titulo": "Importar JSON plano, JSON anidado y CSV/TSV",
+   "archivos": [
+    "src/lib/idiomas/paquete/importar-json-csv.ts",
+    "src/lib/idiomas/paquete/__tests__/importar-json-csv.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contrato A2. Funciones puras `desdeJsonPlano(texto)`, `desdeJsonAnidado(texto)` (aplana con «.»), `desdeCsv(texto, separador: \",\" | \"\\t\" | \";\")` (dos columnas: clave, traducción; comillas dobles y saltos dentro de comillas; primera fila de cabecera opcional detectada si dice «key/clave/source»). Todas devuelven `{ entradas: Record<string,string>; descartadas: { motivo: string; linea?: number }[] }`; entradas con valor no-texto se descartan con motivo; nunca lanzan ante texto roto (devuelven vacío y un motivo). Sin acceso a archivos.\nPRUEBAS: anidado de 3 niveles; CSV con comas y comillas; TSV; BOM inicial; JSON roto → vacío + motivo; valor numérico descartado.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "IMA5"
+   ]
+  },
+  {
+   "id": "IMA8",
+   "ola": "TRA1116-IDIOMAS",
+   "titulo": "Importar gettext (.po/.pot) y .properties",
+   "archivos": [
+    "src/lib/idiomas/paquete/importar-po.ts",
+    "src/lib/idiomas/paquete/__tests__/importar-po.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contrato A2. `desdePo(texto)`: bloques `msgid`/`msgstr` (multilínea con comillas, escapes `\\n` `\\\"`), ignora la cabecera (`msgid \"\"`), ignora `fuzzy` con aviso, descarta `msgstr` vacío, soporta `msgctxt` (clave `contexto|texto`) y plurales `msgid_plural`/`msgstr[n]` (se usa la forma 0 y se anota el aviso «plural simplificado»). `desdeProperties(texto)`: `clave=valor` / `clave:valor`, comentarios `#`/`!`, continuaciones con `\\`, escapes `\\uXXXX`. Ambas devuelven `{ entradas, descartadas, avisos }` como IMA7 (`importar-json-csv.ts`; no importes de ahí: define el tipo en tu archivo).\nPRUEBAS: `.po` con multilínea, contexto, fuzzy y plural; `.properties` con continuación y unicode.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "IMA5"
+   ]
+  },
+  {
+   "id": "IMA9",
+   "ola": "TRA1116-IDIOMAS",
+   "titulo": "Importar XLIFF, .strings de Apple y strings.xml de Android",
+   "archivos": [
+    "src/lib/idiomas/paquete/importar-xml-strings.ts",
+    "src/lib/idiomas/paquete/__tests__/importar-xml-strings.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contrato A2. Sin librerías XML ni `DOMParser` (módulo puro): analizador mínimo por expresiones regulares con límites de tamaño. `desdeXliff(texto)`: `<trans-unit>` con `<source>` y `<target>` (XLIFF 1.2) y `<unit><segment><source/><target/>` (2.0); `desdeStringsApple(texto)`: `\"clave\" = \"valor\";` con escapes y comentarios `/* */` y `//`; `desdeStringsAndroid(texto)`: `<string name=\"x\">valor</string>` (descarta `translatable=\"false\"`, convierte `\\'`, `\\\"`, `\\n`, `%1$s`→`{0}`, `%s`→`{0}`). Se decodifican las entidades XML básicas (`&amp; &lt; &gt; &quot; &apos;`) y **ningún** valor conserva etiquetas: lo que queda con `<` + letra se descarta con motivo. Devuelven `{ entradas, descartadas, avisos }`.\nPRUEBAS: cada formato con un ejemplo real corto; `%1$s`→`{0}`; entrada con etiqueta descartada; XML roto → vacío + motivo.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "IMA5"
+   ]
+  },
+  {
+   "id": "IMA10",
+   "ola": "TRA1116-IDIOMAS",
+   "titulo": "Mapear las claves importadas a las claves españolas del OS e informar de cuántas casaron",
+   "archivos": [
+    "src/lib/idiomas/paquete/mapear.ts",
+    "src/lib/idiomas/paquete/__tests__/mapear.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Lee `src/lib/idiomas/catalogos/fuente.json` (las claves españolas del OS) y `normalizarTexto` (`catalogo.ts:26`). `mapearClaves(importadas: Record<string,string>, fuente: Record<string,unknown>|string[]): { entradas: Record<string,string>; casadas: number; sinCasar: string[]; porcentaje: number }`: una entrada casa si su CLAVE o (cuando la clave importada parece un identificador, p. ej. `menu.save`) un texto de la columna fuente igual a una clave española normalizada; también casa si el valor fuente coincide ignorando mayúsculas y puntuación final. Nunca se casa por parecido difuso. Las `sinCasar` se devuelven para que la persona las vea (máximo 200). `fuente` se inyecta; no importes el JSON (puede ser enorme).\nPRUEBAS: casan exacta, con espacios distintos y con punto final; no casa «Guardar» con «Guardar todo»; porcentaje correcto; vacío.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "IMA5"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1115-224354.json": [
+   "IMA6",
+   "IMA10",
+   "IMA7",
+   "IMA2",
+   "IMA8",
+   "IMA9"
+  ]
+ }
+}
