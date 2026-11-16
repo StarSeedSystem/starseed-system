@@ -56,7 +56,7 @@ describe("capas de cobertura: estimado, nunca medido", () => {
   it("ninguna capa de alcance usa el estilo «relleno» de lo medido, ni ninguna medida usa «rayado»", () => {
     for (const c of CAPAS_SENALES) {
       for (const t of c.tramos) {
-        if (c.tipo === "alcance" && t.id === "estimado") expect(t.estilo).toBe("rayado");
+        if ((c.tipo === "alcance" && t.id === "estimado") || (c.grupo === "red" && t.id === "estimada")) expect(t.estilo).toBe("rayado");
         else expect(t.estilo).not.toBe("rayado");
       }
     }

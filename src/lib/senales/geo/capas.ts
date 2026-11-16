@@ -46,7 +46,7 @@ export interface Tramo {
   estilo: EstiloTramo;
 }
 
-export type GrupoCapa = "cobertura" | "medido" | "senal" | "oferta" | "conciencia" | "hardware";
+export type GrupoCapa = "cobertura" | "medido" | "senal" | "oferta" | "conciencia" | "hardware" | "red";
 
 export const GRUPOS_CAPA: readonly { id: GrupoCapa; titulo: string }[] = [
   { id: "cobertura", titulo: "Cobertura (alcance estimado)" },
@@ -55,6 +55,7 @@ export const GRUPOS_CAPA: readonly { id: GrupoCapa; titulo: string }[] = [
   { id: "oferta", titulo: "Capacidades que ofrece" },
   { id: "conciencia", titulo: "Capas de conciencia" },
   { id: "hardware", titulo: "Hardware" },
+  { id: "red", titulo: "Red completa (lo que cada dueño publica)" },
 ];
 
 /**
@@ -185,6 +186,58 @@ export const CAPA_ENLACES: CapaSenal = {
   valor: () => desconocido("las líneas no son un valor por neurona"),
 };
 
+/**
+ * Capas del grupo «Red completa» (MAP1116B): lo que cada dueño publica.
+ * La posición exacta de un aparato personal no se usa aquí salvo en la capa privada de su propia cuenta
+ * (canal `pos:<uid>`): pública y comunidad solo enseñan lo publicado, y la externa, lo detectado fuera.
+ */
+export const TRAMOS_RED: readonly Tramo[] = [
+  { id: "medida", etiqueta: "Publicado por su dueño · medida", color: "#22c55e", estilo: "relleno" },
+  { id: "declarada", etiqueta: "Publicado por su dueño · declarada", color: "#38bdf8", estilo: "anillo" },
+  { id: "estimada", etiqueta: "Zona aproximada · estimada", color: "#a78bfa", estilo: "rayado" },
+  DESC,
+];
+
+const FUENTE_RED = "Lo que cada dueño publica (`src/lib/senales/espectro/publicacion.ts`) y lo que se oye a su alrededor (`src/lib/senales/espectro/leer-senales.ts`); ";
+
+export const CAPAS_RED: readonly CapaSenal[] = [
+  {
+    id: "red-publica", grupo: "red", etiqueta: "Red pública",
+    descripcion: "Lo que cada dueño elige publicar a toda la red; nunca la posición exacta de un aparato personal",
+    estado: "parcial",
+    fuente: `${FUENTE_RED}hoy no hay publicadores: una neurona solo enseña lo que su dueño publicó, con su origen (medida, declarada o estimada) y su hora.`,
+    tramos: TRAMOS_RED,
+    valor: () => desconocido(),
+  },
+  {
+    id: "red-comunidad", grupo: "red", etiqueta: "Red de comunidad",
+    descripcion: "Lo que cada dueño comparte con sus comunidades y grupos; una zona gruesa, como mucho",
+    estado: "parcial",
+    fuente: `${FUENTE_RED}hoy no hay publicadores de comunidad: cada neurona enseña solo lo que su dueño compartió con ese grupo, con su origen y su hora.`,
+    tramos: TRAMOS_RED,
+    valor: () => desconocido(),
+  },
+  {
+    id: "red-privada", grupo: "red", etiqueta: "Mi cuenta (privada)",
+    descripcion: "Lo propio de mi cuenta: la posición exacta solo llega por el canal privado `pos:<uid>`",
+    estado: "parcial",
+    fuente: `${FUENTE_RED}la posición privada llega solo por el canal \`pos:<uid>\` (\`src/lib/senales/geo/canal-posicion.ts\`), entre las neuronas de la misma cuenta.`,
+    tramos: TRAMOS_RED,
+    valor: (m) => {
+      if (m.posicion.tipo !== "exacta") return desconocido();
+      return { tramo: "medida", texto: "posición privada de tu cuenta, publicada por su dueño", t: m.posicion.t, medida: true };
+    },
+  },
+  {
+    id: "red-externa", grupo: "red", etiqueta: "Fuera de StarSeed",
+    descripcion: "Lo detectado fuera de StarSeed: redes IP y estaciones externas (zona aproximada, nunca una posición exacta)",
+    estado: "sin-fuente",
+    fuente: "Sin fuente: hoy nada alimenta esta capa; cuando exista, se leerá de los detectores externos (`src/lib/senales/espectro/leer-senales.ts`), jamás de una neurona informando de la posición de sus vecinas.",
+    tramos: TRAMOS_RED,
+    valor: () => desconocido(),
+  },
+];
+
 export const CAPAS_SENALES: readonly CapaSenal[] = [
   ...MEDIOS_ALCANCE.map(capaAlcance),
   CAPA_ENLACES,
@@ -260,6 +313,7 @@ export const CAPAS_SENALES: readonly CapaSenal[] = [
       return { tramo: h.ramClase, texto: h.ramClase, t: h.t, medida: true };
     },
   },
+  ...CAPAS_RED,
 ];
 
 export const CAPA_POR_ID: Readonly<Record<string, CapaSenal>> = Object.fromEntries(CAPAS_SENALES.map((c) => [c.id, c]));

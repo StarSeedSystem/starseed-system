@@ -43,7 +43,7 @@ describe("capas: una sola tabla para leyenda y pintura", () => {
       expect(tramo.id).toBe("desconocido");
     }
     // Bluetooth y Wi-Fi ya tienen fuente real (enlaces medidos); lo que sigue sin fuente es la oferta de recursos.
-    expect(CAPAS_SENALES.filter((x) => x.estado === "sin-fuente").map((x) => x.id)).toEqual(["oferta-computo", "oferta-almacenamiento", "oferta-internet"]);
+    expect(CAPAS_SENALES.filter((x) => x.estado === "sin-fuente").map((x) => x.id)).toEqual(["oferta-computo", "oferta-almacenamiento", "oferta-internet", "red-externa"]);
   });
 
   it("internet 10 Mb/s: calidad media, con color", () => {
