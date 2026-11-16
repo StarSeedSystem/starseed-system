@@ -317,7 +317,12 @@ function Comparador({ a, b, onCerrar }: { a: TomaVoz; b: TomaVoz; onCerrar: () =
         <div className="rounded-lg border border-primary/40 bg-primary/5 p-3">
             <div className="flex items-center justify-between">
                 <p className="text-sm font-medium">Comparando dos tomas</p>
-                <button type="button" onClick={onCerrar} className="cursor-pointer text-muted-foreground" aria-label="Cerrar comparación">
+                <button
+                    type="button"
+                    onClick={onCerrar}
+                    className="cursor-pointer rounded-md p-1 text-muted-foreground hover:bg-muted/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary/60"
+                    aria-label="Cerrar comparación"
+                >
                     <X className="h-4 w-4" />
                 </button>
             </div>
