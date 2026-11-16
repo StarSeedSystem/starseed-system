@@ -1,0 +1,87 @@
+{
+ "ola": "nube-20261116",
+ "tareas": [
+  {
+   "ola": "JLA1116A",
+   "id": "JL7-d1",
+   "titulo": "Calibración de la confianza de Laya por punto y ámbito (parte 1 de 2)",
+   "archivos": [
+    "src/lib/astraura/laya/calibracion-laya.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: architecture/jev-entrena-laya.md (si aún no está en el repo, rige este texto). Lee AGENTS.md. §3.2. Puro. Con casos (`CasoLaya` de `aprendizaje-laya.ts`) y su desenlace correcto/incorrecto, `calibrar(casos, punto, ambito)`: 10 cajas de confianza, tasa de acierto por caja, exige ≥ `MIN_CASOS_UMBRAL` (30) y devuelve `{cajas, umbralSugerido, n}` o `{n, motivo: \"faltan casos\"}`; `confianzaCalibrada(cal, p)` interpola y nunca sube la confianza por encima de la tasa observada. PRUEBAS: datos sintéticos con Laya sobreconfiada (dice 0,9 y acierta 0,6) baja la confianza; menos de 30 casos -> motivo; cajas vacías no rompen.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` (Python: sin red ni `~/.starseed`, rutas y lectores se inyectan) salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.\n\n## PARTE 1 DE 2 (la dirección dividió JL7: falla por sí misma (tarea:otro))\nEn esta parte tocas SOLO: src/lib/astraura/laya/calibracion-laya.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "JL7",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:otro)"
+   }
+  },
+  {
+   "id": "LAT01",
+   "ola": "LAT1116A",
+   "titulo": "Prueba del latido del modo de pruebas: esperar a la condición y no a 20 ms fijos",
+   "archivos": [
+    "src/lib/banco-llamadas/__tests__/app-latido.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. La prueba `src/lib/banco-llamadas/__tests__/app-latido.test.ts` falló UNA vez con la máquina cargada (puerta 1116c, 16-11) y pasó a solas: su ayudante `asentar` espera 20 ms de reloj REAL (`new Promise((r) => setTimeout(r, 20))`) a que terminen la importación dinámica y los efectos, y con carga 20 ms no bastan. Cambia SOLO ese archivo de prueba (≤60 líneas): sustituye la espera fija por una espera a la CONDICIÓN que cada caso comprueba, con `vi.waitFor(() => { expect(...) }, { timeout: 2000, interval: 5 })` (o un bucle equivalente que ceda con `await Promise.resolve()` y un límite de 2 s), de modo que con la máquina libre tarde lo mismo que hoy y con carga espere lo necesario. No cambies lo que se comprueba, ni el módulo probado (`src/lib/banco-llamadas/app.ts`), ni los relojes falsos (`vi.useFakeTimers({ toFake: [\"Date\", \"setInterval\", \"clearInterval\"] })` se queda como está: `setTimeout` sigue siendo real). Los seis casos siguen existiendo con el mismo nombre. Asunto del commit: `LAT1116A · LAT01: la prueba del latido espera a la condición y no a 20 ms fijos`.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado."
+  },
+  {
+   "id": "IMA3",
+   "ola": "TRA1116-IDIOMAS",
+   "titulo": "Búsqueda de idiomas por nombre, nombre propio, código o alias, sin acentos y tolerante a una errata",
+   "archivos": [
+    "src/lib/idiomas/busqueda.ts",
+    "src/lib/idiomas/__tests__/busqueda.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. `buscarIdiomas(lista: IdiomaMundial[], consulta: string): IdiomaMundial[]`: normaliza (NFD, sin diacríticos, minúsculas, espacios) consulta y campos; coincide por prefijo y por contenido en `nombrePropio`, `nombreActual`, `codigo` (exacto o prefijo) y `alias`; ordena: código exacto › prefijo de nombre › contiene › una errata (distancia de edición ≤1 si la consulta tiene ≥4 letras); desempata alfabético; consulta vacía devuelve la lista tal cual. Sin dependencias.\nPRUEBAS: «ingles» encuentra English/Inglés; «chino» → zh; «zh» exacto primero; «portugues» sin tilde; «alemn» (errata) → Deutsch; «xx» → vacío; la lista de entrada no se muta.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "IMA2"
+   ]
+  },
+  {
+   "id": "JL5",
+   "ola": "JLA1116A",
+   "titulo": "Registro de decisiones de Laya: del resultado de /api/astraura/decidir a un caso",
+   "archivos": [
+    "src/lib/astraura/laya/registro-decision.ts",
+    "src/lib/astraura/laya/__tests__/registro-decision.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: architecture/jev-entrena-laya.md (si aún no está en el repo, rige este texto). Lee AGENTS.md. §2 (el registro nunca se alimenta: `anotar` de `aprendizaje-laya.ts:45` no tiene llamador). Función pura `casoDeDecision(entrada)` que convierte lo que devuelve `src/app/api/astraura/decidir/route.ts` (punto, ámbito, `answer_confidence`, dónde corrió, ms, si escaló) en un `CasoLaya` con `resultado` «aceptada»|«escalada» y `privado` según el punto (`privacidad: \"solo-propias\"` en `puntos-decision.ts`). `registrar(registro, entrada)` usa `anotar`. Sin disco ni reloj (`ts` inyectado). PRUEBAS: punto privado guarda huella, escalado marcado, punto desconocido -> null.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` (Python: sin red ni `~/.starseed`, rutas y lectores se inyectan) salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado."
+  },
+  {
+   "id": "JL6",
+   "ola": "JLA1116A",
+   "titulo": "Vecinos más cercanos de la libreta por ámbito",
+   "archivos": [
+    "src/lib/astraura/laya/libreta-vecinos.ts",
+    "src/lib/astraura/laya/__tests__/libreta-vecinos.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: architecture/jev-entrena-laya.md (si aún no está en el repo, rige este texto). Lee AGENTS.md. §3 y §4. Módulo puro y barato (sin modelo, cabe en una tableta): `huellaPalabras(texto)` (bolsa de palabras normalizada a un vector disperso de ≤256 posiciones por hash), `similitud(a,b)` (coseno), `vecinos(libreta, estado, k, ambito)` que solo mira ejemplos de ESE ámbito y con desenlace conocido, y `votar(vecinos)` -> `{respuesta, apoyo}` o null si hay menos de 5 vecinos o el apoyo es < 0,6. Tipos: `EjemploLibreta {punto, ambito, estado, respuesta, desenlaceOk: boolean|null}`. PRUEBAS: un ámbito no ve ejemplos de otro, sin desenlace no vota, desempate estable, menos de 5 -> null.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` (Python: sin red ni `~/.starseed`, rutas y lectores se inyectan) salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado."
+  },
+  {
+   "id": "JL9",
+   "ola": "JLA1116A",
+   "titulo": "Reglas de ámbito de la libreta: quién la lee y qué puede salir",
+   "archivos": [
+    "src/lib/astraura/laya/ambito-libreta.ts",
+    "src/lib/astraura/laya/__tests__/ambito-libreta.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: architecture/jev-entrena-laya.md (si aún no está en el repo, rige este texto). Lee AGENTS.md. §5. Puro. `AmbitoLibreta = \"personal\"|\"pagina\"|\"grupo\"|\"colectivo\"|\"fabrica\"`. `puedeLeer(ambito, quien)`, `puedeSalir(ambito, ejemplo, eleccion)`: lo personal solo sale con elección explícita de la persona; el ámbito de página/grupo solo si la entidad lo aprobó (`aprobadoPorEntidad`); el colectivo solo admite ejemplos públicos; la fábrica nunca sale al repo. `soloPublicoParaAdaptador(ejemplos, ambito)`: un adaptador de página/colectivo no puede haber visto ejemplos personales. PRUEBAS: cada celda de la tabla de §5, y que por defecto todo es «no sale».\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` (Python: sin red ni `~/.starseed`, rutas y lectores se inyectan) salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1116-105020.json": [
+   "JL7-d1",
+   "IMA3",
+   "LAT01",
+   "JL5",
+   "JL6",
+   "JL9"
+  ]
+ }
+}
