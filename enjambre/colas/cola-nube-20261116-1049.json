@@ -1,0 +1,85 @@
+{
+ "ola": "nube-20261116",
+ "tareas": [
+  {
+   "id": "IMG-profunda-catch-vacio-en-exchangecodefors",
+   "titulo": "Catch vacío en exchangeCodeForSession",
+   "area": "imaginacion",
+   "archivos": [
+    "src/app/auth/callback/route.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Catch vacío en exchangeCodeForSession. Catch vacío en exchangeCodeForSession Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  },
+  {
+   "id": "IMG-profunda-eliminar-cliente-supabase-dupli",
+   "titulo": "Eliminar cliente Supabase duplicado",
+   "area": "imaginacion",
+   "archivos": [
+    "src/components/onboarding/ventana-perfil-inicial.tsx"
+   ],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Eliminar cliente Supabase duplicado. Eliminar cliente Supabase duplicado Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  },
+  {
+   "id": "IMG-profunda-catch-silencioso-en-auroratrans",
+   "titulo": "Catch silencioso en auroraTranscript",
+   "area": "imaginacion",
+   "archivos": [
+    "src/components/onboarding/aurora-guide.tsx"
+   ],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Catch silencioso en auroraTranscript. Catch silencioso en auroraTranscript Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  },
+  {
+   "id": "IMG-profunda-catch-silencioso-en-carga-de-pe",
+   "titulo": "Catch silencioso en carga de perfil",
+   "area": "imaginacion",
+   "archivos": [
+    "src/components/onboarding/ventana-perfil-inicial.tsx"
+   ],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Catch silencioso en carga de perfil. Catch silencioso en carga de perfil Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  },
+  {
+   "id": "IMA13",
+   "ola": "TRA1116-IDIOMAS",
+   "titulo": "Exportar y compartir un paquete: archivo, enlace y trozos para la malla",
+   "archivos": [
+    "src/lib/idiomas/paquete/compartir.ts",
+    "src/lib/idiomas/paquete/__tests__/compartir.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contrato A2 «Compartir». `aArchivo(paquete): { nombre: string; contenido: string; tipo: \"application/json\" }`; `aEnlace(base: string, idPublico: string): string` (`?idioma=<id>`; el enlace SOLO apunta, nunca lleva el paquete dentro); `desdeEnlace(url): string|null` (acepta solo `https:` y el mismo `base`); `trocear(paquete, tamano=16_384): Trozo[]` con `{ indice, total, hashPaquete, datos(base64) }` y `reunir(trozos, digest): Promise<{ok:true, paquete} | {ok:false, motivo}>` que exige todos los trozos, mismo `hashPaquete` y pasar `validarPaquete` (IMA6) antes de devolverlo; un trozo repetido o fuera de rango se rechaza. Nada de red aquí.\nPRUEBAS: ida y vuelta; falta un trozo → motivo; trozo manipulado → hash no coincide; enlace de otro dominio → null.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "IMA5",
+    "IMA6"
+   ]
+  },
+  {
+   "id": "ASW12",
+   "ola": "ASW1116A",
+   "titulo": "Diseño «Voz»: la forma grande y un botón enorme de hablar",
+   "archivos": [
+    "src/components/widgets-libres/familias/diseno-voz.tsx",
+    "src/components/widgets-libres/familias/__tests__/diseno-voz.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. LO QUE YA EXISTE (léelo antes): el widget del dashboard cuyo texto de estado es «En calma» es `AstrauraLibre` en `src/components/widgets-libres/familias/astraura-libre.tsx` (268 líneas; `TEXTO_VOZ` :31, `useVozAurora` :38 lee el puente `getAuroraBridge()` de `src/lib/aurora/open-aurora.ts` con `speaking`, `listening`, `actionStatus`; el `Orbe` de :65 es el círculo de colores violeta/turquesa; `Preguntar` :90; el diseño por tamaño :170-262 con `disenoDe(clase)` de `familias/comun.tsx:23`). Se monta desde `src/components/widgets-libres/registro-libre.tsx:38` (`case \"AURORA_LAST\"`, hoy sin recibir el widget ni `onUpdateSettings`, a diferencia del reloj). La Protomolécula: la orbe 4D completa es `src/components/protomolecula/orbe-protomolecula.tsx` (475 líneas, three.js a demanda, arrastrable y flotante: NO sirve para meterla en un widget); su lógica pura está en `src/lib/protomolecula/orbe4d/` (`coreografia.ts`: `IdForma` semilla/merkaba/jitterbug/teseracto/dodecaedro/matriz/icosaedro, `PALETAS` por registro con `astraura`, `ESTILOS`, `FICHAS`, tiempos de Fibonacci; `geometria.ts`: `merkaba()`, `icosaedro()`, `dodecaedro()`, `jitterbug()`, `teseractoVertices()`, `PHI`). Ya hay una versión ligera en SVG: `src/components/layout/trinity/horizon/vista-previa-orbe.tsx` (flor de la vida y merkaba, solo `transform`/`opacity`, quieta con `motion-safe`), pero NO depende del estado del asistente. El presupuesto de render del dispositivo es `src/lib/widgets/forma/nivel-dispositivo.ts` (`useNivelRender`, `nivelRender`: ligero/normal/pleno). La identidad: colores SOLO de `PALETAS` (marca Trinity Liquid Crystal, `adn-y-tokens.md` §2 y §6), nunca hexadecimales inventados. Escribe primero las pruebas. `DisenoVoz(props: PropsDiseno)`: la forma a `tam` (grande, centrada), el estado en texto GRANDE (`escalaTipo`) y debajo `props.botonVoz` ampliado a ≥ 64 px de alto y todo el ancho posible; si `props.voz` es falso (el aparato no ofrece voz) en su lugar se dice «La voz no está disponible en este aparato» (`role=\"status\"`) y se muestra `props.preguntar`. El último texto de Astraura (`props.ultima`) en una sola línea grande si hay. Pensado para manos ocupadas, tabletas y pantallas lejanas: sin texto menor de 14 px. Usa los colores del tema (`text-foreground`, `text-muted-foreground`, variables CSS `hsl(var(--…))`) y no blanco fijo, salvo sobre un fondo que el propio widget pinte oscuro; acento con los colores de `PALETAS.astraura`. Importa `PropsDiseno` de `@/lib/widgets/astraura/disenos` y `AstrauraForma` de `./astraura-forma`. PRUEBAS: renderiza con props de ejemplo y comprueba lo esencial de este diseño (qué SÍ aparece y qué NO: por ejemplo, el mínimo no muestra hilo ni sugerencias); cada botón llama a su función; a 180 px y a 360 px de ancho no hay `scrollWidth` mayor que `clientWidth`; los nombres accesibles están en español.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "ASW04",
+    "ASW06"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1116-095218.json": [
+   "ASW12",
+   "IMG-profunda-catch-silencioso-en-auroratrans",
+   "IMG-profunda-catch-silencioso-en-carga-de-pe",
+   "IMG-profunda-catch-vacio-en-exchangecodefors",
+   "IMG-profunda-eliminar-cliente-supabase-dupli",
+   "IMA13"
+  ]
+ }
+}
