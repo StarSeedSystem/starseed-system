@@ -1,6 +1,18 @@
-import { describe, expect, it } from "vitest";
+import "@testing-library/jest-dom/vitest";
+import { afterEach, describe, expect, it } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import type { ReactElement } from "react";
 
-import { mensajeErrorMedia, mensajeErrorReproduccion } from "@/components/voces/tomas-voz";
+import { AppearanceProvider } from "@/context/appearance-context";
+import { mensajeErrorMedia, mensajeErrorReproduccion, TomasVoz } from "@/components/voces/tomas-voz";
+import { borrarTomaVoz, crearTomaVoz, listarTomasVoz } from "@/lib/voces/tomas-voz";
+
+const renderConApariencia = (ui: ReactElement) => render(<AppearanceProvider>{ui}</AppearanceProvider>);
+
+afterEach(() => {
+    cleanup();
+    for (const toma of listarTomasVoz()) borrarTomaVoz(toma.id);
+});
 
 describe("mensajeErrorReproduccion", () => {
     it("distingue el autoplay bloqueado de la decodificación y de la red", () => {
@@ -31,5 +43,27 @@ describe("mensajeErrorMedia", () => {
         expect(mensajeErrorMedia(null)).toContain("no suena");
         expect(mensajeErrorMedia(undefined)).toContain("no suena");
         expect(mensajeErrorMedia(99)).toContain("no suena");
+    });
+});
+
+describe("foco visible del botón de cierre del comparador", () => {
+    const base = {
+        timbreId: "timbre-prueba",
+        nombreVoz: "Aurora",
+        texto: "hola",
+        nivel: "estudio" as const,
+    };
+
+    it("al comparar dos tomas, la X de cierre anuncia su foco visible para teclado", () => {
+        crearTomaVoz({ ...base, params: { instruct: "", speed: 1, seed: 1 } });
+        crearTomaVoz({ ...base, params: { instruct: "", speed: 1, seed: 2 } });
+        renderConApariencia(<TomasVoz timbreId="timbre-prueba" nombreVoz="Aurora" />);
+
+        for (const boton of screen.getAllByRole("button", { name: /comparar/i })) fireEvent.click(boton);
+        const cerrar = screen.getByRole("button", { name: "Cerrar comparación" });
+
+        expect(cerrar).toBeInTheDocument();
+        expect(cerrar.className).toContain("focus-visible:outline-none");
+        expect(cerrar.className).toContain("focus-visible:ring-2");
     });
 });
