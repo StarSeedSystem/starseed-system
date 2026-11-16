@@ -38,7 +38,7 @@ describe("hidratación del selector de idioma", () => {
     });
 
     it("ningún error de hidratación en consola (ni 'Hydration', 'hydrat', ni '418')", () => {
-        const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+        const consoleError = vi.spyOn(console, "error").mockImplementation(() => {}) as ReturnType<typeof vi.spyOn>;
 
         const html = renderToString(<SelectorIdioma />);
         const div = document.createElement("div");
@@ -48,7 +48,7 @@ describe("hidratación del selector de idioma", () => {
         render(<SelectorIdioma />, { container: div });
         act(() => { });
 
-        const calls = console.error.mock.calls.flat();
+        const calls = consoleError.mock.calls.flat();
         const hasHydrationError = calls.some((c: unknown) =>
             String(c).includes("Hydration") ||
             String(c).includes("hydrat") ||
