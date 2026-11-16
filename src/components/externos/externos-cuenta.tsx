@@ -37,6 +37,7 @@ import { useConfirm } from "@/components/ui/confirm-dialog";
 import { PanelExternos } from "@/components/externos/panel-externos";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { BannerError } from "@/components/ui/error-message";
 
 type FiltroEstado = "todos" | EstadoVinculo;
 
@@ -143,7 +144,13 @@ export function ExternosCuenta() {
 
       {/* Tarjetas por ámbito (número de activos) + aviso <24h */}
       {error ? (
-        <p className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-300">{error}</p>
+        <BannerError
+            title="Error al cargar vínculos"
+            description={error}
+            severity="error"
+            dismissible
+            onDismiss={() => setError("")}
+        />
       ) : null}
 
       <TarjetasAmbito activos={activos} />

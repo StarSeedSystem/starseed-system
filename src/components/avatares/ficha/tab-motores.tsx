@@ -13,7 +13,8 @@ import {
   ETIQUETA_ROL, MOTORES, MOTORES_POR_ROL, ROLES_MOTOR, TOPE_POR_HORA_MAX, elegirMotor, permitirPago, ponerTopePorHora,
   type ConfigAgente, type EleccionMotor, type MotorId, type RolMotor,
 } from "@/lib/avatares/agente/config-agente";
-import { Aviso, Bloque, CLASE_SELECT, Deslizador, FilaInterruptor } from "./ui-ficha";
+import { Bloque, CLASE_SELECT, Deslizador, FilaInterruptor } from "./ui-ficha";
+import { InlineError } from "@/components/ui/error-message";
 
 export interface TabMotoresProps {
   config: ConfigAgente;
@@ -124,7 +125,7 @@ export function TabMotores({ config, actualizar }: TabMotoresProps) {
             <FilaMotor key={rol} rol={rol} config={config} actualizar={actualizar} alError={setError} />
           ))}
         </div>
-        {error && <div className="mt-2"><Aviso tono="error">{error}</Aviso></div>}
+        {error && <InlineError message={error} severity="error" fieldId="motor-error" />}
       </Bloque>
 
       <Bloque icono={ShieldAlert} titulo="Lo de pago" estado="ficha" ayuda="Nada de pago se usa sin tu permiso. Al quitarlo, cualquier papel que usara una fuente de pago vuelve a lo gratuito.">

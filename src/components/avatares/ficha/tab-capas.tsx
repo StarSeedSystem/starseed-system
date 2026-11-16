@@ -11,7 +11,8 @@ import {
   MAX_CAPAS, agregarCapa, ajustarPesoCapa, capasQueSePuedenAnadir, conectarCapa, moverCapa, quitarCapa,
   type CapaAgente, type ConfigAgente,
 } from "@/lib/avatares/agente/config-agente";
-import { Aviso, Bloque, BotonFicha, CLASE_CAMPO, Deslizador, FilaInterruptor, InsigniaEstado, porcentaje } from "./ui-ficha";
+import { Bloque, BotonFicha, CLASE_CAMPO, Deslizador, FilaInterruptor, InsigniaEstado, porcentaje } from "./ui-ficha";
+import { InlineError } from "@/components/ui/error-message";
 
 export interface TabCapasProps {
   config: ConfigAgente;
@@ -111,7 +112,7 @@ export function TabCapas({ config, actualizar }: TabCapasProps) {
           <BotonFicha variante="primario" icono={Plus} onClick={anadirPropia}>Añadir capa propia</BotonFicha>
           <p className="text-xs text-muted-foreground">Una capa propia es una perspectiva: entra en cómo el agente se presenta y razona, no conecta con nada externo.</p>
         </div>
-        {error && <div className="mt-2"><Aviso tono="error">{error}</Aviso></div>}
+        {error && <InlineError message={error} severity="error" fieldId="capa-error" />}
       </Bloque>
     </div>
   );

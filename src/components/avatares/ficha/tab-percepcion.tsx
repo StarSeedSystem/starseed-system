@@ -12,7 +12,8 @@ import {
   MAX_LARGO_TEMA, MAX_TEMAS, PRESETS_PERCEPCION, RASGOS_PERCEPCION, SENTIDOS_DE_PERCEPCION, ETIQUETA_RASGO, filtroAPrompt, rasgosEfectivos, sanearTema,
   type ConfigAgente, type RasgoPercepcion,
 } from "@/lib/avatares/agente/config-agente";
-import { Aviso, Bloque, BotonFicha, CLASE_CAMPO, Deslizador, FilaInterruptor, num } from "./ui-ficha";
+import { Bloque, BotonFicha, CLASE_CAMPO, Deslizador, FilaInterruptor, num } from "./ui-ficha";
+import { InlineError } from "@/components/ui/error-message";
 
 export interface TabPercepcionProps {
   config: ConfigAgente;
@@ -98,7 +99,7 @@ export function TabPercepcion({ config, actualizar }: TabPercepcionProps) {
           />
           <BotonFicha variante="primario" icono={Plus} onClick={anadirTema} className="shrink-0">Añadir</BotonFicha>
         </div>
-        {error && <div className="mt-2"><Aviso tono="error">{error}</Aviso></div>}
+        {error && <InlineError message={error} severity="error" fieldId="percepcion-error" />}
       </Bloque>
 
       <Bloque

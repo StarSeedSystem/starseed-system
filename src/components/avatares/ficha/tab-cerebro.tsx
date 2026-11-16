@@ -19,8 +19,9 @@ import {
 } from "@/lib/avatares/agente/config-agente";
 import { recuerdosVisibles } from "@/lib/avatares/agente/desarrollo";
 import {
-  Aviso, Bloque, BotonFicha, CLASE_CAMPO, CLASE_SELECT, FilaInterruptor, GrupoRadio, type OpcionRadio,
+  Bloque, BotonFicha, CLASE_CAMPO, CLASE_SELECT, FilaInterruptor, GrupoRadio, type OpcionRadio,
 } from "./ui-ficha";
+import { InlineError, CardError } from "@/components/ui/error-message";
 
 // El diálogo es pesado y solo se necesita al abrirlo: carga perezosa.
 const TelepatiaDialog = lazy(() => import("@/components/cerebro/telepatia-dialog"));
@@ -158,10 +159,12 @@ export function TabCerebro({ agente, config, recuerdos, actualizar, ahora }: Tab
           <div className="mt-3 space-y-2">
             {carga === "cargando" && <p role="status" className="text-xs text-muted-foreground">Cargando tus cerebros…</p>}
             {carga === "error" && (
-              <div className="space-y-2">
-                <Aviso>No se pudieron cargar tus cerebros. Hace falta haber iniciado sesión y tener conexión.</Aviso>
-                <BotonFicha icono={RefreshCw} onClick={() => void cargar()}>Reintentar</BotonFicha>
-              </div>
+              <CardError
+                  title="No se pudieron cargar tus cerebros"
+                  description="Hace falta haber iniciado sesión y tener conexión."
+                  action={<button type="button" onClick={() => void cargar()} className="underline">Reintentar</button>}
+                  severity="error"
+              />
             )}
             {carga === "ok" && cerebros.length === 0 && (
               <p className="break-words text-xs text-muted-foreground">
@@ -188,7 +191,11 @@ export function TabCerebro({ agente, config, recuerdos, actualizar, ahora }: Tab
                   })}
                 </select>
                 {vinculado && !cerebroVinculado && (
-                  <Aviso>No encuentro el cerebro «{vinculado.nombre}» en tu cuenta. Puede que se haya borrado: elige otro o vuelve al cerebro propio.</Aviso>
+                  <InlineError
+                      message={`No encuentro el cerebro «${vinculado.nombre}» en tu cuenta. Puede que se haya borrado: elige otro o vuelve al cerebro propio.`}
+                      severity="warning"
+                      fieldId="cerebro-no-encontrado"
+                  />
                 )}
               </>
             )}
@@ -197,7 +204,7 @@ export function TabCerebro({ agente, config, recuerdos, actualizar, ahora }: Tab
             </p>
           </div>
         )}
-        {error && <div className="mt-2"><Aviso tono="error">{error}</Aviso></div>}
+        {error && <InlineError message={error} severity="error" fieldId="cerebro-error" />}
       </Bloque>
 
       <Bloque
@@ -324,7 +331,13 @@ export function TabCerebro({ agente, config, recuerdos, actualizar, ahora }: Tab
                   <BotonFicha variante="primario" icono={Link2} disabled={!destino} onClick={alVincularTelepatia}>Vincular</BotonFicha>
                 </div>
               )}
-              {carga === "error" && <Aviso>Para vincular con otros cerebros hace falta poder cargarlos: reintenta arriba.</Aviso>}
+              {carga === "error" && (
+                  <InlineError
+                      message="Para vincular con otros cerebros hace falta poder cargarlos: reintenta arriba."
+                      severity="error"
+                      fieldId="telepatia-carga-error"
+                  />
+                )}
               {carga === "ok" && cerebros.length === 0 && <p className="text-xs text-muted-foreground">Aún no tienes cerebros con los que vincularte.</p>}
             </div>
           )}

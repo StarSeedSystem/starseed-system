@@ -13,6 +13,7 @@ import { getLinkedExternalEmail, setLinkedExternalEmail } from "@/lib/mail/os-ma
 import type { AjustesMensajeriaApi } from "@/lib/mensajeria/ajustes-tipos";
 import { ACENTO } from "@/components/messages/marco/estilos";
 import { Bloque, Fila, FilaInterruptor, FilaOpciones, Nota } from "./controles";
+import { InlineError } from "@/components/ui/error-message";
 
 const RE_CORREO = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
@@ -102,7 +103,13 @@ function DireccionExterna() {
                     )}
                 </div>
             </form>
-            {error && <p role="alert" className="text-[12px] text-rose-300">{error}</p>}
+            {error && (
+                <InlineError
+                    message={error}
+                    severity="error"
+                    fieldId="direccion-externa-error"
+                />
+            )}
         </Fila>
     );
 }

@@ -20,6 +20,7 @@ import { AvisoSesion } from "@/components/auth/aviso-sesion";
 import { CONSULTA_CADA_MS, consultarEmparejamiento, crearClienteAparatos, pedirEmparejar, type ClienteAparatos } from "@/lib/chats-genesis/emparejar";
 import { MAX_NOMBRE_APARATO, aparatoLocal, claveAparatoPerdida, cuentaDeSesion, soporteFirma, type AparatoLocal } from "@/lib/chats-genesis/firma-aparato";
 import { cn } from "@/lib/utils";
+import { BannerError } from "@/components/ui/error-message";
 
 import { momentoTexto } from "./cabecera-espejo";
 
@@ -184,7 +185,15 @@ export function EmparejarAparato({ clienteAparatos, alCambiar }: EmparejarAparat
             </button>
         </form>
     );
-    const fallo = pideSesion ? <AvisoSesion compacto texto="Inicia sesión para emparejar este aparato" /> : error ? <p role="alert" data-testid="error-emparejar" className="rounded-lg border border-rose-400/30 bg-rose-500/10 px-2.5 py-1.5 text-[12px] text-rose-100">{error}</p> : null;
+    const fallo = pideSesion ? <AvisoSesion compacto texto="Inicia sesión para emparejar este aparato" /> : error ? (
+        <BannerError
+            title="Error al emparejar"
+            description={error}
+            severity="error"
+            dismissible
+            onDismiss={() => setError(null)}
+        />
+    ) : null;
 
     if (fase.tipo === "perdida") {
         const cuando = fase.vistoPorUltima ? momentoTexto(Date.parse(fase.vistoPorUltima), Date.now()) : null;

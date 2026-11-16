@@ -16,6 +16,7 @@ import {
 } from "@/lib/mensajeria/ajustes-tipos";
 import { horaCorta } from "@/components/messages/marco/formato-tiempo";
 import { Bloque, Fila, FilaInterruptor, FilaOpciones, GrupoOpciones } from "./controles";
+import { InlineError } from "@/components/ui/error-message";
 
 /** Solo https:// o rutas internas: una imagen de fondo nunca puede ser otra cosa. */
 export function urlFondoValida(url: string): boolean {
@@ -178,7 +179,13 @@ export function SeccionChats({ api }: { api: AjustesMensajeriaApi }) {
                             Usar imagen
                         </button>
                     </form>
-                    {errorUrl && <p role="alert" className="mt-1 text-[12px] text-rose-300">{errorUrl}</p>}
+                    {errorUrl && (
+                    <InlineError
+                        message={errorUrl}
+                        severity="error"
+                        fieldId="chat-fondo-error"
+                    />
+                )}
                 </Fila>
                 <FilaOpciones
                     etiqueta="Tamaño de letra"
