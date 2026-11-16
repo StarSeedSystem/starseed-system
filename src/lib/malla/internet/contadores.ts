@@ -55,7 +55,6 @@ export function sumarBytes(
     if (c.mes === nuevoMes) {
       for (const a of audiencias) {
         nuevoBytesMes[a] = c.bytesMes[a];
-        nuevoBytesDia[a] = c.bytesDia[a];
       }
     }
 
@@ -107,7 +106,7 @@ export function usadoHoyMb(
   if (c.dia !== hoy) return 0;
 
   if (audiencia === 'otros') {
-    const totalBytes = c.bytesDia.entidad + c.bytesDia.publico;
+    const totalBytes = c.bytesDia['mi-cuenta'] + c.bytesDia.entidad + c.bytesDia.publico;
     return totalBytes / MB;
   }
 

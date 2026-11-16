@@ -101,8 +101,8 @@ describe('contadores', () => {
       const c: Contadores = {
         dia: hoy,
         mes: '2023-11',
-        bytesDia: { 'mi-cuenta': 1_500_000_000, entidad: 0, publico: 0 },
-        bytesMes: { 'mi-cuenta': 5_000_000_000, entidad: 0, publico: 0 },
+        bytesDia: { 'mi-cuenta': 1_500_000, entidad: 0, publico: 0 },
+        bytesMes: { 'mi-cuenta': 1_500_000, entidad: 0, publico: 0 },
       };
       const mb = usadoHoyMb(c, 'mi-cuenta', ahora, desfaseMin);
       expect(mb).toBe(1.5);
@@ -113,11 +113,11 @@ describe('contadores', () => {
       const c: Contadores = {
         dia: hoy,
         mes: '2023-11',
-        bytesDia: { 'mi-cuenta': 1_000_000_000, entidad: 1_000_000_000, publico: 1_000_000_000 },
-        bytesMes: { 'mi-cuenta': 2_000_000_000, entidad: 2_000_000_000, publico: 2_000_000_000 },
+        bytesDia: { 'mi-cuenta': 1_000_000, entidad: 1_000_000, publico: 1_000_000 },
+        bytesMes: { 'mi-cuenta': 2_000_000, entidad: 2_000_000, publico: 2_000_000 },
       };
       const mb = usadoHoyMb(c, 'otros', ahora, desfaseMin);
-      expect(mb).toBe(2);
+      expect(mb).toBe(3);
     });
   });
 
