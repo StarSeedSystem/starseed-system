@@ -184,6 +184,7 @@ object ControlEntradaNativo {
         escribirAtomico(File(dir, ACEPTADOS), JSONObject().put("v", 1).put("controladores", JSONArray()).toString())
         guardarSinPreguntar(false)
         ServicioControlEntrada.instancia?.parar()
+        ProyeccionPantalla.parar() // PENC1
     }
 
     /** Por si el interruptor se apagó por otro camino: cada petición y el arranque lo comprueban. */
@@ -267,6 +268,7 @@ object ControlEntradaNativo {
                 .put("captura", Build.VERSION.SDK_INT >= 30)
                 .put("max_dedos", if (Build.VERSION.SDK_INT >= 24) GestureDescription.getMaxStrokeCount() else 0)
                 .put("sin_preguntar", sinPreguntar() && ControlNeuronasNativo.encendido())
+                .put("proyeccion", ProyeccionPantalla.concedida()) // PENC1: el «Sí» de ESTA sesión, nunca guardado
                 .put("escribir_ajustes", Settings.System.canWrite(app))
                 .put("restringido", srv == null && ajustesRestringidos())
             "estado-aparato" -> estadoAparato()
@@ -294,11 +296,19 @@ object ControlEntradaNativo {
             }
             "pantalla-iniciar" -> when {
                 !ControlNeuronasNativo.encendido() || !ControlNeuronasNativo.mostrando || ControlNeuronasNativo.sesion == null -> no("sesion")
+                // PENC1: fuente «proyeccion» = fluida; Android pregunta en CADA sesión. Sin el «Sí» de esta sesión, se lo pregunta a la persona.
+                p.optString("fuente") == "proyeccion" -> if (ProyeccionPantalla.concedida()) {
+                    srv?.parar()
+                    ProyeccionPantalla.iniciar(p.optInt("lado_max", 1280), p.optInt("calidad", 60))
+                } else {
+                    actividad?.get()?.let { ProyeccionPantalla.pedir(it) }
+                    no("sin-consentimiento", "consentimiento-proyeccion")
+                }
                 srv == null -> no("sin-servicio", "servicio-accesibilidad")
                 !sinPreguntar() -> no("sin-consentimiento", "consentimiento-pantalla")
-                else -> srv.iniciarCaptura(p.optInt("lado_max", 1280), p.optInt("calidad", 60))
+                else -> { ProyeccionPantalla.parar(); srv.iniciarCaptura(p.optInt("lado_max", 1280), p.optInt("calidad", 60)) }
             }
-            "pantalla-parar" -> { srv?.parar(); null }
+            "pantalla-parar" -> { srv?.parar(); ProyeccionPantalla.parar(); null }
             else -> no("sin-servicio")
         }
     }
@@ -316,6 +326,12 @@ object ControlEntradaNativo {
                 if (a == null) return no("sin-pantalla")
                 dialogoPantalla(a)
                 return JSONObject().put("ok", true).put("dialogo", true)
+            }
+            // PENC1: solo ABRE nuestro diálogo; el «Sí» de Android lo da la persona en su pantalla de consentimiento.
+            "consentimiento-proyeccion" -> {
+                if (!ControlNeuronasNativo.encendido()) return no("interruptor-apagado")
+                if (a == null) return no("sin-pantalla")
+                return ProyeccionPantalla.pedir(a)
             }
             else -> return no("ajuste-desconocido")
         }

@@ -10,7 +10,11 @@
 //   · `WRITE_SETTINGS` (acceso especial «modificar ajustes del sistema», para el brillo; la persona lo da en su
 //     pantalla de Ajustes) y, si nadie más los declara, `ACCESS_WIFI_STATE` y `ACCESS_NETWORK_STATE` (solo leer);
 //   · `ControlEntradaStarSeed.kt`.
-// Nada de MediaProjection ni de servicios en primer plano nuevos (la proyección no está hecha).
+// PENC1: la proyección de pantalla (fluida; Android pregunta en CADA sesión) añade SOLO esto al manifiesto:
+//   · el permiso `FOREGROUND_SERVICE_MEDIA_PROJECTION` (normal, sin diálogo; `FOREGROUND_SERVICE` ya lo declara el parche de antenas);
+//   · `<service ServicioProyeccionPantalla foregroundServiceType="mediaProjection" exported=false>`;
+//   · `<activity ProyeccionConsentimientoActivity exported=false>` transparente, solo para recibir el resultado del consentimiento;
+//   · `ProyeccionPantallaStarSeed.kt`. Ningún permiso de captura se concede solo: no existe en el manifiesto.
 // Solo std (lo usa build.rs con `#[path]`). Idempotente. Solo StarSeed OS.
 // Interruptor de emergencia: STARSEED_SIN_CONTROL_ENTRADA=1 (el APK sale sin entrada ni pantalla remotas).
 // ═══════════════════════════════════════════════════════════════════════════
@@ -33,6 +37,11 @@ pub const PERMISOS_COMPARTIDOS: [(&str, &str); 2] = [
 
 pub const SERVICIO: &str = "app.starseed.nativa.ServicioControlEntrada";
 pub const KOTLIN: &str = include_str!("../android/ControlEntradaStarSeed.kt");
+/// PENC1: servicio, actividad de consentimiento y puente de la proyección de pantalla.
+pub const KOTLIN_PROYECCION: &str = include_str!("../android/ProyeccionPantallaStarSeed.kt");
+pub const SERVICIO_PROYECCION: &str = "app.starseed.nativa.ServicioProyeccionPantalla";
+pub const ACTIVIDAD_PROYECCION: &str = "app.starseed.nativa.ProyeccionConsentimientoActivity";
+pub const PERMISO_PROYECCION: &str = "android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION";
 
 pub const XML_SERVICIO: &str = r#"<?xml version="1.0" encoding="utf-8"?>
 <!-- AND1115K: lo escribe native/src-tauri/build.rs. Apagado hasta que la persona lo activa en Ajustes > Accesibilidad. -->
@@ -88,6 +97,9 @@ pub fn bloque_permisos(sin_bloque: &str) -> String {
             s.push_str(&format!("    <!-- {porque} -->\n    <uses-permission android:name=\"{p}\" />\n"));
         }
     }
+    if !ya_declarado(sin_bloque, PERMISO_PROYECCION) {
+        s.push_str(&format!("    <!-- PENC1: Android 14+ exige este permiso (normal, sin diálogo) para el servicio de proyección de pantalla. -->\n    <uses-permission android:name=\"{PERMISO_PROYECCION}\" />\n"));
+    }
     s.push_str(&format!("    {PERMISOS_FIN}\n"));
     s
 }
@@ -107,6 +119,16 @@ pub fn bloque_componentes() -> String {
                 android:name=\"android.accessibilityservice\"
                 android:resource=\"@xml/starseed_control_accesibilidad\" />
         </service>
+        <!-- PENC1: proyección de pantalla. El servicio solo arranca tras el consentimiento de Android en esa sesión. -->
+        <service
+            android:name=\"{SERVICIO_PROYECCION}\"
+            android:exported=\"false\"
+            android:foregroundServiceType=\"mediaProjection\" />
+        <activity
+            android:name=\"{ACTIVIDAD_PROYECCION}\"
+            android:exported=\"false\"
+            android:excludeFromRecents=\"true\"
+            android:theme=\"@android:style/Theme.Translucent.NoTitleBar\" />
         {COMPONENTES_FIN}
 "
     )
@@ -154,6 +176,7 @@ pub fn aplicar(proyecto: &Path) -> Result<Vec<PathBuf>, String> {
         ("res/xml/starseed_control_accesibilidad.xml", XML_SERVICIO),
         ("res/values/starseed_control_accesibilidad.xml", XML_TEXTOS),
         ("java/app/starseed/nativa/ControlEntradaStarSeed.kt", KOTLIN),
+        ("java/app/starseed/nativa/ProyeccionPantallaStarSeed.kt", KOTLIN_PROYECCION), // PENC1
     ] {
         let f = principal.join(rel);
         if escribir_si_cambia(&f, contenido)? {
@@ -192,10 +215,15 @@ mod pruebas {
         assert!(p < a && a < c && c < m.rfind("</application>").unwrap());
         assert!(m.contains("android.permission.WRITE_SETTINGS") && m.contains("BIND_ACCESSIBILITY_SERVICE"));
         assert!(m.contains("@xml/starseed_control_accesibilidad") && m.contains(SERVICIO));
-        // Sin captura por proyección, sin servicio en primer plano nuevo y sin permisos de otras familias.
-        for x in ["MEDIA_PROJECTION", "MANAGE_EXTERNAL_STORAGE", "SYSTEM_ALERT_WINDOW", "foregroundServiceType", "WRITE_SECURE_SETTINGS", "CAPTURE_VIDEO_OUTPUT", "INJECT_EVENTS"] {
+        // PENC1: de la proyección, solo su permiso, su servicio (único con tipo en primer plano) y su actividad; nada de otras familias.
+        for x in ["MANAGE_EXTERNAL_STORAGE", "SYSTEM_ALERT_WINDOW", "WRITE_SECURE_SETTINGS", "CAPTURE_VIDEO_OUTPUT", "CAPTURE_SECURE_VIDEO_OUTPUT", "INJECT_EVENTS", "RECORD_AUDIO", "CAMERA"] {
             assert!(!m.contains(x), "{x}");
         }
+        assert_eq!(m.matches("MEDIA_PROJECTION").count(), 1, "solo FOREGROUND_SERVICE_MEDIA_PROJECTION");
+        assert_eq!(m.matches("foregroundServiceType=\"mediaProjection\"").count(), 1);
+        assert_eq!(m.matches("foregroundServiceType").count(), 1);
+        assert!(m.contains(SERVICIO_PROYECCION) && m.contains(ACTIVIDAD_PROYECCION));
+        assert_eq!(m.matches("android:exported=\"false\"").count(), 2, "servicio y actividad de proyección no se exportan");
         assert!(XML_SERVICIO.contains("canPerformGestures") && XML_SERVICIO.contains("canTakeScreenshot"));
     }
 
@@ -243,6 +271,30 @@ mod pruebas {
         }
         for a in l::AJUSTES {
             assert!(KOTLIN.contains(&format!("\"{a}\"")), "ajuste {a}");
+        }
+    }
+
+    #[test]
+    fn la_proyeccion_pregunta_en_cada_sesion_y_no_guarda_nada() {
+        let k = KOTLIN_PROYECCION;
+        assert!(k.contains("package app.starseed.nativa") && k.contains(&format!("class {} : Service()", SERVICIO_PROYECCION.rsplit('.').next().unwrap())));
+        assert!(k.contains(&format!("class {} : Activity()", ACTIVIDAD_PROYECCION.rsplit('.').next().unwrap())));
+        // El consentimiento viene de la pantalla de Android (createScreenCaptureIntent), con el tipo de servicio puesto ANTES de la proyección.
+        assert!(k.contains("createScreenCaptureIntent()"));
+        let (a, b, c) = (k.find("FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION").unwrap(), k.find("getMediaProjection(").unwrap(), k.find("registerCallback(").unwrap());
+        assert!(a < b && b < c, "tipo de servicio, proyección, devolución de llamada");
+        assert!(c < k.find("createVirtualDisplay(").unwrap(), "Android 14: la devolución de llamada va antes de la pantalla virtual");
+        // Para con la sesión, la pantalla bloqueada, el chip de Android y «Dejar de compartir»; nada se guarda entre sesiones.
+        for x in ["ACTION_SCREEN_OFF", "isKeyguardLocked", "onStop()", "ControlNeuronasNativo.mostrando", "Dejar de compartir", "consentidaPara = null", "START_NOT_STICKY", "ENTRE_CUADROS_MS = 67L"] {
+            assert!(k.contains(x), "{x}");
+        }
+        for x in ["SharedPreferences", "getSharedPreferences", "writeText", "performClick", "ACTION_CLICK", "grantRuntimePermission", "Log.", "setNeutralButton"] {
+            assert!(!k.contains(x), "{x}");
+        }
+        // Mismo formato y misma escritura atómica que `cuadro.bin`; el tipo `proyeccion` lo conoce la parte de entrada.
+        assert!(k.contains("ControlEntradaNativo.CUADRO") && k.contains("renameTo(File(d, ControlEntradaNativo.CUADRO))"));
+        for x in ["\"consentimiento-proyeccion\"", "\"proyeccion\"", "ProyeccionPantalla.parar()", "ProyeccionPantalla.concedida()"] {
+            assert!(KOTLIN.contains(x), "{x}");
         }
     }
 
