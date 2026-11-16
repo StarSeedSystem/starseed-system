@@ -3,8 +3,9 @@
 import * as React from "react";
 import { AstrauraForma } from "./astraura-forma";
 import { textoDeEstado, type EstadoAsistente } from "@/lib/widgets/astraura/estado-forma";
-import { escalaTipo, type ClaseDispositivo } from "./inicio-piezas";
+import { escalaTipo } from "./inicio-piezas";
 import { useDispositivo } from "./inicio-piezas";
+import type { ClaseDispositivo } from "@/lib/widgets/forma/tamanos";
 import type { PropsDiseno } from "@/lib/widgets/astraura/disenos";
 import { PALETAS } from "@/lib/protomolecula/orbe4d/coreografia";
 
@@ -25,7 +26,21 @@ const DisenoVoz = (props: PropsDiseno) => {
                 <p className="text-center text-[16px] leading-snug" style={{ fontSize: `calc(16px * ${k})` }}>
                     La voz no está disponible en este aparato
                 </p>
-                <div className="w-full max-w-[400px]">{props.preguntar}</div>
+                <div
+                    className="w-full max-w-[400px] cursor-pointer"
+                    onClick={() => props.onAbrirChat()}
+                    role="button"
+                    tabIndex={0}
+                    aria-label="Abrir chat para preguntar"
+                    onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            props.onAbrirChat();
+                        }
+                    }}
+                >
+                    {props.preguntar}
+                </div>
             </div>
         );
     }

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 
@@ -50,7 +50,7 @@ const { useDispositivoMock } = vi.hoisted(() => ({
 vi.mock("../inicio-piezas", async (importOriginal) => {
     const actual = await importOriginal();
     return {
-        ...actual,
+        ...(actual as object),
         useDispositivo: () => useDispositivoMock(),
         escalaTipo: () => 1,
     };
@@ -132,20 +132,26 @@ describe("DisenoVoz", () => {
         expect(botonPreguntar).toBeInTheDocument();
     });
 
-    it("cada botón llama a su función", () => {
+    it("botón de voz llama a onAbrirChat", () => {
         const onAbrirChat = vi.fn();
-        const onSugerencia = vi.fn();
         const { container } = render(
-            <DisenoVoz {...propsBase} onAbrirChat={onAbrirChat} onSugerencia={onSugerencia} />
+            <DisenoVoz {...propsBase} onAbrirChat={onAbrirChat} />
         );
 
         const botonVoz = container.querySelector('[data-testid="boton-voz-btn"]');
-        botonVoz?.dispatchEvent(new Event("click"));
+        fireEvent.click(botonVoz!);
         expect(onAbrirChat).toHaveBeenCalled();
+    });
+
+    it("botón preguntar llama a onAbrirChat cuando voz es false", () => {
+        const onAbrirChat = vi.fn();
+        const { container } = render(
+            <DisenoVoz {...propsBase} voz={false} onAbrirChat={onAbrirChat} />
+        );
 
         const botonPreguntar = container.querySelector('[data-testid="preguntar-btn"]');
-        botonPreguntar?.dispatchEvent(new Event("click"));
-        expect(onAbrirChat).toHaveBeenCalledTimes(2);
+        fireEvent.click(botonPreguntar!);
+        expect(onAbrirChat).toHaveBeenCalled();
     });
 
     it("no tiene desbordes a 180 px de ancho", () => {
