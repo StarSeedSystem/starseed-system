@@ -1,0 +1,91 @@
+{
+ "ola": "nube-20261116",
+ "tareas": [
+  {
+   "id": "INT14",
+   "ola": "INT1116A",
+   "titulo": "Leer lo que el aparato sabe de su conexión (navegador y marca nativa opcional)",
+   "archivos": [
+    "src/lib/malla/internet/lector-conexion.ts",
+    "src/lib/malla/internet/__tests__/lector-conexion.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contrato: architecture/malla-cristalina-sio2.md §8.2 (contrato; si aún no está en el repo, rige este texto). Lee `src/ai/astraura/mesh/connectivity.ts` (`NetworkInformationLike`, `netInfo`) y NO lo dupliques: reutiliza su tipo si lo exporta. Escribe primero las pruebas. `leerConexion(entorno: { navigator?: { connection?: NetworkInformationLike } | null; nativa?: { medida?: () => boolean | null } | null }): { tipo?: string; saveData?: boolean; effectiveType?: string; nativaMedida: boolean | null }`. `nativa.medida` es la marca de red de pago del lado nativo (Android `isActiveNetworkMetered`): HOY NO EXISTE en el puente, así que la entrada es opcional y si falta, `nativaMedida` es null; deja un comentario «falta en el puente nativo: ver §8.2 del contrato». Nunca lanza; ante `connection` ausente (Safari, Firefox) devuelve solo `nativaMedida`. Añade `suscribirConexion(entorno, alCambiar): () => void` que escucha `change` de `navigator.connection` y devuelve la baja (no hace nada si no hay `connection`).\nPRUEBAS: con y sin `connection`; marca nativa true/false/ausente/que lanza; suscribir y dar de baja.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "INT01"
+   ]
+  },
+  {
+   "id": "JL7",
+   "ola": "JLA1116A",
+   "titulo": "Calibración de la confianza de Laya por punto y ámbito",
+   "archivos": [
+    "src/lib/astraura/laya/calibracion-laya.ts",
+    "src/lib/astraura/laya/__tests__/calibracion-laya.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: architecture/jev-entrena-laya.md (si aún no está en el repo, rige este texto). Lee AGENTS.md. §3.2. Puro. Con casos (`CasoLaya` de `aprendizaje-laya.ts`) y su desenlace correcto/incorrecto, `calibrar(casos, punto, ambito)`: 10 cajas de confianza, tasa de acierto por caja, exige ≥ `MIN_CASOS_UMBRAL` (30) y devuelve `{cajas, umbralSugerido, n}` o `{n, motivo: \"faltan casos\"}`; `confianzaCalibrada(cal, p)` interpola y nunca sube la confianza por encima de la tasa observada. PRUEBAS: datos sintéticos con Laya sobreconfiada (dice 0,9 y acierta 0,6) baja la confianza; menos de 30 casos -> motivo; cajas vacías no rompen.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` (Python: sin red ni `~/.starseed`, rutas y lectores se inyectan) salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado."
+  },
+  {
+   "id": "IMA3",
+   "ola": "TRA1116-IDIOMAS",
+   "titulo": "Búsqueda de idiomas por nombre, nombre propio, código o alias, sin acentos y tolerante a una errata",
+   "archivos": [
+    "src/lib/idiomas/busqueda.ts",
+    "src/lib/idiomas/__tests__/busqueda.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. `buscarIdiomas(lista: IdiomaMundial[], consulta: string): IdiomaMundial[]`: normaliza (NFD, sin diacríticos, minúsculas, espacios) consulta y campos; coincide por prefijo y por contenido en `nombrePropio`, `nombreActual`, `codigo` (exacto o prefijo) y `alias`; ordena: código exacto › prefijo de nombre › contiene › una errata (distancia de edición ≤1 si la consulta tiene ≥4 letras); desempata alfabético; consulta vacía devuelve la lista tal cual. Sin dependencias.\nPRUEBAS: «ingles» encuentra English/Inglés; «chino» → zh; «zh» exacto primero; «portugues» sin tilde; «alemn» (errata) → Deutsch; «xx» → vacío; la lista de entrada no se muta.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "IMA2"
+   ]
+  },
+  {
+   "id": "IMA8",
+   "ola": "TRA1116-IDIOMAS",
+   "titulo": "Importar gettext (.po/.pot) y .properties",
+   "archivos": [
+    "src/lib/idiomas/paquete/importar-po.ts",
+    "src/lib/idiomas/paquete/__tests__/importar-po.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contrato A2. `desdePo(texto)`: bloques `msgid`/`msgstr` (multilínea con comillas, escapes `\\n` `\\\"`), ignora la cabecera (`msgid \"\"`), ignora `fuzzy` con aviso, descarta `msgstr` vacío, soporta `msgctxt` (clave `contexto|texto`) y plurales `msgid_plural`/`msgstr[n]` (se usa la forma 0 y se anota el aviso «plural simplificado»). `desdeProperties(texto)`: `clave=valor` / `clave:valor`, comentarios `#`/`!`, continuaciones con `\\`, escapes `\\uXXXX`. Ambas devuelven `{ entradas, descartadas, avisos }` como IMA7 (`importar-json-csv.ts`; no importes de ahí: define el tipo en tu archivo).\nPRUEBAS: `.po` con multilínea, contexto, fuzzy y plural; `.properties` con continuación y unicode.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "IMA5"
+   ]
+  },
+  {
+   "id": "IMA9",
+   "ola": "TRA1116-IDIOMAS",
+   "titulo": "Importar XLIFF, .strings de Apple y strings.xml de Android",
+   "archivos": [
+    "src/lib/idiomas/paquete/importar-xml-strings.ts",
+    "src/lib/idiomas/paquete/__tests__/importar-xml-strings.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contrato A2. Sin librerías XML ni `DOMParser` (módulo puro): analizador mínimo por expresiones regulares con límites de tamaño. `desdeXliff(texto)`: `<trans-unit>` con `<source>` y `<target>` (XLIFF 1.2) y `<unit><segment><source/><target/>` (2.0); `desdeStringsApple(texto)`: `\"clave\" = \"valor\";` con escapes y comentarios `/* */` y `//`; `desdeStringsAndroid(texto)`: `<string name=\"x\">valor</string>` (descarta `translatable=\"false\"`, convierte `\\'`, `\\\"`, `\\n`, `%1$s`→`{0}`, `%s`→`{0}`). Se decodifican las entidades XML básicas (`&amp; &lt; &gt; &quot; &apos;`) y **ningún** valor conserva etiquetas: lo que queda con `<` + letra se descarta con motivo. Devuelven `{ entradas, descartadas, avisos }`.\nPRUEBAS: cada formato con un ejemplo real corto; `%1$s`→`{0}`; entrada con etiqueta descartada; XML roto → vacío + motivo.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "IMA5"
+   ]
+  },
+  {
+   "id": "IMA11",
+   "ola": "TRA1116-IDIOMAS",
+   "titulo": "Almacén local de paquetes de idioma instalados (por neurona)",
+   "archivos": [
+    "src/lib/idiomas/paquete/almacen.ts",
+    "src/lib/idiomas/paquete/__tests__/almacen.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contrato A2. Clave `starseed.idiomas.paquetes.v1` en `localStorage` (inyectable, siempre con try/catch; si falla, la app sigue sin paquetes). Es LOCAL a la neurona: no está en `SYNCED_KEYS`. `listarPaquetes()`, `guardarPaquete(p)` (reemplaza por `codigo`, tope de 12 paquetes y 6 MB en total, si se supera devuelve `{ok:false, motivo}`), `quitarPaquete(codigo)`, `leerPaquete(codigo)`, evento `starseed:idiomas-paquetes` al cambiar. Un valor guardado corrupto se ignora y no rompe nada. Un paquete instalado NUNCA cambia el idioma elegido.\nPRUEBAS con un almacén falso: ida y vuelta; tope; valor corrupto; almacén que lanza.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "IMA5"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1116-053905.json": [
+   "IMA11"
+  ]
+ }
+}
