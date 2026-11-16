@@ -597,4 +597,125 @@ describe('decidirCompartir', () => {
       expect(resultado.hastaMb).toBe(300);
     });
   });
+
+  describe('Pruebas manuales verificadas', () => {
+    it('compartirConOtros: false, audiencia mi-cuenta, limiteMeshMb: 200 → permitido true, hastaMb 200', () => {
+      const ajustes: AjustesInternet = {
+        ...ajustesBase,
+        compartirConOtros: false,
+        banco: { activo: false, modo: 'diario', diarioMb: 0, ventanas: [] },
+        porAudiencia: {
+          ...ajustesBase.porAudiencia,
+          'mi-cuenta': { mesh: true, limiteMeshMb: 200 },
+        },
+      };
+      const puerta = crearPuerta({ medida: false });
+
+      const resultado = decidirCompartir({
+        audiencia: 'mi-cuenta',
+        ajustes,
+        contadores: contadoresBase,
+        puerta,
+        ahora,
+        desfaseMin,
+      });
+
+      expect(resultado.permitido).toBe(true);
+      expect(resultado.hastaMb).toBe(200);
+      expect(resultado.motivo).toContain('limite audiencia');
+    });
+
+    it('banco.activo true, bytesDia.otros definido → usadoHoyMb calcula correctamente', () => {
+      const ajustes: AjustesInternet = {
+        ...ajustesBase,
+        compartirConOtros: true,
+        banco: { activo: true, modo: 'diario', diarioMb: 500, ventanas: [] },
+        porAudiencia: {
+          ...ajustesBase.porAudiencia,
+          publico: { mesh: true, limiteMeshMb: null },
+        },
+      };
+      // bytesDia: mi-cuenta=0, entidad=0, publico=150 MB → total otros = 150 MB
+      const contadores = {
+        ...contadoresBase,
+        bytesDia: { 'mi-cuenta': 0, entidad: 0, publico: 150 * 1_000_000 },
+      };
+      const puerta = crearPuerta({ topeMensualMb: 1000, usadoMesMb: 100 });
+
+      const resultado = decidirCompartir({
+        audiencia: 'publico',
+        ajustes,
+        contadores,
+        puerta,
+        ahora,
+        desfaseMin,
+      });
+
+      // Banco: 500 - 150 = 350 MB
+      // Puerta: 1000 - 100 - 200 = 700 MB
+      // Mínimo = 350 MB (banco)
+      expect(resultado.permitido).toBe(true);
+      expect(resultado.hastaMb).toBe(350);
+      expect(resultado.motivo).toContain('banco');
+    });
+
+    it('mi-cuenta con banco activo → usadoHoyMb de "otros" aplica a mi-cuenta', () => {
+      const ajustes: AjustesInternet = {
+        ...ajustesBase,
+        compartirConOtros: false,
+        banco: { activo: true, modo: 'diario', diarioMb: 300, ventanas: [] },
+        porAudiencia: {
+          ...ajustesBase.porAudiencia,
+          'mi-cuenta': { mesh: true, limiteMeshMb: null },
+        },
+      };
+      const contadores = {
+        ...contadoresBase,
+        bytesDia: { 'mi-cuenta': 0, entidad: 50 * 1_000_000, publico: 50 * 1_000_000 },
+      };
+      const puerta = crearPuerta({ medida: false });
+
+      const resultado = decidirCompartir({
+        audiencia: 'mi-cuenta',
+        ajustes,
+        contadores,
+        puerta,
+        ahora,
+        desfaseMin,
+      });
+
+      // Para mi-cuenta: limiteMeshMb=null, banco activo
+      // usadoHoyMb('otros') = 50 + 50 = 100 MB
+      // Banco: 300 - 100 = 200 MB
+      expect(resultado.permitido).toBe(true);
+      expect(resultado.hastaMb).toBe(200);
+    });
+
+    it('minimoNoNull devuelve null cuando todos los valores son null', () => {
+      const ajustes: AjustesInternet = {
+        ...ajustesBase,
+        compartirConOtros: true,
+        banco: { activo: false, modo: 'diario', diarioMb: 0, ventanas: [] },
+        porAudiencia: {
+          ...ajustesBase.porAudiencia,
+          publico: { mesh: true, limiteMeshMb: null },
+        },
+      };
+      // Puerta sin medida ni tope → restanteParaOtrosMb = null
+      const puerta = crearPuerta({ medida: false, topeMensualMb: undefined });
+
+      const resultado = decidirCompartir({
+        audiencia: 'publico',
+        ajustes,
+        contadores: contadoresBase,
+        puerta,
+        ahora,
+        desfaseMin,
+      });
+
+      expect(resultado.permitido).toBe(true);
+      expect(resultado.hastaMb).toBeNull();
+      expect(resultado.motivo).toContain('sin límite');
+    });
+  });
 });

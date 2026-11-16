@@ -1,8 +1,7 @@
 import { PuertaInternet, puedeUsar, restanteParaOtrosMb, Compartir, Solicitante } from '../cristal/puertas-internet';
 import { Audiencia, AjustesInternet } from './tipos';
-import { Contadores } from './contadores';
+import { Contadores, usadoHoyMb } from './contadores';
 import { cupoBanco } from './cupo-banco';
-import { usadoHoyMb } from './contadores';
 
 export interface EntradaDecidirCompartir {
   audiencia: Audiencia;
@@ -25,33 +24,32 @@ function minimoNoNull(...valores: (number | null)[]): number | null {
   return Math.min(...numericos);
 }
 
-function evaluarBanco(
-  ajustes: AjustesInternet,
-  contadores: Contadores,
-  ahora: number,
-  desfaseMin: number
-): { aplica: boolean; permitido: boolean; restanteMb: number | null; motivo: string } {
-  if (!ajustes.banco.activo) {
-    return { aplica: false, permitido: true, restanteMb: null, motivo: 'banco inactivo' };
-  }
-
-  const usadosHoyOtros = usadoHoyMb(contadores, 'otros', ahora, desfaseMin);
-  const resultadoCupo = cupoBanco(ajustes.banco, usadosHoyOtros, new Date(ahora), desfaseMin);
-
-  const restanteMb = resultadoCupo.permitido ? resultadoCupo.restanteMb : 0;
-  return {
-    aplica: true,
-    permitido: resultadoCupo.permitido,
-    restanteMb: Number.isFinite(restanteMb) ? restanteMb : null,
-    motivo: resultadoCupo.motivo,
-  };
-}
-
 const solicitanteOtros: Solicitante = {
   cuenta: 'otra-cuenta',
   vinculado: false,
   grupos: [],
 };
+
+function cupoParaOtros(
+  ajustes: AjustesInternet,
+  contadores: Contadores,
+  ahora: number,
+  desfaseMin: number
+): { aplica: boolean; permite: boolean; restanteMb: number | null; motivo: string } {
+  if (!ajustes.banco.activo) {
+    return { aplica: false, permite: true, restanteMb: null, motivo: 'banco inactivo' };
+  }
+
+  const usadosHoy = usadoHoyMb(contadores, 'otros', ahora, desfaseMin);
+  const cupo = cupoBanco(ajustes.banco, usadosHoy, new Date(ahora), desfaseMin);
+
+  return {
+    aplica: true,
+    permite: cupo.permitido,
+    restanteMb: cupo.restanteMb > 0 ? cupo.restanteMb : (cupo.permitido ? cupo.restanteMb : 0),
+    motivo: cupo.motivo,
+  };
+}
 
 export function decidirCompartir(entrada: EntradaDecidirCompartir): ResultadoDecidirCompartir {
   const { audiencia, ajustes, contadores, puerta, ahora, desfaseMin } = entrada;
@@ -61,34 +59,28 @@ export function decidirCompartir(entrada: EntradaDecidirCompartir): ResultadoDec
 
   // Regla 1: mi-cuenta
   if (esMiCuenta) {
-    const limiteAudiencia = porAudiencia.limiteMeshMb;
-
     if (!porAudiencia.mesh) {
       return {
         permitido: false,
         hastaMb: null,
-        motivo: `Compartir malla desactivado para audiencia mi-cuenta`,
+        motivo: 'Compartir malla desactivado para audiencia mi-cuenta',
       };
     }
 
-    const banco = evaluarBanco(ajustes, contadores, ahora, desfaseMin);
+    const limiteAudiencia = porAudiencia.limiteMeshMb;
+    const restantePuerta = restanteParaOtrosMb(puerta);
+
     const limites: (number | null)[] = [limiteAudiencia];
-    if (banco.aplica) limites.push(banco.restanteMb);
+    if (restantePuerta !== null) {
+      limites.push(restantePuerta);
+    }
 
     const hastaMb = minimoNoNull(...limites);
-
-    if (banco.aplica && !banco.permitido) {
-      return {
-        permitido: false,
-        hastaMb: 0,
-        motivo: `banco: ${banco.motivo}`,
-      };
-    }
 
     return {
       permitido: true,
       hastaMb,
-      motivo: `mi-cuenta: ${banco.aplica ? `banco (${banco.motivo})` : 'sin límite de banco'}${limiteAudiencia !== null ? `, límite audiencia ${limiteAudiencia} MB` : ''}`,
+      motivo: hastaMb !== null ? `límite: ${hastaMb} MB` : 'sin límite',
     };
   }
 
@@ -110,19 +102,15 @@ export function decidirCompartir(entrada: EntradaDecidirCompartir): ResultadoDec
     };
   }
 
-  // Regla 4: la puerta manda - usar puedeUsar para permiso, restanteParaOtrosMb para límite
+  // Regla 4: la puerta manda
   const puedeUsarResultado = puedeUsar(puerta, solicitanteOtros);
   const restantePuerta = restanteParaOtrosMb(puerta);
 
   if (!puedeUsarResultado.ok) {
-    // Determinar hastaMb según la causa
     let hastaMb: number | null = null;
     if (puedeUsarResultado.motivo === 'No queda datos disponibles para compartir') {
       hastaMb = 0;
     } else if (puedeUsarResultado.motivo === 'Puerta no medida o sin tope definido') {
-      hastaMb = null;
-    } else {
-      // Config failures (nadie, mi-cuenta, vinculos, grupo) → sin límite aplicable
       hastaMb = null;
     }
 
@@ -134,7 +122,7 @@ export function decidirCompartir(entrada: EntradaDecidirCompartir): ResultadoDec
   }
 
   // Regla 5: modo banco
-  const banco = evaluarBanco(ajustes, contadores, ahora, desfaseMin);
+  const banco = cupoParaOtros(ajustes, contadores, ahora, desfaseMin);
 
   // Regla 6: hastaMb = mínimo de los límites que apliquen
   const limites: (number | null)[] = [porAudiencia.limiteMeshMb];
@@ -143,7 +131,7 @@ export function decidirCompartir(entrada: EntradaDecidirCompartir): ResultadoDec
 
   const hastaMb = minimoNoNull(...limites);
 
-  if (banco.aplica && !banco.permitido) {
+  if (banco.aplica && !banco.permite) {
     return {
       permitido: false,
       hastaMb: 0,
