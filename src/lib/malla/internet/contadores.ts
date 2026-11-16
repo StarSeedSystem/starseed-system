@@ -1,5 +1,7 @@
 import { Audiencia } from './tipos';
 
+export type { Audiencia } from './tipos';
+
 export const MB = 1_000_000;
 
 export interface Contadores {
