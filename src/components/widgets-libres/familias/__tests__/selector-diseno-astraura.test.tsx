@@ -1,30 +1,31 @@
 import { describe, it, expect, vi } from "vitest";
-
-// Definir tipos básicos basados en la tarea
-export type EleccionDiseno = "auto" | "minima" | "ligera" | "alta" | "estudio";
-
-export interface SelectorDisenoProps {
-  valor: EleccionDiseno;
-  onCambiar: (e: EleccionDiseno) => void;
-  degradado: boolean;
-}
-
-// Como no puedo ejecutar vitest, esto es el esqueleto para cumplir con las reglas.
-// Se inyectarán dependencias o mock en la implementación real.
+import { render, screen, fireEvent } from "@testing-library/react";
+import { SelectorDisenoAstraura } from "../selector-diseno-astraura";
+import { DISENOS } from "@/lib/widgets/astraura/disenos";
 
 describe("SelectorDisenoAstraura", () => {
-  it("debería tener las 5 opciones: auto, minima, ligera, alta, estudio", () => {
-    // La prueba verificará la interfaz del componente
-    expect(true).toBe(true);
+  it("debería tener las opciones: auto y las definidas en DISENOS", () => {
+    const onCambiar = vi.fn();
+    render(<SelectorDisenoAstraura valor="auto" onCambiar={onCambiar} degradado={false} />);
+    fireEvent.click(screen.getByLabelText("Cambiar diseño"));
+    expect(screen.getByText(/Automático/)).toBeTruthy();
+    Object.values(DISENOS).forEach(d => {
+        expect(screen.getByText(d.nombre)).toBeTruthy();
+    });
   });
 
   it("debería llamar a onCambiar con el valor seleccionado", () => {
-    // Probar el cambio de estado
-    expect(true).toBe(true);
+    const onCambiar = vi.fn();
+    render(<SelectorDisenoAstraura valor="auto" onCambiar={onCambiar} degradado={false} />);
+    fireEvent.click(screen.getByLabelText("Cambiar diseño"));
+    fireEvent.click(screen.getByText(DISENOS.minimo.nombre));
+    expect(onCambiar).toHaveBeenCalledWith("minimo");
   });
 
   it("debería mostrar nota de degradado si está activo", () => {
-    // Probar la visibilidad de la nota según prop
-    expect(true).toBe(true);
+    render(<SelectorDisenoAstraura valor="minimo" onCambiar={vi.fn()} degradado={true} />);
+    fireEvent.click(screen.getByLabelText("Cambiar diseño"));
+    expect(screen.getByRole("status")).toBeTruthy();
+    expect(screen.getByText(/Este tamaño es pequeño/)).toBeTruthy();
   });
 });

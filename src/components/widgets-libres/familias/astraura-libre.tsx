@@ -13,6 +13,8 @@
 import * as React from "react";
 import Link from "next/link";
 import { MessageCircle, Mic, MicOff, Send, Sparkles } from "lucide-react";
+import { SelectorDisenoAstraura } from "./selector-diseno-astraura";
+import type { EleccionDiseno } from "@/lib/widgets/astraura/disenos";
 import { WidgetLibre } from "@/components/widgets-libres/widget-libre";
 import { readAuroraChatEntries, AURORA_CHATLOG_CHANGE_EVENT, AURORA_CHATLOG_KEY, type AuroraChatLogEntry } from "@/lib/aurora/aurora-chat-log";
 import { AURORA_EXOCORTEX_OPEN_EVENT } from "@/lib/aurora/aurora-orb-bus";
@@ -20,6 +22,7 @@ import { getAuroraBridge, openAurora } from "@/lib/aurora/open-aurora";
 import { Rotulo, disenoDe, recortarPalabras } from "./comun";
 import { PilaAjustable, Prescindible } from "@/components/dashboard/kit/pila-ajustable";
 import { Accion, escalaTipo, esTactil, haceCuanto, useClaseForzada, useDispositivo, useEnPantalla } from "./inicio-piezas";
+import type { DashboardWidget } from "@/components/dashboard/dashboard-types";
 
 const VIOLETA = "#7c5cff";
 const TURQUESA = "#23d5ab";
@@ -122,13 +125,15 @@ function Preguntar({ tactil, sugerencias, compacto }: { tactil: boolean; sugeren
     );
 }
 
-export function AstrauraLibre() {
+export function AstrauraLibre({ widget, onUpdateSettings }: { widget?: DashboardWidget; onUpdateSettings?: (patch: Record<string, any>) => void }) {
     const [entradas, setEntradas] = React.useState<AuroraChatLogEntry[] | null>(null);
     const [ref, visible] = useEnPantalla<HTMLDivElement>();
     const { estado, voz, escuchar, callar } = useVozAurora(visible);
     const dispositivo = useDispositivo();
     const forzada = useClaseForzada();
     const k = escalaTipo(dispositivo), tactil = esTactil(dispositivo);
+    const diseno = (widget?.settings?.astrauraDiseno as EleccionDiseno) ?? "auto";
+    const cambiarDiseno = (d: EleccionDiseno) => onUpdateSettings?.({ astrauraDiseno: d });
     React.useEffect(() => {
         const leer = () => { try { setEntradas(readAuroraChatEntries()); } catch { setEntradas([]); } };
         const alGuardar = (e: StorageEvent) => { if (e.key === AURORA_CHATLOG_KEY) leer(); };
@@ -178,10 +183,12 @@ export function AstrauraLibre() {
             <WidgetLibre forma="ninguna" acento={VIOLETA} acento2={TURQUESA} etiqueta={ultima ? `Astraura dijo: ${ultima.text.slice(0, 80)}` : "Astraura"}>
                 {({ clase: medida, ancho, alto }) => {
                     const clase = forzada ?? medida;
+                    const degradado = clase === "micro" && diseno !== "auto";
                     const { base: b, horizontal } = disenoDe(clase);
                     const lado = Math.min(ancho, alto);
+                    const elDiseno = ((clase === "micro" || (degradado && clase === "s")) && diseno !== "auto") ? "minimo" : diseno;
 
-                    if (b === "micro") return <div className="flex h-full items-center justify-center" data-diseno="micro"><Orbe tam={lado * 0.62} estado={vivaAhora} onClick={abrirChat} /></div>;
+                    if (b === "micro") return <div className="flex h-full items-center justify-center" data-diseno="micro"><Orbe tam={lado * 0.62} estado={vivaAhora} onClick={abrirChat} /><SelectorDisenoAstraura valor={elDiseno} onCambiar={cambiarDiseno} degradado={degradado} /></div>;
 
                     if (b === "s") {
                         return (
@@ -249,6 +256,7 @@ export function AstrauraLibre() {
                                 <div className="flex flex-wrap justify-center gap-1.5">
                                     {botonVoz}
                                     <Accion icono={MessageCircle} color={VIOLETA} grande={tactil} onClick={abrirChat} aria-label="Abrir el chat de Astraura">Chat</Accion>
+                                    <SelectorDisenoAstraura valor={diseno} onCambiar={cambiarDiseno} degradado={false} />
                                 </div>
                             </div>
                             <PilaAjustable niveles={8} className="min-w-0 flex-1 self-stretch">
