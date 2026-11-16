@@ -1,0 +1,69 @@
+{
+ "ola": "nube-20261116",
+ "tareas": [
+  {
+   "id": "TU15",
+   "ola": "TRA1116-APP-F1",
+   "titulo": "Conversación por voz en dos sentidos: máquina de turnos con latencia visible",
+   "archivos": [
+    "src/lib/traductor/conversacion.ts",
+    "src/lib/traductor/__tests__/conversacion.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Máquina de estados pura (reloj inyectado): dos hablantes A y B, cada uno con su idioma; estados `inactivo → escuchando(X) → traduciendo(X) → hablando(Y) → escuchando(Y)…`; `pulsarHablar(X)`, `resultadoParcial(texto)`, `resultadoFinal(texto)`, `traduccionLista(res)`, `finDeVoz()`, `error(motivo)`; cada turno guarda `{quien, texto, traduccion, msReconocer, msTraducir, msHablar}` para que la pantalla muestre «traduciendo…» y las cifras reales; un turno nunca empieza mientras el anterior habla (evita el eco); si algún paso no está disponible (sin reconocimiento o sin voz de destino) el turno sigue como texto y lo dice. PRUEBAS: secuencia completa A→B→A, error en traducir, sin voz de destino, pulsar durante «hablando» se encola.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "revisor_quitadas": [
+    "TU14"
+   ],
+   "dependencias_ya_en_main": [
+    "TU12",
+    "TU13"
+   ]
+  },
+  {
+   "id": "TU17",
+   "ola": "TRA1116-APP-F1",
+   "titulo": "Panel de texto: dos cajas, traducir, copiar, leer en voz alta",
+   "archivos": [
+    "src/components/traductor/panel-texto.tsx",
+    "src/components/traductor/__tests__/panel-texto.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Pantalla de texto: caja de origen (contador de caracteres y tope de 5.000), caja de resultado de solo lectura, «Traducir» (también con la pausa de 600 ms si la persona activó «traducir mientras escribo»; apagado por defecto), copiar, leer en voz alta (TU14; si no hay voz lo dice), «Motor: X · en tu aparato / sale a …» con `local`, el aviso `necesitaAviso` abre el diálogo de TU20, lectura de `?texto=&de=&a=` de la URL para el clic derecho, y los errores en palabras. Todo por props inyectadas (servicio, voz). PRUEBAS: traducir muestra motor y resultado; sin voz muestra el motivo; el texto de la URL rellena la caja; servicio con error.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "revisor_quitadas": [
+    "TU14"
+   ],
+   "dependencias_ya_en_main": [
+    "TU12",
+    "TU16"
+   ]
+  },
+  {
+   "id": "TU23",
+   "ola": "TRA1116-APP-F1",
+   "titulo": "Widget del Traductor: componente con idiomas fijados y sin historial opcional",
+   "archivos": [
+    "src/components/traductor/widget-traductor.tsx",
+    "src/components/traductor/__tests__/widget-traductor.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Lee `src/components/dashboard/widgets/clock-date-widget.tsx` (forma de un widget) y `src/components/dashboard/kit/widget-config-popover.tsx` (cómo se configura). `WidgetTraductor({ ajustes, onAjustes, servicio })`: caja de texto, par de idiomas con intercambio, resultado y copiar, motor usado; ajustes: idiomas fijados, motor preferido («automático» o «solo en mi aparato»), tamaño de letra (S/M/L), historial corto sí/no. No traduce hasta pulsar el botón. Funciona a 2×2. PRUEBAS: traducir con servicio falso, ajustes se aplican, sin historial no guarda.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "TU12"
+   ]
+  },
+  {
+   "id": "TU26",
+   "ola": "TRA1116-APP-F1",
+   "titulo": "Herramienta de Astraura: contrato de entrada y salida, validación y ejecución",
+   "archivos": [
+    "src/lib/traductor/herramienta-astraura.ts",
+    "src/lib/traductor/__tests__/herramienta-astraura.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contrato §6. `ENTRADA_TRADUCTOR` validador: `{texto?: string; textos?: string[]; origen?: \"auto\"|string; destino: string; tono?: \"neutro\"|\"formal\"|\"cercano\"; contexto?: \"chat\"|\"documento\"|\"voz\"}` (uno de `texto|textos`, ≤20 textos y ≤5.000 caracteres en total; `destino` código válido); `ejecutarTraductor(entrada, servicio): Promise<{traducciones: string[]; origenDetectado: string|null; motor: string; local: boolean; aviso?: string} | {error: string}>`: nunca texto inventado ante un error; no traduce si origen y destino coinciden (devuelve el mismo texto con aviso); no toca nombres propios ni bloques de código (protege con `protegerMarcas`, `src/lib/traduccion/motor.ts:17-33`, y deja intactos los fragmentos entre ``` ). `descripcionHerramienta`: nombre, descripción y esquema JSON de la entrada para registrarla. PRUEBAS: entrada válida e inválida, error del servicio → `{error}`, mismo idioma, código protegido.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "TU12"
+   ]
+  }
+ ]
+}
