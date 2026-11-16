@@ -250,7 +250,7 @@ export function procesarEvento(
                 notificarCambio({
                     fase: "esperandoTurno",
                     quien: estado.quien,
-                    cola: [...(estado.fase === "esperandoTurno" ? (estado as any).cola : []), { quien: evento.quien, texto: "", traduccion: "" }],
+                    cola: [{ quien: evento.quien, texto: "", traduccion: "" }],
                 });
             }
             break;
