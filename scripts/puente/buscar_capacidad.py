@@ -52,6 +52,7 @@ import os
 import subprocess
 import sys
 import time
+from scripts.puente.freno_mismo_motivo import frenar_por_mismo_motivo
 
 DIRECTORIO = os.path.dirname(os.path.abspath(__file__))
 RAIZ = os.environ.get("STARSEED_ROOT") or os.path.dirname(os.path.dirname(DIRECTORIO))
@@ -488,6 +489,22 @@ def texto_medio(m):
         resto = m.get("siguiente_paso") or m.get("detalle") or ""
         detalle = " · ".join(p for p in (m.get("capacidad"), resto) if p)
     return "%s: %s%s" % (nombre, estado, (" · " + detalle) if detalle else "")
+
+
+def _entradas_progreso_falla(progreso):
+    """PURA: lista de entradas con estado de fallo de un progreso.{estado: ..., nota: ...}."""
+    if not isinstance(progreso, dict):
+        return []
+    salida = []
+    for tid, v in progreso.items():
+        if not isinstance(v, dict):
+            continue
+        estado = str(v.get("estado") or "").strip()
+        if estado.lower() in ("sin_cambios", "fallo", "fallo_tsc", "fallo_tests", "rechazada", "bloqueada"):
+            if not v.get("fin"):
+                continue
+            salida.append({"id": tid, "estado": estado, "nota": str(v.get("nota") or ""), "fin": v.get("fin")})
+    return salida
 
 
 #: (2026-10-22, ALT1022C) Lo que tarda como mucho el lanzador de sesiones de Claude en la nube.
