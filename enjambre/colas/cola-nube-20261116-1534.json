@@ -1,0 +1,96 @@
+{
+ "ola": "nube-20261116",
+ "tareas": [
+  {
+   "ola": "HAL1116A",
+   "id": "HAL06-d1",
+   "titulo": "Prueba: el primer render del selector de idioma es el mismo en servidor y cliente (parte 1 de 2)",
+   "archivos": [
+    "src/components/idiomas/__tests__/selector-idioma-hidratacion.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Escribe primero esta prueba; es la que dice si el rótulo giratorio es o no la causa del error de hidratación #418 de `/login`. Lee `src/components/idiomas/selector-idioma.tsx`. Lo que ya se sabe leyendo: `RotuloGiratorio` empieza en `useState(0)` (primer render = primer idioma de `IDIOMAS`), `actual` empieza en «es», `abierto` en `false`, y `sugerirIdioma()` (que lee `navigator.language`) solo se pinta con el panel abierto; por eso la sospecha del rótulo NO está confirmada. Prueba con `react-dom/server` + `react-dom/client`: (1) fija `navigator.language = \"fr-FR\"` y `localStorage` con una elección `en` (clave `CLAVE_IDIOMA_NEURONA` de `src/lib/idiomas/estado.ts`); (2) `renderToString(<SelectorIdioma />)` en un entorno SIN `window` (o con `typeof window` simulado: usa la forma que ya usen otras pruebas SSR del repo, búscalas con `renderToString`); (3) monta ese HTML en un contenedor, espera `hydrateRoot(...)` dentro de `act` y vigila `console.error`: NINGÚN mensaje puede contener «Hydration», «hydrat» ni «418». (4) Comprueba también que el texto del rótulo en el primer render del cliente es igual al del HTML del servidor, y que un segundo después (`vi.advanceTimersByTime(1000)`) sí cambia. Solo si la prueba FALLARÍA por una diferencia real que veas leyendo el código, arregla `selector-idioma.tsx` con ≤30 líneas (primer render determinista; lo variable entra en un efecto) y di en un comentario de la prueba qué texto difería; si el primer render ya es determinista (lo esperado), NO toques el componente y la prueba queda como protección.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.\n\n## PARTE 1 DE 2 (la dirección dividió HAL06: falla por sí misma (tarea:otro))\nEn esta parte tocas SOLO: src/components/idiomas/__tests__/selector-idioma-hidratacion.test.tsx. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "HAL06",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:otro)"
+   }
+  },
+  {
+   "id": "PRI01",
+   "ola": "PRI1116A",
+   "titulo": "URGENTE · Fábrica: las tareas que desbloquean la compilación empiezan antes (prioridad por tarea, sin interrumpir lo que está en curso)",
+   "archivos": [
+    "scripts/enjambre/starseed-enjambre.py",
+    "scripts/enjambre/test_prioridad_cola.py"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. PETICIÓN DE ALEX (16-11): «los arreglos para la compilación que falta deberían ser prioridad en la lista de tareas (sin interrumpir los procesos actuales); los directores deben decidir priorizar lo más relevante, en este caso la compilación para las pruebas». HECHO: el arreglo de una línea que desbloqueaba el APK (KOT01) esperó horas detrás de tareas menos urgentes.\n\nHoy las ÓRDENES del lanzador ya llevan prioridad en `scripts/enjambre/starseed-enjambre.py` (busca `prioridad=float(orden.get(\"prioridad\") or 0)`), pero las TAREAS de una cola no. Haz lo mínimo (≤60 líneas en ese archivo, en bloques aditivos `# PRI01`):\n1) Función PURA `prioridad_de_tarea(t)`: devuelve `float(t[\"prioridad\"])` si existe y es número; 100.0 si `t.get(\"urgente\")` es verdadero o si el título empieza por «URGENTE»; si no, 0.0. Nunca lanza.\n2) Función PURA `ordenar_pendientes(tareas)`: devuelve las mismas tareas ordenadas por prioridad de mayor a menor y, a igualdad, EN EL ORDEN EN QUE VENÍAN (orden estable). No quita ni añade ninguna.\n3) Úsala en el punto donde el orquestador elige, entre las tareas PENDIENTES con sus dependencias cumplidas, cuál empieza a continuación. NO toques las tareas que ya están en curso: nada se interrumpe, se cancela ni se reordena una vez empezado. Si ese punto no está en este archivo o no puedes localizarlo con certeza, NO lo adivines: deja las dos funciones y sus pruebas, y dilo en un comentario `# PRI01: falta enganchar en …` junto a ellas.\n4) Si el validador de colas de este archivo rechaza claves desconocidas, acepta `prioridad` (número) y `urgente` (booleano) como opcionales.\n\nPruebas en `scripts/enjambre/test_prioridad_cola.py` (pytest, como sus vecinas): sin prioridades el orden no cambia; una tarea con `prioridad` 50 pasa delante de las de 0; `urgente: true` y un título que empieza por «URGENTE» valen 100; a igualdad se conserva el orden de llegada; valores raros (`None`, texto, lista) valen 0 y no lanzan; la lista devuelta tiene los mismos elementos.\nAsunto del commit: `PRI1116A · PRI01: las tareas urgentes de una cola empiezan antes (sin interrumpir las que están en curso)`.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado."
+  },
+  {
+   "id": "INT08",
+   "ola": "INT1116A",
+   "titulo": "Hook de los ajustes y contadores para la interfaz",
+   "archivos": [
+    "src/lib/malla/internet/use-ajustes-internet.ts",
+    "src/lib/malla/internet/__tests__/use-ajustes-internet.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contrato: architecture/malla-cristalina-sio2.md §8.2 (contrato; si aún no está en el repo, rige este texto). Escribe primero las pruebas (`@testing-library/react`, `renderHook`). `useAjustesInternet(opciones?: { almacen?: Almacen; ahora?: () => number; desfaseMin?: number })` devuelve `{ ajustes, contadores, cambiar(parcial: DeepPartial<AjustesInternet>): void, decidir(audiencia, puerta): ReturnType<typeof decidirCompartir>, restanteHoyMb: number | null }`. Lee con `leerAjustes(…, AJUSTES_APAGADOS)` y `leerContadores` una vez al montar (sin tocar `localStorage` en el render del servidor: `typeof window` solo dentro de efectos), guarda en cada `cambiar` y escucha el evento `storage` para otra pestaña. `cambiar` NUNCA enciende `compartirConOtros` por su cuenta: solo lo que la persona pasa. `restanteHoyMb` viene de `cupoBanco` si el banco está activo, si no `null`. El primer render del servidor y del cliente es el MISMO (ajustes apagados) y el valor guardado entra en un efecto.\nPRUEBAS: valores iniciales; `cambiar` guarda y re-renderiza; el evento `storage` actualiza; `cambiar` de un campo no toca los demás; el primer render coincide con `AJUSTES_APAGADOS`.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "INT05-d2",
+    "INT06",
+    "INT07"
+   ]
+  },
+  {
+   "id": "IMA15",
+   "ola": "TRA1116-IDIOMAS",
+   "titulo": "Editor de paquete en curso: claves pendientes, traducidas y estado",
+   "archivos": [
+    "src/lib/idiomas/paquete/editor.ts",
+    "src/lib/idiomas/paquete/__tests__/editor.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contrato A3 «Añadir al paquete de idioma en edición». Estado puro y su clave local `starseed.idiomas.editor.v1`: `abrirEdicion(codigo, nombre)`, `paqueteEnEdicion()`, `anadirPendiente(textoEspanol)` (normaliza con `normalizarTexto`; ignora vacíos, textos de >500 caracteres y duplicados; tope 2.000), `traducir(clave, valor)`, `pendientes()`, `completadas()`, `cerrarEdicion()`, `publicarBorrador(): PaqueteIdioma|null` (solo entradas traducidas; `revisado.estado` siempre «automatico» porque el OS no puede certificar una revisión humana desde aquí). Almacén inyectable con try/catch.\nPRUEBAS: añadir, duplicar, tope, traducir, publicar solo lo traducido, estado se recupera tras recargar (almacén falso).\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "IMA5",
+    "IMA11-d2"
+   ]
+  },
+  {
+   "id": "JL9",
+   "ola": "JLA1116A",
+   "titulo": "Reglas de ámbito de la libreta: quién la lee y qué puede salir",
+   "archivos": [
+    "src/lib/astraura/laya/ambito-libreta.ts",
+    "src/lib/astraura/laya/__tests__/ambito-libreta.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: architecture/jev-entrena-laya.md (si aún no está en el repo, rige este texto). Lee AGENTS.md. §5. Puro. `AmbitoLibreta = \"personal\"|\"pagina\"|\"grupo\"|\"colectivo\"|\"fabrica\"`. `puedeLeer(ambito, quien)`, `puedeSalir(ambito, ejemplo, eleccion)`: lo personal solo sale con elección explícita de la persona; el ámbito de página/grupo solo si la entidad lo aprobó (`aprobadoPorEntidad`); el colectivo solo admite ejemplos públicos; la fábrica nunca sale al repo. `soloPublicoParaAdaptador(ejemplos, ambito)`: un adaptador de página/colectivo no puede haber visto ejemplos personales. PRUEBAS: cada celda de la tabla de §5, y que por defecto todo es «no sale».\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` (Python: sin red ni `~/.starseed`, rutas y lectores se inyectan) salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado."
+  },
+  {
+   "id": "JL10b",
+   "ola": "JLA1116A",
+   "titulo": "Laya para el planificador: rellenar respuestasLaya del router",
+   "archivos": [
+    "src/lib/astraura/laya/preguntar-plan.ts",
+    "src/lib/astraura/laya/__tests__/preguntar-plan.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: architecture/jev-entrena-laya.md (si aún no está en el repo, rige este texto). Lee AGENTS.md. §2 (nadie rellena `respuestasLaya` del router, `src/ai/astraura/router.ts:987`). Puro con dependencias inyectadas: `respuestasParaPlan(textoTarea, deps)` llama a `preguntarALaya` (`cliente-laya.ts:76`) con el punto `plan.dificultad` y devuelve `RespuestasLaya` (`router-laya.ts`) o null si Laya no llegó a tiempo; nunca espera más que el plazo del medio. PRUEBAS con `fetch` y reloj falsos: respuesta a tiempo, plazo vencido -> null, error de red -> null, respuesta mal formada -> null.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` (Python: sin red ni `~/.starseed`, rutas y lectores se inyectan) salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/43798115047`)\nUn agente de la nube ya avanzó esta tarea (no pasa en GitHub (run 43820415679) falla «pruebas TS»: 6-11-16T07:09:30.0727787Z \u001b[2m      Tests \u001b[22m \u001b[1m\u001b[31m1 failed\u001b[39m\u001b[22m\u001b[2m | \u001b[22m\u001b[1m\u001b[32m4370 passed\u001b[39m\u001b[22m\u001b[2m | \u001b[22m\u001b[33m2 skipped\u001b[39m\u001b[90m (4373)\u001b[39m\n2026-11-16T07:09:30.0756922Z \u001b[2m   Start at \u001b[22m 07:02:17\n2026-11-16T07:09:30.0817851Z \u001b[2m   Duration \u001b[22m 432.70s\u001b[2m (transform 25.97s, setup 28.21s, collect 228.86s, tests 284.77s, environment 125.86s, prepare 34.41s)\u001b[22m\n2026-11-16T07:09:30.0856512Z \n2026-11-16T07:09:30.0881160Z \n2026-11-16T07:09:30.0922619Z ##[error]AssertionError: expected \"spy\" to be called 1 times, but got 0 times\n ❯ src/lib/banco-llamadas/__tests__/app-latido.test.ts:112:24\n\n\n2026-11-16T07:09:30.4679660Z ##[error]Process completed with exit code 1.). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/43798115047:refs/remotes/origin/nube/43798115047\"` y `git cherry-pick --no-commit 4c77ab6b5872 5f8d63923541 e05485cf0217 28ede95af76e`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/ai/astraura/router.ts, src/components/aurora/setup/aurora-setup-center.tsx, src/components/onboarding/aurora-guide.tsx, src/hooks/__tests__/use-timeout-interaction.test.ts, src/hooks/use-timeout-interaction.ts, src/lib/astraura/laya/__tests__/preguntar-plan.test.ts, src/lib/astraura/laya/preguntar-plan.ts, src/lib/mando/areas.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/43798115047"
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1116-105020.json": [
+   "IMA15",
+   "HAL06-d1",
+   "JL10b",
+   "JL9",
+   "PRI01",
+   "INT08"
+  ]
+ }
+}
