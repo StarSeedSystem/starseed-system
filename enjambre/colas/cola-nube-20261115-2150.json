@@ -1,0 +1,24 @@
+{
+ "ola": "nube-20261115",
+ "tareas": [
+  {
+   "id": "MRI5",
+   "ola": "MAP1116B",
+   "titulo": "Espectro: canales y estaciones públicas y privadas como señales (lo que su dueño publicó)",
+   "archivos": [
+    "src/lib/senales/espectro/adaptadores/estaciones.ts",
+    "src/lib/senales/espectro/adaptadores/__tests__/estaciones.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Adaptador puro de estaciones/canales: convierte las filas de `os_estaciones` que el usuario YA puede leer (`src/lib/estaciones/datos.ts`: `listarEstaciones`, respeta su RLS; no añadas lecturas) en `SenalEspectro` de medio `estacion`: capa `publica` si la estación es pública del directorio, `privada` si es del propio dueño o de su grupo, `origen:\"declarada\"` (la estación declara su tipo y su frecuencia/banda si la tiene: Omnifrecuencias; si no, sin frecuencia), `fuente:\"estación publicada por su dueño\"`, `vinculo:{tipo:\"estacion\", id}`. Las privadas ajenas no llegan (la RLS no las da) y si llegasen se descartan. Sin sesión o error → `sinFuente`. PRUEBAS: pública ajena sí; privada propia sí con capa privada; privada ajena descartada; sin frecuencia → sin número inventado. COMPRUEBA: `NODE_ENV=test npx vitest run src/lib/senales/espectro/adaptadores/__tests__/estaciones.test.ts` verde y tsc acotado.\n\nREGLAS DE LA CASA (valen aunque no las repita la tarea): toca SOLO los archivos de la lista `archivos`; ≤3 archivos y ≤120 líneas por archivo (si no cabe, para y di qué falta: no lo estires ni lo resumas); sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible (la interfaz dice Genesis); sin red real en las pruebas; ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves. El asunto de tu commit empieza por `MRI5:` y dice qué comprobaste y qué NO pudiste comprobar.",
+   "dependencias_ya_en_main": [
+    "MRA2"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1115-190053.json": [
+   "MRI5"
+  ]
+ }
+}
