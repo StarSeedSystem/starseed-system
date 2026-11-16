@@ -139,3 +139,34 @@ def permitido(
             return False, "saldo bajo el margen"
 
     return True, "ok"
+
+# MQA8
+PLAN_RPM = 60
+PLAN_TPM = 1_000_000
+PLAN_PETICIONES_DIA = 10_000
+PLAN_A_LA_VEZ = 4
+
+FABRICA_RPM = 30
+FABRICA_PETICIONES_DIA = 5_000
+FABRICA_A_LA_VEZ = 2
+
+def cabe_peticion(hechas_hoy: int | None, en_el_ultimo_minuto: int | None, en_curso: int | None) -> tuple[bool, str]:
+    """Retorna (True, 'ok') solo si los tres indicadores están bajo límites de fábrica."""
+    if hechas_hoy is None or en_el_ultimo_minuto is None or en_curso is None:
+        return False, "falta dato"
+    if hechas_hoy >= FABRICA_PETICIONES_DIA:
+        return False, "límite diario alcanzado"
+    if en_el_ultimo_minuto >= FABRICA_RPM:
+        return False, "límite RPM alcanzado"
+    if en_curso >= FABRICA_A_LA_VEZ:
+        return False, "límite concurrencia alcanzado"
+    return True, "ok"
+
+def solo_texto(mensajes: list[dict]) -> bool:
+    """False si algún mensaje contiene URL remota en campo de imagen."""
+    for m in mensajes:
+        img = m.get("imagen")
+        if isinstance(img, str):
+            if img.startswith("http://") or img.startswith("https://"):
+                return False
+    return True
