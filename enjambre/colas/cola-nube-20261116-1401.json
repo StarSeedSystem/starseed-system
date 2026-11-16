@@ -1,0 +1,112 @@
+{
+ "ola": "nube-20261116",
+ "tareas": [
+  {
+   "ola": "TRA1116-APP-F1",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/43813404750",
+   "id": "TU14b-d2",
+   "titulo": "Hablar: síntesis de voz en el idioma de destino o decir que no hay voz (parte 2 de 2)",
+   "archivos": [
+    "src/lib/traductor/__tests__/voz-habla.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. `hablar(texto, idioma, entorno)` / `detener()` / `vocesDe(idioma)`: elige la voz cuyo `lang` coincide (exacto, luego prefijo); sin voz de ese idioma devuelve `{ok:false, motivo:\"No hay una voz de <idioma> en este aparato\"}` y NO usa otra voz; cola de frases para la conversación (una a la vez), `alTerminar`. PRUEBAS con un `speechSynthesis` falso: voz exacta, por prefijo, sin voz, cola en orden.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/43813404750`)\nUn agente de la nube ya avanzó esta tarea (no pasa en GitHub (run 43828111790) falla «pruebas TS»: 26-11-16T08:10:11.1531753Z \u001b[2m      Tests \u001b[22m \u001b[1m\u001b[31m1 failed\u001b[39m\u001b[22m\u001b[2m | \u001b[22m\u001b[1m\u001b[32m4353 passed\u001b[39m\u001b[22m\u001b[2m | \u001b[22m\u001b[33m2 skipped\u001b[39m\u001b[90m (4356)\u001b[39m\n2026-11-16T08:10:11.1534857Z \u001b[2m   Start at \u001b[22m 08:05:31\n2026-11-16T08:10:11.1544960Z \u001b[2m   Duration \u001b[22m 279.32s\u001b[2m (transform 18.20s, setup 17.35s, collect 130.58s, tests 214.61s, environment 76.50s, prepare 20.47s)\u001b[22m\n2026-11-16T08:10:11.1545641Z \n2026-11-16T08:10:11.1587213Z \n2026-11-16T08:10:11.1617798Z ##[error]AssertionError: expected \"spy\" to be called 2 times, but got 4 times\n ❯ src/lib/banco-llamadas/__tests__/app-latido.test.ts:115:24\n\n\n2026-11-16T08:10:11.3010155Z ##[error]Process completed with exit code 1.). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/43813404750:refs/remotes/origin/nube/43813404750\"` y `git cherry-pick --no-commit 5a6ac479e518 73f62c756bc4`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/lib/aurora/voz-unica.ts, src/lib/traductor/__tests__/voz-habla.test.ts, src/lib/traductor/voz-habla.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 2 DE 2 (la dirección dividió TU14b: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: src/lib/traductor/__tests__/voz-habla.test.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "TU14b",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   },
+   "dependencias_ya_en_main": [
+    "TU14b-d1"
+   ]
+  },
+  {
+   "ola": "JLA1116A",
+   "id": "JL7-d1",
+   "titulo": "Calibración de la confianza de Laya por punto y ámbito (parte 1 de 2)",
+   "archivos": [
+    "src/lib/astraura/laya/calibracion-laya.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: architecture/jev-entrena-laya.md (si aún no está en el repo, rige este texto). Lee AGENTS.md. §3.2. Puro. Con casos (`CasoLaya` de `aprendizaje-laya.ts`) y su desenlace correcto/incorrecto, `calibrar(casos, punto, ambito)`: 10 cajas de confianza, tasa de acierto por caja, exige ≥ `MIN_CASOS_UMBRAL` (30) y devuelve `{cajas, umbralSugerido, n}` o `{n, motivo: \"faltan casos\"}`; `confianzaCalibrada(cal, p)` interpola y nunca sube la confianza por encima de la tasa observada. PRUEBAS: datos sintéticos con Laya sobreconfiada (dice 0,9 y acierta 0,6) baja la confianza; menos de 30 casos -> motivo; cajas vacías no rompen.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` (Python: sin red ni `~/.starseed`, rutas y lectores se inyectan) salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.\n\n## PARTE 1 DE 2 (la dirección dividió JL7: falla por sí misma (tarea:otro))\nEn esta parte tocas SOLO: src/lib/astraura/laya/calibracion-laya.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "JL7",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:otro)"
+   }
+  },
+  {
+   "ola": "JLA1116A",
+   "id": "JL7-d2",
+   "titulo": "Calibración de la confianza de Laya por punto y ámbito (parte 2 de 2)",
+   "archivos": [
+    "src/lib/astraura/laya/__tests__/calibracion-laya.test.ts"
+   ],
+   "depende": [
+    "JL7-d1"
+   ],
+   "prompt": "Contrato: architecture/jev-entrena-laya.md (si aún no está en el repo, rige este texto). Lee AGENTS.md. §3.2. Puro. Con casos (`CasoLaya` de `aprendizaje-laya.ts`) y su desenlace correcto/incorrecto, `calibrar(casos, punto, ambito)`: 10 cajas de confianza, tasa de acierto por caja, exige ≥ `MIN_CASOS_UMBRAL` (30) y devuelve `{cajas, umbralSugerido, n}` o `{n, motivo: \"faltan casos\"}`; `confianzaCalibrada(cal, p)` interpola y nunca sube la confianza por encima de la tasa observada. PRUEBAS: datos sintéticos con Laya sobreconfiada (dice 0,9 y acierta 0,6) baja la confianza; menos de 30 casos -> motivo; cajas vacías no rompen.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` (Python: sin red ni `~/.starseed`, rutas y lectores se inyectan) salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.\n\n## PARTE 2 DE 2 (la dirección dividió JL7: falla por sí misma (tarea:otro))\nEn esta parte tocas SOLO: src/lib/astraura/laya/__tests__/calibracion-laya.test.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "JL7",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:otro)"
+   }
+  },
+  {
+   "ola": "ASW1116A",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/43831753787",
+   "id": "ASW08b-d1",
+   "titulo": "Selector de diseño en los ajustes del widget (auto + cuatro diseños, con teclado) (parte 1 de 2)",
+   "archivos": [
+    "src/components/widgets-libres/familias/selector-diseno-astraura.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. LO QUE YA EXISTE (léelo antes): el widget del dashboard cuyo texto de estado es «En calma» es `AstrauraLibre` en `src/components/widgets-libres/familias/astraura-libre.tsx` (268 líneas; `TEXTO_VOZ` :31, `useVozAurora` :38 lee el puente `getAuroraBridge()` de `src/lib/aurora/open-aurora.ts` con `speaking`, `listening`, `actionStatus`; el `Orbe` de :65 es el círculo de colores violeta/turquesa; `Preguntar` :90; el diseño por tamaño :170-262 con `disenoDe(clase)` de `familias/comun.tsx:23`). Se monta desde `src/components/widgets-libres/registro-libre.tsx:38` (`case \"AURORA_LAST\"`, hoy sin recibir el widget ni `onUpdateSettings`, a diferencia del reloj). La Protomolécula: la orbe 4D completa es `src/components/protomolecula/orbe-protomolecula.tsx` (475 líneas, three.js a demanda, arrastrable y flotante: NO sirve para meterla en un widget); su lógica pura está en `src/lib/protomolecula/orbe4d/` (`coreografia.ts`: `IdForma` semilla/merkaba/jitterbug/teseracto/dodecaedro/matriz/icosaedro, `PALETAS` por registro con `astraura`, `ESTILOS`, `FICHAS`, tiempos de Fibonacci; `geometria.ts`: `merkaba()`, `icosaedro()`, `dodecaedro()`, `jitterbug()`, `teseractoVertices()`, `PHI`). Ya hay una versión ligera en SVG: `src/components/layout/trinity/horizon/vista-previa-orbe.tsx` (flor de la vida y merkaba, solo `transform`/`opacity`, quieta con `motion-safe`), pero NO depende del estado del asistente. El presupuesto de render del dispositivo es `src/lib/widgets/forma/nivel-dispositivo.ts` (`useNivelRender`, `nivelRender`: ligero/normal/pleno). La identidad: colores SOLO de `PALETAS` (marca Trinity Liquid Crystal, `adn-y-tokens.md` §2 y §6), nunca hexadecimales inventados. Escribe primero las pruebas. Mira `Accion` (`inicio-piezas.tsx:160`) y la pastilla del reloj que cambia de modo (`reloj-libre.tsx:199`) para el estilo. `SelectorDisenoAstraura({ valor, onCambiar, degradado }: { valor: EleccionDiseno; onCambiar: (e: EleccionDiseno) => void; degradado: boolean })`: un botón pequeño «Diseño» (icono de lucide, 44 px de diana) que abre un panel (`role=\"dialog\"` con foco atrapado y Escape para cerrar, o un `Popover` del repo si ya hay uno en `src/components/ui/`) con un `role=\"radiogroup\"` de cinco opciones: «Automático (según el tamaño y el aparato)» + los cuatro de `DISENOS` con su `sirvePara` como descripción (`aria-describedby`); flechas ↑↓ mueven, Enter/Espacio eligen y cierran. Si `degradado`, una nota «Este tamaño es pequeño: se muestra el diseño Mínimo; agranda el widget para ver el elegido.» (`role=\"status\"`). Los nombres salen de `DISENOS`. PRUEBAS: abre y cierra con teclado; las cinco opciones y la marcada; elegir llama a `onCambiar` con el valor; Escape no cambia nada; con `degradado` aparece la nota; foco vuelve al botón al cerrar.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/43831753787`)\nUn agente de la nube ya avanzó esta tarea (conflicto al traerla sobre el main de hoy: ec>\", then run\nhint: \"git cherry-pick --continue\".\nhint: You can instead skip this commit with \"git cherry-pick --skip\".\nhint: To abort and get back to the state before \"git cherry-pick\",\nhint: run \"git cherry-pick --abort\".\nhint: Disable this message with \"git config set advice.mergeConflict false\"). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/43831753787:refs/remotes/origin/nube/43831753787\"` y `git cherry-pick --no-commit 77242ced1cfb 84f362e8880a`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/components/widgets-libres/familias/__tests__/selector-diseno-astraura.test.tsx, src/components/widgets-libres/familias/astraura-libre.tsx, src/components/widgets-libres/familias/selector-diseno-astraura.tsx.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 1 DE 2 (la dirección dividió ASW08b: falla por sí misma (tarea:pruebas))\nEn esta parte tocas SOLO: src/components/widgets-libres/familias/selector-diseno-astraura.tsx. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "ASW08b",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:pruebas)"
+   },
+   "dependencias_ya_en_main": [
+    "ASW06"
+   ]
+  },
+  {
+   "ola": "HAL1116A",
+   "id": "HAL06-d1",
+   "titulo": "Prueba: el primer render del selector de idioma es el mismo en servidor y cliente (parte 1 de 2)",
+   "archivos": [
+    "src/components/idiomas/__tests__/selector-idioma-hidratacion.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Escribe primero esta prueba; es la que dice si el rótulo giratorio es o no la causa del error de hidratación #418 de `/login`. Lee `src/components/idiomas/selector-idioma.tsx`. Lo que ya se sabe leyendo: `RotuloGiratorio` empieza en `useState(0)` (primer render = primer idioma de `IDIOMAS`), `actual` empieza en «es», `abierto` en `false`, y `sugerirIdioma()` (que lee `navigator.language`) solo se pinta con el panel abierto; por eso la sospecha del rótulo NO está confirmada. Prueba con `react-dom/server` + `react-dom/client`: (1) fija `navigator.language = \"fr-FR\"` y `localStorage` con una elección `en` (clave `CLAVE_IDIOMA_NEURONA` de `src/lib/idiomas/estado.ts`); (2) `renderToString(<SelectorIdioma />)` en un entorno SIN `window` (o con `typeof window` simulado: usa la forma que ya usen otras pruebas SSR del repo, búscalas con `renderToString`); (3) monta ese HTML en un contenedor, espera `hydrateRoot(...)` dentro de `act` y vigila `console.error`: NINGÚN mensaje puede contener «Hydration», «hydrat» ni «418». (4) Comprueba también que el texto del rótulo en el primer render del cliente es igual al del HTML del servidor, y que un segundo después (`vi.advanceTimersByTime(1000)`) sí cambia. Solo si la prueba FALLARÍA por una diferencia real que veas leyendo el código, arregla `selector-idioma.tsx` con ≤30 líneas (primer render determinista; lo variable entra en un efecto) y di en un comentario de la prueba qué texto difería; si el primer render ya es determinista (lo esperado), NO toques el componente y la prueba queda como protección.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.\n\n## PARTE 1 DE 2 (la dirección dividió HAL06: falla por sí misma (tarea:otro))\nEn esta parte tocas SOLO: src/components/idiomas/__tests__/selector-idioma-hidratacion.test.tsx. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "HAL06",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:otro)"
+   }
+  },
+  {
+   "id": "LAT01",
+   "ola": "LAT1116A",
+   "titulo": "Prueba del latido del modo de pruebas: esperar a la condición y no a 20 ms fijos",
+   "archivos": [
+    "src/lib/banco-llamadas/__tests__/app-latido.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. La prueba `src/lib/banco-llamadas/__tests__/app-latido.test.ts` falló UNA vez con la máquina cargada (puerta 1116c, 16-11) y pasó a solas: su ayudante `asentar` espera 20 ms de reloj REAL (`new Promise((r) => setTimeout(r, 20))`) a que terminen la importación dinámica y los efectos, y con carga 20 ms no bastan. Cambia SOLO ese archivo de prueba (≤60 líneas): sustituye la espera fija por una espera a la CONDICIÓN que cada caso comprueba, con `vi.waitFor(() => { expect(...) }, { timeout: 2000, interval: 5 })` (o un bucle equivalente que ceda con `await Promise.resolve()` y un límite de 2 s), de modo que con la máquina libre tarde lo mismo que hoy y con carga espere lo necesario. No cambies lo que se comprueba, ni el módulo probado (`src/lib/banco-llamadas/app.ts`), ni los relojes falsos (`vi.useFakeTimers({ toFake: [\"Date\", \"setInterval\", \"clearInterval\"] })` se queda como está: `setTimeout` sigue siendo real). Los seis casos siguen existiendo con el mismo nombre. Asunto del commit: `LAT1116A · LAT01: la prueba del latido espera a la condición y no a 20 ms fijos`.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1116-105020.json": [
+   "JL7-d1",
+   "ASW08b-d1",
+   "HAL06-d1",
+   "JL7-d2",
+   "LAT01",
+   "TU14b-d2"
+  ]
+ }
+}
