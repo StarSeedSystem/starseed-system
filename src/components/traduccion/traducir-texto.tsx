@@ -9,6 +9,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useAccount } from "@/context/account-context";
 import { crearTraductor, motorAstraura, motorLibreTranslate, motorNavegador, type MotorTraduccion } from "@/lib/traduccion/motor";
+import { detener, leerEnVoz, type EntornoLectura } from "@/lib/idiomas/leer-en-voz";
 import { aplicar, recogerTextos, restaurar } from "@/lib/traduccion/pagina";
 import { crearClienteLibreTranslate, crearLotes } from "@/lib/traduccion/libretranslate";
 import { leer } from "@/lib/traduccion/preferencias";
@@ -103,6 +104,13 @@ export function TraducirTexto() {
     const destino = () => leer(user?.id ?? "", typeof navigator === "undefined" ? undefined : navigator.language).idioma;
     const motores = () => crearMotores({ protocolo: location.protocol, maquina: location.hostname, translator: (window as { Translator?: unknown }).Translator });
     const aviso = (mensaje: string) => { setProgreso(mensaje); window.setTimeout(() => setProgreso((x) => (x === mensaje ? null : x)), 4000); };
+    /** La síntesis de voz de este aparato, inyectada al módulo puro TRA1116. */
+    const entornoVoz = (): EntornoLectura => ({ synth: typeof window === "undefined" ? undefined : window.speechSynthesis, Utter: typeof window === "undefined" ? undefined : window.SpeechSynthesisUtterance });
+    /** Lee la traducción en voz alta con la voz del idioma destino; si el aparato no puede, lo dice. */
+    const leerTraduccion = () => {
+        const r = leerEnVoz(porCopiar.current, destino(), entornoVoz());
+        if (!r.ok && r.motivo) aviso(r.motivo);
+    };
     const traducirUno = async (texto: string) => {
         if (!texto) { aviso("No hay texto que traducir."); return; }
         setVentana({ texto: "Traduciendo…", motor: "" });
@@ -132,7 +140,7 @@ export function TraducirTexto() {
         } catch (e) { aviso(e instanceof Error ? e.message : "La traducción de la página no pudo empezar."); return; }
         setProgreso(null);
     };
-    const verOriginal = () => { restaurar(document.body); establecerPaginaTraducida(false); setVentana(null); setProgreso(null); };
+    const verOriginal = () => { detener(entornoVoz()); restaurar(document.body); establecerPaginaTraducida(false); setVentana(null); setProgreso(null); };
     useEffect(() => {
         const quitar = entradasTraduccion({
             traducirSeleccion: (t) => void traducirUno(t),
@@ -151,8 +159,9 @@ export function TraducirTexto() {
                     <p className="text-sm whitespace-pre-wrap">{ventana.texto}</p>
                     {ventana.motor && <p className="text-xs text-white/60">Motor: {nombreMotor(ventana.motor)}</p>}
                     <div className="flex gap-2">
-                        <button type="button" onClick={() => { void navigator.clipboard?.writeText(porCopiar.current).catch(() => undefined); }} disabled={!ventana.motor} className={boton}>Copiar</button>
-                        <button type="button" onClick={() => setVentana(null)} className={boton}>Cerrar</button>
+                        <button type="button" onClick={leerTraduccion} disabled={!ventana.motor} className={boton}>Leer</button>
+                        <button type="button" onClick={() => { detener(entornoVoz()); void navigator.clipboard?.writeText(porCopiar.current).catch(() => undefined); }} disabled={!ventana.motor} className={boton}>Copiar</button>
+                        <button type="button" onClick={() => { detener(entornoVoz()); setVentana(null); }} className={boton}>Cerrar</button>
                     </div>
                 </div>
             )}
