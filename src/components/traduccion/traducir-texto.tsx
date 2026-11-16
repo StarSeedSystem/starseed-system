@@ -13,8 +13,11 @@ import { aplicar, recogerTextos, restaurar } from "@/lib/traduccion/pagina";
 import { crearClienteLibreTranslate, crearLotes } from "@/lib/traduccion/libretranslate";
 import { leer } from "@/lib/traduccion/preferencias";
 import { trozoDeLineaSSE } from "@/lib/astraura/conversacion-rapida";
+import { IDIOMAS } from "@/lib/idiomas/idiomas";
 import { establecerPaginaTraducida, registrarEntradaMenuTexto, type ContextoMenuTexto, type EntradaMenuTexto } from "@/components/traduccion/menu-texto";
 import { leerEnVoz, detener, type EntornoVoz } from "@/lib/idiomas/leer-en-voz";
+import { Par, SelectorPar, intercambiarPar } from "../traductor/selector-par";
+import type { EstadoPar } from "@/lib/traductor/tipos";
 
 const BASE_LT = process.env.NEXT_PUBLIC_LIBRETRANSLATE || "http://127.0.0.1:5100";
 const TOPE = 4000;
@@ -102,8 +105,16 @@ export function TraducirTexto() {
     const [progreso, setProgreso] = useState<string | null>(null);
     const [leyendo, setLeyendo] = useState(false);
     const porCopiar = useRef("");
-    const destino = () => leer(user?.id ?? "", typeof navigator === "undefined" ? undefined : navigator.language).idioma;
+    const [par, setPar] = useState<Par>({ origen: "detectar", destino: leer(user?.id ?? "", typeof navigator === "undefined" ? undefined : navigator.language).idioma });
+    const destino = () => par.destino;
     const motores = () => crearMotores({ protocolo: location.protocol, maquina: location.hostname, translator: (window as { Translator?: unknown }).Translator });
+    const onCambiarPar = (newPar: Par) => setPar(newPar);
+    const estadoDePar = (codigo: string): EstadoPar => {
+        const mapa: Record<string, EstadoPar> = {
+            "es": "sin-internet", "en": "descarga", "pt": "descarga", "fr": "solo-internet",
+        };
+        return mapa[codigo] ?? "sin-internet";
+    };
     const aviso = (mensaje: string) => { setProgreso(mensaje); window.setTimeout(() => setProgreso((x) => (x === mensaje ? null : x)), 4000); };
     const traducirUno = async (texto: string) => {
         if (!texto) { aviso("No hay texto que traducir."); return; }
@@ -171,21 +182,29 @@ export function TraducirTexto() {
     }, [user?.id]);
     const boton = "cursor-pointer rounded-lg border border-white/15 px-3 py-1.5 text-xs transition-colors duration-150 hover:bg-white/10";
     return (
-        <>
-            {ventana && (
-                <div role="dialog" aria-label="Traducción" className="fixed bottom-4 right-4 z-[1200] max-w-sm space-y-2 rounded-2xl border border-white/10 bg-[#0A0F1D]/95 p-4 text-white shadow-lg shadow-black/50 backdrop-blur-[16px]">
-                    <p className="text-sm whitespace-pre-wrap">{ventana.texto}</p>
-                    {ventana.motor && <p className="text-xs text-white/60">Motor: {nombreMotor(ventana.motor)}</p>}
-                    <div className="flex gap-2">
-                        <button type="button" onClick={() => { void navigator.clipboard?.writeText(porCopiar.current).catch(() => undefined); }} disabled={!ventana.motor} className={boton}>Copiar</button>
-                        <button type="button" onClick={leyendo ? alDetener : alLeer} className={boton}>{leyendo ? "Detener" : "Leer en voz"}</button>
-                        <button type="button" onClick={() => setVentana(null)} className={boton}>Cerrar</button>
+        <div className="flex flex-col gap-4 h-full">
+            <div>
+                {ventana && (
+                    <div role="dialog" aria-label="Traducción" className="fixed bottom-4 right-4 z-[1200] max-w-sm space-y-2 rounded-2xl border border-white/10 bg-[#0A0F1D]/95 p-4 text-white shadow-lg shadow-black/50 backdrop-blur-[16px]">
+                        <p className="text-sm whitespace-pre-wrap">{ventana.texto}</p>
+                        {ventana.motor && <p className="text-xs text-white/60">Motor: {nombreMotor(ventana.motor)}</p>}
+                        <div className="flex gap-2">
+                            <button type="button" onClick={() => { void navigator.clipboard?.writeText(porCopiar.current).catch(() => undefined); }} disabled={!ventana.motor} className={boton}>Copiar</button>
+                            <button type="button" onClick={leyendo ? alDetener : alLeer} className={boton}>{leyendo ? "Detener" : "Leer en voz"}</button>
+                            <button type="button" onClick={() => setVentana(null)} className={boton}>Cerrar</button>
+                        </div>
                     </div>
-                </div>
-            )}
+                )}
+                <SelectorPar
+                    idiomas={IDIOMAS.map(i => ({ codigo: i.codigo, nombre: i.nombre }))}
+                    par={par}
+                    onCambiar={onCambiarPar}
+                    estadoDePar={estadoDePar}
+                />
+            </div>
             {progreso && (
                 <div role="status" aria-live="polite" className="fixed bottom-4 left-4 z-[1200] rounded-xl border border-white/10 bg-[#0A0F1D]/90 px-3 py-2 text-xs text-white/80 backdrop-blur-[16px]">{progreso}</div>
             )}
-        </>
+        </div>
     );
 }
