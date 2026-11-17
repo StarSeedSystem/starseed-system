@@ -1,0 +1,74 @@
+{
+ "ola": "nube-20261116",
+ "tareas": [
+  {
+   "id": "IDBe13",
+   "ola": "IDB1116B",
+   "titulo": "Inglés: components/onboarding (2/2), 197 textos",
+   "archivos": [
+    "src/lib/idiomas/catalogos/en.json"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Traduces la interfaz de StarSeed OS del español a inglés (en), área «components/onboarding» (la bienvenida y el primer arranque), parte 2 de 2. Lee antes `architecture/idiomas.md` §2, §5 y §8. Las traducciones son «automático, sin revisar»: el catálogo queda `revisado: false`, que la interfaz ya enseña («Traducción automática, sin revisar»); NO lo cambies a revisado. El texto escrito por personas nunca se toca: solo traduces textos de interfaz que el guion ya midió. NO edites `src/lib/idiomas/catalogos/en.json` a mano: lo escribe el guion `rellenar.mjs`, tú solo preparas las traducciones. Archivos de trabajo: SOLO dentro del repo, en `.tmp/` (carpeta que git ya ignora). NUNCA uses `/tmp` ni otra ruta fuera del repo: tu herramienta de lectura la rechaza y la tarea acaba sin cambios. No añadas nada de `.tmp/` a git. Si una herramienta rechaza un permiso, no insistas con otra ruta: termina y di qué comando falló.\nPASOS (desde la raíz del repo, en este orden):\n1. Anota la cobertura de antes: `node scripts/idiomas/cobertura.mjs --areas | awk '/^en \\(/{p=1;next} /^[a-z][a-z] \\(/{p=0} p' | grep -E '^ +components/onboarding ' ` (columna «presentes» del idioma «en»; es tu P0).\n2. Vuelca los textos (un solo comando, crea `.tmp` si no existe): `mkdir -p .tmp && node --input-type=module -e \"import {cargarFuente,cargarUnidades,cargarCatalogo,textosDeUnidad} from './scripts/idiomas/comun.mjs';import fs from 'node:fs';const f=cargarFuente(),u=cargarUnidades(),c=cargarCatalogo('en');const t=textosDeUnidad(f,u,'components/onboarding').filter(x=>!c.entradas[x]).slice(0,250);fs.writeFileSync('.tmp/IDBe13-textos.json',JSON.stringify(Object.fromEntries(t.map((x,i)=>[String(i+1),x])),null,1));console.log(t.length)\"` — imprime cuántos (≤250); si imprime 0, no hay nada que hacer: termina y dilo.\n3. Lee los textos con `cat .tmp/IDBe13-textos.json` y escribe `.tmp/IDBe13-trad.json` (con tu herramienta de escritura, dentro del repo): un objeto con LAS MISMAS claves «1»…«N» y la traducción de cada texto (JSON válido, nada más). Reglas: conserva EXACTAMENTE `{0}`, `{1}`…, las etiquetas `<b>…</b>` y las marcas StarSeed, Astraura, Genesis, MetaGenesis, PoliGenesis, ProtoGenesis, Protomolécula, Trinity; en `{n, plural, one {…} other {…}}` traduce el contenido de las ramas pero conserva `plural`, `one`, `other`, los `#` y las llaves; mismo tono y longitud parecida (es interfaz: botones cortos, sin explicar de más); tú/usted según el uso natural de inglés en software; mantén signos finales y mayúsculas del original. Si un texto NO es lenguaje (código, selector CSS, SVG, URL, número, atajo de teclado, nombre propio o de marca) déjalo IGUAL y apúntalo para el commit.\n4. Convierte (falla si falta alguna clave): `node -e \"const t=require('./.tmp/IDBe13-textos.json'),r=require('./.tmp/IDBe13-trad.json');const k=Object.keys(t);const mal=k.filter(x=>typeof r[x]!=='string'||!r[x].trim());if(mal.length){console.error('faltan',mal);process.exit(1)}require('fs').writeFileSync('.tmp/IDBe13-arr.json',JSON.stringify(k.map(x=>r[x])))\"`\n5. Rellena: `node scripts/idiomas/rellenar.mjs --idioma en --area components/onboarding --motor comando --cmd \"cat .tmp/IDBe13-arr.json\" --limite 250`. Debe terminar con código 0 y «rechazadas 0». Si rechaza alguna (pierde un valor, una etiqueta, una rama de plural o una marca), corrige SOLO esas en `-trad.json` y repite desde el paso 4 (el guion salta lo ya escrito). No sigas hasta tener 0 rechazadas.\n6. Cobertura: `node scripts/idiomas/cobertura.mjs --areas | awk '/^en \\(/{p=1;next} /^[a-z][a-z] \\(/{p=0} p' | grep -E '^ +components/onboarding '` → «presentes» = P0 + lo escrito, «ausentes» baja lo mismo, «inválidas 0». Y `NODE_ENV=test npx vitest run src/lib/idiomas/__tests__/cobertura.test.ts src/lib/idiomas/__tests__/capa.test.tsx` en verde.\n7. Nada pierde valor ni queda igual sin motivo: `node --input-type=module -e \"import {execSync} from 'node:child_process';import fs from 'node:fs';const p='src/lib/idiomas/catalogos/en.json';const antes=JSON.parse(execSync('git show HEAD:'+p,{maxBuffer:1<<28}).toString()).entradas,ahora=JSON.parse(fs.readFileSync(p,'utf8')).entradas;const perd=Object.keys(antes).filter(k=>ahora[k]!==antes[k]);const nue=Object.keys(ahora).filter(k=>!(k in antes));const ig=nue.filter(k=>ahora[k]===k);console.log('perdidas o cambiadas',perd.length,'nuevas',nue.length,'iguales al original',ig.length);ig.forEach(k=>console.log(' =',k.slice(0,80)));process.exit(perd.length?1:0)\"` — «perdidas o cambiadas» DEBE ser 0 (no toques lo ya traducido, ni lo escrito por personas); cada «igual al original» debe ser algo no lingüístico y queda listado en el cuerpo de tu commit; si es una frase traducible, tradúcela y repite.\n8. `git diff --stat` debe mostrar SOLO `src/lib/idiomas/catalogos/en.json`. En el commit: cuántas entradas escribiste, cuántas rechazó el guion y corregiste, y la lista de iguales justificadas.\n\nREGLAS DE LA CASA: toca SOLO los archivos de `archivos`; los ÚNICOS archivos de trabajo permitidos van en `.tmp/` dentro del repo (ignorados por git, nunca se comitean). Todo lo demás dentro del repo; jamás `/tmp` ni rutas absolutas. Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves. El asunto de tu commit empieza por `IDBe13:` y dice qué comprobaste y qué NO pudiste comprobar.",
+   "dependencias_ya_en_main": [
+    "IDBe12"
+   ]
+  },
+  {
+   "id": "MRI2b",
+   "ola": "MAP1116B",
+   "titulo": "Preferencias de red compartida por aparato: interruptor, tope de «con quién», topes y modo automático",
+   "archivos": [
+    "src/lib/malla/preferencias-red-compartida.ts",
+    "src/lib/malla/__tests__/preferencias-red-compartida.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Local a la neurona (localStorage, try/catch, como `src/lib/senales/preferencias-mapa.ts`). Importa `PreferenciasRedCompartida` de `./auto-compartir` y escribe `PREFERENCIAS_POR_DEFECTO` (TODO apagado: interruptor por aparato apagado, `maximoCon: \"nadie\"`, `soloWifi: true`, `kbpsSubidaMax: 1024`, `reservaBateriaPct: 30`, `automatico: false`, `compartirMedidas: false`), `sanearPreferenciasRed(crudo)` (cualquier forma rara vuelve al valor seguro, números acotados, `maximoCon` solo uno de `COMPARTIR`), `leerPreferenciasRed()` y `guardarPreferenciasRed()`. Un cambio que sube el nivel de apertura (nadie → público) devuelve `{aviso: true}` para que la interfaz pida confirmación. PRUEBAS: por defecto todo apagado; saneado de basura; subir el nivel avisa y bajarlo no; ida y vuelta. COMPRUEBA: `NODE_ENV=test npx vitest run src/lib/malla/__tests__/preferencias-red-compartida.test.ts` verde y tsc acotado.\n\nREGLAS DE LA CASA (valen aunque no las repita la tarea): toca SOLO los archivos de la lista `archivos`; ≤3 archivos y ≤120 líneas por archivo (si no cabe, para y di qué falta: no lo estires ni lo resumas); sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible (la interfaz dice Genesis); sin red real en las pruebas; ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves. El asunto de tu commit empieza por `MRI2b:` y dice qué comprobaste y qué NO pudiste comprobar.",
+   "dependencias_ya_en_main": [
+    "MRI1b"
+   ]
+  },
+  {
+   "id": "IMG-agentes-reimaginada-profunda-corregir-te",
+   "titulo": "Ajustar temporizador de guía para no interrumpir navegación del usuario",
+   "area": "imaginacion",
+   "archivos": [
+    "src/components/onboarding/aurora-guide.tsx",
+    "src/hooks/use-timeout-interaction.ts",
+    "src/lib/mando/areas.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Ajustar temporizador de guía para no interrumpir navegación del usuario. ## Problema\nEl temporizador que muestra la guía de aurora interrumpe la navegación del usuario al expirar, forzando un cambio de pantalla sin su consentimiento. Esto genera fricción y reduce la experiencia fluida.\n\n## Solución propuesta\n- **Reemplazar temporizador fijo por evento de interacción**: En lugar de depender de un timeout automático, el temporizador se reinicia cada vez que el usuario realiza una acción (scroll, click, movimiento del mouse).\n- **Añadir opción explícita de cierre**: Incluir un botón visible para que el usuario decida cuándo terminar la guía.\n- **Persistencia parcial d Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  },
+  {
+   "id": "IMG-agentes-reimaginada-profunda-corregir-ti",
+   "titulo": "Corregir tipos any en StepKind",
+   "area": "imaginacion",
+   "archivos": [
+    "src/lib/mando/stepKind.ts",
+    "src/lib/mando/stepHandlers.ts",
+    "src/lib/mando/stepUtils.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Corregir tipos any en StepKind. El objetivo es eliminar los `any` en la definición de `StepKind` para mejorar la seguridad de tipos y la mantenibilidad del código. La propuesta incluye:\n\n1. **Revisión de la interfaz**: Reemplazar los campos `any` por tipos concretos o genéricos con restricciones.\n2. **Actualización de los casos de uso**: Ajustar todas las llamadas a `StepKind` para que utilicen los nuevos tipos.\n3. **Pruebas unitarias**: Añadir pruebas que verifiquen la correcta tipificación y que no se produzcan errores de tipo.\n4. **Documentación**: Actualizar la documentación de la API para reflejar los cambios.\n\nEsta tar Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  },
+  {
+   "id": "IMG-agentes-reimaginada-profunda-mejorar-con",
+   "titulo": "Refinar mensajes de error con contraste visual y contextual en componentes críticos",
+   "area": "imaginacion",
+   "archivos": [
+    "src/components/onboarding/steps-neurona.tsx",
+    "src/lib/mando/areas.ts",
+    "src/components/ui/error-message.tsx"
+   ],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Refinar mensajes de error con contraste visual y contextual en componentes críticos. ## Objetivo\nMejorar la legibilidad y el impacto emocional de los mensajes de error en la interfaz, enfocándose en componentes que manejan interacciones críticas del usuario. Esto incluye ajustes de contraste, jerarquía visual y mensajes más descriptivos que reduzcan la frustración y guíen al usuario hacia soluciones.\n\n## Acciones propuestas\n\n1. **Auditar mensajes de error actual**\n   - Revisar componentes con alta frecuencia de uso y errores reportados.\n   - Identificar mensajes con bajo contraste o ambigüedad.\n\n2. **Implementar sistema de estilos para errores**\n   - Crear variables de diseño  Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1116-213725.json": [
+   "MRI2b",
+   "IDBe13"
+  ]
+ }
+}
