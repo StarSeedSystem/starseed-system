@@ -28,10 +28,20 @@ import { BLE_FRESH_MS } from "@/ai/astraura/mesh/signals";
 import type { EntradaYo, VivoMapa } from "@/lib/senales/tipos-vivo";
 import { ordenarSenalesPorCalidad, useDetectedSignals, type DetectedSignalsOptions, type DetectedSignalsResult } from "../use-detected-signals";
 import { adaptarBluetooth, type EntradaBluetooth } from "@/lib/senales/espectro/adaptadores/bluetooth";
+import {
+  adaptadorCelular,
+  adaptadorSdr,
+  MOTIVO_SIN_SDR,
+  SIN_SDR,
+  type RangoEspectro,
+  type ResultadoCelularSdr,
+} from "@/lib/senales/espectro/adaptadores/celular-sdr";
 import type { SenalEspectro, SinFuente } from "@/lib/senales/espectro/modelo";
 
 const REFRESCO_MS = 15_000;
 const MEDIDA_MS = 30_000;
+/** Barrido de referencia; sin SDR conectado no se llama a `barrer`. */
+const RANGO_ESPECTRO: RangoEspectro = { desdeKhz: 433_000, hastaKhz: 7_125_000 };
 
 /** Un reloj que se detiene mientras la pestaña está oculta (nada late para nadie). */
 export function useAhora(cadaMs = REFRESCO_MS): number {
@@ -59,6 +69,8 @@ export interface MapaVivo {
   yo: EntradaYo;
   ahora: number;
   senalesEspectroBluetooth: readonly SenalEspectro[] | SinFuente;
+  senalesEspectroCelular: ResultadoCelularSdr;
+  senalesEspectroSdr: ResultadoCelularSdr;
 }
 
 export function useMapaVivo(opciones?: DetectedSignalsOptions & { verPublicos?: boolean }): MapaVivo {
@@ -99,6 +111,20 @@ export function useMapaVivo(opciones?: DetectedSignalsOptions & { verPublicos?: 
     [senalesMedio?.bluetooth.disponible, freshBle],
   );
 
+  // Ninguna API de este medio entrega la celda: el adaptador lo declara sin fuente.
+  const senalesEspectroCelular = useMemo<ResultadoCelularSdr>(() => adaptadorCelular(null), []);
+  const [senalesEspectroSdr, setSenalesEspectroSdr] = useState<ResultadoCelularSdr>(() => ({
+    senales: [],
+    sinFuente: [{ medio: "sdr", motivo: MOTIVO_SIN_SDR }],
+  }));
+  useEffect(() => {
+    let vigente = true;
+    void adaptadorSdr(SIN_SDR, RANGO_ESPECTRO).then((resultado) => {
+      if (vigente) setSenalesEspectroSdr(resultado);
+    });
+    return () => { vigente = false; };
+  }, []);
+
   const vivo = useMemo(
     () => construirVivo(base, { filas, presencia, locales, miMedioId: medio?.id || null, miUid, ahora }),
     [base, filas, presencia, locales, medio?.id, miUid, ahora],
@@ -129,5 +155,5 @@ export function useMapaVivo(opciones?: DetectedSignalsOptions & { verPublicos?: 
     };
   }, [filas, medio, senalesMedio, mesh.status, mesh.transport, mesh.nodes, mesh.region, mesh.self?.lat, mesh.self?.lon]);
 
-  return { detected, senales, vivo, yo, ahora, senalesEspectroBluetooth };
+  return { detected, senales, vivo, yo, ahora, senalesEspectroBluetooth, senalesEspectroCelular, senalesEspectroSdr };
 }
