@@ -9,6 +9,9 @@
  *   micro → el orbe · s → orbe + su última frase · m → + preguntar (apaisado: al lado)
  *   l/xl  → orbe con su estado y voz + el hilo (2-3 turnos) + preguntar + sugerencias
  *   panorámico → orbe, frase y campo en fila · torre → orbe, hilo y campo.
+ *   El diseño «Acciones» (elegido en el selector o resuelto en auto) sustituye ese layout en
+ *   m/l/xl, torre y panorámico: la forma, el estado y los atajos, sin hilo; el selector de
+ *   diseño va junto al campo para poder salir de ahí.
  */
 import * as React from "react";
 import Link from "next/link";
@@ -22,6 +25,8 @@ import { Rotulo, disenoDe, recortarPalabras } from "./comun";
 import { PilaAjustable, Prescindible } from "@/components/dashboard/kit/pila-ajustable";
 import { Accion, escalaTipo, esTactil, haceCuanto, useClaseForzada, useDispositivo, useEnPantalla } from "./inicio-piezas"
 import { SelectorDisenoAstraura } from "./selector-diseno-astraura";
+import { DisenoAcciones } from "./diseno-acciones";
+import { resolverDiseno, tamanoDe } from "@/lib/widgets/astraura/disenos";
 import type { DashboardWidget } from "@/components/dashboard/dashboard-types";
 
 const VIOLETA = "#7c5cff";
@@ -185,6 +190,39 @@ export function AstrauraLibre({ widget, onUpdateSettings }: { widget?: Dashboard
                     const clase = forzada ?? medida;
                     const { base: b, horizontal } = disenoDe(clase);
                     const lado = Math.min(ancho, alto);
+                    const resuelto = resolverDiseno(diseno, {
+                        tamano: tamanoDe(clase), tactil, hayVoz: voz,
+                        hayConversacion: hilo.length > 0,
+                    });
+
+                    // Diseño «Acciones»: la tarea que lo monta pasa las sugerencias y el campo
+                    // para preguntar; cada sugerencia va a la MISMA Aurora global (openAurora).
+                    if (resuelto.diseno === "acciones") {
+                        const tamOrbe = b === "m"
+                            ? Math.min(lado * 0.34, 110) * k
+                            : Math.min(alto * 0.42, ancho * 0.26, b === "xl" ? 170 : 140) * k;
+                        return (
+                            <DisenoAcciones
+                                estado={vivaAhora}
+                                tam={tamOrbe}
+                                ultima={ultima ? { texto: ultima.text, ts: ultima.ts } : null}
+                                hilo={hilo.map((e) => ({ rol: e.role, texto: e.text, ts: e.ts }))}
+                                ahora={ahora || Date.now()}
+                                tactil={tactil}
+                                voz={voz}
+                                preguntar={
+                                    <div className="flex w-full min-w-0 flex-col gap-1.5">
+                                        <Preguntar tactil={tactil} />
+                                        <SelectorDisenoAstraura valor={diseno} onCambiar={elegir} degradado={resuelto.degradado} />
+                                    </div>
+                                }
+                                botonVoz={botonVoz}
+                                sugerencias={SUGERENCIAS}
+                                onAbrirChat={abrirChat}
+                                onSugerencia={(t) => { void openAurora({ prompt: t, reveal: true }); }}
+                            />
+                        );
+                    }
 
                     if (b === "micro") return <div className="flex h-full items-center justify-center" data-diseno="micro"><Orbe tam={lado * 0.62} estado={vivaAhora} onClick={abrirChat} /></div>;
 
