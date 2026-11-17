@@ -119,6 +119,8 @@ interface Sf {
   vision: boolean;
   herramientas: boolean;
   nota?: string;
+  licencia?: string | null;
+  comprobado?: string;
 }
 
 function sf(b: Sf): ModeloLocal {
@@ -136,10 +138,10 @@ function sf(b: Sf): ModeloLocal {
     herramientas: b.herramientas,
     vision: b.vision,
     razonamiento: true,
-    licencia: null,
+    licencia: b.licencia ?? null,
     puntuacion: null,
     estado: "comprobado",
-    comprobado: FECHA_SEMILLA,
+    comprobado: b.comprobado ?? FECHA_SEMILLA,
     fuentes: [`${HUIHUI}${fam}/tags`, `${HUIHUI}${fam}`],
     publicador: PUBLICA,
     baseId: b.baseId,
@@ -151,20 +153,89 @@ const SF_Q = { familia: "Qwen3.5 sin filtros", editor: "Alibaba (Qwen) · varian
 const SF_G = { familia: "Gemma 4 sin filtros", editor: "Google · variante huihui_ai", vision: true, herramientas: true } as const;
 
 export const MODELOS_SIN_FILTROS_SEMILLA: ModeloLocal[] = [
-  sf({ ...SF_Q, id: "huihui_ai/qwen3.5-abliterated:4B", baseId: "qwen3.5:4b", descargaGb: 3.3 }),
-  sf({ ...SF_Q, id: "huihui_ai/qwen3.5-abliterated:9b", baseId: "qwen3.5:9b", descargaGb: 6.6 }),
-  sf({ ...SF_Q, id: "huihui_ai/qwen3.5-abliterated:27b", baseId: "qwen3.5:27b", descargaGb: 17 }),
-  sf({ ...SF_G, id: "huihui_ai/gemma-4-abliterated:12b", baseId: "gemma4:12b", contextoK: 128, descargaGb: 7.6 }),
-  sf({ ...SF_G, id: "huihui_ai/gemma-4-abliterated:26b", baseId: "gemma4:26b", contextoK: 256, descargaGb: 18 }),
-  sf({ ...SF_G, id: "huihui_ai/gemma-4-abliterated:31b", baseId: "gemma4:31b", contextoK: 256, descargaGb: 20 }),
+   sf({
+    ...SF_Q,
+    id: "huihui_ai/qwen3.5-abliterated:2B",
+    baseId: "qwen3.5:2b",
+    descargaGb: 1.9,
+    comprobado: "2026-11-16",
+  }),
   sf({
-    id: "huihui_ai/deepseek-r1-abliterated:8b", baseId: "deepseek-r1:8b", familia: "DeepSeek-R1 sin filtros (destilado 0528 sobre Qwen3 8B)",
-    editor: "DeepSeek · variante huihui_ai", descargaGb: 5.0, contextoK: 128, vision: false, herramientas: false,
+    ...SF_Q,
+    id: "huihui_ai/qwen3.5-abliterated:0.8B",
+    baseId: "qwen3.5:0.8b",
+    descargaGb: 0.8,
+    comprobado: "2026-11-16",
+  }),
+  sf({
+    ...SF_Q,
+    id: "huihui_ai/qwen3.5-abliterated:4B",
+    baseId: "qwen3.5:4b",
+    descargaGb: 3.3,
+    comprobado: "2026-11-16",
+  }),
+   sf({
+    ...SF_Q,
+    id: "huihui_ai/qwen3.5-abliterated:9b",
+    baseId: "qwen3.5:9b",
+    descargaGb: 6.6,
+    nota: "Base qwen3.5:9b aquí RESTRINGIDA y debe revisarse (ficha de Ollama 2026-11-16 vs Apache-2.0 en Hugging Face).",
+    licencia: "Apache 2.0 (ficha de Ollama, 2026-11-16)",
+    comprobado: "2026-11-16",
+  }),
+  sf({
+    ...SF_Q,
+    id: "huihui_ai/qwen3.5-abliterated:27b",
+    baseId: "qwen3.5:27b",
+    descargaGb: 17,
+    nota: "Base qwen3.5:27b aquí RESTRINGIDA y debe revisarse (ficha de Ollama 2026-11-16 vs Apache-2.0 en Hugging Face).",
+    comprobado: "2026-11-16",
+  }),
+  sf({
+    ...SF_G,
+    id: "huihui_ai/gemma-4-abliterated:12b",
+    baseId: "gemma4:12b",
+    contextoK: 128,
+    descargaGb: 7.6,
+    comprobado: "2026-11-16",
+  }),
+  sf({
+    ...SF_G,
+    id: "huihui_ai/gemma-4-abliterated:26b",
+    baseId: "gemma4:26b",
+    contextoK: 256,
+    descargaGb: 18,
+    comprobado: "2026-11-16",
+  }),
+  sf({
+    ...SF_G,
+    id: "huihui_ai/gemma-4-abliterated:31b",
+    baseId: "gemma4:31b",
+    contextoK: 256,
+    descargaGb: 20,
+    comprobado: "2026-11-16",
+  }),
+  sf({
+    id: "huihui_ai/deepseek-r1-abliterated:8b",
+    baseId: "deepseek-r1:8b",
+    familia: "DeepSeek-R1 sin filtros (destilado 0528 sobre Qwen3 8B)",
+    editor: "DeepSeek · variante huihui_ai",
+    descargaGb: 5.0,
+    contextoK: 128,
+    vision: false,
+    herramientas: false,
     nota: "PIERDE el uso de herramientas (la página de Ollama de esta variante solo marca «thinking»; el modelo base sí las trae). Nadie midió su calidad.",
   }),
   sf({
-    id: "huihui_ai/glm-4.7-flash-abliterated:latest", baseId: "glm-4.7-flash", familia: "GLM-4.7 Flash sin filtros",
-    editor: "Z.ai (GLM) · variante huihui_ai", descargaGb: 19, contextoK: 198, vision: false, herramientas: true,
+    id: "huihui_ai/glm-4.7-flash-abliterated:latest",
+    baseId: "glm-4.7-flash",
+    familia: "GLM-4.7 Flash sin filtros",
+    editor: "Z.ai (GLM) · variante huihui_ai",
+    descargaGb: 19,
+    contextoK: 198,
+    vision: false,
+    herramientas: true,
+    comprobado: "2026-11-16",
   }),
 ];
 
