@@ -1,0 +1,40 @@
+{
+ "ola": "nube-20261116",
+ "tareas": [
+  {
+   "id": "MQC3",
+   "ola": "MOD1116",
+   "titulo": "Biblioteca de modelos: ramas por proveedor, de más a menos capaz, según lo que tiene cada neurona",
+   "archivos": [
+    "src/lib/astraura/modelos/ramas-proveedor.ts",
+    "src/lib/astraura/modelos/__tests__/ramas-proveedor.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Lee `recomendar.ts` (`encajar`, `candidatosPara`), `perfil-neurona.ts` y `modelos-api.ts`. Escribe `ramas-proveedor.ts`: `ramasPorProveedor(catalogo, apis, perfil)` → `Rama[]` con una rama por proveedor (Ollama/huihui_ai, capas de Astraura, abliteration.ai…); cada rama lista sus modelos de MÁS a MENOS capaz (por puntuación de la base si existe, si no por tamaño/contexto) y marca `mejorQueCabe` (el más capaz con veredicto «recomendado» o «justo» en esa neurona) y `masLigero` (el más pequeño que cabe) usando `encajar`. Regla tomada de la página de referencia (https://claude.ai/artifact/K67dmXBTL8hnkjBMmoM4Wa, «Find your best model»; comprobada el 2026-11-05 por su autor): una neurona SIN tarjeta gráfica (chip `intel`, `cpu` o equivalente en `PerfilNeurona`) recibe como local el modelo MÁS PEQUEÑO que cabe y, además, una línea «un modelo por API es mejor punto de partida: aquí corre en CPU y es lento»; con memoria por debajo del mínimo de todos, solo la rama de API. Las ramas de API solo se ofrecen si la cuenta permite lo sin filtros (reutiliza `proveedorSinFiltrosPermitido` de `sin-filtros-nube.ts` si existe; si no, recibe un booleano). PRUEBAS con 6 perfiles (móvil de 4 GB, portátil sin GPU de 16 GB, Mac de 8, 32 y 64 GB, servidor ARM de 12 GB sin GPU): el servidor de 12 GB recibe la 4B y no la 9b como `mejorQueCabe` local; orden estable; sin mutar las entradas.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni pytest, ni tsc, ni git, ni node, ni npm, ni curl): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj, entorno y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves (solo NOMBRES de variables, nunca valores; nunca una IP, un OCID ni un token); nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado. En Python: las pruebas son `unittest` con carpetas temporales y falsos, como las vecinas `scripts/puente/test_*.py`, y no tocan el `~/.starseed` real.",
+   "dependencias_ya_en_main": [
+    "MQC2"
+   ]
+  },
+  {
+   "id": "RST05",
+   "ola": "RST1116A",
+   "titulo": "La petición de fuente llega a la orden «pantalla-iniciar» y la instantánea dice la fuente real",
+   "archivos": [
+    "src/lib/control-remoto/niveles.ts",
+    "src/lib/control-remoto/pantalla-destino.ts",
+    "src/lib/control-remoto/__tests__/pantalla-destino-fuente.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. CONTEXTO COMPROBADO: hoy la persona no puede pedir la pantalla fluida (proyección): `pantalla-iniciar` solo admite `lado` y `calidad` (`niveles.ts:102-114`), `PantallaDestino.iniciar` manda `orden(\"pantalla-iniciar\", {})` sin nada (`pantalla-destino.ts:282`), `pantalla-origen.ts:186-198` llama a `control_pantalla_iniciar` sin fuente y deduce `fuente` del resultado (`accesibilidad` o `proyeccion`), `nativo-comandos.ts:11` solo deja pasar `sesion`, `lado_max` y `calidad`, y LO NATIVO (`native/src-tauri/src/control_pantalla.rs:12`, `:68`) todavía NO tiene la fuente `proyeccion` (`control_capacidades` dice `proyeccion:false`): hoy siempre contesta «accesibilidad». Por eso lo que se pide es una PETICIÓN explícita y lo que se enseña es la fuente REAL que contestó el aparato: nunca se dice «fluida» si no lo es. Esta tarea no toca Rust. Escribe primero las pruebas. (1) `niveles.ts`: `validarPantallaIniciar` (:102) admite además la clave `fuente` con valor exactamente `\"auto\"` o `\"proyeccion\"` (cualquier otro → `null`, orden rechazada) y la copia a `r`; `soloClaves` incluye `fuente`. (2) `pantalla-destino.ts`: `crearPantallaDestino(neurona, opciones?: { fuente?: FuentePedida })` guarda la petición y `iniciar` manda `orden(\"pantalla-iniciar\", fuente === \"proyeccion\" ? { fuente } : {}, \"ver\")` (si es `auto` NO manda el campo: el comportamiento de hoy no cambia); `InstantaneaPantalla` gana `fuente?: \"accesibilidad\" | \"proyeccion\"` que sale de `res.fuente` del resultado de `pantalla-iniciar` (:283-289) solo si es uno de los dos valores. NO cambies ninguna otra cosa de ese archivo de 673 líneas (≤40 líneas de diferencia). PRUEBAS (mira cómo prueban las suyas `__tests__/pantalla-destino*.test.ts`): la orden con `proyeccion` lleva `fuente`; con `auto` no lleva nada; `validarPantallaIniciar` acepta `{fuente:\"proyeccion\"}`, rechaza `{fuente:\"otra\"}` y `{fuente:1}`; la instantánea toma `fuente` del resultado y la ignora si es basura.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "RST04"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1116-200041.json": [
+   "RST05",
+   "MQC3"
+  ]
+ }
+}
