@@ -203,8 +203,26 @@ export interface OpcionesOrden {
     esperaMs?: number;
 }
 
+/**
+ * CTL1117I: «presentarse» y «abrir-sesion» llevan DENTRO de lo firmado el color público de esta neurona (`args.color`, `#rrggbb`
+ * en minúsculas): así el aparato controlado dibuja el punto y los toques con el color de quien controla sin fiarse de nadie más.
+ * Todas las rutas (canal, registro de sesiones, ventana, banco) pasan por aquí. Sin color guardado va el de su id. Si ya trae
+ * uno propio (otra parte lo fijó) se respeta. Nunca lanza.
+ */
+async function conColorPropio(nombre: string, args: Args): Promise<Args> {
+    if (nombre !== "presentarse" && nombre !== "abrir-sesion") return args;
+    if (typeof args.color === "string") return args;
+    try {
+        const { colorPublicoPropio } = await import("@/lib/neurons/color-publico-ajuste");
+        return { ...args, color: colorPublicoPropio() };
+    } catch {
+        return args;
+    }
+}
+
 /** (PAN1115J) Firma una orden con la clave de este aparato y devuelve el sobre `{ v, carga, firma }` (sin sellar ni mandar). */
 export async function firmarSobre(cuenta: string, para: string, nombre: string, args: Args, o: OpcionesOrden, n: string): Promise<{ v: 1; carga: string; firma: string }> {
+    args = await conColorPropio(nombre, args);
     const { firmarOrdenControl } = await import("@/lib/chats-genesis/firma-aparato");
     const ahora = Date.now();
     const firmada = await firmarOrdenControl(

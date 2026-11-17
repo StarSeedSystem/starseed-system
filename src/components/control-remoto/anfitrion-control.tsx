@@ -9,6 +9,7 @@
 
 import { useEffect, useSyncExternalStore } from "react";
 import { VentanaControl } from "./ventana-control";
+import { usarColoresControl } from "./usar-colores-control";
 import { MedioControl } from "./ventana-control/medio"; // CTL1117B
 import { usarPantallaRemota } from "@/lib/control-remoto/usar-pantalla-remota";
 import { palabrasMotivo } from "@/lib/control-remoto/palabras";
@@ -70,9 +71,12 @@ function useAbiertas(): readonly Abierta[] {
 /** Una ventana de control con su sesión. En modo página llena su contenedor; en flotante va sobre la app. */
 export function VentanaRemota({ neurona, nombre, modo, alCerrada }: { neurona: string; nombre: string; modo: "flotante" | "pagina"; alCerrada?: () => void }) {
     const p = usarPantallaRemota(neurona);
+    const colores = usarColoresControl(neurona);
     return (
         <VentanaControl
             nombre={nombre}
+            color={colores.otro}
+            miColor={colores.mio}
             modo={modo}
             estado={p.estado}
             motivo={palabrasMotivo(p.motivo)}

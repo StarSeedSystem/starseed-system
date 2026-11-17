@@ -81,6 +81,8 @@ export interface SesionActiva {
     nivel: Nivel;
     inicio: number;
     ultima: number;
+    /** CTL1117I: color público que el controlador firmó al abrir (`#rrggbb`) o, si no, el que declaró al presentarse. */
+    color?: string;
 }
 
 export interface DepsPuerta {
@@ -306,7 +308,9 @@ export class PuertaControl {
             // máxima): renovar la ventana de inactividad sí, estirar la hora máxima de 1 h no.
             const mismaSesion = this.sesion !== null && this.sesion.token === n.token && this.sesion.de === c.de;
             const inicio = mismaSesion && this.sesion ? this.sesion.inicio : ahora;
-            this.sesion = { token: n.token, de: c.de, nombre: ctl.nombre, nivel, inicio, ultima: ahora };
+            const colorFirmado = typeof c.accion.args.color === "string" && /^#[0-9a-f]{6}$/.test(c.accion.args.color) ? c.accion.args.color : undefined;
+            const color = colorFirmado ?? ctl.color;
+            this.sesion = { token: n.token, de: c.de, nombre: ctl.nombre, nivel, inicio, ultima: ahora, ...(color ? { color } : {}) };
             this.d.alCambiar?.();
             return this.respuesta(c.nonce, true, "ok", nombre, c.de, nivel, {
                 sesion: this.sesion.token,

@@ -37,3 +37,31 @@ export function colorPorDefecto(id: string): string {
 export function colorDe(id: string, declarado?: unknown): string {
     return colorValido(declarado) ? declarado : colorPorDefecto(id);
 }
+
+/**
+ * CTL1117I · paleta que se ofrece en los ajustes de la neurona: doce colores de luminosidad media que se leen igual sobre fondo
+ * claro que oscuro (el punto, la onda y el aro del toque llevan además borde blanco). Todos `#rrggbb` en minúsculas.
+ */
+export const PALETA_COLOR_PUBLICO: readonly { color: string; nombre: string }[] = [
+    { color: "#e5484d", nombre: "Rojo" },
+    { color: "#f76b15", nombre: "Naranja" },
+    { color: "#d9a400", nombre: "Ámbar" },
+    { color: "#46a758", nombre: "Verde" },
+    { color: "#12a594", nombre: "Turquesa" },
+    { color: "#0091ff", nombre: "Azul" },
+    { color: "#3e63dd", nombre: "Índigo" },
+    { color: "#8e4ec6", nombre: "Violeta" },
+    { color: "#d6409f", nombre: "Magenta" },
+    { color: "#e93d82", nombre: "Rosa" },
+    { color: "#a18072", nombre: "Barro" },
+    { color: "#7d8b99", nombre: "Gris azulado" },
+];
+
+/** Lo que la persona escribe («#E5484D», «e5484d», «#e54») a `#rrggbb` en minúsculas; null si no es un color. */
+export function normalizarColor(texto: unknown): string | null {
+    if (typeof texto !== "string") return null;
+    let t = texto.trim().toLowerCase();
+    if (t.startsWith("#")) t = t.slice(1);
+    if (/^[0-9a-f]{3}$/.test(t)) t = [...t].map((c) => c + c).join("");
+    return /^[0-9a-f]{6}$/.test(t) ? `#${t}` : null;
+}

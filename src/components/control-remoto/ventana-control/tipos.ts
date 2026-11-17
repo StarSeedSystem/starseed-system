@@ -36,6 +36,10 @@ export interface PropsVentanaControl {
     alCambiarFuente?: (f: FuentePedida) => void;
     /** CTL1117B · el indicador y el selector del medio de transmisión (lo monta quien conoce la sesión). */
     ranuraMedio?: ReactNode;
+    /** CTL1117I · color público de la neurona controlada (junto a su nombre). */
+    color?: string;
+    /** CTL1117I · MI color público: el de la onda de mis clics y el de «Tus toques». */
+    miColor?: string;
 }
 
 export type Giro = 0 | 90 | 180 | 270;

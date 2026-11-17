@@ -7,6 +7,9 @@
  */
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { PuntoColor } from "../punto-control";
+import { CapaOndas, useOndas } from "./onda-toque";
+import { PALABRAS_INDICADOR } from "@/lib/control-remoto/palabras-indicador";
 import type { Giro, PropsVentanaControl } from "./tipos";
 import { ajustar, deltaACuadro, puntoEnPantalla, tamanoGirado, type Caja } from "./geometria";
 import { GestorToque } from "./gestor-toque";
@@ -176,6 +179,7 @@ function Pantalla({ p, activo, gestor }: { p: PropsVentanaControl; activo: boole
     const caja = useRef<HTMLDivElement>(null);
     const video = useRef<HTMLVideoElement>(null);
     const tam = useCaja(caja);
+    const { ondas, lanzar } = useOndas();
     const giro: Giro = p.pantalla?.giro ?? 0;
     const g = p.pantalla ? tamanoGirado(p.pantalla.ancho, p.pantalla.alto, giro) : { w: 16, h: 10 };
     const img = ajustar({ left: 0, top: 0, width: tam.width, height: tam.height }, g.w, g.h);
@@ -234,6 +238,9 @@ function Pantalla({ p, activo, gestor }: { p: PropsVentanaControl; activo: boole
             /* puntero sintético */
         }
         (e.currentTarget.closest("[data-ventana-control]") as HTMLElement | null)?.focus({ preventScroll: true });
+        // CTL1117I: eco local de MI clic, al instante y en mi color (no espera al vídeo del aparato).
+        const r = caja.current?.getBoundingClientRect();
+        lanzar(e.clientX - (r?.left ?? 0), e.clientY - (r?.top ?? 0));
         gestor.abajo(clave(e), pt.x, pt.y);
     };
     const alMover = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -273,6 +280,7 @@ function Pantalla({ p, activo, gestor }: { p: PropsVentanaControl; activo: boole
                         style={{ width: vw, height: vh, left: (img.width - vw) / 2, top: (img.height - vh) / 2, transform: `rotate(${giro}deg)` }}
                     />
             </div>
+            <CapaOndas ondas={ondas} color={p.miColor ?? "#ffffff"} />
             {!mensaje && <AvisoOrden p={p} />}
             {mensaje && (
                 <div aria-live="polite" data-testid="ventana-control-mensaje" className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/55 p-4 text-center text-sm text-white">
@@ -558,6 +566,14 @@ export function VentanaControl(props: PropsVentanaControl) {
         />
     );
 
+    /** CTL1117I: «Tus toques» con mi color, para saber con qué color me ven las demás neuronas. */
+    const leyendaMia = props.miColor && nivel === "controlar" && (
+        <span data-testid="ventana-control-leyenda-mia" className="hidden shrink-0 items-center gap-1 text-[11px] text-white/60 sm:flex" title={PALABRAS_INDICADOR.toques.mios}>
+            <PuntoColor color={props.miColor} />
+            {PALABRAS_INDICADOR.toques.mios}
+        </span>
+    );
+
     const base = "flex flex-col overflow-hidden border border-white/10 bg-[#0b0f1a]/95 text-white shadow-2xl backdrop-blur-xl";
 
     if (modo === "pagina") {
@@ -565,7 +581,9 @@ export function VentanaControl(props: PropsVentanaControl) {
         return (
             <section role="region" aria-label={`Control de ${nombre}`} tabIndex={-1} onKeyDown={alTeclear} className={`${base} h-full w-full min-h-0 outline-none`} data-testid="ventana-control" data-ventana-control data-modo="pagina">
                 <header className="flex h-10 shrink-0 items-center gap-2 border-b border-white/10 px-3">
+                    {props.color && <PuntoColor color={props.color} />}
                     <h2 className="min-w-0 flex-1 truncate text-sm font-semibold">{nombre}</h2>
+                    {leyendaMia}
                     {nota}
                     {chip}
                     {nivel === "ver" && mostrarSelector && selector}
@@ -597,6 +615,7 @@ export function VentanaControl(props: PropsVentanaControl) {
                 className="fixed z-[2147482000] flex h-11 max-w-[calc(100vw-16px)] items-center gap-1 rounded-full border border-white/10 bg-[#0b0f1a]/95 pl-3 pr-1 text-white shadow-2xl backdrop-blur-xl"
                 style={{ left: lugar.x, top: lugar.y }}
             >
+                {props.color && <PuntoColor color={props.color} />}
                 <button type="button" onClick={() => setMinimizada(false)} aria-label={`Abrir el control de ${nombre}`} className="min-h-10 min-w-0 cursor-pointer truncate text-[13px] font-medium">
                     {nombre}
                 </button>
@@ -630,7 +649,9 @@ export function VentanaControl(props: PropsVentanaControl) {
                 className="flex shrink-0 cursor-grab touch-none items-center gap-1.5 border-b border-white/10 px-2 active:cursor-grabbing"
                 style={{ height: BARRA_PX }}
             >
+                {props.color && <PuntoColor color={props.color} className="ml-1" />}
                 <h2 className="min-w-0 flex-1 truncate pl-1 text-[13px] font-semibold">{nombre}</h2>
+                {leyendaMia}
                 {nota}
                 {chip}
                 {nivel === "ver" && mostrarSelector && selector}
