@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """Pruebas del detector de orquestador vivo pero parado (2026-10-08). Sin procesos reales."""
+import json
 import os
+import shutil
 import sys
 import tempfile
 import unittest
@@ -100,6 +102,76 @@ class TrabajoEnHijos(unittest.TestCase):
     def test_sin_hijos_no_hay_trabajo(self):
         self.assertEqual(A.trabajo_en_hijos(self.FILAS, 400), [])
         self.assertEqual(A.trabajo_en_hijos([], 100), [])
+
+
+class FrenoDeDisco(unittest.TestCase):
+    """(SUP1117C) Con el freno de disco del enjambre puesto, un orquestador sin tareas no está atascado: el 17-11
+    se le reiniciaba en bucle con la Mac entre 0,4 y 6 GB libres. Sin procesos ni disco reales."""
+
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        self.antes = (A.OLAS, A.RAIZ, A.orquestadores, A._filas_ps, getattr(A, "_freno_disco", None))
+        A.OLAS = A.RAIZ = self.dir
+        cola = os.path.join(self.dir, "cola-auto-1117-120603.json")
+        with open(cola, "w", encoding="utf-8") as f:
+            json.dump({"tareas": [{"id": "TU18b", "depende": []}]}, f)
+        with open(os.path.join(self.dir, "progreso.json"), "w", encoding="utf-8") as f:
+            json.dump({}, f)
+        A.orquestadores = lambda: [(27053, 2100, cola)]
+        A._filas_ps = lambda: []
+
+    def tearDown(self):
+        A.OLAS, A.RAIZ, A.orquestadores, A._filas_ps, A._freno_disco = self.antes
+        shutil.rmtree(self.dir, ignore_errors=True)
+
+    def test_con_el_freno_puesto_no_es_un_atasco(self):
+        A._freno_disco = lambda: {"retiene_arranques": True, "libre_gb": 5.8, "umbral_aviso_gb": 10}
+        m = A.medir()
+        self.assertFalse(m["atascado"])
+        self.assertEqual(m["listas"], [])
+        self.assertIn("frenado por el disco", m["motivo"])
+        self.assertIn("5.8", m["motivo"])
+
+    def test_y_curar_no_lo_reinicia(self):
+        A._freno_disco = lambda: {"retiene_arranques": True, "libre_gb": 4.8, "umbral_aviso_gb": 10}
+        antes_estado = A.ESTADO
+        A.ESTADO = os.path.join(self.dir, "atasco.json")
+        muertos = []
+        try:
+            r = A.curar(persiste_s=0, ahora=1000, decir=lambda _t: None, matar=muertos.append, despertar=lambda: True)
+        finally:
+            A.ESTADO = antes_estado
+        self.assertEqual(r["accion"], "trabajando")
+        self.assertEqual(muertos, [])
+
+    def test_sin_freno_sigue_siendo_un_atasco(self):
+        A._freno_disco = lambda: {"retiene_arranques": False, "libre_gb": 40.0, "umbral_aviso_gb": 10}
+        m = A.medir()
+        self.assertTrue(m["atascado"])
+        self.assertEqual(m["listas"], ["TU18b"])
+
+    def test_sin_el_modulo_no_se_inventa_un_freno(self):
+        A._freno_disco = lambda: {}
+        self.assertTrue(A.medir()["atascado"])
+
+    def test_frenado_por_disco_es_pura(self):
+        self.assertEqual(A.frenado_por_disco(None), "")
+        self.assertEqual(A.frenado_por_disco({"retiene_arranques": False, "libre_gb": 3.0}), "")
+        self.assertIn("10 GB", A.frenado_por_disco({"retiene_arranques": True, "libre_gb": 4.8, "umbral_aviso_gb": 10}))
+
+    def test_el_freno_de_verdad_se_lee_del_modulo_del_enjambre(self):
+        gd = A._guardia_disco()
+        antes = os.environ.get("STARSEED_DISCO_ESTADO")
+        os.environ["STARSEED_DISCO_ESTADO"] = os.path.join(self.dir, "disco-enjambre.json")
+        try:
+            e = gd.estado("/", libre_bytes=3 * gd.GB, total_bytes=228 * gd.GB, nivel="sin_pesados")
+        finally:
+            if antes is None:
+                os.environ.pop("STARSEED_DISCO_ESTADO", None)
+            else:
+                os.environ["STARSEED_DISCO_ESTADO"] = antes
+        self.assertTrue(e["retiene_arranques"])
+        self.assertIn("frenado por el disco", A.frenado_por_disco(e))
 
 
 if __name__ == "__main__":

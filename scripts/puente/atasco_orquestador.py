@@ -161,6 +161,49 @@ def _leer(ruta, defecto):
         return defecto
 
 
+_GD = None
+
+
+def _guardia_disco():
+    """El módulo del freno de disco del enjambre (`scripts/enjambre/guardia_disco.py`, GUA1113A), cargado por
+    ruta una sola vez y sin tocar `sys.path`."""
+    global _GD
+    if _GD is None:
+        import importlib.util
+
+        ruta = os.path.join(os.path.dirname(DIRECTORIO), "enjambre", "guardia_disco.py")
+        spec = importlib.util.spec_from_file_location("guardia_disco_atasco", ruta)
+        modulo = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(modulo)
+        _GD = modulo
+    return _GD
+
+
+def _freno_disco():
+    """(SUP1117C) El freno de disco tal como lo ve el orquestador (mismo disco, mismos umbrales y la histéresis
+    de `disco-enjambre.json`): {"retiene_arranques", "libre_gb", "umbral_aviso_gb", …}. {} si no se puede
+    leer: entonces no se inventa ningún freno."""
+    try:
+        return _guardia_disco().estado("/")
+    except Exception:  # noqa: BLE001
+        return {}
+
+
+def frenado_por_disco(freno):
+    """PURA. (SUP1117C) Por qué un orquestador sin tareas NO está atascado cuando el freno de disco retiene los
+    arranques; "" si no los retiene.
+
+    POR QUÉ: del 16-11 por la noche al 17-11 la Mac estuvo entre 0,4 y 6 GB libres (la swap) y el orquestador, con
+    el freno puesto («poco disco … no arranca ninguna tarea nueva»), latía «sin tareas activas» con listas en su
+    cola. Para `decidir` eso era un atasco y se le reiniciaba (9 veces el 17-11 hasta las 12:04): el nuevo volvía a
+    frenar. Reiniciarlo no arranca nada; el freno se suelta solo cuando hay sitio."""
+    if not isinstance(freno, dict) or not freno.get("retiene_arranques"):
+        return ""
+    return ("frenado por el disco: quedan %s GB libres y no arranca ninguna tarea por debajo de %s GB (guardia "
+            "del disco); reiniciarlo no lo arregla, sigue solo al liberarse" % (
+                freno.get("libre_gb", "?"), freno.get("umbral_aviso_gb", "?")))
+
+
 def medir():
     """Estado del (primer) orquestador vivo con la decisión aplicada."""
     vivos = orquestadores()
@@ -177,6 +220,10 @@ def medir():
         asuntos = []
     atascado, motivo, listas = decidir((latidos or {}).get("tareas") or {}, tareas,
                                        _leer(os.path.join(OLAS, "progreso.json"), {}), asuntos)
+    if atascado:
+        frenado = frenado_por_disco(_freno_disco())  # SUP1117C
+        if frenado:
+            atascado, listas, motivo = False, [], frenado
     if atascado:
         trabajando = trabajo_en_hijos(_filas_ps(), pid)
         if trabajando:
