@@ -1,4 +1,12 @@
-import { describe, expect, it, beforeEach } from "vitest";
+import { describe, expect, it, beforeEach, vi } from "vitest";
+
+// La puerta única de voz se falsea: la real intenta motores de red y tarda segundos sin audio.
+const puerta = vi.hoisted(() => ({
+    hablar: vi.fn(async (_t: string, o: { alTerminar?: () => void }) => { setTimeout(() => o.alTerminar?.(), 5); return true; }),
+    callar: vi.fn(),
+}));
+vi.mock("@/lib/aurora/voz-unica", () => puerta);
+
 import { hablar, detener, vocesDe, resetearEstado, cuandoTermine } from "../voz-habla";
 
 const VOZES_SIMULADAS: Record<string, string> = {
@@ -7,6 +15,8 @@ const VOZES_SIMULADAS: Record<string, string> = {
 };
 
 beforeEach(() => {
+    puerta.hablar.mockClear();
+    puerta.callar.mockClear();
     resetearEstado();
     ;(global as any).speechSynthesis = undefined;
     ;(global as any).speechSynthesisVoices = [];
@@ -100,6 +110,28 @@ describe("voz-habla: hablar", () => {
         await new Promise((resolve) => setTimeout(resolve, 50));
 
         expect(cb.length).toBeGreaterThanOrEqual(1);
+    });
+});
+
+describe("voz-habla: puerta única", () => {
+    it("habla por hablar() de la puerta con contexto lectura", () => {
+        hablar("hola", "es-ES", "navegador");
+        expect(puerta.hablar).toHaveBeenCalledWith("hola", expect.objectContaining({ contexto: "lectura" }));
+    });
+
+    it("detener calla por callar() de la puerta", () => {
+        hablar("hola", "es-ES", "navegador");
+        detener();
+        expect(puerta.callar).toHaveBeenCalledTimes(1);
+    });
+
+    it("si la puerta no puede hablar, la cola avanza y avisa", async () => {
+        puerta.hablar.mockResolvedValueOnce(false);
+        const cb: boolean[] = [];
+        hablar("hola", "es-ES", "navegador");
+        cuandoTermine((ok) => cb.push(ok));
+        await new Promise((r) => setTimeout(r, 20));
+        expect(cb).toEqual([true]);
     });
 });
 
