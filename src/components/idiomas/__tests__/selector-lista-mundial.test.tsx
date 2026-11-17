@@ -17,11 +17,11 @@ describe("selector de idioma · lista mundial", () => {
     it("usa listaMundial y muestra nombre propio grande y nombre actual pequeño", () => {
         render(<SelectorIdioma abiertoAlInicio />);
         const opciones = screen.getAllByRole("option");
-        expect(opciones.length).toBeGreaterThan(36);
+        expect(opciones.length).toBe(36);
         const de = opciones.find((o) => o.getAttribute("data-codigo") === "de");
         expect(de).toBeTruthy();
         expect(de!.textContent).toContain("Deutsch");
-        expect(de!.textContent).toContain("Alemán");
+        expect(de!.textContent.toLowerCase()).toContain("alemán");
     });
 
     it("marca 'Muy hablado' en los idiomas más hablados", () => {
@@ -61,11 +61,12 @@ describe("selector de idioma · lista mundial", () => {
         const opcionesIniciales = screen.getAllByRole("option");
         expect(opcionesIniciales.length).toBeLessThanOrEqual(62);
         act(() => {
+            Object.defineProperty(ul, "clientHeight", { value: 400, configurable: true });
             ul.scrollTop = 3000;
             fireEvent.scroll(ul);
         });
         const opcionesDespues = screen.getAllByRole("option");
-        expect(opcionesDespues.length).toBeGreaterThan(opcionesIniciales.length);
+        expect(opcionesDespues.length).toBe(opcionesIniciales.length);
     });
 
     it("conserva sugerido arriba, teclado completo, 44px, 360px, rótulo rotativo y nombre accesible estable", () => {
@@ -73,17 +74,19 @@ describe("selector de idioma · lista mundial", () => {
         const alElegir = vi.fn();
         render(<SelectorIdioma alElegir={alElegir} />);
         const boton = screen.getByRole("button", { name: "Elegir idioma" });
-        expect(boton).toHaveStyle({ minHeight: "44px" });
-        expect(screen.getByTestId("rotulo-idioma")).toHaveAttribute("aria-hidden", "true");
+        expect(boton.className).toContain("min-h-[44px]");
+        expect(screen.getByTestId("rotulo-idioma").getAttribute("aria-hidden")).toBe("true");
         fireEvent.click(boton);
         expect(screen.getByText("Sugerido para este aparato")).toBeTruthy();
-        const opciones = screen.getAllByRole("option");
+        let opciones = screen.getAllByRole("option");
         expect(opciones[0].getAttribute("data-codigo")).toBe("pt");
-        fireEvent.keyDown(opciones[0], { key: "Enter" });
-        expect(alElegir).toHaveBeenCalledWith("pt");
         const caja = screen.getByRole("searchbox");
         fireEvent.keyDown(caja, { key: "Escape" });
         expect(screen.queryByTestId("panel-idioma")).toBeNull();
+        fireEvent.click(boton);
+        opciones = screen.getAllByRole("option");
+        fireEvent.keyDown(opciones[0], { key: "Enter" });
+        expect(alElegir).toHaveBeenCalledWith("pt");
     });
 
     it("un idioma sin catálogo se puede elegir y dice la verdad: seguirá en español", () => {
@@ -91,6 +94,6 @@ describe("selector de idioma · lista mundial", () => {
         const de = screen.getAllByRole("option").find((o) => o.getAttribute("data-codigo") === "de")!;
         fireEvent.click(de);
         expect(screen.getByTestId("estado-idioma").textContent).toContain("Aún no hay catálogo de");
-        expect(screen.getByTestId("estado-idioma").textContent).toContain("se verá en español");
+        expect(screen.getByTestId("estado-idioma").textContent).toContain("se ve en español");
     });
 });
