@@ -1,0 +1,77 @@
+{
+ "ola": "nube-20261116",
+ "tareas": [
+  {
+   "ola": "HAL1116A",
+   "id": "HAL06-d2",
+   "titulo": "Prueba: el primer render del selector de idioma es el mismo en servidor y cliente (parte 2 de 2)",
+   "archivos": [
+    "src/components/idiomas/selector-idioma.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Escribe primero esta prueba; es la que dice si el rótulo giratorio es o no la causa del error de hidratación #418 de `/login`. Lee `src/components/idiomas/selector-idioma.tsx`. Lo que ya se sabe leyendo: `RotuloGiratorio` empieza en `useState(0)` (primer render = primer idioma de `IDIOMAS`), `actual` empieza en «es», `abierto` en `false`, y `sugerirIdioma()` (que lee `navigator.language`) solo se pinta con el panel abierto; por eso la sospecha del rótulo NO está confirmada. Prueba con `react-dom/server` + `react-dom/client`: (1) fija `navigator.language = \"fr-FR\"` y `localStorage` con una elección `en` (clave `CLAVE_IDIOMA_NEURONA` de `src/lib/idiomas/estado.ts`); (2) `renderToString(<SelectorIdioma />)` en un entorno SIN `window` (o con `typeof window` simulado: usa la forma que ya usen otras pruebas SSR del repo, búscalas con `renderToString`); (3) monta ese HTML en un contenedor, espera `hydrateRoot(...)` dentro de `act` y vigila `console.error`: NINGÚN mensaje puede contener «Hydration», «hydrat» ni «418». (4) Comprueba también que el texto del rótulo en el primer render del cliente es igual al del HTML del servidor, y que un segundo después (`vi.advanceTimersByTime(1000)`) sí cambia. Solo si la prueba FALLARÍA por una diferencia real que veas leyendo el código, arregla `selector-idioma.tsx` con ≤30 líneas (primer render determinista; lo variable entra en un efecto) y di en un comentario de la prueba qué texto difería; si el primer render ya es determinista (lo esperado), NO toques el componente y la prueba queda como protección.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.\n\n## PARTE 2 DE 2 (la dirección dividió HAL06: falla por sí misma (tarea:otro))\nEn esta parte tocas SOLO: src/components/idiomas/selector-idioma.tsx. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "HAL06",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:otro)"
+   },
+   "dependencias_ya_en_main": [
+    "HAL06-d1"
+   ]
+  },
+  {
+   "id": "IMA15",
+   "ola": "TRA1116-IDIOMAS",
+   "titulo": "Editor de paquete en curso: claves pendientes, traducidas y estado",
+   "archivos": [
+    "src/lib/idiomas/paquete/editor.ts",
+    "src/lib/idiomas/paquete/__tests__/editor.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contrato A3 «Añadir al paquete de idioma en edición». Estado puro y su clave local `starseed.idiomas.editor.v1`: `abrirEdicion(codigo, nombre)`, `paqueteEnEdicion()`, `anadirPendiente(textoEspanol)` (normaliza con `normalizarTexto`; ignora vacíos, textos de >500 caracteres y duplicados; tope 2.000), `traducir(clave, valor)`, `pendientes()`, `completadas()`, `cerrarEdicion()`, `publicarBorrador(): PaqueteIdioma|null` (solo entradas traducidas; `revisado.estado` siempre «automatico» porque el OS no puede certificar una revisión humana desde aquí). Almacén inyectable con try/catch.\nPRUEBAS: añadir, duplicar, tope, traducir, publicar solo lo traducido, estado se recupera tras recargar (almacén falso).\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "IMA5",
+    "IMA11-d2"
+   ]
+  },
+  {
+   "id": "IMA12",
+   "ola": "TRA1116-IDIOMAS",
+   "titulo": "El cargador de catálogos suma los paquetes instalados y CON_CATALOGO se calcula",
+   "archivos": [
+    "src/lib/idiomas/catalogos/cargar.ts",
+    "src/lib/idiomas/idiomas.ts",
+    "src/lib/idiomas/__tests__/cargar-paquetes.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Lee `catalogos/cargar.ts` (cargadores fijos en, pt, fr) y `idiomas.ts:61` (`CON_CATALOGO`, `ESTADO_CATALOGO`). Cambio acotado: `cargarCatalogo(codigo)` primero mira los cargadores integrados y, si no hay, un paquete instalado (`leerPaquete`, IMA11) → `crearCatalogo({codigo, revisado: paquete.revisado.estado===\"revisado\", entradas})`; un paquete que falla al cargar devuelve `null` (la interfaz sigue en español). Un integrado SIEMPRE gana sobre un paquete del mismo código salvo que la persona haya elegido el paquete (parámetro `preferirPaquete`). Añade `idiomasConCatalogo(): string[]` = integrados + paquetes. NO cambies `CON_CATALOGO` ni `ESTADO_CATALOGO` (los comprueba `cobertura.test.ts`): solo añade la función. PRUEBAS: con un paquete instalado `de` se carga un catálogo y `traducir` funciona; un paquete corrupto → null; el integrado gana.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "IMA11-d2",
+    "IMA6"
+   ]
+  },
+  {
+   "id": "MQA6",
+   "ola": "MOD1116",
+   "titulo": "Astraura: registrar el proveedor «abliteration» en el índice de proveedores",
+   "archivos": [
+    "src/ai/providers/types.ts",
+    "src/ai/providers/index.ts",
+    "src/ai/providers/__tests__/abliteration-registro.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Añade `\"abliteration\"` a la unión `ProviderId` de `src/ai/providers/types.ts` (línea 15) y registra `abliterationProvider` en `src/ai/providers/index.ts` junto a `groqProvider` (importación, tabla de proveedores y lista de orden ≈ líneas 12, 36 y 56), de modo que NO quede entre los primeros de la lista de orden por defecto (ni en «gratis primero»): al final y sin selección automática. Quita el `as` y el comentario `// MQA6` de `abliteration.ts` si existen (no es uno de tus archivos: déjalo y di en la prueba qué debe quitar quien lo revise). PRUEBA: el proveedor está registrado, su `info.requiresKey` es true y ocupa la última posición de la lista de orden; los demás ids siguen en su sitio.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni pytest, ni tsc, ni git, ni node, ni npm, ni curl): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj, entorno y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves (solo NOMBRES de variables, nunca valores; nunca una IP, un OCID ni un token); nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado. En Python: las pruebas son `unittest` con carpetas temporales y falsos, como las vecinas `scripts/puente/test_*.py`, y no tocan el `~/.starseed` real.",
+   "dependencias_ya_en_main": [
+    "MQA5"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1116-181659.json": [
+   "IMA15",
+   "IMA12",
+   "MQA6",
+   "HAL06-d2"
+  ]
+ }
+}
