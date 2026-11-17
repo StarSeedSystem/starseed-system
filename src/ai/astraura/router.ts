@@ -62,6 +62,10 @@ import { localPrimeroDelta, migrarLocalPrimero } from "./local-primero";
 // (Ola 1018L · Tarea F) Refinado de dificultad con Laya: capa PURA, import sin
 // ciclo (router-laya solo importa TIPOS del router, borrados en runtime).
 import { refinarConLaya, type RespuestasLaya } from "./router-laya";
+// (JLA1116A · JL10) Siembra de `respuestasLaya`: pregunta a Laya el punto
+// «plan.dificultad» con el plazo del medio; si no llega a tiempo, las reglas
+// de `classifyTask` siguen mandando (contrato §2).
+import { respuestasParaPlan } from "@/lib/astraura/laya/preguntar-plan";
 // (MVD1027F-d2) Recuerdos de cápsulas Memvid
 import { recordarDeCapsulas } from "./recuerdos-capsulas";
 import { findOssService } from "@/lib/services/oss-services";
@@ -979,10 +983,12 @@ export interface AstrauraChatRequest {
    */
   desdeMalla?: boolean;
   /**
-   * (Ola 1018L · Tarea F) Respuestas de Laya (punto «plan.dificultad»: score
-   * «dificultad» + noul «basta_pequeno») que YA llegaron en el turno. NUNCA se
-   * espera a Laya (contrato §2); si están, `refinarConLaya` afina la dificultad
-   * con la calibrada `answer_confidence`, sin tocar privacidad ni contexto.
+   * (Ola 1018L · Tarea F · JLA1116A §2) Respuestas de Laya (punto
+   * «plan.dificultad»: score «dificultad» + noul «basta_pequeno»). Si el
+   * llamador no las trae, el router las pide con `respuestasParaPlan`, que
+   * nunca espera más que el plazo del medio; si están, `refinarConLaya` afina
+   * la dificultad con la calibrada `answer_confidence`, sin tocar privacidad
+   * ni contexto.
    */
   respuestasLaya?: RespuestasLaya | null;
   /**
@@ -1626,13 +1632,38 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
     });
   }
 
-  const profile = classifyTask(messages, req.taskHint);
-  // (Ola 1018L · Laya) Si las respuestas de Laya YA vinieron en la petición (no
-  // se espera a Laya: contrato §2), afina la dificultad — solo la dificultad,
-  // nunca privacidad ni contexto. Defensivo: Laya nunca rompe el turno.
-  if (req.respuestasLaya) {
+  // (JLA1116A · JL10) Rellena `respuestasLaya` si el llamador no las trajo: Laya
+  // responde el punto «plan.dificultad» y el planificador no espera más que el
+  // plazo del medio (contrato §2). Sin respuesta a tiempo o mal formada: null.
+  let respuestasLaya = req.respuestasLaya;
+  if (respuestasLaya === undefined) {
+    const textoDeTarea = [...messages].reverse().find((m) => m.role === "user")?.content ?? "";
     try {
-      profile.difficulty = refinarConLaya(profile, req.respuestasLaya).difficulty;
+      respuestasLaya = textoDeTarea
+        ? await respuestasParaPlan(textoDeTarea, {
+            medio: "a1",
+            fetch,
+            ahora: () => Date.now(),
+            dormir: (ms) => {
+              let cancelar: () => void = () => {};
+              const promesa = new Promise<void>((resolver) => {
+                const t = setTimeout(resolver, ms);
+                cancelar = () => clearTimeout(t);
+              });
+              return { promesa, cancelar };
+            },
+          })
+        : null;
+    } catch {
+      respuestasLaya = null;
+    }
+  }
+  const profile = classifyTask(messages, req.taskHint);
+  // (Ola 1018L · Laya) Si Laya respondió a tiempo, afina la dificultad — solo la
+  // dificultad, nunca privacidad ni contexto. Defensivo: Laya nunca rompe el turno.
+  if (respuestasLaya) {
+    try {
+      profile.difficulty = refinarConLaya(profile, respuestasLaya).difficulty;
     } catch {
       // ignore
     }
