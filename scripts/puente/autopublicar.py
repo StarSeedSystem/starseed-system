@@ -155,7 +155,9 @@ _DROP_RESTRICCION = re.compile(
 
 
 def _sin_restricciones_recreadas(sql):
-    sql = sql or ""
+    # AUT1116B: un `add constraint` que solo aparece dentro de un comentario (`--` o `/* */`) NO es una recreación:
+    # se vacían los comentarios (misma longitud) antes de buscar la vuelta a poner.
+    sql = re.sub(r"--[^\n]*|/\*.*?\*/", lambda c: " " * len(c.group(0)), sql or "", flags=re.S)
 
     def quitar(m):
         vuelve = re.search(r"alter\s+table\s+(?:if\s+exists\s+)?(?:only\s+)?%s\s+add\s+constraint\s+%s\b"
@@ -1110,7 +1112,16 @@ def una_pasada(como_json=False):
         except BlockingIOError:
             print("otra pasada de la autopublicación sigue en marcha")
             return None
-        est = pasada(Medios(), _leer(ESTADO, {}), time.time())
+        med = Medios()
+        est = pasada(med, _leer(ESTADO, {}), time.time())
+        # AUT1116B: si la compilación de pruebas falló o la publicación sigue bloqueada, abre sola la tarea URGENTE de arreglo
+        # (una vez por clave; no toca nada en marcha). Nunca tumba la pasada.
+        if est.get("fase") != "apagado":
+            try:
+                import prioridad_desbloqueo as PD
+                est = PD.pasada_desbloqueo(PD.MediosDesbloqueo(med, CARPETA, RAIZ_OLAS), est, time.time())
+            except Exception as e:  # noqa: BLE001
+                est["desbloqueo"] = dict(est.get("desbloqueo") or {}, error="%s: %s" % (type(e).__name__, str(e)[:160]))
         _escribir(ESTADO, est)
     print(json.dumps(est, ensure_ascii=False) if como_json else
           "[%s] %s · %s" % (time.strftime("%H:%M"), est.get("fase"), est.get("detalle")), flush=True)

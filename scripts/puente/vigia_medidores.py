@@ -366,6 +366,19 @@ def vigilar_lectura_claude(ahora=None, leer_limites=None, ruta=AVISO_LECTURA, pu
     return "avisado" if texto else ("vieja, ya avisada" if nuevo else "al día")
 
 
+def orden_repartir_nube(simular=True):
+    """PURA (AUT1116A): la orden del reparto que mira si hay atraso para la nube, con la misma cesión que
+    usan el director de la nube y el botón «Buscar más capacidad»."""
+    orden = [sys.executable, os.path.join(RAIZ, "scripts", "puente", "repartir-a-nube.py"), "--tope", "8", "--ceder"]
+    return orden + ["--simular"] if simular else orden
+
+
+def orden_lanzar_nube():
+    """PURA (AUT1116A): la orden que lanza la nube con lo que cede la tanda de la Mac."""
+    return [sys.executable, os.path.join(RAIZ, "scripts", "puente", "nube-gh.py"),
+            "lanzar", "--tope", "8", "--trabajadores", "4", "--minutos", "45", "--ceder"]
+
+
 def aplicar(problema: dict) -> str:
     """Ejecuta el remedio y devuelve lo que pasó, en castellano."""
     remedio = problema.get("remedio")
@@ -434,12 +447,14 @@ def aplicar(problema: dict) -> str:
         # Se pregunta ANTES si hay algo que mandar. Sin esto el vigía lanzaba un reparto
         # cada dos minutos para que contestara «0 tareas (ninguna)»: ruido y máquina
         # gastada, que es justo lo que este servicio existe para evitar.
-        rc, salida = _sh([sys.executable, os.path.join(RAIZ, "scripts", "puente", "repartir-a-nube.py"),
-                          "--tope", "8", "--simular"], timeout=90)
+        # (AUT1116A, MEDIDO el 16-11 a las 19:59) Sin `--ceder`, el reparto deja en la Mac TODO lo que está
+        # en la tanda viva y con el orquestador parado (44 listas, ninguna en marcha) contestaba «0 tareas»:
+        # «no hay atraso que la nube pueda coger». Con `--ceder` aplica la misma regla que el director de la
+        # nube y el botón: la Mac se guarda sus próximas rondas y lo demás es cedible.
+        rc, salida = _sh(orden_repartir_nube(simular=True), timeout=90)
         if "0 tareas" in salida:
             return "no hay atraso que la nube pueda coger: no despliego"
-        rc, salida = _sh([sys.executable, os.path.join(RAIZ, "scripts", "puente", "nube-gh.py"),
-                          "lanzar", "--tope", "8", "--trabajadores", "4", "--minutos", "45"], timeout=300)
+        rc, salida = _sh(orden_lanzar_nube(), timeout=300)
         return "nube: %s" % ("lanzada" if rc == 0 else salida.strip()[-120:] or "no se pudo")
 
     if remedio == "avisar_cadena_rota":

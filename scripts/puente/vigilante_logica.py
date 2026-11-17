@@ -16,6 +16,16 @@ except ImportError:  # pragma: no cover
     def aplicar_cambio_pedido(tarea, entrada):
         return tarea
 
+# (AUT1116A) La regla de prioridad (PRI01). Un clon por detrás sin el módulo conserva el orden de siempre.
+try:
+    import urgencia_tarea
+except ImportError:  # pragma: no cover
+    try:
+        from scripts.puente import urgencia_tarea  # type: ignore
+    except ImportError:
+        class urgencia_tarea:  # noqa: N801
+            ordenar_primero = staticmethod(lambda tareas: tareas)
+
 # El latido de la nube corre sobre un clon que puede ir por detrás: si
 # `prioridad_logica` aún no existe allí, la ordenación se salta y se devuelve
 # el orden del archivo, que es lo que ese latido espera hoy.
@@ -299,7 +309,10 @@ def seleccionar_pendientes(colas, progreso, asuntos_git, ahora=None):
             salida.append(seleccionada)
     if ahora is not None and prioridad_logica is not None:
         listas, _bloqueadas = prioridad_logica.ordenar(salida, progreso, ahora)
-        return [tarea for tarea, _puntos, _razones in listas]
+        # (AUT1116A) Lo que tiene prioridad (`prioridad`, `urgente`, título «URGENTE»: la regla de PRI01) va
+        # delante de lo demás, sin cambiar el orden entre iguales. Este es el orden que siguen el vigilante al
+        # alimentar la tanda, `asignar_huecos` y la reserva de la Mac frente a lo cedible a la nube.
+        return urgencia_tarea.ordenar_primero([tarea for tarea, _puntos, _razones in listas])
     return salida
 
 

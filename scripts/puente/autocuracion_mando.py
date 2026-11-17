@@ -94,6 +94,15 @@ SONDA_VALIDA_S = 10 * 60
 SERVICIOS_MINIMO_S = 10 * 60
 #: (1103 · G) Cada cuánto se mira si el orquestador instalado y el vivo corren el código de main.
 ORQ_AL_DIA_MINIMO_S = 15 * 60
+#: (AUT1116A) Orquestador vivo, tareas listas y NINGUNA en marcha: se reinicia cuando lleva así esto. Diez
+#: minutos son cinco pasadas del vigía (120 s), más que su orientación al arrancar (`EDAD_MIN_S`, 5 min, más
+#: `PERSISTE_S`, 4 min: el botón lo hace al momento porque lo pide una persona) y menos de lo que Alex tardó
+#: en notarlo el 16-11 (17:25 → 20:00 sin que nada se moviera).
+ORQ_PARADO_S = 10 * 60
+#: Como mucho un reinicio por parada cada tanto; si tras uno sigue parado por otra causa, reiniciar en bucle no lo arregla.
+ORQ_PARADO_REINICIO_MINIMO_S = 30 * 60
+#: Como mucho un despertar del vigilante cada tanto cuando no hay ningún orquestador.
+ORQ_DESPERTAR_MINIMO_S = 10 * 60
 FASES_ESPERA = ("esperando proveedor", "esperando cupo")
 OLAS = os.path.join(RAIZ, "starseed_memory_root", "olas")
 SALUD = os.path.expanduser("~/.starseed/salud-proveedores.json")
@@ -512,13 +521,50 @@ def bloqueo_de_alta_viejo(error, edad_s, minimo_s=BLOQUEO_VIEJO_S):
     return "locked working tree" in texto and "initializing" in texto and edad_s is not None and edad_s >= minimo_s
 
 
-def _edad_bloqueo(ruta):
-    """Segundos desde que se bloqueó el worktree (`.git/worktrees/<nombre>/locked`); None si no se sabe."""
-    marca = os.path.join(RAIZ, ".git", "worktrees", os.path.basename(str(ruta).rstrip("/")), "locked")
+#: (AUT1116A) Un worktree bloqueado con «initializing» (un `worktree add` interrumpido) solo se desbloquea y se quita
+#: si su carpeta lleva más de esto sin cambiar; lo más nuevo puede ser un alta que aún se está haciendo.
+BLOQUEO_INICIALIZANDO_S = 24 * 3600
+
+
+def _dir_admin(ruta):
+    """La carpeta administrativa del worktree (`<repo>/.git/worktrees/<nombre>`), leída del archivo `.git` de la propia
+    carpeta («gitdir: …»): git le pone `<nombre>2` si el nombre ya estaba cogido, y buscarla por el nombre de la carpeta
+    fallaba justo con los más viejos. Si no se puede leer, por el nombre, como antes."""
+    ruta = str(ruta).rstrip("/")
     try:
-        return time.time() - os.path.getmtime(marca)
+        with open(os.path.join(ruta, ".git"), encoding="utf-8") as f:
+            linea = f.read().strip()
+        if linea.startswith("gitdir:"):
+            return linea.split(":", 1)[1].strip()
+    except OSError:
+        pass
+    return os.path.join(RAIZ, ".git", "worktrees", os.path.basename(ruta))
+
+
+def _edad_bloqueo(ruta):
+    """Segundos desde que se bloqueó el worktree (`<carpeta administrativa>/locked`); None si no se sabe."""
+    try:
+        return time.time() - os.path.getmtime(os.path.join(_dir_admin(ruta), "locked"))
     except OSError:
         return None
+
+
+def _edad_carpeta(ruta):
+    """Segundos desde el último cambio de la carpeta del worktree (ella o su archivo `.git`); None si no existe."""
+    ultimos = []
+    for r in (str(ruta).rstrip("/"), os.path.join(str(ruta).rstrip("/"), ".git")):
+        try:
+            ultimos.append(os.path.getmtime(r))
+        except OSError:
+            continue
+    return time.time() - max(ultimos) if ultimos else None
+
+
+def edad_para_desbloquear(edad_carpeta_s, edad_bloqueo_s):
+    """PURA (AUT1116A): la edad que decide si un bloqueo «initializing» es de un alta abandonada: la MENOR de las que se
+    conocen (carpeta sin cambios y bloqueo), para que lo nuevo nunca se toque. None si no se conoce ninguna."""
+    conocidas = [e for e in (edad_carpeta_s, edad_bloqueo_s) if e is not None]
+    return min(conocidas) if conocidas else None
 
 
 def _git_wt(ruta, comando, *args):
@@ -533,7 +579,12 @@ def _git_wt(ruta, comando, *args):
         # (2026-10-23) Un `git worktree add` interrumpido deja el worktree bloqueado con motivo
         # «initializing» y la limpieza fallaba en cada pasada. Solo se suelta si el bloqueo lleva
         # más de 30 min (no es uno que se esté creando ahora); el plan ya excluye tareas vivas.
-        if r.returncode != 0 and args and bloqueo_de_alta_viejo(error, _edad_bloqueo(args[-1])):
+        # (AUT1116A, MEDIDO el 16-11) VZF1015T (10-15) fallaba en CADA pasada con «cannot remove a locked working
+        # tree, lock reason: initializing»: la edad se medía por el nombre de la carpeta de administración, que no
+        # siempre es el de la carpeta del worktree, y con 30 min. Ahora: lleva más de un día sin cambiar.
+        if r.returncode != 0 and args and bloqueo_de_alta_viejo(
+                error, edad_para_desbloquear(_edad_carpeta(args[-1]), _edad_bloqueo(args[-1])),
+                minimo_s=BLOQUEO_INICIALIZANDO_S):
             subprocess.run(["git", "-C", RAIZ, "worktree", "unlock", args[-1]],
                            capture_output=True, text=True, timeout=60)
             r = subprocess.run(["git", "-C", RAIZ, "worktree", "remove", *args],
@@ -795,6 +846,57 @@ def _servicios():
     return reactivar_mando.paso_servicios()
 
 
+def _curar_parado(ahora):
+    import atasco_orquestador as AO
+
+    # `decir` mudo: el aviso lo da `curar_orquestador_parado`, que además lo deja en `hechos`.
+    return AO.curar(persiste_s=ORQ_PARADO_S, edad_min_s=AO.EDAD_MIN_S, ahora=ahora, decir=lambda _t: None)
+
+
+def _despertar_vigilante():
+    import asignar_huecos
+
+    return bool(asignar_huecos.despertar_vigilante())
+
+
+def curar_orquestador_parado(estado, ahora, forzar=False, curar_fn=None, despertar_fn=None, avisar_fn=None):
+    """(AUT1116A) El mismo remedio del botón «Buscar más capacidad» —reiniciar un orquestador vivo pero parado—,
+    aplicado solo en cada pasada. Modifica `estado` y devuelve la línea de lo que vio o hizo (o "").
+
+    POR QUÉ: el 16-11 el orquestador estuvo «vivo pero PARADO: sin ninguna tarea en marcha y con 44 listas» de
+    17:25 a 20:00, y solo se movió cuando una persona pulsó el botón. `atasco_orquestador.curar` la llamaban el
+    vigilante (en su bucle; esa tarde «no pude despertar al vigilante»: no corría), el vigía solo con CERO agentes
+    en total (había 3 en otros medios) y el revisor de bloqueadas; la autocuración, que sí pasa cada pocos minutos,
+    no la llamaba. Aquí se llama con `ORQ_PARADO_S` y un reinicio por `ORQ_PARADO_REINICIO_MINIMO_S` como mucho.
+    Nunca mata una tarea: `curar` solo actúa si ningún proceso de tarea cuelga del orquestador."""
+    avisar_fn = avisar_fn or _avisar
+    ultimo = float(estado.get("ultimo_reinicio_orq_parado") or 0)
+    if not forzar and ahora - ultimo < ORQ_PARADO_REINICIO_MINIMO_S:
+        return ""
+    cura = (curar_fn or _curar_parado)(ahora)
+    accion = cura.get("accion")
+    if accion == "reiniciado":
+        estado["ultimo_reinicio_orq_parado"] = ahora
+        linea = ("orquestador parado: %s; lo reinicio (más de %d min así) y el vigilante lanza una tanda nueva"
+                 % (cura.get("motivo"), ORQ_PARADO_S // 60))
+        avisar_fn("Autocuración: " + linea + ".")
+        return linea
+    if accion == "vigilando":
+        return "orquestador parado desde hace %d s (%s): lo reinicio si pasa de %d min" % (
+            int(cura.get("desde_s") or 0), cura.get("motivo"), ORQ_PARADO_S // 60)
+    if accion == "sin_orquestador":
+        if not forzar and ahora - float(estado.get("ultimo_despertar_orq") or 0) < ORQ_DESPERTAR_MINIMO_S:
+            return ""
+        estado["ultimo_despertar_orq"] = ahora
+        ok = (despertar_fn or _despertar_vigilante)()
+        linea = "sin orquestador: %s" % ("despierto al vigilante para que lance una tanda si hay trabajo" if ok
+                                         else "no pude despertar al vigilante")
+        if ok:
+            avisar_fn("Autocuración: " + linea + ".")
+        return linea
+    return ""
+
+
 def curar_enjambre(estado, ahora, forzar=False, latido_fn=None, sondear_fn=_sondear_escritores,
                    ordenar_fn=_ordenar_refresco, reiniciar_fn=_reiniciar_orquestador,
                    levantar_fn=_levantar_y_perdonar, avisar_fn=None, cola_fn=_cola_viva,
@@ -880,7 +982,7 @@ def revisar(ahora=None, sondear_fn=sondear, reiniciar_fn=_reiniciar, limpiar_fn=
             buscar_fn=_buscar, traer_fn=_traer_en_fondo, forzar=False, curar_fn=None,
             servicios_fn=_servicios, medidores_fn=_levantar_por_medidores, worktrees_fn=None,
             reparar_fn=None, explabs_fn=None, relevo_fn=None, a1_fn=None, lider_fn=None, estatico_fn=None,
-            orquestador_fn=None):
+            orquestador_fn=None, parado_fn=None):
     """Una pasada completa. Devuelve lo que vio y lo que hizo (también queda en ESTADO).
     `forzar` (el botón «Reactivar directores»): todo ya, sin los tiempos mínimos.
     `lider_fn`: el arriendo de dirección (IND1029Cb); si dirige otra neurona, solo se cuida esta máquina."""
@@ -1060,6 +1162,16 @@ def revisar(ahora=None, sondear_fn=sondear, reiniciar_fn=_reiniciar, limpiar_fn=
             avisar_fn("Autocuración: " + linea + ".")
     except Exception as e:
         hechos.append("no pude leer los medidores de crédito: %s: %s" % (type(e).__name__, e))
+
+    # (AUT1116A) Orquestador vivo, con tareas listas y ninguna en marcha: reinicio automático (el del botón).
+    par_fn = parado_fn or (curar_orquestador_parado if limpiar_fn is limpiar else None)
+    if par_fn and dirijo:
+        try:
+            linea = par_fn(estado, ahora, forzar)
+            if linea:
+                hechos.append(linea)
+        except Exception as e:
+            hechos.append("no pude revisar si el orquestador está parado: %s: %s" % (type(e).__name__, e))
 
     # Enjambre atascado esperando proveedores que ya volvieron (punto 6). El orquestador es del líder.
     if dirijo:

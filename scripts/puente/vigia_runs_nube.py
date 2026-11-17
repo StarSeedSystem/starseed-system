@@ -62,6 +62,15 @@ RUN_EN_MARCHA = ("in_progress",) + ESPERAN
 SIN_RUN_MAX_S = 24 * 3600
 #: Como mucho tantos runs distintos se preguntan a GitHub en una pasada (cada 240 s).
 MAX_RUNS_CONSULTA = 12
+#: (AUT1116A) Una `cola-nube-*.json` sin run en la nota de sus tareas: pasado este tiempo desde que se escribió, si
+#: ningún run vivo la lleva, sus tareas vuelven. Es la ventana de «en vuelo» del reparto (`repartir_nube.EN_VUELO_S`):
+#: el job más largo (60 min) más margen para que el run aparezca en GitHub.
+COLA_NUBE_VIDA_S = 75 * 60
+#: «commit»/«integrada» dicho por la nube sobre una tarea que está «pendiente» en la Mac: pasado este tiempo sin que
+#: nadie la trabaje, se da por integrada en su rama y `traer_nube` la trae (en vez de esperar sin fin).
+ESPERA_COMMIT_OLVIDADO_S = 60 * 60
+_DIJO_COMMIT = re.compile(r"la nube dijo «(commit|integrada)»")
+VEREDICTOS_CACHE = os.path.expanduser("~/.starseed/nube-veredictos")
 _RUN_EN_NOTA = re.compile(r"\(run (\d+)\)")
 _FECHA_EN_NOTA = re.compile(r"reasignada a la nube (\d{8})\b")
 
@@ -180,10 +189,23 @@ def ultimo_cambio(v):
 
     El MAYOR entre `t` y el final del día de la nota («reasignada a la nube AAAAMMDD»): `marcar` no
     reescribe `t`, así que `t` puede ser de antes de la reasignación; con el mayor, una reasignación
-    reciente nunca parece vieja."""
+    reciente nunca parece vieja.
+
+    (AUT1116A) Con `t_reasignada` (la hora exacta que ahora escribe `marcar`) se usa esa, no el final del día:
+    contar «24 h» desde las 24:00 de la nota dejaba una reasignación de las 14:50 hasta 33 h sin volver."""
     if not isinstance(v, dict):
         return None
-    candidatos = []
+    try:
+        exacta = float(v.get("t_reasignada") or 0)
+    except (TypeError, ValueError):
+        exacta = 0
+    candidatos = [exacta] if exacta > 0 else []
+    if exacta > 0:
+        try:
+            candidatos.append(time.mktime(time.strptime(str(v.get("t") or ""), "%Y-%m-%d %H:%M:%S")))
+        except (ValueError, OverflowError):
+            pass
+        return max(candidatos)
     try:
         candidatos.append(time.mktime(time.strptime(str(v.get("t") or ""), "%Y-%m-%d %H:%M:%S")))
     except (ValueError, OverflowError):
@@ -214,13 +236,18 @@ def runs_a_consultar(progreso, vivos, maximo=MAX_RUNS_CONSULTA):
     return runs[:maximo]
 
 
-def varadas_tras_su_run(progreso, estados, vivos, ahora, ids_vivos=()):
+def varadas_tras_su_run(progreso, estados, vivos, ahora, ids_vivos=(), colas_nube=None, colas_completas=False):
     """PURA. Las «reasignada · nube» que ya no lleva ningún run → [(tid, run o None, motivo)].
 
     `estados`: {run: status de la API o None}; `vivos`: runs en marcha según el resumen;
     `ids_vivos`: ids de las colas de esos runs (no se tocan nunca). Con run en la nota: vuelve solo
     si la API dice que ese RUN terminó; en marcha o sin dato, se queda. Sin run: vuelve si su último
-    cambio tiene más de `SIN_RUN_MAX_S`; sin fecha legible, se queda."""
+    cambio tiene más de `SIN_RUN_MAX_S`; sin fecha legible, se queda.
+
+    (AUT1116A) `colas_nube`: {id: epoch de la `cola-nube-*.json` más nueva que la lleva}. Sin run en la nota (lo
+    normal: «reasignada a la nube AAAAMMDD», del reparto), si `colas_completas` (todos los runs vivos dicen su cola,
+    así que `ids_vivos` es entero) y esa cola se escribió hace más de `COLA_NUBE_VIDA_S` sin que ningún run vivo la
+    lleve, vuelve: a los ~75 min, no a las 24 h. VOZ01, FRN01 y DSB01 llevaban 5 h con diez runs terminados."""
     salida = []
     for tid, v in sorted((progreso or {}).items()):
         if not es_reasignada_a_la_nube(v) or tid in ids_vivos:
@@ -229,6 +256,11 @@ def varadas_tras_su_run(progreso, estados, vivos, ahora, ids_vivos=()):
         if run:
             if run not in vivos and run_vivo((estados or {}).get(run)) is False:
                 salida.append((tid, run, "su run %s ya terminó según GitHub" % run))
+            continue
+        cola_t = (colas_nube or {}).get(tid)
+        if colas_completas and cola_t is not None and ahora - cola_t > COLA_NUBE_VIDA_S:
+            salida.append((tid, None, "su cola viajó a la nube hace %d min y ningún run vivo la lleva"
+                           % ((ahora - cola_t) // 60)))
             continue
         cambio = ultimo_cambio(v)
         if cambio is not None and ahora - cambio > SIN_RUN_MAX_S:
@@ -259,6 +291,10 @@ def _escribir(ruta, datos):
     os.replace(tmp, ruta)
 
 
+def _ps_args():
+    return subprocess.run(["ps", "-axo", "args="], capture_output=True, text=True, timeout=20).stdout
+
+
 def _avisar(texto):
     try:
         import director_chat
@@ -266,6 +302,68 @@ def _avisar(texto):
         director_chat.publicar(texto, de="director-nube", rol="director", tipo="aviso")
     except Exception:
         print("director-nube: no pude avisar en el Chat Director", flush=True)
+
+
+def colas_de_la_nube(carpeta):
+    """{id: epoch de la `cola-nube-*.json` más nueva que lo lleva} de `enjambre/colas/`. Nunca lanza."""
+    salida = {}
+    try:
+        nombres = sorted(os.listdir(carpeta))
+    except OSError:
+        return salida
+    for nombre in nombres:
+        if not (nombre.startswith("cola-nube-") and nombre.endswith(".json")):
+            continue
+        ruta = os.path.join(carpeta, nombre)
+        try:
+            t = os.path.getmtime(ruta)
+        except OSError:
+            continue
+        for tid in ids_de_cola(_leer(ruta, [])):
+            salida[tid] = max(t, salida.get(tid, 0))
+    return salida
+
+
+def veredictos_en_cache(ids, carpeta=None, maximo=16):
+    """{id: (estado, nota, run)} de lo que dijeron los últimos runs terminados, leído SOLO de la caché que ya dejó
+    `director-nube.py` (`~/.starseed/nube-veredictos/<run>.json`): sin llamar a GitHub. El «commit» de cualquier run gana."""
+    import repartir_nube as RN
+
+    carpeta = carpeta or VEREDICTOS_CACHE
+    try:
+        archivos = sorted((os.path.join(carpeta, n) for n in os.listdir(carpeta) if n.endswith(".json")),
+                          key=os.path.getmtime, reverse=True)[:maximo]
+    except OSError:
+        return {}
+    por_run = []
+    for ruta in archivos:
+        datos = _leer(ruta, {})
+        if isinstance(datos, dict):
+            por_run.append((os.path.basename(ruta)[:-5],
+                            {k: tuple(v) for k, v in datos.items() if isinstance(v, (list, tuple))}))
+    return RN.combinar_veredictos(por_run, ids)
+
+
+def commits_olvidados(progreso, ahora, en_tanda=(), espera_s=ESPERA_COMMIT_OLVIDADO_S):
+    """PURA (AUT1116A). Las «pendiente» cuya nota dice que la nube las dio por hechas («la nube dijo «commit»») y que
+    ninguna tanda de la Mac lleva: su trabajo está en la rama `nube/<run>` y esperar a que alguien las repita no
+    lo trae a main. LAT01 llevaba así desde las 00:21 del 16-11. Pasada `espera_s` desde su último cambio (`t`; sin
+    `t`, ya) se dan por «integrada · nube»: `traer_nube` las trae por las mismas puertas y, si en 24 h no llegan, van a
+    Bloqueadas con el motivo (`repartir_nube.devolver_a_pendiente`)."""
+    en_tanda = {str(i) for i in en_tanda or ()}
+    salida = []
+    for tid, v in sorted((progreso or {}).items()):
+        if not isinstance(v, dict) or v.get("estado") != "pendiente" or tid in en_tanda:
+            continue
+        if not _DIJO_COMMIT.search(str(v.get("nota") or "").lower()):
+            continue
+        try:
+            cambio = time.mktime(time.strptime(str(v.get("t") or ""), "%Y-%m-%d %H:%M:%S"))
+        except (ValueError, OverflowError):
+            cambio = None
+        if cambio is None or ahora - cambio > espera_s:
+            salida.append(tid)
+    return salida
 
 
 def estado_del_run(run, raiz, timeout=30):
@@ -302,23 +400,54 @@ def devolver_varadas(resumen, raiz, ahora=None, estado_run=None):
         if cola and ".." not in cola and not os.path.isabs(cola):
             ids_vivos |= set(ids_de_cola(_leer(os.path.join(raiz, cola), [])))
     estados = {r: estado_run(r) for r in runs_a_consultar(tareas, vivos)}
-    elegidas = varadas_tras_su_run(tareas, estados, vivos, ahora, ids_vivos)
-    if not elegidas:
-        return None
-    fecha, hechas = time.strftime("%Y%m%d", time.localtime(ahora)), []
+    # (AUT1116A) Los ids de los runs vivos solo valen si CADA run vivo dijo su cola.
+    # Sin resumen medido, «ningún run vivo» no es un dato: no se aplica la regla de la cola.
+    colas_completas = (isinstance(resumen, dict) and isinstance(resumen.get("runs"), list)
+                       and all(str(f.get("cola") or "") for f in runs_resumen))
+    elegidas = varadas_tras_su_run(tareas, estados, vivos, ahora, ids_vivos,
+                                   colas_nube=colas_de_la_nube(os.path.join(raiz, "enjambre", "colas")),
+                                   colas_completas=colas_completas)
+    fecha, hechas, integradas = time.strftime("%Y%m%d", time.localtime(ahora)), [], []
+    veredictos = veredictos_en_cache([d[0] for d in elegidas]) if elegidas else {}
     for tid, run, motivo in elegidas:
+        dicho = veredictos.get(tid)
+        if dicho and dicho[0] in RN.VEREDICTOS_INTEGRADA:
+            # (AUT1116A) La nube la dio por hecha: no vuelve a la cola de la Mac, queda «integrada · nube».
+            tareas = RN.devolver_a_pendiente(tareas, [tid], fecha, veredictos={tid: dicho}, ahora=ahora)
+            integradas.append(tid)
+            continue
         nota = "devuelta de la nube %s: %s y nadie la devolvía; no cuenta como envío" % (fecha, motivo)
         tareas, una = devolver(tareas, [tid], run or "", motivo, fecha, nota=nota)
+        for u in una:
+            tareas[u]["t"] = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(ahora))
         hechas.extend(una)
-    if not hechas:
+    # (AUT1116A) Y las que YA volvieron como «pendiente» con el «commit» de la nube en la nota.
+    try:
+        en_tanda = {i for _n, ids in RN.colas_de_la_tanda_viva(_ps_args(), os.path.join(raiz, "starseed_memory_root", "olas"))
+                    for i in ids}
+    except Exception:  # noqa: BLE001 — sin saber qué lleva la Mac, no se toca ninguna
+        en_tanda = None
+    olvidadas = commits_olvidados(tareas, ahora, en_tanda) if en_tanda is not None else []
+    if olvidadas:
+        tareas = RN.devolver_a_pendiente(tareas, olvidadas, fecha,
+                                         veredictos={t: ("commit", "", "") for t in olvidadas}, ahora=ahora)
+        integradas.extend(olvidadas)
+    if not hechas and not integradas:
         return None
     if isinstance(prog, dict) and "tareas" in prog:
         prog["tareas"] = tareas
     else:
         prog = tareas
     _escribir(ruta_prog, prog)
-    RN.anotar_reaperturas(hechas, ahora)
-    texto = texto_varadas([d for d in elegidas if d[0] in set(hechas)])
+    partes = []
+    if hechas:
+        RN.anotar_reaperturas(hechas, ahora)
+        partes.append(texto_varadas([d for d in elegidas if d[0] in set(hechas)]))
+    if integradas:
+        partes.append("Nube · %d tarea(s) que la nube dio por hechas («commit») quedan «integrada · nube» para que "
+                      "traer_nube las traiga a main en vez de esperar: %s%s." % (
+                          len(integradas), ", ".join(integradas[:8]), "…" if len(integradas) > 8 else ""))
+    texto = " ".join(partes)
     _avisar(texto)
     return texto
 

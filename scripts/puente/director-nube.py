@@ -326,6 +326,10 @@ def motivo_de_vuelta(dicho):
 
 def ordenar_reapertura_en_colas_vivas(ids, veredictos=None):
     """Pide al orquestador local que retome las tareas devueltas por la nube."""
+    # (AUT1116A) Las que la nube dio por hechas («commit») quedan «integrada · nube» (`devolver_a_pendiente`) y las trae
+    # `traer_nube`: reabrirlas aquí hacía que el orquestador las pusiera «pendiente» otra vez con la nota «la nube
+    # dijo «commit»» (LAT01, 00:21 del 16-11) y nadie las trajera ni las repitiera.
+    ids = [i for i in ids or [] if str(((veredictos or {}).get(i) or ("",))[0]) not in RN.VEREDICTOS_INTEGRADA]
     if not ids:
         return
     try:

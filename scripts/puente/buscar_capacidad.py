@@ -58,6 +58,8 @@ RAIZ = os.environ.get("STARSEED_ROOT") or os.path.dirname(os.path.dirname(DIRECT
 if DIRECTORIO not in sys.path:
     sys.path.insert(0, DIRECTORIO)
 
+import urgencia_tarea  # noqa: E402  AUT1116A
+
 ESTADO = os.path.expanduser("~/.starseed/buscar-capacidad.json")
 SALUD = os.path.expanduser("~/.starseed/salud-proveedores.json")
 LATIDOS = os.path.join(RAIZ, "starseed_memory_root", "olas")
@@ -226,7 +228,8 @@ def dependientes_y_capacidad(colas):
         for t in tareas or ():
             if not isinstance(t, dict) or not t.get("id"):
                 continue
-            if str(t.get("importancia") or "") == "capacidad":
+            # (AUT1116A) Lo urgente se ordena como lo que sube la capacidad: delante de todo.
+            if str(t.get("importancia") or "") == "capacidad" or urgencia_tarea.es_prioritaria(t):
                 cap.add(str(t["id"]))
             for d in list(t.get("depende") or []):
                 dep[str(d)] = dep.get(str(d), 0) + 1
