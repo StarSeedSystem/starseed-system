@@ -195,4 +195,20 @@ export const CLAVES_MEMORIA_OS: ClaveMemoria[] = [
         clave: "starseed.astraura.routes.v1",
         proposito: "Bitácora de rutas del router de IA (qué fuente atendió cada petición).",
     },
+    {
+        clave: "starseed.guide.seen.v1",
+        proposito: "Marca local de «guía ya vista» en este medio (se copia a la cuenta).",
+    },
+    {
+        clave: "starseed.guide.mode.v1",
+        proposito: "Modo elegido para la guía: con la voz de Aurora o silenciosa.",
+    },
+    {
+        clave: "starseed.guide.button.visible.v1",
+        proposito: "Visibilidad del botón flotante de la guía (Ajustes → Personalización).",
+    },
+    {
+        clave: "starseed.guia.completa.progreso.v1",
+        proposito: "Paso del recorrido por el que se quedó la guía (retomar al reabrir).",
+    },
 ];

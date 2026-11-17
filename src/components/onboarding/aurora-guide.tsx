@@ -151,6 +151,7 @@ import { esRutaConsola } from "@/components/layout/solo-fuera-de-consola";
 import { BotonCerrar } from "@/components/ui/boton-cerrar";
 import { usePerfilDispositivo } from "@/hooks/use-perfil-dispositivo";
 import { useNivelMovimiento } from "@/hooks/use-nivel-movimiento";
+import { useTimeoutInteraction } from "@/hooks/use-timeout-interaction";
 import { useDeslizarPasos } from "@/hooks/use-deslizar-pasos";
 import { useDireccionPaso } from "@/components/movimiento/paso-animado";
 import { transicionPaso, variantesPaso, type Direccion } from "@/lib/movimiento/transiciones";
@@ -390,6 +391,9 @@ export function AuroraGuide() {
   // Visibilidad del botón flotante de guía (preferencia de Ajustes → Personalización).
   // Se aplica EN VIVO en todas las rutas: el botón se resuscribe a los cambios.
   const [buttonVisible, setButtonVisible] = useState(true);
+  // Apertura automática decidida y esperando calma: el temporizador de calma la
+  // ejecuta solo cuando la persona deja de interactuar (IMG · no interrumpir).
+  const [aperturaPendiente, setAperturaPendiente] = useState(false);
   useEffect(() => {
     setButtonVisible(getGuideButtonVisible());
     return subscribeGuideButtonVisible(() => setButtonVisible(getGuideButtonVisible()));
@@ -442,7 +446,10 @@ export function AuroraGuide() {
     // viaja con la cuenta). Sin esa espera, un medio recién abierto no sabía nada y abría la guía
     // «por primera vez» en cada medio. Si la cuenta no responde, no se abre sola (se puede
     // abrir a demanda), y en cuanto responda se decide.
-    let temporizador: ReturnType<typeof setTimeout> | undefined;
+    // A la cuenta se le da un margen; la apertura automática NO es un `setTimeout`
+    // fijo: es un temporizador de CALMA (useTimeoutInteraction) que se reinicia
+    // con cada gesto (scroll, clic, movimiento del ratón) y solo abre cuando la
+    // persona lleva un respiro sin interactuar — nunca encima de quien navega.
     const decidir = () => {
       // Una marca local antigua se respeta y se copia a la cuenta para los demás medios.
       const seen = copiarGuiaLocalACuenta();
@@ -457,16 +464,26 @@ export function AuroraGuide() {
       let introDone = false;
       try { introDone = window.localStorage.getItem("starseed.aurora.intro.v1") === "1"; } catch { /* */ }
       if (!seen && introDone) {
-        // Primera visita (tras el intro): arranca sola tras un instante.
-        temporizador = setTimeout(() => setOpen(true), 900);
+        // Primera visita (tras el intro): queda pendiente y abre en calma.
+        setAperturaPendiente(true);
       }
     };
     const cancelarEspera = cuandoCuentaFiable(decidir, 4000);
     return () => {
       cancelarEspera();
-      if (temporizador) clearTimeout(temporizador);
     };
   }, []);
+
+  // Apertura automática en calma: cada interacción del usuario reinicia el
+  // temporizador, así que la guía solo aparece cuando ya no está mid-acción.
+  useTimeoutInteraction({
+    retrasoMs: 900,
+    activo: aperturaPendiente && !open,
+    alExpirar: () => {
+      setAperturaPendiente(false);
+      setOpen(true);
+    },
+  });
 
   // ── reabrir bajo demanda: evento + helper global ───────────────────────────
   // `inicio`: una posición, el id de un paso o de un tema; sin él, la guía RETOMA por donde se quedó
