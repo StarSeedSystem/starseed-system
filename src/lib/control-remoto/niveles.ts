@@ -100,8 +100,13 @@ function unidad(x: unknown): x is number {
 const redondear = (x: number): number => Math.round(x * 10_000) / 10_000;
 
 function validarPantallaIniciar(a: Args): Args | null {
-    if (!soloClaves(a, ["lado", "calidad"])) return null;
+    if (!soloClaves(a, ["lado", "calidad", "fuente"])) return null;
     const r: Args = {};
+    if (a.fuente !== undefined) {
+        // RST1116A: la persona pide «proyeccion» (pantalla fluida) o deja «auto»; cualquier otra cosa rechaza la orden.
+        if (a.fuente !== "auto" && a.fuente !== "proyeccion") return null;
+        r.fuente = a.fuente;
+    }
     if (a.lado !== undefined) {
         if (!entero(a.lado, 240, 2048)) return null;
         r.lado = a.lado;
