@@ -7,6 +7,9 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from "vitest";
+import { AppearanceProvider } from "@/context/appearance-context";
+
+const renderWithAppearance = (ui: React.ReactElement) => render(<AppearanceProvider>{ui}</AppearanceProvider>);
 
 const UID = "11111111-1111-4111-8111-111111111111";
 const ID_ESPACIO = "33333333-3333-4333-8333-333333333333";
@@ -70,7 +73,10 @@ vi.mock("next/link", () => ({
     ),
 }));
 const push = vi.hoisted(() => vi.fn());
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
+vi.mock("next/navigation", () => ({
+    useRouter: () => ({ push }),
+    usePathname: () => "/dashboard-compartido/test",
+}));
 vi.mock("../../tabla/use-presencia", () => ({ usePresencia: () => ({ presentes: mundo.presentes, anunciar: () => {} }) }));
 vi.mock("@/modules/weather/context/weather-location-context", () => ({
     WeatherLocationProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -168,7 +174,7 @@ afterEach(cleanup);
 describe("apertura", () => {
     test("pinta los widgets del documento y avisa con claridad de qué se comparte y qué no", async () => {
         prepararEspacio();
-        render(<DashboardVivo id={ID_ESPACIO} />);
+        renderWithAppearance(<DashboardVivo id={ID_ESPACIO} />);
         expect(screen.getByRole("status").textContent).toContain("Abriendo el dashboard");
         const rejilla = await screen.findByTestId("rejilla");
         expect(within(rejilla).getByText("CLOCK_DATE x=0 y=0")).toBeTruthy();
@@ -183,7 +189,7 @@ describe("apertura", () => {
 
     test("la configuración de un widget llega a la rejilla (estilo) sin código", async () => {
         prepararEspacio();
-        render(<DashboardVivo id={ID_ESPACIO} />);
+        renderWithAppearance(<DashboardVivo id={ID_ESPACIO} />);
         await screen.findByTestId("rejilla");
         const reloj = mundo.grid.widgets.find((w) => w.widget_type === "CLOCK_DATE")!;
         expect(reloj.settings).toEqual({ styleVariant: "cristal" });
@@ -202,7 +208,7 @@ describe("apertura", () => {
             cfg: { v: { customHtml: "<script>alert(1)</script>" }, t: 5, a: "mal000000000" },
         };
         prepararEspacio({ doc: doc as unknown as Record<string, unknown> });
-        render(<DashboardVivo id={ID_ESPACIO} />);
+        renderWithAppearance(<DashboardVivo id={ID_ESPACIO} />);
         await screen.findByTestId("rejilla");
         expect(mundo.grid.widgets.map((w) => w.widget_type).sort()).toEqual(["CLOCK_DATE", "QUICK_NOTES"]);
         expect(document.body.innerHTML).not.toContain("<script>alert");
@@ -210,7 +216,7 @@ describe("apertura", () => {
 
     test("un espacio que no es un dashboard da un mensaje claro", async () => {
         prepararEspacio({ doc: { vivo: "tabla", v: 1, tabla: {} } });
-        render(<DashboardVivo id={ID_ESPACIO} />);
+        renderWithAppearance(<DashboardVivo id={ID_ESPACIO} />);
         const alerta = await screen.findByRole("alert");
         expect(alerta.textContent).toContain("No se pudo abrir el dashboard");
         expect(alerta.textContent).toContain("no es un dashboard compartido");
@@ -222,7 +228,7 @@ describe("edición", () => {
     test("por defecto se mira; «Editar el acomodo» activa la edición y muestra el selector de widgets", async () => {
         prepararEspacio();
         const user = userEvent.setup();
-        render(<DashboardVivo id={ID_ESPACIO} />);
+        renderWithAppearance(<DashboardVivo id={ID_ESPACIO} />);
         const rejilla = await screen.findByTestId("rejilla");
         expect(rejilla.getAttribute("data-edicion")).toBe("false");
         expect(screen.queryByRole("button", { name: "Añadir reloj" })).toBeNull();
@@ -236,7 +242,7 @@ describe("edición", () => {
     test("mover un widget se guarda, una sola vez, y solo cambia ese widget", async () => {
         const f = prepararEspacio();
         const user = userEvent.setup();
-        render(<DashboardVivo id={ID_ESPACIO} />);
+        renderWithAppearance(<DashboardVivo id={ID_ESPACIO} />);
         await screen.findByTestId("rejilla");
         await user.click(await screen.findByRole("button", { name: /Editar el acomodo/ }));
         await user.click(screen.getByRole("button", { name: "mover CLOCK_DATE" }));
@@ -252,7 +258,7 @@ describe("edición", () => {
     test("añadir un widget lo guarda con su talla; un tipo que no se puede compartir se rechaza con un aviso", async () => {
         prepararEspacio();
         const user = userEvent.setup();
-        render(<DashboardVivo id={ID_ESPACIO} />);
+        renderWithAppearance(<DashboardVivo id={ID_ESPACIO} />);
         await screen.findByTestId("rejilla");
         await user.click(await screen.findByRole("button", { name: /Editar el acomodo/ }));
         await user.click(screen.getByRole("button", { name: "Añadir forjado" }));
@@ -270,7 +276,7 @@ describe("edición", () => {
     test("borrar un widget deja lápida: no desaparece del documento, se marca borrado", async () => {
         const f = prepararEspacio();
         const user = userEvent.setup();
-        render(<DashboardVivo id={ID_ESPACIO} />);
+        renderWithAppearance(<DashboardVivo id={ID_ESPACIO} />);
         await screen.findByTestId("rejilla");
         await user.click(await screen.findByRole("button", { name: /Editar el acomodo/ }));
         await user.click(screen.getByRole("button", { name: "borrar QUICK_NOTES" }));
@@ -285,7 +291,7 @@ describe("otras personas", () => {
     test("un cambio ajeno en otro widget llega sin recargar y no pisa el tuyo", async () => {
         const f = prepararEspacio();
         const user = userEvent.setup();
-        render(<DashboardVivo id={ID_ESPACIO} />);
+        renderWithAppearance(<DashboardVivo id={ID_ESPACIO} />);
         await screen.findByTestId("rejilla");
         await user.click(await screen.findByRole("button", { name: /Editar el acomodo/ }));
         await user.click(screen.getByRole("button", { name: "mover CLOCK_DATE" })); // yo: el reloj
@@ -305,7 +311,7 @@ describe("otras personas", () => {
 
     test("si otra persona borra un widget, desaparece de mi pantalla", async () => {
         const f = prepararEspacio();
-        render(<DashboardVivo id={ID_ESPACIO} />);
+        renderWithAppearance(<DashboardVivo id={ID_ESPACIO} />);
         await screen.findByTestId("rejilla");
         const base = normalizarDashboard((mundo.espacio!.doc as { dashboard: unknown }).dashboard);
         const ajeno: DocDashboard = { v: base.v, widgets: { ...base.widgets, [f.notas]: { ...base.widgets[f.notas], borrado: { v: true, t: Date.now() + 9000, a: "bea000000000" } } } };
@@ -320,7 +326,7 @@ describe("otras personas", () => {
 describe("solo lectura", () => {
     test("sin permiso: no hay edición, se explica y el estado dice «Solo lectura»", async () => {
         prepararEspacio({ editar: false });
-        render(<DashboardVivo id={ID_ESPACIO} />);
+        renderWithAppearance(<DashboardVivo id={ID_ESPACIO} />);
         const rejilla = await screen.findByTestId("rejilla");
         expect(rejilla.getAttribute("data-edicion")).toBe("false");
         expect(screen.queryByRole("button", { name: /Editar el acomodo/ })).toBeNull();
@@ -332,7 +338,7 @@ describe("solo lectura", () => {
 describe("lista y creación", () => {
     test("crear un dashboard vacío", async () => {
         const user = userEvent.setup();
-        render(<ListaDashboards />);
+        renderWithAppearance(<ListaDashboards />);
         await screen.findByText(/Aún no tienes ningún dashboard compartido/);
         expect(screen.queryByRole("checkbox")).toBeNull(); // sin dashboard personal no hay de dónde copiar
         await user.type(screen.getByLabelText("Nombre"), "Barrio");
@@ -355,7 +361,7 @@ describe("lista y creación", () => {
             }),
         );
         const user = userEvent.setup();
-        render(<ListaDashboards />);
+        renderWithAppearance(<ListaDashboards />);
         const casilla = await screen.findByRole("checkbox");
         expect(screen.getByText(/Empezar con el acomodo de «Mi casa»/)).toBeTruthy();
         expect(screen.getByText(/No copia tus datos ni nada que tenga código/)).toBeTruthy();
@@ -374,7 +380,7 @@ describe("lista y creación", () => {
             { refId: "a", titulo: "Panel A", actualizado: "2026-09-28T10:00:00Z", esMio: true, pendiente: false },
             { refId: "b", titulo: "Panel B", actualizado: "2026-09-27T10:00:00Z", esMio: false, pendiente: false },
         ];
-        render(<ListaDashboards />);
+        renderWithAppearance(<ListaDashboards />);
         expect(await screen.findByRole("link", { name: "Panel A" })).toBeTruthy();
         expect(screen.getByRole("link", { name: "Panel B" }).getAttribute("href")).toBe("/dashboard-compartido/b");
         expect(screen.getByText(/Compartida contigo/)).toBeTruthy();

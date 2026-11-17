@@ -7,6 +7,9 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from "vitest";
+import { AppearanceProvider } from "@/context/appearance-context";
+
+const renderWithAppearance = (ui: React.ReactElement) => render(<AppearanceProvider>{ui}</AppearanceProvider>);
 
 const ID_ESPACIO = "44444444-4444-4444-8444-444444444444";
 const mundo = vi.hoisted(() => ({
@@ -50,12 +53,15 @@ vi.mock("next/link", () => ({
         </a>
     ),
 }));
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
+vi.mock("next/navigation", () => ({
+    useRouter: () => ({ push: vi.fn() }),
+    usePathname: () => "/dashboard-compartido/test",
+}));
 vi.mock("../../tabla/use-presencia", () => ({ usePresencia: () => ({ presentes: [], anunciar: () => {} }) }));
 vi.mock("@/modules/weather/context/weather-location-context", () => ({
     WeatherLocationProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
-vi.mock("@/context/appearance-context", () => ({ useAppearance: () => ({ config: { widgets: { marco: "libre" } } }) }));
+
 vi.mock("@/components/dashboard/widget-registry", () => ({
     WidgetRegistry: ({ widget }: { widget: { widget_type: string; settings?: { styleVariant?: string } } }) => (
         <div data-testid={`widget-${widget.widget_type}`}>{`contenido de ${widget.widget_type} ${widget.settings?.styleVariant ?? ""}`}</div>
@@ -101,7 +107,7 @@ const guardado = () => normalizarDashboard((mundo.espacio!.doc as { dashboard: u
 
 describe("con la GridArea real", () => {
     test("pinta los widgets compartidos con su configuración", async () => {
-        render(<DashboardVivo id={ID_ESPACIO} />);
+        renderWithAppearance(<DashboardVivo id={ID_ESPACIO} />);
         expect(await screen.findByTestId("widget-CLOCK_DATE")).toBeTruthy();
         expect(screen.getByTestId("widget-CLOCK_DATE").textContent).toBe("contenido de CLOCK_DATE cristal");
         expect(screen.getByTestId("widget-QUICK_NOTES")).toBeTruthy();
@@ -109,7 +115,7 @@ describe("con la GridArea real", () => {
 
     test("eliminar un widget desde su botón llega al documento compartido como lápida", async () => {
         const user = userEvent.setup();
-        render(<DashboardVivo id={ID_ESPACIO} />);
+        renderWithAppearance(<DashboardVivo id={ID_ESPACIO} />);
         await screen.findByTestId("widget-CLOCK_DATE");
         await user.click(await screen.findByRole("button", { name: /Editar el acomodo/ }));
         const botones = await screen.findAllByRole("button", { name: "Eliminar el widget" });
@@ -123,7 +129,7 @@ describe("con la GridArea real", () => {
 
     test("bloquear un widget se comparte como configuración", async () => {
         const user = userEvent.setup();
-        render(<DashboardVivo id={ID_ESPACIO} />);
+        renderWithAppearance(<DashboardVivo id={ID_ESPACIO} />);
         await screen.findByTestId("widget-CLOCK_DATE");
         await user.click(await screen.findByRole("button", { name: /Editar el acomodo/ }));
         const bloquear = await screen.findAllByRole("button", { name: /Bloquear el widget/ });
@@ -135,7 +141,7 @@ describe("con la GridArea real", () => {
 
     test("«Fijar» arma la ficha con una plantilla fija: nada de la configuración compartida entra en el HTML", async () => {
         const user = userEvent.setup();
-        render(<DashboardVivo id={ID_ESPACIO} />);
+        renderWithAppearance(<DashboardVivo id={ID_ESPACIO} />);
         await screen.findByTestId("widget-CLOCK_DATE");
         await user.click(await screen.findByRole("button", { name: /Editar el acomodo/ }));
         const fijar = await screen.findAllByRole("button", { name: /Fijar el widget/ });
