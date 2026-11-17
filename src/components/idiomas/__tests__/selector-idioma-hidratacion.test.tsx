@@ -48,12 +48,12 @@ describe("SelectorIdioma - hidratación (SSR → CSR) con neurona establecida", 
 
         await waitFor(() => {
             expect(errorMock).not.toHaveBeenCalledWith(expect.stringContaining("Hydration"), expect.anything());
-            expect(errorMock).not.toHaveBeenCalledWith(expect.stringMatching(/hydrat/, "i"), expect.anything());
+            expect(errorMock).not.toHaveBeenCalledWith(expect.stringMatching(/hydrat/i), expect.anything());
             expect(errorMock).not.toHaveBeenCalledWith(expect.stringContaining("418"), expect.anything());
         });
 
         const rotuloPrincipal = root.querySelector<HTMLElement>("[data-testid=\"rotulo-idioma\"]");
-        const SSRRotulo = SSRHTML.match(/<span[^>]*data-testid="rotulo-idioma"[^>]*>([^<]+)<\/span>/s)?.[1];
+        const SSRRotulo = SSRHTML.match(/<span[^>]*data-testid="rotulo-idioma"[^>]*>([^<]+)<\/span>/)?.[1];
 
         expect(rotuloPrincipal?.textContent).toBe(SSRRotulo);
 
