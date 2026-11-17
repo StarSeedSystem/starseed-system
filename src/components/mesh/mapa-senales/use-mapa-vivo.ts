@@ -25,10 +25,11 @@ import { anonimizarAjenas } from "@/lib/senales/cuentas";
 import { reubicar } from "@/lib/senales/escalas";
 import type { DetectedSignal, BleDetection } from "@/ai/astraura/mesh/signals";
 import { BLE_FRESH_MS } from "@/ai/astraura/mesh/signals";
-import type { EntradaYo, VivoMapa } from "@/lib/senales/tipos-vivo";
+import type { EntradaYo, VivoMapa, RedMapa, EstadoRed } from "@/lib/senales/tipos-vivo";
 import { ordenarSenalesPorCalidad, useDetectedSignals, type DetectedSignalsOptions, type DetectedSignalsResult } from "../use-detected-signals";
 import { adaptarBluetooth, type EntradaBluetooth } from "@/lib/senales/espectro/adaptadores/bluetooth";
 import type { SenalEspectro, SinFuente } from "@/lib/senales/espectro/modelo";
+import { useSenalesPublicadas } from "@/lib/senales/espectro/usar-senales-publicadas";
 
 const REFRESCO_MS = 15_000;
 const MEDIDA_MS = 30_000;
@@ -59,6 +60,7 @@ export interface MapaVivo {
   yo: EntradaYo;
   ahora: number;
   senalesEspectroBluetooth: readonly SenalEspectro[] | SinFuente;
+  red: RedMapa;
 }
 
 export function useMapaVivo(opciones?: DetectedSignalsOptions & { verPublicos?: boolean }): MapaVivo {

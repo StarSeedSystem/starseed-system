@@ -211,3 +211,20 @@ export interface AnilloAlcance {
   desdeRad: number | null;
   hastaRad: number | null;
 }
+
+/* ── Red completa (propias + publicadas) ─────────────────────────────────────── */
+
+/** Estado de la lectura de señales publicadas. */
+export type EstadoRed = "ok" | "sin-tabla" | "sin-sesion" | "error";
+
+/** Señales de toda la red (lo que publica cada dueño en la capa pública) más las propias. */
+export interface RedMapa {
+  /** Señales publicadas por otras cuentas (capa pública). */
+  senales: readonly SenalEspectro[];
+  /** Estado de la lectura. */
+  estado: EstadoRed;
+  /** Motivo si el estado no es "ok" (por qué faltan las demás). */
+  motivo?: string;
+  /** Cuántas cuentas distintas están publicando en esta capa. */
+  otrasCuentasPublicando: number;
+}
