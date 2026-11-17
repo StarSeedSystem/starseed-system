@@ -64,6 +64,14 @@ export const CON_CATALOGO: readonly string[] = ["en", "pt", "fr"];
 /** Estado de cada catálogo: «revisado» solo cuando una persona lo comprobó; si no, «automatico». Una prueba lo cruza con el JSON. */
 export const ESTADO_CATALOGO: Readonly<Record<string, "revisado" | "automatico">> = { en: "automatico", pt: "automatico", fr: "automatico" };
 
+import { almacenPaquetes } from "./paquete/almacen";
+
+export function idiomasConCatalogo(): string[] {
+    const integrados = [...CON_CATALOGO];
+    const paquetes = almacenPaquetes.listarPaquetes().map((p) => p.codigo);
+    return [...integrados, ...paquetes];
+}
+
 export const porCodigo = (codigo: string): Idioma | undefined => IDIOMAS.find((i) => i.codigo === codigo);
 export const direccionDe = (codigo: string): "ltr" | "rtl" => porCodigo(codigo)?.dir ?? (esRtl(codigo) ? "rtl" : "ltr");
 
