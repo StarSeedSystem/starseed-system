@@ -11,7 +11,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Check, Globe } from "lucide-react";
 import { idiomasConCatalogo, IDIOMAS, porCodigo, type Idioma } from "@/lib/idiomas/idiomas";
-import { listaMundial } from "@/lib/idiomas/lista-mundial";
+import { listaMundial, type IdiomaMundial } from "@/lib/idiomas/lista-mundial";
 import { buscarIdiomas } from "@/lib/idiomas/busqueda";
 import { EVENTO_IDIOMA, elegirIdioma, idiomaEfectivo, sugerirIdioma } from "@/lib/idiomas/estado";
 import { estadoCatalogo } from "@/lib/idiomas/catalogos/cargar";
@@ -58,6 +58,7 @@ export function SelectorIdioma({ className = "", alElegir, abiertoAlInicio = fal
     const boton = useRef<HTMLButtonElement>(null);
     const caja = useRef<HTMLInputElement>(null);
     const lista = useRef<HTMLUListElement>(null);
+    const [renderCount, setRenderCount] = useState(60);
 
     // El idioma sugerido sale del aparato (`navigator`): se lee en un efecto para que el primer
     // render sea idéntico en servidor y cliente aunque el panel empiece abierto (si no, el
@@ -71,6 +72,19 @@ export function SelectorIdioma({ className = "", alElegir, abiertoAlInicio = fal
     }, []);
     useEffect(() => { if (abierto) caja.current?.focus(); }, [abierto]);
 
+    useEffect(() => {
+        const ul = lista.current;
+        if (!ul) return;
+        const alDesplazar = (): void => {
+            const altoFila = 44;
+            const umbral = ul.scrollTop + ul.clientHeight + altoFila * 10;
+            const necesarios = Math.ceil(umbral / altoFila);
+            setRenderCount((actual) => Math.min(visibles.resto.length, Math.max(actual, necesarios)));
+        };
+        ul.addEventListener("scroll", alDesplazar, { passive: true });
+        return () => ul.removeEventListener("scroll", alDesplazar);
+    }, [visibles.resto.length]);
+
     const codigosElegibles = IDIOMAS.map((i) => i.codigo);
     const listaCompleta = useMemo(() => listaMundial({ idiomaActual: actual }).filter((i) => codigosElegibles.includes(i.codigo)), [actual]);
 
@@ -80,6 +94,8 @@ export function SelectorIdioma({ className = "", alElegir, abiertoAlInicio = fal
         const resto = filtrados.filter((i) => i !== primero);
         return { sugerido: primero ?? null, resto };
     }, [filtro, sugerido, listaCompleta]);
+
+    useEffect(() => { setRenderCount(60); }, [filtro, abierto]);
 
     const elegir = (i: Idioma): void => {
         if (!elegirIdioma(i.codigo)) { setAviso("error"); return; }
@@ -99,7 +115,7 @@ export function SelectorIdioma({ className = "", alElegir, abiertoAlInicio = fal
     };
 
     const idiomaActual = porCodigo(actual);
-    const fila = (i: { codigo: string; nombreActual: string; dir: "ltr" | "rtl" }, n: number, destacado = false) => (
+    const fila = (i: IdiomaMundial, n: number, destacado = false) => (
         <li
             key={`${destacado ? "s" : "o"}-${i.codigo}`}
             role="option"
@@ -115,10 +131,16 @@ export function SelectorIdioma({ className = "", alElegir, abiertoAlInicio = fal
             className="flex min-h-[44px] cursor-pointer items-center justify-between gap-3 rounded-lg px-3 py-1.5 outline-none hover:bg-white/10 focus-visible:bg-white/10 focus-visible:ring-2 focus-visible:ring-cyan-300"
         >
             <span className="flex min-w-0 flex-col">
-                <span translate="no" data-no-traducir="" lang={i.codigo} dir={i.dir} className="truncate text-sm font-medium">{i.nombreActual}</span>
-                <Etiqueta codigo={i.codigo} />
+                <span translate="no" data-no-traducir="" lang={i.codigo} dir={i.dir} className="truncate text-sm font-medium">{i.nombrePropio}</span>
+                <span translate="no" data-no-traducir="" lang={i.codigo} dir={i.dir} className="truncate text-[11px] text-white/60">{i.nombreActual}</span>
+                {!i.conCatalogo && i.codigo !== "es" && (
+                    <span className="text-[11px] text-amber-300">Sin catálogo: se verá en español</span>
+                )}
             </span>
-            {i.codigo === actual && <Check className="h-4 w-4 shrink-0 text-emerald-300" aria-hidden />}
+            <span className="flex shrink-0 items-center gap-2">
+                {i.masHablado && <span className="text-[10px] font-medium text-lime-300 px-1.5 py-0.5 rounded bg-lime-300/10">Muy hablado</span>}
+                {i.codigo === actual && <Check className="h-4 w-4 shrink-0 text-emerald-300" aria-hidden />}
+            </span>
         </li>
     );
 
@@ -159,7 +181,12 @@ export function SelectorIdioma({ className = "", alElegir, abiertoAlInicio = fal
                                 <li role="presentation" className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-white/60">Todos los idiomas</li>
                             </>
                         )}
-                        {visibles.resto.map((i, n) => fila(i, n + (visibles.sugerido ? 1 : 0)))}
+                        {visibles.resto.slice(0, renderCount).map((i, n) => fila(i, n + (visibles.sugerido ? 1 : 0)))}
+                        {renderCount < visibles.resto.length && (
+                            <li role="presentation" className="px-3 py-2 text-[11px] text-white/50 text-center">
+                                Cargando más… ({visibles.resto.length} idiomas)
+                            </li>
+                        )}
                         {!visibles.sugerido && visibles.resto.length === 0 && <li role="presentation" className="px-3 py-3 text-sm text-white/60">Ningún idioma coincide.</li>}
                     </ul>
                 </div>
