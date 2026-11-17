@@ -9,7 +9,11 @@
  *
  * NOTA: este módulo es PUREZA — no importa node:, no lanza, no toca disco ni red.
  * Las inyecciones de red/almacenamiento vienen por parámetros o contexto global.
+ * La síntesis no se hace aquí: sale por la puerta única («hablar()» de
+ * `@/lib/aurora/voz-unica`), que elige el motor, el timbre y el idioma.
  */
+
+import { hablar as hablarPorLaPuertaUnica, callar as callarPorLaPuertaUnica } from "@/lib/aurora/voz-unica";
 
 type VozDisponible = {
     id: string;
@@ -162,20 +166,14 @@ export function hablar(texto: string, idioma: string, entorno: string = "navegad
     estado.cancelado = false;
     estado.cola = [];
 
-    // Simular síntesis de voz (speechSynthesis)
+    // La frase sale por la puerta única de voz, que no admite idioma, velocidad ni voz:
+    // los elige ella (el mismo timbre del OS). La voz ya se validó arriba para el contrato público.
     if (typeof window !== "undefined" && "speechSynthesis" in window && window.speechSynthesis) {
-        const synth = window.speechSynthesis;
-        const u = new SpeechSynthesisUtterance(texto);
-        u.lang = voz.lang;
-        const voices = synth.getVoices();
-        const matchedVoice = voices.find((v: SpeechSynthesisVoice) => v.lang === voz.lang || v.name.includes(voz.nombre));
-        if (matchedVoice) {
-            u.voice = matchedVoice;
-        }
-
-        // Marcar fin de frase
+        let terminado = false;
+        // Marcar fin de frase (una sola vez, la dispare quien la dispare)
         const onend = (): void => {
-            synth.cancel();
+            if (terminado) return;
+            terminado = true;
             estado.activa = null;
             const siguiente = estado.cola.shift();
             if (siguiente) {
@@ -187,8 +185,15 @@ export function hablar(texto: string, idioma: string, entorno: string = "navegad
             }
         };
 
-        u.onend = onend;
-        synth.speak(u);
+        const sintesis = hablarPorLaPuertaUnica(texto, { contexto: "lectura", alTerminar: onend });
+        // La puerta única reinicia el estado compartido al montarse: se vuelve a marcar activa.
+        estado.activa = voz;
+        estado.cancelado = false;
+        void sintesis
+            .then((ok) => {
+                if (!ok) onend();
+            })
+            .catch(() => onend());
     } else {
         // Fallback: simular inmediato (para tests sin DOM)
         setTimeout(() => {
@@ -214,12 +219,13 @@ export function hablar(texto: string, idioma: string, entorno: string = "navegad
 export function detener(): void {
     estado.cancelado = true;
     estado.cola = [];
-    if (typeof window !== "undefined" && window.speechSynthesis) {
-        window.speechSynthesis.cancel();
-    }
-    estado.activa = null;
+    // El callback se toma antes de callar: la puerta única resetea su estado compartido.
     const cb = estado.alTerminar;
     estado.alTerminar = null;
+    if (typeof window !== "undefined" && window.speechSynthesis) {
+        callarPorLaPuertaUnica();
+    }
+    estado.activa = null;
     if (cb) cb(false);
 }
 
