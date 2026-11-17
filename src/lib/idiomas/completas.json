@@ -1,4 +1,6 @@
 {
   "nota": "Unidades que cada idioma declara COMPLETAS. La prueba de cobertura falla si a una le falta una entrada, o si tiene una inválida o caduca. Se añade aquí solo cuando cobertura.mjs lo confirma.",
-  "en": ["acceso", "ajustes-neuronas"], "pt": ["acceso", "ajustes-neuronas"], "fr": ["acceso", "ajustes-neuronas"]
+  "en": ["acceso", "shell", "ajustes", "ajustes-neuronas"],
+  "pt": ["acceso", "shell", "ajustes", "ajustes-neuronas"],
+  "fr": ["acceso", "shell", "ajustes-neuronas"]
 }
