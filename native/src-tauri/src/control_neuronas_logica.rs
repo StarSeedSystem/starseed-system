@@ -361,6 +361,9 @@ pub struct DatosKotlin {
     pub en_fondo: bool,
     pub medida: String,
     pub reanudos: u32,
+    /// (CTL1117F) Pausa local puesta ahora y ms desde el último cuadro que Kotlin publicó (-1 = ninguno): solo en `control-fondo`.
+    pub pausada: bool,
+    pub cuadro_ms: i64,
 }
 
 fn si_no(b: bool) -> &'static str {
@@ -378,6 +381,51 @@ impl DatosKotlin {
     }
 }
 
+/// (CTL1117F) Lo que Kotlin dice de la pausa local, para las líneas `control-pausa`.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct DatosPausa {
+    pub pausada: bool,
+    pub pausas: u32,
+    pub motivo: String,
+    pub desde_gesto_ms: i64,
+    pub reanuda: String,
+    pub pausa_ms: u64,
+    pub ignorados: u32,
+}
+
+/// (CTL1117F) La línea al ENTRAR en pausa: por qué (`toque-fuera`, `gesto-cancelado`…), ms desde el último gesto propio y toques propios ignorados.
+#[allow(dead_code)] // solo Android la usa
+pub fn linea_pausa_entra(d: &DatosPausa) -> String {
+    let m = clave_de_motivo(&d.motivo);
+    format!("entra motivo={} desde-gesto-ms={} ignorados={} pausas={}", if m.is_empty() { "desconocido".to_string() } else { m }, d.desde_gesto_ms.clamp(-1, 9_999_999), d.ignorados, d.pausas)
+}
+
+/// (CTL1117F) La línea al SALIR: `reanudada-sola`, `reanudada-vigia` o `reanudada-por-la-persona`, y cuánto duró.
+#[allow(dead_code)] // solo Android la usa
+pub fn linea_pausa_sale(d: &DatosPausa) -> String {
+    let m = clave_de_motivo(&d.reanuda);
+    format!("sale motivo={} dur-ms={} pausas={}", if m.is_empty() { "desconocido".to_string() } else { m }, d.pausa_ms.min(9_999_999), d.pausas)
+}
+
+/// (CTL1117F) Lo que Rust anota en un sondeo: una entrada/salida por cada cambio visto y, si Kotlin pausó MÁS veces que los cambios
+/// vistos (pausas más cortas que el sondeo), una línea `breves` con cuántas y la última causa. `vistas` = el contador del sondeo anterior.
+#[allow(dead_code)] // solo Android la usa
+pub fn lineas_pausa(vistas: u32, entra: bool, sale: bool, d: &DatosPausa) -> Vec<String> {
+    let mut v = Vec::new();
+    let nuevas = d.pausas.saturating_sub(vistas);
+    let propias = u32::from(entra);
+    if nuevas > propias {
+        v.push(format!("breves n={} ultima={} ignorados={}", nuevas - propias, { let m = clave_de_motivo(&d.motivo); if m.is_empty() { "desconocido".to_string() } else { m } }, d.ignorados));
+    }
+    if entra {
+        v.push(linea_pausa_entra(d));
+    }
+    if sale {
+        v.push(linea_pausa_sale(d));
+    }
+    v
+}
+
 /// `fin de=… motivo=… latido-ms=… mostrando=… kotlin-en-fondo=… medida=… reanudos=…` (sin Kotlin, solo `de` y `motivo`).
 pub fn linea_fin_sesion(de8: &str, motivo: &str, k: Option<&DatosKotlin>) -> String {
     let de: String = de8.chars().filter(|c| c.is_ascii_hexdigit()).take(8).collect();
@@ -388,11 +436,11 @@ pub fn linea_fin_sesion(de8: &str, motivo: &str, k: Option<&DatosKotlin>) -> Str
     }
 }
 
-/// `control-fondo`: lo que dijo la página (acotado a `clave=valor` sin caracteres raros) y lo nativo.
+/// `control-fondo`: lo que dijo la página (acotado a `clave=valor` sin caracteres raros) y lo nativo (CTL1117F: más `pausa=si|no cuadro-ms=`).
 pub fn linea_fondo(pagina: &str, k: Option<&DatosKotlin>) -> String {
     let p = solo_clave(pagina.trim(), 170);
     match k {
-        Some(k) => format!("{p} {}", k.texto()),
+        Some(k) => format!("{p} {} pausa={} cuadro-ms={}", k.texto(), si_no(k.pausada), k.cuadro_ms.clamp(-1, 9_999_999)),
         None => p,
     }
 }
@@ -502,7 +550,7 @@ mod pruebas {
 
     #[test]
     fn ctl1117c_las_lineas_de_fin_y_de_fondo_son_acotadas_y_sin_contenido() {
-        let k = DatosKotlin { latido_ms: 7_400, mostrando: true, en_fondo: true, medida: "webview-activo".into(), reanudos: 12 };
+        let k = DatosKotlin { latido_ms: 7_400, mostrando: true, en_fondo: true, medida: "webview-activo".into(), reanudos: 12, pausada: false, cuadro_ms: 340 };
         assert_eq!(
             linea_fin_sesion("0011AABB<x>", "Sin-Indicador", Some(&k)),
             "fin de=0011AABB motivo=sin-indicador latido-ms=7400 mostrando=si kotlin-en-fondo=si medida=webview-activo reanudos=12"
@@ -669,5 +717,56 @@ mod pruebas {
         assert!(!origen_de_control_ok("http://127.0.0.1:47613/", Some(47610)));
         assert!(origen_de_control_ok("http://127.0.0.1:47610/escritorios", Some(47610)));
         assert!(!origen_de_control_ok("http://127.0.0.1:476100/", Some(47610)));
+    }
+
+    #[test]
+    fn ctl1117f_con_la_ventana_leyendo_la_sesion_vive_hasta_el_tope_de_una_hora() {
+        // La ventana lee cada 5 s con órdenes firmadas (`leer-aparato`): cada una que pasa renueva la inactividad, pero NO la hora máxima.
+        let mut c = Control::default();
+        c.abrir(TOK, DE, "Mac", "controlar", 0, true).unwrap();
+        let mut t = 0;
+        while t + 5_000 <= SESION_MAX_MS {
+            t += 5_000;
+            assert!(c.orden(TOK, "leer-aparato", t, true).is_ok(), "t={t}");
+        }
+        assert!(c.activa().is_some(), "una hora de lecturas cada 5 s y sigue viva");
+        // Pasado el tope duro, ni leyendo.
+        assert_eq!(c.orden(TOK, "leer-aparato", SESION_MAX_MS + 5_000, true).unwrap_err(), Rechazo::SinSesion);
+    }
+
+    #[test]
+    fn ctl1117f_sin_nadie_leyendo_caduca_por_inactividad_y_en_pausa_las_lecturas_no_renuevan() {
+        let mut c = Control::default();
+        c.abrir(TOK, DE, "Mac", "controlar", 0, true).unwrap();
+        assert!(c.orden(TOK, "leer-aparato", 5_000, true).is_ok());
+        // Sin lecturas: a los 2 min de la última, caducada.
+        assert_eq!(c.orden(TOK, "leer-aparato", 5_000 + SESION_INACTIVA_MS + 1, true).unwrap_err(), Rechazo::SinSesion);
+        // En pausa local las lecturas se rechazan y no renuevan (pausar no alarga la sesión): por eso una pausa pegada la mata a los 2 min.
+        let mut c = Control::default();
+        c.abrir(TOK, DE, "Mac", "controlar", 0, true).unwrap();
+        assert!(c.pausar(10_000));
+        for t in (15_000..=SESION_INACTIVA_MS).step_by(5_000) {
+            assert_eq!(c.orden(TOK, "leer-aparato", t, true).unwrap_err(), Rechazo::Pausada, "t={t}");
+        }
+        assert_eq!(c.orden(TOK, "leer-aparato", SESION_INACTIVA_MS + 1, true).unwrap_err(), Rechazo::SinSesion);
+    }
+
+    #[test]
+    fn ctl1117f_las_lineas_de_pausa_dicen_motivo_y_tiempo_y_cuentan_las_breves() {
+        let d = DatosPausa { pausada: true, pausas: 3, motivo: "Gesto-Cancelado".into(), desde_gesto_ms: 120, reanuda: "reanudada-sola".into(), pausa_ms: 3_050, ignorados: 2 };
+        assert_eq!(linea_pausa_entra(&d), "entra motivo=gesto-cancelado desde-gesto-ms=120 ignorados=2 pausas=3");
+        assert_eq!(linea_pausa_sale(&d), "sale motivo=reanudada-sola dur-ms=3050 pausas=3");
+        assert_eq!(lineas_pausa(2, true, false, &d), vec![linea_pausa_entra(&d)]);
+        assert_eq!(lineas_pausa(3, false, false, &d), Vec::<String>::new());
+        // Kotlin pausó 3 veces desde el sondeo anterior y Rust solo vio una entrada: dos fueron más breves que el sondeo.
+        let l = lineas_pausa(0, true, false, &d);
+        assert!(l[0].starts_with("breves n=2 ultima=gesto-cancelado"), "{l:?}");
+        assert_eq!(linea_pausa_entra(&DatosPausa::default()), "entra motivo=desconocido desde-gesto-ms=0 ignorados=0 pausas=0");
+        let sin_gesto = DatosPausa { desde_gesto_ms: -1, ..d.clone() };
+        assert!(linea_pausa_entra(&sin_gesto).contains("desde-gesto-ms=-1"));
+        // `control-fondo` suma `pausa=` y `cuadro-ms=`.
+        let k = DatosKotlin { latido_ms: 10, mostrando: true, en_fondo: true, medida: "webview-activo".into(), reanudos: 4, pausada: true, cuadro_ms: -1 };
+        assert!(linea_fondo("sigue-en-fondo", Some(&k)).ends_with("pausa=si cuadro-ms=-1"));
+        assert!(!linea_fin_sesion("0011AABB", "caducada", Some(&k)).contains("cuadro-ms"));
     }
 }

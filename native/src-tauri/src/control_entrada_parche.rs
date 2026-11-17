@@ -572,4 +572,15 @@ mod pruebas {
         // Rust lo lleva a la línea `control-entrada` (registro de enlaces).
         assert!(include_str!("control_entrada.rs").contains("l::traza_de_inicio_negado(r.as_ref())"));
     }
+
+    #[test]
+    fn ctl1117f_el_toque_propio_cubre_el_gesto_en_el_aire_y_una_cola_y_se_anota_el_ultimo_cuadro() {
+        assert!(KOTLIN.contains("const val COLA_GESTO_MS = 400L"));
+        assert!(KOTLIN.contains("fun esGestoPropio(): Boolean = System.currentTimeMillis() < gestoPropioHasta || ServicioControlEntrada.instancia?.ocupado() == true"));
+        assert!(KOTLIN.matches("ControlEntradaNativo.COLA_GESTO_MS").count() >= 2, "al despachar y al terminar cada trozo");
+        // Un toque de la persona NO es propio: nunca se marca fuera de un gesto nuestro, así que el toque real sigue pausando.
+        assert_eq!(KOTLIN.matches("gestoPropioHasta = ").count(), 3, "solo la declaración y los dos sitios donde se despacha y termina un trozo");
+        assert!(KOTLIN.contains("motivoPausa = \"gesto-cancelado\""));
+        assert!(KOTLIN.contains("ControlEntradaNativo.ultimoCuadroMs = System.currentTimeMillis()") && KOTLIN_PROYECCION.contains("ControlEntradaNativo.ultimoCuadroMs = System.currentTimeMillis()"));
+    }
 }

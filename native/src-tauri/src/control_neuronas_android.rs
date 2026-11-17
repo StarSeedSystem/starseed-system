@@ -60,6 +60,15 @@ pub struct EstadoKotlin {
     pub sesion: Option<String>,
     /// Un toque local fuera de la pastilla pausó el control; «Reanudar» (notificación o pastilla) lo quita.
     pub pausada: bool,
+    /// (CTL1117F) Diagnóstico de la pausa local: cuántas ha habido, por qué empezó la última, ms desde el último gesto propio al
+    /// empezar (-1 = ninguno), por qué terminó la última, cuánto duró (o lleva), toques propios ignorados y ms desde el último cuadro (-1 = ninguno).
+    pub pausas: u32,
+    pub pausa_motivo: String,
+    pub pausa_desde_gesto_ms: i64,
+    pub reanuda_motivo: String,
+    pub pausa_ms: u64,
+    pub ignorados: u32,
+    pub cuadro_ms: i64,
     pub terminada: Option<Terminada>,
     /// Lo que falta para poder enseñar el indicador, en palabras cortas («interruptor», «notificaciones», …).
     pub falta: Vec<String>,

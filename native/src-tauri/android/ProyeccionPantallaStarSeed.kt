@@ -303,6 +303,7 @@ class ServicioProyeccionPantalla : Service() {
         try {
             tmp.outputStream().use { it.write(c); it.write(jpeg) }
             tmp.renameTo(File(d, ControlEntradaNativo.CUADRO))
+            ControlEntradaNativo.ultimoCuadroMs = System.currentTimeMillis() // CTL1117F
         } catch (_: Exception) {}
         if (!capturando || deteniendo) ControlEntradaNativo.borrarCuadro() // FSG1116 · M3: detener() llegó mientras se escribía
     }

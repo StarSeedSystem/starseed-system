@@ -223,6 +223,8 @@ export interface DepsDestino {
 /** Lecturas de la ventana: esperan poco su respuesta para no retener el carril de la entrada (S6). */
 const LECTURAS = new Set(["leer-aparato", "leer-estado"]);
 export const ESPERA_LECTURA_MS = 2500;
+/** CTL1117F: lo máximo que una orden puede ocupar el carril: pasado esto, la siguiente sale aunque la anterior no haya vuelto (una orden colgada no calla a la ventana). */
+export const LIMITE_CARRIL_MS = 20_000;
 /** CTL1117A · S6: un rechazo «repetida» o «limite» de una orden de entrada se reenvía UNA vez con otro seq, nunca se pierde en silencio. */
 export const REINTENTO_LIMITE_MS = 350;
 
@@ -474,7 +476,12 @@ export class PantallaDestino {
     /** CTL1117A · S6: todo lo que sale de esta ventana pasa por UN carril: se firma y se manda en orden, así el `seq` llega creciente. */
     private enCarril<T>(f: () => Promise<T>): Promise<T> {
         const p = this.carril.then(f, f);
-        this.carril = p.then(() => undefined, () => undefined);
+        // CTL1117F: el turno acaba cuando vuelve la orden O pasa LIMITE_CARRIL_MS; una que no vuelve nunca no deja sin lecturas (ni sin renovar) la sesión.
+        this.carril = new Promise<void>((fin) => {
+            const t = setTimeout(fin, LIMITE_CARRIL_MS);
+            const suelta = () => { clearTimeout(t); fin(); };
+            p.then(suelta, suelta);
+        });
         return p;
     }
 

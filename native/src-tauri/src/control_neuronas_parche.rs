@@ -254,7 +254,7 @@ mod pruebas {
         assert!(KOTLIN.contains("principal.postDelayed(reanudarSola, ControlEntradaNativo.PAUSA_LOCAL_MS + 50)"));
         let r = KOTLIN.find("private fun reanudarPorSilencio()").unwrap();
         let cuerpo = &KOTLIN[r..r + 700];
-        assert!(cuerpo.contains("PAUSA_LOCAL_MS") && cuerpo.contains("reanudar()"), "solo reanuda con 3 s sin tocar, por la vía de `reanudar` (que ya respeta el gesto propio)");
+        assert!(cuerpo.contains("PAUSA_LOCAL_MS") && cuerpo.contains("reanudar(\"reanudada-sola\")"), "solo reanuda con 3 s sin tocar, por la vía de `reanudar` (que ya respeta el gesto propio)");
         // Cada toque local vuelve a armar el reloj; cerrar y destruir lo cancelan.
         assert!(KOTLIN.contains("pausaLocal(); esperarSilencio()"));
         assert!(KOTLIN.matches("principal.removeCallbacks(reanudarSola)").count() >= 3);
@@ -305,5 +305,26 @@ mod pruebas {
         for malo in ["WAKE_LOCK", "WakeLock", "REQUEST_IGNORE_BATTERY_OPTIMIZATIONS", "PowerManager"] {
             assert!(!fondo.contains(malo), "{malo}");
         }
+    }
+
+    #[test]
+    fn ctl1117f_la_pausa_no_se_queda_pegada_y_dice_por_que_empieza_y_acaba() {
+        // El temporizador de 3 s que no podía reanudar (gesto propio en el aire) se vuelve a armar, y cada latido (2 s) lo comprueba.
+        assert!(KOTLIN.contains("if (!reanudar(\"reanudada-sola\")) esperarSilencio()"));
+        let l = KOTLIN.find("private val latido = object : Runnable").unwrap();
+        assert!(KOTLIN[l..l + 500].contains("vigilarPausa()"));
+        let v = KOTLIN.find("private fun vigilarPausa()").unwrap();
+        let cuerpo = &KOTLIN[v..v + 450];
+        assert!(cuerpo.contains("PAUSA_LOCAL_MS") && cuerpo.contains("reanudar(\"reanudada-vigia\")"));
+        // La reanudación sigue negándose con un gesto propio y a la persona no se le quita nada: «Reanudar» y «Terminar» siguen.
+        let r = KOTLIN.find("private fun reanudar(motivo: String").unwrap();
+        assert!(KOTLIN[r..r + 400].contains("esGestoPropio()) return false"));
+        assert!(KOTLIN.contains("REANUDAR -> reanudar()") && KOTLIN.contains("setOnClickListener { reanudar() }"));
+        // Motivos y números que Rust anota en `control-pausa`.
+        for m in ["toque-fuera", "reanudada-sola", "reanudada-vigia", "reanudada-por-la-persona", "pausa_desde_gesto_ms", "\"pausas\"", "\"ignorados\"", "\"cuadro_ms\""] {
+            assert!(KOTLIN.contains(m), "{m}");
+        }
+        // Un toque propio ignorado se cuenta; uno de la persona sigue pausando.
+        assert!(KOTLIN.contains("ControlEntradaNativo.toqueLocal(); pausaLocal(); esperarSilencio() } else ControlEntradaNativo.ignorado()"));
     }
 }

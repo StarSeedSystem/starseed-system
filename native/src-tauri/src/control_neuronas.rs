@@ -328,7 +328,7 @@ fn nota_fin_sesion(app: &AppHandle, de8: &str, motivo: &str) {
 
 #[cfg(target_os = "android")]
 fn nota_fin_sesion_con(_app: &AppHandle, de8: &str, motivo: &str, e: Option<&crate::control_neuronas_android::EstadoKotlin>) {
-    let k = e.map(|e| l::DatosKotlin { latido_ms: pared_ms().saturating_sub(e.t_ms), mostrando: e.mostrando, en_fondo: e.en_fondo, medida: e.fondo.clone(), reanudos: e.reanudos });
+    let k = e.map(|e| l::DatosKotlin { latido_ms: pared_ms().saturating_sub(e.t_ms), mostrando: e.mostrando, en_fondo: e.en_fondo, medida: e.fondo.clone(), reanudos: e.reanudos, pausada: e.pausada, cuadro_ms: e.cuadro_ms });
     crate::ble::nota(None, "control-sesion", &l::linea_fin_sesion(de8, motivo, k.as_ref()));
 }
 
@@ -341,7 +341,7 @@ pub fn control_fondo_nota(app: AppHandle, webview: tauri::Webview, detalle: Stri
         return Ok(());
     }
     #[cfg(target_os = "android")]
-    let k = crate::control_neuronas_android::es::estado(&app).map(|e| l::DatosKotlin { latido_ms: pared_ms().saturating_sub(e.t_ms), mostrando: e.mostrando, en_fondo: e.en_fondo, medida: e.fondo.clone(), reanudos: e.reanudos });
+    let k = crate::control_neuronas_android::es::estado(&app).map(|e| l::DatosKotlin { latido_ms: pared_ms().saturating_sub(e.t_ms), mostrando: e.mostrando, en_fondo: e.en_fondo, medida: e.fondo.clone(), reanudos: e.reanudos, pausada: e.pausada, cuadro_ms: e.cuadro_ms });
     #[cfg(not(target_os = "android"))]
     let k: Option<l::DatosKotlin> = None;
     crate::ble::nota(None, "control-fondo", &l::linea_fondo(&detalle, k.as_ref()));
@@ -638,6 +638,16 @@ fn sondear_plataforma(app: &AppHandle) {
     let e = a::es::estado(app);
     let antes = control().activa().map(|s| s.de.chars().take(8).collect::<String>());
     let cambio = a::sincronizar(&mut control(), e.as_ref(), &id, pared_ms(), mono_ms());
+    // CTL1117F: la pausa local se anota AQUÍ (el vigía de Rust, sin la página) con su motivo y el tiempo REAL de la tableta.
+    static PAUSAS_VISTAS: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(u32::MAX);
+    if let Some(ek) = e.as_ref() {
+        let d = l::DatosPausa { pausada: ek.pausada, pausas: ek.pausas, motivo: ek.pausa_motivo.clone(), desde_gesto_ms: ek.pausa_desde_gesto_ms, reanuda: ek.reanuda_motivo.clone(), pausa_ms: ek.pausa_ms, ignorados: ek.ignorados };
+        let antes_vistas = PAUSAS_VISTAS.swap(ek.pausas, Ordering::SeqCst);
+        let vistas = if antes_vistas == u32::MAX { ek.pausas.saturating_sub(u32::from(cambio == Cambio::Pausada)) } else { antes_vistas }; // primer sondeo: lo anterior no es de esta sesión
+        for linea in l::lineas_pausa(vistas, cambio == Cambio::Pausada, cambio == Cambio::Reanudada, &d) {
+            crate::ble::nota(None, "control-pausa", &linea);
+        }
+    }
     match cambio {
         Cambio::Parar(m) => {
             quitar_indicador(app);

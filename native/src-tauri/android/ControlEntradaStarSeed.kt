@@ -166,7 +166,16 @@ object ControlEntradaNativo {
     @Volatile var gestoPropioHasta = 0L
     @Volatile var ultimoToqueLocal = 0L
 
-    fun esGestoPropio(): Boolean = System.currentTimeMillis() < gestoPropioHasta
+    /** CTL1117F: cuánto dura, tras el último trozo, el toque que sigue siendo NUESTRO (el que llega tarde con el hilo principal ocupado). */
+    const val COLA_GESTO_MS = 400L
+    /** CTL1117F: hora del último cuadro que Kotlin escribió en `cuadro.bin` (0 = ninguno) y cuántos toques propios se ignoraron (diagnóstico). */
+    @Volatile var ultimoCuadroMs = 0L
+    @Volatile var ignorados = 0
+    fun cuadroHace(): Long = if (ultimoCuadroMs == 0L) -1L else System.currentTimeMillis() - ultimoCuadroMs
+    fun gestoHace(): Long = if (ultimoGestoRemoto == 0L) -1L else System.currentTimeMillis() - ultimoGestoRemoto
+    fun ignorado() { ignorados++ }
+    /** CTL1117F: un gesto en el aire o dedos abajo también es nuestro, sin importar cuánto tarde en llegar el eco del toque. */
+    fun esGestoPropio(): Boolean = System.currentTimeMillis() < gestoPropioHasta || ServicioControlEntrada.instancia?.ocupado() == true
     fun toqueLocal() { ultimoToqueLocal = System.currentTimeMillis() }
     fun congelado(): Boolean = congelados > 0
     fun congelar() { congelados++; ServicioControlEntrada.instancia?.cortar() }
@@ -854,7 +863,7 @@ class ServicioControlEntrada : AccessibilityService() {
         despachando = true
         val ahora = System.currentTimeMillis()
         ControlEntradaNativo.ultimoGestoRemoto = ahora
-        ControlEntradaNativo.gestoPropioHasta = ahora + durMax + 150 // M1: el toque que se oye es nuestro, y no más
+        ControlEntradaNativo.gestoPropioHasta = ahora + durMax + ControlEntradaNativo.COLA_GESTO_MS // M1: el toque que se oye es nuestro, y no más (CTL1117F: con cola)
         val ok = try {
             dispatchGesture(g.build(), object : GestureResultCallback() {
                 override fun onCompleted(x: GestureDescription?) { terminado(nuevos, puntos, ultimo) }
@@ -869,7 +878,7 @@ class ServicioControlEntrada : AccessibilityService() {
         despachando = false
         enCurso.clear(); enCurso.putAll(nuevos)
         ultimoPunto.clear(); ultimoPunto.putAll(puntos)
-        ControlEntradaNativo.gestoPropioHasta = System.currentTimeMillis() + 150
+        ControlEntradaNativo.gestoPropioHasta = System.currentTimeMillis() + ControlEntradaNativo.COLA_GESTO_MS
         principal.removeCallbacks(soltar)
         if (cortarPendiente) { cortarPendiente = false; cola.clear(); actual = null; soltarTodo(); return }
         if (ultimo) { actual = null; trozo = 0 } else trozo++
@@ -884,6 +893,7 @@ class ServicioControlEntrada : AccessibilityService() {
         cola.clear(); actual = null
         principal.removeCallbacks(soltar)
         ControlEntradaNativo.toqueLocal()
+        ControlNeuronasNativo.motivoPausa = "gesto-cancelado" // CTL1117F
         ControlNeuronasNativo.pausarLocal?.invoke() // FSG1116 · M1
     }
 
@@ -997,6 +1007,7 @@ class ServicioControlEntrada : AccessibilityService() {
         try {
             tmp.outputStream().use { it.write(c); it.write(jpeg) }
             tmp.renameTo(File(d, ControlEntradaNativo.CUADRO))
+            ControlEntradaNativo.ultimoCuadroMs = System.currentTimeMillis() // CTL1117F
         } catch (_: Exception) {}
         if (!capturando) ControlEntradaNativo.borrarCuadro() // parar() llegó mientras se escribía
     }

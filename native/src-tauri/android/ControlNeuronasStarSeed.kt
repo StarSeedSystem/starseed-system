@@ -102,6 +102,14 @@ object ControlNeuronasNativo : Application.ActivityLifecycleCallbacks {
     /** FSG1116 · M1: lo pone el servicio del indicador; lo llama la entrada cuando Android cancela un gesto por un toque. */
     @Volatile var pausarLocal: (() -> Unit)? = null
     @Volatile var desdeMs = 0L
+    // CTL1117F: por qué se pausó y se reanudó, y cuántas veces (Rust lo anota en `control-pausa` aunque la pausa dure menos que su sondeo).
+    @Volatile var motivoPausa = ""
+    @Volatile var pausas = 0
+    @Volatile var pausaMotivo = ""
+    @Volatile var pausaDesdeGestoMs = -1L
+    @Volatile var pausaInicioMs = 0L
+    @Volatile var reanudaMotivo = ""
+    @Volatile var pausaDurMs = 0L
     private var terminada: JSONObject? = null
     // IND1115F: en qué paso quedó el último intento de «mostrar» y por qué (Rust lo lee para decir QUÉ falló).
     @Volatile var intento: String = ""
@@ -311,6 +319,13 @@ object ControlNeuronasNativo : Application.ActivityLifecycleCallbacks {
             .put("reanudos", ControlFondo.reanudos)
             .put("sesion", sesion ?: JSONObject.NULL)
             .put("pausada", pausada)
+            .put("pausas", pausas) // CTL1117F: diagnóstico de la pausa local (línea `control-pausa` y `control-fondo`)
+            .put("pausa_motivo", pausaMotivo)
+            .put("pausa_desde_gesto_ms", pausaDesdeGestoMs)
+            .put("reanuda_motivo", reanudaMotivo)
+            .put("pausa_ms", if (pausada && pausaInicioMs > 0) System.currentTimeMillis() - pausaInicioMs else pausaDurMs)
+            .put("ignorados", ControlEntradaNativo.ignorados)
+            .put("cuadro_ms", ControlEntradaNativo.cuadroHace())
             .put("terminada", terminada ?: JSONObject.NULL)
             .put("falta", falta())
             .put("intento", intento)
@@ -485,6 +500,7 @@ class ServicioControlNeuronas : Service() {
         override fun run() {
             if (!ControlNeuronasNativo.mostrando) return
             ControlFondo.mantener(ControlNeuronasNativo.actividadActual()) // CTL1117C · FALLO 1
+            vigilarPausa() // CTL1117F: la pausa no puede quedarse pegada si el temporizador de 3 s se perdió
             ControlNeuronasNativo.escribirEstado()
             principal.postDelayed(this, LATIDO_MS)
         }
@@ -627,7 +643,7 @@ class ServicioControlNeuronas : Service() {
         // Un toque en cualquier otro sitio de la pantalla llega aquí como ACTION_OUTSIDE: pausa al instante.
         fila.setOnTouchListener { _, ev ->
             // AND1115K: el toque de un gesto remoto nuestro no es «local»; uno de la persona sí (y marca los 3 s de pausa).
-            if (ev.actionMasked == MotionEvent.ACTION_OUTSIDE) { if (!ControlEntradaNativo.esGestoPropio()) { ControlEntradaNativo.toqueLocal(); pausaLocal(); esperarSilencio() }; true } else false
+            if (ev.actionMasked == MotionEvent.ACTION_OUTSIDE) { if (!ControlEntradaNativo.esGestoPropio()) { ControlEntradaNativo.toqueLocal(); pausaLocal(); esperarSilencio() } else ControlEntradaNativo.ignorado(); true } else false
         }
         val pPastilla = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT, tipo,
@@ -657,9 +673,15 @@ class ServicioControlNeuronas : Service() {
     }
 
     private fun pausaLocal() {
+        val motivo = ControlNeuronasNativo.motivoPausa.ifEmpty { "toque-fuera" }
+        ControlNeuronasNativo.motivoPausa = ""
         if (!ControlNeuronasNativo.mostrando || ControlNeuronasNativo.pausada) return
         if (System.currentTimeMillis() - ControlNeuronasNativo.desdeMs < ControlNeuronasNativo.GRACIA_MS) return
         ControlNeuronasNativo.pausada = true
+        ControlNeuronasNativo.pausas += 1 // CTL1117F
+        ControlNeuronasNativo.pausaMotivo = motivo
+        ControlNeuronasNativo.pausaDesdeGestoMs = ControlEntradaNativo.gestoHace()
+        ControlNeuronasNativo.pausaInicioMs = System.currentTimeMillis()
         ServicioControlEntrada.instancia?.cortar() // FSG1116 · M1/M6: la pausa corta también el gesto en curso
         ControlEntradaNativo.borrarCuadro() // FSG1116 · M2: en pausa no queda ni sale ningún cuadro
         ControlNeuronasNativo.escribirEstado()
@@ -683,16 +705,28 @@ class ServicioControlNeuronas : Service() {
             principal.postDelayed(reanudarSola, ControlEntradaNativo.PAUSA_LOCAL_MS - desdeToque + 50)
             return
         }
-        reanudar()
+        if (!reanudar("reanudada-sola")) esperarSilencio() // CTL1117F: antes, un gesto propio en el aire dejaba la pausa pegada para siempre
     }
 
-    private fun reanudar() {
+    /** CTL1117F: red de seguridad en cada latido (2 s): con la pausa puesta y 3 s sin tocar, se reanuda aunque el temporizador se perdiera. */
+    private fun vigilarPausa() {
         if (!ControlNeuronasNativo.mostrando || !ControlNeuronasNativo.pausada) return
-        if (ControlEntradaNativo.esGestoPropio()) return // AND1115K: un gesto remoto nunca reanuda el control
+        if (System.currentTimeMillis() - ControlEntradaNativo.ultimoToqueLocal < ControlEntradaNativo.PAUSA_LOCAL_MS) return
+        reanudar("reanudada-vigia")
+    }
+
+    /** true si dejó de estar en pausa (o no lo estaba). */
+    private fun reanudar(motivo: String = "reanudada-por-la-persona"): Boolean {
+        if (!ControlNeuronasNativo.mostrando || !ControlNeuronasNativo.pausada) return true
+        if (ControlEntradaNativo.esGestoPropio()) return false // AND1115K: un gesto remoto nunca reanuda el control
         ControlNeuronasNativo.pausada = false
+        ControlNeuronasNativo.reanudaMotivo = motivo // CTL1117F
+        ControlNeuronasNativo.pausaDurMs = System.currentTimeMillis() - ControlNeuronasNativo.pausaInicioMs
+        ControlNeuronasNativo.pausaInicioMs = 0L
         ControlNeuronasNativo.desdeMs = System.currentTimeMillis() // el gesto de reanudar no vuelve a pausar
         ControlNeuronasNativo.escribirEstado()
         refrescarAviso()
+        return true
     }
 
     /** La persona (o el sistema) termina: sin la página, sin Rust; Rust lo lee en estado.json. */
