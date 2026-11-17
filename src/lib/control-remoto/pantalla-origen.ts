@@ -470,11 +470,31 @@ export class OrigenPantalla {
 
 // ── implementación real (navegador + Tauri) ──────────────────────────────────────────────────
 
+/** CTL1117A · S8: con la pantalla quieta no llegan cuadros nuevos y el controlador lo leía como «Sin pantalla». Si pasa `cadaMs` sin pintar, se vuelve a pedir el último cuadro (señal de vida, no imagen nueva). */
+export const LATIDO_CUADROS_MS = 1500;
+export function latidoDeCuadros(pedir: () => void, ahora: () => number = () => Date.now(), cadaMs = LATIDO_CUADROS_MS): { tocado: () => void; parar: () => void } {
+    let ultimo = ahora();
+    const i = setInterval(() => {
+        if (ahora() - ultimo >= cadaMs) {
+            ultimo = ahora();
+            try {
+                pedir();
+            } catch {
+                /* la pista ya no está */
+            }
+        }
+    }, Math.max(250, Math.floor(cadaMs / 3)));
+    return { tocado: () => void (ultimo = ahora()), parar: () => clearInterval(i) };
+}
+
 export function crearPintorReal(): Pintor {
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d");
     const flujo = canvas.captureStream(0); // 0 fps: el cuadro sale cuando se pide con requestFrame, ya pintado
     const pista = flujo.getVideoTracks()[0] as MediaStreamTrack & { requestFrame?: () => void };
+    const latido = latidoDeCuadros(() => {
+        if (canvas.width > 0 && canvas.height > 0) pista.requestFrame?.();
+    });
     return {
         async pintar(jpeg, ancho, alto) {
             if (!ctx) return false;
@@ -487,6 +507,7 @@ export function crearPintorReal(): Pintor {
                 }
                 ctx.drawImage(bmp, 0, 0, ancho, alto);
                 pista.requestFrame?.();
+                latido.tocado();
                 return true;
             } catch {
                 return false;
@@ -497,6 +518,7 @@ export function crearPintorReal(): Pintor {
         pista: () => pista,
         flujo: () => flujo,
         liberar() {
+            latido.parar();
             for (const t of flujo.getTracks()) t.stop();
             canvas.width = 0;
             canvas.height = 0;

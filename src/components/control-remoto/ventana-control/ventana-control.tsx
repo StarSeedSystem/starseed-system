@@ -143,7 +143,8 @@ function useLimitado<T>(f: (v: T) => void, ms: number): (v: T) => void {
 function Deslizador({ etiqueta, valor, onCambia }: { etiqueta: string; valor: number | undefined; onCambia: (n: number) => void }) {
     const [local, setLocal] = useState<number | undefined>(undefined);
     useEffect(() => setLocal(undefined), [valor]);
-    const enviar = useLimitado(onCambia, 80);
+    // CTL1117A · S5: como mucho 4 órdenes por segundo al arrastrar, y el valor FINAL al soltar sale en el acto.
+    const enviar = useLimitado(onCambia, 250);
     const v = local ?? valor;
     const texto = v === undefined ? "sin dato" : `${Math.round(v * 100)} %`;
     return (
@@ -157,6 +158,8 @@ function Deslizador({ etiqueta, valor, onCambia }: { etiqueta: string; valor: nu
                 value={v ?? 0}
                 aria-label={etiqueta}
                 aria-valuetext={texto}
+                onPointerUp={(e) => onCambia(Math.min(1, Math.max(0, Number(e.currentTarget.value))))}
+                onKeyUp={(e) => onCambia(Math.min(1, Math.max(0, Number(e.currentTarget.value))))}
                 onChange={(e) => {
                     const n = Math.min(1, Math.max(0, Number(e.target.value)));
                     setLocal(n);
@@ -270,10 +273,42 @@ function Pantalla({ p, activo, gestor }: { p: PropsVentanaControl; activo: boole
                         style={{ width: vw, height: vh, left: (img.width - vw) / 2, top: (img.height - vh) / 2, transform: `rotate(${giro}deg)` }}
                     />
             </div>
+            {!mensaje && <AvisoOrden p={p} />}
             {mensaje && (
                 <div aria-live="polite" data-testid="ventana-control-mensaje" className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/55 p-4 text-center text-sm text-white">
-                    <span className="max-w-[90%] rounded-lg bg-[#0b0f1a]/90 px-3 py-2">{mensaje}</span>
+                    <span className="max-w-[90%] rounded-lg bg-[#0b0f1a]/90 px-3 py-2">
+                        {mensaje}
+                        {p.estado === "cerrada" && p.alReabrir && (
+                            <button type="button" onClick={p.alReabrir} className="pointer-events-auto ml-2 min-h-8 cursor-pointer rounded-md bg-[#DC143C] px-2 text-white">
+                                Reabrir
+                            </button>
+                        )}
+                    </span>
                 </div>
+            )}
+        </div>
+    );
+}
+
+/** CTL1117A · S3/S9: lo que pasó con la última orden (en palabras) y la cuenta atrás de la hora máxima de la sesión, sin tapar la imagen. */
+function AvisoOrden({ p }: { p: PropsVentanaControl }) {
+    const [ahora, setAhora] = useState(() => Date.now());
+    const cuenta = p.caduca !== undefined && p.caduca - ahora <= 5 * 60_000 && p.caduca > ahora;
+    useEffect(() => {
+        if (p.caduca === undefined) return;
+        const i = setInterval(() => setAhora(Date.now()), 1000);
+        return () => clearInterval(i);
+    }, [p.caduca]);
+    const restante = cuenta && p.caduca !== undefined ? Math.max(0, Math.ceil((p.caduca - ahora) / 1000)) : 0;
+    const reloj = `${Math.floor(restante / 60)}:${String(restante % 60).padStart(2, "0")}`;
+    if (!p.motivo && !cuenta) return null;
+    return (
+        <div aria-live="polite" data-testid="ventana-control-aviso" className="pointer-events-none absolute inset-x-2 bottom-2 flex flex-col items-center gap-1 text-center text-[12px] text-white">
+            {p.motivo && <span className="pointer-events-none max-w-[95%] rounded-lg bg-[#0b0f1a]/90 px-3 py-1.5">{p.motivo}</span>}
+            {cuenta && (
+                <span className="flex items-center gap-2 rounded-lg bg-[#0b0f1a]/90 px-3 py-1.5">
+                    <span data-testid="ventana-control-cuenta">La sesión termina en {reloj}; luego pulsa «Reabrir».</span>
+                </span>
             )}
         </div>
     );

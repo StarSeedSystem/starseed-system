@@ -82,6 +82,8 @@ export function VentanaRemota({ neurona, nombre, modo, alCerrada }: { neurona: s
             aparato={p.aparato}
             latenciaMs={p.latenciaMs}
             fps={p.fps}
+            caduca={p.caduca}
+            alReabrir={p.reintentar}
             alEnviar={(e) => void p.enviar(e)}
             alCerrar={() => {
                 p.cerrar();

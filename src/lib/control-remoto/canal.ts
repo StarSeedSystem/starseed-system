@@ -20,6 +20,7 @@ import { PuertaControl, sanearPermiso, type PermisoControl } from "./sesion";
 import type { Args, Nivel } from "./niveles";
 import { abrirRespuesta, esRespuestaSellada, sellarOrden, sellarRespuesta } from "./sellado"; // ORD1114Q
 import { alPararNativo, puenteNativoControl } from "./nativo"; // ORD1114Q
+import { RegistroSesiones, registroGlobal, type MandarSesion } from "./registro-sesiones"; // CTL1117A
 
 export const CLAVE_PERMISO = "starseed.control-neuronas.v1";
 export const ESPERA_RESPUESTA_MS = 15_000;
@@ -281,19 +282,28 @@ export async function presentarmeA(para: string, nombre: string): Promise<Respue
     const { spkiDelAparato } = await import("@/lib/chats-genesis/firma-aparato");
     const spki = await spkiDelAparato();
     if (!spki) return { tipo: "respuesta", nonce: "", ok: false, motivo: "sin-aparato" };
-    return mandarOrden(para, "presentarse", { spki, nombre, neurona: await neuronaPropia() });
+    const r = await mandarOrden(para, "presentarse", { spki, nombre, neurona: await neuronaPropia() });
+    registroGlobal.liberar(para); // CTL1117A · S3: tras presentarse, un «no-autorizado» anterior ya no frena el reintento
+    return r;
 }
 
-/** Una sesión hacia otra neurona: la abre si hace falta y la reabre una vez si caducó. */
+/**
+ * Una sesión hacia otra neurona: la abre si hace falta y la reabre una vez si caducó.
+ * CTL1117A · S1/S2/S4: comparte la sesión con la ventana de control (`registroGlobal`): no manda una segunda
+ * `abrir-sesion` si ya hay una viva o en vuelo, y su `cerrar` solo cierra si nadie más la usa.
+ */
 export class SesionHacia {
     private token: string | null = null;
     constructor(
         readonly para: string,
         private readonly mandar: typeof mandarOrden = mandarOrden,
+        private readonly registro: RegistroSesiones = registroGlobal,
     ) {}
 
-    async abrir(): Promise<RespuestaOrden> {
-        const r = await this.mandar(this.para, "abrir-sesion", {}, { nivel: "controlar" });
+    private porAqui: MandarSesion = (nombre, args, o) => this.mandar(this.para, nombre, args, o);
+
+    async abrir(forzar = false): Promise<RespuestaOrden> {
+        const r = await this.registro.abrir(this.para, this.porAqui, { nivel: "controlar", debil: true, auto: true, forzar });
         this.token = r.ok ? ((r.resultado as { sesion?: string } | undefined)?.sesion ?? null) : null;
         return r;
     }
@@ -304,8 +314,10 @@ export class SesionHacia {
             if (!a.ok) return a;
         }
         let r = await this.mandar(this.para, nombre, args, { sesion: this.token });
+        if (r.ok) this.registro.usada(this.para);
         if (!r.ok && (r.motivo === "sin-sesion" || r.motivo === "sesion-caducada")) {
-            const a = await this.abrir();
+            this.registro.olvidar(this.para, this.token);
+            const a = await this.abrir(true);
             if (!a.ok) return a;
             r = await this.mandar(this.para, nombre, args, { sesion: this.token });
         }
@@ -313,7 +325,8 @@ export class SesionHacia {
     }
 
     async cerrar(): Promise<void> {
-        if (this.token) await this.mandar(this.para, "cerrar-sesion", {}, { sesion: this.token, nivel: "ver" });
+        const t = this.token;
         this.token = null;
+        if (t) await this.registro.soltar(this.para, t, this.porAqui, false);
     }
 }

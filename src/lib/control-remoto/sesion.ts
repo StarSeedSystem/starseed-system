@@ -43,6 +43,11 @@ export const TOPE_SEGUNDO = 5;
 export const TOPE_MINUTO = 60;
 /** (PAN1115J) Órdenes de entrada (toque, tecla…): hasta 60 por segundo, sin tope por minuto (§2.4). */
 export const TOPE_ENTRADA_SEGUNDO = 60;
+/** CTL1117A · S5: las lecturas de la ventana (`leer-estado`, `leer-aparato`) tienen su cuenta y no gastan las 5/s de las órdenes de app. */
+export const TOPE_LECTURA_SEGUNDO = 5;
+/** CTL1117A · S5: el techo de TODO junto (entrada + lecturas + órdenes de app) por segundo y por controlador. */
+export const TOPE_TOTAL_SEGUNDO = 70;
+const ACCIONES_LECTURA = new Set(["leer-estado", "leer-aparato"]);
 export const MAX_CONTROLADORES = 4;
 export const MAX_PENDIENTES = 5;
 
@@ -105,6 +110,8 @@ export class PuertaControl {
     private noncesSet = new Set<string>();
     private marcas = new Map<string, number[]>();
     private marcasEntrada = new Map<string, number[]>(); // PAN1115J
+    private marcasLectura = new Map<string, number[]>(); // CTL1117A · S5
+    private marcasTotal = new Map<string, number[]>(); // CTL1117A · S5
     /** (ORD1114Q) Una persona contestó o colgó a mano: la orden siguiente lo sabe («a-mano»). */
     private aMano: string | null = null;
 
@@ -169,27 +176,38 @@ export class PuertaControl {
         return { tipo: "respuesta", nonce, ok, motivo, ...(cuerpo !== undefined ? { resultado: cuerpo } : {}) };
     }
 
-    private tope(huella: string, entrada = false): boolean {
+    private tope(huella: string, entrada = false, lectura = false): boolean {
         const t = this.d.ahora();
-        if (entrada) {
-            // PAN1115J: la entrada tiene su propia cuenta: no gasta el tope de las órdenes de app ni se cuenta por minuto.
-            const l = (this.marcasEntrada.get(huella) ?? []).filter((x) => t - x < 1000);
-            if (l.length >= TOPE_ENTRADA_SEGUNDO) {
-                this.marcasEntrada.set(huella, l);
-                return false;
-            }
-            l.push(t);
-            this.marcasEntrada.set(huella, l);
-            return true;
-        }
-        const lista = (this.marcas.get(huella) ?? []).filter((x) => t - x < 60_000);
-        const enSegundo = lista.filter((x) => t - x < 1000).length;
-        if (enSegundo >= TOPE_SEGUNDO || lista.length >= TOPE_MINUTO) {
-            this.marcas.set(huella, lista);
+        // CTL1117A · S5: el techo total no se quita: lecturas, entrada y órdenes de app suman en él.
+        const total = (this.marcasTotal.get(huella) ?? []).filter((x) => t - x < 1000);
+        if (total.length >= TOPE_TOTAL_SEGUNDO) {
+            this.marcasTotal.set(huella, total);
             return false;
         }
-        lista.push(t);
-        this.marcas.set(huella, lista);
+        const cuenta = (m: Map<string, number[]>, max: number): boolean => {
+            const l = (m.get(huella) ?? []).filter((x) => t - x < 1000);
+            m.set(huella, l);
+            if (l.length >= max) return false;
+            l.push(t);
+            return true;
+        };
+        if (entrada) {
+            // PAN1115J: la entrada tiene su propia cuenta: no gasta el tope de las órdenes de app ni se cuenta por minuto.
+            if (!cuenta(this.marcasEntrada, TOPE_ENTRADA_SEGUNDO)) return false;
+        } else if (lectura) {
+            if (!cuenta(this.marcasLectura, TOPE_LECTURA_SEGUNDO)) return false;
+        } else {
+            const lista = (this.marcas.get(huella) ?? []).filter((x) => t - x < 60_000);
+            const enSegundo = lista.filter((x) => t - x < 1000).length;
+            if (enSegundo >= TOPE_SEGUNDO || lista.length >= TOPE_MINUTO) {
+                this.marcas.set(huella, lista);
+                return false;
+            }
+            lista.push(t);
+            this.marcas.set(huella, lista);
+        }
+        total.push(t);
+        this.marcasTotal.set(huella, total);
         return true;
     }
 
@@ -249,7 +267,7 @@ export class PuertaControl {
         if (c.seq <= previo || this.noncesSet.has(c.nonce)) return this.respuesta(c.nonce, false, "repetida", nombre, c.de, c.nivel);
         this.ultimoSeq.set(c.de, c.seq);
         this.recordarNonce(c.nonce);
-        if (!this.tope(c.de, definicion(nombre)?.entrada === true || definicion(nombre)?.senal === true)) return this.respuesta(c.nonce, false, "limite", nombre, c.de, c.nivel);
+        if (!this.tope(c.de, definicion(nombre)?.entrada === true || definicion(nombre)?.senal === true, ACCIONES_LECTURA.has(nombre))) return this.respuesta(c.nonce, false, "limite", nombre, c.de, c.nivel);
 
         const def = definicion(nombre);
         if (!def) return this.respuesta(c.nonce, false, "accion-desconocida", nombre, c.de, c.nivel);
@@ -275,13 +293,17 @@ export class PuertaControl {
             // ORD1114Q: la sesión la abre Rust (pone el indicador o se niega) y su token es el de Rust.
             const n = await this.d.nativo.abrir(c.de, ctl.nombre, nivel, sobre); // FSG1116 · A2: lo nativo comprueba la firma
             if (!n.ok || !n.token) return this.respuesta(c.nonce, false, n.motivo ?? "sin-indicador-nativo", nombre, c.de, c.nivel, undefined, n.detalle);
-            this.sesion = { token: n.token, de: c.de, nombre: ctl.nombre, nivel, inicio: ahora, ultima: ahora };
+            // CTL1117A · S1/S3: abrir otra vez con la sesión viva y el mismo controlador es la MISMA sesión (mismo token, misma hora
+            // máxima): renovar la ventana de inactividad sí, estirar la hora máxima de 1 h no.
+            const mismaSesion = this.sesion !== null && this.sesion.token === n.token && this.sesion.de === c.de;
+            const inicio = mismaSesion && this.sesion ? this.sesion.inicio : ahora;
+            this.sesion = { token: n.token, de: c.de, nombre: ctl.nombre, nivel, inicio, ultima: ahora };
             this.d.alCambiar?.();
             return this.respuesta(c.nonce, true, "ok", nombre, c.de, nivel, {
                 sesion: this.sesion.token,
                 nivel,
                 capacidades: capacidadesDeNivel(nivel),
-                caduca: new Date(ahora + SESION_MAX_MS).toISOString(),
+                caduca: new Date(inicio + SESION_MAX_MS).toISOString(),
             });
         }
 

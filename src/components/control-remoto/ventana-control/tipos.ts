@@ -23,6 +23,10 @@ export interface PropsVentanaControl {
     aparato: { volumen?: Record<string, number>; brillo?: number; bateria?: number; cargando?: boolean; red?: { wifi: boolean; datos: boolean; bluetooth: boolean } } | null;
     latenciaMs?: number;
     fps?: number;
+    /** CTL1117A · S3: hora máxima de la sesión (ms epoch); la ventana avisa con cuenta atrás los últimos 5 min. */
+    caduca?: number;
+    /** CTL1117A · S3: un clic para renovar/reabrir la sesión. */
+    alReabrir?: () => void;
     alEnviar: (e: EntradaControl) => void;
     alCerrar: () => void;
     fuentePedida?: FuentePedida;

@@ -6,11 +6,11 @@
 
 /** `control_entrada` (seam 1) y los motivos de la puerta de la web que la persona puede ver. */
 export const PALABRAS_MOTIVO: Readonly<Record<string, string>> = {
-    firma: "La orden no venía firmada por un aparato de confianza; este aparato no la ejecutó.",
-    "no-autorizado": "Este aparato no aceptó a quien manda para operar su entrada. Acéptalo en este aparato con su código.",
-    sesion: "No hay una sesión de control abierta; ábrela de nuevo.",
-    "regla-g": "Por seguridad, esta pantalla (permisos, instalador o ajustes de accesibilidad) solo se toca en el aparato mismo.",
-    "pausa-local": "Alguien está tocando la pantalla del aparato: el control espera unos segundos.",
+    firma: "La orden no venía firmada por un aparato de confianza: este aparato no la ejecutó. Si es la primera vez, vuelve a pedir el control.",
+    "no-autorizado": "Este aparato todavía no te ha aceptado para operar su entrada. Acéptalo en él con su código.",
+    sesion: "No hay una sesión de control abierta; se abre de nuevo sola.",
+    "regla-g": "La tableta tiene delante una ventana protegida (permisos, instalador o ajustes). Pulsa Inicio para salir de ella; lo demás solo se toca en la tableta misma.",
+    "pausa-local": "Alguien está tocando la pantalla del aparato: el control espera unos 3 segundos.",
     limite: "Demasiadas órdenes seguidas; el aparato espera un momento.",
     "sin-servicio": "El servicio de accesibilidad de StarSeed no está encendido en el aparato: la persona debe encenderlo allí.",
     "sin-soporte": "Este aparato todavía no puede hacer esto (solo las tabletas Android se controlan por ahora).",
@@ -19,15 +19,15 @@ export const PALABRAS_MOTIVO: Readonly<Record<string, string>> = {
     "permiso-apagado": "El control está apagado en el aparato; solo su dueño puede encenderlo.",
     "otra-cuenta": "Ese aparato es de otra cuenta: solo se controlan los de la misma cuenta.",
     "otro-destino": "La orden iba a otro aparato.",
-    "sesion-caducada": "La sesión terminó por inactividad (2 minutos). Ábrela de nuevo.",
-    "sin-sesion": "El aparato no abrió la sesión.",
-    "parada-nativa": "La persona terminó el control desde el aviso del aparato.",
+    "sesion-caducada": "La sesión terminó (por inactividad o por llegar a su hora máxima). Pulsa «Reabrir» para seguir.",
+    "sin-sesion": "El aparato ya no tiene esta sesión abierta (se cerró allí). Pulsa «Reabrir» para seguir.",
+    "parada-nativa": "La persona terminó el control desde el aviso del aparato («Terminar»).",
     "a-mano": "La persona usó el aparato con la mano y el control se detuvo.",
     "terminado-por-el-dueno": "La persona terminó el control desde el aparato.",
     "apagado-por-el-dueno": "La persona apagó el control en el aparato.",
     nivel: "Esa orden pide un nivel de control que la sesión no tiene.",
     caducada: "La orden llegó tarde y no se ejecutó.",
-    repetida: "Esa orden ya se había recibido.",
+    repetida: "Esa orden llegó dos veces al aparato y la segunda no se ejecutó; la ventana la vuelve a mandar sola.",
     argumentos: "La orden venía mal formada.",
     "sin-oferta": "El aparato no empezó a mandar su pantalla a tiempo.",
     negociacion: "No se pudo preparar la conexión de vídeo.",
@@ -55,6 +55,14 @@ const CAUSAS_SENAL: Record<string, string> = {
     "conexion-rechazada": "la conexión de vídeo rechazó la oferta",
     "ya-negociada": "ya había una conexión de vídeo en marcha",
 };
+
+/** (CTL1117A · S9) Frase corta de UNA orden rechazada, para enseñarla dentro de la ventana de control. */
+export function palabrasOrden(motivo: string | undefined | null): string | undefined {
+    return palabrasMotivo(motivo);
+}
+
+/** (CTL1117A · S3) Motivos que ya no se arreglan pidiendo otra vez: se dice claro y se espera, sin insistir. */
+export const MOTIVOS_TERMINALES: ReadonlySet<string> = new Set(["permiso-apagado", "no-autorizado", "otra-cuenta", "otro-destino", "parada-nativa", "a-mano"]);
 
 export function palabrasMotivo(motivo: string | undefined | null): string | undefined {
     if (!motivo) return undefined;

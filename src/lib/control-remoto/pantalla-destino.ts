@@ -17,6 +17,7 @@
 import { ACCIONES, MAX_DEDOS, MAX_PUNTOS_DEDO, definicion, type Args } from "./niveles";
 import { MAX_PARTES, Reensamblador, leerParte, trocear, type ParteSenal } from "./senal-partes";
 import { esRespuesta, type RespuestaOrden } from "./orden";
+import { RegistroSesiones, registroGlobal } from "./registro-sesiones";
 
 export type EntradaControl =
     | { tipo: "gesto"; dedos: { id: number; puntos: [number, number, number][] }[]; sigue: boolean }
@@ -56,6 +57,8 @@ export interface InstantaneaPantalla {
     aparato: AparatoVentana | null;
     latenciaMs?: number;
     fps?: number;
+    /** CTL1117A · S3: cuándo llega la hora máxima de la sesión (ms epoch), si el aparato la dijo. */
+    caduca?: number;
 }
 
 export const MAX_ENTRADA_POR_SEGUNDO = 60;
@@ -204,7 +207,15 @@ export interface DepsDestino {
     ahora: () => number;
     /** Línea para el registro de llamadas que la app ya espeja (`control-senal paso=… lado=… resultado=… motivo=…`). */
     anotar?: (linea: string) => void;
+    /** CTL1117A · S1/S2/S4: la sesión es una por neurona y se comparte con quien más la use en este aparato. */
+    registro?: RegistroSesiones;
 }
+
+/** Lecturas de la ventana: esperan poco su respuesta para no retener el carril de la entrada (S6). */
+const LECTURAS = new Set(["leer-aparato", "leer-estado"]);
+export const ESPERA_LECTURA_MS = 2500;
+/** CTL1117A · S6: un rechazo «repetida» o «limite» de una orden de entrada se reenvía UNA vez con otro seq, nunca se pierde en silencio. */
+export const REINTENTO_LIMITE_MS = 350;
 
 const FATALES = new Set(["sin-sesion", "sesion-caducada", "parada-nativa", "a-mano", "sin-indicador-nativo", "permiso-apagado", "no-autorizado", "otra-cuenta", "otro-destino", "sin-puerta"]);
 
@@ -217,7 +228,7 @@ export class PantallaDestino {
     private cola: EntradaControl[] = [];
     private bombeando = false;
     private marcasEnvio: number[] = [];
-    private pendientes = new Map<string, { nombre: string; t: number }>();
+    private pendientes = new Map<string, { nombre: string; t: number; entrada?: EntradaControl }>();
     private temporizadores = new Set<ReturnType<typeof setTimeout>>();
     private intervalos = new Set<ReturnType<typeof setInterval>>();
     private candidatos: string[] = [];
@@ -228,11 +239,15 @@ export class PantallaDestino {
     private sinCuadros = 0;
     private rtt: number | null = null;
     private medidaLatencia: number | null = null;
+    private readonly registro: RegistroSesiones;
+    private carril: Promise<unknown> = Promise.resolve();
+    private reintentadas = new WeakSet<object>();
 
     constructor(
         readonly neurona: string,
         private readonly d: DepsDestino,
     ) {
+        this.registro = d.registro ?? new RegistroSesiones(d.ahora);
         this.snap = { estado: "conectando", desde: d.ahora(), flujo: null, pantalla: null, nivel: "ver", capacidades: SIN_CAPACIDADES, aparato: null };
     }
 
@@ -270,12 +285,17 @@ export class PantallaDestino {
 
     async iniciar(): Promise<void> {
         if (this.cerrada || this.token) return;
-        let r = await this.d.mandar("abrir-sesion", {}, { nivel: "controlar" });
-        if (!r.ok && r.motivo === "nivel") r = await this.d.mandar("abrir-sesion", {}, { nivel: "ver" });
-        if (this.cerrada) return;
-        const abierta = r.resultado as { sesion?: string; nivel?: string } | undefined;
+        // CTL1117A · S1/S4: una sola `abrir-sesion` en vuelo por neurona; con una sesión viva se reutiliza (no se corta la imagen).
+        const r = await this.registro.abrir(this.neurona, this.d.mandar, { nivel: "controlar", bajarSiNivel: true });
+        if (this.cerrada) {
+            if (r.ok) void this.registro.soltar(this.neurona, (r.resultado as { sesion?: string } | undefined)?.sesion ?? null, this.d.mandar);
+            return;
+        }
+        const abierta = r.resultado as { sesion?: string; nivel?: string; caduca?: string } | undefined;
         if (!r.ok || typeof abierta?.sesion !== "string") return this.cerrar(r.motivo || "sin-sesion", false);
         this.token = abierta.sesion;
+        const caduca = typeof abierta.caduca === "string" ? Date.parse(abierta.caduca) : NaN;
+        if (Number.isFinite(caduca)) this.poner({ caduca });
         const nivel = abierta.nivel === "controlar" ? "controlar" : "ver";
         this.poner({ nivel });
 
@@ -414,10 +434,27 @@ export class PantallaDestino {
 
     private async orden(nombre: string, args: Args, nivel: "ver" | "controlar"): Promise<RespuestaOrden> {
         const t0 = this.d.ahora();
-        const r = await this.d.mandar(nombre, args, { nivel, sesion: this.token });
+        const r = await this.emitir(nombre, args, { nivel, sesion: this.token });
         this.tomarLatencia(this.d.ahora() - t0);
-        if (!r.ok && FATALES.has(r.motivo)) void this.cerrar(r.motivo, false);
+        if (r.ok) this.registro.usada(this.neurona);
+        if (!r.ok && FATALES.has(r.motivo)) {
+            if (r.motivo === "sin-sesion" || r.motivo === "sesion-caducada") this.registro.olvidar(this.neurona, this.token);
+            void this.cerrar(r.motivo, false);
+        }
         return r;
+    }
+
+    /** CTL1117A · S6: todo lo que sale de esta ventana pasa por UN carril: se firma y se manda en orden, así el `seq` llega creciente. */
+    private enCarril<T>(f: () => Promise<T>): Promise<T> {
+        const p = this.carril.then(f, f);
+        this.carril = p.then(() => undefined, () => undefined);
+        return p;
+    }
+
+    /** Las lecturas esperan poco: mientras una espera su respuesta por el relé, el carril no deja pasar otra orden (el `seq` llegaría cruzado). */
+    private emitir(nombre: string, args: Args, o: OpcionesOrdenDestino): Promise<RespuestaOrden> {
+        const lectura = LECTURAS.has(nombre);
+        return this.enCarril(() => this.d.mandar(nombre, args, lectura ? { ...o, esperaMs: o.esperaMs ?? ESPERA_LECTURA_MS } : o));
     }
 
     private tomarLatencia(ms: number): void {
@@ -546,21 +583,24 @@ export class PantallaDestino {
         const args = aArgs(e);
         const o: OpcionesOrdenDestino = { nivel: "controlar", sesion: this.token };
         const canal = this.canal;
-        if (canal && canal.readyState === "open") {
-            const f = await this.d.firmar(nombre, args, o);
-            if (f) {
-                try {
-                    canal.send(JSON.stringify(f.sobre));
-                    this.pendientes.set(f.nonce, { nombre, t: this.d.ahora() });
-                    if (this.pendientes.size > 512) this.pendientes.delete(this.pendientes.keys().next().value as string);
-                    return;
-                } catch {
-                    /* el canal se cayó entre medias: sale por el de control */
+        const sale = await this.enCarril(async (): Promise<RespuestaOrden | null> => {
+            if (this.cerrada) return null;
+            if (canal && canal.readyState === "open") {
+                const f = await this.d.firmar(nombre, args, o);
+                if (f) {
+                    try {
+                        canal.send(JSON.stringify(f.sobre));
+                        this.pendientes.set(f.nonce, { nombre, t: this.d.ahora(), entrada: e });
+                        if (this.pendientes.size > 512) this.pendientes.delete(this.pendientes.keys().next().value as string);
+                        return null;
+                    } catch {
+                        /* el canal se cayó entre medias: sale por el de control */
+                    }
                 }
             }
-        }
-        const r = await this.d.mandar(nombre, args, { ...o, esperaMs: 4000 });
-        this.alRespuestaEntrada(r);
+            return this.d.mandar(nombre, args, { ...o, esperaMs: 4000 });
+        });
+        if (sale) this.alRespuestaEntrada(sale, e);
     }
 
     private alMensajeCanal(data: unknown): void {
@@ -576,16 +616,37 @@ export class PantallaDestino {
         if (!p) return;
         this.pendientes.delete(x.nonce);
         this.tomarLatencia(this.d.ahora() - p.t);
-        this.alRespuestaEntrada(x);
+        this.alRespuestaEntrada(x, p.entrada);
     }
 
-    private alRespuestaEntrada(r: RespuestaOrden): void {
+    private alRespuestaEntrada(r: RespuestaOrden, entrada?: EntradaControl): void {
         if (this.cerrada) return;
         if (r.ok) {
             if (this.snap.estado === "pausa-local") this.poner({ estado: "en-vivo" });
+            // CTL1117A · S9: un aviso de una orden anterior no se queda cuando la siguiente sí se cumplió.
+            else if (this.snap.estado === "en-vivo" && this.snap.motivo !== undefined) {
+                const { motivo: _m, ...resto } = this.snap;
+                this.snap = resto as InstantaneaPantalla;
+                for (const o of [...this.oyentes]) o();
+            }
             return;
         }
-        if (FATALES.has(r.motivo)) return void this.cerrar(r.motivo, false);
+        if (FATALES.has(r.motivo)) {
+            if (r.motivo === "sin-sesion" || r.motivo === "sesion-caducada") this.registro.olvidar(this.neurona, this.token);
+            return void this.cerrar(r.motivo, false);
+        }
+        // CTL1117A · S6: «repetida» (seq cruzado) o «limite»: la orden de la persona no se pierde; se manda otra vez, una sola.
+        if ((r.motivo === "repetida" || r.motivo === "limite") && entrada && !this.reintentadas.has(entrada)) {
+            this.reintentadas.add(entrada);
+            const poner = () => {
+                if (this.cerrada) return;
+                this.cola.unshift(entrada);
+                void this.bombear();
+            };
+            if (r.motivo === "limite") this.despues(REINTENTO_LIMITE_MS, poner);
+            else poner();
+            return;
+        }
         if (r.motivo === "pausa-local") {
             // La persona tocó su pantalla: el control espera hasta que pasen 3 s sin tocar.
             if (this.snap.estado !== "pausa-local") {
@@ -635,7 +696,10 @@ export class PantallaDestino {
         if (avisar && token) {
             const o = { nivel: "ver" as const, sesion: token, esperaMs: 3000 };
             await this.d.mandar("pantalla-parar", {}, o).catch(() => undefined);
-            await this.d.mandar("cerrar-sesion", {}, o).catch(() => undefined);
+            // CTL1117A · S2: se cierra SU sesión (su token) y solo si nadie más en este aparato la sigue usando.
+            await this.registro.soltar(this.neurona, token, this.d.mandar);
+        } else if (token) {
+            this.registro.olvidar(this.neurona, token);
         }
         this.token = null;
     }
@@ -646,6 +710,7 @@ export class PantallaDestino {
 /** Las piezas reales: canal de control, firma del aparato, configuración ICE de las llamadas y RTCPeerConnection. */
 export function depsReales(neurona: string): DepsDestino {
     return {
+        registro: registroGlobal,
         mandar: async (nombre, args, o) => (await import("./canal")).mandarOrden(neurona, nombre, args, { nivel: o.nivel, sesion: o.sesion ?? null, esperaMs: o.esperaMs }),
         firmar: async (nombre, args, o) => (await import("./canal")).firmarParaCanalDirecto(neurona, nombre, args, { nivel: o.nivel, sesion: o.sesion ?? null }),
         iceServers: async () => (await (await import("@/lib/llamadas/ice")).obtenerIceServidores()).iceServers,

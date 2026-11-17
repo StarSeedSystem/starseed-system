@@ -542,3 +542,11 @@ pausa, con la pantalla bloqueada o tras parar no se escribe ni se sirve ningún 
 M3); los cuadros siguen pasando por un archivo privado de la app (`cuadro.bin`, reemplazado y borrado), no por memoria.
 Lo que guarda el control no viaja en la copia de seguridad ni en la transferencia entre aparatos (M4). En Android los
 comandos del control solo responden a la web publicada o al puerto que la app sirve en ese momento (M5).
+
+## CTL1117A · sesión que no se cae sola (2026-11-17)
+
+- **Una sesión por neurona, compartida** (`registro-sesiones.ts`): una sola `abrir-sesion` en vuelo; con una sesión viva se reutiliza; `cerrar-sesion` sale solo al soltar el último dueño y con SU token. Rust: `abrir` con la sesión viva y el mismo controlador devuelve el mismo token (no estira la hora máxima de 1 h); cerrojo de aperturas; el indicador huérfano se quita a los 3 s sin sesión.
+- **Presupuestos** (`sesion.ts`): órdenes de app 5/s · lecturas (`leer-estado`, `leer-aparato`) 5/s · entrada 60/s · techo total 70/s por controlador.
+- **Un solo carril de emisión** en la ventana (`pantalla-destino.ts`): se firma y se manda en orden; «repetida» y «limite» se reenvían una vez, nunca se pierde un toque en silencio.
+- **Regla G**: con una ventana protegida delante SOLO pasa la tecla Inicio (nunca con un diálogo de consentimiento abierto/pendiente ni con la pantalla bloqueada); traza `entrada-inicio-protegida`.
+- **Latido de cuadros** (`latidoDeCuadros`, ≤1,5 s) y **pausa-local** que se quita sola a los 3 s en Android.
