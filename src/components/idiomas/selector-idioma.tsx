@@ -10,18 +10,18 @@
  */
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Check, Globe } from "lucide-react";
-import { CON_CATALOGO, ESTADO_CATALOGO, IDIOMAS, porCodigo, type Idioma } from "@/lib/idiomas/idiomas";
+import { CON_CATALOGO, ESTADO_CATALOGO, IDIOMAS, idiomasConCatalogo, porCodigo, type Idioma } from "@/lib/idiomas/idiomas";
 import { listaMundial } from "@/lib/idiomas/lista-mundial";
 import { EVENTO_IDIOMA, elegirIdioma, idiomaEfectivo, sugerirIdioma } from "@/lib/idiomas/estado";
 
 const sinTildes = (t: string): string => t.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
 
-export function estadoDe(codigo: string): "revisado" | "automatico" | "ninguno" {
-    return CON_CATALOGO.includes(codigo) ? ESTADO_CATALOGO[codigo] ?? "automatico" : codigo === "es" ? "revisado" : "ninguno";
+export function estadoDe(codigo: string, conCatalogo: readonly string[] = CON_CATALOGO): "revisado" | "automatico" | "ninguno" {
+    return conCatalogo.includes(codigo) ? ESTADO_CATALOGO[codigo] ?? "automatico" : codigo === "es" ? "revisado" : "ninguno";
 }
 
-function Etiqueta({ codigo }: { codigo: string }) {
-    const e = estadoDe(codigo);
+function Etiqueta({ codigo, conCatalogo = CON_CATALOGO }: { codigo: string; conCatalogo?: readonly string[] }) {
+    const e = estadoDe(codigo, conCatalogo);
     if (codigo === "es") return <span className="text-[11px] text-muted-foreground">Idioma original</span>;
     if (e === "revisado") return <span className="text-[11px] text-emerald-300">Catálogo revisado</span>;
     if (e === "automatico") return <span className="text-[11px] text-amber-300">Traducción automática, sin revisar</span>;
@@ -51,6 +51,7 @@ export function SelectorIdioma({ className = "", alElegir, abiertoAlInicio = fal
     const [filtro, setFiltro] = useState("");
     const [actual, setActual] = useState("es");
     const [aviso, setAviso] = useState("");
+    const [conCatalogo, setConCatalogo] = useState<readonly string[]>(CON_CATALOGO);
     const sugerido = useMemo(() => sugerirIdioma(), []);
     const boton = useRef<HTMLButtonElement>(null);
     const caja = useRef<HTMLInputElement>(null);
@@ -62,6 +63,8 @@ export function SelectorIdioma({ className = "", alElegir, abiertoAlInicio = fal
         window.addEventListener(EVENTO_IDIOMA, leer);
         return () => window.removeEventListener(EVENTO_IDIOMA, leer);
     }, []);
+    // Los paquetes instalados viven en el navegador: entran después de montar para no romper la hidratación.
+    useEffect(() => { setConCatalogo(idiomasConCatalogo()); }, []);
     useEffect(() => { if (abierto) caja.current?.focus(); }, [abierto]);
 
     const codigosElegibles = IDIOMAS.map((i) => i.codigo);
@@ -78,7 +81,7 @@ export function SelectorIdioma({ className = "", alElegir, abiertoAlInicio = fal
     const elegir = (i: Idioma): void => {
         if (!elegirIdioma(i.codigo)) { setAviso("error"); return; }
         setActual(i.codigo);
-        setAviso(estadoDe(i.codigo) === "ninguno" ? i.codigo : "");
+        setAviso(estadoDe(i.codigo, conCatalogo) === "ninguno" ? i.codigo : "");
         alElegir?.(i.codigo);
         setAbierto(false);
         boton.current?.focus();
@@ -110,7 +113,7 @@ export function SelectorIdioma({ className = "", alElegir, abiertoAlInicio = fal
         >
             <span className="flex min-w-0 flex-col">
                 <span translate="no" data-no-traducir="" lang={i.codigo} dir={i.dir} className="truncate text-sm font-medium">{i.nombreActual}</span>
-                <Etiqueta codigo={i.codigo} />
+                <Etiqueta codigo={i.codigo} conCatalogo={conCatalogo} />
             </span>
             {i.codigo === actual && <Check className="h-4 w-4 shrink-0 text-emerald-300" aria-hidden />}
         </li>
@@ -159,7 +162,7 @@ export function SelectorIdioma({ className = "", alElegir, abiertoAlInicio = fal
                 </div>
             )}
             <p className="mt-1.5 px-1 text-[11px] text-white/60" aria-live="polite" data-testid="estado-idioma">
-                {aviso === "error" ? "No se pudo guardar el idioma en este aparato." : aviso ? <>Aún no hay catálogo de <span translate="no" data-no-traducir="">{porCodigo(aviso)?.nombre}</span>: el sistema se ve en español.</> : (idiomaActual ? <><span translate="no" data-no-traducir="" lang={idiomaActual.codigo}>{listaCompleta.find(i => i.codigo === actual)?.nombreActual ?? idiomaActual.nombre}</span> · <Etiqueta codigo={actual} /></> : null)}
+                {aviso === "error" ? "No se pudo guardar el idioma en este aparato." : aviso ? <>Aún no hay catálogo de <span translate="no" data-no-traducir="">{porCodigo(aviso)?.nombre}</span>: el sistema se ve en español.</> : (idiomaActual ? <><span translate="no" data-no-traducir="" lang={idiomaActual.codigo}>{listaCompleta.find(i => i.codigo === actual)?.nombreActual ?? idiomaActual.nombre}</span> · <Etiqueta codigo={actual} conCatalogo={conCatalogo} /></> : null)}
             </p>
         </div>
     );
