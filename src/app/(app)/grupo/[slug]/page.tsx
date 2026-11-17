@@ -38,6 +38,7 @@ import { pageHref, groupHref } from "@/lib/entity-links";
 import { usarEspacio } from "@/lib/entidad-espacio/usar-espacio";
 import { aPestanasDePagina } from "@/lib/entidad-espacio/pestanas-pagina";
 import { useEntityLayout, applyTabLayout, suggestedIntegrations } from "@/lib/entity-layout";
+import { rangoDeRol } from "@/lib/entidad-espacio/permisos";
 import { EntityLayoutEditor } from "@/components/social/entity-layout-editor";
 // Tema por entidad (Mezclador/Catálogo — Adenda Mezclador): aplica el
 // themeId/themeMix guardado en entity-layout SOLO mientras se ve este grupo,
