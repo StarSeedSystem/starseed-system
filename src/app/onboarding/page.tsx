@@ -200,7 +200,9 @@ export default function OnboardingPage() {
 
 // ── Pasos ────────────────────────────────────────────────────────────
 
-function StepKind({ state, setState, onNext }: any) {
+import type { StepKindProps, KindCardProps } from "@/lib/mando/stepKind.ts";
+
+function StepKind({ state, setState, onNext }: StepKindProps) {
   return (
     <div className="space-y-4 text-center">
       <h1 className="text-3xl font-bold font-headline bg-clip-text text-transparent bg-gradient-to-r from-cyan-300 via-purple-300 to-amber-200">
@@ -220,7 +222,7 @@ function StepKind({ state, setState, onNext }: any) {
   );
 }
 
-function KindCard({ icon: Icon, label, desc, selected, onClick }: any) {
+function KindCard({ icon: Icon, label, desc, selected, onClick }: KindCardProps) {
   return (
     <button onClick={onClick} className={cn(
       'p-5 rounded-2xl border-2 transition-all text-left hover:scale-[1.02]',
