@@ -56,7 +56,7 @@ export function CompartirEnVivo({
     const [cargando, setCargando] = useState(false);
     const [resultado, setResultado] = useState<{ ok: true; enlace: string; personas: string[] } | { ok: false; motivo: string } | null>(null);
     const entidadSeleccionada = useRef<string | null>(null);
-    const dialogRef = useRef<HTMLDialogElement>(null);
+    const dialogRef = useRef<HTMLDivElement>(null);
     const primerFocoRef = useRef<HTMLButtonElement>(null);
 
     useEffect(() => {
@@ -82,13 +82,14 @@ export function CompartirEnVivo({
         setCargando(true);
         setResultado(null);
         try {
+            const entidadRef = con === "entidad" ? entidadSeleccionada.current : undefined;
             const opciones = {
                 con,
                 acceso,
                 tipo,
                 titulo: titulo.trim().slice(0, 200) || "Sesión en vivo",
                 hiloId: null as string | null,
-                entidadRef: con === "entidad" ? entidadSeleccionada.current : undefined,
+                entidadRef: entidadRef ?? undefined,
                 invitados: [] as string[],
             };
             const res = await crear(opciones);
@@ -146,7 +147,7 @@ export function CompartirEnVivo({
                         <label htmlFor="con-quien" className="block text-sm font-medium mb-2">
                             ¿Con quién?
                         </label>
-                        <Select value={con} onValueChange={setCon}>
+                        <Select value={con} onValueChange={(v: string) => setCon(v as ConQuien)}>
                             <SelectTrigger id="con-quien" className="w-full min-h-[44px]" data-testid="select-con-quien">
                                 <SelectValue placeholder="Elige…" />
                             </SelectTrigger>
@@ -186,7 +187,7 @@ export function CompartirEnVivo({
                         <label htmlFor="acceso" className="block text-sm font-medium mb-2">
                             ¿Pueden editar o solo mirar?
                         </label>
-                        <Select value={acceso} onValueChange={setAcceso}>
+                        <Select value={acceso} onValueChange={(v: string) => setAcceso(v as Acceso)}>
                             <SelectTrigger id="acceso" className="w-full min-h-[44px]" data-testid="select-acceso">
                                 <SelectValue placeholder="Elige…" />
                             </SelectTrigger>
