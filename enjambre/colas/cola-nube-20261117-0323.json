@@ -1,0 +1,42 @@
+{
+ "ola": "nube-20261117",
+ "tareas": [
+  {
+   "id": "IMA23c",
+   "ola": "TRA1116-IDIOMAS",
+   "titulo": "Contrato de idiomas: anotar la parte A en architecture/idiomas.md (solo añadir)",
+   "archivos": [
+    "architecture/idiomas.md"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Documentación. Al final de `architecture/idiomas.md` añade «## 7. Más idiomas, archivo de idioma y clic derecho (16-11)» (≤30 líneas, sin tocar lo anterior): enlaza `architecture/traductor-universal.md` Parte A como contrato; resume en viñetas la lista generada con `Intl.DisplayNames` (`lista-mundial.ts`), el formato `.starseed-lang.json`, la validación (`validar.ts`) y que un paquete es solo datos, el almacén local y que `cargar.ts` suma paquetes instalados, y las entradas del clic derecho (`entradas-idioma.ts`, `montaje-idioma.tsx`). Termina con «Lo que sigue y no está hecho»: compartir por malla en la interfaz, y revisión humana de paquetes. Sin la palabra «Mando».\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/44010609237`)\nUn agente de la nube ya avanzó esta tarea (no pasa en GitHub (run 44030832323) falla «tsc»: rror]src/app/(app)/pagina/[slug]/page.tsx(700,84): error TS2339: Property 'label' does not exist on type '(Pestana | { id: string; label: string; node: ReactNode; }) & { visible: boolean; }'.\n2026-11-17T06:27:51.9812429Z   Property 'label' does not exist on type 'Pestana & { visible: boolean; }'.\n2026-11-17T06:27:51.9813876Z ##[error]src/app/(app)/pagina/[slug]/page.tsx(708,36): error TS2339: Property 'node' does not exist on type '(Pestana | { id: string; label: string; node: ReactNode; }) & { visible: boolean; }'.\n2026-11-17T06:27:51.9815424Z   Property 'node' does not exist on type 'Pestana & { visible: boolean; }'.\n2026-11-17T06:27:52.5727885Z ##[error]Process completed with exit code 2.). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/44010609237:refs/remotes/origin/nube/44010609237\"` y `git cherry-pick --no-commit 98d204531b90`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: architecture/idiomas.md, src/app/(app)/grupo/[slug]/page.tsx, src/app/(app)/pagina/[slug]/page.tsx.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/44010609237",
+   "dependencias_ya_en_main": [
+    "IMA12"
+   ]
+  },
+  {
+   "id": "MRA8b",
+   "ola": "MAP1116B",
+   "titulo": "Mapa vivo: sumar las señales de toda la red (propias + publicadas) y decir cuándo nadie más publica",
+   "archivos": [
+    "src/components/mesh/mapa-senales/use-mapa-vivo.ts",
+    "src/lib/senales/tipos-vivo.ts",
+    "src/lib/senales/__tests__/mapa-vivo-red.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. CAUSA QUE ARREGLAS (leída en el código): `useMapaVivo` construye todo desde `malla.misDispositivos` (`src/components/mesh/mapa-senales/use-mapa-vivo.ts:85`, `construirVivo(... filas ...)` en :89): solo los aparatos de la propia cuenta, y los faros ajenos (`malla.cercanas`) no se usan; por eso solo se ve lo de la neurona que visita. Cambio acotado (≤50 líneas) manteniendo la firma pública de `useMapaVivo` y añadiendo a `MapaVivo` el campo `red: { senales: SenalEspectro[]; estado: …; motivo?: string; otrasCuentasPublicando: number }` con lo que devuelve `useSenalesPublicadas()` más las propias de `construirVivo`. Si `estado` no es `ok`, el mapa conserva exactamente lo de hoy y `red.motivo` dice por qué faltan las demás («las señales públicas aún no están activadas en este servidor»; «nadie más ha publicado en esta capa todavía» solo cuando la lectura fue buena y vino vacía). Tipos nuevos en `tipos-vivo.ts` (solo añadir). PRIVACIDAD Y HONESTIDAD (decisiones de Alex del 14-11, `architecture/mapa-de-senales.md` §2 y §12; valen para esta tarea): la posición exacta de un aparato personal viaja SOLO por el canal privado `pos:<uid>` entre las neuronas de su propia cuenta (`src/lib/senales/geo/canal-posicion.ts`); en las capas pública y de comunidad una neurona enseña únicamente lo que su dueño eligió publicar, y nunca una posición exacta (como mucho una zona gruesa); una capa de toda la red se construye con lo que cada dueño publica, JAMÁS con una neurona informando de la posición de sus vecinas; el alcance dibujado como campo es «estimado» y lo medido se marca aparte (`NOTA_ALCANCE` de `geo/capas.ts`). Nada se inventa: si una plataforma no da un dato, el mapa lo dice («sin fuente: <motivo>») y no pinta un número. Un valor lleva siempre su fuente (`medida`, `declarada` o `estimada`) y la hora de la lectura.\nPRUEBA (`mapa-vivo-red.test.ts`, con los hooks simulados como hacen las pruebas de `src/lib/senales/__tests__`): con dos cuentas publicando salen las dos; sin tabla el mapa sigue igual y dice el motivo; vacío bueno ≠ no se sabe. COMPRUEBA: `NODE_ENV=test npx vitest run src/lib/senales src/components/mesh` verde y tsc acotado.\n\nREGLAS DE LA CASA (valen aunque no las repita la tarea): toca SOLO los archivos de la lista `archivos`; ≤3 archivos y ≤120 líneas por archivo (si no cabe, para y di qué falta: no lo estires ni lo resumas); sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible (la interfaz dice Genesis); sin red real en las pruebas; ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves. El asunto de tu commit empieza por `MRA8b:` y dice qué comprobaste y qué NO pudiste comprobar.",
+   "dependencias_ya_en_main": [
+    "MRA7",
+    "MRA6b"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1117-032224.json": [
+   "IMA23c",
+   "MRA8b"
+  ]
+ }
+}
