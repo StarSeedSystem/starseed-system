@@ -55,11 +55,15 @@ export function SelectorIdioma({ className = "", alElegir, abiertoAlInicio = fal
     const [filtro, setFiltro] = useState("");
     const [actual, setActual] = useState("es");
     const [aviso, setAviso] = useState("");
-    const sugerido = useMemo(() => sugerirIdioma(), []);
+    const [sugerido, setSugerido] = useState("");
     const boton = useRef<HTMLButtonElement>(null);
     const caja = useRef<HTMLInputElement>(null);
     const lista = useRef<HTMLUListElement>(null);
 
+    // El idioma sugerido sale del aparato (`navigator`): se lee en un efecto para que el primer
+    // render sea idéntico en servidor y cliente aunque el panel empiece abierto (si no, el
+    // servidor no propone nada y el cliente ya pinta «Sugerido para este aparato»: error #418).
+    useEffect(() => { setSugerido(sugerirIdioma()); }, []);
     useEffect(() => {
         const leer = (): void => setActual(idiomaEfectivo().codigo);
         leer();
