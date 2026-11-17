@@ -1,0 +1,51 @@
+{
+ "ola": "nube-20261116",
+ "tareas": [
+  {
+   "id": "IMA19",
+   "ola": "TRA1116-IDIOMAS",
+   "titulo": "Reemplazar la selección editable por su traducción (input, textarea y contenteditable)",
+   "archivos": [
+    "src/components/traduccion/reemplazar-seleccion.ts",
+    "src/components/traduccion/__tests__/reemplazar-seleccion.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contrato A3. Pura y probada en jsdom: `capturarSeleccionEditable(doc: Document): ObjetivoEditable | null` (si el foco está en `input` de texto, `textarea` o elemento `contenteditable` con texto seleccionado; guarda elemento, inicio, fin y texto; NUNCA en `input type=password`), `reemplazar(objetivo, nuevoTexto): boolean` (en input/textarea con `setRangeText` y evento `input` para que React/formularios lo vean; en contenteditable con `Range.deleteContents`+`insertNode`; devuelve false si el elemento ya no está en el documento o el texto cambió desde la captura) y `deshacerUltimo(): boolean` (guarda el texto anterior de UNA sustitución). No usa red.\nPRUEBAS: textarea con selección, input, contenteditable, password rechazado, elemento retirado → false, deshacer.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado."
+  },
+  {
+   "id": "ASW11",
+   "ola": "ASW1116A",
+   "titulo": "Diseño «Acciones»: atajos para empezar rápido",
+   "archivos": [
+    "src/components/widgets-libres/familias/diseno-acciones.tsx",
+    "src/components/widgets-libres/familias/__tests__/diseno-acciones.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. LO QUE YA EXISTE (léelo antes): el widget del dashboard cuyo texto de estado es «En calma» es `AstrauraLibre` en `src/components/widgets-libres/familias/astraura-libre.tsx` (268 líneas; `TEXTO_VOZ` :31, `useVozAurora` :38 lee el puente `getAuroraBridge()` de `src/lib/aurora/open-aurora.ts` con `speaking`, `listening`, `actionStatus`; el `Orbe` de :65 es el círculo de colores violeta/turquesa; `Preguntar` :90; el diseño por tamaño :170-262 con `disenoDe(clase)` de `familias/comun.tsx:23`). Se monta desde `src/components/widgets-libres/registro-libre.tsx:38` (`case \"AURORA_LAST\"`, hoy sin recibir el widget ni `onUpdateSettings`, a diferencia del reloj). La Protomolécula: la orbe 4D completa es `src/components/protomolecula/orbe-protomolecula.tsx` (475 líneas, three.js a demanda, arrastrable y flotante: NO sirve para meterla en un widget); su lógica pura está en `src/lib/protomolecula/orbe4d/` (`coreografia.ts`: `IdForma` semilla/merkaba/jitterbug/teseracto/dodecaedro/matriz/icosaedro, `PALETAS` por registro con `astraura`, `ESTILOS`, `FICHAS`, tiempos de Fibonacci; `geometria.ts`: `merkaba()`, `icosaedro()`, `dodecaedro()`, `jitterbug()`, `teseractoVertices()`, `PHI`). Ya hay una versión ligera en SVG: `src/components/layout/trinity/horizon/vista-previa-orbe.tsx` (flor de la vida y merkaba, solo `transform`/`opacity`, quieta con `motion-safe`), pero NO depende del estado del asistente. El presupuesto de render del dispositivo es `src/lib/widgets/forma/nivel-dispositivo.ts` (`useNivelRender`, `nivelRender`: ligero/normal/pleno). La identidad: colores SOLO de `PALETAS` (marca Trinity Liquid Crystal, `adn-y-tokens.md` §2 y §6), nunca hexadecimales inventados. Escribe primero las pruebas. `DisenoAcciones(props: PropsDiseno)`: la forma a `tam`, el estado en texto, y una rejilla de hasta 4 `Accion` (`inicio-piezas.tsx:160`, icono de lucide, diana de 44 px) con `props.sugerencias` (la tarea que lo monta pasa «Resúmeme mi día», «¿Qué hay nuevo en la red?», «Ayúdame a ordenar mis tareas de hoy»; tú no las escribes) más un quinto atajo fijo «Abrir el chat» que llama a `onAbrirChat`; cada sugerencia llama a `onSugerencia(texto)`. Debajo `props.preguntar`. En 2 columnas a partir de 280 px de ancho, 1 columna por debajo. Usa los colores del tema (`text-foreground`, `text-muted-foreground`, variables CSS `hsl(var(--…))`) y no blanco fijo, salvo sobre un fondo que el propio widget pinte oscuro; acento con los colores de `PALETAS.astraura`. Importa `PropsDiseno` de `@/lib/widgets/astraura/disenos` y `AstrauraForma` de `./astraura-forma`. PRUEBAS: renderiza con props de ejemplo y comprueba lo esencial de este diseño (qué SÍ aparece y qué NO: por ejemplo, el mínimo no muestra hilo ni sugerencias); cada botón llama a su función; a 180 px y a 360 px de ancho no hay `scrollWidth` mayor que `clientWidth`; los nombres accesibles están en español.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "ASW04",
+    "ASW06"
+   ]
+  },
+  {
+   "id": "HAL09",
+   "ola": "HAL1116A",
+   "titulo": "Conectar el freno a «Buscar más capacidad»: sin añadir escritores si el fallo es el mismo",
+   "archivos": [
+    "scripts/puente/buscar_capacidad.py",
+    "scripts/puente/test_buscar_capacidad.py"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Lee `buscar_capacidad.py` :1084-1235 (en `buscar`, el cálculo de `tope = tope_runs_nube(...)` en :1186 y cómo sale el motivo en el texto) y `freno_mismo_motivo.py` (HAL08). Cambio ACOTADO (≤40 líneas en `buscar_capacidad.py`, ≤40 en las pruebas): importa `frenar_por_mismo_motivo`; con las tareas ya terminadas de `progreso.json` (el mismo diccionario que ya lee `reunir_nube`; no vuelvas a leer el disco si ya lo tienes) construye las entradas y, si frena, el tope de runs nuevos de la nube es el que ya había en marcha (no se lanzan jobs nuevos) y la línea de resumen añade la frase de `frenar_por_mismo_motivo` TAL CUAL (para que quien lo lea sepa por qué). Si el cálculo falla por cualquier motivo, no frena (atrapa la excepción) y lo dice en una línea. NO cambies cuándo se reabren tareas ni los escritores que ya están corriendo. PRUEBAS en `test_buscar_capacidad.py`: con progreso donde 7 de 10 acabaron `sin_cambios` por lo mismo, `buscar` (con los medios y la nube simulados como ya hacen las pruebas existentes) no lanza runs nuevos y la salida contiene el motivo; con motivos distintos sigue como antes; las pruebas existentes no se tocan.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "HAL08"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1116-224229.json": [
+   "ASW11",
+   "IMA19"
+  ]
+ }
+}
