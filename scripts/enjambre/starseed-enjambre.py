@@ -10324,6 +10324,14 @@ def main():
                     "dependencia opcional no integrada (sigo igual): "
                     + ", ".join(opcionales_malas),
                 )
+            # PRI01: reordena pendientes por prioridad antes de elegir la próxima tarea
+            # (solo si aún no se ha lanzado ninguna en este ciclo; las tareas en curso se respetan)
+            tid_list = list(pendientes.keys())
+            prioridades = {tid: prioridad_de_tarea(pendientes[tid]) for tid in tid_list}
+            # orden estable: mayor prioridad primero, luego orden de llegada
+            tid_list.sort(key=lambda tid: (-prioridades[tid], tid_list.index(tid)))
+            # reconstruye el diccionario en el nuevo orden (Python 3.7+ preserve order)
+            pendientes = {tid: pendientes[tid] for tid in tid_list}
             arriendo = reservar_tarea(t)
             if not arriendo:
                 if tid in ARRENDADAS_EXTERNAS and terminado(tid):
@@ -10587,3 +10595,25 @@ def recovery_despues_de_error():
 
 if __name__ == "__main__":
     main()
+
+
+def prioridad_de_tarea(t):
+    """PURA. Devuelve float(t[\"prioridad\"]) si existe y es número;
+    100.0 si t.get(\"urgente\") es verdadero o si el título empieza por «URGENTE»;
+    si no, 0.0. Nunca lanza."""
+    prio = t.get("prioridad")
+    if isinstance(prio, (int, float)):
+        return float(prio)
+    if t.get("urgente") is True or str(t.get("titulo", "")).startswith("URGENTE"):
+        return 100.0
+    return 0.0
+
+
+def ordenar_pendientes(tareas):
+    """PURA. Devuelve las mismas tareas ordenadas por prioridad de mayor a menor y,
+    a igualdad, en el orden en que venían (orden estable). No quita ni añade ninguna."""
+    prioridades = [prioridad_de_tarea(t) for t in tareas]
+    # sort estable: Python sort es estable, ordenamos por -prio y usamos el índice original
+    indexed = list(enumerate(tareas))
+    indexed.sort(key=lambda x: (-prioridades[x[0]], x[0]))
+    return [t for _, t in indexed]
