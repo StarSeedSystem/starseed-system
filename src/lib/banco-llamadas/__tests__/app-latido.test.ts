@@ -6,7 +6,8 @@ const TABLETA = "aaaa0002-0000-4000-8000-000000000003";
 const T0 = Date.parse("2026-11-16T10:00:00Z");
 let latir: () => void = () => undefined;
 const quitar = vi.fn();
-const invoke = vi.fn(async (_c: string, _a?: Record<string, unknown>): Promise<unknown> => ({ ok: true }));
+const invocarBien = async (_c: string, _a?: Record<string, unknown>): Promise<unknown> => ({ ok: true });
+const invoke = vi.fn(invocarBien);
 const listen = vi.fn(async (e: string, f: () => void) => {
     // UNI1116B: solo el evento del latido; el canal de control escucha además «control-neuronas:parada» (a veces tarde, con
     // la máquina cargada) y, sin este filtro, su oyente pisaba a `latir` y recibía una llamada sin evento.
@@ -32,7 +33,9 @@ beforeEach(() => {
     leidas = 0;
     latir = () => undefined;
     quitar.mockClear();
-    invoke.mockClear();
+    // SUP1117B: también la implementación (una prueba la cambia), no solo las llamadas.
+    invoke.mockReset();
+    invoke.mockImplementation(invocarBien);
     listen.mockClear();
     window.localStorage.clear();
     vi.useFakeTimers({ toFake: ["Date", "setInterval", "clearInterval"] });
@@ -110,7 +113,18 @@ describe("PENA2 · latido de Rust y sondeo de la página", () => {
     });
 
     it("un invoke que rechaza no rompe la serie y al volver a armar se reintenta", async () => {
-        invoke.mockImplementationOnce(async (c) => { if (c === "banco_latido_activar") throw new Error("sin-soporte"); return {}; });
+        // SUP1117B: el rechazo va a la PRIMERA ACTIVACIÓN del latido, no a la primera llamada a invoke. Con
+        // `mockImplementationOnce` se lo llevaba lo que llamara antes, y al armar también llaman la vigía «a mano»
+        // (`llamada_nativa_capacidades`) y el canal de control (`control_neuronas_estado`), antes o después según la
+        // carga: «expected "spy" to be called 1 times, but got 0 times», 11 candidatos en rojo en la CI del 16 y 17-11.
+        let rechazar = true;
+        invoke.mockImplementation(async (c, a) => {
+            if (c === "banco_latido_activar" && a?.activo === true && rechazar) {
+                rechazar = false;
+                throw new Error("sin-soporte");
+            }
+            return {};
+        });
         const m = await cargar();
         expect(m.armarBanco(TABLETA, 4, 40)).toBe(true);
         await vi.waitFor(() => {
