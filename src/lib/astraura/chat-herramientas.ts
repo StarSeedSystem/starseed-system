@@ -150,8 +150,26 @@ export const HERRAMIENTA_CONTENIDO_VIVO: HerramientaContenidoVivo = {
   atomoId: ATOMO_CONTENIDO_VIVO,
 };
 
+/**
+ * «Traductor universal»: ayuda cuando llega un mensaje en otro idioma, cuando
+ * alguien pide traducir o cuando varias personas se entienden en idiomas
+ * distintos. Si la herramienta falla, lo dice con claridad y no inventa la
+ * traducción.
+ */
+export const HERRAMIENTA_TRADUCTOR: SkillCapability = {
+  id: "traductor-universal",
+  label: "Traductor universal",
+  defaultOn: true,
+  packageIds: ["app-traductor"],
+  systemPrompt:
+    "Usa la habilidad «Traductor universal» cuando el mensaje llegue en otro idioma, cuando la persona pida traducir un texto o cuando varias personas se comuniquen en idiomas distintos y haga falta entenderse. Si la herramienta falla o no puede completar la traducción, dilo con claridad y no inventes la traducción.",
+};
+
 /** Catálogo listo para sumar al picker junto a `SKILL_CAPABILITIES`. */
-export const HERRAMIENTAS_ASTRAURA_VIVO: readonly SkillCapability[] = [HERRAMIENTA_CONTENIDO_VIVO];
+export const HERRAMIENTAS_ASTRAURA_VIVO: readonly SkillCapability[] = [
+  HERRAMIENTA_CONTENIDO_VIVO,
+  HERRAMIENTA_TRADUCTOR,
+];
 
 /** Acción de agente que añade el átomo a la molécula activa de la Protomolécula. */
 export interface PeticionAtomoContenidoVivo {
