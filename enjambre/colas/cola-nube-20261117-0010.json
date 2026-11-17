@@ -1,0 +1,94 @@
+{
+ "ola": "nube-20261117",
+ "tareas": [
+  {
+   "id": "RST02",
+   "ola": "RST1116A",
+   "titulo": "Prueba: un observador no puede editar (de punta a punta en el modelo)",
+   "archivos": [
+    "src/lib/vivo-entidad/__tests__/observador-no-edita.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contrato: architecture/sesiones-en-vivo-entidades-y-transmisiones.md §10 (P1-D) y la acción del dueño n.º 4 («quitar el rol editor: deja de poder escribir»). Prueba de integración PURA (sin red): recorre la tabla de `traduccion-roles.ts` y `permisos.ts` (en `src/lib/vivo-entidad/`) y el motor `crearMotorPizarra` (`src/lib/vivo/pizarra-motor.ts`) con un servidor falso: (1) un observador (rango 1) obtiene rango de sesión `ver`, `puedeEditarSesion` false, y su motor, con `puedeEditar` derivado de ese rango, NO cambia el servidor y queda en «sin-permiso»; (2) un colaborador (rango 2) sí escribe; (3) al bajarle el rol de colaborador a observador a mitad de sesión, su siguiente escritura se rechaza y la anterior sigue guardada; (4) un rol inventado nunca escribe. Usa los nombres reales que dejaron las tareas anteriores (léelos).\n\nANTES DE EMPEZAR («lee primero lo que aterrizó»): comprueba en `git log --oneline main` (usa `git log --oneline main | grep` con cada asunto) que están en `main` los commits con estos asuntos: «FUE1116 · SVF1A4f», «SVF1C1», «SVF1B2b». Los de la cola fuerte llevan el asunto `FUE1116 · <id>: …` y los de la cola libre de sesiones en vivo el id como primera palabra (p. ej. `SVF1C3: …`). Lee los archivos que dejaron antes de tocar nada. SI FALTA ALGUNO: NO escribas, NO modifiques y NO confirmes ningún archivo; termina sin cambios y di en una línea cuál falta (la tarea se reabrirá sola cuando esté).\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado."
+  },
+  {
+   "id": "MQZ1",
+   "ola": "MOD1116",
+   "titulo": "Contrato de proveedores de modelos: abliteration.ai, modelo privado del A1 y ramas de la Biblioteca",
+   "archivos": [
+    "architecture/modelos-proveedores-1116.md"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Escribe el contrato `architecture/modelos-proveedores-1116.md` (≤120 líneas) que recoja, leyendo el código que dejaron MQA1-MQA7, MQB1-MQB5 y MQC1-MQC4: qué proveedor es y qué NO se sabe de él (sin créditos diarios documentados, base de `abliterated-model` no declarada, retención sin plazo); dónde va la clave (solo nombres de variable: `ABLITERATION_API_KEY` en `~/.starseed/env` de la Mac; en el A1 NO viaja por defecto porque es de pago; en la nube de GitHub NO se sube); cómo se cuentan el saldo y el gasto del día (`abliteration_creditos.py`, `STARSEED_ABLITERATION_DIA_USD`); qué roles lo usan (sueños, síntesis, tareas bloqueadas por rechazo; nunca escritura ni revisión de código) y con qué interruptores; el modelo privado del A1 (tamaño, contexto 8K por defecto, memoria máxima, qué se apaga si falta memoria, cómo deshacerlo); las dos advertencias (lo sin filtros solo en lo privado propio y nunca por defecto en espacios públicos ni con menores; hay que MEDIR antes de darle más trabajo, `medida_modelo_privado.py`); y las ramas de la Biblioteca. Cada afirmación lleva el archivo que la cumple. Termina con «Abierto»: lo que Alex debe decidir.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni pytest, ni tsc, ni git, ni node, ni npm, ni curl): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj, entorno y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves (solo NOMBRES de variables, nunca valores; nunca una IP, un OCID ni un token); nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado. En Python: las pruebas son `unittest` con carpetas temporales y falsos, como las vecinas `scripts/puente/test_*.py`, y no tocan el `~/.starseed` real.",
+   "dependencias_ya_en_main": [
+    "MQA3",
+    "MQB3",
+    "MQC3"
+   ]
+  },
+  {
+   "id": "IDBz01",
+   "ola": "IDB1116B",
+   "titulo": "Declarar completas «shell» y «ajustes» en en, pt y fr (solo si la cobertura lo confirma)",
+   "archivos": [
+    "src/lib/idiomas/completas.json"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Lee `architecture/idiomas.md` §5 y `src/lib/idiomas/completas.json` (unidades que cada idioma declara COMPLETAS; la prueba de cobertura falla si a una le falta una entrada). Mide: `node scripts/idiomas/cobertura.mjs`. Para cada idioma (en, pt, fr) y cada unidad `shell` y `ajustes`: si la fila dice 100,0 % con «ausentes 0 inválidas 0», añádela a la lista de ese idioma en `completas.json` (conserva `acceso` y `ajustes-neuronas`, el formato del archivo y el orden). Si alguna NO está al 100 %, NO la añadas: apunta en el commit qué unidad, qué idioma y cuántos textos faltan. No toques ningún otro archivo ni ningún catálogo. COMPRUEBA: `NODE_ENV=test npx vitest run src/lib/idiomas/__tests__/cobertura.test.ts` en verde y `git diff --stat` con solo `completas.json`.\n\nREGLAS DE LA CASA: toca SOLO los archivos de `archivos`; los ÚNICOS archivos de trabajo permitidos van en `.tmp/` dentro del repo (ignorados por git, nunca se comitean). Todo lo demás dentro del repo; jamás `/tmp` ni rutas absolutas. Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves. El asunto de tu commit empieza por `IDBz01:` y dice qué comprobaste y qué NO pudiste comprobar.",
+   "dependencias_ya_en_main": [
+    "IDBe11",
+    "IDBp11",
+    "IDBf11"
+   ]
+  },
+  {
+   "id": "TU28",
+   "ola": "TRA1116-APP-F1",
+   "titulo": "Idioma de conversación por persona en un bot: se aprende con tres detecciones seguidas",
+   "archivos": [
+    "src/lib/traductor/idioma-por-persona.ts",
+    "src/lib/traductor/__tests__/idioma-por-persona.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Mapa `{personaId → {idioma, fuente:\"pedido\"|\"detectado\", confianza, desde}}` en `starseed.traductor.personas.v1` (local, tope 500 personas, almacén inyectable). `observar(personaId, deteccion)`: guarda un idioma «detectado» solo tras 3 detecciones consecutivas del mismo idioma con confianza ≥0,8; un cambio de idioma en un mensaje suelto no lo cambia; `fijar(personaId, idioma)` («pedido») gana siempre sobre lo detectado y solo lo cambia otro «pedido»; `idiomaDe(personaId, porDefecto)`; `olvidar(personaId)`. PRUEBAS: tres seguidas fijan; una suelta no cambia; pedido gana; tope; olvidar.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "TU9"
+   ]
+  },
+  {
+   "id": "IMA9",
+   "ola": "TRA1116-IDIOMAS",
+   "titulo": "Importar XLIFF, .strings de Apple y strings.xml de Android",
+   "archivos": [
+    "src/lib/idiomas/paquete/importar-xml-strings.ts",
+    "src/lib/idiomas/paquete/__tests__/importar-xml-strings.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contrato A2. Sin librerías XML ni `DOMParser` (módulo puro): analizador mínimo por expresiones regulares con límites de tamaño. `desdeXliff(texto)`: `<trans-unit>` con `<source>` y `<target>` (XLIFF 1.2) y `<unit><segment><source/><target/>` (2.0); `desdeStringsApple(texto)`: `\"clave\" = \"valor\";` con escapes y comentarios `/* */` y `//`; `desdeStringsAndroid(texto)`: `<string name=\"x\">valor</string>` (descarta `translatable=\"false\"`, convierte `\\'`, `\\\"`, `\\n`, `%1$s`→`{0}`, `%s`→`{0}`). Se decodifican las entidades XML básicas (`&amp; &lt; &gt; &quot; &apos;`) y **ningún** valor conserva etiquetas: lo que queda con `<` + letra se descarta con motivo. Devuelven `{ entradas, descartadas, avisos }`.\nPRUEBAS: cada formato con un ejemplo real corto; `%1$s`→`{0}`; entrada con etiqueta descartada; XML roto → vacío + motivo.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "IMA5"
+   ]
+  },
+  {
+   "id": "IMA19",
+   "ola": "TRA1116-IDIOMAS",
+   "titulo": "Reemplazar la selección editable por su traducción (input, textarea y contenteditable)",
+   "archivos": [
+    "src/components/traduccion/reemplazar-seleccion.ts",
+    "src/components/traduccion/__tests__/reemplazar-seleccion.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contrato A3. Pura y probada en jsdom: `capturarSeleccionEditable(doc: Document): ObjetivoEditable | null` (si el foco está en `input` de texto, `textarea` o elemento `contenteditable` con texto seleccionado; guarda elemento, inicio, fin y texto; NUNCA en `input type=password`), `reemplazar(objetivo, nuevoTexto): boolean` (en input/textarea con `setRangeText` y evento `input` para que React/formularios lo vean; en contenteditable con `Range.deleteContents`+`insertNode`; devuelve false si el elemento ya no está en el documento o el texto cambió desde la captura) y `deshacerUltimo(): boolean` (guarda el texto anterior de UNA sustitución). No usa red.\nPRUEBAS: textarea con selección, input, contenteditable, password rechazado, elemento retirado → false, deshacer.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1117-000906.json": [
+   "IMA9",
+   "IMA19",
+   "TU28",
+   "IDBz01",
+   "MQZ1",
+   "RST02"
+  ]
+ }
+}
