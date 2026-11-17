@@ -26,6 +26,8 @@ import { SugerenciaModoBanco } from "./internet/sugerencia-modo-banco";
 import { TextosInternet } from "@/lib/malla/internet/tipos";
 import { getAjustesBanco, setAjustesBanco, AJUSTES_BANCO_EVENT, calcularRestanteHoyMb } from "@/lib/malla/internet/ajustes-banco";
 import type { AjustesBanco } from "@/lib/malla/internet/tipos";
+import { useEstadoConexion } from "@/lib/malla/internet/use-estado-conexion";
+import { debeSugerir, registrarNegativa, type Negativa } from "@/lib/malla/internet/sugerencia-banco";
 
 /** La privacidad de la malla de ESTE dispositivo, viva (se vuelve a leer al cambiar desde cualquier panel). */
 export function useMeshPrivacidad(): { privacidad: MeshPrivacySettings; internetPublico: boolean } {
@@ -141,8 +143,9 @@ export function AjustesNeurona({ centro, neuronaId, verPublicos, onVerPublicos, 
 }) {
   const { privacidad: p, internetPublico } = useMeshPrivacidad();
   const { ajustes: banco, restanteHoyMb } = useAjustesBanco();
+  const conexion = useEstadoConexion();
+  const [negativa, setNegativa] = useState<Negativa>(null);
   const [nombre, setNombre] = useState(centro.sinNombre ? "" : centro.nombreNeurona);
-  const [ultimaNegativa, setUltimaNegativa] = useState<number | null>(null);
   useEffect(() => { setNombre(centro.sinNombre ? "" : centro.nombreNeurona); }, [centro.nombreNeurona, centro.sinNombre]);
   const limpio = nombre.trim().slice(0, 40);
   const cambia = limpio.length > 0 && limpio !== (centro.sinNombre ? "" : centro.nombreNeurona);
@@ -176,6 +179,18 @@ export function AjustesNeurona({ centro, neuronaId, verPublicos, onVerPublicos, 
     sugerirActivar: TextosInternet.sugerirActivar,
     sugerirAhoraNo: TextosInternet.sugerirAhoraNo,
   };
+
+  // §8.2: se sugiere el modo banco solo con conexión limitada, y «Ahora no» vale mientras
+  // no cambie la conexión (la clave la fija `useEstadoConexion`).
+  const sugerencia = debeSugerir({
+    estado: conexion.estado,
+    fuente: conexion.fuente,
+    bancoActivo: banco.activo,
+    compartirConOtros: false, // este panel aún no gestiona ese ajuste (v1, apagado por defecto)
+    negativa,
+    ahora: Date.now(),
+    clave: conexion.clave,
+  });
 
   return (
     <section aria-label="Ajustes de mi neurona" data-testid="ajustes-neurona" className="space-y-2.5 rounded-2xl border border-white/10 bg-black/30 p-2.5">
@@ -250,10 +265,14 @@ export function AjustesNeurona({ centro, neuronaId, verPublicos, onVerPublicos, 
           textos={textosBanco}
           restanteHoyMb={restanteHoyMb}
         />
+        {/* §8.2: el panel enseña el estado de la conexión y de dónde sale. */}
+        <p aria-label="Estado de la conexión" className="mt-1 text-[10px] leading-snug text-white/55">
+          Conexión: {conexion.textoEstado}{conexion.textoFuente ? ` · ${conexion.textoFuente}` : ""}
+        </p>
         <SugerenciaModoBanco
-          visible={!banco.activo && (ultimaNegativa == null || Date.now() - ultimaNegativa >= 24 * 60 * 60 * 1000)}
+          visible={sugerencia.sugerir}
           onActivar={() => setAjustesBanco({ ...banco, activo: true })}
-          onAhoraNo={() => setUltimaNegativa(Date.now())}
+          onAhoraNo={() => setNegativa(registrarNegativa(Date.now(), conexion.clave))}
           textos={textosSugerencia}
         />
       </div>
