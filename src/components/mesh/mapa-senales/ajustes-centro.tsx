@@ -26,6 +26,10 @@ import { SugerenciaModoBanco } from "./internet/sugerencia-modo-banco";
 import { TextosInternet } from "@/lib/malla/internet/tipos";
 import { getAjustesBanco, setAjustesBanco, AJUSTES_BANCO_EVENT, calcularRestanteHoyMb } from "@/lib/malla/internet/ajustes-banco";
 import type { AjustesBanco } from "@/lib/malla/internet/tipos";
+import { leerConexion, suscribirConexion, type ConexionNavegador, type EntornoConexion, type LecturaConexion } from "@/lib/malla/internet/lector-conexion";
+import { clasificarConexion } from "@/lib/malla/internet/conexion-limitada";
+import { debeSugerir, registrarNegativa, type Negativa } from "@/lib/malla/internet/sugerencia-banco";
+import { AJUSTES_APAGADOS, leerAjustes } from "@/lib/malla/internet/almacen-ajustes";
 
 /** La privacidad de la malla de ESTE dispositivo, viva (se vuelve a leer al cambiar desde cualquier panel). */
 export function useMeshPrivacidad(): { privacidad: MeshPrivacySettings; internetPublico: boolean } {
@@ -65,6 +69,15 @@ export function useAjustesBanco(): { ajustes: AjustesBanco; restanteHoyMb: numbe
     return () => window.removeEventListener(AJUSTES_BANCO_EVENT, leer);
   }, []);
   return { ajustes, restanteHoyMb };
+}
+
+/** Entorno real de conexión de este navegador, para `leerConexion` y
+ *  `suscribirConexion`. La marca nativa de red de pago falta en el puente
+ *  nativo: ver §8.2 del contrato. */
+function entornoConexion(): EntornoConexion {
+  if (typeof navigator === "undefined") return { navigator: null };
+  const nav = navigator as Navigator & { connection?: ConexionNavegador | null };
+  return { navigator: nav };
 }
 
 const COLOR_EMISION = { publica: "border-emerald-400/35 bg-emerald-500/10 text-emerald-200", anonima: "border-sky-400/35 bg-sky-500/10 text-sky-200", "no-emite": "border-white/15 bg-white/5 text-white/55" } as const;
@@ -142,13 +155,55 @@ export function AjustesNeurona({ centro, neuronaId, verPublicos, onVerPublicos, 
   const { privacidad: p, internetPublico } = useMeshPrivacidad();
   const { ajustes: banco, restanteHoyMb } = useAjustesBanco();
   const [nombre, setNombre] = useState(centro.sinNombre ? "" : centro.nombreNeurona);
-  const [ultimaNegativa, setUltimaNegativa] = useState<number | null>(null);
+  // Conexión real de este aparato (§8.2): se lee al montar y se vuelve a leer
+  // cuando `navigator.connection` avisa `change`.
+  const [lectura, setLectura] = useState<LecturaConexion>(() => leerConexion(entornoConexion()));
+  const [ajustesInternet, setAjustesInternet] = useState(AJUSTES_APAGADOS);
+  const [negativa, setNegativa] = useState<Negativa>(null);
   useEffect(() => { setNombre(centro.sinNombre ? "" : centro.nombreNeurona); }, [centro.nombreNeurona, centro.sinNombre]);
+  useEffect(() => {
+    const leer = () => {
+      setLectura(leerConexion(entornoConexion()));
+      try { setAjustesInternet(leerAjustes(window.localStorage, AJUSTES_APAGADOS)); } catch { /* se queda lo anterior */ }
+    };
+    leer();
+    return suscribirConexion(entornoConexion(), leer);
+  }, []);
   const limpio = nombre.trim().slice(0, 40);
   const cambia = limpio.length > 0 && limpio !== (centro.sinNombre ? "" : centro.nombreNeurona);
   const actualizar = (parche: Partial<MeshPrivacySettings>) => setMeshPrivacy(parche);
   const radar = useMemo(() => describirRadarPublico({ privacidad: p, internetPublico, hayFoto: centro.avatar.modo === "foto" }), [p, internetPublico, centro.avatar.modo]);
   const publico = p.publicRadar === "visible";
+
+  // §8.2: el estado de la conexión se lee del aparato y manda sobre la
+  // sugerencia del modo banco.
+  const clasificacion = clasificarConexion({
+    declarada: ajustesInternet.declaraLimitada,
+    tipo: lectura.tipo,
+    saveData: lectura.saveData,
+    effectiveType: lectura.effectiveType,
+    nativaMedida: lectura.nativaMedida,
+  });
+  // Identidad de la conexión: tras «Ahora no» no se vuelve a insistir
+  // mientras no cambie la conexión (§8.2).
+  const claveConexion = lectura.tipo ?? lectura.effectiveType ?? `nativa-${String(lectura.nativaMedida)}`;
+  const { sugerir } = debeSugerir({
+    estado: clasificacion.estado,
+    fuente: clasificacion.fuente,
+    bancoActivo: banco.activo,
+    compartirConOtros: ajustesInternet.compartirConOtros,
+    negativa,
+    ahora: Date.now(),
+    clave: claveConexion,
+  });
+  const textoEstado =
+    clasificacion.estado === "limitada" ? TextosInternet.conexionLimitada :
+    clasificacion.estado === "no-limitada" ? TextosInternet.conexionNoLimitada :
+    TextosInternet.conexionDesconocida;
+  const textoFuente =
+    clasificacion.fuente === "declarada" ? TextosInternet.fuenteDeclarada :
+    clasificacion.fuente === "nativa" ? TextosInternet.fuenteNativa :
+    clasificacion.fuente === "navegador" ? TextosInternet.fuenteNavegador : null;
 
   const guardar = () => {
     if (!cambia) return;
@@ -241,6 +296,9 @@ export function AjustesNeurona({ centro, neuronaId, verPublicos, onVerPublicos, 
         <p className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold text-white/85">
           <Globe2 className="h-3.5 w-3.5 text-sky-300" aria-hidden /> Compartir internet
         </p>
+        <p className="mb-1.5 text-[10px] text-white/55" aria-label="Estado de la conexión">
+          {textoEstado}{textoFuente ? ` · ${textoFuente}` : ""}
+        </p>
         <InterruptorModoBanco
           activo={banco.activo}
           onCambiar={(activo) => {
@@ -251,9 +309,9 @@ export function AjustesNeurona({ centro, neuronaId, verPublicos, onVerPublicos, 
           restanteHoyMb={restanteHoyMb}
         />
         <SugerenciaModoBanco
-          visible={!banco.activo && (ultimaNegativa == null || Date.now() - ultimaNegativa >= 24 * 60 * 60 * 1000)}
+          visible={sugerir}
           onActivar={() => setAjustesBanco({ ...banco, activo: true })}
-          onAhoraNo={() => setUltimaNegativa(Date.now())}
+          onAhoraNo={() => setNegativa(registrarNegativa(Date.now(), claveConexion))}
           textos={textosSugerencia}
         />
       </div>
