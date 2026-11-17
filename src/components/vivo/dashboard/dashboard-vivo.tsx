@@ -34,7 +34,28 @@ import { PanelCompartir } from "../tabla/panel-compartir";
 import { usePerfiles } from "../tabla/personas";
 import { useMotorVivo } from "../tabla/use-motor";
 import { usePresencia } from "../tabla/use-presencia";
+import { MarcaDirecto } from "@/components/vivo-entidad/marca-directo";
+import { Suspense } from "react";
+import { compartirEnVivo } from "@/lib/vivo-entidad/estacion-de-sesion";
+import { crearSesion } from "@/lib/mensajeria/sesiones-vivas";
+import { publicarEstacion } from "@/lib/estaciones/datos";
+import { createClient } from "@/utils/supabase/client";
 import css from "../tabla/tabla.module.css";
+
+let CompartirEnVivoComponent: React.ComponentType<{
+    abierta: boolean;
+    alCerrar: () => void;
+    titulo: string;
+    tipo: "pizarra" | "dashboard";
+    crear: (opciones: Parameters<typeof compartirEnVivo>[1]) => Promise<{ ok: true; enlace: string; personas: string[]; sesionId: string } | { ok: false; motivo: string }>;
+}> | null = null;
+async function cargarCompartirEnVivo() {
+    if (!CompartirEnVivoComponent) {
+        const mod = await import("@/components/vivo-entidad/compartir-en-vivo");
+        CompartirEnVivoComponent = mod.CompartirEnVivo;
+    }
+    return CompartirEnVivoComponent;
+}
 
 const NOTA_FUSION =
     "Cada widget se guarda por separado: si dos personas mueven o cambian widgets distintos a la vez se conservan los dos cambios. Si cambian el mismo widget a la vez, se queda lo último que se guardó. Los datos de dentro de cada widget no se comparten: cada persona ve los suyos.";
@@ -50,9 +71,39 @@ export function DashboardVivo({ id }: { id: string }) {
     const widgets = useMemo(() => (doc ? aWidgets(doc, id) : []), [doc, id]);
     const [editando, setEditando] = useState(false);
     const [compartir, setCompartir] = useState(false);
+    const [compartirEnVivoAbierto, setCompartirEnVivoAbierto] = useState(false);
+    const [CompartirEnVivo, setCompartirEnVivo] = useState<React.ComponentType<{
+        abierta: boolean;
+        alCerrar: () => void;
+        titulo: string;
+        tipo: "pizarra" | "dashboard";
+        crear: (opciones: Parameters<typeof compartirEnVivo>[1]) => Promise<{ ok: true; enlace: string; personas: string[]; sesionId: string } | { ok: false; motivo: string }>;
+    }> | null>(null);
     const [tituloLocal, setTituloLocal] = useState<string | null>(null);
     const [accesoLocal, setAccesoLocal] = useState<string | null>(null);
     useEffect(() => setTituloLocal(null), [snap.titulo]);
+
+    // SES1115Q — Compartir en vivo
+    const crear = useCallback(
+        async (opciones: Parameters<typeof compartirEnVivo>[1]) => {
+            return compartirEnVivo(
+                {
+                    crearPase: async (p) =>
+                        crearSesion({
+                            tipo: p.tipo,
+                            hiloId: p.hiloId,
+                            titulo: p.titulo,
+                            refId: id,
+                            acceso: { modo: p.modo, permiso: p.permiso },
+                            invitados: p.invitados,
+                        }),
+                    crearEstacion: async (e) => publicarEstacion(e),
+                },
+                opciones,
+            );
+        },
+        [id],
+    );
     // Si se pierde el permiso de edición (cambió el rol), se sale de la edición.
     useEffect(() => {
         if (!puedeEditar) setEditando(false);
@@ -182,8 +233,20 @@ export function DashboardVivo({ id }: { id: string }) {
                             {editando ? "Terminar de editar" : "Editar el acomodo"}
                         </button>
                         {editando ? <AddWidgetDialog onAdd={alAnadir} isEditMode /> : null}
+                        <button type="button" className={css.boton} onClick={async () => {
+                            const Comp = await cargarCompartirEnVivo();
+                            setCompartirEnVivo(Comp);
+                            setCompartirEnVivoAbierto(true);
+                        }}>
+                            <Users size={16} aria-hidden="true" /> Compartir en vivo
+                        </button>
+                        <MarcaDirecto directo={presentes.length > 0} personas={presentes.length} compacto />
                     </>
-                ) : null}
+                ) : (
+                    <>
+                        <MarcaDirecto directo={presentes.length > 0} personas={presentes.length} compacto />
+                    </>
+                )}
             </BarraHerramientas>
 
             <div className={`${css.aviso} ${css.avisoInfo}`} role="note">
@@ -230,6 +293,15 @@ export function DashboardVivo({ id }: { id: string }) {
                 nota={NOTA_FUSION}
                 alCambiarAcceso={setAccesoLocal}
             />
+            {CompartirEnVivo && (
+                <CompartirEnVivo
+                    abierta={compartirEnVivoAbierto}
+                    alCerrar={() => setCompartirEnVivoAbierto(false)}
+                    titulo={snap.titulo}
+                    tipo="dashboard"
+                    crear={crear}
+                />
+            )}
         </div>
     );
 }
