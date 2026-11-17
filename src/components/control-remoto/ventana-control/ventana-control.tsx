@@ -571,6 +571,7 @@ export function VentanaControl(props: PropsVentanaControl) {
                     {nivel === "ver" && mostrarSelector && selector}
                     {botonCerrar}
                 </header>
+                {props.ranuraMedio}
                 <div className="flex min-h-0 flex-1 flex-col md:flex-row">
                     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
                         <Pantalla p={props} activo={activo} gestor={g} />
@@ -643,6 +644,7 @@ export function VentanaControl(props: PropsVentanaControl) {
                 </button>
                 {botonCerrar}
             </header>
+            {props.ranuraMedio}
             <div className="relative flex shrink-0 flex-col" style={{ height: Math.min(wVentana * aspecto, altoPantallaMax) }} data-testid="ventana-control-marco">
                 <Pantalla p={props} activo={activo} gestor={g} />
             </div>

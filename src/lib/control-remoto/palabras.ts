@@ -39,6 +39,7 @@ export const PALABRAS_MOTIVO: Readonly<Record<string, string>> = {
     desmontada: "La ventana se cerró.",
     "cerrada-por-la-persona": "Cerraste la ventana de control.",
     "sin-neurona": "No hay ninguna neurona elegida.",
+    "medio-no-disponible": "El medio elegido para este aparato no está disponible ahora. Elige otro medio o pasa a Automático.",
 };
 
 const PASOS_SENAL: Record<string, string> = { oferta: "enviar la oferta de vídeo", respuesta: "recibir la respuesta de vídeo", candidatos: "intercambiar las rutas de red", conexion: "abrir la conexión" };

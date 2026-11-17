@@ -9,6 +9,7 @@
 
 import { useEffect, useSyncExternalStore } from "react";
 import { VentanaControl } from "./ventana-control";
+import { MedioControl } from "./ventana-control/medio"; // CTL1117B
 import { usarPantallaRemota } from "@/lib/control-remoto/usar-pantalla-remota";
 import { palabrasMotivo } from "@/lib/control-remoto/palabras";
 
@@ -84,6 +85,7 @@ export function VentanaRemota({ neurona, nombre, modo, alCerrada }: { neurona: s
             fps={p.fps}
             caduca={p.caduca}
             alReabrir={p.reintentar}
+            ranuraMedio={<MedioControl neurona={neurona} nombre={nombre} alReconectar={p.reintentar} />}
             alEnviar={(e) => void p.enviar(e)}
             alCerrar={() => {
                 p.cerrar();

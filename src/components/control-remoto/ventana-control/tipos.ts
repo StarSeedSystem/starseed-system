@@ -1,5 +1,6 @@
 /** VEN1115L · tipos de la ventana de control (costura 3 del trabajo «control entre neuronas, fases 2–3»). */
 
+import type { ReactNode } from "react";
 import type { FuentePedida } from "@/lib/control-remoto/fuente-pantalla";
 
 export { type FuentePedida };
@@ -33,6 +34,8 @@ export interface PropsVentanaControl {
     fuenteReal?: "accesibilidad" | "proyeccion" | null;
     avisoFuente?: string | null | undefined;
     alCambiarFuente?: (f: FuentePedida) => void;
+    /** CTL1117B · el indicador y el selector del medio de transmisión (lo monta quien conoce la sesión). */
+    ranuraMedio?: ReactNode;
 }
 
 export type Giro = 0 | 90 | 180 | 270;

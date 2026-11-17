@@ -18,6 +18,7 @@ import { ACCIONES, MAX_DEDOS, MAX_PUNTOS_DEDO, definicion, type Args } from "./n
 import { MAX_PARTES, Reensamblador, leerParte, trocear, type ParteSenal } from "./senal-partes";
 import { esRespuesta, type RespuestaOrden } from "./orden";
 import { RegistroSesiones, registroGlobal } from "./registro-sesiones";
+import { canalDatosOk, configuracionIce, filtrarRespuesta, permitirCandidato, registrarConexion } from "./medio-estado"; // CTL1117B
 
 export type EntradaControl =
     | { tipo: "gesto"; dedos: { id: number; puntos: [number, number, number][] }[]; sigue: boolean }
@@ -209,6 +210,13 @@ export interface DepsDestino {
     anotar?: (linea: string) => void;
     /** CTL1117A · S1/S2/S4: la sesión es una por neurona y se comparte con quien más la use en este aparato. */
     registro?: RegistroSesiones;
+    /** CTL1117B · el medio elegido para este aparato: filtro de rutas, medida del par y permiso del canal de datos. Sin él, todo como antes. */
+    medio?: {
+        permitirCandidato: (candidato: string) => boolean;
+        filtrarRespuesta: (sdp: string) => string;
+        registrar: (peer: PeerDestinoLike, canalAbierto: () => boolean) => () => void;
+        canalDatosOk: () => boolean;
+    };
 }
 
 /** Lecturas de la ventana: esperan poco su respuesta para no retener el carril de la entrada (S6). */
@@ -225,6 +233,7 @@ export class PantallaDestino {
     private token: string | null = null;
     private peer: PeerDestinoLike | null = null;
     private canal: CanalDestinoLike | null = null;
+    private quitarMedio: (() => void) | null = null; // CTL1117B
     private cola: EntradaControl[] = [];
     private bombeando = false;
     private marcasEnvio: number[] = [];
@@ -338,6 +347,7 @@ export class PantallaDestino {
         const ice = await this.d.iceServers().catch(() => [] as RTCIceServer[]);
         const peer = this.d.crearPeer(ice);
         this.peer = peer;
+        this.quitarMedio = this.d.medio?.registrar(peer, () => this.canal?.readyState === "open") ?? null; // CTL1117B
         peer.addTransceiver("video", { direction: "recvonly" }); // primero: su m-line es la 0 (los candidatos van a ella)
         const canal = peer.createDataChannel("entrada", { ordered: true });
         this.canal = canal;
@@ -356,6 +366,7 @@ export class PantallaDestino {
         };
         peer.onicecandidate = (e) => {
             if (!e.candidate?.candidate) return;
+            if (this.d.medio && !this.d.medio.permitirCandidato(e.candidate.candidate)) return; // CTL1117B: el medio elegido no deja esta ruta
             this.candidatos.push(e.candidate.candidate);
             if (this.remotoListo) this.despues(LOTE_CANDIDATOS_MS, () => void this.soltarCandidatos());
         };
@@ -397,7 +408,7 @@ export class PantallaDestino {
         }
         if (respuesta === null) throw this.falloSenal("respuesta", "controlador", "respuesta-incompleta");
         try {
-            await peer.setRemoteDescription({ type: "answer", sdp: respuesta });
+            await peer.setRemoteDescription({ type: "answer", sdp: this.d.medio ? this.d.medio.filtrarRespuesta(respuesta) : respuesta });
         } catch {
             throw this.falloSenal("respuesta", "controlador", "respuesta-rechazada");
         }
@@ -585,7 +596,7 @@ export class PantallaDestino {
         const canal = this.canal;
         const sale = await this.enCarril(async (): Promise<RespuestaOrden | null> => {
             if (this.cerrada) return null;
-            if (canal && canal.readyState === "open") {
+            if (canal && canal.readyState === "open" && (this.d.medio?.canalDatosOk() ?? true)) { // CTL1117B
                 const f = await this.d.firmar(nombre, args, o);
                 if (f) {
                     try {
@@ -692,6 +703,8 @@ export class PantallaDestino {
         }
         this.canal = null;
         this.peer = null;
+        this.quitarMedio?.(); // CTL1117B
+        this.quitarMedio = null;
         this.poner({ estado: "cerrada", motivo, flujo: null });
         if (avisar && token) {
             const o = { nivel: "ver" as const, sesion: token, esperaMs: 3000 };
@@ -714,7 +727,13 @@ export function depsReales(neurona: string): DepsDestino {
         mandar: async (nombre, args, o) => (await import("./canal")).mandarOrden(neurona, nombre, args, { nivel: o.nivel, sesion: o.sesion ?? null, esperaMs: o.esperaMs }),
         firmar: async (nombre, args, o) => (await import("./canal")).firmarParaCanalDirecto(neurona, nombre, args, { nivel: o.nivel, sesion: o.sesion ?? null }),
         iceServers: async () => (await (await import("@/lib/llamadas/ice")).obtenerIceServidores()).iceServers,
-        crearPeer: (iceServers) => new RTCPeerConnection({ iceServers }) as unknown as PeerDestinoLike,
+        crearPeer: (iceServers) => new RTCPeerConnection(configuracionIce(neurona, iceServers)) as unknown as PeerDestinoLike, // CTL1117B: política del medio elegido
+        medio: {
+            permitirCandidato: (c) => permitirCandidato(neurona, c),
+            filtrarRespuesta: (sdp) => filtrarRespuesta(neurona, sdp),
+            registrar: (peer, abierto) => registrarConexion(neurona, peer, abierto),
+            canalDatosOk: () => canalDatosOk(neurona),
+        },
         flujoDe: (pista) => (typeof MediaStream === "function" ? new MediaStream([pista as MediaStreamTrack]) : null),
         ahora: () => Date.now(),
         anotar: (l) => {

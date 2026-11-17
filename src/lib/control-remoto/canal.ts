@@ -264,10 +264,10 @@ export async function mandarOrden(para: string, nombre: string, args: Args = {},
             }, o.esperaMs ?? ESPERA_RESPUESTA_MS);
         });
         const t = await import("@/lib/malla/transporte-universal");
-        const env = await t.enviarMensaje({ neuronDeviceId: para }, CANAL_CONTROL, sellado.mensaje);
+        const env = await (await import("./medio-estado")).enviarOrdenPorMedio(t, para, CANAL_CONTROL, sellado.mensaje); // CTL1117B: por el medio elegido
         if (!env.ok) {
             esperando.delete(n);
-            return { tipo: "respuesta", nonce: n, ok: false, motivo: "sin-enlace" };
+            return { tipo: "respuesta", nonce: n, ok: false, motivo: env.motivo === "medio-no-disponible" ? "medio-no-disponible" : "sin-enlace" };
         }
         return await respuesta;
     } catch (e) {
