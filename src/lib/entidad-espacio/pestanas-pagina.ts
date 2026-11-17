@@ -21,10 +21,11 @@ export interface PestanaDePagina {
 
 export type RenderPestana = (p: Pestana) => ReactNode;
 
-/** Etiqueta de la pestaña: «<título>», o «<título> ● EN VIVO · <personas>» en directo. */
+/** Etiqueta de la pestaña: «<título>», o «<título> ● EN VIVO · <personas>» en directo con gente. */
 export function etiquetaPestana(titulo: string, estado?: EstadoEnDirecto): string {
     if (!estado || !estado.directo) return titulo;
     const personas = Number.isFinite(estado.personas) ? Math.max(0, Math.floor(estado.personas)) : 0;
+    if (personas === 0) return titulo;
     return `${titulo} ● EN VIVO · ${personas}`;
 }
 
