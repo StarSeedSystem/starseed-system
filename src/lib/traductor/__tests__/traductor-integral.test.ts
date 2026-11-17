@@ -110,7 +110,7 @@ describe("traductor integral — paquete local → privacidad → Astraura", () 
             const deps = crearDeps([
                 motorFalso("paquete-local", "aparato", { disponible: false }),
                 motorFalso("libretranslate", "cuenta", { disponible: false }),
-                motorFalso("astraura", "nube", { disponible: false }),
+                motorFalso("astraura", "publico", { disponible: false }),
             ]);
 
             const servicio = crearServicioTraductor(deps);
@@ -131,7 +131,7 @@ describe("traductor integral — paquete local → privacidad → Astraura", () 
 
             const deps = crearDeps([
                 motorFalso("paquete-local", "aparato", { disponible: false }),
-                motorFalso("astraura", "nube", { salir: (t) => `[ASTRAURA]${t}`, disponible: true }),
+                motorFalso("astraura", "publico", { salir: (t) => `[ASTRAURA]${t}`, disponible: true }),
             ], { avisosAceptados: { astraura: true } });
 
             const servicio = crearServicioTraductor(deps);
@@ -181,7 +181,7 @@ describe("traductor integral — paquete local → privacidad → Astraura", () 
 
             const deps = crearDeps([
                 motorFalso("paquete-local", "aparato", { disponible: false }),
-                motorFalso("astraura", "nube", { salir: (t) => `[ASTRAURA]${t}`, disponible: true }),
+                motorFalso("astraura", "publico", { salir: (t) => `[ASTRAURA]${t}`, disponible: true }),
             ], { avisosAceptados: {} });
 
             const servicio = crearServicioTraductor(deps);
