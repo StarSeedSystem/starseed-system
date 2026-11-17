@@ -109,3 +109,26 @@ Las tareas PET1116 llevan `adelantar` («orden de Maggasukha») y van delante de
 ## 4. Cola PET1116
 
 La cola está en `starseed_memory_root/olas/cola-pet1116.json`.
+
+## 5. Provisional en servicio (Claude, 2026-11-17 03:45 UTC)
+
+**El bot perdía mensajes** (PET1116E). `preferencias.json` era una lista y `_guardar_preferencia` la trata como dict.
+Se convirtió a dict, con copia en `preferencias.json.lista-*.bak`.
+
+**Pasarela de modelos** `starseed-pasarela-modelos.service`:
+- escucha en 127.0.0.1:3011, código en `~/herramientas/pasarela-modelos/pasarela.py`;
+- prueba con salud `gemini-flash-lite` (FreeLLMAPI), NIM `minimax-m3.1-flash` y `nemotron-3.5-lightning`, y después
+  los modelos vivos de FreeLLMAPI;
+- el bot la usa por `export STARSEED_LLM_URL=http://127.0.0.1:3011/v1/chat/completions` en `~/.starseed/env` del A1,
+  con copia en `env.antes-pasarela-*`.
+
+Verificado: el `llm()` del bot responde por NIM.
+
+**PET1116A tiene que:**
+- sustituirla;
+- quitar la línea `STARSEED_LLM_URL` del env;
+- deshabilitar y borrar el servicio;
+- avisar en el Mando.
+
+**Ojo:** `oracle_nodo claves` copia el env de la Mac y podría borrar esa línea. Si lo hace, el bot vuelve a la lista
+fija.
