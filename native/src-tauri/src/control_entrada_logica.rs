@@ -483,10 +483,16 @@ pub fn regla_g_listas() -> (Vec<&'static str>, Vec<&'static str>) {
         match l.split_once(' ') {
             Some(("protegido", x)) => p.push(x.trim()),
             Some(("sistema", x)) => s.push(x.trim()),
+            Some(("salida", _)) => {} // CTL1117A: ver `regla_g_salida`
             _ => panic!("control_regla_g.txt: línea sin forma «{l}»"),
         }
     }
     (p, s)
+}
+
+/// (CTL1117A) Los paquetes `salida` de `control_regla_g.txt`: desde ellos (y desde la propia app) Inicio puede salir.
+pub fn regla_g_salida() -> Vec<&'static str> {
+    REGLA_G_TXT.lines().map(str::trim).filter_map(|l| l.strip_prefix("salida ")).map(str::trim).collect()
 }
 
 /// Una ventana a la vista tal como la da Android (`AccessibilityWindowInfo`): su paquete (None si no se sabe) y si es
@@ -511,19 +517,33 @@ pub fn regla_g(ventanas: &[VentanaG], propio: &str, bloqueada: bool, congelada: 
     })
 }
 
-/// (CTL1117A) Lo ÚNICO que se deja pasar desde una ventana protegida (regla G): la tecla Inicio, para que quien
-/// controla pueda SALIR de Ajustes, de una tienda o de un permiso. Decisión del dueño (16-11, noche). Aprobado SOLO
-/// Inicio: toques, texto y las demás teclas siguen negados ahí. Y nunca con un consentimiento de este control abierto o
-/// pedido (`congelada`: la entrada remota no inyecta nada), ni con la pantalla bloqueada, ni con el foco en una contraseña,
-/// ni sin ninguna ventana a la vista. Kotlin repite esta función (`ControlEntradaNativo.reglaGInicio`); una prueba compara.
-pub fn regla_g_deja_inicio(ventanas: &[VentanaG], bloqueada: bool, congelada: bool, contrasena: bool) -> bool {
-    !(congelada || bloqueada || contrasena || ventanas.is_empty())
+/// (CTL1117A) Lo ÚNICO que se deja pasar desde una ventana protegida (regla G): la tecla Inicio, para salir de Ajustes o
+/// de una tienda. Decisión del dueño (16-11): «con una ventana protegida delante (StarSeed OS, Ajustes, tiendas) pasa
+/// únicamente la tecla Inicio, y nunca mientras haya un diálogo de permiso abierto». LISTA POSITIVA, ante la duda se
+/// niega: Inicio pasa solo si TODAS las ventanas protegidas a la vista son de la propia app o de un paquete `salida` de
+/// `control_regla_g.txt`. Con a la vista un gestor o diálogo de permisos, un instalador, credenciales/cuentas/certificados,
+/// managedprovisioning o una actividad de systemui (captura, USB…), se niega; igual con congelada (consentimiento de este
+/// control abierto o pedido), pantalla bloqueada, contraseña con foco o ninguna ventana. Kotlin repite esta función
+/// (`ControlEntradaNativo.reglaGInicio`); una prueba compara.
+pub fn regla_g_deja_inicio(ventanas: &[VentanaG], propio: &str, bloqueada: bool, congelada: bool, contrasena: bool) -> bool {
+    if congelada || bloqueada || contrasena || ventanas.is_empty() {
+        return false;
+    }
+    let (protegidos, sistema) = regla_g_listas();
+    let salida = regla_g_salida();
+    ventanas.iter().all(|v| match v.paquete.map(str::to_lowercase) {
+        None => !v.actividad, // una actividad de quien no se sabe: se niega
+        Some(p) => {
+            let protegida = protegidos.iter().any(|x| p == *x) || (v.actividad && (p == propio || sistema.iter().any(|x| p == *x)));
+            !protegida || p == propio || salida.iter().any(|x| p == *x)
+        }
+    })
 }
 
 /// Qué hace la entrada con una orden cuando la regla G dice «protegida»: solo `tecla` con `cual = inicio` y
 /// `regla_g_deja_inicio`. Devuelve la decisión (`None` = se rechaza con `regla-g`).
-pub fn inicio_desde_protegida(nombre: &str, args: &Value, ventanas: &[VentanaG], bloqueada: bool, congelada: bool, contrasena: bool) -> bool {
-    nombre == "tecla" && args.get("cual").and_then(|c| c.as_str()) == Some("inicio") && regla_g_deja_inicio(ventanas, bloqueada, congelada, contrasena)
+pub fn inicio_desde_protegida(nombre: &str, args: &Value, ventanas: &[VentanaG], propio: &str, bloqueada: bool, congelada: bool, contrasena: bool) -> bool {
+    nombre == "tecla" && args.get("cual").and_then(|c| c.as_str()) == Some("inicio") && regla_g_deja_inicio(ventanas, propio, bloqueada, congelada, contrasena)
 }
 
 /// (CTL1117A) ¿Contestó Kotlin que la tecla Inicio pasó desde una ventana protegida? Para dejar su traza propia en el
@@ -870,27 +890,48 @@ mod pruebas {
         let v = |p: &'static str, a: bool| VentanaG { paquete: Some(p), actividad: a };
         let ajustes = [v("com.android.settings", true)];
         let inicio = json!({ "cual": "inicio" });
-        // Inicio pasa desde Ajustes, sin diálogo, sin bloqueo.
+        let pasa = |vs: &[VentanaG]| inicio_desde_protegida("tecla", &inicio, vs, propio, false, false, false);
         assert!(regla_g(&ajustes, propio, false, false, false), "Ajustes es ventana protegida");
-        assert!(inicio_desde_protegida("tecla", &inicio, &ajustes, false, false, false));
-        // También desde un permiso, una tienda y la propia app.
-        for p in ["com.google.android.permissioncontroller", "com.android.vending", propio] {
-            assert!(inicio_desde_protegida("tecla", &inicio, &[v(p, true)], false, false, false), "{p}");
+        // Pasa desde Ajustes, una tienda y la propia app (lista positiva `salida`).
+        for p in ["com.android.settings", "com.samsung.android.settings", "com.android.vending", "org.fdroid.fdroid", propio] {
+            assert!(pasa(&[v(p, true)]), "{p}");
         }
-        // Con un consentimiento de este control abierto o pedido (congelada): NO, aunque sea Inicio.
-        assert!(!inicio_desde_protegida("tecla", &inicio, &ajustes, false, true, false));
+        // NO desde permisos, instaladores, credenciales/cuentas/certificados, managedprovisioning ni una actividad de systemui.
+        for p in [
+            "com.google.android.permissioncontroller", "com.android.permissioncontroller", "com.google.android.packageinstaller",
+            "com.android.packageinstaller", "com.android.credentialmanager", "com.google.android.gms", "com.android.keychain",
+            "com.android.certinstaller", "com.android.managedprovisioning", "com.android.systemui",
+        ] {
+            assert!(!pasa(&[v(p, true)]), "{p}");
+        }
+        // La cortina de systemui (no es actividad) no es protegida: no estorba, pero tampoco abre nada por sí sola.
+        assert!(pasa(&[v("com.android.settings", true), v("com.android.systemui", false)]));
+        // Mezcla: Ajustes + un diálogo de permisos (o de captura) a la vista: NO.
+        assert!(!pasa(&[v("com.android.settings", true), v("com.google.android.permissioncontroller", true)]));
+        assert!(!pasa(&[v("com.android.settings", true), v("com.android.systemui", true)]));
+        assert!(!pasa(&[v("com.android.settings", true), VentanaG { paquete: None, actividad: true }]));
+        // Con un consentimiento de este control abierto o pedido (congelada): NO, aunque sea Inicio y Ajustes.
+        assert!(!inicio_desde_protegida("tecla", &inicio, &ajustes, propio, false, true, false));
         // Pantalla de bloqueo, contraseña o nada a la vista: NO.
-        assert!(!inicio_desde_protegida("tecla", &inicio, &ajustes, true, false, false));
-        assert!(!inicio_desde_protegida("tecla", &inicio, &ajustes, false, false, true));
-        assert!(!inicio_desde_protegida("tecla", &inicio, &[], false, false, false));
+        assert!(!inicio_desde_protegida("tecla", &inicio, &ajustes, propio, true, false, false));
+        assert!(!inicio_desde_protegida("tecla", &inicio, &ajustes, propio, false, false, true));
+        assert!(!pasa(&[]));
         // Ninguna otra tecla, ningún gesto, ningún texto, ningún volumen.
         for t in TECLAS.iter().filter(|t| **t != "inicio") {
-            assert!(!inicio_desde_protegida("tecla", &json!({ "cual": t }), &ajustes, false, false, false), "{t}");
+            assert!(!inicio_desde_protegida("tecla", &json!({ "cual": t }), &ajustes, propio, false, false, false), "{t}");
         }
-        assert!(!inicio_desde_protegida("gesto", &json!({ "dedos": [], "sigue": false }), &ajustes, false, false, false));
-        assert!(!inicio_desde_protegida("texto", &json!({ "texto": "hola" }), &ajustes, false, false, false));
-        assert!(!inicio_desde_protegida("tecla", &json!({}), &ajustes, false, false, false));
-        assert!(!inicio_desde_protegida("tecla", &json!({ "cual": "INICIO" }), &ajustes, false, false, false));
+        assert!(!inicio_desde_protegida("gesto", &json!({ "dedos": [], "sigue": false }), &ajustes, propio, false, false, false));
+        assert!(!inicio_desde_protegida("texto", &json!({ "texto": "hola" }), &ajustes, propio, false, false, false));
+        assert!(!inicio_desde_protegida("tecla", &json!({}), &ajustes, propio, false, false, false));
+        assert!(!inicio_desde_protegida("tecla", &json!({ "cual": "INICIO" }), &ajustes, propio, false, false, false));
+        // La lista `salida`: ningún paquete suyo es de permisos, instaladores, credenciales, managedprovisioning ni systemui.
+        let (prot, _) = regla_g_listas();
+        for x in regla_g_salida() {
+            assert!(prot.contains(&x), "{x}: una salida que no es protegida sobra");
+            assert!(!x.contains("permission") && !x.contains("packageinstaller") && !x.contains("managedprovisioning") && !x.contains("systemui"), "{x}");
+            assert!(!["com.google.android.gms", "com.google.android.gsf.login", "com.android.keychain", "com.android.certinstaller", "com.android.credentialmanager"].contains(&x), "{x}");
+        }
+        assert_eq!(regla_g_salida().len(), 15);
         // Dice lo mismo que `regla_g` para todo lo demás: si la regla G no protege, no hace falta la excepción.
         assert!(!regla_g(&[v("com.example.notas", true)], propio, false, false, false));
         // La traza propia en el registro.

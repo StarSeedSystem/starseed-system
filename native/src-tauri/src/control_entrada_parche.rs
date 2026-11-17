@@ -69,19 +69,21 @@ pub const REGLA_G_TXT: &str = include_str!("control_regla_g.txt");
 /// FSG1116 · A1: Kotlin lee la regla G de ESTE archivo generado desde `control_regla_g.txt` (la misma lista que Rust).
 pub fn kotlin_regla_g() -> String {
     // Solo std (build.rs): se lee aquí el mismo archivo que lee control_entrada_logica.rs; la prueba compara las dos lecturas.
-    let (mut p, mut s) = (Vec::new(), Vec::new());
+    let (mut p, mut s, mut sal) = (Vec::new(), Vec::new(), Vec::new());
     for l in REGLA_G_TXT.lines().map(str::trim).filter(|l| !l.is_empty() && !l.starts_with('#')) {
         match l.split_once(' ') {
             Some(("protegido", x)) => p.push(x.trim()),
             Some(("sistema", x)) => s.push(x.trim()),
+            Some(("salida", x)) => sal.push(x.trim()),
             _ => panic!("control_regla_g.txt: línea sin forma «{l}»"),
         }
     }
     let lista = |v: &[&str]| v.iter().map(|x| format!("        \"{x}\",")).collect::<Vec<_>>().join("\n");
     format!(
-        "package app.starseed.nativa\n\n// FSG1116 · Lo escribe native/src-tauri/build.rs desde src/control_regla_g.txt (la misma lista que lee Rust).\n// No editar aquí: se reescribe en cada compilación.\n\nobject ReglaGLista {{\n    /** Cualquier ventana de estos paquetes a la vista: no se toca nada. */\n    val PROTEGIDOS: Set<String> = setOf(\n{}\n    )\n    /** De estos paquetes, solo sus ventanas de actividad. */\n    val SISTEMA: Set<String> = setOf(\n{}\n    )\n}}\n",
+        "package app.starseed.nativa\n\n// FSG1116 · Lo escribe native/src-tauri/build.rs desde src/control_regla_g.txt (la misma lista que lee Rust).\n// No editar aquí: se reescribe en cada compilación.\n\nobject ReglaGLista {{\n    /** Cualquier ventana de estos paquetes a la vista: no se toca nada. */\n    val PROTEGIDOS: Set<String> = setOf(\n{}\n    )\n    /** De estos paquetes, solo sus ventanas de actividad. */\n    val SISTEMA: Set<String> = setOf(\n{}\n    )\n    /** (CTL1117A) De estos paquetes (y de la propia app) Inicio puede salir; ninguna otra ventana protegida a la vista. */\n    val SALIDA: Set<String> = setOf(\n{}\n    )\n}}\n",
         lista(&p),
-        lista(&s)
+        lista(&s),
+        lista(&sal)
     )
 }
 
@@ -337,7 +339,10 @@ mod pruebas {
             assert!(generado.contains(&format!("\"{x}\",")), "regla G: el Kotlin generado no lleva «{x}»");
             assert!(!KOTLIN.contains(&format!("\"{x}\"")), "regla G: «{x}» escrito a mano en Kotlin (debe salir de control_regla_g.txt)");
         }
-        assert!(generado.contains("object ReglaGLista") && KOTLIN.contains("ReglaGLista.PROTEGIDOS") && KOTLIN.contains("ReglaGLista.SISTEMA"));
+        assert!(generado.contains("object ReglaGLista") && KOTLIN.contains("ReglaGLista.PROTEGIDOS") && KOTLIN.contains("ReglaGLista.SISTEMA") && KOTLIN.contains("ReglaGLista.SALIDA"));
+        for x in l::regla_g_salida() {
+            assert!(generado.contains(&format!("\"{x}\",")) && !KOTLIN.contains(&format!("\"{x}\"")), "salida «{x}»");
+        }
         // Las órdenes y teclas que Rust deja pasar, Kotlin las ejecuta.
         for t in l::TECLAS {
             assert!(KOTLIN.contains(&format!("\"{t}\"")), "tecla {t}");
@@ -443,7 +448,8 @@ mod pruebas {
     fn ctl1117a_inicio_es_la_unica_excepcion_de_la_regla_g_y_respeta_el_congelado() {
         let k = KOTLIN;
         // La misma decisión que `regla_g_deja_inicio` de Rust.
-        assert!(k.contains("!(congelada || bloqueada || contrasena || ventanas.isEmpty())"));
+        assert!(k.contains("if (congelada || bloqueada || contrasena || ventanas.isEmpty()) return false"));
+        assert!(k.contains("!protegida || p == yo || p in ReglaGLista.SALIDA"), "lista positiva: solo la propia app y `salida`");
         let e = k.find("private fun inicioDesdeProtegida()").unwrap();
         let cuerpo = &k[e..e + 1400];
         assert!(cuerpo.contains("ControlEntradaNativo.congelado()") && cuerpo.contains("isKeyguardLocked") && cuerpo.contains("isPassword"));
@@ -502,9 +508,11 @@ mod pruebas {
     fn a1_la_lista_de_kotlin_es_la_de_rust() {
         let k = kotlin_regla_g();
         let (p, s) = l::regla_g_listas();
+        let sal = l::regla_g_salida();
         let n = |x: &str| k.matches(&format!("\"{x}\",")).count();
-        assert!(p.iter().chain(s.iter()).all(|x| n(x) == 1));
-        assert_eq!(k.matches("\",").count(), p.len() + s.len(), "ni más ni menos que en control_regla_g.txt");
+        assert!(p.iter().chain(s.iter()).all(|x| n(x) == 1 + usize::from(sal.contains(x))));
+        assert_eq!(k.matches("\",").count(), p.len() + s.len() + sal.len(), "ni más ni menos que en control_regla_g.txt");
+        assert!(k.contains("val SALIDA: Set<String>"));
         assert!(k.starts_with("package app.starseed.nativa"));
     }
 

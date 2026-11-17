@@ -7,6 +7,10 @@
 #   protegido <paquete>  cualquier ventana de ese paquete a la vista: la entrada remota se niega (y la cola se tira).
 #   sistema <paquete>    solo sus ventanas de ACTIVIDAD (diálogos a pantalla: proyección, USB, permisos); la cortina
 #                        de notificaciones y los ajustes rápidos son ventanas de sistema y quedan permitidas.
+#   salida <paquete>     (CTL1117A) desde una ventana de este paquete SOLO la tecla Inicio pasa (para poder salir de Ajustes o de
+#                        una tienda). Lista positiva: Inicio pasa únicamente si TODAS las ventanas protegidas a la vista son de la
+#                        propia app o de un paquete `salida`; con cualquier otra a la vista (permisos, instaladores, credenciales,
+#                        managedprovisioning, una actividad de systemui) se niega. Ante la duda, se niega.
 # Además, en código y no en esta lista (porque no son paquetes fijos): la pantalla de bloqueo (KeyguardManager),
 # un campo de contraseña con el foco, cualquier diálogo de consentimiento de este control pedido y aún abierto, y
 # las ventanas de actividad de la PROPIA app (su panel de control y sus diálogos).
@@ -47,3 +51,20 @@ protegido org.fdroid.fdroid
 protegido com.aurora.store
 # Interfaz del sistema: solo sus actividades (consentimiento de captura, USB, etc.)
 sistema com.android.systemui
+
+# Salida con Inicio (decisión del dueño, 16-11): Ajustes (sin managedprovisioning) y las tiendas. Nada más.
+salida com.android.settings
+salida com.samsung.android.settings
+salida com.android.settings.intelligence
+salida com.google.android.settings.intelligence
+salida com.miui.securitycenter
+salida com.coloros.safecenter
+salida com.oplus.safecenter
+salida com.huawei.systemmanager
+salida com.android.vending
+salida com.sec.android.app.samsungapps
+salida com.huawei.appmarket
+salida com.xiaomi.market
+salida com.amazon.venezia
+salida org.fdroid.fdroid
+salida com.aurora.store

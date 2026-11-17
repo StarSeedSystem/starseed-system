@@ -86,13 +86,25 @@ object ControlEntradaNativo {
     }
 
     /**
-     * CTL1117A · la ÚNICA excepción de la regla G (decisión del dueño, 16-11 noche): la tecla INICIO pasa aunque delante
-     * haya una ventana protegida, para poder salir de Ajustes, de una tienda o de un permiso. La MISMA decisión que
-     * `regla_g_deja_inicio` de control_entrada_logica.rs: nunca con un consentimiento de este control abierto o pedido
-     * (`congelada`), ni con la pantalla bloqueada, ni con el foco en una contraseña, ni sin ninguna ventana a la vista.
+     * CTL1117A · la ÚNICA excepción de la regla G (decisión del dueño, 16-11): la tecla INICIO pasa desde una ventana
+     * protegida para salir de Ajustes o de una tienda. LISTA POSITIVA (ante la duda, se niega): solo si TODAS las ventanas
+     * protegidas a la vista son de la propia app o de `ReglaGLista.SALIDA`. Con un diálogo de permisos, un instalador,
+     * credenciales, managedprovisioning o una actividad de systemui a la vista, se niega; igual con consentimiento
+     * abierto (`congelada`), pantalla bloqueada, contraseña con foco o sin ventanas. La MISMA decisión que
+     * `regla_g_deja_inicio` de control_entrada_logica.rs.
      */
-    fun reglaGInicio(ventanas: List<Pair<String?, Boolean>>, bloqueada: Boolean, congelada: Boolean, contrasena: Boolean): Boolean =
-        !(congelada || bloqueada || contrasena || ventanas.isEmpty())
+    fun reglaGInicio(ventanas: List<Pair<String?, Boolean>>, propio: String, bloqueada: Boolean, congelada: Boolean, contrasena: Boolean): Boolean {
+        if (congelada || bloqueada || contrasena || ventanas.isEmpty()) return false
+        val yo = propio.lowercase()
+        return ventanas.all { (paquete, actividad) ->
+            val p = paquete?.lowercase()
+            if (p == null) !actividad
+            else {
+                val protegida = p in ReglaGLista.PROTEGIDOS || (actividad && (p == yo || p in ReglaGLista.SISTEMA))
+                !protegida || p == yo || p in ReglaGLista.SALIDA
+            }
+        }
+    }
 
     private lateinit var app: Context
     private lateinit var dir: File
@@ -578,7 +590,7 @@ class ServicioControlEntrada : AccessibilityService() {
         } catch (_: Throwable) { vs.clear() }
         if (vs.isEmpty()) rootInActiveWindow?.packageName?.toString()?.let { vs.add(Pair(it, true)) }
         val contrasena = try { rootInActiveWindow?.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)?.isPassword == true } catch (_: Throwable) { true }
-        return ControlEntradaNativo.reglaGInicio(vs, bloqueada, ControlEntradaNativo.congelado(), contrasena)
+        return ControlEntradaNativo.reglaGInicio(vs, packageName, bloqueada, ControlEntradaNativo.congelado(), contrasena)
     }
 
     private fun rechazo(m: String): JSONObject = JSONObject().put("ok", false).put("motivo", m)
