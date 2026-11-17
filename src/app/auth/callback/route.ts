@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
-import { siguienteSeguro } from "@/lib/auth/siguiente-seguro";
+import { procesarCallbackOAuth } from "@/lib/auth/callback-oauth";
 
 // ── Callback de autenticación (Adenda 63) ───────────────────────────────────
 // Destino de `emailRedirectTo` (confirmación de correo) y de cualquier flujo
@@ -11,18 +11,15 @@ import { siguienteSeguro } from "@/lib/auth/siguiente-seguro";
 export async function GET(request: Request) {
     const { searchParams, origin } = new URL(request.url);
     const code = searchParams.get("code");
-    // (2026-09-28) `next` validado: solo rutas internas (antes `next=@otra.web` convertía
-    // `${origin}${next}` en una redirección a otro sitio).
-    const next = siguienteSeguro(searchParams.get("next"), "/escritorios");
+    const next = searchParams.get("next");
 
     if (code) {
-        try {
-            const supabase = await createClient();
-            const { error } = await supabase.auth.exchangeCodeForSession(code);
-            if (!error) return NextResponse.redirect(`${origin}${next}`);
-        } catch {
-            // caída controlada al login con aviso
-        }
+        const supabase = await createClient();
+        const resultado = await procesarCallbackOAuth(code, next ?? "/escritorios", (c) =>
+            supabase.auth.exchangeCodeForSession(c),
+        );
+        if (resultado.ok) return NextResponse.redirect(`${origin}${resultado.redirectTo}`);
+        return NextResponse.redirect(`${origin}/login?error=${encodeURIComponent(resultado.error)}`);
     }
     return NextResponse.redirect(`${origin}/login?error=auth-callback`);
 }
