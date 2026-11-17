@@ -114,15 +114,23 @@ function evaluarCapaInterna(capa: CapaEvaluada, reserva: readonly CasoReserva[])
       porEstratoMap.set(clave, m);
     }
 
-    m.total++;
+    const total = m.total + 1;
     const esRevertida = caso.desenlace === "integrada-revertida";
     const esAceptada = caso.desenlace === "aceptada";
 
-    if (decision.acepta && esRevertida) m.falsosPositivos++;
-    if (!decision.acepta && esAceptada) m.falsosNegativos++;
+    const falsosPositivos = m.falsosPositivos + (decision.acepta && esRevertida ? 1 : 0);
+    const falsosNegativos = m.falsosNegativos + (!decision.acepta && esAceptada ? 1 : 0);
 
     const acierta = (decision.acepta && !esRevertida) || (!decision.acepta && (esRevertida || caso.desenlace === "corregida" || caso.desenlace === "escalada"));
-    if (acierta) m.acuerdo++;
+    const acuerdo = m.acuerdo + (acierta ? 1 : 0);
+
+    porEstratoMap.set(clave, {
+      ...m,
+      total,
+      falsosPositivos,
+      falsosNegativos,
+      acuerdo,
+    });
   }
 
   const porEstrato: MetricasEstrato[] = [];
