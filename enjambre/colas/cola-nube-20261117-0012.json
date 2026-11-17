@@ -1,0 +1,55 @@
+{
+ "ola": "nube-20261117",
+ "tareas": [
+  {
+   "id": "MQZ1",
+   "ola": "MOD1116",
+   "titulo": "Contrato de proveedores de modelos: abliteration.ai, modelo privado del A1 y ramas de la Biblioteca",
+   "archivos": [
+    "architecture/modelos-proveedores-1116.md"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Escribe el contrato `architecture/modelos-proveedores-1116.md` (≤120 líneas) que recoja, leyendo el código que dejaron MQA1-MQA7, MQB1-MQB5 y MQC1-MQC4: qué proveedor es y qué NO se sabe de él (sin créditos diarios documentados, base de `abliterated-model` no declarada, retención sin plazo); dónde va la clave (solo nombres de variable: `ABLITERATION_API_KEY` en `~/.starseed/env` de la Mac; en el A1 NO viaja por defecto porque es de pago; en la nube de GitHub NO se sube); cómo se cuentan el saldo y el gasto del día (`abliteration_creditos.py`, `STARSEED_ABLITERATION_DIA_USD`); qué roles lo usan (sueños, síntesis, tareas bloqueadas por rechazo; nunca escritura ni revisión de código) y con qué interruptores; el modelo privado del A1 (tamaño, contexto 8K por defecto, memoria máxima, qué se apaga si falta memoria, cómo deshacerlo); las dos advertencias (lo sin filtros solo en lo privado propio y nunca por defecto en espacios públicos ni con menores; hay que MEDIR antes de darle más trabajo, `medida_modelo_privado.py`); y las ramas de la Biblioteca. Cada afirmación lleva el archivo que la cumple. Termina con «Abierto»: lo que Alex debe decidir.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni pytest, ni tsc, ni git, ni node, ni npm, ni curl): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj, entorno y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves (solo NOMBRES de variables, nunca valores; nunca una IP, un OCID ni un token); nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado. En Python: las pruebas son `unittest` con carpetas temporales y falsos, como las vecinas `scripts/puente/test_*.py`, y no tocan el `~/.starseed` real.",
+   "dependencias_ya_en_main": [
+    "MQA3",
+    "MQB3",
+    "MQC3"
+   ]
+  },
+  {
+   "id": "HAL05",
+   "ola": "HAL1116A",
+   "titulo": "CapaIdioma espera a que el documento esté hidratado antes de reescribir el texto",
+   "archivos": [
+    "src/components/idiomas/capa-idioma.tsx",
+    "src/components/idiomas/__tests__/capa-idioma-hidratacion.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Lee `capa-idioma.tsx` entero (38 líneas) y `src/lib/idiomas/hidratacion.ts` (HAL04). Cambio ACOTADO (≤25 líneas): en el efecto, antes de la PRIMERA llamada a `iniciarCapa` (no antes de `capa.cambiar`, que es una elección de la persona ya con la página viva), espera `cuandoEsSeguroTraducir(entornoDelNavegador(window))` y sigue solo si `vivo` sigue siendo true tras la espera. Una elección nueva (`EVENTO_IDIOMA`) durante la espera no se pierde: al terminar se lee `idiomaEfectivo()` de nuevo. Se conserva todo lo demás (`storage`, `parar`, `fijarDocumento`). PRUEBAS (`render` con `vi.useFakeTimers` y un `cuandoEsSeguroTraducir` simulado con `vi.mock`): con idioma guardado `en` el texto del cuerpo sigue en español hasta que la promesa resuelve y entonces cambia; si el componente se desmonta durante la espera no se aplica nada; un cambio de idioma durante la espera aplica el último.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "HAL04"
+   ]
+  },
+  {
+   "id": "HAL09",
+   "ola": "HAL1116A",
+   "titulo": "Conectar el freno a «Buscar más capacidad»: sin añadir escritores si el fallo es el mismo",
+   "archivos": [
+    "scripts/puente/buscar_capacidad.py",
+    "scripts/puente/test_buscar_capacidad.py"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Lee `buscar_capacidad.py` :1084-1235 (en `buscar`, el cálculo de `tope = tope_runs_nube(...)` en :1186 y cómo sale el motivo en el texto) y `freno_mismo_motivo.py` (HAL08). Cambio ACOTADO (≤40 líneas en `buscar_capacidad.py`, ≤40 en las pruebas): importa `frenar_por_mismo_motivo`; con las tareas ya terminadas de `progreso.json` (el mismo diccionario que ya lee `reunir_nube`; no vuelvas a leer el disco si ya lo tienes) construye las entradas y, si frena, el tope de runs nuevos de la nube es el que ya había en marcha (no se lanzan jobs nuevos) y la línea de resumen añade la frase de `frenar_por_mismo_motivo` TAL CUAL (para que quien lo lea sepa por qué). Si el cálculo falla por cualquier motivo, no frena (atrapa la excepción) y lo dice en una línea. NO cambies cuándo se reabren tareas ni los escritores que ya están corriendo. PRUEBAS en `test_buscar_capacidad.py`: con progreso donde 7 de 10 acabaron `sin_cambios` por lo mismo, `buscar` (con los medios y la nube simulados como ya hacen las pruebas existentes) no lanza runs nuevos y la salida contiene el motivo; con motivos distintos sigue como antes; las pruebas existentes no se tocan.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "HAL08"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1117-000906.json": [
+   "MQZ1",
+   "HAL05",
+   "HAL09"
+  ]
+ }
+}
