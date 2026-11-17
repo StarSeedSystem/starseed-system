@@ -8,12 +8,14 @@ import type { AjustesInternet, DeepPartial, Audiencia } from "./tipos";
 import type { Contadores } from "./contadores";
 import type { PuertaInternet } from "../cristal/puertas-internet";
 import { decidirCompartir } from "./decision-compartir";
+import { ajustesPorDefecto } from "./defectos-audiencia";
 
 const CLAVE_AJUSTES = "starseed.malla.internet.v1";
 
-import { AJUSTES_APAGADOS } from "./almacen-ajustes";
-
-export { AJUSTES_APAGADOS };
+// El «todo apagado» histórico se sigue exportando desde aquí por compatibilidad con quien lo
+// importa; los valores por defecto que rigen hoy son los de `defectos-audiencia.ts`
+// (contrato §8.2 de architecture/malla-cristalina-sio2.md).
+export { AJUSTES_APAGADOS } from "./almacen-ajustes";
 
 export interface OpcionesUseAjustesInternet {
   almacen?: AlmacenAjustes & AlmacenContadores;
@@ -52,14 +54,16 @@ export function useAjustesInternet(opciones: OpcionesUseAjustesInternet = {}): R
   const ahora = ahoraFn ?? (() => Date.now());
   const desfaseMin = desfaseMinPropio;
 
-  const [ajustes, setAjustes] = useState<AjustesInternet>(AJUSTES_APAGADOS);
+  // Los valores por defecto son datos fijos: el primer render del servidor y el del cliente son
+  // el mismo, sin leer nada del aparato. Lo guardado llega después, al montar en el cliente.
+  const [ajustes, setAjustes] = useState<AjustesInternet>(() => ajustesPorDefecto());
   const [contadores, setContadores] = useState<Contadores>(() => contadoresVacios(ahora(), desfaseMin));
 
   useEffect(() => {
     if (!esCliente()) return;
 
     const ahoraActual = ahora();
-    setAjustes(leerAjustes(almacenRef.current, AJUSTES_APAGADOS));
+    setAjustes(leerAjustes(almacenRef.current, ajustesPorDefecto()));
     setContadores(leerContadores(almacenRef.current, ahoraActual, desfaseMin));
   }, []);
 
@@ -70,7 +74,7 @@ export function useAjustesInternet(opciones: OpcionesUseAjustesInternet = {}): R
       if (evento.key !== CLAVE_AJUSTES) return;
 
       const ahoraActual = ahora();
-      setAjustes(leerAjustes(almacenRef.current, AJUSTES_APAGADOS));
+      setAjustes(leerAjustes(almacenRef.current, ajustesPorDefecto()));
       setContadores(leerContadores(almacenRef.current, ahoraActual, desfaseMin));
     };
 

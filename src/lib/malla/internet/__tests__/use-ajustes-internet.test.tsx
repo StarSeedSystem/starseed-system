@@ -1,6 +1,10 @@
+// INT19: el valor por defecto del gancho pasó a ser `ajustesPorDefecto()` (contrato §8.2:
+// «mi-cuenta» con la malla encendida). Antes estas pruebas comparaban con `AJUSTES_APAGADOS`,
+// que ya no es lo que el gancho devuelve al montar.
 import { act, cleanup, renderHook } from "@testing-library/react";
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
-import { useAjustesInternet, AJUSTES_APAGADOS } from "../use-ajustes-internet";
+import { useAjustesInternet } from "../use-ajustes-internet";
+import { ajustesPorDefecto } from "../defectos-audiencia";
 
 const CLAVE_AJUSTES = "starseed.malla.internet.v1";
 
@@ -22,25 +26,25 @@ describe("useAjustesInternet", () => {
   });
 
   describe("valores iniciales", () => {
-    it("devuelve AJUSTES_APAGADOS al montar cuando no hay datos en localStorage", () => {
+    it("devuelve los valores por defecto al montar cuando no hay datos en localStorage", () => {
       const { result } = renderHook(() =>
         useAjustesInternet({ ahora: () => ahoraBase, desfaseMin: desfaseBase })
       );
-      expect(result.current.ajustes).toEqual(AJUSTES_APAGADOS);
+      expect(result.current.ajustes).toEqual(ajustesPorDefecto());
       expect(result.current.contadores).toBeDefined();
       expect(result.current.restanteHoyMb).toBeNull();
     });
 
-    it("el primer render del servidor y del cliente es el MISMO (AJUSTES_APAGADOS)", () => {
+    it("el primer render del servidor y del cliente es el MISMO (los valores por defecto)", () => {
       const { result, unmount } = renderHook(() =>
         useAjustesInternet({ ahora: () => ahoraBase, desfaseMin: desfaseBase })
       );
-      expect(result.current.ajustes).toEqual(AJUSTES_APAGADOS);
+      expect(result.current.ajustes).toEqual(ajustesPorDefecto());
       unmount();
       const { result: result2 } = renderHook(() =>
         useAjustesInternet({ ahora: () => ahoraBase, desfaseMin: desfaseBase })
       );
-      expect(result2.current.ajustes).toEqual(AJUSTES_APAGADOS);
+      expect(result2.current.ajustes).toEqual(ajustesPorDefecto());
     });
 
     it("inicializa contadores con valores vacíos usando contadoresVacios", () => {
@@ -275,7 +279,7 @@ describe("useAjustesInternet", () => {
         })
       );
 
-      expect(result.current.ajustes).toEqual(AJUSTES_APAGADOS);
+      expect(result.current.ajustes).toEqual(ajustesPorDefecto());
     });
 
     it("usa ahora y desfaseMin inyectados correctamente", () => {
@@ -298,7 +302,7 @@ describe("useAjustesInternet", () => {
         })
       );
 
-      expect(result.current.ajustes).toEqual(AJUSTES_APAGADOS);
+      expect(result.current.ajustes).toEqual(ajustesPorDefecto());
     });
   });
 });

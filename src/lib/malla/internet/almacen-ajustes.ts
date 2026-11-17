@@ -111,6 +111,12 @@ export function guardarAjustes(almacen: AlmacenAjustes, ajustes: AjustesInternet
   }
 }
 
+/**
+ * Constante histórica de «todo apagado». Los valores por defecto que rigen hoy son los de
+ * `defectos-audiencia.ts` (`ajustesPorDefecto`, contrato §8.2 de
+ * architecture/malla-cristalina-sio2.md): mi-cuenta viene con la malla encendida y sin límite.
+ * Esta se conserva porque otras pruebas la usan como referencia explícita de «todo apagado».
+ */
 export const AJUSTES_APAGADOS: AjustesInternet = {
   version: 1,
   compartirConOtros: false,
