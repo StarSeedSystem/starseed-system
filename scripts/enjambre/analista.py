@@ -64,6 +64,7 @@ import json
 import os
 import re
 import socket
+import sys
 import threading
 import time
 
@@ -1323,11 +1324,75 @@ def flota_desde(modelos=(), revisores=(), informe=None, sondas=None, llamables=N
             "contraste": resto + capaces + rapidos}
 
 
-def flota_fija():
-    """La de siempre, por si el orquestador no da la suya (pruebas, otra máquina)."""
-    return {"mapa": _sin_repetir(MAP_RAPIDOS, CONTRASTE, REDUCE_CAPACES),
+def flota_fija(**kw):
+    """La de siempre, por si el orquestador no da la suya (pruebas, otra máquina).
+    MOD1116: al final, los opcionales que permitan el entorno y el estado del A1."""
+    base = {"mapa": _sin_repetir(MAP_RAPIDOS, CONTRASTE, REDUCE_CAPACES),
             "sintesis": _sin_repetir(REDUCE_CAPACES, CONTRASTE, MAP_RAPIDOS),
             "contraste": _sin_repetir(CONTRASTE, REDUCE_CAPACES, MAP_RAPIDOS)}
+    return flota_con_opcionales(base, **kw)
+
+
+# ── MOD1116 · abliteration.ai y el modelo privado del A1, al final de la rotación ──
+# Alex (2026-11-16): los opcionales entran SOLO al final, nunca como escritor ni revisor.
+RUTA_ABLITERATION_USO = "~/.starseed/abliteration-uso.json"
+RUTA_ESTADO_A1 = "~/.starseed/oracle.json"
+
+def _leer_json_o_vacio(ruta, leer=None) -> dict:
+    try:
+        if leer is not None:
+            texto = leer(os.path.expanduser(ruta))
+        else:
+            with open(os.path.expanduser(ruta), encoding="utf-8") as f:
+                texto = f.read()
+        return texto if isinstance(texto, dict) else (json.loads(texto) if texto else {})
+    except (OSError, TypeError, ValueError):
+        return {}
+
+def _con_opcionales(lista, rol, entorno, ablit, privado, etiqueta, ahora_iso):
+    try:
+        from flota_opcional import agregar_opcionales
+    except ImportError:
+        return list(lista)
+    nueva, _ = agregar_opcionales(lista, rol, entorno, ablit, privado, ahora_iso)
+    if not etiqueta:
+        return [par for par in nueva if par[0] != "privado"]
+    return [("privado", etiqueta) if par == ("privado", "lectura") else par for par in nueva]
+
+def _plazo_privado(entrada_tokens, salida_tokens, tam_gb=3.3):
+    """El plazo de un modelo privado lento (modelo_privado_a1), si su módulo existe."""
+    try:
+        ruta = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "puente")
+        if ruta not in sys.path:
+            sys.path.insert(0, ruta)
+        modulo = __import__("modelo_privado_a1")
+        return max(60.0, float(modulo.plazo_estimado_s(tam_gb, entrada_tokens, salida_tokens)))
+    except Exception:
+        return None
+
+def flota_con_opcionales(base, entorno=None, leer=None, ahora_iso=None,
+                         estado_abliteration=None, estado_privado=None,
+                         ruta_abliteration=RUTA_ABLITERATION_USO,
+                         ruta_a1=RUTA_ESTADO_A1):
+    """La flota del arranque: la de siempre y, AL FINAL, los opcionales; estados y rutas se inyectan."""
+    entorno = dict(os.environ if entorno is None else entorno)
+    ahora_iso = ahora_iso or time.strftime("%Y-%m-%dT%H:%M:%S")
+    ablit = estado_abliteration if isinstance(estado_abliteration, dict) else _leer_json_o_vacio(ruta_abliteration, leer)
+    a1 = {} if estado_privado is not None else _leer_json_o_vacio(ruta_a1, leer)
+    nodo = a1.get("nodo")
+    if not isinstance(nodo, dict):
+        nodo = {}
+    mp = a1.get("modelo_privado") or nodo.get("modelo_privado")
+    if not isinstance(mp, dict):
+        mp = {}
+    privado = estado_privado if isinstance(estado_privado, dict) else {
+        "vivo": bool(mp.get("vivo")) and bool(mp.get("etiqueta")),
+        "etiqueta": str(mp.get("etiqueta") or "").strip(),
+        "ultima_lectura": mp.get("leido") or a1.get("leido") or nodo.get("leido")}
+    etiqueta = str(privado.get("etiqueta") or "").strip()
+    roles = {"mapa": "sueno-mapa", "sintesis": "sueno-reduce", "contraste": "sueno-contraste"}
+    return {k: _con_opcionales(base.get(k) or [], rol, entorno, ablit, privado, etiqueta, ahora_iso)
+            for k, rol in roles.items()}
 
 
 class Llamador(object):
@@ -1483,6 +1548,8 @@ class Llamador(object):
 
     def _invocar(self, p, m, prompt, timeout, max_tokens, json_mode):
         tope = min(max_tokens, TOPES_SALIDA.get(p, max_tokens))
+        if p == "privado":
+            timeout = max(timeout, _plazo_privado(estimar_tokens(prompt), tope) or 0)
         kw = {"timeout": timeout}
         if self._con_max:
             kw["max_tokens"] = tope
