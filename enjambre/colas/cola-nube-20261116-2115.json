@@ -1,0 +1,95 @@
+{
+ "ola": "nube-20261116",
+ "tareas": [
+  {
+   "id": "IDBe13",
+   "ola": "IDB1116B",
+   "titulo": "Inglés: components/onboarding (2/2), 197 textos",
+   "archivos": [
+    "src/lib/idiomas/catalogos/en.json"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Traduces la interfaz de StarSeed OS del español a inglés (en), área «components/onboarding» (la bienvenida y el primer arranque), parte 2 de 2. Lee antes `architecture/idiomas.md` §2, §5 y §8. Las traducciones son «automático, sin revisar»: el catálogo queda `revisado: false`, que la interfaz ya enseña («Traducción automática, sin revisar»); NO lo cambies a revisado. El texto escrito por personas nunca se toca: solo traduces textos de interfaz que el guion ya midió. NO edites `src/lib/idiomas/catalogos/en.json` a mano: lo escribe el guion `rellenar.mjs`, tú solo preparas las traducciones. Archivos de trabajo: SOLO dentro del repo, en `.tmp/` (carpeta que git ya ignora). NUNCA uses `/tmp` ni otra ruta fuera del repo: tu herramienta de lectura la rechaza y la tarea acaba sin cambios. No añadas nada de `.tmp/` a git. Si una herramienta rechaza un permiso, no insistas con otra ruta: termina y di qué comando falló.\nPASOS (desde la raíz del repo, en este orden):\n1. Anota la cobertura de antes: `node scripts/idiomas/cobertura.mjs --areas | awk '/^en \\(/{p=1;next} /^[a-z][a-z] \\(/{p=0} p' | grep -E '^ +components/onboarding ' ` (columna «presentes» del idioma «en»; es tu P0).\n2. Vuelca los textos (un solo comando, crea `.tmp` si no existe): `mkdir -p .tmp && node --input-type=module -e \"import {cargarFuente,cargarUnidades,cargarCatalogo,textosDeUnidad} from './scripts/idiomas/comun.mjs';import fs from 'node:fs';const f=cargarFuente(),u=cargarUnidades(),c=cargarCatalogo('en');const t=textosDeUnidad(f,u,'components/onboarding').filter(x=>!c.entradas[x]).slice(0,250);fs.writeFileSync('.tmp/IDBe13-textos.json',JSON.stringify(Object.fromEntries(t.map((x,i)=>[String(i+1),x])),null,1));console.log(t.length)\"` — imprime cuántos (≤250); si imprime 0, no hay nada que hacer: termina y dilo.\n3. Lee los textos con `cat .tmp/IDBe13-textos.json` y escribe `.tmp/IDBe13-trad.json` (con tu herramienta de escritura, dentro del repo): un objeto con LAS MISMAS claves «1»…«N» y la traducción de cada texto (JSON válido, nada más). Reglas: conserva EXACTAMENTE `{0}`, `{1}`…, las etiquetas `<b>…</b>` y las marcas StarSeed, Astraura, Genesis, MetaGenesis, PoliGenesis, ProtoGenesis, Protomolécula, Trinity; en `{n, plural, one {…} other {…}}` traduce el contenido de las ramas pero conserva `plural`, `one`, `other`, los `#` y las llaves; mismo tono y longitud parecida (es interfaz: botones cortos, sin explicar de más); tú/usted según el uso natural de inglés en software; mantén signos finales y mayúsculas del original. Si un texto NO es lenguaje (código, selector CSS, SVG, URL, número, atajo de teclado, nombre propio o de marca) déjalo IGUAL y apúntalo para el commit.\n4. Convierte (falla si falta alguna clave): `node -e \"const t=require('./.tmp/IDBe13-textos.json'),r=require('./.tmp/IDBe13-trad.json');const k=Object.keys(t);const mal=k.filter(x=>typeof r[x]!=='string'||!r[x].trim());if(mal.length){console.error('faltan',mal);process.exit(1)}require('fs').writeFileSync('.tmp/IDBe13-arr.json',JSON.stringify(k.map(x=>r[x])))\"`\n5. Rellena: `node scripts/idiomas/rellenar.mjs --idioma en --area components/onboarding --motor comando --cmd \"cat .tmp/IDBe13-arr.json\" --limite 250`. Debe terminar con código 0 y «rechazadas 0». Si rechaza alguna (pierde un valor, una etiqueta, una rama de plural o una marca), corrige SOLO esas en `-trad.json` y repite desde el paso 4 (el guion salta lo ya escrito). No sigas hasta tener 0 rechazadas.\n6. Cobertura: `node scripts/idiomas/cobertura.mjs --areas | awk '/^en \\(/{p=1;next} /^[a-z][a-z] \\(/{p=0} p' | grep -E '^ +components/onboarding '` → «presentes» = P0 + lo escrito, «ausentes» baja lo mismo, «inválidas 0». Y `NODE_ENV=test npx vitest run src/lib/idiomas/__tests__/cobertura.test.ts src/lib/idiomas/__tests__/capa.test.tsx` en verde.\n7. Nada pierde valor ni queda igual sin motivo: `node --input-type=module -e \"import {execSync} from 'node:child_process';import fs from 'node:fs';const p='src/lib/idiomas/catalogos/en.json';const antes=JSON.parse(execSync('git show HEAD:'+p,{maxBuffer:1<<28}).toString()).entradas,ahora=JSON.parse(fs.readFileSync(p,'utf8')).entradas;const perd=Object.keys(antes).filter(k=>ahora[k]!==antes[k]);const nue=Object.keys(ahora).filter(k=>!(k in antes));const ig=nue.filter(k=>ahora[k]===k);console.log('perdidas o cambiadas',perd.length,'nuevas',nue.length,'iguales al original',ig.length);ig.forEach(k=>console.log(' =',k.slice(0,80)));process.exit(perd.length?1:0)\"` — «perdidas o cambiadas» DEBE ser 0 (no toques lo ya traducido, ni lo escrito por personas); cada «igual al original» debe ser algo no lingüístico y queda listado en el cuerpo de tu commit; si es una frase traducible, tradúcela y repite.\n8. `git diff --stat` debe mostrar SOLO `src/lib/idiomas/catalogos/en.json`. En el commit: cuántas entradas escribiste, cuántas rechazó el guion y corregiste, y la lista de iguales justificadas.\n\nREGLAS DE LA CASA: toca SOLO los archivos de `archivos`; los ÚNICOS archivos de trabajo permitidos van en `.tmp/` dentro del repo (ignorados por git, nunca se comitean). Todo lo demás dentro del repo; jamás `/tmp` ni rutas absolutas. Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves. El asunto de tu commit empieza por `IDBe13:` y dice qué comprobaste y qué NO pudiste comprobar.",
+   "dependencias_ya_en_main": [
+    "IDBe12"
+   ]
+  },
+  {
+   "id": "INT14",
+   "ola": "INT1116A",
+   "titulo": "Leer lo que el aparato sabe de su conexión (navegador y marca nativa opcional)",
+   "archivos": [
+    "src/lib/malla/internet/lector-conexion.ts",
+    "src/lib/malla/internet/__tests__/lector-conexion.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contrato: architecture/malla-cristalina-sio2.md §8.2 (contrato; si aún no está en el repo, rige este texto). Lee `src/ai/astraura/mesh/connectivity.ts` (`NetworkInformationLike`, `netInfo`) y NO lo dupliques: reutiliza su tipo si lo exporta. Escribe primero las pruebas. `leerConexion(entorno: { navigator?: { connection?: NetworkInformationLike } | null; nativa?: { medida?: () => boolean | null } | null }): { tipo?: string; saveData?: boolean; effectiveType?: string; nativaMedida: boolean | null }`. `nativa.medida` es la marca de red de pago del lado nativo (Android `isActiveNetworkMetered`): HOY NO EXISTE en el puente, así que la entrada es opcional y si falta, `nativaMedida` es null; deja un comentario «falta en el puente nativo: ver §8.2 del contrato». Nunca lanza; ante `connection` ausente (Safari, Firefox) devuelve solo `nativaMedida`. Añade `suscribirConexion(entorno, alCambiar): () => void` que escucha `change` de `navigator.connection` y devuelve la baja (no hace nada si no hay `connection`).\nPRUEBAS: con y sin `connection`; marca nativa true/false/ausente/que lanza; suscribir y dar de baja.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "INT01"
+   ]
+  },
+  {
+   "id": "IMA7",
+   "ola": "TRA1116-IDIOMAS",
+   "titulo": "Importar JSON plano, JSON anidado y CSV/TSV",
+   "archivos": [
+    "src/lib/idiomas/paquete/importar-json-csv.ts",
+    "src/lib/idiomas/paquete/__tests__/importar-json-csv.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contrato A2. Funciones puras `desdeJsonPlano(texto)`, `desdeJsonAnidado(texto)` (aplana con «.»), `desdeCsv(texto, separador: \",\" | \"\\t\" | \";\")` (dos columnas: clave, traducción; comillas dobles y saltos dentro de comillas; primera fila de cabecera opcional detectada si dice «key/clave/source»). Todas devuelven `{ entradas: Record<string,string>; descartadas: { motivo: string; linea?: number }[] }`; entradas con valor no-texto se descartan con motivo; nunca lanzan ante texto roto (devuelven vacío y un motivo). Sin acceso a archivos.\nPRUEBAS: anidado de 3 niveles; CSV con comas y comillas; TSV; BOM inicial; JSON roto → vacío + motivo; valor numérico descartado.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "IMA5"
+   ]
+  },
+  {
+   "id": "IMA8",
+   "ola": "TRA1116-IDIOMAS",
+   "titulo": "Importar gettext (.po/.pot) y .properties",
+   "archivos": [
+    "src/lib/idiomas/paquete/importar-po.ts",
+    "src/lib/idiomas/paquete/__tests__/importar-po.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contrato A2. `desdePo(texto)`: bloques `msgid`/`msgstr` (multilínea con comillas, escapes `\\n` `\\\"`), ignora la cabecera (`msgid \"\"`), ignora `fuzzy` con aviso, descarta `msgstr` vacío, soporta `msgctxt` (clave `contexto|texto`) y plurales `msgid_plural`/`msgstr[n]` (se usa la forma 0 y se anota el aviso «plural simplificado»). `desdeProperties(texto)`: `clave=valor` / `clave:valor`, comentarios `#`/`!`, continuaciones con `\\`, escapes `\\uXXXX`. Ambas devuelven `{ entradas, descartadas, avisos }` como IMA7 (`importar-json-csv.ts`; no importes de ahí: define el tipo en tu archivo).\nPRUEBAS: `.po` con multilínea, contexto, fuzzy y plural; `.properties` con continuación y unicode.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "IMA5"
+   ]
+  },
+  {
+   "id": "IMA9",
+   "ola": "TRA1116-IDIOMAS",
+   "titulo": "Importar XLIFF, .strings de Apple y strings.xml de Android",
+   "archivos": [
+    "src/lib/idiomas/paquete/importar-xml-strings.ts",
+    "src/lib/idiomas/paquete/__tests__/importar-xml-strings.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contrato A2. Sin librerías XML ni `DOMParser` (módulo puro): analizador mínimo por expresiones regulares con límites de tamaño. `desdeXliff(texto)`: `<trans-unit>` con `<source>` y `<target>` (XLIFF 1.2) y `<unit><segment><source/><target/>` (2.0); `desdeStringsApple(texto)`: `\"clave\" = \"valor\";` con escapes y comentarios `/* */` y `//`; `desdeStringsAndroid(texto)`: `<string name=\"x\">valor</string>` (descarta `translatable=\"false\"`, convierte `\\'`, `\\\"`, `\\n`, `%1$s`→`{0}`, `%s`→`{0}`). Se decodifican las entidades XML básicas (`&amp; &lt; &gt; &quot; &apos;`) y **ningún** valor conserva etiquetas: lo que queda con `<` + letra se descarta con motivo. Devuelven `{ entradas, descartadas, avisos }`.\nPRUEBAS: cada formato con un ejemplo real corto; `%1$s`→`{0}`; entrada con etiqueta descartada; XML roto → vacío + motivo.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "IMA5"
+   ]
+  },
+  {
+   "id": "IMA19",
+   "ola": "TRA1116-IDIOMAS",
+   "titulo": "Reemplazar la selección editable por su traducción (input, textarea y contenteditable)",
+   "archivos": [
+    "src/components/traduccion/reemplazar-seleccion.ts",
+    "src/components/traduccion/__tests__/reemplazar-seleccion.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contrato A3. Pura y probada en jsdom: `capturarSeleccionEditable(doc: Document): ObjetivoEditable | null` (si el foco está en `input` de texto, `textarea` o elemento `contenteditable` con texto seleccionado; guarda elemento, inicio, fin y texto; NUNCA en `input type=password`), `reemplazar(objetivo, nuevoTexto): boolean` (en input/textarea con `setRangeText` y evento `input` para que React/formularios lo vean; en contenteditable con `Range.deleteContents`+`insertNode`; devuelve false si el elemento ya no está en el documento o el texto cambió desde la captura) y `deshacerUltimo(): boolean` (guarda el texto anterior de UNA sustitución). No usa red.\nPRUEBAS: textarea con selección, input, contenteditable, password rechazado, elemento retirado → false, deshacer.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1116-201827.json": [
+   "IMA7",
+   "INT14",
+   "IMA8",
+   "IMA9",
+   "IMA19",
+   "IDBe13"
+  ]
+ }
+}
