@@ -1,0 +1,70 @@
+{
+ "ola": "nube-20261117",
+ "tareas": [
+  {
+   "id": "SVF1B5b",
+   "ola": "SES1116B",
+   "titulo": "Grupo: las mismas pestañas dinámicas del espacio",
+   "archivos": [
+    "src/app/(app)/grupo/[slug]/page.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contrato: architecture/sesiones-en-vivo-entidades-y-transmisiones.md §10 (P1-B). Repite en `src/app/(app)/grupo/[slug]/page.tsx` (`baseTabs` ~línea 323) EXACTAMENTE lo que SVF1B4 hizo en la página de entidad: UN bloque aditivo `// SES1115Q` con `usarEspacio` y `aPestanasDePagina` (`src/lib/entidad-espacio/`), pestañas al final, sin romper si hay `error`. No modifiques nada más (≤30 líneas). COMPRUEBA: tsc acotado sin errores nuevos en ese archivo y `NODE_ENV=test npx vitest run src/lib/entidad-espacio` verde; en el commit di cómo comprobaste que la página sigue montando.\n\nREGLAS DE LA CASA (valen aunque no las repita la tarea): toca SOLO los archivos de la lista `archivos`; ≤3 archivos y ≤120 líneas por archivo (si no cabe, para y di qué falta: no lo estires ni lo resumas); sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible (la interfaz dice Genesis); sin red real en las pruebas; ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves. El asunto de tu commit empieza por `SVF1B5b:` y dice qué comprobaste y qué NO pudiste comprobar.",
+   "dependencias_ya_en_main": [
+    "SVF1B4b"
+   ]
+  },
+  {
+   "id": "SVF1C7",
+   "ola": "SES1116B",
+   "titulo": "Dashboard: «Compartir en vivo» y marca de directo",
+   "archivos": [
+    "src/components/vivo/dashboard/dashboard-vivo.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contrato: architecture/sesiones-en-vivo-entidades-y-transmisiones.md §8 flujo 1 y §10 (P1-C). En `src/components/vivo/dashboard/dashboard-vivo.tsx` (el dashboard ya usa `crearMotorDashboard`) añade, en UN bloque aditivo `// SES1115Q`, la acción «Compartir en vivo» (abre `CompartirEnVivo`, import dinámico) y `MarcaDirecto` junto al título. Nada más cambia (≤40 líneas). COMPRUEBA: tsc acotado sin errores nuevos y `NODE_ENV=test npx vitest run src/components/vivo src/lib/vivo` en verde.\n\nREGLAS DE LA CASA (valen aunque no las repita la tarea): toca SOLO los archivos de la lista `archivos`; ≤3 archivos y ≤120 líneas por archivo (si no cabe, para y di qué falta: no lo estires ni lo resumas); sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible (la interfaz dice Genesis); sin red real en las pruebas; ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves. El asunto de tu commit empieza por `SVF1C7:` y dice qué comprobaste y qué NO pudiste comprobar.",
+   "dependencias_ya_en_main": [
+    "SVF1C3",
+    "SVF1C4"
+   ]
+  },
+  {
+   "id": "INT20",
+   "ola": "INT1116A",
+   "titulo": "Palabras de la función: un único módulo de textos en español",
+   "archivos": [
+    "src/lib/malla/internet/textos-internet.ts",
+    "src/lib/malla/internet/__tests__/textos-internet.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contrato: architecture/malla-cristalina-sio2.md §8.2 (contrato; si aún no está en el repo, rige este texto). «Modo banco de llamadas» es otra función (pasa a «modo de pruebas de llamadas»): no la toques ni la menciones. Escribe primero las pruebas. `TEXTOS_INTERNET: TextosInternet` (tipo de `tipos.ts`, INT01) con TODAS sus claves en español neutro con acentos, claras para una persona que no es técnica. Términos fijos: «modo banco» (ración de datos) y «modo mesh» (compartir libremente por la malla); la ayuda del banco dice que sirve para cuando el internet es limitado y se reparte una cantidad de datos entre las neuronas; la del mesh dice que comparte internet por la malla P2P, con o sin límite; el cuerpo de la sugerencia dice que la conexión parece de pago, que es solo una sugerencia y que nada cambia hasta que la persona acepte. `quedaHoy(mb)` y `meshConLimite(mb)` formatean con «MB» por debajo de 1000 y «GB» con un decimal por encima (coma decimal). Exporta además, aparte de la interfaz, `TEXTOS_EXTRA_INTERNET: { desde: string; hasta: string; limite: string; compartirConOtros: string; declararDePago: string; declararNoDePago: string }`.\nPRUEBAS: todas las claves de `TextosInternet` existen y no están vacías; ningún texto contiene «Mando», «llamadas» ni «banco de llamadas»; «modo banco» y «modo mesh» aparecen donde se espera; `quedaHoy(512)` termina en «MB» y `quedaHoy(2048)` dice «2,0 GB»; `TEXTOS_EXTRA_INTERNET` sin vacíos.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "INT10-d2",
+    "INT12",
+    "INT16"
+   ]
+  },
+  {
+   "id": "MRI3b",
+   "ola": "MAP1116B",
+   "titulo": "Panel «Compartir internet por la malla»: un interruptor por aparato, topes y modo automático con explicación",
+   "archivos": [
+    "src/components/mesh/mapa-senales/panel-red-compartida.tsx",
+    "src/components/mesh/mapa-senales/__tests__/panel-red-compartida.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Componente `PanelRedCompartida({preferencias, puertas, decisiones, onCambiar})` en las palabras de las puertas (`TIPOS_PUERTA`, `COMPARTIR`): para este aparato, un interruptor «Compartir mi internet por la malla» (apagado por defecto), «¿con quién? [nadie][mi cuenta][mis vínculos][un grupo][cualquiera]» (subir la apertura pide confirmación con lo que se verá), topes (solo Wi-Fi, subida máxima, reserva de batería), «Modo automático (sugerir y aplicar dentro de estos límites)» y la lista de `decisiones` con su motivo («Retirada: batería al 22 %»). Texto honesto: dice que el automático nunca enciende lo que tú no encendiste. PRUEBAS: por defecto apagado; subir apertura pide confirmación; el modo automático apagado oculta decisiones; el texto de motivo se muestra. COMPRUEBA: `NODE_ENV=test npx vitest run src/components/mesh/mapa-senales/__tests__/panel-red-compartida.test.tsx` verde y tsc acotado.\n\nREGLAS DE LA CASA (valen aunque no las repita la tarea): toca SOLO los archivos de la lista `archivos`; ≤3 archivos y ≤120 líneas por archivo (si no cabe, para y di qué falta: no lo estires ni lo resumas); sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible (la interfaz dice Genesis); sin red real en las pruebas; ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves. El asunto de tu commit empieza por `MRI3b:` y dice qué comprobaste y qué NO pudiste comprobar.",
+   "dependencias_ya_en_main": [
+    "MRI2b"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1117-092204.json": [
+   "INT20",
+   "MRI3b",
+   "SVF1B5b",
+   "SVF1C7"
+  ]
+ }
+}
