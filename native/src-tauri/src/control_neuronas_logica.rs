@@ -426,6 +426,26 @@ pub fn lineas_pausa(vistas: u32, entra: bool, sale: bool, d: &DatosPausa) -> Vec
     v
 }
 
+/// (CTL1117G) `repuesto motivo=descartado|ausente n=… [error=…] notificaciones=si|no`: el aviso fijo se volvió a poner; el control sigue.
+#[allow(dead_code)] // solo Android la usa
+pub fn linea_aviso(motivo: &str, n: u32, error: &str, notificaciones: bool) -> String {
+    let m = clave_de_motivo(motivo);
+    let e = solo_clave(error.trim(), 60);
+    let base = format!("repuesto motivo={} n={}", if m.is_empty() { "desconocido".to_string() } else { m }, n);
+    let con_error = if e.is_empty() { base } else { format!("{base} error={}", e.replace(' ', "-")) };
+    format!("{con_error} notificaciones={}", si_no(notificaciones))
+}
+
+/// (CTL1117G) El vigía de Rust tiene un tic por segundo: si entre dos pasaron más de 5 s, el PROCESO estuvo parado (congelado por el
+/// sistema o dormido). Con el reloj de pared y el monótono: si solo crece el de pared, el aparato durmió; si crecen los dos, no.
+#[allow(dead_code)] // solo Android la usa
+pub fn linea_hueco(hueco_pared_ms: u64, hueco_mono_ms: u64) -> Option<String> {
+    if hueco_pared_ms < 5_000 {
+        return None;
+    }
+    Some(format!("hueco hueco-pared-ms={} hueco-mono-ms={}", hueco_pared_ms.min(99_999_999), hueco_mono_ms.min(99_999_999)))
+}
+
 /// `fin de=… motivo=… latido-ms=… mostrando=… kotlin-en-fondo=… medida=… reanudos=…` (sin Kotlin, solo `de` y `motivo`).
 pub fn linea_fin_sesion(de8: &str, motivo: &str, k: Option<&DatosKotlin>) -> String {
     let de: String = de8.chars().filter(|c| c.is_ascii_hexdigit()).take(8).collect();
@@ -533,7 +553,6 @@ mod pruebas {
             ("caducada", "caducada"),
             ("sin-indicador", "sin-indicador"),
             ("la-persona-desde-el-indicador", "la-persona-desde-el-indicador"),
-            ("notificacion-descartada", "notificacion-descartada"),
             ("la persona, desde el indicador", "la-persona-desde-el-indicador"),
             ("¡¡!!", "sin-sesion"),
         ] {
@@ -749,6 +768,15 @@ mod pruebas {
             assert_eq!(c.orden(TOK, "leer-aparato", t, true).unwrap_err(), Rechazo::Pausada, "t={t}");
         }
         assert_eq!(c.orden(TOK, "leer-aparato", SESION_INACTIVA_MS + 1, true).unwrap_err(), Rechazo::SinSesion);
+    }
+
+    #[test]
+    fn ctl1117g_lineas_de_aviso_y_de_hueco() {
+        assert_eq!(linea_aviso("descartado", 2, "", true), "repuesto motivo=descartado n=2 notificaciones=si");
+        assert_eq!(linea_aviso("Ausente", 1, "primer-plano:SecurityException,notify:X", false), "repuesto motivo=ausente n=1 error=primer-plano:SecurityException,notify:X notificaciones=no");
+        assert!(!linea_aviso("<x>", 1, "a b\nc", true).contains('<'));
+        assert_eq!(linea_hueco(4_999, 0), None);
+        assert_eq!(linea_hueco(1_559_834, 3_000).unwrap(), "hueco hueco-pared-ms=1559834 hueco-mono-ms=3000");
     }
 
     #[test]

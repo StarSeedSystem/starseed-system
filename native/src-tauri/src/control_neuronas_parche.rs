@@ -242,6 +242,15 @@ mod pruebas {
         assert!(KOTLIN.contains("setOngoing(true)"));
         assert!(KOTLIN.contains("setDeleteIntent(pi(DESCARTADA"));
         assert!(KOTLIN.contains("TERMINAR -> terminar(\"la-persona-desde-la-notificacion\")"));
+        // CTL1117G: descartarla repone el aviso, no termina; ningún camino escribe ya «notificacion-descartada» como parada.
+        assert!(KOTLIN.contains("DESCARTADA -> if (ControlNeuronasNativo.mostrando) reponerAviso(\"descartado\") else cerrar()"));
+        assert!(!KOTLIN.contains("terminar(\"notificacion-descartada\")"));
+        let r = KOTLIN.find("private fun reponerAviso(motivo: String)").unwrap();
+        let cuerpo = &KOTLIN[r..r + 900];
+        assert!(cuerpo.contains("startForeground(ID") && cuerpo.contains("avisoError") && !cuerpo.contains("terminar("), "un fallo se apunta y no termina");
+        let l = KOTLIN.find("private val latido = object : Runnable").unwrap();
+        assert!(KOTLIN[l..l + 500].contains("vigilarAviso()"));
+        assert!(KOTLIN.contains("nm.activeNotifications.none { it.id == ID }"));
         assert!(KOTLIN.contains("PendingIntent.getService"), "lo atiende el servicio nativo, no la página");
         assert!(KOTLIN.contains("FLAG_WATCH_OUTSIDE_TOUCH") && KOTLIN.contains("ACTION_OUTSIDE"), "toque local → pausa");
         assert!(KOTLIN.contains("pBorde.alpha = 0.8f"), "los toques atraviesan el borde (Android 12+)");

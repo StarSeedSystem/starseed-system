@@ -123,7 +123,7 @@ más de lo que se usa.
 «¿Dejar que tus otras neuronas controlen esta tableta?»: notificaciones con el diálogo del sistema (13+) y la
 superposición en su pantalla de Ajustes (Android no tiene diálogo para ella). Sin cualquiera de los tres, el
 control se niega con «sin-indicador-nativo». Android 14+ deja descartar notificaciones en curso: descartarla
-TERMINA la sesión. Código: `android/ControlNeuronasStarSeed.kt`, `src/control_neuronas_android.rs`.
+la REPONE y el control sigue (CTL1117G; solo «Terminar» termina). Código: `android/ControlNeuronasStarSeed.kt`, `src/control_neuronas_android.rs`.
 
 ### §2.3 Windows 10/11 (apps de escritorio sin empaquetar)
 

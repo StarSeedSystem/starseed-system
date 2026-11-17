@@ -28,7 +28,8 @@ pub const PREFIJO_PETICION: &str = "peticion-";
 /// Sin latido de Kotlin en este tiempo, el indicador no está a la vista.
 pub const LATIDO_MAX_MS: u64 = 6_000;
 /// Motivos de «terminada» que escribe Kotlin (lista cerrada: cualquier otro se lee como «indicador-perdido»).
-pub const MOTIVOS: [&str; 4] = ["la-persona-desde-la-notificacion", "la-persona-desde-la-superposicion", "notificacion-descartada", "no-se-pudo-mostrar"];
+/// (CTL1117G) «notificacion-descartada» ya no es una parada: descartar el aviso fijo lo repone (decisión del dueño).
+pub const MOTIVOS: [&str; 3] = ["la-persona-desde-la-notificacion", "la-persona-desde-la-superposicion", "no-se-pudo-mostrar"];
 
 #[derive(Deserialize, Default, Debug, Clone, PartialEq)]
 #[serde(default)]
@@ -69,6 +70,10 @@ pub struct EstadoKotlin {
     pub pausa_ms: u64,
     pub ignorados: u32,
     pub cuadro_ms: i64,
+    /// (CTL1117G) Veces que el servicio repuso el aviso fijo, la última causa (`descartado`, `ausente`) y el error de la última reposición.
+    pub avisos: u32,
+    pub aviso_motivo: String,
+    pub aviso_error: String,
     pub terminada: Option<Terminada>,
     /// Lo que falta para poder enseñar el indicador, en palabras cortas («interruptor», «notificaciones», …).
     pub falta: Vec<String>,
@@ -352,9 +357,10 @@ mod pruebas {
     fn descartar_la_notificacion_o_perder_el_latido_cierra_la_sesion() {
         let mut c = Control::default();
         c.abrir(TOK, DE, "Mac", "controlar", 0, true).unwrap();
+        // CTL1117G: ya no hay parada por «descartada»; un motivo que Kotlin no conoce se dice «indicador-perdido».
         let descartada = kotlin(serde_json::json!({ "mostrando": false,
             "terminada": { "sesion": "S1", "motivo": "notificacion-descartada", "t_ms": 1 } }));
-        assert_eq!(sincronizar(&mut c, Some(&descartada), "S1", 1_000_100, 1), Cambio::Parar("notificacion-descartada".into()));
+        assert_eq!(sincronizar(&mut c, Some(&descartada), "S1", 1_000_100, 1), Cambio::Parar("indicador-perdido".into()));
         c.abrir(TOK, DE, "Mac", "controlar", 2, true).unwrap();
         let viejo = kotlin(serde_json::json!({}));
         assert_eq!(sincronizar(&mut c, Some(&viejo), "S1", 1_000_000 + LATIDO_MAX_MS + 1, 3), Cambio::Parar("sin-indicador".into()));

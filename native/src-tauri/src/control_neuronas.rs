@@ -522,8 +522,28 @@ pub fn iniciar(app: &AppHandle) {
     let h = app.clone();
     #[cfg(target_os = "android")]
     let mut huerfano = 0u32;
+    #[cfg(target_os = "android")]
+    let (mut ult_pared, mut ult_mono, mut tics) = (pared_ms(), mono_ms(), 0u32);
     let _ = std::thread::Builder::new().name("starseed-control-neuronas".into()).spawn(move || loop {
         std::thread::sleep(std::time::Duration::from_secs(1));
+        #[cfg(target_os = "android")]
+        {
+            // CTL1117G: un hueco de más de 5 s entre dos tics = el proceso estuvo parado; se anota con la hora REAL en cuanto vuelve, y un pulso cada 30 s.
+            let (p, m) = (pared_ms(), mono_ms());
+            if control().activa().is_some() {
+                if let Some(t) = l::linea_hueco(p.saturating_sub(ult_pared), m.saturating_sub(ult_mono)) {
+                    crate::ble::nota(None, "control-pulso", &t);
+                }
+                tics += 1;
+                if tics % 30 == 0 {
+                    if let Some(k) = crate::control_neuronas_android::es::estado(&h) {
+                        crate::ble::nota(None, "control-pulso", &format!("pulso latido-ms={} pausa={} cuadro-ms={} fondo={}", p.saturating_sub(k.t_ms).min(9_999_999), if k.pausada { "si" } else { "no" }, k.cuadro_ms.clamp(-1, 9_999_999), if k.en_fondo { "si" } else { "no" }));
+                    }
+                }
+            }
+            ult_pared = p;
+            ult_mono = m;
+        }
         #[cfg(target_os = "android")]
         quitar_indicador_huerfano(&h, &mut huerfano); // CTL1117A · S7
         let activa = control().activa().is_some();
@@ -646,6 +666,14 @@ fn sondear_plataforma(app: &AppHandle) {
         let vistas = if antes_vistas == u32::MAX { ek.pausas.saturating_sub(u32::from(cambio == Cambio::Pausada)) } else { antes_vistas }; // primer sondeo: lo anterior no es de esta sesión
         for linea in l::lineas_pausa(vistas, cambio == Cambio::Pausada, cambio == Cambio::Reanudada, &d) {
             crate::ble::nota(None, "control-pausa", &linea);
+        }
+    }
+    // CTL1117G: el aviso fijo repuesto (descartado/ausente), con su error si lo hubo; no termina nada.
+    static AVISOS_VISTOS: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(u32::MAX);
+    if let Some(ek) = e.as_ref() {
+        let antes = AVISOS_VISTOS.swap(ek.avisos, Ordering::SeqCst);
+        if antes != u32::MAX && ek.avisos > antes {
+            crate::ble::nota(None, "control-aviso", &l::linea_aviso(&ek.aviso_motivo, ek.avisos, &ek.aviso_error, ek.notificaciones));
         }
     }
     match cambio {

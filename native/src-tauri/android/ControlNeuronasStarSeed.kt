@@ -110,6 +110,10 @@ object ControlNeuronasNativo : Application.ActivityLifecycleCallbacks {
     @Volatile var pausaInicioMs = 0L
     @Volatile var reanudaMotivo = ""
     @Volatile var pausaDurMs = 0L
+    // CTL1117G: cuántas veces el servicio repuso el aviso fijo (descartado o ausente) y por qué falló la última reposición (Rust anota `control-aviso`).
+    @Volatile var avisos = 0
+    @Volatile var avisoMotivo = ""
+    @Volatile var avisoError = ""
     private var terminada: JSONObject? = null
     // IND1115F: en qué paso quedó el último intento de «mostrar» y por qué (Rust lo lee para decir QUÉ falló).
     @Volatile var intento: String = ""
@@ -325,6 +329,9 @@ object ControlNeuronasNativo : Application.ActivityLifecycleCallbacks {
             .put("reanuda_motivo", reanudaMotivo)
             .put("pausa_ms", if (pausada && pausaInicioMs > 0) System.currentTimeMillis() - pausaInicioMs else pausaDurMs)
             .put("ignorados", ControlEntradaNativo.ignorados)
+            .put("avisos", avisos) // CTL1117G
+            .put("aviso_motivo", avisoMotivo)
+            .put("aviso_error", avisoError)
             .put("cuadro_ms", ControlEntradaNativo.cuadroHace())
             .put("terminada", terminada ?: JSONObject.NULL)
             .put("falta", falta())
@@ -500,6 +507,7 @@ class ServicioControlNeuronas : Service() {
         override fun run() {
             if (!ControlNeuronasNativo.mostrando) return
             ControlFondo.mantener(ControlNeuronasNativo.actividadActual()) // CTL1117C · FALLO 1
+            vigilarAviso() // CTL1117G: si el aviso fijo no está en la barra, se repone
             vigilarPausa() // CTL1117F: la pausa no puede quedarse pegada si el temporizador de 3 s se perdió
             ControlNeuronasNativo.escribirEstado()
             principal.postDelayed(this, LATIDO_MS)
@@ -515,7 +523,8 @@ class ServicioControlNeuronas : Service() {
         when (intent?.action) {
             MOSTRAR -> mostrar(intent.getStringExtra("sesion") ?: "", intent.getStringExtra("nombre") ?: "otra neurona")
             TERMINAR -> terminar("la-persona-desde-la-notificacion")
-            DESCARTADA -> terminar("notificacion-descartada")
+            // CTL1117G (decisión del dueño): descartar el aviso fijo NO termina el control; se repone. Solo «Terminar» (o las paradas de siempre) lo cierran.
+            DESCARTADA -> if (ControlNeuronasNativo.mostrando) reponerAviso("descartado") else cerrar()
             REANUDAR -> reanudar()
             QUITAR -> cerrar()
             else -> if (!ControlNeuronasNativo.mostrando) cerrar()
@@ -535,6 +544,7 @@ class ServicioControlNeuronas : Service() {
             donde = "primer-plano"
             if (Build.VERSION.SDK_INT >= 34) startForeground(ID, aviso, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE) else startForeground(ID, aviso)
             ControlNeuronasNativo.paso = "primer-plano"
+            avisoDesde = System.currentTimeMillis()
             donde = "superposicion"
             ponerSuperposicion()
         } catch (e: Exception) {
@@ -579,7 +589,7 @@ class ServicioControlNeuronas : Service() {
             .setContentText(if (pausada) "Tocaste la pantalla: $n no puede mandar nada hasta que reanudes." else "$n manda órdenes a esta tableta. Tocar la pantalla lo pausa.")
             .setOngoing(true)
             .setCategory(Notification.CATEGORY_SERVICE)
-            .setDeleteIntent(pi(DESCARTADA, 3)) // descartarla = indicador desaparecido = termina
+            .setDeleteIntent(pi(DESCARTADA, 3)) // CTL1117G: descartarla repone el aviso (ya no termina)
             .addAction(Notification.Action.Builder(null, "Terminar", pi(TERMINAR, 1)).build())
         if (pausada) b.addAction(Notification.Action.Builder(null, "Reanudar", pi(REANUDAR, 2)).build())
         if (Build.VERSION.SDK_INT >= 31) b.setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE)
@@ -588,6 +598,37 @@ class ServicioControlNeuronas : Service() {
         val a = b.build()
         a.flags = a.flags or Notification.FLAG_ONGOING_EVENT or Notification.FLAG_NO_CLEAR
         return a
+    }
+
+    private var avisoDesde = 0L
+
+    /**
+     * CTL1117G: vuelve a poner el aviso fijo (misma sesión; no toca token, pausa ni estado). `startForeground` repite el primer plano del servicio y,
+     * si Android lo rechaza, `notify`. Un fallo se apunta en `aviso_error` y NO termina nada: la pastilla sigue siendo el indicador a la vista.
+     */
+    private fun reponerAviso(motivo: String) {
+        ControlNeuronasNativo.avisos += 1
+        ControlNeuronasNativo.avisoMotivo = motivo
+        ControlNeuronasNativo.avisoError = ""
+        avisoDesde = System.currentTimeMillis()
+        try {
+            val a = aviso()
+            if (Build.VERSION.SDK_INT >= 34) startForeground(ID, a, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE) else startForeground(ID, a)
+        } catch (e: Throwable) {
+            ControlNeuronasNativo.avisoError = "primer-plano:" + e.javaClass.simpleName
+            try { getSystemService(NotificationManager::class.java)?.notify(ID, aviso()) } catch (e2: Throwable) { ControlNeuronasNativo.avisoError += ",notify:" + e2.javaClass.simpleName }
+        }
+        ControlNeuronasNativo.escribirEstado()
+    }
+
+    /** CTL1117G: en cada latido, con sesión viva, ¿sigue el aviso en la barra? Si no (lo quitó algo sin pasar por el borrado), se repone. */
+    private fun vigilarAviso() {
+        if (!ControlNeuronasNativo.mostrando || Build.VERSION.SDK_INT < 23) return
+        if (System.currentTimeMillis() - avisoDesde < 4_000L) return
+        try {
+            val nm = getSystemService(NotificationManager::class.java) ?: return
+            if (nm.activeNotifications.none { it.id == ID }) reponerAviso("ausente")
+        } catch (_: Throwable) { /* sin lista de avisos: no se puede saber, no se hace nada */ }
     }
 
     private fun refrescarAviso() {

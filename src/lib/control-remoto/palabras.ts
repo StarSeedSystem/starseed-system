@@ -26,7 +26,6 @@ export const PALABRAS_MOTIVO: Readonly<Record<string, string>> = {
     "parada-nativa-persona": "La persona terminó el control desde el aviso del aparato («Terminar»).",
     "parada-nativa-caducada": "La sesión de control caducó en el aparato (2 minutos sin órdenes o 1 hora de duración).",
     "parada-nativa-sin-indicador": "El aviso de control del aparato (el borde rojo y su botón) dejó de verse y el control se cortó por seguridad.",
-    "parada-nativa-notificacion-descartada": "Se quitó el aviso de control de la barra de notificaciones del aparato: sin aviso no hay control.",
     "parada-nativa-no-se-pudo-mostrar": "Android no dejó mantener el aviso de control en el aparato: sin aviso no hay control.",
     "parada-nativa-indicador-perdido": "El aparato perdió su aviso de control y lo cerró.",
     "parada-nativa-sin-sesion": "El aparato ya no tenía una sesión de control abierta.",

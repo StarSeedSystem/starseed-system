@@ -333,7 +333,7 @@ pub enum EventoRadio {
 }
 
 /// Los hitos que la radio puede anotar (lista cerrada: el texto libre va en el detalle).
-pub const NOTAS_RADIO: [&str; 22] = [
+pub const NOTAS_RADIO: [&str; 24] = [
     // BLE1110A: cambios de MTU (anterior → nuevo), anuncio que ya estaba activo (código 3) y conexión soltada para renegociar el MTU.
     "mtu-cambio",
     "anuncio-ya-activo",
@@ -357,6 +357,8 @@ pub const NOTAS_RADIO: [&str; 22] = [
     "control-indicador", // IND1115F: cada intento de poner el indicador del control entre neuronas (control_neuronas.rs)
     "control-fondo", // CTL1117C: el control con la app detrás (visible/oculta, deriva del reloj, cuadros, órdenes, medida nativa)
     "control-sesion", // CTL1117C: el fin de una sesión de control con su motivo REAL y la edad del latido del indicador
+    "control-aviso", // CTL1117G: el aviso fijo del control repuesto (descartado o ausente) y por qué falló si falló
+    "control-pulso", // CTL1117G: pulso del vigía de Rust cada 30 s con sesión viva y, tras un hueco de más de 5 s, cuánto duró (proceso congelado)
     "control-pausa", // CTL1117F: entrar y salir de la pausa local (motivo y ms desde el último gesto propio), anotado por Rust sin la página
 ];
 

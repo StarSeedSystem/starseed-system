@@ -348,8 +348,10 @@ Fuente: órdenes O1114043351 y O1114043802 de la dirección principal al carril 
   (macOS: el de `tauri-plugin-dialog`, como «Acceso al equipo»; Android: el de Kotlin); la página solo puede
   pedir el diálogo. Apagarlo (página, «Terminar y quitar el permiso», menú de la barra) es inmediato y sin
   diálogo. Con él apagado, Rust niega la sesión con `interruptor-nativo-apagado` y lo anota.
-- **Android 14 y posteriores** dejan a la persona descartar la notificación en curso del control: descartarla
-  **termina la sesión** (indicador desaparecido, §2.4).
+- **Android 14 y posteriores** dejan descartar la notificación en curso del control. **CTL1117G (decisión del dueño, 17-11):** el
+  servicio la VUELVE A PONER (`startForeground`, misma sesión, sin tocar token ni pausa) y el control sigue; solo «Terminar» (pastilla o
+  aviso) y las paradas de siempre (caducidad, pérdida real del indicador…) lo cierran. Traza nativa `control-aviso repuesto motivo=descartado|ausente n=… [error=…] notificaciones=…`;
+  si reponerla falla, se apunta y NO se termina mientras la pastilla siga a la vista.
 - **Ver la pantalla del otro aparato no está construido todavía.**
 - Windows, Linux e iOS niegan la sesión (`sin-indicador-nativo`): les falta el borde, el atajo o la pausa local.
 
@@ -565,3 +567,8 @@ comandos del control solo responden a la web publicada o al puerto que la app si
 - **Lo que se arregla (Kotlin).** `reanudar()` se negaba mientras `esGestoPropio()` y `reanudarPorSilencio` no volvía a armar el reloj: la pausa quedaba pegada. Ahora se vuelve a armar y cada latido (2 s) comprueba que haya 3 s sin tocar (`vigilarPausa`). El toque propio cubre también un gesto en el aire (`ocupado()`) y 400 ms tras cada trozo (`COLA_GESTO_MS`, antes 150): el eco que llega tarde con el hilo principal ocupado ya no pausa. El toque de la persona sigue pausando 3 s y «Terminar» sigue mandando.
 - **Ventana (Mac).** El carril único de emisión suelta el turno a los `LIMITE_CARRIL_MS` (20 s) aunque una orden no vuelva: una lectura colgada ya no deja a la sesión sin renovar. La renovación sigue siendo solo por la orden firmada.
 - **Diagnóstico.** `control-pausa` (Rust, vigía, sin la página): `entra motivo=toque-fuera|gesto-cancelado desde-gesto-ms=… ignorados=… pausas=…`, `sale motivo=reanudada-sola|reanudada-vigia|reanudada-por-la-persona dur-ms=…`, `breves n=… ultima=…` (pausas más cortas que el sondeo). `control-fondo` suma `pausa=si|no` y `cuadro-ms=` (ms desde el último cuadro que Kotlin escribió; -1 = ninguno). Las líneas nativas llevan la hora de la tableta, así que al volver a verse en la Mac conservan su hora real.
+
+## CTL1117G · aviso fijo repuesto y congelado total tras el toque (2026-11-17 · prueba .50)
+
+- **Aviso fijo.** `DESCARTADA` ya no termina: `reponerAviso` (Kotlin) + vigilancia en cada latido (`activeNotifications` sin el id -> `ausente`). Candidatos a quién lo disparó a las 20:22:18 (sin dedo del dueño): `deleteIntent` también salta cuando la quita el sistema o nuestro propio `stopForeground(REMOVE)`/`cancel`; el único `cancel` propio es `cerrar()` (fin de sesión), tras el que `DESCARTADA` ya se ignora (`mostrando=false`).
+- **Congelado.** Ningún camino de Kotlin pausa el WebView con sesión viva: `ControlFondo.soltar` (`w.onPause()`) solo corre en `cerrar`, `onDestroy` y si `mostrando=false`. La pausa local no toca el primer plano (solo `notify` del mismo id). El hilo principal no tiene esperas sin fin en la pausa; `ventanaProtegida` hace IPC por ventana pero con tiempo acotado por Android. No se encontró el disparo; se añade lo que falta para verlo: `control-pulso` (Rust, un tic/s, línea cada 30 s y `hueco hueco-pared-ms=… hueco-mono-ms=…` si el proceso estuvo parado >5 s, con su hora real).
