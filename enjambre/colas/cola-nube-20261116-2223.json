@@ -1,0 +1,25 @@
+{
+ "ola": "nube-20261116",
+ "tareas": [
+  {
+   "area": "imaginacion",
+   "id": "IMG-agentes-reimaginada-profunda-corregir-ti-d1",
+   "titulo": "Corregir tipos any en StepKind (parte 1 de 3)",
+   "archivos": [
+    "src/lib/mando/stepKind.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Corregir tipos any en StepKind. El objetivo es eliminar los `any` en la definición de `StepKind` para mejorar la seguridad de tipos y la mantenibilidad del código. La propuesta incluye:\n\n1. **Revisión de la interfaz**: Reemplazar los campos `any` por tipos concretos o genéricos con restricciones.\n2. **Actualización de los casos de uso**: Ajustar todas las llamadas a `StepKind` para que utilicen los nuevos tipos.\n3. **Pruebas unitarias**: Añadir pruebas que verifiquen la correcta tipificación y que no se produzcan errores de tipo.\n4. **Documentación**: Actualizar la documentación de la API para reflejar los cambios.\n\nEsta tar Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde.\n\n## PARTE 1 DE 3 (la dirección dividió IMG-agentes-reimaginada-profunda-corregir-ti: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: src/lib/mando/stepKind.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "IMG-agentes-reimaginada-profunda-corregir-ti",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   }
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1116-222046.json": [
+   "IMG-agentes-reimaginada-profunda-corregir-ti-d1"
+  ]
+ }
+}
