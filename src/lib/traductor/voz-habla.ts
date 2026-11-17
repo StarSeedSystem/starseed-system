@@ -11,6 +11,8 @@
  * Las inyecciones de red/almacenamiento vienen por parámetros o contexto global.
  */
 
+import { hablar as hablarPuerta, callar as callarPuerta } from "@/lib/aurora/voz-unica";
+
 type VozDisponible = {
     id: string;
     nombre: string;
@@ -162,47 +164,27 @@ export function hablar(texto: string, idioma: string, entorno: string = "navegad
     estado.cancelado = false;
     estado.cola = [];
 
-    // Simular síntesis de voz (speechSynthesis)
-    if (typeof window !== "undefined" && "speechSynthesis" in window && window.speechSynthesis) {
-        const synth = window.speechSynthesis;
-        const u = new SpeechSynthesisUtterance(texto);
-        u.lang = voz.lang;
-        const voices = synth.getVoices();
-        const matchedVoice = voices.find((v: SpeechSynthesisVoice) => v.lang === voz.lang || v.name.includes(voz.nombre));
-        if (matchedVoice) {
-            u.voice = matchedVoice;
+    // Todo suena por la puerta única. Contexto «lectura»: una traducción leída en voz alta es un texto que
+    // el usuario pidió oír (sustituye a otra lectura, no corta la conversación ni espera en cola).
+    // La puerta no admite idioma, velocidad ni voz: elige el motor sola; `voz` solo valida que haya voz del idioma.
+    let terminada = false;
+    const miEstado = estado; // `resetearEstado()` crea otro objeto: una frase de un estado viejo no toca el nuevo
+    const alFinal = (): void => {
+        if (terminada) return;
+        terminada = true;
+        if (miEstado !== estado || estado.activa !== voz) return; // `detener()` o `resetearEstado()` ya cerraron esta frase
+        estado.activa = null;
+        const siguiente = estado.cola.shift();
+        if (siguiente) {
+            hablar(siguiente, idioma, entorno);
+        } else {
+            const cb = estado.alTerminar;
+            estado.alTerminar = null;
+            if (cb) cb(true);
         }
-
-        // Marcar fin de frase
-        const onend = (): void => {
-            synth.cancel();
-            estado.activa = null;
-            const siguiente = estado.cola.shift();
-            if (siguiente) {
-                hablar(siguiente, idioma, entorno);
-            } else {
-                const cb = estado.alTerminar;
-                estado.alTerminar = null;
-                if (cb) cb(true);
-            }
-        };
-
-        u.onend = onend;
-        synth.speak(u);
-    } else {
-        // Fallback: simular inmediato (para tests sin DOM)
-        setTimeout(() => {
-            estado.activa = null;
-            const siguiente = estado.cola.shift();
-            if (siguiente) {
-                hablar(siguiente, idioma, entorno);
-            } else {
-                const cb = estado.alTerminar;
-                estado.alTerminar = null;
-                if (cb) cb(true);
-            }
-        }, 10);
-    }
+    };
+    // Si la puerta no pudo hablar (devuelve false), la cola avanza igual para no quedar bloqueada.
+    void hablarPuerta(texto, { contexto: "lectura", alTerminar: alFinal }).then((sono) => { if (!sono) alFinal(); }, alFinal);
 
     return { ok: true };
 }
@@ -214,10 +196,8 @@ export function hablar(texto: string, idioma: string, entorno: string = "navegad
 export function detener(): void {
     estado.cancelado = true;
     estado.cola = [];
-    if (typeof window !== "undefined" && window.speechSynthesis) {
-        window.speechSynthesis.cancel();
-    }
     estado.activa = null;
+    callarPuerta(); // cancelación propia de la puerta única
     const cb = estado.alTerminar;
     estado.alTerminar = null;
     if (cb) cb(false);
