@@ -12,7 +12,7 @@
  * OPFS del WebView) y los motores reales de los dos lados, por las dos rutas y por las dos a la vez.
  */
 import { createHash, randomFillSync } from "node:crypto";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   TAM_TROZO_ENLACE_DIRECTO,
   b64ABuf,
@@ -410,10 +410,39 @@ function comoReceptorAnterior(t: string): string | null {
 }
 
 describe("ARC1108B · con latidos, el remitente no se rinde aunque verificar tarde más de 85 s", () => {
+  /**
+   * SUP1117A: el SHA-256 de WebCrypto corre de verdad en el threadpool de Node. Con la CI cargada (2 265
+   * archivos a la vez) un hash tarda milisegundos reales y el reloj falso seguía a pasos de 100 ms mientras
+   * tanto: verificar los 64 trozos pasaba de los 400 s falsos y el «ok» tardío no llegaba («expected 'error'
+   * to be 'completada'», candidato 97a69346f del 17-11). Con un hash 8 ms más lento se reproduce en la Mac.
+   * Se cuentan los hash en vuelo y el reloj falso no se mueve hasta que acaban: el tiempo falso lo marca
+   * solo el almacén lento (1,5 s por lectura), como en el aparato.
+   */
+  const hashes = { enVuelo: 0 };
+  let espiaDigest: { mockRestore: () => void } | null = null;
+  beforeEach(() => {
+    hashes.enVuelo = 0;
+    const digest = crypto.subtle.digest.bind(crypto.subtle);
+    espiaDigest = vi.spyOn(crypto.subtle, "digest").mockImplementation(async (algoritmo, datos) => {
+      hashes.enVuelo++;
+      try {
+        return await digest(algoritmo, datos);
+      } finally {
+        hashes.enVuelo--;
+      }
+    });
+  });
+  afterEach(() => {
+    espiaDigest?.mockRestore();
+    espiaDigest = null;
+  });
+
   /** Avanza el reloj falso a pasos de 100 ms, dejando correr lo asíncrono de verdad (hash, Blob). */
   async function correr(hasta: () => boolean, maxMs: number): Promise<void> {
     for (let t = 0; t < maxMs && !hasta(); t += 100) {
       for (let k = 0; k < 4; k++) await new Promise((r) => setImmediate(r));
+      // SUP1117A: ningún paso del reloj falso mientras un hash de verdad siga en vuelo.
+      for (let k = 0; hashes.enVuelo > 0 && k < 1_000_000; k++) await new Promise((r) => setImmediate(r));
       await vi.advanceTimersByTimeAsync(100);
     }
   }
