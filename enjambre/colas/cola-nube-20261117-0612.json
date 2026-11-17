@@ -1,0 +1,40 @@
+{
+ "ola": "nube-20261117",
+ "tareas": [
+  {
+   "id": "TU32",
+   "ola": "TRA1116-APP-F1",
+   "titulo": "Prueba integral pura: par instalado → traducir sin red → privacidad → herramienta de Astraura",
+   "archivos": [
+    "src/lib/traductor/__tests__/traductor-integral.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Prueba de integración sin red ni DOM real: servicio con `paquete-local` falso instalado para es→en; (1) traducir sin ningún `fetch` (el `fetch` falso falla la prueba si se llama) y `local:true`; (2) con el paquete NO instalado y el modo privado, la traducción falla con un error claro y no llama a Astraura; (3) sin privado y con el aviso aceptado, cae a un motor `astraura` falso y el resultado dice `motor:\"astraura\"`, `local:false`; (4) con el aviso sin aceptar devuelve `necesitaAviso` y no envía; (5) `ejecutarTraductor` devuelve `{error}` si todo falla y no inventa texto; (6) el idioma por persona cambia solo tras tres detecciones.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "TU12",
+    "TU26",
+    "TU28"
+   ]
+  },
+  {
+   "id": "SVF1C7",
+   "ola": "SES1116B",
+   "titulo": "Dashboard: «Compartir en vivo» y marca de directo",
+   "archivos": [
+    "src/components/vivo/dashboard/dashboard-vivo.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contrato: architecture/sesiones-en-vivo-entidades-y-transmisiones.md §8 flujo 1 y §10 (P1-C). En `src/components/vivo/dashboard/dashboard-vivo.tsx` (el dashboard ya usa `crearMotorDashboard`) añade, en UN bloque aditivo `// SES1115Q`, la acción «Compartir en vivo» (abre `CompartirEnVivo`, import dinámico) y `MarcaDirecto` junto al título. Nada más cambia (≤40 líneas). COMPRUEBA: tsc acotado sin errores nuevos y `NODE_ENV=test npx vitest run src/components/vivo src/lib/vivo` en verde.\n\nREGLAS DE LA CASA (valen aunque no las repita la tarea): toca SOLO los archivos de la lista `archivos`; ≤3 archivos y ≤120 líneas por archivo (si no cabe, para y di qué falta: no lo estires ni lo resumas); sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible (la interfaz dice Genesis); sin red real en las pruebas; ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves. El asunto de tu commit empieza por `SVF1C7:` y dice qué comprobaste y qué NO pudiste comprobar.",
+   "dependencias_ya_en_main": [
+    "SVF1C3",
+    "SVF1C4"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1117-060949.json": [
+   "SVF1C7",
+   "TU32"
+  ]
+ }
+}
