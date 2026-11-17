@@ -16,6 +16,7 @@ import { trozoDeLineaSSE } from "@/lib/astraura/conversacion-rapida";
 import { IDIOMAS } from "@/lib/idiomas/idiomas";
 import { establecerPaginaTraducida, registrarEntradaMenuTexto, type ContextoMenuTexto, type EntradaMenuTexto } from "@/components/traduccion/menu-texto";
 import { leerEnVoz, detener, type EntornoVoz } from "@/lib/idiomas/leer-en-voz";
+import { paqueteEnEdicion, anadirPendiente } from "@/lib/idiomas/paquete/editor";
 import { Par, SelectorPar, intercambiarPar } from "../traductor/selector-par";
 import type { EstadoPar } from "@/lib/traductor/tipos";
 
@@ -81,7 +82,7 @@ export async function traducirConAstraura(textos: string[], _origen: string, des
     return salida;
 }
 
-/** Las cuatro entradas del menú de TRD1020E; las acciones las trae el componente. */
+/** Las entradas del menú de TRD1020E + A3; las acciones las trae el componente. */
 export function entradasTraduccion(acciones: {
     traducirSeleccion: (texto: string) => void;
     traducirParrafo: (texto: string) => void;
@@ -93,6 +94,12 @@ export function entradasTraduccion(acciones: {
         { id: "traducir-parrafo", etiqueta: "Traducir este párrafo", ejecutar: (c) => acciones.traducirParrafo(textosATraducir(c).parrafo) },
         { id: "traducir-pagina", etiqueta: "Traducir toda la página", ejecutar: () => acciones.traducirPagina() },
         { id: "ver-original", etiqueta: "Ver original", visible: (c) => c.paginaTraducida, ejecutar: () => acciones.verOriginal() },
+        {
+            id: "anadir-a-paquete-edicion",
+            etiqueta: "Añadir al paquete de idioma en edición",
+            visible: (c) => c.seleccion.length > 0 && paqueteEnEdicion() !== null,
+            ejecutar: (c) => { anadirPendiente(c.seleccion); },
+        },
     ];
 }
 

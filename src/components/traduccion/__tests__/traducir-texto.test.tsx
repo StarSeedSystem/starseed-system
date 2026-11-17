@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { crearTraductor } from "@/lib/traduccion/motor";
 import {
   avisoProgreso,
@@ -11,6 +11,13 @@ import {
   type PaginaActual,
 } from "../traducir-texto";
 import { entradasVisibles, type ContextoMenuTexto } from "../menu-texto";
+
+const hechas: string[] = [];
+
+vi.mock("@/lib/idiomas/paquete/editor", () => ({
+  paqueteEnEdicion: vi.fn(() => "paquete-test"),
+  anadirPendiente: vi.fn((texto: string) => { hechas.push(`paquete:${texto}`); }),
+}));
 
 /** Translator API simulada: disponible y traduce devolviendo el texto con una marca. */
 const translatorSimulado = {
@@ -106,22 +113,22 @@ describe("crearMotores · capas según la página, con el motor simulado", () =>
 });
 
 
-describe("entradasTraduccion · las cuatro entradas del menú de TRD1020E", () => {
-  const hechas: string[] = [];
+describe("entradasTraduccion · las cinco entradas del menú (TRD1020E + A3)", () => {
   const acciones = {
     traducirSeleccion: (t: string) => hechas.push(`seleccion:${t}`),
     traducirParrafo: (t: string) => hechas.push(`parrafo:${t}`),
     traducirPagina: () => hechas.push("pagina"),
     verOriginal: () => hechas.push("original"),
-  };
+  } as const;
   const porId = Object.fromEntries(entradasTraduccion(acciones).map((e) => [e.id, e]));
 
-  it("producen exactamente las cuatro, con visibilidad por caso", () => {
+  it("producen exactamente las cinco, con visibilidad por caso", () => {
     expect(entradasTraduccion(acciones).map((e) => e.etiqueta)).toEqual([
       "Traducir selección",
       "Traducir este párrafo",
       "Traducir toda la página",
       "Ver original",
+      "Añadir al paquete de idioma en edición",
     ]);
     // Visibilidad juzgada por entradasVisibles, el filtro que usa de verdad el menú.
     expect(entradasVisibles([porId["traducir-seleccion"]], ctx({ seleccion: "hola" }))).toHaveLength(1);
@@ -131,6 +138,9 @@ describe("entradasTraduccion · las cuatro entradas del menú de TRD1020E", () =
     // «Ver original» solo con la página ya traducida (se marca al aplicar la página entera).
     expect(entradasVisibles([porId["ver-original"]], ctx({ paginaTraducida: true }))).toHaveLength(1);
     expect(entradasVisibles([porId["ver-original"]], ctx({}))).toHaveLength(0);
+    // «Añadir al paquete» solo con selección y paquete en edición.
+    expect(entradasVisibles([porId["anadir-a-paquete-edicion"]], ctx({ seleccion: "hola" }))).toHaveLength(1);
+    expect(entradasVisibles([porId["anadir-a-paquete-edicion"]], ctx({}))).toHaveLength(0);
   });
 
   it("ejecutan con el ctx del menú", () => {
@@ -139,11 +149,13 @@ describe("entradasTraduccion · las cuatro entradas del menú de TRD1020E", () =
     porId["traducir-parrafo"].ejecutar(ctx({ objetivo: p }));
     porId["traducir-pagina"].ejecutar(ctx({}));
     porId["ver-original"].ejecutar(ctx({}));
+    porId["anadir-a-paquete-edicion"].ejecutar(ctx({ seleccion: "texto paquete" }));
     expect(hechas).toEqual([
       "seleccion:hola mundo",
       "parrafo:Trama viva del párrafo",
       "pagina",
       "original",
+      "paquete:texto paquete",
     ]);
   });
 });
