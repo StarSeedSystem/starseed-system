@@ -6,7 +6,7 @@
  * discreto de progreso. Motores de TRD1020B (el traductor del navegador › LibreTranslate de
  * la neurona solo en localhost o app nativa, porque una página https no puede llamar a
  * 127.0.0.1 › Astraura) y pagina.ts de TRD1020C; idioma destino: el del perfil (TRD1020D). */
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useAccount } from "@/context/account-context";
 import { crearTraductor, motorAstraura, motorLibreTranslate, motorNavegador, type MotorTraduccion } from "@/lib/traduccion/motor";
 import { aplicar, recogerTextos, restaurar } from "@/lib/traduccion/pagina";
@@ -15,6 +15,7 @@ import { leer } from "@/lib/traduccion/preferencias";
 import { trozoDeLineaSSE } from "@/lib/astraura/conversacion-rapida";
 import { IDIOMAS } from "@/lib/idiomas/idiomas";
 import { establecerPaginaTraducida, registrarEntradaMenuTexto, type ContextoMenuTexto, type EntradaMenuTexto } from "@/components/traduccion/menu-texto";
+import { CLAVE_EDITOR, abrirEdicion, anadirPendiente, cerrarEdicion, completadas, paqueteEnEdicion, pendientes, type PaqueteEnEdicion, type ResultadoAnadir } from "@/lib/idiomas/paquete/editor";
 import { leerEnVoz, detener, type EntornoVoz } from "@/lib/idiomas/leer-en-voz";
 import { Par, SelectorPar, intercambiarPar } from "../traductor/selector-par";
 import type { EstadoPar } from "@/lib/traductor/tipos";
@@ -40,6 +41,16 @@ export function textosATraducir(ctx: ContextoMenuTexto, tope = TOPE): { seleccio
 const NOMBRES_MOTOR: Record<string, string> = { navegador: "Traductor del navegador", libretranslate: "LibreTranslate de la neurona", astraura: "Astraura" };
 /** Nombre amable del motor para la ventanita; un id nuevo se muestra tal cual llega. */
 export function nombreMotor(id: string): string { return NOMBRES_MOTOR[id] ?? id; }
+
+/** Qué contestar al intentar sumar el texto seleccionado al paquete en edición. */
+const MENSAJE_ANADIR: Record<ResultadoAnadir, string> = {
+    anadida: "Texto añadido al paquete de idioma en edición.",
+    vacia: "No hay texto que añadir.",
+    "demasiado-larga": "El texto pasa de 500 caracteres; no se añadió.",
+    duplicada: "Ese texto ya estaba en el paquete en edición.",
+    tope: "El paquete en edición ya tiene 2.000 entradas.",
+    "sin-edicion": "No hay un paquete de idioma abierto en edición.",
+};
 
 /** Aviso discreto de progreso de la página entera. */
 export function avisoProgreso(traducidos: number, total: number): string { return total === 0 ? "No hay nada que traducir" : `Traduciendo la página: ${Math.min(traducidos, total)} de ${total}…`; }
@@ -106,6 +117,8 @@ export function TraducirTexto() {
     const [leyendo, setLeyendo] = useState(false);
     const porCopiar = useRef("");
     const [par, setPar] = useState<Par>({ origen: "detectar", destino: leer(user?.id ?? "", typeof navigator === "undefined" ? undefined : navigator.language).idioma });
+    const [edicion, setEdicion] = useState<PaqueteEnEdicion | null>(null);
+    const refrescarEdicion = useCallback(() => setEdicion(paqueteEnEdicion()), []);
     const destino = () => par.destino;
     const motores = () => crearMotores({ protocolo: location.protocol, maquina: location.hostname, translator: (window as { Translator?: unknown }).Translator });
     const onCambiarPar = (newPar: Par) => setPar(newPar);
@@ -146,6 +159,15 @@ export function TraducirTexto() {
         setProgreso(null);
     };
     const verOriginal = () => { restaurar(document.body); establecerPaginaTraducida(false); setVentana(null); setProgreso(null); };
+    const abrirEditor = () => {
+        const actual = destino(), nombre = IDIOMAS.find((i) => i.codigo === actual)?.nombre ?? actual;
+        aviso(abrirEdicion(actual, nombre) ? `Paquete de idioma en edición: ${nombre}.` : "No se pudo abrir el paquete de idioma en edición.");
+        refrescarEdicion();
+    };
+    const cerrarEditor = () => {
+        aviso(cerrarEdicion() ? "Paquete de idioma en edición cerrado." : "No hay un paquete de idioma abierto en edición.");
+        refrescarEdicion();
+    };
 
     const entornoVoz = typeof window !== "undefined"
         ? { synth: window.speechSynthesis, Utter: window.SpeechSynthesisUtterance }
@@ -171,6 +193,13 @@ export function TraducirTexto() {
     }, [ventana, leyendo]);
 
     useEffect(() => {
+        refrescarEdicion();
+        const alCambiar = (e: StorageEvent) => { if (e.key === CLAVE_EDITOR || e.key === null) refrescarEdicion(); };
+        window.addEventListener("storage", alCambiar);
+        return () => window.removeEventListener("storage", alCambiar);
+    }, [refrescarEdicion]);
+
+    useEffect(() => {
         const quitar = entradasTraduccion({
             traducirSeleccion: (t) => void traducirUno(t),
             traducirParrafo: (t) => void traducirUno(t),
@@ -180,6 +209,26 @@ export function TraducirTexto() {
         return () => { for (const q of quitar) q(); };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [user?.id]);
+
+    useEffect(() => {
+        const quitar = [
+            {
+                id: "anadir-paquete-idioma",
+                etiqueta: "Añadir al paquete de idioma en edición",
+                visible: (c: ContextoMenuTexto) => c.seleccion.length > 0 && paqueteEnEdicion() !== null,
+                ejecutar: (c: ContextoMenuTexto) => {
+                    const resultado = anadirPendiente(c.seleccion);
+                    aviso(MENSAJE_ANADIR[resultado]);
+                    refrescarEdicion();
+                },
+            },
+            { id: "abrir-paquete-idioma", etiqueta: "Editar paquete del idioma de destino", visible: () => paqueteEnEdicion() === null, ejecutar: abrirEditor },
+            { id: "cerrar-paquete-idioma", etiqueta: "Cerrar paquete de idioma en edición", visible: () => paqueteEnEdicion() !== null, ejecutar: cerrarEditor },
+        ].map(registrarEntradaMenuTexto);
+        return () => { for (const q of quitar) q(); };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [refrescarEdicion, par.destino]);
+
     const boton = "cursor-pointer rounded-lg border border-white/15 px-3 py-1.5 text-xs transition-colors duration-150 hover:bg-white/10";
     return (
         <div className="flex flex-col gap-4 h-full">
@@ -201,6 +250,12 @@ export function TraducirTexto() {
                     onCambiar={onCambiarPar}
                     estadoDePar={estadoDePar}
                 />
+                {edicion && (
+                    <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-white/60">
+                        <span>Paquete en edición: {edicion.nombre} ({edicion.codigo}) · {pendientes().length} pendientes · {completadas().length} traducidas</span>
+                        <button type="button" onClick={cerrarEditor} className={boton}>Cerrar edición</button>
+                    </div>
+                )}
             </div>
             {progreso && (
                 <div role="status" aria-live="polite" className="fixed bottom-4 left-4 z-[1200] rounded-xl border border-white/10 bg-[#0A0F1D]/90 px-3 py-2 text-xs text-white/80 backdrop-blur-[16px]">{progreso}</div>
