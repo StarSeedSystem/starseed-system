@@ -143,3 +143,70 @@ def plazo_estimado_s(tam_gb: float, entrada_tokens: int, salida_tokens: int) -> 
     t_lectura = entrada_tokens / lectura_tps if lectura_tps > 0 else 0.0
     t_escritura = salida_tokens / escritura_tps if escritura_tps > 0 else 0.0
     return t_lectura + t_escritura
+
+
+def leer_memoria(texto_meminfo: str) -> tuple[int, int] | None:
+    """Extrae MemAvailable y SwapFree del texto de /proc/meminfo.
+
+    Args:
+        texto_meminfo: El contenido de /proc/meminfo.
+
+    Returns:
+        Una tupla de (memoria_disponible_mb, intercambio_libre_mb) si ambas se encuentran,
+        o None si alguna no se encuentra.
+    """
+    memoria_disponible = None
+    intercambio_libre = None
+
+    for linea in texto_meminfo.splitlines():
+        if linea.startswith("MemAvailable:"):
+            _, valor = linea.split(":")
+            memoria_disponible = int(valor.strip().split(" ")[0]) // 1024
+        elif linea.startswith("SwapFree:"):
+            _, valor = linea.split(":")
+            intercambio_libre = int(valor.strip().split(" ")[0]) // 1024
+
+    if memoria_disponible is not None and intercambio_libre is not None:
+        return memoria_disponible, intercambio_libre
+    return None
+
+
+def esta_compilando(lineas_de_procesos: list[str]) -> bool:
+    """Verifica si el nodo está compilando.
+
+    Args:
+        lineas_de_procesos: Lista de cadenas representando líneas de procesos.
+
+    Returns:
+        True si alguna línea contiene una orden de compilación, False en caso contrario.
+    """
+    for linea in lineas_de_procesos:
+        if "next build" in linea or "tsc" in linea or "vitest" in linea:
+            return True
+    return False
+
+
+def puede_cargar(mem_disponible_mb: int, intercambio_libre_mb: int, compilando: bool) -> tuple[bool, str]:
+    """Determina si el modelo puede cargarse según la memoria y si el nodo está compilando.
+
+    Args:
+        mem_disponible_mb: Memoria RAM disponible en MB (o None si no se pudo leer).
+        intercambio_libre_mb: Intercambio libre en MB (o None si no se pudo leer).
+        compilando: Si el nodo está compilando.
+
+    Returns:
+        Una tupla (bool, str) donde bool indica si puede cargarse y str es el motivo.
+    """
+    if mem_disponible_mb is None:
+        return False, "no se pudo leer la memoria"
+    if intercambio_libre_mb is None:
+        return False, "no se pudo leer la memoria"
+    if compilando:
+        return False, "el nodo está compilando"
+
+    if mem_disponible_mb >= 5200 and intercambio_libre_mb >= 1024:
+        return True, "ok"
+    elif mem_disponible_mb < 5200:
+        return False, f"memoria disponible {mem_disponible_mb} MB, hacen falta 5200"
+    else:
+        return False, f"intercambio libre {intercambio_libre_mb} MB, hace falta 1024"
