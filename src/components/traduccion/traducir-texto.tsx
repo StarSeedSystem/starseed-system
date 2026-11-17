@@ -15,7 +15,10 @@ import { leer } from "@/lib/traduccion/preferencias";
 import { trozoDeLineaSSE } from "@/lib/astraura/conversacion-rapida";
 import { IDIOMAS } from "@/lib/idiomas/idiomas";
 import { establecerPaginaTraducida, registrarEntradaMenuTexto, type ContextoMenuTexto, type EntradaMenuTexto } from "@/components/traduccion/menu-texto";
+import { entradasIdioma } from "@/components/traduccion/entradas-idioma";
 import { leerEnVoz, detener, type EntornoVoz } from "@/lib/idiomas/leer-en-voz";
+import { crearEditor } from "@/lib/idiomas/paquete/editor";
+import { almacenPaquetes, EVENTO_CAMBIO } from "@/lib/idiomas/paquete/almacen";
 import { Par, SelectorPar, intercambiarPar } from "../traductor/selector-par";
 import type { EstadoPar } from "@/lib/traductor/tipos";
 
@@ -177,7 +180,29 @@ export function TraducirTexto() {
             traducirPagina: () => void traducirPagina(),
             verOriginal,
         }).map(registrarEntradaMenuTexto);
-        return () => { for (const q of quitar) q(); };
+        // TRA1116: las tres entradas de idioma van al MISMO menú del clic derecho.
+        // El editor de paquetes se rehace cuando el almacén avisa (abrir o cerrar
+        // edición dispara EVENTO_CAMBIO), para que hayEdicion() no quede vieja.
+        const montarIdioma = () => {
+            const editor = crearEditor(almacenPaquetes);
+            return entradasIdioma({
+                leerEnVozAlta: (texto) => {
+                    const r = leerEnVoz(texto, navigator.language, entornoVoz);
+                    if (!r.ok) aviso(r.motivo ?? "No se pudo leer en voz alta.");
+                },
+                añadirAlPaquete: (texto) => { if (!editor.anadirPendiente(texto)) aviso("No se pudo añadir al paquete de idioma."); },
+                hayEdicion: () => editor.paqueteEnEdicion() !== null,
+                abrirTraductor: (url) => { window.location.assign(url); },
+            }).map(registrarEntradaMenuTexto);
+        };
+        let quitarIdioma = montarIdioma();
+        const alCambiarPaquetes = () => { for (const q of quitarIdioma) q(); quitarIdioma = montarIdioma(); };
+        window.addEventListener(EVENTO_CAMBIO, alCambiarPaquetes);
+        return () => {
+            for (const q of quitar) q();
+            for (const q of quitarIdioma) q();
+            window.removeEventListener(EVENTO_CAMBIO, alCambiarPaquetes);
+        };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [user?.id]);
     const boton = "cursor-pointer rounded-lg border border-white/15 px-3 py-1.5 text-xs transition-colors duration-150 hover:bg-white/10";
