@@ -25,7 +25,9 @@ import { InterruptorModoBanco } from "./internet/interruptor-modo-banco";
 import { SugerenciaModoBanco } from "./internet/sugerencia-modo-banco";
 import { TextosInternet } from "@/lib/malla/internet/tipos";
 import { getAjustesBanco, setAjustesBanco, AJUSTES_BANCO_EVENT, calcularRestanteHoyMb } from "@/lib/malla/internet/ajustes-banco";
-import type { AjustesBanco } from "@/lib/malla/internet/tipos";
+import type { AjustesBanco, EstadoConexion, FuenteLimitada } from "@/lib/malla/internet/tipos";
+import { clasificarConexion } from "@/lib/malla/internet/conexion-limitada";
+import { SeccionInternet } from "./internet/seccion-internet";
 
 /** La privacidad de la malla de ESTE dispositivo, viva (se vuelve a leer al cambiar desde cualquier panel). */
 export function useMeshPrivacidad(): { privacidad: MeshPrivacySettings; internetPublico: boolean } {
@@ -130,7 +132,7 @@ const MODOS: { id: PublicRadarMode; texto: string; nota: string }[] = [
   { id: "off", texto: "Oculta", nota: "no emites faro: invisible entre cuentas" },
 ];
 
-export function AjustesNeurona({ centro, neuronaId, verPublicos, onVerPublicos, onNombre }: {
+export function AjustesNeurona({ centro, neuronaId, verPublicos, onVerPublicos, onNombre, textosInternet }: {
   centro: CentroNeurona;
   /** Id de esta neurona en el registro de la cuenta; sin él se usa el del dispositivo. */
   neuronaId: string | null;
@@ -138,12 +140,28 @@ export function AjustesNeurona({ centro, neuronaId, verPublicos, onVerPublicos, 
   onVerPublicos: (v: boolean) => void;
   /** Se llama al guardar un nombre nuevo (para pintarlo al momento). */
   onNombre: (nombre: string) => void;
+  /** Textos del módulo internet (INT20). Si no se proporciona, la sección se oculta. */
+  textosInternet?: typeof TextosInternet;
 }) {
   const { privacidad: p, internetPublico } = useMeshPrivacidad();
   const { ajustes: banco, restanteHoyMb } = useAjustesBanco();
   const [nombre, setNombre] = useState(centro.sinNombre ? "" : centro.nombreNeurona);
   const [ultimaNegativa, setUltimaNegativa] = useState<number | null>(null);
+  const [clasificacion, setClasificacion] = useState<{ estado: EstadoConexion; fuente: FuenteLimitada }>({ estado: "desconocida", fuente: "ninguna" });
   useEffect(() => { setNombre(centro.sinNombre ? "" : centro.nombreNeurona); }, [centro.nombreNeurona, centro.sinNombre]);
+  useEffect(() => {
+    const conn = (navigator as Navigator & { connection?: { type?: string; saveData?: boolean; effectiveType?: string } }).connection;
+    if (!conn) {
+      setClasificacion({ estado: "desconocida", fuente: "ninguna" });
+      return;
+    }
+    const entrada = {
+      tipo: conn.type,
+      saveData: conn.saveData,
+      effectiveType: conn.effectiveType,
+    };
+    setClasificacion(clasificarConexion(entrada));
+  }, []);
   const limpio = nombre.trim().slice(0, 40);
   const cambia = limpio.length > 0 && limpio !== (centro.sinNombre ? "" : centro.nombreNeurona);
   const actualizar = (parche: Partial<MeshPrivacySettings>) => setMeshPrivacy(parche);
@@ -279,6 +297,21 @@ export function AjustesNeurona({ centro, neuronaId, verPublicos, onVerPublicos, 
         activo={verPublicos}
         onCambio={onVerPublicos}
       />
+      {textosInternet && (
+        <SeccionInternet
+          textos={textosInternet}
+          extra={{
+            desde: "Desde",
+            hasta: "Hasta",
+            limite: "Límite",
+            compartirConOtros: "Compartir con otros",
+            declararDePago: "Declarar de pago",
+            declararNoDePago: "Declarar sin pago",
+          }}
+          clasificacion={clasificacion}
+        />
+      )}
+      {/* la tarea INT20 lo conecta */}
     </section>
   );
 }
