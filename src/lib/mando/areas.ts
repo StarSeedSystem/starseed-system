@@ -169,6 +169,67 @@ export const AREAS_TRABAJO: AreaTrabajo[] = [
 ];
 
 /**
+ * Contexto legible de un error mostrado dentro de un área de trabajo: su
+ * nombre, el acento con el que se tiñe el mensaje y la salida concreta que se
+ * ofrece a la persona. Puro: entrada → salida, sin DOM ni red.
+ */
+export interface ContextoErrorArea {
+    id: string;
+    nombre: string;
+    /** Qué puede hacer la persona ahora, en una frase. */
+    salida: string;
+    /** Clave de `ACENTOS` que colorea el mensaje sin perder contraste. */
+    color: string;
+}
+
+/**
+ * Salidas propias de los contextos que no son áreas de `AREAS_TRABAJO` (mando
+ * y diseño) o que necesitan una guía más precisa (el rito nunca deja en bucle).
+ */
+const CONTEXTOS_ERROR: Record<string, Omit<ContextoErrorArea, "id">> = {
+    rito: {
+        nombre: "Rito y bienvenida",
+        salida: "Puedes posponer la guía y retomarla cuando quieras desde Ajustes: no se abrirá en bucle.",
+        color: "violet",
+    },
+    mando: {
+        nombre: "Mando (Genesis)",
+        salida: "Revisa las puertas de Genesis y vuelve a lanzar la tarea; nada de lo ya integrado se pierde.",
+        color: "cyan",
+    },
+    diseno: {
+        nombre: "Diseño",
+        salida: "Comprueba los tokens y el contraste antes de publicar; el resto de pantallas no cambia.",
+        color: "magenta",
+    },
+};
+
+/**
+ * Resuelve el contexto de un error por el id de su área. Un id desconocido cae
+ * en un contexto general honesto: nunca inventa un área ni afirma su estado.
+ */
+export function contextoErrorDeArea(idArea: string): ContextoErrorArea {
+    const id = (idArea || "").trim() || "general";
+    const propio = CONTEXTOS_ERROR[id];
+    if (propio) return { id, ...propio };
+    const area = AREAS_TRABAJO.find((a) => a.id === id);
+    if (area) {
+        return {
+            id,
+            nombre: area.nombre,
+            salida: `Sigue en «${area.nombre}»: este aviso no bloquea el resto del área.`,
+            color: area.color,
+        };
+    }
+    return {
+        id,
+        nombre: "StarSeed OS",
+        salida: "Vuelve a intentarlo; si sigue igual, revisa la conexión.",
+        color: "rose",
+    };
+}
+
+/**
  * Claves de memoria locales del OS (localStorage / IndexedDB) que la tarjeta
  * «Memorias y permisos» enumera. Solo el nombre de la clave y su propósito;
  * jamás su contenido.

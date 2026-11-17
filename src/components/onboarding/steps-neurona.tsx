@@ -13,6 +13,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Brain as BrainIcon, ArrowDownToLine, Send } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ErrorMessage } from "@/components/ui/error-message";
+import { contextoErrorDeArea } from "@/lib/mando/areas";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -196,7 +198,16 @@ export function StepCerebros() {
             <option value="local">Solo local en esta neurona — máxima soberanía, sin réplica remota</option>
           </select>
         </label>
-        {nota && <p className="text-xs text-amber-300/90">{nota}</p>}
+        {nota && (
+          <ErrorMessage
+            mensaje={nota}
+            tono="aviso"
+            sugerencia="Puedes continuar: lo resuelves luego desde Cerebros o Ajustes → Sentidos."
+            contexto={contextoErrorDeArea("rito")}
+            onReintentar={aceptar}
+            textoReintentar="Reintentar"
+          />
+        )}
       </div>
     </div>
   );
@@ -256,6 +267,7 @@ export function StepNeurona() {
   const [nombre, setNombre] = useState("");
   const [aplicado, setAplicado] = useState(false);
   const [cargando, setCargando] = useState(false);
+  const [nota, setNota] = useState<string | null>(null);
   const [razones, setRazones] = useState<string[]>(["Analizando este dispositivo…"]);
 
   useEffect(() => {
@@ -275,6 +287,7 @@ export function StepNeurona() {
 
   const aceptar = useCallback(async () => {
     setCargando(true);
+    setNota(null);
     try {
       try { setNeuronName(thisDeviceId(), nombre || "Mi neurona"); } catch { /* local */ }
       await saveOnboarding({
@@ -283,6 +296,7 @@ export function StepNeurona() {
       try { marcarNeuronaConfigurada(); } catch { /* */ }
       setAplicado(true);
     } catch {
+      setNota("Guardé esta configuración en el dispositivo, pero no pude sincronizarla con tu cuenta.");
       try { marcarNeuronaConfigurada(); } catch { /* */ }
       setAplicado(true);
     } finally {
@@ -301,6 +315,15 @@ export function StepNeurona() {
         </p>
       )}
       <AgentRecommendation razones={razones} aplicado={aplicado} onAceptar={aceptar} cargando={cargando} />
+      {nota && (
+        <ErrorMessage
+          mensaje={nota}
+          tono="aviso"
+          sugerencia="Puedes seguir usando el OS: se reintentará al reconectar desde Ajustes → Neurona."
+          contexto={contextoErrorDeArea("rito")}
+          onReintentar={aceptar}
+        />
+      )}
       <div className="grid gap-3">
         <label className="block text-sm">
           <span className="text-muted-foreground">Nombre de esta neurona</span>
