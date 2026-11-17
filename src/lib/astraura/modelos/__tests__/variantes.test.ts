@@ -37,9 +37,15 @@ const rec = (perfil: PerfilNeurona, caso: CasoUso) => recomendar({ catalogo: CAT
 describe("catálogo de variantes sin filtros: solo lo verificado el 2026-11-10 y 2026-11-16", () => {
   it("las 9 entradas verificadas, todas de huihui_ai, con fecha, fuente viva, base y SIN puntuación propia", () => {
     expect(MODELOS_SIN_FILTROS_SEMILLA.map((m) => m.id).sort()).toEqual([
-      "huihui_ai/deepseek-r1-abliterated:8b", "huihui_ai/gemma-4-abliterated:12b", "huihui_ai/gemma-4-abliterated:26b", "huihui_ai/gemma-4-abliterated:31b",
-      "huihui_ai/glm-4.7-flash-abliterated:latest", "huihui_ai/qwen3.5-abliterated:27b", "huihui_ai/qwen3.5-abliterated:4B", "huihui_ai/qwen3.5-abliterated:9b",
+      "huihui_ai/deepseek-r1-abliterated:8b",
+      "huihui_ai/gemma-4-abliterated:12b",
+      "huihui_ai/gemma-4-abliterated:26b",
+      "huihui_ai/gemma-4-abliterated:31b",
+      "huihui_ai/glm-4.7-flash-abliterated:latest",
+      "huihui_ai/qwen3.5-abliterated:27b",
       "huihui_ai/qwen3.5-abliterated:2B",
+      "huihui_ai/qwen3.5-abliterated:4B",
+      "huihui_ai/qwen3.5-abliterated:9b",
     ]);
     for (const m of SF) {
       expect(modeloValido(m), m.id).toBe(true);
