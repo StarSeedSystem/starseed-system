@@ -379,6 +379,7 @@ export function CorreosVinculados({
   const [nuevo, setNuevo] = useState("");
   const [ocupado, setOcupado] = useState(false);
   const [nota, setNota] = useState<string | null>(null);
+  const [errorVinculo, setErrorVinculo] = useState<string | null>(null);
   // (Adenda 191) El correo externo se pide UNA vez: si ya hay uno vinculado,
   // el alta de otro queda plegada tras un botón discreto.
   const [mostrarAlta, setMostrarAlta] = useState(false);
@@ -406,9 +407,10 @@ export function CorreosVinculados({
 
   const vincular = useCallback(async () => {
     const addr = nuevo.trim().toLowerCase();
-    if (!addr.includes("@")) { setNota("Escribe un correo válido."); return; }
+    if (!addr.includes("@")) { setNota(null); setErrorVinculo("Escribe un correo válido."); return; }
     setOcupado(true);
     setNota(null);
+    setErrorVinculo(null);
     try {
       const { addExternalEmail } = await import("@/lib/mail/starseed-mail");
       const r = await addExternalEmail(addr);
@@ -417,10 +419,10 @@ export function CorreosVinculados({
         setNota("Correo vinculado a tu cuenta ✓ (la sincronización completa se activa en Correos).");
         void cargar();
       } else {
-        setNota(r.error || "No se pudo vincular ahora.");
+        setErrorVinculo(r.error || "No se pudo vincular ahora.");
       }
     } catch {
-      setNota("No se pudo vincular ahora (¿sin red?). Inténtalo en Ajustes → Correos.");
+      setErrorVinculo("No se pudo vincular ahora (¿sin red?). Inténtalo en Ajustes → Correos.");
     } finally {
       setOcupado(false);
     }
@@ -577,6 +579,16 @@ export function CorreosVinculados({
           </div>
         );
       })()}
+      {errorVinculo && (
+        <ErrorMessage
+          mensaje={errorVinculo}
+          tono="error"
+          contexto={contextoErrorDeArea("rito")}
+          sugerencia="Corrige la dirección o revisa la conexión; también puedes vincularlo luego desde Ajustes → Correos."
+          onReintentar={vincular}
+          textoReintentar="Reintentar"
+        />
+      )}
       {nota && <p className="text-[11px] text-cyan-200/80">{nota}</p>}
     </div>
   );

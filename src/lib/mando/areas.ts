@@ -193,7 +193,7 @@ const CONTEXTOS_ERROR: Record<string, Omit<ContextoErrorArea, "id">> = {
         color: "violet",
     },
     mando: {
-        nombre: "Mando (Genesis)",
+        nombre: "Genesis",
         salida: "Revisa las puertas de Genesis y vuelve a lanzar la tarea; nada de lo ya integrado se pierde.",
         color: "cyan",
     },

@@ -49,7 +49,7 @@ describe("contextoErrorDeArea", () => {
   });
 
   it("reconoce los contextos propios de esta tarea: mando y diseño", () => {
-    expect(contextoErrorDeArea("mando")).toMatchObject({ nombre: "Mando (Genesis)", color: "cyan" });
+    expect(contextoErrorDeArea("mando")).toMatchObject({ nombre: "Genesis", color: "cyan" });
     expect(contextoErrorDeArea("diseno")).toMatchObject({ nombre: "Diseño", color: "magenta" });
   });
 
