@@ -10,6 +10,7 @@ import type { PuertaInternet } from "../cristal/puertas-internet";
 import { decidirCompartir } from "./decision-compartir";
 
 const CLAVE_AJUSTES = "starseed.malla.internet.v1";
+const EVENTO_AJUSTES = "starseed:malla:internet:ajustes";
 
 import { AJUSTES_APAGADOS } from "./almacen-ajustes";
 
@@ -54,43 +55,54 @@ export function useAjustesInternet(opciones: OpcionesUseAjustesInternet = {}): R
 
   const [ajustes, setAjustes] = useState<AjustesInternet>(AJUSTES_APAGADOS);
   const [contadores, setContadores] = useState<Contadores>(() => contadoresVacios(ahora(), desfaseMin));
+  const ajustesRef = useRef(ajustes);
 
   useEffect(() => {
     if (!esCliente()) return;
 
     const ahoraActual = ahora();
-    setAjustes(leerAjustes(almacenRef.current, AJUSTES_APAGADOS));
+    const leidos = leerAjustes(almacenRef.current, AJUSTES_APAGADOS);
+    ajustesRef.current = leidos;
+    setAjustes(leidos);
     setContadores(leerContadores(almacenRef.current, ahoraActual, desfaseMin));
   }, []);
 
   useEffect(() => {
     if (!esCliente()) return;
 
-    const manejadorStorage = (evento: StorageEvent) => {
-      if (evento.key !== CLAVE_AJUSTES) return;
-
+    const recargar = () => {
       const ahoraActual = ahora();
-      setAjustes(leerAjustes(almacenRef.current, AJUSTES_APAGADOS));
+      const leidos = leerAjustes(almacenRef.current, AJUSTES_APAGADOS);
+      ajustesRef.current = leidos;
+      setAjustes(leidos);
       setContadores(leerContadores(almacenRef.current, ahoraActual, desfaseMin));
     };
 
+    const manejadorStorage = (evento: StorageEvent) => {
+      if (evento.key !== CLAVE_AJUSTES) return;
+      recargar();
+    };
+
     window.addEventListener("storage", manejadorStorage);
+    window.addEventListener(EVENTO_AJUSTES, recargar);
     return () => {
       window.removeEventListener("storage", manejadorStorage);
+      window.removeEventListener(EVENTO_AJUSTES, recargar);
     };
   }, [ahora, desfaseMin]);
 
   const cambiar = useCallback((parcial: DeepPartial<AjustesInternet>) => {
-    setAjustes(prev => {
-      const nuevos = { ...prev, ...parcial } as AjustesInternet;
-      guardarAjustes(almacenRef.current, nuevos);
+    const nuevos = { ...ajustesRef.current, ...parcial } as AjustesInternet;
+    ajustesRef.current = nuevos;
+    guardarAjustes(almacenRef.current, nuevos);
 
-      const ahoraActual = ahora();
-      const contadoresActualizados = leerContadores(almacenRef.current, ahoraActual, desfaseMin);
-      setContadores(contadoresActualizados);
+    const ahoraActual = ahora();
+    setAjustes(nuevos);
+    setContadores(leerContadores(almacenRef.current, ahoraActual, desfaseMin));
 
-      return nuevos;
-    });
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent(EVENTO_AJUSTES));
+    }
   }, [ahora, desfaseMin]);
 
   const restanteHoyMb = (() => {

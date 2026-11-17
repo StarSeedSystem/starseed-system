@@ -21,11 +21,11 @@ import { setNeuronName, thisDeviceId } from "@/lib/neurons/neurons";
 import type { CentroNeurona } from "@/lib/senales/centro";
 import { describirRadarPublico } from "@/lib/senales/radar-publico";
 import { FotoPerfil } from "./foto-perfil";
-import { InterruptorModoBanco } from "./internet/interruptor-modo-banco";
+import { SeccionInternet } from "./internet/seccion-internet";
 import { SugerenciaModoBanco } from "./internet/sugerencia-modo-banco";
 import { TextosInternet } from "@/lib/malla/internet/tipos";
-import { getAjustesBanco, setAjustesBanco, AJUSTES_BANCO_EVENT, calcularRestanteHoyMb } from "@/lib/malla/internet/ajustes-banco";
-import type { AjustesBanco } from "@/lib/malla/internet/tipos";
+import { useAjustesInternet } from "@/lib/malla/internet/use-ajustes-internet";
+import { clasificarConexion } from "@/lib/malla/internet/conexion-limitada";
 
 /** La privacidad de la malla de ESTE dispositivo, viva (se vuelve a leer al cambiar desde cualquier panel). */
 export function useMeshPrivacidad(): { privacidad: MeshPrivacySettings; internetPublico: boolean } {
@@ -45,26 +45,6 @@ export function useMeshPrivacidad(): { privacidad: MeshPrivacySettings; internet
     };
   }, []);
   return { privacidad, internetPublico };
-}
-
-/** Los ajustes del modo banco de ESTE dispositivo, vivos (se vuelven a leer al cambiar desde cualquier panel). */
-export function useAjustesBanco(): { ajustes: AjustesBanco; restanteHoyMb: number | null } {
-  const [ajustes, setAjustes] = useState<AjustesBanco>(() => getAjustesBanco());
-  const [restanteHoyMb, setRestanteHoyMb] = useState<number | null>(() => {
-    const a = getAjustesBanco();
-    return calcularRestanteHoyMb(a, 0);
-  });
-  useEffect(() => {
-    const leer = () => {
-      const a = getAjustesBanco();
-      setAjustes(a);
-      setRestanteHoyMb(calcularRestanteHoyMb(a, 0));
-    };
-    leer();
-    window.addEventListener(AJUSTES_BANCO_EVENT, leer);
-    return () => window.removeEventListener(AJUSTES_BANCO_EVENT, leer);
-  }, []);
-  return { ajustes, restanteHoyMb };
 }
 
 const COLOR_EMISION = { publica: "border-emerald-400/35 bg-emerald-500/10 text-emerald-200", anonima: "border-sky-400/35 bg-sky-500/10 text-sky-200", "no-emite": "border-white/15 bg-white/5 text-white/55" } as const;
@@ -140,7 +120,7 @@ export function AjustesNeurona({ centro, neuronaId, verPublicos, onVerPublicos, 
   onNombre: (nombre: string) => void;
 }) {
   const { privacidad: p, internetPublico } = useMeshPrivacidad();
-  const { ajustes: banco, restanteHoyMb } = useAjustesBanco();
+  const { ajustes: ajustesInternet, cambiar: cambiarInternet } = useAjustesInternet();
   const [nombre, setNombre] = useState(centro.sinNombre ? "" : centro.nombreNeurona);
   const [ultimaNegativa, setUltimaNegativa] = useState<number | null>(null);
   useEffect(() => { setNombre(centro.sinNombre ? "" : centro.nombreNeurona); }, [centro.nombreNeurona, centro.sinNombre]);
@@ -149,6 +129,17 @@ export function AjustesNeurona({ centro, neuronaId, verPublicos, onVerPublicos, 
   const actualizar = (parche: Partial<MeshPrivacySettings>) => setMeshPrivacy(parche);
   const radar = useMemo(() => describirRadarPublico({ privacidad: p, internetPublico, hayFoto: centro.avatar.modo === "foto" }), [p, internetPublico, centro.avatar.modo]);
   const publico = p.publicRadar === "visible";
+
+  const nav = typeof navigator !== "undefined"
+    ? (navigator as Navigator & { connection?: { type?: string; saveData?: boolean; effectiveType?: string } })
+    : undefined;
+  const conexion = nav?.connection;
+  const clasificacion = clasificarConexion({
+    declarada: ajustesInternet.declaraLimitada,
+    tipo: conexion?.type,
+    saveData: conexion?.saveData,
+    effectiveType: conexion?.effectiveType,
+  });
 
   const guardar = () => {
     if (!cambia) return;
@@ -161,13 +152,6 @@ export function AjustesNeurona({ centro, neuronaId, verPublicos, onVerPublicos, 
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "No se pudo guardar el nombre");
     }
-  };
-
-  const textosBanco = {
-    bancoTitulo: TextosInternet.bancoTitulo,
-    bancoAyuda: TextosInternet.bancoAyuda,
-    quedaHoy: TextosInternet.quedaHoy,
-    agotadoHoy: TextosInternet.agotadoHoy,
   };
 
   const textosSugerencia = {
@@ -241,18 +225,21 @@ export function AjustesNeurona({ centro, neuronaId, verPublicos, onVerPublicos, 
         <p className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold text-white/85">
           <Globe2 className="h-3.5 w-3.5 text-sky-300" aria-hidden /> Compartir internet
         </p>
-        <InterruptorModoBanco
-          activo={banco.activo}
-          onCambiar={(activo) => {
-            const next = { ...banco, activo };
-            setAjustesBanco(next);
+        <SeccionInternet
+          textos={TextosInternet}
+          extra={{
+            desde: "Desde",
+            hasta: "Hasta",
+            limite: "Límite",
+            compartirConOtros: "Compartir mi internet con otros",
+            declararDePago: "Mi conexión es de pago",
+            declararNoDePago: "Mi conexión no es de pago",
           }}
-          textos={textosBanco}
-          restanteHoyMb={restanteHoyMb}
+          clasificacion={{ estado: clasificacion.estado, fuente: clasificacion.fuente }}
         />
         <SugerenciaModoBanco
-          visible={!banco.activo && (ultimaNegativa == null || Date.now() - ultimaNegativa >= 24 * 60 * 60 * 1000)}
-          onActivar={() => setAjustesBanco({ ...banco, activo: true })}
+          visible={!ajustesInternet.banco.activo && (ultimaNegativa == null || Date.now() - ultimaNegativa >= 24 * 60 * 60 * 1000)}
+          onActivar={() => cambiarInternet({ banco: { ...ajustesInternet.banco, activo: true } })}
           onAhoraNo={() => setUltimaNegativa(Date.now())}
           textos={textosSugerencia}
         />

@@ -55,7 +55,12 @@ export function SeccionInternet({ textos, extra, clasificacion }: Props) {
     <section aria-label={extra.compartirConOtros} data-testid="seccion-internet" className="space-y-2.5">
       <p className="text-[11px] leading-snug text-white/70">
         <span className="font-medium text-white/90">{textos[TEXTO_ESTADO[clasificacion.estado]]}</span>
-        {claveFuente && <span className="text-white/45"> · {textos[claveFuente]}</span>}
+        {claveFuente && (
+          <>
+            <span className="text-white/45"> · </span>
+            <span className="text-white/45">{textos[claveFuente]}</span>
+          </>
+        )}
       </p>
 
       <div role="group" aria-label={textos.conexionLimitada} className="flex gap-2">
