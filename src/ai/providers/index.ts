@@ -35,16 +35,16 @@ export const PROVIDERS: Record<ProviderId, Provider> = {
   google: googleProvider,
   deepseek: deepseekProvider,
   groq: groqProvider,
-  abliteration: abliterationProvider,
   // OpenRouter tiene adaptador PROPIO desde la Adenda 67 (P0-2): envía las
   // cabeceras `HTTP-Referer`/`X-Title` que OpenRouter espera de una app web,
-  // ignora los keep-alive SSE (": OPENROUTER PROCESSING") y prioriza `:free`.
+  // ignora los keep-alive SSE (\": OPENROUTER PROCESSING\") y prioriza `:free`.
   // Antes era un `openaiProvider` con otra `info` → sin cabeceras, y con ids de
   // modelo por defecto obsoletos (`google/gemini-pro` ya no existe).
   openrouter: openrouterProvider,
   // NVIDIA NIM (Adenda 219): 80+ modelos abiertos en GPUs de NVIDIA; acceso
   // comunitario por /api/ai/nvidia (clave compartida solo en el servidor).
   nvidia: nvidiaProvider,
+  abliteration: abliterationProvider,
 };
 
 /** Ordered for the picker UI: privacy-first first. */
@@ -56,13 +56,13 @@ export const PROVIDER_ORDER: ProviderId[] = [
   "ollama",
   "deepseek",
   "groq",
-  "abliteration",
   "openrouter",
   "nvidia",
   "openai",
   "anthropic",
   "google",
   "openai-compatible",
+  "abliteration",
 ];
 
 export function getProvider(id: ProviderId): Provider {
