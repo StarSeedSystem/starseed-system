@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach, beforeEach } from "vitest";
-import { cargarCatalogo, _reiniciarAlmacen, _limpiarCache } from "../catalogos/cargar";
+import { cargarCatalogo, _reiniciarAlmacen, _limpiarCache, inyectarClavesFuente } from "../catalogos/cargar";
 
 function paqueteIdioma(codigo: string, entradas: Record<string, string>, revisado = "automatico") {
     return {
@@ -30,10 +30,14 @@ describe("cargarCatalogo", () => {
     beforeEach(() => {
         almacenMock.paquetes.clear();
         _limpiarCache();
+        // fuente vacía: las pruebas de paquetes no leen el fuente.json real (enorme);
+        // el mapeo con fuente inyectada se prueba en su propio bloque
+        inyectarClavesFuente({});
     });
 
     afterEach(() => {
         _reiniciarAlmacen();
+        inyectarClavesFuente(null);
     });
 
     describe("cargadores integrados", () => {
@@ -94,6 +98,41 @@ describe("cargarCatalogo", () => {
 
             const catalogo = await cargarCatalogo("de");
             expect(catalogo).toBeNull();
+        });
+    });
+
+    describe("mapeo de claves externas a las españolas", () => {
+        it("traduce una entrada cuya clave tiene espacios distintos a la española", async () => {
+            inyectarClavesFuente({ "Hola Mundo": [] });
+            almacenMock.paquetes.set("de", paqueteIdioma("de", {
+                "Hola   Mundo": "Hallo Welt",
+            }));
+            _reiniciarAlmacen(almacenMock as any);
+
+            const catalogo = await cargarCatalogo("de");
+            expect(catalogo?.traducir("Hola Mundo")).toBe("Hallo Welt");
+        });
+
+        it("traduce una entrada con clave identificador resuelta por el valor fuente", async () => {
+            inyectarClavesFuente({ "Guardar": [] });
+            almacenMock.paquetes.set("de", paqueteIdioma("de", {
+                "menu.save": "Guardar",
+            }));
+            _reiniciarAlmacen(almacenMock as any);
+
+            const catalogo = await cargarCatalogo("de");
+            expect(catalogo?.traducir("Guardar")).toBe("Guardar");
+        });
+
+        it("conserva tal cual una entrada sin casar con la fuente", async () => {
+            inyectarClavesFuente({ "Guardar": [] });
+            almacenMock.paquetes.set("de", paqueteIdioma("de", {
+                "Ajena": "Fremd",
+            }));
+            _reiniciarAlmacen(almacenMock as any);
+
+            const catalogo = await cargarCatalogo("de");
+            expect(catalogo?.traducir("Ajena")).toBe("Fremd");
         });
     });
 
