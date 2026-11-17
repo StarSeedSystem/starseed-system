@@ -1,0 +1,19 @@
+{
+ "ola": "nube-20261116",
+ "tareas": [
+  {
+   "id": "IMA17",
+   "ola": "TRA1116-IDIOMAS",
+   "titulo": "Entradas del clic derecho: Leer en voz alta, Añadir al paquete, Abrir en el Traductor",
+   "archivos": [
+    "src/components/traduccion/entradas-idioma.ts",
+    "src/components/traduccion/__tests__/entradas-idioma.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Lee `src/components/traduccion/menu-texto.tsx` (`EntradaMenuTexto` :17-22, `registrarEntradaMenuTexto` :36) y `traducir-texto.tsx:81-150` (cómo se construyen las entradas existentes con `entradasTraduccion`). Escribe `entradasIdioma(acciones)` que devuelve `EntradaMenuTexto[]` (patrón idéntico, acciones inyectadas): «Leer en voz alta» (visible con selección de texto), «Añadir al paquete de idioma» (visible solo si hay un paquete en edición: `acciones.hayEdicion()`), «Abrir en el Traductor» (visible con selección; la acción navega a `/traductor?texto=<codificado y recortado a 2.000>`). Cada `ejecutar` recibe la selección del contexto; NO toques `menu-texto.tsx`. PRUEBAS: visibilidad de cada entrada con y sin selección y con y sin edición; la URL se codifica y se recorta.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "IMA15"
+   ]
+  }
+ ]
+}
