@@ -25,6 +25,24 @@ KOTLIN = (
     "2026-11-16T01:00:13.2Z Execution failed for task ':app:compileUniversalReleaseKotlin'.\n"
     "2026-11-16T01:00:13.3Z > Compilation error. See log for more details\n"
     "2026-11-16T01:00:14.0Z > Task :app:compileUniversalReleaseKotlin FAILED\n")
+
+KOTLIN_GITHUB = (
+    "os\tandroid\t2026-11-16T01:00:12.1234567Z \x1b[31me: file:///home/runner/work/starseed-system/starseed-system/native/src-tauri/gen/"
+    "android/app/src/main/java/app/starseed/os/nativa/ProyeccionPantallaStarSeed.kt:189:14 Only safe (?.) or non-null asserted "
+    "(!!.) calls are allowed on a nullable receiver of type 'MediaProjection?'\x1b[0m\n"
+    "os\tandroid\t2026-11-16T01:00:12.2Z \n"
+    "os\tandroid\t2026-11-16T01:00:13.0Z FAILURE: Build failed with an exception.\n"
+    "os\tandroid\t2026-11-16T01:00:13.1Z * What went wrong:\n"
+    "os\tandroid\t2026-11-16T01:00:13.2Z Execution failed for task ':app:compileUniversalReleaseKotlin'.\n"
+    "os\tandroid\t2026-11-16T01:00:13.3Z > Compilation error. See log for more details\n"
+    "os\tandroid\t2026-11-16T01:00:14.0Z > Task :app:compileUniversalReleaseKotlin FAILED\n")
+
+KOTLIN_SIN_FILE = (
+    "os\tandroid\t2026-11-16T01:00:12.1234567Z \x1b[31me: /home/runner/work/starseed-system/starseed-system/native/src-tauri/gen/"
+    "android/app/src/main/java/app/starseed/os/nativa/ProyeccionPantallaStarSeed.kt:189:14 Only safe (?.) or non-null asserted "
+    "(!!.) calls are allowed on a nullable receiver of type 'MediaProjection?'\x1b[0m\n"
+    "os\tandroid\t2026-11-16T01:00:13.0Z FAILURE: Build failed with an exception.\n")
+
 RUST = (
     "   Compiling app v0.1.0\n"
     "error[E0599]: no method named `abrir_puente` found for struct `Ventana` in the current scope\n"
@@ -54,6 +72,22 @@ class Parser(unittest.TestCase):
         self.assertTrue(any("What went wrong" in x for x in l))
         self.assertTrue(any("compileUniversalReleaseKotlin" in x for x in l))
 
+    def test_kotlin_github_log_format(self):
+        l = PD.errores_de_compilacion(KOTLIN_GITHUB)
+        self.assertTrue(l[0].startswith("e: file:///"))
+        self.assertIn("ProyeccionPantallaStarSeed.kt:189:14", l[0])
+        self.assertNotIn("\x1b", l[0])
+        self.assertNotIn("os\tandroid\t", l[0])
+        self.assertNotIn("2026-11-16", l[0])
+        self.assertTrue(any("What went wrong" in x for x in l))
+        self.assertTrue(any("compileUniversalReleaseKotlin" in x for x in l))
+
+    def test_kotlin_sin_file_protocol(self):
+        l = PD.errores_de_compilacion(KOTLIN_SIN_FILE)
+        self.assertTrue(l[0].startswith("e: "))
+        self.assertIn("ProyeccionPantallaStarSeed.kt:189:14", l[0])
+        self.assertNotIn("file://", l[0])
+
     def test_rust_con_su_linea(self):
         l = PD.errores_de_compilacion(RUST)
         self.assertEqual(l[0][:16], "error[E0599]: no")
@@ -75,6 +109,27 @@ class Parser(unittest.TestCase):
         self.assertEqual(PD.archivo_de_evidencia("error[E0599]: x\n --> src/lib.rs:88:14"), ("src/lib.rs", 88))
         self.assertEqual(PD.resolver_en_repo("src/lib.rs", ["native/src-tauri/src/lib.rs"]), "native/src-tauri/src/lib.rs")
         self.assertEqual(PD.archivo_de_evidencia("nada que ver"), (None, None))
+
+    def test_archivo_github_format(self):
+        ruta, linea = PD.archivo_de_evidencia(PD.limpiar_evidencia("\n".join(PD.errores_de_compilacion(KOTLIN_GITHUB))))
+        self.assertEqual((ruta.rsplit("/", 1)[-1], linea), ("ProyeccionPantallaStarSeed.kt", 189))
+        self.assertTrue(ruta.startswith("native/src-tauri/gen/android/"))
+        repo = ["native/src-tauri/android/ProyeccionPantallaStarSeed.kt", "src/otro.ts"]
+        self.assertEqual(PD.resolver_en_repo(ruta, repo), repo[0])
+
+    def test_buscar_por_nombre_inyectado(self):
+        def buscar(nombre):
+            if nombre == "ProyeccionPantallaStarSeed.kt":
+                return ["native/src-tauri/android/ProyeccionPantallaStarSeed.kt"]
+            return []
+        ruta = "native/src-tauri/gen/android/app/src/main/java/app/starseed/os/nativa/ProyeccionPantallaStarSeed.kt"
+        self.assertEqual(PD.resolver_en_repo(ruta, [], buscar_por_nombre=buscar),
+                         "native/src-tauri/android/ProyeccionPantallaStarSeed.kt")
+        self.assertEqual(PD.resolver_en_repo(ruta, ["otro.ts"], buscar_por_nombre=buscar),
+                         "native/src-tauri/android/ProyeccionPantallaStarSeed.kt")
+        self.assertEqual(PD.resolver_en_repo(ruta, ["a.kt", "b.kt"], buscar_por_nombre=lambda n: ["a.kt", "b.kt"]),
+                         ruta)   # no única → devuelve la original
+        self.assertEqual(PD.resolver_en_repo(ruta, [], buscar_por_nombre=lambda n: []), ruta)
 
 
 class Limpieza(unittest.TestCase):
@@ -214,6 +269,9 @@ class Falso(object):
     def archivos_repo(self):
         return self.repo
 
+    def buscar_por_nombre(self, nombre):
+        return [r for r in self.repo if r.rsplit("/", 1)[-1] == nombre]
+
     def escribir_cola(self, nombre, datos):
         if self.falla:
             raise OSError("disco lleno")
@@ -286,6 +344,33 @@ class Pasada(unittest.TestCase):
         est = PD.pasada_desbloqueo(f, est, T0 + 300)
         self.assertEqual(f.colas, {})                     
 
+    def test_compilacion_superada_por_publicada_no_abre_tarea(self):
+        f = Falso(prueba=fallo(numero=47), repo=["native/src-tauri/android/ProyeccionPantallaStarSeed.kt"])
+        f.prueba["en_curso"]["estado"] = "fallo"
+        f.prueba["publicadas"] = [{"numero": 48, "estado": "publicada", "sha": "a" * 64}]
+        est = PD.pasada_desbloqueo(f, {"fase": "publicado"}, T0)
+        self.assertEqual(f.colas, {})
+        self.assertEqual(est["desbloqueo"]["hechas"]["compilacion-012345678"]["accion"], "nada")
+        self.assertIn("supera", est["desbloqueo"]["hechas"]["compilacion-012345678"]["porque"])
+
+    def test_compilacion_superada_por_compilando_no_abre_tarea(self):
+        f = Falso(prueba=fallo(numero=47), repo=["native/src-tauri/android/ProyeccionPantallaStarSeed.kt"])
+        f.prueba["en_curso"]["estado"] = "fallo"
+        f.prueba["publicadas"] = [{"numero": 48, "estado": "compilando", "sha": "a" * 64}]
+        est = PD.pasada_desbloqueo(f, {"fase": "publicado"}, T0)
+        self.assertEqual(f.colas, {})
+        self.assertEqual(est["desbloqueo"]["hechas"]["compilacion-012345678"]["accion"], "nada")
+        self.assertIn("supera", est["desbloqueo"]["hechas"]["compilacion-012345678"]["porque"])
+
+    def test_compilacion_nueva_sin_superar_abre_tarea(self):
+        f = Falso(prueba=fallo(numero=47), repo=["native/src-tauri/android/ProyeccionPantallaStarSeed.kt"])
+        f.prueba["en_curso"]["estado"] = "fallo"
+        f.prueba["publicadas"] = [{"numero": 46, "estado": "publicada", "sha": "a" * 64}]
+        est = PD.pasada_desbloqueo(f, {"fase": "publicado"}, T0)
+        self.assertEqual(list(f.colas), ["cola-a-desbloqueo-compilacion-012345678.json"])
+        self.assertEqual(f.colas["cola-a-desbloqueo-compilacion-012345678.json"]["tareas"][0]["archivos"],
+                         ["native/src-tauri/android/ProyeccionPantallaStarSeed.kt"])
+
 
 class Integradas(unittest.TestCase):
     """Casos del módulo simple DSB1116A que se conservan."""
@@ -317,6 +402,12 @@ class YaArreglado(unittest.TestCase):
     def test_cambio_del_mismo_archivo_en_main(self):
         self.assertEqual(PD.ya_arreglado(self.MOT, ["README.md", "native/src-tauri/android/ProyeccionPantallaStarSeed.kt"]),
                          "native/src-tauri/android/ProyeccionPantallaStarSeed.kt")
+
+    def test_cambio_por_nombre_de_archivo(self):
+        self.assertEqual(PD.ya_arreglado(self.MOT, ["src/otro/ProyeccionPantallaStarSeed.kt"]),
+                         "src/otro/ProyeccionPantallaStarSeed.kt")
+        self.assertEqual(PD.ya_arreglado(self.MOT, ["ProyeccionPantallaStarSeed.kt"]),
+                         "ProyeccionPantallaStarSeed.kt")
 
     def test_sin_cambio_o_sin_dato_no_salta(self):
         self.assertIsNone(PD.ya_arreglado(self.MOT, ["src/otro.ts"]))

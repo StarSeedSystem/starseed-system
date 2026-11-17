@@ -37,6 +37,8 @@ _ANSI = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]")
 _FORMA_CLAVE = re.compile(r"\b(?:sk-[A-Za-z0-9_\-]{8,}|ak_[A-Za-z0-9_\-]{8,}|ghp_[A-Za-z0-9]{8,}|[0-9a-fA-F]{32,})\b")
 _MARCA_TIEMPO = re.compile(r"^\s*\d{4}-\d{2}-\d{2}T[\d:.]+Z\s?")
 _PREFIJO_RUNNER = re.compile(r"^.*?/(?:home|Users)/runner/work/[^/]+/[^/]+/")
+# Prefijo de log de GitHub Actions: <job>\t<paso>\t<ISO_date>  (cada línea de `gh run view --log-failed` lo trae).
+_PREFIJO_GITHUB = re.compile(r"^[^\t]+\t[^\t]+\t\d{4}-\d{2}-\d{2}T[\d:.]+Z\s?")
 
 #: Lo que decide una persona: ningún director lo arregla solo.
 _DECIDE_PERSONA = re.compile(r"la\s+decide\s+alex|decide\s+alex|posible\s+secreto|vetad[oa]\s+desde\s+genesis|^\s*jev\s+fren", re.I)
@@ -88,7 +90,7 @@ def errores_de_compilacion(log, tope=8):
     """PURA. Las líneas de error del compilador en el log de un job fallido: Kotlin/Gradle (`e: …kt:189:14 …`), Rust
     (`error[E0599]: …` con su ` --> ruta:línea`), tsc (`ruta(l,c): error TS…`) y el resumen de Gradle. Sin colores ni
     marcas de tiempo, sin repetir, ≤ `tope` líneas de ≤ 300 caracteres. Vacío si el log no trae ninguna."""
-    lineas = [_MARCA_TIEMPO.sub("", _ANSI.sub("", l)).rstrip() for l in str(log or "").splitlines()]
+    lineas = [_MARCA_TIEMPO.sub("", _PREFIJO_GITHUB.sub("", _ANSI.sub("", l))).rstrip() for l in str(log or "").splitlines()]
     fuera, vistas = [], set()
 
     def meter(l):
@@ -123,7 +125,7 @@ def errores_de_compilacion(log, tope=8):
 def archivo_de_evidencia(texto):
     """PURA. (ruta, línea) del primer archivo de código que señala la evidencia, con el prefijo del runner quitado
     (`/home/runner/work/<repo>/<repo>/native/…` → `native/…`). (None, None) si no señala ninguno."""
-    t = _ANSI.sub("", str(texto or ""))
+    t = _PREFIJO_GITHUB.sub("", _ANSI.sub("", str(texto or "")))
     for l in t.splitlines():
         s = l.strip()
         m = _RE_KOTLIN.match(s) or _RE_RUST_DONDE.match(s) or _RE_TSC.match(s) or _RE_LINEA_CULPA.match(s)
@@ -142,13 +144,13 @@ def _ruta_limpia(ruta):
     return r.lstrip("./") if r.startswith("./") else r.lstrip("/") if r.startswith("/") else r
 
 
-def resolver_en_repo(ruta, rutas_repo):
+def resolver_en_repo(ruta, rutas_repo, buscar_por_nombre=None):
     """PURA. La ruta del repo (git ls-files) a la que corresponde la que dice el log: igual, o terminada igual, o, si es
     única, la de mismo nombre (el log de Android trae la copia generada `gen/android/…` de un `.kt` fuente). Si no hay
-    lista o no hay coincidencia única, la ruta tal cual."""
-    if not ruta or not rutas_repo:
+    lista o no hay coincidencia única, usa `buscar_por_nombre(nombre) -> [rutas]` si se proporciona; si no, la ruta tal cual."""
+    if not ruta:
         return ruta
-    conjunto = [r for r in rutas_repo if isinstance(r, str)]
+    conjunto = [r for r in (rutas_repo or []) if isinstance(r, str)]
     if ruta in conjunto:
         return ruta
     sufijo = [r for r in conjunto if r.endswith("/" + ruta)]
@@ -156,7 +158,13 @@ def resolver_en_repo(ruta, rutas_repo):
         return sufijo[0]
     base = ruta.rsplit("/", 1)[-1]
     mismas = [r for r in conjunto if r.rsplit("/", 1)[-1] == base]
-    return mismas[0] if len(mismas) == 1 else ruta
+    if len(mismas) == 1:
+        return mismas[0]
+    if callable(buscar_por_nombre):
+        encontradas = buscar_por_nombre(base)
+        if isinstance(encontradas, (list, tuple)) and len(encontradas) == 1:
+            return encontradas[0]
+    return ruta
 
 
 # ── el motivo ────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -215,7 +223,7 @@ _REGLAS = (
     "respuesta qué cambiaste y por qué.")
 
 
-def tarea_de_arreglo(motivo, rutas_repo=None, ahora=None):
+def tarea_de_arreglo(motivo, rutas_repo=None, ahora=None, buscar_por_nombre=None):
     """PURA. La cola de UNA tarea (`{"ola", "tareas": [...]}`) que arregla el motivo, o None si el motivo es una
     decisión (no se arregla solo). Id estable desde la clave (una letra + 8 hex), título «URGENTE · …», `urgente: true`
     (la compilación además `prioridad: 120`: va delante de la publicación), prompt en español con la evidencia."""
@@ -224,7 +232,7 @@ def tarea_de_arreglo(motivo, rutas_repo=None, ahora=None):
     clave = str(motivo["clave"])
     tid = "A" + hashlib.sha1(clave.encode("utf-8")).hexdigest()[:8].upper()
     ruta, linea = archivo_de_evidencia(motivo.get("evidencia"))
-    ruta = resolver_en_repo(ruta, rutas_repo)
+    ruta = resolver_en_repo(ruta, rutas_repo, buscar_por_nombre)
     valida = bool(ruta) and ".." not in ruta and not ruta.startswith("/") and not re.search(r"\s", ruta)
     archivos = [ruta] if valida else []
     if motivo["clase"] == "compilacion":
@@ -311,6 +319,27 @@ def pasada_desbloqueo(med, est, ahora):
         clave = motivo["clave"]
         if clave in hechas or ya_pedida(clave, med.nombres_colas()):
             return est
+        if motivo["clase"] == "compilacion":
+            numero_fallo = motivo.get("numero")
+            if numero_fallo is not None:
+                en_curso = prueba.get("en_curso") if isinstance(prueba, dict) else None
+                if isinstance(en_curso, dict) and en_curso.get("numero") is not None and en_curso.get("numero") > numero_fallo:
+                    hechas[clave] = {"t": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(ahora)),
+                                     "clase": "compilacion", "accion": "nada",
+                                     "porque": "compilación en curso N.º %s supera a la fallida" % en_curso["numero"]}
+                    reg["ultima"] = "%s · %s: compilación en curso superior; no abro tarea" % (
+                        time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(ahora)), clave)
+                    return est
+                for pub_build in (prueba.get("publicadas") or []):
+                    if isinstance(pub_build, dict) and pub_build.get("numero") is not None and pub_build.get("numero") > numero_fallo:
+                        estado = pub_build.get("estado")
+                        if estado in ("publicada", "compilando"):
+                            hechas[clave] = {"t": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(ahora)),
+                                             "clase": "compilacion", "accion": "nada",
+                                             "porque": "compilación %s N.º %s supera a la fallida" % (estado, pub_build["numero"])}
+                            reg["ultima"] = "%s · %s: compilación %s superior; no abro tarea" % (
+                                time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(ahora)), clave, estado)
+                            return est
         fecha = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(ahora))
         # Se anota ANTES de actuar: si algo falla a medias no se repite (una vez por clave; lo que falló queda dicho).
         hechas[clave] = {"t": fecha, "clase": motivo["clase"], "accion": "intentando"}
@@ -329,7 +358,7 @@ def pasada_desbloqueo(med, est, ahora):
                 hechas[clave].update(accion="nada", porque="el log no trae errores del compilador que citar")
                 reg["ultima"] = "%s · %s: sin errores que citar; no abro tarea" % (fecha, clave)
             else:
-                cola = tarea_de_arreglo(motivo, rutas_repo=med.archivos_repo())
+                cola = tarea_de_arreglo(motivo, rutas_repo=med.archivos_repo(), buscar_por_nombre=med.buscar_por_nombre)
                 nombre = nombre_de_cola(clave)
                 med.escribir_cola(nombre, cola)
                 tarea = cola["tareas"][0]
@@ -381,6 +410,13 @@ class MediosDesbloqueo(object):
             return None
         rc, out, _ = self.base.git(["diff", "--name-only", "%s..HEAD" % sha], timeout=120)
         return out.splitlines() if rc == 0 else None
+
+    def buscar_por_nombre(self, nombre):
+        """Rutas del repo cuyo nombre de archivo coincide exactamente con `nombre`."""
+        rc, out, _ = self.base.git(["ls-files"], timeout=60)
+        if rc != 0:
+            return []
+        return [r for r in out.splitlines() if r.rsplit("/", 1)[-1] == nombre]
 
     def escribir_cola(self, nombre, datos):
         os.makedirs(self.raiz_olas, exist_ok=True)
