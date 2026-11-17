@@ -1,0 +1,65 @@
+{
+ "ola": "nube-20261117",
+ "tareas": [
+  {
+   "id": "RST02",
+   "ola": "RST1116A",
+   "titulo": "Prueba: un observador no puede editar (de punta a punta en el modelo)",
+   "archivos": [
+    "src/lib/vivo-entidad/__tests__/observador-no-edita.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contrato: architecture/sesiones-en-vivo-entidades-y-transmisiones.md §10 (P1-D) y la acción del dueño n.º 4 («quitar el rol editor: deja de poder escribir»). Prueba de integración PURA (sin red): recorre la tabla de `traduccion-roles.ts` y `permisos.ts` (en `src/lib/vivo-entidad/`) y el motor `crearMotorPizarra` (`src/lib/vivo/pizarra-motor.ts`) con un servidor falso: (1) un observador (rango 1) obtiene rango de sesión `ver`, `puedeEditarSesion` false, y su motor, con `puedeEditar` derivado de ese rango, NO cambia el servidor y queda en «sin-permiso»; (2) un colaborador (rango 2) sí escribe; (3) al bajarle el rol de colaborador a observador a mitad de sesión, su siguiente escritura se rechaza y la anterior sigue guardada; (4) un rol inventado nunca escribe. Usa los nombres reales que dejaron las tareas anteriores (léelos).\n\nANTES DE EMPEZAR («lee primero lo que aterrizó»): comprueba en `git log --oneline main` (usa `git log --oneline main | grep` con cada asunto) que están en `main` los commits con estos asuntos: «FUE1116 · SVF1A4f», «SVF1C1», «SVF1B2b». Los de la cola fuerte llevan el asunto `FUE1116 · <id>: …` y los de la cola libre de sesiones en vivo el id como primera palabra (p. ej. `SVF1C3: …`). Lee los archivos que dejaron antes de tocar nada. SI FALTA ALGUNO: NO escribas, NO modifiques y NO confirmes ningún archivo; termina sin cambios y di en una línea cuál falta (la tarea se reabrirá sola cuando esté).\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado."
+  },
+  {
+   "id": "SVF1B5b",
+   "ola": "SES1116B",
+   "titulo": "Grupo: las mismas pestañas dinámicas del espacio",
+   "archivos": [
+    "src/app/(app)/grupo/[slug]/page.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contrato: architecture/sesiones-en-vivo-entidades-y-transmisiones.md §10 (P1-B). Repite en `src/app/(app)/grupo/[slug]/page.tsx` (`baseTabs` ~línea 323) EXACTAMENTE lo que SVF1B4 hizo en la página de entidad: UN bloque aditivo `// SES1115Q` con `usarEspacio` y `aPestanasDePagina` (`src/lib/entidad-espacio/`), pestañas al final, sin romper si hay `error`. No modifiques nada más (≤30 líneas). COMPRUEBA: tsc acotado sin errores nuevos en ese archivo y `NODE_ENV=test npx vitest run src/lib/entidad-espacio` verde; en el commit di cómo comprobaste que la página sigue montando.\n\nREGLAS DE LA CASA (valen aunque no las repita la tarea): toca SOLO los archivos de la lista `archivos`; ≤3 archivos y ≤120 líneas por archivo (si no cabe, para y di qué falta: no lo estires ni lo resumas); sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible (la interfaz dice Genesis); sin red real en las pruebas; ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves. El asunto de tu commit empieza por `SVF1B5b:` y dice qué comprobaste y qué NO pudiste comprobar.",
+   "dependencias_ya_en_main": [
+    "SVF1B4b"
+   ]
+  },
+  {
+   "id": "SVF1D3b",
+   "ola": "SES1116B",
+   "titulo": "Prueba: el espectador cuenta y no edita; la página muestra la pestaña en vivo",
+   "archivos": [
+    "src/lib/vivo-entidad/__tests__/espectador-y-pestana.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contrato: architecture/sesiones-en-vivo-entidades-y-transmisiones.md §10 (P1-D). Dos comprobaciones puras: (1) con `contarEspectadores` y `rangoDeSesion` (`src/lib/vivo-entidad/`): un espectador por enlace público cuenta 1, no edita, y 3 espectadores + 2 editores dan 3 espectadores; la fila de la estación (`filaEstacionDeSesion`) lleva `tipo` pizarra o dashboard y enlace `/vivo/<id>?t=<token>`. (2) con `aPestanasDePagina` (`src/lib/entidad-espacio/pestanas-pagina.ts`): una sesión en directo con 2 personas sale como pestaña con punto y contador 2, y al quedar a 0 personas pierde el contador. COMPRUEBA: `NODE_ENV=test npx vitest run src/lib/vivo-entidad/__tests__/espectador-y-pestana.test.ts` verde y tsc acotado.\n\nREGLAS DE LA CASA (valen aunque no las repita la tarea): toca SOLO los archivos de la lista `archivos`; ≤3 archivos y ≤120 líneas por archivo (si no cabe, para y di qué falta: no lo estires ni lo resumas); sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible (la interfaz dice Genesis); sin red real en las pruebas; ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves. El asunto de tu commit empieza por `SVF1D3b:` y dice qué comprobaste y qué NO pudiste comprobar.",
+   "dependencias_ya_en_main": [
+    "SVF1C2",
+    "SVF1C3",
+    "SVF1B4b"
+   ]
+  },
+  {
+   "id": "INT13",
+   "ola": "INT1116A",
+   "titulo": "Colgar la sección de internet compartido en los ajustes del centro de Señales",
+   "archivos": [
+    "src/components/mesh/mapa-senales/ajustes-centro.tsx",
+    "src/components/mesh/mapa-senales/internet/__tests__/ajustes-centro-internet.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contrato: architecture/malla-cristalina-sio2.md §8.2 (contrato; si aún no está en el repo, rige este texto). «Modo banco de llamadas» es otra función (pasa a «modo de pruebas de llamadas»): no la toques ni la menciones. Lee `ajustes-centro.tsx` entero (222 líneas, `AjustesNeurona`, `Switch`, privacidad por `src/ai/astraura/mesh/privacy.ts`). Cambio ACOTADO (≤40 líneas): añade al final de las secciones de ajustes de la neurona un bloque «Internet compartido» que monta `<SeccionInternet />` (INT12; sus props `textos` y `extra`) con los textos del módulo `textos-internet` SI existe (`import { TEXTOS_INTERNET } from \"@/lib/malla/internet/textos-internet\"`; si todavía no existe, pásalo por una prop opcional `textosInternet` y deja la sección oculta cuando falte, con un comentario «la tarea INT20 lo conecta») y `clasificacion` calculada con `clasificarConexion` a partir de `navigator.connection` (leído solo en un efecto; en el primer render `desconocida`). No cambies nada de privacidad ni los interruptores que ya hay. PRUEBA: el bloque aparece una vez; con `textosInternet` ausente no se ve y no rompe; los ajustes existentes siguen ahí (consulta el test existente de este componente si lo hay en `__tests__/`).\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "INT12"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1117-035502.json": [
+   "INT13",
+   "RST02",
+   "SVF1B5b",
+   "SVF1D3b"
+  ]
+ }
+}
