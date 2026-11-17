@@ -59,6 +59,7 @@ if DIRECTORIO not in sys.path:
     sys.path.insert(0, DIRECTORIO)
 
 import urgencia_tarea  # noqa: E402  AUT1116A
+from freno_mismo_motivo import frenar_por_mismo_motivo
 
 ESTADO = os.path.expanduser("~/.starseed/buscar-capacidad.json")
 SALUD = os.path.expanduser("~/.starseed/salud-proveedores.json")
@@ -1185,9 +1186,29 @@ def buscar(aplicar=False, sondear_medios=True, mac=True, origen="boton", ahora=N
         pot_gh = _potenciado("nube-gh", ahora)
         reabribles = [t for t in agotadas if (puede_reabrir_potenciada(reaperturas.get(t), ahora) if pot_gh
                                               else puede_reabrir_tarea(reaperturas.get(t), ahora, notas.get(t, "")))]
+        # (HAL09) Freno por mismo motivo: si varias tareas recientes fallaron igual, no lanzar runs nuevos.
+        freno_frase = ""
+        try:
+            progreso = _leer_json(os.path.join(LATIDOS, "progreso.json"), {})
+            entradas = []
+            for tid, v in (progreso or {}).items():
+                if not isinstance(v, dict):
+                    continue
+                estado = v.get("estado")
+                nota = v.get("nota")
+                fin = v.get("fin")
+                if estado or nota or fin:
+                    entradas.append({"estado": estado, "nota": nota, "fin": fin})
+            freno, frase = frenar_por_mismo_motivo(entradas)
+            if freno:
+                freno_frase = frase
+        except Exception:
+            lineas.append("Freno por mismo motivo: no se pudo calcular")
         # (CAP1025B) Las nuevas frente a lo que ya llevan los jobs vivos, no frente a todos ellos.
         tope = tope_runs_nube(len(nube["clases"].get("elegibles") or []) + min(REABRIR_POR_PASADA, len(reabribles)),
                               escritores_nube, vivos=vivos)
+        if freno_frase:
+            tope = (vivos, freno_frase)
         plan = plan_nube(
             nube["clases"].get("elegibles"), agotadas, vivos, nube["pausa"],
             reaperturas, ahora, listas_mac=len(estado_mac.get("listas") or []),
@@ -1240,8 +1261,11 @@ def buscar(aplicar=False, sondear_medios=True, mac=True, origen="boton", ahora=N
             pass
     posibles = 0 if aplicar else (int(plan.get("lanzar") or 0) * int(plan.get("trabajadores") or 0)
                                   + int((decision or {}).get("huecos") or 0))
+    causas = list(causas_sin_suma(estado_mac, plan, linea_cr))
+    if freno_frase:
+        causas.append(freno_frase)
     texto = resumen(lineas, sumados, sin_escritores=sin_escritores, sin_trabajo=sin_trabajo,
-                    causas=causas_sin_suma(estado_mac, plan, linea_cr) if not sumados else (), posibles=posibles)
+                    causas=causas if causas else (), posibles=posibles)
     # (1103 · U) Lo que frenó por un reparto NUESTRO del crédito o del cupo del mes se pregunta, no se calla.
     preguntas = _preguntas_vigentes(ahora)
     if preguntas:

@@ -803,3 +803,99 @@ def test_1103_o_reaperturas_sin_intento_desde_ajustes(tmp_path):
     dos = [100_000.0 - 7200, 100_000.0 - 5000]
     assert not B.puede_reabrir_tarea(dos, 100_000.0, "devuelta de la nube: su run terminó", extra=0)
     assert B.puede_reabrir_tarea(dos, 100_000.0, "devuelta de la nube: su run terminó", extra=1)
+
+
+class FrenoMismoMotivo(unittest.TestCase):
+    """(HAL09) Freno por mismo motivo en Buscar más capacidad."""
+
+    def _mock_buscar_base(self, mock_progreso, mock_reunir_nube=None, runs=0):
+        from unittest import mock
+        import asignar_huecos
+
+        nube = {"clases": {"elegibles": ["A", "B"], "agotada": []}, "pausa": None, "runs": runs, "error": None, "mac": {}}
+        if mock_reunir_nube is None:
+            mock_reunir_nube = lambda *a, **k: nube
+
+        with mock.patch.object(B, "ESTADO", "/tmp/estado-test.json"), \
+                mock.patch.object(B, "SALUD", "/tmp/salud-test.json"), \
+                mock.patch.object(B, "reunir_nube", mock_reunir_nube), \
+                mock.patch.object(B, "cloudroom", lambda *a, **k: (0, "Cloudroom: nada", [])), \
+                mock.patch.object(B, "claude_nube", lambda *a, **k: (0, "Claude en la nube: 0")), \
+                mock.patch.object(B, "_avisar", lambda *a, **k: None), \
+                mock.patch.object(RN, "leer_reaperturas", lambda *a, **k: {}), \
+                mock.patch.object(asignar_huecos, "reunir", lambda: {"listas": [], "tope": 3, "ocupados": []}), \
+                mock.patch.object(asignar_huecos, "decidir", lambda e: {"puede": False}), \
+                mock.patch.object(B, "_leer_json", lambda r, d: mock_progreso if "progreso" in r else d):
+            return B.buscar(aplicar=True, sondear_medios=False, mac=False, origen="autocuracion", ahora=AHORA)
+
+    def test_frena_cuando_7_de_10_sin_cambios_mismo_motivo(self):
+        """7 de 10 tareas acabadas con 'sin_cambios' por el mismo motivo → frena y no lanza runs nuevos."""
+        ahora = AHORA
+        mismo_motivo = "la nube dijo «sin_cambios» por «modelo sin cupo»"
+        progreso = {
+            f"T{i}": {"estado": "sin_cambios", "nota": mismo_motivo, "fin": ahora - i * 100}
+            for i in range(7)
+        }
+        # 3 tareas con motivo DISTINTO normalizado (fallo, no sin_cambios)
+        progreso.update({
+            f"T{i+7}": {"estado": "fallo", "nota": "la nube dijo «fallo» por «otro motivo»", "fin": ahora - (i + 7) * 100}
+            for i in range(3)
+        })
+
+        r = self._mock_buscar_base(progreso, runs=0)
+        self.assertEqual(r["sumados"], 0)
+        self.assertIn("se frena: 7 de las últimas 10 tareas acabaron", r["resumen"])
+        self.assertIn("sin_cambios", r["resumen"])
+
+    def test_no_frena_con_motivos_distintos(self):
+        """Si los motivos son variados, no frena y lanza runs como antes."""
+        ahora = AHORA
+        # 10 tareas con motivos normalizados DISTINTOS (máximo 3 de cada uno)
+        motivos = [
+            ("sin_cambios", "la nube dijo «sin_cambios» por «motivo A»"),
+            ("sin_cambios", "la nube dijo «sin_cambios» por «motivo B»"),
+            ("fallo", "la nube dijo «fallo» por «motivo C»"),
+            ("fallo_tsc", "la nube dijo «fallo_tsc» por «motivo D»"),
+            ("rechazada", "la nube dijo «rechazada» por «motivo E»"),
+            ("sin_cambios", "la nube dijo «sin_cambios» por «motivo F»"),
+            ("fallo_tests", "la nube dijo «fallo_tests» por «motivo G»"),
+            ("fallo", "la nube dijo «fallo» por «motivo H»"),
+            ("rechazada", "la nube dijo «rechazada» por «motivo I»"),
+            ("fallo", "la nube dijo «fallo» por «motivo J»"),
+        ]
+        progreso = {}
+        for i, (estado, nota) in enumerate(motivos):
+            progreso[f"T{i}"] = {"estado": estado, "nota": nota, "fin": ahora - i * 100}
+
+        r = self._mock_buscar_base(progreso, runs=0)
+        # Con 2 elegibles y 1 escritor (opencode), tope=1 job → 2 trabajadores
+        self.assertEqual(r["sumados"], 2)
+        self.assertNotIn("se frena", r["resumen"])
+
+    def test_freno_excepcion_no_rompe_y_avisa(self):
+        """Si el cálculo del freno falla, no frena y avisa en una línea."""
+        from unittest import mock
+        import asignar_huecos
+
+        nube = {"clases": {"elegibles": ["A", "B"], "agotada": []}, "pausa": None, "runs": 0, "error": None, "mac": {}}
+
+        def leer_json_falla(ruta, defecto):
+            if "progreso" in ruta:
+                raise OSError("disco lleno")
+            return defecto
+
+        with mock.patch.object(B, "ESTADO", "/tmp/estado-test.json"), \
+                mock.patch.object(B, "SALUD", "/tmp/salud-test.json"), \
+                mock.patch.object(B, "reunir_nube", lambda *a, **k: nube), \
+                mock.patch.object(B, "cloudroom", lambda *a, **k: (0, "Cloudroom: nada", [])), \
+                mock.patch.object(B, "claude_nube", lambda *a, **k: (0, "Claude en la nube: 0")), \
+                mock.patch.object(B, "_avisar", lambda *a, **k: None), \
+                mock.patch.object(RN, "leer_reaperturas", lambda *a, **k: {}), \
+                mock.patch.object(asignar_huecos, "reunir", lambda: {"listas": [], "tope": 3, "ocupados": []}), \
+                mock.patch.object(asignar_huecos, "decidir", lambda e: {"puede": False}), \
+                mock.patch.object(B, "_leer_json", leer_json_falla):
+            r = B.buscar(aplicar=True, sondear_medios=False, mac=False, origen="autocuracion", ahora=AHORA)
+
+        # Con 2 elegibles y 1 escritor (opencode), tope=1 job → 2 trabajadores
+        self.assertEqual(r["sumados"], 2)
+        self.assertIn("Freno por mismo motivo: no se pudo calcular", "\n".join(r["lineas"]))
