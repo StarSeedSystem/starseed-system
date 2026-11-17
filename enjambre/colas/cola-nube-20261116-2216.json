@@ -1,0 +1,69 @@
+{
+ "ola": "nube-20261116",
+ "tareas": [
+  {
+   "id": "TU28",
+   "ola": "TRA1116-APP-F1",
+   "titulo": "Idioma de conversación por persona en un bot: se aprende con tres detecciones seguidas",
+   "archivos": [
+    "src/lib/traductor/idioma-por-persona.ts",
+    "src/lib/traductor/__tests__/idioma-por-persona.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Mapa `{personaId → {idioma, fuente:\"pedido\"|\"detectado\", confianza, desde}}` en `starseed.traductor.personas.v1` (local, tope 500 personas, almacén inyectable). `observar(personaId, deteccion)`: guarda un idioma «detectado» solo tras 3 detecciones consecutivas del mismo idioma con confianza ≥0,8; un cambio de idioma en un mensaje suelto no lo cambia; `fijar(personaId, idioma)` («pedido») gana siempre sobre lo detectado y solo lo cambia otro «pedido»; `idiomaDe(personaId, porDefecto)`; `olvidar(personaId)`. PRUEBAS: tres seguidas fijan; una suelta no cambia; pedido gana; tope; olvidar.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "TU9"
+   ]
+  },
+  {
+   "id": "IMA3",
+   "ola": "TRA1116-IDIOMAS",
+   "titulo": "Búsqueda de idiomas por nombre, nombre propio, código o alias, sin acentos y tolerante a una errata",
+   "archivos": [
+    "src/lib/idiomas/busqueda.ts",
+    "src/lib/idiomas/__tests__/busqueda.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. `buscarIdiomas(lista: IdiomaMundial[], consulta: string): IdiomaMundial[]`: normaliza (NFD, sin diacríticos, minúsculas, espacios) consulta y campos; coincide por prefijo y por contenido en `nombrePropio`, `nombreActual`, `codigo` (exacto o prefijo) y `alias`; ordena: código exacto › prefijo de nombre › contiene › una errata (distancia de edición ≤1 si la consulta tiene ≥4 letras); desempata alfabético; consulta vacía devuelve la lista tal cual. Sin dependencias.\nPRUEBAS: «ingles» encuentra English/Inglés; «chino» → zh; «zh» exacto primero; «portugues» sin tilde; «alemn» (errata) → Deutsch; «xx» → vacío; la lista de entrada no se muta.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "IMA2"
+   ]
+  },
+  {
+   "id": "JL8",
+   "ola": "JLA1116A",
+   "titulo": "Puerta de evaluación: cuándo una capa nueva reemplaza a la vigente",
+   "archivos": [
+    "src/lib/astraura/laya/evaluar-capa.ts",
+    "src/lib/astraura/laya/__tests__/evaluar-capa.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: architecture/jev-entrena-laya.md (si aún no está en el repo, rige este texto). Lee AGENTS.md. §6. Puro. `evaluarCapa({vigente, nueva, reserva})` donde `reserva` son casos con desenlace por estrato. Devuelve `{reemplaza: boolean, motivos: string[]}` y solo reemplaza si: hay ≥ 1.000 casos de reserva repartidos (si no, motivo «faltan datos»); la nueva no es peor en NINGÚN estrato y mejora en alguno; no deja pasar más «integrar» revertidos que la vigente. `particion(ids)`: reserva del 20 % por huella del id (determinista, no sorteo). PRUEBAS: empate no reemplaza, peor en un estrato no reemplaza, pocos datos no reemplaza, partición estable.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` (Python: sin red ni `~/.starseed`, rutas y lectores se inyectan) salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "JL7-d2"
+   ]
+  },
+  {
+   "id": "HAL05",
+   "ola": "HAL1116A",
+   "titulo": "CapaIdioma espera a que el documento esté hidratado antes de reescribir el texto",
+   "archivos": [
+    "src/components/idiomas/capa-idioma.tsx",
+    "src/components/idiomas/__tests__/capa-idioma-hidratacion.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Lee `capa-idioma.tsx` entero (38 líneas) y `src/lib/idiomas/hidratacion.ts` (HAL04). Cambio ACOTADO (≤25 líneas): en el efecto, antes de la PRIMERA llamada a `iniciarCapa` (no antes de `capa.cambiar`, que es una elección de la persona ya con la página viva), espera `cuandoEsSeguroTraducir(entornoDelNavegador(window))` y sigue solo si `vivo` sigue siendo true tras la espera. Una elección nueva (`EVENTO_IDIOMA`) durante la espera no se pierde: al terminar se lee `idiomaEfectivo()` de nuevo. Se conserva todo lo demás (`storage`, `parar`, `fijarDocumento`). PRUEBAS (`render` con `vi.useFakeTimers` y un `cuandoEsSeguroTraducir` simulado con `vi.mock`): con idioma guardado `en` el texto del cuerpo sigue en español hasta que la promesa resuelve y entonces cambia; si el componente se desmonta durante la espera no se aplica nada; un cambio de idioma durante la espera aplica el último.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "HAL04"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1116-220649.json": [
+   "IMA3",
+   "TU28",
+   "HAL05",
+   "JL8"
+  ]
+ }
+}
