@@ -1,0 +1,82 @@
+{
+ "ola": "nube-20261116",
+ "tareas": [
+  {
+   "id": "IMG-diaria-websocket-vs-sse",
+   "titulo": "WebSocket vs SSE",
+   "area": "imaginacion",
+   "archivos": [],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: WebSocket vs SSE. : medir latencia percibida real (`tasks`: \"Comprobar en uso real si el WebSocket mejora la latencia…\") — si gana, migrar `sendAuroraTurn` y notificaciones especiales. Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  },
+  {
+   "id": "IMG-profunda-eliminar-cliente-supabase-dupli",
+   "titulo": "Eliminar cliente Supabase duplicado",
+   "area": "imaginacion",
+   "archivos": [
+    "src/components/onboarding/ventana-perfil-inicial.tsx"
+   ],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Eliminar cliente Supabase duplicado. Eliminar cliente Supabase duplicado Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  },
+  {
+   "id": "IMG-profunda-catch-silencioso-en-carga-de-pe",
+   "titulo": "Catch silencioso en carga de perfil",
+   "area": "imaginacion",
+   "archivos": [
+    "src/components/onboarding/ventana-perfil-inicial.tsx"
+   ],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Catch silencioso en carga de perfil. Catch silencioso en carga de perfil Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  },
+  {
+   "id": "IMA13",
+   "ola": "TRA1116-IDIOMAS",
+   "titulo": "Exportar y compartir un paquete: archivo, enlace y trozos para la malla",
+   "archivos": [
+    "src/lib/idiomas/paquete/compartir.ts",
+    "src/lib/idiomas/paquete/__tests__/compartir.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contrato A2 «Compartir». `aArchivo(paquete): { nombre: string; contenido: string; tipo: \"application/json\" }`; `aEnlace(base: string, idPublico: string): string` (`?idioma=<id>`; el enlace SOLO apunta, nunca lleva el paquete dentro); `desdeEnlace(url): string|null` (acepta solo `https:` y el mismo `base`); `trocear(paquete, tamano=16_384): Trozo[]` con `{ indice, total, hashPaquete, datos(base64) }` y `reunir(trozos, digest): Promise<{ok:true, paquete} | {ok:false, motivo}>` que exige todos los trozos, mismo `hashPaquete` y pasar `validarPaquete` (IMA6) antes de devolverlo; un trozo repetido o fuera de rango se rechaza. Nada de red aquí.\nPRUEBAS: ida y vuelta; falta un trozo → motivo; trozo manipulado → hash no coincide; enlace de otro dominio → null.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "IMA5",
+    "IMA6"
+   ]
+  },
+  {
+   "id": "JL10b",
+   "ola": "JLA1116A",
+   "titulo": "Laya para el planificador: rellenar respuestasLaya del router",
+   "archivos": [
+    "src/lib/astraura/laya/preguntar-plan.ts",
+    "src/lib/astraura/laya/__tests__/preguntar-plan.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: architecture/jev-entrena-laya.md (si aún no está en el repo, rige este texto). Lee AGENTS.md. §2 (nadie rellena `respuestasLaya` del router, `src/ai/astraura/router.ts:987`). Puro con dependencias inyectadas: `respuestasParaPlan(textoTarea, deps)` llama a `preguntarALaya` (`cliente-laya.ts:76`) con el punto `plan.dificultad` y devuelve `RespuestasLaya` (`router-laya.ts`) o null si Laya no llegó a tiempo; nunca espera más que el plazo del medio. PRUEBAS con `fetch` y reloj falsos: respuesta a tiempo, plazo vencido -> null, error de red -> null, respuesta mal formada -> null.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` (Python: sin red ni `~/.starseed`, rutas y lectores se inyectan) salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/43798115047`)\nUn agente de la nube ya avanzó esta tarea (no pasa en GitHub (run 43820415679) falla «pruebas TS»: 6-11-16T07:09:30.0727787Z \u001b[2m      Tests \u001b[22m \u001b[1m\u001b[31m1 failed\u001b[39m\u001b[22m\u001b[2m | \u001b[22m\u001b[1m\u001b[32m4370 passed\u001b[39m\u001b[22m\u001b[2m | \u001b[22m\u001b[33m2 skipped\u001b[39m\u001b[90m (4373)\u001b[39m\n2026-11-16T07:09:30.0756922Z \u001b[2m   Start at \u001b[22m 07:02:17\n2026-11-16T07:09:30.0817851Z \u001b[2m   Duration \u001b[22m 432.70s\u001b[2m (transform 25.97s, setup 28.21s, collect 228.86s, tests 284.77s, environment 125.86s, prepare 34.41s)\u001b[22m\n2026-11-16T07:09:30.0856512Z \n2026-11-16T07:09:30.0881160Z \n2026-11-16T07:09:30.0922619Z ##[error]AssertionError: expected \"spy\" to be called 1 times, but got 0 times\n ❯ src/lib/banco-llamadas/__tests__/app-latido.test.ts:112:24\n\n\n2026-11-16T07:09:30.4679660Z ##[error]Process completed with exit code 1.). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/43798115047:refs/remotes/origin/nube/43798115047\"` y `git cherry-pick --no-commit 4c77ab6b5872 5f8d63923541 e05485cf0217 28ede95af76e`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/ai/astraura/router.ts, src/components/aurora/setup/aurora-setup-center.tsx, src/components/onboarding/aurora-guide.tsx, src/hooks/__tests__/use-timeout-interaction.test.ts, src/hooks/use-timeout-interaction.ts, src/lib/astraura/laya/__tests__/preguntar-plan.test.ts, src/lib/astraura/laya/preguntar-plan.ts, src/lib/mando/areas.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/43798115047"
+  },
+  {
+   "id": "MQB6",
+   "ola": "MOD1116",
+   "titulo": "Modelo privado del A1: no cargarlo sin memoria disponible ni mientras el nodo compila",
+   "archivos": [
+    "scripts/puente/modelo_privado_a1.py",
+    "scripts/puente/test_modelo_privado_a1_guarda.py"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. MEDIDO en el A1 el 16-11 (dirección): el modelo privado (Ollama, `huihui_ai/qwen3.5-abliterated:4B`, tope de 5200 MB) se cargó mientras el nodo compilaba (`next build`, 4,0 GB). Resultado: 132 MB de memoria libre, el intercambio al 97 %, y el modelo escribió a 1,83 tokens por segundo (una frase tardó 4 min 26 s, 1 min 44 s solo de carga; pico del servicio 4,7 GB). No murió nada, pero así no debe usarse.\n\nANTES DE EMPEZAR: comprueba con `git log --oneline main | grep` que está en `main` el commit cuyo asunto contiene «MQB1». Si falta: NO escribas, NO modifiques y NO confirmes nada; termina sin cambios y di en una línea que falta MQB1 (la tarea se reabrirá sola). Si está, lee entero `scripts/puente/modelo_privado_a1.py` antes de tocarlo.\n\nAñade a `scripts/puente/modelo_privado_a1.py`, en UN bloque aditivo marcado `# MQB6`, una función PURA `puede_cargar(mem_disponible_mb, intercambio_libre_mb, compilando)` que devuelve `(bool, motivo)`: solo es `True` si `mem_disponible_mb >= 5200` Y `intercambio_libre_mb >= 1024` Y `compilando` es falso; en cualquier otro caso `False` con el motivo en español y con las cifras («memoria disponible 1024 MB, hacen falta 5200», «el nodo está compilando», «intercambio libre 112 MB, hace falta 1024»); un dato que falta (`None`) cuenta como NO y el motivo lo dice («no se pudo leer la memoria»). Añade también `leer_memoria(texto_meminfo)` PURA, que saca `MemAvailable` y `SwapFree` (en MB, enteros) del texto de `/proc/meminfo` y devuelve `None` en lo que no encuentre, y `esta_compilando(lineas_de_procesos)` PURA, que es verdadera si alguna línea contiene `next build`, `tsc` como orden (no como parte de otra palabra) o `vitest`. Donde el módulo decide hoy si la pasarela del modelo privado se declara o si el modelo se ofrece, exige además `puede_cargar(...)` y, cuando sea `False`, que el estado lo diga con el motivo (lectura del sistema INYECTADA, como el resto del módulo; nada de leer `/proc` ni lanzar procesos dentro de las funciones puras). No cambies los nombres ni el formato que ya existan.\n\nPruebas en `scripts/puente/test_modelo_privado_a1_guarda.py` (unittest, como sus vecinas `scripts/puente/test_*.py`): el caso medido (1024 MB disponibles, 112 de intercambio, compilando) da `False`; 8000/1800/sin compilar da `True`; 5199 da `False` y 5200 da `True`; intercambio 1023 da `False`; compilando solo ya da `False`; `None` en cualquier dato da `False`; `leer_memoria` con un `/proc/meminfo` de ejemplo y con texto vacío; `esta_compilando` con `node /x/node_modules/.bin/next build`, con `tsc --noEmit`, con `python3 atscript.py` (falso) y con lista vacía. Asunto del commit: `MOD1116 · MQB6: el modelo privado del A1 no se carga sin memoria ni mientras el nodo compila`.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1116-201827.json": [
+   "IMG-profunda-catch-silencioso-en-carga-de-pe",
+   "IMG-profunda-eliminar-cliente-supabase-dupli",
+   "IMA13",
+   "JL10b",
+   "MQB6",
+   "IMG-diaria-websocket-vs-sse"
+  ]
+ }
+}
