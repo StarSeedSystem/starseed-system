@@ -1,0 +1,31 @@
+{
+ "ola": "nube-20261117",
+ "tareas": [
+  {
+   "id": "IMG-profunda-catch-vacio-en-exchangecodefors",
+   "titulo": "Catch vacío en exchangeCodeForSession",
+   "area": "imaginacion",
+   "archivos": [
+    "src/app/auth/callback/route.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Catch vacío en exchangeCodeForSession. Catch vacío en exchangeCodeForSession Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  },
+  {
+   "id": "IMG-profunda-catch-silencioso-en-auroratrans",
+   "titulo": "Catch silencioso en auroraTranscript",
+   "area": "imaginacion",
+   "archivos": [
+    "src/components/onboarding/aurora-guide.tsx"
+   ],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Catch silencioso en auroraTranscript. Catch silencioso en auroraTranscript Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1117-123226.json": [
+   "IMG-profunda-catch-silencioso-en-auroratrans",
+   "IMG-profunda-catch-vacio-en-exchangecodefors"
+  ]
+ }
+}
