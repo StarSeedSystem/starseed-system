@@ -35,6 +35,8 @@ import { CollectionsGrid } from "@/components/profile/collections/collections-gr
 import { samplePages, sampleGroups } from "@/data/sample-entities";
 import { listPartidos, listFederativeEntities } from "@/data/sample-governance";
 import { pageHref, groupHref } from "@/lib/entity-links";
+import { usarEspacio } from "@/lib/entidad-espacio/usar-espacio";
+import { aPestanasDePagina } from "@/lib/entidad-espacio/pestanas-pagina";
 import { useEntityLayout, applyTabLayout, suggestedIntegrations } from "@/lib/entity-layout";
 import { EntityLayoutEditor } from "@/components/social/entity-layout-editor";
 // Tema por entidad (Mezclador/Catálogo — Adenda Mezclador): aplica el
@@ -65,6 +67,10 @@ import {
 } from "lucide-react";
 
 const GOLD = "#E9C46A";
+
+// SES1115Q · El EN VIVO por sesión lo alimenta la presencia (P1-C); hasta entonces sin marca.
+const EN_DIRECTO_ESPACIO: Record<string, { directo: boolean; personas: number }> = {};
+const SIN_ROLES_ESPACIO: string[] = [];
 
 function onImgError(e: React.SyntheticEvent<HTMLImageElement, Event>) {
     e.currentTarget.style.display = "none";
@@ -501,8 +507,30 @@ function GrupoPageContent() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [group, groupHasToolkit, groupKind, accentForTabs, layout.sections, layout.integrations, layout.gallery, isOwner, postCount, coverForWelcome]);
 
+    // SES1115Q · Pestañas del espacio (P1-B): leídas de la clave `espacio` y añadidas
+    // al final; se referencian, no se duplican. Con error o cargando no se añade nada.
+    const refEspacio = useMemo(() => entityRef ?? { kind: "group" as const, id: "" }, [entityRef]);
+    const espacio = usarEspacio(refEspacio, { rango: isOwner ? 4 : 0, roles: SIN_ROLES_ESPACIO });
+    const pestanasEspacio = useMemo(() => {
+        if (espacio.error || espacio.cargando) return [];
+        const idsBase = new Set(baseTabs.map((t) => t.id));
+        return aPestanasDePagina(
+            espacio.pestanas.filter((p) => !idsBase.has(p.id)),
+            EN_DIRECTO_ESPACIO,
+            (p) => (
+                <GlassCard className="p-6 text-center">
+                    <p className="font-headline text-lg font-semibold">{p.titulo}</p>
+                    <p className="mt-2 text-sm text-muted-foreground">Sesión en vivo de este espacio ({p.tipo}).</p>
+                    <Button asChild size="sm" variant="outline" className="mt-4 cursor-pointer gap-1.5">
+                        <Link href={`/vivo/${p.sesionId}`}>Abrir la sesión en vivo</Link>
+                    </Button>
+                </GlassCard>
+            ),
+        );
+    }, [espacio.pestanas, espacio.error, espacio.cargando, baseTabs]);
+
     const orderedTabs = useMemo(() => {
-        const o = applyTabLayout(baseTabs, layout.tabs);
+        const o = applyTabLayout([...baseTabs, ...pestanasEspacio], layout.tabs);
         // (Adenda 220) «Inicio» va primero salvo que el dueño ya lo hubiera
         // recolocado a mano en su layout guardado.
         const i = o.findIndex((t) => t.id === "dashboard");
@@ -511,7 +539,7 @@ function GrupoPageContent() {
             o.unshift(d);
         }
         return o;
-    }, [baseTabs, layout.tabs]);
+    }, [baseTabs, pestanasEspacio, layout.tabs]);
     const visibleTabs = useMemo(() => orderedTabs.filter((t) => t.visible), [orderedTabs]);
 
     useEffect(() => {
