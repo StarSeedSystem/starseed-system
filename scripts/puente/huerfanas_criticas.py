@@ -114,7 +114,24 @@ def identificar_contrato(tarea_id: str, raiz: str = RAIZ) -> Optional[dict]:
         return None
 
     for nombre in archivos:
-        if tarea_id in nombre or nombre.startswith(tarea_id[:4]):
+        if tarea_id in nombre:
+            ruta = os.path.join(arquitectura, nombre)
+            try:
+                with open(ruta, encoding="utf-8") as f:
+                    contenido = f.read()
+                titulo = re.search(r"^#\s+(.+)$", contenido, re.MULTILINE)
+                titulo = titulo.group(1).strip() if titulo else nombre
+                archivos_clave = re.findall(r"`([^`]+\.(ts|tsx|py|json|md))`", contenido)
+                archivos_clave = [a[0] for a in archivos_clave[:10]]
+                return {
+                    "ruta": ruta,
+                    "titulo": titulo,
+                    "archivos_clave": archivos_clave,
+                }
+            except OSError:
+                continue
+        # Fallback: coincidencia por prefijo (primeros caracteres)
+        if nombre.startswith(tarea_id):
             ruta = os.path.join(arquitectura, nombre)
             try:
                 with open(ruta, encoding="utf-8") as f:
@@ -171,7 +188,7 @@ def tareas_huerfanas(raiz: str = RAIZ, dias_huerto: int = 14) -> list:
 
 
 def reencolar_huerfana(raiz: str, tarea_id: str, motivo: str = "reintegro") -> dict:
-    """Reencadena una tarea huérfana a su cola o a una nueva.
+    """Reencalda una tarea huérfana a su cola o a una nueva.
 
     Reglas:
     - Si tiene contrato, se reenclava con el mismo formato
@@ -184,9 +201,61 @@ def reencolar_huerfana(raiz: str, tarea_id: str, motivo: str = "reintegro") -> d
     info = tareas.get(tarea_id, {})
 
     contrato = identificar_contrato(tarea_id, raiz=raiz)
-    if not contrato:
+    if contrato:
+        nueva_cola = "cola-suenos-huerfanas.json"
+        ruta_cola = os.path.join(raiz, REL_OLAS, nueva_cola)
+
+        try:
+            previas = []
+            if os.path.exists(ruta_cola):
+                with open(ruta_cola, encoding="utf-8") as f:
+                    datos = json.load(f)
+                previas = datos if isinstance(datos, list) else datos.get("tareas", [])
+
+            nueva_tarea = {
+                "id": f"R{tarea_id[1:]}",
+                "ola": f"Recuperación {tarea_id}",
+                "titulo": f"[{tarea_id}] Recuperación de tarea huérfana",
+                "archivos": contrato.get("archivos_clave", []),
+                "depende": [],
+                "prompt": f"""Tarea crítica huérfana: {tarea_id}
+
+Este es un reintegro de una tarea que se perdió en el orquestador.
+Contrato: {contrato['ruta']}
+Título: {contrato['titulo']}
+
+Vuelve a redactar o procesar según el contrato original.
+No duplicar trabajo: verifica primero si ya está integrado.
+""",
+                "creada": datetime.now(timezone.utc).isoformat(),
+                "estado": "pendiente",
+            }
+
+            todas = previas + [nueva_tarea]
+            Path(ruta_cola + ".tmp").parent.mkdir(parents=True, exist_ok=True)
+            with open(ruta_cola + ".tmp", "w", encoding="utf-8") as f:
+                json.dump(todas, f, ensure_ascii=False, indent=1)
+            os.replace(ruta_cola + ".tmp", ruta_cola)
+
+            return {
+                "ok": True,
+                "accion": "reencolada",
+                "id": tarea_id,
+                "nueva_cola": nueva_cola,
+                "mensaje": f"Tarea {tarea_id} reencolada en {nueva_cola}",
+            }
+        except Exception as e:
+            return {
+                "ok": False,
+                "accion": "error",
+                "id": tarea_id,
+                "error": str(e),
+                "mensaje": f"Error al reencolar {tarea_id}: {e}",
+            }
+    else:
+        # Sin contrato: se escala al Mando y al chat (nunca se pierde en silencio)
         return {
-            "ok": False,
+            "ok": True,
             "accion": "escalar",
             "id": tarea_id,
             "motivo": "sin_contrato",

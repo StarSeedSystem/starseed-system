@@ -24,6 +24,7 @@ os.environ["STARSEED_PRUEBAS"] = "1"
 import agente_sintesis as A
 import sintesis_fuentes as SF
 import sintesis_tareas as ST
+import huerfanas_criticas as HC
 
 
 AHORA_CDMX_00 = datetime(2026, 11, 11, 7, 0, tzinfo=timezone.utc)  # 01:00 CDMX

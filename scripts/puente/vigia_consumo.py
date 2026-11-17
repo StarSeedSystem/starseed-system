@@ -125,8 +125,11 @@ SQL_DIA_SIMPLE = (
 def _env(nombre):
     try:
         for l in open(os.path.join(RAIZ, ".env.local"), encoding="utf-8"):
-            if l.startswith(nombre + "="):
-                return l.split("=", 1)[1].strip().strip('"').strip("'")
+            linea = l.strip()
+            if linea.startswith("export "):
+                linea = linea[7:].strip()
+            if linea.startswith(nombre + "="):
+                return linea.split("=", 1)[1].strip().strip('"').strip("'")
     except OSError:
         pass
     return os.environ.get(nombre, "")

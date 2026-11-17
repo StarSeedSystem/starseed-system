@@ -38,6 +38,8 @@ def _env() -> dict:
         try:
             for linea in open(os.path.expanduser(ruta), encoding="utf-8"):
                 linea = linea.strip()
+                if linea.startswith("export "):
+                    linea = linea[7:].strip()
                 if linea and not linea.startswith("#") and "=" in linea:
                     k, v = linea.split("=", 1)
                     v = v.strip().strip("\"'")
