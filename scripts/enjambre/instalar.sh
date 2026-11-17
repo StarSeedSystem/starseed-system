@@ -74,8 +74,12 @@ mtime_de() {
 # copia_de <origen> <destino>: crea el directorio, copia preservando mtimes y da +x.
 copia_de() {
   mkdir -p "$(dirname "$2")"
-  cp -p "$1" "$2"
-  chmod +x "$2"
+  # (AUT1116A) Atómica: a un temporal junto al destino y `mv` encima. Con `cp` directo, un orquestador vivo que
+  # importara el módulo justo entonces leía un archivo a medias; así la instalación es segura con tareas en marcha.
+  local tmp="$2.nuevo.$$"
+  cp -p "$1" "$tmp"
+  chmod +x "$tmp"
+  mv -f "$tmp" "$2"
   echo "  $2  [md5 $(md5_de "$2")]"
 }
 

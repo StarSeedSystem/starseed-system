@@ -14,6 +14,7 @@ import os
 import re
 import time
 
+import urgencia_tarea
 from vigilante_logica import id_en_asuntos, sucesora_integrada
 
 #: (2026-10-03) Antes se clavaba «llm7/minimax-m2.7» a TODA tarea de la nube: llm7 está
@@ -640,6 +641,8 @@ MOTIVOS_FUERA = (
     ("en-main", "ya están en main"),
     ("grande", "piden más de %d archivos y se quedan en la Mac, donde hay revisor" % MAX_ARCHIVOS_NUBE),
     ("espera", "esperan a otra tarea"),
+    # AUT1116A: una tarea con prioridad (URGENTE) que la Mac aún puede coger no se cede a la nube.
+    ("urgente", "son urgentes y la Mac las coge antes que ninguna otra cosa"),
     ("agotada", "ya se mandaron %d veces sin integrarse" % MAX_ENVIOS_NUBE),
     ("privada", "son privadas y no salen de la Mac"),
 )
@@ -663,7 +666,7 @@ def envios_de_cadena(tid, envios):
 
 
 def motivo_fuera(tarea, progreso, asuntos_main, n_ola_actual, envios=None,
-                 max_archivos=MAX_ARCHIVOS_NUBE, max_envios=MAX_ENVIOS_NUBE, mismo_lote=()):
+                 max_archivos=MAX_ARCHIVOS_NUBE, max_envios=MAX_ENVIOS_NUBE, mismo_lote=(), ahora=None):
     """PURA. None si la nube puede coger esta tarea; si no, la clave de MOTIVOS_FUERA del
     primer filtro que la deja fuera. Es EL filtro de `elegir`: los dos no pueden discrepar."""
     tid = str(tarea.get("id"))
@@ -680,6 +683,11 @@ def motivo_fuera(tarea, progreso, asuntos_main, n_ola_actual, envios=None,
         return "grande"
     if dependencias_pendientes(tarea, progreso, asuntos_main, mismo_lote):
         return "espera"
+    # (AUT1116A, MEDIDO el 16-11) VOZ01, FRN01 y DSB01 («URGENTE») salieron a la nube a las 14:50 como
+    # cualquier otra, porque la nube cogía todo lo que no estuviera en la tanda viva de la Mac; allí
+    # quedaron horas. Lo urgente se queda en la Mac mientras la Mac pueda cogerlo (`retiene_la_mac`).
+    if urgencia_tarea.retiene_la_mac(tarea, entrada, ahora):
+        return "urgente"
     if envios_de_cadena(tid, envios) >= max_envios:
         return "agotada"
     if es_privada(tarea):
@@ -688,7 +696,7 @@ def motivo_fuera(tarea, progreso, asuntos_main, n_ola_actual, envios=None,
 
 
 def elegir(colas, progreso, asuntos_main, ola_actual, tope=20, max_archivos=MAX_ARCHIVOS_NUBE,
-           envios=None, max_envios=MAX_ENVIOS_NUBE, mismo_lote=()):
+           envios=None, max_envios=MAX_ENVIOS_NUBE, mismo_lote=(), ahora=None):
     """Hasta `tope` candidatas, deduplicadas, con modelo nube y ordenadas por tamano.
 
     Se descartan las de mas de `max_archivos` archivos declarados —esas necesitan un
@@ -708,7 +716,7 @@ def elegir(colas, progreso, asuntos_main, ola_actual, tope=20, max_archivos=MAX_
             if tid in vistas:
                 continue
             if motivo_fuera(tarea, progreso, asuntos_main, n_actual, envios, max_archivos,
-                            max_envios, mismo_lote):
+                            max_envios, mismo_lote, ahora):
                 continue
             vistas.add(tid)
             candidata = dict(tarea)
@@ -733,12 +741,13 @@ def elegir(colas, progreso, asuntos_main, ola_actual, tope=20, max_archivos=MAX_
             salida.append(candidata)
     # Estable: a igual numero de archivos manda el orden de las colas (la prioridad
     # que ya calcularon los directores). Solo se reordena por tamano.
-    salida.sort(key=_n_archivos)
+    # (AUT1116A) Lo urgente va primero al cortar por `tope`; después, el criterio de siempre.
+    salida.sort(key=lambda t: (-urgencia_tarea.prioridad_de_tarea(t), _n_archivos(t)))
     return salida[:tope]
 
 
 def clasificar(colas, progreso, asuntos_main, ola_actual, envios=None,
-               max_archivos=MAX_ARCHIVOS_NUBE, max_envios=MAX_ENVIOS_NUBE, mismo_lote=()):
+               max_archivos=MAX_ARCHIVOS_NUBE, max_envios=MAX_ENVIOS_NUBE, mismo_lote=(), ahora=None):
     """PURA. {"elegibles": [ids], <motivo>: [ids], ...} del trabajo que queda, en el orden de
     las colas. No cuenta lo cerrado ni lo que ya está en main (no es trabajo pendiente).
 
@@ -750,7 +759,7 @@ def clasificar(colas, progreso, asuntos_main, ola_actual, envios=None,
     ejemplo) sale con ESA razón: reabrirla no la llevaría a la nube."""
     elegidas = {str(t["id"]) for t in elegir(colas, progreso, asuntos_main, ola_actual, tope=10 ** 6,
                                               max_archivos=max_archivos, envios=envios,
-                                              max_envios=max_envios, mismo_lote=mismo_lote)}
+                                              max_envios=max_envios, mismo_lote=mismo_lote, ahora=ahora)}
     n_actual = numero_ola(str(ola_actual)) if ola_actual else None
     salida, vistas = {"elegibles": []}, set()
     for _nombre, tareas in colas:
@@ -765,10 +774,10 @@ def clasificar(colas, progreso, asuntos_main, ola_actual, envios=None,
                 salida["elegibles"].append(tid)
                 continue
             motivo = motivo_fuera(tarea, progreso, asuntos_main, n_actual, envios, max_archivos, max_envios,
-                                  mismo_lote)
+                                  mismo_lote, ahora)
             if motivo == "agotada":
                 motivo = motivo_fuera(tarea, progreso, asuntos_main, n_actual, {}, max_archivos,
-                                      max_envios, mismo_lote) or "agotada"
+                                      max_envios, mismo_lote, ahora) or "agotada"
             if motivo in (None, "estado", "en-main"):
                 continue
             salida.setdefault(motivo, []).append(tid)
@@ -1013,19 +1022,26 @@ def devolver_a_pendiente(progreso, ids, fecha, envios=None, veredictos=None,
                 estado="pendiente", medio=None,
                 nota="devuelta de la nube %s: no quedaba ningún run en marcha que la llevara (envío %d de %d)%s"
                 % (fecha, n, max_envios, motivo),
+                # AUT1116A: desde ahora espera a la Mac (`urgencia_tarea.retiene_la_mac` cuenta desde `t`).
+                t=time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(ahora)),
             )
         salida[tid] = v
     return salida
 
 
-def marcar(progreso, ids, fecha):
-    """Copia del progreso con esos ids como `reasignada · nube`."""
+def marcar(progreso, ids, fecha, ahora=None):
+    """Copia del progreso con esos ids como `reasignada · nube`.
+
+    (AUT1116A) Con `t_reasignada` (epoch): la nota solo lleva el DÍA y quien decidía «lleva demasiado»
+    contaba hasta el final de ese día más 24 h (hasta 48 h de limbo, medido el 16-11 con VOZ01/FRN01/DSB01)."""
+    ahora = time.time() if ahora is None else ahora
     p = {k: dict(v) if isinstance(v, dict) else v for k, v in progreso.items()}
     for tid in ids:
         entrada = p.get(tid)
         p[tid] = dict(entrada) if isinstance(entrada, dict) else {}
         p[tid].update(
-            estado="reasignada", medio="nube", nota="reasignada a la nube %s" % fecha
+            estado="reasignada", medio="nube", nota="reasignada a la nube %s" % fecha,
+            t_reasignada=ahora,
         )
     return p
 

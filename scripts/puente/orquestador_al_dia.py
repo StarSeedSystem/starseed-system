@@ -40,6 +40,11 @@ ORQUESTADOR = "starseed-enjambre.py"
 GRACIA_S = 10 * 60
 #: Como mucho un reinicio por código nuevo cada tanto (un reinicio corta los sueños en curso y repite su trabajo).
 REINICIO_MINIMO_S = 6 * 3600
+#: (AUT1116A) Cuánto puede llevar el orquestador instalado distinto del de main sin que se diga EN ALTO, y cada cuánto se
+#: repite el aviso. Hasta ahora el caso «lo instalado es más nuevo que el repo» (`avisar`) solo dejaba una línea en el
+#: estado de la autocuración y no instalaba NUNCA: la copia se quedaba atrás sin que nadie lo supiera.
+ATRASO_AVISO_S = 2 * 3600
+ATRASO_REPETIR_S = 6 * 3600
 
 
 def _md5(ruta):
@@ -82,6 +87,27 @@ def decidir_instalar(difs):
         return "avisar", ("%d archivo(s) instalado(s) son más nuevos que el repo (%s): cambio en caliente sin traer; "
                           "no lo piso (scripts/enjambre/instalar.sh --traer)" % (len(calientes), ", ".join(calientes[:4])))
     return "instalar", "%d archivo(s) del enjambre cambiaron en main (%s)" % (len(difs), ", ".join(n for n, _r, _i in difs[:4]))
+
+
+def decidir_aviso_atraso(difs, desde, ahora, ultimo_aviso=None, aviso_tras_s=ATRASO_AVISO_S, repetir_s=ATRASO_REPETIR_S):
+    """PURA (AUT1116A). (aviso o "", desde): el texto para el Chat Director si el orquestador instalado lleva más de
+    `aviso_tras_s` distinto del de main (con el comando exacto), y desde cuándo dura. Sin diferencias: ("", None).
+    Repite como mucho cada `repetir_s`."""
+    if not difs:
+        return "", None
+    desde = ahora if not desde else float(desde)
+    if ahora - desde < aviso_tras_s or (ultimo_aviso and ahora - float(ultimo_aviso) < repetir_s):
+        return "", desde
+    nombres = ", ".join(n for n, _r, _i in difs[:4])
+    calientes = [n for n, repo, inst in difs if inst is not None and inst > repo]
+    if calientes:
+        como = ("lo instalado es MÁS NUEVO que el repo en %s: no lo piso solo. Si es un cambio tuyo en caliente: "
+                "`bash scripts/enjambre/instalar.sh --traer` y commitea. Si es una copia vieja de otro worktree: "
+                "`bash scripts/enjambre/instalar.sh`" % ", ".join(calientes[:4]))
+    else:
+        como = "la instalación automática no lo ha igualado; corre `bash scripts/enjambre/instalar.sh`"
+    return ("Orquestador instalado (~/.local/bin) distinto del de main desde hace %d h (%s): %s."
+            % ((ahora - desde) // 3600, nombres, como)), desde
 
 
 def minutos_de_etime(texto):
@@ -162,18 +188,46 @@ def _detener(pids):
     return suenos.detener_orquestadores([{"pid": p} for p in pids])
 
 
+def _avisar(texto):
+    try:
+        if AQUI not in sys.path:
+            sys.path.insert(0, AQUI)
+        import director_chat
+
+        director_chat.publicar(texto, de="orquestador-al-dia", rol="director", tipo="aviso")
+    except Exception:  # noqa: BLE001 — un aviso que no sale no tumba la pasada
+        pass
+
+
 def revisar(aplicar=True, ahora=None, difs_fn=diferencias, instalar_fn=_instalar, ps_fn=_ps, detener_fn=_detener,
-            estado=None, guardar=_guardar_estado):
+            estado=None, guardar=_guardar_estado, avisar_fn=_avisar):
     """Una pasada: {"hechos": [...], "instalar": acción, "reinicio": [pids]}. Nunca lanza por un paso."""
     ahora = time.time() if ahora is None else ahora
     est = _leer_estado() if estado is None else estado
     hechos = []
-    accion, motivo = decidir_instalar(difs_fn())
+    difs = difs_fn()
+    accion, motivo = decidir_instalar(difs)
     if accion == "instalar" and aplicar:
         ok, salida = instalar_fn()
         hechos.append(("instalado: %s" % motivo) if ok else ("no pude instalar (%s): %s" % (motivo, salida)))
+        if ok:
+            difs = []
     elif accion == "avisar":
         hechos.append(motivo)
+    # (AUT1116A) Que la copia instalada no se quede atrás en silencio: si sigue distinta pasadas 2 h, se dice en el Chat
+    # Director con el comando exacto (una vez cada 6 h) y se deja en el estado.
+    antes = (est.get("atraso_desde"), est.get("atraso_ultimo_aviso"))
+    aviso, desde = decidir_aviso_atraso(difs, est.get("atraso_desde"), ahora, est.get("atraso_ultimo_aviso"))
+    if desde is None:
+        est.pop("atraso_desde", None)
+    else:
+        est["atraso_desde"] = desde
+    if aviso and aplicar:
+        avisar_fn(aviso)
+        est["atraso_ultimo_aviso"] = ahora
+        hechos.append(aviso)
+    if aplicar and (est.get("atraso_desde"), est.get("atraso_ultimo_aviso")) != antes:
+        guardar(est)
     try:
         instalado_ts = os.path.getmtime(os.path.join(DESTINO, ORQUESTADOR))
     except OSError:
