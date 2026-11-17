@@ -34,9 +34,12 @@ describe("proveedorSinFiltrosPermitido: tabla completa contexto × caso × inter
   const CONTEXTOS: ContextoUso[] = ["privado-propio", "compartido", "publico", "segundo-plano", "malla-ajena"];
 
   it("caso por defecto (sin declarar contexto) niega: se trata como 'compartido'", () => {
-    const r = proveedorSinFiltrosPermitido({ ...base, contexto: undefined });
-    expect(r.permitido).toBe(false);
-    expect(r.aviso).toMatch(/bots, dots o asistentes de grupo/);
+    for (const caso of CASOS) {
+      const r = proveedorSinFiltrosPermitido({ ...base, contexto: undefined, caso });
+      expect(r.permitido, caso).toBe(false);
+      expect(r.aviso).toMatch(/bots, dots o asistentes de grupo/);
+      expect(r.aviso).not.toMatch(/[\r\n]/);
+    }
   });
 
   it("perfil no disponible niega (comprobado antes que el interruptor, como en aplicarEleccionManual)", () => {
@@ -152,6 +155,13 @@ describe("proveedorSinFiltrosPermitido: tabla completa contexto × caso × inter
               } else {
                 expect(r.permitido, `${contexto} · ${caso} · act=${activado} · disp=${disponible} · clave=${claveDeLaCuenta}`).toBe(false);
                 expect(r.aviso).toBeTruthy();
+                expect(r.aviso).not.toMatch(/[\r\n]/);
+                if (!disponible) expect(r.aviso).toMatch(/no están disponibles en este perfil/);
+                else if (!activado) expect(r.aviso).toMatch(/apagado/);
+                else if (contexto === "malla-ajena") expect(r.aviso).toMatch(/nunca se sirve a otra cuenta por la malla/);
+                else if (contexto !== "privado-propio") expect(r.aviso).toMatch(/solo se usan en/);
+                else if (!CASOS_SIN_FILTROS.has(caso)) expect(r.aviso).toMatch(/habla con otras personas o corre sin ti delante/);
+                else expect(r.aviso).toMatch(/propia clave/);
               }
             }
           }
