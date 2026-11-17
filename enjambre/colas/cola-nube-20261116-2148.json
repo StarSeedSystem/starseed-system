@@ -1,0 +1,45 @@
+{
+ "ola": "nube-20261116",
+ "tareas": [
+  {
+   "id": "IMG-diaria-websocket-vs-sse",
+   "titulo": "WebSocket vs SSE",
+   "area": "imaginacion",
+   "archivos": [],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: WebSocket vs SSE. : medir latencia percibida real (`tasks`: \"Comprobar en uso real si el WebSocket mejora la latencia…\") — si gana, migrar `sendAuroraTurn` y notificaciones especiales. Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  },
+  {
+   "id": "IMG-profunda-eliminar-cliente-supabase-dupli",
+   "titulo": "Eliminar cliente Supabase duplicado",
+   "area": "imaginacion",
+   "archivos": [
+    "src/components/onboarding/ventana-perfil-inicial.tsx"
+   ],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Eliminar cliente Supabase duplicado. Eliminar cliente Supabase duplicado Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  },
+  {
+   "id": "IMA13",
+   "ola": "TRA1116-IDIOMAS",
+   "titulo": "Exportar y compartir un paquete: archivo, enlace y trozos para la malla",
+   "archivos": [
+    "src/lib/idiomas/paquete/compartir.ts",
+    "src/lib/idiomas/paquete/__tests__/compartir.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contrato A2 «Compartir». `aArchivo(paquete): { nombre: string; contenido: string; tipo: \"application/json\" }`; `aEnlace(base: string, idPublico: string): string` (`?idioma=<id>`; el enlace SOLO apunta, nunca lleva el paquete dentro); `desdeEnlace(url): string|null` (acepta solo `https:` y el mismo `base`); `trocear(paquete, tamano=16_384): Trozo[]` con `{ indice, total, hashPaquete, datos(base64) }` y `reunir(trozos, digest): Promise<{ok:true, paquete} | {ok:false, motivo}>` que exige todos los trozos, mismo `hashPaquete` y pasar `validarPaquete` (IMA6) antes de devolverlo; un trozo repetido o fuera de rango se rechaza. Nada de red aquí.\nPRUEBAS: ida y vuelta; falta un trozo → motivo; trozo manipulado → hash no coincide; enlace de otro dominio → null.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "IMA5",
+    "IMA6"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1116-213725.json": [
+   "IMA13",
+   "IMG-diaria-websocket-vs-sse",
+   "IMG-profunda-eliminar-cliente-supabase-dupli"
+  ]
+ }
+}
