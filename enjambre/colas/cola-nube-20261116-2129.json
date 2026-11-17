@@ -1,0 +1,25 @@
+{
+ "ola": "nube-20261116",
+ "tareas": [
+  {
+   "id": "IMA23b",
+   "ola": "TRA1116-IDIOMAS",
+   "titulo": "Contrato de idiomas: anotar la parte A en architecture/idiomas.md (solo añadir)",
+   "archivos": [
+    "architecture/idiomas.md"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Documentación. Al final de `architecture/idiomas.md` añade «## 7. Más idiomas, archivo de idioma y clic derecho (16-11)» (≤30 líneas, sin tocar lo anterior): enlaza `architecture/traductor-universal.md` Parte A como contrato; resume en viñetas la lista generada con `Intl.DisplayNames` (`lista-mundial.ts`), el formato `.starseed-lang.json`, la validación (`validar.ts`) y que un paquete es solo datos, el almacén local y que `cargar.ts` suma paquetes instalados, y las entradas del clic derecho (`entradas-idioma.ts`, `montaje-idioma.tsx`). Termina con «Lo que sigue y no está hecho»: compartir por malla en la interfaz, y revisión humana de paquetes. Sin la palabra «Mando».\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/43992810887`)\nUn agente de la nube ya avanzó esta tarea (no pasa en GitHub (run 44003908499) falla «tsc»: 2:34:46.8437367Z env:\n2026-11-17T02:34:46.8437492Z   OPENUI_TELEMETRY_DISABLED: 1\n2026-11-17T02:34:46.8437637Z   DO_NOT_TRACK: 1\n2026-11-17T02:34:46.8437776Z   NODE_OPTIONS: --max-old-space-size=8192\n2026-11-17T02:34:46.8437947Z ##[endgroup]\n2026-11-17T02:36:43.7085776Z ##[error]src/app/(app)/grupo/[slug]/page.tsx(40,29): error TS2307: Cannot find module '@/lib/entidad-espacio/usar-espacio' or its corresponding type declarations.\n2026-11-17T02:36:43.7093299Z ##[error]src/app/(app)/pagina/[slug]/page.tsx(48,29): error TS2307: Cannot find module '@/lib/entidad-espacio/usar-espacio' or its corresponding type declarations.\n2026-11-17T02:36:44.2435628Z ##[error]Process completed with exit code 2.). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/43992810887:refs/remotes/origin/nube/43992810887\"` y `git cherry-pick --no-commit bce628f16688 1deeb8d3281b`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: architecture/idiomas.md, src/app/(app)/grupo/[slug]/page.tsx, src/app/(app)/pagina/[slug]/page.tsx.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/43992810887",
+   "dependencias_ya_en_main": [
+    "IMA12"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1116-201827.json": [
+   "IMA23b"
+  ]
+ }
+}
