@@ -34,6 +34,7 @@ import { type Marco, MARCO_POR_DEFECTO } from "@/lib/profile/marco-foto";
 import {
   claimProfile, saveProfileOptional, isValidHandle, sincronizarPerfilPublico,
 } from "@/lib/onboarding/onboarding";
+import { describirFalloCargaPerfil } from "@/lib/onboarding/carga-perfil";
 import { marcarRitoActivo } from "@/lib/ui/rito-activo";
 import { IconoStarSeed } from "@/components/onboarding/icono-starseed";
 import { esMiTurno, terminarEtapa, suscribirRito, navegarSuave } from "@/lib/onboarding/director-rito";
@@ -113,13 +114,28 @@ export function VentanaPerfilInicial({ onCerrar }: { onCerrar?: () => void }) {
         const sb = createClient();
         const { data: u } = await sb.auth.getUser();
         const uid = u?.user?.id;
-        if (!uid) return;
-        const { data } = await sb
+        if (!uid) {
+          // Sin sesión no hay perfil que traer; se rellena desde cero. Se deja
+          // traza: antes este camino también era invisible en consola.
+          console.warn("[perfil] sin sesión al cargar el perfil; se edita desde cero");
+          return;
+        }
+        const { data, error } = await sb
           .from("profiles")
           .select("handle,display_name,bio,avatar_url,cover_url,avatar_marco,avatar_3d")
           .eq("user_id", uid)
           .maybeSingle();
-        if (!vivo || !data) return;
+        // (IMG) Un error de consulta NO lanza: llegaba como `data: null` y se
+        // leía como «perfil vacío», sin traza ni aviso. Se cuenta y se sigue:
+        // la ventana queda editable y el rito no se bloquea.
+        if (!vivo) return;
+        if (error) {
+          const fallo = describirFalloCargaPerfil(error);
+          console.warn(fallo.diagnostico);
+          toast.warning(fallo.aviso);
+          return;
+        }
+        if (!data) return;
         const p = data as { handle?: string; display_name?: string; bio?: string; avatar_url?: string; cover_url?: string; avatar_marco?: Marco | null; avatar_3d?: Avatar3D | null };
         if (p.avatar_marco) setMarco({ ...MARCO_POR_DEFECTO, ...p.avatar_marco });
         if (p.avatar_3d?.url) setAvatar3d(p.avatar_3d);
@@ -128,7 +144,13 @@ export function VentanaPerfilInicial({ onCerrar }: { onCerrar?: () => void }) {
         setBio(p.bio || "");
         setAvatar(p.avatar_url || "");
         setPortada(p.cover_url || "");
-      } catch { /* se edita igual desde cero */ }
+      } catch (e) {
+        // (IMG) Nunca en silencio: si la lectura falla se edita desde cero,
+        // pero queda traza en consola y un aviso no bloqueante para la persona.
+        const fallo = describirFalloCargaPerfil(e);
+        console.warn(fallo.diagnostico);
+        if (vivo) toast.warning(fallo.aviso);
+      }
       finally { if (vivo) setCargando(false); }
     })();
     return () => { vivo = false; };
