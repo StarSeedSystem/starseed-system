@@ -131,6 +131,39 @@ impl Control {
         Ok(self.sesion.as_ref().expect("recién puesta"))
     }
 
+    /// (CTL1117A · S1/S4) Abrir OTRA vez con la sesión viva del MISMO controlador y el indicador ya a la vista: es la
+    /// misma sesión (mismo token, mismo indicador), solo se da por activa ahora. Nada de indicador nuevo ni de token
+    /// nuevo: así una apertura repetida (la Mac, dos ventanas, un reintento) no tumba lo que ya funciona. No reutiliza
+    /// si hay pausa local (quien manda no se la quita reabriendo), si es otro aparato ni si no hay indicador a la vista.
+    /// No alarga la hora máxima: `inicio_ms` no cambia.
+    pub fn reutilizar(&mut self, de: &str, nivel: &str, ahora: u64, indicador: bool) -> Option<&Sesion> {
+        if !indicador || !huella_valida(de) || !nivel_valido(nivel) {
+            return None;
+        }
+        self.caducar(ahora);
+        let s = self.sesion.as_mut()?;
+        if s.de != de || s.pausada_ms.is_some() {
+            return None;
+        }
+        s.nivel = nivel.into();
+        s.ultima_ms = ahora;
+        Some(s)
+    }
+
+    /// (CTL1117A · S7) Lo que `abrir` va a negar de todos modos por la sesión que YA hay (otro aparato, pausa local),
+    /// dicho ANTES de tocar el indicador: negar una apertura nunca debe quitar el indicador de la sesión que sigue viva.
+    pub fn negada_por_la_viva(&mut self, de: &str, ahora: u64) -> Option<Rechazo> {
+        self.caducar(ahora);
+        let s = self.sesion.as_ref()?;
+        if s.de != de {
+            Some(Rechazo::OtraSesion)
+        } else if s.pausada_ms.is_some() {
+            Some(Rechazo::Pausada)
+        } else {
+            None
+        }
+    }
+
     /// (ORD1114V) Abrir pasa ANTES por el interruptor nativo de este aparato (contrato §1 caso A punto 1): lo
     /// que diga la página no basta.
     #[allow(clippy::too_many_arguments)]
@@ -425,6 +458,45 @@ mod pruebas {
         // En pausa también caduca por inactividad: pausar no alarga la sesión.
         assert_eq!(c.orden(TOK, "colgar", 30_500 + SESION_INACTIVA_MS + 1, true).unwrap_err(), Rechazo::SinSesion);
         assert_eq!(Rechazo::Pausada.codigo(), "pausa-local");
+    }
+
+    // ─────────── CTL1117A ───────────
+
+    #[test]
+    fn abrir_otra_vez_con_la_sesion_viva_es_la_misma_sesion() {
+        let mut c = Control::default();
+        c.abrir(TOK, DE, "Mac", "controlar", 1_000, true).unwrap();
+        // Sin indicador a la vista no se reutiliza (la apertura normal decide).
+        assert!(c.reutilizar(DE, "controlar", 2_000, false).is_none());
+        let s = c.reutilizar(DE, "controlar", 5_000, true).expect("misma sesión");
+        assert_eq!((s.token.as_str(), s.inicio_ms, s.ultima_ms), (TOK, 1_000, 5_000), "mismo token, misma hora de inicio");
+        // Otro aparato, forma rara, pausa local: no.
+        let otro = "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
+        assert!(c.reutilizar(otro, "controlar", 5_100, true).is_none());
+        assert!(c.reutilizar("zz", "controlar", 5_100, true).is_none());
+        assert!(c.reutilizar(DE, "administrar", 5_100, true).is_none());
+        assert!(c.pausar(6_000));
+        assert!(c.reutilizar(DE, "controlar", 6_100, true).is_none(), "reabrir no quita la pausa local");
+        assert_eq!(c.negada_por_la_viva(DE, 6_200), Some(Rechazo::Pausada));
+        assert_eq!(c.negada_por_la_viva(otro, 6_200), Some(Rechazo::OtraSesion));
+        assert!(c.reanudar(7_000));
+        assert!(c.reutilizar(DE, "ver", 7_100, true).is_some());
+        assert_eq!(c.activa().unwrap().nivel, "ver");
+        // Caducada (2 min sin órdenes) o terminada por la persona: NO resucita.
+        assert!(c.reutilizar(DE, "controlar", 7_100 + SESION_INACTIVA_MS + 1, true).is_none());
+        assert!(c.activa().is_none());
+        assert_eq!(c.negada_por_la_viva(DE, 9_000_000), None, "sin sesión no hay nada que negar");
+        c.abrir(TOK, DE, "Mac", "controlar", 0, true).unwrap();
+        c.parar(10, "la-persona-desde-el-indicador");
+        assert!(c.reutilizar(DE, "controlar", 11, true).is_none(), "una sesión que la persona terminó no se renueva");
+        // La hora máxima no se alarga reabriendo.
+        c.abrir(TOK, DE, "Mac", "controlar", 0, true).unwrap();
+        let mut t = 0;
+        while t < SESION_MAX_MS - 60_000 {
+            t += 60_000;
+            assert!(c.reutilizar(DE, "controlar", t, true).is_some());
+        }
+        assert!(c.reutilizar(DE, "controlar", SESION_MAX_MS + 1, true).is_none());
     }
 
     // ─────────── ORD1114V ───────────

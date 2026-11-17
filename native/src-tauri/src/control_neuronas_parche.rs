@@ -248,6 +248,21 @@ mod pruebas {
     }
 
     #[test]
+    fn ctl1117a_la_pausa_por_toque_local_se_quita_sola_a_los_3_s_y_terminar_sigue_mandando() {
+        // Antes la pausa quedaba pegada hasta pulsar «Reanudar» (S7): ahora, 3 s sin tocar (contrato §12.1).
+        assert!(KOTLIN.contains("private val reanudarSola = Runnable { reanudarPorSilencio() }"));
+        assert!(KOTLIN.contains("principal.postDelayed(reanudarSola, ControlEntradaNativo.PAUSA_LOCAL_MS + 50)"));
+        let r = KOTLIN.find("private fun reanudarPorSilencio()").unwrap();
+        let cuerpo = &KOTLIN[r..r + 700];
+        assert!(cuerpo.contains("PAUSA_LOCAL_MS") && cuerpo.contains("reanudar()"), "solo reanuda con 3 s sin tocar, por la vía de `reanudar` (que ya respeta el gesto propio)");
+        // Cada toque local vuelve a armar el reloj; cerrar y destruir lo cancelan.
+        assert!(KOTLIN.contains("pausaLocal(); esperarSilencio()"));
+        assert!(KOTLIN.matches("principal.removeCallbacks(reanudarSola)").count() >= 3);
+        // Terminar y descartar siguen siendo de la persona: la auto-reanudación nunca se toca desde ellos.
+        assert!(KOTLIN.contains("TERMINAR -> terminar(\"la-persona-desde-la-notificacion\")") && !KOTLIN.contains("reanudarPorSilencio()\n            TERMINAR"));
+    }
+
+    #[test]
     fn la_app_nunca_se_concede_nada() {
         for x in ["grantRuntimePermission", "pm grant", "appops", "TCC.db", "tccutil"] {
             assert!(!KOTLIN.contains(x), "{x}");

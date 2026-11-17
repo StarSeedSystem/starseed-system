@@ -57,6 +57,21 @@ fn cerrojo_registro() -> MutexGuard<'static, ()> {
     C.get_or_init(|| Mutex::new(())).lock().unwrap_or_else(|e| e.into_inner())
 }
 
+/// (CTL1117A · S1) Una sola apertura de sesión a la vez: dos `abrir-sesion` seguidas (la Mac con dos ventanas, un
+/// reintento) ya no ponen dos indicadores a la vez ni se pisan el identificador del indicador. La segunda espera a la
+/// primera y, si es el mismo controlador con la sesión viva, la reutiliza.
+static APERTURA: Mutex<()> = Mutex::new(());
+
+fn cerrojo_apertura() -> MutexGuard<'static, ()> {
+    APERTURA.lock().unwrap_or_else(|e| e.into_inner())
+}
+
+/// ¿Hay una apertura en curso ahora mismo? (se mira sin esperar)
+#[cfg(target_os = "android")]
+fn apertura_en_curso() -> bool {
+    matches!(APERTURA.try_lock(), Err(std::sync::TryLockError::WouldBlock))
+}
+
 pub(crate) fn mono_ms() -> u64 {
     static A: OnceLock<Instant> = OnceLock::new();
     A.get_or_init(Instant::now).elapsed().as_millis() as u64
@@ -193,6 +208,7 @@ fn exigir_pagina(app: &AppHandle, webview: &tauri::Webview) -> Result<(), String
 #[cfg_attr(not(target_os = "android"), tauri::command)]
 pub fn control_neuronas_abrir(app: AppHandle, webview: tauri::Webview, de: String, nombre: String, nivel: String, sobre: Option<serde_json::Value>) -> Result<String, String> {
     exigir_pagina(&app, &webview)?;
+    let _una_a_la_vez = cerrojo_apertura(); // CTL1117A · S1
     // FSG1116 · A2: en Android la sesión (y con ella la pantalla y los cuadros) solo la abre la orden firmada
     // `abrir-sesion` de un controlador que la persona aceptó en el diálogo nativo, comprobada AQUÍ como la entrada.
     // El `de` y el NOMBRE del indicador salen de `aceptados.json`, nunca de lo que diga la página.
@@ -212,6 +228,21 @@ pub fn control_neuronas_abrir(app: AppHandle, webview: tauri::Webview, de: Strin
     }
     // ORD1114V: primero el interruptor NATIVO de este aparato (§1 caso A punto 1); la página no lo puede encender.
     let int = interruptor(&app);
+    // CTL1117A · S1/S4: con la sesión viva del MISMO controlador y su indicador a la vista, abrir otra vez es la misma
+    // sesión (mismo token, mismo indicador). Antes cada apertura repetida ponía otro indicador, pisaba el identificador
+    // del anterior y, si Kotlin no atendía a tiempo, quitaba el indicador de la sesión que sí funcionaba.
+    if let Some(m) = control().negada_por_la_viva(&de, mono_ms()) {
+        anotar(&app, "sesion-rechazada", &format!("de={} motivo={}", de.chars().take(8).collect::<String>(), m.codigo()));
+        return Err(m.codigo().into());
+    }
+    if int.encendido {
+        let a_la_vista = indicador_visible(&app);
+        let ya = control().reutilizar(&de, &nivel, mono_ms(), a_la_vista).map(|s| (s.token.clone(), s.de.chars().take(8).collect::<String>(), s.nivel.clone()));
+        if let Some((token, de8, nivel)) = ya {
+            anotar(&app, "sesion-reutilizada", &format!("de={de8} nivel={nivel}"));
+            return Ok(token);
+        }
+    }
     let posible = indicador_posible(&app);
     if !posible && cfg!(target_os = "android") {
         // ORD1114T: en Android se PIDE a Kotlin el diálogo nativo (la persona decide allí; nada se enciende solo).
@@ -448,8 +479,12 @@ pub fn iniciar(app: &AppHandle) {
     #[cfg(target_os = "macos")]
     crate::control_neuronas_macos::vigilar_entrada_local(app); // ORD1114T: tecla/ratón local → pausa
     let h = app.clone();
+    #[cfg(target_os = "android")]
+    let mut huerfano = 0u32;
     let _ = std::thread::Builder::new().name("starseed-control-neuronas".into()).spawn(move || loop {
         std::thread::sleep(std::time::Duration::from_secs(1));
+        #[cfg(target_os = "android")]
+        quitar_indicador_huerfano(&h, &mut huerfano); // CTL1117A · S7
         let activa = control().activa().is_some();
         if !activa {
             continue;
@@ -506,6 +541,27 @@ fn falta_indicador(app: &AppHandle) -> Vec<String> {
     } else {
         // Windows/Linux/iOS: sin borde siempre encima, atajo global y pausa local en Rust (§2.4).
         vec!["plataforma-sin-borde-atajo-ni-pausa".into()]
+    }
+}
+
+/// (CTL1117A · S7) El marco «Controlada por…» no puede seguir a la vista sin sesión: si Kotlin lo enseña y Rust no tiene
+/// sesión (una apertura que falló a medias, un identificador pisado), a los 3 s seguidos se le pide quitarlo con SU
+/// identificador. No toca nada mientras haya una apertura en curso (el indicador se pone antes de abrir la sesión).
+#[cfg(target_os = "android")]
+fn quitar_indicador_huerfano(app: &AppHandle, tics: &mut u32) {
+    use crate::control_neuronas_android as a;
+    let e = a::es::estado(app);
+    let sin_sesion = control().activa().is_none();
+    let sesion = e.as_ref().filter(|e| e.mostrando).and_then(|e| e.sesion.clone());
+    let Some(id) = sesion.filter(|_| sin_sesion && !apertura_en_curso()) else {
+        *tics = 0;
+        return;
+    };
+    *tics += 1;
+    if *tics >= 3 {
+        *tics = 0;
+        let _ = a::es::pedir(app, "quitar", &id, "");
+        anotar(app, "indicador-huerfano", "quitado-sin-sesion");
     }
 }
 

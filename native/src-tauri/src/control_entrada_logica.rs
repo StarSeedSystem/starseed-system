@@ -511,6 +511,27 @@ pub fn regla_g(ventanas: &[VentanaG], propio: &str, bloqueada: bool, congelada: 
     })
 }
 
+/// (CTL1117A) Lo ÚNICO que se deja pasar desde una ventana protegida (regla G): la tecla Inicio, para que quien
+/// controla pueda SALIR de Ajustes, de una tienda o de un permiso. Decisión del dueño (16-11, noche). Aprobado SOLO
+/// Inicio: toques, texto y las demás teclas siguen negados ahí. Y nunca con un consentimiento de este control abierto o
+/// pedido (`congelada`: la entrada remota no inyecta nada), ni con la pantalla bloqueada, ni con el foco en una contraseña,
+/// ni sin ninguna ventana a la vista. Kotlin repite esta función (`ControlEntradaNativo.reglaGInicio`); una prueba compara.
+pub fn regla_g_deja_inicio(ventanas: &[VentanaG], bloqueada: bool, congelada: bool, contrasena: bool) -> bool {
+    !(congelada || bloqueada || contrasena || ventanas.is_empty())
+}
+
+/// Qué hace la entrada con una orden cuando la regla G dice «protegida»: solo `tecla` con `cual = inicio` y
+/// `regla_g_deja_inicio`. Devuelve la decisión (`None` = se rechaza con `regla-g`).
+pub fn inicio_desde_protegida(nombre: &str, args: &Value, ventanas: &[VentanaG], bloqueada: bool, congelada: bool, contrasena: bool) -> bool {
+    nombre == "tecla" && args.get("cual").and_then(|c| c.as_str()) == Some("inicio") && regla_g_deja_inicio(ventanas, bloqueada, congelada, contrasena)
+}
+
+/// (CTL1117A) ¿Contestó Kotlin que la tecla Inicio pasó desde una ventana protegida? Para dejar su traza propia en el
+/// registro (distinta de una tecla normal).
+pub fn fue_inicio_desde_protegida(r: Option<&Value>) -> bool {
+    r.is_some_and(|r| r.get("ok").and_then(|x| x.as_bool()) == Some(true) && r.get("detalle").and_then(|x| x.as_str()) == Some("inicio-desde-protegida"))
+}
+
 // ─────────────────────────── Contadores de sesión (una línea al empezar, otra al acabar) ───────────────────────────
 
 #[derive(Debug, Default, Clone)]
@@ -843,6 +864,42 @@ mod pruebas {
     }
 
     /// FSG1116 · A2: firmar una `abrir-sesion` con una clave de prueba (P-256) y su SPKI.
+    #[test]
+    fn ctl1117a_inicio_pasa_desde_una_ventana_protegida_y_nada_mas() {
+        let propio = "app.starseed.os";
+        let v = |p: &'static str, a: bool| VentanaG { paquete: Some(p), actividad: a };
+        let ajustes = [v("com.android.settings", true)];
+        let inicio = json!({ "cual": "inicio" });
+        // Inicio pasa desde Ajustes, sin diálogo, sin bloqueo.
+        assert!(regla_g(&ajustes, propio, false, false, false), "Ajustes es ventana protegida");
+        assert!(inicio_desde_protegida("tecla", &inicio, &ajustes, false, false, false));
+        // También desde un permiso, una tienda y la propia app.
+        for p in ["com.google.android.permissioncontroller", "com.android.vending", propio] {
+            assert!(inicio_desde_protegida("tecla", &inicio, &[v(p, true)], false, false, false), "{p}");
+        }
+        // Con un consentimiento de este control abierto o pedido (congelada): NO, aunque sea Inicio.
+        assert!(!inicio_desde_protegida("tecla", &inicio, &ajustes, false, true, false));
+        // Pantalla de bloqueo, contraseña o nada a la vista: NO.
+        assert!(!inicio_desde_protegida("tecla", &inicio, &ajustes, true, false, false));
+        assert!(!inicio_desde_protegida("tecla", &inicio, &ajustes, false, false, true));
+        assert!(!inicio_desde_protegida("tecla", &inicio, &[], false, false, false));
+        // Ninguna otra tecla, ningún gesto, ningún texto, ningún volumen.
+        for t in TECLAS.iter().filter(|t| **t != "inicio") {
+            assert!(!inicio_desde_protegida("tecla", &json!({ "cual": t }), &ajustes, false, false, false), "{t}");
+        }
+        assert!(!inicio_desde_protegida("gesto", &json!({ "dedos": [], "sigue": false }), &ajustes, false, false, false));
+        assert!(!inicio_desde_protegida("texto", &json!({ "texto": "hola" }), &ajustes, false, false, false));
+        assert!(!inicio_desde_protegida("tecla", &json!({}), &ajustes, false, false, false));
+        assert!(!inicio_desde_protegida("tecla", &json!({ "cual": "INICIO" }), &ajustes, false, false, false));
+        // Dice lo mismo que `regla_g` para todo lo demás: si la regla G no protege, no hace falta la excepción.
+        assert!(!regla_g(&[v("com.example.notas", true)], propio, false, false, false));
+        // La traza propia en el registro.
+        assert!(fue_inicio_desde_protegida(Some(&json!({ "ok": true, "detalle": "inicio-desde-protegida" }))));
+        assert!(!fue_inicio_desde_protegida(Some(&json!({ "ok": true }))));
+        assert!(!fue_inicio_desde_protegida(Some(&json!({ "ok": false, "detalle": "inicio-desde-protegida" }))));
+        assert!(!fue_inicio_desde_protegida(None));
+    }
+
     fn firmado(clave: u8, carga: Value) -> (Value, Aceptado) {
         use p256::ecdsa::{signature::Signer, SigningKey};
         let sk = SigningKey::from_bytes(&[clave; 32].into()).unwrap();

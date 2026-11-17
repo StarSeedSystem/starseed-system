@@ -391,6 +391,9 @@ class ServicioControlNeuronas : Service() {
         }
     }
 
+    /** CTL1117A · S7: la pausa por un toque local se quita SOLA a los 3 s sin tocar (contrato §12.1); antes quedaba pegada. */
+    private val reanudarSola = Runnable { reanudarPorSilencio() }
+
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -525,7 +528,7 @@ class ServicioControlNeuronas : Service() {
         // Un toque en cualquier otro sitio de la pantalla llega aquí como ACTION_OUTSIDE: pausa al instante.
         fila.setOnTouchListener { _, ev ->
             // AND1115K: el toque de un gesto remoto nuestro no es «local»; uno de la persona sí (y marca los 3 s de pausa).
-            if (ev.actionMasked == MotionEvent.ACTION_OUTSIDE) { if (!ControlEntradaNativo.esGestoPropio()) { ControlEntradaNativo.toqueLocal(); pausaLocal() }; true } else false
+            if (ev.actionMasked == MotionEvent.ACTION_OUTSIDE) { if (!ControlEntradaNativo.esGestoPropio()) { ControlEntradaNativo.toqueLocal(); pausaLocal(); esperarSilencio() }; true } else false
         }
         val pPastilla = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT, tipo,
@@ -562,6 +565,26 @@ class ServicioControlNeuronas : Service() {
         ControlEntradaNativo.borrarCuadro() // FSG1116 · M2: en pausa no queda ni sale ningún cuadro
         ControlNeuronasNativo.escribirEstado()
         refrescarAviso()
+        if (ControlEntradaNativo.ultimoToqueLocal < ControlNeuronasNativo.desdeMs) ControlEntradaNativo.toqueLocal() // CTL1117A: los 3 s cuentan desde ahora
+        esperarSilencio()
+    }
+
+    /** CTL1117A · S7: (re)arma el reloj de los 3 s sin tocar; cada toque local lo vuelve a armar. */
+    private fun esperarSilencio() {
+        if (!ControlNeuronasNativo.mostrando || !ControlNeuronasNativo.pausada) return
+        principal.removeCallbacks(reanudarSola)
+        principal.postDelayed(reanudarSola, ControlEntradaNativo.PAUSA_LOCAL_MS + 50)
+    }
+
+    /** CTL1117A · S7: pasaron 3 s sin tocar la pantalla: el control sigue solo (lo dice el contrato; «Terminar» sigue mandando). */
+    private fun reanudarPorSilencio() {
+        if (!ControlNeuronasNativo.mostrando || !ControlNeuronasNativo.pausada) return
+        val desdeToque = System.currentTimeMillis() - ControlEntradaNativo.ultimoToqueLocal
+        if (desdeToque < ControlEntradaNativo.PAUSA_LOCAL_MS) {
+            principal.postDelayed(reanudarSola, ControlEntradaNativo.PAUSA_LOCAL_MS - desdeToque + 50)
+            return
+        }
+        reanudar()
     }
 
     private fun reanudar() {
@@ -582,6 +605,7 @@ class ServicioControlNeuronas : Service() {
     /** Rust lo pidió (sesión cerrada allí): quita todo sin apuntar «terminada». */
     private fun cerrar() {
         principal.removeCallbacks(latido)
+        principal.removeCallbacks(reanudarSola) // CTL1117A
         ServicioControlEntrada.instancia?.parar() // AND1115K: sin indicador no hay dedos abajo ni captura
         if (ControlNeuronasNativo.mostrando) {
             ControlNeuronasNativo.mostrando = false
@@ -602,6 +626,7 @@ class ServicioControlNeuronas : Service() {
         ControlNeuronasNativo.pausarLocal = null // UNI1116B: no retener el servicio que se va
         quitarSuperposicion()
         principal.removeCallbacks(latido)
+        principal.removeCallbacks(reanudarSola) // CTL1117A
         super.onDestroy()
     }
 }

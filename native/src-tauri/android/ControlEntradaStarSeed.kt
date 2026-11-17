@@ -85,6 +85,15 @@ object ControlEntradaNativo {
         }
     }
 
+    /**
+     * CTL1117A · la ÚNICA excepción de la regla G (decisión del dueño, 16-11 noche): la tecla INICIO pasa aunque delante
+     * haya una ventana protegida, para poder salir de Ajustes, de una tienda o de un permiso. La MISMA decisión que
+     * `regla_g_deja_inicio` de control_entrada_logica.rs: nunca con un consentimiento de este control abierto o pedido
+     * (`congelada`), ni con la pantalla bloqueada, ni con el foco en una contraseña, ni sin ninguna ventana a la vista.
+     */
+    fun reglaGInicio(ventanas: List<Pair<String?, Boolean>>, bloqueada: Boolean, congelada: Boolean, contrasena: Boolean): Boolean =
+        !(congelada || bloqueada || contrasena || ventanas.isEmpty())
+
     private lateinit var app: Context
     private lateinit var dir: File
     private val principal = Handler(Looper.getMainLooper())
@@ -556,6 +565,22 @@ class ServicioControlEntrada : AccessibilityService() {
         return ControlEntradaNativo.reglaG(vs, packageName, bloqueada, ControlEntradaNativo.congelado(), contrasena)
     }
 
+    /** CTL1117A: ¿deja pasar la tecla Inicio la situación de ahora? (las mismas entradas que la regla G, mirada aparte). */
+    private fun inicioDesdeProtegida(): Boolean {
+        val bloqueada = try { (getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager).isKeyguardLocked } catch (_: Throwable) { true }
+        val vs = ArrayList<Pair<String?, Boolean>>()
+        try {
+            for (w in windows ?: emptyList<AccessibilityWindowInfo>()) {
+                if (w.type == AccessibilityWindowInfo.TYPE_ACCESSIBILITY_OVERLAY) continue
+                val p = try { w.root?.packageName?.toString() } catch (_: Throwable) { null }
+                vs.add(Pair(p, w.type == AccessibilityWindowInfo.TYPE_APPLICATION))
+            }
+        } catch (_: Throwable) { vs.clear() }
+        if (vs.isEmpty()) rootInActiveWindow?.packageName?.toString()?.let { vs.add(Pair(it, true)) }
+        val contrasena = try { rootInActiveWindow?.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)?.isPassword == true } catch (_: Throwable) { true }
+        return ControlEntradaNativo.reglaGInicio(vs, bloqueada, ControlEntradaNativo.congelado(), contrasena)
+    }
+
     private fun rechazo(m: String): JSONObject = JSONObject().put("ok", false).put("motivo", m)
 
     /** Una orden ya verificada por Rust. Corre en el hilo principal. */
@@ -569,7 +594,12 @@ class ServicioControlEntrada : AccessibilityService() {
             "volumen" -> ControlEntradaNativo.ponerVolumen(args.optString("flujo"), args.optDouble("nivel", 0.0).coerceIn(0.0, 1.0))
             "brillo" -> ControlEntradaNativo.ponerBrillo(args.optDouble("nivel", 0.0).coerceIn(0.0, 1.0))
             // La regla G se mira aquí (para decirlo pronto) y OTRA VEZ antes de despachar cada trozo (`bombear`).
-            "gesto", "tecla", "texto" -> if (ventanaProtegida()) rechazo("regla-g") else when (nombre) {
+            "gesto", "tecla", "texto" -> if (ventanaProtegida()) {
+                // CTL1117A: SOLO la tecla Inicio pasa desde una ventana protegida (con su traza propia); todo lo demás sigue negado.
+                if (nombre == "tecla" && args.optString("cual") == "inicio" && inicioDesdeProtegida()) {
+                    tecla("inicio").also { if (it.optBoolean("ok", false)) it.put("detalle", "inicio-desde-protegida") }
+                } else rechazo("regla-g")
+            } else when (nombre) {
                 "gesto" -> gesto(args)
                 "tecla" -> tecla(args.optString("cual"))
                 else -> texto(args.optString("texto"))

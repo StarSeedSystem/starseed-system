@@ -440,6 +440,26 @@ mod pruebas {
     }
 
     #[test]
+    fn ctl1117a_inicio_es_la_unica_excepcion_de_la_regla_g_y_respeta_el_congelado() {
+        let k = KOTLIN;
+        // La misma decisión que `regla_g_deja_inicio` de Rust.
+        assert!(k.contains("!(congelada || bloqueada || contrasena || ventanas.isEmpty())"));
+        let e = k.find("private fun inicioDesdeProtegida()").unwrap();
+        let cuerpo = &k[e..e + 1400];
+        assert!(cuerpo.contains("ControlEntradaNativo.congelado()") && cuerpo.contains("isKeyguardLocked") && cuerpo.contains("isPassword"));
+        // `ejecutar`: la regla G se mira primero y la excepción es solo `tecla` + `inicio`.
+        let j = k.find("fun ejecutar(orden: JSONObject)").unwrap();
+        let ej = &k[j..j + 2200];
+        assert!(ej.contains("if (ventanaProtegida()) {") && ej.contains("nombre == \"tecla\" && args.optString(\"cual\") == \"inicio\" && inicioDesdeProtegida()"));
+        assert!(ej.contains("} else rechazo(\"regla-g\")"), "todo lo demás sigue negado");
+        assert!(ej.contains("inicio-desde-protegida"), "traza propia");
+        // Una sola excepción: ninguna otra tecla se nombra junto a `inicioDesdeProtegida`.
+        assert_eq!(k.matches("inicioDesdeProtegida()").count(), 2, "su definición y un único uso");
+        // El gesto en cola sigue mirando la regla G entera (Inicio no se cuela por `bombear`).
+        assert!(k.contains("if (ventanaProtegida()) { cortar(); return }"));
+    }
+
+    #[test]
     fn c1_ningun_consentimiento_se_contesta_con_entrada_remota() {
         let fase1 = crate::control_neuronas_parche::KOTLIN;
         for (k, si) in [(KOTLIN, "Sí, aceptar"), (KOTLIN, "Sí, dejar ver"), (KOTLIN_PROYECCION, "Sí, continuar"), (fase1, "Sí, dejar")] {
