@@ -62,6 +62,18 @@ vi.mock("@/components/dashboard/widgets/widget-data-source-control", () => ({ us
 let clima: any = null;
 vi.mock("@/lib/weather-mock", () => ({ fetchWeatherData: async () => clima, MOCK_WEATHER_DATA: { terrestrial: {} } }));
 
+// Shim de window.matchMedia para jsdom (lo lee la forma Protomolécula al montar).
+global.window.matchMedia = global.window.matchMedia || function () {
+    return {
+        matches: false,
+        addListener: function () {},
+        removeListener: function () {},
+        addEventListener: function () {},
+        removeEventListener: function () {},
+        dispatchEvent: function () {},
+    };
+};
+
 import { RelojLibre } from "../reloj-libre";
 import { ClimaLibre, cieloPorCodigo } from "../clima-libre";
 import { _olvidarClima } from "../clima-partes";
@@ -236,10 +248,11 @@ describe("Tareas libres", () => {
 });
 
 describe("Astraura libre", () => {
-    it("sin conversación lo dice; con ella, enseña su última frase", () => {
+    it("sin conversación a tamaño m resuelve el diseño Acciones; con ella, enseña su última frase", () => {
         chat = [];
         const { unmount } = render(<AstrauraLibre />);
-        expect(screen.getByText("Aún no habéis hablado.")).toBeTruthy();
+        expect(screen.getByText("En calma")).toBeTruthy();
+        expect(screen.getByRole("group", { name: "Atajos para empezar rápido" })).toBeTruthy();
         unmount();
         chat = [{ role: "user", text: "¿Qué tal?", ts: 1 }, { role: "aurora", text: "Todo en calma en la malla.", ts: 2 }];
         tam("l");
@@ -248,12 +261,20 @@ describe("Astraura libre", () => {
         expect(screen.getByText("Tú: ¿Qué tal?")).toBeTruthy();
     });
 
+    it("elegir «Acciones» muestra los atajos aunque haya conversación", () => {
+        chat = [{ role: "aurora", text: "Todo en calma en la malla.", ts: 2 }];
+        tam("l");
+        render(<AstrauraLibre widget={{ settings: { astrauraDiseno: "acciones" } } as any} />);
+        expect(screen.getByRole("group", { name: "Atajos para empezar rápido" })).toBeTruthy();
+        expect(screen.queryByText("Todo en calma en la malla.")).toBeNull();
+    });
+
     it("recibe widget y onUpdateSettings sin errores", () => {
         chat = [];
         const ajustes = vi.fn();
         const widget = {} as any;
         const { unmount } = render(<AstrauraLibre widget={widget} onUpdateSettings={ajustes} />);
-        expect(screen.getByText("Aún no habéis hablado.")).toBeTruthy();
+        expect(screen.getByText("En calma")).toBeTruthy();
         unmount();
     });
 });

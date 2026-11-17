@@ -54,6 +54,18 @@ vi.mock("@/components/dashboard/widgets/widget-data-source-control", () => ({ us
 let clima: any = null;
 vi.mock("@/lib/weather-mock", () => ({ fetchWeatherData: async () => clima, MOCK_WEATHER_DATA: { terrestrial: {} } }));
 
+// Shim de window.matchMedia para jsdom (lo lee la forma Protomolécula al montar).
+global.window.matchMedia = global.window.matchMedia || function () {
+    return {
+        matches: false,
+        addListener: function () {},
+        removeListener: function () {},
+        addEventListener: function () {},
+        removeEventListener: function () {},
+        dispatchEvent: function () {},
+    };
+};
+
 import { RelojLibre } from "../reloj-libre";
 import { ClimaLibre } from "../clima-libre";
 import { _olvidarClima } from "../clima-partes";
@@ -211,11 +223,12 @@ describe("Tareas en s/m/l", () => {
 });
 
 describe("Astraura en s/m/l", () => {
-    it.each(TAMANOS)("%s: sin conversación lo dice; el orbe abre el chat", (t) => {
+    it.each(TAMANOS)("%s: sin conversación, su diseño y el orbe que abre el chat", (t) => {
         chat = [];
         enMarco(<AstrauraLibre />, t);
-        expect(screen.getAllByText(/Aún no habéis hablado/).length).toBeGreaterThan(0);
         expect(screen.getAllByRole("button", { name: /Abrir el chat de Astraura/ }).length).toBeGreaterThan(0);
+        if (t === "s") expect(screen.getAllByText(/Aún no habéis hablado/).length).toBeGreaterThan(0);
+        else expect(screen.getByRole("group", { name: "Atajos para empezar rápido" })).toBeTruthy();
     });
     it("preguntar: si Astraura no está despierta la pregunta no se pierde; si lo está, se envía", async () => {
         chat = [];
