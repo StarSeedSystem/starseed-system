@@ -31,6 +31,9 @@ import { registrarRespaldoFetch } from "@/lib/malla/puerta/fetch-puerta";
 import { activarModoLocal, atenderEntradas, crearAbrirTcpLocal, leerIaLocal, leerSubredesLocales, postLocalPorDefecto, puertaLocalDisponible, respaldoFetchLocal, sondaPropiaNode, type HandleAtencion, type PostLocal } from "@/lib/malla/puerta/puente-local";
 // PTA1108B: el webview, el navegador de la app y las descargas de Rust salen por el proxy local de la puerta.
 import { crearSincroProxy, puenteProxyPorDefecto, textoVia, type PuenteProxy, type SincroProxy } from "@/lib/malla/puerta/proxy-nativo";
+// MRI2b: las preferencias por aparato (`preferencias-red-compartida`) gobiernan el anuncio automático cuando el dueño las guardó.
+import { sugerirComparticion } from "@/lib/malla/auto-compartir";
+import { CLAVE_PREFERENCIAS_RED, aPreferenciasCompartida, leerPreferenciasRed } from "@/lib/malla/preferencias-red-compartida";
 
 export const CLAVE_INTERRUPTOR_PUERTA = "starseed.malla.puerta.activo";
 
@@ -176,6 +179,15 @@ function interruptorEncendido(): boolean {
     return localStorage.getItem(CLAVE_INTERRUPTOR_PUERTA) !== "0";
   } catch {
     return true;
+  }
+}
+
+/** MRI2b · ¿Guardó el dueño preferencias por aparato? Sin ellas, manda la política de siempre. */
+function preferenciasRedGuardadas(): boolean {
+  try {
+    return typeof localStorage !== "undefined" && localStorage.getItem(CLAVE_PREFERENCIAS_RED) !== null;
+  } catch {
+    return false;
   }
 }
 
@@ -362,9 +374,23 @@ export function iniciarPuertaMalla(op: OpcionesServicio = {}): () => void {
           // PTA1110B: también si solo se ofrece a algún grupo o a la capa pública.
           const comparteAlguien = aj.misNeuronas || aj.otrasCuentas !== "nunca" || aj.publica.ofrecer || Object.values(aj.grupos).some((g) => g.compartir !== "nunca");
           if (!nativo) return null;
+          // MRI2b: si el dueño guardó preferencias por aparato, el motor automático (`sugerirComparticion`) decide
+          // con el interruptor, el tope de «con quién» y los topes de Wi-Fi, batería y subida de ESTE aparato.
+          let comparteAhora = comparteAlguien;
+          if (preferenciasRedGuardadas()) {
+            const prefs = leerPreferenciasRed();
+            const motor = aPreferenciasCompartida(prefs);
+            const decision = sugerirComparticion({
+              puertas: [{ id: yo, neurona: yo, cuenta: miCuenta ?? "", tipo: e.medida ? "movil-4g" : "wifi-externa", bajadaKbps: 0, subidaKbps: 0, latenciaMs: sonda.latenciaMs ?? 0, medida: e.medida, compartir: motor.compartirMaximo }],
+              preferencias: motor,
+              estado: { enWifi: !e.medida, cargando: e.cargando, bateriaPct: e.bateria === null ? null : Math.round(e.bateria * 100), medida: e.medida, usoMb: 0 },
+              ahora: Date.now(),
+            }).decisiones[0];
+            comparteAhora = comparteAlguien && prefs.compartir && decision?.accion === "ofrecer";
+          }
           // PTA1108C: además de internet, las capas privadas que el dueño comparte (aunque esta neurona no tenga internet).
           const detalle = capasAnunciables(aj, capasDetectadas);
-          const capas: CapaSalida[] = e.conInternet && comparteAlguien ? ["internet"] : [];
+          const capas: CapaSalida[] = e.conInternet && comparteAhora ? ["internet"] : [];
           if (!capas.length && !detalle.length) return null;
           return crearAnuncioPropio({ id: yo, uid: miCuenta ?? undefined, capas, detalle, latenciaMs: sonda.latenciaMs, estado: e, op: aj.publica.ofrecer, f: transporte.enviarBin ? ["cap", "bin"] : ["cap"], ahora: Date.now() });
         },

@@ -7,7 +7,7 @@
  * «Compartiendo internet con: …» con botón de parar en quien la presta. Solo se muestra en la app nativa.
  */
 
-import { useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { Globe2 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,20 @@ import type { CapaPuerta, TipoCapa } from "@/lib/malla/puerta/capas"; // PTA1108
 import { AjusteUsoMalla } from "@/components/settings/neurons/ajuste-puerta-uso"; // PTA1110A
 import { AjusteAmbitosMalla } from "@/components/settings/neurons/ajuste-puerta-ambitos"; // PTA1110B
 import { textoCadena } from "@/lib/malla/puerta/roles"; // PTA1110B
+import { COMPARTIR, type Compartir } from "@/lib/malla/cristal/puertas-internet"; // MRI2b
+import { // MRI2b
+  CLAVE_PREFERENCIAS_RED,
+  PREFERENCIAS_POR_DEFECTO,
+  RESERVA_BATERIA_PCT_MAX,
+  TOPE_SUBIDA_KBPS_MAX,
+  TOPE_SUBIDA_KBPS_MIN,
+  aPreferenciasCompartida,
+  cambioDeAperturaRed,
+  guardarPreferenciasRed,
+  leerPreferenciasRed,
+  sanearPreferenciasRed,
+  type PreferenciasRedAparato,
+} from "@/lib/malla/preferencias-red-compartida";
 
 const NOMBRE_CAPA: Record<TipoCapa, string> = { "servidor-propio": "Servidor propio", lan: "Red local", "router-publico": "Router", "ia-neurona": "IA de esta neurona" };
 
@@ -36,6 +50,72 @@ const MODOS: Array<{ id: ModoOtrasCuentas; nombre: string; detalle: string }> = 
 ];
 
 export const mib = (b: number): string => (b >= 1024 * 1024 ? `${(b / 1024 / 1024).toFixed(1)} MiB` : `${Math.max(1, Math.round(b / 1024))} KiB`);
+
+/** MRI2b · Preferencias por aparato del motor automático de compartir red (localStorage; confirma al subir la apertura). */
+function AjusteRedAparato() {
+  const [p, setP] = useState<PreferenciasRedAparato>(PREFERENCIAS_POR_DEFECTO);
+  useEffect(() => {
+    setP(leerPreferenciasRed());
+    const alCambiar = (e: StorageEvent) => {
+      if (e.key === CLAVE_PREFERENCIAS_RED) setP(leerPreferenciasRed());
+    };
+    window.addEventListener("storage", alCambiar);
+    return () => window.removeEventListener("storage", alCambiar);
+  }, []);
+  const motor = aPreferenciasCompartida(p);
+  const guardar = (siguiente: PreferenciasRedAparato) => {
+    const limpio = sanearPreferenciasRed(siguiente);
+    if (cambioDeAperturaRed(p, limpio).aviso && !window.confirm(`Esto abre tu internet a más vecinos (nivel ${COMPARTIR.indexOf(limpio.maximoCon)} de ${COMPARTIR.length - 1}). ¿Continuar?`)) return;
+    guardarPreferenciasRed(limpio);
+    setP(limpio);
+  };
+  const cambiar = (parche: Partial<PreferenciasRedAparato>) => guardar({ ...p, ...parche });
+  return (
+    <details className="rounded-lg border border-white/10 px-3 py-2" data-testid="preferencias-red-aparato">
+      <summary className="cursor-pointer text-xs font-medium">Preferencias de este aparato para el motor automático</summary>
+      <div className="mt-2 space-y-2 text-xs">
+        <label className="flex cursor-pointer items-center gap-2">
+          <input type="checkbox" checked={p.compartir} onChange={(e) => cambiar({ compartir: e.target.checked })} className="accent-[#39FF14]" />
+          Compartir mi internet desde este aparato
+        </label>
+        <label className="flex items-center justify-between gap-2">
+          <span>Con quién como máximo</span>
+          <select value={p.maximoCon} onChange={(e) => cambiar({ maximoCon: e.target.value as Compartir })} className="cursor-pointer rounded border border-white/10 bg-background px-2 py-1" aria-label="Con quién compartir como máximo">
+            {COMPARTIR.map((c) => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </label>
+        <label className="flex cursor-pointer items-center gap-2">
+          <input type="checkbox" checked={p.soloWifi} onChange={(e) => cambiar({ soloWifi: e.target.checked })} className="accent-[#39FF14]" />
+          Compartir solo por Wi‑Fi
+        </label>
+        <div className="flex flex-wrap items-center gap-3">
+          <label className="flex items-center gap-2">
+            <span>Tope de subida (kbps)</span>
+            <input type="number" min={TOPE_SUBIDA_KBPS_MIN} max={TOPE_SUBIDA_KBPS_MAX} value={p.kbpsSubidaMax} onChange={(e) => cambiar({ kbpsSubidaMax: Number(e.target.value) })} className="w-24 rounded border border-white/10 bg-background px-2 py-1" aria-label="Tope de subida en kbps" />
+          </label>
+          <label className="flex items-center gap-2">
+            <span>Reserva de batería (%)</span>
+            <input type="number" min={0} max={RESERVA_BATERIA_PCT_MAX} value={p.reservaBateriaPct} onChange={(e) => cambiar({ reservaBateriaPct: Number(e.target.value) })} className="w-20 rounded border border-white/10 bg-background px-2 py-1" aria-label="Reserva de batería en porcentaje" />
+          </label>
+        </div>
+        <label className="flex cursor-pointer items-center gap-2">
+          <input type="checkbox" checked={p.automatico} onChange={(e) => cambiar({ automatico: e.target.checked })} className="accent-[#39FF14]" />
+          Modo automático
+        </label>
+        <label className="flex cursor-pointer items-center gap-2">
+          <input type="checkbox" checked={p.compartirMedidas} onChange={(e) => cambiar({ compartirMedidas: e.target.checked })} className="accent-[#39FF14]" />
+          Permitir conexiones con datos medidos
+        </label>
+      </div>
+      <p className="mt-2 text-[11px] text-muted-foreground" data-testid="resumen-motor-red">
+        El motor automático aplicaría: máximo {motor.compartirMaximo} · solo Wi‑Fi {motor.soloWifi ? "sí" : "no"} · {motor.kbpsSubidaMax} kbps · reserva {motor.reservaBateriaMinPct} %.
+      </p>
+      <Button size="sm" variant="outline" className="mt-2 cursor-pointer" onClick={() => guardar(sanearPreferenciasRed(PREFERENCIAS_POR_DEFECTO))}>
+        Restablecer
+      </Button>
+    </details>
+  );
+}
 
 export function AjustePuertaInternet() {
   const s = useSyncExternalStore(suscribirPuerta, estadoPuerta, estadoPuerta);
@@ -100,6 +180,9 @@ export function AjustePuertaInternet() {
 
         {/* PTA1110B · Datos móviles, grupos y comunidades, y capa pública. */}
         <AjusteAmbitosMalla a={a} esMovil={s.movil?.medida === true} />
+
+        {/* MRI2b · Preferencias por aparato que gobiernan el anuncio automático de internet (leer/guardar saneado). */}
+        <AjusteRedAparato />
 
         {/* PTA1108C · Capas distintas de internet: servidores propios, red local y routers. */}
         <fieldset className="space-y-2" aria-label="Otras capas de red que comparte esta neurona" data-testid="capas-puerta">
