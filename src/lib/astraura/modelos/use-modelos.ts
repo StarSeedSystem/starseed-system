@@ -151,10 +151,17 @@ export function useModelosNeurona(): EstadoModelos & AccionesModelos {
     [perfil, ollamaListo],
   );
   const modelos = useMemo(() => catalogoCompleto(catalogo, CAPAS), [catalogo]);
-  const entorno = useMemo(() => ({ pares, privacidad: ajustes.privacidad, instalados }), [pares, ajustes.privacidad, instalados]);
-  const recomendaciones = useMemo(() => (perfilEf ? recomendarTodos({ catalogo: modelos, perfil: perfilEf, entorno }) : null), [modelos, perfilEf, entorno]);
   const disponibilidad = useMemo(() => variantesDisponibles(), []);
   const sinFiltros = useMemo(() => ({ activado: ajustes.variantesSinFiltros && disponibilidad.disponible, ...disponibilidad }), [ajustes.variantesSinFiltros, disponibilidad]);
+  const entorno = useMemo(() => ({
+    pares,
+    privacidad: ajustes.privacidad,
+    instalados,
+    sinFiltros: { activado: sinFiltros.activado, disponible: sinFiltros.disponible },
+    contexto: "compartido" as const,
+    claveDeLaCuenta: false,
+  }), [pares, ajustes.privacidad, instalados, sinFiltros.activado, sinFiltros.disponible]);
+  const recomendaciones = useMemo(() => (perfilEf ? recomendarTodos({ catalogo: modelos, perfil: perfilEf, entorno }) : null), [modelos, perfilEf, entorno]);
   // Lo que se usa de verdad: la elección manual con los límites de las variantes sin filtros (aquí el contexto es siempre «privado-propio»:
   // este bloque habla de MIS conversaciones en MI neurona; bots, grupos, capas públicas y segundo plano no pasan por la elección manual).
   const usos = useMemo<Record<CasoUso, UsoModelo> | null>(() => {

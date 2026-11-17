@@ -7,6 +7,7 @@ import { listableSinFiltros, pierdeHerramientas, recomendable, requisitosDe } fr
 import type { PerfilNeurona } from "./perfil-neurona";
 import type { CasoUso, ModeloLocal, MotivoEncaje, Veredicto } from "./tipos";
 import { CASOS, ETIQUETA_CASO } from "./tipos";
+import { proveedorEsSinFiltros, proveedorSinFiltrosPermitido } from "./sin-filtros-nube";
 
 // pierdeHerramientas se reexporta para la interfaz (tarjetas de la Biblioteca).
 export { pierdeHerramientas };
@@ -175,6 +176,12 @@ export interface EntornoRuta {
   externo?: { nombre: string } | null;
   privacidad: EleccionPrivacidad;
   instalados?: ReadonlySet<string>;
+  /** Estado del interruptor «Mostrar variantes sin filtros» y disponibilidad por perfil. */
+  sinFiltros?: { activado: boolean; disponible: boolean };
+  /** Contexto de uso (por defecto `compartido`). */
+  contexto?: ContextoUso;
+  /** La cuenta usa su propia clave de API (nunca la de otra persona ni la de la fundación). */
+  claveDeLaCuenta?: boolean;
 }
 
 export type RutaIA =
@@ -312,11 +319,25 @@ export function recomendar(entrada: {
 
   // 4 · Proveedor externo (nunca para privados sin permiso expreso).
   if (externoOk && (!mejor || (mejor.e.veredicto === "justo" && EXTERNO_SI_JUSTO.has(caso)))) {
+    const proveedor = entorno.externo!.nombre;
+    if (proveedorEsSinFiltros(proveedor)) {
+      const permitido = proveedorSinFiltrosPermitido({
+        activado: entorno.sinFiltros?.activado ?? false,
+        disponible: entorno.sinFiltros?.disponible ?? false,
+        contexto: entorno.contexto,
+        caso,
+        claveDeLaCuenta: entorno.claveDeLaCuenta ?? false,
+      });
+      if (!permitido.permitido) {
+        const porque = `Proveedor sin filtros «${proveedor}» no permitido: ${permitido.aviso}`;
+        return { ...base, ruta: { tipo: "ninguna", porque }, modeloRuta: null, razon: `${frase(mejor ?? undefined, p, caso)} ${porque}${ollamaTxt}` };
+      }
+    }
     return {
       ...base,
-      ruta: { tipo: "externo", proveedor: entorno.externo!.nombre },
+      ruta: { tipo: "externo", proveedor },
       modeloRuta: null,
-      razon: `Esta neurona no lo mueve bien y no hay otra tuya a mano: ${entorno.externo!.nombre} lo resuelve fuera.${ollamaTxt}`,
+      razon: `Esta neurona no lo mueve bien y no hay otra tuya a mano: ${proveedor} lo resuelve fuera.${ollamaTxt}`,
     };
   }
 
