@@ -72,6 +72,16 @@ export function SelectorIdioma({ className = "", alElegir, abiertoAlInicio = fal
     }, []);
     useEffect(() => { if (abierto) caja.current?.focus(); }, [abierto]);
 
+    const codigosElegibles = IDIOMAS.map((i) => i.codigo);
+    const listaCompleta = useMemo(() => listaMundial({ idiomaActual: actual }).filter((i) => codigosElegibles.includes(i.codigo)), [actual]);
+
+    const visibles = useMemo(() => {
+        const filtrados = buscarIdiomas(listaCompleta, filtro);
+        const primero = filtrados.find((i) => i.codigo === sugerido && i.codigo !== "es");
+        const resto = filtrados.filter((i) => i !== primero);
+        return { sugerido: primero ?? null, resto };
+    }, [filtro, sugerido, listaCompleta]);
+
     useEffect(() => {
         const ul = lista.current;
         if (!ul) return;
@@ -84,16 +94,6 @@ export function SelectorIdioma({ className = "", alElegir, abiertoAlInicio = fal
         ul.addEventListener("scroll", alDesplazar, { passive: true });
         return () => ul.removeEventListener("scroll", alDesplazar);
     }, [visibles.resto.length]);
-
-    const codigosElegibles = IDIOMAS.map((i) => i.codigo);
-    const listaCompleta = useMemo(() => listaMundial({ idiomaActual: actual }).filter((i) => codigosElegibles.includes(i.codigo)), [actual]);
-
-    const visibles = useMemo(() => {
-        const filtrados = buscarIdiomas(listaCompleta, filtro);
-        const primero = filtrados.find((i) => i.codigo === sugerido && i.codigo !== "es");
-        const resto = filtrados.filter((i) => i !== primero);
-        return { sugerido: primero ?? null, resto };
-    }, [filtro, sugerido, listaCompleta]);
 
     useEffect(() => { setRenderCount(60); }, [filtro, abierto]);
 

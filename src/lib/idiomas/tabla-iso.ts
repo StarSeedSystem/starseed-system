@@ -65,6 +65,8 @@ export const ALIAS: Record<string, string[]> = {
   "ruso": ["ru"],
   "alemán": ["de"],
   "aleman": ["de"],
+  "deu": ["de"],
+  "ger": ["de"],
   "francés": ["fr"],
   "frances": ["fr"],
   "portugués": ["pt"],
