@@ -17,7 +17,7 @@
  * El estado se persiste en localStorage para que el usuario pueda retomar.
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
@@ -28,6 +28,14 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { etiquetaEnlaceNuevaPestana } from '@/lib/onboarding/aviso-pestana';
+import {
+  anteriorPaso,
+  ordenPasos,
+  PASOS_ONBOARDING,
+  siguientePaso,
+  type PasoOnboarding,
+} from '@/lib/onboarding/pasos';
+import type { LucideIcon } from 'lucide-react';
 import {
   User, Users, LogIn, UserPlus, Palette, BookOpen, Sparkles, Image as ImageIcon,
   Cpu, Brain, ChevronRight, ChevronLeft, SkipForward, Check, ArrowRight, Leaf, Building, Castle, Eye, Wrench, Server,
@@ -51,11 +59,6 @@ interface OnboardingState {
 
 const STORAGE_KEY = 'starseed.onboarding.state.v1';
 const COMPLETED_KEY = 'starseed.onboarding.completed.v1';
-
-const STEPS = [
-  'kind', 'authMode', 'auth', 'theme', 'walkthrough', 'profile', 'ai-guide', 'phase', 'done',
-] as const;
-type Step = typeof STEPS[number];
 
 const PHASES: { id: CommunityPhase; label: string; tagline: string; icon: any; gradient: string; description: string }[] = [
   {
@@ -105,7 +108,7 @@ export default function OnboardingPage() {
   const router = useRouter();
   const confirm = useConfirm();
   const [state, setState] = useState<OnboardingState>({});
-  const [step, setStep] = useState<Step>('kind');
+  const [step, setStep] = useState<PasoOnboarding>('kind');
 
   // Hidratar desde localStorage en cliente
   useEffect(() => {
@@ -119,22 +122,16 @@ export default function OnboardingPage() {
     try { window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch { /* noop */ }
   }, [state]);
 
-  const stepIdx = STEPS.indexOf(step);
-  const totalSteps = state.kind === 'grupo' ? STEPS.length : STEPS.length - 1; // grupo añade fase
+  const stepIdx = PASOS_ONBOARDING.indexOf(step);
+  const totalSteps = ordenPasos(state.kind).length; // grupo añade fase
 
   const next = () => {
-    const order: Step[] = state.kind === 'grupo'
-      ? [...STEPS]
-      : (STEPS.filter((s) => s !== 'phase') as Step[]);
-    const i = order.indexOf(step);
-    if (i >= 0 && i < order.length - 1) setStep(order[i + 1]);
+    const siguiente = siguientePaso(step, state.kind);
+    if (siguiente) setStep(siguiente);
   };
   const prev = () => {
-    const order: Step[] = state.kind === 'grupo'
-      ? [...STEPS]
-      : (STEPS.filter((s) => s !== 'phase') as Step[]);
-    const i = order.indexOf(step);
-    if (i > 0) setStep(order[i - 1]);
+    const anterior = anteriorPaso(step, state.kind);
+    if (anterior) setStep(anterior);
   };
 
   const finish = () => {
@@ -200,7 +197,13 @@ export default function OnboardingPage() {
 
 // ── Pasos ────────────────────────────────────────────────────────────
 
-function StepKind({ state, setState, onNext }: any) {
+interface PasoKindProps {
+  state: OnboardingState;
+  setState: Dispatch<SetStateAction<OnboardingState>>;
+  onNext: () => void;
+}
+
+function StepKind({ state, setState, onNext }: PasoKindProps) {
   return (
     <div className="space-y-4 text-center">
       <h1 className="text-3xl font-bold font-headline bg-clip-text text-transparent bg-gradient-to-r from-cyan-300 via-purple-300 to-amber-200">
@@ -220,7 +223,15 @@ function StepKind({ state, setState, onNext }: any) {
   );
 }
 
-function KindCard({ icon: Icon, label, desc, selected, onClick }: any) {
+interface TarjetaKindProps {
+  icon: LucideIcon;
+  label: string;
+  desc: string;
+  selected: boolean;
+  onClick: () => void;
+}
+
+function KindCard({ icon: Icon, label, desc, selected, onClick }: TarjetaKindProps) {
   return (
     <button onClick={onClick} className={cn(
       'p-5 rounded-2xl border-2 transition-all text-left hover:scale-[1.02]',
