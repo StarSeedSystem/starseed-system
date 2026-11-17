@@ -93,14 +93,15 @@ object ControlEntradaNativo {
      * abierto (`congelada`), pantalla bloqueada, contraseña con foco o sin ventanas. La MISMA decisión que
      * `regla_g_deja_inicio` de control_entrada_logica.rs.
      */
-    fun reglaGInicio(ventanas: List<Pair<String?, Boolean>>, propio: String, bloqueada: Boolean, congelada: Boolean, contrasena: Boolean): Boolean {
+    fun reglaGInicio(ventanas: List<Triple<String?, Boolean, Boolean>>, propio: String, bloqueada: Boolean, congelada: Boolean, contrasena: Boolean): Boolean {
         if (congelada || bloqueada || contrasena || ventanas.isEmpty()) return false
         val yo = propio.lowercase()
-        return ventanas.all { (paquete, actividad) ->
+        return ventanas.all { (paquete, actividad, foco) ->
             val p = paquete?.lowercase()
             if (p == null) !actividad
             else {
-                val protegida = p in ReglaGLista.PROTEGIDOS || (actividad && (p == yo || p in ReglaGLista.SISTEMA))
+                // CTL1117E: una actividad de `sistema` (systemui…) solo cuenta como diálogo si es la activa o tiene el foco.
+                val protegida = p in ReglaGLista.PROTEGIDOS || (actividad && (p == yo || (foco && p in ReglaGLista.SISTEMA)))
                 !protegida || p == yo || p in ReglaGLista.SALIDA
             }
         }
@@ -118,6 +119,23 @@ object ControlEntradaNativo {
      * CTL1117C · FALLO 2: la CLASE de una ventana para la traza de un Inicio negado (nunca el nombre de otras apps): `propia`,
      * `salida`, `protegida:<paquete de la lista>`, `sistema-actividad`, `otra` o `sin-raiz`. La MISMA que `clase_ventana` de Rust.
      */
+    /** CTL1117E: título de una ventana del SISTEMA saneado (letras, cifras y `-`, ≤24). La MISMA que `titulo_saneado` de Rust. */
+    fun tituloSaneado(t: CharSequence?): String {
+        val o = StringBuilder()
+        for (c in (t?.toString() ?: "")) {
+            val k = if (c in 'a'..'z' || c in 'A'..'Z' || c in '0'..'9') c else '-'
+            if (k == '-' && (o.isEmpty() || o.last() == '-')) continue
+            o.append(k)
+            if (o.length >= 24) break
+        }
+        while (o.isNotEmpty() && o.last() == '-') o.setLength(o.length - 1)
+        return o.toString()
+    }
+
+    /** CTL1117E: lo que se añade a una ventana `sistema-actividad` en la traza (la MISMA que `extra_sistema` de Rust). */
+    fun extraSistema(foco: Boolean, activa: Boolean, ancho: Int, alto: Int, titulo: CharSequence?): String =
+        "foco=" + (if (foco) "si" else "no") + "/activa=" + (if (activa) "si" else "no") + "/tam=" + maxOf(ancho, 0) + "x" + maxOf(alto, 0) + "/titulo=" + tituloSaneado(titulo)
+
     fun claseVentana(paquete: String?, actividad: Boolean, propio: String): String {
         val p = paquete?.lowercase() ?: return "sin-raiz"
         return when {
@@ -610,7 +628,7 @@ class ServicioControlEntrada : AccessibilityService() {
      */
     private fun inicioDesdeProtegida(): Boolean {
         val bloqueada = try { (getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager).isKeyguardLocked } catch (_: Throwable) { true }
-        val vs = ArrayList<Pair<String?, Boolean>>()
+        val vs = ArrayList<Triple<String?, Boolean, Boolean>>()
         val clases = ArrayList<String>()
         val raizActiva = try { rootInActiveWindow?.packageName?.toString() } catch (_: Throwable) { null }
         try {
@@ -619,21 +637,29 @@ class ServicioControlEntrada : AccessibilityService() {
                 val raiz = try { w.root?.packageName?.toString() } catch (_: Throwable) { null }
                 val p = raiz ?: (if (ControlEntradaNativo.sinRaizEsPropia(w.isActive, raizActiva, packageName)) packageName else null)
                 val actividad = w.type == AccessibilityWindowInfo.TYPE_APPLICATION
-                vs.add(Pair(p, actividad))
+                val foco = w.isActive || w.isFocused // CTL1117E
+                vs.add(Triple(p, actividad, foco))
                 val tipo = when (w.type) {
                     AccessibilityWindowInfo.TYPE_APPLICATION -> "app"
                     AccessibilityWindowInfo.TYPE_SYSTEM -> "sistema"
                     AccessibilityWindowInfo.TYPE_INPUT_METHOD -> "teclado"
                     else -> "otro"
                 }
-                clases.add(ControlEntradaNativo.claseVentana(p, actividad, packageName) + "/" + tipo + (if (w.isActive) "/activa" else "") + (if (raiz == null && p != null) "/raiz-probada" else ""))
+                val clase = ControlEntradaNativo.claseVentana(p, actividad, packageName)
+                // CTL1117E: solo las `sistema-actividad` llevan foco/activa/tamaño/título (para identificarlas); las demás clases, nada.
+                val extra = if (clase == "sistema-actividad") {
+                    val r = android.graphics.Rect()
+                    try { w.getBoundsInScreen(r) } catch (_: Throwable) { }
+                    "/" + ControlEntradaNativo.extraSistema(w.isFocused, w.isActive, r.width(), r.height(), try { w.title } catch (_: Throwable) { null })
+                } else ""
+                clases.add(clase + "/" + tipo + (if (w.isActive) "/activa" else "") + (if (raiz == null && p != null) "/raiz-probada" else "") + extra)
             }
         } catch (_: Throwable) { vs.clear(); clases.clear() }
-        if (vs.isEmpty()) rootInActiveWindow?.packageName?.toString()?.let { vs.add(Pair(it, true)); clases.add(ControlEntradaNativo.claseVentana(it, true, packageName) + "/app/activa/respaldo") }
+        if (vs.isEmpty()) rootInActiveWindow?.packageName?.toString()?.let { vs.add(Triple(it, true, true)); clases.add(ControlEntradaNativo.claseVentana(it, true, packageName) + "/app/activa/respaldo") }
         val contrasena = try { rootInActiveWindow?.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)?.isPassword == true } catch (_: Throwable) { true }
         val congelada = ControlEntradaNativo.congelado()
         val pasa = ControlEntradaNativo.reglaGInicio(vs, packageName, bloqueada, congelada, contrasena)
-        if (!pasa) {
+        run {
             val marcas = ArrayList<String>()
             if (bloqueada) marcas.add("bloqueada")
             if (congelada) marcas.add("congelada")
@@ -660,7 +686,7 @@ class ServicioControlEntrada : AccessibilityService() {
             "gesto", "tecla", "texto" -> if (ventanaProtegida()) {
                 // CTL1117A: SOLO la tecla Inicio pasa desde una ventana protegida (con su traza propia); todo lo demás sigue negado.
                 if (nombre == "tecla" && args.optString("cual") == "inicio" && inicioDesdeProtegida()) {
-                    tecla("inicio").also { if (it.optBoolean("ok", false)) it.put("detalle", "inicio-desde-protegida") }
+                    tecla("inicio").also { if (it.optBoolean("ok", false)) it.put("detalle", "inicio-desde-protegida " + trazaInicio) }
                 } else rechazo("regla-g").also { if (nombre == "tecla" && args.optString("cual") == "inicio") it.put("detalle", "inicio-negado " + trazaInicio) } // CTL1117C · FALLO 2
             } else when (nombre) {
                 "gesto" -> gesto(args)

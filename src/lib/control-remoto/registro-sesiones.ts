@@ -66,6 +66,18 @@ export class RegistroSesiones {
         return this.vivas.get(para.toLowerCase())?.token ?? null;
     }
 
+    /**
+     * CTL1117E: la sesión viva MÁS NUEVA que `usada` (la que la ventana intentó y el aparato dio por caducada): si hay una apertura en
+     * vuelo la espera (acaba en décimas de segundo) y devuelve el token vigente si es distinto del usado; si no, null.
+     */
+    async masNuevaQue(para: string, usada: string | null): Promise<string | null> {
+        const k = para.toLowerCase();
+        const en = this.abriendo.get(k);
+        if (en) await en.catch(() => undefined);
+        const t = this.tokenDe(para);
+        return t && t !== usada ? t : null;
+    }
+
     /** Alguien acaba de usar la sesión con éxito: sigue viva (el aparato cuenta su propia inactividad desde ahí). */
     usada(para: string): void {
         const v = this.vivas.get(para.toLowerCase());

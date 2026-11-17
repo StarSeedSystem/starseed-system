@@ -502,6 +502,8 @@ pub fn regla_g_salida() -> Vec<&'static str> {
 pub struct VentanaG<'a> {
     pub paquete: Option<&'a str>,
     pub actividad: bool,
+    /// (CTL1117E) Es la ventana activa o tiene el foco (`isActive || isFocused`): un diálogo de verdad, no un aviso suelto.
+    pub foco: bool,
 }
 
 /// Lo que mira la regla G en el instante de DESPACHAR cada trazo (no al encolarlo). Kotlin repite esta función
@@ -534,7 +536,9 @@ pub fn regla_g_deja_inicio(ventanas: &[VentanaG], propio: &str, bloqueada: bool,
     ventanas.iter().all(|v| match v.paquete.map(str::to_lowercase) {
         None => !v.actividad, // una actividad de quien no se sabe: se niega
         Some(p) => {
-            let protegida = protegidos.iter().any(|x| p == *x) || (v.actividad && (p == propio || sistema.iter().any(|x| p == *x)));
+            // CTL1117E: una actividad de `sistema` (systemui…) que NO es la activa ni tiene el foco (un aviso emergente, una barra
+            // flotante) no es un diálogo y no niega Inicio; las de `protegido` niegan siempre (permisos, instaladores, credenciales).
+            let protegida = protegidos.iter().any(|x| p == *x) || (v.actividad && (p == propio || (v.foco && sistema.iter().any(|x| p == *x))));
             !protegida || p == propio || salida.iter().any(|x| p == *x)
         }
     })
@@ -568,12 +572,40 @@ pub fn clase_ventana(paquete: Option<&str>, actividad: bool, propio: &str) -> St
     }
 }
 
-/// La traza de un Inicio negado por la regla G: `ventanas=<clase>/<tipo>[/activa],… marcas=<bloqueada,congelada,contrasena,sin-ventanas|ninguna>`.
+/// (CTL1117E) El título de una ventana del SISTEMA saneado para la traza: solo letras, cifras y guiones (el resto, `-`), ≤24.
+pub fn titulo_saneado(t: Option<&str>) -> String {
+    let mut o = String::new();
+    for c in t.unwrap_or("").chars() {
+        let c = if c.is_ascii_alphanumeric() { c } else { '-' };
+        if c == '-' && (o.is_empty() || o.ends_with('-')) {
+            continue;
+        }
+        o.push(c);
+        if o.len() >= 24 {
+            break;
+        }
+    }
+    while o.ends_with('-') {
+        o.pop();
+    }
+    o
+}
+
+/// (CTL1117E) Lo que se añade a una ventana `sistema-actividad` en la traza para poder identificarla: `foco=si|no/activa=si|no/tam=<ancho>x<alto>/titulo=<…>`.
+/// Para las demás clases no se añade nada (ni títulos). Kotlin lo repite (`ControlEntradaNativo.extraSistema`).
+pub fn extra_sistema(foco: bool, activa: bool, ancho: i32, alto: i32, titulo: Option<&str>) -> String {
+    let sn = |b: bool| if b { "si" } else { "no" };
+    format!("foco={}/activa={}/tam={}x{}/titulo={}", sn(foco), sn(activa), ancho.max(0), alto.max(0), titulo_saneado(titulo))
+}
+
+/// La traza de un Inicio negado (o que pasó) por la regla G: `ventanas=<clase>/<tipo>[/activa],… marcas=<bloqueada,congelada,contrasena,sin-ventanas|ninguna>`.
 /// `tipo` es el de Android (`app`, `sistema`, `teclado`, `otro`). Es lo que lee quien depura desde el registro de enlaces.
-pub fn traza_inicio_negado(ventanas: &[(Option<&str>, bool, &str, bool)], propio: &str, bloqueada: bool, congelada: bool, contrasena: bool) -> String {
+pub fn traza_inicio_negado(ventanas: &[(Option<&str>, bool, &str, bool, &str)], propio: &str, bloqueada: bool, congelada: bool, contrasena: bool) -> String {
     let v: Vec<String> = ventanas
         .iter()
-        .map(|(p, actividad, tipo, activa)| format!("{}/{}{}", clase_ventana(*p, *actividad, propio), tipo, if *activa { "/activa" } else { "" }))
+        .map(|(p, actividad, tipo, activa, extra)| {
+            format!("{}/{}{}{}", clase_ventana(*p, *actividad, propio), tipo, if *activa { "/activa" } else { "" }, if extra.is_empty() { String::new() } else { format!("/{extra}") })
+        })
         .collect();
     let mut m: Vec<&str> = Vec::new();
     if bloqueada {
@@ -612,7 +644,14 @@ pub fn inicio_desde_protegida(nombre: &str, args: &Value, ventanas: &[VentanaG],
 /// (CTL1117A) ¿Contestó Kotlin que la tecla Inicio pasó desde una ventana protegida? Para dejar su traza propia en el
 /// registro (distinta de una tecla normal).
 pub fn fue_inicio_desde_protegida(r: Option<&Value>) -> bool {
-    r.is_some_and(|r| r.get("ok").and_then(|x| x.as_bool()) == Some(true) && r.get("detalle").and_then(|x| x.as_str()) == Some("inicio-desde-protegida"))
+    r.is_some_and(|r| r.get("ok").and_then(|x| x.as_bool()) == Some(true) && r.get("detalle").and_then(|x| x.as_str()).is_some_and(|d| d == "inicio-desde-protegida" || d.starts_with("inicio-desde-protegida ")))
+}
+
+/// (CTL1117E) La traza de las ventanas cuando Inicio PASÓ por la excepción (`inicio-desde-protegida <traza>`), saneada como la del rechazo.
+pub fn traza_de_inicio_pasa(r: Option<&Value>) -> Option<String> {
+    let r = r.filter(|r| r.get("ok").and_then(|x| x.as_bool()) == Some(true))?;
+    let d = r.get("detalle").and_then(|x| x.as_str())?.strip_prefix("inicio-desde-protegida ")?;
+    Some(d.chars().filter(|c| c.is_ascii_alphanumeric() || matches!(c, ':' | '/' | '.' | ',' | '=' | '_' | '-' | ' ')).take(240).collect())
 }
 
 // ─────────────────────────── Contadores de sesión (una línea al empezar, otra al acabar) ───────────────────────────
@@ -919,7 +958,7 @@ mod pruebas {
     #[test]
     fn regla_g_por_paquete_y_tipo_de_ventana_sin_depender_del_idioma() {
         let propio = "app.starseed.os";
-        let v = |p: &'static str, actividad: bool| VentanaG { paquete: Some(p), actividad };
+        let v = |p: &'static str, actividad: bool| VentanaG { paquete: Some(p), actividad, foco: false };
         // Protegido con cualquier clase o título, en cualquier idioma: lo decide el paquete.
         for p in ["com.android.settings", "com.samsung.android.settings", "com.google.android.permissioncontroller", "com.android.packageinstaller", "com.android.vending", "com.google.android.gms", "com.android.credentialmanager"] {
             assert!(regla_g(&[v(p, true)], propio, false, false, false), "{p}");
@@ -938,12 +977,56 @@ mod pruebas {
         assert!(regla_g(&ok, propio, false, true, false));
         assert!(regla_g(&ok, propio, false, false, true));
         assert!(regla_g(&[], propio, false, false, false));
-        assert!(regla_g(&[VentanaG { paquete: None, actividad: true }], propio, false, false, false));
-        assert!(!regla_g(&[VentanaG { paquete: None, actividad: false }, v("com.example.notas", true)], propio, false, false, false));
+        assert!(regla_g(&[VentanaG { paquete: None, actividad: true, foco: false }], propio, false, false, false));
+        assert!(!regla_g(&[VentanaG { paquete: None, actividad: false, foco: false }, v("com.example.notas", true)], propio, false, false, false));
         // Mayúsculas no importan; la lista se lee entera y sin líneas raras.
         assert!(regla_g(&[v("COM.ANDROID.SETTINGS", false)], propio, false, false, false));
         let (p, s) = regla_g_listas();
         assert!(p.len() >= 25 && s == vec!["com.android.systemui"]);
+    }
+
+    #[test]
+    fn ctl1117e_systemui_sin_foco_no_niega_inicio_y_con_foco_si() {
+        let propio = "app.starseed.os";
+        let w = |p: Option<&'static str>, actividad: bool, foco: bool| VentanaG { paquete: p, actividad, foco };
+        let pasa = |vs: &[VentanaG]| regla_g_deja_inicio(vs, propio, false, false, false);
+        let activa = w(Some(propio), true, true);
+        let sui = |foco: bool| w(Some("com.android.systemui"), true, foco);
+        // Inicio pasa con [propia activa + sistema-actividad sin foco ni activa].
+        assert!(pasa(&[activa, sui(false)]));
+        // Se niega con la de systemui activa/con foco (captura de pantalla, depuración USB…).
+        assert!(!pasa(&[activa, sui(true)]));
+        assert!(!pasa(&[sui(true)]));
+        // Un `protegido` que no es `salida` niega aunque no tenga foco; `salida` (Ajustes) no.
+        for p in ["com.google.android.permissioncontroller", "com.google.android.packageinstaller", "com.android.credentialmanager", "com.android.managedprovisioning"] {
+            assert!(!pasa(&[activa, w(Some(p), true, false)]), "{p}");
+        }
+        assert!(pasa(&[activa, w(Some("com.android.settings"), true, false)]));
+        // Sin raíz de tipo aplicación niega (salvo prueba de propia), con o sin foco.
+        assert!(!pasa(&[activa, w(None, true, false)]));
+        assert!(!pasa(&[activa, w(None, true, true)]));
+        // Congelada, bloqueada, contraseña y sin ventanas niegan igual.
+        assert!(!regla_g_deja_inicio(&[activa, sui(false)], propio, false, true, false));
+        assert!(!regla_g_deja_inicio(&[activa, sui(false)], propio, true, false, false));
+        assert!(!regla_g_deja_inicio(&[activa, sui(false)], propio, false, false, true));
+        assert!(!pasa(&[]));
+        // La fila EXACTA de la prueba .50: otra/sistema ×4, propia/sistema, sistema-actividad/app (sin foco), propia/app/activa → pasa.
+        let sistema = |p: &'static str| w(Some(p), false, false);
+        let fila = [sistema("com.otra.uno"), sistema("com.otra.dos"), sistema("com.otra.tres"), sistema("com.otra.cuatro"), sistema(propio), sui(false), activa];
+        assert!(pasa(&fila));
+        // La regla G de gestos, texto y demás teclas NO cambia: esa misma situación sigue «protegida».
+        assert!(regla_g(&fila, propio, false, false, false));
+        // La traza: solo `sistema-actividad` lleva foco/activa/tamaño/título; el título va saneado y corto.
+        let x = extra_sistema(false, false, 1080, 160, Some("Toast <Ver pantalla!> con un título larguísimo de verdad"));
+        assert_eq!(x, "foco=no/activa=no/tam=1080x160/titulo=Toast-Ver-pantalla-con-u");
+        assert_eq!(extra_sistema(true, true, -5, 3, None), "foco=si/activa=si/tam=0x3/titulo=");
+        let t = traza_inicio_negado(&[(Some("com.android.systemui"), true, "app", false, &x), (Some(propio), true, "app", true, "")], propio, false, false, false);
+        assert_eq!(t, "ventanas=sistema-actividad/app/foco=no/activa=no/tam=1080x160/titulo=Toast-Ver-pantalla-con-u,propia/app/activa marcas=ninguna");
+        // Y cuando Inicio PASA, la respuesta también lleva la traza.
+        let r = json!({ "ok": true, "detalle": format!("inicio-desde-protegida {t}") });
+        assert!(fue_inicio_desde_protegida(Some(&r)) && fue_inicio_desde_protegida(Some(&json!({ "ok": true, "detalle": "inicio-desde-protegida" }))));
+        assert_eq!(traza_de_inicio_pasa(Some(&r)).unwrap(), t);
+        assert!(traza_de_inicio_pasa(Some(&json!({ "ok": false, "detalle": "inicio-desde-protegida x" }))).is_none());
     }
 
     #[test]
@@ -958,12 +1041,12 @@ mod pruebas {
         assert!(!ventana_sin_raiz_es_propia(true, Some("com.android.settings"), propio));
         assert!(!ventana_sin_raiz_es_propia(true, Some(""), propio));
         // Sin raíz y sin prueba, Inicio sigue negado (no se ensancha la lista positiva); con la prueba, el paquete propio pasa.
-        let sin_prueba = [VentanaG { paquete: None, actividad: true }];
+        let sin_prueba = [VentanaG { paquete: None, actividad: true, foco: false }];
         assert!(!regla_g_deja_inicio(&sin_prueba, propio, false, false, false));
-        let probada = [VentanaG { paquete: Some(propio), actividad: true }];
+        let probada = [VentanaG { paquete: Some(propio), actividad: true, foco: false }];
         assert!(regla_g_deja_inicio(&probada, propio, false, false, false));
         // La propia + una sin raíz SIN prueba (p. ej. un diálogo de otra app): NO.
-        assert!(!regla_g_deja_inicio(&[VentanaG { paquete: Some(propio), actividad: true }, VentanaG { paquete: None, actividad: true }], propio, false, false, false));
+        assert!(!regla_g_deja_inicio(&[VentanaG { paquete: Some(propio), actividad: true, foco: false }, VentanaG { paquete: None, actividad: true, foco: false }], propio, false, false, false));
         // Los consentimientos y la contraseña siguen mandando aunque la ventana sea la propia.
         assert!(!regla_g_deja_inicio(&probada, propio, false, true, false));
         assert!(!regla_g_deja_inicio(&probada, propio, true, false, false));
@@ -981,7 +1064,7 @@ mod pruebas {
         assert_eq!(clase_ventana(Some("com.android.systemui"), true, propio), "sistema-actividad");
         assert_eq!(clase_ventana(Some("com.android.systemui"), false, propio), "otra", "la cortina no es actividad");
         assert_eq!(clase_ventana(Some("com.otra.cosa.privada"), true, propio), "otra", "una app ajena no se nombra");
-        let t = traza_inicio_negado(&[(Some(propio), true, "app", true), (None, true, "app", false), (Some("com.otra.cosa.privada"), true, "app", false)], propio, false, false, true);
+        let t = traza_inicio_negado(&[(Some(propio), true, "app", true, ""), (None, true, "app", false, ""), (Some("com.otra.cosa.privada"), true, "app", false, "")], propio, false, false, true);
         assert_eq!(t, "ventanas=propia/app/activa,sin-raiz/app,otra/app marcas=contrasena");
         assert!(!t.contains("privada"));
         assert_eq!(traza_inicio_negado(&[], propio, true, true, false), "ventanas=ninguna marcas=bloqueada,congelada,sin-ventanas");
@@ -998,7 +1081,7 @@ mod pruebas {
     #[test]
     fn ctl1117a_inicio_pasa_desde_una_ventana_protegida_y_nada_mas() {
         let propio = "app.starseed.os";
-        let v = |p: &'static str, a: bool| VentanaG { paquete: Some(p), actividad: a };
+        let v = |p: &'static str, a: bool| VentanaG { paquete: Some(p), actividad: a, foco: false };
         let ajustes = [v("com.android.settings", true)];
         let inicio = json!({ "cual": "inicio" });
         let pasa = |vs: &[VentanaG]| inicio_desde_protegida("tecla", &inicio, vs, propio, false, false, false);
@@ -1011,7 +1094,7 @@ mod pruebas {
         for p in [
             "com.google.android.permissioncontroller", "com.android.permissioncontroller", "com.google.android.packageinstaller",
             "com.android.packageinstaller", "com.android.credentialmanager", "com.google.android.gms", "com.android.keychain",
-            "com.android.certinstaller", "com.android.managedprovisioning", "com.android.systemui",
+            "com.android.certinstaller", "com.android.managedprovisioning",
         ] {
             assert!(!pasa(&[v(p, true)]), "{p}");
         }
@@ -1019,8 +1102,10 @@ mod pruebas {
         assert!(pasa(&[v("com.android.settings", true), v("com.android.systemui", false)]));
         // Mezcla: Ajustes + un diálogo de permisos (o de captura) a la vista: NO.
         assert!(!pasa(&[v("com.android.settings", true), v("com.google.android.permissioncontroller", true)]));
-        assert!(!pasa(&[v("com.android.settings", true), v("com.android.systemui", true)]));
-        assert!(!pasa(&[v("com.android.settings", true), VentanaG { paquete: None, actividad: true }]));
+        // CTL1117E: una actividad de systemui SIN foco ni activa (aviso emergente, barra flotante) no niega; con foco sí.
+        assert!(pasa(&[v("com.android.settings", true), v("com.android.systemui", true)]));
+        assert!(!regla_g_deja_inicio(&[v("com.android.settings", true), VentanaG { foco: true, ..v("com.android.systemui", true) }], propio, false, false, false));
+        assert!(!pasa(&[v("com.android.settings", true), VentanaG { paquete: None, actividad: true, foco: false }]));
         // Con un consentimiento de este control abierto o pedido (congelada): NO, aunque sea Inicio y Ajustes.
         assert!(!inicio_desde_protegida("tecla", &inicio, &ajustes, propio, false, true, false));
         // Pantalla de bloqueo, contraseña o nada a la vista: NO.

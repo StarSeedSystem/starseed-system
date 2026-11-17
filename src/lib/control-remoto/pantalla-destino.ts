@@ -232,6 +232,8 @@ export class PantallaDestino {
     private snap: InstantaneaPantalla;
     private oyentes = new Set<() => void>();
     private token: string | null = null;
+    /** CTL1117E: ya se reintentó una vez con una sesión más nueva (solo una). */
+    private reintentoSesion = false;
     private peer: PeerDestinoLike | null = null;
     private canal: CanalDestinoLike | null = null;
     private quitarMedio: (() => void) | null = null; // CTL1117B
@@ -450,7 +452,20 @@ export class PantallaDestino {
         this.tomarLatencia(this.d.ahora() - t0);
         if (r.ok) this.registro.usada(this.neurona);
         if (!r.ok && FATALES.has(r.motivo)) {
-            if (r.motivo === "sin-sesion" || r.motivo === "sesion-caducada") this.registro.olvidar(this.neurona, this.token);
+            const usada = this.token;
+            if (r.motivo === "sin-sesion" || r.motivo === "sesion-caducada") {
+                this.registro.olvidar(this.neurona, usada);
+                // CTL1117E: si el registro compartido ya tiene (o está abriendo) una sesión MÁS NUEVA que la que se intentó, se reintenta
+                // UNA vez con ella antes de darse por cerrada (la ventana mandó con la vieja y el banco abrió la nueva 0,3 s después).
+                if (!this.reintentoSesion && usada && !this.cerrada) {
+                    this.reintentoSesion = true;
+                    const nueva = await this.registro.masNuevaQue(this.neurona, usada);
+                    if (nueva && !this.cerrada) {
+                        this.token = nueva;
+                        return this.orden(nombre, args, nivel);
+                    }
+                }
+            }
             void this.cerrar(claveParadaNativa(r.motivo, r.resultado), false); // CTL1117C: la parada del aparato dice su causa real
         }
         return r;

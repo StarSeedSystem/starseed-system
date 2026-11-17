@@ -430,9 +430,12 @@ mod pruebas {
         // Un cambio de lo que hay delante tira la cola y el gesto a medias si ahora hay algo protegido.
         assert!(k.contains("TYPE_WINDOWS_CHANGED") && k.contains("&& ventanaProtegida()) cortar()"));
         // Nada de nombres de clase ni títulos (dependen del idioma y del fabricante).
-        for x in ["className", ".title", "ultimaClase", "CLASES_"] {
+        for x in ["className", "ultimaClase", "CLASES_"] {
             assert!(!k.contains(x), "{x}");
         }
+        // CTL1117E: el título de una ventana del SISTEMA solo se lee para la traza (nunca para decidir): un único uso.
+        assert_eq!(k.matches(".title").count(), 1);
+        assert!(k.contains("try { w.title } catch (_: Throwable) { null })"));
         // La misma decisión que `regla_g` de Rust, cláusula a cláusula.
         assert!(k.contains("if (congelada || bloqueada || contrasena || ventanas.isEmpty()) return true"));
         assert!(k.contains("if (p == null) actividad"));
@@ -551,6 +554,15 @@ mod pruebas {
         assert!(!k[v..fin_v].contains("sinRaizEsPropia"), "la regla G de gestos, texto y demás teclas sigue como estaba");
         // La excepción sigue siendo la de siempre (lista positiva): la prueba solo cambia el paquete que se le pasa.
         assert!(k.contains("!protegida || p == yo || p in ReglaGLista.SALIDA"));
+        // CTL1117E: una actividad de `sistema` solo niega Inicio si es la activa o tiene el foco (como `regla_g_deja_inicio`).
+        assert!(k.contains("(actividad && (p == yo || (foco && p in ReglaGLista.SISTEMA)))"));
+        assert!(k.contains("val foco = w.isActive || w.isFocused"));
+        assert!(k.contains("it.put(\"detalle\", \"inicio-desde-protegida \" + trazaInicio)"));
+        // …y la regla G de todo lo demás NO usa el foco: sigue con la lista entera.
+        let g = k.find("fun reglaG(").unwrap();
+        assert!(!k[g..g + 700].contains("foco"));
+        // Título solo de las `sistema-actividad`, saneado.
+        assert!(k.contains("if (clase == \"sistema-actividad\") {") && k.contains("fun tituloSaneado(") && k.contains("fun extraSistema("));
         // La traza: una sola vez, solo para la tecla Inicio rechazada, con las marcas de Rust.
         assert_eq!(k.matches("\"inicio-negado \"").count(), 1);
         assert!(k.contains("} else rechazo(\"regla-g\").also { if (nombre == \"tecla\" && args.optString(\"cual\") == \"inicio\") it.put(\"detalle\", \"inicio-negado \" + trazaInicio) }"));

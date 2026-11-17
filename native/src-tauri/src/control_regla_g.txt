@@ -10,7 +10,7 @@
 #   salida <paquete>     (CTL1117A) desde una ventana de este paquete SOLO la tecla Inicio pasa (para poder salir de Ajustes o de
 #                        una tienda). Lista positiva: Inicio pasa únicamente si TODAS las ventanas protegidas a la vista son de la
 #                        propia app o de un paquete `salida`; con cualquier otra a la vista (permisos, instaladores, credenciales,
-#                        managedprovisioning, una actividad de systemui) se niega. Ante la duda, se niega.
+#                        managedprovisioning, una actividad de systemui ACTIVA o con foco) se niega. Ante la duda, se niega.
 # Además, en código y no en esta lista (porque no son paquetes fijos): la pantalla de bloqueo (KeyguardManager),
 # un campo de contraseña con el foco, cualquier diálogo de consentimiento de este control pedido y aún abierto, y
 # las ventanas de actividad de la PROPIA app (su panel de control y sus diálogos).

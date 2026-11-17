@@ -134,7 +134,8 @@ fn entrada(app: &tauri::AppHandle, sesion: &str, sobre: &Value) -> Value {
             // CTL1117A: la tecla Inicio que pasó desde una ventana protegida deja su traza propia (regla G, excepción aprobada).
             if l::fue_inicio_desde_protegida(r.as_ref()) {
                 crate::control_neuronas::anotar_k(app, "entrada-inicio-protegida", "tecla=inicio paso-regla-g=excepcion-aprobada");
-                crate::ble::nota(None, "control-entrada", "tecla inicio desde-ventana-protegida (excepcion de la regla G)");
+                let t = l::traza_de_inicio_pasa(r.as_ref()).map(|t| format!(" {t}")).unwrap_or_default();
+                crate::ble::nota(None, "control-entrada", &format!("tecla inicio desde-ventana-protegida (excepcion de la regla G){t}"));
             }
             v
         }
