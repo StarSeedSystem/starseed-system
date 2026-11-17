@@ -1,0 +1,25 @@
+{
+ "ola": "nube-20261117",
+ "tareas": [
+  {
+   "id": "TU32",
+   "ola": "TRA1116-APP-F1",
+   "titulo": "Prueba integral pura: par instalado → traducir sin red → privacidad → herramienta de Astraura",
+   "archivos": [
+    "src/lib/traductor/__tests__/traductor-integral.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Prueba de integración sin red ni DOM real: servicio con `paquete-local` falso instalado para es→en; (1) traducir sin ningún `fetch` (el `fetch` falso falla la prueba si se llama) y `local:true`; (2) con el paquete NO instalado y el modo privado, la traducción falla con un error claro y no llama a Astraura; (3) sin privado y con el aviso aceptado, cae a un motor `astraura` falso y el resultado dice `motor:\"astraura\"`, `local:false`; (4) con el aviso sin aceptar devuelve `necesitaAviso` y no envía; (5) `ejecutarTraductor` devuelve `{error}` si todo falla y no inventa texto; (6) el idioma por persona cambia solo tras tres detecciones.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "TU12",
+    "TU26",
+    "TU28"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1117-072008.json": [
+   "TU32"
+  ]
+ }
+}
