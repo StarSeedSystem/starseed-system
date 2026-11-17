@@ -36,6 +36,8 @@ import { samplePages, sampleGroups } from "@/data/sample-entities";
 import { listPartidos, listFederativeEntities } from "@/data/sample-governance";
 import { pageHref, groupHref } from "@/lib/entity-links";
 import { useEntityLayout, applyTabLayout, suggestedIntegrations } from "@/lib/entity-layout";
+import { rangoDeRol } from "@/lib/entidad-espacio/permisos";
+import { usarEspacio } from "@/lib/entidad-espacio/usar-espacio";
 import { EntityLayoutEditor } from "@/components/social/entity-layout-editor";
 // Tema por entidad (Mezclador/Catálogo — Adenda Mezclador): aplica el
 // themeId/themeMix guardado en entity-layout SOLO mientras se ve este grupo,
@@ -309,6 +311,22 @@ function GrupoPageContent() {
     // montar esta página y se restaura el tema del sistema al salir.
     useEntityThemeScope(layout);
 
+    // ── SES1115Q P1-B: pestañas del espacio de la entidad (clave `espacio`) ──
+    const refEspacio = useMemo(
+        () => ({ kind: "group" as const, id: group?.slug ?? "" }),
+        [group?.slug],
+    );
+    const { role: rolEspacio } = useMembership(group?.slug ?? "");
+    const rangoEspacio = isOwner
+        ? 4
+        : rolEspacio && rolEspacio !== "pending"
+          ? Math.max(1, rangoDeRol(rolEspacio))
+          : 0;
+    const { pestanas: pestanasEspacio } = usarEspacio(refEspacio, {
+        rango: rangoEspacio,
+        roles: rolEspacio && rolEspacio !== "pending" ? [rolEspacio] : [],
+    });
+
     const groupKind = group?.kind ?? "colectivo";
     const groupHasToolkit = hasToolkit(groupKind);
     const accentForTabs = layout.accent || group?.accent || "#22d3ee";
@@ -497,9 +515,24 @@ function GrupoPageContent() {
                 ),
             });
         }
+        // ── SES1115Q P1-B: las pestañas visibles de `espacio` se suman a las base ──
+        for (const p of pestanasEspacio) {
+            list.push({
+                id: `espacio-${p.id}`,
+                label: p.titulo,
+                node: (
+                    <GlassCard className="p-[clamp(1rem,3vw,1.75rem)]">
+                        <p className="text-sm text-muted-foreground">Superficie «{p.tipo}» abierta en vivo.</p>
+                        <Button asChild size="sm" variant="outline" className="mt-3 cursor-pointer gap-1.5">
+                            <Link href={`/vivo/${p.sesionId}`}>Entrar en vivo</Link>
+                        </Button>
+                    </GlassCard>
+                ),
+            });
+        }
         return list;
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [group, groupHasToolkit, groupKind, accentForTabs, layout.sections, layout.integrations, layout.gallery, isOwner, postCount, coverForWelcome]);
+    }, [group, groupHasToolkit, groupKind, accentForTabs, layout.sections, layout.integrations, layout.gallery, isOwner, postCount, coverForWelcome, pestanasEspacio]);
 
     const orderedTabs = useMemo(() => {
         const o = applyTabLayout(baseTabs, layout.tabs);

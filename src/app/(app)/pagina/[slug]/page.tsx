@@ -30,6 +30,7 @@ import {
     useOsPosts,
     useOsPostCount,
     useFollow,
+    useMembership,
     useEntityOwner,
 } from "@/hooks/use-os-entities";
 // (Adenda 220) Bienvenida unificada + estados vacíos con acción.
@@ -43,6 +44,8 @@ import { CollectionsGrid } from "@/components/profile/collections/collections-gr
 import { samplePages, sampleGroups } from "@/data/sample-entities";
 import { listPartidos, listFederativeEntities } from "@/data/sample-governance";
 import { useEntityLayout, applyTabLayout, suggestedIntegrations } from "@/lib/entity-layout";
+import { rangoDeRol } from "@/lib/entidad-espacio/permisos";
+import { usarEspacio } from "@/lib/entidad-espacio/usar-espacio";
 import { EntityLayoutEditor } from "@/components/social/entity-layout-editor";
 // Tema por entidad (Mezclador/Catálogo — Adenda Mezclador): aplica el
 // themeId/themeMix guardado en entity-layout SOLO mientras se ve esta
@@ -307,6 +310,22 @@ function PaginaPageContent() {
     // al montar esta página y se restaura el tema del sistema al salir.
     useEntityThemeScope(layout);
 
+    // ── SES1115Q P1-B: pestañas del espacio de la entidad (clave `espacio`) ──
+    const refEspacio = useMemo(
+        () => ({ kind: "page" as const, id: page?.slug ?? "" }),
+        [page?.slug],
+    );
+    const { role: rolEspacio } = useMembership(page?.slug ?? "");
+    const rangoEspacio = isOwner
+        ? 4
+        : rolEspacio && rolEspacio !== "pending"
+          ? Math.max(1, rangoDeRol(rolEspacio))
+          : 0;
+    const { pestanas: pestanasEspacio } = usarEspacio(refEspacio, {
+        rango: rangoEspacio,
+        roles: rolEspacio && rolEspacio !== "pending" ? [rolEspacio] : [],
+    });
+
     const pageKind = page?.kind ?? "pagina";
     const pageHasToolkit = hasToolkit(pageKind);
     const accentForTabs = layout.accent || page?.accent || "#E9C46A";
@@ -525,9 +544,24 @@ function PaginaPageContent() {
                 ),
             });
         }
+        // ── SES1115Q P1-B: las pestañas visibles de `espacio` se suman a las base ──
+        for (const p of pestanasEspacio) {
+            list.push({
+                id: `espacio-${p.id}`,
+                label: p.titulo,
+                node: (
+                    <GlassCard className="p-[clamp(1rem,3vw,1.75rem)]">
+                        <p className="text-sm text-muted-foreground">Superficie «{p.tipo}» abierta en vivo.</p>
+                        <Button asChild size="sm" variant="outline" className="mt-3 cursor-pointer gap-1.5">
+                            <Link href={`/vivo/${p.sesionId}`}>Entrar en vivo</Link>
+                        </Button>
+                    </GlassCard>
+                ),
+            });
+        }
         return list;
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [page, pageHasToolkit, pageKind, accentForTabs, events, layout.sections, layout.integrations, layout.gallery, isOwner, postCount, effectiveCoverForWelcome]);
+    }, [page, pageHasToolkit, pageKind, accentForTabs, events, layout.sections, layout.integrations, layout.gallery, isOwner, postCount, effectiveCoverForWelcome, pestanasEspacio]);
 
     const orderedTabs = useMemo(() => {
         const o = applyTabLayout(baseTabs, layout.tabs);
