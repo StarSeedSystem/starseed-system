@@ -6,7 +6,7 @@ import { WidgetTraductor } from '../widget-traductor';
 describe('WidgetTraductor', () => {
     it('traduce texto con servicio falso', async () => {
         const servicio = { traducir: vi.fn().mockResolvedValue('Hello') };
-        const ajustes = { idiomasFijados: ['es' as const, 'en' as const], motorPreferido: 'automatico' as const, tamanoLetra: 'M' as const, historialCorto: true };
+        const ajustes = { idiomasFijados: ['es', 'en'] as [string, string], motorPreferido: 'automatico' as 'automatico', tamanoLetra: 'M' as 'M', historialCorto: true };
         const onAjustes = vi.fn();
         const renderCrudo = (ui: any) => render(<AppearanceProvider>{ui}</AppearanceProvider>);
         renderCrudo(<WidgetTraductor ajustes={ajustes} onAjustes={onAjustes} servicio={servicio} />);
@@ -20,7 +20,7 @@ describe('WidgetTraductor', () => {
 
     it('intercambia idiomas al pulsar el botón', async () => {
         const servicio = { traducir: vi.fn().mockResolvedValue('Hola') };
-        const ajustes = { idiomasFijados: ['es' as const, 'en' as const], motorPreferido: 'automatico' as const, tamanoLetra: 'M' as const, historialCorto: true };
+        const ajustes = { idiomasFijados: ['es', 'en'] as [string, string], motorPreferido: 'automatico' as 'automatico', tamanoLetra: 'M' as 'M', historialCorto: true };
         const onAjustes = vi.fn();
         const renderCrudo = (ui: any) => render(<AppearanceProvider>{ui}</AppearanceProvider>);
         renderCrudo(<WidgetTraductor ajustes={ajustes} onAjustes={onAjustes} servicio={servicio} />);
@@ -32,7 +32,7 @@ describe('WidgetTraductor', () => {
 
     it('no guarda historial cuando historialCorto es false', async () => {
         const servicio = { traducir: vi.fn().mockResolvedValue('Hello') };
-        const ajustes = { idiomasFijados: ['es' as const, 'en' as const], motorPreferido: 'automatico' as const, tamanoLetra: 'M' as const, historialCorto: false };
+        const ajustes = { idiomasFijados: ['es', 'en'] as [string, string], motorPreferido: 'automatico' as 'automatico', tamanoLetra: 'M' as 'M', historialCorto: false };
         const onAjustes = vi.fn();
         const renderCrudo = (ui: any) => render(<AppearanceProvider>{ui}</AppearanceProvider>);
         renderCrudo(<WidgetTraductor ajustes={ajustes} onAjustes={onAjustes} servicio={servicio} />);
