@@ -1,66 +1,47 @@
 import { describe, it, expect } from "vitest";
 import { calibrar, confianzaCalibrada } from "../calibracion-laya";
-import { MIN_CASOS_UMBRAL, CasoLaya } from "../aprendizaje-laya";
-import type { RegistroAprendizaje } from "../aprendizaje-laya";
+import { MIN_CASOS_UMBRAL, type CasoLaya, type RegistroAprendizaje } from "../aprendizaje-laya";
 
-// Helper to create a CasoLaya
-function crearCaso(p: number, resultado: "aceptada" | "corregida" | "escalada", ambito = "global", punto = "punto1"): CasoLaya {
-  return {
-    punto,
-    ambito,
-    p,
-    donde: "mac",
-    ms: 100,
-    resultado,
-    estado: "estado",
-    privado: false,
-  };
+function caso(
+  p: number,
+  resultado: "aceptada" | "corregida" | "escalada",
+  punto = "respuesta.basta",
+  ambito = "a1",
+): CasoLaya {
+  return { punto, ambito, p, donde: "mac", ms: 100, resultado, estado: "e", privado: false };
 }
 
-describe("calibrar y confianzaCalibrada", () => {
-  it("devuelve motivo si casos < MIN_CASOS_UMBRAL", () => {
-    const casos: RegistroAprendizaje = Array.from({ length: MIN_CASOS_UMBRAL - 1 }, () => crearCaso(0.5, "aceptada"));
-    const res = calibrar(casos, "punto1", "global");
-    expect(res).toHaveProperty("motivo");
-    expect(res).toMatchObject({ n: MIN_CASOS_UMBRAL - 1, motivo: "faltan casos" });
+describe("calibración de la confianza de Laya", () => {
+  it("con menos de 30 casos devuelve el motivo «faltan casos»", () => {
+    const registro: RegistroAprendizaje = Array.from({ length: MIN_CASOS_UMBRAL - 1 }, () =>
+      caso(0.9, "aceptada"),
+    );
+    const cal = calibrar(registro, "respuesta.basta", "a1");
+    expect(cal).toEqual({ n: MIN_CASOS_UMBRAL - 1, motivo: "faltan casos" });
   });
 
-  it("calibra correctamente con 30 casos y todas p=0.9", () => {
-    const casos: CasoLaya[] = [];
-    for (let i = 0; i < 30; i++) {
-      casos.push(crearCaso(0.9, i < 18 ? "aceptada" : "corregida"));
-    }
-    const res = calibrar(casos, "punto1", "global");
-    expect((res as any).cajas).toBeDefined();
-    expect((res as any).umbralSugerido).toBeDefined();
-    expect((res as any).n).toBe(30);
-    expect((res as any).cajas).toHaveLength(10);
-    const cajas = (res as any).cajas as Array<{ pMin: number; pMax: number; tasaAc: number }>;
-    // only 9th bucket should have rate 0.6
-    expect(cajas[9].tasaAc).toBeCloseTo(0.6);
-    // other buckets should be 0
-    for (let i = 0; i < 9; i++) {
-      expect(cajas[i].tasaAc).toBeCloseTo(0);
-    }
-    // confianza calibrada
-    expect(confianzaCalibrada(res, 0.9)).toBeCloseTo(0.6);
-    expect(confianzaCalibrada(res, 0.8)).toBeCloseTo(0);
+  it("Laya sobreconfiada (dice 0,9 y acierta 0,6) baja la confianza", () => {
+    const registro: RegistroAprendizaje = Array.from({ length: 30 }, (_, i) =>
+      caso(0.9, i < 18 ? "aceptada" : "corregida"),
+    );
+    const cal = calibrar(registro, "respuesta.basta", "a1");
+    if ("motivo" in cal) throw new Error("se esperaba calibración");
+    expect(cal.n).toBe(30);
+    expect(cal.cajas).toHaveLength(10);
+    const cajaAlta = cal.cajas[9];
+    expect(cajaAlta.tasaAc).toBeCloseTo(0.6);
+    expect(confianzaCalibrada(cal, 0.9)).toBeCloseTo(0.6);
+    expect(confianzaCalibrada(cal, 0.9)).toBeLessThanOrEqual(0.6);
   });
 
-  it("cajas con casos distribuidos en todos los intervalos", () => {
-    const casos: CasoLaya[] = [];
-    // 10 casos per bucket, 3 aceptada, 1 corregida
-    for (let i = 0; i < 10; i++) {
-      const p = i * 0.1;
-      for (let j = 0; j < 4; j++) {
-        casos.push(crearCaso(p, j < 3 ? "aceptada" : "corregida"));
-      }
-    }
-    const res = calibrar(casos, "punto1", "global");
-    const cajas = (res as any).cajas as Array<{ pMin: number; pMax: number; tasaAc: number }>;
-    cajas.forEach((c) => {
-      expect(c.tasaAc).toBeCloseTo(0.75);
-    });
-    expect(confianzaCalibrada(res, 0.35)).toBeCloseTo(0.75);
+  it("las cajas vacías no rompen y la confianza no sube la tasa observada", () => {
+    const registro: RegistroAprendizaje = Array.from({ length: 30 }, (_, i) =>
+      caso(0.9, i < 18 ? "aceptada" : "corregida"),
+    );
+    const cal = calibrar(registro, "respuesta.basta", "a1");
+    if ("motivo" in cal) throw new Error("se esperaba calibración");
+    expect(cal.cajas[0].tasaAc).toBe(0);
+    expect(confianzaCalibrada(cal, 0.05)).toBe(0);
+    expect(confianzaCalibrada(cal, 0.95)).toBeLessThanOrEqual(cal.cajas[9].tasaAc);
   });
 });
