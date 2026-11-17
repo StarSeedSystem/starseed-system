@@ -1,0 +1,74 @@
+{
+ "ola": "nube-20261116",
+ "tareas": [
+  {
+   "id": "INT12",
+   "ola": "INT1116A",
+   "titulo": "Sección «Internet compartido»: interruptores, estado de la conexión y lo que queda hoy",
+   "archivos": [
+    "src/components/mesh/mapa-senales/internet/seccion-internet.tsx",
+    "src/components/mesh/mapa-senales/internet/__tests__/seccion-internet.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contrato: architecture/malla-cristalina-sio2.md §8.2 (contrato; si aún no está en el repo, rige este texto). «Modo banco de llamadas» es otra función (pasa a «modo de pruebas de llamadas»): no la toques ni la menciones. Escribe primero las pruebas. Componente `SeccionInternet({ textos, extra, clasificacion }: { textos: TextosInternet; extra: { desde: string; hasta: string; limite: string; compartirConOtros: string; declararDePago: string; declararNoDePago: string }; clasificacion: { estado: EstadoConexion; fuente: FuenteLimitada } })` que usa `useAjustesInternet` (INT08) y compone `InterruptorModoBanco` (INT09) + `RacionBanco` (INT10, solo con el banco activo) + tres `InterruptorModoMesh` (INT11, uno por audiencia, en este orden: mi cuenta, entidad, público) + una línea de estado de la conexión (`conexionLimitada` / `conexionNoLimitada` / `conexionDesconocida` más de dónde sale: `fuenteDeclarada` / `fuenteNativa` / `fuenteNavegador`; sin fuente no se añade nada) + el interruptor general «compartir con otros» del dueño (apagado por defecto; su rótulo es `extra.compartirConOtros`). Declarar la conexión: dos botones (`extra.declararDePago` / `extra.declararNoDePago`) que escriben `declaraLimitada` true/false. Encender cualquier modo NUNCA enciende otro. Sin red.\nPRUEBAS: se ve la ración solo con el banco activo; tres filas de mesh; el interruptor general apagado por defecto; declarar limitada escribe `declaraLimitada:true`; mostrar la fuente.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "INT08",
+    "INT09",
+    "INT10-d2",
+    "INT11"
+   ]
+  },
+  {
+   "id": "ASW11",
+   "ola": "ASW1116A",
+   "titulo": "Diseño «Acciones»: atajos para empezar rápido",
+   "archivos": [
+    "src/components/widgets-libres/familias/diseno-acciones.tsx",
+    "src/components/widgets-libres/familias/__tests__/diseno-acciones.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. LO QUE YA EXISTE (léelo antes): el widget del dashboard cuyo texto de estado es «En calma» es `AstrauraLibre` en `src/components/widgets-libres/familias/astraura-libre.tsx` (268 líneas; `TEXTO_VOZ` :31, `useVozAurora` :38 lee el puente `getAuroraBridge()` de `src/lib/aurora/open-aurora.ts` con `speaking`, `listening`, `actionStatus`; el `Orbe` de :65 es el círculo de colores violeta/turquesa; `Preguntar` :90; el diseño por tamaño :170-262 con `disenoDe(clase)` de `familias/comun.tsx:23`). Se monta desde `src/components/widgets-libres/registro-libre.tsx:38` (`case \"AURORA_LAST\"`, hoy sin recibir el widget ni `onUpdateSettings`, a diferencia del reloj). La Protomolécula: la orbe 4D completa es `src/components/protomolecula/orbe-protomolecula.tsx` (475 líneas, three.js a demanda, arrastrable y flotante: NO sirve para meterla en un widget); su lógica pura está en `src/lib/protomolecula/orbe4d/` (`coreografia.ts`: `IdForma` semilla/merkaba/jitterbug/teseracto/dodecaedro/matriz/icosaedro, `PALETAS` por registro con `astraura`, `ESTILOS`, `FICHAS`, tiempos de Fibonacci; `geometria.ts`: `merkaba()`, `icosaedro()`, `dodecaedro()`, `jitterbug()`, `teseractoVertices()`, `PHI`). Ya hay una versión ligera en SVG: `src/components/layout/trinity/horizon/vista-previa-orbe.tsx` (flor de la vida y merkaba, solo `transform`/`opacity`, quieta con `motion-safe`), pero NO depende del estado del asistente. El presupuesto de render del dispositivo es `src/lib/widgets/forma/nivel-dispositivo.ts` (`useNivelRender`, `nivelRender`: ligero/normal/pleno). La identidad: colores SOLO de `PALETAS` (marca Trinity Liquid Crystal, `adn-y-tokens.md` §2 y §6), nunca hexadecimales inventados. Escribe primero las pruebas. `DisenoAcciones(props: PropsDiseno)`: la forma a `tam`, el estado en texto, y una rejilla de hasta 4 `Accion` (`inicio-piezas.tsx:160`, icono de lucide, diana de 44 px) con `props.sugerencias` (la tarea que lo monta pasa «Resúmeme mi día», «¿Qué hay nuevo en la red?», «Ayúdame a ordenar mis tareas de hoy»; tú no las escribes) más un quinto atajo fijo «Abrir el chat» que llama a `onAbrirChat`; cada sugerencia llama a `onSugerencia(texto)`. Debajo `props.preguntar`. En 2 columnas a partir de 280 px de ancho, 1 columna por debajo. Usa los colores del tema (`text-foreground`, `text-muted-foreground`, variables CSS `hsl(var(--…))`) y no blanco fijo, salvo sobre un fondo que el propio widget pinte oscuro; acento con los colores de `PALETAS.astraura`. Importa `PropsDiseno` de `@/lib/widgets/astraura/disenos` y `AstrauraForma` de `./astraura-forma`. PRUEBAS: renderiza con props de ejemplo y comprueba lo esencial de este diseño (qué SÍ aparece y qué NO: por ejemplo, el mínimo no muestra hilo ni sugerencias); cada botón llama a su función; a 180 px y a 360 px de ancho no hay `scrollWidth` mayor que `clientWidth`; los nombres accesibles están en español.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "ASW04",
+    "ASW06"
+   ]
+  },
+  {
+   "id": "MQC3",
+   "ola": "MOD1116",
+   "titulo": "Biblioteca de modelos: ramas por proveedor, de más a menos capaz, según lo que tiene cada neurona",
+   "archivos": [
+    "src/lib/astraura/modelos/ramas-proveedor.ts",
+    "src/lib/astraura/modelos/__tests__/ramas-proveedor.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Lee `recomendar.ts` (`encajar`, `candidatosPara`), `perfil-neurona.ts` y `modelos-api.ts`. Escribe `ramas-proveedor.ts`: `ramasPorProveedor(catalogo, apis, perfil)` → `Rama[]` con una rama por proveedor (Ollama/huihui_ai, capas de Astraura, abliteration.ai…); cada rama lista sus modelos de MÁS a MENOS capaz (por puntuación de la base si existe, si no por tamaño/contexto) y marca `mejorQueCabe` (el más capaz con veredicto «recomendado» o «justo» en esa neurona) y `masLigero` (el más pequeño que cabe) usando `encajar`. Regla tomada de la página de referencia (https://claude.ai/artifact/K67dmXBTL8hnkjBMmoM4Wa, «Find your best model»; comprobada el 2026-11-05 por su autor): una neurona SIN tarjeta gráfica (chip `intel`, `cpu` o equivalente en `PerfilNeurona`) recibe como local el modelo MÁS PEQUEÑO que cabe y, además, una línea «un modelo por API es mejor punto de partida: aquí corre en CPU y es lento»; con memoria por debajo del mínimo de todos, solo la rama de API. Las ramas de API solo se ofrecen si la cuenta permite lo sin filtros (reutiliza `proveedorSinFiltrosPermitido` de `sin-filtros-nube.ts` si existe; si no, recibe un booleano). PRUEBAS con 6 perfiles (móvil de 4 GB, portátil sin GPU de 16 GB, Mac de 8, 32 y 64 GB, servidor ARM de 12 GB sin GPU): el servidor de 12 GB recibe la 4B y no la 9b como `mejorQueCabe` local; orden estable; sin mutar las entradas.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni pytest, ni tsc, ni git, ni node, ni npm, ni curl): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj, entorno y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves (solo NOMBRES de variables, nunca valores; nunca una IP, un OCID ni un token); nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado. En Python: las pruebas son `unittest` con carpetas temporales y falsos, como las vecinas `scripts/puente/test_*.py`, y no tocan el `~/.starseed` real.",
+   "dependencias_ya_en_main": [
+    "MQC2"
+   ]
+  },
+  {
+   "id": "SVF1B4b",
+   "ola": "SES1116B",
+   "titulo": "Página: pestañas dinámicas del espacio (con punto EN VIVO) a partir de la clave espacio",
+   "archivos": [
+    "src/lib/entidad-espacio/pestanas-pagina.ts",
+    "src/lib/entidad-espacio/__tests__/pestanas-pagina.test.ts",
+    "src/app/(app)/pagina/[slug]/page.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contrato: architecture/sesiones-en-vivo-entidades-y-transmisiones.md §10 (P1-B) y §8 flujo 2. Las pestañas de la página salen de `baseTabs` (`src/app/(app)/pagina/[slug]/page.tsx` ~línea 326; cada una es `{id, label, node}`). Escribe primero el adaptador PURO `pestanas-pagina.ts`: `aPestanasDePagina(pestanas: Pestana[], enDirecto: Record<string, {directo: boolean; personas: number}>, render: (p: Pestana) => React.ReactNode)` → `Array<{id, label, node}>` con `label` «<título>» y, si la sesión está en directo, «<título> ●» + contador (texto accesible incluido), SIN lógica de red. Después, en `page.tsx`, UN bloque aditivo marcado `// SES1115Q` junto a `baseTabs`: llama a `usarEspacio` y al adaptador y añade esas pestañas al final de la lista; si el hook da `error`, no añade nada y no rompe la página. Nada más de la página cambia (≤30 líneas).\nPRUEBAS (`pestanas-pagina.test.ts`): una pestaña con sesión en directo sale con marca y contador; una sin directo, sin marca; el orden se conserva; sin pestañas la lista sale vacía. (La prueba «un observador no ve la pestaña privada» ya la cubre `permisos.test.ts`; aquí solo enséñalo con una lista ya filtrada.) COMPRUEBA: `NODE_ENV=test npx vitest run src/lib/entidad-espacio` verde y tsc acotado con `page.tsx` sin errores nuevos.\n\nREGLAS DE LA CASA (valen aunque no las repita la tarea): toca SOLO los archivos de la lista `archivos`; ≤3 archivos y ≤120 líneas por archivo (si no cabe, para y di qué falta: no lo estires ni lo resumas); sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible (la interfaz dice Genesis); sin red real en las pruebas; ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves. El asunto de tu commit empieza por `SVF1B4b:` y dice qué comprobaste y qué NO pudiste comprobar.",
+   "dependencias_ya_en_main": [
+    "SVF1B3b"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1116-201827.json": [
+   "INT12",
+   "ASW11",
+   "MQC3",
+   "SVF1B4b"
+  ]
+ }
+}
