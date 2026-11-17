@@ -9,7 +9,7 @@ import {
     medioDeEstadisticas, opcionesDeMedio, planOrdenes, politicaIce, serializarElecciones, SIN_DETERMINAR, type ContextoMedio,
 } from "../medio";
 import { textoMedioReal } from "../medio-palabras";
-import { __fijarContexto, __olvidarMedio, enviarOrdenPorMedio, eleccionActual, fijarEleccion, configuracionIce, filtrarRespuesta, instantaneaMedio } from "../medio-estado";
+import { __fijarContexto, __olvidarMedio, canalDatosOk, enviarOrdenPorMedio, eleccionActual, fijarEleccion, configuracionIce, filtrarRespuesta, instantaneaMedio, registrarConexion, PLAZO_CONOCIDO_MS } from "../medio-estado";
 import { palabrasMotivo } from "../palabras";
 import type { CandidatoMedio } from "@/lib/mensajeria/medios/tipos";
 
@@ -254,5 +254,116 @@ describe("cumplimiento, canal de datos y registro", () => {
         const l = lineaRegistroMedio({ elegido: "malla", ordenes: { camino: "directo", medio: "bluetooth" }, entrada: null, pantalla: SIN_DETERMINAR, pantallaForzada: true });
         expect(l).toBe("control-medio elegido=malla ordenes=directo:bluetooth entrada=canal-de-ordenes pantalla=sin-determinar pantalla-forzada=si");
         expect(l).toMatch(/^control-medio( [a-z-]+=[a-z:-]+)+$/);
+    });
+});
+
+// ── CTL1117D · el texto visible sale del mismo dato que el registro, sin parpadeo, y los gestos respetan el medio ──
+describe("CTL1117D · entrada, comprobando y registro", () => {
+    const parBueno = [
+        { id: "T", type: "transport", selectedCandidatePairId: "P" },
+        { id: "P", type: "candidate-pair", state: "succeeded", nominated: true, localCandidateId: "L", remoteCandidateId: "R" },
+        { id: "L", type: "local-candidate", candidateType: "host", address: "192.168.1.10", networkType: "wifi" },
+        { id: "R", type: "remote-candidate", candidateType: "host", address: "192.168.1.20" },
+    ];
+    const peerCon = (stats: unknown[]) => ({ getStats: async () => stats as never });
+    const flush = async () => {
+        for (let k = 0; k < 6; k++) await Promise.resolve();
+    };
+    const links2 = [cand("ble:1", "bluetooth"), cand("nativo:192.168.1.20", "local")];
+    beforeEach(() => {
+        __olvidarMedio();
+        window.localStorage.removeItem(CLAVE_MEDIO);
+    });
+    const lineas = () => {
+        const spy = vi.spyOn(console, "info").mockImplementation(() => undefined);
+        return { spy, ultima: () => String(spy.mock.calls.map((c) => String(c[0])).filter((l) => l.includes("control-medio")).pop()) };
+    };
+
+    it("con «Solo Bluetooth» y el canal de datos abierto, «Órdenes» dice Bluetooth y el registro lo mismo; los gestos NO van por la red local", async () => {
+        const reg = lineas();
+        __fijarContexto("t", ctx(links2));
+        const quita = registrarConexion("t", peerCon(parBueno), () => true);
+        await flush();
+        expect(instantaneaMedio("t").entradaPorPantalla).toBe(true); // automático: el gesto va por la pantalla (red local)
+        expect(instantaneaMedio("t").entrada.medio).toBe("red-local");
+        fijarEleccion("t", "bluetooth");
+        const enviarMensaje = vi.fn(async () => ({ ok: true, confirmado: true, enlace: null, intentos: [], descartados: [] }));
+        await enviarOrdenPorMedio({ enviarMensaje } as never, "t", "c", {}, { sinRefrescar: true });
+        const e = instantaneaMedio("t");
+        expect(canalDatosOk("t")).toBe(false); // la guarda que usa pantalla-destino: no se cuela por la red local
+        expect(e.entradaPorPantalla).toBe(false);
+        expect(e.entrada).toEqual({ camino: "directo", medio: "bluetooth" });
+        expect(e.pantalla.medio).toBe("red-local");
+        expect(textoMedioReal(e.entrada, e.comprobandoEntrada)).toBe("Directo · Bluetooth");
+        expect(reg.ultima()).toContain("elegido=bluetooth ordenes=directo:bluetooth entrada=directo:bluetooth pantalla=directo:red-local");
+        quita();
+        reg.spy.mockRestore();
+    });
+    it("con «Wi‑Fi por router» y el par en la red local, el gesto sí va por la conexión", async () => {
+        __fijarContexto("t", ctx(links2));
+        const quita = registrarConexion("t", peerCon(parBueno), () => true);
+        await flush();
+        fijarEleccion("t", "wifi-router");
+        expect(canalDatosOk("t")).toBe(true);
+        expect(instantaneaMedio("t").entradaPorPantalla).toBe(true);
+        quita();
+    });
+    it("al reconectar conserva el último valor «comprobando…» y no cae a «sin determinar»", async () => {
+        __fijarContexto("t", ctx(links2));
+        const q1 = registrarConexion("t", peerCon(parBueno), () => true);
+        await flush();
+        q1();
+        const q2 = registrarConexion("t", peerCon([]), () => false); // aún sin par elegido
+        await flush();
+        const e = instantaneaMedio("t");
+        expect(e.pantalla.medio).toBe("red-local");
+        expect(e.comprobandoPantalla).toBe(true);
+        expect(textoMedioReal(e.pantalla, e.comprobandoPantalla)).toBe("Directo · Wi‑Fi de la red local (router) (Wi‑Fi) · comprobando…");
+        expect(canalDatosOk("t")).toBe(true); // automático: no hay nada que prohibir
+        q2();
+    });
+    it("para DECIDIR, un par sin medir no vale: con otro medio elegido el gesto va por el canal de órdenes", async () => {
+        __fijarContexto("t", ctx(links2));
+        const q1 = registrarConexion("t", peerCon(parBueno), () => true);
+        await flush();
+        q1();
+        fijarEleccion("t", "wifi-router");
+        const q2 = registrarConexion("t", peerCon([]), () => true);
+        await flush();
+        expect(canalDatosOk("t")).toBe(false);
+        q2();
+    });
+    it("nunca medido, o pasado el plazo sin poder medir: «sin determinar»", async () => {
+        vi.useFakeTimers();
+        try {
+            __fijarContexto("t", ctx(links2));
+            const q0 = registrarConexion("t", peerCon([]), () => false);
+            await flush();
+            expect(instantaneaMedio("t").pantalla).toEqual(SIN_DETERMINAR);
+            expect(instantaneaMedio("t").comprobandoPantalla).toBe(false);
+            q0();
+            const q1 = registrarConexion("t", peerCon(parBueno), () => false);
+            await flush();
+            q1();
+            const q2 = registrarConexion("t", peerCon([]), () => false);
+            await flush();
+            expect(instantaneaMedio("t").comprobandoPantalla).toBe(true);
+            await vi.advanceTimersByTimeAsync(PLAZO_CONOCIDO_MS + 3000);
+            expect(instantaneaMedio("t").pantalla).toEqual(SIN_DETERMINAR);
+            q2();
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+    it("al cambiar la elección, las órdenes se enseñan «comprobando…» hasta que sale una por el medio nuevo", async () => {
+        __fijarContexto("t", ctx(links2));
+        const enviarMensaje = vi.fn(async () => ({ ok: true, confirmado: true, enlace: { id: "nativo:192.168.1.20", tipo: "nativo" }, intentos: [], descartados: [] }));
+        await enviarOrdenPorMedio({ enviarMensaje } as never, "t", "c", {}, { sinRefrescar: true });
+        expect(instantaneaMedio("t").comprobandoEntrada).toBe(false);
+        fijarEleccion("t", "bluetooth");
+        expect(instantaneaMedio("t").comprobandoEntrada).toBe(true);
+        await enviarOrdenPorMedio({ enviarMensaje } as never, "t", "c", {}, { sinRefrescar: true });
+        expect(instantaneaMedio("t").comprobandoEntrada).toBe(false);
+        expect(instantaneaMedio("t").entrada.medio).toBe("bluetooth");
     });
 });

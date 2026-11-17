@@ -25,8 +25,8 @@ export function IndicadorMedio({ nombre, estado, alElegir, avisoReconexion }: Pr
     const [abierto, setAbierto] = useState(false);
     const id = useId();
     const refs = useRef<Array<HTMLButtonElement | null>>([]);
-    const ordenes = estado.entrada ?? estado.ordenes;
-    const ayudaOrdenes = estado.entrada ? "Gestos y teclas: por la conexión de la pantalla." : "Por el canal de la malla.";
+    // Lo que se lee es EXACTAMENTE el dato de la línea de registro `control-medio` (entrada=): el camino que usaría un gesto ahora.
+    const ayudaOrdenes = estado.entradaPorPantalla ? "Gestos y teclas: por la conexión de la pantalla." : "Por el canal de la malla.";
 
     const alTeclear = (e: KeyboardEvent<HTMLButtonElement>, i: number) => {
         const sig = e.key === "ArrowDown" || e.key === "ArrowRight" ? 1 : e.key === "ArrowUp" || e.key === "ArrowLeft" ? -1 : 0;
@@ -46,10 +46,10 @@ export function IndicadorMedio({ nombre, estado, alElegir, avisoReconexion }: Pr
         <div data-testid="medio-control" className="border-b border-white/10 px-3 py-1 text-[11px] text-white/70">
             <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
                 <span data-testid="medio-ordenes">
-                    <span className="text-white/50">Órdenes:</span> <span className="text-white/90">{textoMedioReal(ordenes)}</span>
+                    <span className="text-white/50">Órdenes:</span> <span className="text-white/90">{textoMedioReal(estado.entrada, estado.comprobandoEntrada)}</span>
                 </span>
                 <span data-testid="medio-pantalla">
-                    <span className="text-white/50">Pantalla:</span> <span className="text-white/90">{textoMedioReal(estado.pantalla)}</span>
+                    <span className="text-white/50">Pantalla:</span> <span className="text-white/90">{textoMedioReal(estado.pantalla, estado.comprobandoPantalla)}</span>
                 </span>
                 <button
                     type="button"

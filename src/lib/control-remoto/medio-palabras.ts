@@ -35,8 +35,9 @@ const NOMBRE_TIPO: Readonly<Record<TipoMedio, string>> = {
 };
 
 /** «Directo · Bluetooth», «Por capa · nodo de relevo», «sin determinar». */
-export function textoMedioReal(r: MedioReal): string {
+export function textoMedioReal(r: MedioReal, comprobando = false): string {
     if (r.camino === "sin-determinar") return "sin determinar";
+    if (comprobando) return `${textoMedioReal(r)} · comprobando…`;
     const cabeza = r.camino === "capa" ? "Por capa" : "Directo";
     const medio = r.medio ? NOMBRE_TIPO[r.medio] : "ruta sin medir";
     return `${cabeza} · ${medio}${r.nota && r.medio ? ` (${r.nota})` : ""}`;

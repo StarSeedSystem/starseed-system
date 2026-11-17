@@ -11,7 +11,7 @@ afterEach(cleanup);
 
 const ctx: ContextoMedio = { candidatos: [{ enlaceId: "ble:1", medio: "bluetooth", etiqueta: "x", abierto: true, llega: true }], relevoPorNodo: false, hayTurn: null, wifiDirecto: null };
 const estado = (extra: Partial<EstadoMedio> = {}): EstadoMedio => ({
-    elegido: "auto", opciones: opcionesDeMedio(ctx), ordenes: { camino: "directo", medio: "bluetooth" }, entrada: null, pantalla: SIN_DETERMINAR, pantallaForzada: false, perdido: false, ...extra,
+    elegido: "auto", opciones: opcionesDeMedio(ctx), ordenes: { camino: "directo", medio: "bluetooth" }, entrada: { camino: "directo", medio: "bluetooth" }, entradaPorPantalla: false, comprobandoEntrada: false, comprobandoPantalla: false, pantalla: SIN_DETERMINAR, pantallaForzada: false, perdido: false, ...extra,
 });
 
 describe("IndicadorMedio", () => {

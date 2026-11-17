@@ -19,6 +19,8 @@ import type { CandidatoMedio } from "@/lib/mensajeria/medios/tipos";
 export const EVENTO_MEDIO = "starseed:control-medio-cambio";
 const REFRESCO_MS = 4000;
 const MEDIDA_PAR_MS = 2500;
+/** Cuánto se conserva, «comprobando…», el último camino conocido de la pantalla al reconectar. */
+export const PLAZO_CONOCIDO_MS = 15_000;
 
 export interface EstadoMedio {
     elegido: MedioElegido;
@@ -26,7 +28,13 @@ export interface EstadoMedio {
     /** Lo último que usaron las órdenes por el canal de la malla. */
     ordenes: MedioReal;
     /** Lo que usan los gestos y teclas si van por la conexión de vídeo; null = van por el canal de la malla. */
-    entrada: MedioReal | null;
+    /** El camino que usaría AHORA un gesto o una tecla con el medio elegido (el canal de datos de la pantalla solo si cumple lo elegido). */
+    entrada: MedioReal;
+    /** ¿Ese camino es la conexión de la pantalla (true) o el canal de órdenes de la malla (false)? */
+    entradaPorPantalla: boolean;
+    /** Lo que se enseña es el último valor conocido y se está volviendo a medir. */
+    comprobandoEntrada: boolean;
+    comprobandoPantalla: boolean;
     pantalla: MedioReal;
     pantallaForzada: boolean;
     /** El medio elegido dejó de estar disponible (o no se cumple): hay que decirlo, no cambiarlo. */
@@ -37,6 +45,12 @@ interface Interno {
     ctx: ContextoMedio;
     ordenes: MedioReal;
     par: MedioReal | null;
+    /** Último par medido con éxito: solo para enseñar mientras se vuelve a medir (nunca para decidir). */
+    parConocido: MedioReal | null;
+    /** Hasta cuándo vale `parConocido` si no se vuelve a medir (ms de reloj); 0 = sin plazo. */
+    parConocidoHasta: number;
+    /** La elección cambió y aún no ha salido una orden por ella. */
+    ordenesViejas: boolean;
     canalAbierto: () => boolean;
     peer: { getStats(): Promise<{ forEach(cb: (v: Record<string, unknown>) => void): void }> } | null;
     ordenFallo: boolean;
@@ -73,7 +87,7 @@ function guardar(m: EleccionesGuardadas): void {
 function de(n: string): Interno {
     let i = internos.get(n);
     if (!i) {
-        i = { ctx: CTX_VACIO, ordenes: SIN_DETERMINAR, par: null, canalAbierto: () => false, peer: null, ordenFallo: false, giro: 0, snap: null, ultimaLinea: "" };
+        i = { ctx: CTX_VACIO, ordenes: SIN_DETERMINAR, par: null, parConocido: null, parConocidoHasta: 0, ordenesViejas: false, canalAbierto: () => false, peer: null, ordenFallo: false, giro: 0, snap: null, ultimaLinea: "" };
         internos.set(n, i);
     }
     return i;
@@ -97,16 +111,25 @@ function calcular(neurona: string): EstadoMedio {
     const elegido = eleccionActual(neurona);
     const opciones = opcionesDeMedio(i.ctx);
     const pol = politicaIce(elegido, i.ctx);
-    const entrada = i.canalAbierto() && i.par ? i.par : null;
+    // Igual que la guarda de `pantalla-destino` (`canalDatosOk`): el canal de datos solo si está abierto y su par real cumple lo elegido.
+    const viaPantalla = i.canalAbierto() && canalDatosPermitido(elegido, i.par ?? SIN_DETERMINAR);
+    const enseñadoPar = i.par ?? i.parConocido ?? SIN_DETERMINAR;
+    const comprobandoPantalla = i.par === null && i.parConocido !== null;
+    const entrada = viaPantalla ? enseñadoPar : i.ordenes;
+    const comprobandoEntrada = viaPantalla ? comprobandoPantalla : i.ordenesViejas && i.ordenes.camino !== "sin-determinar";
     const disponible = opciones.find((o) => o.id === elegido)?.disponible ?? true;
     // «Perdido»: lo elegido ya no sirve (no hay camino, un envío falló por eso, o el camino real de la conexión no lo cumple).
     const parIncumple = elegido !== "auto" && pol.forzada && !!i.par && i.par.camino !== "sin-determinar" && !cumpleEleccion(elegido, i.par);
     const perdido = elegido !== "auto" && (!disponible || i.ordenFallo || parIncumple);
-    return { elegido, opciones, ordenes: i.ordenes, entrada, pantalla: i.par ?? SIN_DETERMINAR, pantallaForzada: pol.forzada, perdido };
+    return { elegido, opciones, ordenes: i.ordenes, entrada, entradaPorPantalla: viaPantalla, comprobandoEntrada, comprobandoPantalla, pantalla: enseñadoPar, pantallaForzada: pol.forzada, perdido };
+}
+
+function clave(e: EstadoMedio): unknown[] {
+    return [e.elegido, e.opciones, e.ordenes, e.entrada, e.entradaPorPantalla, e.comprobandoEntrada, e.comprobandoPantalla, e.pantalla, e.pantallaForzada, e.perdido];
 }
 
 function igual(a: EstadoMedio, b: EstadoMedio): boolean {
-    return JSON.stringify([a.elegido, a.opciones, a.ordenes, a.entrada, a.pantalla, a.pantallaForzada, a.perdido]) === JSON.stringify([b.elegido, b.opciones, b.ordenes, b.entrada, b.pantalla, b.pantallaForzada, b.perdido]);
+    return JSON.stringify(clave(a)) === JSON.stringify(clave(b));
 }
 
 function publicar(neurona: string): void {
@@ -140,6 +163,7 @@ export function fijarEleccion(neurona: string, e: MedioElegido): void {
     guardar(conEleccion(leerGuardado(), neurona, e));
     const i = de(neurona);
     i.ordenFallo = false;
+    i.ordenesViejas = true;
     publicar(neurona);
     try {
         window.dispatchEvent(new CustomEvent(EVENTO_MEDIO, { detail: { neurona, antes, ahora: e } }));
@@ -226,14 +250,25 @@ export function registrarConexion(neurona: string, peer: NonNullable<Interno["pe
     const i = de(neurona);
     i.peer = peer;
     i.canalAbierto = canalAbierto;
-    i.par = null;
+    i.par = null; // la conexión nueva aún no está medida: para DECIDIR (canal de datos) vale «sin medir»; para ENSEÑAR se conserva el último valor
+    if (i.parConocido) i.parConocidoHasta = Date.now() + PLAZO_CONOCIDO_MS;
     const medir = async () => {
         if (i.peer !== peer) return;
+        let m: MedioReal | null = null;
         try {
             const st = await peer.getStats();
-            i.par = medioDeEstadisticas(st as unknown as Parameters<typeof medioDeEstadisticas>[0], Date.now(), { ipOtroWifiDirecto: i.ctx.wifiDirecto?.ipOtro ?? null });
+            m = medioDeEstadisticas(st as unknown as Parameters<typeof medioDeEstadisticas>[0], Date.now(), { ipOtroWifiDirecto: i.ctx.wifiDirecto?.ipOtro ?? null });
         } catch {
+            m = null;
+        }
+        if (m && m.camino !== "sin-determinar") {
+            i.par = m;
+            i.parConocido = m;
+            i.parConocidoHasta = 0;
+        } else {
+            // No se pudo medir ahora: se conserva lo conocido «comprobando…» un rato; pasado el plazo, de verdad no se sabe.
             i.par = null;
+            if (i.parConocido && i.parConocidoHasta > 0 && Date.now() > i.parConocidoHasta) i.parConocido = null;
         }
         publicar(neurona);
     };
@@ -246,6 +281,16 @@ export function registrarConexion(neurona: string, peer: NonNullable<Interno["pe
         i.peer = null;
         i.par = null;
         i.canalAbierto = () => false;
+        // Sesión cerrada: el último valor solo se conserva el plazo de una reconexión; si nadie vuelve a registrarse, se olvida.
+        if (i.parConocido) {
+            i.parConocidoHasta = Date.now() + PLAZO_CONOCIDO_MS;
+            setTimeout(() => {
+                if (!i.peer && i.parConocido && i.parConocidoHasta > 0 && Date.now() >= i.parConocidoHasta) {
+                    i.parConocido = null;
+                    publicar(neurona);
+                }
+            }, PLAZO_CONOCIDO_MS + 50);
+        }
         const r = relojes.get(neurona);
         if (r) clearInterval(r);
         relojes.delete(neurona);
@@ -288,6 +333,7 @@ export async function enviarOrdenPorMedio(t: Pick<Transporte, "enviarMensaje">, 
         if (r.ok) {
             i.ordenFallo = false;
             i.ordenes = realDeResultado(i, r);
+            i.ordenesViejas = false;
             publicar(para);
         }
         return { ok: r.ok, ...(r.ok ? {} : { motivo: "sin-enlace" }) };
@@ -302,6 +348,7 @@ export async function enviarOrdenPorMedio(t: Pick<Transporte, "enviarMensaje">, 
             if (r?.ok && r.relevo) {
                 i.ordenFallo = false;
                 i.ordenes = { camino: "capa", medio: "nodo", ...(r.relevo.nombre ? { nota: `por relevo de ${r.relevo.nombre}` } : {}) };
+                i.ordenesViejas = false;
                 publicar(para);
                 return { ok: true };
             }
@@ -314,6 +361,7 @@ export async function enviarOrdenPorMedio(t: Pick<Transporte, "enviarMensaje">, 
         if (r.ok) {
             i.ordenFallo = false;
             i.ordenes = medioDeEnlaceUsado(paso, i.ctx.esWifiDirecto);
+            i.ordenesViejas = false;
             publicar(para);
             return { ok: true };
         }
@@ -331,6 +379,8 @@ export function __fijarContexto(neurona: string, ctx: ContextoMedio): void {
 
 /** Solo para pruebas: olvida todo el estado. */
 export function __olvidarMedio(): void {
+    for (const r of relojes.values()) clearInterval(r);
+    relojes.clear();
     elecciones = null;
     internos.clear();
 }
