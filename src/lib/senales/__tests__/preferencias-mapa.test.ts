@@ -11,6 +11,7 @@ describe("sanearPreferencias", () => {
       const p = sanearPreferencias(crudo);
       expect(p).toEqual(PREFERENCIAS_POR_DEFECTO);
       expect(p.ocultas).not.toBe(PREFERENCIAS_POR_DEFECTO.ocultas);
+      expect(p.filtroEspectro).not.toBe(PREFERENCIAS_POR_DEFECTO.filtroEspectro);
     }
   });
 
@@ -23,6 +24,7 @@ describe("sanearPreferencias", () => {
     expect(p).toEqual({
       vista: "plano", altura: "frescura", etiquetas: "seleccion",
       ocultas: ["ble", "lora"], cuenta: "otra", ocultarDesconectados: true, girar: true, verPublicos: true,
+      filtroEspectro: {},
     });
   });
 
