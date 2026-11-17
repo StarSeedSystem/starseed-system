@@ -300,12 +300,52 @@ pub fn control_neuronas_orden(app: AppHandle, webview: tauri::Webview, token: St
         }
         Err(e) => {
             anotar(&app, "orden", &format!("{nombre} resultado=rechazo:{}", e.codigo()));
+            // CTL1117C · FALLO 3: «parada-nativa» dice POR QUÉ no hay sesión (caducada, sin-indicador, la persona…), no solo el código.
+            let detalle = control().detalle_parada(e, mono_ms());
             if control().activa().is_none() {
                 quitar_indicador(&app);
             }
-            Err(e.codigo().into())
+            Err(match detalle {
+                Some(d) if e.codigo() == "parada-nativa" => format!("parada-nativa {d}"),
+                _ => e.codigo().into(),
+            })
         }
     }
+}
+
+/// (CTL1117C · FALLO 3) Una línea en el registro de enlaces cuando una sesión acaba: el motivo REAL y lo que Kotlin dice del
+/// indicador (edad del latido, si cree mostrar, si la app está detrás). Antes el fin solo quedaba en la cadena de Rust, y la
+/// ventana de quien manda decía «Terminar» para cualquier parada. Sin contenido: motivos, números y sí/no.
+fn nota_fin_sesion(app: &AppHandle, de8: &str, motivo: &str) {
+    #[cfg(target_os = "android")]
+    nota_fin_sesion_con(app, de8, motivo, crate::control_neuronas_android::es::estado(app).as_ref());
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = app;
+        crate::ble::nota(None, "control-sesion", &l::linea_fin_sesion(de8, motivo, None));
+    }
+}
+
+#[cfg(target_os = "android")]
+fn nota_fin_sesion_con(_app: &AppHandle, de8: &str, motivo: &str, e: Option<&crate::control_neuronas_android::EstadoKotlin>) {
+    let k = e.map(|e| l::DatosKotlin { latido_ms: pared_ms().saturating_sub(e.t_ms), mostrando: e.mostrando, en_fondo: e.en_fondo, medida: e.fondo.clone(), reanudos: e.reanudos });
+    crate::ble::nota(None, "control-sesion", &l::linea_fin_sesion(de8, motivo, k.as_ref()));
+}
+
+/// (CTL1117C · FALLO 1) La página cuenta qué ve con la app detrás (`control-fondo …`); Rust le suma lo que sabe Kotlin. Solo con
+/// sesión viva (sin sesión no se anota nada) y solo la página principal. Texto acotado y sin contenido.
+#[tauri::command]
+pub fn control_fondo_nota(app: AppHandle, webview: tauri::Webview, detalle: String) -> Result<(), String> {
+    exigir_pagina(&app, &webview)?;
+    if control().activa().is_none() {
+        return Ok(());
+    }
+    #[cfg(target_os = "android")]
+    let k = crate::control_neuronas_android::es::estado(&app).map(|e| l::DatosKotlin { latido_ms: pared_ms().saturating_sub(e.t_ms), mostrando: e.mostrando, en_fondo: e.en_fondo, medida: e.fondo.clone(), reanudos: e.reanudos });
+    #[cfg(not(target_os = "android"))]
+    let k: Option<l::DatosKotlin> = None;
+    crate::ble::nota(None, "control-fondo", &l::linea_fondo(&detalle, k.as_ref()));
+    Ok(())
 }
 
 /// La puerta de la página rechazó una orden: Rust lo anota en la cadena (no concede nada).
@@ -465,6 +505,7 @@ pub fn parar(app: &AppHandle, motivo: &str) {
     quitar_indicador(app);
     if let Some(s) = s {
         anotar(app, "sesion-parada", &format!("de={} motivo={motivo}", s.de.chars().take(8).collect::<String>()));
+        nota_fin_sesion(app, &s.de.chars().take(8).collect::<String>(), motivo); // CTL1117C
         let _ = app.emit(EVENTO_PARADA, serde_json::json!({ "motivo": motivo }));
     }
 }
@@ -501,6 +542,7 @@ pub fn iniciar(app: &AppHandle) {
         if let Some(s) = cerrada {
             quitar_indicador(&h);
             anotar(&h, "sesion-parada", &format!("de={} motivo=caducada", s.de.chars().take(8).collect::<String>()));
+            nota_fin_sesion(&h, &s.de.chars().take(8).collect::<String>(), "caducada"); // CTL1117C
             let _ = h.emit(EVENTO_PARADA, serde_json::json!({ "motivo": "caducada" }));
         }
     });
@@ -599,7 +641,8 @@ fn sondear_plataforma(app: &AppHandle) {
     match cambio {
         Cambio::Parar(m) => {
             quitar_indicador(app);
-            anotar(app, "sesion-parada", &format!("de={} motivo={m}", antes.unwrap_or_default()));
+            anotar(app, "sesion-parada", &format!("de={} motivo={m}", antes.clone().unwrap_or_default()));
+            nota_fin_sesion_con(app, &antes.unwrap_or_default(), &m, e.as_ref()); // CTL1117C
             let _ = app.emit(EVENTO_PARADA, serde_json::json!({ "motivo": m }));
         }
         Cambio::Pausada => {

@@ -18,6 +18,7 @@ import { ACCIONES, MAX_DEDOS, MAX_PUNTOS_DEDO, definicion, type Args } from "./n
 import { MAX_PARTES, Reensamblador, leerParte, trocear, type ParteSenal } from "./senal-partes";
 import { esRespuesta, type RespuestaOrden } from "./orden";
 import { RegistroSesiones, registroGlobal } from "./registro-sesiones";
+import { claveParadaNativa } from "./palabras"; // CTL1117C
 import { canalDatosOk, configuracionIce, filtrarRespuesta, permitirCandidato, registrarConexion } from "./medio-estado"; // CTL1117B
 
 export type EntradaControl =
@@ -450,7 +451,7 @@ export class PantallaDestino {
         if (r.ok) this.registro.usada(this.neurona);
         if (!r.ok && FATALES.has(r.motivo)) {
             if (r.motivo === "sin-sesion" || r.motivo === "sesion-caducada") this.registro.olvidar(this.neurona, this.token);
-            void this.cerrar(r.motivo, false);
+            void this.cerrar(claveParadaNativa(r.motivo, r.resultado), false); // CTL1117C: la parada del aparato dice su causa real
         }
         return r;
     }
@@ -644,7 +645,7 @@ export class PantallaDestino {
         }
         if (FATALES.has(r.motivo)) {
             if (r.motivo === "sin-sesion" || r.motivo === "sesion-caducada") this.registro.olvidar(this.neurona, this.token);
-            return void this.cerrar(r.motivo, false);
+            return void this.cerrar(claveParadaNativa(r.motivo, r.resultado), false); // CTL1117C
         }
         // CTL1117A · S6: «repetida» (seq cruzado) o «limite»: la orden de la persona no se pierde; se manda otra vez, una sola.
         if ((r.motivo === "repetida" || r.motivo === "limite") && entrada && !this.reintentadas.has(entrada)) {

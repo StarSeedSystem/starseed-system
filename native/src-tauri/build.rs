@@ -151,6 +151,7 @@ const COMANDOS_APP: &[&str] = &[
     "control_neuronas_abrir",
     "control_neuronas_orden",
     "control_neuronas_anotar",
+    "control_fondo_nota", // CTL1117C: la línea `control-fondo` (segundo plano) desde la página
     "control_neuronas_parar",
     "control_neuronas_estado",
     "control_neuronas_preparar", // ORD1114T: en Android pide a Kotlin el diálogo nativo del interruptor

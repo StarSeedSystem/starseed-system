@@ -18,7 +18,8 @@ export interface RespuestaNativa {
     ok: boolean;
     token?: string;
     motivo?: string;
-    /** (IND1115F) Con «sin-indicador-nativo»: lo que falta y el paso en que quedó (`falta`, `paso`, `error`, `tras`, `motivo`). */
+    /** (IND1115F) Con «sin-indicador-nativo»: lo que falta y el paso en que quedó (`falta`, `paso`, `error`, `tras`, `motivo`).
+     * (CTL1117C) Con «parada-nativa»: `motivo` = por qué paró DE VERDAD lo nativo (`caducada`, `sin-indicador`, `la-persona-desde-…`). */
     detalle?: Record<string, string>;
 }
 
@@ -66,10 +67,6 @@ export function partirErrorNativo(e: unknown): { motivo: string; detalle?: Recor
     return Object.keys(detalle).length ? { motivo: r[1], detalle } : { motivo: r[1] };
 }
 
-function motivoDe(e: unknown): string {
-    return partirErrorNativo(e).motivo;
-}
-
 /** Puente real (Tauri). `indicadorPosible` lo dice Rust al arrancar (`control_neuronas_estado`). */
 export function crearPuenteTauri(_indicadorPosible?: boolean): PuenteNativoControl {
     // ORD1114T: Rust decide en cada «abrir» (el indicador puede pasar a posible tras el diálogo nativo).
@@ -90,7 +87,8 @@ export function crearPuenteTauri(_indicadorPosible?: boolean): PuenteNativoContr
                 await inv("control_neuronas_orden", { token, nombre });
                 return { ok: true };
             } catch (e) {
-                return { ok: false, motivo: motivoDe(e) };
+                const { motivo, detalle } = partirErrorNativo(e);
+                return detalle ? { ok: false, motivo, detalle } : { ok: false, motivo };
             }
         },
         anotar: (nombre, de, resultado) => {
@@ -280,4 +278,11 @@ export async function controladoresAceptadosNativos(): Promise<{ huella: string;
     } catch {
         return null;
     }
+}
+
+/** (CTL1117C · FALLO 1) Una línea `control-fondo …` en el registro de enlaces; Rust le suma lo que sabe Kotlin. Nunca lanza. */
+export function notaFondo(detalle: string): void {
+    const inv = invocador();
+    if (!inv) return;
+    void Promise.resolve(inv("control_fondo_nota", { detalle })).catch(() => undefined);
 }

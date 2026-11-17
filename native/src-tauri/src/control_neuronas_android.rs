@@ -52,6 +52,11 @@ pub struct EstadoKotlin {
     /// «Mostrar sobre otras apps» (Settings.canDrawOverlays).
     pub superposicion: bool,
     pub mostrando: bool,
+    /// (CTL1117C · FALLO 1) Kotlin cree que la actividad está detrás (onPause/onStop) y qué medida de mantenimiento aplica al WebView
+    /// mientras hay sesión (`ninguna`, `webview-activo`, …); `reanudos` = cuántas veces la aplicó. Solo diagnóstico.
+    pub en_fondo: bool,
+    pub fondo: String,
+    pub reanudos: u32,
     pub sesion: Option<String>,
     /// Un toque local fuera de la pastilla pausó el control; «Reanudar» (notificación o pastilla) lo quita.
     pub pausada: bool,

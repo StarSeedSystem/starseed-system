@@ -333,7 +333,7 @@ pub enum EventoRadio {
 }
 
 /// Los hitos que la radio puede anotar (lista cerrada: el texto libre va en el detalle).
-pub const NOTAS_RADIO: [&str; 19] = [
+pub const NOTAS_RADIO: [&str; 21] = [
     // BLE1110A: cambios de MTU (anterior → nuevo), anuncio que ya estaba activo (código 3) y conexión soltada para renegociar el MTU.
     "mtu-cambio",
     "anuncio-ya-activo",
@@ -355,6 +355,8 @@ pub const NOTAS_RADIO: [&str; 19] = [
     "control-pantalla", // AND1115K: una línea al empezar y otra al acabar cada captura de pantalla remota
     "control-entrada", // AND1115K: una línea al acabar la sesión con las órdenes de entrada y las rechazadas
     "control-indicador", // IND1115F: cada intento de poner el indicador del control entre neuronas (control_neuronas.rs)
+    "control-fondo", // CTL1117C: el control con la app detrás (visible/oculta, deriva del reloj, cuadros, órdenes, medida nativa)
+    "control-sesion", // CTL1117C: el fin de una sesión de control con su motivo REAL y la edad del latido del indicador
 ];
 
 fn texto_de(v: &serde_json::Value, k: &str, max: usize) -> Option<String> {

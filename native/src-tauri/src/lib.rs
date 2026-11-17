@@ -923,6 +923,7 @@ pub fn run() {
                 control_neuronas::control_neuronas_abrir,
                 control_neuronas::control_neuronas_orden,
                 control_neuronas::control_neuronas_anotar,
+                control_neuronas::control_fondo_nota, // CTL1117C
                 control_neuronas::control_neuronas_parar,
                 control_neuronas::control_neuronas_estado,
                 control_neuronas::control_neuronas_preparar, // ORD1114T

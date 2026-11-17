@@ -17,6 +17,8 @@
 import type { Args } from "./niveles";
 import type { RespuestaOrden } from "./orden";
 import { Reensamblador, leerParte, trocear, type ParteSenal } from "./senal-partes";
+import { RelojEstable } from "@/lib/llamadas/reloj-estable";
+import { VigiaFondo, esperarCon, type MedidasFondo } from "./vigia-fondo";
 
 export const LADO_MAX_DEFECTO = 1280;
 export const CALIDAD_DEFECTO = 60;
@@ -91,6 +93,8 @@ export interface Pintor {
     pista(): unknown;
     flujo(): unknown;
     liberar(): void;
+    /** CTL1117C: cuántas veces el latido repitió el último cuadro (solo diagnóstico). */
+    latidos?(): number;
 }
 
 export interface SesionViva {
@@ -112,6 +116,10 @@ export interface DepsOrigen {
     esperar: (ms: number) => Promise<void>;
     ahora: () => number;
     anotar: (linea: string) => void;
+    /** CTL1117C · FALLO 1: el vigía de segundo plano (solo diagnóstico; vive lo que dura la pantalla remota). */
+    vigia?: { arrancar(m: MedidasFondo): void; parar(): void };
+    /** CTL1117C: órdenes cumplidas por la puerta (para el diagnóstico de segundo plano). */
+    ordenesServidas?: () => number;
 }
 
 interface Activa {
@@ -125,6 +133,8 @@ interface Activa {
     canal: CanalLike | null;
     fuente: string;
     cuadros: number;
+    /** CTL1117C: cuadros nuevos que Rust dio a la página (los pintados son `cuadros`). */
+    recibidos: number;
     cola: Promise<void>;
     reens: Reensamblador; // SEN1116A: partes de la oferta; se tira con la sesión
     respuestas: Map<string, ParteSenal[]>;
@@ -211,11 +221,23 @@ export class OrigenPantalla {
             canal: null,
             fuente,
             cuadros: 0,
+            recibidos: 0,
             cola: Promise.resolve(),
             reens: new Reensamblador(this.d.ahora),
             respuestas: new Map(),
         };
         this.activa = a;
+        // CTL1117C: mide el segundo plano mientras dure esta pantalla (nada corre sin ella).
+        try {
+            this.d.vigia?.arrancar({
+                producidos: () => a.recibidos,
+                enviados: () => a.cuadros,
+                latidos: () => a.pintor.latidos?.() ?? 0,
+                ordenes: () => this.d.ordenesServidas?.() ?? 0,
+            });
+        } catch {
+            /* el diagnóstico nunca impide la pantalla */
+        }
         void this.bucle(a);
         const capacidades = await inv("control_capacidades").catch(() => null);
         return {
@@ -273,6 +295,7 @@ export class OrigenPantalla {
             fallos = 0;
             vacios = 0;
             desde = h.numero;
+            a.recibidos += 1;
             const ok = await a.pintor.pintar(bytes.subarray(CABECERA_CUADRO), h.ancho, h.alto).catch(() => false);
             if (ok) a.cuadros += 1;
         }
@@ -446,6 +469,11 @@ export class OrigenPantalla {
         if (!a) return;
         this.activa = null;
         a.parado = true;
+        try {
+            this.d.vigia?.parar();
+        } catch {
+            /* nada */
+        }
         this.d.anotar(`pantalla parada motivo=${RE_MOTIVO.test(motivo) ? motivo : "parada"} cuadros=${a.cuadros}`);
         try {
             a.canal?.close();
@@ -472,9 +500,15 @@ export class OrigenPantalla {
 
 /** CTL1117A · S8: con la pantalla quieta no llegan cuadros nuevos y el controlador lo leía como «Sin pantalla». Si pasa `cadaMs` sin pintar, se vuelve a pedir el último cuadro (señal de vida, no imagen nueva). */
 export const LATIDO_CUADROS_MS = 1500;
-export function latidoDeCuadros(pedir: () => void, ahora: () => number = () => Date.now(), cadaMs = LATIDO_CUADROS_MS): { tocado: () => void; parar: () => void } {
+export function latidoDeCuadros(
+    pedir: () => void,
+    ahora: () => number = () => Date.now(),
+    cadaMs = LATIDO_CUADROS_MS,
+    /** CTL1117C: el reloj estable (Worker) en lugar del `setInterval` de la página, que oculta se alinea a 1 s o más. */
+    cada?: (fn: () => void, ms: number) => () => void,
+): { tocado: () => void; parar: () => void } {
     let ultimo = ahora();
-    const i = setInterval(() => {
+    const f = () => {
         if (ahora() - ultimo >= cadaMs) {
             ultimo = ahora();
             try {
@@ -483,18 +517,33 @@ export function latidoDeCuadros(pedir: () => void, ahora: () => number = () => D
                 /* la pista ya no está */
             }
         }
-    }, Math.max(250, Math.floor(cadaMs / 3)));
+    };
+    const periodo = Math.max(250, Math.floor(cadaMs / 3));
+    if (cada) {
+        const quitar = cada(f, periodo);
+        return { tocado: () => void (ultimo = ahora()), parar: quitar };
+    }
+    const i = setInterval(f, periodo);
     return { tocado: () => void (ultimo = ahora()), parar: () => clearInterval(i) };
 }
 
-export function crearPintorReal(): Pintor {
+export function crearPintorReal(cada?: (fn: () => void, ms: number) => () => void): Pintor {
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d");
     const flujo = canvas.captureStream(0); // 0 fps: el cuadro sale cuando se pide con requestFrame, ya pintado
     const pista = flujo.getVideoTracks()[0] as MediaStreamTrack & { requestFrame?: () => void };
-    const latido = latidoDeCuadros(() => {
-        if (canvas.width > 0 && canvas.height > 0) pista.requestFrame?.();
-    });
+    let repetidos = 0;
+    const latido = latidoDeCuadros(
+        () => {
+            if (canvas.width > 0 && canvas.height > 0) {
+                pista.requestFrame?.();
+                repetidos += 1;
+            }
+        },
+        undefined,
+        undefined,
+        cada,
+    );
     return {
         async pintar(jpeg, ancho, alto) {
             if (!ctx) return false;
@@ -515,6 +564,7 @@ export function crearPintorReal(): Pintor {
                 bmp?.close();
             }
         },
+        latidos: () => repetidos,
         pista: () => pista,
         flujo: () => flujo,
         liberar() {
@@ -535,6 +585,8 @@ function invocadorTauri(): DepsOrigen["invocar"] {
 interface PuertaMinima {
     sesionActiva(): SesionViva | null;
     recibir(sobre: unknown): Promise<RespuestaOrden>;
+    /** CTL1117C: órdenes cumplidas hasta ahora (diagnóstico de segundo plano). */
+    ordenesServidas?(): number;
 }
 let puertaRegistrada: PuertaMinima | null = null;
 /** `canal.ts` entrega aquí la puerta de este aparato al arrancar (sin import circular). */
@@ -547,6 +599,14 @@ let global: OrigenPantalla | null = null;
 /** El origen de este aparato, con sus piezas reales (se crea al primer uso). */
 export function origenGlobal(): OrigenPantalla {
     if (global) return global;
+    // CTL1117C · FALLO 1: UN reloj estable (Worker) para las esperas del bucle, el latido de cuadros y el vigía; el Worker solo
+    // existe mientras haya algo suscrito (es decir, con pantalla remota) y la página oculta no lo alinea a 1 s.
+    const reloj = new RelojEstable({
+        anotar: (d) => {
+            void import("@/lib/llamadas/voz-datos/diagnostico").then((m) => m.anotarLlamada("banco", null, d)).catch(() => undefined);
+        },
+    });
+    const vigia = new VigiaFondo({ reloj, nota: (d) => void import("./nativo").then((m) => m.notaFondo(d)).catch(() => undefined) });
     global = new OrigenPantalla({
         invocar: invocadorTauri(),
         iceServers: async () => {
@@ -554,11 +614,13 @@ export function origenGlobal(): OrigenPantalla {
             return (await obtenerIceServidores()).iceServers;
         },
         crearPeer: (iceServers) => new RTCPeerConnection({ iceServers }) as unknown as PeerLike,
-        crearPintor: crearPintorReal,
+        crearPintor: () => crearPintorReal((f, ms) => reloj.cada(f, ms)),
         sesionViva: () => puertaRegistrada?.sesionActiva() ?? null,
         recibirSobre: async (sobre) => (puertaRegistrada ? puertaRegistrada.recibir(sobre) : { tipo: "respuesta", nonce: "", ok: false, motivo: "sin-puerta" }),
-        esperar: (ms) => new Promise((r) => setTimeout(r, ms)),
+        esperar: (ms) => esperarCon(reloj, ms),
         ahora: () => Date.now(),
+        vigia,
+        ordenesServidas: () => puertaRegistrada?.ordenesServidas?.() ?? 0,
         anotar: (l) => {
             void import("@/lib/llamadas/voz-datos/diagnostico").then((m) => m.anotarLlamada("banco", null, l)).catch(() => undefined);
             try {

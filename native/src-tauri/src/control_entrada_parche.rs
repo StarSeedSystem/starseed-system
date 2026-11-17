@@ -451,7 +451,7 @@ mod pruebas {
         assert!(k.contains("if (congelada || bloqueada || contrasena || ventanas.isEmpty()) return false"));
         assert!(k.contains("!protegida || p == yo || p in ReglaGLista.SALIDA"), "lista positiva: solo la propia app y `salida`");
         let e = k.find("private fun inicioDesdeProtegida()").unwrap();
-        let cuerpo = &k[e..e + 1400];
+        let cuerpo = &k[e..e + 3400];
         assert!(cuerpo.contains("ControlEntradaNativo.congelado()") && cuerpo.contains("isKeyguardLocked") && cuerpo.contains("isPassword"));
         // `ejecutar`: la regla G se mira primero y la excepción es solo `tecla` + `inicio`.
         let j = k.find("fun ejecutar(orden: JSONObject)").unwrap();
@@ -527,5 +527,37 @@ mod pruebas {
             assert!(x.contains("path=\"starseed/control-entrada/\"") && x.contains("path=\"starseed/control-neuronas/\""));
         }
         assert_eq!(XML_EXTRACCION.matches("<exclude").count(), 4, "nube y transferencia entre aparatos");
+    }
+
+    #[test]
+    fn ctl1117c_inicio_sin_raiz_solo_si_esta_probado_y_la_traza_dice_por_que() {
+        let k = KOTLIN;
+        // La prueba y la clase son las de Rust (`ventana_sin_raiz_es_propia`, `clase_ventana`).
+        assert!(k.contains("esLaActiva && raizDeLaActiva != null && raizDeLaActiva.equals(propio, ignoreCase = true)"));
+        let c = k.find("fun claseVentana(").unwrap();
+        let clase = &k[c..c + 700];
+        let orden = ["\"sin-raiz\"", "\"propia\"", "p in ReglaGLista.SALIDA -> \"salida\"", "\"protegida:\"", "\"sistema-actividad\"", "else -> \"otra\""];
+        let mut desde = 0;
+        for x in orden {
+            let i = clase[desde..].find(x).unwrap_or_else(|| panic!("falta {x} (o fuera de orden) en claseVentana"));
+            desde += i;
+        }
+        // Solo `inicioDesdeProtegida` usa la prueba: la regla G de todo lo demás NO se ensancha.
+        assert_eq!(k.matches("ControlEntradaNativo.sinRaizEsPropia(").count(), 1);
+        let e = k.find("private fun inicioDesdeProtegida()").unwrap();
+        assert!(k[e..e + 3400].contains("val p = raiz ?: (if (ControlEntradaNativo.sinRaizEsPropia(w.isActive, raizActiva, packageName)) packageName else null)"));
+        let v = k.find("private fun ventanaProtegida()").unwrap();
+        let fin_v = k.find("/** CTL1117C · FALLO 2: por qué se negó").unwrap();
+        assert!(!k[v..fin_v].contains("sinRaizEsPropia"), "la regla G de gestos, texto y demás teclas sigue como estaba");
+        // La excepción sigue siendo la de siempre (lista positiva): la prueba solo cambia el paquete que se le pasa.
+        assert!(k.contains("!protegida || p == yo || p in ReglaGLista.SALIDA"));
+        // La traza: una sola vez, solo para la tecla Inicio rechazada, con las marcas de Rust.
+        assert_eq!(k.matches("\"inicio-negado \"").count(), 1);
+        assert!(k.contains("} else rechazo(\"regla-g\").also { if (nombre == \"tecla\" && args.optString(\"cual\") == \"inicio\") it.put(\"detalle\", \"inicio-negado \" + trazaInicio) }"));
+        for m in ["\"bloqueada\"", "\"congelada\"", "\"contrasena\"", "\"sin-ventanas\"", "\" marcas=\""] {
+            assert!(k[e..e + 3400].contains(m), "{m}");
+        }
+        // Rust lo lleva a la línea `control-entrada` (registro de enlaces).
+        assert!(include_str!("control_entrada.rs").contains("l::traza_de_inicio_negado(r.as_ref())"));
     }
 }

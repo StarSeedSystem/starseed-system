@@ -33,7 +33,9 @@ import android.provider.Settings
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewGroup
 import android.view.WindowManager
+import android.webkit.WebView
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -304,6 +306,9 @@ object ControlNeuronasNativo : Application.ActivityLifecycleCallbacks {
             .put("notificaciones", notificacionesPermitidas())
             .put("superposicion", superposicionPermitida())
             .put("mostrando", mostrando)
+            .put("en_fondo", ControlFondo.enFondo) // CTL1117C · FALLO 1: solo diagnóstico para la línea `control-fondo`
+            .put("fondo", ControlFondo.medida)
+            .put("reanudos", ControlFondo.reanudos)
             .put("sesion", sesion ?: JSONObject.NULL)
             .put("pausada", pausada)
             .put("terminada", terminada ?: JSONObject.NULL)
@@ -327,17 +332,110 @@ object ControlNeuronasNativo : Application.ActivityLifecycleCallbacks {
 
     override fun onActivityResumed(a: Activity) {
         actividad = WeakReference(a)
+        ControlFondo.cambio(a, false) // CTL1117C · FALLO 1
         if (pendienteSuperposicion) abrirSuperposicionSiFalta(a)
         escribirEstado()
     }
 
     override fun onActivityCreated(a: Activity, b: Bundle?) { actividad = WeakReference(a) }
     override fun onActivityStarted(a: Activity) {}
-    override fun onActivityPaused(a: Activity) {}
-    override fun onActivityStopped(a: Activity) {}
+    // CTL1117C · FALLO 1: con sesión viva, la actividad detrás NO deja el WebView parado (ver `ControlFondo`).
+    override fun onActivityPaused(a: Activity) { ControlFondo.cambio(a, true) }
+    override fun onActivityStopped(a: Activity) { ControlFondo.cambio(a, true) }
     override fun onActivitySaveInstanceState(a: Activity, b: Bundle) {}
     override fun onActivityDestroyed(a: Activity) {
         if (actividad?.get() === a) actividad = null
+    }
+
+    /** CTL1117C: la actividad que hay ahora (la de la página), si la hay. */
+    fun actividadActual(): Activity? = actividad?.get()
+}
+
+/**
+ * CTL1117C · FALLO 1 · el control con StarSeed OS DETRÁS (la persona pulsó Inicio en la tableta).
+ * `WryActivity.onPause()` llama a `mWebView.onPause()` y, con la actividad parada, el WebView oculta la página: sus temporizadores se
+ * alinean y el renderizador baja de prioridad, y con ello la pantalla remota (bucle de cuadros, latido) y las órdenes iban a ratos.
+ * SOLO mientras `ControlNeuronasNativo.mostrando` (hay sesión y su indicador a la vista) esto la mantiene viva: reanuda el WebView
+ * (`onResume` + `resumeTimers`, lo mismo que ya hacen `PuertaSegundoPlano` y la llamada nativa) a los 300 ms de cada onPause/onStop y
+ * en cada latido del indicador (2 s), y pide al renderizador prioridad IMPORTANTE aunque no se vea. Al cerrar la sesión lo deja como
+ * estaba (prioridad de antes y, si la app sigue detrás, el WebView otra vez en pausa). Sin permisos nuevos; sin sesión no hace nada.
+ * No tapa nada y no toca la regla G, la pausa local ni «Terminar».
+ */
+object ControlFondo {
+    private val principal = Handler(Looper.getMainLooper())
+    /** Kotlin cree que la actividad está detrás (onPause/onStop vistos y todavía sin onResume). */
+    @Volatile var enFondo = false
+    /** Qué medida aplicó la última vez (`ninguna`, `en-primer-plano`, `webview-activo`, `sin-webview`, `fallo`): va a estado.json y a la línea `control-fondo`. */
+    @Volatile var medida = "ninguna"
+    @Volatile var reanudos = 0
+    private var aplicada = false
+    private var prioridadAntes = 0
+    private var esperaAntes = false
+
+    private fun buscarWeb(v: View?): WebView? {
+        if (v is WebView) return v
+        if (v is ViewGroup) {
+            for (k in 0 until v.childCount) {
+                val w = buscarWeb(v.getChildAt(k))
+                if (w != null) return w
+            }
+        }
+        return null
+    }
+
+    /** onPause/onStop (`fondo` = true) u onResume (false) de la actividad. */
+    fun cambio(a: Activity, fondo: Boolean) {
+        enFondo = fondo
+        if (ControlNeuronasNativo.mostrando) principal.postDelayed({ mantener(a) }, 300)
+    }
+
+    /** Una vuelta: la del latido del indicador (cada 2 s, solo con sesión) o la de 300 ms tras un cambio. Nunca lanza. */
+    fun mantener(a: Activity?) {
+        if (!ControlNeuronasNativo.mostrando) {
+            soltar(a)
+            return
+        }
+        if (a == null) return
+        try {
+            val w = buscarWeb(a.window?.decorView)
+            if (w == null) {
+                medida = "sin-webview"
+                return
+            }
+            if (Build.VERSION.SDK_INT >= 26 && !aplicada) {
+                prioridadAntes = w.getRendererRequestedPriority()
+                esperaAntes = w.getRendererPriorityWaivedWhenNotVisible()
+                w.setRendererPriorityPolicy(WebView.RENDERER_PRIORITY_IMPORTANT, false)
+                aplicada = true
+            }
+            if (enFondo) {
+                w.onResume()
+                w.resumeTimers()
+                reanudos += 1
+                medida = "webview-activo"
+            } else {
+                medida = "en-primer-plano"
+            }
+        } catch (_: Throwable) {
+            medida = "fallo"
+        }
+    }
+
+    /** La sesión acabó: todo como estaba (prioridad del renderizador y, si la app sigue detrás, el WebView en pausa como lo deja Wry). */
+    fun soltar(a: Activity?) {
+        val habiaHecho = aplicada || medida == "webview-activo"
+        try {
+            val w = if (a != null) buscarWeb(a.window?.decorView) else null
+            if (w != null && habiaHecho) {
+                if (Build.VERSION.SDK_INT >= 26 && aplicada) w.setRendererPriorityPolicy(prioridadAntes, esperaAntes)
+                if (enFondo) w.onPause()
+            }
+        } catch (_: Throwable) {
+            // nada que devolver
+        }
+        aplicada = false
+        medida = "ninguna"
+        reanudos = 0
     }
 }
 
@@ -386,6 +484,7 @@ class ServicioControlNeuronas : Service() {
     private val latido = object : Runnable {
         override fun run() {
             if (!ControlNeuronasNativo.mostrando) return
+            ControlFondo.mantener(ControlNeuronasNativo.actividadActual()) // CTL1117C · FALLO 1
             ControlNeuronasNativo.escribirEstado()
             principal.postDelayed(this, LATIDO_MS)
         }
@@ -605,6 +704,7 @@ class ServicioControlNeuronas : Service() {
     /** Rust lo pidió (sesión cerrada allí): quita todo sin apuntar «terminada». */
     private fun cerrar() {
         principal.removeCallbacks(latido)
+        ControlFondo.soltar(ControlNeuronasNativo.actividadActual())
         principal.removeCallbacks(reanudarSola) // CTL1117A
         ServicioControlEntrada.instancia?.parar() // AND1115K: sin indicador no hay dedos abajo ni captura
         if (ControlNeuronasNativo.mostrando) {
@@ -623,6 +723,7 @@ class ServicioControlNeuronas : Service() {
     override fun onDestroy() {
         // Si Android mata el servicio con la sesión viva, el indicador ya no está: termina.
         if (ControlNeuronasNativo.mostrando) ControlNeuronasNativo.terminar("no-se-pudo-mostrar")
+        ControlFondo.soltar(ControlNeuronasNativo.actividadActual()) // CTL1117C
         ControlNeuronasNativo.pausarLocal = null // UNI1116B: no retener el servicio que se va
         quitarSuperposicion()
         principal.removeCallbacks(latido)

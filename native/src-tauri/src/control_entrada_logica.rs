@@ -540,6 +540,69 @@ pub fn regla_g_deja_inicio(ventanas: &[VentanaG], propio: &str, bloqueada: bool,
     })
 }
 
+/// (CTL1117C · FALLO 2) Una ventana SIN raíz (Android no dio su árbol) cuenta como la propia app solo si está PROBADO: es la ventana
+/// activa y la raíz de la ventana activa es de la propia app. Sin esa prueba sigue siendo «actividad de quien no se sabe» y se
+/// niega (`regla_g_deja_inicio`). Ampliar esto no abre nada: la propia app ya estaba permitida para Inicio cuando se la ve.
+/// Kotlin repite la prueba (`ControlEntradaNativo.sinRaizEsPropia`).
+pub fn ventana_sin_raiz_es_propia(es_la_activa: bool, raiz_de_la_activa: Option<&str>, propio: &str) -> bool {
+    es_la_activa && raiz_de_la_activa.is_some_and(|p| p.eq_ignore_ascii_case(propio))
+}
+
+/// (CTL1117C · FALLO 2) La CLASE de una ventana para la traza de un Inicio negado: nunca el nombre de otras apps, solo
+/// `propia`, `salida`, `protegida:<paquete de la lista>`, `sistema-actividad`, `otra` o `sin-raiz`. Kotlin la repite
+/// (`ControlEntradaNativo.claseVentana`).
+pub fn clase_ventana(paquete: Option<&str>, actividad: bool, propio: &str) -> String {
+    let Some(p) = paquete.map(str::to_lowercase) else { return "sin-raiz".into() };
+    if p == propio.to_lowercase() {
+        return "propia".into();
+    }
+    let (protegidos, sistema) = regla_g_listas();
+    if regla_g_salida().iter().any(|x| p == *x) {
+        "salida".into()
+    } else if protegidos.iter().any(|x| p == *x) {
+        format!("protegida:{p}")
+    } else if actividad && sistema.iter().any(|x| p == *x) {
+        "sistema-actividad".into()
+    } else {
+        "otra".into()
+    }
+}
+
+/// La traza de un Inicio negado por la regla G: `ventanas=<clase>/<tipo>[/activa],… marcas=<bloqueada,congelada,contrasena,sin-ventanas|ninguna>`.
+/// `tipo` es el de Android (`app`, `sistema`, `teclado`, `otro`). Es lo que lee quien depura desde el registro de enlaces.
+pub fn traza_inicio_negado(ventanas: &[(Option<&str>, bool, &str, bool)], propio: &str, bloqueada: bool, congelada: bool, contrasena: bool) -> String {
+    let v: Vec<String> = ventanas
+        .iter()
+        .map(|(p, actividad, tipo, activa)| format!("{}/{}{}", clase_ventana(*p, *actividad, propio), tipo, if *activa { "/activa" } else { "" }))
+        .collect();
+    let mut m: Vec<&str> = Vec::new();
+    if bloqueada {
+        m.push("bloqueada");
+    }
+    if congelada {
+        m.push("congelada");
+    }
+    if contrasena {
+        m.push("contrasena");
+    }
+    if ventanas.is_empty() {
+        m.push("sin-ventanas");
+    }
+    format!("ventanas={} marcas={}", if v.is_empty() { "ninguna".to_string() } else { v.join(",") }, if m.is_empty() { "ninguna".to_string() } else { m.join(",") })
+}
+
+/// (CTL1117C · FALLO 2) De la respuesta de Kotlin a un Inicio rechazado por regla G: la traza saneada (solo `[a-z0-9:/.,=_-]`,
+/// ≤200) para la línea `control-entrada`. `None` si no es esa respuesta.
+pub fn traza_de_inicio_negado(r: Option<&Value>) -> Option<String> {
+    let r = r?;
+    if r.get("ok").and_then(|x| x.as_bool()) == Some(true) || r.get("motivo").and_then(|x| x.as_str()) != Some("regla-g") {
+        return None;
+    }
+    let d = r.get("detalle").and_then(|x| x.as_str())?.strip_prefix("inicio-negado ")?;
+    let t: String = d.chars().filter(|c| c.is_ascii_alphanumeric() || matches!(c, ':' | '/' | '.' | ',' | '=' | '_' | '-' | ' ')).take(200).collect();
+    Some(t)
+}
+
 /// Qué hace la entrada con una orden cuando la regla G dice «protegida»: solo `tecla` con `cual = inicio` y
 /// `regla_g_deja_inicio`. Devuelve la decisión (`None` = se rechaza con `regla-g`).
 pub fn inicio_desde_protegida(nombre: &str, args: &Value, ventanas: &[VentanaG], propio: &str, bloqueada: bool, congelada: bool, contrasena: bool) -> bool {
@@ -881,6 +944,54 @@ mod pruebas {
         assert!(regla_g(&[v("COM.ANDROID.SETTINGS", false)], propio, false, false, false));
         let (p, s) = regla_g_listas();
         assert!(p.len() >= 25 && s == vec!["com.android.systemui"]);
+    }
+
+    #[test]
+    fn ctl1117c_una_ventana_sin_raiz_solo_es_la_propia_si_esta_probado() {
+        let propio = "app.starseed.os";
+        // Probada: es la activa y la raíz de la activa es nuestra.
+        assert!(ventana_sin_raiz_es_propia(true, Some("app.starseed.os"), propio));
+        assert!(ventana_sin_raiz_es_propia(true, Some("App.StarSeed.OS"), propio));
+        // Sin prueba: no es la activa, no hay raíz activa, o la activa es de otra app.
+        assert!(!ventana_sin_raiz_es_propia(false, Some("app.starseed.os"), propio));
+        assert!(!ventana_sin_raiz_es_propia(true, None, propio));
+        assert!(!ventana_sin_raiz_es_propia(true, Some("com.android.settings"), propio));
+        assert!(!ventana_sin_raiz_es_propia(true, Some(""), propio));
+        // Sin raíz y sin prueba, Inicio sigue negado (no se ensancha la lista positiva); con la prueba, el paquete propio pasa.
+        let sin_prueba = [VentanaG { paquete: None, actividad: true }];
+        assert!(!regla_g_deja_inicio(&sin_prueba, propio, false, false, false));
+        let probada = [VentanaG { paquete: Some(propio), actividad: true }];
+        assert!(regla_g_deja_inicio(&probada, propio, false, false, false));
+        // La propia + una sin raíz SIN prueba (p. ej. un diálogo de otra app): NO.
+        assert!(!regla_g_deja_inicio(&[VentanaG { paquete: Some(propio), actividad: true }, VentanaG { paquete: None, actividad: true }], propio, false, false, false));
+        // Los consentimientos y la contraseña siguen mandando aunque la ventana sea la propia.
+        assert!(!regla_g_deja_inicio(&probada, propio, false, true, false));
+        assert!(!regla_g_deja_inicio(&probada, propio, true, false, false));
+        assert!(!regla_g_deja_inicio(&probada, propio, false, false, true));
+    }
+
+    #[test]
+    fn ctl1117c_la_traza_de_un_inicio_negado_usa_clases_y_no_nombres_ajenos() {
+        let propio = "app.starseed.os";
+        assert_eq!(clase_ventana(Some(propio), true, propio), "propia");
+        assert_eq!(clase_ventana(None, true, propio), "sin-raiz");
+        assert_eq!(clase_ventana(None, false, propio), "sin-raiz");
+        assert_eq!(clase_ventana(Some("com.android.settings"), true, propio), "salida");
+        assert_eq!(clase_ventana(Some("com.google.android.permissioncontroller"), true, propio), "protegida:com.google.android.permissioncontroller");
+        assert_eq!(clase_ventana(Some("com.android.systemui"), true, propio), "sistema-actividad");
+        assert_eq!(clase_ventana(Some("com.android.systemui"), false, propio), "otra", "la cortina no es actividad");
+        assert_eq!(clase_ventana(Some("com.otra.cosa.privada"), true, propio), "otra", "una app ajena no se nombra");
+        let t = traza_inicio_negado(&[(Some(propio), true, "app", true), (None, true, "app", false), (Some("com.otra.cosa.privada"), true, "app", false)], propio, false, false, true);
+        assert_eq!(t, "ventanas=propia/app/activa,sin-raiz/app,otra/app marcas=contrasena");
+        assert!(!t.contains("privada"));
+        assert_eq!(traza_inicio_negado(&[], propio, true, true, false), "ventanas=ninguna marcas=bloqueada,congelada,sin-ventanas");
+        // La respuesta de Kotlin → la línea: solo la de un Inicio negado, saneada.
+        let r = json!({ "ok": false, "motivo": "regla-g", "detalle": format!("inicio-negado {t}<script>") });
+        assert_eq!(traza_de_inicio_negado(Some(&r)).unwrap(), format!("{t}script"));
+        assert!(traza_de_inicio_negado(Some(&json!({ "ok": false, "motivo": "regla-g" }))).is_none());
+        assert!(traza_de_inicio_negado(Some(&json!({ "ok": false, "motivo": "pausa-local", "detalle": "inicio-negado x" }))).is_none());
+        assert!(traza_de_inicio_negado(Some(&json!({ "ok": true, "detalle": "inicio-desde-protegida" }))).is_none());
+        assert!(traza_de_inicio_negado(None).is_none());
     }
 
     /// FSG1116 · A2: firmar una `abrir-sesion` con una clave de prueba (P-256) y su SPKI.

@@ -140,6 +140,10 @@ fn entrada(app: &tauri::AppHandle, sesion: &str, sobre: &Value) -> Value {
         }
         Err(m) => {
             anotar_resultado(app, sesion, Err(m), "kotlin");
+            // CTL1117C · FALLO 2: un Inicio negado por la regla G dice POR QUÉ (clases de ventana, nunca nombres ajenos) en el registro de enlaces.
+            if let Some(t) = l::traza_de_inicio_negado(r.as_ref()) {
+                crate::ble::nota(None, "control-entrada", &format!("tecla inicio negada-por-regla-g {t}"));
+            }
             let mut o = json!({ "ok": false, "motivo": m.codigo() });
             for c in ["falta", "detalle"] {
                 if let Some(x) = r.as_ref().and_then(|r| r.get(c)) {

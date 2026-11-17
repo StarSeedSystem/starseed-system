@@ -278,4 +278,32 @@ mod pruebas {
         assert!(KOTLIN[si..].find("guardarInterruptor(true)").unwrap() < 200);
         assert!(!KOTLIN.contains("put(\"encendido\", true)"));
     }
+
+    #[test]
+    fn ctl1117c_con_sesion_el_webview_no_se_queda_parado_y_al_cerrar_todo_vuelve() {
+        let k = KOTLIN;
+        let f = k.find("object ControlFondo").unwrap();
+        let fondo = &k[f..f + 4200];
+        // Solo con sesión (`mostrando`): sin ella `mantener` suelta y no hace nada más.
+        let m = fondo.find("fun mantener(").unwrap();
+        assert!(fondo[m..m + 200].contains("if (!ControlNeuronasNativo.mostrando) {") && fondo[m..m + 260].contains("soltar(a)"));
+        // La misma medida que `PuertaSegundoPlano` y la llamada nativa (`onResume` + `resumeTimers`), y prioridad IMPORTANTE del renderizador.
+        assert!(fondo.contains("w.onResume()") && fondo.contains("w.resumeTimers()"));
+        assert!(fondo.contains("w.setRendererPriorityPolicy(WebView.RENDERER_PRIORITY_IMPORTANT, false)"));
+        // Al soltar: prioridad de antes y el WebView otra vez en pausa si la app sigue detrás (como lo deja Wry).
+        assert!(fondo.contains("w.setRendererPriorityPolicy(prioridadAntes, esperaAntes)") && fondo.contains("if (enFondo) w.onPause()"));
+        // Quién la mueve: onPause/onStop/onResume de la actividad, el latido del indicador (que solo corre con sesión) y el cierre.
+        assert!(k.contains("override fun onActivityPaused(a: Activity) { ControlFondo.cambio(a, true) }"));
+        assert!(k.contains("override fun onActivityStopped(a: Activity) { ControlFondo.cambio(a, true) }"));
+        assert!(k.contains("ControlFondo.cambio(a, false)"));
+        let l = k.find("private val latido = object : Runnable").unwrap();
+        assert!(k[l..l + 400].contains("if (!ControlNeuronasNativo.mostrando) return") && k[l..l + 400].contains("ControlFondo.mantener(ControlNeuronasNativo.actividadActual())"));
+        let c = k.find("private fun cerrar()").unwrap();
+        assert!(k[c..c + 200].contains("ControlFondo.soltar(") && k.matches("ControlFondo.soltar(").count() == 2);
+        // El estado para Rust (solo diagnóstico) y NINGÚN permiso nuevo para sostenerlo (ni WakeLock ni ignorar la batería).
+        assert!(k.contains(".put(\"en_fondo\", ControlFondo.enFondo)") && k.contains(".put(\"fondo\", ControlFondo.medida)") && k.contains(".put(\"reanudos\", ControlFondo.reanudos)"));
+        for malo in ["WAKE_LOCK", "WakeLock", "REQUEST_IGNORE_BATTERY_OPTIMIZATIONS", "PowerManager"] {
+            assert!(!fondo.contains(malo), "{malo}");
+        }
+    }
 }

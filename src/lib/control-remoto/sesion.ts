@@ -117,6 +117,12 @@ export class PuertaControl {
 
     constructor(private readonly d: DepsPuerta) {}
 
+    private servidas = 0;
+    /** CTL1117C · FALLO 1: órdenes cumplidas (solo un contador, para la línea `control-fondo`). */
+    ordenesServidas(): number {
+        return this.servidas;
+    }
+
     sesionActiva(): SesionActiva | null {
         this.caducarSesion();
         return this.sesion;
@@ -173,6 +179,7 @@ export class PuertaControl {
         this.d.anotar(`orden ${marca} de=${de ? de.slice(0, 8) : "-"} nivel=${nivel} resultado=${ok ? "ok" : `rechazo:${motivo}`}${extra}${sim}`);
         if (!ok) this.d.nativo.anotar(marca, de, `rechazo:${motivo}`); // ORD1114Q: también en el registro encadenado
         const cuerpo = resultado !== undefined ? resultado : !ok && detalle ? { detalle } : undefined;
+        if (ok && nombre !== "abrir-sesion" && nombre !== "cerrar-sesion") this.servidas += 1; // CTL1117C: para el diagnóstico de segundo plano
         return { tipo: "respuesta", nonce, ok, motivo, ...(cuerpo !== undefined ? { resultado: cuerpo } : {}) };
     }
 
@@ -324,7 +331,9 @@ export class PuertaControl {
         if (!visto.ok) {
             if (this.sesion === s) this.sesion = null;
             this.d.alCambiar?.();
-            return this.respuesta(c.nonce, false, visto.motivo === "sin-indicador-nativo" ? "sin-indicador-nativo" : "parada-nativa", nombre, c.de, s.nivel);
+            // CTL1117C · FALLO 3: «parada-nativa» lleva el motivo REAL de lo nativo (no siempre es «Terminar»).
+            const sinIndicador = visto.motivo === "sin-indicador-nativo";
+            return this.respuesta(c.nonce, false, sinIndicador ? "sin-indicador-nativo" : "parada-nativa", nombre, c.de, s.nivel, undefined, visto.detalle);
         }
         try {
             const r = await this.d.ejecutar(nombre, args, c, sobre, { token: s.token, nivel: s.nivel });

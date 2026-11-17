@@ -106,6 +106,29 @@ object ControlEntradaNativo {
         }
     }
 
+    /**
+     * CTL1117C · FALLO 2: una ventana SIN raíz (Android no dio su árbol) cuenta como la propia app solo si está PROBADO: es la
+     * ventana activa y la raíz de la ventana activa es de la propia app. Sin prueba sigue siendo «una actividad de quien no se
+     * sabe» y se niega. La MISMA decisión que `ventana_sin_raiz_es_propia` de control_entrada_logica.rs.
+     */
+    fun sinRaizEsPropia(esLaActiva: Boolean, raizDeLaActiva: String?, propio: String): Boolean =
+        esLaActiva && raizDeLaActiva != null && raizDeLaActiva.equals(propio, ignoreCase = true)
+
+    /**
+     * CTL1117C · FALLO 2: la CLASE de una ventana para la traza de un Inicio negado (nunca el nombre de otras apps): `propia`,
+     * `salida`, `protegida:<paquete de la lista>`, `sistema-actividad`, `otra` o `sin-raiz`. La MISMA que `clase_ventana` de Rust.
+     */
+    fun claseVentana(paquete: String?, actividad: Boolean, propio: String): String {
+        val p = paquete?.lowercase() ?: return "sin-raiz"
+        return when {
+            p == propio.lowercase() -> "propia"
+            p in ReglaGLista.SALIDA -> "salida"
+            p in ReglaGLista.PROTEGIDOS -> "protegida:" + p
+            actividad && p in ReglaGLista.SISTEMA -> "sistema-actividad"
+            else -> "otra"
+        }
+    }
+
     private lateinit var app: Context
     private lateinit var dir: File
     private val principal = Handler(Looper.getMainLooper())
@@ -577,20 +600,48 @@ class ServicioControlEntrada : AccessibilityService() {
         return ControlEntradaNativo.reglaG(vs, packageName, bloqueada, ControlEntradaNativo.congelado(), contrasena)
     }
 
-    /** CTL1117A: ¿deja pasar la tecla Inicio la situación de ahora? (las mismas entradas que la regla G, mirada aparte). */
+    /** CTL1117C · FALLO 2: por qué se negó el último Inicio (clases de ventana y marcas; ver `traza_inicio_negado` de Rust). */
+    @Volatile private var trazaInicio = ""
+
+    /**
+     * CTL1117A: ¿deja pasar la tecla Inicio la situación de ahora? (las mismas entradas que la regla G, mirada aparte).
+     * CTL1117C: una ventana sin raíz se cuenta como la propia solo si está probado (`sinRaizEsPropia`); y si se niega, deja en
+     * `trazaInicio` POR QUÉ (la clase de cada ventana a la vista, su tipo y si es la activa, y las marcas), sin nombrar otras apps.
+     */
     private fun inicioDesdeProtegida(): Boolean {
         val bloqueada = try { (getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager).isKeyguardLocked } catch (_: Throwable) { true }
         val vs = ArrayList<Pair<String?, Boolean>>()
+        val clases = ArrayList<String>()
+        val raizActiva = try { rootInActiveWindow?.packageName?.toString() } catch (_: Throwable) { null }
         try {
             for (w in windows ?: emptyList<AccessibilityWindowInfo>()) {
                 if (w.type == AccessibilityWindowInfo.TYPE_ACCESSIBILITY_OVERLAY) continue
-                val p = try { w.root?.packageName?.toString() } catch (_: Throwable) { null }
-                vs.add(Pair(p, w.type == AccessibilityWindowInfo.TYPE_APPLICATION))
+                val raiz = try { w.root?.packageName?.toString() } catch (_: Throwable) { null }
+                val p = raiz ?: (if (ControlEntradaNativo.sinRaizEsPropia(w.isActive, raizActiva, packageName)) packageName else null)
+                val actividad = w.type == AccessibilityWindowInfo.TYPE_APPLICATION
+                vs.add(Pair(p, actividad))
+                val tipo = when (w.type) {
+                    AccessibilityWindowInfo.TYPE_APPLICATION -> "app"
+                    AccessibilityWindowInfo.TYPE_SYSTEM -> "sistema"
+                    AccessibilityWindowInfo.TYPE_INPUT_METHOD -> "teclado"
+                    else -> "otro"
+                }
+                clases.add(ControlEntradaNativo.claseVentana(p, actividad, packageName) + "/" + tipo + (if (w.isActive) "/activa" else "") + (if (raiz == null && p != null) "/raiz-probada" else ""))
             }
-        } catch (_: Throwable) { vs.clear() }
-        if (vs.isEmpty()) rootInActiveWindow?.packageName?.toString()?.let { vs.add(Pair(it, true)) }
+        } catch (_: Throwable) { vs.clear(); clases.clear() }
+        if (vs.isEmpty()) rootInActiveWindow?.packageName?.toString()?.let { vs.add(Pair(it, true)); clases.add(ControlEntradaNativo.claseVentana(it, true, packageName) + "/app/activa/respaldo") }
         val contrasena = try { rootInActiveWindow?.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)?.isPassword == true } catch (_: Throwable) { true }
-        return ControlEntradaNativo.reglaGInicio(vs, packageName, bloqueada, ControlEntradaNativo.congelado(), contrasena)
+        val congelada = ControlEntradaNativo.congelado()
+        val pasa = ControlEntradaNativo.reglaGInicio(vs, packageName, bloqueada, congelada, contrasena)
+        if (!pasa) {
+            val marcas = ArrayList<String>()
+            if (bloqueada) marcas.add("bloqueada")
+            if (congelada) marcas.add("congelada")
+            if (contrasena) marcas.add("contrasena")
+            if (vs.isEmpty()) marcas.add("sin-ventanas")
+            trazaInicio = "ventanas=" + (if (clases.isEmpty()) "ninguna" else clases.joinToString(",")) + " marcas=" + (if (marcas.isEmpty()) "ninguna" else marcas.joinToString(","))
+        }
+        return pasa
     }
 
     private fun rechazo(m: String): JSONObject = JSONObject().put("ok", false).put("motivo", m)
@@ -610,7 +661,7 @@ class ServicioControlEntrada : AccessibilityService() {
                 // CTL1117A: SOLO la tecla Inicio pasa desde una ventana protegida (con su traza propia); todo lo demás sigue negado.
                 if (nombre == "tecla" && args.optString("cual") == "inicio" && inicioDesdeProtegida()) {
                     tecla("inicio").also { if (it.optBoolean("ok", false)) it.put("detalle", "inicio-desde-protegida") }
-                } else rechazo("regla-g")
+                } else rechazo("regla-g").also { if (nombre == "tecla" && args.optString("cual") == "inicio") it.put("detalle", "inicio-negado " + trazaInicio) } // CTL1117C · FALLO 2
             } else when (nombre) {
                 "gesto" -> gesto(args)
                 "tecla" -> tecla(args.optString("cual"))

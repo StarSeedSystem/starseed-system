@@ -254,6 +254,24 @@ impl Control {
         true
     }
 
+    /// (CTL1117C · FALLO 3) El detalle de un rechazo `parada-nativa`: POR QUÉ no hay sesión, para que quien manda no diga que la
+    /// persona pulsó «Terminar» cuando fue la caducidad, el indicador perdido u otra cosa. `motivo=` es el de `parar` (solo
+    /// `a-z` y `-`), `hace=` los segundos desde esa parada; sin parada conocida, `sin-sesion`; con sesión pero de otro token,
+    /// `otro-token`. Cualquier otro rechazo no lleva detalle.
+    pub fn detalle_parada(&self, r: Rechazo, ahora: u64) -> Option<String> {
+        match r {
+            Rechazo::SinSesion => Some(match &self.ultima_parada {
+                Some((t, m)) => {
+                    let k = clave_de_motivo(m);
+                    format!("motivo={} hace={}", if k.is_empty() { "sin-sesion" } else { &k }, (ahora.saturating_sub(*t) / 1000).min(99_999))
+                }
+                None => "motivo=sin-sesion".into(),
+            }),
+            Rechazo::Token => Some("motivo=otro-token".into()),
+            _ => None,
+        }
+    }
+
     pub fn pausada(&self) -> bool {
         self.sesion.as_ref().is_some_and(|s| s.pausada_ms.is_some())
     }
@@ -317,6 +335,67 @@ pub fn motivo_apaga(motivo: &str) -> bool {
 }
 
 // ─────────────────────────── Registro encadenado ───────────────────────────
+
+/// (CTL1117C) Un motivo de parada como clave corta `a-z` y `-` (lo que viaja en el rechazo y se lee en la ventana).
+pub fn clave_de_motivo(m: &str) -> String {
+    let mut o = String::new();
+    for c in m.chars().take(60) {
+        let c = c.to_ascii_lowercase();
+        if c.is_ascii_lowercase() {
+            o.push(c);
+        } else if !o.ends_with('-') && !o.is_empty() {
+            o.push('-');
+        }
+    }
+    while o.ends_with('-') {
+        o.pop();
+    }
+    o.chars().take(40).collect()
+}
+
+/// (CTL1117C) Lo que Kotlin sabe del indicador y de la actividad, para las líneas `control-sesion` y `control-fondo`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DatosKotlin {
+    pub latido_ms: u64,
+    pub mostrando: bool,
+    pub en_fondo: bool,
+    pub medida: String,
+    pub reanudos: u32,
+}
+
+fn si_no(b: bool) -> &'static str {
+    if b { "si" } else { "no" }
+}
+
+fn solo_clave(s: &str, max: usize) -> String {
+    s.chars().filter(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | ':' | '.' | ',' | '=' | ' ')).take(max).collect()
+}
+
+impl DatosKotlin {
+    fn texto(&self) -> String {
+        let m = clave_de_motivo(&self.medida);
+        format!("latido-ms={} mostrando={} kotlin-en-fondo={} medida={} reanudos={}", self.latido_ms.min(9_999_999), si_no(self.mostrando), si_no(self.en_fondo), if m.is_empty() { "ninguna" } else { &m }, self.reanudos)
+    }
+}
+
+/// `fin de=… motivo=… latido-ms=… mostrando=… kotlin-en-fondo=… medida=… reanudos=…` (sin Kotlin, solo `de` y `motivo`).
+pub fn linea_fin_sesion(de8: &str, motivo: &str, k: Option<&DatosKotlin>) -> String {
+    let de: String = de8.chars().filter(|c| c.is_ascii_hexdigit()).take(8).collect();
+    let base = format!("fin de={} motivo={}", if de.is_empty() { "-" } else { &de }, { let m = clave_de_motivo(motivo); if m.is_empty() { "otro".to_string() } else { m } });
+    match k {
+        Some(k) => format!("{base} {}", k.texto()),
+        None => base,
+    }
+}
+
+/// `control-fondo`: lo que dijo la página (acotado a `clave=valor` sin caracteres raros) y lo nativo.
+pub fn linea_fondo(pagina: &str, k: Option<&DatosKotlin>) -> String {
+    let p = solo_clave(pagina.trim(), 170);
+    match k {
+        Some(k) => format!("{p} {}", k.texto()),
+        None => p,
+    }
+}
 
 fn limpiar(s: &str, max: usize) -> String {
     s.chars().map(|c| if c.is_control() { ' ' } else { c }).take(max).collect()
@@ -392,6 +471,48 @@ mod pruebas {
         assert!(c.parar(3_000, "la persona, desde el indicador").is_some());
         assert_eq!(c.orden(TOK, "colgar", 3_001, true).unwrap_err(), Rechazo::SinSesion);
         assert_eq!(c.ultima_parada.as_ref().unwrap().1, "la persona, desde el indicador");
+    }
+
+    #[test]
+    fn ctl1117c_la_parada_nativa_dice_su_motivo_real() {
+        let mut c = Control::default();
+        assert_eq!(c.detalle_parada(Rechazo::SinSesion, 5_000).as_deref(), Some("motivo=sin-sesion"), "nunca hubo parada");
+        c.abrir(TOK, DE, "Mac", "controlar", 1_000, true).unwrap();
+        assert_eq!(c.detalle_parada(Rechazo::Token, 2_000).as_deref(), Some("motivo=otro-token"));
+        assert_eq!(c.detalle_parada(Rechazo::Pausada, 2_000), None, "otros rechazos no llevan detalle");
+        assert_eq!(c.detalle_parada(Rechazo::SinIndicador, 2_000), None);
+        for (motivo, esperado) in [
+            ("caducada", "caducada"),
+            ("sin-indicador", "sin-indicador"),
+            ("la-persona-desde-el-indicador", "la-persona-desde-el-indicador"),
+            ("notificacion-descartada", "notificacion-descartada"),
+            ("la persona, desde el indicador", "la-persona-desde-el-indicador"),
+            ("¡¡!!", "sin-sesion"),
+        ] {
+            let mut c = Control::default();
+            c.abrir(TOK, DE, "Mac", "controlar", 1_000, true).unwrap();
+            c.parar(3_000, motivo);
+            assert_eq!(c.orden(TOK, "leer-aparato", 4_000, true).unwrap_err(), Rechazo::SinSesion);
+            assert_eq!(c.detalle_parada(Rechazo::SinSesion, 12_500).unwrap(), format!("motivo={esperado} hace=9"), "{motivo}");
+        }
+        // Lo que viaja cabe en el formato de la página (`clave=valor`, valores `[a-z0-9:_.,-]`).
+        let d = c.detalle_parada(Rechazo::SinSesion, 0).unwrap();
+        assert!(d.split(' ').all(|p| p.split_once('=').is_some_and(|(k, v)| k.chars().all(|c| c.is_ascii_lowercase()) && v.chars().all(|c| c.is_ascii_alphanumeric() || c == '-'))));
+    }
+
+    #[test]
+    fn ctl1117c_las_lineas_de_fin_y_de_fondo_son_acotadas_y_sin_contenido() {
+        let k = DatosKotlin { latido_ms: 7_400, mostrando: true, en_fondo: true, medida: "webview-activo".into(), reanudos: 12 };
+        assert_eq!(
+            linea_fin_sesion("0011AABB<x>", "Sin-Indicador", Some(&k)),
+            "fin de=0011AABB motivo=sin-indicador latido-ms=7400 mostrando=si kotlin-en-fondo=si medida=webview-activo reanudos=12"
+        );
+        assert_eq!(linea_fin_sesion("", "!!", None), "fin de=- motivo=otro");
+        let l = linea_fondo("inicio-fondo estado=oculta <script>alert(1)</script> deriva-ms=840\nx", Some(&k));
+        assert!(l.starts_with("inicio-fondo estado=oculta") && !l.contains('<') && !l.contains('\n') && l.contains("medida=webview-activo"), "{l}");
+        assert!(linea_fondo(&"a".repeat(900), None).len() <= 170);
+        let sin = DatosKotlin { medida: String::new(), ..k };
+        assert!(linea_fondo("x", Some(&sin)).contains("medida=ninguna"));
     }
 
     #[test]
