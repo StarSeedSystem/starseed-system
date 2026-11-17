@@ -8,10 +8,11 @@
  * Honestidad: lo que se comparte es el acomodo y la configuración. Los datos de dentro de cada
  * widget (notas, tareas, ubicación…) son de quien mira, y la página lo dice.
  */
-import { LayoutDashboard, Loader2, Pencil, Info, TriangleAlert, Users, Check } from "lucide-react";
+import { LayoutDashboard, Loader2, Pencil, Info, TriangleAlert, Users, Check, Share2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import { AddWidgetDialog } from "@/components/dashboard/add-widget-dialog";
 import type { DashboardWidget, WidgetType } from "@/components/dashboard/dashboard-types";
 import { GridArea } from "@/components/dashboard/grid-area";
@@ -34,7 +35,14 @@ import { PanelCompartir } from "../tabla/panel-compartir";
 import { usePerfiles } from "../tabla/personas";
 import { useMotorVivo } from "../tabla/use-motor";
 import { usePresencia } from "../tabla/use-presencia";
+import { MarcaDirecto } from "@/components/vivo-entidad/marca-directo";
+import { compartirEnVivo } from "@/lib/vivo-entidad/estacion-de-sesion";
+import { crearSesion } from "@/lib/mensajeria/sesiones-vivas";
+import { publicarEstacion } from "@/lib/estaciones/datos";
+import type { TipoSesionVivo } from "@/components/vivo-entidad/compartir-en-vivo";
 import css from "../tabla/tabla.module.css";
+
+const CompartirEnVivo = dynamic(() => import("@/components/vivo-entidad/compartir-en-vivo").then((m) => m.CompartirEnVivo), { ssr: false });
 
 const NOTA_FUSION =
     "Cada widget se guarda por separado: si dos personas mueven o cambian widgets distintos a la vez se conservan los dos cambios. Si cambian el mismo widget a la vez, se queda lo último que se guardó. Los datos de dentro de cada widget no se comparten: cada persona ve los suyos.";
@@ -50,6 +58,7 @@ export function DashboardVivo({ id }: { id: string }) {
     const widgets = useMemo(() => (doc ? aWidgets(doc, id) : []), [doc, id]);
     const [editando, setEditando] = useState(false);
     const [compartir, setCompartir] = useState(false);
+    const [compartirEnVivoAbierta, setCompartirEnVivoAbierta] = useState(false);
     const [tituloLocal, setTituloLocal] = useState<string | null>(null);
     const [accesoLocal, setAccesoLocal] = useState<string | null>(null);
     useEffect(() => setTituloLocal(null), [snap.titulo]);
@@ -57,6 +66,47 @@ export function DashboardVivo({ id }: { id: string }) {
     useEffect(() => {
         if (!puedeEditar) setEditando(false);
     }, [puedeEditar]);
+
+    // SES1115Q — «Compartir en vivo» y marca de directo
+    const crearSesionVivo = useCallback(
+        async (opts: {
+            con: "mis-neuronas" | "entidad" | "enlace";
+            acceso: "editar" | "mirar";
+            tipo: TipoSesionVivo;
+            titulo: string;
+            hiloId?: string | null;
+            entidadRef?: string;
+            invitados?: string[];
+        }) => {
+            return compartirEnVivo(
+                {
+                    crearPase: async (p) => {
+                        const r = await crearSesion({ ...p, tipo: `vivo:${p.tipo}` });
+                        return { sesion: r.sesion ? { id: r.sesion.id, tipo: r.sesion.tipo, tokenPublico: r.sesion.tokenPublico ?? null, creador: r.sesion.creador } : null, error: r.error };
+                    },
+                    crearEstacion: publicarEstacion,
+                },
+                opts,
+            );
+        },
+        [],
+    );
+
+    const directo = presentes.length > 0;
+    const personas = presentes.length + 1;
+
+    const menuBase: ItemMenu[] = useMemo(
+        () => [{ id: "lista", etiqueta: "Ver mis dashboards compartidos", icono: LayoutDashboard, alElegir: () => router.push("/dashboard-compartido") }],
+        [router],
+    );
+
+    const menuConVivo: ItemMenu[] = useMemo(
+        () => [
+            ...menuBase,
+            { id: "compartir-vivo", etiqueta: "Compartir en vivo", icono: Share2, alElegir: () => setCompartirEnVivoAbierta(true) },
+        ],
+        [menuBase],
+    );
 
     const ref = useRef(widgets);
     ref.current = widgets;
@@ -153,7 +203,6 @@ export function DashboardVivo({ id }: { id: string }) {
         );
     }
 
-    const menu: ItemMenu[] = [{ id: "lista", etiqueta: "Ver mis dashboards compartidos", icono: LayoutDashboard, alElegir: () => router.push("/dashboard-compartido") }];
     const esDueno = !!uid && snap.propietario === uid;
 
     return (
@@ -173,7 +222,7 @@ export function DashboardVivo({ id }: { id: string }) {
                 alDeshacer={() => void motor?.deshacer()}
                 alRehacer={() => void motor?.rehacer()}
                 alCompartir={() => setCompartir(true)}
-                menu={menu}
+                menu={menuConVivo}
             >
                 {puedeEditar ? (
                     <>
@@ -185,6 +234,7 @@ export function DashboardVivo({ id }: { id: string }) {
                     </>
                 ) : null}
             </BarraHerramientas>
+            <MarcaDirecto directo={directo} personas={personas} compacto />
 
             <div className={`${css.aviso} ${css.avisoInfo}`} role="note">
                 <Info size={16} className={css.avisoIcono} aria-hidden="true" />
@@ -229,6 +279,13 @@ export function DashboardVivo({ id }: { id: string }) {
                 rutaPublica={rutaDashboard(id)}
                 nota={NOTA_FUSION}
                 alCambiarAcceso={setAccesoLocal}
+            />
+            <CompartirEnVivo
+                abierta={compartirEnVivoAbierta}
+                alCerrar={() => setCompartirEnVivoAbierta(false)}
+                titulo={tituloLocal ?? snap.titulo}
+                tipo="dashboard"
+                crear={crearSesionVivo}
             />
         </div>
     );
