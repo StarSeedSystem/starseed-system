@@ -16,6 +16,7 @@ import { trozoDeLineaSSE } from "@/lib/astraura/conversacion-rapida";
 import { IDIOMAS } from "@/lib/idiomas/idiomas";
 import { establecerPaginaTraducida, registrarEntradaMenuTexto, type ContextoMenuTexto, type EntradaMenuTexto } from "@/components/traduccion/menu-texto";
 import { entradasIdioma } from "@/components/traduccion/entradas-idioma";
+import { capturarSeleccionEditable, reemplazar, deshacerUltimo, type ObjetivoEditable } from "@/components/traduccion/reemplazar-seleccion";
 import { leerEnVoz, detener, type EntornoVoz } from "@/lib/idiomas/leer-en-voz";
 import { crearEditor } from "@/lib/idiomas/paquete/editor";
 import { almacenPaquetes, EVENTO_CAMBIO } from "@/lib/idiomas/paquete/almacen";
@@ -84,18 +85,30 @@ export async function traducirConAstraura(textos: string[], _origen: string, des
     return salida;
 }
 
-/** Las cuatro entradas del menú de TRD1020E; las acciones las trae el componente. */
+/** Las cinco entradas del menú de TRD1020E + TRA1116; las acciones las trae el componente. */
 export function entradasTraduccion(acciones: {
     traducirSeleccion: (texto: string) => void;
     traducirParrafo: (texto: string) => void;
     traducirPagina: () => void;
     verOriginal: () => void;
+    reemplazarPorTraduccion: (texto: string, objetivo: ObjetivoEditable) => void;
 }): EntradaMenuTexto[] {
     return [
         { id: "traducir-seleccion", etiqueta: "Traducir selección", visible: (c) => c.seleccion.length > 0, ejecutar: (c) => acciones.traducirSeleccion(textosATraducir(c).seleccion) },
         { id: "traducir-parrafo", etiqueta: "Traducir este párrafo", ejecutar: (c) => acciones.traducirParrafo(textosATraducir(c).parrafo) },
         { id: "traducir-pagina", etiqueta: "Traducir toda la página", ejecutar: () => acciones.traducirPagina() },
         { id: "ver-original", etiqueta: "Ver original", visible: (c) => c.paginaTraducida, ejecutar: () => acciones.verOriginal() },
+        {
+            id: "reemplazar-por-traduccion",
+            etiqueta: "Reemplazar por la traducción",
+            visible: (c) => c.seleccion.length > 0 && c.objetivo !== null && (c.objetivo instanceof HTMLInputElement || c.objetivo instanceof HTMLTextAreaElement || (c.objetivo as HTMLElement).isContentEditable),
+            ejecutar: (c) => {
+                const objetivo = capturarSeleccionEditable(document);
+                if (objetivo) {
+                    acciones.reemplazarPorTraduccion(c.seleccion, objetivo);
+                }
+            },
+        },
     ];
 }
 
@@ -175,10 +188,11 @@ export function TraducirTexto() {
 
     useEffect(() => {
         const quitar = entradasTraduccion({
-            traducirSeleccion: (t) => void traducirUno(t),
-            traducirParrafo: (t) => void traducirUno(t),
-            traducirPagina: () => void traducirPagina(),
+            traducirSeleccion: (t) => { traducirUno(t); },
+            traducirParrafo: (t) => { traducirUno(t); },
+            traducirPagina: () => { traducirPagina(); },
             verOriginal,
+            reemplazarPorTraduccion: (texto, objetivo) => { reemplazar(objetivo, texto); },
         }).map(registrarEntradaMenuTexto);
         // TRA1116: las tres entradas de idioma van al MISMO menú del clic derecho.
         // El editor de paquetes se rehace cuando el almacén avisa (abrir o cerrar

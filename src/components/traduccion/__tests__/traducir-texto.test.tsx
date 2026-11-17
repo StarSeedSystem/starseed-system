@@ -109,19 +109,21 @@ describe("crearMotores · capas según la página, con el motor simulado", () =>
 describe("entradasTraduccion · las cuatro entradas del menú de TRD1020E", () => {
   const hechas: string[] = [];
   const acciones = {
-    traducirSeleccion: (t: string) => hechas.push(`seleccion:${t}`),
-    traducirParrafo: (t: string) => hechas.push(`parrafo:${t}`),
-    traducirPagina: () => hechas.push("pagina"),
-    verOriginal: () => hechas.push("original"),
+    traducirSeleccion: (t: string) => { hechas.push(`seleccion:${t}`); },
+    traducirParrafo: (t: string) => { hechas.push(`parrafo:${t}`); },
+    traducirPagina: () => { hechas.push("pagina"); },
+    verOriginal: () => { hechas.push("original"); },
+    reemplazarPorTraduccion: (t: string, _objetivo: { elemento: Element; inicio: number; fin: number; texto: string; esContentEditable: boolean }) => { hechas.push(`reemplazar:${t}`); },
   };
   const porId = Object.fromEntries(entradasTraduccion(acciones).map((e) => [e.id, e]));
 
-  it("producen exactamente las cuatro, con visibilidad por caso", () => {
+  it("producen exactamente las cinco, con visibilidad por caso", () => {
     expect(entradasTraduccion(acciones).map((e) => e.etiqueta)).toEqual([
       "Traducir selección",
       "Traducir este párrafo",
       "Traducir toda la página",
       "Ver original",
+      "Reemplazar por la traducción",
     ]);
     // Visibilidad juzgada por entradasVisibles, el filtro que usa de verdad el menú.
     expect(entradasVisibles([porId["traducir-seleccion"]], ctx({ seleccion: "hola" }))).toHaveLength(1);

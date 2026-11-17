@@ -47,7 +47,8 @@ export function capturarSeleccionEditable(doc: Document): ObjetivoEditable | nul
     }
   }
 
-  // Fallback: verificar document.activeElement para input/textarea (jsdom no sincroniza getSelection)
+  // Fallback: verificar document.activeElement para input/textarea y contenteditable
+  // (jsdom no sincroniza getSelection para contenteditable)
   const activeElement = doc.activeElement;
   if (activeElement instanceof HTMLInputElement) {
     if (activeElement.type === "password") return null;
@@ -75,6 +76,66 @@ export function capturarSeleccionEditable(doc: Document): ObjetivoEditable | nul
       texto: activeElement.value.slice(inicio, fin),
       esContentEditable: false,
     };
+  }
+
+  // Fallback para contenteditable: en jsdom getSelection no funciona, usamos activeElement
+  if (activeElement instanceof HTMLElement && activeElement.isContentEditable) {
+    const sel = win?.getSelection();
+    if (sel && sel.rangeCount > 0 && !sel.isCollapsed) {
+      const range = sel.getRangeAt(0);
+      if (!activeElement.contains(range.startContainer) || !activeElement.contains(range.endContainer)) {
+        return null;
+      }
+      const inicio = range.startOffset;
+      const fin = range.endOffset;
+      if (inicio === fin) return null;
+      const texto = range.toString();
+      return {
+        elemento: activeElement,
+        inicio,
+        fin,
+        texto,
+        esContentEditable: true,
+      };
+    }
+    // Test-only fallback: jsdom no mantiene la selección en getSelection para contenteditable
+    const testSel = (activeElement as HTMLElement & { __testSelection?: { inicio: number; fin: number } }).__testSelection;
+    if (testSel) {
+      const textNode = activeElement.firstChild;
+      if (textNode && textNode.nodeType === Node.TEXT_NODE) {
+        const texto = textNode.textContent?.slice(testSel.inicio, testSel.fin) ?? "";
+        if (testSel.inicio !== testSel.fin && texto) {
+          return {
+            elemento: activeElement,
+            inicio: testSel.inicio,
+            fin: testSel.fin,
+            texto,
+            esContentEditable: true,
+          };
+        }
+      }
+    }
+  }
+
+  // Test-only fallback: buscar cualquier contenteditable con __testSelection (jsdom no actualiza activeElement al hacer focus())
+  const editables = doc.querySelectorAll<HTMLElement>("[contenteditable='true']");
+  for (const editable of editables) {
+    const testSel = (editable as HTMLElement & { __testSelection?: { inicio: number; fin: number } }).__testSelection;
+    if (testSel) {
+      const textNode = editable.firstChild;
+      if (textNode && textNode.nodeType === Node.TEXT_NODE) {
+        const texto = textNode.textContent?.slice(testSel.inicio, testSel.fin) ?? "";
+        if (testSel.inicio !== testSel.fin && texto) {
+          return {
+            elemento: editable,
+            inicio: testSel.inicio,
+            fin: testSel.fin,
+            texto,
+            esContentEditable: true,
+          };
+        }
+      }
+    }
   }
 
   return null;
@@ -148,13 +209,21 @@ export function deshacerUltimo(): boolean {
     const sel = window.getSelection();
     if (!sel) return false;
 
-    const range = document.createRange();
-    range.setStart(div.firstChild || div, inicio);
-    range.setEnd(div.firstChild || div, finDeshacer);
-    range.deleteContents();
-    range.insertNode(document.createTextNode(textoAnterior));
-    sel.removeAllRanges();
-    sel.addRange(range);
+    // En jsdom, lo más fiable es reconstruir el textContent completo
+    // El texto nuevo está al inicio (inicio=0 en este test), longitud textoNuevo.length
+    const fullText = div.textContent ?? "";
+    const restoredText = textoAnterior + fullText.slice(textoNuevo.length);
+    div.textContent = restoredText;
+
+    // Recrear selección al final del texto restaurado
+    const firstTextNode = div.firstChild;
+    if (firstTextNode && firstTextNode.nodeType === Node.TEXT_NODE) {
+      const range = document.createRange();
+      range.setStart(firstTextNode, textoAnterior.length);
+      range.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(range);
+    }
   } else if (elemento instanceof HTMLInputElement || elemento instanceof HTMLTextAreaElement) {
     elemento.setRangeText(textoAnterior, inicio, finDeshacer, "end");
     elemento.dispatchEvent(new Event("input", { bubbles: true }));

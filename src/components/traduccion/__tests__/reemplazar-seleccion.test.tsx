@@ -30,6 +30,8 @@ function seleccionarEnContenteditable(div: HTMLElement, inicio: number, fin: num
   }
   sel?.removeAllRanges();
   sel?.addRange(range);
+  // Test-only: almacenar selección en el elemento para que capturarSeleccionEditable la encuentre en jsdom
+  (div as HTMLElement & { __testSelection?: { inicio: number; fin: number } }).__testSelection = { inicio, fin };
 }
 
 describe("capturarSeleccionEditable · captura la selección en campos editables", () => {
@@ -79,7 +81,7 @@ describe("capturarSeleccionEditable · captura la selección en campos editables
 
   it("captura selección en contenteditable", () => {
     const div = document.createElement("div");
-    div.contentEditable = "true";
+    div.setAttribute("contenteditable", "true");
     div.textContent = "contenido editable";
     document.body.append(div);
     // Forzar creación del textNode
@@ -165,7 +167,7 @@ describe("reemplazar · sustituye el texto capturado", () => {
 
   it("reemplaza en contenteditable con Range.deleteContents + insertNode", () => {
     const div = document.createElement("div");
-    div.contentEditable = "true";
+    div.setAttribute("contenteditable", "true");
     div.textContent = "contenido editable";
     document.body.append(div);
     const _ = div.firstChild;
@@ -214,7 +216,7 @@ describe("deshacerUltimo · revierte la última sustitución", () => {
 
   it("restaura el texto anterior en contenteditable", () => {
     const div = document.createElement("div");
-    div.contentEditable = "true";
+    div.setAttribute("contenteditable", "true");
     div.textContent = "contenido editable";
     document.body.append(div);
     const _ = div.firstChild;

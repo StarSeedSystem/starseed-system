@@ -62,8 +62,13 @@ export function abreMenuTexto(
   objetivo: Element | null,
   hayTexto: boolean,
 ): boolean {
+  const editable = esEditable(objetivo);
   return (
-    objetivo !== null && !evento.defaultPrevented && !evento.shiftKey && hayTexto && !esEditable(objetivo)
+    objetivo !== null &&
+    !evento.defaultPrevented &&
+    !evento.shiftKey &&
+    hayTexto &&
+    !editable
   );
 }
 
