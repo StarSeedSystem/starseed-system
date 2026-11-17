@@ -803,3 +803,155 @@ def test_1103_o_reaperturas_sin_intento_desde_ajustes(tmp_path):
     dos = [100_000.0 - 7200, 100_000.0 - 5000]
     assert not B.puede_reabrir_tarea(dos, 100_000.0, "devuelta de la nube: su run terminó", extra=0)
     assert B.puede_reabrir_tarea(dos, 100_000.0, "devuelta de la nube: su run terminó", extra=1)
+
+
+class FrenoMismoMotivo(unittest.TestCase):
+    """(HAL09) Freno por mismo motivo: si las últimas tareas acaban en el mismo fallo,
+    no se lanzan jobs nuevos y el resumen dice por qué."""
+
+    def _progreso_con_mismo_motivo(self, tmp_path, n_total=10, n_mismo=7, motivo="sin_cambios"):
+        """Crea un progreso.json con n_mismo tareas terminadas en 'motivo' y el resto en otros estados."""
+        import json
+        ahora = AHORA
+        progreso = {}
+        for i in range(n_mismo):
+            tid = f"T{i}"
+            progreso[tid] = {
+                "estado": "sin_cambios",
+                "nota": f"la nube dijo «{motivo}»",
+                "fin": ahora - (n_mismo - i) * 3600,
+            }
+        otros_estados = ["commit", "fallo_tsc", "rechazada"]
+        for i, est in enumerate(otros_estados):
+            if n_mismo + i >= n_total:
+                break
+            tid = f"T{n_mismo + i}"
+            nota = f"la nube dijo «{est}»" if est != "commit" else ""
+            progreso[tid] = {
+                "estado": est,
+                "nota": nota,
+                "fin": ahora - (n_total - i) * 3600,
+            }
+        prog_path = tmp_path / "progreso.json"
+        prog_path.write_text(json.dumps(progreso), encoding="utf-8")
+        return str(prog_path)
+
+    def test_frena_y_no_lanza_jobs_nuevos(self, tmp_path, monkeypatch):
+        from unittest import mock
+        import asignar_huecos
+
+        prog_path = self._progreso_con_mismo_motivo(tmp_path, n_total=10, n_mismo=7, motivo="sin_cambios")
+        monkeypatch.setattr(B, "LATIDOS", str(tmp_path))
+
+        nube = {"clases": {"elegibles": ["A", "B"], "agotada": []}, "pausa": None, "runs": 2, "error": None, "mac": {}}
+
+        def plan_mock(elegibles, agotadas, vivos, pausa, reaperturas, ahora, listas_mac=0, tope_mac=0,
+                      tope_runs=14, motivo_tope="", notas=None, potenciado=False):
+            return {"lanzar": 0, "reabrir": [], "trabajadores": 3, "por_que": f"tope={tope_runs}"}
+
+        with mock.patch.object(B, "ESTADO", os.path.join(tmp_path, "estado.json")), \
+                mock.patch.object(B, "SALUD", os.path.join(tmp_path, "salud.json")), \
+                mock.patch.object(B, "reunir_nube", lambda *a, **k: nube), \
+                mock.patch.object(B, "cloudroom", lambda *a, **k: (0, "Cloudroom: nada", [])), \
+                mock.patch.object(B, "plan_nube", plan_mock), \
+                mock.patch.object(B, "claude_nube", lambda *a, **k: (0, "Claude en la nube: 0")), \
+                mock.patch.object(B, "_avisar", lambda *a, **k: None), \
+                mock.patch.object(RN, "leer_reaperturas", lambda *a, **k: {}), \
+                mock.patch.object(asignar_huecos, "reunir", lambda: {"listas": [], "tope": 3}), \
+                mock.patch.object(asignar_huecos, "decidir", lambda e: {"puede": False}), \
+                mock.patch.object(B, "_sondear_escritores", lambda: []), \
+                mock.patch.object(B, "_leer_latidos", lambda: []), \
+                mock.patch.object(B, "texto_modelos", lambda *a, **k: "Modelos: ok"), \
+                mock.patch.object(B, "texto_fuera_de_escritura", lambda: ""), \
+                mock.patch.object(B, "texto_ultimo_despliegue", lambda *a, **k: ""), \
+                mock.patch.object(B, "_otros_medios", lambda: []):
+            r = B.buscar(aplicar=True, sondear_medios=False, mac=False, origen="autocuracion", ahora=AHORA)
+
+        self.assertEqual(r["sumados"], 0)
+        self.assertIn("se frena:", r["resumen"])
+        self.assertIn("7 de las últimas 10 tareas acabaron «sin_cambios»", r["resumen"])
+        self.assertIn("añadir escritores no lo arregla", r["resumen"])
+
+    def test_no_frena_con_motivos_distintos(self, tmp_path, monkeypatch):
+        from unittest import mock
+        import asignar_huecos
+
+        import json
+        ahora = AHORA
+        progreso = {
+            "T1": {"estado": "sin_cambios", "nota": "la nube dijo «sin_cambios»", "fin": ahora - 3600},
+            "T2": {"estado": "fallo", "nota": "la nube dijo «fallo»", "fin": ahora - 7200},
+            "T3": {"estado": "fallo_tsc", "nota": "la nube dijo «fallo_tsc»", "fin": ahora - 10800},
+            "T4": {"estado": "rechazada", "nota": "la nube dijo «rechazada»", "fin": ahora - 14400},
+            "T5": {"estado": "commit", "nota": "", "fin": ahora - 18000},
+            "T6": {"estado": "sin_cambios", "nota": "la nube dijo «sin_cambios»", "fin": ahora - 21600},
+            "T7": {"estado": "fallo_tests", "nota": "la nube dijo «fallo_tests»", "fin": ahora - 25200},
+            "T8": {"estado": "commit", "nota": "", "fin": ahora - 28800},
+            "T9": {"estado": "sin_cambios", "nota": "la nube dijo «sin_cambios»", "fin": ahora - 32400},
+            "T10": {"estado": "commit", "nota": "", "fin": ahora - 36000},
+        }
+        prog_path = tmp_path / "progreso.json"
+        prog_path.write_text(json.dumps(progreso), encoding="utf-8")
+        monkeypatch.setattr(B, "LATIDOS", str(tmp_path))
+
+        nube = {"clases": {"elegibles": ["A", "B"], "agotada": []}, "pausa": None, "runs": 0, "error": None, "mac": {}}
+        plan_called: dict[str, int] = {"tope_runs": 0}
+
+        def plan_mock(elegibles, agotadas, vivos, pausa, reaperturas, ahora, listas_mac=0, tope_mac=0,
+                      tope_runs=14, motivo_tope="", notas=None, potenciado=False):
+            plan_called["tope_runs"] = tope_runs
+            return {"lanzar": 2, "reabrir": [], "trabajadores": 3, "por_que": "lanzo 2"}
+
+        with mock.patch.object(B, "ESTADO", os.path.join(tmp_path, "estado.json")), \
+                mock.patch.object(B, "SALUD", os.path.join(tmp_path, "salud.json")), \
+                mock.patch.object(B, "reunir_nube", lambda *a, **k: nube), \
+                mock.patch.object(B, "cloudroom", lambda *a, **k: (0, "Cloudroom: nada", [])), \
+                mock.patch.object(B, "plan_nube", plan_mock), \
+                mock.patch.object(B, "claude_nube", lambda *a, **k: (0, "Claude en la nube: 0")), \
+                mock.patch.object(B, "_avisar", lambda *a, **k: None), \
+                mock.patch.object(RN, "leer_reaperturas", lambda *a, **k: {}), \
+                mock.patch.object(asignar_huecos, "reunir", lambda: {"listas": [], "tope": 3}), \
+                mock.patch.object(asignar_huecos, "decidir", lambda e: {"puede": False}), \
+                mock.patch.object(B, "_sondear_escritores", lambda: []), \
+                mock.patch.object(B, "_leer_latidos", lambda: []), \
+                mock.patch.object(B, "texto_modelos", lambda *a, **k: "Modelos: ok"), \
+                mock.patch.object(B, "texto_fuera_de_escritura", lambda: ""), \
+                mock.patch.object(B, "texto_ultimo_despliegue", lambda *a, **k: ""), \
+                mock.patch.object(B, "_otros_medios", lambda: []):
+            r = B.buscar(aplicar=True, sondear_medios=False, mac=False, origen="autocuracion", ahora=AHORA)
+
+        self.assertGreater(plan_called["tope_runs"], 0)
+        self.assertNotIn("se frena:", r["resumen"])
+        self.assertEqual(r["sumados"], 6)
+
+    def test_error_en_calculo_no_frena_y_avisa(self, tmp_path, monkeypatch):
+        from unittest import mock
+        import asignar_huecos
+
+        prog_path = tmp_path / "progreso.json"
+        prog_path.write_text("no-es-json", encoding="utf-8")
+        monkeypatch.setattr(B, "LATIDOS", str(tmp_path))
+
+        nube = {"clases": {"elegibles": ["A"], "agotada": []}, "pausa": None, "runs": 0, "error": None, "mac": {}}
+
+        with mock.patch.object(B, "ESTADO", os.path.join(tmp_path, "estado.json")), \
+                mock.patch.object(B, "SALUD", os.path.join(tmp_path, "salud.json")), \
+                mock.patch.object(B, "reunir_nube", lambda *a, **k: nube), \
+                mock.patch.object(B, "cloudroom", lambda *a, **k: (0, "Cloudroom: nada", [])), \
+                mock.patch.object(B, "plan_nube", lambda *a, **k: {"lanzar": 1, "reabrir": [], "trabajadores": 3, "por_que": "ok"}), \
+                mock.patch.object(B, "claude_nube", lambda *a, **k: (0, "Claude en la nube: 0")), \
+                mock.patch.object(B, "_avisar", lambda *a, **k: None), \
+                mock.patch.object(RN, "leer_reaperturas", lambda *a, **k: {}), \
+                mock.patch.object(asignar_huecos, "reunir", lambda: {"listas": [], "tope": 3}), \
+                mock.patch.object(asignar_huecos, "decidir", lambda e: {"puede": False}), \
+                mock.patch.object(B, "_sondear_escritores", lambda: []), \
+                mock.patch.object(B, "_leer_latidos", lambda: []), \
+                mock.patch.object(B, "texto_modelos", lambda *a, **k: "Modelos: ok"), \
+                mock.patch.object(B, "texto_fuera_de_escritura", lambda: ""), \
+                mock.patch.object(B, "texto_ultimo_despliegue", lambda *a, **k: ""), \
+                mock.patch.object(B, "_otros_medios", lambda: []):
+            r = B.buscar(aplicar=True, sondear_medios=False, mac=False, origen="autocuracion", ahora=AHORA)
+
+        self.assertTrue(any("Freno por mismo motivo: no pude calcularlo" in l for l in r["lineas"]))
+        self.assertEqual(r["sumados"], 3)
+        self.assertNotIn("se frena:", r["resumen"])

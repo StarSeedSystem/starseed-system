@@ -59,6 +59,7 @@ if DIRECTORIO not in sys.path:
     sys.path.insert(0, DIRECTORIO)
 
 import urgencia_tarea  # noqa: E402  AUT1116A
+from freno_mismo_motivo import frenar_por_mismo_motivo
 
 ESTADO = os.path.expanduser("~/.starseed/buscar-capacidad.json")
 SALUD = os.path.expanduser("~/.starseed/salud-proveedores.json")
@@ -1173,6 +1174,26 @@ def buscar(aplicar=False, sondear_medios=True, mac=True, origen="boton", ahora=N
             nube["clases"]["agotada"] = [t for t in nube["clases"].get("agotada") or [] if t not in ids_cr]
         vivos = nube["runs"] + en_camino(estado_prev, ahora)
         reaperturas = RN.leer_reaperturas(ahora)
+        # Freno por mismo motivo (HAL09): si las últimas tareas acabaron en el mismo fallo,
+        # no lanzamos jobs nuevos; el tope de runs nuevos es los que ya hay en marcha.
+        freno_texto = ""
+        try:
+            progreso_path = os.path.join(LATIDOS, "progreso.json")
+            progreso = _leer_json(progreso_path, {})
+            entradas = []
+            for tid, v in (progreso or {}).items():
+                if not isinstance(v, dict):
+                    continue
+                estado = v.get("estado")
+                nota = v.get("nota")
+                fin = v.get("fin")
+                if estado is not None and fin is not None:
+                    entradas.append({"id": tid, "estado": estado, "nota": nota, "fin": fin})
+            freno, frase = frenar_por_mismo_motivo(entradas)
+            if freno:
+                freno_texto = frase
+        except Exception as e:  # noqa: BLE001
+            lineas.append("Freno por mismo motivo: no pude calcularlo (%s)" % type(e).__name__)
         # (2026-10-10, CAP1010) El tope crece con el trabajo y con los escritores vivos que
         # llegan a la nube; ya no es un 2 fijo.
         escritores_nube = escritores_en_la_nube(sondas, _leer_json(SALUD, {}), time.strftime("%Y-%m-%d %H:%M:%S"))
@@ -1188,6 +1209,8 @@ def buscar(aplicar=False, sondear_medios=True, mac=True, origen="boton", ahora=N
         # (CAP1025B) Las nuevas frente a lo que ya llevan los jobs vivos, no frente a todos ellos.
         tope = tope_runs_nube(len(nube["clases"].get("elegibles") or []) + min(REABRIR_POR_PASADA, len(reabribles)),
                               escritores_nube, vivos=vivos)
+        if freno_texto:
+            tope = (vivos, freno_texto)
         plan = plan_nube(
             nube["clases"].get("elegibles"), agotadas, vivos, nube["pausa"],
             reaperturas, ahora, listas_mac=len(estado_mac.get("listas") or []),
@@ -1242,6 +1265,8 @@ def buscar(aplicar=False, sondear_medios=True, mac=True, origen="boton", ahora=N
                                   + int((decision or {}).get("huecos") or 0))
     texto = resumen(lineas, sumados, sin_escritores=sin_escritores, sin_trabajo=sin_trabajo,
                     causas=causas_sin_suma(estado_mac, plan, linea_cr) if not sumados else (), posibles=posibles)
+    if freno_texto:
+        texto = texto + "\n" + freno_texto
     # (1103 · U) Lo que frenó por un reparto NUESTRO del crédito o del cupo del mes se pregunta, no se calla.
     preguntas = _preguntas_vigentes(ahora)
     if preguntas:
