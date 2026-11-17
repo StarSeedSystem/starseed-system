@@ -210,6 +210,8 @@ export function BandaControl() {
     const [sesion, setSesion] = useState<SesionActiva | null>(null);
     const [permiso, setPermiso] = useState<PermisoControl | null>(null);
     const [ajustes, setAjustes] = useState<AjustesControl>(AJUSTES_CONTROL_DEFECTO);
+    // CTL1117I: ¿hay indicador nativo (app Android con control de pantalla)? Misma detección que apaga los ajustes del panel. null = aún no se sabe.
+    const [hayNativo, setHayNativo] = useState<boolean | null>(null);
     const [banco, setBanco] = useState<{ con: string; hasta: number; restantes: number } | null>(null);
 
     useEffect(() => {
@@ -251,6 +253,14 @@ export function BandaControl() {
         };
     }, []);
 
+    useEffect(() => {
+        let vivo = true;
+        void capacidadesNativas().then((c) => vivo && setHayNativo(c !== null));
+        return () => {
+            vivo = false;
+        };
+    }, []);
+
     const terminar = useCallback(() => {
         void import("@/lib/control-remoto/canal").then((c) => c.puertaControl()?.revocar("terminado-por-el-dueno"));
     }, []);
@@ -261,7 +271,8 @@ export function BandaControl() {
     // CTL1117I: ya no hay banda roja. Con `indicador=punto`, un punto en la esquina con el color de quien controla (y su panelito);
     // con `oculto` no se dibuja nada: quién controla y «Terminar» siguen en el panel de ajustes de control.
     const quien = quienControla(sesion, permiso);
-    const verPunto = !!quien && ajustes.indicador === "punto";
+    // Con indicador nativo (se ve en todo el aparato) la web NO pinta el suyo: solo uno. El panel de ajustes sigue diciendo quién controla.
+    const verPunto = !!quien && ajustes.indicador === "punto" && hayNativo === false;
     if (!verPunto && !banco) return null;
     return (
         <>

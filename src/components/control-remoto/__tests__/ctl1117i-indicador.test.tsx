@@ -128,6 +128,21 @@ describe("CTL1117I · la banda de la app según el indicador", () => {
         await act(async () => { await new Promise((r) => setTimeout(r, 30)); });
         expect(container).toBeEmptyDOMElement();
     });
+    it("con indicador nativo (Android) la web NO pinta su punto: solo el nativo; el panel sigue diciendo quién controla y deja «Terminar»", async () => {
+        const inv = tauri({ indicador: "punto", ver_toques: true }, { control_capacidades: { ok: true, pantalla: {}, entrada: {}, falta: [] } });
+        estado.sesion = { token: "t", de: HUELLA, nombre: "Mac de Alex", nivel: "controlar", inicio: ahora, ultima: ahora };
+        const { container } = render(<BandaControl />);
+        await waitFor(() => expect(inv).toHaveBeenCalledWith("control_capacidades"));
+        await act(async () => { await new Promise((r) => setTimeout(r, 30)); });
+        expect(screen.queryByTestId("punto-control")).toBeNull();
+        expect(container).toBeEmptyDOMElement();
+        cleanup();
+        render(<ControlEntreNeuronasPanel />);
+        const q = await screen.findByTestId("quien-controla-ahora");
+        await waitFor(() => expect(q).toHaveTextContent(/Mac de Alex controla este aparato \(nivel controlar\)/));
+        await userEvent.click(q.querySelector("button") as HTMLElement);
+        expect(estado.revocado).toEqual(["terminado-por-el-dueno"]);
+    });
     it("sin app nativa (web) el indicador es el punto, el de fábrica", async () => {
         estado.sesion = { token: "t", de: HUELLA, nombre: "Mac de Alex", nivel: "controlar", inicio: ahora, ultima: ahora };
         render(<BandaControl />);
