@@ -27,7 +27,7 @@ describe("herramienta Traductor universal", () => {
     expect(HERRAMIENTA_TRADUCTOR.systemPrompt.toLowerCase()).toContain("invent");
 
     const idsCapacidades = new Set(SKILL_CAPABILITIES.map((c) => c.id));
-    expect(idsCapacidades.has(HERRAMIENTA_TRADUCTOR.id)).toBe(false);
+    expect(idsCapacidades.has(HERRAMIENTA_TRADUCTOR.id)).toBe(true);
   });
 
   it("se puede activar y desactivar con alternarHerramienta", () => {
