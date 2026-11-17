@@ -32,6 +32,7 @@ import {
     useOsPosts,
     useOsPostCount,
     useFollow,
+    useMembership,
     useEntityOwner,
 } from "@/hooks/use-os-entities";
 // (Adenda 220) Bienvenida unificada + estados vacíos con acción.
@@ -45,6 +46,7 @@ import { CollectionsGrid } from "@/components/profile/collections/collections-gr
 import { samplePages, sampleGroups } from "@/data/sample-entities";
 import { listPartidos, listFederativeEntities } from "@/data/sample-governance";
 import { useEntityLayout, applyTabLayout, suggestedIntegrations } from "@/lib/entity-layout";
+import { rangoDeRol } from "@/lib/entidad-espacio/permisos";
 import { EntityLayoutEditor } from "@/components/social/entity-layout-editor";
 // Tema por entidad (Mezclador/Catálogo — Adenda Mezclador): aplica el
 // themeId/themeMix guardado en entity-layout SOLO mientras se ve esta
