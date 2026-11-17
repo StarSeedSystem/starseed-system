@@ -109,7 +109,7 @@ describe("crearMotores · capas según la página, con el motor simulado", () =>
 describe("entradasTraduccion · las cuatro entradas del menú de TRD1020E", () => {
   const hechas: string[] = [];
   const acciones = {
-    traducirSeleccion: (t: string) => hechas.push(`seleccion:${t}`),
+    traducirSeleccion: () => hechas.push("seleccion"),
     traducirParrafo: (t: string) => hechas.push(`parrafo:${t}`),
     traducirPagina: () => hechas.push("pagina"),
     verOriginal: () => hechas.push("original"),
@@ -140,7 +140,7 @@ describe("entradasTraduccion · las cuatro entradas del menú de TRD1020E", () =
     porId["traducir-pagina"].ejecutar(ctx({}));
     porId["ver-original"].ejecutar(ctx({}));
     expect(hechas).toEqual([
-      "seleccion:hola mundo",
+      "seleccion",
       "parrafo:Trama viva del párrafo",
       "pagina",
       "original",

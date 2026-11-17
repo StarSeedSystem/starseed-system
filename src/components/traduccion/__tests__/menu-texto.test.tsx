@@ -109,12 +109,13 @@ describe("MenuTexto", () => {
 
   it("las piezas puras deciden el disparo, el campo editable y la esquina", () => {
     const p = destino();
-    expect(abreMenuTexto({ shiftKey: true }, p, true)).toBe(false);
-    expect(abreMenuTexto({ defaultPrevented: true }, p, true)).toBe(false);
-    expect(abreMenuTexto({}, document.createElement("input"), true)).toBe(false);
-    expect(abreMenuTexto({}, p, true)).toBe(true);
-    expect(abreMenuTexto({}, p, false)).toBe(false);
-    expect(abreMenuTexto({}, null, true)).toBe(false);
+    expect(abreMenuTexto({ shiftKey: true }, p, true, false)).toBe(false);
+    expect(abreMenuTexto({ defaultPrevented: true }, p, true, false)).toBe(false);
+    expect(abreMenuTexto({}, document.createElement("input"), true, false)).toBe(false);
+    expect(abreMenuTexto({}, document.createElement("input"), true, true)).toBe(true);
+    expect(abreMenuTexto({}, p, true, false)).toBe(true);
+    expect(abreMenuTexto({}, p, false, false)).toBe(false);
+    expect(abreMenuTexto({}, null, true, false)).toBe(false);
     expect(esEditable(p)).toBe(false);
     expect(esEditable(document.createElement("textarea"))).toBe(true);
     expect(posicionMenu(50, 50, 224, 100, { ancho: 300, alto: 200 })).toEqual({ izquierda: 50, arriba: 50 });

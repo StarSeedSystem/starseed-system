@@ -18,6 +18,9 @@ import { establecerPaginaTraducida, registrarEntradaMenuTexto, type ContextoMenu
 import { leerEnVoz, detener, type EntornoVoz } from "@/lib/idiomas/leer-en-voz";
 import { Par, SelectorPar, intercambiarPar } from "../traductor/selector-par";
 import type { EstadoPar } from "@/lib/traductor/tipos";
+import { capturarSeleccionEditable, reemplazar, deshacerUltimo } from "@/components/traduccion/reemplazar-seleccion";
+import { useToast } from "@/hooks/use-toast";
+import { ToastAction } from "@/components/ui/toast";
 
 const BASE_LT = process.env.NEXT_PUBLIC_LIBRETRANSLATE || "http://127.0.0.1:5100";
 const TOPE = 4000;
@@ -83,13 +86,13 @@ export async function traducirConAstraura(textos: string[], _origen: string, des
 
 /** Las cuatro entradas del menú de TRD1020E; las acciones las trae el componente. */
 export function entradasTraduccion(acciones: {
-    traducirSeleccion: (texto: string) => void;
+    traducirSeleccion: () => void;
     traducirParrafo: (texto: string) => void;
     traducirPagina: () => void;
     verOriginal: () => void;
 }): EntradaMenuTexto[] {
     return [
-        { id: "traducir-seleccion", etiqueta: "Traducir selección", visible: (c) => c.seleccion.length > 0, ejecutar: (c) => acciones.traducirSeleccion(textosATraducir(c).seleccion) },
+        { id: "traducir-seleccion", etiqueta: "Traducir selección", visible: (c) => c.seleccion.length > 0, ejecutar: () => acciones.traducirSeleccion() },
         { id: "traducir-parrafo", etiqueta: "Traducir este párrafo", ejecutar: (c) => acciones.traducirParrafo(textosATraducir(c).parrafo) },
         { id: "traducir-pagina", etiqueta: "Traducir toda la página", ejecutar: () => acciones.traducirPagina() },
         { id: "ver-original", etiqueta: "Ver original", visible: (c) => c.paginaTraducida, ejecutar: () => acciones.verOriginal() },
@@ -147,6 +150,40 @@ export function TraducirTexto() {
     };
     const verOriginal = () => { restaurar(document.body); establecerPaginaTraducida(false); setVentana(null); setProgreso(null); };
 
+    const { toast } = useToast();
+
+    const traducirSeleccionEnSitio = async () => {
+        const objetivo = capturarSeleccionEditable(document);
+        if (!objetivo) return false;
+        const texto = objetivo.texto;
+        if (!texto) return false;
+        try {
+            const [r] = await crearTraductor(motores()).traducir([texto], "auto", destino());
+            if (!r) throw new Error("La traducción no llegó.");
+            const ok = reemplazar(objetivo, r.texto);
+            if (ok) {
+                toast({
+                    title: "Selección traducida",
+                    description: r.texto,
+                    action: (
+                        <ToastAction
+                            altText="Deshacer traducción"
+                            onClick={() => {
+                                if (deshacerUltimo()) toast({ title: "Deshecho", description: "La traducción se revirtió" });
+                            }}
+                        >
+                            Deshacer
+                        </ToastAction>
+                    ),
+                });
+            }
+            return ok;
+        } catch (e) {
+            aviso(e instanceof Error ? e.message : "No se pudo traducir la selección.");
+            return false;
+        }
+    };
+
     const entornoVoz = typeof window !== "undefined"
         ? { synth: window.speechSynthesis, Utter: window.SpeechSynthesisUtterance }
         : { synth: undefined, Utter: undefined };
@@ -172,7 +209,7 @@ export function TraducirTexto() {
 
     useEffect(() => {
         const quitar = entradasTraduccion({
-            traducirSeleccion: (t) => void traducirUno(t),
+            traducirSeleccion: () => void traducirSeleccionEnSitio(),
             traducirParrafo: (t) => void traducirUno(t),
             traducirPagina: () => void traducirPagina(),
             verOriginal,

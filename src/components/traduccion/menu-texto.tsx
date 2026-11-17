@@ -61,10 +61,11 @@ export function abreMenuTexto(
   evento: { defaultPrevented?: boolean; shiftKey?: boolean },
   objetivo: Element | null,
   hayTexto: boolean,
+  haySeleccion: boolean,
 ): boolean {
-  return (
-    objetivo !== null && !evento.defaultPrevented && !evento.shiftKey && hayTexto && !esEditable(objetivo)
-  );
+  if (objetivo === null || evento.defaultPrevented || evento.shiftKey || !hayTexto) return false;
+  if (esEditable(objetivo)) return haySeleccion;
+  return true;
 }
 
 /** Coloca el menú en el puntero sin salirse de la ventana (margen de 8 px). */
@@ -98,8 +99,9 @@ export function MenuTexto() {
     const abrir = (e: MouseEvent) => {
       const objetivo = e.target instanceof Element ? e.target : null;
       const seleccion = window.getSelection?.()?.toString().trim() ?? "";
-      const hayTexto = seleccion.length > 0 || Boolean(objetivo?.textContent?.trim());
-      if (!abreMenuTexto(e, objetivo, hayTexto) || objetivo?.closest("[data-menu-texto]")) return;
+      const haySeleccion = seleccion.length > 0;
+      const hayTexto = haySeleccion || Boolean(objetivo?.textContent?.trim());
+      if (!abreMenuTexto(e, objetivo, hayTexto, haySeleccion) || objetivo?.closest("[data-menu-texto]")) return;
       const contexto: ContextoMenuTexto = { seleccion, objetivo, paginaTraducida };
       const aVer = entradasVisibles(entradas, contexto);
       if (aVer.length === 0) return;

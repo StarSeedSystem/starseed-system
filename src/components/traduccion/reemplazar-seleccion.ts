@@ -9,7 +9,12 @@ export interface ObjetivoEditable {
   readonly tipo: "input" | "textarea" | "contenteditable";
 }
 
-let ultimaSustitucion: { objetivo: ObjetivoEditable; textoAnterior: string } | null = null;
+let ultimaSustitucion: {
+  objetivo: ObjetivoEditable;
+  textoAnterior: string;
+  nuevoTexto: string;
+  finNuevo: number;
+} | null = null;
 
 function esInputPassword(el: Element): boolean {
   return el.tagName === "INPUT" && (el as HTMLInputElement).type === "password";
@@ -40,6 +45,29 @@ function obtenerSeleccionContentEditable(
   return { inicio, fin: inicio + texto.length, texto };
 }
 
+function encontrarContentEditableConSeleccion(doc: Document): HTMLElement | null {
+  const win = doc.defaultView ?? window;
+  const sel = win.getSelection();
+  if (!sel) return null;
+  const anchorNode = sel.anchorNode;
+  if (anchorNode) {
+    let nodo: Node | null = anchorNode;
+    while (nodo) {
+      if (nodo instanceof HTMLElement && nodo.isContentEditable) return nodo;
+      nodo = nodo.parentElement;
+    }
+  }
+  if (sel.rangeCount > 0) {
+    const range = sel.getRangeAt(0);
+    let nodo: Node | null = range.startContainer;
+    while (nodo) {
+      if (nodo instanceof HTMLElement && nodo.isContentEditable) return nodo;
+      nodo = nodo.parentElement;
+    }
+  }
+  return null;
+}
+
 export function capturarSeleccionEditable(doc: Document): ObjetivoEditable | null {
   const activo = doc.activeElement;
   if (!activo) return null;
@@ -58,12 +86,25 @@ export function capturarSeleccionEditable(doc: Document): ObjetivoEditable | nul
     };
   }
 
-  if (activo.isContentEditable) {
+  if (activo instanceof HTMLElement && activo.isContentEditable) {
     const el = activo as HTMLElement;
     const sel = obtenerSeleccionContentEditable(el);
     if (!sel) return null;
     return {
       elemento: el,
+      inicio: sel.inicio,
+      fin: sel.fin,
+      texto: sel.texto,
+      tipo: "contenteditable",
+    };
+  }
+
+  const contentEditable = encontrarContentEditableConSeleccion(doc);
+  if (contentEditable) {
+    const sel = obtenerSeleccionContentEditable(contentEditable);
+    if (!sel) return null;
+    return {
+      elemento: contentEditable,
       inicio: sel.inicio,
       fin: sel.fin,
       texto: sel.texto,
@@ -92,7 +133,7 @@ export function reemplazar(objetivo: ObjetivoEditable, nuevoTexto: string): bool
     if (el.value.slice(inicio, fin) !== texto) return false;
     el.setRangeText(nuevoTexto, inicio, fin, "end");
     dispararEventoInput(el);
-    ultimaSustitucion = { objetivo, textoAnterior: texto };
+    ultimaSustitucion = { objetivo, textoAnterior: texto, nuevoTexto, finNuevo: inicio + nuevoTexto.length };
     return true;
   }
 
@@ -110,7 +151,7 @@ export function reemplazar(objetivo: ObjetivoEditable, nuevoTexto: string): bool
     range.collapse(false);
     sel.removeAllRanges();
     sel.addRange(range);
-    ultimaSustitucion = { objetivo, textoAnterior: texto };
+    ultimaSustitucion = { objetivo, textoAnterior: texto, nuevoTexto, finNuevo: inicio + nuevoTexto.length };
     return true;
   }
 
@@ -119,8 +160,13 @@ export function reemplazar(objetivo: ObjetivoEditable, nuevoTexto: string): bool
 
 export function deshacerUltimo(): boolean {
   if (!ultimaSustitucion) return false;
-  const { objetivo, textoAnterior } = ultimaSustitucion;
-  const ok = reemplazar(objetivo, textoAnterior);
+  const { objetivo, textoAnterior, nuevoTexto, finNuevo } = ultimaSustitucion;
+  const objetivoUndo: ObjetivoEditable = {
+    ...objetivo,
+    fin: finNuevo,
+    texto: nuevoTexto,
+  };
+  const ok = reemplazar(objetivoUndo, textoAnterior);
   if (ok) ultimaSustitucion = null;
   return ok;
 }
