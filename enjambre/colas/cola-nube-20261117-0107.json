@@ -1,0 +1,118 @@
+{
+ "ola": "nube-20261117",
+ "tareas": [
+  {
+   "id": "IMA23c",
+   "ola": "TRA1116-IDIOMAS",
+   "titulo": "Contrato de idiomas: anotar la parte A en architecture/idiomas.md (solo añadir)",
+   "archivos": [
+    "architecture/idiomas.md"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Documentación. Al final de `architecture/idiomas.md` añade «## 7. Más idiomas, archivo de idioma y clic derecho (16-11)» (≤30 líneas, sin tocar lo anterior): enlaza `architecture/traductor-universal.md` Parte A como contrato; resume en viñetas la lista generada con `Intl.DisplayNames` (`lista-mundial.ts`), el formato `.starseed-lang.json`, la validación (`validar.ts`) y que un paquete es solo datos, el almacén local y que `cargar.ts` suma paquetes instalados, y las entradas del clic derecho (`entradas-idioma.ts`, `montaje-idioma.tsx`). Termina con «Lo que sigue y no está hecho»: compartir por malla en la interfaz, y revisión humana de paquetes. Sin la palabra «Mando».\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/44010609237`)\nUn agente de la nube ya avanzó esta tarea (no pasa en GitHub (run 44030832323) falla «tsc»: rror]src/app/(app)/pagina/[slug]/page.tsx(700,84): error TS2339: Property 'label' does not exist on type '(Pestana | { id: string; label: string; node: ReactNode; }) & { visible: boolean; }'.\n2026-11-17T06:27:51.9812429Z   Property 'label' does not exist on type 'Pestana & { visible: boolean; }'.\n2026-11-17T06:27:51.9813876Z ##[error]src/app/(app)/pagina/[slug]/page.tsx(708,36): error TS2339: Property 'node' does not exist on type '(Pestana | { id: string; label: string; node: ReactNode; }) & { visible: boolean; }'.\n2026-11-17T06:27:51.9815424Z   Property 'node' does not exist on type 'Pestana & { visible: boolean; }'.\n2026-11-17T06:27:52.5727885Z ##[error]Process completed with exit code 2.). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/44010609237:refs/remotes/origin/nube/44010609237\"` y `git cherry-pick --no-commit 98d204531b90`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: architecture/idiomas.md, src/app/(app)/grupo/[slug]/page.tsx, src/app/(app)/pagina/[slug]/page.tsx.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/44010609237",
+   "dependencias_ya_en_main": [
+    "IMA12"
+   ]
+  },
+  {
+   "id": "SVF1B5b",
+   "ola": "SES1116B",
+   "titulo": "Grupo: las mismas pestañas dinámicas del espacio",
+   "archivos": [
+    "src/app/(app)/grupo/[slug]/page.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contrato: architecture/sesiones-en-vivo-entidades-y-transmisiones.md §10 (P1-B). Repite en `src/app/(app)/grupo/[slug]/page.tsx` (`baseTabs` ~línea 323) EXACTAMENTE lo que SVF1B4 hizo en la página de entidad: UN bloque aditivo `// SES1115Q` con `usarEspacio` y `aPestanasDePagina` (`src/lib/entidad-espacio/`), pestañas al final, sin romper si hay `error`. No modifiques nada más (≤30 líneas). COMPRUEBA: tsc acotado sin errores nuevos en ese archivo y `NODE_ENV=test npx vitest run src/lib/entidad-espacio` verde; en el commit di cómo comprobaste que la página sigue montando.\n\nREGLAS DE LA CASA (valen aunque no las repita la tarea): toca SOLO los archivos de la lista `archivos`; ≤3 archivos y ≤120 líneas por archivo (si no cabe, para y di qué falta: no lo estires ni lo resumas); sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible (la interfaz dice Genesis); sin red real en las pruebas; ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves. El asunto de tu commit empieza por `SVF1B5b:` y dice qué comprobaste y qué NO pudiste comprobar.",
+   "dependencias_ya_en_main": [
+    "SVF1B4b"
+   ]
+  },
+  {
+   "id": "SVF1D3b",
+   "ola": "SES1116B",
+   "titulo": "Prueba: el espectador cuenta y no edita; la página muestra la pestaña en vivo",
+   "archivos": [
+    "src/lib/vivo-entidad/__tests__/espectador-y-pestana.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contrato: architecture/sesiones-en-vivo-entidades-y-transmisiones.md §10 (P1-D). Dos comprobaciones puras: (1) con `contarEspectadores` y `rangoDeSesion` (`src/lib/vivo-entidad/`): un espectador por enlace público cuenta 1, no edita, y 3 espectadores + 2 editores dan 3 espectadores; la fila de la estación (`filaEstacionDeSesion`) lleva `tipo` pizarra o dashboard y enlace `/vivo/<id>?t=<token>`. (2) con `aPestanasDePagina` (`src/lib/entidad-espacio/pestanas-pagina.ts`): una sesión en directo con 2 personas sale como pestaña con punto y contador 2, y al quedar a 0 personas pierde el contador. COMPRUEBA: `NODE_ENV=test npx vitest run src/lib/vivo-entidad/__tests__/espectador-y-pestana.test.ts` verde y tsc acotado.\n\nREGLAS DE LA CASA (valen aunque no las repita la tarea): toca SOLO los archivos de la lista `archivos`; ≤3 archivos y ≤120 líneas por archivo (si no cabe, para y di qué falta: no lo estires ni lo resumas); sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible (la interfaz dice Genesis); sin red real en las pruebas; ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves. El asunto de tu commit empieza por `SVF1D3b:` y dice qué comprobaste y qué NO pudiste comprobar.",
+   "dependencias_ya_en_main": [
+    "SVF1C2",
+    "SVF1C3",
+    "SVF1B4b"
+   ]
+  },
+  {
+   "id": "DSB02",
+   "ola": "DSB1116B",
+   "titulo": "Directores: leer el error real de Kotlin y no abrir tareas por compilaciones ya superadas",
+   "archivos": [
+    "scripts/puente/prioridad_desbloqueo.py",
+    "scripts/puente/test_prioridad_desbloqueo.py"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. PRIMERA PRUEBA REAL de `scripts/puente/prioridad_desbloqueo.py` (16-11, 21:27): abrió una tarea URGENTE para la compilación N.º 47, que ya estaba arreglada, con `archivos: []` y esta evidencia: «FAILURE: Build failed with an exception. * What went wrong: Execution failed for task …». Dos defectos:\n1) El analizador del registro NO recogió la línea del compilador de Kotlin tal como la da GitHub. Formato real (cada línea de `gh run view --log-failed` lleva delante `<trabajo>\\t<paso>\\t<fecha ISO> `): `e: file:///home/runner/work/starseed-system/starseed-system/native/src-tauri/gen/android/app/src/main/java/app/starseed/os/nativa/ProyeccionPantallaStarSeed.kt:189:14 Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver of type 'MediaProjection?'.` Debe reconocer `e: file://…/<Nombre>.kt:<línea>:<columna> <mensaje>` (y `e: <ruta>.kt:…` sin `file://`), quedarse con el nombre del archivo, la línea y el mensaje, y ponerlos PRIMERO en la evidencia. La ruta generada (`gen/android/...`) no existe en el repositorio: el archivo del repo se busca por su NOMBRE con el buscador inyectado que ya use el módulo (si no hay ninguno, añade un parámetro inyectado `buscar_por_nombre(nombre) -> [rutas]`).\n2) No debe abrir tarea por una compilación fallida cuando ya hay una compilación de número MAYOR publicada o en marcha (dato del estado del director de pruebas que ya recibe: `numero` y `estado`), ni cuando `main` ya cambió, después del sha del fallo, un archivo con el mismo nombre que señala la evidencia (la comprobación `ya_arreglado` existente debe usar también el nombre, no solo la ruta).\n\nLee entero el módulo y sus pruebas antes de tocar. Cambia SOLO esos dos archivos (≤60 líneas en el módulo). Pruebas nuevas: la línea real de arriba con su prefijo de GitHub da archivo `ProyeccionPantallaStarSeed.kt`, línea 189 y el mensaje; una compilación 47 en `fallo` con la 48 `publicada` no abre tarea; con la 48 `compilando` tampoco; un fallo cuyo archivo (por nombre) cambió en `main` después no abre tarea; un fallo nuevo sin nada de eso SÍ abre tarea con `archivos` no vacío. Asunto del commit: `DSB1116B · DSB02: el director lee el error real de Kotlin y no abre tareas por compilaciones ya superadas`.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado."
+  },
+  {
+   "id": "INT13",
+   "ola": "INT1116A",
+   "titulo": "Colgar la sección de internet compartido en los ajustes del centro de Señales",
+   "archivos": [
+    "src/components/mesh/mapa-senales/ajustes-centro.tsx",
+    "src/components/mesh/mapa-senales/internet/__tests__/ajustes-centro-internet.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contrato: architecture/malla-cristalina-sio2.md §8.2 (contrato; si aún no está en el repo, rige este texto). «Modo banco de llamadas» es otra función (pasa a «modo de pruebas de llamadas»): no la toques ni la menciones. Lee `ajustes-centro.tsx` entero (222 líneas, `AjustesNeurona`, `Switch`, privacidad por `src/ai/astraura/mesh/privacy.ts`). Cambio ACOTADO (≤40 líneas): añade al final de las secciones de ajustes de la neurona un bloque «Internet compartido» que monta `<SeccionInternet />` (INT12; sus props `textos` y `extra`) con los textos del módulo `textos-internet` SI existe (`import { TEXTOS_INTERNET } from \"@/lib/malla/internet/textos-internet\"`; si todavía no existe, pásalo por una prop opcional `textosInternet` y deja la sección oculta cuando falte, con un comentario «la tarea INT20 lo conecta») y `clasificacion` calculada con `clasificarConexion` a partir de `navigator.connection` (leído solo en un efecto; en el primer render `desconocida`). No cambies nada de privacidad ni los interruptores que ya hay. PRUEBA: el bloque aparece una vez; con `textosInternet` ausente no se ve y no rompe; los ajustes existentes siguen ahí (consulta el test existente de este componente si lo hay en `__tests__/`).\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "INT12"
+   ]
+  },
+  {
+   "id": "INT20",
+   "ola": "INT1116A",
+   "titulo": "Palabras de la función: un único módulo de textos en español",
+   "archivos": [
+    "src/lib/malla/internet/textos-internet.ts",
+    "src/lib/malla/internet/__tests__/textos-internet.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contrato: architecture/malla-cristalina-sio2.md §8.2 (contrato; si aún no está en el repo, rige este texto). «Modo banco de llamadas» es otra función (pasa a «modo de pruebas de llamadas»): no la toques ni la menciones. Escribe primero las pruebas. `TEXTOS_INTERNET: TextosInternet` (tipo de `tipos.ts`, INT01) con TODAS sus claves en español neutro con acentos, claras para una persona que no es técnica. Términos fijos: «modo banco» (ración de datos) y «modo mesh» (compartir libremente por la malla); la ayuda del banco dice que sirve para cuando el internet es limitado y se reparte una cantidad de datos entre las neuronas; la del mesh dice que comparte internet por la malla P2P, con o sin límite; el cuerpo de la sugerencia dice que la conexión parece de pago, que es solo una sugerencia y que nada cambia hasta que la persona acepte. `quedaHoy(mb)` y `meshConLimite(mb)` formatean con «MB» por debajo de 1000 y «GB» con un decimal por encima (coma decimal). Exporta además, aparte de la interfaz, `TEXTOS_EXTRA_INTERNET: { desde: string; hasta: string; limite: string; compartirConOtros: string; declararDePago: string; declararNoDePago: string }`.\nPRUEBAS: todas las claves de `TextosInternet` existen y no están vacías; ningún texto contiene «Mando», «llamadas» ni «banco de llamadas»; «modo banco» y «modo mesh» aparecen donde se espera; `quedaHoy(512)` termina en «MB» y `quedaHoy(2048)` dice «2,0 GB»; `TEXTOS_EXTRA_INTERNET` sin vacíos.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "INT10-d2",
+    "INT12",
+    "INT16"
+   ]
+  },
+  {
+   "id": "MRF3",
+   "ola": "MAP1116B",
+   "titulo": "Panel de filtros de señales (frecuencia, ancho, capa, medio) en palabras de persona",
+   "archivos": [
+    "src/components/mesh/mapa-senales/geo/panel-filtros-senales.tsx",
+    "src/components/mesh/mapa-senales/geo/__tests__/panel-filtros-senales.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Componente `PanelFiltrosSenales({filtro, onCambiar, visibles, ocultasSinDato})`: rangos de frecuencia con atajos por banda (2,4 GHz, 5 GHz, 868 MHz… de `bandas.ts`) y entrada manual con unidad (kHz/MHz/GHz), ancho (kHz/MHz), casillas de capa (propia, pública, comunidad, privada, externa), de medio y de origen (medida/declarada/estimada), «solo compatibles con este aparato», buscador de texto y «Limpiar». Muestra «N de M señales» y «K sin dato de frecuencia (no se pueden filtrar)». Accesible (etiquetas, teclado, ≥44 px), usable a 360 px. PRUEBAS: cambiar un rango llama a `onCambiar` con kHz correctos; «Limpiar» devuelve el vacío; el aviso de sin dato aparece. COMPRUEBA: `NODE_ENV=test npx vitest run src/components/mesh/mapa-senales/geo/__tests__/panel-filtros-senales.test.tsx` verde y tsc acotado.\n\nREGLAS DE LA CASA (valen aunque no las repita la tarea): toca SOLO los archivos de la lista `archivos`; ≤3 archivos y ≤120 líneas por archivo (si no cabe, para y di qué falta: no lo estires ni lo resumas); sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible (la interfaz dice Genesis); sin red real en las pruebas; ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves. El asunto de tu commit empieza por `MRF3:` y dice qué comprobaste y qué NO pudiste comprobar.",
+   "dependencias_ya_en_main": [
+    "MRF1",
+    "MRF2"
+   ]
+  },
+  {
+   "id": "MRI3b",
+   "ola": "MAP1116B",
+   "titulo": "Panel «Compartir internet por la malla»: un interruptor por aparato, topes y modo automático con explicación",
+   "archivos": [
+    "src/components/mesh/mapa-senales/panel-red-compartida.tsx",
+    "src/components/mesh/mapa-senales/__tests__/panel-red-compartida.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Componente `PanelRedCompartida({preferencias, puertas, decisiones, onCambiar})` en las palabras de las puertas (`TIPOS_PUERTA`, `COMPARTIR`): para este aparato, un interruptor «Compartir mi internet por la malla» (apagado por defecto), «¿con quién? [nadie][mi cuenta][mis vínculos][un grupo][cualquiera]» (subir la apertura pide confirmación con lo que se verá), topes (solo Wi-Fi, subida máxima, reserva de batería), «Modo automático (sugerir y aplicar dentro de estos límites)» y la lista de `decisiones` con su motivo («Retirada: batería al 22 %»). Texto honesto: dice que el automático nunca enciende lo que tú no encendiste. PRUEBAS: por defecto apagado; subir apertura pide confirmación; el modo automático apagado oculta decisiones; el texto de motivo se muestra. COMPRUEBA: `NODE_ENV=test npx vitest run src/components/mesh/mapa-senales/__tests__/panel-red-compartida.test.tsx` verde y tsc acotado.\n\nREGLAS DE LA CASA (valen aunque no las repita la tarea): toca SOLO los archivos de la lista `archivos`; ≤3 archivos y ≤120 líneas por archivo (si no cabe, para y di qué falta: no lo estires ni lo resumas); sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible (la interfaz dice Genesis); sin red real en las pruebas; ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves. El asunto de tu commit empieza por `MRI3b:` y dice qué comprobaste y qué NO pudiste comprobar.",
+   "dependencias_ya_en_main": [
+    "MRI2b"
+   ]
+  }
+ ]
+}
