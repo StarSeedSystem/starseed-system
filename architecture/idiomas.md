@@ -31,4 +31,15 @@ Petición de Alex del 15-11: un modo multiidioma para todo StarSeed OS, elegido 
 - `node scripts/idiomas/comprobar-ingles.mjs` (Playwright, con el arnés `scripts/idiomas/arnes`, sin Next): en inglés, la ventana de acceso y Ajustes › Neuronas no enseñan ningún texto del catálogo fuente a 1280×800 y 360×800.
 
 ## 6. Lo que esta capa no traduce todavía
+
 Texto armado en el código (concatenaciones, plantillas fuera de JSX y de avisos), textos de nodos hermanos que forman una sola frase (`{n} neuronas` en JSX son dos nodos), fechas y números que el código ya formateó, lienzos (`canvas`, WebGL), diálogos nativos del sistema, las apps nativas mismas y el texto de personas (por diseño). Se miden con las «sospechas» de `comprobar-ingles.mjs`.
+
+## 7. Más idiomas, archivo de idioma y clic derecho (16-11)
+Contrato de la parte A: `architecture/traductor-universal.md` (apartado «PARTE A»). Lo que se suma a este documento sin cambiar lo anterior:
+- **Lista generada** (`lista-mundial.ts`): candidatos de la tabla ISO 639 filtrados con `Intl.DisplayNames`; cada idioma lleva nombre propio, nombre en el idioma actual, dirección, marca de «más hablado», alias y si tiene catálogo. `Intl.Collator` ordena y `agrupar()` separa los más hablados; lo que el aparato no sabe nombrar se omite.
+- **Archivo `.starseed-lang.json`** (`paquete/formato.ts`): formato `starseed-idioma` versión 1 con `codigo`, `nombre`, `dir`, `autor`, `creado`, `revisado`, `licencia`, `base:"es"`, `entradas` y `hash`, con topes de 2 MB y 20.000 entradas. Es **solo datos**: nunca código, estilos ni scripts.
+- **Validación** (`paquete/validar.ts`): código BCP-47, dirección, autor, claves prohibidas, entradas sin caracteres de control ni dirección oculta y sin HTML; un paquete importado nunca entra como «revisado». Un fallo se lista y no se instala a medias.
+- **Almacén local y carga**: `paquete/almacen.ts` guarda los paquetes en `starseed.idiomas.paquetes.v1` (tope de 12 paquetes y 6 MB, evento de cambio); `catalogos/cargar.ts` suma a los cargadores integrados (`en`, `pt`, `fr`) los paquetes instalados, con memoria por idioma.
+- **Clic derecho** (`entradas-idioma.ts` define las entradas y `montaje-idioma.tsx` las registra una vez): traducir la selección, reemplazarla solo en campos editables, leerla en voz alta, añadirla al paquete en edición y abrirla en el Traductor. Cada una dice qué motor usa y respeta el modo privado.
+
+**Lo que sigue y no está hecho:** compartir por malla desde la interfaz y la revisión humana de paquetes.
