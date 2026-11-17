@@ -1,0 +1,28 @@
+{
+ "ola": "nube-20261117",
+ "tareas": [
+  {
+   "ola": "MOD1116",
+   "id": "MQA7-d2",
+   "titulo": "Astraura: un proveedor sin filtros de la nube solo en conversaciones privadas propias (parte 2 de 2)",
+   "archivos": [
+    "src/lib/astraura/modelos/__tests__/sin-filtros-nube.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Lee `src/lib/astraura/modelos/recomendar.ts` (`ContextoUso`, `CASOS_SIN_FILTROS`, `aplicarEleccionManual`, `puedeServirseAOtraCuenta`) y `variantes.ts`. Escribe `sin-filtros-nube.ts`: `proveedorSinFiltrosPermitido({ activado, disponible, contexto, caso, claveDeLaCuenta })` → `{ permitido: boolean; aviso: string | null }` con las MISMAS reglas que `aplicarEleccionManual` impone a una variante local: interruptor «Mostrar variantes sin filtros» encendido y permitido en el perfil, contexto `privado-propio` (el valor por defecto es `compartido`), caso dentro de `CASOS_SIN_FILTROS`, y la cuenta tiene su propia clave (nunca la de otra persona ni la de la fundación). Cada negativa trae UNA línea en español que dice por qué. Exporta `PROVEEDORES_SIN_FILTROS_NUBE = [\"abliteration\"]` y `proveedorEsSinFiltros(id)`. NUNCA se sirve a otra cuenta ni por la malla. PRUEBAS: tabla contexto × caso × interruptor × disponibilidad × clave; por defecto (sin declarar contexto) niega; bots, dots y asistentes de grupo niegan siempre.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni pytest, ni tsc, ni git, ni node, ni npm, ni curl): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj, entorno y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves (solo NOMBRES de variables, nunca valores; nunca una IP, un OCID ni un token); nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado. En Python: las pruebas son `unittest` con carpetas temporales y falsos, como las vecinas `scripts/puente/test_*.py`, y no tocan el `~/.starseed` real.\n\n## PARTE 2 DE 2 (la dirección dividió MQA7: falla por sí misma (tarea:otro))\nEn esta parte tocas SOLO: src/lib/astraura/modelos/__tests__/sin-filtros-nube.test.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "MQA7",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:otro)"
+   },
+   "dependencias_ya_en_main": [
+    "MQA7-d1"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1117-123226.json": [
+   "MQA7-d2"
+  ]
+ }
+}
