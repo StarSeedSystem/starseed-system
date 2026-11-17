@@ -1,0 +1,24 @@
+{
+ "ola": "nube-20261117",
+ "tareas": [
+  {
+   "id": "INT13",
+   "ola": "INT1116A",
+   "titulo": "Colgar la sección de internet compartido en los ajustes del centro de Señales",
+   "archivos": [
+    "src/components/mesh/mapa-senales/ajustes-centro.tsx",
+    "src/components/mesh/mapa-senales/internet/__tests__/ajustes-centro-internet.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contrato: architecture/malla-cristalina-sio2.md §8.2 (contrato; si aún no está en el repo, rige este texto). «Modo banco de llamadas» es otra función (pasa a «modo de pruebas de llamadas»): no la toques ni la menciones. Lee `ajustes-centro.tsx` entero (222 líneas, `AjustesNeurona`, `Switch`, privacidad por `src/ai/astraura/mesh/privacy.ts`). Cambio ACOTADO (≤40 líneas): añade al final de las secciones de ajustes de la neurona un bloque «Internet compartido» que monta `<SeccionInternet />` (INT12; sus props `textos` y `extra`) con los textos del módulo `textos-internet` SI existe (`import { TEXTOS_INTERNET } from \"@/lib/malla/internet/textos-internet\"`; si todavía no existe, pásalo por una prop opcional `textosInternet` y deja la sección oculta cuando falte, con un comentario «la tarea INT20 lo conecta») y `clasificacion` calculada con `clasificarConexion` a partir de `navigator.connection` (leído solo en un efecto; en el primer render `desconocida`). No cambies nada de privacidad ni los interruptores que ya hay. PRUEBA: el bloque aparece una vez; con `textosInternet` ausente no se ve y no rompe; los ajustes existentes siguen ahí (consulta el test existente de este componente si lo hay en `__tests__/`).\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "INT12"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1117-051539.json": [
+   "INT13"
+  ]
+ }
+}
