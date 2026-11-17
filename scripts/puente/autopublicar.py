@@ -148,8 +148,24 @@ _IDEMPOTENTE = re.compile(
 _CUERPO_FUNCION = re.compile(r"\$([A-Za-z_]*)\$.*?\$\1\$", re.S)
 
 
+# FRN01 (2026-11-16, aprobado por Alex): quitar y volver a poner LA MISMA restricción en la MISMA tabla y en la
+# misma migración es recrearla; no borra datos. Sin `cascade`, una sola restricción por sentencia.
+_DROP_RESTRICCION = re.compile(
+    r"alter\s+table\s+(?:if\s+exists\s+)?(?:only\s+)?([\w.\"]+)\s+drop\s+constraint\s+(?:if\s+exists\s+)?([\w\"]+)\s*;", re.I)
+
+
+def _sin_restricciones_recreadas(sql):
+    sql = sql or ""
+
+    def quitar(m):
+        vuelve = re.search(r"alter\s+table\s+(?:if\s+exists\s+)?(?:only\s+)?%s\s+add\s+constraint\s+%s\b"
+                           % (re.escape(m.group(1)), re.escape(m.group(2))), sql[m.end():], re.I)
+        return " " if vuelve else m.group(0)
+    return _DROP_RESTRICCION.sub(quitar, sql)
+
+
 def sql_sin_idempotente(sql):
-    return _IDEMPOTENTE.sub(" ", _CUERPO_FUNCION.sub(" ", sql or ""))
+    return _IDEMPOTENTE.sub(" ", _sin_restricciones_recreadas(_CUERPO_FUNCION.sub(" ", sql or "")))
 
 
 def analizar_lote(diff, migraciones):
