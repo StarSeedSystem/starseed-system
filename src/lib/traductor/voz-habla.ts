@@ -162,33 +162,17 @@ export function hablar(texto: string, idioma: string, entorno: string = "navegad
     estado.cancelado = false;
     estado.cola = [];
 
-    // Simular síntesis de voz (speechSynthesis)
+    // Síntesis por la puerta única (`voz-unica`): su `hablar` no admite idioma ni voz; la voz ya quedó elegida arriba.
     if (typeof window !== "undefined" && "speechSynthesis" in window && window.speechSynthesis) {
-        const synth = window.speechSynthesis;
-        const u = new SpeechSynthesisUtterance(texto);
-        u.lang = voz.lang;
-        const voices = synth.getVoices();
-        const matchedVoice = voices.find((v: SpeechSynthesisVoice) => v.lang === voz.lang || v.name.includes(voz.nombre));
-        if (matchedVoice) {
-            u.voice = matchedVoice;
-        }
-
-        // Marcar fin de frase
-        const onend = (): void => {
-            synth.cancel();
+        const fin = (): void => {
             estado.activa = null;
             const siguiente = estado.cola.shift();
-            if (siguiente) {
-                hablar(siguiente, idioma, entorno);
-            } else {
-                const cb = estado.alTerminar;
-                estado.alTerminar = null;
-                if (cb) cb(true);
-            }
+            if (siguiente) { hablar(siguiente, idioma, entorno); return; }
+            const cb = estado.alTerminar;
+            estado.alTerminar = null;
+            if (cb) cb(true);
         };
-
-        u.onend = onend;
-        synth.speak(u);
+        void import("@/lib/aurora/voz-unica").then((m) => m.hablar(texto, { contexto: "lectura", alTerminar: fin }));
     } else {
         // Fallback: simular inmediato (para tests sin DOM)
         setTimeout(() => {
@@ -214,9 +198,7 @@ export function hablar(texto: string, idioma: string, entorno: string = "navegad
 export function detener(): void {
     estado.cancelado = true;
     estado.cola = [];
-    if (typeof window !== "undefined" && window.speechSynthesis) {
-        window.speechSynthesis.cancel();
-    }
+    void import("@/lib/aurora/voz-unica").then((m) => m.callar()); // la cancelación va por la puerta única
     estado.activa = null;
     const cb = estado.alTerminar;
     estado.alTerminar = null;
