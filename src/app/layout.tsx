@@ -75,6 +75,7 @@ import VentanaPerfilInicial from "@/components/onboarding/ventana-perfil-inicial
 import { PrimerArranque } from "@/components/onboarding/primer-arranque";
 import { CapaIdioma } from "@/components/idiomas/capa-idioma"; // IDI1115N
 import { guionArranque, CSS_PENDIENTE } from "@/lib/idiomas/arranque"; // IDI1115N
+import { idiomasConCatalogo } from "@/lib/idiomas/idiomas";
 import { CON_CATALOGO, IDIOMAS } from "@/lib/idiomas/idiomas"; // IDI1115N
 import { CursorFxHost } from "@/components/desktop/cursor-fx";
 import { MausbotHostCliente } from "@/components/mausbot/mausbot-host-cliente";
@@ -288,7 +289,7 @@ export default function RootLayout({
       {/* IDI1115N: lang/dir y velo mínimo antes del primer pintado (contrato architecture/idiomas.md §6) */}
       <head>
         <style dangerouslySetInnerHTML={{ __html: CSS_PENDIENTE }} />
-        <script dangerouslySetInnerHTML={{ __html: guionArranque(CON_CATALOGO, IDIOMAS.filter((i) => i.dir === "rtl").map((i) => i.codigo)) }} />
+        <script dangerouslySetInnerHTML={{ __html: guionArranque(idiomasConCatalogo(), IDIOMAS.filter((i) => i.dir === "rtl").map((i) => i.codigo)) }} />
       </head>
       <body
         suppressHydrationWarning

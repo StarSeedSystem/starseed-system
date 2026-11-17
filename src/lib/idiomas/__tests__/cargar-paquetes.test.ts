@@ -5,14 +5,18 @@
 /** @vitest-environment jsdom */
 import { describe, expect, it, beforeEach, vi } from "vitest";
 import { crearCatalogo } from "../catalogo";
-import { cargarCatalogo } from "../catalogos/cargar.ts";
+import { cargarCatalogo } from "../catalogos/cargar";
 import { idiomasConCatalogo } from "../idiomas";
 
-const memoria = (): { getItem: (k: string) => string | null; setItem: (k: string, v: string) => void } => {
+const memoria = (): Storage => {
     const m: Record<string, string> = {};
     return {
         getItem: (k) => m[k] ?? null,
         setItem: (k, v) => { m[k] = v; },
+        removeItem: (k) => { delete m[k]; },
+        clear: () => { Object.keys(m).forEach(k => delete m[k]); },
+        key: (i) => Object.keys(m)[i] ?? null,
+        get length() { return Object.keys(m).length; },
     };
 };
 
