@@ -131,7 +131,7 @@ def plazo_estimado_s(tam_gb: float, entrada_tokens: int, salida_tokens: int) -> 
     Tiempo = (entrada_tokens / (3 * escritura_tps)) + (salida_tokens / escritura_tps)
 
     Args:
-        tam_gb: Tamaño del modelo en GB.
+        tam_gb: Tamaño del modelo en GB (p.ej. 3.3 para 4b, 6.6 para 9b).
         entrada_tokens: Tokens de entrada (prompt + contexto).
         salida_tokens: Tokens de salida esperados.
 
@@ -143,3 +143,59 @@ def plazo_estimado_s(tam_gb: float, entrada_tokens: int, salida_tokens: int) -> 
     t_lectura = entrada_tokens / lectura_tps if lectura_tps > 0 else 0.0
     t_escritura = salida_tokens / escritura_tps if escritura_tps > 0 else 0.0
     return t_lectura + t_escritura
+# MQB6
+
+def puede_cargar(mem_disponible_mb: int | None, intercambio_libre_mb: int | None, compilando: bool) -> tuple[bool, str]:
+    """Verifica si el nodo tiene memoria suficiente y no está compilando.
+
+    Args:
+        mem_disponible_mb: Memoria disponible en MB desde /proc/meminfo (None si no se pudo leer).
+        intercambio_libre_mb: Memoria de intercambio libre en MB desde /proc/meminfo (None si no se pudo leer).
+        compilando: True si el nodo está compilando (tsc, next build, vitest).
+
+    Returns:
+        (bool, motivo): True si puede cargar, False con motivo en español.
+    """
+    errores = []
+
+    if mem_disponible_mb is None:
+        errores.append("no se pudo leer la memoria disponible")
+    elif mem_disponible_mb < 5200:
+        errores.append(f"memoria disponible {mem_disponible_mb} MB, hacen falta 5200")
+
+    if intercambio_libre_mb is None:
+        errores.append("no se pudo leer el intercambio libre")
+    elif intercambio_libre_mb < 1024:
+        errores.append(f"intercambio libre {intercambio_libre_mb} MB, hace falta 1024")
+
+    if compilando:
+        errores.append("el nodo está compilando")
+
+    if not errores:
+        return True, "ok"
+
+    return False, " ".join(errores)
+
+def esta_compilando(lineas_de_procesos: list[str]) -> bool:
+    """Verifica si alguna línea de ps muestra que el nodo está compilando.
+
+    Args:
+        lineas_de_procesos: Líneas del archivo /proc/<pid>/cmdline o salida similar.
+
+    Returns:
+        True si se encuentra next build, tsc (como palabra completa) o vitest.
+    """
+    import re
+
+    patron_tsc = r"tsc"
+
+    # Unir todas las líneas en un solo string para detectar patrones que pueden estar
+    # en líneas diferentes (p.ej. "next" en una línea y "build" en otra)
+    texto_completo = " ".join(lineas_de_procesos)
+    texto_min = texto_completo.lower()
+
+    if "next build" in texto_min or "vitest" in texto_min or re.search(patron_tsc, texto_min):
+        return True
+
+    return False
+
