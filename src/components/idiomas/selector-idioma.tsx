@@ -12,10 +12,9 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Check, Globe } from "lucide-react";
 import { idiomasConCatalogo, IDIOMAS, porCodigo, type Idioma } from "@/lib/idiomas/idiomas";
 import { listaMundial } from "@/lib/idiomas/lista-mundial";
+import { buscarIdiomas } from "@/lib/idiomas/busqueda";
 import { EVENTO_IDIOMA, elegirIdioma, idiomaEfectivo, sugerirIdioma } from "@/lib/idiomas/estado";
 import { estadoCatalogo } from "@/lib/idiomas/catalogos/cargar";
-
-const sinTildes = (t: string): string => t.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
 
 const conCatalogoMemo = typeof window !== "undefined" ? idiomasConCatalogo() : [];
 
@@ -72,11 +71,10 @@ export function SelectorIdioma({ className = "", alElegir, abiertoAlInicio = fal
     const listaCompleta = useMemo(() => listaMundial({ idiomaActual: actual }).filter((i) => codigosElegibles.includes(i.codigo)), [actual]);
 
     const visibles = useMemo(() => {
-        const q = sinTildes(filtro.trim());
-        const coincide = (i: { nombreActual: string; codigo: string }): boolean => !q || sinTildes(i.nombreActual).includes(q) || i.codigo.includes(q);
+        const encontrados = buscarIdiomas(listaCompleta, filtro);
         const primero = listaCompleta.find((i) => i.codigo === sugerido && i.codigo !== "es");
-        const resto = listaCompleta.filter((i) => i !== primero);
-        return { sugerido: primero && coincide(primero) ? primero : null, resto: resto.filter(coincide) };
+        const sugeridoVisible = primero && encontrados.includes(primero) ? primero : null;
+        return { sugerido: sugeridoVisible, resto: encontrados.filter((i) => i !== sugeridoVisible) };
     }, [filtro, sugerido, listaCompleta]);
 
     const elegir = (i: Idioma): void => {
