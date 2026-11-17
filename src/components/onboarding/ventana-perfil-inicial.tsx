@@ -35,6 +35,7 @@ import {
   claimProfile, saveProfileOptional, isValidHandle, sincronizarPerfilPublico,
 } from "@/lib/onboarding/onboarding";
 import { marcarRitoActivo } from "@/lib/ui/rito-activo";
+import { avisoCargaPerfil } from "@/lib/onboarding/aviso-carga-perfil";
 import { IconoStarSeed } from "@/components/onboarding/icono-starseed";
 import { esMiTurno, terminarEtapa, suscribirRito, navegarSuave } from "@/lib/onboarding/director-rito";
 import { esRutaConsola } from "@/components/layout/solo-fuera-de-consola";
@@ -128,7 +129,18 @@ export function VentanaPerfilInicial({ onCerrar }: { onCerrar?: () => void }) {
         setBio(p.bio || "");
         setAvatar(p.avatar_url || "");
         setPortada(p.cover_url || "");
-      } catch { /* se edita igual desde cero */ }
+      } catch (e) {
+        // (IMG) Antes el catch tragaba el fallo en silencio: el usuario veía el
+        // formulario vacío sin saber que la carga falló. Aviso clasificado
+        // (red/indisponible) SIN dejarlo en bucle: se edita igual desde cero.
+        const aviso = avisoCargaPerfil(e);
+        if (aviso) {
+          console.warn(
+            "[perfil-inicial] carga del perfil guardado falló:", aviso.tipo, aviso.detalle,
+          );
+          toast.warning(`${aviso.texto}. Puedes rellenar tu perfil igual y guardarlo.`);
+        }
+      }
       finally { if (vivo) setCargando(false); }
     })();
     return () => { vivo = false; };
