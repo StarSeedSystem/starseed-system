@@ -25,7 +25,9 @@ import { InterruptorModoBanco } from "./internet/interruptor-modo-banco";
 import { SugerenciaModoBanco } from "./internet/sugerencia-modo-banco";
 import { TextosInternet } from "@/lib/malla/internet/tipos";
 import { getAjustesBanco, setAjustesBanco, AJUSTES_BANCO_EVENT, calcularRestanteHoyMb } from "@/lib/malla/internet/ajustes-banco";
-import type { AjustesBanco } from "@/lib/malla/internet/tipos";
+import type { AjustesBanco, EstadoConexion, FuenteLimitada } from "@/lib/malla/internet/tipos";
+import { clasificarConexion } from "@/lib/malla/internet/conexion-limitada";
+import { SeccionInternet } from "./internet/seccion-internet";
 
 /** La privacidad de la malla de ESTE dispositivo, viva (se vuelve a leer al cambiar desde cualquier panel). */
 export function useMeshPrivacidad(): { privacidad: MeshPrivacySettings; internetPublico: boolean } {
@@ -130,7 +132,7 @@ const MODOS: { id: PublicRadarMode; texto: string; nota: string }[] = [
   { id: "off", texto: "Oculta", nota: "no emites faro: invisible entre cuentas" },
 ];
 
-export function AjustesNeurona({ centro, neuronaId, verPublicos, onVerPublicos, onNombre }: {
+export function AjustesNeurona({ centro, neuronaId, verPublicos, onVerPublicos, onNombre, textosInternet }: {
   centro: CentroNeurona;
   /** Id de esta neurona en el registro de la cuenta; sin él se usa el del dispositivo. */
   neuronaId: string | null;
@@ -138,11 +140,41 @@ export function AjustesNeurona({ centro, neuronaId, verPublicos, onVerPublicos, 
   onVerPublicos: (v: boolean) => void;
   /** Se llama al guardar un nombre nuevo (para pintarlo al momento). */
   onNombre: (nombre: string) => void;
+  /** Textos del módulo internet (INT12). Si falta, la sección «Internet compartido» queda oculta — la tarea INT20 lo conecta. */
+  textosInternet?: typeof TextosInternet;
 }) {
   const { privacidad: p, internetPublico } = useMeshPrivacidad();
   const { ajustes: banco, restanteHoyMb } = useAjustesBanco();
   const [nombre, setNombre] = useState(centro.sinNombre ? "" : centro.nombreNeurona);
   const [ultimaNegativa, setUltimaNegativa] = useState<number | null>(null);
+  const [clasificacion, setClasificacion] = useState<{ estado: EstadoConexion; fuente: FuenteLimitada }>({
+    estado: "desconocida",
+    fuente: "ninguna",
+  });
+  interface ConexionInfo {
+    type?: string;
+    saveData?: boolean;
+    effectiveType?: string;
+    addEventListener: (evento: "change", listener: () => void) => void;
+    removeEventListener: (evento: "change", listener: () => void) => void;
+  }
+
+  useEffect(() => {
+    const conn = (navigator as Navigator & { connection?: ConexionInfo }).connection;
+    if (!conn) return;
+    const actualizar = () => {
+      const entrada = {
+        tipo: conn.type,
+        saveData: conn.saveData,
+        effectiveType: conn.effectiveType,
+      };
+      const resultado = clasificarConexion(entrada);
+      setClasificacion({ estado: resultado.estado, fuente: resultado.fuente });
+    };
+    actualizar();
+    conn.addEventListener("change", actualizar);
+    return () => conn.removeEventListener("change", actualizar);
+  }, []);
   useEffect(() => { setNombre(centro.sinNombre ? "" : centro.nombreNeurona); }, [centro.nombreNeurona, centro.sinNombre]);
   const limpio = nombre.trim().slice(0, 40);
   const cambia = limpio.length > 0 && limpio !== (centro.sinNombre ? "" : centro.nombreNeurona);
@@ -257,6 +289,21 @@ export function AjustesNeurona({ centro, neuronaId, verPublicos, onVerPublicos, 
           textos={textosSugerencia}
         />
       </div>
+
+      {textosInternet && (
+        <SeccionInternet
+          textos={textosInternet}
+          extra={{
+            desde: "Desde",
+            hasta: "Hasta",
+            limite: "Límite",
+            compartirConOtros: "Compartir con otros",
+            declararDePago: "Declarar de pago",
+            declararNoDePago: "Declarar no de pago",
+          }}
+          clasificacion={clasificacion}
+        />
+      )}
 
       <div className="rounded-xl border border-white/10 bg-white/[0.025] px-2.5 py-2" aria-label="Así te ven las demás cuentas">
         <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-white/45">Así te ven las demás cuentas</p>
