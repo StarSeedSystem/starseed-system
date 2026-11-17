@@ -57,6 +57,12 @@ import subprocess
 import sys
 import time
 
+# Modelo privado del A1 (MQB4/MOD1116)
+try:
+    import modelo_privado_a1
+except Exception:  # noqa: BLE001
+    modelo_privado_a1 = None
+
 HOME = os.path.expanduser("~")
 RAIZ = os.environ.get("STARSEED_ROOT") or os.path.join(HOME, "starseed-system")
 ESTADO_DIR = os.environ.get("STARSEED_NODO_ESTADO") or "/var/lib/starseed/nodo"
@@ -530,6 +536,17 @@ class Nodo:
         total, libre = info.get("MemTotal"), info.get("MemAvailable")
         return round(100.0 * (total - libre) / total, 1) if total and libre is not None else None
 
+    @staticmethod
+    def _memoria_servicio_mb(unidad):
+        """Memoria actual del cgroup de un servicio systemd en MB, o None si no se puede leer."""
+        try:
+            ruta = f"/sys/fs/cgroup/system.slice/{unidad}/memory.current"
+            with open(ruta, encoding="utf-8") as f:
+                bytes_ = int(f.read().strip())
+            return round(bytes_ / (1024 * 1024))
+        except (OSError, ValueError):
+            return None
+
     def muestrear(self):
         cpu, mem = self._cpu_pct(), self._mem_pct()
         ahora = time.time()
@@ -620,18 +637,34 @@ class Nodo:
         # del servidor del cerebro para tareas cortas (chat breve, resumen, visión), nunca expuesto fuera.
         # Se enseña solo si está ENCENDIDO al arranque: medido, hoy no mejora ningún proceso y queda apagado
         # (Alex: «hazlo solo si mejora u optimiza los procesos»); apagado no es una avería.
+        self._modelo_privado = None
+        self._ollama_memoria_mb = None
         if os.path.exists("/etc/systemd/system/ollama.service") and self._habilitado("ollama.service"):
             codigo, ms = self._http("http://127.0.0.1:11434/api/version")
             modelos = "sin respuesta"
+            version_json = {}
+            tags_json = {}
             if codigo == "200":
                 import urllib.request
                 try:
+                    with urllib.request.urlopen("http://127.0.0.1:11434/api/version", timeout=8) as r:
+                        version_json = json.loads(r.read())
                     with urllib.request.urlopen("http://127.0.0.1:11434/api/tags", timeout=8) as r:
-                        modelos = resumen_modelos_ollama(json.loads(r.read()))
+                        tags_json = json.loads(r.read())
+                        modelos = resumen_modelos_ollama(tags_json)
                 except Exception:  # noqa: BLE001 — la salud ya dice si responde
                     modelos = "sin lista de modelos"
+            # Modelo privado del A1 (MQB4/MOD1116): estado y memoria del servicio
+            if modelo_privado_a1 and codigo == "200":
+                ahora_iso = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+                self._modelo_privado = modelo_privado_a1.estado_del_servicio(
+                    version_json, tags_json, "huihui_ai/qwen3.5-abliterated:4b", ahora_iso
+                )
+                self._ollama_memoria_mb = self._memoria_servicio_mb("ollama.service")
+            # El ok de Ollama refleja si el modelo privado está vivo (vivo = version ok Y etiqueta instalada)
+            ollama_ok = self._modelo_privado["vivo"] if self._modelo_privado else (codigo == "200")
             filas.append({"nombre": "ollama", "titulo": "Ollama (modelos locales · tareas cortas)",
-                          "activo": self._activo("ollama.service"), "ok": codigo == "200", "ms": ms,
+                          "activo": self._activo("ollama.service"), "ok": ollama_ok, "ms": ms,
                           "detalle": "salud local %s · %s" % (codigo, modelos)})
         return filas
 
@@ -657,7 +690,7 @@ class Nodo:
         except OSError:
             load = []
         ultima = (colas.get("historial") or [None])[-1]
-        _escribir(os.path.join(ESTADO_DIR, "estado.json"), {
+        estado = {
             "v": 1,
             "t": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(ahora)),
             "latido": ahora,
@@ -677,7 +710,11 @@ class Nodo:
                       "mem_ahora": self.muestras[-1][2] if self.muestras else None,
                       "cpu_p95_7d": p95, "horas": horas[-48:]},
             "disco_libre_gb": disco_gb,
-        })
+        }
+        if self._modelo_privado is not None:
+            estado["modelo_privado"] = self._modelo_privado
+            estado["servicio_memoria_mb"] = self._ollama_memoria_mb
+        _escribir(os.path.join(ESTADO_DIR, "estado.json"), estado)
 
     def _resumen_main_mac(self):
         """Lo que la neurona necesita para no reenviar el mismo paquete (sin rutas ni claves)."""
