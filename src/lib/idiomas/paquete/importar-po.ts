@@ -46,6 +46,7 @@ export function desdePo(texto: string): ResultadoImportacion {
     let bloque: BloquePo | null = null;
     let campo: "id" | "plural" | "contexto" | "cadena" = "id";
     let fuzzyPendiente = false;
+    let contextoPendiente = "";
 
     const vaciar = (): void => {
         if (!bloque) return;
@@ -63,16 +64,19 @@ export function desdePo(texto: string): ResultadoImportacion {
         const comando = /^(msgctxt|msgid_plural|msgid|msgstr(?:\[(\d+)\])?)\s*"((?:[^"\\]|\\.)*)"\s*$/.exec(recortada);
         if (comando) {
             const trozo = desescapar(comando[3]);
-            if (comando[1] === "msgid") { vaciar(); bloque = { contexto: "", id: trozo, plural: "", cadenas: [], fuzzy: fuzzyPendiente }; fuzzyPendiente = false; campo = "id"; }
+            if (comando[1] === "msgctxt") { vaciar(); campo = "contexto"; contextoPendiente = trozo; }
+            else if (comando[1] === "msgid") { vaciar(); bloque = { contexto: contextoPendiente, id: trozo, plural: "", cadenas: [], fuzzy: fuzzyPendiente }; contextoPendiente = ""; fuzzyPendiente = false; campo = "id"; }
             else if (comando[1] === "msgid_plural") { campo = "plural"; if (bloque) bloque.plural = trozo; }
-            else if (comando[1] === "msgctxt") { campo = "contexto"; if (bloque) bloque.contexto = trozo; }
             else { campo = "cadena"; if (bloque) bloque.cadenas.push({ indice: comando[2] ?? "", texto: trozo }); }
             continue;
         }
         const continua = /^"((?:[^"\\]|\\.)*)"\s*$/.exec(recortada);
-        if (continua && bloque) {
+        if (continua && (bloque || campo === "contexto")) {
             const trozo = desescapar(continua[1]);
-            if (campo === "id") bloque.id += trozo; else if (campo === "plural") bloque.plural += trozo; else if (campo === "contexto") bloque.contexto += trozo;
+            if (campo === "contexto") { if (bloque) bloque.contexto += trozo; else contextoPendiente += trozo; }
+            else if (!bloque) { /* línea suelta antes de msgid: se ignora */ }
+            else if (campo === "id") bloque.id += trozo;
+            else if (campo === "plural") bloque.plural += trozo;
             else { const ultima = bloque.cadenas.at(-1); if (ultima) ultima.texto += trozo; }
             continue;
         }
