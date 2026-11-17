@@ -218,6 +218,71 @@ describe("editor de paquetes de idioma", () => {
     });
   });
 
+  describe("importar (formatos comunes conectados con importar-json-csv)", () => {
+    beforeEach(() => {
+      editor.abrirEdicion("es-ES", "Español");
+    });
+
+    it("JSON anidado de 3 niveles se aplana con «.» y rellena el paquete", () => {
+      const r = editor.importar(
+        '{"menu":{"archivo":{"guardar":"Guardar","cerrar":"Cerrar"},"ayuda":"Ayuda"}}',
+        { tipo: "json-anidado" }
+      );
+      expect(r.entradas).toBe(3);
+      expect(r.descartadas).toHaveLength(0);
+      const paquete = editor.paqueteEnEdicion()!;
+      expect(paquete.entradas["menu.archivo.guardar"]).toBe("Guardar");
+      expect(paquete.entradas["menu.archivo.cerrar"]).toBe("Cerrar");
+      expect(paquete.entradas["menu.ayuda"]).toBe("Ayuda");
+    });
+
+    it("JSON plano añade claves con valor textual", () => {
+      const r = editor.importar('{"hola":"Hello"}', { tipo: "json-plano" });
+      expect(r.entradas).toBe(1);
+      expect(editor.completadas()).toContain("hola");
+    });
+
+    it("CSV con comas y comillas: los saltos y las comas dentro de comillas se respetan", () => {
+      const r = editor.importar(
+        'clave,traducción\n"hola, mundo","Hello, world"\nadiós,"Bye,\nadiós"',
+        { tipo: "csv", separador: "," }
+      );
+      expect(r.entradas).toBe(2);
+      const paquete = editor.paqueteEnEdicion()!;
+      expect(paquete.entradas["hola, mundo"]).toBe("Hello, world");
+      expect(paquete.entradas["adiós"]).toBe("Bye,\nadiós");
+    });
+
+    it("CSV con fila de cabecera: la primera fila no se cuenta como entrada", () => {
+      const r = editor.importar("key,traducción\nhola,hello", { tipo: "csv", separador: "," });
+      expect(r.entradas).toBe(1);
+      const paquete = editor.paqueteEnEdicion()!;
+      expect(paquete.entradas["hola"]).toBe("hello");
+      expect(paquete.entradas["key"]).toBeUndefined();
+    });
+
+    it("JSON roto no lanza: devuelve 0 entradas y un motivo", () => {
+      const r = editor.importar('{"hola": "Hello"', { tipo: "json-plano" });
+      expect(r.entradas).toBe(0);
+      expect(r.descartadas).toHaveLength(1);
+      expect(r.descartadas[0].motivo).toBe("El texto no es un JSON válido");
+    });
+
+    it("sin paquete en edición: 0 entradas y motivo", () => {
+      editor.cerrarEdicion();
+      const r = editor.importar('{"hola":"Hello"}', { tipo: "json-plano" });
+      expect(r.entradas).toBe(0);
+      expect(r.descartadas.some((d) => d.motivo === "No hay paquete en edición")).toBe(true);
+    });
+
+    it("respeta el tope de entradas: lo que no cabe se descarta con motivo", () => {
+      for (let i = 0; i < 2000; i++) editor.anadirPendiente(`texto${i}`);
+      const r = editor.importar('{"extra":"Extra"}', { tipo: "json-plano" });
+      expect(r.entradas).toBe(0);
+      expect(r.descartadas.some((d) => d.motivo.includes("tope de 2000 entradas"))).toBe(true);
+    });
+  });
+
   describe("estado persistente", () => {
     it("recupera estado tras recargar el editor", () => {
       editor.abrirEdicion("es-MX", "Mexicano");
