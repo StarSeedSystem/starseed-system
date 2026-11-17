@@ -828,25 +828,44 @@ def _salidas_del_dia(raiz, fecha, tope=TOPE_SALIDA, listar=None):
 def _clave_flota(nombres=("FREELLMAPI_KEY", "STARSEED_FLOTA_API_KEY")):
     """La clave de la flota gratuita por NOMBRE de variable, de ~/.starseed/env o ~/.hermes/.env.
     Nunca se imprime ni se registra."""
+    import entorno as E
     for nombre in nombres:
-        valor = os.environ.get(nombre)
+        valor = os.environ.get(nombre) or E.leer_clave(nombre)
         if valor:
             return valor
-        for ruta in ("~/.starseed/env", "~/.hermes/.env"):
-            try:
-                with open(os.path.expanduser(ruta), encoding="utf-8") as f:
-                    for linea in f:
-                        linea = linea.strip()
-                        if linea.startswith(nombre + "=") and len(linea) > len(nombre) + 1:
-                            return linea.split("=", 1)[1].strip().strip('"')
-            except OSError:
-                continue
     return None
 
 
+MODELOS_REDACCION = (
+    "gemini-1.5-flash-lite",
+    "minimaxai/minimax-m3.1-flash",
+    "nemotron-3.5-lightning",
+)
+
+
+def _redactar_con_modelo(prompt, clave, base, modelo, abrir):
+    """Intenta un modelo específico. Devuelve texto o lanza excepción."""
+    cuerpo = {"model": modelo, "stream": False, "temperature": 0.7, "max_tokens": 16000,
+              "messages": [{"role": "user", "content": str(prompt)}]}
+    peticion = urllib.request.Request(
+        base + "/chat/completions",
+        json.dumps(cuerpo).encode("utf-8"),
+        {"Content-Type": "application/json", "Authorization": "Bearer %s" % clave},
+    )
+    with (abrir or urllib.request.urlopen)(peticion, timeout=600) as r:
+        datos = json.load(r)
+    contenido = (datos["choices"][0]["message"]["content"] or "").strip()
+    if not contenido:
+        raise ValueError("Respuesta vacía del modelo")
+    return contenido
+
+
 def _redactar_flota(prompt, clave=None, base=None, modelo=None, abrir=None):
-    """La flota gratuita en un solo paso (la prueba del 2026-11-11): FreeLLMAPI local
-    (127.0.0.1:3001), modelo CON nombre (nunca «auto»). None si falta clave o no contesta."""
+    """La flota gratuita en un solo paso: intenta modelos con nombre que funcionan hoy.
+
+    Orden: gemini-flash-lite, NIM minimax-m3.1-flash, nemotron-3.5-lightning.
+    Con espera y sin «auto». None si falta clave o ningún modelo contesta.
+    """
     if not prompt:
         return None
     if clave is None:
@@ -854,17 +873,19 @@ def _redactar_flota(prompt, clave=None, base=None, modelo=None, abrir=None):
     if not clave:
         return None
     base = (base or os.environ.get("STARSEED_FLOTA_BASE_URL") or "http://127.0.0.1:3001/v1").rstrip("/")
-    modelo = modelo or os.environ.get("STARSEED_SINTESIS_MODELO") or "groq/llama-3.3-70b-instruct"
-    cuerpo = {"model": modelo, "stream": False, "temperature": 0.7, "max_tokens": 8000,
-              "messages": [{"role": "user", "content": str(prompt)}]}
-    peticion = urllib.request.Request(base + "/chat/completions", json.dumps(cuerpo).encode("utf-8"),
-                                      {"Content-Type": "application/json", "Authorization": "Bearer %s" % clave})
-    try:
-        with (abrir or urllib.request.urlopen)(peticion, timeout=600) as r:
-            datos = json.load(r)
-        return (datos["choices"][0]["message"]["content"] or "").strip() or None
-    except Exception:
-        return None
+    modelo_orden = (
+        [modelo] if modelo else
+        [os.environ.get("STARSEED_SINTESIS_MODELO")] if os.environ.get("STARSEED_SINTESIS_MODELO") else
+        list(MODELOS_REDACCION)
+    )
+    for m in modelo_orden:
+        if not m:
+            continue
+        try:
+            return _redactar_con_modelo(prompt, clave, base, m, abrir)
+        except Exception:
+            continue
+    return None
 
 
 def _pedir_https(url, cuerpo):
