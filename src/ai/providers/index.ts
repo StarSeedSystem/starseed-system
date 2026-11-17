@@ -47,7 +47,13 @@ export const PROVIDERS: Record<ProviderId, Provider> = {
   nvidia: nvidiaProvider,
 };
 
-/** Ordered for the picker UI: privacy-first first. */
+/**
+ * Ordered for the picker UI: privacy-first first.
+ *
+ * `abliteration` es de PAGO (saldo en USD) y NUNCA se elige solo: va al final
+ * para que no entre en el tramo «gratis primero» ni en una selección por
+ * defecto (que toma el primer elemento de esta lista).
+ */
 export const PROVIDER_ORDER: ProviderId[] = [
   "astraura-158",
   "astraura-158-malla",
@@ -56,13 +62,13 @@ export const PROVIDER_ORDER: ProviderId[] = [
   "ollama",
   "deepseek",
   "groq",
-  "abliteration",
   "openrouter",
   "nvidia",
   "openai",
   "anthropic",
   "google",
   "openai-compatible",
+  "abliteration",
 ];
 
 export function getProvider(id: ProviderId): Provider {
