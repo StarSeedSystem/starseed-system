@@ -179,3 +179,17 @@ noticias, referencias, actividad, ideas, guiones y YouTube) y un **contexto vivo
 ## 4. Cola SIN1116
 
 La cola está en `starseed_memory_root/olas/cola-sin1116.json`. Prioridad: A, B y C primero; D, E y F después.
+
+## 5. Respaldo provisional en servicio (Claude, 2026-11-17 00:20 UTC)
+
+- **La síntesis del 2026-11-16 está entregada.** El resumen llegó al chat a las 18:02 y los 9 formatos a las 18:13,
+  hora de México.
+- **Hasta que SIN1116B integre el respaldo en el bot del repo:**
+  - en el A1 corre `starseed-sintesis-respaldo.timer` cada día a las 14:30 UTC (08:30 México);
+  - ejecuta `~/.starseed/peticiones/sintesis_respaldo.sh`, que genera el contexto vivo desde el clon del repo del A1
+    y lanza `sintesis_hoy.py <hoy> --si-falta`;
+  - solo actúa si no hay síntesis del día en Drive.
+- **SIN1116B tiene que:**
+  - cubrir lo mismo;
+  - deshabilitar y borrar ese timer, su servicio y los guiones provisionales;
+  - avisar en el Mando.
