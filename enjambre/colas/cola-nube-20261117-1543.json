@@ -1,0 +1,28 @@
+{
+ "ola": "nube-20261117",
+ "tareas": [
+  {
+   "ola": "MOD1116",
+   "id": "MQC1-d2",
+   "titulo": "Biblioteca de modelos: tallas pequeñas de la familia sin filtros y su licencia (parte 2 de 2)",
+   "archivos": [
+    "src/lib/astraura/modelos/__tests__/sf-pequenas.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Lee `src/lib/astraura/modelos/catalogo-datos.ts` (función `sf`, `SF_Q`, `MODELOS_SIN_FILTROS_SEMILLA`) y `architecture/modelos-recomendados.md` §10. La página de Ollama de la familia (https://ollama.com/huihui_ai/qwen3.5-abliterated, leída el 2026-11-16) lista las etiquetas `0.8B` (1,0 GB), `2B` (1,9 GB), `4B` (3,3 GB), `9b` (6,6 GB), `27b` (17 GB), `35b` (24 GB) y `122B` (81 GB), todas con contexto 256K, texto e imagen, herramientas y razonamiento; la ficha de `9b` dice cuantización Q4_K_M, 9,65 B de parámetros, arquitectura `qwen35` y licencia Apache 2.0. Añade a la semilla `huihui_ai/qwen3.5-abliterated:2B` (`baseId: \"qwen3.5:2b\"`, 1,9 GB) y `huihui_ai/qwen3.5-abliterated:0.8B` SOLO si su `baseId` existe en la semilla (si `qwen3.5:0.8b` no existe, no la añadas y dilo en un comentario). Las cifras de las variantes de 4B y 9b no cambian; sí `licencia` de la 9b: pon «Apache 2.0 (ficha de Ollama, 2026-11-16)» y deja una `nota` que diga que la base `qwen3.5:9b` figura aquí como `RESTRINGIDA` y debe revisarse porque la ficha de Qwen en Hugging Face dice Apache-2.0. `comprobado` de las nuevas: «2026-11-16». PRUEBAS: `modeloValido` acepta las nuevas; «Automático» sigue sin elegir ninguna variante sin filtros (reutiliza la tabla de `variantes.test.ts` o compara con `candidatosPara`).\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni pytest, ni tsc, ni git, ni node, ni npm, ni curl): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj, entorno y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves (solo NOMBRES de variables, nunca valores; nunca una IP, un OCID ni un token); nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado. En Python: las pruebas son `unittest` con carpetas temporales y falsos, como las vecinas `scripts/puente/test_*.py`, y no tocan el `~/.starseed` real.\n\n## PARTE 2 DE 2 (la dirección dividió MQC1: falla por sí misma (tarea:sin_cambios))\nEn esta parte tocas SOLO: src/lib/astraura/modelos/__tests__/sf-pequenas.test.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "MQC1",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:sin_cambios)"
+   },
+   "dependencias_ya_en_main": [
+    "MQC1-d1"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1117-123226.json": [
+   "MQC1-d2"
+  ]
+ }
+}
