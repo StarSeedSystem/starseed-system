@@ -23,9 +23,11 @@ import { describirRadarPublico } from "@/lib/senales/radar-publico";
 import { FotoPerfil } from "./foto-perfil";
 import { InterruptorModoBanco } from "./internet/interruptor-modo-banco";
 import { SugerenciaModoBanco } from "./internet/sugerencia-modo-banco";
+import { SeccionInternet } from "./internet/seccion-internet";
 import { TextosInternet } from "@/lib/malla/internet/tipos";
 import { getAjustesBanco, setAjustesBanco, AJUSTES_BANCO_EVENT, calcularRestanteHoyMb } from "@/lib/malla/internet/ajustes-banco";
 import type { AjustesBanco } from "@/lib/malla/internet/tipos";
+import { clasificarConexion, type EstadoConexion, type FuenteLimitada } from "@/lib/malla/internet/conexion-limitada";
 
 /** La privacidad de la malla de ESTE dispositivo, viva (se vuelve a leer al cambiar desde cualquier panel). */
 export function useMeshPrivacidad(): { privacidad: MeshPrivacySettings; internetPublico: boolean } {
@@ -130,7 +132,7 @@ const MODOS: { id: PublicRadarMode; texto: string; nota: string }[] = [
   { id: "off", texto: "Oculta", nota: "no emites faro: invisible entre cuentas" },
 ];
 
-export function AjustesNeurona({ centro, neuronaId, verPublicos, onVerPublicos, onNombre }: {
+export function AjustesNeurona({ centro, neuronaId, verPublicos, onVerPublicos, onNombre, textosInternet }: {
   centro: CentroNeurona;
   /** Id de esta neurona en el registro de la cuenta; sin él se usa el del dispositivo. */
   neuronaId: string | null;
@@ -138,12 +140,31 @@ export function AjustesNeurona({ centro, neuronaId, verPublicos, onVerPublicos, 
   onVerPublicos: (v: boolean) => void;
   /** Se llama al guardar un nombre nuevo (para pintarlo al momento). */
   onNombre: (nombre: string) => void;
+  /** Textos del módulo textos-internet (INT20). Si no se pasa, la sección se oculta. */
+  textosInternet?: typeof TextosInternet;
 }) {
   const { privacidad: p, internetPublico } = useMeshPrivacidad();
   const { ajustes: banco, restanteHoyMb } = useAjustesBanco();
   const [nombre, setNombre] = useState(centro.sinNombre ? "" : centro.nombreNeurona);
   const [ultimaNegativa, setUltimaNegativa] = useState<number | null>(null);
+  const [clasificacion, setClasificacion] = useState<{ estado: EstadoConexion; fuente: FuenteLimitada }>({ estado: "desconocida", fuente: "ninguna" });
+
   useEffect(() => { setNombre(centro.sinNombre ? "" : centro.nombreNeurona); }, [centro.nombreNeurona, centro.sinNombre]);
+
+  useEffect(() => {
+    const conn = (navigator as any).connection;
+    if (!conn) {
+      setClasificacion({ estado: "desconocida", fuente: "ninguna" });
+      return;
+    }
+    const entrada = {
+      tipo: conn.type,
+      effectiveType: conn.effectiveType,
+      saveData: conn.saveData,
+    };
+    setClasificacion(clasificarConexion(entrada));
+  }, []);
+
   const limpio = nombre.trim().slice(0, 40);
   const cambia = limpio.length > 0 && limpio !== (centro.sinNombre ? "" : centro.nombreNeurona);
   const actualizar = (parche: Partial<MeshPrivacySettings>) => setMeshPrivacy(parche);
@@ -164,17 +185,17 @@ export function AjustesNeurona({ centro, neuronaId, verPublicos, onVerPublicos, 
   };
 
   const textosBanco = {
-    bancoTitulo: TextosInternet.bancoTitulo,
-    bancoAyuda: TextosInternet.bancoAyuda,
-    quedaHoy: TextosInternet.quedaHoy,
-    agotadoHoy: TextosInternet.agotadoHoy,
+    bancoTitulo: textosInternet?.bancoTitulo ?? TextosInternet.bancoTitulo,
+    bancoAyuda: textosInternet?.bancoAyuda ?? TextosInternet.bancoAyuda,
+    quedaHoy: textosInternet?.quedaHoy ?? TextosInternet.quedaHoy,
+    agotadoHoy: textosInternet?.agotadoHoy ?? TextosInternet.agotadoHoy,
   };
 
   const textosSugerencia = {
-    sugerirTitulo: TextosInternet.sugerirTitulo,
-    sugerirCuerpo: TextosInternet.sugerirCuerpo,
-    sugerirActivar: TextosInternet.sugerirActivar,
-    sugerirAhoraNo: TextosInternet.sugerirAhoraNo,
+    sugerirTitulo: textosInternet?.sugerirTitulo ?? TextosInternet.sugerirTitulo,
+    sugerirCuerpo: textosInternet?.sugerirCuerpo ?? TextosInternet.sugerirCuerpo,
+    sugerirActivar: textosInternet?.sugerirActivar ?? TextosInternet.sugerirActivar,
+    sugerirAhoraNo: textosInternet?.sugerirAhoraNo ?? TextosInternet.sugerirAhoraNo,
   };
 
   return (
@@ -279,6 +300,27 @@ export function AjustesNeurona({ centro, neuronaId, verPublicos, onVerPublicos, 
         activo={verPublicos}
         onCambio={onVerPublicos}
       />
+
+      {textosInternet && (
+        <div>
+          <p className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold text-white/85">
+            <Globe2 className="h-3.5 w-3.5 text-sky-300" aria-hidden /> Internet compartido
+          </p>
+          <SeccionInternet
+            textos={textosInternet}
+            extra={{
+              desde: "Desde",
+              hasta: "Hasta",
+              limite: "Límite",
+              compartirConOtros: "Compartir con otros",
+              declararDePago: "Declarar de pago",
+              declararNoDePago: "Declarar sin pago",
+            }}
+            clasificacion={clasificacion}
+          />
+        </div>
+      )}
+      {/* textosInternet no disponible: la tarea INT20 lo conecta */}
     </section>
   );
 }
