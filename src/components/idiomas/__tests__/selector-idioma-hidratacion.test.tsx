@@ -11,7 +11,11 @@ let serverLabel = "";
 
 beforeEach(() => {
     localStorage.clear();
-    vi.useFakeTimers({ shouldAdvanceTime: true });
+    // Elección previa de este aparato ANTES del render del servidor: el primer render
+    // NO debe consumirla (el componente parte de «es»; el efecto la aplica tras hidratar).
+    localStorage.setItem(CLAVE_IDIOMA_NEURONA, JSON.stringify({ codigo: "en" }));
+    // Sin avance automático del reloj: el rótulo solo gira cuando la prueba lo avanza.
+    vi.useFakeTimers();
     Object.defineProperty(navigator, "language", { value: "fr-FR", configurable: true });
     if (!navigator.languages) Object.defineProperty(navigator, "languages", { value: ["fr-FR"], configurable: true });
     serverHtml = renderToString(<SelectorIdioma />);
@@ -25,9 +29,7 @@ afterEach(() => {
 });
 
 describe("selector de idioma – hidratación", () => {
-    it("el rótulo de la primera render es idéntico en servidor y cliente, cambia tras 1 s", () => {
-        // Simular elección previa
-        localStorage.setItem(CLAVE_IDIOMA_NEURONA, JSON.stringify({ codigo: "en" }));
+    it("el primer render del rótulo es idéntico en servidor y cliente, y gira tras 1 s", () => {
         // Capturar errores de consola
         const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
