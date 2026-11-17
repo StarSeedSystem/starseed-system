@@ -32,7 +32,7 @@ import { FotoConMarco, EditorMarco } from "@/components/profile/foto-con-marco";
 import { EditorAvatar3D, Avatar3DVisor, type Avatar3D } from "@/components/profile/avatar-3d";
 import { type Marco, MARCO_POR_DEFECTO } from "@/lib/profile/marco-foto";
 import {
-  claimProfile, saveProfileOptional, isValidHandle, sincronizarPerfilPublico,
+  claimProfile, saveProfileOptional, isValidHandle,
 } from "@/lib/onboarding/onboarding";
 import { describirFalloCargaPerfil } from "@/lib/onboarding/carga-perfil";
 import { marcarRitoActivo } from "@/lib/ui/rito-activo";
@@ -193,29 +193,19 @@ export function VentanaPerfilInicial({ onCerrar }: { onCerrar?: () => void }) {
         const r = await conTope(claimProfile({ fullName: nombre.trim(), handle: h }));
         if (r && !r.ok) { toast.error(r.error || "No se pudo guardar el nombre."); return; }
       }
+      // (Ola IMG) El espejo PÚBLICO (os_profiles) lo escribe UNA sola vez
+      // `saveProfileOptional` con su propio cliente: aquí SOBRABA un bloque
+      // que repetía createClient + auth.getUser + sincronizarPerfilPublico
+      // con los mismos campos. El nombre y el @handle viajan ahora dentro.
       await conTope(saveProfileOptional({
         avatar_url: avatar || undefined,
         cover_url: portada || undefined,
         bio: bio || undefined,
         avatar_marco: marco as unknown as Record<string, unknown>,
         avatar_3d: avatar3d?.url ? (avatar3d as unknown as Record<string, unknown>) : null,
+        display_name: nombre.trim() || undefined,
+        handle: h || undefined,
       }));
-      await conTope((async () => {
-        const sb = createClient();
-        const { data: u } = await sb.auth.getUser();
-        if (u?.user?.id) {
-          await sincronizarPerfilPublico(u.user.id, {
-            handle: h || undefined,
-            display_name: nombre.trim() || undefined,
-            avatar_url: avatar || undefined,
-            cover_url: portada || undefined,
-            bio: bio || undefined,
-            avatar_marco: marco as unknown as Record<string, unknown>,
-            avatar_3d: avatar3d?.url ? (avatar3d as unknown as Record<string, unknown>) : null,
-          });
-        }
-        return true;
-      })());
 
       // (Ola 381 · INI6) Antes de cerrar, el paso de arranque (pantalla inicial y bloqueo).
       setPaso("arranque");

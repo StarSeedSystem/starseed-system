@@ -213,7 +213,7 @@ export async function saveOnboarding(
  * Antes, el paso opcional reutilizaba claimProfile y si el estado del handle
  * llegaba vacío (reanudación, prefill) explotaba con "@handle no válido".
  */
-export async function saveProfileOptional(optional: {
+export interface DatosPerfilOpcional {
   avatar_url?: string;
   cover_url?: string;
   bio?: string;
@@ -221,23 +221,51 @@ export async function saveProfileOptional(optional: {
   avatar_marco?: Record<string, unknown> | null;
   /** (Adenda 219) Avatar 3D opcional con sus ajustes. */
   avatar_3d?: Record<string, unknown> | null;
-}): Promise<{ ok: boolean; error?: string }> {
+  /** (Ola IMG) Identidad para el espejo público (`os_profiles`), antes la
+   *  re-escribía la ventana de perfil con SU PROPIO cliente Supabase. */
+  display_name?: string;
+  handle?: string;
+}
+
+/** Campos del perfil PRIVADO (`profiles`) derivados de los datos: solo los presentes. */
+export function camposPerfilPrivado(d: DatosPerfilOpcional): Record<string, unknown> {
+  const patch: Record<string, unknown> = {};
+  if (d.avatar_url) patch.avatar_url = d.avatar_url;
+  if (d.cover_url) patch.cover_url = d.cover_url;
+  if (d.bio) patch.bio = d.bio;
+  if (d.avatar_marco !== undefined) patch.avatar_marco = d.avatar_marco;
+  if (d.avatar_3d !== undefined) patch.avatar_3d = d.avatar_3d;
+  return patch;
+}
+
+/** Campos del espejo PÚBLICO (`os_profiles`): los privados más nombre y @handle. */
+export function camposPerfilPublico(d: DatosPerfilOpcional): Record<string, unknown> {
+  const patch = camposPerfilPrivado(d);
+  const handle = (d.handle || "").trim();
+  if (handle) patch.handle = handle;
+  const nombre = (d.display_name || "").trim();
+  if (nombre) patch.display_name = nombre;
+  return patch;
+}
+
+export async function saveProfileOptional(
+  optional: DatosPerfilOpcional,
+): Promise<{ ok: boolean; error?: string }> {
   const owner = await uid();
   if (!owner) return { ok: false, error: "Necesitas iniciar sesión." };
-  const patch: Record<string, unknown> = {};
-  if (optional.avatar_url) patch.avatar_url = optional.avatar_url;
-  if (optional.cover_url) patch.cover_url = optional.cover_url;
-  if (optional.bio) patch.bio = optional.bio;
-  if (optional.avatar_marco !== undefined) patch.avatar_marco = optional.avatar_marco;
-  if (optional.avatar_3d !== undefined) patch.avatar_3d = optional.avatar_3d;
-  if (Object.keys(patch).length === 0) return { ok: true };
+  const patch = camposPerfilPrivado(optional);
+  const publicos = camposPerfilPublico(optional);
+  if (Object.keys(publicos).length === 0) return { ok: true };
   try {
     const sb = createClient();
-    const { error } = await sb.from("profiles").update(patch).eq("user_id", owner);
-    if (error) return { ok: false, error: error.message };
+    if (Object.keys(patch).length > 0) {
+      const { error } = await sb.from("profiles").update(patch).eq("user_id", owner);
+      if (error) return { ok: false, error: error.message };
+    }
     // (Adenda 194) Espejo en el perfil PÚBLICO: avatar, portada y bio son lo
-    // que se ve en /profile, que lee `os_profiles`.
-    await sincronizarPerfilPublico(owner, patch);
+    // que se ve en /profile, que lee `os_profiles`. Una sola escritura desde
+    // aquí — la ventana ya no repite el client + getUser + espejo.
+    await sincronizarPerfilPublico(owner, publicos);
     return { ok: true };
   } catch (e) {
     return { ok: false, error: (e as Error)?.message || "Error al guardar." };
