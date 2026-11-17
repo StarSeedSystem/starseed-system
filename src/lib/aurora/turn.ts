@@ -84,6 +84,8 @@ import { describeUserVoiceEmotionForPrompt } from "@/lib/aurora/audio-emotion";
 import { lineaContextoOidoParaPrompt } from "@/lib/aurora/engine";
 // Adenda 154: trazas del enjambre Astraura 1.58-bit → metadatos del mensaje.
 import { astraura158MetaFromRaw, astraura158ToolMetas, isAstraura158Source } from "@/lib/astraura/astraura-158-meta";
+// DR1114-1: métricas de latencia WebSocket vs SSE
+import { registrarMetrica } from "@/lib/mejoras/metrics";
 
 // ── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -430,6 +432,8 @@ function historyFromCache(convId: string, excludeText: string): ChatMessage[] {
 export async function sendAuroraTurn(opts: SendAuroraTurnOptions): Promise<AuroraTurnResult> {
   const text = (opts.text || "").trim();
   const surface: AiSurface = opts.surface ?? "other";
+  const turnStart = Date.now();
+  let firstChunkRecorded = false;
 
   // 1) Conversación destino (crea una si no hay ninguna).
   let convId = opts.convId || getActiveConversationId();
@@ -487,6 +491,25 @@ export async function sendAuroraTurn(opts: SendAuroraTurnOptions): Promise<Auror
 
   // 5) Router gratis-primero con failover (+ streaming si se pidió).
   let acc = "";
+  const onChunkWrapped = opts.onChunk
+    ? (delta: string) => {
+        acc += delta;
+        if (!firstChunkRecorded && delta) {
+          firstChunkRecorded = true;
+          const latencyMs = Date.now() - turnStart;
+          const via = res?.route?.sourceId?.startsWith("astraura-158")
+            ? (res.raw as any)?.via === "local" ? "websocket" : "sse"
+            : "http";
+          void registrarMetrica("latency", via as "websocket" | "sse" | "http", "sendAuroraTurn", latencyMs, {
+            destino: `chat:${surface}`,
+            datos: { convId, brainId: opts.brainId },
+          }).catch(() => {});
+        }
+        // Filtra las directivas del stream visible (no ensucian la UI).
+        if (!/\[\[/.test(delta)) opts.onChunk?.(delta);
+      }
+    : undefined;
+
   const res = await astrauraChat({
     messages,
     temperature,
@@ -496,14 +519,20 @@ export async function sendAuroraTurn(opts: SendAuroraTurnOptions): Promise<Auror
     chatConfig,
     onStatus: opts.onStatus,
     signal: opts.signal,
-    onChunk: opts.onChunk
-      ? (delta) => {
-          acc += delta;
-          // Filtra las directivas del stream visible (no ensucian la UI).
-          if (!/\[\[/.test(delta)) opts.onChunk?.(delta);
-        }
-      : undefined,
+    onChunk: onChunkWrapped,
   });
+
+  // Si no hubo streaming, registrar latencia total
+  if (!opts.onChunk && !firstChunkRecorded) {
+    const latencyMs = Date.now() - turnStart;
+    const via = res?.route?.sourceId?.startsWith("astraura-158")
+      ? (res.raw as any)?.via === "local" ? "websocket" : "sse"
+      : "http";
+    void registrarMetrica("latency", via as "websocket" | "sse" | "http", "sendAuroraTurn", latencyMs, {
+      destino: `chat:${surface}`,
+      datos: { convId, brainId: opts.brainId },
+    }).catch(() => {});
+  }
 
   const rawReply = (acc || res?.text || "").trim();
 

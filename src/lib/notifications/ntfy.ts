@@ -50,6 +50,8 @@
 import { createClient } from "@/utils/supabase/client";
 import { thisDeviceId } from "@/lib/neurons/neurons";
 import { notifyFromApp, type AppNotifyLevel } from "@/lib/notifications/app-notify";
+// DR1114-1: métricas de latencia WebSocket vs SSE
+import { registrarMetrica } from "@/lib/mejoras/metrics";
 
 /* ─────────────────────────── Claves y eventos ─────────────────────────── */
 
@@ -493,6 +495,8 @@ export function subscribe(
   let es: EventSource | null = null;
   let retryTimer: ReturnType<typeof setTimeout> | null = null;
   let attempt = 0;
+  const connectionStart = Date.now();
+  let connectionLatencyRecorded = false;
 
   function scheduleRetry() {
     if (closed) return;
@@ -510,8 +514,6 @@ export function subscribe(
       const params = new URLSearchParams();
       if (opts?.since) params.set("since", opts.since);
       if (settings.token) {
-        // EventSource no permite fijar cabeceras: el valor completo de
-        // Authorization viaja en base64 "raw" (sin '=' de relleno) por query.
         try { params.set("auth", btoa(`Bearer ${settings.token}`).replace(/=+$/, "")); }
         catch { /* token con caracteres no soportados por btoa: se omite auth por query */ }
       }
@@ -521,12 +523,22 @@ export function subscribe(
       const source = new EventSource(url);
       es = source;
 
-      source.onopen = () => { attempt = 0; };
+      source.onopen = () => {
+        attempt = 0;
+        if (!connectionLatencyRecorded) {
+          connectionLatencyRecorded = true;
+          const latencyMs = Date.now() - connectionStart;
+          void registrarMetrica("latency", "sse", "ntfy-connection", latencyMs, {
+            destino: `topics:${cleanTopics.join(",")}`,
+            datos: { topics: cleanTopics, attempt },
+          }).catch(() => {});
+        }
+      };
 
       source.onmessage = (ev: MessageEvent) => {
         let data: NtfyMessage | null = null;
         try { data = JSON.parse(ev.data) as NtfyMessage; } catch { data = null; }
-        if (!data || data.event !== "message") return; // ignora open/keepalive/otros eventos
+        if (!data || data.event !== "message") return;
 
         try {
           if (getNtfySettings().mirrorToInApp) {
@@ -542,12 +554,20 @@ export function subscribe(
           }
         } catch { /* el espejo nunca debe romper la suscripción */ }
 
+        // Registrar latencia del mensaje (tiempo desde conexión + procesamiento)
+        const messageLatencyMs = Date.now() - connectionStart;
+        void registrarMetrica("latency", "sse", "ntfy-notification", messageLatencyMs, {
+          destino: `topic:${data.topic}`,
+          datos: { id: data.id, priority: data.priority, tags: data.tags },
+        }).catch(() => {});
+
         try { onMessage(data); } catch { /* el callback del llamador no debe tumbar la suscripción */ }
       };
 
       source.onerror = () => {
         try { source.close(); } catch { /* noop */ }
         if (es === source) es = null;
+        connectionLatencyRecorded = false; // Resetear para próxima reconexión
         scheduleRetry();
       };
     } catch {
