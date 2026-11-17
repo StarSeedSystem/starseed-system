@@ -1,0 +1,95 @@
+{
+ "ola": "nube-20261116",
+ "tareas": [
+  {
+   "id": "IDBf13",
+   "ola": "IDB1116B",
+   "titulo": "Francés: components/onboarding (2/2), 197 textos",
+   "archivos": [
+    "src/lib/idiomas/catalogos/fr.json"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Traduces la interfaz de StarSeed OS del español a francés (fr), área «components/onboarding» (la bienvenida y el primer arranque), parte 2 de 2. Lee antes `architecture/idiomas.md` §2, §5 y §8. Las traducciones son «automático, sin revisar»: el catálogo queda `revisado: false`, que la interfaz ya enseña («Traducción automática, sin revisar»); NO lo cambies a revisado. El texto escrito por personas nunca se toca: solo traduces textos de interfaz que el guion ya midió. NO edites `src/lib/idiomas/catalogos/fr.json` a mano: lo escribe el guion `rellenar.mjs`, tú solo preparas las traducciones. Archivos de trabajo: SOLO dentro del repo, en `.tmp/` (carpeta que git ya ignora). NUNCA uses `/tmp` ni otra ruta fuera del repo: tu herramienta de lectura la rechaza y la tarea acaba sin cambios. No añadas nada de `.tmp/` a git. Si una herramienta rechaza un permiso, no insistas con otra ruta: termina y di qué comando falló.\nPASOS (desde la raíz del repo, en este orden):\n1. Anota la cobertura de antes: `node scripts/idiomas/cobertura.mjs --areas | awk '/^fr \\(/{p=1;next} /^[a-z][a-z] \\(/{p=0} p' | grep -E '^ +components/onboarding ' ` (columna «presentes» del idioma «fr»; es tu P0).\n2. Vuelca los textos (un solo comando, crea `.tmp` si no existe): `mkdir -p .tmp && node --input-type=module -e \"import {cargarFuente,cargarUnidades,cargarCatalogo,textosDeUnidad} from './scripts/idiomas/comun.mjs';import fs from 'node:fs';const f=cargarFuente(),u=cargarUnidades(),c=cargarCatalogo('fr');const t=textosDeUnidad(f,u,'components/onboarding').filter(x=>!c.entradas[x]).slice(0,250);fs.writeFileSync('.tmp/IDBf13-textos.json',JSON.stringify(Object.fromEntries(t.map((x,i)=>[String(i+1),x])),null,1));console.log(t.length)\"` — imprime cuántos (≤250); si imprime 0, no hay nada que hacer: termina y dilo.\n3. Lee los textos con `cat .tmp/IDBf13-textos.json` y escribe `.tmp/IDBf13-trad.json` (con tu herramienta de escritura, dentro del repo): un objeto con LAS MISMAS claves «1»…«N» y la traducción de cada texto (JSON válido, nada más). Reglas: conserva EXACTAMENTE `{0}`, `{1}`…, las etiquetas `<b>…</b>` y las marcas StarSeed, Astraura, Genesis, MetaGenesis, PoliGenesis, ProtoGenesis, Protomolécula, Trinity; en `{n, plural, one {…} other {…}}` traduce el contenido de las ramas pero conserva `plural`, `one`, `other`, los `#` y las llaves; mismo tono y longitud parecida (es interfaz: botones cortos, sin explicar de más); tú/usted según el uso natural de francés en software; mantén signos finales y mayúsculas del original. Si un texto NO es lenguaje (código, selector CSS, SVG, URL, número, atajo de teclado, nombre propio o de marca) déjalo IGUAL y apúntalo para el commit.\n4. Convierte (falla si falta alguna clave): `node -e \"const t=require('./.tmp/IDBf13-textos.json'),r=require('./.tmp/IDBf13-trad.json');const k=Object.keys(t);const mal=k.filter(x=>typeof r[x]!=='string'||!r[x].trim());if(mal.length){console.error('faltan',mal);process.exit(1)}require('fs').writeFileSync('.tmp/IDBf13-arr.json',JSON.stringify(k.map(x=>r[x])))\"`\n5. Rellena: `node scripts/idiomas/rellenar.mjs --idioma fr --area components/onboarding --motor comando --cmd \"cat .tmp/IDBf13-arr.json\" --limite 250`. Debe terminar con código 0 y «rechazadas 0». Si rechaza alguna (pierde un valor, una etiqueta, una rama de plural o una marca), corrige SOLO esas en `-trad.json` y repite desde el paso 4 (el guion salta lo ya escrito). No sigas hasta tener 0 rechazadas.\n6. Cobertura: `node scripts/idiomas/cobertura.mjs --areas | awk '/^fr \\(/{p=1;next} /^[a-z][a-z] \\(/{p=0} p' | grep -E '^ +components/onboarding '` → «presentes» = P0 + lo escrito, «ausentes» baja lo mismo, «inválidas 0». Y `NODE_ENV=test npx vitest run src/lib/idiomas/__tests__/cobertura.test.ts src/lib/idiomas/__tests__/capa.test.tsx` en verde.\n7. Nada pierde valor ni queda igual sin motivo: `node --input-type=module -e \"import {execSync} from 'node:child_process';import fs from 'node:fs';const p='src/lib/idiomas/catalogos/fr.json';const antes=JSON.parse(execSync('git show HEAD:'+p,{maxBuffer:1<<28}).toString()).entradas,ahora=JSON.parse(fs.readFileSync(p,'utf8')).entradas;const perd=Object.keys(antes).filter(k=>ahora[k]!==antes[k]);const nue=Object.keys(ahora).filter(k=>!(k in antes));const ig=nue.filter(k=>ahora[k]===k);console.log('perdidas o cambiadas',perd.length,'nuevas',nue.length,'iguales al original',ig.length);ig.forEach(k=>console.log(' =',k.slice(0,80)));process.exit(perd.length?1:0)\"` — «perdidas o cambiadas» DEBE ser 0 (no toques lo ya traducido, ni lo escrito por personas); cada «igual al original» debe ser algo no lingüístico y queda listado en el cuerpo de tu commit; si es una frase traducible, tradúcela y repite.\n8. `git diff --stat` debe mostrar SOLO `src/lib/idiomas/catalogos/fr.json`. En el commit: cuántas entradas escribiste, cuántas rechazó el guion y corregiste, y la lista de iguales justificadas.\n\nREGLAS DE LA CASA: toca SOLO los archivos de `archivos`; los ÚNICOS archivos de trabajo permitidos van en `.tmp/` dentro del repo (ignorados por git, nunca se comitean). Todo lo demás dentro del repo; jamás `/tmp` ni rutas absolutas. Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves. El asunto de tu commit empieza por `IDBf13:` y dice qué comprobaste y qué NO pudiste comprobar.",
+   "dependencias_ya_en_main": [
+    "IDBf12"
+   ]
+  },
+  {
+   "id": "SVF1B5b",
+   "ola": "SES1116B",
+   "titulo": "Grupo: las mismas pestañas dinámicas del espacio",
+   "archivos": [
+    "src/app/(app)/grupo/[slug]/page.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contrato: architecture/sesiones-en-vivo-entidades-y-transmisiones.md §10 (P1-B). Repite en `src/app/(app)/grupo/[slug]/page.tsx` (`baseTabs` ~línea 323) EXACTAMENTE lo que SVF1B4 hizo en la página de entidad: UN bloque aditivo `// SES1115Q` con `usarEspacio` y `aPestanasDePagina` (`src/lib/entidad-espacio/`), pestañas al final, sin romper si hay `error`. No modifiques nada más (≤30 líneas). COMPRUEBA: tsc acotado sin errores nuevos en ese archivo y `NODE_ENV=test npx vitest run src/lib/entidad-espacio` verde; en el commit di cómo comprobaste que la página sigue montando.\n\nREGLAS DE LA CASA (valen aunque no las repita la tarea): toca SOLO los archivos de la lista `archivos`; ≤3 archivos y ≤120 líneas por archivo (si no cabe, para y di qué falta: no lo estires ni lo resumas); sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible (la interfaz dice Genesis); sin red real en las pruebas; ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves. El asunto de tu commit empieza por `SVF1B5b:` y dice qué comprobaste y qué NO pudiste comprobar.",
+   "dependencias_ya_en_main": [
+    "SVF1B4b"
+   ]
+  },
+  {
+   "id": "SVF1D3b",
+   "ola": "SES1116B",
+   "titulo": "Prueba: el espectador cuenta y no edita; la página muestra la pestaña en vivo",
+   "archivos": [
+    "src/lib/vivo-entidad/__tests__/espectador-y-pestana.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contrato: architecture/sesiones-en-vivo-entidades-y-transmisiones.md §10 (P1-D). Dos comprobaciones puras: (1) con `contarEspectadores` y `rangoDeSesion` (`src/lib/vivo-entidad/`): un espectador por enlace público cuenta 1, no edita, y 3 espectadores + 2 editores dan 3 espectadores; la fila de la estación (`filaEstacionDeSesion`) lleva `tipo` pizarra o dashboard y enlace `/vivo/<id>?t=<token>`. (2) con `aPestanasDePagina` (`src/lib/entidad-espacio/pestanas-pagina.ts`): una sesión en directo con 2 personas sale como pestaña con punto y contador 2, y al quedar a 0 personas pierde el contador. COMPRUEBA: `NODE_ENV=test npx vitest run src/lib/vivo-entidad/__tests__/espectador-y-pestana.test.ts` verde y tsc acotado.\n\nREGLAS DE LA CASA (valen aunque no las repita la tarea): toca SOLO los archivos de la lista `archivos`; ≤3 archivos y ≤120 líneas por archivo (si no cabe, para y di qué falta: no lo estires ni lo resumas); sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible (la interfaz dice Genesis); sin red real en las pruebas; ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves. El asunto de tu commit empieza por `SVF1D3b:` y dice qué comprobaste y qué NO pudiste comprobar.",
+   "dependencias_ya_en_main": [
+    "SVF1C2",
+    "SVF1C3",
+    "SVF1B4b"
+   ]
+  },
+  {
+   "id": "DSB02",
+   "ola": "DSB1116B",
+   "titulo": "Directores: leer el error real de Kotlin y no abrir tareas por compilaciones ya superadas",
+   "archivos": [
+    "scripts/puente/prioridad_desbloqueo.py",
+    "scripts/puente/test_prioridad_desbloqueo.py"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. PRIMERA PRUEBA REAL de `scripts/puente/prioridad_desbloqueo.py` (16-11, 21:27): abrió una tarea URGENTE para la compilación N.º 47, que ya estaba arreglada, con `archivos: []` y esta evidencia: «FAILURE: Build failed with an exception. * What went wrong: Execution failed for task …». Dos defectos:\n1) El analizador del registro NO recogió la línea del compilador de Kotlin tal como la da GitHub. Formato real (cada línea de `gh run view --log-failed` lleva delante `<trabajo>\\t<paso>\\t<fecha ISO> `): `e: file:///home/runner/work/starseed-system/starseed-system/native/src-tauri/gen/android/app/src/main/java/app/starseed/os/nativa/ProyeccionPantallaStarSeed.kt:189:14 Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver of type 'MediaProjection?'.` Debe reconocer `e: file://…/<Nombre>.kt:<línea>:<columna> <mensaje>` (y `e: <ruta>.kt:…` sin `file://`), quedarse con el nombre del archivo, la línea y el mensaje, y ponerlos PRIMERO en la evidencia. La ruta generada (`gen/android/...`) no existe en el repositorio: el archivo del repo se busca por su NOMBRE con el buscador inyectado que ya use el módulo (si no hay ninguno, añade un parámetro inyectado `buscar_por_nombre(nombre) -> [rutas]`).\n2) No debe abrir tarea por una compilación fallida cuando ya hay una compilación de número MAYOR publicada o en marcha (dato del estado del director de pruebas que ya recibe: `numero` y `estado`), ni cuando `main` ya cambió, después del sha del fallo, un archivo con el mismo nombre que señala la evidencia (la comprobación `ya_arreglado` existente debe usar también el nombre, no solo la ruta).\n\nLee entero el módulo y sus pruebas antes de tocar. Cambia SOLO esos dos archivos (≤60 líneas en el módulo). Pruebas nuevas: la línea real de arriba con su prefijo de GitHub da archivo `ProyeccionPantallaStarSeed.kt`, línea 189 y el mensaje; una compilación 47 en `fallo` con la 48 `publicada` no abre tarea; con la 48 `compilando` tampoco; un fallo cuyo archivo (por nombre) cambió en `main` después no abre tarea; un fallo nuevo sin nada de eso SÍ abre tarea con `archivos` no vacío. Asunto del commit: `DSB1116B · DSB02: el director lee el error real de Kotlin y no abre tareas por compilaciones ya superadas`.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado."
+  },
+  {
+   "id": "JL8",
+   "ola": "JLA1116A",
+   "titulo": "Puerta de evaluación: cuándo una capa nueva reemplaza a la vigente",
+   "archivos": [
+    "src/lib/astraura/laya/evaluar-capa.ts",
+    "src/lib/astraura/laya/__tests__/evaluar-capa.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: architecture/jev-entrena-laya.md (si aún no está en el repo, rige este texto). Lee AGENTS.md. §6. Puro. `evaluarCapa({vigente, nueva, reserva})` donde `reserva` son casos con desenlace por estrato. Devuelve `{reemplaza: boolean, motivos: string[]}` y solo reemplaza si: hay ≥ 1.000 casos de reserva repartidos (si no, motivo «faltan datos»); la nueva no es peor en NINGÚN estrato y mejora en alguno; no deja pasar más «integrar» revertidos que la vigente. `particion(ids)`: reserva del 20 % por huella del id (determinista, no sorteo). PRUEBAS: empate no reemplaza, peor en un estrato no reemplaza, pocos datos no reemplaza, partición estable.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` (Python: sin red ni `~/.starseed`, rutas y lectores se inyectan) salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "JL7-d2"
+   ]
+  },
+  {
+   "id": "SVF1C4",
+   "ola": "SES1116B",
+   "titulo": "Hoja «Compartir en vivo»: tres decisiones y un resultado",
+   "archivos": [
+    "src/components/vivo-entidad/compartir-en-vivo.tsx",
+    "src/components/vivo-entidad/__tests__/compartir-en-vivo.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contrato: architecture/sesiones-en-vivo-entidades-y-transmisiones.md §8 flujo 1. Componente `CompartirEnVivo({abierta, alCerrar, titulo, tipo, paginasMias, crear})` donde `crear` es `compartirEnVivo` de `src/lib/vivo-entidad/estacion-de-sesion.ts` ya con sus `deps` (la hoja NO hace red). Máximo tres decisiones, el valor por defecto siempre sirve: «¿Con quién?» [Mis neuronas] [Una página o grupo ▾ (lista de `paginasMias`)] [Cualquiera con enlace]; «¿Pueden editar o solo mirar?» [Editar] [Mirar]; botón [Compartir]. Por defecto: Mis neuronas + Editar. Resultado: «Compartida. N persona(s) dentro.» y botón **Copiar enlace** (portapapeles con try/catch y aviso si no se puede). Errores en palabras de persona (incluido «Las sesiones en vivo aún no están activadas en este servidor»). Accesible: foco al abrir, Esc cierra, botones de ≥44 px, funciona a 360 px de ancho.\nPRUEBAS: por defecto manda mis-neuronas+editar; elegir «Cualquiera con enlace» fuerza el aviso de que cualquiera con el enlace podrá mirar; un `crear` que falla enseña el motivo y no «Compartida»; el botón Copiar enlace usa el enlace devuelto. COMPRUEBA: `NODE_ENV=test npx vitest run src/components/vivo-entidad/__tests__/compartir-en-vivo.test.tsx` verde y tsc acotado.\n\nREGLAS DE LA CASA (valen aunque no las repita la tarea): toca SOLO los archivos de la lista `archivos`; ≤3 archivos y ≤120 líneas por archivo (si no cabe, para y di qué falta: no lo estires ni lo resumas); sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible (la interfaz dice Genesis); sin red real en las pruebas; ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves. El asunto de tu commit empieza por `SVF1C4:` y dice qué comprobaste y qué NO pudiste comprobar.",
+   "dependencias_ya_en_main": [
+    "SVF1C2"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1116-230455.json": [
+   "SVF1C4",
+   "JL8",
+   "DSB02",
+   "SVF1B5b",
+   "SVF1D3b",
+   "IDBf13"
+  ]
+ }
+}
