@@ -1,0 +1,39 @@
+{
+ "ola": "nube-20261117",
+ "tareas": [
+  {
+   "id": "SVF1B5b",
+   "ola": "SES1116B",
+   "titulo": "Grupo: las mismas pestañas dinámicas del espacio",
+   "archivos": [
+    "src/app/(app)/grupo/[slug]/page.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contrato: architecture/sesiones-en-vivo-entidades-y-transmisiones.md §10 (P1-B). Repite en `src/app/(app)/grupo/[slug]/page.tsx` (`baseTabs` ~línea 323) EXACTAMENTE lo que SVF1B4 hizo en la página de entidad: UN bloque aditivo `// SES1115Q` con `usarEspacio` y `aPestanasDePagina` (`src/lib/entidad-espacio/`), pestañas al final, sin romper si hay `error`. No modifiques nada más (≤30 líneas). COMPRUEBA: tsc acotado sin errores nuevos en ese archivo y `NODE_ENV=test npx vitest run src/lib/entidad-espacio` verde; en el commit di cómo comprobaste que la página sigue montando.\n\nREGLAS DE LA CASA (valen aunque no las repita la tarea): toca SOLO los archivos de la lista `archivos`; ≤3 archivos y ≤120 líneas por archivo (si no cabe, para y di qué falta: no lo estires ni lo resumas); sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible (la interfaz dice Genesis); sin red real en las pruebas; ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves. El asunto de tu commit empieza por `SVF1B5b:` y dice qué comprobaste y qué NO pudiste comprobar.",
+   "dependencias_ya_en_main": [
+    "SVF1B4b"
+   ]
+  },
+  {
+   "id": "SVF1D3b",
+   "ola": "SES1116B",
+   "titulo": "Prueba: el espectador cuenta y no edita; la página muestra la pestaña en vivo",
+   "archivos": [
+    "src/lib/vivo-entidad/__tests__/espectador-y-pestana.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contrato: architecture/sesiones-en-vivo-entidades-y-transmisiones.md §10 (P1-D). Dos comprobaciones puras: (1) con `contarEspectadores` y `rangoDeSesion` (`src/lib/vivo-entidad/`): un espectador por enlace público cuenta 1, no edita, y 3 espectadores + 2 editores dan 3 espectadores; la fila de la estación (`filaEstacionDeSesion`) lleva `tipo` pizarra o dashboard y enlace `/vivo/<id>?t=<token>`. (2) con `aPestanasDePagina` (`src/lib/entidad-espacio/pestanas-pagina.ts`): una sesión en directo con 2 personas sale como pestaña con punto y contador 2, y al quedar a 0 personas pierde el contador. COMPRUEBA: `NODE_ENV=test npx vitest run src/lib/vivo-entidad/__tests__/espectador-y-pestana.test.ts` verde y tsc acotado.\n\nREGLAS DE LA CASA (valen aunque no las repita la tarea): toca SOLO los archivos de la lista `archivos`; ≤3 archivos y ≤120 líneas por archivo (si no cabe, para y di qué falta: no lo estires ni lo resumas); sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible (la interfaz dice Genesis); sin red real en las pruebas; ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves. El asunto de tu commit empieza por `SVF1D3b:` y dice qué comprobaste y qué NO pudiste comprobar.",
+   "dependencias_ya_en_main": [
+    "SVF1C2",
+    "SVF1C3",
+    "SVF1B4b"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1117-022410.json": [
+   "SVF1B5b",
+   "SVF1D3b"
+  ]
+ }
+}
