@@ -1913,13 +1913,11 @@ export default function CanvasBoard({
       >
         <MarcaDirecto directo={boardSpaceId ? true : null} personas={null} compacto />
         <CompartirEnVivo
-          open={showCompartirVivo}
-          onOpenChange={(open) => setShowCompartirVivo(open)}
-          canvasId={canvas.id}
-          canvasTitle={canvas.title}
-          blocks={canvas.blocks}
-          edges={getEdges(canvas)}
-          espacioId={boardSpaceId}
+          abierta={showCompartirVivo}
+          alCerrar={() => setShowCompartirVivo(false)}
+          titulo={canvas.title}
+          tipo="pizarra"
+          crear={async () => ({ ok: false, motivo: "No implementado en canvas-board" })}
         />
       </Dialog>
 
