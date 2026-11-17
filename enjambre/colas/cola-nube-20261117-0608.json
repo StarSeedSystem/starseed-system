@@ -1,0 +1,85 @@
+{
+ "ola": "nube-20261117",
+ "tareas": [
+  {
+   "area": "imaginacion",
+   "id": "IMG-agentes-reimaginada-profunda-corregir-ti-d2",
+   "titulo": "Corregir tipos any en StepKind (parte 2 de 3)",
+   "archivos": [
+    "src/lib/mando/stepHandlers.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Corregir tipos any en StepKind. El objetivo es eliminar los `any` en la definición de `StepKind` para mejorar la seguridad de tipos y la mantenibilidad del código. La propuesta incluye:\n\n1. **Revisión de la interfaz**: Reemplazar los campos `any` por tipos concretos o genéricos con restricciones.\n2. **Actualización de los casos de uso**: Ajustar todas las llamadas a `StepKind` para que utilicen los nuevos tipos.\n3. **Pruebas unitarias**: Añadir pruebas que verifiquen la correcta tipificación y que no se produzcan errores de tipo.\n4. **Documentación**: Actualizar la documentación de la API para reflejar los cambios.\n\nEsta tar Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde.\n\n## PARTE 2 DE 3 (la dirección dividió IMG-agentes-reimaginada-profunda-corregir-ti: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: src/lib/mando/stepHandlers.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "IMG-agentes-reimaginada-profunda-corregir-ti",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   },
+   "dependencias_ya_en_main": [
+    "IMG-agentes-reimaginada-profunda-corregir-ti-d1"
+   ]
+  },
+  {
+   "id": "IMA4",
+   "ola": "TRA1116-IDIOMAS",
+   "titulo": "Selector de idioma: lista completa, buscador, nombre propio + nombre actual, más hablados",
+   "archivos": [
+    "src/components/idiomas/selector-idioma.tsx",
+    "src/components/idiomas/__tests__/selector-lista-mundial.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Lee `src/components/idiomas/selector-idioma.tsx` (162 líneas) y `architecture/idiomas.md` §4. Cambio ACOTADO (≤60 líneas): el panel pasa de `IDIOMAS` a `listaMundial` (IMA2) con `buscarIdiomas` (IMA3): una fila por idioma con el nombre propio grande y el nombre en el idioma actual pequeño, marca «Muy hablado» en los más hablados, y «Sin catálogo: se verá en español» donde `conCatalogo` es falso; el campo de búsqueda ya existente filtra por nombre propio, actual, código y alias; la lista se virtualiza simple (renderiza por tramos de 60 al desplazar) para no pintar cientos de filas. Se conserva TODO lo existente: sugerido arriba, teclado completo (↓ ↑ Enter Esc), 44 px, 360 px, rótulo rotativo y el nombre accesible estable. PRUEBA: abre el panel, escribe «ale» y queda Deutsch; la flecha baja y Enter elige; un idioma sin catálogo muestra el aviso.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "IMA2",
+    "IMA3"
+   ]
+  },
+  {
+   "id": "ASW13",
+   "ola": "ASW1116A",
+   "titulo": "Widget nuevo: Astraura con la Protomolécula, el diseño que toca y los ajustes",
+   "archivos": [
+    "src/components/widgets-libres/familias/astraura-libre-proto.tsx",
+    "src/components/widgets-libres/familias/astraura-libre.tsx",
+    "src/components/widgets-libres/familias/__tests__/astraura-libre-proto.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. LO QUE YA EXISTE (léelo antes): el widget del dashboard cuyo texto de estado es «En calma» es `AstrauraLibre` en `src/components/widgets-libres/familias/astraura-libre.tsx` (268 líneas; `TEXTO_VOZ` :31, `useVozAurora` :38 lee el puente `getAuroraBridge()` de `src/lib/aurora/open-aurora.ts` con `speaking`, `listening`, `actionStatus`; el `Orbe` de :65 es el círculo de colores violeta/turquesa; `Preguntar` :90; el diseño por tamaño :170-262 con `disenoDe(clase)` de `familias/comun.tsx:23`). Se monta desde `src/components/widgets-libres/registro-libre.tsx:38` (`case \"AURORA_LAST\"`, hoy sin recibir el widget ni `onUpdateSettings`, a diferencia del reloj). La Protomolécula: la orbe 4D completa es `src/components/protomolecula/orbe-protomolecula.tsx` (475 líneas, three.js a demanda, arrastrable y flotante: NO sirve para meterla en un widget); su lógica pura está en `src/lib/protomolecula/orbe4d/` (`coreografia.ts`: `IdForma` semilla/merkaba/jitterbug/teseracto/dodecaedro/matriz/icosaedro, `PALETAS` por registro con `astraura`, `ESTILOS`, `FICHAS`, tiempos de Fibonacci; `geometria.ts`: `merkaba()`, `icosaedro()`, `dodecaedro()`, `jitterbug()`, `teseractoVertices()`, `PHI`). Ya hay una versión ligera en SVG: `src/components/layout/trinity/horizon/vista-previa-orbe.tsx` (flor de la vida y merkaba, solo `transform`/`opacity`, quieta con `motion-safe`), pero NO depende del estado del asistente. El presupuesto de render del dispositivo es `src/lib/widgets/forma/nivel-dispositivo.ts` (`useNivelRender`, `nivelRender`: ligero/normal/pleno). La identidad: colores SOLO de `PALETAS` (marca Trinity Liquid Crystal, `adn-y-tokens.md` §2 y §6), nunca hexadecimales inventados. Escribe primero las pruebas. En `astraura-libre.tsx` SOLO añade la palabra `export` delante de `Preguntar` (:90) y `SUGERENCIAS` (:28) y deja todo lo demás (el widget viejo sigue existiendo como estaba; tras esta tarea nada lo monta salvo sus pruebas). El archivo nuevo `astraura-libre-proto.tsx` (≤120 líneas): `AstrauraLibreProto({ widget, onUpdateSettings }: { widget?: DashboardWidget; onUpdateSettings?: (patch: Record<string, unknown>) => void })`: envuelve en `WidgetLibre` (como :163) y, con la `clase` que da (o `useClaseForzada()`), calcula `tamanoDe(clase)`; lee el registro de chat como en el widget viejo (:135-146), usa `useEstadoAstraura` (ASW05), `useDisenoAstraura` (ASW07) y `resolverDiseno` (ASW06) con `{ tamano, tactil: esTactil(useDispositivo()), hayVoz: voz, hayConversacion: hilo.length > 0 }`, monta el diseño resultante (ASW09-12) pasándole `PropsDiseno` completo (`preguntar: <Preguntar …/>`, `botonVoz` el `Accion` de :148-153 y `sugerencias: SUGERENCIAS`) y, arriba a la derecha, el `SelectorDisenoAstraura` (ASW08) con `degradado`. El tamaño de la forma sale del alto y ancho disponibles (`Math.min(ancho, alto)` por una fracción distinta en cada diseño, tope 170). Conserva la etiqueta del widget de :164. PRUEBAS (mocks como en `familias/__tests__/familias-libres.test.tsx:238`): sin elección, `auto` en tamaño grande con conversación monta «Conversación»; la elección guardada manda; el estado del puente cambia la forma; el chat vacío dice «Aún no habéis hablado»; elegir otro diseño llama a `onUpdateSettings({ astrauraDiseno })`.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "revisor_quitadas": [
+    "ASW08"
+   ],
+   "dependencias_ya_en_main": [
+    "ASW05",
+    "ASW07",
+    "ASW09",
+    "ASW10",
+    "ASW11",
+    "ASW12"
+   ]
+  },
+  {
+   "id": "MRA8b",
+   "ola": "MAP1116B",
+   "titulo": "Mapa vivo: sumar las señales de toda la red (propias + publicadas) y decir cuándo nadie más publica",
+   "archivos": [
+    "src/components/mesh/mapa-senales/use-mapa-vivo.ts",
+    "src/lib/senales/tipos-vivo.ts",
+    "src/lib/senales/__tests__/mapa-vivo-red.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. CAUSA QUE ARREGLAS (leída en el código): `useMapaVivo` construye todo desde `malla.misDispositivos` (`src/components/mesh/mapa-senales/use-mapa-vivo.ts:85`, `construirVivo(... filas ...)` en :89): solo los aparatos de la propia cuenta, y los faros ajenos (`malla.cercanas`) no se usan; por eso solo se ve lo de la neurona que visita. Cambio acotado (≤50 líneas) manteniendo la firma pública de `useMapaVivo` y añadiendo a `MapaVivo` el campo `red: { senales: SenalEspectro[]; estado: …; motivo?: string; otrasCuentasPublicando: number }` con lo que devuelve `useSenalesPublicadas()` más las propias de `construirVivo`. Si `estado` no es `ok`, el mapa conserva exactamente lo de hoy y `red.motivo` dice por qué faltan las demás («las señales públicas aún no están activadas en este servidor»; «nadie más ha publicado en esta capa todavía» solo cuando la lectura fue buena y vino vacía). Tipos nuevos en `tipos-vivo.ts` (solo añadir). PRIVACIDAD Y HONESTIDAD (decisiones de Alex del 14-11, `architecture/mapa-de-senales.md` §2 y §12; valen para esta tarea): la posición exacta de un aparato personal viaja SOLO por el canal privado `pos:<uid>` entre las neuronas de su propia cuenta (`src/lib/senales/geo/canal-posicion.ts`); en las capas pública y de comunidad una neurona enseña únicamente lo que su dueño eligió publicar, y nunca una posición exacta (como mucho una zona gruesa); una capa de toda la red se construye con lo que cada dueño publica, JAMÁS con una neurona informando de la posición de sus vecinas; el alcance dibujado como campo es «estimado» y lo medido se marca aparte (`NOTA_ALCANCE` de `geo/capas.ts`). Nada se inventa: si una plataforma no da un dato, el mapa lo dice («sin fuente: <motivo>») y no pinta un número. Un valor lleva siempre su fuente (`medida`, `declarada` o `estimada`) y la hora de la lectura.\nPRUEBA (`mapa-vivo-red.test.ts`, con los hooks simulados como hacen las pruebas de `src/lib/senales/__tests__`): con dos cuentas publicando salen las dos; sin tabla el mapa sigue igual y dice el motivo; vacío bueno ≠ no se sabe. COMPRUEBA: `NODE_ENV=test npx vitest run src/lib/senales src/components/mesh` verde y tsc acotado.\n\nREGLAS DE LA CASA (valen aunque no las repita la tarea): toca SOLO los archivos de la lista `archivos`; ≤3 archivos y ≤120 líneas por archivo (si no cabe, para y di qué falta: no lo estires ni lo resumas); sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible (la interfaz dice Genesis); sin red real en las pruebas; ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves. El asunto de tu commit empieza por `MRA8b:` y dice qué comprobaste y qué NO pudiste comprobar.",
+   "dependencias_ya_en_main": [
+    "MRA7",
+    "MRA6b"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1117-055846.json": [
+   "MRA8b",
+   "ASW13",
+   "IMG-agentes-reimaginada-profunda-corregir-ti-d2",
+   "IMA4"
+  ]
+ }
+}
