@@ -18,9 +18,11 @@ import type { EstadoPar, ParIdiomas } from "@/lib/traductor/tipos";
 import { IDIOMAS } from "@/lib/idiomas/idiomas";
 import { leer } from "@/lib/traduccion/preferencias";
 import { crearMotores, type PaginaActual } from "@/components/traduccion/traducir-texto";
+import { idiomaDe, type AlmacenPersonas } from "@/lib/traductor/idioma-por-persona";
+import type { Hablante } from "@/lib/traductor/conversacion";
 
-/** Almacén del aparato para el historial y los avisos; si no hay, no guarda. */
-function almacenLocal(): AlmacenHistorial {
+/** Almacén del aparato para el historial, avisos y personas; si no hay, no guarda. */
+export function almacenLocal(): AlmacenHistorial {
     const disponible = typeof window !== "undefined" && "localStorage" in window;
     return {
         obtener: (clave) => {
@@ -32,6 +34,17 @@ function almacenLocal(): AlmacenHistorial {
         borrar: (clave) => {
             try { if (disponible) window.localStorage.removeItem(clave); } catch { /* silencioso */ }
         },
+    };
+}
+
+/** Crea la función parIdiomas para la conversación usando el almacén de personas. */
+export function crearParIdiomas(almacenPersonas: AlmacenPersonas) {
+    return (quien: Hablante): ParIdiomas => {
+        const personaA = "persona-A";
+        const personaB = "persona-B";
+        const origen = quien === "A" ? idiomaDe(personaA, "auto", almacenPersonas) : idiomaDe(personaB, "auto", almacenPersonas);
+        const destino = quien === "A" ? idiomaDe(personaB, "es", almacenPersonas) : idiomaDe(personaA, "es", almacenPersonas);
+        return { origen, destino };
     };
 }
 
@@ -55,8 +68,9 @@ export function PantallaTraductor() {
         }));
     }, []);
 
-    const { servicio, avisos } = useMemo(() => {
+    const { servicio, avisos, parIdiomas } = useMemo(() => {
         const almacenAvisos: AlmacenAvisos = almacenLocal();
+        const almacenPersonas: AlmacenPersonas = almacenLocal();
         return {
             avisos: almacenAvisos,
             servicio: crearServicioTraductor({
@@ -66,6 +80,7 @@ export function PantallaTraductor() {
                 opcionesHistorial: { sinHistorial: false },
                 reloj: () => Date.now(),
             }),
+            parIdiomas: crearParIdiomas(almacenPersonas),
         };
     }, []);
 
