@@ -1,166 +1,287 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Copy, Check, Loader2 } from "lucide-react";
+import {
+    Select,
+    SelectTrigger,
+    SelectValue,
+    SelectContent,
+    SelectItem,
+    SelectGroup,
+    SelectLabel,
+} from "@/components/ui/select";
+import { Copy, Check, Loader2, AlertCircle, Info } from "lucide-react";
 import { toast } from "sonner";
-import { createSpace } from "@/lib/spaces/spaces";
-import { crearSesion, construirUrlPublica, origenActual } from "@/lib/mensajeria/sesiones-vivas";
-import { usePresentesSesion } from "@/lib/mensajeria/sesiones-vivas";
-import type { Canvas } from "@/lib/canvas/canvas";
-import { getEdges } from "@/lib/canvas/workcenters";
 
-export interface CompartirEnVivoProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  canvasId?: string;
-  canvasTitle?: string;
-  blocks?: unknown[];
-  edges?: unknown[];
-  /** Si es true, la pizarra ya tiene un espacio compartido (boardSpaceId existe). */
-  espacioId?: string | null;
-  /** ID de la sesión en vivo si ya existe. */
-  sesionId?: string | null;
+export interface PaginaMia {
+    id: string;
+    titulo: string;
 }
 
-export function CompartirEnVivo({ open, onOpenChange, canvasId, canvasTitle, blocks, edges, espacioId, sesionId }: CompartirEnVivoProps) {
-  const [loading, setLoading] = useState(false);
-  const [createdEspacioId, setCreatedEspacioId] = useState<string | null>(espacioId ?? null);
-  const [createdSesionId, setCreatedSesionId] = useState<string | null>(sesionId ?? null);
-  const [url, setUrl] = useState<string | null>(null);
+export type TipoSesionVivo = "pizarra" | "dashboard";
 
-  usePresentesSesion(createdSesionId, !!createdSesionId);
+export type ConQuien = "mis-neuronas" | "entidad" | "enlace";
 
-  const handleCompartir = async () => {
-    setLoading(true);
-    try {
-      if (!createdEspacioId) {
-        const space = await createSpace({
-          kind: "board",
-          title: canvasTitle || "Pizarra compartida",
-          access: "invite",
-          doc: { blocks: blocks ?? [], edges: edges ?? [] },
-        });
-        if (!space) {
-          toast.error("No se pudo crear el espacio compartido. Inicia sesión e inténtalo de nuevo.");
-          return;
+export type Acceso = "editar" | "mirar";
+
+export interface CompartirEnVivoProps {
+    abierta: boolean;
+    alCerrar: () => void;
+    titulo: string;
+    tipo: TipoSesionVivo;
+    paginasMias?: PaginaMia[];
+    crear: (opciones: {
+        con: ConQuien;
+        acceso: Acceso;
+        tipo: TipoSesionVivo;
+        titulo: string;
+        hiloId?: string | null;
+        entidadRef?: string;
+        invitados?: string[];
+    }) => Promise<{ ok: true; enlace: string; personas: string[]; sesionId: string } | { ok: false; motivo: string }>;
+}
+
+export function CompartirEnVivo({
+    abierta,
+    alCerrar,
+    titulo,
+    tipo,
+    paginasMias = [],
+    crear,
+}: CompartirEnVivoProps) {
+    const [con, setCon] = useState<ConQuien>("mis-neuronas");
+    const [acceso, setAcceso] = useState<Acceso>("editar");
+    const [cargando, setCargando] = useState(false);
+    const [resultado, setResultado] = useState<{ ok: true; enlace: string; personas: string[] } | { ok: false; motivo: string } | null>(null);
+    const entidadSeleccionada = useRef<string | null>(null);
+    const dialogRef = useRef<HTMLDialogElement>(null);
+    const primerFocoRef = useRef<HTMLButtonElement>(null);
+
+    useEffect(() => {
+        if (abierta && dialogRef.current) {
+            dialogRef.current.focus();
+            if (primerFocoRef.current) {
+                primerFocoRef.current.focus();
+            }
         }
-        setCreatedEspacioId(space.id);
-      }
+        if (!abierta) {
+            setCon("mis-neuronas");
+            setAcceso("editar");
+            setResultado(null);
+            entidadSeleccionada.current = null;
+        }
+    }, [abierta]);
 
-      const espacioIdToUsar = createdEspacioId || espacioId;
-      if (!espacioIdToUsar) return;
+    const handleCerrar = () => {
+        alCerrar();
+    };
 
-      const { sesion, error } = await crearSesion({
-        tipo: "pizarra",
-        titulo: canvasTitle || "Pizarra compartida",
-        refId: espacioIdToUsar,
-        acceso: { modo: "chat", permiso: "editar" },
-      });
+    const handleCompartir = async () => {
+        setCargando(true);
+        setResultado(null);
+        try {
+            const opciones = {
+                con,
+                acceso,
+                tipo,
+                titulo: titulo.trim().slice(0, 200) || "Sesión en vivo",
+                hiloId: null as string | null,
+                entidadRef: con === "entidad" ? entidadSeleccionada.current : undefined,
+                invitados: [] as string[],
+            };
+            const res = await crear(opciones);
+            setResultado(res);
+            if (res.ok === true) {
+                toast.success(`Compartida. ${res.personas.length} ${res.personas.length === 1 ? "persona" : "personas"} dentro.`);
+            } else {
+                toast.error(res.motivo);
+            }
+        } catch (e) {
+            const motivo = e instanceof Error ? e.message : "No se pudo compartir en vivo.";
+            setResultado({ ok: false, motivo });
+            toast.error(motivo);
+        } finally {
+            setCargando(false);
+        }
+    };
 
-      if (!sesion) {
-        toast.error(error || "No se pudo abrir la sesión en vivo.");
-        return;
-      }
+    const handleCopiarEnlace = async () => {
+        if (!resultado?.ok || !resultado.enlace) return;
+        try {
+            await navigator.clipboard.writeText(resultado.enlace);
+            toast.success("Enlace copiado al portapapeles");
+        } catch {
+            toast.message("No se pudo copiar automáticamente", {
+                description: resultado.enlace,
+            });
+        }
+    };
 
-      setCreatedSesionId(sesion.id);
-      if (sesion.tokenPublico) {
-        const urlStr = construirUrlPublica(origenActual(), sesion, sesion.tokenPublico);
-        setUrl(urlStr);
-      }
-      toast.success("Pizarra compartida en vivo");
-    } catch (e) {
-      toast.error("Error al compartir: " + (e as Error).message);
-    } finally {
-      setLoading(false);
-    }
-  };
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === "Escape") {
+            handleCerrar();
+        }
+    };
 
-  const handleCopiar = async () => {
-    if (createdEspacioId && url) {
-      try {
-        await navigator.clipboard.writeText(url);
-        toast.success("Enlace copiado al portapapeles");
-      } catch {
-        toast.message("Enlace", { description: url });
-      }
-    }
-  };
+    const mostrarAvisoEnlacePublico = con === "enlace";
 
-  const handleCerrar = () => {
-    setCreatedEspacioId(espacioId ?? null);
-    setCreatedSesionId(sesionId ?? null);
-    setUrl(null);
-    onOpenChange(false);
-  };
-
-  const presentes = usePresentesSesion(createdSesionId, !!createdSesionId);
-  const yaCompartida = !!espacioId || !!sesionId;
-
-  return (
-    <Dialog open={open} onOpenChange={handleCerrar}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>Compartir en vivo</DialogTitle>
-          <DialogDescription>
-            Comparte esta pizarra con otras personas en tiempo real.
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="space-y-4">
-          {yaCompartida && createdSesionId && (
-            <div className="flex items-center gap-2 p-3 bg-emerald-500/10 rounded-lg">
-              <Badge variant="outline" className="bg-emerald-500/20 text-emerald-700">
-                EN VIVO
-              </Badge>
-              {presentes !== null && (
-                <span className="text-sm text-foreground">
-                  {presentes} {presentes === 1 ? "persona" : "personas"} dentro
-                </span>
-              )}
-            </div>
-          )}
-
-          <div>
-            <h3 className="text-sm font-medium mb-2">Título de la sesión</h3>
-            <Input
-              defaultValue={canvasTitle || "Pizarra compartida"}
-              placeholder="Nombre de la pizarra compartida"
-            />
-          </div>
-
-          <div className="flex gap-2">
-            <Button
-              onClick={handleCompartir}
-              disabled={loading || yaCompartida}
-              className="flex-1"
+    return (
+        <Dialog open={abierta} onOpenChange={handleCerrar}>
+            <DialogContent
+                ref={dialogRef}
+                className="max-w-sm sm:max-w-md"
+                onKeyDown={handleKeyDown}
             >
-              {loading ? (
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              ) : yaCompartida ? (
-                <Check className="w-4 h-4 mr-2" />
-              ) : (
-                <Copy className="w-4 h-4 mr-2" />
-              )}
-              {yaCompartida ? "Compartida · ver estado" : "Compartir en vivo"}
-            </Button>
-            {url && (
-              <Button variant="outline" size="icon" onClick={handleCopiar}>
-                <Copy className="w-4 h-4" />
-              </Button>
-            )}
-          </div>
+                <DialogHeader>
+                    <DialogTitle>Compartir en vivo</DialogTitle>
+                    <DialogDescription>
+                        Elige con quién y cómo compartes tu {tipo === "pizarra" ? "pizarra" : "dashboard"}.
+                    </DialogDescription>
+                </DialogHeader>
 
-          {url && (
-            <div className="text-xs text-muted-foreground break-all">
-              {url}
-            </div>
-          )}
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
+                <div className="space-y-4" data-testid="contenido-compartir">
+                    <div>
+                        <label htmlFor="con-quien" className="block text-sm font-medium mb-2">
+                            ¿Con quién?
+                        </label>
+                        <Select value={con} onValueChange={setCon}>
+                            <SelectTrigger id="con-quien" className="w-full min-h-[44px]" data-testid="select-con-quien">
+                                <SelectValue placeholder="Elige…" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectGroup>
+                                    <SelectLabel>Destinatarios</SelectLabel>
+                                    <SelectItem value="mis-neuronas" data-testid="opcion-mis-neuronas">
+                                        Mis neuronas
+                                    </SelectItem>
+                                    {paginasMias.length > 0 && (
+                                        <>
+                                            <SelectLabel>Mis páginas y grupos</SelectLabel>
+                                            {paginasMias.map((p) => (
+                                                <SelectItem
+                                                    key={p.id}
+                                                    value={p.id}
+                                                    data-testid={`opcion-pagina-${p.id}`}
+                                                    onSelect={() => {
+                                                        setCon("entidad");
+                                                        entidadSeleccionada.current = p.id;
+                                                    }}
+                                                >
+                                                    {p.titulo}
+                                                </SelectItem>
+                                            ))}
+                                        </>
+                                    )}
+                                    <SelectItem value="enlace" data-testid="opcion-enlace">
+                                        Cualquiera con enlace
+                                    </SelectItem>
+                                </SelectGroup>
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    <div>
+                        <label htmlFor="acceso" className="block text-sm font-medium mb-2">
+                            ¿Pueden editar o solo mirar?
+                        </label>
+                        <Select value={acceso} onValueChange={setAcceso}>
+                            <SelectTrigger id="acceso" className="w-full min-h-[44px]" data-testid="select-acceso">
+                                <SelectValue placeholder="Elige…" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectGroup>
+                                    <SelectItem value="editar" data-testid="opcion-editar">
+                                        Editar
+                                    </SelectItem>
+                                    <SelectItem value="mirar" data-testid="opcion-mirar">
+                                        Mirar
+                                    </SelectItem>
+                                </SelectGroup>
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    {mostrarAvisoEnlacePublico && (
+                        <div
+                            data-testid="aviso-enlace-publico"
+                            className="flex items-start gap-2 p-3 text-sm text-amber-700 bg-amber-50 rounded-lg border border-amber-200"
+                            role="alert"
+                        >
+                            <Info className="w-4 h-4 flex-shrink-0 mt-0.5" aria-hidden="true" />
+                            <span>
+                                Al elegir «Cualquiera con enlace», cualquiera que tenga el enlace
+                                podrá ver tu {tipo === "pizarra" ? "pizarra" : "dashboard"} sin necesidad de cuenta.
+                            </span>
+                        </div>
+                    )}
+
+                    <div className="flex gap-2">
+                        <Button
+                            ref={primerFocoRef}
+                            onClick={handleCompartir}
+                            disabled={cargando || resultado?.ok === true}
+                            className="flex-1 min-h-[44px]"
+                            data-testid="boton-compartir"
+                        >
+                            {cargando ? (
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" aria-hidden="true" />
+                            ) : resultado?.ok === true ? (
+                                <Check className="w-4 h-4 mr-2" aria-hidden="true" />
+                            ) : (
+                                <Copy className="w-4 h-4 mr-2" aria-hidden="true" />
+                            )}
+                            {cargando
+                                ? "Compartiendo…"
+                                : resultado?.ok === true
+                                ? "Compartida"
+                                : "Compartir"}
+                        </Button>
+                        {resultado?.ok === true && resultado.enlace && (
+                            <Button
+                                variant="outline"
+                                size="icon"
+                                onClick={handleCopiarEnlace}
+                                className="min-h-[44px] min-w-[44px]"
+                                data-testid="boton-copiar-enlace"
+                                aria-label="Copiar enlace al portapapeles"
+                            >
+                                <Copy className="w-4 h-4" aria-hidden="true" />
+                            </Button>
+                        )}
+                    </div>
+
+                    {resultado?.ok === false && (
+                        <div
+                            data-testid="estado-error"
+                            className="flex items-start gap-2 p-3 text-sm text-destructive bg-destructive/10 rounded-lg border border-destructive/20"
+                            role="alert"
+                        >
+                            <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" aria-hidden="true" />
+                            <span>{resultado.motivo}</span>
+                        </div>
+                    )}
+
+                    {resultado?.ok === true && (
+                        <div
+                            data-testid="estado-exito"
+                            className="flex items-center gap-2 p-3 text-sm text-emerald-700 bg-emerald-50 rounded-lg border border-emerald-200"
+                        >
+                            <Check className="w-4 h-4 flex-shrink-0" aria-hidden="true" />
+                            <span>
+                                Compartida. {resultado.personas.length} {resultado.personas.length === 1 ? "persona" : "personas"} dentro.
+                            </span>
+                        </div>
+                    )}
+
+                    {resultado?.ok === true && resultado.enlace && (
+                        <div data-testid="aviso-copiar" className="text-xs text-muted-foreground break-all" role="status" aria-live="polite">
+                            Enlace: {resultado.enlace}
+                        </div>
+                    )}
+                </div>
+            </DialogContent>
+        </Dialog>
+    );
 }
