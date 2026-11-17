@@ -253,7 +253,41 @@ mod pruebas {
         assert!(KOTLIN.contains("nm.activeNotifications.none { it.id == ID }"));
         assert!(KOTLIN.contains("PendingIntent.getService"), "lo atiende el servicio nativo, no la página");
         assert!(KOTLIN.contains("FLAG_WATCH_OUTSIDE_TOUCH") && KOTLIN.contains("ACTION_OUTSIDE"), "toque local → pausa");
-        assert!(KOTLIN.contains("pBorde.alpha = 0.8f"), "los toques atraviesan el borde (Android 12+)");
+        // CTL1117H: ya no hay borde rojo a toda pantalla (los toques no tienen nada que atravesar): un punto de 12 dp o, con `oculto`, la misma ventana de 1×1 px.
+        assert!(!KOTLIN.contains("pBorde") && !KOTLIN.contains("Color.rgb(220, 20, 60)"), "sin borde ni pastilla roja");
+    }
+
+    #[test]
+    fn ctl1117h_aviso_en_lista_punto_opcional_y_ventana_que_oye_el_toque_local_aun_oculta() {
+        // El aviso fijo SIEMPRE está: lista (una línea por controlador), con «Terminar» y «Pausar»/«Reanudar», en el color del controlador.
+        assert!(KOTLIN.contains("Notification.InboxStyle()") && KOTLIN.contains("estilo.addLine(") && KOTLIN.contains(".setColor(ControlNeuronasNativo.colorInt())"));
+        assert!(KOTLIN.contains("\"Pausar\", pi(PAUSAR, 4)") && KOTLIN.contains("PAUSAR -> pausarPorBoton()"));
+        // El punto: 12 dp visibles, 28 dp tocables, plegable a los 5 s; `oculto` lo esconde pero deja la ventana (1×1) que oye ACTION_OUTSIDE.
+        let p = KOTLIN.find("private fun ponerSuperposicion(): Boolean").unwrap();
+        let cuerpo = &KOTLIN[p..p + 4800];
+        assert!(cuerpo.contains("val oculto = ControlNeuronasNativo.indicador == \"oculto\""));
+        assert!(cuerpo.contains("dp(28)") && cuerpo.contains("InsetDrawable(d, dp(8))"));
+        assert!(cuerpo.contains("if (oculto) 1 else WindowManager.LayoutParams.WRAP_CONTENT"), "oculto: ventana de 1×1 px, pero puesta");
+        assert!(cuerpo.contains("FLAG_WATCH_OUTSIDE_TOUCH") && cuerpo.contains("ACTION_OUTSIDE") && cuerpo.contains("pausaLocal(); esperarSilencio()"), "el toque local sigue pausando con o sin punto");
+        assert!(KOTLIN.contains("postDelayed(plegarPanel, 5_000L)"));
+        // «Pausar» a mano solo la quita «Reanudar»; la de un toque local sigue quitándose sola.
+        assert!(KOTLIN.contains("pausaManual = true") && KOTLIN.contains("|| ControlNeuronasNativo.pausaManual) return"));
+        // Los ajustes son locales: Kotlin los lee de `ajustes.json` (lo escribe Rust) al mostrar y al recibir «ajustes».
+        assert!(KOTLIN.contains("File(dir, \"ajustes.json\")") && KOTLIN.contains("\"ajustes\" -> { leerAjustes()"));
+        assert!(KOTLIN.contains(".put(\"indicador\", indicador)") && KOTLIN.contains(".put(\"toques\", verToques)"));
+        // El indicador «a la vista» NO se relaja: el servicio solo cuenta como mostrando con el aviso puesto y la ventana de la pausa añadida.
+        let m = KOTLIN.find("val ok = try {").unwrap();
+        assert!(KOTLIN[m..m + 700].contains("startForeground(ID") && KOTLIN[m..m + 700].contains("ponerSuperposicion()"));
+    }
+
+    #[test]
+    fn ctl1117h_la_onda_de_los_toques_es_una_capa_de_accesibilidad_que_no_se_toca() {
+        assert!(KOTLIN.contains("object ControlToques") && KOTLIN.contains("TYPE_ACCESSIBILITY_OVERLAY"));
+        let c = KOTLIN.find("object ControlToques").unwrap();
+        let cuerpo = &KOTLIN[c..];
+        assert!(cuerpo.contains("FLAG_NOT_TOUCHABLE") && cuerpo.contains("FLAG_NOT_FOCUSABLE"));
+        assert!(cuerpo.contains("ControlNeuronasNativo.verToques && ControlNeuronasNativo.mostrando && !ControlNeuronasNativo.pausada"), "solo con ajuste, sesión y sin pausa");
+        assert!(cuerpo.contains("ControlToques.quitar()") || KOTLIN.contains("ControlToques.quitar()"));
     }
 
     #[test]
@@ -328,7 +362,7 @@ mod pruebas {
         // La reanudación sigue negándose con un gesto propio y a la persona no se le quita nada: «Reanudar» y «Terminar» siguen.
         let r = KOTLIN.find("private fun reanudar(motivo: String").unwrap();
         assert!(KOTLIN[r..r + 400].contains("esGestoPropio()) return false"));
-        assert!(KOTLIN.contains("REANUDAR -> reanudar()") && KOTLIN.contains("setOnClickListener { reanudar() }"));
+        assert!(KOTLIN.contains("REANUDAR -> reanudar()") && KOTLIN.contains("if (ControlNeuronasNativo.pausada) reanudar() else pausarPorBoton()"));
         // Motivos y números que Rust anota en `control-pausa`.
         for m in ["toque-fuera", "reanudada-sola", "reanudada-vigia", "reanudada-por-la-persona", "pausa_desde_gesto_ms", "\"pausas\"", "\"ignorados\"", "\"cuadro_ms\""] {
             assert!(KOTLIN.contains(m), "{m}");

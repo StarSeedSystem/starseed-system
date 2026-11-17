@@ -363,6 +363,8 @@ pub struct Apertura {
     pub nombre: String,
     /// El menor entre lo que firmó el controlador y lo que la página concede (la página solo puede bajar).
     pub nivel: String,
+    /// (CTL1117H) El color público que FIRMÓ el controlador (`#rrggbb`) o, si falta o no vale, el por defecto de su huella.
+    pub color: String,
 }
 
 /// FSG1116 · A2: la orden firmada `abrir-sesion` de un controlador ACEPTADO aquí, en hora y no repetida. Sin ella
@@ -374,7 +376,9 @@ pub fn verificar_apertura(sobre: &Value, aceptados: &[Aceptado], nivel_pagina: &
     if f.nombre != "abrir-sesion" {
         return Err((Motivo::Firma, "no-es-abrir-sesion"));
     }
-    if f.sesion.is_some() || f.args.as_object().is_some_and(|a| !a.is_empty()) {
+    // CTL1117H: los argumentos son vacíos o SOLO `color` (texto); cualquier otra cosa sigue siendo «forma».
+    let color_firmado = f.args.get("color").and_then(|c| c.as_str()).map(str::to_string);
+    if f.sesion.is_some() || f.args.as_object().is_some_and(|a| a.keys().any(|k| k != "color") || a.len() > 1 || (a.len() == 1 && color_firmado.is_none())) {
         return Err((Motivo::Firma, "abrir-sesion-forma"));
     }
     en_hora(&f, ahora_ms)?;
@@ -389,7 +393,8 @@ pub fn verificar_apertura(sobre: &Value, aceptados: &[Aceptado], nivel_pagina: &
         let n: String = f.aceptado.nombre.chars().filter(|c| !c.is_control()).take(40).collect();
         if n.trim().is_empty() { "otra neurona".to_string() } else { n.trim().to_string() }
     };
-    Ok(Apertura { de: f.de, nombre, nivel: nivel.into() })
+    let color = crate::control_ajustes::color_o_defecto(color_firmado.as_deref(), &f.de);
+    Ok(Apertura { de: f.de, nombre, nivel: nivel.into(), color })
 }
 
 /// Comprueba el sobre contra los aceptados, la sesión (token y nivel) y el reloj. Devuelve la orden o el
@@ -1164,7 +1169,7 @@ mod pruebas {
         // Sin aceptado aquí (lo que la página diga no cuenta): no.
         assert_eq!(verificar_apertura(&s, &[], "controlar", AHORA, &mut v).unwrap_err().0, Motivo::NoAutorizado);
         let ap = verificar_apertura(&s, &[a.clone()], "controlar", AHORA, &mut v).unwrap();
-        assert_eq!(ap, Apertura { de: a.huella.clone(), nombre: "Mac de Alex".into(), nivel: "controlar".into() });
+        assert_eq!(ap, Apertura { de: a.huella.clone(), nombre: "Mac de Alex".into(), nivel: "controlar".into(), color: crate::control_ajustes::color_por_defecto(&a.huella) });
         // La misma apertura otra vez (o con la sesión ya cerrada): no.
         assert_eq!(verificar_apertura(&s, &[a.clone()], "controlar", AHORA + 10, &mut v).unwrap_err(), (Motivo::Firma, "repetida"));
         // La página puede bajar el nivel firmado, nunca subirlo.
@@ -1181,6 +1186,32 @@ mod pruebas {
         let (s5b, _) = firmado(7, carga_abrir(5, "EEEEEEEEEEEEEEEEEEEEEE", "controlar"));
         s5["carga"] = s5b["carga"].clone();
         assert_eq!(verificar_apertura(&s5, &[a3], "controlar", AHORA, &mut v).unwrap_err(), (Motivo::Firma, "firma-no-casa"));
+    }
+
+    #[test]
+    fn ctl1117h_el_color_del_controlador_viaja_firmado_se_valida_y_si_no_el_de_su_huella() {
+        let mut v = Vistos::default();
+        let con = |seq: u64, nonce: &str, args: Value| {
+            let mut c = carga_abrir(seq, nonce, "controlar");
+            c["accion"]["args"] = args;
+            firmado(7, c)
+        };
+        // Con un color válido y firmado: ese.
+        let (s, a) = con(1, "FFFFFFFFFFFFFFFFFFFFFF", json!({ "color": "#12abef" }));
+        assert_eq!(verificar_apertura(&s, &[a.clone()], "controlar", AHORA, &mut v).unwrap().color, "#12abef");
+        // Con un color que no vale: el de su huella (no se rechaza la sesión por un color).
+        let (s, a) = con(2, "GGGGGGGGGGGGGGGGGGGGGG", json!({ "color": "#12ABEF" }));
+        assert_eq!(verificar_apertura(&s, &[a.clone()], "controlar", AHORA, &mut v).unwrap().color, crate::control_ajustes::color_por_defecto(&a.huella));
+        let (s, a) = con(3, "HHHHHHHHHHHHHHHHHHHHHH", json!({ "color": 7 }));
+        assert!(verificar_apertura(&s, &[a], "controlar", AHORA, &mut v).is_err(), "un color que ni es texto es forma inválida");
+        // Cualquier otro argumento sigue siendo forma inválida.
+        let (s, a) = con(4, "IIIIIIIIIIIIIIIIIIIIII", json!({ "color": "#12abef", "nivel": "controlar" }));
+        assert!(verificar_apertura(&s, &[a], "controlar", AHORA, &mut v).is_err());
+        // El color va DENTRO de lo firmado: cambiarlo después de firmar rompe la firma.
+        let (mut s, a) = con(5, "JJJJJJJJJJJJJJJJJJJJJJ", json!({ "color": "#12abef" }));
+        let (otro, _) = con(5, "JJJJJJJJJJJJJJJJJJJJJJ", json!({ "color": "#ff0000" }));
+        s["carga"] = otro["carga"].clone();
+        assert!(verificar_apertura(&s, &[a], "controlar", AHORA, &mut v).is_err());
     }
 
     #[test]

@@ -731,7 +731,10 @@ class ServicioControlEntrada : AccessibilityService() {
         if (foco == null || !foco.isEditable) return rechazo("sin-servicio").put("detalle", "sin-campo")
         val previo = if (foco.isShowingHintText) "" else (foco.text?.toString() ?: "")
         val a = Bundle().apply { putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, previo + t) }
-        return if (foco.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, a)) JSONObject().put("ok", true) else rechazo("sin-servicio").put("detalle", "texto-no-aplicado")
+        if (!foco.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, a)) return rechazo("sin-servicio").put("detalle", "texto-no-aplicado")
+        // CTL1117H: la marca dice QUE se escribió y cuántos caracteres, nunca el texto (podría ser privado); junto al campo, o arriba en el centro.
+        try { val r = android.graphics.Rect(); foco.getBoundsInScreen(r); ControlToques.marca(this, "⌨ escribió ${t.length} caracteres", r.centerX().toFloat(), r.top.toFloat()) } catch (_: Throwable) {}
+        return JSONObject().put("ok", true)
     }
 
     // ───────────── gestos (varios dedos a la vez; `sigue` continúa los trazos con la orden siguiente) ─────────────
@@ -872,6 +875,8 @@ class ServicioControlEntrada : AccessibilityService() {
             }, principal)
         } catch (_: Exception) { false }
         if (!ok) cancelado()
+        // CTL1117H: la onda del controlador donde empieza (y la estela hasta donde acaba) cada dedo; solo en el primer trozo de la orden.
+        else if (trozo == 0) try { for (d in o.dedos) { val i0 = d.en(0L); val i1 = d.en(minOf(d.fin, o.total)); ControlToques.toque(this, i0[0], i0[1], i1[0], i1[1]) } } catch (_: Throwable) {}
     }
 
     private fun terminado(nuevos: HashMap<Int, GestureDescription.StrokeDescription>, puntos: HashMap<Int, FloatArray>, ultimo: Boolean) {

@@ -19,7 +19,11 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.database.Cursor
+import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.RectF
+import android.graphics.drawable.InsetDrawable
 import android.graphics.PixelFormat
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
@@ -114,6 +118,13 @@ object ControlNeuronasNativo : Application.ActivityLifecycleCallbacks {
     @Volatile var avisos = 0
     @Volatile var avisoMotivo = ""
     @Volatile var avisoError = ""
+    // CTL1117H: quién controla (color público, nivel, desde cuándo), y los ajustes LOCALES (`ajustes.json`, solo los pone la página de ESTE aparato).
+    @Volatile var color = "#dd3c3c"
+    @Volatile var nivel = "ver"
+    @Volatile var lista: List<Controlador> = emptyList()
+    @Volatile var indicador = "punto" // "punto" (el punto de la esquina) | "oculto" (solo el aviso fijo; la notificación SIEMPRE está)
+    @Volatile var verToques = true // la onda del color del controlador en cada toque remoto
+    @Volatile var pausaManual = false // la pausa del botón «Pausar»: solo «Reanudar» la quita (la de un toque local se quita sola a los 3 s)
     private var terminada: JSONObject? = null
     // IND1115F: en qué paso quedó el último intento de «mostrar» y por qué (Rust lo lee para decir QUÉ falló).
     @Volatile var intento: String = ""
@@ -122,6 +133,22 @@ object ControlNeuronasNativo : Application.ActivityLifecycleCallbacks {
     @Volatile var hilo: String = ""
     private var ultimaPregunta = 0L
     private var pendienteSuperposicion = false
+
+    /** CTL1117H: lee los ajustes locales que escribió Rust. Sin archivo o con basura: los de fábrica (punto, toques sí). */
+    fun leerAjustes() {
+        var ind = "punto"
+        var toques = true
+        try {
+            val j = JSONObject(File(dir, "ajustes.json").readText())
+            if (j.optString("indicador") == "oculto") ind = "oculto"
+            toques = j.optBoolean("ver_toques", true)
+        } catch (_: Exception) {}
+        indicador = ind
+        verToques = toques
+    }
+
+    /** `#rrggbb` válido o el rojo de siempre; nunca lanza. */
+    fun colorInt(): Int = try { Color.parseColor(if (Regex("^#[0-9a-f]{6}$").matches(color)) color else "#dd3c3c") } catch (_: Exception) { Color.rgb(221, 60, 60) }
 
     fun iniciar(ctx: Context) {
         if (iniciado) return
@@ -156,8 +183,11 @@ object ControlNeuronasNativo : Application.ActivityLifecycleCallbacks {
                     error = ""
                     hilo = if (Looper.myLooper() === Looper.getMainLooper()) "main" else Thread.currentThread().name
                     escribirEstado()
-                    ServicioControlNeuronas.mostrar(app, ses, p.optString("nombre", "otra neurona").take(40))
+                    leerAjustes() // CTL1117H
+                    ServicioControlNeuronas.mostrar(app, ses, p.optString("nombre", "otra neurona").take(40), p.optString("color", "#dd3c3c"), if (p.optString("nivel") == "controlar") "controlar" else "ver")
                 }
+                // CTL1117H: la página de este aparato cambió «indicador» o «ver_toques»: se vuelve a leer y se redibuja sin cortar la sesión.
+                "ajustes" -> { leerAjustes(); if (mostrando) ServicioControlNeuronas.refrescarAjustes(app); escribirEstado() }
                 // IND1115F: un botón del panel pide YA esa cosa (sin la pausa de 10 min del aviso automático).
                 "pedir-interruptor" -> pedirInterruptorYa()
                 "pedir-notificaciones" -> pedirNotificacionesYa()
@@ -332,6 +362,8 @@ object ControlNeuronasNativo : Application.ActivityLifecycleCallbacks {
             .put("avisos", avisos) // CTL1117G
             .put("aviso_motivo", avisoMotivo)
             .put("aviso_error", avisoError)
+            .put("indicador", indicador) // CTL1117H
+            .put("toques", verToques)
             .put("cuadro_ms", ControlEntradaNativo.cuadroHace())
             .put("terminada", terminada ?: JSONObject.NULL)
             .put("falta", falta())
@@ -461,6 +493,9 @@ object ControlFondo {
     }
 }
 
+/** CTL1117H: quién controla esta neurona ahora (lo que enseña el aviso en lista y el panel del punto). */
+data class Controlador(val nombre: String, val nivel: String, val color: String, val desdeMs: Long)
+
 /** Servicio en primer plano con la notificación en curso y la superposición. Todo lo atiende Kotlin. */
 class ServicioControlNeuronas : Service() {
     companion object {
@@ -471,10 +506,16 @@ class ServicioControlNeuronas : Service() {
         const val REANUDAR = "app.starseed.nativa.control.REANUDAR"
         const val DESCARTADA = "app.starseed.nativa.control.DESCARTADA"
         const val QUITAR = "app.starseed.nativa.control.QUITAR"
+        const val PAUSAR = "app.starseed.nativa.control.PAUSAR" // CTL1117H
+        const val AJUSTES = "app.starseed.nativa.control.AJUSTES" // CTL1117H
         const val LATIDO_MS = 2_000L
 
-        fun mostrar(ctx: Context, sesion: String, nombre: String) {
-            val i = Intent(ctx, ServicioControlNeuronas::class.java).setAction(MOSTRAR).putExtra("sesion", sesion).putExtra("nombre", nombre)
+        fun refrescarAjustes(ctx: Context) {
+            try { ctx.startService(Intent(ctx, ServicioControlNeuronas::class.java).setAction(AJUSTES)) } catch (_: Exception) {}
+        }
+
+        fun mostrar(ctx: Context, sesion: String, nombre: String, color: String = "#dd3c3c", nivel: String = "ver") {
+            val i = Intent(ctx, ServicioControlNeuronas::class.java).setAction(MOSTRAR).putExtra("sesion", sesion).putExtra("nombre", nombre).putExtra("color", color).putExtra("nivel", nivel)
             ControlNeuronasNativo.paso = "arranque-servicio"
             try {
                 val c: ComponentName? = if (Build.VERSION.SDK_INT >= 26) ctx.startForegroundService(i) else ctx.startService(i)
@@ -499,10 +540,13 @@ class ServicioControlNeuronas : Service() {
     }
 
     private val principal = Handler(Looper.getMainLooper())
-    private var borde: View? = null
+    // CTL1117H: ya no hay borde rojo ni pastilla ancha. La ventana (`pastilla`) lleva el punto de 12 dp y, al tocarlo, un panel que se pliega a los 5 s.
+    // Con `indicador=oculto` la ventana mide 1×1 px y no se ve, pero SIGUE ahí: es la que oye ACTION_OUTSIDE (el toque local que pausa).
     private var pastilla: LinearLayout? = null
-    private var textoPastilla: TextView? = null
-    private var botonReanudar: TextView? = null
+    private var panel: LinearLayout? = null
+    private var textoPanel: TextView? = null
+    private var botonPausa: TextView? = null
+    private val plegarPanel = Runnable { panel?.visibility = View.GONE }
     private val latido = object : Runnable {
         override fun run() {
             if (!ControlNeuronasNativo.mostrando) return
@@ -521,7 +565,9 @@ class ServicioControlNeuronas : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
-            MOSTRAR -> mostrar(intent.getStringExtra("sesion") ?: "", intent.getStringExtra("nombre") ?: "otra neurona")
+            MOSTRAR -> mostrar(intent.getStringExtra("sesion") ?: "", intent.getStringExtra("nombre") ?: "otra neurona", intent.getStringExtra("color") ?: "#dd3c3c", intent.getStringExtra("nivel") ?: "ver")
+            PAUSAR -> pausarPorBoton() // CTL1117H
+            AJUSTES -> if (ControlNeuronasNativo.mostrando) { ponerSuperposicion(); refrescarAviso() } // CTL1117H
             TERMINAR -> terminar("la-persona-desde-la-notificacion")
             // CTL1117G (decisión del dueño): descartar el aviso fijo NO termina el control; se repone. Solo «Terminar» (o las paradas de siempre) lo cierran.
             DESCARTADA -> if (ControlNeuronasNativo.mostrando) reponerAviso("descartado") else cerrar()
@@ -532,10 +578,14 @@ class ServicioControlNeuronas : Service() {
         return START_NOT_STICKY
     }
 
-    private fun mostrar(sesion: String, nombre: String) {
+    private fun mostrar(sesion: String, nombre: String, color: String, nivel: String) {
         ControlNeuronasNativo.sesion = sesion
         ControlNeuronasNativo.nombre = nombre
+        ControlNeuronasNativo.color = color
+        ControlNeuronasNativo.nivel = nivel
+        ControlNeuronasNativo.lista = listOf(Controlador(nombre, nivel, color, System.currentTimeMillis()))
         ControlNeuronasNativo.pausada = false
+        ControlNeuronasNativo.pausaManual = false
         ControlNeuronasNativo.paso = "servicio-recibido"
         var donde = "aviso"
         val ok = try {
@@ -579,19 +629,31 @@ class ServicioControlNeuronas : Service() {
         return PendingIntent.getService(this, codigo, Intent(this, ServicioControlNeuronas::class.java).setAction(accion), flags)
     }
 
+    private fun hora(ms: Long): String = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date(ms))
+
+    /**
+     * CTL1117H: el aviso SIEMPRE está (con o sin punto) y es una LISTA: una línea por controlador (nombre, nivel, desde cuándo), en el color del
+     * controlador, con «Terminar» y «Pausar»/«Reanudar». Se actualiza con `notify` del mismo id.
+     */
     private fun aviso(): Notification {
         val n = ControlNeuronasNativo.nombre
         val pausada = ControlNeuronasNativo.pausada
         @Suppress("DEPRECATION")
         val b = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(this, CANAL) else Notification.Builder(this)
+        val estilo = Notification.InboxStyle().setBigContentTitle(if (pausada) "Control en pausa" else "Controlada por $n")
+        for (c in ControlNeuronasNativo.lista) estilo.addLine("● ${c.nombre} · ${if (c.nivel == "controlar") "controla" else "ve"} · desde ${hora(c.desdeMs)}")
+        if (pausada) estilo.addLine("En pausa: no puede mandar nada hasta que reanudes.")
         b.setSmallIcon(applicationInfo.icon)
             .setContentTitle(if (pausada) "Control en pausa" else "● Controlada por $n")
-            .setContentText(if (pausada) "Tocaste la pantalla: $n no puede mandar nada hasta que reanudes." else "$n manda órdenes a esta tableta. Tocar la pantalla lo pausa.")
+            .setContentText(if (pausada) "$n no puede mandar nada hasta que reanudes." else "$n manda órdenes a esta tableta. Tocar la pantalla lo pausa.")
+            .setStyle(estilo)
+            .setColor(ControlNeuronasNativo.colorInt())
             .setOngoing(true)
             .setCategory(Notification.CATEGORY_SERVICE)
             .setDeleteIntent(pi(DESCARTADA, 3)) // CTL1117G: descartarla repone el aviso (ya no termina)
             .addAction(Notification.Action.Builder(null, "Terminar", pi(TERMINAR, 1)).build())
         if (pausada) b.addAction(Notification.Action.Builder(null, "Reanudar", pi(REANUDAR, 2)).build())
+        else b.addAction(Notification.Action.Builder(null, "Pausar", pi(PAUSAR, 4)).build())
         if (Build.VERSION.SDK_INT >= 31) b.setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE)
         @Suppress("DEPRECATION")
         if (Build.VERSION.SDK_INT < 26) b.setPriority(Notification.PRIORITY_HIGH)
@@ -633,13 +695,35 @@ class ServicioControlNeuronas : Service() {
 
     private fun refrescarAviso() {
         try { getSystemService(NotificationManager::class.java)?.notify(ID, aviso()) } catch (_: Exception) {}
-        textoPastilla?.text = if (ControlNeuronasNativo.pausada) "  ‖ En pausa  " else "  ● Controlada por ${ControlNeuronasNativo.nombre}  "
-        botonReanudar?.visibility = if (ControlNeuronasNativo.pausada) View.VISIBLE else View.GONE
+        val c = ControlNeuronasNativo.lista.firstOrNull()
+        textoPanel?.text = if (ControlNeuronasNativo.pausada) "${ControlNeuronasNativo.nombre}\nEn pausa" else "${ControlNeuronasNativo.nombre}\n${if (c?.nivel == "controlar") "Controla" else "Ve"} · desde ${hora(c?.desdeMs ?: System.currentTimeMillis())}"
+        botonPausa?.text = if (ControlNeuronasNativo.pausada) "  Reanudar  " else "  Pausar  "
+    }
+
+    /** CTL1117H: «Pausar» (del aviso o del panel). Solo «Reanudar» la quita: no se reanuda sola a los 3 s como la del toque local. */
+    private fun pausarPorBoton() {
+        if (!ControlNeuronasNativo.mostrando || ControlNeuronasNativo.pausada) return
+        ControlNeuronasNativo.motivoPausa = "boton-pausa"
+        pausaLocal()
+        if (ControlNeuronasNativo.pausada) ControlNeuronasNativo.pausaManual = true
+    }
+
+    private fun alternarPanel() {
+        val p = panel ?: return
+        principal.removeCallbacks(plegarPanel)
+        if (p.visibility == View.VISIBLE) { p.visibility = View.GONE; return }
+        refrescarAviso()
+        p.visibility = View.VISIBLE
+        principal.postDelayed(plegarPanel, 5_000L)
     }
 
     private fun dp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
 
-    /** Borde a toda pantalla (no toca nada) + pastilla con «Terminar». false si Android no deja dibujar. */
+    /**
+     * CTL1117H: una ventana pequeña con el punto de 12 dp (si `indicador=punto`) y su panel; con `indicador=oculto`, la misma ventana de 1×1 px sin
+     * nada dibujado. Es la que oye ACTION_OUTSIDE: un toque en cualquier otro sitio pausa al instante. false si Android no deja dibujar
+     * (sin «Mostrar sobre otras apps» tampoco hay pausa por toque, así que no hay control).
+     */
     private fun ponerSuperposicion(): Boolean {
         if (Build.VERSION.SDK_INT < 26 || !Settings.canDrawOverlays(this)) {
             ControlNeuronasNativo.error = "superposicion:sin-permiso"
@@ -652,65 +736,64 @@ class ServicioControlNeuronas : Service() {
         }
         quitarSuperposicion()
         val tipo = WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-        val marco = FrameLayout(this).apply {
-            background = GradientDrawable().apply { setStroke(dp(6), Color.rgb(220, 20, 60)); setColor(Color.TRANSPARENT) }
+        val oculto = ControlNeuronasNativo.indicador == "oculto"
+        val fila = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.END }
+        // El punto se ve de 12 dp con un borde blanco; el área que se toca es de 28 dp.
+        val punto = View(this).apply {
+            val d = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(ControlNeuronasNativo.colorInt()); setStroke(dp(2), Color.WHITE) }
+            background = InsetDrawable(d, dp(8))
+            visibility = if (oculto) View.GONE else View.VISIBLE
+            setOnClickListener { alternarPanel() }
         }
-        val pBorde = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT, tipo,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
-                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
-            PixelFormat.TRANSLUCENT
-        )
-        // Android 12+: los toques solo atraviesan una superposición de otra app si su opacidad es ≤ 0,8.
-        pBorde.alpha = 0.8f
-        wm.addView(marco, pBorde)
-        borde = marco
-
-        val fila = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            background = GradientDrawable().apply { cornerRadius = dp(14).toFloat(); setColor(Color.rgb(220, 20, 60)) }
-            setPadding(dp(8), dp(4), dp(8), dp(4))
-        }
+        fila.addView(punto, LinearLayout.LayoutParams(dp(28), dp(28)))
         val t = TextView(this).apply { setTextColor(Color.WHITE); textSize = 13f }
-        val reanudarB = TextView(this).apply {
-            text = "  Reanudar  "; setTextColor(Color.WHITE); textSize = 13f; visibility = View.GONE
-            setOnClickListener { reanudar() }
+        val pausarB = TextView(this).apply {
+            setTextColor(Color.WHITE); textSize = 13f
+            setOnClickListener { if (ControlNeuronasNativo.pausada) reanudar() else pausarPorBoton(); alternarPanel() }
         }
         val terminarB = TextView(this).apply {
             text = "  Terminar  "; setTextColor(Color.WHITE); textSize = 13f
             setOnClickListener { terminar("la-persona-desde-la-superposicion") }
         }
-        fila.addView(t); fila.addView(reanudarB); fila.addView(terminarB)
+        val botones = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        botones.addView(pausarB); botones.addView(terminarB)
+        val pan = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = GradientDrawable().apply { cornerRadius = dp(12).toFloat(); setColor(Color.argb(235, 24, 24, 32)); setStroke(dp(2), ControlNeuronasNativo.colorInt()) }
+            setPadding(dp(10), dp(8), dp(10), dp(8))
+            visibility = View.GONE
+        }
+        pan.addView(t); pan.addView(botones)
+        fila.addView(pan)
         // Un toque en cualquier otro sitio de la pantalla llega aquí como ACTION_OUTSIDE: pausa al instante.
         fila.setOnTouchListener { _, ev ->
             // AND1115K: el toque de un gesto remoto nuestro no es «local»; uno de la persona sí (y marca los 3 s de pausa).
             if (ev.actionMasked == MotionEvent.ACTION_OUTSIDE) { if (!ControlEntradaNativo.esGestoPropio()) { ControlEntradaNativo.toqueLocal(); pausaLocal(); esperarSilencio() } else ControlEntradaNativo.ignorado(); true } else false
         }
         val pPastilla = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT, tipo,
+            if (oculto) 1 else WindowManager.LayoutParams.WRAP_CONTENT, if (oculto) 1 else WindowManager.LayoutParams.WRAP_CONTENT, tipo,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
                 WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
             PixelFormat.TRANSLUCENT
         )
-        pPastilla.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+        pPastilla.gravity = Gravity.TOP or Gravity.END
+        pPastilla.x = dp(4)
         pPastilla.y = dp(8)
         wm.addView(fila, pPastilla)
         pastilla = fila
-        textoPastilla = t
-        botonReanudar = reanudarB
+        panel = pan
+        textoPanel = t
+        botonPausa = pausarB
         refrescarAviso()
-        // IND1115F: ANTES se devolvía `borde?.isAttachedToWindow != false`. Justo después de `addView` la vista aún no
-        // está «unida a la ventana» (eso ocurre en el primer recorrido del ViewRootImpl, un fotograma después), así que
-        // daba false SIEMPRE y la sesión se negaba aunque la superposición ya estuviera puesta. Si `addView` no lanzó,
-        // está puesta (una excepción sube a `mostrar`, que la apunta en `error`).
-        return borde != null && pastilla != null
+        // IND1115F: justo después de `addView` la vista aún no está «unida a la ventana»; si `addView` no lanzó, está puesta.
+        return pastilla != null
     }
 
     private fun quitarSuperposicion() {
         val wm = getSystemService(WindowManager::class.java) ?: return
-        borde?.let { try { wm.removeView(it) } catch (_: Exception) {} }
+        principal.removeCallbacks(plegarPanel)
         pastilla?.let { try { wm.removeView(it) } catch (_: Exception) {} }
-        borde = null; pastilla = null; textoPastilla = null; botonReanudar = null
+        pastilla = null; panel = null; textoPanel = null; botonPausa = null
     }
 
     private fun pausaLocal() {
@@ -740,7 +823,7 @@ class ServicioControlNeuronas : Service() {
 
     /** CTL1117A · S7: pasaron 3 s sin tocar la pantalla: el control sigue solo (lo dice el contrato; «Terminar» sigue mandando). */
     private fun reanudarPorSilencio() {
-        if (!ControlNeuronasNativo.mostrando || !ControlNeuronasNativo.pausada) return
+        if (!ControlNeuronasNativo.mostrando || !ControlNeuronasNativo.pausada || ControlNeuronasNativo.pausaManual) return
         val desdeToque = System.currentTimeMillis() - ControlEntradaNativo.ultimoToqueLocal
         if (desdeToque < ControlEntradaNativo.PAUSA_LOCAL_MS) {
             principal.postDelayed(reanudarSola, ControlEntradaNativo.PAUSA_LOCAL_MS - desdeToque + 50)
@@ -751,7 +834,7 @@ class ServicioControlNeuronas : Service() {
 
     /** CTL1117F: red de seguridad en cada latido (2 s): con la pausa puesta y 3 s sin tocar, se reanuda aunque el temporizador se perdiera. */
     private fun vigilarPausa() {
-        if (!ControlNeuronasNativo.mostrando || !ControlNeuronasNativo.pausada) return
+        if (!ControlNeuronasNativo.mostrando || !ControlNeuronasNativo.pausada || ControlNeuronasNativo.pausaManual) return
         if (System.currentTimeMillis() - ControlEntradaNativo.ultimoToqueLocal < ControlEntradaNativo.PAUSA_LOCAL_MS) return
         reanudar("reanudada-vigia")
     }
@@ -761,6 +844,7 @@ class ServicioControlNeuronas : Service() {
         if (!ControlNeuronasNativo.mostrando || !ControlNeuronasNativo.pausada) return true
         if (ControlEntradaNativo.esGestoPropio()) return false // AND1115K: un gesto remoto nunca reanuda el control
         ControlNeuronasNativo.pausada = false
+        ControlNeuronasNativo.pausaManual = false
         ControlNeuronasNativo.reanudaMotivo = motivo // CTL1117F
         ControlNeuronasNativo.pausaDurMs = System.currentTimeMillis() - ControlNeuronasNativo.pausaInicioMs
         ControlNeuronasNativo.pausaInicioMs = 0L
@@ -789,6 +873,7 @@ class ServicioControlNeuronas : Service() {
             ControlNeuronasNativo.escribirEstado()
         }
         quitarSuperposicion()
+        ControlToques.quitar() // CTL1117H
         try {
             if (Build.VERSION.SDK_INT >= 24) stopForeground(STOP_FOREGROUND_REMOVE) else @Suppress("DEPRECATION") stopForeground(true)
         } catch (_: Exception) {}
@@ -800,9 +885,107 @@ class ServicioControlNeuronas : Service() {
         if (ControlNeuronasNativo.mostrando) ControlNeuronasNativo.terminar("no-se-pudo-mostrar")
         ControlFondo.soltar(ControlNeuronasNativo.actividadActual()) // CTL1117C
         ControlNeuronasNativo.pausarLocal = null // UNI1116B: no retener el servicio que se va
+        ControlToques.quitar() // CTL1117H
         quitarSuperposicion()
         principal.removeCallbacks(latido)
         principal.removeCallbacks(reanudarSola) // CTL1117A
         super.onDestroy()
+    }
+}
+
+/**
+ * CTL1117H · los toques remotos se ven: una onda del color del controlador (anillo que crece ~450 ms y un punto central) donde toca cada dedo, una estela
+ * corta si arrastra, y una marca de texto (~1,5 s) cuando escribe. Es una ventana `TYPE_ACCESSIBILITY_OVERLAY` a toda pantalla, que NO se toca ni toma el foco
+ * (los toques la atraviesan y la regla G la salta como a todo «overlay» de accesibilidad). Se crea con el primer efecto y se quita al acabar el último.
+ * Solo si `ver_toques`, hay sesión, no está en pausa y la ventana de debajo no es protegida (eso último ya lo decide quien llama: la orden no se despacha).
+ * Se anima con el reloj del dibujo (`postInvalidateOnAnimation`), sin hilos propios.
+ */
+object ControlToques {
+    private const val ONDA_MS = 450L
+    private const val ESTELA_MS = 350L
+    private const val MARCA_MS = 1_500L
+    private class Efecto(val x: Float, val y: Float, val x2: Float, val y2: Float, val ini: Long, val dur: Long, val texto: String?, val color: Int)
+    private val principal = Handler(Looper.getMainLooper())
+    private val efectos = ArrayList<Efecto>()
+    private var vista: Capa? = null
+    private var wm: WindowManager? = null
+
+    private class Capa(ctx: Context) : View(ctx) {
+        private val pl = Paint(Paint.ANTI_ALIAS_FLAG)
+        private val dpx = ctx.resources.displayMetrics.density
+        override fun onDraw(c: Canvas) {
+            val ahora = System.currentTimeMillis()
+            var vivos = false
+            for (e in efectos.toList()) {
+                val t = (ahora - e.ini).toFloat() / e.dur
+                if (t >= 1f) continue
+                vivos = true
+                val a = ((1f - t) * 255).toInt().coerceIn(0, 255)
+                if (e.texto != null) {
+                    pl.style = Paint.Style.FILL; pl.textSize = 14f * dpx
+                    val w = pl.measureText(e.texto) + 24f * dpx
+                    val x = (width / 2f).coerceAtLeast(w / 2f)
+                    val y = if (e.y > 0f) (e.y - 40f * dpx).coerceAtLeast(64f * dpx) else 72f * dpx
+                    pl.color = Color.argb(a, Color.red(e.color), Color.green(e.color), Color.blue(e.color))
+                    c.drawRoundRect(RectF(x - w / 2f, y - 18f * dpx, x + w / 2f, y + 12f * dpx), 14f * dpx, 14f * dpx, pl)
+                    pl.color = Color.argb(a, 255, 255, 255)
+                    c.drawText(e.texto, x - w / 2f + 12f * dpx, y + 3f * dpx, pl)
+                    continue
+                }
+                pl.color = Color.argb(a, Color.red(e.color), Color.green(e.color), Color.blue(e.color))
+                pl.style = Paint.Style.STROKE; pl.strokeWidth = 3f * dpx
+                c.drawCircle(e.x, e.y, (10f + 34f * t) * dpx, pl)
+                pl.style = Paint.Style.FILL
+                c.drawCircle(e.x, e.y, 5f * dpx, pl)
+                if (Math.abs(e.x2 - e.x) + Math.abs(e.y2 - e.y) > 24f * dpx) {
+                    pl.style = Paint.Style.STROKE; pl.strokeWidth = 4f * dpx; pl.strokeCap = Paint.Cap.ROUND
+                    c.drawLine(e.x, e.y, e.x + (e.x2 - e.x) * minOf(1f, t * 2f), e.y + (e.y2 - e.y) * minOf(1f, t * 2f), pl)
+                }
+            }
+            if (vivos) postInvalidateOnAnimation() else principal.post { quitar() }
+        }
+    }
+
+    private fun puede(): Boolean = ControlNeuronasNativo.verToques && ControlNeuronasNativo.mostrando && !ControlNeuronasNativo.pausada
+
+    fun toque(ctx: Context, x: Float, y: Float, x2: Float, y2: Float) {
+        if (!puede()) return
+        val col = ControlNeuronasNativo.colorInt()
+        principal.post { poner(ctx, Efecto(x, y, x2, y2, System.currentTimeMillis(), if (Math.abs(x2 - x) + Math.abs(y2 - y) > 24f) ONDA_MS + ESTELA_MS else ONDA_MS, null, col)) }
+    }
+
+    fun marca(ctx: Context, texto: String, x: Float, y: Float) {
+        if (!puede()) return
+        val col = ControlNeuronasNativo.colorInt()
+        principal.post { poner(ctx, Efecto(x, y, x, y, System.currentTimeMillis(), MARCA_MS, texto, col)) }
+    }
+
+    private fun poner(ctx: Context, e: Efecto) {
+        try {
+            if (efectos.size >= 12) efectos.removeAt(0)
+            efectos.add(e)
+            if (vista == null) {
+                val m = ctx.getSystemService(WindowManager::class.java) ?: return
+                val v = Capa(ctx)
+                val lp = WindowManager.LayoutParams(
+                    WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                        WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                    PixelFormat.TRANSLUCENT
+                )
+                m.addView(v, lp)
+                wm = m
+                vista = v
+            }
+            vista?.postInvalidateOnAnimation()
+        } catch (_: Throwable) { /* sin onda no se rompe nada: el control sigue igual */ }
+    }
+
+    fun quitar() {
+        efectos.clear()
+        val v = vista ?: return
+        vista = null
+        try { wm?.removeView(v) } catch (_: Throwable) {}
+        wm = null
     }
 }

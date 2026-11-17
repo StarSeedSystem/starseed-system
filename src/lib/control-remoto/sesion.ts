@@ -58,6 +58,8 @@ export interface Controlador {
     nombre: string;
     neurona: string;
     desde: string;
+    /** CTL1117H: color público que declaró al presentarse (#rrggbb); si falta, el de su id (`colorPorDefecto`). */
+    color?: string;
 }
 
 /** Lo que el dueño decidió en ESTE aparato. Se guarda; las sesiones no (viven en memoria). */
@@ -362,7 +364,8 @@ export class PuertaControl {
         const p = this.d.leerPermiso();
         if (p.controladores.some((x) => x.huella === c.de)) return this.respuesta(c.nonce, true, "ya-aceptado", "presentarse", c.de, "-");
         const nombre = [...a.nombre.replace(/[\u0000-\u001f\u007f]/g, "")].slice(0, 60).join("").trim() || "Neurona";
-        const nuevo: Controlador = { huella: c.de, spki: a.spki, cuenta: c.cuenta, nombre, neurona: a.neurona, desde: new Date(ahora).toISOString() };
+        const color = typeof a.color === "string" && /^#[0-9a-f]{6}$/.test(a.color) ? a.color : undefined;
+        const nuevo: Controlador = { huella: c.de, spki: a.spki, cuenta: c.cuenta, nombre, neurona: a.neurona, desde: new Date(ahora).toISOString(), ...(color ? { color } : {}) };
         const pendientes = [nuevo, ...p.pendientes.filter((x) => x.huella !== c.de)].slice(0, MAX_PENDIENTES);
         this.d.guardarPermiso({ ...p, pendientes });
         this.d.alCambiar?.();

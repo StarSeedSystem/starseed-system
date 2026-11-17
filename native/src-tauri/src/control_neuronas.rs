@@ -213,13 +213,15 @@ pub fn control_neuronas_abrir(app: AppHandle, webview: tauri::Webview, de: Strin
     // `abrir-sesion` de un controlador que la persona aceptó en el diálogo nativo, comprobada AQUÍ como la entrada.
     // El `de` y el NOMBRE del indicador salen de `aceptados.json`, nunca de lo que diga la página.
     #[cfg(target_os = "android")]
-    let (de, nombre, nivel) = match apertura_nativa(&app, sobre.as_ref(), &nivel) {
-        Ok(a) => (a.de, a.nombre, a.nivel),
+    let (de, nombre, nivel, color) = match apertura_nativa(&app, sobre.as_ref(), &nivel) {
+        Ok(a) => (a.de, a.nombre, a.nivel, a.color),
         Err(m) => {
             anotar(&app, "sesion-rechazada", &format!("de=- motivo={m}"));
             return Err(m.into());
         }
     };
+    #[cfg(not(target_os = "android"))]
+    let color = crate::control_ajustes::color_por_defecto(&de); // CTL1117H: sin entrada nativa no hay color firmado
     #[cfg(not(target_os = "android"))]
     let _ = &sobre; // escritorio: sin entrada ni pantalla nativas (`sin-soporte`); ver contrato §12.3
     // ORD1114T: una cadena rota se DETECTA y queda dicha en la propia cadena (y en el estado); no se tapa.
@@ -252,7 +254,7 @@ pub fn control_neuronas_abrir(app: AppHandle, webview: tauri::Webview, de: Strin
     let mut detalle = String::new();
     let visible = int.encendido
         && if posible {
-            match poner_indicador(&app, &l::nombre_limpio(&nombre)) {
+            match poner_indicador(&app, &l::nombre_limpio(&nombre), &color, &nivel) {
                 Ok(()) => true,
                 Err(d) => {
                     detalle = d;
@@ -346,6 +348,11 @@ pub fn control_fondo_nota(app: AppHandle, webview: tauri::Webview, detalle: Stri
     let k: Option<l::DatosKotlin> = None;
     crate::ble::nota(None, "control-fondo", &l::linea_fondo(&detalle, k.as_ref()));
     Ok(())
+}
+
+/// (CTL1117H) Un cambio de ajustes locales queda en la cadena (sin contenido de órdenes).
+pub(crate) fn nota_ajustes(app: &AppHandle, a: &crate::control_ajustes::Ajustes) {
+    anotar(app, "ajustes", &format!("indicador={} ver-toques={}", a.indicador, if a.ver_toques { "si" } else { "no" }));
 }
 
 /// La puerta de la página rechazó una orden: Rust lo anota en la cadena (no concede nada).
@@ -537,7 +544,7 @@ pub fn iniciar(app: &AppHandle) {
                 tics += 1;
                 if tics % 30 == 0 {
                     if let Some(k) = crate::control_neuronas_android::es::estado(&h) {
-                        crate::ble::nota(None, "control-pulso", &format!("pulso latido-ms={} pausa={} cuadro-ms={} fondo={}", p.saturating_sub(k.t_ms).min(9_999_999), if k.pausada { "si" } else { "no" }, k.cuadro_ms.clamp(-1, 9_999_999), if k.en_fondo { "si" } else { "no" }));
+                        crate::ble::nota(None, "control-pulso", &format!("pulso latido-ms={} pausa={} cuadro-ms={} fondo={} indicador={} toques={}", p.saturating_sub(k.t_ms).min(9_999_999), if k.pausada { "si" } else { "no" }, k.cuadro_ms.clamp(-1, 9_999_999), if k.en_fondo { "si" } else { "no" }, if crate::control_ajustes::actuales(&h).indicador == "oculto" { "oculto" } else { "punto" }, if crate::control_ajustes::actuales(&h).ver_toques { "si" } else { "no" }));
                     }
                 }
             }
@@ -753,7 +760,7 @@ fn marcar_pausa_indicador(app: &AppHandle, pausada: bool) {
 fn marcar_pausa_indicador(_app: &AppHandle, _pausada: bool) {}
 
 #[cfg(target_os = "macos")]
-fn poner_indicador(app: &AppHandle, nombre: &str) -> Result<(), String> {
+fn poner_indicador(app: &AppHandle, nombre: &str, _color: &str, _nivel: &str) -> Result<(), String> {
     poner_bandeja(app, nombre).map_err(|e| e.to_string())?;
     // Borde siempre encima y atajo global: sin cualquiera de los dos, no hay indicador completo (§2.4).
     if !crate::control_neuronas_macos::poner_borde(app, nombre) || !crate::control_neuronas_macos::registrar_atajo(app) {
@@ -799,11 +806,11 @@ fn poner_bandeja(app: &AppHandle, nombre: &str) -> tauri::Result<()> {
 }
 
 #[cfg(target_os = "android")]
-fn poner_indicador(app: &AppHandle, nombre: &str) -> Result<(), String> {
+fn poner_indicador(app: &AppHandle, nombre: &str, color: &str, nivel: &str) -> Result<(), String> {
     use crate::control_neuronas_android as a;
     let id = token_nuevo();
     *sesion_indicador() = Some(id.clone());
-    if !a::es::pedir(app, "mostrar", &id, nombre) {
+    if !a::es::pedir_mostrar(app, &id, nombre, color, nivel) {
         *sesion_indicador() = None;
         let r = a::Espera { paso: "peticion-no-escrita".into(), falta: a::es::estado(app).map(|e| e.falta).unwrap_or_default(), ..Default::default() };
         guardar_rechazo(r.falta.clone(), &r.paso, "", 0);
@@ -823,7 +830,7 @@ fn poner_indicador(app: &AppHandle, nombre: &str) -> Result<(), String> {
 }
 
 #[cfg(not(any(target_os = "macos", target_os = "android")))]
-fn poner_indicador(_app: &AppHandle, _nombre: &str) -> Result<(), String> {
+fn poner_indicador(_app: &AppHandle, _nombre: &str, _color: &str, _nivel: &str) -> Result<(), String> {
     Err("sin-indicador-nativo".into())
 }
 

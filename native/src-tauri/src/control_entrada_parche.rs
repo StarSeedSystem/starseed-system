@@ -284,6 +284,13 @@ mod pruebas {
 "#;
 
     #[test]
+    fn ctl1117h_la_entrada_dispara_la_onda_sin_contar_el_texto_y_la_capa_se_salta_en_la_regla_g() {
+        assert!(KOTLIN.contains("ControlToques.toque(this, i0[0], i0[1], i1[0], i1[1])") && KOTLIN.contains("else if (trozo == 0)"));
+        assert!(KOTLIN.contains("escribió ${t.length} caracteres") && !KOTLIN.contains("marca(this, t,"), "la marca no repite el texto escrito");
+        assert!(KOTLIN.contains("TYPE_ACCESSIBILITY_OVERLAY"), "la capa de ondas es de accesibilidad y la regla G la salta");
+    }
+
+    #[test]
     fn declara_el_servicio_y_el_permiso_especial_y_nada_que_conceda_algo() {
         let m = parchear_manifiesto(PLANTILLA).unwrap();
         let p = m.find(PERMISOS_INICIO).unwrap();
