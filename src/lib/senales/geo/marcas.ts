@@ -17,6 +17,7 @@ import type { EstadoAparato } from "@/lib/senales/tipos-vivo";
 import type { DispositivoMallaRow, EstadoEnlace, FichaDispositivo } from "@/lib/network/malla-neuronas";
 import type { PresenciaMedio } from "@/lib/neurons/presencia";
 import type { SenalesMedio } from "@/lib/neurons/senales-medio";
+import type { SenalEspectro } from "@/lib/senales/espectro/tipos";
 import { normalizarCapaConciencia, ORDEN_CONCIENCIA, type CapaConcienciaId } from "./capas";
 import {
   MOTIVO_CANAL_SIN_UNIR, posicionVistaDeAnuncio, anuncioDesdeCruda,
@@ -80,6 +81,9 @@ export interface MarcaGeo {
   aparato: { so?: string; soV?: string; equipo?: string; arq?: string; medio?: string } | null;
   versionWeb?: string;
   versionNativa?: string;
+  /** (AUD1117) Señales publicadas de la red vinculadas a ESTA neurona (por `vinculo` de tipo «neurona»),
+   * para las capas `red-*` (`capas.ts`); sin filas ligadas, no está el campo. */
+  publicadas?: readonly SenalEspectro[];
 }
 
 export interface EntradaYoGeo {
@@ -105,6 +109,9 @@ export interface EntradaMarcas {
   canal?: { unido: boolean; motivo: string | null };
   /** (MAP1114D) Enlaces con medida real entre este aparato y las demás neuronas. */
   enlaces?: readonly EnlaceMedido[];
+  /** (AUD1117) Señales publicadas leídas del espectrómetro (`useSenalesPublicadas`): se reparten
+   * entre las marcas según el vínculo de neurona de cada señal. */
+  publicadas?: readonly SenalEspectro[];
 }
 
 const MOTIVO_SIN_PERMISO = "este aparato aún no conoce su ubicación (no se dio permiso o no hay GPS)";
@@ -224,6 +231,8 @@ export function construirMarcas(e: EntradaMarcas): MarcaGeo[] {
     const capasLista = esYo ? capasDeLista(e.yo.capas) : capasDeLista(ultimo?.c);
     const d = ultimo?.d;
     const ficha = esYo ? e.yo.ficha : fila?.ficha;
+    // (AUD1117) Las señales publicadas solo se cuelgan de la neurona a la que su vínculo señala.
+    const publicadas = (e.publicadas ?? []).filter((s) => s.vinculo?.tipo === "neurona" && s.vinculo.id === neuronaId);
 
     marcas.push({
       id: `neurona:${neuronaId}`,
@@ -246,6 +255,7 @@ export function construirMarcas(e: EntradaMarcas): MarcaGeo[] {
       aparato: d ? { so: d.so, soV: d.soV, equipo: d.equipo, arq: d.arq, medio: d.medio } : ultimo ? { medio: ultimo.tipo } : null,
       versionWeb: ultimo?.v?.interfaz,
       versionNativa: ultimo?.v?.nativa,
+      ...(publicadas.length ? { publicadas } : {}),
     });
   };
 
