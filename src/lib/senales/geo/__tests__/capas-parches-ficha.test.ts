@@ -225,3 +225,95 @@ describe("capas de oferta (AQ07)", () => {
     expect(CAPA_POR_ID["oferta-internet"]?.estado).not.toBe("sin-fuente");
   });
 });
+
+describe("ficha de marca: recursos compartidos (AQ07)", () => {
+  const s = resumirSenales({ enLinea: true, conexion: { type: "wifi", effectiveType: "4g", downlink: 10 }, malla: { propios: 0, otrasCuentas: 0 }, mesh: null, bluetooth: null, serie: { api: true, puertos: 0 } });
+
+  function medioConOferta(o: { computo: boolean; almacenamiento: boolean; internet: boolean }): PresenciaMedio {
+    return {
+      n: "neurona-1",
+      m: "medio-1",
+      t: AHORA,
+      tipo: "navegador",
+      etiqueta: "Chrome",
+      visible: true,
+      desde: new Date(AHORA).toISOString(),
+      s,
+      o,
+    };
+  }
+
+  function medioSinOferta(): PresenciaMedio {
+    return {
+      n: "neurona-1",
+      m: "medio-1",
+      t: AHORA,
+      tipo: "navegador",
+      etiqueta: "Chrome",
+      visible: true,
+      desde: new Date(AHORA).toISOString(),
+      s,
+    };
+  }
+
+  function marcaConMedios(medios: PresenciaMedio[]): MarcaGeo {
+    const marcas = construirMarcas({
+      filas: [{ neuronId: "neurona-1", nombre: "Neurona Test", plataforma: "macOS", online: true, esEsteDispositivo: false, tipo: "desktop", enlace: { estado: "conectado", latenciaMs: 50 } }],
+      medios,
+      ahora: AHORA,
+      yo: {
+        neuronaId: "yo", nombre: "Yo", plataforma: "macOS", capas: null, ficha: undefined,
+        posicion: { lat: 19.4326, lon: -99.1332, precisionM: 8, t: AHORA - 10_000 },
+        senales: s,
+      },
+    });
+    const m = marcas.find((marca) => marca.neuronaId === "neurona-1");
+    if (!m) throw new Error("Neurona test no encontrada en marcas");
+    return m;
+  }
+
+  it("ficha con oferta: muestra recursos compartidos declarados", () => {
+    const m = marcaConMedios([medioConOferta({ computo: true, almacenamiento: true, internet: false })]);
+    const ficha = fichaDeMarca(m, AHORA);
+    const seccionOfrece = ficha.secciones.find((sec) => sec.id === "ofrece");
+    expect(seccionOfrece).toBeDefined();
+    const datoRecursos = seccionOfrece!.datos.find((d) => d.etiqueta === "Recursos compartidos");
+    expect(datoRecursos).toBeDefined();
+    expect(datoRecursos!.estado).toBe("declarado");
+    expect(datoRecursos!.valor).toContain("cómputo");
+    expect(datoRecursos!.valor).toContain("almacenamiento");
+    expect(datoRecursos!.valor).not.toContain("internet");
+    expect(datoRecursos!.fuente).toContain("presencia de la cuenta");
+  });
+
+  it("ficha con solo internet compartido: muestra solo internet", () => {
+    const m = marcaConMedios([medioConOferta({ computo: false, almacenamiento: false, internet: true })]);
+    const ficha = fichaDeMarca(m, AHORA);
+    const seccionOfrece = ficha.secciones.find((sec) => sec.id === "ofrece");
+    const datoRecursos = seccionOfrece!.datos.find((d) => d.etiqueta === "Recursos compartidos");
+    expect(datoRecursos).toBeDefined();
+    expect(datoRecursos!.estado).toBe("declarado");
+    expect(datoRecursos!.valor).toBe("internet");
+  });
+
+  it("ficha sin oferta: dice desconocido con motivo", () => {
+    const m = marcaConMedios([medioSinOferta()]);
+    const ficha = fichaDeMarca(m, AHORA);
+    const seccionOfrece = ficha.secciones.find((sec) => sec.id === "ofrece");
+    const datoRecursos = seccionOfrece!.datos.find((d) => d.etiqueta === "Recursos compartidos");
+    expect(datoRecursos).toBeDefined();
+    expect(datoRecursos!.estado).toBe("no-medido");
+    expect(datoRecursos!.valor).toBe("desconocido");
+    expect(datoRecursos!.nota).toContain("no anuncia su oferta");
+  });
+
+  it("ficha con oferta vacía (todos false): muestra 'ninguno'", () => {
+    const m = marcaConMedios([medioConOferta({ computo: false, almacenamiento: false, internet: false })]);
+    const ficha = fichaDeMarca(m, AHORA);
+    const seccionOfrece = ficha.secciones.find((sec) => sec.id === "ofrece");
+    const datoRecursos = seccionOfrece!.datos.find((d) => d.etiqueta === "Recursos compartidos");
+    expect(datoRecursos).toBeDefined();
+    expect(datoRecursos!.estado).toBe("declarado");
+    expect(datoRecursos!.valor).toBe("ninguno");
+  });
+});

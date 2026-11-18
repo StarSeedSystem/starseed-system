@@ -93,6 +93,9 @@ export function fichaDeMarca(m: MarcaGeo, ahora: number): FichaMapa {
   const h = m.hardware;
   const sinFicha = (etiqueta: string) => datoDesconocido(etiqueta, h.fuente, "no hay ficha de esa neurona");
   const hora = h.t ? `ficha de las ${horaDe(h.t)}` : undefined;
+  const o = m.oferta;
+  const tieneOferta = o !== null && o !== undefined;
+  const horaOferta = tieneOferta ? `anunciada a las ${horaDe(m.antenas.find((a) => a.kind === "ip")?.t ?? null)}` : undefined;
   secciones.push({
     id: "ofrece", titulo: "Qué ofrece y hardware",
     datos: [
@@ -103,7 +106,19 @@ export function fichaDeMarca(m: MarcaGeo, ahora: number): FichaMapa {
         : sinFicha("Memoria (RAM)"),
       h.backendLocal === null ? sinFicha("Modelo local")
         : { etiqueta: "Modelo local", valor: h.backendLocal ? "tiene un motor local" : "sin motor local", fuente: h.fuente, estado: "declarado", nota: hora },
-      datoDesconocido("Cómputo, almacenamiento e internet compartido", "ajustes locales de cada aparato", "aún no se anuncian a la cuenta"),
+      tieneOferta
+        ? {
+            etiqueta: "Recursos compartidos",
+            valor: [
+              o!.computo ? "cómputo" : null,
+              o!.almacenamiento ? "almacenamiento" : null,
+              o!.internet ? "internet" : null,
+            ].filter(Boolean).join(" · ") || "ninguno",
+            fuente: "presencia de la cuenta: permisos.compute, permissions.storage, settings.offerPublicInternet",
+            estado: "declarado",
+            nota: horaOferta,
+          }
+        : datoDesconocido("Recursos compartidos", "presencia de la cuenta", "esa neurona no anuncia su oferta de recursos"),
     ],
   });
 
