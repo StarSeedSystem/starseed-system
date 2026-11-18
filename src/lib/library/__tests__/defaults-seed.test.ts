@@ -57,8 +57,8 @@ function catalogo(ids: readonly string[]): SeedCatalogEntry[] {
 }
 
 describe("defaults-seed · 2.ª tanda con «preinstalar: siempre»", () => {
-  it("la versión está en 25 (Ola 1104 · AF) y mantiene las siete «siempre» de la 2.ª tanda", () => {
-    expect(SEED_VERSION).toBe(25);
+  it("la versión está en 26 (Ola 1104 · AF + TU31 Traductor) y mantiene las siete «siempre» de la 2.ª tanda", () => {
+    expect(SEED_VERSION).toBe(26);
     for (const id of SIEMPRE_2A) {
       expect(RECOMMENDED_PACKAGE_IDS).toContain(id);
     }
