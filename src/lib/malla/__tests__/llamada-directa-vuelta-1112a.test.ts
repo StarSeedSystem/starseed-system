@@ -164,16 +164,39 @@ describe("LLA1112A · la llamada directa no cuelga porque su enlace se caiga", (
         expect(nTab.pistas.at(-1)).toBeTruthy();
     });
 
-    it("si ningún enlace vuelve en la espera, acaba como fallo y lo dice", async () => {
+    it("un corte de 60 s que vuelve: sigue viva y se reanuda sola por el enlace nuevo", async () => {
+        const [enMac, enTab] = await enCurso();
+        vi.useFakeTimers();
+        mac.reg.quitarEnlaceLocal(enMac.id);
+        tableta.reg.quitarEnlaceLocal(enTab.id);
+        await pasa();
+        vi.advanceTimersByTime(60_000);
+        for (const m of [mac, tableta]) {
+            const e = m.ld.estadoLlamadaDirecta();
+            expect(e.fase).toBe("en-curso");
+            expect(e.fin).toBeNull();
+            expect(e.enlaceId).toBeNull();
+            expect(e.motivo).toMatch(/Reconectando/);
+        }
+        const [nMac, nTab] = enlazar("wifi-3", mac, tableta);
+        await pasa();
+        expect(mac.ld.estadoLlamadaDirecta()).toMatchObject({ fase: "en-curso", enlaceId: nMac.id, motivo: null });
+        expect(tableta.ld.estadoLlamadaDirecta()).toMatchObject({ fase: "en-curso", enlaceId: nTab.id, motivo: null });
+        // La espera agotada ya no puede colgar la llamada que volvió.
+        vi.advanceTimersByTime(40_000);
+        expect(mac.ld.estadoLlamadaDirecta().fase).toBe("en-curso");
+    });
+
+    it("si ningún enlace vuelve en 90 s, acaba como fallo y lo dice", async () => {
         const [enMac] = await enCurso();
         vi.useFakeTimers();
         mac.reg.quitarEnlaceLocal(enMac.id);
         await pasa();
-        vi.advanceTimersByTime(mac.ld.ESPERA_VUELTA_ENLACE_MS + 10);
+        vi.advanceTimersByTime(90_010);
         const e = mac.ld.estadoLlamadaDirecta();
         expect(e.fase).toBe("terminada");
         expect(e.fin).toBe("fallo");
-        expect(e.motivo).toMatch(/no volvió en 20 s/);
+        expect(e.motivo).toMatch(/no volvió en 90 s/);
     });
 
     it("con otro enlace vivo con esa neurona, se pasa a él sin esperar", async () => {
