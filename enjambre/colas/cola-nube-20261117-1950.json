@@ -1,0 +1,59 @@
+{
+ "ola": "nube-20261117",
+ "tareas": [
+  {
+   "id": "MAG01",
+   "ola": "MAG1117",
+   "titulo": "Contrato de Maggabit en architecture/",
+   "archivos": [
+    "architecture/maggabit-almacenamiento-vivo.md"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md y architecture/maggabit-almacenamiento-vivo.md (si aún no existe: starseed_memory_root/olas/contrato-maggabit-1117.md). Reglas de esta ola: módulo de Python en scripts/puente, sin dependencias nuevas; la decisión es una función PURA y la E/S es una capa fina con todo inyectable (reloj, subprocess, lectura de disco); pruebas con unittest en scripts/puente/test_<módulo>.py, herméticas: NUNCA tocan /Volumes, la red, ~/.starseed ni el disco real. Todo subprocess lleva timeout (el volumen exFAT puede no responder: se devuelve «sin-respuesta», nunca se cuelga). Con el disco ausente nada falla ni espera (principio 0 del contrato). Nunca se borra en el origen. Nunca se imprimen ni se registran tokens, claves ni URLs con credenciales. Textos en español neutro, sin la palabra «Mando». Copia TAL CUAL el contenido de starseed_memory_root/olas/contrato-maggabit-1117.md a architecture/maggabit-almacenamiento-vivo.md (quita solo la línea «**Destino en el repo:**»). No resumas ni reescribas."
+  },
+  {
+   "id": "MAG07",
+   "ola": "MAG1117",
+   "titulo": "Maggabit: instaladores de cada publicación",
+   "archivos": [
+    "scripts/puente/maggabit_versiones.py",
+    "scripts/puente/test_maggabit_versiones.py"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md y architecture/maggabit-almacenamiento-vivo.md (si aún no existe: starseed_memory_root/olas/contrato-maggabit-1117.md). Reglas de esta ola: módulo de Python en scripts/puente, sin dependencias nuevas; la decisión es una función PURA y la E/S es una capa fina con todo inyectable (reloj, subprocess, lectura de disco); pruebas con unittest en scripts/puente/test_<módulo>.py, herméticas: NUNCA tocan /Volumes, la red, ~/.starseed ni el disco real. Todo subprocess lleva timeout (el volumen exFAT puede no responder: se devuelve «sin-respuesta», nunca se cuelga). Con el disco ausente nada falla ni espera (principio 0 del contrato). Nunca se borra en el origen. Nunca se imprimen ni se registran tokens, claves ni URLs con credenciales. Textos en español neutro, sin la palabra «Mando». Versiones completas listas para instalar en RAIZ/MetaGenesis/instaladores/<etiqueta>/ (repo StarSeedSystem/starseed-system): la publicación marcada «Latest», `canal-pruebas` y `servidor-local`. Función PURA plan(publicaciones: list[dict], guardadas: dict[str, dict]) -> list[dict]: baja una etiqueta solo si su ficha (nombre, publicado, lista de archivos con bytes) cambió respecto de `_publicacion.json`; en `canal-pruebas` cada número de prueba va a su subcarpeta `prueba-<n>/` y se conservan las 3 últimas (las más viejas se listan en 'retirar' y la poda se anota; nunca se toca una estable). comprobar(carpeta, ficha) -> dict: cada archivo existe y mide lo que dice la ficha. Las órdenes usan `gh release view … --json` y `gh release download … --clobber` con timeout. Pruebas: sin cambios → nada; prueba nueva → baja y retira la cuarta; archivo corto → 'incompleta'."
+  },
+  {
+   "id": "MAG09",
+   "ola": "MAG1117",
+   "titulo": "Maggabit: verificación y manifiesto",
+   "archivos": [
+    "scripts/puente/maggabit_verificar.py",
+    "scripts/puente/test_maggabit_verificar.py"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md y architecture/maggabit-almacenamiento-vivo.md (si aún no existe: starseed_memory_root/olas/contrato-maggabit-1117.md). Reglas de esta ola: módulo de Python en scripts/puente, sin dependencias nuevas; la decisión es una función PURA y la E/S es una capa fina con todo inyectable (reloj, subprocess, lectura de disco); pruebas con unittest en scripts/puente/test_<módulo>.py, herméticas: NUNCA tocan /Volumes, la red, ~/.starseed ni el disco real. Todo subprocess lleva timeout (el volumen exFAT puede no responder: se devuelve «sin-respuesta», nunca se cuelga). Con el disco ausente nada falla ni espera (principio 0 del contrato). Nunca se borra en el origen. Nunca se imprimen ni se registran tokens, claves ni URLs con credenciales. Textos en español neutro, sin la palabra «Mando». manifiesto(medio, fuentes: dict[str, dict], ahora) -> dict (PURA) para RAIZ/MetaGenesis/estado/manifiesto.json y ~/.starseed/maggabit/estado.json: por fuente el último respaldo bueno, su retraso en segundos frente a su ritmo, tamaños, recuentos, último error; un campo 'solo_en_maggabit' con lo que no tiene otra casa. plan_verificacion(ahora, ultimas) -> list[str]: en cada pasada `git bundle verify` del paquete tocado; semanal `git fsck --connectivity-only` de cada espejo; mensual restauración de prueba (clonar desde el paquete a una carpeta temporal y comparar el commit de la rama por defecto). avisos(manifiesto_antes, manifiesto_ahora) -> list[str]: un fallo nuevo se dice UNA vez. Pruebas de las tres."
+  },
+  {
+   "id": "INT19",
+   "ola": "INT1116A",
+   "titulo": "Usar los valores por defecto cuando no hay nada guardado",
+   "archivos": [
+    "src/lib/malla/internet/almacen-ajustes.ts",
+    "src/lib/malla/internet/use-ajustes-internet.ts",
+    "src/lib/malla/internet/__tests__/defectos-integrados.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contrato: architecture/malla-cristalina-sio2.md §8.2 (contrato; si aún no está en el repo, rige este texto). Cambio ACOTADO (≤30 líneas en cada archivo existente): `use-ajustes-internet.ts` pasa `ajustesPorDefecto()` (INT18) como `defectos` a `leerAjustes` en lugar de `AJUSTES_APAGADOS`; el primer render del servidor y del cliente SIGUE siendo el mismo (los defectos son datos fijos, no leen nada del aparato). `almacen-ajustes.ts` conserva `AJUSTES_APAGADOS` (otras pruebas lo usan) y añade un comentario que apunta a `defectos-audiencia.ts`. PRUEBAS: sin nada guardado la audiencia «mi-cuenta» sale con mesh encendido y sin límite y las otras dos apagadas; `compartirConOtros` sigue apagado; con algo guardado manda lo guardado; las pruebas de INT06 y INT08 siguen pasando.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "INT06",
+    "INT08",
+    "INT18"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1117-193401.json": [
+   "INT19"
+  ]
+ }
+}
