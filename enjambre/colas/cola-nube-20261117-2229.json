@@ -1,0 +1,21 @@
+{
+ "ola": "nube-20261117",
+ "tareas": [
+  {
+   "id": "IMA19",
+   "ola": "TRA1116-IDIOMAS",
+   "titulo": "Reemplazar la selección editable por su traducción (input, textarea y contenteditable)",
+   "archivos": [
+    "src/components/traduccion/reemplazar-seleccion.ts",
+    "src/components/traduccion/__tests__/reemplazar-seleccion.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contrato A3. Pura y probada en jsdom: `capturarSeleccionEditable(doc: Document): ObjetivoEditable | null` (si el foco está en `input` de texto, `textarea` o elemento `contenteditable` con texto seleccionado; guarda elemento, inicio, fin y texto; NUNCA en `input type=password`), `reemplazar(objetivo, nuevoTexto): boolean` (en input/textarea con `setRangeText` y evento `input` para que React/formularios lo vean; en contenteditable con `Range.deleteContents`+`insertNode`; devuelve false si el elemento ya no está en el documento o el texto cambió desde la captura) y `deshacerUltimo(): boolean` (guarda el texto anterior de UNA sustitución). No usa red.\nPRUEBAS: textarea con selección, input, contenteditable, password rechazado, elemento retirado → false, deshacer.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1117-193401.json": [
+   "IMA19"
+  ]
+ }
+}
