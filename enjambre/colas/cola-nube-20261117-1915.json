@@ -1,0 +1,104 @@
+{
+ "ola": "nube-20261117",
+ "tareas": [
+  {
+   "id": "MAG01",
+   "ola": "MAG1117",
+   "titulo": "Contrato de Maggabit en architecture/",
+   "archivos": [
+    "architecture/maggabit-almacenamiento-vivo.md"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md y architecture/maggabit-almacenamiento-vivo.md (si aún no existe: starseed_memory_root/olas/contrato-maggabit-1117.md). Reglas de esta ola: módulo de Python en scripts/puente, sin dependencias nuevas; la decisión es una función PURA y la E/S es una capa fina con todo inyectable (reloj, subprocess, lectura de disco); pruebas con unittest en scripts/puente/test_<módulo>.py, herméticas: NUNCA tocan /Volumes, la red, ~/.starseed ni el disco real. Todo subprocess lleva timeout (el volumen exFAT puede no responder: se devuelve «sin-respuesta», nunca se cuelga). Con el disco ausente nada falla ni espera (principio 0 del contrato). Nunca se borra en el origen. Nunca se imprimen ni se registran tokens, claves ni URLs con credenciales. Textos en español neutro, sin la palabra «Mando». Copia TAL CUAL el contenido de starseed_memory_root/olas/contrato-maggabit-1117.md a architecture/maggabit-almacenamiento-vivo.md (quita solo la línea «**Destino en el repo:**»). No resumas ni reescribas."
+  },
+  {
+   "id": "MAG02",
+   "ola": "MAG1117",
+   "titulo": "Maggabit: estado del medio (presente, imagen, bóveda, libre)",
+   "archivos": [
+    "scripts/puente/maggabit_medio.py",
+    "scripts/puente/test_maggabit_medio.py"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md y architecture/maggabit-almacenamiento-vivo.md (si aún no existe: starseed_memory_root/olas/contrato-maggabit-1117.md). Reglas de esta ola: módulo de Python en scripts/puente, sin dependencias nuevas; la decisión es una función PURA y la E/S es una capa fina con todo inyectable (reloj, subprocess, lectura de disco); pruebas con unittest en scripts/puente/test_<módulo>.py, herméticas: NUNCA tocan /Volumes, la red, ~/.starseed ni el disco real. Todo subprocess lleva timeout (el volumen exFAT puede no responder: se devuelve «sin-respuesta», nunca se cuelga). Con el disco ausente nada falla ni espera (principio 0 del contrato). Nunca se borra en el origen. Nunca se imprimen ni se registran tokens, claves ni URLs con credenciales. Textos en español neutro, sin la palabra «Mando». Crea maggabit_medio.py. Constantes: UUID_VOLUMEN = '7C596EA4-EFA0-38F1-A4D5-3E060EBA11D7', RAIZ = '/Volumes/Maggabit', TRABAJO = '/Volumes/MaggabitTrabajo', BOVEDA = '/Volumes/MaggabitBoveda', IMAGEN_TRABAJO = RAIZ + '/MetaGenesis/imagenes/trabajo.sparsebundle', IMAGEN_BOVEDA = RAIZ + '/MetaGenesis/imagenes/boveda.sparsebundle'. Función PURA estado_medio(info: dict | None, montados: list[str], libres_gb: dict[str, float], existe_boveda: bool) -> dict con: presente (bool; solo si info['VolumeUUID'] == UUID_VOLUMEN, nunca por el nombre), sistema ('exfat'…), trabajo_montado, boveda ('abierta' | 'cerrada' | 'sin-crear'), libre_gb, libre_trabajo_gb, estado ('listo' | 'ausente' | 'sin-imagen' | 'sin-respuesta' | 'otro-disco'). Capa fina leer(correr=subprocess.run, tope_s=10) que llama a `diskutil info -plist /Volumes/Maggabit` (plistlib) y a `mount`; cualquier timeout → {'estado': 'sin-respuesta'}. Orden `python3 scripts/puente/maggabit_medio.py estado` imprime el JSON. Pruebas: disco bueno, otro disco con el mismo nombre, ausente, sin imagen, timeout, bóveda en sus tres estados."
+  },
+  {
+   "id": "MAG03",
+   "ola": "MAG1117",
+   "titulo": "Maggabit: ritmo y contrapresión (un trabajo a la vez, nunca con la Mac sin memoria)",
+   "archivos": [
+    "scripts/puente/maggabit_ritmo.py",
+    "scripts/puente/test_maggabit_ritmo.py"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md y architecture/maggabit-almacenamiento-vivo.md (si aún no existe: starseed_memory_root/olas/contrato-maggabit-1117.md). Reglas de esta ola: módulo de Python en scripts/puente, sin dependencias nuevas; la decisión es una función PURA y la E/S es una capa fina con todo inyectable (reloj, subprocess, lectura de disco); pruebas con unittest en scripts/puente/test_<módulo>.py, herméticas: NUNCA tocan /Volumes, la red, ~/.starseed ni el disco real. Todo subprocess lleva timeout (el volumen exFAT puede no responder: se devuelve «sin-respuesta», nunca se cuelga). Con el disco ausente nada falla ni espera (principio 0 del contrato). Nunca se borra en el origen. Nunca se imprimen ni se registran tokens, claves ni URLs con credenciales. Textos en español neutro, sin la palabra «Mando». Lección medida el 17-11: tres copias a la vez con la Mac paginando dejaron el disco a 1 MB/s, y escribir en el disco lento llena la memoria y hace crecer el intercambio (el disco interno bajó 1,2 GB en 5 min). Crea maggabit_ritmo.py con la función PURA siguiente(ahora: float, medio: dict, interno_libre_gb: float, presion: int, ultimas: dict[str, float], en_marcha: str | None) -> dict {'trabajo': str | None, 'motivo': str}. Reglas: si medio['estado'] != 'listo' → None ('disco ausente' …); si en_marcha → None; si interno_libre_gb < 3 o presion >= 2 → None con el motivo dicho en claro; si no, el trabajo más atrasado según RITMOS_S = {'repos-locales': 300, 'memoria': 300, 'repos-github': 900, 'codigo': 900, 'desarrollo': 1800, 'estado': 1800, 'drive': 1800, 'instaladores': 3600, 'boveda': 3600, 'versiones': 86400, 'verificar': 86400}; 'boveda' solo si medio['boveda'] == 'abierta'. Además limite_kbps(presion) -> int | None para el --bwlimit de rsync (None con presión 0; 20000 con presión 1). Pruebas de cada regla y del orden."
+  },
+  {
+   "id": "MAG04",
+   "ola": "MAG1117",
+   "titulo": "Maggabit: plan de repos de GitHub (espejo, paquete y código abierto)",
+   "archivos": [
+    "scripts/puente/maggabit_repos.py",
+    "scripts/puente/test_maggabit_repos.py"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md y architecture/maggabit-almacenamiento-vivo.md (si aún no existe: starseed_memory_root/olas/contrato-maggabit-1117.md). Reglas de esta ola: módulo de Python en scripts/puente, sin dependencias nuevas; la decisión es una función PURA y la E/S es una capa fina con todo inyectable (reloj, subprocess, lectura de disco); pruebas con unittest en scripts/puente/test_<módulo>.py, herméticas: NUNCA tocan /Volumes, la red, ~/.starseed ni el disco real. Todo subprocess lleva timeout (el volumen exFAT puede no responder: se devuelve «sin-respuesta», nunca se cuelga). Con el disco ausente nada falla ni espera (principio 0 del contrato). Nunca se borra en el origen. Nunca se imprimen ni se registran tokens, claves ni URLs con credenciales. Textos en español neutro, sin la palabra «Mando». Crea maggabit_repos.py. CUENTAS = ('StarSeedSystem', 'alexbordongarrigos'). Función PURA plan(repos: list[dict], espejos: dict[str, dict], paquetes: dict[str, str], abiertos: dict[str, dict]) -> list[dict] de acciones en orden, UNA por repo y paso: 'clonar' (no hay espejo), 'actualizar' (hay), 'empaquetar' (la huella de referencias del espejo cambió respecto de la guardada; un repo sin referencias no se empaqueta y se anota 'vacío'), 'abrir' (no hay clon abierto en MetaGenesis/codigo/<cuenta>/<repo>) y 'avanzar' (lo hay). Rutas: espejo en TRABAJO/respaldo/repos/<cuenta>/<repo>.git; paquete en RAIZ/MetaGenesis/repos-paquetes/<cuenta>__<repo>.bundle (se escribe a .tmp y se renombra); código abierto en RAIZ/MetaGenesis/codigo/<cuenta>/<repo>, en la rama por defecto de GitHub, solo con avance rápido (si no avanza: se anota 'NO-AVANZA' y no se fuerza nada). Función PURA ordenes(accion) -> list[list[str]] con los git exactos (clone --mirror, remote update --prune, bundle create --all, clone --no-hardlinks desde el espejo + remote set-url, fetch --prune, merge --ff-only). Un clon grande cortado por la red (el 17-11: «RPC failed; curl 55», «early EOF») se reintenta en la pasada siguiente, y para StarSeedSystem/starseed-system el espejo se siembra con `--reference-if-able ~/Documents/starseed-os-main` seguido de `git repack -a -d` y quitar alternates, para no bajar 1,1 GB. Pruebas del plan y de las órdenes; ninguna ejecuta git."
+  },
+  {
+   "id": "MAG07",
+   "ola": "MAG1117",
+   "titulo": "Maggabit: instaladores de cada publicación",
+   "archivos": [
+    "scripts/puente/maggabit_versiones.py",
+    "scripts/puente/test_maggabit_versiones.py"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md y architecture/maggabit-almacenamiento-vivo.md (si aún no existe: starseed_memory_root/olas/contrato-maggabit-1117.md). Reglas de esta ola: módulo de Python en scripts/puente, sin dependencias nuevas; la decisión es una función PURA y la E/S es una capa fina con todo inyectable (reloj, subprocess, lectura de disco); pruebas con unittest en scripts/puente/test_<módulo>.py, herméticas: NUNCA tocan /Volumes, la red, ~/.starseed ni el disco real. Todo subprocess lleva timeout (el volumen exFAT puede no responder: se devuelve «sin-respuesta», nunca se cuelga). Con el disco ausente nada falla ni espera (principio 0 del contrato). Nunca se borra en el origen. Nunca se imprimen ni se registran tokens, claves ni URLs con credenciales. Textos en español neutro, sin la palabra «Mando». Versiones completas listas para instalar en RAIZ/MetaGenesis/instaladores/<etiqueta>/ (repo StarSeedSystem/starseed-system): la publicación marcada «Latest», `canal-pruebas` y `servidor-local`. Función PURA plan(publicaciones: list[dict], guardadas: dict[str, dict]) -> list[dict]: baja una etiqueta solo si su ficha (nombre, publicado, lista de archivos con bytes) cambió respecto de `_publicacion.json`; en `canal-pruebas` cada número de prueba va a su subcarpeta `prueba-<n>/` y se conservan las 3 últimas (las más viejas se listan en 'retirar' y la poda se anota; nunca se toca una estable). comprobar(carpeta, ficha) -> dict: cada archivo existe y mide lo que dice la ficha. Las órdenes usan `gh release view … --json` y `gh release download … --clobber` con timeout. Pruebas: sin cambios → nada; prueba nueva → baja y retira la cuarta; archivo corto → 'incompleta'."
+  },
+  {
+   "id": "MAG08",
+   "ola": "MAG1117",
+   "titulo": "Maggabit: versiones diarias por clon APFS",
+   "archivos": [
+    "scripts/puente/maggabit_clones.py",
+    "scripts/puente/test_maggabit_clones.py"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md y architecture/maggabit-almacenamiento-vivo.md (si aún no existe: starseed_memory_root/olas/contrato-maggabit-1117.md). Reglas de esta ola: módulo de Python en scripts/puente, sin dependencias nuevas; la decisión es una función PURA y la E/S es una capa fina con todo inyectable (reloj, subprocess, lectura de disco); pruebas con unittest en scripts/puente/test_<módulo>.py, herméticas: NUNCA tocan /Volumes, la red, ~/.starseed ni el disco real. Todo subprocess lleva timeout (el volumen exFAT puede no responder: se devuelve «sin-respuesta», nunca se cuelga). Con el disco ausente nada falla ni espera (principio 0 del contrato). Nunca se borra en el origen. Nunca se imprimen ni se registran tokens, claves ni URLs con credenciales. Textos en español neutro, sin la palabra «Mando». En TRABAJO/versiones/AAAA-MM-DD/ un clon APFS al día de TRABAJO/respaldo/desarrollo (`cp -cR`, no ocupa hasta que algo cambia). Función PURA plan(hoy: date, existentes: list[str]) -> {'crear': str | None, 'podar': list[str]}: se conservan los 14 diarios más recientes y, de los anteriores, uno por semana (el más antiguo de cada semana ISO) hasta 8 semanas; nombres que no sean una fecha no se tocan jamás. Pruebas con calendarios de 1, 15, 40 y 120 días y con carpetas ajenas."
+  },
+  {
+   "id": "MAG09",
+   "ola": "MAG1117",
+   "titulo": "Maggabit: verificación y manifiesto",
+   "archivos": [
+    "scripts/puente/maggabit_verificar.py",
+    "scripts/puente/test_maggabit_verificar.py"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md y architecture/maggabit-almacenamiento-vivo.md (si aún no existe: starseed_memory_root/olas/contrato-maggabit-1117.md). Reglas de esta ola: módulo de Python en scripts/puente, sin dependencias nuevas; la decisión es una función PURA y la E/S es una capa fina con todo inyectable (reloj, subprocess, lectura de disco); pruebas con unittest en scripts/puente/test_<módulo>.py, herméticas: NUNCA tocan /Volumes, la red, ~/.starseed ni el disco real. Todo subprocess lleva timeout (el volumen exFAT puede no responder: se devuelve «sin-respuesta», nunca se cuelga). Con el disco ausente nada falla ni espera (principio 0 del contrato). Nunca se borra en el origen. Nunca se imprimen ni se registran tokens, claves ni URLs con credenciales. Textos en español neutro, sin la palabra «Mando». manifiesto(medio, fuentes: dict[str, dict], ahora) -> dict (PURA) para RAIZ/MetaGenesis/estado/manifiesto.json y ~/.starseed/maggabit/estado.json: por fuente el último respaldo bueno, su retraso en segundos frente a su ritmo, tamaños, recuentos, último error; un campo 'solo_en_maggabit' con lo que no tiene otra casa. plan_verificacion(ahora, ultimas) -> list[str]: en cada pasada `git bundle verify` del paquete tocado; semanal `git fsck --connectivity-only` de cada espejo; mensual restauración de prueba (clonar desde el paquete a una carpeta temporal y comparar el commit de la rama por defecto). avisos(manifiesto_antes, manifiesto_ahora) -> list[str]: un fallo nuevo se dice UNA vez. Pruebas de las tres."
+  },
+  {
+   "id": "MAG11",
+   "ola": "MAG1117",
+   "titulo": "Maggabit: kit sin internet (capas de Astraura por SHA)",
+   "archivos": [
+    "scripts/puente/maggabit_kit.py",
+    "scripts/puente/test_maggabit_kit.py"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md y architecture/maggabit-almacenamiento-vivo.md (si aún no existe: starseed_memory_root/olas/contrato-maggabit-1117.md). Reglas de esta ola: módulo de Python en scripts/puente, sin dependencias nuevas; la decisión es una función PURA y la E/S es una capa fina con todo inyectable (reloj, subprocess, lectura de disco); pruebas con unittest en scripts/puente/test_<módulo>.py, herméticas: NUNCA tocan /Volumes, la red, ~/.starseed ni el disco real. Todo subprocess lleva timeout (el volumen exFAT puede no responder: se devuelve «sin-respuesta», nunca se cuelga). Con el disco ausente nada falla ni espera (principio 0 del contrato). Nunca se borra en el origen. Nunca se imprimen ni se registran tokens, claves ni URLs con credenciales. Textos en español neutro, sin la palabra «Mando». RAIZ/MetaGenesis/sin-internet/ con `indice.json` (archivo, sistema, versión, sha256, bytes, para qué sirve). Función PURA plan(capas: list[dict], presentes: dict[str, str], tope_gb: float) -> {'bajar': […], 'ya': […], 'fuera': […]} leyendo config/capas-astraura.json: una capa sin SHA publicado NO entra (va a 'fuera' con el motivo); si el total pasa de tope_gb se ordena por el papel (reflejo, memoria, palabra, voz, razón, profunda) y el resto va a 'fuera'. comprobar(ruta, sha) verifica el sha256 por trozos. Los instaladores no se copian: el índice los referencia en ../instaladores/. Pruebas del plan y de la comprobación con archivos temporales."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1117-123226.json": [
+   "MAG02",
+   "MAG03",
+   "MAG04",
+   "MAG07",
+   "MAG09",
+   "MAG01",
+   "MAG08",
+   "MAG11"
+  ]
+ }
+}
