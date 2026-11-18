@@ -1,0 +1,37 @@
+{
+ "ola": "nube-20261118",
+ "tareas": [
+  {
+   "id": "T305",
+   "ola": "TRI1118",
+   "titulo": "Lector puro de enlaces.log que resume la ronda de pruebas de tres neuronas",
+   "archivos": [
+    "src/lib/malla/ronda-tres/resumen-registro.ts",
+    "src/lib/malla/ronda-tres/__tests__/resumen-registro.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Crea el modulo PURO src/lib/malla/ronda-tres/resumen-registro.ts (sin DOM, sin red, sin node:*, max. 120 lineas) y su prueba src/lib/malla/ronda-tres/__tests__/resumen-registro.test.ts (max. 120 lineas). Exporta `resumirRonda(lineas: string[]): ResumenRonda` donde ResumenRonda = { mensajes: {enviados:number; entregados:number; porMedio: Record<string, number>}; archivos: {completos:number; verificados:number; fallos:string[]; kbps: number[]}; relevo: {rutas:number; entregados:number; sinRuta:number}; llamadas: {contestadas:number; porWebrtc:number; porDatos:number; fallos:number}; control: number; sinEvidencia: string[] }. Los formatos reales: lee src/lib/malla/registro-enlace-ble.ts (`exportar`), src/lib/network/archivos-diagnostico.ts (cabecera: `archivo <id> completo kbps=... vias=...`, `verificado`, `fallo motivo=...`), src/lib/malla/relevo/real.ts (`<iso> web relevo - - <texto>` con `ruta destino=... motivo=...`, `entregado ... ms=`, `sin-ruta`) y native/src-tauri/src/ble.rs (`linea_registro`: `<iso> ble <tipo> enlace=.. neurona=.. · detalle`). Cuenta lineas por el tipo (segunda o tercera palabra: `mensaje-malla`, `archivo`, `relevo`, `llamada`, `control-...`) y por su detalle (`enviado`, `entregado via=<medio>`, `contestada`, `medio=webrtc`, `enlace-datos`, `fallo`). Tolera lineas vacias, basura y prefijos como `(Maggaboard)`; nunca lanza. `sinEvidencia` lista los apartados con cero lineas (por ejemplo 'puerta' si no hay ninguna linea `puerta`), sin inventar datos. Prueba con un registro de ejemplo de 12-15 lineas hechas a mano (sin ids reales ni claves) que cubra cada contador, una linea basura y una vacia, y un caso con registro vacio. Verificacion: `NODE_ENV=test ./node_modules/.bin/vitest run src/lib/malla/ronda-tres src/lib/__tests__/nombre-genesis.test.ts`."
+  },
+  {
+   "id": "RST06",
+   "ola": "RST1116A",
+   "titulo": "Del lado del aparato controlado: la petición de fuente llega a lo nativo y se devuelve la fuente real",
+   "archivos": [
+    "src/lib/control-remoto/pantalla-origen.ts",
+    "src/lib/control-remoto/nativo-comandos.ts",
+    "src/lib/control-remoto/__tests__/pantalla-origen-fuente.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. CONTEXTO COMPROBADO: hoy la persona no puede pedir la pantalla fluida (proyección): `pantalla-iniciar` solo admite `lado` y `calidad` (`niveles.ts:102-114`), `PantallaDestino.iniciar` manda `orden(\"pantalla-iniciar\", {})` sin nada (`pantalla-destino.ts:282`), `pantalla-origen.ts:186-198` llama a `control_pantalla_iniciar` sin fuente y deduce `fuente` del resultado (`accesibilidad` o `proyeccion`), `nativo-comandos.ts:11` solo deja pasar `sesion`, `lado_max` y `calidad`, y LO NATIVO (`native/src-tauri/src/control_pantalla.rs:12`, `:68`) todavía NO tiene la fuente `proyeccion` (`control_capacidades` dice `proyeccion:false`): hoy siempre contesta «accesibilidad». Por eso lo que se pide es una PETICIÓN explícita y lo que se enseña es la fuente REAL que contestó el aparato: nunca se dice «fluida» si no lo es. Esta tarea no toca Rust. Escribe primero las pruebas. (1) `nativo-comandos.ts:11`: `control_pantalla_iniciar: [\"sesion\", \"lado_max\", \"calidad\", \"fuente\"]` (la lista de claves permitidas; lee el archivo para ver cómo se valida). (2) `pantalla-origen.ts` (:161 el caso `pantalla-iniciar` y :186-198): si `args.fuente` es `\"proyeccion\"`, pásalo a `control_pantalla_iniciar` como `fuente`; si no está o es `\"auto\"`, NO lo mandes (igual que hoy). La `fuente` que se devuelve y se guarda sigue siendo la que CONTESTA lo nativo (`r.fuente`), nunca la pedida. Si se pidió `proyeccion` y lo nativo contesta otra cosa o no la ofrece, la sesión sigue con lo que haya (no se cierra) y el resultado lleva `fuente_pedida: \"proyeccion\"` además de la real, para que el otro lado pueda avisar (con `RST04`). ≤40 líneas de diferencia en cada archivo. PRUEBAS (`pantalla-origen.test.ts` como guía, `invocar` simulado): con `fuente:\"proyeccion\"` el invocador recibe `fuente`; sin ella no; si lo nativo contesta `accesibilidad`, el resultado dice `fuente:\"accesibilidad\"` y `fuente_pedida:\"proyeccion\"`; si contesta `proyeccion`, dice `proyeccion`.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "RST05"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1117-193401.json": [
+   "RST06",
+   "T305"
+  ]
+ }
+}
