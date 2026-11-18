@@ -19,7 +19,7 @@ import { leerMedidas } from "@/lib/aurora/medidas-voz";
 import { neuronDeviceIdActual } from "@/lib/network/identidad-dispositivo";
 
 /** Lo mínimo que hace falta para medir la ficha de este dispositivo. */
-export type DispositivoFicha = { id: string; platform: string };
+export type DispositivoFicha = { id: string; platform: string; capas?: string[]; tokS?: Record<string, number> | null };
 
 export interface TransporteFichaPropia {
   publicarMalla: (ficha: CapacidadesNodo) => void;
@@ -60,11 +60,34 @@ export async function medirFichaPropia(device: DispositivoFicha): Promise<Capaci
   }
   // Nunca lanza: `vozMedida` devuelve undefined sin medidas válidas y recientes.
   const voz = vozMedida(leerMedidas(), { neurona: neuronDeviceIdActual(), ahora: Date.now() });
+
+  // SANITIZAR capas: solo strings no vacios, max 32, únicos, <= 80 caracteres cada uno
+  const capasLimpias = device.capas
+    ? device.capas
+      .map(c => c?.trim())
+      .filter((c): c is string => c !== "" && c !== undefined && c !== null)
+      .filter((c, i, arr) => arr.indexOf(c) === i) // remover duplicados
+      .filter((c, i, arr) => i < 32) // max 32
+      .map(c => c.substring(0, 80)) // <= 80 chars
+    : [];
+
+  // SANITIZAR tokS: solo keys de capasLimpias, valores finitos > 0; vacio -> null
+  let tokSLimpio: Record<string, number> | null = null;
+  if (device.tokS && capasLimpias.length > 0) {
+    tokSLimpio = {};
+    for (const [k, v] of Object.entries(device.tokS)) {
+      if (capasLimpias.includes(k) && typeof v === "number" && Number.isFinite(v) && v > 0) {
+        tokSLimpio[k] = v;
+      }
+    }
+    tokSLimpio = Object.keys(tokSLimpio).length > 0 ? tokSLimpio : null;
+  }
+
   return crearFichaNodo({
     nodoId: device.id,
     medio: medioDesdePlataforma(device.platform),
-    capas: [],
-    tokS: null,
+    capas: capasLimpias,
+    tokS: tokSLimpio,
     bateriaPct,
     enSegundoPlano: typeof document !== "undefined" ? document.hidden : false,
     ambitos: ["propio", "cuenta"],
