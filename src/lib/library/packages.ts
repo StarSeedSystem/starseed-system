@@ -90,6 +90,8 @@ import { FICHAS_REPOS_1101 } from "./repos-1101";
 // Tanda del 2026-11-04 (Ola 1104 · pedido de Alex): EGM, OpenUI, BAMA, MotionSites y DeepTutor.
 // Contrato: architecture/repos-libreria-1104.md.
 import { FICHAS_REPOS_1104 } from "./repos-1104";
+// Traductor Universal (TRA1116-APP-F1): app con ruta /traductor.
+import { PAQUETE_TRADUCTOR, IDS_SIEMBRA_TRADUCTOR } from "./traductor-1116";
 // Repo builtin externo de la Ola 1020: 14 repos verificados con upstream y canal
 // para que la Biblioteca autobúsque sus releases/tags/commits.
 import { REPO_EXTERNOS_1020, REPOS_YA_PRESENTES } from "./repos-externos-1020";
@@ -99,6 +101,8 @@ import { REPO_EXTERNOS_1020, REPOS_YA_PRESENTES } from "./repos-externos-1020";
 export { REPOS_YA_PRESENTES };
 /// Re-export de la tanda 1028 (LEANN) para visibilidad del catálogo semántico
 export { FICHAS_REPOS_1028 } from "./repos-1028";
+/// Re-export del Traductor Universal (TRA1116-APP-F1) para visibilidad
+export { PAQUETE_TRADUCTOR, IDS_SIEMBRA_TRADUCTOR } from "./traductor-1116";
 
 /* ───────────────────────────── Tipos ───────────────────────────── */
 
@@ -516,6 +520,14 @@ const CORE_ROUTE_PACKAGES: LibraryPackage[] = [
     icon: "Gem", tags: ["app", "fundamento", "filosofia", "diamante", "alquimia"], version: "1.0.0",
     author: "StarSeed Core", sourceRepoId: "starseed-core", free: true,
     payload: { route: "/fundamento" },
+  },
+  {
+    // TRA1116-APP-F1: Traductor Universal — app con ruta /traductor.
+    id: "app-traductor", kind: "app", name: "Traductor",
+    description: "Traduce texto, mantén conversaciones y descarga paquetes de idioma para usar sin internet.",
+    icon: "Languages", tags: ["app", "traducción", "idiomas"], version: "1.0.0",
+    author: "StarSeed Core", sourceRepoId: "starseed-core", free: true, featured: true,
+    payload: { route: "/traductor", herramienta: "traductor-universal", sinInternet: "con descarga de idiomas" },
   },
   {
     id: "widget-panel-dashboard", kind: "widget", name: "Panel de Widgets",
