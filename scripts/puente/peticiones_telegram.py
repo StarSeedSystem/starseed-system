@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Bot Telegram para peticiones de Alex: getUpdates, cola durable, worker, refresh NotebookLM."""
+"""Bot Telegram para peticiones de Alex: getUpdates, cola durable, worker, refresh NotebookLM.
+Incluye respaldo de síntesis a las 08:30 CDMX (SIN1116B §3.1) y avances en el chat (§3.2)."""
 import datetime
 import json
 import os
@@ -13,7 +14,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import uuid
-from typing import Any
+from typing import Any, Callable, Optional
 
 from peticiones_reglas import (
     TIPOS,
@@ -64,6 +65,10 @@ import peticiones_llm as PLLM
 
 import higgsfield_aprobado as hfa
 import salud_directores as SD
+
+# SIN1116B §3.1 y §3.2: respaldo de síntesis y avances en el chat
+import peticiones_sintesis_respaldo as PSR
+import sintesis_avances as SA
 
 CASA = NB_CASA
 DIR = os.path.join(CASA, ".starseed", "peticiones")
@@ -926,6 +931,100 @@ def _tarea_multiformato_periodica() -> None:
             log("Error en tarea multiformato periódica:", e)
 
 
+# ────────────────────────────── SIN1116B §3.1 y §3.2: respaldo 08:30 y avances ──────────────────────────────
+
+# Intervalo de comprobación para tareas horarias (cada 5 min)
+HORARIA_INTERVALO_S = 5 * 60
+
+# Intervalo de comprobación para seguimiento diario (cada 30 min, activo 06:00-08:00 CDMX)
+SEGUIMIENTO_INTERVALO_S = 30 * 60
+
+
+def _tarea_respaldo_0830() -> None:
+    """Tarea periódica que ejecuta el respaldo de síntesis a las 08:30 CDMX (SIN1116B §3.1).
+
+    Comprueba cada 5 min si es la hora de respaldo (08:30 ± 15 min) y, si no hay síntesis
+    válida para hoy (≥4000 chars), lanza la investigación profunda, redacción con flota
+    gratuita, subida a Drive, envío de resumen al chat y multiformato.
+    """
+    log("Tarea respaldo 08:30 iniciada")
+    while True:
+        time.sleep(HORARIA_INTERVALO_S)
+        try:
+            resultado = PSR.ejecutar_respaldo_0830(
+                nb_fn=nb,
+                drive_fn=drive,
+                token_google_fn=token_google,
+                enviar_telegram_fn=decir,
+                multiformato_fn=_procesar_multiformato_con_degradacion,
+                log_fn=lambda msg: log(f"[respaldo_0830] {msg}"),
+            )
+            if resultado.get("ok") and resultado.get("accion") == "respaldo_completado":
+                log(f"Respaldo 08:30 completado: {resultado.get('caracteres', 0)} chars")
+            elif resultado.get("accion") == "ya_existe":
+                log(f"Respaldo 08:30: {resultado.get('mensaje', '')}")
+            elif resultado.get("accion") == "fuera_horario":
+                pass  # Normal, no es la hora
+            else:
+                log(f"Respaldo 08:30: {resultado.get('mensaje', 'sin detalles')}")
+        except Exception as e:
+            log("Error en tarea respaldo 08:30:", e)
+
+
+def _tarea_verificar_retraso_0900() -> None:
+    """Tarea periódica que verifica retraso a las 09:00 CDMX (SIN1116B §3.2).
+
+    Si a las 09:00 no hay síntesis válida para hoy, envía aviso al chat:
+    'va retrasada por <motivo>; MetaGenesis está en <acción>'.
+    """
+    log("Tarea verificación retraso 09:00 iniciada")
+    while True:
+        time.sleep(HORARIA_INTERVALO_S)
+        try:
+            # Verificar si hay síntesis válida para hoy
+            hay_sintesis = False
+            try:
+                from peticiones_notebooklm import ultima_sintesis as us
+                fecha_hoy = SA._fecha_cdmx()
+                fid, nombre = us(fecha_hoy)
+                texto = PSR._exportar_texto_drive(fid, token_google)
+                hay_sintesis = len(texto) >= PSR.MIN_CARACTERES_SINTESIS
+            except Exception:
+                hay_sintesis = False
+
+            if not hay_sintesis:
+                linea = SA.verificar_retraso(
+                    motivo="investigación profunda en curso",
+                    accion="generando síntesis con flota gratuita",
+                )
+                if linea:
+                    decir(f"⏰ {linea}")
+                    log(f"Aviso de retraso enviado: {linea}")
+        except Exception as e:
+            log("Error en tarea verificación retraso 09:00:", e)
+
+
+def _tarea_seguimiento_diario() -> None:
+    """Tarea periódica que genera seguimiento de recomendaciones del día anterior (SIN1116B §3.2).
+
+    Se ejecuta cada 30 min en horario 06:00-08:00 CDMX (próxima mañana tras la síntesis).
+    Envía línea: 'Seguimiento: X aprobadas, Y encargadas, Z integradas...'.
+    """
+    log("Tarea seguimiento diario iniciada")
+    while True:
+        time.sleep(SEGUIMIENTO_INTERVALO_S)
+        try:
+            # Solo ejecutar en ventana 06:00-08:00 CDMX
+            hora = SA._hora_cdmx()
+            if 6.0 <= hora < 8.0:
+                linea = SA.generar_seguimiento()
+                if linea:
+                    decir(f"📊 {linea}")
+                    log(f"Seguimiento diario enviado: {linea}")
+        except Exception as e:
+            log("Error en tarea seguimiento diario:", e)
+
+
 # GEN1114D · /estado y /ayuda empiezan con «Este chat: <nombre> · id <id>», leído de chat-a1.json (lo lleva la Mac
 # por ssh con `llevar-a1`), NUNCA del catálogo de la puerta, que no es de confianza. Sin él no se inventa nombre.
 ID_CHAT = re.compile(r"^[a-z0-9][a-z0-9._-]{1,62}$")
@@ -1589,6 +1688,10 @@ def main() -> None:
     threading.Thread(target=trabajar, daemon=True).start()
     threading.Thread(target=mantener_sesion, daemon=True).start()
     threading.Thread(target=_tarea_multiformato_periodica, daemon=True).start()
+    # SIN1116B §3.1 y §3.2: respaldo 08:30, verificación retraso 09:00, seguimiento diario
+    threading.Thread(target=_tarea_respaldo_0830, daemon=True).start()
+    threading.Thread(target=_tarea_verificar_retraso_0900, daemon=True).start()
+    threading.Thread(target=_tarea_seguimiento_diario, daemon=True).start()
     hay_trabajo.set()
     escuchar()
 
