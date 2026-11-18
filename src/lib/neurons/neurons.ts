@@ -242,6 +242,11 @@ export interface NeuronSettings {
    * ficha: una tableta Android se detecta como «mobile» y aquí se corrige a «tablet».
    */
   icono?: NeuronKind;
+  /**
+   * (CTL1117I) Color público de la neurona, `#rrggbb` en minúsculas. Se ve en el control entre neuronas (punto, toques, quién es
+   * quién). Ausente o no válido ⇒ el de su id (`colorPorDefecto`, `lib/neurons/color-publico.ts`).
+   */
+  colorPublico?: string;
 }
 
 export const DEFAULT_SETTINGS: NeuronSettings = {

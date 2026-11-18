@@ -34,6 +34,12 @@ import {
     type EstadoIndicador,
 } from "@/lib/control-remoto/nativo";
 import { BOTON_FALTA, PALABRAS_FALTA, palabrasMotivo } from "@/lib/control-remoto/palabras";
+import { AJUSTES_CONTROL_DEFECTO, leerAjustesControl, type AjustesControl } from "@/lib/control-remoto/ajustes-aparato";
+import { quienControla } from "@/lib/control-remoto/quien-controla";
+import { AjustesIndicadorControl, EVENTO_AJUSTES_CONTROL } from "./ajustes-indicador";
+import { PuntoColor, PuntoControl } from "./punto-control";
+import { colorDe } from "@/lib/neurons/color-publico";
+import { colorPublicoDeNeurona } from "@/lib/neurons/color-publico-ajuste";
 
 // UNI1115M: el anfitrión (ventana, sesión, vídeo) se carga solo al abrir una ventana; el panel no lo arrastra.
 const abrirVentanaControl = (neurona: string, nombre: string) => void import("./anfitrion-control").then((m) => m.abrirVentanaControl(neurona, nombre));
@@ -202,6 +208,10 @@ export function BandaControl() {
     const router = useRouter();
     const n = useCambios();
     const [sesion, setSesion] = useState<SesionActiva | null>(null);
+    const [permiso, setPermiso] = useState<PermisoControl | null>(null);
+    const [ajustes, setAjustes] = useState<AjustesControl>(AJUSTES_CONTROL_DEFECTO);
+    // CTL1117I: ¿hay indicador nativo (app Android con control de pantalla)? Misma detección que apaga los ajustes del panel. null = aún no se sabe.
+    const [hayNativo, setHayNativo] = useState<boolean | null>(null);
     const [banco, setBanco] = useState<{ con: string; hasta: number; restantes: number } | null>(null);
 
     useEffect(() => {
@@ -220,9 +230,36 @@ export function BandaControl() {
     }, [router]);
 
     useEffect(() => {
-        void import("@/lib/control-remoto/canal").then((c) => setSesion(c.puertaControl()?.sesionActiva() ?? null));
+        void import("@/lib/control-remoto/canal").then((c) => {
+            setSesion(c.puertaControl()?.sesionActiva() ?? null);
+            try {
+                setPermiso(c.leerPermisoLocal());
+            } catch {
+                setPermiso(null);
+            }
+        });
         void import("@/lib/banco-llamadas/app").then((b) => setBanco(b.estadoBanco()));
     }, [n]);
+
+    // CTL1117I: el indicador (punto u oculto) es de este aparato; se vuelve a leer cuando el panel de ajustes lo cambia.
+    useEffect(() => {
+        let vivo = true;
+        const leer = () => void leerAjustesControl().then((a) => vivo && setAjustes(a));
+        leer();
+        window.addEventListener(EVENTO_AJUSTES_CONTROL, leer);
+        return () => {
+            vivo = false;
+            window.removeEventListener(EVENTO_AJUSTES_CONTROL, leer);
+        };
+    }, []);
+
+    useEffect(() => {
+        let vivo = true;
+        void capacidadesNativas().then((c) => vivo && setHayNativo(c !== null));
+        return () => {
+            vivo = false;
+        };
+    }, []);
 
     const terminar = useCallback(() => {
         void import("@/lib/control-remoto/canal").then((c) => c.puertaControl()?.revocar("terminado-por-el-dueno"));
@@ -231,32 +268,29 @@ export function BandaControl() {
         void import("@/lib/banco-llamadas/app").then((b) => b.apagarBanco("apagar"));
     }, []);
 
-    if (!sesion && !banco) return null;
+    // CTL1117I: ya no hay banda roja. Con `indicador=punto`, un punto en la esquina con el color de quien controla (y su panelito);
+    // con `oculto` no se dibuja nada: quién controla y «Terminar» siguen en el panel de ajustes de control.
+    const quien = quienControla(sesion, permiso);
+    // Con indicador nativo (se ve en todo el aparato) la web NO pinta el suyo: solo uno. El panel de ajustes sigue diciendo quién controla.
+    const verPunto = !!quien && ajustes.indicador === "punto" && hayNativo === false;
+    if (!verPunto && !banco) return null;
     return (
-        <div className="pointer-events-none fixed inset-x-0 top-0 z-[2147483000] flex flex-col items-center gap-1 p-2" data-testid="banda-control">
-            {sesion && (
-                <div role="status" className="pointer-events-auto flex max-w-[calc(100vw-32px)] flex-wrap items-center gap-3 rounded-xl border-2 border-[#DC143C] bg-[#1a0408]/95 px-4 py-2 text-sm text-white shadow-lg">
-                    <span className="font-semibold text-[#ff6b81]">Control entre mis neuronas</span>
-                    <span>
-                        {sesion.nombre} opera esta neurona · nivel {sesion.nivel} · desde las {hhmm(sesion.inicio)}
-                    </span>
-                    <button onClick={terminar} className="min-h-9 cursor-pointer rounded-lg bg-[#DC143C] px-3 py-1 font-medium transition-colors hover:bg-[#b01030]">
-                        Terminar y quitar el permiso
-                    </button>
-                </div>
-            )}
+        <>
+            {verPunto && quien && <PuntoControl quien={quien} onTerminar={terminar} />}
             {banco && (
-                <div role="status" className="pointer-events-auto flex max-w-[calc(100vw-32px)] flex-wrap items-center gap-3 rounded-xl border-2 border-[#FFBF00] bg-[#1a1404]/95 px-4 py-2 text-sm text-white shadow-lg">
-                    <span className="font-semibold text-[#FFBF00]">Modo de pruebas de llamadas</span>
-                    <span>
-                        llama a {banco.con.slice(0, 8)} · hasta las {hhmm(banco.hasta)} · quedan {banco.restantes}
-                    </span>
-                    <button onClick={apagarBanco} className="min-h-9 cursor-pointer rounded-lg bg-[#FFBF00] px-3 py-1 font-medium text-black transition-colors hover:bg-[#d9a200]">
-                        Apagar
-                    </button>
+                <div className="pointer-events-none fixed inset-x-0 top-0 z-[2147483000] flex flex-col items-center gap-1 p-2" data-testid="banda-control">
+                    <div role="status" className="pointer-events-auto flex max-w-[calc(100vw-32px)] flex-wrap items-center gap-3 rounded-xl border-2 border-[#FFBF00] bg-[#1a1404]/95 px-4 py-2 text-sm text-white shadow-lg">
+                        <span className="font-semibold text-[#FFBF00]">Modo de pruebas de llamadas</span>
+                        <span>
+                            llama a {banco.con.slice(0, 8)} · hasta las {hhmm(banco.hasta)} · quedan {banco.restantes}
+                        </span>
+                        <button onClick={apagarBanco} className="min-h-9 cursor-pointer rounded-lg bg-[#FFBF00] px-3 py-1 font-medium text-black transition-colors hover:bg-[#d9a200]">
+                            Apagar
+                        </button>
+                    </div>
                 </div>
             )}
-        </div>
+        </>
     );
 }
 
@@ -276,6 +310,7 @@ export function ControlEntreNeuronasPanel() {
     const [capsNat, setCapsNat] = useState<CapacidadesNativas | null>(null);
     const [aceptadosNat, setAceptadosNat] = useState<{ huella: string; nombre: string; codigo: string }[] | null>(null);
     const [uso, setUso] = useState({ pantalla: false, entrada: false });
+    const [sesionAct, setSesionAct] = useState<SesionActiva | null>(null); // CTL1117I: quién controla ahora (aunque el punto esté oculto)
     const [esperando, setEsperando] = useState<string | null>(null);
     const leerPantallaEntrada = useCallback(() => {
         void capacidadesNativas().then(setCapsNat);
@@ -285,6 +320,7 @@ export function ControlEntreNeuronasPanel() {
             const o = await import("@/lib/control-remoto/pantalla-origen");
             const ses = c.puertaControl()?.sesionActiva() ?? null;
             setUso({ pantalla: o.origenGlobal().enMarcha(), entrada: ses?.nivel === "controlar" });
+            setSesionAct(ses);
         })().catch(() => undefined);
     }, []);
     const pedirAjuste = useCallback(
@@ -477,7 +513,7 @@ export function ControlEntreNeuronasPanel() {
             </div>
             <p className="text-[12px] text-white/55">
                 Deja que otra neurona de tu cuenta, que tú aceptes aquí, opere la app de este aparato: llamar, contestar, colgar, micrófono y cámara, abrir una sección y leer su estado.
-                Nada fuera de la app. Mientras alguien la opera verás una banda roja arriba; un toque la termina y apaga este permiso. Cada orden queda en el registro de llamadas.
+                Nada fuera de la app. Mientras alguien la opera tendrás un aviso en las notificaciones y, si quieres, un punto de su color en la esquina; desde cualquiera de los dos puedes terminar. Cada orden queda en el registro de llamadas.
             </p>
             <label className="flex items-center gap-2 text-[12px] text-white/70">
                 Nivel
@@ -492,9 +528,11 @@ export function ControlEntreNeuronasPanel() {
             </label>
             <FaltasIndicador estado={indicador} onPedir={(q) => void pedirFalta(q)} />
             <PantallaYEntradaEsteAparato caps={capsNat} aceptados={aceptadosNat} pantallaEnUso={uso.pantalla} entradaEnUso={uso.entrada} onAjuste={(c) => void pedirAjuste(c)} />
+            <AjustesIndicadorControl disponible={capsNat !== null} quien={quienControla(sesionAct, permiso)} onTerminar={() => void import("@/lib/control-remoto/canal").then((c) => { c.puertaControl()?.revocar("terminado-por-el-dueno"); setSesionAct(null); })} />
             <p className="text-[12px] text-white/50">Código de este aparato: {miCodigo ?? "sin clave propia (créala en Chats de Genesis)"}</p>
             {permiso.pendientes.map((x) => (
                 <div key={x.huella} className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-400/30 p-2 text-[12px] text-white/80">
+                    <PuntoColor color={colorDe(x.neurona, x.color)} />
                     <span className="flex-1">
                         {quienOpera.otroPide(x.nombre)} Código {codigos[x.huella] ?? "…"} (compáralo con el que enseña ese aparato)
                     </span>
@@ -508,6 +546,7 @@ export function ControlEntreNeuronasPanel() {
             ))}
             {permiso.controladores.map((x) => (
                 <div key={x.huella} className="flex flex-wrap items-center gap-2 rounded-lg border border-white/10 p-2 text-[12px] text-white/70">
+                    <PuntoColor color={colorDe(x.neurona, x.color)} />
                     <span className="flex-1">
                         {quienOpera.puedeOperarEste(x.nombre)} · código {codigos[x.huella] ?? "…"} · desde {x.desde.slice(0, 10)}
                     </span>
@@ -549,7 +588,7 @@ export function ControlEntreNeuronasPanel() {
                             onClick={() => void elegir(x.id)}
                             className={`min-h-9 cursor-pointer rounded-lg border px-3 py-1.5 text-left text-[12px] transition-colors ${destino.trim().toLowerCase() === x.id.toLowerCase() ? "border-[#FFBF00] bg-[#FFBF00]/15 text-white" : "border-white/15 bg-white/5 text-white/75 hover:bg-white/10"}`}
                         >
-                            <span className="font-medium">{x.nombre}</span> · {x.plataforma} · <span className={x.online ? "text-emerald-300" : "text-white/40"}>{x.online ? "conectada" : "sin conexión"}</span>
+                            <PuntoColor color={colorPublicoDeNeurona(x.id)} /> <span className="font-medium">{x.nombre}</span> · {x.plataforma} · <span className={x.online ? "text-emerald-300" : "text-white/40"}>{x.online ? "conectada" : "sin conexión"}</span>
                         </button>
                     ))}
                 </div>

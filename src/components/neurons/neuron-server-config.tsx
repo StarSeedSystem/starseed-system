@@ -13,6 +13,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Server, MapPin, Globe, Brain, Database, Users, Network, ScrollText, Trash2, RadioTower } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Switch } from "@/components/ui/switch";
+import { SelectorColorNeurona } from "@/components/neurons/selector-color-neurona";
 import { Input } from "@/components/ui/input";
 import { thisDeviceId, settingsFor, setNeuronSettings, NEURON_EVENT, type NeuronRole, type NeuronSettings } from "@/lib/neurons/neurons";
 import { getNeuronLogs, clearNeuronLogs, logNeuron, subscribeNeuronLogs, type NeuronLogEntry } from "@/lib/neurons/neuron-logs";
@@ -102,6 +103,9 @@ export function NeuronServerConfig() {
         <Input value={s.location ?? ""} onChange={(e) => setS({ ...s, location: e.target.value })} onBlur={() => patch({ location: (s.location ?? "").trim() || undefined })}
           placeholder="Ciudad, sala o etiqueta (opcional)" className="h-8 text-[12px]" />
       </div>
+
+      {/* CTL1117I · color público: con él te reconocen las demás neuronas en el control */}
+      {id && <SelectorColorNeurona id={id} />}
 
       {/* Ofrecer internet público */}
       <ToggleLine icon={<Globe className="h-4 w-4" />} title="Ofrecer internet público del OS"

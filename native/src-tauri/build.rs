@@ -151,6 +151,8 @@ const COMANDOS_APP: &[&str] = &[
     "control_neuronas_abrir",
     "control_neuronas_orden",
     "control_neuronas_anotar",
+    "control_ajustes_leer", // CTL1117H: ajustes nativos del aparato controlado (indicador, toques visibles)
+    "control_ajustes_poner", // CTL1117H
     "control_fondo_nota", // CTL1117C: la línea `control-fondo` (segundo plano) desde la página
     "control_neuronas_parar",
     "control_neuronas_estado",

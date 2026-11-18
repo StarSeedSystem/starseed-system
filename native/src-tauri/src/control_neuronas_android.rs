@@ -265,6 +265,13 @@ pub fn peticion(id: u64, accion: &str, sesion: &str, nombre: &str) -> String {
     serde_json::json!({ "id": id, "accion": accion, "sesion": sesion, "nombre": nombre }).to_string()
 }
 
+/// (CTL1117H) La petición «mostrar»: el color solo viaja si vale (`#rrggbb`); el nivel solo `ver`/`controlar`.
+pub fn peticion_mostrar(id: u64, sesion: &str, nombre: &str, color: &str, nivel: &str) -> String {
+    let color = if crate::control_ajustes::color_valido(color) { color } else { "#dd3c3c" };
+    let nivel = if nivel == "controlar" { "controlar" } else { "ver" };
+    serde_json::json!({ "id": id, "accion": "mostrar", "sesion": sesion, "nombre": nombre, "color": color, "nivel": nivel }).to_string()
+}
+
 // ─────────────────────────── E/S (solo Android) ───────────────────────────
 
 #[cfg(target_os = "android")]
@@ -300,11 +307,30 @@ pub mod es {
         let fin = d.join(format!("{PREFIJO_PETICION}{id}.json"));
         std::fs::write(&tmp, peticion(id, accion, sesion, nombre)).is_ok() && std::fs::rename(&tmp, &fin).is_ok()
     }
+
+    /// (CTL1117H) «mostrar» con lo que Kotlin pinta: nombre aceptado, color del controlador (ya validado) y nivel.
+    pub fn pedir_mostrar(app: &AppHandle, sesion: &str, nombre: &str, color: &str, nivel: &str) -> bool {
+        let Some(d) = dir(app) else { return false };
+        let _ = std::fs::create_dir_all(&d);
+        let base = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|x| x.as_millis() as u64).unwrap_or(0) * 1000;
+        let id = SECUENCIA.fetch_update(Ordering::SeqCst, Ordering::SeqCst, |a| Some(a.max(base) + 1)).unwrap_or(base) + 1;
+        let tmp = d.join(format!(".{PREFIJO_PETICION}{id}.tmp"));
+        let fin = d.join(format!("{PREFIJO_PETICION}{id}.json"));
+        std::fs::write(&tmp, peticion_mostrar(id, sesion, nombre, color, nivel)).is_ok() && std::fs::rename(&tmp, &fin).is_ok()
+    }
 }
 
 #[cfg(test)]
 mod pruebas {
     use super::*;
+
+    #[test]
+    fn ctl1117h_la_peticion_mostrar_lleva_color_valido_y_nivel_conocido() {
+        let v: serde_json::Value = serde_json::from_str(&peticion_mostrar(3, "s", "Mac", "#12abef", "controlar")).unwrap();
+        assert_eq!((v["accion"].as_str(), v["color"].as_str(), v["nivel"].as_str()), (Some("mostrar"), Some("#12abef"), Some("controlar")));
+        let v: serde_json::Value = serde_json::from_str(&peticion_mostrar(4, "s", "Mac", "rojo\"}", "root")).unwrap();
+        assert_eq!((v["color"].as_str(), v["nivel"].as_str()), (Some("#dd3c3c"), Some("ver")));
+    }
 
     const DE: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
     const TOK: &str = "00112233445566778899aabbccddeeff";

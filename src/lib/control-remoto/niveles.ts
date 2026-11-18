@@ -49,6 +49,12 @@ function sinArgs(a: Args): Args | null {
     return Object.keys(a).length === 0 ? {} : null;
 }
 
+/** CTL1117H: «abrir-sesion» lleva, opcional, el color público del controlador (#rrggbb en minúsculas); cualquier otro argumento se rechaza. */
+function conColorOpcional(a: Args): Args | null {
+    if (Object.keys(a).length === 0) return {};
+    return soloClaves(a, ["color"]) && typeof a.color === "string" && /^#[0-9a-f]{6}$/.test(a.color) ? { color: a.color } : null;
+}
+
 function interruptor(a: Args): Args | null {
     return soloClaves(a, ["activo"]) && typeof a.activo === "boolean" ? { activo: a.activo } : null;
 }
@@ -158,7 +164,7 @@ function validarTexto(a: Args): Args | null {
 }
 
 export const ACCIONES: Readonly<Record<string, DefAccion>> = {
-    "abrir-sesion": { nivel: "ver", sinSesion: true, validar: sinArgs, que: "abre una sesión; el destino dice su nivel y sus capacidades" },
+    "abrir-sesion": { nivel: "ver", sinSesion: true, validar: conColorOpcional, que: "abre una sesión; el destino dice su nivel y sus capacidades" },
     "cerrar-sesion": { nivel: "ver", validar: sinArgs, que: "cierra la sesión" },
     "leer-estado": { nivel: "ver", validar: sinArgs, que: "ruta, llamada y sus números, enlaces y su medio, versión y build" },
     llamar: {

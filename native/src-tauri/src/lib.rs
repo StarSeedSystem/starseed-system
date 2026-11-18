@@ -170,6 +170,7 @@ mod acceso_equipo; // SEG1111U
 #[cfg(any(desktop, test))]
 mod acceso_equipo_logica; // SEG1111U
 // ORD1114Q: control entre mis neuronas, lado nativo (sesión, indicador, parada y registro encadenado).
+mod control_ajustes; // CTL1117H
 mod control_neuronas; // ORD1114Q
 mod control_neuronas_logica; // ORD1114Q
 // ORD1114T: el borde de cada plataforma del indicador (Android por archivos con Kotlin; macOS AppKit/Carbon).
@@ -924,6 +925,8 @@ pub fn run() {
                 control_neuronas::control_neuronas_orden,
                 control_neuronas::control_neuronas_anotar,
                 control_neuronas::control_fondo_nota, // CTL1117C
+                control_ajustes::control_ajustes_leer, // CTL1117H
+                control_ajustes::control_ajustes_poner, // CTL1117H
                 control_neuronas::control_neuronas_parar,
                 control_neuronas::control_neuronas_estado,
                 control_neuronas::control_neuronas_preparar, // ORD1114T

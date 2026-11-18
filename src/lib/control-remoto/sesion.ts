@@ -58,6 +58,8 @@ export interface Controlador {
     nombre: string;
     neurona: string;
     desde: string;
+    /** CTL1117H: color público que declaró al presentarse (#rrggbb); si falta, el de su id (`colorPorDefecto`). */
+    color?: string;
 }
 
 /** Lo que el dueño decidió en ESTE aparato. Se guarda; las sesiones no (viven en memoria). */
@@ -79,6 +81,8 @@ export interface SesionActiva {
     nivel: Nivel;
     inicio: number;
     ultima: number;
+    /** CTL1117I: color público que el controlador firmó al abrir (`#rrggbb`) o, si no, el que declaró al presentarse. */
+    color?: string;
 }
 
 export interface DepsPuerta {
@@ -304,7 +308,9 @@ export class PuertaControl {
             // máxima): renovar la ventana de inactividad sí, estirar la hora máxima de 1 h no.
             const mismaSesion = this.sesion !== null && this.sesion.token === n.token && this.sesion.de === c.de;
             const inicio = mismaSesion && this.sesion ? this.sesion.inicio : ahora;
-            this.sesion = { token: n.token, de: c.de, nombre: ctl.nombre, nivel, inicio, ultima: ahora };
+            const colorFirmado = typeof c.accion.args.color === "string" && /^#[0-9a-f]{6}$/.test(c.accion.args.color) ? c.accion.args.color : undefined;
+            const color = colorFirmado ?? ctl.color;
+            this.sesion = { token: n.token, de: c.de, nombre: ctl.nombre, nivel, inicio, ultima: ahora, ...(color ? { color } : {}) };
             this.d.alCambiar?.();
             return this.respuesta(c.nonce, true, "ok", nombre, c.de, nivel, {
                 sesion: this.sesion.token,
@@ -362,7 +368,8 @@ export class PuertaControl {
         const p = this.d.leerPermiso();
         if (p.controladores.some((x) => x.huella === c.de)) return this.respuesta(c.nonce, true, "ya-aceptado", "presentarse", c.de, "-");
         const nombre = [...a.nombre.replace(/[\u0000-\u001f\u007f]/g, "")].slice(0, 60).join("").trim() || "Neurona";
-        const nuevo: Controlador = { huella: c.de, spki: a.spki, cuenta: c.cuenta, nombre, neurona: a.neurona, desde: new Date(ahora).toISOString() };
+        const color = typeof a.color === "string" && /^#[0-9a-f]{6}$/.test(a.color) ? a.color : undefined;
+        const nuevo: Controlador = { huella: c.de, spki: a.spki, cuenta: c.cuenta, nombre, neurona: a.neurona, desde: new Date(ahora).toISOString(), ...(color ? { color } : {}) };
         const pendientes = [nuevo, ...p.pendientes.filter((x) => x.huella !== c.de)].slice(0, MAX_PENDIENTES);
         this.d.guardarPermiso({ ...p, pendientes });
         this.d.alCambiar?.();

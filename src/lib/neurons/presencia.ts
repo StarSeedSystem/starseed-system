@@ -64,6 +64,8 @@ export interface PresenciaMedio {
   d?: InfoPublicaNeurona;
   /** (MAP1114B) Capas de conciencia que esta neurona anuncia (`capa:local`, `capa:mesh`…). */
   c?: string[];
+  /** (CTL1117I) Color público de la neurona (`#rrggbb`); ausente en las webs anteriores: se usa el de su id. */
+  col?: string;
 }
 
 export interface EstadoPresencia {
@@ -162,6 +164,12 @@ async function anuncio(): Promise<PresenciaMedio | null> {
     } catch {
       c = undefined;
     }
+    let col: string | undefined;
+    try {
+      col = (await import("@/lib/neurons/color-publico-ajuste")).colorPublicoDeNeurona(n);
+    } catch {
+      col = undefined;
+    }
     let plataforma: string | undefined;
     try {
       const ua = navigator.userAgent || "";
@@ -183,6 +191,7 @@ async function anuncio(): Promise<PresenciaMedio | null> {
       ...(v && Object.keys(v).length ? { v } : {}),
       ...(d ? { d } : {}),
       ...(c ? { c } : {}),
+      ...(col ? { col } : {}),
     };
   } catch {
     return null;
@@ -193,7 +202,7 @@ async function enviar(forzar = false): Promise<void> {
   if (!canal) return;
   const a = await anuncio();
   if (!a || !canal) return;
-  const firma = `${a.n}|${a.visible ? 1 : 0}|${firmaSenales(a.s)}|${a.v ? firmaVersiones(a.v) : ""}|${a.d ? JSON.stringify(a.d) : ""}|${a.c ? a.c.join(",") : ""}`;
+  const firma = `${a.n}|${a.visible ? 1 : 0}|${firmaSenales(a.s)}|${a.v ? firmaVersiones(a.v) : ""}|${a.d ? JSON.stringify(a.d) : ""}|${a.c ? a.c.join(",") : ""}|${a.col ?? ""}`;
   const ahora = Date.now();
   if (!forzar && firma === ultimaFirma) return;
   if (!forzar && ahora - ultimoEnvio < MIN_REENVIO_MS) {
@@ -357,6 +366,10 @@ export function iniciarPresenciaNeuronas(): () => void {
     // (MAP1114B) Cambiar quién ve mi posición se anuncia (o se retira) al instante.
     window.addEventListener("starseed:mapa-posicion", alAdoptar);
     limpiezas.push(() => window.removeEventListener("starseed:neurona-adoptada", alAdoptar));
+    // (CTL1117I) Cambiar el color público se anuncia al instante (el anuncio solo se reenvía si su firma cambió).
+    const alCambiarAjustes = () => void enviar(false);
+    window.addEventListener("starseed:neurons", alCambiarAjustes);
+    limpiezas.push(() => window.removeEventListener("starseed:neurons", alCambiarAjustes));
     limpiezas.push(() => window.removeEventListener("starseed:mapa-posicion", alAdoptar));
   })();
 

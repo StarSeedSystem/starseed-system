@@ -62,6 +62,8 @@
     "allow-control-neuronas-orden",
     "allow-control-neuronas-anotar",
     "allow-control-fondo-nota",
+    "allow-control-ajustes-leer",
+    "allow-control-ajustes-poner",
     "allow-control-neuronas-parar",
     "allow-control-neuronas-estado",
     "allow-control-neuronas-preparar",
