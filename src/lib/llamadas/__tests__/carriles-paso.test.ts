@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { capacidadCarril, esperaReintentoIce, MARGEN_CAPACIDAD, ordenPorCapacidad, REGLAS, SelectorCarriles, SILENCIO_WEBRTC_MS, type MuestraCarril } from "@/lib/llamadas/carriles";
+import { capacidadCarril, decidirCorteEnlace, ESPERA_RECONEXION_MS, esperaReintentoIce, MARGEN_CAPACIDAD, MOTIVO_RECONEXION_AGOTADA, ordenPorCapacidad, REGLAS, SelectorCarriles, SILENCIO_WEBRTC_MS, type EntradaCorteEnlace, type MuestraCarril } from "@/lib/llamadas/carriles";
 
 
 const web = (arriba: boolean): MuestraCarril => ({ carril: "webrtc", arriba, rttMs: 20 });
@@ -37,6 +37,31 @@ describe("paso de carril al instante (MLL1111C)", () => {
     expect(SILENCIO_WEBRTC_MS).toBeLessThanOrEqual(1_000);
     // LLA1112A: la escala sigue hasta 120 s (antes se quedaba en 15 s para siempre: prueba 39, ocho intentos por llamada).
     expect([0, 1, 2, 3, 4, 10].map(esperaReintentoIce)).toEqual([3_000, 6_000, 12_000, 30_000, 60_000, 120_000]);
+  });
+});
+
+describe("AUD1117 · una caída corta del enlace no cuelga la llamada", () => {
+  const corte = (sinEnlaceMs: number, extra: Partial<EntradaCorteEnlace> = {}) =>
+    decidirCorteEnlace({ sinEnlaceMs, estabaEnPie: true, otroCarril: false, enlaceVuelve: false, ...extra });
+
+  it("un corte de 60 s que vuelve: sigue viva y se enseña «Reconectando…»", () => {
+    const caeEn = 1_000;
+    for (let ahora = caeEn; ahora <= caeEn + 60_000; ahora += 500) {
+      expect(corte(ahora - caeEn)).toBe("reconectando");
+    }
+    expect(corte(60_000, { enlaceVuelve: true })).toBe("seguir");
+  });
+
+  it("un corte de 95 s: termina a los 90 s con motivo visible", () => {
+    expect(corte(ESPERA_RECONEXION_MS - 1)).toBe("reconectando");
+    expect(corte(ESPERA_RECONEXION_MS)).toBe("terminar");
+    expect(corte(95_000)).toBe("terminar");
+    expect(MOTIVO_RECONEXION_AGOTADA).toMatch(/90 s/);
+  });
+
+  it("con otro carril vivo, o si la llamada no llegó a estar en pie, manda lo de siempre", () => {
+    expect(corte(95_000, { otroCarril: true })).toBe("seguir");
+    expect(corte(95_000, { estabaEnPie: false })).toBe("seguir");
   });
 });
 
