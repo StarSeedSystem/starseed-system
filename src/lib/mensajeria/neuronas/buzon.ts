@@ -56,6 +56,7 @@ import { claveChat, preferenciasEfectivas } from "@/lib/mensajeria/medios/prefer
 import { crearDisparadorReintento } from "@/lib/mensajeria/neuronas/reintento-al-enlazar";
 // (NOT1108A) El chat a la vista (sin dependencias): un mensaje de ESE chat no avisa.
 import { fijarChatAbierto } from "@/lib/notifications/chat-abierto";
+import { emisorMalla } from "@/lib/network/malla-registro"; // AUD1117·F7
 import type { CandidatoMedio, PasoEnvio, PlanEnvio, ViaMensaje } from "@/lib/mensajeria/medios/tipos";
 import type { AdjuntoNeurona, FlujoNeuronaRef, LlamadaNeurona } from "@/lib/mensajeria/neuronas/datos-neurona";
 
@@ -464,6 +465,8 @@ async function procesarNeurona(m: MensajeMalla): Promise<MensajeMalla> {
         intentos,
     };
     poner(actualizarMensaje(cargar(), m.clave, m.id, cambio));
+    // AUD1117·F7: salió por la malla (no por el servidor): UNA línea por mensaje, sin el texto.
+    if (r.via && r.via.medio !== "servidor") emisorMalla().mensaje("enviado", m.id, r.via.medio);
     return { ...m, ...cambio };
 }
 
@@ -639,6 +642,8 @@ async function procesarChat(
         intentos,
     };
     poner(actualizarMensaje(anadirMensaje(cargar(), m), m.clave, m.id, cambio));
+    // AUD1117·F7: el mensaje de chat salió por la malla: UNA línea, sin el texto.
+    if (r.via && r.via.medio !== "servidor") emisorMalla().mensaje("enviado", m.id, r.via.medio);
     return { ok: true, local: { ...m, ...cambio }, via: r.via };
 }
 
@@ -815,6 +820,7 @@ async function recibirNeurona(cuerpo: unknown, via: ViaMensaje | Promise<ViaMens
     // (MSJ1108C) Una edición o un borrado firmados por el autor: se aplican (o esperan a su mensaje) y no avisan.
     if (c.op) return void (await recibirOperacion(c.op));
     const nuevo = !cargar().conv[clave]?.mensajes.some((x) => x.id === c.mid);
+    const viaEntra = await via;
     poner(
         anadirMensaje(cargar(), {
             id: c.mid,
@@ -823,7 +829,7 @@ async function recibirNeurona(cuerpo: unknown, via: ViaMensaje | Promise<ViaMens
             texto: c.txt,
             at: Date.now(),
             estado: "recibido",
-            via: await via,
+            via: viaEntra,
             deNombre: c.de.nom,
             deNeurona: c.de.n,
             deUid: c.de.u,
@@ -836,6 +842,8 @@ async function recibirNeurona(cuerpo: unknown, via: ViaMensaje | Promise<ViaMens
             ...(c.fd ? { flujo: c.fd } : {}),
         }),
     );
+    // AUD1117·F7: se ENTREGÓ por la malla (no por el servidor): UNA línea por mensaje, sin el texto.
+    if (viaEntra.medio !== "servidor") emisorMalla().mensaje("entregado", c.mid, viaEntra.medio);
     if (nuevo) void aplicarPendientesDe(c.mid);
     // (NEU1107A) Una llamada por internet suena aquí (una sola vez, aunque llegue por dos caminos).
     if (nuevo && c.ll?.via === "sistema-llamadas" && c.ll.sesion) {
@@ -893,6 +901,7 @@ async function recibirChat(cuerpo: unknown, via: Promise<ViaMensaje>): Promise<v
     if (c.op) return void (await recibirOperacion(c.op));
     const clave = `dm:${c.h}`;
     const nuevo = !cargar().conv[clave]?.mensajes.some((x) => x.id === c.mid);
+    const viaEntra = await via;
     poner(
         anadirMensaje(cargar(), {
             id: c.mid,
@@ -901,7 +910,7 @@ async function recibirChat(cuerpo: unknown, via: Promise<ViaMensaje>): Promise<v
             texto: c.txt,
             at: Date.now(),
             estado: "recibido",
-            via: await via,
+            via: viaEntra,
             deUid: c.de.u,
             hlc: c.hlc ?? hlcNuevo(),
             atOrigen: horaOrigen(c.at),
@@ -911,6 +920,8 @@ async function recibirChat(cuerpo: unknown, via: Promise<ViaMensaje>): Promise<v
             ...(c.ll ? { llamada: c.ll } : {}),
         }),
     );
+    // AUD1117·F7: se ENTREGÓ por la malla (no por el servidor): UNA línea por mensaje, sin el texto.
+    if (viaEntra.medio !== "servidor") emisorMalla().mensaje("entregado", c.mid, viaEntra.medio);
     if (nuevo) void aplicarPendientesDe(c.mid);
     // (NEU1107A) Lo mismo que en los chats de neuronas: el archivo se sigue y se guarda aquí, y la
     // llamada directa apunta su registro.
@@ -972,6 +983,8 @@ export async function anunciarEnChatMalla(m: MensajeMalla): Promise<MensajeMalla
         intentos,
     };
     poner(actualizarMensaje(cargar(), m.clave, m.id, cambio));
+    // AUD1117·F7: el anuncio de un chat salió por la malla: UNA línea, sin el texto.
+    if (r.via && r.via.medio !== "servidor") emisorMalla().mensaje("enviado", m.id, r.via.medio);
     return { ...m, ...cambio };
 }
 

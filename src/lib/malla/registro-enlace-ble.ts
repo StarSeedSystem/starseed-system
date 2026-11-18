@@ -29,6 +29,8 @@ export type TipoEventoEnlace =
   | "llamada"
   /** (ARC1110A) Hitos de un archivo (solo id y tamaños): `anuncio-enviado|…|primer-trozo|completo|verificado|fallo`. */
   | "archivo"
+  /** (AUD1117·F7) Un mensaje de la malla: `enviado|entregado via=<medio>` (sin texto ni nombres). */
+  | "mensaje-malla"
   /** (BLE1109A) Cambios de carril: `l2cap-abierto|l2cap-cerrado` (el enlace sigue por GATT). */
   | "canal-rapido"
   /** (AUD1117) Un cambio de estado del Mapa de señales: sin posiciones, sin nombres, solo el estado. */

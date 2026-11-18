@@ -115,6 +115,7 @@ import { analizarArchivo } from "@/lib/malla/cristal/centinela";
 import { decidirEntrada } from "@/lib/malla/cristal/centinela-archivos";
 import { extensionDe, listarZip } from "@/lib/network/inspeccion-archivos";
 import { anotarArchivo, type HitoArchivo } from "@/lib/network/archivos-diagnostico"; // ARC1110A
+import { emisorMalla } from "@/lib/network/malla-registro"; // AUD1117·F7
 import { prepararArchivo } from "@/lib/malla/preparacion-archivo"; // ARC1110A
 
 /* ══════════════════════════ 1) Contrato de canal ══════════════════════════ */
@@ -2453,6 +2454,8 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
       const bytes = Math.min(archivo.size, indices.length * tam);
       const reparto = (estados.get(id)?.repartoVias ?? canal.resumenVias?.()?.texto ?? "-").replace(/\s+/g, "_");
       hito(id, "completo", `kbps=${Math.round((bytes * 8) / 1000 / segundos)} bytes=${bytes} vias=${reparto}`);
+      // AUD1117·F7: todos los trozos salieron: UNA línea por envío, sin nombre ni contenido.
+      emisorMalla().archivo("enviado", id, estados.get(id)?.rutaEnlace ?? canal.rutaMedida?.() ?? null, bytes);
     }
     // «fin» (con un par de reintentos si el canal está un momento lleno) y, desde ARC1108A, el
     // remitente queda «verificando» hasta que el receptor confirme: nunca colgado sin decir nada.
@@ -3133,6 +3136,8 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
         );
         return;
       }
+      // AUD1117·F7: están todos los trozos y guardados: UNA línea de recepción, sin nombre ni contenido.
+      emisorMalla().archivo("recibido", id, estado.rutaEnlace ?? estado.via ?? null, estado.tamano);
       const esperado = hashesEsperados.get(id);
       const hashes = hashesPorId.get(id) ?? [];
       // (ARC1108B) 1) Lo que LLEGÓ, sin releer nada: el SHA-256 de cada trozo se calculó al recibirlo.
@@ -3172,6 +3177,8 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
       const hecho = estados.get(id);
       if (hecho) emitir({ ...hecho, fase: "completada", motivo: motivoPrevio, actualizadoMs: Date.now() });
       hito(id, "verificado", `rol=recibir bytes=${blob.size}`); // ARC1110A
+      // AUD1117·F7: el SHA-256 coincidió: UNA línea por verificación correcta.
+      emisorMalla().archivo("hash-ok", id, estado.rutaEnlace ?? estado.via ?? null, blob.size);
       olvidarLatido(id);
       canal.enviar(JSON.stringify({ t: "archivo.ok", id } satisfies MsgOk));
       config.onCompletado?.(estados.get(id) as EstadoTransferencia, blob);
