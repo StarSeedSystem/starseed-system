@@ -43,6 +43,7 @@ import {
   checkAstraura158OsUpdates, fetchAstraura158OsStatus, installAstraura158OsUpdate, modifyAstraura158OsConfiguration,
   type Astraura158OsStatus, type Astraura158Target,
 } from "@/lib/astraura/astraura-158-client";
+import { formatearErrorActualizacion } from "@/lib/actualizaciones/errores";
 import {
   BTN, BTN_DANGER, BTN_PRIMARY, BusyIcon, CARD, Empty, Field, INPUT, LABEL, PILL, PILL_ON, PILL_OFF, SUB,
   SectionTitle, Stat, TEXTAREA, useBusy, useS158Load, type S158TabProps,
@@ -270,7 +271,15 @@ function OsSovereignCard({ target }: { target: Astraura158Target }) {
           description: res.data.changelog?.length ? `${res.data.changelog.length} nota(s) de cambios` : undefined,
         });
       } else {
-        toast.error(`No se pudo comprobar actualizaciones: ${res.error}`);
+        const versionInstalada = eff?.version ?? "desconocida";
+        const formateado = formatearErrorActualizacion(res.error, versionInstalada);
+        if (formateado) {
+          if (formateado.tipo === "ámbar") {
+            toast.warning(formateado.texto);
+          } else {
+            toast.error(formateado.texto);
+          }
+        }
       }
     });
   }
