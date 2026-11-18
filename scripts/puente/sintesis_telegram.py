@@ -91,11 +91,14 @@ def _pedir(url, cuerpo=None):
 
 def _leer_env(ruta=RUTA_ENV):
     """Lee pares K=V de un archivo de entorno; el entorno del proceso manda.
-    Usa entorno.leer_clave para aceptar «export NOMBRE=…» y comillas (SIN1116A)."""
+    Usa entorno.leer_clave para aceptar «export NOMBRE=…» y comillas (SIN1116A).
+    Con la ruta por defecto lee ~/.starseed/env y ~/.hermes/.env; con una ruta
+    explícita (enviar_desde) lee solo ese archivo."""
     import entorno as E
+    rutas = list(E.RUTAS_CLAVES) if ruta == RUTA_ENV else [ruta]
     datos = {}
     for nombre in CLAVES + CLAVES_RELEVO:
-        valor = os.environ.get(nombre) or E.leer_clave(nombre)
+        valor = os.environ.get(nombre) or E._leer_clave_multifuente(nombre, rutas)
         if valor:
             datos[nombre] = valor
     return datos
