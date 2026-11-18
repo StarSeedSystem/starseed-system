@@ -33,6 +33,18 @@ describe("paso de carril al instante (MLL1111C)", () => {
     expect(s.carril("video")).toBe("ble-l2cap");
   });
 
+  it("un corte corto del Bluetooth no cuelga la llamada: pasa a «reconectando…» al primer tic y vuelve al volver el enlace", () => {
+    const entrada: EntradaCorteEnlace = { sinEnlaceMs: 0, estabaEnPie: true, otroCarril: false };
+    expect(decidirCorteEnlace(entrada)).toBe("reconectando");
+    const entradaVuelta: EntradaCorteEnlace = { sinEnlaceMs: 0, estabaEnPie: true, otroCarril: false, enlaceVuelve: true };
+    expect(decidirCorteEnlace(entradaVuelta)).toBe("seguir");
+  });
+
+  it("una caída larga del Bluetooth termina la llamada tras 90 s", () => {
+    const entrada = { sinEnlaceMs: ESPERA_RECONEXION_MS, estabaEnPie: true, otroCarril: false };
+    expect(decidirCorteEnlace(entrada)).toBe("terminar");
+  });
+
   it("comprobación de vida y reintentos de ICE: constantes del contrato", () => {
     expect(SILENCIO_WEBRTC_MS).toBeLessThanOrEqual(1_000);
     // LLA1112A: la escala sigue hasta 120 s (antes se quedaba en 15 s para siempre: prueba 39, ocho intentos por llamada).
