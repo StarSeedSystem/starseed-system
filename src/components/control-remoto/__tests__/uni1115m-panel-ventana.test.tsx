@@ -104,6 +104,8 @@ describe("UNI1115M · puente de pantalla y entrada con lo nativo", () => {
             control_entrada_aceptar: { ok: true, pendiente: true, codigo: "111-222" },
             control_entrada_aceptados: { ok: true, controladores: [{ huella: "abcdef012345", nombre: "Mac", codigo: "111-222" }] },
         });
+        // CTL1118M: esta prueba es la forma que manda una tableta Android; en jsdom el agente dice «linux» y se añadiría la falta de WebRTC de Linux.
+        Object.defineProperty(window.navigator, "userAgent", { value: "Mozilla/5.0 (Linux; Android 14)", configurable: true });
         expect(await capacidadesNativas()).toEqual({ pantalla: { accesibilidad: true, proyeccion: false, sinPreguntar: true }, entrada: { gestos: true, maxDedos: 10, teclas: ["atras"], volumen: true, brillo: false, texto: true }, falta: ["escribir-ajustes"] });
         expect(await abrirAjusteNativo("escribir-ajustes")).toEqual({ ok: true, motivo: undefined });
         expect(await aceptarControladorNativo("SPKI", "cuenta", "Mac")).toMatchObject({ ok: true, pendiente: true, codigo: "111-222" });

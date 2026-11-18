@@ -15,6 +15,7 @@ import { ajustar, deltaACuadro, puntoEnPantalla, tamanoGirado, type Caja } from 
 import { GestorToque } from "./gestor-toque";
 import { trocear } from "./texto";
 import { SelectorFuente } from "./selector-fuente";
+import { rotuloVia } from "@/lib/control-remoto/cuadro-malla";
 import { ayudaFluida, rotuloFuenteMedida } from "@/lib/control-remoto/fuente-pantalla";
 
 export type { EntradaControl, PropsVentanaControl, FuentePedida } from "./tipos";
@@ -220,6 +221,19 @@ function Pantalla({ p, activo, gestor }: { p: PropsVentanaControl; activo: boole
     const vw = girada ? img.height : img.width;
     const vh = girada ? img.width : img.height;
 
+    const montajeLienzo = useRef<HTMLDivElement>(null);
+    // CTL1118M: la pantalla por la malla se pinta en un lienzo que se enseña tal cual (no pasa por el vídeo).
+    useEffect(() => {
+        const c = montajeLienzo.current;
+        const l = p.lienzo;
+        if (!c || !l) return;
+        l.style.cssText = "position:absolute;left:0;top:0;width:100%;height:100%;object-fit:contain;background:#000";
+        c.appendChild(l);
+        return () => {
+            if (l.parentNode === c) c.removeChild(l);
+        };
+    }, [p.lienzo]);
+
     useEffect(() => {
         const v = video.current;
         if (!v) return;
@@ -303,6 +317,7 @@ function Pantalla({ p, activo, gestor }: { p: PropsVentanaControl; activo: boole
             onContextMenu={(e) => activo && e.preventDefault()}
         >
             <div className="pointer-events-none absolute" style={{ left: img.left, top: img.top, width: img.width, height: img.height }} data-testid="ventana-control-imagen">
+                    <div ref={montajeLienzo} data-testid="ventana-control-lienzo" className="absolute inset-0" style={{ display: p.lienzo ? "block" : "none" }} />
                     <video
                         ref={video}
                         muted
@@ -310,7 +325,7 @@ function Pantalla({ p, activo, gestor }: { p: PropsVentanaControl; activo: boole
                         autoPlay
                         aria-label={`Pantalla de ${p.nombre}`}
                         className="absolute bg-black object-contain"
-                        style={{ width: vw, height: vh, left: (img.width - vw) / 2, top: (img.height - vh) / 2, transform: `rotate(${giro}deg)` }}
+                        style={{ width: vw, height: vh, left: (img.width - vw) / 2, top: (img.height - vh) / 2, transform: `rotate(${giro}deg)`, display: p.lienzo ? "none" : undefined }}
                     />
             </div>
             <CapaOndas ondas={ondas} color={p.miColor ?? "#ffffff"} />
@@ -363,7 +378,7 @@ function mensajeSobrePantalla(p: PropsVentanaControl): string | null {
         case "sin-pantalla": return `${p.nombre} no enseña su pantalla${por}`;
         case "cerrada": return `Sesión cerrada${por}`;
         default:
-            if (!p.pantalla || !p.flujo) return `Esperando la imagen de ${p.nombre}${por}`;
+            if (!p.pantalla || (!p.flujo && !p.lienzo)) return `Esperando la imagen de ${p.nombre}${por}`;
             return null;
     }
 }
@@ -400,6 +415,16 @@ function FilaEstado({ p }: { p: PropsVentanaControl }) {
  */
 function FilaFuente({ p }: { p: PropsVentanaControl }) {
     const real = p.fuenteReal ?? null;
+    if (p.via === "malla") {
+        // CTL1118M: la pantalla va por la malla (sin WebRTC): la ventana dice la vía real y los cuadros/s medidos.
+        return (
+            <div data-testid="ventana-control-fuente" className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 pb-1 text-[11px] text-white/60">
+                <span data-testid="ventana-control-via" className="tabular-nums text-white/85">
+                    {rotuloVia("malla", p.enlaceVia ?? null, p.fps)}
+                </span>
+            </div>
+        );
+    }
     if (!real && p.fps === undefined) return null;
     const ayuda = ayudaFluida(real);
     return (

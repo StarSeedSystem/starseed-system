@@ -82,6 +82,7 @@ export function VentanaRemota({ neurona, nombre, modo, alCerrada }: { neurona: s
             estado={p.estado}
             motivo={palabrasMotivo(p.motivo)}
             flujo={p.flujo}
+            lienzo={p.lienzo ?? null}
             pantalla={p.pantalla}
             nivel={p.nivel}
             capacidades={p.capacidades}
@@ -89,6 +90,8 @@ export function VentanaRemota({ neurona, nombre, modo, alCerrada }: { neurona: s
             latenciaMs={p.latenciaMs}
             fps={p.fps}
             fuenteReal={p.fuente ?? null}
+            via={p.via}
+            enlaceVia={p.enlace ?? null}
             alPedirFluida={() => void p.pedirFluida()}
             caduca={p.caduca}
             alReabrir={p.reintentar}

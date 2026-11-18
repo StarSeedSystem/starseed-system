@@ -14,6 +14,8 @@
  * interruptor y, con su «Sí», pida los permisos del sistema; la siguiente sesión ya entra.
  */
 
+import { FALTA_WEBRTC_LINUX, esLinuxEscritorio, faltaWebrtcLinux, lineaWebrtcLinux, type EstadoWebrtcLinux } from "./webrtc-linux";
+
 export interface RespuestaNativa {
     ok: boolean;
     token?: string;
@@ -193,7 +195,7 @@ export interface CapacidadesNativas {
     falta: string[];
 }
 
-export const AJUSTES_QUE_FALTAN = ["servicio-accesibilidad", "ajustes-restringidos", "consentimiento-pantalla", "escribir-ajustes", "grabacion-pantalla", "accesibilidad-mac", "wayland", "sin-pantalla-x11", "entrada-x11"] as const; // CTL1117M: los dos del Mac · CTL1118L: los tres de Linux (sin botón: es la sesión, no un permiso)
+export const AJUSTES_QUE_FALTAN = ["servicio-accesibilidad", "ajustes-restringidos", "consentimiento-pantalla", "escribir-ajustes", "grabacion-pantalla", "accesibilidad-mac", "wayland", "sin-pantalla-x11", "entrada-x11", "webrtc-linux"] as const; // CTL1117M: los dos del Mac · CTL1118L: los tres de Linux (sin botón: es la sesión, no un permiso)
 export type AjusteQueFalta = (typeof AJUSTES_QUE_FALTAN)[number];
 
 export async function capacidadesNativas(): Promise<CapacidadesNativas | null> {
@@ -213,10 +215,31 @@ export async function capacidadesNativas(): Promise<CapacidadesNativas | null> {
                 brillo: e.brillo === true,
                 texto: e.texto === true,
             },
-            falta: textos(r.falta),
+            falta: await conFaltaWebrtc(textos(r.falta), inv),
         };
     } catch {
         return null;
+    }
+}
+
+let webrtcAnotado = "";
+/** CTL1118M: en Linux, si no hay WebRTC utilizable (o faltan elementos de GStreamer) se dice en «falta» y en enlaces.log (una vez por cambio). */
+async function conFaltaWebrtc(falta: string[], inv: NonNullable<ReturnType<typeof invocador>>): Promise<string[]> {
+    try {
+        const linux = esLinuxEscritorio(typeof navigator === "undefined" ? undefined : navigator.userAgent);
+        if (!linux) return falta;
+        const hayPeer = typeof RTCPeerConnection === "function";
+        const n = (await inv("webrtc_linux_estado").catch(() => null)) as (Partial<EstadoWebrtcLinux> & { faltan?: unknown }) | null;
+        const nativo: EstadoWebrtcLinux | null = n && n.linux === true ? { linux: true, sabido: n.sabido === true, faltan: textos(n.faltan) } : null;
+        if (!faltaWebrtcLinux({ linux, hayPeer, nativo })) return falta;
+        const linea = lineaWebrtcLinux({ hayPeer, nativo });
+        if (linea !== webrtcAnotado) {
+            webrtcAnotado = linea;
+            void inv("ble_registro_anexar", { lineas: [linea] }).catch(() => undefined);
+        }
+        return falta.includes(FALTA_WEBRTC_LINUX) ? falta : [...falta, FALTA_WEBRTC_LINUX];
+    } catch {
+        return falta;
     }
 }
 

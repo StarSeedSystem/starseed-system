@@ -56,6 +56,8 @@ const COMANDOS_APP: &[&str] = &[
     // (MIC1108A) Qué sabe la app de los permisos de medios y abrir los ajustes del sistema.
     "medios_estado",
     "medios_abrir_ajustes",
+    // (CTL1118M) Si WebRTC es utilizable en Linux (elementos de GStreamer del sistema).
+    "webrtc_linux_estado",
     // (PER1108A) Asistente de permisos del primer arranque y pantalla completa de la ventana.
     "permisos_inicio_estado",
     "permisos_inicio_pedir",

@@ -14,6 +14,7 @@ import {
     medioDeEstadisticas, opcionesDeMedio, planOrdenes, politicaIce, serializarElecciones, SIN_DETERMINAR,
     type ContextoMedio, type EleccionesGuardadas, type MedioElegido, type MedioReal, type OpcionMedio, type PoliticaIce,
 } from "./medio";
+import { enlacesAuto, elegirOrdenesAuto, lineaCambioMedio, tocaReevaluar, type AutoPrevio, type EnlaceAuto } from "./auto-enlace";
 import type { CandidatoMedio } from "@/lib/mensajeria/medios/tipos";
 
 export const EVENTO_MEDIO = "starseed:control-medio-cambio";
@@ -57,6 +58,11 @@ interface Interno {
     giro: number;
     snap: EstadoMedio | null;
     ultimaLinea: string;
+    /** CTL1118M · «automático» inteligente: el enlace directo que lleva las órdenes, cuándo se miró por última vez y los que acaban de fallar. */
+    autoPrevio: AutoPrevio | null;
+    autoMirado: number;
+    autoFallidos: Map<string, number>;
+    autoEnlace: EnlaceAuto | null;
 }
 
 const CTX_VACIO: ContextoMedio = { candidatos: [], relevoPorNodo: null, hayTurn: null, wifiDirecto: null };
@@ -87,7 +93,7 @@ function guardar(m: EleccionesGuardadas): void {
 function de(n: string): Interno {
     let i = internos.get(n);
     if (!i) {
-        i = { ctx: CTX_VACIO, ordenes: SIN_DETERMINAR, par: null, parConocido: null, parConocidoHasta: 0, ordenesViejas: false, canalAbierto: () => false, peer: null, ordenFallo: false, giro: 0, snap: null, ultimaLinea: "" };
+        i = { ctx: CTX_VACIO, ordenes: SIN_DETERMINAR, par: null, parConocido: null, parConocidoHasta: 0, ordenesViejas: false, canalAbierto: () => false, peer: null, ordenFallo: false, giro: 0, snap: null, ultimaLinea: "", autoPrevio: null, autoMirado: 0, autoFallidos: new Map(), autoEnlace: null };
         internos.set(n, i);
     }
     return i;
@@ -325,10 +331,61 @@ function realDeResultado(i: Interno, r: { enlace?: { id: string; tipo: string } 
  * Manda una orden ya sellada por el medio elegido para ese aparato. «Automático» es el envío de siempre.
  * Con otra elección, solo por los enlaces de ese medio; si no hay ninguno, NO sale por otro: `medio-no-disponible`.
  */
+/** CTL1118M · lo que dura el castigo de un enlace que acaba de fallar en «automático». */
+export const CASTIGO_FALLO_MS = 15_000;
+/** CTL1118M · cuánto se espera, como mucho, a que la red local nativa saluda al otro aparato antes de irse por relevo. */
+export const ESPERA_SALUDO_MS = 1500;
+
+/**
+ * CTL1118M · «automático» inteligente de las órdenes. Antes: el transporte probaba los enlaces que YA existían y, si el enlace local nativo aún no se
+ * había creado (el faro oye al otro aparato pero nadie lo había saludado: solo la Mensajería lo hacía), iba directo al relevo por otra neurona aunque
+ * hubiera red local (`ordenes=capa:nodo`). Ahora: se saluda al otro aparato (acotado), se elige el directo de menor latencia con histéresis, se manda
+ * ESE primero y solo si no queda ninguno directo se cae al transporte (que puede usar el relevo). Se reevalúa solo cada pocos segundos y al fallar.
+ */
+async function ordenAutoInteligente(t: Pick<Transporte, "enviarMensaje"> & { prepararEnlaceNativo?: Transporte["prepararEnlaceNativo"] }, i: Interno, para: string, canal: string, cuerpo: unknown): Promise<ResultadoOrdenMedio | null> {
+    const ahora = Date.now();
+    for (const [k, hasta] of i.autoFallidos) if (hasta <= ahora) i.autoFallidos.delete(k);
+    const fallo = i.autoFallidos.size > 0 || i.ordenFallo;
+    const vista = (): EnlaceAuto[] => enlacesAuto(i.ctx.candidatos, { ahora, esWifiDirecto: i.ctx.esWifiDirecto, fallidos: new Set(i.autoFallidos.keys()) });
+    if (tocaReevaluar(i.autoMirado, ahora, fallo) || !i.autoPrevio) {
+        await refrescarContexto(para);
+        i.autoMirado = ahora;
+    }
+    let lista = vista();
+    if (!lista.some((x) => x.directo) && typeof t.prepararEnlaceNativo === "function") {
+        // Nadie ha saludado todavía a ese aparato por la red local: se hace ya y se espera un momento (acotado).
+        await t.prepararEnlaceNativo(para, ESPERA_SALUDO_MS).catch(() => null);
+        await refrescarContexto(para);
+        lista = vista();
+    }
+    const el = elegirOrdenesAuto(lista, i.autoPrevio, { ahora, esWifiDirecto: i.ctx.esWifiDirecto, fallidos: new Set(i.autoFallidos.keys()) });
+    if (el.cambia) {
+        anotar(lineaCambioMedio({ de: i.autoEnlace ?? (i.ordenes.camino === "sin-determinar" ? null : i.ordenes), a: el.enlace, causa: el.causa, ms: el.enlace?.rttMs ?? null, kbps: el.enlace?.kbpsMedido ? el.enlace.kbps : null }));
+    }
+    i.autoPrevio = el.previo;
+    i.autoEnlace = el.enlace;
+    if (!el.enlace) return null;
+    const r = await t.enviarMensaje({ neuronDeviceId: para, enlaceId: el.enlace.enlaceId }, canal, cuerpo);
+    if (r.ok) {
+        i.ordenFallo = false;
+        i.ordenes = realDeResultado(i, r);
+        i.ordenesViejas = false;
+        publicar(para);
+        return { ok: true };
+    }
+    i.autoFallidos.set(el.enlace.enlaceId, Date.now() + CASTIGO_FALLO_MS);
+    i.autoMirado = 0; // al fallar, la próxima orden vuelve a elegir
+    return null;
+}
+
 export async function enviarOrdenPorMedio(t: Pick<Transporte, "enviarMensaje">, para: string, canal: string, cuerpo: unknown, o: { sinRefrescar?: boolean } = {}): Promise<ResultadoOrdenMedio> {
     const i = de(para);
     const e = eleccionActual(para);
     if (e === "auto") {
+        if (typeof (t as { prepararEnlaceNativo?: unknown }).prepararEnlaceNativo === "function") {
+            const dir = await ordenAutoInteligente(t as Parameters<typeof ordenAutoInteligente>[0], i, para, canal, cuerpo).catch(() => null);
+            if (dir) return dir;
+        }
         const r = await t.enviarMensaje({ neuronDeviceId: para }, canal, cuerpo);
         if (r.ok) {
             i.ordenFallo = false;

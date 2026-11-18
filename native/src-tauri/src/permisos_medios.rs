@@ -279,6 +279,30 @@ pub fn elementos_webrtc_que_faltan() -> Option<Vec<&'static str>> {
     Some(faltan)
 }
 
+/// CTL1118M · lo que la web pregunta al arrancar y al abrir el control: ¿tiene este equipo lo que WebKitGTK necesita para WebRTC?
+/// `faltan` = elementos de GStreamer que no aparecen (vacío = todo); `sabido` = false si no hay `gst-inspect-1.0` (no se acusa a nadie);
+/// `orden` = la orden exacta para Debian/Ubuntu. El AppImage usa el GStreamer del SISTEMA (no hay `bundleMediaFramework` en tauri.conf.json).
+#[tauri::command]
+pub fn webrtc_linux_estado() -> serde_json::Value {
+    #[cfg(target_os = "linux")]
+    {
+        let r = elementos_webrtc_que_faltan();
+        let faltan: Vec<&str> = r.clone().unwrap_or_default();
+        return serde_json::json!({
+            "linux": true,
+            "sabido": r.is_some(),
+            "faltan": faltan,
+            "orden": ORDEN_APT_WEBRTC,
+            "texto": texto_paquetes_gstreamer(&faltan),
+        });
+    }
+    #[cfg(not(target_os = "linux"))]
+    serde_json::json!({ "linux": false, "sabido": true, "faltan": Vec::<String>::new() })
+}
+
+/// CTL1118M · la orden exacta para el nodo Debian (WebKitGTK necesita `nice` para el ICE y `plugins-bad` para `webrtcbin` y DTLS).
+pub const ORDEN_APT_WEBRTC: &str = "su -c 'apt-get install -y gstreamer1.0-nice gstreamer1.0-plugins-bad'";
+
 /// Texto para el registro/Ajustes con los paquetes que faltan.
 pub fn texto_paquetes_gstreamer(faltan: &[&str]) -> String {
     let mut pq: Vec<&str> = ELEMENTOS_WEBRTC.iter().filter(|e| faltan.contains(&e.0)).map(|e| e.1).collect();
@@ -303,6 +327,14 @@ mod pruebas {
         let t = texto_paquetes_gstreamer(&["webrtcbin", "dtlssrtpenc", "nicesrc"]);
         assert_eq!(t.matches("gstreamer1.0-plugins-bad").count(), 1, "el paquete se nombra una vez: {t}");
         assert!(t.contains("gstreamer1.0-nice") && t.contains("canal de datos"));
+    }
+
+    #[test]
+    fn orden_apt_exacta() {
+        // CTL1118M
+        assert_eq!(ORDEN_APT_WEBRTC, "su -c 'apt-get install -y gstreamer1.0-nice gstreamer1.0-plugins-bad'");
+        let v = webrtc_linux_estado();
+        assert!(v.get("faltan").is_some());
     }
 
     #[test]

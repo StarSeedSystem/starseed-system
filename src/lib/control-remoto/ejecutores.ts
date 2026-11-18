@@ -12,7 +12,7 @@ import type { Args } from "./niveles";
 /** Evento que la banda (montada en el layout, con el enrutador de Next) atiende para abrir una ruta. */
 export const EVENTO_ABRIR_RUTA = "starseed:control-abrir-ruta";
 
-const ORDENES_PANTALLA = new Set(["pantalla-iniciar", "pantalla-parar", "pantalla-senal", "leer-aparato", "gesto", "tecla", "volumen", "brillo", "texto"]);
+const ORDENES_PANTALLA = new Set(["pantalla-iniciar", "pantalla-parar", "pantalla-senal", "pantalla-cuadro", "leer-aparato", "gesto", "tecla", "volumen", "brillo", "texto"]);
 function esOrdenDePantalla(nombre: string): boolean {
     return ORDENES_PANTALLA.has(nombre);
 }

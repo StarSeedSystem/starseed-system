@@ -819,7 +819,10 @@ pub fn run() {
             let _ = std::thread::Builder::new().name("starseed-gst".into()).spawn(|| {
                 if let Some(f) = permisos_medios::elementos_webrtc_que_faltan() {
                     if !f.is_empty() {
-                        eprintln!("[llamadas] {}", permisos_medios::texto_paquetes_gstreamer(&f));
+                        let t = permisos_medios::texto_paquetes_gstreamer(&f);
+                        eprintln!("[llamadas] {}", t);
+                        // CTL1118M: además en enlaces.log (antes solo salía por stderr y nadie lo veía).
+                        ble::ble_registro_anexar(vec![format!("llamada webrtc-linux faltan={} orden={}", f.join(","), permisos_medios::ORDEN_APT_WEBRTC)]);
                     }
                 }
             });
@@ -857,6 +860,7 @@ pub fn run() {
                 pista_neurona::pista_neurona,
                 pista_neurona::pista_neurona_leer,
                 permisos_medios::medios_estado,
+                permisos_medios::webrtc_linux_estado, // CTL1118M
                 permisos_medios::medios_abrir_ajustes,
                 permisos_inicio::permisos_inicio_estado,
                 permisos_inicio::permisos_inicio_pedir,

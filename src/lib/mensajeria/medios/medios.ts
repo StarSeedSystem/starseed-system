@@ -39,6 +39,7 @@ export interface EnlaceParaMedio {
     abierto: boolean;
     ruta?: string | null;
     rttMs?: number | null;
+    capacidadKbps?: number | null;
     admite?: { mensaje?: boolean };
 }
 
@@ -144,6 +145,7 @@ export function candidatosDesdeEnlaces(
             ...(alcanza ? {} : { motivoNoLlega: motivoNoLlega?.(e) }),
             rttMs: typeof e.rttMs === "number" && Number.isFinite(e.rttMs) ? e.rttMs : null,
             ruta: e.ruta ?? null,
+            ...(typeof e.capacidadKbps === "number" && e.capacidadKbps > 0 ? { capacidadKbps: e.capacidadKbps } : {}),
         });
     }
     return out;

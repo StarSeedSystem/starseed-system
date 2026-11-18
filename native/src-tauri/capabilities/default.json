@@ -98,6 +98,7 @@
     "allow-pista-neurona-leer",
     "allow-medios-estado",
     "allow-medios-abrir-ajustes",
+    "allow-webrtc-linux-estado",
     "allow-permisos-inicio-estado",
     "allow-permisos-inicio-pedir",
     "allow-permisos-sistema-estado",

@@ -45,9 +45,9 @@ export function mediaCoste(media: number | null, ms: number): number {
 }
 
 /** Una medida (la media de los últimos `CUADROS_POR_MEDIDA` cuadros) → el estado siguiente. `cambio` = el nivel nuevo si hay que mandarlo. */
-export function siguienteRitmo(e: EstadoRitmo, costeMs: number): { estado: EstadoRitmo; cambio: NivelCuadro | null } {
+export function siguienteRitmo(e: EstadoRitmo, costeMs: number, umbrales: { alto: number; bajo: number } = { alto: COSTE_ALTO_MS, bajo: COSTE_BAJO_MS }): { estado: EstadoRitmo; cambio: NivelCuadro | null } {
     const ultimo = NIVELES_CUADRO.length - 1;
-    if (costeMs > COSTE_ALTO_MS) {
+    if (costeMs > umbrales.alto) {
         const altas = e.altas + 1;
         if (altas >= MEDIDAS_PARA_BAJAR && e.nivel < ultimo) {
             const nivel = e.nivel + 1;
@@ -55,7 +55,7 @@ export function siguienteRitmo(e: EstadoRitmo, costeMs: number): { estado: Estad
         }
         return { estado: { nivel: e.nivel, altas, bajas: 0 }, cambio: null };
     }
-    if (costeMs < COSTE_BAJO_MS) {
+    if (costeMs < umbrales.bajo) {
         const bajas = e.bajas + 1;
         if (bajas >= MEDIDAS_PARA_SUBIR && e.nivel > 0) {
             const nivel = e.nivel - 1;

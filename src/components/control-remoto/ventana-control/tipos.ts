@@ -18,6 +18,8 @@ export interface PropsVentanaControl {
     estado: "conectando" | "en-vivo" | "pausa-local" | "sin-pantalla" | "cerrada";
     motivo?: string;
     flujo: MediaStream | null;
+    /** CTL1118M: la pantalla por la malla se enseña en este lienzo (sin vídeo). */
+    lienzo?: HTMLCanvasElement | null;
     pantalla: { ancho: number; alto: number; giro: 0 | 90 | 180 | 270 } | null;
     nivel: "ver" | "controlar";
     capacidades: { gestos: boolean; maxDedos: number; teclas: string[]; volumen: boolean; brillo: boolean; texto: boolean };
@@ -31,7 +33,10 @@ export interface PropsVentanaControl {
     alEnviar: (e: EntradaControl) => void;
     alCerrar: () => void;
     fuentePedida?: FuentePedida;
-    fuenteReal?: "accesibilidad" | "proyeccion" | null;
+    /** CTL1118M: por dónde van de verdad los cuadros. */
+  via?: "webrtc" | "malla";
+  enlaceVia?: string | null;
+  fuenteReal?: "accesibilidad" | "proyeccion" | null;
     avisoFuente?: string | null | undefined;
     alCambiarFuente?: (f: FuentePedida) => void;
     /** CTL1118F · la persona pide la pantalla fluida con la sesión en marcha (no reabre nada; la acepta la persona EN el aparato). */

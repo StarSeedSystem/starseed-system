@@ -123,6 +123,7 @@ export const PALABRAS_FALTA: Readonly<Record<string, string>> = {
     // CTL1118L · Linux controlado: no son permisos que se den en Ajustes, es la sesión gráfica del equipo (por eso no hay botón).
     "wayland": "Ese equipo Linux usa una sesión Wayland: StarSeed OS solo puede mostrar y controlar su pantalla en una sesión X11. Cierra la sesión allí y entra eligiendo «Xfce (X11)» o similar.",
     "sin-pantalla-x11": "StarSeed OS no encuentra la pantalla (servidor X) de ese equipo Linux: sin ella no se puede ver ni tocar. Hace falta que alguien haya iniciado sesión en el escritorio.",
+    "webrtc-linux": "Este equipo Linux no tiene lo que WebKitGTK necesita para WebRTC (GStreamer: nice y plugins-bad). La pantalla irá por la malla, más lenta que por vídeo. En una terminal: su -c 'apt-get install -y gstreamer1.0-nice gstreamer1.0-plugins-bad' y vuelve a abrir StarSeed OS.",
     "entrada-x11": "El servidor gráfico de ese equipo Linux no tiene la extensión XTEST: se puede ver su pantalla, pero no mover el ratón ni escribir.",
 };
 

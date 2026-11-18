@@ -9,6 +9,7 @@
  */
 
 import { RE_NEG, MAX_PARTES, leerParte } from "./senal-partes";
+import { validarPideCuadro } from "./cuadro-malla";
 
 export type Nivel = "ver" | "controlar" | "modificar" | "administrar";
 export const NIVELES: readonly Nivel[] = ["ver", "controlar", "modificar", "administrar"];
@@ -229,6 +230,8 @@ export const ACCIONES: Readonly<Record<string, DefAccion>> = {
     "pantalla-iniciar": { nivel: "ver", validar: validarPantallaIniciar, que: "empieza a mandar la pantalla de este aparato (la fuente la elige la persona en él)" },
     "pantalla-parar": { nivel: "ver", validar: sinArgs, que: "deja de mandar la pantalla" },
     "pantalla-senal": { nivel: "ver", senal: true, validar: validarSenal, que: "negocia la conexión de vídeo (oferta y candidatos); la respuesta lleva la contestación" },
+    // CTL1118M: la pantalla por la malla cuando no hay WebRTC (un cuadro en vuelo; el JPEG viaja en partes dentro de la respuesta sellada).
+    "pantalla-cuadro": { nivel: "ver", senal: true, validar: validarPideCuadro, que: "manda un cuadro de la pantalla por la malla (solo cuando no hay conexión de vídeo)" },
     "leer-aparato": { nivel: "ver", validar: sinArgs, que: "volumen, brillo, batería, red y pantalla del aparato" },
     gesto: { nivel: "controlar", entrada: true, validar: validarGesto, que: "toque, deslizamiento o multitáctil (hasta 10 dedos)" },
     tecla: {

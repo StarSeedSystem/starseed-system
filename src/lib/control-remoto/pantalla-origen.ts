@@ -20,6 +20,7 @@ import { Reensamblador, leerParte, trocear, type ParteSenal } from "./senal-part
 import { RelojEstable } from "@/lib/llamadas/reloj-estable";
 import { VigiaFondo, esperarCon, type MedidasFondo } from "./vigia-fondo";
 import { CUADROS_POR_MEDIDA, RITMO_INICIAL, capacidadFps, mediaCoste, siguienteRitmo, type EstadoRitmo } from "./ritmo-pantalla";
+import { MAX_CUADRO_BYTES, nivelDe, partirCuadro, type ParteCuadro } from "./cuadro-malla";
 import { ESPERA_FLUIDA_MS, SONDEO_FLUIDA_MS, debePedirFluida, fuenteActivaDe, proyeccionConcedida, type FuenteReal } from "./fuente-pantalla";
 
 export const LADO_MAX_DEFECTO = 1280;
@@ -122,7 +123,12 @@ export interface DepsOrigen {
     vigia?: { arrancar(m: MedidasFondo): void; parar(): void };
     /** CTL1117C: órdenes cumplidas por la puerta (para el diagnóstico de segundo plano). */
     ordenesServidas?: () => number;
+    /** CTL1118M: vuelve a codificar un JPEG más pequeño (lado y calidad del nivel) para la pantalla por la malla. null si no se pudo. */
+    reducir?: (jpeg: Uint8Array, ancho: number, alto: number, lado: number, calidad: number) => Promise<{ jpeg: Uint8Array; ancho: number; alto: number } | null>;
 }
+
+/** CTL1118M: mientras quien manda pida cuadros por la malla, esta página no se para por «sin oferta». */
+export const VIGENCIA_MALLA_MS = 8_000;
 
 interface Activa {
     token: string;
@@ -149,6 +155,10 @@ interface Activa {
     /** CTL1117C: cuadros nuevos que Rust dio a la página (los pintados son `cuadros`). */
     recibidos: number;
     cola: Promise<void>;
+    /** CTL1118M: el último cuadro traído de lo nativo y, si quien manda pide por la malla, el que se está repartiendo en partes. */
+    ultimo: { numero: number; jpeg: Uint8Array; ancho: number; alto: number } | null;
+    mallaHasta: number;
+    envio: { num: number; partes: ParteCuadro[]; ancho: number; alto: number } | null;
     reens: Reensamblador; // SEN1116A: partes de la oferta; se tira con la sesión
     respuestas: Map<string, ParteSenal[]>;
 }
@@ -191,6 +201,8 @@ export class OrigenPantalla {
                 return { parada: true };
             case "pantalla-senal":
                 return this.senal(viva, args);
+            case "pantalla-cuadro":
+                return this.cuadro(viva, args);
             case "leer-aparato":
                 return this.leerAparato();
             case "gesto":
@@ -250,6 +262,9 @@ export class OrigenPantalla {
             cuadros: 0,
             recibidos: 0,
             cola: Promise.resolve(),
+            ultimo: null,
+            mallaHasta: 0,
+            envio: null,
             reens: new Reensamblador(this.d.ahora),
             respuestas: new Map(),
         };
@@ -388,7 +403,7 @@ export class OrigenPantalla {
                 await this.parar("sesion-cerrada");
                 return;
             }
-            if (!a.peer && this.d.ahora() - a.inicio > ESPERA_OFERTA_MS) {
+            if (!a.peer && this.d.ahora() - a.inicio > ESPERA_OFERTA_MS && this.d.ahora() > a.mallaHasta) {
                 await this.parar("sin-oferta");
                 return;
             }
@@ -423,6 +438,13 @@ export class OrigenPantalla {
             vacios = 0;
             a.desde = h.numero;
             a.recibidos += 1;
+            // CTL1118M: sin conexión de vídeo y con quien manda pidiendo por la malla, el cuadro se guarda para repartirlo; no se pinta para nadie.
+            if (!a.peer && this.d.ahora() <= a.mallaHasta) {
+                a.ultimo = { numero: h.numero, jpeg: bytes.slice(CABECERA_CUADRO), ancho: h.ancho, alto: h.alto };
+                a.cuadros += 1;
+                continue;
+            }
+            a.ultimo = { numero: h.numero, jpeg: bytes.slice(CABECERA_CUADRO), ancho: h.ancho, alto: h.alto };
             const ok = await a.pintor.pintar(bytes.subarray(CABECERA_CUADRO), h.ancho, h.alto).catch(() => false);
             if (ok) a.cuadros += 1;
             // CTL1118F: lo que cuesta un cuadro (traerlo + pintarlo) manda el tamaño y la calidad de los siguientes, solo con la fluida.
@@ -459,6 +481,35 @@ export class OrigenPantalla {
             );
         }
         return { candidatos: n };
+    }
+
+    /**
+     * CTL1118M · la pantalla por la malla. Parte 0: si hay un cuadro más nuevo que `desde`, lo congela (con el nivel pedido: más pequeño si el enlace da poco)
+     * y contesta su parte 0; si no, `{ nuevo: false }`. Partes 1..n-1: las del cuadro congelado (`num` tiene que casar). Nada se guarda: se suelta al llegar el siguiente.
+     */
+    private async cuadro(s: SesionViva, args: Args): Promise<unknown> {
+        const a = this.activa;
+        if (!a || a.parado || a.token !== s.token || a.de !== s.de) throw new Error("sin-pantalla");
+        a.mallaHasta = this.d.ahora() + VIGENCIA_MALLA_MS;
+        const pide = Number(args.pide);
+        if (pide > 0) {
+            const e = a.envio;
+            if (!e || e.num !== Number(args.num) || !e.partes[pide]) throw new Error("cuadro-cambiado");
+            return { ...e.partes[pide] };
+        }
+        const u = a.ultimo;
+        if (!u || u.numero <= Number(args.desde)) return { nuevo: false, numero: u?.numero ?? 0 };
+        let { jpeg, ancho, alto } = u;
+        const niv = nivelDe(args.nivel);
+        const reducir = this.d.reducir;
+        if (reducir && (Number(args.nivel) > 0 || jpeg.length > MAX_CUADRO_BYTES)) {
+            const r = await reducir(jpeg, ancho, alto, niv.lado, niv.calidad).catch(() => null);
+            if (r) ({ jpeg, ancho, alto } = r);
+        }
+        if (jpeg.length > MAX_CUADRO_BYTES) return { nuevo: false, numero: u.numero, motivo: "grande" };
+        const partes = partirCuadro(jpeg, u.numero);
+        a.envio = { num: u.numero, partes, ancho, alto };
+        return { nuevo: true, ancho, alto, ...partes[0] };
     }
 
     private falloSenal(paso: string, motivo: string): Error {
@@ -663,13 +714,19 @@ export function latidoDeCuadros(
 export function crearPintorReal(cada?: (fn: () => void, ms: number) => () => void): Pintor {
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d");
-    const flujo = canvas.captureStream(0); // 0 fps: el cuadro sale cuando se pide con requestFrame, ya pintado
-    const pista = flujo.getVideoTracks()[0] as MediaStreamTrack & { requestFrame?: () => void };
+    // CTL1118M: WebKitGTK sin GStreamer no tiene `captureStream`: no es motivo para no servir la pantalla (por la malla no hace falta flujo).
+    let flujo: MediaStream | null = null;
+    try {
+        flujo = typeof canvas.captureStream === "function" ? canvas.captureStream(0) : null; // 0 fps: el cuadro sale cuando se pide con requestFrame, ya pintado
+    } catch {
+        flujo = null;
+    }
+    const pista = flujo?.getVideoTracks()[0] as (MediaStreamTrack & { requestFrame?: () => void }) | undefined;
     let repetidos = 0;
     const latido = latidoDeCuadros(
         () => {
             if (canvas.width > 0 && canvas.height > 0) {
-                pista.requestFrame?.();
+                pista?.requestFrame?.();
                 repetidos += 1;
             }
         },
@@ -688,7 +745,7 @@ export function crearPintorReal(cada?: (fn: () => void, ms: number) => () => voi
                     canvas.height = alto;
                 }
                 ctx.drawImage(bmp, 0, 0, ancho, alto);
-                pista.requestFrame?.();
+                pista?.requestFrame?.();
                 latido.tocado();
                 return true;
             } catch {
@@ -702,11 +759,33 @@ export function crearPintorReal(cada?: (fn: () => void, ms: number) => () => voi
         flujo: () => flujo,
         liberar() {
             latido.parar();
-            for (const t of flujo.getTracks()) t.stop();
+            for (const t of flujo?.getTracks() ?? []) t.stop();
             canvas.width = 0;
             canvas.height = 0;
         },
     };
+}
+
+/** CTL1118M: vuelve a codificar un JPEG más pequeño (solo para la pantalla por la malla; no corre con WebRTC). */
+async function reducirReal(jpeg: Uint8Array, ancho: number, alto: number, lado: number, calidad: number): Promise<{ jpeg: Uint8Array; ancho: number; alto: number } | null> {
+    let bmp: ImageBitmap | null = null;
+    try {
+        bmp = await createImageBitmap(new Blob([jpeg as BlobPart], { type: "image/jpeg" }));
+        const k = Math.min(1, lado / Math.max(ancho, alto));
+        const w = Math.max(1, Math.round(ancho * k));
+        const h = Math.max(1, Math.round(alto * k));
+        const c = document.createElement("canvas");
+        c.width = w;
+        c.height = h;
+        c.getContext("2d")?.drawImage(bmp, 0, 0, w, h);
+        const blob: Blob | null = await new Promise((res) => c.toBlob(res, "image/jpeg", calidad / 100));
+        if (!blob) return null;
+        return { jpeg: new Uint8Array(await blob.arrayBuffer()), ancho: w, alto: h };
+    } catch {
+        return null;
+    } finally {
+        bmp?.close();
+    }
 }
 
 function invocadorTauri(): DepsOrigen["invocar"] {
@@ -753,6 +832,7 @@ export function origenGlobal(): OrigenPantalla {
         esperar: (ms) => esperarCon(reloj, ms),
         ahora: () => Date.now(),
         vigia,
+        reducir: reducirReal,
         ordenesServidas: () => puertaRegistrada?.ordenesServidas?.() ?? 0,
         anotar: (l) => {
             void import("@/lib/llamadas/voz-datos/diagnostico").then((m) => m.anotarLlamada("banco", null, l)).catch(() => undefined);

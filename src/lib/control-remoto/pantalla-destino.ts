@@ -19,7 +19,9 @@ import { MAX_PARTES, Reensamblador, leerParte, trocear, type ParteSenal } from "
 import { esRespuesta, type RespuestaOrden } from "./orden";
 import { RegistroSesiones, registroGlobal } from "./registro-sesiones";
 import { claveParadaNativa } from "./palabras"; // CTL1117C
-import { canalDatosOk, configuracionIce, filtrarRespuesta, permitirCandidato, registrarConexion } from "./medio-estado"; // CTL1117B
+import { canalDatosOk, configuracionIce, filtrarRespuesta, instantaneaMedio, permitirCandidato, registrarConexion } from "./medio-estado"; // CTL1117B
+import { ESPERA_ICE_MS, ReensambladorCuadro, UMBRALES_MALLA, leerParteCuadro, lineaVia, planPorCamino, esperaSinCuadro } from "./cuadro-malla";
+import { CUADROS_POR_MEDIDA, RITMO_INICIAL, mediaCoste, siguienteRitmo, type EstadoRitmo } from "./ritmo-pantalla";
 import { FUENTE_DEFECTO, fuenteRealValida, type FuentePedida, type FuenteReal } from "./fuente-pantalla";
 
 export type EntradaControl =
@@ -62,6 +64,11 @@ export interface InstantaneaPantalla {
     fuente?: FuenteReal;
     latenciaMs?: number;
     fps?: number;
+    /** CTL1118M: por dónde van de verdad los cuadros y por qué enlace (la ventana lo dice; nunca lo pedido). */
+    via?: "webrtc" | "malla";
+    enlace?: string;
+    /** CTL1118M: el lienzo donde se pintan los cuadros de la malla. Se enseña TAL CUAL (sin captureStream: WebKitGTK sin GStreamer no lo tiene). */
+    lienzo?: HTMLCanvasElement | null;
     /** CTL1117A · S3: cuándo llega la hora máxima de la sesión (ms epoch), si el aparato la dijo. */
     caduca?: number;
     /** CTL1117J · S2: hasta dónde llega el control en el aparato controlado, tal como él lo dijo (null: no lo dijo, aparato anterior). */
@@ -225,6 +232,14 @@ export interface DepsDestino {
     anotar?: (linea: string) => void;
     /** CTL1117A · S1/S2/S4: la sesión es una por neurona y se comparte con quien más la use en este aparato. */
     registro?: RegistroSesiones;
+    /** CTL1118M · la pantalla por la malla cuando no hay WebRTC (sin esto, como antes: se cierra). */
+    malla?: {
+        hayWebRtc: () => boolean;
+        crearLienzo: () => { pintar(jpeg: Uint8Array, ancho: number, alto: number): Promise<boolean>; flujo(): unknown; elemento?(): unknown; liberar(): void };
+        /** El enlace real de las órdenes ahora (directo/capa y medio). */
+        enlace: () => { camino: "directo" | "capa" | "sin-determinar"; medio: string | null };
+        esperar: (ms: number) => Promise<void>;
+    };
     /** CTL1117B · el medio elegido para este aparato: filtro de rutas, medida del par y permiso del canal de datos. Sin él, todo como antes. */
     medio?: {
         permitirCandidato: (candidato: string) => boolean;
@@ -271,6 +286,9 @@ export class PantallaDestino {
     /** CTL1118F: el carril es el de la neurona (compartido con las demás ventanas/banco que usan la misma sesión), no uno por destino. */
     private readonly carrilCompartido: { cola: Promise<unknown> };
     private reintentadas = new WeakSet<object>();
+    private enMalla = false; // CTL1118M
+    private lienzoMalla: { pintar(jpeg: Uint8Array, ancho: number, alto: number): Promise<boolean>; flujo(): unknown; elemento?(): unknown; liberar(): void } | null = null;
+    private inicioConexion = 0;
 
     constructor(
         readonly neurona: string,
@@ -356,9 +374,23 @@ export class PantallaDestino {
             ...(fuente ? { fuente } : {}),
             ...(alcanceDeNativo(res.capacidades, res) ? { alcance: alcanceDeNativo(res.capacidades, res) } : {}), // CTL1117J · S2
         });
+        this.inicioConexion = this.d.ahora();
+        if (this.d.malla && !this.d.malla.hayWebRtc()) {
+            // CTL1118M: sin RTCPeerConnection utilizable en este aparato, la pantalla viaja por la malla desde el principio.
+            this.cada(REFRESCO_APARATO_MS, () => void this.leerAparato());
+            this.pasarAMalla("sin-webrtc");
+            void this.leerAparato();
+            return;
+        }
         try {
             await this.negociar();
         } catch (e) {
+            if (this.d.malla && !this.cerrada) {
+                this.cada(REFRESCO_APARATO_MS, () => void this.leerAparato());
+                this.pasarAMalla("sin-oferta");
+                void this.leerAparato();
+                return;
+            }
             // El motivo lleva el paso y el lado («senal-oferta-aparato-argumentos»); la ventana lo dice en palabras.
             const m = e instanceof Error && /^senal-/.test(e.message) ? e.message : "negociacion";
             if (m === "negociacion") this.anotar("control-senal paso=conexion lado=controlador resultado=error motivo=negociacion");
@@ -366,8 +398,9 @@ export class PantallaDestino {
             return;
         }
         if (this.cerrada) return;
+        if (this.d.malla) this.despues(ESPERA_ICE_MS, () => this.snap.estado === "conectando" && !this.enMalla && this.pasarAMalla("ice-sin-conexion"));
         this.despues(ESPERA_CONEXION_MS, () => {
-            if (this.snap.estado === "conectando") void this.cerrar("sin-conexion", true);
+            if (this.snap.estado === "conectando" && !this.enMalla) void this.cerrar("sin-conexion", true);
         });
         this.cada(REFRESCO_APARATO_MS, () => void this.leerAparato());
         this.cada(MEDIDA_MS, () => void this.medir());
@@ -393,6 +426,8 @@ export class PantallaDestino {
         peer.onconnectionstatechange = () => {
             const s = peer.connectionState;
             if (s === "connected" && (this.snap.estado === "conectando" || this.snap.estado === "sin-pantalla")) this.poner({ estado: "en-vivo" });
+            if (this.enMalla) return;
+            if (s === "failed" && this.d.malla) return this.pasarAMalla("ice-fallido");
             if (s === "failed" || s === "closed") void this.cerrar("conexion-perdida", true);
         };
         peer.onicecandidate = (e) => {
@@ -446,6 +481,116 @@ export class PantallaDestino {
         this.anotar(`control-senal paso=respuesta lado=controlador resultado=ok partes=${f.n} largo=${respuesta.length}`);
         this.remotoListo = true;
         await this.soltarCandidatos();
+    }
+
+    /**
+     * CTL1118M · la pantalla por la malla: se suelta la conexión de vídeo y los cuadros se piden con `pantalla-cuadro`, un cuadro en vuelo como mucho,
+     * y se pintan en un lienzo propio cuyo flujo es el mismo `flujo` de la ventana. Tamaño y calidad siguen al coste medido de cada cuadro.
+     */
+    private pasarAMalla(causa: string): void {
+        if (this.enMalla || this.cerrada || !this.d.malla) return;
+        this.enMalla = true;
+        try {
+            this.quitarMedio?.();
+            this.peer?.close();
+        } catch {
+            /* ya cerrada */
+        }
+        this.quitarMedio = null;
+        this.peer = null;
+        this.canal = null;
+        this.candidatos = [];
+        const l = this.d.malla.crearLienzo();
+        this.lienzoMalla = l;
+        const e = this.d.malla.enlace();
+        this.anotar(lineaVia({ via: "malla", enlace: e.medio ? `${e.camino}:${e.medio}` : null, cuadrosS: null, causa }));
+        this.poner({ via: "malla", ...(e.medio ? { enlace: `${e.camino}:${e.medio}` } : {}), flujo: l.flujo() as MediaStream | null, lienzo: (l.elemento?.() as HTMLCanvasElement | null | undefined) ?? null });
+        void this.bucleMalla(l);
+    }
+
+    private async bucleMalla(l: NonNullable<PantallaDestino["lienzoMalla"]>): Promise<void> {
+        const m = this.d.malla;
+        if (!m) return;
+        const reens = new ReensambladorCuadro();
+        let desde = 0;
+        let vacios = 0;
+        let fallos = 0;
+        let ritmo: EstadoRitmo = RITMO_INICIAL;
+        let coste: number | null = null;
+        let enMedida = 0;
+        let cuadros = 0;
+        let t0fps = this.d.ahora();
+        let ultimaLinea = t0fps;
+        while (!this.cerrada && this.enMalla) {
+            const camino = m.enlace();
+            const plan = planPorCamino(camino.camino, ritmo.nivel);
+            const t0 = this.d.ahora();
+            const r = await this.orden("pantalla-cuadro", { desde, pide: 0, nivel: plan.nivel }, "ver");
+            if (this.cerrada) return;
+            if (!r.ok) {
+                fallos += 1;
+                if (fallos >= 5) return void (await this.cerrar(r.motivo === "sin-pantalla" ? "sin-pantalla" : "sin-cuadros", true));
+                await m.esperar(300 * fallos);
+                continue;
+            }
+            fallos = 0;
+            const res = (r.resultado ?? {}) as Record<string, unknown>;
+            if (res.nuevo === false) {
+                vacios += 1;
+                if (this.snap.estado !== "en-vivo" && this.snap.estado !== "pausa-local") this.poner({ estado: "en-vivo" });
+                await m.esperar(esperaSinCuadro(vacios));
+                continue;
+            }
+            vacios = 0;
+            const p0 = leerParteCuadro(res);
+            if (!p0) {
+                fallos += 1;
+                continue;
+            }
+            let jpeg: Uint8Array | null = null;
+            try {
+                jpeg = reens.meter(p0);
+                for (let i = 1; jpeg === null && i < p0.n && !this.cerrada; i++) {
+                    const q = await this.orden("pantalla-cuadro", { desde, pide: i, num: p0.num }, "ver");
+                    const pq = q.ok ? leerParteCuadro(q.resultado) : null;
+                    if (!pq) throw new Error("parte");
+                    jpeg = reens.meter(pq);
+                }
+            } catch {
+                fallos += 1;
+                continue;
+            }
+            if (!jpeg || this.cerrada) continue;
+            desde = p0.num;
+            const ancho = Number(res.ancho) || 0;
+            const alto = Number(res.alto) || 0;
+            if (ancho > 0 && alto > 0 && (this.snap.pantalla?.ancho !== ancho || this.snap.pantalla?.alto !== alto)) this.poner({ pantalla: { ancho, alto, giro: 0 } });
+            if (await l.pintar(jpeg, ancho, alto).catch(() => false)) {
+                cuadros += 1;
+                if (this.snap.estado !== "en-vivo" && this.snap.estado !== "pausa-local") this.poner({ estado: "en-vivo" });
+            }
+            const ms = this.d.ahora() - t0;
+            coste = mediaCoste(coste, ms);
+            enMedida += 1;
+            if (enMedida >= Math.min(CUADROS_POR_MEDIDA, 10)) {
+                enMedida = 0;
+                const { estado, cambio } = siguienteRitmo(ritmo, coste, UMBRALES_MALLA);
+                ritmo = estado;
+                if (cambio) this.anotar(lineaVia({ via: "malla", enlace: camino.medio ? `${camino.camino}:${camino.medio}` : null, cuadrosS: null, causa: "ritmo", kbps: (jpeg.length * 8) / Math.max(1, ms), nivel: estado.nivel }));
+            }
+            const ahora = this.d.ahora();
+            if (ahora - t0fps >= 1000) {
+                const fps = (cuadros * 1000) / (ahora - t0fps);
+                cuadros = 0;
+                t0fps = ahora;
+                this.poner({ fps: Math.round(fps * 10) / 10 });
+                if (ahora - ultimaLinea >= 5000) {
+                    ultimaLinea = ahora;
+                    this.anotar(lineaVia({ via: "malla", enlace: camino.medio ? `${camino.camino}:${camino.medio}` : null, cuadrosS: fps, kbps: (jpeg.length * 8) / Math.max(1, ms) }));
+                }
+            }
+            if (plan.pausaMs) await m.esperar(plan.pausaMs);
+        }
     }
 
     /** CTL1118A: un motivo para el registro: solo letras minúsculas y guiones, acotado. */
@@ -783,7 +928,13 @@ export class PantallaDestino {
         this.peer = null;
         this.quitarMedio?.(); // CTL1117B
         this.quitarMedio = null;
-        this.poner({ estado: "cerrada", motivo, flujo: null });
+        try {
+            this.lienzoMalla?.liberar();
+        } catch {
+            /* nada */
+        }
+        this.lienzoMalla = null;
+        this.poner({ estado: "cerrada", motivo, flujo: null, lienzo: null });
         if (avisar && token) {
             const o = { nivel: "ver" as const, sesion: token, esperaMs: 3000 };
             await this.d.mandar("pantalla-parar", {}, o).catch(() => undefined);
@@ -797,6 +948,41 @@ export class PantallaDestino {
 }
 
 // ── implementación real ──────────────────────────────────────────────────────────────────────
+
+/** CTL1118M: el lienzo donde quien manda pinta los cuadros que llegan por la malla; su flujo es el que enseña la ventana. */
+function crearLienzoMalla() {
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    const flujo = typeof canvas.captureStream === "function" ? canvas.captureStream(0) : null;
+    const pista = flujo?.getVideoTracks()[0] as (MediaStreamTrack & { requestFrame?: () => void }) | undefined;
+    return {
+        async pintar(jpeg: Uint8Array, ancho: number, alto: number): Promise<boolean> {
+            if (!ctx) return false;
+            let bmp: ImageBitmap | null = null;
+            try {
+                bmp = await createImageBitmap(new Blob([jpeg as BlobPart], { type: "image/jpeg" }));
+                if (canvas.width !== ancho || canvas.height !== alto) {
+                    canvas.width = ancho;
+                    canvas.height = alto;
+                }
+                ctx.drawImage(bmp, 0, 0, ancho, alto);
+                pista?.requestFrame?.();
+                return true;
+            } catch {
+                return false;
+            } finally {
+                bmp?.close();
+            }
+        },
+        flujo: () => flujo,
+        elemento: () => canvas,
+        liberar() {
+            for (const t of flujo?.getTracks() ?? []) t.stop();
+            canvas.width = 0;
+            canvas.height = 0;
+        },
+    };
+}
 
 /** Las piezas reales: canal de control, firma del aparato, configuración ICE de las llamadas y RTCPeerConnection. */
 export function depsReales(neurona: string): DepsDestino {
@@ -813,6 +999,16 @@ export function depsReales(neurona: string): DepsDestino {
             canalDatosOk: () => canalDatosOk(neurona),
         },
         flujoDe: (pista) => (typeof MediaStream === "function" ? new MediaStream([pista as MediaStreamTrack]) : null),
+        // CTL1118M: sin RTCPeerConnection (WebKitGTK sin GStreamer) o sin negociación que llegue, la pantalla va por la malla.
+        malla: {
+            hayWebRtc: () => typeof RTCPeerConnection === "function",
+            crearLienzo: crearLienzoMalla,
+            enlace: () => {
+                const o = instantaneaMedio(neurona).ordenes;
+                return { camino: o.camino === "capa" ? "capa" : o.camino === "directo" ? "directo" : "sin-determinar", medio: o.medio };
+            },
+            esperar: (ms) => new Promise((r) => setTimeout(r, ms)),
+        },
         ahora: () => Date.now(),
         anotar: (l) => {
             void import("@/lib/llamadas/voz-datos/diagnostico").then((m) => m.anotarLlamada("banco", null, l)).catch(() => undefined);

@@ -69,6 +69,8 @@ export interface CandidatoMedio {
     rttMs?: number | null;
     /** Ruta medida del canal WebRTC (misma-red-local, internet-directo, reenviado-turn…). */
     ruta?: string | null;
+    /** CTL1118M · caudal medido del enlace (kbit/s); ausente = sin medir. */
+    capacidadKbps?: number | null;
 }
 
 export interface PasoEnvio {
