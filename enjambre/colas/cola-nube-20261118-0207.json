@@ -1,0 +1,25 @@
+{
+ "ola": "nube-20261118",
+ "tareas": [
+  {
+   "ola": "DSB1116B",
+   "id": "DSB02-d1",
+   "titulo": "Directores: leer el error real de Kotlin y no abrir tareas por compilaciones ya superadas (parte 1 de 2)",
+   "archivos": [
+    "scripts/puente/prioridad_desbloqueo.py"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. PRIMERA PRUEBA REAL de `scripts/puente/prioridad_desbloqueo.py` (16-11, 21:27): abrió una tarea URGENTE para la compilación N.º 47, que ya estaba arreglada, con `archivos: []` y esta evidencia: «FAILURE: Build failed with an exception. * What went wrong: Execution failed for task …». Dos defectos:\n1) El analizador del registro NO recogió la línea del compilador de Kotlin tal como la da GitHub. Formato real (cada línea de `gh run view --log-failed` lleva delante `<trabajo>\\t<paso>\\t<fecha ISO> `): `e: file:///home/runner/work/starseed-system/starseed-system/native/src-tauri/gen/android/app/src/main/java/app/starseed/os/nativa/ProyeccionPantallaStarSeed.kt:189:14 Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver of type 'MediaProjection?'.` Debe reconocer `e: file://…/<Nombre>.kt:<línea>:<columna> <mensaje>` (y `e: <ruta>.kt:…` sin `file://`), quedarse con el nombre del archivo, la línea y el mensaje, y ponerlos PRIMERO en la evidencia. La ruta generada (`gen/android/...`) no existe en el repositorio: el archivo del repo se busca por su NOMBRE con el buscador inyectado que ya use el módulo (si no hay ninguno, añade un parámetro inyectado `buscar_por_nombre(nombre) -> [rutas]`).\n2) No debe abrir tarea por una compilación fallida cuando ya hay una compilación de número MAYOR publicada o en marcha (dato del estado del director de pruebas que ya recibe: `numero` y `estado`), ni cuando `main` ya cambió, después del sha del fallo, un archivo con el mismo nombre que señala la evidencia (la comprobación `ya_arreglado` existente debe usar también el nombre, no solo la ruta).\n\nLee entero el módulo y sus pruebas antes de tocar. Cambia SOLO esos dos archivos (≤60 líneas en el módulo). Pruebas nuevas: la línea real de arriba con su prefijo de GitHub da archivo `ProyeccionPantallaStarSeed.kt`, línea 189 y el mensaje; una compilación 47 en `fallo` con la 48 `publicada` no abre tarea; con la 48 `compilando` tampoco; un fallo cuyo archivo (por nombre) cambió en `main` después no abre tarea; un fallo nuevo sin nada de eso SÍ abre tarea con `archivos` no vacío. Asunto del commit: `DSB1116B · DSB02: el director lee el error real de Kotlin y no abre tareas por compilaciones ya superadas`.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.\n\n## PARTE 1 DE 2 (la dirección dividió DSB02: falla por sí misma (tarea:otro))\nEn esta parte tocas SOLO: scripts/puente/prioridad_desbloqueo.py. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "DSB02",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:otro)"
+   }
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1117-193401.json": [
+   "DSB02-d1"
+  ]
+ }
+}
