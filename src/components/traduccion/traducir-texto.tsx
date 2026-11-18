@@ -15,6 +15,7 @@ import { leer } from "@/lib/traduccion/preferencias";
 import { trozoDeLineaSSE } from "@/lib/astraura/conversacion-rapida";
 import { IDIOMAS } from "@/lib/idiomas/idiomas";
 import { establecerPaginaTraducida, registrarEntradaMenuTexto, type ContextoMenuTexto, type EntradaMenuTexto } from "@/components/traduccion/menu-texto";
+import { deshacerUltimo, reemplazar, type ObjetivoEditable } from "@/components/traduccion/reemplazar-seleccion";
 import { entradasIdioma } from "@/components/traduccion/entradas-idioma";
 import { leerEnVoz, detener, type EntornoVoz } from "@/lib/idiomas/leer-en-voz";
 import { crearEditor } from "@/lib/idiomas/paquete/editor";
@@ -90,16 +91,28 @@ export function entradasTraduccion(acciones: {
     traducirParrafo: (texto: string) => void;
     traducirPagina: () => void;
     verOriginal: () => void;
+    /** Solo lo aporta quien puede sustituir de verdad la selección editable. */
+    reemplazarSeleccion?: (texto: string, objetivo: ObjetivoEditable) => void;
 }): EntradaMenuTexto[] {
-    return [
+    const lista: EntradaMenuTexto[] = [
         { id: "traducir-seleccion", etiqueta: "Traducir selección", visible: (c) => c.seleccion.length > 0, ejecutar: (c) => acciones.traducirSeleccion(textosATraducir(c).seleccion) },
         { id: "traducir-parrafo", etiqueta: "Traducir este párrafo", ejecutar: (c) => acciones.traducirParrafo(textosATraducir(c).parrafo) },
         { id: "traducir-pagina", etiqueta: "Traducir toda la página", ejecutar: () => acciones.traducirPagina() },
         { id: "ver-original", etiqueta: "Ver original", visible: (c) => c.paginaTraducida, ejecutar: () => acciones.verOriginal() },
     ];
+    const sustituir = acciones.reemplazarSeleccion;
+    if (sustituir) {
+        lista.splice(1, 0, {
+            id: "reemplazar-seleccion",
+            etiqueta: "Reemplazar por la traducción",
+            visible: (c) => Boolean(c.editable?.texto.trim()),
+            ejecutar: (c) => { if (c.editable) sustituir(c.editable.texto, c.editable); },
+        });
+    }
+    return lista;
 }
 
-interface Ventana { texto: string; motor: string }
+interface Ventana { texto: string; motor: string; reemplazada?: boolean }
 
 /** Traduce (ventanita o página entera) y registra las entradas en el menú del texto. */
 export function TraducirTexto() {
@@ -127,6 +140,21 @@ export function TraducirTexto() {
             if (!r) throw new Error("La traducción no llegó.");
             porCopiar.current = r.texto;
             setVentana({ texto: r.texto, motor: r.motor });
+        } catch (e) { setVentana(null); aviso(e instanceof Error ? e.message : "No se pudo traducir."); }
+    };
+    const traducirSeleccionEditable = async (texto: string, objetivo: ObjetivoEditable) => {
+        if (!texto) { aviso("No hay texto que traducir."); return; }
+        setVentana({ texto: "Traduciendo…", motor: "" });
+        try {
+            const [r] = await crearTraductor(motores()).traducir([texto], "auto", destino());
+            if (!r) throw new Error("La traducción no llegó.");
+            porCopiar.current = r.texto;
+            if (reemplazar(objetivo, r.texto)) {
+                setVentana({ texto: r.texto, motor: r.motor, reemplazada: true });
+            } else {
+                setVentana({ texto: r.texto, motor: r.motor });
+                aviso("El campo cambió durante la traducción: no se sustituyó.");
+            }
         } catch (e) { setVentana(null); aviso(e instanceof Error ? e.message : "No se pudo traducir."); }
     };
     const traducirPagina = async () => {
@@ -179,6 +207,7 @@ export function TraducirTexto() {
             traducirParrafo: (t) => void traducirUno(t),
             traducirPagina: () => void traducirPagina(),
             verOriginal,
+            reemplazarSeleccion: (t, o) => void traducirSeleccionEditable(t, o),
         }).map(registrarEntradaMenuTexto);
         // TRA1116: las tres entradas de idioma van al MISMO menú del clic derecho.
         // El editor de paquetes se rehace cuando el almacén avisa (abrir o cerrar
@@ -215,6 +244,9 @@ export function TraducirTexto() {
                         {ventana.motor && <p className="text-xs text-white/60">Motor: {nombreMotor(ventana.motor)}</p>}
                         <div className="flex gap-2">
                             <button type="button" onClick={() => { void navigator.clipboard?.writeText(porCopiar.current).catch(() => undefined); }} disabled={!ventana.motor} className={boton}>Copiar</button>
+                            {ventana.reemplazada && (
+                                <button type="button" onClick={() => { const hecho = deshacerUltimo(); if (hecho) { aviso("Se deshizo la sustitución."); setVentana(null); } else aviso("Ya no se puede deshacer."); }} className={boton}>Deshacer</button>
+                            )}
                             <button type="button" onClick={leyendo ? alDetener : alLeer} className={boton}>{leyendo ? "Detener" : "Leer en voz"}</button>
                             <button type="button" onClick={() => setVentana(null)} className={boton}>Cerrar</button>
                         </div>

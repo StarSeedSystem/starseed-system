@@ -31,10 +31,16 @@ function esEntrada(el: ElementoEditable): el is HTMLInputElement | HTMLTextAreaE
 const valorCompleto = (el: ElementoEditable): string => (esEntrada(el) ? el.value : (el.textContent ?? ""));
 
 /** Host editable más cercano al foco; `contenteditable="false"` no cuenta. */
-function hostEditable(el: Element): HTMLElement | null {
-  const host = el.closest("[contenteditable]");
+function hostEditable(el: Element | null): HTMLElement | null {
+  const host = el?.closest("[contenteditable]");
   const modo = (host?.getAttribute("contenteditable") ?? "").toLowerCase();
   return host && modo !== "false" ? (host as HTMLElement) : null;
+}
+
+/** Elemento del nodo (el propio nodo si ya es elemento, si no su padre). */
+function elementoDe(nodo: Node | null): Element | null {
+  if (!nodo) return null;
+  return nodo.nodeType === 1 ? (nodo as Element) : nodo.parentElement;
 }
 
 /** Caracteres desde el inicio del host hasta la posición dada. */
@@ -58,8 +64,8 @@ export function capturarSeleccionEditable(doc: Document): ObjetivoEditable | nul
     CAPTURAS.set(objetivo, { valorCompleto: entrada.value, rango: null });
     return objetivo;
   }
-  const host = hostEditable(activo);
-  const seleccion = host ? doc.getSelection() : null;
+  const seleccion = doc.getSelection();
+  const host = hostEditable(activo) ?? hostEditable(elementoDe(seleccion?.anchorNode ?? null));
   if (!host || !seleccion || seleccion.rangeCount === 0 || seleccion.isCollapsed) return null;
   const texto = seleccion.toString();
   const dentro = (n: Node | null) => n !== null && (n === host || host.contains(n));

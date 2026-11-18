@@ -2,18 +2,21 @@
 /**
  * Menú del clic derecho sobre textos del OS (Ola 1020U · TRD1020E).
  * Escucha `contextmenu` en todo el documento: si el navegador ya atendió el evento
- * (`defaultPrevented`), se pulsa Mayúsculas o el objetivo es editable, manda el menú del
- * navegador; si no, y hay texto, abre el menú propio en el puntero con las entradas
- * registradas (Traducir, Variaciones públicas…). Cristal líquido, role=menu, flechas,
- * Escape y clic fuera cierran, dianas de 44 px.
+ * (`defaultPrevented`), se pulsa Mayúsculas o el objetivo es editable sin selección,
+ * manda el menú del navegador; si no, y hay texto, abre el menú propio en el puntero
+ * con las entradas registradas (Traducir, Reemplazar, Variaciones públicas…). Cristal
+ * líquido, role=menu, flechas, Escape y clic fuera cierran, dianas de 44 px.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
+import { capturarSeleccionEditable, type ObjetivoEditable } from "./reemplazar-seleccion";
 
 /** Lo que ve una entrada: la selección, el bloque bajo el puntero y si la página está traducida. */
 export interface ContextoMenuTexto {
   readonly seleccion: string;
   readonly objetivo: Element | null;
   readonly paginaTraducida: boolean;
+  /** Si la selección está en un campo editable, la captura para poder sustituirla. */
+  readonly editable?: ObjetivoEditable | null;
 }
 
 export interface EntradaMenuTexto {
@@ -61,9 +64,11 @@ export function abreMenuTexto(
   evento: { defaultPrevented?: boolean; shiftKey?: boolean },
   objetivo: Element | null,
   hayTexto: boolean,
+  haySeleccion = false,
 ): boolean {
   return (
-    objetivo !== null && !evento.defaultPrevented && !evento.shiftKey && hayTexto && !esEditable(objetivo)
+    objetivo !== null && !evento.defaultPrevented && !evento.shiftKey && hayTexto &&
+    (!esEditable(objetivo) || haySeleccion)
   );
 }
 
@@ -97,10 +102,13 @@ export function MenuTexto() {
   useEffect(() => {
     const abrir = (e: MouseEvent) => {
       const objetivo = e.target instanceof Element ? e.target : null;
-      const seleccion = window.getSelection?.()?.toString().trim() ?? "";
-      const hayTexto = seleccion.length > 0 || Boolean(objetivo?.textContent?.trim());
-      if (!abreMenuTexto(e, objetivo, hayTexto) || objetivo?.closest("[data-menu-texto]")) return;
-      const contexto: ContextoMenuTexto = { seleccion, objetivo, paginaTraducida };
+      // En un campo editable la selección no está en `getSelection`: se captura del foco.
+      const editable = esEditable(objetivo) ? capturarSeleccionEditable(document) : null;
+      const seleccion = editable?.texto ?? (window.getSelection?.()?.toString().trim() ?? "");
+      const haySeleccion = seleccion.length > 0;
+      const hayTexto = haySeleccion || Boolean(objetivo?.textContent?.trim());
+      if (!abreMenuTexto(e, objetivo, hayTexto, haySeleccion) || objetivo?.closest("[data-menu-texto]")) return;
+      const contexto: ContextoMenuTexto = { seleccion, objetivo, paginaTraducida, editable };
       const aVer = entradasVisibles(entradas, contexto);
       if (aVer.length === 0) return;
       e.preventDefault();
