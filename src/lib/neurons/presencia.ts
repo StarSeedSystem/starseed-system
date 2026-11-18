@@ -66,6 +66,8 @@ export interface PresenciaMedio {
   c?: string[];
   /** (CTL1117I) Color público de la neurona (`#rrggbb`); ausente en las webs anteriores: se usa el de su id. */
   col?: string;
+  /** (AQ07) Oferta de recursos que esta neurona tiene encendida: cómputo, almacenamiento, internet compartido. */
+  o?: { compute: boolean; storage: boolean; internet: boolean };
 }
 
 export interface EstadoPresencia {
@@ -135,7 +137,7 @@ const desde = new Date().toISOString();
 
 async function anuncio(): Promise<PresenciaMedio | null> {
   try {
-    const { thisDeviceId, resolverAliasEsteMedio } = await import("@/lib/neurons/neurons");
+    const { thisDeviceId, resolverAliasEsteMedio, settingsFor, permissionsFor } = await import("@/lib/neurons/neurons");
     const n = resolverAliasEsteMedio() || thisDeviceId();
     const medio = describirMedio();
     if (!n || !medio.id) return null;
@@ -177,6 +179,13 @@ async function anuncio(): Promise<PresenciaMedio | null> {
     } catch {
       plataforma = undefined;
     }
+    const cfg = settingsFor(n);
+    const perms = permissionsFor(n);
+    const oferta = {
+      compute: perms.compute === true,
+      storage: perms.storage === true,
+      internet: cfg.offerPublicInternet === true,
+    };
     return {
       n,
       m: medio.id,
@@ -192,6 +201,7 @@ async function anuncio(): Promise<PresenciaMedio | null> {
       ...(d ? { d } : {}),
       ...(c ? { c } : {}),
       ...(col ? { col } : {}),
+      o: oferta,
     };
   } catch {
     return null;
@@ -202,7 +212,8 @@ async function enviar(forzar = false): Promise<void> {
   if (!canal) return;
   const a = await anuncio();
   if (!a || !canal) return;
-  const firma = `${a.n}|${a.visible ? 1 : 0}|${firmaSenales(a.s)}|${a.v ? firmaVersiones(a.v) : ""}|${a.d ? JSON.stringify(a.d) : ""}|${a.c ? a.c.join(",") : ""}|${a.col ?? ""}`;
+  const ofertaStr = a.o ? `${a.o.compute ? 1 : 0}${a.o.storage ? 1 : 0}${a.o.internet ? 1 : 0}` : "";
+  const firma = `${a.n}|${a.visible ? 1 : 0}|${firmaSenales(a.s)}|${a.v ? firmaVersiones(a.v) : ""}|${a.d ? JSON.stringify(a.d) : ""}|${a.c ? a.c.join(",") : ""}|${a.col ?? ""}|${ofertaStr}`;
   const ahora = Date.now();
   if (!forzar && firma === ultimaFirma) return;
   if (!forzar && ahora - ultimoEnvio < MIN_REENVIO_MS) {
