@@ -244,7 +244,7 @@ export interface ConnectivityLink {
   meta?: Record<string, unknown>;
 }
 
-interface NetworkInformationLike {
+export interface NetworkInformationLike {
   effectiveType?: string; // "4g" | "3g" | "2g" | "slow-2g"
   downlink?: number; // Mbps estimados
   rtt?: number; // ms
