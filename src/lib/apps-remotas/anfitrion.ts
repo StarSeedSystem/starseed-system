@@ -6,7 +6,7 @@
 import { avisoAnfitrion, permitido, type Sesion, type TipoAlcance } from "../recursos/sesion-prestamo";
 import { esRechazoQueCierra } from "./nativo";
 
-export type EntradaVentana = { tipo: "teclado" | "raton" | "tacto"; accion: string; x?: number; y?: number; tecla?: string; boton?: number };
+export type EntradaVentana = { tipo: "teclado" | "raton" | "rueda" | "tacto"; accion: string; x?: number; y?: number; tecla?: string; boton?: number; deltaY?: number };
 export type FotogramaAnfitrion = { ancho: number; alto: number; datos?: unknown; bytes?: number };
 export type OrdenVentana =
   | { comando: "capturar_ventana"; ventana: string; ancho: number; alto: number; fps: number }
