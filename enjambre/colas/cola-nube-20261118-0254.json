@@ -1,0 +1,39 @@
+{
+ "ola": "nube-20261118",
+ "tareas": [
+  {
+   "id": "AQ03",
+   "ola": "AUD1117",
+   "titulo": "Mapa de señales: montar los filtros por banda, ancho, capa, medio y origen",
+   "archivos": [
+    "src/components/mesh/mapa-senales/geo/pestana-mapa.tsx",
+    "src/components/mesh/mapa-senales/geo/seccion-capas.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Esta tarea sale de la auditoría previa a las pruebas en aparatos del 17-11: lee starseed_memory_root/olas/auditoria-1117-AUD1117Q.md, arreglo F3 y la fila de la tabla a la que responde. Reglas de esta ola: cambio pequeño y local a los archivos nombrados (si hace falta uno más, que sea vecino y dilo); nada queda apagado por defecto salvo que la tarea lo pida; una línea de registro nunca lleva contenido, nombres de personas, coordenadas ni claves; pruebas con vitest junto al archivo, herméticas y deterministas; textos de interfaz en español neutro; no toques src/lib/control-remoto/**, src/components/control-remoto/** ni native/src-tauri/** (los lleva otra ola). Qué debe ser verdad: `PanelFiltrosSenales` (hoy sin importar por nadie) queda montado en el panel de capas del mapa; muestra «N de M señales» y cada filtro cambia lo que se pinta; quitar todos los filtros lo enseña todo. Prueba: de componente, con un conjunto fijo de señales: filtrar por banda y por capa cambia el recuento y las marcas.",
+   "dependencias_ya_en_main": [
+    "AQ02"
+   ]
+  },
+  {
+   "id": "AQ04",
+   "ola": "AUD1117",
+   "titulo": "Mapa de señales: publicar mis señales, con permiso por capa y apagado de fábrica",
+   "archivos": [
+    "src/components/mesh/mapa-senales/geo/use-publicar-senales.ts",
+    "src/components/mesh/mapa-senales/geo/seccion-capas.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Esta tarea sale de la auditoría previa a las pruebas en aparatos del 17-11: lee starseed_memory_root/olas/auditoria-1117-AUD1117Q.md, arreglo F4 y la fila de la tabla a la que responde. Reglas de esta ola: cambio pequeño y local a los archivos nombrados (si hace falta uno más, que sea vecino y dilo); nada queda apagado por defecto salvo que la tarea lo pida; una línea de registro nunca lleva contenido, nombres de personas, coordenadas ni claves; pruebas con vitest junto al archivo, herméticas y deterministas; textos de interfaz en español neutro; no toques src/lib/control-remoto/**, src/components/control-remoto/** ni native/src-tauri/** (los lleva otra ola). Qué debe ser verdad: un hook nuevo usa `publicarSenales` (`src/lib/senales/espectro/publicar.ts`, hoy sin llamador) con los adaptadores de `use-mapa-vivo.ts`; en el panel de capas hay un interruptor por capa (pública, comunidad, privada), APAGADO de fábrica, y junto a cada uno la frase exacta de qué sale de este aparato al encenderlo. Prueba: apagado no sale nada; encendida una capa, sale solo a esa.",
+   "dependencias_ya_en_main": [
+    "AQ02"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1117-193401.json": [
+   "AQ03",
+   "AQ04"
+  ]
+ }
+}
