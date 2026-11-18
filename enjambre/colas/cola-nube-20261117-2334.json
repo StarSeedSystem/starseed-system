@@ -1,0 +1,22 @@
+{
+ "ola": "nube-20261117",
+ "tareas": [
+  {
+   "id": "AQ02",
+   "ola": "AUD1117",
+   "titulo": "Mapa de señales: las capas de red pintan las señales publicadas de toda la red",
+   "archivos": [
+    "src/components/mesh/mapa-senales/geo/use-marcas-geo.ts",
+    "src/lib/senales/geo/capas.ts",
+    "src/components/mesh/mapa-senales/geo/marcas-en-mapa.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Esta tarea sale de la auditoría previa a las pruebas en aparatos del 17-11: lee starseed_memory_root/olas/auditoria-1117-AUD1117Q.md, arreglo F2 y la fila de la tabla a la que responde. Reglas de esta ola: cambio pequeño y local a los archivos nombrados (si hace falta uno más, que sea vecino y dilo); nada queda apagado por defecto salvo que la tarea lo pida; una línea de registro nunca lleva contenido, nombres de personas, coordenadas ni claves; pruebas con vitest junto al archivo, herméticas y deterministas; textos de interfaz en español neutro; no toques src/lib/control-remoto/**, src/components/control-remoto/** ni native/src-tauri/** (los lleva otra ola). Qué debe ser verdad: el mapa usa `useSenalesPublicadas` (hoy sin ningún llamador) y las cuatro capas `red-*` de `capas.ts` (pública, comunidad, privada, externa) dejan de devolver siempre «desconocido»: con filas, cada capa pinta sus marcas diciendo el origen de cada dato (medida, declarada o estimada); sin filas dice «sin publicar»; si la tabla no existe o la lectura falla, el panel de capas dice el motivo en vez de pintar cero. No cambies migraciones. Prueba: con filas de prueba en tres capas, cada una pinta lo suyo; sin filas, «sin publicar»; con error de lectura, el motivo."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1117-193401.json": [
+   "AQ02"
+  ]
+ }
+}
