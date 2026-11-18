@@ -263,6 +263,7 @@ lector de pantalla.
 | Señales y mapa | `mesh/signals.ts`, `lib/senales/*` | Medidas de entrada y vista de la retícula |
 | Nativo | `lib/nativa/*`, `native/src-tauri/src/{antenas,faro,serie}.rs` | Descubrimiento sin internet |
 | Routers | `lib/network/netjson.ts`, `components/network/router-center.tsx`, `camr/regulacion.ts` | Base de §8 |
+| Compartir internet (§8.2) | `lib/malla/internet/` (tipos, `conexion-limitada`, `contadores`, `cupo-banco`, `reparto-banco`, `decision-compartir`, `almacen-ajustes`, `almacen-contadores`, `use-ajustes-internet`, `defectos-audiencia`, `textos-internet`) y `components/mesh/mapa-senales/internet/` (sección, interruptores, ración, sugerencia) | Modo mesh, modo banco, contadores día/mes, clasificación de conexión limitada, sugerencia de activar banco, UI por audiencia |
 
 ## 10. Límites y decisiones pendientes
 
@@ -275,6 +276,8 @@ lector de pantalla.
   Android: siguen pendientes; se enseñan como tales.
 - **Reticulum**: solo detección; un transporte RNS es una ola aparte.
 - Nada de esto da acceso a radios que el sistema operativo no expone a la app.
+- **Falta la marca de red de pago del lado nativo (Android `isActiveNetworkMetered`)**: hoy la conexión limitada se sabe por lo que la persona declara y por `navigator.connection`; añadirla al puente nativo es decisión de dirección.
+- **Los contadores por día no se sincronizan entre aparatos**: cada aparato racionea con lo suyo.
 
 Revisado el 2026-11-13 contra main (`9e489e8`): 0 hechos, 1 a medias (relevo privado: migración sí, cliente no), 2 pendientes (Bluetooth nativo, Reticulum transporte).
 
