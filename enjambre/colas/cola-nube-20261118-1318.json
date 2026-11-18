@@ -1,0 +1,59 @@
+{
+ "ola": "nube-20261118",
+ "tareas": [
+  {
+   "id": "SIN1116Cs",
+   "titulo": "Sanador: arreglar sus averías propias y no confundirlas con caídas (falsa alarma de Higgsfield) · lo que faltó: scripts/puente/test_salud_directores.py",
+   "archivos": [
+    "scripts/puente/test_salud_directores.py"
+   ],
+   "depende": [],
+   "prompt": "SEGUIMIENTO de SIN1116C, que ya está integrada (sha 8dc3f59bd69c). Las cuatro puertas pasaron en verde y la revisión no puso pegas, pero el agente no llegó a tocar estos archivos: scripts/puente/test_salud_directores.py.\n\nTu encargo es SOLO esos archivos. No rehagas lo que ya está: léelo primero y engánchate a lo que hay. Tarea original: Sanador: arreglar sus averías propias y no confundirlas con caídas (falsa alarma de Higgsfield)\n\n--- encargo original, como contexto ---\nLee architecture/sintesis-autonoma-contexto-1116.md. §2.4 y §3.3. Verificado en el A1: higgsfield da «[Errno 2] No such file or directory: 'account'» (argv mal: el binario no va primero), notebooklm da «name 'subprocess' is not defined» y el escalado da «sin canal de envío». En realidad `higgsfield account` y NotebookLM funcionan. (1) Arregla las tres averías. (2) Una excepción de programación (NameError, TypeError, ImportError, FileNotFoundError del argv) cuenta como avería del sanador: no se avisa «X cayó», se marca «sin comprobar», salud_directores abre en el acto cola-auto-salud con la traza saneada y se avisa al Mando. (3) Todo aviso de caída enviado lleva después su «✓ resuelto (causa · arreglo)»; manda hoy uno para Higgsfield: falsa alarma del sanador, Higgsfield estaba bien. (4) Prueba que ejecuta cada comprobación con su constructor de argv real contra un binario falso que registra los argumentos. (5) La unidad versionada fija HOME y PATH; el despliegue retira /etc/systemd/system/starseed-sanador.service.d/path.conf.",
+   "ola": "SIN1116",
+   "adelantar": "2026-11-16 19:30 · Maggasukha (chat de producción): «arregla todo, que se autorrepare y se dirija por MetaGenesis»",
+   "dependencias_ya_en_main": [
+    "SIN1116A"
+   ],
+   "depende_de": [],
+   "origen": "seguimiento de alcance parcial"
+  },
+  {
+   "id": "IMA16",
+   "ola": "TRA1116-IDIOMAS",
+   "titulo": "Editor de paquete: pantalla para traducir las claves pendientes y guardar el borrador",
+   "archivos": [
+    "src/components/idiomas/editor-paquete.tsx",
+    "src/components/idiomas/__tests__/editor-paquete.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Pantalla del editor de IMA15: cabecera con idioma, progreso («12 de 40»), lista de pendientes con su campo de traducción (se guarda al salir del campo), botones «Guardar borrador» (instala el paquete en edición con `guardarPaquete` si valida), «Exportar archivo» y «Cerrar edición». Si hay una traducción hecha por motor automático se rotula «Sugerencia automática» y solo entra si la persona la acepta. Accesible, teclado, 360 px. PRUEBAS: traducir un pendiente lo mueve a completadas; guardar un borrador inválido muestra el motivo.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "IMA15",
+    "IMA14"
+   ]
+  },
+  {
+   "id": "SIN1116F",
+   "titulo": "Dirección de la síntesis desde el chat",
+   "archivos": [
+    "scripts/puente/peticiones_telegram.py",
+    "scripts/puente/peticiones_reglas.py",
+    "scripts/puente/test_peticiones_telegram.py"
+   ],
+   "depende": [],
+   "prompt": "Lee architecture/sintesis-autonoma-contexto-1116.md. §3.6. En el bot: /sintesis (la lanza ya), /sintesis estado (el hito actual y el retraso), /sintesis contexto (resumen y enlace del contexto vivo); «aprobar <n>», «rechazar <n>», «ya existe <n>» y «encarga <n>» actualizan el libro de recomendaciones, y «encarga» crea el encargo o la ola. Los «recuerda…» sobre la síntesis entran como reglas en su prompt. Botones en línea opcionales. Pruebas sin red.",
+   "ola": "SIN1116",
+   "dependencias_ya_en_main": [
+    "SIN1116B",
+    "SIN1116E"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1118-094955.json": [
+   "IMA16",
+   "SIN1116Cs",
+   "SIN1116F"
+  ]
+ }
+}
