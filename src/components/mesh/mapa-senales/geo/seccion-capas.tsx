@@ -34,6 +34,12 @@ export function LeyendaCapa({ capa, className, soloDibujado }: { capa: CapaSenal
   );
 }
 
+export interface PublicacionCapa {
+  publica: boolean;
+  comunidad: boolean;
+  privada: boolean;
+}
+
 export interface SeccionCapasProps {
   estado: EstadoCapas;
   onAlternar: (id: string, on: boolean) => void;
@@ -46,6 +52,9 @@ export interface SeccionCapasProps {
   onUbicarme: () => void;
   /** (AUD1117) Lectura de las señales publicadas de la red: si falló, el panel dice el motivo en vez de pintar cero. */
   publicadas?: { estado: EstadoLectura; motivo?: string };
+  /** (AUD1117) Publicación de mis señales: interruptores por capa (apagados de fábrica). */
+  publicacion?: PublicacionCapa;
+  onPublicacion?: (capa: "publica" | "comunidad" | "privada", on: boolean) => void;
 }
 
 const TEXTO_PERMISO: Record<PermisoUbicacion, string> = {
@@ -55,7 +64,7 @@ const TEXTO_PERMISO: Record<PermisoUbicacion, string> = {
   desconocido: "No se sabe si este aparato dio su ubicación.",
 };
 
-export function SeccionCapas({ estado, onAlternar, onOpacidad, permiso, compartir, canal, onCompartir, onUbicarme, publicadas }: SeccionCapasProps) {
+export function SeccionCapas({ estado, onAlternar, onOpacidad, permiso, compartir, canal, onCompartir, onUbicarme, publicadas, publicacion, onPublicacion }: SeccionCapasProps) {
   // (AUD1117) Si la lectura de las señales publicadas falló, el panel de capas dice el motivo: las capas
   // grupo «red» pintarían cero y el panel explica por qué, en vez de callarse.
   const motivoPublicadas = motivoSenalesPublicadas(publicadas?.estado ?? "ok", publicadas?.motivo);
@@ -83,6 +92,60 @@ export function SeccionCapas({ estado, onAlternar, onOpacidad, permiso, comparti
       </div>
 
       <p className="text-[10px] leading-snug text-white/45">{NOTA_PARCHE} {NOTA_ALCANCE} Gris hueco = sin medir.</p>
+
+      {publicacion && onPublicacion && (
+        <div className="space-y-2 rounded-xl border border-white/10 bg-white/[0.03] p-2.5" data-testid="seccion-publicacion">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-white/45">Publicar mis señales</p>
+          <p className="text-[10px] leading-snug text-white/50">Cada interruptor controla qué señales de este aparato salen al espectrómetro. Apagado de fábrica: no sale nada.</p>
+          <div className="space-y-2">
+            <div className="space-y-1.5 rounded-lg border border-white/5 bg-white/[0.02] p-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs text-white/80">Capa pública</span>
+                <Switch
+                  checked={publicacion.publica}
+                  onCheckedChange={(v) => onPublicacion!("publica", v)}
+                  aria-label="Publicar mis señales en la capa pública del espectrómetro"
+                />
+              </div>
+              {publicacion.publica && (
+                <p className="text-[10px] leading-snug text-emerald-300">
+                  Sale: medio, banda, frecuencia, ancho, fuerza, calidad, origen (medida/declarada/estimada), zona aproximada (≤5 caracteres), hora. Sin nombres, coordenadas exactas ni ficha personal.
+                </p>
+              )}
+            </div>
+            <div className="space-y-1.5 rounded-lg border border-white/5 bg-white/[0.02] p-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs text-white/80">Capa comunidad</span>
+                <Switch
+                  checked={publicacion.comunidad}
+                  onCheckedChange={(v) => onPublicacion!("comunidad", v)}
+                  aria-label="Publicar mis señales en la capa de comunidad del espectrómetro"
+                />
+              </div>
+              {publicacion.comunidad && (
+                <p className="text-[10px] leading-snug text-sky-300">
+                  Sale: lo mismo que la capa pública, más la etiqueta de comunidad. Visible solo para miembros de la misma comunidad.
+                </p>
+              )}
+            </div>
+            <div className="space-y-1.5 rounded-lg border border-white/5 bg-white/[0.02] p-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs text-white/80">Capa privada (mi cuenta)</span>
+                <Switch
+                  checked={publicacion.privada}
+                  onCheckedChange={(v) => onPublicacion!("privada", v)}
+                  aria-label="Publicar mis señales en la capa privada de mi cuenta"
+                />
+              </div>
+              {publicacion.privada && (
+                <p className="text-[10px] leading-snug text-violet-300">
+                  Sale: lo mismo que la capa pública, pero solo viaja por el canal privado de posición entre las neuronas de tu cuenta. Requiere canal unido.
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {GRUPOS_CAPA.map((g) => (
         <div key={g.id} className="space-y-1.5">
