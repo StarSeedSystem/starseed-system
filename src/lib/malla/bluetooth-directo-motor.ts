@@ -60,6 +60,7 @@ import {
   T_OFERTA_WIFI,
   T_RESPUESTA_WIFI,
   datosAsociadosSecreto,
+  enlaceDeIdBle,
   enlacesBle,
   idEnlaceBle,
   leerControlEnlace,
@@ -262,6 +263,58 @@ export const ESCALA_CAIDA_BLE_MS = [2_000, 5_000, 15_000] as const;
 export function esperaCaidaBle(racha: number): number {
   return ESCALA_CAIDA_BLE_MS[Math.min(Math.max(1, Math.floor(racha)), ESCALA_CAIDA_BLE_MS.length) - 1];
 }
+
+/**
+ * (AUD1117 · F4) Un enlace que lleva 60 s enviando latidos y no ha recibido ni un byte se marca MUDO: sigue
+ * abierto (nada se cierra por la fuerza), pero deja de contar como alcanzable hasta que llegue un byte.
+ */
+export const ESPERA_MUDO_BLE_MS = 60_000;
+
+export interface MudezEnlaceBle {
+  /** Epoch ms en que empezó a contar sin recibir; null si aún no hay latidos o ya recibió un byte. */
+  desde: number | null;
+  /** Ya se dijo «mudo» (se anota una sola vez hasta que llegue un byte). */
+  mudo: boolean;
+}
+
+export const MUDEZ_ENLACE_BLE_INICIAL: MudezEnlaceBle = { desde: null, mudo: false };
+
+export type CambioMudezBle = "nada" | "mudo" | "vuelve";
+
+export interface PasoMudezBle {
+  mudez: MudezEnlaceBle;
+  cambio: CambioMudezBle;
+}
+
+/**
+ * pasoMudezBle — avanza la vigilancia de UN enlace con lo que dice la app nativa (bytes enviados y recibidos,
+ * acumulados). Con envío y 0 B recibidos durante `ESPERA_MUDO_BLE_MS` queda mudo; un byte recibido lo despierta.
+ * No cuenta el tiempo anterior al primer latido enviado. Puro y con reloj inyectado.
+ */
+export function pasoMudezBle(antes: MudezEnlaceBle, p: { ahora: number; bytesEnviados: number; bytesRecibidos: number }): PasoMudezBle {
+  const enviados = Math.max(0, Math.floor(Number(p.bytesEnviados) || 0));
+  const recibidos = Math.max(0, Math.floor(Number(p.bytesRecibidos) || 0));
+  if (recibidos > 0) {
+    return { mudez: MUDEZ_ENLACE_BLE_INICIAL, cambio: antes.mudo ? "vuelve" : "nada" };
+  }
+  if (enviados <= 0) return { mudez: { desde: antes.desde, mudo: antes.mudo }, cambio: "nada" };
+  const desde = antes.desde ?? p.ahora;
+  if (antes.mudo) return { mudez: { desde, mudo: true }, cambio: "nada" };
+  if (p.ahora - desde >= ESPERA_MUDO_BLE_MS) return { mudez: { desde, mudo: true }, cambio: "mudo" };
+  return { mudez: { desde, mudo: false }, cambio: "nada" };
+}
+
+/** La línea de estado del enlace mudo: «mudo=si · …» o «mudo=no · …». Solo cifras: sin contenido ni nombres. Pura. */
+export function detalleMudezBle(p: { mudo: boolean; segundos: number; bytesEnviados: number; bytesRecibidos: number }): string {
+  const enviados = Math.max(0, Math.floor(Number(p.bytesEnviados) || 0));
+  const recibidos = Math.max(0, Math.floor(Number(p.bytesRecibidos) || 0));
+  const cifras = `${enviados} B enviados / ${recibidos} B recibidos`;
+  if (p.mudo) {
+    const s = Math.max(1, Math.round(Number(p.segundos) || 0));
+    return `mudo=si · ${s} s con latidos enviados y ni un byte de vuelta (${cifras}); sigue abierto y no cuenta como alcanzable hasta que llegue un byte`;
+  }
+  return `mudo=no · llegó un byte (${cifras}); el enlace vuelve a contar como alcanzable`;
+}
 /** (BLE1108B) Si un enlace abierto no se liga, se vuelve a saludar a los 2 s, 5 s y luego cada 15 s (antes: hasta 45 s). */
 export const ESCALA_HOLA_BLE_MS = [2_000, 5_000, 15_000, 15_000, 15_000, 15_000] as const;
 /** (BLE1108B) El canal de archivos espera «listo» mientras en la cola de datos haya más que esto (contrapresión). */
@@ -367,6 +420,8 @@ export function crearRedBle(deps: DepsBle): RedBle {
   const marcaEspejo: Record<string, { ts: string; vistas: Set<string> }> = {}; // BLE1110A: neurona → hora ISO de la última línea espejada y las de esa misma hora
   const oyentes = new Set<() => void>();
   const oyentesControl = new Set<(c: ControlEnlaceWifi, o: OrigenControl) => void>();
+  // (AUD1117 · F4) Vigilancia de mudez por enlace: latidos enviados, ni un byte de vuelta, 60 s.
+  const mudez = new Map<string, MudezEnlaceBle>();
 
   const avisar = () => {
     for (const f of Array.from(oyentes)) {
@@ -385,6 +440,8 @@ export function crearRedBle(deps: DepsBle): RedBle {
     registro.anotar("rechazo", neurona, texto, enlace);
   };
   const caido = (enlace: string) => (caidas[enlace] ?? 0) > deps.ahora();
+  /** (AUD1117 · F4) El enlace sigue abierto, pero envía sin recibir: no cuenta como alcanzable. */
+  const estaMudo = (enlace: string) => mudez.get(enlace)?.mudo === true;
 
   const cola = (enlace: string): Cola => {
     let c = colas.get(enlace);
@@ -1047,9 +1104,27 @@ export function crearRedBle(deps: DepsBle): RedBle {
     }
   }
 
+  /**
+   * (AUD1117 · F4) Tras cada estado de la app nativa: un enlace con latidos enviados y 0 B recibidos durante 60 s
+   * se anota «mudo» una vez (y «mudo=no» cuando llega un byte). No cierra nada: solo deja de ofrecerse.
+   */
+  function revisarMudez(): void {
+    const ahora = deps.ahora();
+    for (const x of estado?.enlaces ?? []) {
+      const antes = mudez.get(x.id) ?? MUDEZ_ENLACE_BLE_INICIAL;
+      const r = pasoMudezBle(antes, { ahora, bytesEnviados: x.bytes_enviados, bytesRecibidos: x.bytes_recibidos });
+      mudez.set(x.id, r.mudez);
+      if (r.cambio === "nada") continue;
+      const neurona = neuronaDe(x.id) ?? x.neurona ?? null;
+      const segundos = ((ahora - (r.mudez.desde ?? ahora)) / 1000);
+      registro.anotar("mudo", neurona, detalleMudezBle({ mudo: r.cambio === "mudo", segundos, bytesEnviados: x.bytes_enviados, bytesRecibidos: x.bytes_recibidos }), x.id);
+    }
+  }
+
   function fijarEstado(e: EstadoBleNativo | null): void {
     const previos = new Map((estado?.enlaces ?? []).map((x) => [x.id, x]));
     estado = e;
+    revisarMudez();
     const abiertos = new Set((e?.enlaces ?? []).map((x) => x.id));
     // (BLE1108B) Lo que se fue: apunta por qué hace falta saber (neurona, lo que quedó en cola) y se acuerda
     // para decir «reconectado» cuando vuelva.
@@ -1059,7 +1134,9 @@ export function crearRedBle(deps: DepsBle): RedBle {
       const c = colas.get(id);
       const enCola = c ? c.control.length + c.datos.length : 0;
       const neurona = lig?.neurona ?? antes.neurona ?? null;
-      registro.anotar("perdido", neurona, `el enlace se cerró${lig ? "" : " sin llegar a ligarse"} (abierto ${Math.round(antes.abierto_hace_ms / 1000)} s, rol ${antes.rol}, ${antes.bytes_enviados} B enviados / ${antes.bytes_recibidos} B recibidos${enCola ? `, ${enCola} mensaje(s) sin enviar devueltos` : ""})`, id);
+      const eraMudo = mudez.get(id)?.mudo === true;
+      mudez.delete(id);
+      registro.anotar("perdido", neurona, `el enlace se cerró${lig ? "" : " sin llegar a ligarse"} (abierto ${Math.round(antes.abierto_hace_ms / 1000)} s, rol ${antes.rol}, ${antes.bytes_enviados} B enviados / ${antes.bytes_recibidos} B recibidos${enCola ? `, ${enCola} mensaje(s) sin enviar devueltos` : ""}${eraMudo ? " · mudo=si" : ""})`, id);
       if (neurona) perdidas.set(neurona, { enlace: id, en: deps.ahora() });
       delete rachaCaidas[id];
     }
@@ -1152,12 +1229,18 @@ export function crearRedBle(deps: DepsBle): RedBle {
       avisar();
       void saludarPendientes().catch(nada);
     },
-    enlaces: () => enlacesBle({ estado, ligaduras, ahora: deps.ahora(), caidas, ...(propio() ? { cifrado: Object.fromEntries(ligaduras.map((l) => [l.enlace, etiquetaDe(l)])) } : {}) }),
+    enlaces: () =>
+      enlacesBle({ estado, ligaduras, ahora: deps.ahora(), caidas, ...(propio() ? { cifrado: Object.fromEntries(ligaduras.map((l) => [l.enlace, etiquetaDe(l)])) } : {}) }).filter(
+        (e) => !estaMudo(enlaceDeIdBle(e.id) ?? ""),
+      ),
     cifradoDe: (neurona) => {
       const l = ligaduraDeNeuronaBle(ligaduras, neurona, deps.ahora());
       return l ? etiquetaDe(l) : null;
     },
-    enlaceHacia: (neurona) => ligaduraDeNeuronaBle(ligaduras, neurona, deps.ahora())?.enlace ?? null,
+    enlaceHacia: (neurona) => {
+      const l = ligaduraDeNeuronaBle(ligaduras, neurona, deps.ahora());
+      return l && !estaMudo(l.enlace) ? l.enlace : null;
+    },
     enviarTexto: (enlace, texto) => encolar(enlace, texto),
     enviarVoz: (enlace, texto) => encolarVoz(enlace, texto),
     colaVozBytes: (enlace) => colas.get(enlace)?.bytesVoz ?? 0,

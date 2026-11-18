@@ -32,7 +32,9 @@ export type TipoEventoEnlace =
   /** (AUD1117·F7) Un mensaje de la malla: `enviado|entregado via=<medio>` (sin texto ni nombres). */
   | "mensaje-malla"
   /** (BLE1109A) Cambios de carril: `l2cap-abierto|l2cap-cerrado` (el enlace sigue por GATT). */
-  | "canal-rapido";
+  | "canal-rapido"
+  /** (AUD1117 · F4) El enlace envía latidos y no recibe ni un byte: `mudo=si` / `mudo=no`. */
+  | "mudo";
 
 export interface EventoEnlaceBle {
   seq: number;
