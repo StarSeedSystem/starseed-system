@@ -39,8 +39,8 @@ function catalogo(ids: readonly string[]): SeedCatalogEntry[] {
 }
 
 describe("defaults-seed · 3.ª tanda (Ola 1020T, solo sus «siempre» sembrables)", () => {
-  it("mantiene la versión en 25, sin bajar de la 22 que trajo la 3.ª tanda", () => {
-    expect(SEED_VERSION).toBe(25);
+  it("mantiene la versión en 26, sin bajar de la 22 que trajo la 3.ª tanda", () => {
+    expect(SEED_VERSION).toBe(26);
     expect(SEED_VERSION).toBeGreaterThanOrEqual(22);
   });
 
