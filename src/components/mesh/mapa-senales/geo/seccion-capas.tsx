@@ -86,7 +86,6 @@ export function SeccionCapas({
 
   // (AUD1117) Recopilar todas las señales publicadas de todas las marcas para el panel de filtros.
   const todasPublicadas = useMemo(() => marcas.flatMap((m) => m.publicadas ?? []), [marcas]);
-  const redActiva = estado.activas.some((id) => CAPAS_SENALES.find((c) => c.id === id)?.grupo === "red");
   const { visibles, ocultasSinDato } = contarFiltradas(todasPublicadas, filtroSenales);
 
   return (
@@ -114,7 +113,7 @@ export function SeccionCapas({
 
       <p className="text-[10px] leading-snug text-white/45">{NOTA_PARCHE} {NOTA_ALCANCE} Gris hueco = sin medir.</p>
 
-      {redActiva && onFiltroSenalesChange && todasPublicadas.length > 0 && (
+      {onFiltroSenalesChange && todasPublicadas.length > 0 && (
         <PanelFiltrosSenales
           filtro={filtroSenales}
           onCambiar={onFiltroSenalesChange}
