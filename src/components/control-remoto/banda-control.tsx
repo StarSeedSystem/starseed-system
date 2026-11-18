@@ -321,10 +321,12 @@ export function ControlEntreNeuronasPanel() {
         let vivo = true;
         const leer = () => void leerAjustesControl().then((a) => vivo && setAlcance(a.alcance));
         leer();
-        window.addEventListener(EVENTO_AJUSTES_CONTROL, leer);
+        // CTL1117J: hay montajes (y pruebas) con una `window` sin eventos; sin ellos se lee una vez y basta.
+        const conEventos = typeof window !== "undefined" && typeof window.addEventListener === "function";
+        if (conEventos) window.addEventListener(EVENTO_AJUSTES_CONTROL, leer);
         return () => {
             vivo = false;
-            window.removeEventListener(EVENTO_AJUSTES_CONTROL, leer);
+            if (conEventos) window.removeEventListener(EVENTO_AJUSTES_CONTROL, leer);
         };
     }, []);
     const leerPantallaEntrada = useCallback(() => {
