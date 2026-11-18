@@ -29,6 +29,20 @@ export function datoDesconocido(etiqueta: string, fuente: string, nota: string):
   return { etiqueta, valor: DESCONOCIDO, fuente, estado: "no-medido", nota };
 }
 
+function datoOferta(etiqueta: string, encendido: boolean | undefined, t: number | null): Dato {
+  if (typeof encendido !== "boolean") {
+    return datoDesconocido(etiqueta, "presencia de la cuenta", "esa neurona aún no anuncia qué ofrece");
+  }
+  const h = horaDe(t);
+  return {
+    etiqueta,
+    valor: encendido ? "sí" : "no",
+    fuente: "interruptores que la neurona anuncia en la presencia de la cuenta (`o`)",
+    estado: "declarado",
+    ...(h ? { nota: `anunciado a las ${h}` } : {}),
+  };
+}
+
 const pct = (q: number) => `${Math.round(q * 100)} %`;
 
 /** Banda de almacenamiento publicada, o null si la medida no cae en la tabla. */
@@ -143,7 +157,9 @@ export function fichaDeMarca(m: MarcaGeo, ahora: number): FichaMapa {
       ...datosHardware(m, hora),
       h.backendLocal === null ? sinFicha("Modelo local")
         : { etiqueta: "Modelo local", valor: h.backendLocal ? "tiene un motor local" : "sin motor local", fuente: h.fuente, estado: "declarado", nota: hora },
-      datoDesconocido("Cómputo, almacenamiento e internet compartido", "ajustes locales de cada aparato", "aún no se anuncian a la cuenta"),
+      datoOferta("Cómputo ofrecido", m.oferta?.computo, m.oferta?.t ?? null),
+      datoOferta("Almacenamiento ofrecido", m.oferta?.almacenamiento, m.oferta?.t ?? null),
+      datoOferta("Internet compartido ofrecido", m.oferta?.internet, m.oferta?.t ?? null),
     ],
   });
 

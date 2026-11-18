@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { OfertaNeurona, capacidadPrestable, ofertaVisiblePara } from '../oferta';
+import { OfertaNeurona, capacidadPrestable, declararOferta, leerOfertaAnunciada, ofertaVisiblePara } from '../oferta';
 
 const base = (o: Partial<OfertaNeurona> = {}): OfertaNeurona => ({
   nodoId: 'nodo1',
@@ -46,6 +46,39 @@ describe('ofertaVisiblePara', () => {
     const r = ofertaVisiblePara(o, q);
     expect(r).not.toBeNull();
     expect(r).toEqual(o);
+  });
+});
+
+describe('declararOferta', () => {
+  it('solo anuncia lo que la persona tiene encendido', () => {
+    expect(declararOferta({ computo: true, almacenamiento: false, internet: false }, 1000)).toEqual({
+      computo: true, almacenamiento: false, internet: false, t: 1000,
+    });
+  });
+
+  it('un todo apagado explícito se anuncia como «no», no como desconocido', () => {
+    expect(declararOferta({ computo: false, almacenamiento: false, internet: false }, 1000)).toEqual({
+      computo: false, almacenamiento: false, internet: false, t: 1000,
+    });
+  });
+
+  it('sin interruptores legibles no hay anuncio', () => {
+    expect(declararOferta({}, 1000)).toBeNull();
+    expect(declararOferta({ computo: 'true', almacenamiento: 1, internet: null }, 1000)).toBeNull();
+  });
+
+  it('una hora inválida no inventa cuándo se anunció', () => {
+    expect(declararOferta({ computo: true }, Number.NaN)?.t).toBeNull();
+  });
+});
+
+describe('leerOfertaAnunciada', () => {
+  it('acepta el anuncio de una neurona y descarta cambios de forma', () => {
+    expect(leerOfertaAnunciada({ computo: true, almacenamiento: false, internet: true, t: 123 })).toEqual({
+      computo: true, almacenamiento: false, internet: true, t: 123,
+    });
+    expect(leerOfertaAnunciada(null)).toBeNull();
+    expect(leerOfertaAnunciada({ computo: 'true', almacenamiento: 1, internet: 0, t: 'x' })).toBeNull();
   });
 });
 

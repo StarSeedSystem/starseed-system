@@ -109,7 +109,19 @@ export function tramoDeCalidad(q: number | null | undefined): string {
   return q < 0.34 ? "mala" : q < 0.67 ? "regular" : "buena";
 }
 
-const SIN_OFERTA = "El ofrecimiento de recursos (Prestar recursos, Puerta de internet) es un ajuste local de cada aparato y todavía no se anuncia a la cuenta.";
+const FUENTE_OFERTA = "Interruptores que cada neurona anuncia en la presencia de la cuenta (`o`): cómputo y almacenamiento de «Prestar recursos», internet de «Puerta de internet». Sin anuncio = desconocido.";
+
+const TRAMOS_OFERTA: readonly Tramo[] = [
+  { id: "si", etiqueta: "Sí", color: "#22c55e", estilo: "relleno" },
+  { id: "no", etiqueta: "No", color: "#94a3b8", estilo: "anillo" },
+  { ...DESC, etiqueta: "Sin anunciar" },
+];
+
+function valorDeOferta(m: MarcaGeo, k: "computo" | "almacenamiento" | "internet"): ValorCapa {
+  if (!m.oferta) return desconocido();
+  const encendido = m.oferta[k] === true;
+  return { tramo: encendido ? "si" : "no", texto: encendido ? "sí" : "no", t: m.oferta.t, medida: true };
+}
 
 function antena(m: MarcaGeo, kind: string) {
   return m.antenas.find((a) => a.kind === kind);
@@ -269,10 +281,10 @@ export const CAPAS_SENALES: readonly CapaSenal[] = [
     id: `oferta-${k}`, grupo: "oferta",
     etiqueta: k === "computo" ? "Cómputo" : k === "almacenamiento" ? "Almacenamiento" : "Internet compartido",
     descripcion: k === "computo" ? "Aparatos que ofrecen cómputo" : k === "almacenamiento" ? "Aparatos que ofrecen almacenamiento" : "Aparatos que comparten su internet",
-    estado: "sin-fuente",
-    fuente: `Sin fuente: ${SIN_OFERTA}`,
-    tramos: [DESC],
-    valor: () => desconocido("desconocido: aún no se anuncia"),
+    estado: "parcial",
+    fuente: FUENTE_OFERTA,
+    tramos: TRAMOS_OFERTA,
+    valor: (m) => valorDeOferta(m, k),
   })),
   {
     id: "oferta-modelos", grupo: "oferta", etiqueta: "Modelos de Astraura", descripcion: "Aparatos que pueden servir modelos de Astraura a la malla",

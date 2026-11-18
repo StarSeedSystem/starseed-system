@@ -32,6 +32,7 @@ import { CLAVE_FUSIONES, EVENTO_FUSIONES } from "@/lib/neurons/fusion-alias";
 import type { VersionesPorCapa } from "@/lib/actualizaciones/capas";
 import { firmaVersiones } from "@/lib/actualizaciones/versiones-capa";
 import type { InfoPublicaNeurona } from "@/lib/neurons/info-publica";
+import { declararOferta, type AnuncioOferta } from "@/lib/recursos/oferta";
 
 export const CLAVE_CANAL_NEURONAS = "starseed.neuronas.canal.v1";
 const MIN_REENVIO_MS = 15_000;
@@ -66,6 +67,7 @@ export interface PresenciaMedio {
   c?: string[];
   /** (CTL1117I) Color público de la neurona (`#rrggbb`); ausente en las webs anteriores: se usa el de su id. */
   col?: string;
+  o?: AnuncioOferta;
 }
 
 export interface EstadoPresencia {
@@ -133,6 +135,35 @@ let ultimaFirma = "";
 let ultimoEnvio = 0;
 const desde = new Date().toISOString();
 
+const CLAVE_PREFS_NEURONAS = "starseed.neurons.prefs.v1";
+const CLAVE_AJUSTES_INTERNET = "starseed.malla.internet.v1";
+
+function permisoGuardado(prefs: unknown, ids: readonly string[], clave: "compute" | "storage"): boolean | undefined {
+  if (!prefs || typeof prefs !== "object") return undefined;
+  const permissions = (prefs as { permissions?: Record<string, Record<string, unknown>> }).permissions;
+  for (const id of ids) {
+    const valor = permissions?.[id]?.[clave];
+    if (typeof valor === "boolean") return valor;
+  }
+  return undefined;
+}
+
+function ofertaDeEsteMedio(ids: readonly string[], ahora: number): AnuncioOferta | null {
+  try {
+    const crudos = window.localStorage.getItem(CLAVE_PREFS_NEURONAS);
+    const prefs = crudos ? JSON.parse(crudos) : null;
+    const internetCrudos = window.localStorage.getItem(CLAVE_AJUSTES_INTERNET);
+    const internet = internetCrudos ? JSON.parse(internetCrudos) as { compartirConOtros?: unknown } : null;
+    return declararOferta({
+      computo: permisoGuardado(prefs, ids, "compute") ?? true,
+      almacenamiento: permisoGuardado(prefs, ids, "storage") ?? true,
+      internet: internet?.compartirConOtros === true,
+    }, ahora);
+  } catch {
+    return null;
+  }
+}
+
 async function anuncio(): Promise<PresenciaMedio | null> {
   try {
     const { thisDeviceId, resolverAliasEsteMedio } = await import("@/lib/neurons/neurons");
@@ -177,16 +208,19 @@ async function anuncio(): Promise<PresenciaMedio | null> {
     } catch {
       plataforma = undefined;
     }
+    const ahora = Date.now();
+    const o = ofertaDeEsteMedio([thisDeviceId(), n], ahora);
     return {
       n,
       m: medio.id,
       tipo: medio.tipo,
       etiqueta: medio.etiqueta,
+      ...(o ? { o } : {}),
       ...(sid ? { sid } : {}),
       plataforma,
       visible: typeof document === "undefined" ? true : document.visibilityState !== "hidden",
       desde,
-      t: Date.now(),
+      t: ahora,
       s,
       ...(v && Object.keys(v).length ? { v } : {}),
       ...(d ? { d } : {}),
@@ -202,7 +236,8 @@ async function enviar(forzar = false): Promise<void> {
   if (!canal) return;
   const a = await anuncio();
   if (!a || !canal) return;
-  const firma = `${a.n}|${a.visible ? 1 : 0}|${firmaSenales(a.s)}|${a.v ? firmaVersiones(a.v) : ""}|${a.d ? JSON.stringify(a.d) : ""}|${a.c ? a.c.join(",") : ""}|${a.col ?? ""}`;
+  const ofertaFirma = a.o ? `${a.o.computo ? 1 : 0}${a.o.almacenamiento ? 1 : 0}${a.o.internet ? 1 : 0}` : "";
+  const firma = `${a.n}|${a.visible ? 1 : 0}|${firmaSenales(a.s)}|${a.v ? firmaVersiones(a.v) : ""}|${a.d ? JSON.stringify(a.d) : ""}|${a.c ? a.c.join(",") : ""}|${a.col ?? ""}|${ofertaFirma}`;
   const ahora = Date.now();
   if (!forzar && firma === ultimaFirma) return;
   if (!forzar && ahora - ultimoEnvio < MIN_REENVIO_MS) {
@@ -366,10 +401,14 @@ export function iniciarPresenciaNeuronas(): () => void {
     // (MAP1114B) Cambiar quién ve mi posición se anuncia (o se retira) al instante.
     window.addEventListener("starseed:mapa-posicion", alAdoptar);
     limpiezas.push(() => window.removeEventListener("starseed:neurona-adoptada", alAdoptar));
-    // (CTL1117I) Cambiar el color público se anuncia al instante (el anuncio solo se reenvía si su firma cambió).
-    const alCambiarAjustes = () => void enviar(false);
+    const alCambiarAjustes = () => void enviar(true);
     window.addEventListener("starseed:neurons", alCambiarAjustes);
     limpiezas.push(() => window.removeEventListener("starseed:neurons", alCambiarAjustes));
+    const alGuardarOferta = (e: StorageEvent) => {
+      if (!e.key || e.key === CLAVE_PREFS_NEURONAS || e.key === CLAVE_AJUSTES_INTERNET) void enviar(true);
+    };
+    window.addEventListener("storage", alGuardarOferta);
+    limpiezas.push(() => window.removeEventListener("storage", alGuardarOferta));
     limpiezas.push(() => window.removeEventListener("starseed:mapa-posicion", alAdoptar));
   })();
 

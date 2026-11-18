@@ -39,6 +39,43 @@ export type OfertaNeurona = {
   t: number;
 };
 
+export type AnuncioOferta = {
+  computo: boolean;
+  almacenamiento: boolean;
+  internet: boolean;
+  t: number | null;
+};
+
+type InterruptoresOferta = Partial<Record<"computo" | "almacenamiento" | "internet", unknown>>;
+
+const CLAVES_OFERTA = ["computo", "almacenamiento", "internet"] as const;
+
+function horaOferta(t: number | null | undefined): number | null {
+  return typeof t === "number" && Number.isFinite(t) ? t : null;
+}
+
+export function declararOferta(interruptores: InterruptoresOferta, ahora: number): AnuncioOferta | null {
+  if (!CLAVES_OFERTA.some((k) => typeof interruptores[k] === "boolean")) return null;
+  return {
+    computo: interruptores.computo === true,
+    almacenamiento: interruptores.almacenamiento === true,
+    internet: interruptores.internet === true,
+    t: horaOferta(ahora),
+  };
+}
+
+export function leerOfertaAnunciada(crudo: unknown): AnuncioOferta | null {
+  if (!crudo || typeof crudo !== "object") return null;
+  const o = crudo as InterruptoresOferta & { t?: unknown };
+  if (!CLAVES_OFERTA.some((k) => typeof o[k] === "boolean")) return null;
+  return {
+    computo: o.computo === true,
+    almacenamiento: o.almacenamiento === true,
+    internet: o.internet === true,
+    t: horaOferta(typeof o.t === "number" ? o.t : null),
+  };
+}
+
 export function ofertaVisiblePara(
   oferta: OfertaNeurona,
   quien: { cuentaId: string; grupos: string[] }

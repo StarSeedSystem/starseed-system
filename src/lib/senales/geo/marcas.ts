@@ -16,6 +16,7 @@ import { estadoAparato } from "@/lib/senales/aparatos";
 import type { EstadoAparato } from "@/lib/senales/tipos-vivo";
 import type { DispositivoMallaRow, EstadoEnlace, FichaDispositivo } from "@/lib/network/malla-neuronas";
 import type { PresenciaMedio } from "@/lib/neurons/presencia";
+import { leerOfertaAnunciada, type AnuncioOferta } from "@/lib/recursos/oferta";
 import type { SenalesMedio } from "@/lib/neurons/senales-medio";
 import { normalizarCapaConciencia, ORDEN_CONCIENCIA, type CapaConcienciaId } from "./capas";
 import {
@@ -84,6 +85,7 @@ export interface MarcaGeo {
   hardware: HardwareMarca;
   /** Versión y aparato que la neurona anuncia de sí misma (declarado). */
   aparato: { so?: string; soV?: string; equipo?: string; arq?: string; medio?: string } | null;
+  oferta?: AnuncioOferta | null;
   versionWeb?: string;
   versionNativa?: string;
 }
@@ -236,6 +238,7 @@ export function construirMarcas(e: EntradaMarcas): MarcaGeo[] {
     const capasLista = esYo ? capasDeLista(e.yo.capas) : capasDeLista(ultimo?.c);
     const d = ultimo?.d;
     const ficha = esYo ? e.yo.ficha : fila?.ficha;
+    const oferta = leerOfertaAnunciada(ultimo?.o);
 
     marcas.push({
       id: `neurona:${neuronaId}`,
@@ -256,6 +259,7 @@ export function construirMarcas(e: EntradaMarcas): MarcaGeo[] {
       },
       hardware: hardwareDeFicha(ficha, esYo ? "ficha de este aparato" : "ficha que esa neurona mandó por su canal P2P"),
       aparato: d ? { so: d.so, soV: d.soV, equipo: d.equipo, arq: d.arq, medio: d.medio } : ultimo ? { medio: ultimo.tipo } : null,
+      oferta,
       versionWeb: ultimo?.v?.interfaz,
       versionNativa: ultimo?.v?.nativa,
     });

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { PresenciaMedio } from "@/lib/neurons/presencia";
 import { CAPAS_SENALES, CAPA_POR_ID, COLOR_DESCONOCIDO, NOTA_PARCHE, estadoCapasInicial, leyendaDe, pintarMarca, sanearEstadoCapas } from "../capas";
 import { parchesDeCapa } from "../parches";
 import { fichaDeMarca } from "../ficha-geo";
@@ -6,9 +7,9 @@ import { construirMarcas, type MarcaGeo } from "../marcas";
 
 const AHORA = 1_700_000_000_000;
 
-function marca(p: Partial<MarcaGeo> = {}): MarcaGeo {
+function marca(p: Partial<MarcaGeo> = {}, medios: readonly PresenciaMedio[] = []): MarcaGeo {
   const [m] = construirMarcas({
-    filas: [], medios: [], ahora: AHORA,
+    filas: [], medios, ahora: AHORA,
     yo: {
       neuronaId: "yo", nombre: "MaggaBook", plataforma: "macOS", capas: null, ficha: null,
       posicion: { lat: 19.4326, lon: -99.1332, precisionM: 8, t: AHORA - 10_000 },
@@ -42,8 +43,7 @@ describe("capas: una sola tabla para leyenda y pintura", () => {
       const { tramo } = pintarMarca(c, m);
       expect(tramo.id).toBe("desconocido");
     }
-    // Bluetooth y Wi-Fi ya tienen fuente real (enlaces medidos); lo que sigue sin fuente es la oferta de recursos y la red externa.
-    expect(CAPAS_SENALES.filter((x) => x.estado === "sin-fuente").map((x) => x.id)).toEqual(["oferta-computo", "oferta-almacenamiento", "oferta-internet", "red-externa"]);
+    expect(CAPAS_SENALES.filter((x) => x.estado === "sin-fuente").map((x) => x.id)).toEqual(["red-externa"]);
   });
 
   it("internet 10 Mb/s: calidad media, con color", () => {
@@ -62,6 +62,53 @@ describe("capas: una sola tabla para leyenda y pintura", () => {
     expect(s.activas).toEqual(["senal-wifi"]);
     expect(s.opacidad).toEqual({ "senal-wifi": 1, "senal-internet": 0.1 });
     expect(sanearEstadoCapas("x")).toEqual(estadoCapasInicial());
+  });
+});
+
+describe("capas de oferta", () => {
+  const ids = ["oferta-computo", "oferta-almacenamiento", "oferta-internet"] as const;
+  const anuncio = { computo: true, almacenamiento: false, internet: true, t: AHORA - 5000 };
+
+  it("la marca toma la oferta del último anuncio de presencia", () => {
+    const medio = {
+      n: "yo", m: "m1", t: AHORA, tipo: "navegador", etiqueta: "MaggaBook", visible: true, desde: "x",
+      s: { internet: { enLinea: true, tipo: "wifi", mbps: 10 }, malla: { pares: 0, otrasCuentas: 0 }, lora: { estado: "sin-radio", nodos: 0 }, bluetooth: { disponible: true }, serie: { disponible: false, puertos: 0 }, reticulum: { disponible: false, motivo: "x" } },
+      o: anuncio,
+    } as PresenciaMedio;
+    expect(marca({}, [medio]).oferta).toEqual(anuncio);
+  });
+
+  it("una neurona que anuncia ofrece el valor declarado con su hora", () => {
+    const m = marca({ oferta: anuncio });
+    expect(pintarMarca(CAPA_POR_ID[ids[0]], m).valor).toMatchObject({ tramo: "si", texto: "sí", t: AHORA - 5000, medida: true });
+    expect(pintarMarca(CAPA_POR_ID[ids[1]], m).valor).toMatchObject({ tramo: "no", texto: "no", t: AHORA - 5000, medida: true });
+    expect(pintarMarca(CAPA_POR_ID[ids[2]], m).valor.tramo).toBe("si");
+  });
+
+  it("la que anuncia que no ofrece dice «no», la que no anuncia dice «desconocido»", () => {
+    const sinOferta = marca({ oferta: { computo: false, almacenamiento: false, internet: false, t: AHORA } });
+    const sinAnuncio = marca();
+    for (const id of ids) {
+      expect(pintarMarca(CAPA_POR_ID[id], sinOferta).valor.tramo).toBe("no");
+      expect(pintarMarca(CAPA_POR_ID[id], sinAnuncio).valor).toEqual({ tramo: "desconocido", texto: "desconocido", t: null, medida: false });
+    }
+  });
+
+  it("la leyenda de cada capa distingue sí, no y sin anunciar", () => {
+    for (const id of ids) {
+      expect(leyendaDe(CAPA_POR_ID[id]).map((l) => l.etiqueta)).toEqual(["Sí", "No", "Sin anunciar"]);
+      expect(CAPA_POR_ID[id].estado).toBe("parcial");
+    }
+  });
+
+  it("la ficha muestra lo ofrecido con su hora, o «desconocido» si no se anunció", () => {
+    const con = JSON.stringify(fichaDeMarca(marca({ oferta: anuncio }), AHORA));
+    expect(con).toContain("Cómputo ofrecido");
+    expect(con).toContain("sí");
+    expect(con).toContain("Almacenamiento ofrecido");
+    expect(con).toContain("Internet compartido ofrecido");
+    const sin = JSON.stringify(fichaDeMarca(marca(), AHORA));
+    expect(sin).toContain("aún no anuncia qué ofrece");
   });
 });
 

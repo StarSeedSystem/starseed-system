@@ -36,6 +36,26 @@ describe("mediosDeEstado", () => {
   });
 });
 
+describe("la oferta viaja en la presencia", () => {
+  const base = (n: string, m: string, t: number): PresenciaMedio => ({ n, m, t, tipo: "navegador", etiqueta: m, visible: true, desde: "x", s });
+  const anuncio = { computo: true, almacenamiento: false, internet: false, t: 1000 };
+
+  it("el anuncio más nuevo de cada medio conserva lo que ofrece", () => {
+    const [medio] = mediosDeEstado({ m1: [base("mac", "m1", 1), { ...base("mac", "m1", 5), o: anuncio }] });
+    expect(medio.o).toEqual(anuncio);
+  });
+
+  it("una presencia antigua sin oferta sigue sin anunciarla", () => {
+    const [medio] = mediosDeEstado({ m1: [base("mac", "m1", 1)] });
+    expect(medio.o).toBeUndefined();
+  });
+
+  it("agrupar por neurona no pierde la oferta de cada medio", () => {
+    const medios = mediosDeEstado({ m1: [{ ...base("mac", "m1", 2), o: anuncio }] });
+    expect(presentesPorNeurona(medios).get("mac")?.[0].o).toEqual(anuncio);
+  });
+});
+
 describe("esPeticionDeEstaMaquina", () => {
   const req = (h: Record<string, string>) => new Request("http://localhost:9002/api/dispositivo/maquina", { headers: h });
   it("solo la propia máquina: localhost sin cabeceras de túnel ni IPs ajenas", () => {
