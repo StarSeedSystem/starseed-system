@@ -1,0 +1,69 @@
+{
+ "ola": "nube-20261117",
+ "tareas": [
+  {
+   "id": "AN04b",
+   "ola": "AUD1117",
+   "titulo": "Malla: un enlace Bluetooth que no recibe nada se marca «mudo»",
+   "archivos": [
+    "src/lib/malla/bluetooth-directo-motor.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Esta tarea sale de la auditoría previa a las pruebas en aparatos del 17-11: lee starseed_memory_root/olas/auditoria-1117-AUD1117N.md, arreglo F4 y la fila de la tabla a la que responde. Reglas de esta ola: cambio pequeño y local a los archivos nombrados (si hace falta uno más, que sea vecino y dilo); nada queda apagado por defecto salvo que la tarea lo pida; una línea de registro nunca lleva contenido, nombres de personas, coordenadas ni claves; pruebas con vitest junto al archivo, herméticas y deterministas; textos de interfaz en español neutro; no toques src/lib/control-remoto/**, src/components/control-remoto/** ni native/src-tauri/** (los lleva otra ola). Qué debe ser verdad: un enlace con latidos enviados y `recibido` en 0 B tras 60 s se marca `mudo`: la línea `enlace-cerrado` (o la de estado que ya exista) lo dice con `mudo=si`, y esa neurona deja de contar como alcanzable por ese enlace hasta que llegue un byte. Nada se cierra por la fuerza. Prueba: unitaria con reloj inyectado: 60 s con envío y sin recepción → mudo; llega un byte → deja de serlo."
+  },
+  {
+   "id": "AN05",
+   "ola": "AUD1117",
+   "titulo": "Apps por la malla: anfitrión web para transmitir una app a la ventana remota",
+   "archivos": [
+    "src/lib/apps-remotas/anfitrion.ts",
+    "src/components/apps-remotas/montaje-anfitrion.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Esta tarea sale de la auditoría previa a las pruebas en aparatos del 17-11: lee starseed_memory_root/olas/auditoria-1117-AUD1117N.md, arreglo F5 y la fila de la tabla a la que responde. Reglas de esta ola: cambio pequeño y local a los archivos nombrados (si hace falta uno más, que sea vecino y dilo); nada queda apagado por defecto salvo que la tarea lo pida; una línea de registro nunca lleva contenido, nombres de personas, coordenadas ni claves; pruebas con vitest junto al archivo, herméticas y deterministas; textos de interfaz en español neutro; no toques src/lib/control-remoto/**, src/components/control-remoto/** ni native/src-tauri/** (los lleva otra ola). Qué debe ser verdad: el anfitrión de `apps-remotas` queda importado y montado donde se montan los demás servicios de la malla, y responde al cliente que ya existe: abrir una app pedida por otra neurona de la misma cuenta y transmitirla a su ventana remota. Sin petición no hace nada. Prueba: integración del par anfitrión–cliente con un canal en memoria (pedir, recibir cuadros, cerrar)."
+  },
+  {
+   "id": "AQ09",
+   "ola": "AUD1117",
+   "titulo": "Mapa de señales: sin internet aparece el esquema con su aviso",
+   "archivos": [
+    "src/components/mesh/mapa-senales/geo/pestana-mapa.tsx",
+    "src/components/mesh/mapa-senales/vista-plana.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Esta tarea sale de la auditoría previa a las pruebas en aparatos del 17-11: lee starseed_memory_root/olas/auditoria-1117-AUD1117Q.md, arreglo F9 y la fila de la tabla a la que responde. Reglas de esta ola: cambio pequeño y local a los archivos nombrados (si hace falta uno más, que sea vecino y dilo); nada queda apagado por defecto salvo que la tarea lo pida; una línea de registro nunca lleva contenido, nombres de personas, coordenadas ni claves; pruebas con vitest junto al archivo, herméticas y deterministas; textos de interfaz en español neutro; no toques src/lib/control-remoto/**, src/components/control-remoto/** ni native/src-tauri/** (los lleva otra ola). Qué debe ser verdad: cuando la base geográfica no puede cargarse (sin red), la pestaña cae al esquema plano con las mismas marcas y el aviso «sin base geográfica», y vuelve al mapa del mundo al volver la red; hoy solo sale un aviso ámbar. Prueba: de componente con la carga de teselas fallando y luego funcionando."
+  },
+  {
+   "id": "MRE6",
+   "ola": "MAP1116B",
+   "titulo": "Vista del espectro: eje de bandas y frecuencias con anchos, capa y fuente",
+   "archivos": [
+    "src/components/mesh/mapa-senales/vista-espectro.tsx",
+    "src/components/mesh/mapa-senales/__tests__/vista-espectro.test.tsx"
+   ],
+   "depende": [
+    "MRE5"
+   ],
+   "prompt": "Lee AGENTS.md. Componente SVG `VistaEspectro({senales, sinFuente, onElegir})`: eje horizontal de frecuencia (escala logarítmica con las bandas de `bandas.ts` rotuladas: 433 MHz, 868 MHz, 2,4 GHz, 5 GHz…), cada señal es una barra de su ancho en su frecuencia, altura = fuerza (o «sin medir» como barra hueca), color por medio, estilo por origen (medida sólida, declarada con anillo, estimada rayada); las señales sin frecuencia van a una fila «sin frecuencia» debajo (no se colocan al azar). Debajo, un bloque «Lo que este aparato no puede ver» con los `sinFuente` y su motivo. Táctil y de teclado (Enter abre la ficha), usable a 360 px, `prefers-reduced-motion` respetado. PRUEBAS: dos señales solapadas; una sin frecuencia en su fila; `sinFuente` visible; elegir llama a `onElegir` con el id. COMPRUEBA: `NODE_ENV=test npx vitest run src/components/mesh/mapa-senales/__tests__/vista-espectro.test.tsx` verde y tsc acotado.\n\nREGLAS DE LA CASA (valen aunque no las repita la tarea): toca SOLO los archivos de la lista `archivos`; ≤3 archivos y ≤120 líneas por archivo (si no cabe, para y di qué falta: no lo estires ni lo resumas); sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible (la interfaz dice Genesis); sin red real en las pruebas; ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves. El asunto de tu commit empieza por `MRE6:` y dice qué comprobaste y qué NO pudiste comprobar.",
+   "dependencias_ya_en_main": [
+    "MRF1"
+   ]
+  },
+  {
+   "id": "MRE7",
+   "ola": "MAP1116B",
+   "titulo": "Ficha de una señal: toda su información y sus opciones de compatibilidad",
+   "archivos": [
+    "src/components/mesh/mapa-senales/ficha-senal-espectro.tsx",
+    "src/components/mesh/mapa-senales/__tests__/ficha-senal-espectro.test.tsx"
+   ],
+   "depende": [
+    "MRE5"
+   ],
+   "prompt": "Lee AGENTS.md. Componente `FichaSenalEspectro({senal, onAccion})` con el estilo de las fichas de `src/components/mesh/mapa-senales/secciones-ficha.tsx`: medio, banda, frecuencia y ancho en unidades legibles, fuerza y calidad, origen con su etiqueta («medida a las 14:32» / «declarada» / «estimada»), capa (propia/pública/comunidad/privada/externa), zona aproximada si hay, quién la ve (`fuente`), `vinculo` (a qué antena, cerebro, nodo, neurona, servidor, estación o router corresponde) y la lista `compatibles`: cada opción con su motivo y, si `posible`, un botón de acción que SOLO llama a `onAccion(opcion)` (inyectado; la ficha no conecta nada por sí misma). Lo que falta se enseña como «sin dato», nunca como 0. PRUEBAS: señal medida completa; señal sin frecuencia; opción no posible con su motivo y sin botón; el botón llama a `onAccion` con la opción. COMPRUEBA: `NODE_ENV=test npx vitest run src/components/mesh/mapa-senales/__tests__/ficha-senal-espectro.test.tsx` verde y tsc acotado.\n\nREGLAS DE LA CASA (valen aunque no las repita la tarea): toca SOLO los archivos de la lista `archivos`; ≤3 archivos y ≤120 líneas por archivo (si no cabe, para y di qué falta: no lo estires ni lo resumas); sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible (la interfaz dice Genesis); sin red real en las pruebas; ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves. El asunto de tu commit empieza por `MRE7:` y dice qué comprobaste y qué NO pudiste comprobar.",
+   "dependencias_ya_en_main": [
+    "MRA4"
+   ]
+  }
+ ]
+}
