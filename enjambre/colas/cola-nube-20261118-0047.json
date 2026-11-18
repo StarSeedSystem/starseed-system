@@ -1,0 +1,41 @@
+{
+ "ola": "nube-20261118",
+ "tareas": [
+  {
+   "id": "MRE6",
+   "ola": "MAP1116B",
+   "titulo": "Vista del espectro: eje de bandas y frecuencias con anchos, capa y fuente",
+   "archivos": [
+    "src/components/mesh/mapa-senales/vista-espectro.tsx",
+    "src/components/mesh/mapa-senales/__tests__/vista-espectro.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Componente SVG `VistaEspectro({senales, sinFuente, onElegir})`: eje horizontal de frecuencia (escala logarítmica con las bandas de `bandas.ts` rotuladas: 433 MHz, 868 MHz, 2,4 GHz, 5 GHz…), cada señal es una barra de su ancho en su frecuencia, altura = fuerza (o «sin medir» como barra hueca), color por medio, estilo por origen (medida sólida, declarada con anillo, estimada rayada); las señales sin frecuencia van a una fila «sin frecuencia» debajo (no se colocan al azar). Debajo, un bloque «Lo que este aparato no puede ver» con los `sinFuente` y su motivo. Táctil y de teclado (Enter abre la ficha), usable a 360 px, `prefers-reduced-motion` respetado. PRUEBAS: dos señales solapadas; una sin frecuencia en su fila; `sinFuente` visible; elegir llama a `onElegir` con el id. COMPRUEBA: `NODE_ENV=test npx vitest run src/components/mesh/mapa-senales/__tests__/vista-espectro.test.tsx` verde y tsc acotado.\n\nREGLAS DE LA CASA (valen aunque no las repita la tarea): toca SOLO los archivos de la lista `archivos`; ≤3 archivos y ≤120 líneas por archivo (si no cabe, para y di qué falta: no lo estires ni lo resumas); sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible (la interfaz dice Genesis); sin red real en las pruebas; ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves. El asunto de tu commit empieza por `MRE6:` y dice qué comprobaste y qué NO pudiste comprobar.",
+   "dependencias_ya_en_main": [
+    "MRE5",
+    "MRF1"
+   ]
+  },
+  {
+   "id": "MRE7",
+   "ola": "MAP1116B",
+   "titulo": "Ficha de una señal: toda su información y sus opciones de compatibilidad",
+   "archivos": [
+    "src/components/mesh/mapa-senales/ficha-senal-espectro.tsx",
+    "src/components/mesh/mapa-senales/__tests__/ficha-senal-espectro.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Componente `FichaSenalEspectro({senal, onAccion})` con el estilo de las fichas de `src/components/mesh/mapa-senales/secciones-ficha.tsx`: medio, banda, frecuencia y ancho en unidades legibles, fuerza y calidad, origen con su etiqueta («medida a las 14:32» / «declarada» / «estimada»), capa (propia/pública/comunidad/privada/externa), zona aproximada si hay, quién la ve (`fuente`), `vinculo` (a qué antena, cerebro, nodo, neurona, servidor, estación o router corresponde) y la lista `compatibles`: cada opción con su motivo y, si `posible`, un botón de acción que SOLO llama a `onAccion(opcion)` (inyectado; la ficha no conecta nada por sí misma). Lo que falta se enseña como «sin dato», nunca como 0. PRUEBAS: señal medida completa; señal sin frecuencia; opción no posible con su motivo y sin botón; el botón llama a `onAccion` con la opción. COMPRUEBA: `NODE_ENV=test npx vitest run src/components/mesh/mapa-senales/__tests__/ficha-senal-espectro.test.tsx` verde y tsc acotado.\n\nREGLAS DE LA CASA (valen aunque no las repita la tarea): toca SOLO los archivos de la lista `archivos`; ≤3 archivos y ≤120 líneas por archivo (si no cabe, para y di qué falta: no lo estires ni lo resumas); sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible (la interfaz dice Genesis); sin red real en las pruebas; ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves. El asunto de tu commit empieza por `MRE7:` y dice qué comprobaste y qué NO pudiste comprobar.",
+   "dependencias_ya_en_main": [
+    "MRE5",
+    "MRA4"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1117-193401.json": [
+   "MRE6",
+   "MRE7"
+  ]
+ }
+}
