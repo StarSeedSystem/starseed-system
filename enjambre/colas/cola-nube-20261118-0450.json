@@ -1,0 +1,47 @@
+{
+ "ola": "nube-20261118",
+ "tareas": [
+  {
+   "id": "AN04abs",
+   "ola": "AUD1117",
+   "titulo": "Llamadas: una caída corta del Bluetooth no cuelga la llamada · lo que faltó: src/lib/llamadas/carriles.ts",
+   "archivos": [
+    "src/lib/llamadas/carriles.ts"
+   ],
+   "depende": [],
+   "prompt": "SEGUIMIENTO de AN04ab, que ya está integrada (sha 5e884a4b09fb). Las cuatro puertas pasaron en verde y la revisión no puso pegas, pero el agente no llegó a tocar estos archivos: src/lib/llamadas/carriles.ts.\n\nTu encargo es SOLO esos archivos. No rehagas lo que ya está: léelo primero y engánchate a lo que hay. Tarea original: Llamadas: una caída corta del Bluetooth no cuelga la llamada\n\n--- encargo original, como contexto ---\nLee AGENTS.md. Esta tarea sale de la auditoría previa a las pruebas en aparatos del 17-11: lee starseed_memory_root/olas/auditoria-1117-AUD1117N.md, arreglo F4 y la fila de la tabla a la que responde. Reglas de esta ola: cambio pequeño y local a los archivos nombrados (si hace falta uno más, que sea vecino y dilo); nada queda apagado por defecto salvo que la tarea lo pida; una línea de registro nunca lleva contenido, nombres de personas, coordenadas ni claves; pruebas con vitest junto al archivo, herméticas y deterministas; textos de interfaz en español neutro; no toques src/lib/control-remoto/**, src/components/control-remoto/** ni native/src-tauri/** (los lleva otra ola). Qué debe ser verdad: con un solo carril (solo Bluetooth o solo llamada directa) y un corte del enlace de hasta 90 s, la llamada pasa a «Reconectando…» y vuelve sola al volver el enlace, sin colgar; pasados 90 s termina con un motivo visible. Con otro carril vivo, el relevo sigue como hoy. Los 15 s y 20 s actuales quedan como el momento en que se enseña «Reconectando…», no como el fin. Prueba: caso nuevo con un enlace que cae 60 s y vuelve (sigue viva) y otro que cae 95 s (termina con motivo), con reloj inyectado.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/44238985590`)\nUn agente de la nube ya avanzó esta tarea (conflicto al traerla sobre el main de hoy: ec>\", then run\nhint: \"git cherry-pick --continue\".\nhint: You can instead skip this commit with \"git cherry-pick --skip\".\nhint: To abort and get back to the state before \"git cherry-pick\",\nhint: run \"git cherry-pick --abort\".\nhint: Disable this message with \"git config set advice.mergeConflict false\"). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/44238985590:refs/remotes/origin/nube/44238985590\"` y `git cherry-pick --no-commit e653eee15949 5fa763dbfdf9`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con ",
+   "origen": "seguimiento de alcance parcial",
+   "rama_nube": "nube/44238985590",
+   "depende_de": []
+  },
+  {
+   "id": "LNX01",
+   "ola": "LNX1118",
+   "titulo": "Paquete de Linux: el .deb de StarSeed OS exige los paquetes de WebRTC (gstreamer1.0-nice y gstreamer1.0-plugins-bad)",
+   "archivos": [
+    "native/src-tauri/tauri.conf.json",
+    "src/lib/__tests__/paquete-linux-webrtc.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Alex (18-11-2026): «ese paquete deberia de instalarse junto con la app para que lo consideres para las proximas versiones». En un nodo Linux recien instalado faltaba gstreamer1.0-nice y WebKitGTK no tenia ICE: sin el no hay llamadas ni pantalla del control por WebRTC. Tarea: en native/src-tauri/tauri.conf.json, dentro de bundle.linux.deb.depends (crea las claves que falten SIN tocar nada mas del archivo y conservando las dependencias que ya haya), anade \"gstreamer1.0-nice\" y \"gstreamer1.0-plugins-bad\". No cambies la configuracion de la AppImage ni los workflows de CI (eso lo hace un agente senior con verificacion en CI). Escribe la prueba src/lib/__tests__/paquete-linux-webrtc.test.ts (vitest, node): lee ese JSON con fs y comprueba que bundle.linux.deb.depends es una lista que contiene los dos paquetes y que el JSON sigue siendo valido. Verificacion: NODE_ENV=test ./node_modules/.bin/vitest run src/lib/__tests__/paquete-linux-webrtc.test.ts. Maximo 2 archivos; espanol neutro en comentarios."
+  },
+  {
+   "id": "T305",
+   "ola": "TRI1118",
+   "titulo": "Lector puro de enlaces.log que resume la ronda de pruebas de tres neuronas",
+   "archivos": [
+    "src/lib/malla/ronda-tres/resumen-registro.ts",
+    "src/lib/malla/ronda-tres/__tests__/resumen-registro.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Crea el modulo PURO src/lib/malla/ronda-tres/resumen-registro.ts (sin DOM, sin red, sin node:*, max. 120 lineas) y su prueba src/lib/malla/ronda-tres/__tests__/resumen-registro.test.ts (max. 120 lineas). Exporta `resumirRonda(lineas: string[]): ResumenRonda` donde ResumenRonda = { mensajes: {enviados:number; entregados:number; porMedio: Record<string, number>}; archivos: {completos:number; verificados:number; fallos:string[]; kbps: number[]}; relevo: {rutas:number; entregados:number; sinRuta:number}; llamadas: {contestadas:number; porWebrtc:number; porDatos:number; fallos:number}; control: number; sinEvidencia: string[] }. Los formatos reales: lee src/lib/malla/registro-enlace-ble.ts (`exportar`), src/lib/network/archivos-diagnostico.ts (cabecera: `archivo <id> completo kbps=... vias=...`, `verificado`, `fallo motivo=...`), src/lib/malla/relevo/real.ts (`<iso> web relevo - - <texto>` con `ruta destino=... motivo=...`, `entregado ... ms=`, `sin-ruta`) y native/src-tauri/src/ble.rs (`linea_registro`: `<iso> ble <tipo> enlace=.. neurona=.. · detalle`). Cuenta lineas por el tipo (segunda o tercera palabra: `mensaje-malla`, `archivo`, `relevo`, `llamada`, `control-...`) y por su detalle (`enviado`, `entregado via=<medio>`, `contestada`, `medio=webrtc`, `enlace-datos`, `fallo`). Tolera lineas vacias, basura y prefijos como `(Maggaboard)`; nunca lanza. `sinEvidencia` lista los apartados con cero lineas (por ejemplo 'puerta' si no hay ninguna linea `puerta`), sin inventar datos. Prueba con un registro de ejemplo de 12-15 lineas hechas a mano (sin ids reales ni claves) que cubra cada contador, una linea basura y una vacia, y un caso con registro vacio. Verificacion: `NODE_ENV=test ./node_modules/.bin/vitest run src/lib/malla/ronda-tres src/lib/__tests__/nombre-genesis.test.ts`."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1117-193401.json": [
+   "T305",
+   "AN04abs",
+   "LNX01"
+  ]
+ }
+}
