@@ -8,6 +8,7 @@
 import { useEffect, useState } from "react";
 import { COMANDO_REGISTRO_BLE, textoCanalBle, textoPausaCanalBle, textoVelocidadBle } from "@/lib/malla/bluetooth-directo";
 import { unirRegistros, type RegistroNativoBle } from "@/lib/malla/registro-enlace-ble";
+import { resumirRonda, type ResumenRonda } from "@/lib/malla/ronda-tres/resumen-registro";
 import { CLAVE_DEFECTOS_ANTENAS, leerMarca, marcarExplicito, serializarMarca } from "@/lib/malla/defectos-antenas";
 import { abrirEnlaceBluetooth, activarBluetooth, compartirRegistroEnlaces, fijarCanalRapidoBluetooth, leerCanalRapidoBluetooth, pedirPermisoBluetooth, useEstadoBluetooth } from "@/lib/malla/bluetooth-directo-estado";
 
@@ -93,6 +94,7 @@ function RegistroDelEnlace() {
     };
   }, [abierto]);
   const texto = lineas.join("\n");
+  const resumen = lineas.length ? resumirRonda(lineas) : null;
   const copiar = async () => {
     try {
       await navigator.clipboard.writeText(texto);
@@ -130,6 +132,19 @@ function RegistroDelEnlace() {
             </button>
             {aviso && <span className="text-[10px] text-amber-300">{aviso}</span>}
           </div>
+          {resumen && (
+            <div className="mb-2 text-[10px] text-white/70" data-testid="resumen-registro">
+              <div className="font-medium text-white/85">Resumen de la ronda</div>
+              <div className="flex flex-wrap gap-4 mt-1">
+                <span>Mensajes: {resumen.mensajes.enviados} enviados, {resumen.mensajes.entregados} entregados ({Object.entries(resumen.mensajes.porMedio).map(([m, n]) => `${m}:${n}`).join(", ") || "—"})</span>
+                <span>Archivos: {resumen.archivos.completos} completos ({resumen.archivos.kbps.length ? resumen.archivos.kbps.join(",") : "—"} kbps), {resumen.archivos.verificados} verificados, {resumen.archivos.fallos.length} fallos</span>
+                <span>Relevo: {resumen.relevo.rutas} rutas, {resumen.relevo.entregados} entregados, {resumen.relevo.sinRuta} sin ruta</span>
+                <span>Llamadas: {resumen.llamadas.contestadas} contestadas ({resumen.llamadas.porWebrtc} WebRTC, {resumen.llamadas.porDatos} datos), {resumen.llamadas.fallos} fallos</span>
+                <span>Control: {resumen.control}</span>
+                {resumen.sinEvidencia.length && <span className="text-amber-300">Sin evidencia: {resumen.sinEvidencia.join(", ")}</span>}
+              </div>
+            </div>
+          )}
           <pre className="max-h-56 overflow-auto rounded-lg bg-black/30 p-2 text-[10px] leading-snug text-white/60" aria-label="Registro del enlace Bluetooth">
             {lineas.length ? texto : "Aún no hay eventos: aquí se apuntará cada enlace que se abra, se cierre o se caiga, y por qué."}
           </pre>
