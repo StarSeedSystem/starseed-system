@@ -66,6 +66,8 @@ export interface PresenciaMedio {
   c?: string[];
   /** (CTL1117I) Color público de la neurona (`#rrggbb`); ausente en las webs anteriores: se usa el de su id. */
   col?: string;
+  /** (AQ07) Oferta de recursos que esta neurona anuncia: cómputo, almacenamiento, internet compartido. */
+  o?: { computo: boolean; almacenamiento: boolean; internet: boolean };
 }
 
 export interface EstadoPresencia {
@@ -135,7 +137,7 @@ const desde = new Date().toISOString();
 
 async function anuncio(): Promise<PresenciaMedio | null> {
   try {
-    const { thisDeviceId, resolverAliasEsteMedio } = await import("@/lib/neurons/neurons");
+    const { thisDeviceId, resolverAliasEsteMedio, permissionsFor, settingsFor } = await import("@/lib/neurons/neurons");
     const n = resolverAliasEsteMedio() || thisDeviceId();
     const medio = describirMedio();
     if (!n || !medio.id) return null;
@@ -177,6 +179,19 @@ async function anuncio(): Promise<PresenciaMedio | null> {
     } catch {
       plataforma = undefined;
     }
+    // (AQ07) Leer la oferta de recursos que la persona tiene encendida en este aparato
+    let o: PresenciaMedio["o"];
+    try {
+      const perms = permissionsFor(n);
+      const sett = settingsFor(n);
+      o = {
+        computo: perms.compute === true,
+        almacenamiento: perms.storage === true,
+        internet: sett.offerPublicInternet === true,
+      };
+    } catch {
+      o = undefined;
+    }
     return {
       n,
       m: medio.id,
@@ -192,6 +207,7 @@ async function anuncio(): Promise<PresenciaMedio | null> {
       ...(d ? { d } : {}),
       ...(c ? { c } : {}),
       ...(col ? { col } : {}),
+      ...(o ? { o } : {}),
     };
   } catch {
     return null;
@@ -202,7 +218,8 @@ async function enviar(forzar = false): Promise<void> {
   if (!canal) return;
   const a = await anuncio();
   if (!a || !canal) return;
-  const firma = `${a.n}|${a.visible ? 1 : 0}|${firmaSenales(a.s)}|${a.v ? firmaVersiones(a.v) : ""}|${a.d ? JSON.stringify(a.d) : ""}|${a.c ? a.c.join(",") : ""}|${a.col ?? ""}`;
+  const ofertaStr = a.o ? `${a.o.computo ? 1 : 0}|${a.o.almacenamiento ? 1 : 0}|${a.o.internet ? 1 : 0}` : "";
+  const firma = `${a.n}|${a.visible ? 1 : 0}|${firmaSenales(a.s)}|${a.v ? firmaVersiones(a.v) : ""}|${a.d ? JSON.stringify(a.d) : ""}|${a.c ? a.c.join(",") : ""}|${a.col ?? ""}|${ofertaStr}`;
   const ahora = Date.now();
   if (!forzar && firma === ultimaFirma) return;
   if (!forzar && ahora - ultimoEnvio < MIN_REENVIO_MS) {

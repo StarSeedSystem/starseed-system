@@ -76,6 +76,8 @@ export interface MarcaGeo {
   antenas: AntenaMarca[];
   capas: { lista: CapaConcienciaId[] | null; t: number | null; fuente: string };
   hardware: HardwareMarca;
+  /** (AQ07) Oferta de recursos que la neurona anuncia: cómputo, almacenamiento, internet compartido. */
+  oferta?: { computo: boolean; almacenamiento: boolean; internet: boolean } | null;
   /** Versión y aparato que la neurona anuncia de sí misma (declarado). */
   aparato: { so?: string; soV?: string; equipo?: string; arq?: string; medio?: string } | null;
   versionWeb?: string;
@@ -224,6 +226,8 @@ export function construirMarcas(e: EntradaMarcas): MarcaGeo[] {
     const capasLista = esYo ? capasDeLista(e.yo.capas) : capasDeLista(ultimo?.c);
     const d = ultimo?.d;
     const ficha = esYo ? e.yo.ficha : fila?.ficha;
+    // (AQ07) Extraer la oferta de recursos del medio más reciente
+    const oferta = ultimo?.o ?? null;
 
     marcas.push({
       id: `neurona:${neuronaId}`,
@@ -243,6 +247,7 @@ export function construirMarcas(e: EntradaMarcas): MarcaGeo[] {
         fuente: esYo ? "capas de conciencia de este aparato" : "capas que esa neurona anuncia en la presencia de la cuenta",
       },
       hardware: hardwareDeFicha(ficha, esYo ? "ficha de este aparato" : "ficha que esa neurona mandó por su canal P2P"),
+      oferta,
       aparato: d ? { so: d.so, soV: d.soV, equipo: d.equipo, arq: d.arq, medio: d.medio } : ultimo ? { medio: ultimo.tipo } : null,
       versionWeb: ultimo?.v?.interfaz,
       versionNativa: ultimo?.v?.nativa,

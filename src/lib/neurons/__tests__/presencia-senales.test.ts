@@ -9,6 +9,48 @@ import { esPeticionDeEstaMaquina } from "@/lib/seguridad/misma-maquina";
 
 const s = resumirSenales({ enLinea: true, conexion: { type: "wifi", effectiveType: "4g", downlink: 9.87 }, malla: { propios: 2, otrasCuentas: 1 }, mesh: null, bluetooth: null, serie: { api: true, puertos: 0 } });
 
+describe("oferta en presencia (AQ07)", () => {
+  const baseMedio = (overrides: Partial<PresenciaMedio> = {}): PresenciaMedio => ({
+    n: "neurona-1",
+    m: "medio-1",
+    t: Date.now(),
+    tipo: "navegador",
+    etiqueta: "Chrome",
+    visible: true,
+    desde: new Date().toISOString(),
+    s,
+    ...overrides,
+  });
+
+  it("un medio sin oferta no tiene campo o", () => {
+    const medio = baseMedio();
+    expect("o" in medio).toBe(false);
+  });
+
+  it("un medio con oferta de cómputo y almacenamiento incluye el campo o", () => {
+    const medio = baseMedio({
+      o: { computo: true, almacenamiento: true, internet: false },
+    });
+    expect(medio.o).toEqual({ computo: true, almacenamiento: true, internet: false });
+  });
+
+  it("un medio con oferta de internet incluye el campo o", () => {
+    const medio = baseMedio({
+      o: { computo: false, almacenamiento: false, internet: true },
+    });
+    expect(medio.o).toEqual({ computo: false, almacenamiento: false, internet: true });
+  });
+
+  it("la oferta solo incluye lo que la persona tiene encendido", () => {
+    const medio = baseMedio({
+      o: { computo: true, almacenamiento: false, internet: true },
+    });
+    expect(medio.o?.computo).toBe(true);
+    expect(medio.o?.almacenamiento).toBe(false);
+    expect(medio.o?.internet).toBe(true);
+  });
+});
+
 describe("resumirSenales", () => {
   it("dice lo medido y lo que no se puede medir como tal", () => {
     expect(s.internet).toEqual({ enLinea: true, tipo: "wifi", efectivo: "4g", mbps: 9.9 });

@@ -3,6 +3,8 @@ import { CAPAS_SENALES, CAPA_POR_ID, COLOR_DESCONOCIDO, NOTA_PARCHE, estadoCapas
 import { parchesDeCapa } from "../parches";
 import { fichaDeMarca } from "../ficha-geo";
 import { construirMarcas, type MarcaGeo } from "../marcas";
+import type { PresenciaMedio } from "@/lib/neurons/presencia";
+import { resumirSenales } from "@/lib/neurons/senales-medio";
 
 const AHORA = 1_700_000_000_000;
 
@@ -42,8 +44,8 @@ describe("capas: una sola tabla para leyenda y pintura", () => {
       const { tramo } = pintarMarca(c, m);
       expect(tramo.id).toBe("desconocido");
     }
-    // Bluetooth y Wi-Fi ya tienen fuente real (enlaces medidos); lo que sigue sin fuente es la oferta de recursos y la red externa.
-    expect(CAPAS_SENALES.filter((x) => x.estado === "sin-fuente").map((x) => x.id)).toEqual(["oferta-computo", "oferta-almacenamiento", "oferta-internet", "red-externa"]);
+    // Bluetooth y Wi-Fi ya tienen fuente real (enlaces medidos); la oferta de recursos ahora es "parcial" (viene de la presencia); solo red-externa sigue sin fuente.
+    expect(CAPAS_SENALES.filter((x) => x.estado === "sin-fuente").map((x) => x.id)).toEqual(["red-externa"]);
   });
 
   it("internet 10 Mb/s: calidad media, con color", () => {
@@ -99,5 +101,127 @@ describe("ficha", () => {
   it("posición desconocida: dice el motivo, sin coordenadas", () => {
     const f = JSON.stringify(fichaDeMarca(marca({ posicion: { tipo: "desconocida", motivo: "MOTIVO-PRUEBA" } }), AHORA));
     expect(f).toContain("MOTIVO-PRUEBA");
+  });
+});
+
+describe("capas de oferta (AQ07)", () => {
+  const s = resumirSenales({ enLinea: true, conexion: { type: "wifi", effectiveType: "4g", downlink: 10 }, malla: { propios: 0, otrasCuentas: 0 }, mesh: null, bluetooth: null, serie: { api: true, puertos: 0 } });
+
+  function medioConOferta(o: { computo: boolean; almacenamiento: boolean; internet: boolean }): PresenciaMedio {
+    return {
+      n: "neurona-1",
+      m: "medio-1",
+      t: AHORA,
+      tipo: "navegador",
+      etiqueta: "Chrome",
+      visible: true,
+      desde: new Date(AHORA).toISOString(),
+      s,
+      o,
+    };
+  }
+
+  function medioSinOferta(): PresenciaMedio {
+    return {
+      n: "neurona-1",
+      m: "medio-1",
+      t: AHORA,
+      tipo: "navegador",
+      etiqueta: "Chrome",
+      visible: true,
+      desde: new Date(AHORA).toISOString(),
+      s,
+    };
+  }
+
+  function marcaConMedios(medios: PresenciaMedio[]): MarcaGeo {
+    const marcas = construirMarcas({
+      filas: [{ neuronId: "neurona-1", nombre: "Neurona Test", plataforma: "macOS", online: true, esEsteDispositivo: false, tipo: "desktop", enlace: { estado: "conectado", latenciaMs: 50 } }],
+      medios,
+      ahora: AHORA,
+      yo: {
+        neuronaId: "yo", nombre: "Yo", plataforma: "macOS", capas: null, ficha: undefined,
+        posicion: { lat: 19.4326, lon: -99.1332, precisionM: 8, t: AHORA - 10_000 },
+        senales: s,
+      },
+    });
+    const m = marcas.find((marca) => marca.neuronaId === "neurona-1");
+    if (!m) throw new Error("Neurona test no encontrada en marcas");
+    return m;
+  }
+
+  it("oferta-computo: anuncia → valor; no anuncia → desconocido", () => {
+    const capa = CAPA_POR_ID["oferta-computo"];
+    expect(capa).toBeDefined();
+
+    // Neurona que anuncia cómputo
+    const mCon = marcaConMedios([medioConOferta({ computo: true, almacenamiento: false, internet: false })]);
+    const { tramo: tramoCon, valor: valorCon } = pintarMarca(capa!, mCon);
+    expect(tramoCon.id).not.toBe("desconocido");
+    expect(valorCon.medida).toBe(true);
+    expect(valorCon.texto).toContain("cómputo");
+
+    // Neurona que anuncia explícitamente que NO ofrece cómputo (tiene campo o pero computo=false)
+    const mNoOfrece = marcaConMedios([medioConOferta({ computo: false, almacenamiento: true, internet: false })]);
+    const { tramo: tramoNoOfrece, valor: valorNoOfrece } = pintarMarca(capa!, mNoOfrece);
+    expect(tramoNoOfrece.id).toBe("no");
+    expect(valorNoOfrece.medida).toBe(true);
+    expect(valorNoOfrece.texto).toContain("no ofrece cómputo");
+
+    // Neurona que NO anuncia la oferta en absoluto (sin campo o)
+    const mSinOferta = marcaConMedios([medioSinOferta()]);
+    const { tramo: tramoSin, valor: valorSin } = pintarMarca(capa!, mSinOferta);
+    expect(tramoSin.id).toBe("desconocido");
+    expect(valorSin.medida).toBe(false);
+  });
+
+  it("oferta-almacenamiento: anuncia → valor; no anuncia → desconocido", () => {
+    const capa = CAPA_POR_ID["oferta-almacenamiento"];
+    expect(capa).toBeDefined();
+
+    const mCon = marcaConMedios([medioConOferta({ computo: false, almacenamiento: true, internet: false })]);
+    const { tramo: tramoCon, valor: valorCon } = pintarMarca(capa!, mCon);
+    expect(tramoCon.id).not.toBe("desconocido");
+    expect(valorCon.medida).toBe(true);
+    expect(valorCon.texto).toContain("almacenamiento");
+
+    const mNoOfrece = marcaConMedios([medioConOferta({ computo: true, almacenamiento: false, internet: false })]);
+    const { tramo: tramoNoOfrece, valor: valorNoOfrece } = pintarMarca(capa!, mNoOfrece);
+    expect(tramoNoOfrece.id).toBe("no");
+    expect(valorNoOfrece.medida).toBe(true);
+    expect(valorNoOfrece.texto).toContain("no ofrece almacenamiento");
+
+    const mSinOferta = marcaConMedios([medioSinOferta()]);
+    const { tramo: tramoSin, valor: valorSin } = pintarMarca(capa!, mSinOferta);
+    expect(tramoSin.id).toBe("desconocido");
+    expect(valorSin.medida).toBe(false);
+  });
+
+  it("oferta-internet: anuncia → valor; no anuncia → desconocido", () => {
+    const capa = CAPA_POR_ID["oferta-internet"];
+    expect(capa).toBeDefined();
+
+    const mCon = marcaConMedios([medioConOferta({ computo: false, almacenamiento: false, internet: true })]);
+    const { tramo: tramoCon, valor: valorCon } = pintarMarca(capa!, mCon);
+    expect(tramoCon.id).not.toBe("desconocido");
+    expect(valorCon.medida).toBe(true);
+    expect(valorCon.texto).toContain("internet");
+
+    const mNoOfrece = marcaConMedios([medioConOferta({ computo: true, almacenamiento: true, internet: false })]);
+    const { tramo: tramoNoOfrece, valor: valorNoOfrece } = pintarMarca(capa!, mNoOfrece);
+    expect(tramoNoOfrece.id).toBe("no");
+    expect(valorNoOfrece.medida).toBe(true);
+    expect(valorNoOfrece.texto).toContain("no ofrece internet compartido");
+
+    const mSinOferta = marcaConMedios([medioSinOferta()]);
+    const { tramo: tramoSin, valor: valorSin } = pintarMarca(capa!, mSinOferta);
+    expect(tramoSin.id).toBe("desconocido");
+    expect(valorSin.medida).toBe(false);
+  });
+
+  it("las capas de oferta ya no son 'sin-fuente' cuando hay datos", () => {
+    expect(CAPA_POR_ID["oferta-computo"]?.estado).not.toBe("sin-fuente");
+    expect(CAPA_POR_ID["oferta-almacenamiento"]?.estado).not.toBe("sin-fuente");
+    expect(CAPA_POR_ID["oferta-internet"]?.estado).not.toBe("sin-fuente");
   });
 });

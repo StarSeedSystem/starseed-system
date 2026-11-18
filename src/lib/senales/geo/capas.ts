@@ -229,10 +229,20 @@ export const CAPAS_SENALES: readonly CapaSenal[] = [
     id: `oferta-${k}`, grupo: "oferta",
     etiqueta: k === "computo" ? "Cómputo" : k === "almacenamiento" ? "Almacenamiento" : "Internet compartido",
     descripcion: k === "computo" ? "Aparatos que ofrecen cómputo" : k === "almacenamiento" ? "Aparatos que ofrecen almacenamiento" : "Aparatos que comparten su internet",
-    estado: "sin-fuente",
-    fuente: `Sin fuente: ${SIN_OFERTA}`,
-    tramos: [DESC],
-    valor: () => desconocido("desconocido: aún no se anuncia"),
+    estado: "parcial",
+    fuente: `Presencia de la cuenta: cada neurona anuncia si presta ${k === "computo" ? "cómputo" : k === "almacenamiento" ? "almacenamiento" : "internet"} en sus ajustes (permisos.compute, permissions.storage, settings.offerPublicInternet).`,
+    tramos: [
+      { id: "si", etiqueta: k === "computo" ? "Ofrece cómputo" : k === "almacenamiento" ? "Ofrece almacenamiento" : "Comparte internet", color: k === "computo" ? "#22c55e" : k === "almacenamiento" ? "#3b82f6" : "#a855f7", estilo: "relleno" },
+      { id: "no", etiqueta: k === "computo" ? "No ofrece cómputo" : k === "almacenamiento" ? "No ofrece almacenamiento" : "No comparte internet", color: "#94a3b8", estilo: "anillo" },
+      DESC,
+    ],
+    valor: (m) => {
+      const o = m.oferta;
+      if (!o) return desconocido();
+      const activo = o[k as "computo" | "almacenamiento" | "internet"];
+      const etiqueta = k === "computo" ? "cómputo" : k === "almacenamiento" ? "almacenamiento" : "internet compartido";
+      return { tramo: activo ? "si" : "no", texto: activo ? `ofrece ${etiqueta}` : `no ofrece ${etiqueta}`, t: null, medida: true };
+    },
   })),
   {
     id: "oferta-modelos", grupo: "oferta", etiqueta: "Modelos de Astraura", descripcion: "Aparatos que pueden servir modelos de Astraura a la malla",
