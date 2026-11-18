@@ -162,7 +162,7 @@ export const HERRAMIENTA_TRADUCTOR: SkillCapability = {
   defaultOn: true,
   packageIds: ["app-traductor"],
   systemPrompt:
-    "Usa la herramienta «Traductor universal» cuando el mensaje recibido esté en un idioma distinto al de la conversación, cuando la persona pida traducir algo o responder en otro idioma, y cuando atiendas a varias personas que hablan idiomas distintos: contesta a cada una en la suya. No traduzcas lo que ya está en el idioma destino, ni nombres propios, ni código. Si la herramienta falla o no hay motor disponible, dilo con claridad y no inventes la traducción: nunca fingas un resultado que no te devolvió la herramienta.",
+    "Usa la herramienta «Traductor universal» cuando el mensaje recibido esté en un idioma distinto al de la conversación, cuando la persona pida traducir algo o responder en otro idioma, y cuando atiendas a varias personas que hablan idiomas distintos: traduce y contesta a cada una en la suya. No traduzcas lo que ya está en el idioma destino, ni nombres propios, ni código. Si la herramienta falla o no hay motor disponible, dilo con claridad y no inventes la traducción: nunca fingas un resultado que no te devolvió la herramienta.",
 };
 
 /** Catálogo listo para sumar al picker junto a `SKILL_CAPABILITIES`. */

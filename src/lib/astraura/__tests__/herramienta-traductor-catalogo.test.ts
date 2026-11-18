@@ -1,7 +1,11 @@
 /**
  * chat-herramientas · herramienta «Traductor universal» (TRA1116A, PARTE B):
- * forma del catálogo, ausencia de choque con `SKILL_CAPABILITIES` y
+ * forma del catálogo, que no se duplique en `SKILL_CAPABILITIES` (el catálogo
+ * base la APLICA vía el spread de `HERRAMIENTAS_ASTRAURA_VIVO`, skills.ts) y
  * alternado con `alternarHerramienta`. Todo puro: sin red, sin DOM.
+ * Aplicación real: la ejecución vive en `src/lib/integrations/aurora-tools.ts`
+ * (tool «traducir», que llama a herramienta-astraura.ts con los motores de
+ * crearMotores); sin esa pieza el prompt pediría una tool que no se puede ejecutar.
  */
 
 import { describe, expect, it } from "vitest";
@@ -10,7 +14,7 @@ import {
   HERRAMIENTA_TRADUCTOR,
   alternarHerramienta,
 } from "@/lib/astraura/chat-herramientas";
-import { SKILL_CAPABILITIES } from "@/ai/astraura/skills";
+import { SKILL_CAPABILITIES, activeCapabilityIds, skillsSystemPrompt } from "@/ai/astraura/skills";
 
 /** Catálogo de ejemplo del picker, como el que usa el resto de pruebas. */
 const TODOS_IDS = [
@@ -43,9 +47,19 @@ describe("herramienta Traductor universal en el catálogo", () => {
     expect(veces[0]).toBe(HERRAMIENTA_TRADUCTOR);
   });
 
-  it("su id no choca con ninguna capacidad del catálogo base", () => {
-    const idsBase = SKILL_CAPABILITIES.map((c) => c.id);
-    expect(idsBase).not.toContain(HERRAMIENTA_TRADUCTOR.id);
+  it("su id no choca en el catálogo base: entra una vez y es la misma herramienta", () => {
+    // El catálogo base la aplica vía el spread de `HERRAMIENTAS_ASTRAURA_VIVO`
+    // en `SKILL_CAPABILITIES` (src/ai/astraura/skills.ts): «no choca» es que no
+    // hay duplicado y que la entrada es ESTA herramienta, no otra con su id.
+    const veces = SKILL_CAPABILITIES.filter((c) => c.id === HERRAMIENTA_TRADUCTOR.id);
+    expect(veces).toHaveLength(1);
+    expect(veces[0]).toBe(HERRAMIENTA_TRADUCTOR);
+  });
+
+  it("queda aplicada en el manifiesto: su prompt llega al cerebro por defecto", () => {
+    expect(skillsSystemPrompt()).toContain("Traductor universal");
+    expect(skillsSystemPrompt()).toContain("no inventes la traducción");
+    expect(activeCapabilityIds()).toContain(HERRAMIENTA_TRADUCTOR.id);
   });
 });
 
