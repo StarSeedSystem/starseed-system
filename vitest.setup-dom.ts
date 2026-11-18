@@ -12,7 +12,7 @@
  */
 if (typeof document !== "undefined") {
   // @ts-ignore
-const { configure } = await import("@testing-library/react");
+  const { configure } = await import("@testing-library/react");
   configure({ asyncUtilTimeout: 5000 });
 
   // FIX1114A — desmonta lo montado al terminar cada prueba.
@@ -27,6 +27,16 @@ const { configure } = await import("@testing-library/react");
   afterEach(() => {
     cleanup();
   });
+
+  // Polyfill para ResizeObserver (requerido por @radix-ui/react-use-size en Slider, Select, etc.)
+  if (typeof globalThis.ResizeObserver === "undefined") {
+    // @ts-ignore
+    globalThis.ResizeObserver = class ResizeObserver {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    };
+  }
 }
 
 // @ts-ignore
