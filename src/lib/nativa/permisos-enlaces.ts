@@ -156,11 +156,17 @@ export function textoEnlace(e: Enlace | null): string {
 
 /* ───────────── Lo que le falta al control remoto de una tableta (`control_capacidades().falta`) ───────────── */
 
-export const ENLACES_CONTROL: Record<"servicio-accesibilidad" | "ajustes-restringidos" | "escribir-ajustes" | "consentimiento-pantalla", Enlace> = {
+export const ENLACES_CONTROL: Record<
+  "servicio-accesibilidad" | "ajustes-restringidos" | "escribir-ajustes" | "consentimiento-pantalla" | "grabacion-pantalla" | "accesibilidad-mac",
+  Enlace
+> = {
   "servicio-accesibilidad": ANDROID.accesibilidad!,
   "ajustes-restringidos": f(
     "Pulsa ⋮ (arriba a la derecha) › «Permitir ajustes restringidos» y confirma con tu huella o PIN. Si ⋮ no sale, vuelve a «Accesibilidad», intenta activar StarSeed OS una vez (saldrá en gris) y regresa aquí: Android lo muestra después del primer intento.",
   ),
   "escribir-ajustes": ANDROID["escribir-ajustes"]!,
   "consentimiento-pantalla": { nivel: "aviso", pantalla: "Diálogo de StarSeed OS en este aparato", pulsa: "Lee el aviso y pulsa «Sí» solo si quieres que tus otras neuronas vean la pantalla sin preguntar." },
+  // CTL1117M: los dos permisos del Mac, con la misma fila que ya usa la ventana de permisos de macOS.
+  "grabacion-pantalla": MACOS.pantalla!,
+  "accesibilidad-mac": MACOS.accesibilidad!,
 };
