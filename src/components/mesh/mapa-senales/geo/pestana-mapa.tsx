@@ -24,6 +24,9 @@ import { FichaGeo } from "./ficha-geo";
 import { MarcasEnMapa } from "./marcas-en-mapa";
 import { SeccionCapas } from "./seccion-capas";
 import { useMarcasGeo, type MarcasGeo, type PermisoUbicacion } from "./use-marcas-geo";
+import { usePublicarSenales, type EntradaPublicacion, type CapasHabilitadas } from "./use-publicar-senales";
+import type { SenalesMedio } from "@/lib/neurons/senales-medio";
+import type { DescripcionMedio } from "@/lib/neurons/medio";
 
 function useEnLinea(): { enLinea: boolean; desde: number | null } {
   const [est, setEst] = useState<{ enLinea: boolean; desde: number | null }>({ enLinea: true, desde: null });
@@ -61,7 +64,7 @@ export function PestanaMapa({ compacto }: { compacto?: boolean }) {
 }
 
 export interface VistaMapaProps {
-  datos: Pick<MarcasGeo, "marcas" | "presenciaConectada" | "ahora" | "permiso" | "compartir" | "fijarCompartir" | "alMiPosicion" | "errorUbicacion" | "alErrorUbicacion" | "desde" | "canal" | "enlaces" | "publicadas">;
+  datos: Pick<MarcasGeo, "marcas" | "presenciaConectada" | "ahora" | "permiso" | "compartir" | "fijarCompartir" | "alMiPosicion" | "errorUbicacion" | "alErrorUbicacion" | "desde" | "canal" | "enlaces" | "publicadas" | "senales" | "deviceId" | "medio">;
   enLinea: boolean;
   sinRedDesde?: number | null;
   compacto?: boolean;
@@ -72,7 +75,29 @@ export function VistaMapa({ datos, enLinea, sinRedDesde, compacto }: VistaMapaPr
   const estrecho = useCompacto(compacto);
   const [capas, alternar, opacidad] = useCapasSenales();
   const [sel, setSel] = useState<string | null>(null);
-  const { marcas, ahora, permiso, presenciaConectada } = datos;
+  const { marcas, ahora, permiso, presenciaConectada, senales, deviceId, medio } = datos;
+
+  // (AUD1117F4) Estado de publicación por capa: apagado de fábrica.
+  const [publicacion, setPublicacion] = useState<CapasHabilitadas>({ publica: false, comunidad: false, privada: false });
+
+  const onPublicacion = useCallback((capa: "publica" | "comunidad" | "privada", on: boolean) => {
+    setPublicacion((prev) => ({ ...prev, [capa]: on }));
+  }, []);
+
+  // (AUD1117F4) Hook para publicar las señales de este aparato en el espectrómetro.
+  const entrada = useMemo<EntradaPublicacion | null>(() => {
+    if (!deviceId || !medio || !senales) return null;
+    return {
+      deviceId,
+      medioId: medio.id,
+      medioTipo: medio.tipo,
+      medioEtiqueta: medio.etiqueta,
+      senales,
+      ahora,
+    };
+  }, [deviceId, medio, senales, ahora]);
+
+  const { publicar, publicando, ultimaPublicacion, error } = usePublicarSenales(entrada, publicacion);
 
   // (AUD1117) La base geográfica puede fallar aunque `navigator.onLine` diga que hay red (teselas caídas).
   // Se mide con los eventos de Leaflet; al volver la red se reintenta sola y, si sigue sin base, cada 30 s.
@@ -103,7 +128,7 @@ export function VistaMapa({ datos, enLinea, sinRedDesde, compacto }: VistaMapaPr
     onErrorUbicacion: datos.alErrorUbicacion,
     onBaseEstado: setBase,
     seccionCapas: (ctx) => (
-      <SeccionCapas estado={capas} onAlternar={alternar} onOpacidad={opacidad} permiso={permiso} compartir={datos.compartir} canal={datos.canal} onCompartir={datos.fijarCompartir} onUbicarme={ctx.ubicarme} publicadas={datos.publicadas} />
+      <SeccionCapas estado={capas} onAlternar={alternar} onOpacidad={opacidad} permiso={permiso} compartir={datos.compartir} canal={datos.canal} onCompartir={datos.fijarCompartir} onUbicarme={ctx.ubicarme} publicadas={datos.publicadas} publicacion={publicacion} onPublicacion={onPublicacion} />
     ),
     superposicion: (ctx) => (
       <MarcasEnMapa
@@ -114,7 +139,7 @@ export function VistaMapa({ datos, enLinea, sinRedDesde, compacto }: VistaMapaPr
         {marcaSel && <FichaGeo marca={marcaSel} ahora={ahora} compacto={estrecho} onCerrar={() => setSel(null)} />}
       </MarcasEnMapa>
     ),
-  }), [permiso, datos.alMiPosicion, datos.alErrorUbicacion, datos.compartir, datos.canal, datos.enlaces, datos.fijarCompartir, datos.errorUbicacion, datos.desde, datos.publicadas, capas, alternar, opacidad, marcas, ahora, sel, estrecho, enLinea, sinRedDesde, presenciaConectada, colocadas.length, yo, marcaSel]);
+  }), [permiso, datos.alMiPosicion, datos.alErrorUbicacion, datos.compartir, datos.canal, datos.enlaces, datos.fijarCompartir, datos.errorUbicacion, datos.desde, datos.publicadas, capas, alternar, opacidad, marcas, ahora, sel, estrecho, enLinea, sinRedDesde, presenciaConectada, colocadas.length, yo, marcaSel, publicacion, onPublicacion]);
 
   if (sinBase) {
     return (

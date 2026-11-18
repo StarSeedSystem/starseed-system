@@ -66,6 +66,9 @@ function datosDePrueba(): VistaMapaProps["datos"] {
     canal: ESTADO_INICIAL,
     enlaces: [],
     publicadas,
+    senales: null,
+    deviceId: "yo",
+    medio: { id: "m-test", tipo: "navegador", etiqueta: "Navegador de prueba" },
   };
 }
 

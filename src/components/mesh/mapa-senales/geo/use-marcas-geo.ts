@@ -10,6 +10,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMallaNeuronasEstado, type FichaDispositivo } from "@/lib/network/malla-neuronas";
 import { usePresenciaNeuronas } from "@/lib/neurons/presencia";
 import { medirSenales, type SenalesMedio } from "@/lib/neurons/senales-medio";
+import { describirMedio, type DescripcionMedio } from "@/lib/neurons/medio";
 import { construirMarcas, type MarcaGeo } from "@/lib/senales/geo/marcas";
 import {
   EVENTO_POSICION, fijarCompartirPosicion, guardarPosicionCruda, leerCompartirPosicion, leerPosicionCruda,
@@ -45,6 +46,12 @@ export interface MarcasGeo {
   /** (AUD1117) Lectura de las señales publicadas por toda la red (`useSenalesPublicadas`), que pintan
    * las capas `red-*`; con lectura fallida, su `estado` y `motivo` son lo que dice el panel. */
   publicadas: EstadoSenalesPublicadas;
+  /** (AUD1117F4) Señales medidas de ESTE medio, para publicarlas en el espectrómetro. */
+  senales: SenalesMedio | null;
+  /** (AUD1117F4) Id de este dispositivo (neuronId) para publicar sus señales. */
+  deviceId: string | null;
+  /** (AUD1117F4) Descripción de este medio (id, tipo, etiqueta) para publicar sus señales. */
+  medio: DescripcionMedio | null;
 }
 
 /** Cada cuánto se reintenta unirse al canal privado si fue rechazado (por ejemplo, tras aplicar la migración o iniciar sesión). */
@@ -73,6 +80,7 @@ export function useMarcasGeo(): MarcasGeo {
   const [cruda, setCruda] = useState<PosicionCruda | null>(null);
   const [compartir, setCompartir] = useState(true);
   const [errorUbicacion, setError] = useState<string | null>(null);
+  const [medio, setMedio] = useState<DescripcionMedio | null>(null);
 
   const leerLocal = useCallback(() => {
     setCruda(leerPosicionCruda());
@@ -83,6 +91,11 @@ export function useMarcasGeo(): MarcasGeo {
     window.addEventListener(EVENTO_POSICION, leerLocal);
     return () => window.removeEventListener(EVENTO_POSICION, leerLocal);
   }, [leerLocal]);
+
+  // (AUD1117F4) Descripción de ESTE medio: se lee una vez al montar (el HTML del servidor no lo conoce).
+  useEffect(() => {
+    try { setMedio(describirMedio()); } catch { setMedio(null); }
+  }, []);
 
   useEffect(() => {
     let vivo = true;
@@ -169,22 +182,25 @@ export function useMarcasGeo(): MarcasGeo {
     guardarPosicionCruda({ lat: p.lat, lon: p.lng, precisionM: p.accuracy, t: p.t });
   }, []);
 
+  const mia = filas.find((f) => f.esEsteDispositivo);
+  const deviceId = mia?.neuronId ?? null;
+
   const marcas = useMemo(() => {
-    const mia = filas.find((f) => f.esEsteDispositivo);
     return construirMarcas({
       filas,
       medios: presencia.medios,
-      yo: { neuronaId: mia?.neuronId ?? null, nombre: mia?.nombre ?? "Este aparato", plataforma: mia?.plataforma, senales, capas, posicion: cruda, ficha },
+      yo: { neuronaId: deviceId, nombre: mia?.nombre ?? "Este aparato", plataforma: mia?.plataforma, senales, capas, posicion: cruda, ficha },
       ahora,
       posiciones: canal.posiciones,
       canal: { unido: canal.union === "unido", motivo: canal.motivo },
       enlaces,
       publicadas: publicadas.senales,
     });
-  }, [filas, presencia.medios, senales, capas, cruda, ficha, ahora, canal, enlaces, publicadas.senales]);
+  }, [filas, presencia.medios, deviceId, mia?.nombre, mia?.plataforma, senales, capas, cruda, ficha, ahora, canal, enlaces, publicadas.senales]);
 
   return {
     marcas, presenciaConectada: presencia.conectado, ahora, permiso, compartir,
     fijarCompartir: fijarCompartirPosicion, alMiPosicion, errorUbicacion, alErrorUbicacion: setError, desde, canal, enlaces, publicadas,
+    senales, deviceId, medio,
   };
 }
