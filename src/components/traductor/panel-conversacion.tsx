@@ -36,7 +36,8 @@ function faseYContenido(estado: EstadoConversacion, quien: Hablante): { fase: st
     if (estado.fase === "escuchando") return { fase: suyo ? "Escuchando" : null, activo: suyo ? { ...vacio, original: estado.parcial } : vacio };
     if (estado.fase === "traduciendo") return { fase: suyo ? "Traduciendo…" : null, activo: suyo ? { ...vacio, original: estado.textoOriginal } : vacio };
     if (estado.fase === "hablando") return { fase: suyo ? "Hablando" : null, activo: suyo ? { original: estado.texto, traduccion: estado.traduccion, reconocerMs: estado.inicioTraduccionMs - estado.inicioMs, traducirMs: estado.inicioHablaMs - estado.inicioTraduccionMs } : vacio };
-    return { fase: suyo ? "Turno en espera" : null, activo: vacio };
+    const enCola = estado.cola.some((turno) => turno.quien === quien);
+    return { fase: enCola ? "Turno en espera" : suyo ? "En espera" : null, activo: vacio };
 }
 
 interface PropsMitad {
@@ -58,10 +59,13 @@ function Mitad({ quien, idioma, estado, turnos, disp, girar, onPulsarHablar, onD
     return (
         <section data-testid={`mitad-${quien}`} aria-label={`Persona ${quien}: ${nombreIdioma(idioma)}`} className={`flex min-w-0 flex-col gap-5 rounded-3xl border border-white/15 bg-white/5 p-5 ${girar ? "rotate-180" : ""}`}>
             <header className="flex items-center justify-between gap-3">
-                <h2 className="flex items-center gap-2 text-lg font-semibold text-white"><Languages className="h-5 w-5 text-cyan-300" aria-hidden />{nombreIdioma(idioma)}</h2>
-                <p data-testid={`estado-${quien}`} className="rounded-full border border-white/15 px-3 py-1 text-xs text-white/80">{fase ?? "En espera"}</p>
+                <div className="flex flex-col gap-0.5">
+                    <p className="text-xs uppercase tracking-wide text-white/50">Persona {quien}</p>
+                    <h2 className="flex items-center gap-2 text-lg font-semibold text-white"><Languages className="h-5 w-5 text-cyan-300" aria-hidden />{nombreIdioma(idioma)}</h2>
+                </div>
+                <p data-testid={`estado-${quien}`} role="status" aria-live="polite" className="rounded-full border border-white/15 px-3 py-1 text-xs text-white/80">{fase ?? "En espera"}</p>
             </header>
-            <button type="button" data-testid={`microfono-${quien}`} onClick={alPulsar} disabled={sinReconocer} aria-label={escuchando ? `Detener el micrófono de la persona ${quien}` : `Hablar por la persona ${quien}`} className="mx-auto flex h-20 w-20 cursor-pointer flex-col items-center justify-center gap-1 rounded-full bg-cyan-500 text-xs font-semibold text-white transition-transform hover:scale-105 disabled:cursor-not-allowed disabled:opacity-40">
+            <button type="button" data-testid={`microfono-${quien}`} onClick={alPulsar} disabled={sinReconocer} aria-pressed={escuchando} aria-label={escuchando ? `Detener el micrófono de la persona ${quien}` : `Hablar por la persona ${quien}`} className="mx-auto flex h-20 w-20 cursor-pointer flex-col items-center justify-center gap-1 rounded-full bg-cyan-500 text-xs font-semibold text-white transition-transform hover:scale-105 disabled:cursor-not-allowed disabled:opacity-40">
                 {escuchando ? <Square className="h-7 w-7" aria-hidden /> : <Mic className="h-7 w-7" aria-hidden />}
                 <span>{escuchando ? "Detener" : "Hablar"}</span>
             </button>
@@ -103,7 +107,7 @@ export function PanelConversacion(props: PanelConversacionProps) {
         <Mitad quien={quien} idioma={idioma} estado={estado} turnos={turnos} disp={disponibilidad[quien]} girar={girar} onPulsarHablar={onPulsarHablar} onDetener={onDetener} onEscribir={onEscribir} />
     );
     return (
-        <section aria-label="Conversación por voz" className="flex flex-col gap-5">
+        <section data-testid="panel-conversacion" aria-label="Conversación por voz" className="flex flex-col gap-5">
             <div role="note" data-testid="aviso-conversacion" className="flex gap-3 rounded-2xl border border-amber-400/40 bg-amber-500/10 p-4 text-sm text-amber-100">
                 <AlertTriangle className="h-5 w-5 shrink-0" aria-hidden />
                 <div className="flex flex-col gap-1">
