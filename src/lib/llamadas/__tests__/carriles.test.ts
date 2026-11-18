@@ -2,7 +2,20 @@
  * LLA1110D — carriles por flujo: histéresis, enfriamiento, forzado, desempate y que nada salte.
  */
 import { describe, expect, it } from "vitest";
-import { LimiteRegistro, SelectorCarriles, carrilSano, soyDirector, textoCarriles, type Flujo, type Carril, type MuestraCarril } from "@/lib/llamadas/carriles";
+import {
+  LimiteRegistro,
+  SelectorCarriles,
+  carrilSano,
+  soyDirector,
+  textoCarriles,
+  decidirCorteEnlace,
+  ESPERA_RECONEXION_MS,
+  MOTIVO_RECONEXION_AGOTADA,
+  type Flujo,
+  type Carril,
+  type MuestraCarril,
+  type EntradaCorteEnlace,
+} from "@/lib/llamadas/carriles";
 import { evaluarDescripcion, soyCortes } from "@/lib/llamadas/negociacion";
 
 const ble = (arriba = true, x: Partial<MuestraCarril> = {}): MuestraCarril => ({ carril: "ble-l2cap", arriba, rttMs: 80, ...x });
@@ -101,6 +114,59 @@ describe("selector de carriles (LLA1110D)", () => {
     const ok = Array.from({ length: 120 }, (_, i) => l.puede("voz", i * 500)).filter(Boolean).length;
     expect(ok).toBe(4);
     expect(l.puede("voz", 61_000)).toBe(true);
+  });
+});
+
+describe("AUD1117: decidirCorteEnlace (corte de Bluetooth no cuelga la llamada)", () => {
+  const crearEntrada = (sinEnlaceMs: number, opcionales?: Partial<EntradaCorteEnlace>): EntradaCorteEnlace => ({
+    sinEnlaceMs,
+    estabaEnPie: true,
+    otroCarril: false,
+    ...opcionales,
+  });
+
+  it("el tiempo de espera es de 90 segundos (antes 20)", () => {
+    expect(ESPERA_RECONEXION_MS).toBe(90_000);
+  });
+
+  it("el motivo visible incluye los 90 segundos de espera", () => {
+    expect(MOTIVO_RECONEXION_AGOTADA).toContain("90 s");
+  });
+
+  it("enlace cae 60 s sin volver → 'reconectando' (llamada sigue viva)", () => {
+    const entrada: EntradaCorteEnlace = crearEntrada(60_000);
+    const decision = decidirCorteEnlace(entrada);
+    expect(decision).toBe("reconectando");
+  });
+
+  it("enlace vuelve antes de 90 s → 'seguir' (la llamada continúa)", () => {
+    const entrada: EntradaCorteEnlace = crearEntrada(60_000, { enlaceVuelve: true });
+    const decision = decidirCorteEnlace(entrada);
+    expect(decision).toBe("seguir");
+  });
+
+  it("enlace cae 95 s → 'terminar' con motivo visible", () => {
+    const entrada: EntradaCorteEnlace = crearEntrada(95_000);
+    const decision = decidirCorteEnlace(entrada);
+    expect(decision).toBe("terminar");
+  });
+
+  it("enlace cae 89 s → 'reconectando' (antes de agotarse)", () => {
+    const entrada: EntradaCorteEnlace = crearEntrada(89_000);
+    const decision = decidirCorteEnlace(entrada);
+    expect(decision).toBe("reconectando");
+  });
+
+  it("llamada que no estaba en pie → 'seguir' sin importar el tiempo", () => {
+    const entrada: EntradaCorteEnlace = crearEntrada(95_000, { estabaEnPie: false });
+    const decision = decidirCorteEnlace(entrada);
+    expect(decision).toBe("seguir");
+  });
+
+  it("hay otro carril vivo → 'seguir' sin importar el tiempo", () => {
+    const entrada: EntradaCorteEnlace = crearEntrada(95_000, { otroCarril: true });
+    const decision = decidirCorteEnlace(entrada);
+    expect(decision).toBe("seguir");
   });
 });
 
