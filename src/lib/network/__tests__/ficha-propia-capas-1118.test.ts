@@ -91,8 +91,8 @@ describe("medirFichaPropia capa y tok/s sanitizado", () => {
     const device = makeDevice({ capas: [capa] });
     const ficha = await medirFichaPropia(device);
     expect(ficha.capas).toHaveLength(1);
-    expect(ficha.capas[0].length).toBe(80);
-    expect(ficha.capas[0]).toBe("a".repeat(80));
+    expect((ficha.capas as string[])[0].length).toBe(80);
+    expect((ficha.capas as string[])[0]).toBe("a".repeat(80));
   });
 
   it("max 32 capas", async () => {
