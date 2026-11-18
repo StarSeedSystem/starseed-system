@@ -1,0 +1,23 @@
+{
+ "ola": "nube-20261118",
+ "tareas": [
+  {
+   "id": "INT22",
+   "ola": "INT1116A",
+   "titulo": "Contrato: dónde está el código de §8.2 (apartado «Lo que ya existe»)",
+   "archivos": [
+    "architecture/malla-cristalina-sio2.md"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Solo documentación, ≤40 líneas. En `architecture/malla-cristalina-sio2.md`, §9 «Lo que ya existe y cómo encaja», añade una viñeta que enlace la §8.2 con el código: tabla archivo → qué hace de `src/lib/malla/internet/` (tipos, conexión limitada, contadores, cupo del banco, reparto, decisión de compartir, almacenes, hook, defectos por audiencia, textos) y de `src/components/mesh/mapa-senales/internet/`; y en §10 «Límites y decisiones pendientes» añade DOS viñetas: (1) «Falta la marca de red de pago del lado nativo (Android `isActiveNetworkMetered`): hoy la conexión limitada se sabe por lo que la persona declara y por `navigator.connection`; añadirla al puente nativo es decisión de dirección» y (2) «Los contadores por día no se sincronizan entre aparatos: cada aparato racionea con lo suyo». No cambies ninguna otra línea. Sin la palabra «Mando».\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "INT21"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1118-094955.json": [
+   "INT22"
+  ]
+ }
+}
