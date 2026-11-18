@@ -999,6 +999,129 @@ def test_recibir_procesa_regla_permanente_y_continua(tmp_path, monkeypatch):
     assert cola[0]["texto"] == "Recuerda cada día: genera todos los formatos"
 
 
+# ── PET1116E · regresión: preferencias en formato lista + mensaje con regla permanente ──
+
+
+def test_recibir_preferencias_lista_regla_permanente_no_excepcion(tmp_path, monkeypatch):
+    """preferencias.json como LISTA + mensaje con 'recuerda' → no hay excepción, se encola y responde."""
+    for k, v in (("CHAT", "123456"), ("TOKEN", "fake"), ("DIR", str(tmp_path)),
+                 ("COLA", str(tmp_path / "cola.json")), ("ESTADO", str(tmp_path / "estado.json")),
+                 ("PREFERENCIAS", str(tmp_path / "preferencias.json")),
+                 ("RUTINAS", str(tmp_path / "rutinas.json")),
+                 ("SALIDAS", str(tmp_path / "salidas"))):
+        monkeypatch.setattr(mod, k, v)
+    
+    # Escribir preferencias en formato LISTA (formato herramienta provisional)
+    mod.escribir_json(mod.PREFERENCIAS, ["preferencia antigua 1", "preferencia antigua 2"])
+    
+    respuestas = []
+    monkeypatch.setattr(mod, "decir", respuestas.append)
+    
+    # Mock para procesamiento normal
+    monkeypatch.setattr(mod, "por_reglas", lambda x: {"tipo": "respuesta", "fuente": "cuaderno", "drive_id": "", "artefactos": [], "resumen": ""})
+    monkeypatch.setattr(mod, "llm", lambda *a, **k: ("", ""))
+    
+    # Enviar mensaje con palabra clave de regla permanente
+    recibir({"update_id": 42, "message": {"chat": {"id": "123456"}, "text": "Recuerda: mi nombre es Maggasukha"}})
+    
+    # No debe haber excepción (el test habría fallado)
+    # Debe responder "Recibido ✓" ANTES de procesar
+    assert any("Recibido" in r for r in respuestas)
+    
+    # Debe haber encolado el mensaje
+    cola = mod.leer_json(mod.COLA, [])
+    assert len(cola) == 1
+    assert cola[0]["id"] == 42
+    assert cola[0]["texto"] == "Recuerda: mi nombre es Maggasukha"
+    assert cola[0]["estado"] == "nueva"
+    
+    # Debe haber procesado la regla y confirmado
+    assert any("Preferencia guardada" in r or "Rutina registrada" in r for r in respuestas)
+    
+    # Verificar que preferencias.json ahora es dict (convertido de lista)
+    prefs = mod.leer_json(mod.PREFERENCIAS, {})
+    assert isinstance(prefs, dict)
+    assert "preferencia_0" in prefs
+    assert "preferencia_1" in prefs
+    assert "nombre" in prefs
+    assert prefs["nombre"] == "maggasukha"
+
+
+def test_recibir_preferencias_lista_con_siempre_no_excepcion(tmp_path, monkeypatch):
+    """preferencias.json como LISTA + mensaje con 'siempre' → no hay excepción, se encola y responde."""
+    for k, v in (("CHAT", "123456"), ("TOKEN", "fake"), ("DIR", str(tmp_path)),
+                 ("COLA", str(tmp_path / "cola.json")), ("ESTADO", str(tmp_path / "estado.json")),
+                 ("PREFERENCIAS", str(tmp_path / "preferencias.json")),
+                 ("RUTINAS", str(tmp_path / "rutinas.json")),
+                 ("SALIDAS", str(tmp_path / "salidas"))):
+        monkeypatch.setattr(mod, k, v)
+    
+    # Escribir preferencias en formato LISTA
+    mod.escribir_json(mod.PREFERENCIAS, ["algo previo"])
+    
+    respuestas = []
+    monkeypatch.setattr(mod, "decir", respuestas.append)
+    
+    monkeypatch.setattr(mod, "por_reglas", lambda x: {"tipo": "respuesta", "fuente": "cuaderno", "drive_id": "", "artefactos": [], "resumen": ""})
+    monkeypatch.setattr(mod, "llm", lambda *a, **k: ("", ""))
+    
+    # Mensaje con "siempre"
+    recibir({"update_id": 43, "message": {"chat": {"id": "123456"}, "text": "Siempre usa tono formal en las respuestas"}})
+    
+    assert any("Recibido" in r for r in respuestas)
+    cola = mod.leer_json(mod.COLA, [])
+    assert len(cola) == 1
+    assert cola[0]["estado"] == "nueva"
+    assert any("Preferencia guardada" in r for r in respuestas)
+    
+    prefs = mod.leer_json(mod.PREFERENCIAS, {})
+    assert isinstance(prefs, dict)
+    assert "siempre" in prefs
+    assert "tono formal" in prefs["siempre"]
+
+
+# ── PET1116E · regresión: excepción simulada en procesado no pierde el mensaje ──
+
+
+def test_recibir_excepcion_en_procesado_no_pierde_mensaje(tmp_path, monkeypatch):
+    """Excepción simulada durante el procesado de regla permanente → mensaje encolado, marcado reintentar, aviso en chat."""
+    for k, v in (("CHAT", "123456"), ("TOKEN", "fake"), ("DIR", str(tmp_path)),
+                 ("COLA", str(tmp_path / "cola.json")), ("ESTADO", str(tmp_path / "estado.json")),
+                 ("PREFERENCIAS", str(tmp_path / "preferencias.json")),
+                 ("RUTINAS", str(tmp_path / "rutinas.json")),
+                 ("SALIDAS", str(tmp_path / "salidas"))):
+        monkeypatch.setattr(mod, k, v)
+    
+    respuestas = []
+    monkeypatch.setattr(mod, "decir", respuestas.append)
+    
+    # Mock para procesamiento normal
+    monkeypatch.setattr(mod, "por_reglas", lambda x: {"tipo": "respuesta", "fuente": "cuaderno", "drive_id": "", "artefactos": [], "resumen": ""})
+    monkeypatch.setattr(mod, "llm", lambda *a, **k: ("", ""))
+    
+    # Forzar excepción en _responder_con_regla_permanente
+    original_responder = mod._responder_con_regla_permanente
+    def fallar_responder(texto):
+        raise RuntimeError("Fallo simulado en procesado de regla")
+    monkeypatch.setattr(mod, "_responder_con_regla_permanente", fallar_responder)
+    
+    # Enviar mensaje que dispara regla permanente
+    recibir({"update_id": 99, "message": {"chat": {"id": "123456"}, "text": "Recuerda cada día: genera la infografía"}})
+    
+    # Debe haber respondido "Recibido ✓" ANTES de la excepción
+    assert any("Recibido" in r for r in respuestas)
+    
+    # Debe haber encolado el mensaje
+    cola = mod.leer_json(mod.COLA, [])
+    assert len(cola) == 1
+    assert cola[0]["id"] == 99
+    assert cola[0]["texto"] == "Recuerda cada día: genera la infografía"
+    
+    # Debe haber avisado del error y marcado para reintentar
+    assert any("Error procesando tu mensaje" in r and "reintentará" in r for r in respuestas)
+    assert cola[0]["estado"] == "reintentar"
+
+
 # ── SES1113A · cerrojo entre procesos, caducidad real y avisos ──────────────
 
 def _cli_falso(returncode=0, stdout="", stderr="", fallo=None):
