@@ -196,3 +196,72 @@ export const CLAVES_MEMORIA_OS: ClaveMemoria[] = [
         proposito: "Bitácora de rutas del router de IA (qué fuente atendió cada petición).",
     },
 ];
+
+/**
+ * Mensajes del panel de áreas con su TONO, para que un fallo no se lea como un
+ * detalle y cada aviso diga qué pasó, qué implica y por dónde seguir.
+ * `CLASES_MENSAJE` da al panel la tinta clara sobre fondo profundo y el borde
+ * visible; nunca solo color: cada mensaje lleva título y texto.
+ */
+export type TonoMensaje = "error" | "aviso" | "exito";
+
+export interface MensajeArea {
+    tono: TonoMensaje;
+    titulo: string;
+    texto: string;
+}
+
+/** Clases de contraste por tono (claves completas para que el JIT las vea). */
+export const CLASES_MENSAJE: Record<TonoMensaje, string> = {
+    error: "rounded-lg border border-red-400/50 bg-red-950/60 p-2.5 text-xs font-medium text-red-100",
+    aviso: "rounded-lg border border-amber-400/40 bg-amber-950/40 p-2.5 text-xs text-amber-100",
+    exito: "rounded-lg border border-emerald-400/40 bg-emerald-950/40 p-2.5 text-xs text-emerald-100",
+};
+
+/** Qué lectura del panel falló: la actividad del relevo o los permisos. */
+export type RecursoPanelAreas = "eventos" | "permisos";
+
+/**
+ * Fallo de lectura del panel: distingue un error de red de un permiso
+ * denegado y nombra la salida concreta, sin culpar al usuario.
+ */
+export function mensajeFalloCarga(recurso: RecursoPanelAreas): MensajeArea {
+    if (recurso === "eventos") {
+        return {
+            tono: "error",
+            titulo: "No pude leer la actividad del relevo",
+            texto:
+                "Las áreas siguen mostrando sus accesos y memorias; lo único que falta es la última actividad. " +
+                "Pulsa «Actualizar» en unos segundos y, si sigue vacío, revisa que Genesis tenga red.",
+        };
+    }
+    return {
+        tono: "error",
+        titulo: "No pude consultar los permisos del navegador",
+        texto:
+            "Esto no es un permiso denegado: el panel no supo leerlo, así que no afirma nada sobre lo concedido. " +
+            "Ábrelos desde el enlace de cada permiso (Privacidad, Notificaciones o Almacenes) y concédelos ahí si te faltan.",
+    };
+}
+
+/**
+ * Estado sin actividad de un área: en vez del vacío seco, nombra el área y
+ * señala su primer acceso y su primer documento para saber por dónde seguir.
+ */
+export function mensajeSinActividad(area: AreaTrabajo): MensajeArea {
+    const acceso = area.rutas[0];
+    const memoria = area.documentos[0];
+    const guia =
+        acceso && memoria
+            ? `abre «${acceso.etiqueta}» y sigue el hilo en ${memoria}`
+            : acceso
+              ? `abre «${acceso.etiqueta}»`
+              : memoria
+                ? `sigue el hilo en ${memoria}`
+                : "revisa sus memorias para ver por dónde va";
+    return {
+        tono: "aviso",
+        titulo: `Sin actividad reciente en ${area.nombre}`,
+        texto: `Ningún evento del relevo ha tocado esta área en la sesión: ${guia}.`,
+    };
+}
