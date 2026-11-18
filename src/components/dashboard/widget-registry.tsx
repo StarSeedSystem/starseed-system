@@ -26,6 +26,7 @@ import { QuickNotesWidget } from "@/components/dashboard/widgets/quick-notes-wid
 import { AuroraLastWidget } from "@/components/dashboard/widgets/aurora-last-widget";
 import { BadgesWidget } from "@/components/dashboard/widgets/badges-widget";
 import { NetworkFeedWidget } from "@/components/dashboard/widgets/network-feed-widget";
+import { TraductorWidget } from "@/components/dashboard/widgets/traductor-widget";
 import { ThemeSelectorWidget } from "@/components/dashboard/widgets/theme-selector-widget";
 import { ExploreNetworkWidget } from "@/components/dashboard/widgets/explore-network-widget";
 import { MyPagesWidget } from "@/components/dashboard/widgets/my-pages-widget";
@@ -608,6 +609,8 @@ function cuerpoClasico(
             return <BadgesWidget />;
         case 'NETWORK_FEED_MINI':
             return <NetworkFeedWidget />;
+        case 'TRADUCTOR':
+            return <TraductorWidget widget={widget} onUpdateSettings={onUpdateSettings} />;
 
         // ── Protomolécula (ola 1010P) ──
         case 'PROTOMOLECULA':

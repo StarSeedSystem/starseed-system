@@ -121,16 +121,6 @@ export type WidgetType =
     // ── OpenUI (ola 1104R) ──
     | 'RESPUESTA_VIVA'      // Respuestas 2014 widget 00abRespuesta viva00bb para escritorios y p00e1ginas de publicaci00f3n
     | 'TRADUCTOR';          // IA 2014 traductor de textos (300d73, par de idiomas, motor, historial)
-    | 'RESPUESTA_VIVA'      // Respuestas 2014 widget 00abRespuesta viva00bb para escritorios y p00e1ginas de publicaci00f3n
-    | 'TRADUCTOR';          // IA 2014 traductor de textos (300d73, par de idiomas, motor, historial)
-    | 'RESPUESTA_VIVA'      // Respuestas 2014 widget 00abRespuesta viva00bb para escritorios y p00e1ginas de publicaci00f3n
-    | 'TRADUCTOR';          // IA 2014 traductor de textos (300d73, par de idiomas, motor, historial)
-    | 'RESPUESTA_VIVA'      // Respuestas 2014 widget 00abRespuesta viva00bb para escritorios y p00e1ginas de publicaci00f3n
-    | 'TRADUCTOR';          // IA 2014 traductor de textos (300d73, par de idiomas, motor, historial)
-    | 'RESPUESTA_VIVA'      // Respuestas 2014 widget 00abRespuesta viva00bb para escritorios y p00e1ginas de publicaci00f3n
-    | 'TRADUCTOR';          // IA 2014 traductor de textos (300d73, par de idiomas, motor, historial)
-    | 'RESPUESTA_VIVA'      // Respuestas 2014 widget 00abRespuesta viva00bb para escritorios y p00e1ginas de publicaci00f3n
-    | 'TRADUCTOR';          // IA 2014 traductor de textos (300d73, par de idiomas, motor, historial)
 
 /**
  * Tipo de dispositivo objetivo de un tablero (pantalla principal adaptativa).

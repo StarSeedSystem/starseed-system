@@ -62,6 +62,8 @@ const TODOS_LOS_TIPOS: WidgetType[] = [
     "PROTOMOLECULA",
     // ── OpenUI (ola 1104R) ──
     "RESPUESTA_VIVA",
+    // ── IA: Traductor ──
+    "TRADUCTOR",
 ];
 
 describe("WIDGET_MANIFEST completitud", () => {
