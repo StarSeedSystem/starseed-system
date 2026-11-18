@@ -11,6 +11,7 @@ import { ESTADO_INICIAL } from "@/lib/senales/geo/canal-posicion";
 import { construirMarcas } from "@/lib/senales/geo/marcas";
 import { posicionEnEsquema } from "../../vista-plana";
 import { VistaMapa, type VistaMapaProps } from "../pestana-mapa";
+import type { EstadoSenalesPublicadas } from "@/lib/senales/espectro/usar-senales-publicadas";
 
 type EstadoBase = "cargando" | "ok" | "fallo";
 
@@ -45,6 +46,12 @@ function datosDePrueba(): VistaMapaProps["datos"] {
     ahora: AHORA,
     canal: { unido: true, motivo: null },
   });
+  const publicadas: EstadoSenalesPublicadas = {
+    senales: [],
+    estado: "ok",
+    cargando: false,
+    actualizar: async () => { /* prueba */ },
+  };
   return {
     marcas,
     presenciaConectada: true,
@@ -58,6 +65,7 @@ function datosDePrueba(): VistaMapaProps["datos"] {
     desde: AHORA,
     canal: ESTADO_INICIAL,
     enlaces: [],
+    publicadas,
   };
 }
 
