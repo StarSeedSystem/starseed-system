@@ -1,12 +1,18 @@
-import { Suspense } from "react";
+// src/app/(app)/traductor/page.tsx
+// Página de la app Traductor: texto, conversación y paquetes locales.
+// El motor vive en <TraductorApp/>.
+
 import { TraductorApp } from "@/components/traductor/traductor-app";
 
-export const dynamic = "force-dynamic";
+export const metadata = {
+    title: "Traductor · StarSeed",
+    description: "Traduce texto y conversaciones con motores locales, LibreTranslate y Astraura; descarga paquetes para usar sin internet.",
+};
 
-export default function PaginaTraductor() {
+export default function TraductorPage() {
     return (
-        <Suspense fallback={null}>
+        <main className="flex flex-1 flex-col">
             <TraductorApp />
-        </Suspense>
+        </main>
     );
 }
