@@ -73,6 +73,8 @@ bloqueo = threading.Lock()
 hay_trabajo = threading.Event()
 _puente_instancia = None
 
+MODELOS = ["gemini-flash", "qwen3.8-max", "gemini-3.5-flash", "glm-5.3-flash", "qwen3.6-plus"]
+
 
 def leer_env(ruta: str = os.path.join(CASA, ".starseed", "env")) -> dict[str, str]:
     datos = {}
