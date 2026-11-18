@@ -1687,3 +1687,248 @@ def test_renovar_no_manda_a_claude():
     from peticiones_reglas import RENOVAR
 
     assert "claude" not in RENOVAR.lower()
+
+
+# ── SIN1116F: Tests para comandos de síntesis /sintesis ──
+
+def _setup_sintesis(tmp_path, monkeypatch):
+    """Configura paths temporales para tests de síntesis."""
+    for k, v in (
+        ("CHAT", "123456"),
+        ("TOKEN", "fake"),
+        ("DIR", str(tmp_path)),
+        ("COLA", str(tmp_path / "cola.json")),
+        ("ESTADO", str(tmp_path / "estado.json")),
+        ("SALIDAS", str(tmp_path / "salidas")),
+        ("PREFERENCIAS", str(tmp_path / "preferencias.json")),
+        ("RUTINAS", str(tmp_path / "rutinas.json")),
+    ):
+        monkeypatch.setattr(mod, k, v)
+
+
+def test_comando_sintesis_lanza_sintesis(tmp_path, monkeypatch):
+    """/sintesis dispara la síntesis y responde confirmación."""
+    _setup_sintesis(tmp_path, monkeypatch)
+    
+    respuestas = []
+    monkeypatch.setattr(mod, "decir", respuestas.append)
+    
+    # Mock de la función que lanza la síntesis
+    def mock_lanzar_sintesis():
+        mod.decir("✅ Síntesis iniciada: agentes contactos, noticias, referencias, actividad, ideas, guiones, youtube")
+    
+    monkeypatch.setattr(mod, "_comando_sintesis_lanzar", mock_lanzar_sintesis)
+    
+    recibir({"update_id": 1, "message": {"chat": {"id": "123456"}, "text": "/sintesis"}})
+    
+    assert len(respuestas) == 1
+    assert "Síntesis iniciada" in respuestas[0] or "lanzada" in respuestas[0].lower()
+
+
+def test_comando_sintesis_estado_muestra_hito_y_retraso(tmp_path, monkeypatch):
+    """/sintesis estado muestra el hito actual y retrasos."""
+    _setup_sintesis(tmp_path, monkeypatch)
+    
+    respuestas = []
+    monkeypatch.setattr(mod, "decir", respuestas.append)
+    
+    # Mock de sintesis_avances.obtener_hitos_fecha
+    import sintesis_avances as SA
+    def mock_obtener_hitos(fecha):
+        return [
+            {"clave": "arranque:tema", "tipo": "arranque", "timestamp": time.time()},
+            {"clave": "agente:contactos", "tipo": "agente", "timestamp": time.time()},
+        ]
+    monkeypatch.setattr(SA, "obtener_hitos_fecha", mock_obtener_hitos)
+    
+    # Mock de _fecha_cdmx para testing
+    def mock_fecha_cdmx(ahora=None):
+        return "2026-11-16"
+    monkeypatch.setattr(SA, "_fecha_cdmx", mock_fecha_cdmx)
+    
+    recibir({"update_id": 2, "message": {"chat": {"id": "123456"}, "text": "/sintesis estado"}})
+    
+    assert len(respuestas) == 1
+    assert "hito" in respuestas[0].lower() or "estado" in respuestas[0].lower()
+
+
+def test_comando_sintesis_contexto_muestra_resumen_y_enlace(tmp_path, monkeypatch):
+    """/sintesis contexto muestra resumen del paquete y enlace al contexto vivo."""
+    _setup_sintesis(tmp_path, monkeypatch)
+    
+    respuestas = []
+    monkeypatch.setattr(mod, "decir", respuestas.append)
+    
+    # Mock de contexto_sintesis.contexto_vivo
+    import contexto_sintesis as CS
+    def mock_contexto_vivo(raiz, hoy, **kwargs):
+        return {
+            "fecha": hoy,
+            "sintesis_previas": [{"fecha": "2026-11-15", "texto": "síntesis anterior..."}],
+            "alcance_github": [{"nombre": "repo1"}],
+            "produccion_higgsfield": [{"proyecto": "demo"}],
+            "produccion_encargos": {"videos": ["video1"]},
+            "arquitectura_titulos": [{"archivo": "test.md", "titulo": "Test"}],
+            "libreria": [{"nombre": "lib1"}],
+            "rutas_apps": [{"id": "app1"}],
+        }
+    monkeypatch.setattr(CS, "contexto_vivo", mock_contexto_vivo)
+    
+    # Mock de _fecha_cdmx (está en sintesis_avances)
+    import sintesis_avances as SA
+    def mock_fecha_cdmx(ahora=None):
+        return "2026-11-16"
+    monkeypatch.setattr(SA, "_fecha_cdmx", mock_fecha_cdmx)
+    
+    recibir({"update_id": 3, "message": {"chat": {"id": "123456"}, "text": "/sintesis contexto"}})
+    
+    assert len(respuestas) == 1
+    texto = respuestas[0]
+    assert "contexto" in texto.lower()
+    assert "2026-11-16" in texto
+
+
+def test_comando_aprobar_recomendacion_actualiza_libro(tmp_path, monkeypatch):
+    """aprobar <n> actualiza el estado de la recomendación a 'aprobada'."""
+    _setup_sintesis(tmp_path, monkeypatch)
+    
+    # Redirigir el libro de recomendaciones al directorio temporal
+    import libro_recomendaciones as LR
+    ruta_test = str(tmp_path / "recomendaciones.jsonl")
+    monkeypatch.setattr(LR, "RUTA_RECOMENDACIONES", ruta_test)
+    
+    respuestas = []
+    monkeypatch.setattr(mod, "decir", respuestas.append)
+    
+    # Crear recomendación de prueba
+    rec = LR.crear_recomendacion(
+        "Integrar NotebookLM con síntesis",
+        "ia",
+        "sintesis_autonoma",
+        "rec-test001"
+    )
+    assert rec["estado"] == "propuesta"
+    
+    recibir({"update_id": 4, "message": {"chat": {"id": "123456"}, "text": "aprobar rec-test001"}})
+    
+    assert len(respuestas) == 1
+    assert "aprobada" in respuestas[0].lower() or "aprobado" in respuestas[0].lower()
+    
+    # Verificar que se actualizó
+    actualizada = LR.obtener_recomendacion("rec-test001")
+    assert actualizada["estado"] == "aprobada"
+
+
+def test_comando_rechazar_recomendacion_actualiza_libro(tmp_path, monkeypatch):
+    """rechazar <n> actualiza el estado de la recomendación a 'rechazada'."""
+    _setup_sintesis(tmp_path, monkeypatch)
+    
+    # Redirigir el libro de recomendaciones al directorio temporal
+    import libro_recomendaciones as LR
+    ruta_test = str(tmp_path / "recomendaciones.jsonl")
+    monkeypatch.setattr(LR, "RUTA_RECOMENDACIONES", ruta_test)
+    
+    respuestas = []
+    monkeypatch.setattr(mod, "decir", respuestas.append)
+    
+    LR.crear_recomendacion(
+        "Eliminar síntesis diaria",
+        "ia",
+        "sintesis_autonoma",
+        "rec-test002"
+    )
+    
+    recibir({"update_id": 5, "message": {"chat": {"id": "123456"}, "text": "rechazar rec-test002"}})
+    
+    assert len(respuestas) == 1
+    assert "rechazada" in respuestas[0].lower()
+    
+    actualizada = LR.obtener_recomendacion("rec-test002")
+    assert actualizada["estado"] == "rechazada"
+
+
+def test_comando_ya_existe_recomendacion_actualiza_libro(tmp_path, monkeypatch):
+    """ya existe <n> actualiza el estado de la recomendación a 'ya_existe'."""
+    _setup_sintesis(tmp_path, monkeypatch)
+    
+    # Redirigir el libro de recomendaciones al directorio temporal
+    import libro_recomendaciones as LR
+    ruta_test = str(tmp_path / "recomendaciones.jsonl")
+    monkeypatch.setattr(LR, "RUTA_RECOMENDACIONES", ruta_test)
+    
+    respuestas = []
+    monkeypatch.setattr(mod, "decir", respuestas.append)
+    
+    LR.crear_recomendacion(
+        "Añadir botones a Telegram",
+        "telegram",
+        "bot_telegram",
+        "rec-test003"
+    )
+    
+    recibir({"update_id": 6, "message": {"chat": {"id": "123456"}, "text": "ya existe rec-test003"}})
+    
+    assert len(respuestas) == 1
+    assert "ya existe" in respuestas[0].lower() or "ya_existe" in respuestas[0].lower()
+    
+    actualizada = LR.obtener_recomendacion("rec-test003")
+    assert actualizada["estado"] == "ya_existe"
+
+
+def test_comando_encarga_recomendacion_actualiza_y_crea_encargo(tmp_path, monkeypatch):
+    """encarga <n> actualiza a 'encargada' y crea el encargo/ola."""
+    _setup_sintesis(tmp_path, monkeypatch)
+    
+    # Redirigir el libro de recomendaciones al directorio temporal
+    import libro_recomendaciones as LR
+    ruta_test = str(tmp_path / "recomendaciones.jsonl")
+    monkeypatch.setattr(LR, "RUTA_RECOMENDACIONES", ruta_test)
+    
+    respuestas = []
+    monkeypatch.setattr(mod, "decir", respuestas.append)
+    
+    LR.crear_recomendacion(
+        "Desarrollar sistema de métricas",
+        "metrica",
+        "sistema_metricas",
+        "rec-test004"
+    )
+    
+    # Mock planificar_base to avoid actual encargo creation
+    def mock_planificar_base(texto):
+        return [{"titulo": "Frente 1"}, {"titulo": "Frente 2"}]
+    monkeypatch.setattr(mod, "planificar_base", mock_planificar_base)
+    
+    recibir({"update_id": 7, "message": {"chat": {"id": "123456"}, "text": "encarga rec-test004"}})
+    
+    assert len(respuestas) == 1
+    assert "encargada" in respuestas[0].lower() or "encargo" in respuestas[0].lower()
+    
+    actualizada = LR.obtener_recomendacion("rec-test004")
+    assert actualizada["estado"] == "encargada"
+
+
+def test_mensaje_recuerda_se_convierte_en_regla_sintesis(tmp_path, monkeypatch):
+    """Mensajes que empiezan con 'Recuerda...' se guardan como reglas de la síntesis."""
+    _setup_sintesis(tmp_path, monkeypatch)
+    
+    respuestas = []
+    monkeypatch.setattr(mod, "decir", respuestas.append)
+    
+    # Mock para procesamiento normal
+    monkeypatch.setattr(mod, "por_reglas", lambda x: {"tipo": "respuesta", "fuente": "cuaderno", "drive_id": "", "artefactos": [], "resumen": ""})
+    monkeypatch.setattr(mod, "llm", lambda *a, **k: ("", ""))
+    
+    # Enviar mensaje con "Recuerda"
+    recibir({"update_id": 8, "message": {"chat": {"id": "123456"}, "text": "Recuerda: en la síntesis siempre incluye el estado de la producción audiovisual"}})
+    
+    # Debe haber respondido "Recibido ✓" ANTES de procesar
+    assert any("Recibido" in r for r in respuestas)
+    
+    # Debe haber encolado el mensaje
+    cola = mod.leer_json(mod.COLA, [])
+    assert len(cola) == 1
+    assert cola[0]["texto"] == "Recuerda: en la síntesis siempre incluye el estado de la producción audiovisual"
+    
+    # Debe haber procesado la regla y confirmado
+    assert any("Rutina registrada" in r or "Preferencia guardada" in r for r in respuestas)

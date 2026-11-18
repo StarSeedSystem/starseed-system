@@ -65,6 +65,11 @@ import peticiones_llm as PLLM
 import higgsfield_aprobado as hfa
 import salud_directores as SD
 
+# Síntesis (SIN1116F)
+import sintesis_avances as SA
+import contexto_sintesis as CS
+import libro_recomendaciones as LR
+
 CASA = NB_CASA
 DIR = os.path.join(CASA, ".starseed", "peticiones")
 ESTADO = os.path.join(DIR, "estado.json")
@@ -1096,6 +1101,33 @@ def recibir(upd: dict[str, Any]) -> None:
         )
         return
     
+    # SIN1116F: Comandos de síntesis
+    if texto == "/sintesis":
+        _comando_sintesis_lanzar()
+        return
+    if texto.startswith("/sintesis estado"):
+        _comando_sintesis_estado()
+        return
+    if texto.startswith("/sintesis contexto"):
+        _comando_sintesis_contexto()
+        return
+    if texto.startswith("aprobar "):
+        _, rec_id = texto.split(" ", 1)
+        _comando_aprobar_recomendacion(rec_id.strip())
+        return
+    if texto.startswith("rechazar "):
+        _, rec_id = texto.split(" ", 1)
+        _comando_rechazar_recomendacion(rec_id.strip())
+        return
+    if texto.startswith("ya existe "):
+        rec_id = texto[len("ya existe "):].strip()
+        _comando_ya_existe_recomendacion(rec_id)
+        return
+    if texto.startswith("encarga "):
+        _, rec_id = texto.split(" ", 1)
+        _comando_encarga_recomendacion(rec_id.strip())
+        return
+    
     # PET1116E: Para peticiones reales (no comandos), SIEMPRE encolar PRIMERO y responder "Recibido ✓"
     with bloqueo:
         cola = leer_json(COLA, [])
@@ -1390,6 +1422,191 @@ def _comando_alcance() -> None:
         if len(texto) > 3900:
             break
     decir(texto.strip())
+
+
+# ── SIN1116F: Comandos de síntesis ──
+
+def _comando_sintesis_lanzar() -> None:
+    """Lanza la síntesis diaria: registra hito de arranque y dispara el proceso."""
+    try:
+        # Registrar hito de arranque
+        agentes = ["contactos", "noticias", "referencias", "actividad", "ideas", "guiones", "youtube"]
+        tema = "Síntesis diaria StarSeed"
+        linea = SA.hito_arranque_nativo(agentes, tema)
+        if linea:
+            decir(f"🚀 {linea}")
+        else:
+            decir("🚀 Síntesis ya en marcha (hito de arranque duplicado)")
+        
+        # Disparar la síntesis real (agente nativo) en background
+        import threading
+        def lanzar_en_fondo():
+            try:
+                from agente_sintesis import ciclo
+                raiz = RAIZ_REPO
+                ciclo(raiz, forzar=True)
+            except Exception as e:
+                log("Síntesis en fondo falló:", e)
+                decir(f"⚠️ Síntesis iniciada pero falló en background: {e}")
+        
+        hilo = threading.Thread(target=lanzar_en_fondo, daemon=True)
+        hilo.start()
+        
+    except Exception as e:
+        log("Error lanzando síntesis:", e)
+        decir(f"⚠️ Error al lanzar síntesis: {e}")
+
+
+def _comando_sintesis_estado() -> None:
+    """Muestra el hito actual y retrasos de la síntesis de hoy."""
+    try:
+        hoy = SA._fecha_cdmx()
+        hitos = SA.obtener_hitos_fecha(hoy)
+        
+        if not hitos:
+            decir("📭 No hay hitos registrados para la síntesis de hoy.")
+            return
+        
+        # Determinar último hito
+        ultimo = hitos[-1] if hitos else None
+        tipo_ultimo = ultimo.get("tipo", "desconocido") if ultimo else "ninguno"
+        
+        # Verificar retraso (09:00 CDMX)
+        hora = SA._hora_cdmx()
+        retraso = None
+        if hora >= SA.HORA_RETRASO:
+            # Verificar si hay síntesis entregada (hito de entrega o multiformato final)
+            hay_entrega = any(h.get("tipo") in ("entrega", "multiformato") and h.get("clave", "").endswith("final") for h in hitos)
+            if not hay_entrega:
+                retraso = "síntesis no entregada a las 09:00"
+        
+        lineas = [f"📊 Estado síntesis {hoy}:"]
+        lineas.append(f"  • Último hito: {tipo_ultimo}")
+        lineas.append(f"  • Hora CDMX: {hora:.2f}")
+        if retraso:
+            lineas.append(f"  ⚠️ RETRASO: {retraso}")
+        lineas.append("")
+        lineas.append("Hitos registrados:")
+        for h in hitos:
+            lineas.append(f"  • {h.get('tipo', '?')}: {h.get('clave', '?')}")
+        
+        decir("\n".join(lineas))
+        
+    except Exception as e:
+        log("Error en /sintesis estado:", e)
+        decir(f"⚠️ Error obteniendo estado: {e}")
+
+
+def _comando_sintesis_contexto() -> None:
+    """Muestra resumen del contexto vivo y enlace al archivo completo."""
+    try:
+        hoy = SA._fecha_cdmx()
+        raiz = RAIZ_REPO
+        
+        # Construir contexto (versión ligera para el resumen)
+        ctx = CS.contexto_vivo(raiz, hoy)
+        
+        # Generar resumen
+        lineas = [f"📋 Contexto vivo síntesis {hoy}:"]
+        lineas.append("")
+        lineas.append("1. Lo ya integrado:")
+        lineas.append(f"   • Síntesis previas: {len(ctx.get('sintesis_previas', []))}")
+        lineas.append(f"   • Arquitectura: {len(ctx.get('arquitectura_titulos', []))} contratos")
+        lineas.append(f"   • Memoria: {len(ctx.get('memoria_archivos', {}))} archivos clave")
+        lineas.append(f"   • Librería: {len(ctx.get('libreria', []))} repos")
+        lineas.append(f"   • Apps/rutas OS: {len(ctx.get('rutas_apps', []))}")
+        lineas.append("")
+        lineas.append("2. Producción audiovisual:")
+        lineas.append(f"   • Higgsfield: {len(ctx.get('produccion_higgsfield', []))} propuestas")
+        lineas.append(f"   • Encargos: {len(ctx.get('produccion_encargos', {}).get('videos', []))} vídeos, {len(ctx.get('produccion_encargos', {}).get('formatos_hechos', []))} formatos")
+        lineas.append("")
+        lineas.append("3. Alcance:")
+        lineas.append(f"   • GitHub: {len(ctx.get('alcance_github', []))} fichas")
+        lineas.append(f"   • Borradores pendientes: {len(ctx.get('alcance_borradores', []))}")
+        lineas.append(f"   • Propuestas: {len(ctx.get('alcance_propuestas', []))}")
+        lineas.append("")
+        lineas.append("4. Investigaciones (7 días):")
+        lineas.append(f"   • Síntesis: {len(ctx.get('sintesis_7_dias', []))}")
+        lineas.append(f"   • Imaginación: {len(ctx.get('imaginacion', []))} salidas")
+        lineas.append(f"   • Informes: {len(ctx.get('informes', []))}")
+        lineas.append("")
+        lineas.append("5. Recuerdos: investigadores, analista, libreta JLA1116")
+        lineas.append("6. Libro recomendaciones: " + str(len(ctx.get('recomendaciones', []))) + " propuestas")
+        lineas.append("")
+        lineas.append(f"📁 Contexto completo en: {raiz}/starseed_memory_root/sintesis/contexto-{hoy}.json")
+        
+        decir("\n".join(lineas))
+        
+    except Exception as e:
+        log("Error en /sintesis contexto:", e)
+        decir(f"⚠️ Error obteniendo contexto: {e}")
+
+
+def _comando_aprobar_recomendacion(rec_id: str) -> None:
+    """Actualiza una recomendación a 'aprobada'."""
+    try:
+        rec = LR.actualizar_estado(rec_id, "aprobada")
+        if rec:
+            decir(f"✅ Recomendación {rec_id} aprobada:\n{rec.get('texto', '')[:300]}")
+        else:
+            decir(f"❌ Recomendación {rec_id} no encontrada.")
+    except Exception as e:
+        log("Error aprobando recomendación:", e)
+        decir(f"⚠️ Error: {e}")
+
+
+def _comando_rechazar_recomendacion(rec_id: str) -> None:
+    """Actualiza una recomendación a 'rechazada'."""
+    try:
+        rec = LR.actualizar_estado(rec_id, "rechazada")
+        if rec:
+            decir(f"❌ Recomendación {rec_id} rechazada:\n{rec.get('texto', '')[:300]}")
+        else:
+            decir(f"❌ Recomendación {rec_id} no encontrada.")
+    except Exception as e:
+        log("Error rechazando recomendación:", e)
+        decir(f"⚠️ Error: {e}")
+
+
+def _comando_ya_existe_recomendacion(rec_id: str) -> None:
+    """Actualiza una recomendación a 'ya_existe'."""
+    try:
+        rec = LR.actualizar_estado(rec_id, "ya_existe")
+        if rec:
+            decir(f"ℹ️ Recomendación {rec_id} marcada como ya existente:\n{rec.get('texto', '')[:300]}")
+        else:
+            decir(f"❌ Recomendación {rec_id} no encontrada.")
+    except Exception as e:
+        log("Error en ya_existe:", e)
+        decir(f"⚠️ Error: {e}")
+
+
+def _comando_encarga_recomendacion(rec_id: str) -> None:
+    """Actualiza una recomendación a 'encargada' y crea el encargo."""
+    try:
+        rec = LR.actualizar_estado(rec_id, "encargada")
+        if not rec:
+            decir(f"❌ Recomendación {rec_id} no encontrada.")
+            return
+        
+        # Crear encargo basado en la recomendación
+        texto_encargo = f"Encargo desde síntesis: {rec.get('texto', '')}"
+        
+        # Usar el productor para crear el encargo
+        try:
+            frentes = planificar_base(texto_encargo)
+            encargo_id = f"ENC-{rec_id}"
+            
+            decir(f"📦 Recomendación {rec_id} encargada:\n{rec.get('texto', '')[:300]}\n\n"
+                 f"Encargo {encargo_id} creado con {len(frentes)} frentes:\n" +
+                 "\n".join(f"  • {f.get('titulo', 'frente')}" for f in frentes[:5]))
+        except Exception as e:
+            log("Error creando encargo:", e)
+            decir(f"✅ Recomendación {rec_id} marcada como encargada (encargo pendiente de crear):\n{rec.get('texto', '')[:300]}")
+        
+    except Exception as e:
+        log("Error en encarga:", e)
+        decir(f"⚠️ Error: {e}")
 
 
 def _comando_ver(pid: str) -> None:
