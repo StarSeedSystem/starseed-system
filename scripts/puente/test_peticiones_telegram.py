@@ -306,6 +306,257 @@ def test_interpretar_devuelve_tipo_alcance():
     assert "https://youtu.be/test123" in plan["urls"]["youtube"]
 
 
+def test_interpretar_devuelve_tipo_descartar():
+    """interpretar devuelve tipo 'descartar' cuando el modelo lo indica."""
+    def mock_llm(mensajes, max_tokens=600):
+        return json.dumps({
+            "tipo": "descartar",
+            "fuente": "cuaderno",
+            "artefactos": [],
+            "resumen": "descartar tema"
+        }), "modelo-test"
+    
+    with patch("peticiones_telegram.llm", mock_llm):
+        plan = interpretar("Descarta el tema del rallador")
+    
+    assert plan["tipo"] == "descartar"
+    assert plan["fuente"] == "cuaderno"
+
+
+# ── PET1116B: Tests con textos reales del 2026-11-17 ──
+
+def test_por_reglas_texto_real_0014_alcance_con_url_fuente():
+    """Texto real 2026-11-17 00:14 → tipo 'alcance' con URL como fuente, NUNCA video de síntesis."""
+    # Texto real: "analizar el vídeo https://youtu.be/kM7lnhS_uE8 ... y los demás vídeos del canal,
+    # transcribirlos, investigar sus métodos de contacto y redactar un mensaje que ofrezca StarSeed OS"
+    msg = (
+        "analizar el vídeo https://youtu.be/kM7lnhS_uE8 y los demás vídeos del canal, "
+        "transcribirlos, investigar sus métodos de contacto y redactar un mensaje que ofrezca StarSeed OS"
+    )
+    plan = por_reglas(msg)
+    
+    # Debe detectar "alcance" (no "notebooklm" con artefacto video)
+    assert plan["tipo"] == "alcance", f"Esperado 'alcance', got {plan['tipo']}"
+    
+    # La URL de YouTube debe ser la fuente principal
+    assert plan["fuente"] == "youtube", f"Fuente debe ser 'youtube', got {plan['fuente']}"
+    assert "https://youtu.be/kM7lnhS_uE8" in plan["urls"]["youtube"]
+    
+    # NO debe tener artefacto "video" (eso sería "haz un vídeo de la síntesis")
+    # El texto dice "analizar el vídeo" = análisis, no producción
+    tipos_artefactos = {a["tipo"] for a in plan["artefactos"]}
+    assert "video" not in tipos_artefactos, "No debe haber artefacto 'video' en análisis de alcance"
+
+
+def test_por_reglas_texto_real_0031_descartar():
+    """Texto real 2026-11-17 00:31 → tipo 'descartar'."""
+    # Texto real: "Descarta lo del tema del rallador de carne humana…"
+    msg = "Descarta lo del tema del rallador de carne humana"
+    plan = por_reglas(msg)
+    
+    assert plan["tipo"] == "descartar", f"Esperado 'descartar', got {plan['tipo']}"
+    assert plan["fuente"] == "cuaderno"
+
+
+def test_interpretar_texto_real_0014_usa_reglas_si_modelo_falla():
+    """interpretar con texto real 00:14 usa por_reglas si modelo no da JSON."""
+    def mock_llm(mensajes, max_tokens=600):
+        return "no es json válido", "modelo-test"
+    
+    msg = (
+        "analizar el vídeo https://youtu.be/kM7lnhS_uE8 y los demás vídeos del canal, "
+        "transcribirlos, investigar sus métodos de contacto y redactar un mensaje que ofrezca StarSeed OS"
+    )
+    with patch("peticiones_telegram.llm", mock_llm):
+        plan = interpretar(msg)
+    
+    assert plan["tipo"] == "alcance"
+    assert plan["fuente"] == "youtube"
+    assert "https://youtu.be/kM7lnhS_uE8" in plan["urls"]["youtube"]
+
+
+def test_interpretar_texto_real_0031_usa_reglas_si_modelo_falla():
+    """interpretar con texto real 00:31 usa por_reglas si modelo no da JSON."""
+    def mock_llm(mensajes, max_tokens=600):
+        return "no es json válido", "modelo-test"
+    
+    msg = "Descarta lo del tema del rallador de carne humana"
+    with patch("peticiones_telegram.llm", mock_llm):
+        plan = interpretar(msg)
+    
+    assert plan["tipo"] == "descartar"
+    assert plan["fuente"] == "cuaderno"
+
+
+# ── Tests para atender_alcance y atender_descartar ──
+
+def test_atender_alcance_registra_y_responde(tmp_path, monkeypatch):
+    """atender_alcance registra el alcance y responde con info de pendiente de aprobación."""
+    # Configurar paths temporales
+    for k, v in (("CHAT", "123456"), ("TOKEN", "fake"), ("DIR", str(tmp_path)),
+                 ("COLA", str(tmp_path / "cola.json")), ("ESTADO", str(tmp_path / "estado.json")),
+                 ("SALIDAS", str(tmp_path / "salidas"))):
+        monkeypatch.setattr(mod, k, v)
+    
+    respuestas = []
+    monkeypatch.setattr(mod, "decir", respuestas.append)
+    
+    # Mock de peticiones_alcance
+    from unittest.mock import MagicMock
+    mock_registrar = MagicMock(return_value="abc12345")
+    mock_investigar = MagicMock(return_value={
+        "informe": "Informe generado",
+        "ficha_contacto": {"canal": "Test", "email": "test@test.com"},
+        "mensaje_borrador": "Mensaje borrador"
+    })
+    mock_actualizar = MagicMock(return_value=True)
+    
+    monkeypatch.setattr("peticiones_alcance.registrar_alcance", mock_registrar)
+    monkeypatch.setattr("peticiones_alcance.investigar_canal_youtube", mock_investigar)
+    monkeypatch.setattr("peticiones_alcance.actualizar_alcance", mock_actualizar)
+    
+    p = {
+        "id": 1,
+        "texto": "Alcance: analiza el canal https://youtu.be/kM7lnhS_uE8 y redacta mensaje",
+        "recibida": time.time(),
+        "estado": "nueva",
+        "intentos": 0,
+        "plan": {
+            "tipo": "alcance",
+            "fuente": "youtube",
+            "urls": {"youtube": ["https://youtu.be/kM7lnhS_uE8"], "drive": [], "web": []},
+            "artefactos": [],
+            "resumen": "alcance de prueba"
+        }
+    }
+    
+    mod.atender_alcance(p, p["plan"])
+    
+    # Verificar que se llamó a registrar_alcance
+    mock_registrar.assert_called_once()
+    # Verificar que se llamó a investigar_canal_youtube
+    mock_investigar.assert_called_once()
+    # Verificar que se llamó a actualizar_alcance con estado pendiente_aprobacion
+    mock_actualizar.assert_called_once()
+    args, kwargs = mock_actualizar.call_args
+    assert kwargs.get("estado") == "pendiente_aprobacion"
+    
+    # Verificar respuesta al usuario (dos llamadas a decir: inicio y fin)
+    assert len(respuestas) == 2
+    assert "PENDIENTE DE APROBACIÓN" in respuestas[1]
+    assert "abc12345" in respuestas[1]
+
+
+def test_atender_alcance_sin_youtube_url_responde_error(tmp_path, monkeypatch):
+    """atender_alcance sin URL de YouTube responde error."""
+    for k, v in (("CHAT", "123456"), ("TOKEN", "fake"), ("DIR", str(tmp_path)),
+                 ("COLA", str(tmp_path / "cola.json")), ("ESTADO", str(tmp_path / "estado.json")),
+                 ("SALIDAS", str(tmp_path / "salidas"))):
+        monkeypatch.setattr(mod, k, v)
+    
+    respuestas = []
+    monkeypatch.setattr(mod, "decir", respuestas.append)
+    
+    p = {
+        "id": 1,
+        "texto": "Alcance sin URL",
+        "recibida": time.time(),
+        "estado": "nueva",
+        "intentos": 0,
+        "plan": {
+            "tipo": "alcance",
+            "fuente": "cuaderno",
+            "urls": {"youtube": [], "drive": [], "web": []},
+            "artefactos": [],
+            "resumen": "alcance sin url"
+        }
+    }
+    
+    mod.atender_alcance(p, p["plan"])
+    
+    assert len(respuestas) == 1
+    assert "necesito una URL de YouTube" in respuestas[0]
+
+
+def test_atender_descartar_procesa_y_responde(tmp_path, monkeypatch):
+    """atender_descartar procesa el descarte y responde con resultado."""
+    for k, v in (("CHAT", "123456"), ("TOKEN", "fake"), ("DIR", str(tmp_path)),
+                 ("COLA", str(tmp_path / "cola.json")), ("ESTADO", str(tmp_path / "estado.json")),
+                 ("SALIDAS", str(tmp_path / "salidas"))):
+        monkeypatch.setattr(mod, k, v)
+    
+    respuestas = []
+    monkeypatch.setattr(mod, "decir", respuestas.append)
+    
+    # Mock de peticiones_alcance.procesar_descarte
+    mock_procesar = MagicMock(return_value={
+        "palabras_clave": ["rallador", "carne", "humana"],
+        "cuadernos_procesados": [
+            {"cuaderno": "sintesis", "eliminadas": 2, "source_ids": ["src1", "src2"]},
+            {"cuaderno": "produccion", "eliminadas": 1, "source_ids": ["src3"]}
+        ],
+        "total_fuentes_eliminadas": 3,
+        "regla_guardada": True
+    })
+    monkeypatch.setattr("peticiones_alcance.procesar_descarte", mock_procesar)
+    
+    p = {
+        "id": 1,
+        "texto": "Descarta el tema del rallador de carne humana del cuaderno de producción",
+        "recibida": time.time(),
+        "estado": "nueva",
+        "intentos": 0,
+        "plan": {
+            "tipo": "descartar",
+            "fuente": "cuaderno",
+            "urls": {"youtube": [], "drive": [], "web": []},
+            "artefactos": [],
+            "resumen": "descartar rallador"
+        }
+    }
+    
+    mod.atender_descartar(p, p["plan"])
+    
+    # Verificar que se llamó a procesar_descarte
+    mock_procesar.assert_called_once()
+    args = mock_procesar.call_args[0]
+    assert "rallador" in args[0]
+    
+    # Verificar respuesta (dos llamadas a decir: inicio y fin)
+    assert len(respuestas) == 2
+    assert "Descarte procesado" in respuestas[1]
+    assert "rallador" in respuestas[1]
+    assert "carne" in respuestas[1]
+    assert "3" in respuestas[1]  # total fuentes eliminadas
+
+
+def test_atender_descartar_propaga_excepcion(tmp_path, monkeypatch):
+    """atender_descartar propaga excepciones para que atender() las maneje."""
+    for k, v in (("CHAT", "123456"), ("TOKEN", "fake"), ("DIR", str(tmp_path)),
+                 ("COLA", str(tmp_path / "cola.json")), ("ESTADO", str(tmp_path / "estado.json")),
+                 ("SALIDAS", str(tmp_path / "salidas"))):
+        monkeypatch.setattr(mod, k, v)
+    
+    # Mock que lanza excepción
+    mock_procesar = MagicMock(side_effect=RuntimeError("Error en NotebookLM"))
+    monkeypatch.setattr("peticiones_alcance.procesar_descarte", mock_procesar)
+    
+    p = {
+        "id": 1,
+        "texto": "Descarta algo",
+        "recibida": time.time(),
+        "estado": "nueva",
+        "intentos": 0,
+        "plan": {"tipo": "descartar", "fuente": "cuaderno", "urls": {"youtube": [], "drive": [], "web": []}, "artefactos": [], "resumen": ""}
+    }
+    
+    try:
+        mod.atender_descartar(p, p["plan"])
+        assert False, "Debió lanzar excepción"
+    except RuntimeError as e:
+        assert "Error en NotebookLM" in str(e)
+
+
 def test_cola_durable_sobrevive_reinicio(tmp_path):
     """Cola se guarda en disco y se recupera tras reinicio (simulado)."""
     original_cola = mod.COLA
