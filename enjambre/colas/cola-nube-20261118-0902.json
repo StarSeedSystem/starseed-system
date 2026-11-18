@@ -1,0 +1,38 @@
+{
+ "ola": "nube-20261118",
+ "tareas": [
+  {
+   "id": "CI1118A",
+   "ola": "CI1118",
+   "titulo": "CI de Linux: la instalación de dependencias con apt no muere por un espejo lento",
+   "archivos": [
+    ".github/workflows/"
+   ],
+   "depende": [],
+   "prompt": "El 18-11-2026 la compilación de prueba 0.5.1-prueba.54 falló solo en Linux, en el paso «Dependencias de Linux (Tauri)»: los tres intentos de la instalación con apt-get agotaron su tope de 140 s («timeout 140» delante de apt-get install; el espejo de Ubuntu del runner iba lento y descargaba sin error). Busca ese paso en .github/workflows/ (grep -rn 'Dependencias de Linux (Tauri)' .github/workflows) y sube el tope de la instalación a 420 s por intento (el de update puede quedarse en 80 s), manteniendo los 3 intentos, el aviso ::warning:: y el ::error:: final. Si el mismo bloque se repite en otros workflows, cámbialos todos igual. No toques nada más. Verificación: python3 -c \"import yaml,glob;[yaml.safe_load(open(f)) for f in glob.glob('.github/workflows/*.yml')]\" y grep -rn 'timeout 140' .github/workflows (debe salir vacío)."
+  },
+  {
+   "id": "INT21",
+   "ola": "INT1116A",
+   "titulo": "Conectar las palabras a la sección y al panel de Señales",
+   "archivos": [
+    "src/components/mesh/mapa-senales/internet/seccion-internet.tsx",
+    "src/components/mesh/mapa-senales/ajustes-centro.tsx",
+    "src/components/mesh/mapa-senales/internet/__tests__/palabras-internet.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contrato: architecture/malla-cristalina-sio2.md §8.2 (contrato; si aún no está en el repo, rige este texto). «Modo banco de llamadas» es otra función (pasa a «modo de pruebas de llamadas»): no la toques ni la menciones. Cambio ACOTADO (≤30 líneas en cada archivo existente): `seccion-internet.tsx` usa `TEXTOS_INTERNET` y `TEXTOS_EXTRA_INTERNET` (INT20) como valores por defecto de sus textos (las props siguen mandando si se pasan); `ajustes-centro.tsx` deja de pasar `textosInternet` condicional y monta la sección con las palabras del módulo (quita el «oculta cuando falte» de INT13). PRUEBA: en el panel de ajustes se leen «modo banco» y «modo mesh», la ayuda del banco, y la sugerencia con una conexión `cellular`; sigue sin cambiar ningún ajuste hasta que la persona pulsa.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "INT13",
+    "INT17",
+    "INT20"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1117-193401.json": [
+   "INT21",
+   "CI1118A"
+  ]
+ }
+}
