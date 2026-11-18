@@ -1,0 +1,21 @@
+{
+ "ola": "nube-20261118",
+ "tareas": [
+  {
+   "id": "HERL1118A",
+   "ola": "HERL1118",
+   "titulo": "Lanzador propio de Hermes («StarSeed Hermes.app») para que macOS le dé a él, y no a osascript, los permisos de pantalla y control",
+   "archivos": [
+    "scripts/puente/lanzador_hermes_app.py",
+    "scripts/puente/test_lanzador_hermes_app.py"
+   ],
+   "depende": [],
+   "prompt": "Decisión de Alex (18-11-2026): Hermes necesita grabar la pantalla y controlar la app como lo hace Claude, y el permiso de macOS no se le da a /usr/bin/osascript (hoy el gateway lo lanza launchd con ProgramArguments = osascript, ~/Library/LaunchAgents/ai.hermes.gateway.plist, y macOS atribuye ahí la grabación de pantalla: «could not create image from display»). Se aprueba un lanzador propio con nombre de StarSeed al que Alex dará una sola vez «Grabación de pantalla y audio del sistema» y «Accesibilidad». Tarea: escribe scripts/puente/lanzador_hermes_app.py con subórdenes `construir --seco`, `construir`, `instalar --seco`, `instalar`, `deshacer` y `estado`. `construir` crea ~/Applications/StarSeed Hermes.app con Info.plist (CFBundleIdentifier org.starseed.hermes-lanzador, CFBundleName «StarSeed Hermes», LSUIElement true) y un ejecutable Mach-O mínimo compilado con `xcrun swiftc` desde un .swift generado que hace execv del mismo comando que hoy lleva el plist (léelo del plist con plistlib: el texto tras «exec » dentro del argumento de osascript), y lo firma ad hoc (`codesign --force --sign - <app>`). `instalar` guarda copia del plist (ai.hermes.gateway.plist.antes-lanzador-<fecha>), cambia ProgramArguments a [<app>/Contents/MacOS/starseed-hermes] y recarga con launchctl bootout/bootstrap gui/<uid>; `deshacer` vuelve a la copia. `estado` dice qué ejecuta hoy el servicio y si la app existe. Toda la lógica que no toca el sistema (leer el comando del plist, generar el Info.plist y el .swift, decidir el nuevo ProgramArguments) va en funciones puras con pruebas unitarias en scripts/puente/test_lanzador_hermes_app.py usando un plist de ejemplo; nada de red ni claves; nunca imprimas variables de entorno. No ejecutes `instalar` tú: eso lo hace el Director presidente o la dirección. Verificación: python3 -m pytest -q scripts/puente/test_lanzador_hermes_app.py y python3 scripts/puente/lanzador_hermes_app.py construir --seco. Español neutro."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1118-094955.json": [
+   "HERL1118A"
+  ]
+ }
+}
