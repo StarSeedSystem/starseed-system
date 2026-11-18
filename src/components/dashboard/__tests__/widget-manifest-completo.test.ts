@@ -84,6 +84,20 @@ describe("WIDGET_MANIFEST completitud", () => {
     });
 });
 
+describe("TRADUCTOR en el manifiesto", () => {
+    it("declara su entrada con los valores acordados", () => {
+        expect(WIDGET_MANIFEST.TRADUCTOR).toEqual({
+            label: "Traductor",
+            category: "ia",
+            w: 3,
+            h: 3,
+            minW: 2,
+            minH: 2,
+            relevance: 70,
+        });
+    });
+});
+
 describe("WIDGET_MANIFEST coherencia de tamaños", () => {
     it("ninguna entrada tiene minW/minH mayores que w/h", () => {
         const malas: string[] = [];
