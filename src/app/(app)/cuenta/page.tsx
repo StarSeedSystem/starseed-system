@@ -98,6 +98,9 @@ import {
 } from "@/lib/astraura/neuron-persona-systems";
 import { VOICE_ENGINE_REGISTRY } from "@/lib/aurora/tts-oss/engine-registry";
 import { cn } from "@/lib/utils";
+import { PanelPaquetesIdioma } from "@/components/idiomas/panel-paquetes";
+import { almacenPaquetes } from "@/lib/idiomas/paquete/almacen";
+import { TEXTO_FUENTE } from "@/lib/idiomas/texto-fuente";
 import { AjusteBotsIA } from "@/components/agentes-red/ajuste-bots-ia";
 import { PerfilAjustesCapsula } from "@/components/profile/perfil-ajustes-capsula";
 // Variaciones públicas (Ola 1019V · tarea W): cada panel de Ajustes lleva su
@@ -139,6 +142,7 @@ import {
   Mic,
   Bot,
   Cpu,
+  Globe,
 } from "lucide-react";
 
 type Row = Record<string, any>;
@@ -336,6 +340,18 @@ function CuentaContent() {
   }, [uid, supabase, load]);
 
   const flash = (t: string) => { setMsg(t); setTimeout(() => setMsg(""), 3500); };
+
+  function leerArchivo(archivo: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const lector = new FileReader();
+      lector.onerror = () => reject(new Error("No se pudo leer el archivo."));
+      lector.onload = () => {
+        const t = typeof lector.result === "string" ? lector.result : "";
+        resolve(t.charCodeAt(0) === 0xfeff ? t.slice(1) : t);
+      };
+      lector.readAsText(archivo, "utf-8");
+    });
+  }
 
   async function addEmail() {
     if (!uid) return;
@@ -573,6 +589,15 @@ function CuentaContent() {
         keywords: "apariencia tema escritorios trinity personalizacion diseno",
         accent: "text-violet-400",
         accentBg: "bg-violet-400/10 border-violet-400/20",
+      },
+      {
+        id: "idiomas",
+        icon: Globe,
+        title: "Idiomas",
+        summary: "Gestiona paquetes de idioma: instala, quita o exporta traducciones",
+        keywords: "idiomas paquetes traduccion instalar quitar exportar idioma lengua",
+        accent: "text-cyan-400",
+        accentBg: "bg-cyan-400/10 border-cyan-400/20",
       },
       {
         id: "notificaciones",
@@ -1043,6 +1068,17 @@ function CuentaContent() {
             <DesignSettingsPanel />
           </ConClave>
         </div>
+      </section>
+
+      {/* ═══════════════════════ IDIOMAS ═══════════════════════ */}
+      <section id="idiomas" className="scroll-mt-6 pt-2 space-y-3">
+        <div>
+          <h2 className="text-base font-semibold mb-1 flex items-center gap-2">
+            <Globe className="w-4 h-4 text-cyan-400" /> Idiomas
+          </h2>
+          <p className="text-xs text-muted-foreground">Gestiona paquetes de idioma: instala, quita o exporta traducciones.</p>
+        </div>
+        <PanelPaquetesIdioma fuente={TEXTO_FUENTE} leerArchivo={leerArchivo} almacen={almacenPaquetes} />
       </section>
 
       {/* ═══════════════════════ 6) NOTIFICACIONES Y RECORDATORIOS ═══════════════════════ */}

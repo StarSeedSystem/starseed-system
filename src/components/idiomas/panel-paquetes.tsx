@@ -6,6 +6,11 @@ import type { PaqueteIdioma } from "@/lib/idiomas/paquete/formato";
 import type { AlmacenPaquetes } from "@/lib/idiomas/paquete/almacen";
 import { mapearClaves } from "@/lib/idiomas/paquete/mapear";
 import { validarPaquete } from "@/lib/idiomas/paquete/validar";
+import type { ResultadoImportacion as ResultadoImportacionPo } from "@/lib/idiomas/paquete/importar-po";
+import type { ResultadoImportacion as ResultadoImportacionXml } from "@/lib/idiomas/paquete/importar-xml-strings";
+import type { ResultadoImportacion as ResultadoImportacionJsonCsv } from "@/lib/idiomas/paquete/importar-json-csv";
+
+type ResultadoImportacion = (ResultadoImportacionPo | ResultadoImportacionXml) & { avisos?: string[] } | (ResultadoImportacionJsonCsv & { avisos?: string[] });
 
 export interface PanelPaquetesIdiomaProps {
   fuente: Record<string, unknown> | string[];
@@ -38,8 +43,8 @@ function esExtensionSoportada(nombre: string): ExtensionSoportada | null {
   return null;
 }
 
-function obtenerImportador(extension: ExtensionSoportada, texto: string): Promise<{ entradas: Record<string, string>; avisos: string[]; descartadas: Array<{ motivo: string; linea?: number }> }> {
-  const modulos: Record<string, () => Promise<{ desdePo?: unknown; desdeProperties?: unknown; desdeXliff?: unknown; desdeStringsApple?: unknown; desdeStringsAndroid?: unknown; desdeJsonPlano?: unknown; desdeJsonAnidado?: unknown; desdeCsv?: unknown }>> = {
+function obtenerImportador(extension: ExtensionSoportada, texto: string): Promise<ResultadoImportacion> {
+  const modulos: Record<string, () => Promise<unknown>> = {
     ".po": () => import("@/lib/idiomas/paquete/importar-po"),
     ".pot": () => import("@/lib/idiomas/paquete/importar-po"),
     ".properties": () => import("@/lib/idiomas/paquete/importar-po"),
@@ -61,24 +66,24 @@ function obtenerImportador(extension: ExtensionSoportada, texto: string): Promis
     switch (extension) {
       case ".po":
       case ".pot":
-        return mod.desdePo(texto) as Promise<{ entradas: Record<string, string>; avisos: string[]; descartadas: Array<{ motivo: string; linea?: number }> }>;
+        return (mod as { desdePo: (texto: string) => ResultadoImportacionPo }).desdePo(texto);
       case ".properties":
-        return mod.desdeProperties(texto) as Promise<{ entradas: Record<string, string>; avisos: string[]; descartadas: Array<{ motivo: string; linea?: number }> }>;
+        return (mod as { desdeProperties: (texto: string) => ResultadoImportacionPo }).desdeProperties(texto);
       case ".xlf":
       case ".xliff":
-        return mod.desdeXliff(texto) as Promise<{ entradas: Record<string, string>; avisos: string[]; descartadas: Array<{ motivo: string; linea?: number }> }>;
+        return (mod as { desdeXliff: (texto: string) => ResultadoImportacionXml }).desdeXliff(texto);
       case ".strings":
-        return mod.desdeStringsApple(texto) as Promise<{ entradas: Record<string, string>; avisos: string[]; descartadas: Array<{ motivo: string; linea?: number }> }>;
+        return (mod as { desdeStringsApple: (texto: string) => ResultadoImportacionXml }).desdeStringsApple(texto);
       case ".xml":
-        return mod.desdeStringsAndroid(texto) as Promise<{ entradas: Record<string, string>; avisos: string[]; descartadas: Array<{ motivo: string; linea?: number }> }>;
+        return (mod as { desdeStringsAndroid: (texto: string) => ResultadoImportacionXml }).desdeStringsAndroid(texto);
       case ".starseed-lang.json":
-        return mod.desdeJsonPlano(texto) as Promise<{ entradas: Record<string, string>; avisos: string[]; descartadas: Array<{ motivo: string; linea?: number }> }>;
+        return (mod as { desdeJsonPlano: (texto: string) => ResultadoImportacionJsonCsv }).desdeJsonPlano(texto);
       case ".json":
-        return mod.desdeJsonAnidado(texto) as Promise<{ entradas: Record<string, string>; avisos: string[]; descartadas: Array<{ motivo: string; linea?: number }> }>;
+        return (mod as { desdeJsonAnidado: (texto: string) => ResultadoImportacionJsonCsv }).desdeJsonAnidado(texto);
       case ".csv":
-        return mod.desdeCsv(texto, ",") as Promise<{ entradas: Record<string, string>; avisos: string[]; descartadas: Array<{ motivo: string; linea?: number }> }>;
+        return (mod as { desdeCsv: (texto: string, separador: "," | "\t") => ResultadoImportacionJsonCsv }).desdeCsv(texto, ",");
       case ".tsv":
-        return mod.desdeCsv(texto, "\t") as Promise<{ entradas: Record<string, string>; avisos: string[]; descartadas: Array<{ motivo: string; linea?: number }> }>;
+        return (mod as { desdeCsv: (texto: string, separador: "," | "\t") => ResultadoImportacionJsonCsv }).desdeCsv(texto, "\t");
     }
   })();
 }
@@ -111,7 +116,7 @@ export function PanelPaquetesIdioma({ fuente, leerArchivo, digest = "auto", alma
   const [instalando, setInstalando] = useState(false);
   const [mostrarInstalar, setMostrarInstalar] = useState(false);
   const [archivoSeleccionado, setArchivoSeleccionado] = useState<File | null>(null);
-  const [importacion, setImportacion] = useState<{ entradas: Record<string, string>; avisos: string[]; descartadas: Array<{ motivo: string; linea?: number }> } | null>(null);
+  const [importacion, setImportacion] = useState<ResultadoImportacion | null>(null);
   const [codigoIdioma, setCodigoIdioma] = useState("");
   const [nombreIdioma, setNombreIdioma] = useState("");
   const [mapeo, setMapeo] = useState<{ casadas: number; total: number; porcentaje: number } | null>(null);
@@ -157,10 +162,11 @@ export function PanelPaquetesIdioma({ fuente, leerArchivo, digest = "auto", alma
       if (!ext) throw new Error("Formato no soportado");
 
       if (ext === ".starseed-lang.json") {
-        const mod = await import("@/lib/idiomas/paquete/importar-json-csv");
-        const resultado = await mod.desdeJsonPlano(texto);
-        setImportacion({ entradas: resultado.entradas, avisos: [], descartadas: resultado.descartadas });
         const pkg = JSON.parse(texto);
+        const entradas = pkg.entradas ?? {};
+        const avisos: string[] = [];
+        if (!pkg.entradas) avisos.push("El paquete no contiene campo 'entradas'");
+        setImportacion({ entradas, avisos, descartadas: [] });
         setCodigoIdioma(pkg.codigo ?? "");
         setNombreIdioma(pkg.nombre ?? "");
       } else {
@@ -328,7 +334,7 @@ export function PanelPaquetesIdioma({ fuente, leerArchivo, digest = "auto", alma
             <span className="ml-auto text-[11px] text-white/50">{(archivoSeleccionado.size / 1024).toFixed(1)} KB</span>
           </div>
 
-          {importacion.avisos.length > 0 && (
+          {importacion.avisos && importacion.avisos.length > 0 && (
             <div className="rounded-lg bg-amber-300/10 border border-amber-300/30 p-2 text-[11px] text-amber-200">
               {importacion.avisos.map((a, i) => <p key={i}><AlertTriangle className="h-3 w-3 inline-block mr-1" aria-hidden />{a}</p>)}
             </div>
@@ -338,9 +344,10 @@ export function PanelPaquetesIdioma({ fuente, leerArchivo, digest = "auto", alma
             <details className="rounded-lg border border-white/10 bg-white/5 p-2">
               <summary className="cursor-pointer text-[11px] text-white/60">{importacion.descartadas.length} entradas descartadas</summary>
               <ul className="mt-1 text-[11px] text-white/50">
-                {importacion.descartadas.slice(0, 10).map((d, i) => (
-                  <li key={i}><span className="font-mono">{d.clave ?? `línea ${d.linea}`}</span>: {d.motivo}</li>
-                ))}
+                {importacion.descartadas.slice(0, 10).map((d, i) => {
+                  const clave = "clave" in d ? d.clave : `línea ${d.linea ?? "?"}`;
+                  return <li key={i}><span className="font-mono">{clave}</span>: {d.motivo}</li>;
+                })}
                 {importacion.descartadas.length > 10 && <li>… y {importacion.descartadas.length - 10} más</li>}
               </ul>
             </details>
