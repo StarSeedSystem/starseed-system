@@ -1,0 +1,16 @@
+{
+ "ola": "oracle-20261118",
+ "medio": "oracle",
+ "tareas": [
+  {
+   "id": "CI1118A",
+   "ola": "CI1118",
+   "titulo": "CI de Linux: la instalación de dependencias con apt no muere por un espejo lento",
+   "archivos": [
+    ".github/workflows/"
+   ],
+   "depende": [],
+   "prompt": "El 18-11-2026 la compilación de prueba 0.5.1-prueba.54 falló solo en Linux, en el paso «Dependencias de Linux (Tauri)»: los tres intentos de la instalación con apt-get agotaron su tope de 140 s («timeout 140» delante de apt-get install; el espejo de Ubuntu del runner iba lento y descargaba sin error). Busca ese paso en .github/workflows/ (grep -rn 'Dependencias de Linux (Tauri)' .github/workflows) y sube el tope de la instalación a 420 s por intento (el de update puede quedarse en 80 s), manteniendo los 3 intentos, el aviso ::warning:: y el ::error:: final. Si el mismo bloque se repite en otros workflows, cámbialos todos igual. No toques nada más. Verificación: python3 -c \"import yaml,glob;[yaml.safe_load(open(f)) for f in glob.glob('.github/workflows/*.yml')]\" y grep -rn 'timeout 140' .github/workflows (debe salir vacío)."
+  }
+ ]
+}
