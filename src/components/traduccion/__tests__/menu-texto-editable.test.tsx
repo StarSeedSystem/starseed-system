@@ -10,6 +10,10 @@ import {
   type ContextoMenuTexto,
 } from "../menu-texto";
 
+function clickPrimerMenu() {
+  fireEvent.click(screen.getByRole("menuitem"));
+}
+
 const quitarEntradas: Array<() => void> = [];
 function registrar(entrada: Parameters<typeof registrarEntradaMenuTexto>[0]) {
   quitarEntradas.push(registrarEntradaMenuTexto(entrada));
@@ -41,6 +45,7 @@ describe("MenuTexto · campos editables", () => {
     input.focus();
     fireEvent.contextMenu(input);
     expect(screen.getByRole("menu", { name: "Menú del texto" })).toBeInTheDocument();
+    clickPrimerMenu();
     expect(vistas[0].editable).toBe(true);
     expect(vistas[0].seleccionEditable?.texto).toBe("texto");
   });
@@ -75,6 +80,7 @@ describe("MenuTexto · campos editables", () => {
     registrar({ id: "traducir", etiqueta: "Traducir selección", ejecutar: (c) => vistas.push(c) });
     render(<MenuTexto />);
     fireEvent.contextMenu(destino());
+    clickPrimerMenu();
     expect(vistas[0].editable).toBe(false);
   });
 

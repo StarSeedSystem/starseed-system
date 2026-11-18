@@ -30,6 +30,7 @@ function ctx(opciones: { seleccion?: string; objetivo?: Element | null; paginaTr
     seleccion: opciones.seleccion ?? "",
     objetivo: opciones.objetivo ?? null,
     paginaTraducida: opciones.paginaTraducida ?? false,
+    editable: false,
   };
 }
 
