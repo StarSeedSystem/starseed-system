@@ -65,6 +65,7 @@ import { IDS_SIEMBRA_1027B } from "./repos-1027b";
 import { IDS_SIEMBRA_1028 } from "./repos-1028";
 import { IDS_SIEMBRA_1101 } from "./repos-1101";
 import { IDS_SIEMBRA_1104 } from "./repos-1104";
+import { IDS_SIEMBRA_TRADUCTOR } from "./traductor-1116";
 
 /** Marca de estado de la siembra (viaja con la cuenta vía SYNCED_KEYS). */
 export const SEED_KEY = "starseed.library.seed.v1";
@@ -74,7 +75,7 @@ export const SEED_KEY = "starseed.library.seed.v1";
  * TODAS las cuentas (incluidas las existentes): al arrancar, si la versión
  * sembrada del dispositivo/cuenta es menor, se aplicará el delta de novedades.
  */
-export const SEED_VERSION = 25;
+export const SEED_VERSION = 26;
 
 /* ─────────────────────── Conjunto RECOMENDADO ───────────────────────
  * Ids REALES definidos en packages.ts (repos builtin starseed-core/labs).
@@ -430,9 +431,17 @@ const IDS_SIEMBRA_1020D: string[] = [
  * (módulo puro `repos-1104.ts`; contrato architecture/repos-libreria-1104.md), y keepalive (Ola 1101),
  * que estaba en el catálogo pero nunca entró en esta unión. Instalar SOLO registra el enlace; lo
  * nativo de cada uno lo cablea la Ola 1104R.
+ *
+ * (SEED_VERSION 26 · TU31 · TRA1116-APP-F1) TRADUCTOR UNIVERSAL: app con ruta real /traductor.
+ * EXCEPCIÓN DELIBERADA a la regla de "apps/pages con route quedan fuera de RECOMMENDED" (§ arriba):
+ * NO es contenido de terceros que implique navegar a explorar algo nuevo, es un módulo DE SISTEMA
+ * del propio OS (como Cámara/Galería/Escritorio). `install()` para kind:"app" solo REGISTRA el
+ * paquete como instalado (registerInstalled); no navega por sí solo. La siembra ignora el `action:
+ * "route"` que devuelve install: ensureDefaultsSeeded solo acumula ids con `ok: true` y no abre
+ * ninguna ruta. Así que sembrarlo aquí es seguro (cero navegación inesperada al iniciar sesión).
  */
 export const RECOMMENDED_PACKAGE_IDS: string[] = Array.from(
-  new Set([...RECOMMENDED_HASTA_16, ...IDS_SIEMBRA_1025, ...IDS_SIEMBRA_1026, ...IDS_SIEMBRA_1027, ...IDS_SIEMBRA_1027B, ...IDS_SIEMBRA_1028, ...IDS_SIEMBRA_1020C, ...IDS_SIEMBRA_1020D, ...IDS_SIEMBRA_1101, ...IDS_SIEMBRA_1104]),
+  new Set([...RECOMMENDED_HASTA_16, ...IDS_SIEMBRA_1025, ...IDS_SIEMBRA_1026, ...IDS_SIEMBRA_1027, ...IDS_SIEMBRA_1027B, ...IDS_SIEMBRA_1028, ...IDS_SIEMBRA_1020C, ...IDS_SIEMBRA_1020D, ...IDS_SIEMBRA_1101, ...IDS_SIEMBRA_1104, ...IDS_SIEMBRA_TRADUCTOR]),
 );
 
 /**
@@ -450,7 +459,7 @@ export const RECOMMENDED_FREE_SOURCES: string[] = [
 
 /* ─────────────────────── Estado de la siembra ─────────────────────── */
 
-/** La versión de la siembra incluye ahora a Meta^n y Memvid (1027b). */
+/** La versión de la siembra incluye ahora a Meta^n, Memvid (1027b) y el Traductor (TU31). */
 
 interface SeedState {
   /** Última versión de siembra aplicada en este dispositivo/cuenta. */
