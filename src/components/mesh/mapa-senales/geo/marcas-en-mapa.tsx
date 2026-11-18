@@ -4,9 +4,10 @@
  * MarcasEnMapa — lo que la pestaña «Mapa» de Señales añade al mapa del Hub (MAP1114C): los parches de color de las
  * capas encendidas, las marcas de las neuronas de mi cuenta (en su punto exacto), las leyendas y la lista de aparatos.
  * No crea ningún mapa: recibe `L` y `map` de `MapView`. No pinta nada que no esté medido.
+ * (AQ03) Acepta `senalesFiltradas` para filtrar lo que pintan las capas red-*.
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { escapeHtml } from "@/lib/map/map-config";
 import type { MapExtensionCtx } from "@/components/map/map-view-extension";
 import type { EstadoLectura } from "@/lib/senales/espectro/leer-senales";
@@ -18,6 +19,7 @@ import { COLOR_DESCONOCIDO } from "@/lib/senales/geo/capas";
 import { haceCuanto, posicionEsViva, coordenadasDeVista } from "@/lib/senales/geo/modelo-geo";
 import { parchesDeCapa } from "@/lib/senales/geo/parches";
 import type { MarcaGeo } from "@/lib/senales/geo/marcas";
+import type { SenalEspectro } from "@/lib/senales/espectro/tipos";
 import { direccionEtiqueta } from "@/lib/senales/geo/etiquetas";
 import { crearCapaParches, type CapaParches } from "./capa-parches";
 import { crearCapaAlcance, type CapaAlcance } from "./capa-alcance";
@@ -58,12 +60,14 @@ export interface MarcasEnMapaProps {
   enlaces?: readonly EnlaceMedido[];
   /** (AUD1117) Estado de la lectura de las señales publicadas de la red: si falló, el panel de capas dice el motivo. */
   publicadas?: { estado: EstadoLectura; motivo?: string };
+  /** (AQ03) Señales publicadas ya filtradas por el panel de filtros; solo afecta a capas red-*. */
+  senalesFiltradas?: readonly SenalEspectro[];
   vacio?: React.ReactNode;
   aviso?: React.ReactNode;
   children?: React.ReactNode;
 }
 
-export function MarcasEnMapa({ ctx, marcas, ahora, estado, seleccion, onElegir, compacto, enlaces = [], publicadas, vacio, aviso, children }: MarcasEnMapaProps) {
+export function MarcasEnMapa({ ctx, marcas, ahora, estado, seleccion, onElegir, compacto, enlaces = [], publicadas, senalesFiltradas = [], vacio, aviso, children }: MarcasEnMapaProps) {
   const { L, map } = ctx;
   const capasRef = useRef<Record<string, CapaParches | CapaAlcance>>({});
   const lineasRef = useRef<any>(null);
@@ -72,6 +76,30 @@ export function MarcasEnMapa({ ctx, marcas, ahora, estado, seleccion, onElegir, 
   const [leyendaAbierta, setLeyendaAbierta] = useState(false);
   const onElegirRef = useRef(onElegir);
   onElegirRef.current = onElegir;
+
+  // (AQ03) Crear versión filtrada de marcas para las capas red-*: cada marca recibe solo las señales
+  // filtradas que le pertenecen (vinculo.tipo === "neurona" && vinculo.id === marca.neuronaId).
+  const marcasParaRed = useMemo<MarcaGeo[]>(() => {
+    if (senalesFiltradas.length === 0) return [...marcas];
+    const porNeurona = new Map<string, SenalEspectro[]>();
+    for (const s of senalesFiltradas) {
+      if (s.vinculo?.tipo === "neurona" && s.vinculo.id) {
+        const arr = porNeurona.get(s.vinculo.id) ?? [];
+        arr.push(s);
+        porNeurona.set(s.vinculo.id, arr);
+      }
+    }
+    return marcas.map((m) => {
+      const publicadas = porNeurona.get(m.neuronaId);
+      if (!publicadas || publicadas.length === 0) {
+        return publicadas ? { ...m, publicadas } : m;
+      }
+      return { ...m, publicadas };
+    });
+  }, [marcas, senalesFiltradas]);
+
+  // (AQ03) Determinar si hay capas red-* activas para decidir qué marcas usar en el pintado.
+  const hayCapasRedActivas = estado.activas.some((id) => id.startsWith("red-"));
 
   // Una capa de canvas por capa encendida: parches (medido) o campos de alcance (estimado). Las líneas van aparte.
   useEffect(() => {
@@ -85,16 +113,18 @@ export function MarcasEnMapa({ ctx, marcas, ahora, estado, seleccion, onElegir, 
       const capa = CAPA_POR_ID[id];
       if (!capa || capa.tipo === "enlaces") continue;
       z += 1;
+      // (AQ03) Para capas red-* usar marcas filtradas; para el resto, marcas originales.
+      const marcasParaCapa = capa.grupo === "red" ? marcasParaRed : marcas;
       if (capa.tipo === "alcance") {
         if (!hechas[id]) hechas[id] = crearCapaAlcance(L, map, id, z);
-        (hechas[id] as CapaAlcance).poner(camposDeCapa(capa, marcas, ahora));
+        (hechas[id] as CapaAlcance).poner(camposDeCapa(capa, marcasParaCapa, ahora));
       } else {
         if (!hechas[id]) hechas[id] = crearCapaParches(L, map, id, z);
-        (hechas[id] as CapaParches).poner(parchesDeCapa(capa, marcas, ahora));
+        (hechas[id] as CapaParches).poner(parchesDeCapa(capa, marcasParaCapa, ahora));
       }
       hechas[id].opacidad(estado.opacidad[id] ?? OPACIDAD_POR_DEFECTO);
     }
-  }, [L, map, estado, marcas, ahora]);
+  }, [L, map, estado, marcas, marcasParaRed, ahora, hayCapasRedActivas]);
 
   // Las líneas medidas: trazo SÓLIDO coloreado por calidad; al tocar una, su calidad y la hora de la medida.
   useEffect(() => {

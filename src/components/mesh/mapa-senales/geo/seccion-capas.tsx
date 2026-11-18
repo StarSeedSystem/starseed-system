@@ -3,8 +3,10 @@
 /**
  * Sección «Señales de mi cuenta» del panel de capas del mapa (MAP1114C). Mismo patrón que «Clima real»:
  * por capa, un interruptor, un deslizador de opacidad y su leyenda. Cada capa dice de dónde sale su dato.
+ * Incluye el panel de filtros de señales (AQ03): banda, ancho, capa, medio, origen y texto.
  */
 
+import { useMemo } from "react";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import type { EstadoLectura } from "@/lib/senales/espectro/leer-senales";
@@ -14,6 +16,9 @@ import {
 } from "@/lib/senales/geo/capas";
 import type { EstadoCanalPosicion } from "@/lib/senales/geo/canal-posicion";
 import type { PermisoUbicacion } from "./use-marcas-geo";
+import { PanelFiltrosSenales, type FiltroSenales } from "./panel-filtros-senales";
+import { filtrarSenales, contarSinDatoFrecuencia } from "@/lib/senales/espectro/filtrar";
+import type { SenalEspectro } from "@/lib/senales/espectro/tipos";
 
 export function Muestra({ i }: { i: ItemLeyenda }) {
   const base = "inline-block size-3 shrink-0 rounded-full";
@@ -55,6 +60,12 @@ export interface SeccionCapasProps {
   /** (AUD1117) Publicación de mis señales: interruptores por capa (apagados de fábrica). */
   publicacion?: PublicacionCapa;
   onPublicacion?: (capa: "publica" | "comunidad" | "privada", on: boolean) => void;
+  /** (AQ03) Todas las señales publicadas de todas las marcas, para el panel de filtros. */
+  todasLasSenales?: readonly SenalEspectro[];
+  /** (AQ03) Filtro actual de señales. */
+  filtroSenales?: FiltroSenales;
+  /** (AQ03) Callback cuando cambia el filtro de señales. */
+  onCambiarFiltroSenales?: (filtro: FiltroSenales) => void;
 }
 
 const TEXTO_PERMISO: Record<PermisoUbicacion, string> = {
@@ -64,10 +75,24 @@ const TEXTO_PERMISO: Record<PermisoUbicacion, string> = {
   desconocido: "No se sabe si este aparato dio su ubicación.",
 };
 
-export function SeccionCapas({ estado, onAlternar, onOpacidad, permiso, compartir, canal, onCompartir, onUbicarme, publicadas, publicacion, onPublicacion }: SeccionCapasProps) {
+export function SeccionCapas({ estado, onAlternar, onOpacidad, permiso, compartir, canal, onCompartir, onUbicarme, publicadas, publicacion, onPublicacion, todasLasSenales = [], filtroSenales, onCambiarFiltroSenales }: SeccionCapasProps) {
   // (AUD1117) Si la lectura de las señales publicadas falló, el panel de capas dice el motivo: las capas
   // grupo «red» pintarían cero y el panel explica por qué, en vez de callarse.
   const motivoPublicadas = motivoSenalesPublicadas(publicadas?.estado ?? "ok", publicadas?.motivo);
+
+  const { visibles, ocultasSinDato } = useMemo(() => {
+    const filtradas = filtrarSenales(todasLasSenales, filtroSenales ?? {
+      frecuencia: { minKhz: null, maxKhz: null },
+      ancho: { minKhz: null, maxKhz: null },
+      capas: [],
+      medios: [],
+      origenes: [],
+      soloCompatibles: false,
+      texto: "",
+    });
+    return { visibles: filtradas.length, ocultasSinDato: contarSinDatoFrecuencia(todasLasSenales) };
+  }, [todasLasSenales, filtroSenales]);
+
   return (
     <div className="space-y-3" data-testid="seccion-senales">
       <p className="text-[11px] font-semibold uppercase tracking-wider text-white/45">Señales de mi cuenta</p>
@@ -90,6 +115,23 @@ export function SeccionCapas({ estado, onAlternar, onOpacidad, permiso, comparti
           <p className="text-[10px] leading-snug text-emerald-300" data-testid="aviso-canal-unido">Canal privado de posición unido: la posición solo viaja entre las neuronas de tu cuenta.</p>
         )}
       </div>
+
+      {onCambiarFiltroSenales && (
+        <PanelFiltrosSenales
+          filtro={filtroSenales ?? {
+            frecuencia: { minKhz: null, maxKhz: null },
+            ancho: { minKhz: null, maxKhz: null },
+            capas: [],
+            medios: [],
+            origenes: [],
+            soloCompatibles: false,
+            texto: "",
+          }}
+          onCambiar={onCambiarFiltroSenales}
+          visibles={visibles}
+          ocultasSinDato={ocultasSinDato}
+        />
+      )}
 
       <p className="text-[10px] leading-snug text-white/45">{NOTA_PARCHE} {NOTA_ALCANCE} Gris hueco = sin medir.</p>
 

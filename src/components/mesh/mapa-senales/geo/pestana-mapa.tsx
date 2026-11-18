@@ -5,6 +5,7 @@
  * sus secciones en el panel de capas, las marcas de las neuronas de mi cuenta en su punto exacto, los parches de
  * color de las señales y la ficha de cada aparato. No hay otro mapa. Centra en la ubicación de este aparato.
  * Solo se pinta lo medido, con su hora. Contrato: architecture/mapa-de-senales.md (corrección de Alex, 14-11-2026, tarde).
+ * Incluye filtros de señales por banda, ancho, capa, medio y origen (AQ03).
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -18,6 +19,7 @@ import {
 import { coordenadasDeVista } from "@/lib/senales/geo/modelo-geo";
 import { horaDe } from "@/lib/senales/geo/ficha-geo";
 import type { MarcaGeo } from "@/lib/senales/geo/marcas";
+import type { SenalEspectro } from "@/lib/senales/espectro/tipos";
 import { useCompacto } from "../use-compacto";
 import { EsquemaSenalesPlano } from "../vista-plana";
 import { FichaGeo } from "./ficha-geo";
@@ -27,6 +29,8 @@ import { useMarcasGeo, type MarcasGeo, type PermisoUbicacion } from "./use-marca
 import { usePublicarSenales, type EntradaPublicacion, type CapasHabilitadas } from "./use-publicar-senales";
 import type { SenalesMedio } from "@/lib/neurons/senales-medio";
 import type { DescripcionMedio } from "@/lib/neurons/medio";
+import { filtrarSenales } from "@/lib/senales/espectro/filtrar";
+import type { FiltroSenales } from "./panel-filtros-senales";
 
 function useEnLinea(): { enLinea: boolean; desde: number | null } {
   const [est, setEst] = useState<{ enLinea: boolean; desde: number | null }>({ enLinea: true, desde: null });
@@ -99,6 +103,29 @@ export function VistaMapa({ datos, enLinea, sinRedDesde, compacto }: VistaMapaPr
 
   const { publicar, publicando, ultimaPublicacion, error } = usePublicarSenales(entrada, publicacion);
 
+  // (AQ03) Recopilar todas las señales publicadas de todas las marcas para el panel de filtros.
+  const todasLasSenales = useMemo<readonly SenalEspectro[]>(() => {
+    const senales: SenalEspectro[] = [];
+    for (const m of marcas) {
+      if (m.publicadas) senales.push(...m.publicadas);
+    }
+    return senales;
+  }, [marcas]);
+
+  // (AQ03) Estado del filtro de señales.
+  const [filtroSenales, setFiltroSenales] = useState<FiltroSenales>({
+    frecuencia: { minKhz: null, maxKhz: null },
+    ancho: { minKhz: null, maxKhz: null },
+    capas: [],
+    medios: [],
+    origenes: [],
+    soloCompatibles: false,
+    texto: "",
+  });
+
+  // (AQ03) Señales filtradas para pasar a MarcasEnMapa (solo afecta a capas red-*).
+  const senalesFiltradas = useMemo(() => filtrarSenales(todasLasSenales, filtroSenales), [todasLasSenales, filtroSenales]);
+
   // (AUD1117) La base geográfica puede fallar aunque `navigator.onLine` diga que hay red (teselas caídas).
   // Se mide con los eventos de Leaflet; al volver la red se reintenta sola y, si sigue sin base, cada 30 s.
   const [base, setBase] = useState<EstadoBaseGeografica>(() => (enLinea ? "cargando" : "fallo"));
@@ -128,18 +155,42 @@ export function VistaMapa({ datos, enLinea, sinRedDesde, compacto }: VistaMapaPr
     onErrorUbicacion: datos.alErrorUbicacion,
     onBaseEstado: setBase,
     seccionCapas: (ctx) => (
-      <SeccionCapas estado={capas} onAlternar={alternar} onOpacidad={opacidad} permiso={permiso} compartir={datos.compartir} canal={datos.canal} onCompartir={datos.fijarCompartir} onUbicarme={ctx.ubicarme} publicadas={datos.publicadas} publicacion={publicacion} onPublicacion={onPublicacion} />
+      <SeccionCapas
+        estado={capas}
+        onAlternar={alternar}
+        onOpacidad={opacidad}
+        permiso={permiso}
+        compartir={datos.compartir}
+        canal={datos.canal}
+        onCompartir={datos.fijarCompartir}
+        onUbicarme={ctx.ubicarme}
+        publicadas={datos.publicadas}
+        publicacion={publicacion}
+        onPublicacion={onPublicacion}
+        todasLasSenales={todasLasSenales}
+        filtroSenales={filtroSenales}
+        onCambiarFiltroSenales={setFiltroSenales}
+      />
     ),
     superposicion: (ctx) => (
       <MarcasEnMapa
-        ctx={ctx} marcas={marcas} ahora={ahora} estado={capas} seleccion={sel} onElegir={setSel} compacto={estrecho} enlaces={datos.enlaces} publicadas={datos.publicadas}
+        ctx={ctx}
+        marcas={marcas}
+        ahora={ahora}
+        estado={capas}
+        seleccion={sel}
+        onElegir={setSel}
+        compacto={estrecho}
+        enlaces={datos.enlaces}
+        publicadas={datos.publicadas}
+        senalesFiltradas={senalesFiltradas}
         aviso={<Avisos enLinea={enLinea} sinRedDesde={sinRedDesde ?? null} presenciaConectada={presenciaConectada} errorUbicacion={datos.errorUbicacion} />}
         vacio={colocadas.length === 0 ? <EstadoVacio yo={yo} permiso={permiso} desde={datos.desde} total={marcas.length} onUbicarme={ctx.ubicarme} /> : null}
       >
         {marcaSel && <FichaGeo marca={marcaSel} ahora={ahora} compacto={estrecho} onCerrar={() => setSel(null)} />}
       </MarcasEnMapa>
     ),
-  }), [permiso, datos.alMiPosicion, datos.alErrorUbicacion, datos.compartir, datos.canal, datos.enlaces, datos.fijarCompartir, datos.errorUbicacion, datos.desde, datos.publicadas, capas, alternar, opacidad, marcas, ahora, sel, estrecho, enLinea, sinRedDesde, presenciaConectada, colocadas.length, yo, marcaSel, publicacion, onPublicacion]);
+  }), [permiso, datos.alMiPosicion, datos.alErrorUbicacion, datos.compartir, datos.canal, datos.enlaces, datos.fijarCompartir, datos.errorUbicacion, datos.desde, datos.publicadas, capas, alternar, opacidad, marcas, ahora, sel, estrecho, enLinea, sinRedDesde, presenciaConectada, colocadas.length, yo, marcaSel, publicacion, onPublicacion, todasLasSenales, filtroSenales, senalesFiltradas]);
 
   if (sinBase) {
     return (
