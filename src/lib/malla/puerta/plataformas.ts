@@ -129,13 +129,18 @@ export function capacidadesPuerta(e: EntornoPuerta): CapacidadesPuerta {
       );
     case "linux":
       return base(
-        { puede: true, necesita: [NODO, PAGINA_VIVA], segundoPlano: "siempre", nota: "Mientras la app esté abierta." },
+        {
+          puede: true,
+          necesita: [NODO, PAGINA_VIVA],
+          segundoPlano: "siempre",
+          nota: "Mientras la app esté abierta. Comparte el tráfico de la app y de su ventana por la malla; no convierte este equipo en un punto de acceso ni en un router: los demás aparatos no navegan por el.",
+        },
         {
           app: true,
           webview: !sinProxy,
           descargas: true,
           pasa: ["Datos de la app (Supabase y /api)", "Actualizador y descargas de Rust", ...(!sinProxy ? ["Páginas externas, imágenes e iframes (WebKitNetworkProxySettings, en caliente)"] : [])],
-          noPasa: [noPasaUdp],
+          noPasa: [noPasaUdp, "El tráfico de otros programas del sistema y de otros aparatos de la red (la puerta no hace NAT)"],
           nota: sinProxy ? "El proxy de la puerta está apagado por STARSEED_SIN_PROXY_PUERTA." : null,
         },
       );
