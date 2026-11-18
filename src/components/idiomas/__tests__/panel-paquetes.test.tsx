@@ -1,13 +1,47 @@
 /** @vitest-environment jsdom */
+import "@testing-library/jest-dom/vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PanelPaquetesIdioma } from "../panel-paquetes";
-import type { AlmacenPaquetes, PaqueteIdioma } from "@/lib/idiomas/paquete/almacen";
-import type { PaqueteIdioma as PaqueteFormato } from "@/lib/idiomas/paquete/formato";
+import type { AlmacenPaquetes } from "@/lib/idiomas/paquete/almacen";
+import type { PaqueteIdioma, CryptoProvider } from "@/lib/idiomas/paquete/formato";
+import { inyectarCrypto } from "@/lib/idiomas/paquete/formato";
+
+const cryptoMock: CryptoProvider = {
+  subtle: {
+    async digest(_algorithm: "SHA-256", data: ArrayBuffer): Promise<ArrayBuffer> {
+      const view = new Uint8Array(data);
+      let hash = 0;
+      for (let i = 0; i < view.length; i++) {
+        hash = (hash * 31 + view[i]) >>> 0;
+      }
+      const buffer = new ArrayBuffer(32);
+      const out = new Uint8Array(buffer);
+      for (let i = 0; i < 32; i++) {
+        out[i] = (hash >> (i % 8)) & 0xff;
+      }
+      return buffer;
+    },
+  },
+};
+
+beforeEach(() => {
+  cleanup();
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+  localStorage.clear();
+  inyectarCrypto(cryptoMock);
+});
 
 function crearAlmacenFalso(): AlmacenPaquetes {
   const paquetes: PaqueteIdioma[] = [];
   const listeners: Set<() => void> = new Set();
+
+  const notificar = () => {
+    listeners.forEach((l) => l());
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new Event("starseed:idiomas-paquetes"));
+    }
+  };
 
   return {
     listarPaquetes: () => [...paquetes],
@@ -15,7 +49,7 @@ function crearAlmacenFalso(): AlmacenPaquetes {
       const idx = paquetes.findIndex((p) => p.codigo === paquete.codigo);
       if (idx >= 0) paquetes[idx] = paquete;
       else paquetes.push(paquete);
-      listeners.forEach((l) => l());
+      notificar();
       return { ok: true as const };
     },
     quitarPaquete: (codigo: string) => {
@@ -24,14 +58,14 @@ function crearAlmacenFalso(): AlmacenPaquetes {
       if (filtrados.length !== antes) {
         paquetes.length = 0;
         paquetes.push(...filtrados);
-        listeners.forEach((l) => l());
+        notificar();
       }
     },
     leerPaquete: (codigo: string) => paquetes.find((p) => p.codigo === codigo) ?? null,
   };
 }
 
-function crearPaqueteValido(codigo = "eo", nombre = "Esperanto"): PaqueteFormato {
+function crearPaqueteValido(codigo = "eo", nombre = "Esperanto"): PaqueteIdioma {
   return {
     formato: "starseed-idioma",
     version: 1,
@@ -47,12 +81,6 @@ function crearPaqueteValido(codigo = "eo", nombre = "Esperanto"): PaqueteFormato
     hash: "abc123",
   };
 }
-
-beforeEach(() => {
-  cleanup();
-  vi.useFakeTimers({ shouldAdvanceTime: true });
-  localStorage.clear();
-});
 
 afterEach(() => {
   cleanup();
@@ -70,7 +98,7 @@ describe("PanelPaquetesIdioma", () => {
 
     render(<PanelPaquetesIdioma fuente={fuenteBase} leerArchivo={leerArchivo} almacen={almacen} />);
 
-    expect(await screen.findByText("No hay paquetes instalados")).toBeInTheDocument();
+    expect(await screen.findByText(/no hay paquetes instalados/i)).toBeInTheDocument();
 
     const botonInstalar = screen.getByRole("button", { name: /instalar desde archivo/i });
     expect(botonInstalar).toBeInTheDocument();
@@ -89,7 +117,7 @@ describe("PanelPaquetesIdioma", () => {
 
     expect(screen.getByText(/casaron 2 de 2 textos \(100 %\)/i)).toBeInTheDocument();
 
-    const botonInstalarConfirmar = screen.getByRole("button", { name: /instalar/i });
+    const botonInstalarConfirmar = screen.getByRole("button", { name: /^instalar$/i });
     await act(async () => {
       fireEvent.click(botonInstalarConfirmar);
     });
@@ -127,7 +155,7 @@ describe("PanelPaquetesIdioma", () => {
 
     await waitFor(() => expect(screen.getByTestId("instalacion-pendiente")).toBeInTheDocument());
 
-    const botonInstalarConfirmar = screen.getByRole("button", { name: /instalar/i });
+    const botonInstalarConfirmar = screen.getByRole("button", { name: /^instalar$/i });
     await act(async () => {
       fireEvent.click(botonInstalarConfirmar);
     });
@@ -212,9 +240,13 @@ describe("PanelPaquetesIdioma", () => {
     const paquete = crearPaqueteValido("it", "Italiano");
     almacen.guardarPaquete(paquete);
 
-    const createObjectURL = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:mock");
-    const revokeObjectURL = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
     const clickMock = vi.fn();
+    const createObjectURLMock = vi.fn(() => "blob:mock");
+    const revokeObjectURLMock = vi.fn(() => {});
+    const originalCreateObjectURL = URL.createObjectURL;
+    const originalRevokeObjectURL = URL.revokeObjectURL;
+    URL.createObjectURL = createObjectURLMock;
+    URL.revokeObjectURL = revokeObjectURLMock;
     const originalCreateElement = document.createElement.bind(document);
     vi.spyOn(document, "createElement").mockImplementation((tag) => {
       if (tag === "a") {
@@ -232,12 +264,12 @@ describe("PanelPaquetesIdioma", () => {
       fireEvent.click(botonExportar);
     });
 
-    expect(createObjectURL).toHaveBeenCalled();
+    expect(createObjectURLMock).toHaveBeenCalled();
     expect(clickMock).toHaveBeenCalled();
-    expect(revokeObjectURL).toHaveBeenCalled();
+    expect(revokeObjectURLMock).toHaveBeenCalled();
 
-    createObjectURL.mockRestore();
-    revokeObjectURL.mockRestore();
+    URL.createObjectURL = originalCreateObjectURL;
+    URL.revokeObjectURL = originalRevokeObjectURL;
     vi.restoreAllMocks();
   });
 });
