@@ -3,12 +3,13 @@ import { CAPAS_SENALES, CAPA_POR_ID, COLOR_DESCONOCIDO, NOTA_PARCHE, estadoCapas
 import { parchesDeCapa } from "../parches";
 import { fichaDeMarca } from "../ficha-geo";
 import { construirMarcas, type MarcaGeo } from "../marcas";
+import type { PresenciaMedio } from "@/lib/neurons/presencia";
 
 const AHORA = 1_700_000_000_000;
 
-function marca(p: Partial<MarcaGeo> = {}): MarcaGeo {
+function marca(p: Partial<MarcaGeo> = {}, medios: readonly PresenciaMedio[] = []): MarcaGeo {
   const [m] = construirMarcas({
-    filas: [], medios: [], ahora: AHORA,
+    filas: [], medios, ahora: AHORA,
     yo: {
       neuronaId: "yo", nombre: "MaggaBook", plataforma: "macOS", capas: null, ficha: null,
       posicion: { lat: 19.4326, lon: -99.1332, precisionM: 8, t: AHORA - 10_000 },
@@ -134,5 +135,14 @@ describe("oferta anunciada", () => {
   it("las tres capas de oferta dejan de ser «sin fuente»", () => {
     const ids = ["oferta-computo", "oferta-almacenamiento", "oferta-internet"];
     for (const id of ids) expect(CAPA_POR_ID[id].estado).toBe("parcial");
+  });
+
+  it("la oferta viaja de la presencia a la capa del mapa", () => {
+    const of = { computo: true, almacenamiento: false, internet: true, t: AHORA - 500 };
+    const m = marca({}, [{ n: "yo", m: "web", t: AHORA, of } as unknown as PresenciaMedio]);
+    expect(m.oferta).toEqual(of);
+    const c = pintarMarca(CAPA_POR_ID["oferta-computo"], m);
+    expect(c.tramo.id).toBe("si");
+    expect(c.valor.t).toBe(of.t);
   });
 });

@@ -1,4 +1,6 @@
 /** Presencia en vivo y señales medidas (2026-10-09). */
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/utils/supabase/client", () => ({ createClient: () => ({}) }));
@@ -33,6 +35,20 @@ describe("mediosDeEstado", () => {
     const por = presentesPorNeurona(medios);
     expect(por.get("mac")?.length).toBe(2);
     expect(por.get("movil")?.length).toBe(1);
+  });
+
+  it("la oferta local viaja tal cual en el anuncio de presencia", () => {
+    const of = { computo: true, almacenamiento: false, internet: true, t: 9 };
+    const [m] = mediosDeEstado({ m1: [{ ...base("mac", "m1", 9), of }] });
+    expect(m.of).toEqual(of);
+  });
+});
+
+describe("presencia · anuncio de la oferta local", () => {
+  it("la presencia llama a anuncioOferta en vez de dejar la oferta solo en pruebas", () => {
+    const fuente = readFileSync(join(__dirname, "..", "presencia.ts"), "utf8");
+    expect(fuente).toMatch(/anuncioOferta\(/);
+    expect(fuente).toContain("of?: OfertaAnunciada");
   });
 });
 
