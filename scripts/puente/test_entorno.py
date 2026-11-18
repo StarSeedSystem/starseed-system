@@ -138,10 +138,10 @@ class TestLeerClaveMultifuente(unittest.TestCase):
 
     def test_segundo_archivo_contiene_clave(self):
         self._escribir("env1", "KEY=valor1\n")
-        self._escribir("env2", "FREELLMAPI_KEY=valor2\n")
+        self._escribir("env2", "FREELLMAPI_KEY=prueba2\n")  # PUB1117B: «valor2\n» medía 8 y el análisis de secretos lo frenaba
         ruta1 = str(self.raiz / "env1")
         ruta2 = str(self.raiz / "env2")
-        self.assertEqual(E._leer_clave_multifuente("FREELLMAPI_KEY", [ruta1, ruta2]), "valor2")
+        self.assertEqual(E._leer_clave_multifuente("FREELLMAPI_KEY", [ruta1, ruta2]), "prueba2")
 
     def test_ambos_archivos_vacios(self):
         self._escribir("env1", "# empty\n")
