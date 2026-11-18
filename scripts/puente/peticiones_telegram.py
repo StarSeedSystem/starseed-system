@@ -730,7 +730,6 @@ def _revisar_y_procesar_sintesis_diaria() -> None:
     """
     from peticiones_notebooklm import ultima_sintesis
     from sintesis_multiformato import ya_procesado
-    import datetime
     
     try:
         # Obtener fecha actual en zona horaria de México (UTC-6)
