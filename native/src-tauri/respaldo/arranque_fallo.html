@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>StarSeed OS — Problema de arranque</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: #0f1115; color: #e8e8e8;
+      min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;
+      padding: 24px; line-height: 1.6;
+    }
+    .contenedor { max-width: 480px; text-align: center; }
+    .icono { font-size: 64px; margin-bottom: 16px; opacity: 0.8; }
+    h1 { font-size: 28px; font-weight: 600; margin-bottom: 12px; color: #fff; }
+    p { color: #a0a8b8; margin-bottom: 16px; }
+    .detalle {
+      background: #1a1d24; border: 1px solid #2a2f3a; border-radius: 8px;
+      padding: 16px; margin: 16px 0; text-align: left; font-size: 13px; color: #8892a8;
+      font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+      white-space: pre-wrap; word-break: break-word;
+    }
+    .acciones { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-top: 24px; }
+    button {
+      appearance: none; border: none; border-radius: 8px; padding: 12px 24px;
+      font-size: 15px; font-weight: 500; cursor: pointer; transition: all 0.15s ease;
+    }
+    button.primario { background: #3b82f6; color: #fff; }
+    button.primario:hover { background: #2563eb; }
+    button.secundario { background: #2a2f3a; color: #e8e8e8; border: 1px solid #3a3f4a; }
+    button.secundario:hover { background: #333844; }
+    .pie { margin-top: 32px; font-size: 12px; color: #5a6278; }
+    @media (prefers-color-scheme: light) {
+      body { background: #f5f5f7; color: #1d1d1f; }
+      p { color: #6e6e73; }
+      .detalle { background: #fff; border-color: #d2d2d7; color: #6e6e73; }
+      button.secundario { background: #f5f5f7; color: #1d1d1f; border-color: #d2d2d7; }
+      button.secundario:hover { background: #e8e8ed; }
+      .pie { color: #86868b; }
+    }
+  </style>
+</head>
+<body>
+  <div class="contenedor">
+    <div class="icono" aria-hidden="true">🛰️</div>
+    <h1>No se pudo cargar la interfaz</h1>
+    <p>La aplicación no ha podido conectar con la web de StarSeed OS tras varios intentos.</p>
+    <div class="detalle" id="detalle">Cargando información…</div>
+    <div class="acciones">
+      <button class="primario" id="btnReintentar">Reintentar ahora</button>
+      <button class="secundario" id="btnAjustes">Abrir ajustes de red</button>
+    </div>
+    <p class="pie">StarSeed OS · Interfaz de respaldo incluida en la app</p>
+  </div>
+  <script>
+    // Información de diagnóstico
+    const info = {
+      userAgent: navigator.userAgent,
+      onLine: navigator.onLine,
+      timestamp: new Date().toISOString(),
+      url: window.location.href
+    };
+    document.getElementById('detalle').textContent = JSON.stringify(info, null, 2);
+
+    // Reintentar cargar la web principal
+    document.getElementById('btnReintentar').addEventListener('click', () => {
+      window.location.reload();
+    });
+
+    // Intentar abrir ajustes de red del sistema (solo funciona si la app tiene permiso y hay un handler)
+    document.getElementById('btnAjustes').addEventListener('click', async () => {
+      try {
+        // En Tauri, podríamos invocar un comando nativo para abrir ajustes de red.
+        // Por ahora, recargamos.
+        window.location.reload();
+      } catch (_) {
+        window.location.reload();
+      }
+    });
+
+    // Auto-reintento cada 30 segundos si vuelve la red
+    setInterval(() => {
+      if (navigator.onLine) {
+        window.location.reload();
+      }
+    }, 30000);
+  </script>
+</body>
+</html>
