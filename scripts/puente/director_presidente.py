@@ -54,16 +54,16 @@ MODELOS = {
 }
 CANAL = "director-presidente"
 REINTENTO_COLA_S = 120  # primer reintento; los siguientes crecen (DIR1111N)
-#: DIR1111N · intervalos entre reintentos de un mensaje que nadie puede contestar: crecen y se paran en
-#: el techo (15 min). Una señal de que un proveedor volvió (lectura nueva de límites, una respuesta de
-#: cualquier proveedor, la sesión de Hermes reabierta) adelanta el reintento y reinicia la cuenta.
-INTERVALOS_COLA_S = (120, 240, 480, 900)
+#: DIR1118T · intervalos entre reintentos: 120 s, 300 s, 600 s (techo). El detalle de la cola lo dice.
+INTERVALOS_COLA_S = (120, 300, 600)
 ENFRIAMIENTO_S = 600
 MAX_COLA = 200
 RAIZ = Path(__file__).resolve().parent.parent.parent
 
 #: Lo que Hermes escribe cuando NINGÚN proveedor de su cadena contestó: no es una respuesta.
 _FALLOS_HERMES = motores_director._FALLOS_HERMES
+#: DIR1118T · salida con '[tiempo agotado]' = fallo por timeout.
+_ES_FALLO_TIEMPO_AGOTADO = motores_director.es_fallo_tiempo_agotado
 #: HER1111K · tope del prompt de una sesión nueva de Hermes (caracteres) y aviso de pausa repetido a diario.
 TOPE_PROMPT_FRESCO = 24000
 REAVISO_PAUSA_S = 24 * 3600
@@ -227,15 +227,19 @@ def _en_min(segundos):
     return "%d min" % m
 
 
+def _en_seg(segundos):
+    return "%d s" % int(segundos)
+
+
 def detalle_cola(descartes, intentos=1, proximo=None, ahora=None):
-    """El motivo visible de «En cola»: quién no pudo y por qué, cuántos intentos y cuándo es el siguiente."""
+    """El motivo visible de «En cola»: quién no pudo y por qué, cuántos intentos y cuándo es el siguiente.
+    DIR1118T: el detalle dice «reintento con X s» (120, 300, 600)."""
     base = "En cola: ningún director puede contestar ahora (%s)." % (texto_descartes(descartes) or "sin proveedores")
     if proximo is None:
         return base + " Se reintenta solo."
     espera = intervalo_cola(intentos)
-    return "%s Intento %d; el siguiente hacia las %s (en %s), cada vez más espaciado hasta %s. " \
-           "Si un director vuelve antes, se contesta en cuanto se note." % (
-               base, intentos, _hora_corta(proximo), _en_min(espera), _en_min(INTERVALOS_COLA_S[-1]))
+    return "%s Intento %d; reintento con %s. Si un director vuelve antes, se contesta en cuanto se note." % (
+        base, intentos, _en_seg(espera))
 
 
 def _hora_corta(epoch):
@@ -268,11 +272,14 @@ def _llamar_claude(prompt, correr):
     if "Credit balance is too low" in (salida or ""):
         return None, "la cuenta de Claude Code no tiene saldo", {}
     lectura = motores_director.leer_claude(salida)
-    if lectura.get("error") or not lectura.get("texto"):
+    texto = (lectura.get("texto") or "").strip()
+    if _ES_FALLO_TIEMPO_AGOTADO(salida) or _ES_FALLO_TIEMPO_AGOTADO(texto):
+        return None, "tiempo agotado", {}
+    if lectura.get("error") or not texto:
         return None, director_chat.tachar((lectura.get("error") or salida or "sin salida")[:200]), {}
     uso = {"tokensEntrada": lectura["tokens_entrada"], "tokensSalida": lectura["tokens_salida"],
            "coste": lectura["coste"]}
-    return lectura["texto"].strip(), "", uso
+    return texto, "", uso
 
 
 def _ejecutar_hermes(correr, segundos=None):
@@ -310,6 +317,8 @@ def _llamar_hermes(prompt, correr, sesion=None, prompt_fresco=None, info=None):
     texto = (res["salida"] or "").strip()
     if res["pausa"] and not res["fresca"]:
         return None, "la sesión de dirección de Hermes está en pausa y la sesión nueva tampoco contestó", {}
+    if _ES_FALLO_TIEMPO_AGOTADO(res["salida"]) or _ES_FALLO_TIEMPO_AGOTADO(texto):
+        return None, "tiempo agotado", {}
     if (rc != 0 and not texto) or not texto or motores_director.es_fallo_hermes(texto):
         return None, director_chat.tachar((texto or "sin salida (rc=%s)" % rc)[:200]), {}
     uso = {"tokensEntrada": datos.get("input_tokens", 0), "tokensSalida": datos.get("output_tokens", 0),
@@ -321,6 +330,8 @@ def _llamar_chatgpt(prompt, correr):
     rc, salida = correr(motores_director.orden_codex("gpt-5-codex", str(RAIZ)), entrada=prompt,
                         segundos=motores_director.SEGUNDOS_PROVEEDOR_PRESIDENTE)
     texto = (salida or "").strip()
+    if _ES_FALLO_TIEMPO_AGOTADO(salida) or _ES_FALLO_TIEMPO_AGOTADO(texto):
+        return None, "tiempo agotado", {}
     if rc != 0 or not texto:
         return None, director_chat.tachar((texto or "sin salida (rc=%s)" % rc)[:200]), {}
     return texto, "", {}
