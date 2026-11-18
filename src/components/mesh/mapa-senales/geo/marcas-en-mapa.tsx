@@ -80,6 +80,7 @@ export function MarcasEnMapa({ ctx, marcas, ahora, estado, seleccion, onElegir, 
   // (AQ03) Crear versión filtrada de marcas para las capas red-*: cada marca recibe solo las señales
   // filtradas que le pertenecen (vinculo.tipo === "neurona" && vinculo.id === marca.neuronaId).
   const marcasParaRed = useMemo<MarcaGeo[]>(() => {
+    if (senalesFiltradas.length === 0) return [...marcas];
     const porNeurona = new Map<string, SenalEspectro[]>();
     for (const s of senalesFiltradas) {
       if (s.vinculo?.tipo === "neurona" && s.vinculo.id) {
@@ -163,7 +164,7 @@ export function MarcasEnMapa({ ctx, marcas, ahora, estado, seleccion, onElegir, 
     const colocar = () => {
       let tam: { x: number; y: number };
       try { tam = map.getSize(); } catch { return; }
-      for (const p of puestas) {
+    for (const p of puestas) {
         try {
           const pt = map.latLngToContainerPoint(p.mk.getLatLng());
           const dir = direccionEtiqueta(pt, tam, p.m.esYo);
