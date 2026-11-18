@@ -87,3 +87,34 @@ describe("Wi-Fi directo frente a la red local por capacidad (MLL1111C, petición
     expect(paso([ble, lan(176_000, 3), directo(160_000, 3)], 20_000)).toEqual([]);
   });
 });
+
+describe("AUD1117 — corte de enlace: una caída corta no cuelga la llamada", () => {
+  it("sin enlace hasta 60 s y vuelve: «reconectando» y luego «seguir»", () => {
+    // Corte de 60 s en una llamada que ya estaba en pie, sin otro carril
+    expect(decidirCorteEnlace({ sinEnlaceMs: 0, estabaEnPie: true, otroCarril: false })).toBe("reconectando");
+    expect(decidirCorteEnlace({ sinEnlaceMs: 15_000, estabaEnPie: true, otroCarril: false })).toBe("reconectando");
+    expect(decidirCorteEnlace({ sinEnlaceMs: 60_000, estabaEnPie: true, otroCarril: false })).toBe("reconectando");
+    // El enlace vuelve
+    expect(decidirCorteEnlace({ sinEnlaceMs: 60_000, estabaEnPie: true, otroCarril: false, enlaceVuelve: true })).toBe("seguir");
+  });
+
+  it("sin enlace 95 s (pasa los 90 s): «terminar» con motivo visible", () => {
+    expect(decidirCorteEnlace({ sinEnlaceMs: 90_000, estabaEnPie: true, otroCarril: false })).toBe("terminar");
+    expect(decidirCorteEnlace({ sinEnlaceMs: 95_000, estabaEnPie: true, otroCarril: false })).toBe("terminar");
+    expect(MOTIVO_RECONEXION_AGOTADA).toContain("90 s");
+  });
+
+  it("con otro carril vivo: «seguir» (relevo de siempre, sin tocar la espera)", () => {
+    expect(decidirCorteEnlace({ sinEnlaceMs: 120_000, estabaEnPie: true, otroCarril: true })).toBe("seguir");
+    expect(decidirCorteEnlace({ sinEnlaceMs: 120_000, estabaEnPie: true, otroCarril: true, enlaceVuelve: false })).toBe("seguir");
+  });
+
+  it("la llamada no llegó a estar en pie: «seguir» (comportamiento anterior)", () => {
+    expect(decidirCorteEnlace({ sinEnlaceMs: 120_000, estabaEnPie: false, otroCarril: false })).toBe("seguir");
+  });
+
+  it("el enlace vuelve antes de los 90 s: «seguir»", () => {
+    expect(decidirCorteEnlace({ sinEnlaceMs: 30_000, estabaEnPie: true, otroCarril: false, enlaceVuelve: true })).toBe("seguir");
+    expect(decidirCorteEnlace({ sinEnlaceMs: 89_000, estabaEnPie: true, otroCarril: false, enlaceVuelve: true })).toBe("seguir");
+  });
+});
