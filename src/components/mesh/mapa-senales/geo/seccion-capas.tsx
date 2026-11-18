@@ -3,8 +3,10 @@
 /**
  * Sección «Señales de mi cuenta» del panel de capas del mapa (MAP1114C). Mismo patrón que «Clima real»:
  * por capa, un interruptor, un deslizador de opacidad y su leyenda. Cada capa dice de dónde sale su dato.
+ * Incluye PanelFiltrosSenales para las capas del grupo "red" (AUD1117).
  */
 
+import { useMemo } from "react";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import type { EstadoLectura } from "@/lib/senales/espectro/leer-senales";
@@ -14,6 +16,9 @@ import {
 } from "@/lib/senales/geo/capas";
 import type { EstadoCanalPosicion } from "@/lib/senales/geo/canal-posicion";
 import type { PermisoUbicacion } from "./use-marcas-geo";
+import type { MarcaGeo } from "@/lib/senales/geo/marcas";
+import { PanelFiltrosSenales, type FiltroSenales } from "./panel-filtros-senales";
+import { filtrarSenales, contarFiltradas, FILTRO_INICIAL } from "@/lib/senales/geo/filtros";
 
 export function Muestra({ i }: { i: ItemLeyenda }) {
   const base = "inline-block size-3 shrink-0 rounded-full";
@@ -46,6 +51,12 @@ export interface SeccionCapasProps {
   onUbicarme: () => void;
   /** (AUD1117) Lectura de las señales publicadas de la red: si falló, el panel dice el motivo en vez de pintar cero. */
   publicadas?: { estado: EstadoLectura; motivo?: string };
+  /** (AUD1117) Marcas con sus señales publicadas para el panel de filtros. */
+  marcas?: readonly MarcaGeo[];
+  /** (AUD1117) Filtro actual de señales publicadas. */
+  filtroSenales?: FiltroSenales;
+  /** (AUD1117) Callback cuando cambia el filtro de señales. */
+  onFiltroSenalesChange?: (filtro: FiltroSenales) => void;
 }
 
 const TEXTO_PERMISO: Record<PermisoUbicacion, string> = {
@@ -55,10 +66,29 @@ const TEXTO_PERMISO: Record<PermisoUbicacion, string> = {
   desconocido: "No se sabe si este aparato dio su ubicación.",
 };
 
-export function SeccionCapas({ estado, onAlternar, onOpacidad, permiso, compartir, canal, onCompartir, onUbicarme, publicadas }: SeccionCapasProps) {
+export function SeccionCapas({
+  estado,
+  onAlternar,
+  onOpacidad,
+  permiso,
+  compartir,
+  canal,
+  onCompartir,
+  onUbicarme,
+  publicadas,
+  marcas = [],
+  filtroSenales = FILTRO_INICIAL,
+  onFiltroSenalesChange,
+}: SeccionCapasProps) {
   // (AUD1117) Si la lectura de las señales publicadas falló, el panel de capas dice el motivo: las capas
   // grupo «red» pintarían cero y el panel explica por qué, en vez de callarse.
   const motivoPublicadas = motivoSenalesPublicadas(publicadas?.estado ?? "ok", publicadas?.motivo);
+
+  // (AUD1117) Recopilar todas las señales publicadas de todas las marcas para el panel de filtros.
+  const todasPublicadas = useMemo(() => marcas.flatMap((m) => m.publicadas ?? []), [marcas]);
+  const redActiva = estado.activas.some((id) => CAPAS_SENALES.find((c) => c.id === id)?.grupo === "red");
+  const { visibles, ocultasSinDato } = contarFiltradas(todasPublicadas, filtroSenales);
+
   return (
     <div className="space-y-3" data-testid="seccion-senales">
       <p className="text-[11px] font-semibold uppercase tracking-wider text-white/45">Señales de mi cuenta</p>
@@ -83,6 +113,15 @@ export function SeccionCapas({ estado, onAlternar, onOpacidad, permiso, comparti
       </div>
 
       <p className="text-[10px] leading-snug text-white/45">{NOTA_PARCHE} {NOTA_ALCANCE} Gris hueco = sin medir.</p>
+
+      {redActiva && onFiltroSenalesChange && todasPublicadas.length > 0 && (
+        <PanelFiltrosSenales
+          filtro={filtroSenales}
+          onCambiar={onFiltroSenalesChange}
+          visibles={visibles}
+          ocultasSinDato={ocultasSinDato}
+        />
+      )}
 
       {GRUPOS_CAPA.map((g) => (
         <div key={g.id} className="space-y-1.5">

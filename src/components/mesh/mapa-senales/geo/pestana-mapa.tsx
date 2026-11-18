@@ -18,6 +18,8 @@ import {
 import { coordenadasDeVista } from "@/lib/senales/geo/modelo-geo";
 import { horaDe } from "@/lib/senales/geo/ficha-geo";
 import type { MarcaGeo } from "@/lib/senales/geo/marcas";
+import { filtrarSenales, FILTRO_INICIAL } from "@/lib/senales/geo/filtros";
+import type { FiltroSenales } from "./panel-filtros-senales-tipos";
 import { useCompacto } from "../use-compacto";
 import { EsquemaSenalesPlano } from "../vista-plana";
 import { FichaGeo } from "./ficha-geo";
@@ -72,7 +74,19 @@ export function VistaMapa({ datos, enLinea, sinRedDesde, compacto }: VistaMapaPr
   const estrecho = useCompacto(compacto);
   const [capas, alternar, opacidad] = useCapasSenales();
   const [sel, setSel] = useState<string | null>(null);
+  const [filtroSenales, setFiltroSenales] = useState<FiltroSenales>(FILTRO_INICIAL);
   const { marcas, ahora, permiso, presenciaConectada } = datos;
+
+  // (AUD1117) Aplicar filtro a las señales publicadas de cada marca.
+  const marcasFiltradas = useMemo(() => {
+    if (!marcas.length) return marcas;
+    return marcas.map((m) => {
+      const publicadas = m.publicadas;
+      if (!publicadas?.length) return m;
+      const filtradas = filtrarSenales(publicadas, filtroSenales);
+      return filtradas.length === publicadas.length ? m : { ...m, publicadas: filtradas };
+    });
+  }, [marcas, filtroSenales]);
 
   // (AUD1117) La base geográfica puede fallar aunque `navigator.onLine` diga que hay red (teselas caídas).
   // Se mide con los eventos de Leaflet; al volver la red se reintenta sola y, si sigue sin base, cada 30 s.
@@ -87,9 +101,9 @@ export function VistaMapa({ datos, enLinea, sinRedDesde, compacto }: VistaMapaPr
   }, [base, enLinea]);
   const sinBase = !enLinea || base === "fallo";
 
-  const marcaSel = marcas.find((m) => m.id === sel) ?? null;
-  const colocadas = marcas.filter((m) => coordenadasDeVista(m.posicion));
-  const yo = marcas.find((m) => m.esYo);
+  const marcaSel = marcasFiltradas.find((m) => m.id === sel) ?? null;
+  const colocadas = marcasFiltradas.filter((m) => coordenadasDeVista(m.posicion));
+  const yo = marcasFiltradas.find((m) => m.esYo);
 
   const extension = useMemo<MapViewExtension>(() => ({
     viewKey: CLAVE_VISTA_SENALES,
@@ -103,18 +117,65 @@ export function VistaMapa({ datos, enLinea, sinRedDesde, compacto }: VistaMapaPr
     onErrorUbicacion: datos.alErrorUbicacion,
     onBaseEstado: setBase,
     seccionCapas: (ctx) => (
-      <SeccionCapas estado={capas} onAlternar={alternar} onOpacidad={opacidad} permiso={permiso} compartir={datos.compartir} canal={datos.canal} onCompartir={datos.fijarCompartir} onUbicarme={ctx.ubicarme} publicadas={datos.publicadas} />
+      <SeccionCapas
+        estado={capas}
+        onAlternar={alternar}
+        onOpacidad={opacidad}
+        permiso={permiso}
+        compartir={datos.compartir}
+        canal={datos.canal}
+        onCompartir={datos.fijarCompartir}
+        onUbicarme={ctx.ubicarme}
+        publicadas={datos.publicadas}
+        marcas={marcas}
+        filtroSenales={filtroSenales}
+        onFiltroSenalesChange={setFiltroSenales}
+      />
     ),
     superposicion: (ctx) => (
       <MarcasEnMapa
-        ctx={ctx} marcas={marcas} ahora={ahora} estado={capas} seleccion={sel} onElegir={setSel} compacto={estrecho} enlaces={datos.enlaces} publicadas={datos.publicadas}
+        ctx={ctx}
+        marcas={marcasFiltradas}
+        ahora={ahora}
+        estado={capas}
+        seleccion={sel}
+        onElegir={setSel}
+        compacto={estrecho}
+        enlaces={datos.enlaces}
+        publicadas={datos.publicadas}
         aviso={<Avisos enLinea={enLinea} sinRedDesde={sinRedDesde ?? null} presenciaConectada={presenciaConectada} errorUbicacion={datos.errorUbicacion} />}
-        vacio={colocadas.length === 0 ? <EstadoVacio yo={yo} permiso={permiso} desde={datos.desde} total={marcas.length} onUbicarme={ctx.ubicarme} /> : null}
+        vacio={colocadas.length === 0 ? <EstadoVacio yo={yo} permiso={permiso} desde={datos.desde} total={marcasFiltradas.length} onUbicarme={ctx.ubicarme} /> : null}
       >
         {marcaSel && <FichaGeo marca={marcaSel} ahora={ahora} compacto={estrecho} onCerrar={() => setSel(null)} />}
       </MarcasEnMapa>
     ),
-  }), [permiso, datos.alMiPosicion, datos.alErrorUbicacion, datos.compartir, datos.canal, datos.enlaces, datos.fijarCompartir, datos.errorUbicacion, datos.desde, datos.publicadas, capas, alternar, opacidad, marcas, ahora, sel, estrecho, enLinea, sinRedDesde, presenciaConectada, colocadas.length, yo, marcaSel]);
+  }), [
+    permiso,
+    datos.alMiPosicion,
+    datos.alErrorUbicacion,
+    datos.compartir,
+    datos.canal,
+    datos.enlaces,
+    datos.fijarCompartir,
+    datos.errorUbicacion,
+    datos.desde,
+    datos.publicadas,
+    capas,
+    alternar,
+    opacidad,
+    marcas,
+    marcasFiltradas,
+    ahora,
+    sel,
+    estrecho,
+    enLinea,
+    sinRedDesde,
+    presenciaConectada,
+    colocadas.length,
+    yo,
+    marcaSel,
+    filtroSenales,
+  ]);
 
   if (sinBase) {
     return (
