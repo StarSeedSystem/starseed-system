@@ -1,0 +1,48 @@
+{
+ "ola": "nube-20261118",
+ "tareas": [
+  {
+   "id": "TU31",
+   "ola": "TRA1116-APP-F1",
+   "titulo": "Preinstalar el Traductor entre las apps por defecto (siembra versión 26, una sola vez)",
+   "archivos": [
+    "src/lib/library/defaults-seed.ts",
+    "src/lib/library/__tests__/traductor-siembra.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. SENSIBLE: toca la siembra de TODAS las cuentas. Lee `defaults-seed.ts` entero salvo los comentarios largos (`SEED_VERSION` :77, `RECOMMENDED_PACKAGE_IDS` :434, `selectSeedIds` :531, `ensureDefaultsSeeded` :558) y su doc (apps con ruta excluidas :88-91 porque instalar implica navegar; mira en `install.ts` si instalar una app con `route` navega o solo registra). Cambio mínimo: `SEED_VERSION` 25 → 26; añade `IDS_SIEMBRA_TRADUCTOR` (TU30) a `RECOMMENDED_PACKAGE_IDS`; si `ensureDefaultsSeeded` navegaría al instalar una app con ruta, haz que la siembra solo REGISTRE (sin navegar) para este id y di en un comentario por qué. No re-instala a quien ya lo desinstaló (la lista «ya ofrecido» existente lo garantiza: demuéstralo en la prueba). PRUEBAS con `selectSeedIds`: cuenta nueva lo recibe; cuenta que ya lo tenía instalado no; cuenta que lo desinstaló tras ofrecerse no vuelve a tenerlo; las pruebas existentes de `defaults-seed*.test.ts` no se tocan.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "TU30"
+   ]
+  },
+  {
+   "id": "CTX1118A",
+   "ola": "PRU1118",
+   "titulo": "El Director presidente recibe el contexto completo: relevo, plan de pruebas activo y memoria de pruebas",
+   "archivos": [
+    "scripts/puente/cartero_director.py",
+    "scripts/puente/director_presidente.py",
+    "scripts/puente/test_contexto_presidente.py"
+   ],
+   "depende": [],
+   "prompt": "Alex (18-11-2026) pide que la dirección de MetaGenesis lleve todos los contextos completos. Hoy `_contexto()` de scripts/puente/cartero_director.py solo lee PUENTE-DE-MANDO.md y memory/orquestacion-economica.md (4000 caracteres cada uno) y `prompt_presidente` recorta el contexto a 8000. Tarea: (1) `_contexto()` arma el contexto por prioridad desde starseed_memory_root: relevo/relevo.md, pruebas/plan-activo.md, pruebas/registro-pruebas.md (el final si es largo), las 20 últimas líneas de pruebas/registro.jsonl si existe, PUENTE-DE-MANDO.md y memory/orquestacion-economica.md; cada parte con su título y su tope, y un tope total constante TOPE_CONTEXTO_PRESIDENTE = 16000 caracteres; si un archivo no existe se salta sin error. (2) `prompt_presidente` y `prompt_sesion_fresca` usan esa constante en lugar de 8000 y siguen recortando primero el hilo viejo y luego el contexto como hoy. Pon la lógica de armado en una función pura `armar_contexto(partes, tope)` (partes = lista de (titulo, texto, tope_parte)). Pruebas en scripts/puente/test_contexto_presidente.py: orden de prioridad, topes por parte y total, archivos ausentes. No rompas test_director_presidente.py ni test_cartero_bloqueo_1111n.py. Verificación: python3 -m pytest -q scripts/puente/test_contexto_presidente.py scripts/puente/test_director_presidente.py scripts/puente/test_cartero_bloqueo_1111n.py. Reglas: nada de red salvo lo dicho; nunca imprimas claves ni variables de entorno; no ejecutes órdenes que acepten, enciendan o consientan nada en ningún aparato; la lógica pura va con pruebas unitarias (sin ejecutar nada real en las pruebas). Español neutro en textos y comentarios."
+  },
+  {
+   "id": "PRU1118A",
+   "ola": "PRU1118",
+   "titulo": "Conductor de pruebas de la malla: lista la batería, recoge registros de los tres aparatos, evalúa y deja el registro",
+   "archivos": [
+    "scripts/puente/pruebas_malla.py",
+    "scripts/puente/test_pruebas_malla.py",
+    "starseed_memory_root/pruebas/bateria-1118.json"
+   ],
+   "depende": [],
+   "prompt": "Lee starseed_memory_root/pruebas/bateria-malla-completa-1118.md (la batería que pidió Alex el 18-11) y starseed_memory_root/olas/auditoria-1118-AUD1118T.md (ronda R0–R13 del control). Tarea 1: starseed_memory_root/pruebas/bateria-1118.json con cada prueba (id como B4-MT-A1 = bloque, par, antena; título; pasos para Alex; aparatos; antena; criterios). Los criterios son patrones de registro que debes sacar del código real (grep de las líneas que escriben enlaces.log y control-neuronas.log en src/ y src-tauri/): `debe` y `no_debe` por aparato. Tarea 2: scripts/puente/pruebas_malla.py con subórdenes: `listar [--bloque B4] [--ronda 1]`; `siguiente`; `empezar <id>` (anota inicio UTC en pruebas/registro.jsonl y publica en el Chat Director, con director_chat.py publicar --de director-presidente --tipo aviso, los pasos exactos para Alex); `recoger <id>` (copia a pruebas/evidencias/<id>-<fecha>/ los registros recortados a la ventana de la prueba: Mac ~/Library/Logs/app.starseed.os/*.log; Maggabox por SSH con `ssh -i ~/.ssh/starseed_nodo1 -o IdentitiesOnly=yes -o BatchMode=yes -o ConnectTimeout=8 -o UserKnownHostsFile=$HOME/.ssh/known_hosts_starseed_nodo maggasukha@starseed-nodo-1.local` leyendo ~/.local/share/app.starseed.os/*.log; tableta con `adb logcat -d -v time` filtrado por el identificador de la app solo si `adb devices` muestra un aparato, y si no, «sin acceso: falta emparejar adb»; si la app ya comparte registros por la malla, úsalo); `evaluar <id>` (aplica los criterios y da ok/parcial/fallo con las líneas que lo prueban); `cerrar <id> --resultado ok|parcial|fallo --nota`; `informe [--ronda N]` (tabla breve que publica en el Chat Director). La lectura de ventanas de tiempo, la evaluación de patrones y el formato del informe van en funciones puras con pruebas en scripts/puente/test_pruebas_malla.py usando registros de ejemplo. Nada de aceptar, encender ni cambiar permisos. Verificación: python3 -m pytest -q scripts/puente/test_pruebas_malla.py y python3 scripts/puente/pruebas_malla.py listar --ronda 1. Reglas: nada de red salvo lo dicho; nunca imprimas claves ni variables de entorno; no ejecutes órdenes que acepten, enciendan o consientan nada en ningún aparato; la lógica pura va con pruebas unitarias (sin ejecutar nada real en las pruebas). Español neutro en textos y comentarios."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1118-094955.json": [
+   "TU31"
+  ]
+ }
+}
