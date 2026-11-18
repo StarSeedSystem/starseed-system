@@ -1,0 +1,73 @@
+{
+ "ola": "nube-20261117",
+ "tareas": [
+  {
+   "area": "imaginacion",
+   "id": "IMG-agentes-reimaginada-profunda-corregir-te-d1",
+   "titulo": "Ajustar temporizador de guía para no interrumpir navegación del usuario (parte 1 de 3)",
+   "archivos": [
+    "src/components/onboarding/aurora-guide.tsx"
+   ],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Ajustar temporizador de guía para no interrumpir navegación del usuario. ## Problema\nEl temporizador que muestra la guía de aurora interrumpe la navegación del usuario al expirar, forzando un cambio de pantalla sin su consentimiento. Esto genera fricción y reduce la experiencia fluida.\n\n## Solución propuesta\n- **Reemplazar temporizador fijo por evento de interacción**: En lugar de depender de un timeout automático, el temporizador se reinicia cada vez que el usuario realiza una acción (scroll, click, movimiento del mouse).\n- **Añadir opción explícita de cierre**: Incluir un botón visible para que el usuario decida cuándo terminar la guía.\n- **Persistencia parcial d Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde.\n\n## PARTE 1 DE 3 (la dirección dividió IMG-agentes-reimaginada-profunda-corregir-te: falla por sí misma (tarea:otro))\nEn esta parte tocas SOLO: src/components/onboarding/aurora-guide.tsx. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "IMG-agentes-reimaginada-profunda-corregir-te",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:otro)"
+   }
+  },
+  {
+   "area": "imaginacion",
+   "id": "IMG-agentes-reimaginada-profunda-mejorar-con-d1",
+   "titulo": "Refinar mensajes de error con contraste visual y contextual en componentes críticos (parte 1 de 3)",
+   "archivos": [
+    "src/components/onboarding/steps-neurona.tsx"
+   ],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Refinar mensajes de error con contraste visual y contextual en componentes críticos. ## Objetivo\nMejorar la legibilidad y el impacto emocional de los mensajes de error en la interfaz, enfocándose en componentes que manejan interacciones críticas del usuario. Esto incluye ajustes de contraste, jerarquía visual y mensajes más descriptivos que reduzcan la frustración y guíen al usuario hacia soluciones.\n\n## Acciones propuestas\n\n1. **Auditar mensajes de error actual**\n   - Revisar componentes con alta frecuencia de uso y errores reportados.\n   - Identificar mensajes con bajo contraste o ambigüedad.\n\n2. **Implementar sistema de estilos para errores**\n   - Crear variables de diseño  Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde.\n\n## PARTE 1 DE 3 (la dirección dividió IMG-agentes-reimaginada-profunda-mejorar-con: falla por sí misma (tarea:otro))\nEn esta parte tocas SOLO: src/components/onboarding/steps-neurona.tsx. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "IMG-agentes-reimaginada-profunda-mejorar-con",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:otro)"
+   }
+  },
+  {
+   "id": "IMA16",
+   "ola": "TRA1116-IDIOMAS",
+   "titulo": "Editor de paquete: pantalla para traducir las claves pendientes y guardar el borrador",
+   "archivos": [
+    "src/components/idiomas/editor-paquete.tsx",
+    "src/components/idiomas/__tests__/editor-paquete.test.tsx"
+   ],
+   "depende": [
+    "IMA14"
+   ],
+   "prompt": "Lee AGENTS.md. Pantalla del editor de IMA15: cabecera con idioma, progreso («12 de 40»), lista de pendientes con su campo de traducción (se guarda al salir del campo), botones «Guardar borrador» (instala el paquete en edición con `guardarPaquete` si valida), «Exportar archivo» y «Cerrar edición». Si hay una traducción hecha por motor automático se rotula «Sugerencia automática» y solo entra si la persona la acepta. Accesible, teclado, 360 px. PRUEBAS: traducir un pendiente lo mueve a completadas; guardar un borrador inválido muestra el motivo.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "IMA15"
+   ]
+  },
+  {
+   "id": "TU24",
+   "ola": "TRA1116-APP-F1",
+   "titulo": "Widget: declarar el tipo TRADUCTOR en el tipo, el manifiesto y la prueba de completitud",
+   "archivos": [
+    "src/components/dashboard/dashboard-types.ts",
+    "src/components/dashboard/widget-manifest.ts",
+    "src/components/dashboard/__tests__/widget-manifest-completo.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Lee la prueba `widget-manifest-completo.test.ts` entera y mira cómo está declarado `ASTRAURA_CORTEX` en `dashboard-types.ts:44` y `widget-manifest.ts`. Añade el tipo `'TRADUCTOR'` a la unión, su entrada en `WIDGET_MANIFEST` (`label:\"Traductor\"`, categoría `ia`, `w:3,h:3,minW:2,minH:2`, relevancia 70) y el valor en `TODOS_LOS_TIPOS`. Si la prueba te dice (por comentarios) que otro archivo exige el tipo (catálogo del diálogo de añadir, `widget-function-style.ts`), NO lo toques: escribe en un comentario al principio de la prueba cuál falta, y la tarea siguiente (TU25) lo cubre.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "TU23"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1117-193401.json": [
+   "TU24",
+   "IMG-agentes-reimaginada-profunda-corregir-te-d1",
+   "IMG-agentes-reimaginada-profunda-mejorar-con-d1"
+  ]
+ }
+}
