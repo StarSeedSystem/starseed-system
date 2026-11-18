@@ -10,6 +10,11 @@ import type { WidgetType } from "../dashboard-types";
 // hasta romperle la maquetación (Ola 305).
 // ════════════════════════════════════════════════════════════════
 //
+// VERIFICADO: TRADUCTOR está completamente declarado:
+//   - dashboard-types.ts:44 (WidgetType union)
+//   - widget-manifest.ts:138 (WIDGET_MANIFEST entry)
+//   - test.ts:64 (TODOS_LOS_TIPOS array)
+//
 // NOTA: TRADUCTOR usa categoría "ia" en el manifiesto, pero
 // widget-function-style.ts (catálogo del diálogo de añadir) lo mapea
 // a "utility". Esa discrepancia se resuelve en TU25; no tocar aquí.
