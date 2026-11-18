@@ -105,8 +105,16 @@ def generar_capacidades() -> dict[str, Any]:
         },
         "youtube_notebooklm": {
             "disponible": youtube_nblm["viva"] and notebooklm["viva"],
-            "estado": youtube_nblm["estado"] if youtube_nblm["viva"] else "requiere_notebooklm",
-            "detalle": youtube_nblm["detalle"] if youtube_nblm["viva"] else "NotebookLM caído",
+            "estado": (
+                youtube_nblm["estado"]
+                if youtube_nblm["viva"] and notebooklm["viva"]
+                else ("requiere_notebooklm" if not notebooklm["viva"] else "sesion_youtube_caida")
+            ),
+            "detalle": (
+                youtube_nblm["detalle"]
+                if youtube_nblm["viva"] and notebooklm["viva"]
+                else ("NotebookLM caído" if not notebooklm["viva"] else youtube_nblm["detalle"])
+            ),
             "transcripcion": youtube_nblm["viva"] and notebooklm["viva"],
             "add_source": youtube_nblm["viva"] and notebooklm["viva"],
         },

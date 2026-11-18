@@ -101,6 +101,34 @@ def test_generar_capacidades_notebooklm_caida(tmp_path):
     assert yt["estado"] == "requiere_notebooklm"
 
 
+def test_generar_capacidades_youtube_nblm_caida_nb_viva(tmp_path):
+    """Si NotebookLM viva pero YouTube NotebookLM caída, estado sesion_youtube_caida."""
+    salud_dir = tmp_path / "salud"
+    salud_dir.mkdir()
+    salud_file = salud_dir / "estado.json"
+    salud_file.write_text(json.dumps({
+        "detalle": {
+            "notebooklm": {"estado": "viva", "detalle": "ok", "comprobada": "2026-01-01T00:00:00"},
+            "youtube-notebooklm": {"estado": "caida", "motivo": "auth expired"},
+        }
+    }))
+    catalogo_file = salud_dir / "catalogo_freellmapi.json"
+    catalogo_file.write_text(json.dumps({"modelos": []}))
+    
+    with patch.object(mod, "SALUD_ESTADO", salud_file), \
+         patch.object(mod, "RAIZ_REPO", tmp_path), \
+         patch.dict(os.environ, {}, clear=True):
+        
+        capacidades = mod.generar_capacidades()
+    
+    yt = capacidades["youtube_notebooklm"]
+    assert yt["disponible"] is False
+    assert yt["estado"] == "sesion_youtube_caida"
+    assert yt["detalle"] == "auth expired"
+    assert yt["transcripcion"] is False
+    assert yt["add_source"] is False
+
+
 def test_generar_capacidades_drive_docs(tmp_path):
     """Drive y Docs reflejan su estado de salud."""
     salud_dir = tmp_path / "salud"
@@ -196,6 +224,58 @@ def test_generar_capacidades_mac_blender_hyperframes(tmp_path):
     assert capacidades["mac_blender"]["disponible"] is True
     assert capacidades["mac_blender"]["solo_con_mac_viva"] is True
     assert capacidades["mac_hyperframes"]["disponible"] is False
+
+
+def test_generar_capacidades_enjambre_olas(tmp_path):
+    """enjambre_olas refleja su estado de salud."""
+    salud_dir = tmp_path / "salud"
+    salud_dir.mkdir()
+    salud_file = salud_dir / "estado.json"
+    salud_file.write_text(json.dumps({
+        "detalle": {
+            "enjambre": {"estado": "viva", "detalle": "ok"},
+        }
+    }))
+    catalogo_file = salud_dir / "catalogo_freellmapi.json"
+    catalogo_file.write_text(json.dumps({"modelos": []}))
+    
+    with patch.object(mod, "SALUD_ESTADO", salud_file), \
+         patch.object(mod, "RAIZ_REPO", tmp_path), \
+         patch.dict(os.environ, {}, clear=True):
+        
+        capacidades = mod.generar_capacidades()
+    
+    enj = capacidades["enjambre_olas"]
+    assert enj["disponible"] is True
+    assert enj["estado"] == "viva"
+    assert enj["para_codigo"] is True
+    assert enj["puertas"] == ["alcance", "cableado", "tsc", "vitest", "revision", "integracion"]
+
+
+def test_generar_capacidades_mando(tmp_path):
+    """mando refleja su estado de salud."""
+    salud_dir = tmp_path / "salud"
+    salud_dir.mkdir()
+    salud_file = salud_dir / "estado.json"
+    salud_file.write_text(json.dumps({
+        "detalle": {
+            "mando": {"estado": "viva", "detalle": "ok"},
+        }
+    }))
+    catalogo_file = salud_dir / "catalogo_freellmapi.json"
+    catalogo_file.write_text(json.dumps({"modelos": []}))
+    
+    with patch.object(mod, "SALUD_ESTADO", salud_file), \
+         patch.object(mod, "RAIZ_REPO", tmp_path), \
+         patch.dict(os.environ, {}, clear=True):
+        
+        capacidades = mod.generar_capacidades()
+    
+    m = capacidades["mando"]
+    assert m["disponible"] is True
+    assert m["estado"] == "viva"
+    assert m["genesis_local"] is True
+    assert m["puente_ides"] is True
 
 
 def test_generar_capacidades_modelos_llm_orden(tmp_path):
