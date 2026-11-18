@@ -1,0 +1,75 @@
+{
+ "ola": "nube-20261118",
+ "tareas": [
+  {
+   "id": "TU22",
+   "ola": "TRA1116-APP-F1",
+   "titulo": "Página /traductor",
+   "archivos": [
+    "src/app/(app)/traductor/page.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Sigue `src/app/(app)/camara/page.tsx`: `metadata` («Traductor · StarSeed»), `<main className=\"flex flex-1 flex-col\">` y `<TraductorApp />` importado de `@/components/traductor/traductor-app`. Nada más.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "TU21"
+   ]
+  },
+  {
+   "id": "INT14",
+   "ola": "INT1116A",
+   "titulo": "Leer lo que el aparato sabe de su conexión (navegador y marca nativa opcional)",
+   "archivos": [
+    "src/lib/malla/internet/lector-conexion.ts",
+    "src/lib/malla/internet/__tests__/lector-conexion.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contrato: architecture/malla-cristalina-sio2.md §8.2 (contrato; si aún no está en el repo, rige este texto). Lee `src/ai/astraura/mesh/connectivity.ts` (`NetworkInformationLike`, `netInfo`) y NO lo dupliques: reutiliza su tipo si lo exporta. Escribe primero las pruebas. `leerConexion(entorno: { navigator?: { connection?: NetworkInformationLike } | null; nativa?: { medida?: () => boolean | null } | null }): { tipo?: string; saveData?: boolean; effectiveType?: string; nativaMedida: boolean | null }`. `nativa.medida` es la marca de red de pago del lado nativo (Android `isActiveNetworkMetered`): HOY NO EXISTE en el puente, así que la entrada es opcional y si falta, `nativaMedida` es null; deja un comentario «falta en el puente nativo: ver §8.2 del contrato». Nunca lanza; ante `connection` ausente (Safari, Firefox) devuelve solo `nativaMedida`. Añade `suscribirConexion(entorno, alCambiar): () => void` que escucha `change` de `navigator.connection` y devuelve la baja (no hace nada si no hay `connection`).\nPRUEBAS: con y sin `connection`; marca nativa true/false/ausente/que lanza; suscribir y dar de baja.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "INT01"
+   ]
+  },
+  {
+   "id": "INT17",
+   "ola": "INT1116A",
+   "titulo": "Conectar la sugerencia con la sección: la conexión de pago se ofrece, nunca se aplica",
+   "archivos": [
+    "src/components/mesh/mapa-senales/internet/seccion-internet.tsx",
+    "src/components/mesh/mapa-senales/internet/__tests__/seccion-internet-sugerencia.test.tsx"
+   ],
+   "depende": [
+    "INT14"
+   ],
+   "prompt": "Lee AGENTS.md. Contrato: architecture/malla-cristalina-sio2.md §8.2 (contrato; si aún no está en el repo, rige este texto). «Modo banco de llamadas» es otra función (pasa a «modo de pruebas de llamadas»): no la toques ni la menciones. Lee `seccion-internet.tsx` (INT12). Cambio ACOTADO (≤50 líneas): dentro de la sección, calcula `clasificacion` con `leerConexion` (INT14) + `clasificarConexion` (INT01) en un efecto (primer render: desconocida; se re-evalúa con `suscribirConexion`), llama a `debeSugerir` (INT15) con la negativa guardada en el aparato (clave `starseed.malla.internet.sugerencia.v1`, leída y escrita con try/catch) y monta `<SugerenciaModoBanco />` (INT16). `onActivar` pone `banco.activo = true` en los ajustes (y nada más: NO toca `compartirConOtros` ni ningún modo mesh); `onAhoraNo` guarda `registrarNegativa`. Si la persona ya declaró la conexión como no de pago, no se sugiere. PRUEBAS: con `cellular` se ofrece y NO cambia ningún ajuste hasta pulsar «Activar»; «Activar» solo enciende el banco; «Ahora no» oculta y no vuelve a salir al re-renderizar; cambiar la conexión a wifi oculta el aviso; declarar «no es de pago» lo oculta.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "INT12",
+    "INT15",
+    "INT16"
+   ]
+  },
+  {
+   "id": "TU24b",
+   "ola": "TRA1116-APP-F1",
+   "titulo": "Widget: declarar el tipo TRADUCTOR en el tipo, el manifiesto y la prueba de completitud",
+   "archivos": [
+    "src/components/dashboard/dashboard-types.ts",
+    "src/components/dashboard/widget-manifest.ts",
+    "src/components/dashboard/__tests__/widget-manifest-completo.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Lee la prueba `widget-manifest-completo.test.ts` entera y mira cómo está declarado `ASTRAURA_CORTEX` en `dashboard-types.ts:44` y `widget-manifest.ts`. Añade el tipo `'TRADUCTOR'` a la unión, su entrada en `WIDGET_MANIFEST` (`label:\"Traductor\"`, categoría `ia`, `w:3,h:3,minW:2,minH:2`, relevancia 70) y el valor en `TODOS_LOS_TIPOS`. Si la prueba te dice (por comentarios) que otro archivo exige el tipo (catálogo del diálogo de añadir, `widget-function-style.ts`), NO lo toques: escribe en un comentario al principio de la prueba cuál falta, y la tarea siguiente (TU25) lo cubre.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/44237379076`)\nUn agente de la nube ya avanzó esta tarea (no pasa en GitHub (run 44246973152) falla «pruebas TS»: 22m\u001b[1m\u001b[32m1561 passed\u001b[39m\u001b[22m\u001b[90m (1562)\u001b[39m\n2026-11-18T05:56:34.8331640Z \u001b[2m   Start at \u001b[22m 05:53:56\n2026-11-18T05:56:34.8341767Z \u001b[2m   Duration \u001b[22m 158.32s\u001b[2m (transform 15.66s, setup 9.30s, collect 81.21s, tests 84.93s, environment 41.54s, prepare 6.57s)\u001b[22m\n2026-11-18T05:56:34.8342569Z \n2026-11-18T05:56:34.8379186Z \n2026-11-18T05:56:34.8408132Z ##[error]AssertionError: Fallos de la auditoría de widgets: expected 'traductor-widget.tsx: estados' to be '' // Object.is equality\n\n- Expected\n+ Received\n\n+ traductor-widget.tsx: estados\n\n ❯ src/components/dashboard/__tests__/auditoria-widgets.test.ts:106:79\n\n\n2026-11-18T05:56:35.1598340Z ##[error]Process completed with exit code 1.). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/44237379076:refs/remotes/origin/nube/44237379076\"` y `git cherry-pick --no-commit b728ea91a1f1`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/components/dashboard/__tests__/widget-manifest-completo.test.ts, src/components/dashboard/dashboard-types.ts, src/components/dashboard/widget-manifest.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/44237379076",
+   "dependencias_ya_en_main": [
+    "TU23"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1117-193401.json": [
+   "TU24b",
+   "INT14",
+   "TU22",
+   "INT17"
+  ]
+ }
+}
