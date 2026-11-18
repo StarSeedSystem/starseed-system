@@ -27,7 +27,7 @@ let destinosCreados: Array<PantallaDestino & {
     pedirFluidaMock: ReturnType<typeof vi.fn>;
 }> = [];
 
-function crearDestinoMock(fuenteReal: FuenteReal | null = "accesibilidad") {
+function crearDestinoMock(fuenteReal: FuenteReal | undefined = "accesibilidad") {
     const instantaneaMock: InstantaneaPantalla = {
         estado: "en-vivo",
         motivo: undefined,
@@ -65,7 +65,7 @@ function crearDestinoMock(fuenteReal: FuenteReal | null = "accesibilidad") {
         suscribirMock,
         enviarMock,
         pedirFluidaMock,
-    } as PantallaDestino & {
+    } as unknown as PantallaDestino & {
         instantaneaMock: InstantaneaPantalla;
         cerrarMock: ReturnType<typeof vi.fn>;
         iniciarMock: ReturnType<typeof vi.fn>;
