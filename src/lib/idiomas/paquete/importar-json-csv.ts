@@ -197,10 +197,12 @@ export function desdeCsv(texto: string, separador: "," | "\t" | ";"): ResultadoI
         }
 
         const [clave, valor] = columnas;
-        if (clave && typeof valor === "string") {
+        if (clave && valor && typeof valor === "string") {
             resultado.entradas[clave] = valor;
         } else if (!clave) {
-            resultado.descartadas.push({ motivo: "Clave vacía", linea: fila.lineaInicio });
+            resultado.descartadas.push({ motivo: "clave vacía", linea: fila.lineaInicio });
+        } else if (!valor) {
+            resultado.descartadas.push({ motivo: "valor vacío", linea: fila.lineaInicio });
         }
     }
 
