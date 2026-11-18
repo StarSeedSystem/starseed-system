@@ -23,7 +23,7 @@ function seccionTieneLineas(tipo: string, lineas: string[]): boolean {
 }
 
 function extraerTipo(linea: string): string | null {
-  const limpia = linea.trim();
+  const limpia = linea.trim().replace(/^\(Maggaboard\)\s+/, "");
   if (!limpia) return null;
   const partes = limpia.split(" ");
   if (partes.length < 3) return null;
@@ -37,13 +37,24 @@ function extraerTipo(linea: string): string | null {
       return tp;
     }
   }
+  const i = limpia.indexOf(" · ");
+  if (i > 0) {
+    const despues = limpia.slice(i + 3);
+    const tp = despues.split(" · ")[0];
+    return tp;
+  }
   return null;
 }
 
 function extraerDetalle(linea: string): string {
-  const i = linea.lastIndexOf(" · ");
-  if (i >= 0) return linea.slice(i + 3);
-  const parts = linea.split(" ");
+  const limpia = linea.trim().replace(/^\(Maggaboard\)\s+/, "");
+  const i = limpia.lastIndexOf(" · ");
+  if (i >= 0) return limpia.slice(i + 3);
+  if (limpia.includes(" web relevo - - ")) {
+    const idx = limpia.indexOf(" web relevo - - ");
+    if (idx >= 0) return limpia.slice(idx + 16);
+  }
+  const parts = limpia.split(" ");
   if (parts.length > 4) return parts.slice(4).join(" ");
   return "";
 }
@@ -79,9 +90,9 @@ export function resumirRonda(lineas: string[]): ResumenRonda {
         resumen.archivos.completos++;
         const m = detalle.match(/kbps=(\d+)/);
         if (m) resumen.archivos.kbps.push(Number(m[1]));
-      } else if (detalle === "verificado") {
+      } else if (detalle.endsWith(" verificado")) {
         resumen.archivos.verificados++;
-      } else if (detalle.startsWith("fallo motivo=")) {
+      } else if (detalle.includes(" fallo motivo=")) {
         const motivo = detalle.split("motivo=")[1]?.split(" ")[0];
         if (motivo) resumen.archivos.fallos.push(motivo);
       }
