@@ -83,6 +83,7 @@ import { EstadoSistemaLibre, saludDe } from "../estado-sistema-libre";
 import { EventosLibre, cuentaAtras } from "../eventos-libre";
 import { TareasLibre } from "../tareas-libre";
 import { AstrauraLibre } from "../astraura-libre";
+import { AstrauraLibreProto } from "../astraura-libre-proto";
 
 beforeEach(() => { tam("m"); });
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
@@ -276,5 +277,49 @@ describe("Astraura libre", () => {
         const { unmount } = render(<AstrauraLibre widget={widget} onUpdateSettings={ajustes} />);
         expect(screen.getByText("En calma")).toBeTruthy();
         unmount();
+    });
+});
+
+describe("Astraura libre proto (Protomolécula)", () => {
+    it("sin elección, auto en tamaño grande con conversación monta Conversación", () => {
+        chat = [{ role: "aurora", text: "Todo en calma en la malla.", ts: 2 }];
+        tam("l");
+        render(<AstrauraLibreProto />);
+        expect(screen.getByText("Todo en calma en la malla.")).toBeTruthy();
+    });
+
+    it("la elección guardada manda sobre auto", () => {
+        chat = [{ role: "aurora", text: "Todo en calma en la malla.", ts: 2 }];
+        tam("l");
+        render(<AstrauraLibreProto widget={{ settings: { astrauraDiseno: "acciones" } } as any} />);
+        expect(screen.getByRole("group", { name: "Atajos para empezar rápido" })).toBeTruthy();
+        expect(screen.queryByText("Todo en calma en la malla.")).toBeNull();
+    });
+
+    it("el estado del puente cambia la forma", () => {
+        chat = [];
+        tam("l");
+        const { unmount } = render(<AstrauraLibreProto />);
+        expect(screen.getByText("En calma")).toBeTruthy();
+        unmount();
+    });
+
+    it("chat vacío dice «Aún no habéis hablado»", () => {
+        chat = [];
+        tam("l");
+        render(<AstrauraLibreProto />);
+        expect(screen.getByText("Aún no habéis hablado.")).toBeTruthy();
+    });
+
+    it("elegir otro diseño llama a onUpdateSettings con astrauraDiseno", () => {
+        chat = [];
+        tam("l");
+        const ajustes = vi.fn();
+        render(<AstrauraLibreProto widget={{} as any} onUpdateSettings={ajustes} />);
+        const selector = screen.getByRole("button", { name: /Diseño/i });
+        fireEvent.click(selector);
+        const opcionAcciones = screen.getByText("Acciones");
+        fireEvent.click(opcionAcciones);
+        expect(ajustes).toHaveBeenCalledWith({ astrauraDiseno: "acciones" });
     });
 });
