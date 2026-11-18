@@ -1,0 +1,21 @@
+{
+ "ola": "nube-20261118",
+ "tareas": [
+  {
+   "id": "LNX01",
+   "ola": "LNX1118",
+   "titulo": "Paquete de Linux: el .deb de StarSeed OS exige los paquetes de WebRTC (gstreamer1.0-nice y gstreamer1.0-plugins-bad)",
+   "archivos": [
+    "native/src-tauri/tauri.conf.json",
+    "src/lib/__tests__/paquete-linux-webrtc.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Alex (18-11-2026): «ese paquete deberia de instalarse junto con la app para que lo consideres para las proximas versiones». En un nodo Linux recien instalado faltaba gstreamer1.0-nice y WebKitGTK no tenia ICE: sin el no hay llamadas ni pantalla del control por WebRTC. Tarea: en native/src-tauri/tauri.conf.json, dentro de bundle.linux.deb.depends (crea las claves que falten SIN tocar nada mas del archivo y conservando las dependencias que ya haya), anade \"gstreamer1.0-nice\" y \"gstreamer1.0-plugins-bad\". No cambies la configuracion de la AppImage ni los workflows de CI (eso lo hace un agente senior con verificacion en CI). Escribe la prueba src/lib/__tests__/paquete-linux-webrtc.test.ts (vitest, node): lee ese JSON con fs y comprueba que bundle.linux.deb.depends es una lista que contiene los dos paquetes y que el JSON sigue siendo valido. Verificacion: NODE_ENV=test ./node_modules/.bin/vitest run src/lib/__tests__/paquete-linux-webrtc.test.ts. Maximo 2 archivos; espanol neutro en comentarios."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1117-193401.json": [
+   "LNX01"
+  ]
+ }
+}
