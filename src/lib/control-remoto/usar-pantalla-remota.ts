@@ -25,6 +25,8 @@ export interface PantallaRemota extends InstantaneaPantalla {
     enviar: (e: EntradaControl) => boolean;
     cerrar: () => void;
     reintentar: () => void;
+    /** CTL1118F: la persona pide la pantalla fluida con la sesión en marcha (no reabre nada). */
+    pedirFluida: () => Promise<boolean>;
 }
 
 /** `fuente` (RST1116A): la pantalla que pide la persona; sin ella, «auto» (como siempre). Cambiarla reabre la pantalla. */
@@ -54,5 +56,6 @@ export function usarPantallaRemota(neurona: string | null, fuente: FuentePedida 
     const enviar = useCallback((e: EntradaControl) => obj?.enviar(e) ?? false, [obj]);
     const cerrar = useCallback(() => void obj?.cerrar("cerrada-por-la-persona", true), [obj]);
     const reintentar = useCallback(() => setIntento((n) => n + 1), []);
-    return useMemo(() => ({ ...snap, enviar, cerrar, reintentar }), [snap, enviar, cerrar, reintentar]);
+    const pedirFluida = useCallback(() => obj?.pedirFluida() ?? Promise.resolve(false), [obj]);
+    return useMemo(() => ({ ...snap, enviar, cerrar, reintentar, pedirFluida }), [snap, enviar, cerrar, reintentar, pedirFluida]);
 }

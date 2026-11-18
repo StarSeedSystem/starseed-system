@@ -34,6 +34,8 @@ export interface PropsVentanaControl {
     fuenteReal?: "accesibilidad" | "proyeccion" | null;
     avisoFuente?: string | null | undefined;
     alCambiarFuente?: (f: FuentePedida) => void;
+    /** CTL1118F · la persona pide la pantalla fluida con la sesión en marcha (no reabre nada; la acepta la persona EN el aparato). */
+    alPedirFluida?: () => void;
     /** CTL1117B · el indicador y el selector del medio de transmisión (lo monta quien conoce la sesión). */
     ranuraMedio?: ReactNode;
     /** CTL1117I · color público de la neurona controlada (junto a su nombre). */

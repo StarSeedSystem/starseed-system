@@ -84,6 +84,9 @@ fn iniciar(app: &tauri::AppHandle, sesion: &str, lado: u32, calidad: u32, prefer
             if falta.contains(&"consentimiento-proyeccion") {
                 // Pide a la persona, en el aparato, el «Sí» de ESTA sesión (diálogo propio y luego el de Android). No se contesta nada por ella.
                 let _ = es::llamar(app, json!({ "tipo": "pantalla-iniciar", "fuente": "proyeccion", "lado_max": lado, "calidad": calidad }), crate::control_entrada::ESPERA_MS);
+                // CTL1118F: la pantalla fluida se pidió y la persona la verá en el aparato; la sesión sigue con lo que hubiera.
+                let actual = activa().as_ref().map_or("ninguna".to_string(), |a| a.fuente.clone());
+                crate::ble::nota(None, "control-pantalla", &format!("fluida-pedida resultado=pregunta-en-el-aparato pedida={preferida} sigue-con={actual}"));
             }
             let reales: Vec<String> = crate::control_entrada::capacidades_json(k.as_ref())["falta"].as_array().map(|a| a.iter().filter_map(|x| x.as_str().map(String::from)).collect()).unwrap_or_default();
             let falta = l::falta_afinada(&falta, &reales);
@@ -104,9 +107,20 @@ fn iniciar(app: &tauri::AppHandle, sesion: &str, lado: u32, calidad: u32, prefer
     }
     let (ancho, alto, giro) = (r["ancho"].as_u64().unwrap_or(0), r["alto"].as_u64().unwrap_or(0), r["giro"].as_u64().unwrap_or(0));
     let real = fuente_real(&r); // la que Kotlin usó, no la pedida
-    *activa() = Some(Activa { fuente: real.into(), ancho, alto, desde: std::time::Instant::now() });
-    crate::ble::nota(None, "control-pantalla", &format!("inicio fuente={real} ancho={ancho} alto={alto} fps=-"));
-    crate::control_neuronas::anotar_k(app, "pantalla-iniciada", &format!("fuente={real} ancho={ancho} alto={alto}"));
+    // CTL1118F: un cambio de fuente a media sesión (de accesibilidad a la fluida) no reinicia el reloj ni la cuenta: los cuadros siguen numerándose igual.
+    let antes = activa().as_ref().map(|a| (a.fuente.clone(), a.desde));
+    *activa() = Some(Activa { fuente: real.into(), ancho, alto, desde: antes.as_ref().map_or_else(std::time::Instant::now, |a| a.1) });
+    match antes {
+        Some((f, _)) if f != real => {
+            crate::ble::nota(None, "control-pantalla", &format!("cambio fuente={real} antes={f} pedida={preferida} ancho={ancho} alto={alto}"));
+            crate::control_neuronas::anotar_k(app, "pantalla-fuente", &format!("fuente={real} antes={f}"));
+        }
+        Some(_) => crate::ble::nota(None, "control-pantalla", &format!("sigue fuente={real} pedida={preferida} ancho={ancho} alto={alto}")),
+        None => {
+            crate::ble::nota(None, "control-pantalla", &format!("inicio fuente={real} pedida={preferida} ancho={ancho} alto={alto} fps=-"));
+            crate::control_neuronas::anotar_k(app, "pantalla-iniciada", &format!("fuente={real} ancho={ancho} alto={alto}"));
+        }
+    }
     json!({ "ok": true, "fuente": real, "ancho": ancho, "alto": alto, "giro": giro })
 }
 

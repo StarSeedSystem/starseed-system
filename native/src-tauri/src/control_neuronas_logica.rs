@@ -393,13 +393,18 @@ pub struct DatosPausa {
     pub reanuda: String,
     pub pausa_ms: u64,
     pub ignorados: u32,
+    /// (CTL1118F) La medida de la cancelación que pausó: ms desde el despacho y retraso del hilo principal (-1 = ninguna). Solo se anotan con `gesto-cancelado`.
+    pub cancel_ms: i64,
+    pub cancel_lag_ms: i64,
 }
 
 /// (CTL1117F) La línea al ENTRAR en pausa: por qué (`toque-fuera`, `gesto-cancelado`…), ms desde el último gesto propio y toques propios ignorados.
 #[allow(dead_code)] // solo Android la usa
 pub fn linea_pausa_entra(d: &DatosPausa) -> String {
     let m = clave_de_motivo(&d.motivo);
-    format!("entra motivo={} desde-gesto-ms={} ignorados={} pausas={}", if m.is_empty() { "desconocido".to_string() } else { m }, d.desde_gesto_ms.clamp(-1, 9_999_999), d.ignorados, d.pausas)
+    // CTL1118F: la pausa por cancelación de un gesto lleva la medida con la que se decidió (ms del aviso y retraso del hilo principal), para ver por qué NO fue «propia».
+    let medida = if m == "gesto-cancelado" && d.cancel_ms >= 0 { format!(" cancel-ms={} lag-ms={}", d.cancel_ms.min(9_999_999), d.cancel_lag_ms.clamp(-1, 9_999_999)) } else { String::new() };
+    format!("entra motivo={} desde-gesto-ms={} ignorados={} pausas={}{}", if m.is_empty() { "desconocido".to_string() } else { m }, d.desde_gesto_ms.clamp(-1, 9_999_999), d.ignorados, d.pausas, medida)
 }
 
 /// (CTL1117F) La línea al SALIR: `reanudada-sola`, `reanudada-vigia` o `reanudada-por-la-persona`, y cuánto duró.
@@ -803,8 +808,11 @@ mod pruebas {
 
     #[test]
     fn ctl1117f_las_lineas_de_pausa_dicen_motivo_y_tiempo_y_cuentan_las_breves() {
-        let d = DatosPausa { pausada: true, pausas: 3, motivo: "Gesto-Cancelado".into(), desde_gesto_ms: 120, reanuda: "reanudada-sola".into(), pausa_ms: 3_050, ignorados: 2 };
-        assert_eq!(linea_pausa_entra(&d), "entra motivo=gesto-cancelado desde-gesto-ms=120 ignorados=2 pausas=3");
+        let d = DatosPausa { pausada: true, pausas: 3, motivo: "Gesto-Cancelado".into(), desde_gesto_ms: 120, reanuda: "reanudada-sola".into(), pausa_ms: 3_050, ignorados: 2, cancel_ms: 120, cancel_lag_ms: 3 };
+        assert_eq!(linea_pausa_entra(&d), "entra motivo=gesto-cancelado desde-gesto-ms=120 ignorados=2 pausas=3 cancel-ms=120 lag-ms=3");
+        // CTL1118F: otro motivo (un toque fuera) no lleva la medida; sin medida (-1) tampoco.
+        assert_eq!(linea_pausa_entra(&DatosPausa { motivo: "toque-fuera".into(), ..d.clone() }), "entra motivo=toque-fuera desde-gesto-ms=120 ignorados=2 pausas=3");
+        assert_eq!(linea_pausa_entra(&DatosPausa { cancel_ms: -1, ..d.clone() }), "entra motivo=gesto-cancelado desde-gesto-ms=120 ignorados=2 pausas=3");
         assert_eq!(linea_pausa_sale(&d), "sale motivo=reanudada-sola dur-ms=3050 pausas=3");
         assert_eq!(lineas_pausa(2, true, false, &d), vec![linea_pausa_entra(&d)]);
         assert_eq!(lineas_pausa(3, false, false, &d), Vec::<String>::new());

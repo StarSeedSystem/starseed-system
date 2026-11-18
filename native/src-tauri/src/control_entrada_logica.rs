@@ -553,6 +553,10 @@ pub const CANCELACION_INMEDIATA_MS: i64 = 25;
 /// (CTL1117K) Cuántas cancelaciones «inmediatas» seguidas (sin un solo trozo completado entre medias) se perdonan; la siguiente cuenta
 /// como un dedo: un dedo apoyado en el cristal haría que Android cancelara cada trozo al instante y nunca pausaría.
 pub const CANCELACIONES_PROPIAS_SEGUIDAS_MAX: u32 = 2;
+/// (CTL1118F) Con el hilo principal de la tableta ocupado el aviso de Android llega tarde (medido: 48 y 49 ms, con 11 y 14 toques propios
+/// ignorados). Hasta este tope, y si el hilo principal iba retrasado al menos `LAG_SOSPECHOSO_MS`, la cancelación también cuenta como `inmediata`.
+pub const CANCELACION_TARDIA_MAX_MS: i64 = 120;
+pub const LAG_SOSPECHOSO_MS: i64 = 15;
 
 /// (CTL1117K) Lo que se sabe de una cancelación que Android avisa (`GestureResultCallback.onCancelled`) o de un despacho que falló.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -567,6 +571,8 @@ pub struct CancelacionVista {
     pub ms_desde_despacho: i64,
     /// Cancelaciones propias «inmediatas» seguidas hasta ahora.
     pub inmediatas_seguidas: u32,
+    /// (CTL1118F) Lo que tardó el hilo principal en ejecutar un marcador puesto al despachar (0 = a tiempo): si iba retrasado, el aviso llegó tarde.
+    pub lag_principal_ms: i64,
 }
 
 /// (CTL1117K) ¿La cancelación la causó NUESTRO código? `Some(causa)` = sí (no es un dedo: no pausa); `None` = sin causa nuestra, cuenta como
@@ -581,7 +587,8 @@ pub fn causa_cancelacion_propia(c: &CancelacionVista) -> Option<&'static str> {
     if c.pedida_por_nosotros {
         return Some("cortada");
     }
-    if c.ms_desde_despacho <= CANCELACION_INMEDIATA_MS && c.inmediatas_seguidas < CANCELACIONES_PROPIAS_SEGUIDAS_MAX {
+    let pronto = c.ms_desde_despacho <= CANCELACION_INMEDIATA_MS || (c.ms_desde_despacho <= CANCELACION_TARDIA_MAX_MS && c.lag_principal_ms >= LAG_SOSPECHOSO_MS);
+    if pronto && c.inmediatas_seguidas < CANCELACIONES_PROPIAS_SEGUIDAS_MAX {
         return Some("inmediata");
     }
     None
@@ -801,6 +808,47 @@ pub fn cuadro_si_nuevo(bytes: &[u8], desde: u32) -> Option<&[u8]> {
         return None;
     }
     Some(bytes)
+}
+
+/// (CTL1118F) Intervalo entre capturas por accesibilidad. Android deja una cada ~333 ms: arranca en 340, un «demasiado pronto» lo sube 10 ms
+/// (tope 400) y 20 buenas seguidas lo bajan 5 ms (suelo 335). Devuelve (intervalo nuevo, buenas seguidas). Kotlin repite esta regla
+/// (`intervaloSiguiente`); una prueba compara constantes y cuerpo.
+pub const INTERVALO_CAPTURA_INICIAL_MS: u64 = 340;
+pub const INTERVALO_CAPTURA_MIN_MS: u64 = 335;
+pub const INTERVALO_CAPTURA_MAX_MS: u64 = 400;
+pub const BUENAS_PARA_BAJAR: u32 = 20;
+pub fn intervalo_captura_siguiente(actual: u64, buenas: u32, demasiado_pronto: bool) -> (u64, u32) {
+    if demasiado_pronto {
+        return ((actual + 10).min(INTERVALO_CAPTURA_MAX_MS), 0);
+    }
+    if buenas + 1 >= BUENAS_PARA_BAJAR && actual > INTERVALO_CAPTURA_MIN_MS {
+        return (actual.saturating_sub(5).max(INTERVALO_CAPTURA_MIN_MS), 0);
+    }
+    (actual, buenas + 1)
+}
+
+/// (CTL1118F) Calidad JPEG de la proyección según lo que cuesta codificar (media móvil, ms): por encima de 40 ms baja 5 (suelo 40, o lo pedido
+/// si es menos); por debajo de 20 ms sube 5 sin pasar de lo pedido. Kotlin repite esta regla (`calidadAdaptada`).
+pub const CODIFICAR_ALTO_MS: u64 = 40;
+pub const CODIFICAR_BAJO_MS: u64 = 20;
+pub const CALIDAD_PROYECCION_MIN: u32 = 40;
+pub fn calidad_adaptada(actual: u32, pedida: u32, media_ms: u64) -> u32 {
+    if media_ms > CODIFICAR_ALTO_MS {
+        return actual.saturating_sub(5).max(CALIDAD_PROYECCION_MIN.min(pedida));
+    }
+    if media_ms < CODIFICAR_BAJO_MS {
+        return (actual + 5).min(pedida);
+    }
+    actual
+}
+
+/// (CTL1118F) La fuente que escribe cuadros AHORA según Kotlin (`capacidades.fuente_activa`): solo las dos conocidas; todo lo demás, ninguna.
+pub fn fuente_activa_de(k: Option<&Value>) -> Option<&'static str> {
+    match k.and_then(|k| k.get("fuente_activa")).and_then(|x| x.as_str()) {
+        Some("proyeccion") => Some("proyeccion"),
+        Some("accesibilidad") => Some("accesibilidad"),
+        _ => None,
+    }
 }
 
 // PENC2: de dónde sale la pantalla. Lo elige el aparato controlado según lo que la persona haya dado; nunca se enciende nada aquí.
@@ -1092,7 +1140,7 @@ mod pruebas {
 
     #[test]
     fn ctl1117k_una_cancelacion_causada_por_nuestro_codigo_no_es_un_dedo() {
-        let base = CancelacionVista { rechazado_al_despachar: false, obsoleta: false, pedida_por_nosotros: false, ms_desde_despacho: 120, inmediatas_seguidas: 0 };
+        let base = CancelacionVista { rechazado_al_despachar: false, obsoleta: false, pedida_por_nosotros: false, ms_desde_despacho: 120, inmediatas_seguidas: 0, lag_principal_ms: 0 };
         // Sin causa nuestra y a mitad del trozo: es un dedo (pausa).
         assert_eq!(causa_cancelacion_propia(&base), None);
         // Cada causa nuestra, por separado.
@@ -1109,6 +1157,63 @@ mod pruebas {
         assert_eq!(causa_cancelacion_propia(&CancelacionVista { ms_desde_despacho: 3, inmediatas_seguidas: CANCELACIONES_PROPIAS_SEGUIDAS_MAX, ..base }), None);
         // Un despacho rechazado, una obsoleta o una cortada por nosotros no dependen del contador de seguidas.
         assert_eq!(causa_cancelacion_propia(&CancelacionVista { rechazado_al_despachar: true, inmediatas_seguidas: 9, ..base }), Some("despacho-rechazado"));
+    }
+
+    #[test]
+    fn ctl1118f_una_cancelacion_tardia_con_el_hilo_principal_retrasado_tampoco_es_un_dedo() {
+        let base = CancelacionVista { rechazado_al_despachar: false, obsoleta: false, pedida_por_nosotros: false, ms_desde_despacho: 0, inmediatas_seguidas: 0, lag_principal_ms: 0 };
+        // Lo medido en la .53: pausas a 48 y 49 ms del despacho. Con el hilo principal retrasado (marcador tardó ≥ 15 ms) cuentan como propias.
+        for ms in [26, 48, 49, 120] {
+            assert_eq!(causa_cancelacion_propia(&CancelacionVista { ms_desde_despacho: ms, lag_principal_ms: 30, ..base }), Some("inmediata"), "{ms}");
+            assert_eq!(causa_cancelacion_propia(&CancelacionVista { ms_desde_despacho: ms, lag_principal_ms: 0, ..base }), None, "sin retraso del hilo a {ms} ms es un dedo");
+        }
+        // El umbral del retraso: 14 no basta, 15 sí.
+        assert_eq!(causa_cancelacion_propia(&CancelacionVista { ms_desde_despacho: 49, lag_principal_ms: LAG_SOSPECHOSO_MS - 1, ..base }), None);
+        assert_eq!(causa_cancelacion_propia(&CancelacionVista { ms_desde_despacho: 49, lag_principal_ms: LAG_SOSPECHOSO_MS, ..base }), Some("inmediata"));
+        // Pasado el tope tardío ya no hay perdón aunque el hilo fuera lento.
+        assert_eq!(causa_cancelacion_propia(&CancelacionVista { ms_desde_despacho: CANCELACION_TARDIA_MAX_MS + 1, lag_principal_ms: 500, ..base }), None);
+        // Un dedo apoyado en el cristal sigue pausando: la tercera seguida cuenta como dedo también con el hilo lento.
+        assert_eq!(causa_cancelacion_propia(&CancelacionVista { ms_desde_despacho: 49, lag_principal_ms: 40, inmediatas_seguidas: 1, ..base }), Some("inmediata"));
+        assert_eq!(causa_cancelacion_propia(&CancelacionVista { ms_desde_despacho: 49, lag_principal_ms: 40, inmediatas_seguidas: CANCELACIONES_PROPIAS_SEGUIDAS_MAX, ..base }), None);
+        // Las otras causas no dependen del retraso.
+        assert_eq!(causa_cancelacion_propia(&CancelacionVista { pedida_por_nosotros: true, lag_principal_ms: 0, ..base }), Some("cortada"));
+    }
+
+    #[test]
+    fn ctl1118f_el_intervalo_de_accesibilidad_se_adapta_sin_pasar_de_sus_topes() {
+        // Un «demasiado pronto» sube 10 ms hasta el tope y borra la racha.
+        assert_eq!(intervalo_captura_siguiente(340, 7, true), (350, 0));
+        assert_eq!(intervalo_captura_siguiente(395, 7, true), (INTERVALO_CAPTURA_MAX_MS, 0));
+        assert_eq!(intervalo_captura_siguiente(INTERVALO_CAPTURA_MAX_MS, 0, true), (INTERVALO_CAPTURA_MAX_MS, 0));
+        // 20 buenas seguidas bajan 5 ms hasta el suelo.
+        assert_eq!(intervalo_captura_siguiente(350, 18, false), (350, 19));
+        assert_eq!(intervalo_captura_siguiente(350, 19, false), (345, 0));
+        assert_eq!(intervalo_captura_siguiente(INTERVALO_CAPTURA_MIN_MS, 19, false), (INTERVALO_CAPTURA_MIN_MS, 20));
+        assert_eq!(intervalo_captura_siguiente(337, 19, false), (INTERVALO_CAPTURA_MIN_MS, 0));
+        // El arranque ya está por debajo de los 350 fijos de antes y cada cuadro ganado se mide: 340 ms = 2,94 cuadros/s, 335 = 2,99.
+        assert!(INTERVALO_CAPTURA_INICIAL_MS < 350 && INTERVALO_CAPTURA_MIN_MS <= INTERVALO_CAPTURA_INICIAL_MS);
+    }
+
+    #[test]
+    fn ctl1118f_la_calidad_de_la_proyeccion_baja_si_codificar_tarda_y_vuelve_a_subir() {
+        assert_eq!(calidad_adaptada(60, 60, 41), 55);
+        assert_eq!(calidad_adaptada(42, 60, 80), CALIDAD_PROYECCION_MIN);
+        assert_eq!(calidad_adaptada(CALIDAD_PROYECCION_MIN, 60, 80), CALIDAD_PROYECCION_MIN);
+        assert_eq!(calidad_adaptada(55, 60, 25), 55, "entre 20 y 40 ms no se toca");
+        assert_eq!(calidad_adaptada(55, 60, 19), 60);
+        assert_eq!(calidad_adaptada(60, 60, 5), 60, "nunca por encima de lo pedido");
+        // Si la persona pidió menos que el suelo, no se sube por encima de lo pedido ni se baja de ello.
+        assert_eq!(calidad_adaptada(30, 30, 90), 30);
+    }
+
+    #[test]
+    fn ctl1118f_la_fuente_que_escribe_cuadros_solo_admite_las_dos_conocidas() {
+        assert_eq!(fuente_activa_de(Some(&json!({ "fuente_activa": "proyeccion" }))), Some("proyeccion"));
+        assert_eq!(fuente_activa_de(Some(&json!({ "fuente_activa": "accesibilidad" }))), Some("accesibilidad"));
+        assert_eq!(fuente_activa_de(Some(&json!({ "fuente_activa": null }))), None);
+        assert_eq!(fuente_activa_de(Some(&json!({ "fuente_activa": "<script>" }))), None);
+        assert_eq!(fuente_activa_de(Some(&json!({}))), None);
+        assert_eq!(fuente_activa_de(None), None);
     }
 
     #[test]

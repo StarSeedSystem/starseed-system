@@ -99,13 +99,20 @@ object ControlEntradaNativo {
      */
     const val CANCELACION_INMEDIATA_MS = 25L
     const val CANCELACIONES_PROPIAS_SEGUIDAS_MAX = 2
-    fun causaCancelacionPropia(rechazado: Boolean, obsoleta: Boolean, pedida: Boolean, msDesdeDespacho: Long, inmediatasSeguidas: Int): String? {
+    /** CTL1118F: con el hilo principal ocupado el aviso de Android llega tarde (medido: 48-49 ms). Hasta este tope, y con `lagPrincipalMs` ≥ `LAG_SOSPECHOSO_MS`, cuenta como `inmediata`. */
+    const val CANCELACION_TARDIA_MAX_MS = 120L
+    const val LAG_SOSPECHOSO_MS = 15L
+    fun causaCancelacionPropia(rechazado: Boolean, obsoleta: Boolean, pedida: Boolean, msDesdeDespacho: Long, inmediatasSeguidas: Int, lagPrincipalMs: Long = 0L): String? {
         if (rechazado) return "despacho-rechazado"
         if (obsoleta) return "obsoleta"
         if (pedida) return "cortada"
-        if (msDesdeDespacho <= CANCELACION_INMEDIATA_MS && inmediatasSeguidas < CANCELACIONES_PROPIAS_SEGUIDAS_MAX) return "inmediata"
+        val pronto = msDesdeDespacho <= CANCELACION_INMEDIATA_MS || (msDesdeDespacho <= CANCELACION_TARDIA_MAX_MS && lagPrincipalMs >= LAG_SOSPECHOSO_MS)
+        if (pronto && inmediatasSeguidas < CANCELACIONES_PROPIAS_SEGUIDAS_MAX) return "inmediata"
         return null
     }
+    /** CTL1118F: ms y retraso del hilo principal de la última cancelación (diagnóstico: líneas `control-pausa entra … cancel-ms= lag-ms=`). -1 = ninguna. */
+    @Volatile var cancelMs = -1L
+    @Volatile var cancelLagMs = -1L
     /** CTL1117K: cuántas cancelaciones de esta sesión causó nuestro código y la causa de la última (van a `estado.json` → `fin`, `control-fondo`, `control-pulso`). */
     @Volatile var cancelPropias = 0
     @Volatile var cancelUltima = ""
@@ -194,6 +201,33 @@ object ControlEntradaNativo {
 
     /** CTL1117F: cuánto dura, tras el último trozo, el toque que sigue siendo NUESTRO (el que llega tarde con el hilo principal ocupado). */
     const val COLA_GESTO_MS = 400L
+    /**
+     * CTL1118F: UN contador de cuadros para toda la sesión (accesibilidad y proyección): al cambiar de fuente la numeración no se reinicia,
+     * así el cuadro nuevo siempre es «más nuevo que `desde`» para Rust y la página.
+     */
+    private val contadorCuadros = java.util.concurrent.atomic.AtomicInteger(0)
+    fun numeroCuadro(): Int = contadorCuadros.incrementAndGet()
+    /** CTL1118F: la pantalla de esta sesión está pedida (entre `pantalla-iniciar` y `pantalla-parar`), con el lado y la calidad pedidos. */
+    @Volatile var pantallaPedida = false
+    @Volatile var ladoPedido = 1280
+    @Volatile var calidadPedida = 60
+    /** CTL1118F: la fuente que escribe cuadros AHORA (la real, no la pedida): `proyeccion`, `accesibilidad` o null. */
+    fun fuenteActiva(): String? = when {
+        ProyeccionPantalla.capturandoAhora() -> "proyeccion"
+        ServicioControlEntrada.instancia?.capturandoAhora() == true -> "accesibilidad"
+        else -> null
+    }
+    /**
+     * CTL1118F: la proyección se cortó a media sesión («Dejar de compartir», pantalla bloqueada…) pero la sesión sigue a la vista y la pantalla
+     * sigue pedida: se vuelve a la accesibilidad (si la persona la dejó encendida) sin cerrar nada y sin volver a preguntar. true si arrancó.
+     */
+    fun volverAAccesibilidad(): Boolean {
+        if (!iniciado || !pantallaPedida || !ControlNeuronasNativo.encendido() || !ControlNeuronasNativo.mostrando || ControlNeuronasNativo.sesion == null) return false
+        val s = ServicioControlEntrada.instancia ?: return false
+        if (!sinPreguntar() || s.capturandoAhora()) return false
+        return s.iniciarCaptura(ladoPedido, calidadPedida).optBoolean("ok", false)
+    }
+
     /** CTL1117F: hora del último cuadro que Kotlin escribió en `cuadro.bin` (0 = ninguno) y cuántos toques propios se ignoraron (diagnóstico). */
     @Volatile var ultimoCuadroMs = 0L
     @Volatile var ignorados = 0
@@ -333,6 +367,7 @@ object ControlEntradaNativo {
         if (!iniciado) return
         escribirAtomico(File(dir, ACEPTADOS), JSONObject().put("v", 1).put("controladores", JSONArray()).toString())
         guardarSinPreguntar(false)
+        pantallaPedida = false // CTL1118F
         ServicioControlEntrada.instancia?.parar()
         ProyeccionPantalla.parar() // PENC1
     }
@@ -429,6 +464,7 @@ object ControlEntradaNativo {
                 .put("max_dedos", if (Build.VERSION.SDK_INT >= 24) GestureDescription.getMaxStrokeCount() else 0)
                 .put("sin_preguntar", sinPreguntar() && ControlNeuronasNativo.encendido())
                 .put("proyeccion", ProyeccionPantalla.concedida()) // PENC1: el «Sí» de ESTA sesión, nunca guardado
+                .put("fuente_activa", ControlEntradaNativo.fuenteActiva() ?: JSONObject.NULL) // CTL1118F: la fuente que escribe cuadros ahora
                 .put("escribir_ajustes", Settings.System.canWrite(app))
                 .put("restringido", srv == null && ajustesRestringidos()) }
             "estado-aparato" -> estadoAparato()
@@ -459,17 +495,23 @@ object ControlEntradaNativo {
                 !ControlNeuronasNativo.encendido() || !ControlNeuronasNativo.mostrando || ControlNeuronasNativo.sesion == null -> no("sesion")
                 // PENC1: fuente «proyeccion» = fluida; Android pregunta en CADA sesión. Sin el «Sí» de esta sesión, se lo pregunta a la persona.
                 p.optString("fuente") == "proyeccion" -> if (ProyeccionPantalla.concedida()) {
-                    srv?.parar()
-                    ProyeccionPantalla.iniciar(p.optInt("lado_max", 1280), p.optInt("calidad", 60))
+                    // CTL1118F: primero arranca la fluida y, SOLO si arrancó, se para la captura por accesibilidad (sin cortar el gesto en el aire).
+                    pantallaPedida = true; ladoPedido = p.optInt("lado_max", 1280); calidadPedida = p.optInt("calidad", 60)
+                    val r = ProyeccionPantalla.iniciar(ladoPedido, calidadPedida)
+                    if (r.optBoolean("ok", false)) srv?.pararCaptura()
+                    r
                 } else {
                     actividad?.get()?.let { ProyeccionPantalla.pedir(it) }
                     no("sin-consentimiento", "consentimiento-proyeccion")
                 }
                 srv == null -> no("sin-servicio", "servicio-accesibilidad")
                 !sinPreguntar() -> no("sin-consentimiento", "consentimiento-pantalla")
-                else -> { ProyeccionPantalla.parar(); srv.iniciarCaptura(p.optInt("lado_max", 1280), p.optInt("calidad", 60)) }
+                else -> {
+                    pantallaPedida = true; ladoPedido = p.optInt("lado_max", 1280); calidadPedida = p.optInt("calidad", 60) // CTL1118F
+                    ProyeccionPantalla.parar(); srv.iniciarCaptura(ladoPedido, calidadPedida)
+                }
             }
-            "pantalla-parar" -> { srv?.parar(); ProyeccionPantalla.parar(); null }
+            "pantalla-parar" -> { pantallaPedida = false; srv?.parar(); ProyeccionPantalla.parar(); null } // CTL1118F: parada pedida = no se vuelve a ninguna fuente
             else -> no("sin-servicio")
         }
     }
@@ -609,7 +651,21 @@ class ServicioControlEntrada : AccessibilityService() {
     companion object {
         @Volatile var instancia: ServicioControlEntrada? = null
         private const val SUELTA_TRAS_MS = 5_000L
-        private const val INTERVALO_CAPTURA_MS = 350L
+        /**
+         * CTL1118F: Android deja una captura cada ~333 ms. Arranca en 340; un «demasiado pronto» lo sube 10 ms (tope 400) y 20 buenas seguidas lo bajan 5 ms (suelo 335).
+         * Medido antes: 350 fijos = 2,9 cuadros/s. La MISMA regla que `intervalo_captura_siguiente` de control_entrada_logica.rs.
+         */
+        const val INTERVALO_CAPTURA_INICIAL_MS = 340L
+        const val INTERVALO_CAPTURA_MIN_MS = 335L
+        const val INTERVALO_CAPTURA_MAX_MS = 400L
+        const val BUENAS_PARA_BAJAR = 20
+        /** Tras un «demasiado pronto» se reintenta pronto: el turno no se pierde (antes, 500 ms de espera). */
+        private const val REINTENTO_DEMASIADO_PRONTO_MS = 60L
+        fun intervaloSiguiente(actual: Long, buenas: Int, demasiadoPronto: Boolean): Pair<Long, Int> = when {
+            demasiadoPronto -> Pair(minOf(INTERVALO_CAPTURA_MAX_MS, actual + 10L), 0)
+            buenas + 1 >= BUENAS_PARA_BAJAR && actual > INTERVALO_CAPTURA_MIN_MS -> Pair(maxOf(INTERVALO_CAPTURA_MIN_MS, actual - 5L), 0)
+            else -> Pair(actual, buenas + 1)
+        }
         /** FSG1116 · C1: cada gesto se despacha en trozos de como mucho 200 ms; la regla G se mira antes de CADA uno. */
         const val TROZO_MS = 200L
     }
@@ -814,6 +870,8 @@ class ServicioControlEntrada : AccessibilityService() {
     private var despachoMs = 0L
     private var cancelPedida = false
     private var inmediatasSeguidas = 0
+    /** CTL1118F: lo que tardó el hilo principal en ejecutar un marcador puesto al despachar (si estaba ocupado, el aviso de Android llega tarde). */
+    @Volatile private var lagPrincipalMs = 0L
 
     /** ¿Hay un gesto remoto en el aire o dedos abajo? (la guarda del «Sí» lo mira). */
     fun ocupado(): Boolean = despachando || enCurso.isNotEmpty()
@@ -918,6 +976,8 @@ class ServicioControlEntrada : AccessibilityService() {
         cancelPedida = false
         val ahora = System.currentTimeMillis()
         despachoMs = ahora
+        lagPrincipalMs = 0L
+        principal.post { if (mio == idDespacho) lagPrincipalMs = System.currentTimeMillis() - ahora } // CTL1118F: el marcador corre antes que el aviso de Android (misma cola)
         ControlEntradaNativo.ultimoGestoRemoto = ahora
         ControlEntradaNativo.gestoPropioHasta = ahora + durMax + ControlEntradaNativo.COLA_GESTO_MS // M1: el toque que se oye es nuestro, y no más (CTL1117F: con cola)
         val ok = try {
@@ -953,7 +1013,8 @@ class ServicioControlEntrada : AccessibilityService() {
     private fun cancelado(mio: Long, rechazado: Boolean) {
         val obsoleta = mio != idDespacho
         val ms = System.currentTimeMillis() - despachoMs
-        val causa = ControlEntradaNativo.causaCancelacionPropia(rechazado, obsoleta, cancelPedida, ms, inmediatasSeguidas)
+        val causa = ControlEntradaNativo.causaCancelacionPropia(rechazado, obsoleta, cancelPedida, ms, inmediatasSeguidas, lagPrincipalMs)
+        if (!obsoleta) { ControlEntradaNativo.cancelMs = ms; ControlEntradaNativo.cancelLagMs = lagPrincipalMs } // CTL1118F: la medida de cada decisión (línea `control-pausa`)
         if (causa != null) {
             ControlEntradaNativo.cancelacionPropia(causa)
             if (causa == "inmediata") inmediatasSeguidas++
@@ -1006,7 +1067,6 @@ class ServicioControlEntrada : AccessibilityService() {
     @Volatile private var capturando = false
     private var lado = 1280
     private var calidad = 60
-    private var numero = 0
     private var hilo: HandlerThread? = null
     private var trabajo: Handler? = null
     private var ejecutor: Executor? = null
@@ -1023,7 +1083,7 @@ class ServicioControlEntrada : AccessibilityService() {
         if (Build.VERSION.SDK_INT < 30) return rechazo("sin-servicio").put("detalle", "android-anterior-a-11")
         lado = ladoMax
         calidad = calidadJpeg.coerceIn(20, 95)
-        numero = 0
+        // CTL1118F: la numeración es única de la sesión (`numeroCuadro`): no se reinicia aquí, así un cambio de fuente no confunde a quien pide «lo más nuevo que `desde`».
         File(ControlEntradaNativo.carpeta(), ControlEntradaNativo.CUADRO).delete()
         if (hilo == null) {
             hilo = HandlerThread("starseed-cuadros").also { it.start() }
@@ -1034,12 +1094,23 @@ class ServicioControlEntrada : AccessibilityService() {
         val e = escalado(m[0], m[1])
         if (!capturando) {
             capturando = true
+            intervalo = INTERVALO_CAPTURA_INICIAL_MS
+            buenasSeguidas = 0
             trabajo?.post { capturar() }
         }
         return JSONObject().put("ok", true).put("fuente", "accesibilidad").put("ancho", e[0]).put("alto", e[1]).put("giro", m[2])
     }
 
-    private fun siguiente(desde: Long, espera: Long = INTERVALO_CAPTURA_MS) {
+    /** CTL1118F: intervalo vigente entre capturas y cuántas buenas van seguidas; `demasiadoPronto` cuenta los avisos del sistema (diagnóstico). */
+    private var intervalo = INTERVALO_CAPTURA_INICIAL_MS
+    private var buenasSeguidas = 0
+    @Volatile var demasiadoPronto = 0
+
+    fun capturandoAhora(): Boolean = capturando
+    /** CTL1118F: para SOLO la captura (la fluida ya escribe cuadros); no corta el gesto en el aire ni borra el cuadro que acaba de dejar la proyección. */
+    fun pararCaptura() { capturando = false }
+
+    private fun siguiente(desde: Long, espera: Long = intervalo) {
         val resta = maxOf(0L, espera - (System.currentTimeMillis() - desde))
         trabajo?.postDelayed({ capturar() }, resta)
     }
@@ -1066,11 +1137,21 @@ class ServicioControlEntrada : AccessibilityService() {
                             blando.recycle()
                         }
                     } catch (_: Throwable) { /* un cuadro perdido; sigue el siguiente */ }
+                    val (iv, b) = intervaloSiguiente(intervalo, buenasSeguidas, false) // CTL1118F
+                    intervalo = iv; buenasSeguidas = b
                     siguiente(t0)
                 }
 
                 override fun onFailure(codigo: Int) {
-                    siguiente(t0, 500) // intervalo demasiado corto, pantalla apagada o ventana segura: se reintenta sin machacar
+                    if (codigo == AccessibilityService.ERROR_TAKE_SCREENSHOT_INTERVAL_TIME_SHORT) {
+                        // CTL1118F: el sistema dijo «demasiado pronto»: el intervalo sube y el turno se reintenta enseguida (antes se esperaban 500 ms).
+                        demasiadoPronto++
+                        val (iv, b) = intervaloSiguiente(intervalo, buenasSeguidas, true)
+                        intervalo = iv; buenasSeguidas = b
+                        siguiente(System.currentTimeMillis(), REINTENTO_DEMASIADO_PRONTO_MS)
+                    } else {
+                        siguiente(t0, 500) // pantalla apagada o ventana segura: se reintenta sin machacar
+                    }
                 }
             })
         } catch (_: Throwable) { siguiente(t0, 1000) }
@@ -1080,7 +1161,7 @@ class ServicioControlEntrada : AccessibilityService() {
     private fun publicar(ancho: Int, alto: Int, jpeg: ByteArray) {
         // FSG1116 · M3/M2: un cuadro que llega tras parar, en pausa o con la pantalla bloqueada no se escribe (y se borra el que hubiera).
         if (!capturando || !ControlEntradaNativo.puedePublicarCuadro()) { ControlEntradaNativo.borrarCuadro(); return }
-        numero++
+        val numero = ControlEntradaNativo.numeroCuadro() // CTL1118F: numeración única de la sesión
         val giro = ControlEntradaNativo.medidas()[2]
         val c = ByteArray(12)
         for (i in 0 until 4) c[i] = ((numero ushr (8 * i)) and 0xFF).toByte()

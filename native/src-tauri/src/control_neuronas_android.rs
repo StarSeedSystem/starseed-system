@@ -74,6 +74,9 @@ pub struct EstadoKotlin {
     /// `obsoleta`, `cortada`, `inmediata`). Solo diagnóstico: entran en `fin`, `control-fondo` y `control-pulso`.
     pub cancel_propias: u32,
     pub cancel_ultima: String,
+    /// (CTL1118F) ms desde el despacho y retraso del hilo principal (ms) de la última cancelación que Android avisó (-1 = ninguna): la medida de la decisión de pausar.
+    pub cancel_ms: i64,
+    pub cancel_lag_ms: i64,
     pub cuadro_ms: i64,
     /// (CTL1117G) Veces que el servicio repuso el aviso fijo, la última causa (`descartado`, `ausente`) y el error de la última reposición.
     pub avisos: u32,

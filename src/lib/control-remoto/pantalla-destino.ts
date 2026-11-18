@@ -20,7 +20,7 @@ import { esRespuesta, type RespuestaOrden } from "./orden";
 import { RegistroSesiones, registroGlobal } from "./registro-sesiones";
 import { claveParadaNativa } from "./palabras"; // CTL1117C
 import { canalDatosOk, configuracionIce, filtrarRespuesta, permitirCandidato, registrarConexion } from "./medio-estado"; // CTL1117B
-import { FUENTE_DEFECTO, type FuentePedida, type FuenteReal } from "./fuente-pantalla";
+import { FUENTE_DEFECTO, fuenteRealValida, type FuentePedida, type FuenteReal } from "./fuente-pantalla";
 
 export type EntradaControl =
     | { tipo: "gesto"; dedos: { id: number; puntos: [number, number, number][] }[]; sigue: boolean }
@@ -268,7 +268,8 @@ export class PantallaDestino {
     private rtt: number | null = null;
     private medidaLatencia: number | null = null;
     private readonly registro: RegistroSesiones;
-    private carril: Promise<unknown> = Promise.resolve();
+    /** CTL1118F: el carril es el de la neurona (compartido con las demás ventanas/banco que usan la misma sesión), no uno por destino. */
+    private readonly carrilCompartido: { cola: Promise<unknown> };
     private reintentadas = new WeakSet<object>();
 
     constructor(
@@ -277,6 +278,7 @@ export class PantallaDestino {
         private readonly fuente: FuentePedida = FUENTE_DEFECTO,
     ) {
         this.registro = d.registro ?? new RegistroSesiones(d.ahora);
+        this.carrilCompartido = this.registro.carrilDe(neurona);
         this.snap = { estado: "conectando", desde: d.ahora(), flujo: null, pantalla: null, nivel: "ver", capacidades: SIN_CAPACIDADES, aparato: null };
     }
 
@@ -504,9 +506,9 @@ export class PantallaDestino {
 
     /** CTL1117A · S6: todo lo que sale de esta ventana pasa por UN carril: se firma y se manda en orden, así el `seq` llega creciente. */
     private enCarril<T>(f: () => Promise<T>): Promise<T> {
-        const p = this.carril.then(f, f);
+        const p = this.carrilCompartido.cola.then(f, f);
         // CTL1117F: el turno acaba cuando vuelve la orden O pasa LIMITE_CARRIL_MS; una que no vuelve nunca no deja sin lecturas (ni sin renovar) la sesión.
-        this.carril = new Promise<void>((fin) => {
+        this.carrilCompartido.cola = new Promise<void>((fin) => {
             const t = setTimeout(fin, LIMITE_CARRIL_MS);
             const suelta = () => { clearTimeout(t); fin(); };
             p.then(suelta, suelta);
@@ -534,6 +536,12 @@ export class PantallaDestino {
         if (this.cerrada || !this.token) return;
         const r = await this.orden("leer-aparato", {}, "ver");
         if (this.cerrada || !r.ok) return;
+        // CTL1118F: la fuente REAL ahora (si la fluida se aceptó o se cortó a media sesión, la ventana lo sabe sin reabrir nada).
+        const real = fuenteRealValida((r.resultado as { fuente?: unknown } | undefined)?.fuente);
+        if (real && real !== this.snap.fuente) {
+            this.anotar(`control-fuente lado=controlador fuente=${real} antes=${this.snap.fuente ?? "ninguna"}`);
+            this.poner({ fuente: real });
+        }
         const a = (r.resultado as { aparato?: Record<string, unknown> } | undefined)?.aparato;
         if (a && typeof a === "object") {
             this.poner({ aparato: a as AparatoVentana });
@@ -548,6 +556,20 @@ export class PantallaDestino {
                 this.poner({ pantalla: { ancho: Math.round(w), alto: Math.round(h), giro: 0 } });
             }
         }
+    }
+
+    /**
+     * CTL1118F: la persona de ESTA ventana pide la pantalla fluida con la sesión en marcha. No reabre nada: manda `pantalla-iniciar` con `mantener`
+     * y el aparato abre su diálogo (solo su persona lo acepta); si ya está en fluida o no hay pantalla, no hace nada. true si la orden salió.
+     */
+    async pedirFluida(): Promise<boolean> {
+        if (this.cerrada || !this.token || this.snap.fuente === "proyeccion" || (this.snap.estado !== "en-vivo" && this.snap.estado !== "pausa-local" && this.snap.estado !== "conectando")) return false;
+        this.anotar("control-fuente lado=controlador paso=fluida-pedida-por-la-persona");
+        const r = await this.orden("pantalla-iniciar", { fuente: "proyeccion", mantener: true }, "ver");
+        this.anotar(`control-fuente lado=controlador paso=fluida-pedida-por-la-persona resultado=${r.ok ? "ok" : "rechazo"} motivo=${this.motivoCorto(r.motivo)}`);
+        const real = fuenteRealValida((r.resultado as { fuente?: unknown } | undefined)?.fuente);
+        if (r.ok && real && !this.cerrada) this.poner({ fuente: real });
+        return r.ok;
     }
 
     private async medir(): Promise<void> {
@@ -665,7 +687,7 @@ export class PantallaDestino {
             }
             return this.d.mandar(nombre, args, { ...o, esperaMs: 4000 });
         });
-        if (sale) this.alRespuestaEntrada(sale, e);
+        if (sale) this.alRespuestaEntrada(sale, e, "control");
     }
 
     private alMensajeCanal(data: unknown): void {
@@ -681,10 +703,10 @@ export class PantallaDestino {
         if (!p) return;
         this.pendientes.delete(x.nonce);
         this.tomarLatencia(this.d.ahora() - p.t);
-        this.alRespuestaEntrada(x, p.entrada);
+        this.alRespuestaEntrada(x, p.entrada, "datos");
     }
 
-    private alRespuestaEntrada(r: RespuestaOrden, entrada?: EntradaControl): void {
+    private alRespuestaEntrada(r: RespuestaOrden, entrada?: EntradaControl, via?: "datos" | "control"): void {
         if (this.cerrada) return;
         if (r.ok) {
             if (this.snap.estado === "pausa-local") this.poner({ estado: "en-vivo" });
@@ -703,6 +725,8 @@ export class PantallaDestino {
         // CTL1117A · S6: «repetida» (seq cruzado) o «limite»: la orden de la persona no se pierde; se manda otra vez, una sola.
         if ((r.motivo === "repetida" || r.motivo === "limite") && entrada && !this.reintentadas.has(entrada)) {
             this.reintentadas.add(entrada);
+            // CTL1118F: una línea con la VÍA por la que salió el rechazado (datos = canal de la conexión, control = canal de órdenes) y qué se hace.
+            this.anotar(`control-orden tipo=${entrada.tipo} resultado=rechazo motivo=${r.motivo} via=${via ?? "desconocida"} reintento=si`);
             const poner = () => {
                 if (this.cerrada) return;
                 this.cola.unshift(entrada);

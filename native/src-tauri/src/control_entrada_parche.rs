@@ -376,7 +376,7 @@ mod pruebas {
         assert!(a < b && b < c, "tipo de servicio, proyección, devolución de llamada");
         assert!(c < k.find("createVirtualDisplay(").unwrap(), "Android 14: la devolución de llamada va antes de la pantalla virtual");
         // Para con la sesión, la pantalla bloqueada, el chip de Android y «Dejar de compartir»; nada se guarda entre sesiones.
-        for x in ["ACTION_SCREEN_OFF", "isKeyguardLocked", "onStop()", "ControlNeuronasNativo.mostrando", "Dejar de compartir", "consentidaPara = null", "START_NOT_STICKY", "ENTRE_CUADROS_MS = 67L"] {
+        for x in ["ACTION_SCREEN_OFF", "isKeyguardLocked", "onStop()", "ControlNeuronasNativo.mostrando", "Dejar de compartir", "consentidaPara = null", "START_NOT_STICKY", "ENTRE_CUADROS_MS = 33L"] {
             assert!(k.contains(x), "{x}");
         }
         for x in ["SharedPreferences", "getSharedPreferences", "writeText", "performClick", "ACTION_CLICK", "grantRuntimePermission", "Log.", "setNeutralButton"] {
@@ -599,12 +599,16 @@ mod pruebas {
         assert!(k.contains(&format!("const val CANCELACION_INMEDIATA_MS = {}L", l::CANCELACION_INMEDIATA_MS)));
         assert!(k.contains(&format!("const val CANCELACIONES_PROPIAS_SEGUIDAS_MAX = {}", l::CANCELACIONES_PROPIAS_SEGUIDAS_MAX)));
         let f = k.find("fun causaCancelacionPropia(").unwrap();
-        let cuerpo = &k[f..f + 700];
+        let cuerpo = &k[f..f + 1100];
+        // CTL1118F: la cláusula «inmediata» admite también la cancelación tardía con el hilo principal retrasado (mismas constantes que en Rust).
+        assert!(k.contains(&format!("const val CANCELACION_TARDIA_MAX_MS = {}L", l::CANCELACION_TARDIA_MAX_MS)));
+        assert!(k.contains(&format!("const val LAG_SOSPECHOSO_MS = {}L", l::LAG_SOSPECHOSO_MS)));
         let orden = [
             "if (rechazado) return \"despacho-rechazado\"",
             "if (obsoleta) return \"obsoleta\"",
             "if (pedida) return \"cortada\"",
-            "if (msDesdeDespacho <= CANCELACION_INMEDIATA_MS && inmediatasSeguidas < CANCELACIONES_PROPIAS_SEGUIDAS_MAX) return \"inmediata\"",
+            "val pronto = msDesdeDespacho <= CANCELACION_INMEDIATA_MS || (msDesdeDespacho <= CANCELACION_TARDIA_MAX_MS && lagPrincipalMs >= LAG_SOSPECHOSO_MS)",
+            "if (pronto && inmediatasSeguidas < CANCELACIONES_PROPIAS_SEGUIDAS_MAX) return \"inmediata\"",
             "return null",
         ];
         let mut desde = 0;
@@ -625,7 +629,7 @@ mod pruebas {
         let c = k.find("private fun cancelado(mio: Long, rechazado: Boolean)").unwrap();
         let fin = c + k[c..].find("/** Levanta los dedos").unwrap();
         let cuerpo = &k[c..fin];
-        assert!(cuerpo.contains("ControlEntradaNativo.causaCancelacionPropia(rechazado, obsoleta, cancelPedida, ms, inmediatasSeguidas)"));
+        assert!(cuerpo.contains("ControlEntradaNativo.causaCancelacionPropia(rechazado, obsoleta, cancelPedida, ms, inmediatasSeguidas, lagPrincipalMs)"));
         // La rama nuestra: se cuenta, no se pausa, se descarta ese trozo y la cola sigue.
         let nuestra = &cuerpo[..cuerpo.find("ControlEntradaNativo.toqueLocal()").unwrap()];
         assert!(nuestra.contains("ControlEntradaNativo.cancelacionPropia(causa)") && nuestra.contains("bombear()") && nuestra.contains("enCurso.clear(); ultimoPunto.clear()"));
@@ -676,5 +680,68 @@ mod pruebas {
         }
         // El contador es de la sesión: se pone a cero al empezarla.
         assert!(n.contains("ControlEntradaNativo.cancelPropias = 0"));
+    }
+
+    // ───────────── CTL1118F ─────────────
+
+    #[test]
+    fn ctl1118f_kotlin_repite_las_reglas_de_cadencia_de_rust() {
+        let k = KOTLIN;
+        // Accesibilidad: mismos topes y misma regla de subida y bajada.
+        for (nombre, v) in [("INTERVALO_CAPTURA_INICIAL_MS", l::INTERVALO_CAPTURA_INICIAL_MS), ("INTERVALO_CAPTURA_MIN_MS", l::INTERVALO_CAPTURA_MIN_MS), ("INTERVALO_CAPTURA_MAX_MS", l::INTERVALO_CAPTURA_MAX_MS)] {
+            assert!(k.contains(&format!("const val {nombre} = {v}L")), "{nombre}");
+        }
+        assert!(k.contains(&format!("const val BUENAS_PARA_BAJAR = {}", l::BUENAS_PARA_BAJAR)));
+        let f = k.find("fun intervaloSiguiente(").unwrap();
+        let cuerpo = &k[f..f + 520];
+        for c in ["demasiadoPronto -> Pair(minOf(INTERVALO_CAPTURA_MAX_MS, actual + 10L), 0)", "buenas + 1 >= BUENAS_PARA_BAJAR && actual > INTERVALO_CAPTURA_MIN_MS -> Pair(maxOf(INTERVALO_CAPTURA_MIN_MS, actual - 5L), 0)", "else -> Pair(actual, buenas + 1)"] {
+            assert!(cuerpo.contains(c), "{c}");
+        }
+        // El «demasiado pronto» del sistema se reintenta pronto (no a los 500 ms de antes) y sube el intervalo; la constante es la del SDK.
+        assert!(k.contains("codigo == AccessibilityService.ERROR_TAKE_SCREENSHOT_INTERVAL_TIME_SHORT"));
+        assert!(k.contains("siguiente(System.currentTimeMillis(), REINTENTO_DEMASIADO_PRONTO_MS)"));
+        // Proyección: hasta 30 cuadros/s y la calidad adaptativa de Rust.
+        let p = KOTLIN_PROYECCION;
+        for (nombre, v) in [("CODIFICAR_ALTO_MS", l::CODIFICAR_ALTO_MS), ("CODIFICAR_BAJO_MS", l::CODIFICAR_BAJO_MS)] {
+            assert!(p.contains(&format!("const val {nombre} = {v}L")), "{nombre}");
+        }
+        assert!(p.contains(&format!("const val CALIDAD_MIN = {}", l::CALIDAD_PROYECCION_MIN)));
+        let c = p.find("fun calidadAdaptada(").unwrap();
+        let cuerpo = &p[c..c + 330];
+        for t in ["mediaMs > CODIFICAR_ALTO_MS -> maxOf(minOf(CALIDAD_MIN, pedida), actual - 5)", "mediaMs < CODIFICAR_BAJO_MS -> minOf(pedida, actual + 5)", "else -> actual"] {
+            assert!(cuerpo.contains(t), "{t}");
+        }
+    }
+
+    #[test]
+    fn ctl1118f_el_cambio_de_fuente_no_corta_la_sesion_ni_el_gesto_ni_la_numeracion() {
+        let k = KOTLIN;
+        let p = KOTLIN_PROYECCION;
+        // Una sola numeración para las dos fuentes.
+        assert!(k.contains("fun numeroCuadro(): Int = contadorCuadros.incrementAndGet()"));
+        assert!(k.contains("val numero = ControlEntradaNativo.numeroCuadro()") && p.contains("val numero = ControlEntradaNativo.numeroCuadro()"));
+        assert!(!k.contains("numero = 0") && !p.contains("numero = 0"), "ninguna fuente reinicia la numeración");
+        // Primero arranca la proyección y SOLO si arrancó se para la captura, sin `parar()` (que corta el gesto en el aire).
+        let i = k.find("p.optString(\"fuente\") == \"proyeccion\" -> if (ProyeccionPantalla.concedida())").unwrap();
+        let tramo = &k[i..i + 700];
+        let (a, b) = (tramo.find("ProyeccionPantalla.iniciar(").unwrap(), tramo.find("srv?.pararCaptura()").unwrap());
+        assert!(a < b && tramo.contains("if (r.optBoolean(\"ok\", false)) srv?.pararCaptura()"));
+        assert!(!tramo[..b].contains("srv?.parar()"));
+        // La captura nunca se para desde fuera si la proyección no escribe: `fuente_activa` dice la verdad en las capacidades.
+        assert!(k.contains("\"fuente_activa\", ControlEntradaNativo.fuenteActiva()"));
+        // Si la proyección se corta con la sesión a la vista, la accesibilidad toma el relevo; una parada pedida (o apagar el interruptor) lo impide.
+        assert!(p.contains("if (hacia) principal.post { try { ControlEntradaNativo.volverAAccesibilidad() }"));
+        assert!(k.contains("\"pantalla-parar\" -> { pantallaPedida = false; srv?.parar(); ProyeccionPantalla.parar(); null }"));
+        let v = k.find("fun volverAAccesibilidad()").unwrap();
+        let cuerpo = &k[v..v + 700];
+        for c in ["!pantallaPedida", "ControlNeuronasNativo.encendido()", "ControlNeuronasNativo.mostrando", "!sinPreguntar()"] {
+            assert!(cuerpo.contains(c), "{c}");
+        }
+        // El consentimiento de la proyección sigue siendo de la persona: la actividad de Android es la única que lo recoge y nada la abre sin su «Sí».
+        assert!(p.contains("setPositiveButton(\"Sí, continuar\")") && p.contains("createScreenCaptureIntent()"));
+        // El diagnóstico de la pausa: la medida de la cancelación y el retraso del hilo principal salen en el estado.
+        let n = crate::control_neuronas_parche::KOTLIN;
+        assert!(n.contains("\"cancel_ms\"") && n.contains("\"cancel_lag_ms\""));
+        assert!(k.contains("principal.post { if (mio == idDespacho) lagPrincipalMs = System.currentTimeMillis() - ahora }"));
     }
 }

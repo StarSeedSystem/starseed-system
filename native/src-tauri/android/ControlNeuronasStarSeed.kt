@@ -376,6 +376,8 @@ object ControlNeuronasNativo : Application.ActivityLifecycleCallbacks {
             .put("ignorados", ControlEntradaNativo.ignorados)
             .put("cancel_propias", ControlEntradaNativo.cancelPropias) // CTL1117K: cancelaciones de gestos que causó nuestro código, no un dedo
             .put("cancel_ultima", ControlEntradaNativo.cancelUltima)
+            .put("cancel_ms", ControlEntradaNativo.cancelMs) // CTL1118F: ms y retraso del hilo principal de la última cancelación (la decisión de la pausa)
+            .put("cancel_lag_ms", ControlEntradaNativo.cancelLagMs)
             .put("alcance", alcance)
             .put("avisos", avisos) // CTL1117G
             .put("aviso_motivo", avisoMotivo)

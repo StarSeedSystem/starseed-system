@@ -61,6 +61,22 @@ export class RegistroSesiones {
 
     constructor(private readonly ahora: () => number = () => Date.now()) {}
 
+    /**
+     * CTL1118F: UN carril de órdenes por neurona para todos los que comparten esta sesión (ventana, banco…). Cada destino firmaba y mandaba por el
+     * suyo: dos carriles reservaban `seq` seguidos y los mandaban por caminos distintos (canal de datos y canal de control); el que llegaba antes
+     * dejaba `repetida` al otro. El carril es una cola de promesas: `cola` es el final de lo ya puesto en ella.
+     */
+    private carriles = new Map<string, { cola: Promise<unknown> }>();
+    carrilDe(para: string): { cola: Promise<unknown> } {
+        const k = para.toLowerCase();
+        let c = this.carriles.get(k);
+        if (!c) {
+            c = { cola: Promise.resolve() };
+            this.carriles.set(k, c);
+        }
+        return c;
+    }
+
     /** El token de la sesión viva de esa neurona, si lo hay (para pruebas y para la ventana). */
     tokenDe(para: string): string | null {
         return this.vivas.get(para.toLowerCase())?.token ?? null;

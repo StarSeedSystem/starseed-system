@@ -741,7 +741,7 @@ fn sondear_plataforma(app: &AppHandle) {
     // CTL1117F: la pausa local se anota AQUÍ (el vigía de Rust, sin la página) con su motivo y el tiempo REAL de la tableta.
     static PAUSAS_VISTAS: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(u32::MAX);
     if let Some(ek) = e.as_ref() {
-        let d = l::DatosPausa { pausada: ek.pausada, pausas: ek.pausas, motivo: ek.pausa_motivo.clone(), desde_gesto_ms: ek.pausa_desde_gesto_ms, reanuda: ek.reanuda_motivo.clone(), pausa_ms: ek.pausa_ms, ignorados: ek.ignorados };
+        let d = l::DatosPausa { pausada: ek.pausada, pausas: ek.pausas, motivo: ek.pausa_motivo.clone(), desde_gesto_ms: ek.pausa_desde_gesto_ms, reanuda: ek.reanuda_motivo.clone(), pausa_ms: ek.pausa_ms, ignorados: ek.ignorados, cancel_ms: ek.cancel_ms, cancel_lag_ms: ek.cancel_lag_ms };
         let antes_vistas = PAUSAS_VISTAS.swap(ek.pausas, Ordering::SeqCst);
         let vistas = if antes_vistas == u32::MAX { ek.pausas.saturating_sub(u32::from(cambio == Cambio::Pausada)) } else { antes_vistas }; // primer sondeo: lo anterior no es de esta sesión
         for linea in l::lineas_pausa(vistas, cambio == Cambio::Pausada, cambio == Cambio::Reanudada, &d) {

@@ -65,7 +65,7 @@ pub fn capacidades_json(k: Option<&Value>) -> Value {
     }
     let max = k.and_then(|k| k.get("max_dedos")).and_then(|x| x.as_u64()).unwrap_or(0).min(l::MAX_DEDOS as u64);
     json!({
-        "pantalla": { "accesibilidad": servicio && b("captura") && sin_preguntar, "proyeccion": b("proyeccion"), "sin_preguntar": sin_preguntar },
+        "pantalla": { "accesibilidad": servicio && b("captura") && sin_preguntar, "proyeccion": b("proyeccion"), "sin_preguntar": sin_preguntar, "fuente_activa": l::fuente_activa_de(k) }, // CTL1118F: la fuente que escribe cuadros ahora
         "entrada": {
             "gestos": servicio && max > 0,
             "max_dedos": if servicio { max } else { 0 },

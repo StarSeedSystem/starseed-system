@@ -248,7 +248,8 @@ describe("CTL1117J · S1 · una pausa local no para la pantalla", () => {
         expect(pintadosEnPausa).toBe(2);
         cuadros.push(cuadro(3), cuadro(4));
         await hasta(() => pintor.pintados.length === 4);
-        expect(n("control_pantalla_iniciar")).toHaveLength(1);
+        // CTL1118F: además del arranque con lo que haya, el aparato pide él solo la fluida UNA vez; la pausa no reabre nada.
+        expect(n("control_pantalla_iniciar").filter((l) => l.args?.fuente !== "proyeccion")).toHaveLength(1);
         expect(n("control_pantalla_parar")).toHaveLength(0);
         await origen.parar("fin");
     });

@@ -15,6 +15,7 @@ import { ajustar, deltaACuadro, puntoEnPantalla, tamanoGirado, type Caja } from 
 import { GestorToque } from "./gestor-toque";
 import { trocear } from "./texto";
 import { SelectorFuente } from "./selector-fuente";
+import { ayudaFluida, rotuloFuenteMedida } from "@/lib/control-remoto/fuente-pantalla";
 
 export type { EntradaControl, PropsVentanaControl, FuentePedida } from "./tipos";
 
@@ -393,6 +394,33 @@ function FilaEstado({ p }: { p: PropsVentanaControl }) {
     );
 }
 
+/**
+ * CTL1118F · lo que dice la ventana de la pantalla: la fuente REAL que contestó el aparato y los cuadros/s MEDIDOS (nada de promesas) y, si va por
+ * accesibilidad, una línea: la fluida se acepta EN el aparato. El botón solo PIDE; quien la acepta es la persona del aparato.
+ */
+function FilaFuente({ p }: { p: PropsVentanaControl }) {
+    const real = p.fuenteReal ?? null;
+    if (!real && p.fps === undefined) return null;
+    const ayuda = ayudaFluida(real);
+    return (
+        <div data-testid="ventana-control-fuente" className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 pb-1 text-[11px] text-white/60">
+            <span data-testid="ventana-control-fuente-real" className="tabular-nums text-white/85">
+                {rotuloFuenteMedida(real, p.fps)}
+            </span>
+            {ayuda && (
+                <span data-testid="ventana-control-fuente-ayuda" className="min-w-0 flex-1 basis-56">
+                    {ayuda}
+                </span>
+            )}
+            {real === "accesibilidad" && p.alPedirFluida && (
+                <button type="button" onClick={p.alPedirFluida} className="min-h-[32px] cursor-pointer rounded-full border border-white/15 px-3 text-[11px] text-white/85 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300/80">
+                    Pedir la pantalla fluida
+                </button>
+            )}
+        </div>
+    );
+}
+
 function Controles({ p }: { p: PropsVentanaControl }) {
     const c = p.capacidades;
     const [texto, setTexto] = useState("");
@@ -639,6 +667,7 @@ export function VentanaControl(props: PropsVentanaControl) {
                     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
                         <Pantalla p={props} activo={activo} gestor={g} />
                         <FilaEstado p={props} />
+                        <FilaFuente p={props} />
                     </div>
                     {nivel === "controlar" && (
                         <div className="max-h-[45%] shrink-0 overflow-y-auto border-t border-white/10 md:max-h-none md:w-80 md:border-l md:border-t-0">
@@ -715,6 +744,7 @@ export function VentanaControl(props: PropsVentanaControl) {
                 <Pantalla p={props} activo={activo} gestor={g} />
             </div>
             <FilaEstado p={props} />
+            <FilaFuente p={props} />
             {nivel === "controlar" && mandosAbiertos && (
                 <div className="min-h-0 shrink overflow-y-auto border-t border-white/10">
                     <Controles p={props} />

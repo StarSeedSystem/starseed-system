@@ -106,8 +106,13 @@ function unidad(x: unknown): x is number {
 const redondear = (x: number): number => Math.round(x * 10_000) / 10_000;
 
 function validarPantallaIniciar(a: Args): Args | null {
-    if (!soloClaves(a, ["lado", "calidad", "fuente"])) return null;
+    if (!soloClaves(a, ["lado", "calidad", "fuente", "mantener"])) return null;
     const r: Args = {};
+    // CTL1118F: `mantener` = «no reabras la pantalla ni la conexión; solo atiende lo de la fuente» (la persona pide la fluida con la sesión en marcha).
+    if (a.mantener !== undefined) {
+        if (a.mantener !== true) return null;
+        r.mantener = true;
+    }
     if (a.fuente !== undefined) {
         // RST1116A: la persona pide «proyeccion» (pantalla fluida) o deja «auto»; cualquier otra cosa rechaza la orden.
         if (a.fuente !== "auto" && a.fuente !== "proyeccion") return null;

@@ -8,7 +8,7 @@ package app.starseed.nativa
 //     sesiones; al parar (orden, Terminar, apagar el interruptor, bloquear la pantalla, «Dejar de compartir» o el chip de
 //     Android) se suelta la proyección y la próxima vez Android vuelve a preguntar.
 //   · Los cuadros salen en el MISMO formato que los de accesibilidad (`cuadro.bin`: 12 bytes + JPEG, escritura atómica),
-//     ya derechos, a 15 por segundo como mucho y sin cola (el archivo solo guarda el más nuevo). Nunca se guardan más.
+//     ya derechos, a 30 por segundo como mucho (CTL1118F; antes 15) y sin cola (el archivo solo guarda el más nuevo). Nunca se guardan más.
 
 import android.app.Activity
 import android.app.AlertDialog
@@ -59,6 +59,9 @@ object ProyeccionPantalla {
     }
 
     fun concedida(): Boolean = servicio != null && consentidaPara != null && consentidaPara == ControlNeuronasNativo.sesion
+
+    /** CTL1118F: ¿está escribiendo cuadros ahora? (la fuente REAL que dice `capacidades.fuente_activa`). */
+    fun capturandoAhora(): Boolean = servicio?.capturandoAhora() == true
 
     private fun no(motivo: String, falta: String? = null): JSONObject {
         val o = JSONObject().put("ok", false).put("motivo", motivo)
@@ -147,7 +150,16 @@ class ServicioProyeccionPantalla : Service() {
         const val ID = 47163
         const val CANAL = "starseed_proyeccion"
         const val PARAR = "app.starseed.nativa.PROYECCION_PARAR"
-        const val ENTRE_CUADROS_MS = 67L // ≤ 15 cuadros por segundo
+        const val ENTRE_CUADROS_MS = 33L // CTL1118F: ≤ 30 cuadros por segundo (antes 67 ms = 15)
+        /** CTL1118F: calidad adaptativa: si codificar tarda de media más de ALTO_MS, baja de 5 en 5 hasta MIN; si tarda menos de BAJO_MS, sube hasta la pedida. La MISMA regla que `calidad_adaptada` de control_entrada_logica.rs. */
+        const val CODIFICAR_ALTO_MS = 40L
+        const val CODIFICAR_BAJO_MS = 20L
+        const val CALIDAD_MIN = 40
+        fun calidadAdaptada(actual: Int, pedida: Int, mediaMs: Long): Int = when {
+            mediaMs > CODIFICAR_ALTO_MS -> maxOf(minOf(CALIDAD_MIN, pedida), actual - 5)
+            mediaMs < CODIFICAR_BAJO_MS -> minOf(pedida, actual + 5)
+            else -> actual
+        }
         const val SIN_USAR_MS = 60_000L  // con el «Sí» dado pero sin pedir la pantalla, se suelta
     }
 
@@ -161,9 +173,13 @@ class ServicioProyeccionPantalla : Service() {
     @Volatile private var deteniendo = false
     private var lado = 1280
     private var calidad = 60
-    private var numero = 0
     private var ultimo = 0L
     private var reintento = false
+    private var calidadPedida = 60
+    private var mediaCodificarMs = 0L
+    private var cuadrosMedidos = 0
+    private var reuso: Bitmap? = null
+    private val bufer = ByteArrayOutputStream(96 * 1024)
     private var ancho = 0
     private var alto = 0
     private var dpi = 320
@@ -171,6 +187,8 @@ class ServicioProyeccionPantalla : Service() {
     private val apagada = object : BroadcastReceiver() { override fun onReceive(c: Context?, i: Intent?) { detener() } }
 
     override fun onBind(i: Intent?): IBinder? = null
+
+    fun capturandoAhora(): Boolean = capturando && !deteniendo
 
     override fun onStartCommand(i: Intent?, flags: Int, id: Int): Int {
         if (i == null || i.action == PARAR) { detener(); return START_NOT_STICKY }
@@ -222,11 +240,13 @@ class ServicioProyeccionPantalla : Service() {
         val p = proy ?: return JSONObject().put("ok", false).put("motivo", "sin-consentimiento").put("falta", JSONArray().put("consentimiento-proyeccion"))
         lado = ladoMax
         calidad = calidadJpeg.coerceIn(20, 95)
+        calidadPedida = calidad
+        mediaCodificarMs = 0L
+        cuadrosMedidos = 0
         val m = ControlEntradaNativo.medidas()
         if (!capturando) {
             try {
                 File(ControlEntradaNativo.carpeta(), ControlEntradaNativo.CUADRO).delete()
-                numero = 0
                 hilo = HandlerThread("starseed-proyeccion").also { it.start() }
                 trabajo = Handler(hilo!!.looper)
                 dpi = resources.displayMetrics.densityDpi
@@ -265,14 +285,24 @@ class ServicioProyeccionPantalla : Service() {
             ultimo = System.currentTimeMillis()
             val pl = img.planes[0]
             val fila = pl.rowStride / pl.pixelStride
-            val bmp = Bitmap.createBitmap(fila, img.height, Bitmap.Config.ARGB_8888)
+            // CTL1118F: el Bitmap y el búfer del JPEG se reutilizan (antes: ~3,5 MB nuevos por cuadro) mientras no cambie el tamaño.
+            var bmp = reuso
+            if (bmp == null || bmp.isRecycled || bmp.width != fila || bmp.height != img.height) {
+                bmp?.recycle()
+                bmp = Bitmap.createBitmap(fila, img.height, Bitmap.Config.ARGB_8888)
+                reuso = bmp
+            }
             bmp.copyPixelsFromBuffer(pl.buffer)
             val recto = if (fila == img.width) bmp else Bitmap.createBitmap(bmp, 0, 0, img.width, img.height)
-            val sal = ByteArrayOutputStream(64 * 1024)
-            recto.compress(Bitmap.CompressFormat.JPEG, calidad, sal)
-            publicar(img.width, img.height, sal.toByteArray())
+            bufer.reset()
+            recto.compress(Bitmap.CompressFormat.JPEG, calidad, bufer)
             if (recto !== bmp) recto.recycle()
-            bmp.recycle()
+            publicar(img.width, img.height, bufer.toByteArray())
+            // CTL1118F: lo que costó este cuadro (copiar + JPEG + escribir) manda la calidad de los siguientes.
+            val ms = System.currentTimeMillis() - ultimo
+            mediaCodificarMs = if (cuadrosMedidos == 0) ms else (mediaCodificarMs * 7 + ms) / 8
+            cuadrosMedidos++
+            if (cuadrosMedidos % 10 == 0) calidad = calidadAdaptada(calidad, calidadPedida, mediaCodificarMs)
         } catch (_: Throwable) { /* un cuadro perdido; sigue el siguiente */ } finally { img.close() }
     }
 
@@ -291,7 +321,7 @@ class ServicioProyeccionPantalla : Service() {
 
     /** `cuadro.bin` = 12 bytes (u32 nº, u16 ancho, u16 alto, u16 giro, u16 cero; little endian) + el JPEG. Un archivo, reemplazo atómico. */
     private fun publicar(w: Int, h: Int, jpeg: ByteArray) {
-        numero++
+        val numero = ControlEntradaNativo.numeroCuadro() // CTL1118F: numeración única de la sesión (también la de accesibilidad)
         val giro = ControlEntradaNativo.medidas()[2]
         val c = ByteArray(12)
         for (i in 0 until 4) c[i] = ((numero ushr (8 * i)) and 0xFF).toByte()
@@ -320,11 +350,15 @@ class ServicioProyeccionPantalla : Service() {
         try { lector?.close() } catch (_: Throwable) {}
         try { proy?.stop() } catch (_: Throwable) {}
         pantalla = null; lector = null; proy = null
+        try { reuso?.recycle() } catch (_: Throwable) {}
+        reuso = null
         hilo?.quitSafely()
         hilo = null; trabajo = null
         if (hacia) File(ControlEntradaNativo.carpeta(), ControlEntradaNativo.CUADRO).delete()
         ProyeccionPantalla.consentidaPara = null
         if (ProyeccionPantalla.servicio === this) ProyeccionPantalla.servicio = null
+        // CTL1118F: si la proyección se cortó con la sesión aún a la vista y la pantalla pedida, la accesibilidad toma el relevo (no se cierra nada ni se vuelve a preguntar).
+        if (hacia) principal.post { try { ControlEntradaNativo.volverAAccesibilidad() } catch (_: Throwable) {} }
         try { if (Build.VERSION.SDK_INT >= 24) stopForeground(Service.STOP_FOREGROUND_REMOVE) else @Suppress("DEPRECATION") stopForeground(true) } catch (_: Throwable) {}
         stopSelf()
     }

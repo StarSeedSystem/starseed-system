@@ -19,6 +19,8 @@ import type { RespuestaOrden } from "./orden";
 import { Reensamblador, leerParte, trocear, type ParteSenal } from "./senal-partes";
 import { RelojEstable } from "@/lib/llamadas/reloj-estable";
 import { VigiaFondo, esperarCon, type MedidasFondo } from "./vigia-fondo";
+import { CUADROS_POR_MEDIDA, RITMO_INICIAL, capacidadFps, mediaCoste, siguienteRitmo, type EstadoRitmo } from "./ritmo-pantalla";
+import { ESPERA_FLUIDA_MS, SONDEO_FLUIDA_MS, debePedirFluida, fuenteActivaDe, proyeccionConcedida, type FuenteReal } from "./fuente-pantalla";
 
 export const LADO_MAX_DEFECTO = 1280;
 export const CALIDAD_DEFECTO = 60;
@@ -131,7 +133,18 @@ interface Activa {
     pintor: Pintor;
     peer: PeerLike | null;
     canal: CanalLike | null;
-    fuente: string;
+    fuente: FuenteReal;
+    /** CTL1118F: lo que dijo `control_pantalla_iniciar` (para contestar a un «mantener» sin reabrir nada). */
+    ancho: number;
+    alto: number;
+    giro: number;
+    /** CTL1118F: último número de cuadro visto (se pone a 0 al cambiar de fuente) y si ya hay una búsqueda de la fuente fluida en marcha. */
+    desde: number;
+    buscandoFluida: boolean;
+    /** CTL1118F: el ritmo de la fluida: coste medio de un cuadro (ms), cuántos van en esta medida y el nivel de tamaño/calidad vigente. */
+    coste: number | null;
+    enMedida: number;
+    ritmo: EstadoRitmo;
     cuadros: number;
     /** CTL1117C: cuadros nuevos que Rust dio a la página (los pintados son `cuadros`). */
     recibidos: number;
@@ -149,6 +162,8 @@ const FUENTE_DEFECTO = "auto";
 
 export class OrigenPantalla {
     private activa: Activa | null = null;
+    /** CTL1118F: cuántas veces se pidió la pantalla fluida en cada sesión de control (por su token): sola, UNA; después, solo si la persona lo pide. */
+    private readonly fluidaPedidas = new Map<string, number>();
 
     constructor(private readonly d: DepsOrigen) {}
 
@@ -170,7 +185,7 @@ export class OrigenPantalla {
         if (!viva || viva.token !== s.token) throw new Error("sesion");
         switch (nombre) {
             case "pantalla-iniciar":
-                return this.iniciar(viva, args);
+                return args.mantener === true ? this.mantener(viva, args) : this.iniciar(viva, args);
             case "pantalla-parar":
                 await this.parar("ordenado");
                 return { parada: true };
@@ -195,8 +210,9 @@ export class OrigenPantalla {
         const inv = this.d.invocar;
         if (!inv) throw new Error("sin-soporte");
         await this.parar("reinicio");
-        // PENC3: la fuente la elige el aparato controlado («auto»: proyección si la persona la concedió en esta sesión, si no
-        // accesibilidad); quien manda no puede pedir otra. Más abajo se recoge la REAL que contesta el aparato.
+        // CTL1118F: SIEMPRE se arranca con lo que el aparato tenga («auto»: la fluida si la persona ya la dio en esta sesión, si no accesibilidad)
+        // para que haya imagen YA; si va por accesibilidad, más abajo el aparato pide él solo la fluida (diálogo nativo, solo con su «Sí»).
+        // Lo que pida quien manda (`fuente: "proyeccion"`) no cambia el arranque: se atiende como una petición de la persona, después.
         const r = await inv("control_pantalla_iniciar", {
             sesion: s.token,
             lado_max: typeof args.lado === "number" ? args.lado : LADO_MAX_DEFECTO,
@@ -209,7 +225,10 @@ export class OrigenPantalla {
             const falta = esObjeto(r) && Array.isArray(r.falta) ? r.falta.filter((x): x is string => typeof x === "string" && RE_MOTIVO.test(x)).slice(0, 8) : [];
             return { ok: false, motivo, falta };
         }
-        const fuente = r.fuente === "proyeccion" ? "proyeccion" : "accesibilidad";
+        const fuente: FuenteReal = r.fuente === "proyeccion" ? "proyeccion" : "accesibilidad";
+        const ancho = Number(r.ancho) || 0;
+        const alto = Number(r.alto) || 0;
+        const giro = [0, 90, 180, 270].includes(Number(r.giro)) ? Number(r.giro) : 0;
         const a: Activa = {
             token: s.token,
             de: s.de,
@@ -220,6 +239,14 @@ export class OrigenPantalla {
             peer: null,
             canal: null,
             fuente,
+            ancho,
+            alto,
+            giro,
+            desde: 0,
+            buscandoFluida: false,
+            coste: null,
+            enMedida: 0,
+            ritmo: RITMO_INICIAL,
             cuadros: 0,
             recibidos: 0,
             cola: Promise.resolve(),
@@ -239,22 +266,121 @@ export class OrigenPantalla {
             /* el diagnóstico nunca impide la pantalla */
         }
         void this.bucle(a);
+        this.d.anotar(`control-fuente paso=inicio fuente=${fuente} pedida=${args.fuente === "proyeccion" ? "proyeccion" : "auto"}`);
+        // CTL1118F: la pantalla ya sale; lo fluido se pide sin esperar y sin cerrar nada.
+        if (debePedirFluida(fuente, this.fluidaPedidas.get(a.token) ?? 0, args.fuente === "proyeccion")) void this.buscarFluida(a, args.fuente === "proyeccion");
         const capacidades = await inv("control_capacidades").catch(() => null);
         return {
             ok: true,
             fuente,
-            ancho: Number(r.ancho) || 0,
-            alto: Number(r.alto) || 0,
-            giro: [0, 90, 180, 270].includes(Number(r.giro)) ? Number(r.giro) : 0,
+            ancho,
+            alto,
+            giro,
             capacidades: esObjeto(capacidades) ? capacidades : null,
         };
+    }
+
+    /** CTL1118F: `pantalla-iniciar` con `mantener`: no reabre nada (ni conexión ni canal); si la persona pide la fluida, la busca; contesta lo que hay ahora. */
+    private async mantener(s: SesionViva, args: Args): Promise<unknown> {
+        const a = this.activa;
+        if (!a || a.parado || a.token !== s.token || a.de !== s.de) {
+            const { mantener: _m, ...resto } = args;
+            return this.iniciar(s, resto);
+        }
+        const manual = args.fuente === "proyeccion";
+        this.d.anotar(`control-fuente paso=mantener fuente=${a.fuente} manual=${manual ? "si" : "no"}`);
+        if (manual && debePedirFluida(a.fuente, this.fluidaPedidas.get(a.token) ?? 0, true)) void this.buscarFluida(a, true);
+        return { ok: true, mantenida: true, fuente: a.fuente, ancho: a.ancho, alto: a.alto, giro: a.giro };
+    }
+
+    private async llamarFluida(a: Activa): Promise<{ ok: boolean; r: Record<string, unknown> | null }> {
+        const inv = this.d.invocar;
+        const r = inv
+            ? await inv("control_pantalla_iniciar", { sesion: a.token, lado_max: LADO_MAX_DEFECTO, calidad: CALIDAD_DEFECTO, fuente: "proyeccion" }).catch(() => null)
+            : null;
+        return { ok: esObjeto(r) && r.ok === true && r.fuente === "proyeccion", r: esObjeto(r) ? r : null };
+    }
+
+    /**
+     * CTL1118F · la fuente fluida por defecto. Pide a lo nativo `fuente: "proyeccion"`: si la persona ya dio el «Sí» en esta sesión, cambia al
+     * instante; si no, lo nativo abre SU diálogo en el aparato (y, con su «Sí», la pantalla de Android) y aquí se espera, mirando solo si
+     * ya lo dio. Nada se contesta por la persona. Si no lo acepta (o no hay nadie), la accesibilidad sigue y no se insiste. La sesión, la conexión
+     * y la ventana no se tocan: cambia quién escribe los cuadros.
+     */
+    private async buscarFluida(a: Activa, manual: boolean): Promise<void> {
+        if (a.parado || a.buscandoFluida || !this.d.invocar) return;
+        const pedidas = this.fluidaPedidas.get(a.token) ?? 0;
+        if (!debePedirFluida(a.fuente, pedidas, manual)) return;
+        a.buscandoFluida = true;
+        this.fluidaPedidas.set(a.token, pedidas + 1);
+        if (this.fluidaPedidas.size > 32) this.fluidaPedidas.delete(this.fluidaPedidas.keys().next().value as string);
+        const t0 = this.d.ahora();
+        this.d.anotar(`control-fuente paso=fluida-pedida manual=${manual ? "si" : "no"} desde=${a.fuente} veces=${pedidas + 1}`);
+        try {
+            let { ok, r } = await this.llamarFluida(a);
+            if (!ok && r?.ok === false && r.motivo !== "sin-consentimiento") {
+                this.d.anotar(`control-fuente paso=fluida-pedida resultado=rechazo motivo=${typeof r.motivo === "string" && RE_MOTIVO.test(r.motivo) ? r.motivo : "fallo"} sigue=${a.fuente}`);
+                return;
+            }
+            const limite = t0 + ESPERA_FLUIDA_MS;
+            while (!ok && !a.parado && this.vive(a) && this.d.ahora() < limite) {
+                await this.d.esperar(SONDEO_FLUIDA_MS);
+                if (a.parado || !this.vive(a)) return;
+                const cap = await this.d.invocar("control_capacidades").catch(() => null);
+                if (fuenteActivaDe(cap) === "proyeccion") {
+                    ok = true; // ya escribe la proyección (otro camino la arrancó): solo falta anotarlo
+                    r = { ok: true, fuente: "proyeccion", ancho: a.ancho, alto: a.alto, giro: a.giro };
+                } else if (proyeccionConcedida(cap)) {
+                    ({ ok, r } = await this.llamarFluida(a));
+                    if (!ok) {
+                        this.d.anotar(`control-fuente paso=fluida resultado=fallo-al-arrancar sigue=${a.fuente}`);
+                        return;
+                    }
+                }
+            }
+            if (!ok || !r || a.parado) {
+                this.d.anotar(`control-fuente paso=fluida resultado=sin-respuesta-de-la-persona esperado-ms=${Math.max(0, Math.round(this.d.ahora() - t0))} sigue=${a.fuente}`);
+                return;
+            }
+            this.cambiarFuente(a, "proyeccion", r, `pedida`, this.d.ahora() - t0);
+        } finally {
+            a.buscandoFluida = false;
+        }
+    }
+
+    private medirRitmo(a: Activa, ms: number): void {
+        a.coste = mediaCoste(a.coste, ms);
+        a.enMedida += 1;
+        if (a.enMedida < CUADROS_POR_MEDIDA) return;
+        a.enMedida = 0;
+        const { estado, cambio } = siguienteRitmo(a.ritmo, a.coste);
+        a.ritmo = estado;
+        if (!cambio) return;
+        this.d.anotar(`control-fuente paso=ritmo nivel=${estado.nivel} lado=${cambio.lado} calidad=${cambio.calidad} coste-ms=${Math.round(a.coste)} caben-fps=${capacidadFps(a.coste)}`);
+        // Se vuelve a pedir lo mismo con otro tamaño/calidad: lo nativo ya tiene el «Sí», no pregunta nada y el cambio es en caliente.
+        void this.d.invocar?.("control_pantalla_iniciar", { sesion: a.token, lado_max: cambio.lado, calidad: cambio.calidad, fuente: "proyeccion" }).catch(() => undefined);
+    }
+
+    /** CTL1118F: la fuente cambió sin cerrar nada: los cuadros nuevos siguen por el mismo bucle y la misma pista. */
+    private cambiarFuente(a: Activa, nueva: FuenteReal, r: Record<string, unknown> | null, causa: string, ms: number): void {
+        if (a.fuente === nueva) return;
+        const antes = a.fuente;
+        a.fuente = nueva;
+        a.desde = 0;
+        a.coste = null;
+        a.enMedida = 0;
+        a.ritmo = RITMO_INICIAL;
+        if (r) {
+            if (Number(r.ancho) > 0) a.ancho = Number(r.ancho);
+            if (Number(r.alto) > 0) a.alto = Number(r.alto);
+        }
+        this.d.anotar(`control-fuente paso=cambio de=${antes} a=${nueva} causa=${causa} ms=${Math.max(0, Math.round(ms))} cuadros-hasta-ahora=${a.cuadros}`);
     }
 
     /** Pide el siguiente cuadro solo cuando el anterior ya se pintó: nunca hay cola de cuadros. */
     private async bucle(a: Activa): Promise<void> {
         const inv = this.d.invocar;
         if (!inv) return;
-        let desde = 0;
         let vacios = 0;
         let fallos = 0;
         while (!a.parado) {
@@ -267,8 +393,9 @@ export class OrigenPantalla {
                 return;
             }
             let bytes: Uint8Array | null = null;
+            const tPide = this.d.ahora();
             try {
-                bytes = abytes(await inv("control_pantalla_cuadro", { sesion: a.token, desde }));
+                bytes = abytes(await inv("control_pantalla_cuadro", { sesion: a.token, desde: a.desde }));
             } catch {
                 fallos += 1;
                 if (fallos >= 3) {
@@ -294,10 +421,12 @@ export class OrigenPantalla {
             }
             fallos = 0;
             vacios = 0;
-            desde = h.numero;
+            a.desde = h.numero;
             a.recibidos += 1;
             const ok = await a.pintor.pintar(bytes.subarray(CABECERA_CUADRO), h.ancho, h.alto).catch(() => false);
             if (ok) a.cuadros += 1;
+            // CTL1118F: lo que cuesta un cuadro (traerlo + pintarlo) manda el tamaño y la calidad de los siguientes, solo con la fluida.
+            if (ok && a.fuente === "proyeccion") this.medirRitmo(a, this.d.ahora() - tPide);
         }
     }
 
@@ -440,7 +569,11 @@ export class OrigenPantalla {
         if (!esObjeto(e)) throw new Error("sin-soporte");
         if (e.ok === false) throw new Error(typeof e.motivo === "string" && RE_MOTIVO.test(e.motivo) ? e.motivo : "sin-soporte");
         const c = await inv("control_capacidades").catch(() => null);
-        return { aparato: e, capacidades: esObjeto(c) ? c : null };
+        // CTL1118F: la fuente REAL ahora (la que dice el aparato; si la fluida se cortó, vuelve a accesibilidad y aquí se entera). Nunca la pedida.
+        const a = this.activa;
+        const real = fuenteActivaDe(c);
+        if (a && !a.parado && real && real !== a.fuente) this.cambiarFuente(a, real, null, real === "accesibilidad" ? "la-fluida-se-corto" : "detectado", this.d.ahora() - a.inicio);
+        return { aparato: e, capacidades: esObjeto(c) ? c : null, ...(a && !a.parado ? { fuente: a.fuente } : {}) };
     }
 
     /** Entrega la orden de entrada, con su sobre tal como llegó, a lo nativo. Esta página no la ejecuta. */
