@@ -1,0 +1,22 @@
+{
+ "ola": "nube-20261117",
+ "tareas": [
+  {
+   "id": "MAG05",
+   "ola": "MAG1117",
+   "titulo": "Maggabit: lista única de exclusiones y respaldo de desarrollo",
+   "archivos": [
+    "config/respaldo-exclusiones.txt",
+    "scripts/puente/maggabit_desarrollo.py",
+    "scripts/puente/test_maggabit_desarrollo.py"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md y architecture/maggabit-almacenamiento-vivo.md (si aún no existe: starseed_memory_root/olas/contrato-maggabit-1117.md). Reglas de esta ola: módulo de Python en scripts/puente, sin dependencias nuevas; la decisión es una función PURA y la E/S es una capa fina con todo inyectable (reloj, subprocess, lectura de disco); pruebas con unittest en scripts/puente/test_<módulo>.py, herméticas: NUNCA tocan /Volumes, la red, ~/.starseed ni el disco real. Todo subprocess lleva timeout (el volumen exFAT puede no responder: se devuelve «sin-respuesta», nunca se cuelga). Con el disco ausente nada falla ni espera (principio 0 del contrato). Nunca se borra en el origen. Nunca se imprimen ni se registran tokens, claves ni URLs con credenciales. Textos en español neutro, sin la palabra «Mando». config/respaldo-exclusiones.txt: tres secciones con cabecera de comentario: REGENERABLE (node_modules/, .next/, .turbo/, .gitnexus/, venv/, .venv/, __pycache__/, .gradle/, src-tauri/target/, .DS_Store), ARBOLES (/starseed-wt/, /starseed-opus/OPUS*/, /wt-*/) y CLAVES (.env, .env.*, con la excepción !.env.example, *.pem, *.p12, *.jks, *.keystore, .credentials.json, credentials.json, storage_state*). maggabit_desarrollo.py: leer_exclusiones(texto) -> dict por sección (PURA); orden_rsync(origen, destino, exclusiones, limite_kbps=None, simulacro=False) -> list[str] con `rsync -a --delete --exclude-from`; resumen(salida, rc) -> dict; el error «mkstempsock» de un socket no cuenta como fallo. Prueba guardiana: todo patrón de la sección CLAVES sale en la orden de la copia sin cifrar, y `.credentials.json` no puede aparecer en ninguna lista de copia (ni a la bóveda)."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1117-123226.json": [
+   "MAG05"
+  ]
+ }
+}
