@@ -55,8 +55,9 @@ describe("traductor-1116 · Traductor Universal", () => {
 
     it("la ruta declarada existe como texto (sin leer sistema de archivos)", () => {
         const payload = PAQUETE_TRADUCTOR.payload as Record<string, unknown>;
-        expect(typeof payload.route).toBe("string");
-        expect(payload.route).toBe("/traductor");
-        expect(payload.route.startsWith("/")).toBe(true);
+        const route = payload.route as string;
+        expect(typeof route).toBe("string");
+        expect(route).toBe("/traductor");
+        expect(route.startsWith("/")).toBe(true);
     });
 });

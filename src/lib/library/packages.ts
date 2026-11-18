@@ -521,14 +521,7 @@ const CORE_ROUTE_PACKAGES: LibraryPackage[] = [
     author: "StarSeed Core", sourceRepoId: "starseed-core", free: true,
     payload: { route: "/fundamento" },
   },
-  {
-    // TRA1116-APP-F1: Traductor Universal — app con ruta /traductor.
-    id: "app-traductor", kind: "app", name: "Traductor",
-    description: "Traduce texto, mantén conversaciones y descarga paquetes de idioma para usar sin internet.",
-    icon: "Languages", tags: ["app", "traducción", "idiomas"], version: "1.0.0",
-    author: "StarSeed Core", sourceRepoId: "starseed-core", free: true, featured: true,
-    payload: { route: "/traductor", herramienta: "traductor-universal", sinInternet: "con descarga de idiomas" },
-  },
+  PAQUETE_TRADUCTOR,
   {
     id: "widget-panel-dashboard", kind: "widget", name: "Panel de Widgets",
     description: "El dashboard con widgets arrastrables del OS: clima, actividad, cripto-escudo, identidad y más.",
