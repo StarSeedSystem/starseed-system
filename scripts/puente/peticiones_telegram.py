@@ -73,8 +73,6 @@ bloqueo = threading.Lock()
 hay_trabajo = threading.Event()
 _puente_instancia = None
 
-MODELOS = ["gemini-flash", "qwen3.8-max", "gemini-3.5-flash", "glm-5.3-flash", "qwen3.6-plus"]
-
 
 def leer_env(ruta: str = os.path.join(CASA, ".starseed", "env")) -> dict[str, str]:
     datos = {}
@@ -373,23 +371,6 @@ def subir(ruta: str, nombre: str) -> str:
         except Exception as e:
             log("subir directo a espejo falló:", e)
     return "espejo-sin-puente"
-
-
-def llm(mensajes: list[dict[str, str]], max_tokens: int = 1500) -> tuple[str, str]:
-    clave = ENV.get("FREELLMAPI_KEY", "")
-    for modelo in MODELOS:
-        cuerpo = json.dumps({"model": modelo, "messages": mensajes, "max_tokens": max_tokens, "temperature": 0.2}).encode()
-        req = urllib.request.Request(ENV.get("STARSEED_LLM_URL", "http://127.0.0.1:3001/v1/chat/completions"), cuerpo,
-                                     {"Authorization": "Bearer " + clave, "Content-Type": "application/json"})
-        d = _respuesta_http(lambda: urllib.request.urlopen(req, timeout=150))
-        usado = str(d.get("model") or modelo)
-        texto = ((d.get("choices") or [{}])[0].get("message") or {}).get("content") or ""
-        if "claude" in usado.lower():
-            continue
-        if texto.strip():
-            return texto.strip(), usado
-        log("llm sin respuesta de", modelo, (d.get("error") or {}).get("message", "") if isinstance(d.get("error"), dict) else "")
-    return "", ""
 
 
 INSTRUCCION = (
