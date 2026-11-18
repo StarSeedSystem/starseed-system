@@ -60,7 +60,10 @@
     },
     "linux": {
       "deb": {
-        "depends": []
+        "depends": [
+          "gstreamer1.0-nice",
+          "gstreamer1.0-plugins-bad"
+        ]
       }
     }
   },
