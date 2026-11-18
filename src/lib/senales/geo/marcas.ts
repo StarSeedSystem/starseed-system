@@ -87,6 +87,8 @@ export interface MarcaGeo {
   aparato: { so?: string; soV?: string; equipo?: string; arq?: string; medio?: string } | null;
   versionWeb?: string;
   versionNativa?: string;
+  /** (AQ07) Oferta de recursos que esta neurona anuncia en la presencia: cómputo, almacenamiento, internet. */
+  oferta?: { computo: boolean; almacenamiento: boolean; internet: boolean } | null;
   /** (AUD1117) Señales publicadas de la red vinculadas a ESTA neurona (por `vinculo` de tipo «neurona»),
    * para las capas `red-*` (`capas.ts`); sin filas ligadas, no está el campo. */
   publicadas?: readonly SenalEspectro[];
@@ -243,6 +245,9 @@ export function construirMarcas(e: EntradaMarcas): MarcaGeo[] {
     const capasLista = esYo ? capasDeLista(e.yo.capas) : capasDeLista(ultimo?.c);
     const d = ultimo?.d;
     const ficha = esYo ? e.yo.ficha : fila?.ficha;
+    // (AQ07) Oferta de recursos anunciada en la presencia (ultimo medio de la neurona).
+    const of = ultimo?.of;
+    const oferta = of ? { computo: !!of.c, almacenamiento: !!of.a, internet: !!of.i } : null;
     // (AUD1117) Las señales publicadas solo se cuelgan de la neurona a la que su vínculo señala.
     const publicadas = (e.publicadas ?? []).filter((s) => s.vinculo?.tipo === "neurona" && s.vinculo.id === neuronaId);
 
@@ -267,6 +272,7 @@ export function construirMarcas(e: EntradaMarcas): MarcaGeo[] {
       aparato: d ? { so: d.so, soV: d.soV, equipo: d.equipo, arq: d.arq, medio: d.medio } : ultimo ? { medio: ultimo.tipo } : null,
       versionWeb: ultimo?.v?.interfaz,
       versionNativa: ultimo?.v?.nativa,
+      ...(oferta ? { oferta } : {}),
       ...(publicadas.length ? { publicadas } : {}),
     });
   };
